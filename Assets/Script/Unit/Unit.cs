@@ -49,6 +49,8 @@ public abstract class Unit : ScriptableObject
 
     public Vector2Int position;
 
+    
+    #region 기능함수들
     public Vector2Int GetDirVector(Dir dir)
     {
         switch (dir)
@@ -65,8 +67,8 @@ public abstract class Unit : ScriptableObject
         }
     }
 
-    public bool CanMove(Vector2Int pos)
-    {
+    public bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
+	{
         int cx = pos.x / 8;
         int tx = pos.x % 8;
         int cy = pos.y / 8;
@@ -85,7 +87,7 @@ public abstract class Unit : ScriptableObject
         return true;
     }
 
-    public void Move(Dir dir)
+    public void Move(Dir dir)//움직이는 함수
     {
         Vector2Int v = GetDirVector(dir);
         Vector2Int nextPos = position + v;
@@ -96,17 +98,17 @@ public abstract class Unit : ScriptableObject
         }
     }
 
-    public abstract void JudgeState();
+    public abstract void JudgeState();//미구현.판단 함수
 
-    public virtual void ExecuteAction()
-    {
+    public virtual void ExecuteAction()//행동 즉시 실행. 여기에 if 늘리면 enum 값에 따라 행동 늘어남
+	{
         if (currentState == UnitState.TEST_RANDOM_MOVE_6)
         {
 			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
         }
     }
-
-	#region 상태를 나타내는 함수들
+    #endregion
+	#region 상태를 나타내는 함수들/////중요!! 여기에 함수들만 추가하고 enum에 넣으면 상태 늘어남
 	protected void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
 	{
 		Dir randomDir = (Dir)Random.Range(0, 8);
@@ -131,6 +133,3 @@ public class Monster : Unit
     }
 }
 
-#region
-
-#endregion

@@ -20,8 +20,8 @@ public class UnitGenerate : MonoBehaviour
         monsterSprite = CreateTriangleSprite(Color.red); 
     }
 
-    public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit
-    {
+    public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit//유닛 생성 로직
+	{
         Vector2Int pos = GetRandomFloorPos();
 
         T unit = ScriptableObject.CreateInstance<T>();
@@ -44,8 +44,8 @@ public class UnitGenerate : MonoBehaviour
 
         return unit;
     }
-
-    public void SyncVisuals(List<Unit> units)
+	#region 기능성
+	public void SyncVisuals(List<Unit> units)//비주얼화
     {
         foreach (var u in units)
         {
@@ -56,8 +56,8 @@ public class UnitGenerate : MonoBehaviour
         }
     }
 
-    private Sprite CreateCircleSprite(Color color)
-    {
+    private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	{
         Texture2D texture = new Texture2D(32, 32);
         Color[] pixels = new Color[32 * 32];
         float radius = 15f;
@@ -77,8 +77,8 @@ public class UnitGenerate : MonoBehaviour
         return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
-    private Sprite CreateTriangleSprite(Color color)
-    {
+    private Sprite CreateTriangleSprite(Color color)//삼각형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	{
         Texture2D texture = new Texture2D(32, 32);
         Color[] pixels = new Color[32 * 32];
         for (int y = 0; y < 32; y++)
@@ -98,8 +98,8 @@ public class UnitGenerate : MonoBehaviour
         return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
-    public Vector2Int GetRandomFloorPos()
-    {
+    public Vector2Int GetRandomFloorPos()//랜덤한 바닥 위치 반환
+	{
         CreateMap cmap = FindObjectOfType<CreateMap>();
         if (cmap == null || cmap.map.session == null) return Vector2Int.zero;
 
@@ -120,10 +120,11 @@ public class UnitGenerate : MonoBehaviour
             }
         }
         return Vector2Int.zero; // default fallback
-    }
+	}
+    #endregion
 }
 
-public class GameSession : MonoBehaviour
+public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
     public List<Unit> units = new List<Unit>();
     private float updateTimer = 0f;
@@ -151,8 +152,8 @@ public class GameSession : MonoBehaviour
         }
     }
 
-    public void OnKeyDown_H()
-    {
+    public void OnKeyDown_H()//H 키를 눌렀을 때 인간 유닛 생성
+	{
         if (UnitGenerate.Instance == null) return;
 
         UnitType[] types = { new Warrior(), new Scout(), new Archer() };
@@ -163,8 +164,8 @@ public class GameSession : MonoBehaviour
         Debug.Log($"Generated Human: {selection.typeName} at {human.position}");
     }
 
-    public void OnKeyDown_M()
-    {
+    public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
+	{
         if (UnitGenerate.Instance == null) return;
 
         UnitType[] types = { new Goblin(), new Orc() };
@@ -175,7 +176,7 @@ public class GameSession : MonoBehaviour
         Debug.Log($"Generated Monster: {selection.typeName} at {monster.position}");
     }
 
-	public void ProcessTurn()
+	public void ProcessTurn()//턴 처리 로직 (유닛 상태 판단 및 액션 실행)//핵심로직!!!
 	{
 		foreach (var u in units)
 		{
