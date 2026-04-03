@@ -129,6 +129,12 @@ public class CreateMapInspector : Editor
         if (GUILayout.Button("▶ 맵 생성", GUILayout.Height(32)))
         {
             cm.GenerateMap();
+
+            // 씬에 MapRandering이 있으면 타일맵도 자동 업데이트
+            var mr = Object.FindObjectOfType<MapRandering>();
+            if (mr != null)
+                mr.DoRandering();
+
             roomColors.Clear();
             selectedChunkX = selectedChunkY = -1;
             selectedTileX = selectedTileY = -1;
