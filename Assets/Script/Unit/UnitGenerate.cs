@@ -6,34 +6,54 @@ public class UnitGenerate : MonoBehaviour
 {
     public static UnitGenerate Instance;
 
+    // View mapping to separate SO data logic from Visual gameobjects
+    private Dictionary<Unit, GameObject> visualMap = new Dictionary<Unit, GameObject>();
+    private GameObject visualContainer;
+    private Sprite humanSprite;
+    private Sprite monsterSprite;
+
     void Awake()
     {
         Instance = this;
+        visualContainer = new GameObject("UnitVisuals");
+        humanSprite = CreateCircleSprite(Color.green);
+        monsterSprite = CreateTriangleSprite(Color.red); 
     }
 
     public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit
     {
         Vector2Int pos = GetRandomFloorPos();
-        GameObject go = new GameObject($"{unitType.typeName}_{pos.x}_{pos.y}");
 
-        // For visibility
-        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-        if (typeof(T) == typeof(Human))
-        {
-            sr.sprite = CreateCircleSprite(Color.green);
-        }
-        else if (typeof(T) == typeof(Monster))
-        {
-            sr.sprite = CreateTriangleSprite(Color.red);
-        }
-        sr.sortingOrder = 10; // Ensure it renders on top of floor/wall tiles
-
-        T unit = go.AddComponent<T>();
+        T unit = ScriptableObject.CreateInstance<T>();
+        unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}";
         unit.unitType = unitType;
         unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
         unit.position = pos;
-        go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0); // 타일 중앙 정렬
+
+        // Visual 생성 (Update 로직이 없는 깡통 오브젝트)
+        GameObject go = new GameObject(unit.name);
+        go.transform.SetParent(visualContainer.transform);
+        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+        sr.sortingOrder = 10;
+
+        if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
+        else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
+
+        go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0);
+        visualMap[unit] = go;
+
         return unit;
+    }
+
+    public void SyncVisuals(List<Unit> units)
+    {
+        foreach (var u in units)
+        {
+            if (u != null && visualMap.TryGetValue(u, out GameObject go))
+            {
+                go.transform.position = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
+            }
+        }
     }
 
     private Sprite CreateCircleSprite(Color color)
@@ -155,14 +175,21 @@ public class GameSession : MonoBehaviour
         Debug.Log($"Generated Monster: {selection.typeName} at {monster.position}");
     }
 
-    public void ProcessTurn()
-    {
-        foreach (var u in units)
-        {
-            if (u != null)
-            {
-                u.ExecuteAction();
-            }
-        }
-    }
+	public void ProcessTurn()
+	{
+		foreach (var u in units)
+		{
+			if (u != null)
+			{
+				u.JudgeState(); // 상태 판단 로직 실행
+				u.ExecuteAction();
+			}
+		}
+
+		// 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
+		if (UnitGenerate.Instance != null)
+		{
+			UnitGenerate.Instance.SyncVisuals(units);
+		}
+	}
 }

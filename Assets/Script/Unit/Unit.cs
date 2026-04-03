@@ -33,9 +33,9 @@ public class Warrior : UnitType { public Warrior() { typeName = "전사"; unitSi
 public class Scout : UnitType { public Scout() { typeName = "정찰병"; unitSize = 1.0f; } }
 public class Archer : UnitType { public Archer() { typeName = "궁수"; unitSize = 1.0f; } }
 public class Goblin : UnitType { public Goblin() { typeName = "고블린"; unitSize = 0.8f; } }
-public class Orc : UnitType { public Orc() { typeName = "오크"; unitSize = 1.2f; } }
+public class Orc : UnitType { public Orc() { typeName = "오크"; unitSize = 2f; } }
 
-public abstract class Unit : MonoBehaviour
+public abstract class Unit : ScriptableObject
 {
     public UnitType unitType;
     public UnitState currentState = UnitState.TEST_RANDOM_MOVE_6;
@@ -93,7 +93,6 @@ public abstract class Unit : MonoBehaviour
         if (CanMove(nextPos))
         {
             position = nextPos;
-            transform.position = new Vector3(position.x + 0.5f, position.y + 0.5f, 0);
         }
     }
 
@@ -103,10 +102,17 @@ public abstract class Unit : MonoBehaviour
     {
         if (currentState == UnitState.TEST_RANDOM_MOVE_6)
         {
-            Dir randomDir = (Dir)Random.Range(0, 8);
-            Move(randomDir);
+			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
         }
     }
+
+	#region 상태를 나타내는 함수들
+	protected void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
+	{
+		Dir randomDir = (Dir)Random.Range(0, 8);
+		Move(randomDir);
+	}
+	#endregion
 }
 
 public class Human : Unit
@@ -124,3 +130,7 @@ public class Monster : Unit
         // 몬스터 상태 판단 로직
     }
 }
+
+#region
+
+#endregion
