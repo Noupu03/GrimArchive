@@ -18,14 +18,64 @@ public class UnitGenerate : MonoBehaviour
 
         // For visibility
         SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-        // Assign a default sprite if possible, user will replace it later.
+        if (typeof(T) == typeof(Human))
+        {
+            sr.sprite = CreateCircleSprite(Color.green);
+        }
+        else if (typeof(T) == typeof(Monster))
+        {
+            sr.sprite = CreateTriangleSprite(Color.red);
+        }
+        sr.sortingOrder = 10; // Ensure it renders on top of floor/wall tiles
 
         T unit = go.AddComponent<T>();
         unit.unitType = unitType;
         unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
         unit.position = pos;
-        go.transform.position = new Vector3(pos.x, pos.y, 0);
+        go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0); // 타일 중앙 정렬
         return unit;
+    }
+
+    private Sprite CreateCircleSprite(Color color)
+    {
+        Texture2D texture = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        float radius = 15f;
+        Vector2 center = new Vector2(16f, 16f);
+        for (int y = 0; y < 32; y++)
+        {
+            for (int x = 0; x < 32; x++)
+            {
+                if (Vector2.Distance(center, new Vector2(x, y)) <= radius)
+                    pixels[y * 32 + x] = color;
+                else
+                    pixels[y * 32 + x] = Color.clear;
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+    }
+
+    private Sprite CreateTriangleSprite(Color color)
+    {
+        Texture2D texture = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int y = 0; y < 32; y++)
+        {
+            for (int x = 0; x < 32; x++)
+            {
+                float normalizedY = y / 31f; 
+                float halfWidth = (1f - normalizedY) * 16f; 
+                if (x >= 16f - halfWidth && x <= 16f + halfWidth)
+                    pixels[y * 32 + x] = color;
+                else
+                    pixels[y * 32 + x] = Color.clear;
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
     public Vector2Int GetRandomFloorPos()

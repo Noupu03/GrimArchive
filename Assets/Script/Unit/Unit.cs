@@ -93,7 +93,7 @@ public abstract class Unit : MonoBehaviour
         if (CanMove(nextPos))
         {
             position = nextPos;
-            transform.position = new Vector3(position.x, position.y, 0);
+            transform.position = new Vector3(position.x + 0.5f, position.y + 0.5f, 0);
         }
     }
 
