@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public enum Dir
 {
@@ -35,8 +36,24 @@ public class Archer : UnitType { public Archer() { typeName = "궁수"; unitSize
 public class Goblin : UnitType { public Goblin() { typeName = "고블린"; unitSize = 0.8f; } }
 public class Orc : UnitType { public Orc() { typeName = "오크"; unitSize = 2f; } }
 
+public class FactionData
+{
+    // 128x128 크기 맵 (0: 미탐색, 1: 바닥, 2: 벽) 타일맵 정보 공유
+    public int[,] discoveredMap = new int[128, 128];
+    // 시야 내 발견된 적 유닛 데이터 공유
+    public List<Unit> spottedEnemyUnits = new List<Unit>();
+
+    public void ClearSpottedUnits()
+    {
+        spottedEnemyUnits.Clear();
+    }
+}
+
 public abstract class Unit : ScriptableObject
 {
+    public static FactionData humanFactionData = new FactionData();
+    public static FactionData monsterFactionData = new FactionData();
+
     public UnitType unitType;
     public UnitState currentState = UnitState.TEST_RANDOM_MOVE_6;
 
@@ -48,8 +65,9 @@ public abstract class Unit : ScriptableObject
     public float cha;
 
     public Vector2Int position;
+    public Dir currentDir = Dir.DOWN; // 현재 바라보는 방향 (시야 기준)
 
-    
+
     #region 기능함수들
     public Vector2Int GetDirVector(Dir dir)
     {
@@ -89,12 +107,84 @@ public abstract class Unit : ScriptableObject
 
     public void Move(Dir dir)//움직이는 함수
     {
+        currentDir = dir; // 이동 방향으로 시야 방향 갱신
         Vector2Int v = GetDirVector(dir);
         Vector2Int nextPos = position + v;
 
         if (CanMove(nextPos))
         {
             position = nextPos;
+        }
+    }
+
+    public void UpdateFOV(List<Unit> allUnits)//시야 업데이트 함수
+    {
+        FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+        Vector2 forward = GetDirVector(currentDir);
+        if (forward == Vector2.zero) forward = Vector2.down;
+
+        CreateMap cmap = FindObjectOfType<CreateMap>();
+        if (cmap == null || cmap.map.session == null) return;
+
+        float viewRadius = 128f;
+        float fovAngle = 160f;
+
+        // 1. 공용 타일맵 데이터 갱신
+        for (int dx = -128; dx <= 128; dx++)
+        {
+            for (int dy = -128; dy <= 128; dy++)
+            {
+                Vector2Int targetPos = position + new Vector2Int(dx, dy);
+                if (targetPos.x < 0 || targetPos.x >= 128 || targetPos.y < 0 || targetPos.y >= 128) continue;
+
+                float dist = Vector2.Distance(position, targetPos);
+                if (dist > viewRadius) continue;
+
+                Vector2 dirToTarget = ((Vector2)targetPos - (Vector2)position).normalized;
+                float angle = Vector2.Angle(forward, dirToTarget);
+
+                if (angle <= fovAngle / 2f || dist < 0.5f) // 부채꼴 시야 내 확인
+                {
+                    int cx = targetPos.x / 8;
+                    int tx = targetPos.x % 8;
+                    int cy = targetPos.y / 8;
+                    int ty = targetPos.y % 8;
+
+                    if (cx >= 0 && cx < 16 && cy >= 0 && cy < 16)
+                    {
+                        Chunks c = cmap.map.session[cx, cy];
+                        if (c.roomId != -1 && c.chunk != null)
+                        {
+                            string tileName = c.chunk[tx, ty].name;
+                            myData.discoveredMap[targetPos.x, targetPos.y] = tileName == "Wall" ? 2 : 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 다른 유닛 데이터 공용 데이터에 갱신
+        foreach (var unit in allUnits)
+        {
+            if (unit == null || unit == this) continue;
+
+            bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
+            if (isEnemy)
+            {
+                float dist = Vector2.Distance(position, unit.position);
+                if (dist <= viewRadius)
+                {
+                    Vector2 dirToTarget = ((Vector2)unit.position - (Vector2)position).normalized;
+                    float angle = Vector2.Angle(forward, dirToTarget);
+                    if (angle <= fovAngle / 2f || dist < 0.5f)
+                    {
+                        if (!myData.spottedEnemyUnits.Contains(unit))
+                        {
+                            myData.spottedEnemyUnits.Add(unit); // 적 발견 갱신
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class UnitGenerate : MonoBehaviour
 {
@@ -30,21 +33,24 @@ public class UnitGenerate : MonoBehaviour
         unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
         unit.position = pos;
 
-        // Visual 생성 (Update 로직이 없는 깡통 오브젝트)
-        GameObject go = new GameObject(unit.name);
-        go.transform.SetParent(visualContainer.transform);
-        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-        sr.sortingOrder = 10;
+		// Visual 생성 (Update 로직이 없는 깡통 오브젝트)
+		GameObject go = new GameObject(unit.name);
+		go.transform.SetParent(visualContainer.transform);
+		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+		sr.sortingOrder = 10;
 
-        if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
-        else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
+		UnitVisual uv = go.AddComponent<UnitVisual>();
+		uv.Setup();
 
-        go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0);
-        visualMap[unit] = go;
+		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
+		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
 
-        return unit;
-    }
-	#region 기능성
+		go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0);
+		visualMap[unit] = go;
+
+		return unit;
+	}
+	#region 생성 보조 기능성
 	public void SyncVisuals(List<Unit> units)//비주얼화 코루틴 시작
 	{
 		foreach (var u in units)
@@ -53,6 +59,15 @@ public class UnitGenerate : MonoBehaviour
 			{
 				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
 				StartCoroutine(SmoothMove(go.transform, newPos, 1f));
+
+				// 시각화 업데이트 (FOV)
+				UnitVisual uv = go.GetComponent<UnitVisual>();
+				if(uv != null)
+				{
+					Vector2 forward = u.GetDirVector(u.currentDir);
+					if (forward == Vector2.zero) forward = Vector2.down;
+					uv.DrawFOV(128f, 160f, forward);
+				}
 			}
 		}
 	}
@@ -146,8 +161,12 @@ public class UnitGenerate : MonoBehaviour
 
 public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
-    public List<Unit> units = new List<Unit>();
-    private float updateTimer = 0f;
+	public List<Unit> units = new List<Unit>();
+	private float updateTimer = 0f;
+
+	[Header("진영별 맵 시각화 텍스처 (인스펙터에서 클릭하여 확인)")]
+	public Texture2D humanMapTexture;
+	public Texture2D monsterMapTexture;
 
     void Update()
     {
@@ -198,12 +217,17 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 	public void ProcessTurn()//턴 처리 로직 (유닛 상태 판단 및 액션 실행)//핵심로직!!!
 	{
+		// 턴마다 발견한 적 목록 초기화 (새로운 시야 기준으로 갱신)
+		Unit.humanFactionData.ClearSpottedUnits();
+		Unit.monsterFactionData.ClearSpottedUnits();
+
 		foreach (var u in units)
 		{
 			if (u != null)
 			{
 				u.JudgeState(); // 상태 판단 로직 실행
 				u.ExecuteAction();
+				u.UpdateFOV(units); // 행동 후 자신의 시야를 공용 데이터에 갱신
 			}
 		}
 
@@ -211,6 +235,137 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		if (UnitGenerate.Instance != null)
 		{
 			UnitGenerate.Instance.SyncVisuals(units);
+		}
+
+		UpdateFactionTextures();
+	}
+
+	private void UpdateFactionTextures()//인스펙터 꾸미기 관련
+	{
+		if (humanMapTexture == null) { humanMapTexture = new Texture2D(128, 128); humanMapTexture.filterMode = FilterMode.Point; }
+		if (monsterMapTexture == null) { monsterMapTexture = new Texture2D(128, 128); monsterMapTexture.filterMode = FilterMode.Point; }
+
+		Color[] hPixels = new Color[128 * 128];
+		Color[] mPixels = new Color[128 * 128];
+
+		for (int y = 0; y < 128; y++)
+		{
+			for (int x = 0; x < 128; x++)
+			{
+				// 0: 미탐색(검은색), 1: 바닥(흰색), 2: 벽(회색)
+				int hVal = Unit.humanFactionData.discoveredMap[x, y];
+				hPixels[y * 128 + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
+
+				int mVal = Unit.monsterFactionData.discoveredMap[x, y];
+				mPixels[y * 128 + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
+			}
+		}
+
+		// 자기 진영 유닛 현재 위치 정보 초록색으로 덧씌우기
+		foreach(var u in units)
+		{
+			if (u == null) continue;
+			int idx = u.position.y * 128 + u.position.x;
+			if (idx >= 0 && idx < hPixels.Length)
+			{
+				if (u is Human)
+				{
+					hPixels[idx] = Color.green;
+					// 인간에게 발견된 적 오크는 빨간색으로 표시
+					if (Unit.humanFactionData.spottedEnemyUnits.Contains(u)) hPixels[idx] = Color.red;
+				}
+				else if (u is Monster)
+				{
+					mPixels[idx] = Color.yellow;
+					// 몬스터에게 발견된 적 인간은 파란색으로 표시
+					if (Unit.monsterFactionData.spottedEnemyUnits.Contains(u)) mPixels[idx] = Color.blue;
+				}
+			}
+		}
+
+		// 상대 진영 발견 유닛 정보 덧씌우기
+		foreach (var enemy in Unit.humanFactionData.spottedEnemyUnits)
+		{
+			if (enemy == null) continue;
+			int idx = enemy.position.y * 128 + enemy.position.x;
+			if (idx >= 0 && idx < hPixels.Length) hPixels[idx] = Color.red;
+		}
+
+		foreach (var enemy in Unit.monsterFactionData.spottedEnemyUnits)
+		{
+			if (enemy == null) continue;
+			int idx = enemy.position.y * 128 + enemy.position.x;
+			if (idx >= 0 && idx < mPixels.Length) mPixels[idx] = Color.blue;
+		}
+
+		humanMapTexture.SetPixels(hPixels);
+		humanMapTexture.Apply();
+
+		monsterMapTexture.SetPixels(mPixels);
+		monsterMapTexture.Apply();
+	}
+}
+
+#if UNITY_EDITOR//인스펙터 꾸미기
+[CustomEditor(typeof(GameSession))]
+public class GameSessionEditor : Editor
+{
+	public override void OnInspectorGUI()
+	{
+		base.OnInspectorGUI();
+
+		GameSession gs = (GameSession)target;
+
+		EditorGUILayout.Space();
+		EditorGUILayout.LabelField("인류 진영 맵", EditorStyles.boldLabel);
+		if (gs.humanMapTexture != null)
+		{
+			Rect rect = GUILayoutUtility.GetRect(256, 256);
+			GUI.DrawTexture(rect, gs.humanMapTexture, ScaleMode.ScaleToFit);
+		}
+
+		EditorGUILayout.Space();
+		EditorGUILayout.LabelField("몬스터 진영 맵", EditorStyles.boldLabel);
+		if (gs.monsterMapTexture != null)
+		{
+			Rect rect = GUILayoutUtility.GetRect(256, 256);
+			GUI.DrawTexture(rect, gs.monsterMapTexture, ScaleMode.ScaleToFit);
+		}
+	}
+}
+#endif
+
+public class UnitVisual : MonoBehaviour
+{
+	public LineRenderer fovLine;
+
+	public void Setup()
+	{
+		fovLine = gameObject.AddComponent<LineRenderer>();
+		fovLine.startWidth = 0.05f;
+		fovLine.endWidth = 0.05f;
+		fovLine.material = new Material(Shader.Find("Sprites/Default")); // 기본 2D 쉐이더로 단색 표시
+		fovLine.startColor = new Color(0f, 1f, 1f, 0.5f); // 하늘색 반투명
+		fovLine.endColor = new Color(0f, 1f, 1f, 0.5f);
+		fovLine.useWorldSpace = false; // 부모(유닛) 기준 좌표
+		fovLine.sortingOrder = 9;
+	}
+
+	public void DrawFOV(float radius, float fovAngle, Vector2 forward)
+	{
+		int segments = 20;
+		fovLine.positionCount = segments + 2;
+
+		fovLine.SetPosition(0, Vector3.zero); // 본인 위치 중심
+
+		float startAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg - (fovAngle / 2f);
+
+		for (int i = 0; i <= segments; i++)
+		{
+			float currentAngle = startAngle + (fovAngle * i / segments);
+			float rad = currentAngle * Mathf.Deg2Rad;
+			Vector3 point = new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius;
+			fovLine.SetPosition(i + 1, point);
 		}
 	}
 }
