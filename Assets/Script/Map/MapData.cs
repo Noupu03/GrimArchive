@@ -23,6 +23,8 @@ public struct Tile
     public int understand;
     // 가중치
     public int weight;
+    // 가시성
+    public int visibility;
 }
 [Serializable]
 public struct Chunks
@@ -56,6 +58,57 @@ public struct MapData
     // Map 및 Session 데이터
     public Map map;
     public Session session;
+}
+
+// 타일 팩토리: 타일 종류별 기본값을 한 곳에서 관리합니다.
+// 새로운 타일 종류(예: Water, Lava 등)를 추가하려면 여기에 메서드를 추가하세요.
+public static class TileFactory
+{
+    public static Tile Wall()
+    {
+        return new Tile
+        {
+            name = "Wall",
+            effect = TileEffect.None,
+            isObjectExist = false,
+            isStructureExist = false,
+            dangerous = 0,
+            understand = 0,
+            weight = 0,
+            visibility = 0
+        };
+    }
+
+    public static Tile Floor()
+    {
+        return new Tile
+        {
+            name = "Floor",
+            effect = TileEffect.None,
+            isObjectExist = false,
+            isStructureExist = false,
+            dangerous = 0,
+            understand = 0,
+            weight = 0,
+            visibility = 100
+        };
+    }
+
+    // 확장 예시: 새 타일 종류를 추가할 때 아래처럼 메서드를 추가하세요.
+    // public static Tile Water()
+    // {
+    //     return new Tile
+    //     {
+    //         name = "Water",
+    //         effect = TileEffect.None,
+    //         isObjectExist = false,
+    //         isStructureExist = false,
+    //         dangerous = 1,
+    //         understand = 0,
+    //         weight = 2,
+    //         visibility = 0
+    //     };
+    // }
 }
 
 // Room ID generator: 방을 생성할 때 전역 고유 ID를 발급합니다.

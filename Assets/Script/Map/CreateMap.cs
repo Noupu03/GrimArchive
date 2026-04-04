@@ -336,11 +336,7 @@ public class CreateMap : MonoBehaviour
                 {
                     for (int tx = 0; tx < 8; tx++)
                         for (int ty = 0; ty < 8; ty++)
-                        {
-                            Tile t = c.chunk[tx, ty];
-                            t.name = "Wall";
-                            c.chunk[tx, ty] = t;
-                        }
+                            c.chunk[tx, ty] = TileFactory.Wall();
                     map.session[x, y] = c;
                     continue;
                 }
@@ -349,11 +345,9 @@ public class CreateMap : MonoBehaviour
                 {
                     for (int ty = 0; ty < 8; ty++)
                     {
-                        Tile t = c.chunk[tx, ty];
-                        t.name = (tx == 0 || tx == 7 || ty == 0 || ty == 7)
-                            ? "Wall"
-                            : "Floor";
-                        c.chunk[tx, ty] = t;
+                        c.chunk[tx, ty] = (tx == 0 || tx == 7 || ty == 0 || ty == 7)
+                            ? TileFactory.Wall()
+                            : TileFactory.Floor();
                     }
                 }
 
@@ -421,22 +415,17 @@ public class CreateMap : MonoBehaviour
             }
             else if (ty == 7)
             {
-                if (GetRoomId(x, y + 1) != roomId || GetRoomId(x + 1, y + 1) != roomId)
-                    continue;
-            }
+                        if (GetRoomId(x, y + 1) != roomId || GetRoomId(x + 1, y + 1) != roomId)
+                                continue;
+                        }
 
-            Tile tA = cA.chunk[7, ty];
-            tA.name = "Floor";
-            cA.chunk[7, ty] = tA;
+                        cA.chunk[7, ty] = TileFactory.Floor();
+                        cB.chunk[0, ty] = TileFactory.Floor();
+                    }
 
-            Tile tB = cB.chunk[0, ty];
-            tB.name = "Floor";
-            cB.chunk[0, ty] = tB;
-        }
-
-        map.session[x, y] = cA;
-        map.session[x + 1, y] = cB;
-    }
+                    map.session[x, y] = cA;
+                    map.session[x + 1, y] = cB;
+                }
 
     // ③.13 수직 경계 벽 허물기: chunk(x,y) ty=7 ↔ chunk(x,y+1) ty=0
     void RemoveVerticalWall(int x, int y, int roomId)
@@ -460,22 +449,17 @@ public class CreateMap : MonoBehaviour
             }
             else if (tx == 7)
             {
-                if (GetRoomId(x + 1, y) != roomId || GetRoomId(x + 1, y + 1) != roomId)
-                    continue;
-            }
+                        if (GetRoomId(x + 1, y) != roomId || GetRoomId(x + 1, y + 1) != roomId)
+                                continue;
+                        }
 
-            Tile tA = cA.chunk[tx, 7];
-            tA.name = "Floor";
-            cA.chunk[tx, 7] = tA;
+                        cA.chunk[tx, 7] = TileFactory.Floor();
+                        cB.chunk[tx, 0] = TileFactory.Floor();
+                    }
 
-            Tile tB = cB.chunk[tx, 0];
-            tB.name = "Floor";
-            cB.chunk[tx, 0] = tB;
-        }
-
-        map.session[x, y] = cA;
-        map.session[x, y + 1] = cB;
-    }
+                    map.session[x, y] = cA;
+                    map.session[x, y + 1] = cB;
+                }
 
     // ③.14 스폰 영역(세션 0) roomId 할당
     void AssignSpawn()
@@ -654,13 +638,8 @@ public class CreateMap : MonoBehaviour
 
         for (int ty = 3; ty <= 4; ty++)
         {
-            Tile tA = cA.chunk[7, ty];
-            tA.name = "Floor";
-            cA.chunk[7, ty] = tA;
-
-            Tile tB = cB.chunk[0, ty];
-            tB.name = "Floor";
-            cB.chunk[0, ty] = tB;
+            cA.chunk[7, ty] = TileFactory.Floor();
+            cB.chunk[0, ty] = TileFactory.Floor();
         }
 
         map.session[x, y] = cA;
@@ -675,13 +654,8 @@ public class CreateMap : MonoBehaviour
 
         for (int tx = 3; tx <= 4; tx++)
         {
-            Tile tA = cA.chunk[tx, 7];
-            tA.name = "Floor";
-            cA.chunk[tx, 7] = tA;
-
-            Tile tB = cB.chunk[tx, 0];
-            tB.name = "Floor";
-            cB.chunk[tx, 0] = tB;
+            cA.chunk[tx, 7] = TileFactory.Floor();
+            cB.chunk[tx, 0] = TileFactory.Floor();
         }
 
         map.session[x, y] = cA;
