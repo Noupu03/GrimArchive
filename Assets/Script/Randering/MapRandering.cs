@@ -71,8 +71,8 @@ public class MapRandering : MonoBehaviour
             {
                 Chunks chunk = map.session[cx, cy];
 
-                // roomId == -1 인 청크(빈 공간)는 건너뜀
-                if (chunk.roomId == -1 || chunk.chunk == null)
+                // chunk 배열이 null이면 렌더링할 수 없으므로 건너뜀
+                if (chunk.chunk == null)
                     continue;
 
                 for (int tx = 0; tx < ChunkSize; tx++)

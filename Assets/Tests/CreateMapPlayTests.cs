@@ -166,7 +166,7 @@ public class CreateMapPlayTests
     }
 
     // ====================================================================
-    // ⑥ 같은 방 내부 청크 간 벽 개방 검증
+    // ⑥ 같은 방 내부 청크 간 벽 전체 허물기 검증
     // ====================================================================
     [Test]
     public void InternalWalls_OpenedBetweenSameRoomChunks()
@@ -176,7 +176,7 @@ public class CreateMapPlayTests
 
         int openedCount = 0;
 
-        // 수평 내부 벽 검증
+        // 수평 내부 벽 검증: tx=7 / tx=0 전체(ty=0~7)가 Floor
         for (int x = 0; x < 15; x++)
         {
             for (int y = 0; y < 16; y++)
@@ -189,19 +189,19 @@ public class CreateMapPlayTests
                     Chunks cA = cm.map.session[x, y];
                     Chunks cB = cm.map.session[x + 1, y];
 
-                    for (int ty = 3; ty <= 4; ty++)
+                    for (int ty = 0; ty < 8; ty++)
                     {
                         Assert.AreEqual("Floor", cA.chunk[7, ty].name,
-                            $"내부벽 미개방: chunk[{x},{y}] tx=7, ty={ty}");
+                            $"내부벽 미허물: chunk[{x},{y}] tx=7, ty={ty}");
                         Assert.AreEqual("Floor", cB.chunk[0, ty].name,
-                            $"내부벽 미개방: chunk[{x + 1},{y}] tx=0, ty={ty}");
+                            $"내부벽 미허물: chunk[{x + 1},{y}] tx=0, ty={ty}");
                     }
                     openedCount++;
                 }
             }
         }
 
-        // 수직 내부 벽 검증
+        // 수직 내부 벽 검증: ty=7 / ty=0 전체(tx=0~7)가 Floor
         for (int x = 0; x < 16; x++)
         {
             for (int y = 0; y < 15; y++)
@@ -214,19 +214,19 @@ public class CreateMapPlayTests
                     Chunks cA = cm.map.session[x, y];
                     Chunks cB = cm.map.session[x, y + 1];
 
-                    for (int tx = 3; tx <= 4; tx++)
+                    for (int tx = 0; tx < 8; tx++)
                     {
                         Assert.AreEqual("Floor", cA.chunk[tx, 7].name,
-                            $"내부벽 미개방: chunk[{x},{y}] tx={tx}, ty=7");
+                            $"내부벽 미허물: chunk[{x},{y}] tx={tx}, ty=7");
                         Assert.AreEqual("Floor", cB.chunk[tx, 0].name,
-                            $"내부벽 미개방: chunk[{x},{y + 1}] tx={tx}, ty=0");
+                            $"내부벽 미허물: chunk[{x},{y + 1}] tx={tx}, ty=0");
                     }
                     openedCount++;
                 }
             }
         }
 
-        Assert.Greater(openedCount, 0, "내부 벽이 개방된 멀티청크 방이 하나도 없습니다.");
+        Assert.Greater(openedCount, 0, "내부 벽이 허물어진 멀티청크 방이 하나도 없습니다.");
 
         Cleanup(cm.gameObject);
     }
