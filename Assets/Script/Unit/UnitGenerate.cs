@@ -45,16 +45,36 @@ public class UnitGenerate : MonoBehaviour
         return unit;
     }
 	#region 기능성
-	public void SyncVisuals(List<Unit> units)//비주얼화
-    {
-        foreach (var u in units)
-        {
-            if (u != null && visualMap.TryGetValue(u, out GameObject go))
-            {
-                go.transform.position = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
-            }
-        }
-    }
+	public void SyncVisuals(List<Unit> units)//비주얼화 코루틴 시작
+	{
+		foreach (var u in units)
+		{
+			if (u != null && visualMap.TryGetValue(u, out GameObject go))
+			{
+				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
+				StartCoroutine(SmoothMove(go.transform, newPos, 1f));
+			}
+		}
+	}
+
+	private System.Collections.IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)
+	{
+		if (visualTransform == null) yield break;
+
+		Vector3 startPos = visualTransform.position;
+		float elapsed = 0f;
+
+		while (elapsed < duration)
+		{
+			if (visualTransform == null) yield break; // 중간에 파괴된 경우 방어
+			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
+			elapsed += Time.deltaTime;
+			yield return null;
+		}
+
+		if (visualTransform != null)
+			visualTransform.position = targetPos;
+	}
 
     private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
 	{
