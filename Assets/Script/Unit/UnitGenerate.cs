@@ -9,9 +9,11 @@ public class UnitGenerate : MonoBehaviour
 {
     public static UnitGenerate Instance;
 
-    // View mapping to separate SO data logic from Visual gameobjects
-    private Dictionary<Unit, GameObject> visualMap = new Dictionary<Unit, GameObject>();
-    private GameObject visualContainer;
+	// View mapping to separate SO data logic from Visual gameobjects
+	private Dictionary<Unit, GameObject> visualMap = new Dictionary<Unit, GameObject>();
+	private Dictionary<Unit, Coroutine> moveCoroutines = new Dictionary<Unit, Coroutine>();
+	private Dictionary<Unit, Vector3> targetPosMap = new Dictionary<Unit, Vector3>();
+	private GameObject visualContainer;
     private Sprite humanSprite;
     private Sprite monsterSprite;
 
@@ -23,15 +25,16 @@ public class UnitGenerate : MonoBehaviour
         monsterSprite = CreateTriangleSprite(Color.red); 
     }
 
-    public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit//유닛 생성 로직
+	public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit//유닛 생성 로직
 	{
-        Vector2Int pos = GetRandomFloorPos();
+		Vector2Int pos = GetRandomFloorPos();
 
-        T unit = ScriptableObject.CreateInstance<T>();
-        unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}";
-        unit.unitType = unitType;
-        unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
-        unit.position = pos;
+		T unit = ScriptableObject.CreateInstance<T>();
+		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}";
+		unit.unitType = unitType;
+		unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
+		unit.position = pos;
+		unit.SetupStats();
 
 		// Visual 생성 (Update 로직이 없는 깡통 오브젝트)
 		GameObject go = new GameObject(unit.name);
@@ -50,7 +53,35 @@ public class UnitGenerate : MonoBehaviour
 
 		return unit;
 	}
-	#region 생성 보조 기능성
+	#region 유닛 생성 보조 기능성
+	public void RemoveVisual(Unit u)//스프라이트 지우기
+	{
+		if (u != null && visualMap.TryGetValue(u, out GameObject go))
+		{
+			if (go != null) Destroy(go);
+			visualMap.Remove(u);
+			if (moveCoroutines.ContainsKey(u)) moveCoroutines.Remove(u);
+			if (targetPosMap.ContainsKey(u)) targetPosMap.Remove(u);
+		}
+
+		// 안전장치: 이미 ScriptableObject가 파괴되어 Unity Null 처리가 된 키값들을 딕셔너리에서 일괄 제거
+		List<Unit> deadKeys = new List<Unit>();
+		foreach (var kvp in visualMap)
+		{
+			if (kvp.Key == null || kvp.Key.hp <= 0)
+			{
+				if (kvp.Value != null) Destroy(kvp.Value);
+				deadKeys.Add(kvp.Key);
+			}
+		}
+		foreach (var deadKey in deadKeys)
+		{
+			visualMap.Remove(deadKey);
+			if (moveCoroutines.ContainsKey(deadKey)) moveCoroutines.Remove(deadKey);
+			if (targetPosMap.ContainsKey(deadKey)) targetPosMap.Remove(deadKey);
+		}
+	}
+
 	public void SyncVisuals(List<Unit> units)//비주얼화 코루틴 시작
 	{
 		foreach (var u in units)
@@ -58,7 +89,18 @@ public class UnitGenerate : MonoBehaviour
 			if (u != null && visualMap.TryGetValue(u, out GameObject go))
 			{
 				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
-				StartCoroutine(SmoothMove(go.transform, newPos, 1f));
+
+				// 기존 목표 목적지와 다를 때만 코루틴 실행 (코루틴 중복으로 인한 끊김 방지)
+				if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
+				{
+					if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
+					{
+						StopCoroutine(existingCoroutine);
+					}
+
+					targetPosMap[u] = newPos;
+					moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, u.reaction)); // 속도는 reaction 기준
+				}
 
 				// 시각화 업데이트 (FOV)
 				UnitVisual uv = go.GetComponent<UnitVisual>();
@@ -72,7 +114,7 @@ public class UnitGenerate : MonoBehaviour
 		}
 	}
 
-	private System.Collections.IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)
+	private System.Collections.IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)//부드럽게 이동하기(그래픽상)
 	{
 		if (visualTransform == null) yield break;
 
@@ -133,111 +175,186 @@ public class UnitGenerate : MonoBehaviour
         return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
-    public Vector2Int GetRandomFloorPos()//랜덤한 바닥 위치 반환
+	private bool IsOccupied(Vector2Int pos)//해당 위치에 유닛이 존재하는지 여부 반환
 	{
-        CreateMap cmap = FindObjectOfType<CreateMap>();
-        if (cmap == null || cmap.map.session == null) return Vector2Int.zero;
+		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(pos, out Unit u))
+		{
+			return u != null && u.hp > 0;
+		}
+		return false;
+	}
 
-        // Try getting a random floor position
-        for (int i = 0; i < 1000; i++)
-        {
-            int cx = Random.Range(0, 16);
-            int cy = Random.Range(0, 16);
-            Chunks c = cmap.map.session[cx, cy];
-            if (c.roomId != -1 && c.chunk != null)
-            {
-                int tx = Random.Range(0, 8);
-                int ty = Random.Range(0, 8);
-                if (c.chunk[tx, ty].name != "Wall")
-                {
-                    return new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-                }
-            }
-        }
-        return Vector2Int.zero; // default fallback
+	public Vector2Int GetRandomFloorPos()//랜덤한 바닥 위치 반환(임시)
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.session == null) return Vector2Int.zero;
+
+		// Try getting a random floor position in Room 52(임시로 시작방에만 생성)
+		for (int i = 0; i < 1000; i++)
+		{
+			int cx = Random.Range(0, 16);
+			int cy = Random.Range(0, 16);
+			Chunks c = cmap.map.session[cx, cy];
+			if (c.roomId == 52 && c.chunk != null)
+			{
+				int tx = Random.Range(0, 8);
+				int ty = Random.Range(0, 8);
+				if (c.chunk[tx, ty].name != "Wall")
+				{
+					Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+					if (!IsOccupied(cand)) return cand;
+				}
+			}
+		}
+
+		// Fallback if room 52 is not found or full(52번방이 없거나 꽉찬 경우)(임시)
+		for (int i = 0; i < 1000; i++)
+		{
+			int cx = Random.Range(0, 16);
+			int cy = Random.Range(0, 16);
+			Chunks c = cmap.map.session[cx, cy];
+			if (c.roomId != -1 && c.chunk != null)
+			{
+				int tx = Random.Range(0, 8);
+				int ty = Random.Range(0, 8);
+				if (c.chunk[tx, ty].name != "Wall")
+				{
+					Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+					if (!IsOccupied(cand)) return cand;
+				}
+			}
+		}
+		return Vector2Int.zero; // default fallback
 	}
     #endregion
 }
 
 public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
+	public static GameSession Instance;
+	public CreateMap cmap;
+	public Dictionary<Vector2Int, Unit> unitGrid = new Dictionary<Vector2Int, Unit>();
+
 	public List<Unit> units = new List<Unit>();
 	private float updateTimer = 0f;
+	private float textureUpdateTimer = 0f;
+	private bool needTextureUpdate = false;
 
 	[Header("진영별 맵 시각화 텍스처 (인스펙터에서 클릭하여 확인)")]
 	public Texture2D humanMapTexture;
 	public Texture2D monsterMapTexture;
 
-    void Update()
-    {
-        if (Keyboard.current != null)
-        {
-            if (Keyboard.current.hKey.wasPressedThisFrame)
-            {
-                OnKeyDown_H();
-            }
-
-            if (Keyboard.current.mKey.wasPressedThisFrame)
-            {
-                OnKeyDown_M();
-            }
-        }
-
-        updateTimer += Time.deltaTime;
-        if (updateTimer >= 2f)
-        {
-            updateTimer -= 2f;
-            ProcessTurn();
-        }
-    }
-
-    public void OnKeyDown_H()//H 키를 눌렀을 때 인간 유닛 생성
+	void Awake()
 	{
-        if (UnitGenerate.Instance == null) return;
+		Instance = this;
+	}
 
-        UnitType[] types = { new Warrior(), new Scout(), new Archer() };
-        UnitType selection = types[Random.Range(0, types.Length)];
-
-        Human human = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Human>(selection);
-        units.Add(human);
-        Debug.Log($"Generated Human: {selection.typeName} at {human.position}");
-    }
-
-    public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
+	void Start()
 	{
-        if (UnitGenerate.Instance == null) return;
+		cmap = FindObjectOfType<CreateMap>();
+	}
 
-        UnitType[] types = { new Goblin(), new Orc() };
-        UnitType selection = types[Random.Range(0, types.Length)];
-
-        Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection);
-        units.Add(monster);
-        Debug.Log($"Generated Monster: {selection.typeName} at {monster.position}");
-    }
-
-	public void ProcessTurn()//턴 처리 로직 (유닛 상태 판단 및 액션 실행)//핵심로직!!!
+	void Update()
 	{
-		// 턴마다 발견한 적 목록 초기화 (새로운 시야 기준으로 갱신)
-		Unit.humanFactionData.ClearSpottedUnits();
-		Unit.monsterFactionData.ClearSpottedUnits();
-
-		foreach (var u in units)
+		if (Keyboard.current != null)
 		{
-			if (u != null)
+			if (Keyboard.current.hKey.wasPressedThisFrame)
 			{
-				u.JudgeState(); // 상태 판단 로직 실행
-				u.ExecuteAction();
-				u.UpdateFOV(units); // 행동 후 자신의 시야를 공용 데이터에 갱신
+				OnKeyDown_H();
+			}
+
+			if (Keyboard.current.mKey.wasPressedThisFrame)
+			{
+				OnKeyDown_M();
 			}
 		}
 
+		bool visualNeedsSync = false;
+
 		// 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
-		if (UnitGenerate.Instance != null)
+		for (int i = units.Count - 1; i >= 0; i--)
 		{
-			UnitGenerate.Instance.SyncVisuals(units);
+			var u = units[i];
+			if (u == null || u.hp <= 0)
+			{
+				if (UnitGenerate.Instance != null && u != null)
+				{
+					UnitGenerate.Instance.RemoveVisual(u);
+				}
+				if (u != null) unitGrid.Remove(u.position);
+				units.RemoveAt(i);
+				if (u != null) Destroy(u);
+				visualNeedsSync = true;
+				needTextureUpdate = true;
+				continue; // 사망/파괴 시 시각적 요소 제거 완료
+			}
+
+			u.actionCooldown -= Time.deltaTime;
+			if (u.actionCooldown <= 0f)
+			{
+				// 반응도 * 1초 딜레이
+				u.actionCooldown = u.reaction;
+
+				u.JudgeState(); // 상태 판단 로직 실행
+				Vector2Int oldPos = u.position;
+				u.ExecuteAction();
+
+				if (oldPos != u.position)
+				{
+					unitGrid.Remove(oldPos);
+					unitGrid[u.position] = u;
+				}
+
+				u.UpdateFOV(units); // 행동 후 자신의 시야를 공용 데이터에 갱신
+
+				visualNeedsSync = true;
+				needTextureUpdate = true;
+			}
 		}
 
-		UpdateFactionTextures();
+		if (visualNeedsSync)
+		{
+			if (UnitGenerate.Instance != null)
+			{
+				UnitGenerate.Instance.SyncVisuals(units);
+			}
+		}
+
+		// 최적화 3: 텍스처 갱신 쓰로틀링
+		textureUpdateTimer += Time.deltaTime;
+		if (needTextureUpdate && textureUpdateTimer >= 0.2f)
+		{
+			UpdateFactionTextures();
+			needTextureUpdate = false;
+			textureUpdateTimer = 0f;
+		}
+	}
+
+	public void OnKeyDown_H()//H 키를 눌렀을 때 인간 유닛 생성
+	{
+		if (UnitGenerate.Instance == null) return;
+
+		// 임시로 우선 궁수만 생성가능하게 변경
+		UnitType[] types = { new Archer() }; 
+		UnitType selection = types[Random.Range(0, types.Length)];
+
+		Human human = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Human>(selection);
+		units.Add(human);
+		if (GameSession.Instance != null) GameSession.Instance.unitGrid[human.position] = human;
+		Debug.Log($"Generated Human: {selection.typeName} at {human.position}");
+	}
+
+	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
+	{
+		if (UnitGenerate.Instance == null) return;
+
+		UnitType[] types = { new Wolf() }; // 임시로 오크 고블린 대신 늑대만 선택되게 변경
+		UnitType selection = types[Random.Range(0, types.Length)];
+
+		Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection);
+		units.Add(monster);
+		if (GameSession.Instance != null) GameSession.Instance.unitGrid[monster.position] = monster;
+		Debug.Log($"Generated Monster: {selection.typeName} at {monster.position}");
 	}
 
 	private void UpdateFactionTextures()//인스펙터 꾸미기 관련

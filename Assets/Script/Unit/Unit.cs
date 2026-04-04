@@ -35,6 +35,7 @@ public class Scout : UnitType { public Scout() { typeName = "정찰병"; unitSiz
 public class Archer : UnitType { public Archer() { typeName = "궁수"; unitSize = 1.0f; } }
 public class Goblin : UnitType { public Goblin() { typeName = "고블린"; unitSize = 0.8f; } }
 public class Orc : UnitType { public Orc() { typeName = "오크"; unitSize = 2f; } }
+public class Wolf : UnitType { public Wolf() { typeName = "늑대"; unitSize = 1.2f; } }
 
 public class FactionData
 {
@@ -55,18 +56,38 @@ public abstract class Unit : ScriptableObject
     public static FactionData monsterFactionData = new FactionData();
 
     public UnitType unitType;
-    public UnitState currentState = UnitState.TEST_RANDOM_MOVE_6;
+    public UnitState currentState = UnitState.TEST_RANDOM_MOVE_6;//임시로 상태 고정
 
-    public float str;
-    public float dex;
-    public float con;
-    public float @int;
-    public float wis;
-    public float cha;
+    // 전투 관련 속성
+    public float hp = 100f;
+    public float attackPower = 10f;
+    public float reaction = 1f; // 반응도
+    public float actionCooldown = 0f; // 턴 진행용 대기 시간
+    public bool isHitThisTurn = false; // 피격 여부
+    public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
 
     public Vector2Int position;
     public Dir currentDir = Dir.DOWN; // 현재 바라보는 방향 (시야 기준)
     public static float ViewRadius = 30f; // 전역 시야 거리
+
+    public void SetupStats()
+    {
+        if (unitType is Archer)
+        {
+            hp = 80f; attackPower = 20f; reaction = 1.0f;
+        }
+        else if (unitType is Wolf)
+        {
+            hp = 70f; attackPower = 35f; reaction = 0.4f;
+        }
+        // 기타 유닛 스탯 생략 (기본값)
+    }
+
+    public void TakeDamage(float damage)
+    {
+        hp -= damage;
+        isHitThisTurn = true;
+    }
 
 
     #region 기능함수들
@@ -86,25 +107,34 @@ public abstract class Unit : ScriptableObject
         }
     }
 
-    public bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
+	public bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
 	{
-        int cx = pos.x / 8;
-        int tx = pos.x % 8;
-        int cy = pos.y / 8;
-        int ty = pos.y % 8;
+		int cx = pos.x / 8;
+		int tx = pos.x % 8;
+		int cy = pos.y / 8;
+		int cyVal = pos.y % 8;
 
-        if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) return false;
+		if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) return false;
 
-        CreateMap cmap = FindObjectOfType<CreateMap>();
-        if (cmap == null || cmap.map.session == null) return false;
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.session == null) return false;
 
-        Chunks c = cmap.map.session[cx, cy];
-        if (c.roomId == -1 || c.chunk == null) return false;
+		Chunks c = cmap.map.session[cx, cy];
+		if (c.roomId == -1 || c.chunk == null) return false;
 
-        if (c.chunk[tx, ty].name == "Wall") return false;
+		if (c.chunk[tx, cyVal].name == "Wall") return false;
 
-        return true;
-    }
+		// 다른 유닛 점유 여부 확인 (최적화: O(1) 캐싱 배열)
+		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(pos, out Unit u))
+		{
+			if (u != null && u != this && u.hp > 0)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
 
     public void Move(Dir dir)//움직이는 함수
     {
@@ -156,11 +186,10 @@ public abstract class Unit : ScriptableObject
             Tile tile = c.chunk[tx, ty];
             myData.discoveredMap[x, y] = tile.name == "Wall" ? 2 : 1;
 
-            // 유닛 발견
-            foreach (var unit in allUnits)
+            // 유닛 발견 (O(1) 캐싱 검색 적용)
+            if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector2Int(x, y), out Unit unit))
             {
-                if (unit == null || unit == this) continue;
-                if (unit.position.x == x && unit.position.y == y)
+                if (unit != null && unit != this && unit.hp > 0)
                 {
                     bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
                     if (isEnemy && !myData.spottedEnemyUnits.Contains(unit))
@@ -206,23 +235,23 @@ public abstract class Unit : ScriptableObject
         }
     }
 
-    public void UpdateFOV(List<Unit> allUnits)//시야 업데이트 함수
-    {
-        FactionData myData = this is Human ? humanFactionData : monsterFactionData;
-        Vector2 forward = GetDirVector(currentDir);
-        if (forward == Vector2.zero) forward = Vector2.down;
+	public void UpdateFOV(List<Unit> allUnits)//시야 업데이트 함수
+	{
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		Vector2 forward = GetDirVector(currentDir);
+		if (forward == Vector2.zero) forward = Vector2.down;
 
-        CreateMap cmap = FindObjectOfType<CreateMap>();
-        if (cmap == null || cmap.map.session == null) return;
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.session == null) return;
 
-        float fovAngle = 160f;
+		float fovAngle = 160f;
 
-        float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
+		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
-        // 방사형 레이캐스트(DDA 알고리즘) 적용, 가시성 확률(visibility) 반영
-        int numRays = 800; // 충분히 촘촘한 레이 수 설정하여 누락 타일 방지
+		// 방사형 레이캐스트 최적화 적용 (800 -> 72)
+		int numRays = 72; // 최적화: 시야각 누락되지 않는 선에서 최대한 감소
 
-        for (int i = 0; i <= numRays; i++)
+		for (int i = 0; i <= numRays; i++)
         {
             float angle = centerAngle - (fovAngle / 2f) + (fovAngle * i / numRays);
             float rad = angle * Mathf.Deg2Rad;
@@ -230,39 +259,206 @@ public abstract class Unit : ScriptableObject
         }
     }
 
-    public abstract void JudgeState();//미구현.판단 함수
-
-    public virtual void ExecuteAction()//행동 즉시 실행. 여기에 if 늘리면 enum 값에 따라 행동 늘어남
+	public virtual void JudgeState()//상태 판단 함수
 	{
-        if (currentState == UnitState.TEST_RANDOM_MOVE_6)
-        {
-			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
-        }
-    }
-    #endregion
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
 
-	#region 상태를 나타내는 함수들/////중요!! 여기에 함수들만 추가하고 enum에 넣으면 상태 늘어남
+		// 시야에 적 진영 유닛이 있는지 확인
+		if (myData.spottedEnemyUnits.Count > 0)
+		{
+			// 찾은 적들 중 살아있는 적이 하나라도 있는지 확인
+			bool enemyAlive = false;
+			foreach (var enemy in myData.spottedEnemyUnits)
+			{
+				if (enemy != null && enemy.hp > 0)
+				{
+					enemyAlive = true;
+					break;
+				}
+			}
+
+			if (enemyAlive)
+			{
+				currentState = UnitState.ENGAGE;
+			}
+			else
+			{
+				currentState = UnitState.TEST_RANDOM_MOVE_6;
+				oneTimeReactUsed = false;
+			}
+		}
+		else
+		{
+			currentState = UnitState.TEST_RANDOM_MOVE_6;
+			oneTimeReactUsed = false;
+		}
+	}
+
+	public virtual void ExecuteAction()//행동 즉시 실행. 여기에 if 늘리면 enum 값에 따라 행동 늘어남
+	{
+		if (currentState == UnitState.TEST_RANDOM_MOVE_6)
+		{
+			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
+		}
+		else if (currentState == UnitState.ENGAGE)
+		{
+			ENGAGE_Execute();
+		}
+
+		isHitThisTurn = false; // 턴 시작/종료시 피격 플래그 리셋
+	}
+	#endregion
+
+	#region 가장 큰 단위 상태를 나타내는 함수들/////중요!! 여기에 함수들만 추가하고 enum에 넣으면 상태 늘어남
 	protected void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
 	{
 		Dir randomDir = (Dir)Random.Range(0, 8);
 		Move(randomDir);
+	}
+
+	protected void ENGAGE_Execute()
+	{
+		if (unitType is Archer)
+		{
+			ENGAGE_Archer();
+		}
+		else if (unitType is Wolf)
+		{
+			ENGAGE_Wolf();
+		}
+		else
+		{
+			ENGAGE_Default();
+		}
+	}
+
+	#endregion
+
+	#region 공통 행동들
+
+	protected Unit GetClosestEnemy(out float minDist)//가장 가까운 적 유닛 획득
+	{
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		Unit target = null;
+		minDist = float.MaxValue;
+
+		foreach (var enemy in myData.spottedEnemyUnits)
+		{
+			if (enemy == null || enemy.hp <= 0) continue;
+			float d = Vector2Int.Distance(position, enemy.position);
+			if (d < minDist)
+			{
+				minDist = d;
+				target = enemy;
+			}
+		}
+		return target;
+	}
+
+	protected void MoveTowardsTarget(Unit target)//타켓을 향해 이동
+	{
+		Vector2Int diff = target.position - position;
+		int dx = diff.x == 0 ? 0 : (diff.x > 0 ? 1 : -1);
+		int dy = diff.y == 0 ? 0 : (diff.y > 0 ? 1 : -1);
+
+		foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+		{
+			if (GetDirVector(d) == new Vector2Int(dx, dy))
+			{
+				Move(d);
+				break;
+			}
+		}
+	}
+	#endregion
+
+	#region Engage 상태 유닛타입별 분류
+
+	protected void ENGAGE_Archer()
+	{
+		// 피격 리액션이 우선
+		if (isHitThisTurn)
+		{
+			// 궁수 피격 처리: 뒤로 1칸 대각선 이동
+			Dir runDir = (Dir)Mathf.Repeat((int)currentDir + 4 + Random.Range(-1, 2), 8);
+			Move(runDir);
+			return;
+		}
+
+		Unit target = GetClosestEnemy(out float minDist);
+		if (target == null) return;
+
+		// 공격 범위 체크
+		if (minDist <= 5.5f)
+		{
+			target.TakeDamage(attackPower);
+			Debug.Log($"{unitType.typeName}가 {target.unitType.typeName}을 공격해 {attackPower} 피해를 입힘");
+		}
+		else
+		{
+			MoveTowardsTarget(target);
+		}
+	}
+
+	protected void ENGAGE_Wolf()
+	{
+		// 피격 리액션이 우선
+		if (isHitThisTurn && !oneTimeReactUsed)
+		{
+			// 늑대 피격 처리: 1회 대각선 전진 (적 방향 구현 필요시 구체화)
+			oneTimeReactUsed = true;
+			Move((Dir)Random.Range(0, 8)); // 임시 전진
+			return;
+		}
+
+		Unit target = GetClosestEnemy(out float minDist);
+		if (target == null) return;
+
+		// 공격 범위 체크
+		if (minDist <= 1.5f)
+		{
+			target.TakeDamage(attackPower);
+			Debug.Log($"{unitType.typeName}가 {target.unitType.typeName}을 공격해 {attackPower} 피해를 입힘");
+		}
+		else
+		{
+			MoveTowardsTarget(target);
+		}
+	}
+
+	protected void ENGAGE_Default()
+	{
+		Unit target = GetClosestEnemy(out float minDist);
+		if (target == null) return;
+
+		if (minDist <= 1.5f)
+		{
+			target.TakeDamage(attackPower);
+			Debug.Log($"{unitType.typeName}가 {target.unitType.typeName}을 공격해 {attackPower} 피해를 입힘");
+		}
+		else
+		{
+			MoveTowardsTarget(target);
+		}
 	}
 	#endregion
 }
 
 public class Human : Unit
 {
-    public override void JudgeState()
-    {
-        // 인류 상태 판단 로직
-    }
+	public override void JudgeState()
+	{
+		base.JudgeState();
+		// 인류 상태 판단 로직 추가
+	}
 }
 
 public class Monster : Unit
 {
-    public override void JudgeState()
-    {
-        // 몬스터 상태 판단 로직
-    }
+	public override void JudgeState()
+	{
+		base.JudgeState();
+		// 몬스터 상태 판단 로직 추가
+	}
 }
 
