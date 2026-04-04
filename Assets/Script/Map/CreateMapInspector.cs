@@ -347,6 +347,7 @@ public class CreateMapInspector : Editor
         DrawDetailRow("위험도 (dangerous)", tile.dangerous.ToString());
         DrawDetailRow("이해도 (understand)", tile.understand.ToString());
         DrawDetailRow("가중치 (weight)", tile.weight.ToString());
+        DrawDetailRow("가시성 (visibility)", tile.visibility.ToString());
 
         EditorGUILayout.EndVertical();
     }
