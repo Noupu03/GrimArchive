@@ -66,7 +66,7 @@ public class UnitGenerate : MonoBehaviour
 				{
 					Vector2 forward = u.GetDirVector(u.currentDir);
 					if (forward == Vector2.zero) forward = Vector2.down;
-					uv.DrawFOV(128f, 160f, forward);
+					uv.DrawFOV(Unit.ViewRadius, 160f, forward);
 				}
 			}
 		}
@@ -335,7 +335,7 @@ public class GameSessionEditor : Editor
 }
 #endif
 
-public class UnitVisual : MonoBehaviour
+public class UnitVisual : MonoBehaviour//유닛 시야 시각화
 {
 	public LineRenderer fovLine;
 
@@ -345,8 +345,8 @@ public class UnitVisual : MonoBehaviour
 		fovLine.startWidth = 0.05f;
 		fovLine.endWidth = 0.05f;
 		fovLine.material = new Material(Shader.Find("Sprites/Default")); // 기본 2D 쉐이더로 단색 표시
-		fovLine.startColor = new Color(0f, 1f, 1f, 0.5f); // 하늘색 반투명
-		fovLine.endColor = new Color(0f, 1f, 1f, 0.5f);
+		fovLine.startColor = new Color(0f, 1f, 1f, 0f); // 하늘색 반투명
+		fovLine.endColor = new Color(0f, 1f, 1f, 0f);
 		fovLine.useWorldSpace = false; // 부모(유닛) 기준 좌표
 		fovLine.sortingOrder = 9;
 	}

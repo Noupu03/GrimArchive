@@ -66,6 +66,7 @@ public abstract class Unit : ScriptableObject
 
     public Vector2Int position;
     public Dir currentDir = Dir.DOWN; // 현재 바라보는 방향 (시야 기준)
+    public static float ViewRadius = 30f; // 전역 시야 거리
 
 
     #region 기능함수들
@@ -117,6 +118,94 @@ public abstract class Unit : ScriptableObject
         }
     }
 
+    private void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits)//시야 레이캐스트
+    {
+        Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+
+        float rayPosX = startPos.x + 0.5f;
+        float rayPosY = startPos.y + 0.5f;
+
+        int x = startPos.x;
+        int y = startPos.y;
+
+        int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
+        int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
+
+        float tMaxX = dir.x != 0 ? Mathf.Abs(((dir.x > 0 ? x + 1 : x) - rayPosX) / dir.x) : float.PositiveInfinity;
+        float tMaxY = dir.y != 0 ? Mathf.Abs(((dir.y > 0 ? y + 1 : y) - rayPosY) / dir.y) : float.PositiveInfinity;
+
+        float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
+        float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
+
+        float dist = 0f;
+
+        while (dist <= maxRadius)
+        {
+            if (x < 0 || x >= 128 || y < 0 || y >= 128) break;
+
+            int cx = x / 8;
+            int tx = x % 8;
+            int cy = y / 8;
+            int ty = y % 8;
+
+            if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) break;
+
+            Chunks c = cmap.map.session[cx, cy];
+            if (c.roomId == -1 || c.chunk == null) break;
+
+            Tile tile = c.chunk[tx, ty];
+            myData.discoveredMap[x, y] = tile.name == "Wall" ? 2 : 1;
+
+            // 유닛 발견
+            foreach (var unit in allUnits)
+            {
+                if (unit == null || unit == this) continue;
+                if (unit.position.x == x && unit.position.y == y)
+                {
+                    bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
+                    if (isEnemy && !myData.spottedEnemyUnits.Contains(unit))
+                    {
+                        myData.spottedEnemyUnits.Add(unit);
+                    }
+                }
+            }
+
+            // 가시성 체크 (본인 위치 제외)
+            if (x != startPos.x || y != startPos.y)
+            {
+                int vis = tile.visibility;
+
+                // visibility 데이터가 설정되지 않은 맵을 위한 예외처리
+                if (vis == 0 && tile.name != "Wall") vis = 100;
+                if (tile.name == "Wall") vis = 0;
+
+                if (vis <= 0) break; // 시야 즉시 차단
+                if (vis < 100)
+                {
+                    // visibility 확률에 따른 시야 통과 여부 검사
+                    if (Random.Range(0, 100) >= vis)
+                    {
+                        break; // 시야 차단 막힘
+                    }
+                }
+            }
+
+            // 다음 타일 이동
+            if (tMaxX < tMaxY)
+            {
+                dist = tMaxX;
+                tMaxX += tDeltaX;
+                x += stepX;
+            }
+            else
+            {
+                dist = tMaxY;
+                tMaxY += tDeltaY;
+                y += stepY;
+            }
+        }
+    }
+
     public void UpdateFOV(List<Unit> allUnits)//시야 업데이트 함수
     {
         FactionData myData = this is Human ? humanFactionData : monsterFactionData;
@@ -126,65 +215,18 @@ public abstract class Unit : ScriptableObject
         CreateMap cmap = FindObjectOfType<CreateMap>();
         if (cmap == null || cmap.map.session == null) return;
 
-        float viewRadius = 128f;
         float fovAngle = 160f;
 
-        // 1. 공용 타일맵 데이터 갱신
-        for (int dx = -128; dx <= 128; dx++)
+        float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
+
+        // 방사형 레이캐스트(DDA 알고리즘) 적용, 가시성 확률(visibility) 반영
+        int numRays = 800; // 충분히 촘촘한 레이 수 설정하여 누락 타일 방지
+
+        for (int i = 0; i <= numRays; i++)
         {
-            for (int dy = -128; dy <= 128; dy++)
-            {
-                Vector2Int targetPos = position + new Vector2Int(dx, dy);
-                if (targetPos.x < 0 || targetPos.x >= 128 || targetPos.y < 0 || targetPos.y >= 128) continue;
-
-                float dist = Vector2.Distance(position, targetPos);
-                if (dist > viewRadius) continue;
-
-                Vector2 dirToTarget = ((Vector2)targetPos - (Vector2)position).normalized;
-                float angle = Vector2.Angle(forward, dirToTarget);
-
-                if (angle <= fovAngle / 2f || dist < 0.5f) // 부채꼴 시야 내 확인
-                {
-                    int cx = targetPos.x / 8;
-                    int tx = targetPos.x % 8;
-                    int cy = targetPos.y / 8;
-                    int ty = targetPos.y % 8;
-
-                    if (cx >= 0 && cx < 16 && cy >= 0 && cy < 16)
-                    {
-                        Chunks c = cmap.map.session[cx, cy];
-                        if (c.roomId != -1 && c.chunk != null)
-                        {
-                            string tileName = c.chunk[tx, ty].name;
-                            myData.discoveredMap[targetPos.x, targetPos.y] = tileName == "Wall" ? 2 : 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. 다른 유닛 데이터 공용 데이터에 갱신
-        foreach (var unit in allUnits)
-        {
-            if (unit == null || unit == this) continue;
-
-            bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
-            if (isEnemy)
-            {
-                float dist = Vector2.Distance(position, unit.position);
-                if (dist <= viewRadius)
-                {
-                    Vector2 dirToTarget = ((Vector2)unit.position - (Vector2)position).normalized;
-                    float angle = Vector2.Angle(forward, dirToTarget);
-                    if (angle <= fovAngle / 2f || dist < 0.5f)
-                    {
-                        if (!myData.spottedEnemyUnits.Contains(unit))
-                        {
-                            myData.spottedEnemyUnits.Add(unit); // 적 발견 갱신
-                        }
-                    }
-                }
-            }
+            float angle = centerAngle - (fovAngle / 2f) + (fovAngle * i / numRays);
+            float rad = angle * Mathf.Deg2Rad;
+            CastRay(myData, cmap, position, rad, ViewRadius, allUnits);
         }
     }
 
@@ -198,6 +240,7 @@ public abstract class Unit : ScriptableObject
         }
     }
     #endregion
+
 	#region 상태를 나타내는 함수들/////중요!! 여기에 함수들만 추가하고 enum에 넣으면 상태 늘어남
 	protected void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
 	{
