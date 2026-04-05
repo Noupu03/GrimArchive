@@ -251,8 +251,12 @@ public class CreateMapInspector : Editor
         // 청크 정보 요약
         EditorGUILayout.BeginHorizontal();
         EditorGUILayout.LabelField($"Room: {chunk.roomName}", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField($"ID: {chunk.roomId}", GUILayout.Width(80));
-        EditorGUILayout.LabelField($"Landform: {chunk.landform}", GUILayout.Width(100));
+        EditorGUILayout.LabelField($"ID: {chunk.roomId}");
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField($"Landform: {chunk.landform}");
+        EditorGUILayout.LabelField($"Occupied: {chunk.whoOccupation}");
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(4);

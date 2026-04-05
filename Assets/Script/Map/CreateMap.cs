@@ -62,6 +62,7 @@ public class CreateMap : MonoBehaviour
                 c.landform = 0;
                 c.roomId = -1;
                 c.roomName = string.Empty;
+                c.whoOccupation = 0;
                 map.session[x, y] = c;
             }
         }

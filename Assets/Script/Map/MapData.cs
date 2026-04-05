@@ -6,6 +6,7 @@ public enum TileEffect
     None
     // 효과 종류는 필요에 따라 확장하세요.
 }
+
 [Serializable]
 public struct Tile
 {
@@ -40,7 +41,14 @@ public struct Chunks
     // - roomId: 내부 비교/인덱스 용 (최소 비용)
     // - roomName: 디버깅/에디터 표시용 (예: "room0")
     public int roomId;
-    public string roomName;
+	public string roomName;
+	public enum WhoOccupation
+	{
+		None,
+		Monster,
+		Human
+	};
+	public WhoOccupation whoOccupation;
 }
 [Serializable]
 public struct Map
