@@ -114,12 +114,14 @@ public abstract class Unit : ScriptableObject
 		int cy = pos.y / 8;
 		int cyVal = pos.y % 8;
 
-		if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) return false;
-
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
-		if (cmap == null || cmap.map.session == null) return false;
+		if (cmap == null || cmap.map.floors == null) return false;
 
-		Chunks c = cmap.map.session[cx, cy];
+		Floor floor = cmap.GetCurrentFloor();
+		if (floor.chunks == null) return false;
+		if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+		Chunks c = floor.chunks[cx, cy];
 		if (c.roomId == -1 || c.chunk == null) return false;
 
 		if (c.chunk[tx, cyVal].name == "Wall") return false;
@@ -167,20 +169,25 @@ public abstract class Unit : ScriptableObject
         float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
         float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
 
-        float dist = 0f;
+		float dist = 0f;
 
-        while (dist <= maxRadius)
-        {
-            if (x < 0 || x >= 128 || y < 0 || y >= 128) break;
+		Floor floor = cmap.GetCurrentFloor();
+		if (floor.chunks == null) return;
+		int worldMaxX = floor.config.width * 8;
+		int worldMaxY = floor.config.height * 8;
 
-            int cx = x / 8;
-            int tx = x % 8;
-            int cy = y / 8;
-            int ty = y % 8;
+		while (dist <= maxRadius)
+		{
+			if (x < 0 || x >= worldMaxX || y < 0 || y >= worldMaxY) break;
 
-            if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) break;
+			int cx = x / 8;
+			int tx = x % 8;
+			int cy = y / 8;
+			int ty = y % 8;
 
-            Chunks c = cmap.map.session[cx, cy];
+			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) break;
+
+			Chunks c = floor.chunks[cx, cy];
             if (c.roomId == -1 || c.chunk == null) break;
 
             Tile tile = c.chunk[tx, ty];
@@ -242,7 +249,7 @@ public abstract class Unit : ScriptableObject
 		if (forward == Vector2.zero) forward = Vector2.down;
 
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
-		if (cmap == null || cmap.map.session == null) return;
+		if (cmap == null || cmap.map.floors == null) return;
 
 		float fovAngle = 160f;
 
