@@ -1,287 +1,201 @@
+// ============================================================================
+// CreateMap.cs — 메인 파일 (partial class 루트)
+// ----------------------------------------------------------------------------
+// 역할: CreateMap MonoBehaviour의 진입점.
+//       Inspector 노출 필드, Awake/GenerateMap 호출 흐름, InitMap,
+//       공용 유틸리티(ShuffleList, BfsDistances, SetRoomRole, BuildRoomRoleMap)
+//       를 포함한다.
+// 호출 흐름: Awake → GenerateMap → (각 partial 파일의 메서드 순차 호출)
+// ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
 
-public class CreateMap : MonoBehaviour
+public partial class CreateMap : MonoBehaviour
 {
     public Map map;
-    public Session session;
-
-    private int nextRoomId = 0;
+    public FloorConfig[] floorConfigs;
 
     // true면 고정 시드, false면 매번 랜덤
     public bool useFixedSeed = true;
     public int seed = 12345;
 
+    // 현재 생성 중인 Floor 인덱스 (Inspector/외부 참조용)
+    public int currentFloorIndex = 1;
+
+    // 검증: 최대 재시도 횟수
+    public int maxRetryCount = 5;
+
+    // 검증 결과 (Inspector/외부 참조용)
+    [System.NonSerialized] public List<string> lastValidationErrors = new List<string>();
+    [System.NonSerialized] public bool lastValidationPassed = false;
+    [System.NonSerialized] public int lastRetryCount = 0;
+
+    // 디버그 Gizmo 설정
+    public bool showGizmos = true;
+    public bool gizmoShowRoomBounds = true;
+    public bool gizmoShowPassages = true;
+    public bool gizmoShowStairs = true;
+    public bool gizmoShowRoomLabels = true;
+
     private int spawnRoomId = -1;
     private Dictionary<int, HashSet<int>> roomAdjacency = new Dictionary<int, HashSet<int>>();
     private HashSet<(int, int)> connectedPairs = new HashSet<(int, int)>();
+    private Dictionary<int, (int thicknessX, int thicknessY)> wallThicknessCache = new Dictionary<int, (int, int)>();
+    private Dictionary<int, Dictionary<int, (int thicknessX, int thicknessY)>> perFloorWallThicknessCache = new Dictionary<int, Dictionary<int, (int, int)>>();
 
     void Awake() => GenerateMap();
 
     public void GenerateMap()
     {
-        if (useFixedSeed) UnityEngine.Random.InitState(seed);
-        else UnityEngine.Random.InitState(System.Environment.TickCount);
+        lastRetryCount = 0;
+        lastValidationErrors.Clear();
+        lastValidationPassed = false;
 
-        nextRoomId = 0;
-        spawnRoomId = -1;
-        roomAdjacency.Clear();
-        connectedPairs.Clear();
+        for (int attempt = 0; attempt <= maxRetryCount; attempt++)
+        {
+            lastRetryCount = attempt;
 
-        //①16×16 chunks 배열 초기화
-        InitMap();
-        //②세션 좌표 범위 설정
-        DefineSession();
-        //③세션 1~4에 방 배치 (0번 스폰은 제외)
-        PlaceRooms();
-        //③ 부가기능: 스폰 영역(세션 0) 청크에 roomId 할당
-        AssignSpawn();
-        //③.5 임시: 프리팹 미확정 → 청크 내 가장자리 타일은 Wall, 나머지는 Floor
-        AssignTileNames();
-        //③.6 같은 방 내부 청크 간 벽 개방
-        OpenInternalWalls();
-        // ④ 방 인접 관계 그래프 생성
-        BuildGraph();
-        // ⑤ 방 연결 (스폰: 모든 인접 방 무조건 연결 / 나머지: MST)
-        ConnectRooms();
-        // ⑥ 추가 루프: 막힌 벽 중 ~15%를 랜덤 개방하여 갈림길/우회로 생성
-        AddLoops();
+            try
+            {
+                // 시드 설정: 첫 시도는 원래 시드, 재시도는 시드 변형
+                if (useFixedSeed)
+                    UnityEngine.Random.InitState(seed + attempt);
+                else
+                    UnityEngine.Random.InitState(System.Environment.TickCount + attempt);
+
+                RoomIdGenerator.Reset();
+                spawnRoomId = -1;
+                roomAdjacency.Clear();
+                connectedPairs.Clear();
+
+                // 층별 설정 초기화
+                floorConfigs = FloorConfigFactory.CreateDefault();
+
+                // ① Floor별 독립 배열 초기화
+                InitMap();
+
+                // ② ~ ⑥ 각 Floor(1~3)에 대해 방 배치 → 타일 → 연결
+                for (int f = 1; f < map.floors.Length; f++)
+                {
+                    currentFloorIndex = f;
+                    roomAdjacency.Clear();
+                    connectedPairs.Clear();
+                    wallThicknessCache.Clear();
+
+                    ref Floor floor = ref map.floors[f];
+
+                    // ── Phase 1: 방 배치 확정 (타일 작업 없이 roomId/roomRole만 결정) ──
+                    PlaceBossRoom(ref floor);
+                    PlaceRooms(ref floor);
+                    AssignStartRoom(ref floor);
+                    BuildGraph(ref floor);              // 인접 그래프 (AssignRoomRoles의 BFS에 필요)
+                    AssignRoomRoles(ref floor);
+                    PruneExcessRooms(ref floor);
+                    EnsureSubPurposeRooms(ref floor);   // v2: Floor별 고정 개수(1/2/3) 보장
+
+                    // ── Phase 2: 타일·벽·연결 (방 배치가 완전히 확정된 후) ──
+                    BuildGraph(ref floor);              // Prune/EnsureSub 이후 최종 그래프
+                    AssignTileNames(ref floor);          // 가장자리=Wall, 내부=Floor (Prune된 방은 이미 roomId==-1)
+                    OpenInternalWalls(ref floor);        // 같은 roomId 청크 간 내부 벽 허물기
+                    AssignFootprint(ref floor);          // Gate 폭 계산에 필요하므로 ConnectRooms 이전
+                    ConnectRooms(ref floor);
+                    AddLoops(ref floor);
+                    RepairGateConnectivity(ref floor);   // 타일 레벨 연결 보장
+
+                    // wallThicknessCache를 Floor별로 보관 (UpdateGateWidthsAfterStairs에서 복원)
+                    perFloorWallThicknessCache[f] = new Dictionary<int, (int, int)>(wallThicknessCache);
+
+                    // ── Phase 3: 메타데이터 초기화 ──
+                    InitOccupationAndDanger(ref floor);
+                    InitWeightVisibilityLandform(ref floor);
+                }
+
+                // ⑦ Floor 0 (입구/로비) 생성
+                GenerateFloor0();
+
+                // ⑧ 층간 계단 배치
+                PlaceStairs();
+
+                // ⑧-b 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭 갱신
+                UpdateGateWidthsAfterStairs();
+
+                // ⑨ 검증: 모든 Floor 무결성 확인
+                var errors = ValidateMap();
+                lastValidationErrors = errors;
+
+                if (errors.Count == 0)
+                {
+                    lastValidationPassed = true;
+                    Debug.Log($"CreateMap: All floors generated. 검증 통과 (시도 {attempt + 1}회).");
+                    return;
+                }
+
+                // 검증 실패 → 재시도
+                Debug.LogWarning($"CreateMap: 검증 실패 (시도 {attempt + 1}/{maxRetryCount + 1}). 오류 {errors.Count}건:");
+                foreach (string err in errors)
+                    Debug.LogWarning($"  ● {err}");
+            }
+            catch (System.Exception ex)
+            {
+                // 예상치 못한 예외 발생 시 재시도로 복구
+                Debug.LogWarning($"CreateMap: 시도 {attempt + 1}에서 예외 발생, 재시도합니다. {ex.GetType().Name}: {ex.Message}");
+                lastValidationErrors = new List<string> { $"Exception: {ex.Message}" };
+            }
+        }
+
+        // 최대 재시도 초과: 마지막 결과 유지
+        lastValidationPassed = false;
+        Debug.LogError($"CreateMap: {maxRetryCount + 1}회 시도 후에도 검증 실패. 오류 {lastValidationErrors.Count}건 남음.");
     }
 
-    // ① 16×16 청크 배열 초기화 (각 청크 8×8 타일)
+    // ① Floor별 독립 Chunks 배열 초기화
     void InitMap()
     {
-        map.session = new Chunks[16, 16];
+        map.floors = new Floor[floorConfigs.Length];
 
-        for (int x = 0; x < 16; x++)
+        for (int f = 0; f < floorConfigs.Length; f++)
         {
-            for (int y = 0; y < 16; y++)
+            FloorConfig cfg = floorConfigs[f];
+            int w = cfg.width;
+            int h = cfg.height;
+
+            Floor floor = new Floor();
+            floor.config = cfg;
+            floor.chunks = new Chunks[w, h];
+            floor.gates = new System.Collections.Generic.List<Gate>();
+
+            for (int x = 0; x < w; x++)
             {
-                Chunks c = new Chunks();
-                c.chunk = new Tile[8, 8];
-                c.landform = 0;
-                c.roomId = -1;
-                c.roomName = string.Empty;
-                c.whoOccupation = 0;
-                map.session[x, y] = c;
-            }
-        }
-
-        session.session = new int[5, 2, 2];
-        Debug.Log("CreateMap: Map initialized with 16x16 chunks, each chunk has 8x8 tiles.");
-    }
-
-    // ② 세션 좌표 범위 설정 — [s,0,0]=startX, [s,0,1]=endX, [s,1,0]=startY, [s,1,1]=endY
-    void DefineSession()
-    {
-        if (session.session == null || session.session.GetLength(0) < 5)
-            session.session = new int[5, 2, 2];
-
-        // S0: 스폰 중앙 (7~8, 7~8)
-        session.session[0, 0, 0] = 7;  session.session[0, 0, 1] = 8;
-        session.session[0, 1, 0] = 7;  session.session[0, 1, 1] = 8;
-
-        // S1: (0~8, 9~15)
-        session.session[1, 0, 0] = 0;  session.session[1, 0, 1] = 8;
-        session.session[1, 1, 0] = 9;  session.session[1, 1, 1] = 15;
-
-        // S2: (9~15, 7~15)
-        session.session[2, 0, 0] = 9;  session.session[2, 0, 1] = 15;
-        session.session[2, 1, 0] = 7;  session.session[2, 1, 1] = 15;
-
-        // S3: (7~15, 0~6)
-        session.session[3, 0, 0] = 7;  session.session[3, 0, 1] = 15;
-        session.session[3, 1, 0] = 0;  session.session[3, 1, 1] = 6;
-
-        // S4: (0~6, 0~8)
-        session.session[4, 0, 0] = 0;  session.session[4, 0, 1] = 6;
-        session.session[4, 1, 0] = 0;  session.session[4, 1, 1] = 8;
-
-        Debug.Log("CreateMap: Sessions defined.");
-    }
-
-    // ③.1 비정형 방 모양 템플릿 (L/T/ㄷ/S·Z/직선, 각 회전 포함)
-    static readonly List<(int dx, int dy)[]> shapeTemplates = new List<(int dx, int dy)[]>
-    {
-        // L자 (4회전)
-        new (int,int)[] { (0,0),(0,1),(0,2),(1,2) },
-        new (int,int)[] { (0,0),(1,0),(2,0),(0,1) },
-        new (int,int)[] { (0,0),(1,0),(1,1),(1,2) },
-        new (int,int)[] { (2,0),(0,1),(1,1),(2,1) },
-
-        // T자 (4회전)
-        new (int,int)[] { (0,0),(1,0),(2,0),(1,1) },
-        new (int,int)[] { (0,0),(0,1),(1,1),(0,2) },
-        new (int,int)[] { (1,0),(0,1),(1,1),(2,1) },
-        new (int,int)[] { (1,0),(0,1),(1,1),(1,2) },
-
-        // ㄷ자 (4회전, 5청크)
-        new (int,int)[] { (0,0),(1,0),(2,0),(0,1),(2,1) },
-        new (int,int)[] { (0,0),(1,0),(1,1),(0,2),(1,2) },
-        new (int,int)[] { (0,0),(2,0),(0,1),(1,1),(2,1) },
-        new (int,int)[] { (0,0),(1,0),(0,1),(0,2),(1,2) },
-
-        // S/Z자 (각 2회전)
-        new (int,int)[] { (1,0),(0,1),(1,1),(0,2) },
-        new (int,int)[] { (0,0),(1,0),(1,1),(2,1) },
-        new (int,int)[] { (0,0),(0,1),(1,1),(1,2) },
-        new (int,int)[] { (1,0),(2,0),(0,1),(1,1) },
-
-        // 직선 1×3
-        new (int,int)[] { (0,0),(1,0),(2,0) },
-        new (int,int)[] { (0,0),(0,1),(0,2) },
-
-        // 직선 2×1
-        new (int,int)[] { (0,0),(1,0) },
-        new (int,int)[] { (0,0),(0,1) },
-    };
-
-    // ③ 세션 1~4 방 배치: 큰 사각형 → 비정형 → 1×1 채우기
-    void PlaceRooms()
-    {
-        for (int s = 1; s <= 4; s++)
-        {
-            int startX = session.session[s, 0, 0];
-            int endX   = session.session[s, 0, 1];
-            int startY = session.session[s, 1, 0];
-            int endY   = session.session[s, 1, 1];
-
-            int width  = endX - startX + 1;
-            int height = endY - startY + 1;
-
-            bool[,] occupied = new bool[width, height];
-
-            // 1단계: 큰 사각형 우선
-            PlaceRoomsOfSize(startX, startY, width, height, 3, 3, occupied);
-            PlaceRoomsOfSize(startX, startY, width, height, 3, 2, occupied);
-            PlaceRoomsOfSize(startX, startY, width, height, 2, 3, occupied);
-            PlaceRoomsOfSize(startX, startY, width, height, 2, 2, occupied);
-
-            // 2단계: 비정형 모양
-            PlaceRoomsWithShapes(startX, startY, width, height, occupied);
-
-            // 3단계: 남은 빈 칸 1×1
-            FillRemainingWithSingle(startX, startY, width, height, occupied);
-        }
-
-        Debug.Log($"CreateMap: Rooms placed. Total rooms: {nextRoomId}");
-    }
-
-    // ③.2 rw×rh 사각형 방을 랜덤 위치에 겹치지 않게 배치
-    void PlaceRoomsOfSize(int startX, int startY, int width, int height, int rw, int rh, bool[,] occupied)
-    {
-        var positions = new List<(int lx, int ly)>();
-        for (int lx = 0; lx <= width - rw; lx++)
-            for (int ly = 0; ly <= height - rh; ly++)
-                positions.Add((lx, ly));
-
-        ShuffleList(positions);
-
-        foreach (var (lx, ly) in positions)
-        {
-            if (CanPlaceRect(lx, ly, rw, rh, width, height, occupied))
-            {
-                int id = nextRoomId++;
-                string name = $"room{id}";
-
-                for (int dx = 0; dx < rw; dx++)
+                for (int y = 0; y < h; y++)
                 {
-                    for (int dy = 0; dy < rh; dy++)
-                    {
-                        occupied[lx + dx, ly + dy] = true;
-                        int mx = startX + lx + dx;
-                        int my = startY + ly + dy;
-
-                        Chunks c = map.session[mx, my];
-                        c.roomId = id;
-                        c.roomName = name;
-                        map.session[mx, my] = c;
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    // ③.3 사각형 배치 가능 여부 확인
-    bool CanPlaceRect(int lx, int ly, int rw, int rh, int width, int height, bool[,] occupied)
-    {
-        for (int dx = 0; dx < rw; dx++)
-            for (int dy = 0; dy < rh; dy++)
-            {
-                int cx = lx + dx, cy = ly + dy;
-                if (cx >= width || cy >= height) return false;
-                if (occupied[cx, cy]) return false;
-            }
-        return true;
-    }
-     
-    // ③.4 남은 공간에 비정형 템플릿 배치
-    void PlaceRoomsWithShapes(int startX, int startY, int width, int height, bool[,] occupied)
-    {
-        var templateIndices = new List<int>();
-        for (int i = 0; i < shapeTemplates.Count; i++)
-            templateIndices.Add(i);
-
-        ShuffleList(templateIndices);
-
-        foreach (int ti in templateIndices)
-        {
-            var shape = shapeTemplates[ti];
-
-            int maxDx = 0, maxDy = 0;
-            foreach (var (dx, dy) in shape)
-            {
-                if (dx > maxDx) maxDx = dx;
-                if (dy > maxDy) maxDy = dy;
-            }
-            int shapeW = maxDx + 1;
-            int shapeH = maxDy + 1;
-
-            var positions = new List<(int lx, int ly)>();
-            for (int lx = 0; lx <= width - shapeW; lx++)
-                for (int ly = 0; ly <= height - shapeH; ly++)
-                    positions.Add((lx, ly));
-
-            ShuffleList(positions);
-
-            foreach (var (lx, ly) in positions)
-            {
-                if (CanPlaceShape(lx, ly, shape, width, height, occupied))
-                {
-                    int id = nextRoomId++;
-                    string name = $"room{id}";
-
-                    foreach (var (dx, dy) in shape)
-                    {
-                        occupied[lx + dx, ly + dy] = true;
-                        int mx = startX + lx + dx;
-                        int my = startY + ly + dy;
-
-                        Chunks c = map.session[mx, my];
-                        c.roomId = id;
-                        c.roomName = name;
-                        map.session[mx, my] = c;
-                    }
-                    break;
+                    Chunks c = new Chunks();
+                    c.chunk = new Tile[8, 8];
+                    c.landform = 0;
+                    c.roomId = -1;
+                    c.roomName = string.Empty;
+                    c.roomRole = RoomRole.None;
+                    c.floorId = (int)cfg.floorId;
+                    c.occupationState = OccupationState.Neutral;
+                    c.stairTargetFloor = -1;
+                    c.allowMaxFootprint = 1;
+                    c.stairIsOpen = false;
+                    c.stairHumanOnly = false;
+                    floor.chunks[x, y] = c;
                 }
             }
+
+            map.floors[f] = floor;
         }
+
+        Debug.Log($"CreateMap: Floors initialized — F0({floorConfigs[0].width}×{floorConfigs[0].height}), " +
+                  $"F1({floorConfigs[1].width}×{floorConfigs[1].height}), " +
+                  $"F2({floorConfigs[2].width}×{floorConfigs[2].height}), " +
+                  $"F3({floorConfigs[3].width}×{floorConfigs[3].height})");
     }
 
-    // ③.5 모양 배치 가능 여부 확인
-    bool CanPlaceShape(int lx, int ly, (int dx, int dy)[] shape, int width, int height, bool[,] occupied)
-    {
-        foreach (var (dx, dy) in shape)
-        {
-            int cx = lx + dx, cy = ly + dy;
-            if (cx < 0 || cx >= width || cy < 0 || cy >= height) return false;
-            if (occupied[cx, cy]) return false;
-        }
-        return true;
-    }
+    // ── 공용 유틸리티 ──
 
-    // ③.6 Fisher-Yates 셔플
+    // Fisher-Yates 셔플
     void ShuffleList<T>(List<T> list)
     {
         for (int i = list.Count - 1; i > 0; i--)
@@ -293,410 +207,70 @@ public class CreateMap : MonoBehaviour
         }
     }
 
-    // ③.7 남은 빈 청크 → 1×1 방 (10% 확률로 벽 전용)
-    void FillRemainingWithSingle(int startX, int startY, int width, int height, bool[,] occupied)
+    // BFS 거리 계산 (roomAdjacency 그래프 기반)
+    Dictionary<int, int> BfsDistances(int startId)
     {
-        for (int lx = 0; lx < width; lx++)
+        var dist = new Dictionary<int, int>();
+        if (startId < 0 || !roomAdjacency.ContainsKey(startId))
+            return dist;
+
+        var queue = new Queue<int>();
+        dist[startId] = 0;
+        queue.Enqueue(startId);
+
+        while (queue.Count > 0)
         {
-            for (int ly = 0; ly < height; ly++)
+            int current = queue.Dequeue();
+            if (!roomAdjacency.ContainsKey(current)) continue;
+
+            foreach (int neighbor in roomAdjacency[current])
             {
-                if (!occupied[lx, ly])
+                if (!dist.ContainsKey(neighbor))
                 {
-                    occupied[lx, ly] = true;
-
-                    if (UnityEngine.Random.value < 0.9f)
-                        continue;
-
-                    int id = nextRoomId++;
-                    string name = $"room{id}";
-                    int mx = startX + lx;
-                    int my = startY + ly;
-
-                    Chunks c = map.session[mx, my];
-                    c.roomId = id;
-                    c.roomName = name;
-                    map.session[mx, my] = c;
+                    dist[neighbor] = dist[current] + 1;
+                    queue.Enqueue(neighbor);
                 }
             }
         }
+
+        return dist;
     }
 
-    // ③.8 가장자리=Wall, 내부=Floor / roomId==-1이면 전체 Wall
-    void AssignTileNames()
+    // 특정 roomId의 모든 청크에 RoomRole 설정
+    void SetRoomRole(ref Floor floor, int roomId, RoomRole role)
     {
-        for (int x = 0; x < 16; x++)
+        int w = floor.config.width;
+        int h = floor.config.height;
+
+        for (int x = 0; x < w; x++)
         {
-            for (int y = 0; y < 16; y++)
+            for (int y = 0; y < h; y++)
             {
-                Chunks c = map.session[x, y];
-
-                if (c.chunk == null)
-                    c.chunk = new Tile[8, 8];
-
-                if (c.roomId == -1)
+                if (floor.chunks[x, y].roomId == roomId)
                 {
-                    for (int tx = 0; tx < 8; tx++)
-                        for (int ty = 0; ty < 8; ty++)
-                            c.chunk[tx, ty] = TileFactory.Wall();
-                    map.session[x, y] = c;
-                    continue;
-                }
-
-                for (int tx = 0; tx < 8; tx++)
-                {
-                    for (int ty = 0; ty < 8; ty++)
-                    {
-                        c.chunk[tx, ty] = (tx == 0 || tx == 7 || ty == 0 || ty == 7)
-                            ? TileFactory.Wall()
-                            : TileFactory.Floor();
-                    }
-                }
-
-                map.session[x, y] = c;
-            }
-        }
-
-        Debug.Log("CreateMap: Tile names assigned (Wall/Floor).");
-    }
-
-    // ③.9 같은 roomId 청크 간 내부 벽 허물기 (코너는 대각선 확인)
-    void OpenInternalWalls()
-    {
-        for (int x = 0; x < 16; x++)
-        {
-            for (int y = 0; y < 16; y++)
-            {
-                int id = map.session[x, y].roomId;
-                if (id == -1) continue;
-
-                if (x + 1 < 16 && map.session[x + 1, y].roomId == id)
-                    RemoveHorizontalWall(x, y, id);
-
-                if (y + 1 < 16 && map.session[x, y + 1].roomId == id)
-                    RemoveVerticalWall(x, y, id);
-            }
-        }
-
-        Debug.Log("CreateMap: Internal walls removed for multi-chunk rooms.");
-    }
-
-    // ③.10 청크 좌표의 roomId 반환 (범위 밖이면 -1)
-    int GetRoomId(int cx, int cy)
-    {
-        if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) return -1;
-        return map.session[cx, cy].roomId;
-    }
-
-    // ③.11 월드 경계(0 또는 127) 여부 확인
-    bool IsWorldBorder(int worldX, int worldY)
-    {
-        const int worldMax = 16 * 8 - 1;
-        return worldX == 0 || worldX == worldMax || worldY == 0 || worldY == worldMax;
-    }
-
-    // ③.12 수평 경계 벽 허물기: chunk(x,y) tx=7 ↔ chunk(x+1,y) tx=0
-    void RemoveHorizontalWall(int x, int y, int roomId)
-    {
-        Chunks cA = map.session[x, y];
-        Chunks cB = map.session[x + 1, y];
-
-        for (int ty = 0; ty <= 7; ty++)
-        {
-            int worldAX = x * 8 + 7;
-            int worldAY = y * 8 + ty;
-            int worldBX = (x + 1) * 8;
-            int worldBY = worldAY;
-
-            if (IsWorldBorder(worldAX, worldAY) || IsWorldBorder(worldBX, worldBY)) continue;
-
-            if (ty == 0)
-            {
-                if (GetRoomId(x, y - 1) != roomId || GetRoomId(x + 1, y - 1) != roomId)
-                    continue;
-            }
-            else if (ty == 7)
-            {
-                        if (GetRoomId(x, y + 1) != roomId || GetRoomId(x + 1, y + 1) != roomId)
-                                continue;
-                        }
-
-                        cA.chunk[7, ty] = TileFactory.Floor();
-                        cB.chunk[0, ty] = TileFactory.Floor();
-                    }
-
-                    map.session[x, y] = cA;
-                    map.session[x + 1, y] = cB;
-                }
-
-    // ③.13 수직 경계 벽 허물기: chunk(x,y) ty=7 ↔ chunk(x,y+1) ty=0
-    void RemoveVerticalWall(int x, int y, int roomId)
-    {
-        Chunks cA = map.session[x, y];
-        Chunks cB = map.session[x, y + 1];
-
-        for (int tx = 0; tx <= 7; tx++)
-        {
-            int worldAX = x * 8 + tx;
-            int worldAY = y * 8 + 7;
-            int worldBX = worldAX;
-            int worldBY = (y + 1) * 8;
-
-            if (IsWorldBorder(worldAX, worldAY) || IsWorldBorder(worldBX, worldBY)) continue;
-
-            if (tx == 0)
-            {
-                if (GetRoomId(x - 1, y) != roomId || GetRoomId(x - 1, y + 1) != roomId)
-                    continue;
-            }
-            else if (tx == 7)
-            {
-                        if (GetRoomId(x + 1, y) != roomId || GetRoomId(x + 1, y + 1) != roomId)
-                                continue;
-                        }
-
-                        cA.chunk[tx, 7] = TileFactory.Floor();
-                        cB.chunk[tx, 0] = TileFactory.Floor();
-                    }
-
-                    map.session[x, y] = cA;
-                    map.session[x, y + 1] = cB;
-                }
-
-    // ③.14 스폰 영역(세션 0) roomId 할당
-    void AssignSpawn()
-    {
-        spawnRoomId = nextRoomId++;
-        string name = $"room{spawnRoomId}";
-
-        int startX = session.session[0, 0, 0];
-        int endX   = session.session[0, 0, 1];
-        int startY = session.session[0, 1, 0];
-        int endY   = session.session[0, 1, 1];
-
-        for (int x = startX; x <= endX; x++)
-        {
-            for (int y = startY; y <= endY; y++)
-            {
-                Chunks c = map.session[x, y];
-                c.roomId = spawnRoomId;
-                c.roomName = name;
-                map.session[x, y] = c;
-            }
-        }
-
-        Debug.Log($"CreateMap: Spawn assigned as {name}.");
-    }
-
-    // ④ 방 인접 그래프 생성
-    void BuildGraph()
-    {
-        roomAdjacency.Clear();
-
-        int[] dx = { 1, 0, -1, 0 };
-        int[] dy = { 0, 1, 0, -1 };
-
-        for (int x = 0; x < 16; x++)
-        {
-            for (int y = 0; y < 16; y++)
-            {
-                int idA = map.session[x, y].roomId;
-                if (idA == -1) continue;
-
-                if (!roomAdjacency.ContainsKey(idA))
-                    roomAdjacency[idA] = new HashSet<int>();
-
-                for (int d = 0; d < 4; d++)
-                {
-                    int nx = x + dx[d];
-                    int ny = y + dy[d];
-                    if (nx < 0 || nx >= 16 || ny < 0 || ny >= 16) continue;
-
-                    int idB = map.session[nx, ny].roomId;
-                    if (idB == -1 || idB == idA) continue;
-
-                    AddEdge(idA, idB);
+                    Chunks c = floor.chunks[x, y];
+                    c.roomRole = role;
+                    floor.chunks[x, y] = c;
                 }
             }
         }
-
-        Debug.Log($"CreateMap: Graph built. Nodes: {roomAdjacency.Count}");
     }
 
-    // ④.1 양방향 엣지 등록
-    void AddEdge(int a, int b)
+    // roomId → RoomRole 매핑 구축
+    Dictionary<int, RoomRole> BuildRoomRoleMap(ref Floor floor)
     {
-        if (!roomAdjacency.ContainsKey(a))
-            roomAdjacency[a] = new HashSet<int>();
-        if (!roomAdjacency.ContainsKey(b))
-            roomAdjacency[b] = new HashSet<int>();
+        int w = floor.config.width;
+        int h = floor.config.height;
+        var roleMap = new Dictionary<int, RoomRole>();
 
-        roomAdjacency[a].Add(b);
-        roomAdjacency[b].Add(a);
-    }
-
-    // ⑤ 스폰은 인접 방 전부 연결 / 나머지는 랜덤 Prim MST
-    void ConnectRooms()
-    {
-        connectedPairs.Clear();
-
-        // 스폰 → 모든 인접 방 무조건 연결
-        if (roomAdjacency.ContainsKey(spawnRoomId))
-        {
-            foreach (int neighbor in roomAdjacency[spawnRoomId])
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
             {
-                var pair = MakePair(spawnRoomId, neighbor);
-                if (connectedPairs.Add(pair))
-                    OpenPassage(spawnRoomId, neighbor);
-            }
-        }
-
-        // 나머지: 랜덤 Prim MST
-        var visited = new HashSet<int> { spawnRoomId };
-        if (roomAdjacency.ContainsKey(spawnRoomId))
-            foreach (int neighbor in roomAdjacency[spawnRoomId])
-                visited.Add(neighbor);
-
-        var allNodes = new HashSet<int>(roomAdjacency.Keys);
-
-        while (visited.Count < allNodes.Count)
-        {
-            var frontier = new List<(int from, int to)>();
-
-            foreach (int v in visited)
-            {
-                if (!roomAdjacency.ContainsKey(v)) continue;
-                foreach (int adj in roomAdjacency[v])
-                    if (!visited.Contains(adj))
-                        frontier.Add((v, adj));
+                int id = floor.chunks[x, y].roomId;
+                if (id >= 0 && !roleMap.ContainsKey(id))
+                    roleMap[id] = floor.chunks[x, y].roomRole;
             }
 
-            if (frontier.Count == 0) break;
-
-            int idx = UnityEngine.Random.Range(0, frontier.Count);
-            var (from, to) = frontier[idx];
-
-            visited.Add(to);
-            var pair = MakePair(from, to);
-            if (connectedPairs.Add(pair))
-                OpenPassage(from, to);
-        }
-
-        Debug.Log($"CreateMap: Rooms connected. Passages: {connectedPairs.Count}");
+        return roleMap;
     }
-    // ⑤.1 페어 정렬 헬퍼 (a < b 순서로 통일)
-    (int, int) MakePair(int a, int b) => a < b ? (a, b) : (b, a);
-
-    // ⑤.2 두 방 사이 청크 경계 후보 중 랜덤으로 하나 개방
-    void OpenPassage(int roomA, int roomB)
-    {
-        var horizontal = new List<(int x, int y)>();
-        var vertical   = new List<(int x, int y)>();
-
-        for (int x = 0; x < 16; x++)
-        {
-            for (int y = 0; y < 16; y++)
-            {
-                int id = map.session[x, y].roomId;
-                if (id != roomA && id != roomB) continue;
-
-                if (x + 1 < 16)
-                {
-                    int nId = map.session[x + 1, y].roomId;
-                    if ((id == roomA && nId == roomB) || (id == roomB && nId == roomA))
-                        horizontal.Add((x, y));
-                }
-
-                if (y + 1 < 16)
-                {
-                    int nId = map.session[x, y + 1].roomId;
-                    if ((id == roomA && nId == roomB) || (id == roomB && nId == roomA))
-                        vertical.Add((x, y));
-                }
-            }
-        }
-
-        int total = horizontal.Count + vertical.Count;
-        if (total == 0) return;
-
-        int pick = UnityEngine.Random.Range(0, total);
-        if (pick < horizontal.Count)
-        {
-            var (hx, hy) = horizontal[pick];
-            OpenHorizontalPassage(hx, hy);
-        }
-        else
-        {
-            var (vx, vy) = vertical[pick - horizontal.Count];
-            OpenVerticalPassage(vx, vy);
-        }
-    }
-
-    // ⑤.3 수평 통로: tx=7 ↔ tx=0 (ty=3~4)
-    void OpenHorizontalPassage(int x, int y)
-    {
-        Chunks cA = map.session[x, y];
-        Chunks cB = map.session[x + 1, y];
-
-        for (int ty = 3; ty <= 4; ty++)
-        {
-            cA.chunk[7, ty] = TileFactory.Floor();
-            cB.chunk[0, ty] = TileFactory.Floor();
-        }
-
-        map.session[x, y] = cA;
-        map.session[x + 1, y] = cB;
-    }
-
-    // ⑤.4 수직 통로: ty=7 ↔ ty=0 (tx=3~4)
-    void OpenVerticalPassage(int x, int y)
-    {
-        Chunks cA = map.session[x, y];
-        Chunks cB = map.session[x, y + 1];
-
-        for (int tx = 3; tx <= 4; tx++)
-        {
-            cA.chunk[tx, 7] = TileFactory.Floor();
-            cB.chunk[tx, 0] = TileFactory.Floor();
-        }
-
-        map.session[x, y] = cA;
-        map.session[x, y + 1] = cB;
-    }
-
-    // ⑥ 미연결 벽 중 ~15% 랜덤 개방 (루프/우회로)
-    void AddLoops()
-    {
-        var unopened = new List<(int, int)>();
-
-        foreach (var kvp in roomAdjacency)
-        {
-            int a = kvp.Key;
-            foreach (int b in kvp.Value)
-            {
-                if (a >= b) continue;
-                var pair = MakePair(a, b);
-                if (!connectedPairs.Contains(pair))
-                    unopened.Add(pair);
-            }
-        }
-
-        int loopCount = Mathf.Max(1, Mathf.RoundToInt(unopened.Count * 0.05f));
-
-        for (int i = unopened.Count - 1; i > 0; i--)
-        {
-            int j = UnityEngine.Random.Range(0, i + 1);
-            var temp = unopened[i];
-            unopened[i] = unopened[j];
-            unopened[j] = temp;
-        }
-
-        for (int i = 0; i < loopCount && i < unopened.Count; i++)
-        {
-            connectedPairs.Add(unopened[i]);
-            OpenPassage(unopened[i].Item1, unopened[i].Item2);
-        }
-
-        Debug.Log($"CreateMap: Loops added. Extra passages: {loopCount}");
-    }
-
 }

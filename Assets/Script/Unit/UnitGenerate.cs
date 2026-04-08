@@ -186,33 +186,24 @@ public class UnitGenerate : MonoBehaviour
 	public Vector2Int GetRandomFloorPos()//랜덤한 바닥 위치 반환(임시)
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
-		if (cmap == null || cmap.map.session == null) return Vector2Int.zero;
+		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
 
-		// Try getting a random floor position in Room 52(임시로 시작방에만 생성)
+		int floorIdx = cmap.currentFloorIndex;
+		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
+
+		Floor floor = cmap.map.floors[floorIdx];
+		if (floor.chunks == null) return Vector2Int.zero;
+
+		int chunkW = floor.config.width;
+		int chunkH = floor.config.height;
+
+		// Try getting a random floor position in any room with roomId >= 0
 		for (int i = 0; i < 1000; i++)
 		{
-			int cx = Random.Range(0, 16);
-			int cy = Random.Range(0, 16);
-			Chunks c = cmap.map.session[cx, cy];
-			if (c.roomId == 52 && c.chunk != null)
-			{
-				int tx = Random.Range(0, 8);
-				int ty = Random.Range(0, 8);
-				if (c.chunk[tx, ty].name != "Wall")
-				{
-					Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-					if (!IsOccupied(cand)) return cand;
-				}
-			}
-		}
-
-		// Fallback if room 52 is not found or full(52번방이 없거나 꽉찬 경우)(임시)
-		for (int i = 0; i < 1000; i++)
-		{
-			int cx = Random.Range(0, 16);
-			int cy = Random.Range(0, 16);
-			Chunks c = cmap.map.session[cx, cy];
-			if (c.roomId != -1 && c.chunk != null)
+			int cx = Random.Range(0, chunkW);
+			int cy = Random.Range(0, chunkH);
+			Chunks c = floor.chunks[cx, cy];
+			if (c.roomId >= 0 && c.chunk != null)
 			{
 				int tx = Random.Range(0, 8);
 				int ty = Random.Range(0, 8);
