@@ -7,32 +7,33 @@ using UnityEditor;
 
 public class UnitGenerate : MonoBehaviour
 {
-    public static UnitGenerate Instance;
+	public static UnitGenerate Instance;
 
 	// View mapping to separate SO data logic from Visual gameobjects
 	private Dictionary<Unit, GameObject> visualMap = new Dictionary<Unit, GameObject>();
 	private Dictionary<Unit, Coroutine> moveCoroutines = new Dictionary<Unit, Coroutine>();
 	private Dictionary<Unit, Vector3> targetPosMap = new Dictionary<Unit, Vector3>();
 	private GameObject visualContainer;
-    private Sprite humanSprite;
-    private Sprite monsterSprite;
+	private Sprite humanSprite;
+	private Sprite monsterSprite;
 
-    void Awake()
-    {
-        Instance = this;
-        visualContainer = new GameObject("UnitVisuals");
-        humanSprite = CreateCircleSprite(Color.green);
-        monsterSprite = CreateTriangleSprite(Color.red); 
-    }
-
-	public T GenerateUnitAtRandomFloor<T>(UnitType unitType) where T : Unit//유닛 생성 로직
+	void Awake()
 	{
-		Vector2Int pos = GetRandomFloorPos();
+		Instance = this;
+		visualContainer = new GameObject("UnitVisuals");
+		humanSprite = CreateCircleSprite(Color.green);
+		monsterSprite = CreateTriangleSprite(Color.red);
+	}
+
+	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
+	{
+		Vector2Int pos = GetRandomFloorPos(floorIdx);
 
 		T unit = ScriptableObject.CreateInstance<T>();
-		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}";
+		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
 		unit.unitType = unitType;
 		unit.position = pos;
+		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
 		// Visual 생성 (Update 로직이 없는 깡통 오브젝트)
@@ -103,7 +104,7 @@ public class UnitGenerate : MonoBehaviour
 
 				// 시각화 업데이트 (FOV)
 				UnitVisual uv = go.GetComponent<UnitVisual>();
-				if(uv != null)
+				if (uv != null)
 				{
 					Vector2 forward = u.GetDirVector(u.currentDir);
 					if (forward == Vector2.zero) forward = Vector2.down;
@@ -132,63 +133,62 @@ public class UnitGenerate : MonoBehaviour
 			visualTransform.position = targetPos;
 	}
 
-    private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
 	{
-        Texture2D texture = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        float radius = 15f;
-        Vector2 center = new Vector2(16f, 16f);
-        for (int y = 0; y < 32; y++)
-        {
-            for (int x = 0; x < 32; x++)
-            {
-                if (Vector2.Distance(center, new Vector2(x, y)) <= radius)
-                    pixels[y * 32 + x] = color;
-                else
-                    pixels[y * 32 + x] = Color.clear;
-            }
-        }
-        texture.SetPixels(pixels);
-        texture.Apply();
-        return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
-    }
+		Texture2D texture = new Texture2D(32, 32);
+		Color[] pixels = new Color[32 * 32];
+		float radius = 15f;
+		Vector2 center = new Vector2(16f, 16f);
+		for (int y = 0; y < 32; y++)
+		{
+			for (int x = 0; x < 32; x++)
+			{
+				if (Vector2.Distance(center, new Vector2(x, y)) <= radius)
+					pixels[y * 32 + x] = color;
+				else
+					pixels[y * 32 + x] = Color.clear;
+			}
+		}
+		texture.SetPixels(pixels);
+		texture.Apply();
+		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+	}
 
-    private Sprite CreateTriangleSprite(Color color)//삼각형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	private Sprite CreateTriangleSprite(Color color)//삼각형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
 	{
-        Texture2D texture = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        for (int y = 0; y < 32; y++)
-        {
-            for (int x = 0; x < 32; x++)
-            {
-                float normalizedY = y / 31f; 
-                float halfWidth = (1f - normalizedY) * 16f; 
-                if (x >= 16f - halfWidth && x <= 16f + halfWidth)
-                    pixels[y * 32 + x] = color;
-                else
-                    pixels[y * 32 + x] = Color.clear;
-            }
-        }
-        texture.SetPixels(pixels);
-        texture.Apply();
-        return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
-    }
+		Texture2D texture = new Texture2D(32, 32);
+		Color[] pixels = new Color[32 * 32];
+		for (int y = 0; y < 32; y++)
+		{
+			for (int x = 0; x < 32; x++)
+			{
+				float normalizedY = y / 31f;
+				float halfWidth = (1f - normalizedY) * 16f;
+				if (x >= 16f - halfWidth && x <= 16f + halfWidth)
+					pixels[y * 32 + x] = color;
+				else
+					pixels[y * 32 + x] = Color.clear;
+			}
+		}
+		texture.SetPixels(pixels);
+		texture.Apply();
+		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+	}
 
-	private bool IsOccupied(Vector2Int pos)//해당 위치에 유닛이 존재하는지 여부 반환
+	private bool IsOccupied(Vector2Int pos, int floorIdx)//해당 위치에 유닛이 존재하는지 여부 반환
 	{
-		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(pos, out Unit u))
+		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
 		{
 			return u != null && u.hp > 0;
 		}
 		return false;
 	}
 
-	public Vector2Int GetRandomFloorPos()//랜덤한 바닥 위치 반환(임시)
+	public Vector2Int GetRandomFloorPos(int floorIdx = 1)//랜덤한 바닥 위치 반환(임시)
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
 
-		int floorIdx = cmap.currentFloorIndex;
 		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -197,33 +197,54 @@ public class UnitGenerate : MonoBehaviour
 		int chunkW = floor.config.width;
 		int chunkH = floor.config.height;
 
-		// Try getting a random floor position in any room with roomId >= 0
+		// 1층(인덱스 1)일 경우 테스트용으로 35번 방에 우선 생성
+		if (floorIdx == 1)
+		{
+			for (int i = 0; i < 1000; i++)
+			{
+				int cx = Random.Range(0, chunkW);
+				int cy = Random.Range(0, chunkH);
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomId == 35 && c.chunk != null)
+				{
+					int tx = Random.Range(0, 8);
+					int ty = Random.Range(0, 8);
+					if (c.chunk[tx, ty].name != "Wall")
+					{
+						Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+						if (!IsOccupied(cand, floorIdx)) return cand;
+					}
+				}
+			}
+		}
+
+		// Fallback: 35번 방을 못 찾았거나 다른 층인 경우 아무 방(roomId != -1)에나 랜덤 생성
 		for (int i = 0; i < 1000; i++)
 		{
 			int cx = Random.Range(0, chunkW);
 			int cy = Random.Range(0, chunkH);
 			Chunks c = floor.chunks[cx, cy];
-			if (c.roomId >= 0 && c.chunk != null)
+			if (c.roomId != -1 && c.chunk != null)
 			{
 				int tx = Random.Range(0, 8);
 				int ty = Random.Range(0, 8);
 				if (c.chunk[tx, ty].name != "Wall")
 				{
 					Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-					if (!IsOccupied(cand)) return cand;
+					if (!IsOccupied(cand, floorIdx)) return cand;
 				}
 			}
 		}
 		return Vector2Int.zero; // default fallback
 	}
-    #endregion
+	#endregion
 }
 
 public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
 	public static GameSession Instance;
 	public CreateMap cmap;
-	public Dictionary<Vector2Int, Unit> unitGrid = new Dictionary<Vector2Int, Unit>();
+	public Dictionary<Vector3Int, Unit> unitGrid = new Dictionary<Vector3Int, Unit>();
 
 	public List<Unit> units = new List<Unit>();
 	private float updateTimer = 0f;
@@ -231,8 +252,8 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	private bool needTextureUpdate = false;
 
 	[Header("진영별 맵 시각화 텍스처 (인스펙터에서 클릭하여 확인)")]
-	public Texture2D humanMapTexture;
-	public Texture2D monsterMapTexture;
+	public Texture2D[] humanMapTextures = new Texture2D[4];
+	public Texture2D[] monsterMapTextures = new Texture2D[4];
 
 	void Awake()
 	{
@@ -271,7 +292,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 				{
 					UnitGenerate.Instance.RemoveVisual(u);
 				}
-				if (u != null) unitGrid.Remove(u.position);
+				if (u != null) unitGrid.Remove(new Vector3Int(u.position.x, u.position.y, u.currentFloor));
 				units.RemoveAt(i);
 				if (u != null) Destroy(u);
 				visualNeedsSync = true;
@@ -291,8 +312,8 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 				if (oldPos != u.position)
 				{
-					unitGrid.Remove(oldPos);
-					unitGrid[u.position] = u;
+					unitGrid.Remove(new Vector3Int(oldPos.x, oldPos.y, u.currentFloor));
+					unitGrid[new Vector3Int(u.position.x, u.position.y, u.currentFloor)] = u;
 				}
 
 				u.UpdateFOV(units); // 행동 후 자신의 시야를 공용 데이터에 갱신
@@ -325,13 +346,13 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		if (UnitGenerate.Instance == null) return;
 
 		// 임시로 우선 궁수만 생성가능하게 변경
-		UnitType[] types = { new Archer() }; 
+		UnitType[] types = { new Archer() };
 		UnitType selection = types[Random.Range(0, types.Length)];
 
 		Human human = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Human>(selection);
 		units.Add(human);
-		if (GameSession.Instance != null) GameSession.Instance.unitGrid[human.position] = human;
-		Debug.Log($"Generated Human: {selection.typeName} at {human.position}");
+		if (GameSession.Instance != null) GameSession.Instance.unitGrid[new Vector3Int(human.position.x, human.position.y, human.currentFloor)] = human;
+		Debug.Log($"Generated Human: {selection.typeName} at Floor {human.currentFloor}, {human.position}");
 	}
 
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
@@ -343,73 +364,76 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 		Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection);
 		units.Add(monster);
-		if (GameSession.Instance != null) GameSession.Instance.unitGrid[monster.position] = monster;
-		Debug.Log($"Generated Monster: {selection.typeName} at {monster.position}");
+		if (GameSession.Instance != null) GameSession.Instance.unitGrid[new Vector3Int(monster.position.x, monster.position.y, monster.currentFloor)] = monster;
+		Debug.Log($"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
 	}
 
 	private void UpdateFactionTextures()//인스펙터 꾸미기 관련
 	{
-		if (humanMapTexture == null) { humanMapTexture = new Texture2D(128, 128); humanMapTexture.filterMode = FilterMode.Point; }
-		if (monsterMapTexture == null) { monsterMapTexture = new Texture2D(128, 128); monsterMapTexture.filterMode = FilterMode.Point; }
-
-		Color[] hPixels = new Color[128 * 128];
-		Color[] mPixels = new Color[128 * 128];
-
-		for (int y = 0; y < 128; y++)
+		for (int f = 0; f < 4; f++)
 		{
-			for (int x = 0; x < 128; x++)
-			{
-				// 0: 미탐색(검은색), 1: 바닥(흰색), 2: 벽(회색)
-				int hVal = Unit.humanFactionData.discoveredMap[x, y];
-				hPixels[y * 128 + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
+			if (humanMapTextures[f] == null) { humanMapTextures[f] = new Texture2D(128, 128); humanMapTextures[f].filterMode = FilterMode.Point; }
+			if (monsterMapTextures[f] == null) { monsterMapTextures[f] = new Texture2D(128, 128); monsterMapTextures[f].filterMode = FilterMode.Point; }
 
-				int mVal = Unit.monsterFactionData.discoveredMap[x, y];
-				mPixels[y * 128 + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
-			}
-		}
+			Color[] hPixels = new Color[128 * 128];
+			Color[] mPixels = new Color[128 * 128];
 
-		// 자기 진영 유닛 현재 위치 정보 초록색으로 덧씌우기
-		foreach(var u in units)
-		{
-			if (u == null) continue;
-			int idx = u.position.y * 128 + u.position.x;
-			if (idx >= 0 && idx < hPixels.Length)
+			for (int y = 0; y < 128; y++)
 			{
-				if (u is Human)
+				for (int x = 0; x < 128; x++)
 				{
-					hPixels[idx] = Color.green;
-					// 인간에게 발견된 적 오크는 빨간색으로 표시
-					if (Unit.humanFactionData.spottedEnemyUnits.Contains(u)) hPixels[idx] = Color.red;
-				}
-				else if (u is Monster)
-				{
-					mPixels[idx] = Color.yellow;
-					// 몬스터에게 발견된 적 인간은 파란색으로 표시
-					if (Unit.monsterFactionData.spottedEnemyUnits.Contains(u)) mPixels[idx] = Color.blue;
+					// 0: 미탐색(검은색), 1: 바닥(흰색), 2: 벽(회색)
+					int hVal = Unit.humanFactionData.discoveredMap[f][x, y];
+					hPixels[y * 128 + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
+
+					int mVal = Unit.monsterFactionData.discoveredMap[f][x, y];
+					mPixels[y * 128 + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
 				}
 			}
+
+			// 자기 진영 유닛 현재 위치 정보 초록색으로 덧씌우기
+			foreach (var u in units)
+			{
+				if (u == null || u.currentFloor != f) continue;
+				int idx = u.position.y * 128 + u.position.x;
+				if (idx >= 0 && idx < hPixels.Length)
+				{
+					if (u is Human)
+					{
+						hPixels[idx] = Color.green;
+						// 인간에게 발견된 적 오크는 빨간색으로 표시
+						if (Unit.humanFactionData.spottedEnemyUnits.Contains(u)) hPixels[idx] = Color.red;
+					}
+					else if (u is Monster)
+					{
+						mPixels[idx] = Color.yellow;
+						// 몬스터에게 발견된 적 인간은 파란색으로 표시
+						if (Unit.monsterFactionData.spottedEnemyUnits.Contains(u)) mPixels[idx] = Color.blue;
+					}
+				}
+			}
+
+			// 상대 진영 발견 유닛 정보 덧씌우기
+			foreach (var enemy in Unit.humanFactionData.spottedEnemyUnits)
+			{
+				if (enemy == null || enemy.currentFloor != f) continue;
+				int idx = enemy.position.y * 128 + enemy.position.x;
+				if (idx >= 0 && idx < hPixels.Length) hPixels[idx] = Color.red;
+			}
+
+			foreach (var enemy in Unit.monsterFactionData.spottedEnemyUnits)
+			{
+				if (enemy == null || enemy.currentFloor != f) continue;
+				int idx = enemy.position.y * 128 + enemy.position.x;
+				if (idx >= 0 && idx < mPixels.Length) mPixels[idx] = Color.blue;
+			}
+
+			humanMapTextures[f].SetPixels(hPixels);
+			humanMapTextures[f].Apply();
+
+			monsterMapTextures[f].SetPixels(mPixels);
+			monsterMapTextures[f].Apply();
 		}
-
-		// 상대 진영 발견 유닛 정보 덧씌우기
-		foreach (var enemy in Unit.humanFactionData.spottedEnemyUnits)
-		{
-			if (enemy == null) continue;
-			int idx = enemy.position.y * 128 + enemy.position.x;
-			if (idx >= 0 && idx < hPixels.Length) hPixels[idx] = Color.red;
-		}
-
-		foreach (var enemy in Unit.monsterFactionData.spottedEnemyUnits)
-		{
-			if (enemy == null) continue;
-			int idx = enemy.position.y * 128 + enemy.position.x;
-			if (idx >= 0 && idx < mPixels.Length) mPixels[idx] = Color.blue;
-		}
-
-		humanMapTexture.SetPixels(hPixels);
-		humanMapTexture.Apply();
-
-		monsterMapTexture.SetPixels(mPixels);
-		monsterMapTexture.Apply();
 	}
 }
 
@@ -423,20 +447,23 @@ public class GameSessionEditor : Editor
 
 		GameSession gs = (GameSession)target;
 
-		EditorGUILayout.Space();
-		EditorGUILayout.LabelField("인류 진영 맵", EditorStyles.boldLabel);
-		if (gs.humanMapTexture != null)
+		for (int f = 0; f < 4; f++)
 		{
-			Rect rect = GUILayoutUtility.GetRect(256, 256);
-			GUI.DrawTexture(rect, gs.humanMapTexture, ScaleMode.ScaleToFit);
-		}
+			EditorGUILayout.Space();
+			EditorGUILayout.LabelField($"[{f}층] 인류 / 몬스터 맵", EditorStyles.boldLabel);
 
-		EditorGUILayout.Space();
-		EditorGUILayout.LabelField("몬스터 진영 맵", EditorStyles.boldLabel);
-		if (gs.monsterMapTexture != null)
-		{
-			Rect rect = GUILayoutUtility.GetRect(256, 256);
-			GUI.DrawTexture(rect, gs.monsterMapTexture, ScaleMode.ScaleToFit);
+			EditorGUILayout.BeginHorizontal();
+			if (gs.humanMapTextures != null && gs.humanMapTextures.Length > f && gs.humanMapTextures[f] != null)
+			{
+				Rect rect1 = GUILayoutUtility.GetRect(128, 128);
+				GUI.DrawTexture(rect1, gs.humanMapTextures[f], ScaleMode.ScaleToFit);
+			}
+			if (gs.monsterMapTextures != null && gs.monsterMapTextures.Length > f && gs.monsterMapTextures[f] != null)
+			{
+				Rect rect2 = GUILayoutUtility.GetRect(128, 128);
+				GUI.DrawTexture(rect2, gs.monsterMapTextures[f], ScaleMode.ScaleToFit);
+			}
+			EditorGUILayout.EndHorizontal();
 		}
 	}
 }
@@ -476,3 +503,4 @@ public class UnitVisual : MonoBehaviour//유닛 시야 시각화
 		}
 	}
 }
+
