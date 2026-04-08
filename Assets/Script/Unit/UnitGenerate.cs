@@ -32,7 +32,6 @@ public class UnitGenerate : MonoBehaviour
 		T unit = ScriptableObject.CreateInstance<T>();
 		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}";
 		unit.unitType = unitType;
-		unit.currentState = UnitState.TEST_RANDOM_MOVE_6;
 		unit.position = pos;
 		unit.SetupStats();
 

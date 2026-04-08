@@ -3,24 +3,14 @@ using System.Collections.Generic;
 
 public enum Dir
 {
-    UP,
-    UP_RIGHT,
-    RIGHT,
-    DOWN_RIGHT,
-    DOWN,
-    DOWN_LEFT,
-    LEFT,
-    UP_LEFT
-}
-
-public enum UnitState
-{
-    EXPLORE,
-    CAUTIOUS,
-    SPOTTING,
-    ENGAGE,
-    WAIT,
-    TEST_RANDOM_MOVE_6
+	UP,
+	UP_RIGHT,
+	RIGHT,
+	DOWN_RIGHT,
+	DOWN,
+	DOWN_LEFT,
+	LEFT,
+	UP_LEFT
 }
 
 public abstract class UnitType
@@ -53,12 +43,11 @@ public class FactionData
 public abstract class Unit : ScriptableObject
 {
     public static FactionData humanFactionData = new FactionData();
-    public static FactionData monsterFactionData = new FactionData();
+	public static FactionData monsterFactionData = new FactionData();
 
-    public UnitType unitType;
-    public UnitState currentState = UnitState.TEST_RANDOM_MOVE_6;//임시로 상태 고정
+	public UnitType unitType;
 
-    // 전투 관련 속성
+	// 전투 관련 속성
     public float hp = 100f;
     public float attackPower = 10f;
     public float reaction = 1f; // 반응도
@@ -258,65 +247,188 @@ public abstract class Unit : ScriptableObject
             CastRay(myData, cmap, position, rad, ViewRadius, allUnits);
         }
     }
+	#endregion
 
-	public virtual void JudgeState()//상태 판단 함수
+	#region GOAP
+	// ==========================================
+	// GOAP Architecture
+	// ==========================================
+	public class GoapState : Dictionary<string, bool> { }
+
+	public abstract class GoapGoal
 	{
-		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		public string Name;
+		public GoapState DesiredState = new GoapState();
+		public abstract float GetPriority(Unit unit);
+	}
 
-		// 시야에 적 진영 유닛이 있는지 확인
-		if (myData.spottedEnemyUnits.Count > 0)
+	public abstract class GoapAction
+	{
+		public string ActionName;
+		public float Cost = 1f;
+		public GoapState Preconditions = new GoapState();
+		public GoapState Effects = new GoapState();
+
+		public void AddPrecondition(string key, bool value) => Preconditions[key] = value;
+		public void AddEffect(string key, bool value) => Effects[key] = value;
+
+		public abstract bool IsValid(Unit unit);
+		public abstract void Execute(Unit unit);
+	}
+
+	// Goals
+	public class Goal_DefeatEnemy : GoapGoal
+	{
+		public Goal_DefeatEnemy() { Name = "DefeatEnemy"; DesiredState["enemyAlive"] = false; }
+		public override float GetPriority(Unit unit)
 		{
-			// 찾은 적들 중 살아있는 적이 하나라도 있는지 확인
-			bool enemyAlive = false;
+			FactionData myData = unit is Human ? humanFactionData : monsterFactionData;
 			foreach (var enemy in myData.spottedEnemyUnits)
 			{
-				if (enemy != null && enemy.hp > 0)
-				{
-					enemyAlive = true;
-					break;
-				}
+				if (enemy != null && enemy.hp > 0) return 80f; // 적이 보이면 가중치 80 부여. 우선운위 높음
 			}
-
-			if (enemyAlive)
-			{
-				currentState = UnitState.ENGAGE;
-			}
-			else
-			{
-				currentState = UnitState.TEST_RANDOM_MOVE_6;
-				oneTimeReactUsed = false;
-			}
-		}
-		else
-		{
-			currentState = UnitState.TEST_RANDOM_MOVE_6;
-			oneTimeReactUsed = false;
+			return 0f;
 		}
 	}
 
-	public virtual void ExecuteAction()//행동 즉시 실행. 여기에 if 늘리면 enum 값에 따라 행동 늘어남
+	public class Goal_Explore : GoapGoal
 	{
-		if (currentState == UnitState.TEST_RANDOM_MOVE_6)
+		public Goal_Explore() { Name = "Explore"; DesiredState["explored"] = true; }
+		public override float GetPriority(Unit unit) => 10f; // 기본 목표 우선순위 가중치 10임 낮음. 아직 미구현
+	}
+
+	// Actions
+	public class Action_RandomExplore : GoapAction
+	{
+		public Action_RandomExplore()
 		{
-			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
+			ActionName = "RandomExplore";
+			AddEffect("explored", true);
 		}
-		else if (currentState == UnitState.ENGAGE)
+		public override bool IsValid(Unit unit) => true;
+		public override void Execute(Unit unit)
 		{
-			ENGAGE_Execute();
+			unit.TEST_RANDOM_MOVE_6_ExecuteRandomMove();
+		}
+	}
+
+	public class Action_EngageEnemy : GoapAction
+	{
+		public Action_EngageEnemy()
+		{
+			ActionName = "EngageEnemy";
+			AddPrecondition("enemyVisible", true);
+			AddEffect("enemyAlive", false);
+		}
+		public override bool IsValid(Unit unit) => true;
+		public override void Execute(Unit unit)
+		{
+			unit.ENGAGE_Execute();
+		}
+	}
+
+	protected List<GoapGoal> availableGoals;
+	protected List<GoapAction> availableActions;
+	protected GoapAction currentPlannedAction;
+
+	public virtual void JudgeState()// GOAP 목표 갱신 및 플래닝
+	{
+		if (availableGoals == null)
+			availableGoals = new List<GoapGoal> { new Goal_DefeatEnemy(), new Goal_Explore() };
+		if (availableActions == null)
+			availableActions = new List<GoapAction> { new Action_RandomExplore(), new Action_EngageEnemy() };
+
+		// 1. 최고 우선순위 목표 선정
+		GoapGoal bestGoal = null;
+		float highestPriority = -1f;
+
+		foreach (var goal in availableGoals)
+		{
+			float priority = goal.GetPriority(this);
+			if (priority > highestPriority)
+			{
+				highestPriority = priority;
+				bestGoal = goal;
+			}
+		}
+
+		// 2. 현재 월드 상태(WorldState) 수집
+		GoapState worldState = new GoapState();
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		bool enemyVisible = myData.spottedEnemyUnits.Exists(e => e != null && e.hp > 0);
+		worldState["enemyVisible"] = enemyVisible;
+		worldState["isHit"] = isHitThisTurn;
+
+		// 3. 플래닝 (가장 단순한 1-step 매칭)
+		currentPlannedAction = null;
+		float lowestCost = float.MaxValue;
+
+		if (bestGoal != null)
+		{
+			foreach (var action in availableActions)
+			{
+				if (!action.IsValid(this)) continue;
+
+				// Effect가 Goal의 DesiredState를 만족시키는지 확인
+				bool fulfillsGoal = false;
+				foreach (var eff in action.Effects)
+				{
+					if (bestGoal.DesiredState.ContainsKey(eff.Key) && bestGoal.DesiredState[eff.Key] == eff.Value)
+					{
+						fulfillsGoal = true;
+						break;
+					}
+				}
+
+				if (fulfillsGoal && action.Cost < lowestCost)
+				{
+					// Precondition 체크
+					bool meetsPreconditions = true;
+					foreach (var pre in action.Preconditions)
+					{
+						if (!worldState.ContainsKey(pre.Key) || worldState[pre.Key] != pre.Value)
+						{
+							meetsPreconditions = false;
+							break;
+						}
+					}
+
+					if (meetsPreconditions)
+					{
+						currentPlannedAction = action;
+						lowestCost = action.Cost;
+					}
+				}
+			}
+		}
+
+		if (!enemyVisible) oneTimeReactUsed = false;
+	}
+
+	public virtual void ExecuteAction()//행동 실행
+	{
+		if (currentPlannedAction != null)
+		{
+			currentPlannedAction.Execute(this);
+		}
+		else
+		{
+			// 계획 실패 시 기본 행동
+			TEST_RANDOM_MOVE_6_ExecuteRandomMove();
 		}
 
 		isHitThisTurn = false; // 턴 시작/종료시 피격 플래그 리셋
 	}
 	#endregion
 
-	#region 가장 큰 단위 상태를 나타내는 함수들/////중요!! 여기에 함수들만 추가하고 enum에 넣으면 상태 늘어남
-	protected void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
+	#region 가장 큰 단위 상태를 나타내는 함수들
+	public void TEST_RANDOM_MOVE_6_ExecuteRandomMove()
 	{
 		Dir randomDir = (Dir)Random.Range(0, 8);
 		Move(randomDir);
 	}
 
-	protected void ENGAGE_Execute()
+	public void ENGAGE_Execute()
 	{
 		if (unitType is Archer)
 		{
