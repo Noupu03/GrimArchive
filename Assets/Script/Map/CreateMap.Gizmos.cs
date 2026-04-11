@@ -27,10 +27,18 @@ public partial class CreateMap
 
         // MapRandering의 계단 정렬 오프셋이 있으면 적용하여 타일맵과 Gizmo 좌표를 일치시킴
         var mr = Object.FindObjectOfType<MapRandering>();
-        if (mr != null && mr.floorOffsets != null && currentFloorIndex < mr.floorOffsets.Length)
+        if (mr != null)
         {
-            Vector3Int offset = mr.floorOffsets[currentFloorIndex];
-            origin += new Vector3(offset.x, offset.y, 0f);
+            Transform childTilemap = mr.transform.Find($"F{currentFloorIndex}_Tilemap");
+            if (childTilemap != null)
+            {
+                origin += childTilemap.localPosition;
+            }
+            else if (mr.floorOffsets != null && currentFloorIndex < mr.floorOffsets.Length)
+            {
+                Vector3Int offset = mr.floorOffsets[currentFloorIndex];
+                origin += new Vector3(offset.x, offset.y, 0f);
+            }
         }
 
         if (gizmoShowRoomBounds)

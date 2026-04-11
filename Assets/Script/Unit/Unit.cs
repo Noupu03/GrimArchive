@@ -29,16 +29,28 @@ public class Wolf : UnitType { public Wolf() { typeName = "늑대"; unitSize = 1
 
 public class FactionData
 {
-	// 128x128 크기 맵 (0: 미탐색, 1: 바닥, 2: 벽) 타일맵 정보 공유 (층마다 4개 할당)
+	// 동적 크기 맵 (0: 미탐색, 1: 바닥, 2: 벽) 타일맵 정보 공유
 	public int[][,] discoveredMap;
 	// 시야 내 발견된 적 유닛 데이터 공유
 	public List<Unit> spottedEnemyUnits = new List<Unit>();
 
 	public FactionData()
 	{
-		discoveredMap = new int[4][,];
-		for (int i = 0; i < 4; i++)
-			discoveredMap[i] = new int[128, 128];
+		// 기본적으로 빈 배열로 두거나, InitMap에서 초기화
+		discoveredMap = new int[0][,];
+	}
+
+	public void InitMap(CreateMap cmap)
+	{
+		if (cmap == null || cmap.map.floors == null) return;
+		int floorCount = cmap.map.floors.Length;
+		discoveredMap = new int[floorCount][,];
+		for (int i = 0; i < floorCount; i++)
+		{
+			int w = cmap.map.floors[i].config.width * 8;
+			int h = cmap.map.floors[i].config.height * 8;
+			discoveredMap[i] = new int[w, h];
+		}
 	}
 
 	public void ClearSpottedUnits()
@@ -106,18 +118,18 @@ public abstract class Unit : ScriptableObject
 
 	public bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
 	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null) return false;
+		if (currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return false;
+
+		Floor floor = cmap.map.floors[currentFloor];
+		if (floor.chunks == null) return false;
+
 		int cx = pos.x / 8;
 		int tx = pos.x % 8;
 		int cy = pos.y / 8;
 		int cyVal = pos.y % 8;
 
-		if (cx < 0 || cx >= 16 || cy < 0 || cy >= 16) return false;
-
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
-		if (cmap == null || cmap.map.floors == null) return false;
-
-		Floor floor = cmap.map.floors[currentFloor];
-		if (floor.chunks == null) return false;
 		if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
 
 		Chunks c = floor.chunks[cx, cy];

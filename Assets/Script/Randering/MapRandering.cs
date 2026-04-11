@@ -13,10 +13,10 @@ public class MapRandering : MonoBehaviour
     public Sprite stairSprite;
 
     // 층별 Tilemap (런타임 생성)
-    [System.NonSerialized] public Tilemap[] floorTilemaps;
+    [HideInInspector] public Tilemap[] floorTilemaps;
 
     // 층별 월드 오프셋 (계단 정렬 기반, 외부 참조용)
-    [System.NonSerialized] public Vector3Int[] floorOffsets;
+    [HideInInspector] public Vector3Int[] floorOffsets;
 
     // 생성된 TileBase 캐시
     private UnityEngine.Tilemaps.Tile wallTile;

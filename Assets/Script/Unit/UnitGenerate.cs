@@ -13,14 +13,12 @@ public class UnitGenerate : MonoBehaviour
 	private Dictionary<Unit, GameObject> visualMap = new Dictionary<Unit, GameObject>();
 	private Dictionary<Unit, Coroutine> moveCoroutines = new Dictionary<Unit, Coroutine>();
 	private Dictionary<Unit, Vector3> targetPosMap = new Dictionary<Unit, Vector3>();
-	private GameObject visualContainer;
 	private Sprite humanSprite;
 	private Sprite monsterSprite;
 
 	void Awake()
 	{
 		Instance = this;
-		visualContainer = new GameObject("UnitVisuals");
 		humanSprite = CreateCircleSprite(Color.green);
 		monsterSprite = CreateTriangleSprite(Color.red);
 	}
@@ -38,7 +36,12 @@ public class UnitGenerate : MonoBehaviour
 
 		// Visual 생성 (Update 로직이 없는 깡통 오브젝트)
 		GameObject go = new GameObject(unit.name);
-		go.transform.SetParent(visualContainer.transform);
+		Transform tilemapTransform = GetFloorTilemapTransform(floorIdx);
+		if (tilemapTransform != null)
+		{
+			go.transform.SetParent(tilemapTransform);
+		}
+
 		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
 		sr.sortingOrder = 10;
 
@@ -48,12 +51,45 @@ public class UnitGenerate : MonoBehaviour
 		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
 		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
 
-		go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0);
+		go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0) + GetFloorOffset(floorIdx);
 		visualMap[unit] = go;
 
 		return unit;
 	}
 	#region 유닛 생성 보조 기능성
+	private Transform GetFloorTilemapTransform(int floorIdx)
+	{
+		var mr = FindObjectOfType<MapRandering>();
+		if (mr != null)
+		{
+			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
+			if (childTilemap != null)
+			{
+				return childTilemap;
+			}
+		}
+		return null;
+	}
+
+	private Vector3 GetFloorOffset(int floorIdx)
+	{
+		var mr = FindObjectOfType<MapRandering>();
+		if (mr != null)
+		{
+			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
+			if (childTilemap != null)
+			{
+				return childTilemap.position;
+			}
+			else if (mr.floorOffsets != null && floorIdx < mr.floorOffsets.Length)
+			{
+				Vector3Int offset = mr.floorOffsets[floorIdx];
+				return mr.transform.position + new Vector3(offset.x, offset.y, 0f);
+			}
+		}
+		return Vector3.zero;
+	}
+
 	public void RemoveVisual(Unit u)//스프라이트 지우기
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
@@ -88,7 +124,13 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (u != null && visualMap.TryGetValue(u, out GameObject go))
 			{
-				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0);
+				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0) + GetFloorOffset(u.currentFloor);
+
+				Transform targetParent = GetFloorTilemapTransform(u.currentFloor);
+				if (targetParent != null && go.transform.parent != targetParent)
+				{
+					go.transform.SetParent(targetParent);
+				}
 
 				// 기존 목표 목적지와 다를 때만 코루틴 실행 (코루틴 중복으로 인한 끊김 방지)
 				if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
@@ -197,28 +239,7 @@ public class UnitGenerate : MonoBehaviour
 		int chunkW = floor.config.width;
 		int chunkH = floor.config.height;
 
-		// 1층(인덱스 1)일 경우 테스트용으로 35번 방에 우선 생성
-		if (floorIdx == 1)
-		{
-			for (int i = 0; i < 1000; i++)
-			{
-				int cx = Random.Range(0, chunkW);
-				int cy = Random.Range(0, chunkH);
-				Chunks c = floor.chunks[cx, cy];
-				if (c.roomId == 35 && c.chunk != null)
-				{
-					int tx = Random.Range(0, 8);
-					int ty = Random.Range(0, 8);
-					if (c.chunk[tx, ty].name != "Wall")
-					{
-						Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-						if (!IsOccupied(cand, floorIdx)) return cand;
-					}
-				}
-			}
-		}
-
-		// Fallback: 35번 방을 못 찾았거나 다른 층인 경우 아무 방(roomId != -1)에나 랜덤 생성
+		// 아무 방(roomId != -1)에나 랜덤 생성
 		for (int i = 0; i < 1000; i++)
 		{
 			int cx = Random.Range(0, chunkW);
@@ -263,6 +284,11 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	void Start()
 	{
 		cmap = FindObjectOfType<CreateMap>();
+		if (cmap != null)
+		{
+			Unit.humanFactionData.InitMap(cmap);
+			Unit.monsterFactionData.InitMap(cmap);
+		}
 	}
 
 	void Update()
@@ -370,24 +396,32 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 	private void UpdateFactionTextures()//인스펙터 꾸미기 관련
 	{
-		for (int f = 0; f < 4; f++)
+		if (cmap == null || cmap.map.floors == null) return;
+		int floorCount = cmap.map.floors.Length;
+		if (humanMapTextures.Length != floorCount) humanMapTextures = new Texture2D[floorCount];
+		if (monsterMapTextures.Length != floorCount) monsterMapTextures = new Texture2D[floorCount];
+
+		for (int f = 0; f < floorCount; f++)
 		{
-			if (humanMapTextures[f] == null) { humanMapTextures[f] = new Texture2D(128, 128); humanMapTextures[f].filterMode = FilterMode.Point; }
-			if (monsterMapTextures[f] == null) { monsterMapTextures[f] = new Texture2D(128, 128); monsterMapTextures[f].filterMode = FilterMode.Point; }
+			int mapW = Unit.humanFactionData.discoveredMap[f].GetLength(0);
+			int mapH = Unit.humanFactionData.discoveredMap[f].GetLength(1);
 
-			Color[] hPixels = new Color[128 * 128];
-			Color[] mPixels = new Color[128 * 128];
+			if (humanMapTextures[f] == null || humanMapTextures[f].width != mapW || humanMapTextures[f].height != mapH) { humanMapTextures[f] = new Texture2D(mapW, mapH); humanMapTextures[f].filterMode = FilterMode.Point; }
+			if (monsterMapTextures[f] == null || monsterMapTextures[f].width != mapW || monsterMapTextures[f].height != mapH) { monsterMapTextures[f] = new Texture2D(mapW, mapH); monsterMapTextures[f].filterMode = FilterMode.Point; }
 
-			for (int y = 0; y < 128; y++)
+			Color[] hPixels = new Color[mapW * mapH];
+			Color[] mPixels = new Color[mapW * mapH];
+
+			for (int y = 0; y < mapH; y++)
 			{
-				for (int x = 0; x < 128; x++)
+				for (int x = 0; x < mapW; x++)
 				{
 					// 0: 미탐색(검은색), 1: 바닥(흰색), 2: 벽(회색)
 					int hVal = Unit.humanFactionData.discoveredMap[f][x, y];
-					hPixels[y * 128 + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
+					hPixels[y * mapW + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
 
 					int mVal = Unit.monsterFactionData.discoveredMap[f][x, y];
-					mPixels[y * 128 + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
+					mPixels[y * mapW + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
 				}
 			}
 
@@ -395,8 +429,8 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			foreach (var u in units)
 			{
 				if (u == null || u.currentFloor != f) continue;
-				int idx = u.position.y * 128 + u.position.x;
-				if (idx >= 0 && idx < hPixels.Length)
+				int idx = u.position.y * mapW + u.position.x;
+				if (u.position.x >= 0 && u.position.x < mapW && u.position.y >= 0 && u.position.y < mapH)
 				{
 					if (u is Human)
 					{
@@ -417,15 +451,15 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			foreach (var enemy in Unit.humanFactionData.spottedEnemyUnits)
 			{
 				if (enemy == null || enemy.currentFloor != f) continue;
-				int idx = enemy.position.y * 128 + enemy.position.x;
-				if (idx >= 0 && idx < hPixels.Length) hPixels[idx] = Color.red;
+				int idx = enemy.position.y * mapW + enemy.position.x;
+				if (enemy.position.x >= 0 && enemy.position.x < mapW && enemy.position.y >= 0 && enemy.position.y < mapH) hPixels[idx] = Color.red;
 			}
 
 			foreach (var enemy in Unit.monsterFactionData.spottedEnemyUnits)
 			{
 				if (enemy == null || enemy.currentFloor != f) continue;
-				int idx = enemy.position.y * 128 + enemy.position.x;
-				if (idx >= 0 && idx < mPixels.Length) mPixels[idx] = Color.blue;
+				int idx = enemy.position.y * mapW + enemy.position.x;
+				if (enemy.position.x >= 0 && enemy.position.x < mapW && enemy.position.y >= 0 && enemy.position.y < mapH) mPixels[idx] = Color.blue;
 			}
 
 			humanMapTextures[f].SetPixels(hPixels);
@@ -447,7 +481,8 @@ public class GameSessionEditor : Editor
 
 		GameSession gs = (GameSession)target;
 
-		for (int f = 0; f < 4; f++)
+		int maxFloor = gs.humanMapTextures != null ? gs.humanMapTextures.Length : 0;
+		for (int f = 0; f < maxFloor; f++)
 		{
 			EditorGUILayout.Space();
 			EditorGUILayout.LabelField($"[{f}층] 인류 / 몬스터 맵", EditorStyles.boldLabel);
