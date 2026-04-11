@@ -51,7 +51,17 @@ public class UnitGenerate : MonoBehaviour
 		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
 		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
 
-		go.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0) + GetFloorOffset(floorIdx);
+		GameObject outlineGo = new GameObject("Outline");
+		outlineGo.transform.SetParent(go.transform);
+		outlineGo.transform.localPosition = Vector3.zero;
+		SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
+		outlineSr.sprite = sr.sprite;
+		outlineSr.color = Color.black;
+		outlineSr.sortingOrder = 9;
+		outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+		outlineGo.SetActive(false);
+
+		go.transform.position = new Vector3(pos.x + unit.unitType.footprint.x / 2f, pos.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(floorIdx);
 		visualMap[unit] = go;
 
 		return unit;
@@ -124,7 +134,7 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (u != null && visualMap.TryGetValue(u, out GameObject go))
 			{
-				Vector3 newPos = new Vector3(u.position.x + 0.5f, u.position.y + 0.5f, 0) + GetFloorOffset(u.currentFloor);
+				Vector3 newPos = new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + u.unitType.footprint.y / 2f, 0) + GetFloorOffset(u.currentFloor);
 
 				Transform targetParent = GetFloorTilemapTransform(u.currentFloor);
 				if (targetParent != null && go.transform.parent != targetParent)
@@ -132,7 +142,7 @@ public class UnitGenerate : MonoBehaviour
 					go.transform.SetParent(targetParent);
 				}
 
-				// 기존 목표 목적지와 다를 때만 코루틴 실행 (코루틴 중복으로 인한 끊김 방지)
+				// 매 프레임 위치를 확인하고 변경 시 이동 코루틴 갱신 유지
 				if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 				{
 					if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
@@ -140,8 +150,18 @@ public class UnitGenerate : MonoBehaviour
 						StopCoroutine(existingCoroutine);
 					}
 
+					float speed = u.walkSpeed;
+					if (u.hasArtifact) speed *= 0.5f;
+					float duration = speed > 0f ? (1f / speed) : 0.1f;
+
 					targetPosMap[u] = newPos;
-					moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, u.reaction)); // 속도는 reaction 기준
+					moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, duration)); // 논리 갱신 속도에 맞춤
+				}
+				else if (Time.timeScale == 0f || Time.timeScale < 0.01f)
+				{
+				    // 일시정지 상태 등 업데이트가 멈춘 상태에서도 아웃라인/상태 반영이 필요할 수 있으므로, 보간 중이 아니라면 바로 위치 맞춤
+				    if (!moveCoroutines.ContainsKey(u) || moveCoroutines[u] == null)
+				        go.transform.position = newPos;
 				}
 
 				// 시각화 업데이트 (FOV)
@@ -151,6 +171,13 @@ public class UnitGenerate : MonoBehaviour
 					Vector2 forward = u.GetDirVector(u.currentDir);
 					if (forward == Vector2.zero) forward = Vector2.down;
 					uv.DrawFOV(Unit.ViewRadius, 160f, forward);
+				}
+
+				Transform outlineTransform = go.transform.Find("Outline");
+				if (outlineTransform != null)
+				{
+					bool isSelected = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
+					outlineTransform.gameObject.SetActive(isSelected);
 				}
 			}
 		}
@@ -167,12 +194,32 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (visualTransform == null) yield break; // 중간에 파괴된 경우 방어
 			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
-			elapsed += Time.deltaTime;
+			elapsed += Time.unscaledDeltaTime;
 			yield return null;
 		}
 
 		if (visualTransform != null)
 			visualTransform.position = targetPos;
+	}
+
+	public void TriggerHitEffect(Unit u)
+	{
+		if (u != null && visualMap.TryGetValue(u, out GameObject go))
+		{
+			StartCoroutine(HitBlink(go));
+		}
+	}
+
+	private System.Collections.IEnumerator HitBlink(GameObject go)
+	{
+		if (go == null) yield break;
+		SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
+		if (sr == null) yield break;
+
+		Color origin = sr.color;
+		sr.color = Color.white; // 깜빡임 색상
+		yield return new WaitForSeconds(0.1f);
+		if (sr != null) sr.color = origin;
 	}
 
 	private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
@@ -217,6 +264,13 @@ public class UnitGenerate : MonoBehaviour
 		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
 	}
 
+	public bool IsOccupied_Public(Vector2Int pos, int floorIdx)//해당 위치에 유닛이 존재하는지 여부 반환
+	{
+		return IsOccupied(pos, floorIdx);
+	}
+
+	public Vector3 GetFloorOffset_Public(int floorIdx) => GetFloorOffset(floorIdx);
+
 	private bool IsOccupied(Vector2Int pos, int floorIdx)//해당 위치에 유닛이 존재하는지 여부 반환
 	{
 		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
@@ -258,6 +312,84 @@ public class UnitGenerate : MonoBehaviour
 		}
 		return Vector2Int.zero; // default fallback
 	}
+
+	public Vector2Int GetStartRoomPos(int floorIdx = 1)
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
+
+		Floor floor = cmap.map.floors[floorIdx];
+		if (floor.chunks == null) return Vector2Int.zero;
+
+		int chunkW = floor.config.width;
+		int chunkH = floor.config.height;
+
+		for (int cx = 0; cx < chunkW; cx++)
+		{
+			for (int cy = 0; cy < chunkH; cy++)
+			{
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomRole == RoomRole.StartRoom && c.chunk != null)
+				{
+					// 시작방을 찾았으면 무작위가 아닌 중앙 근처 빈 공간 반환
+					for (int tx = 2; tx < 6; tx++)
+					{
+						for (int ty = 2; ty < 6; ty++)
+						{
+							if (c.chunk[tx, ty].name != "Wall")
+							{
+								Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+								if (!IsOccupied(cand, floorIdx)) return cand;
+							}
+						}
+					}
+				}
+			}
+		}
+		return GetRandomFloorPos(floorIdx); // 못 찾으면 일반 랜덤 방 반환
+	}
+
+	public T GenerateUnitAtPos<T>(UnitType unitType, Vector2Int pos, int floorIdx = 1) where T : Unit
+	{
+		T unit = ScriptableObject.CreateInstance<T>();
+		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
+		unit.unitType = unitType;
+		unit.position = pos;
+		unit.currentFloor = floorIdx;
+		unit.SetupStats();
+
+		// Visual 생성 (Update 로직이 없는 깡통 오브젝트)
+		GameObject go = new GameObject(unit.name);
+		Transform tilemapTransform = GetFloorTilemapTransform(floorIdx);
+		if (tilemapTransform != null)
+		{
+			go.transform.SetParent(tilemapTransform);
+		}
+
+		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+		sr.sortingOrder = 10;
+
+		UnitVisual uv = go.AddComponent<UnitVisual>();
+		uv.Setup();
+
+		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
+		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
+
+		GameObject outlineGo = new GameObject("Outline");
+		outlineGo.transform.SetParent(go.transform);
+		outlineGo.transform.localPosition = Vector3.zero;
+		SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
+		outlineSr.sprite = sr.sprite;
+		outlineSr.color = Color.black;
+		outlineSr.sortingOrder = 9;
+		outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+		outlineGo.SetActive(false);
+
+		go.transform.position = new Vector3(pos.x + unit.unitType.footprint.x / 2f, pos.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(floorIdx);
+		visualMap[unit] = go;
+
+		return unit;
+	}
 	#endregion
 }
 
@@ -272,13 +404,66 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	private float textureUpdateTimer = 0f;
 	private bool needTextureUpdate = false;
 
-	[Header("진영별 맵 시각화 텍스처 (인스펙터에서 클릭하여 확인)")]
+	public float currentGameSpeed = 1f;
+	public bool isPaused = false;
+
+	[Header("진영별 맵 시각화 텍셀 (인스펙터에서 클릭하여 확인)")]
 	public Texture2D[] humanMapTextures = new Texture2D[4];
 	public Texture2D[] monsterMapTextures = new Texture2D[4];
+
+	public void RegisterUnitPos(Unit u, Vector2Int pos)
+	{
+		if (u == null) return;
+		int w = (int)u.unitType.footprint.x;
+		int h = (int)u.unitType.footprint.y;
+		for (int dx = 0; dx < w; dx++)
+		{
+			for (int dy = 0; dy < h; dy++)
+			{
+				unitGrid[new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor)] = u;
+			}
+		}
+	}
+
+	public void UnregisterUnitPos(Unit u, Vector2Int pos)
+	{
+		if (u == null) return;
+		int w = (int)u.unitType.footprint.x;
+		int h = (int)u.unitType.footprint.y;
+		for (int dx = 0; dx < w; dx++)
+		{
+			for (int dy = 0; dy < h; dy++)
+			{
+				unitGrid.Remove(new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor));
+			}
+		}
+	}
 
 	void Awake()
 	{
 		Instance = this;
+
+		if (GetComponent<InputManager>() == null)
+		{
+			gameObject.AddComponent<InputManager>();
+		}
+		if (GetComponent<PartyController>() == null)
+		{
+			gameObject.AddComponent<PartyController>();
+		}
+		if (GetComponent<ArtifactManager>() == null)
+		{
+			gameObject.AddComponent<ArtifactManager>();
+		}
+		if (FindObjectOfType<UIManager>() == null)
+		{
+			GameObject uiObj = new GameObject("UIManager");
+			uiObj.AddComponent<UIManager>();
+		}
+		if (Camera.main != null && Camera.main.gameObject.GetComponent<CameraController>() == null)
+		{
+			Camera.main.gameObject.AddComponent<CameraController>();
+		}
 	}
 
 	void Start()
@@ -314,11 +499,13 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			var u = units[i];
 			if (u == null || u.hp <= 0)
 			{
+				if (u != null && u.hasArtifact) u.DropArtifact();
+
 				if (UnitGenerate.Instance != null && u != null)
 				{
 					UnitGenerate.Instance.RemoveVisual(u);
 				}
-				if (u != null) unitGrid.Remove(new Vector3Int(u.position.x, u.position.y, u.currentFloor));
+				if (u != null) UnregisterUnitPos(u, u.position);
 				units.RemoveAt(i);
 				if (u != null) Destroy(u);
 				visualNeedsSync = true;
@@ -326,11 +513,16 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 				continue; // 사망/파괴 시 시각적 요소 제거 완료
 			}
 
+			u.OnUpdate(Time.deltaTime);
+
 			u.actionCooldown -= Time.deltaTime;
 			if (u.actionCooldown <= 0f)
 			{
-				// 반응도 * 1초 딜레이
-				u.actionCooldown = u.reaction;
+				// 반응도에 의한 지연 대신 속도 비례 쿨다운 (타일당 이동/행동 시간)
+				float speed = u.walkSpeed;
+				if (u.hasArtifact) speed *= 0.7f; // 유물 운반 시 이동속도 0.7배
+
+				u.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
 				u.JudgeState(); // 상태 판단 로직 실행
 				Vector2Int oldPos = u.position;
@@ -338,8 +530,8 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 				if (oldPos != u.position)
 				{
-					unitGrid.Remove(new Vector3Int(oldPos.x, oldPos.y, u.currentFloor));
-					unitGrid[new Vector3Int(u.position.x, u.position.y, u.currentFloor)] = u;
+					UnregisterUnitPos(u, oldPos);
+					RegisterUnitPos(u, u.position);
 				}
 
 				u.UpdateFOV(units); // 행동 후 자신의 시야를 공용 데이터에 갱신
@@ -349,7 +541,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			}
 		}
 
-		if (visualNeedsSync)
+		if (visualNeedsSync || Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
 		{
 			if (UnitGenerate.Instance != null)
 			{
@@ -371,26 +563,34 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	{
 		if (UnitGenerate.Instance == null) return;
 
-		// 임시로 우선 궁수만 생성가능하게 변경
-		UnitType[] types = { new Archer() };
-		UnitType selection = types[Random.Range(0, types.Length)];
+		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 4인 파티(기사, 궁수, 사제, 지휘관) 생성
+		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(1);
+		
+		UnitType[] types = { new Knight(), new ArcherType(), new Priest(), new Commander() };
+		Vector2Int[] offsets = { new Vector2Int(0,0), new Vector2Int(1,0), new Vector2Int(0,1), new Vector2Int(1,1) };
 
-		Human human = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Human>(selection);
-		units.Add(human);
-		if (GameSession.Instance != null) GameSession.Instance.unitGrid[new Vector3Int(human.position.x, human.position.y, human.currentFloor)] = human;
-		Debug.Log($"Generated Human: {selection.typeName} at Floor {human.currentFloor}, {human.position}");
+		for (int i = 0; i < types.Length; i++)
+		{
+			Vector2Int spawnPos = startPos + offsets[i];
+			if (UnitGenerate.Instance.IsOccupied_Public(spawnPos, 1)) spawnPos = UnitGenerate.Instance.GetRandomFloorPos(1); // 혹시 막혀있다면 fallback
+
+			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
+			units.Add(human);
+			if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(human, human.position);
+			Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position}");
+		}
 	}
 
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
 	{
 		if (UnitGenerate.Instance == null) return;
 
-		UnitType[] types = { new Wolf() }; // 임시로 오크 고블린 대신 늑대만 선택되게 변경
+		UnitType[] types = { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental(), new Boss() };
 		UnitType selection = types[Random.Range(0, types.Length)];
 
 		Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection);
 		units.Add(monster);
-		if (GameSession.Instance != null) GameSession.Instance.unitGrid[new Vector3Int(monster.position.x, monster.position.y, monster.currentFloor)] = monster;
+		if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);
 		Debug.Log($"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
 	}
 

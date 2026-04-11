@@ -16,16 +16,29 @@ public enum Dir
 public abstract class UnitType
 {
 	public string typeName;
-	public float unitSize;
-	public object details;
+	public Vector2 footprint;
 }
 
-public class Warrior : UnitType { public Warrior() { typeName = "전사"; unitSize = 1.0f; } }
-public class Scout : UnitType { public Scout() { typeName = "정찰병"; unitSize = 1.0f; } }
-public class Archer : UnitType { public Archer() { typeName = "궁수"; unitSize = 1.0f; } }
-public class Goblin : UnitType { public Goblin() { typeName = "고블린"; unitSize = 0.8f; } }
-public class Orc : UnitType { public Orc() { typeName = "오크"; unitSize = 2f; } }
-public class Wolf : UnitType { public Wolf() { typeName = "늑대"; unitSize = 1.2f; } }
+// 인류 클래스
+public class Knight : UnitType { public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); } }
+public class ArcherType : UnitType { public ArcherType() { typeName = "궁수형"; footprint = new Vector2(1, 1); } }
+public class Priest : UnitType { public Priest() { typeName = "사제형"; footprint = new Vector2(1, 1); } }
+public class Commander : UnitType { public Commander() { typeName = "지휘관형"; footprint = new Vector2(1, 1); } }
+
+// 몬스터 역할군
+public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(2, 2); } }
+public class MeleeDealer : UnitType { public MeleeDealer() { typeName = "근접 딜러"; footprint = new Vector2(1, 1); } }
+public class RangedSlow : UnitType { public RangedSlow() { typeName = "원거리 둔화"; footprint = new Vector2(1, 1); } }
+public class RangedMental : UnitType { public RangedMental() { typeName = "원거리 정신"; footprint = new Vector2(1, 1); } }
+public class Boss : UnitType { public Boss() { typeName = "보스"; footprint = new Vector2(3, 3); } }
+
+public class ArtifactItem
+{
+	public Vector2Int position;
+	public int floor;
+	public GameObject visual;
+	public bool isPickedUp;
+}
 
 public class FactionData
 {
@@ -33,6 +46,7 @@ public class FactionData
 	public int[][,] discoveredMap;
 	// 시야 내 발견된 적 유닛 데이터 공유
 	public List<Unit> spottedEnemyUnits = new List<Unit>();
+	public List<ArtifactItem> spottedArtifacts = new List<ArtifactItem>();
 
 	public FactionData()
 	{
@@ -68,11 +82,53 @@ public abstract class Unit : ScriptableObject
 
 	// 전투 관련 속성
 	public float hp = 100f;
-	public float attackPower = 10f;
+	public float mp = 0f;
+	public float physicalAttack = 10f;
+	public float physicalDefense = 0f;
+	public float accuracy = 10f;
+	public float evasion = 0f;
+	public float magicalAttack = 0f;
+	public float magicalDefense = 0f;
+	public float spotting = 0f;
+	public float leadership = 0f;
+	public float walkSpeed = 3f;
+	public float sprintSpeed = 4f;
 	public float reaction = 1f; // 반응도
+	public float physicalAttackSpeed = 10f;
+	public float magicalAccuracy = 0f;
+	public float magicalCastSpeed = 0f;
+	public float statusResistance = 0f;
+	public float dotResistance = 0f;
+	public float mentalResistance = 0f;
+	public float baseMental = 0f;
+	public float currentMental = 0f;
+
 	public float actionCooldown = 0f; // 턴 진행용 대기 시간
+	public float attackCooldown = 0f; // 공격 쿨다운
+	public float skillCooldown = 0f; // 스킬 쿨다운
 	public bool isHitThisTurn = false; // 피격 여부
 	public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
+	
+	public bool hasArtifact = false; // 유물 운반 여부
+	public float interactionTimer = 0f;
+	public float blockRate = 10f; // 임시 막기 확률
+
+	public float GetEvasion() => hasArtifact ? evasion * 0.5f : evasion;
+	public float GetBlockRate() => hasArtifact ? blockRate * 0.5f : blockRate;
+
+	// 상태이상
+	public float stunDuration = 0f;
+	public float slowDuration = 0f;
+	public float poisonDuration = 0f;
+	public float burnDuration = 0f;
+
+	// 이동 및 프레임워크
+	public float currentSpeed = 0f;
+	public float acceleration = 10f; // 임시 기본 가속도
+	public bool isWaitState = false; // Spotting Broadcast에 의한 대기
+
+	public Vector2Int? playerMoveTarget = null;
+	public Unit playerAttackTarget = null;
 
 	public Vector2Int position;
 	public int currentFloor = 0; // 현재 유닛이 위치한 층 정보
@@ -81,23 +137,130 @@ public abstract class Unit : ScriptableObject
 
 	public void SetupStats()
 	{
-		if (unitType is Archer)
+		if (unitType is Knight)
 		{
-			hp = 80f; attackPower = 20f; reaction = 1.0f;
+			hp = 150; mp = 0; physicalAttack = 18; physicalDefense = 12;
+			accuracy = 14; evasion = 6; magicalAttack = 0; magicalDefense = 6;
+			spotting = 4; leadership = 8; walkSpeed = 3.0f; sprintSpeed = 4.2f;
+			reaction = 10; physicalAttackSpeed = 12; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 14; dotResistance = 10; mentalResistance = 8; baseMental = 48;
 		}
-		else if (unitType is Wolf)
+		else if (unitType is ArcherType)
 		{
-			hp = 70f; attackPower = 35f; reaction = 0.4f;
+			hp = 90; mp = 0; physicalAttack = 14; physicalDefense = 5;
+			accuracy = 22; evasion = 18; magicalAttack = 0; magicalDefense = 4;
+			spotting = 5; leadership = 6; walkSpeed = 3.8f; sprintSpeed = 5.2f;
+			reaction = 14; physicalAttackSpeed = 20; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 8; dotResistance = 8; mentalResistance = 6; baseMental = 45;
 		}
-		// 기타 유닛 스탯 생략 (기본값)
+		else if (unitType is Priest)
+		{
+			hp = 95; mp = 70; physicalAttack = 8; physicalDefense = 4;
+			accuracy = 10; evasion = 8; magicalAttack = 16; magicalDefense = 8;
+			spotting = 8; leadership = 18; walkSpeed = 3.2f; sprintSpeed = 4.4f;
+			reaction = 11; physicalAttackSpeed = 10; magicalAccuracy = 18; magicalCastSpeed = 10;
+			statusResistance = 10; dotResistance = 10; mentalResistance = 16; baseMental = 60;
+		}
+		else if (unitType is Commander)
+		{
+			hp = 120; mp = 20; physicalAttack = 14; physicalDefense = 9;
+			accuracy = 16; evasion = 10; magicalAttack = 0; magicalDefense = 6;
+			spotting = 10; leadership = 24; walkSpeed = 3.4f; sprintSpeed = 4.6f;
+			reaction = 13; physicalAttackSpeed = 14; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 12; dotResistance = 12; mentalResistance = 18; baseMental = 55;
+		}
+		else if (unitType is MeleeTank)
+		{
+			hp = 165; mp = 0; physicalAttack = 16; physicalDefense = 13;
+			accuracy = 12; evasion = 4; magicalAttack = 0; magicalDefense = 5;
+			spotting = 6; leadership = 0; walkSpeed = 2.9f; sprintSpeed = 4.0f;
+			reaction = 8; physicalAttackSpeed = 8; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 14; dotResistance = 12; mentalResistance = 0; baseMental = 0;
+		}
+		else if (unitType is MeleeDealer)
+		{
+			hp = 85; mp = 0; physicalAttack = 20; physicalDefense = 5;
+			accuracy = 18; evasion = 12; magicalAttack = 0; magicalDefense = 4;
+			spotting = 6; leadership = 0; walkSpeed = 3.9f; sprintSpeed = 5.4f;
+			reaction = 12; physicalAttackSpeed = 16; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
+		}
+		else if (unitType is RangedSlow)
+		{
+			hp = 80; mp = 0; physicalAttack = 14; physicalDefense = 4;
+			accuracy = 18; evasion = 10; magicalAttack = 0; magicalDefense = 4;
+			spotting = 6; leadership = 0; walkSpeed = 3.5f; sprintSpeed = 4.8f;
+			reaction = 11; physicalAttackSpeed = 14; magicalAccuracy = 0; magicalCastSpeed = 0;
+			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
+		}
+		else if (unitType is RangedMental)
+		{
+			hp = 70; mp = 40; physicalAttack = 0; physicalDefense = 3;
+			accuracy = 10; evasion = 8; magicalAttack = 12; magicalDefense = 8;
+			spotting = 8; leadership = 0; walkSpeed = 3.4f; sprintSpeed = 4.6f;
+			reaction = 12; physicalAttackSpeed = 0; magicalAccuracy = 18; magicalCastSpeed = 14;
+			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
+		}
+		else if (unitType is Boss)
+		{
+			hp = 320; mp = 80; physicalAttack = 26; physicalDefense = 14;
+			accuracy = 18; evasion = 6; magicalAttack = 20; magicalDefense = 12;
+			spotting = 12; leadership = 0; walkSpeed = 3.2f; sprintSpeed = 5.0f;
+			reaction = 14; physicalAttackSpeed = 10; magicalAccuracy = 16; magicalCastSpeed = 12;
+			statusResistance = 18; dotResistance = 18; mentalResistance = 0; baseMental = 0;
+		}
+
+		currentMental = baseMental;
 	}
 
 	public void TakeDamage(float damage)
 	{
+		float prevHp = hp;
 		hp -= damage;
 		isHitThisTurn = true;
+		if (UnitGenerate.Instance != null) UnitGenerate.Instance.TriggerHitEffect(this);
+
+		if (hasArtifact && damage >= prevHp * 0.3f) DropArtifact();
 	}
 
+	public void TakePhysicalDamage(float rawDamage, Unit attacker)
+	{
+		float damage = Mathf.Max(1f, rawDamage - physicalDefense);
+		TakeDamage(damage);
+	}
+
+	public void TakeMagicalDamage(float rawDamage, Unit attacker)
+	{
+		float damage = Mathf.Max(1f, rawDamage - magicalDefense);
+		TakeDamage(damage);
+	}
+
+	public void TakeMentalDamage(float rawDamage, Unit attacker)
+	{
+		if (this is Human)
+		{
+			int prevStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
+			currentMental -= rawDamage; // 정신력만 감소
+			int currentStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
+			isHitThisTurn = true;
+
+			if (hasArtifact && currentStage < prevStage) DropArtifact();
+		}
+	}
+
+	public void DropArtifact()
+	{
+		if (!hasArtifact) return;
+		hasArtifact = false;
+		interactionTimer = 0f;
+		if (ArtifactManager.Instance != null) ArtifactManager.Instance.SpawnArtifact(position, currentFloor);
+		Debug.Log($"{unitType.typeName}가 피격/공황으로 유물을 드롭했습니다!");
+	}
+
+	public void ApplyStun(float duration) { stunDuration = Mathf.Max(stunDuration, duration); }
+	public void ApplySlow(float duration) { slowDuration = Mathf.Max(slowDuration, duration); }
+	public void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); }
+	public void ApplyBurn(float duration) { burnDuration = Mathf.Max(burnDuration, duration); }
 
 	#region 기능함수들
 	public Vector2Int GetDirVector(Dir dir)
@@ -125,24 +288,36 @@ public abstract class Unit : ScriptableObject
 		Floor floor = cmap.map.floors[currentFloor];
 		if (floor.chunks == null) return false;
 
-		int cx = pos.x / 8;
-		int tx = pos.x % 8;
-		int cy = pos.y / 8;
-		int cyVal = pos.y % 8;
+		int w = (int)unitType.footprint.x;
+		int h = (int)unitType.footprint.y;
 
-		if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
-
-		Chunks c = floor.chunks[cx, cy];
-		if (c.roomId == -1 || c.chunk == null) return false;
-
-		if (c.chunk[tx, cyVal].name == "Wall") return false;
-
-		// 다른 유닛 점유 여부 확인 (최적화: O(1) 캐싱 배열)
-		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, currentFloor), out Unit u))
+		for (int dx = 0; dx < w; dx++)
 		{
-			if (u != null && u != this && u.hp > 0)
+			for (int dy = 0; dy < h; dy++)
 			{
-				return false;
+				int targetX = pos.x + dx;
+				int targetY = pos.y + dy;
+
+				int cx = targetX / 8;
+				int tx = targetX % 8;
+				int cy = targetY / 8;
+				int cyVal = targetY % 8;
+
+				if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomId == -1 || c.chunk == null) return false;
+
+				if (c.chunk[tx, cyVal].name == "Wall") return false;
+
+				// 다른 유닛 점유 여부 확인 (최적화: O(1) 캐싱 배열)
+				if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
+				{
+					if (u != null && u != this && u.hp > 0)
+					{
+						return false;
+					}
+				}
 			}
 		}
 
@@ -217,6 +392,18 @@ public abstract class Unit : ScriptableObject
 				}
 			}
 
+			// 유물 발견
+			if (ArtifactManager.Instance != null)
+			{
+				foreach(var art in ArtifactManager.Instance.artifacts)
+				{
+					if (!art.isPickedUp && art.floor == currentFloor && art.position.x == x && art.position.y == y)
+					{
+						if (!myData.spottedArtifacts.Contains(art)) myData.spottedArtifacts.Add(art);
+					}
+				}
+			}
+
 			// 가시성 체크 (본인 위치 제외)
 			if (x != startPos.x || y != startPos.y)
 			{
@@ -283,12 +470,35 @@ public abstract class Unit : ScriptableObject
 
 	public virtual void JudgeState()
 	{
+		if (stunDuration > 0f) return; // 기절 시 행동 불가
 		brain.JudgeState(this);
 	}
 
 	public virtual void ExecuteAction()
 	{
+		if (stunDuration > 0f) return;
 		brain.ExecuteAction(this);
+	}
+
+	public virtual void OnUpdate(float deltaTime)
+	{
+		if (stunDuration > 0f) stunDuration -= deltaTime;
+		if (slowDuration > 0f) slowDuration -= deltaTime;
+		
+		if (poisonDuration > 0f)
+		{
+			poisonDuration -= deltaTime;
+			hp -= 1f * deltaTime; // 매초 피해
+		}
+		
+		if (burnDuration > 0f)
+		{
+			burnDuration -= deltaTime;
+			hp -= 1f * deltaTime; // 매초 피해
+		}
+		
+		if (attackCooldown > 0f) attackCooldown -= deltaTime;
+		if (skillCooldown > 0f) skillCooldown -= deltaTime;
 	}
 }
 
