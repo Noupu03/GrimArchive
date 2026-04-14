@@ -19,7 +19,7 @@ public abstract class UnitType
 	public Vector2 footprint;
 }
 
-// 인류 클래스
+//  인류 클래스
 public class Knight : UnitType { public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); } }
 public class ArcherType : UnitType { public ArcherType() { typeName = "궁수형"; footprint = new Vector2(1, 1); } }
 public class Priest : UnitType { public Priest() { typeName = "사제형"; footprint = new Vector2(1, 1); } }
