@@ -80,7 +80,7 @@ public abstract class GoapAction
 		openList.Add(startNode);
 		allNodes[startPos] = startNode;
 
-		int maxIter = 2000;
+		int maxIter = 5000;
 		int iter = 0;
 		AStarNode closestNode = startNode;
 
@@ -116,15 +116,60 @@ public abstract class GoapAction
 				if (dirVec == Vector2Int.zero) continue;
 				Vector2Int neighborPos = current.Pos + dirVec;
 
-				if (neighborPos.x < 0 || neighborPos.x >= mapW || neighborPos.y < 0 || neighborPos.y >= mapH) continue;
 				if (closedSet.Contains(neighborPos)) continue;
 
-				if (myData.discoveredMap[floorIdx][neighborPos.x, neighborPos.y] == 2) continue; // Wall
+				bool isWall = false;
+				bool isOccupied = false;
+				int w = (int)unit.unitType.footprint.x;
+				int h = (int)unit.unitType.footprint.y;
 
-				bool isOccupied = neighborPos != targetPos && UnitGenerate.Instance != null && UnitGenerate.Instance.IsOccupied_Public(neighborPos, floorIdx);
+				for (int dx = 0; dx < w; dx++)
+				{
+					for (int dy = 0; dy < h; dy++)
+					{
+						int nx = neighborPos.x + dx;
+						int ny = neighborPos.y + dy;
+						if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
+						if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
+
+						if (neighborPos != targetPos)
+						{
+							if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
+							{
+								if (u != null && u != unit && u.hp > 0)
+									isOccupied = true;
+							}
+						}
+					}
+					if (isWall) break;
+				}
+
+				if (isWall) continue; // 벽이거나 맵 밖
+
+				if (dirVec.x != 0 && dirVec.y != 0)
+				{
+					bool cornerWall1 = false;
+					bool cornerWall2 = false;
+
+					for (int dx = 0; dx < w; dx++)
+					{
+						for (int dy = 0; dy < h; dy++)
+						{
+							int cx1 = current.Pos.x + dx + dirVec.x;
+							int cy1 = current.Pos.y + dy;
+							int cx2 = current.Pos.x + dx;
+							int cy2 = current.Pos.y + dy + dirVec.y;
+
+							if (cx1 >= 0 && cx1 < mapW && cy1 >= 0 && cy1 < mapH && myData.discoveredMap[floorIdx][cx1, cy1] == 2) cornerWall1 = true;
+							if (cx2 >= 0 && cx2 < mapW && cy2 >= 0 && cy2 < mapH && myData.discoveredMap[floorIdx][cx2, cy2] == 2) cornerWall2 = true;
+						}
+					}
+					// 양쪽 코너가 막혀있으면 대각선으로 통과 불가
+					if (cornerWall1 && cornerWall2) continue;
+				}
 
 				int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
-				if (isOccupied) moveCost += 30; // 아군이 길을 막고 있을 때 벽으로 인식하지 않고 비용만 추가하여 우회하거나 통과를 시도하게 함
+				if (isOccupied) moveCost += 30; // 아군이 길을 막고 있을 때 우회
 
 				int newGCost = current.GCost + moveCost;
 

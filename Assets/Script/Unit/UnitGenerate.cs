@@ -25,7 +25,7 @@ public class UnitGenerate : MonoBehaviour
 
 	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
 	{
-		Vector2Int pos = GetRandomFloorPos(floorIdx);
+		Vector2Int pos = GetRandomFloorPos(unitType.footprint, floorIdx);
 
 		T unit = ScriptableObject.CreateInstance<T>();
 		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
@@ -280,7 +280,43 @@ public class UnitGenerate : MonoBehaviour
 		return false;
 	}
 
-	public Vector2Int GetRandomFloorPos(int floorIdx = 1)//랜덤한 바닥 위치 반환(임시)
+	public bool IsAreaClear(Vector2Int pos, Vector2 footprint, int floorIdx)
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return false;
+
+		Floor floor = cmap.map.floors[floorIdx];
+		if (floor.chunks == null) return false;
+
+		int chunkW = floor.config.width;
+		int chunkH = floor.config.height;
+		int fw = (int)footprint.x;
+		int fh = (int)footprint.y;
+
+		for (int dx = 0; dx < fw; dx++)
+		{
+			for (int dy = 0; dy < fh; dy++)
+			{
+				int x = pos.x + dx;
+				int y = pos.y + dy;
+
+				int cx = x / 8;
+				int cy = y / 8;
+				int tx = x % 8;
+				int ty = y % 8;
+
+				if (cx < 0 || cx >= chunkW || cy < 0 || cy >= chunkH) return false;
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomId == -1 || c.chunk == null) return false;
+				if (c.chunk[tx, ty].name == "Wall") return false;
+
+				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
+			}
+		}
+		return true;
+	}
+
+	public Vector2Int GetRandomFloorPos(Vector2 footprint, int floorIdx = 1)//랜덤한 바닥 위치 반환(임시)
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
@@ -294,7 +330,7 @@ public class UnitGenerate : MonoBehaviour
 		int chunkH = floor.config.height;
 
 		// 아무 방(roomId != -1)에나 랜덤 생성
-		for (int i = 0; i < 1000; i++)
+		for (int i = 0; i < 2000; i++)
 		{
 			int cx = Random.Range(0, chunkW);
 			int cy = Random.Range(0, chunkH);
@@ -303,17 +339,14 @@ public class UnitGenerate : MonoBehaviour
 			{
 				int tx = Random.Range(0, 8);
 				int ty = Random.Range(0, 8);
-				if (c.chunk[tx, ty].name != "Wall")
-				{
-					Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-					if (!IsOccupied(cand, floorIdx)) return cand;
-				}
+				Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+				if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 			}
 		}
 		return Vector2Int.zero; // default fallback
 	}
 
-	public Vector2Int GetStartRoomPos(int floorIdx = 1)
+	public Vector2Int GetStartRoomPos(Vector2 footprint, int floorIdx = 1)
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
@@ -336,17 +369,14 @@ public class UnitGenerate : MonoBehaviour
 					{
 						for (int ty = 2; ty < 6; ty++)
 						{
-							if (c.chunk[tx, ty].name != "Wall")
-							{
-								Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
-								if (!IsOccupied(cand, floorIdx)) return cand;
-							}
+							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 						}
 					}
 				}
 			}
 		}
-		return GetRandomFloorPos(floorIdx); // 못 찾으면 일반 랜덤 방 반환
+		return GetRandomFloorPos(footprint, floorIdx); // 못 찾으면 일반 랜덤 방 반환
 	}
 
 	public T GenerateUnitAtPos<T>(UnitType unitType, Vector2Int pos, int floorIdx = 1) where T : Unit
@@ -563,11 +593,11 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	{
 		if (UnitGenerate.Instance == null) return;
 
-		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 4인 파티(기사, 궁수, 사제, 지휘관) 생성
-		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(1);
-		
 		UnitType[] types = { new Knight(), new ArcherType(), new Priest(), new Commander() };
 		Vector2Int[] offsets = { new Vector2Int(0,0), new Vector2Int(1,0), new Vector2Int(0,1), new Vector2Int(1,1) };
+
+		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 4인 파티(기사, 궁수, 사제, 지휘관) 생성
+		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(types[0].footprint, 1);
 
 		Party newParty = new Party();
 		int partyId = PartyController.Instance != null ? PartyController.Instance.activeParties.Count + 1 : 1;
@@ -577,7 +607,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		for (int i = 0; i < types.Length; i++)
 		{
 			Vector2Int spawnPos = startPos + offsets[i];
-			if (UnitGenerate.Instance.IsOccupied_Public(spawnPos, 1)) spawnPos = UnitGenerate.Instance.GetRandomFloorPos(1); // 혹시 막혀있다면 fallback
+			if (!UnitGenerate.Instance.IsAreaClear(spawnPos, types[i].footprint, 1)) spawnPos = UnitGenerate.Instance.GetRandomFloorPos(types[i].footprint, 1); // 혹시 막혀있다면 fallback
 
 			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
 			units.Add(human);
