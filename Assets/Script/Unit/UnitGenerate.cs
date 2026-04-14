@@ -26,7 +26,15 @@ public class UnitGenerate : MonoBehaviour
 
 	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
 	{
-		Vector2Int pos = GetRandomFloorPos(unitType.footprint, floorIdx);
+		Vector2Int pos;
+		if (unitType is Boss)
+		{
+			pos = GetBossRoomPos(unitType.footprint, floorIdx);
+		}
+		else
+		{
+			pos = GetRandomFloorPos(unitType.footprint, floorIdx);
+		}
 
 		T unit = ScriptableObject.CreateInstance<T>();
 		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
@@ -404,6 +412,39 @@ public class UnitGenerate : MonoBehaviour
 		return GetRandomFloorPos(footprint, floorIdx); // 못 찾으면 일반 랜덤 방 반환
 	}
 
+	public Vector2Int GetBossRoomPos(Vector2 footprint, int floorIdx = 1)
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
+
+		Floor floor = cmap.map.floors[floorIdx];
+		if (floor.chunks == null) return Vector2Int.zero;
+
+		int chunkW = floor.config.width;
+		int chunkH = floor.config.height;
+
+		for (int cx = 0; cx < chunkW; cx++)
+		{
+			for (int cy = 0; cy < chunkH; cy++)
+			{
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomRole == RoomRole.BossRoom && c.chunk != null)
+				{
+					for (int tx = 2; tx < 6; tx++)
+					{
+						for (int ty = 2; ty < 6; ty++)
+						{
+							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
+						}
+					}
+				}
+			}
+		}
+		return GetRandomFloorPos(footprint, floorIdx); // 못 찾으면 일반 랜덤 방 반환
+	}
+
+
 	public T GenerateUnitAtPos<T>(UnitType unitType, Vector2Int pos, int floorIdx = 1) where T : Unit
 	{
 		T unit = ScriptableObject.CreateInstance<T>();
@@ -648,10 +689,66 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	{
 		if (UnitGenerate.Instance == null) return;
 
-		UnitType[] types = { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental(), new Boss() };
+		bool hasBoss = false;
+		foreach (var u in units)
+		{
+			if (u != null && u.unitType is Boss && u.hp > 0)
+			{
+				hasBoss = true;
+				break;
+			}
+		}
+
+		UnitType[] types;
+		if (hasBoss)
+		{
+			types = new UnitType[] { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental() };
+		}
+		else
+		{
+			types = new UnitType[] { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental(), new Boss() };
+		}
+
 		UnitType selection = types[Random.Range(0, types.Length)];
 
-		Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection);
+		// 보스방이 위치한 층을 찾아 해당 층에 스폰 (없으면 1층 기본값)
+		int targetFloor = 1;
+		if (selection is Boss && cmap != null && cmap.map.floors != null)
+		{
+			for (int f = 1; f < cmap.map.floors.Length; f++)
+			{
+				Floor floor = cmap.map.floors[f];
+				if (floor.chunks == null) continue;
+				bool foundBossRoom = false;
+				for (int cx = 0; cx < floor.config.width; cx++)
+				{
+					for (int cy = 0; cy < floor.config.height; cy++)
+					{
+						if (floor.chunks[cx, cy].roomRole == RoomRole.BossRoom)
+						{
+							targetFloor = f;
+							foundBossRoom = true;
+							break;
+						}
+					}
+					if (foundBossRoom) break;
+				}
+				if (foundBossRoom) break;
+			}
+		}
+
+		Monster monster;
+		if (selection is Boss)
+		{
+			Vector2Int bossPos = UnitGenerate.Instance.GetBossRoomPos(selection.footprint, targetFloor);
+			monster = UnitGenerate.Instance.GenerateUnitAtPos<Monster>(selection, bossPos, targetFloor);
+		}
+		else
+		{
+			// 일반 몬스터는 랜덤 층, 랜덤 방 (기존 방식 유지 시 1층 고정이나, 다른 층 확장을 염두에 둘 수도 있음, 일단 1층)
+			monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection, 1);
+		}
+
 		units.Add(monster);
 		if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);
 		Debug.Log($"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
