@@ -28,11 +28,11 @@ public abstract class GoapAction
 
 	protected Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
-		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+		IEnumerable<Unit> enemies = unit is Human ? Unit.humanFactionData.spottedEnemyUnits : unit.personalSpottedEnemies;
 		Unit target = null;
 		minDist = float.MaxValue;
 
-		foreach (var enemy in myData.spottedEnemyUnits)
+		foreach (var enemy in enemies)
 		{
 			if (enemy == null || enemy.hp <= 0 || enemy.currentFloor != unit.currentFloor) continue;
 			float d = Vector2Int.Distance(unit.position, enemy.position);
@@ -289,8 +289,8 @@ public class Goal_DefeatEnemy : GoapGoal
 	public Goal_DefeatEnemy() { Name = "DefeatEnemy"; DesiredState["enemyAlive"] = false; }
 	public override float GetPriority(Unit unit)
 	{
-		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
-		foreach (var enemy in myData.spottedEnemyUnits)
+		IEnumerable<Unit> enemies = unit is Human ? Unit.humanFactionData.spottedEnemyUnits : unit.personalSpottedEnemies;
+		foreach (var enemy in enemies)
 		{
 			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor)
 			{
@@ -420,7 +420,10 @@ public class Action_PlayerCommandExecute : GoapAction
 				if (unit.attackCooldown <= 0f)
 				{
 					unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f));
-					bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - unit.playerAttackTarget.GetEvasion(), 5f, 95f);
+					float statusMod = 1f; // TODO: 상태 보정치 구현 시 변경 (현재 임시로 1.0)
+					float targetStatusMod = 1f; // TODO: 적 상태 보정치
+					int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - unit.playerAttackTarget.GetEvasion() * targetStatusMod);
+					bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
 					if (hit)
 					{
 						unit.playerAttackTarget.TakePhysicalDamage(unit.physicalAttack > 0 ? unit.physicalAttack : unit.magicalAttack, unit);
@@ -500,7 +503,10 @@ public class Action_EngageEnemy : GoapAction
 			if (unit.attackCooldown <= 0f)
 			{
 				unit.attackCooldown = Mathf.Max(0.45f, 1.0f - (unit.physicalAttackSpeed * 0.02f)); // 궁수형 공속 공식 임시
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - target.GetEvasion(), 5f, 95f);
+				float statusMod = 1f; // TODO: 상태 보정치
+				float targetStatusMod = 1f;
+				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
+				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
 				if (hit)
 				{
 					if (unit.skillCooldown <= 0f)
@@ -545,7 +551,10 @@ public class Action_EngageEnemy : GoapAction
 			if (unit.attackCooldown <= 0f)
 			{
 				unit.attackCooldown = 1.4f;
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - target.GetEvasion(), 5f, 95f);
+				float statusMod = 1f;
+				float targetStatusMod = 1f;
+				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
+				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
 				if (hit)
 				{
 					target.TakePhysicalDamage(unit.physicalAttack, unit);
@@ -572,7 +581,10 @@ public class Action_EngageEnemy : GoapAction
 			if (unit.attackCooldown <= 0f)
 			{
 				unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f)); // 기본 공속(기사형 기준)
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - target.GetEvasion(), 5f, 95f);
+				float statusMod = 1f;
+				float targetStatusMod = 1f;
+				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
+				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
 				if (hit)
 				{
 					if (unit.unitType is Knight && unit.skillCooldown <= 0f)
@@ -649,8 +661,12 @@ public class GoapBrain
 
 		// 2. 현재 월드 상태(WorldState) 수집
 		GoapState worldState = new GoapState();
-		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
-		bool enemyVisible = myData.spottedEnemyUnits.Exists(e => e != null && e.hp > 0 && e.currentFloor == unit.currentFloor);
+		IEnumerable<Unit> enemies = unit is Human ? Unit.humanFactionData.spottedEnemyUnits : unit.personalSpottedEnemies;
+		bool enemyVisible = false;
+		foreach (var e in enemies)
+		{
+			if (e != null && e.hp > 0 && e.currentFloor == unit.currentFloor) { enemyVisible = true; break; }
+		}
 		worldState["enemyVisible"] = enemyVisible;
 		worldState["isHit"] = unit.isHitThisTurn;
 		worldState["hasArtifact"] = unit.hasArtifact;
