@@ -235,7 +235,7 @@ public class UnitGenerate : MonoBehaviour
 		if (sr == null) yield break;
 
 		sr.color = Color.white; // 깜빡임 색상
-		yield return new WaitForSeconds(0.1f);
+		yield return new WaitForSeconds(0.025f); // 깜빡이는 간격을 더 짧게 수정
 		if (sr != null) 
 		{
 			sr.color = (u is Human) ? Color.green : Color.red;
