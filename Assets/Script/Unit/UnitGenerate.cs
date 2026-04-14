@@ -15,12 +15,13 @@ public class UnitGenerate : MonoBehaviour
 	private Dictionary<Unit, Vector3> targetPosMap = new Dictionary<Unit, Vector3>();
 	private Sprite humanSprite;
 	private Sprite monsterSprite;
+	private Dictionary<Unit, Coroutine> blinkCoroutines = new Dictionary<Unit, Coroutine>();
 
 	void Awake()
 	{
 		Instance = this;
-		humanSprite = CreateCircleSprite(Color.green);
-		monsterSprite = CreateTriangleSprite(Color.red);
+		humanSprite = CreateCircleSprite(Color.white);
+		monsterSprite = CreateTriangleSprite(Color.white);
 	}
 
 	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
@@ -48,8 +49,8 @@ public class UnitGenerate : MonoBehaviour
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
 
-		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
-		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
+		if (typeof(T) == typeof(Human)) { sr.sprite = humanSprite; sr.color = Color.green; }
+		else if (typeof(T) == typeof(Monster)) { sr.sprite = monsterSprite; sr.color = Color.red; }
 
 		GameObject outlineGo = new GameObject("Outline");
 		outlineGo.transform.SetParent(go.transform);
@@ -108,6 +109,7 @@ public class UnitGenerate : MonoBehaviour
 			visualMap.Remove(u);
 			if (moveCoroutines.ContainsKey(u)) moveCoroutines.Remove(u);
 			if (targetPosMap.ContainsKey(u)) targetPosMap.Remove(u);
+			if (blinkCoroutines.ContainsKey(u)) blinkCoroutines.Remove(u);
 		}
 
 		// 안전장치: 이미 ScriptableObject가 파괴되어 Unity Null 처리가 된 키값들을 딕셔너리에서 일괄 제거
@@ -125,6 +127,7 @@ public class UnitGenerate : MonoBehaviour
 			visualMap.Remove(deadKey);
 			if (moveCoroutines.ContainsKey(deadKey)) moveCoroutines.Remove(deadKey);
 			if (targetPosMap.ContainsKey(deadKey)) targetPosMap.Remove(deadKey);
+			if (blinkCoroutines.ContainsKey(deadKey)) blinkCoroutines.Remove(deadKey);
 		}
 	}
 
@@ -177,7 +180,18 @@ public class UnitGenerate : MonoBehaviour
 				if (outlineTransform != null)
 				{
 					bool isSelected = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
-					outlineTransform.gameObject.SetActive(isSelected);
+					bool isPanicking = u is Human && u.currentMental < u.baseMental * 0.3f;
+
+					outlineTransform.gameObject.SetActive(isSelected || isPanicking);
+
+					if (isSelected || isPanicking)
+					{
+						SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
+						if (outlineSr != null)
+						{
+							outlineSr.color = isSelected ? Color.black : Color.red;
+						}
+					}
 				}
 			}
 		}
@@ -206,20 +220,31 @@ public class UnitGenerate : MonoBehaviour
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			StartCoroutine(HitBlink(go));
+			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
+			{
+				StopCoroutine(existingCoroutine);
+			}
+			blinkCoroutines[u] = StartCoroutine(HitBlink(u, go));
 		}
 	}
 
-	private System.Collections.IEnumerator HitBlink(GameObject go)
+	private System.Collections.IEnumerator HitBlink(Unit u, GameObject go)
 	{
 		if (go == null) yield break;
 		SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
 		if (sr == null) yield break;
 
-		Color origin = sr.color;
 		sr.color = Color.white; // 깜빡임 색상
 		yield return new WaitForSeconds(0.1f);
-		if (sr != null) sr.color = origin;
+		if (sr != null) 
+		{
+			sr.color = (u is Human) ? Color.green : Color.red;
+		}
+
+		if (blinkCoroutines.ContainsKey(u))
+		{
+			blinkCoroutines.Remove(u);
+		}
 	}
 
 	private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
@@ -402,8 +427,8 @@ public class UnitGenerate : MonoBehaviour
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
 
-		if (typeof(T) == typeof(Human)) sr.sprite = humanSprite;
-		else if (typeof(T) == typeof(Monster)) sr.sprite = monsterSprite;
+		if (typeof(T) == typeof(Human)) { sr.sprite = humanSprite; sr.color = Color.green; }
+		else if (typeof(T) == typeof(Monster)) { sr.sprite = monsterSprite; sr.color = Color.red; }
 
 		GameObject outlineGo = new GameObject("Outline");
 		outlineGo.transform.SetParent(go.transform);

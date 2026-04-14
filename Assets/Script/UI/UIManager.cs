@@ -36,6 +36,7 @@ public class UIManager : MonoBehaviour
 
         // 2. 게임 속도 및 일시정지 상태
         GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {GameSession.Instance.currentGameSpeed}x {(GameSession.Instance.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 1, 2, 3 / Space");
+        y += 50;
     }
 
     private void DrawTopRightUI()
@@ -128,7 +129,12 @@ public class UIManager : MonoBehaviour
         y += 5; // spacing
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>HP:</b> {u.hp:F1}"); y += lineH;
         if (u is Human) { GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>MP:</b> {u.mp:F1}"); y += lineH; }
-        if (u is Human) { GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>정신력:</b> {u.currentMental:F1} / {u.baseMental:F1}"); y += lineH; }
+        if (u is Human) 
+        { 
+            string panicStr = (u.currentMental < u.baseMental * 0.3f) ? " <color=red>공황</color>" : "";
+            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>정신력:</b> {u.currentMental:F1} / {u.baseMental:F1}{panicStr}"); 
+            y += lineH; 
+        }
         y += 5; // spacing
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>물리공격력:</b> {u.physicalAttack:F1}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>물리방어력:</b> {u.physicalDefense:F1}"); y += lineH;
@@ -154,8 +160,8 @@ public class UIManager : MonoBehaviour
 
     private void DrawPartyStatus()
     {
-        int y = 100; // 좌측 하단 쪽으로 배치 가능. 임시로 좌측 중앙
-        
+        int y = 150; // 시작 y 위치를 더 내림 (위쪽 UI와 겹치지 않게)
+
         if (PartyController.Instance == null || PartyController.Instance.activeParties.Count == 0) return;
 
         foreach (var party in PartyController.Instance.activeParties)
@@ -165,13 +171,19 @@ public class UIManager : MonoBehaviour
             int panicCount = 0;
             float totalMental = 0f;
             int humanCount = 0;
+            string panicNames = "";
 
             foreach (var u in party.members)
             {
                 if (u == null || u.hp <= 0) continue;
                 humanCount++;
                 totalMental += u.currentMental;
-                if (u.currentMental < u.baseMental * 0.3f) panicCount++;
+                if (u.currentMental < u.baseMental * 0.3f)
+                {
+                    panicCount++;
+                    if (panicNames != "") panicNames += ", ";
+                    panicNames += u.unitType.typeName;
+                }
             }
 
             if (humanCount > 0)
@@ -186,7 +198,17 @@ public class UIManager : MonoBehaviour
 
                 GUI.Label(new Rect(10, y, 300, 20), $"[{party.partyName} - {goalStr}] 평균 정신력: {totalMental / humanCount:F1}");
                 y += 20;
-                GUI.Label(new Rect(10, y, 300, 20), $"공황: {panicCount}명");
+
+                string panicInfo = $"공황: {panicCount}명";
+                if (panicCount > 0)
+                {
+                    panicInfo += $" ({panicNames})";
+                    GUI.Label(new Rect(10, y, 400, 20), $"<color=red>{panicInfo}</color>");
+                }
+                else
+                {
+                    GUI.Label(new Rect(10, y, 400, 20), panicInfo);
+                }
                 y += 20;
             }
 
