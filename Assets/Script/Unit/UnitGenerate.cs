@@ -569,6 +569,11 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		UnitType[] types = { new Knight(), new ArcherType(), new Priest(), new Commander() };
 		Vector2Int[] offsets = { new Vector2Int(0,0), new Vector2Int(1,0), new Vector2Int(0,1), new Vector2Int(1,1) };
 
+		Party newParty = new Party();
+		int partyId = PartyController.Instance != null ? PartyController.Instance.activeParties.Count + 1 : 1;
+		newParty.partyName = $"Party {partyId}";
+		newParty.partyGoal = (PartyGoal)Random.Range(0, 3); // 무작위 목표 지정(테스트용)
+
 		for (int i = 0; i < types.Length; i++)
 		{
 			Vector2Int spawnPos = startPos + offsets[i];
@@ -576,9 +581,12 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
 			units.Add(human);
+			newParty.members.Add(human);
 			if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(human, human.position);
-			Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position}");
+			Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position} ({newParty.partyName})");
 		}
+		
+		if (PartyController.Instance != null) PartyController.Instance.activeParties.Add(newParty);
 	}
 
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성

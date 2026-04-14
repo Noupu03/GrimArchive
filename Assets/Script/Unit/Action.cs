@@ -63,6 +63,20 @@ public abstract class GoapAction
 }
 
 // Goals
+public class Goal_Panic : GoapGoal
+{
+	public Goal_Panic() { Name = "Panic"; DesiredState["panicResolved"] = true; }
+	public override float GetPriority(Unit unit)
+	{
+		// 인간 유닛이고 정신력이 30% 미만이면 최우선 공황 행동
+		if (unit is Human && unit.currentMental < unit.baseMental * 0.3f)
+		{
+			return 150f; // 매우 높은 우선순위
+		}
+		return 0f;
+	}
+}
+
 public class Goal_RetrieveArtifact : GoapGoal
 {
 	public Goal_RetrieveArtifact() { Name = "RetrieveArtifact"; DesiredState["hasArtifact"] = true; }
@@ -70,7 +84,20 @@ public class Goal_RetrieveArtifact : GoapGoal
 	{
 		if (unit.hasArtifact) return 0f;
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
-		if (myData.spottedArtifacts.Exists(a => !a.isPickedUp && a.floor == unit.currentFloor)) return 50f;
+		if (myData.spottedArtifacts.Exists(a => !a.isPickedUp && a.floor == unit.currentFloor))
+		{
+			if (unit is Human h && PartyController.Instance != null)
+			{
+				Party p = PartyController.Instance.GetPartyOf(h);
+				if (p != null)
+				{
+					if (p.partyGoal == PartyGoal.Recovery) return 90f; // 회수 파티: 최우선
+					if (p.partyGoal == PartyGoal.Exploration) return 40f; // 탐사 파티: 탐사보단 낮고 생존보단 높을 수 있음(임시)
+					if (p.partyGoal == PartyGoal.Sweep) return 20f; // 소탕 파티: 후순위
+				}
+			}
+			return 50f;
+		}
 		return 0f;
 	}
 }
@@ -89,7 +116,20 @@ public class Goal_DefeatEnemy : GoapGoal
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
 		foreach (var enemy in myData.spottedEnemyUnits)
 		{
-			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor) return 80f;
+			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor)
+			{
+				if (unit is Human h && PartyController.Instance != null)
+				{
+					Party p = PartyController.Instance.GetPartyOf(h);
+					if (p != null)
+					{
+						if (p.partyGoal == PartyGoal.Sweep) return 90f; // 소탕 파티: 적 처치 최우선
+						if (p.partyGoal == PartyGoal.Exploration) return 30f; // 탐사 파티: 유물이나 생존보다 후순위
+						if (p.partyGoal == PartyGoal.Recovery) return 20f; // 회수 파티: 무시 성향 강함 달아나기 우선
+					}
+				}
+				return 80f;
+			}
 		}
 		return 0f;
 	}
@@ -98,10 +138,50 @@ public class Goal_DefeatEnemy : GoapGoal
 public class Goal_Explore : GoapGoal
 {
 	public Goal_Explore() { Name = "Explore"; DesiredState["explored"] = true; }
-	public override float GetPriority(Unit unit) => 10f; // 기본 목표 우선순위 가중치 10임 낮음.
+	public override float GetPriority(Unit unit)
+	{
+		if (unit is Human h && PartyController.Instance != null)
+		{
+			Party p = PartyController.Instance.GetPartyOf(h);
+			if (p != null)
+			{
+				if (p.partyGoal == PartyGoal.Exploration) return 90f; // 탐사 파티: 평상시 탐사 최우선
+				if (p.partyGoal == PartyGoal.Sweep) return 10f; 
+				if (p.partyGoal == PartyGoal.Recovery) return 10f;
+			}
+		}
+		return 10f; // 기본 목표 우선순위 가중치
+	}
 }
 
 // Actions
+public class Action_Panic : GoapAction
+{
+	public Action_Panic()
+	{
+		ActionName = "Panic";
+		AddEffect("panicResolved", true); // 임시 달성을 통해 계속 패닉 상태 액션이 실행되도록 함 (실제 수치 회복 전까지 발동)
+	}
+
+	public override bool IsValid(Unit unit) => unit is Human && unit.currentMental < unit.baseMental * 0.3f;
+
+	public override void Execute(Unit unit)
+	{
+		// 공황 상태의 유닛은 제자리에서 무작위 이동(방황)하며 아무것도 하지 않음.
+		// 임시 구현: 매 턴 랜덤 방향으로 도망치거나 아무것도 하지 않음.
+		if (Random.value > 0.5f)
+		{
+			Dir randomDir = (Dir)Random.Range(0, 8);
+			unit.Move(randomDir);
+			Debug.Log($"{unit.unitType.typeName}가 공황에 빠져 허둥지둥 이동합니다.");
+		}
+		else
+		{
+			Debug.Log($"{unit.unitType.typeName}가 공황에 빠져 움직이지 못합니다.");
+		}
+	}
+}
+
 public class Action_RetrieveArtifact : GoapAction
 {
 	public Action_RetrieveArtifact()
@@ -393,9 +473,9 @@ public class GoapBrain
 	public void JudgeState(Unit unit)
 	{
 		if (availableGoals == null)
-			availableGoals = new List<GoapGoal> { new Goal_PlayerCommand(), new Goal_RetrieveArtifact(), new Goal_DefeatEnemy(), new Goal_Explore() };
+			availableGoals = new List<GoapGoal> { new Goal_Panic(), new Goal_PlayerCommand(), new Goal_RetrieveArtifact(), new Goal_DefeatEnemy(), new Goal_Explore() };
 		if (availableActions == null)
-			availableActions = new List<GoapAction> { new Action_PlayerCommandExecute(), new Action_RetrieveArtifact(), new Action_RandomExplore(), new Action_EngageEnemy() };
+			availableActions = new List<GoapAction> { new Action_Panic(), new Action_PlayerCommandExecute(), new Action_RetrieveArtifact(), new Action_RandomExplore(), new Action_EngageEnemy() };
 
 		// 1. 최고 우선순위 목표 선정
 		GoapGoal bestGoal = null;

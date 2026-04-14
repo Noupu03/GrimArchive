@@ -104,7 +104,7 @@ public class UIManager : MonoBehaviour
         Unit u = InputManager.Instance.selectedUnit;
         
         int boxW = 220;
-        int boxH = 340;
+        int boxH = 360;
         GUI.Box(new Rect(10, Screen.height - boxH - 10, boxW, boxH), "선택 유닛 정보");
 
         int y = Screen.height - boxH + 20;
@@ -113,6 +113,18 @@ public class UIManager : MonoBehaviour
 
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>이름:</b> {u.unitType.typeName}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>진영:</b> {(u is Human ? "인류" : "몬스터")}"); y += lineH;
+        
+        string partyInfo = "없음";
+        if (PartyController.Instance != null)
+        {
+            var p = PartyController.Instance.GetPartyOf(u);
+            if (p != null) partyInfo = p.partyName;
+        }
+        if (u is Human)
+        {
+            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>파티:</b> {partyInfo}"); y += lineH;
+        }
+
         y += 5; // spacing
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>HP:</b> {u.hp:F1}"); y += lineH;
         if (u is Human) { GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>MP:</b> {u.mp:F1}"); y += lineH; }
@@ -143,32 +155,47 @@ public class UIManager : MonoBehaviour
     private void DrawPartyStatus()
     {
         int y = 100; // 좌측 하단 쪽으로 배치 가능. 임시로 좌측 중앙
-        int panicCount = 0;
-        float totalMental = 0f;
-        int humanCount = 0;
+        
+        if (PartyController.Instance == null || PartyController.Instance.activeParties.Count == 0) return;
 
-        foreach (var u in GameSession.Instance.units)
+        foreach (var party in PartyController.Instance.activeParties)
         {
-            if (u == null || u.hp <= 0) continue;
-            if (u is Human)
+            if (party.members.Count == 0) continue;
+
+            int panicCount = 0;
+            float totalMental = 0f;
+            int humanCount = 0;
+
+            foreach (var u in party.members)
             {
+                if (u == null || u.hp <= 0) continue;
                 humanCount++;
                 totalMental += u.currentMental;
                 if (u.currentMental < u.baseMental * 0.3f) panicCount++;
             }
-        }
 
-        if (humanCount > 0)
-        {
-            GUI.Label(new Rect(10, y, 300, 20), $"파티 평균 정신력: {totalMental / humanCount:F1}");
-            y += 20;
-            GUI.Label(new Rect(10, y, 300, 20), $"공황 유닛 수: {panicCount}");
-            y += 20;
-        }
+            if (humanCount > 0)
+            {
+                string goalStr = party.partyGoal switch
+                {
+                    PartyGoal.Sweep => "소탕",
+                    PartyGoal.Exploration => "탐사",
+                    PartyGoal.Recovery => "회수",
+                    _ => "오류"
+                };
 
-        if (PartyController.Instance != null && PartyController.Instance.leaderlessShockTimer > 0)
-        {
-            GUI.Label(new Rect(10, y, 300, 20), $"<color=red>리더리스 쇼크: {PartyController.Instance.leaderlessShockTimer:F1}s</color>");
+                GUI.Label(new Rect(10, y, 300, 20), $"[{party.partyName} - {goalStr}] 평균 정신력: {totalMental / humanCount:F1}");
+                y += 20;
+                GUI.Label(new Rect(10, y, 300, 20), $"공황: {panicCount}명");
+                y += 20;
+            }
+
+            if (party.leaderlessShockTimer > 0)
+            {
+                GUI.Label(new Rect(10, y, 300, 20), $"<color=red>리더리스 쇼크: {party.leaderlessShockTimer:F1}s</color>");
+                y += 20;
+            }
+            y += 10;
         }
     }
 }
