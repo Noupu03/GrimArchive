@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEditor;
 #endif
 
-public enum PartyGoal { Sweep, Exploration, Recovery }
+public enum PartyGoal { Sweep, Recovery,Exploration }
 
 [System.Serializable]
 public class Party

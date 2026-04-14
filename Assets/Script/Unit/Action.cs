@@ -45,9 +45,135 @@ public abstract class GoapAction
 		return target;
 	}
 
-	protected void MoveTowardsTarget(Unit unit, Unit target)
+	protected class AStarNode
 	{
-		Vector2Int diff = target.position - unit.position;
+		public Vector2Int Pos;
+		public AStarNode Parent;
+		public int GCost;
+		public int HCost;
+		public int FCost => GCost + HCost;
+	}
+
+	protected void MoveTowardsPos(Unit unit, Vector2Int targetPos)
+	{
+		if (unit.position == targetPos) return;
+
+		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+		int floorIdx = unit.currentFloor;
+
+		if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+		{
+			FallbackMove(unit, targetPos);
+			return;
+		}
+
+		int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+		int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+		Vector2Int startPos = unit.position;
+
+		List<AStarNode> openList = new List<AStarNode>();
+		HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
+		Dictionary<Vector2Int, AStarNode> allNodes = new Dictionary<Vector2Int, AStarNode>();
+
+		AStarNode startNode = new AStarNode { Pos = startPos, GCost = 0, HCost = GetHeuristic(startPos, targetPos) };
+		openList.Add(startNode);
+		allNodes[startPos] = startNode;
+
+		int maxIter = 2000;
+		int iter = 0;
+		AStarNode closestNode = startNode;
+
+		while (openList.Count > 0 && iter < maxIter)
+		{
+			iter++;
+			AStarNode current = openList[0];
+			int currentIndex = 0;
+			for (int i = 1; i < openList.Count; i++)
+			{
+				if (openList[i].FCost < current.FCost || (openList[i].FCost == current.FCost && openList[i].HCost < current.HCost))
+				{
+					current = openList[i];
+					currentIndex = i;
+				}
+			}
+
+			openList.RemoveAt(currentIndex);
+			closedSet.Add(current.Pos);
+
+			if (current.Pos == targetPos)
+			{
+				closestNode = current;
+				break;
+			}
+
+			if (current.HCost < closestNode.HCost)
+				closestNode = current;
+
+			foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+			{
+				Vector2Int dirVec = unit.GetDirVector(d);
+				if (dirVec == Vector2Int.zero) continue;
+				Vector2Int neighborPos = current.Pos + dirVec;
+
+				if (neighborPos.x < 0 || neighborPos.x >= mapW || neighborPos.y < 0 || neighborPos.y >= mapH) continue;
+				if (closedSet.Contains(neighborPos)) continue;
+
+				if (myData.discoveredMap[floorIdx][neighborPos.x, neighborPos.y] == 2) continue; // Wall
+
+				bool isOccupied = neighborPos != targetPos && UnitGenerate.Instance != null && UnitGenerate.Instance.IsOccupied_Public(neighborPos, floorIdx);
+
+				int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
+				if (isOccupied) moveCost += 30; // ¾Æ±ºÀÌ ±æÀ» ¸·°í ÀÖÀ» ¶§ º®À¸·Î ÀÎ½ÄÇÏÁö ¾Ê°í ºñ¿ë¸¸ Ãß°¡ÇÏ¿© ¿ìÈ¸ÇÏ°Å³ª Åë°ú¸¦ ½ÃµµÇÏ°Ô ÇÔ
+
+				int newGCost = current.GCost + moveCost;
+
+				if (!allNodes.TryGetValue(neighborPos, out AStarNode neighborNode))
+				{
+					neighborNode = new AStarNode { Pos = neighborPos, HCost = GetHeuristic(neighborPos, targetPos) };
+					allNodes[neighborPos] = neighborNode;
+				}
+
+				bool inOpen = openList.Contains(neighborNode);
+				if (!inOpen || newGCost < neighborNode.GCost)
+				{
+					neighborNode.GCost = newGCost;
+					neighborNode.Parent = current;
+					if (!inOpen) openList.Add(neighborNode);
+				}
+			}
+		}
+
+		if (closestNode == startNode)
+		{
+			return; // ¾ïÁö·Î º®¿¡ ¹ÚÁö ¾Êµµ·Ï ´ë±â
+		}
+
+		AStarNode step = closestNode;
+		while (step.Parent != null && step.Parent != startNode)
+			step = step.Parent;
+
+		Vector2Int diff = step.Pos - startPos;
+		foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+		{
+			if (unit.GetDirVector(d) == diff)
+			{
+				unit.Move(d);
+				return;
+			}
+		}
+	}
+
+	private int GetHeuristic(Vector2Int a, Vector2Int b)
+	{
+		int dx = Mathf.Abs(a.x - b.x);
+		int dy = Mathf.Abs(a.y - b.y);
+		return 10 * (dx + dy) - 6 * Mathf.Min(dx, dy);
+	}
+
+	protected void FallbackMove(Unit unit, Vector2Int targetPos)
+	{
+		Vector2Int diff = targetPos - unit.position;
 		int dx = diff.x == 0 ? 0 : (diff.x > 0 ? 1 : -1);
 		int dy = diff.y == 0 ? 0 : (diff.y > 0 ? 1 : -1);
 
@@ -60,6 +186,11 @@ public abstract class GoapAction
 			}
 		}
 	}
+
+	protected void MoveTowardsTarget(Unit unit, Unit target)
+	{
+		MoveTowardsPos(unit, target.position);
+	}
 }
 
 // Goals
@@ -68,10 +199,10 @@ public class Goal_Panic : GoapGoal
 	public Goal_Panic() { Name = "Panic"; DesiredState["panicResolved"] = true; }
 	public override float GetPriority(Unit unit)
 	{
-		// ì¸ê°„ ìœ ë‹›ì´ê³  ì •ì‹ ë ¥ì´ 30% ë¯¸ë§Œì´ë©´ ìµœìš°ì„  ê³µí™© í–‰ë™
+		// ÀÎ°£ À¯´ÖÀÌ°í Á¤½Å·ÂÀÌ 30% ¹Ì¸¸ÀÌ¸é ÃÖ¿ì¼± °øÈ² Çàµ¿
 		if (unit is Human && unit.currentMental < unit.baseMental * 0.3f)
 		{
-			return 150f; // ë§¤ìš° ë†’ì€ ìš°ì„ ìˆœìœ„
+			return 150f; // ¸Å¿ì ³ôÀº ¿ì¼±¼øÀ§
 		}
 		return 0f;
 	}
@@ -91,9 +222,9 @@ public class Goal_RetrieveArtifact : GoapGoal
 				Party p = PartyController.Instance.GetPartyOf(h);
 				if (p != null)
 				{
-					if (p.partyGoal == PartyGoal.Recovery) return 90f; // íšŒìˆ˜ íŒŒí‹°: ìµœìš°ì„ 
-					if (p.partyGoal == PartyGoal.Exploration) return 40f; // íƒì‚¬ íŒŒí‹°: íƒì‚¬ë³´ë‹¨ ë‚®ê³  ìƒì¡´ë³´ë‹¨ ë†’ì„ ìˆ˜ ìˆìŒ(ì„ì‹œ)
-					if (p.partyGoal == PartyGoal.Sweep) return 20f; // ì†Œíƒ• íŒŒí‹°: í›„ìˆœìœ„
+					if (p.partyGoal == PartyGoal.Recovery) return 90f; // È¸¼ö ÆÄÆ¼: ÃÖ¿ì¼±
+					if (p.partyGoal == PartyGoal.Exploration) return 40f; // Å½»ç ÆÄÆ¼: Å½»çº¸´Ü ³·°í »ıÁ¸º¸´Ü ³ôÀ» ¼ö ÀÖÀ½(ÀÓ½Ã)
+					if (p.partyGoal == PartyGoal.Sweep) return 20f; // ¼ÒÅÁ ÆÄÆ¼: ÈÄ¼øÀ§
 				}
 			}
 			return 50f;
@@ -123,9 +254,9 @@ public class Goal_DefeatEnemy : GoapGoal
 					Party p = PartyController.Instance.GetPartyOf(h);
 					if (p != null)
 					{
-						if (p.partyGoal == PartyGoal.Sweep) return 90f; // ì†Œíƒ• íŒŒí‹°: ì  ì²˜ì¹˜ ìµœìš°ì„ 
-						if (p.partyGoal == PartyGoal.Exploration) return 30f; // íƒì‚¬ íŒŒí‹°: ìœ ë¬¼ì´ë‚˜ ìƒì¡´ë³´ë‹¤ í›„ìˆœìœ„
-						if (p.partyGoal == PartyGoal.Recovery) return 20f; // íšŒìˆ˜ íŒŒí‹°: ë¬´ì‹œ ì„±í–¥ ê°•í•¨ ë‹¬ì•„ë‚˜ê¸° ìš°ì„ 
+						if (p.partyGoal == PartyGoal.Sweep) return 90f; // ¼ÒÅÁ ÆÄÆ¼: Àû Ã³Ä¡ ÃÖ¿ì¼±
+						if (p.partyGoal == PartyGoal.Exploration) return 30f; // Å½»ç ÆÄÆ¼: À¯¹°ÀÌ³ª »ıÁ¸º¸´Ù ÈÄ¼øÀ§
+						if (p.partyGoal == PartyGoal.Recovery) return 20f; // È¸¼ö ÆÄÆ¼: ¹«½Ã ¼ºÇâ °­ÇÔ ´Ş¾Æ³ª±â ¿ì¼±
 					}
 				}
 				return 80f;
@@ -145,12 +276,12 @@ public class Goal_Explore : GoapGoal
 			Party p = PartyController.Instance.GetPartyOf(h);
 			if (p != null)
 			{
-				if (p.partyGoal == PartyGoal.Exploration) return 90f; // íƒì‚¬ íŒŒí‹°: í‰ìƒì‹œ íƒì‚¬ ìµœìš°ì„ 
+				if (p.partyGoal == PartyGoal.Exploration) return 90f; // Å½»ç ÆÄÆ¼: Æò»ó½Ã Å½»ç ÃÖ¿ì¼±
 				if (p.partyGoal == PartyGoal.Sweep) return 10f; 
 				if (p.partyGoal == PartyGoal.Recovery) return 10f;
 			}
 		}
-		return 10f; // ê¸°ë³¸ ëª©í‘œ ìš°ì„ ìˆœìœ„ ê°€ì¤‘ì¹˜
+		return 10f; // ±âº» ¸ñÇ¥ ¿ì¼±¼øÀ§ °¡ÁßÄ¡
 	}
 }
 
@@ -160,24 +291,24 @@ public class Action_Panic : GoapAction
 	public Action_Panic()
 	{
 		ActionName = "Panic";
-		AddEffect("panicResolved", true); // ì„ì‹œ ë‹¬ì„±ì„ í†µí•´ ê³„ì† íŒ¨ë‹‰ ìƒíƒœ ì•¡ì…˜ì´ ì‹¤í–‰ë˜ë„ë¡ í•¨ (ì‹¤ì œ ìˆ˜ì¹˜ íšŒë³µ ì „ê¹Œì§€ ë°œë™)
+		AddEffect("panicResolved", true); // ÀÓ½Ã ´Ş¼ºÀ» ÅëÇØ °è¼Ó ÆĞ´Ğ »óÅÂ ¾×¼ÇÀÌ ½ÇÇàµÇµµ·Ï ÇÔ (½ÇÁ¦ ¼öÄ¡ È¸º¹ Àü±îÁö ¹ßµ¿)
 	}
 
 	public override bool IsValid(Unit unit) => unit is Human && unit.currentMental < unit.baseMental * 0.3f;
 
 	public override void Execute(Unit unit)
 	{
-		// ê³µí™© ìƒíƒœì˜ ìœ ë‹›ì€ ì œìë¦¬ì—ì„œ ë¬´ì‘ìœ„ ì´ë™(ë°©í™©)í•˜ë©° ì•„ë¬´ê²ƒë„ í•˜ì§€ ì•ŠìŒ.
-		// ì„ì‹œ êµ¬í˜„: ë§¤ í„´ ëœë¤ ë°©í–¥ìœ¼ë¡œ ë„ë§ì¹˜ê±°ë‚˜ ì•„ë¬´ê²ƒë„ í•˜ì§€ ì•ŠìŒ.
+		// °øÈ² »óÅÂÀÇ À¯´ÖÀº Á¦ÀÚ¸®¿¡¼­ ¹«ÀÛÀ§ ÀÌµ¿(¹æÈ²)ÇÏ¸ç ¾Æ¹«°Íµµ ÇÏÁö ¾ÊÀ½.
+		// ÀÓ½Ã ±¸Çö: ¸Å ÅÏ ·£´ı ¹æÇâÀ¸·Î µµ¸ÁÄ¡°Å³ª ¾Æ¹«°Íµµ ÇÏÁö ¾ÊÀ½.
 		if (Random.value > 0.5f)
 		{
 			Dir randomDir = (Dir)Random.Range(0, 8);
 			unit.Move(randomDir);
-			Debug.Log($"{unit.unitType.typeName}ê°€ ê³µí™©ì— ë¹ ì ¸ í—ˆë‘¥ì§€ë‘¥ ì´ë™í•©ë‹ˆë‹¤.");
+			Debug.Log($"{unit.unitType.typeName}°¡ °øÈ²¿¡ ºüÁ® ÇãµÕÁöµÕ ÀÌµ¿ÇÕ´Ï´Ù.");
 		}
 		else
 		{
-			Debug.Log($"{unit.unitType.typeName}ê°€ ê³µí™©ì— ë¹ ì ¸ ì›€ì§ì´ì§€ ëª»í•©ë‹ˆë‹¤.");
+			Debug.Log($"{unit.unitType.typeName}°¡ °øÈ²¿¡ ºüÁ® ¿òÁ÷ÀÌÁö ¸øÇÕ´Ï´Ù.");
 		}
 	}
 }
@@ -206,23 +337,13 @@ public class Action_RetrieveArtifact : GoapAction
 			}
 			else
 			{
-				Debug.Log($"{unit.unitType.typeName} ìœ ë¬¼ ìƒí˜¸ì‘ìš© ì¤‘... ({unit.interactionTimer:F1}/3.0s)");
+				Debug.Log($"{unit.unitType.typeName} À¯¹° »óÈ£ÀÛ¿ë Áß... ({unit.interactionTimer:F1}/3.0s)");
 			}
 		}
 		else
 		{
 			unit.interactionTimer = 0f;
-			Vector2Int diff = target.position - unit.position;
-			int dx = diff.x == 0 ? 0 : (diff.x > 0 ? 1 : -1);
-			int dy = diff.y == 0 ? 0 : (diff.y > 0 ? 1 : -1);
-			foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
-			{
-				if (unit.GetDirVector(d) == new Vector2Int(dx, dy))
-				{
-					unit.Move(d);
-					break;
-				}
-			}
+			MoveTowardsPos(unit, target.position);
 		}
 	}
 }
@@ -239,11 +360,11 @@ public class Action_PlayerCommandExecute : GoapAction
 	{
 		if (unit.playerAttackTarget != null)
 		{
-			if (unit.hasArtifact) return; // ìš´ë°˜ ì¤‘ ê³µê²© ë¶ˆê°€
+			if (unit.hasArtifact) return; // ¿î¹İ Áß °ø°İ ºÒ°¡
 
 			if (unit.playerAttackTarget.hp <= 0)
 			{
-				unit.playerAttackTarget = null; // íƒ€ê²Ÿ ì‚¬ë§
+				unit.playerAttackTarget = null; // Å¸°Ù »ç¸Á
 				return;
 			}
 			float dist = Vector2Int.Distance(unit.position, unit.playerAttackTarget.position);
@@ -258,11 +379,11 @@ public class Action_PlayerCommandExecute : GoapAction
 					if (hit)
 					{
 						unit.playerAttackTarget.TakePhysicalDamage(unit.physicalAttack > 0 ? unit.physicalAttack : unit.magicalAttack, unit);
-						Debug.Log($"*ìˆ˜ë™* {unit.unitType.typeName}ê°€ {unit.playerAttackTarget.unitType.typeName}ì„(ë¥¼) ê³µê²©!");
+						Debug.Log($"*¼öµ¿* {unit.unitType.typeName}°¡ {unit.playerAttackTarget.unitType.typeName}À»(¸¦) °ø°İ!");
 					}
 					else
 					{
-						Debug.Log($"*ìˆ˜ë™* {unit.unitType.typeName}ì˜ ê³µê²© ë¹—ë‚˜ê°");
+						Debug.Log($"*¼öµ¿* {unit.unitType.typeName}ÀÇ °ø°İ ºø³ª°¨");
 					}
 				}
 			}
@@ -280,17 +401,7 @@ public class Action_PlayerCommandExecute : GoapAction
 			}
 			else
 			{
-				Vector2Int diff = target - unit.position;
-				int dx = diff.x == 0 ? 0 : (diff.x > 0 ? 1 : -1);
-				int dy = diff.y == 0 ? 0 : (diff.y > 0 ? 1 : -1);
-				foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
-				{
-					if (unit.GetDirVector(d) == new Vector2Int(dx, dy))
-					{
-						unit.Move(d);
-						break;
-					}
-				}
+				MoveTowardsPos(unit, target);
 			}
 		}
 	}
@@ -319,7 +430,7 @@ public class Action_EngageEnemy : GoapAction
 		AddPrecondition("enemyVisible", true);
 		AddEffect("enemyAlive", false);
 	}
-	public override bool IsValid(Unit unit) => !unit.hasArtifact; // ìš´ë°˜ ì¤‘ ê³µê²© ë¶ˆê°€
+	public override bool IsValid(Unit unit) => !unit.hasArtifact; // ¿î¹İ Áß °ø°İ ºÒ°¡
 	public override void Execute(Unit unit)
 	{
 		if (unit.unitType is ArcherType) ENGAGE_Archer(unit);
@@ -343,26 +454,26 @@ public class Action_EngageEnemy : GoapAction
 		{
 			if (unit.attackCooldown <= 0f)
 			{
-				unit.attackCooldown = Mathf.Max(0.45f, 1.0f - (unit.physicalAttackSpeed * 0.02f)); // ê¶ìˆ˜í˜• ê³µì† ê³µì‹ ì„ì‹œ
+				unit.attackCooldown = Mathf.Max(0.45f, 1.0f - (unit.physicalAttackSpeed * 0.02f)); // ±Ã¼öÇü °ø¼Ó °ø½Ä ÀÓ½Ã
 				bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - target.GetEvasion(), 5f, 95f);
 				if (hit)
 				{
 					if (unit.skillCooldown <= 0f)
 					{
-						unit.skillCooldown = 15f; // ìƒíƒœì´ìƒ í™”ì‚´ ì¿¨ë‹¤ìš´
-						target.TakePhysicalDamage(unit.physicalAttack, unit); // ê°™ì€ ë°ë¯¸ì§€ + ë… í˜¹ì€ í™”ìƒ
+						unit.skillCooldown = 15f; // »óÅÂÀÌ»ó È­»ì Äğ´Ù¿î
+						target.TakePhysicalDamage(unit.physicalAttack, unit); // °°Àº µ¥¹ÌÁö + µ¶ È¤Àº È­»ó
 						if (Random.value > 0.5f) target.ApplyPoison(5f); else target.ApplyBurn(3f);
-						Debug.Log($"{unit.unitType.typeName}ê°€ ìƒíƒœì´ìƒ ìŠ¤í‚¬ í™”ì‚´ ì ì¤‘! -> {target.unitType.typeName}");
+						Debug.Log($"{unit.unitType.typeName}°¡ »óÅÂÀÌ»ó ½ºÅ³ È­»ì ÀûÁß! -> {target.unitType.typeName}");
 					}
 					else
 					{
 						target.TakePhysicalDamage(unit.physicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì„ ê³µê²©í•¨");
+						Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}À» °ø°İÇÔ");
 					}
 				}
 				else
 				{
-					Debug.Log($"{unit.unitType.typeName}ì˜ ê³µê²© ë¹—ë‚˜ê° (íšŒí”¼ë¨)");
+					Debug.Log($"{unit.unitType.typeName}ÀÇ °ø°İ ºø³ª°¨ (È¸ÇÇµÊ)");
 				}
 			}
 		}
@@ -377,7 +488,7 @@ public class Action_EngageEnemy : GoapAction
 		if (unit.isHitThisTurn && !unit.oneTimeReactUsed)
 		{
 			unit.oneTimeReactUsed = true;
-			unit.Move((Dir)Random.Range(0, 8)); // ì„ì‹œ ì „ì§„
+			unit.Move((Dir)Random.Range(0, 8)); // ÀÓ½Ã ÀüÁø
 			return;
 		}
 
@@ -393,8 +504,8 @@ public class Action_EngageEnemy : GoapAction
 				if (hit)
 				{
 					target.TakePhysicalDamage(unit.physicalAttack, unit);
-					target.TakeMentalDamage(10f, unit); // ë³´ìŠ¤ ì •ì‹  ê³µê²©(ì„ì‹œ)
-					Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì„ ë¬¼ë¦¬ ë° ì •ì‹  ê³µê²©í•¨");
+					target.TakeMentalDamage(10f, unit); // º¸½º Á¤½Å °ø°İ(ÀÓ½Ã)
+					Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}À» ¹°¸® ¹× Á¤½Å °ø°İÇÔ");
 				}
 			}
 		}
@@ -415,42 +526,42 @@ public class Action_EngageEnemy : GoapAction
 		{
 			if (unit.attackCooldown <= 0f)
 			{
-				unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f)); // ê¸°ë³¸ ê³µì†(ê¸°ì‚¬í˜• ê¸°ì¤€)
+				unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f)); // ±âº» °ø¼Ó(±â»çÇü ±âÁØ)
 				bool hit = Random.Range(0, 100) <= Mathf.Clamp(unit.accuracy - target.GetEvasion(), 5f, 95f);
 				if (hit)
 				{
 					if (unit.unitType is Knight && unit.skillCooldown <= 0f)
 					{
-						unit.skillCooldown = 15f; // ë°©íŒ¨ê°•íƒ€
+						unit.skillCooldown = 15f; // ¹æÆĞ°­Å¸
 						target.TakePhysicalDamage(unit.physicalAttack * 0.8f, unit);
 						target.ApplyStun(1f);
-						Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì—ê²Œ ë°©íŒ¨ ê°•íƒ€ ì ì¤‘! (ê¸°ì ˆ)");
+						Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}¿¡°Ô ¹æÆĞ °­Å¸ ÀûÁß! (±âÀı)");
 					}
 					else if (unit.unitType is Priest)
 					{
 						target.TakeMagicalDamage(unit.magicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì„ ë§ˆë²• ê³µê²©í•¨");
+						Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}À» ¸¶¹ı °ø°İÇÔ");
 					}
 					else if (unit.unitType is RangedSlow)
 					{
 						target.TakePhysicalDamage(unit.physicalAttack, unit);
 						target.ApplySlow(3f);
-						Debug.Log($"{unit.unitType.typeName}ì˜ ì¶”ê°€ ë‘”í™” ê³µê²© ì ì¤‘!");
+						Debug.Log($"{unit.unitType.typeName}ÀÇ Ãß°¡ µĞÈ­ °ø°İ ÀûÁß!");
 					}
 					else if (unit.unitType is RangedMental)
 					{
 						target.TakeMentalDamage(12f, unit);
-						Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì˜ ì •ì‹ ë ¥ì„ ê°•íƒ€!");
+						Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}ÀÇ Á¤½Å·ÂÀ» °­Å¸!");
 					}
 					else
 					{
 						target.TakePhysicalDamage(unit.physicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}ê°€ {target.unitType.typeName}ì„ ê³µê²©í•¨");
+						Debug.Log($"{unit.unitType.typeName}°¡ {target.unitType.typeName}À» °ø°İÇÔ");
 					}
 				}
 				else
 				{
-					Debug.Log($"{unit.unitType.typeName}ì˜ ê³µê²© ë¹—ë‚˜ê°");
+					Debug.Log($"{unit.unitType.typeName}ÀÇ °ø°İ ºø³ª°¨");
 				}
 			}
 		}
@@ -477,7 +588,7 @@ public class GoapBrain
 		if (availableActions == null)
 			availableActions = new List<GoapAction> { new Action_Panic(), new Action_PlayerCommandExecute(), new Action_RetrieveArtifact(), new Action_RandomExplore(), new Action_EngageEnemy() };
 
-		// 1. ìµœê³  ìš°ì„ ìˆœìœ„ ëª©í‘œ ì„ ì •
+		// 1. ÃÖ°í ¿ì¼±¼øÀ§ ¸ñÇ¥ ¼±Á¤
 		GoapGoal bestGoal = null;
 		float highestPriority = -1f;
 
@@ -491,7 +602,7 @@ public class GoapBrain
 			}
 		}
 
-		// 2. í˜„ì¬ ì›”ë“œ ìƒíƒœ(WorldState) ìˆ˜ì§‘
+		// 2. ÇöÀç ¿ùµå »óÅÂ(WorldState) ¼öÁı
 		GoapState worldState = new GoapState();
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
 		bool enemyVisible = myData.spottedEnemyUnits.Exists(e => e != null && e.hp > 0 && e.currentFloor == unit.currentFloor);
@@ -499,7 +610,7 @@ public class GoapBrain
 		worldState["isHit"] = unit.isHitThisTurn;
 		worldState["hasArtifact"] = unit.hasArtifact;
 
-		// 3. í”Œë˜ë‹ (ê°€ì¥ ë‹¨ìˆœí•œ 1-step ë§¤ì¹­)
+		// 3. ÇÃ·¡´× (°¡Àå ´Ü¼øÇÑ 1-step ¸ÅÄª)
 		currentPlannedAction = null;
 		float lowestCost = float.MaxValue;
 
@@ -551,11 +662,11 @@ public class GoapBrain
 		}
 		else
 		{
-			// ê³„íš ì‹¤íŒ¨ ì‹œ ê¸°ë³¸ í–‰ë™
+			// °èÈ¹ ½ÇÆĞ ½Ã ±âº» Çàµ¿
 			Dir randomDir = (Dir)Random.Range(0, 8);
 			unit.Move(randomDir);
 		}
 
-		unit.isHitThisTurn = false; // í„´ ì‹œì‘/ì¢…ë£Œì‹œ í”¼ê²© í”Œë˜ê·¸ ë¦¬ì…‹
+		unit.isHitThisTurn = false; // ÅÏ ½ÃÀÛ/Á¾·á½Ã ÇÇ°İ ÇÃ·¡±× ¸®¼Â
 	}
 }

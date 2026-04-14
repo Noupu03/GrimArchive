@@ -572,7 +572,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		Party newParty = new Party();
 		int partyId = PartyController.Instance != null ? PartyController.Instance.activeParties.Count + 1 : 1;
 		newParty.partyName = $"Party {partyId}";
-		newParty.partyGoal = (PartyGoal)Random.Range(0, 3); // 무작위 목표 지정(테스트용)
+		newParty.partyGoal = (PartyGoal)Random.Range(0, 2); // 무작위 목표 지정(테스트용->탐사파티 안나오게 설정해둠.)
 
 		for (int i = 0; i < types.Length; i++)
 		{
