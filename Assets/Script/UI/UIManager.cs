@@ -23,7 +23,7 @@ public class UIManager : MonoBehaviour
 	private void DrawTopLeftUI()
     {
         int y = 10;
-        
+		/*=======아티팩트 관련 참조 주석처리========
         // 1. 유물 생성 모드 토글
         if (ArtifactManager.Instance != null)
         {
@@ -32,10 +32,10 @@ public class UIManager : MonoBehaviour
                 ArtifactManager.Instance.artifactPlacementMode = !ArtifactManager.Instance.artifactPlacementMode;
             }
             y += 40;
-        }
+        }*/
 
-        // 2. 게임 속도 및 일시정지 상태
-        GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {GameSession.Instance.currentGameSpeed}x {(GameSession.Instance.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 1, 2, 3 / Space");
+		// 2. 게임 속도 및 일시정지 상태
+		GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {GameSession.Instance.currentGameSpeed}x {(GameSession.Instance.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 1, 2, 3 / Space");
         y += 50;
     }
 

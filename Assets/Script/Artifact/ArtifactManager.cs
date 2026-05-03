@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 public class ArtifactManager : MonoBehaviour
 {
-    public static ArtifactManager Instance;
+    /*public static ArtifactManager Instance;
     public List<ArtifactItem> artifacts = new List<ArtifactItem>();
     public bool artifactPlacementMode = false;
 
@@ -42,4 +42,5 @@ public class ArtifactManager : MonoBehaviour
         u.interactionTimer = 0f;
         Debug.Log($"{u.unitType.typeName}가 유물을 획득했습니다! (이동속도 저하, 빗나감/막기 저하, 공격 불가)");
     }
+    */
 }

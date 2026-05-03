@@ -43,7 +43,8 @@ public abstract class UnitFunction : Unit
 		if (!hasArtifact) return;
 		hasArtifact = false;
 		interactionTimer = 0f;
-		if (ArtifactManager.Instance != null) ArtifactManager.Instance.SpawnArtifact(position, currentFloor);
+		//=======아티팩트 관련 참조 주석처리========
+		//if (ArtifactManager.Instance != null) ArtifactManager.Instance.SpawnArtifact(position, currentFloor);
 		Debug.Log($"{unitType.typeName}가 피격/공황으로 유물을 드롭했습니다!");
 	}
 
@@ -185,7 +186,7 @@ public abstract class UnitFunction : Unit
 					}
 				}
 			}
-
+			/*=======아티팩트 관련 참조 주석처리========
 			// 유물 발견
 			if (ArtifactManager.Instance != null)
 			{
@@ -196,7 +197,7 @@ public abstract class UnitFunction : Unit
 						if (!myData.spottedArtifacts.Contains(art)) myData.spottedArtifacts.Add(art);
 					}
 				}
-			}
+			}*/
 
 			// 가시성 체크 (본인 위치 제외)
 			if (x != startPos.x || y != startPos.y)

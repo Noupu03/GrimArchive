@@ -384,7 +384,8 @@ public class Action_RetrieveArtifact : GoapAction
 			unit.interactionTimer += unit.walkSpeed > 0f ? (1f / unit.walkSpeed) : 0f;
 			if (unit.interactionTimer >= 3f)
 			{
-				if (ArtifactManager.Instance != null) ArtifactManager.Instance.PickupArtifact(target, unit);
+				//=======아티팩트 관련 참조 주석처리========
+				//if (ArtifactManager.Instance != null) ArtifactManager.Instance.PickupArtifact(target, unit);
 			}
 			else
 			{

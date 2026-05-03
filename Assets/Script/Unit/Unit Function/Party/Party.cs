@@ -1,4 +1,4 @@
-/*
+
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -7,6 +7,7 @@ public enum PartyGoal { Sweep, Recovery,Exploration }
 [System.Serializable]
 public class Party
 {
+	/*
     public string partyName;
     public PartyGoal partyGoal;
     public List<Unit> members = new List<Unit>();
@@ -42,5 +43,5 @@ public class Party
         if (leaderlessShockTimer > 0f)
             leaderlessShockTimer -= Time.deltaTime;
     }
+    */
 }
-*/

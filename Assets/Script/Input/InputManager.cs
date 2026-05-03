@@ -69,6 +69,7 @@ public class InputManager : MonoBehaviour
             Vector3 localPoint = worldPoint - floorOffset;
             Vector3Int gridPos = new Vector3Int(Mathf.FloorToInt(localPoint.x), Mathf.FloorToInt(localPoint.y), currentFloor);
 
+			/*=======아티팩트 관련 참조 주석처리========
             if (ArtifactManager.Instance != null && ArtifactManager.Instance.artifactPlacementMode)
             {
                 if (IsValidTile(new Vector2Int(gridPos.x, gridPos.y), currentFloor))
@@ -80,9 +81,9 @@ public class InputManager : MonoBehaviour
                     Debug.LogWarning("이곳에는 유물을 생성할 수 없습니다 (타일맵 범위 밖이거나 벽).");
                 }
                 return;
-            }
+            }*/
 
-            bool clickedEnemy = false;
+			bool clickedEnemy = false;
 
             if (selectedUnit != null && selectedUnit.hp > 0)
             {

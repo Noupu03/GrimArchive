@@ -1,4 +1,4 @@
-/*
+
 using UnityEngine;
 using System.Collections.Generic;
 #if UNITY_EDITOR
@@ -7,6 +7,7 @@ using UnityEditor;
 
 public class PartyController : MonoBehaviour
 {
+	/*
     public static PartyController Instance;
 
     public List<Party> activeParties = new List<Party>();
@@ -51,13 +52,14 @@ public class PartyController : MonoBehaviour
                 Debug.Log($"[{p.partyName}] {u.unitType.typeName}가 {spotter.unitType.typeName}의 Broadcast를 수신하고 대기 상태 진입.");
             }
         }
-    }
+    }*/
 }
 
 #if UNITY_EDITOR // PartyController 인스펙터 꾸미기
 [CustomEditor(typeof(PartyController))]
 public class PartyControllerEditor : Editor
 {
+    /*
     public override void OnInspectorGUI()
     {
         base.OnInspectorGUI();
@@ -114,7 +116,6 @@ public class PartyControllerEditor : Editor
         }
 
         Repaint();
-    }
+    }*/
 }
 #endif
-*/
