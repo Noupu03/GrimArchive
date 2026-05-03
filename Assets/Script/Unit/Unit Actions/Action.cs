@@ -262,6 +262,7 @@ public class Goal_RetrieveArtifact : GoapGoal
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
 		if (myData.spottedArtifacts.Exists(a => !a.isPickedUp && a.floor == unit.currentFloor))
 		{
+			/*=======파티 관련 참조 주석처리========
 			if (unit is Human h && PartyController.Instance != null)
 			{
 				Party p = PartyController.Instance.GetPartyOf(h);
@@ -272,6 +273,7 @@ public class Goal_RetrieveArtifact : GoapGoal
 					if (p.partyGoal == PartyGoal.Sweep) return 20f; // 소탕 파티: 후순위
 				}
 			}
+			*/
 			return 50f;
 		}
 		return 0f;
@@ -294,6 +296,7 @@ public class Goal_DefeatEnemy : GoapGoal
 		{
 			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor)
 			{
+				/*=======파티 관련 참조 주석처리========
 				if (unit is Human h && PartyController.Instance != null)
 				{
 					Party p = PartyController.Instance.GetPartyOf(h);
@@ -304,6 +307,7 @@ public class Goal_DefeatEnemy : GoapGoal
 						if (p.partyGoal == PartyGoal.Recovery) return 20f; // 회수 파티: 무시 성향 강함 달아나기 우선
 					}
 				}
+				*/
 				return 80f;
 			}
 		}
@@ -316,6 +320,7 @@ public class Goal_Explore : GoapGoal
 	public Goal_Explore() { Name = "Explore"; DesiredState["explored"] = true; }
 	public override float GetPriority(Unit unit)
 	{
+		/*=======파티 관련 참조 주석처리========
 		if (unit is Human h && PartyController.Instance != null)
 		{
 			Party p = PartyController.Instance.GetPartyOf(h);
@@ -326,6 +331,7 @@ public class Goal_Explore : GoapGoal
 				if (p.partyGoal == PartyGoal.Recovery) return 10f;
 			}
 		}
+		*/
 		return 10f; // 기본 목표 우선순위 가중치
 	}
 }

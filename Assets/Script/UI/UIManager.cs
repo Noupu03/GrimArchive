@@ -17,10 +17,10 @@ public class UIManager : MonoBehaviour
         DrawTopRightUI();
         DrawSelectedUnitInfo();
         DrawUnitLabels();
-        DrawPartyStatus();
-    }
+		//DrawPartyStatus();=======파티 관련 참조 주석처리========
+	}
 
-    private void DrawTopLeftUI()
+	private void DrawTopLeftUI()
     {
         int y = 10;
         
@@ -63,6 +63,7 @@ public class UIManager : MonoBehaviour
     {
         if (Camera.main == null) return;
 
+		//======= 파티 관련 참조 주석처리 ========
         /*// 4. 유닛 머리 위 디버그 텍스트 (카메라 프로젝션 적용, 카메라를 따라 같이 이동함)
         foreach (var u in GameSession.Instance.units)
         {
@@ -96,9 +97,9 @@ public class UIManager : MonoBehaviour
                 GUI.Label(new Rect(screenPos.x - 50, Screen.height - screenPos.y +200, 100, 40), debugText, centeredStyle);
             }
         }*/
-    }
+	}
 
-    private void DrawSelectedUnitInfo()
+	private void DrawSelectedUnitInfo()
     {
         if (InputManager.Instance == null || InputManager.Instance.selectedUnit == null) return;
 
@@ -115,6 +116,7 @@ public class UIManager : MonoBehaviour
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>이름:</b> {u.unitType.typeName}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>진영:</b> {(u is Human ? "인류" : "몬스터")}"); y += lineH;
         
+        /*=======파티 관련 참조 주석처리========
         string partyInfo = "없음";
         if (PartyController.Instance != null)
         {
@@ -125,6 +127,7 @@ public class UIManager : MonoBehaviour
         {
             GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>파티:</b> {partyInfo}"); y += lineH;
         }
+        */
 
         y += 5; // spacing
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>HP:</b> {u.hp:F1}"); y += lineH;
@@ -158,6 +161,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
+	/*=======파티 관련 참조 주석처리========
     private void DrawPartyStatus()
     {
         int y = 150; // 시작 y 위치를 더 내림 (위쪽 UI와 겹치지 않게)
@@ -220,4 +224,5 @@ public class UIManager : MonoBehaviour
             y += 10;
         }
     }
+*/
 }

@@ -1,3 +1,4 @@
+/*
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -42,3 +43,4 @@ public class Party
             leaderlessShockTimer -= Time.deltaTime;
     }
 }
+*/

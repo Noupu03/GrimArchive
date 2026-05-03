@@ -543,10 +543,12 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		{
 			gameObject.AddComponent<InputManager>();
 		}
+		/*=======파티 관련 참조 주석처리========
 		if (GetComponent<PartyController>() == null)
 		{
 			gameObject.AddComponent<PartyController>();
 		}
+		*/
 		if (GetComponent<ArtifactManager>() == null)
 		{
 			gameObject.AddComponent<ArtifactManager>();
@@ -665,10 +667,12 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 4인 파티(기사, 궁수, 사제, 지휘관) 생성
 		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(types[0].footprint, 1);
 
+		/*=======파티 관련 참조 주석처리========
 		Party newParty = new Party();
 		int partyId = PartyController.Instance != null ? PartyController.Instance.activeParties.Count + 1 : 1;
 		newParty.partyName = $"Party {partyId}";
 		newParty.partyGoal = (PartyGoal)Random.Range(0, 2); // 무작위 목표 지정(테스트용->탐사파티 안나오게 설정해둠.)
+		*/
 
 		for (int i = 0; i < types.Length; i++)
 		{
@@ -677,12 +681,12 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
 			units.Add(human);
-			newParty.members.Add(human);
+			//newParty.members.Add(human);=======파티 관련 참조 주석처리========
 			if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(human, human.position);
-			Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position} ({newParty.partyName})");
+			//Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position} ({newParty.partyName})");=======파티 관련 참조 주석처리========
 		}
-		
-		if (PartyController.Instance != null) PartyController.Instance.activeParties.Add(newParty);
+
+		//if (PartyController.Instance != null) PartyController.Instance.activeParties.Add(newParty);=======파티 관련 참조 주석처리========
 	}
 
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
