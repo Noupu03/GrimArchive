@@ -1,0 +1,262 @@
+using UnityEngine;
+using System.Collections.Generic;
+
+public abstract class UnitFunction : Unit
+{
+	public override void TakeDamage(float damage)
+	{
+		float prevHp = hp;
+		hp -= damage;
+		isHitThisTurn = true;
+		if (UnitGenerate.Instance != null) UnitGenerate.Instance.TriggerHitEffect(this);
+
+		if (hasArtifact && damage >= prevHp * 0.3f) DropArtifact();
+	}
+
+	public override void TakePhysicalDamage(float rawDamage, Unit attacker)
+	{
+		float damage = Mathf.Max(1f, rawDamage - physicalDefense);
+		TakeDamage(damage);
+	}
+
+	public override void TakeMagicalDamage(float rawDamage, Unit attacker)
+	{
+		float damage = Mathf.Max(1f, rawDamage - magicalDefense);
+		TakeDamage(damage);
+	}
+
+	public override void TakeMentalDamage(float rawDamage, Unit attacker)
+	{
+		if (this is Human)
+		{
+			int prevStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
+			currentMental -= rawDamage; // 정신력만 감소
+			int currentStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
+			isHitThisTurn = true;
+
+			if (hasArtifact && currentStage < prevStage) DropArtifact();
+		}
+	}
+
+	public override void DropArtifact()
+	{
+		if (!hasArtifact) return;
+		hasArtifact = false;
+		interactionTimer = 0f;
+		if (ArtifactManager.Instance != null) ArtifactManager.Instance.SpawnArtifact(position, currentFloor);
+		Debug.Log($"{unitType.typeName}가 피격/공황으로 유물을 드롭했습니다!");
+	}
+
+	public override void ApplyStun(float duration) { stunDuration = Mathf.Max(stunDuration, duration); }
+	public override void ApplySlow(float duration) { slowDuration = Mathf.Max(slowDuration, duration); }
+	public override void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); }
+	public override void ApplyBurn(float duration) { burnDuration = Mathf.Max(burnDuration, duration); }
+
+	#region 기능함수들
+	public override Vector2Int GetDirVector(Dir dir)
+	{
+		switch (dir)
+		{
+			case Dir.UP: return new Vector2Int(0, 1);
+			case Dir.UP_RIGHT: return new Vector2Int(1, 1);
+			case Dir.RIGHT: return new Vector2Int(1, 0);
+			case Dir.DOWN_RIGHT: return new Vector2Int(1, -1);
+			case Dir.DOWN: return new Vector2Int(0, -1);
+			case Dir.DOWN_LEFT: return new Vector2Int(-1, -1);
+			case Dir.LEFT: return new Vector2Int(-1, 0);
+			case Dir.UP_LEFT: return new Vector2Int(-1, 1);
+			default: return Vector2Int.zero;
+		}
+	}
+
+	public override bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null) return false;
+		if (currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return false;
+
+		Floor floor = cmap.map.floors[currentFloor];
+		if (floor.chunks == null) return false;
+
+		int w = (int)unitType.footprint.x;
+		int h = (int)unitType.footprint.y;
+
+		for (int dx = 0; dx < w; dx++)
+		{
+			for (int dy = 0; dy < h; dy++)
+			{
+				int targetX = pos.x + dx;
+				int targetY = pos.y + dy;
+
+				int cx = targetX / 8;
+				int tx = targetX % 8;
+				int cy = targetY / 8;
+				int cyVal = targetY % 8;
+
+				if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomId == -1 || c.chunk == null) return false;
+
+				if (c.chunk[tx, cyVal].name == "Wall") return false;
+
+				// 다른 유닛 점유 여부 확인 (최적화: O(1) 캐싱 배열)
+				if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
+				{
+					if (u != null && u != this && u.hp > 0)
+					{
+						return false;
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	public override void Move(Dir dir)//움직이는 함수
+	{
+		currentDir = dir; // 이동 방향으로 시야 방향 갱신
+		Vector2Int v = GetDirVector(dir);
+		Vector2Int nextPos = position + v;
+
+		if (CanMove(nextPos))
+		{
+			position = nextPos;
+		}
+	}
+
+	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits)//시야 레이캐스트
+	{
+		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+
+		float rayPosX = startPos.x + 0.5f;
+		float rayPosY = startPos.y + 0.5f;
+
+		int x = startPos.x;
+		int y = startPos.y;
+
+		int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
+		int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
+
+		float tMaxX = dir.x != 0 ? Mathf.Abs(((dir.x > 0 ? x + 1 : x) - rayPosX) / dir.x) : float.PositiveInfinity;
+		float tMaxY = dir.y != 0 ? Mathf.Abs(((dir.y > 0 ? y + 1 : y) - rayPosY) / dir.y) : float.PositiveInfinity;
+
+		float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
+		float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
+
+		float dist = 0f;
+
+		Floor floor = cmap.map.floors[currentFloor];
+		if (floor.chunks == null) return;
+		int mapWidth = floor.config.width * 8;
+		int mapHeight = floor.config.height * 8;
+
+		while (dist <= maxRadius)
+		{
+			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) break;
+
+			int cx = x / 8;
+			int tx = x % 8;
+			int cy = y / 8;
+			int ty = y % 8;
+
+			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) break;
+
+			Chunks c = floor.chunks[cx, cy];
+			if (c.roomId == -1 || c.chunk == null) break;
+
+			Tile tile = c.chunk[tx, ty];
+			myData.discoveredMap[currentFloor][x, y] = tile.name == "Wall" ? 2 : 1;
+
+			// 유닛 발견 (O(1) 캐싱 검색 적용)
+			if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
+			{
+				if (unit != null && unit != this && unit.hp > 0)
+				{
+					bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
+					if (isEnemy)
+					{
+						if (!personalSpottedEnemies.Contains(unit)) personalSpottedEnemies.Add(unit);
+						if (this is Human && !myData.spottedEnemyUnits.Contains(unit))
+						{
+							myData.spottedEnemyUnits.Add(unit);
+						}
+					}
+				}
+			}
+
+			// 유물 발견
+			if (ArtifactManager.Instance != null)
+			{
+				foreach(var art in ArtifactManager.Instance.artifacts)
+				{
+					if (!art.isPickedUp && art.floor == currentFloor && art.position.x == x && art.position.y == y)
+					{
+						if (!myData.spottedArtifacts.Contains(art)) myData.spottedArtifacts.Add(art);
+					}
+				}
+			}
+
+			// 가시성 체크 (본인 위치 제외)
+			if (x != startPos.x || y != startPos.y)
+			{
+				int vis = tile.visibility;
+
+				// visibility 데이터가 설정되지 않은 맵을 위한 예외처리
+				if (vis == 0 && tile.name != "Wall") vis = 100;
+				if (tile.name == "Wall") vis = 0;
+
+				if (vis <= 0) break; // 시야 즉시 차단
+				if (vis < 100)
+				{
+					// visibility 확률에 따른 시야 통과 여부 검사
+					if (Random.Range(0, 100) >= vis)
+					{
+						break; // 시야 차단 막힘
+					}
+				}
+			}
+
+			// 다음 타일 이동
+			if (tMaxX < tMaxY)
+			{
+				dist = tMaxX;
+				tMaxX += tDeltaX;
+				x += stepX;
+			}
+			else
+			{
+				dist = tMaxY;
+				tMaxY += tDeltaY;
+				y += stepY;
+			}
+		}
+	}
+
+	public override void UpdateFOV(List<Unit> allUnits)//시야 업데이트 함수
+	{
+		personalSpottedEnemies.Clear();
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		Vector2 forward = GetDirVector(currentDir);
+		if (forward == Vector2.zero) forward = Vector2.down;
+
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
+		if (cmap == null || cmap.map.floors == null) return;
+
+		float fovAngle = 160f;
+
+		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
+
+		// 방사형 레이캐스트 최적화 적용 (800 -> 72)
+		int numRays = 72; // 최적화: 시야각 누락되지 않는 선에서 최대한 감소
+
+		for (int i = 0; i <= numRays; i++)
+		{
+			float angle = centerAngle - (fovAngle / 2f) + (fovAngle * i / numRays);
+			float rad = angle * Mathf.Deg2Rad;
+			CastRay(myData, cmap, position, rad, ViewRadius, allUnits);
+		}
+	}
+	#endregion
+}
