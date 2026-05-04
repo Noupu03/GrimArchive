@@ -21,16 +21,9 @@ public abstract class UnitType
 
 //  인류 클래스
 public class Knight : UnitType { public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); } }
-public class ArcherType : UnitType { public ArcherType() { typeName = "궁수형"; footprint = new Vector2(1, 1); } }
-public class Priest : UnitType { public Priest() { typeName = "사제형"; footprint = new Vector2(1, 1); } }
-public class Commander : UnitType { public Commander() { typeName = "지휘관형"; footprint = new Vector2(1, 1); } }
 
 // 몬스터 역할군
 public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(2, 2); } }
-public class MeleeDealer : UnitType { public MeleeDealer() { typeName = "근접 딜러"; footprint = new Vector2(1, 1); } }
-public class RangedSlow : UnitType { public RangedSlow() { typeName = "원거리 둔화"; footprint = new Vector2(1, 1); } }
-public class RangedMental : UnitType { public RangedMental() { typeName = "원거리 정신"; footprint = new Vector2(1, 1); } }
-public class Boss : UnitType { public Boss() { typeName = "보스"; footprint = new Vector2(3, 3); } }
 
 public class ArtifactItem
 {
@@ -147,30 +140,6 @@ public abstract class Unit : ScriptableObject
 			reaction = 10; physicalAttackSpeed = 12; magicalAccuracy = 0; magicalCastSpeed = 0;
 			statusResistance = 14; dotResistance = 10; mentalResistance = 8; baseMental = 48;
 		}
-		else if (unitType is ArcherType)
-		{
-			hp = 90; mp = 0; physicalAttack = 14; physicalDefense = 5;
-			accuracy = 92; evasion = 18; magicalAttack = 0; magicalDefense = 4;
-			spotting = 5; leadership = 6; walkSpeed = 3.8f; sprintSpeed = 5.2f;
-			reaction = 14; physicalAttackSpeed = 20; magicalAccuracy = 0; magicalCastSpeed = 0;
-			statusResistance = 8; dotResistance = 8; mentalResistance = 6; baseMental = 45;
-		}
-		else if (unitType is Priest)
-		{
-			hp = 95; mp = 70; physicalAttack = 8; physicalDefense = 4;
-			accuracy = 80; evasion = 8; magicalAttack = 16; magicalDefense = 8;
-			spotting = 8; leadership = 18; walkSpeed = 3.2f; sprintSpeed = 4.4f;
-			reaction = 11; physicalAttackSpeed = 10; magicalAccuracy = 88; magicalCastSpeed = 10;
-			statusResistance = 10; dotResistance = 10; mentalResistance = 16; baseMental = 60;
-		}
-		else if (unitType is Commander)
-		{
-			hp = 120; mp = 20; physicalAttack = 14; physicalDefense = 9;
-			accuracy = 86; evasion = 10; magicalAttack = 0; magicalDefense = 6;
-			spotting = 10; leadership = 24; walkSpeed = 3.4f; sprintSpeed = 4.6f;
-			reaction = 13; physicalAttackSpeed = 14; magicalAccuracy = 0; magicalCastSpeed = 0;
-			statusResistance = 12; dotResistance = 12; mentalResistance = 18; baseMental = 55;
-		}
 		else if (unitType is MeleeTank)
 		{
 			hp = 165; mp = 0; physicalAttack = 16; physicalDefense = 13;
@@ -178,38 +147,6 @@ public abstract class Unit : ScriptableObject
 			spotting = 6; leadership = 0; walkSpeed = 2.9f; sprintSpeed = 4.0f;
 			reaction = 8; physicalAttackSpeed = 8; magicalAccuracy = 0; magicalCastSpeed = 0;
 			statusResistance = 14; dotResistance = 12; mentalResistance = 0; baseMental = 0;
-		}
-		else if (unitType is MeleeDealer)
-		{
-			hp = 85; mp = 0; physicalAttack = 20; physicalDefense = 5;
-			accuracy = 88; evasion = 12; magicalAttack = 0; magicalDefense = 4;
-			spotting = 6; leadership = 0; walkSpeed = 3.9f; sprintSpeed = 5.4f;
-			reaction = 12; physicalAttackSpeed = 16; magicalAccuracy = 0; magicalCastSpeed = 0;
-			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
-		}
-		else if (unitType is RangedSlow)
-		{
-			hp = 80; mp = 0; physicalAttack = 14; physicalDefense = 4;
-			accuracy = 88; evasion = 10; magicalAttack = 0; magicalDefense = 4;
-			spotting = 6; leadership = 0; walkSpeed = 3.5f; sprintSpeed = 4.8f;
-			reaction = 11; physicalAttackSpeed = 14; magicalAccuracy = 0; magicalCastSpeed = 0;
-			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
-		}
-		else if (unitType is RangedMental)
-		{
-			hp = 70; mp = 40; physicalAttack = 0; physicalDefense = 3;
-			accuracy = 80; evasion = 8; magicalAttack = 12; magicalDefense = 8;
-			spotting = 8; leadership = 0; walkSpeed = 3.4f; sprintSpeed = 4.6f;
-			reaction = 12; physicalAttackSpeed = 0; magicalAccuracy = 18; magicalCastSpeed = 14;
-			statusResistance = 8; dotResistance = 8; mentalResistance = 0; baseMental = 0;
-		}
-		else if (unitType is Boss)
-		{
-			hp = 320; mp = 80; physicalAttack = 26; physicalDefense = 14;
-			accuracy = 88; evasion = 6; magicalAttack = 20; magicalDefense = 12;
-			spotting = 12; leadership = 0; walkSpeed = 3.2f; sprintSpeed = 5.0f;
-			reaction = 14; physicalAttackSpeed = 10; magicalAccuracy = 16; magicalCastSpeed = 12;
-			statusResistance = 18; dotResistance = 18; mentalResistance = 0; baseMental = 0;
 		}
 
 		currentMental = baseMental;

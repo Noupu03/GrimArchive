@@ -27,14 +27,7 @@ public class UnitGenerate : MonoBehaviour
 	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
 	{
 		Vector2Int pos;
-		if (unitType is Boss)
-		{
-			pos = GetBossRoomPos(unitType.footprint, floorIdx);
-		}
-		else
-		{
-			pos = GetRandomFloorPos(unitType.footprint, floorIdx);
-		}
+		pos = GetRandomFloorPos(unitType.footprint, floorIdx);
 
 		T unit = ScriptableObject.CreateInstance<T>();
 		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
@@ -661,10 +654,10 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 	{
 		if (UnitGenerate.Instance == null) return;
 
-		UnitType[] types = { new Knight(), new ArcherType(), new Priest(), new Commander() };
-		Vector2Int[] offsets = { new Vector2Int(0,0), new Vector2Int(1,0), new Vector2Int(0,1), new Vector2Int(1,1) };
+		UnitType[] types = { new Knight() };
+		Vector2Int[] offsets = { new Vector2Int(0,0) };
 
-		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 4인 파티(기사, 궁수, 사제, 지휘관) 생성
+		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 파티(기사) 생성
 		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(types[0].footprint, 1);
 
 		/*=======파티 관련 참조 주석처리========
@@ -694,64 +687,18 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		if (UnitGenerate.Instance == null) return;
 
 		bool hasBoss = false;
-		foreach (var u in units)
-		{
-			if (u != null && u.unitType is Boss && u.hp > 0)
-			{
-				hasBoss = true;
-				break;
-			}
-		}
 
 		UnitType[] types;
-		if (hasBoss)
-		{
-			types = new UnitType[] { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental() };
-		}
-		else
-		{
-			types = new UnitType[] { new MeleeTank(), new MeleeDealer(), new RangedSlow(), new RangedMental(), new Boss() };
-		}
+		types = new UnitType[] { new MeleeTank() };
 
 		UnitType selection = types[Random.Range(0, types.Length)];
 
 		// 보스방이 위치한 층을 찾아 해당 층에 스폰 (없으면 1층 기본값)
 		int targetFloor = 1;
-		if (selection is Boss && cmap != null && cmap.map.floors != null)
-		{
-			for (int f = 1; f < cmap.map.floors.Length; f++)
-			{
-				Floor floor = cmap.map.floors[f];
-				if (floor.chunks == null) continue;
-				bool foundBossRoom = false;
-				for (int cx = 0; cx < floor.config.width; cx++)
-				{
-					for (int cy = 0; cy < floor.config.height; cy++)
-					{
-						if (floor.chunks[cx, cy].roomRole == RoomRole.BossRoom)
-						{
-							targetFloor = f;
-							foundBossRoom = true;
-							break;
-						}
-					}
-					if (foundBossRoom) break;
-				}
-				if (foundBossRoom) break;
-			}
-		}
 
 		Monster monster;
-		if (selection is Boss)
-		{
-			Vector2Int bossPos = UnitGenerate.Instance.GetBossRoomPos(selection.footprint, targetFloor);
-			monster = UnitGenerate.Instance.GenerateUnitAtPos<Monster>(selection, bossPos, targetFloor);
-		}
-		else
-		{
-			// 일반 몬스터는 랜덤 층, 랜덤 방 (기존 방식 유지 시 1층 고정이나, 다른 층 확장을 염두에 둘 수도 있음, 일단 1층)
-			monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection, 1);
-		}
+		// 일반 몬스터는 랜덤 층, 랜덤 방 (기존 방식 유지 시 1층 고정이나, 다른 층 확장을 염두에 둘 수도 있음, 일단 1층)
+		monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection, 1);
 
 		units.Add(monster);
 		if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);

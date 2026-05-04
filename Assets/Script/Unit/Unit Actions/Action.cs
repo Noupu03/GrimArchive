@@ -420,7 +420,7 @@ public class Action_PlayerCommandExecute : GoapAction
 				return;
 			}
 			float dist = Vector2Int.Distance(unit.position, unit.playerAttackTarget.position);
-			float engageDist = unit.unitType is MeleeTank ? 2.5f : (unit.unitType is Knight || unit.unitType is MeleeDealer ? 1.5f : 5.5f);
+			float engageDist = unit.unitType is MeleeTank ? 2.5f : 1.5f;
 
 			if (dist <= engageDist)
 			{
@@ -488,92 +488,7 @@ public class Action_EngageEnemy : GoapAction
 	public override bool IsValid(Unit unit) => !unit.hasArtifact; // 운반 중 공격 불가
 	public override void Execute(Unit unit)
 	{
-		if (unit.unitType is ArcherType) ENGAGE_Archer(unit);
-		else if (unit.unitType is Boss) ENGAGE_Boss(unit);
-		else ENGAGE_Default(unit);
-	}
-
-	private void ENGAGE_Archer(Unit unit)
-	{
-		if (unit.isHitThisTurn)
-		{
-			Dir runDir = (Dir)Mathf.Repeat((int)unit.currentDir + 4 + Random.Range(-1, 2), 8);
-			unit.Move(runDir);
-			return;
-		}
-
-		Unit target = GetClosestEnemy(unit, out float minDist);
-		if (target == null) return;
-
-		if (minDist <= 5.5f)
-		{
-			if (unit.attackCooldown <= 0f)
-			{
-				unit.attackCooldown = Mathf.Max(0.45f, 1.0f - (unit.physicalAttackSpeed * 0.02f)); // 궁수형 공속 공식 임시
-				float statusMod = 1f; // TODO: 상태 보정치
-				float targetStatusMod = 1f;
-				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
-				if (hit)
-				{
-					if (unit.skillCooldown <= 0f)
-					{
-						unit.skillCooldown = 15f; // 상태이상 화살 쿨다운
-						target.TakePhysicalDamage(unit.physicalAttack, unit); // 같은 데미지 + 독 혹은 화상
-						if (Random.value > 0.5f) target.ApplyPoison(5f); else target.ApplyBurn(3f);
-						Debug.Log($"{unit.unitType.typeName}가 상태이상 스킬 화살 적중! -> {target.unitType.typeName}");
-					}
-					else
-					{
-						target.TakePhysicalDamage(unit.physicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 공격함");
-					}
-				}
-				else
-				{
-					Debug.Log($"{unit.unitType.typeName}의 공격 빗나감 (회피됨)");
-				}
-			}
-		}
-		else
-		{
-			MoveTowardsTarget(unit, target);
-		}
-	}
-
-	private void ENGAGE_Boss(Unit unit)
-	{
-		if (unit.isHitThisTurn && !unit.oneTimeReactUsed)
-		{
-			unit.oneTimeReactUsed = true;
-			unit.Move((Dir)Random.Range(0, 8)); // 임시 전진
-			return;
-		}
-
-		Unit target = GetClosestEnemy(unit, out float minDist);
-		if (target == null) return;
-
-		if (minDist <= 1.5f)
-		{
-			if (unit.attackCooldown <= 0f)
-			{
-				unit.attackCooldown = 1.4f;
-				float statusMod = 1f;
-				float targetStatusMod = 1f;
-				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
-				if (hit)
-				{
-					target.TakePhysicalDamage(unit.physicalAttack, unit);
-					target.TakeMentalDamage(10f, unit); // 보스 정신 공격(임시)
-					Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 물리 및 정신 공격함");
-				}
-			}
-		}
-		else
-		{
-			MoveTowardsTarget(unit, target);
-		}
+		ENGAGE_Default(unit);
 	}
 
 	private void ENGAGE_Default(Unit unit)
@@ -600,22 +515,6 @@ public class Action_EngageEnemy : GoapAction
 						target.TakePhysicalDamage(unit.physicalAttack * 0.8f, unit);
 						target.ApplyStun(1f);
 						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}에게 방패 강타 적중! (기절)");
-					}
-					else if (unit.unitType is Priest)
-					{
-						target.TakeMagicalDamage(unit.magicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 마법 공격함");
-					}
-					else if (unit.unitType is RangedSlow)
-					{
-						target.TakePhysicalDamage(unit.physicalAttack, unit);
-						target.ApplySlow(3f);
-						Debug.Log($"{unit.unitType.typeName}의 추가 둔화 공격 적중!");
-					}
-					else if (unit.unitType is RangedMental)
-					{
-						target.TakeMentalDamage(12f, unit);
-						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}의 정신력을 강타!");
 					}
 					else
 					{
