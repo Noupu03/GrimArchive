@@ -29,9 +29,9 @@ public abstract class UnitFunction : Unit
 	{
 		if (this is Human)
 		{
-			int prevStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
-			currentMental -= rawDamage; // 정신력만 감소
-			int currentStage = Mathf.FloorToInt(currentMental / (baseMental * 0.25f));
+			int prevStage = Mathf.FloorToInt(mental / (maxMental * 0.25f));
+			mental -= rawDamage; // 정신력만 감소
+			int currentStage = Mathf.FloorToInt(mental / (maxMental * 0.25f));
 			isHitThisTurn = true;
 
 			if (hasArtifact && currentStage < prevStage) DropArtifact();

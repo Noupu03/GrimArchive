@@ -245,7 +245,7 @@ public class Goal_Panic : GoapGoal
 	public override float GetPriority(Unit unit)
 	{
 		// 인간 유닛이고 정신력이 30% 미만이면 최우선 공황 행동
-		if (unit is Human && unit.currentMental < unit.baseMental * 0.3f)
+		if (unit is Human && unit.mental < unit.maxMental * 0.3f)
 		{
 			return 150f; // 매우 높은 우선순위
 		}
@@ -345,7 +345,7 @@ public class Action_Panic : GoapAction
 		AddEffect("panicResolved", true); // 임시 달성을 통해 계속 패닉 상태 액션이 실행되도록 함 (실제 수치 회복 전까지 발동)
 	}
 
-	public override bool IsValid(Unit unit) => unit is Human && unit.currentMental < unit.baseMental * 0.3f;
+	public override bool IsValid(Unit unit) => unit is Human && unit.mental < unit.maxMental * 0.3f;
 
 	public override void Execute(Unit unit)
 	{
@@ -427,19 +427,13 @@ public class Action_PlayerCommandExecute : GoapAction
 				if (unit.attackCooldown <= 0f)
 				{
 					unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f));
-					float statusMod = 1f; // TODO: 상태 보정치 구현 시 변경 (현재 임시로 1.0)
-					float targetStatusMod = 1f; // TODO: 적 상태 보정치
-					int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - unit.playerAttackTarget.GetEvasion() * targetStatusMod);
-					bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
-					if (hit)
-					{
-						unit.playerAttackTarget.TakePhysicalDamage(unit.physicalAttack > 0 ? unit.physicalAttack : unit.magicalAttack, unit);
-						Debug.Log($"*수동* {unit.unitType.typeName}가 {unit.playerAttackTarget.unitType.typeName}을(를) 공격!");
-					}
-					else
-					{
-						Debug.Log($"*수동* {unit.unitType.typeName}의 공격 빗나감");
-					}
+
+					unit.playerAttackTarget.TakePhysicalDamage(
+						unit.physicalAttack > 0 ? unit.physicalAttack : unit.magicalAttack,
+						unit
+					);
+
+					Debug.Log($"*수동* {unit.unitType.typeName}가 {unit.playerAttackTarget.unitType.typeName}을(를) 공격!");
 				}
 			}
 			else
@@ -503,28 +497,20 @@ public class Action_EngageEnemy : GoapAction
 			if (unit.attackCooldown <= 0f)
 			{
 				unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f)); // 기본 공속(기사형 기준)
-				float statusMod = 1f;
-				float targetStatusMod = 1f;
-				int finalAccuracy = Mathf.FloorToInt(unit.accuracy * statusMod - target.GetEvasion() * targetStatusMod);
-				bool hit = Random.Range(0, 100) <= Mathf.Clamp(finalAccuracy, 5f, 95f);
-				if (hit)
+
+				// 명중/회피 관련 로직 제거 → 무조건 명중
+
+				if (unit.unitType is Knight && unit.skillCooldown <= 0f)
 				{
-					if (unit.unitType is Knight && unit.skillCooldown <= 0f)
-					{
-						unit.skillCooldown = 15f; // 방패강타
-						target.TakePhysicalDamage(unit.physicalAttack * 0.8f, unit);
-						target.ApplyStun(1f);
-						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}에게 방패 강타 적중! (기절)");
-					}
-					else
-					{
-						target.TakePhysicalDamage(unit.physicalAttack, unit);
-						Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 공격함");
-					}
+					unit.skillCooldown = 15f; // 방패강타
+					target.TakePhysicalDamage(unit.physicalAttack * 0.8f, unit);
+					target.ApplyStun(1f);
+					Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}에게 방패 강타 적중! (기절)");
 				}
 				else
 				{
-					Debug.Log($"{unit.unitType.typeName}의 공격 빗나감");
+					target.TakePhysicalDamage(unit.physicalAttack, unit);
+					Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 공격함");
 				}
 			}
 		}

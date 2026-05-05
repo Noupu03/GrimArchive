@@ -106,7 +106,7 @@ public class UIManager : MonoBehaviour
         Unit u = InputManager.Instance.selectedUnit;
         
         int boxW = 220;
-        int boxH = 360;
+        int boxH = 520;
         GUI.Box(new Rect(10, Screen.height - boxH - 10, boxW, boxH), "선택 유닛 정보");
 
         int y = Screen.height - boxH + 20;
@@ -134,8 +134,8 @@ public class UIManager : MonoBehaviour
         if (u is Human) { GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>MP:</b> {u.mp:F1}"); y += lineH; }
         if (u is Human) 
         { 
-            string panicStr = (u.currentMental < u.baseMental * 0.3f) ? " <color=red>공황</color>" : "";
-            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>정신력:</b> {u.currentMental:F1} / {u.baseMental:F1}{panicStr}"); 
+            string panicStr = (u.mental < u.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
+            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>정신력:</b> {u.mental:F1} / {u.maxMental:F1}{panicStr}"); 
             y += lineH; 
         }
         y += 5; // spacing
@@ -143,11 +143,20 @@ public class UIManager : MonoBehaviour
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>물리방어력:</b> {u.physicalDefense:F1}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>마법공격력:</b> {u.magicalAttack:F1}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>마법방어력:</b> {u.magicalDefense:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>명중률:</b> {u.accuracy:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>회피율:</b> {u.GetEvasion():F1}"); y += lineH;
         y += 5; // spacing
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>이동속도:</b> {u.walkSpeed:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}"); y += lineH;
+		y += 5; // spacing
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), "<b>기본 능력치</b>"); y += lineH;
+
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"근력: {u.sterngth:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"내구: {u.Durability:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"민첩: {u.agility:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"집중: {u.concentration:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"마력: {u.MagicPower:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"저항: {u.resistance:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"감각: {u.sense:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"통솔: {u.leadership:F1}"); y += lineH;
+		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}"); y += lineH;
         GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>유물운반:</b> {(u.hasArtifact ? "<color=yellow>운반중</color>" : "없음")}"); y += lineH;
         
         string statusStr = "";

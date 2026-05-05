@@ -181,7 +181,7 @@ public class UnitGenerate : MonoBehaviour
 				if (outlineTransform != null)
 				{
 					bool isSelected = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
-					bool isPanicking = u is Human && u.currentMental < u.baseMental * 0.3f;
+					bool isPanicking = u is Human && u.mental < u.maxMental * 0.3f;
 
 					outlineTransform.gameObject.SetActive(isSelected || isPanicking);
 
