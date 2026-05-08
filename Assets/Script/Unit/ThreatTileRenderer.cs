@@ -118,7 +118,7 @@ public class ThreatTileRenderer : MonoBehaviour
 							0f,
 							1f,
 							1f,
-							0.25f
+							0.65f // 기존 0.25f → 더 진하게
 						);
 				}
 				else
@@ -128,7 +128,7 @@ public class ThreatTileRenderer : MonoBehaviour
 							1f,
 							0f,
 							0f,
-							0.25f
+							0.65f // 기존 0.25f → 더 진하게
 						);
 				}
 
