@@ -25,12 +25,39 @@ public class Knight : UnitType { public Knight() { typeName = "기사형"; footp
 // 몬스터 역할군
 public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(2, 2); } }
 
-public class ArtifactItem
+
+// 공통 전투 상수 정의
+public static class CombatConstants
 {
-	public Vector2Int position;
-	public int floor;
-	public GameObject visual;
-	public bool isPickedUp;
+	// =======반응 시간 (ms)=======
+	// AI 기본 반응 시간
+	public const float BASE_REACTION_TIME_MS = 250f;
+	// 최소 / 최대 반응 시간
+	public const float MIN_REACTION_TIME_MS = 100f;
+	public const float MAX_REACTION_TIME_MS = 500f;
+	// =======방어 행동 준비 시간 (ms)=======
+	// 막기 준비 시간
+	public const float BLOCK_PREPARE_TIME_MS = 80f;
+	// 회피 준비 시간
+	public const float DODGE_PREPARE_TIME_MS = 120f;
+	// 점멸 준비 시간
+	public const float BLINK_PREPARE_TIME_MS = 180f;
+	// 패링 준비 시간
+	public const float PARRY_PREPARE_TIME_MS = 100f;
+	// =======방어 성공률=======
+	// 최소 방어 성공률
+	public const float MIN_DEFENSE_SUCCESS_RATE = 0.05f;
+	// 최대 방어 성공률
+	public const float MAX_DEFENSE_SUCCESS_RATE = 0.95f;
+	// =======점멸=======
+	// 점멸 MP 소모 비율
+	// (최대 MP의 30%)
+	public const float BLINK_MP_COST_RATIO = 0.30f;
+	// =======막기=======
+	// 최소 피해 감소율
+	public const float MIN_BLOCK_DAMAGE_REDUCTION = 0.01f;
+	// 최대 피해 감소율
+	public const float MAX_BLOCK_DAMAGE_REDUCTION = 1.00f;
 }
 
 public class FactionData
@@ -39,7 +66,6 @@ public class FactionData
 	public int[][,] discoveredMap;
 	// 시야 내 발견된 적 유닛 데이터 공유
 	public List<Unit> spottedEnemyUnits = new List<Unit>();
-	public List<ArtifactItem> spottedArtifacts = new List<ArtifactItem>();
 
 	public FactionData()
 	{
@@ -154,15 +180,18 @@ public abstract class Unit : ScriptableObject
 	public float magicalCastSpeed = 0f;//마법공격속도
 	public float actionCooldown = 0f; // 턴 진행용 대기 시간
 	public float attackCooldown = 0f; // 공격 쿨다운
-	public float skillCooldown = 0f; // 스킬 쿨다운
+	public float[] skillCooldowns = new float[4];//스킬 쿨다운
 	public bool isHitThisTurn = false; // 피격 여부
 	public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
-	
-	public bool hasArtifact = false; // 유물 운반 여부
-	public float interactionTimer = 0f;// 유물 상호작용 타이머 (운반 시작 후 일정 시간 동안은 회피/막기 불가)
-	public float blockRate = 10f; // 임시 막기 확률
 
-	public float GetBlockRate() => hasArtifact ? blockRate * 0.5f : blockRate;
+	// 현재 공격 선딜 진행 여부
+	public bool isCastingAttack = false;
+	// 선딜 타이머
+	public float castTimer = 0f;
+	// 실제 공격 실행 예약
+	public System.Action pendingAttack;
+	// 현재 공격 위협 타일
+	public List<Vector2Int> threatTiles = new List<Vector2Int>();
 
 	private float Normalize(float value, float baseValue)//정규화함수. 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.
 	{
@@ -289,7 +318,6 @@ public abstract class Unit : ScriptableObject
 	public abstract void TakePhysicalDamage(float rawDamage, Unit attacker);
 	public abstract void TakeMagicalDamage(float rawDamage, Unit attacker);
 	public abstract void TakeMentalDamage(float rawDamage, Unit attacker);
-	public abstract void DropArtifact();
 	public abstract void ApplyStun(float duration);
 	public abstract void ApplySlow(float duration);
 	public abstract void ApplyPoison(float duration);
@@ -318,21 +346,56 @@ public abstract class Unit : ScriptableObject
 	{
 		if (stunDuration > 0f) stunDuration -= deltaTime;
 		if (slowDuration > 0f) slowDuration -= deltaTime;
-		
+
 		if (poisonDuration > 0f)
 		{
 			poisonDuration -= deltaTime;
-			hp -= 1f * deltaTime; // 매초 피해
+			hp -= 1f * deltaTime;
 		}
-		
+
 		if (burnDuration > 0f)
 		{
 			burnDuration -= deltaTime;
-			hp -= 1f * deltaTime; // 매초 피해
+			hp -= 1f * deltaTime;
 		}
-		
-		if (attackCooldown > 0f) attackCooldown -= deltaTime;
-		if (skillCooldown > 0f) skillCooldown -= deltaTime;
+
+		// =====================================================
+		// 공격 선딜 진행 처리
+		// =====================================================
+		if (isCastingAttack)
+		{
+			castTimer -= deltaTime;
+
+			if (castTimer <= 0f)
+			{
+				isCastingAttack = false;
+
+				threatTiles.Clear();
+
+				pendingAttack?.Invoke();
+
+				pendingAttack = null;
+			}
+		}
+
+		// =====================================================
+		// 공격 쿨다운
+		// =====================================================
+		if (attackCooldown > 0f)
+		{
+			attackCooldown -= deltaTime;
+		}
+
+		// =====================================================
+		// 스킬 쿨다운
+		// =====================================================
+		for (int i = 0; i < skillCooldowns.Length; i++)
+		{
+			if (skillCooldowns[i] > 0f)
+			{
+				skillCooldowns[i] -= deltaTime;
+			}
+		}
 	}
 }
 

@@ -253,32 +253,6 @@ public class Goal_Panic : GoapGoal
 	}
 }
 
-public class Goal_RetrieveArtifact : GoapGoal
-{
-	public Goal_RetrieveArtifact() { Name = "RetrieveArtifact"; DesiredState["hasArtifact"] = true; }
-	public override float GetPriority(Unit unit)
-	{
-		if (unit.hasArtifact) return 0f;
-		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
-		if (myData.spottedArtifacts.Exists(a => !a.isPickedUp && a.floor == unit.currentFloor))
-		{
-			/*=======파티 관련 참조 주석처리========
-			if (unit is Human h && PartyController.Instance != null)
-			{
-				Party p = PartyController.Instance.GetPartyOf(h);
-				if (p != null)
-				{
-					if (p.partyGoal == PartyGoal.Recovery) return 90f; // 회수 파티: 최우선
-					if (p.partyGoal == PartyGoal.Exploration) return 40f; // 탐사 파티: 탐사보단 낮고 생존보단 높을 수 있음(임시)
-					if (p.partyGoal == PartyGoal.Sweep) return 20f; // 소탕 파티: 후순위
-				}
-			}
-			*/
-			return 50f;
-		}
-		return 0f;
-	}
-}
 
 public class Goal_PlayerCommand : GoapGoal
 {
@@ -304,7 +278,6 @@ public class Goal_DefeatEnemy : GoapGoal
 					{
 						if (p.partyGoal == PartyGoal.Sweep) return 90f; // 소탕 파티: 적 처치 최우선
 						if (p.partyGoal == PartyGoal.Exploration) return 30f; // 탐사 파티: 유물이나 생존보다 후순위
-						if (p.partyGoal == PartyGoal.Recovery) return 20f; // 회수 파티: 무시 성향 강함 달아나기 우선
 					}
 				}
 				*/
@@ -328,7 +301,6 @@ public class Goal_Explore : GoapGoal
 			{
 				if (p.partyGoal == PartyGoal.Exploration) return 90f; // 탐사 파티: 평상시 탐사 최우선
 				if (p.partyGoal == PartyGoal.Sweep) return 10f; 
-				if (p.partyGoal == PartyGoal.Recovery) return 10f;
 			}
 		}
 		*/
@@ -364,41 +336,8 @@ public class Action_Panic : GoapAction
 	}
 }
 
-public class Action_RetrieveArtifact : GoapAction
-{
-	public Action_RetrieveArtifact()
-	{
-		ActionName = "RetrieveArtifact";
-		AddEffect("hasArtifact", true);
-	}
-	public override bool IsValid(Unit unit) => !unit.hasArtifact;
-	public override void Execute(Unit unit)
-	{
-		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
-		ArtifactItem target = myData.spottedArtifacts.Find(a => !a.isPickedUp && a.floor == unit.currentFloor);
-		if (target == null) return;
 
-		float dist = Vector2Int.Distance(unit.position, target.position);
-		if (dist <= 1.5f)
-		{
-			unit.interactionTimer += unit.walkSpeed > 0f ? (1f / unit.walkSpeed) : 0f;
-			if (unit.interactionTimer >= 3f)
-			{
-				//=======아티팩트 관련 참조 주석처리========
-				//if (ArtifactManager.Instance != null) ArtifactManager.Instance.PickupArtifact(target, unit);
-			}
-			else
-			{
-				Debug.Log($"{unit.unitType.typeName} 유물 상호작용 중... ({unit.interactionTimer:F1}/3.0s)");
-			}
-		}
-		else
-		{
-			unit.interactionTimer = 0f;
-			MoveTowardsPos(unit, target.position);
-		}
-	}
-}
+
 
 public class Action_PlayerCommandExecute : GoapAction
 {
@@ -412,7 +351,6 @@ public class Action_PlayerCommandExecute : GoapAction
 	{
 		if (unit.playerAttackTarget != null)
 		{
-			if (unit.hasArtifact) return; // 운반 중 공격 불가
 
 			if (unit.playerAttackTarget.hp <= 0)
 			{
@@ -479,7 +417,7 @@ public class Action_EngageEnemy : GoapAction
 		AddPrecondition("enemyVisible", true);
 		AddEffect("enemyAlive", false);
 	}
-	public override bool IsValid(Unit unit) => !unit.hasArtifact; // 운반 중 공격 불가
+	public override bool IsValid(Unit unit) => true;
 	public override void Execute(Unit unit)
 	{
 		ENGAGE_Default(unit);
@@ -494,24 +432,249 @@ public class Action_EngageEnemy : GoapAction
 
 		if (minDist <= engageDist)
 		{
+			// 공격 가능 상태인지 확인
 			if (unit.attackCooldown <= 0f)
 			{
-				unit.attackCooldown = Mathf.Max(0.45f, 1.2f - (unit.physicalAttackSpeed * 0.02f)); // 기본 공속(기사형 기준)
-
-				// 명중/회피 관련 로직 제거 → 무조건 명중
-
-				if (unit.unitType is Knight && unit.skillCooldown <= 0f)
+				// =========================================================
+				// 기사형(Knight) 스킬 로직
+				// =========================================================
+				if (unit.unitType is Knight)
 				{
-					unit.skillCooldown = 15f; // 방패강타
-					target.TakePhysicalDamage(unit.physicalAttack * 0.8f, unit);
-					target.ApplyStun(1f);
-					Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}에게 방패 강타 적중! (기절)");
+					// -----------------------------------------------------
+					// 집중 찌르기
+					// 기본 선딜 : 800ms
+					// 최종 선딜 : max(200, 800 * (100 / 공격속도))
+					// 계수 : 1.25
+					// 쿨타임 : 8초
+					// -----------------------------------------------------
+					if (unit.skillCooldowns[3] <= 0f)
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 800f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown = finalDelayMs / 1000f;
+						unit.skillCooldowns[3] = 8f;
+
+						List<Vector2Int> tiles = GetLineTiles(unit, 2);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack * 1.25f,
+									unit
+								);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 집중 찌르기 사용"
+								);
+							}
+						);
+
+						return;
+					}
+
+					// -----------------------------------------------------
+					// 방패 타격
+					// 기본 선딜 : 650ms
+					// 최종 선딜 : max(200, 650 * (100 / 공격속도))
+					// 계수 : 0.9
+					// 쿨타임 : 6초
+					// -----------------------------------------------------
+					if (unit.skillCooldowns[2] <= 0f)
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown = finalDelayMs / 1000f;
+						unit.skillCooldowns[2] = 6f;
+
+						List<Vector2Int> tiles = GetLineTiles(unit, 1);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack * 0.9f,
+									unit
+								);
+
+								target.ApplyStun(1f);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 방패 타격 적중!"
+								);
+							}
+						);
+
+						return;
+					}
+
+					// -----------------------------------------------------
+					// 전방 베기 (기본 공격)
+					// 기본 선딜 : 450ms
+					// 최종 선딜 : max(200, 450 * (100 / 공격속도))
+					// 계수 : 1.0
+					// 쿨타임 : 1.2초
+					// -----------------------------------------------------
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 450f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown =
+							Mathf.Max(1.2f, finalDelayMs / 1000f);
+
+						List<Vector2Int> tiles =GetLineTiles(unit, 1);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack,
+									unit
+								);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 전방 베기"
+								);
+							}
+						);
+
+						return;
+					}
 				}
-				else
+				// =========================================================
+				// MeleeTank 스킬 로직
+				// =========================================================
+				if (unit.unitType is MeleeTank)
 				{
-					target.TakePhysicalDamage(unit.physicalAttack, unit);
-					Debug.Log($"{unit.unitType.typeName}가 {target.unitType.typeName}을 공격함");
+					// -----------------------------------------------------
+					// 육중한 내리찍기
+					// skillCooldowns[3]
+					// -----------------------------------------------------
+					if (unit.skillCooldowns[3] <= 0f)
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown = finalDelayMs / 1000f;
+						unit.skillCooldowns[3] = 7f;
+						List<Vector2Int> tiles =GetFrontAreaTiles(unit, 2, 2);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack * 1.45f,
+									unit
+								);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 육중한 내리찍기"
+								);
+							}
+						);
+
+						return;
+					}
+
+					// -----------------------------------------------------
+					// 급습 할퀴기
+					// skillCooldowns[2]
+					// -----------------------------------------------------
+					if (unit.skillCooldowns[2] <= 0f)
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 240f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown = finalDelayMs / 1000f;
+						unit.skillCooldowns[2] = 4f;
+
+						List<Vector2Int> tiles =GetLineTiles(unit, 1);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack * 0.65f,
+									unit
+								);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 급습 할퀴기"
+								);
+							}
+						);
+
+						return;
+					}
+
+					// -----------------------------------------------------
+					// 발톱 후려치기
+					// skillCooldowns[1]
+					// -----------------------------------------------------
+					if (unit.skillCooldowns[1] <= 0f)
+					{
+						float finalDelayMs =
+							Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+						unit.attackCooldown =
+							Mathf.Max(1.4f, finalDelayMs / 1000f);
+
+						unit.skillCooldowns[1] = 1.4f;
+
+						List<Vector2Int> tiles = GetLineTiles(unit, 3);
+
+						BeginAttackCast(
+							unit,
+							finalDelayMs,
+							tiles,
+							() =>
+							{
+								target.TakePhysicalDamage(
+									unit.physicalAttack,
+									unit
+								);
+
+								Debug.Log(
+									$"{unit.unitType.typeName} 발톱 후려치기"
+								);
+							}
+						);
+
+						return;
+					}
 				}
+				// =========================================================
+				// 일반 유닛 기본 공격
+				// =========================================================
+				float defaultDelayMs =
+					Mathf.Max(200f, 500f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+				unit.attackCooldown = defaultDelayMs / 1000f;
+
+				target.TakePhysicalDamage(unit.physicalAttack, unit);
+
+				Debug.Log(
+					$"{unit.unitType.typeName} 기본 공격 " +
+					$"(선딜 {defaultDelayMs:F0}ms)"
+				);
 			}
 		}
 		else
@@ -519,12 +682,97 @@ public class Action_EngageEnemy : GoapAction
 			MoveTowardsTarget(unit, target);
 		}
 	}
+	// ================================
+	// 공격 범위 계산
+	// ================================
+
+	protected Vector2Int GetForwardTile(Unit unit)
+	{
+		return unit.position
+			+ unit.GetDirVector(unit.currentDir);
+	}
+
+	protected List<Vector2Int> GetLineTiles(
+		Unit unit,
+		int range
+	)
+	{
+		List<Vector2Int> tiles =
+			new List<Vector2Int>();
+
+		Vector2Int dir =
+			unit.GetDirVector(unit.currentDir);
+
+		Vector2Int current =
+			unit.position;
+
+		for (int i = 1; i <= range; i++)
+		{
+			current += dir;
+
+			tiles.Add(current);
+		}
+
+		return tiles;
+	}
+
+	protected List<Vector2Int> GetFrontAreaTiles(
+		Unit unit,
+		int width,
+		int depth
+	)
+	{
+		List<Vector2Int> result =
+			new List<Vector2Int>();
+
+		Vector2Int forward =
+			unit.GetDirVector(unit.currentDir);
+
+		Vector2Int right =
+			new Vector2Int(forward.y, -forward.x);
+
+		for (int d = 1; d <= depth; d++)
+		{
+			Vector2Int center =
+				unit.position + forward * d;
+
+			for (int w = -width / 2; w <= width / 2; w++)
+			{
+				result.Add(center + right * w);
+			}
+		}
+
+		return result;
+	}
+
+	protected void BeginAttackCast(
+		Unit unit,
+		float castMs,
+		List<Vector2Int> tiles,
+		System.Action attackAction
+	)
+	{
+		unit.isCastingAttack = true;
+
+		unit.castTimer =
+			castMs / 1000f;
+
+		unit.pendingAttack =
+			attackAction;
+
+		unit.threatTiles.Clear();
+
+		foreach (Vector2Int tile in tiles)
+		{
+			unit.threatTiles.Add(tile);
+		}
+	}
 }
 
-// ==========================================
-// GOAP Brain (Agent)
-// ==========================================
-public class GoapBrain
+	// ==========================================
+	// GOAP Brain (Agent)
+	// ==========================================
+	public class GoapBrain
 {
 	protected List<GoapGoal> availableGoals;
 	protected List<GoapAction> availableActions;
@@ -533,9 +781,9 @@ public class GoapBrain
 	public void JudgeState(Unit unit)
 	{
 		if (availableGoals == null)
-			availableGoals = new List<GoapGoal> { new Goal_Panic(), new Goal_PlayerCommand(), new Goal_RetrieveArtifact(), new Goal_DefeatEnemy(), new Goal_Explore() };
+			availableGoals = new List<GoapGoal> { new Goal_Panic(), new Goal_PlayerCommand(), new Goal_DefeatEnemy(), new Goal_Explore() };
 		if (availableActions == null)
-			availableActions = new List<GoapAction> { new Action_Panic(), new Action_PlayerCommandExecute(), new Action_RetrieveArtifact(), new Action_RandomExplore(), new Action_EngageEnemy() };
+			availableActions = new List<GoapAction> { new Action_Panic(), new Action_PlayerCommandExecute(), new Action_RandomExplore(), new Action_EngageEnemy() };
 
 		// 1. 최고 우선순위 목표 선정
 		GoapGoal bestGoal = null;
@@ -561,7 +809,6 @@ public class GoapBrain
 		}
 		worldState["enemyVisible"] = enemyVisible;
 		worldState["isHit"] = unit.isHitThisTurn;
-		worldState["hasArtifact"] = unit.hasArtifact;
 
 		// 3. 플래닝 (가장 단순한 1-step 매칭)
 		currentPlannedAction = null;

@@ -157,7 +157,6 @@ public class UIManager : MonoBehaviour
 		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"감각: {u.sense:F1}"); y += lineH;
 		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"통솔: {u.leadership:F1}"); y += lineH;
 		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>유물운반:</b> {(u.hasArtifact ? "<color=yellow>운반중</color>" : "없음")}"); y += lineH;
         
         string statusStr = "";
         if (u.stunDuration > 0) statusStr += $"기절({u.stunDuration:F1}s) ";

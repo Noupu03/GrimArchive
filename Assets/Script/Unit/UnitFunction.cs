@@ -9,8 +9,6 @@ public abstract class UnitFunction : Unit
 		hp -= damage;
 		isHitThisTurn = true;
 		if (UnitGenerate.Instance != null) UnitGenerate.Instance.TriggerHitEffect(this);
-
-		if (hasArtifact && damage >= prevHp * 0.3f) DropArtifact();
 	}
 
 	public override void TakePhysicalDamage(float rawDamage, Unit attacker)
@@ -33,20 +31,9 @@ public abstract class UnitFunction : Unit
 			mental -= rawDamage; // 정신력만 감소
 			int currentStage = Mathf.FloorToInt(mental / (maxMental * 0.25f));
 			isHitThisTurn = true;
-
-			if (hasArtifact && currentStage < prevStage) DropArtifact();
 		}
 	}
 
-	public override void DropArtifact()
-	{
-		if (!hasArtifact) return;
-		hasArtifact = false;
-		interactionTimer = 0f;
-		//=======아티팩트 관련 참조 주석처리========
-		//if (ArtifactManager.Instance != null) ArtifactManager.Instance.SpawnArtifact(position, currentFloor);
-		Debug.Log($"{unitType.typeName}가 피격/공황으로 유물을 드롭했습니다!");
-	}
 
 	public override void ApplyStun(float duration) { stunDuration = Mathf.Max(stunDuration, duration); }
 	public override void ApplySlow(float duration) { slowDuration = Mathf.Max(slowDuration, duration); }
@@ -260,4 +247,44 @@ public abstract class UnitFunction : Unit
 		}
 	}
 	#endregion
+
+	public virtual void DrawThreatTiles()
+	{
+		if (threatTiles == null) return;
+
+		Color color =
+			this is Human
+			? Color.cyan
+			: Color.red;
+
+		color.a = 0.8f;
+
+		Vector3 floorOffset = Vector3.zero;
+
+		if (UnitGenerate.Instance != null)
+		{
+			floorOffset =
+				UnitGenerate.Instance.GetFloorOffset_Public(currentFloor);
+		}
+
+		foreach (Vector2Int tile in threatTiles)
+		{
+			Vector3 p1 =
+				new Vector3(tile.x, tile.y, 0f) + floorOffset;
+
+			Vector3 p2 =
+				new Vector3(tile.x + 1, tile.y, 0f) + floorOffset;
+
+			Vector3 p3 =
+				new Vector3(tile.x + 1, tile.y + 1, 0f) + floorOffset;
+
+			Vector3 p4 =
+				new Vector3(tile.x, tile.y + 1, 0f) + floorOffset;
+
+			Debug.DrawLine(p1, p2, color);
+			Debug.DrawLine(p2, p3, color);
+			Debug.DrawLine(p3, p4, color);
+			Debug.DrawLine(p4, p1, color);
+		}
+	}
 }

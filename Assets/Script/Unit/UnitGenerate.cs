@@ -155,7 +155,6 @@ public class UnitGenerate : MonoBehaviour
 					}
 
 					float speed = u.walkSpeed;
-					if (u.hasArtifact) speed *= 0.5f;
 					float duration = speed > 0f ? (1f / speed) : 0.1f;
 
 					targetPosMap[u] = newPos;
@@ -590,7 +589,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			var u = units[i];
 			if (u == null || u.hp <= 0)
 			{
-				if (u != null && u.hasArtifact) u.DropArtifact();
 
 				if (UnitGenerate.Instance != null && u != null)
 				{
@@ -606,12 +604,19 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 			u.OnUpdate(Time.deltaTime);
 
+			// =====================================
+			// 위협 타일 렌더링
+			// =====================================
+			if (u is UnitFunction uf)
+			{
+				uf.DrawThreatTiles();
+			}
+
 			u.actionCooldown -= Time.deltaTime;
 			if (u.actionCooldown <= 0f)
 			{
 				// 반응도에 의한 지연 대신 속도 비례 쿨다운 (타일당 이동/행동 시간)
 				float speed = u.walkSpeed;
-				if (u.hasArtifact) speed *= 0.7f; // 유물 운반 시 이동속도 0.7배
 
 				u.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
@@ -660,13 +665,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 파티(기사) 생성
 		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(types[0].footprint, 1);
 
-		/*=======파티 관련 참조 주석처리========
-		Party newParty = new Party();
-		int partyId = PartyController.Instance != null ? PartyController.Instance.activeParties.Count + 1 : 1;
-		newParty.partyName = $"Party {partyId}";
-		newParty.partyGoal = (PartyGoal)Random.Range(0, 2); // 무작위 목표 지정(테스트용->탐사파티 안나오게 설정해둠.)
-		*/
-
 		for (int i = 0; i < types.Length; i++)
 		{
 			Vector2Int spawnPos = startPos + offsets[i];
@@ -674,12 +672,8 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
 			units.Add(human);
-			//newParty.members.Add(human);=======파티 관련 참조 주석처리========
 			if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(human, human.position);
-			//Debug.Log($"Generated Human: {types[i].typeName} at Floor 1, {human.position} ({newParty.partyName})");=======파티 관련 참조 주석처리========
 		}
-
-		//if (PartyController.Instance != null) PartyController.Instance.activeParties.Add(newParty);=======파티 관련 참조 주석처리========
 	}
 
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
