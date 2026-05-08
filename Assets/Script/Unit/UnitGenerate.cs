@@ -564,6 +564,13 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			Unit.humanFactionData.InitMap(cmap);
 			Unit.monsterFactionData.InitMap(cmap);
 		}
+		if (FindObjectOfType<ThreatTileRenderer>() == null)//ㅇ위협 타일 렌더러가 씬에 없으면 생성하여 추가
+		{
+			GameObject go =
+				new GameObject("ThreatTileRenderer");
+
+			go.AddComponent<ThreatTileRenderer>();
+		}
 	}
 
 	void Update()
@@ -609,7 +616,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			// =====================================
 			if (u is UnitFunction uf)
 			{
-				uf.DrawThreatTiles();
+				
 			}
 
 			u.actionCooldown -= Time.deltaTime;
@@ -652,6 +659,10 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 			UpdateFactionTextures();
 			needTextureUpdate = false;
 			textureUpdateTimer = 0f;
+		}
+		if (ThreatTileRenderer.Instance != null)//위협타일 렌더링 업데이트
+		{
+			ThreatTileRenderer.Instance.Render(units);
 		}
 	}
 
