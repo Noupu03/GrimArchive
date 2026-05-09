@@ -1,5 +1,5 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 
 // ==========================================
 // GOAP Architecture & Behaviors
@@ -449,28 +449,18 @@ public class Action_EngageEnemy : GoapAction
 					// -----------------------------------------------------
 					if (unit.skillCooldowns[3] <= 0f)
 					{
-						float finalDelayMs =
-							Mathf.Max(200f, 800f * (100f / Mathf.Max(1f, unit.attackspeed)));
+						float finalDelayMs =Mathf.Max(200f, 800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
 						unit.attackCooldown = finalDelayMs / 1000f;
 						unit.skillCooldowns[3] = 8f;
 
 						List<Vector2Int> tiles = GetLineTiles(unit, 2);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack * 1.25f,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack * 1.25f,unit);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 집중 찌르기 사용"
-								);
+								Debug.Log($"{unit.unitType.typeName} 집중 찌르기 사용");
 							}
 						);
 
@@ -486,30 +476,20 @@ public class Action_EngageEnemy : GoapAction
 					// -----------------------------------------------------
 					if (unit.skillCooldowns[2] <= 0f)
 					{
-						float finalDelayMs =
-							Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+						float finalDelayMs = Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
 						unit.attackCooldown = finalDelayMs / 1000f;
 						unit.skillCooldowns[2] = 6f;
 
 						List<Vector2Int> tiles = GetLineTiles(unit, 1);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack * 0.9f,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack * 0.9f,unit);
 
 								target.ApplyStun(1f);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 방패 타격 적중!"
-								);
+								Debug.Log($"{unit.unitType.typeName} 방패 타격 적중!");
 							}
 						);
 
@@ -527,25 +507,15 @@ public class Action_EngageEnemy : GoapAction
 						float finalDelayMs =
 							Mathf.Max(200f, 450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-						unit.attackCooldown =
-							Mathf.Max(1.2f, finalDelayMs / 1000f);
+						unit.attackCooldown =Mathf.Max(1.2f, finalDelayMs / 1000f);
 
 						List<Vector2Int> tiles =GetLineTiles(unit, 1);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack,unit);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 전방 베기"
-								);
+								Debug.Log($"{unit.unitType.typeName} 전방 베기");
 							}
 						);
 
@@ -563,27 +533,17 @@ public class Action_EngageEnemy : GoapAction
 					// -----------------------------------------------------
 					if (unit.skillCooldowns[3] <= 0f)
 					{
-						float finalDelayMs =
-							Mathf.Max(200f, 1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
+						float finalDelayMs =Mathf.Max(200f, 1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
 						unit.attackCooldown = finalDelayMs / 1000f;
 						unit.skillCooldowns[3] = 7f;
 						List<Vector2Int> tiles =GetFrontAreaTiles(unit, 2, 2);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack * 1.45f,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack * 1.45f,unit);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 육중한 내리찍기"
-								);
+								Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
 							}
 						);
 
@@ -604,20 +564,11 @@ public class Action_EngageEnemy : GoapAction
 
 						List<Vector2Int> tiles =GetLineTiles(unit, 1);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack * 0.65f,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack * 0.65f,unit);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 급습 할퀴기"
+								Debug.Log($"{unit.unitType.typeName} 급습 할퀴기"
 								);
 							}
 						);
@@ -631,30 +582,19 @@ public class Action_EngageEnemy : GoapAction
 					// -----------------------------------------------------
 					if (unit.skillCooldowns[1] <= 0f)
 					{
-						float finalDelayMs =
-							Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+						float finalDelayMs =Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-						unit.attackCooldown =
-							Mathf.Max(1.4f, finalDelayMs / 1000f);
+						unit.attackCooldown =Mathf.Max(1.4f, finalDelayMs / 1000f);
 
 						unit.skillCooldowns[1] = 1.4f;
 
 						List<Vector2Int> tiles = GetLineTiles(unit, 3);
 
-						BeginAttackCast(
-							unit,
-							finalDelayMs,
-							tiles,
-							() =>
+						BeginAttackCast(unit,finalDelayMs,tiles,() =>
 							{
-								target.TakePhysicalDamage(
-									unit.physicalAttack,
-									unit
-								);
+								target.TakePhysicalDamage(unit.physicalAttack,unit);
 
-								Debug.Log(
-									$"{unit.unitType.typeName} 발톱 후려치기"
-								);
+								Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
 							}
 						);
 
@@ -664,17 +604,13 @@ public class Action_EngageEnemy : GoapAction
 				// =========================================================
 				// 일반 유닛 기본 공격
 				// =========================================================
-				float defaultDelayMs =
-					Mathf.Max(200f, 500f * (100f / Mathf.Max(1f, unit.attackspeed)));
+				float defaultDelayMs = Mathf.Max(200f, 500f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
 				unit.attackCooldown = defaultDelayMs / 1000f;
 
 				target.TakePhysicalDamage(unit.physicalAttack, unit);
 
-				Debug.Log(
-					$"{unit.unitType.typeName} 기본 공격 " +
-					$"(선딜 {defaultDelayMs:F0}ms)"
-				);
+				Debug.Log($"{unit.unitType.typeName} 기본 공격 " +$"(선딜 {defaultDelayMs:F0}ms)");
 			}
 		}
 		else
@@ -688,8 +624,7 @@ public class Action_EngageEnemy : GoapAction
 
 	protected Vector2Int GetForwardTile(Unit unit)
 	{
-		return unit.position
-			+ unit.GetDirVector(unit.currentDir);
+		return unit.position + unit.GetDirVector(unit.currentDir);
 	}
 
 	protected List<Vector2Int> GetLineTiles(
@@ -697,14 +632,11 @@ public class Action_EngageEnemy : GoapAction
 		int range
 	)
 	{
-		List<Vector2Int> tiles =
-			new List<Vector2Int>();
+		List<Vector2Int> tiles =new List<Vector2Int>();
 
-		Vector2Int dir =
-			unit.GetDirVector(unit.currentDir);
+		Vector2Int dir =unit.GetDirVector(unit.currentDir);
 
-		Vector2Int current =
-			unit.position;
+		Vector2Int current =unit.position;
 
 		for (int i = 1; i <= range; i++)
 		{
@@ -716,25 +648,17 @@ public class Action_EngageEnemy : GoapAction
 		return tiles;
 	}
 
-	protected List<Vector2Int> GetFrontAreaTiles(
-		Unit unit,
-		int width,
-		int depth
-	)
+	protected List<Vector2Int> GetFrontAreaTiles(Unit unit,int width,int depth)
 	{
-		List<Vector2Int> result =
-			new List<Vector2Int>();
+		List<Vector2Int> result =new List<Vector2Int>();
 
-		Vector2Int forward =
-			unit.GetDirVector(unit.currentDir);
+		Vector2Int forward =unit.GetDirVector(unit.currentDir);
 
-		Vector2Int right =
-			new Vector2Int(forward.y, -forward.x);
+		Vector2Int right =new Vector2Int(forward.y, -forward.x);
 
 		for (int d = 1; d <= depth; d++)
 		{
-			Vector2Int center =
-				unit.position + forward * d;
+			Vector2Int center =unit.position + forward * d;
 
 			for (int w = -width / 2; w <= width / 2; w++)
 			{
@@ -754,11 +678,9 @@ public class Action_EngageEnemy : GoapAction
 	{
 		unit.isCastingAttack = true;
 
-		unit.castTimer =
-			castMs / 1000f;
+		unit.castTimer =castMs / 1000f;
 
-		unit.pendingAttack =
-			attackAction;
+		unit.pendingAttack =attackAction;
 
 		unit.threatTiles.Clear();
 
