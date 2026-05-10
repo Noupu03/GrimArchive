@@ -625,14 +625,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
 			u.OnUpdate(Time.deltaTime);
 
-			// =====================================
-			// 위협 타일 렌더링
-			// =====================================
-			if (u is UnitFunction uf)
-			{
-				
-			}
-
 			u.actionCooldown -= Time.deltaTime;
 			if (u.actionCooldown <= 0f)
 			{

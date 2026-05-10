@@ -416,7 +416,6 @@ public class Action_EngageEnemy : GoapAction
 		ENGAGE_Default(unit);
 	}
 
-
 	private void ENGAGE_Default(Unit unit)
 	{
 
@@ -743,16 +742,11 @@ public class Action_EngageEnemy : GoapAction
 								List<Vector2Int> tiles = GetLineTiles(unit, 3);
 								float compression = GetCompression(unit);
 
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.LINE, range = 3 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
-										Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-									}
-								);
+								BeginAttackCast(unit,finalDelayMs,new ThreatTileData { shape = ThreatShape.LINE, range = 3 },() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
+								});
 							};
 						}
 					}
@@ -827,13 +821,7 @@ public class Action_EngageEnemy : GoapAction
 		return result;
 	}
 
-	protected void BeginAttackCast(
-	Unit unit,
-	float castMs,
-	ThreatTileData threat,
-	System.Action attackAction,
-	System.Action effectAction = null
-)
+	protected void BeginAttackCast(Unit unit,float castMs,ThreatTileData threat,System.Action attackAction,System.Action effectAction = null)
 	{
 		unit.isCastingAttack = true;
 
@@ -882,11 +870,7 @@ public class Action_EngageEnemy : GoapAction
 			{
 				for (int dy = 0; dy < h; dy++)
 				{
-					Vector2Int p =
-						new Vector2Int(
-							u.position.x + dx,
-							u.position.y + dy
-						);
+					Vector2Int p =new Vector2Int(u.position.x + dx,u.position.y + dy);
 
 					if (tiles.Contains(p))
 					{
@@ -917,14 +901,7 @@ public class Action_EngageEnemy : GoapAction
 			}
 		}
 	}
-	protected void DamageEnemiesInTilesCompressed(
-	Unit attacker,
-	List<Vector2Int> tiles,
-	float multiplier,
-	float compression,
-	bool stun = false,
-	float stunDuration = 0f
-)
+	protected void DamageEnemiesInTilesCompressed(Unit attacker,List<Vector2Int> tiles,float multiplier,float compression,bool stun = false,float stunDuration = 0f)
 	{
 		foreach (Unit u in GameSession.Instance.units)
 		{
@@ -932,9 +909,7 @@ public class Action_EngageEnemy : GoapAction
 			if (u == attacker) continue;
 			if (u.currentFloor != attacker.currentFloor) continue;
 
-			bool isEnemy =
-				(attacker is Human && u is Monster) ||
-				(attacker is Monster && u is Human);
+			bool isEnemy = (attacker is Human && u is Monster) || (attacker is Monster && u is Human);
 
 			if (!isEnemy) continue;
 
@@ -968,10 +943,7 @@ public class Action_EngageEnemy : GoapAction
 		NEXT_UNIT:;
 		}
 	}
-	protected List<Vector2Int> BuildThreatTiles(
-	Unit unit,
-	ThreatTileData data
-)
+	protected List<Vector2Int> BuildThreatTiles(Unit unit,ThreatTileData data)
 	{
 		List<Vector2Int> result = new List<Vector2Int>();
 

@@ -51,10 +51,7 @@ public class ThreatTileRenderer : MonoBehaviour
 
 	private bool IsDiagonalDir(Dir dir)
 	{
-		return dir == Dir.UP_RIGHT ||
-			   dir == Dir.UP_LEFT ||
-			   dir == Dir.DOWN_RIGHT ||
-			   dir == Dir.DOWN_LEFT;
+		return dir == Dir.UP_RIGHT || dir == Dir.UP_LEFT || dir == Dir.DOWN_RIGHT || dir == Dir.DOWN_LEFT;
 	}
 	private class CachedThreat
 	{
@@ -76,7 +73,7 @@ public class ThreatTileRenderer : MonoBehaviour
 				continue;
 
 			// ======================================
-			// ★ 최초 1회만 방향 고정
+			// 최초 1회만 방향 고정
 			// ======================================
 			bool isFirst = !initializedUnits.Contains(u);
 
@@ -89,10 +86,7 @@ public class ThreatTileRenderer : MonoBehaviour
 			// 핵심: 사실상 첫 프레임 값으로 "고정됨"
 			// (이후 Render에서도 같은 Unit은 다시 초기화 안됨)
 
-			Vector3 offset =
-				UnitGenerate.Instance != null
-				? UnitGenerate.Instance.GetFloorOffset_Public(u.currentFloor)
-				: Vector3.zero;
+			Vector3 offset =UnitGenerate.Instance != null? UnitGenerate.Instance.GetFloorOffset_Public(u.currentFloor): Vector3.zero;
 
 			bool isDiagonal = IsDiagonalDir(fixedDir);
 
@@ -119,15 +113,12 @@ public class ThreatTileRenderer : MonoBehaviour
 						(Vector2)origin +
 						new Vector2(diff.x, diff.y) * compression;
 
-					Vector3 pos =
-						new Vector3(finalPos.x + 0.5f, finalPos.y + 0.4f, -5f)
-						+ offset;
+					Vector3 pos = new Vector3(finalPos.x + 0.5f, finalPos.y + 0.4f, -5f) + offset;
 
 					sr.transform.position = pos;
 					sr.transform.localScale = Vector3.one;
 
-					sr.transform.rotation =
-						Quaternion.Euler(0f, 0f, rotationZ);
+					sr.transform.rotation = Quaternion.Euler(0f, 0f, rotationZ);
 
 					sr.color = color;
 				}
