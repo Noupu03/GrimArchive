@@ -197,6 +197,7 @@ public abstract class Unit : ScriptableObject
 	private const float BASE_CRIT = 10f;
 	private const float BASE_CDR = 100f;
 
+
 	//연산용 임시스텟
 	public float physicalAttackSpeed = 10f;//물리공격속도
 	public float magicalCastSpeed = 0f;//마법공격속도
@@ -205,6 +206,11 @@ public abstract class Unit : ScriptableObject
 	public float[] skillCooldowns = new float[4];//스킬 쿨다운
 	public bool isHitThisTurn = false; // 피격 여부
 	public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
+
+	public bool hasReactedThisAttack = false;
+	public float currentReactionWindow = 0f;
+	public ThreatTileData reactingThreat = null;
+	public Unit reactingAttacker = null;
 
 	// 현재 공격 선딜 진행 여부
 	public bool isCastingAttack = false;
@@ -420,6 +426,133 @@ public abstract class Unit : ScriptableObject
 				skillCooldowns[i] -= deltaTime;
 			}
 		}
+		detectedThreats = DetectThreats();
+
+		if (detectedThreats.Count > 0)
+		{
+			OnThreatDetected(detectedThreats);
+		}
+
+	}
+	public List<ThreatTileData> detectedThreats = new List<ThreatTileData>();
+	public virtual void OnThreatDetected(List<ThreatTileData> threats)
+	{
+		if (stunDuration > 0f) return;
+		if (hasReactedThisAttack) return;
+
+		foreach (var threat in threats)
+		{
+			Unit attacker = FindAttackerFromThreat(threat);
+			if (attacker == null) continue;
+
+			float reactionTimeMs = 30000f / Mathf.Max(1f, reaction);
+			float reactionTimeSec = reactionTimeMs / 1000f;
+
+			// 핵심: 현재 공격 castTimer와 비교
+			if (attacker.isCastingAttack)
+			{
+				if (attacker.castTimer >= reactionTimeSec)
+				{
+					// 반응 가능
+					hasReactedThisAttack = true;
+					currentReactionWindow = reactionTimeSec;
+					reactingThreat = threat;
+					reactingAttacker = attacker;
+
+					OnReactToThreat(attacker, threat);
+				}
+				else
+				{
+					// 반응 실패 → 직격
+					OnDirectHit(attacker, threat);
+				}
+			}
+		}
+	}
+	public virtual void OnReactToThreat(Unit attacker, ThreatTileData threat)
+	{
+		Debug.Log($"{unitType.typeName} 반응 성공!");
+
+		DefenseSystem.EvaluateDefense(this, attacker, threat);
+	}
+	public virtual void OnDirectHit(Unit attacker, ThreatTileData threat)
+	{
+		Debug.Log($"{unitType.typeName} 반응 실패 → 직격!");
+
+		ApplyDirectDamage(attacker);
+	}
+	public virtual void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
+	{
+		float raw = attacker.physicalAttack * multiplier;
+
+		float damage = Mathf.Max(1f, raw - physicalDefense);
+
+		hp -= damage;
+
+		isHitThisTurn = true;
+
+		if (UnitGenerate.Instance != null)
+			UnitGenerate.Instance.TriggerHitEffect(this);
+	}
+	private Unit FindAttackerFromThreat(ThreatTileData threat)
+	{
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null) continue;
+			if (!u.isCastingAttack) continue;
+
+			if (u.threatTiles.Contains(threat))
+				return u;
+		}
+		return null;
+	}
+
+	public bool IsInThreat(Vector2Int pos, ThreatTileData threat)
+	{
+		if (threat.tiles == null) return false;
+
+		return threat.tiles.Contains(pos);
+	}
+	public List<ThreatTileData> DetectThreats()
+	{
+		List<ThreatTileData> result = new List<ThreatTileData>();
+
+		Unit attacker = null;
+
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null || u == this) continue;
+			if (u.currentFloor != currentFloor) continue;
+
+			// 공격 중인 유닛만 체크
+			if (!u.isCastingAttack) continue;
+
+			foreach (var threat in u.threatTiles)
+			{
+				if (threat.tiles == null) continue;
+
+				// footprint 고려
+				int w = (int)unitType.footprint.x;
+				int h = (int)unitType.footprint.y;
+
+				for (int dx = 0; dx < w; dx++)
+				{
+					for (int dy = 0; dy < h; dy++)
+					{
+						Vector2Int p = new Vector2Int(position.x + dx, position.y + dy);
+
+						if (threat.tiles.Contains(p))
+						{
+							result.Add(threat);
+							goto NEXT_THREAT;
+						}
+					}
+				}
+			NEXT_THREAT:;
+			}
+		}
+
+		return result;
 	}
 }
 
