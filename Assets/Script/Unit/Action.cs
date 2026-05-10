@@ -429,14 +429,7 @@ public class Action_EngageEnemy : GoapAction
 
 		Vector2Int diff = target.position - unit.position;
 
-		if (Mathf.Abs(diff.x) > Mathf.Abs(diff.y))//방향 다시 확인
-		{
-			unit.currentDir =diff.x > 0? Dir.RIGHT: Dir.LEFT;
-		}
-		else
-		{
-			unit.currentDir =diff.y > 0? Dir.UP: Dir.DOWN;
-		}
+		unit.currentDir = GetDirection8(diff);
 
 		List<Vector2Int> attackCheckTiles =GetLineTiles(unit,unit.unitType is MeleeTank ? 3 : 2);
 		bool canHit =GetEnemiesInTiles(unit, attackCheckTiles).Contains(target);
@@ -488,10 +481,9 @@ public class Action_EngageEnemy : GoapAction
 
 								List<Vector2Int> tiles =GetLineTiles(unit, 2);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 2 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 1.25f);
-
 									Debug.Log($"{unit.unitType.typeName} 집중 찌르기 사용");
 								});
 							};
@@ -536,10 +528,9 @@ public class Action_EngageEnemy : GoapAction
 
 								List<Vector2Int> tiles =GetLineTiles(unit, 1);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 0.9f, true, 1f);
-
 									Debug.Log($"{unit.unitType.typeName} 방패 타격 적중!");
 								});
 							};
@@ -580,7 +571,7 @@ public class Action_EngageEnemy : GoapAction
 
 								List<Vector2Int> tiles =GetLineTiles(unit, 1);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 1f);
 									Debug.Log($"{unit.unitType.typeName} 전방 베기");
@@ -629,10 +620,9 @@ public class Action_EngageEnemy : GoapAction
 
 								List<Vector2Int> tiles =GetFrontAreaTiles(unit, 2, 2);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 1.45f);
-
 									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
 								});
 							};
@@ -674,10 +664,9 @@ public class Action_EngageEnemy : GoapAction
 
 								List<Vector2Int> tiles =GetLineTiles(unit, 1);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 0.65f);
-
 									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
 								});
 							};
@@ -722,10 +711,9 @@ public class Action_EngageEnemy : GoapAction
 								List<Vector2Int> tiles =
 									GetLineTiles(unit, 3);
 
-								BeginAttackCast(unit, finalDelayMs, tiles, () =>
+								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 3 },() =>
 								{
 									DamageEnemiesInTiles(unit, tiles, 1f);
-
 									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
 								});
 							};
@@ -787,7 +775,7 @@ public class Action_EngageEnemy : GoapAction
 
 		Vector2Int forward =unit.GetDirVector(unit.currentDir);
 
-		Vector2Int right =new Vector2Int(forward.y, -forward.x);
+		Vector2Int right = GetRightVector(forward);
 
 		for (int d = 1; d <= depth; d++)
 		{
@@ -803,24 +791,32 @@ public class Action_EngageEnemy : GoapAction
 	}
 
 	protected void BeginAttackCast(
-		Unit unit,
-		float castMs,
-		List<Vector2Int> tiles,
-		System.Action attackAction
-	)
+	Unit unit,
+	float castMs,
+	ThreatTileData threat,
+	System.Action attackAction,
+	System.Action effectAction = null
+)
 	{
 		unit.isCastingAttack = true;
 
-		unit.castTimer =castMs / 1000f;
+		unit.castTimer = castMs / 1000f;
 
-		unit.pendingAttack =attackAction;
+		threat.tiles =
+			BuildThreatTiles(unit, threat);
 
 		unit.threatTiles.Clear();
 
-		foreach (Vector2Int tile in tiles)
+		unit.threatTiles.Add(threat);
+
+		unit.pendingAttack = () =>
 		{
-			unit.threatTiles.Add(tile);
-		}
+			effectAction?.Invoke();
+
+			attackAction?.Invoke();
+
+			unit.threatTiles.Clear();
+		};
 	}
 	protected List<Unit> GetEnemiesInTiles(Unit attacker,List<Vector2Int> tiles)
 	{
@@ -884,6 +880,163 @@ public class Action_EngageEnemy : GoapAction
 			}
 		}
 	}
+	protected List<Vector2Int> BuildThreatTiles(
+	Unit unit,
+	ThreatTileData data
+)
+	{
+		List<Vector2Int> result = new List<Vector2Int>();
+
+		Vector2Int forward = unit.GetDirVector(unit.currentDir);
+
+		Vector2Int right = new Vector2Int(forward.y, -forward.x);
+
+		// =========================
+		// LINE
+		// =========================
+		if (data.shape == ThreatShape.LINE)
+		{
+			Vector2Int current = unit.position;
+
+			for (int i = 1; i <= data.range; i++)
+			{
+				current += forward;
+
+				result.Add(current);
+			}
+		}
+
+		// =========================
+		// RECT
+		// =========================
+		else if (data.shape == ThreatShape.RECT)
+		{
+			for (int d = 1; d <= data.depth; d++)
+			{
+				Vector2Int center =
+					unit.position + forward * d;
+
+				for (int w = -data.width / 2;
+					w <= data.width / 2;
+					w++)
+				{
+					result.Add(center + right * w);
+				}
+			}
+		}
+
+		// =========================
+		// CONE
+		// =========================
+		else if (data.shape == ThreatShape.CONE)
+		{
+			for (int d = 1; d <= data.depth; d++)
+			{
+				int spread = d;
+
+				Vector2Int center =
+					unit.position + forward * d;
+
+				for (int w = -spread; w <= spread; w++)
+				{
+					result.Add(center + right * w);
+				}
+			}
+		}
+
+		// =========================
+		// CIRCLE
+		// =========================
+		else if (data.shape == ThreatShape.CIRCLE)
+		{
+			for (int x = -data.range; x <= data.range; x++)
+			{
+				for (int y = -data.range; y <= data.range; y++)
+				{
+					Vector2Int p =
+						unit.position +
+						new Vector2Int(x, y);
+
+					if (Vector2Int.Distance(
+						unit.position,
+						p
+					) <= data.range)
+					{
+						result.Add(p);
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+	// =========================
+	// 8방향 방향 판정 추가
+	// =========================
+	protected Dir GetDirection8(Vector2Int diff)
+	{
+		if (diff == Vector2Int.zero)
+			return Dir.DOWN;
+
+		int x = diff.x;
+		int y = diff.y;
+
+		// 대각선
+		if (x > 0 && y > 0)
+			return Dir.UP_RIGHT;
+
+		if (x > 0 && y < 0)
+			return Dir.DOWN_RIGHT;
+
+		if (x < 0 && y > 0)
+			return Dir.UP_LEFT;
+
+		if (x < 0 && y < 0)
+			return Dir.DOWN_LEFT;
+
+		// 직선
+		if (x > 0)
+			return Dir.RIGHT;
+
+		if (x < 0)
+			return Dir.LEFT;
+
+		if (y > 0)
+			return Dir.UP;
+
+		return Dir.DOWN;
+	}
+	protected Vector2Int GetRightVector(Vector2Int forward)
+	{
+		// 직선 방향
+		if (forward == Vector2Int.up)
+			return Vector2Int.right;
+
+		if (forward == Vector2Int.down)
+			return Vector2Int.left;
+
+		if (forward == Vector2Int.right)
+			return Vector2Int.down;
+
+		if (forward == Vector2Int.left)
+			return Vector2Int.up;
+
+		// 대각 방향
+		if (forward == new Vector2Int(1, 1))
+			return new Vector2Int(1, -1);
+
+		if (forward == new Vector2Int(1, -1))
+			return new Vector2Int(-1, -1);
+
+		if (forward == new Vector2Int(-1, -1))
+			return new Vector2Int(-1, 1);
+
+		if (forward == new Vector2Int(-1, 1))
+			return new Vector2Int(1, 1);
+
+		return Vector2Int.right;
+	}
+
 }
 
 	// ==========================================

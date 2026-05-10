@@ -25,6 +25,31 @@ public class Knight : UnitType { public Knight() { typeName = "기사형"; footp
 // 몬스터 역할군
 public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(2, 2); } }
 
+public enum ThreatShape
+{
+	LINE,
+	CONE,
+	RECT,
+	CIRCLE
+}
+
+public class ThreatTileData
+{
+	public ThreatShape shape;
+
+	public int range = 1;
+
+	public int width = 1;
+
+	public int depth = 1;
+
+	public Color color =
+		new Color(1f, 0f, 0f, 0.5f);
+
+	// 실제 계산된 타일
+	public List<Vector2Int> tiles =
+		new List<Vector2Int>();
+}
 
 // 공통 전투 상수 정의
 public static class CombatConstants
@@ -191,7 +216,9 @@ public abstract class Unit : ScriptableObject
 	// 실제 공격 실행 예약
 	public System.Action pendingAttack;
 	// 현재 공격 위협 타일
-	public List<Vector2Int> threatTiles = new List<Vector2Int>();
+	public List<ThreatTileData> threatTiles =
+	new List<ThreatTileData>();
+
 
 	private float Normalize(float value, float baseValue)//정규화함수. 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.
 	{

@@ -46,13 +46,13 @@ public abstract class UnitFunction : Unit
 		switch (dir)
 		{
 			case Dir.UP: return new Vector2Int(0, 1);
-			//case Dir.UP_RIGHT: return new Vector2Int(1, 1);
+			case Dir.UP_RIGHT: return new Vector2Int(1, 1);
 			case Dir.RIGHT: return new Vector2Int(1, 0);
-			//case Dir.DOWN_RIGHT: return new Vector2Int(1, -1);
+			case Dir.DOWN_RIGHT: return new Vector2Int(1, -1);
 			case Dir.DOWN: return new Vector2Int(0, -1);
-			//case Dir.DOWN_LEFT: return new Vector2Int(-1, -1);
+			case Dir.DOWN_LEFT: return new Vector2Int(-1, -1);
 			case Dir.LEFT: return new Vector2Int(-1, 0);
-			//case Dir.UP_LEFT: return new Vector2Int(-1, 1);
+			case Dir.UP_LEFT: return new Vector2Int(-1, 1);
 			default: return Vector2Int.zero;
 		}
 	}
@@ -267,24 +267,29 @@ public abstract class UnitFunction : Unit
 				UnitGenerate.Instance.GetFloorOffset_Public(currentFloor);
 		}
 
-		foreach (Vector2Int tile in threatTiles)
+		foreach (ThreatTileData threat in threatTiles)
 		{
-			Vector3 p1 =
-				new Vector3(tile.x, tile.y, 0f) + floorOffset;
+			if (threat.tiles == null) continue;
 
-			Vector3 p2 =
-				new Vector3(tile.x + 1, tile.y, 0f) + floorOffset;
+			foreach (Vector2Int tile in threat.tiles)
+			{
+				Vector3 p1 =
+					new Vector3(tile.x, tile.y, 0f) + floorOffset;
 
-			Vector3 p3 =
-				new Vector3(tile.x + 1, tile.y + 1, 0f) + floorOffset;
+				Vector3 p2 =
+					new Vector3(tile.x + 1, tile.y, 0f) + floorOffset;
 
-			Vector3 p4 =
-				new Vector3(tile.x, tile.y + 1, 0f) + floorOffset;
+				Vector3 p3 =
+					new Vector3(tile.x + 1, tile.y + 1, 0f) + floorOffset;
 
-			Debug.DrawLine(p1, p2, color);
-			Debug.DrawLine(p2, p3, color);
-			Debug.DrawLine(p3, p4, color);
-			Debug.DrawLine(p4, p1, color);
+				Vector3 p4 =
+					new Vector3(tile.x, tile.y + 1, 0f) + floorOffset;
+
+				Debug.DrawLine(p1, p2, color);
+				Debug.DrawLine(p2, p3, color);
+				Debug.DrawLine(p3, p4, color);
+				Debug.DrawLine(p4, p1, color);
+			}
 		}
 	}
 }
