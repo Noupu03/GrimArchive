@@ -23,7 +23,7 @@ public abstract class UnitType
 public class Knight : UnitType { public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); } }
 
 // 몬스터 역할군
-public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(2, 2); } }
+public class MeleeTank : UnitType { public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(1, 1); } }
 
 public enum ThreatShape
 {
@@ -38,15 +38,12 @@ public class ThreatTileData
 	public ThreatShape shape;
 
 	public int range = 1;
-
 	public int width = 1;
-
 	public int depth = 1;
 
 	public Color color =
 		new Color(1f, 0f, 0f, 0.5f);
 
-	// 실제 계산된 타일
 	public List<Vector2Int> tiles =
 		new List<Vector2Int>();
 }

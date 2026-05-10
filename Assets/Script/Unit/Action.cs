@@ -424,6 +424,7 @@ public class Action_EngageEnemy : GoapAction
 		System.Action bestSkill = null;
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
+		float compression = GetCompression(unit);
 
 		float engageDist = unit.unitType is MeleeTank ? 2.5f : 1.5f;
 
@@ -479,13 +480,20 @@ public class Action_EngageEnemy : GoapAction
 								unit.attackCooldown = finalDelayMs / 1000f;
 								unit.skillCooldowns[3] = 8f;
 
-								List<Vector2Int> tiles =GetLineTiles(unit, 2);
+								List<Vector2Int> tiles = GetLineTiles(unit, 2);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 2 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 1.25f);
-									Debug.Log($"{unit.unitType.typeName} 집중 찌르기 사용");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.LINE, range = 2 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
+										Debug.Log($"{unit.unitType.typeName} 집중 찌르기 사용");
+									}
+								);
+
 							};
 						}
 					}
@@ -526,13 +534,19 @@ public class Action_EngageEnemy : GoapAction
 								unit.attackCooldown = finalDelayMs / 1000f;
 								unit.skillCooldowns[2] = 6f;
 
-								List<Vector2Int> tiles =GetLineTiles(unit, 1);
+								List<Vector2Int> tiles = GetLineTiles(unit, 1);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 0.9f, true, 1f);
-									Debug.Log($"{unit.unitType.typeName} 방패 타격 적중!");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
+										Debug.Log($"{unit.unitType.typeName} 방패 타격 적중!");
+									}
+								);
 							};
 						}
 					}
@@ -569,13 +583,19 @@ public class Action_EngageEnemy : GoapAction
 
 								unit.attackCooldown =Mathf.Max(1.2f, finalDelayMs / 1000f);
 
-								List<Vector2Int> tiles =GetLineTiles(unit, 1);
+								List<Vector2Int> tiles = GetLineTiles(unit, 1);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 1f);
-									Debug.Log($"{unit.unitType.typeName} 전방 베기");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+										Debug.Log($"{unit.unitType.typeName} 전방 베기");
+									}
+								);
 							};
 						}
 					}
@@ -618,13 +638,19 @@ public class Action_EngageEnemy : GoapAction
 								unit.attackCooldown = finalDelayMs / 1000f;
 								unit.skillCooldowns[3] = 7f;
 
-								List<Vector2Int> tiles =GetFrontAreaTiles(unit, 2, 2);
+								List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 1.45f);
-									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
+										Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
+									}
+								);
 							};
 						}
 					}
@@ -662,13 +688,19 @@ public class Action_EngageEnemy : GoapAction
 								unit.attackCooldown = finalDelayMs / 1000f;
 								unit.skillCooldowns[2] = 4f;
 
-								List<Vector2Int> tiles =GetLineTiles(unit, 1);
+								List<Vector2Int> tiles = GetLineTiles(unit, 1);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 1 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 0.65f);
-									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
+										Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
+									}
+								);
 							};
 						}
 					}
@@ -708,14 +740,19 @@ public class Action_EngageEnemy : GoapAction
 
 								unit.skillCooldowns[1] = 1.4f;
 
-								List<Vector2Int> tiles =
-									GetLineTiles(unit, 3);
+								List<Vector2Int> tiles = GetLineTiles(unit, 3);
+								float compression = GetCompression(unit);
 
-								BeginAttackCast(unit, finalDelayMs, new ThreatTileData { shape = ThreatShape.LINE, range = 3 },() =>
-								{
-									DamageEnemiesInTiles(unit, tiles, 1f);
-									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-								});
+								BeginAttackCast(
+									unit,
+									finalDelayMs,
+									new ThreatTileData { shape = ThreatShape.LINE, range = 3 },
+									() =>
+									{
+										DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+										Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
+									}
+								);
 							};
 						}
 					}
@@ -880,6 +917,57 @@ public class Action_EngageEnemy : GoapAction
 			}
 		}
 	}
+	protected void DamageEnemiesInTilesCompressed(
+	Unit attacker,
+	List<Vector2Int> tiles,
+	float multiplier,
+	float compression,
+	bool stun = false,
+	float stunDuration = 0f
+)
+	{
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null || u.hp <= 0) continue;
+			if (u == attacker) continue;
+			if (u.currentFloor != attacker.currentFloor) continue;
+
+			bool isEnemy =
+				(attacker is Human && u is Monster) ||
+				(attacker is Monster && u is Human);
+
+			if (!isEnemy) continue;
+
+			int w = (int)u.unitType.footprint.x;
+			int h = (int)u.unitType.footprint.y;
+
+			for (int dx = 0; dx < w; dx++)
+			{
+				for (int dy = 0; dy < h; dy++)
+				{
+					Vector2 targetPos =
+						new Vector2(u.position.x + dx, u.position.y + dy);
+
+					foreach (var t in tiles)
+					{
+						Vector2 compressed = ApplyCompression(attacker.position, t, compression);
+
+						if (Vector2.Distance(compressed, targetPos) < 0.6f)
+						{
+							u.TakePhysicalDamage(attacker.physicalAttack * multiplier, attacker);
+
+							if (stun)
+								u.ApplyStun(stunDuration);
+
+							goto NEXT_UNIT;
+						}
+					}
+				}
+			}
+
+		NEXT_UNIT:;
+		}
+	}
 	protected List<Vector2Int> BuildThreatTiles(
 	Unit unit,
 	ThreatTileData data
@@ -1036,7 +1124,21 @@ public class Action_EngageEnemy : GoapAction
 
 		return Vector2Int.right;
 	}
+	protected float GetCompression(Unit unit)
+	{
+		bool isDiagonal =
+			unit.currentDir == Dir.UP_RIGHT ||
+			unit.currentDir == Dir.UP_LEFT ||
+			unit.currentDir == Dir.DOWN_RIGHT ||
+			unit.currentDir == Dir.DOWN_LEFT;
 
+		return isDiagonal ? 0.75f : 1f;
+	}
+	protected Vector2 ApplyCompression(Vector2Int origin, Vector2Int pos, float compression)
+	{
+		Vector2 diff = pos - origin;
+		return (Vector2)origin + diff * compression;
+	}
 }
 
 	// ==========================================

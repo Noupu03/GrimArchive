@@ -1,6 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using System.Collections;
+
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -49,6 +51,9 @@ public class UnitGenerate : MonoBehaviour
 
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
+		// 추가
+		float visualScale = 1.1f;
+		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale,unit.unitType.footprint.y * visualScale,1f);
 
 		if (typeof(T) == typeof(Human)) { sr.sprite = humanSprite; sr.color = Color.green; }
 		else if (typeof(T) == typeof(Monster)) { sr.sprite = monsterSprite; sr.color = Color.red; }
@@ -197,7 +202,7 @@ public class UnitGenerate : MonoBehaviour
 		}
 	}
 
-	private System.Collections.IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)//부드럽게 이동하기(그래픽상)
+	private IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)
 	{
 		if (visualTransform == null) yield break;
 
@@ -206,14 +211,20 @@ public class UnitGenerate : MonoBehaviour
 
 		while (elapsed < duration)
 		{
-			if (visualTransform == null) yield break; // 중간에 파괴된 경우 방어
-			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
+			if (visualTransform == null) yield break;
+
+			visualTransform.position =
+				Vector3.Lerp(startPos, targetPos, elapsed / duration);
+
 			elapsed += Time.unscaledDeltaTime;
 			yield return null;
 		}
 
+		// 핵심: 반드시 최종 좌표 강제 보정
 		if (visualTransform != null)
+		{
 			visualTransform.position = targetPos;
+		}
 	}
 
 	public void TriggerHitEffect(Unit u)
@@ -459,6 +470,9 @@ public class UnitGenerate : MonoBehaviour
 
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
+		// 추가
+		float visualScale = 1.1f;
+		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale,unit.unitType.footprint.y * visualScale,1f);
 
 		if (typeof(T) == typeof(Human)) { sr.sprite = humanSprite; sr.color = Color.green; }
 		else if (typeof(T) == typeof(Monster)) { sr.sprite = monsterSprite; sr.color = Color.red; }
