@@ -680,27 +680,74 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 		}
 	}
 
-	public void OnKeyDown_H()//H 키를 눌렀을 때 인간 유닛 생성
+	public void OnKeyDown_H()
 	{
 		if (UnitGenerate.Instance == null) return;
 
 		UnitType[] types = { new Knight() };
-		Vector2Int[] offsets = { new Vector2Int(0,0) };
+		Vector2Int[] offsets = { new Vector2Int(0, 0) };
 
-		// 1층(Floor_1, 인덱스 1)의 StartRoom을 찾아 해당 위치에 고정 파티(기사) 생성
-		Vector2Int startPos = UnitGenerate.Instance.GetStartRoomPos(types[0].footprint, 1);
+		int floorIdx = 1;
+		UnitType type = types[0];
+
+		Vector2Int spawnPos = GetRandomStartRoomPos(type.footprint, floorIdx);
 
 		for (int i = 0; i < types.Length; i++)
 		{
-			Vector2Int spawnPos = startPos + offsets[i];
-			if (!UnitGenerate.Instance.IsAreaClear(spawnPos, types[i].footprint, 1)) spawnPos = UnitGenerate.Instance.GetRandomFloorPos(types[i].footprint, 1); // 혹시 막혀있다면 fallback
+			Vector2Int pos = spawnPos + offsets[i];
 
-			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], spawnPos, 1);
+			if (!UnitGenerate.Instance.IsAreaClear(pos, types[i].footprint, floorIdx))
+				pos = UnitGenerate.Instance.GetRandomFloorPos(types[i].footprint, floorIdx);
+
+			Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
 			units.Add(human);
-			if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(human, human.position);
+
+			if (GameSession.Instance != null)
+				GameSession.Instance.RegisterUnitPos(human, human.position);
 		}
 	}
+	private Vector2Int GetRandomStartRoomPos(Vector2 footprint, int floorIdx)
+	{
+		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
+			? GameSession.Instance.cmap
+			: FindObjectOfType<CreateMap>();
 
+		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length)
+			return Vector2Int.zero;
+
+		Floor floor = cmap.map.floors[floorIdx];
+		if (floor.chunks == null) return Vector2Int.zero;
+
+		List<Vector2Int> candidates = new List<Vector2Int>();
+
+		int chunkW = floor.config.width;
+		int chunkH = floor.config.height;
+
+		for (int cx = 0; cx < chunkW; cx++)
+		{
+			for (int cy = 0; cy < chunkH; cy++)
+			{
+				Chunks c = floor.chunks[cx, cy];
+				if (c.roomRole != RoomRole.StartRoom || c.chunk == null) continue;
+
+				for (int tx = 0; tx < 8; tx++)
+				{
+					for (int ty = 0; ty < 8; ty++)
+					{
+						Vector2Int pos = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+
+						if (UnitGenerate.Instance.IsAreaClear(pos, footprint, floorIdx))
+							candidates.Add(pos);
+					}
+				}
+			}
+		}
+
+		if (candidates.Count == 0)
+			return Vector2Int.zero;
+
+		return candidates[Random.Range(0, candidates.Count)];
+	}
 	public void OnKeyDown_M()//M 키를 눌렀을 때 몬스터 유닛 생성
 	{
 		if (UnitGenerate.Instance == null) return;
