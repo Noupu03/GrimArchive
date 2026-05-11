@@ -1,5 +1,6 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEditor.Experimental.GraphView;
+using UnityEngine;
 
 public enum Dir
 {
@@ -207,7 +208,9 @@ public abstract class Unit : ScriptableObject
 	public bool isHitThisTurn = false; // 피격 여부
 	public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
 
-	public bool hasReactedThisAttack = false;
+	public HashSet<Unit> reactedAttackers =
+	new HashSet<Unit>();
+
 	public float currentReactionWindow = 0f;
 	public ThreatTileData reactingThreat = null;
 	public Unit reactingAttacker = null;
@@ -433,6 +436,18 @@ public abstract class Unit : ScriptableObject
 				pendingAttack?.Invoke();
 
 				pendingAttack = null;
+
+				// 이 공격자에 대한 반응 기록 제거
+				if (GameSession.Instance != null)
+				{
+					foreach (Unit u in GameSession.Instance.units)
+					{
+						if (u == null)
+							continue;
+
+						u.reactedAttackers.Remove(this);
+					}
+				}
 			}
 		}
 
@@ -465,25 +480,36 @@ public abstract class Unit : ScriptableObject
 	public List<ThreatTileData> detectedThreats = new List<ThreatTileData>();
 	public virtual void OnThreatDetected(List<ThreatTileData> threats)
 	{
-		if (stunDuration > 0f) return;
-		if (hasReactedThisAttack) return;
+		if (stunDuration > 0f)
+			return;
 
 		foreach (var threat in threats)
 		{
-			Unit attacker = FindAttackerFromThreat(threat);
-			if (attacker == null) continue;
+			Unit attacker =
+				FindAttackerFromThreat(threat);
 
-			float reactionTimeMs = 30000f / Mathf.Max(1f, reaction);
-			float reactionTimeSec = reactionTimeMs / 1000f;
+			if (attacker == null)
+				continue;
 
-			// 핵심: 현재 공격 castTimer와 비교
+			// 이미 이 공격자에 반응했으면 스킵
+			if (reactedAttackers.Contains(attacker))
+				continue;
+
+			float reactionTimeMs =
+				30000f / Mathf.Max(1f, reaction);
+
+			float reactionTimeSec =
+				reactionTimeMs / 1000f;
+
 			if (attacker.isCastingAttack)
 			{
-				if (attacker.castTimer >= reactionTimeSec)
-				{
-					// 반응 가능
-					hasReactedThisAttack = true;
-					currentReactionWindow = reactionTimeSec;
+				if(attacker.castTimer >= reactionTimeSec)
+{
+					reactedAttackers.Add(attacker);
+
+					currentReactionWindow =
+						reactionTimeSec;
+
 					reactingThreat = threat;
 					reactingAttacker = attacker;
 
@@ -491,7 +517,9 @@ public abstract class Unit : ScriptableObject
 				}
 				else
 				{
-					// 반응 실패 → 직격
+					// 직격도 1회만 처리되게 해야 함
+					reactedAttackers.Add(attacker);
+
 					OnDirectHit(attacker, threat);
 				}
 			}
@@ -527,6 +555,7 @@ public abstract class Unit : ScriptableObject
 		foreach (Unit u in GameSession.Instance.units)
 		{
 			if (u == null) continue;
+
 			if (!u.isCastingAttack) continue;
 
 			if (u.threatTiles.Contains(threat))
