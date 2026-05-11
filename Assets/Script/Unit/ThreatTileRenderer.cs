@@ -4,13 +4,18 @@ using System.Collections.Generic;
 public class ThreatTileRenderer : MonoBehaviour
 {
 	public static ThreatTileRenderer Instance;
-	private Dictionary<Unit, CachedThreat> cache = new Dictionary<Unit, CachedThreat>();
-	private List<SpriteRenderer> pool = new List<SpriteRenderer>();
 
 	private Sprite squareSprite;
 
-	// ★ 핵심: 이미 방향 고정된 유닛 체크
-	private HashSet<Unit> initializedUnits = new HashSet<Unit>();
+	// 유닛별 생성된 위협 스프라이트 캐시
+	private class ThreatVisual
+	{
+		public SpriteRenderer renderer;
+		public bool initialized;
+	}
+
+	private Dictionary<Unit, List<ThreatVisual>> activeSprites
+		= new Dictionary<Unit, List<ThreatVisual>>();
 
 	void Awake()
 	{
@@ -18,26 +23,10 @@ public class ThreatTileRenderer : MonoBehaviour
 		CreateSquareSprite();
 	}
 
-	SpriteRenderer Get(int index)
-	{
-		if (index < pool.Count)
-			return pool[index];
-
-		GameObject go = new GameObject("ThreatShape_" + index);
-		go.transform.SetParent(transform);
-
-		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-		sr.sprite = squareSprite;
-		sr.sortingOrder = 999;
-
-		pool.Add(sr);
-
-		return sr;
-	}
-
 	void CreateSquareSprite()
 	{
 		Texture2D tex = new Texture2D(1, 1);
+
 		tex.SetPixel(0, 0, Color.white);
 		tex.Apply();
 
@@ -51,42 +40,81 @@ public class ThreatTileRenderer : MonoBehaviour
 
 	private bool IsDiagonalDir(Dir dir)
 	{
-		return dir == Dir.UP_RIGHT || dir == Dir.UP_LEFT || dir == Dir.DOWN_RIGHT || dir == Dir.DOWN_LEFT;
+		return dir == Dir.UP_RIGHT ||
+			   dir == Dir.UP_LEFT ||
+			   dir == Dir.DOWN_RIGHT ||
+			   dir == Dir.DOWN_LEFT;
 	}
-	private class CachedThreat
+
+	SpriteRenderer CreateRenderer(string name)
 	{
-		public List<ThreatTileData> data;
-		public Dir fixedDir;
-		public Vector2Int origin;
-		public Vector3 floorOffset;
+		GameObject go = new GameObject(name);
+
+		go.transform.SetParent(transform);
+
+		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+
+		sr.sprite = squareSprite;
+		sr.sortingOrder = 999;
+
+		return sr;
 	}
+
 	public void Render(List<Unit> units)
 	{
-		for (int i = 0; i < pool.Count; i++)
-			pool[i].gameObject.SetActive(false);
+		HashSet<Unit> aliveUnits = new HashSet<Unit>(units);
 
-		int index = 0;
+		// =========================================
+		// 제거 처리
+		// =========================================
+		List<Unit> removeList = new List<Unit>();
 
+		foreach (var pair in activeSprites)
+		{
+			Unit u = pair.Key;
+
+			bool shouldRemove =
+				u == null ||
+				!aliveUnits.Contains(u) ||
+				u.threatTiles == null ||
+				u.threatTiles.Count == 0;
+
+			if (!shouldRemove)
+				continue;
+
+			foreach (ThreatVisual tv in pair.Value)
+			{
+				if (tv.renderer != null)
+					Destroy(tv.renderer.gameObject);
+			}
+
+			removeList.Add(u);
+		}
+
+		foreach (Unit u in removeList)
+			activeSprites.Remove(u);
+
+		// =========================================
+		// 렌더
+		// =========================================
 		foreach (Unit u in units)
 		{
 			if (u == null || u.threatTiles == null)
 				continue;
 
-			// ======================================
-			// 최초 1회만 방향 고정
-			// ======================================
-			bool isFirst = !initializedUnits.Contains(u);
+			if (!activeSprites.ContainsKey(u))
+				activeSprites[u] = new List<ThreatVisual>();
 
-			if (isFirst)
-				initializedUnits.Add(u);
+			List<ThreatVisual> visuals = activeSprites[u];
 
-			// 첫 프레임에만 currentDir 사용
-			Dir fixedDir = isFirst ? u.currentDir : u.currentDir;
+			int visualIndex = 0;
 
-			// 핵심: 사실상 첫 프레임 값으로 "고정됨"
-			// (이후 Render에서도 같은 Unit은 다시 초기화 안됨)
+			Dir fixedDir = u.currentDir;
 
-			Vector3 offset =UnitGenerate.Instance != null? UnitGenerate.Instance.GetFloorOffset_Public(u.currentFloor): Vector3.zero;
+			Vector3 offset =
+				UnitGenerate.Instance != null
+				? UnitGenerate.Instance.GetFloorOffset_Public(u.currentFloor)
+				: Vector3.zero;
 
 			bool isDiagonal = IsDiagonalDir(fixedDir);
 
@@ -97,32 +125,82 @@ public class ThreatTileRenderer : MonoBehaviour
 
 			foreach (ThreatTileData t in u.threatTiles)
 			{
-				if (t == null) continue;
+				if (t == null)
+					continue;
 
-				Color color = u is Human ? Color.green : Color.red;
+				Color color =
+					u is Human ? Color.green : Color.red;
+
 				color.a = t.color.a;
 
 				foreach (Vector2Int tile in t.tiles)
 				{
-					SpriteRenderer sr = Get(index++);
-					sr.gameObject.SetActive(true);
+					ThreatVisual tv;
 
-					Vector2Int diff = tile - origin;
+					// =====================================
+					// 부족하면 새로 생성
+					// =====================================
+					if (visualIndex >= visuals.Count)
+					{
+						SpriteRenderer sr =
+							CreateRenderer("ThreatTile");
 
-					Vector2 finalPos =
-						(Vector2)origin +
-						new Vector2(diff.x, diff.y) * compression;
+						tv = new ThreatVisual();
 
-					Vector3 pos = new Vector3(finalPos.x + 0.5f, finalPos.y + 0.4f, -5f) + offset;
+						tv.renderer = sr;
+						tv.initialized = false;
 
-					sr.transform.position = pos;
-					sr.transform.localScale = Vector3.one;
+						visuals.Add(tv);
+					}
+					else
+					{
+						tv = visuals[visualIndex];
+					}
 
-					sr.transform.rotation = Quaternion.Euler(0f, 0f, rotationZ);
+					SpriteRenderer srRenderer = tv.renderer;
 
-					sr.color = color;
+					// =====================================
+					// 최초 1회만 위치/회전 초기화
+					// =====================================
+					if (!tv.initialized)
+					{
+						Vector2Int diff = tile - origin;
+
+						Vector2 finalPos =
+							(Vector2)origin +
+							new Vector2(diff.x, diff.y) * compression;
+
+						Vector3 pos =
+							new Vector3(
+								finalPos.x + 0.5f,
+								finalPos.y + 0.4f,
+								-5f
+							) + offset;
+
+						srRenderer.transform.position = pos;
+
+						srRenderer.transform.localScale = Vector3.one;
+
+						srRenderer.transform.rotation =
+							Quaternion.Euler(0f, 0f, rotationZ);
+
+						tv.initialized = true;
+					}
+
+					// 색상만 갱신 가능
+					srRenderer.color = color;
+
+					srRenderer.gameObject.SetActive(true);
+
+					visualIndex++;
 				}
+			}
+
+			// 남는 스프라이트 숨김
+			for (int i = visualIndex; i < visuals.Count; i++)
+			{
+				visuals[i].renderer.gameObject.SetActive(false);
 			}
 		}
 	}
-	}
+}
