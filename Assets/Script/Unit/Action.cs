@@ -580,7 +580,7 @@ public class Action_EngageEnemy : GoapAction
 							{
 								float finalDelayMs =Mathf.Max(200f, 450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.attackCooldown =Mathf.Max(1.2f, finalDelayMs / 1000f);
+								unit.attackCooldown =Mathf.Max(2f, finalDelayMs / 1000f);
 
 								List<Vector2Int> tiles = GetLineTiles(unit, 1);
 								float compression = GetCompression(unit);
@@ -737,7 +737,7 @@ public class Action_EngageEnemy : GoapAction
 								unit.attackCooldown =
 									Mathf.Max(1.4f, finalDelayMs / 1000f);
 
-								unit.skillCooldowns[1] = 1.4f;
+								unit.skillCooldowns[1] = 2.2f;
 
 								List<Vector2Int> tiles = GetLineTiles(unit, 3);
 								float compression = GetCompression(unit);

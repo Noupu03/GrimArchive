@@ -355,6 +355,34 @@ public abstract class Unit : ScriptableObject
 	public abstract Vector2Int GetDirVector(Dir dir);
 	public abstract bool CanMove(Vector2Int pos);
 	public abstract void Move(Dir dir);
+	public virtual void ForceMove(Vector2Int targetPos)
+	{
+		if (GameSession.Instance == null)
+			return;
+
+		Vector3Int oldKey =
+			new Vector3Int(
+				position.x,
+				position.y,
+				currentFloor
+			);
+
+		if (GameSession.Instance.unitGrid.ContainsKey(oldKey))
+		{
+			GameSession.Instance.unitGrid.Remove(oldKey);
+		}
+
+		position = targetPos;
+
+		Vector3Int newKey =
+			new Vector3Int(
+				position.x,
+				position.y,
+				currentFloor
+			);
+
+		GameSession.Instance.unitGrid[newKey] = this;
+	}
 	public abstract void UpdateFOV(List<Unit> allUnits);
 	
 	private GoapBrain _brain;

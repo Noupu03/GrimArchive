@@ -114,6 +114,7 @@ public abstract class UnitFunction : Unit
 		}
 	}
 
+
 	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits)//시야 레이캐스트
 	{
 		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
