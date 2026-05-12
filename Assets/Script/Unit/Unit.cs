@@ -46,6 +46,10 @@ public class ThreatTileData
 
 	public List<Vector2Int> tiles =
 		new List<Vector2Int>();
+	public List<Vector2Int> visualTiles =
+	new List<Vector2Int>();
+	public HashSet<Vector2Int> partialTiles =
+	new HashSet<Vector2Int>();
 }
 
 // 공통 전투 상수 정의

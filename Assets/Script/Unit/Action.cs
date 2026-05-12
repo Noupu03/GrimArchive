@@ -900,6 +900,9 @@ public class Action_EngageEnemy : GoapAction
 		threat.tiles =
 			BuildThreatTiles(unit, threat);
 
+		threat.visualTiles =
+			BuildVisualThreatTiles(unit, threat);
+
 		unit.threatTiles.Clear();
 
 		unit.threatTiles.Add(threat);
@@ -1023,11 +1026,29 @@ public class Action_EngageEnemy : GoapAction
 
 					foreach (var t in tiles)
 					{
-						Vector2 compressed = ApplyCompression(attacker.position, t, compression);
 
-						if (Vector2.Distance(compressed, targetPos) < 0.6f)
+
+						if (Vector2.Distance(t, targetPos) < 0.1f)
 						{
-							u.TakePhysicalDamage(attacker.physicalAttack * multiplier, attacker);
+							float finalMultiplier = multiplier;
+
+							// =====================================
+							// 대각선 보정 타일이면 50% 감소
+							// =====================================
+
+							foreach (ThreatTileData tt in attacker.threatTiles)
+							{
+								if (tt.partialTiles.Contains(t))
+								{
+									finalMultiplier *= 0.5f;
+									break;
+								}
+							}
+
+							u.TakePhysicalDamage(
+								attacker.physicalAttack * finalMultiplier,
+								attacker
+							);
 
 							if (stun)
 								u.ApplyStun(stunDuration);
@@ -1041,22 +1062,44 @@ public class Action_EngageEnemy : GoapAction
 		NEXT_UNIT:;
 		}
 	}
-	protected List<Vector2Int> BuildThreatTiles(Unit unit, ThreatTileData data)
+	protected List<Vector2Int> BuildVisualThreatTiles(
+	Unit unit,
+	ThreatTileData data
+)
 	{
-		List<Vector2Int> result = new List<Vector2Int>();
+		List<Vector2Int> result =
+			new List<Vector2Int>();
 
-		Vector2Int forward = unit.GetDirVector(unit.currentDir);
+		Vector2Int forward =
+			unit.GetDirVector(unit.currentDir);
 
-		Vector2Int right = new Vector2Int(forward.y, -forward.x);
+		bool diagonal =
+			forward.x != 0 &&
+			forward.y != 0;
 
 		// =========================
 		// LINE
 		// =========================
+
 		if (data.shape == ThreatShape.LINE)
 		{
-			Vector2Int current = unit.position;
+			Vector2Int current =
+				unit.position;
 
-			for (int i = 1; i <= data.range; i++)
+			int realRange = data.range;
+
+			if (diagonal)
+			{
+				realRange =
+					Mathf.RoundToInt(
+						data.range / Mathf.Sqrt(2f)
+					);
+
+				realRange =
+					Mathf.Max(1, realRange);
+			}
+
+			for (int i = 1; i <= realRange; i++)
 			{
 				current += forward;
 
@@ -1067,18 +1110,192 @@ public class Action_EngageEnemy : GoapAction
 		// =========================
 		// RECT
 		// =========================
+
 		else if (data.shape == ThreatShape.RECT)
 		{
-			for (int d = 1; d <= data.depth; d++)
+			Vector2Int right =
+				GetRightVector(forward);
+
+			int realDepth = data.depth;
+			int realWidth = data.width;
+
+			if (diagonal)
+			{
+				realDepth =
+					Mathf.RoundToInt(
+						data.depth / Mathf.Sqrt(2f)
+					);
+
+				realDepth =
+					Mathf.Max(1, realDepth);
+
+				realWidth =
+					Mathf.RoundToInt(
+						data.width / Mathf.Sqrt(2f)
+					);
+
+				realWidth =
+					Mathf.Max(1, realWidth);
+			}
+
+			for (int d = 1; d <= realDepth; d++)
 			{
 				Vector2Int center =
 					unit.position + forward * d;
 
-				for (int w = -data.width / 2;
-					w <= data.width / 2;
-					w++)
+				for (
+					int w = -realWidth / 2;
+					w <= realWidth / 2;
+					w++
+				)
 				{
 					result.Add(center + right * w);
+				}
+			}
+		}
+
+		return result;
+	}
+	protected List<Vector2Int> BuildThreatTiles(Unit unit, ThreatTileData data)
+	{
+		List<Vector2Int> result = new List<Vector2Int>();
+
+		Vector2Int forward = unit.GetDirVector(unit.currentDir);
+
+		Vector2Int right = new Vector2Int(forward.y, -forward.x);
+
+		bool diagonal =
+			forward.x != 0 &&
+			forward.y != 0;
+
+		// =========================
+		// LINE
+		// =========================
+		if (data.shape == ThreatShape.LINE)
+		{
+			Vector2Int current = unit.position;
+
+			int realRange = data.range;
+
+			// =====================================
+			// 대각선 거리 보정
+			// =====================================
+
+			if (diagonal)
+			{
+				realRange =
+					Mathf.RoundToInt(
+						data.range / Mathf.Sqrt(2f)
+					);
+
+				realRange =
+					Mathf.Max(1, realRange);
+			}
+
+			for (int i = 1; i <= realRange; i++)
+			{
+				current += forward;
+
+				result.Add(current);
+
+				// =====================================
+				// 대각선 끊김 보정
+				// =====================================
+
+				if (diagonal)
+				{
+					Vector2Int partial1 =
+	new Vector2Int(
+		current.x - forward.x,
+		current.y
+	);
+
+					Vector2Int partial2 =
+						new Vector2Int(
+							current.x,
+							current.y - forward.y
+						);
+
+					result.Add(partial1);
+					result.Add(partial2);
+
+					data.partialTiles.Add(partial1);
+					data.partialTiles.Add(partial2);
+				}
+			}
+		}
+
+		// =========================
+		// RECT
+		// =========================
+		else if (data.shape == ThreatShape.RECT)
+		{
+			int realDepth = data.depth;
+			int realWidth = data.width;
+
+			// =====================================
+			// 대각선 거리 보정
+			// =====================================
+
+			if (diagonal)
+			{
+				realDepth =
+					Mathf.RoundToInt(
+						data.depth / Mathf.Sqrt(2f)
+					);
+
+				realDepth =
+					Mathf.Max(1, realDepth);
+
+				realWidth =
+					Mathf.RoundToInt(
+						data.width / Mathf.Sqrt(2f)
+					);
+
+				realWidth =
+					Mathf.Max(1, realWidth);
+			}
+
+			for (int d = 1; d <= realDepth; d++)
+			{
+				Vector2Int center =
+					unit.position + forward * d;
+
+				for (
+					int w = -realWidth / 2;
+					w <= realWidth / 2;
+					w++
+				)
+				{
+					Vector2Int tile =
+						center + right * w;
+
+					result.Add(tile);
+
+					// =====================================
+					// 대각선 끊김 보정
+					// =====================================
+
+					if (diagonal)
+					{
+						Vector2Int partial1 =
+							new Vector2Int(
+								tile.x - forward.x,
+								tile.y
+							);
+
+						Vector2Int partial2 =
+							new Vector2Int(
+								tile.x,
+								tile.y - forward.y
+							);
+
+						result.Add(partial1);
+						result.Add(partial2);
+
+						data.partialTiles.Add(partial1);
+						data.partialTiles.Add(partial2);
+					}
 				}
 			}
 		}
@@ -1088,7 +1305,20 @@ public class Action_EngageEnemy : GoapAction
 		// =========================
 		else if (data.shape == ThreatShape.CONE)
 		{
-			for (int d = 1; d <= data.depth; d++)
+			int realDepth = data.depth;
+
+			if (diagonal)
+			{
+				realDepth =
+					Mathf.RoundToInt(
+						data.depth / Mathf.Sqrt(2f)
+					);
+
+				realDepth =
+					Mathf.Max(1, realDepth);
+			}
+
+			for (int d = 1; d <= realDepth; d++)
 			{
 				int spread = d;
 
@@ -1097,7 +1327,27 @@ public class Action_EngageEnemy : GoapAction
 
 				for (int w = -spread; w <= spread; w++)
 				{
-					result.Add(center + right * w);
+					Vector2Int tile =
+						center + right * w;
+
+					result.Add(tile);
+
+					if (diagonal)
+					{
+						result.Add(
+							new Vector2Int(
+								tile.x - forward.x,
+								tile.y
+							)
+						);
+
+						result.Add(
+							new Vector2Int(
+								tile.x,
+								tile.y - forward.y
+							)
+						);
+					}
 				}
 			}
 		}
@@ -1115,16 +1365,24 @@ public class Action_EngageEnemy : GoapAction
 						unit.position +
 						new Vector2Int(x, y);
 
-					if (Vector2Int.Distance(
-						unit.position,
-						p
-					) <= data.range)
+					if (
+						Vector2Int.Distance(
+							unit.position,
+							p
+						) <= data.range
+					)
 					{
 						result.Add(p);
 					}
 				}
 			}
 		}
+
+		// 중복 제거
+		result =
+			new List<Vector2Int>(
+				new HashSet<Vector2Int>(result)
+			);
 
 		return result;
 	}

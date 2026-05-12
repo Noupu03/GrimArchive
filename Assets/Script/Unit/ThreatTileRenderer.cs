@@ -11,7 +11,6 @@ public class ThreatTileRenderer : MonoBehaviour
 	private class ThreatVisual
 	{
 		public SpriteRenderer renderer;
-		public bool initialized;
 	}
 
 	private Dictionary<Unit, List<ThreatVisual>> activeSprites
@@ -132,8 +131,10 @@ public class ThreatTileRenderer : MonoBehaviour
 					u is Human ? Color.green : Color.red;
 
 				color.a = t.color.a;
+				List<Vector2Int> renderTiles =
+	GetVisualTiles(u, t);
 
-				foreach (Vector2Int tile in t.tiles)
+				foreach (Vector2Int tile in renderTiles)
 				{
 					ThreatVisual tv;
 
@@ -148,7 +149,6 @@ public class ThreatTileRenderer : MonoBehaviour
 						tv = new ThreatVisual();
 
 						tv.renderer = sr;
-						tv.initialized = false;
 
 						visuals.Add(tv);
 					}
@@ -160,32 +160,28 @@ public class ThreatTileRenderer : MonoBehaviour
 					SpriteRenderer srRenderer = tv.renderer;
 
 					// =====================================
-					// 최초 1회만 위치/회전 초기화
+					// 매 프레임 위치 갱신
 					// =====================================
-					if (!tv.initialized)
-					{
-						Vector2Int diff = tile - origin;
 
-						Vector2 finalPos =
-							(Vector2)origin +
-							new Vector2(diff.x, diff.y) * compression;
+					Vector2Int diff = tile - origin;
 
-						Vector3 pos =
-							new Vector3(
-								finalPos.x + 0.5f,
-								finalPos.y + 0.4f,
-								-5f
-							) + offset;
+					Vector2 finalPos =
+						(Vector2)origin +
+						new Vector2(diff.x, diff.y) * compression;
 
-						srRenderer.transform.position = pos;
+					Vector3 pos =
+						new Vector3(
+							finalPos.x + 0.5f,
+							finalPos.y + 0.4f,
+							-5f
+						) + offset;
 
-						srRenderer.transform.localScale = Vector3.one;
+					srRenderer.transform.position = pos;
 
-						srRenderer.transform.rotation =
-							Quaternion.Euler(0f, 0f, rotationZ);
+					srRenderer.transform.localScale = Vector3.one;
 
-						tv.initialized = true;
-					}
+					srRenderer.transform.rotation =
+						Quaternion.Euler(0f, 0f, rotationZ);
 
 					// 색상만 갱신 가능
 					srRenderer.color = color;
@@ -202,5 +198,37 @@ public class ThreatTileRenderer : MonoBehaviour
 				visuals[i].renderer.gameObject.SetActive(false);
 			}
 		}
+	}
+	private List<Vector2Int> GetVisualTiles(
+	Unit unit,
+	ThreatTileData threat
+)
+	{
+		// =====================================
+		// LINE 전용 시각 타일 보정
+		// =====================================
+
+		if (threat.shape != ThreatShape.LINE)
+		{
+			return threat.visualTiles;
+		}
+
+		List<Vector2Int> result =
+			new List<Vector2Int>();
+
+		Vector2Int dir =
+			unit.GetDirVector(unit.currentDir);
+
+		Vector2Int current =
+			unit.position;
+
+		for (int i = 1; i <= threat.range; i++)
+		{
+			current += dir;
+
+			result.Add(current);
+		}
+
+		return result;
 	}
 }
