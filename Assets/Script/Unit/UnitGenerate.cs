@@ -52,7 +52,7 @@ public class UnitGenerate : MonoBehaviour
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
 		// 추가
-		float visualScale = 1.1f;
+		float visualScale = 1.0f;
 		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale,unit.unitType.footprint.y * visualScale,1f);
 
 		if (typeof(T) == typeof(Human)) { sr.sprite = humanSprite; sr.color = Color.green; }

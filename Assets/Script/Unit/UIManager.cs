@@ -1,4 +1,6 @@
 using UnityEngine;
+using System.Collections.Generic;
+using System.Collections;
 
 public class UIManager : MonoBehaviour
 {
@@ -233,4 +235,44 @@ public class UIManager : MonoBehaviour
         }
     }
 */
+	public void ShowFloatingText(Unit unit, string message)
+	{
+		if (unit == null) return;
+
+		GameObject go = new GameObject("FloatingText");
+
+		Vector3 pos = GetWorldTextPosition(unit);
+		pos.y -= 16.7f;
+		go.transform.position = pos;
+
+		TextMesh text = go.AddComponent<TextMesh>();
+		text.text = message;
+
+		text.fontSize = 90;
+		text.characterSize = 0.05f;
+
+		text.anchor = TextAnchor.MiddleCenter;
+		text.alignment = TextAlignment.Center;
+		text.color = (unit is Human) ? Color.green : Color.red;
+
+		MeshRenderer mr = go.GetComponent<MeshRenderer>();
+		mr.sortingOrder = 9999; // ★ 핵심 (맵 위로 올림)
+
+		StartCoroutine(DestroyFloatingText(go, 0.5f));
+	}
+
+	Vector3 GetWorldTextPosition(Unit unit)
+	{
+		return new Vector3(
+			unit.position.x + unit.unitType.footprint.x * 0.5f,
+			unit.position.y + unit.unitType.footprint.y + 1f,
+			0
+		);
+	}
+
+	IEnumerator DestroyFloatingText(GameObject go, float t)
+	{
+		yield return new WaitForSeconds(t);
+		Destroy(go);
+	}
 }

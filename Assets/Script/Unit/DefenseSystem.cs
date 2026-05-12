@@ -269,7 +269,7 @@ public static class DefenseSystem
 					Debug.Log(
 						$"{defender.unitType.typeName} 막기 성공! 감소율:{reduction:P0} 피해:{damage}"
 					);
-
+					UIManager.Instance?.ShowFloatingText(defender, "막기!");
 					break;
 				}
 
@@ -302,13 +302,14 @@ public static class DefenseSystem
 							Debug.Log(
 								$"{defender.unitType.typeName} 회피 성공!"
 							);
+							UIManager.Instance?.ShowFloatingText(defender, "회피!");
 						}
 						else
 						{
 							Debug.Log(
 								$"{defender.unitType.typeName} 회피 공간 없음!"
 							);
-
+							UIManager.Instance?.ShowFloatingText(defender, "회피 공간 없음!");
 							defender.ApplyDirectDamage(attacker);
 						}
 					}
@@ -317,7 +318,7 @@ public static class DefenseSystem
 						Debug.Log(
 							$"{defender.unitType.typeName} 회피 실패!"
 						);
-
+						UIManager.Instance?.ShowFloatingText(defender, "회피 실패!");
 						defender.ApplyDirectDamage(attacker);
 					}
 
@@ -351,13 +352,14 @@ public static class DefenseSystem
 							defender,
 							0.5f
 						);
+						UIManager.Instance?.ShowFloatingText(defender, "패링!");
 					}
 					else
 					{
 						Debug.Log(
 							$"{defender.unitType.typeName} 패링 실패!"
 						);
-
+						UIManager.Instance?.ShowFloatingText(defender, "패링실패!");
 						defender.ApplyDirectDamage(attacker);
 					}
 
@@ -410,6 +412,7 @@ public static class DefenseSystem
 						Debug.Log(
 							$"{defender.unitType.typeName} 점멸 성공!"
 						);
+						UIManager.Instance?.ShowFloatingText(defender, "점멸!");
 					}
 					else
 					{
