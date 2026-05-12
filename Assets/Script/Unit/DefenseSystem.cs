@@ -326,10 +326,20 @@ public static class DefenseSystem
 
 						if (moved)
 						{
+							// =====================================
+							// 회피 직후 잠시 후퇴 상태
+							// =====================================
+
+							defender.evadeCooldown = 1.2f;
+
 							Debug.Log(
 								$"{defender.unitType.typeName} 회피 성공!"
 							);
-							UIManager.Instance?.ShowFloatingText(defender,$"회피 성공! 성공률 {success:P0}");
+
+							UIManager.Instance?.ShowFloatingText(
+								defender,
+								$"회피 성공! 성공률 {success:P0}"
+							);
 						}
 						else
 						{

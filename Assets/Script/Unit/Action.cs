@@ -814,6 +814,15 @@ public class Action_EngageEnemy : GoapAction
 		}
 		else
 		{
+			// =====================================
+			// 회피 직후에는 재진입 금지
+			// =====================================
+
+			if (unit.evadeCooldown > 0f)
+			{
+				return;
+			}
+
 			MoveTowardsTarget(unit, target);
 
 			// 이동 후 적 방향 다시 바라보기

@@ -213,6 +213,7 @@ public abstract class Unit : ScriptableObject
 	public ThreatTileData reactingThreat = null;
 	public Unit reactingAttacker = null;
 
+	public float evadeCooldown = 0f;//회피 후 재접근 관련
 	// 현재 공격 선딜 진행 여부
 	public bool isCastingAttack = false;
 	// 선딜 타이머
@@ -429,6 +430,11 @@ public abstract class Unit : ScriptableObject
 			float healAmount = HPRegen * deltaTime;
 
 			hp = Mathf.Min(maxHp, hp + healAmount);
+		}
+
+		if (evadeCooldown > 0f)//회피 후 재접근 방지용 쿨다운 감소
+		{
+			evadeCooldown -= Time.deltaTime;
 		}
 
 		// =====================================================
