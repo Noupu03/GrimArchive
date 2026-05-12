@@ -466,19 +466,36 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
-
 							List<Vector2Int> tiles = GetLineTiles(unit, 2);
 							float compression = GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.LINE, range = 2 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.LINE,
+									range = 2
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										1.25f,
+										compression
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[3] =
+										ApplyCooldown(unit, 8f);
 								}
 							);
 						};
@@ -506,19 +523,38 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[2] = ApplyCooldown(unit, 6f);
-
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.LINE,
+									range = 1
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										0.9f,
+										compression,
+										true,
+										1f
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 방패 타격");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[2] =
+										ApplyCooldown(unit, 6f);
 								}
 							);
 						};
@@ -546,19 +582,36 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[0] = ApplyCooldown(unit, 1.2f);
-
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.LINE,
+									range = 1
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										1f,
+										compression
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 전방 베기");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[0] =
+										ApplyCooldown(unit, 1.2f);
 								}
 							);
 						};
@@ -592,19 +645,40 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+							List<Vector2Int> tiles =
+								GetFrontAreaTiles(unit, 2, 2);
 
-							List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
-							float compression = GetCompression(unit);
+							float compression =
+								GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.RECT,
+									width = 2,
+									depth = 2
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										1.45f,
+										compression
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[3] =
+										ApplyCooldown(unit, 7f);
 								}
 							);
 						};
@@ -632,19 +706,39 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								240f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
+							List<Vector2Int> tiles =
+								GetLineTiles(unit, 1);
 
-							List<Vector2Int> tiles = GetLineTiles(unit, 1);
-							float compression = GetCompression(unit);
+							float compression =
+								GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.LINE,
+									range = 1
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										0.65f,
+										compression
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[2] =
+										ApplyCooldown(unit, 4f);
 								}
 							);
 						};
@@ -672,19 +766,39 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f);
+							List<Vector2Int> tiles =
+								GetLineTiles(unit, 3);
 
-							List<Vector2Int> tiles = GetLineTiles(unit, 3);
-							float compression = GetCompression(unit);
+							float compression =
+								GetCompression(unit);
 
 							BeginAttackCast(
 								unit,
 								finalDelayMs,
-								new ThreatTileData { shape = ThreatShape.LINE, range = 3 },
+								new ThreatTileData
+								{
+									shape = ThreatShape.LINE,
+									range = 3
+								},
+
+								// attack
 								() =>
 								{
-									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+									DamageEnemiesInTilesCompressed(
+										unit,
+										tiles,
+										1f,
+										compression
+									);
+
 									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
+								},
+
+								// cooldown
+								() =>
+								{
+									unit.skillCooldowns[1] =
+										ApplyCooldown(unit, 1.4f);
 								}
 							);
 						};
@@ -761,7 +875,14 @@ public class Action_EngageEnemy : GoapAction
 		return result;
 	}
 
-	protected void BeginAttackCast(Unit unit, float castMs, ThreatTileData threat, System.Action attackAction, System.Action effectAction = null)
+	protected void BeginAttackCast(
+	Unit unit,
+	float castMs,
+	ThreatTileData threat,
+	System.Action attackAction,
+	System.Action cooldownAction = null,
+	System.Action effectAction = null
+)
 	{
 		unit.isCastingAttack = true;
 
@@ -776,11 +897,39 @@ public class Action_EngageEnemy : GoapAction
 
 		unit.pendingAttack = () =>
 		{
-			effectAction?.Invoke();
+			try
+			{
+				effectAction?.Invoke();
 
-			attackAction?.Invoke();
+				attackAction?.Invoke();
+			}
+			catch (System.Exception e)
+			{
+				Debug.LogError(
+					$"[AttackCast Error] {unit.unitType.typeName} : {e}"
+				);
+			}
+			finally
+			{
+				// =========================
+				// 무조건 실행
+				// =========================
 
-			unit.threatTiles.Clear();
+				// 쿨타임 적용
+				cooldownAction?.Invoke();
+
+				// 위협 타일 제거
+				unit.threatTiles.Clear();
+
+				// 캐스팅 종료
+				unit.isCastingAttack = false;
+
+				// 예약 제거
+				unit.pendingAttack = null;
+
+				// 타이머 초기화
+				unit.castTimer = 0f;
+			}
 		};
 	}
 	protected List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)
@@ -1145,17 +1294,34 @@ public class GoapBrain
 
 	public void ExecuteAction(Unit unit)
 	{
+		// =====================================
+		// 캐스팅 진행 처리
+		// =====================================
+		if (unit.isCastingAttack)
+		{
+			unit.castTimer -= Time.deltaTime;
+
+			if (unit.castTimer <= 0f)
+			{
+				unit.pendingAttack?.Invoke();
+			}
+
+			return;
+		}
+
+		// =====================================
+		// 일반 행동
+		// =====================================
 		if (currentPlannedAction != null)
 		{
 			currentPlannedAction.Execute(unit);
 		}
 		else
 		{
-			// 계획 실패 시 기본 행동
 			Dir randomDir = (Dir)Random.Range(0, 8);
 			unit.Move(randomDir);
 		}
 
-		unit.isHitThisTurn = false; // 턴 시작/종료시 피격 플래그 리셋
+		unit.isHitThisTurn = false;
 	}
 }
