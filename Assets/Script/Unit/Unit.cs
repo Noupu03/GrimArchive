@@ -203,7 +203,6 @@ public abstract class Unit : ScriptableObject
 	public float physicalAttackSpeed = 10f;//물리공격속도
 	public float magicalCastSpeed = 0f;//마법공격속도
 	public float actionCooldown = 0f; // 턴 진행용 대기 시간
-	public float attackCooldown = 0f; // 공격 쿨다운
 	public float[] skillCooldowns = new float[4];//스킬 쿨다운
 	public bool isHitThisTurn = false; // 피격 여부
 	public bool oneTimeReactUsed = false; // 피격 리액션 등 1회성 억제용
@@ -449,14 +448,6 @@ public abstract class Unit : ScriptableObject
 					}
 				}
 			}
-		}
-
-		// =====================================================
-		// 공격 쿨다운
-		// =====================================================
-		if (attackCooldown > 0f)
-		{
-			attackCooldown -= deltaTime;
 		}
 
 		// =====================================================

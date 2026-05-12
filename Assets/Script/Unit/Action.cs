@@ -1,4 +1,4 @@
- using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 // ==========================================
@@ -479,10 +479,8 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
 									Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
-
 								}
 							);
-
 						};
 					}
 				}
@@ -521,7 +519,6 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
 									Debug.Log($"{unit.unitType.typeName} 방패 타격");
-
 								}
 							);
 						};
@@ -562,7 +559,6 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
 									Debug.Log($"{unit.unitType.typeName} 전방 베기");
-
 								}
 							);
 						};
@@ -596,7 +592,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+							unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
 
 							List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
 							float compression = GetCompression(unit);
@@ -609,7 +605,6 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
 									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
-
 								}
 							);
 						};
@@ -637,7 +632,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								240f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
+							unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
@@ -650,7 +645,6 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
 									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
-
 								}
 							);
 						};
@@ -691,7 +685,6 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
 									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-
 								}
 							);
 						};
