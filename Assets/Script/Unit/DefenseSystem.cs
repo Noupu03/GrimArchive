@@ -1,6 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
-
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 public enum DefenseType
 {
 	None,
@@ -243,8 +245,8 @@ public static class DefenseSystem
 			case DefenseType.Block:
 				{
 					float reduction =
-						(defender.Durability * 0.0075f) +
-						(defender.resistance * 0.0025f);
+	(defender.Durability * 0.0075f) +
+	(defender.resistance * 0.0025f);
 
 					reduction = Mathf.Clamp01(reduction);
 
@@ -257,19 +259,44 @@ public static class DefenseSystem
 					float raw =
 						attacker.physicalAttack;
 
+					// =====================================
+					// 방어 적용 전 피해
+					// =====================================
+
+					float baseDamage =
+						Mathf.Max(
+							1f,
+							raw - defender.physicalDefense
+						);
+
+					// =====================================
+					// 최종 피해
+					// =====================================
+
 					float damage =
 						Mathf.Max(
 							1f,
-							(raw - defender.physicalDefense)
-							* (1f - reduction)
+							baseDamage * (1f - reduction)
 						);
+
+					// =====================================
+					// 실제 감소량
+					// =====================================
+
+					float reducedDamage =
+						baseDamage - damage;
 
 					defender.hp -= damage;
 
 					Debug.Log(
-						$"{defender.unitType.typeName} 막기 성공! 감소율:{reduction:P0} 피해:{damage}"
+						$"{defender.unitType.typeName} 막기 성공! 감소율:{reduction:P0} 감소피해:{reducedDamage:F0} 최종피해:{damage:F0}"
 					);
-					UIManager.Instance?.ShowFloatingText(defender, "막기!");
+
+					UIManager.Instance?.ShowFloatingText(
+						defender,
+						$"막기! 최종피해 {damage:F0}"
+					);
+
 					break;
 				}
 
@@ -302,7 +329,7 @@ public static class DefenseSystem
 							Debug.Log(
 								$"{defender.unitType.typeName} 회피 성공!"
 							);
-							UIManager.Instance?.ShowFloatingText(defender, "회피!");
+							UIManager.Instance?.ShowFloatingText(defender,$"회피 성공! 성공률 {success:P0}");
 						}
 						else
 						{
@@ -318,7 +345,7 @@ public static class DefenseSystem
 						Debug.Log(
 							$"{defender.unitType.typeName} 회피 실패!"
 						);
-						UIManager.Instance?.ShowFloatingText(defender, "회피 실패!");
+						UIManager.Instance?.ShowFloatingText(defender,$"회피 실패! 성공률 {success:P0}");
 						defender.ApplyDirectDamage(attacker);
 					}
 
@@ -352,14 +379,14 @@ public static class DefenseSystem
 							defender,
 							0.5f
 						);
-						UIManager.Instance?.ShowFloatingText(defender, "패링!");
+						UIManager.Instance?.ShowFloatingText(defender,$"패링 성공! 성공률 {success:P0}");
 					}
 					else
 					{
 						Debug.Log(
 							$"{defender.unitType.typeName} 패링 실패!"
 						);
-						UIManager.Instance?.ShowFloatingText(defender, "패링실패!");
+						UIManager.Instance?.ShowFloatingText(defender,$"패링 실패! 성공률 {success:P0}");
 						defender.ApplyDirectDamage(attacker);
 					}
 

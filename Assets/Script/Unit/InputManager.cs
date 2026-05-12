@@ -153,6 +153,11 @@ public class InputManager : MonoBehaviour
 				? 0.0001f
 				: GameSession.Instance.currentGameSpeed;
 		}
+		if (Keyboard.current.digit0Key.wasPressedThisFrame)
+		{
+			GameSession.Instance.currentGameSpeed = 0.5f;
+			if (!GameSession.Instance.isPaused) Time.timeScale = 0.5f;
+		}
 
 		if (Keyboard.current.digit1Key.wasPressedThisFrame)
 		{
