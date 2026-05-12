@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ using System.Collections.Generic;
 using UnityEngine;
 
 // ==========================================
@@ -431,331 +431,276 @@ public class Action_EngageEnemy : GoapAction
 
 		unit.currentDir = GetDirection8(diff);
 
-		List<Vector2Int> attackCheckTiles =GetLineTiles(unit,unit.unitType is MeleeTank ? 3 : 2);
-		bool canHit =GetEnemiesInTiles(unit, attackCheckTiles).Contains(target);
+		List<Vector2Int> attackCheckTiles = GetLineTiles(unit, unit.unitType is MeleeTank ? 3 : 2);
+		bool canHit = GetEnemiesInTiles(unit, attackCheckTiles).Contains(target);
 
 		if (minDist <= engageDist && canHit)
 		{
-			// 공격 가능 상태인지 확인
-			if (unit.attackCooldown <= 0f)
+			if (target == null) return;
+
+			List<SkillCandidate> candidates = new List<SkillCandidate>();
+
+			// =========================================================
+			// 기사형 (Knight)
+			// =========================================================
+			if (unit.unitType is Knight)
 			{
-				List<SkillCandidate> candidates = new List<SkillCandidate>();
-				// =========================================================
-				// 기사형(Knight) 스킬 로직
-				// =========================================================
-				if (unit.unitType is Knight)
+				// =========================
+				// 집중 찌르기
+				// =========================
+				if (unit.skillCooldowns[3] <= 0f)
 				{
-					// -----------------------------------------------------
-					// 집중 찌르기
-					// 기본 선딜 : 800ms
-					// 최종 선딜 : max(200, 800 * (100 / 공격속도))
-					// 계수 : 1.25
-					// 쿨타임 : 8초
-					// -----------------------------------------------------
-					if (unit.skillCooldowns[3] <= 0f)
+					float expectedDamage = unit.physicalAttack * 1.25f;
+					float priority = 70f;
+
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 2f) priority += 10f;
+
+					if (priority > bestPriority)
 					{
-						float expectedDamage = unit.physicalAttack * 1.25f;
+						bestPriority = priority;
 
-						float priority = 70f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 2f)
-							priority += 10f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
+						bestSkill = () =>
 						{
-							bestPriority = priority;
+							float finalDelayMs =
+								Mathf.Max(200f,
+								800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							bestSkill = () =>
-							{
-								float finalDelayMs =Mathf.Max(200f, 800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.attackCooldown = finalDelayMs / 1000f;
-								unit.skillCooldowns[3] = 8f;
 
-								List<Vector2Int> tiles = GetLineTiles(unit, 2);
-								float compression = GetCompression(unit);
+							List<Vector2Int> tiles = GetLineTiles(unit, 2);
+							float compression = GetCompression(unit);
 
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.LINE, range = 2 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
-										Debug.Log($"{unit.unitType.typeName} 집중 찌르기 사용");
-									}
-								);
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.LINE, range = 2 },
+								() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
+									Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
+									unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
+								}
+							);
 
-							};
-						}
-					}
-
-					// -----------------------------------------------------
-					// 방패 타격
-					// 기본 선딜 : 650ms
-					// 최종 선딜 : max(200, 650 * (100 / 공격속도))
-					// 계수 : 0.9
-					// 쿨타임 : 6초
-					// -----------------------------------------------------
-					if (unit.skillCooldowns[2] <= 0f)
-					{
-						float expectedDamage = unit.physicalAttack * 0.9f;
-
-						float priority = 55f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 1.5f)
-							priority += 10f;
-
-						priority += 15f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
-						{
-							bestPriority = priority;
-
-							bestSkill = () =>
-							{
-								float finalDelayMs =Mathf.Max(200f,650f * (100f / Mathf.Max(1f, unit.attackspeed)));
-
-								unit.attackCooldown = finalDelayMs / 1000f;
-								unit.skillCooldowns[2] = 6f;
-
-								List<Vector2Int> tiles = GetLineTiles(unit, 1);
-								float compression = GetCompression(unit);
-
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
-										Debug.Log($"{unit.unitType.typeName} 방패 타격 적중!");
-									}
-								);
-							};
-						}
-					}
-
-					// -----------------------------------------------------
-					// 전방 베기 (기본 공격)
-					// 기본 선딜 : 450ms
-					// 최종 선딜 : max(200, 450 * (100 / 공격속도))
-					// 계수 : 1.0
-					// 쿨타임 : 1.2초
-					// -----------------------------------------------------
-					{
-						float expectedDamage = unit.physicalAttack;
-
-						float priority = 40f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 1.5f)
-							priority += 10f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
-						{
-							bestPriority = priority;
-
-							bestSkill = () =>
-							{
-								float finalDelayMs =Mathf.Max(200f, 450f * (100f / Mathf.Max(1f, unit.attackspeed)));
-
-								unit.attackCooldown =Mathf.Max(2f, finalDelayMs / 1000f);
-
-								List<Vector2Int> tiles = GetLineTiles(unit, 1);
-								float compression = GetCompression(unit);
-
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
-										Debug.Log($"{unit.unitType.typeName} 전방 베기");
-									}
-								);
-							};
-						}
+						};
 					}
 				}
-				// =========================================================
-				// MeleeTank 스킬 로직
-				// =========================================================
-				if (unit.unitType is MeleeTank)
+
+				// =========================
+				// 방패 타격
+				// =========================
+				if (unit.skillCooldowns[2] <= 0f)
 				{
-					// -----------------------------------------------------
-					// 육중한 내리찍기
-					// skillCooldowns[3]
-					// -----------------------------------------------------
-					if (unit.skillCooldowns[3] <= 0f)
+					float expectedDamage = unit.physicalAttack * 0.9f;
+					float priority = 55f;
+
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 1.5f) priority += 10f;
+
+					if (priority > bestPriority)
 					{
-						float expectedDamage = unit.physicalAttack * 1.45f;
+						bestPriority = priority;
 
-						float priority = 75f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 2.5f)
-							priority += 10f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
+						bestSkill = () =>
 						{
-							bestPriority = priority;
+							float finalDelayMs =
+								Mathf.Max(200f,
+								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							bestSkill = () =>
-							{
-								float finalDelayMs =
-									Mathf.Max(200f,
-									1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.attackCooldown = finalDelayMs / 1000f;
-								unit.skillCooldowns[3] = 7f;
 
-								List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
-								float compression = GetCompression(unit);
+							List<Vector2Int> tiles = GetLineTiles(unit, 1);
+							float compression = GetCompression(unit);
 
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
-										Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
-									}
-								);
-							};
-						}
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
+									Debug.Log($"{unit.unitType.typeName} 방패 타격");
+									unit.skillCooldowns[2] = ApplyCooldown(unit, 6f);
+								}
+							);
+						};
 					}
+				}
 
-					// -----------------------------------------------------
-					// 급습 할퀴기
-					// skillCooldowns[2]
-					// -----------------------------------------------------
-					if (unit.skillCooldowns[2] <= 0f)
+				// =========================
+				// 전방 베기 (스킬화)
+				// =========================
+				if (unit.skillCooldowns[0] <= 0f)
+				{
+					float expectedDamage = unit.physicalAttack;
+					float priority = 40f;
+
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 1.5f) priority += 10f;
+
+					if (priority > bestPriority)
 					{
-						float expectedDamage = unit.physicalAttack * 0.65f;
+						bestPriority = priority;
 
-						float priority = 60f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 1.5f)
-							priority += 10f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
+						bestSkill = () =>
 						{
-							bestPriority = priority;
+							float finalDelayMs =
+								Mathf.Max(200f,
+								450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							bestSkill = () =>
-							{
-								float finalDelayMs =
-									Mathf.Max(200f,
-									240f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-								unit.attackCooldown = finalDelayMs / 1000f;
-								unit.skillCooldowns[2] = 4f;
 
-								List<Vector2Int> tiles = GetLineTiles(unit, 1);
-								float compression = GetCompression(unit);
+							List<Vector2Int> tiles = GetLineTiles(unit, 1);
+							float compression = GetCompression(unit);
 
-								BeginAttackCast(
-									unit,
-									finalDelayMs,
-									new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
-									() =>
-									{
-										DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
-										Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
-									}
-								);
-							};
-						}
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
+									Debug.Log($"{unit.unitType.typeName} 전방 베기");
+									unit.skillCooldowns[0] = ApplyCooldown(unit, 1.2f);
+								}
+							);
+						};
 					}
+				}
+			}
 
-					// -----------------------------------------------------
-					// 발톱 후려치기
-					// skillCooldowns[1]
-					// -----------------------------------------------------
-					if (unit.skillCooldowns[1] <= 0f)
+			// =========================================================
+			// MeleeTank
+			// =========================================================
+			if (unit.unitType is MeleeTank)
+			{
+				// =========================
+				// 육중한 내리찍기
+				// =========================
+				if (unit.skillCooldowns[3] <= 0f)
+				{
+					float expectedDamage = unit.physicalAttack * 1.45f;
+					float priority = 75f;
+
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 2.5f) priority += 10f;
+
+					if (priority > bestPriority)
 					{
-						float expectedDamage = unit.physicalAttack;
+						bestPriority = priority;
 
-						float priority = 50f;
-
-						if (expectedDamage >= target.hp)
-							priority += 20f;
-
-						if (minDist <= 3f)
-							priority += 10f;
-
-						float manaCost = 0f;
-
-						priority -= (manaCost / Mathf.Max(1f, unit.maxMp)) * 10f;
-
-						if (priority > bestPriority)
+						bestSkill = () =>
 						{
-							bestPriority = priority;
+							float finalDelayMs =
+								Mathf.Max(200f,
+								1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-							bestSkill = () =>
-							{
-								float finalDelayMs =
-									Mathf.Max(200f,
-									650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+							List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
+							float compression = GetCompression(unit);
 
-								unit.attackCooldown =
-									Mathf.Max(1.4f, finalDelayMs / 1000f);
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.RECT, width = 2, depth = 2 },
+								() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
+									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
+									unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+								}
+							);
+						};
+					}
+				}
 
-								unit.skillCooldowns[1] = 2.2f;
+				// =========================
+				// 급습 할퀴기
+				// =========================
+				if (unit.skillCooldowns[2] <= 0f)
+				{
+					float expectedDamage = unit.physicalAttack * 0.65f;
+					float priority = 60f;
 
-								List<Vector2Int> tiles = GetLineTiles(unit, 3);
-								float compression = GetCompression(unit);
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 1.5f) priority += 10f;
 
-								BeginAttackCast(unit,finalDelayMs,new ThreatTileData { shape = ThreatShape.LINE, range = 3 },() =>
+					if (priority > bestPriority)
+					{
+						bestPriority = priority;
+
+						bestSkill = () =>
+						{
+							float finalDelayMs =
+								Mathf.Max(200f,
+								240f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+
+
+							List<Vector2Int> tiles = GetLineTiles(unit, 1);
+							float compression = GetCompression(unit);
+
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.LINE, range = 1 },
+								() =>
+								{
+									DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
+									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
+									unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
+								}
+							);
+						};
+					}
+				}
+
+				// =========================
+				// 발톱 후려치기
+				// =========================
+				if (unit.skillCooldowns[1] <= 0f)
+				{
+					float expectedDamage = unit.physicalAttack;
+					float priority = 50f;
+
+					if (expectedDamage >= target.hp) priority += 20f;
+					if (minDist <= 3f) priority += 10f;
+
+					if (priority > bestPriority)
+					{
+						bestPriority = priority;
+
+						bestSkill = () =>
+						{
+							float finalDelayMs =
+								Mathf.Max(200f,
+								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+
+
+
+							List<Vector2Int> tiles = GetLineTiles(unit, 3);
+							float compression = GetCompression(unit);
+
+							BeginAttackCast(
+								unit,
+								finalDelayMs,
+								new ThreatTileData { shape = ThreatShape.LINE, range = 3 },
+								() =>
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
 									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-								});
-							};
-						}
+									unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f);
+								}
+							);
+						};
 					}
 				}
-				if (bestSkill != null)
-				{
-					bestSkill.Invoke();
-					return;
-				}
+			}
+
+			if (bestSkill != null)
+			{
+				bestSkill.Invoke();
+				return;
 			}
 		}
 		else
@@ -767,11 +712,11 @@ public class Action_EngageEnemy : GoapAction
 
 			if (Mathf.Abs(diff2.x) > Mathf.Abs(diff2.y))
 			{
-				unit.currentDir =diff2.x > 0? Dir.RIGHT: Dir.LEFT;
+				unit.currentDir = diff2.x > 0 ? Dir.RIGHT : Dir.LEFT;
 			}
 			else
 			{
-				unit.currentDir =diff2.y > 0? Dir.UP: Dir.DOWN;
+				unit.currentDir = diff2.y > 0 ? Dir.UP : Dir.DOWN;
 			}
 		}
 	}
@@ -784,11 +729,11 @@ public class Action_EngageEnemy : GoapAction
 		int range
 	)
 	{
-		List<Vector2Int> tiles =new List<Vector2Int>();
+		List<Vector2Int> tiles = new List<Vector2Int>();
 
-		Vector2Int dir =unit.GetDirVector(unit.currentDir);
+		Vector2Int dir = unit.GetDirVector(unit.currentDir);
 
-		Vector2Int current =unit.position;
+		Vector2Int current = unit.position;
 
 		for (int i = 1; i <= range; i++)
 		{
@@ -800,17 +745,17 @@ public class Action_EngageEnemy : GoapAction
 		return tiles;
 	}
 
-	protected List<Vector2Int> GetFrontAreaTiles(Unit unit,int width,int depth)
+	protected List<Vector2Int> GetFrontAreaTiles(Unit unit, int width, int depth)
 	{
-		List<Vector2Int> result =new List<Vector2Int>();
+		List<Vector2Int> result = new List<Vector2Int>();
 
-		Vector2Int forward =unit.GetDirVector(unit.currentDir);
+		Vector2Int forward = unit.GetDirVector(unit.currentDir);
 
 		Vector2Int right = GetRightVector(forward);
 
 		for (int d = 1; d <= depth; d++)
 		{
-			Vector2Int center =unit.position + forward * d;
+			Vector2Int center = unit.position + forward * d;
 
 			for (int w = -width / 2; w <= width / 2; w++)
 			{
@@ -821,7 +766,7 @@ public class Action_EngageEnemy : GoapAction
 		return result;
 	}
 
-	protected void BeginAttackCast(Unit unit,float castMs,ThreatTileData threat,System.Action attackAction,System.Action effectAction = null)
+	protected void BeginAttackCast(Unit unit, float castMs, ThreatTileData threat, System.Action attackAction, System.Action effectAction = null)
 	{
 		unit.isCastingAttack = true;
 
@@ -843,7 +788,7 @@ public class Action_EngageEnemy : GoapAction
 			unit.threatTiles.Clear();
 		};
 	}
-	protected List<Unit> GetEnemiesInTiles(Unit attacker,List<Vector2Int> tiles)
+	protected List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)
 	{
 		List<Unit> result = new List<Unit>();
 
@@ -870,7 +815,7 @@ public class Action_EngageEnemy : GoapAction
 			{
 				for (int dy = 0; dy < h; dy++)
 				{
-					Vector2Int p =new Vector2Int(u.position.x + dx,u.position.y + dy);
+					Vector2Int p = new Vector2Int(u.position.x + dx, u.position.y + dy);
 
 					if (tiles.Contains(p))
 					{
@@ -885,14 +830,14 @@ public class Action_EngageEnemy : GoapAction
 
 		return result;
 	}
-	protected void DamageEnemiesInTiles(Unit attacker,List<Vector2Int> tiles,float multiplier,bool stun = false,float stunDuration = 0f)
+	protected void DamageEnemiesInTiles(Unit attacker, List<Vector2Int> tiles, float multiplier, bool stun = false, float stunDuration = 0f)
 	{
 		List<Unit> targets =
 			GetEnemiesInTiles(attacker, tiles);
 
 		foreach (Unit hit in targets)
 		{
-			hit.TakePhysicalDamage(attacker.physicalAttack * multiplier,attacker
+			hit.TakePhysicalDamage(attacker.physicalAttack * multiplier, attacker
 			);
 
 			if (stun)
@@ -901,7 +846,7 @@ public class Action_EngageEnemy : GoapAction
 			}
 		}
 	}
-	protected void DamageEnemiesInTilesCompressed(Unit attacker,List<Vector2Int> tiles,float multiplier,float compression,bool stun = false,float stunDuration = 0f)
+	protected void DamageEnemiesInTilesCompressed(Unit attacker, List<Vector2Int> tiles, float multiplier, float compression, bool stun = false, float stunDuration = 0f)
 	{
 		foreach (Unit u in GameSession.Instance.units)
 		{
@@ -943,7 +888,7 @@ public class Action_EngageEnemy : GoapAction
 		NEXT_UNIT:;
 		}
 	}
-	protected List<Vector2Int> BuildThreatTiles(Unit unit,ThreatTileData data)
+	protected List<Vector2Int> BuildThreatTiles(Unit unit, ThreatTileData data)
 	{
 		List<Vector2Int> result = new List<Vector2Int>();
 
@@ -1111,12 +1056,17 @@ public class Action_EngageEnemy : GoapAction
 		Vector2 diff = pos - origin;
 		return (Vector2)origin + diff * compression;
 	}
+	float ApplyCooldown(Unit unit, float baseCd)
+	{
+		float reduction = Mathf.Min(50f, unit.cooltimeReduction);
+		return baseCd * (1f - reduction / 100f);
+	}
 }
 
-	// ==========================================
-	// GOAP Brain (Agent)
-	// ==========================================
-	public class GoapBrain
+// ==========================================
+// GOAP Brain (Agent)
+// ==========================================
+public class GoapBrain
 {
 	protected List<GoapGoal> availableGoals;
 	protected List<GoapAction> availableActions;
