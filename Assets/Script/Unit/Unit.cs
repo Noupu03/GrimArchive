@@ -420,6 +420,19 @@ public abstract class Unit : ScriptableObject
 		}
 
 		// =====================================================
+		// HP 재생
+		// 공식:
+		// HP 회복량 = 재생력 x 경과 시간
+		// 현재 HP = min(최대 HP, 현재 HP + 회복량)
+		// =====================================================
+		if (hp > 0f)
+		{
+			float healAmount = HPRegen * deltaTime;
+
+			hp = Mathf.Min(maxHp, hp + healAmount);
+		}
+
+		// =====================================================
 		// 공격 선딜 진행 처리
 		// =====================================================
 		if (isCastingAttack)
@@ -602,6 +615,30 @@ public abstract class Unit : ScriptableObject
 
 		return result;
 	}
+	// =====================================================
+	// 치명타 판정
+	// =====================================================
+	public virtual bool RollCritical(bool canCritical)
+	{
+		// 스킬이 치명타 불가능이면 false
+		if (!canCritical)
+			return false;
+
+		// 치명타율 %
+		float roll = Random.Range(0f, 100f);
+
+		return roll < criticalChance;
+	}
+
+	// =====================================================
+	// 치명타 피해 계산
+	// 공식:
+	// 치명타 발생 시 방어 전 피해 = floor(원 피해 x 1.5)
+	// =====================================================
+	public virtual float ApplyCriticalDamage(float rawDamage)
+	{
+		return Mathf.Floor(rawDamage * 1.5f);
+	}//치명타 판정 및 피해 함수만 넣어둠
 }
 
 public class Human : UnitFunction
