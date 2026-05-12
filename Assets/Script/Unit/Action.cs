@@ -466,7 +466,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-
+							unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 2);
 							float compression = GetCompression(unit);
@@ -479,7 +479,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1.25f, compression);
 									Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
-									unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
+
 								}
 							);
 
@@ -508,7 +508,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-
+							unit.skillCooldowns[2] = ApplyCooldown(unit, 6f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
@@ -521,7 +521,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 0.9f, compression, true, 1f);
 									Debug.Log($"{unit.unitType.typeName} 방패 타격");
-									unit.skillCooldowns[2] = ApplyCooldown(unit, 6f);
+
 								}
 							);
 						};
@@ -549,7 +549,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-
+							unit.skillCooldowns[0] = ApplyCooldown(unit, 1.2f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
@@ -562,7 +562,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
 									Debug.Log($"{unit.unitType.typeName} 전방 베기");
-									unit.skillCooldowns[0] = ApplyCooldown(unit, 1.2f);
+
 								}
 							);
 						};
@@ -596,6 +596,8 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
+								unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+
 							List<Vector2Int> tiles = GetFrontAreaTiles(unit, 2, 2);
 							float compression = GetCompression(unit);
 
@@ -607,7 +609,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1.45f, compression);
 									Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
-									unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+
 								}
 							);
 						};
@@ -635,7 +637,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								240f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-
+								unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 1);
 							float compression = GetCompression(unit);
@@ -648,7 +650,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 0.65f, compression);
 									Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
-									unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
+
 								}
 							);
 						};
@@ -676,7 +678,7 @@ public class Action_EngageEnemy : GoapAction
 								Mathf.Max(200f,
 								650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-
+							unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f);
 
 							List<Vector2Int> tiles = GetLineTiles(unit, 3);
 							float compression = GetCompression(unit);
@@ -689,7 +691,7 @@ public class Action_EngageEnemy : GoapAction
 								{
 									DamageEnemiesInTilesCompressed(unit, tiles, 1f, compression);
 									Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-									unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f);
+
 								}
 							);
 						};
