@@ -103,6 +103,67 @@ public abstract class SkillAction
 		}
 	}
 
+	/// <summary>
+	/// 히트박스와의 교차 면적 비율에 따라 데미지를 적용합니다.
+	/// 면적이 많이 겹칠수록 더 많은 데미지를 입습니다.
+	/// </summary>
+	public static void DamageEnemiesInHitboxWithAreaRatio(Unit attacker, Hitbox attackBox, float multiplier, bool stun = false, float stunDuration = 0f)
+	{
+		var targets = GetEnemiesInHitbox(attacker, attackBox);
+
+		foreach (var t in targets)
+		{
+			// 공격 히트박스와 대상의 히트박스 교차 비율 계산
+			Hitbox targetBox = GetUnitHitbox(t);
+			float overlapRatio = attackBox.CalculateOverlapRatio(targetBox);
+
+			// 교차 비율에 따라 데미지 조정 (최소 0.1배)
+			float adjustedMultiplier = Mathf.Max(0.1f, multiplier * overlapRatio);
+
+			float baseDamage = attacker.physicalAttack * adjustedMultiplier;
+
+			// 최소 데미지 1 보장
+			float finalDamage = Mathf.Max(1f, baseDamage);
+
+			t.TakePhysicalDamage(finalDamage, attacker);
+
+			if (stun)
+				t.ApplyStun(stunDuration);
+
+			// 로깅: 개발용 (필요시 제거)
+			// Debug.Log($"{attacker.unitType.typeName} → {t.unitType.typeName}: 교차비율={overlapRatio:P0}, 데미지={finalDamage:F1}");
+		}
+	}
+
+	/// <summary>
+	/// 마법 데미지 버전 - 히트박스 교차 면적 비율 적용
+	/// </summary>
+	public static void DamageMagicalEnemiesInHitboxWithAreaRatio(Unit attacker, Hitbox attackBox, float multiplier, bool stun = false, float stunDuration = 0f)
+	{
+		var targets = GetEnemiesInHitbox(attacker, attackBox);
+
+		foreach (var t in targets)
+		{
+			// 공격 히트박스와 대상의 히트박스 교차 비율 계산
+			Hitbox targetBox = GetUnitHitbox(t);
+			float overlapRatio = attackBox.CalculateOverlapRatio(targetBox);
+
+			// 교차 비율에 따라 데미지 조정 (최소 0.1배)
+			float adjustedMultiplier = Mathf.Max(0.1f, multiplier * overlapRatio);
+
+			float baseDamage = attacker.magicalAttack * adjustedMultiplier;
+
+			// 최소 데미지 1 보장
+			float finalDamage = Mathf.Max(1f, baseDamage);
+
+			t.TakeMagicalDamage(finalDamage, attacker);
+
+			if (stun)
+				t.ApplyStun(stunDuration);
+		}
+	}
+
+
 	public static Hitbox BuildLineHitbox(Unit unit, int range)
 	{
 		Vector2 dir = unit.GetDirVector(unit.currentDir);
@@ -353,7 +414,7 @@ public class SkillAction_KnightFocusedStab : SkillAction
 			threat,
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 1.25f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1.25f);
 				Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
 			},
 			() =>
@@ -403,7 +464,7 @@ public class SkillAction_KnightShieldBash : SkillAction
 
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 0.9f, true, 1f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 0.9f, true, 1f);
 				Debug.Log($"{unit.unitType.typeName} 방패 타격");
 			},
 
@@ -454,7 +515,7 @@ public class SkillAction_KnightFrontSlash : SkillAction
 
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 1f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1f);
 				Debug.Log($"{unit.unitType.typeName} 전방 베기");
 			},
 
@@ -506,7 +567,7 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 1.45f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1.45f);
 				Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
 			},
 
@@ -557,7 +618,7 @@ public class SkillAction_MeleeTankAmbushClaw : SkillAction
 
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 0.65f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 0.65f);
 				Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
 			},
 
@@ -608,7 +669,7 @@ public class SkillAction_MeleeTankClawSwipe : SkillAction
 
 			() =>
 			{
-				DamageEnemiesInHitbox(unit, box, 1f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1f);
 				Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
 			},
 
