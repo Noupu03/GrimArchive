@@ -12,8 +12,9 @@ public class ThreatTileRenderer : MonoBehaviour
 		public SpriteRenderer renderer;
 	}
 
-	private Dictionary<Unit, List<ThreatVisual>> activeSprites
-		= new Dictionary<Unit, List<ThreatVisual>>();
+	// Unit당 1개만 관리 (List 제거)
+	private Dictionary<Unit, ThreatVisual> activeSprites
+		= new Dictionary<Unit, ThreatVisual>();
 
 	void Awake()
 	{
@@ -63,14 +64,12 @@ public class ThreatTileRenderer : MonoBehaviour
 			bool shouldRemove =
 				u == null ||
 				!aliveUnits.Contains(u) ||
-				u.threatTiles == null ||
-				u.threatTiles.Count == 0;
+				u.currentThreat == null;
 
 			if (shouldRemove)
 			{
-				foreach (var tv in pair.Value)
-					if (tv.renderer != null)
-						Destroy(tv.renderer.gameObject);
+				if (pair.Value != null && pair.Value.renderer != null)
+					Destroy(pair.Value.renderer.gameObject);
 
 				removeList.Add(u);
 			}
@@ -84,82 +83,67 @@ public class ThreatTileRenderer : MonoBehaviour
 		// =====================================
 		foreach (Unit u in units)
 		{
-			if (u == null || u.threatTiles == null)
+			if (u == null || u.currentThreat == null)
 				continue;
 
-			if (!activeSprites.ContainsKey(u))
-				activeSprites[u] = new List<ThreatVisual>();
+			ThreatTileData t = u.currentThreat;
 
-			var visuals = activeSprites[u];
-			int index = 0;
+			if (t.hitbox.size == Vector2.zero)
+				continue;
 
 			Vector3 offset =
 				UnitGenerate.Instance != null
 				? UnitGenerate.Instance.GetFloorOffset(u.currentFloor)
 				: Vector3.zero;
 
-			foreach (ThreatTileData t in u.threatTiles)
+			ThreatVisual tv;
+
+			if (!activeSprites.ContainsKey(u))
 			{
-				if (t == null || t.hitbox.size == Vector2.zero)
-					continue;
-
-				Hitbox box = t.hitbox;
-
-				Color color = u is Human ? Color.green : Color.red;
-				color.a = t.color.a;
-
-				ThreatVisual tv;
-
-				if (index >= visuals.Count)
+				tv = new ThreatVisual
 				{
-					tv = new ThreatVisual
-					{
-						renderer = CreateRenderer("ThreatBox")
-					};
-					visuals.Add(tv);
-				}
-				else
-				{
-					tv = visuals[index];
-				}
-
-				var sr = tv.renderer;
-
-				// =====================================
-				// HITBOX → WORLD POSITION
-				// =====================================
-				Vector2 center = box.center;
-				Vector2 size = box.size;
-
-				Vector3 pos = new Vector3(
-					center.x + 0.5f,
-					center.y + 0.5f,
-					-5f
-				) + offset;
-
-				sr.transform.position = pos;
-
-				// =====================================
-				// SIZE = HITBOX SIZE
-				// =====================================
-				sr.transform.localScale = new Vector3(
-					size.x,
-					size.y,
-					1f
-				);
-
-				sr.transform.rotation = Quaternion.identity;
-				sr.color = color;
-				sr.gameObject.SetActive(true);
-
-				index++;
+					renderer = CreateRenderer("ThreatBox")
+				};
+				activeSprites[u] = tv;
+			}
+			else
+			{
+				tv = activeSprites[u];
 			}
 
+			SpriteRenderer sr = tv.renderer;
+
 			// =====================================
-			// disable extra sprites
+			// HITBOX → WORLD POSITION
 			// =====================================
-			for (int i = index; i < visuals.Count; i++)
-				visuals[i].renderer.gameObject.SetActive(false);
+			Hitbox box = t.hitbox;
+
+			Vector2 center = box.center;
+			Vector2 size = box.size;
+
+			Vector3 pos = new Vector3(
+				center.x + 0.5f,
+				center.y + 0.5f,
+				-5f
+			) + offset;
+
+			sr.transform.position = pos;
+			sr.transform.rotation = u.GetDirRotation(u.currentDir);
+
+			// =====================================
+			// SIZE = HITBOX SIZE
+			// =====================================
+			sr.transform.localScale = new Vector3(
+				size.x,
+				size.y,
+				1f
+			);
+
+			Color color = u is Human ? Color.green : Color.red;
+			color.a = t.color.a;
+
+			sr.color = color;
+			sr.gameObject.SetActive(true);
 		}
 	}
 }

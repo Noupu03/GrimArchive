@@ -57,6 +57,7 @@ public abstract class UnitFunction : Unit
 		}
 	}
 
+
 	public override bool CanMove(Vector2Int pos)//움직일 수 있는지 판단하는 함수
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
@@ -283,7 +284,7 @@ public abstract class UnitFunction : Unit
 			if (castTimer <= 0f)
 			{
 				isCastingAttack = false;
-				threatTiles.Clear();
+				currentThreat = null;
 				pendingAttack?.Invoke();
 				pendingAttack = null;
 
@@ -374,7 +375,7 @@ public abstract class UnitFunction : Unit
 		{
 			if (u == null) continue;
 			if (!u.isCastingAttack) continue;
-			if (u.threatTiles.Contains(threat))
+			if (u.currentThreat == threat)
 				return u;
 		}
 		return null;
@@ -388,37 +389,36 @@ public abstract class UnitFunction : Unit
 
 	public override List<ThreatTileData> DetectThreats()
 	{
-		List<ThreatTileData> result = new List<ThreatTileData>();
+		List<ThreatTileData> result = new();
 
 		foreach (Unit u in GameSession.Instance.units)
 		{
 			if (u == null || u == this) continue;
 			if (u.currentFloor != currentFloor) continue;
+
+			ThreatTileData threat = u.currentThreat;
+			if (threat == null) continue;
+
 			if (!u.isCastingAttack) continue;
 
-			foreach (var threat in u.threatTiles)
-			{
-				if (threat.tiles == null) continue;
+			int w = (int)unitType.footprint.x;
+			int h = (int)unitType.footprint.y;
 
-				int w = (int)unitType.footprint.x;
-				int h = (int)unitType.footprint.y;
-
-				for (int dx = 0; dx < w; dx++)
+			for (int dx = 0; dx < w; dx++)
+				for (int dy = 0; dy < h; dy++)
 				{
-					for (int dy = 0; dy < h; dy++)
-					{
-						Vector2Int p = new Vector2Int(position.x + dx, position.y + dy);
+					Vector2Int p = new Vector2Int(position.x + dx, position.y + dy);
 
-						if (threat.tiles.Contains(p))
-						{
-							result.Add(threat);
-							goto NEXT_THREAT;
-						}
+					if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
+					{
+						result.Add(threat);
+						goto NEXT;
 					}
 				}
-			NEXT_THREAT:;
-			}
+
+		NEXT:;
 		}
+
 		return result;
 	}
 
@@ -436,7 +436,8 @@ public abstract class UnitFunction : Unit
 
 	public virtual void DrawThreatTiles()
 	{
-		if (threatTiles == null) return;
+		if (!isCastingAttack || currentThreat == null)
+			return;
 
 		Color color =
 			this is Human
@@ -453,10 +454,9 @@ public abstract class UnitFunction : Unit
 				UnitGenerate.Instance.GetFloorOffset(currentFloor);
 		}
 
-		foreach (ThreatTileData threat in threatTiles)
-		{
-			if (threat.tiles == null) continue;
-
+		ThreatTileData threat = currentThreat;
+		if (threat == null || threat.tiles == null) return;
+		{ 
 			foreach (Vector2Int tile in threat.tiles)
 			{
 				Vector3 p1 =

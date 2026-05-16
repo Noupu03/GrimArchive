@@ -30,26 +30,6 @@ public abstract class SkillAction
         return tiles;
     }
 
-    public static List<Vector2Int> GetFrontAreaTiles(Unit unit, int width, int depth)
-    {
-        List<Vector2Int> result = new List<Vector2Int>();
-
-        Vector2Int forward = unit.GetDirVector(unit.currentDir);
-
-        Vector2Int right = GetRightVector(forward);
-
-        for (int d = 1; d <= depth; d++)
-        {
-            Vector2Int center = unit.position + forward * d;
-
-            for (int w = -width / 2; w <= width / 2; w++)
-            {
-                result.Add(center + right * w);
-            }
-        }
-
-        return result;
-    }
 
 	public static void BeginAttackCast(
 	Unit unit,
@@ -63,17 +43,19 @@ public abstract class SkillAction
 		unit.isCastingAttack = true;
 		unit.castTimer = castMs / 1000f;
 
-		// =========================
-		// HITBOX 생성 핵심
-		// =========================
+		// 방향 고정 (여기가 중요)
+		threat.dir = unit.currentDir;
+		threat.forward = unit.GetDirVector(unit.currentDir);
+		threat.right = GetRightVector(threat.forward);
+
+		// hitbox 생성
 		if (threat.shape == ThreatShape.LINE)
 			threat.hitbox = BuildLineHitbox(unit, threat.range);
 
 		else if (threat.shape == ThreatShape.RECT)
 			threat.hitbox = BuildRectHitbox(unit, threat.width, threat.depth);
 
-		unit.threatTiles.Clear();
-		unit.threatTiles.Add(threat);
+		unit.currentThreat = threat;
 
 		unit.pendingAttack = () =>
 		{
@@ -86,7 +68,8 @@ public abstract class SkillAction
 			{
 				cooldownAction?.Invoke();
 
-				unit.threatTiles.Clear();
+				// ❗ 여기 중요: 반드시 완전 초기화
+				unit.currentThreat = null;
 				unit.isCastingAttack = false;
 				unit.pendingAttack = null;
 				unit.castTimer = 0f;
@@ -175,22 +158,6 @@ public abstract class SkillAction
 			size = size
 		};
 	}
-	public static void DamageEnemiesInTiles(Unit attacker, List<Vector2Int> tiles, float multiplier, bool stun = false, float stunDuration = 0f)//제거예정
-    {
-        List<Unit> targets =
-            GetEnemiesInTiles(attacker, tiles);
-
-        foreach (Unit hit in targets)
-        {
-            hit.TakePhysicalDamage(attacker.physicalAttack * multiplier, attacker
-            );
-
-            if (stun)
-            {
-                hit.ApplyStun(stunDuration);
-            }
-        }
-    }
 	public static void DamageEnemiesInHitbox(
 	Unit attacker,
 	Hitbox box,
@@ -209,64 +176,7 @@ public abstract class SkillAction
 				t.ApplyStun(stunDuration);
 		}
 	}
-	public static void DamageEnemiesInTilesCompressed(Unit attacker, List<Vector2Int> tiles, float multiplier, float compression, bool stun = false, float stunDuration = 0f)
-    {
-        foreach (Unit u in GameSession.Instance.units)
-        {
-            if (u == null || u.hp <= 0) continue;
-            if (u == attacker) continue;
-            if (u.currentFloor != attacker.currentFloor) continue;
-
-            bool isEnemy = (attacker is Human && u is Monster) || (attacker is Monster && u is Human);
-
-            if (!isEnemy) continue;
-
-            int w = (int)u.unitType.footprint.x;
-            int h = (int)u.unitType.footprint.y;
-
-            for (int dx = 0; dx < w; dx++)
-            {
-                for (int dy = 0; dy < h; dy++)
-                {
-                    Vector2 targetPos =
-                        new Vector2(u.position.x + dx, u.position.y + dy);
-
-                    foreach (var t in tiles)
-                    {
-                        if (Vector2.Distance(t, targetPos) < 0.1f)
-                        {
-                            float finalMultiplier = multiplier;
-
-                            // =====================================
-                            // 대각선 보정 타일이면 50% 감소
-                            // =====================================
-
-                            foreach (ThreatTileData tt in attacker.threatTiles)
-                            {
-                                if (tt.partialTiles.Contains(t))
-                                {
-                                    finalMultiplier *= 0.5f;
-                                    break;
-                                }
-                            }
-
-                            u.TakePhysicalDamage(
-                                attacker.physicalAttack * finalMultiplier,
-                                attacker
-                            );
-
-                            if (stun)
-                                u.ApplyStun(stunDuration);
-
-                            goto NEXT_UNIT;
-                        }
-                    }
-                }
-            }
-
-        NEXT_UNIT:;
-        }
-    }
+	
 	public static Hitbox BuildLineHitbox(Unit unit, int range)
 	{
 		Vector2 dir = unit.GetDirVector(unit.currentDir);
@@ -300,331 +210,6 @@ public abstract class SkillAction
 			size = new Vector2(width, depth)
 		};
 	}
-	public static List<Vector2Int> BuildVisualThreatTiles(
-        Unit unit,
-        ThreatTileData data
-    )
-    {
-        List<Vector2Int> result =
-            new List<Vector2Int>();
-
-        Vector2Int forward =
-            unit.GetDirVector(unit.currentDir);
-
-        bool diagonal =
-            forward.x != 0 &&
-            forward.y != 0;
-
-        // =========================
-        // LINE
-        // =========================
-
-        if (data.shape == ThreatShape.LINE)
-        {
-            Vector2Int current =
-                unit.position;
-
-            int realRange = data.range;
-
-            if (diagonal)
-            {
-                realRange =
-                    Mathf.RoundToInt(
-                        data.range / Mathf.Sqrt(2f)
-                    );
-
-                realRange =
-                    Mathf.Max(1, realRange);
-            }
-
-            for (int i = 1; i <= realRange; i++)
-            {
-                current += forward;
-
-                result.Add(current);
-            }
-        }
-
-        // =========================
-        // RECT
-        // =========================
-
-        else if (data.shape == ThreatShape.RECT)
-        {
-            Vector2Int right =
-                GetRightVector(forward);
-
-            int realDepth = data.depth;
-            int realWidth = data.width;
-
-            if (diagonal)
-            {
-                realDepth =
-                    Mathf.RoundToInt(
-                        data.depth / Mathf.Sqrt(2f)
-                    );
-
-                realDepth =
-                    Mathf.Max(1, realDepth);
-
-                realWidth =
-                    Mathf.RoundToInt(
-                        data.width / Mathf.Sqrt(2f)
-                    );
-
-                realWidth =
-                    Mathf.Max(1, realWidth);
-            }
-
-            for (int d = 1; d <= realDepth; d++)
-            {
-                Vector2Int center =
-                    unit.position + forward * d;
-
-                for (
-                    int w = -realWidth / 2;
-                    w <= realWidth / 2;
-                    w++
-                )
-                {
-                    result.Add(center + right * w);
-                }
-            }
-        }
-
-        return result;
-    }
-
-    public static List<Vector2Int> BuildThreatTiles(Unit unit, ThreatTileData data)
-    {
-        List<Vector2Int> result = new List<Vector2Int>();
-
-        Vector2Int forward = unit.GetDirVector(unit.currentDir);
-
-        Vector2Int right = new Vector2Int(forward.y, -forward.x);
-
-        bool diagonal =
-            forward.x != 0 &&
-            forward.y != 0;
-
-        // =========================
-        // LINE
-        // =========================
-        if (data.shape == ThreatShape.LINE)
-        {
-            Vector2Int current = unit.position;
-
-            int realRange = data.range;
-
-            // =====================================
-            // 대각선 거리 보정
-            // =====================================
-
-            if (diagonal)
-            {
-                realRange =
-                    Mathf.RoundToInt(
-                        data.range / Mathf.Sqrt(2f)
-                    );
-
-                realRange =
-                    Mathf.Max(1, realRange);
-            }
-
-            for (int i = 1; i <= realRange; i++)
-            {
-                current += forward;
-
-                result.Add(current);
-
-                // =====================================
-                // 대각선 끊김 보정
-                // =====================================
-
-                if (diagonal)
-                {
-                    Vector2Int partial1 =
-                        new Vector2Int(
-                            current.x - forward.x,
-                            current.y
-                        );
-
-                    Vector2Int partial2 =
-                        new Vector2Int(
-                            current.x,
-                            current.y - forward.y
-                        );
-
-                    result.Add(partial1);
-                    result.Add(partial2);
-
-                    data.partialTiles.Add(partial1);
-                    data.partialTiles.Add(partial2);
-                }
-            }
-        }
-
-        // =========================
-        // RECT
-        // =========================
-        else if (data.shape == ThreatShape.RECT)
-        {
-            int realDepth = data.depth;
-            int realWidth = data.width;
-
-            // =====================================
-            // 대각선 거리 보정
-            // =====================================
-
-            if (diagonal)
-            {
-                realDepth =
-                    Mathf.RoundToInt(
-                        data.depth / Mathf.Sqrt(2f)
-                    );
-
-                realDepth =
-                    Mathf.Max(1, realDepth);
-
-                realWidth =
-                    Mathf.RoundToInt(
-                        data.width / Mathf.Sqrt(2f)
-                    );
-
-                realWidth =
-                    Mathf.Max(1, realWidth);
-            }
-
-            for (int d = 1; d <= realDepth; d++)
-            {
-                Vector2Int center =
-                    unit.position + forward * d;
-
-                for (
-                    int w = -realWidth / 2;
-                    w <= realWidth / 2;
-                    w++
-                )
-                {
-                    Vector2Int tile =
-                        center + right * w;
-
-                    result.Add(tile);
-
-                    // =====================================
-                    // 대각선 끊김 보정
-                    // =====================================
-
-                    if (diagonal)
-                    {
-                        Vector2Int partial1 =
-                            new Vector2Int(
-                                tile.x - forward.x,
-                                tile.y
-                            );
-
-                        Vector2Int partial2 =
-                            new Vector2Int(
-                                tile.x,
-                                tile.y - forward.y
-                            );
-
-                        result.Add(partial1);
-                        result.Add(partial2);
-
-                        data.partialTiles.Add(partial1);
-                        data.partialTiles.Add(partial2);
-                    }
-                }
-            }
-        }
-
-        // =========================
-        // CONE
-        // =========================
-        else if (data.shape == ThreatShape.CONE)
-        {
-            int realDepth = data.depth;
-
-            if (diagonal)
-            {
-                realDepth =
-                    Mathf.RoundToInt(
-                        data.depth / Mathf.Sqrt(2f)
-                    );
-
-                realDepth =
-                    Mathf.Max(1, realDepth);
-            }
-
-            for (int d = 1; d <= realDepth; d++)
-            {
-                int spread = d;
-
-                Vector2Int center =
-                    unit.position + forward * d;
-
-                for (int w = -spread; w <= spread; w++)
-                {
-                    Vector2Int tile =
-                        center + right * w;
-
-                    result.Add(tile);
-
-                    if (diagonal)
-                    {
-                        result.Add(
-                            new Vector2Int(
-                                tile.x - forward.x,
-                                tile.y
-                            )
-                        );
-
-                        result.Add(
-                            new Vector2Int(
-                                tile.x,
-                                tile.y - forward.y
-                            )
-                        );
-                    }
-                }
-            }
-        }
-
-        // =========================
-        // CIRCLE
-        // =========================
-        else if (data.shape == ThreatShape.CIRCLE)
-        {
-            for (int x = -data.range; x <= data.range; x++)
-            {
-                for (int y = -data.range; y <= data.range; y++)
-                {
-                    Vector2Int p =
-                        unit.position +
-                        new Vector2Int(x, y);
-
-                    if (
-                        Vector2Int.Distance(
-                            unit.position,
-                            p
-                        ) <= data.range
-                    )
-                    {
-                        result.Add(p);
-                    }
-                }
-            }
-        }
-
-        // 중복 제거
-        result =
-            new List<Vector2Int>(
-                new HashSet<Vector2Int>(result)
-            );
-
-        return result;
-    }
 
     public static Dir GetDirection8(Vector2Int diff)
     {
@@ -702,12 +287,6 @@ public abstract class SkillAction
         return isDiagonal ? 0.75f : 1f;
     }
 
-    public static Vector2 ApplyCompression(Vector2Int origin, Vector2Int pos, float compression)
-    {
-        Vector2 diff = pos - origin;
-        return (Vector2)origin + diff * compression;
-    }
-
     public static float ApplyCooldown(Unit unit, float baseCd)
     {
         float reduction = Mathf.Min(50f, unit.cooltimeReduction);
@@ -742,23 +321,20 @@ public class SkillAction_KnightFocusedStab : SkillAction
 			800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
 		Hitbox box = BuildLineHitbox(unit, 2);
-		float compression = GetCompression(unit);
+
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.LINE;
+		threat.range = 2;
 
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.LINE,
-				range = 2
-			},
-
+			threat,
 			() =>
 			{
 				DamageEnemiesInHitbox(unit, box, 1.25f);
 				Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
 			},
-
 			() =>
 			{
 				unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
@@ -767,7 +343,7 @@ public class SkillAction_KnightFocusedStab : SkillAction
 	}
 }
 
-public class SkillAction_KnightShieldBash : SkillAction
+	public class SkillAction_KnightShieldBash : SkillAction
 {
 	public SkillAction_KnightShieldBash()
 	{
@@ -795,14 +371,14 @@ public class SkillAction_KnightShieldBash : SkillAction
 
 		Hitbox box = BuildLineHitbox(unit, 1);
 
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.LINE;
+		threat.range = 1;
+
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.LINE,
-				range = 1
-			},
+			threat,
 
 			() =>
 			{
@@ -846,14 +422,14 @@ public class SkillAction_KnightFrontSlash : SkillAction
 
 		Hitbox box = BuildLineHitbox(unit, 1);
 
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.LINE;
+		threat.range = 1;
+
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.LINE,
-				range = 1
-			},
+			threat,
 
 			() =>
 			{
@@ -897,15 +473,15 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 
 		Hitbox box = BuildRectHitbox(unit, 2, 2);
 
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.RECT;
+		threat.width = 2;
+		threat.depth = 2;
+
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.RECT,
-				width = 2,
-				depth = 2
-			},
+			threat,
 
 			() =>
 			{
@@ -949,14 +525,14 @@ public class SkillAction_MeleeTankAmbushClaw : SkillAction
 
 		Hitbox box = BuildLineHitbox(unit, 1);
 
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.LINE;
+		threat.range = 1;
+
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.LINE,
-				range = 1
-			},
+			threat,
 
 			() =>
 			{
@@ -1000,14 +576,14 @@ public class SkillAction_MeleeTankClawSwipe : SkillAction
 
 		Hitbox box = BuildLineHitbox(unit, 3);
 
+		var threat = ThreatTileData.Create();
+		threat.shape = ThreatShape.LINE;
+		threat.range = 3;
+
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
-			new ThreatTileData
-			{
-				shape = ThreatShape.LINE,
-				range = 3
-			},
+			threat,
 
 			() =>
 			{

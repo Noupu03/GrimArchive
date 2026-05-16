@@ -46,13 +46,39 @@ public class ThreatTileData
 
 	public Hitbox hitbox;
 
-	public List<Vector2Int> tiles =
-		new List<Vector2Int>();
-	public List<Vector2Int> visualTiles =
-	new List<Vector2Int>();
-	public HashSet<Vector2Int> partialTiles =
-	new HashSet<Vector2Int>();
+	public Dir dir;
+	public Vector2Int forward;
+	public Vector2Int right;
 
+	public List<Vector2Int> tiles;
+	public List<Vector2Int> visualTiles;
+	public HashSet<Vector2Int> partialTiles;
+
+	// =========================================
+	// SAFE FACTORY METHOD
+	// =========================================
+	public static ThreatTileData Create()
+	{
+		var data = new ThreatTileData();
+
+		data.tiles = new List<Vector2Int>(8);
+		data.visualTiles = new List<Vector2Int>(8);
+		data.partialTiles = new HashSet<Vector2Int>();
+
+		data.shape = ThreatShape.LINE;
+		data.range = 1;
+		data.width = 1;
+		data.depth = 1;
+		data.color = new Color(1f, 0f, 0f, 0.5f);
+
+		data.dir = Dir.DOWN;
+		data.forward = Vector2Int.down;
+		data.right = Vector2Int.right;
+
+		data.hitbox = default;
+
+		return data;
+	}
 }
 
 // 공통 전투 상수 정의
@@ -228,8 +254,8 @@ public abstract class Unit : ScriptableObject
 	// 실제 공격 실행 예약
 	public System.Action pendingAttack;
 	// 현재 공격 위협 타일
-	public List<ThreatTileData> threatTiles =
-	new List<ThreatTileData>();
+	public ThreatTileData currentThreat;
+
 
 
 	private float Normalize(float value, float baseValue)//정규화함수. 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.
@@ -352,6 +378,30 @@ public abstract class Unit : ScriptableObject
 		}
 		CalculateDerivedStats();
 	}
+	public Quaternion GetDirRotation(Dir dir)
+	{
+		float angle = 0f;
+
+		switch (dir)
+		{
+			case Dir.UP: angle = 90f; break;
+			case Dir.UP_RIGHT: angle = 45f; break;
+
+			case Dir.RIGHT: angle = 0f; break;
+			case Dir.DOWN_RIGHT: angle = -45f; break;
+
+			case Dir.DOWN: angle = -90f; break;
+			case Dir.DOWN_LEFT: angle = -135f; break;
+
+			case Dir.LEFT: angle = 180f; break;
+			case Dir.UP_LEFT: angle = 135f; break;
+
+			default: angle = 0f; break;
+		}
+
+		return Quaternion.Euler(0f, 0f, angle);
+	}
+
 
 	public abstract void TakeDamage(float damage);
 	public abstract void TakePhysicalDamage(float rawDamage, Unit attacker);
@@ -392,6 +442,7 @@ public abstract class Unit : ScriptableObject
 
 		GameSession.Instance.unitGrid[newKey] = this;
 	}
+
 	public abstract void UpdateFOV(List<Unit> allUnits);
 	
 	private GoapBrain _brain;
