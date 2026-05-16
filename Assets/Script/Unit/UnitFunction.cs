@@ -249,6 +249,191 @@ public abstract class UnitFunction : Unit
 	}
 	#endregion
 
+	public override void OnUpdate(float deltaTime)
+	{
+		if (stunDuration > 0f) stunDuration -= deltaTime;
+		if (slowDuration > 0f) slowDuration -= deltaTime;
+
+		if (poisonDuration > 0f)
+		{
+			poisonDuration -= deltaTime;
+			hp -= 1f * deltaTime;
+		}
+
+		if (burnDuration > 0f)
+		{
+			burnDuration -= deltaTime;
+			hp -= 1f * deltaTime;
+		}
+
+		if (hp > 0f)
+		{
+			float healAmount = HPRegen * deltaTime;
+			hp = Mathf.Min(maxHp, hp + healAmount);
+		}
+
+		if (evadeCooldown > 0f)
+		{
+			evadeCooldown -= Time.deltaTime;
+		}
+
+		if (isCastingAttack)
+		{
+			castTimer -= deltaTime;
+			if (castTimer <= 0f)
+			{
+				isCastingAttack = false;
+				threatTiles.Clear();
+				pendingAttack?.Invoke();
+				pendingAttack = null;
+
+				if (GameSession.Instance != null)
+				{
+					foreach (Unit u in GameSession.Instance.units)
+					{
+						if (u == null) continue;
+						u.reactedAttackers.Remove(this);
+					}
+				}
+			}
+		}
+
+		for (int i = 0; i < skillCooldowns.Length; i++)
+		{
+			if (skillCooldowns[i] > 0f)
+			{
+				skillCooldowns[i] -= deltaTime;
+			}
+		}
+
+		List<ThreatTileData> detectedThreats = DetectThreats();
+		if (detectedThreats.Count > 0)
+		{
+			OnThreatDetected(detectedThreats);
+		}
+	}
+
+	public override void OnThreatDetected(List<ThreatTileData> threats)
+	{
+		if (stunDuration > 0f) return;
+
+		foreach (var threat in threats)
+		{
+			Unit attacker = FindAttackerFromThreat(threat);
+			if (attacker == null) continue;
+
+			if (reactedAttackers.Contains(attacker)) continue;
+
+			float reactionTimeMs = 30000f / Mathf.Max(1f, reaction);
+			float reactionTimeSec = reactionTimeMs / 1000f;
+
+			if (attacker.isCastingAttack)
+			{
+				if(attacker.castTimer >= reactionTimeSec)
+				{
+					reactedAttackers.Add(attacker);
+					currentReactionWindow = reactionTimeSec;
+					reactingThreat = threat;
+					reactingAttacker = attacker;
+					OnReactToThreat(attacker, threat);
+				}
+				else
+				{
+					reactedAttackers.Add(attacker);
+					OnDirectHit(attacker, threat);
+				}
+			}
+		}
+	}
+
+	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
+	{
+		Debug.Log($"{unitType.typeName} 반응 성공!");
+		DefenseSystem.EvaluateDefense(this, attacker, threat);
+	}
+
+	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
+	{
+		Debug.Log($"{unitType.typeName} 반응 실패 → 직격!");
+		ApplyDirectDamage(attacker);
+	}
+
+	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
+	{
+		float raw = attacker.physicalAttack * multiplier;
+		float damage = Mathf.Max(1f, raw - physicalDefense);
+		hp -= damage;
+		isHitThisTurn = true;
+		if (UnitGenerate.Instance != null)
+			UnitGenerate.Instance.TriggerHitEffect(this);
+	}
+
+	private Unit FindAttackerFromThreat(ThreatTileData threat)
+	{
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null) continue;
+			if (!u.isCastingAttack) continue;
+			if (u.threatTiles.Contains(threat))
+				return u;
+		}
+		return null;
+	}
+
+	public override bool IsInThreat(Vector2Int pos, ThreatTileData threat)
+	{
+		if (threat.tiles == null) return false;
+		return threat.tiles.Contains(pos);
+	}
+
+	public override List<ThreatTileData> DetectThreats()
+	{
+		List<ThreatTileData> result = new List<ThreatTileData>();
+
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null || u == this) continue;
+			if (u.currentFloor != currentFloor) continue;
+			if (!u.isCastingAttack) continue;
+
+			foreach (var threat in u.threatTiles)
+			{
+				if (threat.tiles == null) continue;
+
+				int w = (int)unitType.footprint.x;
+				int h = (int)unitType.footprint.y;
+
+				for (int dx = 0; dx < w; dx++)
+				{
+					for (int dy = 0; dy < h; dy++)
+					{
+						Vector2Int p = new Vector2Int(position.x + dx, position.y + dy);
+
+						if (threat.tiles.Contains(p))
+						{
+							result.Add(threat);
+							goto NEXT_THREAT;
+						}
+					}
+				}
+			NEXT_THREAT:;
+			}
+		}
+		return result;
+	}
+
+	public override bool RollCritical(bool canCritical)
+	{
+		if (!canCritical) return false;
+		float roll = Random.Range(0f, 100f);
+		return roll < criticalChance;
+	}
+
+	public override float ApplyCriticalDamage(float rawDamage)
+	{
+		return Mathf.Floor(rawDamage * 1.5f);
+	}
+
 	public virtual void DrawThreatTiles()
 	{
 		if (threatTiles == null) return;
