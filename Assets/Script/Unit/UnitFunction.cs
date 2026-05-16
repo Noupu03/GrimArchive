@@ -383,8 +383,17 @@ public abstract class UnitFunction : Unit
 
 	public override bool IsInThreat(Vector2Int pos, ThreatTileData threat)
 	{
-		if (threat.tiles == null) return false;
-		return threat.tiles.Contains(pos);
+		// 히트박스 기반 충돌 검사 (타일 기반이 아님)
+		if (threat.hitbox.size == Vector2.zero) return false;
+
+		// 주어진 위치의 유닛 히트박스 생성
+		Hitbox posHitbox = new Hitbox
+		{
+			center = (Vector2)pos + Vector2.one * 0.5f,
+			size = Vector2.one
+		};
+
+		return threat.hitbox.Overlaps(posHitbox);
 	}
 
 	public override List<ThreatTileData> DetectThreats()
@@ -401,22 +410,11 @@ public abstract class UnitFunction : Unit
 
 			if (!u.isCastingAttack) continue;
 
-			int w = (int)unitType.footprint.x;
-			int h = (int)unitType.footprint.y;
-
-			for (int dx = 0; dx < w; dx++)
-				for (int dy = 0; dy < h; dy++)
-				{
-					Vector2Int p = new Vector2Int(position.x + dx, position.y + dy);
-
-					if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
-					{
-						result.Add(threat);
-						goto NEXT;
-					}
-				}
-
-		NEXT:;
+			// 히트박스 기반 충돌 검사 (타일 기반이 아님)
+			if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
+			{
+				result.Add(threat);
+			}
 		}
 
 		return result;
@@ -455,27 +453,23 @@ public abstract class UnitFunction : Unit
 		}
 
 		ThreatTileData threat = currentThreat;
-		if (threat == null || threat.tiles == null) return;
-		{ 
-			foreach (Vector2Int tile in threat.tiles)
-			{
-				Vector3 p1 =
-					new Vector3(tile.x, tile.y, 0f) + floorOffset;
+		if (threat == null || threat.hitbox.size == Vector2.zero) return;
 
-				Vector3 p2 =
-					new Vector3(tile.x + 1, tile.y, 0f) + floorOffset;
+		// 히트박스 기반 렌더링 (타일이 아님)
+		Hitbox box = threat.hitbox;
+		Vector2 center = box.center;
+		Vector2 size = box.size;
 
-				Vector3 p3 =
-					new Vector3(tile.x + 1, tile.y + 1, 0f) + floorOffset;
+		// 히트박스의 4개 꼭짓점 계산
+		Vector2 halfSize = size * 0.5f;
+		Vector3 p1 = new Vector3(center.x - halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
+		Vector3 p2 = new Vector3(center.x + halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
+		Vector3 p3 = new Vector3(center.x + halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
+		Vector3 p4 = new Vector3(center.x - halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
 
-				Vector3 p4 =
-					new Vector3(tile.x, tile.y + 1, 0f) + floorOffset;
-
-				Debug.DrawLine(p1, p2, color);
-				Debug.DrawLine(p2, p3, color);
-				Debug.DrawLine(p3, p4, color);
-				Debug.DrawLine(p4, p1, color);
-			}
-		}
+		Debug.DrawLine(p1, p2, color);
+		Debug.DrawLine(p2, p3, color);
+		Debug.DrawLine(p3, p4, color);
+		Debug.DrawLine(p4, p1, color);
 	}
 }

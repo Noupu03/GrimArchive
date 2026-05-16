@@ -9,27 +9,6 @@ public abstract class SkillAction
 	public abstract float GetPriority(Unit unit, Unit target, float minDist);
 	public abstract void Execute(Unit unit, Unit target, float minDist);
 
-	public static List<Vector2Int> GetLineTiles(
-		Unit unit,
-		int range
-	)
-	{
-		List<Vector2Int> tiles = new List<Vector2Int>();
-
-		Vector2Int dir = unit.GetDirVector(unit.currentDir);
-
-		Vector2Int current = unit.position;
-
-		for (int i = 1; i <= range; i++)
-		{
-			current += dir;
-
-			tiles.Add(current);
-		}
-
-		return tiles;
-	}
-
 
 	public static void BeginAttackCast(
 	Unit unit,

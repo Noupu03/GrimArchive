@@ -119,13 +119,13 @@ public class ThreatTileRenderer : MonoBehaviour
 			Hitbox box = t.hitbox;
 
 			Vector2 center = box.center;
-			Vector2 size = box.size;
+			Vector2 size = box.size.normalized;
 
 			Vector3 pos = new Vector3(
 				center.x + 0.5f,
 				center.y + 0.5f,
 				-5f
-			) + offset;
+			)+offset;
 
 			sr.transform.position = pos;
 			sr.transform.rotation = u.GetDirRotation(u.currentDir);

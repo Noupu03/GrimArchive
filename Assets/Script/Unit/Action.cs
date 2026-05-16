@@ -426,9 +426,10 @@ public class Action_EngageEnemy : GoapAction
 		Vector2Int diff = target.position - unit.position;
 		unit.currentDir = SkillAction.GetDirection8(diff);
 
-		List<Vector2Int> attackCheckTiles =
-			SkillAction.GetLineTiles(unit, unit.unitType is MeleeTank ? 3 : 2);
-		bool canHit = SkillAction.GetEnemiesInTiles(unit, attackCheckTiles).Contains(target);
+		// 히트박스 기반 공격 범위 검사 (타일 기반이 아님)
+		int range = unit.unitType is MeleeTank ? 3 : 2;
+		Hitbox attackCheckBox = SkillAction.BuildLineHitbox(unit, range);
+		bool canHit = SkillAction.GetEnemiesInHitbox(unit, attackCheckBox).Contains(target);
 
 		if (minDist <= engageDist && canHit)
 		{
