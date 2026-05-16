@@ -265,7 +265,7 @@ public abstract class UnitFunction : Unit
 		if (UnitGenerate.Instance != null)
 		{
 			floorOffset =
-				UnitGenerate.Instance.GetFloorOffset_Public(currentFloor);
+				UnitGenerate.Instance.GetFloorOffset(currentFloor);
 		}
 
 		foreach (ThreatTileData threat in threatTiles)

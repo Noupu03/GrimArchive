@@ -29,7 +29,7 @@ public class InputManager : MonoBehaviour
 		int currentFloor = 1;
 		Vector3 floorOffset =
 			UnitGenerate.Instance != null
-			? UnitGenerate.Instance.GetFloorOffset_Public(currentFloor)
+			? UnitGenerate.Instance.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
 		// =====================================================

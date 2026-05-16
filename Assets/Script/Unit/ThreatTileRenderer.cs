@@ -112,7 +112,7 @@ public class ThreatTileRenderer : MonoBehaviour
 
 			Vector3 offset =
 				UnitGenerate.Instance != null
-				? UnitGenerate.Instance.GetFloorOffset_Public(u.currentFloor)
+				? UnitGenerate.Instance.GetFloorOffset(u.currentFloor)
 				: Vector3.zero;
 
 			bool isDiagonal = IsDiagonalDir(fixedDir);
