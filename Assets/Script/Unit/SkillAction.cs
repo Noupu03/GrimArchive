@@ -502,12 +502,11 @@ public class SkillAction_KnightFrontSlash : SkillAction
 			Mathf.Max(200f,
 			450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-		Hitbox box = BuildLineHitbox(unit, 30);
+		Hitbox box = BuildLineHitbox(unit, 1);
 
 		var threat = ThreatTileData.Create();
 		threat.shape = ThreatShape.LINE;
-		threat.range = 30;
-
+		threat.range = 1;
 		BeginAttackCast(
 			unit,
 			finalDelayMs,
