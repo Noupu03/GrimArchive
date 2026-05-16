@@ -99,26 +99,45 @@ public class ThreatTileRenderer : MonoBehaviour
 			LineRenderer lr = tv.lineRenderer;
 
 			// =====================================
-			// 히트박스 경계선 렌더링
+			// 히트박스 경계선 렌더링 (회전 적용)
 			// =====================================
 			Hitbox box = threat.hitbox;
 			Vector2 center = box.center;
 			Vector2 size = box.size;
+			float rotation = box.rotation;
 
-			// 히트박스의 4개 꼭짓점
+			// 히트박스의 4개 꼭짓점 (회전 전 로컬 좌표)
 			Vector2 halfSize = size * 0.5f;
-			Vector3 p1 = new Vector3(center.x - halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
-			Vector3 p2 = new Vector3(center.x + halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
-			Vector3 p3 = new Vector3(center.x + halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
-			Vector3 p4 = new Vector3(center.x - halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
+			Vector2[] localPoints = new Vector2[]
+			{
+				new Vector2(-halfSize.x, -halfSize.y),  // 좌하
+				new Vector2(halfSize.x, -halfSize.y),   // 우하
+				new Vector2(halfSize.x, halfSize.y),    // 우상
+				new Vector2(-halfSize.x, halfSize.y)    // 좌상
+			};
 
-			// 닫힌 사각형 그리기 (4개 점 + 첫번째 점 반복)
+			// 회전 적용
+			float radians = rotation * Mathf.Deg2Rad;
+			float cos = Mathf.Cos(radians);
+			float sin = Mathf.Sin(radians);
+
+			Vector3[] worldPoints = new Vector3[5];
+			for (int i = 0; i < 4; i++)
+			{
+				Vector2 rotated = new Vector2(
+					localPoints[i].x * cos - localPoints[i].y * sin,
+					localPoints[i].x * sin + localPoints[i].y * cos
+				);
+				worldPoints[i] = new Vector3(center.x + rotated.x, center.y + rotated.y, 0f) + floorOffset;
+			}
+			worldPoints[4] = worldPoints[0];  // 닫힌 루프
+
+			// LineRenderer에 점 설정
 			lr.positionCount = 5;
-			lr.SetPosition(0, p1);
-			lr.SetPosition(1, p2);
-			lr.SetPosition(2, p3);
-			lr.SetPosition(3, p4);
-			lr.SetPosition(4, p1);
+			for (int i = 0; i < 5; i++)
+			{
+				lr.SetPosition(i, worldPoints[i]);
+			}
 
 			// 색상 설정
 			Color color = u is Human ? Color.green : Color.red;

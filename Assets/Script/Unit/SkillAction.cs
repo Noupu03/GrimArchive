@@ -106,47 +106,104 @@ public abstract class SkillAction
 	public static Hitbox BuildLineHitbox(Unit unit, int range)
 	{
 		Vector2 dir = unit.GetDirVector(unit.currentDir);
-		bool isHorizontal = Mathf.Abs(dir.x) > 0;
 
 		// 유닛 중심 계산
 		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
 
-		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
-		Vector2 offset = isHorizontal
-			? new Vector2(dir.x * (range * 0.5f + 0.5f), 0)
-			: new Vector2(0, dir.y * (range * 0.5f + 0.5f));
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset (정규화 필요 - 대각선은 길이가 다름)
+		Vector2 offset = dir.normalized * (range * 0.5f + 0.5f);
 
 		Vector2 center = unitCenter + offset;
 
-		Vector2 size = isHorizontal
-			? new Vector2(range, 1)
-			: new Vector2(1, range);
+		// 크기와 회전 결정
+		bool isHorizontal = Mathf.Abs(dir.x) > 0 && Mathf.Abs(dir.y) == 0;
+		bool isVertical = Mathf.Abs(dir.y) > 0 && Mathf.Abs(dir.x) == 0;
+		bool isDiagonal = !isHorizontal && !isVertical;
+
+		Vector2 size;
+		float rotation;
+
+		if (isHorizontal)
+		{
+			size = new Vector2(range, 1);
+			rotation = 0f;  // 회전 불필요
+		}
+		else if (isVertical)
+		{
+			size = new Vector2(1, range);
+			rotation = 0f;  // 회전 불필요 (크기로 이미 조정됨)
+		}
+		else  // 대각선
+		{
+			size = new Vector2(range, 1);
+			rotation = GetRotationForDirection(unit.currentDir);  // 회전 필요
+		}
 
 		return new Hitbox
 		{
 			center = center,
-			size = size
+			size = size,
+			rotation = rotation
 		};
 	}
 	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
 	{
 		Vector2 forward = unit.GetDirVector(unit.currentDir);
-		bool isHorizontal = Mathf.Abs(forward.x) > 0;
 
 		// 유닛 중심 계산
 		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
 
-		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
-		Vector2 offset = isHorizontal
-			? new Vector2(forward.x * (depth * 0.5f + 0.5f), 0)
-			: new Vector2(0, forward.y * (depth * 0.5f + 0.5f));
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset (정규화 필요 - 대각선은 길이가 다름)
+		Vector2 offset = forward.normalized * (depth * 0.5f + 0.5f);
 
 		Vector2 center = unitCenter + offset;
+
+		// 크기와 회전 결정
+		bool isHorizontal = Mathf.Abs(forward.x) > 0 && Mathf.Abs(forward.y) == 0;
+		bool isVertical = Mathf.Abs(forward.y) > 0 && Mathf.Abs(forward.x) == 0;
+		bool isDiagonal = !isHorizontal && !isVertical;
+
+		Vector2 size;
+		float rotation;
+
+		if (isHorizontal)
+		{
+			size = new Vector2(depth, width);
+			rotation = 0f;  // 회전 불필요
+		}
+		else if (isVertical)
+		{
+			size = new Vector2(width, depth);
+			rotation = 0f;  // 회전 불필요 (크기로 이미 조정됨)
+		}
+		else  // 대각선
+		{
+			size = new Vector2(width, depth);
+			rotation = GetRotationForDirection(unit.currentDir);  // 회전 필요
+		}
 
 		return new Hitbox
 		{
 			center = center,
-			size = new Vector2(width, depth)
+			size = size,
+			rotation = rotation
+		};
+	}
+
+	public static float GetRotationForDirection(Dir dir)
+	{
+		// 방향에 따른 회전 각도 반환 (도)
+		return dir switch
+		{
+			Dir.UP => 90f,
+			Dir.UP_RIGHT => 45f,
+			Dir.RIGHT => 0f,
+			Dir.DOWN_RIGHT => -45f,
+			Dir.DOWN => -90f,
+			Dir.DOWN_LEFT => -135f,
+			Dir.LEFT => 180f,
+			Dir.UP_LEFT => 135f,
+			_ => 0f
 		};
 	}
 
