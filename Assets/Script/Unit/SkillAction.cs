@@ -51,68 +51,50 @@ public abstract class SkillAction
         return result;
     }
 
-    public static void BeginAttackCast(
-        Unit unit,
-        float castMs,
-        ThreatTileData threat,
-        System.Action attackAction,
-        System.Action cooldownAction = null,
-        System.Action effectAction = null
-    )
-    {
-        unit.isCastingAttack = true;
+	public static void BeginAttackCast(
+	Unit unit,
+	float castMs,
+	ThreatTileData threat,
+	System.Action attackAction,
+	System.Action cooldownAction = null,
+	System.Action effectAction = null
+)
+	{
+		unit.isCastingAttack = true;
+		unit.castTimer = castMs / 1000f;
 
-        unit.castTimer = castMs / 1000f;
+		// =========================
+		// HITBOX 생성 핵심
+		// =========================
+		if (threat.shape == ThreatShape.LINE)
+			threat.hitbox = BuildLineHitbox(unit, threat.range);
 
-        threat.tiles =
-            BuildThreatTiles(unit, threat);
+		else if (threat.shape == ThreatShape.RECT)
+			threat.hitbox = BuildRectHitbox(unit, threat.width, threat.depth);
 
-        threat.visualTiles =
-            BuildVisualThreatTiles(unit, threat);
+		unit.threatTiles.Clear();
+		unit.threatTiles.Add(threat);
 
-        unit.threatTiles.Clear();
+		unit.pendingAttack = () =>
+		{
+			try
+			{
+				effectAction?.Invoke();
+				attackAction?.Invoke();
+			}
+			finally
+			{
+				cooldownAction?.Invoke();
 
-        unit.threatTiles.Add(threat);
+				unit.threatTiles.Clear();
+				unit.isCastingAttack = false;
+				unit.pendingAttack = null;
+				unit.castTimer = 0f;
+			}
+		};
+	}
 
-        unit.pendingAttack = () =>
-        {
-            try
-            {
-                effectAction?.Invoke();
-
-                attackAction?.Invoke();
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError(
-                    $"[AttackCast Error] {unit.unitType.typeName} : {e}"
-                );
-            }
-            finally
-            {
-                // =========================
-                // 무조건 실행
-                // =========================
-
-                // 쿨타임 적용
-                cooldownAction?.Invoke();
-
-                // 위협 타일 제거
-                unit.threatTiles.Clear();
-
-                // 캐스팅 종료
-                unit.isCastingAttack = false;
-
-                // 예약 제거
-                unit.pendingAttack = null;
-
-                // 타이머 초기화
-                unit.castTimer = 0f;
-            }
-        };
-    }
-
-    public static List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)
+	public static List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)//
     {
         List<Unit> result = new List<Unit>();
 
@@ -154,8 +136,46 @@ public abstract class SkillAction
 
         return result;
     }
+	public static List<Unit> GetEnemiesInHitbox(Unit attacker, Hitbox box)
+	{
+		List<Unit> result = new();
 
-    public static void DamageEnemiesInTiles(Unit attacker, List<Vector2Int> tiles, float multiplier, bool stun = false, float stunDuration = 0f)
+		foreach (var u in GameSession.Instance.units)
+		{
+			if (u == null || u == attacker || u.hp <= 0) continue;
+			if (u.currentFloor != attacker.currentFloor) continue;
+
+			bool isEnemy =
+				(attacker is Human && u is Monster) ||
+				(attacker is Monster && u is Human);
+
+			if (!isEnemy) continue;
+
+			Hitbox targetBox = GetUnitHitbox(u);
+
+			if (box.Overlaps(targetBox))
+				result.Add(u);
+		}
+
+		return result;
+	}
+	public static Hitbox GetUnitHitbox(Unit u)
+	{
+		Vector2 size = new Vector2(
+			u.unitType.footprint.x,
+			u.unitType.footprint.y
+		);
+
+		Vector2 center =
+			(Vector2)u.position + size * 0.5f;
+
+		return new Hitbox
+		{
+			center = center,
+			size = size
+		};
+	}
+	public static void DamageEnemiesInTiles(Unit attacker, List<Vector2Int> tiles, float multiplier, bool stun = false, float stunDuration = 0f)//제거예정
     {
         List<Unit> targets =
             GetEnemiesInTiles(attacker, tiles);
@@ -171,8 +191,25 @@ public abstract class SkillAction
             }
         }
     }
+	public static void DamageEnemiesInHitbox(
+	Unit attacker,
+	Hitbox box,
+	float multiplier,
+	bool stun = false,
+	float stunDuration = 0f
+)
+	{
+		var targets = GetEnemiesInHitbox(attacker, box);
 
-    public static void DamageEnemiesInTilesCompressed(Unit attacker, List<Vector2Int> tiles, float multiplier, float compression, bool stun = false, float stunDuration = 0f)
+		foreach (var t in targets)
+		{
+			t.TakePhysicalDamage(attacker.physicalAttack * multiplier, attacker);
+
+			if (stun)
+				t.ApplyStun(stunDuration);
+		}
+	}
+	public static void DamageEnemiesInTilesCompressed(Unit attacker, List<Vector2Int> tiles, float multiplier, float compression, bool stun = false, float stunDuration = 0f)
     {
         foreach (Unit u in GameSession.Instance.units)
         {
@@ -230,8 +267,40 @@ public abstract class SkillAction
         NEXT_UNIT:;
         }
     }
+	public static Hitbox BuildLineHitbox(Unit unit, int range)
+	{
+		Vector2 dir = unit.GetDirVector(unit.currentDir);
 
-    public static List<Vector2Int> BuildVisualThreatTiles(
+		Vector2 center =
+			(Vector2)unit.position +
+			dir * (range * 0.5f + 0.5f);
+
+		Vector2 size =
+			Mathf.Abs(dir.x) > 0
+			? new Vector2(range, 1)
+			: new Vector2(1, range);
+
+		return new Hitbox
+		{
+			center = center,
+			size = size
+		};
+	}
+	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
+	{
+		Vector2 forward = unit.GetDirVector(unit.currentDir);
+
+		Vector2 center =
+			(Vector2)unit.position +
+			forward * (depth * 0.5f + 0.5f);
+
+		return new Hitbox
+		{
+			center = center,
+			size = new Vector2(width, depth)
+		};
+	}
+	public static List<Vector2Int> BuildVisualThreatTiles(
         Unit unit,
         ThreatTileData data
     )
@@ -648,378 +717,308 @@ public abstract class SkillAction
 
 public class SkillAction_KnightFocusedStab : SkillAction
 {
-    public SkillAction_KnightFocusedStab()
-    {
-        SkillName = "집중 찌르기";
-    }
+	public SkillAction_KnightFocusedStab()
+	{
+		SkillName = "집중 찌르기";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack * 1.25f;
-        float priority = 70f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack * 1.25f;
+		float priority = 70f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 2f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 2f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            800f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			800f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles = GetLineTiles(unit, 2);
-        float compression = GetCompression(unit);
+		Hitbox box = BuildLineHitbox(unit, 2);
+		float compression = GetCompression(unit);
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.LINE,
-                range = 2
-            },
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.LINE,
+				range = 2
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    1.25f,
-                    compression
-                );
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 1.25f);
+				Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
+			},
 
-                Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[3] =
-                    ApplyCooldown(unit, 8f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[3] = ApplyCooldown(unit, 8f);
+			}
+		);
+	}
 }
 
 public class SkillAction_KnightShieldBash : SkillAction
 {
-    public SkillAction_KnightShieldBash()
-    {
-        SkillName = "방패 타격";
-    }
+	public SkillAction_KnightShieldBash()
+	{
+		SkillName = "방패 타격";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[2] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[2] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack * 0.9f;
-        float priority = 55f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack * 0.9f;
+		float priority = 55f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 1.5f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 1.5f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles = GetLineTiles(unit, 1);
-        float compression = GetCompression(unit);
+		Hitbox box = BuildLineHitbox(unit, 1);
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.LINE,
-                range = 1
-            },
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.LINE,
+				range = 1
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    0.9f,
-                    compression,
-                    true,
-                    1f
-                );
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 0.9f, true, 1f);
+				Debug.Log($"{unit.unitType.typeName} 방패 타격");
+			},
 
-                Debug.Log($"{unit.unitType.typeName} 방패 타격");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[2] =
-                    ApplyCooldown(unit, 6f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[2] = ApplyCooldown(unit, 6f);
+			}
+		);
+	}
 }
 
 public class SkillAction_KnightFrontSlash : SkillAction
 {
-    public SkillAction_KnightFrontSlash()
-    {
-        SkillName = "전방 베기";
-    }
+	public SkillAction_KnightFrontSlash()
+	{
+		SkillName = "전방 베기";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[0] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[0] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack;
-        float priority = 40f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack;
+		float priority = 40f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 1.5f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 1.5f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            450f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles = GetLineTiles(unit, 1);
-        float compression = GetCompression(unit);
+		Hitbox box = BuildLineHitbox(unit, 1);
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.LINE,
-                range = 1
-            },
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.LINE,
+				range = 1
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    1f,
-                    compression
-                );
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 1f);
+				Debug.Log($"{unit.unitType.typeName} 전방 베기");
+			},
 
-                Debug.Log($"{unit.unitType.typeName} 전방 베기");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[0] =
-                    ApplyCooldown(unit, 1.2f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[0] = ApplyCooldown(unit, 1.2f);
+			}
+		);
+	}
 }
 
 public class SkillAction_MeleeTankHeavySmash : SkillAction
 {
-    public SkillAction_MeleeTankHeavySmash()
-    {
-        SkillName = "육중한 내리찍기";
-    }
+	public SkillAction_MeleeTankHeavySmash()
+	{
+		SkillName = "육중한 내리찍기";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack * 1.45f;
-        float priority = 75f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack * 1.45f;
+		float priority = 75f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 2.5f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 2.5f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles =
-            GetFrontAreaTiles(unit, 2, 2);
+		Hitbox box = BuildRectHitbox(unit, 2, 2);
 
-        float compression =
-            GetCompression(unit);
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.RECT,
+				width = 2,
+				depth = 2
+			},
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.RECT,
-                width = 2,
-                depth = 2
-            },
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 1.45f);
+				Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    1.45f,
-                    compression
-                );
-
-                Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[3] =
-                    ApplyCooldown(unit, 7f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[3] = ApplyCooldown(unit, 7f);
+			}
+		);
+	}
 }
 
 public class SkillAction_MeleeTankAmbushClaw : SkillAction
 {
-    public SkillAction_MeleeTankAmbushClaw()
-    {
-        SkillName = "급습 할퀴기";
-    }
+	public SkillAction_MeleeTankAmbushClaw()
+	{
+		SkillName = "급습 할퀴기";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[2] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[2] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack * 0.65f;
-        float priority = 60f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack * 0.65f;
+		float priority = 60f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 1.5f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 1.5f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            240f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			240f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles =
-            GetLineTiles(unit, 1);
+		Hitbox box = BuildLineHitbox(unit, 1);
 
-        float compression =
-            GetCompression(unit);
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.LINE,
+				range = 1
+			},
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.LINE,
-                range = 1
-            },
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 0.65f);
+				Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    0.65f,
-                    compression
-                );
-
-                Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[2] =
-                    ApplyCooldown(unit, 4f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[2] = ApplyCooldown(unit, 4f);
+			}
+		);
+	}
 }
 
 public class SkillAction_MeleeTankClawSwipe : SkillAction
 {
-    public SkillAction_MeleeTankClawSwipe()
-    {
-        SkillName = "발톱 후려치기";
-    }
+	public SkillAction_MeleeTankClawSwipe()
+	{
+		SkillName = "발톱 후려치기";
+	}
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[1] <= 0f;
+	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[1] <= 0f;
 
-    public override float GetPriority(Unit unit, Unit target, float minDist)
-    {
-        float expectedDamage = unit.physicalAttack;
-        float priority = 50f;
+	public override float GetPriority(Unit unit, Unit target, float minDist)
+	{
+		float expectedDamage = unit.physicalAttack;
+		float priority = 50f;
 
-        if (expectedDamage >= target.hp) priority += 20f;
-        if (minDist <= 3f) priority += 10f;
+		if (expectedDamage >= target.hp) priority += 20f;
+		if (minDist <= 3f) priority += 10f;
 
-        return priority;
-    }
+		return priority;
+	}
 
-    public override void Execute(Unit unit, Unit target, float minDist)
-    {
-        float finalDelayMs =
-            Mathf.Max(200f,
-            650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+	public override void Execute(Unit unit, Unit target, float minDist)
+	{
+		float finalDelayMs =
+			Mathf.Max(200f,
+			650f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        List<Vector2Int> tiles =
-            GetLineTiles(unit, 3);
+		Hitbox box = BuildLineHitbox(unit, 3);
 
-        float compression =
-            GetCompression(unit);
+		BeginAttackCast(
+			unit,
+			finalDelayMs,
+			new ThreatTileData
+			{
+				shape = ThreatShape.LINE,
+				range = 3
+			},
 
-        BeginAttackCast(
-            unit,
-            finalDelayMs,
-            new ThreatTileData
-            {
-                shape = ThreatShape.LINE,
-                range = 3
-            },
+			() =>
+			{
+				DamageEnemiesInHitbox(unit, box, 1f);
+				Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
+			},
 
-            // attack
-            () =>
-            {
-                DamageEnemiesInTilesCompressed(
-                    unit,
-                    tiles,
-                    1f,
-                    compression
-                );
-
-                Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
-            },
-
-            // cooldown
-            () =>
-            {
-                unit.skillCooldowns[1] =
-                    ApplyCooldown(unit, 1.4f);
-            }
-        );
-    }
+			() =>
+			{
+				unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f);
+			}
+		);
+	}
 }

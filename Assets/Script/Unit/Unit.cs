@@ -44,12 +44,15 @@ public class ThreatTileData
 	public Color color =
 		new Color(1f, 0f, 0f, 0.5f);
 
+	public Hitbox hitbox;
+
 	public List<Vector2Int> tiles =
 		new List<Vector2Int>();
 	public List<Vector2Int> visualTiles =
 	new List<Vector2Int>();
 	public HashSet<Vector2Int> partialTiles =
 	new HashSet<Vector2Int>();
+
 }
 
 // 공통 전투 상수 정의
@@ -406,6 +409,16 @@ public abstract class Unit : ScriptableObject
 		brain.ExecuteAction(this);
 	}
 
+	public static Hitbox GetUnitHitbox(Unit u)
+	{
+		return new Hitbox
+		{
+			center = (Vector2)u.position + new Vector2(u.unitType.footprint.x, u.unitType.footprint.y) * 0.5f,
+			size = new Vector2(u.unitType.footprint.x, u.unitType.footprint.y),
+			rotation = 0f
+		};
+	}
+		
 	public abstract void OnUpdate(float deltaTime);
 	public abstract void OnThreatDetected(List<ThreatTileData> threats);
 	public abstract void OnReactToThreat(Unit attacker, ThreatTileData threat);
