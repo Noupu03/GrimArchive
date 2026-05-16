@@ -239,6 +239,8 @@ public abstract class Unit : ScriptableObject
 	// 현재 공격 위협 타일
 	public ThreatTileData currentThreat;
 
+	// 공격 시 자유로운 각도 (라디안)
+	public float currentAttackAngle = 0f; // 공격 중인 경우의 실제 공격 방향 각도
 
 
 	private float Normalize(float value, float baseValue)//정규화함수. 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.

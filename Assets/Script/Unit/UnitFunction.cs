@@ -40,6 +40,26 @@ public abstract class UnitFunction : Unit
 	public override void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); }
 	public override void ApplyBurn(float duration) { burnDuration = Mathf.Max(burnDuration, duration); }
 
+	/// <summary>
+	/// 공격 시 적을 향한 최적의 각도를 계산합니다 (자유 각도)
+	/// </summary>
+	public float CalculateAttackAngleToEnemy(Unit targetEnemy, int attackRange)
+	{
+		if (targetEnemy == null)
+		{
+			// 목표가 없으면 현재 방향 기반으로 각도 설정
+			return Mathf.Atan2(GetDirVector(currentDir).y, GetDirVector(currentDir).x);
+		}
+
+		// 대상까지의 벡터
+		Vector2 dirToTarget = ((Vector2)targetEnemy.position - (Vector2)position).normalized;
+
+		// 라디안 각도로 변환
+		float angleRad = Mathf.Atan2(dirToTarget.y, dirToTarget.x);
+
+		return angleRad;
+	}
+
 	#region 기능함수들
 	public override Vector2Int GetDirVector(Dir dir)
 	{

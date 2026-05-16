@@ -22,12 +22,12 @@ public abstract class SkillAction
 		unit.isCastingAttack = true;
 		unit.castTimer = castMs / 1000f;
 
-		// hitbox 생성
+		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
 		if (threat.shape == ThreatShape.LINE)
-			threat.hitbox = BuildLineHitbox(unit, threat.range);
+			threat.hitbox = BuildLineHitboxWithAngle(unit, threat.range, unit.currentAttackAngle);
 
 		else if (threat.shape == ThreatShape.RECT)
-			threat.hitbox = BuildRectHitbox(unit, threat.width, threat.depth);
+			threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.currentAttackAngle);
 
 		unit.currentThreat = threat;
 
@@ -146,6 +146,34 @@ public abstract class SkillAction
 			rotation = rotation
 		};
 	}
+
+	/// <summary>
+	/// 주어진 각도 기반으로 라인 히트박스를 생성합니다 (공격 시 자유 각도 지원)
+	/// </summary>
+	public static Hitbox BuildLineHitboxWithAngle(Unit unit, int range, float angleRad)
+	{
+		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+
+		// 유닛 중심 계산
+		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
+
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
+		Vector2 offset = dir * (range * 0.5f + 0.5f);
+
+		Vector2 center = unitCenter + offset;
+
+		// 라인의 길이와 회전 각도
+		Vector2 size = new Vector2(range, 1);
+		float rotationDeg = angleRad * Mathf.Rad2Deg;
+
+		return new Hitbox
+		{
+			center = center,
+			size = size,
+			rotation = rotationDeg
+		};
+	}
+
 	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
 	{
 		Vector2 forward = unit.GetDirVector(unit.currentDir);
@@ -189,6 +217,34 @@ public abstract class SkillAction
 			rotation = rotation
 		};
 	}
+
+	/// <summary>
+	/// 주어진 각도 기반으로 직사각형 히트박스를 생성합니다 (공격 시 자유 각도 지원)
+	/// </summary>
+	public static Hitbox BuildRectHitboxWithAngle(Unit unit, int width, int depth, float angleRad)
+	{
+		Vector2 forward = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+
+		// 유닛 중심 계산
+		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
+
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
+		Vector2 offset = forward * (depth * 0.5f + 0.5f);
+
+		Vector2 center = unitCenter + offset;
+
+		// 직사각형 크기
+		Vector2 size = new Vector2(depth, width);
+		float rotationDeg = angleRad * Mathf.Rad2Deg;
+
+		return new Hitbox
+		{
+			center = center,
+			size = size,
+			rotation = rotationDeg
+		};
+	}
+
 
 	public static float GetRotationForDirection(Dir dir)
 	{
