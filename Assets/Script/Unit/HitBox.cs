@@ -20,41 +20,4 @@ public struct Hitbox
 	{
 		return ToRect().Overlaps(other.ToRect());
 	}
-
-	public static Hitbox BuildLineHitbox(Unit unit, int range)
-	{
-		Vector2 dir = unit.GetDirVector(unit.currentDir);
-
-		Vector2 size = new Vector2(
-			Mathf.Abs(dir.x) > 0 ? range : 1,
-			Mathf.Abs(dir.y) > 0 ? range : 1
-		);
-
-		Vector2 center =
-			(Vector2)unit.position +
-			dir * (range * 0.5f + 0.5f);
-
-		return new Hitbox
-		{
-			center = center,
-			size = size
-		};
-	}
-	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
-	{
-		Vector2 forward = unit.GetDirVector(unit.currentDir);
-		Vector2 right = new Vector2(forward.y, -forward.x);
-
-		Vector2 center =
-			(Vector2)unit.position +
-			forward * (depth * 0.5f + 0.5f);
-
-		Vector2 size = new Vector2(width, depth);
-
-		return new Hitbox
-		{
-			center = center,
-			size = size
-		};
-	}
 }

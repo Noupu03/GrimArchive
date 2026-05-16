@@ -3,32 +3,32 @@ using UnityEngine;
 
 public abstract class SkillAction
 {
-    public string SkillName { get; protected set; }
+	public string SkillName { get; protected set; }
 
-    public abstract bool IsAvailable(Unit unit);
-    public abstract float GetPriority(Unit unit, Unit target, float minDist);
-    public abstract void Execute(Unit unit, Unit target, float minDist);
+	public abstract bool IsAvailable(Unit unit);
+	public abstract float GetPriority(Unit unit, Unit target, float minDist);
+	public abstract void Execute(Unit unit, Unit target, float minDist);
 
-    public static List<Vector2Int> GetLineTiles(
-        Unit unit,
-        int range
-    )
-    {
-        List<Vector2Int> tiles = new List<Vector2Int>();
+	public static List<Vector2Int> GetLineTiles(
+		Unit unit,
+		int range
+	)
+	{
+		List<Vector2Int> tiles = new List<Vector2Int>();
 
-        Vector2Int dir = unit.GetDirVector(unit.currentDir);
+		Vector2Int dir = unit.GetDirVector(unit.currentDir);
 
-        Vector2Int current = unit.position;
+		Vector2Int current = unit.position;
 
-        for (int i = 1; i <= range; i++)
-        {
-            current += dir;
+		for (int i = 1; i <= range; i++)
+		{
+			current += dir;
 
-            tiles.Add(current);
-        }
+			tiles.Add(current);
+		}
 
-        return tiles;
-    }
+		return tiles;
+	}
 
 
 	public static void BeginAttackCast(
@@ -78,47 +78,47 @@ public abstract class SkillAction
 	}
 
 	public static List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)//
-    {
-        List<Unit> result = new List<Unit>();
+	{
+		List<Unit> result = new List<Unit>();
 
-        foreach (Unit u in GameSession.Instance.units)
-        {
-            if (u == null) continue;
-            if (u == attacker) continue;
-            if (u.hp <= 0) continue;
+		foreach (Unit u in GameSession.Instance.units)
+		{
+			if (u == null) continue;
+			if (u == attacker) continue;
+			if (u.hp <= 0) continue;
 
-            if (u.currentFloor != attacker.currentFloor)
-                continue;
+			if (u.currentFloor != attacker.currentFloor)
+				continue;
 
-            bool isEnemy =
-                (attacker is Human && u is Monster) ||
-                (attacker is Monster && u is Human);
+			bool isEnemy =
+				(attacker is Human && u is Monster) ||
+				(attacker is Monster && u is Human);
 
-            if (!isEnemy)
-                continue;
+			if (!isEnemy)
+				continue;
 
-            int w = (int)u.unitType.footprint.x;
-            int h = (int)u.unitType.footprint.y;
+			int w = (int)u.unitType.footprint.x;
+			int h = (int)u.unitType.footprint.y;
 
-            for (int dx = 0; dx < w; dx++)
-            {
-                for (int dy = 0; dy < h; dy++)
-                {
-                    Vector2Int p = new Vector2Int(u.position.x + dx, u.position.y + dy);
+			for (int dx = 0; dx < w; dx++)
+			{
+				for (int dy = 0; dy < h; dy++)
+				{
+					Vector2Int p = new Vector2Int(u.position.x + dx, u.position.y + dy);
 
-                    if (tiles.Contains(p))
-                    {
-                        result.Add(u);
+					if (tiles.Contains(p))
+					{
+						result.Add(u);
 
-                        dx = w;
-                        break;
-                    }
-                }
-            }
-        }
+						dx = w;
+						break;
+					}
+				}
+			}
+		}
 
-        return result;
-    }
+		return result;
+	}
 	public static List<Unit> GetEnemiesInHitbox(Unit attacker, Hitbox box)
 	{
 		List<Unit> result = new();
@@ -158,13 +158,7 @@ public abstract class SkillAction
 			size = size
 		};
 	}
-	public static void DamageEnemiesInHitbox(
-	Unit attacker,
-	Hitbox box,
-	float multiplier,
-	bool stun = false,
-	float stunDuration = 0f
-)
+	public static void DamageEnemiesInHitbox(Unit attacker,Hitbox box,float multiplier,bool stun = false,float stunDuration = 0f)
 	{
 		var targets = GetEnemiesInHitbox(attacker, box);
 
@@ -176,19 +170,17 @@ public abstract class SkillAction
 				t.ApplyStun(stunDuration);
 		}
 	}
-	
+
 	public static Hitbox BuildLineHitbox(Unit unit, int range)
 	{
 		Vector2 dir = unit.GetDirVector(unit.currentDir);
 
 		Vector2 center =
 			(Vector2)unit.position +
-			dir * (range * 0.5f + 0.5f);
+			dir.normalized * (range * 0.5f + 0.5f);
 
 		Vector2 size =
-			Mathf.Abs(dir.x) > 0
-			? new Vector2(range, 1)
-			: new Vector2(1, range);
+			Mathf.Abs(dir.x) >= 0 ? new Vector2(range, 1) : new Vector2(1, range);
 
 		return new Hitbox
 		{
@@ -202,7 +194,7 @@ public abstract class SkillAction
 
 		Vector2 center =
 			(Vector2)unit.position +
-			forward * (depth * 0.5f + 0.5f);
+			forward.normalized * (depth * 0.5f + 0.5f);
 
 		return new Hitbox
 		{
@@ -211,87 +203,87 @@ public abstract class SkillAction
 		};
 	}
 
-    public static Dir GetDirection8(Vector2Int diff)
-    {
-        if (diff == Vector2Int.zero)
-            return Dir.DOWN;
+	public static Dir GetDirection8(Vector2Int diff)
+	{
+		if (diff == Vector2Int.zero)
+			return Dir.DOWN;
 
-        int x = diff.x;
-        int y = diff.y;
+		int x = diff.x;
+		int y = diff.y;
 
-        // 대각선
-        if (x > 0 && y > 0)
-            return Dir.UP_RIGHT;
+		// 대각선
+		if (x > 0 && y > 0)
+			return Dir.UP_RIGHT;
 
-        if (x > 0 && y < 0)
-            return Dir.DOWN_RIGHT;
+		if (x > 0 && y < 0)
+			return Dir.DOWN_RIGHT;
 
-        if (x < 0 && y > 0)
-            return Dir.UP_LEFT;
+		if (x < 0 && y > 0)
+			return Dir.UP_LEFT;
 
-        if (x < 0 && y < 0)
-            return Dir.DOWN_LEFT;
+		if (x < 0 && y < 0)
+			return Dir.DOWN_LEFT;
 
-        // 직선
-        if (x > 0)
-            return Dir.RIGHT;
+		// 직선
+		if (x > 0)
+			return Dir.RIGHT;
 
-        if (x < 0)
-            return Dir.LEFT;
+		if (x < 0)
+			return Dir.LEFT;
 
-        if (y > 0)
-            return Dir.UP;
+		if (y > 0)
+			return Dir.UP;
 
-        return Dir.DOWN;
-    }
+		return Dir.DOWN;
+	}
 
-    public static Vector2Int GetRightVector(Vector2Int forward)
-    {
-        // 직선 방향
-        if (forward == Vector2Int.up)
-            return Vector2Int.right;
+	public static Vector2Int GetRightVector(Vector2Int forward)
+	{
+		// 직선 방향
+		if (forward == Vector2Int.up)
+			return Vector2Int.right;
 
-        if (forward == Vector2Int.down)
-            return Vector2Int.left;
+		if (forward == Vector2Int.down)
+			return Vector2Int.left;
 
-        if (forward == Vector2Int.right)
-            return Vector2Int.down;
+		if (forward == Vector2Int.right)
+			return Vector2Int.down;
 
-        if (forward == Vector2Int.left)
-            return Vector2Int.up;
+		if (forward == Vector2Int.left)
+			return Vector2Int.up;
 
-        // 대각 방향
-        if (forward == new Vector2Int(1, 1))
-            return new Vector2Int(1, -1);
+		// 대각 방향
+		if (forward == new Vector2Int(1, 1))
+			return new Vector2Int(1, -1);
 
-        if (forward == new Vector2Int(1, -1))
-            return new Vector2Int(-1, -1);
+		if (forward == new Vector2Int(1, -1))
+			return new Vector2Int(-1, -1);
 
-        if (forward == new Vector2Int(-1, -1))
-            return new Vector2Int(-1, 1);
+		if (forward == new Vector2Int(-1, -1))
+			return new Vector2Int(-1, 1);
 
-        if (forward == new Vector2Int(-1, 1))
-            return new Vector2Int(1, 1);
+		if (forward == new Vector2Int(-1, 1))
+			return new Vector2Int(1, 1);
 
-        return Vector2Int.right;
-    }
+		return Vector2Int.right;
+	}
 
-    public static float GetCompression(Unit unit)
-    {
-        bool isDiagonal =
-            unit.currentDir == Dir.UP_RIGHT ||
-            unit.currentDir == Dir.UP_LEFT ||
-            unit.currentDir == Dir.DOWN_RIGHT ||
-            unit.currentDir == Dir.DOWN_LEFT;
+	public static float GetCompression(Unit unit)
+	{
+		bool isDiagonal =
+			unit.currentDir == Dir.UP_RIGHT ||
+			unit.currentDir == Dir.UP_LEFT ||
+			unit.currentDir == Dir.DOWN_RIGHT ||
+			unit.currentDir == Dir.DOWN_LEFT;
 
-        return isDiagonal ? 0.75f : 1f;
-    }
+		return isDiagonal ? 0.75f : 1f;
+	}
 
-    public static float ApplyCooldown(Unit unit, float baseCd)
-    {
-        float reduction = Mathf.Min(50f, unit.cooltimeReduction);
-        return baseCd * (1f - reduction / 100f);
-    }
+	public static float ApplyCooldown(Unit unit, float baseCd)
+	{
+		float reduction = Mathf.Min(50f, unit.cooltimeReduction);
+		return baseCd * (1f - reduction / 100f);
+	}
 }
 
 public class SkillAction_KnightFocusedStab : SkillAction
@@ -343,7 +335,7 @@ public class SkillAction_KnightFocusedStab : SkillAction
 	}
 }
 
-	public class SkillAction_KnightShieldBash : SkillAction
+public class SkillAction_KnightShieldBash : SkillAction
 {
 	public SkillAction_KnightShieldBash()
 	{
@@ -420,11 +412,11 @@ public class SkillAction_KnightFrontSlash : SkillAction
 			Mathf.Max(200f,
 			450f * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-		Hitbox box = BuildLineHitbox(unit, 1);
+		Hitbox box = BuildLineHitbox(unit, 30);
 
 		var threat = ThreatTileData.Create();
 		threat.shape = ThreatShape.LINE;
-		threat.range = 1;
+		threat.range = 30;
 
 		BeginAttackCast(
 			unit,
