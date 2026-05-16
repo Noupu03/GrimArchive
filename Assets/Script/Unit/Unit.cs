@@ -46,14 +46,6 @@ public class ThreatTileData
 
 	public Hitbox hitbox;
 
-	public Dir dir;
-	public Vector2Int forward;
-	public Vector2Int right;
-
-	public List<Vector2Int> tiles;
-	public List<Vector2Int> visualTiles;
-	public HashSet<Vector2Int> partialTiles;
-
 	// =========================================
 	// SAFE FACTORY METHOD
 	// =========================================
@@ -61,20 +53,11 @@ public class ThreatTileData
 	{
 		var data = new ThreatTileData();
 
-		data.tiles = new List<Vector2Int>(8);
-		data.visualTiles = new List<Vector2Int>(8);
-		data.partialTiles = new HashSet<Vector2Int>();
-
 		data.shape = ThreatShape.LINE;
 		data.range = 1;
 		data.width = 1;
 		data.depth = 1;
 		data.color = new Color(1f, 0f, 0f, 0.5f);
-
-		data.dir = Dir.DOWN;
-		data.forward = Vector2Int.down;
-		data.right = Vector2Int.right;
-
 		data.hitbox = default;
 
 		return data;

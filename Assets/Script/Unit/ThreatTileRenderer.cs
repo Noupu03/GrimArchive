@@ -5,47 +5,32 @@ public class ThreatTileRenderer : MonoBehaviour
 {
 	public static ThreatTileRenderer Instance;
 
-	private Sprite squareSprite;
-
 	private class ThreatVisual
 	{
-		public SpriteRenderer renderer;
+		public LineRenderer lineRenderer;
 	}
 
-	// Unit당 1개만 관리 (List 제거)
-	private Dictionary<Unit, ThreatVisual> activeSprites
+	// Unit당 1개만 관리
+	private Dictionary<Unit, ThreatVisual> activeVisuals
 		= new Dictionary<Unit, ThreatVisual>();
 
 	void Awake()
 	{
 		Instance = this;
-		CreateSquareSprite();
 	}
 
-	void CreateSquareSprite()
-	{
-		Texture2D tex = new Texture2D(1, 1);
-		tex.SetPixel(0, 0, Color.white);
-		tex.Apply();
-
-		squareSprite = Sprite.Create(
-			tex,
-			new Rect(0, 0, 1, 1),
-			new Vector2(0.5f, 0.5f),
-			1f
-		);
-	}
-
-	SpriteRenderer CreateRenderer(string name)
+	LineRenderer CreateLineRenderer(string name)
 	{
 		GameObject go = new GameObject(name);
 		go.transform.SetParent(transform);
 
-		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-		sr.sprite = squareSprite;
-		sr.sortingOrder = 999;
+		LineRenderer lr = go.AddComponent<LineRenderer>();
+		lr.material = new Material(Shader.Find("Sprites/Default"));
+		lr.sortingOrder = 999;
+		lr.widthMultiplier = 0.1f;
+		lr.useWorldSpace = true;
 
-		return sr;
+		return lr;
 	}
 
 	public void Render(List<Unit> units)
@@ -57,7 +42,7 @@ public class ThreatTileRenderer : MonoBehaviour
 		// =====================================
 		List<Unit> removeList = new();
 
-		foreach (var pair in activeSprites)
+		foreach (var pair in activeVisuals)
 		{
 			Unit u = pair.Key;
 
@@ -68,15 +53,15 @@ public class ThreatTileRenderer : MonoBehaviour
 
 			if (shouldRemove)
 			{
-				if (pair.Value != null && pair.Value.renderer != null)
-					Destroy(pair.Value.renderer.gameObject);
+				if (pair.Value != null && pair.Value.lineRenderer != null)
+					Destroy(pair.Value.lineRenderer.gameObject);
 
 				removeList.Add(u);
 			}
 		}
 
 		foreach (var u in removeList)
-			activeSprites.Remove(u);
+			activeVisuals.Remove(u);
 
 		// =====================================
 		// RENDER PHASE
@@ -86,64 +71,62 @@ public class ThreatTileRenderer : MonoBehaviour
 			if (u == null || u.currentThreat == null)
 				continue;
 
-			ThreatTileData t = u.currentThreat;
+			ThreatTileData threat = u.currentThreat;
 
-			if (t.hitbox.size == Vector2.zero)
+			if (threat.hitbox.size == Vector2.zero)
 				continue;
 
-			Vector3 offset =
+			Vector3 floorOffset =
 				UnitGenerate.Instance != null
 				? UnitGenerate.Instance.GetFloorOffset(u.currentFloor)
 				: Vector3.zero;
 
 			ThreatVisual tv;
 
-			if (!activeSprites.ContainsKey(u))
+			if (!activeVisuals.ContainsKey(u))
 			{
 				tv = new ThreatVisual
 				{
-					renderer = CreateRenderer("ThreatBox")
+					lineRenderer = CreateLineRenderer("ThreatBox")
 				};
-				activeSprites[u] = tv;
+				activeVisuals[u] = tv;
 			}
 			else
 			{
-				tv = activeSprites[u];
+				tv = activeVisuals[u];
 			}
 
-			SpriteRenderer sr = tv.renderer;
+			LineRenderer lr = tv.lineRenderer;
 
 			// =====================================
-			// HITBOX → WORLD POSITION
+			// 히트박스 경계선 렌더링
 			// =====================================
-			Hitbox box = t.hitbox;
-
+			Hitbox box = threat.hitbox;
 			Vector2 center = box.center;
-			Vector2 size = box.size.normalized;
+			Vector2 size = box.size;
 
-			Vector3 pos = new Vector3(
-				center.x + 0.5f,
-				center.y + 0.5f,
-				-5f
-			)+offset;
+			// 히트박스의 4개 꼭짓점
+			Vector2 halfSize = size * 0.5f;
+			Vector3 p1 = new Vector3(center.x - halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
+			Vector3 p2 = new Vector3(center.x + halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
+			Vector3 p3 = new Vector3(center.x + halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
+			Vector3 p4 = new Vector3(center.x - halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
 
-			sr.transform.position = pos;
-			sr.transform.rotation = u.GetDirRotation(u.currentDir);
+			// 닫힌 사각형 그리기 (4개 점 + 첫번째 점 반복)
+			lr.positionCount = 5;
+			lr.SetPosition(0, p1);
+			lr.SetPosition(1, p2);
+			lr.SetPosition(2, p3);
+			lr.SetPosition(3, p4);
+			lr.SetPosition(4, p1);
 
-			// =====================================
-			// SIZE = HITBOX SIZE
-			// =====================================
-			sr.transform.localScale = new Vector3(
-				size.x,
-				size.y,
-				1f
-			);
-
+			// 색상 설정
 			Color color = u is Human ? Color.green : Color.red;
-			color.a = t.color.a;
+			color.a = threat.color.a;
 
-			sr.color = color;
-			sr.gameObject.SetActive(true);
+			lr.startColor = color;
+			lr.endColor = color;
+			lr.enabled = true;
 		}
 	}
 }

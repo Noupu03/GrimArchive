@@ -22,11 +22,6 @@ public abstract class SkillAction
 		unit.isCastingAttack = true;
 		unit.castTimer = castMs / 1000f;
 
-		// 방향 고정 (여기가 중요)
-		threat.dir = unit.currentDir;
-		threat.forward = unit.GetDirVector(unit.currentDir);
-		threat.right = GetRightVector(threat.forward);
-
 		// hitbox 생성
 		if (threat.shape == ThreatShape.LINE)
 			threat.hitbox = BuildLineHitbox(unit, threat.range);
@@ -56,48 +51,6 @@ public abstract class SkillAction
 		};
 	}
 
-	public static List<Unit> GetEnemiesInTiles(Unit attacker, List<Vector2Int> tiles)//
-	{
-		List<Unit> result = new List<Unit>();
-
-		foreach (Unit u in GameSession.Instance.units)
-		{
-			if (u == null) continue;
-			if (u == attacker) continue;
-			if (u.hp <= 0) continue;
-
-			if (u.currentFloor != attacker.currentFloor)
-				continue;
-
-			bool isEnemy =
-				(attacker is Human && u is Monster) ||
-				(attacker is Monster && u is Human);
-
-			if (!isEnemy)
-				continue;
-
-			int w = (int)u.unitType.footprint.x;
-			int h = (int)u.unitType.footprint.y;
-
-			for (int dx = 0; dx < w; dx++)
-			{
-				for (int dy = 0; dy < h; dy++)
-				{
-					Vector2Int p = new Vector2Int(u.position.x + dx, u.position.y + dy);
-
-					if (tiles.Contains(p))
-					{
-						result.Add(u);
-
-						dx = w;
-						break;
-					}
-				}
-			}
-		}
-
-		return result;
-	}
 	public static List<Unit> GetEnemiesInHitbox(Unit attacker, Hitbox box)
 	{
 		List<Unit> result = new();
@@ -153,13 +106,21 @@ public abstract class SkillAction
 	public static Hitbox BuildLineHitbox(Unit unit, int range)
 	{
 		Vector2 dir = unit.GetDirVector(unit.currentDir);
+		bool isHorizontal = Mathf.Abs(dir.x) > 0;
 
-		Vector2 center =
-			(Vector2)unit.position +
-			dir.normalized * (range * 0.5f + 0.5f);
+		// 유닛 중심 계산
+		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
 
-		Vector2 size =
-			Mathf.Abs(dir.x) >= 0 ? new Vector2(range, 1) : new Vector2(1, range);
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
+		Vector2 offset = isHorizontal
+			? new Vector2(dir.x * (range * 0.5f + 0.5f), 0)
+			: new Vector2(0, dir.y * (range * 0.5f + 0.5f));
+
+		Vector2 center = unitCenter + offset;
+
+		Vector2 size = isHorizontal
+			? new Vector2(range, 1)
+			: new Vector2(1, range);
 
 		return new Hitbox
 		{
@@ -170,10 +131,17 @@ public abstract class SkillAction
 	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
 	{
 		Vector2 forward = unit.GetDirVector(unit.currentDir);
+		bool isHorizontal = Mathf.Abs(forward.x) > 0;
 
-		Vector2 center =
-			(Vector2)unit.position +
-			forward.normalized * (depth * 0.5f + 0.5f);
+		// 유닛 중심 계산
+		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
+
+		// 유닛 중심에서 공격 범위로 뻗어나가는 offset
+		Vector2 offset = isHorizontal
+			? new Vector2(forward.x * (depth * 0.5f + 0.5f), 0)
+			: new Vector2(0, forward.y * (depth * 0.5f + 0.5f));
+
+		Vector2 center = unitCenter + offset;
 
 		return new Hitbox
 		{
@@ -214,37 +182,6 @@ public abstract class SkillAction
 			return Dir.UP;
 
 		return Dir.DOWN;
-	}
-
-	public static Vector2Int GetRightVector(Vector2Int forward)
-	{
-		// 직선 방향
-		if (forward == Vector2Int.up)
-			return Vector2Int.right;
-
-		if (forward == Vector2Int.down)
-			return Vector2Int.left;
-
-		if (forward == Vector2Int.right)
-			return Vector2Int.down;
-
-		if (forward == Vector2Int.left)
-			return Vector2Int.up;
-
-		// 대각 방향
-		if (forward == new Vector2Int(1, 1))
-			return new Vector2Int(1, -1);
-
-		if (forward == new Vector2Int(1, -1))
-			return new Vector2Int(-1, -1);
-
-		if (forward == new Vector2Int(-1, -1))
-			return new Vector2Int(-1, 1);
-
-		if (forward == new Vector2Int(-1, 1))
-			return new Vector2Int(1, 1);
-
-		return Vector2Int.right;
 	}
 
 	public static float GetCompression(Unit unit)
