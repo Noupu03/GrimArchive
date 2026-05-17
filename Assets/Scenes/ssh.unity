@@ -148,13 +148,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4d7c6436e150954ea6c929ea729cf1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnitSpriteManager
-  unitTypeSpriteMap:
+  unitTypeSpriteLibraryMap:
   - unitTypeName: "\uAE30\uC0AC\uD615"
-    spriteUp: {fileID: 1790252976686003205, guid: 715ee64960309e84fb2da05de472a003, type: 3}
-    spriteDown: {fileID: -1985320652108093157, guid: 460497f051ceb15499c6df5e1d496abc, type: 3}
-    spriteLeft: {fileID: 891013745505162873, guid: c5e36e00dd3724c4ab4387e35a71b59c, type: 3}
-    spriteUpLeft: {fileID: -5203182941003087246, guid: 839197f4f030a8c4593cc4eb729717c3, type: 3}
-    spriteDownLeft: {fileID: -2700530730835991380, guid: e401f5d95416f94459e92c8d1b94b314, type: 3}
+    spriteLibraryAsset: {fileID: 7108339969198208228, guid: c1e8cb1361fe7364284f5e1909226ef9, type: 3}
 --- !u!4 &70398072
 Transform:
   m_ObjectHideFlags: 0

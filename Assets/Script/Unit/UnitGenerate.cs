@@ -2,6 +2,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using System.Collections;
+#if UNITY_2022_2_OR_NEWER
+using UnityEngine.U2D.Animation;
+#endif
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -57,13 +60,42 @@ public class UnitGenerate : MonoBehaviour
 
 		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale, unit.unitType.footprint.y * visualScale, 1f);
 
-		// UnitSpriteManager에서 스프라이트 가져오기
-		Sprite sprite = null;
+#if UNITY_2022_2_OR_NEWER
+		// Sprite Library 기반 설정
 		if (UnitSpriteManager.Instance != null)
 		{
-			sprite = UnitSpriteManager.Instance.GetSprite(unit.unitType, unit.currentDir, out bool flipX);
-			sr.flipX = flipX;
+			var spriteLibrary = UnitSpriteManager.Instance.GetSpriteLibrary(unit.unitType);
+			if (spriteLibrary != null)
+			{
+				SpriteLibrary spriteLibComp = go.AddComponent<SpriteLibrary>();
+				spriteLibComp.spriteLibraryAsset = spriteLibrary;
+
+				SpriteResolver spriteResolver = go.AddComponent<SpriteResolver>();
+				UpdateSpriteResolver(spriteResolver, unit.currentDir);
+
+				// SpriteResolver가 설정되면 SpriteRenderer의 sprite가 자동으로 업데이트됨
+				// 약간의 지연이 필요할 수 있으므로 다음 프레임에 업데이트를 확인합니다.
+
+				// 아웃라인도 함께 설정
+				GameObject outlineGo = new GameObject("Outline");
+				outlineGo.transform.SetParent(go.transform);
+				outlineGo.transform.localPosition = Vector3.zero;
+				SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
+				outlineSr.sprite = sr.sprite;
+				outlineSr.color = Color.black;
+				outlineSr.sortingOrder = 9;
+				outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+				outlineGo.SetActive(false);
+
+				go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
+				visualMap[unit] = go;
+				return;
+			}
 		}
+#endif
+
+		// 폴백: Sprite Library를 사용하지 않는 경우 또는 찾을 수 없는 경우
+		Sprite sprite = null;
 
 		// 폴백: SpriteManager가 없거나 스프라이트를 못 찾은 경우
 		if (sprite == null)
@@ -74,16 +106,15 @@ public class UnitGenerate : MonoBehaviour
 
 		sr.sprite = sprite;
 
-		GameObject outlineGo = new GameObject("Outline");
-		outlineGo.transform.SetParent(go.transform);
-		outlineGo.transform.localPosition = Vector3.zero;
-		SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
-		outlineSr.sprite = sprite;
-		outlineSr.flipX = sr.flipX;
-		outlineSr.color = Color.black;
-		outlineSr.sortingOrder = 9;
-		outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
-		outlineGo.SetActive(false);
+		GameObject outlineGo2 = new GameObject("Outline");
+		outlineGo2.transform.SetParent(go.transform);
+		outlineGo2.transform.localPosition = Vector3.zero;
+		SpriteRenderer outlineSr2 = outlineGo2.AddComponent<SpriteRenderer>();
+		outlineSr2.sprite = sprite;
+		outlineSr2.color = Color.black;
+		outlineSr2.sortingOrder = 9;
+		outlineGo2.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+		outlineGo2.SetActive(false);
 
 		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
 		visualMap[unit] = go;
@@ -94,19 +125,16 @@ public class UnitGenerate : MonoBehaviour
 		if (!visualMap.TryGetValue(unit, out GameObject go))
 			return;
 
-		if (UnitSpriteManager.Instance == null)
-			return;
-
-		// 스프라이트 가져오기
-		Sprite sprite = UnitSpriteManager.Instance.GetSprite(unit.unitType, unit.currentDir, out bool flipX);
-
-		if (sprite != null)
+#if UNITY_2022_2_OR_NEWER
+		SpriteResolver spriteResolver = go.GetComponent<SpriteResolver>();
+		if (spriteResolver != null)
 		{
+			UpdateSpriteResolver(spriteResolver, unit.currentDir);
+
 			SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
 			if (sr != null)
 			{
-				sr.sprite = sprite;
-				sr.flipX = flipX;
+				// SpriteResolver가 업데이트되면 SpriteRenderer의 sprite가 자동으로 갱신됨
 			}
 
 			// 아웃라인도 함께 업데이트
@@ -114,13 +142,41 @@ public class UnitGenerate : MonoBehaviour
 			if (outlineTransform != null)
 			{
 				SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
-				if (outlineSr != null)
+				if (outlineSr != null && sr != null)
 				{
-					outlineSr.sprite = sprite;
-					outlineSr.flipX = flipX;
+					outlineSr.sprite = sr.sprite;
+					outlineSr.flipX = sr.flipX;
 				}
 			}
+			return;
 		}
+#endif
+
+		// 폴백: SpriteResolver가 없는 경우 (레거시 방식)
+		if (UnitSpriteManager.Instance == null)
+			return;
+
+		// 여기에 레거시 스프라이트 업데이트 로직을 추가할 수 있습니다
+	}
+
+	/// <summary>
+	/// SpriteResolver의 Category와 Label을 방향에 따라 업데이트합니다.
+	/// </summary>
+	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction)
+	{
+#if UNITY_2022_2_OR_NEWER
+		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string category, out string label, out bool flipX);
+
+		spriteResolver.SetCategoryAndLabel(category, label);
+
+		SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
+		if (sr != null)
+		{
+			sr.flipX = flipX;
+		}
+#else
+		Debug.LogError("SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
+#endif
 	}
 	#region 유닛 생성 보조 기능성
 	private Transform GetFloorTilemapTransform(int floorIdx)
