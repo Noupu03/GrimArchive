@@ -1,22 +1,22 @@
 fileFormatVersion: 2
-guid: 25f991350f607c64981e1f6bce2ebeea
+guid: e0311bba70510e94f956a163cc3c3ac4
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -4539070712265969187
-    second: Mon_GnoleA_0
+      213: 7976714649467207075
+    second: SpriteSheet_5frames_0
   - first:
-      213: -2824596939988826491
-    second: Mon_GnoleA_1
+      213: -8877171529075310180
+    second: SpriteSheet_5frames_1
   - first:
-      213: 3081619530498384626
-    second: Mon_GnoleA_2
+      213: -6607529760916429511
+    second: SpriteSheet_5frames_2
   - first:
-      213: 4826175193199206146
-    second: Mon_GnoleA_3
+      213: 4203080778200141590
+    second: SpriteSheet_5frames_3
   - first:
-      213: 4904314352112642612
-    second: Mon_GnoleA_4
+      213: 8254039911718469968
+    second: SpriteSheet_5frames_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -117,18 +117,18 @@ TextureImporter:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 32
-        height: 32
+        width: 40
+        height: 40
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: dd1f1097c3bf101c0800000000000000
-      internalID: -4539070712265969187
+      spriteID: 247aebb0cc28d9b4e93f59a1f2cce1e8
+      internalID: 1343660079
       vertices: []
       indices: 
       edges: []
@@ -137,20 +137,20 @@ TextureImporter:
       name: Mon_GnoleA_1
       rect:
         serializedVersion: 2
-        x: 32
+        x: 40
         y: 0
-        width: 32
-        height: 32
+        width: 40
+        height: 40
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 5868f466c040dc8d0800000000000000
-      internalID: -2824596939988826491
+      spriteID: acac758521d5a8f448935d1f2db6a1e4
+      internalID: -1244989610
       vertices: []
       indices: 
       edges: []
@@ -159,20 +159,20 @@ TextureImporter:
       name: Mon_GnoleA_2
       rect:
         serializedVersion: 2
-        x: 64
+        x: 80
         y: 0
-        width: 32
-        height: 32
+        width: 40
+        height: 40
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 2f22348c2ac14ca20800000000000000
-      internalID: 3081619530498384626
+      spriteID: 5747f9dc6473b8f4e9ce5f52a65ba24c
+      internalID: -52277189
       vertices: []
       indices: 
       edges: []
@@ -181,20 +181,20 @@ TextureImporter:
       name: Mon_GnoleA_3
       rect:
         serializedVersion: 2
-        x: 96
+        x: 120
         y: 0
-        width: 32
-        height: 32
+        width: 40
+        height: 40
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 20fd07e94c40af240800000000000000
-      internalID: 4826175193199206146
+      spriteID: 08e97060146d0ce4f8852aab0da09227
+      internalID: 1081116426
       vertices: []
       indices: 
       edges: []
@@ -203,20 +203,20 @@ TextureImporter:
       name: Mon_GnoleA_4
       rect:
         serializedVersion: 2
-        x: 128
+        x: 160
         y: 0
-        width: 32
-        height: 32
+        width: 40
+        height: 40
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 43a26884bef9f0440800000000000000
-      internalID: 4904314352112642612
+      spriteID: 0e89a70f4f7da884496ac2393370faa2
+      internalID: 6360291
       vertices: []
       indices: 
       edges: []
@@ -225,7 +225,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: a56cc8ced0a380346952313a9fa90d34
+    spriteID: c995d96fdae405b41b2d4b0ed2e9b594
     internalID: 0
     vertices: []
     indices: 
@@ -235,13 +235,13 @@ TextureImporter:
     spriteCustomMetadata:
       entries:
       - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":32.0,"y":32.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":40.0,"y":40.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Mon_GnoleA_0: -4539070712265969187
-      Mon_GnoleA_1: -2824596939988826491
-      Mon_GnoleA_2: 3081619530498384626
-      Mon_GnoleA_3: 4826175193199206146
-      Mon_GnoleA_4: 4904314352112642612
+      Mon_GnoleA_0: 1343660079
+      Mon_GnoleA_1: -1244989610
+      Mon_GnoleA_2: -52277189
+      Mon_GnoleA_3: 1081116426
+      Mon_GnoleA_4: 6360291
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
