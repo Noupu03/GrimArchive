@@ -318,7 +318,13 @@ public class UnitGenerate : MonoBehaviour
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
 			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
+			{
 				StopCoroutine(existingCoroutine);
+				// 중단 시 색상이 투명 상태로 남지 않도록 즉시 복구
+				Transform vt = go.transform.Find("Visual");
+				SpriteRenderer prevSr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
+				if (prevSr != null) prevSr.color = Color.white;
+			}
 			blinkCoroutines[u] = StartCoroutine(HitBlink(u, go));
 		}
 	}
@@ -334,22 +340,10 @@ public class UnitGenerate : MonoBehaviour
 
 		Color originalColor = sr.color;
 
-		// 피격 화이트 플래시
 		sr.color = Color.white;
 		yield return new WaitForSeconds(0.05f);
-		if (sr == null) yield break;
-
-		// 3회 깜빡임 (투명 ↔ 원래 색)
-		for (int i = 0; i < 3; i++)
-		{
-			sr.color = Color.clear;
-			yield return new WaitForSeconds(0.05f);
-			if (sr == null) yield break;
-			sr.color = originalColor;
-			yield return new WaitForSeconds(0.05f);
-			if (sr == null) yield break;
-		}
-
+		if (sr != null) sr.color = Color.clear;
+		yield return new WaitForSeconds(0.05f);
 		if (sr != null) sr.color = originalColor;
 
 		if (blinkCoroutines.ContainsKey(u))
