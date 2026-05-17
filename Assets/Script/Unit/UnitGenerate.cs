@@ -100,8 +100,8 @@ public class UnitGenerate : MonoBehaviour
 		// 폴백: SpriteManager가 없거나 스프라이트를 못 찾은 경우
 		if (sprite == null)
 		{
-			if (unit is Human) { sprite = humanSprite; sr.color = Color.green; }
-			else if (unit is Monster) { sprite = monsterSprite; sr.color = Color.red; }
+			if (unit is Human) { sprite = humanSprite; }
+			else if (unit is Monster) { sprite = monsterSprite; }
 		}
 
 		sr.sprite = sprite;
@@ -350,11 +350,12 @@ public class UnitGenerate : MonoBehaviour
 		SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
 		if (sr == null) yield break;
 
-		sr.color = Color.white; // 깜빡임 색상
-		yield return new WaitForSeconds(0.025f); // 깜빡이는 간격을 더 짧게 수정
-		if (sr != null) 
+		Color originalColor = sr.color;
+		sr.color = Color.white; // 하얀색 깜빡임
+		yield return new WaitForSeconds(0.1f); // 하얀색 유지 시간
+		if (sr != null)
 		{
-			sr.color = (u is Human) ? Color.green : Color.red;
+			sr.color = originalColor; // 원래 색으로 복구
 		}
 
 		if (blinkCoroutines.ContainsKey(u))
