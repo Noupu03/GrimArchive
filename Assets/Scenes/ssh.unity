@@ -119,6 +119,57 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &70398070
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 70398072}
+  - component: {fileID: 70398071}
+  m_Layer: 0
+  m_Name: UnitSpriteManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &70398071
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 70398070}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4d7c6436e150954ea6c929ea729cf1e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnitSpriteManager
+  unitTypeSpriteMap:
+  - unitTypeName: "\uAE30\uC0AC\uD615"
+    spriteUp: {fileID: 1790252976686003205, guid: 715ee64960309e84fb2da05de472a003, type: 3}
+    spriteDown: {fileID: -1985320652108093157, guid: 460497f051ceb15499c6df5e1d496abc, type: 3}
+    spriteLeft: {fileID: 891013745505162873, guid: c5e36e00dd3724c4ab4387e35a71b59c, type: 3}
+    spriteUpLeft: {fileID: -5203182941003087246, guid: 839197f4f030a8c4593cc4eb729717c3, type: 3}
+    spriteDownLeft: {fileID: -2700530730835991380, guid: e401f5d95416f94459e92c8d1b94b314, type: 3}
+--- !u!4 &70398072
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 70398070}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &305958126
 GameObject:
   m_ObjectHideFlags: 0
@@ -41634,8 +41685,6 @@ MonoBehaviour:
   m_Script: {fileID: 478494616}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameSession
-  cmap: {fileID: 0}
-  units: []
   currentGameSpeed: 1
   isPaused: 0
   humanMapTextures:
@@ -131585,3 +131634,4 @@ SceneRoots:
   - {fileID: 1936534461}
   - {fileID: 368256557}
   - {fileID: 305958128}
+  - {fileID: 70398072}
