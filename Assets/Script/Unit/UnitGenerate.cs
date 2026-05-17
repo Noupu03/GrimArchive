@@ -91,14 +91,14 @@ public class UnitGenerate : MonoBehaviour
 				outlineGo.transform.SetParent(visual.transform);
 				outlineGo.transform.localPosition = Vector3.zero;
 				SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
-				outlineSr.sprite = sr.sprite;
 				outlineSr.color = Color.black;
 				outlineSr.sortingOrder = 9;
 				outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+				outlineGo.AddComponent<OutlineSpriteSync>().Init(sr);
 				outlineGo.SetActive(false);
 
 				go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f,
-				                                    unit.position.y + unit.unitType.footprint.y / 2f, 0)
+				                                    unit.position.y + 0.05f, 0)
 				                      + GetFloorOffset(unit.currentFloor);
 				visualMap[unit] = go;
 				AttachAnimationController(visual, unit.unitType.typeName);
@@ -115,14 +115,14 @@ public class UnitGenerate : MonoBehaviour
 		outlineGo2.transform.SetParent(visual.transform);
 		outlineGo2.transform.localPosition = Vector3.zero;
 		SpriteRenderer outlineSr2 = outlineGo2.AddComponent<SpriteRenderer>();
-		outlineSr2.sprite = sr.sprite;
 		outlineSr2.color = Color.black;
 		outlineSr2.sortingOrder = 9;
 		outlineGo2.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+		outlineGo2.AddComponent<OutlineSpriteSync>().Init(sr);
 		outlineGo2.SetActive(false);
 
 		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f,
-		                                    unit.position.y + unit.unitType.footprint.y / 2f, 0)
+		                                    unit.position.y + 0.05f, 0)
 		                      + GetFloorOffset(unit.currentFloor);
 		visualMap[unit] = go;
 		AttachAnimationController(visual, unit.unitType.typeName);
@@ -148,18 +148,6 @@ public class UnitGenerate : MonoBehaviour
 			UpdateSpriteResolver(spriteResolver, unit.currentDir);
 
 			SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
-
-			// Outline은 Visual 자식의 하위에 위치
-			Transform outlineTransform = go.transform.Find("Visual/Outline");
-			if (outlineTransform != null)
-			{
-				SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
-				if (outlineSr != null && sr != null)
-				{
-					outlineSr.sprite = sr.sprite;
-					outlineSr.flipX = sr.flipX;
-				}
-			}
 			return;
 		}
 #endif
@@ -243,7 +231,7 @@ public class UnitGenerate : MonoBehaviour
 			if (u == null || !visualMap.TryGetValue(u, out GameObject go)) continue;
 
 			Vector3 newPos = new Vector3(u.position.x + u.unitType.footprint.x / 2f,
-			                             u.position.y + u.unitType.footprint.y / 2f, 0)
+			                             u.position.y + 0.05f, 0)
 			               + GetFloorOffset(u.currentFloor);
 
 			Transform targetParent = GetFloorTilemapTransform(u.currentFloor);

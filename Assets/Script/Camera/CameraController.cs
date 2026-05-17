@@ -3,7 +3,7 @@ using UnityEngine.InputSystem;
 
 public class CameraController : MonoBehaviour
 {
-    public float panSpeed = 20f;
+    public float panSpeed = 35f;
     public float zoomSpeed = 0.05f; // Input system의 스크롤 값은 크므로 조절
     public float minZoom = 5f;
     public float maxZoom = 50f;
@@ -14,10 +14,11 @@ public class CameraController : MonoBehaviour
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) pos.y += panSpeed * Time.unscaledDeltaTime;
-            if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) pos.y -= panSpeed * Time.unscaledDeltaTime;
-            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) pos.x += panSpeed * Time.unscaledDeltaTime;
-            if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) pos.x -= panSpeed * Time.unscaledDeltaTime;
+            float move = panSpeed * Time.unscaledDeltaTime;
+            if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) pos.y += move;
+            if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) pos.y -= move;
+            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) pos.x += move;
+            if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) pos.x -= move;
         }
 
         if (Mouse.current != null)
