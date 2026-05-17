@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using System.Collections;
@@ -274,6 +274,8 @@ public class UnitGenerate : MonoBehaviour
 				uv.DrawFOV(Unit.ViewRadius, 160f, forward);
 			}
 
+			UpdateUnitSpriteForDirection(u);
+
 			// 아웃라인은 Visual 자식의 하위에 위치
 			Transform outlineTransform = go.transform.Find("Visual/Outline");
 			if (outlineTransform != null)
@@ -490,7 +492,7 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 3.0f);
+		SetupUnitVisual(unit, 1.0f);
 		return unit;
 	}
 	#endregion

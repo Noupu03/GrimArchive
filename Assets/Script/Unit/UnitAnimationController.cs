@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
 
@@ -89,9 +89,6 @@ public class UnitAnimationController : MonoBehaviour
             if (state != AnimState.Walk)
                 TransitionTo(AnimState.Walk);
 
-            // 수평 이동 방향에 따라 스프라이트 반전
-            if (sr != null && Mathf.Abs(delta.x) > 0.0001f)
-                sr.flipX = delta.x < 0f;
         }
         else
         {
