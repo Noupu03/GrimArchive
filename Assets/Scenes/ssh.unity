@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &70398070
+--- !u!1 &86746759
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,61 +127,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 70398072}
-  - component: {fileID: 70398071}
-  m_Layer: 0
-  m_Name: UnitSpriteManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &70398071
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 70398070}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e4d7c6436e150954ea6c929ea729cf1e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnitSpriteManager
-  unitTypeSpriteLibraryMap:
-  - unitTypeName: "\uAE30\uC0AC\uD615"
-    spriteLibraryAsset: {fileID: 7108339969198208228, guid: c1e8cb1361fe7364284f5e1909226ef9, type: 3}
-    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
-    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
-  - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-    spriteLibraryAsset: {fileID: 7108339969198208228, guid: b48133a66f6845741a151118ed7f16de, type: 3}
-    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
-    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
---- !u!4 &70398072
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 70398070}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &305958126
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 305958128}
-  - component: {fileID: 305958127}
+  - component: {fileID: 86746761}
+  - component: {fileID: 86746760}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -189,25 +136,25 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &305958127
+--- !u!114 &86746760
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 305958126}
+  m_GameObject: {fileID: 86746759}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6160748458e04fb4e8afa47fce2e3e05, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
---- !u!4 &305958128
+--- !u!4 &86746761
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 305958126}
+  m_GameObject: {fileID: 86746759}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -456,7 +403,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8477c3aff916cd94e9d0c1af79439485, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraController
-  panSpeed: 20
+  panSpeed: 35
   zoomSpeed: 5
   minZoom: 5
   maxZoom: 50
@@ -41655,7 +41602,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1448261629}
   - component: {fileID: 1448261628}
-  - component: {fileID: 1448261627}
+  - component: {fileID: 1448261630}
   m_Layer: 0
   m_Name: UnitManager
   m_TagString: Untagged
@@ -41663,18 +41610,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1448261627
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1448261626}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 50d1c28d69d55af4a891ddb2c7b771da, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnitGenerate
 --- !u!114 &1448261628
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -41706,6 +41641,71 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1448261626}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1448261630
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1448261626}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50d1c28d69d55af4a891ddb2c7b771da, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnitGenerate
+--- !u!1 &1453061267
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1453061269}
+  - component: {fileID: 1453061268}
+  m_Layer: 0
+  m_Name: UnitSpriteManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1453061268
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1453061267}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4d7c6436e150954ea6c929ea729cf1e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnitSpriteManager
+  unitTypeSpriteLibraryMap:
+  - unitTypeName: "\uAE30\uC0AC\uD615"
+    spriteLibraryAsset: {fileID: 7108339969198208228, guid: c1e8cb1361fe7364284f5e1909226ef9, type: 3}
+    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
+    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
+  - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
+    spriteLibraryAsset: {fileID: 7108339969198208228, guid: b48133a66f6845741a151118ed7f16de, type: 3}
+    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
+    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
+--- !u!4 &1453061269
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1453061267}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -131635,5 +131635,5 @@ SceneRoots:
   - {fileID: 1448261629}
   - {fileID: 1936534461}
   - {fileID: 368256557}
-  - {fileID: 305958128}
-  - {fileID: 70398072}
+  - {fileID: 86746761}
+  - {fileID: 1453061269}
