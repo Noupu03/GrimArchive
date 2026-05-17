@@ -40,7 +40,7 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 2.7f);
+		SetupUnitVisual(unit, 1.0f);
 		return unit;
 	}
 
@@ -326,13 +326,30 @@ public class UnitGenerate : MonoBehaviour
 	private IEnumerator HitBlink(Unit u, GameObject go)
 	{
 		if (go == null) yield break;
-		// Visual 자식의 SpriteRenderer를 사용
-		SpriteRenderer sr = go.GetComponentInChildren<SpriteRenderer>();
+		Transform visualTransform = go.transform.Find("Visual");
+		SpriteRenderer sr = visualTransform != null
+			? visualTransform.GetComponent<SpriteRenderer>()
+			: go.GetComponentInChildren<SpriteRenderer>();
 		if (sr == null) yield break;
 
 		Color originalColor = sr.color;
+
+		// 피격 화이트 플래시
 		sr.color = Color.white;
-		yield return new WaitForSeconds(0.1f);
+		yield return new WaitForSeconds(0.05f);
+		if (sr == null) yield break;
+
+		// 3회 깜빡임 (투명 ↔ 원래 색)
+		for (int i = 0; i < 3; i++)
+		{
+			sr.color = Color.clear;
+			yield return new WaitForSeconds(0.05f);
+			if (sr == null) yield break;
+			sr.color = originalColor;
+			yield return new WaitForSeconds(0.05f);
+			if (sr == null) yield break;
+		}
+
 		if (sr != null) sr.color = originalColor;
 
 		if (blinkCoroutines.ContainsKey(u))
