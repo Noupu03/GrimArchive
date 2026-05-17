@@ -124,8 +124,6 @@ public class UnitGenerate : MonoBehaviour
 
 	private void AttachAnimationController(GameObject go, string typeName)
 	{
-		var anim = go.GetComponent<Animator>() ?? go.AddComponent<Animator>();
-		anim.applyRootMotion = false;
 		var ctrl = go.AddComponent<UnitAnimationController>();
 		ctrl.Init(typeName);
 	}
