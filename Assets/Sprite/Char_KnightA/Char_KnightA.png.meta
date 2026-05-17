@@ -1,22 +1,22 @@
 fileFormatVersion: 2
-guid: 35db7d6f5c0f3ed4fad9eb4f7f2afce8
+guid: 97c57e303dd25f7479b9bceeaa801690
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 182852693832145158
-    second: Char_PriestA_0
+      213: 2417493862282948155
+    second: Char_KnightA_0
   - first:
-      213: -1793469755425138167
-    second: Char_PriestA_1
+      213: -8289434126273795730
+    second: Char_KnightA_1
   - first:
-      213: -2968815653497855131
-    second: Char_PriestA_2
+      213: -7085069805788865461
+    second: Char_KnightA_2
   - first:
-      213: 3536262731350156978
-    second: Char_PriestA_3
+      213: -535276440569488476
+    second: Char_KnightA_3
   - first:
-      213: 1042236833776081775
-    second: Char_PriestA_4
+      213: -5366866980729748420
+    second: Char_KnightA_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -86,7 +86,7 @@ TextureImporter:
     buildTarget: DefaultTexturePlatform
     maxTextureSize: 2048
     resizeAlgorithm: 0
-    textureFormat: -1
+    textureFormat: 4
     textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
@@ -112,7 +112,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_PriestA_0
+      name: Char_KnightA_0
       rect:
         serializedVersion: 2
         x: 0
@@ -127,14 +127,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 60996166e8f998200800000000000000
-      internalID: 182852693832145158
+      spriteID: b3eef0cfbd9ac8120800000000000000
+      internalID: 2417493862282948155
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_1
+      name: Char_KnightA_1
       rect:
         serializedVersion: 2
         x: 32
@@ -149,14 +149,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 90a5a7872c05c17e0800000000000000
-      internalID: -1793469755425138167
+      spriteID: e69237ad49306fc80800000000000000
+      internalID: -8289434126273795730
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_2
+      name: Char_KnightA_2
       rect:
         serializedVersion: 2
         x: 64
@@ -171,14 +171,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 56324a184e5acc6d0800000000000000
-      internalID: -2968815653497855131
+      spriteID: b4cdb19cc86ccad90800000000000000
+      internalID: -7085069805788865461
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_3
+      name: Char_KnightA_3
       rect:
         serializedVersion: 2
         x: 96
@@ -193,14 +193,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 2b6249ed734531130800000000000000
-      internalID: 3536262731350156978
+      spriteID: 4ab583fc9e05298f0800000000000000
+      internalID: -535276440569488476
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_4
+      name: Char_KnightA_4
       rect:
         serializedVersion: 2
         x: 128
@@ -215,8 +215,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: f6b1d09d0e4c67e00800000000000000
-      internalID: 1042236833776081775
+      spriteID: c3484d87aee0585b0800000000000000
+      internalID: -5366866980729748420
       vertices: []
       indices: 
       edges: []
@@ -225,7 +225,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 13011f4bfe2cc8641a5b18eb26cd45cc
+    spriteID: efdcba9e5d3e06c4d80c95e98f9e86d2
     internalID: 0
     vertices: []
     indices: 
@@ -237,11 +237,11 @@ TextureImporter:
       - key: SpriteEditor.SliceSettings
         value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":32.0,"y":32.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Char_PriestA_0: 182852693832145158
-      Char_PriestA_1: -1793469755425138167
-      Char_PriestA_2: -2968815653497855131
-      Char_PriestA_3: 3536262731350156978
-      Char_PriestA_4: 1042236833776081775
+      Char_KnightA_0: 2417493862282948155
+      Char_KnightA_1: -8289434126273795730
+      Char_KnightA_2: -7085069805788865461
+      Char_KnightA_3: -535276440569488476
+      Char_KnightA_4: -5366866980729748420
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

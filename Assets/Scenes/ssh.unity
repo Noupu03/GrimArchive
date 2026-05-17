@@ -154,7 +154,7 @@ MonoBehaviour:
     idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
     walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
   - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-    spriteLibraryAsset: {fileID: 7108339969198208228, guid: c1e8cb1361fe7364284f5e1909226ef9, type: 3}
+    spriteLibraryAsset: {fileID: 7108339969198208228, guid: b48133a66f6845741a151118ed7f16de, type: 3}
     idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
     walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
 --- !u!4 &70398072
