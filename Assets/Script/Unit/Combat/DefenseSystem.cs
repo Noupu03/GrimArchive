@@ -288,15 +288,61 @@ public static class DefenseSystem
 	}
 
 	// =========================================================
-	// Dodge 이동
+	// Dodge 이동 — 히트박스와 겹침 면적이 가장 적은 방향으로 회피
 	// =========================================================
 
 	static bool TryDodgeMove(Unit defender, ThreatTileData threat)
 	{
-		List<Vector2Int> candidates = FindSafeTiles(defender, threat, 1, false);
-		if (candidates.Count == 0) return false;
+		float currentOverlap = threat != null
+			? GetOverlapArea(defender, defender.position, threat.hitbox)
+			: 0f;
 
-		defender.ForceMove(candidates[Random.Range(0, candidates.Count)]);
+		List<Vector2Int> best    = new List<Vector2Int>();
+		float            minOverlap = currentOverlap;
+
+		for (int x = -1; x <= 1; x++)
+		{
+			for (int y = -1; y <= 1; y++)
+			{
+				if (x == 0 && y == 0) continue;
+				Vector2Int candidate = defender.position + new Vector2Int(x, y);
+
+				// 벽 / 점령 타일 제외
+				if (!defender.CanMove(candidate)) continue;
+
+				float overlap = threat != null
+					? GetOverlapArea(defender, candidate, threat.hitbox)
+					: 0f;
+
+				if (overlap < minOverlap - 0.001f)
+				{
+					// 현재 최선보다 더 나은 위치
+					minOverlap = overlap;
+					best.Clear();
+					best.Add(candidate);
+				}
+				else if (Mathf.Abs(overlap - minOverlap) <= 0.001f)
+				{
+					// 동률 — 랜덤 선택 풀에 추가
+					best.Add(candidate);
+				}
+			}
+		}
+
+		if (best.Count == 0) return false;
+
+		defender.ForceMove(best[Random.Range(0, best.Count)]);
 		return true;
+	}
+
+	// 주어진 위치에서 유닛 히트박스와 위협 히트박스의 겹침 면적
+	static float GetOverlapArea(Unit unit, Vector2Int pos, Hitbox threatHitbox)
+	{
+		Hitbox unitBox = new Hitbox
+		{
+			center = (Vector2)pos + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f,
+			size   = new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y)
+		};
+		return threatHitbox.CalculateOverlapArea(unitBox);
 	}
 }
