@@ -3,44 +3,47 @@ using UnityEngine.Animations;
 using UnityEngine.Playables;
 
 /// <summary>
-/// UnitGenerate가 유닛 생성 시 자동으로 부착. Init(typeName) 호출로 초기화.
-/// Playables API를 사용해 Animator Controller 없이 클립을 직접 재생.
-/// transform.position 델타로 이동을 감지해 Idle/Walk 상태를 전환.
+/// Visual 자식 오브젝트에 부착됨. UnitGenerate.AttachAnimationController()가 Init()을 호출.
+///
+/// 이동 감지: 자신의 transform이 아닌 부모(루트)의 world position 델타를 감시.
+/// → 애니메이션 클립이 자식(Visual)의 localPosition을 변경해도 이동 감지에 영향 없음.
 /// </summary>
 [RequireComponent(typeof(Animator))]
 public class UnitAnimationController : MonoBehaviour
 {
-    // 이동으로 판정하는 최소 프레임당 이동량 (월드 단위)
-    private const float MOVE_THRESHOLD  = 0.001f;
-    // Walk → Idle 전환 전 정지 상태를 유지해야 하는 프레임 수 (flickering 방지)
-    private const int   IDLE_DEBOUNCE   = 4;
+    private const float MOVE_THRESHOLD = 0.001f;
+    private const int   IDLE_DEBOUNCE  = 4;        // 정지 판정 전 대기 프레임
 
     private enum AnimState { Uninitialized, Idle, Walk }
 
-    private Animator          animator;
-    private SpriteRenderer    sr;
-    private PlayableGraph     graph;
+    private Animator               animator;
+    private SpriteRenderer         sr;
+    private PlayableGraph          graph;
     private AnimationMixerPlayable mixer;
+    private Transform              movementRoot;   // 루트 오브젝트 (SmoothMove 대상)
 
     private AnimState state          = AnimState.Uninitialized;
-    private Vector3   lastPos;
+    private Vector3   lastRootPos;
     private int       stationaryFrames;
 
     // ─────────────────────────────────────────
-    //  진입점 — UnitGenerate에서 호출
+    //  진입점
     // ─────────────────────────────────────────
     public void Init(string unitTypeName)
     {
         animator = GetComponent<Animator>();
         sr       = GetComponent<SpriteRenderer>();
-        lastPos  = transform.position;
 
-        // Root motion이 transform을 건드리지 않도록
+        // 루트(부모) position으로 이동 감지 — 애니메이션이 자식 localPos를 건드려도 무관
+        movementRoot = transform.parent != null ? transform.parent : transform;
+        lastRootPos  = movementRoot.position;
+
         animator.applyRootMotion = false;
 
-        if (!UnitSpriteManager.Instance.TryGetAnimationClips(unitTypeName, out var idle, out var walk))
+        if (UnitSpriteManager.Instance == null ||
+            !UnitSpriteManager.Instance.TryGetAnimationClips(unitTypeName, out var idle, out var walk))
         {
-            Debug.LogWarning($"[UnitAnimationController] '{unitTypeName}' 에 대한 클립이 UnitSpriteManager에 없습니다.");
+            Debug.LogWarning($"[UnitAnimationController] '{unitTypeName}' 클립을 UnitSpriteManager에서 찾을 수 없습니다.");
             return;
         }
 
@@ -58,19 +61,14 @@ public class UnitAnimationController : MonoBehaviour
         graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
         var output = AnimationPlayableOutput.Create(graph, "Anim", animator);
-
         mixer = AnimationMixerPlayable.Create(graph, 2);
         output.SetSourcePlayable(mixer);
 
-        var idlePlayable = AnimationClipPlayable.Create(graph, idle);
-        var walkPlayable = AnimationClipPlayable.Create(graph, walk);
-
-        graph.Connect(idlePlayable, 0, mixer, 0);
-        graph.Connect(walkPlayable, 0, mixer, 1);
+        graph.Connect(AnimationClipPlayable.Create(graph, idle), 0, mixer, 0);
+        graph.Connect(AnimationClipPlayable.Create(graph, walk), 0, mixer, 1);
 
         SetWeights(AnimState.Idle);
         graph.Play();
-
         state = AnimState.Idle;
     }
 
@@ -81,13 +79,13 @@ public class UnitAnimationController : MonoBehaviour
     {
         if (state == AnimState.Uninitialized) return;
 
-        Vector3 delta   = transform.position - lastPos;
-        bool    moving  = delta.sqrMagnitude > MOVE_THRESHOLD * MOVE_THRESHOLD;
+        // 루트 위치 델타로 이동 판정
+        Vector3 delta  = movementRoot.position - lastRootPos;
+        bool    moving = delta.sqrMagnitude > MOVE_THRESHOLD * MOVE_THRESHOLD;
 
         if (moving)
         {
             stationaryFrames = 0;
-
             if (state != AnimState.Walk)
                 TransitionTo(AnimState.Walk);
 
@@ -102,7 +100,7 @@ public class UnitAnimationController : MonoBehaviour
                 TransitionTo(AnimState.Idle);
         }
 
-        lastPos = transform.position;
+        lastRootPos = movementRoot.position;
     }
 
     private void TransitionTo(AnimState next)
@@ -113,13 +111,10 @@ public class UnitAnimationController : MonoBehaviour
 
     private void SetWeights(AnimState s)
     {
-        mixer.SetInputWeight(0, s == AnimState.Idle ? 1f : 0f);  // 0번 = Idle
-        mixer.SetInputWeight(1, s == AnimState.Walk ? 1f : 0f);  // 1번 = Walk
+        mixer.SetInputWeight(0, s == AnimState.Idle ? 1f : 0f);
+        mixer.SetInputWeight(1, s == AnimState.Walk ? 1f : 0f);
     }
 
-    // ─────────────────────────────────────────
-    //  정리
-    // ─────────────────────────────────────────
     private void OnDestroy()
     {
         if (graph.IsValid()) graph.Destroy();

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using System.Collections;
@@ -29,10 +29,9 @@ public class UnitGenerate : MonoBehaviour
 		monsterSprite = CreateTriangleSprite(Color.white);
 	}
 
-	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit//유닛 생성 로직
+	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit
 	{
-		Vector2Int pos;
-		pos = GetRandomFloorPos(unitType.footprint, floorIdx);
+		Vector2Int pos = GetRandomFloorPos(unitType.footprint, floorIdx);
 
 		T unit = ScriptableObject.CreateInstance<T>();
 		unit.name = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
@@ -41,44 +40,55 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 2.7f);  // 0.9f * 3 = 2.7f
-
+		SetupUnitVisual(unit, 2.7f);
 		return unit;
 	}
 
+	// ─────────────────────────────────────────────────────────────────
+	//  유닛 비주얼 생성
+	//
+	//  구조:
+	//    go (루트) ← SmoothMove가 이동시킴, UnitVisual(FOV) 보유
+	//    └─ Visual (자식) ← Animator/SpriteRenderer 배치
+	//                       애니메이션 클립의 Position/Rotation 커브가
+	//                       이 자식의 localTransform을 조작하므로
+	//                       루트 position과 충돌하지 않음
+	//         └─ Outline
+	// ─────────────────────────────────────────────────────────────────
 	private void SetupUnitVisual(Unit unit, float visualScale)
 	{
+		// ── 루트 오브젝트
 		GameObject go = new GameObject(unit.name);
 		Transform tilemapTransform = GetFloorTilemapTransform(unit.currentFloor);
 		if (tilemapTransform != null) go.transform.SetParent(tilemapTransform);
-
-		SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-		sr.sortingOrder = 10;
+		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale,
+		                                      unit.unitType.footprint.y * visualScale, 1f);
 
 		UnitVisual uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
 
-		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale, unit.unitType.footprint.y * visualScale, 1f);
+		// ── Visual 자식 (애니메이션 대상)
+		GameObject visual = new GameObject("Visual");
+		visual.transform.SetParent(go.transform);
+		visual.transform.localPosition = Vector3.zero;
+
+		SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+		sr.sortingOrder = 10;
 
 #if UNITY_2022_2_OR_NEWER
-		// Sprite Library 기반 설정
 		if (UnitSpriteManager.Instance != null)
 		{
 			var spriteLibrary = UnitSpriteManager.Instance.GetSpriteLibrary(unit.unitType);
 			if (spriteLibrary != null)
 			{
-				SpriteLibrary spriteLibComp = go.AddComponent<SpriteLibrary>();
+				SpriteLibrary spriteLibComp = visual.AddComponent<SpriteLibrary>();
 				spriteLibComp.spriteLibraryAsset = spriteLibrary;
 
-				SpriteResolver spriteResolver = go.AddComponent<SpriteResolver>();
+				SpriteResolver spriteResolver = visual.AddComponent<SpriteResolver>();
 				UpdateSpriteResolver(spriteResolver, unit.currentDir);
 
-				// SpriteResolver가 설정되면 SpriteRenderer의 sprite가 자동으로 업데이트됨
-				// 약간의 지연이 필요할 수 있으므로 다음 프레임에 업데이트를 확인합니다.
-
-				// 아웃라인도 함께 설정
 				GameObject outlineGo = new GameObject("Outline");
-				outlineGo.transform.SetParent(go.transform);
+				outlineGo.transform.SetParent(visual.transform);
 				outlineGo.transform.localPosition = Vector3.zero;
 				SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
 				outlineSr.sprite = sr.sprite;
@@ -87,44 +97,41 @@ public class UnitGenerate : MonoBehaviour
 				outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
 				outlineGo.SetActive(false);
 
-				go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
+				go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f,
+				                                    unit.position.y + unit.unitType.footprint.y / 2f, 0)
+				                      + GetFloorOffset(unit.currentFloor);
 				visualMap[unit] = go;
-				AttachAnimationController(go, unit.unitType.typeName);
+				AttachAnimationController(visual, unit.unitType.typeName);
 				return;
 			}
 		}
 #endif
 
-		// 폴백: Sprite Library를 사용하지 않는 경우 또는 찾을 수 없는 경우
-		Sprite sprite = null;
-
-		// 폴백: SpriteManager가 없거나 스프라이트를 못 찾은 경우
-		if (sprite == null)
-		{
-			if (unit is Human) { sprite = humanSprite; }
-			else if (unit is Monster) { sprite = monsterSprite; }
-		}
-
-		sr.sprite = sprite;
+		// ── 폴백
+		if (unit is Human)        sr.sprite = humanSprite;
+		else if (unit is Monster) sr.sprite = monsterSprite;
 
 		GameObject outlineGo2 = new GameObject("Outline");
-		outlineGo2.transform.SetParent(go.transform);
+		outlineGo2.transform.SetParent(visual.transform);
 		outlineGo2.transform.localPosition = Vector3.zero;
 		SpriteRenderer outlineSr2 = outlineGo2.AddComponent<SpriteRenderer>();
-		outlineSr2.sprite = sprite;
+		outlineSr2.sprite = sr.sprite;
 		outlineSr2.color = Color.black;
 		outlineSr2.sortingOrder = 9;
 		outlineGo2.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
 		outlineGo2.SetActive(false);
 
-		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
+		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f,
+		                                    unit.position.y + unit.unitType.footprint.y / 2f, 0)
+		                      + GetFloorOffset(unit.currentFloor);
 		visualMap[unit] = go;
-		AttachAnimationController(go, unit.unitType.typeName);
+		AttachAnimationController(visual, unit.unitType.typeName);
 	}
 
-	private void AttachAnimationController(GameObject go, string typeName)
+	// Animator/UnitAnimationController를 Visual 자식에 부착
+	private void AttachAnimationController(GameObject visual, string typeName)
 	{
-		var ctrl = go.AddComponent<UnitAnimationController>();
+		var ctrl = visual.AddComponent<UnitAnimationController>();
 		ctrl.Init(typeName);
 	}
 
@@ -134,19 +141,16 @@ public class UnitGenerate : MonoBehaviour
 			return;
 
 #if UNITY_2022_2_OR_NEWER
-		SpriteResolver spriteResolver = go.GetComponent<SpriteResolver>();
+		// Visual 자식에 있는 SpriteResolver를 검색
+		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
 		if (spriteResolver != null)
 		{
 			UpdateSpriteResolver(spriteResolver, unit.currentDir);
 
-			SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
-			if (sr != null)
-			{
-				// SpriteResolver가 업데이트되면 SpriteRenderer의 sprite가 자동으로 갱신됨
-			}
+			SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
 
-			// 아웃라인도 함께 업데이트
-			Transform outlineTransform = go.transform.Find("Outline");
+			// Outline은 Visual 자식의 하위에 위치
+			Transform outlineTransform = go.transform.Find("Visual/Outline");
 			if (outlineTransform != null)
 			{
 				SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
@@ -159,33 +163,22 @@ public class UnitGenerate : MonoBehaviour
 			return;
 		}
 #endif
-
-		// 폴백: SpriteResolver가 없는 경우 (레거시 방식)
 		if (UnitSpriteManager.Instance == null)
 			return;
-
-		// 여기에 레거시 스프라이트 업데이트 로직을 추가할 수 있습니다
 	}
 
-	/// <summary>
-	/// SpriteResolver의 Category와 Label을 방향에 따라 업데이트합니다.
-	/// </summary>
 	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction)
 	{
 #if UNITY_2022_2_OR_NEWER
 		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string category, out string label, out bool flipX);
-
 		spriteResolver.SetCategoryAndLabel(category, label);
-
 		SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
-		if (sr != null)
-		{
-			sr.flipX = flipX;
-		}
+		if (sr != null) sr.flipX = flipX;
 #else
 		Debug.LogError("SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
 #endif
 	}
+
 	#region 유닛 생성 보조 기능성
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
@@ -193,10 +186,7 @@ public class UnitGenerate : MonoBehaviour
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
-			if (childTilemap != null)
-			{
-				return childTilemap;
-			}
+			if (childTilemap != null) return childTilemap;
 		}
 		return null;
 	}
@@ -207,10 +197,7 @@ public class UnitGenerate : MonoBehaviour
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
-			if (childTilemap != null)
-			{
-				return childTilemap.position;
-			}
+			if (childTilemap != null) return childTilemap.position;
 			else if (mr.floorOffsets != null && floorIdx < mr.floorOffsets.Length)
 			{
 				Vector3Int offset = mr.floorOffsets[floorIdx];
@@ -220,7 +207,7 @@ public class UnitGenerate : MonoBehaviour
 		return Vector3.zero;
 	}
 
-	public void RemoveVisual(Unit u)//스프라이트 지우기
+	public void RemoveVisual(Unit u)
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
@@ -231,7 +218,6 @@ public class UnitGenerate : MonoBehaviour
 			if (blinkCoroutines.ContainsKey(u)) blinkCoroutines.Remove(u);
 		}
 
-		// 안전장치: 이미 ScriptableObject가 파괴되어 Unity Null 처리가 된 키값들을 딕셔너리에서 일괄 제거
 		List<Unit> deadKeys = new List<Unit>();
 		foreach (var kvp in visualMap)
 		{
@@ -250,66 +236,57 @@ public class UnitGenerate : MonoBehaviour
 		}
 	}
 
-	public void SyncVisuals(List<Unit> units)//비주얼화 코루틴 시작
+	public void SyncVisuals(List<Unit> units)
 	{
 		foreach (var u in units)
 		{
-			if (u != null && visualMap.TryGetValue(u, out GameObject go))
+			if (u == null || !visualMap.TryGetValue(u, out GameObject go)) continue;
+
+			Vector3 newPos = new Vector3(u.position.x + u.unitType.footprint.x / 2f,
+			                             u.position.y + u.unitType.footprint.y / 2f, 0)
+			               + GetFloorOffset(u.currentFloor);
+
+			Transform targetParent = GetFloorTilemapTransform(u.currentFloor);
+			if (targetParent != null && go.transform.parent != targetParent)
+				go.transform.SetParent(targetParent);
+
+			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				Vector3 newPos = new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + u.unitType.footprint.y / 2f, 0) + GetFloorOffset(u.currentFloor);
+				if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
+					StopCoroutine(existingCoroutine);
 
-				Transform targetParent = GetFloorTilemapTransform(u.currentFloor);
-				if (targetParent != null && go.transform.parent != targetParent)
+				float duration = u.walkSpeed > 0f ? (1f / u.walkSpeed) : 0.1f;
+				targetPosMap[u] = newPos;
+				moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, duration));
+			}
+			else if (Time.timeScale < 0.01f)
+			{
+				if (!moveCoroutines.ContainsKey(u) || moveCoroutines[u] == null)
+					go.transform.position = newPos;
+			}
+
+			// FOV
+			UnitVisual uv = go.GetComponent<UnitVisual>();
+			if (uv != null)
+			{
+				Vector2 forward = u.GetDirVector(u.currentDir);
+				if (forward == Vector2.zero) forward = Vector2.down;
+				uv.DrawFOV(Unit.ViewRadius, 160f, forward);
+			}
+
+			// 아웃라인은 Visual 자식의 하위에 위치
+			Transform outlineTransform = go.transform.Find("Visual/Outline");
+			if (outlineTransform != null)
+			{
+				bool isSelected = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
+				bool isPanicking = u is Human && u.mental < u.maxMental * 0.3f;
+
+				outlineTransform.gameObject.SetActive(isSelected || isPanicking);
+				if (isSelected || isPanicking)
 				{
-					go.transform.SetParent(targetParent);
-				}
-
-				// 매 프레임 위치를 확인하고 변경 시 이동 코루틴 갱신 유지
-				if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
-				{
-					if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-					{
-						StopCoroutine(existingCoroutine);
-					}
-
-					float speed = u.walkSpeed;
-					float duration = speed > 0f ? (1f / speed) : 0.1f;
-
-					targetPosMap[u] = newPos;
-					moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, duration)); // 논리 갱신 속도에 맞춤
-				}
-				else if (Time.timeScale == 0f || Time.timeScale < 0.01f)
-				{
-				    // 일시정지 상태 등 업데이트가 멈춘 상태에서도 아웃라인/상태 반영이 필요할 수 있으므로, 보간 중이 아니라면 바로 위치 맞춤
-				    if (!moveCoroutines.ContainsKey(u) || moveCoroutines[u] == null)
-				        go.transform.position = newPos;
-				}
-
-				// 시각화 업데이트 (FOV)
-				UnitVisual uv = go.GetComponent<UnitVisual>();
-				if (uv != null)
-				{
-					Vector2 forward = u.GetDirVector(u.currentDir);
-					if (forward == Vector2.zero) forward = Vector2.down;
-					uv.DrawFOV(Unit.ViewRadius, 160f, forward);
-				}
-
-				Transform outlineTransform = go.transform.Find("Outline");
-				if (outlineTransform != null)
-				{
-					bool isSelected = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
-					bool isPanicking = u is Human && u.mental < u.maxMental * 0.3f;
-
-					outlineTransform.gameObject.SetActive(isSelected || isPanicking);
-
-					if (isSelected || isPanicking)
-					{
-						SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
-						if (outlineSr != null)
-						{
-							outlineSr.color = isSelected ? Color.black : Color.red;
-						}
-					}
+					SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
+					if (outlineSr != null)
+						outlineSr.color = isSelected ? Color.black : Color.red;
 				}
 			}
 		}
@@ -325,19 +302,13 @@ public class UnitGenerate : MonoBehaviour
 		while (elapsed < duration)
 		{
 			if (visualTransform == null) yield break;
-
-			visualTransform.position =
-				Vector3.Lerp(startPos, targetPos, elapsed / duration);
-
+			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
 			elapsed += Time.unscaledDeltaTime;
 			yield return null;
 		}
 
-		// 핵심: 반드시 최종 좌표 강제 보정
 		if (visualTransform != null)
-		{
 			visualTransform.position = targetPos;
-		}
 	}
 
 	public void TriggerHitEffect(Unit u)
@@ -345,55 +316,42 @@ public class UnitGenerate : MonoBehaviour
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
 			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-			{
 				StopCoroutine(existingCoroutine);
-			}
 			blinkCoroutines[u] = StartCoroutine(HitBlink(u, go));
 		}
 	}
 
-	private System.Collections.IEnumerator HitBlink(Unit u, GameObject go)
+	private IEnumerator HitBlink(Unit u, GameObject go)
 	{
 		if (go == null) yield break;
-		SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
+		// Visual 자식의 SpriteRenderer를 사용
+		SpriteRenderer sr = go.GetComponentInChildren<SpriteRenderer>();
 		if (sr == null) yield break;
 
 		Color originalColor = sr.color;
-		sr.color = Color.white; // 하얀색 깜빡임
-		yield return new WaitForSeconds(0.1f); // 하얀색 유지 시간
-		if (sr != null)
-		{
-			sr.color = originalColor; // 원래 색으로 복구
-		}
+		sr.color = Color.white;
+		yield return new WaitForSeconds(0.1f);
+		if (sr != null) sr.color = originalColor;
 
 		if (blinkCoroutines.ContainsKey(u))
-		{
 			blinkCoroutines.Remove(u);
-		}
 	}
 
-	private Sprite CreateCircleSprite(Color color)//원형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	private Sprite CreateCircleSprite(Color color)
 	{
 		Texture2D texture = new Texture2D(32, 32);
 		Color[] pixels = new Color[32 * 32];
 		float radius = 15f;
 		Vector2 center = new Vector2(16f, 16f);
 		for (int y = 0; y < 32; y++)
-		{
 			for (int x = 0; x < 32; x++)
-			{
-				if (Vector2.Distance(center, new Vector2(x, y)) <= radius)
-					pixels[y * 32 + x] = color;
-				else
-					pixels[y * 32 + x] = Color.clear;
-			}
-		}
+				pixels[y * 32 + x] = Vector2.Distance(center, new Vector2(x, y)) <= radius ? color : Color.clear;
 		texture.SetPixels(pixels);
 		texture.Apply();
 		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
 	}
 
-	private Sprite CreateTriangleSprite(Color color)//삼각형 스프라이트 생성(임시) - 실제 프로젝트에서는 에셋으로 대체하는 것을 권장
+	private Sprite CreateTriangleSprite(Color color)
 	{
 		Texture2D texture = new Texture2D(32, 32);
 		Color[] pixels = new Color[32 * 32];
@@ -401,12 +359,8 @@ public class UnitGenerate : MonoBehaviour
 		{
 			for (int x = 0; x < 32; x++)
 			{
-				float normalizedY = y / 31f;
-				float halfWidth = (1f - normalizedY) * 16f;
-				if (x >= 16f - halfWidth && x <= 16f + halfWidth)
-					pixels[y * 32 + x] = color;
-				else
-					pixels[y * 32 + x] = Color.clear;
+				float halfWidth = (1f - y / 31f) * 16f;
+				pixels[y * 32 + x] = (x >= 16f - halfWidth && x <= 16f + halfWidth) ? color : Color.clear;
 			}
 		}
 		texture.SetPixels(pixels);
@@ -414,12 +368,10 @@ public class UnitGenerate : MonoBehaviour
 		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
 	}
 
-	public bool IsOccupied(Vector2Int pos, int floorIdx)//해당 위치에 유닛이 존재하는지 여부 반환
+	public bool IsOccupied(Vector2Int pos, int floorIdx)
 	{
 		if (GameSession.Instance != null && GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
-		{
 			return u != null && u.hp > 0;
-		}
 		return false;
 	}
 
@@ -442,28 +394,23 @@ public class UnitGenerate : MonoBehaviour
 			{
 				int x = pos.x + dx;
 				int y = pos.y + dy;
-
-				int cx = x / 8;
-				int cy = y / 8;
-				int tx = x % 8;
-				int ty = y % 8;
+				int cx = x / 8; int cy = y / 8;
+				int tx = x % 8; int ty = y % 8;
 
 				if (cx < 0 || cx >= chunkW || cy < 0 || cy >= chunkH) return false;
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
 				if (c.chunk[tx, ty].name == "Wall") return false;
-
 				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
 			}
 		}
 		return true;
 	}
 
-	public Vector2Int GetRandomFloorPos(Vector2 footprint, int floorIdx = 1)//랜덤한 바닥 위치 반환(임시)
+	public Vector2Int GetRandomFloorPos(Vector2 footprint, int floorIdx = 1)
 	{
 		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null) ? GameSession.Instance.cmap : FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
-
 		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -472,7 +419,6 @@ public class UnitGenerate : MonoBehaviour
 		int chunkW = floor.config.width;
 		int chunkH = floor.config.height;
 
-		// 아무 방(roomId != -1)에나 랜덤 생성
 		for (int i = 0; i < 2000; i++)
 		{
 			int cx = Random.Range(0, chunkW);
@@ -486,7 +432,7 @@ public class UnitGenerate : MonoBehaviour
 				if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 			}
 		}
-		return Vector2Int.zero; // default fallback
+		return Vector2Int.zero;
 	}
 
 	public Vector2Int GetStartRoomPos(Vector2 footprint, int floorIdx = 1)
@@ -497,29 +443,19 @@ public class UnitGenerate : MonoBehaviour
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
-		int chunkW = floor.config.width;
-		int chunkH = floor.config.height;
-
-		for (int cx = 0; cx < chunkW; cx++)
-		{
-			for (int cy = 0; cy < chunkH; cy++)
+		for (int cx = 0; cx < floor.config.width; cx++)
+			for (int cy = 0; cy < floor.config.height; cy++)
 			{
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomRole == RoomRole.StartRoom && c.chunk != null)
-				{
-					// 시작방을 찾았으면 무작위가 아닌 중앙 근처 빈 공간 반환
 					for (int tx = 2; tx < 6; tx++)
-					{
 						for (int ty = 2; ty < 6; ty++)
 						{
 							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
 							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 						}
-					}
-				}
 			}
-		}
-		return GetRandomFloorPos(footprint, floorIdx); // 못 찾으면 일반 랜덤 방 반환
+		return GetRandomFloorPos(footprint, floorIdx);
 	}
 
 	public Vector2Int GetBossRoomPos(Vector2 footprint, int floorIdx = 1)
@@ -530,30 +466,20 @@ public class UnitGenerate : MonoBehaviour
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
-		int chunkW = floor.config.width;
-		int chunkH = floor.config.height;
-
-		for (int cx = 0; cx < chunkW; cx++)
-		{
-			for (int cy = 0; cy < chunkH; cy++)
+		for (int cx = 0; cx < floor.config.width; cx++)
+			for (int cy = 0; cy < floor.config.height; cy++)
 			{
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomRole == RoomRole.BossRoom && c.chunk != null)
-				{
 					for (int tx = 2; tx < 6; tx++)
-					{
 						for (int ty = 2; ty < 6; ty++)
 						{
 							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
 							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 						}
-					}
-				}
 			}
-		}
-		return GetRandomFloorPos(footprint, floorIdx); // 못 찾으면 일반 랜덤 방 반환
+		return GetRandomFloorPos(footprint, floorIdx);
 	}
-
 
 	public T GenerateUnitAtPos<T>(UnitType unitType, Vector2Int pos, int floorIdx = 1) where T : Unit
 	{
@@ -564,14 +490,13 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 3.0f);  // 1.0f * 3 = 3.0f
-
+		SetupUnitVisual(unit, 3.0f);
 		return unit;
 	}
 	#endregion
 }
 
-public class UnitVisual : MonoBehaviour//유닛 시야 시각화
+public class UnitVisual : MonoBehaviour
 {
 	public LineRenderer fovLine;
 
@@ -580,10 +505,10 @@ public class UnitVisual : MonoBehaviour//유닛 시야 시각화
 		fovLine = gameObject.AddComponent<LineRenderer>();
 		fovLine.startWidth = 0.05f;
 		fovLine.endWidth = 0.05f;
-		fovLine.material = new Material(Shader.Find("Sprites/Default")); // 기본 2D 쉐이더로 단색 표시
-		fovLine.startColor = new Color(0f, 1f, 1f, 0f); // 하늘색 반투명
+		fovLine.material = new Material(Shader.Find("Sprites/Default"));
+		fovLine.startColor = new Color(0f, 1f, 1f, 0f);
 		fovLine.endColor = new Color(0f, 1f, 1f, 0f);
-		fovLine.useWorldSpace = false; // 부모(유닛) 기준 좌표
+		fovLine.useWorldSpace = false;
 		fovLine.sortingOrder = 9;
 	}
 
@@ -591,18 +516,14 @@ public class UnitVisual : MonoBehaviour//유닛 시야 시각화
 	{
 		int segments = 20;
 		fovLine.positionCount = segments + 2;
-
-		fovLine.SetPosition(0, Vector3.zero); // 본인 위치 중심
+		fovLine.SetPosition(0, Vector3.zero);
 
 		float startAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg - (fovAngle / 2f);
-
 		for (int i = 0; i <= segments; i++)
 		{
 			float currentAngle = startAngle + (fovAngle * i / segments);
 			float rad = currentAngle * Mathf.Deg2Rad;
-			Vector3 point = new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius;
-			fovLine.SetPosition(i + 1, point);
+			fovLine.SetPosition(i + 1, new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius);
 		}
 	}
 }
-
