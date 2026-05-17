@@ -23,6 +23,14 @@ public class UnitSetup : MonoBehaviour
         {
             Debug.Log("Unit Environment is already set up!");
         }
+
+        // UnitSpriteManager 설정
+        if (FindObjectOfType<UnitSpriteManager>() == null)
+        {
+            GameObject spriteManagerObj = new GameObject("UnitSpriteManager");
+            spriteManagerObj.AddComponent<UnitSpriteManager>();
+            Debug.Log("Unit Sprite Manager Setup Complete.");
+        }
     }
 
     [MenuItem("Tools/Setup UI Environment")]
@@ -84,6 +92,13 @@ public class UnitSetup : MonoBehaviour
         {
             Camera.main.gameObject.AddComponent<CameraController>();
             Debug.Log("Camera Controller Setup Complete.");
+        }
+
+        if (FindObjectOfType<UnitSpriteManager>() == null)
+        {
+            GameObject spriteManagerObj = new GameObject("UnitSpriteManager");
+            spriteManagerObj.AddComponent<UnitSpriteManager>();
+            Debug.Log("Unit Sprite Manager Setup Complete.");
         }
     }
 }

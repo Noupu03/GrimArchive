@@ -38,7 +38,7 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 0.9f);
+		SetupUnitVisual(unit, 2.7f);  // 0.9f * 3 = 2.7f
 
 		return unit;
 	}
@@ -57,14 +57,29 @@ public class UnitGenerate : MonoBehaviour
 
 		go.transform.localScale = new Vector3(unit.unitType.footprint.x * visualScale, unit.unitType.footprint.y * visualScale, 1f);
 
-		if (unit is Human) { sr.sprite = humanSprite; sr.color = Color.green; }
-		else if (unit is Monster) { sr.sprite = monsterSprite; sr.color = Color.red; }
+		// UnitSpriteManager에서 스프라이트 가져오기
+		Sprite sprite = null;
+		if (UnitSpriteManager.Instance != null)
+		{
+			sprite = UnitSpriteManager.Instance.GetSprite(unit.unitType, unit.currentDir, out bool flipX);
+			sr.flipX = flipX;
+		}
+
+		// 폴백: SpriteManager가 없거나 스프라이트를 못 찾은 경우
+		if (sprite == null)
+		{
+			if (unit is Human) { sprite = humanSprite; sr.color = Color.green; }
+			else if (unit is Monster) { sprite = monsterSprite; sr.color = Color.red; }
+		}
+
+		sr.sprite = sprite;
 
 		GameObject outlineGo = new GameObject("Outline");
 		outlineGo.transform.SetParent(go.transform);
 		outlineGo.transform.localPosition = Vector3.zero;
 		SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
-		outlineSr.sprite = sr.sprite;
+		outlineSr.sprite = sprite;
+		outlineSr.flipX = sr.flipX;
 		outlineSr.color = Color.black;
 		outlineSr.sortingOrder = 9;
 		outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
@@ -72,6 +87,40 @@ public class UnitGenerate : MonoBehaviour
 
 		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
 		visualMap[unit] = go;
+	}
+
+	public void UpdateUnitSpriteForDirection(Unit unit)
+	{
+		if (!visualMap.TryGetValue(unit, out GameObject go))
+			return;
+
+		if (UnitSpriteManager.Instance == null)
+			return;
+
+		// 스프라이트 가져오기
+		Sprite sprite = UnitSpriteManager.Instance.GetSprite(unit.unitType, unit.currentDir, out bool flipX);
+
+		if (sprite != null)
+		{
+			SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
+			if (sr != null)
+			{
+				sr.sprite = sprite;
+				sr.flipX = flipX;
+			}
+
+			// 아웃라인도 함께 업데이트
+			Transform outlineTransform = go.transform.Find("Outline");
+			if (outlineTransform != null)
+			{
+				SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
+				if (outlineSr != null)
+				{
+					outlineSr.sprite = sprite;
+					outlineSr.flipX = flipX;
+				}
+			}
+		}
 	}
 	#region 유닛 생성 보조 기능성
 	private Transform GetFloorTilemapTransform(int floorIdx)
@@ -450,7 +499,7 @@ public class UnitGenerate : MonoBehaviour
 		unit.currentFloor = floorIdx;
 		unit.SetupStats();
 
-		SetupUnitVisual(unit, 1.0f);
+		SetupUnitVisual(unit, 3.0f);  // 1.0f * 3 = 3.0f
 
 		return unit;
 	}

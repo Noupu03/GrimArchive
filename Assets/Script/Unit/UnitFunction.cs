@@ -133,6 +133,12 @@ public abstract class UnitFunction : Unit
 		{
 			position = nextPos;
 		}
+
+		// 방향 변경에 따른 스프라이트 업데이트
+		if (UnitGenerate.Instance != null)
+		{
+			UnitGenerate.Instance.UpdateUnitSpriteForDirection(this);
+		}
 	}
 
 
