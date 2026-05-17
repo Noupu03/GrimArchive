@@ -89,6 +89,7 @@ public class UnitGenerate : MonoBehaviour
 
 				go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
 				visualMap[unit] = go;
+				AttachAnimationController(go, unit.unitType.typeName);
 				return;
 			}
 		}
@@ -118,6 +119,15 @@ public class UnitGenerate : MonoBehaviour
 
 		go.transform.position = new Vector3(unit.position.x + unit.unitType.footprint.x / 2f, unit.position.y + unit.unitType.footprint.y / 2f, 0) + GetFloorOffset(unit.currentFloor);
 		visualMap[unit] = go;
+		AttachAnimationController(go, unit.unitType.typeName);
+	}
+
+	private void AttachAnimationController(GameObject go, string typeName)
+	{
+		var anim = go.GetComponent<Animator>() ?? go.AddComponent<Animator>();
+		anim.applyRootMotion = false;
+		var ctrl = go.AddComponent<UnitAnimationController>();
+		ctrl.Init(typeName);
 	}
 
 	public void UpdateUnitSpriteForDirection(Unit unit)
