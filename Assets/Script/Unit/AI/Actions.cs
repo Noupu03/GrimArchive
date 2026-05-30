@@ -92,46 +92,55 @@ public class Action_EngageEnemy : GoapAction
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
 
-		float      engageDist = unit.unitType is MeleeTank ? 2.5f : 1.5f;
-		Vector2Int diff       = target.position - unit.position;
-		unit.currentDir = SkillAction.GetDirection8(diff);
+		int defaultEngageDist = unit.unitType is MeleeTank ? 3 : 2;
+		int engageSteps       = EngageDistanceOverride.Get(unit.unitType.typeName, defaultEngageDist);
 
-		// 공격 각도를 자동으로 계산하여 설정 (대상을 향한 정확한 각도)
-		float attackRange = unit.unitType is MeleeTank ? 3 : 2;
-		unit.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, (int)attackRange);
+		Vector2Int diff     = target.position - unit.position;
+		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
 
-		// 히트박스 공격 범위 검사 (타일 기반이 아님)
-		int   range          = unit.unitType is MeleeTank ? 3 : 2;
-		Hitbox attackCheckBox = SkillAction.BuildLineHitbox(unit, range);
-		bool  canHit         = SkillAction.GetEnemiesInHitbox(unit, attackCheckBox).Contains(target);
+		unit.currentDir         = SkillAction.GetDirection8(diff);
+		unit.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, 1);
 
-		if (minDist <= engageDist && canHit)
+		// 사용 가능한 최우선 스킬 탐색
+		SkillAction bestSkill    = null;
+		float       bestPriority = float.MinValue;
+		foreach (SkillAction skill in GetSkillActions(unit))
 		{
-			SkillAction bestSkill    = null;
-			float       bestPriority = float.MinValue;
+			if (skill == null || !skill.IsAvailable(unit)) continue;
+			float priority = skill.GetPriority(unit, target, minDist);
+			if (priority > bestPriority) { bestPriority = priority; bestSkill = skill; }
+		}
 
-			foreach (SkillAction skill in GetSkillActions(unit))
-			{
-				if (skill == null || !skill.IsAvailable(unit)) continue;
-				float priority = skill.GetPriority(unit, target, minDist);
-				if (priority > bestPriority) { bestPriority = priority; bestSkill = skill; }
-			}
+		if (bestSkill != null)
+		{
+			// 선택된 스킬의 실제 사정거리로 canHit 검사
+			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
+			bool   canHit   = SkillAction.GetEnemiesInHitbox(unit, skillBox).Contains(target);
 
-			if (bestSkill != null)
+			if (canHit)
 			{
 				bestSkill.Execute(unit, target, minDist);
 				return;
 			}
+
+			// 사정거리 밖: 적에게 접근
+			if (unit.evadeCooldown > 0f) return;
+			MoveTowardsTarget(unit, target);
+		}
+		else
+		{
+			// 스킬 쿨다운 중: 체비쇼프 거리 기준으로 대치 거리 유지 (대각선 포함)
+			if (unit.evadeCooldown > 0f) return;
+
+			if (chebDist != engageSteps)
+				MoveAwayFromTarget(unit, target, engageSteps);
 		}
 
-		if (unit.evadeCooldown > 0f) return;
-
-		MoveTowardsTarget(unit, target);
-
-		Vector2Int diff2 = target.position - unit.position;
-		if (Mathf.Abs(diff2.x) > Mathf.Abs(diff2.y))
-			unit.currentDir = diff2.x > 0 ? Dir.RIGHT : Dir.LEFT;
+		// 이동 후 방향 업데이트 (항상 적을 바라봄)
+		Vector2Int facing = target.position - unit.position;
+		if (Mathf.Abs(facing.x) > Mathf.Abs(facing.y))
+			unit.currentDir = facing.x > 0 ? Dir.RIGHT : Dir.LEFT;
 		else
-			unit.currentDir = diff2.y > 0 ? Dir.UP : Dir.DOWN;
+			unit.currentDir = facing.y > 0 ? Dir.UP : Dir.DOWN;
 	}
 }

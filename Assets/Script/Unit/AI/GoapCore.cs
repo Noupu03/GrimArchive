@@ -215,6 +215,23 @@ public abstract class GoapAction
 	}
 
 	protected void MoveTowardsTarget(Unit unit, Unit target) => MoveTowardsPos(unit, target.position);
+
+	protected void MoveAwayFromTarget(Unit unit, Unit target, float desiredDist)
+	{
+		Vector2 away = (Vector2)(unit.position - target.position);
+		if (away == Vector2.zero) away = Vector2.right;
+
+		// 체비쇼프 스케일: max(|x|,|y|)=1로 정규화 → 대각선 방향도 정확한 타일 거리로 이동
+		float maxComp = Mathf.Max(Mathf.Abs(away.x), Mathf.Abs(away.y));
+		Vector2 scaled = away / maxComp;
+
+		int targetDist = Mathf.RoundToInt(desiredDist);
+		Vector2Int retreatPos = target.position + new Vector2Int(
+			Mathf.RoundToInt(scaled.x * targetDist),
+			Mathf.RoundToInt(scaled.y * targetDist)
+		);
+		MoveTowardsPos(unit, retreatPos);
+	}
 }
 
 // ==========================================

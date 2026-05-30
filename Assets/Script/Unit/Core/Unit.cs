@@ -191,6 +191,8 @@ public abstract class Unit : ScriptableObject
 			physicalAttackSpeed = 8; magicalCastSpeed = 0;
 			mental = maxMental;
 		}
+		// 튜너 오버라이드 적용 후 파생 스탯 재계산
+		UnitStatOverride.ApplyTo(this);
 		CalculateDerivedStats();
 	}
 
