@@ -125228,6 +125228,69 @@ Transform:
   m_Children: []
   m_Father: {fileID: 368256557}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1686327449
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1686327451}
+  - component: {fileID: 1686327450}
+  m_Layer: 0
+  m_Name: SkillEditer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1686327450
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1686327449}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f54842fd3cc13284fa549c45f329e740, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillTuner
+  entries:
+  - skillName: "\uC9D1\uC911 \uCC0C\uB974\uAE30"
+    baseDelayMs: 800
+    baseCooldown: 8
+  - skillName: "\uBC29\uD328 \uD0C0\uACA9"
+    baseDelayMs: 650
+    baseCooldown: 6
+  - skillName: "\uC804\uBC29 \uBCA0\uAE30"
+    baseDelayMs: 450
+    baseCooldown: 1.2
+  - skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
+    baseDelayMs: 1000
+    baseCooldown: 7
+  - skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
+    baseDelayMs: 240
+    baseCooldown: 4
+  - skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
+    baseDelayMs: 650
+    baseCooldown: 1.4
+--- !u!4 &1686327451
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1686327449}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.35617, y: 0.09148, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1732468878
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -131637,3 +131700,4 @@ SceneRoots:
   - {fileID: 368256557}
   - {fileID: 86746761}
   - {fileID: 1453061269}
+  - {fileID: 1686327451}
