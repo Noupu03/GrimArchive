@@ -83,6 +83,8 @@ public abstract class Unit : ScriptableObject
 	public bool  isCastingAttack = false; // 현재 공격 선딜 진행 여부
 	public float castTimer       = 0f;  // 선딜 타이머
 	public System.Action pendingAttack;  // 실제 공격 실행 예약
+	public System.Action pendingVFX;     // 공격 타이밍에 맞춰 재생할 VFX (가드·패링)
+	public bool suppressHitVFX = false;  // true이면 TriggerHitEffect에서 HitSpark 대신 AttackFail 재생
 	public ThreatTileData currentThreat; // 현재 공격 위협 타일
 
 	// 공격 시 자유로운 각도 (라디안)

@@ -310,12 +310,23 @@ public class UnitGenerate : MonoBehaviour
 
 	public void TriggerHitEffect(Unit u)
 	{
-		if (u != null && visualMap.TryGetValue(u, out GameObject go))
+		if (u == null) return;
+
+		if (u.suppressHitVFX)
+		{
+			VFXManager.Instance?.SpawnAttackFail(u);
+			u.suppressHitVFX = false;
+		}
+		else
+		{
+			VFXManager.Instance?.SpawnHitSpark(u);
+		}
+
+		if (visualMap.TryGetValue(u, out GameObject go))
 		{
 			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
 			{
 				StopCoroutine(existingCoroutine);
-				// 중단 시 색상이 투명 상태로 남지 않도록 즉시 복구
 				Transform      vt     = go.transform.Find("Visual");
 				SpriteRenderer prevSr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
 				if (prevSr != null) prevSr.color = Color.white;

@@ -262,6 +262,17 @@ public abstract class UnitFunction : Unit
 			castTimer -= deltaTime;
 			if (castTimer <= 0f)
 			{
+				// 공격 타이밍: 반응한 유닛의 VFX(가드·패링) 실행
+				if (GameSession.Instance != null)
+				{
+					foreach (Unit u in GameSession.Instance.units)
+					{
+						if (u == null || u.reactingAttacker != this) continue;
+						u.pendingVFX?.Invoke();
+						u.pendingVFX = null;
+					}
+				}
+
 				isCastingAttack = false;
 				currentThreat   = null;
 				pendingAttack?.Invoke();
@@ -273,6 +284,11 @@ public abstract class UnitFunction : Unit
 					{
 						if (u == null) continue;
 						u.reactedAttackers.Remove(this);
+						if (u.reactingAttacker == this)
+						{
+							u.reactingAttacker = null;
+							u.reactingThreat   = null;
+						}
 					}
 				}
 			}
