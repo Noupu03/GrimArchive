@@ -4,6 +4,9 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 {
 	public SkillAction_MeleeTankHeavySmash() { SkillName = "육중한 내리찍기"; }
 
+	public override float DefaultBaseDelayMs  => 1000f;
+	public override float DefaultBaseCooldown => 7f;
+
 	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
 
 	public override float GetPriority(Unit unit, Unit target, float minDist)
@@ -16,7 +19,8 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 
 	public override void Execute(Unit unit, Unit target, float minDist)
 	{
-		float finalDelayMs = Mathf.Max(200f, 1000f * (100f / Mathf.Max(1f, unit.attackspeed)));
+		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
+		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
 		Hitbox box         = BuildRectHitbox(unit, 2, 2);
 
 		var threat = ThreatTileData.Create();
@@ -31,7 +35,7 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1.45f);
 				Debug.Log($"{unit.unitType.typeName} 육중한 내리찍기");
 			},
-			() => unit.skillCooldowns[3] = ApplyCooldown(unit, 7f)
+			() => unit.skillCooldowns[3] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
 		);
 	}
 }
@@ -39,6 +43,9 @@ public class SkillAction_MeleeTankHeavySmash : SkillAction
 public class SkillAction_MeleeTankAmbushClaw : SkillAction
 {
 	public SkillAction_MeleeTankAmbushClaw() { SkillName = "급습 할퀴기"; }
+
+	public override float DefaultBaseDelayMs  => 240f;
+	public override float DefaultBaseCooldown => 4f;
 
 	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[2] <= 0f;
 
@@ -52,7 +59,8 @@ public class SkillAction_MeleeTankAmbushClaw : SkillAction
 
 	public override void Execute(Unit unit, Unit target, float minDist)
 	{
-		float finalDelayMs = Mathf.Max(200f, 240f * (100f / Mathf.Max(1f, unit.attackspeed)));
+		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
+		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
 		Hitbox box         = BuildLineHitbox(unit, 1);
 
 		var threat = ThreatTileData.Create();
@@ -66,7 +74,7 @@ public class SkillAction_MeleeTankAmbushClaw : SkillAction
 				DamageEnemiesInHitboxWithAreaRatio(unit, box, 0.65f);
 				Debug.Log($"{unit.unitType.typeName} 급습 할퀴기");
 			},
-			() => unit.skillCooldowns[2] = ApplyCooldown(unit, 4f)
+			() => unit.skillCooldowns[2] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
 		);
 	}
 }
@@ -74,6 +82,9 @@ public class SkillAction_MeleeTankAmbushClaw : SkillAction
 public class SkillAction_MeleeTankClawSwipe : SkillAction
 {
 	public SkillAction_MeleeTankClawSwipe() { SkillName = "발톱 후려치기"; }
+
+	public override float DefaultBaseDelayMs  => 650f;
+	public override float DefaultBaseCooldown => 1.4f;
 
 	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[1] <= 0f;
 
@@ -87,7 +98,8 @@ public class SkillAction_MeleeTankClawSwipe : SkillAction
 
 	public override void Execute(Unit unit, Unit target, float minDist)
 	{
-		float finalDelayMs = Mathf.Max(200f, 650f * (100f / Mathf.Max(1f, unit.attackspeed)));
+		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
+		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
 		Hitbox box         = BuildLineHitbox(unit, 3);
 
 		var threat = ThreatTileData.Create();
@@ -101,7 +113,7 @@ public class SkillAction_MeleeTankClawSwipe : SkillAction
 				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1f);
 				Debug.Log($"{unit.unitType.typeName} 발톱 후려치기");
 			},
-			() => unit.skillCooldowns[1] = ApplyCooldown(unit, 1.4f)
+			() => unit.skillCooldowns[1] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
 		);
 	}
 }

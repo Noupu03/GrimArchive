@@ -5,6 +5,10 @@ public abstract class SkillAction
 {
 	public string SkillName { get; protected set; }
 
+	// 에디터 / SkillTuner에서 읽는 기본값 (각 스킬에서 override)
+	public virtual float DefaultBaseDelayMs  => 500f;
+	public virtual float DefaultBaseCooldown => 3f;
+
 	public abstract bool  IsAvailable(Unit unit);
 	public abstract float GetPriority(Unit unit, Unit target, float minDist);
 	public abstract void  Execute(Unit unit, Unit target, float minDist);
