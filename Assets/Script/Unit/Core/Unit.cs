@@ -82,7 +82,8 @@ public abstract class Unit : ScriptableObject
 	public float evadeCooldown  = 0f;  // 회피 후 재접근 관련
 	public bool  isCastingAttack = false; // 현재 공격 선딜 진행 여부
 	public float castTimer       = 0f;  // 선딜 타이머
-	public System.Action pendingAttack;  // 실제 공격 실행 예약
+	public System.Action pendingAttack;   // 실제 공격 실행 예약
+	public System.Action pendingDefense;  // 방어 행동 실행 예약 (공격 타이밍에 맞춰 실행)
 	public ThreatTileData currentThreat; // 현재 공격 위협 타일
 
 	// 공격 시 자유로운 각도 (라디안)

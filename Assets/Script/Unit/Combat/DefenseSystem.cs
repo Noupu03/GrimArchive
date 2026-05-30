@@ -27,6 +27,36 @@ public static class DefenseSystem
 	// 메인
 	// =========================================================
 
+	/// <summary>
+	/// 선딜 중 방어 방식을 결정하고 pendingDefense에 예약한다.
+	/// 실제 실행은 공격자의 castTimer가 0이 되는 시점(공격 타이밍)에 맞춰 발생한다.
+	/// </summary>
+	public static void PrepareDefense(Unit defender, Unit attacker, ThreatTileData threat)
+	{
+		if (defender == null || attacker == null) return;
+
+		List<DefenseCandidate> candidates = BuildDefenseCandidates(defender, attacker, threat);
+
+		if (candidates.Count == 0)
+		{
+			Debug.Log($"{defender.unitType.typeName} 방어 선택지 없음 → 직격 예약");
+			defender.pendingDefense = () => defender.ApplyDirectDamage(attacker);
+			return;
+		}
+
+		DefenseCandidate selected = SelectDefense(candidates);
+
+		if (selected == null)
+		{
+			defender.pendingDefense = () => defender.ApplyDirectDamage(attacker);
+			return;
+		}
+
+		// 방어 방식 결정은 선딜 중에 완료, 실행만 공격 타이밍에 맞춤
+		Debug.Log($"{defender.unitType.typeName} 방어 결정(실행 대기): {selected.type}");
+		defender.pendingDefense = () => ExecuteDefense(defender, attacker, selected);
+	}
+
 	public static void EvaluateDefense(Unit defender, Unit attacker, ThreatTileData threat)
 	{
 		if (defender == null || attacker == null) return;
