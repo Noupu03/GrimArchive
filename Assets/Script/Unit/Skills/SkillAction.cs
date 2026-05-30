@@ -9,6 +9,19 @@ public abstract class SkillAction
 	public virtual float DefaultBaseDelayMs  => 500f;
 	public virtual float DefaultBaseCooldown => 3f;
 
+	// 사정거리 정보 (Actions.cs의 canHit 사전 검사에 사용)
+	public virtual ThreatShape HitShape => ThreatShape.LINE;
+	public virtual int HitRange => 1;
+	public virtual int HitWidth => 1;
+	public virtual int HitDepth => 1;
+
+	public Hitbox BuildSkillHitbox(Unit unit)
+	{
+		if (HitShape == ThreatShape.RECT)
+			return BuildRectHitboxWithAngle(unit, HitWidth, HitDepth, unit.currentAttackAngle);
+		return BuildLineHitboxWithAngle(unit, HitRange, unit.currentAttackAngle);
+	}
+
 	public abstract bool  IsAvailable(Unit unit);
 	public abstract float GetPriority(Unit unit, Unit target, float minDist);
 	public abstract void  Execute(Unit unit, Unit target, float minDist);

@@ -6,6 +6,7 @@ public class SkillAction_KnightFocusedStab : SkillAction
 
 	public override float DefaultBaseDelayMs  => 800f;
 	public override float DefaultBaseCooldown => 8f;
+	public override int   HitRange            => 2;
 
 	public override bool IsAvailable(Unit unit) => unit.skillCooldowns[3] <= 0f;
 
@@ -21,7 +22,6 @@ public class SkillAction_KnightFocusedStab : SkillAction
 	{
 		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
 		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
-		Hitbox box         = BuildLineHitbox(unit, 2);
 
 		var threat = ThreatTileData.Create();
 		threat.shape = ThreatShape.LINE;
@@ -31,7 +31,7 @@ public class SkillAction_KnightFocusedStab : SkillAction
 			unit, finalDelayMs, threat,
 			() =>
 			{
-				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1.25f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, 1.25f);
 				Debug.Log($"{unit.unitType.typeName} 집중 찌르기");
 			},
 			() => unit.skillCooldowns[3] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
@@ -60,7 +60,6 @@ public class SkillAction_KnightShieldBash : SkillAction
 	{
 		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
 		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
-		Hitbox box         = BuildLineHitbox(unit, 1);
 
 		var threat = ThreatTileData.Create();
 		threat.shape = ThreatShape.LINE;
@@ -70,7 +69,7 @@ public class SkillAction_KnightShieldBash : SkillAction
 			unit, finalDelayMs, threat,
 			() =>
 			{
-				DamageEnemiesInHitboxWithAreaRatio(unit, box, 0.9f, true, 1f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, 0.9f, true, 1f);
 				Debug.Log($"{unit.unitType.typeName} 방패 타격");
 			},
 			() => unit.skillCooldowns[2] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
@@ -99,7 +98,6 @@ public class SkillAction_KnightFrontSlash : SkillAction
 	{
 		float baseMs       = SkillTuningOverride.GetDelayMs(SkillName, DefaultBaseDelayMs);
 		float finalDelayMs = Mathf.Max(200f, baseMs * (100f / Mathf.Max(1f, unit.attackspeed)));
-		Hitbox box         = BuildLineHitbox(unit, 1);
 
 		var threat = ThreatTileData.Create();
 		threat.shape = ThreatShape.LINE;
@@ -109,7 +107,7 @@ public class SkillAction_KnightFrontSlash : SkillAction
 			unit, finalDelayMs, threat,
 			() =>
 			{
-				DamageEnemiesInHitboxWithAreaRatio(unit, box, 1f);
+				DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, 1f);
 				Debug.Log($"{unit.unitType.typeName} 전방 베기");
 			},
 			() => unit.skillCooldowns[0] = ApplyCooldown(unit, SkillTuningOverride.GetCooldown(SkillName, DefaultBaseCooldown))
