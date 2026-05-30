@@ -262,36 +262,17 @@ public abstract class UnitFunction : Unit
 			castTimer -= deltaTime;
 			if (castTimer <= 0f)
 			{
-				// ① 이 공격에 반응한 방어자들의 pendingDefense를 공격과 동시에 실행
-				if (GameSession.Instance != null)
-				{
-					foreach (Unit u in GameSession.Instance.units)
-					{
-						if (u == null || u.reactingAttacker != this) continue;
-						System.Action defense = u.pendingDefense;
-						u.pendingDefense = null;
-						defense?.Invoke();
-					}
-				}
-
-				// ② 공격 실행
 				isCastingAttack = false;
 				currentThreat   = null;
 				pendingAttack?.Invoke();
 				pendingAttack   = null;
 
-				// ③ 반응 상태 초기화
 				if (GameSession.Instance != null)
 				{
 					foreach (Unit u in GameSession.Instance.units)
 					{
 						if (u == null) continue;
 						u.reactedAttackers.Remove(this);
-						if (u.reactingAttacker == this)
-						{
-							u.reactingAttacker = null;
-							u.reactingThreat   = null;
-						}
 					}
 				}
 			}
@@ -340,15 +321,14 @@ public abstract class UnitFunction : Unit
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
-		// 방어 방식은 선딜 중에 결정, 실행은 공격 타이밍에 맞춰 예약
-		Debug.Log($"{unitType.typeName} 반응 성공 → 방어 결정(실행 대기)");
-		DefenseSystem.PrepareDefense(this, attacker, threat);
+		Debug.Log($"{unitType.typeName} 반응 성공!");
+		DefenseSystem.EvaluateDefense(this, attacker, threat);
 	}
 
 	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
 	{
-		// 반응 시간 부족 → pendingAttack의 히트박스 판정이 공격 타이밍에 피해 처리
-		Debug.Log($"{unitType.typeName} 반응 실패 → 직격 예정");
+		Debug.Log($"{unitType.typeName} 반응 실패 → 직격!");
+		ApplyDirectDamage(attacker);
 	}
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
