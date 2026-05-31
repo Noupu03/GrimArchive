@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteLibrarySourceAsset
   m_Library:
-  - m_Name: Direction
-    m_Hash: 1018909456
+  - m_Name: A
+    m_Hash: 333029003
     m_CategoryList: []
     m_OverrideEntries:
     - m_Name: Down
@@ -45,5 +45,5 @@ MonoBehaviour:
     m_FromMain: 0
     m_EntryOverrideCount: 5
   m_PrimaryLibraryGUID: 
-  m_ModificationHash: 639146493004647015
+  m_ModificationHash: 639158502290417248
   m_Version: 1
