@@ -85,11 +85,15 @@ public class UnitGenerate : MonoBehaviour
 			var spriteLibrary = UnitSpriteManager.Instance.GetSpriteLibrary(unit.unitType);
 			if (spriteLibrary != null)
 			{
+				// 바리에이션 미지정 시 라이브러리 카테고리에서 랜덤 선택
+				if (string.IsNullOrEmpty(unit.spriteVariation))
+					unit.spriteVariation = UnitSpriteManager.Instance.PickRandomVariation(spriteLibrary);
+
 				SpriteLibrary spriteLibComp = visual.AddComponent<SpriteLibrary>();
 				spriteLibComp.spriteLibraryAsset = spriteLibrary;
 
 				SpriteResolver spriteResolver = visual.AddComponent<SpriteResolver>();
-				UpdateSpriteResolver(spriteResolver, unit.currentDir);
+				UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
 
 				GameObject     outlineGo = new GameObject("Outline");
 				outlineGo.transform.SetParent(visual.transform);
@@ -153,18 +157,18 @@ public class UnitGenerate : MonoBehaviour
 		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
 		if (spriteResolver != null)
 		{
-			UpdateSpriteResolver(spriteResolver, unit.currentDir);
+			UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
 			return;
 		}
 #endif
 		if (UnitSpriteManager.Instance == null) return;
 	}
 
-	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction)
+	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction, string variation)
 	{
 #if UNITY_2022_2_OR_NEWER
-		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string category, out string label, out bool flipX);
-		spriteResolver.SetCategoryAndLabel(category, label);
+		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string label, out bool flipX);
+		spriteResolver.SetCategoryAndLabel(variation, label);
 		SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
 		if (sr != null) sr.flipX = flipX;
 #else

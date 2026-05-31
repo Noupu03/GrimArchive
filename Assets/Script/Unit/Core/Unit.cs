@@ -107,6 +107,7 @@ public abstract class Unit : ScriptableObject
 	public Vector2Int position;
 	public int        currentFloor = 0;        // 현재 유닛이 위치한 층 정보
 	public Dir        currentDir   = Dir.DOWN;  // 현재 바라보는 방향 (시야 기준)
+	public string     spriteVariation = "";     // 스프라이트 바리에이션 (라이브러리 카테고리명)
 	public static float ViewRadius = 30f;       // 전역 시야 거리
 
 	public List<Unit>          personalSpottedEnemies = new List<Unit>();

@@ -61,9 +61,9 @@ public class UnitSpriteManager : MonoBehaviour
         return false;
     }
 
-    public static void GetSpriteLabelForDirection(Dir direction, out string category, out string label, out bool flipX)
+    // direction → label / flipX 반환. category(바리에이션)는 호출부에서 결정
+    public static void GetSpriteLabelForDirection(Dir direction, out string label, out bool flipX)
     {
-        category = "Direction";
         flipX = false;
         switch (direction)
         {
@@ -78,4 +78,20 @@ public class UnitSpriteManager : MonoBehaviour
             default:             label = "Down";     break;
         }
     }
+
+#if UNITY_2022_2_OR_NEWER
+    // 스프라이트 라이브러리의 카테고리 목록을 바리에이션 후보로 반환
+    public List<string> GetVariationCategories(SpriteLibraryAsset asset)
+    {
+        if (asset == null) return new List<string>();
+        return new List<string>(asset.GetCategoryNames());
+    }
+
+    // 라이브러리에서 랜덤 바리에이션 카테고리 하나 선택
+    public string PickRandomVariation(SpriteLibraryAsset asset)
+    {
+        var cats = GetVariationCategories(asset);
+        return cats.Count > 0 ? cats[Random.Range(0, cats.Count)] : "";
+    }
+#endif
 }
