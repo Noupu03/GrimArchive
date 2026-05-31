@@ -23,7 +23,12 @@ public class VFXManager : MonoBehaviour
     {
         if (prefab == null || unit == null) return;
 
-        var go = Instantiate(prefab, GetWorldPos(unit), Quaternion.identity);
+        Transform parent  = UnitGenerate.Instance?.GetVisualTransform(unit);
+        Vector3   worldPos = GetWorldPos(unit);
+
+        var go = parent != null
+            ? Instantiate(prefab, worldPos, Quaternion.identity, parent)
+            : Instantiate(prefab, worldPos, Quaternion.identity);
 
         var ps = go.GetComponent<ParticleSystem>();
         float lifetime = ps != null
