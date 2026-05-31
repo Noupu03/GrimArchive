@@ -115,7 +115,7 @@ Material:
     - _JitterBase: 0
     - _JitterBurst: 0
     - _MaskPixelSize: 4
-    - _MaskStrength: 1
+    - _MaskStrength: 0.5
     - _Metallic: 0
     - _MicroJitterAmp: 0
     - _MicroJitterDuty: 0
@@ -126,7 +126,7 @@ Material:
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _ScanlineCount: 100
-    - _ScanlineIntensity: 0.25
+    - _ScanlineIntensity: 0.3
     - _Seed: 0
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
