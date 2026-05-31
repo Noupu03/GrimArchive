@@ -1,0 +1,62 @@
+{
+  "units": [
+    {
+      "typeName": "기사형",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 2,
+      "skills": ["집중 찌르기", "방패 타격", "전방 베기"],
+      "stats": {
+        "maxHp": 150,
+        "maxMp": 30,
+        "physicalAttack": 25,
+        "magicalAttack": 8,
+        "physicalDefense": 14,
+        "magicalDefense": 12,
+        "HPRegen": 5,
+        "attackspeed": 90,
+        "walkSpeed": 3.2,
+        "reaction": 95,
+        "criticalChance": 9,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 85,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 12,
+        "magicalCastSpeed": 0
+      }
+    },
+    {
+      "typeName": "근접 탱커",
+      "unitClass": "Monster",
+      "footprint": [1, 1],
+      "engageDistance": 3,
+      "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
+      "stats": {
+        "maxHp": 180,
+        "maxMp": 0,
+        "physicalAttack": 29,
+        "magicalAttack": 6,
+        "physicalDefense": 10,
+        "magicalDefense": 8,
+        "HPRegen": 3,
+        "attackspeed": 80,
+        "walkSpeed": 2.8,
+        "reaction": 85,
+        "criticalChance": 7.5,
+        "cooltimeReduction": 75,
+        "statusResistance": 75,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 80,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 8,
+        "magicalCastSpeed": 0
+      }
+    }
+  ]
+}

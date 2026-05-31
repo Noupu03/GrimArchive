@@ -55,20 +55,6 @@ public class Action_RandomExplore : GoapAction
 
 public class Action_EngageEnemy : GoapAction
 {
-	private readonly List<SkillAction> knightSkills = new List<SkillAction>
-	{
-		new SkillAction_KnightFocusedStab(),
-		new SkillAction_KnightShieldBash(),
-		new SkillAction_KnightFrontSlash()
-	};
-
-	private readonly List<SkillAction> meleeTankSkills = new List<SkillAction>
-	{
-		new SkillAction_MeleeTankHeavySmash(),
-		new SkillAction_MeleeTankAmbushClaw(),
-		new SkillAction_MeleeTankClawSwipe()
-	};
-
 	public Action_EngageEnemy()
 	{
 		ActionName = "EngageEnemy";
@@ -80,20 +66,12 @@ public class Action_EngageEnemy : GoapAction
 
 	public override void Execute(Unit unit) => ExecuteSkillActionBased(unit);
 
-	private IEnumerable<SkillAction> GetSkillActions(Unit unit)
-	{
-		if (unit.unitType is Knight)    return knightSkills;
-		if (unit.unitType is MeleeTank) return meleeTankSkills;
-		return new List<SkillAction>();
-	}
-
 	private void ExecuteSkillActionBased(Unit unit)
 	{
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
 
-		int defaultEngageDist = unit.unitType is MeleeTank ? 3 : 2;
-		int engageSteps       = EngageDistanceOverride.Get(unit.unitType.typeName, defaultEngageDist);
+		int engageSteps = GameDataLoader.GetEngageDistance(unit.unitType.typeName, 2);
 
 		Vector2Int diff     = target.position - unit.position;
 		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
@@ -104,7 +82,7 @@ public class Action_EngageEnemy : GoapAction
 		// 사용 가능한 최우선 스킬 탐색
 		SkillAction bestSkill    = null;
 		float       bestPriority = float.MinValue;
-		foreach (SkillAction skill in GetSkillActions(unit))
+		foreach (SkillAction skill in GameDataLoader.GetSkills(unit.unitType.typeName))
 		{
 			if (skill == null || !skill.IsAvailable(unit)) continue;
 			float priority = skill.GetPriority(unit, target, minDist);

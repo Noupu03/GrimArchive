@@ -173,29 +173,7 @@ public abstract class Unit : ScriptableObject
 
 	public void SetupStats()
 	{
-		if (unitType is Knight)
-		{
-			maxHp = 150; hp = 150; maxMp = 30; mp = 30; physicalAttack = 25; magicalAttack = 8;
-			physicalDefense = 14; magicalDefense = 12; HPRegen = 5; attackspeed = 90;
-			walkSpeed = 3.2f; reaction = 95; criticalChance = 9; cooltimeReduction = 90;
-			statusResistance = 90; maxMental = 100; mental = 40; spotting = 85;
-			leadershipRange = 4; charisma = 3;
-
-			physicalAttackSpeed = 12; magicalCastSpeed = 0;
-		}
-		else if (unitType is MeleeTank)
-		{
-			maxHp = 180; hp = 180; maxMp = 0; mp = 0; physicalAttack = 29; magicalAttack = 6;
-			physicalDefense = 10; magicalDefense = 8; HPRegen = 3; attackspeed = 80;
-			walkSpeed = 2.8f; reaction = 85; criticalChance = 7.5f; cooltimeReduction = 75;
-			statusResistance = 75; maxMental = 0; spotting = 80;
-			leadershipRange = 0; charisma = 0;
-
-			physicalAttackSpeed = 8; magicalCastSpeed = 0;
-			mental = maxMental;
-		}
-		// 튜너 오버라이드 적용 후 파생 스탯 재계산
-		UnitStatOverride.ApplyTo(this);
+		GameDataLoader.ApplyStatsTo(this);
 		CalculateDerivedStats();
 	}
 
