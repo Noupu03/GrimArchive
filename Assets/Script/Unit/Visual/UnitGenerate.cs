@@ -185,6 +185,9 @@ public class UnitGenerate : MonoBehaviour
 		return null;
 	}
 
+	public Transform GetVisualTransform(Unit unit)
+		=> visualMap.TryGetValue(unit, out var go) && go != null ? go.transform : null;
+
 	public Vector3 GetFloorOffset(int floorIdx)
 	{
 		var mr = FindObjectOfType<MapRandering>();

@@ -136,11 +136,8 @@ public class Action_EngageEnemy : GoapAction
 				MoveAwayFromTarget(unit, target, engageSteps);
 		}
 
-		// 이동 후 방향 업데이트 (항상 적을 바라봄)
-		Vector2Int facing = target.position - unit.position;
-		if (Mathf.Abs(facing.x) > Mathf.Abs(facing.y))
-			unit.currentDir = facing.x > 0 ? Dir.RIGHT : Dir.LEFT;
-		else
-			unit.currentDir = facing.y > 0 ? Dir.UP : Dir.DOWN;
+		// 이동 후 방향 업데이트 (항상 적을 바라봄, 대각 포함 8방향)
+		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
+		UnitGenerate.Instance?.UpdateUnitSpriteForDirection(unit);
 	}
 }

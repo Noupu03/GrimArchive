@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
@@ -7,13 +8,21 @@ using UnityEditor;
 public class SkillTunerEditor : Editor
 {
     SerializedProperty _entries;
+    readonly Dictionary<string, bool> _foldouts = new();
 
-    static readonly GUILayoutOption W_Name    = GUILayout.Width(160);
-    static readonly GUILayoutOption W_Delay   = GUILayout.Width(110);
+    // skillName → 유닛 타입 표시명 (리플렉션 캐시)
+    Dictionary<string, string> _skillUnitTypeMap;
+
+    static readonly GUILayoutOption W_Name     = GUILayout.Width(160);
+    static readonly GUILayoutOption W_Delay    = GUILayout.Width(110);
     static readonly GUILayoutOption W_Cooldown = GUILayout.Width(100);
-    static readonly GUILayoutOption W_Del     = GUILayout.Width(26);
+    static readonly GUILayoutOption W_Del      = GUILayout.Width(26);
 
-    void OnEnable() => _entries = serializedObject.FindProperty("entries");
+    void OnEnable()
+    {
+        _entries          = serializedObject.FindProperty("entries");
+        _skillUnitTypeMap = BuildSkillUnitTypeMap();
+    }
 
     public override void OnInspectorGUI()
     {
@@ -35,42 +44,89 @@ public class SkillTunerEditor : Editor
         if (GUILayout.Button("스킬 자동 감지 (리플렉션으로 목록 채우기)", GUILayout.Height(28)))
         {
             Undo.RecordObject(target, "Auto-detect skills");
+            _skillUnitTypeMap = BuildSkillUnitTypeMap();
             AutoPopulate(tuner);
             EditorUtility.SetDirty(target);
         }
 
         EditorGUILayout.Space(4);
 
-        // ─── 컬럼 헤더 ───────────────────────────────────────────────────
-        using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-        {
-            var center = new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter };
-            GUILayout.Label("스킬명",       center, W_Name);
-            GUILayout.Label("선딜레이 (ms)", center, W_Delay);
-            GUILayout.Label("쿨타임 (초)",  center, W_Cooldown);
-            GUILayout.Label("",            W_Del);
-        }
+        // ─── 유닛 타입별 그룹 구성 ────────────────────────────────────────
+        var groupOrder = new List<string>();
+        var groupMap   = new Dictionary<string, List<int>>();
 
-        // ─── 스킬 목록 ───────────────────────────────────────────────────
-        int deleteIndex = -1;
         for (int i = 0; i < _entries.arraySize; i++)
         {
-            var prop      = _entries.GetArrayElementAtIndex(i);
-            var nameProp  = prop.FindPropertyRelative("skillName");
-            var delayProp = prop.FindPropertyRelative("baseDelayMs");
-            var cdProp    = prop.FindPropertyRelative("baseCooldown");
+            var    prop  = _entries.GetArrayElementAtIndex(i);
+            string sName = prop.FindPropertyRelative("skillName").stringValue;
+            string group = _skillUnitTypeMap.TryGetValue(sName, out var g) ? g : "미분류";
 
-            var rowStyle = i % 2 == 0
-                ? new GUIStyle { normal = { background = MakeTexture(new Color(0.22f, 0.22f, 0.22f, 0.3f)) } }
-                : GUIStyle.none;
-
-            using (new EditorGUILayout.HorizontalScope(rowStyle))
+            if (!groupMap.ContainsKey(group))
             {
-                nameProp.stringValue   = EditorGUILayout.TextField(nameProp.stringValue, W_Name);
-                delayProp.floatValue   = Mathf.Max(50f,  EditorGUILayout.FloatField(delayProp.floatValue, W_Delay));
-                cdProp.floatValue      = Mathf.Max(0.1f, EditorGUILayout.FloatField(cdProp.floatValue,    W_Cooldown));
+                groupMap[group] = new List<int>();
+                groupOrder.Add(group);
+            }
+            groupMap[group].Add(i);
+        }
 
-                if (GUILayout.Button("X", W_Del)) deleteIndex = i;
+        int deleteIndex = -1;
+
+        foreach (string groupName in groupOrder)
+        {
+            var indices = groupMap[groupName];
+            if (!_foldouts.ContainsKey(groupName)) _foldouts[groupName] = true;
+
+            EditorGUILayout.Space(3);
+
+            // ─── 그룹 헤더 ────────────────────────────────────────────────
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                var headerStyle = new GUIStyle(EditorStyles.foldoutHeader)
+                    { fontSize = 13, fontStyle = FontStyle.Bold };
+
+                _foldouts[groupName] = EditorGUILayout.Foldout(
+                    _foldouts[groupName],
+                    $"  {groupName}  ({indices.Count}개)",
+                    true,
+                    headerStyle);
+
+                if (!_foldouts[groupName]) continue;
+
+                EditorGUILayout.Space(2);
+
+                // 컬럼 헤더
+                using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+                {
+                    var center = new GUIStyle(EditorStyles.boldLabel)
+                        { alignment = TextAnchor.MiddleCenter };
+                    GUILayout.Label("스킬명",        center, W_Name);
+                    GUILayout.Label("선딜레이 (ms)", center, W_Delay);
+                    GUILayout.Label("쿨타임 (초)",   center, W_Cooldown);
+                    GUILayout.Label("",             W_Del);
+                }
+
+                // 스킬 행
+                for (int j = 0; j < indices.Count; j++)
+                {
+                    int i         = indices[j];
+                    var prop      = _entries.GetArrayElementAtIndex(i);
+                    var nameProp  = prop.FindPropertyRelative("skillName");
+                    var delayProp = prop.FindPropertyRelative("baseDelayMs");
+                    var cdProp    = prop.FindPropertyRelative("baseCooldown");
+
+                    var rowBg = j % 2 == 0
+                        ? new GUIStyle { normal = { background = MakeTexture(new Color(0.22f, 0.22f, 0.22f, 0.3f)) } }
+                        : GUIStyle.none;
+
+                    using (new EditorGUILayout.HorizontalScope(rowBg))
+                    {
+                        nameProp.stringValue  = EditorGUILayout.TextField(nameProp.stringValue, W_Name);
+                        delayProp.floatValue  = Mathf.Max(50f,  EditorGUILayout.FloatField(delayProp.floatValue, W_Delay));
+                        cdProp.floatValue     = Mathf.Max(0.1f, EditorGUILayout.FloatField(cdProp.floatValue,   W_Cooldown));
+
+                        if (GUILayout.Button("X", W_Del)) deleteIndex = i;
+                    }
+                }
             }
         }
 
@@ -86,10 +142,10 @@ public class SkillTunerEditor : Editor
             {
                 int idx = _entries.arraySize;
                 _entries.InsertArrayElementAtIndex(idx);
-                var newElem = _entries.GetArrayElementAtIndex(idx);
-                newElem.FindPropertyRelative("skillName").stringValue  = "새 스킬";
-                newElem.FindPropertyRelative("baseDelayMs").floatValue  = 500f;
-                newElem.FindPropertyRelative("baseCooldown").floatValue = 3f;
+                var e = _entries.GetArrayElementAtIndex(idx);
+                e.FindPropertyRelative("skillName").stringValue   = "새 스킬";
+                e.FindPropertyRelative("baseDelayMs").floatValue  = 500f;
+                e.FindPropertyRelative("baseCooldown").floatValue = 3f;
             }
         }
 
@@ -112,8 +168,59 @@ public class SkillTunerEditor : Editor
         }
     }
 
+    // ─── skillName → 유닛 타입 표시명 맵 빌드 ───────────────────────────
+    // SkillAction_KnightFocusedStab → strip "SkillAction_" → "KnightFocusedStab"
+    // → UnitType 클래스명 "Knight" 매칭 → typeName "기사형"
+    static Dictionary<string, string> BuildSkillUnitTypeMap()
+    {
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+        // UnitType 서브클래스를 (C#클래스명, 표시명) 목록으로 수집
+        // 이름 길이 내림차순: "MeleeTank" 가 "Melee" 보다 먼저 매칭되게
+        var unitTypes = assemblies
+            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
+            .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(UnitType)))
+            .OrderByDescending(t => t.Name.Length)
+            .Select(t =>
+            {
+                try { return (t.Name, ((UnitType)Activator.CreateInstance(t)).typeName); }
+                catch { return (t.Name, t.Name); }
+            })
+            .ToList();
+
+        var map = new Dictionary<string, string>();
+
+        var skillTypes = assemblies
+            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
+            .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(SkillAction)));
+
+        foreach (var type in skillTypes)
+        {
+            SkillAction skill;
+            try { skill = (SkillAction)Activator.CreateInstance(type); }
+            catch { continue; }
+
+            string unitDisplay = ResolveUnitType(type.Name, unitTypes);
+            map[skill.SkillName] = unitDisplay;
+        }
+
+        return map;
+    }
+
+    static string ResolveUnitType(string className, List<(string cn, string dn)> unitTypes)
+    {
+        const string prefix = "SkillAction_";
+        if (!className.StartsWith(prefix)) return "미분류";
+        string rest = className.Substring(prefix.Length);
+
+        foreach (var (cn, dn) in unitTypes)
+            if (rest.StartsWith(cn)) return dn;
+
+        return "미분류";
+    }
+
     // ─── 리플렉션으로 모든 SkillAction 서브클래스 탐색 ──────────────────
-    void AutoPopulate(SkillTuner tuner)
+    static void AutoPopulate(SkillTuner tuner)
     {
         var skillTypes = AppDomain.CurrentDomain.GetAssemblies()
             .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
