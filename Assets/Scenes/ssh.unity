@@ -99740,7 +99740,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e7933b9fb73b22e4f992e718738d8eba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VFXManager
-  hitSparkPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
+  hitSparkPrefab: {fileID: 5978127258773584600, guid: 40b324dac6d529d48a1f1388dc60b7e4, type: 3}
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
@@ -131292,25 +131292,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f54842fd3cc13284fa549c45f329e740, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SkillTuner
-  entries:
-  - skillName: "\uC9D1\uC911 \uCC0C\uB974\uAE30"
-    baseDelayMs: 800
-    baseCooldown: 15
-  - skillName: "\uBC29\uD328 \uD0C0\uACA9"
-    baseDelayMs: 650
-    baseCooldown: 15
-  - skillName: "\uC804\uBC29 \uBCA0\uAE30"
-    baseDelayMs: 450
-    baseCooldown: 15
-  - skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
-    baseDelayMs: 1000
-    baseCooldown: 15
-  - skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
-    baseDelayMs: 240
-    baseCooldown: 15
-  - skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
-    baseDelayMs: 650
-    baseCooldown: 15
 --- !u!4 &1686327451
 Transform:
   m_ObjectHideFlags: 0
@@ -131338,11 +131319,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62b83895e4eb53e46b0b9acb84838abe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EngageDistanceTuner
-  entries:
-  - unitTypeName: "\uAE30\uC0AC\uD615"
-    engageDistance: 2
-  - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-    engageDistance: 2
 --- !u!114 &1686327453
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -131355,49 +131331,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90c3ebab04b95c946a2f28a39cdb0065, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnitStatTuner
-  entries:
-  - unitTypeName: "\uAE30\uC0AC\uD615"
-    maxHp: 150
-    maxMp: 30
-    physicalAttack: 25
-    magicalAttack: 8
-    physicalDefense: 14
-    magicalDefense: 12
-    HPRegen: 5
-    attackspeed: 90
-    walkSpeed: 3.2
-    reaction: 95
-    criticalChance: 9
-    cooltimeReduction: 90
-    statusResistance: 90
-    maxMental: 100
-    mental: 40
-    spotting: 85
-    leadershipRange: 4
-    charisma: 3
-    physicalAttackSpeed: 12
-    magicalCastSpeed: 0
-  - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-    maxHp: 180
-    maxMp: 0
-    physicalAttack: 29
-    magicalAttack: 6
-    physicalDefense: 10
-    magicalDefense: 8
-    HPRegen: 3
-    attackspeed: 80
-    walkSpeed: 2.8
-    reaction: 85
-    criticalChance: 7.5
-    cooltimeReduction: 75
-    statusResistance: 75
-    maxMental: 0
-    mental: 0
-    spotting: 80
-    leadershipRange: 0
-    charisma: 0
-    physicalAttackSpeed: 8
-    magicalCastSpeed: 0
 --- !u!1 &1936534459
 GameObject:
   m_ObjectHideFlags: 0
