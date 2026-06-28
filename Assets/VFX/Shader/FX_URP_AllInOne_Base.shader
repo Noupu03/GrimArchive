@@ -1,52 +1,43 @@
-Shader "Custom/FX/URP_AllInOne_Lab_v02"
+Shader "Custom/FX/URP_FlatFX_Lab_v03"
 {
     Properties
     {
         [Header(Render Settings)]
         _SrcBlend ("Src Blend 5=SrcAlpha", Float) = 5
         _DstBlend ("Dst Blend 10=Alpha / 1=Add", Float) = 10
-        _Cull ("Cull 0=Off / 2=Back", Float) = 0
-        _ZWrite ("Z Write 0=Off / 1=On", Float) = 0
+        _Cull ("Cull 0=Off", Float) = 0
+        _ZWrite ("Z Write 0=Off", Float) = 0
 
         [Header(Main)]
         _MainTex ("Main Texture", 2D) = "white" {}
         [HDR] _TintColor ("Tint Color", Color) = (1,1,1,1)
         _Alpha ("Global Alpha", Range(0,1)) = 1
-        _UseVertexColor ("Use Vertex Color 0/1", Range(0,1)) = 1
+        _UseVertexColor ("Use Vertex Color", Range(0,1)) = 1
 
-        [Header(Emission Glow)]
+        [Header(Emission)]
         [HDR] _EmissionColor ("Emission Color", Color) = (1,1,1,1)
         _EmissionPower ("Emission Power", Range(0,30)) = 1
 
-        [Header(Main UV Scroll)]
+        [Header(UV Scroll)]
         _MainScrollX ("Main Scroll X", Float) = 0
         _MainScrollY ("Main Scroll Y", Float) = 0
 
-        [Header(Flipbook Manual)]
-        _UseFlipbook ("Use Flipbook 0/1", Range(0,1)) = 0
-        _FlipbookColumns ("Flipbook Columns", Range(1,16)) = 1
-        _FlipbookRows ("Flipbook Rows", Range(1,16)) = 1
-        _FlipbookFrame ("Flipbook Frame", Float) = 0
-        _FlipbookSpeed ("Flipbook Speed", Float) = 0
-
-        [Header(Procedural Noise)]
+        [Header(Noise)]
         _NoiseScale ("Noise Scale", Range(0.1,100)) = 12
         _NoiseStrength ("Noise Strength", Range(0,1)) = 0
         _NoiseContrast ("Noise Contrast", Range(0.1,8)) = 1
         _NoiseScrollX ("Noise Scroll X", Float) = 0
         _NoiseScrollY ("Noise Scroll Y", Float) = 0
 
-        [Header(Noise Texture Optional)]
+        [Header(Noise Texture)]
         _NoiseTex ("Noise Texture", 2D) = "white" {}
-        _UseNoiseTex ("Use Noise Texture 0/1", Range(0,1)) = 0
+        _UseNoiseTex ("Use Noise Texture", Range(0,1)) = 0
         _NoiseTexStrength ("Noise Texture Strength", Range(0,1)) = 0
-        _NoiseTexScrollX ("Noise Texture Scroll X", Float) = 0
-        _NoiseTexScrollY ("Noise Texture Scroll Y", Float) = 0
 
         [Header(Mask)]
         _MaskTex ("Mask Texture", 2D) = "white" {}
         _MaskStrength ("Mask Strength", Range(0,1)) = 0
-        _InvertMask ("Invert Mask 0/1", Range(0,1)) = 0
+        _InvertMask ("Invert Mask", Range(0,1)) = 0
 
         [Header(Dissolve)]
         _DissolveAmount ("Dissolve Amount", Range(0,1)) = 0
@@ -64,20 +55,11 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
         _GradientOffset ("Gradient Offset", Range(-1,1)) = 0
         _GradientScale ("Gradient Scale", Range(0.01,4)) = 1
 
-        [Header(Fresnel Rim)]
-        _FresnelStrength ("Fresnel Strength", Range(0,1)) = 0
-        [HDR] _FresnelColor ("Fresnel Color", Color) = (0.5,0.8,1,1)
-        _FresnelPower ("Fresnel Power", Range(0.1,10)) = 3
-
-        [Header(Distortion UV)]
+        [Header(Distortion)]
         _DistortionStrength ("UV Distortion Strength", Range(0,0.3)) = 0
         _DistortionScale ("UV Distortion Scale", Range(0.1,100)) = 16
         _DistortionScrollX ("UV Distortion Scroll X", Float) = 0
         _DistortionScrollY ("UV Distortion Scroll Y", Float) = 0
-
-        [Header(Screen Refraction Requires Opaque Texture)]
-        _ScreenDistortionStrength ("Screen Distortion Strength", Range(0,0.05)) = 0
-        _ScreenDistortionBlend ("Screen Distortion Blend", Range(0,1)) = 0
 
         [Header(Flicker)]
         _FlickerAmount ("Flicker Amount", Range(0,1)) = 0
@@ -91,21 +73,8 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
         [HDR] _OutlineColor ("Outline Color", Color) = (1,1,1,1)
         _OutlinePower ("Outline Power", Range(0,20)) = 1
 
-        [Header(Soft Edge for Line Trail)]
+        [Header(Soft Edge For Line Trail)]
         _SoftEdge ("Soft Edge", Range(0,1)) = 0
-
-        [Header(Soft Particle Requires Depth Texture)]
-        _SoftParticleDistance ("Soft Particle Distance 0=Off", Range(0,10)) = 0
-
-        [Header(Camera Fade)]
-        _CameraFadeStrength ("Camera Fade Strength", Range(0,1)) = 0
-        _CameraFadeNear ("Camera Fade Near", Float) = 0.2
-        _CameraFadeFar ("Camera Fade Far", Float) = 1.5
-
-        [Header(Vertex Offset Experimental)]
-        _VertexOffsetStrength ("Vertex Offset Strength", Range(0,1)) = 0
-        _VertexOffsetScale ("Vertex Offset Scale", Range(0.1,100)) = 10
-        _VertexOffsetSpeed ("Vertex Offset Speed", Float) = 0
     }
 
     SubShader
@@ -125,16 +94,13 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
 
         Pass
         {
-            Name "ForwardUnlit"
+            Name "FlatFXUnlit"
 
             HLSLPROGRAM
-
             #pragma vertex vert
             #pragma fragment frag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
@@ -162,12 +128,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 float _MainScrollX;
                 float _MainScrollY;
 
-                float _UseFlipbook;
-                float _FlipbookColumns;
-                float _FlipbookRows;
-                float _FlipbookFrame;
-                float _FlipbookSpeed;
-
                 float _NoiseScale;
                 float _NoiseStrength;
                 float _NoiseContrast;
@@ -176,8 +136,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
 
                 float _UseNoiseTex;
                 float _NoiseTexStrength;
-                float _NoiseTexScrollX;
-                float _NoiseTexScrollY;
 
                 float _MaskStrength;
                 float _InvertMask;
@@ -196,17 +154,10 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 float _GradientOffset;
                 float _GradientScale;
 
-                float _FresnelStrength;
-                float4 _FresnelColor;
-                float _FresnelPower;
-
                 float _DistortionStrength;
                 float _DistortionScale;
                 float _DistortionScrollX;
                 float _DistortionScrollY;
-
-                float _ScreenDistortionStrength;
-                float _ScreenDistortionBlend;
 
                 float _FlickerAmount;
                 float _FlickerSpeed;
@@ -218,22 +169,11 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 float _OutlinePower;
 
                 float _SoftEdge;
-
-                float _SoftParticleDistance;
-
-                float _CameraFadeStrength;
-                float _CameraFadeNear;
-                float _CameraFadeFar;
-
-                float _VertexOffsetStrength;
-                float _VertexOffsetScale;
-                float _VertexOffsetSpeed;
             CBUFFER_END
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR;
             };
@@ -243,10 +183,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 float4 positionHCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR;
-                float4 screenPos : TEXCOORD1;
-                float3 positionWS : TEXCOORD2;
-                float3 normalWS : TEXCOORD3;
-                float viewDepth : TEXCOORD4;
             };
 
             float hash21(float2 p)
@@ -271,35 +207,9 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
             }
 
-            float applyContrast(float v, float contrast)
+            float ApplyContrast(float v, float contrast)
             {
                 return saturate((v - 0.5) * contrast + 0.5);
-            }
-
-            float2 ApplyFlipbook(float2 uv, float time)
-            {
-                if (_UseFlipbook < 0.5)
-                {
-                    return uv;
-                }
-
-                float columns = max(1.0, floor(_FlipbookColumns));
-                float rows = max(1.0, floor(_FlipbookRows));
-                float totalFrames = max(1.0, columns * rows);
-
-                float frame = floor(_FlipbookFrame + time * _FlipbookSpeed);
-                frame = fmod(frame, totalFrames);
-
-                float column = fmod(frame, columns);
-                float row = floor(frame / columns);
-
-                float2 cellSize = float2(1.0 / columns, 1.0 / rows);
-
-                uv = uv * cellSize;
-                uv.x += column * cellSize.x;
-                uv.y += (rows - 1.0 - row) * cellSize.y;
-
-                return uv;
             }
 
             float3 ThreeColorGradient(float t)
@@ -316,32 +226,9 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
             {
                 Varyings OUT;
 
-                float time = _Time.y;
-
-                float3 positionOS = IN.positionOS.xyz;
-                float3 normalOS = normalize(IN.normalOS);
-
-                if (_VertexOffsetStrength > 0.0001)
-                {
-                    float2 offsetUV = IN.uv * _VertexOffsetScale;
-                    offsetUV += time * _VertexOffsetSpeed;
-
-                    float n = valueNoise(offsetUV);
-                    positionOS += normalOS * ((n - 0.5) * _VertexOffsetStrength);
-                }
-
-                VertexPositionInputs posInput = GetVertexPositionInputs(positionOS);
-                VertexNormalInputs normalInput = GetVertexNormalInputs(IN.normalOS);
-
-                OUT.positionHCS = posInput.positionCS;
-                OUT.positionWS = posInput.positionWS;
-                OUT.normalWS = normalize(normalInput.normalWS);
+                OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 OUT.uv = TRANSFORM_TEX(IN.uv, _MainTex);
                 OUT.color = IN.color;
-                OUT.screenPos = ComputeScreenPos(OUT.positionHCS);
-
-                float3 positionVS = TransformWorldToView(posInput.positionWS);
-                OUT.viewDepth = -positionVS.z;
 
                 return OUT;
             }
@@ -364,11 +251,9 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 procNoiseUV += float2(_NoiseScrollX, _NoiseScrollY) * time;
 
                 float procNoise = valueNoise(procNoiseUV);
-                procNoise = applyContrast(procNoise, _NoiseContrast);
+                procNoise = ApplyContrast(procNoise, _NoiseContrast);
 
                 float2 noiseTexUV = TRANSFORM_TEX(baseUV, _NoiseTex);
-                noiseTexUV += float2(_NoiseTexScrollX, _NoiseTexScrollY) * time;
-
                 float noiseTex = SAMPLE_TEXTURE2D(_NoiseTex, sampler_NoiseTex, noiseTexUV).r;
 
                 float noise = lerp(procNoise, noiseTex, saturate(_UseNoiseTex * _NoiseTexStrength));
@@ -384,8 +269,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                 {
                     uv += distortion * _DistortionStrength;
                 }
-
-                uv = ApplyFlipbook(uv, time);
 
                 half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv);
 
@@ -461,13 +344,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                     col.rgb = lerp(col.rgb, col.rgb * gradientColor, _GradientStrength);
                 }
 
-                if (_FresnelStrength > 0.0001)
-                {
-                    float3 viewDirWS = normalize(GetWorldSpaceViewDir(IN.positionWS));
-                    float fresnel = pow(1.0 - saturate(dot(normalize(IN.normalWS), viewDirWS)), _FresnelPower);
-                    col.rgb += _FresnelColor.rgb * fresnel * _FresnelStrength * _FresnelColor.a;
-                }
-
                 if (_OutlineWidth > 0.0001)
                 {
                     float2 texel = _MainTex_TexelSize.xy * _OutlineWidth;
@@ -490,32 +366,6 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
                     col.a *= soft;
                 }
 
-                if (_SoftParticleDistance > 0.0001)
-                {
-                    float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
-                    float rawSceneDepth = SampleSceneDepth(screenUV);
-                    float sceneEyeDepth = LinearEyeDepth(rawSceneDepth, _ZBufferParams);
-                    float particleEyeDepth = IN.viewDepth;
-
-                    float depthFade = saturate((sceneEyeDepth - particleEyeDepth) / _SoftParticleDistance);
-                    col.a *= depthFade;
-                }
-
-                if (_CameraFadeStrength > 0.0001)
-                {
-                    float cameraFade = saturate((IN.viewDepth - _CameraFadeNear) / max(0.0001, _CameraFadeFar - _CameraFadeNear));
-                    col.a *= lerp(1.0, cameraFade, _CameraFadeStrength);
-                }
-
-                if (_ScreenDistortionStrength > 0.0001 && _ScreenDistortionBlend > 0.0001)
-                {
-                    float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
-                    float2 screenOffset = distortion * _ScreenDistortionStrength;
-                    half3 sceneColor = SampleSceneColor(screenUV + screenOffset).rgb;
-
-                    col.rgb = lerp(col.rgb, sceneColor * col.rgb, _ScreenDistortionBlend);
-                }
-
                 col.a *= _Alpha;
                 col.rgb *= _EmissionColor.rgb * _EmissionPower;
 
@@ -527,5 +377,5 @@ Shader "Custom/FX/URP_AllInOne_Lab_v02"
     }
 
     FallBack Off
-    CustomEditor "FXAllInOneLabGUI"
+    CustomEditor "FXFlatLabGUI"
 }

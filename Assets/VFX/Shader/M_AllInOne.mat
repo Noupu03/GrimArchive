@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: New Material
+  m_Name: M_AllInOne
   m_Shader: {fileID: 4800000, guid: d039f80a71ff8ab4ea7c6eec3cc013cf, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -28,7 +28,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 5aa8b770bc43046bc8d993d0d5b7f4a5, type: 3}
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MaskTex:
@@ -46,69 +46,50 @@ Material:
     m_Ints: []
     m_Floats:
     - _Alpha: 1
-    - _CameraFadeFar: 1.5
-    - _CameraFadeNear: 0.2
-    - _CameraFadeStrength: 0
     - _Cull: 0
-    - _DissolveAmount: 0
+    - _DissolveAmount: 0.377
     - _DissolveEdgePower: 0
     - _DissolveEdgeWidth: 0.08
-    - _DissolveSoftness: 0.15
-    - _DistortionScale: 27.2
+    - _DissolveSoftness: 0.601
+    - _DistortionScale: 13.4
     - _DistortionScrollX: 0
-    - _DistortionScrollY: -1.28
-    - _DistortionStrength: 0.148
+    - _DistortionScrollY: -10
+    - _DistortionStrength: 0.117
     - _DstBlend: 10
-    - _EmissionPower: 2
+    - _EmissionPower: 1
     - _EnableExternalAlpha: 0
-    - _FlickerAmount: 0.058
-    - _FlickerSpeed: 7.4
-    - _FlipbookColumns: 1
-    - _FlipbookFrame: 0
-    - _FlipbookRows: 1
-    - _FlipbookSpeed: 0
-    - _FresnelPower: 3
-    - _FresnelStrength: 0
-    - _GradientOffset: 0.11
+    - _FlickerAmount: 0.188
+    - _FlickerSpeed: 8
+    - _GradientOffset: 0
     - _GradientScale: 1
     - _GradientSource: 0
-    - _GradientStrength: 1
+    - _GradientStrength: 0
     - _InvertMask: 0
     - _MainScrollX: 0
     - _MainScrollY: 0
     - _MaskStrength: 0
-    - _NoiseContrast: 0.83
-    - _NoiseScale: 30.8
-    - _NoiseScrollX: 0
-    - _NoiseScrollY: -0.52
-    - _NoiseStrength: 0.474
-    - _NoiseTexScrollX: 0
-    - _NoiseTexScrollY: 0
+    - _NoiseContrast: 3.8
+    - _NoiseScale: 5
+    - _NoiseScrollX: 12.43
+    - _NoiseScrollY: -5
+    - _NoiseStrength: 0.662
     - _NoiseTexStrength: 0
-    - _OutlinePower: 5.3
-    - _OutlineWidth: 8
-    - _PixelAmount: 43
-    - _ScreenDistortionBlend: 0
-    - _ScreenDistortionStrength: 0
-    - _SoftEdge: 0
-    - _SoftParticleDistance: 0
+    - _OutlinePower: 1
+    - _OutlineWidth: 0
+    - _PixelAmount: 34
+    - _SoftEdge: 0.382
     - _SrcBlend: 5
-    - _UseFlipbook: 0
     - _UseNoiseTex: 0
     - _UseVertexColor: 1
-    - _VertexOffsetScale: 10
-    - _VertexOffsetSpeed: 0
-    - _VertexOffsetStrength: 0
     - _ZWrite: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _DissolveEdgeColor: {r: 1, g: 0.5, b: 0, a: 1}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _FresnelColor: {r: 0.5, g: 0.8, b: 1, a: 1}
-    - _GradientColorA: {r: 1, g: 0, b: 0.09659815, a: 1}
-    - _GradientColorB: {r: 1, g: 0.112827614, b: 0, a: 1}
-    - _GradientColorC: {r: 1, g: 0.5380906, b: 0, a: 1}
-    - _OutlineColor: {r: 1, g: 0.056301966, b: 0, a: 1}
+    - _GradientColorA: {r: 1, g: 0, b: 0, a: 1}
+    - _GradientColorB: {r: 1, g: 1, b: 0, a: 1}
+    - _GradientColorC: {r: 1, g: 1, b: 1, a: 1}
+    - _OutlineColor: {r: 1, g: 1, b: 1, a: 1}
     - _RendererColor: {r: 1, g: 1, b: 1, a: 1}
     - _TintColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
