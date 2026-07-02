@@ -20,7 +20,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
-        Debug.Log($"[GameSession] Construct() 호출됨. unitGenerate={unitGenerate}, threatTileRenderer={threatTileRenderer}");
     }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
 

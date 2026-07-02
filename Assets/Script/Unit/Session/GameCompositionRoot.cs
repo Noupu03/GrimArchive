@@ -1,4 +1,3 @@
-using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 
@@ -8,8 +7,6 @@ public class GameCompositionRoot : LifetimeScope
 {
     protected override void Configure(IContainerBuilder builder)
     {
-        Debug.Log("[GameCompositionRoot] Configure() 실행됨");
-
         // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스 (UnitManager, UnitSpriteManager 오브젝트)
         builder.RegisterComponentInHierarchy<GameSession>();
         builder.RegisterComponentInHierarchy<UnitGenerate>();
@@ -23,7 +20,5 @@ public class GameCompositionRoot : LifetimeScope
 
         // 게임 데이터(skills/units) 로딩을 컨테이너 빌드 직후 비동기로 시작
         builder.RegisterEntryPoint<GameDataBootstrap>(Lifetime.Singleton).As<IAsyncStartable>();
-
-        Debug.Log("[GameCompositionRoot] Configure() 등록 완료");
     }
 }
