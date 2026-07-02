@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using VContainer;
 
 public class ThreatTileRenderer : MonoBehaviour
 {
@@ -13,6 +14,14 @@ public class ThreatTileRenderer : MonoBehaviour
 	// Unit당 1개만 관리
 	private Dictionary<Unit, ThreatVisual> activeVisuals
 		= new Dictionary<Unit, ThreatVisual>();
+
+	private UnitGenerate _unitGenerate;
+
+	[Inject]
+	public void Construct(UnitGenerate unitGenerate)
+	{
+		_unitGenerate = unitGenerate;
+	}
 
 	void Awake()
 	{
@@ -77,8 +86,8 @@ public class ThreatTileRenderer : MonoBehaviour
 				continue;
 
 			Vector3 floorOffset =
-				UnitGenerate.Instance != null
-				? UnitGenerate.Instance.GetFloorOffset(u.currentFloor)
+				_unitGenerate != null
+				? _unitGenerate.GetFloorOffset(u.currentFloor)
 				: Vector3.zero;
 
 			ThreatVisual tv;

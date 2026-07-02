@@ -1,7 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
-using System.Collections;
+using VContainer;
+using DG.Tweening;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
 #endif
@@ -12,16 +13,24 @@ using UnityEditor;
 
 public class UnitGenerate : MonoBehaviour
 {
+	// InputManager/VFXManager와는 상호 참조(순환 의존) 관계라 DI로 못 묶고 static Instance로 유지한다.
+	// GoapCore/Actions 등 DI로 닿지 않는 순수 C# 로직도 계속 이 Instance를 참조한다.
 	public static UnitGenerate Instance { get; private set; }
 
 	// View mapping to separate SO data logic from Visual gameobjects
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
-	private Dictionary<Unit, Coroutine>  moveCoroutines   = new Dictionary<Unit, Coroutine>();
 	private Dictionary<Unit, Vector3>    targetPosMap     = new Dictionary<Unit, Vector3>();
-	private Dictionary<Unit, Coroutine>  blinkCoroutines  = new Dictionary<Unit, Coroutine>();
 
 	private Sprite humanSprite;
 	private Sprite monsterSprite;
+
+	private UnitSpriteManager _unitSpriteManager;
+
+	[Inject]
+	public void Construct(UnitSpriteManager unitSpriteManager)
+	{
+		_unitSpriteManager = unitSpriteManager;
+	}
 
 	void Awake()
 	{
@@ -80,14 +89,14 @@ public class UnitGenerate : MonoBehaviour
 		sr.sortingOrder = 10;
 
 #if UNITY_2022_2_OR_NEWER
-		if (UnitSpriteManager.Instance != null)
+		if (_unitSpriteManager != null)
 		{
-			var spriteLibrary = UnitSpriteManager.Instance.GetSpriteLibrary(unit.unitType);
+			var spriteLibrary = _unitSpriteManager.GetSpriteLibrary(unit.unitType);
 			if (spriteLibrary != null)
 			{
 				// 바리에이션 미지정 시 라이브러리 카테고리에서 랜덤 선택
 				if (string.IsNullOrEmpty(unit.spriteVariation))
-					unit.spriteVariation = UnitSpriteManager.Instance.PickRandomVariation(spriteLibrary);
+					unit.spriteVariation = _unitSpriteManager.PickRandomVariation(spriteLibrary);
 
 				SpriteLibrary spriteLibComp = visual.AddComponent<SpriteLibrary>();
 				spriteLibComp.spriteLibraryAsset = spriteLibrary;
@@ -161,7 +170,7 @@ public class UnitGenerate : MonoBehaviour
 			return;
 		}
 #endif
-		if (UnitSpriteManager.Instance == null) return;
+		if (_unitSpriteManager == null) return;
 	}
 
 	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction, string variation)
@@ -212,11 +221,9 @@ public class UnitGenerate : MonoBehaviour
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (go != null) Destroy(go);
+			if (go != null) { go.transform.DOKill(); Destroy(go); }
 			visualMap.Remove(u);
-			moveCoroutines.Remove(u);
 			targetPosMap.Remove(u);
-			blinkCoroutines.Remove(u);
 		}
 
 		List<Unit> deadKeys = new List<Unit>();
@@ -224,16 +231,14 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (kvp.Key == null || kvp.Key.hp <= 0)
 			{
-				if (kvp.Value != null) Destroy(kvp.Value);
+				if (kvp.Value != null) { kvp.Value.transform.DOKill(); Destroy(kvp.Value); }
 				deadKeys.Add(kvp.Key);
 			}
 		}
 		foreach (var deadKey in deadKeys)
 		{
 			visualMap.Remove(deadKey);
-			moveCoroutines.Remove(deadKey);
 			targetPosMap.Remove(deadKey);
-			blinkCoroutines.Remove(deadKey);
 		}
 	}
 
@@ -255,17 +260,16 @@ public class UnitGenerate : MonoBehaviour
 
 			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-					StopCoroutine(existingCoroutine);
-
 				float duration  = u.walkSpeed > 0f ? (1f / u.walkSpeed) : 0.1f;
 				targetPosMap[u] = newPos;
-				moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, duration));
+
+				go.transform.DOKill();
+				// 일시정지(Time.timeScale=0에 가까운 값) 중에도 이동 애니메이션이 계속 보이도록 unscaled time 사용
+				go.transform.DOMove(newPos, duration).SetEase(Ease.Linear).SetUpdate(true);
 			}
 			else if (Time.timeScale < 0.01f)
 			{
-				if (!moveCoroutines.ContainsKey(u) || moveCoroutines[u] == null)
-					go.transform.position = newPos;
+				go.transform.position = newPos;
 			}
 
 			// FOV
@@ -297,24 +301,6 @@ public class UnitGenerate : MonoBehaviour
 		}
 	}
 
-	private IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)
-	{
-		if (visualTransform == null) yield break;
-
-		Vector3 startPos = visualTransform.position;
-		float   elapsed  = 0f;
-
-		while (elapsed < duration)
-		{
-			if (visualTransform == null) yield break;
-			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
-			elapsed += Time.unscaledDeltaTime;
-			yield return null;
-		}
-
-		if (visualTransform != null) visualTransform.position = targetPos;
-	}
-
 	public void TriggerHitEffect(Unit u)
 	{
 		if (u == null) return;
@@ -331,35 +317,20 @@ public class UnitGenerate : MonoBehaviour
 
 		if (visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-			{
-				StopCoroutine(existingCoroutine);
-				Transform      vt     = go.transform.Find("Visual");
-				SpriteRenderer prevSr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
-				if (prevSr != null) prevSr.color = Color.white;
-			}
-			blinkCoroutines[u] = StartCoroutine(HitBlink(u, go));
+			Transform      vt = go.transform.Find("Visual");
+			SpriteRenderer sr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
+			if (sr == null) return;
+
+			Color originalColor = sr.color == Color.clear ? Color.white : sr.color;
+
+			// 재피격 시 이전 블링크를 중단하고 새로 시작 (진행 중인 시퀀스가 있으면 즉시 종료)
+			sr.DOKill();
+			DOTween.Sequence()
+				.Append(sr.DOColor(Color.white, 0f))
+				.Append(sr.DOColor(Color.clear, 0.05f))
+				.Append(sr.DOColor(originalColor, 0.05f))
+				.SetTarget(sr);
 		}
-	}
-
-	private IEnumerator HitBlink(Unit u, GameObject go)
-	{
-		if (go == null) yield break;
-		Transform      visualTransform = go.transform.Find("Visual");
-		SpriteRenderer sr = visualTransform != null
-			? visualTransform.GetComponent<SpriteRenderer>()
-			: go.GetComponentInChildren<SpriteRenderer>();
-		if (sr == null) yield break;
-
-		Color originalColor = sr.color;
-
-		sr.color = Color.white;
-		yield return new WaitForSeconds(0.05f);
-		if (sr != null) sr.color = Color.clear;
-		yield return new WaitForSeconds(0.05f);
-		if (sr != null) sr.color = originalColor;
-
-		blinkCoroutines.Remove(u);
 	}
 
 	#endregion

@@ -1,11 +1,21 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
+using VContainer;
 
 public class InputManager : MonoBehaviour
 {
+	// GoapCore/Actions 등 DI로 닿지 않는 순수 C# 로직(ScriptableObject 기반 Unit/AI)이 계속 참조하므로 유지한다.
 	public static InputManager Instance;
 	public Unit selectedUnit;
+
+	private UnitGenerate _unitGenerate;
+
+	[Inject]
+	public void Construct(UnitGenerate unitGenerate)
+	{
+		_unitGenerate = unitGenerate;
+	}
 
 	void Awake()
 	{
@@ -28,8 +38,8 @@ public class InputManager : MonoBehaviour
 
 		int currentFloor = 1;
 		Vector3 floorOffset =
-			UnitGenerate.Instance != null
-			? UnitGenerate.Instance.GetFloorOffset(currentFloor)
+			_unitGenerate != null
+			? _unitGenerate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
 		// =====================================================

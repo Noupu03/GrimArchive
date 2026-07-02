@@ -1,5 +1,8 @@
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
+using Haare.Util.Loader;
 
 [System.Serializable]
 public class UnitStatsData
@@ -55,30 +58,43 @@ public static class GameDataLoader
     static readonly Dictionary<string, SkillData>         _skills     = new();
     static readonly Dictionary<string, List<SkillAction>> _unitSkills = new();
     static bool _loaded;
+    static UniTask _loadTask;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void AutoLoad() => Load();
+    // skills.json/units.json은 Addressables 그룹에 이 키로 등록되어 있어야 한다 (Assets/Data/skills.json, units.json).
+    const string SkillsAddress = "Data/skills";
+    const string UnitsAddress  = "Data/units";
 
-    public static void Load()
+    public static bool IsReady => _loaded;
+
+    // GameCompositionRoot의 GameDataBootstrap(IAsyncStartable)이 컨테이너 빌드 직후 호출한다.
+    // 예전처럼 [RuntimeInitializeOnLoadMethod]로 씬 로드 전에 동기 로딩을 보장할 수 없으므로,
+    // 로딩이 끝나기 전까지 GetUnitData/GetSkills/ApplyStatsTo는 EnsureLoaded()에서 경고만 남기고 빈 값을 반환한다.
+    public static UniTask LoadAsync(CancellationToken ct = default)
     {
-        LoadSkills();
-        LoadUnits();
+        _loadTask = LoadAsyncInternal(ct);
+        return _loadTask;
+    }
+
+    static async UniTask LoadAsyncInternal(CancellationToken ct)
+    {
+        await LoadSkillsAsync(ct);
+        await LoadUnitsAsync(ct);
         _loaded = true;
     }
 
-    static void LoadSkills()
+    static async UniTask LoadSkillsAsync(CancellationToken ct)
     {
-        var asset = Resources.Load<TextAsset>("Data/skills");
-        if (asset == null) { Debug.LogError("[GameDataLoader] Data/skills.json not found in Resources"); return; }
+        var asset = await AssetLoader.LoadAsset<TextAsset>(SkillsAddress);
+        if (asset == null) { Debug.LogError($"[GameDataLoader] Addressable '{SkillsAddress}'를 찾을 수 없습니다"); return; }
         var db = JsonUtility.FromJson<SkillDatabase>(asset.text);
         _skills.Clear();
         foreach (var s in db.skills) _skills[s.skillName] = s;
     }
 
-    static void LoadUnits()
+    static async UniTask LoadUnitsAsync(CancellationToken ct)
     {
-        var asset = Resources.Load<TextAsset>("Data/units");
-        if (asset == null) { Debug.LogError("[GameDataLoader] Data/units.json not found in Resources"); return; }
+        var asset = await AssetLoader.LoadAsset<TextAsset>(UnitsAddress);
+        if (asset == null) { Debug.LogError($"[GameDataLoader] Addressable '{UnitsAddress}'를 찾을 수 없습니다"); return; }
         var db = JsonUtility.FromJson<UnitDatabase>(asset.text);
         _units.Clear();
         _unitSkills.Clear();
@@ -97,7 +113,11 @@ public static class GameDataLoader
         }
     }
 
-    static void EnsureLoaded() { if (!_loaded) Load(); }
+    static void EnsureLoaded()
+    {
+        if (!_loaded)
+            Debug.LogWarning("[GameDataLoader] 아직 데이터 로딩이 끝나지 않았습니다 (GameCompositionRoot의 GameDataBootstrap 비동기 로딩 대기 중).");
+    }
 
     public static UnitData GetUnitData(string typeName)
     {
