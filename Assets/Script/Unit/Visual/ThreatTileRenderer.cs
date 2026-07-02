@@ -4,8 +4,6 @@ using VContainer;
 
 public class ThreatTileRenderer : MonoBehaviour
 {
-	public static ThreatTileRenderer Instance;
-
 	private class ThreatVisual
 	{
 		public LineRenderer lineRenderer;
@@ -21,11 +19,6 @@ public class ThreatTileRenderer : MonoBehaviour
 	public void Construct(UnitGenerate unitGenerate)
 	{
 		_unitGenerate = unitGenerate;
-	}
-
-	void Awake()
-	{
-		Instance = this;
 	}
 
 	LineRenderer CreateLineRenderer(string name)

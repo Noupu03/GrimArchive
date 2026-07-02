@@ -3,7 +3,7 @@ using UnityEngine.Animations;
 using UnityEngine.Playables;
 
 /// <summary>
-/// Visual 자식 오브젝트에 부착됨. UnitGenerate.AttachAnimationController()가 Init()을 호출.
+/// 유닛 타입 프리팹의 Visual 자식에 붙는 컴포넌트. idle/walk 클립은 인스펙터에서 직접 할당한다.
 ///
 /// 이동 감지: 자신의 transform이 아닌 부모(루트)의 world position 델타를 감시.
 /// → 애니메이션 클립이 자식(Visual)의 localPosition을 변경해도 이동 감지에 영향 없음.
@@ -16,6 +16,10 @@ public class UnitAnimationController : MonoBehaviour
 
     private enum AnimState { Uninitialized, Idle, Walk }
 
+    [Header("애니메이션 클립")]
+    [SerializeField] private AnimationClip idleClip;
+    [SerializeField] private AnimationClip walkClip;
+
     private Animator               animator;
     private SpriteRenderer         sr;
     private PlayableGraph          graph;
@@ -26,10 +30,7 @@ public class UnitAnimationController : MonoBehaviour
     private Vector3   lastRootPos;
     private int       stationaryFrames;
 
-    // ─────────────────────────────────────────
-    //  진입점
-    // ─────────────────────────────────────────
-    public void Init(string unitTypeName)
+    private void Awake()
     {
         animator = GetComponent<Animator>();
         sr       = GetComponent<SpriteRenderer>();
@@ -40,14 +41,13 @@ public class UnitAnimationController : MonoBehaviour
 
         animator.applyRootMotion = false;
 
-        if (UnitSpriteManager.Instance == null ||
-            !UnitSpriteManager.Instance.TryGetAnimationClips(unitTypeName, out var idle, out var walk))
+        if (idleClip == null || walkClip == null)
         {
-            Debug.LogWarning($"[UnitAnimationController] '{unitTypeName}' 클립을 UnitSpriteManager에서 찾을 수 없습니다.");
+            Debug.LogWarning($"[UnitAnimationController] '{gameObject.name}'에 idle/walk 클립이 할당되지 않았습니다.");
             return;
         }
 
-        BuildGraph(idle, walk);
+        BuildGraph(idleClip, walkClip);
     }
 
     // ─────────────────────────────────────────

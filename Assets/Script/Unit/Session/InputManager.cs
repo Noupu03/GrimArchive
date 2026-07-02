@@ -5,8 +5,6 @@ using VContainer;
 
 public class InputManager : MonoBehaviour
 {
-	// GoapCore/Actions 등 DI로 닿지 않는 순수 C# 로직(ScriptableObject 기반 Unit/AI)이 계속 참조하므로 유지한다.
-	public static InputManager Instance;
 	public Unit selectedUnit;
 
 	private UnitGenerate _unitGenerate;
@@ -15,11 +13,6 @@ public class InputManager : MonoBehaviour
 	public void Construct(UnitGenerate unitGenerate)
 	{
 		_unitGenerate = unitGenerate;
-	}
-
-	void Awake()
-	{
-		Instance = this;
 	}
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)

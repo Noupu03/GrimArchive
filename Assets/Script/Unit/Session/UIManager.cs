@@ -5,19 +5,12 @@ using DG.Tweening;
 
 public class UIManager : MonoBehaviour
 {
-    public static UIManager Instance;
-
     private InputManager _inputManager;
 
     [Inject]
     public void Construct(InputManager inputManager)
     {
         _inputManager = inputManager;
-    }
-
-    void Awake()
-    {
-        Instance = this;
     }
 
     void OnGUI()

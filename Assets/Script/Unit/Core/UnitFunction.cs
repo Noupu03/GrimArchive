@@ -8,7 +8,7 @@ public abstract class UnitFunction : Unit
 		float prevHp = hp;
 		hp -= damage;
 		isHitThisTurn = true;
-		if (UnitGenerate.Instance != null) UnitGenerate.Instance.TriggerHitEffect(this);
+		if (this.Generate != null) this.Generate.TriggerHitEffect(this);
 	}
 
 	public override void TakePhysicalDamage(float rawDamage, Unit attacker)
@@ -120,8 +120,8 @@ public abstract class UnitFunction : Unit
 		if (CanMove(nextPos))
 			position = nextPos;
 
-		if (UnitGenerate.Instance != null)
-			UnitGenerate.Instance.UpdateUnitSpriteForDirection(this);
+		if (this.Generate != null)
+			this.Generate.UpdateUnitSpriteForDirection(this);
 	}
 
 	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits)
@@ -353,8 +353,8 @@ public abstract class UnitFunction : Unit
 		float damage = Mathf.Max(1f, raw - physicalDefense);
 		hp -= damage;
 		isHitThisTurn = true;
-		if (UnitGenerate.Instance != null)
-			UnitGenerate.Instance.TriggerHitEffect(this);
+		if (this.Generate != null)
+			this.Generate.TriggerHitEffect(this);
 	}
 
 	private Unit FindAttackerFromThreat(ThreatTileData threat)
@@ -413,8 +413,8 @@ public abstract class UnitFunction : Unit
 		Color color = this is Human ? Color.cyan : Color.red;
 		color.a = 0.8f;
 
-		Vector3 floorOffset = UnitGenerate.Instance != null
-			? UnitGenerate.Instance.GetFloorOffset(currentFloor)
+		Vector3 floorOffset = this.Generate != null
+			? this.Generate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
 		ThreatTileData threat = currentThreat;

@@ -177,7 +177,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
     public void OnKeyDown_H()
     {
         if (_unitGenerate == null) return;
-        if (!GameDataLoader.IsReady) { Debug.LogWarning("[GameSession] 게임 데이터 로딩이 아직 끝나지 않아 스폰을 건너뜁니다."); return; }
 
         UnitType[] types = { new Knight() };
         Vector2Int[] offsets = { new Vector2Int(0, 0) };
@@ -248,7 +247,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
     public void OnKeyDown_M()
     {
         if (_unitGenerate == null) return;
-        if (!GameDataLoader.IsReady) { Debug.LogWarning("[GameSession] 게임 데이터 로딩이 아직 끝나지 않아 스폰을 건너뜁니다."); return; }
 
         UnitType[] types = new UnitType[] { new MeleeTank() };
 

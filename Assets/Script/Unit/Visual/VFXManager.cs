@@ -1,29 +1,14 @@
 using UnityEngine;
 
+// 이펙트 프리팹은 이제 전역 공유가 아니라 유닛 타입별 프리팹(UnitVisualDefinition)에서 온다.
+// 이 클래스는 순수 스폰 메커니즘(위치 계산/생명주기 관리)만 담당한다.
 public class VFXManager : MonoBehaviour
 {
-    public static VFXManager Instance { get; private set; }
-
-    [SerializeField] GameObject hitSparkPrefab;
-    [SerializeField] GameObject guardPrefab;
-    [SerializeField] GameObject parryPrefab;
-    [SerializeField] GameObject attackFailPrefab;  // 공격 실패 (미설정 시 재생 생략)
-
-    void Awake()
-    {
-        Instance = this;
-    }
-
-    public void SpawnHitSpark(Unit unit)    => Spawn(hitSparkPrefab, unit);
-    public void SpawnGuard(Unit unit)       => Spawn(guardPrefab, unit);
-    public void SpawnParry(Unit unit)       => Spawn(parryPrefab, unit);
-    public void SpawnAttackFail(Unit unit)  => Spawn(attackFailPrefab, unit);
-
-    void Spawn(GameObject prefab, Unit unit)
+    public void Spawn(GameObject prefab, Unit unit)
     {
         if (prefab == null || unit == null) return;
 
-        Transform parent  = UnitGenerate.Instance?.GetVisualTransform(unit);
+        Transform parent  = unit.Generate?.GetVisualTransform(unit);
         Vector3   worldPos = GetWorldPos(unit);
 
         var go = parent != null
@@ -39,8 +24,8 @@ public class VFXManager : MonoBehaviour
 
     static Vector3 GetWorldPos(Unit unit)
     {
-        Vector3 offset = UnitGenerate.Instance != null
-            ? UnitGenerate.Instance.GetFloorOffset(unit.currentFloor)
+        Vector3 offset = unit.Generate != null
+            ? unit.Generate.GetFloorOffset(unit.currentFloor)
             : Vector3.zero;
 
         return new Vector3(

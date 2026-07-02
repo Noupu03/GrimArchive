@@ -17,8 +17,5 @@ public class GameCompositionRoot : LifetimeScope
         // 기존에 GameSession.Awake()/Start()가 런타임에 동적 생성하던 서비스
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
         builder.RegisterComponentOnNewGameObject<ThreatTileRenderer>(Lifetime.Singleton, "ThreatTileRenderer");
-
-        // 게임 데이터(skills/units) 로딩을 컨테이너 빌드 직후 비동기로 시작
-        builder.RegisterEntryPoint<GameDataBootstrap>(Lifetime.Singleton).As<IAsyncStartable>();
     }
 }

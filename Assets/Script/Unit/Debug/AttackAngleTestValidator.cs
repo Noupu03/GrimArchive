@@ -56,7 +56,7 @@ public class AttackAngleTestValidator : MonoBehaviour
                 float distance = Vector2Int.Distance(unit.position, enemy.position);
 
                 // 공격 중이고 사거리 내라면
-                float attackRange = GameDataLoader.GetEngageDistance(unit.unitType.typeName, 2);
+                float attackRange = (unit.Generate != null ? unit.Generate.GetEngageDistance(unit.unitType.typeName, 2) : 2);
                 if (unit.isCastingAttack && distance <= attackRange + 1)
                 {
                     float angleDiff = Mathf.Abs(unit.currentAttackAngle - expectedAngle);
@@ -128,7 +128,7 @@ public class AttackAngleTestValidator : MonoBehaviour
 
                     // 사거리 내에 있는지 확인
                     float distance = Vector2Int.Distance(attacker.position, enemy.position);
-                    float attackRange = GameDataLoader.GetEngageDistance(attacker.unitType.typeName, 2);
+                    float attackRange = (attacker.Generate != null ? attacker.Generate.GetEngageDistance(attacker.unitType.typeName, 2) : 2);
 
                     if (distance <= attackRange)
                     {

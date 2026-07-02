@@ -154,12 +154,12 @@ public static class DefenseSystem
 
 				defender.hp -= damage;
 				Debug.Log($"{defender.unitType.typeName} Block! damage:{damage:F0}");
-				UIManager.Instance?.ShowFloatingText(defender, $"Block! {damage:F0}");
+				defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
 
 				// 가드 VFX: 공격 타이밍에 재생, HitSpark 억제
 				var guardDef = defender;
 				guardDef.suppressHitVFX = true;
-				guardDef.pendingVFX = () => VFXManager.Instance?.SpawnGuard(guardDef);
+				guardDef.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
 				break;
 			}
 
@@ -180,7 +180,7 @@ public static class DefenseSystem
 					if (moved)
 					{
 						defender.evadeCooldown = 1.2f;
-						UIManager.Instance?.ShowFloatingText(defender, $"Dodge Success {success:P0}");
+						defender.UI?.ShowFloatingText(defender, $"Dodge Success {success:P0}");
 					}
 					else
 					{
@@ -208,12 +208,12 @@ public static class DefenseSystem
 				if (Random.value <= success)
 				{
 					attacker.ApplyDirectDamage(defender, 0.5f);
-					UIManager.Instance?.ShowFloatingText(defender, $"Parry {success:P0}");
+					defender.UI?.ShowFloatingText(defender, $"Parry {success:P0}");
 
 					// 패링 VFX: 공격 타이밍에 재생, HitSpark 억제
 					var parryDef = defender;
 					parryDef.suppressHitVFX = true;
-					parryDef.pendingVFX = () => VFXManager.Instance?.SpawnParry(parryDef);
+					parryDef.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
 				}
 				else
 				{
@@ -246,7 +246,7 @@ public static class DefenseSystem
 				}
 
 				defender.ForceMove(safeTiles[Random.Range(0, safeTiles.Count)]);
-				UIManager.Instance?.ShowFloatingText(defender, "Blink!");
+				defender.UI?.ShowFloatingText(defender, "Blink!");
 				break;
 			}
 		}

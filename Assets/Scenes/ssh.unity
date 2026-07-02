@@ -6643,15 +6643,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e4d7c6436e150954ea6c929ea729cf1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnitSpriteManager
-  unitTypeSpriteLibraryMap:
+  unitTypePrefabMap:
   - unitTypeName: "\uAE30\uC0AC\uD615"
-    spriteLibraryAsset: {fileID: 7108339969198208228, guid: c1e8cb1361fe7364284f5e1909226ef9, type: 3}
-    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
-    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
+    prefab: {fileID: 1953888294078118216, guid: 3c43944064aab2141ba692f37b955b20, type: 3}
   - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-    spriteLibraryAsset: {fileID: 7108339969198208228, guid: 761fcd3a8823c4d44b3dca6b7133dfba, type: 3}
-    idleClip: {fileID: 7400000, guid: 6c104a5f1399b654e9c9342fb828eb41, type: 2}
-    walkClip: {fileID: 7400000, guid: 8c3a753500c792c4b929737ff2d74091, type: 2}
+    prefab: {fileID: 6590798347702598913, guid: e80c4f8db74f0894997198ad9bc3d71e, type: 3}
 --- !u!4 &1453061269
 Transform:
   m_ObjectHideFlags: 0
@@ -6679,10 +6675,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e7933b9fb73b22e4f992e718738d8eba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VFXManager
-  hitSparkPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
-  guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
-  parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
-  attackFailPrefab: {fileID: 0}
 --- !u!1 &1461850855
 GameObject:
   m_ObjectHideFlags: 0
