@@ -1,7 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
-using System.Collections;
+using VContainer;
+using DG.Tweening;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
 #endif
@@ -12,20 +13,25 @@ using UnityEditor;
 
 public class UnitGenerate : MonoBehaviour
 {
-	public static UnitGenerate Instance { get; private set; }
-
 	// View mapping to separate SO data logic from Visual gameobjects
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
-	private Dictionary<Unit, Coroutine>  moveCoroutines   = new Dictionary<Unit, Coroutine>();
 	private Dictionary<Unit, Vector3>    targetPosMap     = new Dictionary<Unit, Vector3>();
-	private Dictionary<Unit, Coroutine>  blinkCoroutines  = new Dictionary<Unit, Coroutine>();
 
 	private Sprite humanSprite;
 	private Sprite monsterSprite;
 
+	private UnitSpriteManager _unitSpriteManager;
+	private IObjectResolver _resolver;
+
+	[Inject]
+	public void Construct(UnitSpriteManager unitSpriteManager, IObjectResolver resolver)
+	{
+		_unitSpriteManager = unitSpriteManager;
+		_resolver = resolver;
+	}
+
 	void Awake()
 	{
-		Instance      = this;
 		humanSprite   = CreateCircleSprite(Color.white);
 		monsterSprite = CreateTriangleSprite(Color.white);
 	}
@@ -35,11 +41,11 @@ public class UnitGenerate : MonoBehaviour
 		Vector2Int pos = GetRandomFloorPos(unitType.footprint, floorIdx);
 
 		T unit = ScriptableObject.CreateInstance<T>();
+		_resolver.Inject(unit);
 		unit.name        = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
 		unit.unitType    = unitType;
 		unit.position    = pos;
 		unit.currentFloor = floorIdx;
-		unit.SetupStats();
 
 		SetupUnitVisual(unit, 1.0f);
 		return unit;
@@ -48,18 +54,19 @@ public class UnitGenerate : MonoBehaviour
 	// ─────────────────────────────────────────────────────────────────
 	//  유닛 비주얼 생성
 	//
-	//  구조:
-	//    go (루트) ← SmoothMove가 이동시킴, UnitVisual(FOV) 보유
-	//    └─ Visual (자식) ← Animator/SpriteRenderer 배치
-	//                       애니메이션 클립의 Position/Rotation 커브가
-	//                       이 자식의 localTransform을 조작하므로
-	//                       루트 position과 충돌하지 않음
-	//         └─ Outline
+	//  유닛 타입별 프리팹(UnitSpriteManager에 등록됨)이 있으면 그걸 Instantiate하고,
+	//  없으면 원/삼각형 폴백 도형을 코드로 생성한다. 프리팹의 UnitVisualDefinition이
+	//  스탯/스킬/이펙트를, 프리팹 자식 계층(Visual)의 SpriteLibrary/SpriteResolver/
+	//  UnitAnimationController가 스프라이트/애니메이션을 담당한다.
 	// ─────────────────────────────────────────────────────────────────
 	private void SetupUnitVisual(Unit unit, float visualScale)
 	{
-		// ── 루트 오브젝트
-		GameObject go = new GameObject(unit.name);
+		GameObject prefab = _unitSpriteManager != null ? _unitSpriteManager.GetPrefab(unit.unitType.typeName) : null;
+		UnitVisualDefinition visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
+
+		GameObject go = prefab != null ? Instantiate(prefab) : BuildFallbackVisual(unit);
+		go.name = unit.name;
+
 		Transform tilemapTransform = GetFloorTilemapTransform(unit.currentFloor);
 		if (tilemapTransform != null) go.transform.SetParent(tilemapTransform);
 		go.transform.localScale = new Vector3(
@@ -68,69 +75,19 @@ public class UnitGenerate : MonoBehaviour
 			1f
 		);
 
-		UnitVisual uv = go.AddComponent<UnitVisual>();
+		UnitVisual uv = go.GetComponent<UnitVisual>();
+		if (uv == null) uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
 
-		// ── Visual 자식 (애니메이션 대상)
-		GameObject visual = new GameObject("Visual");
-		visual.transform.SetParent(go.transform);
-		visual.transform.localPosition = Vector3.zero;
-
-		SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
-		sr.sortingOrder = 10;
-
 #if UNITY_2022_2_OR_NEWER
-		if (UnitSpriteManager.Instance != null)
-		{
-			var spriteLibrary = UnitSpriteManager.Instance.GetSpriteLibrary(unit.unitType);
-			if (spriteLibrary != null)
-			{
-				// 바리에이션 미지정 시 라이브러리 카테고리에서 랜덤 선택
-				if (string.IsNullOrEmpty(unit.spriteVariation))
-					unit.spriteVariation = UnitSpriteManager.Instance.PickRandomVariation(spriteLibrary);
+		SpriteLibrary spriteLib = go.GetComponentInChildren<SpriteLibrary>();
+		if (spriteLib != null && spriteLib.spriteLibraryAsset != null && string.IsNullOrEmpty(unit.spriteVariation))
+			unit.spriteVariation = _unitSpriteManager.PickRandomVariation(spriteLib.spriteLibraryAsset);
 
-				SpriteLibrary spriteLibComp = visual.AddComponent<SpriteLibrary>();
-				spriteLibComp.spriteLibraryAsset = spriteLibrary;
-
-				SpriteResolver spriteResolver = visual.AddComponent<SpriteResolver>();
-				UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
-
-				GameObject     outlineGo = new GameObject("Outline");
-				outlineGo.transform.SetParent(visual.transform);
-				outlineGo.transform.localPosition = Vector3.zero;
-				SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
-				outlineSr.color       = Color.black;
-				outlineSr.sortingOrder = 9;
-				outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
-				outlineGo.AddComponent<OutlineSpriteSync>().Init(sr);
-				outlineGo.SetActive(false);
-
-				go.transform.position = new Vector3(
-					unit.position.x + unit.unitType.footprint.x / 2f,
-					unit.position.y + 0.05f,
-					0
-				) + GetFloorOffset(unit.currentFloor);
-
-				visualMap[unit] = go;
-				AttachAnimationController(visual, unit.unitType.typeName);
-				return;
-			}
-		}
+		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
+		if (spriteResolver != null)
+			UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
 #endif
-
-		// ── 폴백
-		if (unit is Human)        sr.sprite = humanSprite;
-		else if (unit is Monster) sr.sprite = monsterSprite;
-
-		GameObject     outlineGo2 = new GameObject("Outline");
-		outlineGo2.transform.SetParent(visual.transform);
-		outlineGo2.transform.localPosition = Vector3.zero;
-		SpriteRenderer outlineSr2 = outlineGo2.AddComponent<SpriteRenderer>();
-		outlineSr2.color       = Color.black;
-		outlineSr2.sortingOrder = 9;
-		outlineGo2.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
-		outlineGo2.AddComponent<OutlineSpriteSync>().Init(sr);
-		outlineGo2.SetActive(false);
 
 		go.transform.position = new Vector3(
 			unit.position.x + unit.unitType.footprint.x / 2f,
@@ -139,15 +96,49 @@ public class UnitGenerate : MonoBehaviour
 		) + GetFloorOffset(unit.currentFloor);
 
 		visualMap[unit] = go;
-		AttachAnimationController(visual, unit.unitType.typeName);
+
+		if (visualDef != null) visualDef.ApplyStatsTo(unit);
+		unit.SetupStats();
 	}
 
-	// Animator/UnitAnimationController를 Visual 자식에 부착
-	private void AttachAnimationController(GameObject visual, string typeName)
+	// 프리팹이 등록 안 된 유닛 타입을 위한 폴백 (원/삼각형 도형, 애니메이션 없음)
+	private GameObject BuildFallbackVisual(Unit unit)
 	{
-		var ctrl = visual.AddComponent<UnitAnimationController>();
-		ctrl.Init(typeName);
+		GameObject go = new GameObject();
+
+		GameObject visual = new GameObject("Visual");
+		visual.transform.SetParent(go.transform);
+		visual.transform.localPosition = Vector3.zero;
+
+		SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+		sr.sortingOrder = 10;
+		if (unit is Human)        sr.sprite = humanSprite;
+		else if (unit is Monster) sr.sprite = monsterSprite;
+
+		GameObject outlineGo = new GameObject("Outline");
+		outlineGo.transform.SetParent(visual.transform);
+		outlineGo.transform.localPosition = Vector3.zero;
+		SpriteRenderer outlineSr = outlineGo.AddComponent<SpriteRenderer>();
+		outlineSr.color        = Color.black;
+		outlineSr.sortingOrder = 9;
+		outlineGo.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
+		outlineGo.AddComponent<OutlineSpriteSync>().Init(sr);
+		outlineGo.SetActive(false);
+
+		return go;
 	}
+
+	private UnitVisualDefinition GetVisualDef(Unit u) =>
+		visualMap.TryGetValue(u, out GameObject go) && go != null ? go.GetComponent<UnitVisualDefinition>() : null;
+
+	public void SpawnGuardVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.guardPrefab, u);
+	public void SpawnParryVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.parryPrefab, u);
+
+	public List<SkillAction> GetSkills(string unitTypeName) =>
+		_unitSpriteManager != null ? _unitSpriteManager.GetSkills(unitTypeName) : new List<SkillAction>();
+
+	public int GetEngageDistance(string unitTypeName, int defaultDist) =>
+		_unitSpriteManager != null ? _unitSpriteManager.GetEngageDistance(unitTypeName, defaultDist) : defaultDist;
 
 	public void UpdateUnitSpriteForDirection(Unit unit)
 	{
@@ -161,7 +152,7 @@ public class UnitGenerate : MonoBehaviour
 			return;
 		}
 #endif
-		if (UnitSpriteManager.Instance == null) return;
+		if (_unitSpriteManager == null) return;
 	}
 
 	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction, string variation)
@@ -212,11 +203,9 @@ public class UnitGenerate : MonoBehaviour
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (go != null) Destroy(go);
+			if (go != null) { go.transform.DOKill(); Destroy(go); }
 			visualMap.Remove(u);
-			moveCoroutines.Remove(u);
 			targetPosMap.Remove(u);
-			blinkCoroutines.Remove(u);
 		}
 
 		List<Unit> deadKeys = new List<Unit>();
@@ -224,16 +213,14 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (kvp.Key == null || kvp.Key.hp <= 0)
 			{
-				if (kvp.Value != null) Destroy(kvp.Value);
+				if (kvp.Value != null) { kvp.Value.transform.DOKill(); Destroy(kvp.Value); }
 				deadKeys.Add(kvp.Key);
 			}
 		}
 		foreach (var deadKey in deadKeys)
 		{
 			visualMap.Remove(deadKey);
-			moveCoroutines.Remove(deadKey);
 			targetPosMap.Remove(deadKey);
-			blinkCoroutines.Remove(deadKey);
 		}
 	}
 
@@ -255,17 +242,16 @@ public class UnitGenerate : MonoBehaviour
 
 			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				if (moveCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-					StopCoroutine(existingCoroutine);
-
 				float duration  = u.walkSpeed > 0f ? (1f / u.walkSpeed) : 0.1f;
 				targetPosMap[u] = newPos;
-				moveCoroutines[u] = StartCoroutine(SmoothMove(go.transform, newPos, duration));
+
+				go.transform.DOKill();
+				// 일시정지(Time.timeScale=0에 가까운 값) 중에도 이동 애니메이션이 계속 보이도록 unscaled time 사용
+				go.transform.DOMove(newPos, duration).SetEase(Ease.Linear).SetUpdate(true);
 			}
 			else if (Time.timeScale < 0.01f)
 			{
-				if (!moveCoroutines.ContainsKey(u) || moveCoroutines[u] == null)
-					go.transform.position = newPos;
+				go.transform.position = newPos;
 			}
 
 			// FOV
@@ -283,7 +269,7 @@ public class UnitGenerate : MonoBehaviour
 			Transform outlineTransform = go.transform.Find("Visual/Outline");
 			if (outlineTransform != null)
 			{
-				bool isSelected  = (InputManager.Instance != null && InputManager.Instance.selectedUnit == u);
+				bool isSelected  = (u.InputMgr != null && u.InputMgr.selectedUnit == u);
 				bool isPanicking = u is Human && u.mental < u.maxMental * 0.3f;
 
 				outlineTransform.gameObject.SetActive(isSelected || isPanicking);
@@ -297,69 +283,37 @@ public class UnitGenerate : MonoBehaviour
 		}
 	}
 
-	private IEnumerator SmoothMove(Transform visualTransform, Vector3 targetPos, float duration)
-	{
-		if (visualTransform == null) yield break;
-
-		Vector3 startPos = visualTransform.position;
-		float   elapsed  = 0f;
-
-		while (elapsed < duration)
-		{
-			if (visualTransform == null) yield break;
-			visualTransform.position = Vector3.Lerp(startPos, targetPos, elapsed / duration);
-			elapsed += Time.unscaledDeltaTime;
-			yield return null;
-		}
-
-		if (visualTransform != null) visualTransform.position = targetPos;
-	}
-
 	public void TriggerHitEffect(Unit u)
 	{
 		if (u == null) return;
 
+		UnitVisualDefinition visualDef = GetVisualDef(u);
+
 		if (u.suppressHitVFX)
 		{
-			VFXManager.Instance?.SpawnAttackFail(u);
+			if (visualDef != null) u.VFX?.Spawn(visualDef.attackFailPrefab, u);
 			u.suppressHitVFX = false;
 		}
 		else
 		{
-			VFXManager.Instance?.SpawnHitSpark(u);
+			if (visualDef != null) u.VFX?.Spawn(visualDef.hitSparkPrefab, u);
 		}
 
 		if (visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (blinkCoroutines.TryGetValue(u, out Coroutine existingCoroutine) && existingCoroutine != null)
-			{
-				StopCoroutine(existingCoroutine);
-				Transform      vt     = go.transform.Find("Visual");
-				SpriteRenderer prevSr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
-				if (prevSr != null) prevSr.color = Color.white;
-			}
-			blinkCoroutines[u] = StartCoroutine(HitBlink(u, go));
+			Transform      vt = go.transform.Find("Visual");
+			SpriteRenderer sr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
+			if (sr == null) return;
+
+			// 재피격으로 중단되면 sr.color가 페이드 중간값(반투명 등)일 수 있어, 그 값을 "원래 색"으로
+			// 잘못 캡처하지 않도록 매번 흰색에서 새로 시작한다 (이 스프라이트는 항상 흰색이 기본값).
+			sr.DOKill();
+			sr.color = Color.white;
+			DOTween.Sequence()
+				.Append(sr.DOColor(Color.clear, 0.05f))
+				.Append(sr.DOColor(Color.white, 0.05f))
+				.SetTarget(sr);
 		}
-	}
-
-	private IEnumerator HitBlink(Unit u, GameObject go)
-	{
-		if (go == null) yield break;
-		Transform      visualTransform = go.transform.Find("Visual");
-		SpriteRenderer sr = visualTransform != null
-			? visualTransform.GetComponent<SpriteRenderer>()
-			: go.GetComponentInChildren<SpriteRenderer>();
-		if (sr == null) yield break;
-
-		Color originalColor = sr.color;
-
-		sr.color = Color.white;
-		yield return new WaitForSeconds(0.05f);
-		if (sr != null) sr.color = Color.clear;
-		yield return new WaitForSeconds(0.05f);
-		if (sr != null) sr.color = originalColor;
-
-		blinkCoroutines.Remove(u);
 	}
 
 	#endregion
@@ -518,11 +472,11 @@ public class UnitGenerate : MonoBehaviour
 	public T GenerateUnitAtPos<T>(UnitType unitType, Vector2Int pos, int floorIdx = 1) where T : Unit
 	{
 		T unit = ScriptableObject.CreateInstance<T>();
+		_resolver.Inject(unit);
 		unit.name        = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
 		unit.unitType    = unitType;
 		unit.position    = pos;
 		unit.currentFloor = floorIdx;
-		unit.SetupStats();
 
 		SetupUnitVisual(unit, 1.0f);
 		return unit;

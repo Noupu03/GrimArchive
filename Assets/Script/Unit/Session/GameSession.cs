@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using VContainer;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -10,6 +11,16 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 {
     public static GameSession Instance { get; private set; }
     public CreateMap cmap { get; private set; }
+
+    private UnitGenerate _unitGenerate;
+    private ThreatTileRenderer _threatTileRenderer;
+
+    [Inject]
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer)
+    {
+        _unitGenerate = unitGenerate;
+        _threatTileRenderer = threatTileRenderer;
+    }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
 
     public List<Unit> units { get; private set; } = new List<Unit>();
@@ -56,22 +67,11 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
     {
         Instance = this;
 
-        if (GetComponent<InputManager>() == null)
-        {
-            gameObject.AddComponent<InputManager>();
-        }
+        // InputManager/UIManager/ThreatTileRenderer는 이제 GameCompositionRoot(VContainer)가 배선한다.
+        // ArtifactManager는 대부분 주석 처리된 미사용 코드라 이번 DI 전환 대상에서 제외했다.
         if (GetComponent<ArtifactManager>() == null)
         {
             gameObject.AddComponent<ArtifactManager>();
-        }
-        if (FindObjectOfType<UIManager>() == null)
-        {
-            GameObject uiObj = new GameObject("UIManager");
-            uiObj.AddComponent<UIManager>();
-        }
-        if (Camera.main != null && Camera.main.gameObject.GetComponent<CameraController>() == null)
-        {
-            Camera.main.gameObject.AddComponent<CameraController>();
         }
     }
 
@@ -82,11 +82,6 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
         {
             Unit.humanFactionData.InitMap(cmap);
             Unit.monsterFactionData.InitMap(cmap);
-        }
-        if (FindObjectOfType<ThreatTileRenderer>() == null)
-        {
-            GameObject go = new GameObject("ThreatTileRenderer");
-            go.AddComponent<ThreatTileRenderer>();
         }
     }
 
@@ -121,9 +116,9 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
         if (visualNeedsSync || Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
         {
-            if (UnitGenerate.Instance != null)
+            if (_unitGenerate != null)
             {
-                UnitGenerate.Instance.SyncVisuals(units);
+                _unitGenerate.SyncVisuals(units);
             }
         }
 
@@ -135,9 +130,9 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
             needTextureUpdate = false;
             textureUpdateTimer = 0f;
         }
-        if (ThreatTileRenderer.Instance != null)
+        if (_threatTileRenderer != null)
         {
-            ThreatTileRenderer.Instance.Render(units);
+            _threatTileRenderer.Render(units);
         }
     }
 
@@ -152,9 +147,9 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
     private void RemoveDeadUnit(int index, Unit u)
     {
-        if (UnitGenerate.Instance != null && u != null)
+        if (_unitGenerate != null && u != null)
         {
-            UnitGenerate.Instance.RemoveVisual(u);
+            _unitGenerate.RemoveVisual(u);
         }
         if (u != null) UnregisterUnitPos(u, u.position);
         units.RemoveAt(index);
@@ -181,7 +176,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
     public void OnKeyDown_H()
     {
-        if (UnitGenerate.Instance == null) return;
+        if (_unitGenerate == null) return;
 
         UnitType[] types = { new Knight() };
         Vector2Int[] offsets = { new Vector2Int(0, 0) };
@@ -195,10 +190,10 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
         {
             Vector2Int pos = spawnPos + offsets[i];
 
-            if (!UnitGenerate.Instance.IsAreaClear(pos, types[i].footprint, floorIdx))
-                pos = UnitGenerate.Instance.GetRandomFloorPos(types[i].footprint, floorIdx);
+            if (!_unitGenerate.IsAreaClear(pos, types[i].footprint, floorIdx))
+                pos = _unitGenerate.GetRandomFloorPos(types[i].footprint, floorIdx);
 
-            Human human = UnitGenerate.Instance.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
+            Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
             units.Add(human);
 
             if (GameSession.Instance != null)
@@ -236,7 +231,7 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
                     {
                         Vector2Int pos = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
 
-                        if (UnitGenerate.Instance.IsAreaClear(pos, footprint, floorIdx))
+                        if (_unitGenerate.IsAreaClear(pos, footprint, floorIdx))
                             candidates.Add(pos);
                     }
                 }
@@ -251,13 +246,13 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
 
     public void OnKeyDown_M()
     {
-        if (UnitGenerate.Instance == null) return;
+        if (_unitGenerate == null) return;
 
         UnitType[] types = new UnitType[] { new MeleeTank() };
 
         UnitType selection = types[Random.Range(0, types.Length)];
 
-        Monster monster = UnitGenerate.Instance.GenerateUnitAtRandomFloor<Monster>(selection, 1);
+        Monster monster = _unitGenerate.GenerateUnitAtRandomFloor<Monster>(selection, 1);
 
         units.Add(monster);
         if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);

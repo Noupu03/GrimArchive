@@ -4,61 +4,46 @@ using System.Collections.Generic;
 using UnityEngine.U2D.Animation;
 #endif
 
+// 유닛 타입 이름 → 프리팹 매핑 레지스트리. 스프라이트/스탯/스킬/이펙트는 전부
+// 프리팹의 UnitVisualDefinition(+자식 계층)에서 오고, 여기서는 그 프리팹을 찾아주는 역할만 한다.
 public class UnitSpriteManager : MonoBehaviour
 {
-    public static UnitSpriteManager Instance { get; private set; }
-
     [System.Serializable]
-    public class UnitTypeSpriteLibrary
+    public class UnitTypePrefab
     {
         public string unitTypeName;
-#if UNITY_2022_2_OR_NEWER
-        public SpriteLibraryAsset spriteLibraryAsset;
-#endif
-        [Header("Animation Clips")]
-        public AnimationClip idleClip;
-        public AnimationClip walkClip;
+        public GameObject prefab;
     }
 
-    public List<UnitTypeSpriteLibrary> unitTypeSpriteLibraryMap = new List<UnitTypeSpriteLibrary>();
+    public List<UnitTypePrefab> unitTypePrefabMap = new List<UnitTypePrefab>();
 
-    void Awake()
-    {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-        Instance = this;
-    }
+    private readonly Dictionary<string, List<SkillAction>> _skillsCache = new();
 
-#if UNITY_2022_2_OR_NEWER
-    public SpriteLibraryAsset GetSpriteLibrary(UnitType unitType)
+    public GameObject GetPrefab(string unitTypeName)
     {
-        if (unitType == null) return null;
-        foreach (var lib in unitTypeSpriteLibraryMap)
-            if (lib.unitTypeName == unitType.typeName && lib.spriteLibraryAsset != null)
-                return lib.spriteLibraryAsset;
-        Debug.LogWarning($"스프라이트 라이브러리를 찾을 수 없습니다: {unitType.typeName}");
+        foreach (var entry in unitTypePrefabMap)
+            if (entry.unitTypeName == unitTypeName && entry.prefab != null)
+                return entry.prefab;
         return null;
     }
-#else
-    public SpriteLibraryAsset GetSpriteLibrary(UnitType unitType)
-    {
-        Debug.LogError("Sprite Library는 Unity 2022.2 이상에서 지원됩니다.");
-        return null;
-    }
-#endif
 
-    public bool TryGetAnimationClips(string unitTypeName, out AnimationClip idle, out AnimationClip walk)
+    public List<SkillAction> GetSkills(string unitTypeName)
     {
-        foreach (var lib in unitTypeSpriteLibraryMap)
-        {
-            if (lib.unitTypeName == unitTypeName)
-            {
-                idle = lib.idleClip;
-                walk = lib.walkClip;
-                return idle != null && walk != null;
-            }
-        }
-        idle = walk = null;
-        return false;
+        if (_skillsCache.TryGetValue(unitTypeName, out var cached)) return cached;
+
+        var prefab = GetPrefab(unitTypeName);
+        var visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
+        var list = visualDef != null ? visualDef.BuildSkillActions() : new List<SkillAction>();
+
+        _skillsCache[unitTypeName] = list;
+        return list;
+    }
+
+    public int GetEngageDistance(string unitTypeName, int defaultDist)
+    {
+        var prefab = GetPrefab(unitTypeName);
+        var visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
+        return visualDef != null ? visualDef.engageDistance : defaultDist;
     }
 
     // direction → label / flipX 반환. category(바리에이션)는 호출부에서 결정

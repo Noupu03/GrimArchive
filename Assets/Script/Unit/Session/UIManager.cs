@@ -1,14 +1,16 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.Collections;
+using VContainer;
+using DG.Tweening;
 
 public class UIManager : MonoBehaviour
 {
-    public static UIManager Instance;
+    private InputManager _inputManager;
 
-    void Awake()
+    [Inject]
+    public void Construct(InputManager inputManager)
     {
-        Instance = this;
+        _inputManager = inputManager;
     }
 
     void OnGUI()
@@ -103,9 +105,9 @@ public class UIManager : MonoBehaviour
 
 	private void DrawSelectedUnitInfo()
     {
-        if (InputManager.Instance == null || InputManager.Instance.selectedUnit == null) return;
+        if (_inputManager == null || _inputManager.selectedUnit == null) return;
 
-        Unit u = InputManager.Instance.selectedUnit;
+        Unit u = _inputManager.selectedUnit;
 
         int boxW = 220;
         int boxH = 520;
@@ -258,7 +260,7 @@ public class UIManager : MonoBehaviour
 		MeshRenderer mr = go.GetComponent<MeshRenderer>();
 		mr.sortingOrder = 9999; // ★ 핵심 (맵 위로 올림)
 
-		StartCoroutine(DestroyFloatingText(go, 0.5f));
+		DOVirtual.DelayedCall(0.5f, () => { if (go != null) Destroy(go); });
 	}
 
 	Vector3 GetWorldTextPosition(Unit unit)
@@ -268,11 +270,5 @@ public class UIManager : MonoBehaviour
 			unit.position.y + unit.unitType.footprint.y + 1f,
 			0
 		);
-	}
-
-	IEnumerator DestroyFloatingText(GameObject go, float t)
-	{
-		yield return new WaitForSeconds(t);
-		Destroy(go);
 	}
 }

@@ -1,10 +1,23 @@
 using System.Collections.Generic;
 using UnityEngine;
+using VContainer;
 
 public abstract class Unit : ScriptableObject
 {
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
+
+	// UnitGenerate가 ScriptableObject.CreateInstance 직후 IObjectResolver.Inject(this)로 채워준다.
+	// GoapAction/SkillAction 등 DI 컨테이너가 직접 닿지 않는 순수 C# 로직이 이 유닛을 통해 서비스에 접근한다.
+	[Inject] private UnitGenerate _unitGenerate;
+	[Inject] private UIManager _uiManager;
+	[Inject] private VFXManager _vfxManager;
+	[Inject] private InputManager _inputManager;
+
+	public UnitGenerate Generate => _unitGenerate;
+	public UIManager UI => _uiManager;
+	public VFXManager VFX => _vfxManager;
+	public InputManager InputMgr => _inputManager;
 
 	public UnitType unitType;
 
@@ -171,9 +184,10 @@ public abstract class Unit : ScriptableObject
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
 	}
 
+	// 스탯 적용은 이제 UnitGenerate가 스폰한 프리팹의 UnitVisualDefinition.ApplyStatsTo(unit)이
+	// SetupStats() 호출 전에 담당한다. 여기서는 그 기본 스탯으로부터 파생 스탯만 계산한다.
 	public void SetupStats()
 	{
-		GameDataLoader.ApplyStatsTo(this);
 		CalculateDerivedStats();
 	}
 

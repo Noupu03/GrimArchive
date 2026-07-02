@@ -1,0 +1,423 @@
+<b><color=lightgreen>[HAARE]</color></b> Start Haare Framework
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+HaareClient/<Main>d__0:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:18)
+System.Runtime.CompilerServices.AsyncVoidMethodBuilder:Start<HaareClient/<Main>d__0> (HaareClient/<Main>d__0&)
+HaareClient:Main ()
+
+CreateMap: Floors initialized — F0(3×3), F1(7×7), F2(8×8), F3(9×9)
+UnityEngine.Debug:Log (object)
+CreateMap:InitMap () (at Assets/Script/Map/CreateMap.cs:190)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:75)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 BossRoom '2x2' placed as room0 at base[5,5] (4 chunks)
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceBossRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:165)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:88)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 rooms placed (maxChunks=2).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:303)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:89)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 start room assigned as room44 at [0,3].
+UnityEngine.Debug:Log (object)
+CreateMap:AssignStartRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:570)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:90)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 graph built. Nodes: 25
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:91)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 roles assigned — Boss:pre-placed, Sub:1, Normal:4, Excess(pruned):18
+UnityEngine.Debug:Log (object)
+CreateMap:AssignRoomRoles (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:116)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:92)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 pruned 12 excess rooms (23 chunks).
+UnityEngine.Debug:Log (object)
+CreateMap:PruneRoomSet (Floor&,System.Collections.Generic.HashSet`1<int>,int,int) (at Assets/Script/Map/CreateMap.RoomRoles.cs:339)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:304)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 — 6 bridge room(s) preserved for connectivity.
+UnityEngine.Debug:Log (object)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:307)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 graph built. Nodes: 13
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:97)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 tile names assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignTileNames (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:56)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:98)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 internal walls removed.
+UnityEngine.Debug:Log (object)
+CreateMap:OpenInternalWalls (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:209)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:99)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 allowMaxFootprint assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignFootprint (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:482)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:100)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 rooms connected. Passages: 12
+UnityEngine.Debug:Log (object)
+CreateMap:ConnectRooms (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:184)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:101)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 loops added. Extra passages: 0
+UnityEngine.Debug:Log (object)
+CreateMap:AddLoops (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:609)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:102)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 occupation/danger initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitOccupationAndDanger (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:387)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:109)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 weight/visibility/landform initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitWeightVisibilityLandform (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:445)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:110)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 BossRoom 'ㄷ7' placed as room46 at base[5,0] (7 chunks)
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceBossRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:165)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:88)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 rooms placed (maxChunks=3).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:303)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:89)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 start room assigned as room98 at [0,4].
+UnityEngine.Debug:Log (object)
+CreateMap:AssignStartRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:570)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:90)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 graph built. Nodes: 29
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:91)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 roles assigned — Boss:pre-placed, Sub:2, Normal:5, Excess(pruned):20
+UnityEngine.Debug:Log (object)
+CreateMap:AssignRoomRoles (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:116)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:92)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 pruned 16 excess rooms (34 chunks).
+UnityEngine.Debug:Log (object)
+CreateMap:PruneRoomSet (Floor&,System.Collections.Generic.HashSet`1<int>,int,int) (at Assets/Script/Map/CreateMap.RoomRoles.cs:339)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:304)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 — 4 bridge room(s) preserved for connectivity.
+UnityEngine.Debug:Log (object)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:307)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 graph built. Nodes: 13
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:97)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 tile names assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignTileNames (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:56)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:98)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 internal walls removed.
+UnityEngine.Debug:Log (object)
+CreateMap:OpenInternalWalls (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:209)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:99)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 allowMaxFootprint assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignFootprint (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:482)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:100)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 — bridge corridor created (roomId=100) connecting roomId 85 to visited rooms.
+UnityEngine.Debug:Log (object)
+CreateMap:BridgeDisconnectedRoom (Floor&,System.Collections.Generic.HashSet`1<int>,System.Collections.Generic.HashSet`1<int>,System.Collections.Generic.HashSet`1<int>) (at Assets/Script/Map/CreateMap.Connection.cs:292)
+CreateMap:ConnectRooms (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:133)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:101)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 rooms connected. Passages: 13
+UnityEngine.Debug:Log (object)
+CreateMap:ConnectRooms (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:184)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:101)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 loops added. Extra passages: 0
+UnityEngine.Debug:Log (object)
+CreateMap:AddLoops (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:609)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:102)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 occupation/danger initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitOccupationAndDanger (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:387)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:109)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 weight/visibility/landform initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitWeightVisibilityLandform (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:445)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:110)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 BossRoom '3x3' placed as room101 at base[6,6] (9 chunks)
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceBossRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:165)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:88)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 rooms placed (maxChunks=5).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:303)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:89)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 start room assigned as room128 at [0,4].
+UnityEngine.Debug:Log (object)
+CreateMap:AssignStartRoom (Floor&) (at Assets/Script/Map/CreateMap.RoomPlacement.cs:570)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:90)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 graph built. Nodes: 24
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:91)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 roles assigned — Boss:pre-placed, Sub:1, Normal:6, Excess(pruned):15
+UnityEngine.Debug:Log (object)
+CreateMap:AssignRoomRoles (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:116)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:92)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 pruned 12 excess rooms (40 chunks).
+UnityEngine.Debug:Log (object)
+CreateMap:PruneRoomSet (Floor&,System.Collections.Generic.HashSet`1<int>,int,int) (at Assets/Script/Map/CreateMap.RoomRoles.cs:339)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:304)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 — 3 bridge room(s) preserved for connectivity.
+UnityEngine.Debug:Log (object)
+CreateMap:PruneExcessRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:307)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:93)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 ensured SubPurposeRooms. Created=2, Target=3
+UnityEngine.Debug:Log (object)
+CreateMap:EnsureSubPurposeRooms (Floor&) (at Assets/Script/Map/CreateMap.RoomRoles.cs:586)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:94)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 graph built. Nodes: 14
+UnityEngine.Debug:Log (object)
+CreateMap:BuildGraph (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:50)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:97)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 tile names assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignTileNames (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:56)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:98)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 internal walls removed.
+UnityEngine.Debug:Log (object)
+CreateMap:OpenInternalWalls (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:209)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:99)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 allowMaxFootprint assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignFootprint (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:482)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:100)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 rooms connected. Passages: 13
+UnityEngine.Debug:Log (object)
+CreateMap:ConnectRooms (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:184)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:101)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 loops added. Extra passages: 0
+UnityEngine.Debug:Log (object)
+CreateMap:AddLoops (Floor&) (at Assets/Script/Map/CreateMap.Connection.cs:609)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:102)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 occupation/danger initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitOccupationAndDanger (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:387)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:109)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 3 weight/visibility/landform initialized.
+UnityEngine.Debug:Log (object)
+CreateMap:InitWeightVisibilityLandform (Floor&) (at Assets/Script/Map/CreateMap.Stairs.cs:445)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:110)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 0 tile names assigned.
+UnityEngine.Debug:Log (object)
+CreateMap:AssignTileNames (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:56)
+CreateMap:GenerateFloor0 () (at Assets/Script/Map/CreateMap.Stairs.cs:39)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:114)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 0 internal walls removed.
+UnityEngine.Debug:Log (object)
+CreateMap:OpenInternalWalls (Floor&) (at Assets/Script/Map/CreateMap.TileWall.cs:209)
+CreateMap:GenerateFloor0 () (at Assets/Script/Map/CreateMap.Stairs.cs:40)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:114)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 0 lobby generated as room132 (3×3).
+UnityEngine.Debug:Log (object)
+CreateMap:GenerateFloor0 () (at Assets/Script/Map/CreateMap.Stairs.cs:64)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:114)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 1 boss room stair → F2 at [6,5] (entrance opposite).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceBossRoomStair (Floor&,int) (at Assets/Script/Map/CreateMap.Stairs.cs:275)
+CreateMap:PlaceStairs () (at Assets/Script/Map/CreateMap.Stairs.cs:114)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:117)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Floor 2 boss room stair → F3 at [7,0] (entrance opposite).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceBossRoomStair (Floor&,int) (at Assets/Script/Map/CreateMap.Stairs.cs:275)
+CreateMap:PlaceStairs () (at Assets/Script/Map/CreateMap.Stairs.cs:114)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:117)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: Stairs placed on all floors (sequential structure).
+UnityEngine.Debug:Log (object)
+CreateMap:PlaceStairs () (at Assets/Script/Map/CreateMap.Stairs.cs:117)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:117)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+CreateMap: All floors generated. 검증 통과 (시도 1회).
+UnityEngine.Debug:Log (object)
+CreateMap:GenerateMap () (at Assets/Script/Map/CreateMap.cs:129)
+CreateMap:Awake () (at Assets/Script/Map/CreateMap.cs:46)
+
+<b><color=lightgreen>[HAARE]</color></b> Singleton Generated Processor
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:Create () (at Assets/Haare/Scripts/Client/Core/Singleton/SingletonMono.cs:54)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:get_Instance () (at Assets/Haare/Scripts/Client/Core/Singleton/SingletonMono.cs:35)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1/<WaitForCreation>d__8<Haare.Client.Core.Processor>:MoveNext () (at Assets/Haare/Scripts/Client/Core/Singleton/SingletonMono.cs:60)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:WaitForCreation ()
+HaareClient/<Main>d__0:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:20)
+UnityEngine.UnitySynchronizationContext:ExecuteTasks ()
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:LogTask (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:29)
+HaareClient/<RegisterProcesses>d__2:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:34)
+HaareClient:RegisterProcesses ()
+Haare.Client.Core.Processor/<>c__DisplayClass11_0/<<RegisterEvents>b__0>d:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:76)
+Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__0 (System.Threading.CancellationToken)
+Haare.Client.Routine.MonoRoutine/<Initialize>d__39:MoveNext () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:86)
+Haare.Client.Routine.MonoRoutine:Initialize (System.Threading.CancellationToken)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:<>n__0 (System.Threading.CancellationToken)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1/<Initialize>d__6<Haare.Client.Core.Processor>:MoveNext () (at Assets/Haare/Scripts/Client/Core/Singleton/SingletonMono.cs:46)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:Initialize (System.Threading.CancellationToken)
+Haare.Client.Core.Processor/<Constructor>d__10:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:64)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<Constructor>d__10>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<Cysharp.Threading.Tasks.AsyncUnit>:TrySetResult (Cysharp.Threading.Tasks.AsyncUnit) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:SetResult () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:204)
+Haare.Client.Core.Processor/<RegisterEvents>d__11:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:121)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/DelayPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:810)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses -> end
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:LogTask (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:29)
+HaareClient/<RegisterProcesses>d__2:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:51)
+HaareClient:RegisterProcesses ()
+Haare.Client.Core.Processor/<>c__DisplayClass11_0/<<RegisterEvents>b__0>d:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:76)
+Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__0 (System.Threading.CancellationToken)
+Haare.Client.Routine.MonoRoutine/<Initialize>d__39:MoveNext () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:86)
+Haare.Client.Routine.MonoRoutine:Initialize (System.Threading.CancellationToken)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:<>n__0 (System.Threading.CancellationToken)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1/<Initialize>d__6<Haare.Client.Core.Processor>:MoveNext () (at Assets/Haare/Scripts/Client/Core/Singleton/SingletonMono.cs:46)
+Haare.Client.Core.Singleton.SingletonMonoBehaviour`1<Haare.Client.Core.Processor>:Initialize (System.Threading.CancellationToken)
+Haare.Client.Core.Processor/<Constructor>d__10:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:64)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<Constructor>d__10>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<Cysharp.Threading.Tasks.AsyncUnit>:TrySetResult (Cysharp.Threading.Tasks.AsyncUnit) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:SetResult () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:204)
+Haare.Client.Core.Processor/<RegisterEvents>d__11:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:121)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/DelayPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:810)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Finished Constructor
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:LogTask (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:29)
+Haare.Client.Core.Processor/<Constructor>d__10:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:65)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<Constructor>d__10>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<Cysharp.Threading.Tasks.AsyncUnit>:TrySetResult (Cysharp.Threading.Tasks.AsyncUnit) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:SetResult () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:204)
+Haare.Client.Core.Processor/<RegisterEvents>d__11:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:121)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Core.Processor/<RegisterEvents>d__11>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/DelayPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:810)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+

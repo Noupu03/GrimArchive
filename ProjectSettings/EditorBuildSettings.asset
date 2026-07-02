@@ -9,5 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/ssh.unity
     guid: 11f2514d5bd2315419e815ab55a500c7
   m_configObjects:
+    com.unity.addressableassets: {fileID: 11400000, guid: d13f9cee5211d634797d1c7acae3ba25, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

@@ -1,15 +1,18 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
+using VContainer;
 
 public class InputManager : MonoBehaviour
 {
-	public static InputManager Instance;
 	public Unit selectedUnit;
 
-	void Awake()
+	private UnitGenerate _unitGenerate;
+
+	[Inject]
+	public void Construct(UnitGenerate unitGenerate)
 	{
-		Instance = this;
+		_unitGenerate = unitGenerate;
 	}
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
@@ -28,8 +31,8 @@ public class InputManager : MonoBehaviour
 
 		int currentFloor = 1;
 		Vector3 floorOffset =
-			UnitGenerate.Instance != null
-			? UnitGenerate.Instance.GetFloorOffset(currentFloor)
+			_unitGenerate != null
+			? _unitGenerate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
 		// =====================================================

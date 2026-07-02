@@ -71,7 +71,7 @@ public class Action_EngageEnemy : GoapAction
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
 
-		int engageSteps = GameDataLoader.GetEngageDistance(unit.unitType.typeName, 2);
+		int engageSteps = unit.Generate != null ? unit.Generate.GetEngageDistance(unit.unitType.typeName, 2) : 2;
 
 		Vector2Int diff     = target.position - unit.position;
 		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
@@ -82,7 +82,8 @@ public class Action_EngageEnemy : GoapAction
 		// 사용 가능한 최우선 스킬 탐색
 		SkillAction bestSkill    = null;
 		float       bestPriority = float.MinValue;
-		foreach (SkillAction skill in GameDataLoader.GetSkills(unit.unitType.typeName))
+		var unitSkills = unit.Generate != null ? unit.Generate.GetSkills(unit.unitType.typeName) : new System.Collections.Generic.List<SkillAction>();
+		foreach (SkillAction skill in unitSkills)
 		{
 			if (skill == null || !skill.IsAvailable(unit)) continue;
 			float priority = skill.GetPriority(unit, target, minDist);
@@ -116,6 +117,6 @@ public class Action_EngageEnemy : GoapAction
 
 		// 이동 후 방향 업데이트 (항상 적을 바라봄, 대각 포함 8방향)
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
-		UnitGenerate.Instance?.UpdateUnitSpriteForDirection(unit);
+		unit.Generate?.UpdateUnitSpriteForDirection(unit);
 	}
 }

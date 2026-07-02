@@ -1,10 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
+using VContainer;
 
 public class ThreatTileRenderer : MonoBehaviour
 {
-	public static ThreatTileRenderer Instance;
-
 	private class ThreatVisual
 	{
 		public LineRenderer lineRenderer;
@@ -14,9 +13,12 @@ public class ThreatTileRenderer : MonoBehaviour
 	private Dictionary<Unit, ThreatVisual> activeVisuals
 		= new Dictionary<Unit, ThreatVisual>();
 
-	void Awake()
+	private UnitGenerate _unitGenerate;
+
+	[Inject]
+	public void Construct(UnitGenerate unitGenerate)
 	{
-		Instance = this;
+		_unitGenerate = unitGenerate;
 	}
 
 	LineRenderer CreateLineRenderer(string name)
@@ -77,8 +79,8 @@ public class ThreatTileRenderer : MonoBehaviour
 				continue;
 
 			Vector3 floorOffset =
-				UnitGenerate.Instance != null
-				? UnitGenerate.Instance.GetFloorOffset(u.currentFloor)
+				_unitGenerate != null
+				? _unitGenerate.GetFloorOffset(u.currentFloor)
 				: Vector3.zero;
 
 			ThreatVisual tv;
