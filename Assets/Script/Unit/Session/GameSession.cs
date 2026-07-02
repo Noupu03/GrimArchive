@@ -2,12 +2,15 @@ using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using VContainer;
+using Haare.Client.Routine;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
+// Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
+// MonoRoutine.UpdateProcess()가 Processor.Instance.Onupdate 구독을 통해 매 프레임 호출된다.
+public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
     public static GameSession Instance { get; private set; }
     public CreateMap cmap { get; private set; }
@@ -63,7 +66,9 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
         }
     }
 
-    void Awake()
+    // MonoRoutine.Awake()는 private라 오버라이드 불가 — 대신 InitializeAsync()가 맨 처음
+    // 동기적으로 호출해주는 Constructor()가 예전 Awake() 배선을 대체한다.
+    protected override void Constructor()
     {
         Instance = this;
 
@@ -85,8 +90,11 @@ public class GameSession : MonoBehaviour//게임 세션 관리 및 턴 처리(�
         }
     }
 
-    void Update()
+    // Processor.Instance.Onupdate 구독을 통해 매 프레임 호출됨 (예전 Update()와 동일한 역할)
+    protected override void UpdateProcess()
     {
+        base.UpdateProcess(); // MonoRoutine 자체의 Onupdate Subject도 계속 발행되도록 유지
+
         HandleDebugInput();
 
         bool visualNeedsSync = false;
