@@ -103,7 +103,7 @@ TextureImporter:
       name: AttackZone_0
       rect:
         serializedVersion: 2
-        x: 32
+        x: 0
         y: 0
         width: 32
         height: 32
@@ -125,7 +125,7 @@ TextureImporter:
       name: AttackZone_1
       rect:
         serializedVersion: 2
-        x: 64
+        x: 32
         y: 0
         width: 32
         height: 32
@@ -147,7 +147,7 @@ TextureImporter:
       name: AttackZone_2
       rect:
         serializedVersion: 2
-        x: 96
+        x: 64
         y: 0
         width: 32
         height: 32
@@ -169,7 +169,7 @@ TextureImporter:
       name: AttackZone_3
       rect:
         serializedVersion: 2
-        x: 128
+        x: 96
         y: 0
         width: 32
         height: 32
@@ -191,7 +191,7 @@ TextureImporter:
       name: AttackZone_4
       rect:
         serializedVersion: 2
-        x: 160
+        x: 128
         y: 0
         width: 32
         height: 32
@@ -205,6 +205,28 @@ TextureImporter:
       bones: []
       spriteID: 118ef4bb917c61a4f8016cca0b411761
       internalID: 1489732495
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: AttackZone_5
+      rect:
+        serializedVersion: 2
+        x: 160
+        y: 0
+        width: 32
+        height: 32
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: dc12cc56291a2334097d7524162fd0d7
+      internalID: 138946690
       vertices: []
       indices: 
       edges: []
@@ -230,6 +252,7 @@ TextureImporter:
       AttackZone_2: -1738290974
       AttackZone_3: -1495288957
       AttackZone_4: 1489732495
+      AttackZone_5: 138946690
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
