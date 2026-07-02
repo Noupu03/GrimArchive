@@ -6624,6 +6624,7 @@ GameObject:
   - component: {fileID: 1453061269}
   - component: {fileID: 1453061268}
   - component: {fileID: 1453061270}
+  - component: {fileID: 1453061271}
   m_Layer: 0
   m_Name: UnitSpriteManager
   m_TagString: Untagged
@@ -6675,6 +6676,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e7933b9fb73b22e4f992e718738d8eba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VFXManager
+--- !u!114 &1453061271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1453061267}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77cf0c6cbae868e49835e42bfcae82bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ThreatTileRenderer
 --- !u!1 &1461850855
 GameObject:
   m_ObjectHideFlags: 0
