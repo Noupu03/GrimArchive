@@ -15,6 +15,8 @@ public class GameCompositionRoot : LifetimeScope
         builder.RegisterComponentInHierarchy<UIManager>();
 
         // 기존에 GameSession.Awake()/Start()가 런타임에 동적 생성하던 서비스
+        // ThreatTileRenderer는 이제 Resources.Load로 스프라이트 라이브러리를 가져오므로
+        // 인스펙터 할당이 필요 없어 다시 동적 생성으로 되돌렸다.
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
         builder.RegisterComponentOnNewGameObject<ThreatTileRenderer>(Lifetime.Singleton, "ThreatTileRenderer");
     }
