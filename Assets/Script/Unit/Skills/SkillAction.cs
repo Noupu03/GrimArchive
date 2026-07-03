@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public abstract class SkillAction
 {
@@ -123,7 +124,7 @@ public abstract class SkillAction
 			if (stun) t.ApplyStun(stunDuration);
 
 			// 로깅: 개발용 (필요시 제거)
-			// Debug.Log($"{attacker.unitType.typeName} → {t.unitType.typeName}: 교차비율={overlapRatio:P0}, 데미지={finalDamage:F1}");
+			// LogHelper.Log(LogHelper.GAME, $"{attacker.unitType.typeName} → {t.unitType.typeName}: 교차비율={overlapRatio:P0}, 데미지={finalDamage:F1}");
 		}
 	}
 

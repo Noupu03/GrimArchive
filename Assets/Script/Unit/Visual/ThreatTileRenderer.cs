@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
+using Haare.Util.Logger;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
 #endif
@@ -61,7 +62,7 @@ public class ThreatTileRenderer : MonoBehaviour
 		}
 		else
 		{
-			Debug.LogWarning($"[ThreatTileRenderer] Resources/{AttackZoneLibraryResourcePath}.spriteLib를 찾을 수 없습니다.");
+			LogHelper.Warning(LogHelper.GAME, $"[ThreatTileRenderer] Resources/{AttackZoneLibraryResourcePath}.spriteLib를 찾을 수 없습니다.");
 		}
 #endif
 	}

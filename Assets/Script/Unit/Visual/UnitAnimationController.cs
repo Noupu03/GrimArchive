@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
+using Haare.Util.Logger;
 
 /// <summary>
 /// 유닛 타입 프리팹의 Visual 자식에 붙는 컴포넌트. idle/walk 클립은 인스펙터에서 직접 할당한다.
@@ -43,7 +44,7 @@ public class UnitAnimationController : MonoBehaviour
 
         if (idleClip == null || walkClip == null)
         {
-            Debug.LogWarning($"[UnitAnimationController] '{gameObject.name}'에 idle/walk 클립이 할당되지 않았습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"[UnitAnimationController] '{gameObject.name}'에 idle/walk 클립이 할당되지 않았습니다.");
             return;
         }
 

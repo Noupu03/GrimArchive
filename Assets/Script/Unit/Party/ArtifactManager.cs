@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 
 public class ArtifactManager : MonoBehaviour
 {
@@ -31,7 +32,7 @@ public class ArtifactManager : MonoBehaviour
         }
         art.visual = go;
         artifacts.Add(art);
-        Debug.Log($"유물이 ({pos.x}, {pos.y}) 타일에 생성되었습니다.");
+        LogHelper.Log(LogHelper.GAME, $"유물이 ({pos.x}, {pos.y}) 타일에 생성되었습니다.");
     }
 
     public void PickupArtifact(ArtifactItem art, Unit u)
@@ -40,7 +41,7 @@ public class ArtifactManager : MonoBehaviour
         if (art.visual != null) Destroy(art.visual);
         u.hasArtifact = true;
         u.interactionTimer = 0f;
-        Debug.Log($"{u.unitType.typeName}가 유물을 획득했습니다! (이동속도 저하, 빗나감/막기 저하, 공격 불가)");
+        LogHelper.Log(LogHelper.GAME, $"{u.unitType.typeName}가 유물을 획득했습니다! (이동속도 저하, 빗나감/막기 저하, 공격 불가)");
     }
     */
 }

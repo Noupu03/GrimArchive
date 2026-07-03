@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public class Action_Panic : GoapAction
 {
@@ -13,11 +14,11 @@ public class Action_Panic : GoapAction
 		{
 			Dir randomDir = (Dir)Random.Range(0, 8);
 			unit.Move(randomDir);
-			Debug.Log($"{unit.unitType.typeName}가 공황에 빠져 무작위로 이동합니다.");
+			LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 공황에 빠져 무작위로 이동합니다.");
 		}
 		else
 		{
-			Debug.Log($"{unit.unitType.typeName}가 공황에 빠져 멈춰있습니다.");
+			LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 공황에 빠져 멈춰있습니다.");
 		}
 	}
 }

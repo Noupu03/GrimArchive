@@ -1,6 +1,7 @@
 
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -49,7 +50,7 @@ public class PartyController : MonoBehaviour
             if (u.hp > 0 && u.currentFloor == spotter.currentFloor && u != spotter)
             {
                 u.isWaitState = true;
-                Debug.Log($"[{p.partyName}] {u.unitType.typeName}가 {spotter.unitType.typeName}의 Broadcast를 수신하고 대기 상태 진입.");
+                LogHelper.Log(LogHelper.GAME, $"[{p.partyName}] {u.unitType.typeName}가 {spotter.unitType.typeName}의 Broadcast를 수신하고 대기 상태 진입.");
             }
         }
     }*/

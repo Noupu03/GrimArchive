@@ -1,10 +1,15 @@
+using UnityEngine;
 using VContainer;
 using VContainer.Unity;
+using Haare.Client.UI;
 
 // GameSession.Awake()가 수동으로 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션 루트.
 // ssh.unity에 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
 public class GameCompositionRoot : LifetimeScope
 {
+    // Assets/Editor/HaareUISetup.cs("Tools/GrimArchive/Haare UI 셋업 생성")가 생성한 CoreCanvas 프리팹.
+    [SerializeField] private CoreUIManager _coreUIManagerPrefab;
+
     protected override void Configure(IContainerBuilder builder)
     {
         // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스 (UnitManager, UnitSpriteManager 오브젝트)
@@ -19,5 +24,10 @@ public class GameCompositionRoot : LifetimeScope
         // 인스펙터 할당이 필요 없어 다시 동적 생성으로 되돌렸다.
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
         builder.RegisterComponentOnNewGameObject<ThreatTileRenderer>(Lifetime.Singleton, "ThreatTileRenderer");
+
+        // Haare CoreUIManager: DebugInfoPanel 등 UGUI 패널을 담는 Canvas 루트.
+        builder.RegisterComponentInNewPrefab(_coreUIManagerPrefab, Lifetime.Singleton)
+            .DontDestroyOnLoad()
+            .AsSelf();
     }
 }

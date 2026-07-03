@@ -11,6 +11,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -61,7 +62,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor 0 lobby generated as {lobbyName} ({w}×{h}).");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor 0 lobby generated as {lobbyName} ({w}×{h}).");
     }
 
     // ── ⑧ 층간 계단 배치 ──
@@ -114,7 +115,7 @@ public partial class CreateMap
             PlaceBossRoomStair(ref floor, targetFloor);
         }
 
-        Debug.Log("CreateMap: Stairs placed on all floors (sequential structure).");
+        LogHelper.Log(LogHelper.GAME, "CreateMap: Stairs placed on all floors (sequential structure).");
     }
 
     // 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭을 확장
@@ -198,7 +199,7 @@ public partial class CreateMap
 
         if (bossChunks.Count == 0)
         {
-            Debug.LogWarning($"CreateMap: Floor {(int)floor.config.floorId} — 보스방을 찾을 수 없어 다음 층 계단 배치 실패.");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — 보스방을 찾을 수 없어 다음 층 계단 배치 실패.");
             return;
         }
 
@@ -272,7 +273,7 @@ public partial class CreateMap
         c.stairIsOpen = false;
         floor.chunks[bestX, bestY] = c;
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} boss room stair → F{targetFloor} at [{bestX},{bestY}] (entrance opposite).");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} boss room stair → F{targetFloor} at [{bestX},{bestY}] (entrance opposite).");
     }
 
     void PlaceStairTiles(ref Floor floor, int cx, int cy, int targetFloor)
@@ -384,7 +385,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} occupation/danger initialized.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} occupation/danger initialized.");
     }
 
     // ── ⑩ 가중치 + 가시성 + 지형 초기화 ──
@@ -442,7 +443,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} weight/visibility/landform initialized.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} weight/visibility/landform initialized.");
     }
 
     // ── ⑪-b allowMaxFootprint 할당 ──
@@ -479,7 +480,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {fId} allowMaxFootprint assigned.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {fId} allowMaxFootprint assigned.");
     }
 
     int GetNormalFootprint(int floorId)

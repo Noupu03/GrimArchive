@@ -8,6 +8,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -78,7 +79,7 @@ public partial class CreateMap
         var shapes = ParseBossFormat(fmt);
         if (shapes == null || shapes.Count == 0)
         {
-            Debug.LogWarning($"CreateMap: 알 수 없는 bossRoomFormat '{fmt}'");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: 알 수 없는 bossRoomFormat '{fmt}'");
             return;
         }
 
@@ -162,13 +163,13 @@ public partial class CreateMap
                 }
 
                 placed = true;
-                Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} BossRoom '{fmt}' placed as {name} at base[{baseX},{baseY}] ({shape.Length} chunks)");
+                LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} BossRoom '{fmt}' placed as {name} at base[{baseX},{baseY}] ({shape.Length} chunks)");
                 break;
             }
         }
 
         if (!placed)
-            Debug.LogWarning($"CreateMap: Floor {(int)floor.config.floorId} BossRoom '{fmt}' 배치 실패");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} BossRoom '{fmt}' 배치 실패");
     }
 
     // bossRoomFormat 문자열 → 청크 오프셋 목록
@@ -300,7 +301,7 @@ public partial class CreateMap
         // 3단계: 남은 빈 칸 1×1
         FillRemainingWithSingle(ref floor, 0, 0, width, height, occupied);
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} rooms placed (maxChunks={maxChunks}).");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} rooms placed (maxChunks={maxChunks}).");
     }
 
     // ③.2 rw×rh 사각형 방을 랜덤 위치에 겹치지 않게 여러 개 배치
@@ -567,6 +568,6 @@ public partial class CreateMap
         c.roomRole = RoomRole.StartRoom;
         floor.chunks[sx, sy] = c;
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} start room assigned as {name} at [{sx},{sy}].");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} start room assigned as {name} at [{sx},{sy}].");
     }
 }

@@ -1,0 +1,264 @@
+using System.IO;
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using TMPro;
+using Haare.Client.UI;
+
+// Haare CoreUIManager용 Canvas 프리팹과 DebugInfoPanel 프리팹을 코드로 생성하고,
+// Addressable 등록 + ssh.unity의 CompositionRoot 배선까지 한 번에 처리하는 1회성 에디터 도구.
+// JsonToUnitPrefabConverter.cs와 동일하게 몇 번을 다시 실행해도 안전하다(항상 같은 경로에 덮어씀).
+public static class HaareUISetup
+{
+    private const string OutputFolder = "Assets/Prefabs/UI";
+    private const string CoreCanvasAddress = "Prefabs/CoreCanvas";
+    private const string DebugPanelAddress = "Prefabs/DebugInfoPanel";
+    private const string ScenePath = "Assets/Scenes/ssh.unity";
+
+    [MenuItem("Tools/GrimArchive/Haare UI 셋업 생성")]
+    public static void SetupHaareUI()
+    {
+        if (!Directory.Exists(OutputFolder))
+            Directory.CreateDirectory(OutputFolder);
+
+        GameObject canvasPrefab = CreateCoreCanvasPrefab();
+        GameObject panelPrefab = CreateDebugInfoPanelPrefab();
+
+        RegisterAddressable(canvasPrefab, CoreCanvasAddress);
+        RegisterAddressable(panelPrefab, DebugPanelAddress);
+
+        WireCompositionRoot(canvasPrefab);
+
+        Debug.Log("[HaareUISetup] 완료: CoreCanvas / DebugInfoPanel 프리팹 생성, Addressable 등록, CompositionRoot 배선까지 마쳤습니다.");
+    }
+
+    private static GameObject CreateCoreCanvasPrefab()
+    {
+        var root = new GameObject("CoreCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+
+        var canvas = root.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+        var scaler = root.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+
+        var safeArea = new GameObject("SafeArea", typeof(RectTransform));
+        safeArea.transform.SetParent(root.transform, false);
+        var safeRt = safeArea.GetComponent<RectTransform>();
+        safeRt.anchorMin = Vector2.zero;
+        safeRt.anchorMax = Vector2.one;
+        safeRt.offsetMin = Vector2.zero;
+        safeRt.offsetMax = Vector2.zero;
+
+        var coreUIManager = root.AddComponent<CoreUIManager>();
+        var so = new SerializedObject(coreUIManager);
+        so.FindProperty("safePannelRect").objectReferenceValue = safeRt;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        string path = OutputFolder + "/CoreCanvas.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static GameObject CreateDebugInfoPanelPrefab()
+    {
+        var tmpResources = GetTMPResources();
+        var uiResources = GetUIResources();
+
+        var root = new GameObject("DebugInfoPanel", typeof(RectTransform));
+        var rootRt = root.GetComponent<RectTransform>();
+        rootRt.anchorMin = Vector2.zero;
+        rootRt.anchorMax = Vector2.one;
+        rootRt.offsetMin = Vector2.zero;
+        rootRt.offsetMax = Vector2.zero;
+
+        // 좌하단 선택 유닛 정보 박스
+        var infoBox = new GameObject("InfoBox", typeof(RectTransform), typeof(Image));
+        infoBox.transform.SetParent(root.transform, false);
+        var infoBoxRt = infoBox.GetComponent<RectTransform>();
+        infoBoxRt.anchorMin = new Vector2(0, 0);
+        infoBoxRt.anchorMax = new Vector2(0, 0);
+        infoBoxRt.pivot = new Vector2(0, 0);
+        infoBoxRt.anchoredPosition = new Vector2(10, 10);
+        infoBoxRt.sizeDelta = new Vector2(240, 440);
+        infoBox.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+        infoBox.AddComponent<CustomImage>();
+
+        GameObject infoTextGo = TMP_DefaultControls.CreateText(tmpResources);
+        infoTextGo.name = "InfoText";
+        infoTextGo.transform.SetParent(infoBox.transform, false);
+        var infoTextRt = infoTextGo.GetComponent<RectTransform>();
+        infoTextRt.anchorMin = Vector2.zero;
+        infoTextRt.anchorMax = Vector2.one;
+        infoTextRt.offsetMin = new Vector2(8, 8);
+        infoTextRt.offsetMax = new Vector2(-8, -8);
+        var infoTmp = infoTextGo.GetComponent<TextMeshProUGUI>();
+        infoTmp.fontSize = 18;
+        infoTmp.color = Color.white;
+        infoTmp.alignment = TextAlignmentOptions.TopLeft;
+        infoTmp.text = "";
+        var infoCustomText = infoTextGo.AddComponent<CustomText>();
+
+        // 줌 인/아웃 버튼 (우상단)
+        GameObject zoomInGo = CreateCustomButton(tmpResources, "ZoomInButton", "Zoom In");
+        zoomInGo.transform.SetParent(root.transform, false);
+        var zoomInRt = zoomInGo.GetComponent<RectTransform>();
+        zoomInRt.anchorMin = new Vector2(1, 1);
+        zoomInRt.anchorMax = new Vector2(1, 1);
+        zoomInRt.pivot = new Vector2(1, 1);
+        zoomInRt.anchoredPosition = new Vector2(-10, -10);
+        zoomInRt.sizeDelta = new Vector2(90, 30);
+
+        GameObject zoomOutGo = CreateCustomButton(tmpResources, "ZoomOutButton", "Zoom Out");
+        zoomOutGo.transform.SetParent(root.transform, false);
+        var zoomOutRt = zoomOutGo.GetComponent<RectTransform>();
+        zoomOutRt.anchorMin = new Vector2(1, 1);
+        zoomOutRt.anchorMax = new Vector2(1, 1);
+        zoomOutRt.pivot = new Vector2(1, 1);
+        zoomOutRt.anchoredPosition = new Vector2(-10, -50);
+        zoomOutRt.sizeDelta = new Vector2(90, 30);
+
+        // 게임 속도 슬라이더 (상단 중앙)
+        GameObject sliderGo = DefaultControls.CreateSlider(uiResources);
+        sliderGo.name = "GameSpeedSlider";
+        sliderGo.transform.SetParent(root.transform, false);
+        var sliderRt = sliderGo.GetComponent<RectTransform>();
+        sliderRt.anchorMin = new Vector2(0.5f, 1);
+        sliderRt.anchorMax = new Vector2(0.5f, 1);
+        sliderRt.pivot = new Vector2(0.5f, 1);
+        sliderRt.anchoredPosition = new Vector2(0, -10);
+        sliderRt.sizeDelta = new Vector2(200, 20);
+        var customSlider = sliderGo.AddComponent<CustomSlider>();
+
+        var debugPanel = root.AddComponent<DebugInfoPanel>();
+        var so = new SerializedObject(debugPanel);
+        so.FindProperty("selectedUnitInfoText").objectReferenceValue = infoCustomText;
+        so.FindProperty("zoomInButton").objectReferenceValue = zoomInGo.GetComponent<CustomButton>();
+        so.FindProperty("zoomOutButton").objectReferenceValue = zoomOutGo.GetComponent<CustomButton>();
+        so.FindProperty("gameSpeedSlider").objectReferenceValue = customSlider;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        string path = OutputFolder + "/DebugInfoPanel.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static GameObject CreateCustomButton(TMP_DefaultControls.Resources tmpResources, string name, string label)
+    {
+        GameObject go = TMP_DefaultControls.CreateButton(tmpResources);
+        go.name = name;
+        Object.DestroyImmediate(go.GetComponent<Button>());
+        go.AddComponent<CustomImage>();
+        go.AddComponent<CustomButton>();
+
+        var textGo = go.transform.Find("Text (TMP)").gameObject;
+        textGo.GetComponent<TextMeshProUGUI>().text = label;
+        textGo.AddComponent<CustomText>();
+
+        return go;
+    }
+
+    private static void RegisterAddressable(GameObject prefab, string address)
+    {
+        string assetPath = AssetDatabase.GetAssetPath(prefab);
+        string guid = AssetDatabase.AssetPathToGUID(assetPath);
+
+        var settings = AddressableAssetSettingsDefaultObject.Settings;
+        if (settings == null)
+        {
+            Debug.LogError("[HaareUISetup] AddressableAssetSettings를 찾을 수 없습니다. Addressables 초기 설정을 먼저 확인하세요.");
+            return;
+        }
+
+        var group = settings.FindGroup("Default Local Group") ?? settings.DefaultGroup;
+        var entry = settings.CreateOrMoveEntry(guid, group);
+        entry.address = address;
+
+        EditorUtility.SetDirty(settings);
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void WireCompositionRoot(GameObject canvasPrefab)
+    {
+        Scene scene;
+        bool closeAfter = false;
+
+        var active = EditorSceneManager.GetActiveScene();
+        if (active.path == ScenePath)
+        {
+            scene = active;
+        }
+        else
+        {
+            scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+            closeAfter = true;
+        }
+
+        GameObject compositionRootGo = null;
+        foreach (var rootGo in scene.GetRootGameObjects())
+        {
+            if (rootGo.name == "CompositionRoot")
+            {
+                compositionRootGo = rootGo;
+                break;
+            }
+        }
+
+        if (compositionRootGo == null)
+        {
+            Debug.LogError($"[HaareUISetup] {ScenePath}에서 'CompositionRoot' GameObject를 찾을 수 없습니다.");
+            if (closeAfter) EditorSceneManager.CloseScene(scene, true);
+            return;
+        }
+
+        var compRoot = compositionRootGo.GetComponent<GameCompositionRoot>();
+        var coreUIManagerComponent = canvasPrefab.GetComponent<CoreUIManager>();
+
+        var so = new SerializedObject(compRoot);
+        so.FindProperty("_coreUIManagerPrefab").objectReferenceValue = coreUIManagerComponent;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        if (closeAfter)
+            EditorSceneManager.CloseScene(scene, true);
+    }
+
+    private static Sprite GetBuiltinSprite(string path) => AssetDatabase.GetBuiltinExtraResource<Sprite>(path);
+
+    private static TMP_DefaultControls.Resources GetTMPResources()
+    {
+        return new TMP_DefaultControls.Resources
+        {
+            standard = GetBuiltinSprite("UI/Skin/UISprite.psd"),
+            background = GetBuiltinSprite("UI/Skin/Background.psd"),
+            inputField = GetBuiltinSprite("UI/Skin/InputFieldBackground.psd"),
+            knob = GetBuiltinSprite("UI/Skin/Knob.psd"),
+            checkmark = GetBuiltinSprite("UI/Skin/Checkmark.psd"),
+            dropdown = GetBuiltinSprite("UI/Skin/DropdownArrow.psd"),
+            mask = GetBuiltinSprite("UI/Skin/UIMask.psd"),
+        };
+    }
+
+    private static DefaultControls.Resources GetUIResources()
+    {
+        return new DefaultControls.Resources
+        {
+            standard = GetBuiltinSprite("UI/Skin/UISprite.psd"),
+            background = GetBuiltinSprite("UI/Skin/Background.psd"),
+            inputField = GetBuiltinSprite("UI/Skin/InputFieldBackground.psd"),
+            knob = GetBuiltinSprite("UI/Skin/Knob.psd"),
+            checkmark = GetBuiltinSprite("UI/Skin/Checkmark.psd"),
+            dropdown = GetBuiltinSprite("UI/Skin/DropdownArrow.psd"),
+            mask = GetBuiltinSprite("UI/Skin/UIMask.psd"),
+        };
+    }
+}

@@ -8,6 +8,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -42,7 +43,7 @@ public partial class CreateMap
 
         if (roomIds.Count == 0)
         {
-            Debug.LogWarning($"CreateMap: Floor {(int)floor.config.floorId} — 할당할 방이 없습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — 할당할 방이 없습니다.");
             return;
         }
 
@@ -113,7 +114,7 @@ public partial class CreateMap
 
         string bossInfo = hasBossAlready ? "pre-placed" : bossRoomId.ToString();
         int excessCount = sortedByDist.Count - normalAssigned;
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} roles assigned — Boss:{bossInfo}, Sub:{subCount}, Normal:{normalAssigned}, Excess(pruned):{excessCount}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} roles assigned — Boss:{bossInfo}, Sub:{subCount}, Normal:{normalAssigned}, Excess(pruned):{excessCount}");
     }
 
     // ── ⑪ 초과 방 제거: RoomRole.None인 방을 빈 청크로 변환 ──
@@ -304,7 +305,7 @@ public partial class CreateMap
         PruneRoomSet(ref floor, pruneCandidate, w, h);
 
         if (bridgeIds.Count > 0)
-            Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} — {bridgeIds.Count} bridge room(s) preserved for connectivity.");
+            LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — {bridgeIds.Count} bridge room(s) preserved for connectivity.");
     }
 
     void PruneRoomSet(ref Floor floor, HashSet<int> roomIds, int w, int h)
@@ -336,7 +337,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} pruned {roomIds.Count} excess rooms ({prunedChunks} chunks).");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} pruned {roomIds.Count} excess rooms ({prunedChunks} chunks).");
     }
 
     // ── v2: 서브 목적방 고정 개수 보장(부착 생성) ──
@@ -578,12 +579,12 @@ public partial class CreateMap
 
         if (created < need)
         {
-            Debug.LogWarning(
+            LogHelper.Warning(LogHelper.GAME, 
                 $"CreateMap: Floor {(int)floor.config.floorId} — 서브 목적방 목표 개수를 모두 채우지 못했습니다. " +
                 $"Created={created}, Need={need}, Target={target}");
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} ensured SubPurposeRooms. Created={created}, Target={target}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} ensured SubPurposeRooms. Created={created}, Target={target}");
     }
 
     bool HasNonSubNeighbor(ref Floor floor, int cx, int cy, int w, int h, int[] ddx, int[] ddy)

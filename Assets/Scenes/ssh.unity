@@ -131815,6 +131815,7 @@ MonoBehaviour:
     TypeName: 
   autoRun: 1
   autoInjectGameObjects: []
+  _coreUIManagerPrefab: {fileID: 5257347106269613972, guid: ad229368ef62a624fa8b357f8f640f1b, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

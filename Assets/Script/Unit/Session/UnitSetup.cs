@@ -1,4 +1,5 @@
 using UnityEngine;
+using Haare.Util.Logger;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -17,11 +18,11 @@ public class UnitSetup : MonoBehaviour
             managerObj.AddComponent<InputManager>();
             managerObj.AddComponent<PartyController>();
             managerObj.AddComponent<ArtifactManager>();
-            Debug.Log("Unit Environment Setup Complete: UnitManager created.");
+            LogHelper.Log(LogHelper.GAME, "Unit Environment Setup Complete: UnitManager created.");
         }
         else
         {
-            Debug.Log("Unit Environment is already set up!");
+            LogHelper.Log(LogHelper.GAME, "Unit Environment is already set up!");
         }
 
         // UnitSpriteManager 설정
@@ -29,7 +30,7 @@ public class UnitSetup : MonoBehaviour
         {
             GameObject spriteManagerObj = new GameObject("UnitSpriteManager");
             spriteManagerObj.AddComponent<UnitSpriteManager>();
-            Debug.Log("Unit Sprite Manager Setup Complete.");
+            LogHelper.Log(LogHelper.GAME, "Unit Sprite Manager Setup Complete.");
         }
     }
 
@@ -40,11 +41,11 @@ public class UnitSetup : MonoBehaviour
         {
             GameObject managerObj = new GameObject("UIManager");
             managerObj.AddComponent<UIManager>();
-            Debug.Log("UI Environment Setup Complete: UIManager created.");
+            LogHelper.Log(LogHelper.GAME, "UI Environment Setup Complete: UIManager created.");
         }
         else
         {
-            Debug.Log("UI Environment is already set up!");
+            LogHelper.Log(LogHelper.GAME, "UI Environment is already set up!");
         }
     }
 
@@ -54,15 +55,15 @@ public class UnitSetup : MonoBehaviour
         if (Camera.main != null && Camera.main.gameObject.GetComponent<CameraController>() == null)
         {
             Camera.main.gameObject.AddComponent<CameraController>();
-            Debug.Log("Camera Controller Setup Complete: Added to Main Camera.");
+            LogHelper.Log(LogHelper.GAME, "Camera Controller Setup Complete: Added to Main Camera.");
         }
         else if (Camera.main == null)
         {
-            Debug.LogWarning("Main Camera not found. Please tag a camera as MainCamera.");
+            LogHelper.Warning(LogHelper.GAME, "Main Camera not found. Please tag a camera as MainCamera.");
         }
         else
         {
-            Debug.Log("Camera Controller is already set up!");
+            LogHelper.Log(LogHelper.GAME, "Camera Controller is already set up!");
         }
     }
 #endif
@@ -78,27 +79,27 @@ public class UnitSetup : MonoBehaviour
             managerObj.AddComponent<InputManager>();
             managerObj.AddComponent<PartyController>();
             managerObj.AddComponent<ArtifactManager>();
-            Debug.Log("Unit Environment Setup Complete: UnitManager created.");
+            LogHelper.Log(LogHelper.GAME, "Unit Environment Setup Complete: UnitManager created.");
         }
 
         if (FindObjectOfType<UIManager>() == null)
         {
             GameObject uiObj = new GameObject("UIManager");
             uiObj.AddComponent<UIManager>();
-            Debug.Log("UI Environment Setup Complete.");
+            LogHelper.Log(LogHelper.GAME, "UI Environment Setup Complete.");
         }
 
         if (Camera.main != null && Camera.main.gameObject.GetComponent<CameraController>() == null)
         {
             Camera.main.gameObject.AddComponent<CameraController>();
-            Debug.Log("Camera Controller Setup Complete.");
+            LogHelper.Log(LogHelper.GAME, "Camera Controller Setup Complete.");
         }
 
         if (FindObjectOfType<UnitSpriteManager>() == null)
         {
             GameObject spriteManagerObj = new GameObject("UnitSpriteManager");
             spriteManagerObj.AddComponent<UnitSpriteManager>();
-            Debug.Log("Unit Sprite Manager Setup Complete.");
+            LogHelper.Log(LogHelper.GAME, "Unit Sprite Manager Setup Complete.");
         }
     }
 }

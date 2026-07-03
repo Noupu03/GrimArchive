@@ -1,6 +1,7 @@
 
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 
 public enum PartyGoal { Sweep, Recovery, Exploration }
 
@@ -22,7 +23,7 @@ public class Party
         {
             leader = null;
             leaderlessShockTimer = 10f;
-            Debug.Log($"[{partyName}] 지휘관(리더) 사망! Leaderless Shock 적용 (10초)");
+            LogHelper.Log(LogHelper.GAME, $"[{partyName}] 지휘관(리더) 사망! Leaderless Shock 적용 (10초)");
         }
         else if (leader == null && leaderlessShockTimer <= 0f)
         {

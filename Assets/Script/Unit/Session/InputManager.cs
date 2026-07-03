@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
 using VContainer;
+using Haare.Util.Logger;
 
 public class InputManager : MonoBehaviour
 {
@@ -77,7 +78,7 @@ public class InputManager : MonoBehaviour
 			if (clickedUnit != null)
 			{
 				selectedUnit = clickedUnit;
-				Debug.Log($"선택: {clickedUnit.unitType.typeName}");
+				LogHelper.Log(LogHelper.GAME, $"선택: {clickedUnit.unitType.typeName}");
 				return;
 			}
 
@@ -102,7 +103,7 @@ public class InputManager : MonoBehaviour
 							selectedUnit.playerAttackTarget = u;
 							selectedUnit.playerMoveTarget = null;
 
-							Debug.Log(
+							LogHelper.Log(LogHelper.GAME, 
 								$"공격 명령: {selectedUnit.unitType.typeName} -> {u.unitType.typeName}"
 							);
 							return;
@@ -141,7 +142,7 @@ public class InputManager : MonoBehaviour
 			selectedUnit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
 			selectedUnit.playerAttackTarget = null;
 
-			Debug.Log(
+			LogHelper.Log(LogHelper.GAME, 
 				$"이동 명령: {selectedUnit.unitType.typeName} -> ({gridPos.x}, {gridPos.y})"
 			);
 		}

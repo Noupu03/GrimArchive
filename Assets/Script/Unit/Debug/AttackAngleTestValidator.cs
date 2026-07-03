@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 
 /// <summary>
 /// 공격 시 자유로운 각도 회전 로직을 검증하는 스크립트
@@ -31,12 +32,12 @@ public class AttackAngleTestValidator : MonoBehaviour
             // 1. 현재 공격 상태 및 각도 로깅
             if (unit.isCastingAttack)
             {
-                Debug.Log($"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
+                LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
 
                 // 2. currentThreat가 정상적으로 설정되었는지 확인
                 if (unit.currentThreat != null)
                 {
-                    Debug.Log($"[Attack Test] {unit.unitType.typeName}: 위협 타일 생성됨, 히트박스 크기 = {unit.currentThreat.hitbox.size}");
+                    LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 위협 타일 생성됨, 히트박스 크기 = {unit.currentThreat.hitbox.size}");
                 }
             }
 
@@ -62,7 +63,7 @@ public class AttackAngleTestValidator : MonoBehaviour
                     float angleDiff = Mathf.Abs(unit.currentAttackAngle - expectedAngle);
                     if (angleDiff > Mathf.PI) angleDiff = 2 * Mathf.PI - angleDiff;
 
-                    Debug.Log($"[Attack Test] {unit.unitType.typeName} → {enemy.unitType.typeName}: " +
+                    LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName} → {enemy.unitType.typeName}: " +
                         $"거리={distance:F2}, 공격각도={unit.currentAttackAngle * Mathf.Rad2Deg:F1}°, " +
                         $"예상각도={expectedAngle * Mathf.Rad2Deg:F1}°, 각도차이={angleDiff * Mathf.Rad2Deg:F1}°");
                 }
@@ -92,11 +93,11 @@ public class AttackAngleTestValidator : MonoBehaviour
         // 정상적으로 8방향 지원
         if (validDirectionCount == 8)
         {
-            // Debug.Log("[Movement Test] 정상: 이동은 8방향만 지원됩니다.");
+            // LogHelper.Log(LogHelper.GAME, "[Movement Test] 정상: 이동은 8방향만 지원됩니다.");
         }
         else
         {
-            Debug.LogWarning($"[Movement Test] 경고: {validDirectionCount}개 방향만 지원됩니다.");
+            LogHelper.Warning(LogHelper.GAME, $"[Movement Test] 경고: {validDirectionCount}개 방향만 지원됩니다.");
         }
     }
 
@@ -115,7 +116,7 @@ public class AttackAngleTestValidator : MonoBehaviour
 
             if (threats.Count > 0)
             {
-                Debug.Log($"[Recognition Test] {attacker.unitType.typeName}: {threats.Count}개의 위협 감지됨");
+                LogHelper.Log(LogHelper.GAME, $"[Recognition Test] {attacker.unitType.typeName}: {threats.Count}개의 위협 감지됨");
 
                 // 실제 히트박스 충돌 확인
                 foreach (var enemy in GameSession.Instance.units)
@@ -132,7 +133,7 @@ public class AttackAngleTestValidator : MonoBehaviour
 
                     if (distance <= attackRange)
                     {
-                        Debug.Log($"[Recognition Test] {attacker.unitType.typeName} → {enemy.unitType.typeName}: " +
+                        LogHelper.Log(LogHelper.GAME, $"[Recognition Test] {attacker.unitType.typeName} → {enemy.unitType.typeName}: " +
                             $"사거리({attackRange}) 내에 위치, 거리={distance:F2}");
                     }
                 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using VContainer;
 using Haare.Client.Routine;
+using Haare.Util.Logger;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -264,7 +265,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
 
         units.Add(monster);
         if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);
-        Debug.Log($"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
+        LogHelper.Log(LogHelper.GAME, $"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
     }
 
     private void UpdateFactionTextures()

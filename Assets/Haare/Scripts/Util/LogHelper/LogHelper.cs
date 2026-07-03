@@ -95,7 +95,8 @@ namespace Haare.Util.Logger
         public static string FRAMEWORK = $"<b><color=lightgreen>[HAARE]</color></b>";     
         public static string SERVICE   = $"<b><color=#6495ED>[SERVICE]</color></b>";  
         
-        public static string ASSETLOADER = $"<b><color=orange>[ASSETLOADER]</color></b>"; 
-        public static string DATAMANAGER = $"<b><color=silver>[DATAMANAGER]</color></b>"; 
+        public static string ASSETLOADER = $"<b><color=orange>[ASSETLOADER]</color></b>";
+        public static string DATAMANAGER = $"<b><color=silver>[DATAMANAGER]</color></b>";
+        public static string GAME        = $"<b><color=#40C4FF>[GAME]</color></b>";
     }
 }

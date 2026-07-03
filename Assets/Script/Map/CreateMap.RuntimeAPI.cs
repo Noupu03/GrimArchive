@@ -11,6 +11,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -38,27 +39,27 @@ public partial class CreateMap
             for (int f = 0; f < map.floors.Length; f++)
                 floorConfigs[f] = map.floors[f].config;
         }
-        Debug.Log($"CreateMap: 맵 역직렬화 완료. Floors: {(map.floors != null ? map.floors.Length : 0)}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: 맵 역직렬화 완료. Floors: {(map.floors != null ? map.floors.Length : 0)}");
     }
 
     public void SaveMapToFile(string filePath)
     {
         string json = SerializeMap();
         System.IO.File.WriteAllText(filePath, json, System.Text.Encoding.UTF8);
-        Debug.Log($"CreateMap: 맵 저장 완료 → {filePath} ({json.Length} bytes)");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: 맵 저장 완료 → {filePath} ({json.Length} bytes)");
     }
 
     public void LoadMapFromFile(string filePath)
     {
         if (!System.IO.File.Exists(filePath))
         {
-            Debug.LogError($"CreateMap: 파일을 찾을 수 없습니다 — {filePath}");
+            LogHelper.Error(LogHelper.GAME, $"CreateMap: 파일을 찾을 수 없습니다 — {filePath}");
             return;
         }
 
         string json = System.IO.File.ReadAllText(filePath, System.Text.Encoding.UTF8);
         DeserializeMap(json);
-        Debug.Log($"CreateMap: 맵 로드 완료 ← {filePath}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: 맵 로드 완료 ← {filePath}");
     }
 
     // ── 런타임: 점령/후퇴 API ──
@@ -70,7 +71,7 @@ public partial class CreateMap
 
         SetChunksOccupation(ref floor, roomId, OccupationState.PlayerControlled);
 
-        Debug.Log($"CreateMap: F{floorIndex} roomId={roomId} 점령 완료.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} 점령 완료.");
     }
 
     public void RetreatFromRoom(int floorIndex, int roomId)
@@ -84,7 +85,7 @@ public partial class CreateMap
             for (int y = 0; y < h; y++)
                 if (floor.chunks[x, y].roomId == roomId && floor.chunks[x, y].roomRole == RoomRole.StartRoom)
                 {
-                    Debug.LogWarning($"CreateMap: F{floorIndex} roomId={roomId} — 시작방은 후퇴할 수 없습니다.");
+                    LogHelper.Warning(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} — 시작방은 후퇴할 수 없습니다.");
                     return;
                 }
 
@@ -98,13 +99,13 @@ public partial class CreateMap
 
         if (!isControlled)
         {
-            Debug.LogWarning($"CreateMap: F{floorIndex} roomId={roomId} — 점령/전초기지 상태가 아니므로 후퇴할 수 없습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} — 점령/전초기지 상태가 아니므로 후퇴할 수 없습니다.");
             return;
         }
 
         SetChunksOccupation(ref floor, roomId, OccupationState.Neutral);
 
-        Debug.Log($"CreateMap: F{floorIndex} roomId={roomId} 후퇴 완료.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} 후퇴 완료.");
     }
 
     void SetChunksOccupation(ref Floor floor, int roomId, OccupationState state)
@@ -151,12 +152,12 @@ public partial class CreateMap
 
         if (!isControlled)
         {
-            Debug.LogWarning($"CreateMap: F{floorIndex} roomId={roomId} — PlayerControlled 상태가 아니므로 전초기지를 건설할 수 없습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} — PlayerControlled 상태가 아니므로 전초기지를 건설할 수 없습니다.");
             return;
         }
 
         SetChunksOccupation(ref floor, roomId, OccupationState.Outpost);
-        Debug.Log($"CreateMap: F{floorIndex} roomId={roomId} 전초기지 건설 완료.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} 전초기지 건설 완료.");
     }
 
     public void DemolishOutpost(int floorIndex, int roomId)
@@ -176,7 +177,7 @@ public partial class CreateMap
         if (!isOutpost) return;
 
         SetChunksOccupation(ref floor, roomId, OccupationState.PlayerControlled);
-        Debug.Log($"CreateMap: F{floorIndex} roomId={roomId} 전초기지 해제 → PlayerControlled.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} 전초기지 해제 → PlayerControlled.");
     }
 
     public void OpenStair(int floorIndex, int targetFloor)
@@ -195,7 +196,7 @@ public partial class CreateMap
                     floor.chunks[x, y] = c;
                 }
 
-        Debug.Log($"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
     }
 
     // ── Footprint 기반 통행 판정 API ──
@@ -461,7 +462,7 @@ public partial class CreateMap
                     g.width = actualWidth;
                     floor.gates[i] = g;
 
-                    Debug.Log($"CreateMap: F{floorIndex} Gate(room{roomA}↔room{roomB}) 폭 재계산: {actualWidth}");
+                    LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} Gate(room{roomA}↔room{roomB}) 폭 재계산: {actualWidth}");
                     return actualWidth;
                 }
 

@@ -9,6 +9,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -53,7 +54,7 @@ public partial class CreateMap
         // 외곽 벽 두께 적용
         ApplyOuterWallThickness(ref floor);
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} tile names assigned.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} tile names assigned.");
     }
 
     // ③.9b 외곽 경계 + 빈 청크 인접 경계에 벽 두께 적용
@@ -206,7 +207,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} internal walls removed.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} internal walls removed.");
     }
 
     int GetRoomId(ref Floor floor, int cx, int cy)

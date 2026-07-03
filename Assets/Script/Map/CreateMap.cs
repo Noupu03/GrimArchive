@@ -9,6 +9,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap : MonoBehaviour
 {
@@ -126,26 +127,26 @@ public partial class CreateMap : MonoBehaviour
                 if (errors.Count == 0)
                 {
                     lastValidationPassed = true;
-                    Debug.Log($"CreateMap: All floors generated. 검증 통과 (시도 {attempt + 1}회).");
+                    LogHelper.Log(LogHelper.GAME, $"CreateMap: All floors generated. 검증 통과 (시도 {attempt + 1}회).");
                     return;
                 }
 
                 // 검증 실패 → 재시도
-                Debug.LogWarning($"CreateMap: 검증 실패 (시도 {attempt + 1}/{maxRetryCount + 1}). 오류 {errors.Count}건:");
+                LogHelper.Warning(LogHelper.GAME, $"CreateMap: 검증 실패 (시도 {attempt + 1}/{maxRetryCount + 1}). 오류 {errors.Count}건:");
                 foreach (string err in errors)
-                    Debug.LogWarning($"  ● {err}");
+                    LogHelper.Warning(LogHelper.GAME, $"  ● {err}");
             }
             catch (System.Exception ex)
             {
                 // 예상치 못한 예외 발생 시 재시도로 복구
-                Debug.LogWarning($"CreateMap: 시도 {attempt + 1}에서 예외 발생, 재시도합니다. {ex.GetType().Name}: {ex.Message}");
+                LogHelper.Warning(LogHelper.GAME, $"CreateMap: 시도 {attempt + 1}에서 예외 발생, 재시도합니다. {ex.GetType().Name}: {ex.Message}");
                 lastValidationErrors = new List<string> { $"Exception: {ex.Message}" };
             }
         }
 
         // 최대 재시도 초과: 마지막 결과 유지
         lastValidationPassed = false;
-        Debug.LogError($"CreateMap: {maxRetryCount + 1}회 시도 후에도 검증 실패. 오류 {lastValidationErrors.Count}건 남음.");
+        LogHelper.Error(LogHelper.GAME, $"CreateMap: {maxRetryCount + 1}회 시도 후에도 검증 실패. 오류 {lastValidationErrors.Count}건 남음.");
     }
 
     // ① Floor별 독립 Chunks 배열 초기화
@@ -187,7 +188,7 @@ public partial class CreateMap : MonoBehaviour
             map.floors[f] = floor;
         }
 
-        Debug.Log($"CreateMap: Floors initialized — F0({floorConfigs[0].width}×{floorConfigs[0].height}), " +
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floors initialized — F0({floorConfigs[0].width}×{floorConfigs[0].height}), " +
                   $"F1({floorConfigs[1].width}×{floorConfigs[1].height}), " +
                   $"F2({floorConfigs[2].width}×{floorConfigs[2].height}), " +
                   $"F3({floorConfigs[3].width}×{floorConfigs[3].height})");

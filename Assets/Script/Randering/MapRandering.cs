@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using Haare.Util.Logger;
 
 public class MapRandering : MonoBehaviour
 {
@@ -55,13 +56,13 @@ public class MapRandering : MonoBehaviour
     {
         if (createMap == null)
         {
-            Debug.LogError("MapRandering: createMap이 연결되지 않았습니다.");
+            LogHelper.Error(LogHelper.GAME, "MapRandering: createMap이 연결되지 않았습니다.");
             return;
         }
 
         if (createMap.map.floors == null || createMap.map.floors.Length == 0)
         {
-            Debug.LogError("MapRandering: map.floors가 null이거나 비어 있습니다.");
+            LogHelper.Error(LogHelper.GAME, "MapRandering: map.floors가 null이거나 비어 있습니다.");
             return;
         }
 
@@ -103,7 +104,7 @@ public class MapRandering : MonoBehaviour
             RenderFloor(tilemap, ref floor, f);
         }
 
-        Debug.Log($"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료. 계단 정렬 오프셋 적용됨.");
+        LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료. 계단 정렬 오프셋 적용됨.");
     }
 
     // 개별 Floor를 Tilemap에 렌더링
@@ -164,7 +165,7 @@ public class MapRandering : MonoBehaviour
             tilemap.SetTiles(positions, tiles);
         }
 
-        Debug.Log($"MapRandering: F{floorIdx} — {idx}개 타일 렌더링 ({floor.config.width}×{floor.config.height} chunks), 오프셋={floorOffsets[floorIdx]}");
+        LogHelper.Log(LogHelper.GAME, $"MapRandering: F{floorIdx} — {idx}개 타일 렌더링 ({floor.config.width}×{floor.config.height} chunks), 오프셋={floorOffsets[floorIdx]}");
     }
 
     // ── 계단 정렬 오프셋 계산 ──
@@ -193,7 +194,7 @@ public class MapRandering : MonoBehaviour
                 0
             );
 
-            Debug.Log($"MapRandering: F0→F1 정렬 — F0 계단({stairInF0}), F1 계단({stairInF1}), F1 오프셋={offsets[1]}");
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F0→F1 정렬 — F0 계단({stairInF0}), F1 계단({stairInF1}), F1 오프셋={offsets[1]}");
         }
 
         // F1 → F2 정렬 (F1 보스방 계단 → F2 시작방 귀환 계단)
@@ -208,7 +209,7 @@ public class MapRandering : MonoBehaviour
                 0
             );
 
-            Debug.Log($"MapRandering: F1→F2 정렬 — F1 계단({stairInF1}), F2 계단({stairInF2}), F2 오프셋={offsets[2]}");
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F1→F2 정렬 — F1 계단({stairInF1}), F2 계단({stairInF2}), F2 오프셋={offsets[2]}");
         }
 
         // F2 → F3 정렬 (F2 보스방 계단 → F3 시작방 귀환 계단)
@@ -223,7 +224,7 @@ public class MapRandering : MonoBehaviour
                 0
             );
 
-            Debug.Log($"MapRandering: F2→F3 정렬 — F2 계단({stairInF2}), F3 계단({stairInF3}), F3 오프셋={offsets[3]}");
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F2→F3 정렬 — F2 계단({stairInF2}), F3 계단({stairInF3}), F3 오프셋={offsets[3]}");
         }
 
         return offsets;
@@ -250,7 +251,7 @@ public class MapRandering : MonoBehaviour
         }
 
         // fallback: (0, 0)
-        Debug.LogWarning($"MapRandering: stairTargetFloor={targetFloor} 계단을 찾을 수 없습니다.");
+        LogHelper.Warning(LogHelper.GAME, $"MapRandering: stairTargetFloor={targetFloor} 계단을 찾을 수 없습니다.");
         return Vector2Int.zero;
     }
 
@@ -273,7 +274,7 @@ public class MapRandering : MonoBehaviour
                 if (floor.chunks[cx, cy].stairTargetFloor == 0)
                     return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
 
-        Debug.LogWarning($"MapRandering: Floor에서 fromFloor={fromFloor} 또는 F0 귀환 계단을 찾을 수 없습니다.");
+        LogHelper.Warning(LogHelper.GAME, $"MapRandering: Floor에서 fromFloor={fromFloor} 또는 F0 귀환 계단을 찾을 수 없습니다.");
         return Vector2Int.zero;
     }
 

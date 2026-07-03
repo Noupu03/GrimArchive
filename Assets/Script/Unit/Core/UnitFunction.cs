@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 
 public abstract class UnitFunction : Unit
 {
@@ -337,13 +338,13 @@ public abstract class UnitFunction : Unit
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
-		Debug.Log($"{unitType.typeName} 반응 성공!");
+		LogHelper.Log(LogHelper.GAME, $"{unitType.typeName} 반응 성공!");
 		DefenseSystem.EvaluateDefense(this, attacker, threat);
 	}
 
 	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
 	{
-		Debug.Log($"{unitType.typeName} 반응 실패 → 직격!");
+		LogHelper.Log(LogHelper.GAME, $"{unitType.typeName} 반응 실패 → 직격!");
 		ApplyDirectDamage(attacker);
 	}
 

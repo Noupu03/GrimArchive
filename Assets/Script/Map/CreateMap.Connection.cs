@@ -9,6 +9,7 @@
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public partial class CreateMap
 {
@@ -47,7 +48,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} graph built. Nodes: {roomAdjacency.Count}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} graph built. Nodes: {roomAdjacency.Count}");
     }
 
     void AddEdge(int a, int b)
@@ -181,7 +182,7 @@ public partial class CreateMap
             }
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} rooms connected. Passages: {connectedPairs.Count}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} rooms connected. Passages: {connectedPairs.Count}");
     }
 
     // MST가 끊겼을 때 빈 청크를 관통하여 미방문 방과 방문 방을 연결
@@ -289,7 +290,7 @@ public partial class CreateMap
             if (rid >= 0) visited.Add(rid);
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} — bridge corridor created (roomId={corridorId}) connecting roomId {targetRoomId} to visited rooms.");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — bridge corridor created (roomId={corridorId}) connecting roomId {targetRoomId} to visited rooms.");
         return true;
     }
 
@@ -606,7 +607,7 @@ public partial class CreateMap
         int loopCount = Mathf.RoundToInt(unopened.Count * 0.05f);
         if (loopCount <= 0 || unopened.Count == 0)
         {
-            Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} loops added. Extra passages: 0");
+            LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} loops added. Extra passages: 0");
             return;
         }
 
@@ -625,7 +626,7 @@ public partial class CreateMap
             OpenPassage(ref floor, unopened[i].Item1, unopened[i].Item2);
         }
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} loops added. Extra passages: {actualLoops}");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} loops added. Extra passages: {actualLoops}");
     }
 
     void ClosePassage(ref Floor floor, Gate gate)
@@ -768,7 +769,7 @@ public partial class CreateMap
             if (unreachable.Count == 0)
             {
                 if (totalRepaired > 0)
-                    Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} gate connectivity repaired. Fixed {totalRepaired} connection(s) in {iter} iteration(s).");
+                    LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} gate connectivity repaired. Fixed {totalRepaired} connection(s) in {iter} iteration(s).");
                 return;
             }
 
@@ -802,12 +803,12 @@ public partial class CreateMap
                 continue;
             }
 
-            Debug.LogWarning($"CreateMap: Floor {(int)floor.config.floorId} — {unreachable.Count} room(s) remain unreachable. Unreachable: {string.Join(",", unreachable)}");
+            LogHelper.Warning(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — {unreachable.Count} room(s) remain unreachable. Unreachable: {string.Join(",", unreachable)}");
             break;
         }
 
         if (totalRepaired > 0)
-            Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} gate connectivity repaired. Fixed {totalRepaired} connection(s).");
+            LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} gate connectivity repaired. Fixed {totalRepaired} connection(s).");
     }
 
     // RepairGateConnectivity Stage 2: BFS로 빈 청크를 관통하여 고립된 방을 도달 가능 방에 연결
@@ -886,7 +887,7 @@ public partial class CreateMap
 
         int corridorId = BuildCorridorAlongPath(ref floor, path);
 
-        Debug.Log($"CreateMap: Floor {(int)floor.config.floorId} — repair bridge created (corridor={corridorId}, path length={path.Count}).");
+        LogHelper.Log(LogHelper.GAME, $"CreateMap: Floor {(int)floor.config.floorId} — repair bridge created (corridor={corridorId}, path length={path.Count}).");
         return true;
     }
 }

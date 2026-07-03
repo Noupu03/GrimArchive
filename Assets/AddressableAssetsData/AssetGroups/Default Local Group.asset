@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: Default Local Group
   m_GUID: c2bad61200b4ad04fbd2f93fba13c2fb
   m_SerializeEntries:
+  - m_GUID: 684490e1f3410c3458891817129de40f
+    m_Address: Prefabs/DebugInfoPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 786771c1ca5974949b13d3e2688f88da
     m_Address: Data/units
     m_ReadOnly: 0
@@ -22,6 +27,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 9a69ff3207a50504d8c144111aa6c53d
     m_Address: Data/skills
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ad229368ef62a624fa8b357f8f640f1b
+    m_Address: Prefabs/CoreCanvas
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

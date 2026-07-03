@@ -2,15 +2,33 @@ using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
+using Cysharp.Threading.Tasks;
+using Haare.Client.UI;
 
 public class UIManager : MonoBehaviour
 {
     private InputManager _inputManager;
+    private CoreUIManager _coreUIManager;
+    private IObjectResolver _resolver;
 
     [Inject]
-    public void Construct(InputManager inputManager)
+    public void Construct(InputManager inputManager, CoreUIManager coreUIManager, IObjectResolver resolver)
     {
         _inputManager = inputManager;
+        _coreUIManager = coreUIManager;
+        _resolver = resolver;
+    }
+
+    void Start()
+    {
+        // DebugInfoPanel(CustomText/CustomButton/CustomSlider)을 CoreCanvas 위에 띄운다.
+        // OnGUI() 쪽 동일 기능은 새 패널이 실제로 잘 뜨는지 확인될 때까지 안전망으로 남겨둔다.
+        LoadDebugPanelAsync().Forget();
+    }
+
+    private async UniTaskVoid LoadDebugPanelAsync()
+    {
+        await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver);
     }
 
     void OnGUI()

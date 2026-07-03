@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using VContainer;
 using DG.Tweening;
+using Haare.Util.Logger;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
 #endif
@@ -163,7 +164,7 @@ public class UnitGenerate : MonoBehaviour
 		SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
 		if (sr != null) sr.flipX = flipX;
 #else
-		Debug.LogError("SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
+		LogHelper.Error(LogHelper.GAME, "SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
 #endif
 	}
 

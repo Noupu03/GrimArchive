@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Util.Logger;
 
 /// <summary>
 /// 피격 면적 기반 데미지 시스템 검증 스크립트
@@ -34,9 +35,9 @@ public class AreaBasedDamageValidator : MonoBehaviour
             Hitbox attackHitbox = attacker.currentThreat.hitbox;
             float attackArea = attackHitbox.size.x * attackHitbox.size.y;
 
-            Debug.Log($"\n[Area Damage Test] {attacker.unitType.typeName} 공격 중");
-            Debug.Log($"  공격 히트박스 크기: {attackHitbox.size.x} x {attackHitbox.size.y} = {attackArea:F2} 면적");
-            Debug.Log($"  공격 위치: ({attackHitbox.center.x:F1}, {attackHitbox.center.y:F1})");
+            LogHelper.Log(LogHelper.GAME, $"\n[Area Damage Test] {attacker.unitType.typeName} 공격 중");
+            LogHelper.Log(LogHelper.GAME, $"  공격 히트박스 크기: {attackHitbox.size.x} x {attackHitbox.size.y} = {attackArea:F2} 면적");
+            LogHelper.Log(LogHelper.GAME, $"  공격 위치: ({attackHitbox.center.x:F1}, {attackHitbox.center.y:F1})");
 
             // 각 적에 대해 교차 면적과 데미지 비율 계산
             foreach (var enemy in GameSession.Instance.units)
@@ -51,15 +52,15 @@ public class AreaBasedDamageValidator : MonoBehaviour
 
                 if (overlapRatio > 0)
                 {
-                    Debug.Log($"  → {enemy.unitType.typeName}:");
-                    Debug.Log($"     적 히트박스: {enemyHitbox.size.x} x {enemyHitbox.size.y} = {enemyArea:F2} 면적");
-                    Debug.Log($"     교차 면적: {overlapArea:F2}");
-                    Debug.Log($"     교차 비율: {overlapRatio:P0}");
+                    LogHelper.Log(LogHelper.GAME, $"  → {enemy.unitType.typeName}:");
+                    LogHelper.Log(LogHelper.GAME, $"     적 히트박스: {enemyHitbox.size.x} x {enemyHitbox.size.y} = {enemyArea:F2} 면적");
+                    LogHelper.Log(LogHelper.GAME, $"     교차 면적: {overlapArea:F2}");
+                    LogHelper.Log(LogHelper.GAME, $"     교차 비율: {overlapRatio:P0}");
 
                     // 예상 데미지 계산
                     float baseDamage = attacker.physicalAttack;
                     float expectedDamage = Mathf.Max(1f, baseDamage * Mathf.Max(0.1f, overlapRatio));
-                    Debug.Log($"     예상 데미지: {expectedDamage:F1} (기본 데미지: {baseDamage:F1})");
+                    LogHelper.Log(LogHelper.GAME, $"     예상 데미지: {expectedDamage:F1} (기본 데미지: {baseDamage:F1})");
                 }
             }
         }
@@ -89,7 +90,7 @@ public class AreaBasedDamageValidator : MonoBehaviour
         float overlapArea = box1.CalculateOverlapArea(box2);
         float overlapRatio = box1.CalculateOverlapRatio(box2);
 
-        Debug.Log($"[Overlap Test] 교차 면적: {overlapArea:F2}, 비율: {overlapRatio:P0}");
+        LogHelper.Log(LogHelper.GAME, $"[Overlap Test] 교차 면적: {overlapArea:F2}, 비율: {overlapRatio:P0}");
         // 예상: 교차 면적 = 1.5 x 1.5 = 2.25, 비율 = 2.25 / 9 = 25%
     }
 
@@ -125,9 +126,9 @@ public class AreaBasedDamageValidator : MonoBehaviour
         float fullRatio = attackBox.CalculateOverlapRatio(fullHitEnemy);
         float partialRatio = attackBox.CalculateOverlapRatio(partialHitEnemy);
 
-        Debug.Log($"[Partial vs Full Hit Test]");
-        Debug.Log($"  완전 피격 비율: {fullRatio:P0}");
-        Debug.Log($"  부분 피격 비율: {partialRatio:P0}");
-        Debug.Log($"  배수 차이: {(fullRatio / partialRatio):F2}배");
+        LogHelper.Log(LogHelper.GAME, $"[Partial vs Full Hit Test]");
+        LogHelper.Log(LogHelper.GAME, $"  완전 피격 비율: {fullRatio:P0}");
+        LogHelper.Log(LogHelper.GAME, $"  부분 피격 비율: {partialRatio:P0}");
+        LogHelper.Log(LogHelper.GAME, $"  배수 차이: {(fullRatio / partialRatio):F2}배");
     }
 }
