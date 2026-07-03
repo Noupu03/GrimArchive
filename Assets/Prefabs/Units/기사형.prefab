@@ -101,6 +101,8 @@ GameObject:
   m_Component:
   - component: {fileID: 3737532504302183164}
   - component: {fileID: 5790011670414583829}
+  - component: {fileID: 2148180861581893085}
+  - component: {fileID: 3889125250017156207}
   m_Layer: 0
   m_Name: "\uAE30\uC0AC\uD615"
   m_TagString: Untagged
@@ -222,6 +224,46 @@ MonoBehaviour:
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
+--- !u!95 &2148180861581893085
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1953888294078118216}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 9119aa0de6d8418498c44f84745ca850, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &3889125250017156207
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1953888294078118216}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a407c6fe0dbc8f94d9fabc00b915c3c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnimationEventVfxSpawner
+  vfxEvents:
+  - eventKey: ElectricSpark
+    effectPrefab: {fileID: 6419741993954675100, guid: d92c9a61cf3a18d41abc1046a353fa7b, type: 3}
+    referenceTransform: {fileID: 6496248754316618051}
+    positionOffset: {x: 0, y: 0, z: 0}
+    rotationOffset: {x: 0, y: 0, z: 0}
 --- !u!1 &4351545865903026458
 GameObject:
   m_ObjectHideFlags: 0
