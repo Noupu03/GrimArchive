@@ -19,6 +19,10 @@ public static class HaareUISetup
     private const string DebugPanelAddress = "Prefabs/DebugInfoPanel";
     private const string ScenePath = "Assets/Scenes/ssh.unity";
 
+    // TMP 기본 폰트(LiberationSans SDF)엔 한글 글리프가 없어서 한글이 다 깨져 보인다.
+    // 이미 프로젝트에 있는 한글 지원 폰트(Dynamic 아틀라스라 런타임에 필요한 글자만 채워짐)를 대신 쓴다.
+    private const string KoreanFontPath = "Assets/Haare/Fonts/NEXONLv1GothicRegular SDF.asset";
+
     [MenuItem("Tools/GrimArchive/Haare UI 셋업 생성")]
     public static void SetupHaareUI()
     {
@@ -71,6 +75,7 @@ public static class HaareUISetup
         fpsTextRt.anchoredPosition = new Vector2(10, -10);
         fpsTextRt.sizeDelta = new Vector2(120, 30);
         var fpsTmp = fpsTextGo.GetComponent<TextMeshProUGUI>();
+        fpsTmp.font = GetKoreanFont();
         fpsTmp.fontSize = 18;
         fpsTmp.color = Color.yellow;
         fpsTmp.text = "FPS";
@@ -107,7 +112,7 @@ public static class HaareUISetup
         infoBoxRt.anchorMax = new Vector2(0, 0);
         infoBoxRt.pivot = new Vector2(0, 0);
         infoBoxRt.anchoredPosition = new Vector2(10, 10);
-        infoBoxRt.sizeDelta = new Vector2(240, 440);
+        infoBoxRt.sizeDelta = new Vector2(240, 480);
         infoBox.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
         infoBox.AddComponent<CustomImage>();
 
@@ -120,7 +125,12 @@ public static class HaareUISetup
         infoTextRt.offsetMin = new Vector2(8, 8);
         infoTextRt.offsetMax = new Vector2(-8, -8);
         var infoTmp = infoTextGo.GetComponent<TextMeshProUGUI>();
-        infoTmp.fontSize = 18;
+        infoTmp.font = GetKoreanFont();
+        // 선택 유닛 정보 줄 수가 상황에 따라 달라지는데(인간/몬스터, 상태이상 유무 등) 고정 폰트 크기로는
+        // 박스를 넘쳐서 화면 아래로 잘려나간다 — 오토사이징으로 항상 박스 안에 맞춰지도록 한다.
+        infoTmp.enableAutoSizing = true;
+        infoTmp.fontSizeMin = 8;
+        infoTmp.fontSizeMax = 18;
         infoTmp.color = Color.white;
         infoTmp.alignment = TextAlignmentOptions.TopLeft;
         infoTmp.text = "";
@@ -201,7 +211,9 @@ public static class HaareUISetup
         go.AddComponent<CustomButton>();
 
         var textGo = go.transform.Find("Text (TMP)").gameObject;
-        textGo.GetComponent<TextMeshProUGUI>().text = label;
+        var buttonTmp = textGo.GetComponent<TextMeshProUGUI>();
+        buttonTmp.font = GetKoreanFont();
+        buttonTmp.text = label;
         textGo.AddComponent<CustomText>();
 
         return go;
@@ -275,6 +287,18 @@ public static class HaareUISetup
     }
 
     private static Sprite GetBuiltinSprite(string path) => AssetDatabase.GetBuiltinExtraResource<Sprite>(path);
+
+    private static TMP_FontAsset _koreanFont;
+    private static TMP_FontAsset GetKoreanFont()
+    {
+        if (_koreanFont == null)
+        {
+            _koreanFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(KoreanFontPath);
+            if (_koreanFont == null)
+                Debug.LogError($"[HaareUISetup] 한글 폰트를 찾을 수 없습니다: {KoreanFontPath} (TMP 기본 폰트로 대체되어 한글이 깨질 수 있음)");
+        }
+        return _koreanFont;
+    }
 
     private static TMP_DefaultControls.Resources GetTMPResources()
     {

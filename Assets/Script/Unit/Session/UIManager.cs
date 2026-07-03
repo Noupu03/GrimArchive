@@ -26,7 +26,10 @@ public class UIManager : MonoBehaviour
 
     private async UniTaskVoid LoadDebugPanelAsync()
     {
-        await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver);
+        // SceneUIManager.LoadPanel<T>()는 로드 직후 내부적으로 panel.gameObject.SetActive(false)를
+        // 호출해서 패널을 꺼둔다 — OpenPanel()을 명시적으로 호출해야 실제로 화면에 뜬다.
+        int panelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver);
+        _coreUIManager.RentPanel<DebugInfoPanel>(panelId).OpenPanel();
     }
 
     void OnGUI()
