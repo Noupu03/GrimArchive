@@ -7,14 +7,12 @@ using Haare.Client.UI;
 
 public class UIManager : MonoBehaviour
 {
-    private InputManager _inputManager;
     private CoreUIManager _coreUIManager;
     private IObjectResolver _resolver;
 
     [Inject]
-    public void Construct(InputManager inputManager, CoreUIManager coreUIManager, IObjectResolver resolver)
+    public void Construct(CoreUIManager coreUIManager, IObjectResolver resolver)
     {
-        _inputManager = inputManager;
         _coreUIManager = coreUIManager;
         _resolver = resolver;
     }
@@ -22,7 +20,7 @@ public class UIManager : MonoBehaviour
     void Start()
     {
         // DebugInfoPanel(CustomText/CustomButton/CustomSlider)을 CoreCanvas 위에 띄운다.
-        // OnGUI() 쪽 동일 기능은 새 패널이 실제로 잘 뜨는지 확인될 때까지 안전망으로 남겨둔다.
+        // 줌 버튼/선택 유닛 정보는 이 패널로 이전되어 아래 OnGUI()에선 더 이상 그리지 않는다.
         LoadDebugPanelAsync().Forget();
     }
 
@@ -36,8 +34,6 @@ public class UIManager : MonoBehaviour
         if (GameSession.Instance == null) return;
 
         DrawTopLeftUI();
-        DrawTopRightUI();
-        DrawSelectedUnitInfo();
         DrawUnitLabels();
 		//DrawPartyStatus();=======파티 관련 참조 주석처리========
 	}
@@ -59,26 +55,6 @@ public class UIManager : MonoBehaviour
 		// 2. 게임 속도 및 일시정지 상태
 		GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {GameSession.Instance.currentGameSpeed}x {(GameSession.Instance.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 0, 1, 2, 3 / Space");
         y += 50;
-    }
-
-    private void DrawTopRightUI()
-    {
-        // 3. 카메라 이동 및 줌 컨트롤 (우상단)
-        GUILayout.BeginArea(new Rect(Screen.width - 200, 10, 190, 80));
-        GUILayout.Label("카메라 이동 (W/A/S/D)\n카메라 확대 (마우스 휠)");
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Zoom In", GUILayout.Height(30)))
-        {
-            if (Camera.main != null)
-                Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize - 2f, 5f, 50f);
-        }
-        if (GUILayout.Button("Zoom Out", GUILayout.Height(30)))
-        {
-            if (Camera.main != null)
-                Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize + 2f, 5f, 50f);
-        }
-        GUILayout.EndHorizontal();
-        GUILayout.EndArea();
     }
 
     private void DrawUnitLabels()
@@ -120,76 +96,6 @@ public class UIManager : MonoBehaviour
             }
         }*/
 	}
-
-	private void DrawSelectedUnitInfo()
-    {
-        if (_inputManager == null || _inputManager.selectedUnit == null) return;
-
-        Unit u = _inputManager.selectedUnit;
-
-        int boxW = 220;
-        int boxH = 520;
-        GUI.Box(new Rect(10, Screen.height - boxH - 10, boxW, boxH), "선택 유닛 정보");
-
-        int y = Screen.height - boxH + 20;
-        int x = 15;
-        int lineH = 20;
-
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>이름:</b> {u.unitType.typeName}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>진영:</b> {(u is Human ? "인류" : "몬스터")}"); y += lineH;
-
-        /*=======파티 관련 참조 주석처리========
-        string partyInfo = "없음";
-        if (PartyController.Instance != null)
-        {
-            var p = PartyController.Instance.GetPartyOf(u);
-            if (p != null) partyInfo = p.partyName;
-        }
-        if (u is Human)
-        {
-            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>파티:</b> {partyInfo}"); y += lineH;
-        }
-        */
-
-        y += 5; // spacing
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>HP:</b> {u.hp:F1}"); y += lineH;
-        if (u is Human) { GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>MP:</b> {u.mp:F1}"); y += lineH; }
-        if (u is Human)
-        {
-            string panicStr = (u.mental < u.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
-            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>정신력:</b> {u.mental:F1} / {u.maxMental:F1}{panicStr}");
-            y += lineH;
-        }
-        y += 5; // spacing
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>물리공격력:</b> {u.physicalAttack:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>물리방어력:</b> {u.physicalDefense:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>마법공격력:</b> {u.magicalAttack:F1}"); y += lineH;
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>마법방어력:</b> {u.magicalDefense:F1}"); y += lineH;
-        y += 5; // spacing
-        GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>이동속도:</b> {u.walkSpeed:F1}"); y += lineH;
-		y += 5; // spacing
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), "<b>기본 능력치</b>"); y += lineH;
-
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"근력: {u.sterngth:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"내구: {u.Durability:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"민첩: {u.agility:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"집중: {u.concentration:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"마력: {u.MagicPower:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"저항: {u.resistance:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"감각: {u.sense:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"통솔: {u.leadership:F1}"); y += lineH;
-		GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}"); y += lineH;
-
-        string statusStr = "";
-        if (u.stunDuration > 0) statusStr += $"기절({u.stunDuration:F1}s) ";
-        if (u.slowDuration > 0) statusStr += $"둔화({u.slowDuration:F1}s) ";
-        if (u.poisonDuration > 0) statusStr += $"중독({u.poisonDuration:F1}s) ";
-        if (u.burnDuration > 0) statusStr += $"화상({u.burnDuration:F1}s) ";
-        if (statusStr != "")
-        {
-            GUI.Label(new Rect(x, y, boxW - 10, lineH), $"<color=red>상태이상: {statusStr}</color>");
-        }
-    }
 
 	/*=======파티 관련 참조 주석처리========
     private void DrawPartyStatus()
