@@ -25,9 +25,8 @@ public class Goal_DefeatEnemy : GoapGoal
 
 	public override float GetPriority(Unit unit)
 	{
-		IEnumerable<Unit> enemies = unit is Human
-			? Unit.humanFactionData.spottedEnemyUnits
-			: unit.personalSpottedEnemies;
+		// 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+		IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
 
 		foreach (var enemy in enemies)
 		{

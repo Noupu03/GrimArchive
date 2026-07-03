@@ -155,7 +155,7 @@ public static class DefenseSystem
 
 				defender.hp -= damage;
 				LogHelper.Log(LogHelper.GAME, $"{defender.unitType.typeName} Block! damage:{damage:F0}");
-				defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
+				//defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
 
 				// 가드 VFX: 공격 타이밍에 재생, HitSpark 억제
 				var guardDef = defender;
@@ -181,7 +181,7 @@ public static class DefenseSystem
 					if (moved)
 					{
 						defender.evadeCooldown = 1.2f;
-						defender.UI?.ShowFloatingText(defender, $"Dodge Success {success:P0}");
+						//defender.UI?.ShowFloatingText(defender, $"Dodge Success {success:P0}");
 					}
 					else
 					{
@@ -209,7 +209,7 @@ public static class DefenseSystem
 				if (Random.value <= success)
 				{
 					attacker.ApplyDirectDamage(defender, 0.5f);
-					defender.UI?.ShowFloatingText(defender, $"Parry {success:P0}");
+					//defender.UI?.ShowFloatingText(defender, $"Parry {success:P0}");
 
 					// 패링 VFX: 공격 타이밍에 재생, HitSpark 억제
 					var parryDef = defender;
@@ -247,7 +247,7 @@ public static class DefenseSystem
 				}
 
 				defender.ForceMove(safeTiles[Random.Range(0, safeTiles.Count)]);
-				defender.UI?.ShowFloatingText(defender, "Blink!");
+				//defender.UI?.ShowFloatingText(defender, "Blink!");
 				break;
 			}
 		}

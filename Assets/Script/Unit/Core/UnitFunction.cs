@@ -175,9 +175,8 @@ public abstract class UnitFunction : Unit
 					bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
 					if (isEnemy)
 					{
+						// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
 						if (!personalSpottedEnemies.Contains(unit)) personalSpottedEnemies.Add(unit);
-						if (this is Human && !myData.spottedEnemyUnits.Contains(unit))
-							myData.spottedEnemyUnits.Add(unit);
 					}
 				}
 			}

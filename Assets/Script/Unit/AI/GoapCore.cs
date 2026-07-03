@@ -29,9 +29,8 @@ public abstract class GoapAction
 
 	protected Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
-		IEnumerable<Unit> enemies = unit is Human
-			? Unit.humanFactionData.spottedEnemyUnits
-			: unit.personalSpottedEnemies;
+		// 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+		IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
 
 		Unit  target  = null;
 		minDist = float.MaxValue;
@@ -269,7 +268,7 @@ public class GoapBrain
 
 		// 월드 스테이트 구성
 		GoapState         worldState  = new GoapState();
-		IEnumerable<Unit> enemies     = unit is Human ? Unit.humanFactionData.spottedEnemyUnits : unit.personalSpottedEnemies;
+		IEnumerable<Unit> enemies     = unit.personalSpottedEnemies;
 		bool              enemyVisible = false;
 
 		foreach (var e in enemies)
