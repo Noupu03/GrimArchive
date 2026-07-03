@@ -2,6 +2,7 @@ using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 using Haare.Client.UI;
+using Haare.Scripts.Client.Data;
 
 // GameSession.Awake()가 수동으로 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션 루트.
 // ssh.unity에 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
@@ -29,5 +30,8 @@ public class GameCompositionRoot : LifetimeScope
         builder.RegisterComponentInNewPrefab(_coreUIManagerPrefab, Lifetime.Singleton)
             .DontDestroyOnLoad()
             .AsSelf();
+
+        // Haare DataManager: NativeRoutine(순수 C# 클래스)이라 프리팹 없이 그냥 등록.
+        builder.Register<DataManager>(Lifetime.Singleton).AsSelf();
     }
 }

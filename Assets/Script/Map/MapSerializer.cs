@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Scripts.Client.Data;
 
 // ========================================================================
 // 맵 직렬화 유틸리티
@@ -30,7 +31,7 @@ public static class MapSerializer
     }
 
     // ── Map → DTO 변환 ──
-    static MapDto MapToDto(Map map)
+    public static MapDto MapToDto(Map map)
     {
         var dto = new MapDto();
 
@@ -103,7 +104,7 @@ public static class MapSerializer
     }
 
     // ── DTO → Map 변환 ──
-    static Map DtoToMap(MapDto dto)
+    public static Map DtoToMap(MapDto dto)
     {
         var map = new Map();
 
@@ -174,7 +175,7 @@ public static class MapSerializer
     // ================================================================
 
     [Serializable]
-    public class MapDto
+    public class MapDto : IData
     {
         public FloorDto[] floors;
     }

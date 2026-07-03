@@ -14,7 +14,12 @@ public class HaareClient
 {
     [RuntimeInitializeOnLoadMethod( RuntimeInitializeLoadType.BeforeSceneLoad )]
     static async void Main() {
-        
+
+        // RuntimeInitializeOnLoadMethod는 스크립트 재컴파일 등으로 인한 도메인 리로드 시
+        // 플레이 모드가 아닌데도 호출될 수 있다. DontDestroyOnLoad는 플레이 모드에서만
+        // 허용되므로(RegisterProcesses 참고) 여기서 미리 걸러준다.
+        if (!Application.isPlaying) return;
+
         LogHelper.Log(LogHelper.FRAMEWORK,"Start Haare Framework");
         await Task.Delay( 1 );
         await Processor.WaitForCreation();

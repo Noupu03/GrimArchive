@@ -30,15 +30,21 @@ public partial class CreateMap
         return MapSerializer.ToJson(map, true);
     }
 
-    public void DeserializeMap(string json)
+    // MapSaveModel(DataManager.GetModel<T>() 경유)처럼 이미 변환된 Map을 JSON 왕복 없이 바로 적용할 때 사용.
+    public void ApplyMap(Map newMap)
     {
-        map = MapSerializer.FromJson(json);
+        map = newMap;
         if (map.floors != null && map.floors.Length > 0)
         {
             floorConfigs = new FloorConfig[map.floors.Length];
             for (int f = 0; f < map.floors.Length; f++)
                 floorConfigs[f] = map.floors[f].config;
         }
+    }
+
+    public void DeserializeMap(string json)
+    {
+        ApplyMap(MapSerializer.FromJson(json));
         LogHelper.Log(LogHelper.GAME, $"CreateMap: 맵 역직렬화 완료. Floors: {(map.floors != null ? map.floors.Length : 0)}");
     }
 

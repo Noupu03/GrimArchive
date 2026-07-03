@@ -60,6 +60,27 @@ public static class HaareUISetup
         so.FindProperty("safePannelRect").objectReferenceValue = safeRt;
         so.ApplyModifiedPropertiesWithoutUndo();
 
+        // FPS 카운터 (좌상단, 상시 표시) — CoreCanvas는 DontDestroyOnLoad라 씬 전환에도 유지됨.
+        GameObject fpsTextGo = TMP_DefaultControls.CreateText(GetTMPResources());
+        fpsTextGo.name = "FPSText";
+        fpsTextGo.transform.SetParent(root.transform, false);
+        var fpsTextRt = fpsTextGo.GetComponent<RectTransform>();
+        fpsTextRt.anchorMin = new Vector2(0, 1);
+        fpsTextRt.anchorMax = new Vector2(0, 1);
+        fpsTextRt.pivot = new Vector2(0, 1);
+        fpsTextRt.anchoredPosition = new Vector2(10, -10);
+        fpsTextRt.sizeDelta = new Vector2(120, 30);
+        var fpsTmp = fpsTextGo.GetComponent<TextMeshProUGUI>();
+        fpsTmp.fontSize = 18;
+        fpsTmp.color = Color.yellow;
+        fpsTmp.text = "FPS";
+        var fpsCustomText = fpsTextGo.AddComponent<CustomText>();
+
+        var fpsLogger = fpsTextGo.AddComponent<FPSLogger>();
+        var fpsSo = new SerializedObject(fpsLogger);
+        fpsSo.FindProperty("fpsText").objectReferenceValue = fpsCustomText;
+        fpsSo.ApplyModifiedPropertiesWithoutUndo();
+
         string path = OutputFolder + "/CoreCanvas.prefab";
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
@@ -136,12 +157,33 @@ public static class HaareUISetup
         sliderRt.sizeDelta = new Vector2(200, 20);
         var customSlider = sliderGo.AddComponent<CustomSlider>();
 
+        // 맵 저장/불러오기 버튼 (줌 버튼 아래)
+        GameObject saveGo = CreateCustomButton(tmpResources, "SaveButton", "Save");
+        saveGo.transform.SetParent(root.transform, false);
+        var saveRt = saveGo.GetComponent<RectTransform>();
+        saveRt.anchorMin = new Vector2(1, 1);
+        saveRt.anchorMax = new Vector2(1, 1);
+        saveRt.pivot = new Vector2(1, 1);
+        saveRt.anchoredPosition = new Vector2(-10, -90);
+        saveRt.sizeDelta = new Vector2(90, 30);
+
+        GameObject loadGo = CreateCustomButton(tmpResources, "LoadButton", "Load");
+        loadGo.transform.SetParent(root.transform, false);
+        var loadRt = loadGo.GetComponent<RectTransform>();
+        loadRt.anchorMin = new Vector2(1, 1);
+        loadRt.anchorMax = new Vector2(1, 1);
+        loadRt.pivot = new Vector2(1, 1);
+        loadRt.anchoredPosition = new Vector2(-10, -130);
+        loadRt.sizeDelta = new Vector2(90, 30);
+
         var debugPanel = root.AddComponent<DebugInfoPanel>();
         var so = new SerializedObject(debugPanel);
         so.FindProperty("selectedUnitInfoText").objectReferenceValue = infoCustomText;
         so.FindProperty("zoomInButton").objectReferenceValue = zoomInGo.GetComponent<CustomButton>();
         so.FindProperty("zoomOutButton").objectReferenceValue = zoomOutGo.GetComponent<CustomButton>();
         so.FindProperty("gameSpeedSlider").objectReferenceValue = customSlider;
+        so.FindProperty("saveButton").objectReferenceValue = saveGo.GetComponent<CustomButton>();
+        so.FindProperty("loadButton").objectReferenceValue = loadGo.GetComponent<CustomButton>();
         so.ApplyModifiedPropertiesWithoutUndo();
 
         string path = OutputFolder + "/DebugInfoPanel.prefab";
