@@ -17,6 +17,7 @@ public class SkillData
     public float  baseDelayMs;
     public float  baseCooldown;
     public int    cooldownSlot;
+    public bool   isProjectile; // 투사체 스킬 여부
     // canHit 사전 검사용 히트박스
     public string hitShape;
     public int    hitRange, hitWidth, hitDepth;

@@ -63,3 +63,15 @@ public static class CombatConstants
 	// 최대 피해 감소율
 	public const float MAX_BLOCK_DAMAGE_REDUCTION = 1.00f;
 }
+
+// ----------------------------------------------------
+// 원거리 유닛 (투사체 사용)
+// ----------------------------------------------------
+public class Kubonhun : UnitType
+{
+    public Kubonhun() 
+    { 
+        typeName = "쿠본훈"; 
+        footprint = new Vector2(1, 1); 
+    }
+}

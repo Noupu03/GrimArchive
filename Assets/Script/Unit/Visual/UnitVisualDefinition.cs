@@ -55,7 +55,12 @@ public class UnitVisualDefinition : MonoBehaviour
     {
         var list = new List<SkillAction>();
         foreach (var sd in skills)
-            list.Add(new SkillAction_Generic(sd));
+        {
+            if (sd.isProjectile)
+                list.Add(new SkillAction_Projectile(sd, null)); // 프리팹은 null로 전달 (Fallback 비주얼 사용)
+            else
+                list.Add(new SkillAction_Generic(sd));
+        }
         return list;
     }
 }
