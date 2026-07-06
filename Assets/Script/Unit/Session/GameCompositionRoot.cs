@@ -29,6 +29,9 @@ public class GameCompositionRoot : LifetimeScope
         // UnitGenerate: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 C# 클래스로 전환됨.
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();
 
+        // HumanKnowledgeBase: 대표 가중치 3종(이해도/위험도/흥미도) 전역 레지스트리 — 순수 C#.
+        builder.Register<HumanKnowledgeBase>(Lifetime.Singleton).AsSelf();
+
         // Haare CoreUIManager: DebugInfoPanel 등 UGUI 패널을 담는 Canvas 루트.
         builder.RegisterComponentInNewPrefab(_coreUIManagerPrefab, Lifetime.Singleton)
             .DontDestroyOnLoad()

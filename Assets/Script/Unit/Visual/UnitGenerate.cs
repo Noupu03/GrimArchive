@@ -210,7 +210,7 @@ public class UnitGenerate
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (go != null) { go.transform.DOKill(); Object.Destroy(go); }
+			if (go != null) { KillVisualTweens(go); Object.Destroy(go); }
 			visualMap.Remove(u);
 			targetPosMap.Remove(u);
 		}
@@ -220,7 +220,7 @@ public class UnitGenerate
 		{
 			if (kvp.Key == null || kvp.Key.hp <= 0)
 			{
-				if (kvp.Value != null) { kvp.Value.transform.DOKill(); Object.Destroy(kvp.Value); }
+				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); }
 				deadKeys.Add(kvp.Key);
 			}
 		}
@@ -229,6 +229,18 @@ public class UnitGenerate
 			visualMap.Remove(deadKey);
 			targetPosMap.Remove(deadKey);
 		}
+	}
+
+	// go.transform.DOKill()만으로는 TriggerHitEffect()가 Visual 자식의 SpriteRenderer를 타겟으로
+	// 만든 DOTween 시퀀스(sr.DOColor(...))가 안 죽는다 — 타겟이 transform이 아니라 sr이라서 별개
+	// 트윈으로 취급됨. 피격 직후 곧바로 죽는 경우(킬샷) 그 시퀀스가 파괴된 SpriteRenderer를 계속
+	// 건드리려다 DOTween Safe Mode의 "missing target" 에러로 잡히는 원인이었다.
+	private void KillVisualTweens(GameObject go)
+	{
+		go.transform.DOKill();
+		Transform vt = go.transform.Find("Visual");
+		SpriteRenderer sr = vt != null ? vt.GetComponent<SpriteRenderer>() : go.GetComponentInChildren<SpriteRenderer>();
+		if (sr != null) sr.DOKill();
 	}
 
 	public void SyncVisuals(List<Unit> units)

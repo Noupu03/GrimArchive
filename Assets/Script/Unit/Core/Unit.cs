@@ -14,14 +14,30 @@ public abstract class Unit : ScriptableObject
 	[Inject] private VFXManager _vfxManager;
 	[Inject] private InputManager _inputManager;
 	[Inject] private GameSession _gameSession;
+	[Inject] private HumanKnowledgeBase _knowledgeBase;
 
 	public UnitGenerate Generate => _unitGenerate;
 	public UIManager UI => _uiManager;
 	public VFXManager VFX => _vfxManager;
 	public InputManager InputMgr => _inputManager;
 	public GameSession Session => _gameSession;
+	public HumanKnowledgeBase Knowledge => _knowledgeBase;
 
 	public UnitType unitType;
+
+	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ────────
+	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쓰는 특수 유닛 여부
+	public bool isInterestTarget = false;  // 6-2장/18장: IsInterestTarget 플래그 (이해도 상승에 따른 흥미도 감소식 미적용)
+	public float baseInterest = 0f;        // 6-3장: 유닛 기본 흥미도
+	public float baseDanger = 0f;          // 12-1장: 대상 기본 위험도
+	public float heavyHitThreshold = 10f;  // 3장: "일정 피해량 이상" 판정 기준값 (유닛별 데이터 테이블)
+
+	// 4장: 이 유닛(인류 관점의 관찰자)이 대상별로 들고 있는 개인 가중치 기록.
+	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
+
+	// 가장 최근에 이 유닛에게 피해를 입힌 대상. 사망 시점(GameSession.RemoveDeadUnit)에서
+	// "누가 처치했는지"를 알아야 위험도/이해도 처치 이벤트(E_MONSTER_KILL_SELF 등)를 기록할 수 있어서 둔다.
+	public Unit lastAttacker;
 
 	// ─── 전투 세부 속성 ───────────────────────────────────────────
 	public float maxHp = 100f;            // 최대체력

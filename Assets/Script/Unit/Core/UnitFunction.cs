@@ -16,12 +16,42 @@ public abstract class UnitFunction : Unit
 	{
 		float damage = Mathf.Max(1f, rawDamage - physicalDefense);
 		TakeDamage(damage);
+		RecordHitWeightEvent(damage, attacker);
 	}
 
 	public override void TakeMagicalDamage(float rawDamage, Unit attacker)
 	{
 		float damage = Mathf.Max(1f, rawDamage - magicalDefense);
 		TakeDamage(damage);
+		RecordHitWeightEvent(damage, attacker);
+	}
+
+	// 대표 가중치 3종 연산공식 문서 3장/10장: 피격 이벤트를 이해도/위험도에 즉시 반영한다.
+	// 여기서는 "직접 경험(SELF)" 계층만 실제로 연결한다 — 목격(SEEN)/간접 파악(INDIRECT) 계층은
+	// FOV 기반 목격 판정이 따로 필요해서 HumanKnowledgeBase API는 있지만 아직 자동 트리거는 안 걸었다
+	// (구현현황 문서에 사유 기재).
+	private void RecordHitWeightEvent(float appliedDamage, Unit attacker)
+	{
+		if (attacker == null || this.Knowledge == null) return;
+
+		bool defenderIsHuman = this is Human;
+		bool attackerIsHuman = attacker is Human;
+		if (defenderIsHuman == attackerIsHuman) return; // 같은 진영끼리는 이 시스템의 대상이 아님
+
+		string incidentId = System.Guid.NewGuid().ToString();
+		lastAttacker = attacker;
+
+		if (defenderIsHuman)
+		{
+			// 인류(this)가 몬스터(attacker)에게 맞음 — "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
+			if (appliedDamage >= heavyHitThreshold)
+				this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
+		}
+		else
+		{
+			// 인류(attacker)가 몬스터(this)를 때림 — 이해도만 오르고 위험도 변화는 없음(표 값 자체가 danger=0)
+			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
+		}
 	}
 
 	public override void TakeMentalDamage(float rawDamage, Unit attacker)

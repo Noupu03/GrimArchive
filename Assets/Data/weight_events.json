@@ -1,0 +1,29 @@
+{
+  "events": [
+    { "id": "E_HUMAN_KILL_SEEN", "understanding": 0, "danger": 3 },
+    { "id": "E_HUMAN_KILL_INDIRECT", "understanding": 0, "danger": 1.5 },
+    { "id": "E_HIT_HEAVY_SELF", "understanding": 0.1, "danger": 0.3 },
+    { "id": "E_HIT_HEAVY_SEEN", "understanding": 0.05, "danger": 0.15 },
+    { "id": "E_HIT_HEAVY_INDIRECT", "understanding": 0.025, "danger": 0.075 },
+    { "id": "E_MONSTER_HIT_SELF", "understanding": 0.025, "danger": 0 },
+    { "id": "E_MONSTER_HIT_SEEN", "understanding": 0.0125, "danger": 0 },
+    { "id": "E_MONSTER_KILL_SELF", "understanding": 1, "danger": -0.5 },
+    { "id": "E_MONSTER_KILL_SEEN", "understanding": 0.5, "danger": -0.25 },
+    { "id": "E_MONSTER_KILL_INDIRECT", "understanding": 0.25, "danger": -0.125 },
+    { "id": "E_STATUS_SELF", "understanding": 0.2, "danger": 0.4 },
+    { "id": "E_STATUS_SEEN", "understanding": 0.1, "danger": 0.2 },
+    { "id": "E_DEBUFF_SELF", "understanding": 0.2, "danger": 0.4 },
+    { "id": "E_DEBUFF_SEEN", "understanding": 0.1, "danger": 0.2 },
+    { "id": "E_SUMMON_SEEN", "understanding": 0.1, "danger": 0.3 },
+    { "id": "E_BUFF_SEEN", "understanding": 0.1, "danger": 0.2 },
+    { "id": "E_TRAP_HIT_SELF", "understanding": 0.2, "danger": 0.4 },
+    { "id": "E_TRAP_HIT_SEEN", "understanding": 0.1, "danger": 0.2 },
+    { "id": "E_TRAP_DISARM_SELF", "understanding": 0.3, "danger": -1 },
+    { "id": "E_TRAP_DISARM_SEEN", "understanding": 0.15, "danger": -0.5 },
+    { "id": "E_DEFENSE_DISABLE_SELF", "understanding": 0.3, "danger": -1 },
+    { "id": "E_DEFENSE_DISABLE_SEEN", "understanding": 0.15, "danger": -0.5 },
+    { "id": "E_CORPSE_TRACE_CHECK", "understanding": 0.1, "danger": 0.2 },
+    { "id": "E_WIPEOUT_UNIT_SKILL_SEEN", "understanding": 1, "danger": 5 }
+  ],
+  "_comment_excluded": "E_PARTY_WIPEOUT, E_WIPEOUT_TRACE는 던전 전역 위험도에 직접 작용하는 특수 이벤트라 대상별 가감표에 없음 - HumanKnowledgeBase의 OnPartyWipeout()/OnWipeoutTraceFound()에서 전용 처리. E_WIPEOUT_UNIT_SKILL_SEEN의 danger=5는 문서상 '5 + 전멸 전투 내 킬 수'의 고정 기저값이며, 킬 수 가산분은 RecordWipeoutSkillSeen(...) 호출부에서 런타임에 더함."
+}

@@ -1,0 +1,7 @@
+<color=#ff7337><color=#0099bc><b>DOTWEEN ► </b></color> SAFE MODE ►</color> DOTween's safe mode captured 37 errors. This is usually ok (it's what safe mode is there for) but if your game is encountering issues you should set Log Behaviour to Default in DOTween Utility Panel in order to get detailed warnings when an error is captured (consider that these errors are always on the user side).
+- 26 missing target or field errors
+- 11 startup errors
+UnityEngine.Debug:LogWarning (object)
+DG.Tweening.Core.Debugger:LogSafeModeReport (object)
+DG.Tweening.Core.DOTweenComponent:OnDestroy ()
+
