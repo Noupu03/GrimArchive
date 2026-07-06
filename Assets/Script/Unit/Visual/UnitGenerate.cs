@@ -12,7 +12,7 @@ using UnityEngine.U2D.Animation;
 using UnityEditor;
 #endif
 
-public class UnitGenerate : MonoBehaviour
+public class UnitGenerate
 {
 	// View mapping to separate SO data logic from Visual gameobjects
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
@@ -34,10 +34,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		_unitSpriteManager = unitSpriteManager;
 		_resolver = resolver;
-	}
 
-	void Awake()
-	{
 		humanSprite   = CreateCircleSprite(Color.white);
 		monsterSprite = CreateTriangleSprite(Color.white);
 	}
@@ -70,7 +67,7 @@ public class UnitGenerate : MonoBehaviour
 		GameObject prefab = _unitSpriteManager != null ? _unitSpriteManager.GetPrefab(unit.unitType.typeName) : null;
 		UnitVisualDefinition visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
 
-		GameObject go = prefab != null ? Instantiate(prefab) : BuildFallbackVisual(unit);
+		GameObject go = prefab != null ? Object.Instantiate(prefab) : BuildFallbackVisual(unit);
 		go.name = unit.name;
 
 		Transform tilemapTransform = GetFloorTilemapTransform(unit.currentFloor);
@@ -177,7 +174,7 @@ public class UnitGenerate : MonoBehaviour
 
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
-		var mr = FindObjectOfType<MapRandering>();
+		var mr = Object.FindObjectOfType<MapRandering>();
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
@@ -191,7 +188,7 @@ public class UnitGenerate : MonoBehaviour
 
 	public Vector3 GetFloorOffset(int floorIdx)
 	{
-		var mr = FindObjectOfType<MapRandering>();
+		var mr = Object.FindObjectOfType<MapRandering>();
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
@@ -209,7 +206,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (go != null) { go.transform.DOKill(); Destroy(go); }
+			if (go != null) { go.transform.DOKill(); Object.Destroy(go); }
 			visualMap.Remove(u);
 			targetPosMap.Remove(u);
 		}
@@ -219,7 +216,7 @@ public class UnitGenerate : MonoBehaviour
 		{
 			if (kvp.Key == null || kvp.Key.hp <= 0)
 			{
-				if (kvp.Value != null) { kvp.Value.transform.DOKill(); Destroy(kvp.Value); }
+				if (kvp.Value != null) { kvp.Value.transform.DOKill(); Object.Destroy(kvp.Value); }
 				deadKeys.Add(kvp.Key);
 			}
 		}
@@ -370,7 +367,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null)
 			? Session.cmap
-			: FindObjectOfType<CreateMap>();
+			: Object.FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return false;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -402,7 +399,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null)
 			? Session.cmap
-			: FindObjectOfType<CreateMap>();
+			: Object.FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
 		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
@@ -429,7 +426,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null)
 			? Session.cmap
-			: FindObjectOfType<CreateMap>();
+			: Object.FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -454,7 +451,7 @@ public class UnitGenerate : MonoBehaviour
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null)
 			? Session.cmap
-			: FindObjectOfType<CreateMap>();
+			: Object.FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];

@@ -15,16 +15,19 @@ public class GameCompositionRoot : LifetimeScope
     {
         // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스 (UnitManager, UnitSpriteManager 오브젝트)
         builder.RegisterComponentInHierarchy<GameSession>();
-        builder.RegisterComponentInHierarchy<UnitGenerate>();
         builder.RegisterComponentInHierarchy<UnitSpriteManager>();
         builder.RegisterComponentInHierarchy<VFXManager>();
-        builder.RegisterComponentInHierarchy<UIManager>();
 
         // 기존에 GameSession.Awake()/Start()가 런타임에 동적 생성하던 서비스
         // ThreatTileRenderer는 이제 Resources.Load로 스프라이트 라이브러리를 가져오므로
         // 인스펙터 할당이 필요 없어 다시 동적 생성으로 되돌렸다.
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
         builder.RegisterComponentOnNewGameObject<ThreatTileRenderer>(Lifetime.Singleton, "ThreatTileRenderer");
+        // UIManager는 OnGUI() 때문에 MonoBehaviour는 유지하지만 인스펙터 데이터가 없어 씬 배치가 불필요.
+        builder.RegisterComponentOnNewGameObject<UIManager>(Lifetime.Singleton, "UIManager");
+
+        // UnitGenerate: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 C# 클래스로 전환됨.
+        builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();
 
         // Haare CoreUIManager: DebugInfoPanel 등 UGUI 패널을 담는 Canvas 루트.
         builder.RegisterComponentInNewPrefab(_coreUIManagerPrefab, Lifetime.Singleton)
