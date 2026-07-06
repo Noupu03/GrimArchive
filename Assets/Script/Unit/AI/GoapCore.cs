@@ -130,8 +130,8 @@ public abstract class GoapAction
 						if (myData.discoveredMap[floorIdx][nx, ny] == 2)   { isWall = true; break; }
 
 						if (neighborPos != targetPos &&
-							GameSession.Instance != null &&
-							GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
+							unit.Session != null &&
+							unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
 						{
 							if (u != null && u != unit && u.hp > 0) isOccupied = true;
 						}

@@ -74,7 +74,7 @@ public abstract class SkillAction
 	{
 		List<Unit> result = new List<Unit>();
 
-		foreach (var u in GameSession.Instance.units)
+		foreach (var u in attacker.Session.units)
 		{
 			if (u == null || u == attacker || u.hp <= 0) continue;
 			if (u.currentFloor != attacker.currentFloor) continue;

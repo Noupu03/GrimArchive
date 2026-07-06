@@ -13,11 +13,13 @@ public abstract class Unit : ScriptableObject
 	[Inject] private UIManager _uiManager;
 	[Inject] private VFXManager _vfxManager;
 	[Inject] private InputManager _inputManager;
+	[Inject] private GameSession _gameSession;
 
 	public UnitGenerate Generate => _unitGenerate;
 	public UIManager UI => _uiManager;
 	public VFXManager VFX => _vfxManager;
 	public InputManager InputMgr => _inputManager;
+	public GameSession Session => _gameSession;
 
 	public UnitType unitType;
 
@@ -223,16 +225,16 @@ public abstract class Unit : ScriptableObject
 
 	public virtual void ForceMove(Vector2Int targetPos)
 	{
-		if (GameSession.Instance == null) return;
+		if (_gameSession == null) return;
 
 		Vector3Int oldKey = new Vector3Int(position.x, position.y, currentFloor);
-		if (GameSession.Instance.unitGrid.ContainsKey(oldKey))
-			GameSession.Instance.unitGrid.Remove(oldKey);
+		if (_gameSession.unitGrid.ContainsKey(oldKey))
+			_gameSession.unitGrid.Remove(oldKey);
 
 		position = targetPos;
 
 		Vector3Int newKey = new Vector3Int(position.x, position.y, currentFloor);
-		GameSession.Instance.unitGrid[newKey] = this;
+		_gameSession.unitGrid[newKey] = this;
 	}
 
 	public abstract void UpdateFOV(List<Unit> allUnits);

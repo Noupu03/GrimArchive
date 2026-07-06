@@ -24,6 +24,11 @@ public class UnitGenerate : MonoBehaviour
 	private UnitSpriteManager _unitSpriteManager;
 	private IObjectResolver _resolver;
 
+	// GameSession은 생성자에서 UnitGenerate를 역주입받는 관계라 직접 주입받으면 순환 의존이 생긴다.
+	// 대신 이미 갖고 있는 IObjectResolver로 실제 호출 시점(런타임)에 지연 resolve해서 순환을 피한다.
+	private GameSession _gameSession;
+	private GameSession Session => _gameSession ??= _resolver.Resolve<GameSession>();
+
 	[Inject]
 	public void Construct(UnitSpriteManager unitSpriteManager, IObjectResolver resolver)
 	{
@@ -355,16 +360,16 @@ public class UnitGenerate : MonoBehaviour
 
 	public bool IsOccupied(Vector2Int pos, int floorIdx)
 	{
-		if (GameSession.Instance != null &&
-			GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
+		if (Session != null &&
+			Session.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
 			return u != null && u.hp > 0;
 		return false;
 	}
 
 	public bool IsAreaClear(Vector2Int pos, Vector2 footprint, int floorIdx)
 	{
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return false;
 
@@ -395,8 +400,8 @@ public class UnitGenerate : MonoBehaviour
 
 	public Vector2Int GetRandomFloorPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
 		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
@@ -422,8 +427,8 @@ public class UnitGenerate : MonoBehaviour
 
 	public Vector2Int GetStartRoomPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
@@ -447,8 +452,8 @@ public class UnitGenerate : MonoBehaviour
 
 	public Vector2Int GetBossRoomPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 

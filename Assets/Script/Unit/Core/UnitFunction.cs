@@ -72,8 +72,8 @@ public abstract class UnitFunction : Unit
 
 	public override bool CanMove(Vector2Int pos)
 	{
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: UnityEngine.Object.FindObjectOfType<CreateMap>();
 
 		if (cmap == null || cmap.map.floors == null) return false;
@@ -103,8 +103,8 @@ public abstract class UnitFunction : Unit
 				if (c.roomId == -1 || c.chunk == null) return false;
 				if (c.chunk[tx, cyVal].name == "Wall") return false;
 
-				if (GameSession.Instance != null &&
-					GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
+				if (Session != null &&
+					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
 				{
 					if (u != null && u != this && u.hp > 0) return false;
 				}
@@ -167,8 +167,8 @@ public abstract class UnitFunction : Unit
 			Tile tile = c.chunk[tx, ty];
 			myData.discoveredMap[currentFloor][x, y] = tile.name == "Wall" ? 2 : 1;
 
-			if (GameSession.Instance != null &&
-				GameSession.Instance.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
+			if (Session != null &&
+				Session.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
 			{
 				if (unit != null && unit != this && unit.hp > 0)
 				{
@@ -223,8 +223,8 @@ public abstract class UnitFunction : Unit
 		Vector2 forward = GetDirVector(currentDir);
 		if (forward == Vector2.zero) forward = Vector2.down;
 
-		CreateMap cmap = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-			? GameSession.Instance.cmap
+		CreateMap cmap = (Session != null && Session.cmap != null)
+			? Session.cmap
 			: UnityEngine.Object.FindObjectOfType<CreateMap>();
 		if (cmap == null || cmap.map.floors == null) return;
 
@@ -263,9 +263,9 @@ public abstract class UnitFunction : Unit
 			if (castTimer <= 0f)
 			{
 				// 공격 타이밍: 반응한 유닛의 VFX(가드·패링) 실행
-				if (GameSession.Instance != null)
+				if (Session != null)
 				{
-					foreach (Unit u in GameSession.Instance.units)
+					foreach (Unit u in Session.units)
 					{
 						if (u == null || u.reactingAttacker != this) continue;
 						u.pendingVFX?.Invoke();
@@ -278,9 +278,9 @@ public abstract class UnitFunction : Unit
 				pendingAttack?.Invoke();
 				pendingAttack   = null;
 
-				if (GameSession.Instance != null)
+				if (Session != null)
 				{
-					foreach (Unit u in GameSession.Instance.units)
+					foreach (Unit u in Session.units)
 					{
 						if (u == null) continue;
 						u.reactedAttackers.Remove(this);
@@ -359,7 +359,7 @@ public abstract class UnitFunction : Unit
 
 	private Unit FindAttackerFromThreat(ThreatTileData threat)
 	{
-		foreach (Unit u in GameSession.Instance.units)
+		foreach (Unit u in Session.units)
 		{
 			if (u == null) continue;
 			if (!u.isCastingAttack) continue;
@@ -384,7 +384,7 @@ public abstract class UnitFunction : Unit
 	{
 		List<ThreatTileData> result = new List<ThreatTileData>();
 
-		foreach (Unit u in GameSession.Instance.units)
+		foreach (Unit u in Session.units)
 		{
 			if (u == null || u == this) continue;
 			if (u.currentFloor != currentFloor) continue;
