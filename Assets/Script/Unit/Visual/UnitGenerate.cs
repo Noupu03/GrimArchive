@@ -92,6 +92,8 @@ public class UnitGenerate
 			UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
 #endif
 
+		go.GetComponentInChildren<WeaponAttachment>()?.UpdatePose(unit.currentDir);
+
 		go.transform.position = new Vector3(
 			unit.position.x + unit.unitType.footprint.x / 2f,
 			unit.position.y + 0.05f,
@@ -146,6 +148,8 @@ public class UnitGenerate
 	public void UpdateUnitSpriteForDirection(Unit unit)
 	{
 		if (!visualMap.TryGetValue(unit, out GameObject go)) return;
+
+		go.GetComponentInChildren<WeaponAttachment>()?.UpdatePose(unit.currentDir);
 
 #if UNITY_2022_2_OR_NEWER
 		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
