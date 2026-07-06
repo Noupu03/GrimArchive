@@ -9,12 +9,14 @@ public class UIManager : MonoBehaviour
 {
     private CoreUIManager _coreUIManager;
     private IObjectResolver _resolver;
+    private GameSession _gameSession;
 
     [Inject]
-    public void Construct(CoreUIManager coreUIManager, IObjectResolver resolver)
+    public void Construct(CoreUIManager coreUIManager, IObjectResolver resolver, GameSession gameSession)
     {
         _coreUIManager = coreUIManager;
         _resolver = resolver;
+        _gameSession = gameSession;
     }
 
     void Start()
@@ -34,7 +36,7 @@ public class UIManager : MonoBehaviour
 
     void OnGUI()
     {
-        if (GameSession.Instance == null) return;
+        if (_gameSession == null) return;
 
         DrawTopLeftUI();
         DrawUnitLabels();
@@ -56,7 +58,7 @@ public class UIManager : MonoBehaviour
         }*/
 
 		// 2. 게임 속도 및 일시정지 상태
-		GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {GameSession.Instance.currentGameSpeed}x {(GameSession.Instance.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 0, 1, 2, 3 / Space");
+		GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 0, 1, 2, 3 / Space");
         y += 50;
     }
 

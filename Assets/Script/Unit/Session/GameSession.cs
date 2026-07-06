@@ -205,16 +205,13 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
             units.Add(human);
 
-            if (GameSession.Instance != null)
-                GameSession.Instance.RegisterUnitPos(human, human.position);
+            RegisterUnitPos(human, human.position);
         }
     }
 
     private Vector2Int GetRandomStartRoomPos(Vector2 footprint, int floorIdx)
     {
-        CreateMap mapGenerator = (GameSession.Instance != null && GameSession.Instance.cmap != null)
-            ? GameSession.Instance.cmap
-            : FindObjectOfType<CreateMap>();
+        CreateMap mapGenerator = cmap != null ? cmap : FindObjectOfType<CreateMap>();
 
         if (mapGenerator == null || mapGenerator.map.floors == null || floorIdx < 0 || floorIdx >= mapGenerator.map.floors.Length)
             return Vector2Int.zero;
@@ -264,7 +261,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         Monster monster = _unitGenerate.GenerateUnitAtRandomFloor<Monster>(selection, 1);
 
         units.Add(monster);
-        if (GameSession.Instance != null) GameSession.Instance.RegisterUnitPos(monster, monster.position);
+        RegisterUnitPos(monster, monster.position);
         LogHelper.Log(LogHelper.GAME, $"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
     }
 

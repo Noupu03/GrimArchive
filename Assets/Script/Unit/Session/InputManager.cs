@@ -9,11 +9,13 @@ public class InputManager : MonoBehaviour
 	public Unit selectedUnit;
 
 	private UnitGenerate _unitGenerate;
+	private GameSession _gameSession;
 
 	[Inject]
-	public void Construct(UnitGenerate unitGenerate)
+	public void Construct(UnitGenerate unitGenerate, GameSession gameSession)
 	{
 		_unitGenerate = unitGenerate;
+		_gameSession = gameSession;
 	}
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
@@ -27,7 +29,7 @@ public class InputManager : MonoBehaviour
 
 	void Update()
 	{
-		if (GameSession.Instance == null) return;
+		if (_gameSession == null) return;
 		if (Keyboard.current == null || Mouse.current == null) return;
 
 		int currentFloor = 1;
@@ -60,7 +62,7 @@ public class InputManager : MonoBehaviour
 			// =================================================
 			Unit clickedUnit = null;
 
-			foreach (var u in GameSession.Instance.units)
+			foreach (var u in _gameSession.units)
 			{
 				if (u == null || u.hp <= 0) continue;
 				if (u.currentFloor != currentFloor) continue;
@@ -87,7 +89,7 @@ public class InputManager : MonoBehaviour
 			// =================================================
 			if (selectedUnit != null && selectedUnit.hp > 0)
 			{
-				foreach (var u in GameSession.Instance.units)
+				foreach (var u in _gameSession.units)
 				{
 					if (u == selectedUnit || u.hp <= 0) continue;
 					if (u.currentFloor != currentFloor) continue;
@@ -152,33 +154,33 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		if (Keyboard.current.spaceKey.wasPressedThisFrame)
 		{
-			GameSession.Instance.isPaused = !GameSession.Instance.isPaused;
-			Time.timeScale = GameSession.Instance.isPaused
+			_gameSession.isPaused = !_gameSession.isPaused;
+			Time.timeScale = _gameSession.isPaused
 				? 0.0001f
-				: GameSession.Instance.currentGameSpeed;
+				: _gameSession.currentGameSpeed;
 		}
 		if (Keyboard.current.digit0Key.wasPressedThisFrame)
 		{
-			GameSession.Instance.currentGameSpeed = 0.5f;
-			if (!GameSession.Instance.isPaused) Time.timeScale = 0.5f;
+			_gameSession.currentGameSpeed = 0.5f;
+			if (!_gameSession.isPaused) Time.timeScale = 0.5f;
 		}
 
 		if (Keyboard.current.digit1Key.wasPressedThisFrame)
 		{
-			GameSession.Instance.currentGameSpeed = 1f;
-			if (!GameSession.Instance.isPaused) Time.timeScale = 1f;
+			_gameSession.currentGameSpeed = 1f;
+			if (!_gameSession.isPaused) Time.timeScale = 1f;
 		}
 
 		if (Keyboard.current.digit2Key.wasPressedThisFrame)
 		{
-			GameSession.Instance.currentGameSpeed = 2f;
-			if (!GameSession.Instance.isPaused) Time.timeScale = 2f;
+			_gameSession.currentGameSpeed = 2f;
+			if (!_gameSession.isPaused) Time.timeScale = 2f;
 		}
 
 		if (Keyboard.current.digit3Key.wasPressedThisFrame)
 		{
-			GameSession.Instance.currentGameSpeed = 3f;
-			if (!GameSession.Instance.isPaused) Time.timeScale = 3f;
+			_gameSession.currentGameSpeed = 3f;
+			if (!_gameSession.isPaused) Time.timeScale = 3f;
 		}
 	}
 }
