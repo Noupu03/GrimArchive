@@ -1,5 +1,6 @@
 using System.Text;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VContainer;
 using R3;
 using Cysharp.Threading.Tasks;
@@ -18,21 +19,21 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     public GameObject panel { get; set; }
 
     [SerializeField] private CustomText selectedUnitInfoText;
-    [SerializeField] private CustomButton zoomInButton;
-    [SerializeField] private CustomButton zoomOutButton;
-    [SerializeField] private CustomSlider gameSpeedSlider;
     [SerializeField] private CustomButton saveButton;
     [SerializeField] private CustomButton loadButton;
 
+    private const float ScrollZoomSpeed = 0.02f;
+
     private InputManager _inputManager;
     private DataManager _dataManager;
-    private float _lastSliderValue = -1f;
+    private GameSession _gameSession;
 
     [Inject]
-    public void Construct(InputManager inputManager, DataManager dataManager)
+    public void Construct(InputManager inputManager, DataManager dataManager, GameSession gameSession)
     {
         _inputManager = inputManager;
         _dataManager = dataManager;
+        _gameSession = gameSession;
     }
 
     public void OpenPanel()
@@ -50,23 +51,14 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     {
         // 프리팹이 스크립트보다 오래돼서(Tools > GrimArchive > Haare UI 셋업 생성 재실행 전) 참조가
         // 비어있는 경우 하나가 null이어도 나머지 바인딩까지 통째로 죽지 않도록 방어적으로 처리한다.
-        if (zoomInButton == null || zoomOutButton == null || saveButton == null || loadButton == null || gameSpeedSlider == null)
+        if (saveButton == null || loadButton == null)
         {
             LogHelper.Error(LogHelper.GAME,
                 "DebugInfoPanel 필드가 비어 있습니다. Tools > GrimArchive > Haare UI 셋업 생성을 다시 실행해서 프리팹을 갱신하세요.");
         }
 
-        if (zoomInButton != null) zoomInButton.Onclicked.Subscribe(_ => Zoom(-2f)).AddTo(disposables);
-        if (zoomOutButton != null) zoomOutButton.Onclicked.Subscribe(_ => Zoom(2f)).AddTo(disposables);
         if (saveButton != null) saveButton.Onclicked.Subscribe(_ => SaveMapAsync().Forget()).AddTo(disposables);
         if (loadButton != null) loadButton.Onclicked.Subscribe(_ => LoadMapAsync().Forget()).AddTo(disposables);
-
-        if (gameSpeedSlider != null)
-        {
-            float initialSpeed = GameSession.Instance != null ? GameSession.Instance.currentGameSpeed : 1f;
-            gameSpeedSlider.Setup(0.5f, 3f, initialSpeed);
-            _lastSliderValue = initialSpeed;
-        }
     }
 
     private void Zoom(float delta)
@@ -78,7 +70,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // 유닛 상태는 저장 대상이 아님 — 맵(층/청크/타일/점령 상태)만 저장/복원한다.
     private async UniTaskVoid SaveMapAsync()
     {
-        var cmap = GameSession.Instance != null ? GameSession.Instance.cmap : null;
+        var cmap = _gameSession != null ? _gameSession.cmap : null;
         if (cmap == null) return;
 
         var dto = MapSerializer.MapToDto(cmap.map);
@@ -88,7 +80,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     private async UniTaskVoid LoadMapAsync()
     {
-        var cmap = GameSession.Instance != null ? GameSession.Instance.cmap : null;
+        var cmap = _gameSession != null ? _gameSession.cmap : null;
         if (cmap == null) return;
 
         if (!AssetLoader.Exists("Save/map.json"))
@@ -108,13 +100,12 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     {
         base.UpdateProcess();
 
-        // CustomSlider엔 값 변경 이벤트가 없어 매 프레임 폴링해서 GameSession에 반영한다.
-        if (gameSpeedSlider != null && GameSession.Instance != null && !Mathf.Approximately(gameSpeedSlider.Value, _lastSliderValue))
+        // 줌인/줌아웃 버튼 대신 마우스 휠로 카메라 줌 조절.
+        if (Mouse.current != null)
         {
-            _lastSliderValue = gameSpeedSlider.Value;
-            GameSession.Instance.currentGameSpeed = _lastSliderValue;
-            if (!GameSession.Instance.isPaused)
-                Time.timeScale = _lastSliderValue;
+            float scroll = Mouse.current.scroll.ReadValue().y;
+            if (!Mathf.Approximately(scroll, 0f))
+                Zoom(-scroll * ScrollZoomSpeed);
         }
 
         RefreshSelectedUnitInfo();

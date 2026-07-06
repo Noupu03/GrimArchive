@@ -95,7 +95,6 @@ public static class HaareUISetup
     private static GameObject CreateDebugInfoPanelPrefab()
     {
         var tmpResources = GetTMPResources();
-        var uiResources = GetUIResources();
 
         var root = new GameObject("DebugInfoPanel", typeof(RectTransform));
         var rootRt = root.GetComponent<RectTransform>();
@@ -136,45 +135,14 @@ public static class HaareUISetup
         infoTmp.text = "";
         var infoCustomText = infoTextGo.AddComponent<CustomText>();
 
-        // 줌 인/아웃 버튼 (우상단)
-        GameObject zoomInGo = CreateCustomButton(tmpResources, "ZoomInButton", "Zoom In");
-        zoomInGo.transform.SetParent(root.transform, false);
-        var zoomInRt = zoomInGo.GetComponent<RectTransform>();
-        zoomInRt.anchorMin = new Vector2(1, 1);
-        zoomInRt.anchorMax = new Vector2(1, 1);
-        zoomInRt.pivot = new Vector2(1, 1);
-        zoomInRt.anchoredPosition = new Vector2(-10, -10);
-        zoomInRt.sizeDelta = new Vector2(90, 30);
-
-        GameObject zoomOutGo = CreateCustomButton(tmpResources, "ZoomOutButton", "Zoom Out");
-        zoomOutGo.transform.SetParent(root.transform, false);
-        var zoomOutRt = zoomOutGo.GetComponent<RectTransform>();
-        zoomOutRt.anchorMin = new Vector2(1, 1);
-        zoomOutRt.anchorMax = new Vector2(1, 1);
-        zoomOutRt.pivot = new Vector2(1, 1);
-        zoomOutRt.anchoredPosition = new Vector2(-10, -50);
-        zoomOutRt.sizeDelta = new Vector2(90, 30);
-
-        // 게임 속도 슬라이더 (상단 중앙)
-        GameObject sliderGo = DefaultControls.CreateSlider(uiResources);
-        sliderGo.name = "GameSpeedSlider";
-        sliderGo.transform.SetParent(root.transform, false);
-        var sliderRt = sliderGo.GetComponent<RectTransform>();
-        sliderRt.anchorMin = new Vector2(0.5f, 1);
-        sliderRt.anchorMax = new Vector2(0.5f, 1);
-        sliderRt.pivot = new Vector2(0.5f, 1);
-        sliderRt.anchoredPosition = new Vector2(0, -10);
-        sliderRt.sizeDelta = new Vector2(200, 20);
-        var customSlider = sliderGo.AddComponent<CustomSlider>();
-
-        // 맵 저장/불러오기 버튼 (줌 버튼 아래)
+        // 맵 저장/불러오기 버튼 (우상단)
         GameObject saveGo = CreateCustomButton(tmpResources, "SaveButton", "Save");
         saveGo.transform.SetParent(root.transform, false);
         var saveRt = saveGo.GetComponent<RectTransform>();
         saveRt.anchorMin = new Vector2(1, 1);
         saveRt.anchorMax = new Vector2(1, 1);
         saveRt.pivot = new Vector2(1, 1);
-        saveRt.anchoredPosition = new Vector2(-10, -90);
+        saveRt.anchoredPosition = new Vector2(-10, -10);
         saveRt.sizeDelta = new Vector2(90, 30);
 
         GameObject loadGo = CreateCustomButton(tmpResources, "LoadButton", "Load");
@@ -183,15 +151,12 @@ public static class HaareUISetup
         loadRt.anchorMin = new Vector2(1, 1);
         loadRt.anchorMax = new Vector2(1, 1);
         loadRt.pivot = new Vector2(1, 1);
-        loadRt.anchoredPosition = new Vector2(-10, -130);
+        loadRt.anchoredPosition = new Vector2(-10, -50);
         loadRt.sizeDelta = new Vector2(90, 30);
 
         var debugPanel = root.AddComponent<DebugInfoPanel>();
         var so = new SerializedObject(debugPanel);
         so.FindProperty("selectedUnitInfoText").objectReferenceValue = infoCustomText;
-        so.FindProperty("zoomInButton").objectReferenceValue = zoomInGo.GetComponent<CustomButton>();
-        so.FindProperty("zoomOutButton").objectReferenceValue = zoomOutGo.GetComponent<CustomButton>();
-        so.FindProperty("gameSpeedSlider").objectReferenceValue = customSlider;
         so.FindProperty("saveButton").objectReferenceValue = saveGo.GetComponent<CustomButton>();
         so.FindProperty("loadButton").objectReferenceValue = loadGo.GetComponent<CustomButton>();
         so.ApplyModifiedPropertiesWithoutUndo();
@@ -303,20 +268,6 @@ public static class HaareUISetup
     private static TMP_DefaultControls.Resources GetTMPResources()
     {
         return new TMP_DefaultControls.Resources
-        {
-            standard = GetBuiltinSprite("UI/Skin/UISprite.psd"),
-            background = GetBuiltinSprite("UI/Skin/Background.psd"),
-            inputField = GetBuiltinSprite("UI/Skin/InputFieldBackground.psd"),
-            knob = GetBuiltinSprite("UI/Skin/Knob.psd"),
-            checkmark = GetBuiltinSprite("UI/Skin/Checkmark.psd"),
-            dropdown = GetBuiltinSprite("UI/Skin/DropdownArrow.psd"),
-            mask = GetBuiltinSprite("UI/Skin/UIMask.psd"),
-        };
-    }
-
-    private static DefaultControls.Resources GetUIResources()
-    {
-        return new DefaultControls.Resources
         {
             standard = GetBuiltinSprite("UI/Skin/UISprite.psd"),
             background = GetBuiltinSprite("UI/Skin/Background.psd"),

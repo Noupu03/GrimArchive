@@ -45,7 +45,7 @@ public class UIManager : MonoBehaviour
 
 	private void DrawTopLeftUI()
     {
-        int y = 10;
+        int y = 50; // 좌상단 FPS 카운터(CoreCanvas의 FPSText, y 10~40)와 안 겹치게 그 아래부터 시작.
 		/*=======아티팩트 관련 참조 주석처리========
         // 1. 유물 생성 모드 토글
         if (ArtifactManager.Instance != null)
