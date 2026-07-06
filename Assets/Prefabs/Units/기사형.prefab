@@ -491,22 +491,22 @@ MonoBehaviour:
   nativeSpriteAngle: 135
   poses:
   - direction: 0
-    offset: {x: 0, y: 0.6}
+    offset: {x: 0, y: 0.7}
     targetAngle: 90
     sortingOrder: 8
   - direction: 7
-    offset: {x: -0.42, y: 0.42}
+    offset: {x: -0.32, y: 0.32}
     targetAngle: 135
     sortingOrder: 8
   - direction: 6
-    offset: {x: -0.6, y: 0}
+    offset: {x: -0.15, y: 0.35}
     targetAngle: 180
     sortingOrder: 11
   - direction: 5
-    offset: {x: -0.42, y: -0.42}
+    offset: {x: -0.2, y: 0.42}
     targetAngle: -135
     sortingOrder: 11
   - direction: 4
-    offset: {x: 0, y: -0.6}
+    offset: {x: 0, y: 0.25}
     targetAngle: -90
     sortingOrder: 11

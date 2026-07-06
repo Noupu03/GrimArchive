@@ -29,11 +29,11 @@ public class WeaponAttachment : MonoBehaviour
     [SerializeField]
     private DirectionalPose[] poses = new DirectionalPose[]
     {
-        new DirectionalPose { direction = Dir.UP,        offset = new Vector2(0f,     0.6f),  targetAngle = 90f,   sortingOrder = 8  },
-        new DirectionalPose { direction = Dir.UP_LEFT,   offset = new Vector2(-0.42f, 0.42f), targetAngle = 135f,  sortingOrder = 8  },
-        new DirectionalPose { direction = Dir.LEFT,      offset = new Vector2(-0.6f,  0f),    targetAngle = 180f,  sortingOrder = 11 },
-        new DirectionalPose { direction = Dir.DOWN_LEFT, offset = new Vector2(-0.42f, -0.42f),targetAngle = -135f, sortingOrder = 11 },
-        new DirectionalPose { direction = Dir.DOWN,      offset = new Vector2(0f,    -0.6f),  targetAngle = -90f,  sortingOrder = 11 },
+        new DirectionalPose { direction = Dir.UP,        offset = new Vector2(0f,     0.7f),  targetAngle = 90f,   sortingOrder = 8  },
+        new DirectionalPose { direction = Dir.UP_LEFT,   offset = new Vector2(-0.32f, 0.32f), targetAngle = 135f,  sortingOrder = 8  },
+        new DirectionalPose { direction = Dir.LEFT,      offset = new Vector2(-0.15f,  0.35f),  targetAngle = 180f,  sortingOrder = 11 },
+        new DirectionalPose { direction = Dir.DOWN_LEFT, offset = new Vector2(-0.2f, -0.42f),targetAngle = -135f, sortingOrder = 11 },
+        new DirectionalPose { direction = Dir.DOWN,      offset = new Vector2(0f,    0.25f),  targetAngle = -90f,  sortingOrder = 11 },
     };
 
     private SpriteRenderer _sr;
