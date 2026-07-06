@@ -74,11 +74,6 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         Instance = this;
 
         // InputManager/UIManager/ThreatTileRenderer는 이제 GameCompositionRoot(VContainer)가 배선한다.
-        // ArtifactManager는 대부분 주석 처리된 미사용 코드라 이번 DI 전환 대상에서 제외했다.
-        if (GetComponent<ArtifactManager>() == null)
-        {
-            gameObject.AddComponent<ArtifactManager>();
-        }
     }
 
     void Start()
