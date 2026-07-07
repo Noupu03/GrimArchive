@@ -289,6 +289,8 @@ public abstract class UnitFunction : Unit
 
 		if (isCastingAttack)
 		{
+			pendingCastUpdate?.Invoke();
+			
 			castTimer -= deltaTime;
 			if (castTimer <= 0f)
 			{
@@ -307,6 +309,7 @@ public abstract class UnitFunction : Unit
 				currentThreat   = null;
 				pendingAttack?.Invoke();
 				pendingAttack   = null;
+				pendingCastUpdate = null;
 
 				if (Session != null)
 				{

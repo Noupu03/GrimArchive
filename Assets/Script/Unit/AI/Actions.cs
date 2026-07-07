@@ -69,21 +69,30 @@ public class Action_EngageEnemy : GoapAction
 
 	private void ExecuteSkillActionBased(Unit unit)
 	{
+		if (unit.isCastingAttack) return; // 캐스팅 중에는 새로운 행동 판단을 중지
+
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
 
+		var unitSkills = unit.Generate != null ? unit.Generate.GetSkills(unit.unitType.typeName) : new System.Collections.Generic.List<SkillAction>();
 		int engageSteps = unit.Generate != null ? unit.Generate.GetEngageDistance(unit.unitType.typeName, 2) : 2;
 
+		// [사전 수치 계산] 유닛이 보유한 최대 스킬 사거리를 계산합니다.
+		int maxSkillRange = 0;
+		foreach (var s in unitSkills)
+		{
+			if (s != null && s.HitRange > maxSkillRange) maxSkillRange = s.HitRange;
+		}
+		
 		Vector2Int diff     = target.position - unit.position;
 		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
 
 		unit.currentDir         = SkillAction.GetDirection8(diff);
 		unit.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, 1);
 
-		// 사용 가능한 최우선 스킬 탐색
+		// 1. 사용 가능한 최우선 스킬을 '가장 먼저' 탐색합니다. (스킬 사거리에 따라 이동 로직이 달라짐)
 		SkillAction bestSkill    = null;
 		float       bestPriority = float.MinValue;
-		var unitSkills = unit.Generate != null ? unit.Generate.GetSkills(unit.unitType.typeName) : new System.Collections.Generic.List<SkillAction>();
 		foreach (SkillAction skill in unitSkills)
 		{
 			if (skill == null || !skill.IsAvailable(unit)) continue;
@@ -93,30 +102,58 @@ public class Action_EngageEnemy : GoapAction
 
 		if (bestSkill != null)
 		{
-			// 선택된 스킬의 실제 사정거리로 canHit 검사
+			// 선택된 스킬의 실제 사거리로 canHit 검사
 			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
 			bool   canHit   = SkillAction.GetEnemiesInHitbox(unit, skillBox).Contains(target);
 
 			if (canHit)
 			{
+				// 스킬을 맞출 수 있을 때 카이팅을 할 것인가?
+				// 사거리가 긴 원거리 스킬(사거리 4 이상)일 때만 거리를 벌립니다.
+				// 근접 스킬(사거리 3 이하)이라면 굳이 뒤로 빼지 않고 즉시 스킬을 꽂아 넣습니다!
+				if (bestSkill.HitRange >= 4)
+				{
+					int dangerDist = bestSkill.HitRange / 2;
+					if (chebDist <= dangerDist && unit.evadeCooldown <= 0f)
+					{
+						MoveAwayFromTarget(unit, target, bestSkill.HitRange);
+						// 이동 방향에 맞게 시각화 업데이트 진행
+						unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
+						unit.Generate?.UpdateUnitSpriteForDirection(unit);
+						return; // 도망가는 중에는 스킬 사용 보류
+					}
+				}
+
+				// 안전하거나 근접 스킬이라면 즉시 실행!
 				bestSkill.Execute(unit, target, minDist);
 				return;
 			}
 
-			// 사정거리 밖: 적에게 접근
-			if (unit.evadeCooldown > 0f) return;
-			MoveTowardsTarget(unit, target);
+			// 사거리 밖이거나 쏘는 각도가 안맞으면 다가갑니다 (접근하여 각도 맞추기)
+			if (unit.evadeCooldown <= 0f)
+			{
+				MoveTowardsTarget(unit, target);
+			}
 		}
 		else
 		{
-			// 스킬 쿨다운 중: 체비쇼프 거리 기준으로 대치 거리 유지 (대각선 포함)
-			if (unit.evadeCooldown > 0f) return;
-
-			if (chebDist != engageSteps)
-				MoveAwayFromTarget(unit, target, engageSteps);
+			// 모든 스킬이 쿨다운일 때 (공격 후 재장전 상태)
+			// 사거리가 긴 원거리 유닛만 최대 사거리로 도망가며(Hit & Run), 근접 유닛은 도망가지 않고 붙어있습니다.
+			int fallbackRange = maxSkillRange >= 4 ? maxSkillRange : 1;
+			if (chebDist != fallbackRange && unit.evadeCooldown <= 0f)
+			{
+				if (chebDist < fallbackRange)
+				{
+					MoveAwayFromTarget(unit, target, fallbackRange);
+				}
+				else
+				{
+					MoveTowardsTarget(unit, target);
+				}
+			}
 		}
 
-		// 이동 후 방향 업데이트 (항상 적을 바라봄, 대각 포함 8방향)
+		// 이동 후 방향 업데이트 (계속 적을 바라보게 함, 8방향)
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 		unit.Generate?.UpdateUnitSpriteForDirection(unit);
 	}

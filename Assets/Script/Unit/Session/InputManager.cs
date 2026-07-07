@@ -20,6 +20,8 @@ public class InputManager : MonoBehaviour
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{
+		if (u == null || u.unitType == null) return false;
+
 		int w = (int)u.unitType.footprint.x;
 		int h = (int)u.unitType.footprint.y;
 

@@ -125,6 +125,30 @@
       "priorityKillBonus": 20,
       "priorityRangeThreshold": 3.0,
       "priorityRangeBonus": 10
+    },
+    {
+      "skillName": "정밀 사격",
+      "baseDelayMs": 200,
+      "baseCooldown": 1.0,
+      "cooldownSlot": 0,
+      "isProjectile": true,
+      "projectileSpeed": 5.0,
+      "isPiercing": false,
+      "hitShape": "RECT",
+      "hitRange": 7,
+      "hitWidth": 1,
+      "hitDepth": 1,
+      "threatRange": 7,
+      "threatWidth": 1,
+      "threatDepth": 7,
+      "damageMultiplier": 10.0,
+      "hasStun": false,
+      "stunDuration": 0,
+      "priorityBase": 70,
+      "priorityKillMultiplier": 1.2,
+      "priorityKillBonus": 20,
+      "priorityRangeThreshold": 7.0,
+      "priorityRangeBonus": 10
     }
   ]
 }
