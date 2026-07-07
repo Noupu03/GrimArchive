@@ -116,7 +116,7 @@ public class WeightSystemTests
 	[Test]
 	public void SpecialUnitUnderstanding_CapsAt50Each()
 	{
-		Assert.AreEqual(90f, WeightMath.ComposeUnderstanding(70f, 60f, true), 0.001f); // 50+50 캡
+		Assert.AreEqual(100f, WeightMath.ComposeUnderstanding(70f, 60f, true), 0.001f); // 50+50 캡
 		Assert.AreEqual(55f, WeightMath.ComposeUnderstanding(30f, 25f, true), 0.001f); // 캡 안걸림
 		Assert.AreEqual(70f, WeightMath.ComposeUnderstanding(70f, 60f, false), 0.001f); // 일반 유닛은 종별만
 	}

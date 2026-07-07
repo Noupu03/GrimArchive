@@ -15,8 +15,12 @@ public class IncidentEntry
 	public MentalErrorState MentalStateAtRecord;
 	public string ObserverUnitName; // 디버그 추적용 (어느 유닛이 겪었는지)
 
+	// 기록 당시 대상이 특수 유닛(보스/네메시스, 개별 누적)이었는지 — 일반 유닛(종별 누적)인지.
+	// OnWaveEnd가 종/개별 저장소 중 어디에 반영할지 판단하는 데 쓴다.
+	public bool IsIndividualTarget;
+
 	public IncidentEntry(string incidentId, EventId eventId, string targetId, WeightType weightType,
-		InfoType infoType, float changeValue, MentalErrorState mentalState, string observerUnitName)
+		InfoType infoType, float changeValue, MentalErrorState mentalState, string observerUnitName, bool isIndividualTarget = false)
 	{
 		IncidentId = incidentId;
 		EventId = eventId;
@@ -26,6 +30,7 @@ public class IncidentEntry
 		ChangeValue = changeValue;
 		MentalStateAtRecord = mentalState;
 		ObserverUnitName = observerUnitName;
+		IsIndividualTarget = isIndividualTarget;
 	}
 
 	// 6-2장 동일 수치 정보 중복 판정 키 (EventID/IncidentID/TargetID/WeightType/InfoType/ChangeValue 전부 동일하면 중복)

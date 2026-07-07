@@ -52,16 +52,23 @@ public class HumanKnowledgeBase
 			return;
 		}
 
-		string targetId = target.name;
+		string targetId = ResolveTargetKey(target);
+		bool isIndividualTarget = target.isSpecialUnit;
 		MentalErrorState mentalState = GetMentalState(observer);
 
 		if (delta.Understanding != 0f)
-			RecordEventForWeight(id, observer, targetId, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
+			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
 		if (delta.Danger != 0f)
-			RecordEventForWeight(id, observer, targetId, WeightType.Danger, delta.Danger, infoType, mentalState, incidentId);
+			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Danger, delta.Danger, infoType, mentalState, incidentId);
 	}
 
-	private void RecordEventForWeight(EventId id, Unit observer, string targetId, WeightType type,
+	// 일반 유닛은 종별 누적(4-3장/7장), 특수 유닛(보스/네메시스)은 개별 누적(7-1장)을 쓰므로
+	// 대상 식별 키도 그에 맞춰 갈라야 한다 — 일반 유닛의 target.name은 스폰마다 유일한 인스턴스명
+	// (UnitGenerate: "{typeName}_{x}_{y}_{floor}")이라 종별 누적 키로 쓰면 GetUnitInterest/GetFinalDanger
+	// 등이 조회하는 unitType.typeName과 어긋나 절대 매칭되지 않는다.
+	private static string ResolveTargetKey(Unit target) => target.isSpecialUnit ? target.name : target.unitType.typeName;
+
+	private void RecordEventForWeight(EventId id, Unit observer, string targetId, bool isIndividualTarget, WeightType type,
 		float changeValue, InfoType infoType, MentalErrorState mentalState, string incidentId)
 	{
 		// 개인 즉시 반영 (4장)
@@ -76,7 +83,7 @@ public class HumanKnowledgeBase
 		record.MentalStateAtRecord = mentalState;
 
 		// 전역 반영 큐잉 (6장/10-2장 — 웨이브 종료 후 생존자 정보만 반영)
-		_pendingIncidents.Add(new IncidentEntry(incidentId, id, targetId, type, infoType, changeValue, mentalState, observer.name));
+		_pendingIncidents.Add(new IncidentEntry(incidentId, id, targetId, type, infoType, changeValue, mentalState, observer.name, isIndividualTarget));
 	}
 
 	// 정신력 상태 → MentalErrorState 매핑. 문서(9-2장/23장)는 "정신력 저하 상태(공포/공황)"만 언급하고
@@ -127,7 +134,10 @@ public class HumanKnowledgeBase
 			if (amount == 0f) continue;
 
 			string targetId = group.Key.TargetId;
-			bool isIndividual = _individuals.ContainsKey(targetId);
+			// 기록 당시(RecordEvent)의 target.isSpecialUnit을 그대로 들고 온다 — 예전에는
+			// _individuals.ContainsKey(targetId)로 추측했는데, 그건 GetUnderstanding류를 먼저
+			// 한 번이라도 호출해야 우연히 채워지는 값이라 호출 순서에 따라 틀릴 수 있었다.
+			bool isIndividual = group.First().IsIndividualTarget;
 
 			if (group.Key.WeightType == WeightType.Understanding)
 				ApplyUnderstandingGlobal(targetId, isIndividual, amount);

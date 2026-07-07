@@ -11,9 +11,54 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
   [미구현]          이번 구현 범위에서 아예 다루지 않았다.
 
 코드 위치: Assets/Script/Unit/Weight/ (WeightEnums, WeightEventTable, WeightMath, HumanKnowledgeBase,
-          PersonalWeightRecord, IncidentLog, SpeciesWeightState), Assets/Data/weight_events.json,
+          PersonalWeightRecord, IncidentLog, SpeciesWeightState, WeightSystemDemo), Assets/Data/weight_events.json,
           Assets/Tests/WeightSystemTests.cs. 통합 지점: Unit.cs, UnitFunction.cs, GameSession.cs,
           UnitVisualDefinition.cs, GameCompositionRoot.cs.
+
+════════════════════════════════════════════════════════════════════════
+디버깅 이력 — 종/개체 식별 키 불일치 버그 (2026-07-07 발견 및 수정)
+════════════════════════════════════════════════════════════════════════
+검증 도구: Assets/Script/Unit/Weight/WeightSystemDemo.cs — 아무 GameObject에 붙이고 Play하면
+연산공식 문서의 대표 예시를 8개 시나리오로 나눠 HumanKnowledgeBase의 실제 파이프라인
+(RecordEvent → OnWaveEnd → 조회)으로 그대로 재현하고, 계산값과 "문서 기대값"을
+[OK]/[MISMATCH]로 나란히 Console([DEMO] 태그, LogHelper.DEMO)에 찍어주는 수동 검증
+스크립트. VContainer 주입 없이 HumanKnowledgeBase를 직접 new해서 쓰고 가짜 Human/Monster
+유닛(ScriptableObject.CreateInstance)을 던지므로 프로덕션 게임 루프와 무관하게 독립 실행된다.
+최초 실행에서 8개 시나리오 중 2개가 MISMATCH로 떴다.
+
+[발견 1 — 실제 버그, 코드 수정함] 시나리오 2(6장/6-4장 예시2: 오크가 인류를 처치, 생존자
+B/C/D가 각각 직접목격/간접파악으로 목격)에서 OnWaveEnd로 생존자 정보를 반영한 뒤
+GetFinalDanger("근접 탱커", ...)를 조회하니 기대값 2(저장값 2.4의 적용값)가 아니라 0이 나옴.
+  원인 추적: RecordEvent가 종/개체 식별 키로 target.name을 그대로 썼는데, 실제 스폰 코드
+  (UnitGenerate.cs: unit.name = "{typeName}_{x}_{y}_{floor}")는 유닛 인스턴스마다 위치가
+  섞인 유일한 이름을 붙인다. 반면 GetUnitInterest/GetFinalDanger/GetUnderstanding 등 조회부는
+  target.unitType.typeName(종 타입명, 예: "근접 탱커")으로 조회한다. 즉 기록은 인스턴스
+  유일값에 쌓이고 조회는 종 타입명을 보므로, 실제 게임에서는 4-3장/7장/10장/11장/12-1장이
+  말하는 "종별 위험도·이해도 누적" 자체가 절대 관측되지 않는 구조였다. 데모에서는 오크
+  유닛의 이름을 "오크"로 직접 지정해서 우연히 드러났지만(기록 키 "오크" ≠ 조회 키
+  "근접 탱커"), 실제 스폰 코드에서는 인스턴스 이름이 자동 생성되므로 100% 재현되는 문제였다.
+  수정: HumanKnowledgeBase.ResolveTargetKey(target)를 새로 도입해 일반 유닛은
+  target.unitType.typeName, 특수 유닛(isSpecialUnit=true, 보스/네메시스)은 target.name을
+  식별 키로 쓰도록 분기(HumanKnowledgeBase.cs). IncidentEntry에 IsIndividualTarget 필드를
+  추가해서(IncidentLog.cs) 기록 당시의 target.isSpecialUnit 값을 그대로 들고 오게 했고,
+  OnWaveEnd는 이제 이 값으로 종/개별 저장소 중 어디에 반영할지 판단한다 — 예전에는
+  _individuals.ContainsKey(targetId)로 추측했는데, 이는 GetUnderstanding류를 그 전에 한
+  번이라도 호출해야 우연히 채워지는 값이라 호출 순서에 따라 틀릴 수 있는 구조였다(부수적으로
+  함께 고침). WeightMath의 계산 공식 자체는 처음부터 문제없었다 — 버그는 HumanKnowledgeBase의
+  키 결정(통합/배선) 계층에 있었다.
+
+[발견 2 — 테스트 오타, WeightMath 코드는 정상] 시나리오 4(7-1장: 특수유닛 이해도 합성)에서
+ComposeUnderstanding(70, 60, true) 결과가 기대값 90이 아니라 100으로 나옴.
+  확인 결과 공식(min(종별,50)+min(개별,50) = min(70,50)+min(60,50) = 50+50 = 100)과
+  WeightMath.ComposeUnderstanding 구현은 문제없다 — 데모의 기대값을 기존
+  Assets/Tests/WeightSystemTests.cs의 SpecialUnitUnderstanding_CapsAt50Each 테스트에서
+  그대로 베꼈는데, 그 테스트 자체가 오타였다(주석은 "50+50 캡"이라고 100을 가리키면서 바로
+  옆 Assert 값은 90f로 적혀 있었다 — Unity Test Runner로 실제 돌렸으면 실패했을 테스트).
+  수정: 테스트 기대값을 90f → 100f로 수정(WeightSystemTests.cs). WeightMath 코드는 변경 없음.
+
+수정 후 WeightSystemDemo를 다시 Play해서 8개 시나리오 전부 [OK]로 뜨는 것을 확인함.
+수정된 파일: HumanKnowledgeBase.cs, IncidentLog.cs, Assets/Tests/WeightSystemTests.cs,
+WeightSystemDemo.cs.
 
 ════════════════════════════════════════════════════════════════════════
 1장. 가중치 관리 범위
@@ -69,6 +114,7 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
 [구현] WeightMath.ApplyPersonalChange(), Unit.personalWeights에 즉시 반영.
        HumanKnowledgeBase.RecordEvent()가 호출되는 즉시 이 계산이 실행됨. 예시(2.0+3=5.0) 테스트로
        고정(WeightSystemTests.PersonalWeightChange_Example).
+       ※ 2026-07-07: RecordEvent의 종/개체 식별 키 버그를 여기서 함께 고침 — 상단 "디버깅 이력" 참고.
 
 ════════════════════════════════════════════════════════════════════════
 5장. 신규 진입 유닛 정보
@@ -100,6 +146,9 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
        코드는 없다 — CLAUDE.md에 남긴 대로, 웨이브 루프가 생기면 그 종료 지점에서 한 번 호출하면
        된다. 그 전까지는 RecordEvent()로 큐잉된 이벤트가 계속 _pendingIncidents에 쌓이기만 한다
        (수동으로 OnWaveEnd를 호출해 테스트/디버그하는 것은 가능).
+       ※ 2026-07-07: OnWaveEnd가 종/개별 저장소를 가르는 방식을 IncidentEntry.IsIndividualTarget
+       기반으로 바꿈(예전 _individuals.ContainsKey(targetId) 추측 방식은 호출 순서 의존적 버그였음) —
+       상단 "디버깅 이력" 참고.
 
 ════════════════════════════════════════════════════════════════════════
 7장 / 7-1장. 이해도 증가 / 특수 유닛 이해도
@@ -108,6 +157,9 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
 [구현] 특수 유닛 이해도 = min(종별,50) + min(개별,50) — WeightMath.ComposeUnderstanding(),
        Unit.isSpecialUnit 플래그(UnitVisualDefinition에서 인스펙터로 설정)로 분기.
        HumanKnowledgeBase.GetUnderstanding(speciesKey, individualIdOrNull)로 조회.
+       ※ 2026-07-07: WeightMath.ComposeUnderstanding 자체는 항상 정상이었음. 다만 RecordEvent가
+       Unit.isSpecialUnit을 반영하지 않고 항상 target.name을 키로 써서, 일반 유닛(종별 누적 대상)의
+       이해도가 실제로는 종 타입명 키에 쌓이지 않는 버그가 있었다 — 상단 "디버깅 이력" 참고, 수정 완료.
 
 ════════════════════════════════════════════════════════════════════════
 8장. 이해도 총량 한도 및 감소
@@ -160,6 +212,9 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
        경계값 테스트로 고정.
 [구현] 최종 위험도 = 기본 + 종별누적 + 개별누적 — WeightMath.ComposeFinalDanger() (999 클램프 포함),
        HumanKnowledgeBase.GetFinalDanger()/GetDangerStage()로 조회.
+       ※ 2026-07-07: GetFinalDanger가 조회하는 speciesKey(unitType.typeName)와 RecordEvent가
+       실제로 누적을 쌓던 키(예전엔 target.name, 스폰마다 유일한 인스턴스명)가 달라서 종별 누적이
+       조회에 전혀 반영되지 않던 버그를 고침 — 상단 "디버깅 이력" 참고.
 
 ════════════════════════════════════════════════════════════════════════
 13장. 전멸 위험도
