@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using Haare.Util.Logger;
 
 public abstract class UnitFunction : Unit
 {
@@ -235,7 +236,16 @@ public abstract class UnitFunction : Unit
 			// 지형 밝히기 — FactionData.discoveredMap과 같은 정보(벽/바닥)를 인류 개인 지도에도
 			// 기록한다. 몬스터 발견 여부와 무관하게 시야가 지나가는 모든 타일마다 갱신된다.
 			if (this is Human terrainObserver)
-				terrainObserver.personalMap.RevealTile(new Vector3Int(x, y, currentFloor), tileIsWall);
+			{
+				var revealedTile = new Vector3Int(x, y, currentFloor);
+				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
+				// 3-2장 E_EXPLORED_SAFE_TILE: "탐사완료+안전확인 타일 → 흥미도 0"이 실제로 발생하는
+				// 순간은 정확히 이 타일이 "처음" 밝혀지는 시점이다(미탐사 기본 흥미도 5 → 탐사완료
+				// 기본 흥미도 0으로 전환). 매 프레임 다시 찍히면 안 되니 처음 밝힐 때만 로그.
+				if (isFirstReveal)
+					LogHelper.Log($"<b><color=blue>[EventId:E_EXPLORED_SAFE_TILE]</color></b>",
+						$"관찰자={terrainObserver.name} 타일={revealedTile} 흥미도 미탐사({WeightMath.UnexploredTileBaseInterest})→탐사완료({WeightMath.ExploredTileBaseInterest})");
+			}
 
 			if (Session != null &&
 				Session.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))

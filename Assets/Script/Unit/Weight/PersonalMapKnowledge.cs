@@ -69,10 +69,15 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<int, Texture2D> _terrainTextures = new();
 	private readonly HashSet<int> _dirtyTerrainFloors = new();
 
-	public void RevealTile(Vector3Int pos, bool isWall)
+	// 반환값: 이 타일을 처음 밝히는 것이면 true — 3-2장 E_EXPLORED_SAFE_TILE(탐사완료+안전확인
+	// 타일 → 흥미도 0)이 실제로 발생하는 순간이 정확히 이 "처음 밝혀지는 시점"이라, 호출부
+	// (UnitFunction.CastRay)가 이 값으로 그 이벤트를 로그로 남긴다.
+	public bool RevealTile(Vector3Int pos, bool isWall)
 	{
+		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);
 		_tileTerrain[pos] = isWall ? 2 : 1;
 		_dirtyTerrainFloors.Add(pos.z);
+		return isFirstReveal;
 	}
 
 	// 0=미탐색, 1=바닥, 2=벽 — discoveredMap과 동일한 값 관례.
