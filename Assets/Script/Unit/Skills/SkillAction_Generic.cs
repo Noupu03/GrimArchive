@@ -1,5 +1,4 @@
 using UnityEngine;
-using Haare.Util.Logger;
 
 public class SkillAction_Generic : SkillAction
 {
@@ -50,7 +49,6 @@ public class SkillAction_Generic : SkillAction
             {
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,
                     _d.damageMultiplier, _d.hasStun, _d.stunDuration);
-                LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName} {SkillName}");
             },
             () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
         );

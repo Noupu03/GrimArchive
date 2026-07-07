@@ -13,6 +13,11 @@ public class GameCompositionRoot : LifetimeScope
 
     protected override void Configure(IContainerBuilder builder)
     {
+        // 일반 Log는 한 줄마다 콜스택이 5~7줄씩 따라붙어서 콘솔이 순식간에 복잡해진다
+        // (LogHelper.Log(...) 호출부 스택까지 전부 찍힘). Warning/Error는 실제 디버깅에 필요하니
+        // 그대로 두고, 정보성 Log만 스택 트레이스를 끈다.
+        Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+
         // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스 (UnitManager, UnitSpriteManager 오브젝트)
         builder.RegisterComponentInHierarchy<GameSession>();
         builder.RegisterComponentInHierarchy<UnitSpriteManager>();

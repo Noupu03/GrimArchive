@@ -58,6 +58,10 @@ public class HumanKnowledgeBase
 		bool isIndividualTarget = target.isSpecialUnit;
 		MentalErrorState mentalState = GetMentalState(observer);
 
+		// 실제로 코드에서 호출되는(=지금 작동하는) 이벤트만 이 지점을 탄다 — 트랩/버프/소환처럼
+		// 아직 연결 안 된 이벤트는 애초에 RecordEvent를 호출하는 코드가 없어서 이 로그도 안 찍힌다.
+		LogHelper.Log($"<b><color=blue>[EventId:{id}]</color></b>", $"관찰자={observer.name} 대상={targetId} 정보유형={infoType} 이해도Δ={delta.Understanding} 위험도Δ={delta.Danger}");
+
 		if (delta.Understanding != 0f)
 			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
 		if (delta.Danger != 0f)
@@ -256,6 +260,36 @@ public class HumanKnowledgeBase
 
 	public DangerStage GetDangerStage(string speciesKey, string individualIdOrNull, float baseDanger)
 		=> WeightMath.GetDangerStage(Mathf.FloorToInt(GetFinalDanger(speciesKey, individualIdOrNull, baseDanger)));
+
+	// ─────────────────── 개인 지도(PersonalMapKnowledge)용 — 관찰자 개인 기준 즉시 반영 ───────────────────
+	// GetFinalDanger/GetUnitInterest는 종/개체 "전역" 누적값을 쓰는데, 그건 OnWaveEnd가 호출돼야만
+	// 갱신된다(6장) — 웨이브 루프가 없는 지금은 영원히 0이다. 반면 observer.personalWeights는
+	// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 개인 지도에 기록할 값은 이쪽을 써야
+	// "이벤트와 연결된 즉시 반영"이 된다. target.baseDanger/baseInterest를 기준값으로 삼고
+	// 그 위에 이 관찰자 한 명의 개인 누적(personalWeights)만 얹는다(다른 관찰자의 경험은 섞이지 않음).
+	public float GetPersonalDanger(Unit observer, Unit target)
+	{
+		string targetId = ResolveTargetKey(target);
+		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Danger);
+		float personalAccum = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
+		return WeightMath.ComposeFinalDanger(target.baseDanger, personalAccum, 0f);
+	}
+
+	// 18장 공식(흥미도 = 기본흥미도 × (100-이해도)%)은 그대로 쓰되, "이해도"를 전역 종별 이해도가
+	// 아니라 이 관찰자 개인의 이해도(personalWeights)로 계산한다. 단, 이 공식 자체는 흥미도를
+	// "증가"시키는 이벤트가 없다 — 이해도가 오를수록 감소만 한다(18장). 그래서 baseInterest가
+	// 0으로 비어있는 유닛은 이 메서드도 여전히 0을 반환한다 — 이건 데이터(units.json) 문제이지
+	// 이벤트 연동 문제가 아니다.
+	public float GetPersonalInterest(Unit observer, Unit target)
+	{
+		if (target.isInterestTarget) return WeightMath.Clamp(target.baseInterest, WeightType.Interest);
+
+		string targetId = ResolveTargetKey(target);
+		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Understanding);
+		float personalUnderstanding = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
+		int understandingApplied = Mathf.FloorToInt(WeightMath.Clamp(personalUnderstanding, WeightType.Understanding));
+		return WeightMath.UnitInterestFromUnderstanding(target.baseInterest, understandingApplied);
+	}
 
 	// ─────────────────────────── 14장. 특수 행동 누적 ───────────────────────────
 	public void AccumulateSpecialAction(string speciesKey, EventId kind, float delta)

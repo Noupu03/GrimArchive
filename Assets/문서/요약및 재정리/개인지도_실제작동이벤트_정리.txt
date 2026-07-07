@@ -1,0 +1,157 @@
+개인 지도(PersonalMapKnowledge) — 지금 실제로 작동하는 이벤트 정리
+작성일: 2026-07-07
+성격: "지금 이 순간 코드를 그대로 두면 실제 플레이에서 뭐가 자동으로 움직이는가"만 정리한 것.
+      공식/스코프 설명은 GrimArchive_지도_구현현황.txt·가중치_구현현황.txt에 이미 있으므로
+      여기서는 중복 설명 없이 "실작동 목록"만 짧게 짚는다.
+
+※ 2026-07-07 업데이트: 수동 검증이 끝나서 WeightSystemDemo.cs(및 씬의 "debug" GameObject)를
+  삭제했다. 대신 `HumanKnowledgeBase.RecordEvent()`에 로그 한 줄을 추가해서, 아래 3장의 9개
+  이벤트가 실제로 발동할 때마다 콘솔에 `[EventId:{EventId}] 관찰자=... 대상=... 정보유형=...
+  이해도Δ=... 위험도Δ=...`가 자동으로 찍힌다 — 태그 자체에 이벤트ID가 들어가서 콘솔에서
+  특정 이벤트만 검색해서 필터링하기 편하다. 이 지점은 실제로 작동하는 이벤트만 지나가는
+  단일 통로라, 안 연결된 이벤트는 이 로그 자체가 안 뜬다 — 그게 곧 "이 이벤트가 지금 실제로
+  도는가"의 확인 방법이다.
+  `[EventId:...]` 태그는 파란색으로 표시된다. 그리고 `GameCompositionRoot.Configure()`에서
+  일반 Log 호출의 콜스택 출력을 꺼서(`Application.SetStackTraceLogType(LogType.Log,
+  StackTraceLogType.None)`) 콘솔이 로그 한 줄마다 5~7줄씩 늘어나던 문제(예전 "디버그 로그.txt"의
+  그 패턴)를 없앴다 — Warning/Error는 디버깅용으로 콜스택을 그대로 유지한다.
+
+※ 2026-07-07 업데이트(2): 18장(유닛 흥미도)은 이미 CastRay → GetPersonalInterest →
+  ObserveMonster 경로로 개인 지도에 들어가고 있었다(인스펙터 "[몬스터 목격]" 목록의
+  `interest=` 값). 다만 16장(타일 흥미도) 쪽은 `BuildDebugSummary()`에 표시 항목 자체가
+  없어서 인스펙터에서 안 보였다 — "[타일 흥미도]" 섹션을 추가해서 기본값(미탐사/탐사완료)과,
+  오브젝트가 있어서 기본값과 달라지는 타일들을 보여주도록 고쳤다.
+
+════════════════════════════════════════════════════════════════════════
+1. 전제 — 개인 지도는 누가, 언제 갱신하는가
+════════════════════════════════════════════════════════════════════════
+- 개인 지도(`PersonalMapKnowledge`)는 `Human.personalMap`으로만 존재한다(Monster에는 없음).
+- 자동 갱신은 전부 `UnitFunction.CastRay`(매 틱 `GameSession.ProcessUnitAction` → `UpdateFOV`에서
+  호출)에서 나온다. 즉 "인류 유닛이 실제로 시야에 뭔가를 두고 있는 매 틱"마다 갱신된다.
+- 그 외(오브젝트, 방)는 자동 갱신 없음 — API만 있고 수동 호출 필요(6장 참고).
+
+════════════════════════════════════════════════════════════════════════
+2. 자동으로 채워지는 지도 데이터 2가지
+════════════════════════════════════════════════════════════════════════
+2-1. 지형 밝히기 (벽/바닥)
+  - CastRay가 시야가 지나가는 모든 타일마다, 몬스터 유무와 상관없이 매번 기록.
+  - `PersonalMapKnowledge.RevealTile(pos, isWall)` → `GetTileTerrain(pos)`로 조회(0=미탐색/1=바닥/2=벽).
+  - 인스펙터에서 텍스처(흰=바닥/회=벽/검=미탐색)로 확인 가능(UnitVisualEditor).
+
+2-2. 몬스터 목격 (위치 + 위험도 + 흥미도 스냅샷)
+  - CastRay가 몬스터를 시야에서 발견할 때마다(시야 안에 있는 한 사실상 매 틱) 기록.
+  - 위험도/흥미도는 `HumanKnowledgeBase.GetPersonalDanger`/`GetPersonalInterest`로 계산 —
+    이 관찰자 한 명의 `personalWeights`(아래 3장 이벤트로 즉시 갱신됨) + 대상의
+    `baseDanger`/`baseInterest`를 합친 값이다. 웨이브 종료(OnWaveEnd) 없이 즉시 반영된다.
+  - `PersonalMapKnowledge.ObserveMonster(...)` → 그 타일 위험도(`GetTileDanger`)도 같이 갱신됨.
+  - 몬스터가 시야에서 사라져도 마지막 기록은 남아있다(안전확인 시간 지나야 감소, 15장).
+
+2-3. 안전 확인 타이머(15장) — 2026-07-07 신규 연결
+  - ※ 이전까지는 `TickTileSafety`가 `WeightSystemDemo.cs`(테스트용) 말고는 실제로 호출되는 곳이
+    없었다 — 그래서 `_tileSafetyElapsed`가 실제 플레이에서는 절대 흐르지 않고 인스펙터에도
+    항상 0.0s로 고정되어 보였다. 인스펙터 자체의 `Repaint()` 갱신 로직은 문제없었고, 밑에 있는
+    데이터가 안 바뀌어서 안 바뀌는 것처럼 보인 것.
+  - `UnitFunction.OnUpdate(deltaTime)`(걸음 속도와 무관하게 매 프레임 도는 루프, 스턴/슬로우/
+    독/화상 감소와 같은 곳)에서 이 유닛이 위험도를 기록해 둔 타일(`PersonalMapKnowledge.
+    KnownDangerTiles`, 신규 공개 프로퍼티) 전부를 매 프레임 순회하며 `TickTileSafety`를 호출.
+  - `threatPresent`는 `GameSession.unitGrid`에서 그 타일에 지금 생존한 몬스터가 실제로 있는지로
+    판단한다 — 있으면 타이머 리셋, 없으면 흘러서 위험도 단계별 안전확인시간(1~5초)이 지나면
+    타일 위험도가 0으로 감소한다.
+  - 이제 인스펙터의 "[타일 위험도]" 목록에서 "안전확인 경과 Ns" 값이 실제로 올라가는 걸 볼 수
+    있다(몬스터가 자리를 뜬 뒤부터).
+  - ※ 연결하고 나서 발견한 버그(같은 날 수정): 안전확인시간을 다 채워서 위험도가 0이 되는 순간,
+    `TickTileSafety`가 그 다음부터 함수 첫 줄의 `danger<=0f` 가드에 막혀 아무것도 안 하게 되고,
+    `_tileSafetyElapsed`는 그 순간 값(예: 위험도 단계1이면 ≈2.0s)에 얼어붙어 영원히 그대로
+    보였다("전부 2초에서 멈춘다"는 증상). 처음엔 위험도/타이머 값을 0으로 리셋하는 방식으로
+    고쳤었는데, 그러면 안전 확정된 타일이 `_tileDanger`/`_tileSafetyElapsed`에 죽은 0값
+    항목으로 계속 남아 `KnownDangerTiles`(=매 프레임 TickTileSafety 순회 대상)와 인스펙터
+    "[타일 위험도]" 목록에 영원히 쌓인다. 그래서 값을 0으로 남기는 대신 `Dictionary.Remove`로
+    기록 자체를 지우도록 다시 고쳤다 — `GetTileDanger(pos, explored:true)`는 항목이 없어도
+    explored 기준으로 0을 반환하니 조회 결과는 동일하고, 대신 목록/순회 대상에서는 깨끗하게
+    빠진다.
+
+════════════════════════════════════════════════════════════════════════
+3. personalWeights를 실제로 갱신하는 이벤트 — 지금 발동 가능한 것만
+════════════════════════════════════════════════════════════════════════
+아래 9개만 실제 코드 경로에 연결되어 있다. 전부 `HumanKnowledgeBase.RecordEvent()`를 타고,
+그 즉시 관찰자의 `personalWeights`가 갱신되며(4장), 다음 번 CastRay가 그 값을 지도에 반영한다.
+
+  이벤트 ID              트리거 조건                              실제 코드 위치
+  ──────────────────────────────────────────────────────────────────────────────
+  E_HIT_HEAVY_SELF        인류가 몬스터에게 heavyHitThreshold        UnitFunction.RecordHitWeightEvent
+                          이상 피해를 직접 맞음                      (TakePhysicalDamage/TakeMagicalDamage/
+                                                                    ApplyDirectDamage/DefenseSystem Block
+                                                                    전부 여기로 모임)
+  E_HIT_HEAVY_SEEN        위와 동시에, 그 순간 생존한 다른 인류        UnitFunction.BroadcastWitnessEvent
+                          전원에게 "목격" 근사 처리
+  E_MONSTER_HIT_SELF      인류가 몬스터를 때림(피해량 무관, 항상)      UnitFunction.RecordHitWeightEvent
+  E_MONSTER_HIT_SEEN      위와 동시에 다른 인류 전원에게 근사 처리     UnitFunction.BroadcastWitnessEvent
+  E_MONSTER_KILL_SELF     인류가 몬스터를 처치                       GameSession.RecordKillWeightEvent
+  E_MONSTER_KILL_SEEN     위와 동시에 처치자 외 다른 인류 전원에게     GameSession.RecordKillWeightEvent
+                          근사 처리
+  E_HUMAN_KILL_SEEN       몬스터가 인류를 처치 — 그 순간 생존한       GameSession.RecordKillWeightEvent
+                          다른 인류 전원이 "목격"한 것으로 근사
+  E_STATUS_SELF           인류가 몬스터에게 상태이상을 당함           UnitFunction.RecordStatusWeightEvent
+                          (ApplyStun/Slow/Poison/Burn 공통 호출)     (ApplyStun/ApplySlow/ApplyPoison/ApplyBurn)
+  E_STATUS_SEEN           위와 동시에 다른 인류 전원에게 근사 처리     UnitFunction.BroadcastWitnessEvent
+
+  ※ E_STATUS_*는 실제 게임에서 지금 걸리는 상태이상이 스턴뿐이라(SkillAction/Projectile이
+    ApplyStun만 호출) 사실상 스턴에서만 발동한다. 슬로우/독/화상도 실제로 걸리기 시작하면
+    같은 함수를 타므로 추가 연결 없이 자동으로 작동한다.
+  ※ "SEEN(목격)" 계열은 전부 실제 FOV 기반 목격 판정이 아니라 "그 순간 생존한 다른 인류
+    전원이 목격한 것"으로 근사한 것이다(새로 만든 시스템이 아니라 기존 E_HUMAN_KILL_SEEN
+    근사를 재사용/공통화한 것).
+
+════════════════════════════════════════════════════════════════════════
+4. 최근에 고친 것 — "위험도가 안 오르던" 진짜 원인
+════════════════════════════════════════════════════════════════════════
+`ApplyDirectDamage`(근접 위협/반응 시스템의 메인 데미지 경로 — OnDirectHit, DefenseSystem의
+방어 실패/닷지 실패/블링크 실패/패링 반격이 전부 여길 탐)와 `DefenseSystem`의 Block 판정이
+`hp -= damage`로 체력만 직접 깎고 `RecordHitWeightEvent`를 전혀 호출하지 않고 있었다. 그래서
+스킬/투사체로 맞을 때만 이벤트가 기록되고, 실제 전투 대부분(근접 위협/반응)에서는 위험도가
+전혀 안 올랐다. 두 곳 다 연결해서 지금은 근접 전투에서도 정상 작동한다.
+
+════════════════════════════════════════════════════════════════════════
+5. 아직 연결 안 된 것 (의도적, 이유 있음 — 요청 범위 밖)
+════════════════════════════════════════════════════════════════════════
+  - 간접 파악(INDIRECT, 소리/전파): 소리/전파 시스템 자체가 없음.
+  - E_DEBUFF_*, E_BUFF_SEEN, E_SUMMON_SEEN: 버프/디버프/소환 시스템 자체가 없음.
+  - E_TRAP_*, E_DEFENSE_DISABLE_*: 함정/방어건물 엔티티가 없음.
+  - E_CORPSE_TRACE_CHECK: 시체/흔적 엔티티가 없음.
+  - E_WIPEOUT_UNIT_SKILL_SEEN, 전멸 관련: 전멸 판정/파티 시스템이 없음.
+  - 오브젝트 위치/흥미도, 방(room) 위험도/흥미도: API는 있지만 CastRay 자동 연동은 안 됨
+    (오브젝트 엔티티 부재 / 보스방 판별 방법 미확인).
+
+════════════════════════════════════════════════════════════════════════
+6. 흥미도가 여전히 낮게(대개 0으로) 보이는 이유 — 별개 문제
+════════════════════════════════════════════════════════════════════════
+`units.json`에 `baseDanger`/`baseInterest` 데이터 자체가 없다(모든 유닛 기본값 0). 위험도는
+personalWeights 누적만으로도 baseDanger=0에서 시작해 이벤트로 오를 수 있지만, 흥미도 공식
+(18장: 기본흥미도×(100-이해도)%)은 baseInterest가 0이면 이해도가 얼마든 결과도 항상 0이다.
+
+※ 2026-07-07 업데이트: 테스트용으로 두 프리팹에 직접 임의값을 채워 넣었다(아래 7장 참고).
+  `units.json`/`UnitVisualDefinition.LoadDataFromJson()`은 아직 baseDanger/baseInterest를
+  매핑하지 않으므로(스탯/스킬만 JSON에서 불러옴), 이 값들은 JSON이 아니라 프리팹의
+  `UnitVisualDefinition` 컴포넌트에 직접 기록했다 — 나중에 JSON 파이프라인에 편입하려면
+  `UnitJsonNode`/`LoadDataFromJson()`에 필드 매핑을 추가하고 "Load Data From JSON" 버튼을
+  다시 눌러야 한다(지금은 그렇게 하지 않았다 — 직접 값이 이미 프리팹에 들어있어 그대로 유효).
+
+════════════════════════════════════════════════════════════════════════
+7. 테스트용으로 채운 baseDanger/baseInterest 값 (임의값)
+════════════════════════════════════════════════════════════════════════
+  유닛                프리팹                                    baseDanger   baseInterest
+  ─────────────────────────────────────────────────────────────────────────────────────
+  기사형 (Human)       Assets/Prefabs/Units/기사형.prefab              30           40
+  근접 탱커 (Monster)  Assets/Prefabs/Units/근접 탱커.prefab          120           60
+
+  값 자체는 임의로 고른 것이며 밸런스 근거는 없다 — 이벤트 연결과 지도 반영이 실제로 눈에 보이게
+  하기 위한 테스트용 시드값이다(위험도 단계로 치면 120은 "위험도 단계 1", 12-1장 최종위험도
+  기준으로는 여기서 personalWeights 누적이 더해진다).
+
+  ※ 기사형(Human)의 baseDanger/baseInterest는 지금 코드상 실제로 조회되는 곳이 없다 —
+    `ObserveMonster`/`GetPersonalDanger`/`GetPersonalInterest`는 Human이 Monster를 볼 때만
+    호출되고(CastRay의 isEnemy 판정), 반대로 다른 Human이 이 기사형을 "관찰 대상"으로 평가하는
+    코드 경로는 아직 없다. 그래도 요청대로 값은 채워뒀다 — 나중에 아군 평가 기능이 생기면
+    바로 쓸 수 있다.
+  ※ isSpecialUnit/isInterestTarget은 둘 다 false, heavyHitThreshold는 기존 기본값 10을 그대로
+    명시적으로 채웠다(둘 유닛 다 일반 유닛 취급).

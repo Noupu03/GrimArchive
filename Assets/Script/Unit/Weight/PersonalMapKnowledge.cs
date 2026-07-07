@@ -28,6 +28,10 @@ public class PersonalMapKnowledge
 		_tileSafetyElapsed[pos] = 0f; // 위험 요소 갱신되면 안전 확인 타이머 리셋
 	}
 
+	// 이 유닛이 위험도를 기록해 둔 타일 목록 — 매 프레임 TickTileSafety를 돌릴 대상을 정하기 위한
+	// 읽기 전용 노출(UnitFunction.OnUpdate에서 순회).
+	public IEnumerable<Vector3Int> KnownDangerTiles => _tileDanger.Keys;
+
 	// 매 프레임(또는 스캔 주기) 호출 — threatPresent가 false인 채로 단계별 안전확인시간이 지나면 0으로 감소.
 	public void TickTileSafety(Vector3Int pos, bool threatPresent, float deltaTime)
 	{
@@ -35,11 +39,21 @@ public class PersonalMapKnowledge
 		if (threatPresent) { _tileSafetyElapsed[pos] = 0f; return; }
 
 		float elapsed = _tileSafetyElapsed.GetValueOrDefault(pos) + deltaTime;
-		_tileSafetyElapsed[pos] = elapsed;
 
 		var stage = WeightMath.GetDangerStage(Mathf.FloorToInt(danger));
 		if (elapsed >= WeightMath.TileSafetyCheckSeconds(stage))
-			_tileDanger[pos] = 0f;
+		{
+			// 안전 확정 — 값을 0으로 남겨두지 않고 기록 자체를 지운다. 0으로만 남기면
+			// GetTileDanger(pos, explored:true) 결과는 똑같지만(둘 다 0), 안전 확인이 끝난
+			// 타일이 KnownDangerTiles/디버그 목록에 죽은 항목으로 계속 쌓이고 매 프레임
+			// TickTileSafety를 도는 대상에서도 안 빠진다.
+			_tileDanger.Remove(pos);
+			_tileSafetyElapsed.Remove(pos);
+		}
+		else
+		{
+			_tileSafetyElapsed[pos] = elapsed;
+		}
 	}
 
 	// ─────────────────────────── 지형 밝히기 (벽/바닥) ───────────────────────────
@@ -275,6 +289,16 @@ public class PersonalMapKnowledge
 		sb.AppendLine($"[타일 위험도] {_tileDanger.Count}개");
 		foreach (var kv in _tileDanger)
 			sb.AppendLine($"  {kv.Key}: danger={kv.Value:0.##} (안전확인 경과 {_tileSafetyElapsed.GetValueOrDefault(kv.Key):0.#}s)");
+
+		// 16장: 타일 흥미도는 저장된 딕셔너리가 아니라 (위치, 탐사여부, 오브젝트id)로 그때그때
+		// 계산하는 값이라 위 타일 위험도처럼 그냥 나열할 대상이 없다 — 기본값(미탐사/탐사완료)과,
+		// 실제로 기본값과 달라지는 유일한 경우(오브젝트가 있는 타일)만 보여준다.
+		sb.AppendLine($"[타일 흥미도] 기본값: 미탐사={WeightMath.UnexploredTileBaseInterest:0.##} / 탐사완료={WeightMath.ExploredTileBaseInterest:0.##} (오브젝트 없는 타일은 이 값 그대로)");
+		if (_objectTile.Count > 0)
+		{
+			foreach (var kv in _objectTile)
+				sb.AppendLine($"  {kv.Value} (오브젝트 {kv.Key} 있음): 타일흥미도={GetTileInterest(kv.Value, kv.Key):0.##}");
+		}
 
 		sb.AppendLine($"[오브젝트] {_objectTile.Count}개");
 		foreach (var kv in _objectTile)

@@ -1,652 +1,1280 @@
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 가중치 시스템 검증 샘플 시작 (연산공식 문서 v0.7 기준) ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:26)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 1 (4장) - 개인 가중치 즉시 반영: 인류가 몬스터에게 강타를 직접 맞음 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario1_PersonalWeightChange () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:93)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:28)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 이벤트 전: 철수가 기억하는 고블린킹 개인 위험도 저장값 = 2
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario1_PersonalWeightChange () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:101)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:28)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 이벤트(E_HUMAN_KILL_SEEN, 직접목격) 발생 후: 저장값 = 5, 적용값 = 5
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario1_PersonalWeightChange () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:108)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:28)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 개인 위험도 저장값 = 5  (문서 기대값: 5)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario1_PersonalWeightChange () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:109)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:28)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 개인 위험도 적용값 = 5  (문서 기대값: 5)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario1_PersonalWeightChange () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:110)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:28)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 2 (6장/6-4장 예시2) - 오크가 인류 1명을 처치, 생존자 B/C/D가 각자 다르게 정보를 가져옴 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:116)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 같은 사건(IncidentID 공유)을 B,C는 '직접 목격'으로, D는 '간접 파악'으로 인지함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:125)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> → B/C는 동일 수치(+3, 직접목격)라 6-2장 기준 1회만 인정되어야 하고,
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:130)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   대표 변화량은 목격+3, 간접+1.5 → 전역 반영량 = (3*3 + 1.5*2)/(3+2) = 2.4 여야 한다.
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:131)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 웨이브 종료 후 '근접 탱커' 종 최종 위험도(저장값 반영 후 조회) = 0
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:136)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=red>MISMATCH</color>] 오크 종 최종 위험도(적용값) = 0  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario2_GlobalReflection_MultipleSurvivors () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:137)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:29)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 3 (6-3장/25장) - 정신력 상태로 인한 수치 오차 평균 + 공황 단계 블렌드 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:143)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 정상 B/C는 +3, 공포 상태 D는 +3.2로 같은 사건을 다르게 기록 (6-3장 예시)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:151)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 직접 목격 대표 변화량 = 3.1
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:153)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 6-3장 대표 변화량 = 3.1  (문서 기대값: 3.1)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:154)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 25장 예시: 공황 단계 유닛 기록값 140, 다음 우선순위 기록값 100
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:156)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 최종 기록값 = 140*0.3 + 100*0.7 = 112
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:158)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 25장 공황 블렌드 결과 = 112  (문서 기대값: 112)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario3_PanicNoiseAndBlend () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:159)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:30)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 4 (7-1장/8장) - 특수 유닛 이해도 합성 + 이해도 총량 한도 초과 시 감소 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:165)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 보스급 특수 유닛: 종별 이해도 적용값 70, 개별 이해도 적용값 60 (각각 50 상한 캡)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:167)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 특수 유닛 최종 이해도 = min(70,50) + min(60,50) = 100
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:169)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=red>MISMATCH</color>] 7-1장 특수유닛 이해도 = 100  (문서 기대값: 90)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:170)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 8장 예시: 인류 전체 이해도 총합 199, 새로 반영될 증가량 3, 검증용 한도 200, 감소대상 현재값 20
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:172)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 초과량=2, 감소하한=6, 감소가능량=14, 실제감소량=2
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:174)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 초과량 = 2  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:175)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 감소 하한(20*0.3) = 6  (문서 기대값: 6)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:176)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 감소 가능량(20-6) = 14  (문서 기대값: 14)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:177)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 실제 감소량(min(2,14)) = 2  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario4_SpecialUnitUnderstanding_And_PoolDecrease () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:178)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:31)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 5 (9장/23장) - 오차 범위 안 랜덤 샘플 (여러 번 돌려서 범위를 벗어나지 않는지 직접 확인) ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:184)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 9장 예시: 미표기 내부 실제수치 100, 이해도 적용값 35 → ±30%, 인식범위 70~130 이어야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:188)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 이해도 35의 오차율 = 0.3  (문서 기대값: 0.3)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:190)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 샘플 10개: [90, 76, 122, 73, 113, 76, 80, 82, 99, 96] (전부 70~130 사이여야 함)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:193)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 23장 예시: 간접 파악, 실제 위험도 100 → ±10%, 인식범위 90~110 이어야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:195)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 샘플 10개: [96, 105, 96, 90, 105, 107, 90, 98, 91, 90] (전부 90~110 사이여야 함)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:198)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 같은 조건인데 관찰자가 '공황' 상태면 정신력 오차(±25%)가 정보유형 오차(±10%)보다 커서 그쪽을 채택해야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:200)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 공황 상태일 때 채택되는 수치오차율 = 0.25  (문서 기대값: 0.25)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:202)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 공황 상태일 때 채택되는 위치오차(타일) = 2  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario5_InfoNoiseRandomSamples () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:203)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:32)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 6 (11장/12장) - 위험도 감소 판정 + 최종 위험도 계산/단계 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:209)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 11-1장 예시: 처치 참여 인류가 받은 총 피해량 2, 대상 기준 피해량 12
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:211)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 판정값 = 2-12 = -10 → 감소 조건 충족 여부 = True
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:213)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 11-1장 판정값 = -10  (문서 기대값: -10)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:214)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 11-1장 감소 조건 충족 = True  (문서 기대값: True)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,object,object) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:55)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:215)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 11-2장 예시: 타격 1회 기준피해량 12, 실제 적용 피해량 10
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:217)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 차이 = 2 → 조건 충족 여부 = True
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:219)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 11-2장 피해량 차이 = 2  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:220)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 12-1장 예시: 기본위험도 10 + 종별누적 640 + 개별누적 480 = 1130 (999로 클램프되어야 함)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:222)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 최종 위험도 = 999, 위험도 단계 = StageMax
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:225)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 12-1장 최종 위험도(클램프) = 999  (문서 기대값: 999)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:226)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 위험도 단계 = StageMax  (문서 기대값: StageMax)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,object,object) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:55)
-WeightSystemDemo:Scenario6_DangerDecreaseAndFinalDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:227)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:33)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 7 (13장) - 파티 전멸 던전 위험도 + 전멸 흔적 발견 (중복 반영 방지) ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:233)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 파티 전멸 발생 (13-1장: 던전 위험도 +30)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:236)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 던전 전체 위험도 = 30
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:238)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 파티 전멸 직후 던전 위험도 = 30  (문서 기대값: 30)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:239)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 전멸 원인 대상 위험도 단계 = Stage2(+10 보정) 인 전멸 흔적을 등록 후, 생환 파티가 발견함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:241)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 1차 반영 후 던전 위험도 = 65 (기대값: 30 + 25 + 10 = 65)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:244)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 전멸흔적 1차 반영 후 던전 위험도 = 65  (문서 기대값: 65)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:245)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 같은 흔적을 다른 파티가 또 발견해서 재반영을 시도함 (13-2장: 동일 흔적ID 1회만 반영되어야 함)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:247)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 2차 반영 시도 후 던전 위험도 = 65 (변화 없어야 함)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:249)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 중복 반영 방지 확인 = 65  (문서 기대값: 65)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario7_WipeoutDanger () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:250)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:34)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 시나리오 8 (15장/16~19장) - 타일/오브젝트/유닛/시체 흥미도, 타일 위험도 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:256)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 16장: 미탐사 타일(기본흥미도5) 위에 흥미도120짜리 오브젝트가 있으면 타일 흥미도 = 5+120 = 125 여야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:261)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 타일 최종 흥미도 = 125  (문서 기대값: 125)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:264)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 17장: 조사 완료 시 오브젝트 흥미도 50% 감소 (120 → 60)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:266)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 조사 완료 후 오브젝트 흥미도 = 60  (문서 기대값: 60)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:268)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 회수 중 유닛 사망으로 드랍 시 기본값×50% 재적용 (120 × 0.5 = 60)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:270)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 드랍 후 오브젝트 흥미도 = 60  (문서 기대값: 60)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:272)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 18장: 일반 유닛 기본흥미도 100, 이해도 적용값 35 → 흥미도 = 100*65% = 65 여야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:274)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> UnitInterestFromUnderstanding(100, 35) = 65
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:278)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 18장 유닛 흥미도 = 65  (문서 기대값: 65)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:279)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 19장: 시체/흔적 기본흥미도 10, 원인 대상 위험도 단계 Stage2(+10) → 20 이어야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:281)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 19장 시체/흔적 흥미도 = 20  (문서 기대값: 20)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:283)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 15장: 미탐사 타일 기본 위험도 = 2 여야 함
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:285)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 미탐사 타일 기본 위험도 = 2  (문서 기대값: 2)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:287)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 위험도 250(Stage1, 안전확인 2초)짜리 유닛이 있었던 타일 → 위협 사라진 뒤 2.5초 경과하면 위험도 0
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Log (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:43)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:289)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b>   [<color=lime>OK</color>] 안전확인시간 경과 후 타일 위험도 = 0  (문서 기대값: 0)
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:PrintExpect (string,object,object,bool) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:61)
-WeightSystemDemo:Expect (string,single,single,single) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:49)
-WeightSystemDemo:Scenario8_TileObjectUnitCorpseInterest () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:292)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:35)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
-
-<b><color=#00FF00>[DEMO]</color></b> 
-========== 전체 시나리오 종료 ==========
-UnityEngine.Debug:Log (object)
-Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
-WeightSystemDemo:Section (string) (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:42)
-WeightSystemDemo:RunAllScenarios () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:37)
-WeightSystemDemo:Start () (at Assets/Script/Unit/Weight/WeightSystemDemo.cs:20)
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=1 위험도Δ=-0.5
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=1 위험도Δ=-0.5
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SELF]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=1 위험도Δ=-0.5
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_KILL_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.5 위험도Δ=-0.25
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.1 위험도Δ=0.3
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_HIT_HEAVY_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.05 위험도Δ=0.15
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SELF]</color></b> 관찰자=기사형_2_29_1 대상=근접 탱커 정보유형=DirectExperience 이해도Δ=0.025 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_4_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_6_28_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
+
+<b><color=blue>[EventId:E_MONSTER_HIT_SEEN]</color></b> 관찰자=기사형_3_24_1 대상=근접 탱커 정보유형=DirectWitness 이해도Δ=0.0125 위험도Δ=0
 

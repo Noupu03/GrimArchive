@@ -1,5 +1,4 @@
 using UnityEngine;
-using Haare.Util.Logger;
 using System.Collections.Generic;
 
 /// <summary>
@@ -100,7 +99,6 @@ public class SkillAction_Projectile : SkillAction
             () =>
             {
                 FireProjectile(unit, threat.depth);
-                LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName} 발사: {SkillName}");
             },
             () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
             null,

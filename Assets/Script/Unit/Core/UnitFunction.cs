@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
-using Haare.Util.Logger;
+using System.Linq;
 
 public abstract class UnitFunction : Unit
 {
@@ -27,10 +27,12 @@ public abstract class UnitFunction : Unit
 	}
 
 	// 대표 가중치 3종 연산공식 문서 3장/10장: 피격 이벤트를 이해도/위험도에 즉시 반영한다.
-	// 여기서는 "직접 경험(SELF)" 계층만 실제로 연결한다 — 목격(SEEN)/간접 파악(INDIRECT) 계층은
-	// FOV 기반 목격 판정이 따로 필요해서 HumanKnowledgeBase API는 있지만 아직 자동 트리거는 안 걸었다
-	// (구현현황 문서에 사유 기재).
-	private void RecordHitWeightEvent(float appliedDamage, Unit attacker)
+	// "직접 경험(SELF)"은 여기서 바로 연결하고, "직접 목격(SEEN)"은 GameSession.RecordKillWeightEvent의
+	// 처치 목격과 동일한 근사(그 순간 생존한 다른 인류 전원이 목격한 것으로 처리)로 함께 연결한다.
+	// 간접 파악(INDIRECT, 소리/전파)은 그 시스템 자체가 없어 여전히 미연결(구현현황 문서에 사유 기재).
+	// public: DefenseSystem(정적 클래스, UnitFunction 밖)의 Block 판정도 hp를 직접 깎는 별도
+	// 데미지 경로라 이 메서드를 그대로 재사용해서 연결한다.
+	public void RecordHitWeightEvent(float appliedDamage, Unit attacker)
 	{
 		if (attacker == null || this.Knowledge == null) return;
 
@@ -45,12 +47,30 @@ public abstract class UnitFunction : Unit
 		{
 			// 인류(this)가 몬스터(attacker)에게 맞음 — "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
 			if (appliedDamage >= heavyHitThreshold)
+			{
 				this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
+				BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
+			}
 		}
 		else
 		{
 			// 인류(attacker)가 몬스터(this)를 때림 — 이해도만 오르고 위험도 변화는 없음(표 값 자체가 danger=0)
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
+			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
+		}
+	}
+
+	// 3장 "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정(그 순간 그 자리를 보고
+	// 있었는지)은 아직 없어서, GameSession.RecordKillWeightEvent와 동일하게 "그 순간 생존해 있는
+	// 다른 인류 전원이 목격한 것"으로 근사한다. participant는 이미 SELF 이벤트로 기록된 당사자라
+	// 중복 집계를 막기 위해 목격자 명단에서 제외한다.
+	private void BroadcastWitnessEvent(EventId id, Unit participant, Unit target, string incidentId)
+	{
+		if (Session == null || this.Knowledge == null) return;
+		foreach (var witness in Session.units)
+		{
+			if (witness == null || witness == participant || !(witness is Human) || witness.hp <= 0) continue;
+			this.Knowledge.RecordEvent(id, witness, target, InfoType.DirectWitness, incidentId);
 		}
 	}
 
@@ -65,10 +85,24 @@ public abstract class UnitFunction : Unit
 		}
 	}
 
-	public override void ApplyStun(float duration)   { stunDuration   = Mathf.Max(stunDuration,   duration); }
-	public override void ApplySlow(float duration)   { slowDuration   = Mathf.Max(slowDuration,   duration); }
-	public override void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); }
-	public override void ApplyBurn(float duration)   { burnDuration   = Mathf.Max(burnDuration,   duration); }
+	public override void ApplyStun(float duration)   { stunDuration   = Mathf.Max(stunDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplySlow(float duration)   { slowDuration   = Mathf.Max(slowDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); RecordStatusWeightEvent(); }
+	public override void ApplyBurn(float duration)   { burnDuration   = Mathf.Max(burnDuration,   duration); RecordStatusWeightEvent(); }
+
+	// 3장 E_STATUS_SELF/SEEN: 상태이상 직접 경험/목격. 실제 게임에서 걸리는 상태이상은 현재 스턴뿐이라
+	// (SkillAction/Projectile이 ApplyStun만 호출) 사실상 스턴 적용 시점에서만 발동하지만, 나중에
+	// 슬로우/독/화상도 실제로 걸리기 시작하면 이 헬퍼를 그대로 타므로 별도 연결이 필요 없다.
+	// lastAttacker는 SkillAction/Projectile이 항상 TakeDamage 계열을 먼저 호출한 뒤 Apply*를
+	// 호출하는 순서 덕분에(RecordHitWeightEvent에서 세팅됨) 이 시점에 이미 정확한 가해자를 가리킨다.
+	private void RecordStatusWeightEvent()
+	{
+		if (!(this is Human) || !(lastAttacker is Monster) || this.Knowledge == null) return;
+
+		string incidentId = System.Guid.NewGuid().ToString();
+		this.Knowledge.RecordEvent(EventId.E_STATUS_SELF, this, lastAttacker, InfoType.DirectExperience, incidentId);
+		BroadcastWitnessEvent(EventId.E_STATUS_SEEN, this, lastAttacker, incidentId);
+	}
 
 	/// <summary>
 	/// 공격 시 적을 향한 최적의 각도를 계산합니다 (자유 각도)
@@ -217,13 +251,16 @@ public abstract class UnitFunction : Unit
 							personalSpottedEnemies.Add(unit);
 
 							// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
-							// 위험도/흥미도는 실시간 조회가 아니라 "지금 확인한 값"의 스냅샷으로 저장한다
-							// (지도관련_정리 문서 6-5장: 지도는 실제값이 아니라 마지막 확인 시점의 기록값).
+							// GetFinalDanger/GetUnitInterest(전역 종/개체 누적)가 아니라 GetPersonalDanger/
+							// GetPersonalInterest(이 관찰자의 personalWeights)를 쓴다 — 전역 값은 OnWaveEnd가
+							// 있어야만 갱신되는데(6장) 웨이브 루프가 아직 없어 영원히 그대로다. personalWeights는
+							// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 이걸 써야 실제 전투 이벤트에 맞춰
+							// 개인 지도가 바로바로 반영된다.
 							if (this is Human human && Knowledge != null)
 							{
 								var sightingTile = new Vector3Int(x, y, currentFloor);
-								float danger = Knowledge.GetFinalDanger(unit.unitType.typeName, unit.isSpecialUnit ? unit.name : null, unit.baseDanger);
-								float interest = Knowledge.GetUnitInterest(unit);
+								float danger = Knowledge.GetPersonalDanger(human, unit);
+								float interest = Knowledge.GetPersonalInterest(human, unit);
 								human.personalMap.ObserveMonster(unit.name, sightingTile, danger, interest);
 							}
 						}
@@ -300,6 +337,19 @@ public abstract class UnitFunction : Unit
 		if (slowDuration   > 0f) slowDuration   -= deltaTime;
 		if (poisonDuration > 0f) { poisonDuration -= deltaTime; hp -= 1f * deltaTime; }
 		if (burnDuration   > 0f) { burnDuration   -= deltaTime; hp -= 1f * deltaTime; }
+
+		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
+		// 지금 그 타일에 몬스터가 실제로 있는지 확인해서 있으면 타이머를 리셋하고 없으면 흘려보낸다.
+		// 매 프레임 도는 OnUpdate에 걸어서 real deltaTime을 쓴다(ProcessUnitAction의 actionCooldown
+		// 주기와 달리 여긴 걸음 속도와 무관하게 매 프레임 호출됨).
+		if (this is Human human && Session != null)
+		{
+			foreach (var tile in human.personalMap.KnownDangerTiles.ToList())
+			{
+				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster && occupant.hp > 0f;
+				human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
+			}
+		}
 
 		if (hp > 0f)
 			hp = Mathf.Min(maxHp, hp + HPRegen * deltaTime);
@@ -390,13 +440,11 @@ public abstract class UnitFunction : Unit
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
-		LogHelper.Log(LogHelper.GAME, $"{unitType.typeName} 반응 성공!");
 		DefenseSystem.EvaluateDefense(this, attacker, threat);
 	}
 
 	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
 	{
-		LogHelper.Log(LogHelper.GAME, $"{unitType.typeName} 반응 실패 → 직격!");
 		ApplyDirectDamage(attacker);
 	}
 
@@ -408,6 +456,11 @@ public abstract class UnitFunction : Unit
 		isHitThisTurn = true;
 		if (this.Generate != null)
 			this.Generate.TriggerHitEffect(this);
+
+		// 실제 근접 위협/반응 시스템(OnDirectHit, DefenseSystem의 방어 실패/닷지 실패/블링크 실패/
+		// 패링 반격)이 데미지를 주는 진짜 경로인데, TakePhysicalDamage를 거치지 않고 hp를 직접 깎고
+		// 있어서 RecordHitWeightEvent가 한 번도 호출되지 않고 있었다 — 여기서도 동일하게 연결한다.
+		RecordHitWeightEvent(damage, attacker);
 	}
 
 	private Unit FindAttackerFromThreat(ThreatTileData threat)

@@ -224,6 +224,11 @@ MonoBehaviour:
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
+  isSpecialUnit: 0
+  isInterestTarget: 0
+  baseInterest: 40
+  baseDanger: 30
+  heavyHitThreshold: 10
 --- !u!95 &2148180861581893085
 Animator:
   serializedVersion: 7

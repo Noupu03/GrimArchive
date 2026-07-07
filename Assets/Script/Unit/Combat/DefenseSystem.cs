@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-using Haare.Util.Logger;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -36,7 +35,6 @@ public static class DefenseSystem
 
 		if (candidates.Count == 0)
 		{
-			LogHelper.Log(LogHelper.GAME, "방어 실패 -> 직격");
 			defender.ApplyDirectDamage(attacker);
 			return;
 		}
@@ -49,7 +47,6 @@ public static class DefenseSystem
 			return;
 		}
 
-		LogHelper.Log(LogHelper.GAME, $"{defender.unitType.typeName} 선택 방어 : {selected.type}");
 		ExecuteDefense(defender, attacker, selected);
 	}
 
@@ -154,7 +151,9 @@ public static class DefenseSystem
 				float damage   = Mathf.Max(1f, base_dmg * (1f - reduction));
 
 				defender.hp -= damage;
-				LogHelper.Log(LogHelper.GAME, $"{defender.unitType.typeName} Block! damage:{damage:F0}");
+				// Block도 hp를 직접 깎는 별도 데미지 경로라 가중치 이벤트가 기록되지 않고 있었다 —
+				// TakePhysicalDamage/ApplyDirectDamage와 동일하게 연결한다.
+				(defender as UnitFunction)?.RecordHitWeightEvent(damage, attacker);
 				//defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
 
 				// 가드 VFX: 공격 타이밍에 재생, HitSpark 억제
