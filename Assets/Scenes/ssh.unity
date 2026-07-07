@@ -6368,7 +6368,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &716915669
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6716,6 +6716,8 @@ MonoBehaviour:
     prefab: {fileID: 1953888294078118216, guid: 3c43944064aab2141ba692f37b955b20, type: 3}
   - unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
     prefab: {fileID: 6590798347702598913, guid: e80c4f8db74f0894997198ad9bc3d71e, type: 3}
+  - unitTypeName: "\uC544\uCC98\uD615"
+    prefab: {fileID: 2411796298254631393, guid: 237d5067107ddb9418af0240346128d2, type: 3}
 --- !u!4 &1453061269
 Transform:
   m_ObjectHideFlags: 0
@@ -90695,7 +90697,7 @@ MonoBehaviour:
     totalRoomCount: 8
   useFixedSeed: 1
   seed: 12788
-  currentFloorIndex: 3
+  currentFloorIndex: 0
   maxRetryCount: 5
   showGizmos: 1
   gizmoShowRoomBounds: 1
