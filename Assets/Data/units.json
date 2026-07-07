@@ -1,4 +1,4 @@
-{
+﻿{
   "units": [
     {
       "typeName": "기사형",
@@ -57,6 +57,36 @@
         "physicalAttackSpeed": 8,
         "magicalCastSpeed": 0
       }
+    },
+    {
+      "typeName": "아처형",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 7,
+      "skills": ["정밀 사격"],
+      "stats": {
+        "maxHp": 9999,
+        "maxMp": 100,
+        "physicalAttack": 500,
+        "magicalAttack": 50,
+        "physicalDefense": 50,
+        "magicalDefense": 50,
+        "HPRegen": 100,
+        "attackspeed": 150,
+        "walkSpeed": 6.0,
+        "reaction": 150,
+        "criticalChance": 50,
+        "cooltimeReduction": 100,
+        "statusResistance": 100,
+        "maxMental": 100,
+        "mental": 100,
+        "spotting": 100,
+        "leadershipRange": 5,
+        "charisma": 5,
+        "physicalAttackSpeed": 20,
+        "magicalCastSpeed": 0
+      }
     }
   ]
 }
+

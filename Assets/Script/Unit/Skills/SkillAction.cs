@@ -35,10 +35,12 @@ public abstract class SkillAction
 		ThreatTileData threat,
 		System.Action attackAction,
 		System.Action cooldownAction = null,
-		System.Action effectAction   = null)
+		System.Action effectAction   = null,
+		System.Action castUpdateAction = null)
 	{
 		unit.isCastingAttack = true;
 		unit.castTimer       = castMs / 1000f;
+		unit.pendingCastUpdate = castUpdateAction;
 
 		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
 		if (threat.shape == ThreatShape.LINE)
@@ -63,6 +65,7 @@ public abstract class SkillAction
 				unit.currentThreat   = null;
 				unit.isCastingAttack = false;
 				unit.pendingAttack   = null;
+				unit.pendingCastUpdate = null;
 				unit.castTimer       = 0f;
 			}
 		};

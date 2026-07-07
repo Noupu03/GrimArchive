@@ -1,3 +1,5 @@
+using UnityEngine;
+
 [System.Serializable]
 public class UnitStatsData
 {
@@ -17,7 +19,14 @@ public class SkillData
     public float  baseDelayMs;
     public float  baseCooldown;
     public int    cooldownSlot;
-    public bool   isProjectile; // 투사체 스킬 여부
+    
+    [Header("투사체 전용 설정")]
+    public bool       isProjectile; // 투사체 스킬 여부
+    public GameObject projectilePrefab; // 커스텀 투사체 프리팹
+    public float      projectileSpeed;  // 투사체 비행 속도
+    public bool       isPiercing;       // 관통 여부
+    public GameObject hitEffectPrefab;  // 적중 시 생성할 이펙트 프리팹
+    
     // canHit 사전 검사용 히트박스
     public string hitShape;
     public int    hitRange, hitWidth, hitDepth;

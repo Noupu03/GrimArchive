@@ -30,6 +30,18 @@ public class MeleeTank : UnitType
 	public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(1, 1); }
 }
 
+
+// ----------------------------------------------------
+// 원거리 유닛 (투사체 사용)
+// ----------------------------------------------------
+public class Archer : UnitType
+{
+    public Archer() 
+    { 
+        typeName = "아처형"; 
+        footprint = new Vector2(1, 1); 
+    }
+}
 // 공통 전투 상수 정의
 public static class CombatConstants
 {
@@ -62,16 +74,4 @@ public static class CombatConstants
 	public const float MIN_BLOCK_DAMAGE_REDUCTION = 0.01f;
 	// 최대 피해 감소율
 	public const float MAX_BLOCK_DAMAGE_REDUCTION = 1.00f;
-}
-
-// ----------------------------------------------------
-// 원거리 유닛 (투사체 사용)
-// ----------------------------------------------------
-public class Kubonhun : UnitType
-{
-    public Kubonhun() 
-    { 
-        typeName = "쿠본훈"; 
-        footprint = new Vector2(1, 1); 
-    }
 }

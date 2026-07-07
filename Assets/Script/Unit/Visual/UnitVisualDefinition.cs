@@ -57,10 +57,94 @@ public class UnitVisualDefinition : MonoBehaviour
         foreach (var sd in skills)
         {
             if (sd.isProjectile)
-                list.Add(new SkillAction_Projectile(sd, null)); // 프리팹은 null로 전달 (Fallback 비주얼 사용)
+                list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab)); // 설정된 프리팹 전달
             else
                 list.Add(new SkillAction_Generic(sd));
         }
         return list;
     }
+
+#if UNITY_EDITOR
+    [System.Serializable]
+    private class UnitsJsonWrapper { public List<UnitJsonNode> units; }
+    [System.Serializable]
+    private class UnitJsonNode {
+        public string typeName;
+        public int[] footprint;
+        public int engageDistance;
+        public List<string> skills;
+        public UnitStatsData stats;
+    }
+    [System.Serializable]
+    private class SkillsJsonWrapper { public List<SkillData> skills; }
+
+    [ContextMenu("Load Data From JSON (units.json / skills.json)")]
+    public void LoadDataFromJson()
+    {
+        if (string.IsNullOrEmpty(unitTypeName))
+        {
+            Debug.LogError("Unit Type Name이 없습니다. (예: 아처형)");
+            return;
+        }
+
+        string unitsPath = System.IO.Path.Combine(Application.dataPath, "Data", "units.json");
+        string skillsPath = System.IO.Path.Combine(Application.dataPath, "Data", "skills.json");
+
+        if (!System.IO.File.Exists(unitsPath) || !System.IO.File.Exists(skillsPath))
+        {
+            Debug.LogError("Data 폴더에 units.json 또는 skills.json이 없습니다.");
+            return;
+        }
+
+        string unitsJson = System.IO.File.ReadAllText(unitsPath);
+        string skillsJson = System.IO.File.ReadAllText(skillsPath);
+
+        UnitsJsonWrapper unitsData = JsonUtility.FromJson<UnitsJsonWrapper>(unitsJson);
+        SkillsJsonWrapper skillsData = JsonUtility.FromJson<SkillsJsonWrapper>(skillsJson);
+
+        if (unitsData == null || unitsData.units == null) return;
+
+        UnitJsonNode targetNode = null;
+        foreach (var node in unitsData.units)
+        {
+            if (node.typeName == this.unitTypeName)
+            {
+                targetNode = node;
+                break;
+            }
+        }
+
+        if (targetNode == null)
+        {
+            Debug.LogError($"{unitTypeName} 데이터를 units.json에서 찾을 수 없습니다.");
+            return;
+        }
+
+        // 스탯 및 기본 정보 덮어쓰기
+        if (targetNode.footprint != null && targetNode.footprint.Length >= 2)
+            this.footprint = new Vector2(targetNode.footprint[0], targetNode.footprint[1]);
+        this.engageDistance = targetNode.engageDistance;
+        this.stats = targetNode.stats;
+
+        // 스킬 연결
+        this.skills.Clear();
+        if (targetNode.skills != null && skillsData != null && skillsData.skills != null)
+        {
+            foreach (var skillName in targetNode.skills)
+            {
+                foreach (var sd in skillsData.skills)
+                {
+                    if (sd.skillName == skillName)
+                    {
+                        this.skills.Add(sd);
+                        break;
+                    }
+                }
+            }
+        }
+
+        UnityEditor.EditorUtility.SetDirty(this);
+        Debug.Log($"[{unitTypeName}] 데이터 JSON 불러오기 완료!");
+    }
+#endif
 }

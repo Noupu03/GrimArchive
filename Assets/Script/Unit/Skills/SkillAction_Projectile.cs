@@ -41,25 +41,70 @@ public class SkillAction_Projectile : SkillAction
     {
         float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.attackspeed)));
 
-        // 1. 공격 범위(위험 범위) 생성
-        // 문서: 투사체의 위험 범위는 투사체의 너비와 날아갈 최대 사거리(이동 경로 전체)를 합친 형태가 되어야 함.
         var threat = ThreatTileData.Create();
         threat.shape = ThreatShape.RECT;
         
-        // 투사체가 날아갈 경로 전체를 위협 타일로 지정합니다. 
-        // 폭(Width)은 투사체의 두께, 깊이(Depth)는 투사체의 최대 사거리를 의미합니다.
-        threat.width = _d.threatWidth > 0 ? _d.threatWidth : 1; 
-        threat.depth = _d.threatRange > 0 ? _d.threatRange : 15; // 사거리
+        float finalWidth = _d.threatWidth > 0 ? _d.threatWidth : 1f;
+        if (_projectilePrefab != null)
+        {
+            var sr = _projectilePrefab.GetComponentInChildren<SpriteRenderer>();
+            if (sr != null && sr.sprite != null)
+            {
+                finalWidth = Mathf.Max(finalWidth, sr.bounds.size.y);
+            }
+        }
+        
+        threat.width = Mathf.CeilToInt(finalWidth);
+        int maxRange = _d.threatRange > 0 ? _d.threatRange : 15;
+        threat.depth = maxRange;
 
-        // 2. 선딜 (BeginAttackCast) 시작
+        System.Action updateThreatAction = () =>
+        {
+            if (unit.currentThreat != null)
+            {
+                Hitbox maxHitbox = BuildRectHitboxWithAngle(unit, threat.width, maxRange, unit.currentAttackAngle);
+                
+                if (!_d.isPiercing)
+                {
+                    List<Unit> enemies = GetEnemiesInHitbox(unit, maxHitbox);
+                    float minHitDist = maxRange;
+                    
+                    Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
+                    Vector2 forward = new Vector2(Mathf.Cos(unit.currentAttackAngle), Mathf.Sin(unit.currentAttackAngle));
+
+                    foreach(var enemy in enemies)
+                    {
+                        Hitbox enemyBox = GetUnitHitbox(enemy);
+                        Vector2 toEnemy = enemyBox.center - unitCenter;
+                        float dist = Vector2.Dot(toEnemy, forward);
+                        
+                        if (dist > 0 && dist < minHitDist)
+                        {
+                            minHitDist = dist;
+                        }
+                    }
+                    threat.depth = Mathf.Max(1, Mathf.CeilToInt(minHitDist));
+                }
+                else
+                {
+                    threat.depth = maxRange;
+                }
+                
+                unit.currentThreat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.currentAttackAngle);
+            }
+        };
+
+        updateThreatAction();
+
         BeginAttackCast(unit, finalDelayMs, threat,
             () =>
             {
-                // 3. 공격 실행 (선딜 종료 후 투사체 실제 발사)
                 FireProjectile(unit, threat.depth);
                 LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName} 발사: {SkillName}");
             },
-            () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            null,
+            updateThreatAction
         );
     }
 
@@ -88,20 +133,14 @@ public class SkillAction_Projectile : SkillAction
         Hitbox projectileHitbox = new Hitbox
         {
             center = (Vector2)attacker.position + new Vector2(attacker.unitType.footprint.x, attacker.unitType.footprint.y) * 0.5f,
-            size = new Vector2(_d.threatWidth > 0 ? _d.threatWidth : 1, 1),
+            size = new Vector2(1f, _d.threatWidth > 0 ? _d.threatWidth : 1f),
             rotation = attacker.currentAttackAngle * Mathf.Rad2Deg
         };
 
         Vector2 moveDir = new Vector2(Mathf.Cos(attacker.currentAttackAngle), Mathf.Sin(attacker.currentAttackAngle));
 
-        // 속도는 임의로 10f로 설정. (추후 SkillData 등에 projectileSpeed를 확장 가능)
-        float projectileSpeed = 10f; 
-        
         // 투사체 로직 초기화
-        proj.Init(attacker, projectileHitbox, moveDir, projectileSpeed, _d.damageMultiplier);
-        proj.maxDistance = maxDistance;
-        proj.hasStun = _d.hasStun;
-        proj.stunDuration = _d.stunDuration;
+        proj.Init(attacker, _d, projectileHitbox, moveDir, maxDistance);
     }
 
     private Sprite CreateFallbackSprite()

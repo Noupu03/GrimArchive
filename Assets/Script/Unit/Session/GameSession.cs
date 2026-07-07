@@ -146,6 +146,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         {
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
             if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
+            if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
         }
     }
 
@@ -258,6 +259,33 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         units.Add(monster);
         RegisterUnitPos(monster, monster.position);
         LogHelper.Log(LogHelper.GAME, $"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
+    }
+
+    public void OnKeyDown_K()
+    {
+        if (_unitGenerate == null) return;
+
+        UnitType[] types = { new Archer() };
+        Vector2Int[] offsets = { new Vector2Int(0, 0) };
+
+        int floorIdx = 1;
+        UnitType type = types[0];
+
+        Vector2Int spawnPos = GetRandomStartRoomPos(type.footprint, floorIdx);
+
+        for (int i = 0; i < types.Length; i++)
+        {
+            Vector2Int pos = spawnPos + offsets[i];
+
+            if (!_unitGenerate.IsAreaClear(pos, types[i].footprint, floorIdx))
+                pos = _unitGenerate.GetRandomFloorPos(types[i].footprint, floorIdx);
+
+            Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
+            units.Add(human);
+
+            RegisterUnitPos(human, human.position);
+            LogHelper.Log(LogHelper.GAME, $"Generated Archer at Floor {human.currentFloor}, {human.position}");
+        }
     }
 
     private void UpdateFactionTextures()
