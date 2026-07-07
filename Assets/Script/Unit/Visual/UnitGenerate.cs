@@ -81,6 +81,7 @@ public class UnitGenerate
 		UnitVisual uv = go.GetComponent<UnitVisual>();
 		if (uv == null) uv = go.AddComponent<UnitVisual>();
 		uv.Setup();
+		uv.boundUnit = unit;
 
 #if UNITY_2022_2_OR_NEWER
 		SpriteLibrary spriteLib = go.GetComponentInChildren<SpriteLibrary>();

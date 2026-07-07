@@ -195,7 +195,13 @@ public abstract class UnitFunction : Unit
 			if (c.roomId == -1 || c.chunk == null) break;
 
 			Tile tile = c.chunk[tx, ty];
-			myData.discoveredMap[currentFloor][x, y] = tile.name == "Wall" ? 2 : 1;
+			bool tileIsWall = tile.name == "Wall";
+			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
+
+			// 지형 밝히기 — FactionData.discoveredMap과 같은 정보(벽/바닥)를 인류 개인 지도에도
+			// 기록한다. 몬스터 발견 여부와 무관하게 시야가 지나가는 모든 타일마다 갱신된다.
+			if (this is Human terrainObserver)
+				terrainObserver.personalMap.RevealTile(new Vector3Int(x, y, currentFloor), tileIsWall);
 
 			if (Session != null &&
 				Session.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
@@ -206,7 +212,21 @@ public abstract class UnitFunction : Unit
 					if (isEnemy)
 					{
 						// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
-						if (!personalSpottedEnemies.Contains(unit)) personalSpottedEnemies.Add(unit);
+						if (!personalSpottedEnemies.Contains(unit))
+						{
+							personalSpottedEnemies.Add(unit);
+
+							// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
+							// 위험도/흥미도는 실시간 조회가 아니라 "지금 확인한 값"의 스냅샷으로 저장한다
+							// (지도관련_정리 문서 6-5장: 지도는 실제값이 아니라 마지막 확인 시점의 기록값).
+							if (this is Human human && Knowledge != null)
+							{
+								var sightingTile = new Vector3Int(x, y, currentFloor);
+								float danger = Knowledge.GetFinalDanger(unit.unitType.typeName, unit.isSpecialUnit ? unit.name : null, unit.baseDanger);
+								float interest = Knowledge.GetUnitInterest(unit);
+								human.personalMap.ObserveMonster(unit.name, sightingTile, danger, interest);
+							}
+						}
 					}
 				}
 			}

@@ -4,9 +4,11 @@ using System.Linq;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// "인류 전역 기록"의 실체 — 종별/개별 누적 가중치, 던전·방·타일 위험도/흥미도, 전멸 위험도 누적,
-// 이해도 총량 한도/감소, 미표기 정보 오차를 관리한다. 순수 C# (DataManager/UnitGenerate와 동일하게
-// VContainer Register<T>().AsSelf()로 등록, GameCompositionRoot.cs 참고).
+// "인류 전역 기록"의 실체 — 종별/개별 누적 가중치, 전멸 위험도 누적, 이해도 총량 한도/감소,
+// 미표기 정보 오차를 관리한다. 타일·오브젝트·방 위험도/흥미도(15~21장, "지도" 데이터)는
+// Human.personalMap(PersonalMapKnowledge)으로 개인유닛화되어 이 클래스에는 없다. 순수 C#
+// (DataManager/UnitGenerate와 동일하게 VContainer Register<T>().AsSelf()로 등록,
+// GameCompositionRoot.cs 참고).
 //
 // 웨이브 루프가 아직 게임에 없으므로(CLAUDE.md 참고), OnWaveEnd(survivors)는 실제 웨이브 종료
 // 지점이 생기면 그때 호출하는 공개 API로 열어 둔다.
@@ -317,72 +319,10 @@ public class HumanKnowledgeBase
 		foreach (var id in expired) _wipeoutTraces.Remove(id);
 	}
 
-	// ─────────────────────────── 15장. 타일 위험도 ───────────────────────────
-	private readonly Dictionary<Vector3Int, float> _tileDanger = new();
-	private readonly Dictionary<Vector3Int, float> _tileSafetyElapsed = new();
-
-	public float GetTileDanger(Vector3Int pos, bool explored)
-	{
-		if (_tileDanger.TryGetValue(pos, out var v)) return v;
-		return explored ? WeightMath.ExploredSafeTileBaseDanger : WeightMath.UnexploredTileBaseDanger;
-	}
-
-	public void SetTileDangerFromUnit(Vector3Int pos, float unitFinalDanger)
-	{
-		_tileDanger[pos] = unitFinalDanger;
-		_tileSafetyElapsed[pos] = 0f; // 위험 요소 갱신되면 안전 확인 타이머 리셋
-	}
-
-	// 매 프레임(또는 스캔 주기) 호출 — threatPresent가 false인 채로 단계별 안전확인시간이 지나면 0으로 감소.
-	public void TickTileSafety(Vector3Int pos, bool threatPresent, float deltaTime)
-	{
-		if (!_tileDanger.TryGetValue(pos, out var danger) || danger <= 0f) return;
-		if (threatPresent) { _tileSafetyElapsed[pos] = 0f; return; }
-
-		float elapsed = _tileSafetyElapsed.GetValueOrDefault(pos) + deltaTime;
-		_tileSafetyElapsed[pos] = elapsed;
-
-		var stage = WeightMath.GetDangerStage(Mathf.FloorToInt(danger));
-		if (elapsed >= WeightMath.TileSafetyCheckSeconds(stage))
-			_tileDanger[pos] = 0f;
-	}
-
-	// ─────────────────────────── 16장~19장. 흥미도 (타일/오브젝트/유닛/시체) ───────────────────────────
-	// 오브젝트/트랩/방어건물/시체 엔티티가 아직 게임에 없어(코드베이스에 클래스 없음), 이 구간은
-	// objectId를 임의 문자열 키로 받는 범용 API로 구현한다 — 실제 오브젝트 시스템이 생기면 그 objectId만
-	// 넘기면 그대로 연동된다. (구현현황 문서에 "수치상으로만 존재"로 기재)
-	private readonly Dictionary<string, float> _objectBaseInterest = new();
-	private readonly Dictionary<string, float> _objectInterest = new();
-	private readonly Dictionary<string, Vector3Int> _objectTile = new();
-
-	public void RegisterObjectInterest(string objectId, Vector3Int tile, float baseInterest)
-	{
-		_objectBaseInterest[objectId] = baseInterest;
-		_objectInterest[objectId] = baseInterest;
-		_objectTile[objectId] = tile;
-	}
-
-	public float GetTileInterest(Vector3Int pos, bool explored, string objectIdAtTile)
-	{
-		float baseTileInterest = explored ? WeightMath.ExploredTileBaseInterest : WeightMath.UnexploredTileBaseInterest;
-		float objectInterest = (objectIdAtTile != null && _objectInterest.TryGetValue(objectIdAtTile, out var oi)) ? oi : 0f;
-		return WeightMath.ComposeTileInterest(baseTileInterest, objectInterest);
-	}
-
-	public void OnObjectInvestigated(string objectId)
-	{
-		if (_objectInterest.TryGetValue(objectId, out var v))
-			_objectInterest[objectId] = WeightMath.ObjectInterestAfterInvestigate(v);
-	}
-
-	public void OnObjectCollected(string objectId) => _objectInterest[objectId] = 0f;
-	public void OnObjectDestroyed(string objectId) => _objectInterest[objectId] = 0f;
-
-	public void OnObjectDroppedByCarrierDeath(string objectId)
-	{
-		if (_objectBaseInterest.TryGetValue(objectId, out var baseInterest))
-			_objectInterest[objectId] = WeightMath.ObjectInterestAfterDrop(baseInterest);
-	}
+	// 15~17장/20~21장(타일·오브젝트·방 위험도/흥미도)은 2026-07-07부로 개인유닛화되어
+	// PersonalMapKnowledge(Human.personalMap)로 이전했다 — 지도관련_정리 문서가 명시하듯 이 데이터는
+	// 원래도 "인류 유닛별로 획득"되는 개인 인지 정보였다. 자세한 내용은
+	// Assets/문서/GrimArchive_지도_구현현황.txt 참고.
 
 	// 18장: 일반 유닛 흥미도 = 기본흥미도 × (100-이해도)%. IsInterestTarget이면 감소식 미적용(그대로 유지).
 	public float GetUnitInterest(Unit unit)
@@ -399,75 +339,14 @@ public class HumanKnowledgeBase
 		return WeightMath.CorpseTraceInterest(stage);
 	}
 
-	// ─────────────────────────── 20장~22장. 방 / 던전 위험도·흥미도 ───────────────────────────
-	public enum RoomExploreState { Unexplored, Exploring, Complete }
+	// 20장/21장(방 위험도·흥미도)도 PersonalMapKnowledge로 이전했다 — 위 15~17장과 동일 사유.
+	// 22장 "던전 전체 위험도/흥미도"의 방 합산 부분도 함께 옮겨갔으므로, 아래 두 메서드는 이제
+	// 진영 차원에서 관리하는 파티전멸/전멸흔적 누적값만 반환한다(13장, 이번에 안 건드림). 방 데이터를
+	// 포함한 진짜 "던전 전체" 값이 필요하면 Human.personalMap.GetPersonalDungeonDanger()/
+	// GetPersonalDungeonInterest()(개인 인지 기준)를 쓴다 — 진영 전체 지도는 아직 없다.
+	public float GetDungeonDanger() => _dungeonWipeoutDangerAccum + _wipeoutTraceGlobalAccum;
 
-	private class RoomKnowledge
-	{
-		public RoomExploreState State = RoomExploreState.Unexplored;
-		public bool IsBossRoom;
-		public float ConfirmedUnitDanger, ConfirmedObjectDanger;
-		public float ConfirmedUnitInterest, ConfirmedObjectInterest;
-	}
-	private readonly Dictionary<int, RoomKnowledge> _rooms = new();
-
-	private RoomKnowledge GetOrCreateRoom(int roomId, bool isBossRoom)
-	{
-		if (!_rooms.TryGetValue(roomId, out var r))
-		{
-			r = new RoomKnowledge { IsBossRoom = isBossRoom };
-			_rooms[roomId] = r;
-		}
-		return r;
-	}
-
-	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
-		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
-
-	// 시야로 확인한 유닛/오브젝트를 실시간으로 방 추정값에 누적 (7-1장 "방 정보 갱신")
-	public void ObserveUnitInRoom(int roomId, bool isBossRoom, float unitFinalDanger, float unitInterest)
-	{
-		var r = GetOrCreateRoom(roomId, isBossRoom);
-		r.ConfirmedUnitDanger += unitFinalDanger;
-		r.ConfirmedUnitInterest += unitInterest;
-	}
-
-	public void ObserveObjectInRoom(int roomId, bool isBossRoom, float objectDanger, float objectInterest)
-	{
-		var r = GetOrCreateRoom(roomId, isBossRoom);
-		r.ConfirmedObjectDanger += objectDanger;
-		r.ConfirmedObjectInterest += objectInterest;
-	}
-
-	public float GetRoomDanger(int roomId, bool isBossRoom)
-	{
-		var r = GetOrCreateRoom(roomId, isBossRoom);
-		return r.State switch
-		{
-			RoomExploreState.Unexplored => isBossRoom ? WeightMath.UnexploredBossRoomBaseDanger : WeightMath.UnexploredNormalRoomBaseDanger,
-			RoomExploreState.Exploring => r.ConfirmedUnitDanger + r.ConfirmedObjectDanger + (isBossRoom ? WeightMath.ExploringBossRoomFixedDanger : WeightMath.ExploringNormalRoomFixedDanger),
-			RoomExploreState.Complete => r.ConfirmedUnitDanger + r.ConfirmedObjectDanger,
-			_ => 0f,
-		};
-	}
-
-	public float GetRoomInterest(int roomId, bool isBossRoom)
-	{
-		var r = GetOrCreateRoom(roomId, isBossRoom);
-		return r.State switch
-		{
-			RoomExploreState.Unexplored => isBossRoom ? WeightMath.UnexploredBossRoomBaseInterest : WeightMath.UnexploredNormalRoomBaseInterest,
-			RoomExploreState.Exploring => r.ConfirmedUnitInterest + r.ConfirmedObjectInterest + (isBossRoom ? WeightMath.ExploringBossRoomFixedInterest : WeightMath.ExploringNormalRoomFixedInterest),
-			RoomExploreState.Complete => r.ConfirmedUnitInterest + r.ConfirmedObjectInterest,
-			_ => 0f,
-		};
-	}
-
-	public float GetDungeonDanger()
-		=> _rooms.Keys.Sum(id => GetRoomDanger(id, _rooms[id].IsBossRoom)) + _dungeonWipeoutDangerAccum + _wipeoutTraceGlobalAccum;
-
-	public float GetDungeonInterest()
-		=> _rooms.Keys.Sum(id => GetRoomInterest(id, _rooms[id].IsBossRoom));
+	public float GetDungeonInterest() => 0f;
 
 	// ─────────────────────────── 9장/23장. 정보 오차 ───────────────────────────
 	public int ApplyHiddenInfoNoise(int actualValue, int understandingApplied) => WeightMath.ApplyHiddenInfoNoise(actualValue, understandingApplied, _rng);

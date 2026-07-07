@@ -294,6 +294,10 @@ public abstract class Unit : ScriptableObject
 
 public class Human : UnitFunction
 {
+	// 개인 지도(타일/오브젝트/몬스터 목격/방 위험도·흥미도) — 지도관련_정리 문서 기준 "지도는
+	// 인류만 들고 있어야 한다"는 지시에 따라 Human에만 둔다(Monster/base Unit에는 없음).
+	public readonly PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
+
 	public override void JudgeState()
 	{
 		base.JudgeState();

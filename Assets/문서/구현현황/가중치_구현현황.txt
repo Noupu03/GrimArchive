@@ -14,6 +14,10 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황
           PersonalWeightRecord, IncidentLog, SpeciesWeightState, WeightSystemDemo), Assets/Data/weight_events.json,
           Assets/Tests/WeightSystemTests.cs. 통합 지점: Unit.cs, UnitFunction.cs, GameSession.cs,
           UnitVisualDefinition.cs, GameCompositionRoot.cs.
+          ※ 2026-07-07: 타일/오브젝트/방 위험도·흥미도(15~17장/20~21장, "지도" 데이터)는
+          PersonalMapKnowledge(Assets/Script/Unit/Weight/PersonalMapKnowledge.cs, Human.personalMap)로
+          개인유닛화되어 HumanKnowledgeBase에서 빠졌다 — 자세한 내용/구현현황은
+          Assets/문서/GrimArchive_지도_구현현황.txt 참고.
 
 ════════════════════════════════════════════════════════════════════════
 디버깅 이력 — 종/개체 식별 키 불일치 버그 (2026-07-07 발견 및 수정)
@@ -249,6 +253,9 @@ WeightSystemDemo.cs.
        FOV를 계산하는 핫패스라, 타일 하나하나에 안전-확인 타이머를 매 프레임 얹는 통합은 성능
        영향을 신중히 검토해야 해서 이번 범위에서는 API만 준비하고 실제 연결은 보류했다. TickTileSafety
        (Vector3Int, threatPresent, deltaTime)를 그 루프 어딘가에서 불러주면 바로 동작한다.
+       ※ 2026-07-07: 위 내용은 옛 구조 기준 설명이다. 이 장의 데이터/메서드는 이제 HumanKnowledgeBase가
+       아니라 PersonalMapKnowledge(Human.personalMap, 개인유닛화)에 있고, CastRay 연동도 몬스터
+       목격 시점에 한해 실제로 걸렸다 — 자세한 내용은 Assets/문서/GrimArchive_지도_구현현황.txt 참고.
 
 ════════════════════════════════════════════════════════════════════════
 16장. 타일 흥미도
@@ -257,17 +264,20 @@ WeightSystemDemo.cs.
        문서 예시(5+120=125) 테스트로 고정.
 [수치상으로만 존재] 15장과 같은 이유로 "타일 탐사 여부" 자동 판정과의 실시간 연결은 없음
        (GetTileInterest(pos, explored, objectId) 파라미터로 explored를 넘겨주면 바로 계산됨).
+       ※ 2026-07-07: PersonalMapKnowledge(Human.personalMap)로 이전됨 — 지도_구현현황 문서 참고.
 
 ════════════════════════════════════════════════════════════════════════
 17장. 오브젝트 흥미도 감소 / 복구
 ════════════════════════════════════════════════════════════════════════
 [구현] 조사 50% 감소, 회수/파괴 0, 드랍 시 기본값×50% 재적용 — WeightMath.
        ObjectInterestAfterInvestigate/AfterDrop(), 문서 예시(120→60) 테스트로 고정.
-       HumanKnowledgeBase.RegisterObjectInterest/OnObjectInvestigated/OnObjectCollected/
-       OnObjectDestroyed/OnObjectDroppedByCarrierDeath로 objectId 기반 범용 API 구현.
+       RegisterObjectInterest/OnObjectInvestigated/OnObjectCollected/OnObjectDestroyed/
+       OnObjectDroppedByCarrierDeath로 objectId 기반 범용 API 구현.
 [수치상으로만 존재] "오브젝트"라는 상호작용 가능한 던전 아이템/함정/방어건물 클래스 자체가
        코드베이스에 없다(3장에서 이미 확인). objectId를 문자열로만 받는 이유가 이것 — 실제 오브젝트
        시스템이 생기면 그 식별자만 넘기면 그대로 연동된다.
+       ※ 2026-07-07: PersonalMapKnowledge(Human.personalMap)로 이전됨(HumanKnowledgeBase에는 더
+       이상 없음) — 지도_구현현황 문서 참고. 오브젝트 엔티티가 없다는 이 항목의 사유는 그대로 유효.
 
 ════════════════════════════════════════════════════════════════════════
 18장. 유닛 흥미도와 이해도 관계
@@ -289,15 +299,17 @@ WeightSystemDemo.cs.
 20장 / 21장. 방 위험도 / 방 흥미도
 ════════════════════════════════════════════════════════════════════════
 [구현] 미탐사/탐사중/탐사완료 3단계 방 상태(RoomExploreState), 일반방·보스방별 기본값·고정값 표
-       전부 반영 — HumanKnowledgeBase.GetRoomDanger/GetRoomInterest(). ObserveUnitInRoom/
-       ObserveObjectInRoom으로 시야 확인분을 실시간 누적하는 API까지 구현(7-1장 "방 정보 갱신"
-       요구사항 반영).
+       전부 반영 — GetRoomDanger/GetRoomInterest(). ObserveUnitInRoom/ObserveObjectInRoom으로
+       시야 확인분을 실시간 누적하는 API까지 구현(7-1장 "방 정보 갱신" 요구사항 반영).
 [수치상으로만 존재] "이 방이 몇 번 방(roomId)이고 지금 몇 단계 탐사 상태인지"를 실제 맵 생성 코드
        (CreateMap/MapData의 Chunks.roomId)와 자동으로 동기화하는 코드가 없다 — 이번 시스템은
        "인류 인지 레이어"를 맵 생성의 실제(ground-truth) 데이터와는 별도 레지스트리로 독립시켜
        설계했다(방 탐사 여부는 애초에 "인류가 얼마나 봤는가"를 나타내는 것이라 맵 생성 데이터와는
        의미가 다르다고 판단). SetRoomExploreState(roomId, isBossRoom, state)를 실제 유닛의 이동/
        시야 이벤트에서 호출해주면 연동된다.
+       ※ 2026-07-07: PersonalMapKnowledge(Human.personalMap)로 이전됨. CastRay가 레이 스텝마다
+       Chunks.roomId를 이미 알고 있어 기술적으로는 자동 연동 가능하지만, 보스방 여부(isBossRoom)를
+       판별할 방법을 아직 확인하지 않아 이번에도 자동 연동은 걸지 않았다 — 지도_구현현황 문서 참고.
 
 ════════════════════════════════════════════════════════════════════════
 22장. 던전 전체 위험도 / 흥미도
@@ -305,6 +317,12 @@ WeightSystemDemo.cs.
 [구현] 모든 방 위험도 합산 + 파티전멸누적 + 전멸흔적전역반영누적 = 던전 전체 위험도 / 모든 방
        흥미도 합산 = 던전 전체 흥미도 — HumanKnowledgeBase.GetDungeonDanger()/GetDungeonInterest().
        13장 테스트(파티전멸→30, 전멸흔적→35)로 간접 검증됨.
+       ※ 2026-07-07: 방 데이터가 PersonalMapKnowledge로 개인유닛화되면서 이 장의 "모든 방 위험도
+       합산" 부분은 더 이상 HumanKnowledgeBase에 없다. HumanKnowledgeBase.GetDungeonDanger()/
+       GetDungeonInterest()는 이제 파티전멸/전멸흔적 누적값만 반환한다(방 미포함 — 진영 전체
+       지도가 아직 없어서 생기는 의도된 공백). 방을 포함한 값이 필요하면 개인 기준인
+       Human.personalMap.GetPersonalDungeonDanger()/GetPersonalDungeonInterest()를 쓴다.
+       진짜 22장 공식(진영 전체 기준)은 진영 지도가 생기는 다음 라운드의 몫 — 지도_구현현황 문서 참고.
 
 ════════════════════════════════════════════════════════════════════════
 23장. 정보 오차

@@ -33,6 +33,7 @@ public class WeightSystemDemo : MonoBehaviour
 		Scenario6_DangerDecreaseAndFinalDanger();
 		Scenario7_WipeoutDanger();
 		Scenario8_TileObjectUnitCorpseInterest();
+		Scenario9_PersonalMap_ObserveMonster();
 
 		Section("전체 시나리오 종료");
 		CleanupSpawned();
@@ -251,26 +252,30 @@ public class WeightSystemDemo : MonoBehaviour
 		Expect("중복 반영 방지 확인", kb.GetDungeonDanger(), 65f);
 	}
 
-	// ─────────────────────────── 시나리오 8. 16~19장: 타일/오브젝트/유닛/시체 흥미도 ───────────────────────────
+	// ─────────────────────────── 시나리오 8. 15~19장: 개인 지도(타일/오브젝트/유닛/시체) 흥미도·위험도 ───────────────────────────
+	// 15~17장/20~21장은 2026-07-07부로 개인유닛화되어 HumanKnowledgeBase가 아니라
+	// PersonalMapKnowledge(원래는 Human.personalMap으로 각 유닛이 개별로 들고 있음, 여기선 검증용으로
+	// 독립 인스턴스 사용)로 옮겨갔다. 18장/19장(유닛/시체 흥미도)은 그대로 HumanKnowledgeBase/WeightMath에 있다.
 	private void Scenario8_TileObjectUnitCorpseInterest()
 	{
-		Section("시나리오 8 (15장/16~19장) - 타일/오브젝트/유닛/시체 흥미도, 타일 위험도");
+		Section("시나리오 8 (15~17장/18장/19장) - 개인 지도(타일/오브젝트) + 유닛/시체 흥미도");
 
 		var kb = new HumanKnowledgeBase();
+		var map = new PersonalMapKnowledge();
 		var tile = new Vector3Int(3, 4, 0);
 
 		Log("16장: 미탐사 타일(기본흥미도5) 위에 흥미도120짜리 오브젝트가 있으면 타일 흥미도 = 5+120 = 125 여야 함");
-		kb.RegisterObjectInterest("obj_보물상자", tile, 120f);
-		float tileInterest = kb.GetTileInterest(tile, explored: false, objectIdAtTile: "obj_보물상자");
+		map.RegisterObjectInterest("obj_보물상자", tile, 120f);
+		float tileInterest = map.GetTileInterest(tile, explored: false, objectIdAtTile: "obj_보물상자");
 		Expect("타일 최종 흥미도", tileInterest, 125f);
 
 		Log("17장: 조사 완료 시 오브젝트 흥미도 50% 감소 (120 → 60)");
-		kb.OnObjectInvestigated("obj_보물상자");
-		Expect("조사 완료 후 오브젝트 흥미도", kb.GetTileInterest(tile, false, "obj_보물상자") - WeightMath.UnexploredTileBaseInterest, 60f);
+		map.OnObjectInvestigated("obj_보물상자");
+		Expect("조사 완료 후 오브젝트 흥미도", map.GetTileInterest(tile, false, "obj_보물상자") - WeightMath.UnexploredTileBaseInterest, 60f);
 
 		Log("회수 중 유닛 사망으로 드랍 시 기본값×50% 재적용 (120 × 0.5 = 60)");
-		kb.OnObjectDroppedByCarrierDeath("obj_보물상자");
-		Expect("드랍 후 오브젝트 흥미도", kb.GetTileInterest(tile, false, "obj_보물상자") - WeightMath.UnexploredTileBaseInterest, 60f);
+		map.OnObjectDroppedByCarrierDeath("obj_보물상자");
+		Expect("드랍 후 오브젝트 흥미도", map.GetTileInterest(tile, false, "obj_보물상자") - WeightMath.UnexploredTileBaseInterest, 60f);
 
 		Log("18장: 일반 유닛 기본흥미도 100, 이해도 적용값 35 → 흥미도 = 100*65% = 65 여야 함");
 		// kb.GetUnitInterest(Unit)은 종별 이해도를 이벤트 파이프라인을 통해서만 갱신할 수 있어
@@ -285,11 +290,57 @@ public class WeightSystemDemo : MonoBehaviour
 
 		Log("15장: 미탐사 타일 기본 위험도 = 2 여야 함");
 		var dangerTile = new Vector3Int(9, 9, 0);
-		Expect("미탐사 타일 기본 위험도", kb.GetTileDanger(dangerTile, explored: false), 2f);
+		Expect("미탐사 타일 기본 위험도", map.GetTileDanger(dangerTile, explored: false), 2f);
 
 		Log("위험도 250(Stage1, 안전확인 2초)짜리 유닛이 있었던 타일 → 위협 사라진 뒤 2.5초 경과하면 위험도 0");
-		kb.SetTileDangerFromUnit(dangerTile, 250f);
-		kb.TickTileSafety(dangerTile, threatPresent: false, deltaTime: 2.5f);
-		Expect("안전확인시간 경과 후 타일 위험도", kb.GetTileDanger(dangerTile, explored: true), 0f);
+		map.SetTileDangerFromUnit(dangerTile, 250f);
+		map.TickTileSafety(dangerTile, threatPresent: false, deltaTime: 2.5f);
+		Expect("안전확인시간 경과 후 타일 위험도", map.GetTileDanger(dangerTile, explored: true), 0f);
+	}
+
+	// ─────────────────────────── 시나리오 9 (신규). 개인 지도 — 몬스터 목격 기록 ───────────────────────────
+	// UnitFunction.CastRay가 인류 유닛의 시야에 몬스터가 처음 들어오는 순간 자동으로 호출하는 것과
+	// 동일한 동작을 재현한다(personalMap.ObserveMonster). 실제 게임에서는 CastRay가 이 호출을 대신 한다.
+	private void Scenario9_PersonalMap_ObserveMonster()
+	{
+		Section("시나리오 9 (신규) - 인류가 몬스터를 목격하면 개인 지도에 위치+위험도+흥미도가 기록됨");
+
+		var kb = new HumanKnowledgeBase();
+		var ranger = NewHuman("정찰병");
+		var goblin = NewMonster("정찰용_고블린");
+		goblin.baseDanger = 50f;
+
+		var sightingTile = new Vector3Int(7, 2, 0);
+		Log($"정찰병이 {sightingTile} 타일에서 '{goblin.unitType.typeName}'을 처음 목격함");
+
+		// CastRay 내부와 동일한 계산 — 목격 시점의 위험도/흥미도를 스냅샷으로 지도에 기록.
+		float danger = kb.GetFinalDanger(goblin.unitType.typeName, null, goblin.baseDanger);
+		float interest = kb.GetUnitInterest(goblin);
+		ranger.personalMap.ObserveMonster(goblin.name, sightingTile, danger, interest);
+
+		Log($"기록된 위험도={danger}, 흥미도={interest}");
+		Expect("목격 시점 위험도 = baseDanger(종별 누적 없음)", danger, 50f);
+
+		bool found = ranger.personalMap.TryGetMonsterSighting(goblin.name, out var tile, out var recordedDanger, out var recordedInterest);
+		Expect("몬스터 목격 기록 존재 여부", found, true);
+		Expect("기록된 목격 위치", tile, sightingTile);
+		Expect("기록된 목격 위험도", recordedDanger, danger);
+
+		Log("15장: 몬스터가 있던 타일은 그 몬스터의 기록 위험도를 그대로 타일 위험도로 가져야 함");
+		Expect("목격 타일의 위험도", ranger.personalMap.GetTileDanger(sightingTile, explored: true), danger);
+
+		Log("지형 밝히기: CastRay가 시야가 지나가는 모든 타일마다 벽/바닥 여부를 개인 지도에 기록함");
+		var wallTile = new Vector3Int(8, 2, 0);
+		var floorTile = new Vector3Int(6, 2, 0);
+		var unrevealedTile = new Vector3Int(0, 0, 0);
+		ranger.personalMap.RevealTile(wallTile, isWall: true);
+		ranger.personalMap.RevealTile(floorTile, isWall: false);
+		Expect("벽으로 밝힌 타일", ranger.personalMap.GetTileTerrain(wallTile), 2);
+		Expect("바닥으로 밝힌 타일", ranger.personalMap.GetTileTerrain(floorTile), 1);
+		Expect("아직 안 밝힌 타일 = 미탐색(0)", ranger.personalMap.GetTileTerrain(unrevealedTile), 0);
+		Expect("지형 밝힘 여부로 자동 판단하는 GetTileDanger 오버로드", ranger.personalMap.GetTileDanger(floorTile), ranger.personalMap.GetTileDanger(floorTile, explored: true));
+		Expect("아직 안 밝힌 타일은 미탐사 취급", ranger.personalMap.GetTileDanger(unrevealedTile), ranger.personalMap.GetTileDanger(unrevealedTile, explored: false));
+
+		Log($"정찰병 개인 지도 요약:\n{ranger.personalMap.BuildDebugSummary()}");
 	}
 }
