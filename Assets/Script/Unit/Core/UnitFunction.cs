@@ -263,6 +263,20 @@ public abstract class UnitFunction : Unit
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, c.roomId);
 					terrainObserver.personalMap.ObserveRoomTileRevealed(c.roomId, isBossRoom, totalFloorTiles);
 				}
+
+				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
+				{
+					if (!obj.IsCollected)
+					{
+						float currentInterest = terrainObserver.personalMap.GetTileInterest(revealedTile, obj.Id);
+						if (currentInterest <= WeightMath.UnexploredTileBaseInterest) // 5f
+						{
+							terrainObserver.personalMap.RegisterObjectInterest(obj.Id, obj.Position, obj.BaseInterest);
+							LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
+								$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 흥미도={obj.BaseInterest}");
+						}
+					}
+				}
 			}
 
 			if (Session != null &&
