@@ -143,6 +143,16 @@ public class InputManager : MonoBehaviour
 				currentFloor
 			);
 
+			selectedUnit.playerInteractTarget = null;
+
+			if (selectedUnit is Human human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+			{
+				if (!obj.IsCollected)
+				{
+					selectedUnit.playerInteractTarget = gridPos;
+				}
+			}
+
 			selectedUnit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
 			selectedUnit.playerAttackTarget = null;
 

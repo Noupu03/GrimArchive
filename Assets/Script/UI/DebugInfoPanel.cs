@@ -111,6 +111,34 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         RefreshSelectedUnitInfo();
     }
 
+    private void OnGUI()
+    {
+        if (_inputManager == null || _inputManager.selectedUnit == null) return;
+        Unit u = _inputManager.selectedUnit;
+
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 150), "Unit Status Test", GUI.skin.window);
+        
+        if (GUILayout.Button("Add 10 EXP"))
+        {
+            u.exp += 10f;
+            RefreshSelectedUnitInfo();
+        }
+        
+        if (GUILayout.Button("Add 1 Kill"))
+        {
+            u.killCount += 1;
+            RefreshSelectedUnitInfo();
+        }
+        
+        if (GUILayout.Button("Level Up"))
+        {
+            u.level += 1;
+            RefreshSelectedUnitInfo();
+        }
+        
+        GUILayout.EndArea();
+    }
+
     private void RefreshSelectedUnitInfo()
     {
         if (selectedUnitInfoText == null) return;
@@ -126,13 +154,21 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
         sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
         sb.AppendLine($"<b>진영:</b> {(u is Human ? "인류" : "몬스터")}");
+        sb.AppendLine($"<b>LV:</b> {u.level}");
+        sb.AppendLine($"<b>EXP:</b> {u.exp:F1}");
+        sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");
         sb.AppendLine();
         sb.AppendLine($"<b>HP:</b> {u.hp:F1}");
-        if (u is Human)
+        if (u is Human humanObj)
         {
-            sb.AppendLine($"<b>MP:</b> {u.mp:F1}");
-            string panicStr = (u.mental < u.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
-            sb.AppendLine($"<b>정신력:</b> {u.mental:F1} / {u.maxMental:F1}{panicStr}");
+            sb.AppendLine($"<b>MP:</b> {humanObj.mp:F1}");
+            string panicStr = (humanObj.mental < humanObj.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
+            sb.AppendLine($"<b>정신력:</b> {humanObj.mental:F1} / {humanObj.maxMental:F1}{panicStr}");
+            
+            if (humanObj.collectedObjects.Count > 0)
+                sb.AppendLine($"<color=yellow><b>Collected Objects:</b> {humanObj.collectedObjects.Count}</color>");
+            else
+                sb.AppendLine($"<b>Collected Objects:</b> 0");
         }
         sb.AppendLine();
         sb.AppendLine($"<b>물리공격력:</b> {u.physicalAttack:F1}");

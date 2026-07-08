@@ -15,6 +15,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
 {
     public static GameSession Instance { get; private set; }
     public CreateMap cmap { get; private set; }
+    public UnitGenerate unitGenerate => _unitGenerate;
 
     private UnitGenerate _unitGenerate;
     private ThreatTileRenderer _threatTileRenderer;
@@ -28,6 +29,8 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         _resolver = resolver;
     }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
+    public Dictionary<Vector3Int, InteractableObject> objectGrid { get; private set; } = new Dictionary<Vector3Int, InteractableObject>();
+    private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
 
     public List<Unit> units { get; private set; } = new List<Unit>();
     private float updateTimer = 0f;
@@ -155,6 +158,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
             if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
+            if (Keyboard.current.oKey.wasPressedThisFrame) OnKeyDown_O();
         }
     }
 
@@ -337,6 +341,71 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         }
     }
 
+    public void OnKeyDown_O()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        
+        int floorIdx = 1;
+        Vector2Int spawnPos = GetRandomStartRoomPos(Vector2.one, floorIdx);
+        if (spawnPos == Vector2Int.zero) return;
+
+        string objId = "InteractableObj_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, floorIdx);
+        
+        if (!objectGrid.ContainsKey(gridPos))
+        {
+            InteractableObject obj = new InteractableObject(objId, gridPos, 120f);
+            objectGrid[gridPos] = obj;
+            LogHelper.Log(LogHelper.GAME, $"Generated InteractableObject {objId} at Floor {floorIdx}, {spawnPos} with BaseInterest 120");
+
+            // 인게임 시각화 생성 (자홍색 사각형)
+            GameObject visual = new GameObject(objId);
+            SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+            
+            Texture2D tex = new Texture2D(32, 32);
+            Color[] pixels = new Color[32 * 32];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.magenta;
+            tex.SetPixels(pixels);
+            tex.Apply();
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+            sr.sprite = sprite;
+            sr.sortingOrder = 5;
+            
+            Vector3 offset = Vector3.zero;
+            var mr = UnityEngine.Object.FindObjectOfType<MapRandering>();
+            if (mr != null)
+            {
+                Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
+                if (childTilemap != null)
+                {
+                    offset = childTilemap.position;
+                    visual.transform.SetParent(childTilemap);
+                }
+            }
+            
+            visual.transform.position = new Vector3(spawnPos.x + 0.5f, spawnPos.y + 0.5f, 0f) + offset;
+            visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
+            
+            objectVisuals[obj] = visual;
+        }
+    }
+
+    public void CollectObject(Vector3Int pos)
+    {
+        if (objectGrid.ContainsKey(pos))
+        {
+            var obj = objectGrid[pos];
+            obj.IsCollected = true;
+            objectGrid.Remove(pos);
+
+            if (objectVisuals.TryGetValue(obj, out GameObject visual))
+            {
+                if (visual != null) UnityEngine.Object.Destroy(visual);
+                objectVisuals.Remove(obj);
+            }
+        }
+    }
+
     private void UpdateFactionTextures()
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -398,6 +467,20 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
                 if (enemy == null || enemy.currentFloor != f) continue;
                 int idx = enemy.position.y * mapW + enemy.position.x;
                 if (enemy.position.x >= 0 && enemy.position.x < mapW && enemy.position.y >= 0 && enemy.position.y < mapH) mPixels[idx] = Color.blue;
+            }
+
+            // 오브젝트 시각화 (자홍색)
+            foreach (var kvp in objectGrid)
+            {
+                if (kvp.Value.Position.z == f)
+                {
+                    int idx = kvp.Key.y * mapW + kvp.Key.x;
+                    if (kvp.Key.x >= 0 && kvp.Key.x < mapW && kvp.Key.y >= 0 && kvp.Key.y < mapH)
+                    {
+                        hPixels[idx] = Color.magenta;
+                        mPixels[idx] = Color.magenta;
+                    }
+                }
             }
 
             humanMapTextures[f].SetPixels(hPixels);

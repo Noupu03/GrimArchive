@@ -39,6 +39,11 @@ public abstract class Unit : ScriptableObject
 	// "누가 처치했는지"를 알아야 위험도/이해도 처치 이벤트(E_MONSTER_KILL_SELF 등)를 기록할 수 있어서 둔다.
 	public Unit lastAttacker;
 
+	// ─── 레벨 및 성장 속성 ────────────────────────────────────────
+	public int level = 1;                 // 현재 레벨
+	public float exp = 0f;                // 현재 경험치
+	public int killCount = 0;             // 적 처치 수
+
 	// ─── 전투 세부 속성 ───────────────────────────────────────────
 	public float maxHp = 100f;            // 최대체력
 	public float hp    = 100f;            // 현재 체력
@@ -135,7 +140,7 @@ public abstract class Unit : ScriptableObject
 
 	public Vector2Int? playerMoveTarget    = null;
 	public Unit        playerAttackTarget   = null;
-
+	public Vector3Int? playerInteractTarget = null;
 	public Vector2Int position;
 	public int        currentFloor = 0;        // 현재 유닛이 위치한 층 정보
 	public Dir        currentDir   = Dir.DOWN;  // 현재 바라보는 방향 (시야 기준)
@@ -296,7 +301,8 @@ public class Human : UnitFunction
 {
 	// 개인 지도(타일/오브젝트/몬스터 목격/방 위험도·흥미도) — 지도관련_정리 문서 기준 "지도는
 	// 인류만 들고 있어야 한다"는 지시에 따라 Human에만 둔다(Monster/base Unit에는 없음).
-	public readonly PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
+	public PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
+	public System.Collections.Generic.List<string> collectedObjects = new System.Collections.Generic.List<string>();
 
 	public override void JudgeState()
 	{

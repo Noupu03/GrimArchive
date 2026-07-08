@@ -245,7 +245,22 @@ public abstract class UnitFunction : Unit
 				if (isFirstReveal)
 					LogHelper.Log($"<b><color=blue>[EventId:E_EXPLORED_SAFE_TILE]</color></b>",
 						$"관찰자={terrainObserver.name} 타일={revealedTile} 흥미도 미탐사({WeightMath.UnexploredTileBaseInterest})→탐사완료({WeightMath.ExploredTileBaseInterest})");
+
+				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
+				{
+					if (!obj.IsCollected)
+					{
+						float currentInterest = terrainObserver.personalMap.GetTileInterest(revealedTile, obj.Id);
+						if (currentInterest <= WeightMath.UnexploredTileBaseInterest) // 5f
+						{
+							terrainObserver.personalMap.RegisterObjectInterest(obj.Id, obj.Position, obj.BaseInterest);
+							LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
+								$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 흥미도={obj.BaseInterest}");
+						}
+					}
+				}
 			}
+
 
 			if (Session != null &&
 				Session.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
