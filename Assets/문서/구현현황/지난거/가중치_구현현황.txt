@@ -343,6 +343,20 @@ WeightSystemDemo.cs.
 [수치상으로만 존재] 15장과 같은 이유로 "타일 탐사 여부" 자동 판정과의 실시간 연결은 없음
        (GetTileInterest(pos, explored, objectId) 파라미터로 explored를 넘겨주면 바로 계산됨).
        ※ 2026-07-07: PersonalMapKnowledge(Human.personalMap)로 이전됨 — 지도_구현현황 문서 참고.
+       ※ 2026-07-08: RevealTile(UnitFunction.CastRay가 매 프레임 호출)이 explored 여부를 자동으로
+       채워주게 되면서 "실시간 연결 없음"은 더 이상 유효하지 않다 — GetTileDanger(pos)/
+       GetTileInterest(pos, objectId)의 1-인자 편의 오버로드가 IsTileRevealed(pos)로 자동 판정한다.
+[구현] ※ 2026-07-08(v0.7 (1) 개정판 반영): 원본 문서에 없던 "흥미도 단계별 확인 시간" 표(15장
+       안전 확인 시간표와 동일 구간: 단계0 0~99/1초 ~ 단계MAX 800~999/5초)가 신설되어, "미탐사
+       기본 흥미도 5"도 15장 위험도처럼 시야 확인 직후 즉시 0이 아니라 확인 시간을 거쳐야 하도록
+       구현. WeightEnums.cs에 InterestStage 신설(DangerStage와 구간은 동일하지만 문맥 구분을 위해
+       별도 타입), WeightMath.GetInterestStage()/TileInterestCheckSeconds() 추가.
+       PersonalMapKnowledge에 _tileInterest/_tileInterestConfirmElapsed(15장의 _tileDanger/
+       _tileSafetyElapsed와 대칭 구조) 추가 — RevealTile()이 처음 밝혀지는 순간 흥미도 5를 시딩하고,
+       TickTileInterestConfirm(매 프레임, UnitFunction.OnUpdate에서 KnownDangerTiles 루프 옆에
+       나란히 호출)이 감소시킨다. TickTileSafety의 threatPresent(GameSession.unitGrid 조회 필요)와
+       달리, "이 타일에 흥미도>0인 오브젝트가 있는가"는 PersonalMapKnowledge 자신의 _objectTile/
+       _objectInterest만으로 판단 가능해 자기완결적이다(외부 인자 불필요).
 
 ════════════════════════════════════════════════════════════════════════
 17장. 오브젝트 흥미도 감소 / 복구

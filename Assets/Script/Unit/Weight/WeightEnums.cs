@@ -37,6 +37,17 @@ public enum DangerStage
 	StageMax, // 800~999
 }
 
+// 흥미도 단계 (16장, v0.7 (1) 개정판 신설) — 구간은 DangerStage와 수치상 동일하지만
+// "위험도가 아니라 흥미도" 문맥이라는 걸 호출부에서 헷갈리지 않도록 별도 타입으로 둔다.
+public enum InterestStage
+{
+	Stage0,   // 0~99
+	Stage1,   // 100~299
+	Stage2,   // 300~599
+	Stage3,   // 600~799
+	StageMax, // 800~999
+}
+
 // 3장(이해도/위험도) + 3-2장(흥미도) 이벤트 ID 전체 목록.
 public enum EventId
 {
