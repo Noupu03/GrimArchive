@@ -33,6 +33,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
     private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
 
     public List<Unit> units { get; private set; } = new List<Unit>();
+    public List<Party> parties { get; private set; } = new List<Party>();
     private float updateTimer = 0f;
     private float textureUpdateTimer = 0f;
     private bool needTextureUpdate = false;
@@ -165,6 +166,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
     private void RemoveDeadUnit(int index, Unit u)
     {
         if (u != null) RecordKillWeightEvent(u);
+        if (u != null) CheckPartyWaveState(u);
         if (_unitGenerate != null && u != null)
         {
             _unitGenerate.RemoveVisual(u);
@@ -172,6 +174,78 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         if (u != null) UnregisterUnitPos(u, u.position);
         units.RemoveAt(index);
         if (u != null) Destroy(u);
+    }
+
+    // ─────────────────────────── 파티 시스템 ───────────────────────────
+    // 인류 유닛들을 하나의 파티로 묶는다 — 연산공식 문서 6장(생존자 전역 반영)/13장(파티 전멸)/
+    // 23장(파티 입장 시 정보 오차 공유)이 전제하는 "파티" 단위의 실체. WaveSpawner가 웨이브
+    // 몬스터와 함께 인류 파티를 스폰할 때 호출한다.
+    public Party CreateParty(string name, List<Human> members)
+    {
+        var party = new Party(System.Guid.NewGuid().ToString(), name);
+        foreach (var m in members)
+        {
+            if (m == null) continue;
+            party.Members.Add(m);
+            m.party = party;
+
+            // 5-1장: "신규 유닛 개인 지도 정보 = 최신 전역 지도 정보" — 파티에 합류하는(=웨이브에
+            // 입장하는) 시점이 정확히 문서가 말하는 "신규 진입" 순간이다. 이미 개인 기억
+            // (personalWeights)이 있는 유닛은 InitializeNewUnitPersonalInfo 내부에서 덮어쓰지
+            // 않으므로(5-2장) 재사용 유닛을 넣어도 안전하다.
+            m.Knowledge?.InitializeNewUnitPersonalInfo(m);
+        }
+        parties.Add(party);
+        return party;
+    }
+
+    // 유닛이 하나 죽을 때마다(이 유닛이 파티원이면 그 파티가 전멸했는지, 몬스터면 어느 파티의
+    // 웨이브가 클리어됐는지) 확인한다. 13-1장 파티 전멸과 6장 웨이브 종료 생존자 반영은 서로
+    // 배타적인 두 종료 방식이라 한 파티당 한쪽만, 그것도 딱 한 번만 트리거되어야 한다
+    // (Party.WaveEnded 플래그로 방지).
+    private void CheckPartyWaveState(Unit deadUnit)
+    {
+        var knowledge = deadUnit.Knowledge;
+        if (knowledge == null) return;
+
+        if (deadUnit is Human deadHuman && deadHuman.party != null)
+        {
+            var party = deadHuman.party;
+            if (party.WaveEnded || !party.IsWiped) return;
+
+            party.WaveEnded = true;
+            knowledge.OnPartyWipeout();
+
+            // 13-2장: 전멸 흔적 — 원인 대상(이 파티원을 마지막으로 공격한 대상)의 위험도 단계로
+            // 보정치를 계산해 등록한다. 실제 "생환 파티가 흔적을 발견"하는 흐름(시체/흔적 엔티티가
+            // 아직 없음)은 이번 샘플 범위 밖이라 OnWipeoutTraceReflected는 호출하지 않는다.
+            Unit causer = deadHuman.lastAttacker;
+            DangerStage causerStage = DangerStage.Stage0;
+            if (causer != null)
+                causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.baseDanger);
+            string traceId = knowledge.RegisterWipeoutTrace(causerStage);
+
+            LogHelper.Log($"<b><color=red>[EventId:E_PARTY_WIPEOUT]</color></b>",
+                $"파티={party.Name} 전멸. 던전 위험도 +{WeightMath.PartyWipeoutDungeonDangerIncrease}, 전멸흔적={traceId}(단계={causerStage})");
+        }
+        else if (deadUnit is Monster deadMonster)
+        {
+            // break하지 않고 끝까지 순회한다 — WaveSpawner가 같은 웨이브에 여러 파티를 스폰하면
+            // 여러 Party가 동일한 WaveMonsters 리스트(참조)를 공유하므로, 몬스터 한 마리의 죽음이
+            // 동시에 여러 파티의 웨이브 클리어를 트리거할 수 있다(2026-07-08: 다중 파티 지원 추가
+            // 당시 이 break를 지우지 않아서 첫 번째로 매칭된 파티만 OnWaveEnd를 받던 버그 수정).
+            foreach (var party in parties)
+            {
+                if (party.WaveEnded || !party.WaveMonsters.Contains(deadMonster) || !party.IsWaveCleared) continue;
+
+                party.WaveEnded = true;
+                var survivors = party.GetSurvivors();
+                knowledge.OnWaveEnd(survivors);
+
+                LogHelper.Log($"<b><color=cyan>[EventId:E_WAVE_CLEAR]</color></b>",
+                    $"파티={party.Name} 웨이브 클리어. 생존자 {survivors.Count}명 정보를 6장 규칙으로 전역 반영(OnWaveEnd).");
+            }
+        }
     }
 
     // 대표 가중치 3종 연산공식 문서 3장: 처치 이벤트를 이해도/위험도에 반영.

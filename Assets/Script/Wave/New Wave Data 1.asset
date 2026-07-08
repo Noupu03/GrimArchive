@@ -12,11 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74620cc85645f9a47be5e9b916c7a46c, type: 3}
   m_Name: New Wave Data 1
   m_EditorClassIdentifier: Assembly-CSharp::GrimArchive.Wave.WaveData
-  configuredUnits:
-  - unitTypeName: "\uAE30\uC0AC\uD615"
-    count: 3
-  - unitTypeName: "\uC544\uCC98\uD615"
-    count: 3
-  useRandomUnits: 0
-  randomUnitPool: []
-  randomUnitTotalCount: 0
+  parties:
+  - partyName: "\uD30C\uD2F01"
+    faction: 0
+    units:
+    - unitTypeName: "\uAE30\uC0AC\uD615"
+      count: 2
+    - unitTypeName: "\uC544\uCC98\uD615"
+      count: 1
+  - partyName: "\uD30C\uD2F02"
+    faction: 0
+    units:
+    - unitTypeName: "\uAE30\uC0AC\uD615"
+      count: 1
+    - unitTypeName: "\uC544\uCC98\uD615"
+      count: 2

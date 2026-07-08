@@ -266,19 +266,19 @@ public abstract class UnitFunction : Unit
 
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{
-					if (!obj.IsCollected)
+					// "처음 발견"인지는 수치(흥미도 등)로 추측하지 않고 IsObjectKnown으로 직접 확인한다
+					// — 예전엔 "현재 흥미도<=5"로 추측했는데, base흥미도가 낮은 오브젝트나 조사로
+					// 감쇠된 오브젝트를 다시 "새로 발견"으로 오판해 RegisterObject가 재호출되면서
+					// 감쇠된 값이 기본값으로 되돌아가는 버그가 있었다(2026-07-08 수정).
+					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
-						float currentInterest = terrainObserver.personalMap.GetTileInterest(revealedTile, obj.Id);
-						if (currentInterest <= WeightMath.UnexploredTileBaseInterest) // 5f
-						{
-							// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
-							terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest);
-							LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
-								$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 위험도={obj.BaseDanger} 흥미도={obj.BaseInterest}");
+						// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
+						terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest);
+						LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
+							$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 위험도={obj.BaseDanger} 흥미도={obj.BaseInterest}");
 
-							// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
-							terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
-						}
+						// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
+						terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
 					}
 				}
 			}

@@ -12,7 +12,7 @@ namespace GrimArchive.Wave
     }
 
     /// <summary>
-    /// GameSession과 VContainer DI 시스템에 맞춰 웨이브 몬스터를 스폰하는 스크립트.
+    /// GameSession과 VContainer DI 시스템에 맞춰 웨이브 몬스터(+동행 인류 파티)를 스폰하는 스크립트.
     /// CreateMap의 방(Room) 데이터와 연동하여 지정된 위치 또는 방에 몬스터를 스폰합니다.
     /// </summary>
     public class WaveSpawner : MonoBehaviour
@@ -20,7 +20,7 @@ namespace GrimArchive.Wave
         [Header("웨이브 설정")]
         [Tooltip("소환할 웨이브 데이터")]
         public WaveData waveData;
-        
+
         [Header("소환 위치 방식")]
         public SpawnMode spawnMode = SpawnMode.ByRoomRole;
 
@@ -29,14 +29,14 @@ namespace GrimArchive.Wave
 
         [Header("Transform 스폰 전용 설정 (AroundTransform)")]
         [Tooltip("소환 중심점 (예: F1 청크 계단). 비워두면 이 오브젝트의 위치를 사용합니다.")]
-        public Transform spawnCenter; 
+        public Transform spawnCenter;
         [Tooltip("소환 중심점으로부터 그리드 타일 단위 최대 반경")]
         public int spawnTileRadius = 3;
 
         [Header("방(Room) 기반 스폰 전용 설정")]
         [Tooltip("ByRoomRole 선택 시 지정할 방 역할 (예: StartRoom, BossRoom 등)")]
         public RoomRole targetRoomRole = RoomRole.NormalRoom;
-        
+
         [Tooltip("ByRoomId 선택 시 지정할 방 번호")]
         public int targetRoomId = 0;
 
@@ -60,44 +60,71 @@ namespace GrimArchive.Wave
                 spawnCenter = transform;
             }
 
-            List<Unit> spawnedUnits = new List<Unit>();
+            List<Monster> spawnedMonsters = new List<Monster>();
+            List<Party> spawnedParties = new List<Party>();
 
-            // 1. 미리 설정된 정해진 유닛들 소환
-            foreach (var group in waveData.configuredUnits)
+            if (waveData.parties != null)
             {
-                if (!string.IsNullOrEmpty(group.unitTypeName))
+                foreach (var config in waveData.parties)
                 {
-                    for (int i = 0; i < group.count; i++)
+                    if (config == null || config.units == null) continue;
+
+                    if (config.faction == PartyFaction.Monster)
                     {
-                        Unit unit = InstantiateUnit(group.unitTypeName);
-                        if (unit != null) spawnedUnits.Add(unit);
+                        // 몬스터 그룹 — 별도 Party 객체 없이 스쿼드로만 스폰. 스폰 위치는 인스펙터의
+                        // spawnMode/targetRoomRole/targetRoomId 설정을 그대로 따른다.
+                        foreach (var group in config.units)
+                        {
+                            if (string.IsNullOrEmpty(group.unitTypeName)) continue;
+                            for (int i = 0; i < group.count; i++)
+                            {
+                                Monster monster = InstantiateMonster(group.unitTypeName);
+                                if (monster != null) spawnedMonsters.Add(monster);
+                            }
+                        }
+                    }
+                    else // PartyFaction.Human
+                    {
+                        // 인류 파티 — 연산공식 문서 6장/13장/23장이 전제하는 "파티" 단위로 실제
+                        // Party 객체를 만든다. 파티원은 몬스터 스폰 위치와 무관하게 항상 시작방
+                        // (StartRoom)에서 등장한다 — 몬스터 그룹의 스폰 모드를 그대로 재사용하면
+                        // 보스방/일반방 한복판에 파티가 떨어지는 상황이 생길 수 있어서다.
+                        List<Human> members = new List<Human>();
+                        foreach (var group in config.units)
+                        {
+                            if (string.IsNullOrEmpty(group.unitTypeName)) continue;
+                            for (int i = 0; i < group.count; i++)
+                            {
+                                Human human = InstantiateHuman(group.unitTypeName);
+                                if (human != null) members.Add(human);
+                            }
+                        }
+
+                        if (members.Count == 0) continue;
+
+                        string partyName = string.IsNullOrEmpty(config.partyName) ? "Party" : config.partyName;
+                        Party party = GameSession.Instance.CreateParty(partyName, members);
+                        spawnedParties.Add(party);
                     }
                 }
             }
 
-            // 2. 미리 설정되지 않은(랜덤) 유닛들 소환
-            if (waveData.useRandomUnits && waveData.randomUnitPool != null && waveData.randomUnitPool.Count > 0)
-            {
-                for (int i = 0; i < waveData.randomUnitTotalCount; i++)
-                {
-                    int randomIndex = UnityEngine.Random.Range(0, waveData.randomUnitPool.Count);
-                    string randomTypeName = waveData.randomUnitPool[randomIndex];
-                    if (!string.IsNullOrEmpty(randomTypeName))
-                    {
-                        Unit unit = InstantiateUnit(randomTypeName);
-                        if (unit != null) spawnedUnits.Add(unit);
-                    }
-                }
-            }
+            // 이 웨이브에서 스폰된 몬스터 전체를, 같은 웨이브의 모든 인류 파티가 공통으로 상대한다
+            // — 한 파티가 전멸해도 다른 파티는 계속 진행하고, 그 몬스터들이 전부 죽으면 아직 살아있는
+            // 파티마다 각자 독립적으로 웨이브 클리어(생존자 전역 반영)가 트리거된다.
+            foreach (var party in spawnedParties)
+                party.WaveMonsters = spawnedMonsters;
 
-            Debug.Log($"[WaveSpawner] 총 {spawnedUnits.Count} 마리의 몬스터가 모드({spawnMode})에 의해 소환되어 세션에 등록되었습니다.");
+            Debug.Log($"[WaveSpawner] 몬스터 {spawnedMonsters.Count}마리, 파티 {spawnedParties.Count}개 소환 완료(모드: {spawnMode}).");
         }
 
-        private Unit InstantiateUnit(string typeName)
+        // 공용 타입 탐색: C# 클래스명("Knight") 또는 UnitType.typeName 한글 이름("기사형")으로
+        // UnitType 서브클래스를 찾는다. InstantiateMonster/InstantiateHuman이 공유한다.
+        private Type ResolveUnitType(string typeName)
         {
             // 1차 시도: C# 클래스 이름으로 바로 찾기 (예: "Knight", "MeleeTank")
             Type t = Type.GetType(typeName);
-            
+
             // 2차 시도: 클래스 이름이 아니라 한글 이름("기사형") 등을 입력했을 경우 리플렉션으로 검색
             if (t == null)
             {
@@ -105,7 +132,7 @@ namespace GrimArchive.Wave
                 {
                     if (type.IsSubclassOf(typeof(UnitType)) && !type.IsAbstract)
                     {
-                        try 
+                        try
                         {
                             UnitType tempInstance = (UnitType)Activator.CreateInstance(type);
                             if (tempInstance.typeName == typeName)
@@ -119,29 +146,37 @@ namespace GrimArchive.Wave
                 }
             }
 
+            return t;
+        }
+
+        private UnitType CreateUnitTypeInstance(string typeName)
+        {
+            Type t = ResolveUnitType(typeName);
             if (t == null)
             {
                 Debug.LogWarning($"[WaveSpawner] '{typeName}' 클래스 또는 타입 이름을 찾을 수 없습니다. UnitTypes.cs에 정의되어 있는지 확인하세요.");
                 return null;
             }
 
-            UnitType unitTypeInstance = null;
             try
             {
-                unitTypeInstance = (UnitType)Activator.CreateInstance(t);
+                return (UnitType)Activator.CreateInstance(t);
             }
             catch (Exception e)
             {
                 Debug.LogError($"[WaveSpawner] '{typeName}' 인스턴스 생성 실패: {e.Message}");
                 return null;
             }
+        }
 
-            // 소환할 위치 찾기
+        private Monster InstantiateMonster(string typeName)
+        {
+            UnitType unitTypeInstance = CreateUnitTypeInstance(typeName);
+            if (unitTypeInstance == null) return null;
+
             Vector2Int validPos = FindValidSpawnPosition(unitTypeInstance.footprint);
-            
-            // UnitGenerate를 통해 Monster 생성 및 의존성 주입
+
             Monster monster = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Monster>(unitTypeInstance, validPos, targetFloor);
-            
             if (monster != null)
             {
                 GameSession.Instance.units.Add(monster);
@@ -151,10 +186,30 @@ namespace GrimArchive.Wave
             return monster;
         }
 
+        // 파티원(인류)은 항상 시작방(StartRoom)에서 소환한다 — 몬스터의 spawnMode/targetRoomRole
+        // 설정과는 독립적이다.
+        private Human InstantiateHuman(string typeName)
+        {
+            UnitType unitTypeInstance = CreateUnitTypeInstance(typeName);
+            if (unitTypeInstance == null) return null;
+
+            if (!TryFindPosByRoomRole(RoomRole.StartRoom, unitTypeInstance.footprint, out Vector2Int validPos))
+                validPos = GameSession.Instance.unitGenerate.GetRandomFloorPos(unitTypeInstance.footprint, targetFloor);
+
+            Human human = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Human>(unitTypeInstance, validPos, targetFloor);
+            if (human != null)
+            {
+                GameSession.Instance.units.Add(human);
+                GameSession.Instance.RegisterUnitPos(human, validPos);
+            }
+
+            return human;
+        }
+
         private Vector2Int FindValidSpawnPosition(Vector2 footprint)
         {
             UnitGenerate generator = GameSession.Instance.unitGenerate;
-            
+
             if (spawnMode == SpawnMode.AroundTransform)
             {
                 Vector2Int centerGridPos = new Vector2Int(Mathf.RoundToInt(spawnCenter.position.x), Mathf.RoundToInt(spawnCenter.position.y));
@@ -168,64 +223,93 @@ namespace GrimArchive.Wave
                         return cand;
                 }
             }
-            else if (spawnMode == SpawnMode.ByRoomRole || spawnMode == SpawnMode.ByRoomId)
+            else if (spawnMode == SpawnMode.ByRoomRole)
             {
-                CreateMap cmap = GameSession.Instance.cmap;
-                if (cmap != null && cmap.map.floors != null && targetFloor >= 0 && targetFloor < cmap.map.floors.Length)
-                {
-                    Floor floor = cmap.map.floors[targetFloor];
-                    if (floor.chunks != null)
-                    {
-                        List<Vector2Int> validRoomChunks = new List<Vector2Int>();
-                        int chunkW = floor.config.width;
-                        int chunkH = floor.config.height;
-
-                        // 1. 조건에 맞는 청크 수집
-                        for (int cx = 0; cx < chunkW; cx++)
-                        {
-                            for (int cy = 0; cy < chunkH; cy++)
-                            {
-                                Chunks c = floor.chunks[cx, cy];
-                                if (c.chunk == null) continue;
-
-                                if (spawnMode == SpawnMode.ByRoomRole && c.roomRole == targetRoomRole)
-                                {
-                                    validRoomChunks.Add(new Vector2Int(cx, cy));
-                                }
-                                else if (spawnMode == SpawnMode.ByRoomId && c.roomId == targetRoomId)
-                                {
-                                    validRoomChunks.Add(new Vector2Int(cx, cy));
-                                }
-                            }
-                        }
-
-                        // 2. 수집된 청크 중에서 랜덤으로 빈 타일 찾기
-                        if (validRoomChunks.Count > 0)
-                        {
-                            for (int i = 0; i < 50; i++) // 50번 시도
-                            {
-                                Vector2Int chunkPos = validRoomChunks[UnityEngine.Random.Range(0, validRoomChunks.Count)];
-                                int tx = UnityEngine.Random.Range(0, 8); // 청크 내부 타일 좌표 (0~7)
-                                int ty = UnityEngine.Random.Range(0, 8);
-                                
-                                Vector2Int globalPos = new Vector2Int(chunkPos.x * 8 + tx, chunkPos.y * 8 + ty);
-                                if (generator.IsAreaClear(globalPos, footprint, targetFloor))
-                                {
-                                    return globalPos;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[WaveSpawner] 조건에 맞는 방({(spawnMode == SpawnMode.ByRoomRole ? targetRoomRole.ToString() : targetRoomId.ToString())})을 찾지 못했습니다.");
-                        }
-                    }
-                }
+                if (TryFindPosByRoomRole(targetRoomRole, footprint, out Vector2Int pos)) return pos;
+            }
+            else if (spawnMode == SpawnMode.ByRoomId)
+            {
+                if (TryFindPosByRoomId(targetRoomId, footprint, out Vector2Int pos)) return pos;
             }
 
             // 조건에 맞는 공간을 못 찾았을 경우 맵 전체에서 랜덤 빈 타일 반환 (안전망)
             Debug.Log("[WaveSpawner] 유효한 방 또는 위치를 찾지 못하여 맵 전체의 랜덤한 위치에 소환합니다.");
             return generator.GetRandomFloorPos(footprint, targetFloor);
+        }
+
+        // ByRoomRole 스폰 로직 — targetRoomRole 인스펙터 설정과 무관하게 임의의 RoomRole로 찾을 수
+        // 있도록 파라미터화(인류 파티는 항상 StartRoom을 넘겨 호출한다). (0,0)도 유효한 타일좌표일
+        // 수 있어 실패를 값으로 구분하지 않고 bool 반환값으로 구분한다.
+        private bool TryFindPosByRoomRole(RoomRole role, Vector2 footprint, out Vector2Int pos)
+        {
+            List<Vector2Int> chunks = CollectRoomChunks(c => c.roomRole == role);
+            if (chunks.Count == 0)
+            {
+                Debug.LogWarning($"[WaveSpawner] 조건에 맞는 방({role})을 찾지 못했습니다.");
+                pos = default;
+                return false;
+            }
+            return TryPickTileInChunks(chunks, footprint, out pos);
+        }
+
+        private bool TryFindPosByRoomId(int roomId, Vector2 footprint, out Vector2Int pos)
+        {
+            List<Vector2Int> chunks = CollectRoomChunks(c => c.roomId == roomId);
+            if (chunks.Count == 0)
+            {
+                Debug.LogWarning($"[WaveSpawner] 조건에 맞는 방({roomId})을 찾지 못했습니다.");
+                pos = default;
+                return false;
+            }
+            return TryPickTileInChunks(chunks, footprint, out pos);
+        }
+
+        private List<Vector2Int> CollectRoomChunks(Func<Chunks, bool> match)
+        {
+            var result = new List<Vector2Int>();
+
+            CreateMap cmap = GameSession.Instance.cmap;
+            if (cmap == null || cmap.map.floors == null || targetFloor < 0 || targetFloor >= cmap.map.floors.Length)
+                return result;
+
+            Floor floor = cmap.map.floors[targetFloor];
+            if (floor.chunks == null) return result;
+
+            int chunkW = floor.config.width;
+            int chunkH = floor.config.height;
+            for (int cx = 0; cx < chunkW; cx++)
+            {
+                for (int cy = 0; cy < chunkH; cy++)
+                {
+                    Chunks c = floor.chunks[cx, cy];
+                    if (c.chunk == null) continue;
+                    if (match(c)) result.Add(new Vector2Int(cx, cy));
+                }
+            }
+
+            return result;
+        }
+
+        private bool TryPickTileInChunks(List<Vector2Int> validRoomChunks, Vector2 footprint, out Vector2Int pos)
+        {
+            UnitGenerate generator = GameSession.Instance.unitGenerate;
+
+            for (int i = 0; i < 50; i++) // 50번 시도
+            {
+                Vector2Int chunkPos = validRoomChunks[UnityEngine.Random.Range(0, validRoomChunks.Count)];
+                int tx = UnityEngine.Random.Range(0, 8); // 청크 내부 타일 좌표 (0~7)
+                int ty = UnityEngine.Random.Range(0, 8);
+
+                Vector2Int globalPos = new Vector2Int(chunkPos.x * 8 + tx, chunkPos.y * 8 + ty);
+                if (generator.IsAreaClear(globalPos, footprint, targetFloor))
+                {
+                    pos = globalPos;
+                    return true;
+                }
+            }
+
+            pos = default;
+            return false;
         }
     }
 }

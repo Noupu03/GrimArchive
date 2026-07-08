@@ -169,6 +169,25 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
                 sb.AppendLine($"<color=yellow><b>Collected Objects:</b> {humanObj.collectedObjects.Count}</color>");
             else
                 sb.AppendLine($"<b>Collected Objects:</b> 0");
+
+            sb.AppendLine();
+            if (humanObj.party != null)
+            {
+                Party party = humanObj.party;
+                string wipeStr = party.IsWiped ? " <color=red>(전멸)</color>" : (party.WaveEnded ? " <color=cyan>(웨이브 종료)</color>" : "");
+                sb.AppendLine($"<b>파티:</b> {party.Name} ({party.Members.Count}명){wipeStr}");
+                foreach (var member in party.Members)
+                {
+                    if (member == null) continue;
+                    string color = member.hp <= 0 ? "red" : (member == u ? "yellow" : "white");
+                    string self = member == u ? " ◀" : "";
+                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}: {member.hp:F0}/{member.maxHp:F0}{self}</color>");
+                }
+            }
+            else
+            {
+                sb.AppendLine("<b>파티:</b> 없음");
+            }
         }
         sb.AppendLine();
         sb.AppendLine($"<b>물리공격력:</b> {u.physicalAttack:F1}");

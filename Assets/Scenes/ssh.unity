@@ -6619,7 +6619,7 @@ MonoBehaviour:
   targetFloor: 1
   spawnCenter: {fileID: 743725896}
   spawnTileRadius: 5
-  targetRoomRole: 2
+  targetRoomRole: 1
   targetRoomId: 0
 --- !u!1 &1453061267
 GameObject:

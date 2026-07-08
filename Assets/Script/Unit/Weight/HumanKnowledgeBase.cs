@@ -10,8 +10,9 @@ using Haare.Util.Logger;
 // (DataManager/UnitGenerate와 동일하게 VContainer Register<T>().AsSelf()로 등록,
 // GameCompositionRoot.cs 참고).
 //
-// 웨이브 루프가 아직 게임에 없으므로(CLAUDE.md 참고), OnWaveEnd(survivors)는 실제 웨이브 종료
-// 지점이 생기면 그때 호출하는 공개 API로 열어 둔다.
+// 2026-07-08: 파티 시스템(Assets/Script/Unit/Party/Party.cs) + GameSession.CheckPartyWaveState가
+// 실제 호출부다 — 파티가 전멸하면 OnPartyWipeout()/RegisterWipeoutTrace(), 파티와 함께 입장한
+// 웨이브 몬스터가 전멸하면 OnWaveEnd(survivors)를 호출한다.
 public class HumanKnowledgeBase
 {
 	private readonly Dictionary<string, SpeciesWeightState> _species = new();
@@ -419,5 +420,45 @@ public class HumanKnowledgeBase
 	{
 		var (_, ratio) = WeightMath.InfoError(info, mental);
 		return WeightMath.ApplyValueNoise(actualValue, ratio, _rng);
+	}
+
+	// ─────────────────────────── 23장. 파티 입장 시 정보 오차 공유 ───────────────────────────
+	// "전역 정보에서 발생한 수치 오차는 파티 입장 시 한 번만 산출하며, 같은 파티의 모든 유닛은
+	// 동일한 기록 수치를 공유한다." — 위 ApplyHiddenInfoNoise/ApplyInfoValueNoise는 호출할 때마다
+	// _rng로 새로 굴리므로 그대로 쓰면 파티원마다 다른 오차값을 받는다. 파티+cacheKey(호출부가 정한
+	// "무엇에 대한 오차인지" 식별자, 예: 대상 유닛명+필드명) 조합으로 최초 1회만 계산하고 이후
+	// 같은 파티의 호출은 캐시된 값을 그대로 돌려준다.
+	private readonly Dictionary<string, int> _partyInfoNoiseCache = new();
+
+	private static string PartyCacheKey(Party party, string cacheKey) => party.Id + "|" + cacheKey;
+
+	public int ApplyHiddenInfoNoiseForParty(Party party, string cacheKey, int actualValue, int understandingApplied)
+	{
+		string key = PartyCacheKey(party, cacheKey);
+		if (_partyInfoNoiseCache.TryGetValue(key, out var cached)) return cached;
+		int result = ApplyHiddenInfoNoise(actualValue, understandingApplied);
+		_partyInfoNoiseCache[key] = result;
+		return result;
+	}
+
+	public int ApplyInfoValueNoiseForParty(Party party, string cacheKey, int actualValue, InfoType info, MentalErrorState mental)
+	{
+		string key = PartyCacheKey(party, cacheKey);
+		if (_partyInfoNoiseCache.TryGetValue(key, out var cached)) return cached;
+		int result = ApplyInfoValueNoise(actualValue, info, mental);
+		_partyInfoNoiseCache[key] = result;
+		return result;
+	}
+
+	// 파티가 새로 던전에 입장할 때(같은 Party 인스턴스를 재사용하는 향후 "재입장" 흐름이 생기면)
+	// 호출해서 오차를 다시 산출하게 한다 — 지금은 WaveSpawner가 매번 새 Party(새 Id)를 만들어서
+	// 캐시가 자연히 비어 있으므로 필수 호출은 아니지만, 재사용 시나리오를 위해 API로 열어 둔다.
+	public void ClearPartyInfoNoiseCache(Party party)
+	{
+		string prefix = party.Id + "|";
+		var keysToRemove = new List<string>();
+		foreach (var k in _partyInfoNoiseCache.Keys)
+			if (k.StartsWith(prefix)) keysToRemove.Add(k);
+		foreach (var k in keysToRemove) _partyInfoNoiseCache.Remove(k);
 	}
 }

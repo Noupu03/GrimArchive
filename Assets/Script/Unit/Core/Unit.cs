@@ -304,6 +304,11 @@ public class Human : UnitFunction
 	public PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
 	public System.Collections.Generic.List<string> collectedObjects = new System.Collections.Generic.List<string>();
 
+	// 이 유닛이 속한 파티(있다면) — 13장 파티 전멸/6장 웨이브 종료 생존자 반영 판정에 쓰인다.
+	// GameSession.CreateParty()가 파티 생성 시 채워준다. 파티 없이 스폰된 인류(디버그 단독 소환
+	// 등)는 null로 유지 — 파티 관련 판정 대상에서 자연히 제외된다.
+	public Party party;
+
 	public override void JudgeState()
 	{
 		base.JudgeState();

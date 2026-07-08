@@ -214,6 +214,13 @@ public class PersonalMapKnowledge
 		_objectTile[objectId] = tile;
 	}
 
+	// 이 관찰자가 이 오브젝트를 이미 등록(발견)한 적 있는지 — 호출부(CastRay)가 "처음 발견"
+	// 여부를 판정할 때 흥미도 수치로 추측하지 않고 이 메서드로 직접 확인해야 한다. 수치 기반 추측
+	// (예: 현재 흥미도<=5)은 base흥미도가 원래 낮은 오브젝트나, 조사로 흥미도가 낮게 감쇠된
+	// 오브젝트를 "아직 못 본 것"으로 오판해 RegisterObject를 다시 불러 감쇠된 값을 기본값으로
+	// 되돌려버리는 버그가 있었다(2026-07-08 발견 및 수정).
+	public bool IsObjectKnown(string objectId) => _objectTile.ContainsKey(objectId);
+
 	// _objectTile은 objectId→tile로만 색인돼 있어(오브젝트 수가 적어 역방향 색인을 따로 안 둠),
 	// 타일→objectId 조회는 호출 빈도가 낮은 쪽(확인 타이머 틱, 클릭 조회)에서 선형 탐색으로 처리한다.
 	public string GetObjectIdAtTile(Vector3Int pos)
