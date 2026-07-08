@@ -1,15 +1,20 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Haare.Client.Routine;
+using Haare.Client.UI;
+using VContainer;
 
 namespace Game.Encyclopedia.UI
 {
     /// <summary>
-    /// 도감 UI 전체를 관리하는 메인 클래스.
-    /// 구체적인 매니저 클래스(EncyclopediaManager)에 의존하지 않고 
-    /// IEncyclopediaSystem 인터페이스를 통해 통신합니다.
+    /// 하레 프레임워크 기반의 도감 패널
     /// </summary>
-    public class UI_Encyclopedia : MonoBehaviour
+    [PanelAttribute("Prefabs/UI/EncyclopediaPanel")]
+    public class UI_Encyclopedia : MonoRoutine, ICustomPanel
     {
+        public SceneUIManager uiManager { get; set; }
+        public GameObject panel { get; set; }
+
         [Header("UI References")]
         [SerializeField] private Transform _contentContainer;
         [SerializeField] private GameObject _slotPrefab;
@@ -18,65 +23,86 @@ namespace Game.Encyclopedia.UI
         [Header("Settings")]
         [Tooltip("비워두면 모든 카테고리 표시, 특정 카테고리를 입력하면 해당 도감만 표시")]
         [SerializeField] private string _filterCategory = "";
+        
+        [Tooltip("도감 UI를 켜고 끌 단축키를 목록에서 선택하세요.")]
+        [SerializeField] private UnityEngine.InputSystem.Key _toggleKey = UnityEngine.InputSystem.Key.Tab;
 
         private IEncyclopediaSystem _encyclopediaSystem;
         private List<UI_EncyclopediaSlot> _spawnedSlots = new List<UI_EncyclopediaSlot>();
+        private UnityEngine.InputSystem.InputAction _toggleAction;
 
-        /// <summary>
-        /// 의존성 주입(Dependency Injection)을 위한 초기화 메서드.
-        /// 외부(혹은 Bootstrapper)에서 이 UI에 시스템 인터페이스를 주입해 줍니다.
-        /// </summary>
-        public void Initialize(IEncyclopediaSystem system, string categoryFilter = "")
+        protected override void Constructor()
         {
-            if (_encyclopediaSystem != null)
-            {
-                _encyclopediaSystem.OnEntryUnlocked -= HandleEntryUnlocked;
-            }
+            base.Constructor();
+        }
 
-            _encyclopediaSystem = system;
-            
-            if (!string.IsNullOrEmpty(categoryFilter))
-            {
-                _filterCategory = categoryFilter;
-            }
+        private void TogglePanel()
+        {
+            Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> 토글 키 입력 감지! 현재 활성 상태: {gameObject.activeSelf}");
+            if (gameObject.activeSelf) 
+                ClosePanel();
+            else 
+                OpenPanel();
+        }
 
-            if (_encyclopediaSystem != null)
+        // 프리팹이 Instantiate 될 때 최초 1회 실행됨 (비활성화 되기 직전)
+        private void OnEnable()
+        {
+            if (_toggleAction == null)
             {
-                // 시스템에서 발생하는 이벤트를 구독하여 느슨하게 결합됨
-                _encyclopediaSystem.OnEntryUnlocked += HandleEntryUnlocked;
-                RefreshUI();
+                string keyPath = $"<Keyboard>/{_toggleKey.ToString()}";
+                _toggleAction = new UnityEngine.InputSystem.InputAction(binding: keyPath);
+                _toggleAction.performed += _ => TogglePanel();
+                _toggleAction.Enable();
+                Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> 단축키({keyPath}) 구독 완료 (OnEnable).");
             }
         }
 
-        private void Start()
+        public void BindEvent()
         {
-            // 의존성이 외부에서 주입되지 않았을 경우, Singleton Fallback 처리
+            Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> BindEvent 호출됨! (단축키: {_toggleKey.ToString()})");
+            
+            // 의존성 수동 연결 (EncyclopediaManager가 아직 DI 컨테이너에 등록되지 않은 경우 싱글톤 사용)
             if (_encyclopediaSystem == null && EncyclopediaManager.Instance != null)
             {
-                Initialize(EncyclopediaManager.Instance, _filterCategory);
+                _encyclopediaSystem = EncyclopediaManager.Instance;
             }
-            else if (_encyclopediaSystem == null)
+
+            if (_encyclopediaSystem != null)
             {
-                Debug.LogWarning("[UI_Encyclopedia] IEncyclopediaSystem가 주입되지 않았습니다.");
+                _encyclopediaSystem.OnEntryUnlocked -= HandleEntryUnlocked;
+                _encyclopediaSystem.OnEntryUnlocked += HandleEntryUnlocked;
             }
+            else
+            {
+                Debug.LogWarning("[UI_Encyclopedia] IEncyclopediaSystem를 찾을 수 없습니다.");
+            }
+        }
+
+        public void OpenPanel()
+        {
+            gameObject.SetActive(true);
+            panel = gameObject;
 
             if (_detailPanel != null)
             {
                 _detailPanel.Clear();
             }
+
+            RefreshUI();
         }
 
-        private void OnDestroy()
+        public void ClosePanel()
         {
-            if (_encyclopediaSystem != null)
-            {
-                _encyclopediaSystem.OnEntryUnlocked -= HandleEntryUnlocked;
-            }
+            gameObject.SetActive(false);
         }
 
         private void HandleEntryUnlocked(string id)
         {
-            RefreshUI();
+            if (gameObject.activeSelf)
+            {
+                RefreshUI();
+            }
         }
 
         public void RefreshUI()
@@ -90,7 +116,7 @@ namespace Game.Encyclopedia.UI
             }
             _spawnedSlots.Clear();
 
-            // 필터에 따라 데이터 가져오기 (인터페이스를 통해서만 통신)
+            // 필터에 따라 데이터 가져오기
             List<IEncyclopediaEntry> entriesToShow;
             if (string.IsNullOrEmpty(_filterCategory))
             {
@@ -118,6 +144,20 @@ namespace Game.Encyclopedia.UI
             if (_detailPanel != null)
             {
                 _detailPanel.ShowDetails(entry);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_toggleAction != null)
+            {
+                _toggleAction.Disable();
+                _toggleAction.Dispose();
+            }
+
+            if (_encyclopediaSystem != null)
+            {
+                _encyclopediaSystem.OnEntryUnlocked -= HandleEntryUnlocked;
             }
         }
     }

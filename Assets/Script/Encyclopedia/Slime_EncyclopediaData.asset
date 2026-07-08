@@ -15,6 +15,7 @@ MonoBehaviour:
   _id: Monster_001
   _category: Monster
   _entryName: "\uC2AC\uB77C\uC784 (Slime)"
-  _description: "\uAC00\uC7A5 \uC57D\uD55C \uBAAC\uC2A4\uD130 \uC911 \uD558\uB098. \uC810\uC561\uC9C8\uB85C \uC774\uB8E8\uC5B4\uC838 \uC788\uB2E4."
-  _icon: {fileID: 0}
-  _isUnlocked: 0
+  _description: "\uAC00\uC7A5 \uC57D\uD55C \uBAAC\uC2A4\uD130 \uC911 \uD558\uB098.
+    \uC810\uC561\uC9C8\uB85C \uC774\uB8E8\uC5B4\uC838 \uC788\uB2E4."
+  _icon: {fileID: -7085069805788865461, guid: 97c57e303dd25f7479b9bceeaa801690, type: 3}
+  _isUnlocked: 1

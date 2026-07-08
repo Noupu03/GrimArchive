@@ -61,6 +61,59 @@ public static class HaareDemoSetup
         Debug.Log("[HaareDemoSetup] 완료: 데모 프리팹 7개 + 씬 3개 Addressable 등록.");
     }
 
+    [MenuItem("Tools/GrimArchive/Haare 데모 Addressable 해제 (역방향)")]
+    public static void RemoveHaareDemoAddressables()
+    {
+        var settings = AddressableAssetSettingsDefaultObject.Settings;
+        if (settings == null)
+        {
+            Debug.LogError("[HaareDemoSetup] AddressableAssetSettings를 찾을 수 없습니다.");
+            return;
+        }
+
+        int removedCount = 0;
+        foreach (var group in settings.groups)
+        {
+            if (group == null) continue;
+
+            var entries = new System.Collections.Generic.List<AddressableAssetEntry>(group.entries);
+            foreach (var entry in entries)
+            {
+                bool shouldRemove = false;
+
+                // 프리팹 주소 검사
+                foreach (var (_, address) in Prefabs)
+                {
+                    if (entry.address == address) shouldRemove = true;
+                }
+
+                // 씬 주소 검사
+                foreach (var sceneName in Scenes)
+                {
+                    string scenePath = $"{SceneFolder}/{sceneName}.unity";
+                    if (entry.address == scenePath) shouldRemove = true;
+                }
+
+                if (shouldRemove)
+                {
+                    group.RemoveAssetEntry(entry);
+                    removedCount++;
+                }
+            }
+        }
+
+        if (removedCount > 0)
+        {
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"<color=yellow>[HaareDemoSetup] 해제 완료: {removedCount}개의 데모 항목이 Addressable에서 제거되었습니다.</color>");
+        }
+        else
+        {
+            Debug.LogWarning("[HaareDemoSetup] 해제할 데모 항목을 Addressable에서 찾을 수 없습니다.");
+        }
+    }
+
     private static void RegisterEntry(string assetPath, string address, AddressableAssetSettings settings, AddressableAssetGroup group)
     {
         string guid = AssetDatabase.AssetPathToGUID(assetPath);
