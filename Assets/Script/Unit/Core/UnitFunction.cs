@@ -17,14 +17,14 @@ public abstract class UnitFunction : Unit
 	{
 		float damage = Mathf.Max(1f, rawDamage - physicalDefense);
 		TakeDamage(damage);
-		RecordHitWeightEvent(damage, attacker);
+		RecordHitWeightEvent(damage, attacker, rawDamage);
 	}
 
 	public override void TakeMagicalDamage(float rawDamage, Unit attacker)
 	{
 		float damage = Mathf.Max(1f, rawDamage - magicalDefense);
 		TakeDamage(damage);
-		RecordHitWeightEvent(damage, attacker);
+		RecordHitWeightEvent(damage, attacker, rawDamage);
 	}
 
 	// 대표 가중치 3종 연산공식 문서 3장/10장: 피격 이벤트를 이해도/위험도에 즉시 반영한다.
@@ -33,7 +33,10 @@ public abstract class UnitFunction : Unit
 	// 간접 파악(INDIRECT, 소리/전파)은 그 시스템 자체가 없어 여전히 미연결(구현현황 문서에 사유 기재).
 	// public: DefenseSystem(정적 클래스, UnitFunction 밖)의 Block 판정도 hp를 직접 깎는 별도
 	// 데미지 경로라 이 메서드를 그대로 재사용해서 연결한다.
-	public void RecordHitWeightEvent(float appliedDamage, Unit attacker)
+	// rawDamage: 방어/저항 적용 전 원래 피해량(11-2장 "타격 1회별 기준 피해량" 판정에 필요 — 공격자가
+	// 인류일 때는 안 쓰이므로 그 경우 호출부에서 아무 값이나 넘겨도 무방하다, 실제로는 appliedDamage와
+	// 동일값을 넘긴다).
+	public void RecordHitWeightEvent(float appliedDamage, Unit attacker, float rawDamage)
 	{
 		if (attacker == null || this.Knowledge == null) return;
 
@@ -52,6 +55,11 @@ public abstract class UnitFunction : Unit
 				this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
 				BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
 			}
+
+			// 11-2장: 실제 적용 피해량이 공격자의 기준(방어 적용 전) 피해량보다 1 이상 낮으면
+			// "인류의 방어력/저항 때문에 예상보다 약하게 들어간 타격"으로 보고 몬스터 종 위험도를
+			// 소폭(-0.01, 전투당 최대 -1) 감소시킨다.
+			this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
 		}
 		else
 		{
@@ -245,6 +253,16 @@ public abstract class UnitFunction : Unit
 				if (isFirstReveal)
 					LogHelper.Log($"<b><color=blue>[EventId:E_EXPLORED_SAFE_TILE]</color></b>",
 						$"관찰자={terrainObserver.name} 타일={revealedTile} 흥미도 미탐사({WeightMath.UnexploredTileBaseInterest})→탐사완료({WeightMath.ExploredTileBaseInterest})");
+
+				// 20장/21장: 방 탐사 상태(Unexplored→Exploring→Complete). 바닥 타일을 "처음" 밝힐
+				// 때만 카운트한다 — 매 프레임 다시 세면 총 타일 수(cmap.GetRoomFloorTileCount)를
+				// 순식간에 넘겨버린다. 벽 타일은 셀 대상이 아니다(총 타일 수도 바닥만 셈).
+				if (isFirstReveal && !tileIsWall)
+				{
+					bool isBossRoom = c.roomRole == RoomRole.BossRoom;
+					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, c.roomId);
+					terrainObserver.personalMap.ObserveRoomTileRevealed(c.roomId, isBossRoom, totalFloorTiles);
+				}
 			}
 
 			if (Session != null &&
@@ -272,6 +290,11 @@ public abstract class UnitFunction : Unit
 								float danger = Knowledge.GetPersonalDanger(human, unit);
 								float interest = Knowledge.GetPersonalInterest(human, unit);
 								human.personalMap.ObserveMonster(unit.name, sightingTile, danger, interest);
+
+								// 20장/21장: 이 몬스터가 서 있는 방의 "확인된 유닛" 목록에도 반영 — 방
+								// 위험도/흥미도의 Exploring/Complete 단계 계산에 쓰인다.
+								bool isBossRoom = c.roomRole == RoomRole.BossRoom;
+								human.personalMap.ObserveUnitInRoom(c.roomId, isBossRoom, unit.name, danger, interest);
 							}
 						}
 					}
@@ -358,6 +381,14 @@ public abstract class UnitFunction : Unit
 			{
 				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster && occupant.hp > 0f;
 				human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
+			}
+
+			// 16장(v0.7 (1) 개정판): 흥미도 확인 시간 진행 — "타일에 흥미도 있는 오브젝트가
+			// 있는가"는 PersonalMapKnowledge 안에서 자기완결적으로 판단 가능해 GameSession 조회가
+			// 필요 없다(TickTileSafety의 threatPresent와 달리 인자로 안 넘김).
+			foreach (var tile in human.personalMap.KnownInterestTiles.ToList())
+			{
+				human.personalMap.TickTileInterestConfirm(tile, deltaTime);
 			}
 		}
 
@@ -470,7 +501,7 @@ public abstract class UnitFunction : Unit
 		// 실제 근접 위협/반응 시스템(OnDirectHit, DefenseSystem의 방어 실패/닷지 실패/블링크 실패/
 		// 패링 반격)이 데미지를 주는 진짜 경로인데, TakePhysicalDamage를 거치지 않고 hp를 직접 깎고
 		// 있어서 RecordHitWeightEvent가 한 번도 호출되지 않고 있었다 — 여기서도 동일하게 연결한다.
-		RecordHitWeightEvent(damage, attacker);
+		RecordHitWeightEvent(damage, attacker, raw);
 	}
 
 	private Unit FindAttackerFromThreat(ThreatTileData threat)

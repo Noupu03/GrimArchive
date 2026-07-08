@@ -44,6 +44,11 @@ public partial class CreateMap : MonoBehaviour
     private Dictionary<int, (int thicknessX, int thicknessY)> wallThicknessCache = new Dictionary<int, (int, int)>();
     private Dictionary<int, Dictionary<int, (int thicknessX, int thicknessY)>> perFloorWallThicknessCache = new Dictionary<int, Dictionary<int, (int, int)>>();
 
+    // 20장/21장(방 위험도·흥미도) "탐사완료" 판정용 — 방 하나의 전체 바닥 타일 수는 맵이 재생성/
+    // 재적용되기 전까지 바뀌지 않으므로, 한 번 세면 계속 재사용한다. GetRoomFloorTileCount()
+    // (CreateMap.RuntimeAPI.cs)가 채우고, GenerateMap()/ApplyMap()이 무효화한다.
+    private readonly Dictionary<(int floorIndex, int roomId), int> roomFloorTileCountCache = new();
+
     void Awake() => GenerateMap();
 
     public void GenerateMap()
@@ -51,6 +56,7 @@ public partial class CreateMap : MonoBehaviour
         lastRetryCount = 0;
         lastValidationErrors.Clear();
         lastValidationPassed = false;
+        roomFloorTileCountCache.Clear();
 
         for (int attempt = 0; attempt <= maxRetryCount; attempt++)
         {

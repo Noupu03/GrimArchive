@@ -260,6 +260,28 @@ public static class WeightMath
 	public static float ComposeTileInterest(float baseExploreInterest, float objectInterest)
 		=> Mathf.Clamp(baseExploreInterest + objectInterest, InterestMin, InterestMax);
 
+	// 16장(v0.7 (1) 개정판 신설) — "미탐사 기본 흥미도 5"도 15장 위험도와 동일하게, 시야로
+	// 확인한 뒤 흥미도 단계별 확인 시간 동안 새 흥미 요소가 없어야 0으로 내려간다.
+	// 구간/시간표는 15장과 수치가 같지만 문서가 별도 표(16장)로 다시 정의하고 있어 그대로 따른다.
+	public static InterestStage GetInterestStage(int interestApplied)
+	{
+		if (interestApplied >= 800) return InterestStage.StageMax;
+		if (interestApplied >= 600) return InterestStage.Stage3;
+		if (interestApplied >= 300) return InterestStage.Stage2;
+		if (interestApplied >= 100) return InterestStage.Stage1;
+		return InterestStage.Stage0;
+	}
+
+	public static float TileInterestCheckSeconds(InterestStage stage) => stage switch
+	{
+		InterestStage.Stage0 => 1f,
+		InterestStage.Stage1 => 2f,
+		InterestStage.Stage2 => 3f,
+		InterestStage.Stage3 => 4f,
+		InterestStage.StageMax => 5f,
+		_ => 1f,
+	};
+
 	// ─────────────────────────── 17장. 오브젝트 흥미도 감소/복구 ───────────────────────────
 	public const float ObjectInvestigatedDecayRatio = 0.5f;
 	public const float ObjectDroppedRestoreRatio = 0.5f;

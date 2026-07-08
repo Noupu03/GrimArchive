@@ -153,7 +153,7 @@ public static class DefenseSystem
 				defender.hp -= damage;
 				// Block도 hp를 직접 깎는 별도 데미지 경로라 가중치 이벤트가 기록되지 않고 있었다 —
 				// TakePhysicalDamage/ApplyDirectDamage와 동일하게 연결한다.
-				(defender as UnitFunction)?.RecordHitWeightEvent(damage, attacker);
+				(defender as UnitFunction)?.RecordHitWeightEvent(damage, attacker, raw);
 				//defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
 
 				// 가드 VFX: 공격 타이밍에 재생, HitSpark 억제

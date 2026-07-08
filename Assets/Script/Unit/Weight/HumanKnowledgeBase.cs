@@ -250,6 +250,28 @@ public class HumanKnowledgeBase
 			ApplyDangerGlobal(speciesKey, false, -1f);
 	}
 
+	// 11-2장: 타격 1회별 기준 피해량 미만 판정 — 몬스터 인스턴스별 누적 감소량(전투당 상한 -1).
+	// "같은 전투" 경계가 게임에 없어(웨이브/파티 없음) 이 몬스터 인스턴스가 살아있는 동안 전체를
+	// 하나의 전투로 근사한다 — 몬스터가 죽으면 그 인스턴스로는 더 이상 이 메서드가 호출되지 않으니
+	// 별도 정리(clear)가 없어도 무한 누적되지 않는다.
+	private readonly Dictionary<string, float> _perHitDecreaseAccum = new();
+
+	// rawDamage: 방어/저항 적용 전 원래 피해량("몬스터에게 설정된 타격 1회별 기준 피해량" — 공격자의
+	// 공격력 자체가 이 기준값 역할을 한다). actualDamage: 방어력/저항으로 실제 감소된 뒤 적용된 피해량.
+	public void ApplyPerHitDangerDecreaseCheck(Unit monster, float rawDamage, float actualDamage)
+	{
+		if (!WeightMath.PerHitDecreaseQualifies(rawDamage, actualDamage, out _)) return;
+
+		string key = monster.name;
+		float accumulated = _perHitDecreaseAccum.GetValueOrDefault(key);
+		if (accumulated <= WeightMath.PerHitDecreaseMaxAccumPerBattle) return; // 이미 -1 상한 도달
+
+		float decrease = Mathf.Max(WeightMath.PerHitDecreaseValue, WeightMath.PerHitDecreaseMaxAccumPerBattle - accumulated);
+		_perHitDecreaseAccum[key] = accumulated + decrease;
+
+		ApplyDangerGlobal(ResolveTargetKey(monster), monster.isSpecialUnit, decrease);
+	}
+
 	// 12-1장: 최종 위험도 = 기본 + 종별 누적 + 개별 누적
 	public float GetFinalDanger(string speciesKey, string individualIdOrNull, float baseDanger)
 	{
@@ -374,13 +396,21 @@ public class HumanKnowledgeBase
 	}
 
 	// 20장/21장(방 위험도·흥미도)도 PersonalMapKnowledge로 이전했다 — 위 15~17장과 동일 사유.
-	// 22장 "던전 전체 위험도/흥미도"의 방 합산 부분도 함께 옮겨갔으므로, 아래 두 메서드는 이제
-	// 진영 차원에서 관리하는 파티전멸/전멸흔적 누적값만 반환한다(13장, 이번에 안 건드림). 방 데이터를
-	// 포함한 진짜 "던전 전체" 값이 필요하면 Human.personalMap.GetPersonalDungeonDanger()/
-	// GetPersonalDungeonInterest()(개인 인지 기준)를 쓴다 — 진영 전체 지도는 아직 없다.
+	// 22장 "던전 전체 위험도/흥미도"의 방 합산 부분도 함께 옮겨갔으므로, 아래 두 메서드는
+	// 진영 차원에서 관리하는 파티전멸/전멸흔적 누적값만 반환한다(13장, 이번에 안 건드림).
 	public float GetDungeonDanger() => _dungeonWipeoutDangerAccum + _wipeoutTraceGlobalAccum;
 
 	public float GetDungeonInterest() => 0f;
+
+	// 22장 공식 그대로: 던전 전체 위험도 = 모든 기록된 방 위험도 합산 + 파티 전멸 던전 위험도
+	// 누적값 + 전멸 흔적 발견 전역 반영값 누적. 던전 전체 흥미도 = 모든 기록된 방 흥미도 합산.
+	// "모든 기록된 방"은 진영 전체 지도가 없는 지금은 이 관찰자(observer) 개인이 아는 방 전체로
+	// 근사한다 — 2026-07-08 20/21장 방 탐사 상태(roomId/isBossRoom) 자동 연동이 끝나 이제
+	// personalMap.GetPersonalDungeonDanger/Interest()가 실제 값을 채워주므로, 이 세 항을 그대로
+	// 더하기만 하면 문서 공식이 완성된다.
+	public float GetDungeonDanger(Human observer) => observer.personalMap.GetPersonalDungeonDanger() + GetDungeonDanger();
+
+	public float GetDungeonInterest(Human observer) => observer.personalMap.GetPersonalDungeonInterest();
 
 	// ─────────────────────────── 9장/23장. 정보 오차 ───────────────────────────
 	public int ApplyHiddenInfoNoise(int actualValue, int understandingApplied) => WeightMath.ApplyHiddenInfoNoise(actualValue, understandingApplied, _rng);

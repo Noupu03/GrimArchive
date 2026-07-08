@@ -16,6 +16,43 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<Vector3Int, float> _tileDanger = new();
 	private readonly Dictionary<Vector3Int, float> _tileSafetyElapsed = new();
 
+	// ─────────────────────────── 16장. 타일 흥미도 확인 시간 (v0.7 (1) 개정판 신설) ───────────────────────────
+	// "미탐사 기본 흥미도 5"도 15장 위험도와 똑같이 시야 확인 후 흥미도 단계별 확인 시간을 거쳐야
+	// 0(탐사완료)이 된다 — _tileDanger/_tileSafetyElapsed와 완전히 대칭 구조.
+	private readonly Dictionary<Vector3Int, float> _tileInterest = new();
+	private readonly Dictionary<Vector3Int, float> _tileInterestConfirmElapsed = new();
+
+	// 이 유닛이 확인 시간을 흘려보내야 할 타일 목록 — KnownDangerTiles와 동일한 용도(매 프레임 순회 대상).
+	public IEnumerable<Vector3Int> KnownInterestTiles => _tileInterest.Keys;
+
+	// 매 프레임 호출 — 이 타일에 지금 흥미도>0인 오브젝트가 있으면(=새 흥미 요소 발견) 타이머를
+	// 리셋하고, 없으면 단계별 확인 시간이 지난 뒤 0(제거)으로 감소시킨다. threatPresent를 외부
+	// (GameSession)에서 받아야 하는 TickTileSafety와 달리, "이 타일에 흥미도 있는 오브젝트가
+	// 있는가"는 이미 이 클래스가 들고 있는 _objectTile/_objectInterest만으로 판단 가능해 자기완결적이다.
+	public void TickTileInterestConfirm(Vector3Int pos, float deltaTime)
+	{
+		if (!_tileInterest.TryGetValue(pos, out var interest) || interest <= 0f) return;
+
+		string objId = GetObjectIdAtTile(pos);
+		bool newInterestPresent = objId != null && _objectInterest.TryGetValue(objId, out var oi) && oi > 0f;
+		if (newInterestPresent) { _tileInterestConfirmElapsed[pos] = 0f; return; }
+
+		float elapsed = _tileInterestConfirmElapsed.GetValueOrDefault(pos) + deltaTime;
+
+		var stage = WeightMath.GetInterestStage(Mathf.FloorToInt(interest));
+		if (elapsed >= WeightMath.TileInterestCheckSeconds(stage))
+		{
+			// TickTileSafety와 동일한 이유로 0을 남기지 않고 기록 자체를 지운다(죽은 항목이
+			// KnownInterestTiles/매 프레임 순회 대상에 계속 쌓이는 것을 방지).
+			_tileInterest.Remove(pos);
+			_tileInterestConfirmElapsed.Remove(pos);
+		}
+		else
+		{
+			_tileInterestConfirmElapsed[pos] = elapsed;
+		}
+	}
+
 	public float GetTileDanger(Vector3Int pos, bool explored)
 	{
 		if (_tileDanger.TryGetValue(pos, out var v)) return v;
@@ -77,6 +114,26 @@ public class PersonalMapKnowledge
 		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);
 		_tileTerrain[pos] = isWall ? 2 : 1;
 		_dirtyTerrainFloors.Add(pos.z);
+
+		// 15장: "미탐사 타일 기본 위험도 2"도 다른 기록 위험도와 동일하게 안전 확인 절차를 거쳐야
+		// 한다 — 처음 시야에 들어오는 순간 바로 0(탐사완료+안전확인)이 되는 게 아니라, 위험도
+		// 2는 단계0(0~99)이므로 1초 동안 새 위험 요소가 없어야 비로소 0으로 내려간다. 이미 몬스터
+		// 관측 등으로 더 높은 값이 기록돼 있다면 그 값을 덮어쓰지 않는다. 벽은 유닛이 서 있을 수
+		// 없는 타일이라 대상에서 제외(그 결과는 그대로 GetTileDanger의 explored 분기가 담당).
+		if (isFirstReveal && !isWall && !_tileDanger.ContainsKey(pos))
+		{
+			_tileDanger[pos] = WeightMath.UnexploredTileBaseDanger;
+			_tileSafetyElapsed[pos] = 0f;
+		}
+
+		// 16장(v0.7 (1) 개정판): "미탐사 기본 흥미도 5"도 위와 동일하게 처음 시야에 들어오는
+		// 순간 바로 0이 되지 않고 확인 시간을 거친다(TickTileInterestConfirm이 감소시킴).
+		if (isFirstReveal && !isWall && !_tileInterest.ContainsKey(pos))
+		{
+			_tileInterest[pos] = WeightMath.UnexploredTileBaseInterest;
+			_tileInterestConfirmElapsed[pos] = 0f;
+		}
+
 		return isFirstReveal;
 	}
 
@@ -147,9 +204,18 @@ public class PersonalMapKnowledge
 		_objectTile[objectId] = tile;
 	}
 
+	// _objectTile은 objectId→tile로만 색인돼 있어(오브젝트 수가 적어 역방향 색인을 따로 안 둠),
+	// 타일→objectId 조회는 호출 빈도가 낮은 쪽(확인 타이머 틱, 클릭 조회)에서 선형 탐색으로 처리한다.
+	public string GetObjectIdAtTile(Vector3Int pos)
+		=> _objectTile.FirstOrDefault(kv => kv.Value == pos).Key;
+
 	public float GetTileInterest(Vector3Int pos, bool explored, string objectIdAtTile)
 	{
-		float baseTileInterest = explored ? WeightMath.ExploredTileBaseInterest : WeightMath.UnexploredTileBaseInterest;
+		// 16장(v0.7 (1) 개정판): 확인 시간이 아직 안 지나 _tileInterest에 기록이 남아있으면 그 값을
+		// 우선 쓴다 — 방금 밝혀진 타일은 즉시 0이 아니라 여전히 기본 미탐사 흥미도(5)를 유지한다.
+		float baseTileInterest = _tileInterest.TryGetValue(pos, out var recorded)
+			? recorded
+			: (explored ? WeightMath.ExploredTileBaseInterest : WeightMath.UnexploredTileBaseInterest);
 		float objectInterest = (objectIdAtTile != null && _objectInterest.TryGetValue(objectIdAtTile, out var oi)) ? oi : 0f;
 		return WeightMath.ComposeTileInterest(baseTileInterest, objectInterest);
 	}
@@ -212,16 +278,22 @@ public class PersonalMapKnowledge
 
 	// ─────────────────────────── 20장/21장/7-1장. 방 위험도·흥미도 ───────────────────────────
 	// "인류가 방에 들어가면 시야로 확인한 정보를 통해 방 위험도/흥미도 추정값이 실시간으로 반영된다"
-	// (v3 문서 7-1장) — 원래도 개인 인지 개념이었다. API는 준비하되, 방이 보스방인지 등 맵 데이터
-	// 확인이 더 필요해 CastRay 자동 연동은 이번 라운드에서 하지 않는다(지도 구현현황 문서 참고).
+	// (v3 문서 7-1장) — 원래도 개인 인지 개념이었다.
+	// 2026-07-08: CastRay 자동 연동 완료(UnitFunction.CastRay) — 아래 클래스/메서드가 그 실체.
 	public enum RoomExploreState { Unexplored, Exploring, Complete }
 
 	private class RoomKnowledge
 	{
 		public RoomExploreState State = RoomExploreState.Unexplored;
 		public bool IsBossRoom;
-		public float ConfirmedUnitDanger, ConfirmedObjectDanger;
-		public float ConfirmedUnitInterest, ConfirmedObjectInterest;
+		// 유닛/오브젝트 키(인스턴스명)별 마지막 확인값으로 저장 — 단순 += 누적이 아니다. 시야 안에
+		// 계속 있는 몬스터는 CastRay가 매 프레임 같은 키로 다시 부르므로(ObserveMonster와 동일
+		// 패턴), 누적형으로 두면 프레임마다 값이 폭증한다. "그 방에서 확인된 대상들의 최신 스냅샷
+		// 합"이 되도록 키로 덮어쓰기만 한다.
+		public readonly Dictionary<string, (float danger, float interest)> ConfirmedUnits = new();
+		public readonly Dictionary<string, (float danger, float interest)> ConfirmedObjects = new();
+		// 이 방에서 이 유닛(관찰자)이 지금까지 처음 밝힌 바닥 타일 수 — Exploring→Complete 판정용.
+		public int RevealedFloorTiles;
 	}
 	private readonly Dictionary<int, RoomKnowledge> _rooms = new();
 
@@ -238,28 +310,42 @@ public class PersonalMapKnowledge
 	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
 		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
 
-	public void ObserveUnitInRoom(int roomId, bool isBossRoom, float unitFinalDanger, float unitInterest)
-	{
-		var r = GetOrCreateRoom(roomId, isBossRoom);
-		r.ConfirmedUnitDanger += unitFinalDanger;
-		r.ConfirmedUnitInterest += unitInterest;
-	}
+	// unitKey: 대상 유닛의 인스턴스 식별자(Unit.name) — 같은 유닛을 매 프레임 다시 불러도 최신값으로
+	// 덮어쓸 뿐 중복 가산되지 않는다.
+	public void ObserveUnitInRoom(int roomId, bool isBossRoom, string unitKey, float unitFinalDanger, float unitInterest)
+		=> GetOrCreateRoom(roomId, isBossRoom).ConfirmedUnits[unitKey] = (unitFinalDanger, unitInterest);
 
-	public void ObserveObjectInRoom(int roomId, bool isBossRoom, float objectDanger, float objectInterest)
+	public void ObserveObjectInRoom(int roomId, bool isBossRoom, string objectKey, float objectDanger, float objectInterest)
+		=> GetOrCreateRoom(roomId, isBossRoom).ConfirmedObjects[objectKey] = (objectDanger, objectInterest);
+
+	// 20장: "인류 유닛은 방 전체 크기를 모른다"는 문서 지시는 플레이어에게 진행률(%)을 노출하지
+	// 않는다는 뜻으로 해석했다 — 완료 판정 자체는 게임 내부적으로(맵 생성 데이터 기준) 계산해야
+	// Exploring→Complete 전환이 가능하므로, totalFloorTilesInRoom(그 방의 실제 바닥 타일 총수,
+	// CreateMap.GetRoomFloorTileCount 등 맵 쪽 ground-truth)을 호출부가 넘겨준다.
+	// Unexplored였다면 Exploring으로 전환하고, 처음 밝히는 바닥 타일마다 호출해 누적 카운트가
+	// 총 타일 수에 도달하면 Complete로 전환한다(한 번 Complete가 되면 되돌리지 않음).
+	public void ObserveRoomTileRevealed(int roomId, bool isBossRoom, int totalFloorTilesInRoom)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);
-		r.ConfirmedObjectDanger += objectDanger;
-		r.ConfirmedObjectInterest += objectInterest;
+		if (r.State == RoomExploreState.Complete) return;
+
+		if (r.State == RoomExploreState.Unexplored)
+			r.State = RoomExploreState.Exploring;
+
+		r.RevealedFloorTiles++;
+		if (totalFloorTilesInRoom > 0 && r.RevealedFloorTiles >= totalFloorTilesInRoom)
+			r.State = RoomExploreState.Complete;
 	}
 
 	public float GetRoomDanger(int roomId, bool isBossRoom)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);
+		float confirmed = r.ConfirmedUnits.Values.Sum(v => v.danger) + r.ConfirmedObjects.Values.Sum(v => v.danger);
 		return r.State switch
 		{
 			RoomExploreState.Unexplored => isBossRoom ? WeightMath.UnexploredBossRoomBaseDanger : WeightMath.UnexploredNormalRoomBaseDanger,
-			RoomExploreState.Exploring => r.ConfirmedUnitDanger + r.ConfirmedObjectDanger + (isBossRoom ? WeightMath.ExploringBossRoomFixedDanger : WeightMath.ExploringNormalRoomFixedDanger),
-			RoomExploreState.Complete => r.ConfirmedUnitDanger + r.ConfirmedObjectDanger,
+			RoomExploreState.Exploring => confirmed + (isBossRoom ? WeightMath.ExploringBossRoomFixedDanger : WeightMath.ExploringNormalRoomFixedDanger),
+			RoomExploreState.Complete => confirmed,
 			_ => 0f,
 		};
 	}
@@ -267,14 +353,18 @@ public class PersonalMapKnowledge
 	public float GetRoomInterest(int roomId, bool isBossRoom)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);
+		float confirmed = r.ConfirmedUnits.Values.Sum(v => v.interest) + r.ConfirmedObjects.Values.Sum(v => v.interest);
 		return r.State switch
 		{
 			RoomExploreState.Unexplored => isBossRoom ? WeightMath.UnexploredBossRoomBaseInterest : WeightMath.UnexploredNormalRoomBaseInterest,
-			RoomExploreState.Exploring => r.ConfirmedUnitInterest + r.ConfirmedObjectInterest + (isBossRoom ? WeightMath.ExploringBossRoomFixedInterest : WeightMath.ExploringNormalRoomFixedInterest),
-			RoomExploreState.Complete => r.ConfirmedUnitInterest + r.ConfirmedObjectInterest,
+			RoomExploreState.Exploring => confirmed + (isBossRoom ? WeightMath.ExploringBossRoomFixedInterest : WeightMath.ExploringNormalRoomFixedInterest),
+			RoomExploreState.Complete => confirmed,
 			_ => 0f,
 		};
 	}
+
+	// 방 탐사 상태를 조회 전용으로 노출 — 디버그 표시/외부 판단 로직에서 상태만 읽고 싶을 때 사용.
+	public RoomExploreState GetRoomExploreState(int roomId) => _rooms.TryGetValue(roomId, out var r) ? r.State : RoomExploreState.Unexplored;
 
 	// 이 유닛이 개인적으로 아는 방들의 합산값이다 — 22장의 "던전 전체 위험도"와 달리 파티전멸/
 	// 전멸흔적 같은 진영 데이터는 포함하지 않는다(그건 HumanKnowledgeBase 13장 소관, 이번에 안 건드림).
@@ -295,10 +385,11 @@ public class PersonalMapKnowledge
 		foreach (var kv in _tileDanger)
 			sb.AppendLine($"  {kv.Key}: danger={kv.Value:0.##} (안전확인 경과 {_tileSafetyElapsed.GetValueOrDefault(kv.Key):0.#}s)");
 
-		// 16장: 타일 흥미도는 저장된 딕셔너리가 아니라 (위치, 탐사여부, 오브젝트id)로 그때그때
-		// 계산하는 값이라 위 타일 위험도처럼 그냥 나열할 대상이 없다 — 기본값(미탐사/탐사완료)과,
-		// 실제로 기본값과 달라지는 유일한 경우(오브젝트가 있는 타일)만 보여준다.
-		sb.AppendLine($"[타일 흥미도] 기본값: 미탐사={WeightMath.UnexploredTileBaseInterest:0.##} / 탐사완료={WeightMath.ExploredTileBaseInterest:0.##} (오브젝트 없는 타일은 이 값 그대로)");
+		// 16장(v0.7 (1) 개정판): 확인 시간 중이라 아직 0으로 안 내려간 타일은 위 타일 위험도와
+		// 동일하게 딕셔너리에 남아있다 — 그 목록을 그대로 보여준다.
+		sb.AppendLine($"[타일 흥미도 확인중] {_tileInterest.Count}개 (기본값: 미탐사={WeightMath.UnexploredTileBaseInterest:0.##} / 탐사완료={WeightMath.ExploredTileBaseInterest:0.##})");
+		foreach (var kv in _tileInterest)
+			sb.AppendLine($"  {kv.Key}: interest={kv.Value:0.##} (확인 경과 {_tileInterestConfirmElapsed.GetValueOrDefault(kv.Key):0.#}s)");
 		if (_objectTile.Count > 0)
 		{
 			foreach (var kv in _objectTile)
@@ -319,7 +410,7 @@ public class PersonalMapKnowledge
 
 		sb.AppendLine($"[방] {_rooms.Count}개 (개인 던전 위험도 {GetPersonalDungeonDanger():0.##} / 흥미도 {GetPersonalDungeonInterest():0.##})");
 		foreach (var kv in _rooms)
-			sb.AppendLine($"  room#{kv.Key} ({(kv.Value.IsBossRoom ? "보스방" : "일반")}, {kv.Value.State}): danger={GetRoomDanger(kv.Key, kv.Value.IsBossRoom):0.##} interest={GetRoomInterest(kv.Key, kv.Value.IsBossRoom):0.##}");
+			sb.AppendLine($"  room#{kv.Key} ({(kv.Value.IsBossRoom ? "보스방" : "일반")}, {kv.Value.State}, 바닥타일확인 {kv.Value.RevealedFloorTiles}칸, 확인유닛 {kv.Value.ConfirmedUnits.Count}/오브젝트 {kv.Value.ConfirmedObjects.Count}): danger={GetRoomDanger(kv.Key, kv.Value.IsBossRoom):0.##} interest={GetRoomInterest(kv.Key, kv.Value.IsBossRoom):0.##}");
 
 		return sb.ToString();
 	}

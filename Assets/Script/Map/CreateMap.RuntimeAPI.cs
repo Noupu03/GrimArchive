@@ -40,6 +40,42 @@ public partial class CreateMap
             for (int f = 0; f < map.floors.Length; f++)
                 floorConfigs[f] = map.floors[f].config;
         }
+        roomFloorTileCountCache.Clear();
+    }
+
+    // 20장/21장: 방 하나("roomId")의 전체 바닥 타일 수(벽 제외) — PersonalMapKnowledge.
+    // ObserveRoomTileRevealed()가 "이 방을 다 둘러봤는지"(탐사완료 판정)를 계산할 때 쓰는
+    // ground-truth 값이다. "인류 유닛은 방 전체 크기를 모른다"(20장)는 이 값을 UI/AI 판단에
+    // 노출하지 않는다는 뜻으로 해석했고, 완료 판정 자체는 내부적으로 계산해야 하므로 여기서 제공한다.
+    // 청크 단위가 아니라 실제 타일 단위로 세는 이유: 방 하나가 여러 청크로 이루어질 수 있고
+    // (maxNormalRoomChunks), 청크 안에서도 벽 타일이 섞여 있어(외곽 두께) 청크 개수만으로는
+    // 부정확하다.
+    public int GetRoomFloorTileCount(int floorIndex, int roomId)
+    {
+        var key = (floorIndex, roomId);
+        if (roomFloorTileCountCache.TryGetValue(key, out int cached)) return cached;
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length || roomId < 0) return 0;
+
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return 0;
+
+        int count = 0;
+        int w = floor.config.width, h = floor.config.height;
+        for (int cx = 0; cx < w; cx++)
+        {
+            for (int cy = 0; cy < h; cy++)
+            {
+                Chunks c = floor.chunks[cx, cy];
+                if (c.roomId != roomId || c.chunk == null) continue;
+
+                for (int tx = 0; tx < 8; tx++)
+                    for (int ty = 0; ty < 8; ty++)
+                        if (c.chunk[tx, ty].name != "Wall") count++;
+            }
+        }
+
+        roomFloorTileCountCache[key] = count;
+        return count;
     }
 
     public void DeserializeMap(string json)
