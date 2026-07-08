@@ -18,12 +18,14 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
 
     private UnitGenerate _unitGenerate;
     private ThreatTileRenderer _threatTileRenderer;
+    private IObjectResolver _resolver;
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver)
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
+        _resolver = resolver;
     }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
 
@@ -78,6 +80,12 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
 
     void Start()
     {
+        // 순환 참조 방지를 위해 Start 시점에 UIManager를 지연 로드하여 강제로 띄웁니다.
+        if (_resolver != null)
+        {
+            _resolver.Resolve<UIManager>();
+        }
+
         cmap = FindObjectOfType<CreateMap>();
         if (cmap != null)
         {

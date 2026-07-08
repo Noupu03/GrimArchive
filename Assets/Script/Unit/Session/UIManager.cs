@@ -19,11 +19,17 @@ public class UIManager : MonoBehaviour
         _gameSession = gameSession;
     }
 
+    private int _encyclopediaPanelId = -1;
+    private bool _isEncyclopediaOpen = false;
+
     void Start()
     {
         // DebugInfoPanel(CustomText/CustomButton/CustomSlider)을 CoreCanvas 위에 띄운다.
         // 줌 버튼/선택 유닛 정보는 이 패널로 이전되어 아래 OnGUI()에선 더 이상 그리지 않는다.
         LoadDebugPanelAsync().Forget();
+        
+        // 도감 패널 프리로딩 (비활성화 상태로 메모리에 올림)
+        LoadEncyclopediaPanelAsync().Forget();
     }
 
     private async UniTaskVoid LoadDebugPanelAsync()
@@ -32,6 +38,11 @@ public class UIManager : MonoBehaviour
         // 호출해서 패널을 꺼둔다 — OpenPanel()을 명시적으로 호출해야 실제로 화면에 뜬다.
         int panelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver);
         _coreUIManager.RentPanel<DebugInfoPanel>(panelId).OpenPanel();
+    }
+
+    private async UniTaskVoid LoadEncyclopediaPanelAsync()
+    {
+        _encyclopediaPanelId = await _coreUIManager.LoadPanel<Game.Encyclopedia.UI.UI_Encyclopedia>(_resolver);
     }
 
     void OnGUI()

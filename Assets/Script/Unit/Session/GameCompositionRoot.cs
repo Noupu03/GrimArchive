@@ -40,4 +40,11 @@ public class GameCompositionRoot : LifetimeScope
         // Haare DataManager: NativeRoutine(순수 C# 클래스)이라 프리팹 없이 그냥 등록.
         builder.Register<DataManager>(Lifetime.Singleton).AsSelf();
     }
+
+    private void Start()
+    {
+        // 입력 이벤트를 게임 시작 직후부터 받기 위해 InputManager만 미리 생성합니다.
+        // UIManager와 UI 에셋들은 호출되기 전까지 계속 생성되지 않습니다 (지연 로딩).
+        Container.Resolve<InputManager>();
+    }
 }

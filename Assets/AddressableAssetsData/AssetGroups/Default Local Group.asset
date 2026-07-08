@@ -30,8 +30,8 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: ad229368ef62a624fa8b357f8f640f1b
-    m_Address: Prefabs/CoreCanvas
+  - m_GUID: f180b7cb4e251814b844e2fe252ec904
+    m_Address: Prefabs/UI/EncyclopediaPanel
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
