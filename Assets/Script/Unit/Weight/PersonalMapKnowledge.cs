@@ -55,8 +55,15 @@ public class PersonalMapKnowledge
 
 	public float GetTileDanger(Vector3Int pos, bool explored)
 	{
-		if (_tileDanger.TryGetValue(pos, out var v)) return v;
-		return explored ? WeightMath.ExploredSafeTileBaseDanger : WeightMath.UnexploredTileBaseDanger;
+		float baseTileDanger = _tileDanger.TryGetValue(pos, out var v)
+			? v
+			: (explored ? WeightMath.ExploredSafeTileBaseDanger : WeightMath.UnexploredTileBaseDanger);
+
+		// 15장(v0.7 (1) 개정판): 이 타일 위 오브젝트의 위험도를 항상 더한다 — 몬스터 기록 위험도가
+		// 있든 없든(기본값이든) 상관없이 얹는 별도 가산항이다(16장의 오브젝트 흥미도 가산과 동일 구조).
+		string objId = GetObjectIdAtTile(pos);
+		float objectDanger = (objId != null && _objectDanger.TryGetValue(objId, out var od)) ? od : 0f;
+		return WeightMath.ComposeTileDanger(baseTileDanger, objectDanger);
 	}
 
 	public void SetTileDangerFromUnit(Vector3Int pos, float unitFinalDanger)
@@ -189,16 +196,19 @@ public class PersonalMapKnowledge
 		return tex;
 	}
 
-	// ─────────────────────────── 16장/17장. 오브젝트 위치·흥미도 ───────────────────────────
-	// 오브젝트/트랩/방어건물 엔티티가 아직 게임에 없어(가중치 구현현황 문서 참고), objectId를 임의
-	// 문자열 키로 받는 범용 API로 둔다 — 실제 오브젝트 시스템이 생기면 이 유닛이 오브젝트를 보는
-	// 시점(예: CastRay의 시야 판정)에서 이 메서드들을 호출하면 그대로 연동된다.
+	// ─────────────────────────── 15장/16장/17장. 오브젝트 위치·위험도·흥미도 ───────────────────────────
+	// 2026-07-08: InteractableObject(Assets/Script/Map/InteractableObject.cs, 팀원 구현)가 실제
+	// 오브젝트 엔티티로 게임에 들어왔다 — objectId(=InteractableObject.Id)를 그대로 키로 쓴다.
 	private readonly Dictionary<string, float> _objectBaseInterest = new();
 	private readonly Dictionary<string, float> _objectInterest = new();
+	private readonly Dictionary<string, float> _objectBaseDanger = new();
+	private readonly Dictionary<string, float> _objectDanger = new();
 	private readonly Dictionary<string, Vector3Int> _objectTile = new();
 
-	public void RegisterObjectInterest(string objectId, Vector3Int tile, float baseInterest)
+	public void RegisterObject(string objectId, Vector3Int tile, float baseDanger, float baseInterest)
 	{
+		_objectBaseDanger[objectId] = baseDanger;
+		_objectDanger[objectId] = baseDanger;
 		_objectBaseInterest[objectId] = baseInterest;
 		_objectInterest[objectId] = baseInterest;
 		_objectTile[objectId] = tile;
@@ -229,8 +239,26 @@ public class PersonalMapKnowledge
 			_objectInterest[objectId] = WeightMath.ObjectInterestAfterInvestigate(v);
 	}
 
-	public void OnObjectCollected(string objectId) => _objectInterest[objectId] = 0f;
-	public void OnObjectDestroyed(string objectId) => _objectInterest[objectId] = 0f;
+	// 회수/파괴된 오브젝트는 흥미도/위험도 둘 다 0으로 사라지고, 20/21장 방 확인목록에서도
+	// 제거한다 — 안 지우면 이미 사라진 오브젝트의 옛 목격값이 방 위험도/흥미도에 계속 잡힌다.
+	public void OnObjectCollected(string objectId)
+	{
+		_objectInterest[objectId] = 0f;
+		_objectDanger[objectId] = 0f;
+		ClearObjectFromRooms(objectId);
+	}
+
+	public void OnObjectDestroyed(string objectId)
+	{
+		_objectInterest[objectId] = 0f;
+		_objectDanger[objectId] = 0f;
+		ClearObjectFromRooms(objectId);
+	}
+
+	private void ClearObjectFromRooms(string objectId)
+	{
+		foreach (var room in _rooms.Values) room.ConfirmedObjects.Remove(objectId);
+	}
 
 	public void OnObjectDroppedByCarrierDeath(string objectId)
 	{
@@ -401,7 +429,9 @@ public class PersonalMapKnowledge
 		{
 			float baseI = _objectBaseInterest.GetValueOrDefault(kv.Key);
 			float curI = _objectInterest.GetValueOrDefault(kv.Key);
-			sb.AppendLine($"  {kv.Key}: tile={kv.Value} interest={curI:0.##}(기본 {baseI:0.##})");
+			float baseD = _objectBaseDanger.GetValueOrDefault(kv.Key);
+			float curD = _objectDanger.GetValueOrDefault(kv.Key);
+			sb.AppendLine($"  {kv.Key}: tile={kv.Value} interest={curI:0.##}(기본 {baseI:0.##}) danger={curD:0.##}(기본 {baseD:0.##})");
 		}
 
 		sb.AppendLine($"[몬스터 목격] {_monsterSightings.Count}개");

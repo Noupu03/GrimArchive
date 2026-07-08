@@ -247,6 +247,7 @@ public abstract class UnitFunction : Unit
 			{
 				var revealedTile = new Vector3Int(x, y, currentFloor);
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
+				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 				// 3-2장 E_EXPLORED_SAFE_TILE: "탐사완료+안전확인 타일 → 흥미도 0"이 실제로 발생하는
 				// 순간은 정확히 이 타일이 "처음" 밝혀지는 시점이다(미탐사 기본 흥미도 5 → 탐사완료
 				// 기본 흥미도 0으로 전환). 매 프레임 다시 찍히면 안 되니 처음 밝힐 때만 로그.
@@ -259,7 +260,6 @@ public abstract class UnitFunction : Unit
 				// 순식간에 넘겨버린다. 벽 타일은 셀 대상이 아니다(총 타일 수도 바닥만 셈).
 				if (isFirstReveal && !tileIsWall)
 				{
-					bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, c.roomId);
 					terrainObserver.personalMap.ObserveRoomTileRevealed(c.roomId, isBossRoom, totalFloorTiles);
 				}
@@ -271,9 +271,13 @@ public abstract class UnitFunction : Unit
 						float currentInterest = terrainObserver.personalMap.GetTileInterest(revealedTile, obj.Id);
 						if (currentInterest <= WeightMath.UnexploredTileBaseInterest) // 5f
 						{
-							terrainObserver.personalMap.RegisterObjectInterest(obj.Id, obj.Position, obj.BaseInterest);
+							// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
+							terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest);
 							LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
-								$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 흥미도={obj.BaseInterest}");
+								$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 위험도={obj.BaseDanger} 흥미도={obj.BaseInterest}");
+
+							// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
+							terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
 						}
 					}
 				}

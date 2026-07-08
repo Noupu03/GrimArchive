@@ -228,6 +228,14 @@ public class WeightSystemTests
 		Assert.AreEqual(125f, WeightMath.ComposeTileInterest(5f, 120f), 0.001f);
 	}
 
+	// ── 15장(v0.7 (1) 개정판). 타일 최종 위험도 = 기본 탐사 위험도 + 오브젝트 위험도 ──
+	// (16장 예시와 동일 구조 — 문서에 별도 숫자 예시는 없어 대칭 구조를 그대로 검증)
+	[Test]
+	public void TileDanger_ObjectComposition()
+	{
+		Assert.AreEqual(42f, WeightMath.ComposeTileDanger(2f, 40f), 0.001f);
+	}
+
 	// ── 18장. 유닛 흥미도-이해도 관계 예시: 100 * 65% = 65 ──
 	[Test]
 	public void UnitInterestFromUnderstanding_Example()

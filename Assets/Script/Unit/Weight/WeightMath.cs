@@ -260,6 +260,12 @@ public static class WeightMath
 	public static float ComposeTileInterest(float baseExploreInterest, float objectInterest)
 		=> Mathf.Clamp(baseExploreInterest + objectInterest, InterestMin, InterestMax);
 
+	// 15장(v0.7 (1) 개정판 신설) — "타일 최종 위험도 = 타일 기본 탐사 위험도 + 현재 타일 위
+	// 오브젝트 위험도"(문서 표는 이 행을 "흥미도"로 오기했지만 문맥/16장과의 대칭 구조상 위험도가
+	// 맞다). ComposeTileInterest와 동일한 구조 — 오브젝트 위험도는 별도 확인 시간 없이 항상 더해진다.
+	public static float ComposeTileDanger(float baseTileDanger, float objectDanger)
+		=> Mathf.Clamp(baseTileDanger + objectDanger, DangerMin, DangerMax);
+
 	// 16장(v0.7 (1) 개정판 신설) — "미탐사 기본 흥미도 5"도 15장 위험도와 동일하게, 시야로
 	// 확인한 뒤 흥미도 단계별 확인 시간 동안 새 흥미 요소가 없어야 0으로 내려간다.
 	// 구간/시간표는 15장과 수치가 같지만 문서가 별도 표(16장)로 다시 정의하고 있어 그대로 따른다.
