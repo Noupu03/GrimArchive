@@ -279,6 +279,14 @@ public abstract class UnitFunction : Unit
 
 						// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
 						terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+
+						// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
+						if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+						{
+							terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+							LogHelper.Log($"<b><color=red>[EventId:E_WIPEOUT_TRACE]</color></b>",
+								$"관찰자={terrainObserver.name} 전멸흔적={obj.TraceId} 던전 위험도 전역 반영");
+						}
 					}
 				}
 			}

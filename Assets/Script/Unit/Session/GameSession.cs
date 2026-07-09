@@ -216,19 +216,21 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             knowledge.OnPartyWipeout();
 
             // 13-2장: 전멸 흔적 — 원인 대상(이 파티원을 마지막으로 공격한 대상)의 위험도 단계로
-            // 보정치를 계산해 등록한다. 실제 "생환 파티가 흔적을 발견"하는 흐름(시체/흔적 엔티티가
-            // 아직 없음)은 이번 샘플 범위 밖이라 OnWipeoutTraceReflected는 호출하지 않는다.
+            // 보정치를 계산해 등록한다. RegisterWipeoutTrace가 발급한 traceId를 흔적 오브젝트에
+            // 실어 스폰하면, 생환한 다른 파티가 CastRay로 이 오브젝트를 발견하는 시점에
+            // UnitFunction.CastRay가 OnWipeoutTraceReflected(traceId)를 호출해 동일 ID당 1회만
+            // 던전 위험도에 반영한다(2026-07-09: 시체/흔적 엔티티가 생기면서 실제로 연결됨).
             Unit causer = deadHuman.lastAttacker;
             DangerStage causerStage = DangerStage.Stage0;
             if (causer != null)
                 causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.baseDanger);
             string traceId = knowledge.RegisterWipeoutTrace(causerStage);
 
-            // 전멸 흔적 오브젝트 생성 추가
+            // 전멸 흔적 오브젝트 생성
             string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             Vector3Int gridPos = new Vector3Int(deadHuman.position.x, deadHuman.position.y, deadHuman.currentFloor);
             List<string> tags = new List<string> { "WipeoutTrace" };
-            InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage);
+            InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
             SpawnObject(wipeoutObj, Color.black);
 
             LogHelper.Log($"<b><color=red>[EventId:E_PARTY_WIPEOUT]</color></b>",
