@@ -18,6 +18,47 @@ public class UnitGenerate
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
 	private Dictionary<Unit, Vector3>    targetPosMap     = new Dictionary<Unit, Vector3>();
 
+	private class VisualCache
+	{
+		public UnitVisual UnitVisual;
+		public UnitVisualDefinition UnitVisualDefinition;
+		public WeaponAttachment WeaponAttachment;
+		public Transform OutlineTransform;
+		public SpriteRenderer OutlineSpriteRenderer;
+#if UNITY_2022_2_OR_NEWER
+		public SpriteResolver SpriteResolver;
+#endif
+	}
+
+	private Dictionary<GameObject, VisualCache> _cacheMap = new Dictionary<GameObject, VisualCache>();
+	private MapRandering _cachedMapRandering;
+
+	private VisualCache GetCache(GameObject go)
+	{
+		if (!_cacheMap.TryGetValue(go, out VisualCache cache))
+		{
+			cache = new VisualCache();
+			cache.UnitVisual = go.GetComponent<UnitVisual>();
+			cache.UnitVisualDefinition = go.GetComponent<UnitVisualDefinition>();
+			cache.WeaponAttachment = go.GetComponentInChildren<WeaponAttachment>();
+			cache.OutlineTransform = go.transform.Find("Visual/Outline");
+			if (cache.OutlineTransform != null)
+				cache.OutlineSpriteRenderer = cache.OutlineTransform.GetComponent<SpriteRenderer>();
+#if UNITY_2022_2_OR_NEWER
+			cache.SpriteResolver = go.GetComponentInChildren<SpriteResolver>();
+#endif
+			_cacheMap[go] = cache;
+		}
+		return cache;
+	}
+
+	private MapRandering GetMapRandering()
+	{
+		if (_cachedMapRandering == null)
+			_cachedMapRandering = Object.FindObjectOfType<MapRandering>();
+		return _cachedMapRandering;
+	}
+
 	private Sprite humanSprite;
 	private Sprite monsterSprite;
 
@@ -83,17 +124,18 @@ public class UnitGenerate
 		uv.Setup();
 		uv.boundUnit = unit;
 
+		var cache = GetCache(go);
+
 #if UNITY_2022_2_OR_NEWER
 		SpriteLibrary spriteLib = go.GetComponentInChildren<SpriteLibrary>();
 		if (spriteLib != null && spriteLib.spriteLibraryAsset != null && string.IsNullOrEmpty(unit.spriteVariation))
 			unit.spriteVariation = _unitSpriteManager.PickRandomVariation(spriteLib.spriteLibraryAsset);
 
-		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
-		if (spriteResolver != null)
-			UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
+		if (cache.SpriteResolver != null)
+			UpdateSpriteResolver(cache.SpriteResolver, unit.currentDir, unit.spriteVariation);
 #endif
 
-		go.GetComponentInChildren<WeaponAttachment>()?.UpdatePose(unit.currentDir);
+		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
 
 		go.transform.position = new Vector3(
 			unit.position.x + unit.unitType.footprint.x / 2f,
@@ -135,7 +177,7 @@ public class UnitGenerate
 	}
 
 	private UnitVisualDefinition GetVisualDef(Unit u) =>
-		visualMap.TryGetValue(u, out GameObject go) && go != null ? go.GetComponent<UnitVisualDefinition>() : null;
+		visualMap.TryGetValue(u, out GameObject go) && go != null ? GetCache(go).UnitVisualDefinition : null;
 
 	public void SpawnGuardVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.guardPrefab, u);
 	public void SpawnParryVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.parryPrefab, u);
@@ -150,13 +192,13 @@ public class UnitGenerate
 	{
 		if (!visualMap.TryGetValue(unit, out GameObject go)) return;
 
-		go.GetComponentInChildren<WeaponAttachment>()?.UpdatePose(unit.currentDir);
+		var cache = GetCache(go);
+		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
 
 #if UNITY_2022_2_OR_NEWER
-		SpriteResolver spriteResolver = go.GetComponentInChildren<SpriteResolver>();
-		if (spriteResolver != null)
+		if (cache.SpriteResolver != null)
 		{
-			UpdateSpriteResolver(spriteResolver, unit.currentDir, unit.spriteVariation);
+			UpdateSpriteResolver(cache.SpriteResolver, unit.currentDir, unit.spriteVariation);
 			return;
 		}
 #endif
@@ -179,7 +221,7 @@ public class UnitGenerate
 
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
-		var mr = Object.FindObjectOfType<MapRandering>();
+		var mr = GetMapRandering();
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
@@ -193,7 +235,7 @@ public class UnitGenerate
 
 	public Vector3 GetFloorOffset(int floorIdx)
 	{
-		var mr = Object.FindObjectOfType<MapRandering>();
+		var mr = GetMapRandering();
 		if (mr != null)
 		{
 			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
@@ -211,7 +253,7 @@ public class UnitGenerate
 	{
 		if (u != null && visualMap.TryGetValue(u, out GameObject go))
 		{
-			if (go != null) { KillVisualTweens(go); Object.Destroy(go); }
+			if (go != null) { KillVisualTweens(go); Object.Destroy(go); _cacheMap.Remove(go); }
 			visualMap.Remove(u);
 			targetPosMap.Remove(u);
 		}
@@ -221,7 +263,7 @@ public class UnitGenerate
 		{
 			if (kvp.Key == null || kvp.Key.hp <= 0)
 			{
-				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); }
+				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); _cacheMap.Remove(kvp.Value); }
 				deadKeys.Add(kvp.Key);
 			}
 		}
@@ -274,8 +316,10 @@ public class UnitGenerate
 				go.transform.position = newPos;
 			}
 
+			var cache = GetCache(go);
+
 			// FOV
-			UnitVisual uv = go.GetComponent<UnitVisual>();
+			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
 				Vector2 forward = u.GetDirVector(u.currentDir);
@@ -286,7 +330,7 @@ public class UnitGenerate
 			UpdateUnitSpriteForDirection(u);
 
 			// 아웃라인은 Visual 자식의 하위에 위치
-			Transform outlineTransform = go.transform.Find("Visual/Outline");
+			Transform outlineTransform = cache.OutlineTransform;
 			if (outlineTransform != null)
 			{
 				bool isSelected  = (u.InputMgr != null && u.InputMgr.selectedUnit == u);
@@ -295,7 +339,7 @@ public class UnitGenerate
 				outlineTransform.gameObject.SetActive(isSelected || isPanicking);
 				if (isSelected || isPanicking)
 				{
-					SpriteRenderer outlineSr = outlineTransform.GetComponent<SpriteRenderer>();
+					SpriteRenderer outlineSr = cache.OutlineSpriteRenderer;
 					if (outlineSr != null)
 						outlineSr.color = isSelected ? Color.black : Color.red;
 				}
