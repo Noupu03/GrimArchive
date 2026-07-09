@@ -6,7 +6,9 @@ using Haare.Util.Logger;
 using UnityEngine.U2D.Animation;
 #endif
 
-public class ThreatTileRenderer : MonoBehaviour
+// Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 스폰/렌더 메커니즘이라 씬 GameObject일 필요가 없는
+// 순수 C# 클래스. 생성한 위협 타일 시각화들을 묶어둘 부모 Transform만 자체적으로 하나 만들어 든다.
+public class ThreatTileRenderer
 {
 	// Assets/Resources/attackZone.spriteLib — 라벨 "0"~"5".
 	// 씬 배치 없이 Resources.Load로 가져오므로 인스펙터 할당이 필요 없다.
@@ -40,6 +42,9 @@ public class ThreatTileRenderer : MonoBehaviour
 	private Dictionary<Unit, ThreatVisual> activeVisuals
 		= new Dictionary<Unit, ThreatVisual>();
 
+	// 생성한 ThreatZone 시각화들을 담아둘 부모 컨테이너. 예전에는 이 컴포넌트 자신의 transform이었다.
+	private readonly Transform _root = new GameObject("ThreatTileRenderer").transform;
+
 	private UnitGenerate _unitGenerate;
 
 	[Inject]
@@ -48,7 +53,7 @@ public class ThreatTileRenderer : MonoBehaviour
 		_unitGenerate = unitGenerate;
 	}
 
-	void Awake()
+	public ThreatTileRenderer()
 	{
 #if UNITY_2022_2_OR_NEWER
 		_attackZoneLibrary = Resources.Load<SpriteLibraryAsset>(AttackZoneLibraryResourcePath);
@@ -140,7 +145,7 @@ public class ThreatTileRenderer : MonoBehaviour
 			if (shouldRemove)
 			{
 				if (pair.Value != null && pair.Value.root != null)
-					Destroy(pair.Value.root.gameObject);
+					Object.Destroy(pair.Value.root.gameObject);
 
 				removeList.Add(u);
 			}
@@ -170,7 +175,7 @@ public class ThreatTileRenderer : MonoBehaviour
 			if (!activeVisuals.TryGetValue(u, out ThreatVisual tv))
 			{
 				GameObject rootGo = new GameObject("ThreatZone");
-				rootGo.transform.SetParent(transform);
+				rootGo.transform.SetParent(_root);
 				tv = new ThreatVisual { root = rootGo.transform };
 				activeVisuals[u] = tv;
 			}

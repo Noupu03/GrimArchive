@@ -18,14 +18,8 @@ public class GameCompositionRoot : LifetimeScope
         // 그대로 두고, 정보성 Log만 스택 트레이스를 끈다.
         Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
 
-        // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스
-        builder.RegisterComponentInHierarchy<VFXManager>();
-
         // 기존에 GameSession.Awake()/Start()가 런타임에 동적 생성하던 서비스
-        // ThreatTileRenderer는 이제 Resources.Load로 스프라이트 라이브러리를 가져오므로
-        // 인스펙터 할당이 필요 없어 다시 동적 생성으로 되돌렸다.
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
-        builder.RegisterComponentOnNewGameObject<ThreatTileRenderer>(Lifetime.Singleton, "ThreatTileRenderer");
         // UIManager는 OnGUI() 때문에 MonoBehaviour는 유지하지만 인스펙터 데이터가 없어 씬 배치가 불필요.
         builder.RegisterComponentOnNewGameObject<UIManager>(Lifetime.Singleton, "UIManager");
 
@@ -38,6 +32,13 @@ public class GameCompositionRoot : LifetimeScope
         // UnitSpriteManager: 인스펙터 프리팹 매핑 대신 Resources.Load(Assets/Resources/Units/) 경로
         // 컨벤션으로 전환되어 순수 C# 클래스가 됨.
         builder.Register<UnitSpriteManager>(Lifetime.Singleton).AsSelf();
+
+        // VFXManager: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 스폰 메커니즘이라 씬 배치가 불필요.
+        builder.Register<VFXManager>(Lifetime.Singleton).AsSelf();
+
+        // ThreatTileRenderer: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 스폰/렌더 메커니즘이라
+        // 씬 GameObject일 필요가 없는 순수 C# 클래스로 전환됨.
+        builder.Register<ThreatTileRenderer>(Lifetime.Singleton).AsSelf();
 
         // HumanKnowledgeBase: 대표 가중치 3종(이해도/위험도/흥미도) 전역 레지스트리 — 순수 C#.
         builder.Register<HumanKnowledgeBase>(Lifetime.Singleton).AsSelf();
