@@ -18,8 +18,7 @@ public class GameCompositionRoot : LifetimeScope
         // 그대로 두고, 정보성 Log만 스택 트레이스를 끈다.
         Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
 
-        // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스 (UnitSpriteManager 오브젝트)
-        builder.RegisterComponentInHierarchy<UnitSpriteManager>();
+        // 씬에 이미 배치되어 인스펙터 데이터를 들고 있는 서비스
         builder.RegisterComponentInHierarchy<VFXManager>();
 
         // 기존에 GameSession.Awake()/Start()가 런타임에 동적 생성하던 서비스
@@ -35,6 +34,10 @@ public class GameCompositionRoot : LifetimeScope
 
         // GameSession: 인스펙터 디버그 텍스처 뷰 제거 후 씬 배치가 불필요해져 NativeRoutine(순수 C#)으로 전환됨.
         builder.Register<GameSession>(Lifetime.Singleton).AsSelf();
+
+        // UnitSpriteManager: 인스펙터 프리팹 매핑 대신 Resources.Load(Assets/Resources/Units/) 경로
+        // 컨벤션으로 전환되어 순수 C# 클래스가 됨.
+        builder.Register<UnitSpriteManager>(Lifetime.Singleton).AsSelf();
 
         // HumanKnowledgeBase: 대표 가중치 3종(이해도/위험도/흥미도) 전역 레지스트리 — 순수 C#.
         builder.Register<HumanKnowledgeBase>(Lifetime.Singleton).AsSelf();

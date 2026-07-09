@@ -132,6 +132,7 @@
       "baseCooldown": 1.0,
       "cooldownSlot": 0,
       "isProjectile": true,
+      "projectilePrefab": "정밀사격_투사체",
       "projectileSpeed": 5.0,
       "isPiercing": false,
       "hitShape": "RECT",

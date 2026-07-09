@@ -1,36 +1,140 @@
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
+#if UNITY_2022_2_OR_NEWER
+using UnityEngine.U2D.Animation;
+#endif
 
-// 기존 Assets/Data/skills.json, units.json의 값을 유닛 타입 프리팹(UnitVisualDefinition)의
-// 초기값으로 옮겨주는 1회성 에디터 도구. 스프라이트/애니메이션/이펙트는 JSON에 없던 정보라
-// 여기서는 채워지지 않는다 — 생성된 프리팹을 열어서 직접 할당해야 한다.
+// Assets/Data/units.json, skills.json 값으로 유닛 타입 프리팹(UnitVisualDefinition + Visual 자식
+// 계층)을 처음부터 끝까지 원클릭으로 생성하는 에디터 도구. 스탯/스킬뿐 아니라 스프라이트 라이브러리,
+// 무기 소켓(WeaponAttachment), 피격/가드/패리 이펙트, 투사체 프리팹까지 전부 JSON에 적은 "이름"으로
+// 프로젝트를 검색해 자동 연결한다 — 실행 후 인스펙터에서 수동으로 드래그할 값이 남지 않는 게 목표.
+// (스프라이트 애니메이션 클립에 개별로 찍는 AnimationEvent만은 이 도구의 범위 밖이라 여전히 수동이다.)
+//
+// UnitSpriteManager.GetPrefab()이 Resources.Load(Assets/Resources/Units/{typeName}.prefab) 경로
+// 컨벤션으로 조회하므로, 출력 폴더도 반드시 Resources 아래여야 한다 — 별도 등록 절차 불필요.
+//
+// 재실행하면 같은 이름의 프리팹을 통째로 덮어쓴다 — JSON이 유일한 원본(source of truth)이라는 뜻.
+// 프리팹을 인스펙터에서 직접 손댄 값(예: WeaponAttachment의 방향별 poses 세부 튜닝)은 JSON에 없으므로
+// 재실행 시 컴포넌트 기본값으로 되돌아간다.
 public static class JsonToUnitPrefabConverter
 {
     private const string UnitsJsonPath  = "Assets/Data/units.json";
     private const string SkillsJsonPath = "Assets/Data/skills.json";
-    private const string OutputFolder   = "Assets/Prefabs/Units";
+    private const string OutputFolder   = "Assets/Resources/Units";
+
+    // ── JSON DTO ──────────────────────────────────────────────────────
+    // 엔진 에셋(스프라이트/프리팹/애니메이터 컨트롤러) 참조는 전부 "이름" 문자열로만 받는다.
+    // JsonUtility는 GameObject/Sprite 같은 엔진 레퍼런스 필드를 채워줄 수 없어서, 여기서는 이름만
+    // 파싱한 뒤 FindAssetByName으로 프로젝트를 검색해 실제 레퍼런스로 바꿔치기한다.
+
+    [System.Serializable]
+    private class JsonWeightData
+    {
+        public bool  isSpecialUnit;
+        public bool  isInterestTarget;
+        public float baseInterest;
+        public float baseDanger;
+        public float heavyHitThreshold = 10f;
+    }
+
+    [System.Serializable]
+    private class JsonWeaponData
+    {
+        public string sprite;
+        public float  nativeSpriteAngle = 135f;
+    }
+
+    [System.Serializable]
+    private class JsonEffectsData
+    {
+        public string hitSpark;
+        public string guard;
+        public string parry;
+        public string attackFail;
+    }
+
+    [System.Serializable]
+    private class JsonVisualData
+    {
+        public string          spriteLibrary;
+        public string          animatorController;
+        public JsonWeaponData  weapon;
+        public JsonEffectsData effects;
+    }
 
     [System.Serializable]
     private class JsonUnitData
     {
-        public string typeName;
-        public string unitClass;
-        public float[] footprint;
-        public int engageDistance;
-        public string[] skills;
+        public string        typeName;
+        public string        unitClass;
+        public float[]       footprint;
+        public int           engageDistance;
+        public string[]      skills;
         public UnitStatsData stats;
+        public JsonWeightData weight;
+        public JsonVisualData visual;
     }
 
     [System.Serializable]
     private class JsonUnitDatabase { public JsonUnitData[] units; }
 
+    // SkillData를 JSON DTO로 바로 재사용하지 않는 이유: projectilePrefab/hitEffectPrefab이
+    // GameObject 필드라 JsonUtility가 못 채운다. 이름 문자열로 받아뒀다가 ToSkillData()에서 해석한다.
     [System.Serializable]
-    private class JsonSkillDatabase { public SkillData[] skills; }
+    private class JsonSkillData
+    {
+        public string skillName;
+        public float  baseDelayMs;
+        public float  baseCooldown;
+        public int    cooldownSlot;
+        public bool   isProjectile;
+        public string projectilePrefab;
+        public float  projectileSpeed;
+        public bool   isPiercing;
+        public string hitEffectPrefab;
+        public string hitShape;
+        public int    hitRange, hitWidth, hitDepth;
+        public int    threatRange, threatWidth, threatDepth;
+        public float  damageMultiplier;
+        public bool   hasStun;
+        public float  stunDuration;
+        public float  priorityBase;
+        public float  priorityKillMultiplier;
+        public float  priorityKillBonus;
+        public float  priorityRangeThreshold;
+        public float  priorityRangeBonus;
 
-    [MenuItem("Tools/GrimArchive/JSON -> 유닛 프리팹 생성")]
+        public SkillData ToSkillData() => new SkillData
+        {
+            skillName        = skillName,
+            baseDelayMs      = baseDelayMs,
+            baseCooldown     = baseCooldown,
+            cooldownSlot     = cooldownSlot,
+            isProjectile     = isProjectile,
+            projectilePrefab = FindAssetByName<GameObject>(projectilePrefab),
+            projectileSpeed  = projectileSpeed,
+            isPiercing       = isPiercing,
+            hitEffectPrefab  = FindAssetByName<GameObject>(hitEffectPrefab),
+            hitShape         = hitShape,
+            hitRange = hitRange, hitWidth = hitWidth, hitDepth = hitDepth,
+            threatRange = threatRange, threatWidth = threatWidth, threatDepth = threatDepth,
+            damageMultiplier = damageMultiplier,
+            hasStun          = hasStun,
+            stunDuration     = stunDuration,
+            priorityBase     = priorityBase,
+            priorityKillMultiplier = priorityKillMultiplier,
+            priorityKillBonus      = priorityKillBonus,
+            priorityRangeThreshold = priorityRangeThreshold,
+            priorityRangeBonus     = priorityRangeBonus,
+        };
+    }
+
+    [System.Serializable]
+    private class JsonSkillDatabase { public JsonSkillData[] skills; }
+
+    [MenuItem("Tools/GrimArchive/JSON -> 유닛 프리팹 생성 (원클릭)")]
     public static void ConvertJsonToPrefabs()
     {
         if (!File.Exists(UnitsJsonPath))
@@ -48,12 +152,10 @@ public static class JsonToUnitPrefabConverter
         var skillDb = JsonUtility.FromJson<JsonSkillDatabase>(File.ReadAllText(SkillsJsonPath));
 
         var skillLookup = new Dictionary<string, SkillData>();
-        foreach (var s in skillDb.skills) skillLookup[s.skillName] = s;
+        foreach (var s in skillDb.skills) skillLookup[s.skillName] = s.ToSkillData();
 
         if (!AssetDatabase.IsValidFolder(OutputFolder))
             CreateFolderRecursive(OutputFolder);
-
-        var spriteManager = Object.FindObjectOfType<UnitSpriteManager>();
 
         int created = 0;
         foreach (var u in unitDb.units)
@@ -61,10 +163,10 @@ public static class JsonToUnitPrefabConverter
             GameObject root = new GameObject(u.typeName);
             var def = root.AddComponent<UnitVisualDefinition>();
 
-            def.unitTypeName    = u.typeName;
-            def.footprint       = (u.footprint != null && u.footprint.Length >= 2) ? new Vector2(u.footprint[0], u.footprint[1]) : Vector2.one;
-            def.engageDistance  = u.engageDistance;
-            def.stats           = u.stats;
+            def.unitTypeName   = u.typeName;
+            def.footprint      = (u.footprint != null && u.footprint.Length >= 2) ? new Vector2(u.footprint[0], u.footprint[1]) : Vector2.one;
+            def.engageDistance = u.engageDistance;
+            def.stats          = u.stats;
 
             def.skills = new List<SkillData>();
             foreach (var skillName in u.skills)
@@ -75,11 +177,37 @@ public static class JsonToUnitPrefabConverter
                     Debug.LogWarning($"[JsonToUnitPrefabConverter] '{u.typeName}'의 스킬 '{skillName}'을 skills.json에서 찾을 수 없습니다.");
             }
 
+            if (u.weight != null)
+            {
+                def.isSpecialUnit     = u.weight.isSpecialUnit;
+                def.isInterestTarget  = u.weight.isInterestTarget;
+                def.baseInterest      = u.weight.baseInterest;
+                def.baseDanger        = u.weight.baseDanger;
+                def.heavyHitThreshold = u.weight.heavyHitThreshold;
+            }
+
+            if (u.visual?.effects != null)
+            {
+                def.hitSparkPrefab   = FindAssetByName<GameObject>(u.visual.effects.hitSpark);
+                def.guardPrefab      = FindAssetByName<GameObject>(u.visual.effects.guard);
+                def.parryPrefab      = FindAssetByName<GameObject>(u.visual.effects.parry);
+                def.attackFailPrefab = FindAssetByName<GameObject>(u.visual.effects.attackFail);
+            }
+
             // 스프라이트/애니메이션 작업을 바로 시작할 수 있도록 최소 자식 계층까지 만들어 둔다.
             GameObject visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform);
             visual.transform.localPosition = Vector3.zero;
-            visual.AddComponent<SpriteRenderer>();
+            visual.AddComponent<SpriteRenderer>().sortingOrder = 10;
+
+#if UNITY_2022_2_OR_NEWER
+            if (!string.IsNullOrEmpty(u.visual?.spriteLibrary))
+            {
+                var lib = visual.AddComponent<SpriteLibrary>();
+                lib.spriteLibraryAsset = FindAssetByName<SpriteLibraryAsset>(u.visual.spriteLibrary);
+                visual.AddComponent<SpriteResolver>();
+            }
+#endif
 
             GameObject outline = new GameObject("Outline");
             outline.transform.SetParent(visual.transform);
@@ -90,18 +218,30 @@ public static class JsonToUnitPrefabConverter
             outlineSr.sortingOrder = 9;
             outline.SetActive(false);
 
+            if (u.visual?.weapon != null)
+            {
+                GameObject socket = new GameObject("WeaponSocket");
+                socket.transform.SetParent(visual.transform);
+                socket.transform.localPosition = Vector3.zero;
+                socket.AddComponent<SpriteRenderer>().sprite = FindAssetByName<Sprite>(u.visual.weapon.sprite);
+
+                var attachment = socket.AddComponent<WeaponAttachment>();
+                var so = new SerializedObject(attachment);
+                so.FindProperty("nativeSpriteAngle").floatValue = u.visual.weapon.nativeSpriteAngle;
+                so.ApplyModifiedProperties();
+            }
+
+            if (!string.IsNullOrEmpty(u.visual?.animatorController))
+            {
+                var animator = root.AddComponent<Animator>();
+                animator.runtimeAnimatorController = FindAssetByName<RuntimeAnimatorController>(u.visual.animatorController);
+                root.AddComponent<AnimationEventVfxSpawner>();
+            }
+
             string path = $"{OutputFolder}/{SanitizeFileName(u.typeName)}.prefab";
-            GameObject savedPrefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
             created++;
-
-            if (spriteManager != null)
-            {
-                var existing = spriteManager.unitTypePrefabMap.Find(e => e.unitTypeName == u.typeName);
-                if (existing != null) existing.prefab = savedPrefab;
-                else spriteManager.unitTypePrefabMap.Add(new UnitSpriteManager.UnitTypePrefab { unitTypeName = u.typeName, prefab = savedPrefab });
-                EditorUtility.SetDirty(spriteManager);
-            }
 
             Debug.Log($"[JsonToUnitPrefabConverter] 생성됨: {path} (스킬 {def.skills.Count}/{u.skills.Length}개 연결)");
         }
@@ -109,20 +249,34 @@ public static class JsonToUnitPrefabConverter
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        if (spriteManager != null)
+        Debug.Log($"[JsonToUnitPrefabConverter] 완료 — 프리팹 {created}개 생성됨 ({OutputFolder}). " +
+                  "UnitSpriteManager.GetPrefab()이 파일명(타입명) 기준으로 자동 조회하므로 별도 등록은 필요 없다. " +
+                  "이름으로 못 찾은 에셋은 위 경고 로그를 확인해서 units.json/skills.json의 이름 표기를 맞춰라.");
+    }
+
+    // 이름으로 프로젝트 전체에서 에셋을 찾는다. 스프라이트시트 내부 개별 스프라이트(예: 무기 스프라이트)처럼
+    // 메인 에셋 파일명과 이름이 다른 서브 에셋까지 찾도록 LoadAllAssetRepresentationsAtPath도 확인한다.
+    private static T FindAssetByName<T>(string name) where T : Object
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+
+        string typeFilter = typeof(T) == typeof(GameObject)                 ? "t:Prefab"
+                           : typeof(T) == typeof(RuntimeAnimatorController) ? "t:AnimatorController"
+                           : $"t:{typeof(T).Name}";
+
+        foreach (var guid in AssetDatabase.FindAssets($"{typeFilter} {name}"))
         {
-            EditorUtility.SetDirty(spriteManager);
-            EditorSceneManager.MarkSceneDirty(spriteManager.gameObject.scene);
-            Debug.Log("[JsonToUnitPrefabConverter] 씬의 UnitSpriteManager에도 자동 등록했습니다 (씬 저장 필요, Ctrl+S).");
-        }
-        else
-        {
-            Debug.LogWarning("[JsonToUnitPrefabConverter] 씬에서 UnitSpriteManager를 못 찾았습니다 (ssh.unity가 열려있는지 확인) — " +
-                              "unitTypePrefabMap에 직접 등록해야 합니다.");
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+
+            foreach (var obj in AssetDatabase.LoadAllAssetRepresentationsAtPath(path))
+                if (obj is T typed && obj.name == name) return typed;
+
+            var main = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (main != null && main.name == name) return main;
         }
 
-        Debug.Log($"[JsonToUnitPrefabConverter] 완료 — 프리팹 {created}개 생성됨 ({OutputFolder}). " +
-                  "스프라이트/애니메이션/이펙트는 JSON에 없던 정보라 각 프리팹을 열어 직접 채워야 합니다.");
+        Debug.LogWarning($"[JsonToUnitPrefabConverter] 에셋을 찾을 수 없습니다: '{name}' ({typeof(T).Name})");
+        return null;
     }
 
     private static void CreateFolderRecursive(string folder)

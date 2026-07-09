@@ -1,4 +1,4 @@
-﻿{
+{
   "units": [
     {
       "typeName": "기사형",
@@ -27,6 +27,26 @@
         "charisma": 3,
         "physicalAttackSpeed": 12,
         "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 30,
+        "heavyHitThreshold": 10
+      },
+      "visual": {
+        "spriteLibrary": "Char_Knight",
+        "animatorController": "Char",
+        "weapon": {
+          "sprite": "Weapon_LongSwordA_0",
+          "nativeSpriteAngle": 135
+        },
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
       }
     },
     {
@@ -56,6 +76,21 @@
         "charisma": 0,
         "physicalAttackSpeed": 8,
         "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 60,
+        "baseDanger": 120,
+        "heavyHitThreshold": 10
+      },
+      "visual": {
+        "spriteLibrary": "Mon_GnoleA",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
       }
     },
     {
@@ -85,8 +120,10 @@
         "charisma": 5,
         "physicalAttackSpeed": 20,
         "magicalCastSpeed": 0
+      },
+      "visual": {
+        "spriteLibrary": "Char_ArcherElf"
       }
     }
   ]
 }
-

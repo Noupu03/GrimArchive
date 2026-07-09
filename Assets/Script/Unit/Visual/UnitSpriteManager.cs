@@ -6,25 +6,17 @@ using UnityEngine.U2D.Animation;
 
 // 유닛 타입 이름 → 프리팹 매핑 레지스트리. 스프라이트/스탯/스킬/이펙트는 전부
 // 프리팹의 UnitVisualDefinition(+자식 계층)에서 오고, 여기서는 그 프리팹을 찾아주는 역할만 한다.
-public class UnitSpriteManager : MonoBehaviour
+// ThreatTileRenderer의 attackZone.spriteLib와 동일한 컨벤션: 인스펙터 매핑 대신
+// Assets/Resources/Units/{unitTypeName}.prefab 경로 컨벤션으로 Resources.Load 조회한다.
+public class UnitSpriteManager
 {
-    [System.Serializable]
-    public class UnitTypePrefab
-    {
-        public string unitTypeName;
-        public GameObject prefab;
-    }
-
-    public List<UnitTypePrefab> unitTypePrefabMap = new List<UnitTypePrefab>();
+    private const string UnitPrefabResourceFolder = "Units";
 
     private readonly Dictionary<string, List<SkillAction>> _skillsCache = new();
 
     public GameObject GetPrefab(string unitTypeName)
     {
-        foreach (var entry in unitTypePrefabMap)
-            if (entry.unitTypeName == unitTypeName && entry.prefab != null)
-                return entry.prefab;
-        return null;
+        return Resources.Load<GameObject>($"{UnitPrefabResourceFolder}/{unitTypeName}");
     }
 
     public List<SkillAction> GetSkills(string unitTypeName)
