@@ -48,8 +48,6 @@ public class Action_PlayerCommandExecute : GoapAction
 						unit.Session.CollectObject(interactPos);
 						human.personalMap.OnObjectCollected(obj.Id);
 						human.collectedObjects.Add(obj.Id);
-						LogHelper.Log($"<b><color=yellow>[EventId:E_OBJECT_COLLECTED]</color></b>", 
-							$"관찰자={human.name} 오브젝트={obj.Id} 회수 완료 (수동 도달). 흥미도 0으로 변경됨.");
 					}
 				}
 				unit.playerInteractTarget = null;

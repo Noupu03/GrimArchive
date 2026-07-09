@@ -232,9 +232,6 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             List<string> tags = new List<string> { "WipeoutTrace" };
             InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
             SpawnObject(wipeoutObj, Color.black);
-
-            LogHelper.Log($"<b><color=red>[EventId:E_PARTY_WIPEOUT]</color></b>",
-                $"파티={party.Name} 전멸. 던전 위험도 +{WeightMath.PartyWipeoutDungeonDangerIncrease}, 전멸흔적={traceId}(단계={causerStage})");
         }
         else if (deadUnit is Monster deadMonster)
         {
@@ -249,9 +246,6 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 party.WaveEnded = true;
                 var survivors = party.GetSurvivors();
                 knowledge.OnWaveEnd(survivors);
-
-                LogHelper.Log($"<b><color=cyan>[EventId:E_WAVE_CLEAR]</color></b>",
-                    $"파티={party.Name} 웨이브 클리어. 생존자 {survivors.Count}명 정보를 6장 규칙으로 전역 반영(OnWaveEnd).");
             }
         }
     }

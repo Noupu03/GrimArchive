@@ -59,10 +59,6 @@ public class HumanKnowledgeBase
 		bool isIndividualTarget = target.isSpecialUnit;
 		MentalErrorState mentalState = GetMentalState(observer);
 
-		// 실제로 코드에서 호출되는(=지금 작동하는) 이벤트만 이 지점을 탄다 — 트랩/버프/소환처럼
-		// 아직 연결 안 된 이벤트는 애초에 RecordEvent를 호출하는 코드가 없어서 이 로그도 안 찍힌다.
-		LogHelper.Log($"<b><color=blue>[EventId:{id}]</color></b>", $"관찰자={observer.name} 대상={targetId} 정보유형={infoType} 이해도Δ={delta.Understanding} 위험도Δ={delta.Danger}");
-
 		if (delta.Understanding != 0f)
 			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
 		if (delta.Danger != 0f)

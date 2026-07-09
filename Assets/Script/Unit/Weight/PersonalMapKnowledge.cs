@@ -218,14 +218,10 @@ public class PersonalMapKnowledge
 			if (tags.Contains("WipeoutTrace"))
 			{
 				_objectInterest[objectId] = WeightMath.WipeoutTraceBaseInterest;
-				Haare.Util.Logger.LogHelper.Log($"<b><color=magenta>[EventId:E_WIPEOUT_TRACE_FOUND]</color></b>",
-					$"전멸 흔적 오브젝트 발견 (id:{objectId}, 위치:{tile}, 흥미도:{_objectInterest[objectId]})");
 			}
 			else if (tags.Contains("Corpse"))
 			{
 				_objectInterest[objectId] = WeightMath.CorpseTraceInterest(causerStage);
-				Haare.Util.Logger.LogHelper.Log($"<b><color=magenta>[EventId:E_CORPSE_TRACE_FOUND]</color></b>",
-					$"시체/흔적 오브젝트 발견 (id:{objectId}, 원인자 단계:{causerStage}, 보정흥미도:{_objectInterest[objectId]})");
 			}
 			// Loot 태그는 별도 이벤트 없음 (기본 오브젝트 처리)
 		}
