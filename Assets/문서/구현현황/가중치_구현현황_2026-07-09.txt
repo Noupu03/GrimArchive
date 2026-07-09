@@ -32,19 +32,26 @@ GrimArchive_지도_구현현황.txt(07-07)는 전부 이 문서에 흡수됐고 
    마감. 13-2장이 이제 처음부터 끝까지(전멸→흔적 등록→스폰→발견→전역 위험도 반영, 동일ID당
    1회 제한까지) 완전 자동이다.
 
-2. [작지만 실제 코드 작업 필요] 16장 "타일 최종 흥미도 = 기본 탐사 흥미도 + 오브젝트 흥미도 +
-   유닛 흥미도" 중 "유닛 흥미도" 항 — (1) 개정판 신규사항, 오브젝트 항은 이미 합산되고 있고
-   (WeightMath.ComposeTileInterest) 유닛 흥미도 계산 공식(UnitInterestFromUnderstanding, 18장)도
-   이미 존재한다. PersonalMapKnowledge.GetTileInterest(pos, explored, objectIdAtTile)가 그 타일
-   위에 유닛이 있는지 알 방법이 없어서(지도 데이터와 실시간 유닛 위치 그리드가 분리돼 있음)
-   막혀 있다 — 호출부(UnitFunction 쪽, 그 프레임에 이미 유닛 그리드를 갖고 있음)에서 해당 타일의
-   유닛 흥미도를 계산해 새 인자로 넘기도록 시그니처만 확장하면 된다. 2~3개 파일, 반나절 이내.
+2. [완료, 2026-07-09] 16장 "타일 최종 흥미도 = 기본 탐사 흥미도 + 오브젝트 흥미도 + 유닛 흥미도"
+   중 "유닛 흥미도" 항 — PersonalMapKnowledge에 이미 있던 _monsterSightings(CastRay가 몬스터를
+   목격할 때마다 타일+흥미도 스냅샷을 저장하던 구조, 18장 개인 흥미도 조회에 이미 쓰이고 있었음)를
+   그대로 재사용했다. GetUnitInterestAtTile(pos) 신설(오브젝트 쪽 GetObjectIdAtTile과 동일하게
+   선형 탐색) → GetTileInterest()가 objectInterest + unitInterest를 더해 ComposeTileInterest에
+   넘긴다(함수 시그니처는 2항 그대로 둬서 기존 테스트(5+120=125)를 안 건드림). 별도의 "유닛 위치
+   그리드 연동" 배선이 필요 없었다 — 이미 그 목적으로 쓰이던 데이터가 있었다. (1) 개정판 미반영
+   항목은 이제 없음.
 
-3. [설계 필요, 여러 항목을 동시에 푸는 레버리지가 큼] 오브젝트 "조사(investigate)" 단계 도입
-   지금 InteractableObject는 "발견 → 즉시 회수" 1단계 모델이라 E_OBJECT_INVESTIGATED(17장 50%
-   감소)/E_CORPSE_TRACE_CHECK(3-2장/19장)가 막혀 있다. "발견됨" 상태와 "회수 가능" 상태 사이에
-   조사 상호작용 한 단계만 넣으면 3-2장 2개 항목 + 17장 1개 항목 + 19장 확인 처리가 한 번에
-   풀린다 — 지금 남은 미구현 중 항목 대비 작업량 대비 효율이 가장 좋은 후보.
+3. [완료, 2026-07-09] 오브젝트 "조사(investigate)" 단계 도입 — 사용자 확인 결과 "자동 순차 처리"
+   (플레이어 조작은 지금처럼 1회 상호작용 그대로, 내부적으로만 조사→회수/확인을 순서대로 자동
+   처리)로 결정. InteractableObject.IsInvestigated 필드 신설. Action_PlayerCommandExecute.
+   Execute()가 오브젝트에 도달하면: Loot 태그(일반 루팅)면 먼저 OnObjectInvestigated(50%감소,
+   17장)를 호출하고 IsInvestigated=true로 표시한 뒤, 이어서 항상 CollectObject+OnObjectCollected
+   (0%, 회수/확인 완료)를 호출한다. Corpse/WipeoutTrace 태그는 문서상 조사 단계가 없으므로
+   (19장: "확인하면 원인 확인 여부와 관계없이 흥미도를 제거") 조사를 건너뛰고 바로 0%로 간다.
+   E_OBJECT_INVESTIGATED(17장), 19장 "확인 시 흔적 흥미도 0"이 자동 발동으로 이동. E_CORPSE_TRACE_
+   CHECK의 이해도/위험도 가산분(3-1장)은 대상 Unit이 필요한 HumanKnowledgeBase.RecordEvent 파이프
+   라인에 태울 방법이 없어(시체는 죽은 유닛의 잔재라 살아있는 target Unit이 없음) 여전히 미연결—
+   "흥미도 0" 부분만 이번에 풀렸다.
 
 4. [설계 필요, 반복적으로 나오는 큰 블로커] 소리/전파(간접 파악 InfoType.Indirect) 시스템
    3-1장의 INDIRECT 계열 이벤트 3종(E_HUMAN_KILL_INDIRECT, E_HIT_HEAVY_INDIRECT,
@@ -103,13 +110,15 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
     직접 연결).
   - UnitFunction.CastRay의 오브젝트 발견 지점(PersonalMapKnowledge.RegisterObject 호출부)에서
     태그를 보고 분기: Corpse면 WeightMath.CorpseTraceInterest(causerStage)(19장 공식, 기본10+
-    단계보정)를, WipeoutTrace면 WeightMath.WipeoutTraceBaseInterest를 흥미도로 즉시 적용하고
-    각각 [EventId:E_CORPSE_TRACE_FOUND]/[EventId:E_WIPEOUT_TRACE_FOUND] 로그를 찍는다. 07-09에
+    단계보정)를, WipeoutTrace면 WeightMath.WipeoutTraceBaseInterest를 흥미도로 즉시 적용한다.
     WipeoutTrace 발견 시 OnWipeoutTraceReflected(TraceId)까지 함께 호출하도록 연결해서, 13-2장
-    "생환 파티가 흔적을 발견 → 동일 ID당 1회만 던전 위험도 반영"이 이제 완전 자동이다.
-  - 여전히 안 되는 것: "조사(investigate)"/"확인(check)" 단계 — 발견되면 바로 회수 가능한
-    1단계 모델이라 E_CORPSE_TRACE_CHECK(흥미도 0 전환 + 이해도/위험도 소폭 증가)는 호출부가
-    없다. 위 "다음 우선순위 3번" 참고.
+    "생환 파티가 흔적을 발견 → 동일 ID당 1회만 던전 위험도 반영"이 완전 자동이다.
+  - 07-09(2차): Action_PlayerCommandExecute가 오브젝트 도달 시 Corpse/WipeoutTrace는 조사 단계
+    없이 바로 OnObjectCollected()로 흥미도 0 처리(19장 "확인" 규칙), Loot는 조사(50%)→회수(0%)를
+    자동 순차 처리하도록 연결됐다(InteractableObject.IsInvestigated 신설, 위 "다음 우선순위 3번").
+    E_CORPSE_TRACE_CHECK의 이해도/위험도 가산분만 대상 Unit 부재로 여전히 미연결.
+  - 참고: [EventId:...] 콘솔 로그는 너무 시끄러워서(07-09, 사용자 요청) 전부 제거했다 — "발동
+    여부"는 이제 로그가 아니라 아래 장별 항목의 실제 호출부 유무로 판단한다.
 
 ════════════════════════════════════════════════════════════════════════
 1장. 가중치 관리 범위
@@ -180,37 +189,38 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ════════════════════════════════════════════════════════════════════════
 3-2장. 흥미도 이벤트 기본값 (11개, 상태전이형 — WeightEventTable 미사용)
 ════════════════════════════════════════════════════════════════════════
-🔶 E_UNEXPLORED_TILE(미탐사 기본흥미도 사용) — GetTileInterest()가 매 호출 계산은 하지만
-   "이벤트 1회 발생"으로 로그를 남길 지점이 없음(연속 재계산이라 스팸 우려로 보류)
-✅ E_EXPLORED_SAFE_TILE(흥미도 0) — PersonalMapKnowledge.RevealTile() 최초 호출 시점에 로그.
+🔶 E_UNEXPLORED_TILE(미탐사 기본흥미도 사용) — GetTileInterest()가 매 호출 계산은 하지만 "이벤트
+   1회 발생"으로 볼 만한 별도 트리거 지점이 없음(연속 재계산이라 상태전이가 아니라 상시 계산값)
+✅ E_EXPLORED_SAFE_TILE(흥미도 0) — PersonalMapKnowledge.RevealTile() 최초 호출 시점에 발동.
    🆕(1) 개정: 이제 "최초 호출 즉시 0"이 아니라 확인 시간(16장 신규 표)을 거쳐야 실제로 0이 됨 —
    TickTileInterestConfirm()이 처리, PersonalMapKnowledge.cs:19-54 / UnitFunction.cs:365-370
 ✅ E_INTEREST_OBJECT_FOUND(오브젝트 기본위험도/흥미도 사용) — InteractableObject(Assets/Script/
    Map/InteractableObject.cs, GameSession.objectGrid)가 실제 엔티티이고 UnitFunction.CastRay가
-   최초 발견 시점 로그까지 연결. 15장 공식을 위해 BaseDanger 필드도 있고(기본 0), 20/21장
+   최초 발견 시점에 등록을 트리거한다. 15장 공식을 위해 BaseDanger 필드도 있고(기본 0), 20/21장
    ObserveObjectInRoom도 같은 지점에서 함께 호출된다(그 방의 "확인된 오브젝트" 목록에 반영).
-✅ E_OBJECT_INVESTIGATED(50% 감소) — OnObjectInvestigated(), 예시(120→60) 테스트 고정.
-   🔶 InteractableObject엔 "조사(investigate)" 상태가 없다(발견→즉시 회수 가능 모델) — 문서의
-   "조사 완료 → 회수 완료" 2단계 흐름을 아직 만들지 않아 호출부 없음(다음 우선순위 3번 참고)
-✅ E_OBJECT_COLLECTED(흥미도 제거) — OnObjectCollected() → 0. 실제 자동 발동 확인(Actions.cs
-   Action_PlayerCommandExecute, 유닛이 상호작용 대상 타일에 도달하면 호출) + 20/21장 방 확인목록
-   에서도 제거하도록 보강(ClearObjectFromRooms, 안 지우면 회수된 오브젝트의 옛 스냅샷이 방
-   위험도/흥미도에 계속 잡힘)
+🟢07-09 ✅ E_OBJECT_INVESTIGATED(50% 감소) — OnObjectInvestigated(), 예시(120→60) 테스트 고정.
+   InteractableObject.IsInvestigated 필드 신설 + Action_PlayerCommandExecute가 오브젝트 도달 시
+   (Loot 태그에 한해) 조사→회수를 자동 순차 호출하도록 연결(다음 우선순위 3번 참고, 사용자 확인
+   결과 "자동 순차 처리"로 결정).
+✅ E_OBJECT_COLLECTED(흥미도 제거) — OnObjectCollected() → 0. Actions.cs Action_PlayerCommandExecute
+   가 유닛이 상호작용 대상 타일에 도달하면 호출 + 20/21장 방 확인목록에서도 제거하도록 보강
+   (ClearObjectFromRooms, 안 지우면 회수된 오브젝트의 옛 스냅샷이 방 위험도/흥미도에 계속 잡힘)
 🔶 E_OBJECT_DROPPED_BY_CARRIER_DEATH(기본×0.5 재적용) — OnObjectDroppedByCarrierDeath(),
    WeightMath.ObjectInterestAfterDrop() 공식은 있음. 이 이벤트는 "오브젝트를 들고 이동하다 도중에
    사망"하는 운반 모델을 전제로 하는데, 현재 구현은 도달 즉시 회수(운반 상태 자체가 없음)라 이
    이벤트가 적용될 지점이 아예 없다(억지로 걸 게 아니라 정직하게 미연결로 남김)
 🔶 E_OBJECT_DESTROYED(흥미도 0) — OnObjectDestroyed() → 0. 오브젝트를 파괴/소모하는 상호작용이
    없어(회수만 가능) 호출부 없음
-🟢07-09 ✅ E_CORPSE_TRACE_FOUND(기본흥미도 사용) — WeightMath.CorpseTraceInterest() 공식이 시체
-   엔티티 발견 시(UnitFunction.CastRay→RegisterObject) 자동 적용되고 로그도 찍힌다.
-🔶 E_CORPSE_TRACE_CHECK(흥미도 0) — 발견은 자동이지만 "확인(check)" 단계가 없어 흥미도를 0으로
-   내리는 처리는 여전히 수동 호출만 가능(엔티티는 있지만 상호작용 단계가 없음)
-🟢07-09 ✅ E_WIPEOUT_TRACE_FOUND(전멸흔적 흥미도 사용) — WipeoutTraceGlobalReflection() 공식,
-   전멸 흔적 오브젝트 발견 시(CastRay) 흥미도 적용 + 로그 자동.
-🟢07-09 ✅ E_WIPEOUT_TRACE_CHECK(흥미도 0, 발견정보 생성) — OnWipeoutTraceReflected()가 이제
-   CastRay의 전멸 흔적 발견 지점에서 실제로 호출된다(TraceId 연결 완료, 위 섹션 참고). "흥미도 0"
-   부분은 시체와 마찬가지로 별도 확인 단계가 없어 대상이 없다(엔티티 자체는 있음).
+✅ E_CORPSE_TRACE_FOUND(기본흥미도 사용) — WeightMath.CorpseTraceInterest() 공식이 시체 엔티티
+   발견 시(UnitFunction.CastRay→RegisterObject) 자동 적용된다.
+🟢07-09 ✅ E_CORPSE_TRACE_CHECK(흥미도 0) — Corpse/WipeoutTrace 태그 오브젝트는 조사 단계를 건너뛰고
+   도달 즉시 OnObjectCollected()로 바로 0이 된다(위 우선순위 3번). 🔶 3-1장의 이해도+0.1/위험도+0.2
+   가산분은 HumanKnowledgeBase.RecordEvent가 요구하는 살아있는 target Unit이 시체에는 없어(원인
+   제공자는 죽었거나 이미 사라졌을 수 있음) 여전히 미연결 — "흥미도 0" 처리만 자동화됨.
+✅ E_WIPEOUT_TRACE_FOUND(전멸흔적 흥미도 사용) — WipeoutTraceGlobalReflection() 공식, 전멸 흔적
+   오브젝트 발견 시(CastRay) 흥미도 적용.
+✅ E_WIPEOUT_TRACE_CHECK(흥미도 0, 발견정보 생성) — OnWipeoutTraceReflected()가 CastRay의 전멸
+   흔적 발견 지점에서 호출된다(TraceId 연결). "흥미도 0"도 위와 동일하게 도달 시 자동(07-09).
 
 ════════════════════════════════════════════════════════════════════════
 4장. 개인 가중치 계산
@@ -355,10 +365,12 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ════════════════════════════════════════════════════════════════════════
 ✅ 미탐사 기본흥미도 5 — WeightMath.UnexploredTileBaseInterest
 ✅ 탐사완료 기본흥미도 0 — WeightMath.ExploredTileBaseInterest
-🆕(1) 개정 부분구현: "타일 최종 흥미도 = 기본 탐사 흥미도 + 오브젝트, 유닛 흥미도" — 오브젝트
-   흥미도 합산은 ✅(ComposeTileInterest), "유닛 흥미도"까지 더하는 부분은 ❌ 미구현(GetTileInterest()
-   는 objectInterest만 더함) — 위 "다음 우선순위 2번" 참고, 남은 (1) 개정판 미반영 항목은 이제
-   이것 하나뿐.
+🟢07-09 ✅(1) 개정 구현완료: "타일 최종 흥미도 = 기본 탐사 흥미도 + 오브젝트, 유닛 흥미도" —
+   오브젝트 흥미도 합산은 기존 ✅(ComposeTileInterest), "유닛 흥미도"도 이제 합산된다 —
+   PersonalMapKnowledge.GetUnitInterestAtTile()이 CastRay가 이미 기록해 두던
+   _monsterSightings(18장 개인 흥미도 조회에 쓰이던 동일 데이터)를 재사용해 그 타일의 목격
+   몬스터 흥미도 스냅샷 합을 구하고, GetTileInterest()가 이를 objectInterest에 더해서 넘긴다.
+   (1) 개정판 미반영 항목은 이제 없음.
 🆕(1) 구현 완료: 흥미도 단계별 확인시간 표(0~99:1s~800~999:5s, 15장과 동일 구간) —
    WeightEnums.InterestStage, WeightMath.GetInterestStage()/TileInterestCheckSeconds(),
    PersonalMapKnowledge._tileInterest/_tileInterestConfirmElapsed/TickTileInterestConfirm(),
@@ -375,10 +387,12 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
    OnObjectDestroyed, 예시(120→60) 테스트 고정
 ✅ 드랍후 = 기본흥미도×0.5 — OnObjectDroppedByCarrierDeath(), ObjectInterestAfterDrop(),
    예시(120×0.5=60) 반영
-✅ InteractableObject 엔티티가 실제로 있어 회수(OnObjectCollected)는 자동 발동 확인.
-   🔶 조사(investigate)/드랍(carrier death)/파괴(destroy)는 그에 대응하는 게임 상태가 아직 없어
-   (발견→즉시 회수 1단계 모델) 여전히 수동 호출만 가능 — 3-2장 항목 참고. 트랩/방어건물도 별도
-   엔티티가 없어 그쪽 이벤트(3-1장 E_TRAP_*/E_DEFENSE_DISABLE_*)는 미연결.
+🟢07-09 ✅ InteractableObject 엔티티가 실제로 있어 회수(OnObjectCollected)뿐 아니라 조사
+   (OnObjectInvestigated, Loot 태그 한정)도 이제 Action_PlayerCommandExecute가 도달 즉시 자동
+   순차 호출한다(위 "다음 우선순위 3번"). 🔶 드랍(carrier death)/파괴(destroy)는 그에 대응하는
+   게임 상태가 아직 없어(운반 중 사망·파괴 상호작용 자체가 없음) 여전히 수동 호출만 가능 — 3-2장
+   항목 참고. 트랩/방어건물도 별도 엔티티가 없어 그쪽 이벤트(3-1장 E_TRAP_*/E_DEFENSE_DISABLE_*)
+   는 미연결.
 
 ════════════════════════════════════════════════════════════════════════
 18장. 유닛 흥미도와 이해도 관계
@@ -400,13 +414,15 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 19장. 시체 / 흔적 흥미도
 ════════════════════════════════════════════════════════════════════════
 ✅ 시체/흔적 기본흥미도 10, 전멸흔적 25 — WeightMath.CorpseTraceBaseInterest/WipeoutTraceBaseInterest
-✅ 확인 시 흔적 흥미도 0(전멸흔적확인 시 발견정보도 생성) — OnWipeoutTraceReflected() 발견정보
-   생성 부분 유효. "흥미도 0" 쪽은 확인(check) 단계가 없어 대상이 없음(3-2장과 동일 사유)
+🟢07-09 ✅ 확인 시 흔적 흥미도 0(전멸흔적확인 시 발견정보도 생성) — OnWipeoutTraceReflected()의
+   발견정보 생성 부분은 CastRay 발견 시점에, "흥미도 0" 부분은 Action_PlayerCommandExecute가
+   Corpse/WipeoutTrace 오브젝트에 도달할 때 OnObjectCollected()로 자동 처리된다(위 "다음
+   우선순위 3번"). 둘 다 이제 대상이 있다(엔티티+상호작용 경로 모두 갖춰짐).
 ✅ 위험도단계별 보정(0/+5/+10/+15/+20) — WeightMath.DangerStageBonus(), CorpseTraceInterest(),
    GetCorpseTraceInterest()로 조회
-🟢07-09 ✅ 자동 트리거 — 시체/전멸흔적 엔티티가 실제로 생겨서(InteractableObject, 위 섹션 참고)
-   CastRay 발견 시점에 이 공식이 자동 적용된다(3장과 달리 더 이상 "엔티티가 없어서" 막혀있지
-   않음). "확인(check)" 단계 부재만 남은 블로커.
+✅ 자동 트리거 — 시체/전멸흔적 엔티티가 실제로 생겨서(InteractableObject, 위 섹션 참고) CastRay
+   발견 시점에 이 공식이 자동 적용되고, 확인(check) 시 흥미도 0 처리까지 자동이다(19장 위 항목
+   참고). 19장은 이제 문서에 적힌 흐름 그대로 처음부터 끝까지 자동.
 
 ════════════════════════════════════════════════════════════════════════
 20장 / 21장. 방 위험도 / 방 흥미도
@@ -489,17 +505,19 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ════════════════════════════════════════════════════════════════════════
 전체 집계 (문서 항목 단위, 대략치)
 ════════════════════════════════════════════════════════════════════════
-- ✅ 완전 구현(공식/수치가 코드에 있고 조회 가능): 약 135개 항목. 2026-07-09 하루 동안 추가로:
+- ✅ 완전 구현(공식/수치가 코드에 있고 조회 가능): 약 139개 항목. 2026-07-09 하루 동안 추가로:
   13-2장 전멸흔적 전역반영(OnWipeoutTraceReflected 실호출), 3-2장 E_CORPSE_TRACE_FOUND/
-  E_WIPEOUT_TRACE_FOUND/E_WIPEOUT_TRACE_CHECK 자동발동, 19장 시체/흔적 흥미도 자동적용,
-  18장 units.json weight 블록 반영 경로 — 도합 +5, 전부 🔶/❌에서 이동.
-- 🔶 부분구현/수치상으로만 존재(공식은 있으나 자동 트리거 없음): 약 20개 항목. 남은 대부분은
-  여전히 "조사/드랍/파괴/트랩/방어건물/버프·디버프·소환/전멸전투기록/소리·전파" 등 대응 게임
-  상태·엔티티가 없어서다 — 파티/오브젝트/시체·흔적 자체는 더 이상 블로커가 아니다.
-- ❌ 순수 미구현: 9장 내부정보 5필드, 13-1장 레벨총합보정(공식 미정), 16장 유닛흥미도 타일 합산
-  (🆕), 24장 9개 적용대상 실제 연동(🆕) — 4건, 07-08과 동일(이번엔 이 4건을 직접 건드리지 않음).
+  E_WIPEOUT_TRACE_FOUND/E_WIPEOUT_TRACE_CHECK/E_OBJECT_INVESTIGATED 자동발동, 19장 시체/흔적
+  흥미도 자동적용(확인 시 0 처리 포함), 18장 units.json weight 블록 반영 경로, 16장 유닛 흥미도
+  타일 합산(우선순위 2번), 17장 오브젝트 조사 단계(우선순위 3번, IsInvestigated 신설) — 도합 +9,
+  전부 🔶/❌에서 이동.
+- 🔶 부분구현/수치상으로만 존재(공식은 있으나 자동 트리거 없음): 약 17개 항목. 남은 대부분은
+  여전히 "드랍/파괴/트랩/방어건물/버프·디버프·소환/전멸전투기록/소리·전파" 등 대응 게임 상태·
+  엔티티가 없어서다 — 파티/오브젝트/시체·흔적/조사 단계 자체는 더 이상 블로커가 아니다.
+- ❌ 순수 미구현: 9장 내부정보 5필드, 13-1장 레벨총합보정(공식 미정), 24장 9개 적용대상 실제
+  연동(🆕) — 3건. 16장 유닛흥미도 타일 합산은 이번에 풀려서 (1) 개정판 미반영 항목은 이제 없음.
 - 계산 공식 자체의 정확도는 매우 높다(문서 예시가 있는 곳은 전부 테스트로 고정). 남은 미구현/
   부분구현은 거의 대부분 "그 이벤트를 발생시킬 하위 게임 시스템이 아직 없다"는 동일한 원인으로
   수렴한다 — 다만 그 목록은 계속 줄고 있다(오브젝트→방→파티→시체/흔적 순으로 이번 주에 넷이 풀림).
-- (1) 개정판 미반영 항목은 이제 16장 "+유닛 흥미도" 합산 1개만 남음. 24장의 9개 대상 실제 연동은
-  개정판 확장 사항이라기보다 원래도 미구현이던 부분.
+- (1) 개정판 미반영 항목은 이제 없음(16장 "+유닛 흥미도" 합산이 마지막 남은 항목이었고 이번에
+  풀렸다). 24장의 9개 대상 실제 연동은 개정판 확장 사항이라기보다 원래도 미구현이던 부분.

@@ -45,6 +45,18 @@ public class Action_PlayerCommandExecute : GoapAction
 					Vector3Int interactPos = unit.playerInteractTarget.Value;
 					if (unit.Session.objectGrid.TryGetValue(interactPos, out InteractableObject obj) && !obj.IsCollected)
 					{
+						// 17장/19장: 조사→회수(루팅) 또는 확인(시체·흔적) 2단계를 도달 즉시 순서대로
+						// 자동 처리한다 — 플레이어 조작은 지금처럼 한 번의 상호작용 그대로 두고,
+						// 내부적으로만 "조사 완료(50%감소)" 이벤트를 먼저 찍은 뒤 "회수/확인 완료
+						// (0%)"로 이어간다. Corpse/WipeoutTrace는 문서상 조사 단계 없이 확인 즉시
+						// 0으로 가므로 조사 단계를 건너뛴다.
+						bool isTrace = obj.Tags.Contains("Corpse") || obj.Tags.Contains("WipeoutTrace");
+						if (!isTrace && !obj.IsInvestigated)
+						{
+							human.personalMap.OnObjectInvestigated(obj.Id);
+							obj.IsInvestigated = true;
+						}
+
 						unit.Session.CollectObject(interactPos);
 						human.personalMap.OnObjectCollected(obj.Id);
 						human.collectedObjects.Add(obj.Id);

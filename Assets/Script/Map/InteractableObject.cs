@@ -13,7 +13,10 @@ public class InteractableObject
     // 이 값을 0이 아닌 값으로 생성하기만 하면 된다(파이프는 이미 연결돼 있음).
     public float BaseDanger;
     public bool IsCollected;
-    
+    // 17장: 조사(investigate) 완료 여부 — Loot 오브젝트에만 의미가 있다(조사 50%감소 → 회수 0%감소
+    // 2단계). Corpse/WipeoutTrace는 확인(check) 즉시 흥미도 0으로 가는 단일 단계라 이 필드를 안 쓴다.
+    public bool IsInvestigated;
+
     // 시체/전리품 등을 구분하기 위한 태그
     public List<string> Tags = new List<string>();
     // 시체(흔적)인 경우, 원인 제공자의 위험도 단계

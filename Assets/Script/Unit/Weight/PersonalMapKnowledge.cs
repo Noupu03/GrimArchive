@@ -247,7 +247,22 @@ public class PersonalMapKnowledge
 			? recorded
 			: (explored ? WeightMath.ExploredTileBaseInterest : WeightMath.UnexploredTileBaseInterest);
 		float objectInterest = (objectIdAtTile != null && _objectInterest.TryGetValue(objectIdAtTile, out var oi)) ? oi : 0f;
-		return WeightMath.ComposeTileInterest(baseTileInterest, objectInterest);
+		// 16장(v0.7 (1) 개정판): "기본 탐사 흥미도 + 오브젝트, 유닛 흥미도" — 유닛 흥미도 항.
+		// ComposeTileInterest는 2항 합산 함수라 오브젝트+유닛을 미리 더해서 넘긴다(문서 예시
+		// 5+120=125가 그대로 성립하도록 함수 시그니처/기존 테스트는 안 건드림).
+		float unitInterest = GetUnitInterestAtTile(pos);
+		return WeightMath.ComposeTileInterest(baseTileInterest, objectInterest + unitInterest);
+	}
+
+	// 16장 "유닛 흥미도" 항 — 이 관찰자가 그 타일에서 마지막으로 목격한 몬스터(들)의 흥미도
+	// 스냅샷 합. _monsterSightings도 오브젝트(_objectTile)와 마찬가지로 타일→키 역방향 색인이
+	// 없어 선형 탐색으로 처리한다(목격 몬스터 수가 적어 호출 빈도 낮은 조회 쪽에서 감당).
+	private float GetUnitInterestAtTile(Vector3Int pos)
+	{
+		float sum = 0f;
+		foreach (var sighting in _monsterSightings.Values)
+			if (sighting.Tile == pos) sum += sighting.InterestSnapshot;
+		return sum;
 	}
 
 	// GetTileDanger(pos)와 동일한 이유의 편의 오버로드 — 지형 밝히기 기록으로 탐사 여부를 자동 판단.

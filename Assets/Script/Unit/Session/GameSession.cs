@@ -160,9 +160,12 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.baseDanger);
             }
             
-            List<string> tags = new List<string> { "Corpse", u is Monster ? "Monster" : "Human" };
+            bool isMonsterCorpse = u is Monster;
+            List<string> tags = new List<string> { "Corpse", isMonsterCorpse ? "Monster" : "Human" };
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
-            SpawnObject(corpse, new Color(0.5f, 0f, 0f)); // 어두운 붉은색
+            // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
+            Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);
+            SpawnObject(corpse, corpseColor);
         }
 
         if (u != null) CheckPartyWaveState(u);
