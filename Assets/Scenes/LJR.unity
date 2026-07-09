@@ -125115,7 +125115,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1448261629}
-  - component: {fileID: 1448261628}
   - component: {fileID: 1448261630}
   m_Layer: 0
   m_Name: UnitManager
@@ -125124,30 +125123,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1448261628
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1448261626}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 478494616}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GameSession
-  currentGameSpeed: 1
-  isPaused: 0
-  humanMapTextures:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  monsterMapTextures:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
 --- !u!4 &1448261629
 Transform:
   m_ObjectHideFlags: 0

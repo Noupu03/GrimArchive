@@ -1,17 +1,16 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine.InputSystem;
 using VContainer;
+using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
 using Haare.Util.Logger;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
-// MonoRoutine.UpdateProcess()가 Processor.Instance.Onupdate 구독을 통해 매 프레임 호출된다.
-public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
+// NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
+// 인스펙터 데이터가 전혀 없어서(디버그 텍스처 뷰 제거 후) 씬 GameObject일 필요가 없는 순수 C# 클래스.
+public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
 {
     public static GameSession Instance { get; private set; }
     public CreateMap cmap { get; private set; }
@@ -35,15 +34,9 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
     public List<Unit> units { get; private set; } = new List<Unit>();
     public List<Party> parties { get; private set; } = new List<Party>();
     private float updateTimer = 0f;
-    private float textureUpdateTimer = 0f;
-    private bool needTextureUpdate = false;
 
     public float currentGameSpeed = 1f;
     public bool isPaused = false;
-
-    [Header("진영별 맵 시각화 텍셀 (인스펙터에서 클릭하여 확인)")]
-    public Texture2D[] humanMapTextures = new Texture2D[4];
-    public Texture2D[] monsterMapTextures = new Texture2D[4];
 
     public void RegisterUnitPos(Unit u, Vector2Int pos)
     {
@@ -73,36 +66,35 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         }
     }
 
-    // MonoRoutine.Awake()는 private라 오버라이드 불가 — 대신 InitializeAsync()가 맨 처음
-    // 동기적으로 호출해주는 Constructor()가 예전 Awake() 배선을 대체한다.
-    protected override void Constructor()
+    public GameSession()
     {
         Instance = this;
 
         // InputManager/UIManager/ThreatTileRenderer는 이제 GameCompositionRoot(VContainer)가 배선한다.
     }
 
-    void Start()
+    // NativeRoutine 생명주기: Processor 등록 완료 후 한 번 호출됨 (예전 Start()와 동일한 역할)
+    public override async UniTask Initialize(CancellationToken cts)
     {
-        // 순환 참조 방지를 위해 Start 시점에 UIManager를 지연 로드하여 강제로 띄웁니다.
+        // 순환 참조 방지를 위해 이 시점에 UIManager를 지연 로드하여 강제로 띄웁니다.
         if (_resolver != null)
         {
             _resolver.Resolve<UIManager>();
         }
 
-        cmap = FindObjectOfType<CreateMap>();
+        cmap = UnityEngine.Object.FindObjectOfType<CreateMap>();
         if (cmap != null)
         {
             Unit.humanFactionData.InitMap(cmap);
             Unit.monsterFactionData.InitMap(cmap);
         }
+
+        await base.Initialize(cts);
     }
 
-    // Processor.Instance.Onupdate 구독을 통해 매 프레임 호출됨 (예전 Update()와 동일한 역할)
-    protected override void UpdateProcess()
+    // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함 (예전 Update()와 동일한 역할)
+    public override void UpdateProcess()
     {
-        base.UpdateProcess(); // MonoRoutine 자체의 Onupdate Subject도 계속 발행되도록 유지
-
         HandleDebugInput();
 
         bool visualNeedsSync = false;
@@ -115,7 +107,6 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             {
                 RemoveDeadUnit(i, u);
                 visualNeedsSync = true;
-                needTextureUpdate = true;
                 continue; // 사망/파괴 시 시각적 요소 제거 완료
             }
 
@@ -126,7 +117,6 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             {
                 ProcessUnitAction(u);
                 visualNeedsSync = true;
-                needTextureUpdate = true;
             }
         }
 
@@ -138,14 +128,6 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             }
         }
 
-        // 최적화 3: 텍스처 갱신 쓰로틀링
-        textureUpdateTimer += Time.deltaTime;
-        if (needTextureUpdate && textureUpdateTimer >= 0.2f)
-        {
-            UpdateFactionTextures();
-            needTextureUpdate = false;
-            textureUpdateTimer = 0f;
-        }
         if (_threatTileRenderer != null)
         {
             _threatTileRenderer.Render(units);
@@ -173,7 +155,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         }
         if (u != null) UnregisterUnitPos(u, u.position);
         units.RemoveAt(index);
-        if (u != null) Destroy(u);
+        if (u != null) UnityEngine.Object.Destroy(u);
     }
 
     // ─────────────────────────── 파티 시스템 ───────────────────────────
@@ -334,7 +316,7 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
 
     private Vector2Int GetRandomStartRoomPos(Vector2 footprint, int floorIdx)
     {
-        CreateMap mapGenerator = cmap != null ? cmap : FindObjectOfType<CreateMap>();
+        CreateMap mapGenerator = cmap != null ? cmap : UnityEngine.Object.FindObjectOfType<CreateMap>();
 
         if (mapGenerator == null || mapGenerator.map.floors == null || floorIdx < 0 || floorIdx >= mapGenerator.map.floors.Length)
             return Vector2Int.zero;
@@ -480,121 +462,4 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         }
     }
 
-    private void UpdateFactionTextures()
-    {
-        if (cmap == null || cmap.map.floors == null) return;
-        int floorCount = cmap.map.floors.Length;
-        if (humanMapTextures.Length != floorCount) humanMapTextures = new Texture2D[floorCount];
-        if (monsterMapTextures.Length != floorCount) monsterMapTextures = new Texture2D[floorCount];
-
-        for (int f = 0; f < floorCount; f++)
-        {
-            int mapW = Unit.humanFactionData.discoveredMap[f].GetLength(0);
-            int mapH = Unit.humanFactionData.discoveredMap[f].GetLength(1);
-
-            if (humanMapTextures[f] == null || humanMapTextures[f].width != mapW || humanMapTextures[f].height != mapH) { humanMapTextures[f] = new Texture2D(mapW, mapH); humanMapTextures[f].filterMode = FilterMode.Point; }
-            if (monsterMapTextures[f] == null || monsterMapTextures[f].width != mapW || monsterMapTextures[f].height != mapH) { monsterMapTextures[f] = new Texture2D(mapW, mapH); monsterMapTextures[f].filterMode = FilterMode.Point; }
-
-            Color[] hPixels = new Color[mapW * mapH];
-            Color[] mPixels = new Color[mapW * mapH];
-
-            for (int y = 0; y < mapH; y++)
-            {
-                for (int x = 0; x < mapW; x++)
-                {
-                    int hVal = Unit.humanFactionData.discoveredMap[f][x, y];
-                    hPixels[y * mapW + x] = hVal == 1 ? Color.white : (hVal == 2 ? Color.gray : Color.black);
-
-                    int mVal = Unit.monsterFactionData.discoveredMap[f][x, y];
-                    mPixels[y * mapW + x] = mVal == 1 ? Color.white : (mVal == 2 ? Color.gray : Color.black);
-                }
-            }
-
-            foreach (var u in units)
-            {
-                if (u == null || u.currentFloor != f) continue;
-                int idx = u.position.y * mapW + u.position.x;
-                if (u.position.x >= 0 && u.position.x < mapW && u.position.y >= 0 && u.position.y < mapH)
-                {
-                    if (u is Human)
-                    {
-                        hPixels[idx] = Color.green;
-                        if (Unit.humanFactionData.spottedEnemyUnits.Contains(u)) hPixels[idx] = Color.red;
-                    }
-                    else if (u is Monster)
-                    {
-                        mPixels[idx] = Color.yellow;
-                        if (Unit.monsterFactionData.spottedEnemyUnits.Contains(u)) mPixels[idx] = Color.blue;
-                    }
-                }
-            }
-
-            foreach (var enemy in Unit.humanFactionData.spottedEnemyUnits)
-            {
-                if (enemy == null || enemy.currentFloor != f) continue;
-                int idx = enemy.position.y * mapW + enemy.position.x;
-                if (enemy.position.x >= 0 && enemy.position.x < mapW && enemy.position.y >= 0 && enemy.position.y < mapH) hPixels[idx] = Color.red;
-            }
-
-            foreach (var enemy in Unit.monsterFactionData.spottedEnemyUnits)
-            {
-                if (enemy == null || enemy.currentFloor != f) continue;
-                int idx = enemy.position.y * mapW + enemy.position.x;
-                if (enemy.position.x >= 0 && enemy.position.x < mapW && enemy.position.y >= 0 && enemy.position.y < mapH) mPixels[idx] = Color.blue;
-            }
-
-            // 오브젝트 시각화 (자홍색)
-            foreach (var kvp in objectGrid)
-            {
-                if (kvp.Value.Position.z == f)
-                {
-                    int idx = kvp.Key.y * mapW + kvp.Key.x;
-                    if (kvp.Key.x >= 0 && kvp.Key.x < mapW && kvp.Key.y >= 0 && kvp.Key.y < mapH)
-                    {
-                        hPixels[idx] = Color.magenta;
-                        mPixels[idx] = Color.magenta;
-                    }
-                }
-            }
-
-            humanMapTextures[f].SetPixels(hPixels);
-            humanMapTextures[f].Apply();
-
-            monsterMapTextures[f].SetPixels(mPixels);
-            monsterMapTextures[f].Apply();
-        }
-    }
 }
-
-#if UNITY_EDITOR
-[CustomEditor(typeof(GameSession))]
-public class GameSessionEditor : Editor
-{
-    public override void OnInspectorGUI()
-    {
-        base.OnInspectorGUI();
-
-        GameSession gs = (GameSession)target;
-
-        int maxFloor = gs.humanMapTextures != null ? gs.humanMapTextures.Length : 0;
-        for (int f = 0; f < maxFloor; f++)
-        {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField($"[{f}층] 인류 / 몬스터 맵", EditorStyles.boldLabel);
-
-            EditorGUILayout.BeginHorizontal();
-            if (gs.humanMapTextures != null && gs.humanMapTextures.Length > f && gs.humanMapTextures[f] != null)
-            {
-                Rect rect1 = GUILayoutUtility.GetRect(128, 128);
-                GUI.DrawTexture(rect1, gs.humanMapTextures[f], ScaleMode.ScaleToFit);
-            }
-            if (gs.monsterMapTextures != null && gs.monsterMapTextures.Length > f && gs.monsterMapTextures[f] != null)
-            {
-                Rect rect2 = GUILayoutUtility.GetRect(128, 128);
-                GUI.DrawTexture(rect2, gs.monsterMapTextures[f], ScaleMode.ScaleToFit);
-            }
-            EditorGUILayout.EndHorizontal();
-        }
-    }
-}
-#endif

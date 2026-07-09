@@ -6554,7 +6554,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1448261629}
-  - component: {fileID: 1448261631}
   - component: {fileID: 1448261632}
   m_Layer: 0
   m_Name: UnitManager
@@ -6578,30 +6577,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1448261631
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1448261626}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 337f4a48195a4e44e8384f7f544b7f23, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GameSession
-  currentGameSpeed: 1
-  isPaused: 0
-  humanMapTextures:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  monsterMapTextures:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
 --- !u!114 &1448261632
 MonoBehaviour:
   m_ObjectHideFlags: 0
