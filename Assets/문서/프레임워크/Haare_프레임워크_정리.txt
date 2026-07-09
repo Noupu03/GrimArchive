@@ -1,0 +1,246 @@
+Haare 프레임워크 정리
+원본: https://github.com/kirihara-unity/HaareFramework (SubmarineMirageFramework에서 영감받은
+경량 UI 중심 Unity 프레임워크, 이 프로젝트엔 Assets/Haare/ 아래 벤더링됨)
+작성일: 2026-07-09
+작성 방식: GitHub README(작성자 설명) + Assets/Haare/ 실제 소스 코드 대조 확인 + 이 프로젝트
+         (GrimArchive_Prototype)에서 실제로 쓰이는지 grep으로 하나하나 확인. "불확실"이라고
+         표시한 부분 외엔 코드로 직접 확인된 내용이다.
+
+════════════════════════════════════════════════════════════════════════
+0. 한 줄 요약 — Haare가 해결하려는 문제
+════════════════════════════════════════════════════════════════════════
+Unity MonoBehaviour의 생애주기(Awake/Start/Update/OnDestroy)는 GameObject마다 파편화되어 있어서
+"모든 걸 한 곳에서 통제"하기 어렵다. Haare는 이걸 Processor라는 단일 중앙 관리자로 모으고,
+VContainer(DI) + R3(Reactive) + UniTask(비동기) + DOTween(UI 애니메이션) 위에 "Routine 생애주기",
+"DI 기반 서비스 등록", "패널 스택 UI", "JSON↔로컬저장 데이터 모델"을 얹은 조합형 프레임워크다.
+필수 패키지: VContainer, R3, UniTask, DOTween, Addressables, TextMeshPro. Unity 2022.3 LTS+.
+
+이 프로젝트는 이 프레임워크의 "Routine 생애주기"와 "Panel UI 시스템", "DataManager"만 실제로 쓰고
+있고, 나머지(Presenter/EntryPoint 패턴, SceneService, CoreLifetimeScope 계층, 구식 Addressable
+유틸 3종)는 코드에 존재하지만 이 프로젝트는 안 쓴다 — 8장에 표로 정리했다.
+
+════════════════════════════════════════════════════════════════════════
+1. 핵심 — Routine 생애주기 시스템 (Processor / MonoRoutine / NativeRoutine)
+════════════════════════════════════════════════════════════════════════
+이 프레임워크의 진짜 핵심. GameSession/VFXManager/ThreatTileRenderer를 MonoBehaviour에서
+떼어내는 작업(이 세션 앞부분)을 하면서 이미 소스를 전부 읽었다 — 가장 자신 있게 설명 가능한 부분.
+
+Assets/Haare/Scripts/Client/Core/Processor.cs
+  - 모든 Routine(MonoRoutine/NativeRoutine 둘 다)의 "생애주기 총관리자". 싱글턴
+    (SingletonMonoBehaviour<Processor> — 3장 참고), 씬에 배치할 필요 없이 최초 접근 시 자동 생성.
+  - `Routines` 리스트에 IRoutine을 등록/해제(`Register`/`UnRegister`). 매 프레임 `Onupdate`
+    (R3 Subject)를 발행하면서, 그 구독 콜백 안에서 `Routines`를 순회해 `INativeRoutine`인 애들의
+    `UpdateProcess()`를 직접 호출한다.
+  - MonoRoutine은 이 순회 대상이 아니다 — MonoRoutine 스스로가 `Processor.Instance.Onupdate`를
+    자체 구독해서 별도 타이밍으로 갱신된다("단 MonoRoutine은 별도의 타이밍으로 작동됩니다" —
+    Processor.cs 자체 주석). 즉 NativeRoutine은 Processor가 "불러주는" 방식, MonoRoutine은
+    스스로 "듣는" 방식 — 프레임 내 정확한 순서가 미묘하게 다를 수 있다는 뜻이라 섞어 쓸 때 주의.
+
+Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs — MonoBehaviour 기반
+  - Unity의 `Awake()`가 비동기 `InitializeAsync()`를 트리거 → `protected virtual void
+    Constructor()`(옛 Awake 역할, override해서 씀) → `Processor.Instance.isInitialized` 대기 →
+    `Processor.Instance.Register(this, cts)` → Onupdate/OnLateupdate/OnFixedupdate 구독.
+  - `OnDestroy()`에서 `Processor.Instance.UnRegister(this)`로 자동 해제.
+  - 씬에 GameObject로 배치하거나(인스펙터 데이터가 필요할 때), 코드로 AddComponent해서 쓴다.
+
+Assets/Haare/Scripts/Client/Routine/NativeRoutine.cs — 순수 C# 기반
+  - `protected NativeRoutine()` 생성자가 즉시 내부 등록 절차를 시작 → `Processor.Instance.
+    Register(this, cts)`. GameObject/컴포넌트가 전혀 없어도 `new XXX()` 한 줄로 Update 루프에
+    들어간다 — "MonoBehaviour가 아니지만 Update와 비동기 Initialize를 가진 순수 C# 클래스"가
+    이 프레임워크의 핵심 셀링 포인트(README 표현).
+  - `UpdateProcess()`는 Processor가 직접 호출(위 참고), `Initialize(CancellationToken)`(비동기)은
+    Processor가 초기화 완료 후 한 번 호출.
+
+이 프로젝트(GrimArchive)의 실사용: `GameSession`/`ThreatTileRenderer`/`VFXManager`가 전부
+MonoRoutine → NativeRoutine 또는 순수 C#으로 이번 세션에 전환됐다(인스펙터 데이터가 없으면 씬
+배치가 필요 없다는 원칙). `UnitSpriteManager`도 마찬가지. `DataManager`(4장)도 원래부터
+NativeRoutine. `UIManager`는 `OnGUI()`가 필요해서 MonoBehaviour(정확히는 MonoRoutine 계열)를
+그대로 유지 — Haare의 Routine 시스템은 "MonoBehaviour가 꼭 필요한지"를 매번 따져 묻게 만드는
+설계다.
+
+════════════════════════════════════════════════════════════════════════
+2. 부트스트랩 — HaareClient.cs
+════════════════════════════════════════════════════════════════════════
+`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]`로 씬 로드 전에 자동 실행되는 정적 진입점 —
+씬 어디에도 배치할 필요가 없다. 흐름:
+  1. `Processor.WaitForCreation()` — 최초 접근 시 `Processor` GameObject를 자동 생성하고
+     `DontDestroyOnLoad` 적용.
+  2. `Processor.Instance.Constructor(InitializePlugin, RegisterProcesses)` 호출.
+  3. `RegisterProcesses`가 씬에 `EventSystem`(New Input System용 InputSystemUIInputModule)과
+     `AudioListener`가 없으면 자동 생성.
+이 프로젝트는 이 부트스트랩을 그대로 상속해서 쓴다 — 별도로 손댄 진입점 없음.
+
+════════════════════════════════════════════════════════════════════════
+3. 싱글턴 기반 — Singleton.cs / SingletonMono.cs
+════════════════════════════════════════════════════════════════════════
+두 갈래가 있다:
+  - `Singleton<T> : NativeRoutine` (T : new()) — 순수 C# 싱글턴.
+  - `SingletonMonoBehaviour<T> : MonoRoutine` (T : MonoRoutine) — MonoBehaviour 싱글턴. `.Instance`
+    최초 접근 시 새 GameObject를 만들어 컴포넌트를 붙이고 `DontDestroyOnLoad` 적용(지연 생성).
+`Processor : SingletonMonoBehaviour<Processor>`가 이 패턴의 실사용 예 그 자체(1장 참고).
+
+════════════════════════════════════════════════════════════════════════
+4. DI / Presenter — CoreLifetimeScope, GamePresenter, IPresenter, UIPresenter
+════════════════════════════════════════════════════════════════════════
+Haare는 VContainer의 `LifetimeScope`를 그대로 쓰되, 프레임워크 전역 서비스를 미리 등록해 둔
+`CoreLifetimeScope : LifetimeScope`를 "루트 scope"로 상정한다 — `DataManager`/`SceneService`/
+`CoreUIManager`(프리팹, DontDestroyOnLoad)/`GamePresenter`(엔트리포인트)를 등록.
+
+⚠️ 확인된 사실: 이 프로젝트의 `GameCompositionRoot`는 `CoreLifetimeScope`를 상속하지 **않고**
+`LifetimeScope`를 직접 상속한다 — `DataManager`/`CoreUIManager`를 자체적으로 별도 재등록하는
+병렬 구조다. 그리고 Haare의 공식 Demo 예제(`DemoLoadScope`/`DemoTitleScope`)조차 `Parent =>
+FindObjectOfType<CoreLifetimeScope>()` 줄이 주석 처리돼 있어서, "Core→씬 Scope 부모-자식 DI
+계층"은 프레임워크가 의도한 설계이긴 하지만 프레임워크 제작자 본인의 예제조차 실제로 안 쓰고
+있다(코드 정황상 그렇다는 것이지, 의도적으로 뺀 건지 아직 안 쓴 건지는 불확실). 즉 이 프로젝트가
+`CoreLifetimeScope`를 상속 안 하는 건 이 프로젝트만의 특이 사례가 아니라, 프레임워크 자체가
+실질적으로 "각 프로젝트가 자기 루트 LifetimeScope를 새로 짜는" 방식으로 쓰이고 있다는 뜻.
+
+`GamePresenter`는 이름과 달리 View 프레젠터가 아니라 앱 전역 부트스트랩 글루 코드다(씬 로드 완료
+시 `Processor.CheckDeleteProcessesForScene()` 호출). 진짜 MVP 패턴의 Presenter 역할은
+`UIPresenter`(추상 클래스)가 한다 — `CoreUIManager`/`SceneUIManager`/`IObjectResolver`를 주입받고
+`OpenPanelWithFade<T>()`/`ClosePanelWithFade<T>()`(페이드 전환 + 패널 로드를 한 번에), `BindPanelEvents
+<TPanel>()`(패널이 준비되면 반응형으로 이벤트 바인딩) 헬퍼를 제공한다.
+
+⚠️ 이 프로젝트는 `UIPresenter`/`IPresenter`/`RegisterEntryPoint` 패턴을 전혀 안 쓴다(grep 매치
+없음) — `UIManager.cs`는 이 패턴 없이 자체적으로 짠 클래스다. Haare를 "제대로" MVP로 쓰려면
+이 Presenter 계층을 도입해야 하는데, 지금은 그 부분만 건너뛰고 Routine/Panel/DataManager만
+가져다 쓰는 상태.
+
+════════════════════════════════════════════════════════════════════════
+5. 데이터 관리 — DataManager.cs, [DataModelAttribute]
+════════════════════════════════════════════════════════════════════════
+`DataManager : NativeRoutine`. `GetModel<T>()` 호출 흐름:
+  1. 캐시(`modelRegistry`)에 이미 있으면 즉시 반환.
+  2. `[DataModelAttribute(dataType, addressablePath, localPath)]`를 리플렉션으로 조회.
+  3. `AssetLoader.Exists(localPath)`(= `Application.persistentDataPath` 기준 로컬 세이브 파일
+     존재 여부)가 참이면 로컬 파일 로드, 아니면 Addressable 템플릿 로드.
+  4. `JsonUtility.FromJson`(리플렉션 제네릭 래퍼 `JsonUtil.JsonUtilityGeneric`)으로 역직렬화.
+  5. 모델 타입의 "(역직렬화 타입) 하나 받는 생성자"를 리플렉션으로 찾아 호출해서 모델 인스턴스 생성.
+  6. 캐시에 등록. 이번이 최초 Addressable 로드였다면 그 즉시 로컬에도 저장(`AssetLoader.SaveJson`)
+     — 그 다음부터는 로컬 파일이 우선이 된다.
+즉 "번들에 든 기본 템플릿 → 최초 1회 로컬 세이브 파일로 복사 → 이후엔 로컬 읽기/쓰기만" 패턴이다
+(세이브 데이터 마이그레이션에 흔한 방식).
+
+이 프로젝트의 실사용 확인: `Assets/Script/Map/MapSaveModel.cs`가 `[DataModelAttribute(typeof(
+MapSerializer.MapDto), "", "Save/map.json")]`로 `DataManager.GetModel<MapSaveModel>()`을 써서
+맵 데이터를 저장/로드한다. 가중치 시스템(units.json/skills.json/weight_events.json)은 이 경로를
+안 쓰고 `JsonUtility.FromJson` + `File.ReadAllText`를 직접 쓴다(Assets/Editor/
+JsonToUnitPrefabConverter.cs 등) — DataManager는 "런타임 세이브 데이터"용, 유닛/스킬 정의처럼
+"에디터에서 미리 굽는 데이터"는 별도 경로라는 구분으로 보인다(불확실 — 프로젝트 관례상 그렇게
+갈린 것으로 보이지만 명시적으로 문서화된 규칙은 아님).
+
+════════════════════════════════════════════════════════════════════════
+6. 씬 로딩 — SceneService.cs (이 프로젝트는 미사용)
+════════════════════════════════════════════════════════════════════════
+`SceneService : NativeRoutine`. `Addressables.LoadSceneAsync`로 Additive 씬 전환을 수행하고,
+`ReactiveProperty<SceneLoadPhase>`(UnloadCurrent→StartLoad→Loading→EndLoad)로 진행 상태를
+Observable로 방출한다. 로딩 중엔 `LoadingFadePanel`이 자동으로 뜬다. 씬 언로드 후 그 씬 스코프의
+Routine들을 정리하는 데 `ISceneWasLoaded`(Unity `ExecuteEvents`로 씬의 루트 오브젝트들에
+브로드캐스트)를 쓴다.
+
+⚠️ `SceneName` enum과 `AssetPath.SCENE_PATH`("Assets/Haare/Demo/Scene/")가 Demo 씬 3개로
+하드코딩돼 있다 — 실제 프로젝트가 쓰려면 이 enum/경로를 직접 확장해야 함. 이 프로젝트는 씬이
+하나(ssh.unity)뿐이라 SceneService를 아예 안 쓴다(grep 매치 없음) — 여러 씬을 오가는 구조가
+생기면 그때 이 부분을 손봐야 한다.
+
+════════════════════════════════════════════════════════════════════════
+7. UI 시스템 — Panel / Custom 위젯 / TweenUI
+════════════════════════════════════════════════════════════════════════
+## 7-1. Panel 시스템 (이 프로젝트의 주력 UI 패턴)
+`[PanelAttribute("addressable/경로")]`(클래스 속성) + `ICustomPanel`(OpenPanel/ClosePanel/
+SetData/BindEvent — C# 8 디폴트 인터페이스 구현이 많아 필요한 것만 override) + `IPanelData`
+(빈 마커 인터페이스, 패널에 데이터를 넘길 때 씀).
+
+`SceneUIManager`(`MonoRoutine, ISceneWasLoaded`)가 `PanelDic` + `Stack<PanelType>`으로 패널을
+스택처럼 관리한다:
+  - `LoadPanel<T>()` — 리플렉션으로 클래스의 `[PanelAttribute]` 경로를 읽어 `AssetLoader.
+    InstantiatePrefab`으로 Addressable 프리팹을 인스턴스화.
+  - `ClosePanel<T>()` — 스택 맨 위에 있는 패널일 때만 닫고, 그 아래 패널의 `ReloadPanel()`을
+    호출(다시 활성화되는 뷰가 최신 상태로 갱신되도록).
+`CoreUIManager : SceneUIManager`는 전역(DontDestroyOnLoad) 인스턴스 — Haare UI 창구의 최상위.
+
+이 프로젝트의 실사용 확인: `Assets/Script/UI/DebugInfoPanel.cs`가 정확히 `[PanelAttribute(
+"Prefabs/DebugInfoPanel")] : MonoRoutine, ICustomPanel`로 이 패턴을 그대로 쓴다. Haare Demo의
+`UI/DebugPanel.cs`(`BindEvent()`에서 `CloseButton.Onclicked` 구독 → `uiManager.ClosePanel<T>()`)
+가 사실상 원형이다.
+
+## 7-2. Custom UI 위젯 (전부 MonoRoutine 기반)
+  - `CustomButton` — Pointer 이벤트를 R3 `Subject`(`Onclicked`/`Onhovered`/`Onexited`)로 발행,
+    0.5초 클릭 쿨다운 내장, 옵션으로 hover/click 시 DOTween 스케일 펀치·색상/이미지 전환.
+  - `CustomImage` — common/hover/click 스프라이트 3종 + 슬라이드인/팝업 애니메이션.
+  - `CustomText` — 텍스트/색상 셋업 헬퍼.
+  - `CustomSlider` — min/max/value 셋업 헬퍼.
+  - `TweenUI.cs`의 `UIAnimator` — 위 위젯들이 내부적으로 쓰는 순수 DOTween 래퍼(순수 C#, Hover/
+    Click 트윈을 트리거하는 메서드 모음).
+이 프로젝트의 실사용 확인: `UIManager.cs`, `DebugInfoPanel.cs`가 이 `Custom*` 컴포넌트들을 쓴다.
+
+════════════════════════════════════════════════════════════════════════
+8. 유틸리티
+════════════════════════════════════════════════════════════════════════
+- **AssetLoader**(`Haare.Util.Loader`, static) — `InstantiatePrefab<T>`/`LoadAsset<T>`
+  (Addressables + UniTask + 에러 로깅 래핑), `Exists`/`LoadJsonAsync`/`SaveJson`(전부
+  `Application.persistentDataPath` 기준 로컬 파일 I/O). `GetItemSO<T>`는 주석상 "이제 사용안해"
+  — 사실상 죽은 코드.
+- **LogHelper**(`Haare.Util.Logger`, static) — 이 프로젝트 전역에서 `LogHelper.Log(LogHelper.GAME,
+  ...)` 형태로 매우 광범위하게 쓰는 그 로거. `Log`/`LogTask`(마지막 인자가 메시지, 나머지는 헤더로
+  합쳐짐)와 `Warning`/`Error`(헤더에 색상 브래킷 적용)가 있다. `GAME`/`FRAMEWORK`/`DATAMANAGER`/
+  `ASSETLOADER`/`SERVICE`/`TASK`/`DEMO` 같은 카테고리는 이 클래스 안에 미리 색상 입혀 정의된
+  `public static string` 상수일 뿐이다 — 별도 등록 절차 없음. 새 카테고리가 필요하면 이 파일
+  자체에 상수를 추가하거나, 그냥 리터럴 문자열을 바로 넘겨도 동작한다.
+- **HashGenerator** — `GetUniqueHashCode()`, GUID 기반 유니크 int 해시 한 줄짜리 유틸. 정확히
+  어디서 쓰이는지(`IDataInstance.Hash`용으로 추정) 호출부를 못 찾음 — 불확실.
+- **FPSLogger** — `MonoRoutine` 기반 FPS 카운터 디버그 오버레이, `CustomText`에 표시.
+- ⚠️ **AddressableLoader.cs / PrefabPath.cs / PrefabUtil.cs — 구식/데모 전용 경로로 보임, 이
+  프로젝트는 전혀 안 씀(grep 매치 없음)**. `AddressableLoader`(순수 `MonoBehaviour` + 코루틴,
+  Addressables 패치 다운로드 UI, Processor 미연동)와 `PrefabUtil.InstantiatePrefab`(`AssetLoader`
+  의 것과 로직이 중복되고 `PrefabParam` 래퍼만 다름)은 `PrefabPath.PrefabDict`(Demo 패널 4종 +
+  Demo 씬 경로가 하드코딩됨)에 종속돼 있다. 이 프로젝트의 Panel 시스템은 대신 `[PanelAttribute]`를
+  클래스에 직접 붙이는 방식(7-1 참고)을 쓰므로 이 셋을 새로 쓸 이유가 없다 — 헷갈리지 않게 존재만
+  알아두면 된다.
+
+════════════════════════════════════════════════════════════════════════
+9. Demo 폴더 — 공식 사용 예시 요약
+════════════════════════════════════════════════════════════════════════
+Assets/Haare/Demo/ 아래는 프레임워크 제작자가 만든 "정답 예제"다. 새 패턴이 필요할 때 여기서
+베껴 시작하면 된다.
+  - `Script/DemoNative.cs` — NativeRoutine 최소 예제. `Initialize`/`UpdateProcess`/`Finalize`
+    오버라이드, `isInSceneOnly => true`(씬 언로드 시 자동 정리 대상으로 표시).
+  - `Script/LoadScene/DemoLoadScope.cs`, `Script/TitleScene/DemoTitleScope.cs` — "씬 하나 만들
+    때의 표준 패턴": `[Scene]Scope : LifetimeScope`가 `[Scene]UIManager : SceneUIManager` +
+    `[Scene]Mono`(씬 전용 네이티브 로직)를 등록하고 `RegisterEntryPoint<[Scene]UIPresenter>()`
+    호출. (단, `Parent => FindObjectOfType<CoreLifetimeScope>()` 줄은 둘 다 주석 처리돼 있음 —
+    4장 참고.)
+  - `Script/UI/DebugPanel.cs` — Panel 시스템 실사용 원형(7-1 참고).
+
+════════════════════════════════════════════════════════════════════════
+10. 이 프로젝트가 쓰는 것 / 안 쓰는 것 요약
+════════════════════════════════════════════════════════════════════════
+✅ 실제로 씀
+  - Processor / MonoRoutine / NativeRoutine (Routine 생애주기 — 1장)
+  - HaareClient 부트스트랩 (2장, 손댈 필요 없음)
+  - SingletonMonoBehaviour 패턴 (Processor 자체가 이걸로 구현됨 — 3장)
+  - DataManager + [DataModelAttribute] (MapSaveModel — 5장)
+  - Panel 시스템: [PanelAttribute] + ICustomPanel + SceneUIManager/CoreUIManager (DebugInfoPanel
+    — 7-1장)
+  - Custom UI 위젯(CustomButton/Image/Text/Slider) + TweenUI (UIManager/DebugInfoPanel — 7-2장)
+  - AssetLoader, LogHelper (8장)
+
+❌ 존재하지만 이 프로젝트는 안 씀
+  - CoreLifetimeScope 상속 계층 (GameCompositionRoot가 LifetimeScope를 직접 상속 — 4장)
+  - UIPresenter / IPresenter / RegisterEntryPoint 패턴 (UIManager가 자체 구현 — 4장)
+  - SceneService (씬이 하나뿐이라 불필요 — 6장. 여러 씬 구조로 갈 때 재검토 대상)
+  - AddressableLoader / PrefabPath / PrefabUtil (구식/데모 전용, Panel 시스템이 대체 — 8장)
+
+════════════════════════════════════════════════════════════════════════
+11. 다음에 이 프레임워크를 더 파고들 때
+════════════════════════════════════════════════════════════════════════
+1. 새 MonoBehaviour를 만들기 전에 "인스펙터 데이터가 필요한가?"부터 따져라 — 필요 없으면
+   NativeRoutine(또는 순수 C#)이 기본값이어야 한다(1장, 이번 세션에 반복된 패턴).
+2. 새 UI 패널이 필요하면 DebugInfoPanel.cs를 그대로 복제해서 시작하면 된다(7-1장) — Haare Demo의
+   UI/DebugPanel.cs가 원형.
+3. 씬이 2개 이상으로 늘어나는 순간 SceneService(6장)와 CoreLifetimeScope 부모-자식 연결(4장)을
+   다시 검토해야 한다 — 지금은 둘 다 "씬이 하나라서 안 써도 되는" 상태일 뿐, 프레임워크가 원래
+   상정한 멀티씬 구조를 이 프로젝트가 아직 안 쓰고 있는 것뿐이다.
+4. 세이브/로드가 필요한 새 데이터가 생기면 DataManager + [DataModelAttribute] 경로(5장,
+   MapSaveModel이 원형)를 우선 검토하고, 에디터에서 미리 굽는 정적 데이터(유닛/스킬 정의류)는
+   지금처럼 JsonUtility 직접 호출 경로를 유지하면 된다.
