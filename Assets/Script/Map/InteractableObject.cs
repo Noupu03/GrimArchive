@@ -18,15 +18,19 @@ public class InteractableObject
     public List<string> Tags = new List<string>();
     // 시체(흔적)인 경우, 원인 제공자의 위험도 단계
     public DangerStage CauserStage;
+    // WipeoutTrace 태그일 때만 사용 — HumanKnowledgeBase.RegisterWipeoutTrace()가 발급한 흔적 ID.
+    // 13-2장: 생환 파티가 이 오브젝트를 발견하면 OnWipeoutTraceReflected(TraceId)로 동일 ID당
+    // 1회만 던전 위험도에 반영한다.
+    public string TraceId;
 
-    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0)
+    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null)
     {
         Id = id;
         Position = position;
         BaseInterest = baseInterest;
         BaseDanger = baseDanger;
         IsCollected = false;
-        
+
         if (tags != null)
         {
             Tags = new List<string>(tags);
@@ -36,7 +40,8 @@ public class InteractableObject
             // 기본값은 전리품("Loot")으로 처리
             Tags = new List<string> { "Loot" };
         }
-        
+
         CauserStage = causerStage;
+        TraceId = traceId;
     }
 }
