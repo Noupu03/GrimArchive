@@ -1,7 +1,26 @@
-<color=#ff7337><color=#0099bc><b>DOTWEEN ► </b></color> SAFE MODE ►</color> DOTween's safe mode captured 37 errors. This is usually ok (it's what safe mode is there for) but if your game is encountering issues you should set Log Behaviour to Default in DOTween Utility Panel in order to get detailed warnings when an error is captured (consider that these errors are always on the user side).
-- 26 missing target or field errors
-- 11 startup errors
-UnityEngine.Debug:LogWarning (object)
-DG.Tweening.Core.Debugger:LogSafeModeReport (object)
-DG.Tweening.Core.DOTweenComponent:OnDestroy ()
+IndexOutOfRangeException: Index was outside the bounds of the array.
+UnitFunction.CanMove (UnityEngine.Vector2Int pos) (at Assets/Script/Unit/Core/UnitFunction.cs:177)
+UnitFunction.Move (Dir dir) (at Assets/Script/Unit/Core/UnitFunction.cs:194)
+Action_RandomExplore.Execute (Unit unit) (at Assets/Script/Unit/AI/Actions.cs:74)
+GoapBrain.ExecuteAction (Unit unit) (at Assets/Script/Unit/AI/GoapCore.cs:331)
+Unit.ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:276)
+GameSession.ProcessUnitAction (Unit u) (at Assets/Script/Unit/Session/GameSession.cs:306)
+GameSession.UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:118)
+Haare.Client.Core.Processor+<>c__DisplayClass11_0.<RegisterEvents>b__1 (R3.Unit _) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
+R3.AnonymousObserver`1[T].OnNextCore (T value) (at <a6479622a9314fcba3eb70d4da8dd460>:0)
+R3.Observer`1[T].OnNext (T value) (at <a6479622a9314fcba3eb70d4da8dd460>:0)
+UnityEngine.Debug:LogException(Exception)
+R3.<>c:<SetDefaultObservableSystem>b__1_0(Exception) (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityProviderInitializer.cs:21)
+R3.AnonymousObserver`1:OnErrorResumeCore(Exception)
+R3.Observer`1:OnErrorResume(Exception)
+R3.Observer`1:OnNext(Unit)
+R3.Subject`1:OnNext(Unit)
+Haare.Client.Routine.MonoRoutine:UpdateProcess() (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
+Haare.Client.Core.<>c__DisplayClass11_0:<RegisterEvents>b__3(Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
+R3.AnonymousObserver`1:OnNextCore(Unit)
+R3.Observer`1:OnNext(Unit)
+R3.Internal.CancellableFrameRunnerWorkItemBase`1:PublishOnNext(Unit)
+R3.EveryUpdateRunnerWorkItem:MoveNextCore(Int64)
+R3.Internal.CancellableFrameRunnerWorkItemBase`1:MoveNext(Int64)
+R3.UnityFrameProvider:Run() (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
 

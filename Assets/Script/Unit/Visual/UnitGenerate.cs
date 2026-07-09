@@ -443,10 +443,17 @@ public class UnitGenerate
 			{
 				int x = pos.x + dx;
 				int y = pos.y + dy;
+
+				// C#의 정수 나눗셈/나머지는 0쪽으로 버림하므로(예: -1/8=0, -1%8=-1), 이 사전 체크
+				// 없이 바로 나누면 음수 좌표가 cx/cy=0으로 잘못 계산되고 tx/ty가 음수가 되어 아래
+				// c.chunk[tx, ty] 인덱싱에서 IndexOutOfRangeException이 난다(UnitFunction.CanMove와
+				// 동일한 버그 패턴).
+				if (x < 0 || y < 0) return false;
+
 				int cx = x / 8; int cy = y / 8;
 				int tx = x % 8; int ty = y % 8;
 
-				if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+				if (cx >= floor.config.width || cy >= floor.config.height) return false;
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
 				if (c.chunk[tx, ty].name == "Wall") return false;

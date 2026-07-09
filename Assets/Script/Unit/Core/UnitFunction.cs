@@ -165,12 +165,18 @@ public abstract class UnitFunction : Unit
 				int targetX = pos.x + dx;
 				int targetY = pos.y + dy;
 
+				// C#의 정수 나눗셈/나머지는 0쪽으로 버림하므로(예: -1/8=0, -1%8=-1), 이 사전 체크
+				// 없이 바로 나누면 음수 좌표가 cx/cy=0으로 잘못 계산되고 tx/cyVal이 음수가 되어
+				// 아래 c.chunk[tx, cyVal] 인덱싱에서 IndexOutOfRangeException이 난다(맵 서쪽/북쪽
+				// 경계에서 유닛이 바깥으로 이동을 시도할 때 실제로 재현된 크래시).
+				if (targetX < 0 || targetY < 0) return false;
+
 				int cx    = targetX / 8;
 				int tx    = targetX % 8;
 				int cy    = targetY / 8;
 				int cyVal = targetY % 8;
 
-				if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+				if (cx >= floor.config.width || cy >= floor.config.height) return false;
 
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
