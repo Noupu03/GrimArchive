@@ -205,13 +205,30 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<string, float> _objectDanger = new();
 	private readonly Dictionary<string, Vector3Int> _objectTile = new();
 
-	public void RegisterObject(string objectId, Vector3Int tile, float baseDanger, float baseInterest)
+	public void RegisterObject(string objectId, Vector3Int tile, float baseDanger, float baseInterest, System.Collections.Generic.List<string> tags = null, DangerStage causerStage = DangerStage.Stage0)
 	{
 		_objectBaseDanger[objectId] = baseDanger;
 		_objectDanger[objectId] = baseDanger;
 		_objectBaseInterest[objectId] = baseInterest;
 		_objectInterest[objectId] = baseInterest;
 		_objectTile[objectId] = tile;
+
+		if (tags != null)
+		{
+			if (tags.Contains("WipeoutTrace"))
+			{
+				_objectInterest[objectId] = WeightMath.WipeoutTraceBaseInterest;
+				Haare.Util.Logger.LogHelper.Log($"<b><color=magenta>[EventId:E_WIPEOUT_TRACE_FOUND]</color></b>",
+					$"전멸 흔적 오브젝트 발견 (id:{objectId}, 위치:{tile}, 흥미도:{_objectInterest[objectId]})");
+			}
+			else if (tags.Contains("Corpse"))
+			{
+				_objectInterest[objectId] = WeightMath.CorpseTraceInterest(causerStage);
+				Haare.Util.Logger.LogHelper.Log($"<b><color=magenta>[EventId:E_CORPSE_TRACE_FOUND]</color></b>",
+					$"시체/흔적 오브젝트 발견 (id:{objectId}, 원인자 단계:{causerStage}, 보정흥미도:{_objectInterest[objectId]})");
+			}
+			// Loot 태그는 별도 이벤트 없음 (기본 오브젝트 처리)
+		}
 	}
 
 	// 이 관찰자가 이 오브젝트를 이미 등록(발견)한 적 있는지 — 호출부(CastRay)가 "처음 발견"

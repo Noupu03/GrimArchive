@@ -273,7 +273,7 @@ public abstract class UnitFunction : Unit
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
 						// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
-						terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest);
+						terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 						LogHelper.Log($"<b><color=green>[EventId:E_INTEREST_OBJECT_FOUND]</color></b>",
 							$"관찰자={terrainObserver.name} 타일={revealedTile} 오브젝트={obj.Id} 위험도={obj.BaseDanger} 흥미도={obj.BaseInterest}");
 

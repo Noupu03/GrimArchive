@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using System.Collections.Generic;
 
 [Serializable]
 public class InteractableObject
@@ -12,13 +13,30 @@ public class InteractableObject
     // 이 값을 0이 아닌 값으로 생성하기만 하면 된다(파이프는 이미 연결돼 있음).
     public float BaseDanger;
     public bool IsCollected;
+    
+    // 시체/전리품 등을 구분하기 위한 태그
+    public List<string> Tags = new List<string>();
+    // 시체(흔적)인 경우, 원인 제공자의 위험도 단계
+    public DangerStage CauserStage;
 
-    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f)
+    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0)
     {
         Id = id;
         Position = position;
         BaseInterest = baseInterest;
         BaseDanger = baseDanger;
         IsCollected = false;
+        
+        if (tags != null)
+        {
+            Tags = new List<string>(tags);
+        }
+        else
+        {
+            // 기본값은 전리품("Loot")으로 처리
+            Tags = new List<string> { "Loot" };
+        }
+        
+        CauserStage = causerStage;
     }
 }

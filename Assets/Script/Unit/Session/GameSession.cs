@@ -166,6 +166,23 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
     private void RemoveDeadUnit(int index, Unit u)
     {
         if (u != null) RecordKillWeightEvent(u);
+        
+        if (u != null && u.hp <= 0)
+        {
+            string objId = "Corpse_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+            Vector3Int gridPos = new Vector3Int(u.position.x, u.position.y, u.currentFloor);
+            DangerStage causerStage = DangerStage.Stage0;
+            
+            if (u.lastAttacker != null && u.Knowledge != null)
+            {
+                causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.baseDanger);
+            }
+            
+            List<string> tags = new List<string> { "Corpse", u is Monster ? "Monster" : "Human" };
+            InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
+            SpawnObject(corpse, new Color(0.5f, 0f, 0f)); // 어두운 붉은색
+        }
+
         if (u != null) CheckPartyWaveState(u);
         if (_unitGenerate != null && u != null)
         {
@@ -224,6 +241,13 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
             if (causer != null)
                 causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.baseDanger);
             string traceId = knowledge.RegisterWipeoutTrace(causerStage);
+
+            // 전멸 흔적 오브젝트 생성 추가
+            string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+            Vector3Int gridPos = new Vector3Int(deadHuman.position.x, deadHuman.position.y, deadHuman.currentFloor);
+            List<string> tags = new List<string> { "WipeoutTrace" };
+            InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage);
+            SpawnObject(wipeoutObj, Color.black);
 
             LogHelper.Log($"<b><color=red>[EventId:E_PARTY_WIPEOUT]</color></b>",
                 $"파티={party.Name} 전멸. 던전 위험도 +{WeightMath.PartyWipeoutDungeonDangerIncrease}, 전멸흔적={traceId}(단계={causerStage})");
@@ -415,6 +439,43 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         }
     }
 
+    public void SpawnObject(InteractableObject obj, Color color)
+    {
+        if (objectGrid.ContainsKey(obj.Position)) return;
+        
+        objectGrid[obj.Position] = obj;
+        LogHelper.Log(LogHelper.GAME, $"Generated {obj.Id} at Floor {obj.Position.z}, {new Vector2Int(obj.Position.x, obj.Position.y)} with Tags: [{string.Join(", ", obj.Tags)}]");
+
+        GameObject visual = new GameObject(obj.Id);
+        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+        
+        Texture2D tex = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        Sprite sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+        sr.sprite = sprite;
+        sr.sortingOrder = 5;
+        
+        Vector3 offset = Vector3.zero;
+        var mr = UnityEngine.Object.FindObjectOfType<MapRandering>();
+        if (mr != null)
+        {
+            Transform childTilemap = mr.transform.Find($"F{obj.Position.z}_Tilemap");
+            if (childTilemap != null)
+            {
+                offset = childTilemap.position;
+                visual.transform.SetParent(childTilemap);
+            }
+        }
+        
+        visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
+        visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
+        
+        objectVisuals[obj] = visual;
+    }
+
     public void OnKeyDown_O()
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -428,39 +489,8 @@ public class GameSession : MonoRoutine//게임 세션 관리 및 턴 처리(대�
         
         if (!objectGrid.ContainsKey(gridPos))
         {
-            InteractableObject obj = new InteractableObject(objId, gridPos, 120f);
-            objectGrid[gridPos] = obj;
-            LogHelper.Log(LogHelper.GAME, $"Generated InteractableObject {objId} at Floor {floorIdx}, {spawnPos} with BaseInterest 120");
-
-            // 인게임 시각화 생성 (자홍색 사각형)
-            GameObject visual = new GameObject(objId);
-            SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
-            
-            Texture2D tex = new Texture2D(32, 32);
-            Color[] pixels = new Color[32 * 32];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.magenta;
-            tex.SetPixels(pixels);
-            tex.Apply();
-            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
-            sr.sprite = sprite;
-            sr.sortingOrder = 5;
-            
-            Vector3 offset = Vector3.zero;
-            var mr = UnityEngine.Object.FindObjectOfType<MapRandering>();
-            if (mr != null)
-            {
-                Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
-                if (childTilemap != null)
-                {
-                    offset = childTilemap.position;
-                    visual.transform.SetParent(childTilemap);
-                }
-            }
-            
-            visual.transform.position = new Vector3(spawnPos.x + 0.5f, spawnPos.y + 0.5f, 0f) + offset;
-            visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
-            
-            objectVisuals[obj] = visual;
+            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Loot" });
+            SpawnObject(obj, Color.magenta);
         }
     }
 
