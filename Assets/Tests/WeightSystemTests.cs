@@ -307,5 +307,45 @@ public class WeightSystemTests
 		kb.OnWipeoutTraceReflected(traceId); // 중복 호출 — 반영되면 안 됨
 		Assert.AreEqual(35f, kb.GetDungeonDanger(), 0.001f); // 25 + 10
 	}
+
+	// ── 24장. 위치 및 상태 기록 충돌 처리 규칙 1: 직접 경험은 나중에 들어온 직접 목격보다 우선한다 ──
+	[Test]
+	public void MonsterSighting_DirectExperienceBeatsLaterDirectWitness()
+	{
+		var map = new PersonalMapKnowledge();
+		map.ObserveMonster("Orc_1", new Vector3Int(5, 5, 0), 50f, 10f, InfoType.DirectExperience);
+		// 우선순위가 더 낮은 직접 목격 정보가 나중에 들어와도 기존 직접 경험 기록을 덮어쓰면 안 됨.
+		map.ObserveMonster("Orc_1", new Vector3Int(9, 9, 0), 999f, 999f, InfoType.DirectWitness);
+
+		map.TryGetMonsterSighting("Orc_1", out var tile, out var danger, out _);
+		Assert.AreEqual(new Vector3Int(5, 5, 0), tile);
+		Assert.AreEqual(50f, danger, 0.001f);
+	}
+
+	// ── 24장 규칙 3: 같은 정보 유형끼리는 더 최근 정보를 우선한다 ──
+	[Test]
+	public void MonsterSighting_SameInfoTypeUsesNewer()
+	{
+		var map = new PersonalMapKnowledge();
+		map.ObserveMonster("Orc_2", new Vector3Int(1, 1, 0), 10f, 10f, InfoType.DirectWitness);
+		map.ObserveMonster("Orc_2", new Vector3Int(2, 2, 0), 20f, 20f, InfoType.DirectWitness);
+
+		map.TryGetMonsterSighting("Orc_2", out var tile, out var danger, out _);
+		Assert.AreEqual(new Vector3Int(2, 2, 0), tile);
+		Assert.AreEqual(20f, danger, 0.001f);
+	}
+
+	// ── 24장 규칙 2: 직접 목격은 간접 파악보다 우선한다 ──
+	[Test]
+	public void MonsterSighting_DirectWitnessBeatsIndirect()
+	{
+		var map = new PersonalMapKnowledge();
+		map.ObserveMonster("Orc_3", new Vector3Int(3, 3, 0), 30f, 30f, InfoType.DirectWitness);
+		map.ObserveMonster("Orc_3", new Vector3Int(7, 7, 0), 70f, 70f, InfoType.Indirect);
+
+		map.TryGetMonsterSighting("Orc_3", out var tile, out var danger, out _);
+		Assert.AreEqual(new Vector3Int(3, 3, 0), tile);
+		Assert.AreEqual(30f, danger, 0.001f);
+	}
 }
 #endif

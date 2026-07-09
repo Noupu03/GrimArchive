@@ -305,23 +305,44 @@ public class PersonalMapKnowledge
 	// 15장/18장 수치(위험도/흥미도)를 목격 시점 스냅샷으로 저장한다 — 실시간 조회가 아니라
 	// "마지막으로 확인한 기록"이라는 지도의 성격(지도관련_정리 문서 3-2장, 6-5장 실제값-기록값 차이)에
 	// 맞춘 것이다. UnitFunction.CastRay가 적을 발견할 때마다 호출한다(유일하게 자동 연동되는 부분).
+	//
+	// 24장(위치 및 상태 기록 충돌 처리)이 명시하는 "유닛 마지막 확인 위치"의 실체가 바로 이 기록이다
+	// — RecordedInfoType으로 어떤 정보 유형으로 들어온 기록인지 남겨서, PriorityRank/ShouldReplace로
+	// 우선순위가 더 낮은 정보가 더 높은 정보를 덮어쓰지 못하게 막는다.
 	private class MonsterSighting
 	{
 		public Vector3Int Tile;
 		public float DangerSnapshot;
 		public float InterestSnapshot;
+		public InfoType RecordedInfoType;
 	}
 	private readonly Dictionary<string, MonsterSighting> _monsterSightings = new();
 
 	// monsterKey: target.name (인스턴스 식별자 — 위치는 종별이 아니라 그 개체 하나에 대한 정보이므로
 	// HumanKnowledgeBase의 종/개체 누적 키(ResolveTargetKey)와는 별개로 항상 인스턴스명을 쓴다).
-	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot)
+	// infoType 기본값 DirectWitness — 지금 유일한 호출부(UnitFunction.CastRay)가 시야로 직접
+	// 목격하는 경로라 항상 이 값. 나중에 소리/전파(간접 파악) 등 다른 정보 유형이 이 기록을 갱신
+	// 하려 들 때 아래 우선순위 게이트가 그대로 작동한다.
+	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness)
 	{
+		// 24장 1~6번 규칙: 방금 들어온 정보(candidate)는 자기 정보 유형 안에서 항상 "최신"이고
+		// (지금 이 순간 발생했으므로), 기존 기록(existing)도 저장될 당시엔 "최신"이었다 — 두 값을
+		// 같은 기준(isLatest:true)으로 랭크를 매겨 비교하면 "직접 경험은 직접 목격보다 우선"(1번),
+		// "직접 목격은 간접 파악보다 우선"(2번), "같은 유형끼리는 더 최근 것"(3번, candidateIsNewer
+		// 는 항상 true — 지금 쓰는 값이 곧 가장 최근 값이므로)이 그대로 성립한다.
+		if (_monsterSightings.TryGetValue(monsterKey, out var existing))
+		{
+			int candidateRank = WeightMath.PriorityRank(infoType, isLatest: true);
+			int existingRank  = WeightMath.PriorityRank(existing.RecordedInfoType, isLatest: true);
+			if (!WeightMath.ShouldReplace(candidateRank, existingRank, candidateIsNewer: true)) return;
+		}
+
 		_monsterSightings[monsterKey] = new MonsterSighting
 		{
 			Tile = tile,
 			DangerSnapshot = dangerSnapshot,
 			InterestSnapshot = interestSnapshot,
+			RecordedInfoType = infoType,
 		};
 		SetTileDangerFromUnit(tile, dangerSnapshot); // 15장: "적이 있거나 있었던 타일은 그 적의 기록 위험도를 가짐"
 		// 시야에서 벗어나도 이 항목을 지우지 않는다 — 15장 "유닛 사라짐 → 기록 위험도 유지 →
