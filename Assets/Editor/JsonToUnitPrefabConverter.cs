@@ -209,14 +209,8 @@ public static class JsonToUnitPrefabConverter
             }
 #endif
 
-            GameObject outline = new GameObject("Outline");
-            outline.transform.SetParent(visual.transform);
-            outline.transform.localPosition = Vector3.zero;
-            outline.transform.localScale    = new Vector3(1.2f, 1.2f, 1f);
-            var outlineSr = outline.AddComponent<SpriteRenderer>();
-            outlineSr.color        = Color.black;
-            outlineSr.sortingOrder = 9;
-            outline.SetActive(false);
+            // 선택 표시는 이제 UnitGenerate.EnsureSelectionMarker()가 런타임에 풋프린트 기준으로
+            // 자동 생성한다(캐릭터 스프라이트와 무관) — 여기서 더 이상 "Outline" 자식을 굽지 않는다.
 
             if (u.visual?.weapon != null)
             {

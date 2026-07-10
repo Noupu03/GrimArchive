@@ -1,4 +1,5 @@
 using System.Text;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VContainer;
@@ -113,32 +114,39 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     private void OnGUI()
     {
-        if (_inputManager == null || _inputManager.selectedUnit == null) return;
-        Unit u = _inputManager.selectedUnit;
+        if (_inputManager == null || _inputManager.selectedUnits.Count == 0) return;
 
-        string title = _inputManager.selectedUnits.Count > 1
+        bool isMultiSelect = _inputManager.selectedUnits.Count > 1;
+        string title = isMultiSelect
             ? $"Unit Status Test ({_inputManager.selectedUnits.Count}기 선택됨)"
             : "Unit Status Test";
         GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 150), title, GUI.skin.window);
-        
-        if (GUILayout.Button("Add 10 EXP"))
+
+        // 다수 선택 시엔 특정 유닛 하나를 편집하는 버튼들이 의미가 없어서 숨긴다 —
+        // 아래 selectedUnitInfoText 쪽도 스탯 대신 선택된 유닛 목록만 보여준다(RefreshSelectedUnitInfo).
+        if (!isMultiSelect)
         {
-            u.exp += 10f;
-            RefreshSelectedUnitInfo();
+            Unit u = _inputManager.selectedUnit;
+
+            if (GUILayout.Button("Add 10 EXP"))
+            {
+                u.exp += 10f;
+                RefreshSelectedUnitInfo();
+            }
+
+            if (GUILayout.Button("Add 1 Kill"))
+            {
+                u.killCount += 1;
+                RefreshSelectedUnitInfo();
+            }
+
+            if (GUILayout.Button("Level Up"))
+            {
+                u.level += 1;
+                RefreshSelectedUnitInfo();
+            }
         }
-        
-        if (GUILayout.Button("Add 1 Kill"))
-        {
-            u.killCount += 1;
-            RefreshSelectedUnitInfo();
-        }
-        
-        if (GUILayout.Button("Level Up"))
-        {
-            u.level += 1;
-            RefreshSelectedUnitInfo();
-        }
-        
+
         GUILayout.EndArea();
     }
 
@@ -146,9 +154,16 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     {
         if (selectedUnitInfoText == null) return;
 
-        if (_inputManager == null || _inputManager.selectedUnit == null)
+        if (_inputManager == null || _inputManager.selectedUnits.Count == 0)
         {
             selectedUnitInfoText.SetupText("");
+            return;
+        }
+
+        // 다수 선택 시엔 스탯 대신 선택된 유닛 목록만 보여준다.
+        if (_inputManager.selectedUnits.Count > 1)
+        {
+            selectedUnitInfoText.SetupText(BuildMultiSelectListText(_inputManager.selectedUnits));
             return;
         }
 
@@ -220,5 +235,25 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             sb.AppendLine($"<color=red>상태이상: {statusStr}</color>");
 
         selectedUnitInfoText.SetupText(sb.ToString());
+    }
+
+    // 다수 선택 시 스탯 대신 보여줄 목록. 스탯 대신 "무엇이 선택돼 있는지"만 한눈에 보이면 되므로
+    // 유닛별 상세 능력치는 넣지 않는다.
+    private string BuildMultiSelectListText(List<Unit> units)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"<b>선택됨: {units.Count}기</b>");
+        sb.AppendLine();
+
+        foreach (var u in units)
+        {
+            if (u == null) continue;
+
+            string faction = u is Human ? "인류" : "몬스터";
+            string color = u.hp <= 0 ? "red" : (u is Human ? "white" : "yellow");
+            sb.AppendLine($"<color={color}>{u.unitType.typeName} ({faction}) — {u.hp:F0}/{u.maxHp:F0}</color>");
+        }
+
+        return sb.ToString();
     }
 }

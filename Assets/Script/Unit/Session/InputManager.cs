@@ -28,6 +28,13 @@ public class InputManager : MonoBehaviour
 	private Vector2 _dragStartScreenPos;
 	private Vector2 _dragCurrentScreenPos;
 
+	// 더블클릭 판정(같은 유닛을 짧은 시간 안에 다시 클릭) 관련 상태
+	private const float DoubleClickTimeThreshold = 0.3f;
+	// "근방" 판정 반경(타일 기준). 화면에 보이는 전체가 아니라 클릭한 유닛 주변만 잡는다.
+	private const float SameTypeNearbyRadius = 15f;
+	private Unit _lastClickedUnit;
+	private float _lastClickTime = -999f;
+
 	private UnitGenerate _unitGenerate;
 	private GameSession _gameSession;
 
@@ -220,6 +227,21 @@ public class InputManager : MonoBehaviour
 
 		if (clickedUnit != null)
 		{
+			bool isDoubleClick =
+				clickedUnit == _lastClickedUnit &&
+				(Time.unscaledTime - _lastClickTime) <= DoubleClickTimeThreshold;
+
+			_lastClickedUnit = clickedUnit;
+			_lastClickTime = Time.unscaledTime;
+
+			if (isDoubleClick)
+			{
+				// 세 번째 클릭이 다시 더블클릭으로 판정되는 것을 막는다.
+				_lastClickedUnit = null;
+				SelectNearbySameType(clickedUnit, currentFloor, shiftHeld);
+				return;
+			}
+
 			if (shiftHeld)
 			{
 				// 스타크래프트식 Shift+클릭: 이미 선택돼 있으면 선택 해제, 아니면 추가
@@ -282,7 +304,7 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 드래그 박스 선택 (스타크래프트식: 박스 안 "아군"만 선택 대상)
+	// 드래그 박스 선택 (진영 제한 없음 — 인류/몬스터 둘 다 드래그로 선택하고 조종할 수 있다)
 	// =====================================================
 	private void DoBoxSelect(Vector2 startScreenPos, Vector2 endScreenPos, Vector3 floorOffset, int currentFloor, bool shiftHeld)
 	{
@@ -300,7 +322,6 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null || u.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
-			if (!(u is Human)) continue; // 스타크래프트처럼 드래그 박스는 아군(인류)만 선택, 적은 제외
 
 			float cx = u.position.x + u.unitType.footprint.x / 2f;
 			float cy = u.position.y + u.unitType.footprint.y / 2f;
@@ -322,6 +343,44 @@ public class InputManager : MonoBehaviour
 
 		if (selectedUnits.Count > 0)
 			LogHelper.Log(LogHelper.GAME, $"드래그 선택: {selectedUnits.Count}기");
+	}
+
+	// =====================================================
+	// 더블클릭 선택 (스타크래프트식: 같은 유형 유닛을 근방에서 한 번에 선택)
+	// =====================================================
+	private void SelectNearbySameType(Unit origin, int currentFloor, bool shiftHeld)
+	{
+		var nearby = new List<Unit>();
+		float radiusSq = SameTypeNearbyRadius * SameTypeNearbyRadius;
+
+		foreach (var u in _gameSession.units)
+		{
+			if (u == null || u.hp <= 0) continue;
+			if (u.currentFloor != currentFloor) continue;
+			// UnitType은 ScriptableObject 에셋 공유가 아니라 스폰마다 new Knight() 식으로 새로 만들어지는
+			// 순수 C# 인스턴스라(GameSession.cs 스폰 코드 참고) 참조 비교(==)로는 "같은 유형"을 못 잡는다
+			// (자기 자신 말고는 전부 다른 인스턴스라 항상 실패) — typeName 문자열로 비교해야 한다.
+			if (u.unitType.typeName != origin.unitType.typeName) continue;
+
+			float dx = (u.position.x + u.unitType.footprint.x / 2f) - (origin.position.x + origin.unitType.footprint.x / 2f);
+			float dy = (u.position.y + u.unitType.footprint.y / 2f) - (origin.position.y + origin.unitType.footprint.y / 2f);
+
+			if (dx * dx + dy * dy <= radiusSq)
+				nearby.Add(u);
+		}
+
+		if (shiftHeld)
+		{
+			foreach (var u in nearby)
+				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
+		}
+		else
+		{
+			selectedUnits.Clear();
+			selectedUnits.AddRange(nearby);
+		}
+
+		LogHelper.Log(LogHelper.GAME, $"더블클릭 선택: {origin.unitType.typeName} 근방 {selectedUnits.Count}기");
 	}
 
 	// =====================================================
