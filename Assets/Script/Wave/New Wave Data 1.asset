@@ -17,9 +17,9 @@ MonoBehaviour:
     faction: 0
     units:
     - unitTypeName: "\uAE30\uC0AC\uD615"
-      count: 2
+      count: 200
     - unitTypeName: "\uC544\uCC98\uD615"
-      count: 1
+      count: 200
   - partyName: "\uD30C\uD2F02"
     faction: 0
     units:

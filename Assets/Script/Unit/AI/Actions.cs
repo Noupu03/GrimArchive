@@ -133,34 +133,32 @@ public class Action_EngageEnemy : GoapAction
 
 		if (bestSkill != null)
 		{
-			// 선택된 스킬의 실제 사거리로 canHit 검사
+			// 1. 도주(Kiting) 조건 먼저 체크 (조준 여부와 상관없이 거리가 가까우면 우선 도주)
+			if (bestSkill.HitRange >= 4)
+			{
+				int dangerDist = bestSkill.HitRange / 2;
+				if (chebDist <= dangerDist && unit.evadeCooldown <= 0f)
+				{
+					MoveAwayFromTarget(unit, target, dangerDist + 1);
+					// 이동 방향에 맞게 시각화 업데이트 진행
+					unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
+					unit.Generate?.UpdateUnitSpriteForDirection(unit);
+					return; // 도망가는 중에는 스킬 사용 보류
+				}
+			}
+
+			// 2. 선택된 스킬의 실제 사거리로 canHit 검사
 			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
 			bool   canHit   = SkillAction.GetEnemiesInHitbox(unit, skillBox).Contains(target);
 
 			if (canHit)
 			{
-				// 스킬을 맞출 수 있을 때 카이팅을 할 것인가?
-				// 사거리가 긴 원거리 스킬(사거리 4 이상)일 때만 거리를 벌립니다.
-				// 근접 스킬(사거리 3 이하)이라면 굳이 뒤로 빼지 않고 즉시 스킬을 꽂아 넣습니다!
-				if (bestSkill.HitRange >= 4)
-				{
-					int dangerDist = bestSkill.HitRange / 2;
-					if (chebDist <= dangerDist && unit.evadeCooldown <= 0f)
-					{
-						MoveAwayFromTarget(unit, target, bestSkill.HitRange);
-						// 이동 방향에 맞게 시각화 업데이트 진행
-						unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
-						unit.Generate?.UpdateUnitSpriteForDirection(unit);
-						return; // 도망가는 중에는 스킬 사용 보류
-					}
-				}
-
 				// 안전하거나 근접 스킬이라면 즉시 실행!
 				bestSkill.Execute(unit, target, minDist);
 				return;
 			}
 
-			// 사거리 밖이거나 쏘는 각도가 안맞으면 다가갑니다 (접근하여 각도 맞추기)
+			// 3. 사거리 밖이거나 쏘는 각도가 안맞으면 다가갑니다 (접근하여 각도 맞추기)
 			if (unit.evadeCooldown <= 0f)
 			{
 				MoveTowardsTarget(unit, target);
@@ -168,9 +166,9 @@ public class Action_EngageEnemy : GoapAction
 		}
 		else
 		{
-			// 모든 스킬이 쿨다운일 때 (공격 후 재장전 상태)
-			// 사거리가 긴 원거리 유닛만 최대 사거리로 도망가며(Hit & Run), 근접 유닛은 도망가지 않고 붙어있습니다.
-			int fallbackRange = maxSkillRange >= 4 ? maxSkillRange : 1;
+			// 모든 스킬이 쿨타임일 때 (공격 불가능한 상태)
+			// 원거리 유닛은 안전거리(위험거리+1) 밖으로만 도망갑니다.
+			int fallbackRange = maxSkillRange >= 4 ? maxSkillRange / 2 + 1 : 1;
 			if (chebDist != fallbackRange && unit.evadeCooldown <= 0f)
 			{
 				if (chebDist < fallbackRange)

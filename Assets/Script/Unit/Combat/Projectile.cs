@@ -98,6 +98,10 @@ public class Projectile : MonoBehaviour
         float finalDamage = Mathf.Max(1f, baseDamage * overlapRatio);
         enemy.TakePhysicalDamage(finalDamage, _attacker);
         
+        // 투사체가 실제로 데미지를 입혔음을 확인하기 위한 로그 추가
+        Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, 
+            $"[Projectile Hit] {_skillData.skillName} 투사체가 {enemy.unitType.typeName}에게 적중! 데미지: {finalDamage:F1}");
+
         // 2. 상태 이상 적용
         if (_skillData.hasStun) 
         {
