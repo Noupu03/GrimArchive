@@ -138,6 +138,21 @@ public abstract class GoapAction
 					}
 				}
 
+				// 코너 커팅(벽 뚫기) 방지: 대각선 이동 시 양옆 직교 타일 중 하나라도 벽이면 블록
+				if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
+				{
+					int ortho1X = current.Pos.x + dirVec.x, ortho1Y = current.Pos.y;
+					int ortho2X = current.Pos.x, ortho2Y = current.Pos.y + dirVec.y;
+					
+					bool ortho1Wall = (ortho1X < 0 || ortho1X >= mapW || ortho1Y < 0 || ortho1Y >= mapH || myData.discoveredMap[floorIdx][ortho1X, ortho1Y] == 2);
+					bool ortho2Wall = (ortho2X < 0 || ortho2X >= mapW || ortho2Y < 0 || ortho2Y >= mapH || myData.discoveredMap[floorIdx][ortho2X, ortho2Y] == 2);
+					
+					if (ortho1Wall || ortho2Wall)
+					{
+						isWall = true;
+					}
+				}
+
 				if (isWall) continue;
 
 				// 대각선 코너 차단

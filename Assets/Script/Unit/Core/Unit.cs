@@ -242,7 +242,7 @@ public abstract class Unit : ScriptableObject
 	public abstract void ApplyPoison(float duration);
 	public abstract void ApplyBurn(float duration);
 	public abstract Vector2Int GetDirVector(Dir dir);
-	public abstract bool CanMove(Vector2Int pos);
+	public abstract bool CanMove(Vector2Int pos, bool ignoreUnits = false);
 	public abstract void Move(Dir dir);
 
 	public virtual void ForceMove(Vector2Int targetPos)

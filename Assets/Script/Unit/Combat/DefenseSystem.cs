@@ -27,38 +27,43 @@ public static class DefenseSystem
 	// 메인
 	// =========================================================
 
-	public static void EvaluateDefense(Unit defender, Unit attacker, ThreatTileData threat)
+	public static void EvaluateEarlyReaction(Unit defender, Unit attacker, ThreatTileData threat)
 	{
 		if (defender == null || attacker == null) return;
 
-		List<DefenseCandidate> candidates = BuildDefenseCandidates(defender, attacker, threat);
+		List<DefenseCandidate> candidates = BuildDefenseCandidates(defender, attacker, threat, true); // true = early reaction only
 
-		if (candidates.Count == 0)
-		{
-			defender.ApplyDirectDamage(attacker);
-			return;
-		}
+		if (candidates.Count == 0) return;
 
 		DefenseCandidate selected = SelectDefense(candidates);
+		if (selected == null) return;
 
-		if (selected == null)
-		{
-			defender.ApplyDirectDamage(attacker);
-			return;
-		}
+		ExecuteEarlyReaction(defender, attacker, selected);
+	}
 
-		ExecuteDefense(defender, attacker, selected);
+	public static float EvaluateImpactDefense(Unit defender, Unit attacker, float rawDamage)
+	{
+		if (defender == null || attacker == null) return rawDamage;
+
+		// Parry or Block only
+		List<DefenseCandidate> candidates = BuildDefenseCandidates(defender, attacker, null, false); // false = impact defense only
+
+		if (candidates.Count == 0) return rawDamage;
+
+		DefenseCandidate selected = SelectDefense(candidates);
+		if (selected == null) return rawDamage;
+
+		return ExecuteImpactDefense(defender, attacker, selected, rawDamage);
 	}
 
 	// =========================================================
 	// 후보 생성
 	// =========================================================
 
-	static List<DefenseCandidate> BuildDefenseCandidates(Unit defender, Unit attacker, ThreatTileData threat)
+	static List<DefenseCandidate> BuildDefenseCandidates(Unit defender, Unit attacker, ThreatTileData threat, bool isEarlyReaction)
 	{
 		List<DefenseCandidate> result = new List<DefenseCandidate>();
 
-		// 실제 유닛 스탯 사용
 		float durability = defender.Durability;
 		float resistance = defender.resistance;
 		float agility    = defender.agility;
@@ -66,40 +71,40 @@ public static class DefenseSystem
 		float focus      = defender.concentration;
 		float magic      = defender.MagicPower;
 
-		// -------------------------------------------------
-		// Block
-		// -------------------------------------------------
-		float blockScore = durability * 0.65f + resistance * 0.35f;
-		result.Add(new DefenseCandidate(DefenseType.Block, blockScore, blockScore));
-
-		// -------------------------------------------------
-		// Dodge
-		// -------------------------------------------------
-		float dodgeScore = agility * 0.75f + sense * 0.25f;
-		result.Add(new DefenseCandidate(DefenseType.Dodge, dodgeScore, dodgeScore));
-
-		// -------------------------------------------------
-		// Parry
-		// -------------------------------------------------
-		float parryScore = focus * 0.60f + sense * 0.30f + agility * 0.10f;
-		result.Add(new DefenseCandidate(DefenseType.Parry, parryScore, parryScore));
-
-		// -------------------------------------------------
-		// Blink (마력 80 이상일 때만)
-		// -------------------------------------------------
-		if (magic >= 80f)
+		if (isEarlyReaction)
 		{
-			float blinkScore = magic * 0.80f + agility * 0.20f;
-			result.Add(new DefenseCandidate(DefenseType.Blink, blinkScore, blinkScore));
+			// Dodge
+			float dodgeScore = agility * 0.75f + sense * 0.25f;
+			result.Add(new DefenseCandidate(DefenseType.Dodge, dodgeScore, dodgeScore));
+
+			// Blink
+			if (magic >= 80f)
+			{
+				float blinkScore = magic * 0.80f + agility * 0.20f;
+				result.Add(new DefenseCandidate(DefenseType.Blink, blinkScore, blinkScore));
+			}
+		}
+		else
+		{
+			// Block
+			float blockScore = durability * 0.65f + resistance * 0.35f;
+			result.Add(new DefenseCandidate(DefenseType.Block, blockScore, blockScore));
+
+			// Parry
+			float parryScore = focus * 0.60f + sense * 0.30f + agility * 0.10f;
+			result.Add(new DefenseCandidate(DefenseType.Parry, parryScore, parryScore));
 		}
 
 		// 최고 점수 가중치 x2
-		float maxScore = 0f;
-		for (int i = 0; i < result.Count; i++)
-			maxScore = Mathf.Max(maxScore, result[i].score);
-		for (int i = 0; i < result.Count; i++)
-			if (Mathf.Approximately(result[i].score, maxScore))
-				result[i].weight *= 2f;
+		if (result.Count > 0)
+		{
+			float maxScore = 0f;
+			for (int i = 0; i < result.Count; i++)
+				maxScore = Mathf.Max(maxScore, result[i].score);
+			for (int i = 0; i < result.Count; i++)
+				if (Mathf.Approximately(result[i].score, maxScore))
+					result[i].weight *= 2f;
+		}
 
 		return result;
 	}
@@ -131,41 +136,56 @@ public static class DefenseSystem
 	// 실행
 	// =========================================================
 
-	static void ExecuteDefense(Unit defender, Unit attacker, DefenseCandidate selected)
+	static bool HasPathWithoutWalls(Unit defender, Vector2Int start, Vector2Int target, int maxRange)
+	{
+		Queue<Vector2Int> queue = new Queue<Vector2Int>();
+		Dictionary<Vector2Int, int> dists = new Dictionary<Vector2Int, int>();
+
+		queue.Enqueue(start);
+		dists[start] = 0;
+
+		while (queue.Count > 0)
+		{
+			Vector2Int current = queue.Dequeue();
+			int d = dists[current];
+
+			if (current == target) return true;
+			if (d >= maxRange) continue;
+
+			for (int x = -1; x <= 1; x++)
+			{
+				for (int y = -1; y <= 1; y++)
+				{
+					if (x == 0 && y == 0) continue;
+					Vector2Int nextPos = current + new Vector2Int(x, y);
+
+					if (dists.ContainsKey(nextPos)) continue;
+
+					if (!defender.CanMove(nextPos, true)) continue;
+
+					// 대각선 이동 시 코너 커팅(벽 뚫기) 방지
+					if (Mathf.Abs(x) == 1 && Mathf.Abs(y) == 1)
+					{
+						if (!defender.CanMove(current + new Vector2Int(x, 0), true) ||
+							!defender.CanMove(current + new Vector2Int(0, y), true))
+						{
+							continue;
+						}
+					}
+
+					dists[nextPos] = d + 1;
+					queue.Enqueue(nextPos);
+				}
+			}
+		}
+
+		return false;
+	}
+
+	static void ExecuteEarlyReaction(Unit defender, Unit attacker, DefenseCandidate selected)
 	{
 		switch (selected.type)
 		{
-			// =================================================
-			// Block
-			// =================================================
-			case DefenseType.Block:
-			{
-				float reduction = Mathf.Clamp(
-					defender.Durability * 0.0075f + defender.resistance * 0.0025f,
-					CombatConstants.MIN_BLOCK_DAMAGE_REDUCTION,
-					CombatConstants.MAX_BLOCK_DAMAGE_REDUCTION
-				);
-
-				float raw      = attacker.physicalAttack;
-				float base_dmg = Mathf.Max(1f, raw - defender.physicalDefense);
-				float damage   = Mathf.Max(1f, base_dmg * (1f - reduction));
-
-				defender.hp -= damage;
-				// Block도 hp를 직접 깎는 별도 데미지 경로라 가중치 이벤트가 기록되지 않고 있었다 —
-				// TakePhysicalDamage/ApplyDirectDamage와 동일하게 연결한다.
-				(defender as UnitFunction)?.RecordHitWeightEvent(damage, attacker, raw);
-				//defender.UI?.ShowFloatingText(defender, $"Block! {damage:F0}");
-
-				// 가드 VFX: 공격 타이밍에 재생, HitSpark 억제
-				var guardDef = defender;
-				guardDef.suppressHitVFX = true;
-				guardDef.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
-				break;
-			}
-
-			// =================================================
-			// Dodge (Hitbox 기반 판정 유지)
-			// =================================================
 			case DefenseType.Dodge:
 			{
 				float success = Mathf.Clamp(
@@ -180,23 +200,55 @@ public static class DefenseSystem
 					if (moved)
 					{
 						defender.evadeCooldown = 1.2f;
-						//defender.UI?.ShowFloatingText(defender, $"Dodge Success {success:P0}");
 					}
-					else
-					{
-						defender.ApplyDirectDamage(attacker);
-					}
-				}
-				else
-				{
-					defender.ApplyDirectDamage(attacker);
 				}
 				break;
 			}
+			case DefenseType.Blink:
+			{
+				float cost = defender.maxMp * CombatConstants.BLINK_MP_COST_RATIO;
+				if (defender.mp < cost) return;
 
-			// =================================================
-			// Parry
-			// =================================================
+				List<Vector2Int> safeTiles = FindSafeTiles(defender, defender.reactingThreat, 4, true);
+				
+				// 벽 관통 방지 필터링: 출발지부터 목적지까지 벽을 뚫지 않는 경로가 존재하는 타일만 선별
+				List<Vector2Int> validTiles = new List<Vector2Int>();
+				foreach (var tile in safeTiles)
+				{
+					if (HasPathWithoutWalls(defender, defender.position, tile, 4))
+					{
+						validTiles.Add(tile);
+					}
+				}
+
+				if (validTiles.Count == 0) return;
+
+				defender.mp -= cost;
+				defender.ForceMove(validTiles[Random.Range(0, validTiles.Count)]);
+				break;
+			}
+		}
+	}
+
+	static float ExecuteImpactDefense(Unit defender, Unit attacker, DefenseCandidate selected, float rawDamage)
+	{
+		switch (selected.type)
+		{
+			case DefenseType.Block:
+			{
+				float reduction = Mathf.Clamp(
+					defender.Durability * 0.0075f + defender.resistance * 0.0025f,
+					CombatConstants.MIN_BLOCK_DAMAGE_REDUCTION,
+					CombatConstants.MAX_BLOCK_DAMAGE_REDUCTION
+				);
+
+				var guardDef = defender;
+				guardDef.suppressHitVFX = true;
+				guardDef.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
+				
+				return rawDamage * (1f - reduction);
+			}
+
 			case DefenseType.Parry:
 			{
 				float success = Mathf.Clamp(
@@ -207,49 +259,20 @@ public static class DefenseSystem
 
 				if (Random.value <= success)
 				{
-					attacker.ApplyDirectDamage(defender, 0.5f);
-					//defender.UI?.ShowFloatingText(defender, $"Parry {success:P0}");
+					// 반격 데미지
+					attacker.TakePhysicalDamage(defender.physicalAttack * 0.5f, defender);
 
-					// 패링 VFX: 공격 타이밍에 재생, HitSpark 억제
 					var parryDef = defender;
 					parryDef.suppressHitVFX = true;
 					parryDef.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
+					
+					return 0f;
 				}
-				else
-				{
-					defender.ApplyDirectDamage(attacker);
-				}
-				break;
-			}
-
-			// =================================================
-			// Blink
-			// =================================================
-			case DefenseType.Blink:
-			{
-				float cost = defender.maxMp * CombatConstants.BLINK_MP_COST_RATIO;
-
-				if (defender.mp < cost)
-				{
-					defender.ApplyDirectDamage(attacker);
-					return;
-				}
-
-				defender.mp -= cost;
-
-				List<Vector2Int> safeTiles = FindSafeTiles(defender, defender.reactingThreat, 4, true);
-
-				if (safeTiles.Count == 0)
-				{
-					defender.ApplyDirectDamage(attacker);
-					return;
-				}
-
-				defender.ForceMove(safeTiles[Random.Range(0, safeTiles.Count)]);
-				//defender.UI?.ShowFloatingText(defender, "Blink!");
 				break;
 			}
 		}
+		
+		return rawDamage;
 	}
 
 	// =========================================================
@@ -288,7 +311,7 @@ public static class DefenseSystem
 				}
 
 				if (unsafeTile) continue;
-				if (!ignoreUnits && !defender.CanMove(pos)) continue;
+				if (!defender.CanMove(pos, ignoreUnits)) continue;
 
 				result.Add(pos);
 			}
@@ -317,8 +340,18 @@ public static class DefenseSystem
 				if (x == 0 && y == 0) continue;
 				Vector2Int candidate = defender.position + new Vector2Int(x, y);
 
-				// 벽 / 점령 타일 제외
+				// 벽/ 유닛 대상 제외
 				if (!defender.CanMove(candidate)) continue;
+
+				// 코너 커팅(벽 뚫기) 방지: 대각선 회피 시 양옆 직교 타일 중 하나라도 이동 불가면 회피 불가
+				if (Mathf.Abs(x) == 1 && Mathf.Abs(y) == 1)
+				{
+					if (!defender.CanMove(defender.position + new Vector2Int(x, 0)) ||
+						!defender.CanMove(defender.position + new Vector2Int(0, y)))
+					{
+						continue;
+					}
+				}
 
 				float overlap = threat != null
 					? GetOverlapArea(defender, candidate, threat.hitbox)

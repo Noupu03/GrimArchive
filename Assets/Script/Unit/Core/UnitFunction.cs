@@ -15,16 +15,32 @@ public abstract class UnitFunction : Unit
 
 	public override void TakePhysicalDamage(float rawDamage, Unit attacker)
 	{
-		float damage = Mathf.Max(1f, rawDamage - physicalDefense);
-		TakeDamage(damage);
-		RecordHitWeightEvent(damage, attacker, rawDamage);
+		if (attacker != null)
+		{
+			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
+		}
+
+		if (rawDamage > 0f)
+		{
+			float damage = Mathf.Max(1f, rawDamage - physicalDefense);
+			TakeDamage(damage);
+			RecordHitWeightEvent(damage, attacker, rawDamage);
+		}
 	}
 
 	public override void TakeMagicalDamage(float rawDamage, Unit attacker)
 	{
-		float damage = Mathf.Max(1f, rawDamage - magicalDefense);
-		TakeDamage(damage);
-		RecordHitWeightEvent(damage, attacker, rawDamage);
+		if (attacker != null)
+		{
+			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
+		}
+
+		if (rawDamage > 0f)
+		{
+			float damage = Mathf.Max(1f, rawDamage - magicalDefense);
+			TakeDamage(damage);
+			RecordHitWeightEvent(damage, attacker, rawDamage);
+		}
 	}
 
 	// 대표 가중치 3종 연산공식 문서 3장/10장: 피격 이벤트를 이해도/위험도에 즉시 반영한다.
@@ -143,7 +159,7 @@ public abstract class UnitFunction : Unit
 		};
 	}
 
-	public override bool CanMove(Vector2Int pos)
+	public override bool CanMove(Vector2Int pos, bool ignoreUnits = false)
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null)
 			? Session.cmap
@@ -182,7 +198,7 @@ public abstract class UnitFunction : Unit
 				if (c.roomId == -1 || c.chunk == null) return false;
 				if (c.chunk[tx, cyVal].name == "Wall") return false;
 
-				if (Session != null &&
+				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
 				{
 					if (u != null && u != this && u.hp > 0) return false;
@@ -195,9 +211,22 @@ public abstract class UnitFunction : Unit
 	public override void Move(Dir dir)
 	{
 		currentDir = dir; // 이동 방향으로 시야 방향 갱신
-		Vector2Int nextPos = position + GetDirVector(dir);
+		Vector2Int dirVec = GetDirVector(dir);
+		Vector2Int nextPos = position + dirVec;
 
-		if (CanMove(nextPos))
+		bool canMove = CanMove(nextPos);
+
+		// 코너 커팅(벽 뚫기) 방지: 대각선 이동 시 양옆 직교 타일 중 하나라도 이동 불가면 블록
+		if (canMove && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
+		{
+			if (!CanMove(position + new Vector2Int(dirVec.x, 0)) ||
+				!CanMove(position + new Vector2Int(0, dirVec.y)))
+			{
+				canMove = false;
+			}
+		}
+
+		if (canMove)
 			position = nextPos;
 
 		if (this.Generate != null)
@@ -505,7 +534,7 @@ public abstract class UnitFunction : Unit
 				else
 				{
 					reactedAttackers.Add(attacker);
-					OnDirectHit(attacker, threat);
+					// Failed to react in time - brace for impact (no early damage applied)
 				}
 			}
 		}
@@ -513,12 +542,12 @@ public abstract class UnitFunction : Unit
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
-		DefenseSystem.EvaluateDefense(this, attacker, threat);
+		DefenseSystem.EvaluateEarlyReaction(this, attacker, threat);
 	}
 
 	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
 	{
-		ApplyDirectDamage(attacker);
+		// Obsolete: Impact defense and damage is now handled in TakePhysicalDamage
 	}
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
@@ -530,9 +559,6 @@ public abstract class UnitFunction : Unit
 		if (this.Generate != null)
 			this.Generate.TriggerHitEffect(this);
 
-		// 실제 근접 위협/반응 시스템(OnDirectHit, DefenseSystem의 방어 실패/닷지 실패/블링크 실패/
-		// 패링 반격)이 데미지를 주는 진짜 경로인데, TakePhysicalDamage를 거치지 않고 hp를 직접 깎고
-		// 있어서 RecordHitWeightEvent가 한 번도 호출되지 않고 있었다 — 여기서도 동일하게 연결한다.
 		RecordHitWeightEvent(damage, attacker, raw);
 	}
 
