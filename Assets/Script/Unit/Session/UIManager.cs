@@ -2,47 +2,17 @@ using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
-using Cysharp.Threading.Tasks;
-using Haare.Client.UI;
 
+// 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter(Haare UIPresenter/RegisterEntryPoint
+// 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)만 담당한다.
 public class UIManager : MonoBehaviour
 {
-    private CoreUIManager _coreUIManager;
-    private IObjectResolver _resolver;
     private GameSession _gameSession;
 
     [Inject]
-    public void Construct(CoreUIManager coreUIManager, IObjectResolver resolver, GameSession gameSession)
+    public void Construct(GameSession gameSession)
     {
-        _coreUIManager = coreUIManager;
-        _resolver = resolver;
         _gameSession = gameSession;
-    }
-
-    private int _encyclopediaPanelId = -1;
-    private bool _isEncyclopediaOpen = false;
-
-    void Start()
-    {
-        // DebugInfoPanel(CustomText/CustomButton/CustomSlider)을 CoreCanvas 위에 띄운다.
-        // 줌 버튼/선택 유닛 정보는 이 패널로 이전되어 아래 OnGUI()에선 더 이상 그리지 않는다.
-        LoadDebugPanelAsync().Forget();
-        
-        // 도감 패널 프리로딩 (비활성화 상태로 메모리에 올림)
-        LoadEncyclopediaPanelAsync().Forget();
-    }
-
-    private async UniTaskVoid LoadDebugPanelAsync()
-    {
-        // SceneUIManager.LoadPanel<T>()는 로드 직후 내부적으로 panel.gameObject.SetActive(false)를
-        // 호출해서 패널을 꺼둔다 — OpenPanel()을 명시적으로 호출해야 실제로 화면에 뜬다.
-        int panelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver);
-        _coreUIManager.RentPanel<DebugInfoPanel>(panelId).OpenPanel();
-    }
-
-    private async UniTaskVoid LoadEncyclopediaPanelAsync()
-    {
-        _encyclopediaPanelId = await _coreUIManager.LoadPanel<Game.Encyclopedia.UI.UI_Encyclopedia>(_resolver);
     }
 
     void OnGUI()

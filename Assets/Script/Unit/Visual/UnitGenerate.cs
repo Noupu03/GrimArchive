@@ -333,7 +333,7 @@ public class UnitGenerate
 			Transform outlineTransform = cache.OutlineTransform;
 			if (outlineTransform != null)
 			{
-				bool isSelected  = (u.InputMgr != null && u.InputMgr.selectedUnit == u);
+				bool isSelected  = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
 				bool isPanicking = u is Human && u.mental < u.maxMental * 0.3f;
 
 				outlineTransform.gameObject.SetActive(isSelected || isPanicking);

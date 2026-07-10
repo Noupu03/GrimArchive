@@ -17,6 +17,9 @@ public static class HaareUISetup
     private const string OutputFolder = "Assets/Prefabs/UI";
     private const string CoreCanvasAddress = "Prefabs/CoreCanvas";
     private const string DebugPanelAddress = "Prefabs/DebugInfoPanel";
+    // Haare.Client.Core.DI.UIPresenter.FadeIn()/FadeOut()이 Demo.UI.LoadingFadePanel을 그 클래스에
+    // 박힌 [PanelAttribute] 주소로 직접 로드하기 때문에, 우리 프리팹도 이 주소 그대로 등록해야 한다.
+    private const string LoadingFadePanelAddress = "Prefabs/Demo_LoadingFadePanel";
     private const string ScenePath = "Assets/Scenes/ssh.unity";
 
     // TMP 기본 폰트(LiberationSans SDF)엔 한글 글리프가 없어서 한글이 다 깨져 보인다.
@@ -31,13 +34,15 @@ public static class HaareUISetup
 
         GameObject canvasPrefab = CreateCoreCanvasPrefab();
         GameObject panelPrefab = CreateDebugInfoPanelPrefab();
+        GameObject fadePanelPrefab = CreateLoadingFadePanelPrefab();
 
         RegisterAddressable(canvasPrefab, CoreCanvasAddress);
         RegisterAddressable(panelPrefab, DebugPanelAddress);
+        RegisterAddressable(fadePanelPrefab, LoadingFadePanelAddress);
 
         WireCompositionRoot(canvasPrefab);
 
-        Debug.Log("[HaareUISetup] 완료: CoreCanvas / DebugInfoPanel 프리팹 생성, Addressable 등록, CompositionRoot 배선까지 마쳤습니다.");
+        Debug.Log("[HaareUISetup] 완료: CoreCanvas / DebugInfoPanel / LoadingFadePanel 프리팹 생성, Addressable 등록, CompositionRoot 배선까지 마쳤습니다.");
     }
 
     private static GameObject CreateCoreCanvasPrefab()
@@ -162,6 +167,34 @@ public static class HaareUISetup
         so.ApplyModifiedPropertiesWithoutUndo();
 
         string path = OutputFolder + "/DebugInfoPanel.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    // GameUIPresenter(Assets/Script/UI/GameUIPresenter.cs)가 부팅 시 FadeIn()/FadeOut()으로 쓰는
+    // 화면 전체를 덮는 검은 페이드 패널. Demo.UI.LoadingFadePanel 컴포넌트를 그대로 재사용하고
+    // (Fade 로직은 그 클래스가 이미 갖고 있음) 비주얼(전체화면 검은 Image)만 이 프로젝트 걸로 만든다.
+    private static GameObject CreateLoadingFadePanelPrefab()
+    {
+        var root = new GameObject("LoadingFadePanel", typeof(RectTransform), typeof(Image));
+        var rootRt = root.GetComponent<RectTransform>();
+        rootRt.anchorMin = Vector2.zero;
+        rootRt.anchorMax = Vector2.one;
+        rootRt.offsetMin = Vector2.zero;
+        rootRt.offsetMax = Vector2.zero;
+
+        var image = root.GetComponent<Image>();
+        image.color = Color.black;
+
+        var customImage = root.AddComponent<CustomImage>();
+
+        var fadePanel = root.AddComponent<Demo.UI.LoadingFadePanel>();
+        var so = new SerializedObject(fadePanel);
+        so.FindProperty("FadeImage").objectReferenceValue = customImage;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        string path = OutputFolder + "/LoadingFadePanel.prefab";
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
         return prefab;

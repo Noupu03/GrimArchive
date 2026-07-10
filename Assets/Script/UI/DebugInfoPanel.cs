@@ -116,7 +116,10 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         if (_inputManager == null || _inputManager.selectedUnit == null) return;
         Unit u = _inputManager.selectedUnit;
 
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 150), "Unit Status Test", GUI.skin.window);
+        string title = _inputManager.selectedUnits.Count > 1
+            ? $"Unit Status Test ({_inputManager.selectedUnits.Count}기 선택됨)"
+            : "Unit Status Test";
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 150), title, GUI.skin.window);
         
         if (GUILayout.Button("Add 10 EXP"))
         {

@@ -20,7 +20,12 @@ namespace Haare.Client.Routine.Service.SceneService
     {
         DemoTitleScene,
         DemoLoadScene,
-        DemoLobbyScene
+        DemoLobbyScene,
+        // 이 프로젝트의 현재(유일한) 씬. AssetPath.SCENE_PATH + 이 이름 + SCENE_EXT로 씬 파일을 찾으므로
+        // enum 멤버 이름이 반드시 씬 파일명과 같아야 한다(Assets/Scenes/ssh.unity).
+        // 새 씬을 추가할 때는 이 자리에 파일명과 같은 항목을 추가하고, 그 씬을 Addressable로 등록한 뒤
+        // SceneService.LoadScene(SceneName.새씬이름)을 호출하면 된다.
+        ssh
     }
     
     public enum SceneLoadPhase

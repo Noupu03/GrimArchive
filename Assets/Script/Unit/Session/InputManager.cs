@@ -1,12 +1,32 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
 
 public class InputManager : MonoBehaviour
 {
-	public Unit selectedUnit;
+	// 하위 호환용: 기존 코드는 "선택된 유닛 1기"를 이렇게 참조한다.
+	// 실제 저장소는 selectedUnits이고, 이 프로퍼티는 그 목록의 첫 번째 유닛을 가리킨다.
+	public Unit selectedUnit
+	{
+		get => selectedUnits.Count > 0 ? selectedUnits[0] : null;
+		set
+		{
+			selectedUnits.Clear();
+			if (value != null) selectedUnits.Add(value);
+		}
+	}
+
+	public List<Unit> selectedUnits = new List<Unit>();
+
+	// 드래그 박스(스타크래프트식) 관련 상태
+	private const float DragThresholdPixels = 6f;
+	private bool _isMouseDown;
+	private bool _dragBoxActive;
+	private Vector2 _dragStartScreenPos;
+	private Vector2 _dragCurrentScreenPos;
 
 	private UnitGenerate _unitGenerate;
 	private GameSession _gameSession;
@@ -29,6 +49,37 @@ public class InputManager : MonoBehaviour
 				pos.y >= u.position.y && pos.y < u.position.y + h);
 	}
 
+	private Unit FindUnitAtGridPos(Vector3Int gridPos, int currentFloor)
+	{
+		foreach (var u in _gameSession.units)
+		{
+			if (u == null || u.hp <= 0) continue;
+			if (u.currentFloor != currentFloor) continue;
+
+			if (IsPointInFootprint(gridPos, u))
+				return u;
+		}
+		return null;
+	}
+
+	private Vector3 ScreenToWorldPoint(Vector2 screenPos)
+	{
+		return Camera.main.ScreenToWorldPoint(
+			new Vector3(screenPos.x, screenPos.y, Mathf.Abs(Camera.main.transform.position.z))
+		);
+	}
+
+	private Vector3Int ScreenToGridPos(Vector2 screenPos, Vector3 floorOffset, int currentFloor)
+	{
+		Vector3 localPoint = ScreenToWorldPoint(screenPos) - floorOffset;
+
+		return new Vector3Int(
+			Mathf.FloorToInt(localPoint.x),
+			Mathf.FloorToInt(localPoint.y),
+			currentFloor
+		);
+	}
+
 	void Update()
 	{
 		if (_gameSession == null) return;
@@ -40,124 +91,85 @@ public class InputManager : MonoBehaviour
 			? _unitGenerate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
+		bool shiftHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
+
 		// =====================================================
-		// 좌클릭
+		// 좌클릭 - 드래그 시작
 		// =====================================================
 		if (Mouse.current.leftButton.wasPressedThisFrame)
 		{
-			Vector2 mousePos = Mouse.current.position.ReadValue();
+			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다.
+			bool overUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-			Vector3 worldPoint = Camera.main.ScreenToWorldPoint(
-				new Vector3(mousePos.x, mousePos.y, Mathf.Abs(Camera.main.transform.position.z))
-			);
-
-			Vector3 localPoint = worldPoint - floorOffset;
-
-			Vector3Int gridPos = new Vector3Int(
-				Mathf.FloorToInt(localPoint.x),
-				Mathf.FloorToInt(localPoint.y),
-				currentFloor
-			);
-
-			// =================================================
-			// 1. 먼저 "유닛 선택" (최우선)
-			// =================================================
-			Unit clickedUnit = null;
-
-			foreach (var u in _gameSession.units)
+			if (!overUI)
 			{
-				if (u == null || u.hp <= 0) continue;
-				if (u.currentFloor != currentFloor) continue;
-
-				if (IsPointInFootprint(gridPos, u))
-				{
-					clickedUnit = u;
-					break;
-				}
+				_isMouseDown = true;
+				_dragBoxActive = false;
+				_dragStartScreenPos = Mouse.current.position.ReadValue();
+				_dragCurrentScreenPos = _dragStartScreenPos;
 			}
-
-			// =================================================
-			// 2. 유닛 클릭이면 무조건 선택 (진영 제한 없음)
-			// =================================================
-			if (clickedUnit != null)
-			{
-				selectedUnit = clickedUnit;
-				LogHelper.Log(LogHelper.GAME, $"선택: {clickedUnit.unitType.typeName}");
-				return;
-			}
-
-			// =================================================
-			// 3. 공격 처리 (선택된 상태에서만)
-			// =================================================
-			if (selectedUnit != null && selectedUnit.hp > 0)
-			{
-				foreach (var u in _gameSession.units)
-				{
-					if (u == selectedUnit || u.hp <= 0) continue;
-					if (u.currentFloor != currentFloor) continue;
-
-					if (IsPointInFootprint(gridPos, u))
-					{
-						bool isEnemy =
-							(selectedUnit is Monster && u is Human) ||
-							(selectedUnit is Human && u is Monster);
-
-						if (isEnemy)
-						{
-							selectedUnit.playerAttackTarget = u;
-							selectedUnit.playerMoveTarget = null;
-
-							LogHelper.Log(LogHelper.GAME, 
-								$"공격 명령: {selectedUnit.unitType.typeName} -> {u.unitType.typeName}"
-							);
-							return;
-						}
-					}
-				}
-			}
-
-			// =================================================
-			// 4. 허공 클릭 → 선택 해제
-			// =================================================
-			selectedUnit = null;
 		}
 
 		// =====================================================
-		// 우클릭 (이동)
+		// 좌클릭 - 드래그 중 (박스 갱신)
 		// =====================================================
-		if (Mouse.current.rightButton.wasPressedThisFrame &&
-			selectedUnit != null &&
-			selectedUnit.hp > 0)
+		if (_isMouseDown && Mouse.current.leftButton.isPressed)
 		{
-			Vector2 mousePos = Mouse.current.position.ReadValue();
+			_dragCurrentScreenPos = Mouse.current.position.ReadValue();
 
-			Vector3 worldPoint = Camera.main.ScreenToWorldPoint(
-				new Vector3(mousePos.x, mousePos.y, Mathf.Abs(Camera.main.transform.position.z))
-			);
-
-			Vector3 localPoint = worldPoint - floorOffset;
-
-			Vector3Int gridPos = new Vector3Int(
-				Mathf.FloorToInt(localPoint.x),
-				Mathf.FloorToInt(localPoint.y),
-				currentFloor
-			);
-
-			selectedUnit.playerInteractTarget = null;
-
-			if (selectedUnit is Human human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+			if (!_dragBoxActive &&
+				Vector2.Distance(_dragCurrentScreenPos, _dragStartScreenPos) >= DragThresholdPixels)
 			{
-				if (!obj.IsCollected)
-				{
-					selectedUnit.playerInteractTarget = gridPos;
-				}
+				_dragBoxActive = true;
+			}
+		}
+
+		// =====================================================
+		// 좌클릭 - 뗌 (드래그였으면 박스 선택, 아니면 기존 클릭 선택/공격)
+		// =====================================================
+		if (_isMouseDown && Mouse.current.leftButton.wasReleasedThisFrame)
+		{
+			if (_dragBoxActive)
+			{
+				DoBoxSelect(_dragStartScreenPos, _dragCurrentScreenPos, floorOffset, currentFloor, shiftHeld);
+			}
+			else
+			{
+				DoClickSelect(_dragCurrentScreenPos, floorOffset, currentFloor, shiftHeld);
 			}
 
-			selectedUnit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
-			selectedUnit.playerAttackTarget = null;
+			_isMouseDown = false;
+			_dragBoxActive = false;
+		}
 
-			LogHelper.Log(LogHelper.GAME, 
-				$"이동 명령: {selectedUnit.unitType.typeName} -> ({gridPos.x}, {gridPos.y})"
+		// =====================================================
+		// 우클릭 (이동) - 선택된 유닛 전원에게 명령
+		// =====================================================
+		if (Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0)
+		{
+			Vector2 mousePos = Mouse.current.position.ReadValue();
+			Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+			foreach (var unit in selectedUnits)
+			{
+				if (unit == null || unit.hp <= 0) continue;
+
+				unit.playerInteractTarget = null;
+
+				if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+				{
+					if (!obj.IsCollected)
+					{
+						unit.playerInteractTarget = gridPos;
+					}
+				}
+
+				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+				unit.playerAttackTarget = null;
+			}
+
+			LogHelper.Log(LogHelper.GAME,
+				$"이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
 			);
 		}
 
@@ -194,5 +206,159 @@ public class InputManager : MonoBehaviour
 			_gameSession.currentGameSpeed = 3f;
 			if (!_gameSession.isPaused) Time.timeScale = 3f;
 		}
+	}
+
+	// =====================================================
+	// 클릭 선택 / 공격 (드래그 없이 뗀 경우)
+	// =====================================================
+	private void DoClickSelect(Vector2 screenPos, Vector3 floorOffset, int currentFloor, bool shiftHeld)
+	{
+		Vector3Int gridPos = ScreenToGridPos(screenPos, floorOffset, currentFloor);
+
+		// 1. 유닛 클릭이면 최우선으로 선택 처리 (진영 제한 없음, 기존 동작 유지)
+		Unit clickedUnit = FindUnitAtGridPos(gridPos, currentFloor);
+
+		if (clickedUnit != null)
+		{
+			if (shiftHeld)
+			{
+				// 스타크래프트식 Shift+클릭: 이미 선택돼 있으면 선택 해제, 아니면 추가
+				if (!selectedUnits.Remove(clickedUnit))
+					selectedUnits.Add(clickedUnit);
+			}
+			else
+			{
+				selectedUnits.Clear();
+				selectedUnits.Add(clickedUnit);
+			}
+
+			LogHelper.Log(LogHelper.GAME, $"선택: {clickedUnit.unitType.typeName} (총 {selectedUnits.Count}기)");
+			return;
+		}
+
+		// 2. 공격 처리 (선택된 유닛이 있을 때만, 기존 단일 선택 로직을 다중 선택으로 확장)
+		if (selectedUnits.Count > 0)
+		{
+			foreach (var unit in _gameSession.units)
+			{
+				if (unit == null || unit.hp <= 0) continue;
+				if (unit.currentFloor != currentFloor) continue;
+				if (selectedUnits.Contains(unit)) continue;
+
+				if (IsPointInFootprint(gridPos, unit))
+				{
+					bool anyAttacked = false;
+
+					foreach (var selUnit in selectedUnits)
+					{
+						if (selUnit == null || selUnit.hp <= 0) continue;
+
+						bool isEnemy =
+							(selUnit is Monster && unit is Human) ||
+							(selUnit is Human && unit is Monster);
+
+						if (isEnemy)
+						{
+							selUnit.playerAttackTarget = unit;
+							selUnit.playerMoveTarget = null;
+							anyAttacked = true;
+						}
+					}
+
+					if (anyAttacked)
+					{
+						LogHelper.Log(LogHelper.GAME,
+							$"공격 명령: {selectedUnits.Count}기 -> {unit.unitType.typeName}"
+						);
+						return;
+					}
+				}
+			}
+		}
+
+		// 3. 허공 클릭 → 선택 해제 (Shift 중이면 기존 선택 유지)
+		if (!shiftHeld)
+			selectedUnits.Clear();
+	}
+
+	// =====================================================
+	// 드래그 박스 선택 (스타크래프트식: 박스 안 "아군"만 선택 대상)
+	// =====================================================
+	private void DoBoxSelect(Vector2 startScreenPos, Vector2 endScreenPos, Vector3 floorOffset, int currentFloor, bool shiftHeld)
+	{
+		Vector3 worldA = ScreenToWorldPoint(startScreenPos) - floorOffset;
+		Vector3 worldB = ScreenToWorldPoint(endScreenPos) - floorOffset;
+
+		float minX = Mathf.Min(worldA.x, worldB.x);
+		float maxX = Mathf.Max(worldA.x, worldB.x);
+		float minY = Mathf.Min(worldA.y, worldB.y);
+		float maxY = Mathf.Max(worldA.y, worldB.y);
+
+		var boxed = new List<Unit>();
+
+		foreach (var u in _gameSession.units)
+		{
+			if (u == null || u.hp <= 0) continue;
+			if (u.currentFloor != currentFloor) continue;
+			if (!(u is Human)) continue; // 스타크래프트처럼 드래그 박스는 아군(인류)만 선택, 적은 제외
+
+			float cx = u.position.x + u.unitType.footprint.x / 2f;
+			float cy = u.position.y + u.unitType.footprint.y / 2f;
+
+			if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY)
+				boxed.Add(u);
+		}
+
+		if (shiftHeld)
+		{
+			foreach (var u in boxed)
+				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
+		}
+		else
+		{
+			selectedUnits.Clear();
+			selectedUnits.AddRange(boxed);
+		}
+
+		if (selectedUnits.Count > 0)
+			LogHelper.Log(LogHelper.GAME, $"드래그 선택: {selectedUnits.Count}기");
+	}
+
+	// =====================================================
+	// 드래그 박스 시각화
+	// =====================================================
+	void OnGUI()
+	{
+		if (!_dragBoxActive) return;
+
+		Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);
+		Color prevColor = GUI.color;
+
+		GUI.color = new Color(0.3f, 1f, 0.3f, 0.15f);
+		GUI.DrawTexture(r, Texture2D.whiteTexture);
+
+		GUI.color = new Color(0.3f, 1f, 0.3f, 0.9f);
+		DrawRectBorder(r, 2f);
+
+		GUI.color = prevColor;
+	}
+
+	// Mouse.current.position은 좌하단 원점, OnGUI는 좌상단 원점이라 Y를 뒤집어야 한다.
+	private Rect GetGUIRect(Vector2 a, Vector2 b)
+	{
+		float xMin = Mathf.Min(a.x, b.x);
+		float xMax = Mathf.Max(a.x, b.x);
+		float yMin = Screen.height - Mathf.Max(a.y, b.y);
+		float yMax = Screen.height - Mathf.Min(a.y, b.y);
+
+		return new Rect(xMin, yMin, xMax - xMin, yMax - yMin);
+	}
+
+	private void DrawRectBorder(Rect r, float thickness)
+	{
+		GUI.DrawTexture(new Rect(r.xMin, r.yMin, r.width, thickness), Texture2D.whiteTexture);
+		GUI.DrawTexture(new Rect(r.xMin, r.yMax - thickness, r.width, thickness), Texture2D.whiteTexture);
+		GUI.DrawTexture(new Rect(r.xMin, r.yMin, thickness, r.height), Texture2D.whiteTexture);
+		GUI.DrawTexture(new Rect(r.xMax - thickness, r.yMin, thickness, r.height), Texture2D.whiteTexture);
 	}
 }
