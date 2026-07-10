@@ -98,7 +98,8 @@ public class InputManager : MonoBehaviour
 			? _unitGenerate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
-		bool shiftHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
+		// Ctrl = "기존 선택에 추가" (클릭/드래그/더블클릭 공통).
+		bool addHeld = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
 
 		// =====================================================
 		// 좌클릭 - 드래그 시작
@@ -138,11 +139,11 @@ public class InputManager : MonoBehaviour
 		{
 			if (_dragBoxActive)
 			{
-				DoBoxSelect(_dragStartScreenPos, _dragCurrentScreenPos, floorOffset, currentFloor, shiftHeld);
+				DoBoxSelect(_dragStartScreenPos, _dragCurrentScreenPos, floorOffset, currentFloor, addHeld);
 			}
 			else
 			{
-				DoClickSelect(_dragCurrentScreenPos, floorOffset, currentFloor, shiftHeld);
+				DoClickSelect(_dragCurrentScreenPos, floorOffset, currentFloor, addHeld);
 			}
 
 			_isMouseDown = false;
@@ -218,7 +219,7 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	// 클릭 선택 / 공격 (드래그 없이 뗀 경우)
 	// =====================================================
-	private void DoClickSelect(Vector2 screenPos, Vector3 floorOffset, int currentFloor, bool shiftHeld)
+	private void DoClickSelect(Vector2 screenPos, Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
 		Vector3Int gridPos = ScreenToGridPos(screenPos, floorOffset, currentFloor);
 
@@ -238,13 +239,13 @@ public class InputManager : MonoBehaviour
 			{
 				// 세 번째 클릭이 다시 더블클릭으로 판정되는 것을 막는다.
 				_lastClickedUnit = null;
-				SelectNearbySameType(clickedUnit, currentFloor, shiftHeld);
+				SelectNearbySameType(clickedUnit, currentFloor, addHeld);
 				return;
 			}
 
-			if (shiftHeld)
+			if (addHeld)
 			{
-				// 스타크래프트식 Shift+클릭: 이미 선택돼 있으면 선택 해제, 아니면 추가
+				// Ctrl+클릭: 이미 선택돼 있으면 선택 해제, 아니면 추가
 				if (!selectedUnits.Remove(clickedUnit))
 					selectedUnits.Add(clickedUnit);
 			}
@@ -298,15 +299,15 @@ public class InputManager : MonoBehaviour
 			}
 		}
 
-		// 3. 허공 클릭 → 선택 해제 (Shift 중이면 기존 선택 유지)
-		if (!shiftHeld)
+		// 3. 허공 클릭 → 선택 해제 (Ctrl 중이면 기존 선택 유지)
+		if (!addHeld)
 			selectedUnits.Clear();
 	}
 
 	// =====================================================
 	// 드래그 박스 선택 (진영 제한 없음 — 인류/몬스터 둘 다 드래그로 선택하고 조종할 수 있다)
 	// =====================================================
-	private void DoBoxSelect(Vector2 startScreenPos, Vector2 endScreenPos, Vector3 floorOffset, int currentFloor, bool shiftHeld)
+	private void DoBoxSelect(Vector2 startScreenPos, Vector2 endScreenPos, Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
 		Vector3 worldA = ScreenToWorldPoint(startScreenPos) - floorOffset;
 		Vector3 worldB = ScreenToWorldPoint(endScreenPos) - floorOffset;
@@ -330,7 +331,7 @@ public class InputManager : MonoBehaviour
 				boxed.Add(u);
 		}
 
-		if (shiftHeld)
+		if (addHeld)
 		{
 			foreach (var u in boxed)
 				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
@@ -348,7 +349,7 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	// 더블클릭 선택 (스타크래프트식: 같은 유형 유닛을 근방에서 한 번에 선택)
 	// =====================================================
-	private void SelectNearbySameType(Unit origin, int currentFloor, bool shiftHeld)
+	private void SelectNearbySameType(Unit origin, int currentFloor, bool addHeld)
 	{
 		var nearby = new List<Unit>();
 		float radiusSq = SameTypeNearbyRadius * SameTypeNearbyRadius;
@@ -369,7 +370,7 @@ public class InputManager : MonoBehaviour
 				nearby.Add(u);
 		}
 
-		if (shiftHeld)
+		if (addHeld)
 		{
 			foreach (var u in nearby)
 				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
