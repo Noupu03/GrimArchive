@@ -18,30 +18,58 @@ public class UnitGenerate
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
 	private Dictionary<Unit, Vector3>    targetPosMap     = new Dictionary<Unit, Vector3>();
 
-	// 선택 표시용 사각 테두리(SelectionMarker) 관련 상수. (패닉 빨간 테두리는 안 씀 — 제거됨)
-	// 예전엔 캐릭터 스프라이트를 검게 복제해서 뒤에 깔아두는 방식(OutlineSpriteSync)을 썼는데,
-	// 실제 유닛 프리팹(JsonToUnitPrefabConverter가 굽는 것들)에는 애초에 그 동기화 컴포넌트가
-	// 안 붙어 있어서 스프라이트가 한 번도 세팅되지 않는 죽은 오브젝트였다(폴백 도형에만 붙어있었음).
-	// 그래서 캐릭터 스프라이트/애니메이션 시스템과 아예 무관하게, 풋프린트 크기만으로 계산되는
-	// 4개짜리 얇은 사각 바(위/아래/좌/우)로 다시 만들었다 — 스프라이트가 뭘로 바뀌든 안 깨진다.
-	private const float SelectionMarkerThickness = 0.12f; // 월드 유닛 기준 두께(풋프린트 크기와 무관하게 일정)
-	private const float SelectionMarkerPadding   = 0.08f; // 풋프린트보다 살짝 크게
-	private const int   SelectionMarkerSortingOrder = 9;  // 캐릭터(보통 10)보다 한 칸 아래
-	private static readonly string[] SelectionMarkerBarNames = { "Top", "Bottom", "Left", "Right" };
+	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
+	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
+	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
+	//  그 이전엔 OutlineSpriteSync로 스프라이트를 검게 복제하는 방식이었는데, 실제 유닛 프리팹엔
+	//  그 동기화 컴포넌트가 애초에 안 붙어있어서 완전히 죽은 기능이었다 — 그래서 스프라이트 자체에
+	//  안 엮이는 이 방식으로 넘어옴.)
+	private const float SelectionRingDiameterRatio = 1.15f; // 풋프린트 대비 링 지름 배율
+	private const float SelectionRingFlatten       = 0.5f;  // 세로로 납작하게 누르는 비율(원→타원)
+	private const float SelectionRingFootOffset    = 0.06f; // 발밑에서 살짝 띄우는 정도(월드 유닛)
+	private const int   SelectionMarkerSortingOrder = 9;    // 캐릭터(보통 10)보다 한 칸 아래(발밑에 깔림)
+	private const int   SelectionRingTextureSize   = 64;
+	private const float SelectionRingInnerRatio    = 0.62f; // 안쪽 반지름 비율(0~1) — 클수록 얇은 링
+	private const float SelectionRingOuterRatio    = 0.95f; // 바깥쪽 반지름 비율(0~1)
+	// 진영별 링 색상 — 인류는 파란색, 몬스터는 빨간색.
+	private static readonly Color SelectionRingColorHuman   = new Color(0.2f, 0.45f, 1f, 1f);
+	private static readonly Color SelectionRingColorMonster = new Color(1f, 0.2f, 0.2f, 1f);
 
-	private static Sprite _selectionMarkerSprite;
-	private static Sprite SelectionMarkerSprite
+	private static Sprite _selectionRingSprite;
+	private static Sprite SelectionRingSprite
 	{
 		get
 		{
-			if (_selectionMarkerSprite == null)
-			{
-				var tex = Texture2D.whiteTexture;
-				_selectionMarkerSprite = Sprite.Create(
-					tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.width);
-			}
-			return _selectionMarkerSprite;
+			if (_selectionRingSprite == null)
+				_selectionRingSprite = CreateRingSprite(
+					SelectionRingTextureSize, SelectionRingInnerRatio, SelectionRingOuterRatio);
+			return _selectionRingSprite;
 		}
+	}
+
+	private static Sprite CreateRingSprite(int size, float innerRatio, float outerRatio)
+	{
+		Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+		Color[] pixels = new Color[size * size];
+		Vector2 center = new Vector2(size / 2f, size / 2f);
+		float outerR = size / 2f * outerRatio;
+		float innerR = size / 2f * innerRatio;
+		const float aa = 1.25f; // 가장자리 부드럽게(안티에일리어싱) 처리할 픽셀 폭
+
+		for (int y = 0; y < size; y++)
+		{
+			for (int x = 0; x < size; x++)
+			{
+				float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+				float alphaOuter = Mathf.Clamp01((outerR - d) / aa + 0.5f);
+				float alphaInner = Mathf.Clamp01((d - innerR) / aa + 0.5f);
+				pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Min(alphaOuter, alphaInner));
+			}
+		}
+
+		tex.SetPixels(pixels);
+		tex.Apply();
+		return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
 	}
 
 	private class VisualCache
@@ -49,8 +77,7 @@ public class UnitGenerate
 		public UnitVisual UnitVisual;
 		public UnitVisualDefinition UnitVisualDefinition;
 		public WeaponAttachment WeaponAttachment;
-		public Transform SelectionMarkerRoot;
-		public SpriteRenderer[] SelectionMarkerBars;
+		public SpriteRenderer SelectionMarker;
 #if UNITY_2022_2_OR_NEWER
 		public SpriteResolver SpriteResolver;
 #endif
@@ -342,72 +369,46 @@ public class UnitGenerate
 
 			UpdateUnitSpriteForDirection(u);
 
-			EnsureSelectionMarker(cache, go, u.unitType.footprint);
-			if (cache.SelectionMarkerRoot != null)
+			EnsureSelectionMarker(cache, go, u);
+			if (cache.SelectionMarker != null)
 			{
 				bool isSelected = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
-
-				cache.SelectionMarkerRoot.gameObject.SetActive(isSelected);
-				if (isSelected)
-				{
-					foreach (var bar in cache.SelectionMarkerBars)
-						if (bar != null) bar.color = Color.black;
-				}
+				cache.SelectionMarker.gameObject.SetActive(isSelected);
 			}
 		}
 	}
 
-	// 캐릭터 스프라이트/애니메이션과 완전히 무관한, 풋프린트 기반 사각 테두리 4개(위/아래/좌/우)를
-	// go의 자식으로 한 번만 만들어둔다. go.transform.localScale이 이미 풋프린트 크기로 맞춰져
-	// 있어서(SetupUnitVisual 참고) 부모 스케일을 역산해 로컬 좌표/스케일을 계산해야 월드 기준으로
-	// 일정한 두께/여백이 나온다.
-	private void EnsureSelectionMarker(VisualCache cache, GameObject go, Vector2 footprint)
+	// 캐릭터 스프라이트/애니메이션과 완전히 무관한, 풋프린트 기반 발밑 링을 go의 자식으로 한 번만
+	// 만들어둔다. go.transform.localScale이 이미 풋프린트 크기로 맞춰져 있어서(SetupUnitVisual 참고)
+	// 부모 스케일을 역산해 로컬 스케일을 계산해야 월드 기준으로 일정한 링 크기가 나온다.
+	private void EnsureSelectionMarker(VisualCache cache, GameObject go, Unit unit)
 	{
-		if (cache.SelectionMarkerBars != null) return;
+		if (cache.SelectionMarker != null) return;
+
+		Vector2 footprint = unit.unitType.footprint;
 		if (footprint.x <= 0f || footprint.y <= 0f) return;
 
 		GameObject markerGo = new GameObject("SelectionMarker");
 		markerGo.transform.SetParent(go.transform, false);
 		markerGo.SetActive(false);
 
-		var bars = new SpriteRenderer[4];
-		for (int i = 0; i < bars.Length; i++)
-		{
-			GameObject bar = new GameObject(SelectionMarkerBarNames[i]);
-			bar.transform.SetParent(markerGo.transform, false);
-			var sr = bar.AddComponent<SpriteRenderer>();
-			sr.sprite = SelectionMarkerSprite;
-			sr.sortingOrder = SelectionMarkerSortingOrder;
-			bars[i] = sr;
-		}
+		var sr = markerGo.AddComponent<SpriteRenderer>();
+		sr.sprite = SelectionRingSprite;
+		sr.sortingOrder = SelectionMarkerSortingOrder;
+		// 진영 구분: 인류는 파란색, 몬스터는 빨간색. 유닛이 인류/몬스터 사이를 오갈 일은 없어서
+		// 생성 시점에 한 번만 정해도 된다.
+		sr.color = unit is Human ? SelectionRingColorHuman : SelectionRingColorMonster;
 
-		cache.SelectionMarkerRoot = markerGo.transform;
-		cache.SelectionMarkerBars = bars;
+		// go의 로컬 X=0은 이미 풋프린트 가로 중앙, 로컬 Y=0은 풋프린트 바닥(발밑)에 해당한다
+		// (SyncVisuals의 newPos = position + footprint.x/2, position.y + 0.05f 참고).
+		float diameter = Mathf.Max(footprint.x, footprint.y) * SelectionRingDiameterRatio;
+		float scaleX = diameter / footprint.x;
+		float scaleY = diameter * SelectionRingFlatten / footprint.y;
 
-		// go의 로컬 X=0은 이미 풋프린트 가로 중앙(SyncVisuals의 newPos.x = position.x + footprint.x/2f),
-		// 로컬 Y=0은 풋프린트 바닥(newPos.y = position.y + 0.05f)에 해당한다 — 그래서 이 좌표계 기준으로
-		// 위/아래/좌/우 바를 배치한다.
-		float thickX = SelectionMarkerThickness / footprint.x;
-		float thickY = SelectionMarkerThickness / footprint.y;
-		float topEdge    = 1f + SelectionMarkerPadding / footprint.y;
-		float bottomEdge =    - SelectionMarkerPadding / footprint.y;
-		float leftEdge   = -0.5f - SelectionMarkerPadding / footprint.x;
-		float rightEdge  =  0.5f + SelectionMarkerPadding / footprint.x;
-		float centerY    = (topEdge + bottomEdge) / 2f;
-		float fullW      = rightEdge - leftEdge;
-		float fullH      = topEdge - bottomEdge;
+		markerGo.transform.localPosition = new Vector3(0f, SelectionRingFootOffset / footprint.y, 0f);
+		markerGo.transform.localScale    = new Vector3(scaleX, scaleY, 1f);
 
-		bars[0].transform.localPosition = new Vector3(0f, topEdge - thickY / 2f, 0f);      // Top
-		bars[0].transform.localScale    = new Vector3(fullW, thickY, 1f);
-
-		bars[1].transform.localPosition = new Vector3(0f, bottomEdge + thickY / 2f, 0f);   // Bottom
-		bars[1].transform.localScale    = new Vector3(fullW, thickY, 1f);
-
-		bars[2].transform.localPosition = new Vector3(leftEdge + thickX / 2f, centerY, 0f); // Left
-		bars[2].transform.localScale    = new Vector3(thickX, fullH, 1f);
-
-		bars[3].transform.localPosition = new Vector3(rightEdge - thickX / 2f, centerY, 0f); // Right
-		bars[3].transform.localScale    = new Vector3(thickX, fullH, 1f);
+		cache.SelectionMarker = sr;
 	}
 
 	public void TriggerHitEffect(Unit u)
