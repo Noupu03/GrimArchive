@@ -358,13 +358,26 @@ public class UnitGenerate
 
 			var cache = GetCache(go);
 
-			// FOV
+			// 시야/인지 범위 표시 — 유닛을 단일 선택했을 때만 그린다(예전엔 알파 0으로 안 보이는
+			// LineRenderer를 전 유닛 대상 매 프레임 갱신하던 낭비였다). 여러 유닛을 선택했을 때는
+			// "이 유닛의" 범위라고 특정할 수 없으므로 표시하지 않는다.
 			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
-				Vector2 forward = u.GetDirVector(u.currentDir);
-				if (forward == Vector2.zero) forward = Vector2.down;
-				uv.DrawFOV(Unit.ViewRadius, 160f, forward);
+				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
+				uv.SetVisionRangesVisible(isSoleSelected);
+
+				if (isSoleSelected)
+				{
+					Vector2 forward = u.GetDirVector(u.currentDir);
+					if (forward == Vector2.zero) forward = Vector2.down;
+
+					uv.DrawVisionAndPerceptionRange(
+						VisionMath.ViewDistance(u.spotting), VisionMath.BaseViewAngleDeg,
+						VisionMath.AwarenessDistance(u.spotting), VisionMath.AwarenessAngle(u.spotting),
+						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.spotting),
+						forward);
+				}
 			}
 
 			UpdateUnitSpriteForDirection(u);

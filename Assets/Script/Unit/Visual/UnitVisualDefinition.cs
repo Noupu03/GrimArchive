@@ -35,6 +35,12 @@ public class UnitVisualDefinition : MonoBehaviour
     [Tooltip("\"일정 피해량 이상\" 판정 기준값 - 이 값 미만의 피해는 위험도/이해도 이벤트를 발생시키지 않음 (3장)")]
     public float heavyHitThreshold = 10f;
 
+    [Header("시야-인지-반응 시스템 (01_시야·인지범위·가시성)")]
+    [Tooltip("은신 - 최종 가시성을 낮추는 세부 스탯 (01장 10절)")]
+    public float stealth = 0f;
+    [Tooltip("대상 기본 가시성 - 일반 유닛 100, 은신형/특수 유닛은 낮게 설정 (01장 9절)")]
+    public float baseVisibility = 100f;
+
     public void ApplyStatsTo(Unit unit)
     {
         if (unit == null) return;
@@ -44,6 +50,8 @@ public class UnitVisualDefinition : MonoBehaviour
         unit.baseInterest = baseInterest;
         unit.baseDanger = baseDanger;
         unit.heavyHitThreshold = heavyHitThreshold;
+        unit.stealth = stealth;
+        unit.baseVisibility = baseVisibility;
 
         unit.maxHp = stats.maxHp; unit.hp = stats.maxHp;
         unit.maxMp = stats.maxMp; unit.mp = stats.maxMp;
