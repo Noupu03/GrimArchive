@@ -56,6 +56,7 @@ public abstract class SkillAction
 			{
 				effectAction?.Invoke();
 				attackAction?.Invoke();
+				unit.TriggerAttackVisibilityBoost(); // 01-A 9장: 공격 후 가시성 상승(+10, 5초, 재공격 시 지속시간 초기화)
 			}
 			finally
 			{

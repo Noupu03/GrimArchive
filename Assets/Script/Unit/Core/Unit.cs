@@ -69,9 +69,14 @@ public abstract class Unit : ScriptableObject
 	public float maxMental = 0f;         // 최대 정신력->옛날 정신공격 연산으로만 작동중
 	public float mental    = 0f;         // 현재 정신력
 
-	public float spotting       = 0f;   // 감지
+	public float spotting       = 0f;   // 감지 — 시야-인지-반응 문서(01-A)의 "감지 스탯". 시야/인지 거리·인지각·원형 인지 범위 반지름이 전부 이 값으로 결정된다(VisionMath).
 	public float leadershipRange = 0f;  // 지휘범위->새로 추가됨. 로직없음
 	public float charisma        = 0f;  // 카리스마->새로 추가됨. 로직없음
+
+	// ─── 시야-인지-반응 시스템 관련 — 01_시야·인지범위·가시성 문서 v0.2 ────────────
+	public float stealth = 0f;         // 은신 — 최종 가시성을 낮추는 세부 스탯(01장 10절). 거리/가림 보정 세부산식은 05-A 문서 부재로 스텁(VisionMath.FinalVisibility 참고)
+	public float baseVisibility = 100f; // 대상 기본 가시성(01장 9절) — 일반 유닛은 100, 은신형/특수 유닛은 데이터로 낮게 설정
+	public float attackVisibilityBoostTimer = 0f; // 공격 후 가시성 상승 지속시간 타이머(초, 01-A 9장) — SkillAction.BeginAttackCast가 공격 실행 시 세팅, UnitFunction.OnUpdate가 감소
 
 	// ─── 정규화용 속성 ────────────────────────────────────────────
 	public float sterngth    = 0f; // 근력. 정규화를 통해 산출해야 함
@@ -152,10 +157,23 @@ public abstract class Unit : ScriptableObject
 	public int        currentFloor = 0;        // 현재 유닛이 위치한 층 정보
 	public Dir        currentDir   = Dir.DOWN;  // 현재 바라보는 방향 (시야 기준)
 	public string     spriteVariation = "";     // 스프라이트 바리에이션 (라이브러리 카테고리명)
-	public static float ViewRadius = 30f;       // 전역 시야 거리
 
 	public List<Unit>          personalSpottedEnemies = new List<Unit>();
 	public List<ThreatTileData> detectedThreats        = new List<ThreatTileData>();
+
+	// 01장 7절/01-A 7장: 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록(이번 UpdateFOV 호출
+	// 기준 임시 스냅샷 — 저장값 아님, 매 UpdateFOV마다 비우고 다시 채운다). 목표/경로 재설정을 다루는
+	// 10_목표설정·이동경로·재설정 문서가 아직 폴더에 없어 이 리스트를 실제로 소비하는 곳은 없다 —
+	// 그 문서가 생기면 VisionMath.NonEmptyTileTempWeight와 함께 바로 쓸 수 있도록 데이터만 미리 채워둔다.
+	public List<Vector3Int> visionOnlyNonEmptyTiles = new List<Vector3Int>();
+
+	// 01-A 9장: 공격한 유닛은 고정 시간(5초) 동안 가시성이 +10 상승한다. 재공격 시 지속시간만
+	// 초기화되고 상승량은 누적되지 않는다(문서가 "지속시간을 다시 5초로 초기화"라고만 명시할 뿐
+	// "상승량이 추가된다"고는 하지 않아, 상한 100 규칙과 함께 가장 단순하게 해석한 것 — 판단 근거는
+	// 구현현황 문서에 기재).
+	public bool IsVisibilityBoosted => attackVisibilityBoostTimer > 0f;
+	public void TriggerAttackVisibilityBoost() => attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
+	public float GetFinalVisibility() => VisionMath.FinalVisibility(baseVisibility, stealth, IsVisibilityBoosted);
 
 	// ─── 정규화 함수 ─────────────────────────────────────────────────
 	// 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.
@@ -338,6 +356,11 @@ public abstract class Unit : ScriptableObject
 	}
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
+
+	// 01-A 11장: 시야 방향 전환 우선순위 판정 — 이번 턴에 활성화된 후보들 중 가장 높은 우선순위를
+	// 골라 currentDir를 갱신한다. GameSession.ProcessUnitAction이 ExecuteAction() 이후, UpdateFOV()
+	// 이전에 호출한다(그래야 이동으로 갱신된 currentDir를 "이동 중" 후보의 기본값으로 활용할 수 있다).
+	public abstract void ResolveVisionDirection();
 
 	private GoapBrain _brain;
 	public GoapBrain brain { get { if (_brain == null) _brain = new GoapBrain(); return _brain; } }

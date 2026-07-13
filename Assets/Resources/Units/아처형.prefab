@@ -354,6 +354,8 @@ MonoBehaviour:
   baseInterest: 0
   baseDanger: 0
   heavyHitThreshold: 10
+  stealth: 20
+  baseVisibility: 85
 --- !u!1 &8451115793971915785
 GameObject:
   m_ObjectHideFlags: 0

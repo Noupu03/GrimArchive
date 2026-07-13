@@ -250,6 +250,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Corpse", isMonsterCorpse ? "Monster" : "Human" };
+            // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
             Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);
@@ -396,6 +397,10 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             RegisterUnitPos(u, u.position);
         }
 
+        // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
+        // 확정한다. ExecuteAction() 이후에 호출해야 Move()가 갱신한 currentDir를 "이동 중" 후보의
+        // 기본값으로 넘겨줄 수 있고, UpdateFOV() 이전에 호출해야 그 방향 기준으로 시야/인지 범위를 계산한다.
+        u.ResolveVisionDirection();
         u.UpdateFOV(units);
     }
 

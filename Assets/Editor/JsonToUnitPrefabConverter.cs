@@ -37,6 +37,8 @@ public static class JsonToUnitPrefabConverter
         public float baseInterest;
         public float baseDanger;
         public float heavyHitThreshold = 10f;
+        public float stealth;
+        public float baseVisibility = 100f;
     }
 
     [System.Serializable]
@@ -184,6 +186,8 @@ public static class JsonToUnitPrefabConverter
                 def.baseInterest      = u.weight.baseInterest;
                 def.baseDanger        = u.weight.baseDanger;
                 def.heavyHitThreshold = u.weight.heavyHitThreshold;
+                def.stealth           = u.weight.stealth;
+                def.baseVisibility    = u.weight.baseVisibility;
             }
 
             if (u.visual?.effects != null)

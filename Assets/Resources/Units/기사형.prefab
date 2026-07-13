@@ -167,6 +167,11 @@ MonoBehaviour:
     baseDelayMs: 800
     baseCooldown: 8
     cooldownSlot: 3
+    isProjectile: 0
+    projectilePrefab: {fileID: 0}
+    projectileSpeed: 0
+    isPiercing: 0
+    hitEffectPrefab: {fileID: 0}
     hitShape: LINE
     hitRange: 2
     hitWidth: 1
@@ -186,6 +191,11 @@ MonoBehaviour:
     baseDelayMs: 650
     baseCooldown: 6
     cooldownSlot: 2
+    isProjectile: 0
+    projectilePrefab: {fileID: 0}
+    projectileSpeed: 0
+    isPiercing: 0
+    hitEffectPrefab: {fileID: 0}
     hitShape: LINE
     hitRange: 1
     hitWidth: 1
@@ -205,6 +215,11 @@ MonoBehaviour:
     baseDelayMs: 450
     baseCooldown: 1.2
     cooldownSlot: 0
+    isProjectile: 0
+    projectilePrefab: {fileID: 0}
+    projectileSpeed: 0
+    isPiercing: 0
+    hitEffectPrefab: {fileID: 0}
     hitShape: LINE
     hitRange: 1
     hitWidth: 1
@@ -229,6 +244,8 @@ MonoBehaviour:
   baseInterest: 40
   baseDanger: 30
   heavyHitThreshold: 10
+  stealth: 0
+  baseVisibility: 100
 --- !u!95 &2148180861581893085
 Animator:
   serializedVersion: 7

@@ -251,7 +251,10 @@ public abstract class UnitFunction : Unit
 			this.Generate.UpdateUnitSpriteForDirection(this);
 	}
 
-	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits)
+	// rayInPerceptionAngle: 이 레이가 인지각(01-A 4장) 범위 안인지 여부(레이별로 UpdateFOV가 미리 계산해 전달).
+	// perceptionDistance: 인지 거리(01-A 3장) — 이 거리 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다.
+	// 특수 원형 인지 범위(01-A 13장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
+	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits, bool rayInPerceptionAngle, float perceptionDistance)
 	{
 		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
 
@@ -294,11 +297,15 @@ public abstract class UnitFunction : Unit
 			bool tileIsWall = tile.name == "Wall";
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
+			// 01-A 3장/4장: 이 타일이 인지 거리 + 인지각(또는 특수 원형 인지 범위) 안에 실제로 들어오는지.
+			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
+			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;
+
 			// 지형 밝히기 — FactionData.discoveredMap과 같은 정보(벽/바닥)를 인류 개인 지도에도
-			// 기록한다. 몬스터 발견 여부와 무관하게 시야가 지나가는 모든 타일마다 갱신된다.
+			// 기록한다. 몬스터 발견 여부와 무관하게 시야가 지나가는 모든 타일마다 갱신된다(01장 2절
+			// "시야 범위 처리: 1.타일 위치 확인"은 인지 범위 여부와 무관하게 항상 가능하다).
 			if (this is Human terrainObserver)
 			{
-				var revealedTile = new Vector3Int(x, y, currentFloor);
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
 				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 
@@ -319,52 +326,79 @@ public abstract class UnitFunction : Unit
 					// 감쇠된 값이 기본값으로 되돌아가는 버그가 있었다(2026-07-08 수정).
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
-						// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
-						terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
-
-						// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
-						terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
-
-						// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
-						if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+						// 01장 5절 마지막 규칙("인지 실패 시 미인식 처리 — 실제로 위험 요소가 있어도 안전하다고
+						// 오판할 수 있다") + 기획 확정(2026-07-13): 가시성이 낮다고 시야 자체를 막지(쉐도우
+						// 캐스팅) 않는다. 대신 여기서 "미인식" 판정만 한다 — 정체를 등록하지 않을 뿐, 레이는
+						// 그대로 나아가 뒤쪽도 정상적으로 보인다. 인지 성공 확률(02-A) 문서가 없어 가장 단순한
+						// 형태로 스텁: 가시성이 0 이하면 미인식, 그 외엔 인지 성공으로 취급한다.
+						if (inPerceptionRange)
 						{
-							terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+							if (obj.BaseVisibility > 0f)
+							{
+								// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
+								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+
+								// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
+								terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+
+								// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
+								if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+								{
+									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+								}
+							}
+							// else: 미인식 — 이번엔 인지 실패, 다음 기회(가시성이 오르거나 재판정 시)에 재시도.
+						}
+						else if (!visionOnlyNonEmptyTiles.Contains(revealedTile))
+						{
+							// 01장 7절/01-A 7장: 인지 범위 밖 — 아직 정체를 모르는 "비어있지 않은 타일".
+							// 정식 등록(RegisterObject 등)은 인지 범위에 들어와야만 가능하다.
+							visionOnlyNonEmptyTiles.Add(revealedTile);
 						}
 					}
 				}
 			}
 
 			if (Session != null &&
-				Session.unitGrid.TryGetValue(new Vector3Int(x, y, currentFloor), out Unit unit))
+				Session.unitGrid.TryGetValue(revealedTile, out Unit unit))
 			{
 				if (unit != null && unit != this && unit.hp > 0)
 				{
 					bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
 					if (isEnemy)
 					{
-						// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
-						if (!personalSpottedEnemies.Contains(unit))
+						if (inPerceptionRange)
 						{
-							personalSpottedEnemies.Add(unit);
-
-							// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
-							// GetFinalDanger/GetUnitInterest(전역 종/개체 누적)가 아니라 GetPersonalDanger/
-							// GetPersonalInterest(이 관찰자의 personalWeights)를 쓴다 — 전역 값은 OnWaveEnd가
-							// 있어야만 갱신되는데(6장) 웨이브 루프가 아직 없어 영원히 그대로다. personalWeights는
-							// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 이걸 써야 실제 전투 이벤트에 맞춰
-							// 개인 지도가 바로바로 반영된다.
-							if (this is Human human && Knowledge != null)
+							// 01장 5절/기획 확정(2026-07-13): 가시성이 낮으면 "미인식"만 처리하고 시야는
+							// 막지 않는다(자세한 사유는 위 오브젝트 판정 블록 주석 참고).
+							// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
+							if (unit.GetFinalVisibility() > 0f && !personalSpottedEnemies.Contains(unit))
 							{
-								var sightingTile = new Vector3Int(x, y, currentFloor);
-								float danger = Knowledge.GetPersonalDanger(human, unit);
-								float interest = Knowledge.GetPersonalInterest(human, unit);
-								human.personalMap.ObserveMonster(unit.name, sightingTile, danger, interest);
+								personalSpottedEnemies.Add(unit);
 
-								// 20장/21장: 이 몬스터가 서 있는 방의 "확인된 유닛" 목록에도 반영 — 방
-								// 위험도/흥미도의 Exploring/Complete 단계 계산에 쓰인다.
-								bool isBossRoom = c.roomRole == RoomRole.BossRoom;
-								human.personalMap.ObserveUnitInRoom(c.roomId, isBossRoom, unit.name, danger, interest);
+								// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
+								// GetFinalDanger/GetUnitInterest(전역 종/개체 누적)가 아니라 GetPersonalDanger/
+								// GetPersonalInterest(이 관찰자의 personalWeights)를 쓴다 — 전역 값은 OnWaveEnd가
+								// 있어야만 갱신되는데(6장) 웨이브 루프가 아직 없어 영원히 그대로다. personalWeights는
+								// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 이걸 써야 실제 전투 이벤트에 맞춰
+								// 개인 지도가 바로바로 반영된다.
+								if (this is Human human && Knowledge != null)
+								{
+									float danger = Knowledge.GetPersonalDanger(human, unit);
+									float interest = Knowledge.GetPersonalInterest(human, unit);
+									human.personalMap.ObserveMonster(unit.name, revealedTile, danger, interest);
+
+									// 20장/21장: 이 몬스터가 서 있는 방의 "확인된 유닛" 목록에도 반영 — 방
+									// 위험도/흥미도의 Exploring/Complete 단계 계산에 쓰인다.
+									bool isBossRoom = c.roomRole == RoomRole.BossRoom;
+									human.personalMap.ObserveUnitInRoom(c.roomId, isBossRoom, unit.name, danger, interest);
+								}
 							}
+						}
+						else if (!personalSpottedEnemies.Contains(unit) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
+						{
+							// 01장 7절: 인지 범위 밖 — 정체는 모르지만 "비어있지 않은 타일"로만 인지.
+							visionOnlyNonEmptyTiles.Add(revealedTile);
 						}
 					}
 				}
@@ -392,6 +426,18 @@ public abstract class UnitFunction : Unit
 
 				if (vis <= 0) break; // 시야 즉시 차단
 				if (vis < 100 && Random.Range(0, 100) >= vis) break; // 시야 차단 막힘
+
+				// 01장 11절(2026-07-13 개정): "완전 차단 오브젝트"는 벽과 동일하게 레이를 막는다.
+				// 이 판정은 InteractableObject.IsFullyBlocking(구조물 성격 여부)만 본다 — 그 오브젝트
+				// 자신의 BaseVisibility(=미인식 판정, 위 인지 판정 블록에서 이미 처리됨)와는 완전히
+				// 별개다. "시야 판정 불가 오브젝트"(=미인식 대상, 구조물이 아닌 일반 오브젝트/유닛)는
+				// 이 플래그가 꺼져 있어 레이를 막지 않는다.
+				if (Session != null &&
+					Session.objectGrid.TryGetValue(revealedTile, out InteractableObject blocker) &&
+					!blocker.IsCollected && blocker.IsFullyBlocking)
+				{
+					break;
+				}
 			}
 
 			if (tMaxX < tMaxY)
@@ -408,6 +454,8 @@ public abstract class UnitFunction : Unit
 	public override void UpdateFOV(List<Unit> allUnits)
 	{
 		personalSpottedEnemies.Clear();
+		visionOnlyNonEmptyTiles.Clear();
+
 		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
 		Vector2 forward = GetDirVector(currentDir);
 		if (forward == Vector2.zero) forward = Vector2.down;
@@ -415,7 +463,12 @@ public abstract class UnitFunction : Unit
 		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null) return;
 
-		float fovAngle   = 160f;
+		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(spotting)에 따라 결정된다.
+		float viewAngle          = VisionMath.BaseViewAngleDeg;
+		float viewDistance       = VisionMath.ViewDistance(spotting);
+		float perceptionAngle    = VisionMath.AwarenessAngle(spotting);
+		float perceptionDistance = VisionMath.AwarenessDistance(spotting);
+
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
 		// 방사형 레이캐스트 최적화 적용 (800 -> 72)
@@ -423,20 +476,102 @@ public abstract class UnitFunction : Unit
 
 		for (int i = 0; i <= numRays; i++)
 		{
-			float angle = centerAngle - (fovAngle / 2f) + (fovAngle * i / numRays);
+			float angle = centerAngle - (viewAngle / 2f) + (viewAngle * i / numRays);
 			float rad   = angle * Mathf.Deg2Rad;
-			CastRay(myData, cmap, position, rad, ViewRadius, allUnits);
+
+			// 인지각은 시야각과 같은 중심(centerAngle)을 공유하는 좁은 안쪽 부채꼴이라, 이 레이가 그
+			// 부채꼴 안인지는 중심 각도와의 차이만 비교하면 된다 — 인지각이 120도(시야각과 동일)에
+			// 도달하면 이 조건이 항상 참이 되어 "시야 범위 전체가 인지 범위화"(01장 4절)가 자연히 성립한다.
+			bool rayInPerceptionAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angle)) <= perceptionAngle / 2f;
+
+			CastRay(myData, cmap, position, rad, viewDistance, allUnits, rayInPerceptionAngle, perceptionDistance);
 		}
+
+		// 01-A 13장: 엘리트/네메시스/보스 보조 원형 인지 범위 — 정면 각도와 무관하게 주변 위협을
+		// 감지한다(전용 유닛 타입이 없어 isSpecialUnit 플래그로 대상을 판정, VisionMath 주석 참고).
+		// 벽에는 여전히 막힌다(원형 인지 범위는 "각도 무관"일 뿐 "완전 차단 무시"는 아니다 — 01장 15절).
+		if (isSpecialUnit)
+		{
+			int circularRadius = VisionMath.CircularPerceptionRadius(spotting);
+			int circularRays = 32;
+			for (int i = 0; i < circularRays; i++)
+			{
+				float rad = (360f * i / circularRays) * Mathf.Deg2Rad;
+				CastRay(myData, cmap, position, rad, circularRadius, allUnits, true, circularRadius);
+			}
+		}
+	}
+
+	// 01-A 11장: 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를
+	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7)/미확인 타일(8)/경계(9) 후보는 대응 게임 시스템
+	// (09_명령·리더, 06_전투반응·기습, 08_전파·소리, 10_목표설정, 04_탐색반응 문서)이 이 폴더에 아직
+	// 없어 후보 자체를 만들 수 없다 — 11장의 "적용할 수 없는 후보는 비교에서 제외한다"는 규칙과
+	// 동일하게 취급(자연히 제외됨). 실제로 활성화 가능한 후보만 아래에서 구성한다.
+	public override void ResolveVisionDirection()
+	{
+		var candidates = new List<VisionMath.VisionDirectionCandidate>();
+
+		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(currentAttackAngle) 기준.
+		if (isCastingAttack)
+		{
+			Vector2 aimDir = new Vector2(Mathf.Cos(currentAttackAngle), Mathf.Sin(currentAttackAngle));
+			Dir skillDir = SkillAction.GetDirection8(new Vector2Int(Mathf.RoundToInt(aimDir.x), Mathf.RoundToInt(aimDir.y)));
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SkillUse, skillDir));
+		}
+
+		// 3순위: 1칸 이내 근접 전투 대상 존재.
+		Unit adjacentEnemy = FindAdjacentEnemy();
+		if (adjacentEnemy != null)
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.AdjacentMeleeTarget, DirectionToward(adjacentEnemy.position)));
+
+		// 4순위: 현재 공격 대상 존재.
+		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.CurrentAttackTarget, DirectionToward(playerAttackTarget.position)));
+
+		// 10순위(최하위, 항상 후보로 존재): 이동 중이면 Move()가 이미 반영한 이동 방향, 아니면 기존 시야
+		// 방향을 그대로 유지 — 다른 후보가 전혀 없을 때의 기본값 역할을 한다.
+		candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Moving, currentDir));
+
+		currentDir = VisionMath.ResolveVisionDirection(candidates, currentDir);
+	}
+
+	private Dir DirectionToward(Vector2Int targetPos)
+	{
+		Vector2Int diff = targetPos - position;
+		return SkillAction.GetDirection8(diff);
+	}
+
+	private Unit FindAdjacentEnemy()
+	{
+		if (Session == null) return null;
+		foreach (Unit u in Session.units)
+		{
+			if (u == null || u == this || u.hp <= 0) continue;
+			bool isEnemy = (this is Human && u is Monster) || (this is Monster && u is Human);
+			if (!isEnemy) continue;
+			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u; // 1칸 이내(대각 포함)
+		}
+		return null;
 	}
 
 	#endregion
 
 	public override void OnUpdate(float deltaTime)
 	{
+		// 기본 스탯(physicalAttack/spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
+		// 그로부터 파생되는 스탯(sterngth/agility/sense 등, CalculateDerivedStats 참고)도 매 프레임
+		// 다시 계산해서 항상 최신 기본 스탯을 반영하게 한다. 순수 사칙연산이라 유닛 수가 많아도
+		// 부담이 거의 없다(할당 없음, Mathf.Clamp 수십 번 수준) — 별도의 "변경 감지"용 캐시/이벤트
+		// 없이 매번 새로 계산하는 쪽이 오히려 더 단순하고 저렴하다.
+		CalculateDerivedStats();
+
 		if (stunDuration   > 0f) stunDuration   -= deltaTime;
 		if (slowDuration   > 0f) slowDuration   -= deltaTime;
 		if (poisonDuration > 0f) { poisonDuration -= deltaTime; hp -= 1f * deltaTime; }
 		if (burnDuration   > 0f) { burnDuration   -= deltaTime; hp -= 1f * deltaTime; }
+
+		// 01-A 9장: 공격 후 가시성 상승 지속시간 감소 (SkillAction.BeginAttackCast가 공격 실행 시 세팅)
+		if (attackVisibilityBoostTimer > 0f) attackVisibilityBoostTimer = Mathf.Max(0f, attackVisibilityBoostTimer - deltaTime);
 
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
 		// 지금 그 타일에 몬스터가 실제로 있는지 확인해서 있으면 타이머를 리셋하고 없으면 흘려보낸다.
