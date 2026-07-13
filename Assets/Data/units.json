@@ -33,7 +33,9 @@
         "isInterestTarget": false,
         "baseInterest": 40,
         "baseDanger": 30,
-        "heavyHitThreshold": 10
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
       },
       "visual": {
         "spriteLibrary": "Char_Knight",
@@ -82,7 +84,9 @@
         "isInterestTarget": false,
         "baseInterest": 60,
         "baseDanger": 120,
-        "heavyHitThreshold": 10
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
       },
       "visual": {
         "spriteLibrary": "Mon_GnoleA",
@@ -120,6 +124,15 @@
         "charisma": 5,
         "physicalAttackSpeed": 20,
         "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 0,
+        "baseDanger": 0,
+        "heavyHitThreshold": 10,
+        "stealth": 20,
+        "baseVisibility": 85
       },
       "visual": {
         "spriteLibrary": "Char_ArcherElf"

@@ -13,9 +13,10 @@ public class InteractableObject
     // 이 값을 0이 아닌 값으로 생성하기만 하면 된다(파이프는 이미 연결돼 있음).
     public float BaseDanger;
     // 01장 9절(시야-인지-반응): 대상 기본 가시성 — 오브젝트가 타일의 가시성(일반 100/벽 0)을
-    // 무효화하고 대신 갖는 자기 값. 기본값 100(일반 타일과 동일하게 잘 보임) — 은신형/함정성
-    // 오브젝트가 생기면 스폰 시점에 낮은 값으로 지정하면 된다(VisionMath.ResolveBaseVisibility).
-    public float BaseVisibility = 100f;
+    // 무효화하고 대신 갖는 자기 값. 기본값 0(사용자 요청 — 오브젝트는 일단 전부 "안 보이는" 상태로
+    // 두고 시야-인지 시스템이 실제로 어떻게 반응하는지 테스트한다). 눈에 잘 띄어야 하는 오브젝트가
+    // 생기면 스폰 시점에 값을 올려서 지정하면 된다(VisionMath.ResolveBaseVisibility).
+    public float BaseVisibility = 0f;
     public bool IsCollected;
     // 17장: 조사(investigate) 완료 여부 — Loot 오브젝트에만 의미가 있다(조사 50%감소 → 회수 0%감소
     // 2단계). Corpse/WipeoutTrace는 확인(check) 즉시 흥미도 0으로 가는 단일 단계라 이 필드를 안 쓴다.
@@ -30,7 +31,7 @@ public class InteractableObject
     // 1회만 던전 위험도에 반영한다.
     public string TraceId;
 
-    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 100f)
+    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f)
     {
         Id = id;
         Position = position;

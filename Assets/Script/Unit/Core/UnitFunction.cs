@@ -408,6 +408,28 @@ public abstract class UnitFunction : Unit
 
 				if (vis <= 0) break; // 시야 즉시 차단
 				if (vis < 100 && Random.Range(0, 100) >= vis) break; // 시야 차단 막힘
+
+				// 01장 9절/11절: 가시성 0 = 쉐도우 캐스팅(설계 의도) — 이 타일을 차지한 오브젝트/유닛의
+				// 가시성이 0이면 벽과 동일하게 완전 차단 구조로 취급한다. 이 자리 자체는 위에서 이미
+				// 처리(발견/인지 판정)됐고, 레이만 여기서 멈춰서 그 뒤 타일은 그림자처럼 가려진다
+				// (05-A_은신·가시성 문서 부재로 세부 가림 보정식은 없지만, "가시성 0=완전 차단"은
+				// 사용자가 직접 지정한 설계 의도라 그대로 반영). 벽 판정과 달리 유닛/오브젝트는 파괴·
+				// 사망·회수로 사라질 수 있어 매 프레임 새로 확인해야 하므로 dist==0인 시작 타일에서만
+				// 제외하고 매 스텝 조회한다.
+				if (Session != null)
+				{
+					if (Session.objectGrid.TryGetValue(revealedTile, out InteractableObject occluderObj) &&
+						!occluderObj.IsCollected && occluderObj.BaseVisibility <= 0f)
+					{
+						break;
+					}
+					if (Session.unitGrid.TryGetValue(revealedTile, out Unit occluderUnit) &&
+						occluderUnit != null && occluderUnit != this && occluderUnit.hp > 0f &&
+						occluderUnit.GetFinalVisibility() <= 0f)
+					{
+						break;
+					}
+				}
 			}
 
 			if (tMaxX < tMaxY)

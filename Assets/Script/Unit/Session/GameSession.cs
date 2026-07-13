@@ -223,6 +223,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Corpse", isMonsterCorpse ? "Monster" : "Human" };
+            // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
             Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);

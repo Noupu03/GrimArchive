@@ -18,6 +18,10 @@ public class UnitGenerate
 	private Dictionary<Unit, GameObject> visualMap        = new Dictionary<Unit, GameObject>();
 	private Dictionary<Unit, Vector3>    targetPosMap     = new Dictionary<Unit, Vector3>();
 
+	// 우측 상단 UI(DebugInfoPanel)의 "시야 표시" 토글이 켜고 끄는 전역 스위치 — 켜져 있으면 선택
+	// 여부와 무관하게 모든 유닛의 시야/인지 범위를 SyncVisuals가 표시한다(SetVisionRangesVisible 참고).
+	public bool ShowAllVisionRanges = false;
+
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
 	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
@@ -171,7 +175,7 @@ public class UnitGenerate
 
 		UnitVisual uv = go.GetComponent<UnitVisual>();
 		if (uv == null) uv = go.AddComponent<UnitVisual>();
-		uv.Setup();
+		uv.Setup(unit is Human); // 진영별 시야/인지 범위 색 팔레트 선택(UnitVisual.Setup 참고)
 		uv.boundUnit = unit;
 
 		var cache = GetCache(go);
@@ -358,16 +362,17 @@ public class UnitGenerate
 
 			var cache = GetCache(go);
 
-			// 시야/인지 범위 표시 — 유닛을 단일 선택했을 때만 그린다(예전엔 알파 0으로 안 보이는
-			// LineRenderer를 전 유닛 대상 매 프레임 갱신하던 낭비였다). 여러 유닛을 선택했을 때는
-			// "이 유닛의" 범위라고 특정할 수 없으므로 표시하지 않는다.
+			// 시야/인지 범위 표시 — 유닛을 단일 선택했을 때, 또는 우측 상단 "시야 표시" 토글
+			// (ShowAllVisionRanges)이 켜져 있을 때 그린다. 여러 유닛을 동시에 선택했을 때는 "이
+			// 유닛의" 범위라고 특정할 수 없으므로(전역 토글이 꺼져 있는 한) 표시하지 않는다.
 			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
 				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
-				uv.SetVisionRangesVisible(isSoleSelected);
+				bool showRanges = ShowAllVisionRanges || isSoleSelected;
+				uv.SetVisionRangesVisible(showRanges);
 
-				if (isSoleSelected)
+				if (showRanges)
 				{
 					Vector2 forward = u.GetDirVector(u.currentDir);
 					if (forward == Vector2.zero) forward = Vector2.down;

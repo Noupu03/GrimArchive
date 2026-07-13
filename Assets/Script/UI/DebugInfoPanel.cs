@@ -114,13 +114,15 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     private void OnGUI()
     {
+        DrawVisionToggle();
+
         if (_inputManager == null || _inputManager.selectedUnits.Count == 0) return;
 
         bool isMultiSelect = _inputManager.selectedUnits.Count > 1;
         string title = isMultiSelect
             ? $"Unit Status Test ({_inputManager.selectedUnits.Count}기 선택됨)"
             : "Unit Status Test";
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 150), title, GUI.skin.window);
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 60, 200, 150), title, GUI.skin.window);
 
         // 다수 선택 시엔 특정 유닛 하나를 편집하는 버튼들이 의미가 없어서 숨긴다 —
         // 아래 selectedUnitInfoText 쪽도 스탯 대신 선택된 유닛 목록만 보여준다(RefreshSelectedUnitInfo).
@@ -147,6 +149,22 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             }
         }
 
+        GUILayout.EndArea();
+    }
+
+    // 우측 상단, 선택 상태와 무관하게 항상 보이는 전역 토글 — 켜면 모든 유닛의 시야 범위(연한
+    // 색)/인지 범위(진한 색)가 진영별 색(인류 파랑 계열/몬스터 빨강 계열)으로 동시에 표시된다
+    // (UnitGenerate.ShowAllVisionRanges, UnitVisual 참고).
+    private void DrawVisionToggle()
+    {
+        if (_gameSession == null || _gameSession.unitGenerate == null) return;
+
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 40));
+        bool current = _gameSession.unitGenerate.ShowAllVisionRanges;
+        if (GUILayout.Button($"시야 표시: {(current ? "켜짐" : "꺼짐")}"))
+        {
+            _gameSession.unitGenerate.ShowAllVisionRanges = !current;
+        }
         GUILayout.EndArea();
     }
 
