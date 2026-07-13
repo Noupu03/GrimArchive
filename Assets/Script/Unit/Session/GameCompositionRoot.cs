@@ -2,6 +2,7 @@ using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 using Haare.Client.Core.DI;
+using GrimArchive.Wave;
 
 // GameSession.Awake()가 수동으로 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션 루트.
 // ssh.unity에 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
@@ -41,6 +42,18 @@ public class GameCompositionRoot : CoreLifetimeScope
         // ThreatTileRenderer: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 스폰/렌더 메커니즘이라
         // 씬 GameObject일 필요가 없는 순수 C# 클래스로 전환됨.
         builder.Register<ThreatTileRenderer>(Lifetime.Singleton).AsSelf();
+
+        // 맵 데이터를 저장/관리하고 런타임에 활용하는 순수 C# 클래스
+        builder.Register<CreateMap>(Lifetime.Singleton).AsSelf();
+
+        // 맵 렌더링 로직 - MonoBehaviour에서 NativeRoutine으로 전환
+        builder.Register<MapRandering>(Lifetime.Singleton).AsSelf();
+
+        // 웨이브 스포너 - MonoBehaviour에서 NativeRoutine으로 전환
+        builder.Register<WaveSpawner>(Lifetime.Singleton).AsSelf();
+
+        // 맵 매니저 (MapRandering과 WaveSpawner를 포함하여 런타임 이벤트 제공)
+        builder.Register<MapManager>(Lifetime.Singleton).AsSelf();
 
         // HumanKnowledgeBase: 대표 가중치 3종(이해도/위험도/흥미도) 전역 레지스트리 — 순수 C#.
         builder.Register<HumanKnowledgeBase>(Lifetime.Singleton).AsSelf();

@@ -5,7 +5,23 @@ public class Room
 {
     public string RoomName { get; set; } = "Room";
     public int MaxPopulation { get; set; } = 10;
-    public bool IsCombatActive { get; set; } = false;
+    public bool IsCombatActive
+    {
+        get
+        {
+            bool hasHuman = false;
+            bool hasMonster = false;
+            foreach (var unit in _containedUnits)
+            {
+                if (unit == null || unit.hp <= 0) continue;
+                if (unit is Human) hasHuman = true;
+                if (unit is Monster) hasMonster = true;
+                
+                if (hasHuman && hasMonster) return true;
+            }
+            return false;
+        }
+    }
     public Vector3 TopLeftWorldPos { get; set; } = Vector3.zero;
 
     private List<Unit> _containedUnits = new List<Unit>();

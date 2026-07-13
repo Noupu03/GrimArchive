@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-public partial class CreateMap : MonoBehaviour
+public partial class CreateMap
 {
     public Map map;
     public FloorConfig[] floorConfigs;
@@ -48,8 +48,6 @@ public partial class CreateMap : MonoBehaviour
     // 재적용되기 전까지 바뀌지 않으므로, 한 번 세면 계속 재사용한다. GetRoomFloorTileCount()
     // (CreateMap.RuntimeAPI.cs)가 채우고, GenerateMap()/ApplyMap()이 무효화한다.
     private readonly Dictionary<(int floorIndex, int roomId), int> roomFloorTileCountCache = new();
-
-    void Awake() => GenerateMap();
 
     public void GenerateMap()
     {

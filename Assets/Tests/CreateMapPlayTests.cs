@@ -1,4 +1,4 @@
-#if UNITY_INCLUDE_TESTS
+﻿#if UNITY_INCLUDE_TESTS
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
@@ -13,8 +13,7 @@ public class CreateMapPlayTests
     // ── 헬퍼: 테스트용 CreateMap GameObject 생성 ──
     private CreateMap SetupCreateMap(int seed = 14056)
     {
-        var go = new GameObject("TestCreateMap");
-        var cm = go.AddComponent<CreateMap>();
+        var cm = new CreateMap();
         cm.useFixedSeed = true;
         cm.seed = seed;
         return cm;
@@ -24,22 +23,16 @@ public class CreateMapPlayTests
     // 새 시스템에서는 DoRandering()이 자동으로 자식 Tilemap을 생성하므로 Grid만 준비
     private MapRandering SetupRenderer(CreateMap cm)
     {
-        var rendererGo = new GameObject("TestMapRandering");
-        rendererGo.AddComponent<Grid>();
-        var mr = rendererGo.AddComponent<MapRandering>();
-        mr.createMap = cm;
-
+        var mr = new MapRandering();
+        mr.Construct(cm);
         return mr;
     }
 
     // ── 헬퍼: 테스트 후 씬 정리 ──
-    private void Cleanup(params GameObject[] objects)
+    private void Cleanup()
     {
-        foreach (var go in objects)
-        {
-            if (go != null)
-                Object.DestroyImmediate(go);
-        }
+        var mapRoot = GameObject.Find("MapRoot_Grid");
+        if (mapRoot != null) Object.DestroyImmediate(mapRoot);
     }
 
     // ====================================================================
@@ -66,7 +59,7 @@ public class CreateMapPlayTests
         Assert.AreEqual(9, cm.map.floors[3].chunks.GetLength(0), "F3 X축 청크 수가 9이 아닙니다.");
         Assert.AreEqual(9, cm.map.floors[3].chunks.GetLength(1), "F3 Y축 청크 수가 9이 아닙니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -96,7 +89,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -123,7 +116,7 @@ public class CreateMapPlayTests
             Assert.IsTrue(hasStartRoom, $"Floor {f}에 StartRoom이 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -156,7 +149,7 @@ public class CreateMapPlayTests
         Assert.AreEqual("Floor", c.chunk[2, 2].name, "내부 타일(2,2)이 Floor가 아닙니다.");
         Assert.AreEqual("Floor", c.chunk[5, 5].name, "내부 타일(5,5)이 Floor가 아닙니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -225,7 +218,7 @@ public class CreateMapPlayTests
 
         Assert.Greater(openedCount, 0, "내부 벽이 허물어진 멀티청크 방이 하나도 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -259,7 +252,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -300,7 +293,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(hasDifference, "다른 시드인데 맵이 완전히 동일합니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -365,7 +358,7 @@ public class CreateMapPlayTests
 
         Assert.Greater(passageCount, 0, "방 사이 통로가 하나도 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -402,7 +395,7 @@ public class CreateMapPlayTests
             Assert.Greater(tileCount, 0, $"F{f} Tilemap에 타일이 하나도 배치되지 않았습니다.");
         }
 
-        Cleanup(cm.gameObject, mr.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -411,14 +404,13 @@ public class CreateMapPlayTests
     [Test]
     public void MapRandering_ReturnsGracefully_WhenReferenceMissing()
     {
-        var rendererGo = new GameObject("TestMapRandering");
-        var mr = rendererGo.AddComponent<MapRandering>();
+        var mr = new MapRandering();
         // createMap 의도적으로 미연결
 
         Assert.DoesNotThrow(() => mr.RenderAllFloors(),
             "참조 미연결 시 RenderAllFloors에서 예외가 발생했습니다.");
 
-        Cleanup(rendererGo);
+        Cleanup();
     }
 
     // ====================================================================
@@ -439,7 +431,7 @@ public class CreateMapPlayTests
         Assert.AreEqual(9, cm.map.floors[3].config.width, "F3 width");
         Assert.AreEqual(9, cm.map.floors[3].config.height, "F3 height");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -467,7 +459,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -508,7 +500,7 @@ public class CreateMapPlayTests
             Assert.IsTrue(hasSub, $"Floor {f}에 SubPurposeRoom이 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -545,7 +537,7 @@ public class CreateMapPlayTests
         // BossRoom은 StartRoom과 다른 위치에 있어야 함
         Assert.AreNotEqual(startPos, bossPos, "BossRoom과 StartRoom이 같은 위치입니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -584,7 +576,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(foundThickWall, "외곽 경계에 방이 있는 청크가 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -605,7 +597,7 @@ public class CreateMapPlayTests
         // Floor 3: "3x3" → 9청크
         AssertBossChunkCount(cm.map.floors[3], 9, "F3 (3x3)");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     private void AssertBossChunkCount(Floor floor, int expectedCount, string label)
@@ -666,7 +658,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -700,7 +692,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -732,7 +724,7 @@ public class CreateMapPlayTests
         Assert.IsFalse(foundTargets.Contains(2), "F0에 F2로의 직접 계단이 있습니다. (순차 구조 위반)");
         Assert.IsFalse(foundTargets.Contains(3), "F0에 F3로의 직접 계단이 있습니다. (순차 구조 위반)");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -770,7 +762,7 @@ public class CreateMapPlayTests
             Assert.IsTrue(hasReturnStair, $"Floor {f}에 F0 귀환 계단이 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -812,7 +804,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(foundStairTile, "F0에서 Stair 타일을 찾을 수 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -858,7 +850,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -906,7 +898,7 @@ public class CreateMapPlayTests
                 $"Floor {f}에 위험도가 0보다 큰 방이 하나도 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -947,7 +939,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -990,7 +982,7 @@ public class CreateMapPlayTests
         Assert.GreaterOrEqual(bossDanger, maxNonBossDanger,
             $"BossRoom 위험도({bossDanger})가 다른 방의 최대 위험도({maxNonBossDanger})보다 낮습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1036,7 +1028,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1082,7 +1074,7 @@ public class CreateMapPlayTests
             Assert.IsTrue(foundBossFloor, $"Floor {f}에 BossRoom Floor 타일이 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1125,7 +1117,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(foundDimmed, "BossRoom에 비Wall 타일이 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1171,7 +1163,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1203,7 +1195,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: NormalRoom이 하나도 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1235,7 +1227,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1273,7 +1265,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1369,7 +1361,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1403,7 +1395,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1448,7 +1440,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: 2청크 이상인 방이 하나도 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1479,7 +1471,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: 방 커버리지({ratio:P0})가 30% 미만입니다. ({roomChunks}/{totalChunks})");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1528,7 +1520,7 @@ public class CreateMapPlayTests
         Assert.Greater(smallMultiCount, 0,
             "Floor 1: 병합된 2~3청크 크기의 방이 하나도 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1544,7 +1536,7 @@ public class CreateMapPlayTests
         Assert.AreEqual(0, cm.lastValidationErrors.Count,
             $"검증 오류가 있습니다: {string.Join(", ", cm.lastValidationErrors)}");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1564,7 +1556,7 @@ public class CreateMapPlayTests
             Assert.IsTrue(cm.lastValidationPassed,
                 $"시드 {s}: 검증 실패. 오류: {string.Join("; ", cm.lastValidationErrors)}");
 
-            Cleanup(cm.gameObject);
+            Cleanup();
         }
     }
 
@@ -1593,7 +1585,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: 시작방 수가 1이 아닙니다. ({startIds.Count}개)");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1621,7 +1613,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: 보스방 수가 1이 아닙니다. ({bossIds.Count}개)");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1656,7 +1648,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1674,7 +1666,7 @@ public class CreateMapPlayTests
         Assert.IsTrue(cm.lastValidationPassed,
             "기본 시드에서 검증이 통과하지 않았습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1691,7 +1683,7 @@ public class CreateMapPlayTests
         Assert.IsTrue(cm.gizmoShowStairs, "gizmoShowStairs 기본값이 true가 아닙니다.");
         Assert.IsTrue(cm.gizmoShowRoomLabels, "gizmoShowRoomLabels 기본값이 true가 아닙니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1714,7 +1706,7 @@ public class CreateMapPlayTests
         Assert.IsFalse(cm.gizmoShowStairs);
         Assert.IsFalse(cm.gizmoShowRoomLabels);
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1739,7 +1731,7 @@ public class CreateMapPlayTests
         Assert.IsFalse(cm.gizmoShowStairs, "GenerateMap 이후 gizmoShowStairs 값이 변경되었습니다.");
         Assert.IsTrue(cm.gizmoShowRoomLabels, "GenerateMap 이후 gizmoShowRoomLabels 값이 변경되었습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1760,7 +1752,7 @@ public class CreateMapPlayTests
                 $"currentFloorIndex={f}일 때 GetCurrentFloor가 올바른 Floor를 반환하지 않습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1778,7 +1770,7 @@ public class CreateMapPlayTests
         Assert.IsTrue(json.Length > 100, $"직렬화된 JSON이 너무 짧습니다: {json.Length} bytes");
         Assert.IsTrue(json.Contains("floors"), "JSON에 'floors' 키가 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1800,7 +1792,7 @@ public class CreateMapPlayTests
         Assert.AreEqual(originalFloorCount, cm2.map.floors.Length,
             "왕복 직렬화 후 Floor 수가 다릅니다.");
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1835,7 +1827,7 @@ public class CreateMapPlayTests
                 $"F{f}: bossRoomFormat 불일치");
         }
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1881,7 +1873,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1946,7 +1938,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -1987,7 +1979,7 @@ public class CreateMapPlayTests
             Assert.GreaterOrEqual(startCount, 1,
                 "파일 로드 후 F2에 시작방이 없습니다.");
 
-            Cleanup(cm.gameObject, cm2.gameObject);
+            Cleanup();
         }
         finally
         {
@@ -2021,7 +2013,7 @@ public class CreateMapPlayTests
                 $"F{f}: floorConfigs[{f}].floorId와 floors[{f}].config.floorId가 다릅니다.");
         }
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2043,7 +2035,7 @@ public class CreateMapPlayTests
         Assert.AreEqual(0, errors.Count,
             $"복원된 맵 검증 실패: {string.Join("; ", errors)}");
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2077,7 +2069,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2107,7 +2099,7 @@ public class CreateMapPlayTests
                 }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2148,7 +2140,7 @@ public class CreateMapPlayTests
                     $"F{f} 서브목적방 roomId={kvp.Key} Gate 수={kvp.Value} (1 초과)");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2197,7 +2189,7 @@ public class CreateMapPlayTests
                 }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2234,7 +2226,7 @@ public class CreateMapPlayTests
                     $"F{f} roomId={kvp.Key} 청크 수={kvp.Value} > 상한 {maxChunks}");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2273,7 +2265,7 @@ public class CreateMapPlayTests
                             $"F1 chunk[{x},{y}] 점령 후 이해도가 100이 아닙니다.");
                 }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2305,7 +2297,7 @@ public class CreateMapPlayTests
                     Assert.AreEqual(OccupationState.Neutral, f1.chunks[x, y].occupationState,
                         $"F1 chunk[{x},{y}] 후퇴 후 상태가 Neutral이 아닙니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2337,7 +2329,7 @@ public class CreateMapPlayTests
                 if (f1.chunks[x, y].stairTargetFloor == 2)
                     Assert.IsTrue(f1.chunks[x, y].stairIsOpen, "OpenStair 후 F1→F2 보스방 계단이 여전히 잠김");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2374,7 +2366,7 @@ public class CreateMapPlayTests
                 }
         }
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2409,7 +2401,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2437,7 +2429,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2475,7 +2467,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2535,7 +2527,7 @@ public class CreateMapPlayTests
                     }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2557,7 +2549,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
     // ====================================================================
     // E: 보스방 순차 계단 존재 검증 (F1 보스방→F2, F2 보스방→F3)
@@ -2586,7 +2578,7 @@ public class CreateMapPlayTests
                 $"Floor {f}: 보스방에 F{targetFloor}로의 순차 계단이 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2613,7 +2605,7 @@ public class CreateMapPlayTests
                             $"F{f} boss stair chunk[{x},{y}] → F{targetFloor}: 초기 상태가 잠금이 아닙니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2649,7 +2641,7 @@ public class CreateMapPlayTests
                     $"F{f} SubPurposeRoom roomId={kvp.Key}: 청크 수={kvp.Value} (1이어야 함)");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2703,7 +2695,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2731,7 +2723,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(foundHumanOnly, "F0→F1 계단을 찾을 수 없습니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2757,7 +2749,7 @@ public class CreateMapPlayTests
                 Assert.AreEqual(origF0.chunks[x, y].stairHumanOnly, restF0.chunks[x, y].stairHumanOnly,
                     $"F0 chunk[{x},{y}] stairHumanOnly 왕복 불일치");
 
-        Cleanup(cm.gameObject, cm2.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2805,7 +2797,7 @@ public class CreateMapPlayTests
                 $"F1에서 roomId={otherNormal}의 후퇴 대상을 찾을 수 없습니다.");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2834,7 +2826,7 @@ public class CreateMapPlayTests
 
         Assert.IsTrue(cm.IsFloorOccupied(1), "보스방 점령 후 IsFloorOccupied가 true가 아닙니다.");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2856,7 +2848,7 @@ public class CreateMapPlayTests
         cm.OpenStair(1, 2);
         Assert.IsTrue(cm.CanReachFloor(0, 2), "F1→F2 계단 개방 후 F0→F2 도달 불가");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2898,7 +2890,7 @@ public class CreateMapPlayTests
                 $"시작방(roomId={startId})에서 인접 방(roomId={adjacentId})에 명령 불가");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2940,7 +2932,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -2989,7 +2981,7 @@ public class CreateMapPlayTests
         }
 
         Assert.IsTrue(foundValidChunk, "F2에서 외곽 경계가 있는 NormalRoom 청크를 찾을 수 없습니다.");
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3026,7 +3018,7 @@ public class CreateMapPlayTests
             }
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3114,7 +3106,7 @@ public class CreateMapPlayTests
                 $"F{f}: 보스방 계단({stairX},{stairY})이 입구({gateChunkX},{gateChunkY}) 반대편이 아닙니다. (내적={dot})");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3162,7 +3154,7 @@ public class CreateMapPlayTests
                 $"F{f}: 서브 목적방 수 불일치 — 기대 {expectedSub}, 실제 {subIds.Count}");
         }
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3200,7 +3192,7 @@ public class CreateMapPlayTests
         Assert.IsFalse(cm.CanReenterFloor(-1), "잘못된 인덱스에 대해 true 반환");
         Assert.IsFalse(cm.CanReenterFloor(10), "잘못된 인덱스에 대해 true 반환");
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3233,7 +3225,7 @@ public class CreateMapPlayTests
         // 존재하지 않는 Gate: -1 반환
         Assert.AreEqual(-1, cm.RecalculateGateWidth(1, -999, -998, 3));
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 
     // ====================================================================
@@ -3271,7 +3263,7 @@ public class CreateMapPlayTests
         var pathInvalid = cm.FindPathAcrossFloors(-1, 5);
         Assert.AreEqual(0, pathInvalid.Count);
 
-        Cleanup(cm.gameObject);
+        Cleanup();
     }
 }
 #endif

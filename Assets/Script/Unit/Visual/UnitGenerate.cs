@@ -105,7 +105,7 @@ public class UnitGenerate
 	private MapRandering GetMapRandering()
 	{
 		if (_cachedMapRandering == null)
-			_cachedMapRandering = Object.FindObjectOfType<MapRandering>();
+			_cachedMapRandering = Session != null ? Session.mapRandering : null;
 		return _cachedMapRandering;
 	}
 
@@ -262,10 +262,10 @@ public class UnitGenerate
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
 		var mr = GetMapRandering();
-		if (mr != null)
+		if (mr != null && mr.floorTilemaps != null && floorIdx >= 0 && floorIdx < mr.floorTilemaps.Length)
 		{
-			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
-			if (childTilemap != null) return childTilemap;
+			var childTilemap = mr.floorTilemaps[floorIdx];
+			if (childTilemap != null) return childTilemap.transform;
 		}
 		return null;
 	}
@@ -278,12 +278,15 @@ public class UnitGenerate
 		var mr = GetMapRandering();
 		if (mr != null)
 		{
-			Transform childTilemap = mr.transform.Find($"F{floorIdx}_Tilemap");
-			if (childTilemap != null) return childTilemap.position;
-			if (mr.floorOffsets != null && floorIdx < mr.floorOffsets.Length)
+			if (mr.floorTilemaps != null && floorIdx >= 0 && floorIdx < mr.floorTilemaps.Length)
+			{
+				var childTilemap = mr.floorTilemaps[floorIdx];
+				if (childTilemap != null) return childTilemap.transform.position;
+			}
+			if (mr.floorOffsets != null && floorIdx >= 0 && floorIdx < mr.floorOffsets.Length)
 			{
 				Vector3Int offset = mr.floorOffsets[floorIdx];
-				return mr.transform.position + new Vector3(offset.x, offset.y, 0f);
+				return new Vector3(offset.x, offset.y, 0f);
 			}
 		}
 		return Vector3.zero;
@@ -490,9 +493,7 @@ public class UnitGenerate
 
 	public bool IsAreaClear(Vector2Int pos, Vector2 footprint, int floorIdx)
 	{
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return false;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -529,9 +530,7 @@ public class UnitGenerate
 
 	public Vector2Int GetRandomFloorPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return Vector2Int.zero;
 		if (floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
@@ -556,9 +555,7 @@ public class UnitGenerate
 
 	public Vector2Int GetStartRoomPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];
@@ -581,9 +578,7 @@ public class UnitGenerate
 
 	public Vector2Int GetBossRoomPos(Vector2 footprint, int floorIdx = 1)
 	{
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
 
 		Floor floor = cmap.map.floors[floorIdx];

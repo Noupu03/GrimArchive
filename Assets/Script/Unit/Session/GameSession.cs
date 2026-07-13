@@ -6,6 +6,8 @@ using VContainer;
 using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
 using Haare.Util.Logger;
+using GrimArchive.Wave;
+using Haare.Scripts.Client.Data;
 
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
 // NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
@@ -15,17 +17,26 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     public static GameSession Instance { get; private set; }
     public CreateMap cmap { get; private set; }
     public UnitGenerate unitGenerate => _unitGenerate;
+    public MapManager mapManager => _mapManager;
+    // MapRandering과 WaveSpawner는 하위 호환성을 위해 MapManager를 통해 노출
+    public MapRandering mapRandering => _mapManager?.mapRandering;
 
     private UnitGenerate _unitGenerate;
     private ThreatTileRenderer _threatTileRenderer;
     private IObjectResolver _resolver;
 
+    private DataManager _dataManager;
+    private MapManager _mapManager;
+
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, MapManager mapManager)
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
         _resolver = resolver;
+        cmap = injectedMap;
+        _dataManager = dataManager;
+        _mapManager = mapManager;
     }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
     public Dictionary<Vector3Int, InteractableObject> objectGrid { get; private set; } = new Dictionary<Vector3Int, InteractableObject>();
@@ -89,12 +100,28 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             _resolver.Resolve<UIManager>();
         }
 
-        cmap = UnityEngine.Object.FindObjectOfType<CreateMap>();
-        if (cmap != null)
+        // 맵 데이터를 Resources에서 직접 로드 (MapGeneratorTool이 생성한 정적 템플릿 데이터)
+        TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
+        if (mapTextAsset != null)
         {
+            cmap.DeserializeMap(mapTextAsset.text);
             Unit.humanFactionData.InitMap(cmap);
             Unit.monsterFactionData.InitMap(cmap);
+            // MapManager에게 맵 시각화(렌더링) 지시 및 브로드캐스트
+            // 렌더링이 완료되어야 층별 실제 오프셋(floorOffset)이 계산됩니다.
+            if (_mapManager != null)
+            {
+                _mapManager.SetupAndVisualizeMap(cmap);
+            }
+
+            // 렌더링 후 계산된 오프셋을 바탕으로 방 좌표(TopLeftWorldPos) 설정
             BuildRoomGrid();
+
+            Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
+        }
+        else
+        {
+            Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
         }
 
         await base.Initialize(cts);
@@ -400,7 +427,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
 
     private Vector2Int GetRandomStartRoomPos(Vector2 footprint, int floorIdx)
     {
-        CreateMap mapGenerator = cmap != null ? cmap : UnityEngine.Object.FindObjectOfType<CreateMap>();
+        CreateMap mapGenerator = cmap;
 
         if (mapGenerator == null || mapGenerator.map.floors == null || floorIdx < 0 || floorIdx >= mapGenerator.map.floors.Length)
             return Vector2Int.zero;
@@ -501,14 +528,21 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         sr.sortingOrder = 5;
         
         Vector3 offset = Vector3.zero;
-        var mr = UnityEngine.Object.FindObjectOfType<MapRandering>();
-        if (mr != null)
+        if (mapRandering != null)
         {
-            Transform childTilemap = mr.transform.Find($"F{obj.Position.z}_Tilemap");
+            // mapRandering의 mapRoot와 같은 계층 접근 특성이 없으므로 임시로 오프셋(offset)을 사용하고,
+            // floorTilemaps[obj.Position.z]를 참조해주는 유도도 해야 합니다.
+            // 여기서는 floorOffsets 배열을 참조하여 오프셋만 가져옵니다.
+            if (mapRandering.floorOffsets != null && obj.Position.z >= 0 && obj.Position.z < mapRandering.floorOffsets.Length)
+            {
+                offset = mapRandering.floorOffsets[obj.Position.z];
+            }
+            
+            // 시각적 부모로 Tilemap 객체를 찾기 위해 약간의 꼼수(이름 기반 검색) 유지
+            GameObject childTilemap = GameObject.Find($"F{obj.Position.z}_Tilemap");
             if (childTilemap != null)
             {
-                offset = childTilemap.position;
-                visual.transform.SetParent(childTilemap);
+                visual.transform.SetParent(childTilemap.transform);
             }
         }
         

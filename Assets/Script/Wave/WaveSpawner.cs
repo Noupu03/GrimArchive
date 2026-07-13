@@ -15,32 +15,42 @@ namespace GrimArchive.Wave
     /// GameSession과 VContainer DI 시스템에 맞춰 웨이브 몬스터(+동행 인류 파티)를 스폰하는 스크립트.
     /// CreateMap의 방(Room) 데이터와 연동하여 지정된 위치 또는 방에 몬스터를 스폰합니다.
     /// </summary>
-    public class WaveSpawner : MonoBehaviour
+    public class WaveSpawner : Haare.Client.Routine.NativeRoutine
     {
-        [Header("웨이브 설정")]
         [Tooltip("소환할 웨이브 데이터")]
         public WaveData waveData;
 
-        [Header("소환 위치 방식")]
         public SpawnMode spawnMode = SpawnMode.ByRoomRole;
 
         [Tooltip("몇 층(Floor)에 소환할 것인가?")]
         public int targetFloor = 1;
 
-        [Header("Transform 스폰 전용 설정 (AroundTransform)")]
-        [Tooltip("소환 중심점 (예: F1 청크 계단). 비워두면 이 오브젝트의 위치를 사용합니다.")]
-        public Transform spawnCenter;
+        [Tooltip("소환 중심점 (예: F1 청크 계단).")]
+        public Vector3 spawnCenter = Vector3.zero;
         [Tooltip("소환 중심점으로부터 그리드 타일 단위 최대 반경")]
         public int spawnTileRadius = 3;
 
-        [Header("방(Room) 기반 스폰 전용 설정")]
         [Tooltip("ByRoomRole 선택 시 지정할 방 역할 (예: StartRoom, BossRoom 등)")]
         public RoomRole targetRoomRole = RoomRole.NormalRoom;
 
         [Tooltip("ByRoomId 선택 시 지정할 방 번호")]
         public int targetRoomId = 0;
 
-        [ContextMenu("웨이브 소환 테스트 (Spawn Wave)")]
+        public override async Cysharp.Threading.Tasks.UniTask Initialize(System.Threading.CancellationToken cts)
+        {
+            await base.Initialize(cts);
+
+            // 런타임에 WaveData 자동 로드 시도
+            if (waveData == null)
+            {
+                waveData = Resources.Load<WaveData>("WaveData");
+                if (waveData == null)
+                {
+                    Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME, "WaveSpawner: Resources/WaveData 를 찾지 못했습니다. 웨이브를 소환하려면 데이터를 주입해야 합니다.");
+                }
+            }
+        }
+
         public void SpawnWave()
         {
             if (waveData == null)
@@ -52,12 +62,6 @@ namespace GrimArchive.Wave
             {
                 Debug.LogError("[WaveSpawner] GameSession 또는 unitGenerate 인스턴스를 찾을 수 없습니다.");
                 return;
-            }
-
-            // Transform 기반 스폰일 경우의 중심점 초기화
-            if (spawnMode == SpawnMode.AroundTransform && spawnCenter == null)
-            {
-                spawnCenter = transform;
             }
 
             List<Monster> spawnedMonsters = new List<Monster>();
@@ -212,7 +216,7 @@ namespace GrimArchive.Wave
 
             if (spawnMode == SpawnMode.AroundTransform)
             {
-                Vector2Int centerGridPos = new Vector2Int(Mathf.RoundToInt(spawnCenter.position.x), Mathf.RoundToInt(spawnCenter.position.y));
+                Vector2Int centerGridPos = new Vector2Int(Mathf.RoundToInt(spawnCenter.x), Mathf.RoundToInt(spawnCenter.y));
                 for (int i = 0; i < 30; i++)
                 {
                     int offsetX = UnityEngine.Random.Range(-spawnTileRadius, spawnTileRadius + 1);

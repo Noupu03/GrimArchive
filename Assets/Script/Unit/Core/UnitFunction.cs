@@ -161,9 +161,7 @@ public abstract class UnitFunction : Unit
 
 	public override bool CanMove(Vector2Int pos, bool ignoreUnits = false)
 	{
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: UnityEngine.Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 
 		if (cmap == null || cmap.map.floors == null) return false;
 		if (currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return false;
@@ -200,8 +198,17 @@ public abstract class UnitFunction : Unit
 					if (u != null && u != this && u.hp > 0) return false;
 				}
 
-				// [유닛 배치 시스템 제한] 이동 중(명령 하달 상태)이 아닐 때 방 바깥으로 나가는 것을 금지
-				if (!IsMoving && CurrentRoom != null && Session != null && Session.roomGrid != null)
+				if (Session != null && Session.roomGrid != null)
+				{
+					if (Session.roomGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Room tileRoom))
+					{
+						// [공통 규칙] 전투 중인 방(문이 닫힘)으로는 진입(경유 포함) 절대 불가
+						if (tileRoom.IsCombatActive && tileRoom != CurrentRoom) return false;
+					}
+				}
+
+				// [유닛 배치 시스템 제한] 인간(Human)은 방 규칙에 묶이지 않으며, 몬스터만 이동 중이 아닐 때 방 바깥으로 나가는 것을 금지
+				if (!(this is Human) && !IsMoving && CurrentRoom != null && Session != null && Session.roomGrid != null)
 				{
 					if (Session.roomGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Room tileRoom))
 					{
@@ -405,9 +412,7 @@ public abstract class UnitFunction : Unit
 		Vector2 forward = GetDirVector(currentDir);
 		if (forward == Vector2.zero) forward = Vector2.down;
 
-		CreateMap cmap = (Session != null && Session.cmap != null)
-			? Session.cmap
-			: UnityEngine.Object.FindObjectOfType<CreateMap>();
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null) return;
 
 		float fovAngle   = 160f;
