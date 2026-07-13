@@ -29,6 +29,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     }
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
     public Dictionary<Vector3Int, InteractableObject> objectGrid { get; private set; } = new Dictionary<Vector3Int, InteractableObject>();
+    public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
 
     public List<Unit> units { get; private set; } = new List<Unit>();
@@ -49,6 +50,12 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             {
                 unitGrid[new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor)] = u;
             }
+        }
+        
+        // 스폰 시나리오 등 소속 방이 아예 지정되지 않은 상태라면 현재 밟고 있는 방으로 자동 할당
+        if (u.CurrentRoom == null && roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, u.currentFloor), out Room room))
+        {
+            u.ChangeRoom(room);
         }
     }
 
@@ -87,9 +94,63 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         {
             Unit.humanFactionData.InitMap(cmap);
             Unit.monsterFactionData.InitMap(cmap);
+            BuildRoomGrid();
         }
 
         await base.Initialize(cts);
+    }
+
+    public void BuildRoomGrid()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        roomGrid.Clear();
+        Dictionary<int, Room> generatedRooms = new Dictionary<int, Room>();
+        
+        int currentFloor = 1;
+        if (currentFloor >= cmap.map.floors.Length) return;
+        
+        Floor floor = cmap.map.floors[currentFloor];
+        if (floor.chunks == null) return;
+
+        int chunkW = floor.config.width;
+        int chunkH = floor.config.height;
+        
+        Vector3 floorOffset = _unitGenerate != null ? _unitGenerate.GetFloorOffset(currentFloor) : Vector3.zero;
+
+        for (int cx = 0; cx < chunkW; cx++)
+        {
+            for (int cy = 0; cy < chunkH; cy++)
+            {
+                Chunks c = floor.chunks[cx, cy];
+                if (c.roomId >= 0)
+                {
+                    if (!generatedRooms.TryGetValue(c.roomId, out Room room))
+                    {
+                        room = new Room { RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName, MaxPopulation = 10 };
+                        // 방의 가장 왼쪽 위(Top-Left) 좌표를 찾기 위한 초기화
+                        room.TopLeftWorldPos = new Vector3(9999f, -9999f, 0f);
+                        generatedRooms[c.roomId] = room;
+                    }
+                    
+                    float chunkMinX = cx * 8f;
+                    float chunkMaxY = (cy * 8f) + 8f; // 타일 크기 8을 더함
+                    
+                    float roomMinX = Mathf.Min(room.TopLeftWorldPos.x, chunkMinX + floorOffset.x);
+                    float roomMaxY = Mathf.Max(room.TopLeftWorldPos.y, chunkMaxY + floorOffset.y);
+                    room.TopLeftWorldPos = new Vector3(roomMinX, roomMaxY, 0f);
+                    
+                    for (int tx = 0; tx < 8; tx++)
+                    {
+                        for (int ty = 0; ty < 8; ty++)
+                        {
+                            Vector3Int pos = new Vector3Int(cx * 8 + tx, cy * 8 + ty, currentFloor);
+                            roomGrid[pos] = room;
+                        }
+                    }
+                }
+            }
+        }
+        LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 층 {currentFloor}에서 방 {generatedRooms.Count}개 생성됨.");
     }
 
     // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함 (예전 Update()와 동일한 역할)

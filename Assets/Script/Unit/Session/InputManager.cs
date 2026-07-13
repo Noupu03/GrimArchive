@@ -158,27 +158,72 @@ public class InputManager : MonoBehaviour
 			Vector2 mousePos = Mouse.current.position.ReadValue();
 			Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
-			foreach (var unit in selectedUnits)
+			// 방(Room) 병합 로직 (B안: 그리드 연동)
+			if (_gameSession.roomGrid.TryGetValue(gridPos, out Room targetRoom))
 			{
-				if (unit == null || unit.hp <= 0) continue;
-
-				unit.playerInteractTarget = null;
-
-				if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+				if (targetRoom.IsCombatActive)
 				{
-					if (!obj.IsCollected)
+					LogHelper.Log(LogHelper.GAME, "해당 방은 전투 중이므로 이동할 수 없습니다.");
+					return;
+				}
+
+				int totalCostToMove = 0;
+				foreach (var unit in selectedUnits)
+				{
+					if (unit == null || unit.hp <= 0) continue;
+					if (unit is Human) continue; // 인간은 배치 인원수 검사에서 제외
+					if (unit.CurrentRoom != targetRoom) totalCostToMove += unit.populationCost;
+				}
+
+				if (!targetRoom.CanAcceptPopulation(totalCostToMove))
+				{
+					LogHelper.Log(LogHelper.GAME, "대상 방의 수용 가능 인구수를 초과하여 이동 명령이 취소되었습니다.");
+					return;
+				}
+
+				foreach (var unit in selectedUnits)
+				{
+					if (unit == null || unit.hp <= 0) continue;
+					unit.playerInteractTarget = null;
+					unit.playerAttackTarget = null;
+					
+					if (unit.CurrentRoom != targetRoom)
 					{
-						unit.playerInteractTarget = gridPos;
+						unit.IssueRoomMoveCommand(targetRoom, new Vector2Int(gridPos.x, gridPos.y));
+					}
+					else
+					{
+						// 이미 같은 방에 있다면 일반 그리드 이동 처리
+						unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
 					}
 				}
 
-				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
-				unit.playerAttackTarget = null;
+				LogHelper.Log(LogHelper.GAME, $"방 이동 명령: {selectedUnits.Count}기 -> {targetRoom.RoomName} ({gridPos.x}, {gridPos.y})");
 			}
+			else
+			{
+				foreach (var unit in selectedUnits)
+				{
+					if (unit == null || unit.hp <= 0) continue;
 
-			LogHelper.Log(LogHelper.GAME,
-				$"이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
-			);
+					unit.playerInteractTarget = null;
+
+					if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+					{
+						if (!obj.IsCollected)
+						{
+							unit.playerInteractTarget = gridPos;
+						}
+					}
+
+					unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+					unit.playerAttackTarget = null;
+				}
+
+				LogHelper.Log(LogHelper.GAME,
+					$"일반 이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
+				);
+			}
 		}
 
 		// =====================================================
@@ -385,22 +430,56 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 드래그 박스 시각화
+	// 드래그 박스 및 임시 UI 시각화
 	// =====================================================
 	void OnGUI()
 	{
-		if (!_dragBoxActive) return;
+		if (_dragBoxActive)
+		{
+			Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);
+			Color prevColor = GUI.color;
 
-		Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);
-		Color prevColor = GUI.color;
+			GUI.color = new Color(0.3f, 1f, 0.3f, 0.15f);
+			GUI.DrawTexture(r, Texture2D.whiteTexture);
 
-		GUI.color = new Color(0.3f, 1f, 0.3f, 0.15f);
-		GUI.DrawTexture(r, Texture2D.whiteTexture);
+			GUI.color = new Color(0.3f, 1f, 0.3f, 0.9f);
+			DrawRectBorder(r, 2f);
 
-		GUI.color = new Color(0.3f, 1f, 0.3f, 0.9f);
-		DrawRectBorder(r, 2f);
+			GUI.color = prevColor;
+		}
 
-		GUI.color = prevColor;
+		// [임시 UI] 방 기준 왼쪽 위에 인구수 및 최대 인원 텍스트 렌더링
+		if (_gameSession != null && _gameSession.roomGrid != null)
+		{
+			GUIStyle style = new GUIStyle();
+			style.fontSize = 20; // 텍스트를 크게
+			style.fontStyle = FontStyle.Bold;
+			style.alignment = TextAnchor.UpperLeft; // 왼쪽 위 정렬
+
+			HashSet<Room> drawnRooms = new HashSet<Room>();
+
+			foreach (var kvp in _gameSession.roomGrid)
+			{
+				Room room = kvp.Value;
+				if (room == null || drawnRooms.Contains(room)) continue;
+				drawnRooms.Add(room);
+
+				// 방 생성 시 계산해 둔 TopLeftWorldPos (최소 X, 최대 Y)
+				Vector3 screenPos = Camera.main.WorldToScreenPoint(room.TopLeftWorldPos);
+
+				// 카메라 앞에 있을 때만 렌더링
+				if (screenPos.z > 0)
+				{
+					// Screen.height에서 빼주어 OnGUI 좌표계로 변환
+					float guiY = Screen.height - screenPos.y;
+					Rect labelRect = new Rect(screenPos.x, guiY, 200, 40);
+
+					// 인구수 표시 텍스트
+					style.normal.textColor = room.CurrentPopulation > room.MaxPopulation ? Color.red : Color.green;
+					GUI.Label(labelRect, $"인구수: {room.CurrentPopulation} / {room.MaxPopulation}", style);
+				}
+			}
+		}
 	}
 
 	// Mouse.current.position은 좌하단 원점, OnGUI는 좌상단 원점이라 Y를 뒤집어야 한다.

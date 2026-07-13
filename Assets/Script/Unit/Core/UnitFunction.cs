@@ -181,10 +181,6 @@ public abstract class UnitFunction : Unit
 				int targetX = pos.x + dx;
 				int targetY = pos.y + dy;
 
-				// C#의 정수 나눗셈/나머지는 0쪽으로 버림하므로(예: -1/8=0, -1%8=-1), 이 사전 체크
-				// 없이 바로 나누면 음수 좌표가 cx/cy=0으로 잘못 계산되고 tx/cyVal이 음수가 되어
-				// 아래 c.chunk[tx, cyVal] 인덱싱에서 IndexOutOfRangeException이 난다(맵 서쪽/북쪽
-				// 경계에서 유닛이 바깥으로 이동을 시도할 때 실제로 재현된 크래시).
 				if (targetX < 0 || targetY < 0) return false;
 
 				int cx    = targetX / 8;
@@ -202,6 +198,21 @@ public abstract class UnitFunction : Unit
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
 				{
 					if (u != null && u != this && u.hp > 0) return false;
+				}
+
+				// [유닛 배치 시스템 제한] 이동 중(명령 하달 상태)이 아닐 때 방 바깥으로 나가는 것을 금지
+				if (!IsMoving && CurrentRoom != null && Session != null && Session.roomGrid != null)
+				{
+					if (Session.roomGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Room tileRoom))
+					{
+						// 다른 방으로 진입 시도 차단
+						if (tileRoom != CurrentRoom) return false;
+					}
+					else
+					{
+						// 방이 아닌 복도 공간 진입 시도 차단
+						return false;
+					}
 				}
 			}
 		}
