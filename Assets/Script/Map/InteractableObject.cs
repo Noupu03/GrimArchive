@@ -17,6 +17,12 @@ public class InteractableObject
     // 두고 시야-인지 시스템이 실제로 어떻게 반응하는지 테스트한다). 눈에 잘 띄어야 하는 오브젝트가
     // 생기면 스폰 시점에 값을 올려서 지정하면 된다(VisionMath.ResolveBaseVisibility).
     public float BaseVisibility = 0f;
+    // 01장 11절(2026-07-13 개정): "완전 차단 오브젝트" — 벽과 동일하게 시야(레이)를 물리적으로
+    // 막는 구조물 성격의 오브젝트인지. BaseVisibility(그 대상 자신이 인지되는지=미인식 판정)와는
+    // 완전히 별개의 속성이다 — 가시성이 낮아도 완전 차단이 아니면 시야를 막지 않고, 반대로 가시성이
+    // 높아도 완전 차단이면 시야를 막는다. 기본값 false(지금 스폰되는 시체/전멸흔적/루팅 오브젝트는
+    // 전부 구조물이 아니므로) — 나중에 건물류 오브젝트가 생기면 true로 스폰하면 된다.
+    public bool IsFullyBlocking = false;
     public bool IsCollected;
     // 17장: 조사(investigate) 완료 여부 — Loot 오브젝트에만 의미가 있다(조사 50%감소 → 회수 0%감소
     // 2단계). Corpse/WipeoutTrace는 확인(check) 즉시 흥미도 0으로 가는 단일 단계라 이 필드를 안 쓴다.
@@ -31,13 +37,14 @@ public class InteractableObject
     // 1회만 던전 위험도에 반영한다.
     public string TraceId;
 
-    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f)
+    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f, bool isFullyBlocking = false)
     {
         Id = id;
         Position = position;
         BaseInterest = baseInterest;
         BaseDanger = baseDanger;
         BaseVisibility = baseVisibility;
+        IsFullyBlocking = isFullyBlocking;
         IsCollected = false;
 
         if (tags != null)

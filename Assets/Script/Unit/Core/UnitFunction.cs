@@ -319,19 +319,28 @@ public abstract class UnitFunction : Unit
 					// 감쇠된 값이 기본값으로 되돌아가는 버그가 있었다(2026-07-08 수정).
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
+						// 01장 5절 마지막 규칙("인지 실패 시 미인식 처리 — 실제로 위험 요소가 있어도 안전하다고
+						// 오판할 수 있다") + 기획 확정(2026-07-13): 가시성이 낮다고 시야 자체를 막지(쉐도우
+						// 캐스팅) 않는다. 대신 여기서 "미인식" 판정만 한다 — 정체를 등록하지 않을 뿐, 레이는
+						// 그대로 나아가 뒤쪽도 정상적으로 보인다. 인지 성공 확률(02-A) 문서가 없어 가장 단순한
+						// 형태로 스텁: 가시성이 0 이하면 미인식, 그 외엔 인지 성공으로 취급한다.
 						if (inPerceptionRange)
 						{
-							// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
-							terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
-
-							// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
-							terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
-
-							// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
-							if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+							if (obj.BaseVisibility > 0f)
 							{
-								terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+								// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
+								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+
+								// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
+								terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+
+								// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
+								if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+								{
+									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+								}
 							}
+							// else: 미인식 — 이번엔 인지 실패, 다음 기회(가시성이 오르거나 재판정 시)에 재시도.
 						}
 						else if (!visionOnlyNonEmptyTiles.Contains(revealedTile))
 						{
@@ -353,8 +362,10 @@ public abstract class UnitFunction : Unit
 					{
 						if (inPerceptionRange)
 						{
+							// 01장 5절/기획 확정(2026-07-13): 가시성이 낮으면 "미인식"만 처리하고 시야는
+							// 막지 않는다(자세한 사유는 위 오브젝트 판정 블록 주석 참고).
 							// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
-							if (!personalSpottedEnemies.Contains(unit))
+							if (unit.GetFinalVisibility() > 0f && !personalSpottedEnemies.Contains(unit))
 							{
 								personalSpottedEnemies.Add(unit);
 
@@ -409,26 +420,16 @@ public abstract class UnitFunction : Unit
 				if (vis <= 0) break; // 시야 즉시 차단
 				if (vis < 100 && Random.Range(0, 100) >= vis) break; // 시야 차단 막힘
 
-				// 01장 9절/11절: 가시성 0 = 쉐도우 캐스팅(설계 의도) — 이 타일을 차지한 오브젝트/유닛의
-				// 가시성이 0이면 벽과 동일하게 완전 차단 구조로 취급한다. 이 자리 자체는 위에서 이미
-				// 처리(발견/인지 판정)됐고, 레이만 여기서 멈춰서 그 뒤 타일은 그림자처럼 가려진다
-				// (05-A_은신·가시성 문서 부재로 세부 가림 보정식은 없지만, "가시성 0=완전 차단"은
-				// 사용자가 직접 지정한 설계 의도라 그대로 반영). 벽 판정과 달리 유닛/오브젝트는 파괴·
-				// 사망·회수로 사라질 수 있어 매 프레임 새로 확인해야 하므로 dist==0인 시작 타일에서만
-				// 제외하고 매 스텝 조회한다.
-				if (Session != null)
+				// 01장 11절(2026-07-13 개정): "완전 차단 오브젝트"는 벽과 동일하게 레이를 막는다.
+				// 이 판정은 InteractableObject.IsFullyBlocking(구조물 성격 여부)만 본다 — 그 오브젝트
+				// 자신의 BaseVisibility(=미인식 판정, 위 인지 판정 블록에서 이미 처리됨)와는 완전히
+				// 별개다. "시야 판정 불가 오브젝트"(=미인식 대상, 구조물이 아닌 일반 오브젝트/유닛)는
+				// 이 플래그가 꺼져 있어 레이를 막지 않는다.
+				if (Session != null &&
+					Session.objectGrid.TryGetValue(revealedTile, out InteractableObject blocker) &&
+					!blocker.IsCollected && blocker.IsFullyBlocking)
 				{
-					if (Session.objectGrid.TryGetValue(revealedTile, out InteractableObject occluderObj) &&
-						!occluderObj.IsCollected && occluderObj.BaseVisibility <= 0f)
-					{
-						break;
-					}
-					if (Session.unitGrid.TryGetValue(revealedTile, out Unit occluderUnit) &&
-						occluderUnit != null && occluderUnit != this && occluderUnit.hp > 0f &&
-						occluderUnit.GetFinalVisibility() <= 0f)
-					{
-						break;
-					}
+					break;
 				}
 			}
 
