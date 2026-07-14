@@ -158,72 +158,27 @@ public class InputManager : MonoBehaviour
 			Vector2 mousePos = Mouse.current.position.ReadValue();
 			Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
-			// 방(Room) 병합 로직 (B안: 그리드 연동)
-			if (_gameSession.roomGrid.TryGetValue(gridPos, out Room targetRoom))
+			foreach (var unit in selectedUnits)
 			{
-				if (targetRoom.IsCombatActive)
-				{
-					LogHelper.Log(LogHelper.GAME, "해당 방은 전투 중이므로 이동할 수 없습니다.");
-					return;
-				}
+				if (unit == null || unit.hp <= 0) continue;
 
-				int totalCostToMove = 0;
-				foreach (var unit in selectedUnits)
-				{
-					if (unit == null || unit.hp <= 0) continue;
-					if (unit is Human) continue; // 인간은 배치 인원수 검사에서 제외
-					if (unit.CurrentRoom != targetRoom) totalCostToMove += unit.populationCost;
-				}
+				unit.playerInteractTarget = null;
 
-				if (!targetRoom.CanAcceptPopulation(totalCostToMove))
+				if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
 				{
-					LogHelper.Log(LogHelper.GAME, "대상 방의 수용 가능 인구수를 초과하여 이동 명령이 취소되었습니다.");
-					return;
-				}
-
-				foreach (var unit in selectedUnits)
-				{
-					if (unit == null || unit.hp <= 0) continue;
-					unit.playerInteractTarget = null;
-					unit.playerAttackTarget = null;
-					
-					if (unit.CurrentRoom != targetRoom)
+					if (!obj.IsCollected)
 					{
-						unit.IssueRoomMoveCommand(targetRoom, new Vector2Int(gridPos.x, gridPos.y));
-					}
-					else
-					{
-						// 이미 같은 방에 있다면 일반 그리드 이동 처리
-						unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+						unit.playerInteractTarget = gridPos;
 					}
 				}
 
-				LogHelper.Log(LogHelper.GAME, $"방 이동 명령: {selectedUnits.Count}기 -> {targetRoom.RoomName} ({gridPos.x}, {gridPos.y})");
+				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+				unit.playerAttackTarget = null;
 			}
-			else
-			{
-				foreach (var unit in selectedUnits)
-				{
-					if (unit == null || unit.hp <= 0) continue;
 
-					unit.playerInteractTarget = null;
-
-					if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
-					{
-						if (!obj.IsCollected)
-						{
-							unit.playerInteractTarget = gridPos;
-						}
-					}
-
-					unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
-					unit.playerAttackTarget = null;
-				}
-
-				LogHelper.Log(LogHelper.GAME,
-					$"일반 이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
-				);
-			}
+			LogHelper.Log(LogHelper.GAME,
+				$"일반 이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
+			);
 		}
 
 		// =====================================================
@@ -446,39 +401,6 @@ public class InputManager : MonoBehaviour
 			DrawRectBorder(r, 2f);
 
 			GUI.color = prevColor;
-		}
-
-		// [임시 UI] 방 기준 왼쪽 위에 인구수 및 최대 인원 텍스트 렌더링
-		if (_gameSession != null && _gameSession.roomGrid != null)
-		{
-			GUIStyle style = new GUIStyle();
-			style.fontSize = 20; // 텍스트를 크게
-			style.fontStyle = FontStyle.Bold;
-			style.alignment = TextAnchor.UpperLeft; // 왼쪽 위 정렬
-
-			HashSet<Room> drawnRooms = new HashSet<Room>();
-
-			foreach (var kvp in _gameSession.roomGrid)
-			{
-				Room room = kvp.Value;
-				if (room == null || drawnRooms.Contains(room)) continue;
-				drawnRooms.Add(room);
-
-				// 방 생성 시 계산해 둔 TopLeftWorldPos (최소 X, 최대 Y)
-				Vector3 screenPos = Camera.main.WorldToScreenPoint(room.TopLeftWorldPos);
-
-				// 카메라 앞에 있을 때만 렌더링
-				if (screenPos.z > 0)
-				{
-					// Screen.height에서 빼주어 OnGUI 좌표계로 변환
-					float guiY = Screen.height - screenPos.y;
-					Rect labelRect = new Rect(screenPos.x, guiY, 200, 40);
-
-					// 인구수 표시 텍스트
-					style.normal.textColor = room.CurrentPopulation > room.MaxPopulation ? Color.red : Color.green;
-					GUI.Label(labelRect, $"인구수: {room.CurrentPopulation} / {room.MaxPopulation}", style);
-				}
-			}
 		}
 	}
 

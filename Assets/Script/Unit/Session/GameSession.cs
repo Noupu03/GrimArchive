@@ -63,11 +63,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             }
         }
         
-        // 스폰 시나리오 등 소속 방이 아예 지정되지 않은 상태라면 현재 밟고 있는 방으로 자동 할당
-        if (u.CurrentRoom == null && roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, u.currentFloor), out Room room))
-        {
-            u.ChangeRoom(room);
-        }
+
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)
@@ -153,18 +149,9 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 {
                     if (!generatedRooms.TryGetValue(c.roomId, out Room room))
                     {
-                        room = new Room { RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName, MaxPopulation = 10 };
-                        // 방의 가장 왼쪽 위(Top-Left) 좌표를 찾기 위한 초기화
-                        room.TopLeftWorldPos = new Vector3(9999f, -9999f, 0f);
+                        room = new Room { RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName };
                         generatedRooms[c.roomId] = room;
                     }
-                    
-                    float chunkMinX = cx * 8f;
-                    float chunkMaxY = (cy * 8f) + 8f; // 타일 크기 8을 더함
-                    
-                    float roomMinX = Mathf.Min(room.TopLeftWorldPos.x, chunkMinX + floorOffset.x);
-                    float roomMaxY = Mathf.Max(room.TopLeftWorldPos.y, chunkMaxY + floorOffset.y);
-                    room.TopLeftWorldPos = new Vector3(roomMinX, roomMaxY, 0f);
                     
                     for (int tx = 0; tx < 8; tx++)
                     {

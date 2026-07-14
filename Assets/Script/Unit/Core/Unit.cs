@@ -144,11 +144,7 @@ public abstract class Unit : ScriptableObject
 	public float acceleration  = 10f; // 임시 기본 가속도
 	public bool  isWaitState   = false; // Spotting Broadcast에 의한 대기
 
-	// ─── 유닛 배치 시스템(Unit Deployment System) 속성 ───
-	public int populationCost = 2;
-	public Room CurrentRoom { get; private set; }
-	public bool IsMoving { get; private set; }
-	private System.Threading.CancellationTokenSource _moveCts;
+	// ─── 유닛 배치 시스템 롤백 완료 ───
 
 	public Vector2Int? playerMoveTarget    = null;
 	public Unit        playerAttackTarget   = null;
@@ -270,76 +266,7 @@ public abstract class Unit : ScriptableObject
 	public abstract bool CanMove(Vector2Int pos, bool ignoreUnits = false);
 	public abstract void Move(Dir dir);
 
-	public void ChangeRoom(Room newRoom)
-	{
-		if (CurrentRoom != null) CurrentRoom.RemoveUnit(this);
-		CurrentRoom = newRoom;
-		if (CurrentRoom != null) CurrentRoom.AddUnit(this);
-	}
 
-	public void IssueRoomMoveCommand(Room targetRoom, Vector2Int gridTarget)
-	{
-		if (_moveCts != null)
-		{
-			_moveCts.Cancel();
-			_moveCts.Dispose();
-		}
-		_moveCts = new System.Threading.CancellationTokenSource();
-		MoveToRoomRoutine(targetRoom, gridTarget, _moveCts.Token).Forget();
-	}
-
-	private async Cysharp.Threading.Tasks.UniTask MoveToRoomRoutine(Room targetRoom, Vector2Int gridTarget, System.Threading.CancellationToken ct)
-	{
-		ct.ThrowIfCancellationRequested();
-		IsMoving = true;
-		try
-		{
-			// [TODO] 기획 보류 사항: A -> C로 이동 중 B방(중간 경유지)에서 전투가 발생할 경우의 처리 로직 필요.
-			// 현재는 이동 시작 즉시 목적지(C) 소속으로 간주되나, 중간에 적을 마주쳤을 때 물리적/논리적 소속의 괴리를 어떻게 풀지 추후 논의 요망.
-			ChangeRoom(targetRoom);
-			
-			// 기존 시스템(UnitFunction)의 이동 목적지에 할당하여 턴 프로세서가 실제 이동을 처리하도록 위임
-			playerMoveTarget = gridTarget;
-			
-			// Native Routine: 유닛이 목적지 방(gridTarget 근처)에 도달할 때까지 비동기 대기
-			while (playerMoveTarget.HasValue && Vector2Int.Distance(position, gridTarget) > 1f)
-			{
-				ct.ThrowIfCancellationRequested();
-				await Cysharp.Threading.Tasks.UniTask.Yield(PlayerLoopTiming.Update, ct);
-			}
-		}
-		catch (System.OperationCanceledException)
-		{
-			// 비동기 레이스 컨디션 방지: 새로운 방 이동 명령이 내려져서 이전 루틴이 취소된 경우(토큰이 교체된 경우)
-			// 새 루틴이 이미 방 소속을 갱신했으므로 롤백 로직을 무시하고 그대로 종료합니다.
-			if (_moveCts != null && _moveCts.Token != ct)
-			{
-				throw;
-			}
-
-			UnityEngine.Debug.Log($"[Unit] MoveToRoomRoutine Canceled for {name}. 현재 물리적 위치를 기반으로 소속 복구 시도.");
-			
-			// 1. 이동 취소/중단 시 실제 물리 좌표를 기반으로 소속 방을 찾아 복구 (인구수 누수 방지)
-			if (_gameSession != null && _gameSession.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom))
-			{
-				ChangeRoom(actualRoom);
-			}
-			else
-			{
-				ChangeRoom(null); // 방이 아닌 빈 복도 공간이라면 소속 해제
-			}
-			
-			throw;
-		}
-		finally
-		{
-			// 새 루틴으로 교체되어 취소된 경우에는 IsMoving 플래그를 강제로 끄지 않음 (새 루틴이 true로 켰으므로 유지해야 함)
-			if (_moveCts == null || _moveCts.Token == ct)
-			{
-				IsMoving = false;
-			}
-		}
-	}
 
 	public virtual void ForceMove(Vector2Int targetPos)
 	{

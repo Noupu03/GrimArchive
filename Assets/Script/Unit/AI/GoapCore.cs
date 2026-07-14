@@ -129,18 +129,7 @@ public abstract class GoapAction
 						if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
 						if (myData.discoveredMap[floorIdx][nx, ny] == 2)   { isWall = true; break; }
 
-						// 전투 중인 방(경유지 포함) 우회 로직
-						if (unit.Session != null && unit.Session.roomGrid != null)
-						{
-							if (unit.Session.roomGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Room tileRoom))
-							{
-								if (tileRoom.IsCombatActive && tileRoom != unit.CurrentRoom)
-								{
-									isWall = true;
-									break;
-								}
-							}
-						}
+
 
 						if (neighborPos != targetPos &&
 							unit.Session != null &&
