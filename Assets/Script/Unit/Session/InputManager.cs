@@ -37,12 +37,23 @@ public class InputManager : MonoBehaviour
 
 	private UnitGenerate _unitGenerate;
 	private GameSession _gameSession;
+	private BuildingManager _buildingManager;
+	private ResourceManager _resourceManager;
+
+	// === 7단계: 빌드 모드 (고스트 프리팹) 상태 ===
+	public bool isBuildMode = false;
+	private GameObject ghostPrefab;
+	private SpriteRenderer ghostRenderer;
+	private ProductionRule currentBuildRule;
+	private Sprite currentBuildSprite;
 
 	[Inject]
-	public void Construct(UnitGenerate unitGenerate, GameSession gameSession)
+	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager)
 	{
 		_unitGenerate = unitGenerate;
 		_gameSession = gameSession;
+		_buildingManager = buildingManager;
+		_resourceManager = resourceManager;
 	}
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
@@ -100,6 +111,20 @@ public class InputManager : MonoBehaviour
 
 		// Ctrl = "기존 선택에 추가" (클릭/드래그/더블클릭 공통).
 		bool addHeld = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
+
+		// =====================================================
+		// 7단계: 빌드 모드 단축키 (임시 B키)
+		// =====================================================
+		if (Keyboard.current.bKey.wasPressedThisFrame)
+		{
+			EnterBuildMode();
+		}
+
+		if (isBuildMode)
+		{
+			UpdateBuildMode(floorOffset, currentFloor);
+			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
+		}
 
 		// =====================================================
 		// 좌클릭 - 드래그 시작
@@ -173,6 +198,7 @@ public class InputManager : MonoBehaviour
 				}
 
 				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+				unit.isManualMoveCommand = true;
 				unit.playerAttackTarget = null;
 			}
 
@@ -222,6 +248,26 @@ public class InputManager : MonoBehaviour
 	private void DoClickSelect(Vector2 screenPos, Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
 		Vector3Int gridPos = ScreenToGridPos(screenPos, floorOffset, currentFloor);
+
+		// 8단계: 건물 클릭 시 생산 명령 하달 및 원자적 자원 차감
+		BuildingData bData = _buildingManager.GetBuildingAt(gridPos);
+		if (bData != null)
+		{
+			if (!bData.IsProducing)
+			{
+				if (_resourceManager.TryConsumeResources(bData.Rule.costs))
+				{
+					bData.IsProducing = true;
+					bData.ProductionProgress = 0f;
+					LogHelper.Log(LogHelper.GAME, $"Started production at {gridPos} for {bData.Rule.targetUnitTypeName}");
+				}
+			}
+			else
+			{
+				LogHelper.Log(LogHelper.GAME, $"Already producing at {gridPos}. Progress: {bData.ProductionProgress:F1}/{bData.Rule.productionTime:F1}");
+			}
+			return; // 건물 클릭 시 다른 유닛/허공 선택 로직 무시
+		}
 
 		// 1. 유닛 클릭이면 최우선으로 선택 처리 (진영 제한 없음, 기존 동작 유지)
 		Unit clickedUnit = FindUnitAtGridPos(gridPos, currentFloor);
@@ -421,5 +467,89 @@ public class InputManager : MonoBehaviour
 		GUI.DrawTexture(new Rect(r.xMin, r.yMax - thickness, r.width, thickness), Texture2D.whiteTexture);
 		GUI.DrawTexture(new Rect(r.xMin, r.yMin, thickness, r.height), Texture2D.whiteTexture);
 		GUI.DrawTexture(new Rect(r.xMax - thickness, r.yMin, thickness, r.height), Texture2D.whiteTexture);
+	}
+
+	// =====================================================
+	// 빌드 모드 (고스트 프리팹 설치)
+	// =====================================================
+	private void EnterBuildMode()
+	{
+		if (isBuildMode) return;
+		isBuildMode = true;
+
+		// 임시로 더미 생산 규칙 하나 생성
+		currentBuildRule = ScriptableObject.CreateInstance<ProductionRule>();
+		currentBuildRule.ruleId = "B_001";
+		currentBuildRule.displayName = "Test Barracks";
+		currentBuildRule.costs.Add(new ResourceCost { resourceType = ResourceType.Wood, amount = 20 });
+		currentBuildRule.targetUnitTypeName = "Knight";
+
+		// 벽 타일(Tile_StoneWall) 이미지를 임시 건물 이미지로 쓴다
+		currentBuildSprite = Resources.Load<Sprite>("Tile_StoneWall");
+
+		if (ghostPrefab == null)
+		{
+			ghostPrefab = new GameObject("GhostBuilding");
+			ghostRenderer = ghostPrefab.AddComponent<SpriteRenderer>();
+			ghostRenderer.sprite = currentBuildSprite;
+			ghostRenderer.sortingOrder = 10;
+		}
+		ghostPrefab.SetActive(true);
+		LogHelper.Log(LogHelper.GAME, "Entered Build Mode (Cost: 20 Wood)");
+	}
+
+	private void ExitBuildMode()
+	{
+		isBuildMode = false;
+		if (ghostPrefab != null) ghostPrefab.SetActive(false);
+		LogHelper.Log(LogHelper.GAME, "Exited Build Mode");
+	}
+
+	private void UpdateBuildMode(Vector3 floorOffset, int currentFloor)
+	{
+		Vector2 mousePos = Mouse.current.position.ReadValue();
+		Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+		// 고스트 프리팹 위치 갱신
+		if (ghostPrefab != null)
+		{
+			ghostPrefab.transform.position = new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f) + floorOffset;
+			
+			if (_buildingManager.CanInstallAt(gridPos))
+				ghostRenderer.color = new Color(0f, 1f, 0f, 0.5f); // 설치 가능 (녹색 반투명)
+			else
+				ghostRenderer.color = new Color(1f, 0f, 0f, 0.5f); // 설치 불가 (빨간색 반투명)
+		}
+
+		if (Mouse.current.rightButton.wasPressedThisFrame)
+		{
+			ExitBuildMode();
+			return;
+		}
+
+		if (Mouse.current.leftButton.wasPressedThisFrame)
+		{
+			if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+			{
+				TryInstallBuilding(gridPos);
+			}
+		}
+	}
+
+	private void TryInstallBuilding(Vector3Int gridPos)
+	{
+		if (!_buildingManager.CanInstallAt(gridPos))
+		{
+			LogHelper.Warning(LogHelper.GAME, "장애물이 있거나 설치할 수 없는 지형입니다.");
+			return;
+		}
+
+		// 8단계: 자원 원자적 차감 (TryConsumeResources)
+		if (_resourceManager.TryConsumeResources(currentBuildRule.costs))
+		{
+			// 6단계: 설치 렌더링 및 등록
+			_buildingManager.InstallBuilding(gridPos, currentBuildRule, currentBuildSprite);
+			ExitBuildMode();
+		}
 	}
 }

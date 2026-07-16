@@ -21,6 +21,9 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     // MapRandering과 WaveSpawner는 하위 호환성을 위해 MapManager를 통해 노출
     public MapRandering mapRandering => _mapManager?.mapRandering;
 
+    [Inject]
+    public HumanWaveManager humanWaveManager;
+
     private UnitGenerate _unitGenerate;
     private ThreatTileRenderer _threatTileRenderer;
     private IObjectResolver _resolver;
@@ -236,7 +239,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             }
             
             bool isMonsterCorpse = u is Monster;
-            List<string> tags = new List<string> { "Corpse", isMonsterCorpse ? "Monster" : "Human" };
+            List<string> tags = new List<string> { "Object/Passable/Corpse", isMonsterCorpse ? "Monster" : "Human" };
             // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
@@ -252,6 +255,18 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         if (u != null) UnregisterUnitPos(u, u.position);
         units.RemoveAt(index);
         if (u != null) UnityEngine.Object.Destroy(u);
+    }
+
+    public void DespawnUnit(Unit u)
+    {
+        if (u == null) return;
+        if (_unitGenerate != null)
+        {
+            _unitGenerate.RemoveVisual(u);
+        }
+        UnregisterUnitPos(u, u.position);
+        units.Remove(u);
+        UnityEngine.Object.Destroy(u);
     }
 
     // ─────────────────────────── 파티 시스템 ───────────────────────────
@@ -308,7 +323,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             // 전멸 흔적 오브젝트 생성
             string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             Vector3Int gridPos = new Vector3Int(deadHuman.position.x, deadHuman.position.y, deadHuman.currentFloor);
-            List<string> tags = new List<string> { "WipeoutTrace" };
+            List<string> tags = new List<string> { "Object/Passable/WipeoutTrace" };
             InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
             SpawnObject(wipeoutObj, Color.black);
         }
@@ -549,7 +564,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         if (cmap == null || cmap.map.floors == null) return;
         
         int floorIdx = 1;
-        Vector2Int spawnPos = GetRandomStartRoomPos(Vector2.one, floorIdx);
+        Vector2Int spawnPos = _unitGenerate.GetRandomFloorPos(Vector2.one, floorIdx);
         if (spawnPos == Vector2Int.zero) return;
 
         string objId = "InteractableObj_" + System.Guid.NewGuid().ToString().Substring(0, 4);
@@ -557,7 +572,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         
         if (!objectGrid.ContainsKey(gridPos))
         {
-            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Loot" });
+            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Object/Passable/Loot" });
             SpawnObject(obj, Color.magenta);
         }
     }

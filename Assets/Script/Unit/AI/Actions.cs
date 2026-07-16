@@ -37,6 +37,7 @@ public class Action_PlayerCommandExecute : GoapAction
 		if (unit.position == target)
 		{
 			unit.playerMoveTarget = null;
+			unit.isManualMoveCommand = false;
 
 			if (unit.playerInteractTarget.HasValue)
 			{

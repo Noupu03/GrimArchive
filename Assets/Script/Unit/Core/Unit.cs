@@ -147,6 +147,7 @@ public abstract class Unit : ScriptableObject
 	// ─── 유닛 배치 시스템 롤백 완료 ───
 
 	public Vector2Int? playerMoveTarget    = null;
+	public bool isManualMoveCommand        = false; // 유저가 직접 클릭하여 내린 이동 명령인지 여부
 	public Unit        playerAttackTarget   = null;
 	public Vector3Int? playerInteractTarget = null;
 	public Vector2Int position;

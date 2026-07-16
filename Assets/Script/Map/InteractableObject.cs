@@ -53,8 +53,9 @@ public class InteractableObject
         }
         else
         {
-            // 기본값은 전리품("Loot")으로 처리
-            Tags = new List<string> { "Loot" };
+            // 10단계 기획안 (Step 1): 통행 가능 여부를 포함한 계층형 태그로 개편
+            // 기본값은 지나갈 수 있는 전리품("Object/Passable/Loot")으로 처리
+            Tags = new List<string> { "Object/Passable/Loot" };
         }
 
         CauserStage = causerStage;

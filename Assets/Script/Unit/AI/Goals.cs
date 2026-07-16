@@ -15,8 +15,16 @@ public class Goal_PlayerCommand : GoapGoal
 {
 	public Goal_PlayerCommand() { Name = "PlayerCommand"; DesiredState["playerCommandExecuted"] = true; }
 
-	public override float GetPriority(Unit unit) =>
-		(unit.playerMoveTarget.HasValue || unit.playerAttackTarget != null) ? 100f : 0f;
+	public override float GetPriority(Unit unit)
+	{
+		if (unit.playerAttackTarget != null) return 130f; // 수동 공격 명령은 최우선 (패닉 제외)
+		if (unit.playerMoveTarget.HasValue) 
+		{
+			if (unit.isManualMoveCommand) return 130f; // 수동 이동 명령도 최우선
+			return 90f;   // 자동 이동 명령(웨이브)은 자동 전투(100f)보다 낮아 이동 중 적 발견 시 전투에 돌입함
+		}
+		return 0f;
+	}
 }
 
 public class Goal_DefeatEnemy : GoapGoal
@@ -31,7 +39,7 @@ public class Goal_DefeatEnemy : GoapGoal
 		foreach (var enemy in enemies)
 		{
 			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor)
-				return 80f;
+				return 100f; // 이동 명령(90f)보다 우선순위가 높아 이동 중 전투 발생
 		}
 		return 0f;
 	}

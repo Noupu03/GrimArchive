@@ -190,7 +190,7 @@ public abstract class UnitFunction : Unit
 
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
-				if (c.chunk[tx, cyVal].name == "Wall") return false;
+				if (c.chunk[tx, cyVal].name == "Wall" || c.chunk[tx, cyVal].isStructureExist) return false;
 
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
@@ -272,7 +272,7 @@ public abstract class UnitFunction : Unit
 			if (c.roomId == -1 || c.chunk == null) break;
 
 			Tile tile = c.chunk[tx, ty];
-			bool tileIsWall = tile.name == "Wall";
+			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
 			// 01-A 3장/4장: 이 타일이 인지 거리 + 인지각(또는 특수 원형 인지 범위) 안에 실제로 들어오는지.

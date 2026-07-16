@@ -52,8 +52,17 @@ public class GameCompositionRoot : CoreLifetimeScope
         // 웨이브 스포너 - MonoBehaviour에서 NativeRoutine으로 전환
         builder.Register<WaveSpawner>(Lifetime.Singleton).AsSelf();
 
+        // 인류 웨이브 오케스트레이터 - Haare Framework NativeRoutine
+        builder.Register<HumanWaveManager>(Lifetime.Singleton).AsSelf();
+
         // 맵 매니저 (MapRandering과 WaveSpawner를 포함하여 런타임 이벤트 제공)
         builder.Register<MapManager>(Lifetime.Singleton).AsSelf();
+
+        // 중앙 자원 관리소 - NativeRoutine (UniTask 임시 채굴기 포함)
+        builder.Register<ResourceManager>(Lifetime.Singleton).AsSelf();
+
+        // 건축물 관리소 - NativeRoutine (1타일 1오브젝트 및 렌더링 동기화 담당)
+        builder.Register<BuildingManager>(Lifetime.Singleton).AsSelf();
 
         // HumanKnowledgeBase: 대표 가중치 3종(이해도/위험도/흥미도) 전역 레지스트리 — 순수 C#.
         builder.Register<HumanKnowledgeBase>(Lifetime.Singleton).AsSelf();

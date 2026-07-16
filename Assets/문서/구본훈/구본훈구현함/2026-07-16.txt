@@ -1,0 +1,43 @@
+[10:40]
+- 건축물, 자원, 유닛 생산 MVP 기획안 10단계 검토 및 분석 완료.
+- HAARE Framework (UniTask, Lifecycle 등), 데이터 동시성, 결합도 우려 사항을 반영하여 '건축물_자원_유닛_생산_MVP_구현계획.md' 작성 (문서\구본훈\구현현황\진행중 폴더에 저장).
+
+[11:20]
+- 오브젝트의 통행 가능(Passable/Impassable) 여부에 따른 태그 계층화 요구사항 추가.
+- 오브젝트 설치 시 MapData(타일 정보)와 연동하여 상태를 갱신하는 요구사항 추가.
+- 해당 요구사항을 선행 조건으로 하여 기존 '건축물_자원_유닛_생산_MVP_구현계획.md' 문서 병합 및 업데이트 완료.
+- 오브젝트 설치 테스트 UI로 '2안(마우스 클릭 설치 방식, 고스트 프리팹 + Raycast)' 채택 및 기획안 반영 완료.
+
+[11:30]
+- 오브젝트 실체 제거 및 타일맵 드로잉 방식(MapRandering)으로 아키텍처 개편에 따른 기획 갱신.
+- BuildingManager 중앙 통제 시스템 도입안 반영.
+- 실무 확장을 대비한 4대 핵심 로직 추가 기획안 반영:
+  1) 타일맵 기반 물리 판정 한계 극복을 위한 좌표 질의형 피격/타겟팅 판정.
+  2) 자원 초기화 및 롤백을 포함한 오브젝트 철거(Uninstall) 파이프라인.
+  3) 타일맵 레이어 분리 기반의 중첩 설치 방지.
+  4) Y축 기준 Custom Axis Sorting을 통한 시각적 깊이 렌더링 정렬 최적화.
+
+[11:40]
+- 중앙 통제 방식의 타일 중첩(Key 충돌) 이슈 검토.
+- MVP 단계에서는 "1타일 1오브젝트" 정책을 엄격히 적용하기로 결정.
+- 단, 기획 확장을 대비해 좌표 질의 로직을 캡슐화하여 추후 다중 자료구조(List 등)로 쉽게 마이그레이션 할 수 있도록 설계안 문서 최신화 완료.
+- 지금까지 논의된 모든 아키텍처 확장안(타일맵, 매니저 통제, 태그 계층화, 설치/철거 등)을 파편화시키지 않고, 실제 개발 순서에 입각하여 직관적인 10단계 파이프라인으로 재통합(Rewrite) 완료.
+
+[11:50]
+- Phase 1 구현 완료: InteractableObject 태그 계층화 병합, ResourceManager (NativeRoutine) 생성 및 UniTask 임시 채굴기 구현, ProductionRule ScriptableObject 생성.
+- Phase 2 구현 완료: BuildingManager (NativeRoutine) 설계 및 1타일 1오브젝트 기반 설치(Install)/철거(Uninstall) 로직 구현, 타일맵 렌더링 동기화 적용.
+- InputManager에 임시 빌드 모드 단축키(B키) 및 고스트 프리팹 테스트 UI 로직 구현.
+- Phase 3 구현 완료: InputManager 레이캐스트와 BuildingManager 연동을 통해 원자적 자원 지불 방식의 건물 및 유닛 생산 로직 구현. 
+- BuildingManager의 생산 완료 시 기존 GameSession.GenerateUnitAtPos() 파이프라인을 재사용하여 실제 유닛 스폰 연동 완료.
+- GameCompositionRoot에 ResourceManager, BuildingManager의 VContainer 등록 완료.
+
+[12:00]
+- ResourceManager.cs 및 BuildingManager.cs 컴파일 에러(CS0115) 해결.
+  - NativeRoutine 구조에 맞게 `Dispose(CancellationToken)` 재정의 대신 `Finalize()` 가상 메서드를 오버라이드하도록 수정.
+
+[13:10]
+- 빌드 모드 상태에서 마우스 커서가 맵 밖으로 나갈 때 발생하는 `IndexOutOfRangeException` 버그 픽스.
+  - BuildingManager.CanInstallAt 및 UpdateMapDataObstacle 최상단에 음수 좌표 필터링(`if (pos.x < 0 || pos.y < 0)`) 로직 추가.
+- 유닛이 설치된 건물을 통과하는 물리 충돌 버그 수정.
+  - 원인: 건물 설치 시 MapData 갱신과 별개로 A*가 사용하는 FactionData.discoveredMap은 갱신되지 않았으며, 시야 갱신(CastRay) 로직이 이를 프레임마다 바닥으로 덮어씀.
+  - 해결: UnitFunction.cs의 `CanMove` 및 `CastRay` 로직에서 `tile.name == "Wall"` 뿐만 아니라 `tile.isStructureExist` 도 함께 검사하여, 건물이 있을 시 충돌 맵 배열 값을 2(장애물)로 덮어쓰도록 수정.
