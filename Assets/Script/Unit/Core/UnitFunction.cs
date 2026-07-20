@@ -65,17 +65,28 @@ public abstract class UnitFunction : Unit
 
 		if (defenderIsHuman)
 		{
-			// 인류(this)가 몬스터(attacker)에게 맞음 — "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
-			if (appliedDamage >= heavyHitThreshold)
+			// 02문서 17장: "피격 사실/피해량은 확정되지만 공격자 정체는 별도 인지 판정이 필요하다."
+			// hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
+			// 이벤트만 인지 판정으로 게이팅한다 — IsAttackerIdentified가 4장 조건5(피격 시 공격 후
+			// 가시성 증가를 반영한 즉시 재판정)를 강제로 수행한다.
+			bool attackerIdentified = IsAttackerIdentified(attacker);
+			if (attackerIdentified)
 			{
-				this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
-				BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
-			}
+				// "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
+				if (appliedDamage >= heavyHitThreshold)
+				{
+					this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
+					BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
+				}
 
-			// 11-2장: 실제 적용 피해량이 공격자의 기준(방어 적용 전) 피해량보다 1 이상 낮으면
-			// "인류의 방어력/저항 때문에 예상보다 약하게 들어간 타격"으로 보고 몬스터 종 위험도를
-			// 소폭(-0.01, 전투당 최대 -1) 감소시킨다.
-			this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
+				// 11-2장: 실제 적용 피해량이 공격자의 기준(방어 적용 전) 피해량보다 1 이상 낮으면
+				// "인류의 방어력/저항 때문에 예상보다 약하게 들어간 타격"으로 보고 몬스터 종 위험도를
+				// 소폭(-0.01, 전투당 최대 -1) 감소시킨다.
+				this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
+			}
+			// else: 공격자 정체를 인지하지 못함 — 17장 "확인 가능한 공격 방향은 시야 방향 전환/목표
+			// 재설정/경로 재설정 후보로 연결될 수 있다"는 06_전투반응·기습 문서(부재)가 담당할 영역이라
+			// 이번 범위에서는 정체 기반 이벤트(위험도/이해도 반영)만 억제하고 별도 처리는 하지 않는다.
 		}
 		else
 		{
@@ -84,6 +95,40 @@ public abstract class UnitFunction : Unit
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
 		}
 	}
+
+	// 02문서 17장: 피격 대상(this)이 attacker의 정체를 인지 판정으로 확인할 수 있는지. 인류 관찰자
+	// 전용(가중치 시스템의 정체 기반 이벤트 자체가 인류 전용) — 몬스터가 맞았을 때는 게이팅하지 않는다
+	// (그쪽은 항상 attacker=인류가 자기 공격 대상을 스스로 알고 있는 경우라 정체를 몰라야 할 이유가 없다).
+	// 벽/차단 오브젝트에 의한 시야 차단(LOS)까지는 재확인하지 않는다 — 근접 공격자는 인접 타일에서만
+	// 발생해 사실상 항상 차단이 없고, 원거리/마법 공격자를 위해 CastRay와 동일한 레이마칭을 매 피격마다
+	// 다시 도는 것은 이번 범위에 비해 과한 비용이라 거리+인지각만으로 판정한다(판단 근거: 구현현황 문서).
+	private bool IsAttackerIdentified(Unit attacker)
+	{
+		if (!(this is Human)) return true;  // 게이팅은 인류 관찰자 전용
+		if (attacker == null) return false;
+
+		float dist = Vector2.Distance(position, attacker.position);
+		float perceptionDistance = VisionMath.AwarenessDistance(spotting);
+		float perceptionAngle = VisionMath.AwarenessAngle(spotting);
+
+		Vector2 forward = GetDirVector(currentDir);
+		if (forward == Vector2.zero) forward = Vector2.down;
+		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
+		float angleToAttacker = Mathf.Atan2(attacker.position.y - position.y, attacker.position.x - position.x) * Mathf.Rad2Deg;
+		bool inAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToAttacker)) <= perceptionAngle / 2f;
+
+		if (dist > perceptionDistance || !inAngle) return false; // 5장 조건1: 인지 범위 밖 — 판정 자체 불가.
+
+		Vector3Int tile = new Vector3Int(attacker.position.x, attacker.position.y, attacker.currentFloor);
+		PerceptionOutcome outcome = ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile);
+		return outcome == PerceptionOutcome.AccuratePerception;
+	}
+
+	// 방금 IsAttackerIdentified/ResolveReachedTarget으로 판정된 기록을 다시 굴리지 않고 그대로 조회만
+	// 한다 — RecordStatusWeightEvent는 RecordHitWeightEvent와 같은 피격 시퀀스 안에서 호출되므로(4장:
+	// 같은 트리거를 또 재판정하지 않는다) 새 판정이 아니라 조회여야 한다.
+	private bool IsCurrentlyIdentified(Unit target)
+		=> target != null && perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
 
 	// 3장 "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정(그 순간 그 자리를 보고
 	// 있었는지)은 아직 없어서, GameSession.RecordKillWeightEvent와 동일하게 "그 순간 생존해 있는
@@ -123,6 +168,9 @@ public abstract class UnitFunction : Unit
 	private void RecordStatusWeightEvent()
 	{
 		if (!(this is Human) || !(lastAttacker is Monster) || this.Knowledge == null) return;
+		// 02문서 17장: 상태이상을 건 공격자의 정체도 동일하게 게이팅한다 — RecordHitWeightEvent가 같은
+		// 피격 시퀀스에서 이미 판정을 굴려놨으므로 여기서는 그 결과만 조회한다(재판정 아님).
+		if (!IsCurrentlyIdentified(lastAttacker)) return;
 
 		string incidentId = System.Guid.NewGuid().ToString();
 		this.Knowledge.RecordEvent(EventId.E_STATUS_SELF, this, lastAttacker, InfoType.DirectExperience, incidentId);
@@ -229,6 +277,75 @@ public abstract class UnitFunction : Unit
 			this.Generate.UpdateUnitSpriteForDirection(this);
 	}
 
+	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
+	// 이번 UpdateFOV 패스에서 인지 범위 안으로 실제 도달한 대상(적 유닛=Unit 참조, 오브젝트=Id)의
+	// 집합 — UpdateFOV 시작 시 비우고, CastRay가 레이를 쏘며 채운다. 이 패스가 끝난 뒤(모든 레이 +
+	// 특수 원형 스윕 완료 후) 이 집합에 없는 기존 perceptionRecords는 "이번엔 못 봤다"로 판정해
+	// PerceptionRecord.WasInRange를 false로 내린다 — 그래야 나중에 다시 보였을 때(재진입/완전 차단
+	// 후 재등장 모두 포함) 새 트리거로 인식돼 재판정이 걸린다(4장 조건1~3이 전부 "지금 안 보이다가
+	// 다시 보임"이라는 동일 신호라 이 하나의 메커니즘으로 셋 다 커버된다).
+	private readonly Dictionary<object, (float dist, Vector3Int tile)> _reachedPerceptionThisPass = new Dictionary<object, (float, Vector3Int)>();
+
+	// 이번 패스에 처음 도달한 대상이면 트리거 조건(최초 진입/재진입/수상한 타일 2칸 재접근)을 검사해
+	// 필요하면 재판정하고, 이미 이번 패스에 다른 레이로 처리된 대상이면 그 결과를 그대로 반환한다
+	// (여러 레이가 같은 타일에 도달해도 판정은 패스당 한 번만 — firstTouchThisPass로 호출부가 후속
+	// 처리(등록 등)를 중복 실행하지 않도록 알려준다).
+	private PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float dist, out bool firstTouchThisPass)
+	{
+		firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
+		_reachedPerceptionThisPass[key] = (dist, tile);
+		if (!firstTouchThisPass)
+			return perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
+
+		perceptionRecords.TryGetValue(key, out var existing);
+
+		// 5장: 인지 판정 자체가 불가한 상태(기절 등)면 판정을 새로 하지 않고 기존 기록만 유지한다.
+		if (!CanPerceive)
+		{
+			if (existing == null) { existing = new PerceptionRecord(); perceptionRecords[key] = existing; }
+			existing.WasInRange = true;
+			existing.LastKnownTile = tile;
+			return existing.Outcome;
+		}
+
+		// 4장 조건1/2/3: 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
+		bool isNewOrReentering = existing == null || !existing.WasInRange;
+		// 4장 조건4/22장: 수상한 타일 확인 대기 중 + 2칸 이내로 접근.
+		bool suspiciousReapproach = existing != null && existing.PendingSuspiciousInvestigation
+			&& dist <= PerceptionMath.SuspiciousTileReapproachDistanceTiles;
+
+		if (isNewOrReentering || suspiciousReapproach)
+			return ForceRollPerception(key, targetVisibility, tile);
+
+		existing.WasInRange = true;
+		existing.LastKnownTile = tile;
+		return existing.Outcome;
+	}
+
+	// 8장/12장: 감지 보정(경계 반영) + 정신력 보정을 더한 최종 계산 가시성으로 확률표를 굴려 즉시
+	// 판정을 갱신한다. 트리거 조건과 무관하게 "지금 당장 다시 판정"이 필요한 지점(4장 조건5: 피격
+	// 후 가시성 증가 반영 재판정, ResolveReachedTarget의 트리거 발생 시)에서 공통으로 쓴다.
+	private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile)
+	{
+		float detectionCorrection = PerceptionMath.DetectionCorrection(spotting, IsAlert);
+		float mentalCorrection = GetMentalVisibilityCorrection();
+		float total = PerceptionMath.TotalPerceptionVisibility(targetVisibility, detectionCorrection, mentalCorrection);
+		PerceptionOutcome outcome = PerceptionMath.RollOutcome(total, Random.value);
+
+		if (!perceptionRecords.TryGetValue(key, out var record))
+		{
+			record = new PerceptionRecord();
+			perceptionRecords[key] = record;
+		}
+		bool nowSuspicious = outcome == PerceptionOutcome.SuspiciousTile;
+		NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // IsAlert 카운터 O(1) 유지
+		record.Outcome = outcome;
+		record.WasInRange = true;
+		record.LastKnownTile = tile;
+		record.PendingSuspiciousInvestigation = nowSuspicious;
+		return outcome;
+	}
+
 	// rayInPerceptionAngle: 이 레이가 인지각(01-A 4장) 범위 안인지 여부(레이별로 UpdateFOV가 미리 계산해 전달).
 	// perceptionDistance: 인지 거리(01-A 3장) — 이 거리 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다.
 	// 특수 원형 인지 범위(01-A 13장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
@@ -304,14 +421,16 @@ public abstract class UnitFunction : Unit
 					// 감쇠된 값이 기본값으로 되돌아가는 버그가 있었다(2026-07-08 수정).
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
-						// 01장 5절 마지막 규칙("인지 실패 시 미인식 처리 — 실제로 위험 요소가 있어도 안전하다고
-						// 오판할 수 있다") + 기획 확정(2026-07-13): 가시성이 낮다고 시야 자체를 막지(쉐도우
-						// 캐스팅) 않는다. 대신 여기서 "미인식" 판정만 한다 — 정체를 등록하지 않을 뿐, 레이는
-						// 그대로 나아가 뒤쪽도 정상적으로 보인다. 인지 성공 확률(02-A) 문서가 없어 가장 단순한
-						// 형태로 스텁: 가시성이 0 이하면 미인식, 그 외엔 인지 성공으로 취급한다.
 						if (inPerceptionRange)
 						{
-							if (obj.BaseVisibility > 0f)
+							// 02문서 6장: 오브젝트 유형별 가시성(시체/전멸흔적=100 고정, 그 외=BaseVisibility).
+							float objVisibility = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
+							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, out bool firstTouch);
+
+							// 02문서 12장/14장: 정확 인지된 오브젝트만 실제로 등록한다. 수상한 타일/미인식은
+							// 정체를 등록하지 않는다 — 미인식은 01장 5절 마지막 규칙("실제로 위험 요소가
+							// 있어도 안전하다고 오판할 수 있다")과 동일하게 안전타일 취급으로 이어진다.
+							if (firstTouch && outcome == PerceptionOutcome.AccuratePerception)
 							{
 								// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
 								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
@@ -320,14 +439,14 @@ public abstract class UnitFunction : Unit
 								terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
 
 								// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
-								if (obj.Tags.Contains("WipeoutTrace") && !string.IsNullOrEmpty(obj.TraceId))
+								if (obj.Tags.Any(t => t.Contains("WipeoutTrace")) && !string.IsNullOrEmpty(obj.TraceId))
 								{
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
 								}
 							}
-							// else: 미인식 — 이번엔 인지 실패, 다음 기회(가시성이 오르거나 재판정 시)에 재시도.
+							// else: 수상한 타일/미인식 — 다음 트리거(재진입/2칸 재접근)까지 이 판정을 유지한다.
 						}
-						else if (!visionOnlyNonEmptyTiles.Contains(revealedTile))
+						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
 						{
 							// 01장 7절/01-A 7장: 인지 범위 밖 — 아직 정체를 모르는 "비어있지 않은 타일".
 							// 정식 등록(RegisterObject 등)은 인지 범위에 들어와야만 가능하다.
@@ -347,12 +466,13 @@ public abstract class UnitFunction : Unit
 					{
 						if (inPerceptionRange)
 						{
-							// 01장 5절/기획 확정(2026-07-13): 가시성이 낮으면 "미인식"만 처리하고 시야는
-							// 막지 않는다(자세한 사유는 위 오브젝트 판정 블록 주석 참고).
-							// 인간 진영도 몬스터와 동일하게 개인 시야만 기록 — 진영 공유 시야(myData.spottedEnemyUnits) 제거.
-							if (unit.GetFinalVisibility() > 0f && !personalSpottedEnemies.Contains(unit))
+							// 02문서 4장/8장/12장: 트리거 시점에만 재판정(확률표)하고, 그 사이엔 이전 결과를
+							// 유지한다. 정확 인지된 대상만 personalSpottedEnemies·개인 지도에 반영한다.
+							PerceptionOutcome outcome = ResolveReachedTarget(unit, unit.GetFinalVisibility(), revealedTile, dist, out bool firstTouch);
+
+							if (outcome == PerceptionOutcome.AccuratePerception)
 							{
-								personalSpottedEnemies.Add(unit);
+								if (!personalSpottedEnemies.Contains(unit)) personalSpottedEnemies.Add(unit);
 
 								// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
 								// GetFinalDanger/GetUnitInterest(전역 종/개체 누적)가 아니라 GetPersonalDanger/
@@ -372,8 +492,11 @@ public abstract class UnitFunction : Unit
 									human.personalMap.ObserveUnitInRoom(c.roomId, isBossRoom, unit.name, danger, interest);
 								}
 							}
+							// else: 수상한 타일/미인식 — personalSpottedEnemies는 매 UpdateFOV마다 Clear() 후
+							// 다시 채우는 스냅샷이라(01-A 8장 관련 기존 구조), 여기서 추가하지 않는 것만으로
+							// 자연히 제외된다(정체 미확정 대상을 타겟/전투 후보로 넘기지 않음).
 						}
-						else if (!personalSpottedEnemies.Contains(unit) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
+						else if (!_reachedPerceptionThisPass.ContainsKey(unit) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
 						{
 							// 01장 7절: 인지 범위 밖 — 정체는 모르지만 "비어있지 않은 타일"로만 인지.
 							visionOnlyNonEmptyTiles.Add(revealedTile);
@@ -433,6 +556,7 @@ public abstract class UnitFunction : Unit
 	{
 		personalSpottedEnemies.Clear();
 		visionOnlyNonEmptyTiles.Clear();
+		_reachedPerceptionThisPass.Clear();
 
 		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
 		Vector2 forward = GetDirVector(currentDir);
@@ -478,13 +602,24 @@ public abstract class UnitFunction : Unit
 				CastRay(myData, cmap, position, rad, circularRadius, allUnits, true, circularRadius);
 			}
 		}
+
+		// 02문서 4장: 이번 패스(레이 전체 + 특수 원형 스윕)에서 한 번도 도달하지 못한 기존 기록은
+		// "지금 안 보인다"로 내려둔다 — Outcome(정확 인지/수상한 타일/미인식) 자체는 건드리지 않고
+		// WasInRange만 false로 바꿔서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입/완전 차단
+		// 후 재등장 트리거로 인식하게 한다.
+		foreach (var kv in perceptionRecords)
+		{
+			if (!_reachedPerceptionThisPass.ContainsKey(kv.Key))
+				kv.Value.WasInRange = false;
+		}
 	}
 
 	// 01-A 11장: 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를
-	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7)/미확인 타일(8)/경계(9) 후보는 대응 게임 시스템
-	// (09_명령·리더, 06_전투반응·기습, 08_전파·소리, 10_목표설정, 04_탐색반응 문서)이 이 폴더에 아직
-	// 없어 후보 자체를 만들 수 없다 — 11장의 "적용할 수 없는 후보는 비교에서 제외한다"는 규칙과
-	// 동일하게 취급(자연히 제외됨). 실제로 활성화 가능한 후보만 아래에서 구성한다.
+	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7)/미확인 타일(8) 후보는 대응 게임 시스템(09_명령·리더,
+	// 06_전투반응·기습, 08_전파·소리, 10_목표설정 문서)이 이 폴더에 아직 없어 후보 자체를 만들 수
+	// 없다 — 11장의 "적용할 수 없는 후보는 비교에서 제외한다"는 규칙과 동일하게 취급(자연히 제외됨).
+	// 경계(9) 후보는 02문서 20장 구현으로 실제로 연결됐다(아래 참고). 실제로 활성화 가능한 후보만
+	// 아래에서 구성한다.
 	public override void ResolveVisionDirection()
 	{
 		var candidates = new List<VisionMath.VisionDirectionCandidate>();
@@ -505,6 +640,26 @@ public abstract class UnitFunction : Unit
 		// 4순위: 현재 공격 대상 존재.
 		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.CurrentAttackTarget, DirectionToward(playerAttackTarget.position)));
+
+		// 9순위: 경계 상태 — 02문서 20장 "시야 방향 전환 후보 O". 수상한 타일 확인 대기 중인 기록이
+		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
+		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
+		// 전환만 이 판정 결과에서 직접 나온다.
+		Vector3Int? nearestSuspiciousTile = null;
+		float nearestDistSq = float.MaxValue;
+		foreach (var record in perceptionRecords.Values)
+		{
+			if (!record.PendingSuspiciousInvestigation) continue;
+			float dx = record.LastKnownTile.x - position.x;
+			float dy = record.LastKnownTile.y - position.y;
+			float distSq = dx * dx + dy * dy;
+			if (distSq < nearestDistSq) { nearestDistSq = distSq; nearestSuspiciousTile = record.LastKnownTile; }
+		}
+		if (nearestSuspiciousTile.HasValue)
+		{
+			var t = nearestSuspiciousTile.Value;
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Alert, DirectionToward(new Vector2Int(t.x, t.y))));
+		}
 
 		// 10순위(최하위, 항상 후보로 존재): 이동 중이면 Move()가 이미 반영한 이동 방향, 아니면 기존 시야
 		// 방향을 그대로 유지 — 다른 후보가 전혀 없을 때의 기본값 역할을 한다.

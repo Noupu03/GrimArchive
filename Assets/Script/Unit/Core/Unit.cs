@@ -158,6 +158,54 @@ public abstract class Unit : ScriptableObject
 	public List<Unit>          personalSpottedEnemies = new List<Unit>();
 	public List<ThreatTileData> detectedThreats        = new List<ThreatTileData>();
 
+	// ─── 인지·정보판정·실패처리 시스템 관련 — 02_인지·정보판정·실패처리_시스템_v0.2 ────────
+	// 4장: 대상별(적 유닛=Unit 참조, 오브젝트=InteractableObject.Id) 지속 인지 상태. 트리거 시점에만
+	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception이 갱신한다 — personalSpottedEnemies와 달리 매
+	// UpdateFOV 호출마다 Clear되지 않는다(PerceptionRecord.cs 주석 참고).
+	public readonly Dictionary<object, PerceptionRecord> perceptionRecords = new Dictionary<object, PerceptionRecord>();
+
+	// 20장: 수상한 타일 확인 대기 중인 레코드가 하나라도 있으면 경계 상태 — 10장 감지 보정(+20)과
+	// 01-A 10장(구 11장) 시야 방향 전환 우선순위의 Alert 사유가 이 값을 참조한다.
+	// 2026-07-20 성능 수정: 원래 perceptionRecords 전체를 매번 순회(O(n))했는데, 이 프로퍼티가
+	// UnitFunction.ForceRollPerception(피격마다 강제 호출되는 IsAttackerIdentified 경로 포함) 안에서
+	// 읽혀 전투 중 매 타격마다 O(n)이 반복됐다 — perceptionRecords가 세션 내내 정리되지 않고 쌓이는
+	// 구조(아래 RemovePerceptionRecord 참고 전까지는 그랬음)와 겹쳐 유닛 수·전투 시간이 늘수록 급격히
+	// 무거워졌다. PendingSuspiciousInvestigation이 바뀌는 유일한 지점(ForceRollPerception)에서
+	// _alertRecordCount만 갱신하는 O(1) 카운터로 교체.
+	private int _alertRecordCount = 0;
+	public bool IsAlert => _alertRecordCount > 0;
+
+	// PendingSuspiciousInvestigation을 바꾸는 모든 지점(ForceRollPerception, 레코드 제거)이 반드시
+	// 이 메서드를 통해서만 카운터를 갱신한다 — 직접 필드를 대입하면 카운터가 어긋난다.
+	public void NotifyPerceptionSuspiciousChanged(bool wasSuspicious, bool nowSuspicious)
+	{
+		if (wasSuspicious == nowSuspicious) return;
+		_alertRecordCount += nowSuspicious ? 1 : -1;
+		if (_alertRecordCount < 0) _alertRecordCount = 0; // 방어적 처리 — 정상 흐름에서는 발생하지 않아야 함
+	}
+
+	// 2026-07-20: 유닛 사망/오브젝트 회수·파괴 시 이 관찰자가 들고 있던 해당 대상 기록을 정리한다.
+	// perceptionRecords는 "한 번 본 대상은 세션 내내 안 지워지는" 구조였는데(원래 스코프였던 관찰자
+	// 개인당 소수 항목 가정과 달리, 웨이브가 반복되며 죽은 몬스터 참조가 계속 쌓이는 실사용 환경에서
+	// 예상보다 훨씬 크게 자라 — 프레임 드롭의 실제 원인이었다), IsAlert 카운터 O(1)화와 별개로 이
+	// 정리가 없으면 순회 비용(UpdateFOV 끝의 sweep 등) 자체가 계속 커진다.
+	public void RemovePerceptionRecord(object key)
+	{
+		if (perceptionRecords.TryGetValue(key, out var record))
+		{
+			NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, false);
+			perceptionRecords.Remove(key);
+		}
+	}
+
+	// 5장: 인지 판정 자체가 불가능한 상태. 문서는 기절/수면/마비/행동불능 4종을 들지만, 이 코드베이스엔
+	// 아직 스턴(stunDuration) 외의 상태이상 시스템이 없다(수면/마비/행동불능은 담당 상태이상 문서
+	// 부재로 미구현) — 그 상태들이 생기면 이 프로퍼티에 조건만 추가하면 된다.
+	public bool CanPerceive => stunDuration <= 0f;
+
+	// 9장: 정신력 보정(인류 전용, 몬스터는 항상 0) — PerceptionMath.MentalCorrectionForHuman 참고.
+	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(mental, maxMental) : 0f;
+
 	// 01장 7절/01-A 7장: 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록(이번 UpdateFOV 호출
 	// 기준 임시 스냅샷 — 저장값 아님, 매 UpdateFOV마다 비우고 다시 채운다). 목표/경로 재설정을 다루는
 	// 10_목표설정·이동경로·재설정 문서가 아직 폴더에 없어 이 리스트를 실제로 소비하는 곳은 없다 —

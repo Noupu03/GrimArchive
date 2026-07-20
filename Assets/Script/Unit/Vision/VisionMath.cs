@@ -6,11 +6,12 @@ using UnityEngine;
 // WeightMath와 동일한 컨벤션. 저장/조회는 Unit(런타임 상태)과 UnitFunction(호출부)이 담당하고
 // 이 클래스는 숫자만 계산한다.
 //
-// 이 폴더(Assets/문서/공식문서/시야인지반응)에는 현재 00(상위구조)/01(개념)/01-A(연산공식)만 있다.
-// 00번 문서가 예고하는 02~10번 문서(인지 확률, 탐색 반응, 은신 세부산식, 전투 반응, 소리 등)는
-// 아직 작성되지 않았으므로, 그 문서들에 위임된 세부 공식(예: 은신/거리/가림 보정의 정확한 감쇠식,
-// 인지 성공 확률 자체)은 CLAUDE.md에 명시된 기존 관례대로 "가장 단순하고 합리적인 기본값"으로만
-// 스텁 처리한다. 각 스텁 지점에 주석으로 근거를 남긴다.
+// 이 폴더(Assets/문서/공식문서/시야인지반응)에는 현재 00(상위구조)/01(개념)/01-A(연산공식)/
+// 02(인지·정보판정·실패처리, 2026-07-20 추가 — 실제 구현은 PerceptionMath.cs)까지 있다.
+// 03~10번 문서(가중치판단 연동, 탐색 반응, 은신 세부산식, 전투 반응, 소리 등)는 아직 작성되지
+// 않았으므로, 그 문서들에 위임된 세부 공식(예: 은신/거리/가림 보정의 정확한 감쇠식)은 CLAUDE.md에
+// 명시된 기존 관례대로 "가장 단순하고 합리적인 기본값"으로만 스텁 처리한다. 각 스텁 지점에 주석으로
+// 근거를 남긴다.
 public static class VisionMath
 {
 	// ─────────────────────────── 1장. 기본 변수 ───────────────────────────
@@ -98,6 +99,20 @@ public static class VisionMath
 		float value = baseVisibility - stealth;
 		if (attackBoosted) value += AttackVisibilityBoostAmount;
 		return Mathf.Clamp(value, VisibilityMin, VisibilityMax);
+	}
+
+	// ─────────────────────────── 02문서 6장. 오브젝트 유형별 가시성 ───────────────────────────
+	// 시체/전멸 흔적은 가시성 100 고정(오브젝트 자신의 BaseVisibility와 무관 — 팀 기존 관례상
+	// InteractableObject.BaseVisibility 기본값이 0이라 그대로 두면 시체/전멸흔적이 영원히 미인식
+	// 처리되는데, 02문서 6장이 명시적으로 이 둘을 100 고정으로 지정하므로 그 규칙을 그대로 따른다).
+	// 함정/특정 건물/일반 루팅은 기존과 동일하게 오브젝트 자신의 BaseVisibility(기본 가시성)를 쓴다.
+	// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 부분 일치로 검사한다(PersonalMapKnowledge.
+	// RegisterObject와 동일한 2026-07-20 수정 — 기존 정확 일치는 항상 false였다).
+	public static float ResolveObjectVisibility(float baseVisibility, List<string> tags)
+	{
+		if (tags != null && (tags.Any(t => t.Contains("Corpse")) || tags.Any(t => t.Contains("WipeoutTrace"))))
+			return NormalTileVisibility;
+		return Mathf.Clamp(baseVisibility, VisibilityMin, VisibilityMax);
 	}
 
 	// ─────────────────────────── 13장. 특수 원형 인지 범위 ───────────────────────────

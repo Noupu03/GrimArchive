@@ -215,11 +215,14 @@ public class PersonalMapKnowledge
 
 		if (tags != null)
 		{
-			if (tags.Contains("WipeoutTrace"))
+			// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 정확 일치가 아니라 부분 일치로
+			// 검사해야 한다(2026-07-20 수정 — 기존 정확 일치 Contains("WipeoutTrace")/Contains("Corpse")는
+			// 항상 false를 반환하는 잠재 버그였다).
+			if (tags.Any(t => t.Contains("WipeoutTrace")))
 			{
 				_objectInterest[objectId] = WeightMath.WipeoutTraceBaseInterest;
 			}
-			else if (tags.Contains("Corpse"))
+			else if (tags.Any(t => t.Contains("Corpse")))
 			{
 				_objectInterest[objectId] = WeightMath.CorpseTraceInterest(causerStage);
 			}

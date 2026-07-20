@@ -253,8 +253,25 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             _unitGenerate.RemoveVisual(u);
         }
         if (u != null) UnregisterUnitPos(u, u.position);
+        if (u != null) ClearPerceptionRecordsFor(u);
         units.RemoveAt(index);
         if (u != null) UnityEngine.Object.Destroy(u);
+    }
+
+    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.perceptionRecords는 "누가 이 유닛을 봤는지"를
+    // 그 관찰자 쪽에 Unit 참조를 키로 들고 있는 구조라, 유닛이 죽어도 다른 유닛들의 딕셔너리에는 destroyed
+    // 참조가 그대로 남는다 — 웨이브가 반복될수록 죽은 몬스터 참조가 계속 쌓여 UpdateFOV 끝의 sweep(전체
+    // perceptionRecords 순회) 비용이 웨이브를 거듭할수록 계속 커지는 게 실제 프레임 드롭의 원인이었다.
+    // 유닛이 죽는 시점에 전 유닛을 한 번 순회해 그 유닛에 대한 기록을 지운다(사망은 매 프레임 일어나는
+    // 일이 아니므로 O(units) 비용을 여기서 감당하는 게 맞다).
+    private void ClearPerceptionRecordsFor(Unit dead)
+    {
+        foreach (var other in units)
+        {
+            if (other == null || other == dead) continue;
+            other.RemovePerceptionRecord(dead);
+        }
+        dead.perceptionRecords.Clear();
     }
 
     public void DespawnUnit(Unit u)
@@ -265,6 +282,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             _unitGenerate.RemoveVisual(u);
         }
         UnregisterUnitPos(u, u.position);
+        ClearPerceptionRecordsFor(u);
         units.Remove(u);
         UnityEngine.Object.Destroy(u);
     }

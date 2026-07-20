@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Haare.Util.Logger;
 
@@ -51,7 +52,10 @@ public class Action_PlayerCommandExecute : GoapAction
 						// 내부적으로만 "조사 완료(50%감소)" 이벤트를 먼저 찍은 뒤 "회수/확인 완료
 						// (0%)"로 이어간다. Corpse/WipeoutTrace는 문서상 조사 단계 없이 확인 즉시
 						// 0으로 가므로 조사 단계를 건너뛴다.
-						bool isTrace = obj.Tags.Contains("Corpse") || obj.Tags.Contains("WipeoutTrace");
+						// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 정확 일치(Contains(string))가 아니라
+						// 부분 일치로 검사해야 한다(2026-07-20 발견 — 기존 정확 일치는 항상 false를 반환하는
+						// 잠재 버그였다. HumanWaveManager의 "Loot" 판정은 이미 부분 일치를 쓰고 있었음).
+						bool isTrace = obj.Tags.Any(t => t.Contains("Corpse")) || obj.Tags.Any(t => t.Contains("WipeoutTrace"));
 						if (!isTrace && !obj.IsInvestigated)
 						{
 							human.personalMap.OnObjectInvestigated(obj.Id);
