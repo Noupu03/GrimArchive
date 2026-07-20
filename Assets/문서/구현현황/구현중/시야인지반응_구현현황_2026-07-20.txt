@@ -272,7 +272,9 @@ Assets/Tests/
    2026-07-20 2차 재검증에서 `VisionMath.FinalVisibility()`가 하한까지 클램프해버리는 실제 버그를
    발견 즉시 수정(위 "전면 재검증" 섹션 참고). 지금은 상한(100)만 클램프하고 음수는 끝까지 유지 —
    문서 7장 예시(-50+40+10=0)와 11장 예시(-30+10+30=10) 둘 다 `VisionSystemTests.cs`의
-   `FinalVisibility_StealthTable_AllowsNegativeAndKeepsItUnclamped`로 종단간 고정.
+   `FinalVisibility_StealthTable_AllowsNegativeAndKeepsItUnclamped`로 종단간 고정. 같은 날 문서에
+   "100 이상이라면 실제 확률 적용 시 100 이상 구간으로 처리한다"는 문장이 새로 추가돼(하한 0 이하
+   규칙과 대칭) `PerceptionMath.OutcomeProbabilities`에 반영 — 아래 12장 항목 참고.
 ✅ 8장. 최종 가시성 계산 — 대상 가시성(VisionMath.FinalVisibility, 위 7장 버그 수정으로 이제
    정확)+경계 반영 감지 보정(PerceptionMath.DetectionCorrection, 신규)+정신력 보정
    (PerceptionMath.MentalCorrectionForHuman, 신규)+공격 후 가시성 증가(기존, FinalVisibility에
@@ -288,9 +290,11 @@ Assets/Tests/
    "별도 상태 전파 경로 필요"로 판단해 미뤘는데, 그 뒤 IsAlert가 O(1) 프로퍼티가 되면서 수정 난이도가
    크게 낮아졌다 — 제안 코드까지 작성 완료(수정예정 문서 항목 7).
 ✅ 11장. 공격 후 가시성 증가 — 01-A 9장과 완전히 동일 항목(기존 구현 재확인, 변경 없음).
-✅ 12장. 인지 결과 확률표 — PerceptionMath.OutcomeProbabilities/RollOutcome, 문서 표 그대로 6구간
+✅ 12장. 인지 결과 확률표 — PerceptionMath.OutcomeProbabilities/RollOutcome, 문서 표 그대로 구간
    고정. roll01은 UnityEngine.Random.value를 호출부(ForceRollPerception)가 넘긴다(함수 자체는 순수
-   함수로 유지해 테스트에서 경계값을 고정 검증).
+   함수로 유지해 테스트에서 경계값을 고정 검증). 2026-07-20(같은 날 2차 문서 갱신): "100 이상"
+   구간(100%/0%/0%)이 "80 이상" 구간(90%/8%/2%)과 분리된 별도 행으로 신설돼 6구간→7구간이 됐다 —
+   즉시 반영, `OutcomeProbabilities_Table` 테스트에 80/99/100/200 경계값 추가.
 ✅/🔶 13장. 일반 타일 안전 확인 — 기존 PersonalMapKnowledge.TickTileSafety(가중치 시스템 15장, 로직
    자체는 이번에 손대지 않음) + UnitFunction.OnUpdate의 threatPresent 판정을 이번 검증 단계에서
    수정(위 "검증 단계 발견/수정" 섹션 1번 참고) — 이제 "물리적으로 있음"이 아니라 "정확 인지 중
