@@ -87,23 +87,31 @@ public static class VisionMath
 		return isWall ? WallVisibility : NormalTileVisibility;
 	}
 
-	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분(진행 중일 때만), 0~100 클램프.
+	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분(진행 중일 때만), 상한만 100으로 클램프.
 	// 거리 감쇠의 정확한 산식은 05-A_은신·가시성_스테이터스연동_연산공식 문서가 다루는데 이 폴더에는
 	// 아직 없어(01/01-A만 존재) "은신만 단순 차감"하는 가장 단순한 기본값으로 스텁 구현한다.
+	//
+	// 하한(0)은 클램프하지 않는다 — 02문서 7장이 "은신 스탯에는 최대치 제한이 없어 은신 기반 가시성은
+	// 0 미만으로 내려갈 수 있다"면서 "계산식 안에서는 음수 값을 유지한다"고 명시적으로 요구한다(예시:
+	// 은신 기반 가시성 -50 + 감지 보정 +40 + 공격 후 가시성 증가 +10 = 최종 계산 가시성 0). 여기서
+	// 하한을 0으로 미리 클램프해버리면(2026-07-20 이전 버그) 이 함수가 반환한 값에 나중에 02문서 8장의
+	// 감지/정신력 보정을 더할 때 음수 "여유분"이 이미 사라진 뒤라 문서 예시와 다른(더 높은) 값이
+	// 나온다 — 최종 판정용 확률표 조회(PerceptionMath.OutcomeProbabilities)는 이미 "0 이하"를 별도
+	// 구간으로 처리하므로, 하한 클램프는 이 함수가 아니라 그쪽에서만 의미상 일어나면 된다.
 	//
 	// 01장 11절(2026-07-13 개정 "시야 판정 불가 오브젝트")은 두 갈래로 나뉜다 — 이 함수(가시성 수치)는
 	// 그중 "시야 판정 불가 오브젝트"(=미인식) 쪽에만 쓰인다:
 	//   1. 완전 차단 오브젝트 — 벽처럼 레이 자체를 물리적으로 막는다(쉐도우 캐스팅). 이 함수의 가시성
 	//      수치와 무관한 별개 속성(InteractableObject.IsFullyBlocking)이 결정하며, 판정 지점은
 	//      UnitFunction.CastRay다.
-	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 레이는 막지 않되, 이
-	//      함수가 계산한 최종 가시성이 0 이하면 그 대상 자신만 인지 실패("미인식")로 처리한다
-	//      (01장 5절 마지막 규칙). 판정 지점도 동일하게 UnitFunction.CastRay.
+	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 레이는 막지 않되, 이 함수가
+	//      계산한 값에 02문서 8장 보정을 더한 최종 계산 가시성으로 12장 확률표를 굴려 인지 결과(정확
+	//      인지/수상한 타일/미인식)를 정한다(UnitFunction.ForceRollPerception). 판정 지점은 CastRay.
 	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted)
 	{
 		float value = baseVisibility - stealth;
 		if (attackBoosted) value += AttackVisibilityBoostAmount;
-		return Mathf.Clamp(value, VisibilityMin, VisibilityMax);
+		return Mathf.Min(value, VisibilityMax); // 하한은 클램프하지 않음 — 위 주석 참고.
 	}
 
 	// ─────────────────────────── 02문서 6장. 오브젝트 유형별 가시성 ───────────────────────────
