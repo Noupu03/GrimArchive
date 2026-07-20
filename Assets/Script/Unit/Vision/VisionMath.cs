@@ -42,8 +42,13 @@ public static class VisionMath
 	public const int SpecialCircularMaxRadius = 3;
 
 	// 시야 범위 내 "비어있지 않은 타일"에 부여되는 임시 위험도/흥미도(7장). 저장값이 아니라 경로/탐색
-	// 방향 판단에만 쓰는 일회성 조회값 — 10_목표설정·이동경로·재설정 문서(소비자)가 아직 폴더에 없어
-	// 현재는 값만 계산해 둔다(Unit.visionOnlyNonEmptyTiles 참고).
+	// 방향 판단에만 쓰는 일회성 조회값. "탐색 방향 판단" 절반은 2026-07-20에 실제로 연결됐다 —
+	// UnitFunction.ResolveVisionDirection()이 Unit.visionOnlyNonEmptyTiles(이 값이 +5 붙는 대상 자체)
+	// 존재 여부로 UnconfirmedTile(8순위) 시야 방향 후보를 만든다. 다만 그 연결은 리스트의 "존재
+	// 여부"만 쓰지 이 숫자(TempWeightForVisionOnlyTile 반환값)를 직접 소비하지는 않는다 — 우선순위
+	// 랭크 기반 시야 방향 시스템엔 크기 비교가 없어 방향 후보 자체는 불리언 신호만으로 충분하기
+	// 때문이다. "경로 판단"(크기 비교가 실제로 필요한 절반)은 여전히 10_목표설정·이동경로·재설정
+	// 문서(소비자) 부재로 미연결 — 그 문서가 생기면 이 숫자를 그대로 쓸 수 있게 남겨둔다.
 	public const float NonEmptyTileTempWeight = 5f;
 
 	// ─────────────────────────── 2장/3장. 시야/인지 거리 공식 ───────────────────────────

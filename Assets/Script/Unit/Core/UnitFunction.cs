@@ -637,11 +637,11 @@ public abstract class UnitFunction : Unit
 	}
 
 	// 01-A 11장: 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를
-	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7)/미확인 타일(8) 후보는 대응 게임 시스템(09_명령·리더,
-	// 06_전투반응·기습, 08_전파·소리, 10_목표설정 문서)이 이 폴더에 아직 없어 후보 자체를 만들 수
-	// 없다 — 11장의 "적용할 수 없는 후보는 비교에서 제외한다"는 규칙과 동일하게 취급(자연히 제외됨).
-	// 경계(9) 후보는 02문서 20장 구현으로 실제로 연결됐다(아래 참고). 실제로 활성화 가능한 후보만
-	// 아래에서 구성한다.
+	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7) 후보는 대응 게임 시스템(09_명령·리더, 06_전투반응·기습,
+	// 08_전파·소리 문서)이 이 폴더에 아직 없어 후보 자체를 만들 수 없다 — 11장의 "적용할 수 없는
+	// 후보는 비교에서 제외한다"는 규칙과 동일하게 취급(자연히 제외됨). 미확인 타일(8, 01-A 7장 값
+	// 소비 겸용)과 경계(9, 02문서 20장) 후보는 실제로 연결됐다(아래 참고) — "경로 재설정"까지는 여전히
+	// 10_목표설정 문서(부재) 몫이라 방향 전환만 담당한다. 실제로 활성화 가능한 후보만 아래에서 구성한다.
 	public override void ResolveVisionDirection()
 	{
 		var candidates = new List<VisionMath.VisionDirectionCandidate>();
@@ -663,20 +663,25 @@ public abstract class UnitFunction : Unit
 		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.CurrentAttackTarget, DirectionToward(playerAttackTarget.position)));
 
+		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
+		// 않은 타일 → 임시 위험도/흥미도 +5, "처리: 경로와 탐색 방향 판단에만 사용") + 10장 8순위 표.
+		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
+		// 죽은 값이었다(소비자 부재) — "경로 판단" 절반은 여전히 10_목표설정·이동경로·재설정 문서
+		// (부재)의 몫이지만, "탐색 방향 판단" 절반은 이 시야 방향 전환 후보로 지금 바로 충족 가능해
+		// 연결한다. visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
+		// 안 들어온 "비어있지 않은 타일" 목록 그대로다.
+		var nearestUnconfirmedTile = NearestTile(visionOnlyNonEmptyTiles);
+		if (nearestUnconfirmedTile.HasValue)
+		{
+			var t = nearestUnconfirmedTile.Value;
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.UnconfirmedTile, DirectionToward(new Vector2Int(t.x, t.y))));
+		}
+
 		// 9순위: 경계 상태 — 02문서 20장 "시야 방향 전환 후보 O". 수상한 타일 확인 대기 중인 기록이
 		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
 		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
 		// 전환만 이 판정 결과에서 직접 나온다.
-		Vector3Int? nearestSuspiciousTile = null;
-		float nearestDistSq = float.MaxValue;
-		foreach (var record in perceptionRecords.Values)
-		{
-			if (!record.PendingSuspiciousInvestigation) continue;
-			float dx = record.LastKnownTile.x - position.x;
-			float dy = record.LastKnownTile.y - position.y;
-			float distSq = dx * dx + dy * dy;
-			if (distSq < nearestDistSq) { nearestDistSq = distSq; nearestSuspiciousTile = record.LastKnownTile; }
-		}
+		var nearestSuspiciousTile = NearestTile(perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
 		if (nearestSuspiciousTile.HasValue)
 		{
 			var t = nearestSuspiciousTile.Value;
@@ -694,6 +699,22 @@ public abstract class UnitFunction : Unit
 	{
 		Vector2Int diff = targetPos - position;
 		return SkillAction.GetDirection8(diff);
+	}
+
+	// 관찰자(this) 기준으로 가장 가까운 타일을 고른다 — 8순위(비어있지 않은 타일)/9순위(경계) 시야
+	// 방향 전환 후보가 여러 대상 중 하나를 골라야 할 때 공통으로 쓴다.
+	private Vector3Int? NearestTile(IEnumerable<Vector3Int> tiles)
+	{
+		Vector3Int? nearest = null;
+		float nearestDistSq = float.MaxValue;
+		foreach (var tile in tiles)
+		{
+			float dx = tile.x - position.x;
+			float dy = tile.y - position.y;
+			float distSq = dx * dx + dy * dy;
+			if (distSq < nearestDistSq) { nearestDistSq = distSq; nearest = tile; }
+		}
+		return nearest;
 	}
 
 	private Unit FindAdjacentEnemy()
