@@ -91,21 +91,25 @@ public abstract class UnitFunction : Unit
 		else
 		{
 			// 인류(attacker)가 몬스터(this)를 때림 — 이해도만 오르고 위험도 변화는 없음(표 값 자체가 danger=0)
+			// 02문서 4장 조건5/26장("인지 판정: 인류/몬스터 공통 사용"): 이 RecordEvent 자체는 게이팅
+			// 대상이 아니다(attacker=인류가 이미 자기 공격 대상을 스스로 알고 있음) — 다만 몬스터(this)
+			// 쪽 인지 판정도 인류와 동일하게 "피격 시 재판정" 트리거를 받아야 하므로, 게이팅 없이
+			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 personalSpottedEnemies 등에 반영될 수 있게).
+			ForceReidentifyAttacker(attacker);
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
 		}
 	}
 
-	// 02문서 17장: 피격 대상(this)이 attacker의 정체를 인지 판정으로 확인할 수 있는지. 인류 관찰자
-	// 전용(가중치 시스템의 정체 기반 이벤트 자체가 인류 전용) — 몬스터가 맞았을 때는 게이팅하지 않는다
-	// (그쪽은 항상 attacker=인류가 자기 공격 대상을 스스로 알고 있는 경우라 정체를 몰라야 할 이유가 없다).
+	// 02문서 4장 조건5: "인지 범위 안에 있으나 미인식/수상한 타일인 대상이 공격하면, 공격 후 가시성
+	// 증가를 반영해 즉시 재판정한다." 이 규칙 자체는 26장 표(인지 판정: 인류/몬스터 공통 사용)에 따라
+	// 관찰자가 인류든 몬스터든 동일하게 적용된다 — attacker에 대한 perceptionRecords가 여기서 갱신된다.
 	// 벽/차단 오브젝트에 의한 시야 차단(LOS)까지는 재확인하지 않는다 — 근접 공격자는 인접 타일에서만
 	// 발생해 사실상 항상 차단이 없고, 원거리/마법 공격자를 위해 CastRay와 동일한 레이마칭을 매 피격마다
 	// 다시 도는 것은 이번 범위에 비해 과한 비용이라 거리+인지각만으로 판정한다(판단 근거: 구현현황 문서).
-	private bool IsAttackerIdentified(Unit attacker)
+	private void ForceReidentifyAttacker(Unit attacker)
 	{
-		if (!(this is Human)) return true;  // 게이팅은 인류 관찰자 전용
-		if (attacker == null) return false;
+		if (attacker == null) return;
 
 		float dist = Vector2.Distance(position, attacker.position);
 		float perceptionDistance = VisionMath.AwarenessDistance(spotting);
@@ -117,11 +121,20 @@ public abstract class UnitFunction : Unit
 		float angleToAttacker = Mathf.Atan2(attacker.position.y - position.y, attacker.position.x - position.x) * Mathf.Rad2Deg;
 		bool inAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToAttacker)) <= perceptionAngle / 2f;
 
-		if (dist > perceptionDistance || !inAngle) return false; // 5장 조건1: 인지 범위 밖 — 판정 자체 불가.
+		if (dist > perceptionDistance || !inAngle) return; // 5장 조건1: 인지 범위 밖 — 판정 자체 불가.
 
 		Vector3Int tile = new Vector3Int(attacker.position.x, attacker.position.y, attacker.currentFloor);
-		PerceptionOutcome outcome = ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile);
-		return outcome == PerceptionOutcome.AccuratePerception;
+		ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile);
+	}
+
+	// 02문서 17장: 피격 대상(this)이 attacker의 정체를 "가중치 이벤트에 쓸 만큼" 확인했는지. 가중치
+	// 시스템의 정체 기반 이벤트 자체가 인류 전용(26장)이라 이 게이팅 판정은 인류 관찰자 전용이다 —
+	// 재판정 자체(ForceReidentifyAttacker)는 인류/몬스터 공통으로 이미 수행됐다.
+	private bool IsAttackerIdentified(Unit attacker)
+	{
+		ForceReidentifyAttacker(attacker);
+		if (!(this is Human)) return true; // 게이팅은 인류 관찰자 전용
+		return IsCurrentlyIdentified(attacker);
 	}
 
 	// 방금 IsAttackerIdentified/ResolveReachedTarget으로 판정된 기록을 다시 굴리지 않고 그대로 조회만
@@ -299,21 +312,15 @@ public abstract class UnitFunction : Unit
 
 		perceptionRecords.TryGetValue(key, out var existing);
 
-		// 5장: 인지 판정 자체가 불가한 상태(기절 등)면 판정을 새로 하지 않고 기존 기록만 유지한다.
-		if (!CanPerceive)
-		{
-			if (existing == null) { existing = new PerceptionRecord(); perceptionRecords[key] = existing; }
-			existing.WasInRange = true;
-			existing.LastKnownTile = tile;
-			return existing.Outcome;
-		}
-
 		// 4장 조건1/2/3: 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
 		bool isNewOrReentering = existing == null || !existing.WasInRange;
 		// 4장 조건4/22장: 수상한 타일 확인 대기 중 + 2칸 이내로 접근.
 		bool suspiciousReapproach = existing != null && existing.PendingSuspiciousInvestigation
 			&& dist <= PerceptionMath.SuspiciousTileReapproachDistanceTiles;
 
+		// 5장(인지 판정 불가 상태)은 ForceRollPerception 내부에서 일괄 가드한다 — 트리거가 걸려도
+		// 실제로 굴리지 않고 기존 기록을 동결한 채 반환한다(existing==null이어도 새 레코드만 만들고
+		// 굴리지 않음).
 		if (isNewOrReentering || suspiciousReapproach)
 			return ForceRollPerception(key, targetVisibility, tile);
 
@@ -327,6 +334,21 @@ public abstract class UnitFunction : Unit
 	// 후 가시성 증가 반영 재판정, ResolveReachedTarget의 트리거 발생 시)에서 공통으로 쓴다.
 	private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile)
 	{
+		// 5장: 인지 판정 자체가 불가한 상태(기절 등)면 트리거가 걸려도 굴리지 않고 기존 기록을 그대로
+		// 동결한다 — ForceReidentifyAttacker(피격 시 강제 재판정, 4장 조건5)도 이 지점을 거치므로 여기
+		// 한 곳에서 가드하면 모든 호출 경로에 일괄 적용된다.
+		if (!CanPerceive)
+		{
+			if (!perceptionRecords.TryGetValue(key, out var frozen))
+			{
+				frozen = new PerceptionRecord();
+				perceptionRecords[key] = frozen;
+			}
+			frozen.WasInRange = true;
+			frozen.LastKnownTile = tile;
+			return frozen.Outcome;
+		}
+
 		float detectionCorrection = PerceptionMath.DetectionCorrection(spotting, IsAlert);
 		float mentalCorrection = GetMentalVisibilityCorrection();
 		float total = PerceptionMath.TotalPerceptionVisibility(targetVisibility, detectionCorrection, mentalCorrection);
@@ -707,14 +729,20 @@ public abstract class UnitFunction : Unit
 		if (attackVisibilityBoostTimer > 0f) attackVisibilityBoostTimer = Mathf.Max(0f, attackVisibilityBoostTimer - deltaTime);
 
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
-		// 지금 그 타일에 몬스터가 실제로 있는지 확인해서 있으면 타이머를 리셋하고 없으면 흘려보낸다.
-		// 매 프레임 도는 OnUpdate에 걸어서 real deltaTime을 쓴다(ProcessUnitAction의 actionCooldown
-		// 주기와 달리 여긴 걸음 속도와 무관하게 매 프레임 호출됨).
+		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
+		// 없으면 흘려보낸다. 매 프레임 도는 OnUpdate에 걸어서 real deltaTime을 쓴다(ProcessUnitAction의
+		// actionCooldown 주기와 달리 여긴 걸음 속도와 무관하게 매 프레임 호출됨).
+		// 2026-07-20(02문서 23장 반영): 예전엔 raw 점유(Session.unitGrid)만 봤는데, 그러면 실제로는
+		// 미인식/수상한 타일로 판정된(=인지 실패) 몬스터도 "물리적으로 있으니 위험"으로 취급돼 23장
+		// "인지 판정 결과가 미인식이면 실제로 유닛이 존재해도 안전타일로 인지된다"는 규칙과 어긋났다.
+		// personalSpottedEnemies는 이제 정확 인지(AccuratePerception)된 대상만 담으므로(4장 구현),
+		// "물리적으로 있다" + "정확 인지 중이다" 둘 다 확인해야 진짜 위협으로 친다.
 		if (this is Human human && Session != null)
 		{
 			foreach (var tile in human.personalMap.KnownDangerTiles.ToList())
 			{
-				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster && occupant.hp > 0f;
+				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
+					&& occupant.hp > 0f && human.personalSpottedEnemies.Contains(occupant);
 				human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
 			}
 

@@ -69,21 +69,32 @@ public class PerceptionSystemTests
 	}
 
 	// ── 12장. 인지 결과 확률표 구간 경계 ──
+	// ValueTuple을 Assert.AreEqual(object,object)로 직접 비교하지 않고 성분별로 풀어서 비교한다 —
+	// NUnit 버전에 따라 튜플 구조적 비교 지원 여부가 갈릴 수 있어 이쪽이 더 안전하다(2026-07-20
+	// 검증 단계에서 더 견고한 방식으로 수정).
+	private static void AssertProbabilities(float totalVisibility, float expectedAccurate, float expectedSuspicious, float expectedUnrecognized)
+	{
+		var (accurate, suspicious, unrecognized) = PerceptionMath.OutcomeProbabilities(totalVisibility);
+		Assert.AreEqual(expectedAccurate, accurate, 0.001f);
+		Assert.AreEqual(expectedSuspicious, suspicious, 0.001f);
+		Assert.AreEqual(expectedUnrecognized, unrecognized, 0.001f);
+	}
+
 	[Test]
 	public void OutcomeProbabilities_Table()
 	{
-		Assert.AreEqual((0.00f, 0.05f, 0.95f), PerceptionMath.OutcomeProbabilities(0f));
-		Assert.AreEqual((0.00f, 0.05f, 0.95f), PerceptionMath.OutcomeProbabilities(-10f));
-		Assert.AreEqual((0.10f, 0.20f, 0.70f), PerceptionMath.OutcomeProbabilities(1f));
-		Assert.AreEqual((0.10f, 0.20f, 0.70f), PerceptionMath.OutcomeProbabilities(19f));
-		Assert.AreEqual((0.25f, 0.35f, 0.40f), PerceptionMath.OutcomeProbabilities(20f));
-		Assert.AreEqual((0.25f, 0.35f, 0.40f), PerceptionMath.OutcomeProbabilities(39f));
-		Assert.AreEqual((0.50f, 0.35f, 0.15f), PerceptionMath.OutcomeProbabilities(40f));
-		Assert.AreEqual((0.50f, 0.35f, 0.15f), PerceptionMath.OutcomeProbabilities(59f));
-		Assert.AreEqual((0.75f, 0.20f, 0.05f), PerceptionMath.OutcomeProbabilities(60f));
-		Assert.AreEqual((0.75f, 0.20f, 0.05f), PerceptionMath.OutcomeProbabilities(79f));
-		Assert.AreEqual((0.90f, 0.08f, 0.02f), PerceptionMath.OutcomeProbabilities(80f));
-		Assert.AreEqual((0.90f, 0.08f, 0.02f), PerceptionMath.OutcomeProbabilities(200f));
+		AssertProbabilities(0f, 0.00f, 0.05f, 0.95f);
+		AssertProbabilities(-10f, 0.00f, 0.05f, 0.95f);
+		AssertProbabilities(1f, 0.10f, 0.20f, 0.70f);
+		AssertProbabilities(19f, 0.10f, 0.20f, 0.70f);
+		AssertProbabilities(20f, 0.25f, 0.35f, 0.40f);
+		AssertProbabilities(39f, 0.25f, 0.35f, 0.40f);
+		AssertProbabilities(40f, 0.50f, 0.35f, 0.15f);
+		AssertProbabilities(59f, 0.50f, 0.35f, 0.15f);
+		AssertProbabilities(60f, 0.75f, 0.20f, 0.05f);
+		AssertProbabilities(79f, 0.75f, 0.20f, 0.05f);
+		AssertProbabilities(80f, 0.90f, 0.08f, 0.02f);
+		AssertProbabilities(200f, 0.90f, 0.08f, 0.02f);
 	}
 
 	// ── 12장. 확률표를 실제로 굴리는 RollOutcome — roll01 구간에 따라 정확인지/수상한타일/미인식 분기 ──
