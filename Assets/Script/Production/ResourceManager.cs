@@ -14,12 +14,15 @@ public enum ResourceType
 
 public class ResourceManager : NativeRoutine
 {
+    public static ResourceManager Instance { get; private set; }
+
     private Dictionary<ResourceType, int> resources = new Dictionary<ResourceType, int>();
     private CancellationTokenSource minerCts;
 
     public override async UniTask Initialize(CancellationToken cts)
     {
         await base.Initialize(cts);
+        Instance = this;
         
         resources.Clear();
         // 초기 자원 세팅 (더미)
@@ -117,5 +120,10 @@ public class ResourceManager : NativeRoutine
     public bool HasEnoughResource(ResourceType type, int amount)
     {
         return resources.TryGetValue(type, out int current) && current >= amount;
+    }
+
+    public int GetResourceAmount(ResourceType type)
+    {
+        return resources.TryGetValue(type, out int current) ? current : 0;
     }
 }

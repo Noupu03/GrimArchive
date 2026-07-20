@@ -24,6 +24,12 @@ public abstract class Unit : ScriptableObject
 	public GameSession Session => _gameSession;
 	public HumanKnowledgeBase Knowledge => _knowledgeBase;
 
+	// HAARE 프레임워크 (Native Routine): 유닛 소속과 행동 패턴을 결정하는 인터페이스
+	public IFactionBehavior FactionBehavior { get; set; }
+
+	// 전략 패턴: 유닛의 이동 알고리즘을 런타임에 갈아끼울 수 있는 구조
+	public IMovementAlgorithm MovementAlgorithm { get; set; } = new AStarMovement();
+
 	public UnitType unitType;
 
 	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ────────
@@ -315,7 +321,17 @@ public abstract class Unit : ScriptableObject
 	public abstract bool CanMove(Vector2Int pos, bool ignoreUnits = false);
 	public abstract void Move(Dir dir);
 
-
+	public bool IsEnemy(Unit other)
+	{
+		if (this.FactionBehavior != null && other.FactionBehavior != null)
+		{
+			if (this.FactionBehavior is PlayerUnitBehavior && other.FactionBehavior is WildMonsterBehavior) return true;
+			if (this.FactionBehavior is WildMonsterBehavior && other.FactionBehavior is PlayerUnitBehavior) return true;
+		}
+		
+		// 기존 레거시 체크 (안전망)
+		return (this is Human && other is Monster) || (this is Monster && other is Human);
+	}
 
 	public virtual void ForceMove(Vector2Int targetPos)
 	{

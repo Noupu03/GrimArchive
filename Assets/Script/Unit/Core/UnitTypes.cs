@@ -30,6 +30,10 @@ public class MeleeTank : UnitType
 	public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(1, 1); }
 }
 
+public class WildBaseType : UnitType
+{
+	public WildBaseType() { typeName = "야생 거점"; footprint = new Vector2(2, 2); }
+}
 
 // ----------------------------------------------------
 // 원거리 유닛 (투사체 사용)

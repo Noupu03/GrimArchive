@@ -44,6 +44,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
     public Dictionary<Vector3Int, InteractableObject> objectGrid { get; private set; } = new Dictionary<Vector3Int, InteractableObject>();
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
+    public List<Room> allRooms { get; private set; } = new List<Room>();
     private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
 
     public List<Unit> units { get; private set; } = new List<Unit>();
@@ -56,8 +57,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     public void RegisterUnitPos(Unit u, Vector2Int pos)
     {
         if (u == null) return;
-        int w = (int)u.unitType.footprint.x;
-        int h = (int)u.unitType.footprint.y;
+        
+        // unitType이 없는 더미/스포너 유닛은 기본 1x1 크기로 간주
+        int w = u.unitType != null ? (int)u.unitType.footprint.x : 1;
+        int h = u.unitType != null ? (int)u.unitType.footprint.y : 1;
+        
         for (int dx = 0; dx < w; dx++)
         {
             for (int dy = 0; dy < h; dy++)
@@ -66,14 +70,26 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             }
         }
         
-
+        // HAARE 프레임워크: 오펜스 자동 진입 판정 (Trigger Hooking)
+        if (u.FactionBehavior is PlayerUnitBehavior && OffenseProcessor.Instance != null && OffenseProcessor.Instance.currentOffenseRoom == null)
+        {
+            foreach (var room in allRooms)
+            {
+                if (room.RoomFaction == FactionType.Wild && room.Bounds.Contains(pos))
+                {
+                    Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, $"[오펜스 트리거] 플레이어가 야생 방({room.RoomName})에 물리적으로 진입했습니다.");
+                    OffenseProcessor.Instance.StartOffense(room, u);
+                    break;
+                }
+            }
+        }
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)
     {
         if (u == null) return;
-        int w = (int)u.unitType.footprint.x;
-        int h = (int)u.unitType.footprint.y;
+        int w = u.unitType != null ? (int)u.unitType.footprint.x : 1;
+        int h = u.unitType != null ? (int)u.unitType.footprint.y : 1;
         for (int dx = 0; dx < w; dx++)
         {
             for (int dy = 0; dy < h; dy++)
@@ -130,7 +146,12 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     {
         if (cmap == null || cmap.map.floors == null) return;
         roomGrid.Clear();
+        allRooms.Clear();
         Dictionary<int, Room> generatedRooms = new Dictionary<int, Room>();
+        
+        // 룸의 경계(Bounds)를 계산하기 위한 변수
+        Dictionary<int, Vector2Int> roomMin = new Dictionary<int, Vector2Int>();
+        Dictionary<int, Vector2Int> roomMax = new Dictionary<int, Vector2Int>();
         
         int currentFloor = 1;
         if (currentFloor >= cmap.map.floors.Length) return;
@@ -154,7 +175,23 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                     {
                         room = new Room { RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName };
                         generatedRooms[c.roomId] = room;
+                        allRooms.Add(room);
+                        
+                        roomMin[c.roomId] = new Vector2Int(int.MaxValue, int.MaxValue);
+                        roomMax[c.roomId] = new Vector2Int(int.MinValue, int.MinValue);
                     }
+                    
+                    int startX = cx * 8;
+                    int startY = cy * 8;
+                    
+                    var min = roomMin[c.roomId];
+                    var max = roomMax[c.roomId];
+                    min.x = Mathf.Min(min.x, startX);
+                    min.y = Mathf.Min(min.y, startY);
+                    max.x = Mathf.Max(max.x, startX + 8);
+                    max.y = Mathf.Max(max.y, startY + 8);
+                    roomMin[c.roomId] = min;
+                    roomMax[c.roomId] = max;
                     
                     for (int tx = 0; tx < 8; tx++)
                     {
@@ -167,13 +204,26 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 }
             }
         }
+        
+        // 최종적으로 각 룸에 Bounds 할당
+        foreach (var kvp in generatedRooms)
+        {
+            int rid = kvp.Key;
+            Room r = kvp.Value;
+            var min = roomMin[rid];
+            var max = roomMax[rid];
+            r.Bounds = new RectInt(min.x, min.y, max.x - min.x, max.y - min.y);
+        }
+        
         LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 층 {currentFloor}에서 방 {generatedRooms.Count}개 생성됨.");
     }
 
-    // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함 (예전 Update()와 동일한 역할)
+    // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함(기존 Update()와 동일한 역할)
     public override void UpdateProcess()
     {
         HandleDebugInput();
+        
+        OffenseProcessor.Instance.UpdateProcess();
 
         bool visualNeedsSync = false;
 

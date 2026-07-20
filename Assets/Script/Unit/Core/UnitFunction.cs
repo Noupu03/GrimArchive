@@ -483,7 +483,7 @@ public abstract class UnitFunction : Unit
 			{
 				if (unit != null && unit != this && unit.hp > 0)
 				{
-					bool isEnemy = (this is Human && unit is Monster) || (this is Monster && unit is Human);
+					bool isEnemy = this.IsEnemy(unit);
 					if (isEnemy)
 					{
 						if (inPerceptionRange)
@@ -723,7 +723,7 @@ public abstract class UnitFunction : Unit
 		foreach (Unit u in Session.units)
 		{
 			if (u == null || u == this || u.hp <= 0) continue;
-			bool isEnemy = (this is Human && u is Monster) || (this is Monster && u is Human);
+			bool isEnemy = this.IsEnemy(u);
 			if (!isEnemy) continue;
 			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u; // 1칸 이내(대각 포함)
 		}

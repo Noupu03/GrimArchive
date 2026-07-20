@@ -370,8 +370,10 @@ public class InputManager : MonoBehaviour
 			if (u == null || u.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
 
-			float cx = u.position.x + u.unitType.footprint.x / 2f;
-			float cy = u.position.y + u.unitType.footprint.y / 2f;
+			float fw = u.unitType != null ? u.unitType.footprint.x : 1f;
+			float fh = u.unitType != null ? u.unitType.footprint.y : 1f;
+			float cx = u.position.x + fw / 2f;
+			float cy = u.position.y + fh / 2f;
 
 			if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY)
 				boxed.Add(u);
