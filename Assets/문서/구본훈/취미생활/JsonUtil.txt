@@ -1,0 +1,7 @@
+[스크립트 이름]: JsonUtil
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: JsonUtil, JsonUtilityGeneric, method, genericMethod
+[함수 및 목적]:
+ - FromJson: (목적 설명 없음)
+--------------------------------------------------

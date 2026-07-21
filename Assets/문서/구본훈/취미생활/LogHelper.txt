@@ -1,0 +1,10 @@
+[스크립트 이름]: LogHelper
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: LogHelper, message, headerBuilder, sb, DEMO, CANCELLED, TASK, SERVER, CLIENT, FRAMEWORK, SERVICE, ASSETLOADER, DATAMANAGER, GAME
+[함수 및 목적]:
+ - Log: (목적 설명 없음)
+ - LogTask: (목적 설명 없음)
+ - Warning: (목적 설명 없음)
+ - Error: (목적 설명 없음)
+--------------------------------------------------

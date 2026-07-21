@@ -71,7 +71,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         }
         
         // HAARE 프레임워크: 오펜스 자동 진입 판정 (Trigger Hooking)
-        if (u.FactionBehavior is PlayerUnitBehavior && OffenseProcessor.Instance != null && OffenseProcessor.Instance.currentOffenseRoom == null)
+        if ((u.FactionBehavior is HumanFactionBehavior || u.FactionBehavior is PlayerMonsterBehavior) && OffenseProcessor.Instance != null && OffenseProcessor.Instance.currentOffenseRoom == null)
         {
             foreach (var room in allRooms)
             {
@@ -279,6 +279,9 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         
         if (u != null && u.hp <= 0)
         {
+            // 세력별 사망 이벤트(예: 오펜스 보상 누적 등) 처리
+            u.FactionBehavior?.OnDeath(u, u.lastAttacker);
+
             string objId = "Corpse_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             Vector3Int gridPos = new Vector3Int(u.position.x, u.position.y, u.currentFloor);
             DangerStage causerStage = DangerStage.Stage0;
@@ -550,10 +553,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         UnitType selection = types[Random.Range(0, types.Length)];
 
         Monster monster = _unitGenerate.GenerateUnitAtRandomFloor<Monster>(selection, 1);
+        monster.FactionBehavior = new PlayerMonsterBehavior();
 
         units.Add(monster);
         RegisterUnitPos(monster, monster.position);
-        LogHelper.Log(LogHelper.GAME, $"Generated Monster: {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
+        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
     }
 
     public void OnKeyDown_K()
@@ -576,10 +580,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 pos = _unitGenerate.GetRandomFloorPos(types[i].footprint, floorIdx);
 
             Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
+            human.FactionBehavior = new HumanFactionBehavior();
             units.Add(human);
 
             RegisterUnitPos(human, human.position);
-            LogHelper.Log(LogHelper.GAME, $"Generated Archer at Floor {human.currentFloor}, {human.position}");
+            LogHelper.Log(LogHelper.GAME, $"Generated Archer (Human Faction) at Floor {human.currentFloor}, {human.position}");
         }
     }
 
@@ -662,3 +667,4 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
     }
 
 }
+

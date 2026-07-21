@@ -1,0 +1,45 @@
+[14:15]
+- [OffenseProcessor] (Native Routine) 오펜스 MVP 실제 기능 구현 완료
+  - 야생 유닛이 방 내부에서만 활동하도록 제한 (RoomConfinedMovement 및 WildMonsterBehavior.OnUpdate 연동).
+  - 오펜스 자원 (ResourceB) 임시 Wood 지급 대신 전용 자원(OffenseReward) 추가 및 누적/지급 실제화.
+  - 오펜스 성공 시 해당 방에 속한 WildSpawner(거점 스포너)를 찾아 파괴하여 추가 생성 완전 중단되도록 연동.
+
+[14:30]
+- [StatusInfoPanel] (Native Routine) 오펜스 보상 자원 UI 연동 수정
+  - DebugInfoPanel의 OnGUI에서 디버그용 자원 상태창 출력 로직(Wood, Stone, Gold, OffenseReward)을 자원 매니저(ResourceManager)와 자원 누적기(ResourceAccumulator)의 실시간 수치를 가져오도록 수정.
+
+[15:00]
+- [IFactionBehavior] (Native Routine) 유닛 세력 식별 로직 정상화
+  - 아군 유닛이 야생 몬스터를 공격 안 하던 피아 식별(IsEnemy) 오류 수정 및 구조 개선 (null 레퍼런스 에러 방지).
+  - Human과 몬스터가 적으로 싸우는 과정에서 PlayerUnitBehavior와 RegularMonsterBehavior를 각각 독립적으로 분리.
+  - PlayerUnitBehavior.IsEnemy 내부에서 인간 유닛과 야생 몬스터(RegularMonsterBehavior)를 정확히 적대하도록 동작 확인.
+
+[15:30]
+- [AStarMovement] (Native Routine) 야생 몬스터 길찾기 에러 방어
+  - OffenseDebugWindow의 1번 버튼(스웜) 클릭 시 가상 룸(_dummyRoom)의 잘못된 좌표 때문에 경로 탐색기(AStar)가 엉뚱한 위치를 탐색하여 무한루프나 에러를 뿜어내던 멈춤 현상 수정.
+  - 디버그용 방의 Bounds 크기를 (-5,-5, 10,10)으로 명확히 지정하여 안전한 스폰 좌표를 보장.
+
+[16:20]
+- [ResourceManager] (Native Routine) 오펜스 보상 자원 시스템 재설계
+  - ResourceType에 OffenseReward (자원 B)를 신규 추가하여 임시로 쓰던 Wood를 완전 대체함.
+- [WildMonsterBehavior] (Native Routine) 보상 수치 하드코딩
+  - OnDeath 메서드에서 지급하는 자원 B의 보상량을 기존 공식(maxHp / 10)에서 임의의 숫자 10으로 고정되도록 수정함.
+- [ResourceAccumulator] (Native Routine) 자원 UI 누적 연동
+  - StatusInfoPanel UI와 연동하여 획득한 OffenseReward가 누적 기록 및 표시되도록 적용함.
+
+[16:40]
+- [OffenseDebugWindow] (Mono Routine -> Native Routine 전환 설계) 디버그 룸 결함 및 보상 오류 수정
+  - 기존 가상 룸 로직이 방의 크기(Bounds)를 0으로 생성하고 전체 맵 목록(allRooms)에 등록되지 않아 오펜스 성공(OnOffenseSuccess) 판정이 무시되던 치명적 결함을 수정함.
+  - '플레이어 유닛 방 진입' 버튼 클릭 시 맵에 실존하지 않는 가짜 유닛이 던져져 즉시 오펜스 실패(FailOffense)가 발생하고 보상이 초기화되던 버그를 실존하는 유닛을 생성해 투입하도록 수정함.
+
+[16:48]
+- [OffenseDebugWindow] (Native Routine) 테스트 룸 생성 방식 전면 개편
+  - 가상의 더미 룸(_dummyRoom)을 임의로 생성해 테스트하던 구조를 전면 폐기함.
+  - 맵 생성 시 1층에 만들어진 실제 방(GameSession.Instance.allRooms) 중 하나를 무작위로 선택하여 몬스터를 스폰하도록 변경함.
+  - 유닛이 맵 밖의 허공에 생성되는 이질감을 해소하고 실제 게임(오펜스)과 100% 동일한 환경에서 테스트 및 자원 누적이 작동하도록 보장함.
+
+[16:53]
+- [Action_RandomExplore] (Native Routine) 야생 몬스터 배회 탈주 버그 수정
+  - 적을 발견하기 전 평화롭게 무작위 배회하는 로직이 이동 알고리즘(MovementAlgorithm)의 경계선 검사를 우회하던 취약점 확인.
+  - 단순 벽(Wall) 유무만 판별하고 냅다 직진하여 자기 방 밖으로 이탈하던 현상을 막기 위해, 배회 이동 시에도 반드시 `unit.MovementAlgorithm.TryGetNextStep`을 거치도록 강제함.
+  - 이를 통해 RoomConfinedMovement의 방 경계 제약(IsTileWalkable)을 엄격하게 적용받아 야생 몬스터가 절대 자기 방을 탈주하지 못하게 수정함.

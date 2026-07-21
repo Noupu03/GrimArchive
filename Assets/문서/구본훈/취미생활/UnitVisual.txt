@@ -1,0 +1,12 @@
+[스크립트 이름]: UnitVisual
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: boundUnit, _visionRangeLine, _perceptionRangeLine, _circularPerceptionLine, HumanVisionColor, HumanPerceptionColor, HumanCircularColor, MonsterVisionColor, MonsterPerceptionColor, MonsterCircularColor, visionColor, perceptionColor, circularColor, go, line, segments, startAngle, currentAngle, rad
+[함수 및 목적]:
+ - Setup: (목적 설명 없음)
+ - CreateRangeLine: (목적 설명 없음)
+ - SetVisionRangesVisible: (목적 설명 없음)
+ - DrawVisionAndPerceptionRange: (목적 설명 없음)
+ - DrawCone: (목적 설명 없음)
+ - DrawCircle: (목적 설명 없음)
+--------------------------------------------------

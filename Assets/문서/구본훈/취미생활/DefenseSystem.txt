@@ -1,0 +1,17 @@
+[스크립트 이름]: DefenseSystem
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: DefenseType, DefenseCandidate, type, score, weight, DefenseSystem, candidates, selected, result, durability, resistance, agility, sense, focus, magic, dodgeScore, blinkScore, blockScore, parryScore, maxScore, total, roll, accum, queue, current, d, nextPos, false, success, moved, cost, safeTiles, validTiles, reduction, guardDef, parryDef, 0f, rawDamage, pos, w, h, unsafeTile, p, currentOverlap, best, minOverlap, candidate, overlap, true, unitBox
+[함수 및 목적]:
+ - DefenseCandidate: (목적 설명 없음)
+ - EvaluateEarlyReaction: (목적 설명 없음)
+ - EvaluateImpactDefense: (목적 설명 없음)
+ - BuildDefenseCandidates: (목적 설명 없음)
+ - SelectDefense: (목적 설명 없음)
+ - HasPathWithoutWalls: (목적 설명 없음)
+ - ExecuteEarlyReaction: (목적 설명 없음)
+ - ExecuteImpactDefense: (목적 설명 없음)
+ - FindSafeTiles: (목적 설명 없음)
+ - TryDodgeMove: (목적 설명 없음)
+ - GetOverlapArea: (목적 설명 없음)
+--------------------------------------------------

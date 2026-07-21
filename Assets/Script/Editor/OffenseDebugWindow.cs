@@ -29,47 +29,52 @@ public class OffenseDebugWindow : EditorWindow
         // ----------------------------------------------------
         // 1. 오펜스 테스트
         // ----------------------------------------------------
-        // 최근에 만들어진 방을 추적해 '플레이어 진입' 등에 재사용하기 위한 static 변수
-        if (_dummyRoom == null) 
-            _dummyRoom = new Room { RoomName = "테스트 야생 방", RoomFaction = FactionType.Wild, Type = RoomType.Normal };
-
-        if (GUILayout.Button("1. [야생 무리형] 방 구성 (즉시 3마리 소환)"))
+        
+        Room GetRandomRealRoom()
         {
-            _dummyRoom.Type = RoomType.Normal;
-            if (GameSession.Instance != null && GameSession.Instance.unitGenerate != null)
+            if (GameSession.Instance != null && GameSession.Instance.allRooms != null && GameSession.Instance.allRooms.Count > 0)
             {
+                int randomIndex = UnityEngine.Random.Range(0, GameSession.Instance.allRooms.Count);
+                return GameSession.Instance.allRooms[randomIndex];
+            }
+            return null;
+        }
+
+        if (GUILayout.Button("1. [스웜 룸 구성 (즉시 3마리 소환)]"))
+        {
+            Room targetRoom = GetRandomRealRoom();
+            if (targetRoom != null && GameSession.Instance != null && GameSession.Instance.unitGenerate != null)
+            {
+                targetRoom.Type = RoomType.Normal;
+                targetRoom.RoomFaction = FactionType.Wild;
+
                 for (int i = 0; i < 3; i++)
                 {
-                    Vector2Int spawnPos = _dummyRoom.GetRandomPosInRoom();
+                    Vector2Int spawnPos = targetRoom.GetRandomPosInRoom();
                     Monster monster = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
                     monster.FactionBehavior = new WildMonsterBehavior();
                     monster.MovementAlgorithm = new RoomConfinedMovement();
                     
                     GameSession.Instance.units.Add(monster);
                     GameSession.Instance.RegisterUnitPos(monster, monster.position);
-                    _dummyRoom.AddUnit(monster);
+                    targetRoom.AddUnit(monster);
                 }
-                Debug.Log($"[Test] 무리형 방 설정 완료: MeleeTank 기반 야생 몬스터 3기 스폰 됨");
+                Debug.Log($"[Test] 무리형 방 설정 완료: MeleeTank 기반 야생 몬스터 3기 스폰 됨 (방: {targetRoom.RoomName})");
+            }
+            else
+            {
+                Debug.LogWarning("[Test] 생성된 실제 방이 없습니다. 맵 생성 후 시도해주세요.");
             }
         }
         
-        if (GUILayout.Button("2. 야생 거점 방 구성 (물리적 거점 유닛 배치)"))
+        if (GUILayout.Button("2. [스포너 룸 구성 (주기적 생성)]"))
         {
-            Room targetRoom = _dummyRoom;
-            
-            // 실제 맵에 생성된 방이 있다면, 그 중 하나(마지막 방 등)를 선택하여 거점화
-            if (GameSession.Instance != null && GameSession.Instance.allRooms.Count > 0)
+            Room targetRoom = GetRandomRealRoom();
+            if (targetRoom != null && GameSession.Instance != null)
             {
-                // 같은 층에 생성된 방들 중 랜덤으로 하나 선택
-                int randomIndex = UnityEngine.Random.Range(0, GameSession.Instance.allRooms.Count);
-                targetRoom = GameSession.Instance.allRooms[randomIndex];
-            }
-            
-            targetRoom.Type = RoomType.Spawner;
-            targetRoom.RoomFaction = FactionType.Wild;
+                targetRoom.Type = RoomType.Spawner;
+                targetRoom.RoomFaction = FactionType.Wild;
 
-            if (GameSession.Instance != null)
-            {
                 // 논리 스크립트 대신, 체력과 타격 판정을 지닌 거점 '유닛'을 생성하여 맵에 등록
                 WildBaseUnit baseUnit = ScriptableObject.CreateInstance<WildBaseUnit>();
                 baseUnit.InitializeBase(targetRoom);
@@ -101,17 +106,36 @@ public class OffenseDebugWindow : EditorWindow
 
                 GameSession.Instance.units.Add(baseUnit);
                 GameSession.Instance.RegisterUnitPos(baseUnit, baseUnit.position);
+                Debug.Log($"[Test] 거점형 방 설정 완료 (방: {targetRoom.RoomName})");
+            }
+            else
+            {
+                Debug.LogWarning("[Test] 생성된 실제 방이 없습니다. 맵 생성 후 시도해주세요.");
             }
         }
         
         if (GUILayout.Button("3. 플레이어 유닛 방 진입 (오펜스 개시)"))
         {
-            Unit dummyPlayer = ScriptableObject.CreateInstance<Unit>();
-            dummyPlayer.name = "TestPlayer";
-            
-            if (OffenseProcessor.Instance != null)
+            Room targetRoom = GetRandomRealRoom();
+            if (targetRoom != null && GameSession.Instance != null && GameSession.Instance.unitGenerate != null)
             {
-                OffenseProcessor.Instance.StartOffense(_dummyRoom, dummyPlayer);
+                Vector2Int spawnPos = targetRoom.GetRandomPosInRoom();
+                Monster dummyPlayer = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
+                dummyPlayer.FactionBehavior = new PlayerMonsterBehavior();
+                dummyPlayer.name = "TestPlayer";
+                
+                GameSession.Instance.units.Add(dummyPlayer);
+                GameSession.Instance.RegisterUnitPos(dummyPlayer, dummyPlayer.position);
+                
+                if (OffenseProcessor.Instance != null)
+                {
+                    OffenseProcessor.Instance.StartOffense(targetRoom, dummyPlayer);
+                }
+                Debug.Log($"[Test] 플레이어 몬스터를 {spawnPos}에 소환하고 오펜스를 강제 개시했습니다. (방: {targetRoom.RoomName})");
+            }
+            else
+            {
+                Debug.LogWarning("[Test] 생성된 실제 방이 없습니다. 맵 생성 후 시도해주세요.");
             }
         }
         

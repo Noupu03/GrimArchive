@@ -1,0 +1,15 @@
+[스크립트 이름]: CreateMap.TileWall
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: w, h, c, thkMin, thkMax, roomBounds, isLeft, isRight, isBottom, isTop, shouldWall, bounds, id, fallback, spanX, spanY, thicknessX, thicknessY, upperLimit, effectiveMin, effectiveMax, worldMaxX, worldMaxY, 1, cA, cB, thkA, thkB, worldAX, worldAY, worldBX, worldBY
+[함수 및 목적]:
+ - AssignTileNames: (목적 설명 없음)
+ - ApplyOuterWallThickness: (목적 설명 없음)
+ - SampleThicknessForSpan: (목적 설명 없음)
+ - OpenInternalWalls: (목적 설명 없음)
+ - GetRoomId: (목적 설명 없음)
+ - IsWorldBorder: (목적 설명 없음)
+ - GetWallThickness: (목적 설명 없음)
+ - RemoveHorizontalWall: (목적 설명 없음)
+ - RemoveVerticalWall: (목적 설명 없음)
+--------------------------------------------------

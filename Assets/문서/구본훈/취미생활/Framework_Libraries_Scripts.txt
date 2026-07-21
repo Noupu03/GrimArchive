@@ -1,0 +1,156 @@
+[스크립트 이름]: FXAllInOneLabGUI
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: ShaderGUI
+[변수]: showRender, showMain, showMotion, showNoise, showMask, showDissolve, showGradient, showDistortion, showStyle, p, tex, color, mat
+[함수 및 목적]:
+ - OnGUI: (목적 설명 없음)
+ - DrawProp: (목적 설명 없음)
+ - DrawTex: (목적 설명 없음)
+ - DrawPresetButtons: (목적 설명 없음)
+ - SetFloat: (목적 설명 없음)
+ - DrawRender: (목적 설명 없음)
+ - DrawMain: (목적 설명 없음)
+ - DrawMotion: (목적 설명 없음)
+ - DrawNoise: (목적 설명 없음)
+ - DrawMask: (목적 설명 없음)
+ - DrawDissolve: (목적 설명 없음)
+ - DrawGradient: (목적 설명 없음)
+ - DrawDistortion: (목적 설명 없음)
+ - DrawStyle: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: FXMaterialDesignerWindow
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: EditorWindow
+[변수]: TargetType, StylePreset, targetType, stylePreset, materialName, tintColor, emissionColor, alpha, emissionPower, noiseStrength, noiseScale, scrollX, scrollY, dissolveAmount, distortionStrength, softEdge, useAdditive, useNoise, useDissolve, useDistortion, useSoftEdge, shader, folder, mat, path
+[함수 및 목적]:
+ - Open: (목적 설명 없음)
+ - OnGUI: (목적 설명 없음)
+ - ApplyPreset: (목적 설명 없음)
+ - CreateMaterial: (목적 설명 없음)
+ - ApplyValuesToMaterial: (목적 설명 없음)
+ - Set: (목적 설명 없음)
+ - Set: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: AnimationEventVfxSpawner
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: def, reference, pos, rot, instance, lifetime, ps
+[함수 및 목적]:
+ - OnVfxEvent: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: VfxEventDefinition
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: VfxEventDefinition, eventKey, effectPrefab, referenceTransform, positionOffset, rotationOffset
+[함수 및 목적]:
+ - 없음
+--------------------------------------------------
+
+[스크립트 이름]: VFXManager
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: VFXManager, parent, worldPos, go, ps, lifetime, offset
+[함수 및 목적]:
+ - Spawn: (목적 설명 없음)
+ - GetWorldPos: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModuleAudio
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: DOTweenModuleAudio, t, currVal
+[함수 및 목적]:
+ - DOComplete: (목적 설명 없음)
+ - DOKill: (목적 설명 없음)
+ - DOFlip: (목적 설명 없음)
+ - DOGoto: (목적 설명 없음)
+ - DOPause: (목적 설명 없음)
+ - DOPlay: (목적 설명 없음)
+ - DOPlayBackwards: (목적 설명 없음)
+ - DOPlayForward: (목적 설명 없음)
+ - DORestart: (목적 설명 없음)
+ - DORewind: (목적 설명 없음)
+ - DOSmoothRewind: (목적 설명 없음)
+ - DOTogglePause: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModulePhysics
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: DOTweenModulePhysics, t, startPosY, offsetY, offsetYSet, s, yTween, pos, pathMode, trans
+[함수 및 목적]:
+ - DOJump: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModulePhysics2D
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: DOTweenModulePhysics2D, t, startPosY, offsetY, offsetYSet, s, yTween, pos, pathMode, len, path3D, trans
+[함수 및 목적]:
+ - DOJump: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModuleSprite
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: DOTweenModuleSprite, t, s, colors, len, c, colorDuration, to, diff
+[함수 및 목적]:
+ - DOGradientColor: (목적 설명 없음)
+ - DOBlendableColor: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModuleUI
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: System, DOTweenModuleUI, t, s, colors, len, c, colorDuration, startPosY, offsetY, offsetYSet, yTween, pos, v, cInfo, to, diff, Utils, localPoint, fromPivotDerivedOffset, screenP, pivotDerivedOffset
+[함수 및 목적]:
+ - DOGradientColor: (목적 설명 없음)
+ - DOPunchAnchorPos: (목적 설명 없음)
+ - DOShakeAnchorPos: (목적 설명 없음)
+ - DOShakeAnchorPos: (목적 설명 없음)
+ - DOJumpAnchorPos: (목적 설명 없음)
+ - DONormalizedPos: (목적 설명 없음)
+ - DOHorizontalNormalizedPos: (목적 설명 없음)
+ - DOVerticalNormalizedPos: (목적 설명 없음)
+ - DOBlendableColor: (목적 설명 없음)
+ - DOBlendableColor: (목적 설명 없음)
+ - DOBlendableColor: (목적 설명 없음)
+ - SwitchToRectTransform: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModuleUnityVersion
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: System, DOTweenModuleUnityVersion, s, colors, len, c, colorDuration, null, t, DOTweenCYInstruction, elapsedLoops, position
+[함수 및 목적]:
+ - DOGradientColor: (목적 설명 없음)
+ - DOGradientColor: (목적 설명 없음)
+ - WaitForCompletion: (목적 설명 없음)
+ - WaitForRewind: (목적 설명 없음)
+ - WaitForKill: (목적 설명 없음)
+ - WaitForElapsedLoops: (목적 설명 없음)
+ - WaitForPosition: (목적 설명 없음)
+ - WaitForStart: (목적 설명 없음)
+ - WaitForCompletion: (목적 설명 없음)
+ - WaitForRewind: (목적 설명 없음)
+ - WaitForKill: (목적 설명 없음)
+ - WaitForElapsedLoops: (목적 설명 없음)
+ - WaitForPosition: (목적 설명 없음)
+ - WaitForStart: (목적 설명 없음)
+--------------------------------------------------
+
+[스크립트 이름]: DOTweenModuleUtils
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: System, DOTweenModuleUtils, _initialized, loadedAssemblies, mi, Physics, false, rBodyFoundAndTweened, rBody, rBody2D, t
+[함수 및 목적]:
+ - Init: (목적 설명 없음)
+ - Preserver: (목적 설명 없음)
+ - SetOrientationOnPath: (목적 설명 없음)
+ - HasRigidbody2D: (목적 설명 없음)
+ - HasRigidbody: (목적 설명 없음)
+--------------------------------------------------
+

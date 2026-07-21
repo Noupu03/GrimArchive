@@ -8,8 +8,8 @@ public abstract class Unit : ScriptableObject
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
 
-	// UnitGenerate가 ScriptableObject.CreateInstance 직후 IObjectResolver.Inject(this)로 채워준다.
-	// GoapAction/SkillAction 등 DI 컨테이너가 직접 닿지 않는 순수 C# 로직이 이 유닛을 통해 서비스에 접근한다.
+	// UnitGenerate媛 ScriptableObject.CreateInstance 吏곹썑 IObjectResolver.Inject(this)濡?梨꾩썙以??
+	// GoapAction/SkillAction ??DI 而⑦뀒?대꼫媛 吏곸젒 ?우? ?딅뒗 ?쒖닔 C# 濡쒖쭅?????좊떅???듯빐 ?쒕퉬?ㅼ뿉 ?묎렐?쒕떎.
 	[Inject] private UnitGenerate _unitGenerate;
 	[Inject] private UIManager _uiManager;
 	[Inject] private VFXManager _vfxManager;
@@ -24,77 +24,82 @@ public abstract class Unit : ScriptableObject
 	public GameSession Session => _gameSession;
 	public HumanKnowledgeBase Knowledge => _knowledgeBase;
 
-	// HAARE 프레임워크 (Native Routine): 유닛 소속과 행동 패턴을 결정하는 인터페이스
+	// HAARE ?꾨젅?꾩썙??(Native Routine): ?좊떅 ?뚯냽怨??됰룞 ?⑦꽩??寃곗젙?섎뒗 ?명꽣?섏씠??
 	public IFactionBehavior FactionBehavior { get; set; }
 
-	// 전략 패턴: 유닛의 이동 알고리즘을 런타임에 갈아끼울 수 있는 구조
+	public virtual bool IsHumanFaction => FactionBehavior is HumanFactionBehavior;
+	public virtual bool IsPlayerMonsterFaction => FactionBehavior is PlayerMonsterBehavior;
+	public virtual bool IsWildMonsterFaction => FactionBehavior is WildMonsterBehavior;
+
+
+	// ?꾨왂 ?⑦꽩: ?좊떅???대룞 ?뚭퀬由ъ쬁???고??꾩뿉 媛덉븘?쇱슱 ???덈뒗 援ъ“
 	public IMovementAlgorithm MovementAlgorithm { get; set; } = new AStarMovement();
 
 	public UnitType unitType;
 
-	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ────────
-	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쓰는 특수 유닛 여부
-	public bool isInterestTarget = false;  // 6-2장/18장: IsInterestTarget 플래그 (이해도 상승에 따른 흥미도 감소식 미적용)
-	public float baseInterest = 0f;        // 6-3장: 유닛 기본 흥미도
-	public float baseDanger = 0f;          // 12-1장: 대상 기본 위험도
-	public float heavyHitThreshold = 10f;  // 3장: "일정 피해량 이상" 판정 기준값 (유닛별 데이터 테이블)
+	// ??? 媛以묒튂 ?쒖뒪???댄빐???꾪뿕???λ??? 愿???????媛以묒튂 ?곗궛怨듭떇 臾몄꽌 v0.7 ????????
+	public bool isSpecialUnit = false;     // 7-1?? 蹂댁뒪/?ㅻ찓?쒖뒪 ??醫낅퀎+媛쒕퀎 ?댄빐?꾨? ?④퍡 ?곕뒗 ?뱀닔 ?좊떅 ?щ?
+	public bool isInterestTarget = false;  // 6-2??18?? IsInterestTarget ?뚮옒洹?(?댄빐???곸듅???곕Ⅸ ?λ???媛먯냼??誘몄쟻??
+	public float baseInterest = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
+	public float baseDanger = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
+	public float heavyHitThreshold = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
 
-	// 4장: 이 유닛(인류 관점의 관찰자)이 대상별로 들고 있는 개인 가중치 기록.
+	// 4?? ???좊떅(?몃쪟 愿?먯쓽 愿李곗옄)????곷퀎濡??ㅺ퀬 ?덈뒗 媛쒖씤 媛以묒튂 湲곕줉.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
 
-	// 가장 최근에 이 유닛에게 피해를 입힌 대상. 사망 시점(GameSession.RemoveDeadUnit)에서
-	// "누가 처치했는지"를 알아야 위험도/이해도 처치 이벤트(E_MONSTER_KILL_SELF 등)를 기록할 수 있어서 둔다.
+	// 媛??理쒓렐?????좊떅?먭쾶 ?쇳빐瑜??낇엺 ??? ?щ쭩 ?쒖젏(GameSession.RemoveDeadUnit)?먯꽌
+	// "?꾧? 泥섏튂?덈뒗吏"瑜??뚯븘???꾪뿕???댄빐??泥섏튂 ?대깽??E_MONSTER_KILL_SELF ??瑜?湲곕줉?????덉뼱???붾떎.
 	public Unit lastAttacker;
 
-	// ─── 레벨 및 성장 속성 ────────────────────────────────────────
-	public int level = 1;                 // 현재 레벨
-	public float exp = 0f;                // 현재 경험치
-	public int killCount = 0;             // 적 처치 수
+	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
+	public int level = 1;                 // ?꾩옱 ?덈꺼
+	public float exp = 0f;                // ?꾩옱 寃쏀뿕移?
+	public int killCount = 0;             // ??泥섏튂 ??
 
-	// ─── 전투 세부 속성 ───────────────────────────────────────────
-	public float maxHp = 100f;            // 최대체력
-	public float hp    = 100f;            // 현재 체력
+	// ??? ?꾪닾 ?몃? ?띿꽦 ???????????????????????????????????????????
+	public float maxHp = 100f;            // 理쒕?泥대젰
+	public float hp    = 100f;            // ?꾩옱 泥대젰
 
-	public float maxMp = 0f;             // 최대 마나
-	public float mp    = 0f;             // 현재 마나
+	public float maxMp = 0f;             // 理쒕? 留덈굹
+	public float mp    = 0f;             // ?꾩옱 留덈굹
 
-	public float physicalAttack  = 10f;  // 물리 공격력
-	public float magicalAttack   = 0f;   // 마법 공격력
+	public float physicalAttack  = 10f;  // 臾쇰━ 怨듦꺽??
+	public float magicalAttack   = 0f;   // 留덈쾿 怨듦꺽??
 
-	public float physicalDefense = 0f;   // 물리 방어력
-	public float magicalDefense  = 0f;   // 마법 방어력
+	public float physicalDefense = 0f;   // 臾쇰━ 諛⑹뼱??
+	public float magicalDefense  = 0f;   // 留덈쾿 諛⑹뼱??
 
-	public float HPRegen         = 0f;   // 재생력->새로 추가됨. 로직없음
-	public float attackspeed     = 0f;   // 공격 속도->새로 추가됨. 로직없음
-	public float walkSpeed       = 3f;   // 이동 속도
-	public float reaction        = 1f;   // 반응속도->로직없음
-	public float criticalChance  = 0f;   // 치명타율->새로 추가됨. 로직없음
-	public float cooltimeReduction = 0f; // 쿨타임 감소율->새로 추가됨. 로직없음
-	public float statusResistance  = 0f; // 상태이상저항->구방식 작동중. 새방식으로는 로직없음
+	public float HPRegen         = 0f;   // ?ъ깮??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	public float attackspeed     = 0f;   // 怨듦꺽 ?띾룄->?덈줈 異붽??? 濡쒖쭅?놁쓬
+	public float walkSpeed       = 3f;   // ?대룞 ?띾룄
+	public float reaction        = 1f;   // 諛섏쓳?띾룄->濡쒖쭅?놁쓬
+	public float criticalChance  = 0f;   // 移섎챸???>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	public float cooltimeReduction = 0f; // 荑⑦???媛먯냼??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	public float statusResistance  = 0f; // ?곹깭?댁긽???>援щ갑???묐룞以? ?덈갑?앹쑝濡쒕뒗 濡쒖쭅?놁쓬
 
-	public float maxMental = 0f;         // 최대 정신력->옛날 정신공격 연산으로만 작동중
-	public float mental    = 0f;         // 현재 정신력
+	public float maxMental = 0f;         // 理쒕? ?뺤떊??>?쏅궇 ?뺤떊怨듦꺽 ?곗궛?쇰줈留??묐룞以?
+	public float mental    = 0f;         // ?꾩옱 ?뺤떊??
 
-	public float spotting       = 0f;   // 감지 — 시야-인지-반응 문서(01-A)의 "감지 스탯". 시야/인지 거리·인지각·원형 인지 범위 반지름이 전부 이 값으로 결정된다(VisionMath).
-	public float leadershipRange = 0f;  // 지휘범위->새로 추가됨. 로직없음
-	public float charisma        = 0f;  // 카리스마->새로 추가됨. 로직없음
+	public float spotting       = 0f;   // 媛먯? ???쒖빞-?몄?-諛섏쓳 臾몄꽌(01-A)??"媛먯? ?ㅽ꺈". ?쒖빞/?몄? 嫄곕━쨌?몄?媛겶룹썝???몄? 踰붿쐞 諛섏?由꾩씠 ?꾨? ??媛믪쑝濡?寃곗젙?쒕떎(VisionMath).
+	public float leadershipRange = 0f;  // 吏?섎쾾??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	public float charisma        = 0f;  // 移대━?ㅻ쭏->?덈줈 異붽??? 濡쒖쭅?놁쓬
 
-	// ─── 시야-인지-반응 시스템 관련 — 01_시야·인지범위·가시성 문서 v0.2 ────────────
-	public float stealth = 0f;         // 은신 — 최종 가시성을 낮추는 세부 스탯(01장 10절). 거리/가림 보정 세부산식은 05-A 문서 부재로 스텁(VisionMath.FinalVisibility 참고)
-	public float baseVisibility = 100f; // 대상 기본 가시성(01장 9절) — 일반 유닛은 100, 은신형/특수 유닛은 데이터로 낮게 설정
-	public float attackVisibilityBoostTimer = 0f; // 공격 후 가시성 상승 지속시간 타이머(초, 01-A 9장) — SkillAction.BeginAttackCast가 공격 실행 시 세팅, UnitFunction.OnUpdate가 감소
+	// ??? ?쒖빞-?몄?-諛섏쓳 ?쒖뒪??愿????01_?쒖빞쨌?몄?踰붿쐞쨌媛?쒖꽦 臾몄꽌 v0.2 ????????????
+	public float stealth = 0f;         // ?????理쒖쥌 媛?쒖꽦????텛???몃? ?ㅽ꺈(01??10??. 嫄곕━/媛由?蹂댁젙 ?몃??곗떇? 05-A 臾몄꽌 遺?щ줈 ?ㅽ뀅(VisionMath.FinalVisibility 李멸퀬)
+	public float baseVisibility = 100f; // ???湲곕낯 媛?쒖꽦(01??9?? ???쇰컲 ?좊떅? 100, ??좏삎/?뱀닔 ?좊떅? ?곗씠?곕줈 ??쾶 ?ㅼ젙
+	public float attackVisibilityBoostTimer = 0f; // 怨듦꺽 ??媛?쒖꽦 ?곸듅 吏?띿떆媛???대㉧(珥? 01-A 9?? ??SkillAction.BeginAttackCast媛 怨듦꺽 ?ㅽ뻾 ???명똿, UnitFunction.OnUpdate媛 媛먯냼
 
-	// ─── 정규화용 속성 ────────────────────────────────────────────
-	public float sterngth    = 0f; // 근력. 정규화를 통해 산출해야 함
-	public float Durability  = 0f; // 내구. 정규화를 통해 산출해야 함
-	public float agility     = 0f; // 민첩. 정규화를 통해 산출해야 함
-	public float concentration = 0f; // 집중. 정규화를 통해 산출해야 함
-	public float MagicPower  = 0f; // 마력. 정규화를 통해 산출해야 함
-	public float resistance  = 0f; // 저항. 정규화를 통해 산출해야 함
-	public float sense       = 0f; // 감각. 정규화를 통해 산출해야 함
-	public float leadership  = 0f; // 통솔. 정규화를 통해 산출해야 함
+	// ??? ?뺢퇋?붿슜 ?띿꽦 ????????????????????????????????????????????
+	public float sterngth    = 0f; // 洹쇰젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float Durability  = 0f; // ?닿뎄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float agility     = 0f; // 誘쇱꺽. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float concentration = 0f; // 吏묒쨷. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float MagicPower  = 0f; // 留덈젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float resistance  = 0f; // ??? ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float sense       = 0f; // 媛먭컖. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	public float leadership  = 0f; // ?듭넄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 
-	// ─── 정규화 기준값 ────────────────────────────────────────────
+	// ??? ?뺢퇋??湲곗?媛?????????????????????????????????????????????
 	private const float BASE_PHYSICAL_ATTACK = 20f;
 	private const float BASE_MAGICAL_ATTACK  = 20f;
 	private const float BASE_MAX_HP          = 120f;
@@ -113,13 +118,13 @@ public abstract class Unit : ScriptableObject
 	private const float BASE_CRIT            = 10f;
 	private const float BASE_CDR             = 100f;
 
-	// ─── 연산용 임시 스탯 ─────────────────────────────────────────
-	public float physicalAttackSpeed = 10f; // 물리공격속도
-	public float magicalCastSpeed    = 0f;  // 마법공격속도
-	public float actionCooldown      = 0f;  // 턴 진행용 대기 시간
-	public float[] skillCooldowns    = new float[4]; // 스킬 쿨다운
-	public bool  isHitThisTurn       = false; // 피격 여부
-	public bool  oneTimeReactUsed    = false; // 피격 리액션 등 1회성 억제용
+	// ??? ?곗궛???꾩떆 ?ㅽ꺈 ?????????????????????????????????????????
+	public float physicalAttackSpeed = 10f; // 臾쇰━怨듦꺽?띾룄
+	public float magicalCastSpeed    = 0f;  // 留덈쾿怨듦꺽?띾룄
+	public float actionCooldown      = 0f;  // ??吏꾪뻾???湲??쒓컙
+	public float[] skillCooldowns    = new float[4]; // ?ㅽ궗 荑⑤떎??
+	public bool  isHitThisTurn       = false; // ?쇨꺽 ?щ?
+	public bool  oneTimeReactUsed    = false; // ?쇨꺽 由ъ븸????1?뚯꽦 ?듭젣??
 
 	public HashSet<Unit> reactedAttackers = new HashSet<Unit>();
 
@@ -127,74 +132,74 @@ public abstract class Unit : ScriptableObject
 	public ThreatTileData reactingThreat       = null;
 	public Unit          reactingAttacker       = null;
 
-	public float evadeCooldown  = 0f;  // 회피 후 재접근 관련
-	public bool  isCastingAttack = false; // 현재 공격 선딜 진행 여부
-	public float castTimer       = 0f;  // 선딜 타이머
-	public System.Action pendingAttack;  // 실제 공격 실행 예약
-	public System.Action pendingCastUpdate; // 캐스팅 중 매 프레임 업데이트
-	public System.Action pendingVFX;     // 공격 타이밍에 맞춰 재생할 VFX (가드·패링)
-	public bool suppressHitVFX = false;  // true이면 TriggerHitEffect에서 HitSpark 대신 AttackFail 재생
-	public ThreatTileData currentThreat; // 현재 공격 위협 타일
+	public float evadeCooldown  = 0f;  // ?뚰뵾 ???ъ젒洹?愿??
+	public bool  isCastingAttack = false; // ?꾩옱 怨듦꺽 ?좊뵜 吏꾪뻾 ?щ?
+	public float castTimer       = 0f;  // ?좊뵜 ??대㉧
+	public System.Action pendingAttack;  // ?ㅼ젣 怨듦꺽 ?ㅽ뻾 ?덉빟
+	public System.Action pendingCastUpdate; // 罹먯뒪??以?留??꾨젅???낅뜲?댄듃
+	public System.Action pendingVFX;     // 怨듦꺽 ??대컢??留욎떠 ?ъ깮??VFX (媛?쑣룻뙣留?
+	public bool suppressHitVFX = false;  // true?대㈃ TriggerHitEffect?먯꽌 HitSpark ???AttackFail ?ъ깮
+	public ThreatTileData currentThreat; // ?꾩옱 怨듦꺽 ?꾪삊 ???
 
-	// 공격 시 자유로운 각도 (라디안)
+	// 怨듦꺽 ???먯쑀濡쒖슫 媛곷룄 (?쇰뵒??
 	public float currentAttackAngle = 0f;
 
-	// ─── 상태이상 ──────────────────────────────────────────────────
+	// ??? ?곹깭?댁긽 ??????????????????????????????????????????????????
 	public float stunDuration   = 0f;
 	public float slowDuration   = 0f;
 	public float poisonDuration = 0f;
 	public float burnDuration   = 0f;
 
-	// ─── 이동 및 프레임워크 ──────────────────────────────────────────
+	// ??? ?대룞 諛??꾨젅?꾩썙????????????????????????????????????????????
 	public float currentSpeed  = 0f;
-	public float acceleration  = 10f; // 임시 기본 가속도
-	public bool  isWaitState   = false; // Spotting Broadcast에 의한 대기
+	public float acceleration  = 10f; // ?꾩떆 湲곕낯 媛?띾룄
+	public bool  isWaitState   = false; // Spotting Broadcast???섑븳 ?湲?
 
-	// ─── 유닛 배치 시스템 롤백 완료 ───
+	// ??? ?좊떅 諛곗튂 ?쒖뒪??濡ㅻ갚 ?꾨즺 ???
 
 	public Vector2Int? playerMoveTarget    = null;
-	public bool isManualMoveCommand        = false; // 유저가 직접 클릭하여 내린 이동 명령인지 여부
+	public bool isManualMoveCommand        = false; // ?좎?媛 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;
 	public Vector3Int? playerInteractTarget = null;
 	public Vector2Int position;
-	public int        currentFloor = 0;        // 현재 유닛이 위치한 층 정보
-	public Dir        currentDir   = Dir.DOWN;  // 현재 바라보는 방향 (시야 기준)
-	public string     spriteVariation = "";     // 스프라이트 바리에이션 (라이브러리 카테고리명)
+	public int        currentFloor = 0;        // ?꾩옱 ?좊떅???꾩튂??痢??뺣낫
+	public Dir        currentDir   = Dir.DOWN;  // ?꾩옱 諛붾씪蹂대뒗 諛⑺뼢 (?쒖빞 湲곗?)
+	public string     spriteVariation = "";     // ?ㅽ봽?쇱씠??諛붾━?먯씠??(?쇱씠釉뚮윭由?移댄뀒怨좊━紐?
 
 	public List<Unit>          personalSpottedEnemies = new List<Unit>();
 	public List<ThreatTileData> detectedThreats        = new List<ThreatTileData>();
 
-	// ─── 인지·정보판정·실패처리 시스템 관련 — 02_인지·정보판정·실패처리_시스템_v0.2 ────────
-	// 4장: 대상별(적 유닛=Unit 참조, 오브젝트=InteractableObject.Id) 지속 인지 상태. 트리거 시점에만
-	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception이 갱신한다 — personalSpottedEnemies와 달리 매
-	// UpdateFOV 호출마다 Clear되지 않는다(PerceptionRecord.cs 주석 참고).
+	// ??? ?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━ ?쒖뒪??愿????02_?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━_?쒖뒪??v0.2 ????????
+	// 4?? ??곷퀎(???좊떅=Unit 李몄“, ?ㅻ툕?앺듃=InteractableObject.Id) 吏???몄? ?곹깭. ?몃━嫄??쒖젏?먮쭔
+	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception??媛깆떊?쒕떎 ??personalSpottedEnemies? ?щ━ 留?
+	// UpdateFOV ?몄텧留덈떎 Clear?섏? ?딅뒗??PerceptionRecord.cs 二쇱꽍 李멸퀬).
 	public readonly Dictionary<object, PerceptionRecord> perceptionRecords = new Dictionary<object, PerceptionRecord>();
 
-	// 20장: 수상한 타일 확인 대기 중인 레코드가 하나라도 있으면 경계 상태 — 10장 감지 보정(+20)과
-	// 01-A 10장(구 11장) 시야 방향 전환 우선순위의 Alert 사유가 이 값을 참조한다.
-	// 2026-07-20 성능 수정: 원래 perceptionRecords 전체를 매번 순회(O(n))했는데, 이 프로퍼티가
-	// UnitFunction.ForceRollPerception(피격마다 강제 호출되는 IsAttackerIdentified 경로 포함) 안에서
-	// 읽혀 전투 중 매 타격마다 O(n)이 반복됐다 — perceptionRecords가 세션 내내 정리되지 않고 쌓이는
-	// 구조(아래 RemovePerceptionRecord 참고 전까지는 그랬음)와 겹쳐 유닛 수·전투 시간이 늘수록 급격히
-	// 무거워졌다. PendingSuspiciousInvestigation이 바뀌는 유일한 지점(ForceRollPerception)에서
-	// _alertRecordCount만 갱신하는 O(1) 카운터로 교체.
+	// 20?? ?섏긽??????뺤씤 ?湲?以묒씤 ?덉퐫?쒓? ?섎굹?쇰룄 ?덉쑝硫?寃쎄퀎 ?곹깭 ??10??媛먯? 蹂댁젙(+20)怨?
+	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛 ??媛믪쓣 李몄“?쒕떎.
+	// 2026-07-20 ?깅뒫 ?섏젙: ?먮옒 perceptionRecords ?꾩껜瑜?留ㅻ쾲 ?쒗쉶(O(n))?덈뒗?? ???꾨줈?쇳떚媛
+	// UnitFunction.ForceRollPerception(?쇨꺽留덈떎 媛뺤젣 ?몄텧?섎뒗 IsAttackerIdentified 寃쎈줈 ?ы븿) ?덉뿉??
+	// ?쏀? ?꾪닾 以?留??寃⑸쭏??O(n)??諛섎났?먮떎 ??perceptionRecords媛 ?몄뀡 ?대궡 ?뺣━?섏? ?딄퀬 ?볦씠??
+	// 援ъ“(?꾨옒 RemovePerceptionRecord 李멸퀬 ?꾧퉴吏??洹몃옱??? 寃뱀퀜 ?좊떅 ?샕룹쟾???쒓컙???섏닔濡?湲됯꺽??
+	// 臾닿굅?뚯죱?? PendingSuspiciousInvestigation??諛붾뚮뒗 ?좎씪??吏??ForceRollPerception)?먯꽌
+	// _alertRecordCount留?媛깆떊?섎뒗 O(1) 移댁슫?곕줈 援먯껜.
 	private int _alertRecordCount = 0;
 	public bool IsAlert => _alertRecordCount > 0;
 
-	// PendingSuspiciousInvestigation을 바꾸는 모든 지점(ForceRollPerception, 레코드 제거)이 반드시
-	// 이 메서드를 통해서만 카운터를 갱신한다 — 직접 필드를 대입하면 카운터가 어긋난다.
+	// PendingSuspiciousInvestigation??諛붽씀??紐⑤뱺 吏??ForceRollPerception, ?덉퐫???쒓굅)??諛섎뱶??
+	// ??硫붿꽌?쒕? ?듯빐?쒕쭔 移댁슫?곕? 媛깆떊?쒕떎 ??吏곸젒 ?꾨뱶瑜???낇븯硫?移댁슫?곌? ?닿툔?쒕떎.
 	public void NotifyPerceptionSuspiciousChanged(bool wasSuspicious, bool nowSuspicious)
 	{
 		if (wasSuspicious == nowSuspicious) return;
 		_alertRecordCount += nowSuspicious ? 1 : -1;
-		if (_alertRecordCount < 0) _alertRecordCount = 0; // 방어적 처리 — 정상 흐름에서는 발생하지 않아야 함
+		if (_alertRecordCount < 0) _alertRecordCount = 0; // 諛⑹뼱??泥섎━ ???뺤긽 ?먮쫫?먯꽌??諛쒖깮?섏? ?딆븘????
 	}
 
-	// 2026-07-20: 유닛 사망/오브젝트 회수·파괴 시 이 관찰자가 들고 있던 해당 대상 기록을 정리한다.
-	// perceptionRecords는 "한 번 본 대상은 세션 내내 안 지워지는" 구조였는데(원래 스코프였던 관찰자
-	// 개인당 소수 항목 가정과 달리, 웨이브가 반복되며 죽은 몬스터 참조가 계속 쌓이는 실사용 환경에서
-	// 예상보다 훨씬 크게 자라 — 프레임 드롭의 실제 원인이었다), IsAlert 카운터 O(1)화와 별개로 이
-	// 정리가 없으면 순회 비용(UpdateFOV 끝의 sweep 등) 자체가 계속 커진다.
+	// 2026-07-20: ?좊떅 ?щ쭩/?ㅻ툕?앺듃 ?뚯닔쨌?뚭눼 ????愿李곗옄媛 ?ㅺ퀬 ?덈뜕 ?대떦 ???湲곕줉???뺣━?쒕떎.
+	// perceptionRecords??"??踰?蹂???곸? ?몄뀡 ?대궡 ??吏?뚯??? 援ъ“??붾뜲(?먮옒 ?ㅼ퐫?꾩???愿李곗옄
+	// 媛쒖씤???뚯닔 ??ぉ 媛?뺢낵 ?щ━, ?⑥씠釉뚭? 諛섎났?섎ŉ 二쎌? 紐ъ뒪??李몄“媛 怨꾩냽 ?볦씠???ㅼ궗???섍꼍?먯꽌
+	// ?덉긽蹂대떎 ?⑥뵮 ?ш쾶 ?먮씪 ???꾨젅???쒕∼???ㅼ젣 ?먯씤?댁뿀??, IsAlert 移댁슫??O(1)?붿? 蹂꾧컻濡???
+	// ?뺣━媛 ?놁쑝硫??쒗쉶 鍮꾩슜(UpdateFOV ?앹쓽 sweep ?? ?먯껜媛 怨꾩냽 而ㅼ쭊??
 	public void RemovePerceptionRecord(object key)
 	{
 		if (perceptionRecords.TryGetValue(key, out var record))
@@ -204,30 +209,30 @@ public abstract class Unit : ScriptableObject
 		}
 	}
 
-	// 5장: 인지 판정 자체가 불가능한 상태. 문서는 기절/수면/마비/행동불능 4종을 들지만, 이 코드베이스엔
-	// 아직 스턴(stunDuration) 외의 상태이상 시스템이 없다(수면/마비/행동불능은 담당 상태이상 문서
-	// 부재로 미구현) — 그 상태들이 생기면 이 프로퍼티에 조건만 추가하면 된다.
+	// 5?? ?몄? ?먯젙 ?먯껜媛 遺덇??ν븳 ?곹깭. 臾몄꽌??湲곗젅/?섎㈃/留덈퉬/?됰룞遺덈뒫 4醫낆쓣 ?ㅼ?留? ??肄붾뱶踰좎씠?ㅼ뿏
+	// ?꾩쭅 ?ㅽ꽩(stunDuration) ?몄쓽 ?곹깭?댁긽 ?쒖뒪?쒖씠 ?녿떎(?섎㈃/留덈퉬/?됰룞遺덈뒫? ?대떦 ?곹깭?댁긽 臾몄꽌
+	// 遺?щ줈 誘멸뎄?? ??洹??곹깭?ㅼ씠 ?앷린硫????꾨줈?쇳떚??議곌굔留?異붽??섎㈃ ?쒕떎.
 	public bool CanPerceive => stunDuration <= 0f;
 
-	// 9장: 정신력 보정(인류 전용, 몬스터는 항상 0) — PerceptionMath.MentalCorrectionForHuman 참고.
+	// 9?? ?뺤떊??蹂댁젙(?몃쪟 ?꾩슜, 紐ъ뒪?곕뒗 ??긽 0) ??PerceptionMath.MentalCorrectionForHuman 李멸퀬.
 	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(mental, maxMental) : 0f;
 
-	// 01장 7절/01-A 7장: 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록(이번 UpdateFOV 호출
-	// 기준 임시 스냅샷 — 저장값 아님, 매 UpdateFOV마다 비우고 다시 채운다). 목표/경로 재설정을 다루는
-	// 10_목표설정·이동경로·재설정 문서가 아직 폴더에 없어 이 리스트를 실제로 소비하는 곳은 없다 —
-	// 그 문서가 생기면 VisionMath.NonEmptyTileTempWeight와 함께 바로 쓸 수 있도록 데이터만 미리 채워둔다.
+	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ???紐⑸줉(?대쾲 UpdateFOV ?몄텧
+	// 湲곗? ?꾩떆 ?ㅻ깄??????κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
+	// 10_紐⑺몴?ㅼ젙쨌?대룞寃쎈줈쨌?ъ꽕??臾몄꽌媛 ?꾩쭅 ?대뜑???놁뼱 ??由ъ뒪?몃? ?ㅼ젣濡??뚮퉬?섎뒗 怨녹? ?녿떎 ??
+	// 洹?臾몄꽌媛 ?앷린硫?VisionMath.NonEmptyTileTempWeight? ?④퍡 諛붾줈 ?????덈룄濡??곗씠?곕쭔 誘몃━ 梨꾩썙?붾떎.
 	public List<Vector3Int> visionOnlyNonEmptyTiles = new List<Vector3Int>();
 
-	// 01-A 9장: 공격한 유닛은 고정 시간(5초) 동안 가시성이 +10 상승한다. 재공격 시 지속시간만
-	// 초기화되고 상승량은 누적되지 않는다(문서가 "지속시간을 다시 5초로 초기화"라고만 명시할 뿐
-	// "상승량이 추가된다"고는 하지 않아, 상한 100 규칙과 함께 가장 단순하게 해석한 것 — 판단 근거는
-	// 구현현황 문서에 기재).
+	// 01-A 9?? 怨듦꺽???좊떅? 怨좎젙 ?쒓컙(5珥? ?숈븞 媛?쒖꽦??+10 ?곸듅?쒕떎. ?ш났寃???吏?띿떆媛꾨쭔
+	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛 "吏?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
+	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
+	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
 	public bool IsVisibilityBoosted => attackVisibilityBoostTimer > 0f;
 	public void TriggerAttackVisibilityBoost() => attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
 	public float GetFinalVisibility() => VisionMath.FinalVisibility(baseVisibility, stealth, IsVisibilityBoosted);
 
-	// ─── 정규화 함수 ─────────────────────────────────────────────────
-	// 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록.
+	// ??? ?뺢퇋???⑥닔 ?????????????????????????????????????????????????
+	// 0%~200% 踰붿쐞濡??대옩?? 100%媛 湲곗?媛믨낵 ?쇱튂?섎룄濡?
 	private float Normalize(float value, float baseValue)
 	{
 		if (baseValue <= 0f) return 0f;
@@ -236,7 +241,7 @@ public abstract class Unit : ScriptableObject
 
 	public void CalculateDerivedStats()
 	{
-		// 정규화
+		// ?뺢퇋??
 		float nAtk      = Normalize(physicalAttack,    BASE_PHYSICAL_ATTACK);
 		float nMatk     = Normalize(magicalAttack,     BASE_MAGICAL_ATTACK);
 		float nHp       = Normalize(maxHp,             BASE_MAX_HP);
@@ -255,37 +260,37 @@ public abstract class Unit : ScriptableObject
 		float nCrit     = Normalize(criticalChance,    BASE_CRIT);
 		float nCdr      = Normalize(cooltimeReduction, BASE_CDR);
 
-		// 기본 능력치 계산
-		// 근력 = 물리 공격력 정규화
+		// 湲곕낯 ?λ젰移?怨꾩궛
+		// 洹쇰젰 = 臾쇰━ 怨듦꺽???뺢퇋??
 		sterngth = nAtk;
 
-		// 내구 = 체력 45 + 물방 45 + 재생 10
+		// ?닿뎄 = 泥대젰 45 + 臾쇰갑 45 + ?ъ깮 10
 		Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
 
-		// 민첩 = 공속 35 + 이동 25 + 반응 40
+		// 誘쇱꺽 = 怨듭냽 35 + ?대룞 25 + 諛섏쓳 40
 		agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
 
-		// 집중 = 치명 60 + 쿨감 40
+		// 吏묒쨷 = 移섎챸 60 + 荑④컧 40
 		concentration = nCrit * 0.60f + nCdr * 0.40f;
 
-		// 마력 = 마공 60 + 마나 40
+		// 留덈젰 = 留덇났 60 + 留덈굹 40
 		MagicPower = nMatk * 0.60f + nMp * 0.40f;
 
-		// 저항 (몬스터 예외)
+		// ???(紐ъ뒪???덉쇅)
 		if (this is Monster)
 			resistance = nMDef * 0.5f + nStatus * 0.5f;
 		else
 			resistance = nMDef * 0.35f + nStatus * 0.35f + nMental * 0.30f;
 
-		// 감각 = 감지
+		// 媛먭컖 = 媛먯?
 		sense = nSpot;
 
-		// 통솔 = 지휘범위 50 + 카리스마 50
+		// ?듭넄 = 吏?섎쾾??50 + 移대━?ㅻ쭏 50
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
 	}
 
-	// 스탯 적용은 이제 UnitGenerate가 스폰한 프리팹의 UnitVisualDefinition.ApplyStatsTo(unit)이
-	// SetupStats() 호출 전에 담당한다. 여기서는 그 기본 스탯으로부터 파생 스탯만 계산한다.
+	// ?ㅽ꺈 ?곸슜? ?댁젣 UnitGenerate媛 ?ㅽ룿???꾨━?뱀쓽 UnitVisualDefinition.ApplyStatsTo(unit)??
+	// SetupStats() ?몄텧 ?꾩뿉 ?대떦?쒕떎. ?ш린?쒕뒗 洹?湲곕낯 ?ㅽ꺈?쇰줈遺???뚯깮 ?ㅽ꺈留?怨꾩궛?쒕떎.
 	public void SetupStats()
 	{
 		CalculateDerivedStats();
@@ -308,7 +313,7 @@ public abstract class Unit : ScriptableObject
 		return Quaternion.Euler(0f, 0f, angle);
 	}
 
-	// ─── 추상 메서드 ──────────────────────────────────────────────────
+	// ??? 異붿긽 硫붿꽌????????????????????????????????????????????????????
 	public abstract void TakeDamage(float damage);
 	public abstract void TakePhysicalDamage(float rawDamage, Unit attacker);
 	public abstract void TakeMagicalDamage(float rawDamage, Unit attacker);
@@ -321,17 +326,7 @@ public abstract class Unit : ScriptableObject
 	public abstract bool CanMove(Vector2Int pos, bool ignoreUnits = false);
 	public abstract void Move(Dir dir);
 
-	public bool IsEnemy(Unit other)
-	{
-		if (this.FactionBehavior != null && other.FactionBehavior != null)
-		{
-			if (this.FactionBehavior is PlayerUnitBehavior && other.FactionBehavior is WildMonsterBehavior) return true;
-			if (this.FactionBehavior is WildMonsterBehavior && other.FactionBehavior is PlayerUnitBehavior) return true;
-		}
-		
-		// 기존 레거시 체크 (안전망)
-		return (this is Human && other is Monster) || (this is Monster && other is Human);
-	}
+	public bool IsEnemy(Unit other) { return FactionBehavior != null && other.FactionBehavior != null && FactionBehavior.IsEnemy(other.FactionBehavior); }
 
 	public virtual void ForceMove(Vector2Int targetPos)
 	{
@@ -349,9 +344,9 @@ public abstract class Unit : ScriptableObject
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
 
-	// 01-A 11장: 시야 방향 전환 우선순위 판정 — 이번 턴에 활성화된 후보들 중 가장 높은 우선순위를
-	// 골라 currentDir를 갱신한다. GameSession.ProcessUnitAction이 ExecuteAction() 이후, UpdateFOV()
-	// 이전에 호출한다(그래야 이동으로 갱신된 currentDir를 "이동 중" 후보의 기본값으로 활용할 수 있다).
+	// 01-A 11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞 ?먯젙 ???대쾲 ?댁뿉 ?쒖꽦?붾맂 ?꾨낫??以?媛???믪? ?곗꽑?쒖쐞瑜?
+	// 怨⑤씪 currentDir瑜?媛깆떊?쒕떎. GameSession.ProcessUnitAction??ExecuteAction() ?댄썑, UpdateFOV()
+	// ?댁쟾???몄텧?쒕떎(洹몃옒???대룞?쇰줈 媛깆떊??currentDir瑜?"?대룞 以? ?꾨낫??湲곕낯媛믪쑝濡??쒖슜?????덈떎).
 	public abstract void ResolveVisionDirection();
 
 	private GoapBrain _brain;
@@ -359,7 +354,7 @@ public abstract class Unit : ScriptableObject
 
 	public virtual void JudgeState()
 	{
-		if (stunDuration > 0f) return; // 기절 시 행동 불가
+		if (stunDuration > 0f) return; // 湲곗젅 ???됰룞 遺덇?
 		brain.JudgeState(this);
 	}
 
@@ -392,28 +387,41 @@ public abstract class Unit : ScriptableObject
 
 public class Human : UnitFunction
 {
-	// 개인 지도(타일/오브젝트/몬스터 목격/방 위험도·흥미도) — 지도관련_정리 문서 기준 "지도는
-	// 인류만 들고 있어야 한다"는 지시에 따라 Human에만 둔다(Monster/base Unit에는 없음).
+    public Human()
+    {
+        FactionBehavior = new HumanFactionBehavior();
+    }
+
+	// 媛쒖씤 吏??????ㅻ툕?앺듃/紐ъ뒪??紐⑷꺽/諛??꾪뿕?꽷룻씎誘몃룄) ??吏?꾧????뺣━ 臾몄꽌 湲곗? "吏?꾨뒗
+	// ?몃쪟留??ㅺ퀬 ?덉뼱???쒕떎"??吏?쒖뿉 ?곕씪 Human?먮쭔 ?붾떎(Monster/base Unit?먮뒗 ?놁쓬).
 	public PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
 	public System.Collections.Generic.List<string> collectedObjects = new System.Collections.Generic.List<string>();
 
-	// 이 유닛이 속한 파티(있다면) — 13장 파티 전멸/6장 웨이브 종료 생존자 반영 판정에 쓰인다.
-	// GameSession.CreateParty()가 파티 생성 시 채워준다. 파티 없이 스폰된 인류(디버그 단독 소환
-	// 등)는 null로 유지 — 파티 관련 판정 대상에서 자연히 제외된다.
+	// ???좊떅???랁븳 ?뚰떚(?덈떎硫? ??13???뚰떚 ?꾨㈇/6???⑥씠釉?醫낅즺 ?앹〈??諛섏쁺 ?먯젙???곗씤??
+	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
+	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
 	public Party party;
 
 	public override void JudgeState()
 	{
 		base.JudgeState();
-		// 인류 상태 판단 로직 추가
+		// ?몃쪟 ?곹깭 ?먮떒 濡쒖쭅 異붽?
 	}
 }
 
 public class Monster : UnitFunction
 {
+    public Monster()
+    {
+        FactionBehavior = new PlayerMonsterBehavior();
+    }
+
 	public override void JudgeState()
 	{
 		base.JudgeState();
-		// 몬스터 상태 판단 로직 추가
+		// 紐ъ뒪???곹깭 ?먮떒 濡쒖쭅 異붽?
 	}
 }
+
+
+

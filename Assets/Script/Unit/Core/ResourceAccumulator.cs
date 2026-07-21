@@ -28,11 +28,10 @@ public class ResourceAccumulator
         {
             Debug.Log($"[Resource] 자원 B 일괄 지급: {_accumulatedResourceB}");
             
-            // TODO: 실제 자원 매니저(PlayerResourceManager)에 추가
+            // 실제 자원 매니저(ResourceManager)에 추가
             if (ResourceManager.Instance != null)
             {
-                // Wood를 임시로 오펜스 보상 자원으로 사용
-                ResourceManager.Instance.AddResource(ResourceType.Wood, _accumulatedResourceB);
+                ResourceManager.Instance.AddResource(ResourceType.OffenseReward, _accumulatedResourceB);
             }
             
             _accumulatedResourceB = 0;

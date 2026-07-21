@@ -22,3 +22,10 @@
 ## 2. 특이사항 및 논의 내역
 - 알고리즘 교체 구조를 도입하여 향후 타 진영 유닛도 쉽게 확장이 가능하도록 유연한 코드로 작성 중.
 - 디버그 전용 UI(`OffenseDebugWindow`)를 구축하여 에디터 플레이 모드에서 전체 사이클 시뮬레이션 가능.
+
+
+### 1.4 오펜스 보상 시스템 재설계 및 고도화
+- ResourceType에 OffenseReward (자원 B) 추가 및 분리
+- 오펜스 종료 시 Wood 대신 OffenseReward 지급으로 수정
+- WildMonsterBehavior에서 몬스터의 maxHp에 비례한 동적 보상(가중치) 누적 로직 구현
+- StatusInfoPanel UI에 오펜스 전용 보상 현황 반영

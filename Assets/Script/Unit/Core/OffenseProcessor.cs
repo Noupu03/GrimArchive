@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class OffenseProcessor
@@ -35,7 +35,7 @@ public class OffenseProcessor
         {
             if (currentOffenseRoom.Bounds.Contains(u.position))
             {
-                if (u.FactionBehavior is PlayerUnitBehavior) hasPlayer = true;
+                if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayer = true;
                 if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
             }
         }
@@ -91,3 +91,4 @@ public class OffenseProcessor
         currentOffenseRoom = null;
     }
 }
+

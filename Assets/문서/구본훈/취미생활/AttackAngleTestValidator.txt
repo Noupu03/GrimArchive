@@ -1,0 +1,10 @@
+[스크립트 이름]: AttackAngleTestValidator
+[스크립트의 목적]: 공격 시 자유로운 각도 회전 로직을 검증하는 스크립트 이 스크립트는 게임 실행 중에 공격 인식 및 방향 설정을 로깅합니다.
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: testInterval, testTimer, enemies, dirToTarget, expectedAngle, distance, attackRange, angleDiff, testUnit, validDirectionCount, dirVec, threats, attackerBox, enemyBox
+[함수 및 목적]:
+ - Update: (목적 설명 없음)
+ - ValidateAttackAngleMechanics: (목적 설명 없음)
+ - ValidateMovementDirections: (목적 설명 없음)
+ - ValidateAttackRecognition: (목적 설명 없음)
+--------------------------------------------------

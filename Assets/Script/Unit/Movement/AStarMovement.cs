@@ -192,10 +192,25 @@ public class AStarMovement : IMovementAlgorithm
         int dx = diff.x == 0 ? 0 : (diff.x > 0 ? 1 : -1);
         int dy = diff.y == 0 ? 0 : (diff.y > 0 ? 1 : -1);
 
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+        int mapW = 0, mapH = 0;
+        if (myData.discoveredMap != null && floorIdx < myData.discoveredMap.Length && myData.discoveredMap[floorIdx] != null)
+        {
+            mapW = myData.discoveredMap[floorIdx].GetLength(0);
+            mapH = myData.discoveredMap[floorIdx].GetLength(1);
+        }
+
         foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
         {
-            if (unit.GetDirVector(d) == new Vector2Int(dx, dy))
+            Vector2Int dirVec = unit.GetDirVector(d);
+            if (dirVec == new Vector2Int(dx, dy))
             {
+                if (mapW > 0 && mapH > 0)
+                {
+                    if (!IsTileWalkable(unit, unit.position, unit.position + dirVec, dirVec, myData, mapW, mapH, floorIdx, targetPos, out bool isOcc))
+                        continue;
+                }
                 nextDir = d;
                 return true;
             }

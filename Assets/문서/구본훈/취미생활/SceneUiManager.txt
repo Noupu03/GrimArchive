@@ -1,0 +1,13 @@
+[스크립트 이름]: SceneUiManager
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoRoutine, ISceneWasLoaded
+[변수]: TypePanelStack, OnLoadedPanel, OnReLoadedPanel, ILoadedScene, safeArea, anchorMin, anchorMax, key, null, findRentPanel, pageTypeToRegister, panel, component, onCompletedTask, isOverlay, pageType, instanceID, panelType, currentKey, prevKey, matchingEntry, PanelType, instanceId
+[함수 및 목적]:
+ - Initialize: (목적 설명 없음)
+ - OnValidate: (목적 설명 없음)
+ - ApplySafeArea: (목적 설명 없음)
+ - PeekPanel: (목적 설명 없음)
+ - ClosePeekPanel: (목적 설명 없음)
+ - PanelType: (목적 설명 없음)
+ - OnSceneWasLoaded: (목적 설명 없음)
+--------------------------------------------------

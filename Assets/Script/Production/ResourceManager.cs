@@ -9,7 +9,9 @@ public enum ResourceType
 {
     Wood,
     Stone,
-    Gold
+    Gold,
+    DefenseReward, // 기획문서 상 자원 A (디펜스 보상)
+    OffenseReward  // 기획문서 상 자원 B (오펜스 보상)
 }
 
 public class ResourceManager : NativeRoutine
