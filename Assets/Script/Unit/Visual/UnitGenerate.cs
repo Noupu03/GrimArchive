@@ -371,6 +371,10 @@ public class UnitGenerate
 			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
+				// 선택 여부와 무관하게 항상 표시 — GOAP이 앞으로 실행할 계획을 카메라 위치/배율과
+				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel).
+				uv.UpdateStatusLabel(u.brain.PlanText(u), u is Human);
+
 				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
 				bool showRanges = ShowAllVisionRanges || isSoleSelected;
 				uv.SetVisionRangesVisible(showRanges);

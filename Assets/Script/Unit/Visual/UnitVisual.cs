@@ -42,6 +42,55 @@ public class UnitVisual : MonoBehaviour
 		_circularPerceptionLine = CreateRangeLine("CircularPerceptionLine", circularColor, CircularLineWidth, 9);
 	}
 
+	// ─────────────────────────── GOAP 상태 라벨 (머리 위, 월드 고정) ───────────────────────────
+	// GameSession.ProcessUnitAction → Unit.JudgeState → GoapBrain이 지금 세워둔 "앞으로 실행할 계획"을
+	// 보여준다. 카메라 위치/배율과 무관하게 항상 유닛 위에 붙어 있어야 하므로 Screen Space Canvas가
+	// 아니라 이 유닛 트랜스폼의 자식인 world-space TextMesh로 만든다(UIManager.ShowFloatingText와
+	// 같은 컴포넌트, 저 쪽은 0.5초짜리 팝업이고 이건 계속 갱신되는 상시 라벨이라는 차이만 있음).
+	private TextMesh _statusLabel;
+	private const int StatusLabelSortingOrder = 20; // 시야/인지선(8~10)보다 위, 선택 마커보다도 위
+	private const float StatusLabelWorldOffsetAboveTop = 0.35f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
+
+	// GoapBrain.PlanText(예: "6-7" = MoveToTrap→TrapDisarmPerform, Actions.cs의 ActionCode 1~19 참고)를
+	// 그대로 받아 표시한다 — 과거에 실행한 목표를 누적해서 보여주던 이전 방식(GoalTrailText) 대신,
+	// 지금 이 유닛이 "앞으로 실행할" 계획만 숫자로 순서대로 보여준다(사용자 요청, 2026-07-22 — 문자열이
+	// 아니라 숫자로만). 이미 실행이 끝난 스텝은 GoapBrain.currentPlan에서 곧바로 빠지므로 여기서 따로
+	// 지우는 처리가 필요 없다.
+	public void UpdateStatusLabel(string planText, bool isHuman)
+	{
+		EnsureStatusLabel();
+		if (_statusLabel == null) return;
+		_statusLabel.text = planText;
+		_statusLabel.color = isHuman ? Color.cyan : Color.yellow;
+	}
+
+	private void EnsureStatusLabel()
+	{
+		if (_statusLabel != null || boundUnit == null) return;
+
+		Vector2 footprint = boundUnit.unitType.footprint;
+		if (footprint.x <= 0f || footprint.y <= 0f) footprint = Vector2.one;
+
+		GameObject go = new GameObject("StatusLabel");
+		go.transform.SetParent(transform, false);
+
+		_statusLabel = go.AddComponent<TextMesh>();
+		_statusLabel.fontSize = 48;
+		_statusLabel.characterSize = 0.08f;
+		_statusLabel.anchor = TextAnchor.MiddleCenter;
+		_statusLabel.alignment = TextAlignment.Center;
+
+		MeshRenderer mr = go.GetComponent<MeshRenderer>();
+		mr.sortingOrder = StatusLabelSortingOrder;
+
+		// go(=이 UnitVisual의 트랜스폼)의 localScale이 이미 풋프린트 크기로 맞춰져 있어서
+		// (UnitGenerate.SetupUnitVisual 참고, EnsureSelectionMarker와 동일한 이유) 라벨이 유닛
+		// 크기에 따라 늘어나 보이지 않게 부모 스케일을 역산한다. 위치도 같은 이유로 "풋프린트 상단
+		// + 월드 여백"을 로컬 좌표로 환산한다.
+		go.transform.localScale = new Vector3(1f / footprint.x, 1f / footprint.y, 1f);
+		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) / footprint.y, 0f);
+	}
+
 	private LineRenderer CreateRangeLine(string name, Color color, float width, int sortingOrder)
 	{
 		GameObject go = new GameObject(name);

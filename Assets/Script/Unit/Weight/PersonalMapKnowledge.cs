@@ -304,6 +304,30 @@ public class PersonalMapKnowledge
 			_objectInterest[objectId] = WeightMath.ObjectInterestAfterDrop(baseInterest);
 	}
 
+	// ─────────────────────────── 03문서 9-2/9-3장. 함정 개인 지식(기록 여부/예상 성공률) ───────────────────────────
+	// "기록 여부"와 "예상 해제 성공률"은 지도 기록 전반과 동일하게 관찰자(유닛) 개인 소유다(v3 문서
+	// "함정/방어건물 상태" 기록도 6장/24장 규칙을 따른다는 함정_관련_요약.txt 24절 확인 결과와 일치).
+	// 9-3장의 "함정 정보 전파"는 이 코드베이스에 07_전파 문서가 아직 없어, UnitFunction.
+	// BroadcastWitnessEvent와 동일한 근사(그 순간 생존한 파티원 전원에게 직접 기록)로 구현한다.
+	private readonly HashSet<string> _trapRecorded = new();
+	private readonly Dictionary<string, float> _trapExpectedSuccessRate = new();
+
+	public bool IsTrapRecorded(string trapObjectId) => _trapRecorded.Contains(trapObjectId);
+
+	public float GetTrapExpectedSuccessRate(string trapObjectId) => _trapExpectedSuccessRate.GetValueOrDefault(trapObjectId, 0f);
+
+	// 9-2장: "최초 해제 시도 이후 오차 범위를 포함한 예상 해제 성공률을 기록하며, 이해도가 증가하면
+	// 오차 범위가 감소하고 실제 해제 성공률이 증가한다" — 시도 결과(성공/실패)로 관측된 성공률을
+	// 기록해 이후 판단(9-4장 50% 기준)에 쓴다. observedRate는 ExplorationMath.TrapDisarmSuccessRate로
+	// 계산한 "이 유닛 기준 예상값"을 그대로 넘기면 된다(실제 굴림 결과와 무관하게, "시도해봤다"는
+	// 사실 자체가 그 순간의 예상치를 기록값으로 확정시킨다는 해석 — 9-2장이 오차 범위의 정확한
+	// 축소 공식을 안 줘서, "시도 = 기록 확정"으로 단순화했다).
+	public void RecordTrapAttempt(string trapObjectId, float observedRate)
+	{
+		_trapRecorded.Add(trapObjectId);
+		_trapExpectedSuccessRate[trapObjectId] = observedRate;
+	}
+
 	// ─────────────────────────── 신규. "지금 보고 있는 몬스터" 위치 기록 ───────────────────────────
 	// 15장/18장 수치(위험도/흥미도)를 목격 시점 스냅샷으로 저장한다 — 실시간 조회가 아니라
 	// "마지막으로 확인한 기록"이라는 지도의 성격(지도관련_정리 문서 3-2장, 6-5장 실제값-기록값 차이)에

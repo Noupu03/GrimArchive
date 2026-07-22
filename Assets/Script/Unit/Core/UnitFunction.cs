@@ -84,9 +84,19 @@ public abstract class UnitFunction : Unit
 				// 소폭(-0.01, 전투당 최대 -1) 감소시킨다.
 				this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
 			}
-			// else: 공격자 정체를 인지하지 못함 — 17장 "확인 가능한 공격 방향은 시야 방향 전환/목표
-			// 재설정/경로 재설정 후보로 연결될 수 있다"는 06_전투반응·기습 문서(부재)가 담당할 영역이라
-			// 이번 범위에서는 정체 기반 이벤트(위험도/이해도 반영)만 억제하고 별도 처리는 하지 않는다.
+			else
+			{
+				// 03문서 4-1/4-10/4-11/4-12장: 공격자 정체를 인지하지 못한 피격 — 경계 상태로 전환해
+				// 수색을 시작한다. 공격 방향까지 인지했는지는 별도 판정 공식이 없어(02문서는 "정체"만
+				// 게이팅하고 "방향"은 규정하지 않음) 인지 범위 안이면 방향도 안다고 근사한다(4-10장
+				// 방향 수색으로 이어짐, 범위 밖이면 4-11장 주변 수색). 추가 공격이 오면 수색시간을
+				// 15초로 재설정한다(4-12장) — 매번 새 레코드로 덮어써 자동으로 재설정된다.
+				bool directionKnown = Vector2.Distance(position, attacker.position) <= VisionMath.AwarenessDistance(spotting);
+				currentAlertSearch = new AlertSearchState
+				{
+					TargetPosition = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null,
+				};
+			}
 		}
 		else
 		{
@@ -419,6 +429,14 @@ public abstract class UnitFunction : Unit
 		record.LastKnownTile = tile;
 		record.TargetKind = kind;
 		record.PendingSuspiciousInvestigation = nowSuspicious;
+
+		// 03문서 4-1/4-4장: 수상한 타일이 새로 발생하면 경계 상태를 만든다(이미 경계 중이면 다른
+		// 수상한 타일로 갈아타지 않는다 — Goal_Alert는 고착이 아니라 매 틱 재평가되지만, 정확히 어느
+		// 타일을 보고 있었는지는 유지해야 4-5장 "2칸 이내 재인지"가 의미를 가진다).
+		if (nowSuspicious && currentAlertSearch == null)
+		{
+			currentAlertSearch = new AlertSearchState { TargetPosition = new Vector2Int(tile.x, tile.y) };
+		}
 		return outcome;
 	}
 
@@ -503,6 +521,7 @@ public abstract class UnitFunction : Unit
 							float objVisibility = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
 							PerceptionTargetKind objKind = obj.Tags.Any(t => t.Contains("WipeoutTrace")) ? PerceptionTargetKind.WipeoutTrace
 								: obj.Tags.Any(t => t.Contains("Corpse")) ? PerceptionTargetKind.Corpse
+								: obj.Tags.Any(t => t.Contains("Trap")) ? PerceptionTargetKind.Trap
 								: PerceptionTargetKind.None;
 							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
 
@@ -521,6 +540,19 @@ public abstract class UnitFunction : Unit
 								if (obj.Tags.Any(t => t.Contains("WipeoutTrace")) && !string.IsNullOrEmpty(obj.TraceId))
 								{
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+								}
+
+								// 03문서 9장: 함정을 처음 정확 인지하면 함정 대응 상태를 만든다. 이미 다른 함정을
+								// 처리 중이면(currentTrapInteraction != null) 새 함정은 무시한다 — 9-7장 목록에
+								// "새 함정 발견"은 중단 조건이 아니고, 2-1장이 이미 수행 중인 반응은 자동 중단
+								// 하지 않는다고 명시하므로 한 번에 하나만 처리한다.
+								if (objKind == PerceptionTargetKind.Trap && currentTrapInteraction == null)
+								{
+									currentTrapInteraction = new TrapInteractionState
+									{
+										TrapObjectId = obj.Id,
+										TrapPosition = obj.Position,
+									};
 								}
 							}
 							// else: 수상한 타일/미인식 — 다음 트리거(재진입/2칸 재접근)까지 이 판정을 유지한다.
@@ -651,6 +683,16 @@ public abstract class UnitFunction : Unit
 		float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
 		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
+
+		// 03문서 5-4장(조사)/9-6장(함정 해제): 진행 중에는 시야 범위/인지 범위 전부 기본값의 50%.
+		// ExplorationPenaltyActive는 Unit.cs에 정의(Investigate/TrapInteraction 둘 중 하나라도 페널티
+		// 활성 상태면 true) — 두 문서가 같은 50% 비율이라 별도 분기 없이 하나의 배수로 처리한다.
+		if (ExplorationPenaltyActive)
+		{
+			viewDistance       *= ExplorationMath.InvestigatePenaltyRatio;
+			perceptionAngle    *= ExplorationMath.InvestigatePenaltyRatio;
+			perceptionDistance *= ExplorationMath.InvestigatePenaltyRatio;
+		}
 
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
@@ -838,6 +880,45 @@ public abstract class UnitFunction : Unit
 			{
 				human.personalMap.TickTileInterestConfirm(tile, deltaTime);
 			}
+		}
+
+		// 03문서 4/9장: 경계·함정 대응 타이머 — actionCooldown 주기(GOAP 판단)와 무관하게 실제 경과
+		// 시간으로 흘러야 해서 매 프레임 OnUpdate에서 진행시킨다. GOAP Action은 이 값을 읽고 완료
+		// 시점에 결과를 확정할 뿐, 시간 자체는 여기서만 흐른다.
+		if (currentAlertSearch != null)
+		{
+			currentAlertSearch.ElapsedSeconds += deltaTime;
+			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds : ExplorationMath.UnidentifiedAttackSearchSeconds;
+			if (currentAlertSearch.ElapsedSeconds >= limit) currentAlertSearch = null; // 4-12장/4-8장: 시간 종료 → 경계 해제
+		}
+
+		if (currentTrapInteraction != null)
+		{
+			var trap = currentTrapInteraction;
+			if (!trap.JoinWaitElapsed)
+			{
+				bool recorded = (this is Human trapHuman) && trapHuman.personalMap.IsTrapRecorded(trap.TrapObjectId);
+				if (recorded) trap.JoinWaitElapsed = true; // 9-4장: 기록 함정은 대기 단계 자체가 없음
+				else
+				{
+					trap.JoinWaitTimer += deltaTime;
+					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) trap.JoinWaitElapsed = true;
+				}
+			}
+			else if (trap.Phase == TrapPhase.Disarming)
+			{
+				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / ExplorationMath.TrapDisarmDurationSeconds);
+			}
+			else if (trap.Phase == TrapPhase.Destroying && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
+			{
+				trapObj.TrapHp = Mathf.Max(0f, trapObj.TrapHp - physicalAttack * ExplorationMath.TrapDestroyDamagePerSecondPerAttack * deltaTime);
+			}
+		}
+
+		if (this is Human investigatorHuman && investigatorHuman.currentInvestigation != null && investigatorHuman.currentInvestigation.PenaltyActive)
+		{
+			var inv = investigatorHuman.currentInvestigation;
+			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
 		}
 
 		if (hp > 0f)

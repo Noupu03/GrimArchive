@@ -231,6 +231,34 @@ public abstract class Unit : ScriptableObject
 	public void TriggerAttackVisibilityBoost() => attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
 	public float GetFinalVisibility() => VisionMath.FinalVisibility(baseVisibility, stealth, IsVisibilityBoosted);
 
+	// ─── 03_탐색반응·경계·조사·함정대응_시스템 관련 ────────────────────────────
+	// 함정 대응(9장)과 경계(4장)는 13장 표에 따라 인류/몬스터 공통이라 base Unit에 둔다. 조사(5장)/
+	// 대기(10장)/보호 포메이션(6장)은 인류 전용(또는 몬스터는 "컨셉에 따라"라 아직 구현 안 함)이라
+	// Human 쪽에 둔다(아래 Human 클래스 참고).
+	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
+	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
+
+	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
+	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
+	public bool ExplorationPenaltyActive =>
+		(currentTrapInteraction != null && currentTrapInteraction.PenaltyActive) ||
+		(this is Human human && human.currentInvestigation != null && human.currentInvestigation.PenaltyActive);
+
+	// 9-7장/5-6장 "위협 콜라이더를 인지함" 중단 조건 — 텔레그래프(currentThreat)는 경고 목적이라
+	// 02문서 확률표를 다시 거치지 않고 인지 범위 안의 적이 지금 공격 예고 중인지 raw로 확인한다
+	// (Goal_TrapResponse/Goal_Investigate의 ShouldInterrupt가 공유 호출, 시야인지반응_03_GOAP목표
+	// 우선순위표_2026-07-22.txt 8-1절 근거).
+	public bool HasPerceivedThreatCollider()
+	{
+		float perceptionDistance = VisionMath.AwarenessDistance(spotting);
+		foreach (var enemy in personalSpottedEnemies)
+		{
+			if (enemy == null || enemy.hp <= 0 || enemy.currentThreat == null) continue;
+			if (Vector2Int.Distance(position, enemy.position) <= perceptionDistance) return true;
+		}
+		return false;
+	}
+
 	// ??? ?뺢퇋???⑥닔 ?????????????????????????????????????????????????
 	// 0%~200% 踰붿쐞濡??대옩?? 100%媛 湲곗?媛믨낵 ?쇱튂?섎룄濡?
 	private float Normalize(float value, float baseValue)
@@ -401,6 +429,139 @@ public class Human : UnitFunction
 	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
 	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
 	public Party party;
+
+	// 03문서 5장(조사)/10장(대기)/6장(보호 포메이션) — 인류 전용(13장 표, 몬스터는 "컨셉에 따라"만
+	// 명시돼 있어 실제 컨셉 시스템이 생기기 전까지는 인류만 구현). null이면 각각 진행 중 아님.
+	public InvestigationState currentInvestigation;
+	public WaitState          currentWait;
+	public FormationState     currentFormation;
+
+	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
+	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true.
+	public bool IsInteracting => currentTrapInteraction != null || currentInvestigation != null;
+
+	// 8-2장: "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계"(파티 목표 개념이
+	// 없어 예외 없이 항상 적용, 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 3-1/3-3절 참고).
+	// 같은 파티 안에서 이 유닛을 호위 중(FormationState.EscortTarget==this)인 멤버 중 이번 턴에
+	// 피격당한 사람이 있는지 확인한다 — 호위하는 쪽(FormationState)만 참조를 들고 있어 역방향으로
+	// 파티원을 순회한다(양방향 리스트 관리를 피하기 위한 설계, FormationState.cs 주석 참고).
+	public bool AnyEscortHitThisTurn()
+	{
+		if (party == null) return false;
+		foreach (var m in party.Members)
+		{
+			if (m == null || m == this) continue;
+			if (m.currentFormation != null && m.currentFormation.EscortTarget == this && m.isHitThisTurn) return true;
+		}
+		return false;
+	}
+
+	// Goal_Investigate.GetPriority와 Action_MoveToInvestigateTarget이 공유하는 헬퍼(같은 판정을 두 곳에
+	// 다시 구현하지 않기 위함, 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 0-1절 "공유 원칙").
+	// 5-2장 대상(비전투 오브젝트) 중 함정이 아니고, 시체/전멸흔적처럼 이미 단일 단계로 자동 확인
+	// 완료되는 대상도 아니고(02문서 6장/17장 — CastRay가 정확 인지 즉시 RegisterObject까지 이미
+	// 끝냄), 아직 조사되지 않은, 이 유닛이 이미 아는(personalMap.IsObjectKnown) 가장 가까운
+	// 오브젝트를 찾는다.
+	public InteractableObject FindInvestigateTarget()
+	{
+		if (Session == null) return null;
+
+		InteractableObject best = null;
+		float bestDist = float.MaxValue;
+
+		foreach (var obj in Session.objectGrid.Values)
+		{
+			if (obj == null || obj.IsCollected || obj.IsInvestigated) continue;
+			if (obj.Position.z != currentFloor) continue;
+			if (!personalMap.IsObjectKnown(obj.Id)) continue;
+
+			bool isTrap = false;
+			bool isTrace = false;
+			foreach (var tag in obj.Tags)
+			{
+				if (tag.Contains("Trap")) isTrap = true;
+				if (tag.Contains("Corpse") || tag.Contains("WipeoutTrace")) isTrace = true;
+			}
+			if (isTrap || isTrace) continue;
+
+			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
+			if (d < bestDist) { bestDist = d; best = obj; }
+		}
+		return best;
+	}
+
+	// 5-3장 5가지 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택/도달은 위
+	// FindInvestigateTarget과 Action_MoveToInvestigateTarget.Execute의 이동 로직이 담당).
+	public bool HasReachableInvestigateTarget()
+	{
+		if (personalSpottedEnemies.Count > 0) return false; // 비전투 — 적이 보이면 조사 시작 안 함(전투 우선)
+		return FindInvestigateTarget() != null;
+	}
+
+	// 6-1장 두 번째 조건("자신의 시야 범위 안에서 상호작용 유닛을 직접 확인") — 07_전파 문서가 없어
+	// 지금 구현 가능한 유일한 트리거. 정확 인지 확률 판정을 다시 거치지 않고(아군은 "보이면 안다"로
+	// 취급, 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 3-5절 근거) 시야 범위 안의 같은 파티
+	// 인류 중 IsInteracting인 대상을 직접 찾는다.
+	public Human FindDirectlyVisibleInteractingAlly()
+	{
+		if (party == null || Session == null) return null;
+
+		float viewDistance = VisionMath.ViewDistance(spotting);
+		Human best = null;
+		float bestDist = float.MaxValue;
+
+		foreach (var m in party.Members)
+		{
+			if (m == null || m == this || m.hp <= 0 || m.currentFloor != currentFloor) continue;
+			if (!m.IsInteracting) continue;
+			// 이미 다른 유닛을 호위 중이면 그 대상이 아닌 새 상호작용 유닛으로는 갈아타지 않는다
+			// (6-2장 "기존 포메이션 유지").
+			if (currentFormation != null && currentFormation.EscortTarget != null && currentFormation.EscortTarget != m) continue;
+
+			float d = Vector2Int.Distance(position, m.position);
+			if (d > viewDistance) continue;
+			if (d < bestDist) { bestDist = d; best = m; }
+		}
+		return best;
+	}
+
+	// 6-4/6-5장 근접·원거리 배치 분기 — Actions.cs의 Action_EngageEnemy.ExecuteSkillActionBased가
+	// 이미 쓰는 "최대 스킬 사거리" 판정(HitRange>=4 기준)을 그대로 재사용한다.
+	public bool IsRangedFormationRole()
+	{
+		var skills = Generate != null ? Generate.GetSkills(unitType.typeName) : null;
+		if (skills == null) return false;
+		int maxRange = 0;
+		foreach (var s in skills)
+		{
+			if (s != null && s.HitRange > maxRange) maxRange = s.HitRange;
+		}
+		return maxRange >= ExplorationMath.FormationRangedHitRangeThreshold;
+	}
+
+	// 6-2장 "기존 포메이션 유지" + 6-1장 "직접 시야 확인" 트리거 — Goal_ProtectiveFormation.GetPriority와
+	// GoapWorldState.Build가 같은 판정을 따로 구현하지 않도록 공유한다(0-1절 "공유 원칙").
+	public bool HasProtectiveFormationNeed()
+	{
+		if (currentFormation != null && currentFormation.EscortTarget != null && currentFormation.EscortTarget.IsInteracting) return true;
+		return FindDirectlyVisibleInteractingAlly() != null;
+	}
+
+	// GoapAction.MoveToEscortSlot(GoapCore.cs)과 동일한 배치 공식 — GoapWorldState.Build의 atEscortSlot
+	// 판정이 실제 이동 목표와 어긋나지 않도록 공유한다.
+	public Vector2Int GetEscortSlotPosition(Human escortTarget, float backDistance)
+	{
+		Vector2 facing = GetDirVector(escortTarget.currentDir);
+		if (facing == Vector2.zero) facing = Vector2.down;
+
+		Vector2Int offset = backDistance <= 1f
+			? new Vector2Int(-(int)Mathf.Sign(facing.x), -(int)Mathf.Sign(facing.y))
+			: new Vector2Int(
+				Mathf.RoundToInt(-facing.x * backDistance),
+				Mathf.RoundToInt(-facing.y * backDistance));
+
+		return escortTarget.position + offset;
+	}
 
 	public override void JudgeState()
 	{

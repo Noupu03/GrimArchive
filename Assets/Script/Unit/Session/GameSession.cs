@@ -270,6 +270,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
             if (Keyboard.current.oKey.wasPressedThisFrame) OnKeyDown_O();
+            if (Keyboard.current.pKey.wasPressedThisFrame) OnKeyDown_P();
         }
     }
 
@@ -359,6 +360,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             // 않으므로(5-2장) 재사용 유닛을 넣어도 안전하다.
             m.Knowledge?.InitializeNewUnitPersonalInfo(m);
         }
+        party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
         parties.Add(party);
         return party;
     }
@@ -375,6 +377,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         if (deadUnit is Human deadHuman && deadHuman.party != null)
         {
             var party = deadHuman.party;
+            party.AssignLeaderIfNeeded(); // 죽은 유닛이 리더였으면 여기서 재선정(파티 전멸 여부와 무관하게 항상 확인)
             if (party.WaveEnded || !party.IsWiped) return;
 
             party.WaveEnded = true;
@@ -647,6 +650,30 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         {
             InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Object/Passable/Loot" });
             SpawnObject(obj, Color.magenta);
+        }
+    }
+
+    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 O키(루팅)와 동일한
+    // 관례로 수동 스폰 훅만 만들어둔다. BaseDanger>0으로 스폰해야 Goal_TrapResponse가 실제로 반응한다
+    // (기존 오브젝트들은 전부 BaseDanger=0 — InteractableObject.cs 주석 참고).
+    public void OnKeyDown_P()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+
+        int floorIdx = 1;
+        Vector2Int spawnPos = _unitGenerate.GetRandomFloorPos(Vector2.one, floorIdx);
+        if (spawnPos == Vector2Int.zero) return;
+
+        string objId = "Trap_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, floorIdx);
+
+        if (!objectGrid.ContainsKey(gridPos))
+        {
+            InteractableObject obj = new InteractableObject(
+                objId, gridPos, baseInterest: 0f, baseDanger: 30f,
+                tags: new List<string> { "Object/Passable/Trap" },
+                baseVisibility: 40f, trapHp: 20f, trapDamageMin: 10f, trapDamageMax: 25f);
+            SpawnObject(obj, Color.red);
         }
     }
 
