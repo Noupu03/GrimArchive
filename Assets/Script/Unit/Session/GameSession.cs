@@ -269,8 +269,8 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
             if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
-            if (Keyboard.current.oKey.wasPressedThisFrame) OnKeyDown_O();
-            if (Keyboard.current.pKey.wasPressedThisFrame) OnKeyDown_P();
+            // O(루팅 오브젝트)/P(함정)는 InputManager의 배치 고스트 모드가 담당한다(원하는 위치를
+            // 직접 골라서 놓기 위함, 2026-07-22) — GameSession.SpawnLootObjectAt/SpawnTrapAt 참고.
         }
     }
 
@@ -463,6 +463,10 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         float speed = u.walkSpeed;
         u.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
+        // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를
+        // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
+        TrapInteractionState trapInteractionBefore = u.currentTrapInteraction;
+
         u.JudgeState();
         Vector2Int oldPos = u.position;
         u.ExecuteAction();
@@ -471,6 +475,7 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         {
             UnregisterUnitPos(u, oldPos);
             RegisterUnitPos(u, u.position);
+            TriggerTrapIfStepped(u, trapInteractionBefore);
         }
 
         // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
@@ -478,6 +483,32 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         // 기본값으로 넘겨줄 수 있고, UpdateFOV() 이전에 호출해야 그 방향 기준으로 시야/인지 범위를 계산한다.
         u.ResolveVisionDirection();
         u.UpdateFOV(units);
+    }
+
+    // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른
+    // 함정에 정신 팔려) 그냥 밟고 지나가면 GOAP의 선택과 무관하게 자동으로 피해를 입는다 — 해제/우회가
+    // 거의 항상 먼저 성공해서 Action_TrapPass가 실전에서 거의 발동하지 않는다는 사용자 피드백
+    // (2026-07-22)에 따라 추가. trapInteractionBefore로 "이번 틱 시작 시점에 이미 이 함정을 알고
+    // 대응 중이었는지"를 확인해서, 그런 경우(해제 접근/통과/파괴가 이미 진행 중이던 것)엔 제외한다 —
+    // 안 그러면 의도적 대응(Action_TrapPass 등)과 중복으로 두 번 맞는다. 함정은 일회성이 아니다
+    // (사용자 요청, 2026-07-22) — 해제/파괴로 실제 없앴을 때만 사라지고, 그냥 밟은 것만으로는
+    // 소모되지 않는다 — 같은 자리를 다시 밟으면(이 유닛이든 다른 유닛이든) 또 맞는다.
+    // 인류 전용(사용자 요청, 2026-07-22) — Goal_TrapResponse를 인류 전용으로 좁힌 것과 맞춰, 몬스터는
+    // 이 자동 트리거로도 함정에 전혀 영향받지 않는다(우연히 밟아도 무해 — Passable 태그 그대로 그냥
+    // 지나간다).
+    private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
+    {
+        if (!(unit is Human)) return;
+
+        Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+        if (!objectGrid.TryGetValue(gridPos, out InteractableObject obj)) return;
+        if (obj.Tags == null || !obj.Tags.Exists(t => t.Contains("Trap"))) return;
+
+        bool alreadyHandling = trapInteractionBefore != null && trapInteractionBefore.TrapPosition == gridPos;
+        if (alreadyHandling) return;
+
+        unit.TakeDamage(obj.TrapDamageMax);
+        LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 인지하지 못한 채 밟아 {obj.TrapDamageMax} 피해를 입었습니다.");
     }
 
     public void OnKeyDown_H()
@@ -600,13 +631,25 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
 
         GameObject visual = new GameObject(obj.Id);
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
-        
-        Texture2D tex = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
-        tex.SetPixels(pixels);
-        tex.Apply();
-        Sprite sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+
+        // 함정(Trap 태그)은 다른 오브젝트와 구분되도록 세모 스프라이트로 그린다(사용자 요청,
+        // 2026-07-22) — 사각형 텍스처를 직접 생성하는 대신 UnitGenerate의 몬스터 폴백 스프라이트와
+        // 같은 삼각형 생성 로직을 재사용한다.
+        bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
+        Sprite sprite;
+        if (isTrap && _unitGenerate != null)
+        {
+            sprite = _unitGenerate.CreateTriangleSprite(color);
+        }
+        else
+        {
+            Texture2D tex = new Texture2D(32, 32);
+            Color[] pixels = new Color[32 * 32];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+            tex.SetPixels(pixels);
+            tex.Apply();
+            sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+        }
         sr.sprite = sprite;
         sr.sortingOrder = 5;
         
@@ -635,46 +678,38 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         objectVisuals[obj] = visual;
     }
 
-    public void OnKeyDown_O()
+    // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)
+    // 처럼 원하는 위치를 직접 골라서 놓을 수 있게 해달라는 요청(2026-07-22)에 따라 InputManager가
+    // 고스트 배치 모드를 관리하고 실제 위치가 정해지면 이 메서드들을 호출하는 방식으로 바뀌었다.
+    public void SpawnLootObjectAt(Vector3Int gridPos)
     {
         if (cmap == null || cmap.map.floors == null) return;
-        
-        int floorIdx = 1;
-        Vector2Int spawnPos = _unitGenerate.GetRandomFloorPos(Vector2.one, floorIdx);
-        if (spawnPos == Vector2Int.zero) return;
+        if (objectGrid.ContainsKey(gridPos)) return;
 
         string objId = "InteractableObj_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-        Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, floorIdx);
-        
-        if (!objectGrid.ContainsKey(gridPos))
-        {
-            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Object/Passable/Loot" });
-            SpawnObject(obj, Color.magenta);
-        }
+        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Object/Passable/Loot" });
+        SpawnObject(obj, Color.magenta);
     }
 
-    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 O키(루팅)와 동일한
+    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 루팅 오브젝트와 동일한
     // 관례로 수동 스폰 훅만 만들어둔다. BaseDanger>0으로 스폰해야 Goal_TrapResponse가 실제로 반응한다
     // (기존 오브젝트들은 전부 BaseDanger=0 — InteractableObject.cs 주석 참고).
-    public void OnKeyDown_P()
+    public void SpawnTrapAt(Vector3Int gridPos)
     {
         if (cmap == null || cmap.map.floors == null) return;
-
-        int floorIdx = 1;
-        Vector2Int spawnPos = _unitGenerate.GetRandomFloorPos(Vector2.one, floorIdx);
-        if (spawnPos == Vector2Int.zero) return;
+        if (objectGrid.ContainsKey(gridPos)) return;
 
         string objId = "Trap_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-        Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, floorIdx);
-
-        if (!objectGrid.ContainsKey(gridPos))
-        {
-            InteractableObject obj = new InteractableObject(
-                objId, gridPos, baseInterest: 0f, baseDanger: 30f,
-                tags: new List<string> { "Object/Passable/Trap" },
-                baseVisibility: 40f, trapHp: 20f, trapDamageMin: 10f, trapDamageMax: 25f);
-            SpawnObject(obj, Color.red);
-        }
+        InteractableObject obj = new InteractableObject(
+            // 오브젝트→건축물→지나갈 수 있는 건축물 계층(2026-07-22, 사용자 지정) — Loot/Corpse/
+            // WipeoutTrace 같은 단순 오브젝트와 달리 함정은 "지나갈 수 있는 건축물"로 취급한다.
+            objId, gridPos, baseInterest: 0f, baseDanger: 30f,
+            tags: new List<string> { "Object/Building/Passable/Trap" },
+            // 데미지 상향(2026-07-22, 사용자 요청 "실제로 데미지 들어가게, 꽤 크게") — 기존 10~25에서
+            // 30~60으로. 자동 트리거(GameSession.TriggerTrapIfStepped)까지 추가돼 실제로 자주
+            // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
+            baseVisibility: 40f, trapHp: 20f, trapDamageMin: 30f, trapDamageMax: 60f);
+        SpawnObject(obj, Color.red);
     }
 
     public void CollectObject(Vector3Int pos)

@@ -39,4 +39,10 @@ public class TrapInteractionState
 
 	// 9-7장: 중단됐다가 재개될 때 남은 진행도(50% 손실 후 유지분, 0~1).
 	public float DisarmProgress01;
+
+	// 사용자 요청(2026-07-22): "길이 막혀있는 경우만 해제, 안 막혀있으면 그냥 피해간다" — 이 함정이
+	// 유닛의 실제 목적지(playerMoveTarget/조사 대상)로 가는 유일한 통로인지(대체 경로 있으면 false)를
+	// A* 대체경로 탐색(Action_TrapJoinWait.IsBlockingPath)으로 한 번만 계산해서 캐시해둔다 — 매 틱
+	// 다시 계산하면 비용이 크다.
+	public bool? IsBlockingPath;
 }

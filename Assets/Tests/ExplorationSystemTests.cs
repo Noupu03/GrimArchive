@@ -56,7 +56,9 @@ public class ExplorationSystemTests
 		Assert.AreEqual(0.5f, ExplorationMath.InvestigateInterruptLossRatio, 0.001f);
 		Assert.AreEqual(0.5f, ExplorationMath.TrapPenaltyRatio, 0.001f);
 		Assert.AreEqual(0.5f, ExplorationMath.TrapDisarmInterruptLossRatio, 0.001f);
-		Assert.AreEqual(5f, ExplorationMath.TrapJoinWaitSeconds, 0.001f);
+		// 문서 원래값은 5초인데, 사용자 요청(2026-07-22)으로 3초로 의도적으로 단축했다 — 이 테스트가
+		// "문서 그대로"가 아니라 "현재 확정값"을 고정한다는 점에 유의(ExplorationMath.cs 주석 참고).
+		Assert.AreEqual(3f, ExplorationMath.TrapJoinWaitSeconds, 0.001f);
 		Assert.AreEqual(0.5f, ExplorationMath.TrapPassMinHpRatioAfterHit, 0.001f);
 		Assert.AreEqual(0.3f, ExplorationMath.TrapAllyRescueMinHpRatioAfterHit, 0.001f);
 		Assert.AreEqual(0.6f, ExplorationMath.TrapAllyRescueUnrecordedMinCurrentHpRatio, 0.001f);

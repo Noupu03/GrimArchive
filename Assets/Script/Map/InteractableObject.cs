@@ -37,8 +37,9 @@ public class InteractableObject
     // 1회만 던전 위험도에 반영한다.
     public string TraceId;
 
-    // 03문서 9장(함정 대응): Trap 태그("Object/Passable/Trap")일 때만 의미가 있다(그 외 태그는 전부
-    // 0). 9-9장 "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.
+    // 03문서 9장(함정 대응): Trap 태그("Object/Building/Passable/Trap" — 오브젝트→건축물→지나갈 수
+    // 있는 건축물, 2026-07-22 사용자 지정 계층)일 때만 의미가 있다(그 외 태그는 전부 0). 9-9장
+    // "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.
     public float TrapHp;
     public float TrapMaxHp;
     // 9-10/9-11장 "예상 피해 오차 범위" — 통과 판정은 항상 TrapDamageMax(최대 예상 피해)를 쓴다.

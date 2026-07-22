@@ -18,12 +18,15 @@ public static class ExplorationMath
 	public const float InvestigateInterruptLossRatio = 0.5f; // 5-6장: 중단 시 진행량의 50% 손실
 	// 문서가 "조사에 총 몇 초가 걸리는지"는 안 주고 페널티 비율만 준다 — 진행도 게이지가 실제로
 	// 움직이는 걸 보여주려면 기준 소요시간이 필요해 자체 판단으로 채운 자리표시자(밸런스 미확정).
-	public const float InvestigateDurationSeconds = 3f;
+	// 원래 3초였는데 너무 빨리 끝난다는 사용자 피드백(2026-07-22)에 따라 8초로 늘림.
+	public const float InvestigateDurationSeconds = 8f;
 
 	// ─────────────────────────── 9장/14장. 함정 대응 ───────────────────────────
 	public const float TrapPenaltyRatio = 0.5f;          // 9-6장: 해제 중 시야/인지/반응속도 50%
 	public const float TrapDisarmInterruptLossRatio = 0.5f; // 9-7장: 중단 시 해제량의 50% 손실
-	public const float TrapJoinWaitSeconds = 5f;         // 9-3장: 미기록 함정 합류 의사 대기시간
+	// 9-3장/14장 파라미터표: 문서 원래값은 5초인데, 사용자 요청(2026-07-22)으로 3초로 단축 — 문서
+	// 명시값에서 의도적으로 벗어난 값이라는 점을 기억해둘 것.
+	public const float TrapJoinWaitSeconds = 3f;
 	public const float TrapRecordedDirectDisarmThreshold = 0.5f; // 9-4장: 예상 성공률 50% 초과 기준
 	public const float TrapPassMinHpRatioAfterHit = 0.5f;        // 9-10장: 일반 통과 후 최소 HP 50%
 	public const float TrapAllyRescueMinHpRatioAfterHit = 0.3f;  // 9-11장: 아군 보호 시 기록 함정 통과 후 최소 HP 30%
@@ -58,8 +61,10 @@ public static class ExplorationMath
 	public static float TrapExpectedRateErrorMargin(int understandingApplied)
 		=> TrapExpectedRateMaxErrorMargin * (1f - Mathf.Clamp(understandingApplied, 0, 100) / 100f);
 
-	// 조사와 같은 이유의 자리표시자 — 해제 자체의 기준 소요시간(문서 미명시).
-	public const float TrapDisarmDurationSeconds = 4f;
+	// 조사와 같은 이유의 자리표시자 — 해제 자체의 기준 소요시간(문서 미명시, §14 파라미터표에도 없음
+	// — 문서는 "함정 합류 의사 대기시간"(TrapJoinWaitSeconds)만 명시하고 해제 진행 자체의 소요시간은
+	// 안 준다). 4초→10초→15초로 늘려오다, 최종적으로 사용자가 10초로 확정(2026-07-22).
+	public const float TrapDisarmDurationSeconds = 10f;
 	// 9-9장: 파괴 중 매초 함정 Hp를 얼마나 깎는지(정식 Hitbox 경유가 아닌 간이 구현, physicalAttack에
 	// 비례 — 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 8-7절에 이미 명시된 한계).
 	public const float TrapDestroyDamagePerSecondPerAttack = 0.5f;

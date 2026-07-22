@@ -72,6 +72,15 @@ public class Goal_TrapResponse : GoapGoal
 
 	public override float GetPriority(Unit unit)
 	{
+		// 원래 13장 주석대로 "파괴/통과는 인류+몬스터 공통"이었는데, 몬스터는 Bypass/Disarm이 애초에
+		// Human 전용이라 TrapResponse가 걸리면 선택지가 Pass/Destroy(둘 다 함정을 소모/제거)밖에 없다
+		// — 그 결과 몬스터가 함정을 인지하는 즉시 최우선(140, 고착)으로 달려가 부수거나 맞고 지나가며
+		// 함정을 없애버리는 게 사실상 강제됐다. "함정이 이유 없이 계속 사라진다"는 사용자 신고
+		// (2026-07-22)의 원인 — 몬스터 전용 함정 대응(회피/역이용 등)은 아직 컨셉조차 없으므로
+		// (CLAUDE.md "13장 표, 몬스터는 컨셉에 따라만 명시") 이번엔 인류 전용으로 좁혔다. 몬스터가
+		// 우연히 함정을 밟는 경우는 여전히 GameSession.TriggerTrapIfStepped 자동 트리거로 피해를 입고
+		// 소모되지만, 일부러 찾아가 없애는 일은 더 이상 없다.
+		if (!(unit is Human)) return 0f;
 		if (unit.currentTrapInteraction == null) return 0f;
 		// 9-7장: 적을 정확 인지하면 함정 대응은 즉시 양보하고 DefeatEnemy(100)에 자연히 밀린다.
 		if (unit.personalSpottedEnemies.Count > 0) return 0f;
@@ -98,7 +107,11 @@ public class Goal_Alert : GoapGoal
 	public override float GetPriority(Unit unit)
 	{
 		if (unit.currentAlertSearch == null) return 0f;
-		return 97f;
+		// 원래 97(Investigate 94/Wait 91보다 위)이었는데, 전투가 끝나자마자 "정면 주시" 경계 스윕이
+		// 곧바로 끼어들어서 부자연스럽게 멈춰버린다는 사용자 피드백(2026-07-22)에 따라 90으로 내렸다
+		// — Investigate/Wait처럼 더 확실한 목표가 있으면 그쪽을 먼저 계속하고, 경계는 정말 아무 할 일도
+		// 없을 때만(Explore 10보다는 위) 나선다.
+		return 90f;
 	}
 }
 

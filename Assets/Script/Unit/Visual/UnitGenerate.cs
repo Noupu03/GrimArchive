@@ -486,7 +486,9 @@ public class UnitGenerate
 		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
 	}
 
-	private Sprite CreateTriangleSprite(Color color)
+	// GameSession.SpawnObject(함정 미리보기/실제 스폰)와 InputManager의 배치 고스트에서도 재사용하려고
+	// public으로 뒀다 — 몬스터 폴백 스프라이트(흰색)와 같은 삼각형 모양을 색만 바꿔 그린다.
+	public Sprite CreateTriangleSprite(Color color)
 	{
 		Texture2D texture = new Texture2D(32, 32);
 		Color[]   pixels  = new Color[32 * 32];

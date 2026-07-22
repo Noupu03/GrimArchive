@@ -148,21 +148,40 @@ public class GoapBrain
 	// 세팅)를 여기서 확인해 자동이동인 경우 20/21로 바꿔 표시한다. Preconditions/Effects/Cost는 완전히
 	// 동일한 같은 액션이라 GoapAction 자체를 분리할 이유는 없어(§8-0 "공유해도 안전" 원칙과 동일한
 	// 이유), 표시용 코드만 여기서 갈라준다.
+	// UnitGenerate.SyncVisuals가 (거의) 매 프레임, 씬의 모든 유닛에 대해 이 메서드를 호출한다 — 계획이
+	// 그대로인 유닛까지 매번 List<int>+string.Join을 새로 할당하면 유닛 수만큼 GC 압박이 쌓여 프레임
+	// 드랍의 큰 원인이 된다(2026-07-22, 사용자 신고). currentPlan이 실제로 바뀔 때만(_planVersion 증가
+	// — JudgeState/ExecuteAction에서 Enqueue/Dequeue/Clear할 때마다 올림) 문자열을 다시 만들고, 그
+	// 외엔 캐시된 문자열을 그대로 반환한다. isManualMoveCommand는 계획 변경 없이도 바뀔 수 있어(2/3↔
+	// 20/21 라벨에 영향) 캐시 키에 같이 넣는다.
+	private int    _planVersion;
+	private int    _cachedPlanTextVersion = -1;
+	private bool   _cachedPlanTextManual;
+	private string _cachedPlanText = "0";
+
 	public string PlanText(Unit unit)
 	{
-		if (currentPlan.Count == 0) return "0";
+		bool manual = unit.isManualMoveCommand;
+		if (_cachedPlanTextVersion == _planVersion && _cachedPlanTextManual == manual) return _cachedPlanText;
+
+		_cachedPlanTextVersion = _planVersion;
+		_cachedPlanTextManual  = manual;
+
+		if (currentPlan.Count == 0) { _cachedPlanText = "0"; return _cachedPlanText; }
+
 		var steps = new List<int>(currentPlan.Count);
 		foreach (var action in currentPlan)
 		{
 			int code = action.ActionCode;
-			if (!unit.isManualMoveCommand)
+			if (!manual)
 			{
 				if (action is Action_MoveToPlayerTarget) code = 20;
 				else if (action is Action_CompletePlayerCommand) code = 21;
 			}
 			steps.Add(code);
 		}
-		return string.Join("-", steps);
+		_cachedPlanText = string.Join("-", steps);
+		return _cachedPlanText;
 	}
 
 	public void JudgeState(Unit unit)
@@ -253,6 +272,7 @@ public class GoapBrain
 		if (replanNeeded)
 		{
 			currentPlan.Clear();
+			_planVersion++;
 			if (bestGoal != null)
 			{
 				List<GoapAction> plan = GoapPlanner.Plan(unit, worldState, bestGoal.DesiredState, availableActions);
@@ -265,7 +285,14 @@ public class GoapBrain
 					// 큐 뒤에 붙인다. 예: 전투(DefeatEnemy)가 끼어들어도 그 직전까지 하던 목표(퇴각/조사
 					// 등)가 secondGoal로 잡혀 전투 계획 바로 뒤에 이어지므로, 전투가 실제로 끝나는 순간
 					// (EngageEnemy의 Effects가 검증되는 시점) 재계획 없이 곧바로 다음 행동으로 넘어간다.
-					if (secondGoal != null)
+					//
+					// Goal_Explore는 예외 — 다른 목표가 전혀 안 걸리면 사실상 항상 2등으로 잡히는
+					// 최하위 폴백이라(완료 조건 자체가 없음), 이어붙이면 웨이브 이동(퇴각/루팅) 도착
+					// 직후 바로 "무작위 배회"가 실행돼 도착 판정 전에 그 자리를 벗어나 복귀가 안 되는
+					// 버그가 있었다(2026-07-22, 사용자 신고 "19번으로 고정된 인간 유닛들이 복귀를 안함").
+					// Explore는 애초에 "체이닝해서 예약해둘 다음 행동"이 아니라 매 틱 새로 판단해야 할
+					// 순수 폴백이라 아예 이어붙이기 대상에서 제외한다.
+					if (secondGoal != null && !(secondGoal is Goal_Explore))
 					{
 						GoapState afterBestGoal = GoapPlanner.ApplyAll(worldState, plan);
 						List<GoapAction> followUp = GoapPlanner.Plan(unit, afterBestGoal, secondGoal.DesiredState, availableActions);

@@ -241,10 +241,16 @@ public class Action_TrapJoinWait : GoapAction
 	public override bool IsValid(Unit unit) => IsDisarmWorthy(unit);
 
 	// 9-3/9-4장: 미기록 함정은 항상 해제부터 시도, 기록 함정은 예상 성공률이 50% 초과할 때만 직접
-	// 해제(그 외엔 Bypass/Pass/Destroy로 자연히 넘어간다). Action_MoveToTrap도 이 판정을 그대로
-	// 재사용한다 — UnitFunction.OnUpdate가 GOAP 선택과 무관하게 배경에서 trapJoinWaitElapsed
-	// 타이머를 계속 진행시키므로(기록 함정은 대기 없이 즉시 true), 이 게이트를 여기 한 곳에만 두면
-	// 이미 시간이 지난 뒤엔 해제할 가치 없는 함정도 그냥 체이닝돼버리는 구멍이 생긴다.
+	// 해제한다. "대체 경로가 있는지"는 여기(해제 시도 여부)와는 무관하다 — 문서 9-4장은 성공률
+	// 기준만으로 해제를 판단하고, "대체 경로 존재 여부"는 9-8장에서 성공률이 50% 이하일 때 우회를
+	// 선택할지(있으면 우회) 파괴/통과를 선택할지(없으면) 가르는 데만 쓰인다. 한 번은 이 구분을
+	// 착각해서 해제 자체를 "막혀있을 때만" 시도하도록 잘못 게이트했다가, 그 결과 웬만한 함정은 대체
+	// 경로가 있어서 해제를 아예 시도하지 않게 되는 버그를 냈다(2026-07-22, 사용자 신고 "함정 해제
+	// 시도를 전혀 하지 않고 있어" — 문서 재확인 후 원복). IsBlockingPath는 이제 Action_TrapBypass/
+	// Pass/Destroy의 IsValid에서만 쓴다. Action_MoveToTrap도 이 판정을 그대로 재사용한다 —
+	// UnitFunction.OnUpdate가 GOAP 선택과 무관하게 배경에서 trapJoinWaitElapsed 타이머를 계속
+	// 진행시키므로(기록 함정은 대기 없이 즉시 true), 이 게이트를 여기 한 곳에만 두면 이미 시간이
+	// 지난 뒤엔 해제할 가치 없는 함정도 그냥 체이닝돼버리는 구멍이 생긴다.
 	public static bool IsDisarmWorthy(Unit unit)
 	{
 		if (!(unit is Human human) || human.currentTrapInteraction == null) return false; // 13장: 해제=인류 전용
@@ -254,6 +260,63 @@ public class Action_TrapJoinWait : GoapAction
 		if (!human.personalMap.IsTrapRecorded(trap.TrapObjectId)) return true;
 		float expected = human.personalMap.GetTrapExpectedSuccessRate(trap.TrapObjectId);
 		return expected > ExplorationMath.TrapRecordedDirectDisarmThreshold * 100f;
+	}
+
+	// "길이 막혀있다" = 이 함정 칸을 벽처럼 막아놓고 봤을 때, 유닛의 실제 목적지(자동/수동 이동
+	// 명령이면 playerMoveTarget, 조사 중이면 조사 대상 위치)까지 갈 수 있는 대체 경로가 하나도
+	// 없다는 뜻 — A*가 아니라 단순 BFS 연결성 검사로 확인한다(도달 가능한지만 알면 되고 최단 경로
+	// 자체는 필요 없음). 뚜렷한 목적지가 없으면(그냥 배회 중 등) "막힌 게 아님"으로 본다 — 갈 곳이
+	// 없는데 막혔다는 개념 자체가 성립하지 않는다. 결과는 TrapInteractionState.IsBlockingPath에
+	// 캐시해서 트랩 하나당 한 번만 계산한다(매 틱 다시 BFS 돌리면 비용이 큼).
+	public static bool IsBlockingPath(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap == null) return false;
+		if (trap.IsBlockingPath.HasValue) return trap.IsBlockingPath.Value;
+
+		trap.IsBlockingPath = ComputeIsBlockingPath(unit, trap.TrapPosition);
+		return trap.IsBlockingPath.Value;
+	}
+
+	private static bool ComputeIsBlockingPath(Unit unit, Vector3Int trapPos)
+	{
+		Vector2Int? destination = unit.playerMoveTarget.HasValue ? unit.playerMoveTarget
+			: (unit is Human human && human.currentInvestigation != null
+				? new Vector2Int(human.currentInvestigation.TargetPosition.x, human.currentInvestigation.TargetPosition.y)
+				: (Vector2Int?)null);
+
+		if (!destination.HasValue) return false; // 뚜렷한 목적지 없음 → 막힌 게 아님으로 취급
+
+		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+		int floorIdx = unit.currentFloor;
+		if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+			return false; // 지도 정보 없음 → 판정 불가, 안전하게 "안 막힘"으로 보고 그냥 피해가게 함
+
+		int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+		int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+		Vector2Int trap2D = new Vector2Int(trapPos.x, trapPos.y);
+
+		// 함정 칸을 벽처럼 취급해서 처음부터 방문 목록에 넣어둔다 — BFS가 절대 그 칸을 통과하지 않는다.
+		var visited = new HashSet<Vector2Int> { unit.position, trap2D };
+		var queue = new Queue<Vector2Int>();
+		queue.Enqueue(unit.position);
+
+		while (queue.Count > 0)
+		{
+			Vector2Int cur = queue.Dequeue();
+			if (cur == destination.Value) return false; // 대체 경로로 도달 가능 = 안 막힘
+
+			foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+			{
+				Vector2Int next = cur + unit.GetDirVector(d);
+				if (visited.Contains(next)) continue;
+				if (next.x < 0 || next.x >= mapW || next.y < 0 || next.y >= mapH) continue;
+				if (myData.discoveredMap[floorIdx][next.x, next.y] == 2) continue; // 벽
+				visited.Add(next);
+				queue.Enqueue(next);
+			}
+		}
+		return true; // 큐가 비었는데 목적지에 못 닿음 = 함정이 유일한 통로(진짜 막힘)
 	}
 
 	// 9-3장: 5초 대기 — 그 자리에서 기다린다(OnUpdate가 시간을 진행시켜 trap.JoinWaitElapsed를 채움).
@@ -334,11 +397,10 @@ public class Action_TrapBypass : GoapAction
 	public Action_TrapBypass() { ActionName = "TrapBypass"; AddEffect("trapHandled", true); Cost = 2f; }
 	public override int ActionCode => 8;
 
-	// 9-8장: 대체 경로 존재 여부를 실제 경로 탐색으로 검증하지는 않는다(정식 다중 경로 탐색이
-	// 없음) — 해제 체인(TrapJoinWait/MoveToTrap/TrapDisarmPerform)이 유효하지 않을 때의 기본
-	// 차선책으로 항상 시도 가능하게 둔다.
-	// 근접 실패 시 Cost가 더 낮은 Disarm이 먼저 골라지므로 실질적으로 "해제 불가할 때만" 선택된다.
-	public override bool IsValid(Unit unit) => unit is Human human && human.currentTrapInteraction != null;
+	// 9-8장: 대체 경로가 실제로 있을 때만(Action_TrapJoinWait.IsBlockingPath == false) 유효하다 —
+	// 사용자 요청(2026-07-22) "안 막혀있으면 그냥 피해간다"의 실제 구현. 대체 경로가 없어 진짜
+	// 막혀있으면 여기가 아니라 Disarm/Pass/Destroy 쪽으로 넘어간다.
+	public override bool IsValid(Unit unit) => unit is Human human && human.currentTrapInteraction != null && !Action_TrapJoinWait.IsBlockingPath(unit);
 
 	public override void Execute(Unit unit)
 	{
@@ -367,9 +429,12 @@ public class Action_TrapPass : GoapAction
 	// 9-10/9-11장: 일반 통과(맞은 후 최소 HP 50%) 또는 아군 보호 완화 기준(맞은 후 30%, 미기록이면
 	// 현재 HP 60% 이상) 중 하나를 만족하면 통과할 수 있다. "더 빠른 경로"/"우회 없음" 비교는 09
 	// 문서(경로 재설정) 부재로 생략하고 "맞고 지나갈 수 있는가"만 확인한다.
+	// 사용자 요청(2026-07-22): 대체 경로가 있으면(안 막힘) 굳이 맞아가며 통과할 필요 없이
+	// Action_TrapBypass가 처리하므로, Pass는 진짜 막혀있을 때만 유효하다.
 	public override bool IsValid(Unit unit)
 	{
 		if (unit.currentTrapInteraction == null) return false; // 13장: 파괴/통과는 인류+몬스터 공통
+		if (!Action_TrapJoinWait.IsBlockingPath(unit)) return false;
 		var trap = unit.currentTrapInteraction;
 		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(trap.TrapPosition, out var obj)) return false;
 
@@ -408,6 +473,9 @@ public class Action_TrapPass : GoapAction
 		// 9-10장: 예상 피해 오차 범위 중 최대값을 적용해 통과.
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
+		// 함정은 일회성이 아니다(사용자 요청, 2026-07-22) — 해제(Disarm)/파괴(Destroy)로 실제 없앴을
+		// 때만 사라지고, 맞고 지나가는 것만으로는 소모되지 않는다. 그대로 남아있다가 다른 유닛(또는
+		// 이 유닛이 나중에 다시 지나갈 때)도 또 맞을 수 있다.
 		unit.currentTrapInteraction = null;
 	}
 }
@@ -418,8 +486,9 @@ public class Action_TrapDestroy : GoapAction
 	public override int ActionCode => 10;
 
 	// 13장: 파괴는 인류+몬스터 공통. Pass(Cost 3)가 유효하면 항상 먼저 선택되므로(더 낮은 Cost),
-	// Destroy는 통과도 위험할 만큼 피해가 큰 함정에서만 실질적으로 선택된다.
-	public override bool IsValid(Unit unit) => unit.currentTrapInteraction != null;
+	// Destroy는 통과도 위험할 만큼 피해가 큰 함정에서만 실질적으로 선택된다. Pass와 동일하게
+	// 대체 경로가 있으면(안 막힘) Bypass가 처리하므로, Destroy도 진짜 막혀있을 때만 유효하다.
+	public override bool IsValid(Unit unit) => unit.currentTrapInteraction != null && Action_TrapJoinWait.IsBlockingPath(unit);
 
 	public override void Execute(Unit unit)
 	{
@@ -577,8 +646,25 @@ public class Action_AlertPerimeterSearch : GoapAction
 		// 4-9장: "바라보는 정면 방향으로 이동하며 시야·인지 판정 반복" — 방향은 그대로 유지하고
 		// 그 방향으로 한 걸음씩 이동한다(4-11장 포메이션 위치별 분산 방향 배정은 Goal_
 		// ProtectiveFormation 연동이 더 갖춰진 뒤 확장할 영역, 8-3/8-4절 참고).
-		Vector2Int forward = unit.GetDirVector(unit.currentDir);
-		MoveTowardsPos(unit, unit.position + forward);
+		//
+		// 정면이 막혀있으면(벽/막다른 곳) 8방향을 순서대로 돌며 실제로 이동 가능한 방향을 찾는다 —
+		// 원래는 정면 한 칸만 목표로 삼아서, 이 액션이 발동하는 시점(전투 종료 후 10초 스윕)의
+		// currentDir가 "직전에 싸우던 적 쪽"을 향한 채로 넘어오다가 하필 그 방향이 막혀 있으면
+		// 10초 내내 제자리에서 완전히 멈춰버리는 버그가 있었다(2026-07-22, 사용자 신고 — 좁은 통로에
+		// 함정이 있을 때 자주 재현).
+		if (unit.MovementAlgorithm == null) return;
+
+		for (int i = 0; i < 8; i++)
+		{
+			Dir tryDir = (Dir)(((int)unit.currentDir + i) % 8);
+			Vector2Int targetPos = unit.position + unit.GetDirVector(tryDir);
+			if (unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
+			{
+				unit.currentDir = tryDir;
+				unit.Move(nextDir);
+				return;
+			}
+		}
 	}
 }
 

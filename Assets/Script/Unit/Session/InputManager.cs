@@ -47,6 +47,12 @@ public class InputManager : MonoBehaviour
 	private ProductionRule currentBuildRule;
 	private Sprite currentBuildSprite;
 
+	// === 오브젝트(O)/함정(P) 배치 모드 — 빌드 모드와 같은 고스트 방식(2026-07-22, 사용자 요청) ===
+	public bool isObjectPlaceMode = false;
+	public bool isTrapPlaceMode = false;
+	private GameObject placeGhost;
+	private SpriteRenderer placeGhostRenderer;
+
 	[Inject]
 	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager)
 	{
@@ -124,6 +130,21 @@ public class InputManager : MonoBehaviour
 		{
 			UpdateBuildMode(floorOffset, currentFloor);
 			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
+		}
+
+		// =====================================================
+		// 오브젝트(O)/함정(P) 배치 모드 — B키(빌드 모드)와 동일한 방식(고스트 스프라이트가 마우스를
+		// 따라다니다 좌클릭한 위치에 생성, 우클릭으로 취소)으로 원하는 위치를 직접 골라서 놓는다
+		// (사용자 요청, 2026-07-22 — 예전엔 O/P가 GameSession.HandleDebugInput에서 즉시 무작위 위치에
+		// 스폰했음).
+		// =====================================================
+		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlaceMode();
+		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlaceMode();
+
+		if (isObjectPlaceMode || isTrapPlaceMode)
+		{
+			UpdatePlaceMode(floorOffset, currentFloor);
+			return; // 배치 모드 중에는 유닛 선택 로직 스킵
 		}
 
 		// =====================================================
@@ -477,6 +498,7 @@ public class InputManager : MonoBehaviour
 	private void EnterBuildMode()
 	{
 		if (isBuildMode) return;
+		ExitPlaceMode(); // 오브젝트/함정 배치 모드와 동시에 켜지지 않게 한다
 		isBuildMode = true;
 
 		// 임시로 더미 생산 규칙 하나 생성
@@ -552,6 +574,89 @@ public class InputManager : MonoBehaviour
 			// 6단계: 설치 렌더링 및 등록
 			_buildingManager.InstallBuilding(gridPos, currentBuildRule, currentBuildSprite);
 			ExitBuildMode();
+		}
+	}
+
+	// =====================================================
+	// 오브젝트(O)/함정(P) 배치 모드 — 빌드 모드와 동일한 고스트 방식(2026-07-22, 사용자 요청).
+	// 둘 다 InteractableObject라 고스트 하나를 공유하고, 모양/색만 종류에 따라 바꿔 쓴다.
+	// =====================================================
+	private void EnterObjectPlaceMode()
+	{
+		if (isObjectPlaceMode) return;
+		ExitBuildMode();
+		isTrapPlaceMode = false;
+		isObjectPlaceMode = true;
+
+		EnsurePlaceGhost();
+		// 빌드 모드와 같은 벽 타일 이미지를 임시 사각형 모양으로 재사용한다.
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("Tile_StoneWall");
+		LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성, 우클릭: 취소)");
+	}
+
+	private void EnterTrapPlaceMode()
+	{
+		if (isTrapPlaceMode) return;
+		ExitBuildMode();
+		isObjectPlaceMode = false;
+		isTrapPlaceMode = true;
+
+		EnsurePlaceGhost();
+		// 함정은 세모 스프라이트로 표시(사용자 요청) — UnitGenerate의 몬스터 폴백 삼각형 생성 로직 재사용.
+		placeGhostRenderer.sprite = _unitGenerate != null ? _unitGenerate.CreateTriangleSprite(Color.white) : null;
+		LogHelper.Log(LogHelper.GAME, "함정 배치 모드 진입 (좌클릭: 생성, 우클릭: 취소)");
+	}
+
+	private void ExitPlaceMode()
+	{
+		isObjectPlaceMode = false;
+		isTrapPlaceMode = false;
+		if (placeGhost != null) placeGhost.SetActive(false);
+	}
+
+	private void EnsurePlaceGhost()
+	{
+		if (placeGhost == null)
+		{
+			placeGhost = new GameObject("PlacementGhost");
+			placeGhostRenderer = placeGhost.AddComponent<SpriteRenderer>();
+			placeGhostRenderer.sortingOrder = 10;
+		}
+		placeGhost.SetActive(true);
+	}
+
+	private void UpdatePlaceMode(Vector3 floorOffset, int currentFloor)
+	{
+		Vector2 mousePos = Mouse.current.position.ReadValue();
+		Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+		// 이미 다른 오브젝트가 있거나(objectGrid) 벽/유닛으로 막혀있으면(IsAreaClear) 놓을 수 없다.
+		bool canPlace = _gameSession != null && _unitGenerate != null
+			&& !_gameSession.objectGrid.ContainsKey(gridPos)
+			&& _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor);
+
+		if (placeGhost != null)
+		{
+			placeGhost.transform.position = new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f) + floorOffset;
+			placeGhostRenderer.color = canPlace
+				? new Color(0f, 1f, 0f, 0.5f)  // 배치 가능 (녹색 반투명)
+				: new Color(1f, 0f, 0f, 0.5f); // 배치 불가 (빨간색 반투명)
+		}
+
+		if (Mouse.current.rightButton.wasPressedThisFrame)
+		{
+			ExitPlaceMode();
+			return;
+		}
+
+		if (Mouse.current.leftButton.wasPressedThisFrame && canPlace)
+		{
+			if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+			{
+				if (isObjectPlaceMode) _gameSession.SpawnLootObjectAt(gridPos);
+				else if (isTrapPlaceMode) _gameSession.SpawnTrapAt(gridPos);
+				ExitPlaceMode();
+			}
 		}
 	}
 }

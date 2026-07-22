@@ -76,7 +76,6 @@ public class AStarMovement : IMovementAlgorithm
                 if (!IsTileWalkable(unit, current.Pos, neighborPos, dirVec, myData, mapW, mapH, floorIdx, targetPos, out bool isOccupied)) continue;
 
                 int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
-                if (isOccupied) moveCost += 30;
 
                 int newGCost = current.GCost + moveCost;
 
@@ -115,6 +114,13 @@ public class AStarMovement : IMovementAlgorithm
         return false;
     }
 
+    // 유닛 점유 타일을 "비용만 추가되는 통행 가능 칸"으로 취급했었는데, 실제 이동을 실행하는
+    // UnitFunction.CanMove/Move()는 점유된 칸을 예외 없이 완전히 막는다(2026-07-22 발견) — A*가
+    // "이 길로 가면 조금 더 걸리지만 갈 수는 있다"고 추천한 칸이 실제로는 Move() 단계에서 조용히
+    // 실패해서, GOAP은 "이동했다"고 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈춰버리는
+    // 버그였다(파티가 밀집한 웨이브 대형에서 서로 자리를 막아 자주 재현 — 사용자 신고 스크린샷 참고).
+    // 이제 CanMove와 똑같이 점유된 칸은 완전히 막아서(원래 예외였던 targetPos 자체도 포함) 이 둘이
+    // 항상 같은 판단을 하도록 맞춘다.
     protected virtual bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         isOccupied = false;
@@ -132,11 +138,10 @@ public class AStarMovement : IMovementAlgorithm
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
                 if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
 
-                if (neighborPos != targetPos &&
-                    unit.Session != null &&
+                if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
-                    if (u != null && u != unit && u.hp > 0) isOccupied = true;
+                    if (u != null && u != unit && u.hp > 0) { isOccupied = true; isWall = true; break; }
                 }
             }
         }

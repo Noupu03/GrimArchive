@@ -437,8 +437,19 @@ public class Human : UnitFunction
 	public FormationState     currentFormation;
 
 	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
-	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true.
-	public bool IsInteracting => currentTrapInteraction != null || currentInvestigation != null;
+	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true. 함정 쪽은 "함정 위치에
+	// 실제로 도달했을 때"만 true로 좁혔다(2026-07-22, 사용자 신고 — 함정이 이미 해제됐는데도 주변이
+	// 경계 태세를 취함) — 9-5장 순서가 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호
+	// 포메이션 형성 → 함정 해제 시작"이라, 발견 직후 5초 합류 대기나 이동 중(아직 도착 전)에는
+	// 보호 포메이션이 형성되면 안 된다. 예전엔 함정을 인지한 순간부터(도착 전 포함) true였다.
+	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
+
+	private bool IsActivelyHandlingTrap()
+	{
+		var trap = currentTrapInteraction;
+		if (trap == null) return false;
+		return position == new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+	}
 
 	// 8-2장: "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계"(파티 목표 개념이
 	// 없어 예외 없이 항상 적용, 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 3-1/3-3절 참고).
@@ -462,7 +473,23 @@ public class Human : UnitFunction
 	// 완료되는 대상도 아니고(02문서 6장/17장 — CastRay가 정확 인지 즉시 RegisterObject까지 이미
 	// 끝냄), 아직 조사되지 않은, 이 유닛이 이미 아는(personalMap.IsObjectKnown) 가장 가까운
 	// 오브젝트를 찾는다.
+	//
+	// GoapWorldState.Build가 매 틱(JudgeState/ExecuteAction 각각) 이걸 호출하고 Goal_Investigate.
+	// GetPriority/Action_MoveToInvestigateTarget.Execute도 각자 또 호출해서, 한 유닛의 ProcessUnitAction
+	// 한 번에 오브젝트 전체를 3~4번씩 훑는 게 프레임 드랍의 주된 원인이었다(2026-07-22, 사용자 신고).
+	// 같은 프레임 안에서는 결과가 바뀔 일이 없으므로 프레임 단위로 캐시한다.
+	private int _investigateTargetCacheFrame = -1;
+	private InteractableObject _investigateTargetCache;
+
 	public InteractableObject FindInvestigateTarget()
+	{
+		if (_investigateTargetCacheFrame == Time.frameCount) return _investigateTargetCache;
+		_investigateTargetCacheFrame = Time.frameCount;
+		_investigateTargetCache = ComputeInvestigateTarget();
+		return _investigateTargetCache;
+	}
+
+	private InteractableObject ComputeInvestigateTarget()
 	{
 		if (Session == null) return null;
 

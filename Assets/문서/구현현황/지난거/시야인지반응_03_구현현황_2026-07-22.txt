@@ -1,0 +1,314 @@
+GrimArchive 03_탐색반응·경계·조사·함정대응_시스템_v0.6 — 구현 현황 (2026-07-22)
+
+배경: 같은 폴더의 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt(설계, Goal/Action/WorldState
+전체 설계)와 시야인지반응_GOAP전체목표_마스터우선순위표_2026-07-22.txt(전체 그림)에서 설계를 끝낸
+뒤, 이번 세션에서 실제 코드로 옮겼다. 사용자 요청에 따라 08_리더·명령·파티통제 문서가 아직 없는데도
+"리더" 개념과 함정 엔티티를 임시로 먼저 추가했다(Party.Leader, InteractableObject 함정 필드).
+
+태그: ✅ 구현(자동 발동) / 🔶 부분·간이 구현(동작은 하지만 문서 세부 규칙 일부 단순화) / ❌ 미구현.
+
+════════════════════════════════════════════════════════════════════════
+■ 후속 반영(같은 날 후속 세션) — 진짜 GOAP 플래너 도입 + 웨이브 퇴각 우선순위 버그 수정
+════════════════════════════════════════════════════════════════════════
+배경: 사용자가 "인간 진영이 오브젝트 회수 후 멈춘다"/"웨이브 후 퇴각 로직이 고장났다"고 신고. 원인은
+Goal_PlayerCommand의 자동이동(웨이브 회수/퇴각) 우선순위가 90이라 Alert(97)/Investigate(94, 고착)보다
+낮았던 것 — 유닛이 알던 미조사 오브젝트가 하나라도 남아있으면 퇴각을 버리고 조사로 새버리고, 조사가
+고착(IsSticky)이라 다시는 안 돌아왔다. 이 90이라는 값은 §7 표에 실제로 명시돼 있었지만, 웨이브 회수/
+퇴각이 이 경로를 탄다는 걸 모르고 정한 값이었음(사용자 확인 후 99로 상향 — 아래 참고).
+
+같은 대화에서 사용자가 더 근본적으로 지적: "반응형이면 GOAP가 아니다" — 매 틱 최고 우선순위 목표를
+고른 뒤 그 목표에 맞는 액션 1개만 즉시 매칭하던 기존 구조(위 "핵심 구조" 섹션, §0/§8-0가 스스로도
+"실질적으로 Utility AI에 가깝다"고 인정한 부분)를 실제로 액션을 체이닝하는 A*/STRIPS 플래너로
+교체하기로 함(범위: 9개 목표 전체, 깊이: 다중 액션 체이닝 — 사용자 확인).
+
+✅ `GoapWorldState.cs`(신규) — 예전엔 enemyVisible/isHit 2개 키뿐이던 월드 스테이트를 9개 목표
+   DesiredState 전부 + 새 위치 서브골(atTrap/atInvestigateTarget/atEscortSlot/atPlayerMoveTarget/
+   trapJoinWaitElapsed)까지 포함하도록 확장. Unit/Human 기존 필드만 읽는 순수 함수, 새 상태 필드는
+   추가하지 않음.
+✅ `GoapPlanner.cs`(신규) — 균일비용(Dijkstra) 탐색으로 Preconditions/Effects를 실제로 체이닝해
+   시작 상태에서 목표의 DesiredState까지 도달하는 액션 시퀀스를 찾는다. 예전엔 없던 "Effects를 다음
+   상태에 적용"하는 단계(Apply)가 이제 있음. 구현 중 발견한 버그: 첫 버전은 "만들어지는 시점"에 목표
+   만족을 체크해서 반환했는데, 이러면 같은 Effect를 공유하는 액션 중(예: Bypass/Pass/Destroy가 전부
+   trapHandled=true) 등록 순서상 먼저 나온 게 실제로는 더 비싸도 선택될 수 있었음 — "꺼내는 시점"에
+   체크하고 상태별 최저비용을 Dictionary로 추적(재-relax)하는 표준 Dijkstra 방식으로 수정.
+✅ `GoapBrain`(GoapCore.cs) — `currentPlannedAction`(액션 1개) 대신 `Queue<GoapAction> currentPlan`
+   보유. 목표 선택(우선순위+IsSticky/ShouldInterrupt, goalTrail)은 그대로 — 실제 GOAP 플래너 위에
+   놓이는 표준 "목표 관리자" 레이어라 바꿀 이유가 없었음. 재계획 트리거 4가지: 계획 비어있음/목표가
+   바뀜/다음 액션의 Precondition이 더 이상 안 맞음/다음 액션의 IsValid가 false. `ExecuteAction`도
+   액션 실행 후 Effects를 GoapWorldState로 다시 지어 실제로 만족되는지 검증한 뒤에만 다음 스텝으로
+   넘어간다(예전엔 선언만 하고 검증 안 하던 부분 — Action_EngageEnemy도 이제 "진짜로 적이 안 보이게
+   됐는지"를 검증받고서야 다음 액션으로 넘어감, 별도 분리 없이 공짜로 얻은 개선).
+✅ 4개 목표를 "이동" + "실행" 2단계(TrapResponse의 해제 경로는 3단계)로 분리해 실제 체이닝 사례를
+   만듦 — 나머지 5개(Panic/DefeatEnemy/Alert/Wait/Explore)는 원래도 분기 지점이 없어 그대로 두고
+   플래너를 거치되 1단계 계획만 나온다(정상):
+   - PlayerCommand: `Action_MoveToPlayerTarget`(atPlayerMoveTarget) → `Action_CompletePlayerCommand`
+     (도착 후 루팅/조사 자동 트리거, 기존 Action_PlayerCommandExecute 대체).
+   - TrapResponse 해제만: `Action_TrapJoinWait`(9-3장 5초 대기, trapJoinWaitElapsed) →
+     `Action_MoveToTrap`(atTrap) → `Action_TrapDisarmPerform`(기존 Action_TrapDisarm 대체). Bypass/
+     Pass/Destroy는 각자 다른 위치·조건(우회는 함정 타일 자체를 안 밟음, 파괴는 인접칸에서)이라
+     분리하지 않고 그대로 단일 액션(trapHandled=true 공유는 그대로 §8-0 근거).
+   - Investigate: `Action_MoveToInvestigateTarget`(atInvestigateTarget, 대상 없으면 새로 찾는 로직도
+     여기로) → `Action_InvestigatePerform`(기존 Action_Investigate 대체).
+   - ProtectiveFormation: `Action_MoveToEscortSlotMelee`/`Action_MoveToEscortSlotRanged`
+     (atEscortSlot) → `Action_HoldFormation`(도착 후 방향만 맞춤, 기존 Action_FormationMelee/Ranged
+     대체). 공유 배치 공식은 `GoapAction.MoveToEscortSlot`(GoapCore.cs, 예전 ExecuteFormation)과
+     `Human.GetEscortSlotPosition`(Unit.cs, GoapWorldState의 atEscortSlot 판정과 공유)으로 분리.
+✅(수정) Goal_PlayerCommand 자동이동 우선순위 90→99(전투 100 바로 아래, Alert 97 위) — 위 배경 참고.
+✅ `Human.HasProtectiveFormationNeed()`(Unit.cs 신규) — Goal_ProtectiveFormation.GetPriority와
+   GoapWorldState.Build가 같은 판정을 공유(§0-1 "공유 원칙").
+✅ `Assets/Tests/GoapPlannerTests.cs`(신규) — 체이닝/도달불가 null 반환/등록순서와 무관하게 최저비용
+   경로 선택/이미 만족된 상태는 빈 계획 반환, 4개 케이스 고정.
+✅(수정) 머리 위 상태 라벨 — 사용자가 "과거에 실행한 계획이 누적되는 방식 말고, 앞으로 실행할 계획을
+   나열하고 이미 실행한 건 사라지게 해달라", 이어서 "문자열 말고 숫자로만 표현해라"고 요청.
+   `GoapBrain.GoalTrailText`(목표가 바뀔 때마다 `GoapGoal.StateCode` 숫자를 최대 6개까지 누적, 예:
+   "4-7-9-2-1-8")를 완전히 제거하고 `GoapBrain.PlanText`로 교체 — `currentPlan`(Queue)에 지금
+   남아있는 액션의 새 `GoapAction.ActionCode`(Actions.cs 등록 순서 그대로 1~19, 0은 "계획 없음"
+   전용)를 순서대로 나열한다(예: "6-7" = MoveToTrap→TrapDisarmPerform). 이미 실행이 끝난 스텝은
+   `ExecuteAction`이 Dequeue하면서 `currentPlan`에서 곧바로 빠지므로 화면에서도 자연히 사라진다 —
+   별도 "지우기" 로직 불필요. 더 이상 쓰이지 않게 된 `GoapGoal.StateCode`(추상 프로퍼티 + 9개 Goal_
+   전부의 override)는 삭제하고 그 대신 `GoapAction.ActionCode`(추상 프로퍼티 + 19개 Action_ 전부의
+   override)를 추가한 셈. `UnitVisual.UpdateStatusLabel`/`UnitGenerate.SyncVisuals` 호출부도
+   `PlanText`로 갱신.
+
+✅ "다음 우선순위 목표까지 미리 이어붙이기" — 사용자가 "전투로 인터럽트가 생겨도 전투 이후에 할
+   행동까지 미리 계획을 세우게 해달라, 지금은 자꾸 단일 계획만 나온다"고 요청(3가지 방식 중 이걸
+   선택 — 계획 스택으로 보류/재개하는 방식과 Goal.GetPriority를 GoapState 기반으로 완전히 재귀
+   시뮬레이션하는 방식은 기각). `GoapBrain.JudgeState`의 우선순위 스캔이 이제 1등(`bestGoal`)뿐 아니라
+   2등(`secondGoal`)도 함께 추적하고, 재계획 시 `bestGoal`의 계획을 세운 뒤 `GoapPlanner.ApplyAll`로
+   그 계획의 Effects를 전부 반영한 미래 상태를 만들어 `secondGoal`의 계획도 그 상태 기준으로 이어
+   세워서 같은 `currentPlan` 큐 뒤에 붙인다. 예: 전투(DefeatEnemy) 중이던 유닛이 사실은 퇴각
+   (PlayerCommand)을 하고 있었다면, 전투가 진짜로 끝나는 순간(EngageEnemy의 Effects가 실제로 검증되는
+   시점 — 몇 틱이 걸리든 무관, 고정 스텝 수가 아니다) 재계획 없이 곧바로 퇴각 이동으로 넘어간다.
+   고착(IsSticky) 유지 중에는 이번 틱에 전체 스캔을 안 돌아 `secondGoal`이 null이 될 수 있는데,
+   그래도 무방하다(고착 중엔 대개 재계획 자체가 안 걸림). `GoapPlanner.ApplyAll(GoapState, List
+   <GoapAction>)` 신규 — 계획의 Effects를 순서대로 접어서 "이 계획이 끝난 뒤의 세계 상태"를 만드는
+   공개 헬퍼.
+   한계: 이어붙인 뒷부분(secondGoal 계획)은 "이 시점의 secondGoal이 계속 유효할 것"이라는 가정 위에서
+   1회만 계산된다 — bestGoal 실행 도중 실제 상황이 바뀌어 그 가정이 깨지면(예: 전투 중 웨이브가
+   끝나 playerMoveTarget이 사라짐) 뒤에 이어붙인 액션의 IsValid/Precondition이 다음 틱 재계획
+   검사에서 잡혀 정상적으로 다시 계획되지만, 최대 1틱 정도는 낡은 가정으로 판단할 수 있다.
+✅ 라벨에서 "웨이브 자동이동" vs "진짜 플레이어 명령" 구분 — 사용자가 "왜 2/3번이 자꾸 뜨냐"고 물어서
+   원인(HumanWaveManager.UpdatePartyDestination이 파티 전체에 playerMoveTarget을 자동으로 세팅 —
+   InputManager의 실제 플레이어 명령과 완전히 같은 필드/액션을 공유)을 설명한 뒤, 라벨에서라도
+   구분해달라는 요청. Action_MoveToPlayerTarget/Action_CompletePlayerCommand 자체는 Preconditions/
+   Effects/Cost가 완전히 같은 하나의 액션이라 클래스를 쪼갤 이유는 없어(§8-0 근거 그대로), 대신
+   `GoapBrain.PlanText`가 표시 시점에 `unit.isManualMoveCommand`(둘의 유일한 차이 — InputManager는
+   true, HumanWaveManager는 false)를 확인해 자동이동이면 2→20, 3→21로 바꿔 보여주도록만 수정.
+   `PlanText`가 프로퍼티에서 `PlanText(Unit unit)` 메서드로 바뀌어 `UnitGenerate.cs` 호출부
+   (`u.brain.PlanText(u)`)도 함께 갱신.
+✅(수정) "19번(RandomExplore)으로 고정된 인간 유닛들이 복귀를 안함" 버그 — 위 "다음 우선순위 목표까지
+   미리 이어붙이기"의 부작용이었다. 웨이브 이동/퇴각 중엔 다른 목표가 안 걸려서 그 시점의 secondGoal이
+   거의 항상 Goal_Explore(10, 최하위 폴백)로 잡히는데, 이걸 그대로 이어붙이면 도착 직후 곧바로
+   RandomExplore가 실행돼 HumanWaveManager가 도착 판정하기 전에(또는 직후) 그 자리를 벗어나 복귀가
+   안 됐다. Goal_Explore는 완료 조건 자체가 없는 순수 폴백이라 애초에 "예약해둘 다음 행동"이 될 수
+   없으므로, secondGoal이 Goal_Explore일 때는 이어붙이기 자체를 하지 않도록 예외 처리.
+✅(핵심 버그) "함정 발견과 동시에 인간 유닛들이 전부 멈춤" — GOAP과 무관한 이동 시스템 자체의
+   불일치였다. `AStarMovement.IsTileWalkable`(경로탐색)은 다른 유닛이 있는 칸을 "비용만 추가되는
+   통행 가능 칸"으로 취급해 그쪽으로 경로를 추천하는데, 실제 이동을 실행하는
+   `UnitFunction.CanMove`/`Move()`는 점유된 칸을 예외 없이 완전히 막는다 — 웨이브로 밀집 대형을
+   이루면 A*가 "동료가 서 있는 칸으로 가라"고 계속 추천하지만 Move()가 조용히 실패해서, GOAP은
+   "이동 성공"으로 착각한 채 다음 계획으로 넘어가고 유닛은 제자리에 완전히 멈춘다. 지금까지 신고된
+   "20-21-14 멈춤"/"19번 고정" 전부 이게 근본 원인이었을 가능성이 높다(함정 자체와 무관, 파티가
+   붐빌 때 항상 재현되는 구조적 버그). `IsTileWalkable`이 점유 칸을 `CanMove`와 동일하게 완전
+   차단하도록 통일(기존 `targetPos` 예외도 제거) — `Assets/Script/Unit/Movement/AStarMovement.cs`.
+✅(수정) `Action_AlertPerimeterSearch`(14) 정면이 막히면 8방향을 순서대로 돌며 실제로 갈 수 있는
+   방향을 찾도록 수정(원래는 정면 한 칸이 막히면 대안 없이 그대로 멈췄다). `Goal_Alert` 우선순위도
+   97→90으로 낮춰서(Investigate 94/Wait 91 아래) 더 확실한 목표가 있으면 그쪽을 우선하게 함 —
+   "전투 끝나자마자 정면 주시하며 굳어버리는" 부자연스러움 완화(사용자 피드백).
+✅ 함정 실제 피해 자동 트리거 — `GameSession.TriggerTrapIfStepped` 신규. 유닛이 이동한 뒤 새 위치가
+   미처리 함정이면 GOAP 선택(Action_TrapPass)과 무관하게 자동으로 피해를 입힌다. 이번 틱 시작 시점의
+   `currentTrapInteraction` 스냅샷으로 "이미 이 함정을 알고 대응 중이었는지"를 판단해 중복 피해를
+   막는다. 한 번 맞으면 `CollectObject`로 소모(Action_TrapPass도 동일하게 소모하도록 함께 수정 —
+   원래 안 사라졌음). 데미지도 10~25 → 30~60으로 상향, 함정 태그도 "Object/Passable/Trap" →
+   "Object/Building/Passable/Trap"(오브젝트→건축물→지나갈 수 있는 건축물, 사용자 지정 계층)로 변경.
+✅ 함정 해제 소요시간 4초 → 10초로 연장(사용자 요청 "너무 빨리 끝난다").
+✅ `Action_TrapJoinWait.IsBlockingPath` 신규(BFS로 함정 칸을 벽 취급하고 유닛의 실제 목적지
+   (playerMoveTarget 또는 조사 대상)까지 대체 경로가 있는지 검사, 결과는
+   `TrapInteractionState.IsBlockingPath`에 캐시해 트랩당 1회만 계산).
+✅(정정, 같은 날 재수정) 처음엔 "안 막혀있으면 해제 자체를 시도하지 않는다"로 `IsDisarmWorthy`에도
+   이 블로킹 체크를 걸었는데, 이러면 대체 경로가 있는 웬만한 함정은 해제를 아예 시도하지 않게 되는
+   버그가 났다(사용자 신고 "함정 해제 시도를 전혀 하지 않고 있어"). 문서를 다시 확인한 결과 9-4장은
+   "예상 성공률만으로" 해제 여부를 판단하고, "대체 경로 존재 여부"는 9-8장에서 **성공률이 50% 이하일
+   때만** 우회(있으면)/파괴·통과(없으면)를 가르는 데 쓰인다 — 해제 자체의 조건이 아니었다.
+   `IsDisarmWorthy`에서 블로킹 체크를 제거해 원복(미기록은 항상 시도, 기록은 성공률 50% 초과일 때
+   시도 — 막혀있는지와 무관). `Action_TrapBypass`(안 막힘 필요)/`Action_TrapPass`·`Action_TrapDestroy`
+   (막힘 필요)만 여전히 블로킹 체크를 쓴다 — Disarm이 cost가 가장 낮아 항상 먼저 선택되므로 이 셋은
+   구조적으로 "해제 불가할 때만"(성공률 50% 이하) 선택된다.
+✅(수정) "함정이 이미 해제됐는데도 주변이 경계 태세" 버그 — 스크린샷 신고(2026-07-22). `Human.
+   IsInteracting`(보호 포메이션 트리거 조건)이 함정을 "인지한 순간"부터(5초 합류 대기·이동 중 포함)
+   true였는데, 9-5장 순서는 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호 포메이션 형성
+   → 함정 해제 시작"이라 실제로는 도착 후에만 형성돼야 한다. `IsInteracting`의 함정 판정을
+   `IsActivelyHandlingTrap()`(currentTrapInteraction != null && 유닛 위치 == 함정 위치)으로 좁힘 —
+   조사(currentInvestigation) 쪽은 원래도 도착 즉시 시작이라(5-3장) 안 건드림.
+✅(수정) "함정이 이유 없이 계속 사라짐" — 몬스터가 원인이었다. `Goal_TrapResponse`가 원래 "13장:
+   파괴/통과는 인류+몬스터 공통"이라 몬스터도 대상이었는데, 몬스터는 Bypass/Disarm이 애초에 Human
+   전용이라 함정을 인지하면 선택지가 Pass/Destroy(둘 다 함정을 소모)밖에 없었다 — 그 결과 몬스터가
+   함정을 인지하는 즉시 최우선(140, 고착)으로 달려가 부수거나 맞고 지나가며 없애버리는 게 사실상
+   강제돼 있었다. 몬스터 전용 함정 대응(회피/역이용 등)은 아직 컨셉조차 없어서(00장 "13장 표,
+   몬스터는 컨셉에 따라만 명시") 이번엔 `Goal_TrapResponse`를 인류 전용으로 좁혔다 — 문서의 원래
+   "인류+몬스터 공통" 의도와 어긋나므로 몬스터 전용 함정 컨셉 문서가 생기면 재검토 필요(아래 "다음
+   우선순위"에 이월). 몬스터가 우연히 함정을 밟는 경우는 여전히 TriggerTrapIfStepped 자동 트리거로
+   피해를 입지만, 일부러 찾아가 없애는 일은 없어졌다.
+✅(수정) 함정 비일회성화 — 사용자가 "함정을 일회성으로 두지 말고 계속 존재하게, 해제하면 사라지는
+   거로"라고 요청. `Action_TrapPass`와 `GameSession.TriggerTrapIfStepped`(우연히 밟음 자동 트리거)의
+   `CollectObject` 호출을 제거 — 이제 맞고 지나가거나 우연히 밟는 것만으로는 함정이 사라지지 않고,
+   같은 자리를 나중에 다시 밟으면(이 유닛이든 다른 유닛이든) 또 피해를 입는다. `Action_
+   TrapDisarmPerform`(해제 성공)과 `Action_TrapDestroy`(파괴 성공)만 여전히 `CollectObject`로 실제로
+   없앤다.
+✅(수정) 몬스터 함정 완전 면역 확인 — `Goal_TrapResponse`는 인류 전용으로 이미 막아뒀지만
+   `GameSession.TriggerTrapIfStepped`(우연히 밟음 자동 트리거)는 Human 체크가 없어 몬스터도 여전히
+   맞고 있었다(사용자 재확인 요청, 2026-07-22). `TriggerTrapIfStepped` 맨 앞에 `if (!(unit is Human))
+   return;` 추가 — 이제 몬스터는 GOAP 대응(애초에 인류 전용)이든 우연한 자동 피해든 함정에 전혀
+   영향받지 않는다(Passable 태그 그대로 그냥 지나감). CastRay 인지 트리거가 몬스터에게도
+   currentTrapInteraction을 세팅하는 건 그대로 두지만(02문서 인지 시스템 자체는 안 건드림), 이제
+   아무 경로에서도 읽지 않아 완전히 무해하다.
+✅ 프레임 드랍 조사 및 수정(사용자 신고 "계속 프레임 드랍") — 두 가지 원인 발견:
+   1. `UnitGenerate.SyncVisuals`가 (유닛 하나라도 행동하면) 거의 매 프레임 씬의 모든 유닛에 대해
+      `GoapBrain.PlanText`를 호출하는데, 계획이 그대로인 유닛까지 매번 `List<int>`+`string.Join`을
+      새로 할당하고 있었다 — 유닛 수만큼 GC 압박이 매 프레임 쌓임. `_planVersion`(currentPlan을
+      Enqueue/Dequeue/Clear할 때만 증가)으로 캐시해서 계획이 실제로 안 바뀌면 재계산하지 않도록 수정.
+   2. `GoapWorldState.Build`(매 틱 JudgeState/ExecuteAction 각각 1회, 총 2회)와
+      `Goal_Investigate.GetPriority`가 전부 `Human.FindInvestigateTarget()`(objectGrid 전체 순회,
+      O(오브젝트 수))을 각자 다시 호출해서 유닛 하나당 틱마다 최대 3~4번 오브젝트 전체를 훑고
+      있었다 — `Human`에 프레임 단위 캐시(`Time.frameCount` 기준, 같은 프레임 안에서는 결과가 바뀔
+      일이 없음) 추가로 실질 계산을 프레임당 1회로 줄임.
+
+한계/후속 확인 필요:
+   - 사람이 "이미 고착(sticky) 상태로 조사 중일 때" 웨이브 퇴각 명령이 새로 들어와도, §2-1의 "이미
+     수행 중인 조사는 더 높은 우선순위 후보가 새로 생겼다는 이유만으로 중단하지 않는다"는 원칙이
+     그대로 적용돼 즉시 인터럽트되지는 않는다(자기 피격/적 발견 등 실제 중단 조건이 떠야 풀림) — 이건
+     문서가 명시한 의도라 버그가 아니라고 판단했지만, 실제로 자주 걸리면 재검토 필요.
+   - Unity 에디터에서 직접 플레이 테스트하지 못했다 — 아래 "검증 상태" 섹션 참고.
+
+════════════════════════════════════════════════════════════════════════
+■ 핵심 구조 — GoapCore.cs "고착 목표" 확장
+════════════════════════════════════════════════════════════════════════
+✅ GoapGoal에 IsSticky/ShouldInterrupt 추가, GoapBrain에 currentGoal 필드 + 고착 유지 로직 추가(설계
+   문서 0-1절 그대로). 기존 4개 목표(Panic/PlayerCommand/DefeatEnemy/Explore)는 IsSticky 기본값
+   false라 동작 변화 없음 — 신규 3개(TrapResponse/Investigate/Wait)만 고착으로 동작한다.
+✅(2026-07-22 후속 세션에서 교체) GoapBrain.PlanText — 원래는 GoalTrailText("최근 목표 전환 이력"을
+   StateCode 숫자열로 누적, 예: "4-7-9-2-1-8")였으나, 사용자가 "과거 누적 말고 앞으로 실행할 계획을
+   나열, 이미 실행한 건 사라지게"로 요청해 currentPlan(Queue) 안의 남은 액션 ActionName을 순서대로
+   나열하는 방식으로 교체(위 "후속 반영" 섹션 참고). StateCode 자체도 더 이상 쓰이지 않아 삭제.
+   UnitGenerate.SyncVisuals가 매 동기화마다 UnitVisual.UpdateStatusLabel로 전달해 유닛 머리 위
+   world-space TextMesh(카메라 위치/배율 무관, UIManager.ShowFloatingText와 같은 컴포넌트지만 상시
+   갱신되는 라벨이라는 차이)로 표시하는 흐름 자체는 그대로.
+
+════════════════════════════════════════════════════════════════════════
+■ 임시 추가 2건(사용자 요청)
+════════════════════════════════════════════════════════════════════════
+🔶 Party.Leader — 08문서 부재로 리더 명령 체계 전체는 없음. 생존 파티원 중 leadership 스탯 최댓값을
+   리더로 자동 선정(GameSession.CreateParty/CheckPartyWaveState에서 호출), 리더 죽으면 재선정. 4-8장/
+   11장 집결의 최소 버전(Party.RallyPoint/IsRallyActive)에만 쓰인다 — 리더가 실제로 "명령"을 내리는
+   기능은 없음.
+🔶 InteractableObject 함정 — 태그 "Object/Passable/Trap" 한 종류 추가(BaseDanger/TrapHp/
+   TrapDamageMin·Max 필드). GameSession.OnKeyDown_P()로 수동 스폰(정식 레벨 배치 시스템 부재, O키
+   루팅 스폰과 동일 관례).
+
+════════════════════════════════════════════════════════════════════════
+■ 신규 GOAP 목표 5종
+════════════════════════════════════════════════════════════════════════
+🔶 Goal_TrapResponse(140, 고착) — UnitFunction.CastRay가 함정을 처음 정확 인지하면 currentTrapInteraction
+   생성(9장). Action 4종(Disarm/Bypass/Pass/Destroy, Cost 1~4로 9-4/9-8/9-9/9-10/9-11장 우선순위
+   그대로 반영) 구현 완료. 한계:
+   - 9-2장 해제 성공률 공식 자체가 문서에 없어 concentration(집중)+level 기반 자체 공식으로 대체
+     (이해도 보정은 InteractableObject가 대표 가중치 시스템의 추적 대상이 아니라서 이번엔 반영 안 함,
+     ExplorationMath.TrapDisarmSuccessRate 주석 참고) — 밸런스 미확정.
+   - E_TRAP_HIT_SELF/DISARM_SELF 등(함정_관련_요약.txt 확인, weight_events.json에 이미 존재)을
+     HumanKnowledgeBase.RecordEvent가 호출하지 못함 — RecordEvent(Unit target)가 target.isSpecialUnit
+     등을 무조건 읽어서 InteractableObject를 넘길 방법이 없다. 가중치 시스템 쪽 확장이 선행돼야 함.
+   - Bypass는 실제 대체 경로 탐색 없이 옆 칸으로 한 걸음 비켜서는 것으로 간이 구현(9_목표설정·
+     이동경로 문서 부재).
+   - 9-3장 "더 높은 성공률 아군 합류" 비교 로직은 없음(TrapInteractionState.HigherRateJoiner 필드만
+     남겨둠) — 발견 유닛이 5초 대기 후 항상 직접 시도한다.
+🔶 Goal_Alert(97, 비고착) — 수상한 타일(ForceRollPerception에서 트리거)/미식별 공격(RecordHitWeightEvent
+   else 분기)/전투 종료 10초(GoapCore.cs가 DefeatEnemy→다른 목표 전환 감지)까지 3가지 발생 경로 전부
+   연결. Action 2종(방향 있음/없음). 한계: 4-3장 경계 이동속도 75%는 실제로 속도를 줄이지 않음(간이
+   구현), 8-3/8-4장 포메이션 공유 수색(여러 유닛이 같은 방향으로 동시 재배치)은 미구현 — 지금은 각
+   유닛이 독립적으로 수색한다.
+🔶 Goal_Investigate(94, 고착) — Human.FindInvestigateTarget()이 personalMap에 이미 known인 비전투
+   오브젝트(함정/시체·흔적 제외) 중 가장 가까운 걸 찾는다. 완료 시 파티 전체에 즉시 반영(07 문서
+   부재로 BroadcastWitnessEvent와 동일한 근사). 진행도(5-4장 50% 페널티, UnitFunction.UpdateFOV의
+   ExplorationPenaltyActive 훅) 구현. 한계: 조사 소요시간(3초) 자체가 문서에 없어 자체 판단.
+🔶 Goal_Wait(91, 고착) — WaitReason.AwaitingPartyAtRallyPoint만 실제 트리거 있음(Alert의 전투종료
+   10초 스윕이 끝나는 순간 리더는 RallyPoint를 자기 위치로 지정, 나머지는 Wait 생성). Awaiting
+   JoinBeforeApproach는 간접 인지 기반 적 위치 접근(4-7장, 07/08 문서 의존)이 없어 트리거 자체가
+   없음 — enum 값만 남겨둠.
+🔶 Goal_ProtectiveFormation(20) — Human.FindDirectlyVisibleInteractingAlly()가 시야 범위 안의 같은
+   파티 인류 중 IsInteracting(함정 대응 또는 조사 중)인 대상을 직접 찾는다(6-1장 두 번째 조건만,
+   전파 기반 첫 번째 조건은 07 문서 부재로 미구현). Action 2종(근접/원거리, HitRange>=4 기준)이지만
+   6-4~6-7장의 3단계 폴백/구간별 시야 방향 표는 구현하지 않고 "상호작용 유닛 기준 지정 거리 한
+   지점 + 그쪽을 바라봄"으로 단순화(GoapCore.cs의 GoapAction.ExecuteFormation).
+
+════════════════════════════════════════════════════════════════════════
+■ 파일 구조
+════════════════════════════════════════════════════════════════════════
+Assets/Script/Unit/Exploration/ (신규 폴더, Vision/Weight와 동일 관례)
+  ExplorationMath.cs        — 14장 파라미터 상수화 + 해제 성공률 자체 판단 공식
+  TrapInteractionState.cs   — TrapPhase enum + 함정 대응 하위 상태(Unit.currentTrapInteraction)
+  InvestigationState.cs     — 조사 하위 상태(Human.currentInvestigation)
+  AlertSearchState.cs       — 경계 하위 상태(Unit.currentAlertSearch)
+  WaitState.cs               — WaitReason enum + 대기 하위 상태(Human.currentWait)
+  FormationState.cs         — 보호 포메이션 하위 상태(Human.currentFormation)
+Assets/Script/Unit/AI/GoapWorldState.cs — (신규, 후속 세션) 9개 목표 DesiredState + 위치 서브골 전체를
+  포함하는 월드 스테이트 빌더.
+Assets/Script/Unit/AI/GoapPlanner.cs — (신규, 후속 세션) 균일비용(Dijkstra) 액션 체이닝 플래너.
+기존 파일 수정:
+  Assets/Script/Unit/AI/GoapCore.cs — IsSticky/ShouldInterrupt/currentGoal/GoalTrailText,
+                        GoapAction.MoveToEscortSlot 공유 헬퍼(후속 세션에서 ExecuteFormation을
+                        이동 전용으로 축소), currentPlan(Queue) 기반 재계획 루프(후속 세션).
+  Assets/Script/Unit/AI/Goals.cs — Goal_TrapResponse/Alert/Investigate/Wait/ProtectiveFormation,
+                        PlayerCommand 자동이동 우선순위 90→99(후속 세션).
+  Assets/Script/Unit/AI/Actions.cs — Action 10종 + 후속 세션에서 PlayerCommand/TrapDisarm/Investigate/
+                        Formation을 "이동"+"실행" 액션으로 분리(위 "후속 반영" 섹션 참고).
+  Assets/Script/Unit/Core/Unit.cs — currentTrapInteraction/currentAlertSearch/HasPerceivedThreatCollider
+                        (base Unit, 13장 인류+몬스터 공통), currentInvestigation/currentWait/
+                        currentFormation/IsInteracting/AnyEscortHitThisTurn/FindInvestigateTarget/
+                        HasReachableInvestigateTarget/FindDirectlyVisibleInteractingAlly/
+                        IsRangedFormationRole/HasProtectiveFormationNeed/GetEscortSlotPosition(Human
+                        전용, 뒤 둘은 후속 세션 신규).
+  Assets/Script/Unit/Core/UnitFunction.cs — CastRay 함정 인지 트리거, ForceRollPerception 수상한
+                        타일 트리거, RecordHitWeightEvent 미식별 공격 트리거, OnUpdate 타이머 진행
+                        (Alert/Trap/Investigate), UpdateFOV 조사·해제 중 50% 페널티.
+  Assets/Script/Unit/Party/Party.cs — Leader/RallyPoint/IsRallyActive/AssignLeaderIfNeeded.
+  Assets/Script/Unit/Session/GameSession.cs — 리더 자동 선정 호출 2곳, OnKeyDown_P(함정 디버그 스폰).
+  Assets/Script/Unit/Weight/PersonalMapKnowledge.cs — 함정 개인 지식(기록 여부/예상 성공률).
+  Assets/Script/Map/InteractableObject.cs — TrapHp/TrapMaxHp/TrapDamageMin·Max 필드.
+  Assets/Script/Unit/Visual/UnitVisual.cs — UpdateStatusLabel(머리 위 상태 라벨).
+  Assets/Script/Unit/Visual/UnitGenerate.cs — SyncVisuals에서 매번 라벨 갱신 호출.
+Assets/Tests/ExplorationSystemTests.cs — ExplorationMath 숫자 고정 테스트.
+Assets/Tests/GoapPlannerTests.cs — (신규, 후속 세션) GoapPlanner 탐색 로직 고정 테스트.
+
+════════════════════════════════════════════════════════════════════════
+■ 검증 상태
+════════════════════════════════════════════════════════════════════════
+Unity 에디터를 이 세션에서 직접 열어 플레이 테스트하지 못했다 — 브레이스/괄호 밸런스 확인과 타입/
+시그니처 교차 검증(각 호출부가 실제 정의와 일치하는지)만 정적으로 마쳤다. Assets 폴더가 Unity
+에디터에 열려 있는 것으로 보여(신규 .cs 파일들에 대해 .meta가 자동 생성됨) 백그라운드에서 컴파일이
+진행됐을 가능성이 있으나, 콘솔 에러 여부는 직접 확인하지 못했다 — 에디터를 열어 컴파일 에러/플레이
+테스트를 꼭 확인할 것. 특히 확인이 필요한 지점:
+1. GoapBrain.availableGoals/availableActions 등록 목록에 신규 클래스명 오타 없는지(빌드 시 즉시
+   드러남).
+2. Action_TrapDisarmPerform/Pass/Destroy가 objectGrid에서 함정을 못 찾는 예외 상황(다른 유닛이 먼저
+   처리) 처리가 실제 플레이에서 자연스러운지.
+3. 머리 위 라벨이 실제로 카메라 줌/이동과 무관하게 유닛을 잘 따라가는지, 풋프린트가 1×1이 아닌
+   대형 유닛에서도 라벨 크기가 일정한지(EnsureStatusLabel의 부모 스케일 역산 로직).
+4. (후속 세션 신규) 웨이브 발생 → O키로 목표물 생성 → 회수 → 지도에 미조사 오브젝트가 남아있는
+   상태에서도 조사로 새지 않고 exitAreaPos까지 도달해 웨이브가 정상 종료되는지(원래 버그 재현 경로).
+5. (후속 세션 신규) TrapJoinWait/MoveToTrap/TrapDisarmPerform 3단계 체이닝이 기존 단일 액션과 동일하게
+   5초 대기 → 이동 → 진행도바 → 성공/실패 흐름을 유지하는지.
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위
+════════════════════════════════════════════════════════════════════════
+1. HumanKnowledgeBase.RecordEvent가 InteractableObject(함정) 대상도 받을 수 있도록 확장 — 지금
+   가중치 시스템 쪽 갭 중 가장 명확한 것.
+2. FormationMath.cs 분리 + 6-4~6-7장 정식 배치 표 구현(지금은 GoapAction.MoveToEscortSlot 간이 버전).
+3. [완료, 2026-07-22 후속 세션] 09_목표설정·이동경로·재설정 문서 없이도 사용자 요청으로 Bypass의
+   실제 대체 경로 탐색(BFS 기반 Action_TrapJoinWait.IsBlockingPath)을 먼저 연결함 — 정식 09문서가
+   생기면 이 간이 BFS를 문서 공식으로 교체.
+4. 08_리더·명령·파티통제 문서가 생기면 Party.Leader를 진짜 명령 체계로 확장, Goal_Wait의
+   AwaitingJoinBeforeApproach 트리거도 그때 연결(07 문서와 함께 필요).
+5. [신규, 2026-07-22] 몬스터 전용 함정 대응 컨셉 문서가 생기면 Goal_TrapResponse의 "인류 전용" 제한
+   재검토 — 지금은 몬스터가 Bypass/Disarm 없이 Pass/Destroy만 강제로 골라 함정을 계속 없애버리는
+   문제 때문에 임시로 인류 전용으로 좁혀둔 상태(§13장 원래 "인류+몬스터 공통" 의도와 어긋남).
