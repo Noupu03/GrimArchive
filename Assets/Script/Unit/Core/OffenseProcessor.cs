@@ -1,16 +1,17 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+using System.Collections.Generic;
+using Haare.Util.Logger;
+using VContainer;
 
 public class OffenseProcessor
 {
-    private static OffenseProcessor _instance;
-    public static OffenseProcessor Instance
+    private readonly IOffenseQuery _query;
+    private readonly IMapColorizer _colorizer;
+
+    [Inject]
+    public OffenseProcessor(IOffenseQuery query, IMapColorizer colorizer)
     {
-        get
-        {
-            if (_instance == null) _instance = new OffenseProcessor();
-            return _instance;
-        }
+        _query = query;
+        _colorizer = colorizer;
     }
 
     public Room currentOffenseRoom { get; private set; }
@@ -20,24 +21,22 @@ public class OffenseProcessor
         if (room.RoomFaction != FactionType.Wild) return;
         
         currentOffenseRoom = room;
-        Debug.Log($"[오펜스 트리거] 시작: {room.RoomName} 방에 진입 발생");
+        LogHelper.Log($"[오펜스 트리거] 시작: {room.RoomName} 방에 진입 발생");
     }
 
     public void UpdateProcess()
     {
         if (currentOffenseRoom == null) return;
-        if (GameSession.Instance == null) return;
+        if (_query == null) return;
 
         bool hasPlayer = false;
         bool hasWild = false;
 
-        foreach(var u in GameSession.Instance.units)
+        var roomUnits = _query.GetUnitsInRoom(currentOffenseRoom.Bounds);
+        foreach(var u in roomUnits)
         {
-            if (currentOffenseRoom.Bounds.Contains(u.position))
-            {
-                if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayer = true;
-                if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
-            }
+            if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayer = true;
+            if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
         }
 
         // 3. 패배 조건 (플레이어 전멸)
@@ -63,7 +62,7 @@ public class OffenseProcessor
 
     private void FailOffense()
     {
-        Debug.Log($"[오펜스] 패배: {currentOffenseRoom.RoomName}에서 플레이어 유닛이 전멸했습니다.");
+        LogHelper.Log($"[오펜스] 패배: {currentOffenseRoom.RoomName}에서 플레이어 유닛이 전멸했습니다.");
         
         if (ResourceAccumulator.Instance != null)
         {
@@ -75,7 +74,7 @@ public class OffenseProcessor
 
     private void OnOffenseSuccess(Room room)
     {
-        Debug.Log($"[오펜스] 승리: {room.RoomName}의 몬스터를 모두 토벌했습니다.");
+        LogHelper.Log($"[오펜스] 승리: {room.RoomName}의 몬스터를 모두 토벌했습니다.");
         
         if (ResourceAccumulator.Instance != null)
         {
@@ -83,9 +82,10 @@ public class OffenseProcessor
         }
 
         room.RoomFaction = FactionType.Player;
-        if (GameSession.Instance != null && GameSession.Instance.mapRandering != null)
+        if (_colorizer != null)
         {
-            GameSession.Instance.mapRandering.ChangeRoomColor(room, new Color(0.4f, 0.6f, 1f, 1f));
+            // new Color(0.4f, 0.6f, 1f, 1f)을 위해 임시로 Color 객체 생성 (UnityEngine 네임스페이스 제거했으므로 UnityEngine.Color 명시)
+            _colorizer.ChangeRoomColor(room, new UnityEngine.Color(0.4f, 0.6f, 1f, 1f));
         }
 
         currentOffenseRoom = null;

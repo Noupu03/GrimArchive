@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using Haare.Util.Logger;
 
@@ -29,7 +29,7 @@ public class AreaBasedDamageValidator : MonoBehaviour
         foreach (var attacker in GameSession.Instance.units)
         {
             if (attacker == null || !(attacker is UnitFunction)) continue;
-            if (!attacker.isCastingAttack || attacker.currentThreat == null) continue;
+            if (!attacker.CombatState.isCastingAttack || attacker.currentThreat == null) continue;
 
             // 현재 공격의 히트박스 정보
             Hitbox attackHitbox = attacker.currentThreat.hitbox;

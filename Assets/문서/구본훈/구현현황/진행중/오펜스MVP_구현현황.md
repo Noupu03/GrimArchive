@@ -29,3 +29,8 @@
 - ì˜¤íœìŠ¤ ì¢…ë£Œ ì‹œ Wood ëŒ€ì‹  OffenseReward ì§€ê¸‰ìœ¼ë¡œ ìˆ˜ì •
 - WildMonsterBehaviorì—ì„œ ëª¬ìŠ¤í„°ì˜ maxHpì— ë¹„ë¡€í•œ ë™ì  ë³´ìƒ(ê°€ì¤‘ì¹˜) ëˆ„ì  ë¡œì§ êµ¬í˜„
 - StatusInfoPanel UIì— ì˜¤íœìŠ¤ ì „ìš© ë³´ìƒ í˜„í™© ë°˜ì˜
+
+### 2026-07-21 ¾ÆÅ°ÅØÃ³ °³¼± ÇöÈ²
+- **Phase 4**: Unit Å¬·¡½º ³» °Å´ëÇÑ ÇÊµå ¹­À½À» µ¥ÀÌÅÍ ¿ªÇÒº° ±¸Á¶Ã¼(UnitStatusEffects, UnitCombatState, UnitPerceptionState)·Î ºĞ¸® ¿Ï·á.
+- **Phase 5**: UnitFunction.CastRay ³»ºÎÀÇ ¹æ´ëÇÑ ½Ã¾ß/ÀÎÁö ·ÎÁ÷À» ºĞ¸®ÇÏ±â À§ÇØ IVisionTileHandler, IVisionContext ÀÎÅÍÆäÀÌ½º Á¤ÀÇ ÈÄ, TerrainRevealHandler, ObjectPerceptionHandler, UnitPerceptionHandler Å¬·¡½º·Î °¢ ·ÎÁ÷À» ¼º°øÀûÀ¸·Î À§ÀÓ(OCP ¼³°è ÁØ¼ö).
+- **Phase 6**: ·ÎÁ÷ ºĞ¸® ÈÄ ¶óÀÎ ¼ö Á¡°Ë. GameSessionÀº 372ÁÙ·Î Å©°Ô °¨¼Ò.

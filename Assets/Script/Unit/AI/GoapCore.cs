@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // ==========================================
@@ -29,8 +29,8 @@ public abstract class GoapAction
 
 	protected Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
-		// 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-		IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
+		// 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+		IEnumerable<Unit> enemies = unit.PerceptionState.personalSpottedEnemies;
 
 		Unit  target  = null;
 		minDist = float.MaxValue;
@@ -114,7 +114,7 @@ public class GoapBrain
 
 		// 월드 스테이트 구성
 		GoapState         worldState  = new GoapState();
-		IEnumerable<Unit> enemies     = unit.personalSpottedEnemies;
+		IEnumerable<Unit> enemies     = unit.PerceptionState.personalSpottedEnemies;
 		bool              enemyVisible = false;
 
 		foreach (var e in enemies)
@@ -123,7 +123,7 @@ public class GoapBrain
 		}
 
 		worldState["enemyVisible"] = enemyVisible;
-		worldState["isHit"]        = unit.isHitThisTurn;
+		worldState["isHit"]        = unit.CombatState.isHitThisTurn;
 
 		// 목표를 충족하는 최저 비용 액션 선택
 		currentPlannedAction = null;
@@ -165,13 +165,13 @@ public class GoapBrain
 			}
 		}
 
-		if (!enemyVisible) unit.oneTimeReactUsed = false;
+		if (!enemyVisible) unit.CombatState.oneTimeReactUsed = false;
 	}
 
 	public void ExecuteAction(Unit unit)
 	{
 		// 캐스팅 중일 때는 UnitFunction.OnUpdate가 타이머/펜딩공격을 처리하므로 여기서는 그냥 대기
-		if (unit.isCastingAttack) return;
+		if (unit.CombatState.isCastingAttack) return;
 
 		if (currentPlannedAction != null)
 			currentPlannedAction.Execute(unit);
@@ -181,6 +181,6 @@ public class GoapBrain
 			unit.Move(randomDir);
 		}
 
-		unit.isHitThisTurn = false;
+		unit.CombatState.isHitThisTurn = false;
 	}
 }

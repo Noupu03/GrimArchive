@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using VContainer;
@@ -438,10 +438,10 @@ public class UnitGenerate
 
 		UnitVisualDefinition visualDef = GetVisualDef(u);
 
-		if (u.suppressHitVFX)
+		if (u.CombatState.suppressHitVFX)
 		{
 			if (visualDef != null) u.VFX?.Spawn(visualDef.attackFailPrefab, u);
-			u.suppressHitVFX = false;
+			u.CombatState.suppressHitVFX = false;
 		}
 		else
 		{

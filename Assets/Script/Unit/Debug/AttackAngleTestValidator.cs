@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using Haare.Util.Logger;
 
@@ -30,9 +30,9 @@ public class AttackAngleTestValidator : MonoBehaviour
             if (!(unit is UnitFunction uf)) continue;
 
             // 1. 현재 공격 상태 및 각도 로깅
-            if (unit.isCastingAttack)
+            if (unit.CombatState.isCastingAttack)
             {
-                LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
+                LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.CombatState.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
 
                 // 2. currentThreat가 정상적으로 설정되었는지 확인
                 if (unit.currentThreat != null)
@@ -42,8 +42,8 @@ public class AttackAngleTestValidator : MonoBehaviour
             }
 
             // 3. 가장 가까운 적 찾기 및 공격 각도 검증
-            // 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-            IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
+            // 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+            IEnumerable<Unit> enemies = unit.PerceptionState.personalSpottedEnemies;
 
             foreach (var enemy in enemies)
             {
@@ -57,13 +57,13 @@ public class AttackAngleTestValidator : MonoBehaviour
 
                 // 공격 중이고 사거리 내라면
                 float attackRange = (unit.Generate != null ? unit.Generate.GetEngageDistance(unit.unitType.typeName, 2) : 2);
-                if (unit.isCastingAttack && distance <= attackRange + 1)
+                if (unit.CombatState.isCastingAttack && distance <= attackRange + 1)
                 {
-                    float angleDiff = Mathf.Abs(unit.currentAttackAngle - expectedAngle);
+                    float angleDiff = Mathf.Abs(unit.CombatState.currentAttackAngle - expectedAngle);
                     if (angleDiff > Mathf.PI) angleDiff = 2 * Mathf.PI - angleDiff;
 
                     LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName} → {enemy.unitType.typeName}: " +
-                        $"거리={distance:F2}, 공격각도={unit.currentAttackAngle * Mathf.Rad2Deg:F1}°, " +
+                        $"거리={distance:F2}, 공격각도={unit.CombatState.currentAttackAngle * Mathf.Rad2Deg:F1}°, " +
                         $"예상각도={expectedAngle * Mathf.Rad2Deg:F1}°, 각도차이={angleDiff * Mathf.Rad2Deg:F1}°");
                 }
             }

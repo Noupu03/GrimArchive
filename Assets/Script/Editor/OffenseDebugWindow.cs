@@ -127,9 +127,9 @@ public class OffenseDebugWindow : EditorWindow
                 GameSession.Instance.units.Add(dummyPlayer);
                 GameSession.Instance.RegisterUnitPos(dummyPlayer, dummyPlayer.position);
                 
-                if (OffenseProcessor.Instance != null)
+                if (GameSession.Instance.OffenseProcessor != null)
                 {
-                    OffenseProcessor.Instance.StartOffense(targetRoom, dummyPlayer);
+                    GameSession.Instance.OffenseProcessor.StartOffense(targetRoom, dummyPlayer);
                 }
                 Debug.Log($"[Test] 플레이어 몬스터를 {spawnPos}에 소환하고 오펜스를 강제 개시했습니다. (방: {targetRoom.RoomName})");
             }

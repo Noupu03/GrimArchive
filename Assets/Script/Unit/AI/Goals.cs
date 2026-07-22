@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 public class Goal_Panic : GoapGoal
 {
@@ -33,8 +33,8 @@ public class Goal_DefeatEnemy : GoapGoal
 
 	public override float GetPriority(Unit unit)
 	{
-		// 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-		IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
+		// 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+		IEnumerable<Unit> enemies = unit.PerceptionState.personalSpottedEnemies;
 
 		foreach (var enemy in enemies)
 		{

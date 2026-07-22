@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 
 #if UNITY_EDITOR
@@ -199,7 +199,7 @@ public static class DefenseSystem
 					bool moved = TryDodgeMove(defender, defender.reactingThreat);
 					if (moved)
 					{
-						defender.evadeCooldown = 1.2f;
+						defender.CombatState.evadeCooldown = 1.2f;
 					}
 				}
 				break;
@@ -243,7 +243,7 @@ public static class DefenseSystem
 				);
 
 				var guardDef = defender;
-				guardDef.suppressHitVFX = true;
+				guardDef.CombatState.suppressHitVFX = true;
 				guardDef.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
 				
 				return rawDamage * (1f - reduction);
@@ -263,7 +263,7 @@ public static class DefenseSystem
 					attacker.TakePhysicalDamage(defender.physicalAttack * 0.5f, defender);
 
 					var parryDef = defender;
-					parryDef.suppressHitVFX = true;
+					parryDef.CombatState.suppressHitVFX = true;
 					parryDef.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
 					
 					return 0f;

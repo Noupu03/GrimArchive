@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // 유닛 타입별 프리팹의 루트에 붙는 컴포넌트.
@@ -71,8 +71,8 @@ public class UnitVisualDefinition : MonoBehaviour
         unit.spotting            = stats.spotting;
         unit.leadershipRange     = stats.leadershipRange;
         unit.charisma            = stats.charisma;
-        unit.physicalAttackSpeed = stats.physicalAttackSpeed;
-        unit.magicalCastSpeed    = stats.magicalCastSpeed;
+        unit.CombatState.physicalAttackSpeed = stats.physicalAttackSpeed;
+        unit.CombatState.magicalCastSpeed    = stats.magicalCastSpeed;
 
         if (unit.unitType != null) unit.unitType.footprint = footprint;
     }

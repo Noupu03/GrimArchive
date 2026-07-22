@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class SkillAction_Generic : SkillAction
 {
@@ -18,7 +18,7 @@ public class SkillAction_Generic : SkillAction
     public override int HitWidth => _d.hitWidth;
     public override int HitDepth => _d.hitDepth;
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[_d.cooldownSlot] <= 0f;
+    public override bool IsAvailable(Unit unit) => unit.CombatState.skillCooldowns[_d.cooldownSlot] <= 0f;
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {
@@ -50,7 +50,7 @@ public class SkillAction_Generic : SkillAction
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,
                     _d.damageMultiplier, _d.hasStun, _d.stunDuration);
             },
-            () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
         );
     }
 }

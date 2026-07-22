@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -245,10 +245,10 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine($"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}");
 
         string statusStr = "";
-        if (u.stunDuration > 0) statusStr += $"기절({u.stunDuration:F1}s) ";
-        if (u.slowDuration > 0) statusStr += $"둔화({u.slowDuration:F1}s) ";
-        if (u.poisonDuration > 0) statusStr += $"중독({u.poisonDuration:F1}s) ";
-        if (u.burnDuration > 0) statusStr += $"화상({u.burnDuration:F1}s) ";
+        if (u.StatusEffects.stunDuration > 0) statusStr += $"기절({u.StatusEffects.stunDuration:F1}s) ";
+        if (u.StatusEffects.slowDuration > 0) statusStr += $"둔화({u.StatusEffects.slowDuration:F1}s) ";
+        if (u.StatusEffects.poisonDuration > 0) statusStr += $"중독({u.StatusEffects.poisonDuration:F1}s) ";
+        if (u.StatusEffects.burnDuration > 0) statusStr += $"화상({u.StatusEffects.burnDuration:F1}s) ";
         if (statusStr != "")
             sb.AppendLine($"<color=red>상태이상: {statusStr}</color>");
 

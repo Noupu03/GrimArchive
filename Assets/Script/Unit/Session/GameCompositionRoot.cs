@@ -30,7 +30,7 @@ public class GameCompositionRoot : CoreLifetimeScope
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();
 
         // GameSession: 인스펙터 디버그 텍스처 뷰 제거 후 씬 배치가 불필요해져 NativeRoutine(순수 C#)으로 전환됨.
-        builder.Register<GameSession>(Lifetime.Singleton).AsSelf();
+        builder.Register<GameSession>(Lifetime.Singleton).AsSelf().As<IOffenseQuery>();
 
         // UnitSpriteManager: 인스펙터 프리팹 매핑 대신 Resources.Load(Assets/Resources/Units/) 경로
         // 컨벤션으로 전환되어 순수 C# 클래스가 됨.
@@ -46,8 +46,26 @@ public class GameCompositionRoot : CoreLifetimeScope
         // 맵 데이터를 저장/관리하고 런타임에 활용하는 순수 C# 클래스
         builder.Register<CreateMap>(Lifetime.Singleton).AsSelf();
 
+        // 유닛 그리드 관리 (분리됨)
+        builder.Register<UnitRegistry>(Lifetime.Singleton).AsSelf();
+
+        // 오브젝트 스포너 (분리됨)
+        builder.Register<ObjectSpawner>(Lifetime.Singleton).AsSelf();
+
+        // 파티 서비스 (분리됨)
+        builder.Register<PartyService>(Lifetime.Singleton).AsSelf();
+
+        // 전투 이벤트 서비스 (분리됨)
+        builder.Register<CombatEventService>(Lifetime.Singleton).AsSelf();
+
+        // 디버그 입력 핸들러 (분리됨)
+        builder.Register<DebugInputHandler>(Lifetime.Singleton).AsSelf();
+
         // 맵 렌더링 로직 - MonoBehaviour에서 NativeRoutine으로 전환
-        builder.Register<MapRandering>(Lifetime.Singleton).AsSelf();
+        builder.Register<MapRandering>(Lifetime.Singleton).AsSelf().As<IMapColorizer>();
+
+        // 오펜스 프로세서 (DI)
+        builder.Register<OffenseProcessor>(Lifetime.Singleton).AsSelf();
 
         // 웨이브 스포너 - MonoBehaviour에서 NativeRoutine으로 전환
         builder.Register<WaveSpawner>(Lifetime.Singleton).AsSelf();

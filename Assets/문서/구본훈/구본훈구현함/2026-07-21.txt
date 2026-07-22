@@ -43,3 +43,8 @@
   - 적을 발견하기 전 평화롭게 무작위 배회하는 로직이 이동 알고리즘(MovementAlgorithm)의 경계선 검사를 우회하던 취약점 확인.
   - 단순 벽(Wall) 유무만 판별하고 냅다 직진하여 자기 방 밖으로 이탈하던 현상을 막기 위해, 배회 이동 시에도 반드시 `unit.MovementAlgorithm.TryGetNextStep`을 거치도록 강제함.
   - 이를 통해 RoomConfinedMovement의 방 경계 제약(IsTileWalkable)을 엄격하게 적용받아 야생 몬스터가 절대 자기 방을 탈주하지 못하게 수정함.
+[17:40]
+- [Architecture_Improvement] (Native Routine) Phase 4 �� Phase 5 ��Ű��ó �����丵 ����
+  - [Phase 4] Unit Ŭ������ �Ŵ� �ʵ���� UnitStatusEffects, UnitCombatState, UnitPerceptionState, UnitAIWeightState ����ü�� �и��Ͽ� ������ ���յ� ����.
+  - [Phase 5] UnitFunction.CastRay�� ����� �þ� �� ���� ������ IVisionTileHandler �������̽��� ���� TerrainRevealHandler, ObjectPerceptionHandler, UnitPerceptionHandler �� �и��Ͽ� OCP �ؼ� ���� ����.
+[17:50] GameSession 의존성 분리(Phase 1~3), Unit.cs 데이터 분리(Phase 4), CastRay 파이프라인 핸들러 패턴 적용(Phase 5)을 완료하고, 관련된 빌드 오류(csproj 누락, 잔여 싱글턴 참조)를 모두 수정 및 검증 완료.

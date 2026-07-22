@@ -7,7 +7,7 @@ using VContainer;
 using Cysharp.Threading.Tasks;
 using System.Threading;
 
-public class MapRandering : NativeRoutine
+public class MapRandering : NativeRoutine, IMapColorizer
 {
     private CreateMap createMap;
 
