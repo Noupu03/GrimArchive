@@ -86,7 +86,19 @@ public class Action_RandomExplore : GoapAction
 	public override void Execute(Unit unit)
 	{
 		Dir randomDir = (Dir)Random.Range(0, 8);
-		unit.Move(randomDir);
+		Vector2Int targetPos = unit.position + unit.GetDirVector(randomDir);
+
+		if (unit.MovementAlgorithm != null)
+		{
+			if (unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
+			{
+				unit.Move(nextDir);
+			}
+		}
+		else
+		{
+			unit.Move(randomDir);
+		}
 	}
 }
 

@@ -236,4 +236,20 @@ public class MapRandering : NativeRoutine
         for (int f = 0; f < floorTilemaps.Length; f++)
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
     }
+
+    public void ChangeRoomColor(Room room, Color color)
+    {
+        if (floorTilemaps == null || floorTilemaps.Length == 0) return;
+        Tilemap tm = floorTilemaps[0]; // MVP: 0층 기준
+        
+        for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
+        {
+            for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
+            {
+                Vector3Int pos = new Vector3Int(x, y, 0);
+                tm.SetTileFlags(pos, TileFlags.None);
+                tm.SetColor(pos, color);
+            }
+        }
+    }
 }

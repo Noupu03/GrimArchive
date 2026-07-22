@@ -1,0 +1,12 @@
+[스크립트 이름]: UnitSpriteManager
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: UnitSpriteManager, prefab, visualDef, list, cats
+[함수 및 목적]:
+ - GetPrefab: (목적 설명 없음)
+ - GetSkills: (목적 설명 없음)
+ - GetEngageDistance: (목적 설명 없음)
+ - GetSpriteLabelForDirection: (목적 설명 없음)
+ - GetVariationCategories: (목적 설명 없음)
+ - PickRandomVariation: (목적 설명 없음)
+--------------------------------------------------

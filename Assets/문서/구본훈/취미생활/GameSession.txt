@@ -1,0 +1,28 @@
+[스크립트 이름]: GameSession
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: NativeRoutine
+[변수]: Instance, cmap, unitGenerate, mapManager, mapRandering, humanWaveManager, _unitGenerate, _threatTileRenderer, _resolver, _dataManager, _mapManager, allRooms, units, parties, updateTimer, currentGameSpeed, isPaused, w, h, mapTextAsset, currentFloor, floor, chunkW, chunkH, floorOffset, c, startX, startY, min, max, pos, rid, r, visualNeedsSync, u, objId, gridPos, causerStage, isMonsterCorpse, tags, corpse, corpseColor, party, knowledge, causer, traceId, wipeoutObj, survivors, attacker, victimIsHuman, attackerIsHuman, incidentId, speed, oldPos, types, offsets, floorIdx, type, spawnPos, human, mapGenerator, candidates, selection, monster, visual, sr, tex, pixels, sprite, offset, childTilemap, obj
+[함수 및 목적]:
+ - Construct: (목적 설명 없음)
+ - RegisterUnitPos: (목적 설명 없음)
+ - UnregisterUnitPos: (목적 설명 없음)
+ - GameSession: (목적 설명 없음)
+ - Initialize: (목적 설명 없음)
+ - BuildRoomGrid: (목적 설명 없음)
+ - UpdateProcess: (목적 설명 없음)
+ - HandleDebugInput: (목적 설명 없음)
+ - RemoveDeadUnit: (목적 설명 없음)
+ - ClearPerceptionRecordsFor: (목적 설명 없음)
+ - DespawnUnit: (목적 설명 없음)
+ - CreateParty: (목적 설명 없음)
+ - CheckPartyWaveState: (목적 설명 없음)
+ - RecordKillWeightEvent: (목적 설명 없음)
+ - ProcessUnitAction: (목적 설명 없음)
+ - OnKeyDown_H: (목적 설명 없음)
+ - GetRandomStartRoomPos: (목적 설명 없음)
+ - OnKeyDown_M: (목적 설명 없음)
+ - OnKeyDown_K: (목적 설명 없음)
+ - SpawnObject: (목적 설명 없음)
+ - OnKeyDown_O: (목적 설명 없음)
+ - CollectObject: (목적 설명 없음)
+--------------------------------------------------

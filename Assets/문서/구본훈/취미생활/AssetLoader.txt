@@ -1,0 +1,9 @@
+[스크립트 이름]: AssetLoader
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: AssetLoader, _dlProgress, DownloadProgress, AssetDownloadTaskFinished, cts, handle, instance, component, null, asset, BasePath, path, directory, json, textAsset, loadTask, loadedAsset
+[함수 및 목적]:
+ - SaveJson: (목적 설명 없음)
+ - Exists: (목적 설명 없음)
+ - LoadJsonAsync: (목적 설명 없음)
+--------------------------------------------------

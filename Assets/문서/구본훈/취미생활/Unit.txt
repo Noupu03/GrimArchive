@@ -1,0 +1,24 @@
+[스크립트 이름]: Unit
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: ScriptableObject
+[변수]: humanFactionData, monsterFactionData, Generate, UI, VFX, InputMgr, Session, Knowledge, FactionBehavior, MovementAlgorithm, unitType, isSpecialUnit, isInterestTarget, baseInterest, baseDanger, heavyHitThreshold, lastAttacker, level, exp, killCount, maxHp, hp, maxMp, mp, physicalAttack, magicalAttack, physicalDefense, magicalDefense, HPRegen, attackspeed, walkSpeed, reaction, criticalChance, cooltimeReduction, statusResistance, maxMental, mental, spotting, leadershipRange, charisma, stealth, baseVisibility, attackVisibilityBoostTimer, sterngth, Durability, agility, concentration, MagicPower, resistance, sense, leadership, physicalAttackSpeed, magicalCastSpeed, actionCooldown, skillCooldowns, isHitThisTurn, oneTimeReactUsed, reactedAttackers, currentReactionWindow, reactingThreat, reactingAttacker, evadeCooldown, isCastingAttack, castTimer, suppressHitVFX, currentThreat, currentAttackAngle, stunDuration, slowDuration, poisonDuration, burnDuration, currentSpeed, acceleration, isWaitState, isManualMoveCommand, playerAttackTarget, position, currentFloor, currentDir, spriteVariation, personalSpottedEnemies, detectedThreats, _alertRecordCount, IsAlert, CanPerceive, visionOnlyNonEmptyTiles, IsVisibilityBoosted, nAtk, nMatk, nHp, nMp, nPDef, nMDef, nRegen, nStatus, nAtkSpd, nReact, nMove, nSpot, nMental, nLeadRange, nCharisma, nCrit, nCdr, angle, oldKey, newKey, _brain, brain, personalMap, party
+[함수 및 목적]:
+ - NotifyPerceptionSuspiciousChanged: (목적 설명 없음)
+ - RemovePerceptionRecord: (목적 설명 없음)
+ - GetMentalVisibilityCorrection: (목적 설명 없음)
+ - TriggerAttackVisibilityBoost: (목적 설명 없음)
+ - GetFinalVisibility: (목적 설명 없음)
+ - Normalize: (목적 설명 없음)
+ - CalculateDerivedStats: (목적 설명 없음)
+ - SetupStats: (목적 설명 없음)
+ - GetDirRotation: (목적 설명 없음)
+ - IsEnemy: (목적 설명 없음)
+ - ForceMove: (목적 설명 없음)
+ - JudgeState: (목적 설명 없음)
+ - ExecuteAction: (목적 설명 없음)
+ - GetUnitHitbox: (목적 설명 없음)
+ - Human: (목적 설명 없음)
+ - JudgeState: (목적 설명 없음)
+ - Monster: (목적 설명 없음)
+ - JudgeState: (목적 설명 없음)
+--------------------------------------------------

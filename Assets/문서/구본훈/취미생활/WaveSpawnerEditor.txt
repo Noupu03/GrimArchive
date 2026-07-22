@@ -1,0 +1,9 @@
+[스크립트 이름]: WaveSpawnerEditor
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: UnityEditor
+[변수]: waveDataProp, newData, path
+[함수 및 목적]:
+ - OnEnable: (목적 설명 없음)
+ - OnDisable: (목적 설명 없음)
+ - OnInspectorGUI: (목적 설명 없음)
+--------------------------------------------------

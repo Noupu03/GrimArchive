@@ -1,0 +1,11 @@
+[스크립트 이름]: TitlePanel
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoRoutine,ICustomPanel
+[변수]: _customPanelImplementation, uiManager, panel
+[함수 및 목적]:
+ - BindEvent: (목적 설명 없음)
+ - BindEvent: (목적 설명 없음)
+ - SetData: (목적 설명 없음)
+ - OpenPanel: (목적 설명 없음)
+ - ClosePanel: (목적 설명 없음)
+--------------------------------------------------

@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: Default Local Group
   m_GUID: c2bad61200b4ad04fbd2f93fba13c2fb
   m_SerializeEntries:
+  - m_GUID: 2b590b270dea1a44ab167a8e2d0efad2
+    m_Address: Prefabs/StatusInfoPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 414094aff67056749b7f3ace7f632147
     m_Address: Prefabs/Demo_LoadingFadePanel
     m_ReadOnly: 0

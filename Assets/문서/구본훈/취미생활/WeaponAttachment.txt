@@ -1,0 +1,8 @@
+[스크립트 이름]: WeaponAttachment
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: DirectionalPose, direction, offset, sortingOrder, poses, _sr, _lastDir, mirror, lookup, pose, targetAngle, nativeAngle
+[함수 및 목적]:
+ - Awake: (목적 설명 없음)
+ - UpdatePose: (목적 설명 없음)
+--------------------------------------------------

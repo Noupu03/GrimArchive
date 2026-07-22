@@ -1,0 +1,13 @@
+[스크립트 이름]: UIManager
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: _gameSession, y, screenPos, actionName, field, action, debugText, centeredStyle, panicCount, totalMental, humanCount, panicNames, goalStr, panicInfo, go, pos, text, mr
+[함수 및 목적]:
+ - Construct: (목적 설명 없음)
+ - OnGUI: (목적 설명 없음)
+ - DrawTopLeftUI: (목적 설명 없음)
+ - DrawUnitLabels: (목적 설명 없음)
+ - DrawPartyStatus: (목적 설명 없음)
+ - ShowFloatingText: (목적 설명 없음)
+ - GetWorldTextPosition: (목적 설명 없음)
+--------------------------------------------------

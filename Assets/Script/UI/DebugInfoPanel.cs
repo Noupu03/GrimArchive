@@ -189,7 +189,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         var sb = new StringBuilder();
 
         sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
-        sb.AppendLine($"<b>진영:</b> {(u is Human ? "인류" : "몬스터")}");
+        sb.AppendLine($"<b>진영:</b> {(u.IsHumanFaction ? "인류" : (u.IsPlayerMonsterFaction ? "플레이어 몬스터" : "야생 몬스터"))}");
         sb.AppendLine($"<b>LV:</b> {u.level}");
         sb.AppendLine($"<b>EXP:</b> {u.exp:F1}");
         sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");

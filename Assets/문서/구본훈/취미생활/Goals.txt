@@ -1,0 +1,14 @@
+[스크립트 이름]: Goals
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: GoapGoal
+[변수]: 0f, 90f, enemies, 100f
+[함수 및 목적]:
+ - Goal_Panic: (목적 설명 없음)
+ - GetPriority: (목적 설명 없음)
+ - Goal_PlayerCommand: (목적 설명 없음)
+ - GetPriority: (목적 설명 없음)
+ - Goal_DefeatEnemy: (목적 설명 없음)
+ - GetPriority: (목적 설명 없음)
+ - Goal_Explore: (목적 설명 없음)
+ - GetPriority: (목적 설명 없음)
+--------------------------------------------------

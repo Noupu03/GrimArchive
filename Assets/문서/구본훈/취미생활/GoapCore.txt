@@ -1,0 +1,14 @@
+[스크립트 이름]: GoapCore
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: Dictionary<string, bool>
+[변수]: Name, DesiredState, ActionName, Cost, Preconditions, Effects, enemies, target, d, away, maxComp, scaled, targetDist, retreatPos, GoapBrain, availableGoals, availableActions, currentPlannedAction, bestGoal, highestPriority, priority, worldState, enemyVisible, lowestCost, fulfillsGoal, meetsPreconditions, randomDir
+[함수 및 목적]:
+ - AddPrecondition: (목적 설명 없음)
+ - AddEffect: (목적 설명 없음)
+ - GetClosestEnemy: (목적 설명 없음)
+ - MoveTowardsPos: (목적 설명 없음)
+ - MoveTowardsTarget: (목적 설명 없음)
+ - MoveAwayFromTarget: (목적 설명 없음)
+ - JudgeState: (목적 설명 없음)
+ - ExecuteAction: (목적 설명 없음)
+--------------------------------------------------

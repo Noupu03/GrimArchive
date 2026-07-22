@@ -1,0 +1,15 @@
+[스크립트 이름]: Processor
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: SingletonMonoBehaviour<Processor>
+[변수]: PROCESSING, processing, Routines, deleteRoutines, DeleteProcessing, dps, tasks
+[함수 및 목적]:
+ - OnValidate: (목적 설명 없음)
+ - Constructor: (목적 설명 없음)
+ - RegisterEvents: (목적 설명 없음)
+ - CheckDeleteProcessesForScene: (목적 설명 없음)
+ - Register: (목적 설명 없음)
+ - UnRegister: (목적 설명 없음)
+ - CheckDeleteProcesses: (목적 설명 없음)
+ - OnApplicationQuit: (목적 설명 없음)
+ - OnApplicationPause: (목적 설명 없음)
+--------------------------------------------------

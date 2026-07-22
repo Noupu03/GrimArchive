@@ -25,6 +25,17 @@ public class GameUIPresenter : UIPresenter
         int debugPanelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver, null, false, false);
         _coreUIManager.RentPanel<DebugInfoPanel>(debugPanelId).OpenPanel();
 
+        try
+        {
+            // 오펜스 상태 정보 패널 로드 (자원, 웨이브 타이머 표시)
+            int statusPanelId = await _coreUIManager.LoadPanel<StatusInfoPanel>(_resolver, null, false, false);
+            _coreUIManager.RentPanel<StatusInfoPanel>(statusPanelId).OpenPanel();
+        }
+        catch (System.Exception e)
+        {
+            UnityEngine.Debug.LogError($"[UI] StatusInfoPanel 로드 실패 (프리팹을 아직 만들지 않았거나 오타가 있습니다): {e.Message}");
+        }
+
         await _coreUIManager.LoadPanel<Game.Encyclopedia.UI.UI_Encyclopedia>(_resolver, null, false, false);
 
         await FadeOut();

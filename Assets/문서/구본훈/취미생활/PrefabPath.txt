@@ -1,0 +1,7 @@
+[스크립트 이름]: PrefabPath
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: PrefabPath, CORE_CANVAS, DEBUG_PANEL, DEMO_TITLE_PANEL, DEMO_LOADING_PANEL, DEMO_LOADINGFADE_PANEL, LOBBY_BASE_PANEL, LOBBY_PANEL, ITEM_PANEL, SCENE_PATH, SCENE_EXT
+[함수 및 목적]:
+ - 없음
+--------------------------------------------------

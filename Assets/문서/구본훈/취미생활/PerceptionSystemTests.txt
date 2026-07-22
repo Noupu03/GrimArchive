@@ -1,0 +1,16 @@
+[스크립트 이름]: PerceptionSystemTests
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: PerceptionSystemTests, record
+[함수 및 목적]:
+ - DetectionCorrection_AlertAddsTwenty: (목적 설명 없음)
+ - GetMentalTier_Boundaries: (목적 설명 없음)
+ - MentalVisibilityCorrection_Table: (목적 설명 없음)
+ - MentalCorrectionForHuman_UnsetMaxMentalIsStable: (목적 설명 없음)
+ - TotalPerceptionVisibility_ExampleFromDoc: (목적 설명 없음)
+ - AssertProbabilities: (목적 설명 없음)
+ - OutcomeProbabilities_Table: (목적 설명 없음)
+ - RollOutcome_SplitsByRollValue: (목적 설명 없음)
+ - SuspiciousTileTempWeights_AreFive: (목적 설명 없음)
+ - ResolveObjectVisibility_CorpseAndWipeoutAreFixedAt100: (목적 설명 없음)
+--------------------------------------------------

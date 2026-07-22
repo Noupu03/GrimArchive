@@ -1,0 +1,9 @@
+[스크립트 이름]: UnitVisualDefinition
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: MonoBehaviour
+[변수]: unitTypeName, footprint, engageDistance, stats, skills, hitSparkPrefab, guardPrefab, parryPrefab, attackFailPrefab, isSpecialUnit, isInterestTarget, baseInterest, baseDanger, heavyHitThreshold, stealth, baseVisibility, list, UnitsJsonWrapper, UnitJsonNode, typeName, SkillsJsonWrapper, unitsPath, skillsPath, unitsJson, skillsJson, unitsData, skillsData, targetNode
+[함수 및 목적]:
+ - ApplyStatsTo: (목적 설명 없음)
+ - BuildSkillActions: (목적 설명 없음)
+ - LoadDataFromJson: (목적 설명 없음)
+--------------------------------------------------

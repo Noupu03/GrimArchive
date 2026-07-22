@@ -1,0 +1,16 @@
+[스크립트 이름]: WaveSpawner
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: Haare
+[변수]: SpawnMode, waveData, spawnedMonsters, spawnedParties, monster, members, human, partyName, party, t, tempInstance, null, unitTypeInstance, validPos, generator, centerGridPos, offsetX, offsetY, cand, chunks, false, result, cmap, floor, chunkW, chunkH, c, chunkPos, tx, ty, globalPos, true
+[함수 및 목적]:
+ - SpawnWave: (목적 설명 없음)
+ - ResolveUnitType: (목적 설명 없음)
+ - CreateUnitTypeInstance: (목적 설명 없음)
+ - InstantiateMonster: (목적 설명 없음)
+ - InstantiateHuman: (목적 설명 없음)
+ - FindValidSpawnPosition: (목적 설명 없음)
+ - TryFindPosByRoomRole: (목적 설명 없음)
+ - TryFindPosByRoomId: (목적 설명 없음)
+ - CollectRoomChunks: (목적 설명 없음)
+ - TryPickTileInChunks: (목적 설명 없음)
+--------------------------------------------------

@@ -1,0 +1,13 @@
+[스크립트 이름]: PerceptionMath
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: PerceptionMath, r, ratioPercent, PerceptionTargetKind
+[함수 및 목적]:
+ - DetectionCorrection: (목적 설명 없음)
+ - GetMentalTier: (목적 설명 없음)
+ - MentalVisibilityCorrection: (목적 설명 없음)
+ - MentalCorrectionForHuman: (목적 설명 없음)
+ - TotalPerceptionVisibility: (목적 설명 없음)
+ - RollOutcome: (목적 설명 없음)
+ - ReactionCandidatesFor: (목적 설명 없음)
+--------------------------------------------------

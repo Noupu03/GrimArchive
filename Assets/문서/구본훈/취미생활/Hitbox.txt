@@ -1,0 +1,13 @@
+[스크립트 이름]: Hitbox
+[스크립트의 목적]: (추가 주석 필요)
+[의존성과 상속같은 관계]: 없음
+[변수]: Hitbox, center, size, rotation, axes, angle1, angle2, corners1, corners2, false, true, right, up, min1, proj, min2, thisRect, otherRect, overlapWidth, overlapHeight, thisArea
+[함수 및 목적]:
+ - ToRect: (목적 설명 없음)
+ - Overlaps: (목적 설명 없음)
+ - GetCorners: (목적 설명 없음)
+ - OverlapOnAxis: (목적 설명 없음)
+ - CalculateOverlapArea: (목적 설명 없음)
+ - CalculateOverlapRatio: (목적 설명 없음)
+ - IsInside: (목적 설명 없음)
+--------------------------------------------------

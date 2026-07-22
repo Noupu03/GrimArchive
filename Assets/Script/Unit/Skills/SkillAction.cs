@@ -83,8 +83,7 @@ public abstract class SkillAction
 			if (u == null || u == attacker || u.hp <= 0) continue;
 			if (u.currentFloor != attacker.currentFloor) continue;
 
-			bool isEnemy = (attacker is Human && u is Monster) ||
-			               (attacker is Monster && u is Human);
+			bool isEnemy = attacker.IsEnemy(u);
 			if (!isEnemy) continue;
 
 			if (box.Overlaps(GetUnitHitbox(u))) result.Add(u);
@@ -94,7 +93,7 @@ public abstract class SkillAction
 
 	public static Hitbox GetUnitHitbox(Unit u)
 	{
-		Vector2 size = new Vector2(u.unitType.footprint.x, u.unitType.footprint.y);
+		Vector2 size = u.unitType != null ? new Vector2(u.unitType.footprint.x, u.unitType.footprint.y) : new Vector2(1, 1);
 		return new Hitbox
 		{
 			center = (Vector2)u.position + size * 0.5f,
