@@ -156,6 +156,7 @@ public static class PerceptionMath
 // 생기면 그대로 쓸 수 있도록 미리 분류만 남겨둔다.
 public enum PerceptionTargetKind
 {
+	None, // 15장 표에 없는 대상(예: 일반 루팅) — ReactionCandidatesFor의 기본 분기(빈 배열)로 처리됨.
 	EnemyUnit,
 	Trap,
 	Building,

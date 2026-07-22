@@ -106,7 +106,7 @@ public class VisionSystemTests
 			VisionMath.FinalVisibility(100f, 150f, true), 40f, 0f), 0.001f);
 	}
 
-	// ── 01-A 13장. 특수 원형 인지 범위 반지름 표 (1/2/3칸) ──
+	// ── 01-A 12장. 특수 원형 인지 범위 반지름 표 (1/2/3칸) ──
 	[Test]
 	public void CircularPerceptionRadius_Table()
 	{

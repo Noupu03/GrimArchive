@@ -26,4 +26,16 @@ public class PerceptionRecord
 	// 위험도/흥미도에 기록하지 않고, 필요할 때(04 문서의 소비자)마다 이 레코드에서 즉시 계산해 쓴다.
 	public float TempDanger => IsSuspicious ? PerceptionMath.SuspiciousTileTempDanger : 0f;
 	public float TempInterest => IsSuspicious ? PerceptionMath.SuspiciousTileTempInterest : 0f;
+
+	// 14장/15장: 이 대상이 어떤 분류(적 유닛/시체/전멸흔적/함정/건물)인지 — ForceRollPerception 호출부가
+	// 매번 채워준다. ReactionCandidates가 이 값으로 15장 표를 조회한다.
+	public PerceptionTargetKind TargetKind = PerceptionTargetKind.None;
+
+	// 01-A 8장 마지막 문장 "정확한 인지가 발생하면... 행동 후보를 등록할 수 있다" — 정확 인지 상태일
+	// 때만 15장 표의 후보 목록을 반환한다. 실제로 하나를 "선택"해서 실행하는 소비자(04/06/08 문서)는
+	// 아직 없지만, 이 레코드에 붙여두면 그 문서가 생겼을 때 바로 조회해 쓸 수 있다.
+	public PerceptionReactionCandidate[] ReactionCandidates =>
+		Outcome == PerceptionOutcome.AccuratePerception
+			? PerceptionMath.ReactionCandidatesFor(TargetKind)
+			: System.Array.Empty<PerceptionReactionCandidate>();
 }
