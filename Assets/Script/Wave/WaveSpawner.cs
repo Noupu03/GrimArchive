@@ -186,6 +186,24 @@ namespace GrimArchive.Wave
             return human;
         }
 
+        // 0층 사전 스폰(HumanWaveManager 웨이브 시작 전 대기 연출, 2026-07-23 사용자 요청)용 —
+        // InstantiateHuman과 같은 생성 로직이지만 시작방을 찾는 대신 호출부가 직접 지정한 위치/층에
+        // 놓는다(0층 로비에는 RoomRole.StartRoom 방 단위 구획이 없어 TryFindPosByRoomRole을 못 씀).
+        public Human InstantiatePreSpawnHumanAt(string typeName, Vector2Int pos, int floorIdx)
+        {
+            UnitType unitTypeInstance = CreateUnitTypeInstance(typeName);
+            if (unitTypeInstance == null) return null;
+
+            Human human = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Human>(unitTypeInstance, pos, floorIdx);
+            if (human != null)
+            {
+                GameSession.Instance.units.Add(human);
+                GameSession.Instance.RegisterUnitPos(human, pos);
+            }
+
+            return human;
+        }
+
         private Vector2Int FindValidSpawnPosition(Vector2 footprint)
         {
             UnitGenerate generator = GameSession.Instance.unitGenerate;

@@ -1,7 +1,2 @@
-OperationException : ChainOperation failed because dependent operation failed
-UnityEngine.AddressableAssets.InvalidKeyException: Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. No Location found for Key=Prefabs/Demo_LoadingFadePanel
-UnityEngine.ResourceManagement.ChainOperationTypelessDepedency`1<UnityEngine.GameObject>:OnWrappedCompleted (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>)
-DelegateList`1<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>>:Invoke (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>) (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/DelegateList.cs:75)
-UnityEngine.ResourceManagement.ResourceManager:Update (single)
-MonoBehaviourCallbackHooks:Update () (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/MonoBehaviourCallbackHooks.cs:29)
+Assets\Tests\GoapPlannerTests.cs(16,16): error CS0534: 'GoapPlannerTests.FakeAction' does not implement inherited abstract member 'GoapAction.ActionCode.get'
 

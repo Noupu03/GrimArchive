@@ -76,7 +76,6 @@ public class AStarMovement : IMovementAlgorithm
                 if (!IsTileWalkable(unit, current.Pos, neighborPos, dirVec, myData, mapW, mapH, floorIdx, targetPos, out bool isOccupied)) continue;
 
                 int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
-                if (isOccupied) moveCost += 30;
 
                 int newGCost = current.GCost + moveCost;
 
@@ -115,6 +114,13 @@ public class AStarMovement : IMovementAlgorithm
         return false;
     }
 
+    // 유닛 점유 타일을 "비용만 추가되는 통행 가능 칸"으로 취급했었는데, 실제 이동을 실행하는
+    // UnitFunction.CanMove/Move()는 점유된 칸을 예외 없이 완전히 막는다(2026-07-22 발견) — A*가
+    // "이 길로 가면 조금 더 걸리지만 갈 수는 있다"고 추천한 칸이 실제로는 Move() 단계에서 조용히
+    // 실패해서, GOAP은 "이동했다"고 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈춰버리는
+    // 버그였다(파티가 밀집한 웨이브 대형에서 서로 자리를 막아 자주 재현 — 사용자 신고 스크린샷 참고).
+    // 이제 CanMove와 똑같이 점유된 칸은 완전히 막아서(원래 예외였던 targetPos 자체도 포함) 이 둘이
+    // 항상 같은 판단을 하도록 맞춘다.
     protected virtual bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         isOccupied = false;
@@ -132,25 +138,30 @@ public class AStarMovement : IMovementAlgorithm
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
                 if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
 
-                if (neighborPos != targetPos &&
-                    unit.Session != null &&
+                if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
-                    if (u != null && u != unit && u.GetComponent<HealthComponent>().hp > 0) isOccupied = true;
+                    if (u != null && u != unit && u.hp > 0) { isOccupied = true; isWall = true; break; }
                 }
             }
         }
 
-        // 코너 커팅 방지
+        // 코너 커팅 방지 — Move()의 실제 판정(CanMove, 벽+유닛 점유 둘 다 봄)과 반드시 일치해야
+        // 한다. 여기서 벽만 보고 점유는 빼먹으면, A*는 이 대각선이 통과 가능하다고 판단하는데 실제
+        // Move()는 대각선 양옆 한 칸을 다른 유닛이 차지하고 있어서 거부하는 불일치가 생긴다 — 좁은
+        // 곳에 유닛이 몰렸을 때 서로 대각선으로 길을 막아서 몇몇이 영영 못 움직이는 원인이었다(사용자
+        // 제보 콘솔 로그, 2026-07-23 — "이동 시도했지만 실제로는 못 움직임. 점유=False"가 목표 칸이
+        // 아니라 대각선 코너 쪽 점유 때문이었다).
         if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
         {
             int ortho1X = currentPos.x + dirVec.x, ortho1Y = currentPos.y;
             int ortho2X = currentPos.x, ortho2Y = currentPos.y + dirVec.y;
 
-            bool ortho1Wall = (ortho1X < 0 || ortho1X >= mapW || ortho1Y < 0 || ortho1Y >= mapH || myData.discoveredMap[floorIdx][ortho1X, ortho1Y] == 2);
-            bool ortho2Wall = (ortho2X < 0 || ortho2X >= mapW || ortho2Y < 0 || ortho2Y >= mapH || myData.discoveredMap[floorIdx][ortho2X, ortho2Y] == 2);
-
-            if (ortho1Wall || ortho2Wall) isWall = true;
+            if (IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho1X, ortho1Y) ||
+                IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho2X, ortho2Y))
+            {
+                isWall = true;
+            }
         }
 
         if (isWall) return false;
@@ -176,6 +187,23 @@ public class AStarMovement : IMovementAlgorithm
         }
 
         return true;
+    }
+
+    // 좌표 하나가 벽이거나(범위 밖 포함) 다른 살아있는 유닛이 점유 중이면 true — UnitFunction.CanMove의
+    // 단일 타일 판정과 같은 기준(벽+점유)을 discoveredMap 기반으로 재현한다. 코너 커팅 방지 체크가
+    // Move()의 실제 판정과 어긋나지 않도록 이 헬퍼 하나로 통일해서 쓴다.
+    private bool IsCoordBlocked(Unit unit, FactionData myData, int mapW, int mapH, int floorIdx, int x, int y)
+    {
+        if (x < 0 || x >= mapW || y < 0 || y >= mapH) return true;
+        if (myData.discoveredMap[floorIdx][x, y] == 2) return true;
+
+        if (unit.Session != null &&
+            unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))
+        {
+            if (u != null && u != unit && u.hp > 0) return true;
+        }
+
+        return false;
     }
 
     private int GetHeuristic(Vector2Int a, Vector2Int b)

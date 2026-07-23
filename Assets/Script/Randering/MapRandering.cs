@@ -15,6 +15,12 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private Sprite floorSprite;
     private Sprite stairSprite;
 
+    // 아래층(더 깊은 층)으로 내려가는 계단/위층(입구 쪽)으로 올라가는 계단 표시용 — 기존 바닥·계단
+    // 타일 위에 겹쳐서 그리는 오버레이 스프라이트(사용자 요청, 2026-07-23). 타일 자체를 바꾸는 게
+    // 아니라 그 위에 별도 SpriteRenderer로 얹는다.
+    private Sprite stairDownSprite;
+    private Sprite stairUpSprite;
+
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
@@ -60,6 +66,13 @@ public class MapRandering : NativeRoutine, IMapColorizer
             }
         }
 
+        if (stairDownSprite == null) stairDownSprite = Resources.Load<Sprite>("obj/stair_down");
+        if (stairUpSprite == null) stairUpSprite = Resources.Load<Sprite>("obj/stair_up");
+        if (stairDownSprite == null || stairUpSprite == null)
+        {
+            LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down/stair_up 이미지를 찾지 못했습니다.");
+        }
+
         wallTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         wallTile.sprite = wallSprite;
 
@@ -91,7 +104,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         ClearExistingTilemaps();
 
         int floorCount = createMap.map.floors.Length;
-        floorOffsets = ComputeStairAlignedOffsets();
+        floorOffsets = ComputeSpacedOffsets();
 
         if (mapRoot == null)
         {
@@ -116,6 +129,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);
+            RenderStairOverlays(tilemapObj.transform, ref floor, f);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -170,58 +184,77 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
     }
 
-    Vector3Int[] ComputeStairAlignedOffsets()
+    // PlaceStairTiles(CreateMap.Stairs.cs)가 청크 내부 (3,4)x(3,4) 2x2 블록에 계단 타일을 찍으므로,
+    // 그 블록 전체를 덮도록 방향 아이콘(stairDown/stairUp)을 기존 타일 위에 겹쳐 그린다(사용자 요청,
+    // 2026-07-23). stairTargetFloor가 현재 층보다 크면(더 깊은 층) 내려가는 계단, 작으면(입구 쪽)
+    // 올라가는 계단으로 판단한다.
+    private const int StairBlockSize = 2; // PlaceStairTiles와 동일한 블록 크기
+    private const float StairOverlayWorldSize = 2f; // 2x2 타일 블록 전체를 덮는 크기(비율 유지, 큰 쪽 기준)
+    private const int StairOverlaySortingOrder = 5; // GameSession.SpawnObject의 오브젝트 오버레이와 동일한 관례
+
+    void RenderStairOverlays(Transform parent, ref Floor floor, int floorIdx)
+    {
+        if (stairDownSprite == null && stairUpSprite == null) return;
+        if (floor.chunks == null) return;
+
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null || chunk.stairTargetFloor < 0) continue;
+
+                bool goesDown = chunk.stairTargetFloor > floorIdx;
+                Sprite sprite = goesDown ? stairDownSprite : stairUpSprite;
+                if (sprite == null) continue;
+
+                var go = new GameObject(goesDown ? "StairDownIcon" : "StairUpIcon");
+                go.transform.SetParent(parent, false);
+
+                // 계단 블록(2x2) 중심 좌표 — 블록은 (cx*8+3, cy*8+3)~(cx*8+5, cy*8+5) 구간을 차지한다.
+                float centerX = cx * ChunkSize + 3 + StairBlockSize / 2f;
+                float centerY = cy * ChunkSize + 3 + StairBlockSize / 2f;
+                go.transform.localPosition = new Vector3(centerX, centerY, 0f);
+
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = sprite;
+                sr.sortingOrder = StairOverlaySortingOrder;
+
+                float maxDim = Mathf.Max(sprite.bounds.size.x, sprite.bounds.size.y);
+                if (maxDim > 0f)
+                {
+                    float scale = StairOverlayWorldSize / maxDim;
+                    go.transform.localScale = new Vector3(scale, scale, 1f);
+                }
+            }
+        }
+    }
+
+    // 층 사이에 두는 간격(타일 단위, 고정값) — 사용자 요청(2026-07-23) "계단 위치끼리 맞물리지 말고
+    // 층별로 스프라이트 간격 떨어트려줘". 모든 층 Tilemap이 항상 동시에 활성화된 채로 렌더링되므로
+    // (ShowFloor로 한 층만 보이게 하는 기능은 아직 어디서도 안 쓰임 — RenderAllFloors 참고), 예전의
+    // "계단 위치를 맞춰서 겹쳐 쌓기" 오프셋은 층들이 화면에서 서로 거의 같은 자리에 겹쳐 보이는
+    // 문제가 있었다. 계단 정렬 대신 층마다 가로로 나란히 떨어뜨려 배치한다.
+    private const int FloorGapTiles = 10;
+
+    Vector3Int[] ComputeSpacedOffsets()
     {
         int floorCount = createMap.map.floors.Length;
         var offsets = new Vector3Int[floorCount];
-        offsets[0] = Vector3Int.zero;
 
-        if (floorCount > 1)
+        int cursorX = 0;
+        for (int f = 0; f < floorCount; f++)
         {
-            Vector2Int stairInF0 = FindStairTileCenter(ref createMap.map.floors[0], 1);
-            Vector2Int stairInF1 = FindStairTileCenter(ref createMap.map.floors[1], 0);
-            offsets[1] = new Vector3Int(offsets[0].x + stairInF0.x - stairInF1.x, offsets[0].y + stairInF0.y - stairInF1.y, 0);
-        }
-        if (floorCount > 2)
-        {
-            Vector2Int stairInF1 = FindStairTileCenter(ref createMap.map.floors[1], 2);
-            Vector2Int stairInF2 = FindReturnStairTileCenter(ref createMap.map.floors[2], 1);
-            offsets[2] = new Vector3Int(offsets[1].x + stairInF1.x - stairInF2.x, offsets[1].y + stairInF1.y - stairInF2.y, 0);
-        }
-        if (floorCount > 3)
-        {
-            Vector2Int stairInF2 = FindStairTileCenter(ref createMap.map.floors[2], 3);
-            Vector2Int stairInF3 = FindReturnStairTileCenter(ref createMap.map.floors[3], 2);
-            offsets[3] = new Vector3Int(offsets[2].x + stairInF2.x - stairInF3.x, offsets[2].y + stairInF2.y - stairInF3.y, 0);
+            offsets[f] = new Vector3Int(cursorX, 0, 0);
+
+            int widthTiles = createMap.map.floors[f].config.width * ChunkSize;
+            cursorX += widthTiles + FloorGapTiles;
         }
 
         return offsets;
-    }
-
-    Vector2Int FindStairTileCenter(ref Floor floor, int targetFloor)
-    {
-        int w = floor.config.width, h = floor.config.height;
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == targetFloor)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-        return Vector2Int.zero;
-    }
-
-    Vector2Int FindReturnStairTileCenter(ref Floor floor, int fromFloor)
-    {
-        int w = floor.config.width, h = floor.config.height;
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == fromFloor)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == 0)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-
-        return Vector2Int.zero;
     }
 
     void ClearExistingTilemaps()

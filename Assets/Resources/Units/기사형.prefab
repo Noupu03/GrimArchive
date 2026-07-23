@@ -144,15 +144,15 @@ MonoBehaviour:
   stats:
     maxHp: 150
     maxMp: 30
-    physicalAttack: 25
-    magicalAttack: 8
-    physicalDefense: 14
-    magicalDefense: 12
+    physicalAttack: 50
+    magicalAttack: 12
+    physicalDefense: 10
+    magicalDefense: 8
     HPRegen: 5
-    attackspeed: 90
+    attackspeed: 115
     walkSpeed: 3.2
-    reaction: 95
-    criticalChance: 9
+    reaction: 60
+    criticalChance: 14
     cooltimeReduction: 90
     statusResistance: 90
     maxMental: 100
@@ -160,7 +160,7 @@ MonoBehaviour:
     spotting: 85
     leadershipRange: 4
     charisma: 3
-    physicalAttackSpeed: 12
+    physicalAttackSpeed: 18
     magicalCastSpeed: 0
   skills:
   - skillName: "\uC9D1\uC911 \uCC0C\uB974\uAE30"

@@ -338,8 +338,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 0
-  m_labelHash: 0
+  m_CategoryHash: 5.4934837e-27
+  m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
 --- !u!1 &6590798347702598913
@@ -393,15 +393,15 @@ MonoBehaviour:
   stats:
     maxHp: 180
     maxMp: 0
-    physicalAttack: 29
-    magicalAttack: 6
+    physicalAttack: 60
+    magicalAttack: 9
     physicalDefense: 10
     magicalDefense: 8
     HPRegen: 3
-    attackspeed: 80
+    attackspeed: 105
     walkSpeed: 2.8
     reaction: 85
-    criticalChance: 7.5
+    criticalChance: 12
     cooltimeReduction: 75
     statusResistance: 75
     maxMental: 0
@@ -409,7 +409,7 @@ MonoBehaviour:
     spotting: 80
     leadershipRange: 0
     charisma: 0
-    physicalAttackSpeed: 8
+    physicalAttackSpeed: 13
     magicalCastSpeed: 0
   skills:
   - skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"

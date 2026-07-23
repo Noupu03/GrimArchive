@@ -47,6 +47,13 @@ public class InputManager : MonoBehaviour
 	private ProductionRule currentBuildRule;
 	private Sprite currentBuildSprite;
 
+	// === 오브젝트(O)/함정(P)/몬스터(M) 배치 모드 — 빌드 모드와 같은 고스트 방식(2026-07-22/23, 사용자 요청) ===
+	public bool isObjectPlaceMode = false;
+	public bool isTrapPlaceMode = false;
+	public bool isMonsterPlaceMode = false;
+	private GameObject placeGhost;
+	private SpriteRenderer placeGhostRenderer;
+
 	[Inject]
 	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager)
 	{
@@ -124,6 +131,22 @@ public class InputManager : MonoBehaviour
 		{
 			UpdateBuildMode(floorOffset, currentFloor);
 			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
+		}
+
+		// =====================================================
+		// 오브젝트(O)/함정(P) 배치 모드 — B키(빌드 모드)와 동일한 방식(고스트 스프라이트가 마우스를
+		// 따라다니다 좌클릭한 위치에 생성, 우클릭으로 취소)으로 원하는 위치를 직접 골라서 놓는다
+		// (사용자 요청, 2026-07-22 — 예전엔 O/P가 GameSession.HandleDebugInput에서 즉시 무작위 위치에
+		// 스폰했음).
+		// =====================================================
+		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlaceMode();
+		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlaceMode();
+		if (Keyboard.current.mKey.wasPressedThisFrame) EnterMonsterPlaceMode();
+
+		if (isObjectPlaceMode || isTrapPlaceMode || isMonsterPlaceMode)
+		{
+			UpdatePlaceMode(floorOffset, currentFloor);
+			return; // 배치 모드 중에는 유닛 선택 로직 스킵
 		}
 
 		// =====================================================
@@ -477,6 +500,7 @@ public class InputManager : MonoBehaviour
 	private void EnterBuildMode()
 	{
 		if (isBuildMode) return;
+		ExitPlaceMode(); // 오브젝트/함정 배치 모드와 동시에 켜지지 않게 한다
 		isBuildMode = true;
 
 		// 임시로 더미 생산 규칙 하나 생성
@@ -486,8 +510,9 @@ public class InputManager : MonoBehaviour
 		currentBuildRule.costs.Add(new ResourceCost { resourceType = ResourceType.Wood, amount = 20 });
 		currentBuildRule.targetUnitTypeName = "Knight";
 
-		// 벽 타일(Tile_StoneWall) 이미지를 임시 건물 이미지로 쓴다
-		currentBuildSprite = Resources.Load<Sprite>("Tile_StoneWall");
+		// 건축물 전용 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일(Tile_StoneWall)을
+		// 임시로 재사용했다.
+		currentBuildSprite = Resources.Load<Sprite>("obj/building");
 
 		if (ghostPrefab == null)
 		{
@@ -552,6 +577,135 @@ public class InputManager : MonoBehaviour
 			// 6단계: 설치 렌더링 및 등록
 			_buildingManager.InstallBuilding(gridPos, currentBuildRule, currentBuildSprite);
 			ExitBuildMode();
+		}
+	}
+
+	// =====================================================
+	// 오브젝트(O)/함정(P)/몬스터(M) 배치 모드 — 빌드 모드와 동일한 고스트 방식(2026-07-22/23, 사용자
+	// 요청). 셋 다 고스트 하나를 공유하고, 모양/색만 종류에 따라 바꿔 쓴다.
+	// =====================================================
+	private void EnterObjectPlaceMode()
+	{
+		if (isObjectPlaceMode) return;
+		ExitBuildMode();
+		isTrapPlaceMode = false;
+		isMonsterPlaceMode = false;
+		isObjectPlaceMode = true;
+
+		EnsurePlaceGhost();
+		// 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("obj/core");
+		LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성, 우클릭: 취소)");
+	}
+
+	private void EnterTrapPlaceMode()
+	{
+		if (isTrapPlaceMode) return;
+		ExitBuildMode();
+		isObjectPlaceMode = false;
+		isMonsterPlaceMode = false;
+		isTrapPlaceMode = true;
+
+		EnsurePlaceGhost();
+		// 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("obj/trap");
+		LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
+	}
+
+	private void EnterMonsterPlaceMode()
+	{
+		if (isMonsterPlaceMode) return;
+		ExitBuildMode();
+		isObjectPlaceMode = false;
+		isTrapPlaceMode = false;
+		isMonsterPlaceMode = true;
+
+		EnsurePlaceGhost();
+		// 몬스터는 동그라미 스프라이트로 표시(함정의 세모와 구분) — UnitGenerate의 인류 폴백 원형
+		// 생성 로직 재사용.
+		placeGhostRenderer.sprite = _unitGenerate != null ? _unitGenerate.CreateCircleSprite(Color.white) : null;
+		LogHelper.Log(LogHelper.GAME, $"몬스터 배치 모드 진입 (나무 {ResourceManager.MonsterPlaceWoodCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
+	}
+
+	private void ExitPlaceMode()
+	{
+		isObjectPlaceMode = false;
+		isTrapPlaceMode = false;
+		isMonsterPlaceMode = false;
+		if (placeGhost != null) placeGhost.SetActive(false);
+	}
+
+	private void EnsurePlaceGhost()
+	{
+		if (placeGhost == null)
+		{
+			placeGhost = new GameObject("PlacementGhost");
+			placeGhostRenderer = placeGhost.AddComponent<SpriteRenderer>();
+			placeGhostRenderer.sortingOrder = 10;
+		}
+		placeGhost.SetActive(true);
+	}
+
+	private void UpdatePlaceMode(Vector3 floorOffset, int currentFloor)
+	{
+		Vector2 mousePos = Mouse.current.position.ReadValue();
+		Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+		// 이미 다른 오브젝트가 있거나(objectGrid) 벽/유닛으로 막혀있으면(IsAreaClear) 놓을 수 없다.
+		bool canPlace = _gameSession != null && _unitGenerate != null
+			&& !_gameSession.objectGrid.ContainsKey(gridPos)
+			&& _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor);
+
+		if (placeGhost != null)
+		{
+			placeGhost.transform.position = new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f) + floorOffset;
+			placeGhostRenderer.color = canPlace
+				? new Color(0f, 1f, 0f, 0.5f)  // 배치 가능 (녹색 반투명)
+				: new Color(1f, 0f, 0f, 0.5f); // 배치 불가 (빨간색 반투명)
+		}
+
+		if (Mouse.current.rightButton.wasPressedThisFrame)
+		{
+			ExitPlaceMode();
+			return;
+		}
+
+		if (Mouse.current.leftButton.wasPressedThisFrame && canPlace)
+		{
+			if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+			{
+				if (isObjectPlaceMode)
+				{
+					_gameSession.SpawnLootObjectAt(gridPos);
+					ExitPlaceMode();
+				}
+				else if (isTrapPlaceMode)
+				{
+					// 돌 자원이 부족하면 배치를 취소하지 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에
+					// 다시 시도할 수 있게 한다(배치 모드 자체는 우클릭으로만 취소).
+					if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost))
+					{
+						_gameSession.SpawnTrapAt(gridPos);
+						ExitPlaceMode();
+					}
+					else
+					{
+						LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
+					}
+				}
+				else if (isMonsterPlaceMode)
+				{
+					if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
+					{
+						_gameSession.SpawnPlayerMonsterAt(new Vector2Int(gridPos.x, gridPos.y), currentFloor);
+						ExitPlaceMode();
+					}
+					else
+					{
+						LogHelper.Warning(LogHelper.GAME, $"나무가 부족하여 몬스터를 배치할 수 없습니다. (필요: {ResourceManager.MonsterPlaceWoodCost})");
+					}
+				}
+			}
 		}
 	}
 }

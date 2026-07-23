@@ -371,6 +371,17 @@ public class UnitGenerate
 			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
+				// 선택 여부와 무관하게 항상 표시 — GOAP이 앞으로 실행할 계획을 카메라 위치/배율과
+				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel).
+				uv.UpdateStatusLabel(u.brain.PlanText(u), u is Human);
+
+				// 함정 해제 시도 중임을 유닛 하단에 표시(사용자 요청, 2026-07-23) — 머리 위 상태
+				// 라벨과 같은 world-space TextMesh 방식, 위치만 하단으로 뒤집는다.
+				bool isDisarmingTrap = u is Human hDisarm
+					&& hDisarm.currentTrapInteraction != null
+					&& hDisarm.currentTrapInteraction.Phase == TrapPhase.Disarming;
+				uv.UpdateBelowLabel(isDisarmingTrap ? "" : null);//오류 때문에 잠시 비워둠
+
 				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
 				bool showRanges = ShowAllVisionRanges || isSoleSelected;
 				uv.SetVisionRangesVisible(showRanges);
@@ -469,7 +480,9 @@ public class UnitGenerate
 
 	#region 폴백 스프라이트 생성
 
-	private Sprite CreateCircleSprite(Color color)
+	// InputManager의 몬스터(M) 배치 고스트에서도 재사용하려고 public으로 뒀다 — 인류 폴백
+	// 스프라이트(흰색)와 같은 원 모양을 색만 바꿔 그린다.
+	public Sprite CreateCircleSprite(Color color)
 	{
 		Texture2D texture = new Texture2D(32, 32);
 		Color[]   pixels  = new Color[32 * 32];
@@ -482,7 +495,9 @@ public class UnitGenerate
 		return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
 	}
 
-	private Sprite CreateTriangleSprite(Color color)
+	// GameSession.SpawnObject(함정 미리보기/실제 스폰)와 InputManager의 배치 고스트에서도 재사용하려고
+	// public으로 뒀다 — 몬스터 폴백 스프라이트(흰색)와 같은 삼각형 모양을 색만 바꿔 그린다.
+	public Sprite CreateTriangleSprite(Color color)
 	{
 		Texture2D texture = new Texture2D(32, 32);
 		Color[]   pixels  = new Color[32 * 32];

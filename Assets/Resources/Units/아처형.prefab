@@ -247,8 +247,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 0
-  m_labelHash: 0
+  m_CategoryHash: 5.4934837e-27
+  m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
 --- !u!1 &2411796298254631393
@@ -300,25 +300,25 @@ MonoBehaviour:
   footprint: {x: 1, y: 1}
   engageDistance: 7
   stats:
-    maxHp: 9999
-    maxMp: 100
-    physicalAttack: 500
-    magicalAttack: 50
-    physicalDefense: 50
-    magicalDefense: 50
-    HPRegen: 100
+    maxHp: 80
+    maxMp: 40
+    physicalAttack: 65
+    magicalAttack: 9
+    physicalDefense: 5
+    magicalDefense: 5
+    HPRegen: 1
     attackspeed: 150
-    walkSpeed: 6
-    reaction: 150
-    criticalChance: 50
-    cooltimeReduction: 100
-    statusResistance: 100
+    walkSpeed: 3.6
+    reaction: 115
+    criticalChance: 28
+    cooltimeReduction: 95
+    statusResistance: 85
     maxMental: 100
-    mental: 100
+    mental: 40
     spotting: 100
-    leadershipRange: 5
-    charisma: 5
-    physicalAttackSpeed: 20
+    leadershipRange: 4
+    charisma: 3
+    physicalAttackSpeed: 28
     magicalCastSpeed: 0
   skills:
   - skillName: "\uC815\uBC00 \uC0AC\uACA9"
@@ -351,11 +351,11 @@ MonoBehaviour:
   attackFailPrefab: {fileID: 0}
   isSpecialUnit: 0
   isInterestTarget: 0
-  baseInterest: 0
-  baseDanger: 0
+  baseInterest: 40
+  baseDanger: 32
   heavyHitThreshold: 10
   stealth: 20
-  baseVisibility: 85
+  baseVisibility: 80
 --- !u!1 &8451115793971915785
 GameObject:
   m_ObjectHideFlags: 0

@@ -115,24 +115,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
             }
 
-            if (cmap.map.floors == null || cmap.map.floors.Length == 0)
-            {
-                Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME, "GameSession: Data/map이 없거나 유효하지 않아 GenerateMap()으로 동적 생성합니다.");
-                cmap.GenerateMap();
-            }
+            // 게임을 시작하자마자 보스방에 루팅 오브젝트(O키와 동일한 것)를 자동 생성한다(사용자 요청,
+            // 2026-07-23) — HumanWaveManager.MonitorWave()가 이 오브젝트를 "Loot" 태그로 발견해서 첫
+            // 웨이브부터 곧바로 목표로 추적하므로, 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
+            SpawnInitialBossRoomLoot();
 
-            Unit.humanFactionData.InitMap(cmap);
-            Unit.monsterFactionData.InitMap(cmap);
-
-            if (mapManager != null)
-            {
-                mapManager.SetupAndVisualizeMap(cmap);
-                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: SetupAndVisualizeMap called.");
-            }
-
-            BuildRoomGrid();
-        } catch (System.Exception ex) {
-            UnityEngine.Debug.LogError($"[GameSession] Initialize Exception: {ex}");
+            Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
+        }
+        else
+        {
+            Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
         }
 
         await base.Initialize(cts);
@@ -261,7 +253,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private void HandleDebugInput()
     {
-        _debugInputHandler?.HandleDebugInput();
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
+            if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
+            // O(루팅 오브젝트)/P(함정)/M(몬스터)은 InputManager의 배치 고스트 모드가 담당한다(원하는
+            // 위치를 직접 골라서 놓기 위함, 2026-07-22/23) — GameSession.SpawnLootObjectAt/SpawnTrapAt/
+            // SpawnPlayerMonsterAt 참고. M은 예전엔 즉시 무작위 위치에 스폰했으나 나무 자원을 소모하는
+            // 배치 모드로 바뀌었다(사용자 요청, 2026-07-23).
+        }
     }
 
     private void RemoveDeadUnit(int index, Unit u)
@@ -282,6 +282,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.GetComponent<BaseStatComponent>().baseDanger);
             }
             
+            // SpawnObject는 objectGrid에 이미 오브젝트가 있는 타일이면 조용히 아무것도 안 하고
+            // 리턴한다 — 함정에 맞아 죽으면 사망 위치가 곧 그 함정 타일이라 항상 이 케이스에 걸려서
+            // 시체가 전혀 안 생기고 있었다(사용자 신고 "시체 생성이 안 되는데 확인해줘", 2026-07-23).
+            // 죽은 자리가 이미 차있으면 바로 옆 빈 타일을 찾아 대신 놓는다.
+            if (objectGrid.ContainsKey(gridPos))
+                gridPos = FindNearbyFreeObjectTile(gridPos);
+
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Object/Passable/Corpse", isMonsterCorpse ? "Monster" : "Human" };
             // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
@@ -302,7 +309,37 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (u != null) UnityEngine.Object.Destroy(u);
     }
 
-    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.GetComponent<PerceptionComponent>().State.perceptionRecords는 "누가 이 유닛을 봤는지"를
+    // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
+    // 경우, objectGrid에 함정 자신이 이미 그 타일을 차지하고 있음) 바로 옆부터 정사각형 링 모양으로
+    // 넓혀가며 비어있는 첫 타일을 찾는다. objectGrid 점유 여부만 보고 벽인지는 확인하지 않아서, 좁은
+    // 통로에서 죽으면 시체가 벽 타일에 놓이는 경우가 있었다(사용자 신고, 2026-07-23 "시체 벽에
+    // 생기는거 막아줘") — CreateMap.IsStaticTileWalkable로 벽/구조물 타일도 함께 걸러낸다. 반경 안에
+    // 빈 자리가 전혀 없으면(사실상 거의 없음) 원래 위치를 그대로 반환한다 — 그러면 SpawnObject가
+    // 조용히 무시하고 넘어간다.
+    private Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
+    {
+        const int maxRadius = 5;
+        for (int radius = 1; radius <= maxRadius; radius++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    // 이전 반경에서 이미 검사한 안쪽 칸은 건너뛰어 링(테두리)만 순회한다.
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
+
+                    Vector3Int candidate = new Vector3Int(center.x + dx, center.y + dy, center.z);
+                    if (objectGrid.ContainsKey(candidate)) continue;
+                    if (cmap != null && !cmap.IsStaticTileWalkable(center.z, new Vector2Int(candidate.x, candidate.y))) continue;
+
+                    return candidate;
+                }
+            }
+        }
+        return center;
+    }
+
+    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.perceptionRecords는 "누가 이 유닛을 봤는지"를
     // 그 관찰자 쪽에 Unit 참조를 키로 들고 있는 구조라, 유닛이 죽어도 다른 유닛들의 딕셔너리에는 destroyed
     // 참조가 그대로 남는다 — 웨이브가 반복될수록 죽은 몬스터 참조가 계속 쌓여 UpdateFOV 끝의 sweep(전체
     // perceptionRecords 순회) 비용이 웨이브를 거듭할수록 계속 커지는 게 실제 프레임 드롭의 원인이었다.
@@ -334,12 +371,71 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // ─────────────────────────── 파티 시스템 ───────────────────────────
     public Party CreateParty(string name, List<Human> members)
     {
-        return _partyService.CreateParty(name, members);
+        var party = new Party(System.Guid.NewGuid().ToString(), name);
+        foreach (var m in members)
+        {
+            if (m == null) continue;
+            party.Members.Add(m);
+            m.party = party;
+
+            // 5-1장: "신규 유닛 개인 지도 정보 = 최신 전역 지도 정보" — 파티에 합류하는(=웨이브에
+            // 입장하는) 시점이 정확히 문서가 말하는 "신규 진입" 순간이다. 이미 개인 기억
+            // (personalWeights)이 있는 유닛은 InitializeNewUnitPersonalInfo 내부에서 덮어쓰지
+            // 않으므로(5-2장) 재사용 유닛을 넣어도 안전하다.
+            m.Knowledge?.InitializeNewUnitPersonalInfo(m);
+        }
+        party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
+        parties.Add(party);
+        return party;
     }
 
     private void CheckPartyWaveState(Unit deadUnit)
     {
-        _partyService.CheckPartyWaveState(deadUnit);
+        var knowledge = deadUnit.Knowledge;
+        if (knowledge == null) return;
+
+        if (deadUnit is Human deadHuman && deadHuman.party != null)
+        {
+            var party = deadHuman.party;
+            party.AssignLeaderIfNeeded(); // 죽은 유닛이 리더였으면 여기서 재선정(파티 전멸 여부와 무관하게 항상 확인)
+            if (party.WaveEnded || !party.IsWiped) return;
+
+            party.WaveEnded = true;
+            knowledge.OnPartyWipeout();
+
+            // 13-2장: 전멸 흔적 — 원인 대상(이 파티원을 마지막으로 공격한 대상)의 위험도 단계로
+            // 보정치를 계산해 등록한다. RegisterWipeoutTrace가 발급한 traceId를 흔적 오브젝트에
+            // 실어 스폰하면, 생환한 다른 파티가 CastRay로 이 오브젝트를 발견하는 시점에
+            // UnitFunction.CastRay가 OnWipeoutTraceReflected(traceId)를 호출해 동일 ID당 1회만
+            // 던전 위험도에 반영한다(2026-07-09: 시체/흔적 엔티티가 생기면서 실제로 연결됨).
+            Unit causer = deadHuman.lastAttacker;
+            DangerStage causerStage = DangerStage.Stage0;
+            if (causer != null)
+                causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.baseDanger);
+            string traceId = knowledge.RegisterWipeoutTrace(causerStage);
+
+            // 전멸 흔적 오브젝트 생성
+            string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+            Vector3Int gridPos = new Vector3Int(deadHuman.position.x, deadHuman.position.y, deadHuman.currentFloor);
+            List<string> tags = new List<string> { "Object/Passable/WipeoutTrace" };
+            InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
+            SpawnObject(wipeoutObj, Color.black);
+        }
+        else if (deadUnit is Monster deadMonster)
+        {
+            // break하지 않고 끝까지 순회한다 — WaveSpawner가 같은 웨이브에 여러 파티를 스폰하면
+            // 여러 Party가 동일한 WaveMonsters 리스트(참조)를 공유하므로, 몬스터 한 마리의 죽음이
+            // 동시에 여러 파티의 웨이브 클리어를 트리거할 수 있다(2026-07-08: 다중 파티 지원 추가
+            // 당시 이 break를 지우지 않아서 첫 번째로 매칭된 파티만 OnWaveEnd를 받던 버그 수정).
+            foreach (var party in parties)
+            {
+                if (party.WaveEnded || !party.WaveMonsters.Contains(deadMonster) || !party.IsWaveCleared) continue;
+
+                party.WaveEnded = true;
+                var survivors = party.GetSurvivors();
+                knowledge.OnWaveEnd(survivors);
+            }
+        }
     }
 
 
@@ -349,6 +445,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         float speed = u.GetComponent<BaseStatComponent>().walkSpeed;
         u.GetComponent<CombatStateComponent>().State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
+        // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를
+        // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
+        TrapInteractionState trapInteractionBefore = u.currentTrapInteraction;
+
         u.JudgeState();
         Vector2Int oldPos = u.position;
         u.ExecuteAction();
@@ -357,6 +457,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             UnregisterUnitPos(u, oldPos);
             RegisterUnitPos(u, u.position);
+            TriggerTrapIfStepped(u, trapInteractionBefore);
         }
 
         // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
@@ -366,9 +467,254 @@ public class GameSession : NativeRoutine, IOffenseQuery
         u.UpdateFOV(units);
     }
 
+    // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른
+    // 함정에 정신 팔려) 그냥 밟고 지나가면 GOAP의 선택과 무관하게 자동으로 피해를 입는다 — 해제/우회가
+    // 거의 항상 먼저 성공해서 Action_TrapPass가 실전에서 거의 발동하지 않는다는 사용자 피드백
+    // (2026-07-22)에 따라 추가. trapInteractionBefore로 "이번 틱 시작 시점에 이미 이 함정을 알고
+    // 대응 중이었는지"를 확인해서, 그런 경우(해제 접근/통과/파괴가 이미 진행 중이던 것)엔 제외한다 —
+    // 안 그러면 의도적 대응(Action_TrapPass 등)과 중복으로 두 번 맞는다. 함정은 일회성이 아니다
+    // (사용자 요청, 2026-07-22) — 해제/파괴로 실제 없앴을 때만 사라지고, 그냥 밟은 것만으로는
+    // 소모되지 않는다 — 같은 자리를 다시 밟으면(이 유닛이든 다른 유닛이든) 또 맞는다.
+    // 인류 전용(사용자 요청, 2026-07-22) — Goal_TrapResponse를 인류 전용으로 좁힌 것과 맞춰, 몬스터는
+    // 이 자동 트리거로도 함정에 전혀 영향받지 않는다(우연히 밟아도 무해 — Passable 태그 그대로 그냥
+    // 지나간다).
+    private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
+    {
+        if (!(unit is Human)) return;
+
+        Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+        if (!objectGrid.TryGetValue(gridPos, out InteractableObject obj)) return;
+        if (obj.Tags == null || !obj.Tags.Exists(t => t.Contains("Trap"))) return;
+
+        bool alreadyHandling = trapInteractionBefore != null && trapInteractionBefore.TrapPosition == gridPos;
+        if (alreadyHandling) return;
+
+        unit.TakeDamage(obj.TrapDamageMax);
+        LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 인지하지 못한 채 밟아 {obj.TrapDamageMax} 피해를 입었습니다.");
+    }
+
+    public void OnKeyDown_H()
+    {
+        if (_unitGenerate == null) return;
+
+        UnitType[] types = { new Knight() };
+        Vector2Int[] offsets = { new Vector2Int(0, 0) };
+
+        int floorIdx = 1;
+        UnitType type = types[0];
+
+        Vector2Int spawnPos = GetRandomStartRoomPos(type.footprint, floorIdx);
+
+        for (int i = 0; i < types.Length; i++)
+        {
+            Vector2Int pos = spawnPos + offsets[i];
+
+            if (!_unitGenerate.IsAreaClear(pos, types[i].footprint, floorIdx))
+                pos = _unitGenerate.GetRandomFloorPos(types[i].footprint, floorIdx);
+
+            Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
+            units.Add(human);
+
+            RegisterUnitPos(human, human.position);
+        }
+    }
+
+    private Vector2Int GetRandomStartRoomPos(Vector2 footprint, int floorIdx)
+    {
+        CreateMap mapGenerator = cmap;
+
+        if (mapGenerator == null || mapGenerator.map.floors == null || floorIdx < 0 || floorIdx >= mapGenerator.map.floors.Length)
+            return Vector2Int.zero;
+
+        Floor floor = mapGenerator.map.floors[floorIdx];
+        if (floor.chunks == null) return Vector2Int.zero;
+
+        List<Vector2Int> candidates = new List<Vector2Int>();
+
+        int chunkW = floor.config.width;
+        int chunkH = floor.config.height;
+
+        for (int cx = 0; cx < chunkW; cx++)
+        {
+            for (int cy = 0; cy < chunkH; cy++)
+            {
+                Chunks c = floor.chunks[cx, cy];
+                if (c.roomRole != RoomRole.StartRoom || c.chunk == null) continue;
+
+                for (int tx = 0; tx < 8; tx++)
+                {
+                    for (int ty = 0; ty < 8; ty++)
+                    {
+                        Vector2Int pos = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+
+                        if (_unitGenerate.IsAreaClear(pos, footprint, floorIdx))
+                            candidates.Add(pos);
+                    }
+                }
+            }
+        }
+
+        if (candidates.Count == 0)
+            return Vector2Int.zero;
+
+        return candidates[Random.Range(0, candidates.Count)];
+    }
+
+    // M키 배치 모드(InputManager.EnterMonsterPlaceMode/UpdatePlaceMode)가 유저가 고른 위치를 넘겨주면
+    // 호출됨 — 예전 OnKeyDown_M()의 무작위 위치 스폰을 대체(사용자 요청, 2026-07-23).
+    public Monster SpawnPlayerMonsterAt(Vector2Int pos, int floorIdx)
+    {
+        if (_unitGenerate == null) return null;
+
+        UnitType selection = new MeleeTank();
+
+        Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(selection, pos, floorIdx);
+        monster.FactionBehavior = new PlayerMonsterBehavior();
+
+        units.Add(monster);
+        RegisterUnitPos(monster, monster.position);
+        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {floorIdx}, {pos}");
+        return monster;
+    }
+
+    public void OnKeyDown_K()
+    {
+        if (_unitGenerate == null) return;
+
+        UnitType[] types = { new Archer() };
+        Vector2Int[] offsets = { new Vector2Int(0, 0) };
+
+        int floorIdx = 1;
+        UnitType type = types[0];
+
+        Vector2Int spawnPos = GetRandomStartRoomPos(type.footprint, floorIdx);
+
+        for (int i = 0; i < types.Length; i++)
+        {
+            Vector2Int pos = spawnPos + offsets[i];
+
+            if (!_unitGenerate.IsAreaClear(pos, types[i].footprint, floorIdx))
+                pos = _unitGenerate.GetRandomFloorPos(types[i].footprint, floorIdx);
+
+            Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
+            human.FactionBehavior = new HumanFactionBehavior();
+            units.Add(human);
+
+            RegisterUnitPos(human, human.position);
+            LogHelper.Log(LogHelper.GAME, $"Generated Archer (Human Faction) at Floor {human.currentFloor}, {human.position}");
+        }
+    }
+
     public void SpawnObject(InteractableObject obj, Color color)
     {
-        _objectSpawner.SpawnObject(obj, color);
+        if (objectGrid.ContainsKey(obj.Position)) return;
+        
+        objectGrid[obj.Position] = obj;
+        LogHelper.Log(LogHelper.GAME, $"Generated {obj.Id} at Floor {obj.Position.z}, {new Vector2Int(obj.Position.x, obj.Position.y)} with Tags: [{string.Join(", ", obj.Tags)}]");
+
+        GameObject visual = new GameObject(obj.Id);
+        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+
+        // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 코어(Loot)는 core.png, 시체는
+        // colapse.png, 함정은 trap.png. Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형
+        // 폴백(함정=삼각형, 그 외=단색 사각형)으로 되돌아간다.
+        bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
+        bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
+        bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
+
+        Sprite sprite = null;
+        if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
+        else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
+        else if (isLoot) sprite = Resources.Load<Sprite>("obj/core");
+
+        if (sprite == null)
+        {
+            if (isTrap && _unitGenerate != null)
+            {
+                sprite = _unitGenerate.CreateTriangleSprite(color);
+            }
+            else
+            {
+                Texture2D tex = new Texture2D(32, 32);
+                Color[] pixels = new Color[32 * 32];
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+                tex.SetPixels(pixels);
+                tex.Apply();
+                sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+            }
+        }
+        sr.sprite = sprite;
+        sr.sortingOrder = 5;
+        
+        Vector3 offset = Vector3.zero;
+        if (mapRandering != null)
+        {
+            // mapRandering의 mapRoot와 같은 계층 접근 특성이 없으므로 임시로 오프셋(offset)을 사용하고,
+            // floorTilemaps[obj.Position.z]를 참조해주는 유도도 해야 합니다.
+            // 여기서는 floorOffsets 배열을 참조하여 오프셋만 가져옵니다.
+            if (mapRandering.floorOffsets != null && obj.Position.z >= 0 && obj.Position.z < mapRandering.floorOffsets.Length)
+            {
+                offset = mapRandering.floorOffsets[obj.Position.z];
+            }
+            
+            // 시각적 부모로 Tilemap 객체를 찾기 위해 약간의 꼼수(이름 기반 검색) 유지
+            GameObject childTilemap = GameObject.Find($"F{obj.Position.z}_Tilemap");
+            if (childTilemap != null)
+            {
+                visual.transform.SetParent(childTilemap.transform);
+            }
+        }
+        
+        visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
+        visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
+        
+        objectVisuals[obj] = visual;
+    }
+
+    // 게임 시작 시 보스방에 루팅 오브젝트를 1회 자동 생성 (GameSession.Initialize 참고).
+    private void SpawnInitialBossRoomLoot()
+    {
+        if (_unitGenerate == null) return;
+
+        int floorIdx = 1;
+        Vector2Int pos = _unitGenerate.GetBossRoomPos(Vector2.one, floorIdx);
+        Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
+
+        SpawnLootObjectAt(gridPos);
+    }
+
+    // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)
+    // 처럼 원하는 위치를 직접 골라서 놓을 수 있게 해달라는 요청(2026-07-22)에 따라 InputManager가
+    // 고스트 배치 모드를 관리하고 실제 위치가 정해지면 이 메서드들을 호출하는 방식으로 바뀌었다.
+    public void SpawnLootObjectAt(Vector3Int gridPos)
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (objectGrid.ContainsKey(gridPos)) return;
+
+        string objId = "InteractableObj_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { "Object/Passable/Loot" });
+        SpawnObject(obj, Color.magenta);
+    }
+
+    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 루팅 오브젝트와 동일한
+    // 관례로 수동 스폰 훅만 만들어둔다. BaseDanger>0으로 스폰해야 Goal_TrapResponse가 실제로 반응한다
+    // (기존 오브젝트들은 전부 BaseDanger=0 — InteractableObject.cs 주석 참고).
+    public void SpawnTrapAt(Vector3Int gridPos)
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (objectGrid.ContainsKey(gridPos)) return;
+
+        string objId = "Trap_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        InteractableObject obj = new InteractableObject(
+            // 오브젝트→건축물→지나갈 수 있는 건축물 계층(2026-07-22, 사용자 지정) — Loot/Corpse/
+            // WipeoutTrace 같은 단순 오브젝트와 달리 함정은 "지나갈 수 있는 건축물"로 취급한다.
+            objId, gridPos, baseInterest: 0f, baseDanger: 30f,
+            tags: new List<string> { "Object/Building/Passable/Trap" },
+            // 데미지 상향(2026-07-22, 사용자 요청 "실제로 데미지 들어가게, 꽤 크게") — 기존 10~25에서
+            // 30~60으로. 자동 트리거(GameSession.TriggerTrapIfStepped)까지 추가돼 실제로 자주
+            // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
+            baseVisibility: 40f, trapHp: 20f, trapDamageMin: 30f, trapDamageMax: 60f);
+        SpawnObject(obj, Color.red);
     }
 
     public void CollectObject(Vector3Int pos)

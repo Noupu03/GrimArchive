@@ -23,7 +23,7 @@ MonoBehaviour:
   - partyName: "\uADF8\uB7EC\uAC8C"
     faction: 0
     units:
+    - unitTypeName: "\uAE30\uC0AC\uD615"
+      count: 8
     - unitTypeName: "\uC544\uCC98\uD615"
-      count: 20
-    - unitTypeName: "\uC778\uAC04\uD615"
-      count: 20
+      count: 6
