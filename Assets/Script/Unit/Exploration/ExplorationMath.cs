@@ -63,8 +63,9 @@ public static class ExplorationMath
 
 	// 조사와 같은 이유의 자리표시자 — 해제 자체의 기준 소요시간(문서 미명시, §14 파라미터표에도 없음
 	// — 문서는 "함정 합류 의사 대기시간"(TrapJoinWaitSeconds)만 명시하고 해제 진행 자체의 소요시간은
-	// 안 준다). 4초→10초→15초로 늘려오다, 최종적으로 사용자가 10초로 확정(2026-07-22).
-	public const float TrapDisarmDurationSeconds = 10f;
+	// 안 준다). 4초→10초→15초로 늘려오다 10초로 확정했었는데(2026-07-22), 사용자가 다시 5초로
+	// 단축 요청(2026-07-23 "함정 해제 시간은 5초로 줄이자").
+	public const float TrapDisarmDurationSeconds = 5f;
 	// 9-9장: 파괴 중 매초 함정 Hp를 얼마나 깎는지(정식 Hitbox 경유가 아닌 간이 구현, physicalAttack에
 	// 비례 — 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 8-7절에 이미 명시된 한계).
 	public const float TrapDestroyDamagePerSecondPerAttack = 0.5f;

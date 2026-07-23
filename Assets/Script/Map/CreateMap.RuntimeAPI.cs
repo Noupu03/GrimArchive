@@ -241,6 +241,141 @@ public partial class CreateMap
         LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
     }
 
+    // floorIndex 층에서 targetFloor로 연결되는 계단 타일의 대표 좌표를 찾는다 — 웨이브 사전 스폰
+    // 유닛이 계단으로 걸어가서 다음 층으로 넘어가는 연출(HumanWaveManager, 2026-07-23 사용자 요청)에
+    // 쓴다. PlaceStairTiles가 청크 내부 (3,4)x(3,4) 2x2 블록에 계단 타일을 찍으므로, 청크 좌상단
+    // 기준 +3 오프셋을 대표 좌표로 쓴다(OpenStair와 동일한 청크 스캔 관례).
+    public bool TryGetStairPosition(int floorIndex, int targetFloor, out Vector2Int pos)
+    {
+        pos = Vector2Int.zero;
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
+
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return false;
+
+        int w = floor.config.width;
+        int h = floor.config.height;
+
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+                if (floor.chunks[x, y].stairTargetFloor == targetFloor)
+                {
+                    pos = new Vector2Int(x * 8 + 3, y * 8 + 3);
+                    return true;
+                }
+
+        return false;
+    }
+
+    // 계단 2x2 블록(TryGetStairPosition이 돌려주는 좌표는 그 블록의 좌상단) 타일은 PlaceStairTiles가
+    // isStructureExist=true로 찍어서 실제로는 유닛이 그 위에 설 수 없다(CanMove가 막음). 그런데
+    // discoveredMap(A* 경로탐색이 쓰는 안개 낀 맵)은 "아직 못 본 타일"을 전부 통행 가능으로 취급해서
+    // (UnitFunction.cs 시야 리빌 전까지는 실제 지형을 모름) A*가 안개 속에서 계단 타일 자체를 목적지로
+    // 잡아버리고, 실제 이동(CanMove, 안개와 무관하게 진짜 지형을 봄)은 매번 거부해서 유닛이 영원히
+    // 같은 실패를 반복하는 버그가 있었다(사용자 제보 콘솔 로그, 2026-07-23 — "CanMove 실패 추정"
+    // 경고). 그래서 A*의 실제 이동 목적지는 계단 블록이 아니라 그 바로 옆의 실제로 밟을 수 있는
+    // 타일로 잡는다 — GoapWorldState.StairArrivalRadius(반경 1) 안에서만 찾아서, "도착" 판정과 항상
+    // 일치하게 한다.
+    public bool TryGetStairApproachPosition(int floorIndex, int targetFloor, out Vector2Int pos) =>
+        TryGetStairApproachPosition(floorIndex, targetFloor, null, out pos);
+
+    // fromHint를 주면(유닛 현재 위치 등) 계단 블록을 둘러싼 여러 칸 중 그 위치에 가장 가까운 칸을
+    // 고른다 — 힌트가 없으면(스폰 기준점 등 "대표 좌표 하나"면 충분한 용도) 항상 같은 첫 칸을 고르던
+    // 예전 동작을 유지한다. 힌트 없이 항상 같은 한 칸만 골랐더니, 여러 유닛이 그 한 칸으로 전부
+    // 몰려서(A*가 점유된 목표 칸 대신 근처로 우회는 하지만) 여전히 몇몇이 서로 길을 막아 강제 이동
+    // 타임아웃에 걸리는 잔여 병목이 있었다(사용자 신고, 2026-07-23). 방향별로 다른 칸에 흩어지게 해서
+    // 이 병목을 없앤다.
+    public bool TryGetStairApproachPosition(int floorIndex, int targetFloor, Vector2Int? fromHint, out Vector2Int pos)
+    {
+        pos = Vector2Int.zero;
+        if (!TryGetStairPosition(floorIndex, targetFloor, out Vector2Int stairPos)) return false;
+
+        Vector2Int? best = null;
+        int bestDist = int.MaxValue;
+
+        // 반경 1(계단 블록을 둘러싼 테두리 한 칸)만 훑는다 — GoapWorldState.StairArrivalRadius와
+        // 반드시 같은 값이어야 "여기 도착 = atStairs 만족"이 항상 성립한다.
+        for (int dx = -1; dx <= 2; dx++)
+        {
+            for (int dy = -1; dy <= 2; dy++)
+            {
+                if (dx >= 0 && dx <= 1 && dy >= 0 && dy <= 1) continue; // 블록 내부(실제 계단 타일)는 제외
+
+                Vector2Int cand = new Vector2Int(stairPos.x + dx, stairPos.y + dy);
+                if (!IsStaticTileWalkable(floorIndex, cand)) continue;
+
+                if (!fromHint.HasValue)
+                {
+                    pos = cand;
+                    return true;
+                }
+
+                Vector2Int diff = cand - fromHint.Value;
+                int dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = cand;
+                }
+            }
+        }
+
+        if (best.HasValue)
+        {
+            pos = best.Value;
+            return true;
+        }
+
+        pos = stairPos; // 못 찾으면(사실상 없음) 예전처럼 블록 좌표라도 반환 — 호출부가 방어적으로 처리
+        return false;
+    }
+
+    // 계단 블록을 둘러싼 반경 1칸(GoapWorldState.StairArrivalRadius) 중 정적으로 밟을 수 있는(벽/
+    // 구조물 아닌) 타일을 전부 반환한다 — 사용자 요청(2026-07-23) "그냥 계단 근방 1타일 모두
+    // 이동하게 해줘": 특정 한 칸을 고집하지 않고, 이 후보들 중 그때그때 비어있는 칸으로 자유롭게
+    // 흩어지게 하기 위함이다(실제 유닛 점유 여부는 이 메서드가 모르므로 호출부(Action_MoveToStairs)가
+    // 매 틱 골라 쓴다 — 정적 지형 후보 목록 자체는 안 바뀌므로 여기선 그대로 둔다).
+    public bool TryGetStairApproachCandidates(int floorIndex, int targetFloor, out List<Vector2Int> candidates)
+    {
+        candidates = new List<Vector2Int>();
+        if (!TryGetStairPosition(floorIndex, targetFloor, out Vector2Int stairPos)) return false;
+
+        for (int dx = -1; dx <= 2; dx++)
+        {
+            for (int dy = -1; dy <= 2; dy++)
+            {
+                if (dx >= 0 && dx <= 1 && dy >= 0 && dy <= 1) continue; // 블록 내부(실제 계단 타일)는 제외
+
+                Vector2Int cand = new Vector2Int(stairPos.x + dx, stairPos.y + dy);
+                if (IsStaticTileWalkable(floorIndex, cand)) candidates.Add(cand);
+            }
+        }
+
+        return candidates.Count > 0;
+    }
+
+    // discoveredMap(안개)과 무관하게 실제 지형(Wall/isStructureExist)만으로 통행 가능 여부를 판정한다.
+    // UnitFunction.CanMove와 같은 판정 기준이지만 특정 유닛(footprint/점유 유닛)에 묶이지 않은,
+    // "이 타일 자체가 구조적으로 막혀있는가"만 보는 정적 버전이다.
+    private bool IsStaticTileWalkable(int floorIndex, Vector2Int p)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
+        if (p.x < 0 || p.y < 0) return false;
+
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return false;
+
+        int cx = p.x / 8, tx = p.x % 8;
+        int cy = p.y / 8, ty = p.y % 8;
+        if (cx >= floor.config.width || cy >= floor.config.height) return false;
+
+        Chunks c = floor.chunks[cx, cy];
+        if (c.roomId == -1 || c.chunk == null) return false;
+
+        Tile tile = c.chunk[tx, ty];
+        return tile.name != "Wall" && !tile.isStructureExist;
+    }
+
     // ── Footprint 기반 통행 판정 API ──
 
     public bool CanEntityPassGate(int footprintSize, Gate gate)

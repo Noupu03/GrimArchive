@@ -90,6 +90,108 @@ public class Action_CompletePlayerCommand : GoapAction
 	}
 }
 
+// Goal_UseStairs("계단으로 다른 층 이동")를 두 스텝으로 나눈다 — MoveToPlayerTarget/
+// CompletePlayerCommand와 같은 구조(이동 서브골 atStairs로 체이닝). 웨이브 유닛(HumanWaveManager)이
+// Unit.pendingStairTargetFloor를 세팅하면 동작하며, 몇 층의 어느 계단을 쓸지는 매 실행마다
+// CreateMap.TryGetStairPosition으로 그때그때 조회한다(고정 좌표를 들고 있지 않음 — 여러 유닛이
+// 정확히 같은 한 칸을 목표로 삼아 서로 막는 병목을 피하려고 atStairs 판정 자체에 여유 반경을 둔다,
+// GoapWorldState.StairArrivalRadius 참고).
+public class Action_MoveToStairs : GoapAction
+{
+	public Action_MoveToStairs() { ActionName = "MoveToStairs"; AddEffect("atStairs", true); }
+	public override int ActionCode => 20;
+
+	public override bool IsValid(Unit unit) =>
+		unit.pendingStairTargetFloor.HasValue && unit.pendingStairTargetFloor.Value != unit.currentFloor;
+
+	// 실제 원인 확인됨(2026-07-23, 사용자 제보 콘솔 로그): 계단 2x2 블록 타일은 isStructureExist=true라
+	// CanMove가 항상 거부하는데, discoveredMap(A* 안개)은 "안 본 타일 = 통행 가능"으로 취급해서 A*가
+	// 계단 타일 자체를 목적지로 잡아버리고 실제 이동은 매번 실패하는 무한 루프였다. 그래서 이동
+	// 목적지를 계단 블록이 아니라 CreateMap.TryGetStairApproachPosition이 찾아주는, 블록 바로 옆의
+	// 실제로 밟을 수 있는 타일로 바꾼다.
+	// 특정 한 칸을 고집하지 않고 계단 근방(반경 1) 타일 전부를 후보로 두고, 그때그때 비어있는(다른
+	// 유닛이 없는) 칸 중 가장 가까운 곳으로 매 틱 다시 고른다(사용자 요청, 2026-07-23 "그냥 계단
+	// 근방 1타일 모두 이동하게 해줘") — 여러 유닛이 정확히 같은 칸을 목표로 삼아 서로 막던 잔여
+	// 병목을 없앤다. 전부 차있으면(이론상 거의 없음) 그나마 가장 가까운 칸이라도 목표로 쓴다.
+	public override void Execute(Unit unit)
+	{
+		if (!unit.pendingStairTargetFloor.HasValue) return;
+		if (unit.Session == null || unit.Session.cmap == null) return;
+
+		if (!unit.Session.cmap.TryGetStairApproachCandidates(unit.currentFloor, unit.pendingStairTargetFloor.Value, out List<Vector2Int> candidates) || candidates.Count == 0)
+		{
+			LogHelper.Warning(LogHelper.GAME, $"[MoveToStairs] {unit.name}: F{unit.currentFloor}→F{unit.pendingStairTargetFloor.Value} 계단 근처에 밟을 수 있는 타일을 못 찾음.");
+			return;
+		}
+
+		Vector2Int approachPos = PickFreeApproachTile(unit, candidates);
+		if (unit.position != approachPos) MoveTowardsPos(unit, approachPos);
+	}
+
+	private Vector2Int PickFreeApproachTile(Unit unit, List<Vector2Int> candidates)
+	{
+		Vector2Int best = candidates[0];
+		int bestScore = int.MaxValue;
+
+		foreach (var cand in candidates)
+		{
+			bool occupiedByOther = unit.Session.unitGrid.TryGetValue(new Vector3Int(cand.x, cand.y, unit.currentFloor), out Unit u)
+				&& u != null && u != unit && u.hp > 0;
+
+			Vector2Int diff = cand - unit.position;
+			int dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
+			// 점유된 칸은 큰 페널티를 줘서 후순위로 미룬다 — 그래도 후보가 그것뿐이면 결국 그거라도 쓴다.
+			int score = dist + (occupiedByOther ? 1000 : 0);
+
+			if (score < bestScore)
+			{
+				bestScore = score;
+				best = cand;
+			}
+		}
+
+		return best;
+	}
+}
+
+public class Action_CrossStairs : GoapAction
+{
+	public Action_CrossStairs() { ActionName = "CrossStairs"; AddPrecondition("atStairs", true); AddEffect("onTargetFloor", true); }
+	public override int ActionCode => 21;
+
+	public override bool IsValid(Unit unit) =>
+		unit.pendingStairTargetFloor.HasValue && unit.pendingStairTargetFloor.Value != unit.currentFloor;
+
+	public override void Execute(Unit unit)
+	{
+		if (!unit.pendingStairTargetFloor.HasValue) return;
+		if (unit.Session == null || unit.Session.cmap == null) return;
+
+		int fromFloor = unit.currentFloor;
+		int toFloor = unit.pendingStairTargetFloor.Value;
+
+		// Precondition(atStairs)이 이미 보장하지만 방어적으로 재확인 — Action_CompletePlayerCommand와
+		// 동일한 관례. GoapWorldState.Build와 반드시 같은 거리 계산(점이 아니라 블록 자체까지의
+		// 거리)을 써야 12개 접근 후보 전부가 일관되게 통과한다.
+		if (!unit.Session.cmap.TryGetStairPosition(fromFloor, toFloor, out Vector2Int stairPosHere)) return;
+		if (GoapWorldState.DistanceToStairBlock(unit.position, stairPosHere) > GoapWorldState.StairArrivalRadius) return;
+
+		// 반대편(도착 층) 계단 근처 실제로 밟을 수 있는 타일에 등장시킨다(계단 블록 자체는
+		// isStructureExist라 그 위에 세워두면 안 됨 — 위 MoveToStairs와 동일한 이유). 못 찾으면(맵에
+		// 계단 데이터가 없는 등) 안전하게 현재 위치를 유지한 채 층만 바꾸지 않고 포기한다(다음 틱에
+		// 재시도).
+		if (!unit.Session.cmap.TryGetStairApproachPosition(toFloor, fromFloor, out Vector2Int arrivePos)) return;
+
+		unit.Session.UnregisterUnitPos(unit, unit.position);
+		unit.currentFloor = toFloor;
+		unit.position = arrivePos;
+		unit.Session.RegisterUnitPos(unit, unit.position);
+
+		unit.pendingStairTargetFloor = null; // 목표 층 도달 완료
+		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 계단을 통해 F{toFloor}에 진입했습니다.");
+	}
+}
+
 public class Action_RandomExplore : GoapAction
 {
 	public Action_RandomExplore() { ActionName = "RandomExplore"; AddEffect("explored", true); }

@@ -146,16 +146,22 @@ public class AStarMovement : IMovementAlgorithm
             }
         }
 
-        // 코너 커팅 방지
+        // 코너 커팅 방지 — Move()의 실제 판정(CanMove, 벽+유닛 점유 둘 다 봄)과 반드시 일치해야
+        // 한다. 여기서 벽만 보고 점유는 빼먹으면, A*는 이 대각선이 통과 가능하다고 판단하는데 실제
+        // Move()는 대각선 양옆 한 칸을 다른 유닛이 차지하고 있어서 거부하는 불일치가 생긴다 — 좁은
+        // 곳에 유닛이 몰렸을 때 서로 대각선으로 길을 막아서 몇몇이 영영 못 움직이는 원인이었다(사용자
+        // 제보 콘솔 로그, 2026-07-23 — "이동 시도했지만 실제로는 못 움직임. 점유=False"가 목표 칸이
+        // 아니라 대각선 코너 쪽 점유 때문이었다).
         if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
         {
             int ortho1X = currentPos.x + dirVec.x, ortho1Y = currentPos.y;
             int ortho2X = currentPos.x, ortho2Y = currentPos.y + dirVec.y;
 
-            bool ortho1Wall = (ortho1X < 0 || ortho1X >= mapW || ortho1Y < 0 || ortho1Y >= mapH || myData.discoveredMap[floorIdx][ortho1X, ortho1Y] == 2);
-            bool ortho2Wall = (ortho2X < 0 || ortho2X >= mapW || ortho2Y < 0 || ortho2Y >= mapH || myData.discoveredMap[floorIdx][ortho2X, ortho2Y] == 2);
-
-            if (ortho1Wall || ortho2Wall) isWall = true;
+            if (IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho1X, ortho1Y) ||
+                IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho2X, ortho2Y))
+            {
+                isWall = true;
+            }
         }
 
         if (isWall) return false;
@@ -181,6 +187,23 @@ public class AStarMovement : IMovementAlgorithm
         }
 
         return true;
+    }
+
+    // 좌표 하나가 벽이거나(범위 밖 포함) 다른 살아있는 유닛이 점유 중이면 true — UnitFunction.CanMove의
+    // 단일 타일 판정과 같은 기준(벽+점유)을 discoveredMap 기반으로 재현한다. 코너 커팅 방지 체크가
+    // Move()의 실제 판정과 어긋나지 않도록 이 헬퍼 하나로 통일해서 쓴다.
+    private bool IsCoordBlocked(Unit unit, FactionData myData, int mapW, int mapH, int floorIdx, int x, int y)
+    {
+        if (x < 0 || x >= mapW || y < 0 || y >= mapH) return true;
+        if (myData.discoveredMap[floorIdx][x, y] == 2) return true;
+
+        if (unit.Session != null &&
+            unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))
+        {
+            if (u != null && u != unit && u.hp > 0) return true;
+        }
+
+        return false;
     }
 
     private int GetHeuristic(Vector2Int a, Vector2Int b)

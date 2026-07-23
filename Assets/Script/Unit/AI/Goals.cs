@@ -35,6 +35,22 @@ public class Goal_PlayerCommand : GoapGoal
 	}
 }
 
+// 웨이브 유닛이 계단을 통해 다른 층으로 넘어가야 할 때(Unit.pendingStairTargetFloor) 최우선으로
+// 계단을 찾아 이동/통과시킨다(사용자 요청, 2026-07-23 "0층에서 웨이브 시작후, 인류들의 최우선 목표는
+// 계단을 통해 1층으로 이동하는거야. 예외처리 없이 goap로직에 넣어도 되겠군"). Panic(150) 다음으로
+// 높게 잡아서 전투/탐색/자동이동 명령보다 우선한다 — 패닉 상태만 계단 이동을 가로챌 수 있다.
+public class Goal_UseStairs : GoapGoal
+{
+	public Goal_UseStairs() { Name = "UseStairs"; DesiredState["onTargetFloor"] = true; }
+
+	public override float GetPriority(Unit unit)
+	{
+		if (unit.pendingStairTargetFloor.HasValue && unit.pendingStairTargetFloor.Value != unit.currentFloor)
+			return 140f;
+		return 0f;
+	}
+}
+
 public class Goal_DefeatEnemy : GoapGoal
 {
 	public Goal_DefeatEnemy() { Name = "DefeatEnemy"; DesiredState["enemyAlive"] = false; }

@@ -671,23 +671,33 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         GameObject visual = new GameObject(obj.Id);
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
 
-        // 함정(Trap 태그)은 다른 오브젝트와 구분되도록 세모 스프라이트로 그린다(사용자 요청,
-        // 2026-07-22) — 사각형 텍스처를 직접 생성하는 대신 UnitGenerate의 몬스터 폴백 스프라이트와
-        // 같은 삼각형 생성 로직을 재사용한다.
+        // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 코어(Loot)는 core.png, 시체는
+        // colapse.png, 함정은 trap.png. Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형
+        // 폴백(함정=삼각형, 그 외=단색 사각형)으로 되돌아간다.
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
-        Sprite sprite;
-        if (isTrap && _unitGenerate != null)
+        bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
+        bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
+
+        Sprite sprite = null;
+        if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
+        else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
+        else if (isLoot) sprite = Resources.Load<Sprite>("obj/core");
+
+        if (sprite == null)
         {
-            sprite = _unitGenerate.CreateTriangleSprite(color);
-        }
-        else
-        {
-            Texture2D tex = new Texture2D(32, 32);
-            Color[] pixels = new Color[32 * 32];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
-            tex.SetPixels(pixels);
-            tex.Apply();
-            sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+            if (isTrap && _unitGenerate != null)
+            {
+                sprite = _unitGenerate.CreateTriangleSprite(color);
+            }
+            else
+            {
+                Texture2D tex = new Texture2D(32, 32);
+                Color[] pixels = new Color[32 * 32];
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+                tex.SetPixels(pixels);
+                tex.Apply();
+                sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+            }
         }
         sr.sprite = sprite;
         sr.sortingOrder = 5;

@@ -15,6 +15,12 @@ public class MapRandering : NativeRoutine
     private Sprite floorSprite;
     private Sprite stairSprite;
 
+    // 아래층(더 깊은 층)으로 내려가는 계단/위층(입구 쪽)으로 올라가는 계단 표시용 — 기존 바닥·계단
+    // 타일 위에 겹쳐서 그리는 오버레이 스프라이트(사용자 요청, 2026-07-23). 타일 자체를 바꾸는 게
+    // 아니라 그 위에 별도 SpriteRenderer로 얹는다.
+    private Sprite stairDownSprite;
+    private Sprite stairUpSprite;
+
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
@@ -55,6 +61,13 @@ public class MapRandering : NativeRoutine
             {
                 LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 지정된 타일 이미지(Tile_StoneWall 또는 FloorTexture)를 찾지 못했습니다.");
             }
+        }
+
+        if (stairDownSprite == null) stairDownSprite = Resources.Load<Sprite>("obj/stair_down");
+        if (stairUpSprite == null) stairUpSprite = Resources.Load<Sprite>("obj/stair_up");
+        if (stairDownSprite == null || stairUpSprite == null)
+        {
+            LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down/stair_up 이미지를 찾지 못했습니다.");
         }
 
         wallTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
@@ -103,6 +116,7 @@ public class MapRandering : NativeRoutine
 
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);
+            RenderStairOverlays(tilemapObj.transform, ref floor, f);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -152,6 +166,55 @@ public class MapRandering : NativeRoutine
         else
         {
             tilemap.SetTiles(positions, tiles);
+        }
+    }
+
+    // PlaceStairTiles(CreateMap.Stairs.cs)가 청크 내부 (3,4)x(3,4) 2x2 블록에 계단 타일을 찍으므로,
+    // 그 블록 전체를 덮도록 방향 아이콘(stairDown/stairUp)을 기존 타일 위에 겹쳐 그린다(사용자 요청,
+    // 2026-07-23). stairTargetFloor가 현재 층보다 크면(더 깊은 층) 내려가는 계단, 작으면(입구 쪽)
+    // 올라가는 계단으로 판단한다.
+    private const int StairBlockSize = 2; // PlaceStairTiles와 동일한 블록 크기
+    private const float StairOverlayWorldSize = 2f; // 2x2 타일 블록 전체를 덮는 크기(비율 유지, 큰 쪽 기준)
+    private const int StairOverlaySortingOrder = 5; // GameSession.SpawnObject의 오브젝트 오버레이와 동일한 관례
+
+    void RenderStairOverlays(Transform parent, ref Floor floor, int floorIdx)
+    {
+        if (stairDownSprite == null && stairUpSprite == null) return;
+        if (floor.chunks == null) return;
+
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null || chunk.stairTargetFloor < 0) continue;
+
+                bool goesDown = chunk.stairTargetFloor > floorIdx;
+                Sprite sprite = goesDown ? stairDownSprite : stairUpSprite;
+                if (sprite == null) continue;
+
+                var go = new GameObject(goesDown ? "StairDownIcon" : "StairUpIcon");
+                go.transform.SetParent(parent, false);
+
+                // 계단 블록(2x2) 중심 좌표 — 블록은 (cx*8+3, cy*8+3)~(cx*8+5, cy*8+5) 구간을 차지한다.
+                float centerX = cx * ChunkSize + 3 + StairBlockSize / 2f;
+                float centerY = cy * ChunkSize + 3 + StairBlockSize / 2f;
+                go.transform.localPosition = new Vector3(centerX, centerY, 0f);
+
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = sprite;
+                sr.sortingOrder = StairOverlaySortingOrder;
+
+                float maxDim = Mathf.Max(sprite.bounds.size.x, sprite.bounds.size.y);
+                if (maxDim > 0f)
+                {
+                    float scale = StairOverlayWorldSize / maxDim;
+                    go.transform.localScale = new Vector3(scale, scale, 1f);
+                }
+            }
         }
     }
 

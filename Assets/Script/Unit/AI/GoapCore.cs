@@ -189,7 +189,7 @@ public class GoapBrain
 		if (availableGoals == null)
 			availableGoals = new List<GoapGoal>
 			{
-				new Goal_Panic(), new Goal_TrapResponse(), new Goal_PlayerCommand(), new Goal_DefeatEnemy(),
+				new Goal_Panic(), new Goal_UseStairs(), new Goal_TrapResponse(), new Goal_PlayerCommand(), new Goal_DefeatEnemy(),
 				new Goal_Alert(), new Goal_Investigate(), new Goal_Wait(), new Goal_ProtectiveFormation(),
 				new Goal_Explore()
 			};
@@ -198,6 +198,7 @@ public class GoapBrain
 			availableActions = new List<GoapAction>
 			{
 				new Action_Panic(),
+				new Action_MoveToStairs(), new Action_CrossStairs(),
 				new Action_MoveToPlayerTarget(), new Action_CompletePlayerCommand(),
 				new Action_EngageEnemy(),
 				new Action_TrapJoinWait(), new Action_MoveToTrap(), new Action_TrapDisarmPerform(),
@@ -276,6 +277,13 @@ public class GoapBrain
 			if (bestGoal != null)
 			{
 				List<GoapAction> plan = GoapPlanner.Plan(unit, worldState, bestGoal.DesiredState, availableActions);
+				if (plan == null && bestGoal is Goal_UseStairs)
+				{
+					// 사용자 신고(2026-07-23) 진단용 — Goal_UseStairs가 최우선으로 뽑혔는데도 계획을
+					// 못 세우면(예: MaxDepth 초과, Precondition 불일치 등) 여기서 바로 드러난다.
+					Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME,
+						$"[GoapBrain] {unit.name}: Goal_UseStairs가 선택됐지만 계획을 못 세움(GoapPlanner.Plan==null).");
+				}
 				if (plan != null)
 				{
 					foreach (var action in plan) currentPlan.Enqueue(action);

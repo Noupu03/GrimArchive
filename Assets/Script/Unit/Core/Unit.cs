@@ -157,6 +157,12 @@ public abstract class Unit : ScriptableObject
 
 	// ??? ?좊떅 諛곗튂 ?쒖뒪??濡ㅻ갚 ?꾨즺 ???
 
+	// 웨이브 유닛이 계단을 통해 다른 층으로 넘어가야 할 때 HumanWaveManager가 세팅 — Goal_UseStairs가
+	// 이 값이 있고 현재 층과 다르면 최우선으로 계단을 찾아 이동/통과한다(GOAP 로직, 2026-07-23 사용자
+	// 요청 "예외처리 없이 goap로직에 넣어도 되겠군"). Action_CrossStairs가 실제로 층을 넘기면 null로
+	// 되돌린다.
+	public int? pendingStairTargetFloor = null;
+
 	public Vector2Int? playerMoveTarget    = null;
 	public bool isManualMoveCommand        = false; // ?좎?媛 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;

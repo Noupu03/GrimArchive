@@ -510,8 +510,9 @@ public class InputManager : MonoBehaviour
 		currentBuildRule.costs.Add(new ResourceCost { resourceType = ResourceType.Wood, amount = 20 });
 		currentBuildRule.targetUnitTypeName = "Knight";
 
-		// 벽 타일(Tile_StoneWall) 이미지를 임시 건물 이미지로 쓴다
-		currentBuildSprite = Resources.Load<Sprite>("Tile_StoneWall");
+		// 건축물 전용 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일(Tile_StoneWall)을
+		// 임시로 재사용했다.
+		currentBuildSprite = Resources.Load<Sprite>("obj/building");
 
 		if (ghostPrefab == null)
 		{
@@ -592,8 +593,8 @@ public class InputManager : MonoBehaviour
 		isObjectPlaceMode = true;
 
 		EnsurePlaceGhost();
-		// 빌드 모드와 같은 벽 타일 이미지를 임시 사각형 모양으로 재사용한다.
-		placeGhostRenderer.sprite = Resources.Load<Sprite>("Tile_StoneWall");
+		// 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("obj/core");
 		LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성, 우클릭: 취소)");
 	}
 
@@ -606,8 +607,8 @@ public class InputManager : MonoBehaviour
 		isTrapPlaceMode = true;
 
 		EnsurePlaceGhost();
-		// 함정은 세모 스프라이트로 표시(사용자 요청) — UnitGenerate의 몬스터 폴백 삼각형 생성 로직 재사용.
-		placeGhostRenderer.sprite = _unitGenerate != null ? _unitGenerate.CreateTriangleSprite(Color.white) : null;
+		// 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("obj/trap");
 		LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
 	}
 
