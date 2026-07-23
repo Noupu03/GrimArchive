@@ -113,19 +113,71 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (attacker == null) return;
 
 		float dist = Vector2.Distance(position, attacker.position);
-		float perceptionDistance = VisionMath.AwarenessDistance(GetComponent<VisionStatComponent>().spotting);
-		float perceptionAngle = VisionMath.AwarenessAngle(GetComponent<VisionStatComponent>().spotting);
+		float effectiveSpotting = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
+		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
+		float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
 
 		Vector2 forward = GetDirVector(currentDir);
 		if (forward == Vector2.zero) forward = Vector2.down;
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
-		float angleToAttacker = Mathf.Atan2(attacker.position.y - position.y, attacker.position.x - position.x) * Mathf.Rad2Deg;
-		bool inAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToAttacker)) <= perceptionAngle / 2f;
+		float angleToAttackerDeg = Mathf.Atan2(attacker.position.y - position.y, attacker.position.x - position.x) * Mathf.Rad2Deg;
+		bool inAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToAttackerDeg)) <= perceptionAngle / 2f;
 
 		if (dist > perceptionDistance || !inAngle) return; // 5장 조건1: 인지 범위 밖 — 판정 자체 불가.
+		if (IsFullyBlockedTowards(angleToAttackerDeg * Mathf.Deg2Rad, dist)) return; // 01-A 8장 조건2: 완전 차단 구조 뒤.
 
 		Vector3Int tile = new Vector3Int(attacker.position.x, attacker.position.y, attacker.currentFloor);
-		ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile);
+		ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile, PerceptionTargetKind.EnemyUnit);
+	}
+
+	// 01-A 8장 조건2 전용 최소 LOS 체크 — CastRay의 DDA 레이마칭과 동일한 차단 기준(벽 타일/
+	// InteractableObject.IsFullyBlocking)만 재현한다. 지형 밝히기/오브젝트 발견 등 CastRay의 부수효과는
+	// 전혀 일으키지 않는 순수 판정 함수.
+	private bool IsFullyBlockedTowards(float angleRad, float maxDistance)
+	{
+		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
+		if (cmap == null || cmap.map.floors == null) return false;
+		if (currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return false;
+		Floor floor = cmap.map.floors[currentFloor];
+		if (floor.chunks == null) return false;
+
+		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+		float rayPosX = position.x + 0.5f, rayPosY = position.y + 0.5f;
+		int x = position.x, y = position.y;
+		int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
+		int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
+		float tMaxX = dir.x != 0 ? Mathf.Abs(((dir.x > 0 ? x + 1 : x) - rayPosX) / dir.x) : float.PositiveInfinity;
+		float tMaxY = dir.y != 0 ? Mathf.Abs(((dir.y > 0 ? y + 1 : y) - rayPosY) / dir.y) : float.PositiveInfinity;
+		float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
+		float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
+
+		int mapWidth = floor.config.width * 8;
+		int mapHeight = floor.config.height * 8;
+		float dist = 0f;
+
+		while (dist < maxDistance)
+		{
+			if (tMaxX < tMaxY) { dist = tMaxX; tMaxX += tDeltaX; x += stepX; }
+			else { dist = tMaxY; tMaxY += tDeltaY; y += stepY; }
+			if (dist >= maxDistance) break; // 공격자 자신이 서 있는 타일은 차단 판정에서 제외.
+
+			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
+			int cx = x / 8, tx = x % 8, cy = y / 8, ty = y % 8;
+			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return true;
+			Chunks c = floor.chunks[cx, cy];
+			if (c.roomId == -1 || c.chunk == null) return true;
+
+			Tile tile = c.chunk[tx, ty];
+			if (tile.name == "Wall" || tile.isStructureExist) return true;
+
+			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
+			if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
+				!blocker.IsCollected && blocker.IsFullyBlocking)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// 02문서 17장: 피격 대상(this)이 attacker의 정체를 "가중치 이벤트에 쓸 만큼" 확인했는지. 가중치
@@ -304,7 +356,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 필요하면 재판정하고, 이미 이번 패스에 다른 레이로 처리된 대상이면 그 결과를 그대로 반환한다
 	// (여러 레이가 같은 타일에 도달해도 판정은 패스당 한 번만 — firstTouchThisPass로 호출부가 후속
 	// 처리(등록 등)를 중복 실행하지 않도록 알려준다).
-	protected PerceptionOutcome ResolveReachedTargetInternal(object key, float targetVisibility, Vector3Int tile, float dist, out bool firstTouchThisPass)
+	private PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float dist, PerceptionTargetKind kind, out bool firstTouchThisPass)
 	{
 		firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
 		_reachedPerceptionThisPass[key] = (dist, tile);
@@ -323,7 +375,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 실제로 굴리지 않고 기존 기록을 동결한 채 반환한다(existing==null이어도 새 레코드만 만들고
 		// 굴리지 않음).
 		if (isNewOrReentering || suspiciousReapproach)
-			return ForceRollPerception(key, targetVisibility, tile);
+			return ForceRollPerception(key, targetVisibility, tile, kind);
 
 		existing.WasInRange = true;
 		existing.LastKnownTile = tile;
@@ -333,7 +385,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 8장/12장: 감지 보정(경계 반영) + 정신력 보정을 더한 최종 계산 가시성으로 확률표를 굴려 즉시
 	// 판정을 갱신한다. 트리거 조건과 무관하게 "지금 당장 다시 판정"이 필요한 지점(4장 조건5: 피격
 	// 후 가시성 증가 반영 재판정, ResolveReachedTarget의 트리거 발생 시)에서 공통으로 쓴다.
-	private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile)
+	private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile, PerceptionTargetKind kind)
 	{
 		// 5장: 인지 판정 자체가 불가한 상태(기절 등)면 트리거가 걸려도 굴리지 않고 기존 기록을 그대로
 		// 동결한다 — ForceReidentifyAttacker(피격 시 강제 재판정, 4장 조건5)도 이 지점을 거치므로 여기
@@ -347,6 +399,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 			frozen.WasInRange = true;
 			frozen.LastKnownTile = tile;
+			frozen.TargetKind = kind;
 			return frozen.Outcome;
 		}
 
@@ -365,17 +418,18 @@ public abstract class UnitFunction : Unit, IVisionContext
 		record.Outcome = outcome;
 		record.WasInRange = true;
 		record.LastKnownTile = tile;
+		record.TargetKind = kind;
 		record.PendingSuspiciousInvestigation = nowSuspicious;
 		return outcome;
 	}
 
 	// rayInPerceptionAngle: 이 레이가 인지각(01-A 4장) 범위 안인지 여부(레이별로 UpdateFOV가 미리 계산해 전달).
 	// perceptionDistance: 인지 거리(01-A 3장) — 이 거리 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다.
-	// 특수 원형 인지 범위(01-A 13장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
+	// 특수 원형 인지 범위(01-A 12장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
 	// IVisionContext methods
 	public PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float currentDist, out bool firstTouch)
 	{
-		return this.ResolveReachedTargetInternal(key, targetVisibility, tile, currentDist, out firstTouch);
+		return this.ResolveReachedTarget(key, targetVisibility, tile, currentDist, PerceptionTargetKind.None, out firstTouch);
 	}
 	
 	public bool HasReachedPerceptionThisPass(object key) => _reachedPerceptionThisPass.ContainsKey(key);
@@ -392,7 +446,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 		new ObjectPerceptionHandler(),
 		new UnitPerceptionHandler()
 	};
-
 	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits, bool rayInPerceptionAngle, float perceptionDistance)
 	{
 		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
@@ -506,11 +559,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
 		if (cmap == null || cmap.map.floors == null) return;
 
-		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(GetComponent<VisionStatComponent>().spotting)에 따라 결정된다.
+		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(spotting)에 따라 결정된다.
+		// 02문서 10장: 경계 중에는 감지 보정(+20)이 인지 판정뿐 아니라 시야 거리/인지 거리/인지각에도 반영된다.
 		float viewAngle          = VisionMath.BaseViewAngleDeg;
-		float viewDistance       = VisionMath.ViewDistance(GetComponent<VisionStatComponent>().spotting);
-		float perceptionAngle    = VisionMath.AwarenessAngle(GetComponent<VisionStatComponent>().spotting);
-		float perceptionDistance = VisionMath.AwarenessDistance(GetComponent<VisionStatComponent>().spotting);
+		float effectiveSpotting  = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+		float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
+		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
+		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
@@ -530,7 +585,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			CastRay(myData, cmap, position, rad, viewDistance, allUnits, rayInPerceptionAngle, perceptionDistance);
 		}
 
-		// 01-A 13장: 엘리트/네메시스/보스 보조 원형 인지 범위 — 정면 각도와 무관하게 주변 위협을
+		// 01-A 12장: 엘리트/네메시스/보스 보조 원형 인지 범위 — 정면 각도와 무관하게 주변 위협을
 		// 감지한다(전용 유닛 타입이 없어 isSpecialUnit 플래그로 대상을 판정, VisionMath 주석 참고).
 		// 벽에는 여전히 막힌다(원형 인지 범위는 "각도 무관"일 뿐 "완전 차단 무시"는 아니다 — 01장 15절).
 		if (isSpecialUnit)
@@ -578,9 +633,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (adjacentEnemy != null)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.AdjacentMeleeTarget, DirectionToward(adjacentEnemy.position)));
 
-		// 4순위: 현재 공격 대상 존재.
-		if (playerAttackTarget != null && playerAttackTarget.GetComponent<HealthComponent>().hp > 0)
-			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.CurrentAttackTarget, DirectionToward(playerAttackTarget.position)));
+		// 0순위(표 밖 특례): playerAttackTarget은 플레이어가 UI에서 직접 지정한 수동 공격 명령
+		// (InputManager.cs 세터, Goals.cs 주석 "수동 공격 명령은 최우선" 참고)이라 10장 "플레이어의
+		// 명령에 대한 시야 전환은 항상 최우선 순위가 된다"는 특례를 그대로 적용한다(사용자 확인,
+		// 2026-07-22 — 이전엔 4순위 CurrentAttackTarget으로 분류돼 있었음).
+		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
 		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
 		// 않은 타일 → 임시 위험도/흥미도 +5, "처리: 경로와 탐색 방향 판단에만 사용") + 10장 8순위 표.
@@ -677,7 +735,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "인지 판정 결과가 미인식이면 실제로 유닛이 존재해도 안전타일로 인지된다"는 규칙과 어긋났다.
 		// personalSpottedEnemies는 이제 정확 인지(AccuratePerception)된 대상만 담으므로(4장 구현),
 		// "물리적으로 있다" + "정확 인지 중이다" 둘 다 확인해야 진짜 위협으로 친다.
-		if (this is Human human && Session != null)
+		// 02문서 5장 조건3: 인지 판정을 수행할 수 있는 상태(기절 등 아님)여야 안전/흥미 확인 타이머도
+		// 진행한다 — 2장이 "미확인 일반 타일"도 인지 판정 대상에 포함시키므로 이 게이팅도 동일하게 적용.
+		if (this is Human human && Session != null && CanPerceive)
 		{
 			foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownDangerTiles.ToList())
 			{

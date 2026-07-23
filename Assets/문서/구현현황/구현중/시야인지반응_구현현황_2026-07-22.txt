@@ -1,0 +1,144 @@
+GrimArchive 시야-인지-반응 시스템 구현 현황 — 2026-07-22 (수정예정_2026-07-20.txt 항목 1/2/3/4/6/7
+실제 코드 반영. 이전 버전은 구현현황/지난거/시야인지반응_구현현황_2026-07-20.txt.)
+기준 문서: Assets/문서/공식문서/시야인지반응/
+  00_시야-인지-반응_상위구조_Current.docx.md          (v0.7, 상위 구조 — 구현 대상 아님)
+  01_시야·인지범위·가시성_개념_Current.docx.md        (v0.2, 개념)
+  01-A_시야·인지범위·가시성_연산공식_Current.docx.md  (v0.2, 연산공식 — 구현 대상)
+  02_인지·정보판정·실패처리_시스템_v0.2.docx.md        (v0.2, 개념+연산공식 통합 — 구현 대상. 00장이
+                                                    예고한 "02_개념"과 "02-A_연산공식" 두 문서를
+                                                    하나로 합친 형태로 실제 전달됨)
+작성일: 2026-07-22
+동반 문서: 같은 폴더의 `시야인지반응_수정예정_2026-07-20.txt`(내용은 이제 구현현황/지난거/로
+이동) — 항목 1/2/3/4/6/7은 이번에 전부 코드에 반영했다. 항목 5(오브젝트 위험도 인지 게이팅)만
+함정 엔티티 부재로 여전히 미반영 — 아래 "다음 우선순위" 섹션에 그대로 이월.
+
+태그
+  ✅ 구현       — 공식/수치가 코드에 정확히 있고, 실제 게임 루프(UpdateFOV/OnUpdate/RecordHitWeightEvent
+                등)에서 자동 발동.
+  🔶 부분/수치만 — 공식·데이터는 있지만 소비하는 하위 시스템이 아직 없어 조회 API로만 존재.
+  ❌ 미구현     — 대응 게임 시스템 자체가 없어 후보/공식을 만들 수조차 없음.
+
+════════════════════════════════════════════════════════════════════════
+■ 이번 반영 내역(2026-07-22) — 수정예정_2026-07-20.txt 항목별 결과
+════════════════════════════════════════════════════════════════════════
+전부 `시야인지반응_수정예정_2026-07-20.txt`에 이미 작성돼 있던 시안 코드를 그대로(항목 1/7은 같은
+메서드를 함께 건드리므로 변수명 겹침 없이 병합해서) 적용했다 — 재조사 없음.
+
+1. [적용] 01-A 8장 조건2(완전 차단 구조 뒤 아님) — `UnitFunction.ForceReidentifyAttacker`에
+   `IsFullyBlockedTowards()`(CastRay와 동일한 DDA 레이마칭, 벽 타일/`InteractableObject.
+   IsFullyBlocking`만 확인) 호출을 거리/인지각 체크 다음에 추가. 피격 강제 재판정 경로도 이제 완전
+   차단 구조 뒤의 공격자는 인지 성공 판정을 받지 않는다.
+2. [적용] 01-A 8장 마지막 문장(정확 인지 시 행동 후보 등록) — `PerceptionTargetKind`에 `None` 추가,
+   `PerceptionRecord.TargetKind`/`ReactionCandidates`(정확 인지 상태일 때만 15장 표 반환) 신규,
+   `ResolveReachedTarget`/`ForceRollPerception` 시그니처에 `kind` 매개변수 추가, CastRay 오브젝트
+   판정 블록(WipeoutTrace/Corpse/None 분류)·CastRay 유닛 판정 블록(EnemyUnit)·
+   ForceReidentifyAttacker(EnemyUnit) 3개 호출부 전부 연결. 실제 소비자(04/06/08 문서)는 여전히
+   없지만 "정확 인지 순간 후보가 레코드에 붙는다"는 문장 자체는 이제 사실.
+3. [적용, 사용자 판단: A안] 01-A 10장 `playerAttackTarget` 우선순위 — 0순위(플레이어 명령, 표 밖
+   특례)로 재분류. `ResolveVisionDirection()`의 해당 후보를
+   `VisionDirectionReason.CurrentAttackTarget` 대신 `VisionDirectionReason.PlayerCommand`로 등록.
+   이제 플레이어가 지정한 공격 대상 쪽으로 시야가 항상 최우선으로 향한다(스킬 캐스팅 중이든 다른
+   적과 근접해 있든 무관). `CurrentAttackTarget` enum 값 자체는 `VisionMath.PriorityRank`/테스트에서
+   여전히 참조돼 삭제하지 않았다(우선순위 랭크 테스트용 범용 값으로 유지, 실제 프로덕션 호출부만
+   없어짐).
+4. [적용] 01-A 12장 주석 오탈자("13장"→"12장") — `UnitFunction.cs`(CastRay 주석, UpdateFOV 원형
+   스윕 주석) 2곳 + `UnitVisual.cs` 1곳 + (수정예정 문서엔 없었지만 같은 종류로 추가 발견)
+   `VisionSystemTests.cs`의 테스트 주석 1곳까지 총 4곳 수정. 로직 변경 없음.
+5. [미적용, 이월] 02문서 2장/4장 오브젝트 재판정 경로 부재(`IsObjectKnown`이 true가 되는 순간
+   CastRay 오브젝트 판정 블록 자체가 영원히 스킵) — 함정 엔티티가 없어 baseDanger>0인 오브젝트
+   자체가 없으므로 여전히 완전히 무해. 함정 엔티티 설계 시 같이 다룰 것(방향성은 수정예정 문서 원본
+   또는 구현현황/지난거/시야인지반응_구현현황_2026-07-20.txt 참고).
+6. [적용] 02문서 5장 조건3 — 안전/흥미 확인 타이머(`TickTileSafety`/`TickTileInterestConfirm`)가
+   `CanPerceive` 게이팅을 안 받던 문제. `UnitFunction.OnUpdate`의 해당 if 조건에 `&& CanPerceive`
+   추가 — 기절한 유닛은 이제 이 타이머도 멈춘다.
+7. [적용] 02문서 10장 — 경계 중 감지 보정(+20)이 인지 판정에만 적용되고 시야/인지 거리·인지각엔
+   미적용이던 문제. `UpdateFOV`와 `ForceReidentifyAttacker` 양쪽에 `effectiveSpotting = spotting +
+   (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f)`를 계산해 `ViewDistance`/`AwarenessAngle`/
+   `AwarenessDistance` 호출에 전달하도록 수정. 항목 1과 같은 메서드(ForceReidentifyAttacker)를
+   건드리므로 하나로 병합해 적용(변수명 충돌 없음, `IsFullyBlockedTowards`는 여전히 raw `dist` 사용
+   — 차단 판정 자체는 감지 보정과 무관).
+
+영향받은 파일: `Assets/Script/Unit/Core/UnitFunction.cs`(항목 1/2/3/4/6/7 전부),
+`Assets/Script/Unit/Vision/PerceptionMath.cs`(항목 2, `PerceptionTargetKind.None`),
+`Assets/Script/Unit/Vision/PerceptionRecord.cs`(항목 2, `TargetKind`/`ReactionCandidates`),
+`Assets/Script/Unit/Visual/UnitVisual.cs`(항목 4), `Assets/Tests/VisionSystemTests.cs`(항목 4 추가분).
+브레이스/괄호 밸런스 전부 확인 완료, 새 시그니처 호출부 4곳(`ResolveReachedTarget` 2곳,
+`ForceRollPerception` 2곳) 일관성 확인 완료.
+
+════════════════════════════════════════════════════════════════════════
+■ 이전 이력(2026-07-20 이전 검증/수정 내역)
+════════════════════════════════════════════════════════════════════════
+02문서 최초 구현 직후 성능 이슈 수정(perceptionRecords 무한 성장 + IsAlert O(n)→O(1)), 검증 단계
+발견/수정 3건(안전 확인 물리 점유 문제/피격 재판정 인류 전용 문제/기절 중 강제 재판정 문제), 01-A
+전면 재검증(은신 가시성 하한 클램프 버그 발견·수정), 사용자 확인 4건(인지 지속성 아키텍처/경계 상태
+이동 스텁/공격자 정체 게이팅/정신력 6단계 임계값), 태그 부분 일치 버그 수정 — 전부 그대로 유효,
+상세 내용은 구현현황/지난거/시야인지반응_구현현황_2026-07-20.txt 참고(이번엔 재기술하지 않음).
+
+════════════════════════════════════════════════════════════════════════
+■ 파일 구조
+════════════════════════════════════════════════════════════════════════
+Assets/Script/Unit/Vision/
+  VisionEnums.cs      — VisionDirectionReason + PerceptionOutcome/MentalTier/PerceptionReactionCandidate
+  VisionMath.cs        — 01/01-A 순수 계산 함수 + ResolveObjectVisibility(02문서 6장)
+  PerceptionMath.cs    — 02문서 순수 계산 함수 모음(감지 보정/정신력 6단계/최종 계산 가시성/확률표 롤/
+                        수상한 타일·간접 인지 상수/15장 반응 후보 조회표) + PerceptionTargetKind(None 포함)
+  PerceptionRecord.cs  — 대상별 지속 인지 상태(Outcome/WasInRange/PendingSuspiciousInvestigation/
+                        LastKnownTile/TargetKind/ReactionCandidates)
+Assets/Tests/
+  VisionSystemTests.cs      — 01/01-A 숫자 예시 고정 테스트
+  PerceptionSystemTests.cs  — 02문서 숫자 예시 고정 테스트
+
+기존 파일 수정(2026-07-22):
+  Assets/Script/Unit/Core/UnitFunction.cs — ForceReidentifyAttacker에 LOS 체크(IsFullyBlockedTowards
+                        신규)·경계 감지 보정 반영, ResolveReachedTarget/ForceRollPerception에 kind
+                        매개변수, CastRay 오브젝트/유닛 판정 블록·ForceReidentifyAttacker 3곳에서 kind
+                        전달, ResolveVisionDirection()의 playerAttackTarget 후보를 0순위(PlayerCommand)
+                        로 재분류, UpdateFOV에 경계 감지 보정 반영, OnUpdate 안전/흥미 확인 타이머에
+                        CanPerceive 게이팅 추가, 주석 오탈자 2곳 수정.
+  Assets/Script/Unit/Vision/PerceptionMath.cs — PerceptionTargetKind.None 추가.
+  Assets/Script/Unit/Vision/PerceptionRecord.cs — TargetKind/ReactionCandidates 추가.
+  Assets/Script/Unit/Visual/UnitVisual.cs — 주석 오탈자 1곳 수정.
+  Assets/Tests/VisionSystemTests.cs — 주석 오탈자 1곳 수정.
+
+(00/01/01-A/02 장별 전체 태그 표는 구현현황/지난거/시야인지반응_구현현황_2026-07-20.txt에 있는
+그대로 유효 — 이번 반영으로 바뀐 것만 아래에 갱신본으로 남긴다. 나머지 장은 재기술하지 않음.)
+
+════════════════════════════════════════════════════════════════════════
+■ 이번 반영으로 태그가 바뀐 장
+════════════════════════════════════════════════════════════════════════
+✅(갱신) 01-A 8장 "정확한 인지 조건" — 조건2(완전 차단 구조 뒤 아님)가 이제 CastRay 경로와
+   ForceReidentifyAttacker(피격 강제 재판정) 경로 양쪽 다 정확. 마지막 문장(행동 후보 등록)도
+   PerceptionRecord.ReactionCandidates로 실제 연결됨(소비자는 여전히 04/06/08 문서 부재로 없음,
+   "레코드에 붙는다"는 사실 자체는 성립).
+✅(갱신) 01-A 10장 "시야 방향 전환 우선순위" — playerAttackTarget을 0순위(PlayerCommand, 표 밖
+   특례)로 재분류 완료(사용자 확인, 2026-07-22). 경계 감지 보정(+20)도 UpdateFOV/
+   ForceReidentifyAttacker의 시야/인지 거리·인지각 계산에 반영 완료 — 10장 전체가 이제 정확히 구현됨.
+✅(갱신) 01-A 12장 "특수 원형 인지 범위" — 주석 오탈자("13장"→"12장") 4곳 전부 수정 완료.
+✅(갱신) 02문서 5장 "인지 판정 기본 조건" — 조건3(CanPerceive) 게이팅이 이제 안전/흥미 확인 타이머
+   (TickTileSafety/TickTileInterestConfirm)까지 포함해 인지 판정 전 경로에 적용됨. 조건2(완전 차단)도
+   피격 강제 재판정 경로까지 확장 완료(위 01-A 8장 항목과 동일 수정).
+✅(갱신) 02문서 10장 "경계 상태 보정(+20)" — 인지 판정뿐 아니라 시야 거리/인지 거리/인지각에도
+   반영 완료. 10장 전체 요구사항 충족.
+🔶(유지) 02문서 2장 "인지 판정 대상" — 오브젝트 재판정 경로 부재는 여전히 미해결(항목 5, 이월).
+   함정/건물 대응 엔티티 자체가 없는 것도 여전히 ❌ 그대로.
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 구현 후보 (2026-07-22, 작업량 순)
+════════════════════════════════════════════════════════════════════════
+1. [함정 엔티티 설계 시 같이] 02문서 2장/4장 — 오브젝트가 한 번 정확 인지되면 재판정 트리거(재진입/
+   재접근/피격)를 다시 받을 방법이 없음(`IsObjectKnown` 가드가 "판정 자체를 스킵하는 가드"까지
+   겸하고 있어서). 지금은 모든 오브젝트 baseDanger=0이라 무해하지만, 함정처럼 baseDanger>0인
+   오브젝트가 생기는 순간 위험도가 영구 고정되는 문제로 발현된다. 방향성: 오브젝트도 유닛처럼
+   `IsObjectKnown` 여부와 무관하게 CastRay가 매 패스 `ResolveReachedTarget`을 호출하도록 바꾸고
+   (등록 부수효과만 firstTouch && AccuratePerception로 계속 게이팅), `IsObjectKnown`은 "재등록 방지
+   가드"로만 남긴다.
+2. [중간] 04_탐색반응·경계·조사·함정대응 문서가 생기면: 수상한 타일로 실제 이동하는 GOAP 목표/행동
+   추가 — 도착 시 21장/22장의 3번째 종료 조건(직접 이동 시도 → 점유/함정 작동으로 확인 종료, 강제
+   AccuratePerception 판정) 훅.
+3. [중간] 06_전투반응·기습·방어반응 문서가 생기면: 17장 공격 형태별 방향 정보 표 연결
+   (TakePhysicalDamage/TakeMagicalDamage에 공격 형태 파라미터 추가 필요). 15장 반응 후보
+   (PerceptionReactionCandidate, 조회 골격은 이미 완성) 중 하나를 실제로 "선택"하는 로직도 이 문서 담당.
+4. [작음] BroadcastWitnessEvent(제3자 목격 근사)에도 공격자 정체 게이팅을 확장할지 재검토.
+5. [큼] 08_전파·소리·간접입력 문서가 생기면 24~25장 실제 발생 지점 연결.
+6. [작음] 09장 정신력 6단계 임계값(17/33/50/67/83) — 문서에 명시 없는 자체 판단값, 밸런스 테스트 후
+   조정 가능성 높음.

@@ -79,6 +79,9 @@ public static class PerceptionMath
 
 	// ─────────────────────────── 12장. 인지 결과 확률표 ───────────────────────────
 	// 현재 확률표는 문서가 명시한 임시 기준 그대로다("차후 밸런스에 따라 수정 가능성이 높다").
+	// 2026-07-20 문서 갱신: "100 이상" 구간(100%/0%/0%)이 "80 이상" 구간과 분리된 별도 행으로
+	// 새로 추가됐다 — 7장도 동일하게 "100 이상이라면 실제 확률 적용 시 100 이상 구간으로 처리한다"는
+	// 문장이 추가되어 하한(0 이하)과 대칭되는 상한 처리가 명시적으로 생겼다.
 	public static (float accurate, float suspicious, float unrecognized) OutcomeProbabilities(float totalVisibility)
 	{
 		if (totalVisibility <= 0f)  return (0.00f, 0.05f, 0.95f);
@@ -86,7 +89,8 @@ public static class PerceptionMath
 		if (totalVisibility < 40f)  return (0.25f, 0.35f, 0.40f);
 		if (totalVisibility < 60f)  return (0.50f, 0.35f, 0.15f);
 		if (totalVisibility < 80f)  return (0.75f, 0.20f, 0.05f);
-		return (0.90f, 0.08f, 0.02f);
+		if (totalVisibility < 100f) return (0.90f, 0.08f, 0.02f);
+		return (1.00f, 0.00f, 0.00f); // 100 이상
 	}
 
 	// roll01: 0~1 균등 난수는 호출부(UnitFunction)가 UnityEngine.Random.value 등으로 넘겨준다 —
@@ -152,6 +156,7 @@ public static class PerceptionMath
 // 생기면 그대로 쓸 수 있도록 미리 분류만 남겨둔다.
 public enum PerceptionTargetKind
 {
+	None, // 15장 표에 없는 대상(예: 일반 루팅) — ReactionCandidatesFor의 기본 분기(빈 배열)로 처리됨.
 	EnemyUnit,
 	Trap,
 	Building,

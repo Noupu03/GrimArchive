@@ -13,7 +13,7 @@ public class UnitVisual : MonoBehaviour
 	// 토글이 켜진 모든 유닛"일 때만 갱신·표시한다. 인류/몬스터 진영별로 색이 다르다(Setup 참고).
 	private LineRenderer _visionRangeLine;
 	private LineRenderer _perceptionRangeLine;
-	// 엘리트/네메시스/보스의 원형 인지 범위(01-A 13장) — 위와 동일 표시 조건일 때만 함께 표시.
+	// 엘리트/네메시스/보스의 원형 인지 범위(01-A 12장) — 위와 동일 표시 조건일 때만 함께 표시.
 	private LineRenderer _circularPerceptionLine;
 
 	// 시야 범위와 인지 범위는 같은 계열의 명도/채도 차이만으로는 구분이 잘 안 돼서(사용자 피드백,

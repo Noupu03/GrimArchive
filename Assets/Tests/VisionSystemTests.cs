@@ -74,7 +74,7 @@ public class VisionSystemTests
 		Assert.AreEqual(20f, VisionMath.ResolveBaseVisibility(true, 20f), 0.001f); // 벽이어도 점유자 값이 우선
 	}
 
-	// ── 01-A 9장. 최종 가시성 = 기본 - 은신 + 공격후 상승분(진행중일 때만), 0~100 클램프 ──
+	// ── 01-A 9장. 최종 가시성 = 기본 - 은신 + 공격후 상승분(진행중일 때만), 상한만 100 클램프 ──
 	[Test]
 	public void FinalVisibility_StealthAndAttackBoost()
 	{
@@ -85,7 +85,28 @@ public class VisionSystemTests
 		Assert.AreEqual(100f, VisionMath.FinalVisibility(100f, 0f, true), 0.001f);
 	}
 
-	// ── 01-A 13장. 특수 원형 인지 범위 반지름 표 (1/2/3칸) ──
+	// ── 02문서 7장: 은신 기반 가시성은 하한 없이 음수로 내려갈 수 있고, 계산식 안에서는 그 음수를
+	// 그대로 유지해야 한다(문서 예시: -50 + 감지보정 +40 + 공격후증가 +10 = 최종 계산 가시성 0).
+	// 2026-07-20 이전엔 FinalVisibility()가 하한을 0으로 미리 클램프해버려서 이 예시가 40으로
+	// 잘못 나오던 버그가 있었다 — 하한 클램프를 제거해 고쳤다.
+	[Test]
+	public void FinalVisibility_StealthTable_AllowsNegativeAndKeepsItUnclamped()
+	{
+		// 은신 스탯 0/50/100/120/150 → 은신 기반 가시성 100/50/0/-20/-50 (7장 표 그대로).
+		Assert.AreEqual(100f, VisionMath.FinalVisibility(100f, 0f, false), 0.001f);
+		Assert.AreEqual(50f, VisionMath.FinalVisibility(100f, 50f, false), 0.001f);
+		Assert.AreEqual(0f, VisionMath.FinalVisibility(100f, 100f, false), 0.001f);
+		Assert.AreEqual(-20f, VisionMath.FinalVisibility(100f, 120f, false), 0.001f);
+		Assert.AreEqual(-50f, VisionMath.FinalVisibility(100f, 150f, false), 0.001f);
+
+		// 7장 예시: 은신 기반 가시성 -50(은신 150) + 공격 후 가시성 증가 +10 = -40 (여기서 클램프되면 안 됨).
+		Assert.AreEqual(-40f, VisionMath.FinalVisibility(100f, 150f, true), 0.001f);
+		// 이어서 02문서 8장 감지 보정 +40을 더하면 문서 예시 그대로 최종 계산 가시성 0이 나와야 한다.
+		Assert.AreEqual(0f, PerceptionMath.TotalPerceptionVisibility(
+			VisionMath.FinalVisibility(100f, 150f, true), 40f, 0f), 0.001f);
+	}
+
+	// ── 01-A 12장. 특수 원형 인지 범위 반지름 표 (1/2/3칸) ──
 	[Test]
 	public void CircularPerceptionRadius_Table()
 	{

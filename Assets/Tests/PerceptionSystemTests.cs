@@ -94,7 +94,10 @@ public class PerceptionSystemTests
 		AssertProbabilities(60f, 0.75f, 0.20f, 0.05f);
 		AssertProbabilities(79f, 0.75f, 0.20f, 0.05f);
 		AssertProbabilities(80f, 0.90f, 0.08f, 0.02f);
-		AssertProbabilities(200f, 0.90f, 0.08f, 0.02f);
+		AssertProbabilities(99f, 0.90f, 0.08f, 0.02f);
+		// 2026-07-20 문서 갱신: "100 이상" 구간이 "80 이상"과 분리된 별도 행(100%/0%/0%)으로 신설됨.
+		AssertProbabilities(100f, 1.00f, 0.00f, 0.00f);
+		AssertProbabilities(200f, 1.00f, 0.00f, 0.00f);
 	}
 
 	// ── 12장. 확률표를 실제로 굴리는 RollOutcome — roll01 구간에 따라 정확인지/수상한타일/미인식 분기 ──

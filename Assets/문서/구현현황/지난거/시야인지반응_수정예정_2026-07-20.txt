@@ -1,0 +1,486 @@
+GrimArchive 시야-인지-반응 시스템 — 수정 예정 목록 (2026-07-20)
+
+이 문서는 "지금 당장 코드에 반영하지 않고 다음에 반영할 것"만 모아두는 별도 문서다. 전체 구현
+현황은 시야인지반응_구현현황_2026-07-20.txt(또는 그 이후 최신본)를 보고, 이 문서는 그 문서의
+"다음 우선순위" 섹션 위에 별도로 참고할 것 — 여기 적힌 항목들은 전부 구체적인 원인 분석과 제안
+구현(코드 스니펫)까지 이미 끝난 상태라, 다시 조사할 필요 없이 그대로 적용하면 된다.
+
+배경: GrimArchive_01-A_시야·인지범위·가시성_연산공식_Current.docx.md를 1장부터 장별로 코드와
+대조 검증하던 중 8장("정확한 인지 조건")에서 결함 2개를 찾았고, 실제로 수정 코드까지 작성해서
+동작 확인(브레이스 밸런스/호출부 일관성)까지 마쳤다. 하지만 UnitFunction.cs가 지금 다른 작업자와
+동시에 손대고 있을 가능성이 있어(사용자 확인, 2026-07-20) 실제 반영은 보류하고 이 문서에 시안을
+그대로 남긴 뒤 코드는 원상 복구(롤백)했다. 항목 1/2는 서로 독립적이라 따로따로 적용해도 된다.
+항목 3은 10장 검증 중 찾은 별개 항목으로, 코드 결함이 아니라 판단이 먼저 필요한 애매한 지점이라
+수정 시안 대신 선택지만 정리해뒀다. 항목 4는 12장(01-A 문서의 마지막 장) 검증 중 찾은 사소한
+주석 오탈자 — 로직 영향은 없음. 항목 5는 02_인지·정보판정·실패처리_시스템 문서 2장 검증 중 찾은
+구조적 결함으로, 함정 엔티티가 없는 지금은 완전히 무해하지만 함정이 생기는 순간 바로 문제가
+되는 잠재 결함이라 미리 기록해둔다. 항목 6은 02문서 5장 검증 중 찾은 결함으로, 지금 당장도 실제로
+관측 가능한 문제다(기절 상태이상은 이미 존재함) — UnitFunction.OnUpdate 한 줄 수정으로 끝나는
+작은 변경이라 다른 작업자와 겹칠 위험은 낮아 보이지만, 사용자 요청대로 우선 기록만 해둔다. 항목 7은
+02문서 10장 검증 중 찾은, 처음 구현할 때부터 알고 있던 갭인데 그 뒤 IsAlert가 O(1) 프로퍼티로
+바뀌면서 수정 난이도가 크게 낮아졌다 — UnitFunction.cs 두 곳(UpdateFOV, ForceReidentifyAttacker)만
+건드리면 된다.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 1: 01-A 8장 조건2("대상이 완전 차단 구조 뒤에 있지 않음") — 피격 재판정 경로 미적용
+════════════════════════════════════════════════════════════════════════
+[증상]
+01-A 8장은 "정확한 인지 조건" 3가지(1.인지 범위 안 2.완전 차단 구조 뒤 아님 3.인지 성공 판정)를
+명시한다. UnitFunction.CastRay의 일반 경로(매 턴 시야 갱신)는 조건2를 이미 정확히 지킨다 — 레이가
+IsFullyBlocking 오브젝트/벽에서 break하므로 완전 차단 뒤 대상은 애초에 ResolveReachedTarget 호출
+자체가 안 됨.
+
+하지만 UnitFunction.ForceReidentifyAttacker(02문서 4장 조건5 — 피격 시 강제 재판정, RecordHitWeightEvent
+에서 호출)는 거리(AwarenessDistance)와 인지각(AwarenessAngle)만 확인하고 벽/IsFullyBlocking 오브젝트
+차단 여부는 전혀 확인하지 않는다. 즉 이론적으로는 완전히 벽으로 막힌 반대편에서 날아온 공격이라도
+거리/각도만 맞으면 공격자 정체를 "인지 성공"으로 판정할 수 있는 구멍이 있다(실전에서는 근접 공격은
+항상 인접 타일이라 벽 뒤일 수 없고, 원거리/마법 공격도 보통 벽을 통과 못 하는 별도 판정을 이미
+거치므로 실질적 위험은 낮지만, 08장 조건2를 문자 그대로 어기는 지점).
+
+[해결 방향]
+CastRay와 동일한 DDA 레이마칭으로 "벽 타일 / InteractableObject.IsFullyBlocking"만 확인하는 순수
+LOS 체크 함수를 새로 만들어 ForceReidentifyAttacker 안에서 거리/각도 체크 다음에 호출한다.
+CastRay의 확률적 부분 차단(tile.visibility 기반 "시야 흐림")은 "완전 차단 구조"가 아니므로 재현하지
+않는다 — 8장 조건2가 요구하는 건 정확히 벽/IsFullyBlocking 같은 구조적 차단이다.
+
+[제안 코드 — UnitFunction.cs]
+
+1) ForceReidentifyAttacker 수정(기존 메서드, 조건2 체크 한 줄 추가):
+```
+private void ForceReidentifyAttacker(Unit attacker)
+{
+	if (attacker == null) return;
+
+	float dist = Vector2.Distance(position, attacker.position);
+	float perceptionDistance = VisionMath.AwarenessDistance(spotting);
+	float perceptionAngle = VisionMath.AwarenessAngle(spotting);
+
+	Vector2 forward = GetDirVector(currentDir);
+	if (forward == Vector2.zero) forward = Vector2.down;
+	float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
+	float angleToAttackerDeg = Mathf.Atan2(attacker.position.y - position.y, attacker.position.x - position.x) * Mathf.Rad2Deg;
+	bool inAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToAttackerDeg)) <= perceptionAngle / 2f;
+
+	if (dist > perceptionDistance || !inAngle) return; // 8장 조건1: 인지 범위 밖 — 판정 자체 불가.
+	if (IsFullyBlockedTowards(angleToAttackerDeg * Mathf.Deg2Rad, dist)) return; // 8장 조건2: 완전 차단 구조 뒤.
+
+	Vector3Int tile = new Vector3Int(attacker.position.x, attacker.position.y, attacker.currentFloor);
+	ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile);
+}
+```
+(주의: 기존 코드는 변수명이 `angleToAttacker`였는데 `angleToAttackerDeg`로 이름만 바꿨다 — 라디안 변환
+시 헷갈리지 않기 위함. 이름을 그대로 유지하고 싶으면 `angleToAttacker * Mathf.Deg2Rad`로만 바꿔도 됨.)
+
+2) 신규 메서드 IsFullyBlockedTowards 추가(ForceReidentifyAttacker 바로 아래에 둘 것):
+```
+// 01-A 8장 조건2 전용 최소 LOS 체크 — CastRay의 DDA 레이마칭과 동일한 차단 기준(벽 타일/
+// InteractableObject.IsFullyBlocking)만 재현한다. 지형 밝히기/오브젝트 발견 등 CastRay의 부수효과는
+// 전혀 일으키지 않는 순수 판정 함수.
+private bool IsFullyBlockedTowards(float angleRad, float maxDistance)
+{
+	CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
+	if (cmap == null || cmap.map.floors == null) return false;
+	if (currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return false;
+	Floor floor = cmap.map.floors[currentFloor];
+	if (floor.chunks == null) return false;
+
+	Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
+	float rayPosX = position.x + 0.5f, rayPosY = position.y + 0.5f;
+	int x = position.x, y = position.y;
+	int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
+	int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
+	float tMaxX = dir.x != 0 ? Mathf.Abs(((dir.x > 0 ? x + 1 : x) - rayPosX) / dir.x) : float.PositiveInfinity;
+	float tMaxY = dir.y != 0 ? Mathf.Abs(((dir.y > 0 ? y + 1 : y) - rayPosY) / dir.y) : float.PositiveInfinity;
+	float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
+	float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
+
+	int mapWidth = floor.config.width * 8;
+	int mapHeight = floor.config.height * 8;
+	float dist = 0f;
+
+	while (dist < maxDistance)
+	{
+		if (tMaxX < tMaxY) { dist = tMaxX; tMaxX += tDeltaX; x += stepX; }
+		else { dist = tMaxY; tMaxY += tDeltaY; y += stepY; }
+		if (dist >= maxDistance) break; // 공격자 자신이 서 있는 타일은 차단 판정에서 제외.
+
+		if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
+		int cx = x / 8, tx = x % 8, cy = y / 8, ty = y % 8;
+		if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return true;
+		Chunks c = floor.chunks[cx, cy];
+		if (c.roomId == -1 || c.chunk == null) return true;
+
+		Tile tile = c.chunk[tx, ty];
+		if (tile.name == "Wall" || tile.isStructureExist) return true;
+
+		Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
+		if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
+			!blocker.IsCollected && blocker.IsFullyBlocking)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+```
+
+[검증 완료 사항] 브레이스 밸런스 확인 완료, 무한 루프 위험 없음(dir가 단위 벡터라 매 반복 x 또는 y가
+반드시 ±1 진행 — CastRay와 동일한 안전성 근거). 실제 적용 전 재확인만 하면 됨.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 2: 01-A 8장 마지막 문장("정확한 인지가 발생하면... 행동 후보를 등록할 수 있다") — 미등록
+════════════════════════════════════════════════════════════════════════
+[증상]
+02문서 14장/15장에 맞춰 PerceptionMath.ReactionCandidatesFor(PerceptionTargetKind)가 이미 구현돼
+있고 15장 표(적유닛/함정/건물/시체/전멸흔적별 반응 후보)와 정확히 일치하지만, 이 함수를 실제로
+호출하는 곳이 코드 전체에 0곳이다(grep 확인 완료) — "정확 인지가 발생하면 행동 후보를 등록할 수
+있다"는 08장 마지막 문장이 실제로는 한 번도 실행되지 않는다.
+
+[해결 방향]
+PerceptionRecord에 대상 분류(TargetKind)와, 정확 인지 상태일 때만 15장 표를 반환하는 계산 프로퍼티
+(ReactionCandidates)를 추가한다. ForceRollPerception/ResolveReachedTarget이 대상을 판정할 때마다
+그 분류를 함께 기록하도록 시그니처에 kind 매개변수를 추가하고, CastRay의 오브젝트/유닛 판정 블록과
+ForceReidentifyAttacker 세 호출부에서 각각 맞는 분류를 넘긴다. 여전히 실제 소비자(04/06/08 문서)는
+없지만 최소한 "정확 인지 순간에 후보가 레코드에 붙는다"는 08장 문장 자체는 사실이 되게 만든다.
+
+[제안 코드]
+
+1) PerceptionMath.cs — PerceptionTargetKind에 None 추가(15장 표에 없는 대상, 예: 일반 루팅용 기본값):
+```
+public enum PerceptionTargetKind
+{
+	None,
+	EnemyUnit,
+	Trap,
+	Building,
+	Corpse,
+	WipeoutTrace,
+}
+```
+(ReactionCandidatesFor의 switch는 이미 `_ => Array.Empty<>()` 기본 분기가 있어 None을 별도로
+추가할 필요 없음.)
+
+2) PerceptionRecord.cs — TargetKind 필드 + ReactionCandidates 계산 프로퍼티 추가:
+```
+// 14장/15장: 이 대상이 어떤 분류(적 유닛/시체/전멸흔적/함정/건물)인지 — ForceRollPerception 호출부가
+// 매번 채워준다. ReactionCandidates가 이 값으로 15장 표를 조회한다.
+public PerceptionTargetKind TargetKind = PerceptionTargetKind.None;
+
+// (TempDanger/TempInterest 프로퍼티 아래, 클래스 닫는 중괄호 위에 추가)
+
+// 01-A 8장 마지막 문장 "정확한 인지가 발생하면... 행동 후보를 등록할 수 있다" — 정확 인지 상태일
+// 때만 15장 표의 후보 목록을 반환한다. 실제로 하나를 "선택"해서 실행하는 소비자(04/06/08 문서)는
+// 아직 없지만, 이 레코드에 붙여두면 그 문서가 생겼을 때 바로 조회해 쓸 수 있다.
+public PerceptionReactionCandidate[] ReactionCandidates =>
+	Outcome == PerceptionOutcome.AccuratePerception
+		? PerceptionMath.ReactionCandidatesFor(TargetKind)
+		: System.Array.Empty<PerceptionReactionCandidate>();
+```
+
+3) UnitFunction.cs — ResolveReachedTarget/ForceRollPerception에 kind 매개변수 추가:
+```
+private PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float dist, PerceptionTargetKind kind, out bool firstTouchThisPass)
+{
+	firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
+	_reachedPerceptionThisPass[key] = (dist, tile);
+	if (!firstTouchThisPass)
+		return perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
+
+	perceptionRecords.TryGetValue(key, out var existing);
+	bool isNewOrReentering = existing == null || !existing.WasInRange;
+	bool suspiciousReapproach = existing != null && existing.PendingSuspiciousInvestigation
+		&& dist <= PerceptionMath.SuspiciousTileReapproachDistanceTiles;
+
+	if (isNewOrReentering || suspiciousReapproach)
+		return ForceRollPerception(key, targetVisibility, tile, kind);
+
+	existing.WasInRange = true;
+	existing.LastKnownTile = tile;
+	return existing.Outcome;
+}
+
+private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile, PerceptionTargetKind kind)
+{
+	if (!CanPerceive)
+	{
+		if (!perceptionRecords.TryGetValue(key, out var frozen))
+		{
+			frozen = new PerceptionRecord();
+			perceptionRecords[key] = frozen;
+		}
+		frozen.WasInRange = true;
+		frozen.LastKnownTile = tile;
+		frozen.TargetKind = kind;
+		return frozen.Outcome;
+	}
+
+	float detectionCorrection = PerceptionMath.DetectionCorrection(spotting, IsAlert);
+	float mentalCorrection = GetMentalVisibilityCorrection();
+	float total = PerceptionMath.TotalPerceptionVisibility(targetVisibility, detectionCorrection, mentalCorrection);
+	PerceptionOutcome outcome = PerceptionMath.RollOutcome(total, Random.value);
+
+	if (!perceptionRecords.TryGetValue(key, out var record))
+	{
+		record = new PerceptionRecord();
+		perceptionRecords[key] = record;
+	}
+	bool nowSuspicious = outcome == PerceptionOutcome.SuspiciousTile;
+	NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious);
+	record.Outcome = outcome;
+	record.WasInRange = true;
+	record.LastKnownTile = tile;
+	record.TargetKind = kind;
+	record.PendingSuspiciousInvestigation = nowSuspicious;
+	return outcome;
+}
+```
+
+4) 호출부 3곳 수정:
+   a) CastRay 오브젝트 판정 블록(ResolveObjectVisibility 호출 다음 줄) — kind 계산 후 전달:
+```
+PerceptionTargetKind objKind = obj.Tags.Any(t => t.Contains("WipeoutTrace")) ? PerceptionTargetKind.WipeoutTrace
+	: obj.Tags.Any(t => t.Contains("Corpse")) ? PerceptionTargetKind.Corpse
+	: PerceptionTargetKind.None;
+PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
+```
+   b) CastRay 유닛 판정 블록:
+```
+PerceptionOutcome outcome = ResolveReachedTarget(unit, unit.GetFinalVisibility(), revealedTile, dist, PerceptionTargetKind.EnemyUnit, out bool firstTouch);
+```
+   c) ForceReidentifyAttacker 안의 ForceRollPerception 호출:
+```
+ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile, PerceptionTargetKind.EnemyUnit);
+```
+
+[검증 완료 사항] 4개 호출부 전부 새 시그니처로 일관성 확인 완료, 브레이스 밸런스 확인 완료.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 3: 01-A 10장 — playerAttackTarget이 4순위(현재 공격 대상)로 분류돼 있는데
+          0순위(플레이어 명령, 항상 최우선)가 맞지 않는지 — 판단 필요, 코드 결함 아님
+════════════════════════════════════════════════════════════════════════
+[발견 경위]
+10장 시야 방향 전환 우선순위표를 검증하다가, UnitFunction.ResolveVisionDirection()의 "4순위:
+현재 공격 대상 존재" 블록이 `Unit.playerAttackTarget` 필드를 그대로 쓰고 있는 걸 확인했다:
+```
+// 4순위: 현재 공격 대상 존재.
+if (playerAttackTarget != null && playerAttackTarget.hp > 0)
+	candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.CurrentAttackTarget, DirectionToward(playerAttackTarget.position)));
+```
+
+`playerAttackTarget`을 추적한 결과:
+- 세팅하는 곳은 Assets/Script/Unit/Session/InputManager.cs 한 곳뿐이다(라인 331,
+  `selUnit.playerAttackTarget = unit;` — 플레이어가 UI에서 대상을 클릭했을 때만 세팅됨).
+- Assets/Script/Unit/AI/Goals.cs:20의 주석: `if (unit.playerAttackTarget != null) return 130f; //
+  수동 공격 명령은 최우선 (패닉 제외)` — GOAP 쪽에서도 이 필드를 "AI가 스스로 고른 대상"이 아니라
+  "플레이어가 내린 수동 명령"으로 명시적으로 취급한다.
+- 이 코드베이스엔 AI가 자체적으로 유지하는 별도의 "현재 공격 대상" 필드가 없다 — 공격 대상 관련
+  필드는 playerAttackTarget 하나뿐이다.
+
+[문제의 핵심]
+01-A 10장은 "현재 공격 대상 존재"(4순위)와 "플레이어의 명령에 대한 시야 전환은 항상 최우선 순위가
+된다"(0순위, 표 밖 특례)를 서로 다른 두 개념으로 구분해서 쓴다. 그런데 이 코드베이스는 "공격 대상"
+개념 자체가 playerAttackTarget 하나뿐이라서, 그 필드가 원래 문서상 어느 쪽에 해당하는지가 실제로
+갈린다:
+- 4순위(현재 그대로) 해석: "공격 대상이 있다"는 사실 자체를 가리키는 표현으로 보고, 그 대상이
+  어떻게 정해졌는지(플레이어 클릭이든 AI 자동 선택이든)는 안 따진다.
+- 0순위 해석: playerAttackTarget은 이름 그대로도, 실제 유일한 세터(InputManager)로도, Goals.cs의
+  주석으로도 명백히 "플레이어가 내린 명령"이라서 10장의 "플레이어 명령 → 항상 최우선" 특례를
+  그대로 적용해야 한다.
+
+[실제 동작 차이]
+지금(4순위)은 스킬 사용 중(1순위)이거나 1칸 이내 근접 대상이 있으면(3순위) 플레이어가 다른 대상을
+공격하라고 명령해도 시야가 그쪽을 보지 않는다. 0순위로 바꾸면 플레이어 명령이 항상 이긴다 — 유닛이
+스킬을 쓰는 중이든 다른 적과 붙어있든 상관없이 즉시 플레이어가 지정한 대상 쪽을 본다.
+
+[선택지]
+A. 0순위로 재분류 — ResolveVisionDirection()의 해당 후보 등록을 `VisionDirectionReason.
+   CurrentAttackTarget` 대신 `VisionDirectionReason.PlayerCommand`로 바꾼다(한 줄 수정). 10장
+   문구("플레이어의 명령... 항상 최우선")를 문자 그대로 따르는 해석.
+B. 4순위 유지 — 지금 그대로 둔다. "현재 공격 대상 존재"를 대상의 출처와 무관한 상태 서술로 보는
+   해석. 코드 변경 없음.
+어느 쪽이든 한 줄짜리 변경(또는 무변경)이라 다른 작업자와 겹칠 위험은 낮지만, 판단 자체가 우선
+필요해서 항목 1/2와 달리 시안만 적어두고 코드는 건드리지 않았다.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 4: 01-A 12장 — 주석의 장 번호가 "13장"으로 잘못 남아있음(로직 영향 없음)
+════════════════════════════════════════════════════════════════════════
+[발견 경위]
+01-A 문서는 2026-07-13 개정으로 구 10장("비벽 오브젝트/유닛 가림 보정")이 삭제되면서 이후 장
+번호가 전부 하나씩 당겨졌다(구 11→신 10장 시야방향전환, 구 12→신 11장 소리, 구 13→신 12장
+특수 원형 인지 범위) — 지금 문서는 12장이 마지막 장이고 13장은 존재하지 않는다. 그런데 원형
+인지 범위 관련 코드 주석 3곳이 여전히 "01-A 13장"이라는 구 번호를 참조하고 있다:
+- Assets/Script/Unit/Core/UnitFunction.cs:373 (CastRay 메서드 주석 — "특수 원형 인지 범위(01-A
+  13장) 스윕 시에는...")
+- Assets/Script/Unit/Core/UnitFunction.cs:614 (UpdateFOV의 원형 스윕 블록 주석 — "01-A 13장:
+  엘리트/네메시스/보스 보조 원형 인지 범위...")
+- Assets/Script/Unit/Visual/UnitVisual.cs:16 ("엘리트/네메시스/보스의 원형 인지 범위(01-A 13장)...")
+
+[수정 방향]
+세 곳 모두 "13장" → "12장"으로 텍스트만 바꾸면 된다. 로직/수치는 이미 정확해서(CircularPerceptionRadius
+공식·경계값 전부 VisionSystemTests.cs로 고정 확인됨) 건드릴 코드는 없다 — 순수 주석 문자열 치환.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 5(2026-07-20 정정): 02문서 2장/4장 — 오브젝트는 한 번 정확 인지되면 다시는 재판정을 안 받음
+          (현재는 무해, 함정 엔티티 생기는 순간 문제됨)
+════════════════════════════════════════════════════════════════════════
+[최초 설명이 부정확했던 부분 — 가중치 문서 15장 검증 중 재확인하며 정정]
+처음엔 "오브젝트 위험도가 인지 게이팅을 전혀 안 받는다"고 적었는데, 다시 보니 부정확하다.
+`_objectDanger[objectId]`는 `PersonalMapKnowledge.RegisterObject()` 안에서만 세팅되고,
+`RegisterObject()`는 `UnitFunction.CastRay`에서 `outcome == PerceptionOutcome.AccuratePerception`
+일 때만 호출된다 — **최초 등록 시점엔 정확 인지 게이팅이 이미 정확히 걸려 있다.**
+
+진짜 문제는 CastRay의 오브젝트 판정 블록 자체가 이 조건 안에서만 실행된다는 것이다:
+```
+if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
+{
+    if (inPerceptionRange) { ... ResolveReachedTarget(...) ... }
+}
+```
+`IsObjectKnown(obj.Id)`가 true가 되는 순간(=한 번이라도 정확 인지에 성공한 순간) 이 블록 자체가
+영원히 스킵된다 — 즉 오브젝트는 유닛과 달리 02문서 4장의 재진입/재접근 트리거를 다시 받을 방법이
+아예 없다. "미인식 상태에서도 위험도가 반영된다"가 아니라 **"한 번 알려지면 다시 미인식으로
+돌아갈 수 있는 경로 자체가 없다"**가 정확한 설명이다. 결과적으로 보이는 증상(함정처럼 위험한
+오브젝트의 위험도가 사실상 영구 고정된다는 것)은 비슷하지만 원인이 다르다.
+
+[왜 지금은 무해한가 — 기존 설명과 동일]
+현재 스폰되는 모든 오브젝트(시체/전멸흔적/루팅)는 baseDanger를 명시적으로 0f로 넘긴다
+(GameSession.RemoveDeadUnit/CheckPartyWaveState 확인 완료) — 그래서 objectDanger 항이 항상 0이라
+실제로 안전 판정에 영향을 준 적이 없다. 함정처럼 baseDanger>0인 오브젝트가 생기면, 딱 한 번
+정확 인지에 성공하는 순간 그 위험도가 영구 고정된다(이후 관찰자가 그 위치를 다시 봐도 재판정
+자체가 없으므로 낮아지거나 사라질 방법이 없다).
+
+[수정 방향 — 함정 엔티티가 생길 때 같이 고려할 것]
+함정 엔티티가 없어 지금 구체적인 코드를 제안하기는 이르다. 방향성만 남긴다:
+- 오브젝트도 유닛처럼 `IsObjectKnown` 여부와 무관하게 CastRay가 매 패스 `ResolveReachedTarget`을
+  호출하도록 바꾸고(단, 등록 부수효과는 firstTouch && AccuratePerception일 때만 여전히 게이팅),
+  02문서 4장의 트리거 조건(재진입/재접근/피격)을 오브젝트에도 동일하게 적용하는 게 가장 정직한
+  해법이다. `IsObjectKnown`은 "RegisterObject를 다시 호출하지 않기 위한 가드"로만 남기고, "판정
+  자체를 스킵하는 가드"에서는 빼야 한다.
+- 함정은 대부분 "발견 즉시 등록"이라 발견 전엔 애초에 RegisterObject가 안 불려서 objectDanger 자체가
+  안 잡힐 가능성도 있다 — 함정 엔티티/판정 흐름을 설계할 때 이 경로부터 먼저 확인할 것.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 6: 02문서 5장 — 안전 확인(일반 타일) 타이머가 CanPerceive(인지 판정 불가 상태) 게이팅을 안 받음
+════════════════════════════════════════════════════════════════════════
+[발견 경위]
+02문서 5장 조건3("관찰자가 인지 판정을 수행할 수 있는 상태임" — 기절/수면/마비/행동불능이면 인지
+판정 불가)은 2장이 "미확인 일반 타일"도 명시적으로 인지 판정 대상에 포함시키므로, 일반 타일
+안전 확인에도 당연히 적용돼야 한다. 실제 유닛/오브젝트 판정 경로(UnitFunction.CastRay →
+ResolveReachedTarget → ForceRollPerception)는 CanPerceive 가드가 이미 걸려 있다(이번 검증 라운드
+초반에 한 곳으로 중앙화 완료, 이미 반영됨 — 롤백 대상 아님). 그런데 안전 확인(TickTileSafety/
+TickTileInterestConfirm) 쪽은 이 가드가 전혀 없다:
+```
+// UnitFunction.OnUpdate, 현재 코드
+if (this is Human human && Session != null)
+{
+	foreach (var tile in human.personalMap.KnownDangerTiles.ToList())
+	{
+		bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
+			&& occupant.hp > 0f && human.personalSpottedEnemies.Contains(occupant);
+		human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
+	}
+
+	foreach (var tile in human.personalMap.KnownInterestTiles.ToList())
+	{
+		human.personalMap.TickTileInterestConfirm(tile, deltaTime);
+	}
+}
+```
+기절한 인류 유닛도 이미 추적 중인 위험/흥미 타일의 안전 확인 타이머가 실시간(deltaTime)으로 계속
+흘러간다 — 조건3 위반. 이건 함정 엔티티 같은 미래 의존성이 없어 스턴 상태이상이 이미 존재하는
+지금도 실제로 관측 가능한 문제다(기절한 유닛 옆에 몬스터가 있다가 사라지면, 그 유닛이 기절해
+있는 동안에도 안전 확인 타이머가 흘러 위험도가 감쇠된다).
+
+[제안 코드]
+if 조건에 CanPerceive만 추가하면 된다:
+```
+if (this is Human human && Session != null && CanPerceive)
+{
+	foreach (var tile in human.personalMap.KnownDangerTiles.ToList())
+	{
+		bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
+			&& occupant.hp > 0f && human.personalSpottedEnemies.Contains(occupant);
+		human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
+	}
+
+	foreach (var tile in human.personalMap.KnownInterestTiles.ToList())
+	{
+		human.personalMap.TickTileInterestConfirm(tile, deltaTime);
+	}
+}
+```
+CanPerceive는 이미 Unit.cs에 공개 프로퍼티로 있어(`public bool CanPerceive => stunDuration <= 0f;`)
+그대로 참조하면 된다. 다른 항목들과 달리 UnitFunction.OnUpdate의 이 블록 하나만 건드리는 국소적
+변경이라 항목 1/2(같은 파일의 다른 메서드)와 겹칠 위험은 낮아 보인다.
+
+════════════════════════════════════════════════════════════════════════
+■ 항목 7: 02문서 10장 — 경계 상태 감지 보정(+20)이 인지 판정에만 적용되고 시야/인지 거리·인지각엔
+          미적용
+════════════════════════════════════════════════════════════════════════
+[발견 경위]
+10장: "경계 중 감지 보정 = 감지 스탯 + 20. 이 값은 인지 판정뿐 아니라 시야 거리, 인지 거리, 인지각에도
+반영된다." 확인 결과 인지 판정(확률 굴리기) 쪽에는 이미 정확히 적용돼 있다:
+```
+// ForceRollPerception 안
+float detectionCorrection = PerceptionMath.DetectionCorrection(spotting, IsAlert); // +20 반영됨
+```
+하지만 시야 거리/인지 거리/인지각을 계산하는 두 곳은 여전히 raw spotting만 쓴다:
+```
+// UpdateFOV, 라인 590~594 부근
+float viewAngle          = VisionMath.BaseViewAngleDeg;
+float viewDistance       = VisionMath.ViewDistance(spotting);        // +20 미반영
+float perceptionAngle    = VisionMath.AwarenessAngle(spotting);      // +20 미반영
+float perceptionDistance = VisionMath.AwarenessDistance(spotting);   // +20 미반영
+```
+```
+// ForceReidentifyAttacker, 라인 114~116 부근
+float dist = Vector2.Distance(position, attacker.position);
+float perceptionDistance = VisionMath.AwarenessDistance(spotting);   // +20 미반영
+float perceptionAngle = VisionMath.AwarenessAngle(spotting);         // +20 미반영
+```
+
+[처음엔 왜 안 했는지 / 지금은 왜 쉬워졌는지]
+02문서 최초 구현 당시엔 "경계 상태를 시야 범위 자체에 반영하려면 별도 상태 전파 경로가 필요하다"고
+판단해서 미뤘다(구현현황 문서에 그렇게 기록돼 있음). 그런데 그 뒤 성능 이슈를 고치면서
+Unit.IsAlert가 이미 O(1) 프로퍼티로 존재하게 됐다 — 지금은 "새 상태 전파 경로"가 필요 없고, 그냥
+IsAlert를 한 번 더 읽어서 spotting에 더해주기만 하면 된다.
+
+[제안 코드]
+1) UpdateFOV 수정:
+```
+float viewAngle          = VisionMath.BaseViewAngleDeg;
+float effectiveSpotting  = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 10장: 경계 중 감지 보정
+float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
+float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
+float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
+```
+2) ForceReidentifyAttacker 수정:
+```
+float dist = Vector2.Distance(position, attacker.position);
+float effectiveSpotting = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
+float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
+```
+(나머지 로직은 그대로 — perceptionAngle/perceptionDistance를 쓰는 아래 코드는 안 바꿔도 됨)
+
+[참고] PerceptionMath.AlertDetectionBonus는 이미 public const로 존재(값 20f) — 새로 만들 것 없음.
+
+════════════════════════════════════════════════════════════════════════
+■ 영향 범위(다른 작업자와 겹칠 수 있는 파일)
+════════════════════════════════════════════════════════════════════════
+- Assets/Script/Unit/Core/UnitFunction.cs — 항목 1/2: ForceReidentifyAttacker 근처(IsFullyBlockedTowards
+  추가 위치), ResolveReachedTarget/ForceRollPerception 시그니처, CastRay 오브젝트/유닛 판정 블록 2곳.
+  항목 3: ResolveVisionDirection()의 "4순위" 블록 한 줄. 항목 4: 주석 2곳(라인 373, 614 — 실제 라인
+  번호는 이후 편집으로 밀릴 수 있음, "01-A 13장" 문자열로 검색해서 찾을 것). 항목 5: OnUpdate의
+  TickTileSafety 호출부(참고용, 이미 유닛 쪽은 수정 완료). 항목 6: OnUpdate의 TickTileSafety/
+  TickTileInterestConfirm 블록 if 조건 한 줄(항목 1/2와 다른 메서드라 겹칠 위험 낮음). 항목 7:
+  UpdateFOV의 viewDistance/perceptionAngle/perceptionDistance 3줄 + ForceReidentifyAttacker의
+  동일 계산 2줄 — 항목 1(ForceReidentifyAttacker 안에 LOS 체크 추가)과 같은 메서드를 건드리므로
+  적용 순서 주의(항목 1과 항목 7을 같이 적용할 때 변수명 겹치지 않는지 확인할 것).
+- Assets/Script/Unit/Vision/PerceptionMath.cs — 항목 2: PerceptionTargetKind enum(None 추가).
+- Assets/Script/Unit/Vision/PerceptionRecord.cs — 항목 2: TargetKind/ReactionCandidates 추가.
+- Assets/Script/Unit/Visual/UnitVisual.cs — 항목 4: 주석 1곳(라인 16).
+- Assets/Script/Unit/Weight/PersonalMapKnowledge.cs — 항목 5: GetTileDanger()의 objectDanger 계산부.
+  함정 엔티티 자체가 아직 없어 이 항목은 그 엔티티가 설계될 때 같이 다룰 것(지금 독립적으로 손댈
+  이유는 없음).
+이 파일들에서 위 diff와 겹치는 작업이 없는지 먼저 확인한 뒤 적용할 것.
