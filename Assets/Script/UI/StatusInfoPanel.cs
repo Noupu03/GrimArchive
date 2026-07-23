@@ -83,12 +83,12 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
             GUI.color = Color.white;
         }
 
-        if (OffenseProcessor.Instance != null && OffenseProcessor.Instance.currentOffenseRoom != null)
+        /*if (OffenseProcessor.Instance != null && OffenseProcessor.Instance.currentOffenseRoom != null)
         {
             GUI.color = Color.red;
             GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {OffenseProcessor.Instance.currentOffenseRoom.RoomName}");
             GUI.color = Color.white;
-        }
+        }*/
 
         GUILayout.Space(6);
         GUILayout.Label("<size=14><b>[ 자원 사용 안내 ]</b></size>");

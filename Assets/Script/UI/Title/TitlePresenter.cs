@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using Haare.Client.Core.DI;
 using Haare.Client.UI;
 using Haare.Util.Logger;
@@ -10,7 +11,7 @@ using VContainer;
 //
 // 씬 전환은 Haare의 SceneService(Addressables 기반, 아직 이 프로젝트 실 전환에는 안 쓰인 미검증
 // 경로 — Assets/Haare/Scripts/Util/AssetLoader/AssetPath.cs 주석 참고) 대신, ssh.unity를 그대로
-// Build Settings에 등록해서 쓰는 평범한 SceneManager.LoadSceneAsync() + SceneTransitionFade를 쓴다.
+// Build Settings에 등록해서 쓰는 평범한 SceneManager + SceneTransitionFade를 쓴다.
 public class TitlePresenter : IPresenter
 {
     [Inject] private SceneUIManager _sceneUiManager;
@@ -46,12 +47,16 @@ public class TitlePresenter : IPresenter
         panel.OpenPanel();
     }
 
+    private const string TitleSceneName = "Title";
+    private const string GameSceneName = "ssh";
+
+    // ssh 씬 자체의 초기화(맵 생성 등)가 진행되는 동안에도 화면이 잠깐 끊겨 보인다는 신고(사용자,
+    // 2026-07-23 "씬 시작할때 검은색 점등 후에 시작해 — 이 사이 로딩 중에를 검은 오버레이로
+    // 덮어버리자")에 따라 SceneTransitionFade가 로딩 구간 전체를 의도적인 검은 오버레이로 덮는다.
     private void StartGame()
     {
         LogHelper.Log(LogHelper.GAME, "[TitlePresenter] 게임 시작 -> ssh.unity 로드");
-        // 동기 LoadScene 한 줄로는 씬 전환 프레임에 카메라가 끊겨 화면이 검게 번쩍였다(사용자 신고,
-        // 2026-07-23) — SceneTransitionFade가 로드 전후로 페이드인/아웃해서 그 프레임을 가린다.
-        SceneTransitionFade.EnsureInstance().LoadSceneWithFade("ssh");
+        SceneTransitionFade.EnsureInstance().LoadSceneWithCoverAsync(GameSceneName, TitleSceneName).Forget();
     }
 
     private void OpenSettings()

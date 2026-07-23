@@ -327,8 +327,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
 
     // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
     // 경우, objectGrid에 함정 자신이 이미 그 타일을 차지하고 있음) 바로 옆부터 정사각형 링 모양으로
-    // 넓혀가며 비어있는 첫 타일을 찾는다. 반경 안에 빈 자리가 전혀 없으면(사실상 거의 없음) 원래
-    // 위치를 그대로 반환한다 — 그러면 SpawnObject가 조용히 무시하고 넘어간다.
+    // 넓혀가며 비어있는 첫 타일을 찾는다. objectGrid 점유 여부만 보고 벽인지는 확인하지 않아서, 좁은
+    // 통로에서 죽으면 시체가 벽 타일에 놓이는 경우가 있었다(사용자 신고, 2026-07-23 "시체 벽에
+    // 생기는거 막아줘") — CreateMap.IsStaticTileWalkable로 벽/구조물 타일도 함께 걸러낸다. 반경 안에
+    // 빈 자리가 전혀 없으면(사실상 거의 없음) 원래 위치를 그대로 반환한다 — 그러면 SpawnObject가
+    // 조용히 무시하고 넘어간다.
     private Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
     {
         const int maxRadius = 5;
@@ -342,8 +345,10 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                     if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
 
                     Vector3Int candidate = new Vector3Int(center.x + dx, center.y + dy, center.z);
-                    if (!objectGrid.ContainsKey(candidate))
-                        return candidate;
+                    if (objectGrid.ContainsKey(candidate)) continue;
+                    if (cmap != null && !cmap.IsStaticTileWalkable(center.z, new Vector2Int(candidate.x, candidate.y))) continue;
+
+                    return candidate;
                 }
             }
         }

@@ -329,7 +329,6 @@ public abstract class UnitFunction : Unit
 
 	public override void Move(Dir dir)
 	{
-		currentDir = dir; // 이동 방향으로 시야 방향 갱신
 		Vector2Int dirVec = GetDirVector(dir);
 		Vector2Int nextPos = position + dirVec;
 
@@ -345,8 +344,16 @@ public abstract class UnitFunction : Unit
 			}
 		}
 
+		// 실제로 이동에 성공했을 때만 시야 방향을 갱신한다 — 다른 유닛이 길을 막아 매 틱 CanMove가
+		// 실패하는 동안에도 예전엔 시도한 방향으로 currentDir이 계속 바뀌어서(웨이브 파티가 몰리는
+		// 구간에서 서로 자리를 다투며 시도 방향이 틱마다 흔들림), 제자리에서 캐릭터만 계속 홱홱 도는
+		// 것처럼 보였다(사용자 신고, 2026-07-23 "얘내 자꾸 움찔움찔 거리는데, 유닛으로 인한 길 막힘
+		// 때문인듯"). 막혀서 못 움직인 틱엔 기존 방향을 그대로 유지해 제자리에 가만히 서 있게 한다.
 		if (canMove)
+		{
+			currentDir = dir;
 			position = nextPos;
+		}
 
 		if (this.Generate != null)
 			this.Generate.UpdateUnitSpriteForDirection(this);

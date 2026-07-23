@@ -356,8 +356,11 @@ public partial class CreateMap
 
     // discoveredMap(안개)과 무관하게 실제 지형(Wall/isStructureExist)만으로 통행 가능 여부를 판정한다.
     // UnitFunction.CanMove와 같은 판정 기준이지만 특정 유닛(footprint/점유 유닛)에 묶이지 않은,
-    // "이 타일 자체가 구조적으로 막혀있는가"만 보는 정적 버전이다.
-    private bool IsStaticTileWalkable(int floorIndex, Vector2Int p)
+    // "이 타일 자체가 구조적으로 막혀있는가"만 보는 정적 버전이다. GameSession.FindNearbyFreeObjectTile
+    // (시체 재배치 링 탐색)이 벽 타일을 걸러내려고 그대로 재사용하기 때문에 public으로 노출한다
+    // (사용자 신고, 2026-07-23 "시체 벽에 생기는거 막아줘" — 링 탐색이 objectGrid 점유 여부만 보고
+    // 벽인지는 확인하지 않아서, 좁은 통로에서 죽으면 시체가 벽 타일에 놓이는 경우가 있었다).
+    public bool IsStaticTileWalkable(int floorIndex, Vector2Int p)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
         if (p.x < 0 || p.y < 0) return false;
