@@ -7,13 +7,15 @@ public class UnitRegistry
     public Dictionary<Vector3Int, Unit> unitGrid { get; private set; } = new Dictionary<Vector3Int, Unit>();
 
     private OffenseProcessor _offenseProcessor;
-    private GameSession _gameSession;
+    private IObjectResolver _resolver;
+    private GameSession _gameSession => _cachedGameSession ??= _resolver.Resolve<GameSession>();
+    private GameSession _cachedGameSession;
 
     [Inject]
-    public void Construct(OffenseProcessor offenseProcessor, GameSession gameSession)
+    public void Construct(OffenseProcessor offenseProcessor, IObjectResolver resolver)
     {
         _offenseProcessor = offenseProcessor;
-        _gameSession = gameSession;
+        _resolver = resolver;
     }
 
     public void RegisterUnitPos(Unit u, Vector2Int pos)

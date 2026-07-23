@@ -21,7 +21,12 @@ public abstract class UnitType
 // 인류 클래스
 public class Knight : UnitType
 {
-	public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); }
+	public Knight() { typeName = "기사"; footprint = new Vector2(1, 1); }
+}
+
+public class HumanBaseType : UnitType
+{
+    public HumanBaseType() { typeName = "인간"; footprint = new Vector2(1, 1); }
 }
 
 // 몬스터 역할군

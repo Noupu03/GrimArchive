@@ -6,13 +6,15 @@ using Haare.Util.Logger;
 
 public class DebugInputHandler
 {
-    private GameSession _gameSession;
+    private IObjectResolver _resolver;
+    private GameSession _gameSession => _cachedGameSession ??= _resolver.Resolve<GameSession>();
+    private GameSession _cachedGameSession;
     private UnitGenerate _unitGenerate;
 
     [Inject]
-    public void Construct(GameSession gameSession, UnitGenerate unitGenerate)
+    public void Construct(IObjectResolver resolver, UnitGenerate unitGenerate)
     {
-        _gameSession = gameSession;
+        _resolver = resolver;
         _unitGenerate = unitGenerate;
     }
 

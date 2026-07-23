@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using Haare.Util.Logger;
@@ -53,7 +53,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
             if (wallSprite == null || floorSprite == null)
             {
-                LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 지정된 타일 이미지(Tile_StoneWall 또는 FloorTexture)를 찾지 못했습니다.");
+                LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 타일 이미지를 찾지 못해 임시 단색 이미지를 생성합니다.");
+                
+                if (wallSprite == null) wallSprite = CreateColorSprite(Color.gray);
+                if (floorSprite == null) floorSprite = CreateColorSprite(Color.white);
             }
         }
 
@@ -64,7 +67,17 @@ public class MapRandering : NativeRoutine, IMapColorizer
         floorTile.sprite = floorSprite;
 
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        stairTile.sprite = stairSprite != null ? stairSprite : floorSprite;
+        stairTile.sprite = stairSprite != null ? stairSprite : CreateColorSprite(Color.yellow);
+    }
+
+    private Sprite CreateColorSprite(Color color)
+    {
+        Texture2D tex = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
     public void RenderAllFloors()
@@ -148,10 +161,12 @@ public class MapRandering : NativeRoutine, IMapColorizer
             System.Array.Copy(positions, usedPositions, idx);
             System.Array.Copy(tiles, usedTiles, idx);
             tilemap.SetTiles(usedPositions, usedTiles);
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F{floorIdx}에 총 {idx}개의 타일을 배치했습니다. (일부 청크 비어있음)");
         }
         else
         {
             tilemap.SetTiles(positions, tiles);
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F{floorIdx}에 총 {idx}개의 타일을 모두 꽉 채워 배치했습니다.");
         }
     }
 
