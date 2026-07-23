@@ -300,25 +300,25 @@ MonoBehaviour:
   footprint: {x: 1, y: 1}
   engageDistance: 7
   stats:
-    maxHp: 9999
-    maxMp: 100
-    physicalAttack: 500
-    magicalAttack: 50
-    physicalDefense: 50
-    magicalDefense: 50
-    HPRegen: 100
+    maxHp: 130
+    maxMp: 40
+    physicalAttack: 55
+    magicalAttack: 9
+    physicalDefense: 11
+    magicalDefense: 11
+    HPRegen: 5
     attackspeed: 150
-    walkSpeed: 6
-    reaction: 150
-    criticalChance: 50
-    cooltimeReduction: 100
-    statusResistance: 100
+    walkSpeed: 3.6
+    reaction: 115
+    criticalChance: 28
+    cooltimeReduction: 95
+    statusResistance: 85
     maxMental: 100
-    mental: 100
+    mental: 40
     spotting: 100
-    leadershipRange: 5
-    charisma: 5
-    physicalAttackSpeed: 20
+    leadershipRange: 4
+    charisma: 3
+    physicalAttackSpeed: 28
     magicalCastSpeed: 0
   skills:
   - skillName: "\uC815\uBC00 \uC0AC\uACA9"
@@ -351,11 +351,11 @@ MonoBehaviour:
   attackFailPrefab: {fileID: 0}
   isSpecialUnit: 0
   isInterestTarget: 0
-  baseInterest: 0
-  baseDanger: 0
+  baseInterest: 40
+  baseDanger: 32
   heavyHitThreshold: 10
   stealth: 20
-  baseVisibility: 85
+  baseVisibility: 80
 --- !u!1 &8451115793971915785
 GameObject:
   m_ObjectHideFlags: 0

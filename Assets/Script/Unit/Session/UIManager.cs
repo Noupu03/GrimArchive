@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
+using GrimArchive.Wave;
 
 // 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter(Haare UIPresenter/RegisterEntryPoint
 // 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)만 담당한다.
@@ -15,14 +16,48 @@ public class UIManager : MonoBehaviour
         _gameSession = gameSession;
     }
 
+    // 웨이브 시작 몇 초 전부터 화면 중앙 경고 문구를 띄울지(고정값, 2026-07-23 사용자 요청 "잠시 후,
+    // 웨이브가 시작됩니다"). HumanWaveManager.cooldownTimer가 이 값 이하로 떨어지면 표시되다가
+    // 웨이브가 실제로 시작되는 순간(currentState != Idle) 사라진다.
+    private const float WaveStartWarningSeconds = 3f;
+
     void OnGUI()
     {
         if (_gameSession == null) return;
 
         DrawTopLeftUI();
         DrawUnitLabels();
+        DrawWaveStartBanner();
 		//DrawPartyStatus();=======파티 관련 참조 주석처리========
 	}
+
+    private void DrawWaveStartBanner()
+    {
+        HumanWaveManager wm = HumanWaveManager.Instance;
+        if (wm == null) return;
+        if (wm.currentState != WaveState.Idle) return;
+        if (wm.cooldownTimer > WaveStartWarningSeconds || wm.cooldownTimer <= 0f) return;
+
+        GUIStyle style = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = 32,
+            fontStyle = FontStyle.Bold,
+            richText = true
+        };
+        style.normal.textColor = Color.yellow;
+
+        float w = 700f, h = 60f;
+        Rect rect = new Rect(Screen.width / 2f - w / 2f, Screen.height * 0.2f, w, h);
+
+        // 검은 배경을 살짝 깔아 어떤 배경 위에서도 글자가 잘 보이게 한다.
+        Color prevColor = GUI.color;
+        GUI.color = new Color(0f, 0f, 0f, 0.5f);
+        GUI.DrawTexture(rect, Texture2D.whiteTexture);
+        GUI.color = prevColor;
+
+        GUI.Label(rect, "잠시 후, 웨이브가 시작됩니다.", style);
+    }
 
 	private void DrawTopLeftUI()
     {
@@ -39,7 +74,7 @@ public class UIManager : MonoBehaviour
         }*/
 
 		// 2. 게임 속도 및 일시정지 상태
-		GUI.Label(new Rect(10, y, 250, 40), $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}\n단축키: 0, 1, 2, 3 / Space");
+		GUI.Label(new Rect(10, y, 300, 40), $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}\nSpace: 일시정지 | 0/1/2/3: 배속(0.5x/1x/2x/3x)");
         y += 50;
     }
 

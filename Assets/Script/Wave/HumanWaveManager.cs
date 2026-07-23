@@ -31,10 +31,10 @@ namespace GrimArchive.Wave
         public static HumanWaveManager Instance { get; private set; }
 
         public float waveCooldown => targetSpawner?.waveData?.waveCooldown ?? 10f;
-        
+
         [Inject]
         public WaveSpawner targetSpawner; // VContainer를 통해 자동 주입
-        
+
         public WaveState currentState = WaveState.Idle;
         public float cooldownTimer = 0f;
 
@@ -93,7 +93,7 @@ namespace GrimArchive.Wave
             // 1. 소대 구성 및 스폰 (기존 WaveSpawner 재사용)
             int beforePartyCount = GameSession.Instance.parties.Count;
             targetSpawner.SpawnWave();
-            
+
             if (GameSession.Instance.parties.Count > beforePartyCount)
             {
                 activeParty = GameSession.Instance.parties.Last();
@@ -181,7 +181,7 @@ namespace GrimArchive.Wave
                 foreach (var member in activeParty.Members)
                 {
                     if (member == null || member.hp <= 0) continue;
-                    
+
                     if (member.position.x == dummyTarget.Position.x && member.position.y == dummyTarget.Position.y)
                     {
                         PickupDummyTarget(member);
@@ -194,12 +194,12 @@ namespace GrimArchive.Wave
             {
                 // [TODO: 향후에는 주변 유닛이 오브젝트를 든 유닛을 호위하는 편대 AI 시스템을 추가해야 함]
                 // 현재는 단순히 목표를 획득해서 퇴각할 때부터 각자 탈출 지점으로 이동하며, 탈출 지점에 도착하는 개별 유닛부터 삭제(탈출) 처리합니다.
-                
+
                 for (int i = activeParty.Members.Count - 1; i >= 0; i--)
                 {
                     var member = activeParty.Members[i];
                     if (member == null || member.hp <= 0) continue;
-                    
+
                     if (member.position == exitAreaPos)
                     {
                         if (targetState == DummyTargetState.Carried && member == targetCarrier)
@@ -212,7 +212,7 @@ namespace GrimArchive.Wave
                         {
                             Debug.Log($"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
                         }
-                        
+
                         GameSession.Instance.DespawnUnit(member);
                         activeParty.Members.RemoveAt(i);
                     }
@@ -230,7 +230,7 @@ namespace GrimArchive.Wave
                     {
                         Debug.Log("[HumanWaveManager] 퇴각 중 모든 파티원이 사망하여 웨이브에 실패했습니다.");
                     }
-                    
+
                     EndWave(isSuccess);
                     return;
                 }
@@ -240,7 +240,7 @@ namespace GrimArchive.Wave
         private void PickupDummyTarget(Human unit)
         {
             Debug.Log($"[HumanWaveManager] {unit.name} 유닛이 더미 목표를 획득했습니다.");
-            
+
             GameSession.Instance.CollectObject(dummyTarget.Position);
 
             targetState = DummyTargetState.Carried;
@@ -252,7 +252,7 @@ namespace GrimArchive.Wave
         private void DropDummyTarget()
         {
             Debug.Log("[HumanWaveManager] 목표 보유자가 사망하여 목표를 드랍합니다.");
-            
+
             // dummyTarget.Position은 매 프레임 Carrier의 위치로 동기화되므로 최신 사망 위치 유지
             dummyTarget.IsCollected = false;
 
@@ -267,8 +267,8 @@ namespace GrimArchive.Wave
 
         private void UpdatePartyDestination()
         {
-            Vector2Int dest = targetState == DummyTargetState.OnGround ? 
-                              new Vector2Int(dummyTarget.Position.x, dummyTarget.Position.y) : 
+            Vector2Int dest = targetState == DummyTargetState.OnGround ?
+                              new Vector2Int(dummyTarget.Position.x, dummyTarget.Position.y) :
                               exitAreaPos;
 
             foreach (var member in activeParty.Members)
@@ -282,7 +282,7 @@ namespace GrimArchive.Wave
         private void EndWave(bool isSuccess)
         {
             currentState = WaveState.Ended;
-            
+
             var survivors = activeParty != null ? activeParty.GetSurvivors() : new List<Unit>();
             if (activeParty != null && !activeParty.WaveEnded)
             {
@@ -310,7 +310,7 @@ namespace GrimArchive.Wave
             }
 
             Debug.Log($"[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 {waveCooldown}초 대기.");
-            
+
             activeParty = null;
             dummyTarget = null;
             targetCarrier = null;

@@ -132,6 +132,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
             // 렌더링 후 계산된 오프셋을 바탕으로 방 좌표(TopLeftWorldPos) 설정
             BuildRoomGrid();
 
+            // 게임을 시작하자마자 보스방에 루팅 오브젝트(O키와 동일한 것)를 자동 생성한다(사용자 요청,
+            // 2026-07-23) — HumanWaveManager.MonitorWave()가 이 오브젝트를 "Loot" 태그로 발견해서 첫
+            // 웨이브부터 곧바로 목표로 추적하므로, 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
+            SpawnInitialBossRoomLoot();
+
             Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
         }
         else
@@ -267,10 +272,11 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         if (Keyboard.current != null)
         {
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
-            if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
-            // O(루팅 오브젝트)/P(함정)는 InputManager의 배치 고스트 모드가 담당한다(원하는 위치를
-            // 직접 골라서 놓기 위함, 2026-07-22) — GameSession.SpawnLootObjectAt/SpawnTrapAt 참고.
+            // O(루팅 오브젝트)/P(함정)/M(몬스터)은 InputManager의 배치 고스트 모드가 담당한다(원하는
+            // 위치를 직접 골라서 놓기 위함, 2026-07-22/23) — GameSession.SpawnLootObjectAt/SpawnTrapAt/
+            // SpawnPlayerMonsterAt 참고. M은 예전엔 즉시 무작위 위치에 스폰했으나 나무 자원을 소모하는
+            // 배치 모드로 바뀌었다(사용자 요청, 2026-07-23).
         }
     }
 
@@ -292,6 +298,13 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
                 causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.baseDanger);
             }
             
+            // SpawnObject는 objectGrid에 이미 오브젝트가 있는 타일이면 조용히 아무것도 안 하고
+            // 리턴한다 — 함정에 맞아 죽으면 사망 위치가 곧 그 함정 타일이라 항상 이 케이스에 걸려서
+            // 시체가 전혀 안 생기고 있었다(사용자 신고 "시체 생성이 안 되는데 확인해줘", 2026-07-23).
+            // 죽은 자리가 이미 차있으면 바로 옆 빈 타일을 찾아 대신 놓는다.
+            if (objectGrid.ContainsKey(gridPos))
+                gridPos = FindNearbyFreeObjectTile(gridPos);
+
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Object/Passable/Corpse", isMonsterCorpse ? "Monster" : "Human" };
             // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
@@ -310,6 +323,31 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         if (u != null) ClearPerceptionRecordsFor(u);
         units.RemoveAt(index);
         if (u != null) UnityEngine.Object.Destroy(u);
+    }
+
+    // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
+    // 경우, objectGrid에 함정 자신이 이미 그 타일을 차지하고 있음) 바로 옆부터 정사각형 링 모양으로
+    // 넓혀가며 비어있는 첫 타일을 찾는다. 반경 안에 빈 자리가 전혀 없으면(사실상 거의 없음) 원래
+    // 위치를 그대로 반환한다 — 그러면 SpawnObject가 조용히 무시하고 넘어간다.
+    private Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
+    {
+        const int maxRadius = 5;
+        for (int radius = 1; radius <= maxRadius; radius++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    // 이전 반경에서 이미 검사한 안쪽 칸은 건너뛰어 링(테두리)만 순회한다.
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
+
+                    Vector3Int candidate = new Vector3Int(center.x + dx, center.y + dy, center.z);
+                    if (!objectGrid.ContainsKey(candidate))
+                        return candidate;
+                }
+            }
+        }
+        return center;
     }
 
     // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.perceptionRecords는 "누가 이 유닛을 봤는지"를
@@ -578,20 +616,21 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         return candidates[Random.Range(0, candidates.Count)];
     }
 
-    public void OnKeyDown_M()
+    // M키 배치 모드(InputManager.EnterMonsterPlaceMode/UpdatePlaceMode)가 유저가 고른 위치를 넘겨주면
+    // 호출됨 — 예전 OnKeyDown_M()의 무작위 위치 스폰을 대체(사용자 요청, 2026-07-23).
+    public Monster SpawnPlayerMonsterAt(Vector2Int pos, int floorIdx)
     {
-        if (_unitGenerate == null) return;
+        if (_unitGenerate == null) return null;
 
-        UnitType[] types = new UnitType[] { new MeleeTank() };
+        UnitType selection = new MeleeTank();
 
-        UnitType selection = types[Random.Range(0, types.Length)];
-
-        Monster monster = _unitGenerate.GenerateUnitAtRandomFloor<Monster>(selection, 1);
+        Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(selection, pos, floorIdx);
         monster.FactionBehavior = new PlayerMonsterBehavior();
 
         units.Add(monster);
         RegisterUnitPos(monster, monster.position);
-        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
+        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {floorIdx}, {pos}");
+        return monster;
     }
 
     public void OnKeyDown_K()
@@ -676,6 +715,18 @@ public class GameSession : NativeRoutine//게임 세션 관리 및 턴 처리(�
         visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
         
         objectVisuals[obj] = visual;
+    }
+
+    // 게임 시작 시 보스방에 루팅 오브젝트를 1회 자동 생성 (GameSession.Initialize 참고).
+    private void SpawnInitialBossRoomLoot()
+    {
+        if (_unitGenerate == null) return;
+
+        int floorIdx = 1;
+        Vector2Int pos = _unitGenerate.GetBossRoomPos(Vector2.one, floorIdx);
+        Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
+
+        SpawnLootObjectAt(gridPos);
     }
 
     // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)

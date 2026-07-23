@@ -91,6 +91,54 @@ public class UnitVisual : MonoBehaviour
 		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) / footprint.y, 0f);
 	}
 
+	// ─────────────────────────── 하단 상태 라벨 (함정 해제 시도중 등, 월드 고정) ───────────────────────────
+	// 머리 위 상태 라벨(StatusLabel)과 완전히 같은 world-space TextMesh 방식이고, 유닛 풋프린트
+	// "하단 - 여백" 쪽에 붙는다는 것만 다르다(사용자 요청, 2026-07-23 — "함정 해제 시도중... 머리
+	// 위에 뜨는 계획과 같은 방식으로").
+	private TextMesh _belowLabel;
+	private const int BelowLabelSortingOrder = 20;
+	private const float BelowLabelWorldOffsetBelowBottom = 0.35f;
+
+	public void UpdateBelowLabel(string text)
+	{
+		if (string.IsNullOrEmpty(text))
+		{
+			if (_belowLabel != null) _belowLabel.gameObject.SetActive(false);
+			return;
+		}
+
+		EnsureBelowLabel();
+		if (_belowLabel == null) return;
+		_belowLabel.gameObject.SetActive(true);
+		_belowLabel.text = text;
+	}
+
+	private void EnsureBelowLabel()
+	{
+		if (_belowLabel != null || boundUnit == null) return;
+
+		Vector2 footprint = boundUnit.unitType.footprint;
+		if (footprint.x <= 0f || footprint.y <= 0f) footprint = Vector2.one;
+
+		GameObject go = new GameObject("BelowLabel");
+		go.transform.SetParent(transform, false);
+
+		_belowLabel = go.AddComponent<TextMesh>();
+		_belowLabel.fontSize = 40;
+		_belowLabel.characterSize = 0.07f;
+		_belowLabel.anchor = TextAnchor.MiddleCenter;
+		_belowLabel.alignment = TextAlignment.Center;
+		_belowLabel.color = Color.red;
+
+		MeshRenderer mr = go.GetComponent<MeshRenderer>();
+		mr.sortingOrder = BelowLabelSortingOrder;
+
+		// StatusLabel과 같은 이유(부모 스케일이 풋프린트에 맞춰져 있음)로 스케일을 역산하고, 위치는
+		// "풋프린트 하단 - 월드 여백"으로 뒤집는다.
+		go.transform.localScale = new Vector3(1f / footprint.x, 1f / footprint.y, 1f);
+		go.transform.localPosition = new Vector3(0f, -BelowLabelWorldOffsetBelowBottom / footprint.y, 0f);
+	}
+
 	private LineRenderer CreateRangeLine(string name, Color color, float width, int sortingOrder)
 	{
 		GameObject go = new GameObject(name);

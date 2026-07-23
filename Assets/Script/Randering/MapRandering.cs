@@ -78,7 +78,7 @@ public class MapRandering : NativeRoutine
         ClearExistingTilemaps();
 
         int floorCount = createMap.map.floors.Length;
-        floorOffsets = ComputeStairAlignedOffsets();
+        floorOffsets = ComputeSpacedOffsets();
 
         if (mapRoot == null)
         {
@@ -155,58 +155,28 @@ public class MapRandering : NativeRoutine
         }
     }
 
-    Vector3Int[] ComputeStairAlignedOffsets()
+    // 층 사이에 두는 간격(타일 단위, 고정값) — 사용자 요청(2026-07-23) "계단 위치끼리 맞물리지 말고
+    // 층별로 스프라이트 간격 떨어트려줘". 모든 층 Tilemap이 항상 동시에 활성화된 채로 렌더링되므로
+    // (ShowFloor로 한 층만 보이게 하는 기능은 아직 어디서도 안 쓰임 — RenderAllFloors 참고), 예전의
+    // "계단 위치를 맞춰서 겹쳐 쌓기" 오프셋은 층들이 화면에서 서로 거의 같은 자리에 겹쳐 보이는
+    // 문제가 있었다. 계단 정렬 대신 층마다 가로로 나란히 떨어뜨려 배치한다.
+    private const int FloorGapTiles = 10;
+
+    Vector3Int[] ComputeSpacedOffsets()
     {
         int floorCount = createMap.map.floors.Length;
         var offsets = new Vector3Int[floorCount];
-        offsets[0] = Vector3Int.zero;
 
-        if (floorCount > 1)
+        int cursorX = 0;
+        for (int f = 0; f < floorCount; f++)
         {
-            Vector2Int stairInF0 = FindStairTileCenter(ref createMap.map.floors[0], 1);
-            Vector2Int stairInF1 = FindStairTileCenter(ref createMap.map.floors[1], 0);
-            offsets[1] = new Vector3Int(offsets[0].x + stairInF0.x - stairInF1.x, offsets[0].y + stairInF0.y - stairInF1.y, 0);
-        }
-        if (floorCount > 2)
-        {
-            Vector2Int stairInF1 = FindStairTileCenter(ref createMap.map.floors[1], 2);
-            Vector2Int stairInF2 = FindReturnStairTileCenter(ref createMap.map.floors[2], 1);
-            offsets[2] = new Vector3Int(offsets[1].x + stairInF1.x - stairInF2.x, offsets[1].y + stairInF1.y - stairInF2.y, 0);
-        }
-        if (floorCount > 3)
-        {
-            Vector2Int stairInF2 = FindStairTileCenter(ref createMap.map.floors[2], 3);
-            Vector2Int stairInF3 = FindReturnStairTileCenter(ref createMap.map.floors[3], 2);
-            offsets[3] = new Vector3Int(offsets[2].x + stairInF2.x - stairInF3.x, offsets[2].y + stairInF2.y - stairInF3.y, 0);
+            offsets[f] = new Vector3Int(cursorX, 0, 0);
+
+            int widthTiles = createMap.map.floors[f].config.width * ChunkSize;
+            cursorX += widthTiles + FloorGapTiles;
         }
 
         return offsets;
-    }
-
-    Vector2Int FindStairTileCenter(ref Floor floor, int targetFloor)
-    {
-        int w = floor.config.width, h = floor.config.height;
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == targetFloor)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-        return Vector2Int.zero;
-    }
-
-    Vector2Int FindReturnStairTileCenter(ref Floor floor, int fromFloor)
-    {
-        int w = floor.config.width, h = floor.config.height;
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == fromFloor)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-
-        for (int cx = 0; cx < w; cx++)
-            for (int cy = 0; cy < h; cy++)
-                if (floor.chunks[cx, cy].stairTargetFloor == 0)
-                    return new Vector2Int(cx * ChunkSize + 3, cy * ChunkSize + 3);
-
-        return Vector2Int.zero;
     }
 
     void ClearExistingTilemaps()

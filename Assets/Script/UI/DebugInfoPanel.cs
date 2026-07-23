@@ -122,7 +122,9 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         string title = isMultiSelect
             ? $"Unit Status Test ({_inputManager.selectedUnits.Count}기 선택됨)"
             : "Unit Status Test";
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 60, 200, 150), title, GUI.skin.window);
+        // StatusInfoPanel의 우상단 박스(y50~350)와 안 겹치도록 그 아래에서 시작한다
+        // (사용자 요청 "UI 배치들 겹치지 않게 정리", 2026-07-23).
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 360, 200, 150), title, GUI.skin.window);
 
         // 다수 선택 시엔 특정 유닛 하나를 편집하는 버튼들이 의미가 없어서 숨긴다 —
         // 아래 selectedUnitInfoText 쪽도 스탯 대신 선택된 유닛 목록만 보여준다(RefreshSelectedUnitInfo).
