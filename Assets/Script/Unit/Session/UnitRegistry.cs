@@ -33,7 +33,7 @@ public class UnitRegistry
             }
         }
         
-        if ((u.FactionBehavior is HumanFactionBehavior || u.FactionBehavior is PlayerMonsterBehavior) && _offenseProcessor != null && _offenseProcessor.currentOffenseRoom == null)
+        if (u.FactionBehavior is PlayerMonsterBehavior && _offenseProcessor != null && _offenseProcessor.currentOffenseRoom == null)
         {
             if (_gameSession != null && _gameSession.allRooms != null)
             {

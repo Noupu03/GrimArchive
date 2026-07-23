@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
@@ -113,7 +113,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (attacker == null) return;
 
 		float dist = Vector2.Distance(position, attacker.position);
-		float effectiveSpotting = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
+		float effectiveSpotting = GetComponent<VisionStatComponent>().spotting + (GetComponent<PerceptionComponent>().IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 		float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
 
@@ -562,7 +562,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(spotting)에 따라 결정된다.
 		// 02문서 10장: 경계 중에는 감지 보정(+20)이 인지 판정뿐 아니라 시야 거리/인지 거리/인지각에도 반영된다.
 		float viewAngle          = VisionMath.BaseViewAngleDeg;
-		float effectiveSpotting  = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+		float effectiveSpotting  = GetComponent<VisionStatComponent>().spotting + (GetComponent<PerceptionComponent>().IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
 		float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
 		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
@@ -637,7 +637,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// (InputManager.cs 세터, Goals.cs 주석 "수동 공격 명령은 최우선" 참고)이라 10장 "플레이어의
 		// 명령에 대한 시야 전환은 항상 최우선 순위가 된다"는 특례를 그대로 적용한다(사용자 확인,
 		// 2026-07-22 — 이전엔 4순위 CurrentAttackTarget으로 분류돼 있었음).
-		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
+		if (playerAttackTarget != null && playerAttackTarget.GetComponent<HealthComponent>().hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
 		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
@@ -737,22 +737,24 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "물리적으로 있다" + "정확 인지 중이다" 둘 다 확인해야 진짜 위협으로 친다.
 		// 02문서 5장 조건3: 인지 판정을 수행할 수 있는 상태(기절 등 아님)여야 안전/흥미 확인 타이머도
 		// 진행한다 — 2장이 "미확인 일반 타일"도 인지 판정 대상에 포함시키므로 이 게이팅도 동일하게 적용.
-		if (this is Human human && Session != null && CanPerceive)
+		_safetyTickTimer += deltaTime;
+		if (_safetyTickTimer >= 0.1f)
 		{
-			foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownDangerTiles.ToList())
+			if (this is Human human && Session != null && CanPerceive)
 			{
-				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
-					&& occupant.GetComponent<HealthComponent>().hp > 0f && human.GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Contains(occupant);
-				human.GetComponent<MemoryComponent>().personalMap.TickTileSafety(tile, threatPresent, deltaTime);
-			}
+				foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownDangerTiles.ToList())
+				{
+					bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
+						&& occupant.GetComponent<HealthComponent>().hp > 0f && human.GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Contains(occupant);
+					human.GetComponent<MemoryComponent>().personalMap.TickTileSafety(tile, threatPresent, _safetyTickTimer);
+				}
 
-			// 16장(v0.7 (1) 개정판): 흥미도 확인 시간 진행 — "타일에 흥미도 있는 오브젝트가
-			// 있는가"는 PersonalMapKnowledge 안에서 자기완결적으로 판단 가능해 GameSession 조회가
-			// 필요 없다(TickTileSafety의 threatPresent와 달리 인자로 안 넘김).
-			foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownInterestTiles.ToList())
-			{
-				human.GetComponent<MemoryComponent>().personalMap.TickTileInterestConfirm(tile, deltaTime);
+				foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownInterestTiles.ToList())
+				{
+					human.GetComponent<MemoryComponent>().personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
+				}
 			}
+			_safetyTickTimer = 0f;
 		}
 
 		if (GetComponent<HealthComponent>().hp > 0f)
@@ -887,9 +889,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return threat.hitbox.Overlaps(posHitbox);
 	}
 
+	private List<ThreatTileData> _cachedThreats = new List<ThreatTileData>();
+	private float _safetyTickTimer = 0f;
+
 	public override List<ThreatTileData> DetectThreats()
 	{
-		List<ThreatTileData> result = new List<ThreatTileData>();
+		_cachedThreats.Clear();
 
 		foreach (Unit u in Session.units)
 		{
@@ -900,9 +905,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (threat == null || !u.GetComponent<CombatStateComponent>().State.isCastingAttack) continue;
 
 			if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
-				result.Add(threat);
+				_cachedThreats.Add(threat);
 		}
-		return result;
+		return _cachedThreats;
 	}
 
 	public override bool RollCritical(bool canCritical)

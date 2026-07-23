@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class AStarMovement : IMovementAlgorithm
@@ -39,7 +39,7 @@ public class AStarMovement : IMovementAlgorithm
         openList.Add(startNode);
         allNodes[startPos] = startNode;
 
-        int maxIter = 5000;
+        int maxIter = 300; // 최적화: 5000에서 300으로 대폭 축소 (도달할 수 없는 길찾기로 인한 프레임 드랍 방지)
         int iter = 0;
         AStarNode closestNode = startNode;
 
