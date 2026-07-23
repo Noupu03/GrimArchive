@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
@@ -49,9 +49,9 @@ public class UIManager : MonoBehaviour
 
 		//======= 파티 관련 참조 주석처리 ========
         /*// 4. 유닛 머리 위 디버그 텍스트 (카메라 프로젝션 적용, 카메라를 따라 같이 이동함)
-        foreach (var u in GameSession.Instance.units)
+        foreach (var u in _gameSession.units)
         {
-            if (u == null || u.hp <= 0) continue;
+            if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
 
             Vector3 screenPos = Camera.main.WorldToScreenPoint(new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + u.unitType.footprint.y + 0.5f, 0));
             if (screenPos.z > 0)
@@ -101,7 +101,7 @@ public class UIManager : MonoBehaviour
 
             foreach (var u in party.members)
             {
-                if (u == null || u.hp <= 0) continue;
+                if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
                 humanCount++;
                 totalMental += u.currentMental;
                 if (u.currentMental < u.baseMental * 0.3f)

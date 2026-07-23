@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
 
@@ -21,7 +21,7 @@ public class PartyService
         {
             if (m == null) continue;
             party.Members.Add(m);
-            m.party = party;
+            m.GetComponent<PartyComponent>().party = party;
 
             m.Knowledge?.InitializeNewUnitPersonalInfo(m);
         }
@@ -34,9 +34,9 @@ public class PartyService
         var knowledge = deadUnit.Knowledge;
         if (knowledge == null) return;
 
-        if (deadUnit is Human deadHuman && deadHuman.party != null)
+        if (deadUnit is Human deadHuman && deadHuman.GetComponent<PartyComponent>().party != null)
         {
-            var party = deadHuman.party;
+            var party = deadHuman.GetComponent<PartyComponent>().party;
             if (party.WaveEnded || !party.IsWiped) return;
 
             party.WaveEnded = true;
@@ -45,7 +45,7 @@ public class PartyService
             Unit causer = deadHuman.lastAttacker;
             DangerStage causerStage = DangerStage.Stage0;
             if (causer != null)
-                causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.baseDanger);
+                causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.GetComponent<BaseStatComponent>().baseDanger);
             string traceId = knowledge.RegisterWipeoutTrace(causerStage);
 
             string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);

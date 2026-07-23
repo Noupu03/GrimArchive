@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using UnityEngine;
 
 public class ObjectPerceptionHandler : IVisionTileHandler
@@ -9,7 +9,7 @@ public class ObjectPerceptionHandler : IVisionTileHandler
         {
             if (context.Session != null && context.Session.objectGrid.TryGetValue(tile, out InteractableObject obj))
             {
-                if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
+                if (!obj.IsCollected && !terrainObserver.GetComponent<MemoryComponent>().personalMap.IsObjectKnown(obj.Id))
                 {
                     if (inPerceptionRange)
                     {
@@ -18,10 +18,10 @@ public class ObjectPerceptionHandler : IVisionTileHandler
 
                         if (firstTouch && outcome == PerceptionOutcome.AccuratePerception)
                         {
-                            terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+                            terrainObserver.GetComponent<MemoryComponent>().personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 
                             bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
-                            terrainObserver.personalMap.ObserveObjectInRoom(chunk.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+                            terrainObserver.GetComponent<MemoryComponent>().personalMap.ObserveObjectInRoom(chunk.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
 
                             if (obj.Tags.Any(t => t.Contains("WipeoutTrace")) && !string.IsNullOrEmpty(obj.TraceId))
                             {

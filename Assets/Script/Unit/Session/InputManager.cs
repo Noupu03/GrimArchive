@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -71,7 +71,7 @@ public class InputManager : MonoBehaviour
 	{
 		foreach (var u in _gameSession.units)
 		{
-			if (u == null || u.hp <= 0) continue;
+			if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
 
 			if (IsPointInFootprint(gridPos, u))
@@ -185,7 +185,7 @@ public class InputManager : MonoBehaviour
 
 			foreach (var unit in selectedUnits)
 			{
-				if (unit == null || unit.hp <= 0) continue;
+				if (unit == null || unit.GetComponent<HealthComponent>().hp <= 0) continue;
 
 				unit.playerInteractTarget = null;
 
@@ -310,7 +310,7 @@ public class InputManager : MonoBehaviour
 		{
 			foreach (var unit in _gameSession.units)
 			{
-				if (unit == null || unit.hp <= 0) continue;
+				if (unit == null || unit.GetComponent<HealthComponent>().hp <= 0) continue;
 				if (unit.currentFloor != currentFloor) continue;
 				if (selectedUnits.Contains(unit)) continue;
 
@@ -320,7 +320,7 @@ public class InputManager : MonoBehaviour
 
 					foreach (var selUnit in selectedUnits)
 					{
-						if (selUnit == null || selUnit.hp <= 0) continue;
+						if (selUnit == null || selUnit.GetComponent<HealthComponent>().hp <= 0) continue;
 
 						bool isEnemy =
 							(selUnit is Monster && unit is Human) ||
@@ -367,7 +367,7 @@ public class InputManager : MonoBehaviour
 
 		foreach (var u in _gameSession.units)
 		{
-			if (u == null || u.hp <= 0) continue;
+			if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
 
 			float fw = u.unitType != null ? u.unitType.footprint.x : 1f;
@@ -404,7 +404,7 @@ public class InputManager : MonoBehaviour
 
 		foreach (var u in _gameSession.units)
 		{
-			if (u == null || u.hp <= 0) continue;
+			if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
 			// UnitType은 ScriptableObject 에셋 공유가 아니라 스폰마다 new Knight() 식으로 새로 만들어지는
 			// 순수 C# 인스턴스라(GameSession.cs 스폰 코드 참고) 참조 비교(==)로는 "같은 유형"을 못 잡는다

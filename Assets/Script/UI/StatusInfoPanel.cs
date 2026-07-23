@@ -1,14 +1,18 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 using Cysharp.Threading.Tasks;
 using GrimArchive.Wave;
+using VContainer;
 
 [PanelAttribute("Prefabs/StatusInfoPanel")]
 public class StatusInfoPanel : MonoRoutine, ICustomPanel
 {
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
+
+    private GameSession _gameSession;
+    private GameSession Session => _gameSession ??= UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>();
 
     [SerializeField] private TMPro.TextMeshProUGUI waveTimerText;
     [SerializeField] private TMPro.TextMeshProUGUI resourceWoodText;
@@ -76,10 +80,10 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
             GUI.color = Color.white;
         }
 
-        if (GameSession.Instance != null && GameSession.Instance.OffenseProcessor != null && GameSession.Instance.OffenseProcessor.currentOffenseRoom != null)
+        if (Session != null && Session.OffenseProcessor != null && Session.OffenseProcessor.currentOffenseRoom != null)
         {
             GUI.color = Color.red;
-            GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {GameSession.Instance.OffenseProcessor.currentOffenseRoom.RoomName}");
+            GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {Session.OffenseProcessor.currentOffenseRoom.RoomName}");
             GUI.color = Color.white;
         }
 

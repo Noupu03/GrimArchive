@@ -308,7 +308,7 @@ public class UnitGenerate
 		List<Unit> deadKeys = new List<Unit>();
 		foreach (var kvp in visualMap)
 		{
-			if (kvp.Key == null || kvp.Key.hp <= 0)
+			if (kvp.Key == null || kvp.Key.GetComponent<HealthComponent>().hp <= 0)
 			{
 				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); _cacheMap.Remove(kvp.Value); }
 				deadKeys.Add(kvp.Key);
@@ -351,7 +351,7 @@ public class UnitGenerate
 
 			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				float duration  = u.walkSpeed > 0f ? (1f / u.walkSpeed) : 0.1f;
+				float duration  = u.GetComponent<BaseStatComponent>().walkSpeed > 0f ? (1f / u.GetComponent<BaseStatComponent>().walkSpeed) : 0.1f;
 				targetPosMap[u] = newPos;
 
 				go.transform.DOKill();
@@ -381,9 +381,9 @@ public class UnitGenerate
 					if (forward == Vector2.zero) forward = Vector2.down;
 
 					uv.DrawVisionAndPerceptionRange(
-						VisionMath.ViewDistance(u.spotting), VisionMath.BaseViewAngleDeg,
-						VisionMath.AwarenessDistance(u.spotting), VisionMath.AwarenessAngle(u.spotting),
-						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.spotting),
+						VisionMath.ViewDistance(u.GetComponent<VisionStatComponent>().spotting), VisionMath.BaseViewAngleDeg,
+						VisionMath.AwarenessDistance(u.GetComponent<VisionStatComponent>().spotting), VisionMath.AwarenessAngle(u.GetComponent<VisionStatComponent>().spotting),
+						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.GetComponent<VisionStatComponent>().spotting),
 						forward);
 				}
 			}
@@ -438,10 +438,10 @@ public class UnitGenerate
 
 		UnitVisualDefinition visualDef = GetVisualDef(u);
 
-		if (u.CombatState.suppressHitVFX)
+		if (u.GetComponent<CombatStateComponent>().State.suppressHitVFX)
 		{
 			if (visualDef != null) u.VFX?.Spawn(visualDef.attackFailPrefab, u);
-			u.CombatState.suppressHitVFX = false;
+			u.GetComponent<CombatStateComponent>().State.suppressHitVFX = false;
 		}
 		else
 		{
@@ -505,7 +505,7 @@ public class UnitGenerate
 	{
 		if (Session != null &&
 			Session.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
-			return u != null && u.hp > 0;
+			return u != null && u.GetComponent<HealthComponent>().hp > 0;
 		return false;
 	}
 

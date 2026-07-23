@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class AStarMovement : IMovementAlgorithm
@@ -136,7 +136,7 @@ public class AStarMovement : IMovementAlgorithm
                     unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
-                    if (u != null && u != unit && u.hp > 0) isOccupied = true;
+                    if (u != null && u != unit && u.GetComponent<HealthComponent>().hp > 0) isOccupied = true;
                 }
             }
         }

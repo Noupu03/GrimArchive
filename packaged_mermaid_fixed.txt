@@ -1,0 +1,551 @@
+﻿classDiagram
+    namespace Wave_Editor {
+        class WaveSpawnerEditor
+        class WaveDataEditor
+    }
+    namespace Map {
+        class CreateMap
+        class MapSaveModel
+        class MapSerializer
+        class InteractableObject
+        class MapData
+        class MapManager
+    }
+    namespace Unit_Combat {
+        class Hitbox
+        class ThreatTileData
+        class DefenseSystem
+        class Projectile
+    }
+    namespace Production {
+        class ProductionRule
+        class ResourceManager
+    }
+    namespace Unit_Visual {
+        class UnitAnimationController
+        class UnitVisual
+        class WeaponAttachment
+        class UnitGenerate
+        class ThreatTileRenderer
+        class UnitSpriteManager
+        class UnitVisualDefinition
+    }
+    namespace Editor {
+        class OffenseDebugWindow
+        class SetupStatusInfoPanel
+    }
+    namespace Unit_Core {
+        class HumanFactionBehavior
+        class WildSpawner
+        class OffenseProcessor
+        class PlayerMonsterBehavior
+        class FactionData
+        class UnitFunction
+        class WildBaseUnit
+        class IFactionBehavior
+        class FactionType
+        class Room
+        class ResourceAccumulator
+        class Unit
+        class WildMonsterBehavior
+    }
+    namespace Encyclopedia_UI {
+        class UI_EncyclopediaDetail
+        class UI_EncyclopediaSlot
+        class UI_Encyclopedia
+    }
+    namespace Unit_Movement {
+        class IMovementAlgorithm
+        class RoomConfinedMovement
+        class AStarMovement
+    }
+    namespace Unit_Skills {
+        class SkillAction
+        class SkillAction_Generic
+        class SkillAction_Projectile
+    }
+    namespace Randering {
+        class MapRandering
+    }
+    namespace Unit_Party {
+        class Party
+    }
+    namespace UI {
+        class DebugInfoPanel
+        class StatusInfoPanel
+        class GameUIPresenter
+    }
+    namespace Encyclopedia {
+        class EncyclopediaTester
+        class EncyclopediaEntryData
+        class IEncyclopediaEntry
+        class EncyclopediaManager
+        class IEncyclopediaSystem
+    }
+    namespace Unit_Data {
+        class UnitStatsData
+    }
+    namespace Building {
+        class BuildingManager
+    }
+    namespace Wave {
+        class HumanWaveManager
+        class WaveSpawner
+        class WaveData
+    }
+    namespace Unit_AI {
+        class GoapCore
+        class Actions
+        class Goals
+    }
+    namespace Unit_Session {
+        class InputManager
+        class UIManager
+        class GameSession
+        class GameCompositionRoot
+    }
+    namespace Unit_Debug {
+        class AreaBasedDamageValidator
+        class AttackAngleTestValidator
+    }
+    namespace Uncategorized {
+        class Singleton
+        class CustomText
+        class PrefabPath
+        class MonoRoutine
+        class LoadingFadePanel
+        class SceneService
+        class HaareUISetup
+        class IData
+        class PanelAttribute
+        class DataModelAttribute
+        class UnitVisualEditor
+        class SceneUiManager
+        class LogHelper
+        class CoreUIManager
+        class NativeRoutine
+        class IDataModel
+        class DataManager
+        class AssetLoader
+        class JsonToUnitPrefabConverter
+        class CustomButton
+        class UIPresenter
+        class Processor
+        class CoreLifetimeScope
+        class ICustomPanel
+    }
+    namespace Unit_Weight {
+        class WeightEventTable
+        class WeightMath
+        class SpeciesWeightState
+        class PersonalWeightRecord
+        class PersonalMapKnowledge
+        class HumanKnowledgeBase
+        class WeightEnums
+        class IncidentLog
+    }
+    namespace Unit_Vision {
+        class PerceptionMath
+        class VisionMath
+        class PerceptionRecord
+        class VisionEnums
+    }
+    BuildingManager --> MapManager
+    SkillAction --> Unit
+    AttackAngleTestValidator --> ThreatTileData
+    Actions --> InteractableObject
+    AreaBasedDamageValidator --> GameCompositionRoot
+    RoomConfinedMovement --> FactionData
+    ResourceManager --> LogHelper
+    UnitFunction --> CreateMap
+    MapSaveModel --> DataManager
+    ResourceAccumulator --> ResourceManager
+    GameUIPresenter --> StatusInfoPanel
+    PerceptionMath --> VisionMath
+    AttackAngleTestValidator --> LogHelper
+    WaveSpawner --> Room
+    DebugInfoPanel --> UIManager
+    BuildingManager --> CreateMap
+    Unit --> ThreatTileData
+    DebugInfoPanel --> CustomButton
+    BuildingManager --> ProductionRule
+    BuildingManager --> MapRandering
+    ResourceManager --> NativeRoutine
+    DebugInfoPanel --> MapSaveModel
+    WildMonsterBehavior --> HumanFactionBehavior
+    UI_EncyclopediaSlot --> UI_Encyclopedia
+    HumanFactionBehavior --> PlayerMonsterBehavior
+    UnitGenerate --> MapRandering
+    WeightMath --> Unit
+    UnitVisualDefinition --> UnitAnimationController
+    GameSession --> Room
+    GameCompositionRoot --> UIManager
+    HumanKnowledgeBase --> SpeciesWeightState
+    DebugInfoPanel --> GameSession
+    Actions --> Unit
+    UI_EncyclopediaSlot --> IEncyclopediaEntry
+    VisionEnums --> PerceptionRecord
+    GameCompositionRoot --> GameUIPresenter
+    UI_Encyclopedia --> IEncyclopediaEntry
+    UnitVisualDefinition --> UnitStatsData
+    SkillAction_Projectile --> ThreatTileData
+    DebugInfoPanel --> Unit
+    UnitGenerate --> SkillAction
+    GameSession --> UIManager
+    UnitGenerate --> UnitVisualDefinition
+    Unit --> IFactionBehavior
+    PersonalMapKnowledge --> FactionData
+    HumanWaveManager --> InteractableObject
+    PersonalMapKnowledge --> UnitFunction
+    GameSession --> HumanWaveManager
+    OffenseDebugWindow --> RoomConfinedMovement
+    VisionMath --> InteractableObject
+    Projectile --> Unit
+    MapManager --> CreateMap
+    DebugInfoPanel --> MapSerializer
+    ThreatTileRenderer --> Unit
+    MapSaveModel --> IDataModel
+    WildBaseUnit --> UnitGenerate
+    IncidentLog --> WeightEnums
+    HumanWaveManager --> GameSession
+    CreateMap --> LogHelper
+    UnitGenerate --> VisionMath
+    Unit --> FactionData
+    Party --> GameSession
+    AStarMovement --> IMovementAlgorithm
+    MapSerializer --> IData
+    GameSession --> CreateMap
+    GameSession --> OffenseProcessor
+    Goals --> Unit
+    PlayerMonsterBehavior --> HumanFactionBehavior
+    ThreatTileData --> Hitbox
+    Projectile --> SkillAction
+    Party --> WaveSpawner
+    StatusInfoPanel --> ICustomPanel
+    AttackAngleTestValidator --> Unit
+    MapRandering --> Room
+    WaveSpawner --> GameSession
+    WildMonsterBehavior --> Room
+    SkillAction_Projectile --> Unit
+    GameCompositionRoot --> BuildingManager
+    OffenseProcessor --> Room
+    OffenseDebugWindow --> GameSession
+    SkillAction --> Actions
+    GameCompositionRoot --> HumanWaveManager
+    GameSession --> Party
+    RoomConfinedMovement --> AStarMovement
+    UnitFunction --> GameSession
+    Projectile --> Hitbox
+    FactionData --> CreateMap
+    Unit --> PerceptionRecord
+    FactionData --> Unit
+    GameCompositionRoot --> DebugInfoPanel
+    StatusInfoPanel --> OffenseProcessor
+    Unit --> SkillAction
+    BuildingManager --> NativeRoutine
+    WeightEnums --> WeightMath
+    DebugInfoPanel --> LogHelper
+    UIManager --> Unit
+    SkillAction_Generic --> ThreatTileData
+    AttackAngleTestValidator --> Hitbox
+    UnitVisualDefinition --> SkillAction_Generic
+    GoapCore --> UnitFunction
+    GameCompositionRoot --> MapRandering
+    DebugInfoPanel --> InputManager
+    DebugInfoPanel --> HaareUISetup
+    GameSession --> NativeRoutine
+    GameSession --> ThreatTileRenderer
+    PerceptionRecord --> InteractableObject
+    Actions --> UnitFunction
+    WildMonsterBehavior --> PlayerMonsterBehavior
+    WeaponAttachment --> UnitSpriteManager
+    DefenseSystem --> Hitbox
+    EncyclopediaEntryData --> IEncyclopediaEntry
+    WaveData --> Party
+    RoomConfinedMovement --> Unit
+    DebugInfoPanel --> AssetLoader
+    VisionMath --> PersonalMapKnowledge
+    DebugInfoPanel --> ICustomPanel
+    Projectile --> LogHelper
+    UI_EncyclopediaDetail --> IEncyclopediaEntry
+    ThreatTileRenderer --> LogHelper
+    BuildingManager --> MapData
+    WaveSpawnerEditor --> WaveDataEditor
+    GameSession --> InputManager
+    InputManager --> InteractableObject
+    PerceptionMath --> Unit
+    DebugInfoPanel --> CustomText
+    UnitFunction --> SkillAction
+    GameCompositionRoot --> DataManager
+    PersonalMapKnowledge --> InteractableObject
+    GameSession --> UnitGenerate
+    UnitFunction --> VisionMath
+    OffenseDebugWindow --> UnitGenerate
+    EncyclopediaTester --> EncyclopediaManager
+    WeightEventTable --> WeightEnums
+    UnitGenerate --> WeaponAttachment
+    WeightEnums --> IncidentLog
+    OffenseProcessor --> PlayerMonsterBehavior
+    BuildingManager --> GameSession
+    SkillAction --> LogHelper
+    GameCompositionRoot --> ThreatTileRenderer
+    MapManager --> MapRandering
+    GameUIPresenter --> UI_Encyclopedia
+    GameCompositionRoot --> GameSession
+    OffenseProcessor --> LogHelper
+    GoapCore --> AStarMovement
+    Room --> FactionType
+    UnitFunction --> PersonalMapKnowledge
+    Unit --> UnitGenerate
+    PlayerMonsterBehavior --> IFactionBehavior
+    UnitGenerate --> UnitSpriteManager
+    UnitAnimationController --> LogHelper
+    OffenseDebugWindow --> HumanWaveManager
+    Party --> HumanKnowledgeBase
+    WaveSpawnerEditor --> WaveData
+    RoomConfinedMovement --> Room
+    HumanFactionBehavior --> Room
+    AreaBasedDamageValidator --> UnitFunction
+    StatusInfoPanel --> ResourceManager
+    IFactionBehavior --> Unit
+    WeightEventTable --> HumanKnowledgeBase
+    HumanKnowledgeBase --> GameCompositionRoot
+    GameSession --> LogHelper
+    InputManager --> UnitGenerate
+    ThreatTileRenderer --> ThreatTileData
+    MapRandering --> LogHelper
+    SetupStatusInfoPanel --> PrefabPath
+    InputManager --> GameSession
+    Unit --> AStarMovement
+    StatusInfoPanel --> ResourceAccumulator
+    Room --> Unit
+    OffenseDebugWindow --> PlayerMonsterBehavior
+    StatusInfoPanel --> GameSession
+    GameSession --> MapRandering
+    HumanWaveManager --> WaveSpawner
+    WeightEventTable --> LogHelper
+    GameSession --> WeightMath
+    HumanWaveManager --> Unit
+    UI_Encyclopedia --> PanelAttribute
+    PlayerMonsterBehavior --> WildMonsterBehavior
+    OffenseDebugWindow --> OffenseProcessor
+    GoapCore --> Unit
+    GameUIPresenter --> SceneUiManager
+    EncyclopediaManager --> IEncyclopediaSystem
+    Unit --> InteractableObject
+    UI_Encyclopedia --> UI_EncyclopediaSlot
+    UnitVisual --> Unit
+    UIManager --> DebugInfoPanel
+    OffenseProcessor --> WildMonsterBehavior
+    PerceptionRecord --> PerceptionMath
+    Unit --> HumanFactionBehavior
+    GameCompositionRoot --> Singleton
+    Unit --> PersonalMapKnowledge
+    InputManager --> LogHelper
+    PersonalMapKnowledge --> CreateMap
+    GameCompositionRoot --> MapManager
+    GameCompositionRoot --> InputManager
+    GameCompositionRoot --> SceneService
+    UnitGenerate --> Unit
+    Unit --> VisionMath
+    UnitFunction --> Hitbox
+    HumanFactionBehavior --> WildMonsterBehavior
+    WildSpawner --> Room
+    GameCompositionRoot --> CreateMap
+    StatusInfoPanel --> MonoRoutine
+    AreaBasedDamageValidator --> GameSession
+    HumanKnowledgeBase --> Unit
+    WildSpawner --> UnitGenerate
+    Unit --> PerceptionMath
+    PersonalWeightRecord --> Unit
+    WildMonsterBehavior --> IFactionBehavior
+    BuildingManager --> ResourceManager
+    GameCompositionRoot --> UIPresenter
+    IMovementAlgorithm --> Unit
+    OffenseProcessor --> FactionType
+    Unit --> UnitFunction
+    GameUIPresenter --> DebugInfoPanel
+    OffenseDebugWindow --> ResourceAccumulator
+    UnitVisualDefinition --> SkillAction
+    Unit --> GameSession
+    DefenseSystem --> Unit
+    GameSession --> GameCompositionRoot
+    WeightEventTable --> JsonToUnitPrefabConverter
+    UnitGenerate --> CreateMap
+    WaveSpawner --> NativeRoutine
+    IEncyclopediaSystem --> IEncyclopediaEntry
+    DebugInfoPanel --> DataManager
+    DebugInfoPanel --> Party
+    HumanKnowledgeBase --> UnitGenerate
+    WaveSpawner --> CreateMap
+    OffenseDebugWindow --> WildBaseUnit
+    GameUIPresenter --> UIManager
+    AreaBasedDamageValidator --> SkillAction
+    StatusInfoPanel --> UIManager
+    WaveSpawner --> Party
+    UI_Encyclopedia --> EncyclopediaManager
+    EncyclopediaManager --> IEncyclopediaEntry
+    Unit --> UIManager
+    UI_Encyclopedia --> SceneUiManager
+    StatusInfoPanel --> SceneUiManager
+    GameCompositionRoot --> HumanKnowledgeBase
+    Unit --> UnitVisualDefinition
+    WaveSpawner --> UnitGenerate
+    AStarMovement --> Unit
+    AreaBasedDamageValidator --> Hitbox
+    HumanKnowledgeBase --> GameSession
+    InteractableObject --> VisionMath
+    OffenseDebugWindow --> ResourceManager
+    Party --> Unit
+    PlayerMonsterBehavior --> Unit
+    WildBaseUnit --> Room
+    SpeciesWeightState --> Unit
+    GameSession --> InteractableObject
+    SkillAction --> Hitbox
+    VisionMath --> UnitFunction
+    PersonalMapKnowledge --> GameSession
+    MapManager --> NativeRoutine
+    GameCompositionRoot --> ResourceManager
+    PersonalMapKnowledge --> HumanKnowledgeBase
+    UnitFunction --> PerceptionRecord
+    MapSaveModel --> MapSerializer
+    ThreatTileRenderer --> Hitbox
+    UI_Encyclopedia --> UI_EncyclopediaDetail
+    HumanWaveManager --> NativeRoutine
+    HumanKnowledgeBase --> Party
+    Unit --> Party
+    Unit --> PlayerMonsterBehavior
+    UnitVisualDefinition --> Unit
+    OffenseProcessor --> Unit
+    WaveDataEditor --> WaveData
+    GameCompositionRoot --> WaveSpawner
+    AreaBasedDamageValidator --> LogHelper
+    OffenseDebugWindow --> FactionType
+    GameCompositionRoot --> UnitSpriteManager
+    PersonalMapKnowledge --> Unit
+    StatusInfoPanel --> PanelAttribute
+    WaveSpawnerEditor --> NativeRoutine
+    AttackAngleTestValidator --> GameSession
+    SkillAction_Projectile --> Hitbox
+    UIManager --> InputManager
+    Unit --> HumanKnowledgeBase
+    UnitGenerate --> GameSession
+    HumanWaveManager --> WaveData
+    MapData --> CreateMap
+    PerceptionRecord --> Unit
+    UnitGenerate --> LogHelper
+    MapManager --> WaveSpawner
+    AttackAngleTestValidator --> GameCompositionRoot
+    GameCompositionRoot --> NativeRoutine
+    AttackAngleTestValidator --> UnitFunction
+    BuildingManager --> Unit
+    WildSpawner --> GameSession
+    StatusInfoPanel --> HumanWaveManager
+    DebugInfoPanel --> MonoRoutine
+    IFactionBehavior --> Room
+    GameCompositionRoot --> SceneUiManager
+    MapManager --> LogHelper
+    OffenseDebugWindow --> GameCompositionRoot
+    WaveSpawnerEditor --> WaveSpawner
+    UnitSpriteManager --> UnitVisualDefinition
+    PerceptionMath --> PerceptionRecord
+    WaveSpawner --> LogHelper
+    EncyclopediaManager --> EncyclopediaEntryData
+    DebugInfoPanel --> UnitVisual
+    UnitGenerate --> UnitFunction
+    HumanFactionBehavior --> IFactionBehavior
+    GameUIPresenter --> UIPresenter
+    UI_Encyclopedia --> IEncyclopediaSystem
+    PersonalMapKnowledge --> Room
+    UI_Encyclopedia --> ICustomPanel
+    OffenseProcessor --> ResourceAccumulator
+    GameCompositionRoot --> CoreUIManager
+    UnitFunction --> FactionData
+    PlayerMonsterBehavior --> Room
+    OffenseDebugWindow --> Room
+    MapSaveModel --> DataModelAttribute
+    Unit --> Hitbox
+    UnitGenerate --> DebugInfoPanel
+    SkillAction_Generic --> Hitbox
+    UIManager --> Party
+    SkillAction_Generic --> SkillAction
+    GameCompositionRoot --> LogHelper
+    VisionMath --> PerceptionMath
+    Unit --> InputManager
+    HumanKnowledgeBase --> PersonalWeightRecord
+    GameSession --> Unit
+    BuildingManager --> LogHelper
+    UnitFunction --> DefenseSystem
+    UIManager --> GameSession
+    UnitFunction --> InteractableObject
+    AStarMovement --> FactionData
+    Actions --> SkillAction
+    UnitSpriteManager --> SkillAction
+    HumanWaveManager --> Party
+    SkillAction_Generic --> Unit
+    InputManager --> BuildingManager
+    PersonalMapKnowledge --> WeightMath
+    MapData --> Room
+    VisionEnums --> VisionMath
+    SkillAction --> ThreatTileData
+    DefenseSystem --> ThreatTileData
+    UnitFunction --> ThreatTileData
+    Actions --> LogHelper
+    UnitVisualDefinition --> SkillAction_Projectile
+    DebugInfoPanel --> UnitGenerate
+    PerceptionMath --> UnitFunction
+    WildMonsterBehavior --> ResourceAccumulator
+    UIManager --> UIPresenter
+    UnitFunction --> Unit
+    InputManager --> ResourceManager
+    GameSession --> Processor
+    GameUIPresenter --> LoadingFadePanel
+    MapRandering --> CreateMap
+    GameCompositionRoot --> OffenseProcessor
+    GameSession --> MapManager
+    VisionMath --> Unit
+    UI_Encyclopedia --> MonoRoutine
+    WildBaseUnit --> RoomConfinedMovement
+    HumanKnowledgeBase --> DataManager
+    GameCompositionRoot --> CoreLifetimeScope
+    UnitGenerate --> UnitVisual
+    UI_Encyclopedia --> UIManager
+    InteractableObject --> HumanKnowledgeBase
+    DebugInfoPanel --> PanelAttribute
+    UnitVisual --> UnitVisualEditor
+    WildMonsterBehavior --> Unit
+    HumanFactionBehavior --> Unit
+    VisionEnums --> PerceptionMath
+    ThreatTileRenderer --> UnitGenerate
+    GameUIPresenter --> GameCompositionRoot
+    WildSpawner --> WildMonsterBehavior
+    SkillAction_Projectile --> Projectile
+    Actions --> Hitbox
+    HumanKnowledgeBase --> PersonalMapKnowledge
+    Unit --> PersonalWeightRecord
+    UnitVisual --> UnitGenerate
+    UIManager --> GameUIPresenter
+    GameCompositionRoot --> UnitGenerate
+    WaveSpawner --> WaveData
+    AttackAngleTestValidator --> SkillAction
+    GameCompositionRoot --> HaareUISetup
+    Unit --> WildMonsterBehavior
+    WeightMath --> HumanKnowledgeBase
+    WildBaseUnit --> WildMonsterBehavior
+    WeaponAttachment --> SkillAction
+    StatusInfoPanel --> GameCompositionRoot
+    UnitFunction --> PerceptionMath
+    MapRandering --> NativeRoutine
+    Unit --> IMovementAlgorithm
+    BuildingManager --> UnitGenerate
+    HumanKnowledgeBase --> LogHelper
+    HumanKnowledgeBase --> WeightMath
+    InputManager --> Unit
+    DebugInfoPanel --> SceneUiManager
+    SetupStatusInfoPanel --> StatusInfoPanel
+    OffenseDebugWindow --> WildMonsterBehavior
+    HumanKnowledgeBase --> WeightEventTable
+    GameSession --> DataManager
+    InputManager --> ProductionRule
+    SkillAction_Projectile --> SkillAction
+

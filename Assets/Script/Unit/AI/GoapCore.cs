@@ -30,14 +30,14 @@ public abstract class GoapAction
 	protected Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
 		// 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-		IEnumerable<Unit> enemies = unit.PerceptionState.personalSpottedEnemies;
+		IEnumerable<Unit> enemies = unit.GetComponent<PerceptionComponent>().State.personalSpottedEnemies;
 
 		Unit  target  = null;
 		minDist = float.MaxValue;
 
 		foreach (var enemy in enemies)
 		{
-			if (enemy == null || enemy.hp <= 0 || enemy.currentFloor != unit.currentFloor) continue;
+			if (enemy == null || enemy.GetComponent<HealthComponent>().hp <= 0 || enemy.currentFloor != unit.currentFloor) continue;
 			float d = Vector2Int.Distance(unit.position, enemy.position);
 			if (d < minDist) { minDist = d; target = enemy; }
 		}
@@ -114,16 +114,16 @@ public class GoapBrain
 
 		// 월드 스테이트 구성
 		GoapState         worldState  = new GoapState();
-		IEnumerable<Unit> enemies     = unit.PerceptionState.personalSpottedEnemies;
+		IEnumerable<Unit> enemies     = unit.GetComponent<PerceptionComponent>().State.personalSpottedEnemies;
 		bool              enemyVisible = false;
 
 		foreach (var e in enemies)
 		{
-			if (e != null && e.hp > 0 && e.currentFloor == unit.currentFloor) { enemyVisible = true; break; }
+			if (e != null && e.GetComponent<HealthComponent>().hp > 0 && e.currentFloor == unit.currentFloor) { enemyVisible = true; break; }
 		}
 
 		worldState["enemyVisible"] = enemyVisible;
-		worldState["isHit"]        = unit.CombatState.isHitThisTurn;
+		worldState["isHit"]        = unit.GetComponent<CombatStateComponent>().State.isHitThisTurn;
 
 		// 목표를 충족하는 최저 비용 액션 선택
 		currentPlannedAction = null;
@@ -165,13 +165,13 @@ public class GoapBrain
 			}
 		}
 
-		if (!enemyVisible) unit.CombatState.oneTimeReactUsed = false;
+		if (!enemyVisible) unit.GetComponent<CombatStateComponent>().State.oneTimeReactUsed = false;
 	}
 
 	public void ExecuteAction(Unit unit)
 	{
 		// 캐스팅 중일 때는 UnitFunction.OnUpdate가 타이머/펜딩공격을 처리하므로 여기서는 그냥 대기
-		if (unit.CombatState.isCastingAttack) return;
+		if (unit.GetComponent<CombatStateComponent>().State.isCastingAttack) return;
 
 		if (currentPlannedAction != null)
 			currentPlannedAction.Execute(unit);
@@ -181,6 +181,6 @@ public class GoapBrain
 			unit.Move(randomDir);
 		}
 
-		unit.CombatState.isHitThisTurn = false;
+		unit.GetComponent<CombatStateComponent>().State.isHitThisTurn = false;
 	}
 }

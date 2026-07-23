@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!29 &1
 OcclusionCullingSettings:
@@ -495,7 +495,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2120068189}
   - component: {fileID: 2120068190}
-  - component: {fileID: 2120068191}
+  
   m_Layer: 0
   m_Name: Haare
   m_TagString: Untagged
@@ -535,19 +535,6 @@ MonoBehaviour:
   autoRun: 1
   autoInjectGameObjects: []
   _coreUIManagerPrefab: {fileID: 5257347106269613972, guid: ad229368ef62a624fa8b357f8f640f1b, type: 3}
---- !u!114 &2120068191
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2120068188}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6d9e7fe1f257b0c4284b84d66018e6f2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Haare.Client.Core.Processor
-  processvalue: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

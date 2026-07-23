@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.InputSystem;
@@ -12,14 +12,16 @@ using Haare.Scripts.Client.Data;
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
 // NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
 // 인스펙터 데이터가 전혀 없어서(디버그 텍스처 뷰 제거 후) 씬 GameObject일 필요가 없는 순수 C# 클래스.
-public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 및 턴 처리(대부분 임시적인 테스트용 요소임
+
+public class GameSession : NativeRoutine, IOffenseQuery
 {
     public static GameSession Instance { get; private set; }
+
     public CreateMap cmap { get; private set; }
     public UnitGenerate unitGenerate => _unitGenerate;
     public MapManager mapManager => _mapManager;
     // MapRandering과 WaveSpawner는 하위 호환성을 위해 MapManager를 통해 노출
-    public MapRandering mapRandering => _mapManager?.mapRandering;
+    public MapRandering mapRandering => mapManager?.mapRandering;
 
     [Inject]
     public HumanWaveManager humanWaveManager;
@@ -29,8 +31,8 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
     private IObjectResolver _resolver;
 
     private DataManager _dataManager;
-    private MapManager _mapManager;
-    private OffenseProcessor _offenseProcessor;
+    [Inject] public MapManager _mapManager { get; set; }
+    [Inject] public OffenseProcessor _offenseProcessor { get; set; }
     public OffenseProcessor OffenseProcessor => _offenseProcessor;
     private UnitRegistry _unitRegistry;
     private ObjectSpawner _objectSpawner;
@@ -39,20 +41,19 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
     private DebugInputHandler _debugInputHandler;
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, MapManager mapManager, OffenseProcessor offenseProcessor, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler)
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
         _resolver = resolver;
         cmap = injectedMap;
         _dataManager = dataManager;
-        _mapManager = mapManager;
-        _offenseProcessor = offenseProcessor;
         _unitRegistry = unitRegistry;
         _objectSpawner = objectSpawner;
         _partyService = partyService;
         _combatEventService = combatEventService;
         _debugInputHandler = debugInputHandler;
+        Instance = this;
     }
     public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry.unitGrid;
     public Dictionary<Vector3Int, InteractableObject> objectGrid => _objectSpawner.objectGrid;
@@ -91,45 +92,51 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
 
     public GameSession()
     {
-        Instance = this;
+        
 
         // InputManager/UIManager/ThreatTileRenderer는 이제 GameCompositionRoot(VContainer)가 배선한다.
     }
 
     // NativeRoutine 생명주기: Processor 등록 완료 후 한 번 호출됨 (예전 Start()와 동일한 역할)
-    public override async UniTask Initialize(CancellationToken cts)
+        public override async UniTask Initialize(CancellationToken cts)
     {
-        // 순환 참조 방지를 위해 이 시점에 UIManager를 지연 로드하여 강제로 띄웁니다.
-        if (_resolver != null)
-        {
-            _resolver.Resolve<UIManager>();
-        }
-
-        // 맵 데이터를 Resources에서 직접 로드 (MapGeneratorTool이 생성한 정적 템플릿 데이터)
-        TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
-        if (mapTextAsset != null)
-        {
-            cmap.DeserializeMap(mapTextAsset.text);
-            Unit.humanFactionData.InitMap(cmap);
-            Unit.monsterFactionData.InitMap(cmap);
-            // MapManager에게 맵 시각화(렌더링) 지시 및 브로드캐스트
-            // 렌더링이 완료되어야 층별 실제 오프셋(floorOffset)이 계산됩니다.
-            if (_mapManager != null)
+        Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize START");
+        try {
+            if (_resolver != null)
             {
-                _mapManager.SetupAndVisualizeMap(cmap);
+                _resolver.Resolve<UIManager>();
+                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: UIManager Resolved");
             }
 
-            // 렌더링 후 계산된 오프셋을 바탕으로 방 좌표(TopLeftWorldPos) 설정
-            BuildRoomGrid();
+            TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
+            if (mapTextAsset != null && !string.IsNullOrEmpty(mapTextAsset.text))
+            {
+                cmap.DeserializeMap(mapTextAsset.text);
+                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
+            }
 
-            Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
-        }
-        else
-        {
-            Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
+            if (cmap.map.floors == null || cmap.map.floors.Length == 0)
+            {
+                Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME, "GameSession: Data/map이 없거나 유효하지 않아 GenerateMap()으로 동적 생성합니다.");
+                cmap.GenerateMap();
+            }
+
+            Unit.humanFactionData.InitMap(cmap);
+            Unit.monsterFactionData.InitMap(cmap);
+
+            if (mapManager != null)
+            {
+                mapManager.SetupAndVisualizeMap(cmap);
+                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: SetupAndVisualizeMap called.");
+            }
+
+            BuildRoomGrid();
+        } catch (System.Exception ex) {
+            UnityEngine.Debug.LogError($"[GameSession] Initialize Exception: {ex}");
         }
 
         await base.Initialize(cts);
+        Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize END");
     }
 
     public void BuildRoomGrid()
@@ -221,7 +228,7 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
         for (int i = units.Count - 1; i >= 0; i--)
         {
             var u = units[i];
-            if (u == null || u.hp <= 0)
+            if (u == null || u.GetComponent<HealthComponent>().hp <= 0)
             {
                 RemoveDeadUnit(i, u);
                 visualNeedsSync = true;
@@ -230,8 +237,8 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
 
             u.OnUpdate(Time.deltaTime);
 
-            u.CombatState.actionCooldown -= Time.deltaTime;
-            if (u.CombatState.actionCooldown <= 0f)
+            u.GetComponent<CombatStateComponent>().State.actionCooldown -= Time.deltaTime;
+            if (u.GetComponent<CombatStateComponent>().State.actionCooldown <= 0f)
             {
                 ProcessUnitAction(u);
                 visualNeedsSync = true;
@@ -261,7 +268,7 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
     {
         if (u != null) _combatEventService?.RecordKillWeightEvent(u, units);
         
-        if (u != null && u.hp <= 0)
+        if (u != null && u.GetComponent<HealthComponent>().hp <= 0)
         {
             // 세력별 사망 이벤트(예: 오펜스 보상 누적 등) 처리
             u.FactionBehavior?.OnDeath(u, u.lastAttacker);
@@ -272,7 +279,7 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
             
             if (u.lastAttacker != null && u.Knowledge != null)
             {
-                causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.baseDanger);
+                causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.GetComponent<BaseStatComponent>().baseDanger);
             }
             
             bool isMonsterCorpse = u is Monster;
@@ -295,7 +302,7 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
         if (u != null) UnityEngine.Object.Destroy(u);
     }
 
-    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.PerceptionState.perceptionRecords는 "누가 이 유닛을 봤는지"를
+    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.GetComponent<PerceptionComponent>().State.perceptionRecords는 "누가 이 유닛을 봤는지"를
     // 그 관찰자 쪽에 Unit 참조를 키로 들고 있는 구조라, 유닛이 죽어도 다른 유닛들의 딕셔너리에는 destroyed
     // 참조가 그대로 남는다 — 웨이브가 반복될수록 죽은 몬스터 참조가 계속 쌓여 UpdateFOV 끝의 sweep(전체
     // perceptionRecords 순회) 비용이 웨이브를 거듭할수록 계속 커지는 게 실제 프레임 드롭의 원인이었다.
@@ -306,9 +313,9 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
         foreach (var other in units)
         {
             if (other == null || other == dead) continue;
-            other.RemovePerceptionRecord(dead);
+            other.GetComponent<PerceptionComponent>().RemovePerceptionRecord(dead);
         }
-        dead.PerceptionState.perceptionRecords.Clear();
+        dead.GetComponent<PerceptionComponent>().State.perceptionRecords.Clear();
     }
 
     public void DespawnUnit(Unit u)
@@ -339,8 +346,8 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
 
     private void ProcessUnitAction(Unit u)
     {
-        float speed = u.walkSpeed;
-        u.CombatState.actionCooldown = speed > 0f ? (1f / speed) : 1f;
+        float speed = u.GetComponent<BaseStatComponent>().walkSpeed;
+        u.GetComponent<CombatStateComponent>().State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
         u.JudgeState();
         Vector2Int oldPos = u.position;
@@ -370,4 +377,12 @@ public class GameSession : NativeRoutine, IOffenseQuery//게임 세션 관리 �
     }
 
 }
+
+
+
+
+
+
+
+
 

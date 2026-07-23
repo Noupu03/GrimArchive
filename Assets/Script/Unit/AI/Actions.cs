@@ -7,7 +7,7 @@ public class Action_Panic : GoapAction
 {
 	public Action_Panic() { ActionName = "Panic"; AddEffect("panicResolved", true); }
 
-	public override bool IsValid(Unit unit) => unit is Human && unit.mental < unit.maxMental * 0.3f;
+	public override bool IsValid(Unit unit) => unit is Human && unit.GetComponent<BaseStatComponent>().mental < unit.GetComponent<BaseStatComponent>().maxMental * 0.3f;
 
 	public override void Execute(Unit unit)
 	{
@@ -58,13 +58,13 @@ public class Action_PlayerCommandExecute : GoapAction
 						bool isTrace = obj.Tags.Any(t => t.Contains("Corpse")) || obj.Tags.Any(t => t.Contains("WipeoutTrace"));
 						if (!isTrace && !obj.IsInvestigated)
 						{
-							human.personalMap.OnObjectInvestigated(obj.Id);
+							human.GetComponent<MemoryComponent>().personalMap.OnObjectInvestigated(obj.Id);
 							obj.IsInvestigated = true;
 						}
 
 						unit.Session.CollectObject(interactPos);
-						human.personalMap.OnObjectCollected(obj.Id);
-						human.collectedObjects.Add(obj.Id);
+						human.GetComponent<MemoryComponent>().personalMap.OnObjectCollected(obj.Id);
+						human.GetComponent<MemoryComponent>().collectedObjects.Add(obj.Id);
 					}
 				}
 				unit.playerInteractTarget = null;
@@ -117,7 +117,7 @@ public class Action_EngageEnemy : GoapAction
 
 	private void ExecuteSkillActionBased(Unit unit)
 	{
-		if (unit.CombatState.isCastingAttack) return; // 캐스팅 중에는 새로운 행동 판단을 중지
+		if (unit.GetComponent<CombatStateComponent>().State.isCastingAttack) return; // 캐스팅 중에는 새로운 행동 판단을 중지
 
 		Unit target = GetClosestEnemy(unit, out float minDist);
 		if (target == null) return;
@@ -136,7 +136,7 @@ public class Action_EngageEnemy : GoapAction
 		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
 
 		unit.currentDir         = SkillAction.GetDirection8(diff);
-		unit.CombatState.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, 1);
+		unit.GetComponent<CombatStateComponent>().State.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, 1);
 
 		// 1. 사용 가능한 최우선 스킬을 '가장 먼저' 탐색합니다. (스킬 사거리에 따라 이동 로직이 달라짐)
 		SkillAction bestSkill    = null;
@@ -154,7 +154,7 @@ public class Action_EngageEnemy : GoapAction
 			if (bestSkill.HitRange >= 4)
 			{
 				int dangerDist = bestSkill.HitRange / 2;
-				if (chebDist <= dangerDist && unit.CombatState.evadeCooldown <= 0f)
+				if (chebDist <= dangerDist && unit.GetComponent<CombatStateComponent>().State.evadeCooldown <= 0f)
 				{
 					MoveAwayFromTarget(unit, target, dangerDist + 1);
 					// 이동 방향에 맞게 시각화 업데이트 진행
@@ -176,7 +176,7 @@ public class Action_EngageEnemy : GoapAction
 			}
 
 			// 3. 사거리 밖이거나 쏘는 각도가 안맞으면 다가갑니다 (접근하여 각도 맞추기)
-			if (unit.CombatState.evadeCooldown <= 0f)
+			if (unit.GetComponent<CombatStateComponent>().State.evadeCooldown <= 0f)
 			{
 				MoveTowardsTarget(unit, target);
 			}
@@ -186,7 +186,7 @@ public class Action_EngageEnemy : GoapAction
 			// 모든 스킬이 쿨타임일 때 (공격 불가능한 상태)
 			// 원거리 유닛은 안전거리(위험거리+1) 밖으로만 도망갑니다.
 			int fallbackRange = maxSkillRange >= 4 ? maxSkillRange / 2 + 1 : 1;
-			if (chebDist != fallbackRange && unit.CombatState.evadeCooldown <= 0f)
+			if (chebDist != fallbackRange && unit.GetComponent<CombatStateComponent>().State.evadeCooldown <= 0f)
 			{
 				if (chebDist < fallbackRange)
 				{

@@ -1,10 +1,34 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
 using Cysharp.Threading.Tasks;
 
-public abstract class Unit : ScriptableObject
-{
+public abstract class Unit : ScriptableObject {
+    public List<IUnitComponent> Components = new List<IUnitComponent>();
+
+    public T GetComponent<T>() where T : class, IUnitComponent
+    {
+        foreach (var c in Components)
+        {
+            if (c is T tc) return tc;
+        }
+        return null;
+    }
+
+    private void OnEnable()
+    {
+        if (Components == null) Components = new List<IUnitComponent>();
+        if (GetComponent<CombatStatComponent>() == null) Components.Add(new CombatStatComponent(this));
+        if (GetComponent<HealthComponent>() == null) Components.Add(new HealthComponent(this));
+        if (GetComponent<VisionStatComponent>() == null) Components.Add(new VisionStatComponent(this));
+        if (GetComponent<BaseStatComponent>() == null) Components.Add(new BaseStatComponent(this));
+        if (GetComponent<PerceptionComponent>() == null) Components.Add(new PerceptionComponent(this));
+        if (GetComponent<MemoryComponent>() == null) Components.Add(new MemoryComponent(this));
+        if (GetComponent<PartyComponent>() == null) Components.Add(new PartyComponent(this));
+        if (GetComponent<AIStateComponent>() == null) Components.Add(new AIStateComponent(this));
+        if (GetComponent<CombatStateComponent>() == null) Components.Add(new CombatStateComponent(this));
+        if (GetComponent<StatusEffectsComponent>() == null) Components.Add(new StatusEffectsComponent(this));
+    }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
 
@@ -40,9 +64,9 @@ public abstract class Unit : ScriptableObject
 	// ??? 媛以묒튂 ?쒖뒪???댄빐???꾪뿕???λ??? 愿???????媛以묒튂 ?곗궛怨듭떇 臾몄꽌 v0.7 ????????
 	public bool isSpecialUnit = false;     // 7-1?? 蹂댁뒪/?ㅻ찓?쒖뒪 ??醫낅퀎+媛쒕퀎 ?댄빐?꾨? ?④퍡 ?곕뒗 ?뱀닔 ?좊떅 ?щ?
 	public bool isInterestTarget = false;  // 6-2??18?? IsInterestTarget ?뚮옒洹?(?댄빐???곸듅???곕Ⅸ ?λ???媛먯냼??誘몄쟻??
-	public float baseInterest = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
-	public float baseDanger = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
-	public float heavyHitThreshold = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
+	// baseInterest moved = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
+	// baseDanger moved = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
+	// heavyHitThreshold moved = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
 
 	// 4?? ???좊떅(?몃쪟 愿?먯쓽 愿李곗옄)????곷퀎濡??ㅺ퀬 ?덈뒗 媛쒖씤 媛以묒튂 湲곕줉.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
@@ -53,50 +77,50 @@ public abstract class Unit : ScriptableObject
 
 	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
 	public int level = 1;                 // ?꾩옱 ?덈꺼
-	public float exp = 0f;                // ?꾩옱 寃쏀뿕移?
+	// exp moved = 0f;                // ?꾩옱 寃쏀뿕移?
 	public int killCount = 0;             // ??泥섏튂 ??
 
 	// ??? ?꾪닾 ?몃? ?띿꽦 ???????????????????????????????????????????
-	public float maxHp = 100f;            // 理쒕?泥대젰
-	public float hp    = 100f;            // ?꾩옱 泥대젰
+	// maxHp moved = 100f;            // 理쒕?泥대젰
+	// hp moved    = 100f;            // ?꾩옱 泥대젰
 
-	public float maxMp = 0f;             // 理쒕? 留덈굹
-	public float mp    = 0f;             // ?꾩옱 留덈굹
+	// maxMp moved = 0f;             // 理쒕? 留덈굹
+	// mp moved    = 0f;             // ?꾩옱 留덈굹
 
-	public float physicalAttack  = 10f;  // 臾쇰━ 怨듦꺽??
-	public float magicalAttack   = 0f;   // 留덈쾿 怨듦꺽??
+	// physicalAttack moved  = 10f;  // 臾쇰━ 怨듦꺽??
+	// magicalAttack moved   = 0f;   // 留덈쾿 怨듦꺽??
 
-	public float physicalDefense = 0f;   // 臾쇰━ 諛⑹뼱??
-	public float magicalDefense  = 0f;   // 留덈쾿 諛⑹뼱??
+	// physicalDefense moved = 0f;   // 臾쇰━ 諛⑹뼱??
+	// magicalDefense moved  = 0f;   // 留덈쾿 諛⑹뼱??
 
-	public float HPRegen         = 0f;   // ?ъ깮??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float attackspeed     = 0f;   // 怨듦꺽 ?띾룄->?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float walkSpeed       = 3f;   // ?대룞 ?띾룄
-	public float reaction        = 1f;   // 諛섏쓳?띾룄->濡쒖쭅?놁쓬
-	public float criticalChance  = 0f;   // 移섎챸???>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float cooltimeReduction = 0f; // 荑⑦???媛먯냼??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float statusResistance  = 0f; // ?곹깭?댁긽???>援щ갑???묐룞以? ?덈갑?앹쑝濡쒕뒗 濡쒖쭅?놁쓬
+	// hp movedRegen         = 0f;   // ?ъ깮??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// attackspeed moved     = 0f;   // 怨듦꺽 ?띾룄->?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// walkSpeed moved       = 3f;   // ?대룞 ?띾룄
+	// reaction moved        = 1f;   // 諛섏쓳?띾룄->濡쒖쭅?놁쓬
+	// criticalChance moved  = 0f;   // 移섎챸???>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// cooltimeReduction moved = 0f; // 荑⑦???媛먯냼??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// statusResistance moved  = 0f; // ?곹깭?댁긽???>援щ갑???묐룞以? ?덈갑?앹쑝濡쒕뒗 濡쒖쭅?놁쓬
 
-	public float maxMental = 0f;         // 理쒕? ?뺤떊??>?쏅궇 ?뺤떊怨듦꺽 ?곗궛?쇰줈留??묐룞以?
-	public float mental    = 0f;         // ?꾩옱 ?뺤떊??
+	// maxMental moved = 0f;         // 理쒕? ?뺤떊??>?쏅궇 ?뺤떊怨듦꺽 ?곗궛?쇰줈留??묐룞以?
+	// mental moved    = 0f;         // ?꾩옱 ?뺤떊??
 
-	public float spotting       = 0f;   // 媛먯? ???쒖빞-?몄?-諛섏쓳 臾몄꽌(01-A)??"媛먯? ?ㅽ꺈". ?쒖빞/?몄? 嫄곕━쨌?몄?媛겶룹썝???몄? 踰붿쐞 諛섏?由꾩씠 ?꾨? ??媛믪쑝濡?寃곗젙?쒕떎(VisionMath).
-	public float leadershipRange = 0f;  // 吏?섎쾾??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float charisma        = 0f;  // 移대━?ㅻ쭏->?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// spotting moved       = 0f;   // 媛먯? ???쒖빞-?몄?-諛섏쓳 臾몄꽌(01-A)??"媛먯? ?ㅽ꺈". ?쒖빞/?몄? 嫄곕━쨌?몄?媛겶룹썝???몄? 踰붿쐞 諛섏?由꾩씠 ?꾨? ??媛믪쑝濡?寃곗젙?쒕떎(VisionMath).
+	// leadershipRange moved = 0f;  // 吏?섎쾾??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// charisma moved        = 0f;  // 移대━?ㅻ쭏->?덈줈 異붽??? 濡쒖쭅?놁쓬
 
 	// ??? ?쒖빞-?몄?-諛섏쓳 ?쒖뒪??愿????01_?쒖빞쨌?몄?踰붿쐞쨌媛?쒖꽦 臾몄꽌 v0.2 ????????????
-	public float stealth = 0f;         // ?????理쒖쥌 媛?쒖꽦????텛???몃? ?ㅽ꺈(01??10??. 嫄곕━/媛由?蹂댁젙 ?몃??곗떇? 05-A 臾몄꽌 遺?щ줈 ?ㅽ뀅(VisionMath.FinalVisibility 李멸퀬)
-	public float baseVisibility = 100f; // ???湲곕낯 媛?쒖꽦(01??9?? ???쇰컲 ?좊떅? 100, ??좏삎/?뱀닔 ?좊떅? ?곗씠?곕줈 ??쾶 ?ㅼ젙
-	public float attackVisibilityBoostTimer = 0f; // 怨듦꺽 ??媛?쒖꽦 ?곸듅 吏?띿떆媛???대㉧(珥? 01-A 9?? ??SkillAction.BeginAttackCast媛 怨듦꺽 ?ㅽ뻾 ???명똿, UnitFunction.OnUpdate媛 媛먯냼
+	// stealth moved = 0f;         // ?????理쒖쥌 媛?쒖꽦????텛???몃? ?ㅽ꺈(01??10??. 嫄곕━/媛由?蹂댁젙 ?몃??곗떇? 05-A 臾몄꽌 遺?щ줈 ?ㅽ뀅(VisionMath.FinalVisibility 李멸퀬)
+	// baseVisibility moved = 100f; // ???湲곕낯 媛?쒖꽦(01??9?? ???쇰컲 ?좊떅? 100, ??좏삎/?뱀닔 ?좊떅? ?곗씠?곕줈 ??쾶 ?ㅼ젙
+	// attackVisibilityBoostTimer moved = 0f; // 怨듦꺽 ??媛?쒖꽦 ?곸듅 吏?띿떆媛???대㉧(珥? 01-A 9?? ??SkillAction.BeginAttackCast媛 怨듦꺽 ?ㅽ뻾 ???명똿, UnitFunction.OnUpdate媛 媛먯냼
 
 	// ??? ?뺢퇋?붿슜 ?띿꽦 ????????????????????????????????????????????
-	public float sterngth    = 0f; // 洹쇰젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float Durability  = 0f; // ?닿뎄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float agility     = 0f; // 誘쇱꺽. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// sterngth moved    = 0f; // 洹쇰젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// Durability moved  = 0f; // ?닿뎄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// agility moved     = 0f; // 誘쇱꺽. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float concentration = 0f; // 吏묒쨷. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float MagicPower  = 0f; // 留덈젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float resistance  = 0f; // ??? ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float sense       = 0f; // 媛먭컖. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// sense moved       = 0f; // 媛먭컖. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float leadership  = 0f; // ?듭넄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 
 	// ??? ?뺢퇋??湲곗?媛?????????????????????????????????????????????
@@ -119,24 +143,23 @@ public abstract class Unit : ScriptableObject
 	private const float BASE_CDR             = 100f;
 
 	// ?€?€?€ ?곗궛???꾩떆 ?ㅽ꺈 ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
-	public UnitStatusEffects StatusEffects;
-	public UnitCombatState CombatState = new UnitCombatState { skillCooldowns = new float[4] };
-	public UnitPerceptionState PerceptionState = new UnitPerceptionState { 
+	// StatusEffects moved
+	// CombatState moved
+	/* removed PerceptionState { 
 		perceptionRecords = new Dictionary<object, PerceptionRecord>(),
 		visionOnlyNonEmptyTiles = new List<Vector3Int>(),
 		detectedThreats = new List<ThreatTileData>(),
-		personalSpottedEnemies = new List<Unit>()
-	};
-	public UnitAIWeightState AIWeightState;
-	public HashSet<Unit> reactedAttackers = new HashSet<Unit>();
+		} removed PerceptionState */
+	// $v moved
+	// $v moved
 
-	public float         currentReactionWindow = 0f;
-	public ThreatTileData reactingThreat       = null;
-	public Unit          reactingAttacker       = null;
-	public System.Action pendingAttack;  // ?ㅼ젣 怨듦꺽 ?ㅽ뻾 ?덉빟
-	public System.Action pendingCastUpdate; // 罹먯뒪??以?留??꾨젅???낅뜲?댄듃
-	public System.Action pendingVFX;     // 怨듦꺽 ?€?대컢??留욎떠 ?ъ깮??VFX (媛€?쑣룻뙣留?
-	public ThreatTileData currentThreat; // 현재 진행중인 공격 위협
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
 
 	// ?€?€?€ ?곹깭?댁긽 ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 
@@ -162,45 +185,10 @@ public abstract class Unit : ScriptableObject
 
 	// 20?? ?섏긽???€???뺤씤 ?€湲?以묒씤 ?덉퐫?쒓? ?섎굹?쇰룄 ?덉쑝硫?寃쎄퀎 ?곹깭 ??10??媛먯? 蹂댁젙(+20)怨?
 	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛€ ??媛믪쓣 李몄“?쒕떎.
-	// 2026-07-20 ?깅뒫 ?섏젙: ?먮옒 perceptionRecords ?꾩껜瑜?留ㅻ쾲 ?쒗쉶(O(n))?덈떗?? ???꾨줈?쇳떚媛€
-	// UnitFunction.ForceRollPerception(?쇨꺽留덈떎 媛뺤젣 ?몄텧?섎뒗 IsAttackerIdentified 寃쎈줈 ?ы븿) ?덉뿉??
-	// ?쏀? ?꾪닾 以?留??€寃⑸쭏??O(n)??諛섎났?먮떎 ??perceptionRecords媛€ ?몄뀡 ?대궡 ?뺣━?섏? ?딄퀬 ?볦씠??
-	// 援ъ“(?꾨옒 RemovePerceptionRecord 李멸퀬 ?꾧퉴吏€??洹몃옱???€ 寃뱀퀜 ?좊떅 ?샕룹쟾???쒓컙???섏닔濡?湲됯꺽??
-	// 臾닿굅?뚯죱?? PendingSuspiciousInvestigation??諛붾€뚮뒗 ?좎씪??吏€??ForceRollPerception)?먯꽌
-	// _alertRecordCount留?媛깆떊?섎뒗 O(1) 移댁슫?곕줈 援먯껜.
-	public int _alertRecordCount { get => PerceptionState.alertRecordCount; set => PerceptionState.alertRecordCount = value; }
-	public bool IsAlert => _alertRecordCount > 0;
-
-	// PendingSuspiciousInvestigation??諛붽씀??紐⑤뱺 吏€??ForceRollPerception, ?덉퐫???쒓굅)??諛섎뱶??
-	// ??硫붿꽌?쒕? ?듯빐?쒕쭔 移댁슫?곕? 媛깆떊?쒕떎 ??吏곸젒 ?꾨뱶瑜??€?낇븯硫?移댁슫?곌? ?닿툔?쒕떎.
-	public void NotifyPerceptionSuspiciousChanged(bool wasSuspicious, bool nowSuspicious)
-	{
-		if (wasSuspicious == nowSuspicious) return;
-		_alertRecordCount += nowSuspicious ? 1 : -1;
-		if (_alertRecordCount < 0) _alertRecordCount = 0; // 諛⑹뼱??泥섎━ ???뺤긽 ?먮쫫?먯꽌??諛쒖깮?섏? ?딆븘????
-	}
-
-	// 2026-07-20: ?좊떅 ?щ쭩/?ㅻ툕?앺듃 ?뚯닔쨌?뚭눼 ????愿€李곗옄媛€ ?ㅺ퀬 ?덈뜕 ?대떦 ?€??湲곕줉???뺣━?쒕떎.
-	// perceptionRecords??"??踰?蹂??€?곸? ?몄뀡 ?대궡 ??吏€?뚯??? 援ъ“?€?붾뜲(?먮옒 ?ㅼ퐫?꾩???愿€李곗옄
-	// 媛쒖씤???뚯닔 ??ぉ 媛€?뺢낵 ?щ━, ?⑥씠釉뚭? 諛섎났?섎ŉ 二쎌? 紐ъ뒪??李몄“媛€ 怨꾩냽 ?볦씠???ㅼ궗???섍꼍?먯꽌
-	// ?덉긽蹂대떎 ?⑥뵮 ?ш쾶 ?먮씪 ???꾨젅???쒕∼???ㅼ죣 ?먯씤?댁뿀??, IsAlert 移댁슫??O(1)?붿? 蹂꾧컻濡???
-	// ?뺣━媛€ ?놁쑝硫??쒗쉶 鍮꾩슜(UpdateFOV ?앹쓽 sweep ?? ?먯껜媛€ 怨꾩냽 而ㅼ쭊??
-	public void RemovePerceptionRecord(object key)
-	{
-		if (PerceptionState.perceptionRecords.TryGetValue(key, out var record))
-		{
-			NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, false);
-			PerceptionState.perceptionRecords.Remove(key);
-		}
-	}
-
-	// 5?? ?몄? ?먯젙 ?먯껜媛€ 遺덇??ν븳 ?곹깭. 臾몄꽌??湲곗젅/?섎㈃/留덈퉬/?됰룞遺덈뒫 4醫낆쓣 ?ㅼ?留? ??肄붾뱶踰좎씠?ㅼ뿏
-	// ?꾩쭅 ?ㅽ꽩(stunDuration) ?몄쓽 ?곹깭?댁긽 ?쒖뒪?쒖씠 ?녿떎(?섎㈃/留덈퉬/?됰룞遺덈뒫?€ ?대떦 ?곹깭?댁긽 臾몄꽌
-	// 遺€?щ줈 誘멸뎄?? ??洹??곹깭?ㅼ씠 ?앷린硫????꾨줈?쇳떚??議곌굔留?異붽??섎㈃ ?쒕떎.
-	public bool CanPerceive => StatusEffects.stunDuration <= 0f;
 
 	// 9?? ?뺤떊??蹂댁젙(?몃쪟 ?꾩슜, 紐ъ뒪?곕뒗 ??긽 0) ??PerceptionMath.MentalCorrectionForHuman 李멸퀬.
-	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(mental, maxMental) : 0f;
+	public bool CanPerceive => GetComponent<StatusEffectsComponent>().State.stunDuration <= 0f;
+	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(GetComponent<BaseStatComponent>().mental, GetComponent<BaseStatComponent>().maxMental) : 0f;
 
 	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ?€??紐⑸줉(?대쾲 UpdateFOV ?몄텧
 	// 湲곗? ?꾩떆 ?ㅻ깄?????€?κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
@@ -212,9 +200,9 @@ public abstract class Unit : ScriptableObject
 	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛€ "吏€?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
 	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛€???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
 	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
-	public bool IsVisibilityBoosted => attackVisibilityBoostTimer > 0f;
-	public void TriggerAttackVisibilityBoost() => attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
-	public float GetFinalVisibility() => VisionMath.FinalVisibility(baseVisibility, stealth, IsVisibilityBoosted);
+	public bool IsVisibilityBoosted => GetComponent<VisionStatComponent>().attackVisibilityBoostTimer > 0f;
+	public void TriggerAttackVisibilityBoost() => GetComponent<VisionStatComponent>().attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
+	public float GetFinalVisibility() => VisionMath.FinalVisibility(GetComponent<VisionStatComponent>().baseVisibility, GetComponent<VisionStatComponent>().stealth, IsVisibilityBoosted);
 
 	// ??? ?뺢퇋???⑥닔 ?????????????????????????????????????????????????
 	// 0%~200% 踰붿쐞濡??대옩?? 100%媛 湲곗?媛믨낵 ?쇱튂?섎룄濡?
@@ -227,33 +215,33 @@ public abstract class Unit : ScriptableObject
 	public void CalculateDerivedStats()
 	{
 		// ?뺢퇋??
-		float nAtk      = Normalize(physicalAttack,    BASE_PHYSICAL_ATTACK);
-		float nMatk     = Normalize(magicalAttack,     BASE_MAGICAL_ATTACK);
-		float nHp       = Normalize(maxHp,             BASE_MAX_HP);
-		float nMp       = Normalize(maxMp,             BASE_MAX_MP);
-		float nPDef     = Normalize(physicalDefense,   BASE_PHYSICAL_DEF);
-		float nMDef     = Normalize(magicalDefense,    BASE_MAGICAL_DEF);
-		float nRegen    = Normalize(HPRegen,           BASE_HP_REGEN);
-		float nStatus   = Normalize(statusResistance,  BASE_STATUS_RES);
-		float nAtkSpd   = Normalize(attackspeed,       BASE_ATTACK_SPEED);
-		float nReact    = Normalize(reaction,          BASE_REACTION);
-		float nMove     = Normalize(walkSpeed,         BASE_WALK_SPEED);
-		float nSpot     = Normalize(spotting,          BASE_SPOTTING);
-		float nMental   = Normalize(mental,            BASE_MENTAL);
-		float nLeadRange = Normalize(leadershipRange,  BASE_LEAD_RANGE);
-		float nCharisma = Normalize(charisma,          BASE_CHARISMA);
-		float nCrit     = Normalize(criticalChance,    BASE_CRIT);
-		float nCdr      = Normalize(cooltimeReduction, BASE_CDR);
+		float nAtk      = Normalize(GetComponent<CombatStatComponent>().physicalAttack,    BASE_PHYSICAL_ATTACK);
+		float nMatk     = Normalize(GetComponent<CombatStatComponent>().magicalAttack,     BASE_MAGICAL_ATTACK);
+		float nHp       = Normalize(GetComponent<HealthComponent>().maxHp,             BASE_MAX_HP);
+		float nMp       = Normalize(GetComponent<HealthComponent>().maxMp,             BASE_MAX_MP);
+		float nPDef     = Normalize(GetComponent<CombatStatComponent>().physicalDefense,   BASE_PHYSICAL_DEF);
+		float nMDef     = Normalize(GetComponent<CombatStatComponent>().magicalDefense,    BASE_MAGICAL_DEF);
+		float nRegen    = Normalize(GetComponent<BaseStatComponent>().HPRegen,           BASE_HP_REGEN);
+		float nStatus   = Normalize(GetComponent<BaseStatComponent>().statusResistance,  BASE_STATUS_RES);
+		float nAtkSpd   = Normalize(GetComponent<CombatStatComponent>().attackspeed,       BASE_ATTACK_SPEED);
+		float nReact    = Normalize(GetComponent<BaseStatComponent>().reaction,          BASE_REACTION);
+		float nMove     = Normalize(GetComponent<BaseStatComponent>().walkSpeed,         BASE_WALK_SPEED);
+		float nSpot     = Normalize(GetComponent<VisionStatComponent>().spotting,          BASE_SPOTTING);
+		float nMental   = Normalize(GetComponent<BaseStatComponent>().mental,            BASE_MENTAL);
+		float nLeadRange = Normalize(GetComponent<BaseStatComponent>().leadershipRange,  BASE_LEAD_RANGE);
+		float nCharisma = Normalize(GetComponent<BaseStatComponent>().charisma,          BASE_CHARISMA);
+		float nCrit     = Normalize(GetComponent<CombatStatComponent>().criticalChance,    BASE_CRIT);
+		float nCdr      = Normalize(GetComponent<BaseStatComponent>().cooltimeReduction, BASE_CDR);
 
 		// 湲곕낯 ?λ젰移?怨꾩궛
 		// 洹쇰젰 = 臾쇰━ 怨듦꺽???뺢퇋??
-		sterngth = nAtk;
+		GetComponent<BaseStatComponent>().sterngth = nAtk;
 
 		// ?닿뎄 = 泥대젰 45 + 臾쇰갑 45 + ?ъ깮 10
-		Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
+		GetComponent<BaseStatComponent>().Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
 
 		// 誘쇱꺽 = 怨듭냽 35 + ?대룞 25 + 諛섏쓳 40
-		agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
+		GetComponent<BaseStatComponent>().agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
 
 		// 吏묒쨷 = 移섎챸 60 + 荑④컧 40
 		concentration = nCrit * 0.60f + nCdr * 0.40f;
@@ -268,7 +256,7 @@ public abstract class Unit : ScriptableObject
 			resistance = nMDef * 0.35f + nStatus * 0.35f + nMental * 0.30f;
 
 		// 媛먭컖 = 媛먯?
-		sense = nSpot;
+		GetComponent<BaseStatComponent>().sense = nSpot;
 
 		// ?듭넄 = 吏?섎쾾??50 + 移대━?ㅻ쭏 50
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
@@ -339,13 +327,13 @@ public abstract class Unit : ScriptableObject
 
 	public virtual void JudgeState()
 	{
-		if (StatusEffects.stunDuration > 0f) return; // 스턴 중 행동 차단
+		if (GetComponent<StatusEffectsComponent>().State.stunDuration > 0f) return; // 스턴 중 행동 차단
 		brain.JudgeState(this);
 	}
 
 	public virtual void ExecuteAction()
 	{
-		if (StatusEffects.stunDuration > 0f) return;
+		if (GetComponent<StatusEffectsComponent>().State.stunDuration > 0f) return;
 		brain.ExecuteAction(this);
 	}
 
@@ -379,13 +367,13 @@ public class Human : UnitFunction
 
 	// 媛쒖씤 吏??????ㅻ툕?앺듃/紐ъ뒪??紐⑷꺽/諛??꾪뿕?꽷룻씎誘몃룄) ??吏?꾧????뺣━ 臾몄꽌 湲곗? "吏?꾨뒗
 	// ?몃쪟留??ㅺ퀬 ?덉뼱???쒕떎"??吏?쒖뿉 ?곕씪 Human?먮쭔 ?붾떎(Monster/base Unit?먮뒗 ?놁쓬).
-	public PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
-	public System.Collections.Generic.List<string> collectedObjects = new System.Collections.Generic.List<string>();
+	// personalMap moved
+	// collectedObjects moved
 
 	// ???좊떅???랁븳 ?뚰떚(?덈떎硫? ??13???뚰떚 ?꾨㈇/6???⑥씠釉?醫낅즺 ?앹〈??諛섏쁺 ?먯젙???곗씤??
 	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
 	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
-	public Party party;
+	// party moved
 
 	public override void JudgeState()
 	{
@@ -407,6 +395,8 @@ public class Monster : UnitFunction
 		// 紐ъ뒪???곹깭 ?먮떒 濡쒖쭅 異붽?
 	}
 }
+
+
 
 
 

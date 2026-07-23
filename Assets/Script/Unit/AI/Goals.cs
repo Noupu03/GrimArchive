@@ -6,7 +6,7 @@ public class Goal_Panic : GoapGoal
 
 	public override float GetPriority(Unit unit)
 	{
-		if (unit is Human && unit.mental < unit.maxMental * 0.3f) return 150f;
+		if (unit is Human && unit.GetComponent<BaseStatComponent>().mental < unit.GetComponent<BaseStatComponent>().maxMental * 0.3f) return 150f;
 		return 0f;
 	}
 }
@@ -34,11 +34,11 @@ public class Goal_DefeatEnemy : GoapGoal
 	public override float GetPriority(Unit unit)
 	{
 		// 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-		IEnumerable<Unit> enemies = unit.PerceptionState.personalSpottedEnemies;
+		IEnumerable<Unit> enemies = unit.GetComponent<PerceptionComponent>().State.personalSpottedEnemies;
 
 		foreach (var enemy in enemies)
 		{
-			if (enemy != null && enemy.hp > 0 && enemy.currentFloor == unit.currentFloor)
+			if (enemy != null && enemy.GetComponent<HealthComponent>().hp > 0 && enemy.currentFloor == unit.currentFloor)
 				return 100f; // 이동 명령(90f)보다 우선순위가 높아 이동 중 전투 발생
 		}
 		return 0f;

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using UnityEngine;
 
 public class RoomConfinedMovement : AStarMovement
@@ -14,12 +14,12 @@ public class RoomConfinedMovement : AStarMovement
         if (!baseWalkable) return false;
 
         // 추가 검사: 유닛이 소속된 방을 벗어나는 타일은 벽으로 취급
-        if (GameSession.Instance != null && GameSession.Instance.allRooms != null)
+        if (unit.Session != null && unit.Session.allRooms != null)
         {
             if (_cachedRoom == null || _lastCheckFloor != floorIdx)
             {
                 // 유닛의 현재 위치를 포함하는 방 찾기
-                _cachedRoom = GameSession.Instance.allRooms.FirstOrDefault(r => r.Bounds.Contains(unit.position));
+                _cachedRoom = unit.Session.allRooms.FirstOrDefault(r => r.Bounds.Contains(unit.position));
                 _lastCheckFloor = floorIdx;
             }
 

@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 
 using UnityEngine;
@@ -15,31 +15,37 @@ public class HaareClient
     [RuntimeInitializeOnLoadMethod( RuntimeInitializeLoadType.BeforeSceneLoad )]
     static async void Main() {
 
-        // RuntimeInitializeOnLoadMethod는 스크립트 재컴파일 등으로 인한 도메인 리로드 시
-        // 플레이 모드가 아닌데도 호출될 수 있다. DontDestroyOnLoad는 플레이 모드에서만
-        // 허용되므로(RegisterProcesses 참고) 여기서 미리 걸러준다.
         if (!Application.isPlaying) return;
 
-        LogHelper.Log(LogHelper.FRAMEWORK,"Start Haare Framework");
-        await Task.Delay( 1 );
-        await Processor.WaitForCreation();
-        
-        await Processor.Instance.Constructor(InitializePlugin, RegisterProcesses);
-        
+        try
+        {
+            LogHelper.Log(LogHelper.FRAMEWORK,"Start Haare Framework");
+            await Task.Delay( 1 );
+            await Processor.WaitForCreation();
+            
+            if (Processor.Instance != null)
+            {
+                await Processor.Instance.Constructor(InitializePlugin, RegisterProcesses);
+            }
+            else
+            {
+                Debug.LogError("[HaareClient] Processor.Instance is null after WaitForCreation!");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[HaareClient] Main Exception: {ex}");
+        }
     }
 
     static async UniTask InitializePlugin() {
-        // SDK 로드
         await UniTask.Delay( 0 );
     }
-    
 
     static async UniTask RegisterProcesses()
     {
         LogHelper.LogTask(LogHelper.FRAMEWORK,"RegisterProcesses");
         
-        // 씬 전역에서 사용하는 object
-        // 프로젝트가 새 Input System만 사용하므로 StandaloneInputModule 대신 InputSystemUIInputModule 사용
         if (Object.FindObjectOfType<EventSystem>() == null)
         {
             var eventSystemObj = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -52,9 +58,7 @@ public class HaareClient
             Object.DontDestroyOnLoad(audioObj);
         }
 
-        
         LogHelper.LogTask(LogHelper.FRAMEWORK,"RegisterProcesses -> end");
         await UniTask.CompletedTask;
     }
-    
 }

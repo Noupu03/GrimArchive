@@ -1,0 +1,11 @@
+﻿
+[10:30] 기반 시스템 미소환 원인 전수 조사 및 수정
+- 원인1: OffenseProcessor(IOffenseQuery) ↔ GameSession 순환 의존성
+  → VContainer Configure 단계 예외 → DI 컨테이너 전체 구성 실패 → 아무것도 생성 안됨
+  → OffenseProcessor.cs: IOffenseQuery를 constructor에서 property inject([Inject] public Query)로 변경
+- 원인2: GameBootstrapper가 GameSession만 Resolve → MapManager property inject 타이밍 불보장
+  → GameBootstrapper.cs: MapRandering → WaveSpawner → MapManager 순서로 먼저 Resolve
+  → MapManager.isInitialized 대기 후 GameSession Resolve로 순서 보장
+- 원인3: Addressables 미빌드로 UI 패널 로드 실패
+  → Assets/Script/Editor/AddressablesPlayModeSetup.cs 추가
+  → 에디터 시작 시 자동으로 "Use Asset Database (fastest)" 모드로 설정 (빌드 불필요)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
@@ -44,14 +44,11 @@ public class MapManager : NativeRoutine
         // 맵 시각화(렌더링) 지시
         if (_mapRandering != null)
         {
-            _mapRandering.DoRandering();
+            _mapRandering.DoRandering(cmap);
         }
 
         // 웨이브 스폰 초기화 지시 (요청에 따라 비활성화)
-        // if (_waveSpawner != null)
-        // {
-        //     _waveSpawner.SpawnWave();
-        // }
+        if (_waveSpawner != null) { _waveSpawner.SpawnWave(); }
         
         // 맵이 세팅되었음을 이벤트로 브로드캐스트 (MapView에서 구독)
         OnRuntimeMapDataUpdated?.Invoke(cmap);
@@ -59,3 +56,4 @@ public class MapManager : NativeRoutine
         LogHelper.Log(LogHelper.GAME, "MapManager: 맵 렌더링 및 웨이브 스포너 초기화 완료, 브로드캐스트 전송.");
     }
 }
+
