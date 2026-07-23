@@ -1,10 +1,22 @@
 fileFormatVersion: 2
-guid: 33969a1ccef9d424b933f41ca6861e7e
+guid: c48f4de4b4a677442b306729bcf82b5b
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6738737206462910590
-    second: "\uD654\uBA74 \uCEA1\uCC98 2026-07-23 131529_0"
+      213: 6584341640268865
+    second: Mon_Dullahan_0
+  - first:
+      213: -1280418833440539591
+    second: Mon_Dullahan_1
+  - first:
+      213: -8813827870177050391
+    second: Mon_Dullahan_2
+  - first:
+      213: -1565735202199819113
+    second: Mon_Dullahan_3
+  - first:
+      213: 1404559015059588763
+    second: Mon_Dullahan_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -100,13 +112,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "\uD654\uBA74 \uCEA1\uCC98 2026-07-23 131529_0"
+      name: Mon_Dullahan_0
       rect:
         serializedVersion: 2
-        x: 0
+        x: 3
         y: 0
-        width: 173
-        height: 181
+        width: 58
+        height: 64
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +127,96 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 28fe11ec6323b72a0800000000000000
-      internalID: -6738737206462910590
+      spriteID: 14c4c808c64671000800000000000000
+      internalID: 6584341640268865
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mon_Dullahan_1
+      rect:
+        serializedVersion: 2
+        x: 70
+        y: 0
+        width: 49
+        height: 64
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 93c7e0ddad90b3ee0800000000000000
+      internalID: -1280418833440539591
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mon_Dullahan_2
+      rect:
+        serializedVersion: 2
+        x: 137
+        y: 0
+        width: 36
+        height: 64
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9e0c8aeef3efea580800000000000000
+      internalID: -8813827870177050391
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mon_Dullahan_3
+      rect:
+        serializedVersion: 2
+        x: 200
+        y: 0
+        width: 48
+        height: 64
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 79c2e841124654ae0800000000000000
+      internalID: -1565735202199819113
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mon_Dullahan_4
+      rect:
+        serializedVersion: 2
+        x: 259
+        y: 0
+        width: 58
+        height: 64
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b9603b68bfefd7310800000000000000
+      internalID: 1404559015059588763
       vertices: []
       indices: 
       edges: []
@@ -135,7 +235,11 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      "\uD654\uBA74 \uCEA1\uCC98 2026-07-23 131529_0": -6738737206462910590
+      Mon_Dullahan_0: 6584341640268865
+      Mon_Dullahan_1: -1280418833440539591
+      Mon_Dullahan_2: -8813827870177050391
+      Mon_Dullahan_3: -1565735202199819113
+      Mon_Dullahan_4: 1404559015059588763
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

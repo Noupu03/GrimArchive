@@ -62,7 +62,7 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
     {
         // 프리팹 UI가 깨졌거나 롤백되어 날아갔을 때를 대비해 OnGUI로 무조건 화면에 띄움
         GUILayout.BeginArea(new Rect(Screen.width - PanelWidth - 10, PanelY, PanelWidth, PanelHeight), GUI.skin.box);
-        GUILayout.Label("<size=14><b>[ 오팬스 현황 (자동 복구 UI) ]</b></size>");
+        GUILayout.Label("<size=14><b>[ 오팬스 현황 ]</b></size>");
 
         if (HumanWaveManager.Instance != null)
             GUILayout.Label($"다음 인류 웨이브: {HumanWaveManager.Instance.cooldownTimer:F1}초");
@@ -94,7 +94,7 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
         GUILayout.Label("<size=14><b>[ 자원 사용 안내 ]</b></size>");
         GUILayout.Label($"M키: 몬스터 배치 (나무 {ResourceManager.MonsterPlaceWoodCost}개 소모)");
         GUILayout.Label($"P키: 함정 배치 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모)");
-        GUILayout.Label("O키: 루팅 오브젝트 배치 (무료)");
+        GUILayout.Label("");
 
         GUILayout.EndArea();
     }
