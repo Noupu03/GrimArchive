@@ -380,7 +380,7 @@ public class UnitGenerate
 				bool isDisarmingTrap = u is Human hDisarm
 					&& hDisarm.currentTrapInteraction != null
 					&& hDisarm.currentTrapInteraction.Phase == TrapPhase.Disarming;
-				uv.UpdateBelowLabel(isDisarmingTrap ? "함정 해제 시도중..." : null);
+				uv.UpdateBelowLabel(isDisarmingTrap ? "" : null);
 
 				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
 				bool showRanges = ShowAllVisionRanges || isSoleSelected;

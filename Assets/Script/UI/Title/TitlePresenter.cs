@@ -3,7 +3,6 @@ using Haare.Client.UI;
 using Haare.Util.Logger;
 using R3;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using VContainer;
 
 // Demo.TitleScene.DemoTitleUIPresenter와 동일한 구조 — 이 씬(Title.unity)의 진입점.
@@ -11,7 +10,7 @@ using VContainer;
 //
 // 씬 전환은 Haare의 SceneService(Addressables 기반, 아직 이 프로젝트 실 전환에는 안 쓰인 미검증
 // 경로 — Assets/Haare/Scripts/Util/AssetLoader/AssetPath.cs 주석 참고) 대신, ssh.unity를 그대로
-// Build Settings에 등록해서 쓰는 평범한 SceneManager.LoadScene()을 쓴다.
+// Build Settings에 등록해서 쓰는 평범한 SceneManager.LoadSceneAsync() + SceneTransitionFade를 쓴다.
 public class TitlePresenter : IPresenter
 {
     [Inject] private SceneUIManager _sceneUiManager;
@@ -50,7 +49,9 @@ public class TitlePresenter : IPresenter
     private void StartGame()
     {
         LogHelper.Log(LogHelper.GAME, "[TitlePresenter] 게임 시작 -> ssh.unity 로드");
-        SceneManager.LoadScene("ssh");
+        // 동기 LoadScene 한 줄로는 씬 전환 프레임에 카메라가 끊겨 화면이 검게 번쩍였다(사용자 신고,
+        // 2026-07-23) — SceneTransitionFade가 로드 전후로 페이드인/아웃해서 그 프레임을 가린다.
+        SceneTransitionFade.EnsureInstance().LoadSceneWithFade("ssh");
     }
 
     private void OpenSettings()

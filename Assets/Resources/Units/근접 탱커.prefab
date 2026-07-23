@@ -338,8 +338,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 0
-  m_labelHash: 0
+  m_CategoryHash: 5.4934837e-27
+  m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
 --- !u!1 &6590798347702598913
@@ -393,7 +393,7 @@ MonoBehaviour:
   stats:
     maxHp: 180
     maxMp: 0
-    physicalAttack: 44
+    physicalAttack: 60
     magicalAttack: 9
     physicalDefense: 10
     magicalDefense: 8
