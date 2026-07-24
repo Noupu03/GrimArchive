@@ -386,13 +386,19 @@ namespace GrimArchive.Wave
                 {
                     foreach (var member in activeParty.Members)
                     {
-                        if (member != null && member.hp > 0 && !stagingUnits.Contains(member))
-                        {
-                            member.playerMoveTarget = null; // ?�동 목표 ?�제 -> ?�유 배회
-                            member.isManualMoveCommand = false;
-                        }
+                        if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
+                        // 플레이어가 방금 수동으로 이동/공격을 지시했다면 건드리지 않는다(사용자 신고,
+                        // 2026-07-24 "플레이어 지정 명령 잘 안 작동해") — 이 메서드가 매 프레임(웨이브
+                        // 진행 중 내내) 돌면서 무조건 playerMoveTarget/isManualMoveCommand를 초기화해
+                        // 버려서, 우클릭 명령이 사실상 같은 프레임 안에 지워지던 게 원인이었다. 명령이
+                        // 끝나면(PlayerCommandFSMState가 직접 플래그를 정리) 다음 프레임부터 자동으로
+                        // 이 메서드가 다시 챙긴다.
+                        if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
+                        if (member.playerAttackTarget != null) continue;
+                        member.playerMoveTarget = null; // 목표 없음 -> 자유 배회
+                        member.isManualMoveCommand = false;
                     }
-                    return; // 목표가 ?�으므�?로직 종료
+                    return; // 목표가 없으므로 로직 종료
                 }
             }
 
@@ -550,6 +556,12 @@ namespace GrimArchive.Wave
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != destFloor) continue;
+                // 플레이어 수동 명령 진행 중이면 웨이브의 자동 목표 재할당이 덮어쓰지 않는다(사용자
+                // 신고, 2026-07-24 "플레이어 지정 명령 잘 안 작동해") — 이 메서드가 매 틱 호출돼
+                // isManualMoveCommand를 계속 false로 되돌리는 바람에 우클릭 명령이 사실상 무시됐다.
+                // 명령이 끝나면(PlayerCommandFSMState가 플래그 정리) 다음 틱부터 자동으로 다시 챙긴다.
+                if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
+                if (member.playerAttackTarget != null) continue;
                 member.playerMoveTarget = dest;
                 member.isManualMoveCommand = false;
             }

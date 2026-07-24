@@ -118,10 +118,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
                 BuildRoomGrid();
-                // 게임을 시작하자마자 보스방에 루팅 오브젝트(O키와 동일한 것)를 자동 생성한다(사용자 요청,
-                // 2026-07-23) — HumanWaveManager.MonitorWave()가 이 오브젝트를 "Loot" 태그로 발견해서 첫
-                // 웨이브부터 곧바로 목표로 추적하므로, 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
-                SpawnInitialBossRoomLoot();
+                // 게임을 시작하자마자 보스방에 던전 코어를 자동 생성한다(사용자 요청, 2026-07-23 최초 도입
+                // → 2026-07-24 전용 오브젝트로 분리) — HumanWaveManager.MonitorWave()가 이 오브젝트를
+                // "Loot" 태그(DungeonCoreTag 참고)로 발견해서 첫 웨이브부터 곧바로 목표로 추적하므로,
+                // 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
+                SpawnInitialDungeonCore();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -622,17 +623,22 @@ public class GameSession : NativeRoutine, IOffenseQuery
         GameObject visual = new GameObject(obj.Id);
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
 
-        // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 코어(Loot)는 core.png, 시체는
-        // colapse.png, 함정은 trap.png. Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형
-        // 폴백(함정=삼각형, 그 외=단색 사각형)으로 되돌아간다.
+        // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 시체는 colapse.png, 함정은
+        // trap.png. Loot 계열은 던전 코어(DungeonCore, 보스방 자동 배치 전용)만 core.png를 그대로
+        // 쓰고, 그 외 일반 루팅 오브젝트(O키로 수동 생성)는 obj1.png로 바꿨다(사용자 요청,
+        // 2026-07-24) — DungeonCoreTag가 "Loot"를 포함하는 하위 태그라 DungeonCore 여부를 먼저
+        // 확인해야 한다. Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형 폴백(함정=삼각형,
+        // 그 외=단색 사각형)으로 되돌아간다.
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
+        bool isDungeonCore = obj.Tags != null && obj.Tags.Exists(t => t.Contains("DungeonCore"));
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
         else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
-        else if (isLoot) sprite = Resources.Load<Sprite>("obj/core");
+        else if (isDungeonCore) sprite = Resources.Load<Sprite>("obj/core");
+        else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
 
         if (sprite == null)
         {
@@ -673,13 +679,33 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         
         visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
-        visual.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
+
+        // 오브젝트 스프라이트마다 원본 픽셀 크기/PPU가 제각각이라(core 32x32@32ppu, trap 30x26@32ppu,
+        // colapse 24x22@32ppu, obj1 16x30@100ppu 등) 고정 스케일(0.5) 하나로는 오브젝트마다 실제
+        // 렌더 크기가 다 달랐고, 특히 obj1은 타일보다 훨씬 작게 보였다(사용자 신고, 2026-07-24
+        // "오브젝트들 스케일이 너무 작아. 모든 오브젝트들은 타일 크기에 맞춘 스케일로"). sprite.bounds
+        // (스케일 1 기준 월드 크기)를 역산해서 타일 1칸(1x1 유닛)에 항상 꽉 차도록 스케일을 계산한다
+        // — UnitGenerate.SetupUnitVisual이 풋프린트 크기에 맞춰 유닛을 스케일하는 것과 같은 원리.
+        Vector2 spriteWorldSize = sr.sprite != null ? (Vector2)sr.sprite.bounds.size : Vector2.one;
+        float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
+        float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
+        visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
         
         objectVisuals[obj] = visual;
     }
 
-    // 게임 시작 시 보스방에 루팅 오브젝트를 1회 자동 생성 (GameSession.Initialize 참고).
-    private void SpawnInitialBossRoomLoot()
+    // 던전 코어 태그 — 일반 루팅 오브젝트("Object/Passable/Loot")의 하위 태그로 둬서, 기존 Loot
+    // 판정(HumanWaveManager 목표 탐지/TacticalFSMState 회수 처리/GameSession 스프라이트 선택 —
+    // 전부 Tags.Contains("Loot")로 검사한다)을 코드 변경 없이 그대로 재사용한다. O키/InputManager
+    // 고스트 배치 등 수동 생성 경로는 이 태그를 만들지 않는다 — 오직 SpawnInitialDungeonCore()로만,
+    // 보스방에 자동으로 하나 배치된다(사용자 요청, 2026-07-24 "따로 생성할 수 없고 보스방에만 자동
+    // 배치"). 회수 가능한 유닛도 이미 인류로 한정돼 있다 — Investigate/PickUpObject(TacticalFSMState)
+    // 와 HumanWaveManager의 목표 추적 파티원 모두 Human 전용 경로라 몬스터는 애초에 오브젝트 회수
+    // 로직 자체를 타지 않는다.
+    private const string DungeonCoreTag = "Object/Passable/Loot/DungeonCore";
+
+    // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).
+    private void SpawnInitialDungeonCore()
     {
         if (_unitGenerate == null) return;
 
@@ -687,7 +713,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Vector2Int pos = _unitGenerate.GetBossRoomPos(Vector2.one, floorIdx);
         Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
 
-        SpawnLootObjectAt(gridPos);
+        if (objectGrid.ContainsKey(gridPos)) return;
+
+        string objId = "DungeonCore_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { DungeonCoreTag });
+        SpawnObject(obj, Color.magenta);
     }
 
     // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)

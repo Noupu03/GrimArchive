@@ -1,7 +1,8 @@
 using UnityEngine;
 
-// 탐색 상태 — 전투·전술 조건이 없을 때 활성화. 항상 Priority > 0 이므로 기본 상태로 동작.
-// BT: 계단이동 → 플레이어 명령 → 자유탐색
+// 탐색 상태 — 전투·전술·플레이어 명령 조건이 없을 때 활성화. 항상 Priority > 0 이므로 기본 상태로
+// 동작. BT: 계단이동 → 자유탐색. 플레이어 공격/이동 명령은 PlayerCommandFSMState로 분리됐다(사용자
+// 요청, 2026-07-24 "플레이어 지정 명령이라는 상태를 따로 만들어서 최우선 순위로 둬").
 public class NavigationFSMState : IFSMState
 {
 	private readonly BTNode _bt;
@@ -15,23 +16,12 @@ public class NavigationFSMState : IFSMState
 				new BTLeaf(MoveToStairs),
 				new BTLeaf(CrossStairs)
 			),
-			// 2. 플레이어 공격 명령 (원본 PlayerCommandFSMState p=130)
-			new BTSequence(
-				new BTCondition(HasPlayerAttackTarget),
-				new BTLeaf(ExecutePlayerAttack)
-			),
-			// 3. 플레이어 이동 명령 (원본 PlayerCommandFSMState p=99)
-			new BTSequence(
-				new BTCondition(HasPlayerMoveCommand),
-				new BTLeaf(ExecutePlayerMove),
-				new BTLeaf(CompletePlayerCommand)
-			),
-			// 4. 자유탐색 (원본 ExploreFSMState p=10)
+			// 2. 자유탐색 (원본 ExploreFSMState p=10)
 			new BTLeaf(RandomExplore)
 		);
 	}
 
-	// 항상 활성 — Combat/Tactical 조건이 없을 때 실질적인 기본값이 된다.
+	// 항상 활성 — Combat/Tactical/PlayerCommand 조건이 없을 때 실질적인 기본값이 된다.
 	public float GetPriority(Unit unit)    => AIConfigLoader.Behavior?.navigationPriority ?? 10f;
 	public bool  IsSticky(Unit unit)       => false;
 	public bool  ShouldInterrupt(Unit unit)=> true;
@@ -45,12 +35,6 @@ public class NavigationFSMState : IFSMState
 	private static bool HasPendingStairs(Unit unit)
 		=> unit is Human h && h.pendingStairTargetFloor.HasValue
 		&& h.pendingStairTargetFloor.Value != h.currentFloor;
-
-	private static bool HasPlayerAttackTarget(Unit unit)
-		=> unit is Human h && h.playerAttackTarget != null && h.playerAttackTarget.hp > 0;
-
-	private static bool HasPlayerMoveCommand(Unit unit)
-		=> unit is Human h && h.playerMoveTarget.HasValue && h.isManualMoveCommand;
 
 	// ── 계단 ─────────────────────────────────────────────────────
 
@@ -129,66 +113,6 @@ public class NavigationFSMState : IFSMState
 		human.Move((Dir)Random.Range(0, 8));
 	}
 
-	// ── 플레이어 명령 ─────────────────────────────────────────────
-
-	private static BTStatus ExecutePlayerAttack(Unit unit)
-	{
-		if (!(unit is Human human) || human.playerAttackTarget == null) return BTStatus.Failure;
-		Unit target = human.playerAttackTarget;
-		if (target.hp <= 0 || target.currentFloor != human.currentFloor)
-		{
-			human.playerAttackTarget = null;
-			human.oneTimeReactUsed   = false;
-			return BTStatus.Success;
-		}
-
-		Vector2Int diff     = target.position - human.position;
-		int        chebDist = Mathf.Max(Mathf.Abs(diff.x), Mathf.Abs(diff.y));
-
-		human.currentDir = SkillAction.GetDirection8(diff);
-		human.CombatState.State.currentAttackAngle = ((UnitFunction)human).CalculateAttackAngleToEnemy(target, 1);
-
-		var  skills   = human.Generate != null ? human.Generate.GetSkills(human.unitType.typeName) : new System.Collections.Generic.List<SkillAction>();
-		SkillAction best = null;
-		float bestP = float.MinValue;
-		foreach (var s in skills)
-		{
-			if (s == null || !s.IsAvailable(human)) continue;
-			float p = s.GetPriority(human, target, chebDist);
-			if (p > bestP) { bestP = p; best = s; }
-		}
-
-		if (best != null)
-		{
-			Hitbox box = best.BuildSkillHitbox(human);
-			if (SkillAction.GetEnemiesInHitbox(human, box).Contains(target))
-			{
-				best.Execute(human, target, chebDist);
-				return BTStatus.Running;
-			}
-		}
-		AIMovementHelper.MoveTowardsTarget(human, target);
-		return BTStatus.Running;
-	}
-
-	private static BTStatus ExecutePlayerMove(Unit unit)
-	{
-		if (!(unit is Human human) || !human.playerMoveTarget.HasValue) return BTStatus.Failure;
-		Vector2Int target = human.playerMoveTarget.Value;
-		if (human.position == target) return BTStatus.Success;
-		AIMovementHelper.MoveTowardsPos(human, target);
-		return BTStatus.Running;
-	}
-
-	private static BTStatus CompletePlayerCommand(Unit unit)
-	{
-		if (!(unit is Human human)) return BTStatus.Failure;
-		human.playerMoveTarget      = null;
-		human.isManualMoveCommand   = false;
-		human.oneTimeReactUsed      = false;
-		return BTStatus.Success;
-	}
-
 	// ── 자유탐색 ─────────────────────────────────────────────────
 
 	private static BTStatus RandomExplore(Unit unit)
@@ -240,9 +164,7 @@ public class NavigationFSMState : IFSMState
 
 	private static string GetSubLabel(Unit unit)
 	{
-		if (HasPendingStairs(unit))      return "탐색(계단)";
-		if (HasPlayerAttackTarget(unit)) return "탐색(명령-공격)";
-		if (HasPlayerMoveCommand(unit))  return "탐색(명령-이동)";
+		if (HasPendingStairs(unit)) return "탐색(계단)";
 		return "탐색(탐험)";
 	}
 }

@@ -15,6 +15,8 @@ public class AIBehaviorConfig : ScriptableObject
 {
     // ── FSM 우선순위 ────────────────────────────────────────────────────────
     [Header("FSM 상태 진입 우선순위")]
+    [Tooltip("플레이어 수동 명령(공격/이동) 활성 시 우선순위 — 항상 최우선(기본 200, 사용자 요청 2026-07-24)")]
+    public float playerCommandPriority = 200f;
     [Tooltip("적 인지 시 전투 상태 우선순위 (기본 100)")]
     public float combatPriority     = 100f;
     [Tooltip("전술 조건 충족 시 우선순위 (기본 50)")]

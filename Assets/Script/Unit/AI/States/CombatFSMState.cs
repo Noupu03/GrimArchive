@@ -9,6 +9,9 @@ public class CombatFSMState : IFSMState
 
 	public float GetPriority(Unit unit)
 	{
+		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
+		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로 여기서 따로 예외
+		// 처리할 필요가 없다.
 		foreach (var e in unit.Perception.State.personalSpottedEnemies)
 			if (e != null && e.hp > 0 && e.currentFloor == unit.currentFloor)
 				return AIConfigLoader.Behavior?.combatPriority ?? 100f;

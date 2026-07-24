@@ -91,13 +91,13 @@ public class TacticalFSMState : IFSMState
 
 	public float GetPriority(Unit unit)
 	{
+		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
+		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로(패닉/함정/경계
+		// 포함해) 여기서 따로 예외 처리할 필요가 없다.
 		float p = AIConfigLoader.Behavior?.tacticalPriority ?? 50f;
 		if (IsPanic(unit)) return p;
 		if (unit.currentTrapInteraction != null) return p;
 		if (unit.currentAlertSearch != null) return p;
-		// 플레이어 명령이 있으면 조사·대기·포메이션이 가로채지 않는다 — Navigation이 처리한다.
-		if (unit is Human hcmd && (hcmd.playerAttackTarget != null || (hcmd.playerMoveTarget.HasValue && hcmd.isManualMoveCommand)))
-			return 0f;
 		if (unit is Human h && (h.currentInvestigation != null || h.HasReachableInvestigateTarget())) return p;
 		if (unit is Human hw && hw.currentWait != null) return p;
 		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return p;
