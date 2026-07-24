@@ -6,10 +6,10 @@ using System.Threading;
 [System.Serializable]
 public class WildBaseSpawnerComponent : IUnitComponent
 {
-    public GameObject debugVisual;
     private Unit _owner;
     private Room _targetRoom;
     private float _spawnInterval = 5f; // 5초마다 생성
+    private const int _maxUnits = 6;   // MVP 4.2: 최대 야생 유닛 수 제한
     private CancellationTokenSource _cts;
 
     
@@ -61,6 +61,13 @@ public class WildBaseSpawnerComponent : IUnitComponent
     {
         if (_owner.Session == null || _targetRoom == null || _owner.Session.unitGenerate == null) return;
 
+        // MVP 4.2: 최대 개체 수 도달 시 생성 중단
+        var roomUnits = _owner.Session.GetUnitsInRoom(_targetRoom.Bounds);
+        int wildCount = 0;
+        foreach (var u in roomUnits)
+            if (u.FactionBehavior is WildMonsterBehavior) wildCount++;
+        if (wildCount >= _maxUnits) return;
+
         UnitType monsterType = new MeleeTank();
         Vector2Int spawnPos = _targetRoom.GetRandomPosInRoom();
         int attempts = 0;
@@ -87,11 +94,9 @@ public class WildBaseSpawnerComponent : IUnitComponent
         _cts?.Cancel();
         _cts?.Dispose();
 
-        if (debugVisual != null) GameObject.Destroy(debugVisual);
         if (_targetRoom != null)
-        {
             _targetRoom.HasActiveSpawner = false;
-        }
+
         Debug.Log("[WildBaseSpawnerComponent] 거점 스포너 모듈이 파괴되었습니다!");
     }
 }

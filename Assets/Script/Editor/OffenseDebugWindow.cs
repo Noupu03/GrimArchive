@@ -85,45 +85,34 @@ public class OffenseDebugWindow : EditorWindow
         if (GUILayout.Button("2. [스포너 룸 구성 (주기적 생성)]"))
         {
             Room targetRoom = GetRandomRealRoom();
-            if (targetRoom != null && Session != null)
+            if (targetRoom != null && Session != null && Session.unitGenerate != null)
             {
                 targetRoom.Type = RoomType.Spawner;
                 targetRoom.RoomFaction = FactionType.Wild;
 
-                // 논리 스크립트 대신, 체력과 타격 판정을 지닌 거점 '유닛'을 생성하여 맵에 등록
-                                Monster baseUnit = ScriptableObject.CreateInstance<Monster>();
-                baseUnit.unitType = new MeleeTank();
-                WildBaseSpawnerComponent spawnerComp = new WildBaseSpawnerComponent(baseUnit, targetRoom);
-                baseUnit.Components.Add(spawnerComp);
-                
                 // 방의 정중앙에 거점 배치
                 Vector2Int centerPos = new Vector2Int(
                     Mathf.RoundToInt(targetRoom.Bounds.center.x),
                     Mathf.RoundToInt(targetRoom.Bounds.center.y)
                 );
-                baseUnit.position = centerPos;
-                baseUnit.currentFloor = 1; // F1 기준으로 설정
-                
-#if UNITY_EDITOR
-                // 임시 시각적 표현 (화살표 이미지) 렌더링
-                GameObject visualGo = new GameObject("WildSpawnerVisual");
-                SpriteRenderer sr = visualGo.AddComponent<SpriteRenderer>();
-                sr.sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Asset/화살표.png");
-                sr.sortingOrder = 50; // 맵에 의해 가려지지 않도록 렌더링 순서 상향
 
-                // 타일맵 렌더러 좌표계에 맞춰서 중앙에 오도록 배치 (층별 오프셋 반영)
-                Vector3 floorOffset = Session.unitGenerate != null ? Session.unitGenerate.GetFloorOffset(1) : Vector3.zero;
-                visualGo.transform.position = new Vector3(centerPos.x + 0.5f, centerPos.y + 0.5f, 0f) + floorOffset;
-                
-                // 크기가 너무 크거나 작을 수 있으므로 적절히 조정
-                visualGo.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
-                
-                spawnerComp.debugVisual = visualGo;
-#endif
+                // GenerateUnitAtPos로 생성해야 _resolver.Inject가 실행되어 baseUnit.Session이
+                // 채워진다. 이 DI 주입이 없으면 WildBaseSpawnerComponent.SpawnMonster() 내부의
+                // _owner.Session == null 체크에서 즉시 return해 거점이 아무것도 생성하지 못한다.
+                Monster baseUnit = Session.unitGenerate.GenerateUnitAtPos<Monster>(new WildBaseType(), centerPos, 1);
+
+                // WildMonsterBehavior가 없으면 PlayerMonsterBehavior.IsEnemy()가 false를 반환해
+                // 플레이어 유닛이 거점을 공격 대상으로 인식하지 못한다.
+                baseUnit.FactionBehavior = new WildMonsterBehavior();
+
+                // Components.Add 후 WildBaseSpawnerComponent를 생성해야 SpawnLoop가 시작될 때
+                // Components 리스트가 완성된 상태이다.
+                WildBaseSpawnerComponent spawnerComp = new WildBaseSpawnerComponent(baseUnit, targetRoom);
+                baseUnit.Components.Add(spawnerComp);
 
                 Session.units.Add(baseUnit);
                 Session.RegisterUnitPos(baseUnit, baseUnit.position);
-                Debug.Log($"[Test] 거점형 방 설정 완료 (방: {targetRoom.RoomName})");
+                Debug.Log($"[Test] 거점형 방 설정 완료 (방: {targetRoom.RoomName}, 거점 위치: {centerPos})");
             }
             else
             {

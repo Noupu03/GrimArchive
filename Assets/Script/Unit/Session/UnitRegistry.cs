@@ -33,7 +33,7 @@ public class UnitRegistry
             }
         }
         
-        if (u.FactionBehavior is PlayerMonsterBehavior && _offenseProcessor != null && _offenseProcessor.currentOffenseRoom == null)
+        if (u.FactionBehavior is PlayerMonsterBehavior && _offenseProcessor != null)
         {
             if (_gameSession != null && _gameSession.allRooms != null)
             {
@@ -42,7 +42,7 @@ public class UnitRegistry
                     if (room.RoomFaction == FactionType.Wild && room.Bounds.Contains(pos))
                     {
                         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, $"[오펜스 트리거] 플레이어가 야생 방({room.RoomName})에 물리적으로 진입했습니다.");
-                        _offenseProcessor.StartOffense(room, u);
+                        _offenseProcessor.TryStartOffense(room, u);
                         break;
                     }
                 }

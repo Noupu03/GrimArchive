@@ -281,6 +281,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 세력별 사망 이벤트(예: 오펜스 보상 누적 등) 처리
             u.FactionBehavior?.OnDeath(u, u.lastAttacker);
 
+            // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
+            // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
+            foreach (var comp in u.Components)
+                comp.OnDespawn();
+
             string objId = "Corpse_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             Vector3Int gridPos = new Vector3Int(u.position.x, u.position.y, u.currentFloor);
             DangerStage causerStage = DangerStage.Stage0;
@@ -466,6 +471,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             UnregisterUnitPos(u, oldPos);
             RegisterUnitPos(u, u.position);
             TriggerTrapIfStepped(u, trapInteractionBefore);
+
+            // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
+            if (u.IsPlayerMonsterFaction)
+                TryTriggerOffenseForUnit(u);
         }
 
         // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
@@ -486,6 +495,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 인류 전용(사용자 요청, 2026-07-22) — Goal_TrapResponse를 인류 전용으로 좁힌 것과 맞춰, 몬스터는
     // 이 자동 트리거로도 함정에 전혀 영향받지 않는다(우연히 밟아도 무해 — Passable 태그 그대로 그냥
     // 지나간다).
+    private void TryTriggerOffenseForUnit(Unit unit)
+    {
+        Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+        if (roomGrid.TryGetValue(gridPos, out Room room) && room.RoomFaction == FactionType.Wild)
+            _offenseProcessor?.TryStartOffense(room, unit);
+    }
+
     private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
     {
         if (!(unit is Human)) return;
