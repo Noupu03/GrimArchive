@@ -3,7 +3,7 @@
 public class UnitVisual : MonoBehaviour
 {
 	// 이 GameObject가 표현하는 논리 유닛(ScriptableObject) 참조 — UnitGenerate.SetupUnitVisual에서
-	// 설정한다. 인스펙터에서 유닛을 선택했을 때 개인 지도(Human.GetComponent<MemoryComponent>().personalMap)를 볼 수 있게 하려고 둔다
+	// 설정한다. 인스펙터에서 유닛을 선택했을 때 개인 지도(Human.Memory.personalMap)를 볼 수 있게 하려고 둔다
 	// (Assets/Editor/UnitVisualEditor.cs 참고).
 	public Unit boundUnit;
 

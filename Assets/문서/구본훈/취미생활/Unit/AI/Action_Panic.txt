@@ -1,0 +1,59 @@
+클래스명: Action_Panic (GoapAction)
+태그: Action_Panic
+경로: Assets/Script/Unit/AI/Actions.cs
+의도: Action_Panic의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - GoapAction 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - PickFreeApproachTile(): Vector2Int 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - ExecuteSkillActionBased(): void 반환
+  - IsValid(): bool 반환
+  - IsDisarmWorthy(): bool 반환
+  - IsBlockingPath(): bool 반환
+  - ComputeIsBlockingPath(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환

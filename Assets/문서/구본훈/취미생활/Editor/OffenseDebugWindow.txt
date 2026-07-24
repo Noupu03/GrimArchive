@@ -1,0 +1,17 @@
+클래스명: OffenseDebugWindow (EditorWindow)
+태그: OffenseDebugWindow
+경로: Assets/Script/Editor/OffenseDebugWindow.cs
+의도: OffenseDebugWindow의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - EditorWindow 상속 및 구현
+
+변수:
+  - _gameSession: GameSession 타입 데이터
+  - _customWaveCooldown: float 타입 데이터
+  - _addResourceAmount: int 타입 데이터
+  - _dummyRoom: Room 타입 데이터
+
+함수:
+  - ShowWindow(): void 반환
+  - OnGUI(): void 반환

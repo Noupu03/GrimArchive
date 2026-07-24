@@ -1,0 +1,16 @@
+클래스명: OffenseProcessor
+태그: OffenseProcessor
+경로: Assets/Script/Unit/Core/OffenseProcessor.cs
+의도: OffenseProcessor의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _colorizer: IMapColorizer 타입 데이터
+
+함수:
+  - StartOffense(): void 반환
+  - UpdateProcess(): void 반환
+  - FailOffense(): void 반환
+  - OnOffenseSuccess(): void 반환

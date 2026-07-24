@@ -1,0 +1,13 @@
+클래스명: SetupStatusInfoPanel
+태그: SetupStatusInfoPanel
+경로: Assets/Script/Editor/SetupStatusInfoPanel.cs
+의도: SetupStatusInfoPanel의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - Setup(): void 반환

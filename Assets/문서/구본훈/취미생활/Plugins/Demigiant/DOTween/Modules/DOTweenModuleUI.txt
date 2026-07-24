@@ -1,0 +1,24 @@
+클래스명: DOTweenModuleUI
+태그: UI
+경로: Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUI.cs
+의도: 사용자 인터페이스(UI) 중 DOTweenModule 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - DOGradientColor(): Sequence 반환
+  - DOPunchAnchorPos(): Tweener 반환
+  - DOShakeAnchorPos(): Tweener 반환
+  - DOShakeAnchorPos(): Tweener 반환
+  - DOJumpAnchorPos(): Sequence 반환
+  - DONormalizedPos(): Tweener 반환
+  - DOHorizontalNormalizedPos(): Tweener 반환
+  - DOVerticalNormalizedPos(): Tweener 반환
+  - DOBlendableColor(): Tweener 반환
+  - DOBlendableColor(): Tweener 반환
+  - DOBlendableColor(): Tweener 반환
+  - SwitchToRectTransform(): Vector2 반환

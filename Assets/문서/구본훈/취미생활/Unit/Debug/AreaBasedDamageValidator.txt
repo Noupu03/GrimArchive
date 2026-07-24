@@ -1,0 +1,19 @@
+클래스명: AreaBasedDamageValidator (MonoBehaviour)
+태그: AreaBasedDamageValidator
+경로: Assets/Script/Unit/Debug/AreaBasedDamageValidator.cs
+의도: AreaBasedDamageValidator의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - _gameSession: GameSession 타입 데이터
+  - Session: GameSession 타입 데이터
+  - testInterval: float 타입 데이터
+  - testTimer: float 타입 데이터
+  - showLogging: bool 타입 데이터
+
+함수:
+  - ValidateAreaBasedDamage(): void 반환
+  - TestOverlapCalculation(): void 반환
+  - TestPartialVsFullHit(): void 반환

@@ -86,21 +86,12 @@ public class UIManager : MonoBehaviour
         /*// 4. 유닛 머리 위 디버그 텍스트 (카메라 프로젝션 적용, 카메라를 따라 같이 이동함)
         foreach (var u in _gameSession.units)
         {
-            if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
+            if (u == null || u.Health.hp <= 0) continue;
 
             Vector3 screenPos = Camera.main.WorldToScreenPoint(new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + u.unitType.footprint.y + 0.5f, 0));
             if (screenPos.z > 0)
             {
-                string actionName = "Idle";
-                if (u.brain != null)
-                {
-                    var field = typeof(GoapBrain).GetField("currentPlannedAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    if (field != null)
-                    {
-                        var action = field.GetValue(u.brain) as GoapAction;
-                        if (action != null) actionName = action.ActionName;
-                    }
-                }
+                string actionName = u.fsm != null ? u.fsm.GetLabel(u) : "Idle";
 
                 string debugText = $"{u.unitType.typeName}\n{actionName}";
                 if (InputManager.Instance != null && InputManager.Instance.selectedUnit == u)
@@ -136,7 +127,7 @@ public class UIManager : MonoBehaviour
 
             foreach (var u in party.members)
             {
-                if (u == null || u.GetComponent<HealthComponent>().hp <= 0) continue;
+                if (u == null || u.Health.hp <= 0) continue;
                 humanCount++;
                 totalMental += u.currentMental;
                 if (u.currentMental < u.baseMental * 0.3f)

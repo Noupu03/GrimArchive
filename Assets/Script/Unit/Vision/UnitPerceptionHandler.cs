@@ -6,7 +6,7 @@ public class UnitPerceptionHandler : IVisionTileHandler
     {
         if (context.Session != null && context.Session.unitGrid.TryGetValue(tile, out Unit unit))
         {
-            if (unit != null && unit != observer && unit.GetComponent<HealthComponent>().hp > 0)
+            if (unit != null && unit != observer && unit.Health.hp > 0)
             {
                 bool isEnemy = observer.IsEnemy(unit);
                 if (isEnemy)
@@ -23,10 +23,10 @@ public class UnitPerceptionHandler : IVisionTileHandler
                             {
                                 float danger = observer.Knowledge.GetPersonalDanger(human, unit);
                                 float interest = observer.Knowledge.GetPersonalInterest(human, unit);
-                                human.GetComponent<MemoryComponent>().personalMap.ObserveMonster(unit.name, tile, danger, interest);
+                                human.Memory.personalMap.ObserveMonster(unit.name, tile, danger, interest);
 
                                 bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
-                                human.GetComponent<MemoryComponent>().personalMap.ObserveUnitInRoom(chunk.roomId, isBossRoom, unit.name, danger, interest);
+                                human.Memory.personalMap.ObserveUnitInRoom(chunk.roomId, isBossRoom, unit.name, danger, interest);
                             }
                         }
                     }

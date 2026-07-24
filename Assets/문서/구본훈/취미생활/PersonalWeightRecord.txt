@@ -1,8 +1,0 @@
-[스크립트 이름]: PersonalWeightRecord
-[스크립트의 목적]: (추가 주석 필요)
-[의존성과 상속같은 관계]: 없음
-[변수]: PersonalWeightRecord, TargetId, Type, StoredValue, AppliedValue, LastInfoType, MentalStateAtRecord
-[함수 및 목적]:
- - PersonalWeightRecord: (목적 설명 없음)
- - MakeKey: (목적 설명 없음)
---------------------------------------------------

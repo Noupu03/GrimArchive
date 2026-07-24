@@ -105,7 +105,7 @@ public class Projectile : MonoBehaviour
     private void ApplyHitEffect(Unit enemy, float overlapRatio)
     {
         // 1. 데미지 계산 및 적용 (점유율 보정)
-        float baseDamage = Mathf.Max(1f, _attacker.GetComponent<CombatStatComponent>().physicalAttack * _skillData.damageMultiplier);
+        float baseDamage = Mathf.Max(1f, _attacker.CombatStat.physicalAttack * _skillData.damageMultiplier);
         float finalDamage = Mathf.Max(1f, baseDamage * overlapRatio);
         enemy.TakePhysicalDamage(finalDamage, _attacker);
         

@@ -35,26 +35,6 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
     {
     }
 
-    private void Update()
-    {
-        if (HumanWaveManager.Instance != null && waveTimerText != null)
-        {
-            waveTimerText.text = $"다음 인류 웨이브: {HumanWaveManager.Instance.cooldownTimer:F1}초";
-        }
-
-        if (ResourceManager.Instance != null)
-        {
-            if (resourceWoodText != null) resourceWoodText.text = $"Wood: {ResourceManager.Instance.GetResourceAmount(ResourceType.Wood)}";
-            if (resourceStoneText != null) resourceStoneText.text = $"Stone: {ResourceManager.Instance.GetResourceAmount(ResourceType.Stone)}";
-            if (resourceGoldText != null) resourceGoldText.text = $"Gold: {ResourceManager.Instance.GetResourceAmount(ResourceType.Gold)}";
-        }
-
-        if (ResourceAccumulator.Instance != null && resourceBText != null)
-        {
-            resourceBText.text = $"임시 누적 자원(B): {ResourceAccumulator.Instance.AccumulatedResourceB}";
-        }
-    }
-
     // DebugInfoPanel의 우상단 UI(시야 표시 토글 y10~50, 선택 유닛 정보창)와 겹치지 않도록 이 박스는
     // y50부터 시작해서 충분한 높이(300)까지만 쓰고, DebugInfoPanel 쪽을 그 아래(y360~)로 내렸다
     // (사용자 요청 "UI 배치들 겹치지 않게 정리", 2026-07-23).
@@ -92,7 +72,7 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
             GUI.color = Color.red;
             GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {Session.OffenseProcessor.currentOffenseRoom.RoomName}");
             GUI.color = Color.white;
-        }*/
+        }
 
         GUILayout.Space(6);
         GUILayout.Label("<size=14><b>[ 자원 사용 안내 ]</b></size>");

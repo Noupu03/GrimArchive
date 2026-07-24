@@ -1,0 +1,13 @@
+클래스명: AnimationEventVfxSpawner (MonoBehaviour)
+태그: AnimationEventVfxSpawner
+경로: Assets/Script/Unit/Visual/AnimationEventVfxSpawner.cs
+의도: AnimationEventVfxSpawner의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - vfxEvents: List<VfxEventDefinition> 타입 데이터
+
+함수:
+  - OnVfxEvent(): void 반환

@@ -1,0 +1,21 @@
+클래스명: AStarMovement (IMovementAlgorithm)
+태그: AStarMovement
+경로: Assets/Script/Unit/Movement/AStarMovement.cs
+의도: AStarMovement의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IMovementAlgorithm 상속 및 구현
+
+변수:
+  - Pos: Vector2Int 타입 데이터
+  - Parent: AStarNode 타입 데이터
+  - GCost: int 타입 데이터
+  - HCost: int 타입 데이터
+  - FCost: int 타입 데이터
+
+함수:
+  - TryGetNextStep(): bool 반환
+  - IsTileWalkable(): bool 반환
+  - IsCoordBlocked(): bool 반환
+  - GetHeuristic(): int 반환
+  - TryFallbackMove(): bool 반환

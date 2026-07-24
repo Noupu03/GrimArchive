@@ -1,0 +1,16 @@
+클래스명: HaareDemoSetup
+태그: HaareDemoSetup
+경로: Assets/Editor/HaareDemoSetup.cs
+의도: HaareDemoSetup의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - readonly(): static 반환
+  - SetupHaareDemoAddressables(): void 반환
+  - RemoveHaareDemoAddressables(): void 반환
+  - RegisterEntry(): void 반환

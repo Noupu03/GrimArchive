@@ -1,0 +1,13 @@
+클래스명: FXFlatLabGUI (ShaderGUI)
+태그: UI
+경로: Assets/VFX/Shader/Editor/FXAllInOneLabGUI.cs
+의도: 사용자 인터페이스(UI) 중 FXFlatLabG 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - ShaderGUI 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - OnGUI(): void 반환

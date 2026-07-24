@@ -29,7 +29,7 @@ public class WildBaseSpawnerComponent : IUnitComponent
         // HAARE 프레임워크 (Native Routine): UniTask 기반 스폰 루프 실행
         SpawnLoop(_cts.Token).Forget();
         
-        Debug.Log($"[WildBaseSpawnerComponent] 야생 거점 스포너 모듈이 부착되었습니다. (부착된 유닛 체력: {_owner.GetComponent<HealthComponent>().hp})");
+        Debug.Log($"[WildBaseSpawnerComponent] 야생 거점 스포너 모듈이 부착되었습니다. (부착된 유닛 체력: {_owner.Health.hp})");
     }
 
     private async UniTaskVoid SpawnLoop(CancellationToken token)
@@ -40,7 +40,7 @@ public class WildBaseSpawnerComponent : IUnitComponent
             await UniTask.Delay(System.TimeSpan.FromSeconds(_spawnInterval), cancellationToken: token);
             
             // 살아있을 때만 스폰 타이머 작동 (GOAP AI는 돌리지 않음)
-            if (_owner == null || _owner.GetComponent<HealthComponent>().hp <= 0)
+            if (_owner == null || _owner.Health.hp <= 0)
             {
                 break; // 거점 파괴 시 루프 종료
             }

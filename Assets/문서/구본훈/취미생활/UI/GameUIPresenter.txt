@@ -1,0 +1,13 @@
+클래스명: GameUIPresenter (UIPresenter)
+태그: UI
+경로: Assets/Script/UI/GameUIPresenter.cs
+의도: 사용자 인터페이스(UI) 중 GamePresenter 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - UIPresenter 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - PostInitialize(): void 반환

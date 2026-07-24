@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
@@ -8,9 +8,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public new GameSession Session => base.Session;
 	public override void TakeDamage(float damage)
 	{
-		float prevHp = GetComponent<HealthComponent>().hp;
-		GetComponent<HealthComponent>().hp -= damage;
-		GetComponent<CombatStateComponent>().State.isHitThisTurn = true;
+		float prevHp = Health.hp;
+		Health.hp -= damage;
+		CombatState.State.isHitThisTurn = true;
 		if (this.Generate != null) this.Generate.TriggerHitEffect(this);
 	}
 
@@ -23,7 +23,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		if (rawDamage > 0f)
 		{
-			float damage = Mathf.Max(1f, rawDamage - GetComponent<CombatStatComponent>().physicalDefense);
+			float damage = Mathf.Max(1f, rawDamage - CombatStat.physicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
 		}
@@ -38,7 +38,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		if (rawDamage > 0f)
 		{
-			float damage = Mathf.Max(1f, rawDamage - GetComponent<CombatStatComponent>().magicalDefense);
+			float damage = Mathf.Max(1f, rawDamage - CombatStat.magicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
 		}
@@ -67,14 +67,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (defenderIsHuman)
 		{
 			// 02문서 17장: "피격 사실/피해량은 확정되지만 공격자 정체는 별도 인지 판정이 필요하다."
-			// GetComponent<HealthComponent>().hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
+			// Health.hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
 			// 이벤트만 인지 판정으로 게이팅한다 — IsAttackerIdentified가 4장 조건5(피격 시 공격 후
 			// 가시성 증가를 반영한 즉시 재판정)를 강제로 수행한다.
 			bool attackerIdentified = IsAttackerIdentified(attacker);
 			if (attackerIdentified)
 			{
 				// "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
-				if (appliedDamage >= GetComponent<BaseStatComponent>().heavyHitThreshold)
+				if (appliedDamage >= BaseStat.heavyHitThreshold)
 				{
 					this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
 					BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
@@ -105,7 +105,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 02문서 4장 조건5/26장("인지 판정: 인류/몬스터 공통 사용"): 이 RecordEvent 자체는 게이팅
 			// 대상이 아니다(attacker=인류가 이미 자기 공격 대상을 스스로 알고 있음) — 다만 몬스터(this)
 			// 쪽 인지 판정도 인류와 동일하게 "피격 시 재판정" 트리거를 받아야 하므로, 게이팅 없이
-			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 GetComponent<PerceptionComponent>().State.personalSpottedEnemies 등에 반영될 수 있게).
+			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 Perception.State.personalSpottedEnemies 등에 반영될 수 있게).
 			ForceReidentifyAttacker(attacker);
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
@@ -123,7 +123,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (attacker == null) return;
 
 		float dist = Vector2.Distance(position, attacker.position);
-		float effectiveSpotting = GetComponent<VisionStatComponent>().spotting + (GetComponent<PerceptionComponent>().IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
+		float effectiveSpotting = VisionStat.spotting + (Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 		float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
 
@@ -204,7 +204,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 한다 — RecordStatusWeightEvent는 RecordHitWeightEvent와 같은 피격 시퀀스 안에서 호출되므로(4장:
 	// 같은 트리거를 또 재판정하지 않는다) 새 판정이 아니라 조회여야 한다.
 	private bool IsCurrentlyIdentified(Unit target)
-		=> target != null && GetComponent<PerceptionComponent>().State.perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
+		=> target != null && Perception.State.perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
 
 	// 3장 "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정(그 순간 그 자리를 보고
 	// 있었는지)은 아직 없어서, GameSession.RecordKillWeightEvent와 동일하게 "그 순간 생존해 있는
@@ -215,7 +215,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (Session == null || this.Knowledge == null) return;
 		foreach (var witness in Session.units)
 		{
-			if (witness == null || witness == participant || !(witness is Human) || witness.GetComponent<HealthComponent>().hp <= 0) continue;
+			if (witness == null || witness == participant || !(witness is Human) || witness.Health.hp <= 0) continue;
 			this.Knowledge.RecordEvent(id, witness, target, InfoType.DirectWitness, incidentId);
 		}
 	}
@@ -224,17 +224,17 @@ public abstract class UnitFunction : Unit, IVisionContext
 	{
 		if (this is Human)
 		{
-			int prevStage = Mathf.FloorToInt(GetComponent<BaseStatComponent>().mental / (GetComponent<BaseStatComponent>().maxMental * 0.25f));
-			GetComponent<BaseStatComponent>().mental -= rawDamage; // 정신력만 감소
-			int currentStage = Mathf.FloorToInt(GetComponent<BaseStatComponent>().mental / (GetComponent<BaseStatComponent>().maxMental * 0.25f));
-			GetComponent<CombatStateComponent>().State.isHitThisTurn = true;
+			int prevStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
+			BaseStat.mental -= rawDamage; // 정신력만 감소
+			int currentStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
+			CombatState.State.isHitThisTurn = true;
 		}
 	}
 
-	public override void ApplyStun(float duration)   { GetComponent<StatusEffectsComponent>().State.stunDuration   = Mathf.Max(GetComponent<StatusEffectsComponent>().State.stunDuration,   duration); RecordStatusWeightEvent(); }
-	public override void ApplySlow(float duration)   { GetComponent<StatusEffectsComponent>().State.slowDuration   = Mathf.Max(GetComponent<StatusEffectsComponent>().State.slowDuration,   duration); RecordStatusWeightEvent(); }
-	public override void ApplyPoison(float duration) { GetComponent<StatusEffectsComponent>().State.poisonDuration = Mathf.Max(GetComponent<StatusEffectsComponent>().State.poisonDuration, duration); RecordStatusWeightEvent(); }
-	public override void ApplyBurn(float duration)   { GetComponent<StatusEffectsComponent>().State.burnDuration   = Mathf.Max(GetComponent<StatusEffectsComponent>().State.burnDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplyStun(float duration)   { StatusEffects.State.stunDuration   = Mathf.Max(StatusEffects.State.stunDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplySlow(float duration)   { StatusEffects.State.slowDuration   = Mathf.Max(StatusEffects.State.slowDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplyPoison(float duration) { StatusEffects.State.poisonDuration = Mathf.Max(StatusEffects.State.poisonDuration, duration); RecordStatusWeightEvent(); }
+	public override void ApplyBurn(float duration)   { StatusEffects.State.burnDuration   = Mathf.Max(StatusEffects.State.burnDuration,   duration); RecordStatusWeightEvent(); }
 
 	// 3장 E_STATUS_SELF/SEEN: 상태이상 직접 경험/목격. 실제 게임에서 걸리는 상태이상은 현재 스턴뿐이라
 	// (SkillAction/Projectile이 ApplyStun만 호출) 사실상 스턴 적용 시점에서만 발동하지만, 나중에
@@ -319,7 +319,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
 				{
-					if (u != null && u != this && u.GetComponent<HealthComponent>().hp > 0) return false;
+					if (u != null && u != this && u.Health.hp > 0) return false;
 				}
 
 
@@ -378,9 +378,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
 		_reachedPerceptionThisPass[key] = (dist, tile);
 		if (!firstTouchThisPass)
-			return GetComponent<PerceptionComponent>().State.perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
+			return Perception.State.perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
 
-		GetComponent<PerceptionComponent>().State.perceptionRecords.TryGetValue(key, out var existing);
+		Perception.State.perceptionRecords.TryGetValue(key, out var existing);
 
 		// 4장 조건1/2/3: 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
 		bool isNewOrReentering = existing == null || !existing.WasInRange;
@@ -409,10 +409,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 한 곳에서 가드하면 모든 호출 경로에 일괄 적용된다.
 		if (!CanPerceive)
 		{
-			if (!GetComponent<PerceptionComponent>().State.perceptionRecords.TryGetValue(key, out var frozen))
+			if (!Perception.State.perceptionRecords.TryGetValue(key, out var frozen))
 			{
 				frozen = new PerceptionRecord();
-				GetComponent<PerceptionComponent>().State.perceptionRecords[key] = frozen;
+				Perception.State.perceptionRecords[key] = frozen;
 			}
 			frozen.WasInRange = true;
 			frozen.LastKnownTile = tile;
@@ -420,18 +420,18 @@ public abstract class UnitFunction : Unit, IVisionContext
 			return frozen.Outcome;
 		}
 
-		float detectionCorrection = PerceptionMath.DetectionCorrection(GetComponent<VisionStatComponent>().spotting, GetComponent<PerceptionComponent>().IsAlert);
+		float detectionCorrection = PerceptionMath.DetectionCorrection(VisionStat.spotting, Perception.IsAlert);
 		float mentalCorrection = GetMentalVisibilityCorrection();
 		float total = PerceptionMath.TotalPerceptionVisibility(targetVisibility, detectionCorrection, mentalCorrection);
 		PerceptionOutcome outcome = PerceptionMath.RollOutcome(total, Random.value);
 
-		if (!GetComponent<PerceptionComponent>().State.perceptionRecords.TryGetValue(key, out var record))
+		if (!Perception.State.perceptionRecords.TryGetValue(key, out var record))
 		{
 			record = new PerceptionRecord();
-			GetComponent<PerceptionComponent>().State.perceptionRecords[key] = record;
+			Perception.State.perceptionRecords[key] = record;
 		}
 		bool nowSuspicious = outcome == PerceptionOutcome.SuspiciousTile;
-		GetComponent<PerceptionComponent>().NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // GetComponent<PerceptionComponent>().IsAlert 카운터 O(1) 유지
+		Perception.NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // Perception.IsAlert 카운터 O(1) 유지
 		record.Outcome = outcome;
 		record.WasInRange = true;
 		record.LastKnownTile = tile;
@@ -458,11 +458,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 	}
 	
 	public bool HasReachedPerceptionThisPass(object key) => _reachedPerceptionThisPass.ContainsKey(key);
-	public bool HasVisionOnlyNonEmptyTile(Vector3Int tile) => GetComponent<PerceptionComponent>().State.visionOnlyNonEmptyTiles.Contains(tile);
-	public void AddVisionOnlyNonEmptyTile(Vector3Int tile) => GetComponent<PerceptionComponent>().State.visionOnlyNonEmptyTiles.Add(tile);
+	public bool HasVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Contains(tile);
+	public void AddVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Add(tile);
 	public void AddPersonalSpottedEnemy(Unit unit)
 	{
-		if (!GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Contains(unit)) GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Add(unit);
+		if (!Perception.State.personalSpottedEnemies.Contains(unit)) Perception.State.personalSpottedEnemies.Add(unit);
 	}
 
 	private IVisionTileHandler[] _visionHandlers = new IVisionTileHandler[]
@@ -516,9 +516,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
 			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;
+			Human terrainObserver = this as Human;
 
 			foreach (var handler in _visionHandlers)
 			{
+				if (terrainObserver == null) continue;
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
 				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 
@@ -591,6 +593,25 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 			}
 
+			// 유닛 인지 — _visionHandlers의 foreach가 handler.Handle()을 호출하지 않아
+			// UnitPerceptionHandler가 데드 코드 상태이므로 직접 처리한다.
+			// 인류·몬스터 모두 동작해야 전투가 성립된다.
+			if (Session != null && Session.unitGrid.TryGetValue(revealedTile, out Unit unitAtTile)
+				&& unitAtTile != null && unitAtTile != this && unitAtTile.Health.hp > 0
+				&& this.IsEnemy(unitAtTile))
+			{
+				if (inPerceptionRange)
+				{
+					PerceptionOutcome unitOutcome = ResolveReachedTarget(unitAtTile, unitAtTile.GetFinalVisibility(), revealedTile, dist, out bool _);
+					if (unitOutcome == PerceptionOutcome.AccuratePerception)
+						AddPersonalSpottedEnemy(unitAtTile);
+				}
+				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
+				{
+					visionOnlyNonEmptyTiles.Add(revealedTile);
+				}
+			}
+
 
 			/*=======아티팩트 관련 참조 주석처리========
 			// 유물 발견
@@ -642,8 +663,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void UpdateFOV(List<Unit> allUnits)
 	{
-		GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Clear();
-		GetComponent<PerceptionComponent>().State.visionOnlyNonEmptyTiles.Clear();
+		Perception.State.personalSpottedEnemies.Clear();
+		Perception.State.visionOnlyNonEmptyTiles.Clear();
 		_reachedPerceptionThisPass.Clear();
 
 		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
@@ -656,7 +677,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(spotting)에 따라 결정된다.
 		// 02문서 10장: 경계 중에는 감지 보정(+20)이 인지 판정뿐 아니라 시야 거리/인지 거리/인지각에도 반영된다.
 		float viewAngle          = VisionMath.BaseViewAngleDeg;
-		float effectiveSpotting  = GetComponent<VisionStatComponent>().spotting + (GetComponent<PerceptionComponent>().IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+		float effectiveSpotting  = VisionStat.spotting + (Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
 		float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
 		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
@@ -694,7 +715,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 벽에는 여전히 막힌다(원형 인지 범위는 "각도 무관"일 뿐 "완전 차단 무시"는 아니다 — 01장 15절).
 		if (isSpecialUnit)
 		{
-			int circularRadius = VisionMath.CircularPerceptionRadius(GetComponent<VisionStatComponent>().spotting);
+			int circularRadius = VisionMath.CircularPerceptionRadius(VisionStat.spotting);
 			int circularRays = 32;
 			for (int i = 0; i < circularRays; i++)
 			{
@@ -707,7 +728,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "지금 안 보인다"로 내려둔다 — Outcome(정확 인지/수상한 타일/미인식) 자체는 건드리지 않고
 		// WasInRange만 false로 바꿔서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입/완전 차단
 		// 후 재등장 트리거로 인식하게 한다.
-		foreach (var kv in GetComponent<PerceptionComponent>().State.perceptionRecords)
+		foreach (var kv in Perception.State.perceptionRecords)
 		{
 			if (!_reachedPerceptionThisPass.ContainsKey(kv.Key))
 				kv.Value.WasInRange = false;
@@ -724,10 +745,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 	{
 		var candidates = new List<VisionMath.VisionDirectionCandidate>();
 
-		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(GetComponent<CombatStateComponent>().State.currentAttackAngle) 기준.
-		if (GetComponent<CombatStateComponent>().State.isCastingAttack)
+		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(CombatState.State.currentAttackAngle) 기준.
+		if (CombatState.State.isCastingAttack)
 		{
-			Vector2 aimDir = new Vector2(Mathf.Cos(GetComponent<CombatStateComponent>().State.currentAttackAngle), Mathf.Sin(GetComponent<CombatStateComponent>().State.currentAttackAngle));
+			Vector2 aimDir = new Vector2(Mathf.Cos(CombatState.State.currentAttackAngle), Mathf.Sin(CombatState.State.currentAttackAngle));
 			Dir skillDir = SkillAction.GetDirection8(new Vector2Int(Mathf.RoundToInt(aimDir.x), Mathf.RoundToInt(aimDir.y)));
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SkillUse, skillDir));
 		}
@@ -741,7 +762,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// (InputManager.cs 세터, Goals.cs 주석 "수동 공격 명령은 최우선" 참고)이라 10장 "플레이어의
 		// 명령에 대한 시야 전환은 항상 최우선 순위가 된다"는 특례를 그대로 적용한다(사용자 확인,
 		// 2026-07-22 — 이전엔 4순위 CurrentAttackTarget으로 분류돼 있었음).
-		if (playerAttackTarget != null && playerAttackTarget.GetComponent<HealthComponent>().hp > 0)
+		if (playerAttackTarget != null && playerAttackTarget.Health.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
 		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
@@ -749,9 +770,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
 		// 죽은 값이었다(소비자 부재) — "경로 판단" 절반은 여전히 10_목표설정·이동경로·재설정 문서
 		// (부재)의 몫이지만, "탐색 방향 판단" 절반은 이 시야 방향 전환 후보로 지금 바로 충족 가능해
-		// 연결한다. GetComponent<PerceptionComponent>().State.visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
+		// 연결한다. Perception.State.visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
 		// 안 들어온 "비어있지 않은 타일" 목록 그대로다.
-		var nearestUnconfirmedTile = NearestTile(GetComponent<PerceptionComponent>().State.visionOnlyNonEmptyTiles);
+		var nearestUnconfirmedTile = NearestTile(Perception.State.visionOnlyNonEmptyTiles);
 		if (nearestUnconfirmedTile.HasValue)
 		{
 			var t = nearestUnconfirmedTile.Value;
@@ -762,7 +783,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
 		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
 		// 전환만 이 판정 결과에서 직접 나온다.
-		var nearestSuspiciousTile = NearestTile(GetComponent<PerceptionComponent>().State.perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
+		var nearestSuspiciousTile = NearestTile(Perception.State.perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
 		if (nearestSuspiciousTile.HasValue)
 		{
 			var t = nearestSuspiciousTile.Value;
@@ -803,7 +824,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (Session == null) return null;
 		foreach (Unit u in Session.units)
 		{
-			if (u == null || u == this || u.GetComponent<HealthComponent>().hp <= 0) continue;
+			if (u == null || u == this || u.Health.hp <= 0) continue;
 			bool isEnemy = this.IsEnemy(u);
 			if (!isEnemy) continue;
 			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u; // 1칸 이내(대각 포함)
@@ -815,20 +836,20 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnUpdate(float deltaTime)
 	{
-		// 기본 스탯(GetComponent<CombatStatComponent>().physicalAttack/GetComponent<VisionStatComponent>().spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
-		// 그로부터 파생되는 스탯(GetComponent<BaseStatComponent>().sterngth/GetComponent<BaseStatComponent>().agility/GetComponent<BaseStatComponent>().sense 등, CalculateDerivedStats 참고)도 매 프레임
+		// 기본 스탯(CombatStat.physicalAttack/VisionStat.spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
+		// 그로부터 파생되는 스탯(BaseStat.sterngth/BaseStat.agility/BaseStat.sense 등, CalculateDerivedStats 참고)도 매 프레임
 		// 다시 계산해서 항상 최신 기본 스탯을 반영하게 한다. 순수 사칙연산이라 유닛 수가 많아도
 		// 부담이 거의 없다(할당 없음, Mathf.Clamp 수십 번 수준) — 별도의 "변경 감지"용 캐시/이벤트
 		// 없이 매번 새로 계산하는 쪽이 오히려 더 단순하고 저렴하다.
 		CalculateDerivedStats();
 
-		if (GetComponent<StatusEffectsComponent>().State.stunDuration   > 0f) GetComponent<StatusEffectsComponent>().State.stunDuration   -= deltaTime;
-		if (GetComponent<StatusEffectsComponent>().State.slowDuration   > 0f) GetComponent<StatusEffectsComponent>().State.slowDuration   -= deltaTime;
-		if (GetComponent<StatusEffectsComponent>().State.poisonDuration > 0f) { GetComponent<StatusEffectsComponent>().State.poisonDuration -= deltaTime; GetComponent<HealthComponent>().hp -= 1f * deltaTime; }
-		if (GetComponent<StatusEffectsComponent>().State.burnDuration   > 0f) { GetComponent<StatusEffectsComponent>().State.burnDuration   -= deltaTime; GetComponent<HealthComponent>().hp -= 1f * deltaTime; }
+		if (StatusEffects.State.stunDuration   > 0f) StatusEffects.State.stunDuration   -= deltaTime;
+		if (StatusEffects.State.slowDuration   > 0f) StatusEffects.State.slowDuration   -= deltaTime;
+		if (StatusEffects.State.poisonDuration > 0f) { StatusEffects.State.poisonDuration -= deltaTime; Health.hp -= 1f * deltaTime; }
+		if (StatusEffects.State.burnDuration   > 0f) { StatusEffects.State.burnDuration   -= deltaTime; Health.hp -= 1f * deltaTime; }
 
 		// 01-A 9장: 공격 후 가시성 상승 지속시간 감소 (SkillAction.BeginAttackCast가 공격 실행 시 세팅)
-		if (GetComponent<VisionStatComponent>().attackVisibilityBoostTimer > 0f) GetComponent<VisionStatComponent>().attackVisibilityBoostTimer = Mathf.Max(0f, GetComponent<VisionStatComponent>().attackVisibilityBoostTimer - deltaTime);
+		if (VisionStat.attackVisibilityBoostTimer > 0f) VisionStat.attackVisibilityBoostTimer = Mathf.Max(0f, VisionStat.attackVisibilityBoostTimer - deltaTime);
 
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
 		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
@@ -846,16 +867,16 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			if (this is Human human && Session != null && CanPerceive)
 			{
-				foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownDangerTiles.ToList())
+				foreach (var tile in human.Memory.personalMap.KnownDangerTiles.ToList())
 				{
 					bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
-						&& occupant.GetComponent<HealthComponent>().hp > 0f && human.GetComponent<PerceptionComponent>().State.personalSpottedEnemies.Contains(occupant);
-					human.GetComponent<MemoryComponent>().personalMap.TickTileSafety(tile, threatPresent, _safetyTickTimer);
+						&& occupant.Health.hp > 0f && human.Perception.State.personalSpottedEnemies.Contains(occupant);
+					human.Memory.personalMap.TickTileSafety(tile, threatPresent, _safetyTickTimer);
 				}
 
-				foreach (var tile in human.GetComponent<MemoryComponent>().personalMap.KnownInterestTiles.ToList())
+				foreach (var tile in human.Memory.personalMap.KnownInterestTiles.ToList())
 				{
-					human.GetComponent<MemoryComponent>().personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
+					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
 				}
 			}
 			_safetyTickTimer = 0f;
@@ -903,52 +924,52 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (hp > 0f)
 			hp = Mathf.Min(maxHp, hp + HPRegen * deltaTime);
 
-		if (GetComponent<CombatStateComponent>().State.evadeCooldown > 0f)
-			GetComponent<CombatStateComponent>().State.evadeCooldown -= Time.deltaTime;
+		if (CombatState.State.evadeCooldown > 0f)
+			CombatState.State.evadeCooldown -= Time.deltaTime;
 
-		if (GetComponent<CombatStateComponent>().State.isCastingAttack)
+		if (CombatState.State.isCastingAttack)
 		{
-			GetComponent<AIStateComponent>().pendingCastUpdate?.Invoke();
+			AIState.pendingCastUpdate?.Invoke();
 			
-			GetComponent<CombatStateComponent>().State.castTimer -= deltaTime;
-			if (GetComponent<CombatStateComponent>().State.castTimer <= 0f)
+			CombatState.State.castTimer -= deltaTime;
+			if (CombatState.State.castTimer <= 0f)
 			{
 				// 공격 타이밍: 반응한 유닛의 VFX(가드·패링) 실행
 				if (Session != null)
 				{
 					foreach (Unit u in Session.units)
 					{
-						if (u == null || u.GetComponent<AIStateComponent>().reactingAttacker != this) continue;
-						u.GetComponent<AIStateComponent>().pendingVFX?.Invoke();
-						u.GetComponent<AIStateComponent>().pendingVFX = null;
+						if (u == null || u.AIState.reactingAttacker != this) continue;
+						u.AIState.pendingVFX?.Invoke();
+						u.AIState.pendingVFX = null;
 					}
 				}
 
-				GetComponent<CombatStateComponent>().State.isCastingAttack = false;
-				GetComponent<AIStateComponent>().currentThreat   = null;
-				GetComponent<AIStateComponent>().pendingAttack?.Invoke();
-				GetComponent<AIStateComponent>().pendingAttack   = null;
-				GetComponent<AIStateComponent>().pendingCastUpdate = null;
+				CombatState.State.isCastingAttack = false;
+				AIState.currentThreat   = null;
+				AIState.pendingAttack?.Invoke();
+				AIState.pendingAttack   = null;
+				AIState.pendingCastUpdate = null;
 
 				if (Session != null)
 				{
 					foreach (Unit u in Session.units)
 					{
 						if (u == null) continue;
-						u.GetComponent<AIStateComponent>().reactedAttackers.Remove(this);
-						if (u.GetComponent<AIStateComponent>().reactingAttacker == this)
+						u.AIState.reactedAttackers.Remove(this);
+						if (u.AIState.reactingAttacker == this)
 						{
-							u.GetComponent<AIStateComponent>().reactingAttacker = null;
-							u.GetComponent<AIStateComponent>().reactingThreat   = null;
+							u.AIState.reactingAttacker = null;
+							u.AIState.reactingThreat   = null;
 						}
 					}
 				}
 			}
 		}
 
-		for (int i = 0; i < GetComponent<CombatStateComponent>().State.skillCooldowns.Length; i++)
+		for (int i = 0; i < CombatState.State.skillCooldowns.Length; i++)
 		{
-			if (GetComponent<CombatStateComponent>().State.skillCooldowns[i] > 0f) GetComponent<CombatStateComponent>().State.skillCooldowns[i] -= deltaTime;
+			if (CombatState.State.skillCooldowns[i] > 0f) CombatState.State.skillCooldowns[i] -= deltaTime;
 		}
 
 		List<ThreatTileData> detectedThreats = DetectThreats();
@@ -957,30 +978,30 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnThreatDetected(List<ThreatTileData> threats)
 	{
-		if (GetComponent<StatusEffectsComponent>().State.stunDuration > 0f) return;
+		if (StatusEffects.State.stunDuration > 0f) return;
 
 		foreach (var threat in threats)
 		{
 			Unit attacker = FindAttackerFromThreat(threat);
 			if (attacker == null) continue;
-			if (GetComponent<AIStateComponent>().reactedAttackers.Contains(attacker)) continue;
+			if (AIState.reactedAttackers.Contains(attacker)) continue;
 
-			float reactionTimeMs  = 30000f / Mathf.Max(1f, GetComponent<BaseStatComponent>().reaction);
+			float reactionTimeMs  = 30000f / Mathf.Max(1f, BaseStat.reaction);
 			float reactionTimeSec = reactionTimeMs / 1000f;
 
-			if (attacker.GetComponent<CombatStateComponent>().State.isCastingAttack)
+			if (attacker.CombatState.State.isCastingAttack)
 			{
-				if (attacker.GetComponent<CombatStateComponent>().State.castTimer >= reactionTimeSec)
+				if (attacker.CombatState.State.castTimer >= reactionTimeSec)
 				{
-					GetComponent<AIStateComponent>().reactedAttackers.Add(attacker);
-					GetComponent<AIStateComponent>().currentReactionWindow = reactionTimeSec;
-					GetComponent<AIStateComponent>().reactingThreat        = threat;
-					GetComponent<AIStateComponent>().reactingAttacker      = attacker;
+					AIState.reactedAttackers.Add(attacker);
+					AIState.currentReactionWindow = reactionTimeSec;
+					AIState.reactingThreat        = threat;
+					AIState.reactingAttacker      = attacker;
 					OnReactToThreat(attacker, threat);
 				}
 				else
 				{
-					GetComponent<AIStateComponent>().reactedAttackers.Add(attacker);
+					AIState.reactedAttackers.Add(attacker);
 					// Failed to react in time - brace for impact (no early damage applied)
 				}
 			}
@@ -999,10 +1020,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
 	{
-		float raw    = attacker.GetComponent<CombatStatComponent>().physicalAttack * multiplier;
-		float damage = Mathf.Max(1f, raw - GetComponent<CombatStatComponent>().physicalDefense);
-		GetComponent<HealthComponent>().hp -= damage;
-		GetComponent<CombatStateComponent>().State.isHitThisTurn = true;
+		float raw    = attacker.CombatStat.physicalAttack * multiplier;
+		float damage = Mathf.Max(1f, raw - CombatStat.physicalDefense);
+		Health.hp -= damage;
+		CombatState.State.isHitThisTurn = true;
 		if (this.Generate != null)
 			this.Generate.TriggerHitEffect(this);
 
@@ -1014,8 +1035,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		foreach (Unit u in Session.units)
 		{
 			if (u == null) continue;
-			if (!u.GetComponent<CombatStateComponent>().State.isCastingAttack) continue;
-			if (u.GetComponent<AIStateComponent>().currentThreat == threat) return u;
+			if (!u.CombatState.State.isCastingAttack) continue;
+			if (u.AIState.currentThreat == threat) return u;
 		}
 		return null;
 	}
@@ -1044,8 +1065,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (u == null || u == this) continue;
 			if (u.currentFloor != currentFloor) continue;
 
-			ThreatTileData threat = u.GetComponent<AIStateComponent>().currentThreat;
-			if (threat == null || !u.GetComponent<CombatStateComponent>().State.isCastingAttack) continue;
+			ThreatTileData threat = u.AIState.currentThreat;
+			if (threat == null || !u.CombatState.State.isCastingAttack) continue;
 
 			if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
 				_cachedThreats.Add(threat);
@@ -1056,14 +1077,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public override bool RollCritical(bool canCritical)
 	{
 		if (!canCritical) return false;
-		return Random.Range(0f, 100f) < GetComponent<CombatStatComponent>().criticalChance;
+		return Random.Range(0f, 100f) < CombatStat.criticalChance;
 	}
 
 	public override float ApplyCriticalDamage(float rawDamage) => Mathf.Floor(rawDamage * 1.5f);
 
 	public virtual void DrawThreatTiles()
 	{
-		if (!GetComponent<CombatStateComponent>().State.isCastingAttack || GetComponent<AIStateComponent>().currentThreat == null) return;
+		if (!CombatState.State.isCastingAttack || AIState.currentThreat == null) return;
 
 		Color color = this is Human ? Color.cyan : Color.red;
 		color.a = 0.8f;
@@ -1072,7 +1093,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			? this.Generate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
-		ThreatTileData threat = GetComponent<AIStateComponent>().currentThreat;
+		ThreatTileData threat = AIState.currentThreat;
 		if (threat == null || threat.hitbox.size == Vector2.zero) return;
 
 		Hitbox  box      = threat.hitbox;

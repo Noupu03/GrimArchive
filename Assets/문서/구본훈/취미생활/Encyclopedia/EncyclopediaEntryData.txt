@@ -1,0 +1,23 @@
+클래스명: EncyclopediaEntryData (ScriptableObject,)
+태그: Data
+경로: Assets/Script/Encyclopedia/EncyclopediaEntryData.cs
+의도: EncyclopediaEntry와 관련된 정적 데이터 및 설정값을 보관하는 데이터 클래스입니다. (자동 분석됨)
+
+관계:
+  - ScriptableObject, 상속 및 구현
+
+변수:
+  - _id: string 타입 데이터
+  - _category: string 타입 데이터
+  - _entryName: string 타입 데이터
+  - _description: string 타입 데이터
+  - _icon: Sprite 타입 데이터
+  - _isUnlocked: bool 타입 데이터
+  - Id: string 타입 데이터
+  - Category: string 타입 데이터
+  - Name: string 타입 데이터
+  - Description: string 타입 데이터
+  - Icon: Sprite 타입 데이터
+
+함수:
+  - 주요 정의 함수 없음

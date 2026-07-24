@@ -308,7 +308,7 @@ public class UnitGenerate
 		List<Unit> deadKeys = new List<Unit>();
 		foreach (var kvp in visualMap)
 		{
-			if (kvp.Key == null || kvp.Key.GetComponent<HealthComponent>().hp <= 0)
+			if (kvp.Key == null || kvp.Key.Health.hp <= 0)
 			{
 				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); _cacheMap.Remove(kvp.Value); }
 				deadKeys.Add(kvp.Key);
@@ -351,7 +351,7 @@ public class UnitGenerate
 
 			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				float duration  = u.GetComponent<BaseStatComponent>().walkSpeed > 0f ? (1f / u.GetComponent<BaseStatComponent>().walkSpeed) : 0.1f;
+				float duration  = u.BaseStat.walkSpeed > 0f ? (1f / u.BaseStat.walkSpeed) : 0.1f;
 				targetPosMap[u] = newPos;
 
 				go.transform.DOKill();
@@ -373,7 +373,7 @@ public class UnitGenerate
 			{
 				// 선택 여부와 무관하게 항상 표시 — GOAP이 앞으로 실행할 계획을 카메라 위치/배율과
 				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel).
-				uv.UpdateStatusLabel(u.brain.PlanText(u), u is Human);
+				uv.UpdateStatusLabel(u.fsm.GetLabel(u), u is Human);
 
 				// 함정 해제 시도 중임을 유닛 하단에 표시(사용자 요청, 2026-07-23) — 머리 위 상태
 				// 라벨과 같은 world-space TextMesh 방식, 위치만 하단으로 뒤집는다.
@@ -392,9 +392,9 @@ public class UnitGenerate
 					if (forward == Vector2.zero) forward = Vector2.down;
 
 					uv.DrawVisionAndPerceptionRange(
-						VisionMath.ViewDistance(u.GetComponent<VisionStatComponent>().spotting), VisionMath.BaseViewAngleDeg,
-						VisionMath.AwarenessDistance(u.GetComponent<VisionStatComponent>().spotting), VisionMath.AwarenessAngle(u.GetComponent<VisionStatComponent>().spotting),
-						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.GetComponent<VisionStatComponent>().spotting),
+						VisionMath.ViewDistance(u.VisionStat.spotting), VisionMath.BaseViewAngleDeg,
+						VisionMath.AwarenessDistance(u.VisionStat.spotting), VisionMath.AwarenessAngle(u.VisionStat.spotting),
+						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.VisionStat.spotting),
 						forward);
 				}
 			}
@@ -449,10 +449,10 @@ public class UnitGenerate
 
 		UnitVisualDefinition visualDef = GetVisualDef(u);
 
-		if (u.GetComponent<CombatStateComponent>().State.suppressHitVFX)
+		if (u.CombatState.State.suppressHitVFX)
 		{
 			if (visualDef != null) u.VFX?.Spawn(visualDef.attackFailPrefab, u);
-			u.GetComponent<CombatStateComponent>().State.suppressHitVFX = false;
+			u.CombatState.State.suppressHitVFX = false;
 		}
 		else
 		{
@@ -520,7 +520,7 @@ public class UnitGenerate
 	{
 		if (Session != null &&
 			Session.unitGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Unit u))
-			return u != null && u.GetComponent<HealthComponent>().hp > 0;
+			return u != null && u.Health.hp > 0;
 		return false;
 	}
 

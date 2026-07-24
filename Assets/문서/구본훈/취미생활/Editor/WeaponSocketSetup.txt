@@ -1,0 +1,17 @@
+클래스명: WeaponSocketSetup (EditorWindow)
+태그: WeaponSocketSetup
+경로: Assets/Editor/WeaponSocketSetup.cs
+의도: WeaponSocketSetup의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - EditorWindow 상속 및 구현
+
+변수:
+  - unitPrefab: GameObject 타입 데이터
+  - weaponSprite: Sprite 타입 데이터
+  - socketName: string 타입 데이터
+
+함수:
+  - ShowWindow(): void 반환
+  - OnGUI(): void 반환
+  - AddWeaponSocket(): void 반환

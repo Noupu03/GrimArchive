@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
@@ -139,7 +139,7 @@ public class ThreatTileRenderer
 			bool shouldRemove =
 				u == null ||
 				!_cachedAliveUnits.Contains(u) ||
-				u.GetComponent<AIStateComponent>().currentThreat == null;
+				u.AIState.currentThreat == null;
 
 			if (shouldRemove)
 			{
@@ -158,10 +158,10 @@ public class ThreatTileRenderer
 		// =====================================
 		foreach (Unit u in units)
 		{
-			if (u == null || u.GetComponent<AIStateComponent>().currentThreat == null)
+			if (u == null || u.AIState.currentThreat == null)
 				continue;
 
-			ThreatTileData threat = u.GetComponent<AIStateComponent>().currentThreat;
+			ThreatTileData threat = u.AIState.currentThreat;
 
 			if (threat.hitbox.size == Vector2.zero)
 				continue;

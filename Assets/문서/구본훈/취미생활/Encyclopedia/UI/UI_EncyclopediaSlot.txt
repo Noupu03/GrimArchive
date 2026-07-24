@@ -1,0 +1,19 @@
+클래스명: UI_EncyclopediaSlot (MonoBehaviour)
+태그: UI
+경로: Assets/Script/Encyclopedia/UI/UI_EncyclopediaSlot.cs
+의도: 사용자 인터페이스(UI) 중 _EncyclopediaSlot 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - _iconImage: Image 타입 데이터
+  - _nameText: TextMeshProUGUI 타입 데이터
+  - _lockOverlay: GameObject 타입 데이터
+  - _button: Button 타입 데이터
+  - _currentEntry: IEncyclopediaEntry 타입 데이터
+  - _parentUI: UI_Encyclopedia 타입 데이터
+
+함수:
+  - SetData(): void 반환
+  - OnClick(): void 반환

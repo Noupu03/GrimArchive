@@ -19,8 +19,8 @@ public abstract class SkillAction
 	public Hitbox BuildSkillHitbox(Unit unit)
 	{
 		if (HitShape == ThreatShape.RECT)
-			return BuildRectHitboxWithAngle(unit, HitWidth, HitDepth, unit.GetComponent<CombatStateComponent>().State.currentAttackAngle);
-		return BuildLineHitboxWithAngle(unit, HitRange, unit.GetComponent<CombatStateComponent>().State.currentAttackAngle);
+			return BuildRectHitboxWithAngle(unit, HitWidth, HitDepth, unit.CombatState.State.currentAttackAngle);
+		return BuildLineHitboxWithAngle(unit, HitRange, unit.CombatState.State.currentAttackAngle);
 	}
 
 	public abstract bool  IsAvailable(Unit unit);
@@ -38,19 +38,19 @@ public abstract class SkillAction
 		System.Action effectAction   = null,
 		System.Action castUpdateAction = null)
 	{
-		unit.GetComponent<CombatStateComponent>().State.isCastingAttack = true;
-		unit.GetComponent<CombatStateComponent>().State.castTimer       = castMs / 1000f;
-		unit.GetComponent<AIStateComponent>().pendingCastUpdate = castUpdateAction;
+		unit.CombatState.State.isCastingAttack = true;
+		unit.CombatState.State.castTimer       = castMs / 1000f;
+		unit.AIState.pendingCastUpdate = castUpdateAction;
 
 		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
 		if (threat.shape == ThreatShape.LINE)
-			threat.hitbox = BuildLineHitboxWithAngle(unit, threat.range, unit.GetComponent<CombatStateComponent>().State.currentAttackAngle);
+			threat.hitbox = BuildLineHitboxWithAngle(unit, threat.range, unit.CombatState.State.currentAttackAngle);
 		else if (threat.shape == ThreatShape.RECT)
-			threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.GetComponent<CombatStateComponent>().State.currentAttackAngle);
+			threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
 
-		unit.GetComponent<AIStateComponent>().currentThreat = threat;
+		unit.AIState.currentThreat = threat;
 
-		unit.GetComponent<AIStateComponent>().pendingAttack = () =>
+		unit.AIState.pendingAttack = () =>
 		{
 			try
 			{
@@ -63,11 +63,11 @@ public abstract class SkillAction
 				cooldownAction?.Invoke();
 
 				// ❗ 여기 중요: 반드시 완전 초기화
-				unit.GetComponent<AIStateComponent>().currentThreat   = null;
-				unit.GetComponent<CombatStateComponent>().State.isCastingAttack = false;
-				unit.GetComponent<AIStateComponent>().pendingAttack   = null;
-				unit.GetComponent<AIStateComponent>().pendingCastUpdate = null;
-				unit.GetComponent<CombatStateComponent>().State.castTimer       = 0f;
+				unit.AIState.currentThreat   = null;
+				unit.CombatState.State.isCastingAttack = false;
+				unit.AIState.pendingAttack   = null;
+				unit.AIState.pendingCastUpdate = null;
+				unit.CombatState.State.castTimer       = 0f;
 			}
 		};
 	}
@@ -80,7 +80,7 @@ public abstract class SkillAction
 
 		foreach (var u in attacker.Session.units)
 		{
-			if (u == null || u == attacker || u.GetComponent<HealthComponent>().hp <= 0) continue;
+			if (u == null || u == attacker || u.Health.hp <= 0) continue;
 			if (u.currentFloor != attacker.currentFloor) continue;
 
 			bool isEnemy = attacker.IsEnemy(u);
@@ -105,7 +105,7 @@ public abstract class SkillAction
 	{
 		foreach (var t in GetEnemiesInHitbox(attacker, box))
 		{
-			t.TakePhysicalDamage(attacker.GetComponent<CombatStatComponent>().physicalAttack * multiplier, attacker);
+			t.TakePhysicalDamage(attacker.CombatStat.physicalAttack * multiplier, attacker);
 			if (stun) t.ApplyStun(stunDuration);
 		}
 	}
@@ -122,7 +122,7 @@ public abstract class SkillAction
 			float  overlapRatio = attackBox.CalculateOverlapRatio(targetBox);
 
 			// 교차 비율에 따라 데미지 조정 (최소 0.1배)
-			float finalDamage = Mathf.Max(1f, attacker.GetComponent<CombatStatComponent>().physicalAttack * Mathf.Max(0.1f, multiplier * overlapRatio));
+			float finalDamage = Mathf.Max(1f, attacker.CombatStat.physicalAttack * Mathf.Max(0.1f, multiplier * overlapRatio));
 			t.TakePhysicalDamage(finalDamage, attacker);
 			if (stun) t.ApplyStun(stunDuration);
 
@@ -142,7 +142,7 @@ public abstract class SkillAction
 			float  overlapRatio = attackBox.CalculateOverlapRatio(targetBox);
 
 			// 교차 비율에 따라 데미지 조정 (최소 0.1배)
-			float finalDamage = Mathf.Max(1f, attacker.GetComponent<CombatStatComponent>().magicalAttack * Mathf.Max(0.1f, multiplier * overlapRatio));
+			float finalDamage = Mathf.Max(1f, attacker.CombatStat.magicalAttack * Mathf.Max(0.1f, multiplier * overlapRatio));
 			t.TakeMagicalDamage(finalDamage, attacker);
 			if (stun) t.ApplyStun(stunDuration);
 		}
@@ -271,7 +271,7 @@ public abstract class SkillAction
 
 	public static float ApplyCooldown(Unit unit, float baseCd)
 	{
-		float reduction = Mathf.Min(50f, unit.GetComponent<BaseStatComponent>().cooltimeReduction);
+		float reduction = Mathf.Min(50f, unit.BaseStat.cooltimeReduction);
 		return baseCd * (1f - reduction / 100f);
 	}
 }

@@ -1,0 +1,18 @@
+클래스명: ThreatShape
+태그: ThreatShape
+경로: Assets/Script/Unit/Combat/ThreatTileData.cs
+의도: ThreatShape의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - shape: ThreatShape 타입 데이터
+  - range: int 타입 데이터
+  - width: int 타입 데이터
+  - depth: int 타입 데이터
+  - color: Color 타입 데이터
+  - hitbox: Hitbox 타입 데이터
+
+함수:
+  - Create(): ThreatTileData 반환

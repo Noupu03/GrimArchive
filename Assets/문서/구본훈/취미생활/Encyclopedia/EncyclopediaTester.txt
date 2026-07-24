@@ -1,0 +1,13 @@
+클래스명: EncyclopediaTester (MonoBehaviour)
+태그: EncyclopediaTester
+경로: Assets/Script/Encyclopedia/EncyclopediaTester.cs
+의도: EncyclopediaTester의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - entryIdsToUnlock: string[] 타입 데이터
+
+함수:
+  - 주요 정의 함수 없음

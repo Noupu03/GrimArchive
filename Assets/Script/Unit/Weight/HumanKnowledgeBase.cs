@@ -6,7 +6,7 @@ using Haare.Util.Logger;
 
 // "인류 전역 기록"의 실체 — 종별/개별 누적 가중치, 전멸 위험도 누적, 이해도 총량 한도/감소,
 // 미표기 정보 오차를 관리한다. 타일·오브젝트·방 위험도/흥미도(15~21장, "지도" 데이터)는
-// Human.GetComponent<MemoryComponent>().personalMap(PersonalMapKnowledge)으로 개인유닛화되어 이 클래스에는 없다. 순수 C#
+// Human.Memory.personalMap(PersonalMapKnowledge)으로 개인유닛화되어 이 클래스에는 없다. 순수 C#
 // (DataManager/UnitGenerate와 동일하게 VContainer Register<T>().AsSelf()로 등록,
 // GameCompositionRoot.cs 참고).
 //
@@ -94,8 +94,8 @@ public class HumanKnowledgeBase
 	// (25% 미만=공황, 50% 미만=공포). 구현현황 문서에 판단 근거 기재.
 	public static MentalErrorState GetMentalState(Unit u)
 	{
-		if (u == null || u.GetComponent<BaseStatComponent>().maxMental <= 0f) return MentalErrorState.Normal;
-		float ratio = u.GetComponent<BaseStatComponent>().mental / u.GetComponent<BaseStatComponent>().maxMental;
+		if (u == null || u.BaseStat.maxMental <= 0f) return MentalErrorState.Normal;
+		float ratio = u.BaseStat.mental / u.BaseStat.maxMental;
 		if (ratio < 0.25f) return MentalErrorState.Panic;
 		if (ratio < 0.5f) return MentalErrorState.Fear;
 		return MentalErrorState.Normal;
@@ -284,14 +284,14 @@ public class HumanKnowledgeBase
 	// GetFinalDanger/GetUnitInterest는 종/개체 "전역" 누적값을 쓰는데, 그건 OnWaveEnd가 호출돼야만
 	// 갱신된다(6장) — 웨이브 루프가 없는 지금은 영원히 0이다. 반면 observer.personalWeights는
 	// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 개인 지도에 기록할 값은 이쪽을 써야
-	// "이벤트와 연결된 즉시 반영"이 된다. target.GetComponent<BaseStatComponent>().baseDanger/baseInterest를 기준값으로 삼고
+	// "이벤트와 연결된 즉시 반영"이 된다. target.BaseStat.baseDanger/baseInterest를 기준값으로 삼고
 	// 그 위에 이 관찰자 한 명의 개인 누적(personalWeights)만 얹는다(다른 관찰자의 경험은 섞이지 않음).
 	public float GetPersonalDanger(Unit observer, Unit target)
 	{
 		string targetId = ResolveTargetKey(target);
 		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Danger);
 		float personalAccum = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
-		return WeightMath.ComposeFinalDanger(target.GetComponent<BaseStatComponent>().baseDanger, personalAccum, 0f);
+		return WeightMath.ComposeFinalDanger(target.BaseStat.baseDanger, personalAccum, 0f);
 	}
 
 	// 18장 공식(흥미도 = 기본흥미도 × (100-이해도)%)은 그대로 쓰되, "이해도"를 전역 종별 이해도가
@@ -301,13 +301,13 @@ public class HumanKnowledgeBase
 	// 이벤트 연동 문제가 아니다.
 	public float GetPersonalInterest(Unit observer, Unit target)
 	{
-		if (target.isInterestTarget) return WeightMath.Clamp(target.GetComponent<BaseStatComponent>().baseInterest, WeightType.Interest);
+		if (target.isInterestTarget) return WeightMath.Clamp(target.BaseStat.baseInterest, WeightType.Interest);
 
 		string targetId = ResolveTargetKey(target);
 		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Understanding);
 		float personalUnderstanding = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
 		int understandingApplied = Mathf.FloorToInt(WeightMath.Clamp(personalUnderstanding, WeightType.Understanding));
-		return WeightMath.UnitInterestFromUnderstanding(target.GetComponent<BaseStatComponent>().baseInterest, understandingApplied);
+		return WeightMath.UnitInterestFromUnderstanding(target.BaseStat.baseInterest, understandingApplied);
 	}
 
 	// ─────────────────────────── 14장. 특수 행동 누적 ───────────────────────────
@@ -373,16 +373,16 @@ public class HumanKnowledgeBase
 	}
 
 	// 15~17장/20~21장(타일·오브젝트·방 위험도/흥미도)은 2026-07-07부로 개인유닛화되어
-	// PersonalMapKnowledge(Human.GetComponent<MemoryComponent>().personalMap)로 이전했다 — 지도관련_정리 문서가 명시하듯 이 데이터는
+	// PersonalMapKnowledge(Human.Memory.personalMap)로 이전했다 — 지도관련_정리 문서가 명시하듯 이 데이터는
 	// 원래도 "인류 유닛별로 획득"되는 개인 인지 정보였다. 자세한 내용은
 	// Assets/문서/GrimArchive_지도_구현현황.txt 참고.
 
 	// 18장: 일반 유닛 흥미도 = 기본흥미도 × (100-이해도)%. IsInterestTarget이면 감소식 미적용(그대로 유지).
 	public float GetUnitInterest(Unit unit)
 	{
-		if (unit.isInterestTarget) return WeightMath.Clamp(unit.GetComponent<BaseStatComponent>().baseInterest, WeightType.Interest);
+		if (unit.isInterestTarget) return WeightMath.Clamp(unit.BaseStat.baseInterest, WeightType.Interest);
 		int understanding = Mathf.FloorToInt(GetUnderstanding(unit.unitType.typeName, unit.isSpecialUnit ? unit.name : null));
-		return WeightMath.UnitInterestFromUnderstanding(unit.GetComponent<BaseStatComponent>().baseInterest, understanding);
+		return WeightMath.UnitInterestFromUnderstanding(unit.BaseStat.baseInterest, understanding);
 	}
 
 	// 19장: 시체/흔적 흥미도 = 기본값 + 원인대상 위험도단계 보정
@@ -405,9 +405,9 @@ public class HumanKnowledgeBase
 	// 근사한다 — 2026-07-08 20/21장 방 탐사 상태(roomId/isBossRoom) 자동 연동이 끝나 이제
 	// personalMap.GetPersonalDungeonDanger/Interest()가 실제 값을 채워주므로, 이 세 항을 그대로
 	// 더하기만 하면 문서 공식이 완성된다.
-	public float GetDungeonDanger(Human observer) => observer.GetComponent<MemoryComponent>().personalMap.GetPersonalDungeonDanger() + GetDungeonDanger();
+	public float GetDungeonDanger(Human observer) => observer.Memory.personalMap.GetPersonalDungeonDanger() + GetDungeonDanger();
 
-	public float GetDungeonInterest(Human observer) => observer.GetComponent<MemoryComponent>().personalMap.GetPersonalDungeonInterest();
+	public float GetDungeonInterest(Human observer) => observer.Memory.personalMap.GetPersonalDungeonInterest();
 
 	// ─────────────────────────── 9장/23장. 정보 오차 ───────────────────────────
 	public int ApplyHiddenInfoNoise(int actualValue, int understandingApplied) => WeightMath.ApplyHiddenInfoNoise(actualValue, understandingApplied, _rng);

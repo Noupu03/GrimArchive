@@ -15,19 +15,63 @@ public abstract class Unit : ScriptableObject {
         return null;
     }
 
+    // Components 리스트를 매번 선형 탐색하는 GetComponent<T>() 호출 비용을 없애기 위한 캐시.
+    // OnEnable에서 null 리셋 → 첫 접근 시 ??= 로 채워지며 이후 O(1)로 반환.
+    private HealthComponent       _healthComp;
+    private CombatStateComponent  _combatStateComp;
+    private CombatStatComponent   _combatStatComp;
+    private PerceptionComponent   _perceptionComp;
+    private VisionStatComponent   _visionStatComp;
+    private BaseStatComponent     _baseStatComp;
+    private StatusEffectsComponent _statusEffectsComp;
+    private AIStateComponent      _aiStateComp;
+    private MemoryComponent       _memoryComp;
+    private PartyComponent        _partyComp;
+
+    public HealthComponent        Health        => _healthComp        ??= GetComponent<HealthComponent>();
+    public CombatStateComponent   CombatState   => _combatStateComp   ??= GetComponent<CombatStateComponent>();
+    public CombatStatComponent    CombatStat    => _combatStatComp    ??= GetComponent<CombatStatComponent>();
+    public PerceptionComponent    Perception    => _perceptionComp    ??= GetComponent<PerceptionComponent>();
+    public VisionStatComponent    VisionStat    => _visionStatComp    ??= GetComponent<VisionStatComponent>();
+    public BaseStatComponent      BaseStat      => _baseStatComp      ??= GetComponent<BaseStatComponent>();
+    public StatusEffectsComponent StatusEffects => _statusEffectsComp ??= GetComponent<StatusEffectsComponent>();
+    public AIStateComponent       AIState       => _aiStateComp       ??= GetComponent<AIStateComponent>();
+    public MemoryComponent        Memory        => _memoryComp        ??= GetComponent<MemoryComponent>();
+    public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
+
+    // 코드 전역에서 bare 이름으로 쓰이는 필드들. 실제 데이터는 컴포넌트에 있고 여기서 위임만 한다.
+    public float hp               { get => Health.hp;                          set => Health.hp = value; }
+    public float maxHp            { get => Health.maxHp;                       set => Health.maxHp = value; }
+    public float HPRegen          { get => BaseStat.HPRegen;                   set => BaseStat.HPRegen = value; }
+    public float spotting         { get => VisionStat.spotting;                set => VisionStat.spotting = value; }
+    public float physicalAttack   { get => CombatStat.physicalAttack;          set => CombatStat.physicalAttack = value; }
+    public float mental           { get => BaseStat.mental;                    set => BaseStat.mental = value; }
+    public float maxMental        { get => BaseStat.maxMental;                 set => BaseStat.maxMental = value; }
+    public float baseDanger       { get => BaseStat.baseDanger;                set => BaseStat.baseDanger = value; }
+    public bool  isHitThisTurn    { get => CombatState.State.isHitThisTurn;    set => CombatState.State.isHitThisTurn = value; }
+    public bool  oneTimeReactUsed { get => CombatState.State.oneTimeReactUsed; set => CombatState.State.oneTimeReactUsed = value; }
+    public List<Unit> personalSpottedEnemies    => Perception.State.personalSpottedEnemies;
+    public List<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
+    public ThreatTileData currentThreat { get => AIState.currentThreat; set => AIState.currentThreat = value; }
+
     private void OnEnable()
     {
+        // 에디터 핫리로드나 재활성화 시 캐시가 이전 인스턴스를 물고 있지 않도록 초기화
+        _healthComp = null; _combatStateComp = null; _combatStatComp = null;
+        _perceptionComp = null; _visionStatComp = null; _baseStatComp = null;
+        _statusEffectsComp = null; _aiStateComp = null; _memoryComp = null; _partyComp = null;
+
         if (Components == null) Components = new List<IUnitComponent>();
-        if (GetComponent<CombatStatComponent>() == null) Components.Add(new CombatStatComponent(this));
-        if (GetComponent<HealthComponent>() == null) Components.Add(new HealthComponent(this));
-        if (GetComponent<VisionStatComponent>() == null) Components.Add(new VisionStatComponent(this));
-        if (GetComponent<BaseStatComponent>() == null) Components.Add(new BaseStatComponent(this));
-        if (GetComponent<PerceptionComponent>() == null) Components.Add(new PerceptionComponent(this));
-        if (GetComponent<MemoryComponent>() == null) Components.Add(new MemoryComponent(this));
-        if (GetComponent<PartyComponent>() == null) Components.Add(new PartyComponent(this));
-        if (GetComponent<AIStateComponent>() == null) Components.Add(new AIStateComponent(this));
-        if (GetComponent<CombatStateComponent>() == null) Components.Add(new CombatStateComponent(this));
-        if (GetComponent<StatusEffectsComponent>() == null) Components.Add(new StatusEffectsComponent(this));
+        if (CombatStat == null) Components.Add(new CombatStatComponent(this));
+        if (Health == null) Components.Add(new HealthComponent(this));
+        if (VisionStat == null) Components.Add(new VisionStatComponent(this));
+        if (BaseStat == null) Components.Add(new BaseStatComponent(this));
+        if (Perception == null) Components.Add(new PerceptionComponent(this));
+        if (Memory == null) Components.Add(new MemoryComponent(this));
+        if (UnitParty == null) Components.Add(new PartyComponent(this));
+        if (AIState == null) Components.Add(new AIStateComponent(this));
+        if (CombatState == null) Components.Add(new CombatStateComponent(this));
+        if (StatusEffects == null) Components.Add(new StatusEffectsComponent(this));
     }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
@@ -193,8 +237,8 @@ public abstract class Unit : ScriptableObject {
 	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛€ ??媛믪쓣 李몄“?쒕떎.
 
 	// 9?? ?뺤떊??蹂댁젙(?몃쪟 ?꾩슜, 紐ъ뒪?곕뒗 ??긽 0) ??PerceptionMath.MentalCorrectionForHuman 李멸퀬.
-	public bool CanPerceive => GetComponent<StatusEffectsComponent>().State.stunDuration <= 0f;
-	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(GetComponent<BaseStatComponent>().mental, GetComponent<BaseStatComponent>().maxMental) : 0f;
+	public bool CanPerceive => StatusEffects.State.stunDuration <= 0f;
+	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(BaseStat.mental, BaseStat.maxMental) : 0f;
 
 	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ?€??紐⑸줉(?대쾲 UpdateFOV ?몄텧
 	// 湲곗? ?꾩떆 ?ㅻ깄?????€?κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
@@ -206,9 +250,9 @@ public abstract class Unit : ScriptableObject {
 	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛€ "吏€?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
 	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛€???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
 	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
-	public bool IsVisibilityBoosted => GetComponent<VisionStatComponent>().attackVisibilityBoostTimer > 0f;
-	public void TriggerAttackVisibilityBoost() => GetComponent<VisionStatComponent>().attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
-	public float GetFinalVisibility() => VisionMath.FinalVisibility(GetComponent<VisionStatComponent>().baseVisibility, GetComponent<VisionStatComponent>().stealth, IsVisibilityBoosted);
+	public bool IsVisibilityBoosted => VisionStat.attackVisibilityBoostTimer > 0f;
+	public void TriggerAttackVisibilityBoost() => VisionStat.attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
+	public float GetFinalVisibility() => VisionMath.FinalVisibility(VisionStat.baseVisibility, VisionStat.stealth, IsVisibilityBoosted);
 
 	// ─── 03_탐색반응·경계·조사·함정대응_시스템 관련 ────────────────────────────
 	// 함정 대응(9장)과 경계(4장)는 13장 표에 따라 인류/몬스터 공통이라 base Unit에 둔다. 조사(5장)/
@@ -249,33 +293,33 @@ public abstract class Unit : ScriptableObject {
 	public void CalculateDerivedStats()
 	{
 		// ?뺢퇋??
-		float nAtk      = Normalize(GetComponent<CombatStatComponent>().physicalAttack,    BASE_PHYSICAL_ATTACK);
-		float nMatk     = Normalize(GetComponent<CombatStatComponent>().magicalAttack,     BASE_MAGICAL_ATTACK);
-		float nHp       = Normalize(GetComponent<HealthComponent>().maxHp,             BASE_MAX_HP);
-		float nMp       = Normalize(GetComponent<HealthComponent>().maxMp,             BASE_MAX_MP);
-		float nPDef     = Normalize(GetComponent<CombatStatComponent>().physicalDefense,   BASE_PHYSICAL_DEF);
-		float nMDef     = Normalize(GetComponent<CombatStatComponent>().magicalDefense,    BASE_MAGICAL_DEF);
-		float nRegen    = Normalize(GetComponent<BaseStatComponent>().HPRegen,           BASE_HP_REGEN);
-		float nStatus   = Normalize(GetComponent<BaseStatComponent>().statusResistance,  BASE_STATUS_RES);
-		float nAtkSpd   = Normalize(GetComponent<CombatStatComponent>().attackspeed,       BASE_ATTACK_SPEED);
-		float nReact    = Normalize(GetComponent<BaseStatComponent>().reaction,          BASE_REACTION);
-		float nMove     = Normalize(GetComponent<BaseStatComponent>().walkSpeed,         BASE_WALK_SPEED);
-		float nSpot     = Normalize(GetComponent<VisionStatComponent>().spotting,          BASE_SPOTTING);
-		float nMental   = Normalize(GetComponent<BaseStatComponent>().mental,            BASE_MENTAL);
-		float nLeadRange = Normalize(GetComponent<BaseStatComponent>().leadershipRange,  BASE_LEAD_RANGE);
-		float nCharisma = Normalize(GetComponent<BaseStatComponent>().charisma,          BASE_CHARISMA);
-		float nCrit     = Normalize(GetComponent<CombatStatComponent>().criticalChance,    BASE_CRIT);
-		float nCdr      = Normalize(GetComponent<BaseStatComponent>().cooltimeReduction, BASE_CDR);
+		float nAtk      = Normalize(CombatStat.physicalAttack,    BASE_PHYSICAL_ATTACK);
+		float nMatk     = Normalize(CombatStat.magicalAttack,     BASE_MAGICAL_ATTACK);
+		float nHp       = Normalize(Health.maxHp,             BASE_MAX_HP);
+		float nMp       = Normalize(Health.maxMp,             BASE_MAX_MP);
+		float nPDef     = Normalize(CombatStat.physicalDefense,   BASE_PHYSICAL_DEF);
+		float nMDef     = Normalize(CombatStat.magicalDefense,    BASE_MAGICAL_DEF);
+		float nRegen    = Normalize(BaseStat.HPRegen,           BASE_HP_REGEN);
+		float nStatus   = Normalize(BaseStat.statusResistance,  BASE_STATUS_RES);
+		float nAtkSpd   = Normalize(CombatStat.attackspeed,       BASE_ATTACK_SPEED);
+		float nReact    = Normalize(BaseStat.reaction,          BASE_REACTION);
+		float nMove     = Normalize(BaseStat.walkSpeed,         BASE_WALK_SPEED);
+		float nSpot     = Normalize(VisionStat.spotting,          BASE_SPOTTING);
+		float nMental   = Normalize(BaseStat.mental,            BASE_MENTAL);
+		float nLeadRange = Normalize(BaseStat.leadershipRange,  BASE_LEAD_RANGE);
+		float nCharisma = Normalize(BaseStat.charisma,          BASE_CHARISMA);
+		float nCrit     = Normalize(CombatStat.criticalChance,    BASE_CRIT);
+		float nCdr      = Normalize(BaseStat.cooltimeReduction, BASE_CDR);
 
 		// 湲곕낯 ?λ젰移?怨꾩궛
 		// 洹쇰젰 = 臾쇰━ 怨듦꺽???뺢퇋??
-		GetComponent<BaseStatComponent>().sterngth = nAtk;
+		BaseStat.sterngth = nAtk;
 
 		// ?닿뎄 = 泥대젰 45 + 臾쇰갑 45 + ?ъ깮 10
-		GetComponent<BaseStatComponent>().Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
+		BaseStat.Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
 
 		// 誘쇱꺽 = 怨듭냽 35 + ?대룞 25 + 諛섏쓳 40
-		GetComponent<BaseStatComponent>().agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
+		BaseStat.agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
 
 		// 吏묒쨷 = 移섎챸 60 + 荑④컧 40
 		concentration = nCrit * 0.60f + nCdr * 0.40f;
@@ -290,7 +334,7 @@ public abstract class Unit : ScriptableObject {
 			resistance = nMDef * 0.35f + nStatus * 0.35f + nMental * 0.30f;
 
 		// 媛먭컖 = 媛먯?
-		GetComponent<BaseStatComponent>().sense = nSpot;
+		BaseStat.sense = nSpot;
 
 		// ?듭넄 = 吏?섎쾾??50 + 移대━?ㅻ쭏 50
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
@@ -356,19 +400,19 @@ public abstract class Unit : ScriptableObject {
 	// ?댁쟾???몄텧?쒕떎(洹몃옒???대룞?쇰줈 媛깆떊??currentDir瑜?"?대룞 以? ?꾨낫??湲곕낯媛믪쑝濡??쒖슜?????덈떎).
 	public abstract void ResolveVisionDirection();
 
-	private GoapBrain _brain;
-	public GoapBrain brain { get { if (_brain == null) _brain = new GoapBrain(); return _brain; } }
+	private UnitFSM _fsm;
+	public UnitFSM fsm { get { if (_fsm == null) _fsm = new UnitFSM(); return _fsm; } }
 
 	public virtual void JudgeState()
 	{
-		if (GetComponent<StatusEffectsComponent>().State.stunDuration > 0f) return; // 스턴 중 행동 차단
-		brain.JudgeState(this);
+		if (StatusEffects.State.stunDuration > 0f) return; // 스턴 중 행동 차단
+		fsm.SelectState(this);
 	}
 
 	public virtual void ExecuteAction()
 	{
-		if (GetComponent<StatusEffectsComponent>().State.stunDuration > 0f) return;
-		brain.ExecuteAction(this);
+		if (StatusEffects.State.stunDuration > 0f) return;
+		fsm.RunCurrentState(this);
 	}
 
 	public static Hitbox GetUnitHitbox(Unit u)
@@ -401,13 +445,13 @@ public class Human : UnitFunction
 
 	// 媛쒖씤 吏??????ㅻ툕?앺듃/紐ъ뒪??紐⑷꺽/諛??꾪뿕?꽷룻씎誘몃룄) ??吏?꾧????뺣━ 臾몄꽌 湲곗? "吏?꾨뒗
 	// ?몃쪟留??ㅺ퀬 ?덉뼱???쒕떎"??吏?쒖뿉 ?곕씪 Human?먮쭔 ?붾떎(Monster/base Unit?먮뒗 ?놁쓬).
-	// personalMap moved
-	// collectedObjects moved
+	public PersonalMapKnowledge personalMap => Memory.personalMap;
+	public List<string> collectedObjects    => Memory.collectedObjects;
 
 	// ???좊떅???랁븳 ?뚰떚(?덈떎硫? ??13???뚰떚 ?꾨㈇/6???⑥씠釉?醫낅즺 ?앹〈??諛섏쁺 ?먯젙???곗씤??
 	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
 	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
-	// party moved
+	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
 	// 03문서 5장(조사)/10장(대기)/6장(보호 포메이션) — 인류 전용(13장 표, 몬스터는 "컨셉에 따라"만
 	// 명시돼 있어 실제 컨셉 시스템이 생기기 전까지는 인류만 구현). null이면 각각 진행 중 아님.

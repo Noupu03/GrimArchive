@@ -1,0 +1,18 @@
+클래스명: VisionStatComponent (IUnitComponent)
+태그: VisionStatComponent
+경로: Assets/Script/Unit/Core/VisionStatComponent.cs
+의도: VisionStatComponent의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IUnitComponent 상속 및 구현
+
+변수:
+  - _owner: Unit 타입 데이터
+  - stealth: float 타입 데이터
+  - spotting: float 타입 데이터
+  - baseVisibility: float 타입 데이터
+  - attackVisibilityBoostTimer: float 타입 데이터
+
+함수:
+  - OnUpdate(): void 반환
+  - OnDespawn(): void 반환

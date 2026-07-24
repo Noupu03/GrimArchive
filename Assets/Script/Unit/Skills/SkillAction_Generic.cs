@@ -18,19 +18,19 @@ public class SkillAction_Generic : SkillAction
     public override int HitWidth => _d.hitWidth;
     public override int HitDepth => _d.hitDepth;
 
-    public override bool IsAvailable(Unit unit) => unit.GetComponent<CombatStateComponent>().State.skillCooldowns[_d.cooldownSlot] <= 0f;
+    public override bool IsAvailable(Unit unit) => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {
         float p = _d.priorityBase;
-        if (unit.GetComponent<CombatStatComponent>().physicalAttack * _d.priorityKillMultiplier >= target.GetComponent<HealthComponent>().hp) p += _d.priorityKillBonus;
+        if (unit.CombatStat.physicalAttack * _d.priorityKillMultiplier >= target.Health.hp) p += _d.priorityKillBonus;
         if (minDist <= _d.priorityRangeThreshold)                         p += _d.priorityRangeBonus;
         return p;
     }
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.GetComponent<CombatStatComponent>().attackspeed)));
+        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.CombatStat.attackspeed)));
 
         var threat = ThreatTileData.Create();
         threat.shape = HitShape;
@@ -50,7 +50,7 @@ public class SkillAction_Generic : SkillAction
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,
                     _d.damageMultiplier, _d.hasStun, _d.stunDuration);
             },
-            () => unit.GetComponent<CombatStateComponent>().State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
         );
     }
 }

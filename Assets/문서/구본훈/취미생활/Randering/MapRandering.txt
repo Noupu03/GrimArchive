@@ -1,0 +1,26 @@
+클래스명: MapRandering (NativeRoutine,)
+태그: MapRandering
+경로: Assets/Script/Randering/MapRandering.cs
+의도: MapRandering의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - NativeRoutine, 상속 및 구현
+
+변수:
+  - createMap: CreateMap 타입 데이터
+  - wallSprite: Sprite 타입 데이터
+  - floorSprite: Sprite 타입 데이터
+  - stairSprite: Sprite 타입 데이터
+  - stairDownSprite: Sprite 타입 데이터
+  - stairUpSprite: Sprite 타입 데이터
+  - mapRoot: GameObject 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - DoRandering(): void 반환
+  - _OldDoRanderingUnused(): void 반환
+  - CreateColorSprite(): Sprite 반환
+  - RenderAllFloors(): void 반환
+  - ShowFloor(): void 반환
+  - ShowAllFloors(): void 반환
+  - ChangeRoomColor(): void 반환

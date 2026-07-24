@@ -1,0 +1,15 @@
+클래스명: SkillAction_Generic (SkillAction)
+태그: SkillAction_Generic
+경로: Assets/Script/Unit/Skills/SkillAction_Generic.cs
+의도: SkillAction_Generic의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - SkillAction 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - IsAvailable(): bool 반환
+  - GetPriority(): float 반환
+  - Execute(): void 반환

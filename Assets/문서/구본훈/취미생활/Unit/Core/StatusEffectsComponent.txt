@@ -1,0 +1,15 @@
+클래스명: StatusEffectsComponent (IUnitComponent)
+태그: StatusEffectsComponent
+경로: Assets/Script/Unit/Core/StatusEffectsComponent.cs
+의도: StatusEffectsComponent의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IUnitComponent 상속 및 구현
+
+변수:
+  - _owner: Unit 타입 데이터
+  - State: UnitStatusEffects 타입 데이터
+
+함수:
+  - OnUpdate(): void 반환
+  - OnDespawn(): void 반환

@@ -1,9 +1,0 @@
-[스크립트 이름]: WeaponSocketSetup
-[스크립트의 목적]: (추가 주석 필요)
-[의존성과 상속같은 관계]: EditorWindow
-[변수]: unitPrefab, weaponSprite, socketName, path, root, visual, existing, socketGo, sr
-[함수 및 목적]:
- - ShowWindow: (목적 설명 없음)
- - OnGUI: (목적 설명 없음)
- - AddWeaponSocket: (목적 설명 없음)
---------------------------------------------------

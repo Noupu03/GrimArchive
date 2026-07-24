@@ -8,13 +8,13 @@ public class TerrainRevealHandler : IVisionTileHandler
         
         if (observer is Human terrainObserver)
         {
-            bool isFirstReveal = terrainObserver.GetComponent<MemoryComponent>().personalMap.RevealTile(tile, tileIsWall);
+            bool isFirstReveal = terrainObserver.Memory.personalMap.RevealTile(tile, tileIsWall);
             bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
 
             if (isFirstReveal && !tileIsWall)
             {
                 int totalFloorTiles = context.Session.cmap.GetRoomFloorTileCount(tile.z, chunk.roomId);
-                terrainObserver.GetComponent<MemoryComponent>().personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles);
+                terrainObserver.Memory.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles);
             }
         }
     }

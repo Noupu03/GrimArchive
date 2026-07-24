@@ -1,0 +1,18 @@
+클래스명: CustomSlider (MonoRoutine)
+태그: CustomSlider
+경로: Assets/Haare/Scripts/Client/UI/Slider/CustomSlider.cs
+의도: CustomSlider의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoRoutine 상속 및 구현
+
+변수:
+  - _slider: Slider 타입 데이터
+  - background: CustomImage 타입 데이터
+  - fill: CustomImage 타입 데이터
+  - Value: float 타입 데이터
+
+함수:
+  - Constructor(): void 반환
+  - Setup(): void 반환
+  - SetValue(): void 반환

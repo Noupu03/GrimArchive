@@ -1,0 +1,17 @@
+클래스명: Processor (SingletonMonoBehaviour<Processor>)
+태그: Processor
+경로: Assets/Haare/Scripts/Client/Core/Processor.cs
+의도: Processor의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - SingletonMonoBehaviour<Processor> 상속 및 구현
+
+변수:
+  - PROCESSING: ReadOnlyReactiveProperty<bool> 타입 데이터
+  - processing: ReactiveProperty<bool> 타입 데이터
+  - processvalue: bool 타입 데이터
+
+함수:
+  - UnRegister(): void 반환
+  - OnApplicationQuit(): void 반환
+  - OnApplicationPause(): void 반환

@@ -1,0 +1,15 @@
+클래스명: GamePresenter (IPostInitializable,)
+태그: GamePresenter
+경로: Assets/Haare/Scripts/Client/DI/Presenter/GamePresenter.cs
+의도: GamePresenter의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IPostInitializable, 상속 및 구현
+
+변수:
+  - _sceneService: SceneService 타입 데이터
+  - _DataManager: DataManager 타입 데이터
+
+함수:
+  - Dispose(): void 반환
+  - PostInitialize(): void 반환

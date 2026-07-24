@@ -1,0 +1,13 @@
+클래스명: ObjectPerceptionHandler (IVisionTileHandler)
+태그: ObjectPerceptionHandler
+경로: Assets/Script/Unit/Vision/ObjectPerceptionHandler.cs
+의도: ObjectPerceptionHandler의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IVisionTileHandler 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - Handle(): void 반환

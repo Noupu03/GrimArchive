@@ -1,0 +1,44 @@
+클래스명: WeightSystemTests
+태그: System
+경로: Assets/Tests/WeightSystemTests.cs
+의도: WeightSystemTests의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - PersonalWeightChange_Example(): void 반환
+  - ReflectionRatio_Example1_WitnessAndIndirect(): void 반환
+  - ReflectionRatio_Example2_ExperienceAndIndirect(): void 반환
+  - ReflectionRatio_Example3_WitnessOnly(): void 반환
+  - Dedup_IdenticalEntries_CollapseToOne(): void 반환
+  - GlobalReflection_PanicNoiseAveraging_Example(): void 반환
+  - GlobalReflection_Example1_AllThreeTypes(): void 반환
+  - GlobalReflection_Example2_WitnessAndIndirectWithDedup(): void 반환
+  - UnderstandingIncrease_Example(): void 반환
+  - SpecialUnitUnderstanding_CapsAt50Each(): void 반환
+  - UnderstandingPoolDecrease_Example(): void 반환
+  - UnderstandingPoolDecrease_NoOverflow_NoDecrease(): void 반환
+  - HiddenInfoNoise_Example(): void 반환
+  - DangerIncrease_Example(): void 반환
+  - TotalDamageDecrease_Example(): void 반환
+  - PerHitDecrease_QualifiesWhenDiffAtLeastOne(): void 반환
+  - DangerDecrease_RespectsFloor(): void 반환
+  - DangerStage_Boundaries(): void 반환
+  - FinalDanger_Composition(): void 반환
+  - ObjectInterest_InvestigateAndDrop_Examples(): void 반환
+  - TileInterest_Example(): void 반환
+  - TileDanger_ObjectComposition(): void 반환
+  - UnitInterestFromUnderstanding_Example(): void 반환
+  - DangerStageBonus_Table(): void 반환
+  - InfoError_IndirectExample(): void 반환
+  - InfoError_MentalStateOverridesWhenLarger(): void 반환
+  - PanicBlend_Example(): void 반환
+  - PartyWipeout_DungeonDangerIncrease(): void 반환
+  - WipeoutTrace_ReflectsOncePerTraceId(): void 반환
+  - MonsterSighting_DirectExperienceBeatsLaterDirectWitness(): void 반환
+  - MonsterSighting_SameInfoTypeUsesNewer(): void 반환
+  - MonsterSighting_DirectWitnessBeatsIndirect(): void 반환

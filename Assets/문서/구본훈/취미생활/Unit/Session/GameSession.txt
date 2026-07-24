@@ -1,0 +1,53 @@
+클래스명: GameSession (NativeRoutine,)
+태그: GameSession
+경로: Assets/Script/Unit/Session/GameSession.cs
+의도: GameSession의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - NativeRoutine, 상속 및 구현
+
+변수:
+  - unitGenerate: UnitGenerate 타입 데이터
+  - mapManager: MapManager 타입 데이터
+  - mapRandering: MapRandering 타입 데이터
+  - humanWaveManager: HumanWaveManager 타입 데이터
+  - _unitGenerate: UnitGenerate 타입 데이터
+  - _threatTileRenderer: ThreatTileRenderer 타입 데이터
+  - _resolver: IObjectResolver 타입 데이터
+  - _dataManager: DataManager 타입 데이터
+  - OffenseProcessor: OffenseProcessor 타입 데이터
+  - _unitRegistry: UnitRegistry 타입 데이터
+  - _objectSpawner: ObjectSpawner 타입 데이터
+  - _partyService: PartyService 타입 데이터
+  - _combatEventService: CombatEventService 타입 데이터
+  - _debugInputHandler: DebugInputHandler 타입 데이터
+  - parties: List<Party> 타입 데이터
+  - updateTimer: float 타입 데이터
+  - currentGameSpeed: float 타입 데이터
+  - isPaused: bool 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - GetUnitsInRoom(): IReadOnlyList<Unit> 반환
+  - RegisterUnitPos(): void 반환
+  - UnregisterUnitPos(): void 반환
+  - BuildRoomGrid(): void 반환
+  - UpdateProcess(): void 반환
+  - HandleDebugInput(): void 반환
+  - RemoveDeadUnit(): void 반환
+  - FindNearbyFreeObjectTile(): Vector3Int 반환
+  - ClearPerceptionRecordsFor(): void 반환
+  - DespawnUnit(): void 반환
+  - CreateParty(): Party 반환
+  - CheckPartyWaveState(): void 반환
+  - ProcessUnitAction(): void 반환
+  - TriggerTrapIfStepped(): void 반환
+  - OnKeyDown_H(): void 반환
+  - GetRandomStartRoomPos(): Vector2Int 반환
+  - SpawnPlayerMonsterAt(): Monster 반환
+  - OnKeyDown_K(): void 반환
+  - SpawnObject(): void 반환
+  - SpawnInitialBossRoomLoot(): void 반환
+  - SpawnLootObjectAt(): void 반환
+  - SpawnTrapAt(): void 반환
+  - CollectObject(): void 반환

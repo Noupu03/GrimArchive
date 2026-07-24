@@ -1,0 +1,27 @@
+클래스명: 루트
+태그: 루트
+경로: Assets/Script/Map/CreateMap.cs
+의도: 루트의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - map: Map 타입 데이터
+  - floorConfigs: FloorConfig[] 타입 데이터
+  - useFixedSeed: bool 타입 데이터
+  - seed: int 타입 데이터
+  - currentFloorIndex: int 타입 데이터
+  - maxRetryCount: int 타입 데이터
+  - lastValidationErrors: List<string> 타입 데이터
+  - lastValidationPassed: bool 타입 데이터
+  - lastRetryCount: int 타입 데이터
+  - showGizmos: bool 타입 데이터
+  - gizmoShowRoomBounds: bool 타입 데이터
+  - gizmoShowPassages: bool 타입 데이터
+  - gizmoShowStairs: bool 타입 데이터
+  - gizmoShowRoomLabels: bool 타입 데이터
+  - spawnRoomId: int 타입 데이터
+
+함수:
+  - GenerateMap(): void 반환

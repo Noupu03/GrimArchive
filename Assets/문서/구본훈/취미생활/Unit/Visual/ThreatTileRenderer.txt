@@ -1,0 +1,22 @@
+클래스명: ThreatTileRenderer
+태그: ThreatTileRenderer
+경로: Assets/Script/Unit/Visual/ThreatTileRenderer.cs
+의도: ThreatTileRenderer의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _attackZoneLibrary: SpriteLibraryAsset 타입 데이터
+  - _attackZoneCategory: string 타입 데이터
+  - root: Transform 타입 데이터
+  - cellSprites: List<SpriteRenderer> 타입 데이터
+  - _root: Transform 타입 데이터
+  - _unitGenerate: UnitGenerate 타입 데이터
+  - _cachedAliveUnits: HashSet<Unit> 타입 데이터
+  - _cachedRemoveList: List<Unit> 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - GetLabelSprite(): Sprite 반환
+  - Render(): void 반환

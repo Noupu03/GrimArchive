@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // 파티 — 인류 유닛들이 함께 웨이브(던전)에 입장하는 단위. 연산공식 문서 6장(생존자 전역 반영)/
@@ -61,7 +61,7 @@ public class Party
 		{
 			if (Members.Count == 0) return false;
 			foreach (var m in Members)
-				if (m != null && m.GetComponent<HealthComponent>().hp > 0) return false;
+				if (m != null && m.Health.hp > 0) return false;
 			return true;
 		}
 	}
@@ -73,7 +73,7 @@ public class Party
 		{
 			if (WaveMonsters.Count == 0) return false;
 			foreach (var m in WaveMonsters)
-				if (m != null && m.GetComponent<HealthComponent>().hp > 0) return false;
+				if (m != null && m.Health.hp > 0) return false;
 			return true;
 		}
 	}
@@ -85,7 +85,7 @@ public class Party
 	{
 		var survivors = new List<Unit>();
 		foreach (var m in Members)
-			if (m != null && m.GetComponent<HealthComponent>().hp > 0) survivors.Add(m);
+			if (m != null && m.Health.hp > 0) survivors.Add(m);
 		return survivors;
 	}
 }

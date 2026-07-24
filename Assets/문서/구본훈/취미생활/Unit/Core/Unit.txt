@@ -1,0 +1,124 @@
+클래스명: Unit (ScriptableObject)
+태그: Unit
+경로: Assets/Script/Unit/Core/Unit.cs
+의도: Unit의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - ScriptableObject 상속 및 구현
+
+변수:
+  - Components: List<IUnitComponent> 타입 데이터
+  - _healthComp: HealthComponent 타입 데이터
+  - _combatStateComp: CombatStateComponent 타입 데이터
+  - _combatStatComp: CombatStatComponent 타입 데이터
+  - _perceptionComp: PerceptionComponent 타입 데이터
+  - _visionStatComp: VisionStatComponent 타입 데이터
+  - _baseStatComp: BaseStatComponent 타입 데이터
+  - _statusEffectsComp: StatusEffectsComponent 타입 데이터
+  - _aiStateComp: AIStateComponent 타입 데이터
+  - _memoryComp: MemoryComponent 타입 데이터
+  - _partyComp: PartyComponent 타입 데이터
+  - Health: HealthComponent 타입 데이터
+  - CombatState: CombatStateComponent 타입 데이터
+  - CombatStat: CombatStatComponent 타입 데이터
+  - Perception: PerceptionComponent 타입 데이터
+  - VisionStat: VisionStatComponent 타입 데이터
+  - BaseStat: BaseStatComponent 타입 데이터
+  - StatusEffects: StatusEffectsComponent 타입 데이터
+  - AIState: AIStateComponent 타입 데이터
+  - Memory: MemoryComponent 타입 데이터
+  - UnitParty: PartyComponent 타입 데이터
+  - personalSpottedEnemies: List<Unit> 타입 데이터
+  - visionOnlyNonEmptyTiles: List<Vector3Int> 타입 데이터
+  - humanFactionData: FactionData 타입 데이터
+  - monsterFactionData: FactionData 타입 데이터
+  - _unitGenerate: UnitGenerate 타입 데이터
+  - _uiManager: UIManager 타입 데이터
+  - _vfxManager: VFXManager 타입 데이터
+  - _inputManager: InputManager 타입 데이터
+  - _gameSession: GameSession 타입 데이터
+  - _knowledgeBase: HumanKnowledgeBase 타입 데이터
+  - Generate: UnitGenerate 타입 데이터
+  - UI: UIManager 타입 데이터
+  - VFX: VFXManager 타입 데이터
+  - InputMgr: InputManager 타입 데이터
+  - Session: GameSession 타입 데이터
+  - Knowledge: HumanKnowledgeBase 타입 데이터
+  - unitType: UnitType 타입 데이터
+  - isSpecialUnit: bool 타입 데이터
+  - isInterestTarget: bool 타입 데이터
+  - lastAttacker: Unit 타입 데이터
+  - level: int 타입 데이터
+  - killCount: int 타입 데이터
+  - concentration: float 타입 데이터
+  - MagicPower: float 타입 데이터
+  - resistance: float 타입 데이터
+  - leadership: float 타입 데이터
+  - isManualMoveCommand: bool 타입 데이터
+  - playerAttackTarget: Unit 타입 데이터
+  - position: Vector2Int 타입 데이터
+  - currentFloor: int 타입 데이터
+  - currentDir: Dir 타입 데이터
+  - spriteVariation: string 타입 데이터
+  - CanPerceive: bool 타입 데이터
+  - IsVisibilityBoosted: bool 타입 데이터
+  - currentTrapInteraction: TrapInteractionState 타입 데이터
+  - currentAlertSearch: AlertSearchState 타입 데이터
+  - ExplorationPenaltyActive: bool 타입 데이터
+  - _brain: GoapBrain 타입 데이터
+  - personalMap: PersonalMapKnowledge 타입 데이터
+  - collectedObjects: List<string> 타입 데이터
+  - currentInvestigation: InvestigationState 타입 데이터
+  - currentWait: WaitState 타입 데이터
+  - currentFormation: FormationState 타입 데이터
+  - IsInteracting: bool 타입 데이터
+  - _investigateTargetCacheFrame: int 타입 데이터
+  - _investigateTargetCache: InteractableObject 타입 데이터
+
+함수:
+  - GetMentalVisibilityCorrection(): float 반환
+  - TriggerAttackVisibilityBoost(): void 반환
+  - GetFinalVisibility(): float 반환
+  - HasPerceivedThreatCollider(): bool 반환
+  - Normalize(): float 반환
+  - CalculateDerivedStats(): void 반환
+  - SetupStats(): void 반환
+  - GetDirRotation(): Quaternion 반환
+  - TakeDamage(): void 반환
+  - TakePhysicalDamage(): void 반환
+  - TakeMagicalDamage(): void 반환
+  - TakeMentalDamage(): void 반환
+  - ApplyStun(): void 반환
+  - ApplySlow(): void 반환
+  - ApplyPoison(): void 반환
+  - ApplyBurn(): void 반환
+  - GetDirVector(): Vector2Int 반환
+  - CanMove(): bool 반환
+  - Move(): void 반환
+  - IsEnemy(): bool 반환
+  - ForceMove(): void 반환
+  - UpdateFOV(): void 반환
+  - ResolveVisionDirection(): void 반환
+  - JudgeState(): void 반환
+  - ExecuteAction(): void 반환
+  - GetUnitHitbox(): Hitbox 반환
+  - OnUpdate(): void 반환
+  - OnThreatDetected(): void 반환
+  - OnReactToThreat(): void 반환
+  - OnDirectHit(): void 반환
+  - ApplyDirectDamage(): void 반환
+  - DetectThreats(): List<ThreatTileData> 반환
+  - IsInThreat(): bool 반환
+  - RollCritical(): bool 반환
+  - ApplyCriticalDamage(): float 반환
+  - IsActivelyHandlingTrap(): bool 반환
+  - AnyEscortHitThisTurn(): bool 반환
+  - FindInvestigateTarget(): InteractableObject 반환
+  - ComputeInvestigateTarget(): InteractableObject 반환
+  - HasReachableInvestigateTarget(): bool 반환
+  - FindDirectlyVisibleInteractingAlly(): Human 반환
+  - IsRangedFormationRole(): bool 반환
+  - HasProtectiveFormationNeed(): bool 반환
+  - GetEscortSlotPosition(): Vector2Int 반환
+  - JudgeState(): void 반환
+  - JudgeState(): void 반환

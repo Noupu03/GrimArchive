@@ -1,0 +1,15 @@
+클래스명: PartyService
+태그: PartyService
+경로: Assets/Script/Unit/Party/PartyService.cs
+의도: PartyService의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _objectSpawner: ObjectSpawner 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - CreateParty(): Party 반환
+  - CheckPartyWaveState(): void 반환

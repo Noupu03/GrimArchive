@@ -1,0 +1,24 @@
+클래스명: Projectile (MonoBehaviour)
+태그: Projectile
+경로: Assets/Script/Unit/Combat/Projectile.cs
+의도: Projectile의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - _attacker: Unit 타입 데이터
+  - _skillData: SkillData 타입 데이터
+  - _logicalCollider: Hitbox 타입 데이터
+  - _moveDir: Vector2 타입 데이터
+  - _startPos: Vector2 타입 데이터
+  - _maxDistance: float 타입 데이터
+  - _isInitialized: bool 타입 데이터
+  - _hitTargets: HashSet<Unit> 타입 데이터
+
+함수:
+  - Init(): void 반환
+  - ApplyHitEffect(): void 반환
+  - DestroyProjectile(): void 반환
+  - GetVisualPosition(): Vector3 반환
+  - OnDrawGizmos(): void 반환

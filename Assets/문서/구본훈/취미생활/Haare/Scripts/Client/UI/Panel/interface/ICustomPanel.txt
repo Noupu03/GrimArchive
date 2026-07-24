@@ -1,0 +1,16 @@
+클래스명: ICustomPanel
+태그: ICustomPanel
+경로: Assets/Haare/Scripts/Client/UI/Panel/interface/ICustomPanel.cs
+의도: ICustomPanel의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - OpenPanel(): void 반환
+  - ClosePanel(): void 반환
+  - ReloadPanel(): void 반환
+  - BindEvent(): void 반환

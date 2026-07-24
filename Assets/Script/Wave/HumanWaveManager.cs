@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using Haare.Client.Routine;
 using Cysharp.Threading.Tasks;
@@ -403,7 +403,7 @@ namespace GrimArchive.Wave
             }
 
             // Carrier ?�망 체크 (?�랍 로직)
-            if (targetState == DummyTargetState.Carried && (targetCarrier == null || targetCarrier.GetComponent<HealthComponent>().hp <= 0))
+            if (targetState == DummyTargetState.Carried && (targetCarrier == null || targetCarrier.Health.hp <= 0))
             {
                 DropDummyTarget();
             }

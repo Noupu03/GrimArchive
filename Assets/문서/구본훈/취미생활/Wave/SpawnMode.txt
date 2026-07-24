@@ -1,0 +1,23 @@
+클래스명: SpawnMode
+태그: SpawnMode
+경로: Assets/Script/Wave/WaveSpawner.cs
+의도: SpawnMode의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - waveData: WaveData 타입 데이터
+
+함수:
+  - SpawnWave(): void 반환
+  - ResolveUnitType(): Type 반환
+  - CreateUnitTypeInstance(): UnitType 반환
+  - InstantiateMonster(): Monster 반환
+  - InstantiateHuman(): Human 반환
+  - InstantiatePreSpawnHumanAt(): Human 반환
+  - FindValidSpawnPosition(): Vector2Int 반환
+  - TryFindPosByRoomRole(): bool 반환
+  - TryFindPosByRoomId(): bool 반환
+  - CollectRoomChunks(): List<Vector2Int> 반환
+  - TryPickTileInChunks(): bool 반환

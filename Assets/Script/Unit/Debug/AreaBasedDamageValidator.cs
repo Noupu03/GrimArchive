@@ -32,10 +32,10 @@ public class AreaBasedDamageValidator : MonoBehaviour
         foreach (var attacker in Session.units)
         {
             if (attacker == null || !(attacker is UnitFunction)) continue;
-            if (!attacker.GetComponent<CombatStateComponent>().State.isCastingAttack || attacker.GetComponent<AIStateComponent>().currentThreat == null) continue;
+            if (!attacker.CombatState.State.isCastingAttack || attacker.AIState.currentThreat == null) continue;
 
             // 현재 공격의 히트박스 정보
-            Hitbox attackHitbox = attacker.GetComponent<AIStateComponent>().currentThreat.hitbox;
+            Hitbox attackHitbox = attacker.AIState.currentThreat.hitbox;
             float attackArea = attackHitbox.size.x * attackHitbox.size.y;
 
             LogHelper.Log(LogHelper.GAME, $"\n[Area Damage Test] {attacker.unitType.typeName} 공격 중");
@@ -45,7 +45,7 @@ public class AreaBasedDamageValidator : MonoBehaviour
             // 각 적에 대해 교차 면적과 데미지 비율 계산
             foreach (var enemy in Session.units)
             {
-                if (enemy == null || enemy == attacker || enemy.GetComponent<HealthComponent>().hp <= 0) continue;
+                if (enemy == null || enemy == attacker || enemy.Health.hp <= 0) continue;
                 if (enemy.currentFloor != attacker.currentFloor) continue;
 
                 Hitbox enemyHitbox = SkillAction.GetUnitHitbox(enemy);
@@ -61,7 +61,7 @@ public class AreaBasedDamageValidator : MonoBehaviour
                     LogHelper.Log(LogHelper.GAME, $"     교차 비율: {overlapRatio:P0}");
 
                     // 예상 데미지 계산
-                    float baseDamage = attacker.GetComponent<CombatStatComponent>().physicalAttack;
+                    float baseDamage = attacker.CombatStat.physicalAttack;
                     float expectedDamage = Mathf.Max(1f, baseDamage * Mathf.Max(0.1f, overlapRatio));
                     LogHelper.Log(LogHelper.GAME, $"     예상 데미지: {expectedDamage:F1} (기본 데미지: {baseDamage:F1})");
                 }

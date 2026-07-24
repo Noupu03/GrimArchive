@@ -30,7 +30,7 @@ public class CombatEventService
             // 처치한 본인 외에 그 순간 생존해 있는 다른 인류도 "직접 목격"한 것으로 근사(위와 동일한 근사).
             foreach (var witness in units)
             {
-                if (witness == null || witness == attacker || !(witness is Human) || witness.GetComponent<HealthComponent>().hp <= 0) continue;
+                if (witness == null || witness == attacker || !(witness is Human) || witness.Health.hp <= 0) continue;
                 knowledge.RecordEvent(EventId.E_MONSTER_KILL_SEEN, witness, victim, InfoType.DirectWitness, incidentId);
             }
         }
@@ -38,7 +38,7 @@ public class CombatEventService
         {
             foreach (var witness in units)
             {
-                if (witness == null || witness == victim || !(witness is Human) || witness.GetComponent<HealthComponent>().hp <= 0) continue;
+                if (witness == null || witness == victim || !(witness is Human) || witness.Health.hp <= 0) continue;
                 knowledge.RecordEvent(EventId.E_HUMAN_KILL_SEEN, witness, attacker, InfoType.DirectWitness, incidentId);
             }
         }

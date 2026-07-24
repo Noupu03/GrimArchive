@@ -1,0 +1,16 @@
+클래스명: HumanFactionBehavior (IFactionBehavior)
+태그: HumanFactionBehavior
+경로: Assets/Script/Unit/Core/HumanFactionBehavior.cs
+의도: HumanFactionBehavior의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IFactionBehavior 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - IsEnemy(): bool 반환
+  - OnUpdate(): void 반환
+  - OnDeath(): void 반환
+  - OnEnterRoom(): void 반환

@@ -1,0 +1,14 @@
+클래스명: GoapWorldState
+태그: State
+경로: Assets/Script/Unit/AI/GoapWorldState.cs
+의도: GoapWorldState의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - DistanceToStairBlock(): int 반환
+  - Build(): GoapState 반환

@@ -47,32 +47,32 @@ public class UnitVisualDefinition : MonoBehaviour
 
         unit.isSpecialUnit = isSpecialUnit;
         unit.isInterestTarget = isInterestTarget;
-        unit.GetComponent<BaseStatComponent>().baseInterest = baseInterest;
-        unit.GetComponent<BaseStatComponent>().baseDanger = baseDanger;
-        unit.GetComponent<BaseStatComponent>().heavyHitThreshold = heavyHitThreshold;
-        unit.GetComponent<VisionStatComponent>().stealth = stealth;
-        unit.GetComponent<VisionStatComponent>().baseVisibility = baseVisibility;
+        unit.BaseStat.baseInterest = baseInterest;
+        unit.BaseStat.baseDanger = baseDanger;
+        unit.BaseStat.heavyHitThreshold = heavyHitThreshold;
+        unit.VisionStat.stealth = stealth;
+        unit.VisionStat.baseVisibility = baseVisibility;
 
-        unit.GetComponent<HealthComponent>().maxHp = stats.maxHp; unit.GetComponent<HealthComponent>().hp = stats.maxHp;
-        unit.GetComponent<HealthComponent>().maxMp = stats.maxMp; unit.GetComponent<HealthComponent>().mp = stats.maxMp;
-        var combatStats = unit.GetComponent<CombatStatComponent>(); if(combatStats != null) { combatStats.physicalAttack = stats.physicalAttack;
+        unit.Health.maxHp = stats.maxHp; unit.Health.hp = stats.maxHp;
+        unit.Health.maxMp = stats.maxMp; unit.Health.mp = stats.maxMp;
+        var combatStats = unit.CombatStat; if(combatStats != null) { combatStats.physicalAttack = stats.physicalAttack;
         combatStats.magicalAttack = stats.magicalAttack;
         combatStats.physicalDefense = stats.physicalDefense;
         combatStats.magicalDefense = stats.magicalDefense;
-        unit.GetComponent<BaseStatComponent>().HPRegen = stats.HPRegen;
+        unit.BaseStat.HPRegen = stats.HPRegen;
         combatStats.attackspeed = stats.attackspeed;
-        unit.GetComponent<BaseStatComponent>().walkSpeed = stats.walkSpeed;
-        unit.GetComponent<BaseStatComponent>().reaction = stats.reaction;
+        unit.BaseStat.walkSpeed = stats.walkSpeed;
+        unit.BaseStat.reaction = stats.reaction;
         combatStats.criticalChance = stats.criticalChance; }
-        unit.GetComponent<BaseStatComponent>().cooltimeReduction = stats.cooltimeReduction;
-        unit.GetComponent<BaseStatComponent>().statusResistance = stats.statusResistance;
-        unit.GetComponent<BaseStatComponent>().maxMental = stats.maxMental;
-        unit.GetComponent<BaseStatComponent>().mental = stats.mental;
-        unit.GetComponent<VisionStatComponent>().spotting = stats.spotting;
-        unit.GetComponent<BaseStatComponent>().leadershipRange = stats.leadershipRange;
-        unit.GetComponent<BaseStatComponent>().charisma = stats.charisma;
-        unit.GetComponent<CombatStateComponent>().State.physicalAttackSpeed = stats.physicalAttackSpeed;
-        unit.GetComponent<CombatStateComponent>().State.magicalCastSpeed    = stats.magicalCastSpeed;
+        unit.BaseStat.cooltimeReduction = stats.cooltimeReduction;
+        unit.BaseStat.statusResistance = stats.statusResistance;
+        unit.BaseStat.maxMental = stats.maxMental;
+        unit.BaseStat.mental = stats.mental;
+        unit.VisionStat.spotting = stats.spotting;
+        unit.BaseStat.leadershipRange = stats.leadershipRange;
+        unit.BaseStat.charisma = stats.charisma;
+        unit.CombatState.State.physicalAttackSpeed = stats.physicalAttackSpeed;
+        unit.CombatState.State.magicalCastSpeed    = stats.magicalCastSpeed;
 
         if (unit.unitType != null) unit.unitType.footprint = footprint;
     }

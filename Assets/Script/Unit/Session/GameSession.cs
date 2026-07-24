@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.InputSystem;
@@ -36,6 +36,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public OffenseProcessor OffenseProcessor => _offenseProcessor;
     private UnitRegistry _unitRegistry;
     private ObjectSpawner _objectSpawner;
+    private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
     private PartyService _partyService;
     private CombatEventService _combatEventService;
     private DebugInputHandler _debugInputHandler;
@@ -113,18 +114,24 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 cmap.DeserializeMap(mapTextAsset.text);
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
+                _mapManager.SetupAndVisualizeMap(cmap);
+                Unit.humanFactionData.InitMap(cmap);
+                Unit.monsterFactionData.InitMap(cmap);
+                BuildRoomGrid();
+                // 게임을 시작하자마자 보스방에 루팅 오브젝트(O키와 동일한 것)를 자동 생성한다(사용자 요청,
+                // 2026-07-23) — HumanWaveManager.MonitorWave()가 이 오브젝트를 "Loot" 태그로 발견해서 첫
+                // 웨이브부터 곧바로 목표로 추적하므로, 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
+                SpawnInitialBossRoomLoot();
+                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
-
-            // 게임을 시작하자마자 보스방에 루팅 오브젝트(O키와 동일한 것)를 자동 생성한다(사용자 요청,
-            // 2026-07-23) — HumanWaveManager.MonitorWave()가 이 오브젝트를 "Loot" 태그로 발견해서 첫
-            // 웨이브부터 곧바로 목표로 추적하므로, 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
-            SpawnInitialBossRoomLoot();
-
-            Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
+            else
+            {
+                Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
+            }
         }
-        else
+        catch (System.Exception e)
         {
-            Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
+            Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, $"GameSession: Initialize 중 예외: {e}");
         }
 
         await base.Initialize(cts);
@@ -220,7 +227,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         for (int i = units.Count - 1; i >= 0; i--)
         {
             var u = units[i];
-            if (u == null || u.GetComponent<HealthComponent>().hp <= 0)
+            if (u == null || u.Health.hp <= 0)
             {
                 RemoveDeadUnit(i, u);
                 visualNeedsSync = true;
@@ -229,8 +236,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             u.OnUpdate(Time.deltaTime);
 
-            u.GetComponent<CombatStateComponent>().State.actionCooldown -= Time.deltaTime;
-            if (u.GetComponent<CombatStateComponent>().State.actionCooldown <= 0f)
+            u.CombatState.State.actionCooldown -= Time.deltaTime;
+            if (u.CombatState.State.actionCooldown <= 0f)
             {
                 ProcessUnitAction(u);
                 visualNeedsSync = true;
@@ -268,7 +275,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         if (u != null) _combatEventService?.RecordKillWeightEvent(u, units);
         
-        if (u != null && u.GetComponent<HealthComponent>().hp <= 0)
+        if (u != null && u.Health.hp <= 0)
         {
             // 세력별 사망 이벤트(예: 오펜스 보상 누적 등) 처리
             u.FactionBehavior?.OnDeath(u, u.lastAttacker);
@@ -279,7 +286,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             
             if (u.lastAttacker != null && u.Knowledge != null)
             {
-                causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.GetComponent<BaseStatComponent>().baseDanger);
+                causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.BaseStat.baseDanger);
             }
             
             // SpawnObject는 objectGrid에 이미 오브젝트가 있는 타일이면 조용히 아무것도 안 하고
@@ -350,9 +357,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         foreach (var other in units)
         {
             if (other == null || other == dead) continue;
-            other.GetComponent<PerceptionComponent>().RemovePerceptionRecord(dead);
+            other.Perception.RemovePerceptionRecord(dead);
         }
-        dead.GetComponent<PerceptionComponent>().State.perceptionRecords.Clear();
+        dead.Perception.State.perceptionRecords.Clear();
     }
 
     public void DespawnUnit(Unit u)
@@ -442,8 +449,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private void ProcessUnitAction(Unit u)
     {
-        float speed = u.GetComponent<BaseStatComponent>().walkSpeed;
-        u.GetComponent<CombatStateComponent>().State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
+        float speed = u.BaseStat.walkSpeed;
+        u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
         // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를
         // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
@@ -719,6 +726,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     public void CollectObject(Vector3Int pos)
     {
+        // GameSession.SpawnObject가 생성한 비주얼은 GameSession.objectVisuals에 있다.
+        // ObjectSpawner.CollectObject는 자신의 objectVisuals(비어있음)만 보므로 직접 파괴한다.
+        if (objectGrid.TryGetValue(pos, out var objToRemove) && objectVisuals.TryGetValue(objToRemove, out GameObject visual))
+        {
+            UnityEngine.Object.Destroy(visual);
+            objectVisuals.Remove(objToRemove);
+        }
         _objectSpawner.CollectObject(pos);
     }
 

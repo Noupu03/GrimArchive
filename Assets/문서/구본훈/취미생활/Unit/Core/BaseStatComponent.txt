@@ -1,0 +1,31 @@
+클래스명: BaseStatComponent (IUnitComponent)
+태그: BaseStatComponent
+경로: Assets/Script/Unit/Core/BaseStatComponent.cs
+의도: BaseStatComponent의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IUnitComponent 상속 및 구현
+
+변수:
+  - _owner: Unit 타입 데이터
+  - agility: float 타입 데이터
+  - sense: float 타입 데이터
+  - sterngth: float 타입 데이터
+  - Durability: float 타입 데이터
+  - walkSpeed: float 타입 데이터
+  - reaction: float 타입 데이터
+  - statusResistance: float 타입 데이터
+  - leadershipRange: float 타입 데이터
+  - charisma: float 타입 데이터
+  - exp: float 타입 데이터
+  - baseDanger: float 타입 데이터
+  - baseInterest: float 타입 데이터
+  - heavyHitThreshold: float 타입 데이터
+  - HPRegen: float 타입 데이터
+  - cooltimeReduction: float 타입 데이터
+  - maxMental: float 타입 데이터
+  - mental: float 타입 데이터
+
+함수:
+  - OnUpdate(): void 반환
+  - OnDespawn(): void 반환

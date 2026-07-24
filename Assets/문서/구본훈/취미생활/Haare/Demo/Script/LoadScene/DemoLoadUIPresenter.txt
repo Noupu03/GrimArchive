@@ -1,0 +1,19 @@
+클래스명: DemoLoadUIPresenter (IPresenter)
+태그: UI
+경로: Assets/Haare/Demo/Script/LoadScene/DemoLoadUIPresenter.cs
+의도: 사용자 인터페이스(UI) 중 DemoLoadPresenter 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - IPresenter 상속 및 구현
+
+변수:
+  - _coreUIManager: CoreUIManager 타입 데이터
+  - _sceneUiManager: SceneUIManager 타입 데이터
+  - _resolver: IObjectResolver 타입 데이터
+  - sceneService: SceneService 타입 데이터
+  - _loadMono: DemoLoadMono 타입 데이터
+
+함수:
+  - Dispose(): void 반환
+  - PostInitialize(): void 반환
+  - BindIPanel(): void 반환

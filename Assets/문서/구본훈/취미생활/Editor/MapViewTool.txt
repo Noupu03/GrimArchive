@@ -1,0 +1,29 @@
+클래스명: MapViewTool (EditorWindow)
+태그: MapViewTool
+경로: Assets/Editor/MapViewTool.cs
+의도: MapViewTool의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - EditorWindow 상속 및 구현
+
+변수:
+  - cm: CreateMap 타입 데이터
+  - selectedFloor: int 타입 데이터
+  - selectedChunkX: int 타입 데이터
+  - selectedChunkY: int 타입 데이터
+  - selectedTileX: int 타입 데이터
+  - selectedTileY: int 타입 데이터
+  - chunkScrollPos: Vector2 타입 데이터
+  - tileScrollPos: Vector2 타입 데이터
+  - showChunkGrid: bool 타입 데이터
+  - showTileGrid: bool 타입 데이터
+  - showTileDetail: bool 타입 데이터
+  - centeredMiniLabel: GUIStyle 타입 데이터
+  - sectionHeaderStyle: GUIStyle 타입 데이터
+  - boxStyle: GUIStyle 타입 데이터
+
+함수:
+  - ShowWindow(): void 반환
+  - OnPlayModeStateChanged(): void 반환
+  - OnMapUpdated(): void 반환
+  - OnGUI(): void 반환
