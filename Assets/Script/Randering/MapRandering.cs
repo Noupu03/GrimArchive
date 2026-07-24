@@ -79,8 +79,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         floorTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         floorTile.sprite = floorSprite;
 
+        // 계단 타일은 현재 바닥 타일과 동일하게 렌더링 — 아이콘은 RenderStairOverlays가 오버레이로 처리
+        // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        stairTile.sprite = stairSprite != null ? stairSprite : CreateColorSprite(Color.yellow);
+        stairTile.sprite = floorSprite;
     }
 
     private Sprite CreateColorSprite(Color color)
