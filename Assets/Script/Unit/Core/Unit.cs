@@ -472,7 +472,12 @@ public class Human : UnitFunction
 	{
 		var trap = currentTrapInteraction;
 		if (trap == null) return false;
-		return position == new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+		// "함정 위치에 실제로 도달했을 때"의 도달 판정 반경이 TacticalFSMState.MoveToTrap과 함께
+		// 정확 일치 → Chebyshev ≤ 1(바로 옆 1칸)로 넓어졌다(사용자 요청, 2026-07-25 "함정 바로
+		// 위가 아니라 인근 1칸에서 해제 상호작용 가능하게") — 두 판정이 어긋나면 "이동은 끝났는데
+		// 아직 상호작용 중이 아닌 것으로 보이는" 프레임이 생긴다.
+		Vector2Int trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+		return Mathf.Max(Mathf.Abs(position.x - trapPos.x), Mathf.Abs(position.y - trapPos.y)) <= 1;
 	}
 
 	// 8-2장: "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계"(파티 목표 개념이
@@ -600,13 +605,19 @@ public class Human : UnitFunction
 
 	// GoapAction.MoveToEscortSlot(GoapCore.cs)과 동일한 배치 공식 — GoapWorldState.Build의 atEscortSlot
 	// 판정이 실제 이동 목표와 어긋나지 않도록 공유한다.
+	// 03문서 6-4장: 근접 유닛은 상호작용 유닛 "전방"에 배치(+facing 방향) — 6-5장 원거리는 "후방"
+	// 2칸 이상(-facing 방향)이라 부호가 반대다. 예전엔 근접도 -facing을 써서 후방에 서게 돼 있었다
+	// (검증 발견 버그, 사용자 확인 2026-07-24 "버그다, 문서대로 전방으로 고쳐줘"). facing.x/y는
+	// GetDirVector(8방향)가 이미 -1/0/1로 정규화해서 주므로 그대로 캐스트한다 — Mathf.Sign(0)이 0이
+	// 아니라 1을 반환하는 Unity 특성 때문에 Sign()을 쓰면 정면이 수직/수평(UP/DOWN/LEFT/RIGHT)일 때
+	// 옆으로 밀리는 버그가 있었다(실제 테스트로 검증 발견, 2026-07-25).
 	public Vector2Int GetEscortSlotPosition(Human escortTarget, float backDistance)
 	{
 		Vector2 facing = GetDirVector(escortTarget.currentDir);
 		if (facing == Vector2.zero) facing = Vector2.down;
 
 		Vector2Int offset = backDistance <= 1f
-			? new Vector2Int(-(int)Mathf.Sign(facing.x), -(int)Mathf.Sign(facing.y))
+			? new Vector2Int((int)facing.x, (int)facing.y)
 			: new Vector2Int(
 				Mathf.RoundToInt(-facing.x * backDistance),
 				Mathf.RoundToInt(-facing.y * backDistance));

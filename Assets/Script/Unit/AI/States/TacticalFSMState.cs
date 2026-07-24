@@ -112,12 +112,16 @@ public class TacticalFSMState : IFSMState
 
 	public void OnExit(Unit unit)
 	{
-		// 조사 중 외부 원인(플레이어 명령 등)으로 상태 이탈 시 페널티 해제 + 진행도 50% 손실
+		// 조사/함정 해제 중 외부 원인(플레이어 명령 등)으로 Tactical 상태 자체를 완전히 벗어날 때
+		// 페널티 해제 + 진행도 50% 손실(5-6/9-7장). 같은 Tactical 상태 안에서 브랜치만 바뀌는 중단
+		// (피격/위협 인지)은 여기를 안 타므로 CanInvestigate/CanDisarm이 각각 직접 처리한다(검증 발견
+		// 2026-07-25 gap 수정 — 아래 ApplyInvestigateInterruptPenalty/ApplyTrapDisarmInterruptPenalty
+		// 참고).
 		if (unit is Human human && human.currentInvestigation != null && human.currentInvestigation.PenaltyActive)
-		{
-			human.currentInvestigation.Progress01 *= 0.5f;
-			human.currentInvestigation.PenaltyActive = false;
-		}
+			ApplyInvestigateInterruptPenalty(human);
+
+		if (unit.currentTrapInteraction != null && unit.currentTrapInteraction.PenaltyActive)
+			ApplyTrapDisarmInterruptPenalty(unit);
 	}
 
 	public BTStatus Tick(Unit unit)    => _bt.Tick(unit);
@@ -128,20 +132,55 @@ public class TacticalFSMState : IFSMState
 	private static bool IsPanic(Unit unit)
 		=> unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
 
-	// 함정 해제: 피격 또는 위협 인지 시 이 틱에 한해 Failure → Selector가 다음 분기로 넘어감
+	// 함정 해제: 피격 또는 위협 인지 시 이 틱에 한해 Failure → Selector가 다음 분기로 넘어감. 9-7장
+	// 중단 조건이라 진행도 50% 손실도 여기서 같이 처리한다(검증 발견 2026-07-25 gap 수정 — 예전엔
+	// OnExit에서만 처리해서, Tactical 상태를 벗어나지 않고 브랜치만 바뀌는 이 경로에서는 손실이
+	// 전혀 안 걸렸다).
 	private static bool CanDisarm(Unit unit)
-		=> IsDisarmWorthy(unit)
-		&& !unit.isHitThisTurn
-		&& !unit.HasPerceivedThreatCollider();
+	{
+		if (!IsDisarmWorthy(unit)) return false;
+		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider())
+		{
+			ApplyTrapDisarmInterruptPenalty(unit);
+			return false;
+		}
+		return true;
+	}
+
+	// 9-7장: 함정 해제 진행도(DisarmProgress01)의 50% 손실 — TrapDisarmPerform이 매 틱 PenaltyActive를
+	// true로 세팅해두므로, 그 값이 남아있을 때(=직전까지 실제로 해제 진행 중이었을 때)만 1회 적용하고
+	// false로 내려서 같은 중단이 이어지는 동안 중복 적용되지 않게 한다.
+	private static void ApplyTrapDisarmInterruptPenalty(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap == null || !trap.PenaltyActive) return;
+		trap.DisarmProgress01 *= (AIConfigLoader.Behavior?.trapDisarmInterruptLossRatio ?? ExplorationMath.TrapDisarmInterruptLossRatio);
+		trap.PenaltyActive = false;
+	}
 
 	private static bool CanInvestigate(Unit unit)
 	{
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
-		// 피격·위협 인지 시 이 틱에 한해 조사 중단
-		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider()) return false;
+		// 피격·위협 인지 시 이 틱에 한해 조사 중단(5-6장) — 진행도 50% 손실도 같이 처리(검증 발견
+		// 2026-07-25 gap 수정, 위 CanDisarm과 동일한 이유/패턴).
+		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider())
+		{
+			ApplyInvestigateInterruptPenalty(human);
+			return false;
+		}
 		return true;
+	}
+
+	// 5-6장: 조사 진행도(Progress01)의 50% 손실 — InvestigatePerform이 매 틱 PenaltyActive를 true로
+	// 세팅해두므로, 그 값이 남아있을 때만 1회 적용한다.
+	private static void ApplyInvestigateInterruptPenalty(Human human)
+	{
+		var inv = human.currentInvestigation;
+		if (inv == null || !inv.PenaltyActive) return;
+		inv.Progress01 *= (AIConfigLoader.Behavior?.investigateInterruptLossRatio ?? ExplorationMath.InvestigateInterruptLossRatio);
+		inv.PenaltyActive = false;
 	}
 
 	private static bool HasWait(Unit unit)
@@ -246,7 +285,11 @@ public class TacticalFSMState : IFSMState
 		var trap = unit.currentTrapInteraction;
 		if (trap == null) return BTStatus.Failure;
 		Vector2Int trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
-		if (unit.position == trapPos) return BTStatus.Success;
+		// 함정도 오브젝트처럼 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1(바로 옆 1칸)로
+		// 도달 판정한다(사용자 요청, 2026-07-25 "함정 바로 위에서가 아니라 인근 1칸에서 해제 상호작용
+		// 가능하게") — MoveToInvestigateTarget과 동일한 관례.
+		if (Mathf.Max(Mathf.Abs(unit.position.x - trapPos.x), Mathf.Abs(unit.position.y - trapPos.y)) <= 1)
+			return BTStatus.Success;
 		AIMovementHelper.MoveTowardsPos(unit, trapPos);
 		return BTStatus.Running;
 	}
