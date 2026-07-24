@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
@@ -505,14 +505,51 @@ public abstract class UnitFunction : Unit, IVisionContext
 			int cy = y / 8;
 			int ty = y % 8;
 
-			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) break;
+			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height)
+			{
+				if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight)
+					myData.discoveredMap[currentFloor][x, y] = 2;
+				break;
+			}
 
 			Chunks c = floor.chunks[cx, cy];
-			if (c.roomId == -1 || c.chunk == null) break;
+			if (c.roomId == -1 || c.chunk == null)
+			{
+				myData.discoveredMap[currentFloor][x, y] = 2;
+				break;
+			}
 
 			Tile tile = c.chunk[tx, ty];
 			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
+
+			// 시야 사각지대(DDA 틈새) 근본적 해결: 바닥을 보았다면, 그 바닥과 맞닿은 8방향의 숨은 벽을 즉시 시야에 추가합니다. (Wall Dilation)
+			if (!tileIsWall)
+			{
+				for (int dx = -1; dx <= 1; dx++)
+				{
+					for (int dy = -1; dy <= 1; dy++)
+					{
+						int nx = x + dx, ny = y + dy;
+						if (nx >= 0 && nx < mapWidth && ny >= 0 && ny < mapHeight && myData.discoveredMap[currentFloor][nx, ny] == 0)
+						{
+							int ncx = nx / 8, ntx = nx % 8, ncy = ny / 8, nty = ny % 8;
+							if (ncx < 0 || ncx >= floor.config.width || ncy < 0 || ncy >= floor.config.height)
+							{
+								myData.discoveredMap[currentFloor][nx, ny] = 2; // 맵 밖은 벽
+							}
+							else
+							{
+								Chunks nc = floor.chunks[ncx, ncy];
+								if (nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall" || nc.chunk[ntx, nty].isStructureExist)
+								{
+									myData.discoveredMap[currentFloor][nx, ny] = 2; // 숨은 벽 및 청크 빈 공간(허공) 즉시 확정
+								}
+							}
+						}
+					}
+				}
+			}
 
 			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
 			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
 using Cysharp.Threading.Tasks;
@@ -215,6 +215,7 @@ public abstract class Unit : ScriptableObject {
 	// 요청 "예외처리 없이 goap로직에 넣어도 되겠군"). Action_CrossStairs가 실제로 층을 넘기면 null로
 	// 되돌린다.
 	public int? pendingStairTargetFloor = null;
+	public Vector2Int? currentExplorationTarget = null;
 
 	public Vector2Int? playerMoveTarget    = null;
 	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?

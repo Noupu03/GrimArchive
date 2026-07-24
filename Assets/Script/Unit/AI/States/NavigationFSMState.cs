@@ -33,8 +33,31 @@ public class NavigationFSMState : IFSMState
 	// ── 조건 ─────────────────────────────────────────────────────
 
 	private static bool HasPendingStairs(Unit unit)
-		=> unit is Human h && h.pendingStairTargetFloor.HasValue
-		&& h.pendingStairTargetFloor.Value != h.currentFloor;
+	{
+		if (!(unit is Human h)) return false;
+
+		// 기존 조건: 루팅 등으로 인해 이미 계단으로 가야 하는 상태
+		if (h.pendingStairTargetFloor.HasValue && h.pendingStairTargetFloor.Value != h.currentFloor)
+			return true;
+
+		// 유저 피드백 반영: 계단을 직접 눈으로 찾았다면(personalMap에 계단 위치가 밝혀졌다면),
+		// 맵을 끝까지 밝히겠다고 역주행하지 않고 즉시 계단으로 향하도록 목표 층을 세팅합니다.
+		if (h.Session?.cmap != null)
+		{
+			int nextFloor = h.currentFloor + 1;
+			if (h.Session.cmap.TryGetStairPosition(h.currentFloor, nextFloor, out Vector2Int stairPos))
+			{
+				// 계단 블록(좌상단 좌표)을 한 번이라도 시야로 본 적이 있다면
+				if (h.personalMap.IsTileRevealed(new Vector3Int(stairPos.x, stairPos.y, h.currentFloor)))
+				{
+					h.pendingStairTargetFloor = nextFloor;
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
 
 	// ── 계단 ─────────────────────────────────────────────────────
 
@@ -54,8 +77,7 @@ public class NavigationFSMState : IFSMState
 
 		if (!human.Session.cmap.TryGetStairApproachCandidates(human.currentFloor, toFloor, out var candidates) || candidates.Count == 0)
 		{
-			ExploreTowardsUnknown(human);
-			return BTStatus.Running;
+			return RandomExplore(human);
 		}
 
 		// 원본과 동일: 매 틱 비어있는 가장 가까운 후보 타일로 이동
@@ -98,66 +120,155 @@ public class NavigationFSMState : IFSMState
 		return BTStatus.Success;
 	}
 
-	private static void ExploreTowardsUnknown(Human human)
-	{
-		Dir[] dirs = (Dir[])System.Enum.GetValues(typeof(Dir));
-		foreach (Dir d in dirs)
-		{
-			Vector2Int next = human.position + human.GetDirVector(d);
-			if (human.MovementAlgorithm != null && human.MovementAlgorithm.TryGetNextStep(human, next, out Dir step))
-			{
-				human.Move(step);
-				return;
-			}
-		}
-		human.Move((Dir)Random.Range(0, 8));
-	}
+
 
 	// ── 자유탐색 ─────────────────────────────────────────────────
 
 	private static BTStatus RandomExplore(Unit unit)
 	{
-		if (Random.value < 0.3f) { unit.Move((Dir)Random.Range(0, 8)); return BTStatus.Running; }
-
 		FactionData data = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
 		int fi = unit.currentFloor;
 		if (data.discoveredMap == null || fi >= data.discoveredMap.Length || data.discoveredMap[fi] == null)
 		{
-			unit.Move((Dir)Random.Range(0, 8));
+			MoveRandomlyValid(unit);
 			return BTStatus.Running;
 		}
 
 		int mapW = data.discoveredMap[fi].GetLength(0);
 		int mapH = data.discoveredMap[fi].GetLength(1);
 
-		Vector2Int? unexplored = FindNearestUnexplored(unit, data, fi, mapW, mapH);
-		if (unexplored.HasValue)
+		// --- BFS 캐싱 로직 ---
+		Human h = unit as Human;
+		bool needsNewTarget = true;
+		if (unit.currentExplorationTarget.HasValue)
 		{
-			AIMovementHelper.MoveTowardsPos(unit, unexplored.Value);
+			Vector2Int cTarget = unit.currentExplorationTarget.Value;
+			int targetTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cTarget.x, cTarget.y, fi)) : data.discoveredMap[fi][cTarget.x, cTarget.y];
+			if (targetTerrain == 0) // 아직 미탐색 상태라면 기존 타겟 유지
+			{
+				needsNewTarget = false;
+			}
+		}
+
+		Vector2Int? target = unit.currentExplorationTarget;
+		if (needsNewTarget)
+		{
+			target = FindNearestUnexploredTarget(unit, data, fi, mapW, mapH);
+			unit.currentExplorationTarget = target;
+		}
+		// ---------------------
+
+		if (target.HasValue)
+		{
+			if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, target.Value, out Dir nextDir))
+			{
+				Vector2Int nextPos = unit.position + unit.GetDirVector(nextDir);
+				if (!unit.CanMove(nextPos, ignoreUnits: true))
+				{
+					// 물리적인 벽인데 시야가 놓쳤다면, 뇌(discoveredMap)와 개인 지도에 벽(2)으로 강제 각인!
+					if (nextPos.x >= 0 && nextPos.x < mapW && nextPos.y >= 0 && nextPos.y < mapH)
+					{
+						data.discoveredMap[fi][nextPos.x, nextPos.y] = 2;
+						if (h != null) h.personalMap.RevealTile(new Vector3Int(nextPos.x, nextPos.y, fi), true);
+					}
+					unit.currentExplorationTarget = null; // 타겟 초기화
+				}
+				else
+				{
+					Vector2Int oldPos = unit.position;
+					unit.Move(nextDir);
+					
+					if (unit.position == oldPos)
+					{
+						MoveRandomlyValid(unit);
+					}
+				}
+			}
+			else
+			{
+				// A* 경로 탐색 실패 (도달 불가능한 타겟)
+				// 타겟이 대각선 코너 등에 가려진 닿을 수 없는 0(미탐색)일 수 있으므로 벽으로 치부하고 무시합니다.
+				data.discoveredMap[fi][target.Value.x, target.Value.y] = 2;
+				if (h != null) h.personalMap.RevealTile(new Vector3Int(target.Value.x, target.Value.y, fi), true);
+				
+				unit.currentExplorationTarget = null; // 영원히 A* 5만번 도는 것을 방지
+				MoveRandomlyValid(unit);
+			}
 		}
 		else
 		{
-			unit.Move((Dir)Random.Range(0, 8));
+			MoveRandomlyValid(unit);
 		}
 		return BTStatus.Running;
 	}
 
-	private static Vector2Int? FindNearestUnexplored(Unit unit, FactionData data, int fi, int mapW, int mapH)
+	private static void MoveRandomlyValid(Unit unit)
 	{
-		int     r      = AIConfigLoader.Behavior?.exploreRadius ?? 10;
-		float   best   = float.MaxValue;
-		Vector2Int? result = null;
-
-		for (int dx = -r; dx <= r; dx++)
-		for (int dy = -r; dy <= r; dy++)
+		if (unit.MovementAlgorithm == null) return;
+		int startOffset = Random.Range(0, 8);
+		for (int i = 0; i < 8; i++)
 		{
-			Vector2Int c = new Vector2Int(unit.position.x + dx, unit.position.y + dy);
-			if (c.x < 0 || c.x >= mapW || c.y < 0 || c.y >= mapH) continue;
-			if (data.discoveredMap[fi][c.x, c.y] != 0) continue;
-			float d = new Vector2Int(dx, dy).sqrMagnitude;
-			if (d < best) { best = d; result = c; }
+			Dir tryDir = (Dir)((startOffset + i) % 8);
+			Vector2Int nextPos = unit.position + unit.GetDirVector(tryDir);
+			// TryGetNextStep 내부에서 A* 및 충돌(벽) 검사를 수행하므로, 이동 가능한 방향만 걸러집니다.
+			if (unit.MovementAlgorithm.TryGetNextStep(unit, nextPos, out Dir step))
+			{
+				unit.Move(step);
+				return;
+			}
 		}
-		return result;
+	}
+
+	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
+	{
+		if (data.bfsVisitedGrid == null || data.bfsVisitedGrid.GetLength(0) < mapW || data.bfsVisitedGrid.GetLength(1) < mapH)
+		{
+			data.bfsVisitedGrid = new int[mapW + 20, mapH + 20];
+		}
+		
+		data.bfsVisitToken++;
+		if (data.bfsVisitToken == 0) data.bfsVisitToken = 1;
+
+		var q = data.bfsQueue;
+		q.Clear();
+		q.Enqueue(unit.position);
+		data.bfsVisitedGrid[unit.position.x, unit.position.y] = data.bfsVisitToken;
+		
+		int maxSearchNodes = 30000; // 맵 횡단을 위해 탐색 범위를 크게 확장
+		int iter = 0;
+
+		Human h = unit as Human;
+
+		while (q.Count > 0 && iter < maxSearchNodes)
+		{
+			iter++;
+			Vector2Int cur = q.Dequeue();
+			
+			// FactionData(공유 지도)가 아닌 각 유닛의 개인 지도를 기준으로 안 가본 곳을 판별합니다.
+			// 공유 지도를 쓰면 남이 밝힌 곳을 자기도 가본 줄 알고 구석에서 영원히 방황하게 됩니다.
+			int currentTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cur.x, cur.y, fi)) : data.discoveredMap[fi][cur.x, cur.y];
+			if (currentTerrain == 0)
+			{
+				return cur; // 어둠(미탐색) 발견 시 최종 목적지(Target) 좌표 반환
+			}
+			
+			for (int i = 0; i < 8; i++)
+			{
+				Dir d = (Dir)i;
+				Vector2Int next = cur + unit.GetDirVector(d);
+				
+				if (next.x < 0 || next.x >= mapW || next.y < 0 || next.y >= mapH) continue;
+				if (data.bfsVisitedGrid[next.x, next.y] == data.bfsVisitToken) continue;
+				
+				int nextTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(next.x, next.y, fi)) : data.discoveredMap[fi][next.x, next.y];
+				if (nextTerrain == 2) continue; // 벽 패스
+				
+				data.bfsVisitedGrid[next.x, next.y] = data.bfsVisitToken;
+				q.Enqueue(next);
+			}
+		}
+		
+		return null;
 	}
 
 	// ── 라벨 ──────────────────────────────────────────────────────

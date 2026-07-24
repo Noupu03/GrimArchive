@@ -10,7 +10,102 @@ public class AStarMovement : IMovementAlgorithm
         public int GCost;
         public int HCost;
         public int FCost => GCost + HCost;
+        public int HeapIndex = -1;
     }
+
+    protected class MinHeap
+    {
+        private List<AStarNode> items = new List<AStarNode>();
+        public int Count => items.Count;
+
+        public void Push(AStarNode item)
+        {
+            item.HeapIndex = items.Count;
+            items.Add(item);
+            HeapifyUp(item.HeapIndex);
+        }
+
+        public AStarNode Pop()
+        {
+            if (items.Count == 0) return null;
+            AStarNode root = items[0];
+            int lastIndex = items.Count - 1;
+            AStarNode lastItem = items[lastIndex];
+            items[0] = lastItem;
+            lastItem.HeapIndex = 0;
+            items.RemoveAt(lastIndex);
+            if (items.Count > 0)
+                HeapifyDown(0);
+            return root;
+        }
+
+        public void UpdateItem(AStarNode item)
+        {
+            HeapifyUp(item.HeapIndex);
+        }
+
+        public bool Contains(AStarNode item)
+        {
+            return item.HeapIndex >= 0 && item.HeapIndex < items.Count && items[item.HeapIndex] == item;
+        }
+
+        private void HeapifyUp(int index)
+        {
+            while (index > 0)
+            {
+                int parentIndex = (index - 1) / 2;
+                if (Compare(items[index], items[parentIndex]) < 0)
+                {
+                    Swap(index, parentIndex);
+                    index = parentIndex;
+                }
+                else break;
+            }
+        }
+
+        private void HeapifyDown(int index)
+        {
+            int lastIndex = items.Count - 1;
+            while (true)
+            {
+                int leftChild = index * 2 + 1;
+                int rightChild = index * 2 + 2;
+                int smallest = index;
+
+                if (leftChild <= lastIndex && Compare(items[leftChild], items[smallest]) < 0)
+                    smallest = leftChild;
+                if (rightChild <= lastIndex && Compare(items[rightChild], items[smallest]) < 0)
+                    smallest = rightChild;
+
+                if (smallest != index)
+                {
+                    Swap(index, smallest);
+                    index = smallest;
+                }
+                else break;
+            }
+        }
+
+        private int Compare(AStarNode a, AStarNode b)
+        {
+            int cmp = a.FCost.CompareTo(b.FCost);
+            if (cmp == 0) cmp = a.HCost.CompareTo(b.HCost);
+            return cmp;
+        }
+
+        private void Swap(int a, int b)
+        {
+            var temp = items[a];
+            items[a] = items[b];
+            items[b] = temp;
+            items[a].HeapIndex = a;
+            items[b].HeapIndex = b;
+        }
+    }
+
+    private Vector2Int _cacheTarget = new Vector2Int(-9999, -9999);
+    private Dictionary<Vector2Int, Dir> _pathMap = new Dictionary<Vector2Int, Dir>();
+    private float _cacheTime = 0f;
 
     public bool TryGetNextStep(Unit unit, Vector2Int targetPos, out Dir nextDir)
     {
@@ -29,37 +124,43 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
+        // --- 캐싱 로직: A* 연산 폭주를 막아 프레임 드랍(지랄나는 연산량) 방지 ---
+        if (_cacheTarget == targetPos && Time.time - _cacheTime < 5f)
+        {
+            if (_pathMap.TryGetValue(unit.position, out Dir cachedDir))
+            {
+                Vector2Int cNextPos = unit.position + unit.GetDirVector(cachedDir);
+                if (IsTileWalkable(unit, unit.position, cNextPos, unit.GetDirVector(cachedDir), myData, mapW, mapH, floorIdx, targetPos, out bool _))
+                {
+                    nextDir = cachedDir;
+                    return true;
+                }
+            }
+        }
+        
+        _cacheTarget = targetPos;
+        _pathMap.Clear();
+        _cacheTime = Time.time;
+        // -------------------------------------------------------------
+
         Vector2Int startPos = unit.position;
 
-        List<AStarNode> openList = new List<AStarNode>();
+        MinHeap openList = new MinHeap();
         HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
         Dictionary<Vector2Int, AStarNode> allNodes = new Dictionary<Vector2Int, AStarNode>();
 
-        AStarNode startNode = new AStarNode { Pos = startPos, GCost = 0, HCost = GetHeuristic(startPos, targetPos) };
-        openList.Add(startNode);
+        AStarNode startNode = new AStarNode { Pos = startPos, GCost = 0, HCost = GetHeuristic(startPos, targetPos), HeapIndex = -1 };
+        openList.Push(startNode);
         allNodes[startPos] = startNode;
 
-        int maxIter = 300; // 최적화: 5000에서 300으로 대폭 축소 (도달할 수 없는 길찾기로 인한 프레임 드랍 방지)
+        int maxIter = 50000; // 맵 횡단을 위해 A* 길찾기 최대 연산량도 대폭 상향 (MinHeap 덕분에 5만 번도 순식간에 처리됨)
         int iter = 0;
         AStarNode closestNode = startNode;
 
         while (openList.Count > 0 && iter < maxIter)
         {
             iter++;
-
-            AStarNode current = openList[0];
-            int currentIndex = 0;
-            for (int i = 1; i < openList.Count; i++)
-            {
-                if (openList[i].FCost < current.FCost ||
-                    (openList[i].FCost == current.FCost && openList[i].HCost < current.HCost))
-                {
-                    current = openList[i];
-                    currentIndex = i;
-                }
-            }
-
-            openList.RemoveAt(currentIndex);
+            AStarNode current = openList.Pop();
             closedSet.Add(current.Pos);
 
             if (current.Pos == targetPos) { closestNode = current; break; }
@@ -76,12 +177,11 @@ public class AStarMovement : IMovementAlgorithm
                 if (!IsTileWalkable(unit, current.Pos, neighborPos, dirVec, myData, mapW, mapH, floorIdx, targetPos, out bool isOccupied)) continue;
 
                 int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
-
                 int newGCost = current.GCost + moveCost;
 
                 if (!allNodes.TryGetValue(neighborPos, out AStarNode neighborNode))
                 {
-                    neighborNode = new AStarNode { Pos = neighborPos, HCost = GetHeuristic(neighborPos, targetPos) };
+                    neighborNode = new AStarNode { Pos = neighborPos, HCost = GetHeuristic(neighborPos, targetPos), HeapIndex = -1 };
                     allNodes[neighborPos] = neighborNode;
                 }
 
@@ -90,25 +190,34 @@ public class AStarMovement : IMovementAlgorithm
                 {
                     neighborNode.GCost = newGCost;
                     neighborNode.Parent = current;
-                    if (!inOpen) openList.Add(neighborNode);
+                    
+                    if (!inOpen) openList.Push(neighborNode);
+                    else openList.UpdateItem(neighborNode);
                 }
             }
         }
 
         if (closestNode == startNode) return false;
 
-        AStarNode step = closestNode;
-        while (step.Parent != null && step.Parent != startNode)
-            step = step.Parent;
-
-        Vector2Int diff = step.Pos - startPos;
-        foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+        AStarNode stepNode = closestNode;
+        while (stepNode.Parent != null)
         {
-            if (unit.GetDirVector(d) == diff)
+            Vector2Int diff = stepNode.Pos - stepNode.Parent.Pos;
+            foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
             {
-                nextDir = d;
-                return true;
+                if (unit.GetDirVector(d) == diff)
+                {
+                    _pathMap[stepNode.Parent.Pos] = d;
+                    break;
+                }
             }
+            stepNode = stepNode.Parent;
+        }
+
+        if (_pathMap.TryGetValue(startPos, out Dir startDir))
+        {
+            nextDir = startDir;
+            return true;
         }
 
         return false;
