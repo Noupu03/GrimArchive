@@ -40,6 +40,13 @@ public class NavigationFSMState : IFSMState
 		if (h.pendingStairTargetFloor.HasValue && h.pendingStairTargetFloor.Value != h.currentFloor)
 			return true;
 
+		// 0층(로비)은 웨이브가 시작될 때만 1층으로 넘어가야 한다(HumanWaveManager.StartWave 참고,
+		// 사용자 요청 2026-07-24 "웨이브 시작할때에만 1층으로 이동시켜줘, 0->1층으로 전이를") — 사전
+		// 스폰돼 대기 중 배회하던 유닛이 계단을 눈으로 발견했다고 여기서 자동으로 건너가 버리면 안
+		// 된다. 아래 "계단을 직접 발견하면 즉시 향한다" 자동화는 이미 던전에 진입한 뒤(1층 이상)의
+		// 층간 이동에만 적용한다.
+		if (h.currentFloor == 0) return false;
+
 		// 유저 피드백 반영: 계단을 직접 눈으로 찾았다면(personalMap에 계단 위치가 밝혀졌다면),
 		// 맵을 끝까지 밝히겠다고 역주행하지 않고 즉시 계단으로 향하도록 목표 층을 세팅합니다.
 		if (h.Session?.cmap != null)
