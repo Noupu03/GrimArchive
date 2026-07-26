@@ -48,6 +48,21 @@ public class Party
 	// 판정을 재확인하므로, 한 번 처리한 뒤에는 중복 트리거를 막아야 한다.
 	public bool WaveEnded;
 
+	// 03문서 4-12~4-15장(파티원 사망 발견): 시체 오브젝트 Id → 그 사망 사건의 진행 상태.
+	// PartyDeathSystem(Assets/Script/Unit/Party/PartyDeathRecord.cs)이 읽고 쓴다. WaveSpawner가
+	// 웨이브마다 새 Party를 만들므로(재사용 안 함) 별도 정리 없이 웨이브 경계에서 자연히 초기화된다.
+	public readonly Dictionary<string, PartyDeathRecord> DeathRecords = new Dictionary<string, PartyDeathRecord>();
+
+	// 03문서 9장(함정 대응 개편): 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태.
+	// TrapPartySystem(Assets/Script/Unit/Party/TrapPartyCoordination.cs)이 읽고 쓴다.
+	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
+
+	// 03문서 7-3장(2026-07-27 신규): 발견됐지만 아직 리더가 조사를 완료하지 않은 코어 — null이면
+	// 없음. CorePartySystem/TacticalFSMState가 읽고 쓴다. 리더가 바뀌어도(승계) 이 값 자체는 파티
+	// 소유라 그대로 유지되어 새 리더가 이어받을 수 있다.
+	public string PendingCoreObjectId;
+	public Vector3Int PendingCorePosition;
+
 	public Party(string id, string name)
 	{
 		Id = id;

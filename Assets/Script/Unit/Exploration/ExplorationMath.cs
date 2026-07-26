@@ -13,6 +13,11 @@ public static class ExplorationMath
 	public const float UnidentifiedAttackSearchSeconds = 15f; // 4-12장: 미식별 공격 수색시간
 	public const float SuspiciousTargetVisibilityBoostPerMove = 20f; // 4-6장: 이동 1회당 임시 가시성 +20
 
+	// ─────────────────────────── 4-12~4-15장/14장. 파티원 사망 발견 (2026-07-27 신규) ───────────────────────────
+	public const float DeathSearchSeconds = 10f; // 4-15장: 원인미상 파티원 사망 주변 수색시간
+	public const float DeathDirectDiscoveryMentalLoss = 10f; // 4-12/4-13장: 최초 발견/목격 정신력 감소
+	public const float DeathPropagationMentalLoss = 5f;      // 4-13장: 전파/재전파 수신 정신력 감소
+
 	// ─────────────────────────── 5장/14장. 조사 ───────────────────────────
 	public const float InvestigatePenaltyRatio = 0.5f;   // 5-4장: 조사 중 시야/인지/반응속도 50%
 	public const float InvestigateInterruptLossRatio = 0.5f; // 5-6장: 중단 시 진행량의 50% 손실
@@ -24,9 +29,13 @@ public static class ExplorationMath
 	// ─────────────────────────── 9장/14장. 함정 대응 ───────────────────────────
 	public const float TrapPenaltyRatio = 0.5f;          // 9-6장: 해제 중 시야/인지/반응속도 50%
 	public const float TrapDisarmInterruptLossRatio = 0.5f; // 9-7장: 중단 시 해제량의 50% 손실
-	// 9-3장/14장 파라미터표: 문서 원래값은 5초인데, 사용자 요청(2026-07-22)으로 3초로 단축 — 문서
-	// 명시값에서 의도적으로 벗어난 값이라는 점을 기억해둘 것.
-	public const float TrapJoinWaitSeconds = 3f;
+	// 9-3장/14장: 함정 정보 전파 후 발견 유닛 응답 대기시간. 이전엔 문서가 5초를 명시했고 사용자
+	// 요청(2026-07-22)으로 3초로 단축했었으나, 새 문서(v0.6 개정판, 2026-07-27)가 공식값을 2초로
+	// 바꿔서 사용자 확인 후 문서값 그대로 적용했다(더 이상 의도적 이탈이 아님).
+	public const float TrapJoinWaitSeconds = 2f;
+	// 9-7장(신규): 선정 유닛의 예상 도착시간(EstimateEta) 이후 이 시간까지 미도착이면 발견 유닛이
+	// 마지막 전파 위치로 직접 찾아간다.
+	public const float TrapSelectedUnitLateGraceSeconds = 3f;
 	public const float TrapRecordedDirectDisarmThreshold = 0.5f; // 9-4장: 예상 성공률 50% 초과 기준
 	public const float TrapPassMinHpRatioAfterHit = 0.5f;        // 9-10장: 일반 통과 후 최소 HP 50%
 	public const float TrapAllyRescueMinHpRatioAfterHit = 0.3f;  // 9-11장: 아군 보호 시 기록 함정 통과 후 최소 HP 30%
@@ -77,4 +86,11 @@ public static class ExplorationMath
 
 	// ─────────────────────────── 8장. 공격 방향 경계 포메이션 ───────────────────────────
 	public const float FormationAttackDirectionSearchSeconds = 15f; // 8-3장: 공격 방향 확인 후 15초 수색
+
+	// ─────────────────────────── 7장/14장. 파티 목표·코어 (2026-07-27 신규) ───────────────────────────
+	public const float PartyGoalInitialPropagationSeconds = 1f; // 7-2장: 파티 목표 도달 시 최초 합류 전파
+	public const float PartyGoalRePropagationSeconds = 1f;      // 7-2장: 합류 정보 수신 유닛의 재전파
+	// 7-3장: 코어 조사 자체의 소요시간(문서 미명시) — 일반 조사(5-4장 InvestigateDurationSeconds)와
+	// 같은 값을 내부 판단으로 재사용한다.
+	public const float CoreInvestigateDurationSeconds = 8f;
 }

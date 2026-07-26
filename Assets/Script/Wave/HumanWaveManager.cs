@@ -86,6 +86,15 @@ namespace GrimArchive.Wave
         private float pickupProgressSeconds = 0f;
         private Human pickupCandidateUnit = null;
 
+        // 03문서 7-2장(2026-07-27 개정): "웨이브 진입 전 설정된 파티 목표 오브젝트에 도달한 유닛은
+        // 1초 동안 합류 정보를 전파한 뒤 상호작용(=여기서는 10초 수집 타이머)을 시작한다." dummyTarget이
+        // 이 문서가 말하는 "파티 목표 오브젝트"의 실체라 도착~수집 사이에 1초 지연을 끼워 넣는다.
+        // 다른 파티원의 "1초 재전파 후 합류" 절반은 UpdatePartyDestination이 이미 매 틱 전원에게
+        // playerMoveTarget을 부여하는(즉시·상시 공유) 더 단순한 모델이라 별도 재전파 지연을 얹을
+        // 실익이 없어 생략했다(구현현황에 근사 사유 기재).
+        private const float PartyGoalJoinPropagationSeconds = 1f;
+        private float joinPropagationTimer = 0f;
+
         public override async UniTask Initialize(System.Threading.CancellationToken cts)
         {
             await base.Initialize(cts);
@@ -444,20 +453,30 @@ namespace GrimArchive.Wave
                     {
                         pickupCandidateUnit = unitOnTarget;
                         pickupProgressSeconds = 0f;
+                        joinPropagationTimer = 0f; // 7-2장: 새로 도착한 유닛부터 1초 합류 전파 재시작
                     }
 
-                    pickupProgressSeconds += Time.deltaTime;
-                    if (pickupProgressSeconds >= ObjectPickupDurationSeconds)
+                    // 7-2장: 1초 합류 정보 전파가 끝나야 실제 수집(상호작용) 타이머가 흐르기 시작한다.
+                    if (joinPropagationTimer < PartyGoalJoinPropagationSeconds)
                     {
-                        PickupDummyTarget(unitOnTarget);
-                        pickupCandidateUnit = null;
-                        pickupProgressSeconds = 0f;
+                        joinPropagationTimer += Time.deltaTime;
+                    }
+                    else
+                    {
+                        pickupProgressSeconds += Time.deltaTime;
+                        if (pickupProgressSeconds >= ObjectPickupDurationSeconds)
+                        {
+                            PickupDummyTarget(unitOnTarget);
+                            pickupCandidateUnit = null;
+                            pickupProgressSeconds = 0f;
+                        }
                     }
                 }
                 else
                 {
                     pickupCandidateUnit = null;
                     pickupProgressSeconds = 0f;
+                    joinPropagationTimer = 0f;
                 }
             }
             // ?�탈 지??체크 (Carried ?�는 Secured ?�때)
@@ -537,6 +556,7 @@ namespace GrimArchive.Wave
             targetCarrier = null;
             pickupCandidateUnit = null;
             pickupProgressSeconds = 0f;
+            joinPropagationTimer = 0f;
 
             UpdatePartyDestination();
         }
@@ -614,6 +634,7 @@ namespace GrimArchive.Wave
             stagingUnits.Clear();
             pickupCandidateUnit = null;
             pickupProgressSeconds = 0f;
+            joinPropagationTimer = 0f;
         }
     }
 }

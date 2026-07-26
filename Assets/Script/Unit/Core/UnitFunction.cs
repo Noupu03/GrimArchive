@@ -354,10 +354,32 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			currentDir = dir;
 			position = nextPos;
+
+			// 4-6장: 이 유닛을 "수상한 타일" 대상으로 추적 중인 적(관찰자)이 하나라도 있으면, 이동
+			// 1회마다 이 유닛 자신의 가시성을 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는
+			// 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
+			if (IsTrackedAsSuspiciousByAnyEnemy())
+				VisionStat.suspiciousMoveBoostTimers.Add(VisionMath.SuspiciousMoveBoostDurationSeconds);
 		}
 
 		if (this.Generate != null)
 			this.Generate.UpdateUnitSpriteForDirection(this);
+	}
+
+	// 4-6장 트리거 판정 — Session 전체를 순회해 "나를 적으로 보는 유닛 중 지금 나를 수상한 타일로
+	// 추적 중인 관찰자가 있는가"를 확인한다. 관찰자별로 다른 값을 주는 대신(07 전파 문서 부재로 이번
+	// 구현에서도 단순화) 이 유닛 자신의 가시성 하나에 반영해 모든 관찰자에게 동일하게 적용한다.
+	private bool IsTrackedAsSuspiciousByAnyEnemy()
+	{
+		if (Session == null) return false;
+		foreach (var u in Session.units)
+		{
+			if (u == null || u == this || u.Health.hp <= 0) continue;
+			if (!u.IsEnemy(this)) continue;
+			if (u.Perception.State.perceptionRecords.TryGetValue(this, out var rec) && rec.PendingSuspiciousInvestigation)
+				return true;
+		}
+		return false;
 	}
 
 	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
@@ -582,9 +604,16 @@ public abstract class UnitFunction : Unit, IVisionContext
 						{
 							// 02문서 6장: 오브젝트 유형별 가시성(시체/전멸흔적=100 고정, 그 외=BaseVisibility).
 							float objVisibility = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
+							// Core는 정확히 일치하는 태그("Object/Passable/Core")로만 판정한다(substring이
+							// 아님 — "DungeonCore" 같은 다른 태그와 우연히 겹치지 않도록). 2026-07-27부터
+							// 보스방 던전 코어(GameSession.DungeonCoreTag)도 이 태그를 함께 갖도록 통합돼
+							// 같은 경로를 탄다(사용자 요청 "코어에 대해서, 통합하자") — 웨이브 목표 추적·
+							// 운반 기능(HumanWaveManager)은 여전히 Loot 하위 태그로 별도 동작하고, 이
+							// 발견 훅은 그 위에 리더 전용 발견~조사 절차만 추가로 얹는다.
 							PerceptionTargetKind objKind = obj.Tags.Any(t => t.Contains("WipeoutTrace")) ? PerceptionTargetKind.WipeoutTrace
 								: obj.Tags.Any(t => t.Contains("Corpse")) ? PerceptionTargetKind.Corpse
 								: obj.Tags.Any(t => t.Contains("Trap")) ? PerceptionTargetKind.Trap
+								: obj.Tags.Contains("Object/Passable/Core") ? PerceptionTargetKind.Core
 								: PerceptionTargetKind.None;
 							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
 
@@ -605,17 +634,25 @@ public abstract class UnitFunction : Unit, IVisionContext
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
 								}
 
-								// 03문서 9장: 함정을 처음 정확 인지하면 함정 대응 상태를 만든다. 이미 다른 함정을
-								// 처리 중이면(currentTrapInteraction != null) 새 함정은 무시한다 — 9-7장 목록에
-								// "새 함정 발견"은 중단 조건이 아니고, 2-1장이 이미 수행 중인 반응은 자동 중단
-								// 하지 않는다고 명시하므로 한 번에 하나만 처리한다.
-								if (objKind == PerceptionTargetKind.Trap && currentTrapInteraction == null)
+								// 03문서 9장(2026-07-27 개편): 함정을 처음 정확 인지하면 발견/선정 조율은
+								// TrapPartySystem이 전담한다(발견자 단독 처리가 아니라 파티 전체 성공률 비교 +
+								// ETA 동률 우선 선정 — 9-2/9-3장).
+								if (objKind == PerceptionTargetKind.Trap)
 								{
-									currentTrapInteraction = new TrapInteractionState
-									{
-										TrapObjectId = obj.Id,
-										TrapPosition = obj.Position,
-									};
+									TrapPartySystem.OnTrapDiscovered(terrainObserver, obj);
+								}
+
+								// 03문서 4-12~4-15장(2026-07-27 신규): 파티원 시체를 나중에(사망 순간 목격이
+								// 아니라) 처음 정확 인지하는 경우의 "발견" 트리거.
+								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Human"))
+								{
+									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
+								}
+
+								// 03문서 7-3장(2026-07-27 신규): 코어를 처음 정확 인지하면 리더에게 전파한다.
+								if (objKind == PerceptionTargetKind.Core)
+								{
+									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
 								}
 							}
 							// else: 수상한 타일/미인식 — 다음 트리거(재진입/2칸 재접근)까지 이 판정을 유지한다.
@@ -641,7 +678,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 				{
 					PerceptionOutcome unitOutcome = ResolveReachedTarget(unitAtTile, unitAtTile.GetFinalVisibility(), revealedTile, dist, out bool _);
 					if (unitOutcome == PerceptionOutcome.AccuratePerception)
+					{
 						AddPersonalSpottedEnemy(unitAtTile);
+						// 4-15장: 원인미상 파티원 사망 수색 중 몬스터를 정확 인지하면 사망 원인 확인 시도.
+						if (this is Human deathSearchObserver)
+							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
+					}
 				}
 				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
 				{
@@ -888,6 +930,16 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 01-A 9장: 공격 후 가시성 상승 지속시간 감소 (SkillAction.BeginAttackCast가 공격 실행 시 세팅)
 		if (VisionStat.attackVisibilityBoostTimer > 0f) VisionStat.attackVisibilityBoostTimer = Mathf.Max(0f, VisionStat.attackVisibilityBoostTimer - deltaTime);
 
+		// 4-6장: 이동당 +20 증가분을 개별적으로 5초 뒤 제거한다(먼저 생긴 증가분부터 먼저 사라짐).
+		if (VisionStat.suspiciousMoveBoostTimers.Count > 0)
+		{
+			for (int i = VisionStat.suspiciousMoveBoostTimers.Count - 1; i >= 0; i--)
+			{
+				VisionStat.suspiciousMoveBoostTimers[i] -= deltaTime;
+				if (VisionStat.suspiciousMoveBoostTimers[i] <= 0f) VisionStat.suspiciousMoveBoostTimers.RemoveAt(i);
+			}
+		}
+
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
 		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
 		// 없으면 흘려보낸다. 매 프레임 도는 OnUpdate에 걸어서 real deltaTime을 쓴다(ProcessUnitAction의
@@ -925,8 +977,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (currentAlertSearch != null)
 		{
 			currentAlertSearch.ElapsedSeconds += deltaTime;
-			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds : ExplorationMath.UnidentifiedAttackSearchSeconds;
-			if (currentAlertSearch.ElapsedSeconds >= limit) currentAlertSearch = null; // 4-12장/4-8장: 시간 종료 → 경계 해제
+			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
+				: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
+				: ExplorationMath.UnidentifiedAttackSearchSeconds;
+			if (currentAlertSearch.ElapsedSeconds >= limit) currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
 		}
 
 		if (currentTrapInteraction != null)
@@ -935,12 +989,27 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (!trap.JoinWaitElapsed)
 			{
 				bool recorded = (this is Human trapHuman) && trapHuman.personalMap.IsTrapRecorded(trap.TrapObjectId);
-				if (recorded) trap.JoinWaitElapsed = true; // 9-4장: 기록 함정은 대기 단계 자체가 없음
+				bool becameElapsed = false;
+				if (recorded) { trap.JoinWaitElapsed = true; becameElapsed = true; } // 9-4장: 기록 함정은 대기 단계 자체가 없음
 				else
 				{
 					trap.JoinWaitTimer += deltaTime;
-					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) trap.JoinWaitElapsed = true;
+					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) { trap.JoinWaitElapsed = true; becameElapsed = true; }
 				}
+				// 9-2~9-5장(2026-07-27 개편): 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제
+				// 담당을 선정한다. AutoConfirmed(웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미
+				// 확정돼 있어 다시 선정할 필요가 없다.
+				if (becameElapsed && !trap.AutoConfirmed && this is Human discovererHuman)
+					TrapPartySystem.ResolveSelection(discovererHuman, trap);
+			}
+			else if (trap.SearchingForSelectedUnit)
+			{
+				// TacticalFSMState.TrapSearchForMissingUnit(BT)가 실제 이동을 담당 — 여기서는 시간만 안 건드림.
+			}
+			else if (trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && this is Human waitingHuman)
+			{
+				// 9-7장: 선정되지 않은 발견 유닛 — ETA+3초 미도착이면 SearchingForSelectedUnit으로 전환.
+				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap, deltaTime);
 			}
 			else if (trap.Phase == TrapPhase.Disarming)
 			{
@@ -956,6 +1025,21 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			var inv = investigatorHuman.currentInvestigation;
 			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
+		}
+
+		// 7-3장(2026-07-27 신규): 리더의 코어 조사 — 도착 후 1초 전파, 이후 조사 진행도 증가.
+		if (this is Human coreHuman && coreHuman.currentCoreInteraction != null && coreHuman.currentCoreInteraction.Active)
+		{
+			var core = coreHuman.currentCoreInteraction;
+			if (!core.PropagationDone)
+			{
+				core.PropagationTimer += deltaTime;
+				if (core.PropagationTimer >= ExplorationMath.PartyGoalInitialPropagationSeconds) core.PropagationDone = true;
+			}
+			else
+			{
+				core.Progress01 = Mathf.Min(1f, core.Progress01 + deltaTime / ExplorationMath.CoreInvestigateDurationSeconds);
+			}
 		}
 
 		if (hp > 0f)

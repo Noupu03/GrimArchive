@@ -51,6 +51,8 @@ public class InputManager : MonoBehaviour
 	public bool isObjectPlaceMode = false;
 	public bool isTrapPlaceMode = false;
 	public bool isMonsterPlaceMode = false;
+	// 03문서 7-3장(2026-07-27 신규) 테스트용 — O/P/M과 동일한 고스트 배치 관례.
+	public bool isCorePlaceMode = false;
 	private GameObject placeGhost;
 	private SpriteRenderer placeGhostRenderer;
 
@@ -142,8 +144,9 @@ public class InputManager : MonoBehaviour
 		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlaceMode();
 		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlaceMode();
 		if (Keyboard.current.mKey.wasPressedThisFrame) EnterMonsterPlaceMode();
+		if (Keyboard.current.cKey.wasPressedThisFrame) EnterCorePlaceMode();
 
-		if (isObjectPlaceMode || isTrapPlaceMode || isMonsterPlaceMode)
+		if (isObjectPlaceMode || isTrapPlaceMode || isMonsterPlaceMode || isCorePlaceMode)
 		{
 			UpdatePlaceMode(floorOffset, currentFloor);
 			return; // 배치 모드 중에는 유닛 선택 로직 스킵
@@ -590,6 +593,7 @@ public class InputManager : MonoBehaviour
 		ExitBuildMode();
 		isTrapPlaceMode = false;
 		isMonsterPlaceMode = false;
+		isCorePlaceMode = false;
 		isObjectPlaceMode = true;
 
 		EnsurePlaceGhost();
@@ -604,6 +608,7 @@ public class InputManager : MonoBehaviour
 		ExitBuildMode();
 		isObjectPlaceMode = false;
 		isMonsterPlaceMode = false;
+		isCorePlaceMode = false;
 		isTrapPlaceMode = true;
 
 		EnsurePlaceGhost();
@@ -618,6 +623,7 @@ public class InputManager : MonoBehaviour
 		ExitBuildMode();
 		isObjectPlaceMode = false;
 		isTrapPlaceMode = false;
+		isCorePlaceMode = false;
 		isMonsterPlaceMode = true;
 
 		EnsurePlaceGhost();
@@ -627,11 +633,27 @@ public class InputManager : MonoBehaviour
 		LogHelper.Log(LogHelper.GAME, $"몬스터 배치 모드 진입 (나무 {ResourceManager.MonsterPlaceWoodCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
 	}
 
+	// 03문서 7-3장(2026-07-27 신규) 테스트용 — 자원 소모 없이 즉시 배치(리더 전용 조사 흐름 검증 목적).
+	private void EnterCorePlaceMode()
+	{
+		if (isCorePlaceMode) return;
+		ExitBuildMode();
+		isObjectPlaceMode = false;
+		isTrapPlaceMode = false;
+		isMonsterPlaceMode = false;
+		isCorePlaceMode = true;
+
+		EnsurePlaceGhost();
+		placeGhostRenderer.sprite = Resources.Load<Sprite>("obj/core");
+		LogHelper.Log(LogHelper.GAME, "코어 배치 모드 진입 (테스트용, 좌클릭: 생성, 우클릭: 취소)");
+	}
+
 	private void ExitPlaceMode()
 	{
 		isObjectPlaceMode = false;
 		isTrapPlaceMode = false;
 		isMonsterPlaceMode = false;
+		isCorePlaceMode = false;
 		if (placeGhost != null) placeGhost.SetActive(false);
 	}
 
@@ -704,6 +726,11 @@ public class InputManager : MonoBehaviour
 					{
 						LogHelper.Warning(LogHelper.GAME, $"나무가 부족하여 몬스터를 배치할 수 없습니다. (필요: {ResourceManager.MonsterPlaceWoodCost})");
 					}
+				}
+				else if (isCorePlaceMode)
+				{
+					_gameSession.SpawnCoreAt(gridPos);
+					ExitPlaceMode();
 				}
 			}
 		}

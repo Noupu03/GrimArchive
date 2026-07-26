@@ -253,7 +253,9 @@ public abstract class Unit : ScriptableObject {
 	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
 	public bool IsVisibilityBoosted => VisionStat.attackVisibilityBoostTimer > 0f;
 	public void TriggerAttackVisibilityBoost() => VisionStat.attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
-	public float GetFinalVisibility() => VisionMath.FinalVisibility(VisionStat.baseVisibility, VisionStat.stealth, IsVisibilityBoosted);
+	// 4-6장: 수상한 타일 추적 중 이동 1회당 +20씩(개별 5초 유지) 누적된 값을 그대로 더한다.
+	public float GetFinalVisibility() => VisionMath.FinalVisibility(VisionStat.baseVisibility, VisionStat.stealth, IsVisibilityBoosted,
+		VisionStat.suspiciousMoveBoostTimers.Count * ExplorationMath.SuspiciousTargetVisibilityBoostPerMove);
 
 	// ─── 03_탐색반응·경계·조사·함정대응_시스템 관련 ────────────────────────────
 	// 함정 대응(9장)과 경계(4장)는 13장 표에 따라 인류/몬스터 공통이라 base Unit에 둔다. 조사(5장)/
@@ -459,6 +461,8 @@ public class Human : UnitFunction
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
 	public FormationState     currentFormation;
+	// 7-3장(2026-07-27 신규): 리더 전용 — 이 유닛이 파티 리더일 때만 의미가 있다(CorePartySystem 참고).
+	public CoreInteractionState currentCoreInteraction;
 
 	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
 	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true. 함정 쪽은 "함정 위치에
@@ -466,7 +470,7 @@ public class Human : UnitFunction
 	// 경계 태세를 취함) — 9-5장 순서가 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호
 	// 포메이션 형성 → 함정 해제 시작"이라, 발견 직후 5초 합류 대기나 이동 중(아직 도착 전)에는
 	// 보호 포메이션이 형성되면 안 된다. 예전엔 함정을 인지한 순간부터(도착 전 포함) true였다.
-	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
+	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null || currentCoreInteraction != null;
 
 	private bool IsActivelyHandlingTrap()
 	{
@@ -532,13 +536,24 @@ public class Human : UnitFunction
 			if (!personalMap.IsObjectKnown(obj.Id)) continue;
 
 			bool isTrap = false;
+			bool isCorpse = false;
+			bool isHumanTag = false;
 			bool isTrace = false;
+			bool isCore = false;
 			foreach (var tag in obj.Tags)
 			{
 				if (tag.Contains("Trap")) isTrap = true;
-				if (tag.Contains("Corpse") || tag.Contains("WipeoutTrace")) isTrace = true;
+				if (tag.Contains("Corpse")) isCorpse = true;
+				if (tag == "Human") isHumanTag = true;
+				if (tag.Contains("WipeoutTrace")) isTrace = true;
+				if (tag == "Object/Passable/Core") isCore = true;
 			}
-			if (isTrap || isTrace) continue;
+			// 03문서 5-2장(2026-07-27 개정): 파티원 시체는 조사 대상으로 유지한다(사망 원인·전투 흔적
+			// 등 추가 정보 획득) — 몬스터 시체/전멸 흔적은 여전히 제외(CastRay가 인지 즉시 단일 단계로
+			// 확인 완료하는 대상이라 별도 조사 단계가 없음, 17장 참고). 코어(7-3장)는 리더 전용 조사
+			// 대상이라 이 일반 조사 후보 풀에서 완전히 제외한다(TacticalFSMState.CanContinueCore 참고).
+			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
+			if (isTrap || isExcludedTrace || isCore) continue;
 
 			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
 			if (d < bestDist) { bestDist = d; best = obj; }
@@ -616,13 +631,68 @@ public class Human : UnitFunction
 		Vector2 facing = GetDirVector(escortTarget.currentDir);
 		if (facing == Vector2.zero) facing = Vector2.down;
 
-		Vector2Int offset = backDistance <= 1f
-			? new Vector2Int((int)facing.x, (int)facing.y)
-			: new Vector2Int(
-				Mathf.RoundToInt(-facing.x * backDistance),
-				Mathf.RoundToInt(-facing.y * backDistance));
+		// 2026-07-27 사용자 신고("보호 포메이션 동안 다른 유닛에게 길이 막혀서 리더가 코어에 영구히
+		// 도착 못함") — 상호작용 유닛이 아직 목적지로 걸어가는 중일 때, 근접 호위의 "전방"(+facing)
+		// 배치는 상호작용 유닛이 이동 중인 바로 그 방향과 대개 일치한다(Move()가 이동 방향으로
+		// currentDir을 갱신하므로). 그래서 호위가 상호작용 유닛보다 먼저 그 앞자리를 차지해버리면
+		// 좁은 통로에서 진행 경로 자체를 막아 서로 오도 가도 못하는 교착이 생겼다. 아직 실제
+		// 상호작용을 시작하지 않고 "이동 중"일 때는 전방 대신 후방(따라가기)으로 배치하고, 실제로
+		// 도착해 상호작용이 시작된 뒤에야(예: 조사/함정 페널티 활성화, 코어 Active) 문서대로의
+		// 전방/후방 배치를 적용한다.
+		bool activelyInteracting = IsEscortTargetActivelyInteracting(escortTarget);
 
-		return escortTarget.position + offset;
+		Vector2Int offset;
+		if (!activelyInteracting)
+		{
+			offset = new Vector2Int(Mathf.RoundToInt(-facing.x), Mathf.RoundToInt(-facing.y)); // 이동 중 — 후방에서 뒤따름
+		}
+		else
+		{
+			offset = backDistance <= 1f
+				? new Vector2Int((int)facing.x, (int)facing.y)
+				: new Vector2Int(
+					Mathf.RoundToInt(-facing.x * backDistance),
+					Mathf.RoundToInt(-facing.y * backDistance));
+		}
+
+		Vector2Int slot = escortTarget.position + offset;
+
+		// 2026-07-27 사용자 신고("코어 포메이션에서 유닛이 코어를 밟고 서있어") — 상호작용 유닛이
+		// 오브젝트 바로 옆(1칸)에서 그 방향을 보고 있으면, "전방(근접 배치)" 슬롯 계산이 오브젝트
+		// 자신의 타일과 우연히 겹친다(오브젝트가 조사/함정/코어처럼 Passable이라 실제로 밟고 설 수
+		// 있어서 눈에 띔). 6-4장 폴백 순서(전방→좌우)와 같은 정신으로, 겹치면 한 칸 더 물러난 자리를
+		// 쓰고 그래도 겹치면 옆으로 민다.
+		Vector2Int? interactionPos = GetInteractionObjectPosition(escortTarget);
+		if (interactionPos.HasValue && slot == interactionPos.Value)
+		{
+			Vector2Int farther = escortTarget.position + new Vector2Int((int)facing.x * 2, (int)facing.y * 2);
+			slot = farther != interactionPos.Value ? farther : slot + new Vector2Int(-(int)facing.y, (int)facing.x);
+		}
+
+		return slot;
+	}
+
+	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행/코어 조사)을 시작했는지 — 아직
+	// 목적지로 "이동 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
+	private bool IsEscortTargetActivelyInteracting(Human escortTarget)
+	{
+		if (escortTarget.currentCoreInteraction != null) return escortTarget.currentCoreInteraction.Active;
+		if (escortTarget.currentInvestigation != null) return escortTarget.currentInvestigation.PenaltyActive;
+		if (escortTarget.currentTrapInteraction != null) return escortTarget.currentTrapInteraction.PenaltyActive;
+		return false;
+	}
+
+	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치" —
+	// 조사/함정/코어(7-3장) 셋 중 진행 중인 것을 조회한다.
+	private Vector2Int? GetInteractionObjectPosition(Human escortTarget)
+	{
+		if (escortTarget.currentCoreInteraction != null)
+			return new Vector2Int(escortTarget.currentCoreInteraction.CorePosition.x, escortTarget.currentCoreInteraction.CorePosition.y);
+		if (escortTarget.currentInvestigation != null)
+			return new Vector2Int(escortTarget.currentInvestigation.TargetPosition.x, escortTarget.currentInvestigation.TargetPosition.y);
+		if (escortTarget.currentTrapInteraction != null)
+			return new Vector2Int(escortTarget.currentTrapInteraction.TrapPosition.x, escortTarget.currentTrapInteraction.TrapPosition.y);
+		return null;
 	}
 
 	public override void JudgeState()

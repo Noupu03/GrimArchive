@@ -34,13 +34,10 @@ public class CombatEventService
                 knowledge.RecordEvent(EventId.E_MONSTER_KILL_SEEN, witness, victim, InfoType.DirectWitness, incidentId);
             }
         }
-        else
-        {
-            foreach (var witness in units)
-            {
-                if (witness == null || witness == victim || !(witness is Human) || witness.Health.hp <= 0) continue;
-                knowledge.RecordEvent(EventId.E_HUMAN_KILL_SEEN, witness, attacker, InfoType.DirectWitness, incidentId);
-            }
-        }
+        // else(인류가 몬스터에게 처치당한 경우)는 03문서 4-12~4-15장(2026-07-27 신규, 파티원 사망
+        // 발견) 구현으로 대체됐다 — "생존한 모든 인류가 즉시 목격"이라는 근사를 버리고,
+        // GameSession.RemoveDeadUnit → PartyDeathSystem.OnPartyMemberDied가 실제 시야 범위 기반으로
+        // 직접 목격자를 가리고(E_HUMAN_KILL_SEEN), 그 자리에 없던 파티원은 나중에 시체를 정확 인지하거나
+        // (OnCorpseDiscovered) 조사(OnCorpseInvestigated)해야만 사망 원인이 간접 확인(E_HUMAN_KILL_INDIRECT)된다.
     }
 }

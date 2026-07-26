@@ -58,8 +58,10 @@ public class AIBehaviorConfig : ScriptableObject
 
     // ── 함정 대응 ───────────────────────────────────────────────────────────
     [Header("함정 대응 (03문서 9장)")]
-    [Tooltip("9-3장: 함정 해제 합류 의사 대기 시간 (초) / 원문 5초 → 사용자 요청으로 3초 단축")]
-    public float trapJoinWaitSeconds            = 3f;
+    [Tooltip("9-3장: 함정 정보 전파 후 발견 유닛 응답 대기 시간 (초) — 2026-07-27 개정 문서 공식값(2초)")]
+    public float trapJoinWaitSeconds            = 2f;
+    [Tooltip("9-7장: 선정 유닛 예상 도착시간 이후 이 시간까지 미도착이면 발견 유닛이 직접 찾아 나선다 (초)")]
+    public float trapSelectedUnitLateGraceSeconds = 3f;
     [Tooltip("9-4장: 기록된 함정의 예상 성공률이 이 값 초과면 직접 해제 시도")]
     [Range(0f, 1f)]
     public float trapRecordedDisarmThreshold   = 0.5f;

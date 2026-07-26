@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEditor;
+using GrimArchive.Wave;
 
 // 2026-07-25: 03문서 재검증 우선순위 항목(6-4장 근접 배치, 5-6장 조사 중단 손실) 코드 리딩 결과를
 // 실제 Human/UnitFSM을 생성해 돌려서 검증하기 위한 배치 모드 전용 러너.
@@ -26,6 +27,8 @@ public static class FSMVerificationRunner
 		Investigate_InterruptedByHit_ProgressIsHalvedOnce();
 		Investigate_InterruptedByPlayerCommand_ProgressIsHalved();
 		TrapDisarm_InterruptedByHit_ProgressIsHalvedOnce();
+		Investigate_EscortHit_NonPartyObjective_Interrupts();
+		Investigate_EscortHit_PartyObjective_Continues();
 
 		if (_failCount == 0)
 		{
@@ -176,6 +179,80 @@ public static class FSMVerificationRunner
 	{
 		var method = typeof(TacticalFSMState).GetMethod("CanDisarm", BindingFlags.NonPublic | BindingFlags.Static);
 		return (bool)method.Invoke(null, new object[] { unit });
+	}
+
+	private static bool CallCanInvestigate(Unit unit)
+	{
+		var method = typeof(TacticalFSMState).GetMethod("CanInvestigate", BindingFlags.NonPublic | BindingFlags.Static);
+		return (bool)method.Invoke(null, new object[] { unit });
+	}
+
+	// 8-2장 검증 공통 셋업 — 파티 안에 조사 중인 interactor와 그를 호위(EscortTarget=interactor) 중인
+	// escort를 만들고, escort가 이번 틱에 피격당한 상황을 구성한다.
+	private static Human BuildEscortedInvestigator(out Human escort, string investigateTargetId)
+	{
+		var party = new Party("p1", "TestParty");
+
+		var interactor = ScriptableObject.CreateInstance<Human>();
+		interactor.position = new Vector2Int(0, 0);
+		interactor.currentInvestigation = new InvestigationState
+		{
+			TargetObjectId = investigateTargetId,
+			TargetPosition = new Vector3Int(0, 0, 0),
+			Progress01 = 0.6f,
+			PenaltyActive = true,
+		};
+		AttachMinimalSession(interactor, new InteractableObject(investigateTargetId, new Vector3Int(0, 0, 0), 10f));
+		interactor.party = party;
+
+		escort = ScriptableObject.CreateInstance<Human>();
+		escort.position = new Vector2Int(1, 0);
+		escort.party = party;
+		escort.currentFormation = new FormationState { EscortTarget = interactor };
+		escort.isHitThisTurn = true;
+
+		party.Members.Add(interactor);
+		party.Members.Add(escort);
+
+		return interactor;
+	}
+
+	private static void SetWaveDummyTarget(InteractableObject obj)
+	{
+		var waveManager = new HumanWaveManager();
+		waveManager.dummyTarget = obj;
+		typeof(HumanWaveManager)
+			.GetField("<Instance>k__BackingField", BindingFlags.NonPublic | BindingFlags.Static)
+			.SetValue(null, waveManager);
+	}
+
+	private static void Investigate_EscortHit_NonPartyObjective_Interrupts()
+	{
+		var interactor = BuildEscortedInvestigator(out _, "regular_loot");
+		SetWaveDummyTarget(null); // 이번 웨이브의 파티 목표 없음(또는 다른 오브젝트) — 지금 조사 중인 건 그냥 일반 조사
+
+		bool canInvestigate = CallCanInvestigate(interactor);
+		float progress = interactor.currentInvestigation != null ? interactor.currentInvestigation.Progress01 : -1f;
+
+		Check(
+			"8-2 보호 유닛 피격 시 일반 조사(비-파티목표)는 중단",
+			!canInvestigate && Mathf.Abs(progress - 0.3f) < 0.001f,
+			$"canInvestigate={canInvestigate} (expected false), progress={progress} (expected 0.3)");
+	}
+
+	private static void Investigate_EscortHit_PartyObjective_Continues()
+	{
+		var targetObj = new InteractableObject("wave_goal", new Vector3Int(0, 0, 0), 10f);
+		var interactor = BuildEscortedInvestigator(out _, "wave_goal");
+		SetWaveDummyTarget(targetObj); // 지금 조사 중인 대상이 이번 웨이브의 파티 목표 오브젝트
+
+		bool canInvestigate = CallCanInvestigate(interactor);
+		float progress = interactor.currentInvestigation != null ? interactor.currentInvestigation.Progress01 : -1f;
+
+		Check(
+			"8-2 보호 유닛 피격 시 파티 목표 조사는 유지",
+			canInvestigate && Mathf.Abs(progress - 0.6f) < 0.001f,
+			$"canInvestigate={canInvestigate} (expected true), progress={progress} (expected 0.6, unhalved)");
 	}
 
 	private static void Investigate_InterruptedByPlayerCommand_ProgressIsHalved()

@@ -190,7 +190,10 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         Unit u = _inputManager.selectedUnit;
         var sb = new StringBuilder();
 
-        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
+        // 2026-07-27 사용자 요청 — 파티 리더를 이름 옆 별표로 구분(어느 유닛이 7-3장 코어 조사 등을
+        // 담당하는 리더인지 클릭만으로 알 수 있게).
+        bool isLeader = u is Human leaderCheck && leaderCheck.party != null && leaderCheck.party.Leader == leaderCheck;
+        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}{(isLeader ? " <color=yellow>★(리더)</color>" : "")}");
         sb.AppendLine($"<b>진영:</b> {(u.IsHumanFaction ? "인류" : (u.IsPlayerMonsterFaction ? "플레이어 몬스터" : "야생 몬스터"))}");
         sb.AppendLine($"<b>LV:</b> {u.level}");
         sb.AppendLine($"<b>EXP:</b> {u.BaseStat.exp:F1}");
@@ -219,7 +222,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
                     if (member == null) continue;
                     string color = member.Health.hp <= 0 ? "red" : (member == u ? "yellow" : "white");
                     string self = member == u ? " ◀" : "";
-                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}: {member.Health.hp:F0}/{member.Health.maxHp:F0}{self}</color>");
+                    string leaderMark = member == party.Leader ? " ★" : "";
+                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}{leaderMark}: {member.Health.hp:F0}/{member.Health.maxHp:F0}{self}</color>");
                 }
             }
             else
@@ -271,7 +275,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
             string faction = u is Human ? "인류" : "몬스터";
             string color = u.Health.hp <= 0 ? "red" : (u is Human ? "white" : "yellow");
-            sb.AppendLine($"<color={color}>{u.unitType.typeName} ({faction}) — {u.Health.hp:F0}/{u.Health.maxHp:F0}</color>");
+            string leaderMark = u is Human hMulti && hMulti.party != null && hMulti.party.Leader == hMulti ? " ★" : "";
+            sb.AppendLine($"<color={color}>{u.unitType.typeName}{leaderMark} ({faction}) — {u.Health.hp:F0}/{u.Health.maxHp:F0}</color>");
         }
 
         return sb.ToString();

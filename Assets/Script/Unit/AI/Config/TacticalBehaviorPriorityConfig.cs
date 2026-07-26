@@ -33,6 +33,7 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
         new Entry { behavior = TacticalBehaviorType.Investigate,  enabled = true },
         new Entry { behavior = TacticalBehaviorType.Wait,         enabled = true },
         new Entry { behavior = TacticalBehaviorType.Formation,    enabled = true },
+        new Entry { behavior = TacticalBehaviorType.Core,         enabled = true },
     };
 
     public bool IsEnabled(TacticalBehaviorType type)
@@ -55,4 +56,5 @@ public enum TacticalBehaviorType
     Investigate,   // 조사 오브젝트 상호작용
     Wait,          // 지정 위치/목적 대기
     Formation,     // 보호 포메이션 유지
+    Core,          // 03문서 7-3장(2026-07-27 신규): 리더 전용 코어 조사 — 다른 비전투 행동을 마친 뒤 최후순위
 }

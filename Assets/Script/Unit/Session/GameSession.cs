@@ -308,7 +308,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
             Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);
-            SpawnObject(corpse, corpseColor);
+
+            // 03문서 4-12~4-15장(2026-07-27 신규): 인류 시체는 사망 사건 추적(정신력 감소/사망 원인
+            // 확인/원인미상 수색)의 시작점이다 — Destroy 전인 지금(u는 Human) 위치/방향/lastAttacker를
+            // 스냅샷으로 남겨야 한다.
+            if (!isMonsterCorpse && u is Human deadHuman && deadHuman.party != null)
+            {
+                corpse.OwnerPartyId = deadHuman.party.Id;
+                SpawnObject(corpse, corpseColor);
+                PartyDeathSystem.OnPartyMemberDied(deadHuman, objId);
+            }
+            else
+            {
+                SpawnObject(corpse, corpseColor);
+            }
         }
 
         if (u != null) CheckPartyWaveState(u);
@@ -648,12 +661,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isDungeonCore = obj.Tags != null && obj.Tags.Exists(t => t.Contains("DungeonCore"));
+        // 03문서 7-3장(2026-07-27) — 리더 전용 조사용 "코어"도 기존 던전 코어와 같은 아트를 그대로
+        // 쓴다(사용자 요청 "스프라이트도 기존에 쓰던 던전코어 스프라이트 이용").
+        bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
         else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
-        else if (isDungeonCore) sprite = Resources.Load<Sprite>("obj/core");
+        else if (isDungeonCore || isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
         else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
 
         if (sprite == null)
@@ -711,14 +727,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // 던전 코어 태그 — 일반 루팅 오브젝트("Object/Passable/Loot")의 하위 태그로 둬서, 기존 Loot
-    // 판정(HumanWaveManager 목표 탐지/TacticalFSMState 회수 처리/GameSession 스프라이트 선택 —
-    // 전부 Tags.Contains("Loot")로 검사한다)을 코드 변경 없이 그대로 재사용한다. O키/InputManager
-    // 고스트 배치 등 수동 생성 경로는 이 태그를 만들지 않는다 — 오직 SpawnInitialDungeonCore()로만,
-    // 보스방에 자동으로 하나 배치된다(사용자 요청, 2026-07-24 "따로 생성할 수 없고 보스방에만 자동
-    // 배치"). 회수 가능한 유닛도 이미 인류로 한정돼 있다 — Investigate/PickUpObject(TacticalFSMState)
-    // 와 HumanWaveManager의 목표 추적 파티원 모두 Human 전용 경로라 몬스터는 애초에 오브젝트 회수
-    // 로직 자체를 타지 않는다.
+    // 판정(HumanWaveManager 목표 탐지/GameSession 스프라이트 선택 — 전부 Tags.Contains("Loot")로
+    // 검사한다)을 코드 변경 없이 그대로 재사용한다. O키/InputManager 고스트 배치 등 수동 생성 경로는
+    // 이 태그를 만들지 않는다 — 오직 SpawnInitialDungeonCore()로만, 보스방에 자동으로 하나 배치된다
+    // (사용자 요청, 2026-07-24 "따로 생성할 수 없고 보스방에만 자동 배치").
     private const string DungeonCoreTag = "Object/Passable/Loot/DungeonCore";
+
+    // 03문서 7-3장(2026-07-27, 사용자 요청 "코어에 대해서, 통합하자") — 보스방 자동배치·웨이브 목표라는
+    // 기존 던전 코어의 정체성은 그대로 두고, 그 위에 7-3장 "코어" 정확 일치 태그를 추가로 얹었다.
+    // "Object/Passable/Core"가 붙으면: (1) Human.ComputeInvestigateTarget이 이 오브젝트를 일반 조사
+    // 후보에서 제외하고(더 이상 아무 인류나 즉시 조사·회수하지 않음), (2) UnitFunction.CastRay가
+    // PerceptionTargetKind.Core로 분류해 CorePartySystem.OnCoreDiscovered(파티 전파 → 리더 전용
+    // 발견~조사 흐름, TacticalFSMState.CanContinueCore 등)를 태운다. HumanWaveManager의 웨이브 목표
+    // 추적·운반·탈출(Carried/Secured) 메커니즘은 여전히 Loot 하위 태그만 보고 동작하므로 손대지 않고
+    // 그대로 둔다(사용자 요청 "다른 코어의 기능은 그대로 둔채") — 즉 리더가 먼저 조사를 마치든 말든
+    // 파티는 기존과 동일하게 이 오브젝트를 웨이브 목표로 들고 나갈 수 있고, 리더의 조사는 그 위에
+    // 병행되는 별개 절차로 결합된다.
+    private const string CoreTag = "Object/Passable/Core";
 
     // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).
     private void SpawnInitialDungeonCore()
@@ -732,7 +757,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (objectGrid.ContainsKey(gridPos)) return;
 
         string objId = "DungeonCore_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { DungeonCoreTag });
+        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { DungeonCoreTag, CoreTag });
         SpawnObject(obj, Color.magenta);
     }
 
@@ -768,6 +793,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
             baseVisibility: 40f, trapHp: 20f, trapDamageMin: 30f, trapDamageMax: 60f);
         SpawnObject(obj, Color.red);
+    }
+
+    // 03문서 7-3장 테스트용 — 정식 배치 시스템(파티 종류·목표·포메이션 문서 부재) 대신 함정과 동일한
+    // 관례로 수동 스폰 훅만 만들어둔다. 웨이브 목표가 아닌 "리더 조사 흐름"만 단독으로 검증하고 싶을
+    // 때 쓴다 — 보스방 던전 코어(DungeonCoreTag+CoreTag 둘 다 붙음, 2026-07-27부터 통합)와 달리 이
+    // 오브젝트는 CoreTag만 붙어 웨이브 목표로는 추적되지 않는다(HumanWaveManager는 Loot 하위 태그만
+    // 봄). 오직 수동 생성 경로에서만 CoreTag 단독으로 스폰되며, 자동 배치(SpawnInitialDungeonCore)는
+    // 항상 DungeonCoreTag를 겸해서 붙인다는 원칙(2026-07-24)은 그대로 유지한다.
+    public void SpawnCoreAt(Vector3Int gridPos)
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (objectGrid.ContainsKey(gridPos)) return;
+
+        string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        InteractableObject obj = new InteractableObject(objId, gridPos, baseInterest: 120f, baseDanger: 0f,
+            tags: new List<string> { CoreTag }, baseVisibility: 60f);
+        SpawnObject(obj, Color.magenta);
     }
 
     public void CollectObject(Vector3Int pos)

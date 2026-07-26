@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
+using GrimArchive.Wave;
 
 // 전술 상태 — 제자리·국소 반응 행동 담당 (공황/함정/경계/조사/대기/포메이션).
 // FSM은 "적 있으면 Combat, 전술 조건 있으면 Tactical, 나머지는 Navigation"만 결정.
@@ -32,7 +33,8 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.Alert],
 				nodes[TacticalBehaviorType.Investigate],
 				nodes[TacticalBehaviorType.Wait],
-				nodes[TacticalBehaviorType.Formation]
+				nodes[TacticalBehaviorType.Formation],
+				nodes[TacticalBehaviorType.Core]
 			);
 		}
 	}
@@ -48,6 +50,10 @@ public class TacticalFSMState : IFSMState
 				new BTLeaf(Panic)
 			),
 			[TacticalBehaviorType.TrapResponse] = new BTSelector(
+				// 9-7장(신규): 선정 유닛을 찾아 나서는 중이면 최우선으로 그 이동을 계속한다.
+				new BTSequence(new BTCondition(IsSearchingForMissingUnit), new BTLeaf(TrapSearchForMissingUnit)),
+				// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 대기.
+				new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
 				// Disarm → Bypass → Pass → Destroy 내부 순서는 고정 (문서 9장 우선순위)
 				new BTSequence(
 					new BTCondition(CanDisarm),
@@ -62,6 +68,7 @@ public class TacticalFSMState : IFSMState
 			[TacticalBehaviorType.Alert] = new BTSequence(
 				new BTCondition(HasAlert),
 				new BTSelector(
+					new BTLeaf(DeathSearchMove), // 4-15장: 원인미상 파티원 사망 수색(배정 방향으로 퍼져 수색)
 					new BTLeaf(AlertApproach),
 					new BTLeaf(AlertPerimeterSearch)
 				)
@@ -85,6 +92,11 @@ public class TacticalFSMState : IFSMState
 					),
 					new BTLeaf(HoldFormation)
 				)
+			),
+			[TacticalBehaviorType.Core] = new BTSequence(
+				new BTCondition(CanContinueCore),
+				new BTLeaf(MoveToCore),
+				new BTLeaf(CoreInvestigatePerform)
 			)
 		};
 	}
@@ -101,6 +113,20 @@ public class TacticalFSMState : IFSMState
 		if (unit is Human h && (h.currentInvestigation != null || h.HasReachableInvestigateTarget())) return p;
 		if (unit is Human hw && hw.currentWait != null) return p;
 		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return p;
+		if (unit is Human hc && hc.party != null && hc.party.Leader == hc && hc.party.PendingCoreObjectId != null)
+		{
+			// 2026-07-27 버그 수정("코어가 없는 이상한 곳에서 코어 로직이 실행됨"): 리더가 코어와 다른
+			// 층에 있으면(예: 웨이브 시작 직후 아직 0층 대기 구역) 여기서 층 이동을 계단 이동
+			// 파이프라인(NavigationFSMState.HasPendingStairs/MoveToStairs/CrossStairs — 이미 검증된
+			// 기존 메커니즘)에 맡기고, 코어 쪽은 우선순위를 양보한다. 그래야 MoveToCore의 도착 판정
+			// (X/Y만 비교, 층 비교 없음)이 다른 층에서 좌표만 우연히 근접했을 때 오작동하는 걸 막는다.
+			if (hc.currentFloor != hc.party.PendingCorePosition.z)
+			{
+				if (!hc.pendingStairTargetFloor.HasValue) hc.pendingStairTargetFloor = hc.party.PendingCorePosition.z;
+				return 0f;
+			}
+			return p;
+		}
 		return 0f;
 	}
 
@@ -144,6 +170,14 @@ public class TacticalFSMState : IFSMState
 			ApplyTrapDisarmInterruptPenalty(unit);
 			return false;
 		}
+		// 8-2장: 보호 유닛이 피격당하면 중단(함정 해제는 7장의 "파티 목표 오브젝트"가 될 수 없으므로
+		// — 대상은 회수/조사 오브젝트뿐 — 예외 없이 항상 중단. 2026-07-25 사용자 요청으로 연결,
+		// AnyEscortHitThisTurn()이 그동안 아무도 호출하지 않는 죽은 코드였다).
+		if (unit is Human humanDisarmer && humanDisarmer.AnyEscortHitThisTurn())
+		{
+			ApplyTrapDisarmInterruptPenalty(unit);
+			return false;
+		}
 		return true;
 	}
 
@@ -170,7 +204,24 @@ public class TacticalFSMState : IFSMState
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
 		}
+		// 8-2장: 보호 유닛이 피격당했을 때 — 지금 조사 중인 대상이 파티의 웨이브 목표 오브젝트(7장)면
+		// 상호작용을 유지하고(공격받은/대응 가능한 보호 유닛만 각자 알아서 전투·경계로 전환 — 그건 그
+		// 유닛 자신의 FSM이 담당하므로 여기서 따로 처리할 게 없다), 그 밖의 일반 조사면 중단한다.
+		// 2026-07-25 사용자 요청으로 연결(AnyEscortHitThisTurn()이 그동안 아무도 호출하지 않는 죽은
+		// 코드였다) — InteractableObject에 "파티 목표" 플래그가 따로 없어(7장 재검증 참고)
+		// HumanWaveManager.dummyTarget(지금 이 웨이브의 유일한 목표 오브젝트)과 ID를 비교해 근사한다.
+		if (human.AnyEscortHitThisTurn() && !IsPartyObjectiveInvestigation(human.currentInvestigation))
+		{
+			ApplyInvestigateInterruptPenalty(human);
+			return false;
+		}
 		return true;
+	}
+
+	private static bool IsPartyObjectiveInvestigation(InvestigationState inv)
+	{
+		var wave = HumanWaveManager.Instance;
+		return wave != null && wave.dummyTarget != null && inv != null && wave.dummyTarget.Id == inv.TargetObjectId;
 	}
 
 	// 5-6장: 조사 진행도(Progress01)의 50% 손실 — InvestigatePerform이 매 틱 PenaltyActive를 true로
@@ -270,6 +321,58 @@ public class TacticalFSMState : IFSMState
 		return true;
 	}
 
+	// ── 함정 발견/선정 조율(9-2~9-7장 신규) ─────────────────────────
+
+	private static bool IsAwaitingSelectedUnit(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		return trap != null && trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && !trap.SearchingForSelectedUnit;
+	}
+
+	private static bool IsSearchingForMissingUnit(Unit unit) => unit.currentTrapInteraction?.SearchingForSelectedUnit == true;
+
+	// 9-6장: 선정 유닛이 도착할 때까지 발견 유닛은 현재 위치에서 대기한다. 함정 오브젝트 자체가
+	// 사라지거나(해제/파괴 성공) 선정 유닛이 이미 이 함정과의 상호작용을 끝냈으면(우회/통과 — 오브젝트는
+	// 남아있을 수 있음) 대기를 정리한다.
+	private static BTStatus TrapAwaitSelectedUnit(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap == null) return BTStatus.Failure;
+
+		bool trapGone = unit.Session == null || !unit.Session.objectGrid.ContainsKey(trap.TrapPosition);
+		bool selectedUnitDone = false;
+		if (!trapGone && unit is Human h && h.party != null)
+		{
+			var selected = h.party.Members.Find(m => m != null && m.name == trap.SelectedUnitName);
+			if (selected != null && selected.hp > 0 && selected.currentTrapInteraction == null)
+				selectedUnitDone = true; // 선정 유닛이 우회/통과로 이 함정을 이미 벗어남
+		}
+
+		if (trapGone || selectedUnitDone)
+		{
+			unit.currentTrapInteraction = null;
+			return BTStatus.Success;
+		}
+		return BTStatus.Running;
+	}
+
+	// 9-7장: 선정 유닛의 예상 도착시간+3초를 넘겨도 도착하지 않으면 발견 유닛이 마지막 전파 위치로
+	// 직접 찾아간다(그 자리에 선정 유닛의 시체가 있으면 CastRay가 자연히 PartyDeathSystem.
+	// OnCorpseDiscovered를 트리거해 4-12~4-15장 사망 처리로 이어진다).
+	private static BTStatus TrapSearchForMissingUnit(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap == null || !trap.SearchingForSelectedUnit) return BTStatus.Failure;
+		var target = trap.SelectedUnitLastKnownPos ?? new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+		if (Vector2Int.Distance(unit.position, target) <= 1.5f)
+		{
+			if (unit is Human h) TrapPartySystem.RestartSelection(h, trap);
+			return BTStatus.Success;
+		}
+		AIMovementHelper.MoveTowardsPos(unit, target);
+		return BTStatus.Running;
+	}
+
 	// ── 함정 해제 3단계 ───────────────────────────────────────────
 
 	private static BTStatus TrapJoinWait(Unit unit)
@@ -316,6 +419,10 @@ public class TacticalFSMState : IFSMState
 			LogHelper.Log(LogHelper.GAME, $"{human.unitType.typeName}가 함정을 해제했습니다.");
 			human.Session.CollectObject(trap.TrapPosition);
 			trap.PenaltyActive           = false;
+			// 9-5장(신규): 해제 성공 시에만 도감에 기록한다(우회·파괴·통과는 기록 안 함). 함정 종류별
+			// 도감 ID 체계가 아직 없어 오브젝트 고유 Id를 그대로 넘긴다 — 등록된 항목이 없으면
+			// EncyclopediaManager가 경고만 남기고 조용히 무시하므로 안전하다.
+			Game.Encyclopedia.EncyclopediaManager.Instance?.UnlockEntry(trap.TrapObjectId);
 			human.currentTrapInteraction = null;
 			return BTStatus.Success;
 		}
@@ -444,6 +551,11 @@ public class TacticalFSMState : IFSMState
 				m.personalMap.OnObjectInvestigated(obj.Id);
 			}
 		}
+
+		// 5-2장(2026-07-27 신규): 파티원 시체 조사로 사망 원인(간접) 확인.
+		if (obj.Tags.Contains("Human") && obj.Tags.Exists(t => t.Contains("Corpse")))
+			PartyDeathSystem.OnCorpseInvestigated(human, obj);
+
 		inv.PenaltyActive = false;
 		return BTStatus.Success;
 	}
@@ -510,6 +622,22 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
+	// 4-15장: 원인미상 파티원 사망 수색 — 시체 위치(DeathSearchOrigin)를 기준으로 배정된 방향
+	// (전방/후방/좌/우)을 바라보며 그 방향으로 퍼져나간다(AlertApproach처럼 한 점으로 수렴하지 않음).
+	private static BTStatus DeathSearchMove(Unit unit)
+	{
+		var alert = unit.currentAlertSearch;
+		if (alert == null || !alert.IsDeathSearch) return BTStatus.Failure;
+		Vector2Int origin = alert.DeathSearchOrigin ?? unit.position;
+		Vector2Int dirVec = unit.GetDirVector(alert.AssignedSearchDir);
+		Vector2Int target = origin + dirVec * 3;
+		unit.currentDir = alert.AssignedSearchDir;
+		if (Vector2Int.Distance(unit.position, target) <= 1f)
+			return BTStatus.Running; // 배정 위치 도착 — 방향을 유지한 채 대기(시간 종료는 OnUpdate가 처리)
+		AIMovementHelper.MoveTowardsPos(unit, target);
+		return BTStatus.Running;
+	}
+
 	private static BTStatus AlertPerimeterSearch(Unit unit)
 	{
 		if (unit.currentAlertSearch == null) return BTStatus.Failure;
@@ -564,6 +692,157 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
+	// ── 코어(7-3장, 2026-07-27 신규) — 리더 전용 ───────────────────
+
+	// 리더 승계로 새로 리더가 된 유닛도 이 조건을 통해 자연스럽게 CoreInteractionState를 새로 만든다
+	// (Party.PendingCoreObjectId는 파티 소유라 리더가 바뀌어도 그대로 유지됨).
+	private static bool CanContinueCore(Unit unit)
+	{
+		if (!(unit is Human human) || human.party == null || human.party.Leader != human || human.party.PendingCoreObjectId == null)
+			return false;
+
+		// 방어적 재확인(2026-07-27) — 정상 경로면 GetPriority가 층이 다를 때 이미 우선순위를 양보해서
+		// 이 지점에 도달하지 않지만, 혹시라도 층이 다른 채로 들어오면 X/Y만 보는 MoveToCore의 오작동을
+		// 막기 위해 여기서도 한 번 더 막는다.
+		if (human.currentFloor != human.party.PendingCorePosition.z) return false;
+
+		if (human.currentCoreInteraction == null || human.currentCoreInteraction.CoreObjectId != human.party.PendingCoreObjectId)
+		{
+			human.currentCoreInteraction = new CoreInteractionState
+			{
+				CoreObjectId = human.party.PendingCoreObjectId,
+				CorePosition = human.party.PendingCorePosition,
+			};
+		}
+
+		// 8-1장: 리더 본인이 피격되거나 위협을 인지하면 코어 조사를 중단(전투/경계로 전환)한다.
+		// 8-2장의 "보호 유닛 피격 시 유지" 예외는 AnyEscortHitThisTurn을 의도적으로 확인하지 않아
+		// 이미 충족된다.
+		if (human.isHitThisTurn || human.HasPerceivedThreatCollider())
+		{
+			human.currentCoreInteraction = null;
+			return false;
+		}
+		return true;
+	}
+
+	private static BTStatus MoveToCore(Unit unit)
+	{
+		var human = (Human)unit;
+		var core  = human.currentCoreInteraction;
+		if (core == null) return BTStatus.Failure;
+
+		// 2026-07-27 버그 수정("코어가 없는 이상한 곳에서 코어 로직이 실행됨") — 아래 도착 판정이
+		// X/Y만 비교하고 층은 안 봐서, 리더가 다른 층에서 우연히 같은 X/Y 근처에 있으면 그 자리를
+		// "도착"으로 착각했다. 정상 경로면 GetPriority가 층이 다를 때 이미 계단 이동으로 양보하지만,
+		// 여기서도 한 번 더 막아 절대 다른 층에서 도착 판정이 나지 않게 한다.
+		if (human.currentFloor != core.CorePosition.z) return BTStatus.Running;
+
+		if (human.Session == null || !human.Session.objectGrid.TryGetValue(core.CorePosition, out var obj) || obj.IsInvestigated)
+		{
+			human.currentCoreInteraction = null;
+			human.party.PendingCoreObjectId = null;
+			return BTStatus.Success;
+		}
+		if (!human.personalMap.IsObjectKnown(obj.Id))
+			human.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+
+		var pos = new Vector2Int(core.CorePosition.x, core.CorePosition.y);
+
+		// 2026-07-27 사용자 신고("유닛이 코어에 겹쳐서 포메이션을 잡음") — 코어는 Passable이라 리더가
+		// 실제로 그 타일 위까지 걸어가 설 수 있다(도착 판정이 Chebyshev≤1이라 거리 0도 통과). 리더가
+		// 코어 타일 자체를 점유하면 호위 슬롯 계산의 기준점(escortTarget.position)도 코어 위가 돼버려
+		// 포메이션 전체가 코어 위/주변에 이상하게 겹친다. 정확히 그 타일에 서 있으면 인접 빈 칸으로
+		// 한 걸음 물러난 뒤에만 "도착"으로 인정한다.
+		if (human.position == pos)
+		{
+			StepOffObjectTile(human, pos);
+			return BTStatus.Running;
+		}
+
+		if (Mathf.Max(Mathf.Abs(human.position.x - pos.x), Mathf.Abs(human.position.y - pos.y)) <= 1) return BTStatus.Success;
+
+		// 2026-07-27 사용자 신고("보호 포메이션 동안 다른 유닛에게 길이 막혀서 리더가 코어에 영구히
+		// 도착 못함") 방어책 — 근본 원인(호위가 이동 중인 리더의 전방을 가로막던 것)은
+		// GetEscortSlotPosition 쪽에서 고쳤지만, 혹시 다른 이유로 한 칸도 못 나아가면(길이 완전히
+		// 막힘) PlayerCommandFSMState.ExecutePlayerMove와 동일한 관례로 근처 빈 칸으로 목표를 잠깐
+		// 대신해 우회를 시도한다 — 매 틱 다시 원래 pos로 재시도하므로 영구 고착은 아니다.
+		if (!AIMovementHelper.MoveTowardsPos(human, pos))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(human, pos);
+			if (fallback != pos) AIMovementHelper.MoveTowardsPos(human, fallback);
+		}
+		return BTStatus.Running;
+	}
+
+	// 위 MoveToCore 전용 — 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음
+	// 물러난다(9-6장 TrapPartySystem.StepAwayFromTrap과 동일한 관례).
+	private static void StepOffObjectTile(Human human, Vector2Int objectPos)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			Vector2Int candidate = objectPos + human.GetDirVector((Dir)i);
+			if (human.CanMove(candidate))
+			{
+				AIMovementHelper.MoveTowardsPos(human, candidate);
+				return;
+			}
+		}
+	}
+
+	private static BTStatus CoreInvestigatePerform(Unit unit)
+	{
+		var human = (Human)unit;
+		var core  = human.currentCoreInteraction;
+		if (core == null) return BTStatus.Failure;
+		if (human.Session == null || !human.Session.objectGrid.TryGetValue(core.CorePosition, out var obj) || obj.IsInvestigated)
+		{
+			human.currentCoreInteraction = null;
+			if (human.party != null) human.party.PendingCoreObjectId = null;
+			return BTStatus.Success;
+		}
+
+		core.Active = true; // UnitFunction.OnUpdate가 이 플래그를 보고 전파/진행도 타이머를 흘려보낸다.
+		if (!core.PropagationDone) return BTStatus.Running;
+		if (core.Progress01 < 1f) return BTStatus.Running;
+
+		obj.IsInvestigated = true;
+		human.personalMap.OnObjectInvestigated(obj.Id);
+		if (human.party != null)
+		{
+			foreach (var m in human.party.Members)
+			{
+				if (m == null || m == human || m.hp <= 0) continue;
+				if (!m.personalMap.IsObjectKnown(obj.Id))
+					m.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+				m.personalMap.OnObjectInvestigated(obj.Id);
+			}
+			human.party.PendingCoreObjectId = null;
+		}
+
+		// 2026-07-27 수정("코어 조사 후에도 코어가 사라지지 않는다") — 보스방 던전 코어는 Loot 하위
+		// 태그도 함께 갖도록 통합됐는데(GameSession.SpawnInitialDungeonCore), 코어 조사는 일반
+		// InvestigationState가 아니라 이 별도 CoreInteractionState로 진행되기 때문에 조사가 끝나도
+		// TacticalFSMState.PickUpObject(Loot 실제 회수 처리)로 자연스럽게 이어지지 않았다. 리더 조사가
+		// "발견~조사 흐름"의 마지막 단계이자 이 오브젝트의 최초·유일한 조사이므로, PickUpObject의
+		// Loot 분기와 동일한 처리를 여기서 그대로 수행해 리더 본인이 즉시 회수하게 한다(일반 Loot
+		// 오브젝트가 조사 직후 같은 유닛이 즉시 집어가던 것과 동일 동작 — "다른 코어의 기능은 그대로
+		// 둔채" 요청대로 웨이브 목표 회수 자체는 그대로 유지). Loot 태그가 없는 테스트 전용 코어
+		// (SpawnCoreAt)는 이 분기를 안 타 그대로 남는다(의도대로).
+		if (obj.Tags.Exists(t => t.Contains("Loot")))
+		{
+			human.Session.CollectObject(obj.Position);
+			human.collectedObjects.Add(obj.Id);
+			if (!human.pendingStairTargetFloor.HasValue)
+				human.pendingStairTargetFloor = human.currentFloor + 1;
+		}
+
+		// 코어 파괴/특정 상호작용/인류 메리트·플레이어 디메리트 등 후속 효과는 코어·핵심방어목표 문서
+		// (추후 작성)의 몫 — 이번 구현은 사용자 확인대로 "발견~리더조사 흐름"까지만 다룬다.
+		human.currentCoreInteraction = null;
+		return BTStatus.Success;
+	}
+
 	// ── 라벨 ──────────────────────────────────────────────────────
 
 	private static string GetSubLabel(Unit unit)
@@ -577,6 +856,7 @@ public class TacticalFSMState : IFSMState
 		}
 		if (unit.currentAlertSearch != null) return "전술(경계)";
 		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return "전술(포메이션)";
+		if (unit is Human hc && hc.party != null && hc.party.Leader == hc && hc.party.PendingCoreObjectId != null) return "전술(코어)";
 		return "전술";
 	}
 }

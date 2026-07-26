@@ -1,479 +1,163 @@
-[오펜스 트리거] 시작: room7 방에 진입 발생
+<b><color=lightgreen>[HAARE]</color></b> Start Haare Framework
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+HaareClient/<Main>d__0:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:22)
+System.Runtime.CompilerServices.AsyncVoidMethodBuilder:Start<HaareClient/<Main>d__0> (HaareClient/<Main>d__0&)
+HaareClient:Main ()
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 아처형_6_8_0: DOWN_LEFT 방향((5, 7)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=lightgreen>[HAARE]</color></b> GameProcessorScope start
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+Haare.Client.Core.DI.CoreLifetimeScope:Configure (VContainer.IContainerBuilder) (at Assets/Haare/Scripts/Client/DI/Container/CoreLifetimeScope.cs:37)
+GameCompositionRoot:Configure (VContainer.IContainerBuilder) (at Assets/Script/Unit/Session/GameCompositionRoot.cs:22)
+VContainer.Unity.LifetimeScope:InstallTo (VContainer.IContainerBuilder) (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:290)
+VContainer.Unity.LifetimeScope:Build () (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:219)
+VContainer.Unity.LifetimeScope:Awake () (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:149)
+Haare.Client.Core.DI.CoreLifetimeScope:Awake () (at Assets/Haare/Scripts/Client/DI/Container/CoreLifetimeScope.cs:22)
+GameCompositionRoot:Awake () (at Assets/Script/Unit/Session/GameCompositionRoot.cs:17)
 
-[오펜스] 패배: room7에서 플레이어 유닛이 전멸했습니다.
+<b><color=lightgreen>[HAARE]</color></b> GamePresenter PostInitialize
 
-[Resource] 자원 B 임시 누적분이 초기화되었습니다 (패배).
+FADEIN
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_6_0: UP_LEFT 방향((4, 9)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: Waiting for Haare Processor...
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_7_0: 위치(5, 9)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=lightgreen>[HAARE]</color></b> Singleton Generated Processor
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_6_12_0: 위치(5, 14)→접근타일(5, 13) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_5_8_0: 위치(6, 10)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses -> end
 
-<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room7)에 물리적으로 진입했습니다.
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Finished Constructor
 
-[오펜스 트리거] 시작: room7 방에 진입 발생
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadingFadePanel(Clone) (Demo.UI.LoadingFadePanel)
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 아처형_6_8_0: DOWN_LEFT 방향((5, 7)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : CoreCanvas(Clone) (Haare.Client.UI.CoreUIManager)
 
-[오펜스] 패배: room7에서 플레이어 유닛이 전멸했습니다.
+<b><color=lightgreen>[HAARE]</color></b> SceneUIManager Initialize
 
-[Resource] 자원 B 임시 누적분이 초기화되었습니다 (패배).
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: Processor ready. Resolving all game systems...
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_6_0: UP_LEFT 방향((4, 9)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Haare.Scripts.Client.Data.DataManager
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_7_0: 위치(5, 9)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Haare.Client.Routine.Service.SceneService.SceneService
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_6_12_0: 위치(5, 14)→접근타일(5, 13) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=#6495ED>[SERVICE]</color></b> SceneService Initialize
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_5_8_0: 위치(6, 10)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadingFadePanel(Clone) (Haare.Client.UI.CustomImage)
 
-<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room7)에 물리적으로 진입했습니다.
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : FPSText (FPSLogger)
 
-[오펜스 트리거] 시작: room7 방에 진입 발생
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> FPSLogger Init
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 아처형_6_8_0: DOWN_LEFT 방향((5, 7)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : FPSText (Haare.Client.UI.CustomText)
 
-[오펜스] 패배: room7에서 플레이어 유닛이 전멸했습니다.
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : MapRandering
 
-[Resource] 자원 B 임시 누적분이 초기화되었습니다 (패배).
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GrimArchive.Wave.HumanWaveManager
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_6_0: UP_LEFT 방향((4, 9)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : MapManager
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_7_0: 위치(5, 9)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> MapManager: Initialize.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_6_12_0: 위치(5, 14)→접근타일(5, 13) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GrimArchive.Wave.WaveSpawner
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_5_8_0: 위치(6, 10)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: MapManager initialized.
 
-<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room7)에 물리적으로 진입했습니다.
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GameSession
 
-[오펜스 트리거] 시작: room7 방에 진입 발생
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Initialize START
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 아처형_6_8_0: DOWN_LEFT 방향((5, 7)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> GameSession: UIManager Resolved
 
-[오펜스] 패배: room7에서 플레이어 유닛이 전멸했습니다.
+<b><color=#40C4FF>[GAME]</color></b> CreateMap: 맵 역직렬화 완료. Floors: 4
 
-[Resource] 자원 B 임시 누적분이 초기화되었습니다 (패배).
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Map deserialized from Data/map.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_6_0: UP_LEFT 방향((4, 9)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F0에 총 576개의 타일을 모두 꽉 채워 배치했습니다.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_2_7_0: 위치(5, 9)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F1에 총 3136개의 타일을 모두 꽉 채워 배치했습니다.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_6_12_0: 위치(5, 14)→접근타일(5, 13) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F2에 총 4096개의 타일을 모두 꽉 채워 배치했습니다.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 기사형_5_8_0: 위치(6, 10)→접근타일(5, 10) 경로를 못 찾음(TryGetNextStep 실패).
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:138)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F3에 총 5184개의 타일을 모두 꽉 채워 배치했습니다.
 
-<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room7)에 물리적으로 진입했습니다.
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: 전체 4개 Floor 렌더링 완료.
 
-[오펜스 트리거] 시작: room7 방에 진입 발생
+<b><color=#40C4FF>[GAME]</color></b> MapManager: 맵 렌더링 및 웨이브 스포너 초기화 완료, 브로드캐스트 전송.
 
-<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> [MoveToStairs] 아처형_6_8_0: DOWN_LEFT 방향((5, 7)) 이동 시도했지만 실제로는 못 움직임. 점유=False
-UnityEngine.Debug:LogWarning (object)
-Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
-Action_MoveToStairs:Execute (Unit) (at Assets/Script/Unit/AI/Actions.cs:148)
-GoapBrain:ExecuteAction (Unit) (at Assets/Script/Unit/AI/GoapCore.cs:324)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:398)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:510)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:251)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> BuildRoomGrid: 층 1에서 방 16개 생성됨.
 
-[오펜스] 패배: room7에서 플레이어 유닛이 전멸했습니다.
+<b><color=#40C4FF>[GAME]</color></b> Generated DungeonCore_dcc1 at Floor 1, (42, 42) with Tags: [Object/Passable/Loot/DungeonCore, Object/Passable/Core]
 
-[Resource] 자원 B 임시 누적분이 초기화되었습니다 (패배).
+<b><color=#40C4FF>[GAME]</color></b> GameSession: 맵 데이터 로드 성공.
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Initialize END
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Text (TMP) (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadButton (Haare.Client.UI.CustomButton)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadButton (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Text (TMP) (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : SaveButton (Haare.Client.UI.CustomButton)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : SaveButton (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : InfoText (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : InfoBox (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : DebugInfoPanel(Clone) (DebugInfoPanel)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : ResourceManager
+
+<b><color=#40C4FF>[GAME]</color></b> ResourceManager Initialized
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : BuildingManager
+
+<b><color=#40C4FF>[GAME]</color></b> BuildingManager Initialized
+
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: All systems ready. GameSession: True, MapManager: True
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : StatusInfoPanel(Clone) (StatusInfoPanel)
+
+<color=cyan>[UI_Encyclopedia]</color> 단축키(<Keyboard>/I) 구독 완료 (OnEnable).
+
+DontDestroyOnLoad only works for root GameObjects or components on root GameObjects.
+UnityEngine.Object:DontDestroyOnLoad (UnityEngine.Object)
+Game.Encyclopedia.EncyclopediaManager:Awake () (at Assets/Script/Encyclopedia/EncyclopediaManager.cs:32)
+UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationBase`1/<>c__DisplayClass60_0<UnityEngine.GameObject>:<add_CompletedTypeless>b__0 (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>)
+DelegateList`1<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>>:Invoke (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>) (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/DelegateList.cs:75)
+UnityEngine.ResourceManagement.Util.DelayedActionManager:LateUpdate ()
+
+[EncyclopediaManager] 도감 데이터 불러옴.
+
+<color=cyan>[UI_Encyclopedia]</color> BindEvent 호출됨! (단축키: I)
+
+FADEOUT
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : EncyclopediaPanel(Clone) (Game.Encyclopedia.UI.UI_Encyclopedia)
+
+UI Stack Count0
+
+UI DICT Count3
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> UnRegister : LoadingFadePanel(Clone) (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> UnRegister : LoadingFadePanel(Clone) (Demo.UI.LoadingFadePanel)
+
+[HumanWaveManager] 0층에 웨이브 파티 14명 사전 스폰(배회 대기) — 신규 14명, 이전 웨이브 생존자 0명 합류.
+
+[HumanWaveManager] ?�류 ?�이�?발생! (목표물이 ?�성???�까지 ?�기합?�다)
+
+[HumanWaveManager] ?��?가 ?�성??목표�?DungeonCore_dcc1)??발견?�습?�다! 추적???�작?�니??
+
+<b><color=#40C4FF>[GAME]</color></b> [CoreDebug] OnCoreDiscovered 호출됨: discoverer=아처형_5_14_0, coreObj=DungeonCore_dcc1, party=760e04ad-3a92-4afd-a710-7ac112808fe0
+
+<b><color=#40C4FF>[GAME]</color></b> [CoreDebug] PendingCoreObjectId 세팅 완료. 현재 리더=기사형_6_14_0
+
+<b><color=#40C4FF>[GAME]</color></b> [CoreDebug] 리더(기사형_6_14_0)가 코어 상호작용 시작: pos=(42, 42, 1)
 

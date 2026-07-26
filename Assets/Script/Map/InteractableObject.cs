@@ -37,6 +37,11 @@ public class InteractableObject
     // 1회만 던전 위험도에 반영한다.
     public string TraceId;
 
+    // 03문서 4-12~4-15장: 인류 시체(Tags에 "Human" 포함)일 때만 사용 — 이 시체를 남긴 파티의
+    // Party.Id. 어느 유닛이든 이 시체를 처음 정확 인지하면 PartyDeathSystem이 이 값으로
+    // GameSession.parties에서 원본 파티를 찾아 Party.DeathRecords[Id]를 조회/갱신한다.
+    public string OwnerPartyId;
+
     // 03문서 9장(함정 대응): Trap 태그("Object/Building/Passable/Trap" — 오브젝트→건축물→지나갈 수
     // 있는 건축물, 2026-07-22 사용자 지정 계층)일 때만 의미가 있다(그 외 태그는 전부 0). 9-9장
     // "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.
