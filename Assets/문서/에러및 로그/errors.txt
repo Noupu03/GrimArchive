@@ -1,2 +1,0 @@
-Assets\Tests\GoapPlannerTests.cs(16,16): error CS0534: 'GoapPlannerTests.FakeAction' does not implement inherited abstract member 'GoapAction.ActionCode.get'
-

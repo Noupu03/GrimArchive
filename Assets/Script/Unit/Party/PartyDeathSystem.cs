@@ -26,6 +26,7 @@ public static class PartyDeathSystem
 			DeathPosition = new Vector3Int(dead.position.x, dead.position.y, dead.currentFloor),
 			DeadFacing = dead.currentDir,
 			CauseMonster = dead.lastAttacker,
+			CauseTrap = dead.lastTrapAttacker,
 			IncidentId = System.Guid.NewGuid().ToString(),
 		};
 		party.DeathRecords[corpseObjectId] = record;
@@ -42,6 +43,7 @@ public static class PartyDeathSystem
 			if (d < repDist) { repDist = d; representative = m; }
 			ApplyDeathInfo(record, m, mentalDelta: -ExplorationMath.DeathDirectDiscoveryMentalLoss, isDirectDiscovery: true);
 			TryConfirmCauseByWitness(record, m);
+			TryConfirmTrapCause(record);
 		}
 
 		if (representative != null)
@@ -64,6 +66,7 @@ public static class PartyDeathSystem
 
 		ApplyDeathInfo(record, discoverer, mentalDelta: -ExplorationMath.DeathDirectDiscoveryMentalLoss, isDirectDiscovery: true);
 		TryConfirmCauseByWitness(record, discoverer);
+		TryConfirmTrapCause(record);
 		PropagateFrom(party, record, deadUnitPositionOwner: null, representative: discoverer);
 
 		if (!record.CauseConfirmed && !record.UnknownCauseSearchTriggered)
@@ -78,7 +81,9 @@ public static class PartyDeathSystem
 		var party = ResolveOwnerParty(investigator, corpse);
 		if (party == null) return;
 		if (!party.DeathRecords.TryGetValue(corpse.Id, out var record)) return;
-		if (record.CauseConfirmed || record.CauseMonster == null || record.CauseMonster.hp <= 0) return;
+		if (record.CauseConfirmed) return;
+		if (TryConfirmTrapCause(record)) return; // 4-14장: 함정 원인은 위험도 이벤트 없이 확인만 된다.
+		if (record.CauseMonster == null || record.CauseMonster.hp <= 0) return;
 
 		record.CauseConfirmed = true;
 		record.CauseConfirmedDirectly = false;
@@ -139,6 +144,19 @@ public static class PartyDeathSystem
 		record.CauseConfirmed = true;
 		record.CauseConfirmedDirectly = true;
 		ApplyDangerOnce(record, witness, EventId.E_HUMAN_KILL_SEEN, InfoType.DirectWitness);
+	}
+
+	// 4-14장: 함정이 원인으로 확인되면(직접 목격/전파/조사 — 호출부가 이미 "확인 가능한 상황"임을
+	// 보장) 원인 확인만 처리한다. 이 이벤트 테이블(E_HUMAN_KILL_SEEN/INDIRECT)은 "사망 원인이
+	// 몬스터로 확인되면"에만 적용되므로 함정 원인은 DangerApplied를 건드리지 않는다 — 확인됐으니
+	// 4-15장 원인미상 수색만 더 이상 트리거되지 않게 막는 역할이다. 반환값은 "이 호출로 확정됐는지"라
+	// 호출부가 몬스터 확인 로직으로 이어갈지 판단하는 데 쓴다.
+	private static bool TryConfirmTrapCause(PartyDeathRecord record)
+	{
+		if (record.CauseConfirmed || record.CauseTrap == null) return false;
+		record.CauseConfirmed = true;
+		record.CauseConfirmedDirectly = true;
+		return true;
 	}
 
 	private static void ApplyDangerOnce(PartyDeathRecord record, Human observer, EventId eventId, InfoType infoType)

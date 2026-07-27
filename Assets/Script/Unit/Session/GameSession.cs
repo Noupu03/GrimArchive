@@ -468,7 +468,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private void ProcessUnitAction(Unit u)
     {
-        float speed = u.BaseStat.walkSpeed;
+        // 4-3장: 경계 상태에서 위치/방향을 확인하며 이동할 때는 이동속도가 75%로 줄어든다.
+        float speed = u.BaseStat.walkSpeed * (u.currentAlertSearch != null ? ExplorationMath.AlertMoveSpeedRatio : 1f);
         u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
         // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를

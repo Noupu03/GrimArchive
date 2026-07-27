@@ -63,6 +63,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		string incidentId = System.Guid.NewGuid().ToString();
 		lastAttacker = attacker;
+		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
 		if (defenderIsHuman)
 		{
@@ -980,7 +981,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
 				: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
 				: ExplorationMath.UnidentifiedAttackSearchSeconds;
-			if (currentAlertSearch.ElapsedSeconds >= limit) currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
+			if (currentAlertSearch.ElapsedSeconds >= limit)
+			{
+				bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
+				currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
+				// 11장: 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작(Party.TryStartRally
+				// 자체가 다른 파티원이 아직 스윕/전투 중이면 조용히 아무 것도 안 하고 반환한다).
+				if (wasPostCombatSweep && this is Human human && human.party != null)
+					human.party.TryStartRally();
+			}
 		}
 
 		if (currentTrapInteraction != null)
@@ -1107,7 +1116,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (attacker == null) continue;
 			if (AIState.reactedAttackers.Contains(attacker)) continue;
 
-			float reactionTimeMs  = 30000f / Mathf.Max(1f, BaseStat.reaction);
+			// 4-2장: 경계 상태에서 기습/신규 공격에 대한 최초 반응은 반응속도가 1.2배 빨라진다.
+			// reactedAttackers가 공격자별로 한 번만 이 계산을 타게 게이팅해주므로 별도 처리 없이
+			// "최초 반응"에만 적용된다. 5-4/9-8장: 조사·함정 해제 중에는 반대로 반응속도가 50%로
+			// 느려진다(ExplorationPenaltyActive — CastRay의 시야/인지 페널티와 같은 플래그 재사용).
+			float alertReaction = BaseStat.reaction * (currentAlertSearch != null ? ExplorationMath.AlertReactionSpeedRatio : 1f);
+			if (ExplorationPenaltyActive) alertReaction *= ExplorationMath.InvestigatePenaltyRatio;
+			float reactionTimeMs  = 30000f / Mathf.Max(1f, alertReaction);
 			float reactionTimeSec = reactionTimeMs / 1000f;
 
 			if (attacker.CombatState.State.isCastingAttack)

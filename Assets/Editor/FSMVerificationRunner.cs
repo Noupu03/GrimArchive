@@ -24,6 +24,9 @@ public static class FSMVerificationRunner
 
 		GetEscortSlotPosition_MeleeSlot_IsInFrontOfInteractingUnit();
 		GetEscortSlotPosition_RangedSlot_IsBehindInteractingUnit();
+		GetEscortSlotPosition_TargetStillMoving_IsBehindNotFront();
+		GetEscortSlotPosition_OverlapWithInteractionObject_StepsFartherOrSideways();
+		MoveToCore_DifferentFloor_NeverFalsePositiveArrives();
 		Investigate_InterruptedByHit_ProgressIsHalvedOnce();
 		Investigate_InterruptedByPlayerCommand_ProgressIsHalved();
 		TrapDisarm_InterruptedByHit_ProgressIsHalvedOnce();
@@ -72,30 +75,108 @@ public static class FSMVerificationRunner
 		}
 	}
 
-	private static void GetEscortSlotPosition_MeleeSlot_IsInFrontOfInteractingUnit()
+	// 2026-07-27 수정(IsEscortTargetActivelyInteracting) 이후로 6-4/6-5 문서 배치는 target이 "실제로
+	// 상호작용 중"(PenaltyActive/Active)일 때만 적용된다 — 그냥 Human을 만들기만 하면 세 상호작용
+	// 필드가 전부 null이라 "이동 중" 취급돼 후방으로 계산된다. 이 테스트들은 그 활성 상태를 명시적으로
+	// 만들어야 원래 의도(전방/후방 배치)를 검증한다.
+	private static Human MakeActivelyInteractingTarget(Vector2Int pos, Dir dir)
 	{
 		var target = ScriptableObject.CreateInstance<Human>();
-		target.position = new Vector2Int(10, 10);
-		target.currentDir = Dir.UP; // UP = (0,1)
+		target.position = pos;
+		target.currentDir = dir;
+		target.currentInvestigation = new InvestigationState
+		{
+			TargetObjectId = "dummy",
+			TargetPosition = new Vector3Int(pos.x, pos.y, 0),
+			Progress01 = 0.1f,
+			PenaltyActive = true,
+		};
+		return target;
+	}
+
+	private static void GetEscortSlotPosition_MeleeSlot_IsInFrontOfInteractingUnit()
+	{
+		var target = MakeActivelyInteractingTarget(new Vector2Int(10, 10), Dir.UP); // UP = (0,1)
 
 		var escort = ScriptableObject.CreateInstance<Human>();
 		Vector2Int slot = escort.GetEscortSlotPosition(target, backDistance: 1f);
 		Vector2Int expected = new Vector2Int(10, 11);
 
-		Check("6-4 근접 배치는 전방", slot == expected, $"expected {expected}, got {slot}");
+		Check("6-4 근접 배치는 전방(실제 상호작용 중)", slot == expected, $"expected {expected}, got {slot}");
 	}
 
 	private static void GetEscortSlotPosition_RangedSlot_IsBehindInteractingUnit()
 	{
-		var target = ScriptableObject.CreateInstance<Human>();
-		target.position = new Vector2Int(10, 10);
-		target.currentDir = Dir.UP;
+		var target = MakeActivelyInteractingTarget(new Vector2Int(10, 10), Dir.UP);
 
 		var escort = ScriptableObject.CreateInstance<Human>();
 		Vector2Int slot = escort.GetEscortSlotPosition(target, backDistance: 2f);
 		Vector2Int expected = new Vector2Int(10, 8);
 
-		Check("6-5 원거리 배치는 후방 2칸", slot == expected, $"expected {expected}, got {slot}");
+		Check("6-5 원거리 배치는 후방 2칸(실제 상호작용 중)", slot == expected, $"expected {expected}, got {slot}");
+	}
+
+	// 2026-07-27 신규 — 상호작용 유닛이 아직 목적지로 "이동 중"(활성 상호작용 없음)이면 근접이든
+	// 원거리든 전방이 아니라 후방(뒤따름)으로 배치해야 한다(코어 진행 경로를 막던 버그의 근본 수정).
+	private static void GetEscortSlotPosition_TargetStillMoving_IsBehindNotFront()
+	{
+		var target = ScriptableObject.CreateInstance<Human>();
+		target.position = new Vector2Int(10, 10);
+		target.currentDir = Dir.UP; // 활성 상호작용 없음 = "이동 중"
+
+		var escort = ScriptableObject.CreateInstance<Human>();
+		Vector2Int slot = escort.GetEscortSlotPosition(target, backDistance: 1f);
+		Vector2Int expected = new Vector2Int(10, 9); // 후방 1칸(뒤따름)
+
+		Check(
+			"6-4 이동 중인 상호작용 유닛은 전방이 아니라 후방으로 배치(2026-07-27 교착 수정)",
+			slot == expected, $"expected {expected}, got {slot}");
+	}
+
+	// 2026-07-27 신규 — 전방 슬롯이 상호작용 오브젝트 자신의 위치와 겹치면(오브젝트가 Passable이라
+	// target이 그 위에 서 있을 때) 한 칸 더 물러나거나 옆으로 피해야 한다.
+	private static void GetEscortSlotPosition_OverlapWithInteractionObject_StepsFartherOrSideways()
+	{
+		var target = MakeActivelyInteractingTarget(new Vector2Int(10, 10), Dir.UP);
+		// target이 정확히 오브젝트 위(전방 슬롯과 같은 자리)에 서 있는 상황을 재현.
+		target.currentInvestigation.TargetPosition = new Vector3Int(10, 11, 0);
+
+		var escort = ScriptableObject.CreateInstance<Human>();
+		Vector2Int slot = escort.GetEscortSlotPosition(target, backDistance: 1f);
+		Vector2Int naiveFrontSlot = new Vector2Int(10, 11);
+
+		Check(
+			"6-4 전방 슬롯이 상호작용 오브젝트와 겹치면 다른 자리로 회피",
+			slot != naiveFrontSlot, $"slot이 오브젝트 위치({naiveFrontSlot})와 그대로 겹침, got {slot}");
+	}
+
+	// 2026-07-27 신규 — 리더가 코어와 다른 층에 있으면 MoveToCore의 Chebyshev 도착 판정이 층을 무시하고
+	// X/Y만 봐서 "도착"으로 오판하던 버그의 방어 코드(둘째 안전망)를 검증한다. CanContinueCore가 이미
+	// 층이 다르면 코어 상호작용 자체를 안 만드므로, 여기서는 MoveToCore 그 자체에 대한 방어만 별도로
+	// 리플렉션 호출로 확인한다(CanContinueCore를 우회해 currentCoreInteraction을 직접 주입).
+	private static void MoveToCore_DifferentFloor_NeverFalsePositiveArrives()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = new Vector2Int(5, 5); // 코어와 X/Y가 우연히 같은 위치
+		human.currentFloor = 0;
+		human.currentCoreInteraction = new CoreInteractionState
+		{
+			CoreObjectId = "core",
+			CorePosition = new Vector3Int(5, 5, 1), // 층(Z)이 다름
+		};
+		human.party = new Party("p1", "TestParty");
+		human.party.PendingCoreObjectId = "core";
+		human.party.PendingCorePosition = new Vector3Int(5, 5, 1);
+		AttachMinimalSession(human, new InteractableObject("core", new Vector3Int(5, 5, 1), 10f));
+
+		var method = typeof(TacticalFSMState).GetMethod("MoveToCore", BindingFlags.NonPublic | BindingFlags.Static);
+		object status = method.Invoke(null, new object[] { human });
+		bool stillHasInteraction = human.currentCoreInteraction != null;
+
+		Check(
+			"7-3 MoveToCore는 층이 다르면 도착 오판 없이 Running만 반환",
+			status.ToString() == "Running" && stillHasInteraction,
+			$"status={status} (expected Running), stillHasInteraction={stillHasInteraction} (expected true)");
 	}
 
 	private static void Investigate_InterruptedByHit_ProgressIsHalvedOnce()

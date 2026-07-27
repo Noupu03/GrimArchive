@@ -16,6 +16,11 @@ public class PartyDeathRecord
 	// 플레이어/AI 판단에 그대로 노출하지 않고, 아래 CauseConfirmed가 true가 된 시점부터만 가중치
 	// 이벤트에 실제로 사용한다. 4-14장 "정확히 확인된 경우로 한정" 요구사항을 지키기 위한 장치).
 	public Unit CauseMonster;
+	// 4-14장: 사망 원인이 몬스터가 아니라 함정일 수도 있다 — CauseMonster와 상호 배타적으로 채워진다
+	// (Unit.lastAttacker/lastTrapAttacker가 죽는 순간 어느 쪽이 더 최근이었는지로 하나만 남긴다).
+	// 함정이 원인으로 확인되면 CauseConfirmed는 true가 되지만, 대표 가중치 이벤트는 몬스터 원인에만
+	// 적용되므로(4-14장 "사망 원인이 몬스터로 확인되면") 이 경우 DangerApplied는 계속 false로 남는다.
+	public InteractableObject CauseTrap;
 	public bool CauseConfirmed;
 	public bool CauseConfirmedDirectly; // true=목격(SEEN,+3) / false=간접 확인(INDIRECT,+1.5)
 	public bool DangerApplied; // 이 사망 사건으로 위험도 이벤트를 이미 적용했는지(중복 방지)

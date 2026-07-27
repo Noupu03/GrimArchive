@@ -470,6 +470,11 @@ public class TacticalFSMState : IFSMState
 		var trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		if (unit.position != trapPos2D) { AIMovementHelper.MoveTowardsPos(unit, trapPos2D); return BTStatus.Running; }
 
+		// 4-14장: 이 피해가 사망으로 이어지면 PartyDeathSystem이 "함정이 원인"임을 알 수 있어야 한다 —
+		// lastAttacker(Unit)로는 표현이 안 되니 lastTrapAttacker에 남기고, 더 오래된 몬스터 공격 기록과
+		// 섞이지 않도록 lastAttacker는 비운다.
+		unit.lastAttacker = null;
+		unit.lastTrapAttacker = obj;
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
 		unit.currentTrapInteraction = null;
@@ -598,6 +603,7 @@ public class TacticalFSMState : IFSMState
 			if (Vector2Int.Distance(human.position, wait.WaitPosition.Value) <= 1.5f)
 			{
 				human.currentWait = null;
+				if (human.party != null) human.party.CheckRallyComplete();
 				return BTStatus.Success;
 			}
 			AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
@@ -688,9 +694,155 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var esc   = human.currentFormation?.EscortTarget;
 		if (esc == null) return BTStatus.Failure;
-		human.currentDir = SkillAction.GetDirection8(esc.position - human.position);
+		human.currentDir = AssignFormationWatchDirection(human, esc);
 		return BTStatus.Running;
 	}
+
+	// 03문서 6-6/6-7장(2026-07-27 신규) — 같은 대상을 호위 중인 다른 파티원들과 위치(전방/후방/측면)
+	// 기준으로 좌우 정렬해 인원수별 감시 방향을 표대로 배정하고, 배정된 방향이 벽으로 절반 이상
+	// 막히면 인접한 유효 방향으로 재배정한다. 상호작용 유닛 본인의 시야는 6-3장대로 이미 오브젝트를
+	// 향하도록 조사/함정 코드가 처리하므로, 이 함수는 "다른 보호 포메이션 유닛"에만 쓰인다.
+	private static Dir AssignFormationWatchDirection(Human self, Human esc)
+	{
+		var partyMembers = self.party?.Members;
+		if (partyMembers == null) return SkillAction.GetDirection8(esc.position - self.position);
+
+		Vector2 facing = esc.GetDirVector(esc.currentDir);
+		if (facing == Vector2.zero) facing = Vector2.down;
+		Vector2 right = new Vector2(facing.y, -facing.x);
+
+		var front = new List<Human>();
+		var back  = new List<Human>();
+
+		foreach (var m in partyMembers)
+		{
+			if (m == null || m.hp <= 0 || m == esc) continue;
+			if (m.currentFormation == null || m.currentFormation.EscortTarget != esc) continue;
+
+			Vector2 rel = m.position - esc.position;
+			if (rel == Vector2.zero) rel = facing;
+			rel.Normalize();
+
+			float fwd  = Vector2.Dot(rel, facing);
+			float side = Vector2.Dot(rel, right);
+			if (Mathf.Abs(fwd) >= Mathf.Abs(side)) { if (fwd >= 0f) front.Add(m); else back.Add(m); }
+		}
+
+		System.Comparison<Human> bySide = (a, b) =>
+			Vector2.Dot(((Vector2)(a.position - esc.position)).normalized, right)
+				.CompareTo(Vector2.Dot(((Vector2)(b.position - esc.position)).normalized, right));
+		front.Sort(bySide);
+		back.Sort(bySide);
+
+		Dir ideal;
+		if (front.Contains(self))
+			ideal = AssignZoneDirection(front, front.IndexOf(self), esc.currentDir, isFront: true);
+		else if (back.Contains(self))
+			ideal = AssignZoneDirection(back, back.IndexOf(self), esc.currentDir, isFront: false);
+		else
+		{
+			// 6-6장 "중간" 구간 — 좌우 위치는 좌/우, 애매한 중앙 잔여 인원은 감시 인원이 적은 방향.
+			float side = Vector2.Dot(((Vector2)(self.position - esc.position)).normalized, right);
+			if (side < -0.2f) ideal = RotateCW(esc.currentDir, -2);
+			else if (side > 0.2f) ideal = RotateCW(esc.currentDir, 2);
+			else ideal = LeastWatchedDirection(partyMembers, esc, self);
+		}
+
+		return ResolveWallBlocked(self, ideal, esc.currentDir);
+	}
+
+	// 전방/후방 구간 내 인원수·좌우 순서에 따라 6-6장 표대로 정면·좌우전방(후방) 방향을 배정한다.
+	private static Dir AssignZoneDirection(List<Human> zone, int index, Dir facingDir, bool isFront)
+	{
+		Dir centerDir = isFront ? facingDir : Opposite(facingDir);
+		Dir leftDir   = isFront ? RotateCW(facingDir, -1) : RotateCW(facingDir, -3);
+		Dir rightDir  = isFront ? RotateCW(facingDir, 1)  : RotateCW(facingDir, 3);
+
+		int count = zone.Count;
+		if (count <= 1) return centerDir;
+
+		if (count % 2 == 1)
+		{
+			int mid = count / 2;
+			if (index == mid) return centerDir;
+			return index < mid ? leftDir : rightDir;
+		}
+		// 짝수 — 왼쪽 절반/오른쪽 절반(중앙 없음, 겹치는 정면 시야는 자연히 재현된다).
+		return index < count / 2 ? leftDir : rightDir;
+	}
+
+	private static Dir LeastWatchedDirection(List<Human> members, Human esc, Human self)
+	{
+		var counts = new int[8];
+		foreach (var m in members)
+		{
+			if (m == null || m == self || m.hp <= 0) continue;
+			if (m.currentFormation == null || m.currentFormation.EscortTarget != esc) continue;
+			counts[(int)m.currentDir]++;
+		}
+		Dir best = Dir.UP;
+		int bestCount = int.MaxValue;
+		for (int i = 0; i < 8; i++)
+			if (counts[i] < bestCount) { bestCount = counts[i]; best = (Dir)i; }
+		return best;
+	}
+
+	// 6-7장: 배정된 방향의 정면 시야 거리 절반 이상이 벽/구조물에 막히면 인접한 유효 방향으로
+	// 재배정한다. 후보도 전부 막히면 막히지 않은 방향 중 감시 인원이 가장 적은 방향을 쓴다.
+	private static Dir ResolveWallBlocked(Human self, Dir ideal, Dir facingDir)
+	{
+		if (!IsDirectionWallBlocked(self, ideal)) return ideal;
+
+		foreach (var d in GetFallbackDirections(ideal, facingDir))
+			if (!IsDirectionWallBlocked(self, d)) return d;
+
+		var members = self.party?.Members;
+		Dir best = ideal;
+		int bestCount = int.MaxValue;
+		for (int i = 0; i < 8; i++)
+		{
+			var d = (Dir)i;
+			if (IsDirectionWallBlocked(self, d)) continue;
+			int c = 0;
+			if (members != null)
+				foreach (var m in members)
+					if (m != null && m != self && m.currentDir == d) c++;
+			if (c < bestCount) { bestCount = c; best = d; }
+		}
+		return best;
+	}
+
+	// 좌/우/정면/후면 차단 시 인접 유효 방향 후보(6-7장 표) — facingDir(상호작용 유닛 정면) 기준
+	// 상대 위치로 판단한다.
+	private static Dir[] GetFallbackDirections(Dir blocked, Dir facingDir)
+	{
+		int rel = ((int)blocked - (int)facingDir + 8) % 8; // 0=정면,2=우측,4=후면,6=좌측
+		switch (rel)
+		{
+			case 6: return new[] { RotateCW(facingDir, -3), RotateCW(facingDir, -1) }; // 좌측 → 좌측후방/좌측전방
+			case 2: return new[] { RotateCW(facingDir, 1),  RotateCW(facingDir, 3)  }; // 우측 → 우측전방/우측후방
+			case 0: return new[] { RotateCW(facingDir, -1), RotateCW(facingDir, 1)  }; // 정면 → 좌측전방/우측전방
+			case 4: return new[] { RotateCW(facingDir, -3), RotateCW(facingDir, 3)  }; // 후면 → 좌측후방/우측후방
+			default: return new[] { RotateCW(blocked, -1), RotateCW(blocked, 1) };      // 이미 대각 방향이면 인접 방향
+		}
+	}
+
+	private static bool IsDirectionWallBlocked(Human self, Dir dir)
+	{
+		if (self.Session?.cmap == null) return false;
+		Vector2Int step = self.GetDirVector(dir);
+		int tiles = Mathf.Max(1, Mathf.RoundToInt(VisionMath.ViewDistance(self.spotting)));
+		int blocked = 0;
+		for (int i = 1; i <= tiles; i++)
+		{
+			Vector2Int p = self.position + step * i;
+			if (!self.Session.cmap.IsStaticTileWalkable(self.currentFloor, p)) blocked++;
+		}
+		return blocked >= tiles * 0.5f;
+	}
+
+	private static Dir Opposite(Dir d) => (Dir)(((int)d + 4) % 8);
+	private static Dir RotateCW(Dir d, int steps) => (Dir)(((int)d + steps + 80) % 8);
 
 	// ── 코어(7-3장, 2026-07-27 신규) — 리더 전용 ───────────────────
 

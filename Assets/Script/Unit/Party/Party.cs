@@ -103,4 +103,48 @@ public class Party
 			if (m != null && m.Health.hp > 0) survivors.Add(m);
 		return survivors;
 	}
+
+	// 11장: 전투 종료 후 10초 경계 스윕이 끝난 유닛이(UnitFunction.OnUpdate) 호출한다. 파티 전체가
+	// 전투/전투직후 스윕에서 완전히 벗어났을 때만 실제로 집결을 시작한다 — 아직 싸우거나 스윕 중인
+	// 파티원이 있으면 그 유닛이 끝날 때 다시 이 메서드가 불려서 재시도된다. 리더 명령 전파 체계가
+	// 없어(08문서 부재) "즉시 전 파티원이 리더 위치를 집결지로 안다"로 근사한다(5-5/9-3장과 동일 관례).
+	public void TryStartRally()
+	{
+		if (IsRallyActive) return;
+
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0) continue;
+			if (m.personalSpottedEnemies.Count > 0) return; // 아직 전투 중인 파티원 있음(명시적 전투 플래그 부재로 근사)
+			if (m.currentAlertSearch != null && m.currentAlertSearch.IsPostCombatSweep) return; // 아직 스윕 중
+		}
+
+		AssignLeaderIfNeeded();
+		if (Leader == null) return;
+
+		RallyPoint = Leader.position;
+		IsRallyActive = true;
+
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0 || m.currentWait != null) continue;
+			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = RallyPoint };
+		}
+	}
+
+	// TacticalFSMState.ExecuteWait이 유닛 하나가 집결지에 도착해 currentWait을 비울 때마다 호출한다.
+	// 아직 집결 대기 중인(AwaitingPartyAtRallyPoint) 파티원이 남아있으면 유지, 전원 도착했으면
+	// 집결을 종료한다(11장 "파티 집결 완료" — 별도 마칭 포메이션 시스템이 없어 "다음 목표 수행"으로
+	// 자연히 넘어가는 것 자체를 포메이션 재정렬의 대체로 본다).
+	public void CheckRallyComplete()
+	{
+		if (!IsRallyActive) return;
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0) continue;
+			if (m.currentWait != null && m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint) return;
+		}
+		IsRallyActive = false;
+		RallyPoint = null;
+	}
 }
