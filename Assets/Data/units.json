@@ -5,6 +5,7 @@
       "unitClass": "Human",
       "footprint": [1, 1],
       "engageDistance": 2,
+      "populationCost": 1,
       "skills": ["집중 찌르기", "방패 타격", "전방 베기"],
       "stats": {
         "maxHp": 150,
@@ -56,6 +57,7 @@
       "unitClass": "Monster",
       "footprint": [1, 1],
       "engageDistance": 3,
+      "populationCost": 1,
       "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
       "stats": {
         "maxHp": 180,
@@ -102,6 +104,7 @@
       "unitClass": "Human",
       "footprint": [1, 1],
       "engageDistance": 7,
+      "populationCost": 1,
       "skills": ["정밀 사격"],
       "stats": {
         "maxHp": 130,
@@ -143,6 +146,7 @@
       "unitClass": "Wild",
       "footprint": [1, 1],
       "engageDistance": 3,
+      "populationCost": 1,
       "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
       "stats": {
         "maxHp": 100,

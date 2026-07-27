@@ -908,6 +908,30 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return Session.cmap.GetRoomIdAt(currentFloor, lookPos) == myRoomId;
 	}
 
+	// 유닛 배치 시스템(2026-07-27 신규) — 실제 위치가 속한 Room(GameSession.roomGrid, 타일 단위 정확
+	// 조회)과 currentRoom이 다르면 옛 방에서 빼고 새 방에 등록한다. 매 프레임 호출되지만 비교 자체는
+	// 가벼워서(Dictionary 조회 1회) 부담이 적다.
+	private Vector2Int _lastRoomSyncPos = new Vector2Int(int.MinValue, int.MinValue);
+	private int _lastRoomSyncFloor = int.MinValue;
+
+	// 최적화(2026-07-27, 프레임드랍 점검 요청) — 위치/층이 지난 틱과 같으면 Dictionary 조회 자체를
+	// 건너뛴다. 대기 중인 유닛(수색/보호 포메이션/조사 등 제자리 상태)이 많을 때 매 프레임 불필요한
+	// roomGrid 조회를 없애준다.
+	private void SyncRoomAffiliation()
+	{
+		if (position == _lastRoomSyncPos && currentFloor == _lastRoomSyncFloor) return;
+		_lastRoomSyncPos = position;
+		_lastRoomSyncFloor = currentFloor;
+
+		if (Session?.roomGrid == null) return;
+		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
+		if (actualRoom == currentRoom) return;
+
+		currentRoom?.RemoveUnit(this);
+		actualRoom?.AddUnit(this);
+		currentRoom = actualRoom;
+	}
+
 	private Dir DirectionToward(Vector2Int targetPos)
 	{
 		Vector2Int diff = targetPos - position;
@@ -953,6 +977,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 부담이 거의 없다(할당 없음, Mathf.Clamp 수십 번 수준) — 별도의 "변경 감지"용 캐시/이벤트
 		// 없이 매번 새로 계산하는 쪽이 오히려 더 단순하고 저렴하다.
 		CalculateDerivedStats();
+
+		// 유닛 배치 시스템(2026-07-27 신규) 3장/4.3장 — 실제 위치 기준으로 소속 방을 매 프레임
+		// 동기화한다("방에 도착하면 소속 방으로 변경"을 명령 완료 이벤트 대신 위치 기반으로 구현 —
+		// 스폰 직후 배치처럼 이 시스템이 다루지 않는 경로에도 자연히 적용됨). 배회 몬스터
+		// (WildMonsterBehavior)는 9장 보류 항목이라 대상에서 제외한다.
+		if (!(FactionBehavior is WildMonsterBehavior))
+			SyncRoomAffiliation();
 
 		if (StatusEffects.State.stunDuration   > 0f) StatusEffects.State.stunDuration   -= deltaTime;
 		if (StatusEffects.State.slowDuration   > 0f) StatusEffects.State.slowDuration   -= deltaTime;

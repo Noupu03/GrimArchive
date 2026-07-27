@@ -26,6 +26,29 @@ public class Room
     public RectInt Bounds { get; set; } = new RectInt(10, 10, 5, 5);
     public bool HasActiveSpawner { get; set; } = false;
 
+    // 유닛 배치 시스템(2026-07-27 신규) 5.1장 — 방의 최대 인구수. 문서에 수치/공식이 없어 사용자
+    // 확인대로 "방 크기(청크 수) 비례" 공식(GameSession.PopulationPerChunk × 이 방의 청크 수)을
+    // GameSession.BuildRoomGrid가 계산해서 채운다.
+    public int MaxPopulation { get; set; } = 0;
+
+    // 5.2장 "방의 현재 인구수는 소속된 모든 유닛의 인구수 합계" — ContainedUnits 기준으로 매번
+    // 계산한다(별도 캐시 없이 항상 최신값 보장, 방 하나에 보통 유닛 수가 많지 않아 비용 낮음).
+    // 2026-07-27 사용자 요청(정정): 인구수는 "플레이어 진영 몬스터"만 포함한다 — 인류는 원래 제외
+    // 대상이고, 야생 몬스터(WildMonsterBehavior)도 제외해야 한다. WildBaseSpawnerComponent/
+    // GameSession.SpawnWildRoomGuards가 야생 몬스터를 ContainedUnits에 직접 추가하므로 단순히
+    // "인류가 아니면 전부 포함"(!(u is Human))으로는 야생 몬스터까지 섞여 들어가는 버그가 있었다 —
+    // IsPlayerMonsterFaction으로 정확히 플레이어 소속 몬스터만 걸러낸다.
+    public int CurrentPopulation
+    {
+        get
+        {
+            int total = 0;
+            foreach (var u in _containedUnits)
+                if (u != null && u.hp > 0 && u.IsPlayerMonsterFaction) total += u.populationCost;
+            return total;
+        }
+    }
+
     public Vector2Int GetRandomPosInRoom()
     {
         int rx = UnityEngine.Random.Range(Bounds.xMin, Bounds.xMax);

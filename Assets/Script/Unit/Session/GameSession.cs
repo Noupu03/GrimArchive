@@ -61,6 +61,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     public List<Room> allRooms { get; private set; } = new List<Room>();
 
+    // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). ThreatTileRenderer._root와
+    // 동일한 관례 — 컨테이너를 필드 초기화 시점에 딱 1번 만들고 재생성하지 않는다. 정리는 Finalize()/
+    // OnApplicationQuit()에서(하단 참고), 에디터 Play 종료 후 잔재 방지는 Assets/Editor/
+    // RoomPopulationLabelCleanup.cs가 맡는다.
+    private readonly Transform _roomLabelRoot = new GameObject("RoomPopulationLabels").transform;
+    private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
+    private readonly Dictionary<Room, string> _roomPopulationLabelText = new Dictionary<Room, string>();
+
     public IReadOnlyList<Unit> GetUnitsInRoom(RectInt bounds)
     {
         List<Unit> result = new List<Unit>();
@@ -141,16 +149,44 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize END");
     }
 
+    // NativeRoutine 생명주기: Processor에서 UnRegister될 때(Dispose()→Finalize(), VContainer 컨테이너
+    // 파괴 시) 한 번 호출됨 — ResourceManager/BuildingManager와 동일 관례. NativeRoutine은 OnDestroy가
+    // 없어서 런타임에 만든 GameObject는 여기서 직접 정리해야 한다.
+    public override async UniTask Finalize()
+    {
+        DestroyRoomLabelRoot();
+        await base.Finalize();
+    }
+
+    // 부모-자식 관계에 기대지 않고 각 라벨을 직접 들고 있는 참조(_roomPopulationLabels)로 파괴한다.
+    private void DestroyRoomLabelRoot()
+    {
+        foreach (var label in _roomPopulationLabels.Values)
+        {
+            if (label != null) UnityEngine.Object.Destroy(label.gameObject);
+        }
+        _roomPopulationLabels.Clear();
+        _roomPopulationLabelText.Clear();
+
+        if (_roomLabelRoot != null) UnityEngine.Object.Destroy(_roomLabelRoot.gameObject);
+    }
+
+    // 유닛 배치 시스템(2026-07-27 신규) 5.1장 — 방 최대 인구수 = 청크 수 × 이 값(문서에 수치가 없어
+    // 사용자 확인대로 "방 크기 비례" 공식 채택, 2026-07-27 사용자 요청으로 6→4 조정).
+    private const int PopulationPerChunk = 4;
+
     public void BuildRoomGrid()
     {
         if (cmap == null || cmap.map.floors == null) return;
         roomGrid.Clear();
         allRooms.Clear();
+        ClearRoomPopulationLabels();
         Dictionary<int, Room> generatedRooms = new Dictionary<int, Room>();
-        
+
         // 룸의 경계(Bounds)를 계산하기 위한 변수
         Dictionary<int, Vector2Int> roomMin = new Dictionary<int, Vector2Int>();
         Dictionary<int, Vector2Int> roomMax = new Dictionary<int, Vector2Int>();
+        Dictionary<int, int> roomChunkCount = new Dictionary<int, int>();
 
         // 2026-07-27 확장 — 기존엔 "int currentFloor = 1" 고정이라 오펜스/야생몬스터 관련 Room이
         // 1층에서만 만들어졌다. 야생 몬스터 A를 모든 층의 야생 방에 배치해야 해서 전체 층을 순회하도록
@@ -184,7 +220,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
                             roomMin[c.roomId] = new Vector2Int(int.MaxValue, int.MaxValue);
                             roomMax[c.roomId] = new Vector2Int(int.MinValue, int.MinValue);
+                            roomChunkCount[c.roomId] = 0;
                         }
+                        roomChunkCount[c.roomId]++;
 
                         int startX = cx * 8;
                         int startY = cy * 8;
@@ -211,7 +249,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
         }
 
-        // 최종적으로 각 룸에 Bounds 할당
+        // 최종적으로 각 룸에 Bounds/MaxPopulation 할당
         foreach (var kvp in generatedRooms)
         {
             int rid = kvp.Key;
@@ -219,6 +257,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             var min = roomMin[rid];
             var max = roomMax[rid];
             r.Bounds = new RectInt(min.x, min.y, max.x - min.x, max.y - min.y);
+            r.MaxPopulation = roomChunkCount[rid] * PopulationPerChunk;
         }
 
         LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 전체 {cmap.map.floors.Length}개 층에서 방 {generatedRooms.Count}개 생성됨.");
@@ -266,6 +305,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         LogHelper.Log(LogHelper.GAME, "SpawnWildRoomGuards: 야생 방 배치 완료.");
     }
 
+    // 빌드에서는 Application.Quit() 시 OnDestroy 호출이 보장되지 않아 Finalize()만으로는 부족할 수
+    // 있다 — Processor.OnApplicationQuit()(실제 Unity 콜백)로 한 번 더 정리한다. DestroyRoomLabelRoot()는
+    // 중복 호출해도 안전(Unity 파괴된 오브젝트 == null 오버로드).
+    public override void OnApplicationQuit()
+    {
+        base.OnApplicationQuit();
+        DestroyRoomLabelRoot();
+    }
+
     // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함(기존 Update()와 동일한 역할)
     public override void UpdateProcess()
     {
@@ -308,6 +356,70 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             _threatTileRenderer.Render(units);
         }
+
+        RefreshRoomPopulationLabels();
+    }
+
+    // 유닛 배치 시스템(2026-07-27 신규) — "방의 최대 인원수를 맵에 표시, 카메라를 따라다니지 않게,
+    // N/M 형식"(사용자 요청). 인구수는 몬스터 전용이라(Room.CurrentPopulation이 이미 인류/야생 제외)
+    // 값 자체가 자동으로 플레이어 몬스터 기준으로 나온다. 0층은 인구수 개념이 적용 안 되는 인류 로비라
+    // 표시하지 않는다(사용자 요청). 방 개수가 많지 않아 매 프레임 확인해도 비용이 낮지만, 실제로 값이
+    // 바뀔 때만 TextMesh.text를 갱신한다(text setter가 매번 메시를 재생성하므로 불필요한 대입을
+    // 피하는 게 프레임드랍 방지에 중요 — 사용자 요청으로 점검·수정).
+    private void RefreshRoomPopulationLabels()
+    {
+        if (allRooms == null) return;
+
+        foreach (var room in allRooms)
+        {
+            if (room == null || room.Floor == 0 || room.MaxPopulation <= 0) continue;
+
+            if (!_roomPopulationLabels.TryGetValue(room, out TextMesh label) || label == null)
+            {
+                label = CreateRoomPopulationLabel(room);
+                _roomPopulationLabels[room] = label;
+                _roomPopulationLabelText[room] = null;
+            }
+
+            string text = $"{room.CurrentPopulation}/{room.MaxPopulation}";
+            if (_roomPopulationLabelText.TryGetValue(room, out string prevText) && prevText == text) continue;
+            label.text = text;
+            _roomPopulationLabelText[room] = text;
+        }
+    }
+
+    // BuildRoomGrid가 다시 호출될 때(맵 재생성 등) 컨테이너는 그대로 두고 라벨만 갈아 끼운다.
+    private void ClearRoomPopulationLabels()
+    {
+        foreach (var label in _roomPopulationLabels.Values)
+        {
+            if (label != null) UnityEngine.Object.Destroy(label.gameObject);
+        }
+        _roomPopulationLabels.Clear();
+        _roomPopulationLabelText.Clear();
+    }
+
+    private TextMesh CreateRoomPopulationLabel(Room room)
+    {
+        GameObject go = new GameObject($"RoomPopLabel_{room.RoomName}");
+        go.transform.SetParent(_roomLabelRoot, false);
+
+        Vector3 floorOffset = _unitGenerate != null ? _unitGenerate.GetFloorOffset(room.Floor) : Vector3.zero;
+        Vector2 center = room.Bounds.center;
+        go.transform.position = new Vector3(center.x, center.y, 0f) + floorOffset;
+
+        // 세련되게(사용자 요청) — 굵고 큰 기본값 대신 은은한 반투명 회백색 + 적당한 크기로 톤을 낮춘다.
+        TextMesh tm = go.AddComponent<TextMesh>();
+        tm.fontSize = 48;
+        tm.characterSize = 0.11f;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.color = new Color(1f, 1f, 1f, 0.75f);
+
+        MeshRenderer mr = go.GetComponent<MeshRenderer>();
+        mr.sortingOrder = 50; // 바닥/오브젝트(5)보다 위, 위협타일 셀(999)보다는 아래
+
+        return tm;
     }
 
     private void HandleDebugInput()
@@ -659,6 +771,22 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(selection, pos, floorIdx);
         monster.FactionBehavior = new PlayerMonsterBehavior();
+
+        // 유닛 배치 시스템(2026-07-27 버그 수정) — 이동 명령(InputManager 우클릭)에만 인구수 체크가
+        // 있고 배치(M키 스폰) 자체에는 없어서 방이 가득 차도 계속 스폰되던 문제(사용자 신고). 실제
+        // populationCost는 프리팹(units.json)에서 나오는 값이라 스폰 전에는 정확히 알 수 없어, 일단
+        // 생성한 뒤(units/unitGrid에 등록하기 전) 검사하고 초과하면 그대로 되돌린다. InputManager도
+        // 같은 체크를 미리 하지만(자원 낭비 방지 목적), 다른 경로로 이 메서드가 직접 호출될 경우까지
+        // 대비해 여기서 한 번 더 막는다.
+        if (roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Room destRoom)
+            && destRoom.CurrentPopulation + monster.populationCost > destRoom.MaxPopulation)
+        {
+            LogHelper.Warning(LogHelper.GAME,
+                $"목적지 방({destRoom.RoomName}) 인구수 초과로 몬스터를 배치할 수 없습니다. " +
+                $"(현재 {destRoom.CurrentPopulation} + {monster.populationCost} > 최대 {destRoom.MaxPopulation})");
+            _unitGenerate.RemoveVisual(monster);
+            return null;
+        }
 
         units.Add(monster);
         RegisterUnitPos(monster, monster.position);

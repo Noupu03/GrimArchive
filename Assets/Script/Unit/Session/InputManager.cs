@@ -209,6 +209,29 @@ public class InputManager : MonoBehaviour
 			Vector2 mousePos = Mouse.current.position.ReadValue();
 			Vector3Int gridPos = ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
+			// 유닛 배치 시스템(2026-07-27 신규) 4.1/5.3장: 목적지 방의 잔여 인구수를 먼저 확인한다.
+			// 초과하면 선택된 유닛 전체의 이동 명령을 취소한다 — 일부만 자동으로 이동시키는 기능은
+			// 제공하지 않는다(문서 5.3장, "전체 이동 명령 취소" + "직접 선택 대상을 조정해 재시도").
+			// 클릭 위치가 어느 방에도 속하지 않으면(예: 방 경계 밖) 검사를 건너뛴다. 사용자 요청·정정
+			// (2026-07-27): 인구수는 "플레이어 진영 몬스터"만 포함 — 인류와 야생 몬스터는 둘 다 제외.
+			_gameSession.roomGrid.TryGetValue(new Vector3Int(gridPos.x, gridPos.y, currentFloor), out Room destRoom);
+			int incomingPopulation = 0;
+			if (destRoom != null)
+			{
+				foreach (var u in selectedUnits)
+					if (u != null && u.Health.hp > 0 && u.IsPlayerMonsterFaction && u.currentRoom != destRoom)
+						incomingPopulation += u.populationCost;
+			}
+			bool populationOk = destRoom == null || destRoom.CurrentPopulation + incomingPopulation <= destRoom.MaxPopulation;
+
+			if (!populationOk)
+			{
+				LogHelper.Warning(LogHelper.GAME,
+					$"목적지 방({destRoom.RoomName}) 인구수 초과로 이동 명령을 취소합니다. " +
+					$"(현재 {destRoom.CurrentPopulation} + 이동 {incomingPopulation} > 최대 {destRoom.MaxPopulation})");
+			}
+			else
+			{
 			foreach (var unit in selectedUnits)
 			{
 				if (unit == null || unit.Health.hp <= 0) continue;
@@ -240,6 +263,7 @@ public class InputManager : MonoBehaviour
 			LogHelper.Log(LogHelper.GAME,
 				$"일반 이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
 			);
+			}
 		}
 
 		// =====================================================
@@ -732,14 +756,21 @@ public class InputManager : MonoBehaviour
 					{
 						LogHelper.Warning(LogHelper.GAME, "점령하지 않은 방에는 몬스터를 배치할 수 없습니다.");
 					}
-					else if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
+					else if (_resourceManager == null || !_resourceManager.HasEnoughResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
 					{
-						_gameSession.SpawnPlayerMonsterAt(new Vector2Int(gridPos.x, gridPos.y), currentFloor);
-						ExitPlaceMode();
+						LogHelper.Warning(LogHelper.GAME, $"나무가 부족하여 몬스터를 배치할 수 없습니다. (필요: {ResourceManager.MonsterPlaceWoodCost})");
 					}
 					else
 					{
-						LogHelper.Warning(LogHelper.GAME, $"나무가 부족하여 몬스터를 배치할 수 없습니다. (필요: {ResourceManager.MonsterPlaceWoodCost})");
+						// 유닛 배치 시스템(2026-07-27 버그 수정): 나무를 먼저 소모하지 않고 스폰을 시도한다 —
+						// GameSession.SpawnPlayerMonsterAt이 인구수 초과 시 null을 반환하므로(경고 로그도
+						// 그쪽에서 남김), 그 경우 나무를 낭비하지 않고 그대로 배치 모드를 유지한다.
+						Monster spawned = _gameSession.SpawnPlayerMonsterAt(new Vector2Int(gridPos.x, gridPos.y), currentFloor);
+						if (spawned != null)
+						{
+							_resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost);
+							ExitPlaceMode();
+						}
 					}
 				}
 				else if (isCorePlaceMode)

@@ -10,6 +10,8 @@ public class UnitVisualDefinition : MonoBehaviour
     public string unitTypeName;
     public Vector2 footprint = Vector2.one;
     public int engageDistance = 2;
+    [Tooltip("유닛 배치 시스템(2026-07-27 신규) 5.2장: 방 인구수 점유량 - 기본 유닛 1")]
+    public int populationCost = 1;
 
     [Header("스탯")]
     public UnitStatsData stats = new UnitStatsData();
@@ -47,6 +49,7 @@ public class UnitVisualDefinition : MonoBehaviour
 
         unit.isSpecialUnit = isSpecialUnit;
         unit.isInterestTarget = isInterestTarget;
+        unit.populationCost = populationCost;
         unit.BaseStat.baseInterest = baseInterest;
         unit.BaseStat.baseDanger = baseDanger;
         unit.BaseStat.heavyHitThreshold = heavyHitThreshold;

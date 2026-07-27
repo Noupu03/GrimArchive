@@ -108,6 +108,16 @@ public abstract class Unit : ScriptableObject {
 	// ??? 媛以묒튂 ?쒖뒪???댄빐???꾪뿕???λ??? 愿???????媛以묒튂 ?곗궛怨듭떇 臾몄꽌 v0.7 ????????
 	public bool isSpecialUnit = false;     // 7-1?? 蹂댁뒪/?ㅻ찓?쒖뒪 ??醫낅퀎+媛쒕퀎 ?댄빐?꾨? ?④퍡 ?곕뒗 ?뱀닔 ?좊떅 ?щ?
 	public bool isInterestTarget = false;  // 6-2??18?? IsInterestTarget ?뚮옒洹?(?댄빐???곸듅???곕Ⅸ ?λ???媛먯냼??誘몄쟻??
+
+	// 유닛 배치 시스템(2026-07-27 신규) — 이 유닛이 방 인구수에서 차지하는 점유량(5.2장 "기본 유닛
+	// 인구수는 1을 기준으로 한다", 2026-07-27 사용자 요청으로 2→1 조정). UnitVisualDefinition.
+	// ApplyStatsTo가 units.json 값을 채운다.
+	public int populationCost = 1;
+
+	// 유닛 배치 시스템(2026-07-27 신규) 2.1/3장 "현재 소속 방" — UnitFunction.OnUpdate가 매 프레임
+	// 실제 위치 기준으로 동기화한다(SyncRoomAffiliation 참고). 배회 몬스터(WildMonsterBehavior)는
+	// 이 시스템 대상이 아니라(9장 보류 항목) 동기화하지 않고 항상 null로 남는다.
+	public Room currentRoom;
 	// baseInterest moved = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
 	// baseDanger moved = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
 	// heavyHitThreshold moved = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
