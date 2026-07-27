@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 183491390311549924}
   - component: {fileID: 787625303638943493}
   m_Layer: 0
-  m_Name: VFX_SparkPulse
+  m_Name: Pulse
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -9821,7 +9821,7 @@ GameObject:
   - component: {fileID: 773616995275190611}
   - component: {fileID: 5090927366940038129}
   m_Layer: 0
-  m_Name: VFX_SparkSprinkle
+  m_Name: Particle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

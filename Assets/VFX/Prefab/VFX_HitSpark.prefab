@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 3054148406255555010}
   - component: {fileID: 6491061802395289491}
   m_Layer: 10
-  m_Name: VFX_HitSparkPulse
+  m_Name: Pulse
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -9822,7 +9822,7 @@ GameObject:
   - component: {fileID: 2664554242156040056}
   - component: {fileID: 194951118662505532}
   m_Layer: 10
-  m_Name: VFX_HitSparkParticle
+  m_Name: Particle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -14735,7 +14735,7 @@ GameObject:
   - component: {fileID: 5322971406726075990}
   - component: {fileID: 5592984479242660002}
   m_Layer: 10
-  m_Name: VFX_HitSparkShadow
+  m_Name: Shadow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

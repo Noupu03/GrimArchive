@@ -302,7 +302,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 10
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 1343660079, guid: e0311bba70510e94f956a163cc3c3ac4, type: 3}
+  m_Sprite: {fileID: 6584341640268865, guid: c48f4de4b4a677442b306729bcf82b5b, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -325,7 +325,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteLibrary
   m_Library: []
-  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 761fcd3a8823c4d44b3dca6b7133dfba, type: 3}
+  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 8d14fffae2144cd48adb793d2a19103d, type: 3}
 --- !u!114 &4858693510987481363
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -388,7 +388,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnitVisualDefinition
   unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
-  footprint: {x: 1, y: 1}
+  footprint: {x: 2, y: 2}
   engageDistance: 3
   stats:
     maxHp: 180

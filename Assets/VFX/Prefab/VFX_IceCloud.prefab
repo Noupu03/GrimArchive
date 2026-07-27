@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2333729960079036850}
   - component: {fileID: 4493843560201289199}
   m_Layer: 0
-  m_Name: VFX_IceTrail
+  m_Name: Trail
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -58,7 +58,7 @@ TrailRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 0}
+  - {fileID: 2100000, guid: 3e072e26d6f04d54197c9bc6f0318424, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -163,7 +163,7 @@ GameObject:
   - component: {fileID: 7480982583724635829}
   - component: {fileID: 155352886339962592}
   m_Layer: 0
-  m_Name: VFX_IceSprinkle
+  m_Name: IceSprinkle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
