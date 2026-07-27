@@ -23,8 +23,19 @@ namespace GrimArchive.Wave
         public override async Cysharp.Threading.Tasks.UniTask Initialize(System.Threading.CancellationToken cts)
         {
             await base.Initialize(cts);
+            EnsureWaveDataLoaded();
+        }
 
-            // 초기 시점에 WaveData 자동 로드 시도
+        // 사용자 신고(2026-07-27) "게임 시작 시 인류 웨이브가 10초인 것 같다"(30초로 바꿨는데도) — 원인:
+        // WaveSpawner는 GameCompositionRoot에 Register<WaveSpawner>()로만 등록돼(씬 오브젝트/프리팹이
+        // 아님) waveData를 인스펙터로 미리 꽂아둘 방법이 없고, 오직 이 Initialize()의 Resources.Load
+        // 폴백으로만 채워진다. 그런데 HumanWaveManager.Initialize()도 별도 NativeRoutine이라 실행 순서가
+        // 보장 안 되고, 그쪽이 이 Initialize()보다 먼저 targetSpawner.waveData.waveCooldown을 읽으면
+        // waveData가 아직 null이라 HumanWaveManager.waveCooldown의 "?? 10f" 폴백이 그대로 굳어버린다
+        // (그 뒤로 EndWave 때만 다시 읽으니 딱 첫 웨이브만 10초로 보임). 로드 로직을 별도 멱등 메서드로
+        // 빼서 HumanWaveManager.Initialize()도 직접 호출해 순서와 무관하게 보장한다.
+        public void EnsureWaveDataLoaded()
+        {
             if (waveData == null)
             {
                 waveData = Resources.Load<WaveData>("WaveData");

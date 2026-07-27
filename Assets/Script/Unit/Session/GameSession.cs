@@ -40,9 +40,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private PartyService _partyService;
     private CombatEventService _combatEventService;
     private DebugInputHandler _debugInputHandler;
+    private BuildingManager _buildingManager;
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler, BuildingManager buildingManager)
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
@@ -54,6 +55,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _partyService = partyService;
         _combatEventService = combatEventService;
         _debugInputHandler = debugInputHandler;
+        _buildingManager = buildingManager;
         Instance = this;
     }
     public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry.unitGrid;
@@ -126,6 +128,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
                 BuildRoomGrid();
+                // 문 시스템(2026-07-27, 사용자 요청): 모든 방과 방 사이 통로에 문을 깔아둔다. 다른
+                // 오브젝트보다 먼저 실행해야 "문이 있는 곳엔 다른 오브젝트가 안 생기게"가 성립한다
+                // (SpawnObject가 objectGrid에 이미 오브젝트가 있으면 조용히 스킵하는 걸 그대로 이용).
+                SpawnDoors();
                 // 점령 관련(2026-07-27 신규): 모든 야생 방에 야생 몬스터 A 2마리씩 필수 배치.
                 SpawnWildRoomGuards();
                 // 게임을 시작하자마자 보스방에 던전 코어를 자동 생성한다(사용자 요청, 2026-07-23 최초 도입
@@ -133,6 +139,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // "Loot" 태그(DungeonCoreTag 참고)로 발견해서 첫 웨이브부터 곧바로 목표로 추적하므로,
                 // 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
                 SpawnInitialDungeonCore();
+                // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청): 던전 1층 시작방(플레이어=몬스터
+                // 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 무상으로 하나씩 미리 깔아둔다.
+                SpawnInitialBuildings();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -428,10 +437,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
-            // O(루팅 오브젝트)/P(함정)/M(몬스터)은 InputManager의 배치 고스트 모드가 담당한다(원하는
-            // 위치를 직접 골라서 놓기 위함, 2026-07-22/23) — GameSession.SpawnLootObjectAt/SpawnTrapAt/
-            // SpawnPlayerMonsterAt 참고. M은 예전엔 즉시 무작위 위치에 스폰했으나 나무 자원을 소모하는
-            // 배치 모드로 바뀌었다(사용자 요청, 2026-07-23).
+            // O(루팅 오브젝트)/P(함정)은 InputManager의 배치 고스트 모드가 담당한다(원하는 위치를 직접
+            // 골라서 놓기 위함, 2026-07-22/23) — GameSession.SpawnLootObjectAt/SpawnTrapAt 참고. M(몬스터
+            // 즉시 배치)은 건축물·자원·유닛 생산 MVP(2026-07-27)로 완전히 대체되어 삭제됨 — B/V키 참고.
         }
     }
 
@@ -441,8 +449,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         
         if (u != null && u.Health.hp <= 0)
         {
-            // 세력별 사망 이벤트(예: 오펜스 보상 누적 등) 처리
-            u.FactionBehavior?.OnDeath(u, u.lastAttacker);
+            // 세력별 사망 이벤트(예: 처치 보상) 처리 — lastAttacker가 아니라 lastDamageDealer를
+            // 넘긴다(2026-07-27, 점령 전환/처치 보상 MVP): lastAttacker는 인류-몬스터 교차 히트에서만
+            // 갱신되는 가중치 시스템 전용 필드라 몬스터끼리(예: 플레이어 몬스터의 야생 몬스터 처치) 킬은
+            // 항상 null이 된다 — Unit.lastDamageDealer 필드 주석 참고.
+            u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
+
+            // 점령 전환 MVP(2026-07-27, 사용자 요청): 방 소유 진영의 마지막 유닛이 다른 진영에게 죽으면
+            // 그 방은 죽인 진영 소속으로 전환된다. OnDeath 직후(포지션이 아직 유효한 시점)에 확인한다.
+            _offenseProcessor?.TryFlipRoomOwnershipOnDeath(u);
 
             // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
             // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
@@ -761,39 +776,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return candidates[Random.Range(0, candidates.Count)];
     }
 
-    // M키 배치 모드(InputManager.EnterMonsterPlaceMode/UpdatePlaceMode)가 유저가 고른 위치를 넘겨주면
-    // 호출됨 — 예전 OnKeyDown_M()의 무작위 위치 스폰을 대체(사용자 요청, 2026-07-23).
-    public Monster SpawnPlayerMonsterAt(Vector2Int pos, int floorIdx)
-    {
-        if (_unitGenerate == null) return null;
-
-        UnitType selection = new MeleeTank();
-
-        Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(selection, pos, floorIdx);
-        monster.FactionBehavior = new PlayerMonsterBehavior();
-
-        // 유닛 배치 시스템(2026-07-27 버그 수정) — 이동 명령(InputManager 우클릭)에만 인구수 체크가
-        // 있고 배치(M키 스폰) 자체에는 없어서 방이 가득 차도 계속 스폰되던 문제(사용자 신고). 실제
-        // populationCost는 프리팹(units.json)에서 나오는 값이라 스폰 전에는 정확히 알 수 없어, 일단
-        // 생성한 뒤(units/unitGrid에 등록하기 전) 검사하고 초과하면 그대로 되돌린다. InputManager도
-        // 같은 체크를 미리 하지만(자원 낭비 방지 목적), 다른 경로로 이 메서드가 직접 호출될 경우까지
-        // 대비해 여기서 한 번 더 막는다.
-        if (roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floorIdx), out Room destRoom)
-            && destRoom.CurrentPopulation + monster.populationCost > destRoom.MaxPopulation)
-        {
-            LogHelper.Warning(LogHelper.GAME,
-                $"목적지 방({destRoom.RoomName}) 인구수 초과로 몬스터를 배치할 수 없습니다. " +
-                $"(현재 {destRoom.CurrentPopulation} + {monster.populationCost} > 최대 {destRoom.MaxPopulation})");
-            _unitGenerate.RemoveVisual(monster);
-            return null;
-        }
-
-        units.Add(monster);
-        RegisterUnitPos(monster, monster.position);
-        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {floorIdx}, {pos}");
-        return monster;
-    }
-
     public void OnKeyDown_K()
     {
         if (_unitGenerate == null) return;
@@ -822,10 +804,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    public void SpawnObject(InteractableObject obj, Color color)
+    public void SpawnObject(InteractableObject obj, Color color, float rotationZDegrees = 0f)
     {
         if (objectGrid.ContainsKey(obj.Position)) return;
-        
+
         objectGrid[obj.Position] = obj;
         LogHelper.Log(LogHelper.GAME, $"Generated {obj.Id} at Floor {obj.Position.z}, {new Vector2Int(obj.Position.x, obj.Position.y)} with Tags: [{string.Join(", ", obj.Tags)}]");
 
@@ -845,11 +827,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 쓴다(사용자 요청 "스프라이트도 기존에 쓰던 던전코어 스프라이트 이용").
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
+        // 문 시스템(2026-07-27) — 기본적으로 열린 상태(door_open) 스프라이트로 그린다. 닫힌 상태
+        // (obj/door_closed)는 아직 여닫는 기능이 없어 안 쓰지만 에셋은 이미 있음(추후 확장용).
+        bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorTag);
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
         else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
         else if (isDungeonCore || isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
+        else if (isDoor) sprite = Resources.Load<Sprite>("obj/door_open");
         else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
 
         if (sprite == null)
@@ -895,6 +881,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         
         visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
+        // 문 시스템(2026-07-27, 사용자 요청 "닫혀있는 문은 위치 고려해서 배치") — 통로 방향(수평/수직)에
+        // 맞춰 스프라이트를 돌린다. 회전이 필요 없는 기존 오브젝트(트랩/시체/코어/루팅)는 기본값 0도라
+        // 영향 없음.
+        if (rotationZDegrees != 0f) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
 
         // 오브젝트 스프라이트마다 원본 픽셀 크기/PPU가 제각각이라(core 32x32@32ppu, trap 30x26@32ppu,
         // colapse 24x22@32ppu, obj1 16x30@100ppu 등) 고정 스케일(0.5) 하나로는 오브젝트마다 실제
@@ -906,7 +896,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
         float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
         visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
-        
+
         objectVisuals[obj] = visual;
     }
 
@@ -929,6 +919,91 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 병행되는 별개 절차로 결합된다.
     private const string CoreTag = "Object/Passable/Core";
 
+    // 문 시스템(2026-07-27, 사용자 요청) — 지나갈 수 있는 오브젝트. 이동 판정(UnitFunction.CanMove/
+    // AStarMovement.IsTileWalkable)은 objectGrid를 아예 안 보고 Tile.isStructureExist/Wall만 확인하므로
+    // (SpawnObject가 이 필드를 건드리지 않음), 다른 오브젝트들과 마찬가지로 별도 처리 없이 이미
+    // 통행 가능하다.
+    private const string DoorTag = "Object/Passable/Door";
+
+    // 문 시스템(2026-07-27, 사용자 요청 "모든 방과 방 사이 통로에 문이 일렬로 설치") — CreateMap이
+    // 생성 단계에서 이미 기록해 둔 Floor.gates(방 연결 통로: 청크 좌표+폭+수평/수직)를 그대로 재사용해
+    // 실제 통로 타일 좌표를 되짚는다. 새로 통로를 탐색하는 로직을 만들 필요가 없다 — 모든 층을 순회.
+    private void SpawnDoors()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+
+        int doorCount = 0;
+
+        for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.gates == null) continue;
+
+            foreach (var gate in floor.gates)
+            {
+                // door_open.png/door_closed.png를 직접 보고 판단(사용자 요청) — door_closed는 가로로
+                // 넓은 막대 모양(위아래로 인접한 방 사이, 즉 수직 통로를 가로막는 문을 위에서 내려다본
+                // 모습)이고, door_open은 그 문짝이 옆벽에 딱 붙어 접힌 듯 세로로 얇게 보인다(같은 문이
+                // 열린 상태). 즉 기본(회전 0도) 그림은 수직 통로(isHorizontal=false) 기준이라, 수평
+                // 통로(좌우로 인접한 방)에서는 90도 돌려야 벽 방향과 맞는다. 실제로 봤을 때 반대로
+                // 보이면 이 한 줄(0f ↔ 90f)만 바꾸면 된다.
+                float baseRotation = gate.isHorizontal ? 90f : 0f;
+
+                // 사용자 정정(2026-07-27, "한쪽 스프라이트가 180도 돌아가야지... 정상,180도,정상,180도
+                // 이런식으로... 열어젖힌 형태") — door_open 그림 한 장은 문짝이 한쪽 벽에만 붙어 접힌
+                // 모습이라, 통로 폭 전체에 같은 회전만 반복하면 모든 문짝이 같은 벽 쪽으로만 열린 것처럼
+                // 보인다. 통로를 가로지르며 타일 순서대로 0도/180도를 번갈아 적용해 절반은 한쪽 벽에,
+                // 나머지 절반은 반대쪽 벽에 붙어 열린 것처럼 — 즉 통로 양쪽으로 열어젖힌 이중문 형태로
+                // 보이게 한다.
+                List<Vector2Int> gateTiles = GetGateDoorTiles(gate);
+                for (int tileIndex = 0; tileIndex < gateTiles.Count; tileIndex++)
+                {
+                    Vector2Int tilePos = gateTiles[tileIndex];
+                    Vector3Int gridPos = new Vector3Int(tilePos.x, tilePos.y, floorIdx);
+                    if (objectGrid.ContainsKey(gridPos)) continue;
+
+                    float doorRotation = baseRotation + (tileIndex % 2 == 1 ? 180f : 0f);
+                    string objId = $"Door_{floorIdx}_{tilePos.x}_{tilePos.y}";
+                    InteractableObject door = new InteractableObject(objId, gridPos, 0f, 0f, new List<string> { DoorTag });
+                    SpawnObject(door, Color.white, doorRotation);
+                    doorCount++;
+                }
+            }
+        }
+
+        LogHelper.Log(LogHelper.GAME, $"SpawnDoors: 전체 {cmap.map.floors.Length}개 층에 문 {doorCount}개 배치 완료.");
+    }
+
+    // Gate(청크 경계 + 폭 + 방향)로부터 실제 문이 놓일 타일 좌표 목록을 계산한다. CreateMap.Connection.cs의
+    // OpenHorizontalPassage/OpenVerticalPassage가 통로를 깎을 때 쓴 것과 똑같은 공식(중앙 정렬,
+    // (8-width)/2부터 width칸)을 재사용해 정확히 같은 타일들을 되짚는다 — chunkAX/BX(또는 AY/BY) 중
+    // 어느 쪽이 A/B로 기록됐는지는 방향(왼쪽/오른쪽, 아래/위)에 따라 뒤바뀔 수 있어 Min으로 왼쪽·아래
+    // 청크를 먼저 찾는다.
+    private static List<Vector2Int> GetGateDoorTiles(Gate gate)
+    {
+        var tiles = new List<Vector2Int>();
+        int start = (8 - gate.width) / 2;
+
+        if (gate.isHorizontal)
+        {
+            int leftChunkX = Mathf.Min(gate.chunkAX, gate.chunkBX);
+            int doorWorldX = (leftChunkX + 1) * 8; // 오른쪽(문턱 너머) 청크의 첫 칸을 문 위치로 삼는다
+            int chunkY = gate.chunkAY; // 수평 게이트는 두 청크가 같은 행(chunkY == chunkBY)
+            for (int i = 0; i < gate.width; i++)
+                tiles.Add(new Vector2Int(doorWorldX, chunkY * 8 + start + i));
+        }
+        else
+        {
+            int bottomChunkY = Mathf.Min(gate.chunkAY, gate.chunkBY);
+            int doorWorldY = (bottomChunkY + 1) * 8;
+            int chunkX = gate.chunkAX; // 수직 게이트는 두 청크가 같은 열(chunkX == chunkBX)
+            for (int i = 0; i < gate.width; i++)
+                tiles.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldY));
+        }
+
+        return tiles;
+    }
+
     // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).
     private void SpawnInitialDungeonCore()
     {
@@ -943,6 +1018,55 @@ public class GameSession : NativeRoutine, IOffenseQuery
         string objId = "DungeonCore_" + System.Guid.NewGuid().ToString().Substring(0, 4);
         InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { DungeonCoreTag, CoreTag });
         SpawnObject(obj, Color.magenta);
+    }
+
+    // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청) — 게임 시작 시 던전 1층 시작방(RoomRole.
+    // StartRoom, 플레이어=몬스터 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 각각 무상으로
+    // 1개씩, 서로 다른 랜덤 위치에 배치한다. B/V키로 직접 짓는 것과 동일한 Install*Building 경로를
+    // 그대로 재사용 — 자원 소모만 건너뛴다.
+    private void SpawnInitialBuildings()
+    {
+        if (_buildingManager == null || _unitGenerate == null) return;
+
+        int floorIdx = 1;
+        // 사용자 요청(2026-07-27) — V키(자원 생산 건물)는 별도 스프라이트(obj/resource_building)를 쓴다.
+        Sprite resourceBuildingSprite = Resources.Load<Sprite>("obj/resource_building");
+        Sprite productionBuildingSprite = Resources.Load<Sprite>("obj/building");
+
+        Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx);
+        if (resourcePos.HasValue)
+        {
+            _buildingManager.InstallResourceBuilding(resourcePos.Value, resourceBuildingSprite);
+        }
+        else
+        {
+            LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 자원 생산 건물을 놓을 자리를 찾지 못했습니다.");
+        }
+
+        Vector3Int? productionPos = FindInstallableStartRoomPos(floorIdx);
+        if (productionPos.HasValue)
+        {
+            _buildingManager.InstallProductionBuilding(productionPos.Value, ProductionRule.CreateDefaultPlayerUnitRules(), productionBuildingSprite);
+        }
+        else
+        {
+            LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 유닛 생산 건물을 놓을 자리를 찾지 못했습니다.");
+        }
+    }
+
+    // 시작방 안에서 건물을 놓을 수 있는 랜덤 위치를 찾는다 — 자원/유닛 생산 건물 두 개가 같은 자리를
+    // 뽑아 겹치지 않도록(CanInstallAt이 이미 건물이 있는 타일은 거부) 여러 번 재시도한다
+    // (SpawnWildRoomGuards의 자리 재시도 패턴과 동일).
+    private Vector3Int? FindInstallableStartRoomPos(int floorIdx)
+    {
+        const int maxAttempts = 20;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            Vector2Int pos = GetRandomStartRoomPos(Vector2.one, floorIdx);
+            Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
+            if (_buildingManager.CanInstallAt(gridPos)) return gridPos;
+        }
+        return null;
     }
 
     // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)

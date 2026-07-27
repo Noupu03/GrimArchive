@@ -55,16 +55,6 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
         {
             GUILayout.Label($"보유 나무(Wood): {ResourceManager.Instance.GetResourceAmount(ResourceType.Wood)}");
             GUILayout.Label($"보유 돌(Stone): {ResourceManager.Instance.GetResourceAmount(ResourceType.Stone)}");
-            GUI.color = Color.cyan;
-            GUILayout.Label($"오펜스 획득 보상(Resource B): {ResourceManager.Instance.GetResourceAmount(ResourceType.OffenseReward)}");
-            GUI.color = Color.white;
-        }
-
-        if (ResourceAccumulator.Instance != null)
-        {
-            GUI.color = Color.yellow;
-            GUILayout.Label($"오팬스 임시 누적 보상: {ResourceAccumulator.Instance.AccumulatedResourceB}");
-            GUI.color = Color.white;
         }
 
         if (Session != null && Session.OffenseProcessor != null && Session.OffenseProcessor.currentOffenseRoom != null)
@@ -76,7 +66,8 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
 
         GUILayout.Space(6);
         GUILayout.Label("<size=14><b>[ 자원 사용 안내 ]</b></size>");
-        GUILayout.Label($"M키: 몬스터 배치 (나무 {ResourceManager.MonsterPlaceWoodCost}개 소모)");
+        GUILayout.Label($"B키: 유닛 생산 건물 배치 (돌 {ResourceManager.UnitBuildingStoneCost}개 소모)");
+        GUILayout.Label($"V키: 자원 생산 건물 배치 (돌 {ResourceManager.ResourceBuildingStoneCost}개 소모)");
         GUILayout.Label($"P키: 함정 배치 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모)");
         GUILayout.Label("");
 

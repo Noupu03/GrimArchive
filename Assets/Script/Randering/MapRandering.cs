@@ -333,17 +333,48 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public void ChangeRoomColor(Room room, Color color)
     {
         if (floorTilemaps == null || floorTilemaps.Length == 0) return;
-        Tilemap tm = floorTilemaps[0]; // MVP: 0층 기준
-        
+        // 예전엔 "MVP: 0층 기준"으로 floorTilemaps[0]에 고정 — 야생 몬스터 방은 전부 1층 이상이라
+        // (SpawnWildRoomGuards가 0층을 명시적으로 제외) 점령 색칠이 항상 엉뚱한 층(0층 로비)에
+        // 적용되고 있었다(사용자 신고 2026-07-27 "점령 처리해도 바닥 색깔이 안 바뀜"). room.Floor를
+        // 그대로 써서 실제 방이 있는 층에 칠하도록 수정.
+        if (room.Floor < 0 || room.Floor >= floorTilemaps.Length) return;
+        Tilemap tm = floorTilemaps[room.Floor];
+
+        // 벽 타일은 칠하지 않는다(사용자 요청 "벽은 색깔 바꾸지 마, 바닥만") — ApplyOccupationTint와
+        // 동일한 청크/타일 조회 방식으로 벽 여부를 확인한다.
+        Floor floorData = default;
+        bool hasFloorData = createMap != null && createMap.map.floors != null
+            && room.Floor < createMap.map.floors.Length;
+        if (hasFloorData) floorData = createMap.map.floors[room.Floor];
+
         for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
         {
             for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
             {
+                if (hasFloorData && IsWallTile(ref floorData, x, y)) continue;
+
                 Vector3Int pos = new Vector3Int(x, y, 0);
                 tm.SetTileFlags(pos, TileFlags.None);
                 tm.SetColor(pos, color);
             }
         }
+    }
+
+    // ChangeRoomColor 전용 — ApplyOccupationTint와 동일한 청크 좌표 변환(cx*8+tx)으로 벽 타일인지 확인.
+    private bool IsWallTile(ref Floor floor, int x, int y)
+    {
+        if (x < 0 || y < 0 || floor.chunks == null) return false;
+
+        int cx = x / ChunkSize;
+        int cy = y / ChunkSize;
+        int tx = x % ChunkSize;
+        int ty = y % ChunkSize;
+        if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+        Chunks chunk = floor.chunks[cx, cy];
+        if (chunk.chunk == null) return false;
+
+        return chunk.chunk[tx, ty].name == "Wall";
     }
 }
 

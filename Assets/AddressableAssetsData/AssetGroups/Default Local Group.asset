@@ -55,6 +55,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f243c27e41da9de46a5da0a87adfb282
+    m_Address: Prefabs/BuildingControlPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: fe4dd62ce2567c140b5deaefd8d0ea5a, type: 2}
   m_SchemaSet:

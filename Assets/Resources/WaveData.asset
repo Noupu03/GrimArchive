@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74620cc85645f9a47be5e9b916c7a46c, type: 3}
   m_Name: WaveData
   m_EditorClassIdentifier: Assembly-CSharp::GrimArchive.Wave.WaveData
-  waveCooldown: 10
+  waveCooldown: 30
   spawnMode: 1
   targetFloor: 1
   spawnCenter: {x: 0, y: 0, z: 0}
@@ -24,6 +24,6 @@ MonoBehaviour:
     faction: 0
     units:
     - unitTypeName: "\uAE30\uC0AC\uD615"
-      count: 8
+      count: 4
     - unitTypeName: "\uC544\uCC98\uD615"
-      count: 6
+      count: 2

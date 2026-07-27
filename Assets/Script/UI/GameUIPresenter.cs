@@ -38,6 +38,17 @@ public class GameUIPresenter : UIPresenter
                 Debug.LogError($"[UI] UI_Encyclopedia 로드 실패: {e.Message}");
             }
 
+            // 건축물·자원·유닛 생산 MVP(2026-07-27) — 건물 클릭 시에만 뜨는 패널이라 평소엔 닫아 둔다.
+            try
+            {
+                int buildingPanelId = await _coreUIManager.LoadPanel<BuildingControlPanel>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<BuildingControlPanel>(buildingPanelId).ClosePanel();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UI] BuildingControlPanel 로드 실패: {e.Message}");
+            }
+
             await FadeOut();
         }
         catch (System.Exception ex)

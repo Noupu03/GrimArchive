@@ -134,6 +134,13 @@ public abstract class Unit : ScriptableObject {
 	// PartyDeathSystem이 "가장 최근 피해가 몬스터인지 함정인지"를 구분할 수 있게 한다.
 	public InteractableObject lastTrapAttacker;
 
+	// 점령 전환/처치 보상 MVP(2026-07-27, 사용자 요청) — lastAttacker는 RecordHitWeightEvent의 인류-몬스터
+	// 교차 히트 전용 가드(defenderIsHuman == attackerIsHuman이면 갱신 안 됨) 때문에 몬스터끼리(예:
+	// 플레이어 몬스터가 야생 몬스터를 처치) 킬에서는 항상 null로 남는다 — 방 소속 전환/처치 보상처럼
+	// "누가 실제로 마지막 피해를 입혔는가"가 진영 조합과 무관하게 필요한 곳에서는 이 필드를 대신 쓴다.
+	// TakePhysicalDamage/TakeMagicalDamage/ApplyDirectDamage에서 attacker가 있을 때마다 갱신된다.
+	public Unit lastDamageDealer;
+
 	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
 	public int level = 1;                 // ?꾩옱 ?덈꺼
 	// exp moved = 0f;                // ?꾩옱 寃쏀뿕移?
@@ -402,6 +409,21 @@ public abstract class Unit : ScriptableObject {
 		if (_gameSession == null) return;
 
 		Vector3Int oldKey = new Vector3Int(position.x, position.y, currentFloor);
+
+		// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청 "회피나 점멸 등 행동으로도 방 밖으로
+		// 나갈 수 없게") — Dodge/Blink(DefenseSystem.cs)는 A* 경로탐색을 거치지 않고 이 메서드로 직접
+		// 위치를 옮겨서 RoomConfinedMovement.IsTileWalkable의 방 경계 검사를 우회한다. 여기서 같은
+		// 규칙을 한 번 더 적용한다 — RoomConfinedMovement를 쓰는 유닛이 플레이어 명령 중이 아닌데
+		// 목적지가 현재 방을 벗어나면 이동을 취소(제자리 유지)한다. Dodge/Blink 둘 다 "후보가 없으면
+		// 그 자리에 남는다"는 기존 동작과 자연스럽게 일치한다.
+		if (MovementAlgorithm is RoomConfinedMovement && !isManualMoveCommand
+			&& _gameSession.roomGrid.TryGetValue(oldKey, out Room myRoom))
+		{
+			Vector3Int targetKey = new Vector3Int(targetPos.x, targetPos.y, currentFloor);
+			if (!_gameSession.roomGrid.TryGetValue(targetKey, out Room targetRoom) || targetRoom != myRoom)
+				return;
+		}
+
 		if (_gameSession.unitGrid.ContainsKey(oldKey))
 			_gameSession.unitGrid.Remove(oldKey);
 

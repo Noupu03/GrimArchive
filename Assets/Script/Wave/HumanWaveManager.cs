@@ -99,6 +99,9 @@ namespace GrimArchive.Wave
         {
             await base.Initialize(cts);
             Instance = this;
+            // WaveSpawner.Initialize()와의 NativeRoutine 실행 순서 경합 방지(2026-07-27, 사용자 신고
+            // "게임 시작 시 웨이브가 10초인 것 같다") — WaveSpawner.cs의 EnsureWaveDataLoaded() 주석 참고.
+            targetSpawner?.EnsureWaveDataLoaded();
             cooldownTimer = waveCooldown;
             currentState = WaveState.Idle;
 

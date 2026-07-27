@@ -1,0 +1,10 @@
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+[점령 진단] 야생 몬스터 A @ (13,18) F1 사망 — 마지막 가해자(아처형, FactionBehavior=HumanFactionBehavior)가 방 소유권 대상이 아님. 스킵.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_e8d9 at Floor 1, (13, 18) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 240
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 240
+

@@ -23,7 +23,6 @@ public class DebugInputHandler
         if (Keyboard.current != null)
         {
             if (Keyboard.current.hKey.wasPressedThisFrame) OnKeyDown_H();
-            if (Keyboard.current.mKey.wasPressedThisFrame) OnKeyDown_M();
             if (Keyboard.current.kKey.wasPressedThisFrame) OnKeyDown_K();
             if (Keyboard.current.oKey.wasPressedThisFrame) OnKeyDown_O();
         }
@@ -94,21 +93,6 @@ public class DebugInputHandler
             return Vector2Int.zero;
 
         return candidates[Random.Range(0, candidates.Count)];
-    }
-
-    public void OnKeyDown_M()
-    {
-        if (_unitGenerate == null) return;
-
-        UnitType[] types = new UnitType[] { new MeleeTank() };
-        UnitType selection = types[Random.Range(0, types.Length)];
-
-        Monster monster = _unitGenerate.GenerateUnitAtRandomFloor<Monster>(selection, 1);
-        monster.FactionBehavior = new PlayerMonsterBehavior();
-
-        _gameSession.units.Add(monster);
-        _gameSession.RegisterUnitPos(monster, monster.position);
-        LogHelper.Log(LogHelper.GAME, $"Generated Monster (Player Faction): {selection.typeName} at Floor {monster.currentFloor}, {monster.position}");
     }
 
     public void OnKeyDown_K()

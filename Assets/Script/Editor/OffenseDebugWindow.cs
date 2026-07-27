@@ -145,29 +145,9 @@ public class OffenseDebugWindow : EditorWindow
             }
         }
         
-        if (GUILayout.Button("야생 몬스터 사망 (자원 B 누적)"))
-        {
-            if (ResourceAccumulator.Instance != null)
-            {
-                ResourceAccumulator.Instance.AccumulateResourceB(50);
-            }
-            else
-            {
-                Debug.LogWarning("ResourceAccumulator 인스턴스를 찾을 수 없습니다.");
-            }
-        }
-        
-        if (GUILayout.Button("오펜스 승리 (누적 자원 정산)"))
-        {
-            if (ResourceAccumulator.Instance != null)
-            {
-                ResourceAccumulator.Instance.CommitResourceB();
-            }
-            else
-            {
-                Debug.LogWarning("ResourceAccumulator 인스턴스를 찾을 수 없습니다.");
-            }
-        }
+        // 건축물·자원·유닛 생산 MVP(2026-07-27) — ResourceAccumulator 삭제(처치 보상 즉시 지급으로
+        // 대체)에 따라 여기 있던 "자원 B 누적"/"오펜스 승리 정산" 테스트 버튼도 제거. 아래 3번 섹션의
+        // +Wood/+Stone 버튼으로 대체된다.
 
         // ----------------------------------------------------
         // 2. 웨이브 쿨타임 제어

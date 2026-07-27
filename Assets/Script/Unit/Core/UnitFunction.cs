@@ -18,6 +18,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	{
 		if (attacker != null)
 		{
+			lastDamageDealer = attacker;
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
@@ -33,6 +34,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	{
 		if (attacker != null)
 		{
+			lastDamageDealer = attacker;
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
@@ -519,6 +521,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 		int mapWidth  = floor.config.width  * 8;
 		int mapHeight = floor.config.height * 8;
 
+		// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청 "몬스터는 방과 방 사이 못봄", 사용자
+		// 신고 "시야각 차단이 잘 안되는거 같아"/"자꾸 전투 상태가 됨") — ClampDirectionToOwnRoom(시야
+		// "방향"만 방 안쪽으로 트는 근사)만으로는 넓은 시야각(120도) 콘이 인접 방까지 걸치는 경우를
+		// 못 막는다. 방 제한 유닛(RoomConfinedMovement)이면 레이 자체가 자기 방 밖 타일에 닿는 순간
+		// 벽을 만난 것처럼 끊는다 — 지형/오브젝트/유닛 인지가 전부 이 지점 이후로는 발생하지 않는다.
+		bool roomRestrictedObserver = MovementAlgorithm is RoomConfinedMovement;
+		int myRoomId = roomRestrictedObserver ? cmap.GetRoomIdAt(currentFloor, startPos) : -1;
+
 		while (dist <= maxRadius)
 		{
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) break;
@@ -540,6 +550,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				myData.discoveredMap[currentFloor][x, y] = 2;
 				break;
+			}
+
+			if (roomRestrictedObserver && myRoomId >= 0 && c.roomId != myRoomId)
+			{
+				break; // 자기 방을 벗어난 타일 — 벽과 동일하게 레이 차단(지형도 더 안 밝힘)
 			}
 
 			Tile tile = c.chunk[tx, ty];
@@ -876,11 +891,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		currentDir = VisionMath.ResolveVisionDirection(candidates, currentDir);
 
-		// 2026-07-27 신규 — 야생 몬스터 A는 자기 방 밖을 바라볼 수 없다(사용자 요청: "해당 방 바깥쪽을
-		// 쳐다볼 수 없어"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중
-		// 원래 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 이 때문에 적이 방을 나가면
-		// 인지 범위에서 자연히 빠져 전투가 해제된다(CombatFSMState.GetPriority 참고).
-		if (FactionBehavior is WildMonsterBehavior)
+		// 2026-07-27 신규 — 방 제한 유닛(RoomConfinedMovement, 야생 몬스터 A/플레이어 몬스터)은 자기
+		// 방 밖을 바라볼 수 없다(사용자 요청: "해당 방 바깥쪽을 쳐다볼 수 없어" / "몬스터는 방과 방
+		// 사이 못봄"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중 원래
+		// 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 다만 이것만으로는 넓은 시야각(120도)
+		// 콘이 인접 방까지 걸치는 경우를 못 막아서(사용자 신고 "시야각 차단이 잘 안되는거 같아") 실제
+		// 차단은 CastRay에서 레이 자체를 방 경계로 끊는 걸로 보강했다 — 여기 방향 클램프는 그 위에 얹는
+		// 보조 근사(자연스러운 실루엣)로 남겨둔다.
+		if (MovementAlgorithm is RoomConfinedMovement)
 			currentDir = ClampDirectionToOwnRoom(currentDir);
 	}
 
@@ -1222,6 +1240,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
 	{
+		if (attacker != null) lastDamageDealer = attacker;
+
 		float raw    = attacker.CombatStat.physicalAttack * multiplier;
 		float damage = Mathf.Max(1f, raw - CombatStat.physicalDefense);
 		Health.hp -= damage;

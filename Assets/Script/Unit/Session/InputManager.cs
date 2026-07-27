@@ -40,17 +40,18 @@ public class InputManager : MonoBehaviour
 	private BuildingManager _buildingManager;
 	private ResourceManager _resourceManager;
 
-	// === 7단계: 빌드 모드 (고스트 프리팹) 상태 ===
+	// === 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드(고스트 프리팹) 상태. B키=유닛 생산 건물,
+	// V키(신규)=자원 생산 건물. 같은 고스트/스프라이트를 공유하고 플래그로만 구분한다. ===
 	public bool isBuildMode = false;
+	public bool isResourceBuildMode = false;
 	private GameObject ghostPrefab;
 	private SpriteRenderer ghostRenderer;
-	private ProductionRule currentBuildRule;
+	private List<ProductionRule> currentProductionRules;
 	private Sprite currentBuildSprite;
 
-	// === 오브젝트(O)/함정(P)/몬스터(M) 배치 모드 — 빌드 모드와 같은 고스트 방식(2026-07-22/23, 사용자 요청) ===
+	// === 오브젝트(O)/함정(P) 배치 모드 — 빌드 모드와 같은 고스트 방식(2026-07-22/23, 사용자 요청) ===
 	public bool isObjectPlaceMode = false;
 	public bool isTrapPlaceMode = false;
-	public bool isMonsterPlaceMode = false;
 	// 03문서 7-3장(2026-07-27 신규) 테스트용 — O/P/M과 동일한 고스트 배치 관례.
 	public bool isCorePlaceMode = false;
 	private GameObject placeGhost;
@@ -122,14 +123,19 @@ public class InputManager : MonoBehaviour
 		bool addHeld = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
 
 		// =====================================================
-		// 7단계: 빌드 모드 단축키 (임시 B키)
+		// 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드 단축키. B=유닛 생산 건물, V=자원 생산 건물.
+		// M키(구 몬스터 즉시 배치)는 이 MVP로 완전히 대체되어 삭제됨.
 		// =====================================================
 		if (Keyboard.current.bKey.wasPressedThisFrame)
 		{
 			EnterBuildMode();
 		}
+		if (Keyboard.current.vKey.wasPressedThisFrame)
+		{
+			EnterResourceBuildMode();
+		}
 
-		if (isBuildMode)
+		if (isBuildMode || isResourceBuildMode)
 		{
 			UpdateBuildMode(floorOffset, currentFloor);
 			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
@@ -143,10 +149,9 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlaceMode();
 		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlaceMode();
-		if (Keyboard.current.mKey.wasPressedThisFrame) EnterMonsterPlaceMode();
 		if (Keyboard.current.cKey.wasPressedThisFrame) EnterCorePlaceMode();
 
-		if (isObjectPlaceMode || isTrapPlaceMode || isMonsterPlaceMode || isCorePlaceMode)
+		if (isObjectPlaceMode || isTrapPlaceMode || isCorePlaceMode)
 		{
 			UpdatePlaceMode(floorOffset, currentFloor);
 			return; // 배치 모드 중에는 유닛 선택 로직 스킵
@@ -157,8 +162,11 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		if (Mouse.current.leftButton.wasPressedThisFrame)
 		{
-			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다.
-			bool overUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다. BuildingControlPanel은
+			// OnGUI(IMGUI)라 IsPointerOverGameObject()로 안 잡혀서 별도로 확인한다(사용자 신고, 2026-07-27
+			// "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림").
+			bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+				|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel());
 
 			if (!overUI)
 			{
@@ -308,25 +316,17 @@ public class InputManager : MonoBehaviour
 	{
 		Vector3Int gridPos = ScreenToGridPos(screenPos, floorOffset, currentFloor);
 
-		// 8단계: 건물 클릭 시 생산 명령 하달 및 원자적 자원 차감
+		// 건축물·자원·유닛 생산 MVP(2026-07-27) — 건물 클릭 시 즉시 생산하는 대신 조작 UI를 띄운다
+		// (스타크래프트 참고, 사용자 요청). 실제 생산 큐잉/자원 차감은 BuildingControlPanel에서 처리.
 		BuildingData bData = _buildingManager.GetBuildingAt(gridPos);
 		if (bData != null)
 		{
-			if (!bData.IsProducing)
-			{
-				if (_resourceManager.TryConsumeResources(bData.Rule.costs))
-				{
-					bData.IsProducing = true;
-					bData.ProductionProgress = 0f;
-					LogHelper.Log(LogHelper.GAME, $"Started production at {gridPos} for {bData.Rule.targetUnitTypeName}");
-				}
-			}
-			else
-			{
-				LogHelper.Log(LogHelper.GAME, $"Already producing at {gridPos}. Progress: {bData.ProductionProgress:F1}/{bData.Rule.productionTime:F1}");
-			}
+			BuildingControlPanel.Instance?.ShowForBuilding(bData);
 			return; // 건물 클릭 시 다른 유닛/허공 선택 로직 무시
 		}
+
+		// 건물이 아닌 다른 곳(유닛/허공)을 클릭하면 열려 있던 건물 패널은 닫는다.
+		BuildingControlPanel.Instance?.ClosePanel();
 
 		// 1. 유닛 클릭이면 최우선으로 선택 처리 (진영 제한 없음, 기존 동작 유지)
 		Unit clickedUnit = FindUnitAtGridPos(gridPos, currentFloor);
@@ -531,39 +531,64 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 빌드 모드 (고스트 프리팹 설치)
+	// 빌드 모드 (고스트 프리팹 설치) — B=유닛 생산 건물, V=자원 생산 건물(건축물·자원·유닛 생산 MVP,
+	// 2026-07-27). 두 모드가 고스트 오브젝트/스프라이트를 공유하고 플래그로만 갈린다.
 	// =====================================================
 	private void EnterBuildMode()
 	{
 		if (isBuildMode) return;
 		ExitPlaceMode(); // 오브젝트/함정 배치 모드와 동시에 켜지지 않게 한다
+		isResourceBuildMode = false;
 		isBuildMode = true;
 
-		// 임시로 더미 생산 규칙 하나 생성
-		currentBuildRule = ScriptableObject.CreateInstance<ProductionRule>();
-		currentBuildRule.ruleId = "B_001";
-		currentBuildRule.displayName = "Test Barracks";
-		currentBuildRule.costs.Add(new ResourceCost { resourceType = ResourceType.Wood, amount = 20 });
-		currentBuildRule.targetUnitTypeName = "Knight";
+		EnsureProductionRules();
+		EnsureGhost();
+		LogHelper.Log(LogHelper.GAME, $"유닛 생산 건물 배치 모드 진입 (돌 {ResourceManager.UnitBuildingStoneCost} 소모)");
+	}
 
-		// 건축물 전용 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일(Tile_StoneWall)을
-		// 임시로 재사용했다.
-		currentBuildSprite = Resources.Load<Sprite>("obj/building");
+	private void EnterResourceBuildMode()
+	{
+		if (isResourceBuildMode) return;
+		ExitPlaceMode();
+		isBuildMode = false;
+		isResourceBuildMode = true;
+
+		EnsureGhost();
+		LogHelper.Log(LogHelper.GAME, $"자원 생산 건물 배치 모드 진입 (돌 {ResourceManager.ResourceBuildingStoneCost} 소모)");
+	}
+
+	// 플레이어(몬스터 진영) 생산 건물이 실제로 뽑을 수 있는 유닛 목록을 준비한다. GameSession의 시작방
+	// 자동 배치와 같은 팩토리(ProductionRule.CreateDefaultPlayerUnitRules)를 써서 두 경로가 어긋나지
+	// 않게 한다.
+	private void EnsureProductionRules()
+	{
+		if (currentProductionRules != null) return;
+
+		currentProductionRules = ProductionRule.CreateDefaultPlayerUnitRules();
+	}
+
+	private void EnsureGhost()
+	{
+		// 사용자 요청(2026-07-27) — V키(자원 생산 건물)는 별도 스프라이트(obj/resource_building)를 쓴다.
+		// B키(유닛 생산 건물)는 기존 obj/building 그대로.
+		currentBuildSprite = isResourceBuildMode
+			? Resources.Load<Sprite>("obj/resource_building")
+			: Resources.Load<Sprite>("obj/building");
 
 		if (ghostPrefab == null)
 		{
 			ghostPrefab = new GameObject("GhostBuilding");
 			ghostRenderer = ghostPrefab.AddComponent<SpriteRenderer>();
-			ghostRenderer.sprite = currentBuildSprite;
 			ghostRenderer.sortingOrder = 10;
 		}
+		ghostRenderer.sprite = currentBuildSprite;
 		ghostPrefab.SetActive(true);
-		LogHelper.Log(LogHelper.GAME, "Entered Build Mode (Cost: 20 Wood)");
 	}
 
 	private void ExitBuildMode()
 	{
 		isBuildMode = false;
+		isResourceBuildMode = false;
 		if (ghostPrefab != null) ghostPrefab.SetActive(false);
 		LogHelper.Log(LogHelper.GAME, "Exited Build Mode");
 	}
@@ -577,7 +602,7 @@ public class InputManager : MonoBehaviour
 		if (ghostPrefab != null)
 		{
 			ghostPrefab.transform.position = new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f) + floorOffset;
-			
+
 			if (_buildingManager.CanInstallAt(gridPos))
 				ghostRenderer.color = new Color(0f, 1f, 0f, 0.5f); // 설치 가능 (녹색 반투명)
 			else
@@ -607,25 +632,41 @@ public class InputManager : MonoBehaviour
 			return;
 		}
 
-		// 8단계: 자원 원자적 차감 (TryConsumeResources)
-		if (_resourceManager.TryConsumeResources(currentBuildRule.costs))
+		if (isResourceBuildMode)
 		{
-			// 6단계: 설치 렌더링 및 등록
-			_buildingManager.InstallBuilding(gridPos, currentBuildRule, currentBuildSprite);
+			if (_resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.ResourceBuildingStoneCost))
+			{
+				_buildingManager.InstallResourceBuilding(gridPos, currentBuildSprite);
+				ExitBuildMode();
+			}
+			else
+			{
+				LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 자원 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.ResourceBuildingStoneCost})");
+			}
+			return;
+		}
+
+		if (_resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.UnitBuildingStoneCost))
+		{
+			_buildingManager.InstallProductionBuilding(gridPos, currentProductionRules, currentBuildSprite);
 			ExitBuildMode();
+		}
+		else
+		{
+			LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 유닛 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.UnitBuildingStoneCost})");
 		}
 	}
 
 	// =====================================================
-	// 오브젝트(O)/함정(P)/몬스터(M) 배치 모드 — 빌드 모드와 동일한 고스트 방식(2026-07-22/23, 사용자
-	// 요청). 셋 다 고스트 하나를 공유하고, 모양/색만 종류에 따라 바꿔 쓴다.
+	// 오브젝트(O)/함정(P) 배치 모드 — 빌드 모드와 동일한 고스트 방식(2026-07-22/23, 사용자 요청). 둘 다
+	// 고스트 하나를 공유하고, 모양/색만 종류에 따라 바꿔 쓴다. 몬스터(M) 배치 모드는 건축물·자원·유닛
+	// 생산 MVP(2026-07-27)로 완전히 대체되어 삭제됨.
 	// =====================================================
 	private void EnterObjectPlaceMode()
 	{
 		if (isObjectPlaceMode) return;
 		ExitBuildMode();
 		isTrapPlaceMode = false;
-		isMonsterPlaceMode = false;
 		isCorePlaceMode = false;
 		isObjectPlaceMode = true;
 
@@ -640,7 +681,6 @@ public class InputManager : MonoBehaviour
 		if (isTrapPlaceMode) return;
 		ExitBuildMode();
 		isObjectPlaceMode = false;
-		isMonsterPlaceMode = false;
 		isCorePlaceMode = false;
 		isTrapPlaceMode = true;
 
@@ -650,22 +690,6 @@ public class InputManager : MonoBehaviour
 		LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
 	}
 
-	private void EnterMonsterPlaceMode()
-	{
-		if (isMonsterPlaceMode) return;
-		ExitBuildMode();
-		isObjectPlaceMode = false;
-		isTrapPlaceMode = false;
-		isCorePlaceMode = false;
-		isMonsterPlaceMode = true;
-
-		EnsurePlaceGhost();
-		// 몬스터는 동그라미 스프라이트로 표시(함정의 세모와 구분) — UnitGenerate의 인류 폴백 원형
-		// 생성 로직 재사용.
-		placeGhostRenderer.sprite = _unitGenerate != null ? _unitGenerate.CreateCircleSprite(Color.white) : null;
-		LogHelper.Log(LogHelper.GAME, $"몬스터 배치 모드 진입 (나무 {ResourceManager.MonsterPlaceWoodCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
-	}
-
 	// 03문서 7-3장(2026-07-27 신규) 테스트용 — 자원 소모 없이 즉시 배치(리더 전용 조사 흐름 검증 목적).
 	private void EnterCorePlaceMode()
 	{
@@ -673,7 +697,6 @@ public class InputManager : MonoBehaviour
 		ExitBuildMode();
 		isObjectPlaceMode = false;
 		isTrapPlaceMode = false;
-		isMonsterPlaceMode = false;
 		isCorePlaceMode = true;
 
 		EnsurePlaceGhost();
@@ -685,7 +708,6 @@ public class InputManager : MonoBehaviour
 	{
 		isObjectPlaceMode = false;
 		isTrapPlaceMode = false;
-		isMonsterPlaceMode = false;
 		isCorePlaceMode = false;
 		if (placeGhost != null) placeGhost.SetActive(false);
 	}
@@ -746,31 +768,6 @@ public class InputManager : MonoBehaviour
 					else
 					{
 						LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
-					}
-				}
-				else if (isMonsterPlaceMode)
-				{
-					// 점령 관련(2026-07-27 신규): 몬스터는 플레이어가 점령 중인 방에만 스폰할 수 있다
-					// (이동 명령과 달리 인접 방은 허용 안 함).
-					if (_gameSession.cmap != null && !_gameSession.cmap.IsPositionPlayerOwned(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
-					{
-						LogHelper.Warning(LogHelper.GAME, "점령하지 않은 방에는 몬스터를 배치할 수 없습니다.");
-					}
-					else if (_resourceManager == null || !_resourceManager.HasEnoughResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
-					{
-						LogHelper.Warning(LogHelper.GAME, $"나무가 부족하여 몬스터를 배치할 수 없습니다. (필요: {ResourceManager.MonsterPlaceWoodCost})");
-					}
-					else
-					{
-						// 유닛 배치 시스템(2026-07-27 버그 수정): 나무를 먼저 소모하지 않고 스폰을 시도한다 —
-						// GameSession.SpawnPlayerMonsterAt이 인구수 초과 시 null을 반환하므로(경고 로그도
-						// 그쪽에서 남김), 그 경우 나무를 낭비하지 않고 그대로 배치 모드를 유지한다.
-						Monster spawned = _gameSession.SpawnPlayerMonsterAt(new Vector2Int(gridPos.x, gridPos.y), currentFloor);
-						if (spawned != null)
-						{
-							_resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost);
-							ExitPlaceMode();
-						}
 					}
 				}
 				else if (isCorePlaceMode)
