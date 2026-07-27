@@ -199,6 +199,30 @@ public class UIManager : MonoBehaviour
 		DOVirtual.DelayedCall(0.5f, () => { if (go != null) Destroy(go); });
 	}
 
+	// 03문서 9-8장(2026-07-27 추가) — 함정 해제 성공/실패 결과 문구용. ShowFloatingText(Unit)와 달리
+	// 유닛이 아니라 임의의 월드 좌표(함정 위치 등)에 띄워야 해서 별도 오버로드로 뒀다. duration을
+	// 인자로 받는 것만 다르고 나머지(월드공간 TextMesh, sortingOrder로 맵 위에 그리기)는 동일하다.
+	public void ShowFloatingTextAt(Vector3 worldPos, string message, Color color, float duration = 0.5f)
+	{
+		GameObject go = new GameObject("FloatingText");
+		go.transform.position = worldPos;
+
+		TextMesh text = go.AddComponent<TextMesh>();
+		text.text = message;
+
+		text.fontSize = 90;
+		text.characterSize = 0.05f;
+
+		text.anchor = TextAnchor.MiddleCenter;
+		text.alignment = TextAlignment.Center;
+		text.color = color;
+
+		MeshRenderer mr = go.GetComponent<MeshRenderer>();
+		mr.sortingOrder = 9999;
+
+		DOVirtual.DelayedCall(duration, () => { if (go != null) Destroy(go); });
+	}
+
 	Vector3 GetWorldTextPosition(Unit unit)
 	{
 		return new Vector3(

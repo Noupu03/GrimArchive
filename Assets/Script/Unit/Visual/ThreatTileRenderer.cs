@@ -189,7 +189,11 @@ public class ThreatTileRenderer
 			float cos = Mathf.Cos(rad);
 			float sin = Mathf.Sin(rad);
 
-			Color color = u is Human ? Color.green : Color.red;
+			// 2026-07-27 사용자 요청: 야생 몬스터(WildMonsterBehavior)의 공격 위협타일은 회색으로
+			// 구분한다 — 그 외 몬스터(플레이어 소속)는 기존대로 빨강.
+			Color color = u is Human ? Color.green
+				: u.FactionBehavior is WildMonsterBehavior ? Color.gray
+				: Color.red;
 			color.a = threat.color.a;
 
 			int index = 0;

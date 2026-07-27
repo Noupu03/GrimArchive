@@ -525,6 +525,97 @@ public partial class CreateMap
         return false;
     }
 
+    // 점령 관련(2026-07-27 신규) — 이동 명령을 낼 좌표가 어느 방(roomId)에 속하는지 조회한다.
+    // IsStaticTileWalkable과 동일한 타일→청크 변환(8칸 단위)을 재사용한다.
+    public int GetRoomIdAt(int floorIndex, Vector2Int tilePos)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return -1;
+        if (tilePos.x < 0 || tilePos.y < 0) return -1;
+
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return -1;
+
+        int cx = tilePos.x / 8, cy = tilePos.y / 8;
+        if (cx >= floor.config.width || cy >= floor.config.height) return -1;
+
+        return floor.chunks[cx, cy].roomId;
+    }
+
+    // 점령 관련(2026-07-27 신규) — "플레이어는 자신 소유 및 양옆 방까지만 이동 명령을 내릴 수 있음"
+    // 요구사항. CanCommandEnemyRoom(playerRoomId 하나만 확인)과 달리, 현재 플레이어(몬스터 진영)가
+    // 점령 중인 모든 방을 한 번에 스캔해 그중 하나라도 targetRoomId 자신이거나 Gate로 연결돼 있으면
+    // 허용한다.
+    public bool CanPlayerCommandRoom(int floorIndex, int targetRoomId)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
+        if (targetRoomId < 0) return false;
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return false;
+
+        int w = floor.config.width;
+        int h = floor.config.height;
+
+        var ownedRoomIds = new HashSet<int>();
+        bool targetIsOwned = false;
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                Chunks c = floor.chunks[x, y];
+                if (c.occupationState != OccupationState.PlayerControlled) continue;
+                ownedRoomIds.Add(c.roomId);
+                if (c.roomId == targetRoomId) targetIsOwned = true;
+            }
+
+        if (targetIsOwned) return true;
+        if (floor.gates == null) return false;
+
+        foreach (Gate g in floor.gates)
+        {
+            if ((ownedRoomIds.Contains(g.roomA) && g.roomB == targetRoomId) ||
+                (ownedRoomIds.Contains(g.roomB) && g.roomA == targetRoomId))
+                return true;
+        }
+        return false;
+    }
+
+    // 위 둘을 합친 편의 메서드 — InputManager가 클릭 좌표 하나로 바로 판정할 때 사용.
+    public bool CanPlayerCommandPosition(int floorIndex, Vector2Int tilePos)
+        => CanPlayerCommandRoom(floorIndex, GetRoomIdAt(floorIndex, tilePos));
+
+    // 야생 몬스터 A 배치(2026-07-27 신규) — 방 하나는 항상 단일 점령상태를 가지므로(InitOccupationAndDanger/
+    // GenerateFloor0이 방 전체에 같은 값을 씀) 첫 매치만 반환해도 충분하다.
+    public OccupationState GetRoomOccupationState(int floorIndex, int roomId)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return OccupationState.Neutral;
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return OccupationState.Neutral;
+
+        int w = floor.config.width;
+        int h = floor.config.height;
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+                if (floor.chunks[x, y].roomId == roomId)
+                    return floor.chunks[x, y].occupationState;
+
+        return OccupationState.Neutral;
+    }
+
+    // 점령 관련(2026-07-27 신규) — "플레이어는 자신 소유의 방에만 몬스터를 스폰할 수 있음". 이동
+    // 명령(CanPlayerCommandRoom)과 달리 인접 방까지 허용하지 않고 정확히 점령 중인 방인지만 본다.
+    public bool IsPositionPlayerOwned(int floorIndex, Vector2Int tilePos)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
+        if (tilePos.x < 0 || tilePos.y < 0) return false;
+
+        Floor floor = map.floors[floorIndex];
+        if (floor.chunks == null) return false;
+
+        int cx = tilePos.x / 8, cy = tilePos.y / 8;
+        if (cx >= floor.config.width || cy >= floor.config.height) return false;
+
+        return floor.chunks[cx, cy].occupationState == OccupationState.PlayerControlled;
+    }
+
     public bool IsFloorOccupied(int floorIndex)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;

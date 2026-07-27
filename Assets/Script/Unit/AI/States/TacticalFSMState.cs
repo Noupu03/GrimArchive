@@ -190,6 +190,8 @@ public class TacticalFSMState : IFSMState
 		if (trap == null || !trap.PenaltyActive) return;
 		trap.DisarmProgress01 *= (AIConfigLoader.Behavior?.trapDisarmInterruptLossRatio ?? ExplorationMath.TrapDisarmInterruptLossRatio);
 		trap.PenaltyActive = false;
+		// 2026-07-27 추가: 중단으로 실제 해제 동작을 멈췄으니 진행 막대도 숨긴다.
+		unit.Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
 	}
 
 	private static bool CanInvestigate(Unit unit)
@@ -414,9 +416,18 @@ public class TacticalFSMState : IFSMState
 		float rate    = ExplorationMath.TrapDisarmSuccessRate(human.concentration, human.level, understandingApplied: 0);
 		human.personalMap.RecordTrapAttempt(trap.TrapObjectId, rate);
 
+		// 9-7/9-8장(2026-07-27 추가): 성공/실패 결과 문구 — 오브젝트가 사라지기 전에 위치를 먼저
+		// 잡아둔다(성공 시 CollectObject가 비주얼을 파괴하므로 그 뒤엔 위치를 못 구함). 문구는 이
+		// 트랩 오브젝트의 자식이 아니라 독립 GameObject라 오브젝트 파괴와 무관하게 1초간 유지된다.
+		var trapVisual = human.Session.GetObjectVisual(trap.TrapPosition);
+		Vector3 resultTextPos = trapVisual != null
+			? trapVisual.transform.position + Vector3.down * 0.45f
+			: new Vector3(trap.TrapPosition.x + 0.5f, trap.TrapPosition.y + 0.5f, 0f);
+
 		if (Random.value * 100f < rate)
 		{
 			LogHelper.Log(LogHelper.GAME, $"{human.unitType.typeName}가 함정을 해제했습니다.");
+			human.UI?.ShowFloatingTextAt(resultTextPos, "성공", Color.green, 1f);
 			human.Session.CollectObject(trap.TrapPosition);
 			trap.PenaltyActive           = false;
 			// 9-5장(신규): 해제 성공 시에만 도감에 기록한다(우회·파괴·통과는 기록 안 함). 함정 종류별
@@ -426,6 +437,8 @@ public class TacticalFSMState : IFSMState
 			human.currentTrapInteraction = null;
 			return BTStatus.Success;
 		}
+		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
+		trapVisual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
 		trap.DisarmProgress01 = 0f;
 		return BTStatus.Running;
 	}
@@ -872,6 +885,8 @@ public class TacticalFSMState : IFSMState
 		// 이미 충족된다.
 		if (human.isHitThisTurn || human.HasPerceivedThreatCollider())
 		{
+			// 2026-07-27 추가: 조사 중단으로 진행 막대도 숨긴다(트랩 해제 중단과 동일 관례).
+			human.Session?.GetObjectVisual(human.currentCoreInteraction.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
 			human.currentCoreInteraction = null;
 			return false;
 		}
@@ -987,6 +1002,12 @@ public class TacticalFSMState : IFSMState
 			human.collectedObjects.Add(obj.Id);
 			if (!human.pendingStairTargetFloor.HasValue)
 				human.pendingStairTargetFloor = human.currentFloor + 1;
+		}
+		else
+		{
+			// 2026-07-27 추가: Loot 태그 없는 테스트 전용 코어는 회수되지 않고 그대로 남으므로,
+			// 완료된 진행 막대를 직접 숨겨야 한다(Loot 케이스는 CollectObject가 오브젝트째 파괴함).
+			human.Session?.GetObjectVisual(obj.Position)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
 		}
 
 		// 코어 파괴/특정 상호작용/인류 메리트·플레이어 디메리트 등 후속 효과는 코어·핵심방어목표 문서

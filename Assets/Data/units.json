@@ -137,6 +137,52 @@
       "visual": {
         "spriteLibrary": "Char_ArcherElf"
       }
+    },
+    {
+      "typeName": "야생 몬스터 A",
+      "unitClass": "Wild",
+      "footprint": [1, 1],
+      "engageDistance": 3,
+      "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
+      "stats": {
+        "maxHp": 100,
+        "maxMp": 0,
+        "physicalAttack": 26,
+        "magicalAttack": 6,
+        "physicalDefense": 6,
+        "magicalDefense": 5,
+        "HPRegen": 2,
+        "attackspeed": 90,
+        "walkSpeed": 2.5,
+        "reaction": 65,
+        "criticalChance": 8,
+        "cooltimeReduction": 60,
+        "statusResistance": 60,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 65,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 10,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 60,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Mon_GnoleA",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
     }
   ]
 }

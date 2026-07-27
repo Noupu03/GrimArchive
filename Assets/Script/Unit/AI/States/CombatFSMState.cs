@@ -12,9 +12,22 @@ public class CombatFSMState : IFSMState
 		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
 		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로 여기서 따로 예외
 		// 처리할 필요가 없다.
+		bool isRoomConfined = unit.FactionBehavior is WildMonsterBehavior;
+		int myRoomId = isRoomConfined && unit.Session?.cmap != null
+			? unit.Session.cmap.GetRoomIdAt(unit.currentFloor, unit.position)
+			: -1;
+
 		foreach (var e in unit.Perception.State.personalSpottedEnemies)
-			if (e != null && e.hp > 0 && e.currentFloor == unit.currentFloor)
-				return AIConfigLoader.Behavior?.combatPriority ?? 100f;
+		{
+			if (e == null || e.hp <= 0 || e.currentFloor != unit.currentFloor) continue;
+			// 2026-07-27 신규 — 야생 몬스터 A는 방을 나간 적과 전투를 유지하지 않는다(사용자 요청:
+			// "상대 전투 유닛이 방 밖으로 나가면 전투 상태가 해제됨"). 시야 방향 제한(UnitFunction.
+			// ClampDirectionToOwnRoom)만으로도 대체로 자연히 풀리지만, 직선 통로처럼 시야가 방 밖까지
+			// 뚫리는 예외를 막는 안전망.
+			if (isRoomConfined && myRoomId >= 0 && unit.Session.cmap.GetRoomIdAt(e.currentFloor, e.position) != myRoomId)
+				continue;
+			return AIConfigLoader.Behavior?.combatPriority ?? 100f;
+		}
 		return 0f;
 	}
 
@@ -108,11 +121,19 @@ public class CombatFSMState : IFSMState
 
 	private static Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
+		// 2026-07-27 신규: GetPriority와 동일한 방 제한(야생 몬스터 A) — 다른 이유로 방 안 적을
+		// 상대로 전투가 켜져 있어도 실제 타깃팅에서 방 밖 적을 고르지 않도록 일관되게 적용.
+		bool isRoomConfined = unit.FactionBehavior is WildMonsterBehavior;
+		int myRoomId = isRoomConfined && unit.Session?.cmap != null
+			? unit.Session.cmap.GetRoomIdAt(unit.currentFloor, unit.position)
+			: -1;
+
 		Unit  best    = null;
 		minDist = float.MaxValue;
 		foreach (var e in unit.Perception.State.personalSpottedEnemies)
 		{
 			if (e == null || e.Health.hp <= 0 || e.currentFloor != unit.currentFloor) continue;
+			if (isRoomConfined && myRoomId >= 0 && unit.Session.cmap.GetRoomIdAt(e.currentFloor, e.position) != myRoomId) continue;
 			float d = Vector2Int.Distance(unit.position, e.position);
 			if (d < minDist) { minDist = d; best = e; }
 		}

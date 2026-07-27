@@ -118,6 +118,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
                 BuildRoomGrid();
+                // 점령 관련(2026-07-27 신규): 모든 야생 방에 야생 몬스터 A 2마리씩 필수 배치.
+                SpawnWildRoomGuards();
                 // 게임을 시작하자마자 보스방에 던전 코어를 자동 생성한다(사용자 요청, 2026-07-23 최초 도입
                 // → 2026-07-24 전용 오브젝트로 분리) — HumanWaveManager.MonitorWave()가 이 오브젝트를
                 // "Loot" 태그(DungeonCoreTag 참고)로 발견해서 첫 웨이브부터 곧바로 목표로 추적하므로,
@@ -149,59 +151,66 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 룸의 경계(Bounds)를 계산하기 위한 변수
         Dictionary<int, Vector2Int> roomMin = new Dictionary<int, Vector2Int>();
         Dictionary<int, Vector2Int> roomMax = new Dictionary<int, Vector2Int>();
-        
-        int currentFloor = 1;
-        if (currentFloor >= cmap.map.floors.Length) return;
-        
-        Floor floor = cmap.map.floors[currentFloor];
-        if (floor.chunks == null) return;
 
-        int chunkW = floor.config.width;
-        int chunkH = floor.config.height;
-        
-        Vector3 floorOffset = _unitGenerate != null ? _unitGenerate.GetFloorOffset(currentFloor) : Vector3.zero;
-
-        for (int cx = 0; cx < chunkW; cx++)
+        // 2026-07-27 확장 — 기존엔 "int currentFloor = 1" 고정이라 오펜스/야생몬스터 관련 Room이
+        // 1층에서만 만들어졌다. 야생 몬스터 A를 모든 층의 야생 방에 배치해야 해서 전체 층을 순회하도록
+        // 확장한다. RoomIdGenerator.GetNextId()가 전역 카운터라(층마다 리셋 안 됨) roomId는 항상
+        // 층을 넘나들어도 고유하므로 이 딕셔너리들을 층 사이에 공유해도 충돌하지 않는다.
+        for (int currentFloor = 0; currentFloor < cmap.map.floors.Length; currentFloor++)
         {
-            for (int cy = 0; cy < chunkH; cy++)
+            Floor floor = cmap.map.floors[currentFloor];
+            if (floor.chunks == null) continue;
+
+            int chunkW = floor.config.width;
+            int chunkH = floor.config.height;
+
+            for (int cx = 0; cx < chunkW; cx++)
             {
-                Chunks c = floor.chunks[cx, cy];
-                if (c.roomId >= 0)
+                for (int cy = 0; cy < chunkH; cy++)
                 {
-                    if (!generatedRooms.TryGetValue(c.roomId, out Room room))
+                    Chunks c = floor.chunks[cx, cy];
+                    if (c.roomId >= 0)
                     {
-                        room = new Room { RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName };
-                        generatedRooms[c.roomId] = room;
-                        allRooms.Add(room);
-                        
-                        roomMin[c.roomId] = new Vector2Int(int.MaxValue, int.MaxValue);
-                        roomMax[c.roomId] = new Vector2Int(int.MinValue, int.MinValue);
-                    }
-                    
-                    int startX = cx * 8;
-                    int startY = cy * 8;
-                    
-                    var min = roomMin[c.roomId];
-                    var max = roomMax[c.roomId];
-                    min.x = Mathf.Min(min.x, startX);
-                    min.y = Mathf.Min(min.y, startY);
-                    max.x = Mathf.Max(max.x, startX + 8);
-                    max.y = Mathf.Max(max.y, startY + 8);
-                    roomMin[c.roomId] = min;
-                    roomMax[c.roomId] = max;
-                    
-                    for (int tx = 0; tx < 8; tx++)
-                    {
-                        for (int ty = 0; ty < 8; ty++)
+                        if (!generatedRooms.TryGetValue(c.roomId, out Room room))
                         {
-                            Vector3Int pos = new Vector3Int(cx * 8 + tx, cy * 8 + ty, currentFloor);
-                            roomGrid[pos] = room;
+                            room = new Room
+                            {
+                                RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName,
+                                RoomId = c.roomId,
+                                Floor = currentFloor,
+                            };
+                            generatedRooms[c.roomId] = room;
+                            allRooms.Add(room);
+
+                            roomMin[c.roomId] = new Vector2Int(int.MaxValue, int.MaxValue);
+                            roomMax[c.roomId] = new Vector2Int(int.MinValue, int.MinValue);
+                        }
+
+                        int startX = cx * 8;
+                        int startY = cy * 8;
+
+                        var min = roomMin[c.roomId];
+                        var max = roomMax[c.roomId];
+                        min.x = Mathf.Min(min.x, startX);
+                        min.y = Mathf.Min(min.y, startY);
+                        max.x = Mathf.Max(max.x, startX + 8);
+                        max.y = Mathf.Max(max.y, startY + 8);
+                        roomMin[c.roomId] = min;
+                        roomMax[c.roomId] = max;
+
+                        for (int tx = 0; tx < 8; tx++)
+                        {
+                            for (int ty = 0; ty < 8; ty++)
+                            {
+                                Vector3Int pos = new Vector3Int(cx * 8 + tx, cy * 8 + ty, currentFloor);
+                                roomGrid[pos] = room;
+                            }
                         }
                     }
                 }
             }
         }
-        
+
         // 최종적으로 각 룸에 Bounds 할당
         foreach (var kvp in generatedRooms)
         {
@@ -211,8 +220,50 @@ public class GameSession : NativeRoutine, IOffenseQuery
             var max = roomMax[rid];
             r.Bounds = new RectInt(min.x, min.y, max.x - min.x, max.y - min.y);
         }
-        
-        LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 층 {currentFloor}에서 방 {generatedRooms.Count}개 생성됨.");
+
+        LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 전체 {cmap.map.floors.Length}개 층에서 방 {generatedRooms.Count}개 생성됨.");
+    }
+
+    // 2026-07-27 신규 — "모든 야생 진영 방에 야생 몬스터 A 2마리씩 필수 배치(위치는 랜덤), 방 밖으로
+    // 나갈 수 없음" 요구사항. BuildRoomGrid() 직후(Initialize 참고) 한 번 호출한다. 야생 여부는
+    // CreateMap.Chunks.occupationState(Neutral=야생)로 판정한다 — Room.RoomFaction(오펜스 시스템)과는
+    // 별개의 개념이라 건드리지 않는다. WildBaseSpawnerComponent.SpawnMonster와 동일한 스폰 패턴
+    // (랜덤 위치 + IsAreaClear 재시도 + WildMonsterBehavior/RoomConfinedMovement 부여)을 재사용한다.
+    private const int WildRoomGuardCount = 2;
+
+    public void SpawnWildRoomGuards()
+    {
+        if (cmap == null || _unitGenerate == null || allRooms == null) return;
+
+        foreach (var room in allRooms)
+        {
+            if (room.RoomId < 0 || room.Floor < 0) continue;
+            if (room.Floor == 0) continue; // 사용자 요청(2026-07-27): 0층(인류 소유 로비)에는 생성 금지.
+            if (cmap.GetRoomOccupationState(room.Floor, room.RoomId) != OccupationState.Neutral) continue;
+
+            for (int i = 0; i < WildRoomGuardCount; i++)
+            {
+                UnitType monsterType = new WildMonsterA();
+                Vector2Int spawnPos = room.GetRandomPosInRoom();
+                int attempts = 0;
+                while (!_unitGenerate.IsAreaClear(spawnPos, monsterType.footprint, room.Floor) && attempts < 20)
+                {
+                    spawnPos = room.GetRandomPosInRoom();
+                    attempts++;
+                }
+                if (attempts >= 20) continue; // 자리를 못 찾으면 이번 개체는 포기(방이 너무 좁거나 이미 붐빔)
+
+                Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(monsterType, spawnPos, room.Floor);
+                monster.FactionBehavior = new WildMonsterBehavior();
+                monster.MovementAlgorithm = new RoomConfinedMovement();
+
+                units.Add(monster);
+                RegisterUnitPos(monster, monster.position);
+                room.AddUnit(monster);
+            }
+        }
+
+        LogHelper.Log(LogHelper.GAME, "SpawnWildRoomGuards: 야생 방 배치 완료.");
     }
 
     // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함(기존 Update()와 동일한 역할)
@@ -691,7 +742,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         sr.sprite = sprite;
         sr.sortingOrder = 5;
-        
+
+        // 9-7/9-8장/7-3장(2026-07-27 추가) — 함정 해제·코어 조사 진행 막대를 붙일 자리. 그 외
+        // 오브젝트에는 붙이지 않는다(불필요한 컴포넌트/자식 GameObject 낭비 방지).
+        if (isTrap || isCoreOnly) visual.AddComponent<ObjectProgressBarVisual>();
+
         Vector3 offset = Vector3.zero;
         if (mapRandering != null)
         {
@@ -811,6 +866,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         InteractableObject obj = new InteractableObject(objId, gridPos, baseInterest: 120f, baseDanger: 0f,
             tags: new List<string> { CoreTag }, baseVisibility: 60f);
         SpawnObject(obj, Color.magenta);
+    }
+
+    // 9-7/9-8장(2026-07-27 추가) — 함정 해제 진행 막대/결과 문구가 함정 위치의 실제 비주얼
+    // GameObject(트랜스폼 위치·자식 컴포넌트 포함)를 찾아야 해서 추가한 조회용 공개 메서드.
+    public GameObject GetObjectVisual(Vector3Int pos)
+    {
+        if (objectGrid.TryGetValue(pos, out var obj) && objectVisuals.TryGetValue(obj, out var visual))
+            return visual;
+        return null;
     }
 
     public void CollectObject(Vector3Int pos)

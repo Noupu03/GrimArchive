@@ -875,6 +875,37 @@ public abstract class UnitFunction : Unit, IVisionContext
 		candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Moving, currentDir));
 
 		currentDir = VisionMath.ResolveVisionDirection(candidates, currentDir);
+
+		// 2026-07-27 신규 — 야생 몬스터 A는 자기 방 밖을 바라볼 수 없다(사용자 요청: "해당 방 바깥쪽을
+		// 쳐다볼 수 없어"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중
+		// 원래 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 이 때문에 적이 방을 나가면
+		// 인지 범위에서 자연히 빠져 전투가 해제된다(CombatFSMState.GetPriority 참고).
+		if (FactionBehavior is WildMonsterBehavior)
+			currentDir = ClampDirectionToOwnRoom(currentDir);
+	}
+
+	private Dir ClampDirectionToOwnRoom(Dir dir)
+	{
+		if (Session?.cmap == null) return dir;
+		int myRoomId = Session.cmap.GetRoomIdAt(currentFloor, position);
+		if (myRoomId < 0) return dir;
+
+		if (IsDirectionInsideRoom(dir, myRoomId)) return dir;
+
+		for (int offset = 1; offset <= 4; offset++)
+		{
+			Dir cw = (Dir)(((int)dir + offset) % 8);
+			if (IsDirectionInsideRoom(cw, myRoomId)) return cw;
+			Dir ccw = (Dir)(((int)dir - offset + 8) % 8);
+			if (IsDirectionInsideRoom(ccw, myRoomId)) return ccw;
+		}
+		return dir; // 안전망 — 자기 위치가 속한 방 안쪽으로 최소 한 방향은 항상 있어야 정상.
+	}
+
+	private bool IsDirectionInsideRoom(Dir dir, int myRoomId)
+	{
+		Vector2Int lookPos = position + GetDirVector(dir);
+		return Session.cmap.GetRoomIdAt(currentFloor, lookPos) == myRoomId;
 	}
 
 	private Dir DirectionToward(Vector2Int targetPos)
@@ -1023,6 +1054,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			else if (trap.Phase == TrapPhase.Disarming)
 			{
 				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / ExplorationMath.TrapDisarmDurationSeconds);
+				// 9-7/9-8장(2026-07-27 추가): 함정 바로 아래 진행 막대 갱신 — 실제 해제 중일 때만.
+				Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(trap.DisarmProgress01, true);
 			}
 			else if (trap.Phase == TrapPhase.Destroying && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
 			{
@@ -1048,6 +1081,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			else
 			{
 				core.Progress01 = Mathf.Min(1f, core.Progress01 + deltaTime / ExplorationMath.CoreInvestigateDurationSeconds);
+				// 2026-07-27 추가: 코어 바로 아래 진행 막대 갱신(함정 해제 막대와 같은 컴포넌트 재사용).
+				Session?.GetObjectVisual(core.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(core.Progress01, true);
 			}
 		}
 

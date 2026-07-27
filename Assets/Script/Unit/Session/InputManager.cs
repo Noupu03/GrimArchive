@@ -223,6 +223,15 @@ public class InputManager : MonoBehaviour
 					}
 				}
 
+				// 점령 관련(2026-07-27 신규): 플레이어(몬스터 진영) 이동 명령은 자신이 점령한 방과
+				// 그 방과 Gate로 연결된 인접 방까지만 허용한다. 인류 명령은 테스트용이므로 이
+				// 제한을 받지 않는다(사용자 확인).
+				if (unit.IsPlayerMonsterFaction && _gameSession.cmap != null
+					&& !_gameSession.cmap.CanPlayerCommandPosition(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
+				{
+					continue;
+				}
+
 				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
 				unit.isManualMoveCommand = true;
 				unit.playerAttackTarget = null;
@@ -717,7 +726,13 @@ public class InputManager : MonoBehaviour
 				}
 				else if (isMonsterPlaceMode)
 				{
-					if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
+					// 점령 관련(2026-07-27 신규): 몬스터는 플레이어가 점령 중인 방에만 스폰할 수 있다
+					// (이동 명령과 달리 인접 방은 허용 안 함).
+					if (_gameSession.cmap != null && !_gameSession.cmap.IsPositionPlayerOwned(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
+					{
+						LogHelper.Warning(LogHelper.GAME, "점령하지 않은 방에는 몬스터를 배치할 수 없습니다.");
+					}
+					else if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Wood, ResourceManager.MonsterPlaceWoodCost))
 					{
 						_gameSession.SpawnPlayerMonsterAt(new Vector2Int(gridPos.x, gridPos.y), currentFloor);
 						ExitPlaceMode();

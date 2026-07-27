@@ -132,6 +132,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);
             RenderStairOverlays(tilemapObj.transform, ref floor, f);
+            ApplyOccupationTint(tilemap, ref floor);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -285,6 +286,48 @@ public class MapRandering : NativeRoutine, IMapColorizer
         if (floorTilemaps == null) return;
         for (int f = 0; f < floorTilemaps.Length; f++)
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
+    }
+
+    // 점령 관련(2026-07-27 신규) — 방 점령 상태별로 바닥 타일에 옅은 색을 입힌다. 벽 타일은 제외한다
+    // (요청: "바닥 타일 희미하게"). RenderFloor와 같은 타일 좌표 변환(cx*8+tx, cy*8+ty)을 그대로
+    // 재사용해 같은 Tilemap 위에 SetColor만 덧씌운다. 야생(Neutral)/Occupied/Outpost는 착색하지
+    // 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로") — 기본 바닥 스프라이트
+    // 색 그대로 노출된다.
+    private static readonly Color HumanRoomTint = new Color(0.25f, 0.45f, 1f, 1f);  // 인류 소유 — 파랑(2026-07-27 사용자 요청으로 더 진하게)
+    private static readonly Color MonsterRoomTint = new Color(1f, 0.25f, 0.25f, 1f); // 몬스터(플레이어) 점령 — 빨강(위와 동일 조정)
+
+    void ApplyOccupationTint(Tilemap tilemap, ref Floor floor)
+    {
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null) continue;
+
+                Color? tint = chunk.occupationState switch
+                {
+                    OccupationState.HumanControlled => HumanRoomTint,
+                    OccupationState.PlayerControlled => MonsterRoomTint,
+                    _ => (Color?)null,
+                };
+                if (tint == null) continue;
+
+                for (int tx = 0; tx < ChunkSize; tx++)
+                {
+                    for (int ty = 0; ty < ChunkSize; ty++)
+                    {
+                        if (chunk.chunk[tx, ty].name == "Wall") continue;
+                        Vector3Int pos = new Vector3Int(cx * ChunkSize + tx, cy * ChunkSize + ty, 0);
+                        tilemap.SetTileFlags(pos, TileFlags.None);
+                        tilemap.SetColor(pos, tint.Value);
+                    }
+                }
+            }
+        }
     }
 
     public void ChangeRoomColor(Room room, Color color)
