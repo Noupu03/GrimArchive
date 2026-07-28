@@ -14,6 +14,9 @@ public class ThreatTileRenderer
 	// 씬 배치 없이 Resources.Load로 가져오므로 인스펙터 할당이 필요 없다.
 	private const string AttackZoneLibraryResourcePath = "attackZone";
 
+	// 야생 몬스터 위협타일 색(핑크와 보라 사이) — 지난 논의에서 회색 대신 이 색으로 정하기로 했었음.
+	private static readonly Color WildThreatColor = new Color(0.85f, 0.35f, 0.95f, 1f);
+
 	// 슬롯 순서: [forward(공격 방향, 스프라이트 "아래"), right(오른쪽), backward(유닛 쪽, "위"), left(왼쪽)]
 	// 라벨 원본 패턴 (회전 0 기준)
 	private static readonly bool[][] LabelPatterns =
@@ -189,12 +192,15 @@ public class ThreatTileRenderer
 			float cos = Mathf.Cos(rad);
 			float sin = Mathf.Sin(rad);
 
-			// 2026-07-27 사용자 요청: 야생 몬스터(WildMonsterBehavior)의 공격 위협타일은 회색으로
-			// 구분한다 — 그 외 몬스터(플레이어 소속)는 기존대로 빨강.
+			// 야생 몬스터(WildMonsterBehavior)의 공격 위협타일은 그 외 몬스터(플레이어 소속, 빨강)와
+			// 구분되는 색을 쓴다 — 원래 회색이었으나(2026-07-27) 채도가 낮아 던전 벽/바닥의 회색 톤과
+			// 비슷해 안 보인다는 신고를 거쳐(2026-07-28), 지난 논의에서 핑크와 보라 사이 색으로
+			// 정하기로 했었다 — WildThreatColor로 교체.
+			bool isWild = !(u is Human) && u.FactionBehavior is WildMonsterBehavior;
 			Color color = u is Human ? Color.green
-				: u.FactionBehavior is WildMonsterBehavior ? Color.gray
+				: isWild ? WildThreatColor
 				: Color.red;
-			color.a = threat.color.a;
+			color.a = isWild ? Mathf.Max(threat.color.a, 0.85f) : threat.color.a;
 
 			int index = 0;
 			for (int dx = 0; dx < depth; dx++)
