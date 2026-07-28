@@ -8,7 +8,6 @@ using Haare.Client.Routine;
 using Haare.Util.Logger;
 using GrimArchive.Wave;
 using Haare.Scripts.Client.Data;
-using UnityEngine.Rendering.Universal;
 
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
 // NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
@@ -158,9 +157,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 말고, 안개 걷히고 나서 토치 생성하게 해줘" — 순서를 InitializeFogOfWar → SpawnTorches
                 // 로 바꾼 이유).
                 InitializeFogOfWar();
-                // 횃불 배치(2026-07-28, 사용자 요청): 시작방을 제외한 모든 방의 각 청크마다 하나씩
-                // (Prefabs/Torch.prefab, Light2D 포함). 0층은 청크별 대신 층 전체를 덮는 큰 불빛
-                // 하나만 정중앙에. 안개가 안 걷힌 방은 즉시 스폰하지 않고 대기열에 넣는다.
+                // 횃불 배치(2026-07-28, 사용자 요청): 시작방을 제외한 모든 방(0층 포함, 모든 층 동일
+                // 규칙)의 각 청크마다 하나씩(Prefabs/Torch.prefab, Light2D 포함). 안개가 안 걷힌 방은
+                // 즉시 스폰하지 않고 대기열에 넣는다.
                 SpawnTorches();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
@@ -1826,17 +1825,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 코드로 조립했지만, 이번엔 Assets/Resources/Prefabs/Torch.prefab(직접 작성한 실제 .prefab 에셋
     // — SpriteRenderer(obj/torch.png) + Light2D(Point/원형, 따뜻한 색, 반경 4)를 가진 GameObject)을
     // Resources.Load로 불러와 Instantiate한다. 배치 로직(시작방 제외, 청크 정중앙, 계단 회피)은
-    // 이전과 동일하게 유지. 후속 요청(같은 세션, "0층만 예외로 0층 전체를 덮는 큰 불빛의 토치 하나만
-    // 정 중앙에 둬")으로 0층만 청크별 배치 대신 층 전체 정중앙에 하나, Light2D의
-    // pointLightOuterRadius를 런타임에 층 전체를 덮는 대각선 반경으로 덮어쓴다.
+    // 이전과 동일하게 유지. 0층 전용 "층 전체를 덮는 대형 횃불 하나" 예외는 한때 있었지만 사용자 요청
+    // ("0층 예외 지우고, 0층 청크도 기존 규칙에 따라 토치 깔아줘")으로 폐지 — 0층도 다른 층과 완전히
+    // 동일한 청크 단위 배치를 받는다.
     // ══════════════════════════════════════════════════════════════════════
     private GameObject _torchPrefab;
-    // "0층 방 더 밝게 해줘"(2026-07-28, 최초 1.6 → 후속 요청으로 상향) — 자리표시자, 조정 요청 오면
-    // 이 상수만 바꾸면 됨.
-    private const float FloorWideTorchIntensityMultiplier = 2.4f;
-    // "범위는 지름 2칸정도 늘려주고"(2026-07-28, 사용자 요청) — 층 전체를 덮는 대각선 반경에 추가로
-    // 더한다(지름 +2 = 반지름 +1).
-    private const float FloorWideTorchExtraRadius = 1f;
     // 횃불 지연 스폰(2026-07-28, 사용자 요청 "안개가 있는 방에 토치 미리 생성하지 말고, 안개 걷히고
     // 나서 토치 생성하게 해줘") — 아직 안개가 안 걷힌 방의 횃불 배치 좌표는 바로 스폰하지 않고 방
     // 단위로 모아뒀다가, RevealRoomFog가 그 방을 걷는 순간 SpawnPendingTorchesForRoom이 실제로 꺼내
@@ -1860,13 +1853,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             Floor floor = cmap.map.floors[floorIdx];
             if (floor.chunks == null) continue;
 
-            // 0층 전용(사용자 요청): 청크별 배치 대신 층 전체를 덮는 큰 불빛 하나만 정중앙에. 0층은
-            // 안개가 없는 층이라(FogRevealed 항상 true) 지연 스폰 대상이 아니다.
-            if (floorIdx == 0)
-            {
-                SpawnFloorWideTorch(floorIdx, floor);
-                continue;
-            }
+            // 0층 전용 예외 폐지(2026-07-28, 사용자 요청 "0층 예외 지우고, 0층 청크도 기존 규칙에
+            // 따라 토치 깔아줘") — 층 전체를 덮는 단일 대형 횃불 대신, 0층도 아래 청크 단위 배치를
+            // 다른 층과 완전히 동일하게 그대로 받는다. 0층은 안개가 없는 층이라(FogRevealed 항상
+            // true) 지연 스폰 없이 전부 즉시 스폰된다.
 
             int w = floor.config.width, h = floor.config.height;
             for (int cx = 0; cx < w; cx++)
@@ -1877,8 +1867,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
                     if (c.roomId < 0 || c.chunk == null) continue;
                     // 시작방 제외 규칙 폐지(2026-07-28, 사용자 요청 "1층 시작방에 토치 깔려야 해" +
                     // "물론 횃불로직에도 포함되어야겠지" — 2/3층 시작방을 야생으로 되돌린 것과 짝을
-                    // 맞춰) — 1층 진짜 시작방(플레이어 거점)도, 이제 야생으로 남는 2/3층 시작방도
-                    // 전부 일반 방과 동일하게 청크마다 배치한다. 0층만 위에서 별도로 처리.
+                    // 맞춰) — 1층 진짜 시작방(플레이어 거점)도, 이제 야생으로 남는 2/3층 시작방도,
+                    // 0층도 전부 일반 방과 동일하게 청크마다 배치한다.
 
                     if (!TryFindTorchTilePos(floorIdx, cx, cy, c, out Vector2Int tilePos)) continue;
 
@@ -1955,62 +1945,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         go.name = $"Torch_{tilePos.x}_{tilePos.y}";
         if (torchGroup != null) go.transform.SetParent(torchGroup, true);
         return go;
-    }
-
-    // 0층 전용(2026-07-28, 사용자 요청 "0층만 예외로 0층 전체를 덮는 큰 불빛의 토치 하나만 정 중앙에
-    // 둬") — 층 전체(청크 단위 폭×높이를 타일로 환산) 정중앙에 횃불 하나만 놓고, Light2D의
-    // pointLightOuterRadius를 층 전체 모서리까지 확실히 덮는 대각선 반경으로 덮어쓴다.
-    private void SpawnFloorWideTorch(int floorIdx, Floor floor)
-    {
-        int chunkW = floor.config.width, chunkH = floor.config.height;
-        if (chunkW <= 0 || chunkH <= 0) return;
-
-        Vector2Int center = new Vector2Int(chunkW * 8 / 2, chunkH * 8 / 2);
-        Vector2Int tilePos = FindNearestOpenTileForTorch(floorIdx, floor, center);
-
-        GameObject go = SpawnTorchAt(floorIdx, tilePos);
-        if (go == null) return;
-
-        Light2D light = go.GetComponentInChildren<Light2D>();
-        if (light == null) return;
-
-        float halfW = chunkW * 8 / 2f;
-        float halfH = chunkH * 8 / 2f;
-        light.pointLightOuterRadius = Mathf.Sqrt(halfW * halfW + halfH * halfH) + FloorWideTorchExtraRadius;
-        // "0층 방 더 밝게 해줘"(사용자 요청) — 프리팹 기본 intensity보다 이 층 전용 불빛만 더 올린다.
-        light.intensity *= FloorWideTorchIntensityMultiplier;
-    }
-
-    // SpawnFloorWideTorch 전용 — 층 정중앙이 벽/오브젝트에 막혀 있을 수 있어(0층 로비 구조에 따라)
-    // 중심에서부터 링 단위로 반경을 넓혀가며 실제로 놓을 수 있는 가장 가까운 타일을 찾는다.
-    private Vector2Int FindNearestOpenTileForTorch(int floorIdx, Floor floor, Vector2Int center)
-    {
-        int chunkW = floor.config.width, chunkH = floor.config.height;
-        int maxTileX = chunkW * 8, maxTileY = chunkH * 8;
-
-        for (int radius = 0; radius < 16; radius++)
-        {
-            for (int dx = -radius; dx <= radius; dx++)
-            {
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue; // 링(테두리)만 훑기
-
-                    int x = center.x + dx, y = center.y + dy;
-                    if (x < 0 || y < 0 || x >= maxTileX || y >= maxTileY) continue;
-
-                    int cx = x / 8, tx = x % 8;
-                    int cy = y / 8, ty = y % 8;
-                    Chunks c = floor.chunks[cx, cy];
-                    if (c.chunk == null || c.chunk[tx, ty].name == "Wall") continue;
-                    if (objectGrid.ContainsKey(new Vector3Int(x, y, floorIdx))) continue;
-
-                    return new Vector2Int(x, y);
-                }
-            }
-        }
-
-        return center; // 못 찾으면(극히 드묾) 그냥 중앙 좌표라도 반환 — 호출부가 방어적으로 처리
     }
 
     // 시작방 안에서 건물을 놓을 수 있는 랜덤 위치를 찾는다 — 자원/유닛 생산 건물 두 개가 같은 자리를
