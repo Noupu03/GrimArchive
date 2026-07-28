@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 using VContainer;
 using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
@@ -468,6 +469,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 bool bRevealed = roomB == null || roomB.FogRevealed;
                 if (!aRevealed || !bRevealed) SpawnFogForGate(floorIndex, g);
             }
+
+            RebuildFloorFogShadowCasters(floorIndex);
         }
     }
 
@@ -538,6 +541,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // 안개 타일 하나(배경+무늬 2겹) 생성 — SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 공용.
+    // 셰도우 캐스트는 여기서 타일 단위로 안 붙인다(사용자 요청, 2026-07-28) — 문 안개는
+    // SpawnFogForGate가 타일들을 다 모은 뒤 윤곽선 하나짜리 캐스터를 별도로 만든다(벽과 동일한
+    // MapRandering.TraceContours 기법 — 타일마다 독립된 캐스터를 붙이면 그 이음새에서 빛이 샌다).
     private GameObject SpawnFogTile(int x, int y, Vector3 offset, Transform parentGroup, Sprite backingSprite,
         float patScaleX, float patScaleY, float backScaleX, float backScaleY, string namePrefix)
     {
@@ -645,6 +651,84 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
+    // 벽 + "아직 안 걷힌 안개" 전체를 하나의 격자로 합쳐서 한 번에 윤곽선을 뽑는다(사용자 요청,
+    // 2026-07-28 "지금 문에잇는 안개만 섀도캐스팅 박혀있어. 문+ 벽 섀도우캐스팅과 겹치는 안개 모두
+    // 한번에 해서 구워줘"). 안개(방/문/빈 청크)를 벽과 따로따로 셰도우 캐스팅하면 방 경계에서 벽의
+    // 자체 셰도우와 거의 겹치는 별개의 선이 하나 더 생길 뿐이라 눈에 띄는 차이가 없었다 — 벽이 이미
+    // 막고 있는 경계를 안개가 다시 막아봤자 티가 안 남. 대신 벽 마스크와 "안 걷힌 안개" 마스크를
+    // OR로 합친 뒤 그 결과를 통째로 외곽선 추적하면, 문(벽이 없는 구간)처럼 벽만으로는 안 막히는
+    // 지점까지 안개가 자연스럽게 이어 붙어 하나의 연속된 경계가 된다(이음새 없음).
+    //
+    // 안개는 방이 걷힐 때마다 바뀌는 동적 상태라, 벽처럼 한 번만 굽고 끝낼 수 없다 — 그 방이 있는
+    // 층 전체를 RevealRoomFog/InitializeFogOfWar에서 다시 구워(재계산) 갈아 끼운다. 잦은 일이
+    // 아니라(웨이브 진행에 따라 방 하나 걷힐 때만) 층 전체를 매번 다시 훑어도 성능 문제는 없다.
+    private readonly Dictionary<int, List<GameObject>> _floorFogShadowCasters = new Dictionary<int, List<GameObject>>();
+
+    private bool[,] BuildStillFoggedMask(int floorIndex, int worldW, int worldH)
+    {
+        var mask = new bool[worldW, worldH];
+        Floor floor = cmap.map.floors[floorIndex];
+
+        for (int x = 0; x < worldW; x++)
+        {
+            for (int y = 0; y < worldH; y++)
+            {
+                if (roomGrid.TryGetValue(new Vector3Int(x, y, floorIndex), out Room owner) && owner != null)
+                    mask[x, y] = !owner.FogRevealed;
+                else
+                    mask[x, y] = true; // 방이 없는 칸(빈 청크) — 영구 안개
+            }
+        }
+
+        // 게이트(문) 타일은 두 방 중 하나라도 안 걷혔으면 안개 — 각 타일이 속한 청크의 개별 방
+        // 판정과 별개로 덮어쓴다(SpawnFogForGate와 동일한 규칙).
+        if (floor.gates != null)
+        {
+            foreach (var g in floor.gates)
+            {
+                Room roomA = FindRoomByFloorAndId(floorIndex, g.roomA);
+                Room roomB = FindRoomByFloorAndId(floorIndex, g.roomB);
+                bool aRevealed = roomA == null || roomA.FogRevealed;
+                bool bRevealed = roomB == null || roomB.FogRevealed;
+                bool stillFogged = !aRevealed || !bRevealed;
+
+                foreach (var row in GetGateDoorTiles(g))
+                    foreach (var pos in row)
+                        if (pos.x >= 0 && pos.x < worldW && pos.y >= 0 && pos.y < worldH)
+                            mask[pos.x, pos.y] = stillFogged;
+            }
+        }
+
+        return mask;
+    }
+
+    private void RebuildFloorFogShadowCasters(int floorIndex)
+    {
+        if (cmap == null || cmap.map.floors == null || floorIndex < 0 || floorIndex >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[floorIndex];
+        if (floor.chunks == null) return;
+
+        if (_floorFogShadowCasters.TryGetValue(floorIndex, out List<GameObject> old))
+        {
+            foreach (var go in old)
+                if (go != null) UnityEngine.Object.Destroy(go);
+        }
+
+        bool[,] isWall = MapRandering.BuildWallMask(ref floor, out int worldW, out int worldH);
+        bool[,] stillFogged = BuildStillFoggedMask(floorIndex, worldW, worldH);
+
+        bool[,] combined = new bool[worldW, worldH];
+        for (int x = 0; x < worldW; x++)
+            for (int y = 0; y < worldH; y++)
+                combined[x, y] = isWall[x, y] || stillFogged[x, y];
+
+        Transform fogGroup = GetFloorCategoryGroup(floorIndex, "Fog");
+        var loops = MapRandering.TraceContours(combined, worldW, worldH);
+        var created = new List<GameObject>();
+        MapRandering.CreateEdgeShadowCasters(fogGroup, loops, "FloorShadowCaster", created);
+        _floorFogShadowCasters[floorIndex] = created;
+    }
+
     // 안개 해제(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이 있어야지만
     // 사라져") — UnitFunction.SyncRoomAffiliation이 플레이어 진영 몬스터의 방 최초 입장을 감지하면
     // 호출한다. Room.FogRevealed는 한번 true가 되면 다시 false로 안 돌아간다(영구 해제).
@@ -664,6 +748,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         SpawnPendingTorchesForRoom(room);
 
         TryRevealAdjacentGates(room);
+
+        // 이 방(과 인접 게이트)의 FogRevealed가 방금 바뀌었으니 벽+안개 통합 셰도우도 다시 굽는다
+        // (RebuildFloorFogShadowCasters 주석 참고).
+        RebuildFloorFogShadowCasters(room.Floor);
     }
 
     // 안개 해금 규칙 변경(2026-07-28, 사용자 요청 "안개 해금이 잘 안돼. 규칙을 바꾸자. 플레이어
@@ -1363,6 +1451,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 9-7/9-8장/7-3장(2026-07-27 추가) — 함정 해제·코어 조사 진행 막대를 붙일 자리. 그 외
         // 오브젝트에는 붙이지 않는다(불필요한 컴포넌트/자식 GameObject 낭비 방지).
         if (isTrap || isCoreOnly) visual.AddComponent<ObjectProgressBarVisual>();
+
+        // 빛(Light2D)이 문도 막게(사용자 요청, 2026-07-28) — MapRandering의 벽 셰도우 캐스터와 동일한
+        // 기법(유닛 프리팹과 같은 SpriteRenderer 실루엣 기반 ShadowCaster2D). 문은 열림/닫힘에 따라
+        // sr.sprite가 바뀌는데(ApplyGateDoorVisual), ShadowCaster2D의 SpriteRenderer 프로바이더가
+        // 스프라이트 변경 콜백을 등록해두므로 별도 갱신 코드 없이 셰이프가 따라 바뀐다.
+        if (isDoor) visual.AddComponent<ShadowCaster2D>();
 
         Vector3 offset = Vector3.zero;
         if (mapRandering != null)

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using UnityEngine.Rendering.Universal;
 using Haare.Util.Logger;
 using Haare.Client.Routine;
 using VContainer;
@@ -138,6 +139,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
             RenderFloor(tilemap, ref floor, f);
             RenderStairOverlays(tilemapObj.transform, ref floor, f);
             ApplyOccupationTint(tilemap, ref floor);
+            SetupWallShadowCasters(tilemapObj.transform, ref floor);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -263,6 +265,163 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
 
         return offsets;
+    }
+
+    // 빛(Light2D)이 벽을 통과하지 않게(사용자 요청). 시행착오 요약(2026-07-28):
+    // 1) Collider2D 기반(TilemapCollider2D+CompositeCollider2D) — ShadowCaster2D의 자동 소스 판정이
+    //    같은 오브젝트의 두 Collider2D 중 어느 쪽을 잡을지 불확실해서 실패(빛이 벽을 그냥 통과).
+    // 2) SpriteRenderer 기반 사각형(1개 또는 여러 개로 병합) 캐스터 — 세로 벽은 세로로 조각이 쌓여
+    //    이음새가 생기고, 벽 전체 두께를 다 쓰면 방마다 두께가 달라 안쪽 경계가 들쭉날쭉, 표면 한
+    //    겹만 쓰면 이번엔 대각선 꼭짓점이 옆 직선 사각형과 합쳐지며 실제 타일 모양과 다른 사각형이
+    //    되어 그 이음새에서 계속 빛이 샜다. 근본 원인은 "여러 개의 독립된 사각형 오브젝트"로 실제
+    //    타일 모양(방마다 두께가 다르고 L/T/ㄷ/S자 등 비정형이라 절대 사각형이 아님, CreateMap.
+    //    RoomPlacement.cs의 shapeTemplates + 방마다 랜덤인 벽 두께)을 흉내 내려 한 것 자체였다.
+    // 3) 그래서 흉내 내지 않고 실제 벽 타일 격자를 그대로 외곽선으로 추적(TraceContours)해 그
+    //    윤곽선 그대로를 PolygonCollider2D 경로(외곽/구멍)로 넣어봤으나, Unity 문서대로 방향(외곽=
+    //    반시계, 구멍=시계)을 맞춰도 안/밖 차단이 계속 거꾸로 나왔다(사용자 확인, 2026-07-28
+    //    "래이캐스팅 부여가 반대로 됐다" → 방향을 뒤집어도 "아직 반대로 됨"). PolygonCollider2D는
+    //    "채워진 도형"이라 안/밖(구멍) 판정이 꼭 필요한데 그 판정 자체가 우리 기대와 다르게 동작한
+    //    것으로 보여 폐기.
+    // 4) 그래서 도형을 "채우지" 않고 그냥 "선"으로만 준다 — 폐곡선마다 EdgeCollider2D(닫힌 선) +
+    //    ShadowCaster2D를 하나씩 만든다(CreateEdgeShadowCasters). 선은 안/밖 개념이 없어 방향과
+    //    무관하게 항상 올바르게 막는다. 콜라이더 하나당 경로 하나뿐이라 폐곡선(=대략 방 개수)만큼
+    //    오브젝트가 생기지만 타일 개수보다 훨씬 적어 성능 문제는 없다.
+    void SetupWallShadowCasters(Transform parent, ref Floor floor)
+    {
+        bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
+        List<List<Vector2>> loops = TraceContours(isWall, worldW, worldH);
+        CreateEdgeShadowCasters(parent, loops, "WallShadowCaster");
+    }
+
+    // 벽 타일 격자(bool[worldW,worldH], true=Wall) 생성 — SetupWallShadowCasters 및 GameSession의
+    // 통합 벽+안개 셰도우 재계산(RebuildFloorFogShadowCasters, 사용자 요청 "문+벽 섀도우캐스팅과
+    // 겹치는 안개 모두 한번에 해서 구워줘")이 공용으로 쓴다.
+    public static bool[,] BuildWallMask(ref Floor floor, out int worldW, out int worldH)
+    {
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+        worldW = chunkCountX * ChunkSize;
+        worldH = chunkCountY * ChunkSize;
+
+        bool[,] isWall = new bool[worldW, worldH];
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null) continue;
+
+                for (int tx = 0; tx < ChunkSize; tx++)
+                    for (int ty = 0; ty < ChunkSize; ty++)
+                        if (chunk.chunk[tx, ty].name == "Wall")
+                            isWall[cx * ChunkSize + tx, cy * ChunkSize + ty] = true;
+            }
+        }
+
+        return isWall;
+    }
+
+    // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 벽/방
+    // 뭉치가 사각형이 아니라 방마다 두께가 다르고 L/T/ㄷ/S자 등 비정형이어도(CreateMap.
+    // RoomPlacement.cs shapeTemplates) 근사 없이 실제 타일 모양 그대로 나온다. solid 뭉치 하나가
+    // 구멍(방)을 여러 개 가지면 바깥 윤곽선 1개 + 구멍마다 안쪽 윤곽선 1개, 총 여러 개의 폐곡선이
+    // 나올 수 있다 — 전부 반환해서 호출부가 EdgeCollider2D 하나씩으로 만든다(CreateEdgeShadowCasters
+    // 참고 — 폴리곤 채우기(구멍/외곽 판정)를 아예 안 쓰므로 각 변의 진행 방향은 결과에 영향 없음).
+    public static List<List<Vector2>> TraceContours(bool[,] mask, int w, int h)
+    {
+        bool Solid(int x, int y) => x >= 0 && x < w && y >= 0 && y < h && mask[x, y];
+
+        var edgesFrom = new Dictionary<Vector2Int, List<Vector2Int>>();
+        void AddEdge(Vector2Int a, Vector2Int b)
+        {
+            if (!edgesFrom.TryGetValue(a, out var list)) { list = new List<Vector2Int>(); edgesFrom[a] = list; }
+            list.Add(b);
+        }
+
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                if (!mask[x, y]) continue;
+
+                if (!Solid(x - 1, y)) AddEdge(new Vector2Int(x, y), new Vector2Int(x, y + 1));         // 왼쪽 변
+                if (!Solid(x + 1, y)) AddEdge(new Vector2Int(x + 1, y + 1), new Vector2Int(x + 1, y)); // 오른쪽 변
+                if (!Solid(x, y - 1)) AddEdge(new Vector2Int(x + 1, y), new Vector2Int(x, y));         // 아래쪽 변
+                if (!Solid(x, y + 1)) AddEdge(new Vector2Int(x, y + 1), new Vector2Int(x + 1, y + 1)); // 위쪽 변
+            }
+        }
+
+        var visited = new HashSet<(Vector2Int from, Vector2Int to)>();
+        var loops = new List<List<Vector2>>();
+
+        foreach (var kvp in edgesFrom)
+        {
+            foreach (var firstTo in kvp.Value)
+            {
+                Vector2Int loopStart = kvp.Key;
+                if (visited.Contains((loopStart, firstTo))) continue;
+
+                var loop = new List<Vector2>();
+                Vector2Int cur = loopStart;
+                Vector2Int next = firstTo;
+                while (true)
+                {
+                    visited.Add((cur, next));
+                    loop.Add(new Vector2(cur.x, cur.y));
+                    cur = next;
+                    if (cur == loopStart) break;
+
+                    if (!edgesFrom.TryGetValue(cur, out var options)) break; // 기형 격자 — 더 못 이어감
+
+                    Vector2Int? pick = null;
+                    foreach (var opt in options)
+                    {
+                        if (!visited.Contains((cur, opt))) { pick = opt; break; }
+                    }
+                    if (pick == null) break;
+                    next = pick.Value;
+                }
+
+                if (loop.Count >= 3) loops.Add(loop);
+            }
+        }
+
+        return loops;
+    }
+
+    // TraceContours가 뽑아낸 폐곡선마다 EdgeCollider2D(닫힌 선) + ShadowCaster2D 오브젝트를 하나씩
+    // 만든다. 처음엔 PolygonCollider2D 하나에 외곽선/구멍(방)을 전부 경로로 몰아넣었는데(바깥은
+    // 반시계, 구멍은 시계 — Unity PolygonCollider2D의 문서화된 구멍 규약), 방향을 맞게 뒤집어도
+    // 안/밖 차단이 계속 거꾸로였다(사용자 확인, 2026-07-28 "래이캐스팅 부여가 반대로 됐다" →
+    // "아직 반대로 됨"). PolygonCollider2D는 "채워진 도형"이라 안/밖(구멍) 판정이 꼭 필요하지만,
+    // EdgeCollider2D는 그냥 "선"이라 안/밖 개념 자체가 없다 — 빛은 그 선을 넘어가지 못할 뿐이니
+    // 폐곡선 하나하나를 선으로만 넘기면 방향과 무관하게 항상 올바르게 막는다. 대신 콜라이더 하나당
+    // 경로 하나만 담을 수 있어 폐곡선 개수만큼(방 개수 정도) 오브젝트가 생기지만, 방 개수는 타일
+    // 개수보다 훨씬 적어 성능 문제는 없다.
+    public static void CreateEdgeShadowCasters(Transform parent, List<List<Vector2>> loops, string namePrefix, List<GameObject> createdOut = null)
+    {
+        if (loops == null) return;
+
+        for (int i = 0; i < loops.Count; i++)
+        {
+            var loop = loops[i];
+            if (loop.Count < 3) continue;
+
+            var go = new GameObject($"{namePrefix}_{i}");
+            go.transform.SetParent(parent, false);
+
+            // EdgeCollider2D는 닫힌 도형 표현이 따로 없어 시작점을 끝에 한 번 더 넣어 닫아준다.
+            var points = new Vector2[loop.Count + 1];
+            for (int j = 0; j < loop.Count; j++) points[j] = loop[j];
+            points[loop.Count] = loop[0];
+
+            var edgeCollider = go.AddComponent<EdgeCollider2D>();
+            edgeCollider.isTrigger = true;
+            edgeCollider.points = points;
+
+            go.AddComponent<ShadowCaster2D>();
+            createdOut?.Add(go);
+        }
     }
 
     void ClearExistingTilemaps()
