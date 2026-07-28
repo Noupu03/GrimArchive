@@ -141,6 +141,7 @@ MonoBehaviour:
   unitTypeName: "\uAE30\uC0AC\uD615"
   footprint: {x: 1, y: 1}
   engageDistance: 2
+  populationCost: 1
   stats:
     maxHp: 150
     maxMp: 30
@@ -148,7 +149,7 @@ MonoBehaviour:
     magicalAttack: 12
     physicalDefense: 10
     magicalDefense: 8
-    HPRegen: 5
+    HPRegen: 1
     attackspeed: 115
     walkSpeed: 3.2
     reaction: 60
@@ -171,7 +172,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 0}
+    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
     hitShape: LINE
     hitRange: 2
     hitWidth: 1
@@ -195,7 +196,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 0}
+    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
     hitShape: LINE
     hitRange: 1
     hitWidth: 1
@@ -219,7 +220,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 0}
+    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
     hitShape: LINE
     hitRange: 1
     hitWidth: 1
@@ -293,6 +294,7 @@ GameObject:
   - component: {fileID: 5918597988384680962}
   - component: {fileID: 4829756139070845510}
   - component: {fileID: 7844304641125362722}
+  - component: {fileID: 6165816777831163393}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -406,6 +408,59 @@ MonoBehaviour:
   m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
+--- !u!114 &6165816777831163393
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4351545865903026458}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7db70e0ea77f5ac47a8f4565a9406397, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
+  m_ShadowGroup: 0
+  m_Priority: 10
+  m_ComponentVersion: 5
+  m_HasRenderer: 1
+  m_UseRendererSilhouette: 1
+  m_CastsShadows: 1
+  m_SelfShadows: 0
+  m_AlphaCutoff: 0.1
+  m_ApplyToSortingLayers: 00000000
+  m_ShapePath:
+  - {x: -0.5, y: 0, z: 0}
+  - {x: -0.5, y: 1, z: 0}
+  - {x: 0.5, y: 1, z: 0}
+  - {x: 0.5, y: 0, z: 0}
+  m_ShapePathHash: 0
+  m_InstanceId: 0
+  m_ShadowShape2DComponent: {fileID: 5918597988384680962}
+  m_ShadowShape2DProvider:
+    rid: 987099298892611720
+  m_ShadowCastingSource: 2
+  m_ShadowMesh:
+    m_Mesh: {fileID: 0}
+    m_LocalBounds:
+      m_Center: {x: 0, y: 0.5, z: 0}
+      m_Extent: {x: 0.26875305, y: 0.30000305, z: 0}
+    m_EdgeProcessing: 1
+    m_TrimEdge: 0.2
+    m_FlipX: 0
+    m_FlipY: 0
+    m_InitialTrim: 0.05
+  m_CastingOption: 1
+  m_PreviousTrimEdge: 0.2
+  m_PreviousEdgeProcessing: 1
+  m_PreviousShadowCastingSource: 2
+  m_PreviousShadowShape2DSource: {fileID: 5918597988384680962}
+  references:
+    version: 2
+    RefIds:
+    - rid: 987099298892611720
+      type: {class: ShadowShape2DProvider_SpriteRenderer, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.2D.Runtime}
+      data: 
 --- !u!1 &4925347841966477481
 GameObject:
   m_ObjectHideFlags: 0
@@ -433,7 +488,7 @@ Transform:
   m_GameObject: {fileID: 4925347841966477481}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -0.124, y: 0.282, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -486,7 +541,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 11
   m_MaskInteraction: 0
   m_Sprite: {fileID: 6784780834613251090, guid: 4396acf6a07487e47a2ff8efd8bbade3, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
