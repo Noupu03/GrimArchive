@@ -702,17 +702,19 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return mask;
     }
 
+    // 재구성 시 빛이 한 프레임 새는 문제 수정(사용자 확인, 2026-07-28 "새로 구울때 한번 번쩍거리면서
+    // 빛이 새는데") — 원인은 순서: 기존 캐스터를 먼저 Destroy()하면 실제 파괴/등록 해제는 그 프레임
+    // 렌더링 전에 일어나는데, 새로 만든 ShadowCaster2D는 자기 Update()가 최소 한 번 돌아야 셰도우
+    // 그룹에 실제로 등록된다(ShadowCaster2D.Update() 내부에서 등록 — Awake 시점엔 아직 미등록). 즉
+    // "새 걸 등록하기 전에 기존 걸 지우는" 순간 사이에 이 층 전체가 무방비 상태인 프레임이 한 번
+    // 생겨서 그 프레임에 빛이 새어 보였다. 그래서 새 캐스터를 먼저 만들어 등록될 시간을 확실히 준
+    // 뒤에(2프레임 대기) 기존 걸 지우는 순서로 바꿨다 — 겹치는 몇 프레임 동안 신/구 캐스터가 같이
+    // 있어도 중복으로 막아줄 뿐 문제 없다.
     private void RebuildFloorFogShadowCasters(int floorIndex)
     {
         if (cmap == null || cmap.map.floors == null || floorIndex < 0 || floorIndex >= cmap.map.floors.Length) return;
         Floor floor = cmap.map.floors[floorIndex];
         if (floor.chunks == null) return;
-
-        if (_floorFogShadowCasters.TryGetValue(floorIndex, out List<GameObject> old))
-        {
-            foreach (var go in old)
-                if (go != null) UnityEngine.Object.Destroy(go);
-        }
 
         bool[,] isWall = MapRandering.BuildWallMask(ref floor, out int worldW, out int worldH);
         bool[,] stillFogged = BuildStillFoggedMask(floorIndex, worldW, worldH);
@@ -726,7 +728,19 @@ public class GameSession : NativeRoutine, IOffenseQuery
         var loops = MapRandering.TraceContours(combined, worldW, worldH);
         var created = new List<GameObject>();
         MapRandering.CreateEdgeShadowCasters(fogGroup, loops, "FloorShadowCaster", created);
+
+        List<GameObject> oldCasters = _floorFogShadowCasters.TryGetValue(floorIndex, out var prev) ? prev : null;
         _floorFogShadowCasters[floorIndex] = created;
+
+        if (oldCasters != null && oldCasters.Count > 0)
+            DestroyAfterFramesAsync(oldCasters).Forget();
+    }
+
+    private async UniTaskVoid DestroyAfterFramesAsync(List<GameObject> toDestroy)
+    {
+        await UniTask.DelayFrame(2);
+        foreach (var go in toDestroy)
+            if (go != null) UnityEngine.Object.Destroy(go);
     }
 
     // 안개 해제(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이 있어야지만
