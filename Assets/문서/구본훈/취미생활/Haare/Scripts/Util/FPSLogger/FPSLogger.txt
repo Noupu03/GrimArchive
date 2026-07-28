@@ -1,0 +1,15 @@
+클래스명: FPSLogger (MonoRoutine)
+태그: FPSLogger
+경로: Assets/Haare/Scripts/Util/FPSLogger/FPSLogger.cs
+의도: FPSLogger의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoRoutine 상속 및 구현
+
+변수:
+  - fpsText: CustomText 타입 데이터
+  - deltaTime: float 타입 데이터
+  - fps: float 타입 데이터
+
+함수:
+  - UpdateProcess(): void 반환

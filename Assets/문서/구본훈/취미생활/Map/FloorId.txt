@@ -1,0 +1,62 @@
+클래스명: FloorId
+태그: FloorId
+경로: Assets/Script/Map/MapData.cs
+의도: FloorId의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - roomA: int 타입 데이터
+  - roomB: int 타입 데이터
+  - chunkAX: int 타입 데이터
+  - chunkAY: int 타입 데이터
+  - chunkBX: int 타입 데이터
+  - chunkBY: int 타입 데이터
+  - width: int 타입 데이터
+  - isHorizontal: bool 타입 데이터
+  - name: string 타입 데이터
+  - effect: TileEffect 타입 데이터
+  - isObjectExist: bool 타입 데이터
+  - isStructureExist: bool 타입 데이터
+  - dangerous: int 타입 데이터
+  - understand: int 타입 데이터
+  - weight: int 타입 데이터
+  - visibility: int 타입 데이터
+  - chunk: Tile[,] 타입 데이터
+  - landform: int 타입 데이터
+  - roomId: int 타입 데이터
+  - roomName: string 타입 데이터
+  - roomRole: RoomRole 타입 데이터
+  - floorId: int 타입 데이터
+  - occupationState: OccupationState 타입 데이터
+  - stairTargetFloor: int 타입 데이터
+  - allowMaxFootprint: int 타입 데이터
+  - stairIsOpen: bool 타입 데이터
+  - stairHumanOnly: bool 타입 데이터
+  - config: FloorConfig 타입 데이터
+  - chunks: Chunks[,] 타입 데이터
+  - floors: Floor[] 타입 데이터
+  - floorId: FloorId 타입 데이터
+  - width: int 타입 데이터
+  - height: int 타입 데이터
+  - normalRoomCount: int 타입 데이터
+  - subPurposeRoomCount: int 타입 데이터
+  - bossRoomFormat: string 타입 데이터
+  - wallThicknessMin: int 타입 데이터
+  - wallThicknessMax: int 타입 데이터
+  - maxNormalRoomChunks: int 타입 데이터
+  - totalRoomCount: int 타입 데이터
+  - map: Map 타입 데이터
+  - nextId: int 타입 데이터
+
+함수:
+  - GetFloor(): Floor 반환
+  - Wall(): Tile 반환
+  - Floor(): Tile 반환
+  - Stair(): Tile 반환
+  - Water(): Tile 반환
+  - GetNextId(): int 반환
+  - FormatName(): string 반환
+  - Reset(): void 반환
+  - CreateDefault(): FloorConfig[] 반환

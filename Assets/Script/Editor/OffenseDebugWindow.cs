@@ -1,9 +1,22 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEditor;
+using VContainer;
 using GrimArchive.Wave;
 
 public class OffenseDebugWindow : EditorWindow
 {
+    private GameSession _gameSession;
+        private GameSession Session {
+        get {
+            if (_gameSession != null) return _gameSession;
+            if (!Application.isPlaying) return null;
+            var root = UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>();
+            if (root != null && root.Container != null) {
+                _gameSession = root.Container.Resolve<GameSession>();
+            }
+            return _gameSession;
+        }
+    }
     private float _customWaveCooldown = 10f;
     private int _addResourceAmount = 100;
     private static Room _dummyRoom;
@@ -32,18 +45,20 @@ public class OffenseDebugWindow : EditorWindow
         
         Room GetRandomRealRoom()
         {
-            if (GameSession.Instance != null && GameSession.Instance.allRooms != null && GameSession.Instance.allRooms.Count > 0)
+            if (Session != null && Session.allRooms != null && Session.allRooms.Count > 0)
             {
-                int randomIndex = UnityEngine.Random.Range(0, GameSession.Instance.allRooms.Count);
-                return GameSession.Instance.allRooms[randomIndex];
+                int randomIndex = UnityEngine.Random.Range(0, Session.allRooms.Count);
+                return Session.allRooms[randomIndex];
             }
             return null;
         }
 
+        if (Session == null) { EditorGUILayout.HelpBox("Play mode only", MessageType.Info); return; }
+
         if (GUILayout.Button("1. [스웜 룸 구성 (즉시 3마리 소환)]"))
         {
             Room targetRoom = GetRandomRealRoom();
-            if (targetRoom != null && GameSession.Instance != null && GameSession.Instance.unitGenerate != null)
+            if (targetRoom != null && Session != null && Session.unitGenerate != null)
             {
                 targetRoom.Type = RoomType.Normal;
                 targetRoom.RoomFaction = FactionType.Wild;
@@ -51,12 +66,12 @@ public class OffenseDebugWindow : EditorWindow
                 for (int i = 0; i < 3; i++)
                 {
                     Vector2Int spawnPos = targetRoom.GetRandomPosInRoom();
-                    Monster monster = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
+                    Monster monster = Session.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
                     monster.FactionBehavior = new WildMonsterBehavior();
                     monster.MovementAlgorithm = new RoomConfinedMovement();
                     
-                    GameSession.Instance.units.Add(monster);
-                    GameSession.Instance.RegisterUnitPos(monster, monster.position);
+                    Session.units.Add(monster);
+                    Session.RegisterUnitPos(monster, monster.position);
                     targetRoom.AddUnit(monster);
                 }
                 Debug.Log($"[Test] 무리형 방 설정 완료: MeleeTank 기반 야생 몬스터 3기 스폰 됨 (방: {targetRoom.RoomName})");
@@ -70,43 +85,34 @@ public class OffenseDebugWindow : EditorWindow
         if (GUILayout.Button("2. [스포너 룸 구성 (주기적 생성)]"))
         {
             Room targetRoom = GetRandomRealRoom();
-            if (targetRoom != null && GameSession.Instance != null)
+            if (targetRoom != null && Session != null && Session.unitGenerate != null)
             {
                 targetRoom.Type = RoomType.Spawner;
                 targetRoom.RoomFaction = FactionType.Wild;
 
-                // 논리 스크립트 대신, 체력과 타격 판정을 지닌 거점 '유닛'을 생성하여 맵에 등록
-                WildBaseUnit baseUnit = ScriptableObject.CreateInstance<WildBaseUnit>();
-                baseUnit.InitializeBase(targetRoom);
-                
                 // 방의 정중앙에 거점 배치
                 Vector2Int centerPos = new Vector2Int(
                     Mathf.RoundToInt(targetRoom.Bounds.center.x),
                     Mathf.RoundToInt(targetRoom.Bounds.center.y)
                 );
-                baseUnit.position = centerPos;
-                baseUnit.currentFloor = 1; // F1 기준으로 설정
-                
-#if UNITY_EDITOR
-                // 임시 시각적 표현 (화살표 이미지) 렌더링
-                GameObject visualGo = new GameObject("WildSpawnerVisual");
-                SpriteRenderer sr = visualGo.AddComponent<SpriteRenderer>();
-                sr.sprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Asset/화살표.png");
-                sr.sortingOrder = 50; // 맵에 의해 가려지지 않도록 렌더링 순서 상향
 
-                // 타일맵 렌더러 좌표계에 맞춰서 중앙에 오도록 배치 (층별 오프셋 반영)
-                Vector3 floorOffset = GameSession.Instance.unitGenerate != null ? GameSession.Instance.unitGenerate.GetFloorOffset(1) : Vector3.zero;
-                visualGo.transform.position = new Vector3(centerPos.x + 0.5f, centerPos.y + 0.5f, 0f) + floorOffset;
-                
-                // 크기가 너무 크거나 작을 수 있으므로 적절히 조정
-                visualGo.transform.localScale = new Vector3(0.5f, 0.5f, 1f);
-                
-                baseUnit.debugVisual = visualGo;
-#endif
+                // GenerateUnitAtPos로 생성해야 _resolver.Inject가 실행되어 baseUnit.Session이
+                // 채워진다. 이 DI 주입이 없으면 WildBaseSpawnerComponent.SpawnMonster() 내부의
+                // _owner.Session == null 체크에서 즉시 return해 거점이 아무것도 생성하지 못한다.
+                Monster baseUnit = Session.unitGenerate.GenerateUnitAtPos<Monster>(new WildBaseType(), centerPos, 1);
 
-                GameSession.Instance.units.Add(baseUnit);
-                GameSession.Instance.RegisterUnitPos(baseUnit, baseUnit.position);
-                Debug.Log($"[Test] 거점형 방 설정 완료 (방: {targetRoom.RoomName})");
+                // WildMonsterBehavior가 없으면 PlayerMonsterBehavior.IsEnemy()가 false를 반환해
+                // 플레이어 유닛이 거점을 공격 대상으로 인식하지 못한다.
+                baseUnit.FactionBehavior = new WildMonsterBehavior();
+
+                // Components.Add 후 WildBaseSpawnerComponent를 생성해야 SpawnLoop가 시작될 때
+                // Components 리스트가 완성된 상태이다.
+                WildBaseSpawnerComponent spawnerComp = new WildBaseSpawnerComponent(baseUnit, targetRoom);
+                baseUnit.Components.Add(spawnerComp);
+
+                Session.units.Add(baseUnit);
+                Session.RegisterUnitPos(baseUnit, baseUnit.position);
+                Debug.Log($"[Test] 거점형 방 설정 완료 (방: {targetRoom.RoomName}, 거점 위치: {centerPos})");
             }
             else
             {
@@ -117,19 +123,19 @@ public class OffenseDebugWindow : EditorWindow
         if (GUILayout.Button("3. 플레이어 유닛 방 진입 (오펜스 개시)"))
         {
             Room targetRoom = GetRandomRealRoom();
-            if (targetRoom != null && GameSession.Instance != null && GameSession.Instance.unitGenerate != null)
+            if (targetRoom != null && Session != null && Session.unitGenerate != null)
             {
                 Vector2Int spawnPos = targetRoom.GetRandomPosInRoom();
-                Monster dummyPlayer = GameSession.Instance.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
+                Monster dummyPlayer = Session.unitGenerate.GenerateUnitAtPos<Monster>(new MeleeTank(), spawnPos, 1);
                 dummyPlayer.FactionBehavior = new PlayerMonsterBehavior();
                 dummyPlayer.name = "TestPlayer";
                 
-                GameSession.Instance.units.Add(dummyPlayer);
-                GameSession.Instance.RegisterUnitPos(dummyPlayer, dummyPlayer.position);
+                Session.units.Add(dummyPlayer);
+                Session.RegisterUnitPos(dummyPlayer, dummyPlayer.position);
                 
-                if (OffenseProcessor.Instance != null)
+                if (Session.OffenseProcessor != null)
                 {
-                    OffenseProcessor.Instance.StartOffense(targetRoom, dummyPlayer);
+                    Session.OffenseProcessor.StartOffense(targetRoom, dummyPlayer);
                 }
                 Debug.Log($"[Test] 플레이어 몬스터를 {spawnPos}에 소환하고 오펜스를 강제 개시했습니다. (방: {targetRoom.RoomName})");
             }
@@ -139,29 +145,9 @@ public class OffenseDebugWindow : EditorWindow
             }
         }
         
-        if (GUILayout.Button("야생 몬스터 사망 (자원 B 누적)"))
-        {
-            if (ResourceAccumulator.Instance != null)
-            {
-                ResourceAccumulator.Instance.AccumulateResourceB(50);
-            }
-            else
-            {
-                Debug.LogWarning("ResourceAccumulator 인스턴스를 찾을 수 없습니다.");
-            }
-        }
-        
-        if (GUILayout.Button("오펜스 승리 (누적 자원 정산)"))
-        {
-            if (ResourceAccumulator.Instance != null)
-            {
-                ResourceAccumulator.Instance.CommitResourceB();
-            }
-            else
-            {
-                Debug.LogWarning("ResourceAccumulator 인스턴스를 찾을 수 없습니다.");
-            }
-        }
+        // 건축물·자원·유닛 생산 MVP(2026-07-27) — ResourceAccumulator 삭제(처치 보상 즉시 지급으로
+        // 대체)에 따라 여기 있던 "자원 B 누적"/"오펜스 승리 정산" 테스트 버튼도 제거. 아래 3번 섹션의
+        // +Wood/+Stone 버튼으로 대체된다.
 
         // ----------------------------------------------------
         // 2. 웨이브 쿨타임 제어
@@ -219,3 +205,5 @@ public class OffenseDebugWindow : EditorWindow
         EditorGUI.EndDisabledGroup();
     }
 }
+
+

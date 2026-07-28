@@ -1,0 +1,42 @@
+클래스명: WaveState
+태그: State
+경로: Assets/Script/Wave/HumanWaveManager.cs
+의도: WaveState의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - waveCooldown: float 타입 데이터
+  - targetSpawner: WaveSpawner 타입 데이터
+  - currentState: WaveState 타입 데이터
+  - cooldownTimer: float 타입 데이터
+  - activeParty: Party 타입 데이터
+  - dummyTarget: InteractableObject 타입 데이터
+  - targetState: DummyTargetState 타입 데이터
+  - targetCarrier: Human 타입 데이터
+  - exitAreaPos: Vector2Int 타입 데이터
+  - preSpawnTriggered: bool 타입 데이터
+  - preSpawnedParty: Party 타입 데이터
+  - stagingUnits: HashSet<Human> 타입 데이터
+  - floor0StairPos: Vector2Int 타입 데이터
+  - floor1StairPos: Vector2Int 타입 데이터
+  - stairPosResolved: bool 타입 데이터
+  - retreatedSurvivors: List<Human> 타입 데이터
+  - runningStateTimer: float 타입 데이터
+  - pickupProgressSeconds: float 타입 데이터
+  - pickupCandidateUnit: Human 타입 데이터
+
+함수:
+  - PreSpawnWaveUnits(): void 반환
+  - ResolveStairPositions(): bool 반환
+  - FindSpawnPosNearFloor0Entrance(): Vector2Int 반환
+  - UpdateStagingStairWalk(): void 반환
+  - ForceCrossToTargetFloor(): void 반환
+  - RetreatMemberToFloor0(): void 반환
+  - StartWave(): void 반환
+  - MonitorWave(): void 반환
+  - PickupDummyTarget(): void 반환
+  - DropDummyTarget(): void 반환
+  - UpdatePartyDestination(): void 반환
+  - EndWave(): void 반환

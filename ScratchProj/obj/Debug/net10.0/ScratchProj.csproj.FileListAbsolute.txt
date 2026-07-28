@@ -1,0 +1,5 @@
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.AssemblyInfoInputs.cache
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.AssemblyInfo.cs
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.csproj.CoreCompileInputs.cache
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.sourcelink.json

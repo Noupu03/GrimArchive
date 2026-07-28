@@ -1,0 +1,18 @@
+클래스명: SceneName
+태그: SceneName
+경로: Assets/Haare/Scripts/Client/Routine/Service/SceneService/SceneService.cs
+의도: SceneName의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _coreUIManager: CoreUIManager 타입 데이터
+  - currentPhaseReactive: ReactiveProperty<SceneLoadPhase> 타입 데이터
+  - CurrentPhase: ReactiveProperty<SceneLoadPhase> 타입 데이터
+  - _loadProgress: ReactiveProperty<float> 타입 데이터
+  - LoadProgress: ReadOnlyReactiveProperty<float> 타입 데이터
+  - LoadSceneRequest: SceneLoadRequest 타입 데이터
+
+함수:
+  - OnSceneLoadedHandler(): void 반환

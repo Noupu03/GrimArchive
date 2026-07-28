@@ -21,15 +21,25 @@ public class TrapInteractionState
 	// 발견 시점 위치를 그대로 들고 다닌다(GameSession.GetObjectAt(Vector3Int) 조회에 사용).
 	public Vector3Int TrapPosition;
 
-	// 9-3장: 미기록 함정 발견 시 5초 동안 더 높은 성공률의 합류 유닛을 기다린다. 기록된 함정이거나
-	// 이미 5초가 지났으면 true.
+	// 9-3장(2026-07-27 개정: 5초→2초): 함정 정보 전파 후 2초 동안 발견 유닛이 응답 대기한다. 기록된
+	// 함정이거나 발견 유닛이 웨이브 진입 전 파티 내 최고 성공률 유닛이면 즉시 true.
 	public bool JoinWaitElapsed;
 	public float JoinWaitTimer;
 
-	// 9-3장: 5초 동안 이 유닛보다 더 높은 예상 성공률의 아군이 합류 의사를 전파했는지 — 있으면
-	// 그 아군이 실제 해제를 맡고, 이 유닛(발견자)은 Action_Wait이 아니라 이 상태를 유지한 채
-	// 그 아군이 도착할 때까지 대기한다(9-5장: 함정 대응이라는 하나의 연속 처리).
-	public Human HigherRateJoiner;
+	// 9-2~9-5장(2026-07-27 개편): 파티 전체 성공률 비교 + ETA 동률 우선으로 뽑힌 "해제 담당 유닛"
+	// 이름 — TrapPartySystem.ResolveSelection이 JoinWaitElapsed 전환 시점에 채운다. 발견자 자신이
+	// 선정되면 IsSelectedDisarmer=true로 계속 해제를 진행하고, 아니면 TrapAwaitSelectedUnit으로 빠진다.
+	public string SelectedUnitName;
+	public bool IsSelectedDisarmer;
+	// 웨이브 진입 전 파티 내 최고 성공률 유닛이 스스로 발견해 2초 응답을 생략한 경우(9-3장).
+	public bool AutoConfirmed;
+
+	// 9-7장(신규): 발견 유닛이 선정 유닛의 도착을 기다리는 동안 쓰는 ETA 기준 미도착 타이머와
+	// 마지막으로 확인된 선정 유닛 위치. 미도착 유예(ETA+3초)를 넘기면 SearchingForSelectedUnit=true로
+	// 전환해 그 위치로 직접 찾아간다.
+	public float MissingUnitTimer;
+	public bool SearchingForSelectedUnit;
+	public Vector2Int? SelectedUnitLastKnownPos;
 
 	// 9-9장: 파괴 진행 중 함정에 누적한 피해.
 	public float DestroyProgressDamage;

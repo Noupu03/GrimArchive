@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -35,6 +35,12 @@ public static class VisionMath
 
 	public const float AttackVisibilityBoostAmount = 10f;
 	public const float AttackVisibilityBoostDuration = 5f; // 초
+
+	// 03문서 4-6장(2026-07-27 개정): 수상한 타일 대상이 1칸 이동할 때마다 가시성이 임시로 +20 증가하며,
+	// 이 증가분은 "누적된 하나의 값"이 아니라 증가 시점부터 각각 개별 5초 유지된다(예: 3초 간격으로
+	// 두 번 이동하면 3초 뒤엔 +40, 8초 뒤엔 첫 증가분만 사라져 +20, 이후 다시 사라져 0). Unit.cs의
+	// suspiciousMoveBoostTimers(VisionStatComponent)가 증가분별 잔여시간을 리스트로 들고 있다.
+	public const float SuspiciousMoveBoostDurationSeconds = 5f;
 
 	public const float SurpriseHighThreatMultiplier = 2f; // 기습 방향 전환 기준: 근접 공격 기대값의 2배 이상
 
@@ -107,10 +113,11 @@ public static class VisionMath
 	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 레이는 막지 않되, 이 함수가
 	//      계산한 값에 02문서 8장 보정을 더한 최종 계산 가시성으로 12장 확률표를 굴려 인지 결과(정확
 	//      인지/수상한 타일/미인식)를 정한다(UnitFunction.ForceRollPerception). 판정 지점은 CastRay.
-	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted)
+	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted, float suspiciousMoveBoost = 0f)
 	{
 		float value = baseVisibility - stealth;
 		if (attackBoosted) value += AttackVisibilityBoostAmount;
+		value += suspiciousMoveBoost; // 4-6장: 이동당 +20씩(개별 5초 유지) 누적된 값을 그대로 더한다.
 		return Mathf.Min(value, VisibilityMax); // 하한은 클램프하지 않음 — 위 주석 참고.
 	}
 

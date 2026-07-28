@@ -77,6 +77,10 @@ public static class JsonToUnitPrefabConverter
         public UnitStatsData stats;
         public JsonWeightData weight;
         public JsonVisualData visual;
+        // 유닛 배치 시스템(2026-07-27 신규) 5.2장: 기본 유닛 인구수 점유량(2026-07-27 사용자 요청으로
+        // 2→1 조정). JSON에 값이 없으면 JsonUtility가 이 기본값을 그대로 보존한다(heavyHitThreshold/
+        // baseVisibility와 동일 관례).
+        public int           populationCost = 1;
     }
 
     [System.Serializable]
@@ -168,6 +172,7 @@ public static class JsonToUnitPrefabConverter
             def.unitTypeName   = u.typeName;
             def.footprint      = (u.footprint != null && u.footprint.Length >= 2) ? new Vector2(u.footprint[0], u.footprint[1]) : Vector2.one;
             def.engageDistance = u.engageDistance;
+            def.populationCost = u.populationCost;
             def.stats          = u.stats;
 
             def.skills = new List<SkillData>();

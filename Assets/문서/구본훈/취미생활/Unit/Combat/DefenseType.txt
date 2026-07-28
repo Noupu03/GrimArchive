@@ -1,0 +1,16 @@
+클래스명: DefenseType
+태그: DefenseType
+경로: Assets/Script/Unit/Combat/DefenseSystem.cs
+의도: DefenseType의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - type: DefenseType 타입 데이터
+  - score: float 타입 데이터
+  - weight: float 타입 데이터
+
+함수:
+  - EvaluateEarlyReaction(): void 반환
+  - EvaluateImpactDefense(): float 반환

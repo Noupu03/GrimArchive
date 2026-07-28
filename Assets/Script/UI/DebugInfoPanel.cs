@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -134,7 +134,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
             if (GUILayout.Button("Add 10 EXP"))
             {
-                u.exp += 10f;
+                u.BaseStat.exp += 10f;
                 RefreshSelectedUnitInfo();
             }
 
@@ -190,36 +190,40 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         Unit u = _inputManager.selectedUnit;
         var sb = new StringBuilder();
 
-        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
+        // 2026-07-27 사용자 요청 — 파티 리더를 이름 옆 별표로 구분(어느 유닛이 7-3장 코어 조사 등을
+        // 담당하는 리더인지 클릭만으로 알 수 있게).
+        bool isLeader = u is Human leaderCheck && leaderCheck.party != null && leaderCheck.party.Leader == leaderCheck;
+        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}{(isLeader ? " <color=yellow>★(리더)</color>" : "")}");
         sb.AppendLine($"<b>진영:</b> {(u.IsHumanFaction ? "인류" : (u.IsPlayerMonsterFaction ? "플레이어 몬스터" : "야생 몬스터"))}");
         sb.AppendLine($"<b>LV:</b> {u.level}");
-        sb.AppendLine($"<b>EXP:</b> {u.exp:F1}");
+        sb.AppendLine($"<b>EXP:</b> {u.BaseStat.exp:F1}");
         sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");
         sb.AppendLine();
-        sb.AppendLine($"<b>HP:</b> {u.hp:F1}");
+        sb.AppendLine($"<b>HP:</b> {u.Health.hp:F1}");
         if (u is Human humanObj)
         {
-            sb.AppendLine($"<b>MP:</b> {humanObj.mp:F1}");
-            string panicStr = (humanObj.mental < humanObj.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
-            sb.AppendLine($"<b>정신력:</b> {humanObj.mental:F1} / {humanObj.maxMental:F1}{panicStr}");
+            sb.AppendLine($"<b>MP:</b> {humanObj.Health.mp:F1}");
+            string panicStr = (humanObj.BaseStat.mental < humanObj.BaseStat.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
+            sb.AppendLine($"<b>정신력:</b> {humanObj.BaseStat.mental:F1} / {humanObj.BaseStat.maxMental:F1}{panicStr}");
             
-            if (humanObj.collectedObjects.Count > 0)
-                sb.AppendLine($"<color=yellow><b>Collected Objects:</b> {humanObj.collectedObjects.Count}</color>");
+            if (humanObj.Memory.collectedObjects.Count > 0)
+                sb.AppendLine($"<color=yellow><b>Collected Objects:</b> {humanObj.Memory.collectedObjects.Count}</color>");
             else
                 sb.AppendLine($"<b>Collected Objects:</b> 0");
 
             sb.AppendLine();
-            if (humanObj.party != null)
+            if (humanObj.UnitParty.party != null)
             {
-                Party party = humanObj.party;
+                Party party = humanObj.UnitParty.party;
                 string wipeStr = party.IsWiped ? " <color=red>(전멸)</color>" : (party.WaveEnded ? " <color=cyan>(웨이브 종료)</color>" : "");
                 sb.AppendLine($"<b>파티:</b> {party.Name} ({party.Members.Count}명){wipeStr}");
                 foreach (var member in party.Members)
                 {
                     if (member == null) continue;
-                    string color = member.hp <= 0 ? "red" : (member == u ? "yellow" : "white");
+                    string color = member.Health.hp <= 0 ? "red" : (member == u ? "yellow" : "white");
                     string self = member == u ? " ◀" : "";
-                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}: {member.hp:F0}/{member.maxHp:F0}{self}</color>");
+                    string leaderMark = member == party.Leader ? " ★" : "";
+                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}{leaderMark}: {member.Health.hp:F0}/{member.Health.maxHp:F0}{self}</color>");
                 }
             }
             else
@@ -228,29 +232,29 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             }
         }
         sb.AppendLine();
-        sb.AppendLine($"<b>물리공격력:</b> {u.physicalAttack:F1}");
-        sb.AppendLine($"<b>물리방어력:</b> {u.physicalDefense:F1}");
-        sb.AppendLine($"<b>마법공격력:</b> {u.magicalAttack:F1}");
-        sb.AppendLine($"<b>마법방어력:</b> {u.magicalDefense:F1}");
+        sb.AppendLine($"<b>물리공격력:</b> {u.CombatStat.physicalAttack:F1}");
+        sb.AppendLine($"<b>물리방어력:</b> {u.CombatStat.physicalDefense:F1}");
+        sb.AppendLine($"<b>마법공격력:</b> {u.CombatStat.magicalAttack:F1}");
+        sb.AppendLine($"<b>마법방어력:</b> {u.CombatStat.magicalDefense:F1}");
         sb.AppendLine();
-        sb.AppendLine($"<b>이동속도:</b> {u.walkSpeed:F1}");
+        sb.AppendLine($"<b>이동속도:</b> {u.BaseStat.walkSpeed:F1}");
         sb.AppendLine();
         sb.AppendLine("<b>기본 능력치</b>");
-        sb.AppendLine($"근력: {u.sterngth:F1}");
-        sb.AppendLine($"내구: {u.Durability:F1}");
-        sb.AppendLine($"민첩: {u.agility:F1}");
+        sb.AppendLine($"근력: {u.BaseStat.sterngth:F1}");
+        sb.AppendLine($"내구: {u.BaseStat.Durability:F1}");
+        sb.AppendLine($"민첩: {u.BaseStat.agility:F1}");
         sb.AppendLine($"집중: {u.concentration:F1}");
         sb.AppendLine($"마력: {u.MagicPower:F1}");
         sb.AppendLine($"저항: {u.resistance:F1}");
-        sb.AppendLine($"감각: {u.sense:F1}");
+        sb.AppendLine($"감각: {u.BaseStat.sense:F1}");
         sb.AppendLine($"통솔: {u.leadership:F1}");
         sb.AppendLine($"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}");
 
         string statusStr = "";
-        if (u.stunDuration > 0) statusStr += $"기절({u.stunDuration:F1}s) ";
-        if (u.slowDuration > 0) statusStr += $"둔화({u.slowDuration:F1}s) ";
-        if (u.poisonDuration > 0) statusStr += $"중독({u.poisonDuration:F1}s) ";
-        if (u.burnDuration > 0) statusStr += $"화상({u.burnDuration:F1}s) ";
+        if (u.StatusEffects.State.stunDuration > 0) statusStr += $"기절({u.StatusEffects.State.stunDuration:F1}s) ";
+        if (u.StatusEffects.State.slowDuration > 0) statusStr += $"둔화({u.StatusEffects.State.slowDuration:F1}s) ";
+        if (u.StatusEffects.State.poisonDuration > 0) statusStr += $"중독({u.StatusEffects.State.poisonDuration:F1}s) ";
+        if (u.StatusEffects.State.burnDuration > 0) statusStr += $"화상({u.StatusEffects.State.burnDuration:F1}s) ";
         if (statusStr != "")
             sb.AppendLine($"<color=red>상태이상: {statusStr}</color>");
 
@@ -270,8 +274,9 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             if (u == null) continue;
 
             string faction = u is Human ? "인류" : "몬스터";
-            string color = u.hp <= 0 ? "red" : (u is Human ? "white" : "yellow");
-            sb.AppendLine($"<color={color}>{u.unitType.typeName} ({faction}) — {u.hp:F0}/{u.maxHp:F0}</color>");
+            string color = u.Health.hp <= 0 ? "red" : (u is Human ? "white" : "yellow");
+            string leaderMark = u is Human hMulti && hMulti.party != null && hMulti.party.Leader == hMulti ? " ★" : "";
+            sb.AppendLine($"<color={color}>{u.unitType.typeName}{leaderMark} ({faction}) — {u.Health.hp:F0}/{u.Health.maxHp:F0}</color>");
         }
 
         return sb.ToString();

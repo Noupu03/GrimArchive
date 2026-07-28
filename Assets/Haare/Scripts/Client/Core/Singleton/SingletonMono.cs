@@ -10,10 +10,6 @@ namespace Haare.Client.Core.Singleton
 {
     public abstract class SingletonMonoBehaviour<T> : MonoRoutine where T : MonoRoutine
     {		
-        
-        /// <summary>
-        /// is already Created?
-        /// </summary>
         public static bool isCreated => instance != null;
 
         private static bool QuittingProgram = false;
@@ -29,30 +25,34 @@ namespace Haare.Client.Core.Singleton
                     {
                         LogHelper.Warning(LogHelper.FRAMEWORK,"Instace Gen Canceled while Quit Process It will be Ignore");
                         return null;
-                        
                     }
                     Type t = typeof(T);
-                    Create();
                     instance = (T)FindObjectOfType(t);
+                    if (instance == null)
+                    {
+                        Create();
+                    }
                 }
               
                 return instance;
             }
         }
         
-        
         public override async UniTask Initialize(CancellationToken cts)
         {
             await base.Initialize(cts);
             Type t = typeof(T);
-            instance = (T)FindObjectOfType(t);
+            if (instance == null)
+            {
+                instance = (T)FindObjectOfType(t);
+            }
         }
         
         static protected void Create() {
-            if ( isCreated )	{ return; }
+            if ( isCreated ) { return; }
             GameObject Obj = new GameObject($"{typeof(T).Name}");
             LogHelper.Log(LogHelper.FRAMEWORK,$"Singleton Generated {typeof(T).Name}");
-            Obj.AddComponent<T>();
+            instance = Obj.AddComponent<T>();
             DontDestroyOnLoad(Obj);
         }
         

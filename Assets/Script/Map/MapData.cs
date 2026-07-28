@@ -34,10 +34,11 @@ public enum RoomRole
 [Serializable]
 public enum OccupationState
 {
-	Neutral,            // 중립 (미점령)
-	PlayerControlled,   // 플레이어 점령
+	Neutral,            // 중립 (미점령) — 야생 방
+	PlayerControlled,   // 플레이어(몬스터 진영) 점령
 	Occupied,           // 적 점령
-	Outpost             // 전초기지
+	Outpost,            // 전초기지
+	HumanControlled     // 인류 소유(2026-07-27 신규) — 0층 로비 전체가 시작값으로 가짐
 }
 
 [Serializable]

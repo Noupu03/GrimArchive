@@ -1,0 +1,21 @@
+작성일: 2026-07-24
+
+[계단 타일 스프라이트 구분 — 나중에 고려]
+
+현재 상태:
+- 계단 타일(Stair)은 바닥 타일(Floor)과 동일한 스프라이트로 렌더링 중
+- 계단임을 표시하는 건 그 위에 얹는 오버레이 아이콘(stair_down.png / stair_up.png)이 담당
+- MapRandering.cs BuildTileCache() 참고
+
+왜 이렇게 됐냐:
+- stairSprite 변수가 선언은 돼 있었는데 어디서도 로드를 안 해서 항상 null
+- null이면 Color.yellow 단색 폴백으로 계단 타일이 노랗게 렌더링됨
+- 그 위에 계단 아이콘 오버레이까지 겹쳐서 노란 사각형 + 아이콘이 같이 보이는 문제 발생
+- 일단 stairSprite 대신 floorSprite 쓰도록 수정해서 해결
+
+나중에 하고 싶으면:
+1. Resources 폴더에 계단 전용 바닥 텍스처(예: stair_floor.png) 추가
+2. MapRandering.cs BuildTileCache() 안에 아래 줄 추가:
+   stairSprite = Resources.Load<Sprite>("stair_floor");
+3. stairTile.sprite = stairSprite != null ? stairSprite : floorSprite; 로 복구
+- 굳이 안 해도 지금은 아이콘 오버레이만으로도 계단 구분은 됨

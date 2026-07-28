@@ -1,0 +1,13 @@
+클래스명: VFXManager
+태그: Manager
+경로: Assets/Script/Unit/Visual/VFXManager.cs
+의도: 게임 내 VFX 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - Spawn(): void 반환

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // 유닛 타입별 프리팹의 루트에 붙는 컴포넌트.
@@ -10,6 +10,8 @@ public class UnitVisualDefinition : MonoBehaviour
     public string unitTypeName;
     public Vector2 footprint = Vector2.one;
     public int engageDistance = 2;
+    [Tooltip("유닛 배치 시스템(2026-07-27 신규) 5.2장: 방 인구수 점유량 - 기본 유닛 1")]
+    public int populationCost = 1;
 
     [Header("스탯")]
     public UnitStatsData stats = new UnitStatsData();
@@ -47,32 +49,33 @@ public class UnitVisualDefinition : MonoBehaviour
 
         unit.isSpecialUnit = isSpecialUnit;
         unit.isInterestTarget = isInterestTarget;
-        unit.baseInterest = baseInterest;
-        unit.baseDanger = baseDanger;
-        unit.heavyHitThreshold = heavyHitThreshold;
-        unit.stealth = stealth;
-        unit.baseVisibility = baseVisibility;
+        unit.populationCost = populationCost;
+        unit.BaseStat.baseInterest = baseInterest;
+        unit.BaseStat.baseDanger = baseDanger;
+        unit.BaseStat.heavyHitThreshold = heavyHitThreshold;
+        unit.VisionStat.stealth = stealth;
+        unit.VisionStat.baseVisibility = baseVisibility;
 
-        unit.maxHp = stats.maxHp; unit.hp = stats.maxHp;
-        unit.maxMp = stats.maxMp; unit.mp = stats.maxMp;
-        unit.physicalAttack      = stats.physicalAttack;
-        unit.magicalAttack       = stats.magicalAttack;
-        unit.physicalDefense     = stats.physicalDefense;
-        unit.magicalDefense      = stats.magicalDefense;
-        unit.HPRegen             = stats.HPRegen;
-        unit.attackspeed         = stats.attackspeed;
-        unit.walkSpeed           = stats.walkSpeed;
-        unit.reaction            = stats.reaction;
-        unit.criticalChance      = stats.criticalChance;
-        unit.cooltimeReduction   = stats.cooltimeReduction;
-        unit.statusResistance    = stats.statusResistance;
-        unit.maxMental           = stats.maxMental;
-        unit.mental              = stats.mental;
-        unit.spotting            = stats.spotting;
-        unit.leadershipRange     = stats.leadershipRange;
-        unit.charisma            = stats.charisma;
-        unit.physicalAttackSpeed = stats.physicalAttackSpeed;
-        unit.magicalCastSpeed    = stats.magicalCastSpeed;
+        unit.Health.maxHp = stats.maxHp; unit.Health.hp = stats.maxHp;
+        unit.Health.maxMp = stats.maxMp; unit.Health.mp = stats.maxMp;
+        var combatStats = unit.CombatStat; if(combatStats != null) { combatStats.physicalAttack = stats.physicalAttack;
+        combatStats.magicalAttack = stats.magicalAttack;
+        combatStats.physicalDefense = stats.physicalDefense;
+        combatStats.magicalDefense = stats.magicalDefense;
+        unit.BaseStat.HPRegen = stats.HPRegen;
+        combatStats.attackspeed = stats.attackspeed;
+        unit.BaseStat.walkSpeed = stats.walkSpeed;
+        unit.BaseStat.reaction = stats.reaction;
+        combatStats.criticalChance = stats.criticalChance; }
+        unit.BaseStat.cooltimeReduction = stats.cooltimeReduction;
+        unit.BaseStat.statusResistance = stats.statusResistance;
+        unit.BaseStat.maxMental = stats.maxMental;
+        unit.BaseStat.mental = stats.mental;
+        unit.VisionStat.spotting = stats.spotting;
+        unit.BaseStat.leadershipRange = stats.leadershipRange;
+        unit.BaseStat.charisma = stats.charisma;
+        unit.CombatState.State.physicalAttackSpeed = stats.physicalAttackSpeed;
+        unit.CombatState.State.magicalCastSpeed    = stats.magicalCastSpeed;
 
         if (unit.unitType != null) unit.unitType.footprint = footprint;
     }

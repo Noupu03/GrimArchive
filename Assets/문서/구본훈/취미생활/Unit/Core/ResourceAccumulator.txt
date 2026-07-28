@@ -1,0 +1,17 @@
+클래스명: ResourceAccumulator
+태그: ResourceAccumulator
+경로: Assets/Script/Unit/Core/ResourceAccumulator.cs
+의도: ResourceAccumulator의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _instance: ResourceAccumulator 타입 데이터
+  - _accumulatedResourceB: int 타입 데이터
+  - AccumulatedResourceB: int 타입 데이터
+
+함수:
+  - AccumulateResourceB(): void 반환
+  - CommitResourceB(): void 반환
+  - ClearResourceB(): void 반환

@@ -1,0 +1,13 @@
+클래스명: MapSaveModel (IDataModel)
+태그: MapSaveModel
+경로: Assets/Script/Map/MapSaveModel.cs
+의도: MapSaveModel의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IDataModel 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - 주요 정의 함수 없음

@@ -1,0 +1,24 @@
+클래스명: UnitAnimationController (MonoBehaviour)
+태그: Controller
+경로: Assets/Script/Unit/Visual/UnitAnimationController.cs
+의도: UnitAnimationController의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - idleClip: AnimationClip 타입 데이터
+  - walkClip: AnimationClip 타입 데이터
+  - animator: Animator 타입 데이터
+  - sr: SpriteRenderer 타입 데이터
+  - graph: PlayableGraph 타입 데이터
+  - mixer: AnimationMixerPlayable 타입 데이터
+  - movementRoot: Transform 타입 데이터
+  - state: AnimState 타입 데이터
+  - lastRootPos: Vector3 타입 데이터
+  - stationaryFrames: int 타입 데이터
+
+함수:
+  - BuildGraph(): void 반환
+  - TransitionTo(): void 반환
+  - SetWeights(): void 반환

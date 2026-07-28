@@ -1,0 +1,16 @@
+클래스명: DOTweenModuleUtils
+태그: DOTweenModuleUtils
+경로: Assets/Plugins/Demigiant/DOTween/Modules/DOTweenModuleUtils.cs
+의도: DOTweenModuleUtils의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - Init(): void 반환
+  - SetOrientationOnPath(): void 반환
+  - HasRigidbody2D(): bool 반환
+  - HasRigidbody(): bool 반환

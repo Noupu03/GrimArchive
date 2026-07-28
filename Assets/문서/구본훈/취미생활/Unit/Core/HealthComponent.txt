@@ -1,0 +1,18 @@
+클래스명: HealthComponent (IUnitComponent)
+태그: HealthComponent
+경로: Assets/Script/Unit/Core/HealthComponent.cs
+의도: HealthComponent의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IUnitComponent 상속 및 구현
+
+변수:
+  - _owner: Unit 타입 데이터
+  - maxHp: float 타입 데이터
+  - hp: float 타입 데이터
+  - maxMp: float 타입 데이터
+  - mp: float 타입 데이터
+
+함수:
+  - OnUpdate(): void 반환
+  - OnDespawn(): void 반환

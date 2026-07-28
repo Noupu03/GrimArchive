@@ -1,0 +1,18 @@
+클래스명: MapManager (NativeRoutine)
+태그: Manager
+경로: Assets/Script/Map/MapManager.cs
+의도: 게임 내 Map 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - NativeRoutine 상속 및 구현
+
+변수:
+  - _createMap: CreateMap 타입 데이터
+  - _mapRandering: MapRandering 타입 데이터
+  - _waveSpawner: WaveSpawner 타입 데이터
+  - mapRandering: MapRandering 타입 데이터
+  - waveSpawner: WaveSpawner 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - SetupAndVisualizeMap(): void 반환

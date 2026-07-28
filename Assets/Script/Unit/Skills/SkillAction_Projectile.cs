@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
@@ -26,19 +26,19 @@ public class SkillAction_Projectile : SkillAction
     public override int HitWidth => _d.threatWidth;
     public override int HitDepth => _d.threatDepth;
 
-    public override bool IsAvailable(Unit unit) => unit.skillCooldowns[_d.cooldownSlot] <= 0f;
+    public override bool IsAvailable(Unit unit) => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {
         float p = _d.priorityBase;
-        if (unit.physicalAttack * _d.priorityKillMultiplier >= target.hp) p += _d.priorityKillBonus;
+        if (unit.CombatStat.physicalAttack * _d.priorityKillMultiplier >= target.Health.hp) p += _d.priorityKillBonus;
         if (minDist <= _d.priorityRangeThreshold)                         p += _d.priorityRangeBonus;
         return p;
     }
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.attackspeed)));
+        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.CombatStat.attackspeed)));
 
         var threat = ThreatTileData.Create();
         threat.shape = ThreatShape.RECT;
@@ -59,9 +59,9 @@ public class SkillAction_Projectile : SkillAction
 
         System.Action updateThreatAction = () =>
         {
-            if (unit.currentThreat != null)
+            if (unit.AIState.currentThreat != null)
             {
-                Hitbox maxHitbox = BuildRectHitboxWithAngle(unit, threat.width, maxRange, unit.currentAttackAngle);
+                Hitbox maxHitbox = BuildRectHitboxWithAngle(unit, threat.width, maxRange, unit.CombatState.State.currentAttackAngle);
                 
                 if (!_d.isPiercing)
                 {
@@ -69,7 +69,7 @@ public class SkillAction_Projectile : SkillAction
                     float minHitDist = maxRange;
                     
                     Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
-                    Vector2 forward = new Vector2(Mathf.Cos(unit.currentAttackAngle), Mathf.Sin(unit.currentAttackAngle));
+                    Vector2 forward = new Vector2(Mathf.Cos(unit.CombatState.State.currentAttackAngle), Mathf.Sin(unit.CombatState.State.currentAttackAngle));
 
                     foreach(var enemy in enemies)
                     {
@@ -89,7 +89,7 @@ public class SkillAction_Projectile : SkillAction
                     threat.depth = maxRange;
                 }
                 
-                unit.currentThreat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.currentAttackAngle);
+                unit.AIState.currentThreat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
             }
         };
 
@@ -100,7 +100,7 @@ public class SkillAction_Projectile : SkillAction
             {
                 FireProjectile(unit, threat.depth);
             },
-            () => unit.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
             null,
             updateThreatAction
         );
@@ -132,10 +132,10 @@ public class SkillAction_Projectile : SkillAction
         {
             center = (Vector2)attacker.position + new Vector2(attacker.unitType.footprint.x, attacker.unitType.footprint.y) * 0.5f,
             size = new Vector2(1f, _d.threatWidth > 0 ? _d.threatWidth : 1f),
-            rotation = attacker.currentAttackAngle * Mathf.Rad2Deg
+            rotation = attacker.CombatState.State.currentAttackAngle * Mathf.Rad2Deg
         };
 
-        Vector2 moveDir = new Vector2(Mathf.Cos(attacker.currentAttackAngle), Mathf.Sin(attacker.currentAttackAngle));
+        Vector2 moveDir = new Vector2(Mathf.Cos(attacker.CombatState.State.currentAttackAngle), Mathf.Sin(attacker.CombatState.State.currentAttackAngle));
 
         // 투사체 로직 초기화
         proj.Init(attacker, _d, projectileHitbox, moveDir, maxDistance);

@@ -8,6 +8,30 @@ public class CameraController : MonoBehaviour
     public float minZoom = 5f;
     public float maxZoom = 50f;
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    static void AutoAttach()
+    {
+        // 1. 카메라 조작 자동 부착
+        if (Camera.main != null && Camera.main.gameObject.GetComponent<CameraController>() == null)
+        {
+            Camera.main.gameObject.AddComponent<CameraController>();
+            Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "CameraController 자동 부착 완료.");
+        }
+
+        // 2. EventSystem InputModule 크래시 방지 (새로운 Input System 적용)
+        var eventSystem = UnityEngine.EventSystems.EventSystem.current;
+        if (eventSystem != null)
+        {
+            var standalone = eventSystem.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            if (standalone != null)
+            {
+                Destroy(standalone);
+                eventSystem.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "EventSystem을 InputSystemUIInputModule로 자동 교체 완료.");
+            }
+        }
+    }
+
     void Update()
     {
         Vector3 pos = transform.position;

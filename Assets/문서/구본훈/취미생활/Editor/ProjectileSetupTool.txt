@@ -1,0 +1,15 @@
+클래스명: ProjectileSetupTool (EditorWindow)
+태그: ProjectileSetupTool
+경로: Assets/Editor/ProjectileSetupTool.cs
+의도: ProjectileSetupTool의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - EditorWindow 상속 및 구현
+
+변수:
+  - selectedPrefab: GameObject 타입 데이터
+
+함수:
+  - ShowWindow(): void 반환
+  - OnGUI(): void 반환
+  - SetupProjectilePrefab(): void 반환

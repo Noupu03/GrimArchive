@@ -1,0 +1,22 @@
+클래스명: GoapPlanner
+태그: GoapPlanner
+경로: Assets/Script/Unit/AI/GoapPlanner.cs
+의도: GoapPlanner의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - State: GoapState 타입 데이터
+  - Path: List<GoapAction> 타입 데이터
+  - Cost: float 타입 데이터
+
+함수:
+  - Plan(): List<GoapAction> 반환
+  - PreconditionsMet(): bool 반환
+  - EffectsSatisfied(): bool 반환
+  - ApplyAll(): GoapState 반환
+  - IsSatisfied(): bool 반환
+  - Satisfies(): bool 반환
+  - Apply(): GoapState 반환
+  - Serialize(): string 반환

@@ -1,0 +1,53 @@
+클래스명: UnitGenerate
+태그: UnitGenerate
+경로: Assets/Script/Unit/Visual/UnitGenerate.cs
+의도: UnitGenerate의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - ShowAllVisionRanges: bool 타입 데이터
+  - _selectionRingSprite: Sprite 타입 데이터
+  - UnitVisual: UnitVisual 타입 데이터
+  - UnitVisualDefinition: UnitVisualDefinition 타입 데이터
+  - WeaponAttachment: WeaponAttachment 타입 데이터
+  - SelectionMarker: SpriteRenderer 타입 데이터
+  - SpriteResolver: SpriteResolver 타입 데이터
+  - _cachedMapRandering: MapRandering 타입 데이터
+  - humanSprite: Sprite 타입 데이터
+  - monsterSprite: Sprite 타입 데이터
+  - _unitSpriteManager: UnitSpriteManager 타입 데이터
+  - _resolver: IObjectResolver 타입 데이터
+  - _gameSession: GameSession 타입 데이터
+  - Session: GameSession 타입 데이터
+
+함수:
+  - CreateRingSprite(): Sprite 반환
+  - GetCache(): VisualCache 반환
+  - GetMapRandering(): MapRandering 반환
+  - Construct(): void 반환
+  - SetupUnitVisual(): void 반환
+  - BuildFallbackVisual(): GameObject 반환
+  - GetVisualDef(): UnitVisualDefinition 반환
+  - SpawnGuardVFX(): void 반환
+  - SpawnParryVFX(): void 반환
+  - GetSkills(): List<SkillAction> 반환
+  - GetEngageDistance(): int 반환
+  - UpdateUnitSpriteForDirection(): void 반환
+  - UpdateSpriteResolver(): void 반환
+  - GetFloorTilemapTransform(): Transform 반환
+  - GetVisualTransform(): Transform 반환
+  - GetFloorOffset(): Vector3 반환
+  - RemoveVisual(): void 반환
+  - KillVisualTweens(): void 반환
+  - SyncVisuals(): void 반환
+  - EnsureSelectionMarker(): void 반환
+  - TriggerHitEffect(): void 반환
+  - CreateCircleSprite(): Sprite 반환
+  - CreateTriangleSprite(): Sprite 반환
+  - IsOccupied(): bool 반환
+  - IsAreaClear(): bool 반환
+  - GetRandomFloorPos(): Vector2Int 반환
+  - GetStartRoomPos(): Vector2Int 반환
+  - GetBossRoomPos(): Vector2Int 반환

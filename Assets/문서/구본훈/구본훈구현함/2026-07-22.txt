@@ -1,0 +1,31 @@
+﻿[14:580]
+- Unit.cs의 거대 의존성을 줄이기 위해 ECS 기반의 컴포넌트 시스템 도입.
+- Unit 클래스를 순수 컨테이너로 리팩토링하고 모든 필드를 10개의 컴포넌트로 분리 완료:
+  1. CombatStatComponent (공격/방어 스탯)
+  2. HealthComponent (체력/마나)
+  3. VisionStatComponent (시야/은신)
+  4. BaseStatComponent (RPG 기반 스탯)
+  5. PerceptionComponent (인지 상태 및 기록)
+  6. MemoryComponent (개인 맵 지식 및 수집 객체)
+  7. PartyComponent (파티 소속)
+  8. AIStateComponent (AI 및 반응 상태)
+  9. CombatStateComponent (전투 상태 및 스킬 쿨타임)
+  10. StatusEffectsComponent (상태이상 기록)
+- 관련된 모든 코드(UnitFunction, 스킬, AI, 렌더러 등)에서 GetComponent<T>()를 통해 컴포넌트를 참조하도록 전면 수정하여 결합도를 크게 낮춤. 빌드 성공 확인.
+
+
+[17:40]
+- SingletonMono.cs 및 HaareClient.cs BeforeSceneLoad 싱글톤 생성 버그 수정 (BeforeSceneLoad 시점 null 예외 방지)
+- GameSession - MapManager - WaveSpawner - HumanWaveManager 간 VContainer DI 순환 의존성(Circular Dependency) 해결 (GameSession.mapManager 프로퍼티 주입 전환)
+- Resources/Prefabs 경로 이탈로 인한 UI 로드 널 참조 예외 수정 (DebugInfoPanel.prefab, Demo_LoadingFadePanel.prefab, EncyclopediaPanel.prefab 등 UI 프리팹 Assets/Resources/Prefabs로 이동 복구)
+- GameUIPresenter BootSequence 예외 처리 보완 (LoadingFadePanel FadeOut 누락 및 화면 멈춤 방지)
+- C# 프로젝트 전체 빌드 정상 성공 확인
+
+[17:50] 하레 프레임워크 이중 Processor 소환 버그 수정
+- 원인: ssh.unity 씬에 Processor 컴포넌트가 있는 상태에서
+  HaareClient.BeforeSceneLoad에서 Processor를 또 생성 → 두 개 공존 → isInitialized deadlock
+- 조치: ssh.unity에서 Processor MonoBehaviour 블록(lines 537~549) 제거
+- 추가: GameCompositionRoot.Awake()의 디버그 파일쓰기 코드 제거
+- 추가: CoreLifetimeScope.Awake()의 디버그 LogError 제거
+- VFX 셰이더 에디터 스크립트(FXAllInOneLabGUI.cs, FXMaterialDesignerWindow.cs)를
+  Assets/VFX/Shader/Editor/ 폴더로 이동 (빌드 에러 해결)

@@ -1,0 +1,20 @@
+클래스명: WeaponAttachment (MonoBehaviour)
+태그: WeaponAttachment
+경로: Assets/Script/Unit/Visual/WeaponAttachment.cs
+의도: WeaponAttachment의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - direction: Dir 타입 데이터
+  - offset: Vector2 타입 데이터
+  - targetAngle: float 타입 데이터
+  - sortingOrder: int 타입 데이터
+  - nativeSpriteAngle: float 타입 데이터
+  - poses: DirectionalPose[] 타입 데이터
+  - _sr: SpriteRenderer 타입 데이터
+  - _lastDir: Dir 타입 데이터
+
+함수:
+  - UpdatePose(): void 반환

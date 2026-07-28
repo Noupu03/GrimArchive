@@ -1,0 +1,41 @@
+클래스명: GoapState (Dictionary<string,)
+태그: State
+경로: Assets/Script/Unit/AI/GoapCore.cs
+의도: GoapState의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - Dictionary<string, 상속 및 구현
+
+변수:
+  - Name: string 타입 데이터
+  - DesiredState: GoapState 타입 데이터
+  - ActionName: string 타입 데이터
+  - Cost: float 타입 데이터
+  - Preconditions: GoapState 타입 데이터
+  - Effects: GoapState 타입 데이터
+  - availableGoals: List<GoapGoal> 타입 데이터
+  - availableActions: List<GoapAction> 타입 데이터
+  - currentGoal: GoapGoal 타입 데이터
+  - currentPlan: Queue<GoapAction> 타입 데이터
+  - CurrentGoal: GoapGoal 타입 데이터
+  - _planVersion: int 타입 데이터
+  - _cachedPlanTextVersion: int 타입 데이터
+  - _cachedPlanTextManual: bool 타입 데이터
+  - _cachedPlanText: string 타입 데이터
+
+함수:
+  - GetPriority(): float 반환
+  - IsSticky(): bool 반환
+  - ShouldInterrupt(): bool 반환
+  - AddPrecondition(): void 반환
+  - AddEffect(): void 반환
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - GetClosestEnemy(): Unit 반환
+  - MoveTowardsPos(): void 반환
+  - MoveTowardsTarget(): void 반환
+  - MoveAwayFromTarget(): void 반환
+  - MoveToEscortSlot(): void 반환
+  - PlanText(): string 반환
+  - JudgeState(): void 반환
+  - ExecuteAction(): void 반환

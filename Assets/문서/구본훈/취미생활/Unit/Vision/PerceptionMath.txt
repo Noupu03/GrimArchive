@@ -1,0 +1,19 @@
+클래스명: PerceptionMath
+태그: PerceptionMath
+경로: Assets/Script/Unit/Vision/PerceptionMath.cs
+의도: PerceptionMath의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - DetectionCorrection(): float 반환
+  - GetMentalTier(): MentalTier 반환
+  - MentalVisibilityCorrection(): float 반환
+  - MentalCorrectionForHuman(): float 반환
+  - TotalPerceptionVisibility(): float 반환
+  - RollOutcome(): PerceptionOutcome 반환
+  - ReactionCandidatesFor(): PerceptionReactionCandidate[] 반환

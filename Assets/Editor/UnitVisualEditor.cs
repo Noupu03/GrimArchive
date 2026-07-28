@@ -27,15 +27,15 @@ public class UnitVisualEditor : Editor
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("개인 지도 (PersonalMapKnowledge)", EditorStyles.boldLabel);
-        EditorGUILayout.TextArea(human.personalMap.BuildDebugSummary(), GUILayout.MinHeight(120));
+        EditorGUILayout.TextArea(human.GetComponent<MemoryComponent>().personalMap.BuildDebugSummary(), GUILayout.MinHeight(120));
 
         // 지형 밝히기는 GameSession의 인류/몬스터 맵 텍스처(GameSessionEditor)와 동일한 방식으로
         // 그림으로 보여준다 — 칸이 금방 수백 단위로 늘어나 텍스트 나열은 못 봐줄 정도가 되기 때문.
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("지형 밝히기 (흰색=바닥, 회색=벽, 검정=미탐색)", EditorStyles.boldLabel);
-        foreach (int floor in human.personalMap.KnownTerrainFloors)
+        foreach (int floor in human.GetComponent<MemoryComponent>().personalMap.KnownTerrainFloors)
         {
-            var tex = human.personalMap.GetTerrainTexture(floor);
+            var tex = human.GetComponent<MemoryComponent>().personalMap.GetTerrainTexture(floor);
             if (tex == null) continue;
 
             EditorGUILayout.LabelField($"{floor}층");

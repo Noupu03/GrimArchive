@@ -1,0 +1,21 @@
+클래스명: HaareUISetup
+태그: UI
+경로: Assets/Editor/HaareUISetup.cs
+의도: 사용자 인터페이스(UI) 중 HaareSetup 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _koreanFont: TMP_FontAsset 타입 데이터
+
+함수:
+  - SetupHaareUI(): void 반환
+  - CreateCoreCanvasPrefab(): GameObject 반환
+  - CreateDebugInfoPanelPrefab(): GameObject 반환
+  - CreateLoadingFadePanelPrefab(): GameObject 반환
+  - CreateCustomButton(): GameObject 반환
+  - RegisterAddressable(): void 반환
+  - WireCompositionRoot(): void 반환
+  - GetBuiltinSprite(): Sprite 반환
+  - GetKoreanFont(): TMP_FontAsset 반환

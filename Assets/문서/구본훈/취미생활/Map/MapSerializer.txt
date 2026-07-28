@@ -1,0 +1,32 @@
+클래스명: MapSerializer
+태그: MapSerializer
+경로: Assets/Script/Map/MapSerializer.cs
+의도: MapSerializer의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - floors: FloorDto[] 타입 데이터
+  - config: FloorConfig 타입 데이터
+  - chunksWidth: int 타입 데이터
+  - chunksHeight: int 타입 데이터
+  - chunks: ChunksDto[] 타입 데이터
+  - gates: Gate[] 타입 데이터
+  - tiles: Tile[] 타입 데이터
+  - landform: int 타입 데이터
+  - roomId: int 타입 데이터
+  - roomName: string 타입 데이터
+  - roomRole: RoomRole 타입 데이터
+  - floorId: int 타입 데이터
+  - occupationState: OccupationState 타입 데이터
+  - stairTargetFloor: int 타입 데이터
+  - allowMaxFootprint: int 타입 데이터
+  - stairIsOpen: bool 타입 데이터
+  - stairHumanOnly: bool 타입 데이터
+
+함수:
+  - ToJson(): string 반환
+  - FromJson(): Map 반환
+  - MapToDto(): MapDto 반환
+  - DtoToMap(): Map 반환

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
 
-public abstract class UnitFunction : Unit
+public abstract class UnitFunction : Unit, IVisionContext
 {
+	public new GameSession Session => base.Session;
 	public override void TakeDamage(float damage)
 	{
-		float prevHp = hp;
-		hp -= damage;
-		isHitThisTurn = true;
+		float prevHp = Health.hp;
+		Health.hp -= damage;
+		CombatState.State.isHitThisTurn = true;
 		if (this.Generate != null) this.Generate.TriggerHitEffect(this);
 	}
 
@@ -17,12 +18,13 @@ public abstract class UnitFunction : Unit
 	{
 		if (attacker != null)
 		{
+			lastDamageDealer = attacker;
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
 		if (rawDamage > 0f)
 		{
-			float damage = Mathf.Max(1f, rawDamage - physicalDefense);
+			float damage = Mathf.Max(1f, rawDamage - CombatStat.physicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
 		}
@@ -32,12 +34,13 @@ public abstract class UnitFunction : Unit
 	{
 		if (attacker != null)
 		{
+			lastDamageDealer = attacker;
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
 		if (rawDamage > 0f)
 		{
-			float damage = Mathf.Max(1f, rawDamage - magicalDefense);
+			float damage = Mathf.Max(1f, rawDamage - CombatStat.magicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
 		}
@@ -62,18 +65,19 @@ public abstract class UnitFunction : Unit
 
 		string incidentId = System.Guid.NewGuid().ToString();
 		lastAttacker = attacker;
+		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
 		if (defenderIsHuman)
 		{
 			// 02문서 17장: "피격 사실/피해량은 확정되지만 공격자 정체는 별도 인지 판정이 필요하다."
-			// hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
+			// Health.hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
 			// 이벤트만 인지 판정으로 게이팅한다 — IsAttackerIdentified가 4장 조건5(피격 시 공격 후
 			// 가시성 증가를 반영한 즉시 재판정)를 강제로 수행한다.
 			bool attackerIdentified = IsAttackerIdentified(attacker);
 			if (attackerIdentified)
 			{
 				// "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
-				if (appliedDamage >= heavyHitThreshold)
+				if (appliedDamage >= BaseStat.heavyHitThreshold)
 				{
 					this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
 					BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
@@ -104,7 +108,7 @@ public abstract class UnitFunction : Unit
 			// 02문서 4장 조건5/26장("인지 판정: 인류/몬스터 공통 사용"): 이 RecordEvent 자체는 게이팅
 			// 대상이 아니다(attacker=인류가 이미 자기 공격 대상을 스스로 알고 있음) — 다만 몬스터(this)
 			// 쪽 인지 판정도 인류와 동일하게 "피격 시 재판정" 트리거를 받아야 하므로, 게이팅 없이
-			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 personalSpottedEnemies 등에 반영될 수 있게).
+			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 Perception.State.personalSpottedEnemies 등에 반영될 수 있게).
 			ForceReidentifyAttacker(attacker);
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
@@ -122,7 +126,7 @@ public abstract class UnitFunction : Unit
 		if (attacker == null) return;
 
 		float dist = Vector2.Distance(position, attacker.position);
-		float effectiveSpotting = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
+		float effectiveSpotting = VisionStat.spotting + (Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 		float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
 
@@ -203,7 +207,7 @@ public abstract class UnitFunction : Unit
 	// 한다 — RecordStatusWeightEvent는 RecordHitWeightEvent와 같은 피격 시퀀스 안에서 호출되므로(4장:
 	// 같은 트리거를 또 재판정하지 않는다) 새 판정이 아니라 조회여야 한다.
 	private bool IsCurrentlyIdentified(Unit target)
-		=> target != null && perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
+		=> target != null && Perception.State.perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
 
 	// 3장 "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정(그 순간 그 자리를 보고
 	// 있었는지)은 아직 없어서, GameSession.RecordKillWeightEvent와 동일하게 "그 순간 생존해 있는
@@ -214,7 +218,7 @@ public abstract class UnitFunction : Unit
 		if (Session == null || this.Knowledge == null) return;
 		foreach (var witness in Session.units)
 		{
-			if (witness == null || witness == participant || !(witness is Human) || witness.hp <= 0) continue;
+			if (witness == null || witness == participant || !(witness is Human) || witness.Health.hp <= 0) continue;
 			this.Knowledge.RecordEvent(id, witness, target, InfoType.DirectWitness, incidentId);
 		}
 	}
@@ -223,17 +227,17 @@ public abstract class UnitFunction : Unit
 	{
 		if (this is Human)
 		{
-			int prevStage = Mathf.FloorToInt(mental / (maxMental * 0.25f));
-			mental -= rawDamage; // 정신력만 감소
-			int currentStage = Mathf.FloorToInt(mental / (maxMental * 0.25f));
-			isHitThisTurn = true;
+			int prevStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
+			BaseStat.mental -= rawDamage; // 정신력만 감소
+			int currentStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
+			CombatState.State.isHitThisTurn = true;
 		}
 	}
 
-	public override void ApplyStun(float duration)   { stunDuration   = Mathf.Max(stunDuration,   duration); RecordStatusWeightEvent(); }
-	public override void ApplySlow(float duration)   { slowDuration   = Mathf.Max(slowDuration,   duration); RecordStatusWeightEvent(); }
-	public override void ApplyPoison(float duration) { poisonDuration = Mathf.Max(poisonDuration, duration); RecordStatusWeightEvent(); }
-	public override void ApplyBurn(float duration)   { burnDuration   = Mathf.Max(burnDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplyStun(float duration)   { StatusEffects.State.stunDuration   = Mathf.Max(StatusEffects.State.stunDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplySlow(float duration)   { StatusEffects.State.slowDuration   = Mathf.Max(StatusEffects.State.slowDuration,   duration); RecordStatusWeightEvent(); }
+	public override void ApplyPoison(float duration) { StatusEffects.State.poisonDuration = Mathf.Max(StatusEffects.State.poisonDuration, duration); RecordStatusWeightEvent(); }
+	public override void ApplyBurn(float duration)   { StatusEffects.State.burnDuration   = Mathf.Max(StatusEffects.State.burnDuration,   duration); RecordStatusWeightEvent(); }
 
 	// 3장 E_STATUS_SELF/SEEN: 상태이상 직접 경험/목격. 실제 게임에서 걸리는 상태이상은 현재 스턴뿐이라
 	// (SkillAction/Projectile이 ApplyStun만 호출) 사실상 스턴 적용 시점에서만 발동하지만, 나중에
@@ -318,7 +322,7 @@ public abstract class UnitFunction : Unit
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
 				{
-					if (u != null && u != this && u.hp > 0) return false;
+					if (u != null && u != this && u.Health.hp > 0) return false;
 				}
 
 
@@ -353,10 +357,32 @@ public abstract class UnitFunction : Unit
 		{
 			currentDir = dir;
 			position = nextPos;
+
+			// 4-6장: 이 유닛을 "수상한 타일" 대상으로 추적 중인 적(관찰자)이 하나라도 있으면, 이동
+			// 1회마다 이 유닛 자신의 가시성을 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는
+			// 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
+			if (IsTrackedAsSuspiciousByAnyEnemy())
+				VisionStat.suspiciousMoveBoostTimers.Add(VisionMath.SuspiciousMoveBoostDurationSeconds);
 		}
 
 		if (this.Generate != null)
 			this.Generate.UpdateUnitSpriteForDirection(this);
+	}
+
+	// 4-6장 트리거 판정 — Session 전체를 순회해 "나를 적으로 보는 유닛 중 지금 나를 수상한 타일로
+	// 추적 중인 관찰자가 있는가"를 확인한다. 관찰자별로 다른 값을 주는 대신(07 전파 문서 부재로 이번
+	// 구현에서도 단순화) 이 유닛 자신의 가시성 하나에 반영해 모든 관찰자에게 동일하게 적용한다.
+	private bool IsTrackedAsSuspiciousByAnyEnemy()
+	{
+		if (Session == null) return false;
+		foreach (var u in Session.units)
+		{
+			if (u == null || u == this || u.Health.hp <= 0) continue;
+			if (!u.IsEnemy(this)) continue;
+			if (u.Perception.State.perceptionRecords.TryGetValue(this, out var rec) && rec.PendingSuspiciousInvestigation)
+				return true;
+		}
+		return false;
 	}
 
 	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
@@ -377,9 +403,9 @@ public abstract class UnitFunction : Unit
 		firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
 		_reachedPerceptionThisPass[key] = (dist, tile);
 		if (!firstTouchThisPass)
-			return perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
+			return Perception.State.perceptionRecords.TryGetValue(key, out var already) ? already.Outcome : PerceptionOutcome.Unrecognized;
 
-		perceptionRecords.TryGetValue(key, out var existing);
+		Perception.State.perceptionRecords.TryGetValue(key, out var existing);
 
 		// 4장 조건1/2/3: 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
 		bool isNewOrReentering = existing == null || !existing.WasInRange;
@@ -408,10 +434,10 @@ public abstract class UnitFunction : Unit
 		// 한 곳에서 가드하면 모든 호출 경로에 일괄 적용된다.
 		if (!CanPerceive)
 		{
-			if (!perceptionRecords.TryGetValue(key, out var frozen))
+			if (!Perception.State.perceptionRecords.TryGetValue(key, out var frozen))
 			{
 				frozen = new PerceptionRecord();
-				perceptionRecords[key] = frozen;
+				Perception.State.perceptionRecords[key] = frozen;
 			}
 			frozen.WasInRange = true;
 			frozen.LastKnownTile = tile;
@@ -419,18 +445,18 @@ public abstract class UnitFunction : Unit
 			return frozen.Outcome;
 		}
 
-		float detectionCorrection = PerceptionMath.DetectionCorrection(spotting, IsAlert);
+		float detectionCorrection = PerceptionMath.DetectionCorrection(VisionStat.spotting, Perception.IsAlert);
 		float mentalCorrection = GetMentalVisibilityCorrection();
 		float total = PerceptionMath.TotalPerceptionVisibility(targetVisibility, detectionCorrection, mentalCorrection);
 		PerceptionOutcome outcome = PerceptionMath.RollOutcome(total, Random.value);
 
-		if (!perceptionRecords.TryGetValue(key, out var record))
+		if (!Perception.State.perceptionRecords.TryGetValue(key, out var record))
 		{
 			record = new PerceptionRecord();
-			perceptionRecords[key] = record;
+			Perception.State.perceptionRecords[key] = record;
 		}
 		bool nowSuspicious = outcome == PerceptionOutcome.SuspiciousTile;
-		NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // IsAlert 카운터 O(1) 유지
+		Perception.NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // Perception.IsAlert 카운터 O(1) 유지
 		record.Outcome = outcome;
 		record.WasInRange = true;
 		record.LastKnownTile = tile;
@@ -450,6 +476,26 @@ public abstract class UnitFunction : Unit
 	// rayInPerceptionAngle: 이 레이가 인지각(01-A 4장) 범위 안인지 여부(레이별로 UpdateFOV가 미리 계산해 전달).
 	// perceptionDistance: 인지 거리(01-A 3장) — 이 거리 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다.
 	// 특수 원형 인지 범위(01-A 12장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
+	// IVisionContext methods
+	public PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float currentDist, out bool firstTouch)
+	{
+		return this.ResolveReachedTarget(key, targetVisibility, tile, currentDist, PerceptionTargetKind.None, out firstTouch);
+	}
+	
+	public bool HasReachedPerceptionThisPass(object key) => _reachedPerceptionThisPass.ContainsKey(key);
+	public bool HasVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Contains(tile);
+	public void AddVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Add(tile);
+	public void AddPersonalSpottedEnemy(Unit unit)
+	{
+		if (!Perception.State.personalSpottedEnemies.Contains(unit)) Perception.State.personalSpottedEnemies.Add(unit);
+	}
+
+	private IVisionTileHandler[] _visionHandlers = new IVisionTileHandler[]
+	{
+		new TerrainRevealHandler(),
+		new ObjectPerceptionHandler(),
+		new UnitPerceptionHandler()
+	};
 	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits, bool rayInPerceptionAngle, float perceptionDistance)
 	{
 		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
@@ -475,6 +521,14 @@ public abstract class UnitFunction : Unit
 		int mapWidth  = floor.config.width  * 8;
 		int mapHeight = floor.config.height * 8;
 
+		// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청 "몬스터는 방과 방 사이 못봄", 사용자
+		// 신고 "시야각 차단이 잘 안되는거 같아"/"자꾸 전투 상태가 됨") — ClampDirectionToOwnRoom(시야
+		// "방향"만 방 안쪽으로 트는 근사)만으로는 넓은 시야각(120도) 콘이 인접 방까지 걸치는 경우를
+		// 못 막는다. 방 제한 유닛(RoomConfinedMovement)이면 레이 자체가 자기 방 밖 타일에 닿는 순간
+		// 벽을 만난 것처럼 끊는다 — 지형/오브젝트/유닛 인지가 전부 이 지점 이후로는 발생하지 않는다.
+		bool roomRestrictedObserver = MovementAlgorithm is RoomConfinedMovement;
+		int myRoomId = roomRestrictedObserver ? cmap.GetRoomIdAt(currentFloor, startPos) : -1;
+
 		while (dist <= maxRadius)
 		{
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) break;
@@ -484,24 +538,64 @@ public abstract class UnitFunction : Unit
 			int cy = y / 8;
 			int ty = y % 8;
 
-			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) break;
+			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height)
+			{
+				if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight)
+					myData.discoveredMap[currentFloor][x, y] = 2;
+				break;
+			}
 
 			Chunks c = floor.chunks[cx, cy];
-			if (c.roomId == -1 || c.chunk == null) break;
+			if (c.roomId == -1 || c.chunk == null)
+			{
+				myData.discoveredMap[currentFloor][x, y] = 2;
+				break;
+			}
+
+			if (roomRestrictedObserver && myRoomId >= 0 && c.roomId != myRoomId)
+			{
+				break; // 자기 방을 벗어난 타일 — 벽과 동일하게 레이 차단(지형도 더 안 밝힘)
+			}
 
 			Tile tile = c.chunk[tx, ty];
 			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
-			// 01-A 3장/4장: 이 타일이 인지 거리 + 인지각(또는 특수 원형 인지 범위) 안에 실제로 들어오는지.
+			// 시야 사각지대(DDA 틈새) 근본적 해결: 바닥을 보았다면, 그 바닥과 맞닿은 8방향의 숨은 벽을 즉시 시야에 추가합니다. (Wall Dilation)
+			if (!tileIsWall)
+			{
+				for (int dx = -1; dx <= 1; dx++)
+				{
+					for (int dy = -1; dy <= 1; dy++)
+					{
+						int nx = x + dx, ny = y + dy;
+						if (nx >= 0 && nx < mapWidth && ny >= 0 && ny < mapHeight && myData.discoveredMap[currentFloor][nx, ny] == 0)
+						{
+							int ncx = nx / 8, ntx = nx % 8, ncy = ny / 8, nty = ny % 8;
+							if (ncx < 0 || ncx >= floor.config.width || ncy < 0 || ncy >= floor.config.height)
+							{
+								myData.discoveredMap[currentFloor][nx, ny] = 2; // 맵 밖은 벽
+							}
+							else
+							{
+								Chunks nc = floor.chunks[ncx, ncy];
+								if (nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall" || nc.chunk[ntx, nty].isStructureExist)
+								{
+									myData.discoveredMap[currentFloor][nx, ny] = 2; // 숨은 벽 및 청크 빈 공간(허공) 즉시 확정
+								}
+							}
+						}
+					}
+				}
+			}
+
 			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
 			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;
+			Human terrainObserver = this as Human;
 
-			// 지형 밝히기 — FactionData.discoveredMap과 같은 정보(벽/바닥)를 인류 개인 지도에도
-			// 기록한다. 몬스터 발견 여부와 무관하게 시야가 지나가는 모든 타일마다 갱신된다(01장 2절
-			// "시야 범위 처리: 1.타일 위치 확인"은 인지 범위 여부와 무관하게 항상 가능하다).
-			if (this is Human terrainObserver)
+			foreach (var handler in _visionHandlers)
 			{
+				if (terrainObserver == null) continue;
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
 				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 
@@ -526,9 +620,16 @@ public abstract class UnitFunction : Unit
 						{
 							// 02문서 6장: 오브젝트 유형별 가시성(시체/전멸흔적=100 고정, 그 외=BaseVisibility).
 							float objVisibility = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
+							// Core는 정확히 일치하는 태그("Object/Passable/Core")로만 판정한다(substring이
+							// 아님 — "DungeonCore" 같은 다른 태그와 우연히 겹치지 않도록). 2026-07-27부터
+							// 보스방 던전 코어(GameSession.DungeonCoreTag)도 이 태그를 함께 갖도록 통합돼
+							// 같은 경로를 탄다(사용자 요청 "코어에 대해서, 통합하자") — 웨이브 목표 추적·
+							// 운반 기능(HumanWaveManager)은 여전히 Loot 하위 태그로 별도 동작하고, 이
+							// 발견 훅은 그 위에 리더 전용 발견~조사 절차만 추가로 얹는다.
 							PerceptionTargetKind objKind = obj.Tags.Any(t => t.Contains("WipeoutTrace")) ? PerceptionTargetKind.WipeoutTrace
 								: obj.Tags.Any(t => t.Contains("Corpse")) ? PerceptionTargetKind.Corpse
 								: obj.Tags.Any(t => t.Contains("Trap")) ? PerceptionTargetKind.Trap
+								: obj.Tags.Contains("Object/Passable/Core") ? PerceptionTargetKind.Core
 								: PerceptionTargetKind.None;
 							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
 
@@ -549,17 +650,25 @@ public abstract class UnitFunction : Unit
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
 								}
 
-								// 03문서 9장: 함정을 처음 정확 인지하면 함정 대응 상태를 만든다. 이미 다른 함정을
-								// 처리 중이면(currentTrapInteraction != null) 새 함정은 무시한다 — 9-7장 목록에
-								// "새 함정 발견"은 중단 조건이 아니고, 2-1장이 이미 수행 중인 반응은 자동 중단
-								// 하지 않는다고 명시하므로 한 번에 하나만 처리한다.
-								if (objKind == PerceptionTargetKind.Trap && currentTrapInteraction == null)
+								// 03문서 9장(2026-07-27 개편): 함정을 처음 정확 인지하면 발견/선정 조율은
+								// TrapPartySystem이 전담한다(발견자 단독 처리가 아니라 파티 전체 성공률 비교 +
+								// ETA 동률 우선 선정 — 9-2/9-3장).
+								if (objKind == PerceptionTargetKind.Trap)
 								{
-									currentTrapInteraction = new TrapInteractionState
-									{
-										TrapObjectId = obj.Id,
-										TrapPosition = obj.Position,
-									};
+									TrapPartySystem.OnTrapDiscovered(terrainObserver, obj);
+								}
+
+								// 03문서 4-12~4-15장(2026-07-27 신규): 파티원 시체를 나중에(사망 순간 목격이
+								// 아니라) 처음 정확 인지하는 경우의 "발견" 트리거.
+								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Human"))
+								{
+									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
+								}
+
+								// 03문서 7-3장(2026-07-27 신규): 코어를 처음 정확 인지하면 리더에게 전파한다.
+								if (objKind == PerceptionTargetKind.Core)
+								{
+									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
 								}
 							}
 							// else: 수상한 타일/미인식 — 다음 트리거(재진입/2칸 재접근)까지 이 판정을 유지한다.
@@ -574,54 +683,31 @@ public abstract class UnitFunction : Unit
 				}
 			}
 
-			if (Session != null &&
-				Session.unitGrid.TryGetValue(revealedTile, out Unit unit))
+			// 유닛 인지 — _visionHandlers의 foreach가 handler.Handle()을 호출하지 않아
+			// UnitPerceptionHandler가 데드 코드 상태이므로 직접 처리한다.
+			// 인류·몬스터 모두 동작해야 전투가 성립된다.
+			if (Session != null && Session.unitGrid.TryGetValue(revealedTile, out Unit unitAtTile)
+				&& unitAtTile != null && unitAtTile != this && unitAtTile.Health.hp > 0
+				&& this.IsEnemy(unitAtTile))
 			{
-				if (unit != null && unit != this && unit.hp > 0)
+				if (inPerceptionRange)
 				{
-					bool isEnemy = this.IsEnemy(unit);
-					if (isEnemy)
+					PerceptionOutcome unitOutcome = ResolveReachedTarget(unitAtTile, unitAtTile.GetFinalVisibility(), revealedTile, dist, out bool _);
+					if (unitOutcome == PerceptionOutcome.AccuratePerception)
 					{
-						if (inPerceptionRange)
-						{
-							// 02문서 4장/8장/12장: 트리거 시점에만 재판정(확률표)하고, 그 사이엔 이전 결과를
-							// 유지한다. 정확 인지된 대상만 personalSpottedEnemies·개인 지도에 반영한다.
-							PerceptionOutcome outcome = ResolveReachedTarget(unit, unit.GetFinalVisibility(), revealedTile, dist, PerceptionTargetKind.EnemyUnit, out bool firstTouch);
-
-							if (outcome == PerceptionOutcome.AccuratePerception)
-							{
-								if (!personalSpottedEnemies.Contains(unit)) personalSpottedEnemies.Add(unit);
-
-								// 지도는 인류만 들고 있다 — 인류가 몬스터를 발견한 시점에만 개인 지도에 기록.
-								// GetFinalDanger/GetUnitInterest(전역 종/개체 누적)가 아니라 GetPersonalDanger/
-								// GetPersonalInterest(이 관찰자의 personalWeights)를 쓴다 — 전역 값은 OnWaveEnd가
-								// 있어야만 갱신되는데(6장) 웨이브 루프가 아직 없어 영원히 그대로다. personalWeights는
-								// RecordEvent()가 호출되는 즉시(4장) 갱신되므로, 이걸 써야 실제 전투 이벤트에 맞춰
-								// 개인 지도가 바로바로 반영된다.
-								if (this is Human human && Knowledge != null)
-								{
-									float danger = Knowledge.GetPersonalDanger(human, unit);
-									float interest = Knowledge.GetPersonalInterest(human, unit);
-									human.personalMap.ObserveMonster(unit.name, revealedTile, danger, interest);
-
-									// 20장/21장: 이 몬스터가 서 있는 방의 "확인된 유닛" 목록에도 반영 — 방
-									// 위험도/흥미도의 Exploring/Complete 단계 계산에 쓰인다.
-									bool isBossRoom = c.roomRole == RoomRole.BossRoom;
-									human.personalMap.ObserveUnitInRoom(c.roomId, isBossRoom, unit.name, danger, interest);
-								}
-							}
-							// else: 수상한 타일/미인식 — personalSpottedEnemies는 매 UpdateFOV마다 Clear() 후
-							// 다시 채우는 스냅샷이라(01-A 8장 관련 기존 구조), 여기서 추가하지 않는 것만으로
-							// 자연히 제외된다(정체 미확정 대상을 타겟/전투 후보로 넘기지 않음).
-						}
-						else if (!_reachedPerceptionThisPass.ContainsKey(unit) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
-						{
-							// 01장 7절: 인지 범위 밖 — 정체는 모르지만 "비어있지 않은 타일"로만 인지.
-							visionOnlyNonEmptyTiles.Add(revealedTile);
-						}
+						AddPersonalSpottedEnemy(unitAtTile);
+						// 4-15장: 원인미상 파티원 사망 수색 중 몬스터를 정확 인지하면 사망 원인 확인 시도.
+						if (this is Human deathSearchObserver)
+							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
 					}
 				}
+				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
+				{
+					visionOnlyNonEmptyTiles.Add(revealedTile);
+				}
 			}
+
+
 			/*=======아티팩트 관련 참조 주석처리========
 			// 유물 발견
 			if (ArtifactManager.Instance != null)
@@ -672,8 +758,8 @@ public abstract class UnitFunction : Unit
 
 	public override void UpdateFOV(List<Unit> allUnits)
 	{
-		personalSpottedEnemies.Clear();
-		visionOnlyNonEmptyTiles.Clear();
+		Perception.State.personalSpottedEnemies.Clear();
+		Perception.State.visionOnlyNonEmptyTiles.Clear();
 		_reachedPerceptionThisPass.Clear();
 
 		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
@@ -686,7 +772,7 @@ public abstract class UnitFunction : Unit
 		// 01-A 1~4장: 시야각은 고정(120도), 시야/인지 거리와 인지각은 감지 스탯(spotting)에 따라 결정된다.
 		// 02문서 10장: 경계 중에는 감지 보정(+20)이 인지 판정뿐 아니라 시야 거리/인지 거리/인지각에도 반영된다.
 		float viewAngle          = VisionMath.BaseViewAngleDeg;
-		float effectiveSpotting  = spotting + (IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+		float effectiveSpotting  = VisionStat.spotting + (Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
 		float viewDistance       = VisionMath.ViewDistance(effectiveSpotting);
 		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
@@ -724,7 +810,7 @@ public abstract class UnitFunction : Unit
 		// 벽에는 여전히 막힌다(원형 인지 범위는 "각도 무관"일 뿐 "완전 차단 무시"는 아니다 — 01장 15절).
 		if (isSpecialUnit)
 		{
-			int circularRadius = VisionMath.CircularPerceptionRadius(spotting);
+			int circularRadius = VisionMath.CircularPerceptionRadius(VisionStat.spotting);
 			int circularRays = 32;
 			for (int i = 0; i < circularRays; i++)
 			{
@@ -737,7 +823,7 @@ public abstract class UnitFunction : Unit
 		// "지금 안 보인다"로 내려둔다 — Outcome(정확 인지/수상한 타일/미인식) 자체는 건드리지 않고
 		// WasInRange만 false로 바꿔서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입/완전 차단
 		// 후 재등장 트리거로 인식하게 한다.
-		foreach (var kv in perceptionRecords)
+		foreach (var kv in Perception.State.perceptionRecords)
 		{
 			if (!_reachedPerceptionThisPass.ContainsKey(kv.Key))
 				kv.Value.WasInRange = false;
@@ -754,10 +840,10 @@ public abstract class UnitFunction : Unit
 	{
 		var candidates = new List<VisionMath.VisionDirectionCandidate>();
 
-		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(currentAttackAngle) 기준.
-		if (isCastingAttack)
+		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(CombatState.State.currentAttackAngle) 기준.
+		if (CombatState.State.isCastingAttack)
 		{
-			Vector2 aimDir = new Vector2(Mathf.Cos(currentAttackAngle), Mathf.Sin(currentAttackAngle));
+			Vector2 aimDir = new Vector2(Mathf.Cos(CombatState.State.currentAttackAngle), Mathf.Sin(CombatState.State.currentAttackAngle));
 			Dir skillDir = SkillAction.GetDirection8(new Vector2Int(Mathf.RoundToInt(aimDir.x), Mathf.RoundToInt(aimDir.y)));
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SkillUse, skillDir));
 		}
@@ -771,7 +857,7 @@ public abstract class UnitFunction : Unit
 		// (InputManager.cs 세터, Goals.cs 주석 "수동 공격 명령은 최우선" 참고)이라 10장 "플레이어의
 		// 명령에 대한 시야 전환은 항상 최우선 순위가 된다"는 특례를 그대로 적용한다(사용자 확인,
 		// 2026-07-22 — 이전엔 4순위 CurrentAttackTarget으로 분류돼 있었음).
-		if (playerAttackTarget != null && playerAttackTarget.hp > 0)
+		if (playerAttackTarget != null && playerAttackTarget.Health.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
 		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
@@ -779,9 +865,9 @@ public abstract class UnitFunction : Unit
 		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
 		// 죽은 값이었다(소비자 부재) — "경로 판단" 절반은 여전히 10_목표설정·이동경로·재설정 문서
 		// (부재)의 몫이지만, "탐색 방향 판단" 절반은 이 시야 방향 전환 후보로 지금 바로 충족 가능해
-		// 연결한다. visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
+		// 연결한다. Perception.State.visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
 		// 안 들어온 "비어있지 않은 타일" 목록 그대로다.
-		var nearestUnconfirmedTile = NearestTile(visionOnlyNonEmptyTiles);
+		var nearestUnconfirmedTile = NearestTile(Perception.State.visionOnlyNonEmptyTiles);
 		if (nearestUnconfirmedTile.HasValue)
 		{
 			var t = nearestUnconfirmedTile.Value;
@@ -792,7 +878,7 @@ public abstract class UnitFunction : Unit
 		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
 		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
 		// 전환만 이 판정 결과에서 직접 나온다.
-		var nearestSuspiciousTile = NearestTile(perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
+		var nearestSuspiciousTile = NearestTile(Perception.State.perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
 		if (nearestSuspiciousTile.HasValue)
 		{
 			var t = nearestSuspiciousTile.Value;
@@ -804,6 +890,64 @@ public abstract class UnitFunction : Unit
 		candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Moving, currentDir));
 
 		currentDir = VisionMath.ResolveVisionDirection(candidates, currentDir);
+
+		// 2026-07-27 신규 — 방 제한 유닛(RoomConfinedMovement, 야생 몬스터 A/플레이어 몬스터)은 자기
+		// 방 밖을 바라볼 수 없다(사용자 요청: "해당 방 바깥쪽을 쳐다볼 수 없어" / "몬스터는 방과 방
+		// 사이 못봄"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중 원래
+		// 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 다만 이것만으로는 넓은 시야각(120도)
+		// 콘이 인접 방까지 걸치는 경우를 못 막아서(사용자 신고 "시야각 차단이 잘 안되는거 같아") 실제
+		// 차단은 CastRay에서 레이 자체를 방 경계로 끊는 걸로 보강했다 — 여기 방향 클램프는 그 위에 얹는
+		// 보조 근사(자연스러운 실루엣)로 남겨둔다.
+		if (MovementAlgorithm is RoomConfinedMovement)
+			currentDir = ClampDirectionToOwnRoom(currentDir);
+	}
+
+	private Dir ClampDirectionToOwnRoom(Dir dir)
+	{
+		if (Session?.cmap == null) return dir;
+		int myRoomId = Session.cmap.GetRoomIdAt(currentFloor, position);
+		if (myRoomId < 0) return dir;
+
+		if (IsDirectionInsideRoom(dir, myRoomId)) return dir;
+
+		for (int offset = 1; offset <= 4; offset++)
+		{
+			Dir cw = (Dir)(((int)dir + offset) % 8);
+			if (IsDirectionInsideRoom(cw, myRoomId)) return cw;
+			Dir ccw = (Dir)(((int)dir - offset + 8) % 8);
+			if (IsDirectionInsideRoom(ccw, myRoomId)) return ccw;
+		}
+		return dir; // 안전망 — 자기 위치가 속한 방 안쪽으로 최소 한 방향은 항상 있어야 정상.
+	}
+
+	private bool IsDirectionInsideRoom(Dir dir, int myRoomId)
+	{
+		Vector2Int lookPos = position + GetDirVector(dir);
+		return Session.cmap.GetRoomIdAt(currentFloor, lookPos) == myRoomId;
+	}
+
+	// 유닛 배치 시스템(2026-07-27 신규) — 실제 위치가 속한 Room(GameSession.roomGrid, 타일 단위 정확
+	// 조회)과 currentRoom이 다르면 옛 방에서 빼고 새 방에 등록한다. 매 프레임 호출되지만 비교 자체는
+	// 가벼워서(Dictionary 조회 1회) 부담이 적다.
+	private Vector2Int _lastRoomSyncPos = new Vector2Int(int.MinValue, int.MinValue);
+	private int _lastRoomSyncFloor = int.MinValue;
+
+	// 최적화(2026-07-27, 프레임드랍 점검 요청) — 위치/층이 지난 틱과 같으면 Dictionary 조회 자체를
+	// 건너뛴다. 대기 중인 유닛(수색/보호 포메이션/조사 등 제자리 상태)이 많을 때 매 프레임 불필요한
+	// roomGrid 조회를 없애준다.
+	private void SyncRoomAffiliation()
+	{
+		if (position == _lastRoomSyncPos && currentFloor == _lastRoomSyncFloor) return;
+		_lastRoomSyncPos = position;
+		_lastRoomSyncFloor = currentFloor;
+
+		if (Session?.roomGrid == null) return;
+		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
+		if (actualRoom == currentRoom) return;
+
+		currentRoom?.RemoveUnit(this);
+		actualRoom?.AddUnit(this);
+		currentRoom = actualRoom;
 	}
 
 	private Dir DirectionToward(Vector2Int targetPos)
@@ -833,7 +977,7 @@ public abstract class UnitFunction : Unit
 		if (Session == null) return null;
 		foreach (Unit u in Session.units)
 		{
-			if (u == null || u == this || u.hp <= 0) continue;
+			if (u == null || u == this || u.Health.hp <= 0) continue;
 			bool isEnemy = this.IsEnemy(u);
 			if (!isEnemy) continue;
 			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u; // 1칸 이내(대각 포함)
@@ -845,20 +989,37 @@ public abstract class UnitFunction : Unit
 
 	public override void OnUpdate(float deltaTime)
 	{
-		// 기본 스탯(physicalAttack/spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
-		// 그로부터 파생되는 스탯(sterngth/agility/sense 등, CalculateDerivedStats 참고)도 매 프레임
+		// 기본 스탯(CombatStat.physicalAttack/VisionStat.spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
+		// 그로부터 파생되는 스탯(BaseStat.sterngth/BaseStat.agility/BaseStat.sense 등, CalculateDerivedStats 참고)도 매 프레임
 		// 다시 계산해서 항상 최신 기본 스탯을 반영하게 한다. 순수 사칙연산이라 유닛 수가 많아도
 		// 부담이 거의 없다(할당 없음, Mathf.Clamp 수십 번 수준) — 별도의 "변경 감지"용 캐시/이벤트
 		// 없이 매번 새로 계산하는 쪽이 오히려 더 단순하고 저렴하다.
 		CalculateDerivedStats();
 
-		if (stunDuration   > 0f) stunDuration   -= deltaTime;
-		if (slowDuration   > 0f) slowDuration   -= deltaTime;
-		if (poisonDuration > 0f) { poisonDuration -= deltaTime; hp -= 1f * deltaTime; }
-		if (burnDuration   > 0f) { burnDuration   -= deltaTime; hp -= 1f * deltaTime; }
+		// 유닛 배치 시스템(2026-07-27 신규) 3장/4.3장 — 실제 위치 기준으로 소속 방을 매 프레임
+		// 동기화한다("방에 도착하면 소속 방으로 변경"을 명령 완료 이벤트 대신 위치 기반으로 구현 —
+		// 스폰 직후 배치처럼 이 시스템이 다루지 않는 경로에도 자연히 적용됨). 배회 몬스터
+		// (WildMonsterBehavior)는 9장 보류 항목이라 대상에서 제외한다.
+		if (!(FactionBehavior is WildMonsterBehavior))
+			SyncRoomAffiliation();
+
+		if (StatusEffects.State.stunDuration   > 0f) StatusEffects.State.stunDuration   -= deltaTime;
+		if (StatusEffects.State.slowDuration   > 0f) StatusEffects.State.slowDuration   -= deltaTime;
+		if (StatusEffects.State.poisonDuration > 0f) { StatusEffects.State.poisonDuration -= deltaTime; Health.hp -= 1f * deltaTime; }
+		if (StatusEffects.State.burnDuration   > 0f) { StatusEffects.State.burnDuration   -= deltaTime; Health.hp -= 1f * deltaTime; }
 
 		// 01-A 9장: 공격 후 가시성 상승 지속시간 감소 (SkillAction.BeginAttackCast가 공격 실행 시 세팅)
-		if (attackVisibilityBoostTimer > 0f) attackVisibilityBoostTimer = Mathf.Max(0f, attackVisibilityBoostTimer - deltaTime);
+		if (VisionStat.attackVisibilityBoostTimer > 0f) VisionStat.attackVisibilityBoostTimer = Mathf.Max(0f, VisionStat.attackVisibilityBoostTimer - deltaTime);
+
+		// 4-6장: 이동당 +20 증가분을 개별적으로 5초 뒤 제거한다(먼저 생긴 증가분부터 먼저 사라짐).
+		if (VisionStat.suspiciousMoveBoostTimers.Count > 0)
+		{
+			for (int i = VisionStat.suspiciousMoveBoostTimers.Count - 1; i >= 0; i--)
+			{
+				VisionStat.suspiciousMoveBoostTimers[i] -= deltaTime;
+				if (VisionStat.suspiciousMoveBoostTimers[i] <= 0f) VisionStat.suspiciousMoveBoostTimers.RemoveAt(i);
+			}
+		}
 
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
 		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
@@ -871,22 +1032,24 @@ public abstract class UnitFunction : Unit
 		// "물리적으로 있다" + "정확 인지 중이다" 둘 다 확인해야 진짜 위협으로 친다.
 		// 02문서 5장 조건3: 인지 판정을 수행할 수 있는 상태(기절 등 아님)여야 안전/흥미 확인 타이머도
 		// 진행한다 — 2장이 "미확인 일반 타일"도 인지 판정 대상에 포함시키므로 이 게이팅도 동일하게 적용.
-		if (this is Human human && Session != null && CanPerceive)
+		_safetyTickTimer += deltaTime;
+		if (_safetyTickTimer >= 0.1f)
 		{
-			foreach (var tile in human.personalMap.KnownDangerTiles.ToList())
+			if (this is Human human && Session != null && CanPerceive)
 			{
-				bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
-					&& occupant.hp > 0f && human.personalSpottedEnemies.Contains(occupant);
-				human.personalMap.TickTileSafety(tile, threatPresent, deltaTime);
-			}
+				foreach (var tile in human.Memory.personalMap.KnownDangerTiles.ToList())
+				{
+					bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
+						&& occupant.Health.hp > 0f && human.Perception.State.personalSpottedEnemies.Contains(occupant);
+					human.Memory.personalMap.TickTileSafety(tile, threatPresent, _safetyTickTimer);
+				}
 
-			// 16장(v0.7 (1) 개정판): 흥미도 확인 시간 진행 — "타일에 흥미도 있는 오브젝트가
-			// 있는가"는 PersonalMapKnowledge 안에서 자기완결적으로 판단 가능해 GameSession 조회가
-			// 필요 없다(TickTileSafety의 threatPresent와 달리 인자로 안 넘김).
-			foreach (var tile in human.personalMap.KnownInterestTiles.ToList())
-			{
-				human.personalMap.TickTileInterestConfirm(tile, deltaTime);
+				foreach (var tile in human.Memory.personalMap.KnownInterestTiles.ToList())
+				{
+					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
+				}
 			}
+			_safetyTickTimer = 0f;
 		}
 
 		// 03문서 4/9장: 경계·함정 대응 타이머 — actionCooldown 주기(GOAP 판단)와 무관하게 실제 경과
@@ -895,8 +1058,18 @@ public abstract class UnitFunction : Unit
 		if (currentAlertSearch != null)
 		{
 			currentAlertSearch.ElapsedSeconds += deltaTime;
-			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds : ExplorationMath.UnidentifiedAttackSearchSeconds;
-			if (currentAlertSearch.ElapsedSeconds >= limit) currentAlertSearch = null; // 4-12장/4-8장: 시간 종료 → 경계 해제
+			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
+				: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
+				: ExplorationMath.UnidentifiedAttackSearchSeconds;
+			if (currentAlertSearch.ElapsedSeconds >= limit)
+			{
+				bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
+				currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
+				// 11장: 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작(Party.TryStartRally
+				// 자체가 다른 파티원이 아직 스윕/전투 중이면 조용히 아무 것도 안 하고 반환한다).
+				if (wasPostCombatSweep && this is Human human && human.party != null)
+					human.party.TryStartRally();
+			}
 		}
 
 		if (currentTrapInteraction != null)
@@ -905,16 +1078,33 @@ public abstract class UnitFunction : Unit
 			if (!trap.JoinWaitElapsed)
 			{
 				bool recorded = (this is Human trapHuman) && trapHuman.personalMap.IsTrapRecorded(trap.TrapObjectId);
-				if (recorded) trap.JoinWaitElapsed = true; // 9-4장: 기록 함정은 대기 단계 자체가 없음
+				bool becameElapsed = false;
+				if (recorded) { trap.JoinWaitElapsed = true; becameElapsed = true; } // 9-4장: 기록 함정은 대기 단계 자체가 없음
 				else
 				{
 					trap.JoinWaitTimer += deltaTime;
-					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) trap.JoinWaitElapsed = true;
+					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) { trap.JoinWaitElapsed = true; becameElapsed = true; }
 				}
+				// 9-2~9-5장(2026-07-27 개편): 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제
+				// 담당을 선정한다. AutoConfirmed(웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미
+				// 확정돼 있어 다시 선정할 필요가 없다.
+				if (becameElapsed && !trap.AutoConfirmed && this is Human discovererHuman)
+					TrapPartySystem.ResolveSelection(discovererHuman, trap);
+			}
+			else if (trap.SearchingForSelectedUnit)
+			{
+				// TacticalFSMState.TrapSearchForMissingUnit(BT)가 실제 이동을 담당 — 여기서는 시간만 안 건드림.
+			}
+			else if (trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && this is Human waitingHuman)
+			{
+				// 9-7장: 선정되지 않은 발견 유닛 — ETA+3초 미도착이면 SearchingForSelectedUnit으로 전환.
+				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap, deltaTime);
 			}
 			else if (trap.Phase == TrapPhase.Disarming)
 			{
 				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / ExplorationMath.TrapDisarmDurationSeconds);
+				// 9-7/9-8장(2026-07-27 추가): 함정 바로 아래 진행 막대 갱신 — 실제 해제 중일 때만.
+				Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(trap.DisarmProgress01, true);
 			}
 			else if (trap.Phase == TrapPhase.Destroying && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
 			{
@@ -928,55 +1118,72 @@ public abstract class UnitFunction : Unit
 			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
 		}
 
+		// 7-3장(2026-07-27 신규): 리더의 코어 조사 — 도착 후 1초 전파, 이후 조사 진행도 증가.
+		if (this is Human coreHuman && coreHuman.currentCoreInteraction != null && coreHuman.currentCoreInteraction.Active)
+		{
+			var core = coreHuman.currentCoreInteraction;
+			if (!core.PropagationDone)
+			{
+				core.PropagationTimer += deltaTime;
+				if (core.PropagationTimer >= ExplorationMath.PartyGoalInitialPropagationSeconds) core.PropagationDone = true;
+			}
+			else
+			{
+				core.Progress01 = Mathf.Min(1f, core.Progress01 + deltaTime / ExplorationMath.CoreInvestigateDurationSeconds);
+				// 2026-07-27 추가: 코어 바로 아래 진행 막대 갱신(함정 해제 막대와 같은 컴포넌트 재사용).
+				Session?.GetObjectVisual(core.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(core.Progress01, true);
+			}
+		}
+
 		if (hp > 0f)
 			hp = Mathf.Min(maxHp, hp + HPRegen * deltaTime);
 
-		if (evadeCooldown > 0f)
-			evadeCooldown -= Time.deltaTime;
+		if (CombatState.State.evadeCooldown > 0f)
+			CombatState.State.evadeCooldown -= Time.deltaTime;
 
-		if (isCastingAttack)
+		if (CombatState.State.isCastingAttack)
 		{
-			pendingCastUpdate?.Invoke();
+			AIState.pendingCastUpdate?.Invoke();
 			
-			castTimer -= deltaTime;
-			if (castTimer <= 0f)
+			CombatState.State.castTimer -= deltaTime;
+			if (CombatState.State.castTimer <= 0f)
 			{
 				// 공격 타이밍: 반응한 유닛의 VFX(가드·패링) 실행
 				if (Session != null)
 				{
 					foreach (Unit u in Session.units)
 					{
-						if (u == null || u.reactingAttacker != this) continue;
-						u.pendingVFX?.Invoke();
-						u.pendingVFX = null;
+						if (u == null || u.AIState.reactingAttacker != this) continue;
+						u.AIState.pendingVFX?.Invoke();
+						u.AIState.pendingVFX = null;
 					}
 				}
 
-				isCastingAttack = false;
-				currentThreat   = null;
-				pendingAttack?.Invoke();
-				pendingAttack   = null;
-				pendingCastUpdate = null;
+				CombatState.State.isCastingAttack = false;
+				AIState.currentThreat   = null;
+				AIState.pendingAttack?.Invoke();
+				AIState.pendingAttack   = null;
+				AIState.pendingCastUpdate = null;
 
 				if (Session != null)
 				{
 					foreach (Unit u in Session.units)
 					{
 						if (u == null) continue;
-						u.reactedAttackers.Remove(this);
-						if (u.reactingAttacker == this)
+						u.AIState.reactedAttackers.Remove(this);
+						if (u.AIState.reactingAttacker == this)
 						{
-							u.reactingAttacker = null;
-							u.reactingThreat   = null;
+							u.AIState.reactingAttacker = null;
+							u.AIState.reactingThreat   = null;
 						}
 					}
 				}
 			}
 		}
 
-		for (int i = 0; i < skillCooldowns.Length; i++)
+		for (int i = 0; i < CombatState.State.skillCooldowns.Length; i++)
 		{
-			if (skillCooldowns[i] > 0f) skillCooldowns[i] -= deltaTime;
+			if (CombatState.State.skillCooldowns[i] > 0f) CombatState.State.skillCooldowns[i] -= deltaTime;
 		}
 
 		List<ThreatTileData> detectedThreats = DetectThreats();
@@ -985,30 +1192,36 @@ public abstract class UnitFunction : Unit
 
 	public override void OnThreatDetected(List<ThreatTileData> threats)
 	{
-		if (stunDuration > 0f) return;
+		if (StatusEffects.State.stunDuration > 0f) return;
 
 		foreach (var threat in threats)
 		{
 			Unit attacker = FindAttackerFromThreat(threat);
 			if (attacker == null) continue;
-			if (reactedAttackers.Contains(attacker)) continue;
+			if (AIState.reactedAttackers.Contains(attacker)) continue;
 
-			float reactionTimeMs  = 30000f / Mathf.Max(1f, reaction);
+			// 4-2장: 경계 상태에서 기습/신규 공격에 대한 최초 반응은 반응속도가 1.2배 빨라진다.
+			// reactedAttackers가 공격자별로 한 번만 이 계산을 타게 게이팅해주므로 별도 처리 없이
+			// "최초 반응"에만 적용된다. 5-4/9-8장: 조사·함정 해제 중에는 반대로 반응속도가 50%로
+			// 느려진다(ExplorationPenaltyActive — CastRay의 시야/인지 페널티와 같은 플래그 재사용).
+			float alertReaction = BaseStat.reaction * (currentAlertSearch != null ? ExplorationMath.AlertReactionSpeedRatio : 1f);
+			if (ExplorationPenaltyActive) alertReaction *= ExplorationMath.InvestigatePenaltyRatio;
+			float reactionTimeMs  = 30000f / Mathf.Max(1f, alertReaction);
 			float reactionTimeSec = reactionTimeMs / 1000f;
 
-			if (attacker.isCastingAttack)
+			if (attacker.CombatState.State.isCastingAttack)
 			{
-				if (attacker.castTimer >= reactionTimeSec)
+				if (attacker.CombatState.State.castTimer >= reactionTimeSec)
 				{
-					reactedAttackers.Add(attacker);
-					currentReactionWindow = reactionTimeSec;
-					reactingThreat        = threat;
-					reactingAttacker      = attacker;
+					AIState.reactedAttackers.Add(attacker);
+					AIState.currentReactionWindow = reactionTimeSec;
+					AIState.reactingThreat        = threat;
+					AIState.reactingAttacker      = attacker;
 					OnReactToThreat(attacker, threat);
 				}
 				else
 				{
-					reactedAttackers.Add(attacker);
+					AIState.reactedAttackers.Add(attacker);
 					// Failed to react in time - brace for impact (no early damage applied)
 				}
 			}
@@ -1027,10 +1240,12 @@ public abstract class UnitFunction : Unit
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
 	{
-		float raw    = attacker.physicalAttack * multiplier;
-		float damage = Mathf.Max(1f, raw - physicalDefense);
-		hp -= damage;
-		isHitThisTurn = true;
+		if (attacker != null) lastDamageDealer = attacker;
+
+		float raw    = attacker.CombatStat.physicalAttack * multiplier;
+		float damage = Mathf.Max(1f, raw - CombatStat.physicalDefense);
+		Health.hp -= damage;
+		CombatState.State.isHitThisTurn = true;
 		if (this.Generate != null)
 			this.Generate.TriggerHitEffect(this);
 
@@ -1042,8 +1257,8 @@ public abstract class UnitFunction : Unit
 		foreach (Unit u in Session.units)
 		{
 			if (u == null) continue;
-			if (!u.isCastingAttack) continue;
-			if (u.currentThreat == threat) return u;
+			if (!u.CombatState.State.isCastingAttack) continue;
+			if (u.AIState.currentThreat == threat) return u;
 		}
 		return null;
 	}
@@ -1060,35 +1275,38 @@ public abstract class UnitFunction : Unit
 		return threat.hitbox.Overlaps(posHitbox);
 	}
 
+	private List<ThreatTileData> _cachedThreats = new List<ThreatTileData>();
+	private float _safetyTickTimer = 0f;
+
 	public override List<ThreatTileData> DetectThreats()
 	{
-		List<ThreatTileData> result = new List<ThreatTileData>();
+		_cachedThreats.Clear();
 
 		foreach (Unit u in Session.units)
 		{
 			if (u == null || u == this) continue;
 			if (u.currentFloor != currentFloor) continue;
 
-			ThreatTileData threat = u.currentThreat;
-			if (threat == null || !u.isCastingAttack) continue;
+			ThreatTileData threat = u.AIState.currentThreat;
+			if (threat == null || !u.CombatState.State.isCastingAttack) continue;
 
 			if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
-				result.Add(threat);
+				_cachedThreats.Add(threat);
 		}
-		return result;
+		return _cachedThreats;
 	}
 
 	public override bool RollCritical(bool canCritical)
 	{
 		if (!canCritical) return false;
-		return Random.Range(0f, 100f) < criticalChance;
+		return Random.Range(0f, 100f) < CombatStat.criticalChance;
 	}
 
 	public override float ApplyCriticalDamage(float rawDamage) => Mathf.Floor(rawDamage * 1.5f);
 
 	public virtual void DrawThreatTiles()
 	{
-		if (!isCastingAttack || currentThreat == null) return;
+		if (!CombatState.State.isCastingAttack || AIState.currentThreat == null) return;
 
 		Color color = this is Human ? Color.cyan : Color.red;
 		color.a = 0.8f;
@@ -1097,7 +1315,7 @@ public abstract class UnitFunction : Unit
 			? this.Generate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
-		ThreatTileData threat = currentThreat;
+		ThreatTileData threat = AIState.currentThreat;
 		if (threat == null || threat.hitbox.size == Vector2.zero) return;
 
 		Hitbox  box      = threat.hitbox;
@@ -1115,3 +1333,5 @@ public abstract class UnitFunction : Unit
 		Debug.DrawLine(p4, p1, color);
 	}
 }
+
+

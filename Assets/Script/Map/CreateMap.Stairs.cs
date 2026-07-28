@@ -33,6 +33,8 @@ public partial class CreateMap
                 c.roomId = lobbyId;
                 c.roomName = lobbyName;
                 c.roomRole = RoomRole.StartRoom;
+                // 점령 관련 초기 수치(2026-07-27 신규): 0층은 전체가 인류 소유로 시작한다.
+                c.occupationState = OccupationState.HumanControlled;
                 floor.chunks[x, y] = c;
             }
         }

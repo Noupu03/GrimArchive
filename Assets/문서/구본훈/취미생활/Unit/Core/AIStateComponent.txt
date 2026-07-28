@@ -1,0 +1,20 @@
+클래스명: AIStateComponent (IUnitComponent)
+태그: State
+경로: Assets/Script/Unit/Core/AIStateComponent.cs
+의도: AIStateComponent의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IUnitComponent 상속 및 구현
+
+변수:
+  - _owner: Unit 타입 데이터
+  - AIWeightState: UnitAIWeightState 타입 데이터
+  - reactedAttackers: HashSet<Unit> 타입 데이터
+  - currentReactionWindow: float 타입 데이터
+  - reactingThreat: ThreatTileData 타입 데이터
+  - reactingAttacker: Unit 타입 데이터
+  - currentThreat: ThreatTileData 타입 데이터
+
+함수:
+  - OnUpdate(): void 반환
+  - OnDespawn(): void 반환

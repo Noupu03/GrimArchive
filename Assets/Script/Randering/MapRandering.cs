@@ -7,7 +7,7 @@ using VContainer;
 using Cysharp.Threading.Tasks;
 using System.Threading;
 
-public class MapRandering : NativeRoutine
+public class MapRandering : NativeRoutine, IMapColorizer
 {
     private CreateMap createMap;
 
@@ -43,7 +43,7 @@ public class MapRandering : NativeRoutine
         // DoRandering() 호출은 MapManager가 맵 데이터를 준비한 뒤 명시적으로 호출하도록 제거됨
     }
 
-    public void DoRandering()
+    public void DoRandering(CreateMap targetMap = null) { if (targetMap != null) { this.createMap = targetMap; } BuildTileCache(); RenderAllFloors(); } private void _OldDoRanderingUnused()
     {
         BuildTileCache();
         RenderAllFloors();
@@ -59,7 +59,10 @@ public class MapRandering : NativeRoutine
 
             if (wallSprite == null || floorSprite == null)
             {
-                LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 지정된 타일 이미지(Tile_StoneWall 또는 FloorTexture)를 찾지 못했습니다.");
+                LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 타일 이미지를 찾지 못해 임시 단색 이미지를 생성합니다.");
+                
+                if (wallSprite == null) wallSprite = CreateColorSprite(Color.gray);
+                if (floorSprite == null) floorSprite = CreateColorSprite(Color.white);
             }
         }
 
@@ -76,8 +79,20 @@ public class MapRandering : NativeRoutine
         floorTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         floorTile.sprite = floorSprite;
 
+        // 계단 타일은 현재 바닥 타일과 동일하게 렌더링 — 아이콘은 RenderStairOverlays가 오버레이로 처리
+        // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        stairTile.sprite = stairSprite != null ? stairSprite : floorSprite;
+        stairTile.sprite = floorSprite;
+    }
+
+    private Sprite CreateColorSprite(Color color)
+    {
+        Texture2D tex = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
     public void RenderAllFloors()
@@ -117,6 +132,7 @@ public class MapRandering : NativeRoutine
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);
             RenderStairOverlays(tilemapObj.transform, ref floor, f);
+            ApplyOccupationTint(tilemap, ref floor);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -162,10 +178,12 @@ public class MapRandering : NativeRoutine
             System.Array.Copy(positions, usedPositions, idx);
             System.Array.Copy(tiles, usedTiles, idx);
             tilemap.SetTiles(usedPositions, usedTiles);
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F{floorIdx}에 총 {idx}개의 타일을 배치했습니다. (일부 청크 비어있음)");
         }
         else
         {
             tilemap.SetTiles(positions, tiles);
+            LogHelper.Log(LogHelper.GAME, $"MapRandering: F{floorIdx}에 총 {idx}개의 타일을 모두 꽉 채워 배치했습니다.");
         }
     }
 
@@ -270,19 +288,93 @@ public class MapRandering : NativeRoutine
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
     }
 
+    // 점령 관련(2026-07-27 신규) — 방 점령 상태별로 바닥 타일에 옅은 색을 입힌다. 벽 타일은 제외한다
+    // (요청: "바닥 타일 희미하게"). RenderFloor와 같은 타일 좌표 변환(cx*8+tx, cy*8+ty)을 그대로
+    // 재사용해 같은 Tilemap 위에 SetColor만 덧씌운다. 야생(Neutral)/Occupied/Outpost는 착색하지
+    // 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로") — 기본 바닥 스프라이트
+    // 색 그대로 노출된다.
+    private static readonly Color HumanRoomTint = new Color(0.25f, 0.45f, 1f, 1f);  // 인류 소유 — 파랑(2026-07-27 사용자 요청으로 더 진하게)
+    private static readonly Color MonsterRoomTint = new Color(1f, 0.25f, 0.25f, 1f); // 몬스터(플레이어) 점령 — 빨강(위와 동일 조정)
+
+    void ApplyOccupationTint(Tilemap tilemap, ref Floor floor)
+    {
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null) continue;
+
+                Color? tint = chunk.occupationState switch
+                {
+                    OccupationState.HumanControlled => HumanRoomTint,
+                    OccupationState.PlayerControlled => MonsterRoomTint,
+                    _ => (Color?)null,
+                };
+                if (tint == null) continue;
+
+                for (int tx = 0; tx < ChunkSize; tx++)
+                {
+                    for (int ty = 0; ty < ChunkSize; ty++)
+                    {
+                        if (chunk.chunk[tx, ty].name == "Wall") continue;
+                        Vector3Int pos = new Vector3Int(cx * ChunkSize + tx, cy * ChunkSize + ty, 0);
+                        tilemap.SetTileFlags(pos, TileFlags.None);
+                        tilemap.SetColor(pos, tint.Value);
+                    }
+                }
+            }
+        }
+    }
+
     public void ChangeRoomColor(Room room, Color color)
     {
         if (floorTilemaps == null || floorTilemaps.Length == 0) return;
-        Tilemap tm = floorTilemaps[0]; // MVP: 0층 기준
-        
+        // 예전엔 "MVP: 0층 기준"으로 floorTilemaps[0]에 고정 — 야생 몬스터 방은 전부 1층 이상이라
+        // (SpawnWildRoomGuards가 0층을 명시적으로 제외) 점령 색칠이 항상 엉뚱한 층(0층 로비)에
+        // 적용되고 있었다(사용자 신고 2026-07-27 "점령 처리해도 바닥 색깔이 안 바뀜"). room.Floor를
+        // 그대로 써서 실제 방이 있는 층에 칠하도록 수정.
+        if (room.Floor < 0 || room.Floor >= floorTilemaps.Length) return;
+        Tilemap tm = floorTilemaps[room.Floor];
+
+        // 벽 타일은 칠하지 않는다(사용자 요청 "벽은 색깔 바꾸지 마, 바닥만") — ApplyOccupationTint와
+        // 동일한 청크/타일 조회 방식으로 벽 여부를 확인한다.
+        Floor floorData = default;
+        bool hasFloorData = createMap != null && createMap.map.floors != null
+            && room.Floor < createMap.map.floors.Length;
+        if (hasFloorData) floorData = createMap.map.floors[room.Floor];
+
         for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
         {
             for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
             {
+                if (hasFloorData && IsWallTile(ref floorData, x, y)) continue;
+
                 Vector3Int pos = new Vector3Int(x, y, 0);
                 tm.SetTileFlags(pos, TileFlags.None);
                 tm.SetColor(pos, color);
             }
         }
     }
+
+    // ChangeRoomColor 전용 — ApplyOccupationTint와 동일한 청크 좌표 변환(cx*8+tx)으로 벽 타일인지 확인.
+    private bool IsWallTile(ref Floor floor, int x, int y)
+    {
+        if (x < 0 || y < 0 || floor.chunks == null) return false;
+
+        int cx = x / ChunkSize;
+        int cy = y / ChunkSize;
+        int tx = x % ChunkSize;
+        int ty = y % ChunkSize;
+        if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+        Chunks chunk = floor.chunks[cx, cy];
+        if (chunk.chunk == null) return false;
+
+        return chunk.chunk[tx, ty].name == "Wall";
+    }
 }
+

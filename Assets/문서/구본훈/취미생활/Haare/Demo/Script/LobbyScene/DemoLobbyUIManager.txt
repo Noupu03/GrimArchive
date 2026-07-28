@@ -1,0 +1,13 @@
+클래스명: DemoLobbyUIManager (SceneUIManager)
+태그: Manager
+경로: Assets/Haare/Demo/Script/LobbyScene/DemoLobbyUIManager.cs
+의도: 게임 내 DemoLobbyUI 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - SceneUIManager 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - BindIPanel(): void 반환

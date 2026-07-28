@@ -1,0 +1,13 @@
+클래스명: INativeRoutine (IRoutine)
+태그: INativeRoutine
+경로: Assets/Haare/Scripts/Client/Routine/interface/INativeRoutine.cs
+의도: INativeRoutine의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - IRoutine 상속 및 구현
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - 주요 정의 함수 없음

@@ -1,0 +1,27 @@
+클래스명: VisionSystemTests
+태그: System
+경로: Assets/Tests/VisionSystemTests.cs
+의도: VisionSystemTests의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - ViewDistance_Table(): void 반환
+  - AwarenessDistance_Table(): void 반환
+  - AwarenessAngle_Table(): void 반환
+  - AwarenessAngle_MaxedOut_MeansFullVisionConeIsPerceptionCone(): void 반환
+  - TempWeightForVisionOnlyTile_NonEmptyIsFive(): void 반환
+  - ResolveBaseVisibility_WallFloorAndOccupant(): void 반환
+  - FinalVisibility_StealthAndAttackBoost(): void 반환
+  - FinalVisibility_StealthTable_AllowsNegativeAndKeepsItUnclamped(): void 반환
+  - CircularPerceptionRadius_Table(): void 반환
+  - IsHighThreatSurprise_TwiceMeleeExpectedDamage(): void 반환
+  - PriorityRank_Ordering(): void 반환
+  - ResolveVisionDirection_HigherPriorityWins(): void 반환
+  - ResolveVisionDirection_TieBreak_ClosestToCurrentDirection(): void 반환
+  - ResolveVisionDirection_NoCandidates_KeepsCurrentDirection(): void 반환
+  - DirStepDistance_WrapsAroundCircle(): void 반환

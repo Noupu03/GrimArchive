@@ -1,0 +1,22 @@
+클래스명: DebugInputHandler
+태그: DebugInputHandler
+경로: Assets/Script/Unit/Session/DebugInputHandler.cs
+의도: DebugInputHandler의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _resolver: IObjectResolver 타입 데이터
+  - _gameSession: GameSession 타입 데이터
+  - _cachedGameSession: GameSession 타입 데이터
+  - _unitGenerate: UnitGenerate 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - HandleDebugInput(): void 반환
+  - OnKeyDown_H(): void 반환
+  - GetRandomStartRoomPos(): Vector2Int 반환
+  - OnKeyDown_M(): void 반환
+  - OnKeyDown_K(): void 반환
+  - OnKeyDown_O(): void 반환

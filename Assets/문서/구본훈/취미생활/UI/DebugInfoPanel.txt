@@ -1,0 +1,27 @@
+클래스명: DebugInfoPanel (MonoRoutine,)
+태그: DebugInfoPanel
+경로: Assets/Script/UI/DebugInfoPanel.cs
+의도: DebugInfoPanel의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoRoutine, 상속 및 구현
+
+변수:
+  - selectedUnitInfoText: CustomText 타입 데이터
+  - saveButton: CustomButton 타입 데이터
+  - loadButton: CustomButton 타입 데이터
+  - _inputManager: InputManager 타입 데이터
+  - _dataManager: DataManager 타입 데이터
+  - _gameSession: GameSession 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - OpenPanel(): void 반환
+  - ClosePanel(): void 반환
+  - BindEvent(): void 반환
+  - Zoom(): void 반환
+  - UpdateProcess(): void 반환
+  - OnGUI(): void 반환
+  - DrawVisionToggle(): void 반환
+  - RefreshSelectedUnitInfo(): void 반환
+  - BuildMultiSelectListText(): string 반환

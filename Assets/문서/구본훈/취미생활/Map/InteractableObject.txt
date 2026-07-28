@@ -1,0 +1,27 @@
+클래스명: InteractableObject
+태그: InteractableObject
+경로: Assets/Script/Map/InteractableObject.cs
+의도: InteractableObject의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - Id: string 타입 데이터
+  - Position: Vector3Int 타입 데이터
+  - BaseInterest: float 타입 데이터
+  - BaseDanger: float 타입 데이터
+  - BaseVisibility: float 타입 데이터
+  - IsFullyBlocking: bool 타입 데이터
+  - IsCollected: bool 타입 데이터
+  - IsInvestigated: bool 타입 데이터
+  - Tags: List<string> 타입 데이터
+  - CauserStage: DangerStage 타입 데이터
+  - TraceId: string 타입 데이터
+  - TrapHp: float 타입 데이터
+  - TrapMaxHp: float 타입 데이터
+  - TrapDamageMin: float 타입 데이터
+  - TrapDamageMax: float 타입 데이터
+
+함수:
+  - 주요 정의 함수 없음

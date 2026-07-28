@@ -1,0 +1,30 @@
+클래스명: SkillAction
+태그: SkillAction
+경로: Assets/Script/Unit/Skills/SkillAction.cs
+의도: SkillAction의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - BuildSkillHitbox(): Hitbox 반환
+  - IsAvailable(): bool 반환
+  - GetPriority(): float 반환
+  - Execute(): void 반환
+  - BeginAttackCast(): void 반환
+  - GetEnemiesInHitbox(): List<Unit> 반환
+  - GetUnitHitbox(): Hitbox 반환
+  - DamageEnemiesInHitbox(): void 반환
+  - DamageEnemiesInHitboxWithAreaRatio(): void 반환
+  - DamageMagicalEnemiesInHitboxWithAreaRatio(): void 반환
+  - BuildLineHitbox(): Hitbox 반환
+  - BuildLineHitboxWithAngle(): Hitbox 반환
+  - BuildRectHitbox(): Hitbox 반환
+  - BuildRectHitboxWithAngle(): Hitbox 반환
+  - GetRotationForDirection(): float 반환
+  - GetDirection8(): Dir 반환
+  - GetCompression(): float 반환
+  - ApplyCooldown(): float 반환

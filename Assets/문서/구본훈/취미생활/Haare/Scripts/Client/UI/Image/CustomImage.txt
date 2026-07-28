@@ -1,0 +1,43 @@
+클래스명: CustomImage (MonoRoutine)
+태그: CustomImage
+경로: Assets/Haare/Scripts/Client/UI/Image/CustomImage.cs
+의도: CustomImage의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoRoutine 상속 및 구현
+
+변수:
+  - _image: Image 타입 데이터
+  - CommonSprite: Sprite 타입 데이터
+  - HoveredSprite: Sprite 타입 데이터
+  - ClickedSprite: Sprite 타입 데이터
+  - OPTION_ANIMATION: bool 타입 데이터
+  - ANIMATION_SLIDE: bool 타입 데이터
+  - slideDuration: float 타입 데이터
+  - slideEaseType: Ease 타입 데이터
+  - onScreenPosition: RectTransform 타입 데이터
+  - offScreenPosition: RectTransform 타입 데이터
+  - ANIMATION_POPUP: bool 타입 데이터
+  - popupDuration: float 타입 데이터
+  - popupEaseType: Ease 타입 데이터
+  - _hoverColor: Color 타입 데이터
+  - _pressedColor: Color 타입 데이터
+  - _originalColor: Color 타입 데이터
+  - _animator: UIAnimator 타입 데이터
+
+함수:
+  - Constructor(): void 반환
+  - ClearSlidePosition(): void 반환
+  - SlideOpenPanel(): void 반환
+  - PopupOpenPanel(): void 반환
+  - PopupclosePanel(): void 반환
+  - SetupImage(): void 반환
+  - ChangeColor(): void 반환
+  - ChangeHoverColor(): void 반환
+  - ChangeClickedColor(): void 반환
+  - ChangeCommonColor(): void 반환
+  - ChangeAlpha(): void 반환
+  - ChangeCommonImage(): void 반환
+  - ChangeHoverImage(): void 반환
+  - ChangeClickedImage(): void 반환
+  - ChangeImage(): void 반환

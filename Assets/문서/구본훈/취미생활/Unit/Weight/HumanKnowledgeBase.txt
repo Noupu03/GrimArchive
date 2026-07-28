@@ -1,0 +1,55 @@
+클래스명: HumanKnowledgeBase
+태그: HumanKnowledgeBase
+경로: Assets/Script/Unit/Weight/HumanKnowledgeBase.cs
+의도: HumanKnowledgeBase의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _pendingIncidents: List<IncidentEntry> 타입 데이터
+  - _dungeonWipeoutDangerAccum: float 타입 데이터
+  - _wipeoutTraceGlobalAccum: float 타입 데이터
+  - TraceId: string 타입 데이터
+  - RemainingWaves: int 타입 데이터
+  - CauserStage: DangerStage 타입 데이터
+  - Reflected: bool 타입 데이터
+
+함수:
+  - GetOrCreateSpecies(): SpeciesWeightState 반환
+  - GetOrCreateIndividual(): IndividualWeightState 반환
+  - RecordEvent(): void 반환
+  - ResolveTargetKey(): string 반환
+  - RecordEventForWeight(): void 반환
+  - GetMentalState(): MentalErrorState 반환
+  - InitializeNewUnitPersonalInfo(): void 반환
+  - SetPersonalInitial(): void 반환
+  - OnWaveEnd(): void 반환
+  - ApplyUnderstandingGlobal(): void 반환
+  - ApplyRawUnderstanding(): void 반환
+  - ComputeUnderstandingTotal(): float 반환
+  - GetUnderstanding(): float 반환
+  - ApplyDangerGlobal(): void 반환
+  - ApplyTotalDamageDangerDecreaseCheck(): void 반환
+  - ApplyPerHitDangerDecreaseCheck(): void 반환
+  - GetFinalDanger(): float 반환
+  - GetDangerStage(): DangerStage 반환
+  - GetPersonalDanger(): float 반환
+  - GetPersonalInterest(): float 반환
+  - AccumulateSpecialAction(): void 반환
+  - OnPartyWipeout(): void 반환
+  - RegisterWipeoutTrace(): string 반환
+  - OnWipeoutTraceReflected(): void 반환
+  - TickWipeoutTraces(): void 반환
+  - GetUnitInterest(): float 반환
+  - GetCorpseTraceInterest(): float 반환
+  - GetDungeonDanger(): float 반환
+  - GetDungeonInterest(): float 반환
+  - GetDungeonDanger(): float 반환
+  - GetDungeonInterest(): float 반환
+  - ApplyHiddenInfoNoise(): int 반환
+  - ApplyInfoValueNoise(): int 반환
+  - PartyCacheKey(): string 반환
+  - ApplyHiddenInfoNoiseForParty(): int 반환
+  - ApplyInfoValueNoiseForParty(): int 반환
+  - ClearPartyInfoNoiseCache(): void 반환

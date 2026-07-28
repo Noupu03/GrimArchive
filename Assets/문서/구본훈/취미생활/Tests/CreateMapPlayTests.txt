@@ -1,0 +1,104 @@
+클래스명: CreateMapPlayTests
+태그: CreateMapPlayTests
+경로: Assets/Tests/CreateMapPlayTests.cs
+의도: CreateMapPlayTests의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - SetupCreateMap(): CreateMap 반환
+  - SetupRenderer(): MapRandering 반환
+  - Cleanup(): void 반환
+  - InitMap_CreatesFloorArrays(): void 반환
+  - AllChunks_Have8x8TileArray(): void 반환
+  - StartRoom_ExistsOnEachFloor(): void 반환
+  - TileNames_EdgeIsWall_InteriorIsFloor(): void 반환
+  - InternalWalls_OpenedBetweenSameRoomChunks(): void 반환
+  - SameSeed_ProducesSameMap(): void 반환
+  - DifferentSeed_ProducesDifferentMap(): void 반환
+  - ConnectedRooms_HaveOpenPassage(): void 반환
+  - MapRandering_PlacesTilesOnTilemap(): void 반환
+  - MapRandering_ReturnsGracefully_WhenReferenceMissing(): void 반환
+  - Floors_HaveCorrectSizes(): void 반환
+  - Chunks_HaveCorrectFloorId(): void 반환
+  - RoomRoles_AssignedOnEachFloor(): void 반환
+  - BossRoom_IsFarthestFromStart(): void 반환
+  - OuterWallThickness_Applied(): void 반환
+  - BossRoom_HasCorrectChunkCount(): void 반환
+  - AssertBossChunkCount(): void 반환
+  - BossRoom_DoesNotOverlapStartRoom(): void 반환
+  - Floor0_IsFullLobby(): void 반환
+  - Floor0_HasStairToFloor1Only(): void 반환
+  - EachFloor_HasReturnStairToFloor0(): void 반환
+  - StairTiles_HaveStairName(): void 반환
+  - OccupationState_MatchesRoomRole(): void 반환
+  - Dangerous_ZeroAtStartRoom_PositiveElsewhere(): void 반환
+  - Understand_FullAtStartRoom_ZeroElsewhere(): void 반환
+  - Dangerous_BossRoom_HasHighestDanger(): void 반환
+  - Weight_WallNegative_FloorPositive(): void 반환
+  - Weight_BossRoomFloor_IsTwo(): void 반환
+  - Visibility_BossRoom_IsDimmed(): void 반환
+  - Landform_MatchesRoomRole(): void 반환
+  - NormalRoomCount_DoesNotExceedConfig(): void 반환
+  - PrunedRooms_HaveNoOrphanChunks(): void 반환
+  - PrunedChunks_AreAllWall(): void 반환
+  - AfterPrune_AllRoomsStillConnected(): void 반환
+  - AllChunks_HaveConsistentRoomState(): void 반환
+  - MultiChunkRooms_ExistOnEachFloor(): void 반환
+  - RoomCoverage_SufficientOnEachFloor(): void 반환
+  - MergedSingleRooms_CreateSmallMultiChunkRooms(): void 반환
+  - ValidateMap_PassesWithDefaultSeed(): void 반환
+  - ValidateMap_PassesWithVariousSeeds(): void 반환
+  - ValidateMap_EachFloorHasExactlyOneStartRoom(): void 반환
+  - ValidateMap_EachFloorHasExactlyOneBossRoom(): void 반환
+  - ValidateMap_NoOrphanOrInconsistentChunks(): void 반환
+  - ValidateMap_RetryCountWithinLimit(): void 반환
+  - Gizmo_DefaultToggleFieldsAreTrue(): void 반환
+  - Gizmo_TogglesCanBeDisabled(): void 반환
+  - Gizmo_FieldsSurviveMapGeneration(): void 반환
+  - Gizmo_GetCurrentFloorMatchesIndex(): void 반환
+  - Serialize_ReturnsNonEmptyJson(): void 반환
+  - Serialize_RoundtripPreservesFloorCount(): void 반환
+  - Serialize_RoundtripPreservesFloorConfig(): void 반환
+  - Serialize_RoundtripPreservesChunkData(): void 반환
+  - Serialize_RoundtripPreservesTileData(): void 반환
+  - Serialize_SaveAndLoadFileRoundtrip(): void 반환
+  - Serialize_DeserializeSyncsFloorConfigs(): void 반환
+  - Serialize_RestoredMapPassesValidation(): void 반환
+  - Gates_AreValid(): void 반환
+  - AllowMaxFootprint_InRange(): void 반환
+  - SubPurposeRooms_HaveSingleEntry(): void 반환
+  - StairIsOpen_CorrectDefaults(): void 반환
+  - NormalRooms_ChunkCountWithinLimit(): void 반환
+  - ConquerRoom_ChangesOccupation(): void 반환
+  - RetreatFromRoom_RestoresNeutral(): void 반환
+  - OpenStair_ChangesStairIsOpen(): void 반환
+  - Serialization_PreservesNewFields(): void 반환
+  - GateWidth_MatchesAllowMaxFootprint(): void 반환
+  - CanEntityPassGate_ReturnsCorrectResult(): void 반환
+  - CanEntityEnterRoom_ReturnsCorrectResult(): void 반환
+  - IsValidFootprint_CorrectRange(): void 반환
+  - StairChunks_HaveAllowMaxFootprint5(): void 반환
+  - GateWidth_IsAtLeast2(): void 반환
+  - BossRoom_HasSequentialStairs(): void 반환
+  - BossRoomStairs_InitiallyLocked(): void 반환
+  - SubPurposeRooms_AreAlways1Chunk(): void 반환
+  - StartRoom_OnlyDirectlyConnectedToNormalRooms(): void 반환
+  - Floor0ToFloor1Stair_IsHumanOnly(): void 반환
+  - Serialization_PreservesStairHumanOnly(): void 반환
+  - FindRetreatTarget_ReturnsPlayerControlledOrStart(): void 반환
+  - IsFloorOccupied_FalseByDefault_TrueAfterConquer(): void 반환
+  - CanReachFloor_RespectsStairOpenState(): void 반환
+  - CanCommandEnemyRoom_RequiresAdjacentPlayerRoom(): void 반환
+  - WallThickness_StartAndBossRoomsHaveThickness1(): void 반환
+  - WallThicknessXY_AxisIndependent(): void 반환
+  - Floor0_AllTilesHaveFullVisibilityAndUnderstand(): void 반환
+  - BossRoomStair_PlacedOppositeEntrance(): void 반환
+  - TotalRoomCount_MatchesConfig(): void 반환
+  - CanReenterFloor_RespectsStartRoomControl(): void 반환
+  - RecalculateGateWidth_IncreasesWidth(): void 반환
+  - FindPathAcrossFloors_ReturnsCorrectSequence(): void 반환

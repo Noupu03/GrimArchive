@@ -1,0 +1,18 @@
+클래스명: UnitSpriteManager
+태그: Manager
+경로: Assets/Script/Unit/Visual/UnitSpriteManager.cs
+의도: 게임 내 UnitSprite 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - GetPrefab(): GameObject 반환
+  - GetSkills(): List<SkillAction> 반환
+  - GetEngageDistance(): int 반환
+  - GetSpriteLabelForDirection(): void 반환
+  - GetVariationCategories(): List<string> 반환
+  - PickRandomVariation(): string 반환

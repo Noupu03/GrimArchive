@@ -1,0 +1,15 @@
+클래스명: ObjectSpawner
+태그: ObjectSpawner
+경로: Assets/Script/Unit/Session/ObjectSpawner.cs
+의도: ObjectSpawner의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _mapRandering: MapRandering 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - SpawnObject(): void 반환
+  - CollectObject(): void 반환

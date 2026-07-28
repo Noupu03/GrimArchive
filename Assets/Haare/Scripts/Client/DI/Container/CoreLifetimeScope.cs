@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Cysharp.Threading.Tasks;
 using VContainer;
 using VContainer.Unity;
@@ -17,7 +17,12 @@ namespace Haare.Client.Core.DI
 
 
         private bool isLocalMode = true;
-        protected override void Configure(IContainerBuilder builder)
+        protected override void Awake()
+    {
+        base.Awake();
+    }
+
+    protected override void Configure(IContainerBuilder builder)
         {
             builder.Register<DataManager>(Lifetime.Singleton).As<DataManager>().AsSelf();
             builder.Register<SceneService>(Lifetime.Singleton).As<SceneService>().AsSelf();

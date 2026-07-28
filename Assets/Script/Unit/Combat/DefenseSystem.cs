@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 
 #if UNITY_EDITOR
@@ -64,10 +64,10 @@ public static class DefenseSystem
 	{
 		List<DefenseCandidate> result = new List<DefenseCandidate>();
 
-		float durability = defender.Durability;
+		float durability = defender.BaseStat.Durability;
 		float resistance = defender.resistance;
-		float agility    = defender.agility;
-		float sense      = defender.sense;
+		float agility    = defender.BaseStat.agility;
+		float sense      = defender.BaseStat.sense;
 		float focus      = defender.concentration;
 		float magic      = defender.MagicPower;
 
@@ -189,27 +189,27 @@ public static class DefenseSystem
 			case DefenseType.Dodge:
 			{
 				float success = Mathf.Clamp(
-					defender.agility * 0.007f + defender.sense * 0.003f,
+					defender.BaseStat.agility * 0.007f + defender.BaseStat.sense * 0.003f,
 					CombatConstants.MIN_DEFENSE_SUCCESS_RATE,
 					CombatConstants.MAX_DEFENSE_SUCCESS_RATE
 				);
 
 				if (Random.value <= success)
 				{
-					bool moved = TryDodgeMove(defender, defender.reactingThreat);
+					bool moved = TryDodgeMove(defender, defender.AIState.reactingThreat);
 					if (moved)
 					{
-						defender.evadeCooldown = 1.2f;
+						defender.CombatState.State.evadeCooldown = 1.2f;
 					}
 				}
 				break;
 			}
 			case DefenseType.Blink:
 			{
-				float cost = defender.maxMp * CombatConstants.BLINK_MP_COST_RATIO;
-				if (defender.mp < cost) return;
+				float cost = defender.Health.maxMp * CombatConstants.BLINK_MP_COST_RATIO;
+				if (defender.Health.mp < cost) return;
 
-				List<Vector2Int> safeTiles = FindSafeTiles(defender, defender.reactingThreat, 4, true);
+				List<Vector2Int> safeTiles = FindSafeTiles(defender, defender.AIState.reactingThreat, 4, true);
 				
 				// 벽 관통 방지 필터링: 출발지부터 목적지까지 벽을 뚫지 않는 경로가 존재하는 타일만 선별
 				List<Vector2Int> validTiles = new List<Vector2Int>();
@@ -223,7 +223,7 @@ public static class DefenseSystem
 
 				if (validTiles.Count == 0) return;
 
-				defender.mp -= cost;
+				defender.Health.mp -= cost;
 				defender.ForceMove(validTiles[Random.Range(0, validTiles.Count)]);
 				break;
 			}
@@ -237,14 +237,14 @@ public static class DefenseSystem
 			case DefenseType.Block:
 			{
 				float reduction = Mathf.Clamp(
-					defender.Durability * 0.0075f + defender.resistance * 0.0025f,
+					defender.BaseStat.Durability * 0.0075f + defender.resistance * 0.0025f,
 					CombatConstants.MIN_BLOCK_DAMAGE_REDUCTION,
 					CombatConstants.MAX_BLOCK_DAMAGE_REDUCTION
 				);
 
 				var guardDef = defender;
-				guardDef.suppressHitVFX = true;
-				guardDef.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
+				guardDef.CombatState.State.suppressHitVFX = true;
+				guardDef.AIState.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
 				
 				return rawDamage * (1f - reduction);
 			}
@@ -252,7 +252,7 @@ public static class DefenseSystem
 			case DefenseType.Parry:
 			{
 				float success = Mathf.Clamp(
-					defender.concentration * 0.006f + defender.sense * 0.002f + defender.agility * 0.002f,
+					defender.concentration * 0.006f + defender.BaseStat.sense * 0.002f + defender.BaseStat.agility * 0.002f,
 					0.05f,
 					0.85f
 				);
@@ -260,11 +260,11 @@ public static class DefenseSystem
 				if (Random.value <= success)
 				{
 					// 반격 데미지
-					attacker.TakePhysicalDamage(defender.physicalAttack * 0.5f, defender);
+					attacker.TakePhysicalDamage(defender.CombatStat.physicalAttack * 0.5f, defender);
 
 					var parryDef = defender;
-					parryDef.suppressHitVFX = true;
-					parryDef.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
+					parryDef.CombatState.State.suppressHitVFX = true;
+					parryDef.AIState.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
 					
 					return 0f;
 				}

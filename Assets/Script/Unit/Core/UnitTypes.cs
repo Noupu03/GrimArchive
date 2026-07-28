@@ -24,6 +24,11 @@ public class Knight : UnitType
 	public Knight() { typeName = "기사형"; footprint = new Vector2(1, 1); }
 }
 
+public class HumanBaseType : UnitType
+{
+    public HumanBaseType() { typeName = "인간"; footprint = new Vector2(1, 1); }
+}
+
 // 몬스터 역할군
 public class MeleeTank : UnitType
 {
@@ -33,6 +38,13 @@ public class MeleeTank : UnitType
 public class WildBaseType : UnitType
 {
 	public WildBaseType() { typeName = "야생 거점"; footprint = new Vector2(2, 2); }
+}
+
+// 2026-07-27 신규 — 모든 야생(Neutral) 방에 필수 배치되는 방 고정 몬스터(GameSession.
+// SpawnWildRoomGuards 참고). 스킬은 근접 탱커와 동일, 스탯은 그보다 약하게(사용자 요청).
+public class WildMonsterA : UnitType
+{
+	public WildMonsterA() { typeName = "야생 몬스터 A"; footprint = new Vector2(1, 1); }
 }
 
 // ----------------------------------------------------

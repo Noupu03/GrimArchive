@@ -3,25 +3,32 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
 using Haare.Util.Logger;
+using UnityEngine;
 
 public enum ResourceType
 {
     Wood,
     Stone,
-    Gold,
-    DefenseReward, // 기획문서 상 자원 A (디펜스 보상)
-    OffenseReward  // 기획문서 상 자원 B (오펜스 보상)
+    Gold
 }
 
 public class ResourceManager : NativeRoutine
 {
     public static ResourceManager Instance { get; private set; }
 
-    // M키(몬스터 배치)/P키(함정 배치) 1회당 소모 자원 — InputManager와 UI(StatusInfoPanel의 자원 사용
-    // 안내)가 같은 값을 참조하도록 여기 한 곳에만 정의한다(고정값, 2026-07-23 사용자 요청 "적절히
-    // 분배해줘" — 시작 보유량 100/100 기준으로 초반에 여러 번 쓸 수 있게 잡음).
-    public const int MonsterPlaceWoodCost = 15;
-    public const int TrapPlaceStoneCost = 10;
+    // 건축물·자원·유닛 생산 MVP(2026-07-27) — P키(함정 배치) 1회당 소모 자원. InputManager와
+    // UI(StatusInfoPanel의 자원 사용 안내)가 같은 값을 참조하도록 여기 한 곳에만 정의한다.
+    public const int TrapPlaceStoneCost = 100;
+
+    // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 확정 수치) — B/V키 건물 설치비와 유닛 생산비.
+    public const int UnitProductionWoodCost = 100;
+    public const int ResourceBuildingStoneCost = 300;
+    public const int UnitBuildingStoneCost = 200;
+
+    // 처치 보상(2026-07-27, 문서에 수치 미명시 — "시간기반 자동증가보다 훨씬 커야 한다"는 사용자
+    // 기준만 있어 판단 근거를 남기고 상수로 뺌) — BuildingManager의 자원 건물 틱(5초당 +5)의 6배.
+    public const int KillRewardWood = 30;
+    public const int KillRewardStone = 30;
 
     private Dictionary<ResourceType, int> resources = new Dictionary<ResourceType, int>();
 
@@ -31,14 +38,11 @@ public class ResourceManager : NativeRoutine
         Instance = this;
 
         resources.Clear();
-        // 초기 자원 세팅 — 시간이 지나도 자동으로 늘어나지 않는 고정값(사용자 요청, 2026-07-23:
-        // "나무와 돌은 시간이 지날수록 생성되는게 아니라 일단 고정값으로 둬줘"). 예전엔 5초마다
-        // 나무+10/돌+5가 자동으로 채굴되는 더미 채굴기가 있었으나 제거했다 — M/P키 소모(TryConsumeResource)
-        // 로만 줄어들고, 늘어나는 경로는 지금 없다.
-        // 나무는 늘리고 돌은 줄임(사용자 요청, 2026-07-23) — 나무 150이면 몬스터(M, 15개/회) 10회,
-        // 돌 60이면 함정(P, 10개/회) 6회 배치 가능.
-        resources[ResourceType.Wood] = 150;
-        resources[ResourceType.Stone] = 60;
+        // 초기 보유량(2026-07-27, 사용자 확정 수치) — Wood/Stone 각 200. 시간 경과 자동 증가는 더 이상
+        // "고정값" 원칙이 아니라 V키 자원 생산 건물이 있을 때만 발생한다(BuildingManager 참고) — 문서
+        // 5장의 "건축물을 통한 임시 자원 확보" 요구사항을 그 건물에 연결한 것.
+        resources[ResourceType.Wood] = 200;
+        resources[ResourceType.Stone] = 200;
         resources[ResourceType.Gold] = 50;
 
         LogHelper.Log(LogHelper.GAME, "ResourceManager Initialized");
@@ -108,5 +112,28 @@ public class ResourceManager : NativeRoutine
     public int GetResourceAmount(ResourceType type)
     {
         return resources.TryGetValue(type, out int current) ? current : 0;
+    }
+
+    // 처치 보상 MVP(2026-07-27, 사용자 요청) — 킬로 자원을 얻을 때 "돌 30개 획득!" 형태의 floating text를
+    // 띄운다. UIManager.ShowFloatingTextAt(기존 함정 해제 성공/실패 문구가 쓰는 것과 동일한 메서드)을
+    // 재사용한다 — 그 메서드는 floor offset을 계산하지 않으므로(unit.position 기준 화면 좌표만 반환하는
+    // ShowFloatingText(Unit)와 달리 임의 월드좌표를 받음) 여기서 직접 GetFloorOffset을 더해 1층 이외의
+    // 층에서도 정확한 위치에 뜨도록 한다.
+    public static void ShowKillRewardText(Unit killer, ResourceType type, int amount)
+    {
+        if (killer == null || killer.UI == null) return;
+
+        string label = type switch
+        {
+            ResourceType.Wood => "나무",
+            ResourceType.Stone => "돌",
+            ResourceType.Gold => "골드",
+            _ => type.ToString()
+        };
+
+        Vector3 pos = new Vector3(killer.position.x + 0.5f, killer.position.y + 1.2f, 0f);
+        if (killer.Generate != null) pos += killer.Generate.GetFloorOffset(killer.currentFloor);
+
+        killer.UI.ShowFloatingTextAt(pos, $"{label} {amount}개 획득!", Color.yellow, 0.8f);
     }
 }

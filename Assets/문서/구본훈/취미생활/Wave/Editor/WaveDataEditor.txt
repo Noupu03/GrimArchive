@@ -1,0 +1,20 @@
+클래스명: WaveDataEditor (UnityEditor.Editor)
+태그: Data
+경로: Assets/Script/Wave/Editor/WaveDataEditor.cs
+의도: WaveEditor와 관련된 정적 데이터 및 설정값을 보관하는 데이터 클래스입니다. (자동 분석됨)
+
+관계:
+  - UnityEditor.Editor 상속 및 구현
+
+변수:
+  - waveCooldownProp: SerializedProperty 타입 데이터
+  - spawnModeProp: SerializedProperty 타입 데이터
+  - targetFloorProp: SerializedProperty 타입 데이터
+  - spawnCenterProp: SerializedProperty 타입 데이터
+  - spawnTileRadiusProp: SerializedProperty 타입 데이터
+  - targetRoomRoleProp: SerializedProperty 타입 데이터
+  - targetRoomIdProp: SerializedProperty 타입 데이터
+  - partiesProp: SerializedProperty 타입 데이터
+
+함수:
+  - OnInspectorGUI(): void 반환

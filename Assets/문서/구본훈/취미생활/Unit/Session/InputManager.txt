@@ -1,0 +1,52 @@
+클래스명: InputManager (MonoBehaviour)
+태그: Manager
+경로: Assets/Script/Unit/Session/InputManager.cs
+의도: 게임 내 Input 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - selectedUnits: List<Unit> 타입 데이터
+  - _isMouseDown: bool 타입 데이터
+  - _dragBoxActive: bool 타입 데이터
+  - _dragStartScreenPos: Vector2 타입 데이터
+  - _dragCurrentScreenPos: Vector2 타입 데이터
+  - _lastClickedUnit: Unit 타입 데이터
+  - _lastClickTime: float 타입 데이터
+  - _unitGenerate: UnitGenerate 타입 데이터
+  - _gameSession: GameSession 타입 데이터
+  - _buildingManager: BuildingManager 타입 데이터
+  - _resourceManager: ResourceManager 타입 데이터
+  - isBuildMode: bool 타입 데이터
+  - ghostPrefab: GameObject 타입 데이터
+  - ghostRenderer: SpriteRenderer 타입 데이터
+  - currentBuildRule: ProductionRule 타입 데이터
+  - currentBuildSprite: Sprite 타입 데이터
+  - isObjectPlaceMode: bool 타입 데이터
+  - isTrapPlaceMode: bool 타입 데이터
+  - isMonsterPlaceMode: bool 타입 데이터
+  - placeGhost: GameObject 타입 데이터
+  - placeGhostRenderer: SpriteRenderer 타입 데이터
+
+함수:
+  - Construct(): void 반환
+  - IsPointInFootprint(): bool 반환
+  - FindUnitAtGridPos(): Unit 반환
+  - ScreenToWorldPoint(): Vector3 반환
+  - ScreenToGridPos(): Vector3Int 반환
+  - DoClickSelect(): void 반환
+  - DoBoxSelect(): void 반환
+  - SelectNearbySameType(): void 반환
+  - GetGUIRect(): Rect 반환
+  - DrawRectBorder(): void 반환
+  - EnterBuildMode(): void 반환
+  - ExitBuildMode(): void 반환
+  - UpdateBuildMode(): void 반환
+  - TryInstallBuilding(): void 반환
+  - EnterObjectPlaceMode(): void 반환
+  - EnterTrapPlaceMode(): void 반환
+  - EnterMonsterPlaceMode(): void 반환
+  - ExitPlaceMode(): void 반환
+  - EnsurePlaceGhost(): void 반환
+  - UpdatePlaceMode(): void 반환

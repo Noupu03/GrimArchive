@@ -1,0 +1,21 @@
+클래스명: Hitbox
+태그: Hitbox
+경로: Assets/Script/Unit/Combat/Hitbox.cs
+의도: Hitbox의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - center: Vector2 타입 데이터
+  - size: Vector2 타입 데이터
+  - rotation: float 타입 데이터
+
+함수:
+  - ToRect(): Rect 반환
+  - Overlaps(): bool 반환
+  - GetCorners(): Vector2[] 반환
+  - OverlapOnAxis(): bool 반환
+  - CalculateOverlapArea(): float 반환
+  - CalculateOverlapRatio(): float 반환
+  - IsInside(): bool 반환

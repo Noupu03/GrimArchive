@@ -1,0 +1,22 @@
+클래스명: PerceptionSystemTests
+태그: System
+경로: Assets/Tests/PerceptionSystemTests.cs
+의도: PerceptionSystemTests의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - DetectionCorrection_AlertAddsTwenty(): void 반환
+  - GetMentalTier_Boundaries(): void 반환
+  - MentalVisibilityCorrection_Table(): void 반환
+  - MentalCorrectionForHuman_UnsetMaxMentalIsStable(): void 반환
+  - TotalPerceptionVisibility_ExampleFromDoc(): void 반환
+  - AssertProbabilities(): void 반환
+  - OutcomeProbabilities_Table(): void 반환
+  - RollOutcome_SplitsByRollValue(): void 반환
+  - SuspiciousTileTempWeights_AreFive(): void 반환
+  - ResolveObjectVisibility_CorpseAndWipeoutAreFixedAt100(): void 반환

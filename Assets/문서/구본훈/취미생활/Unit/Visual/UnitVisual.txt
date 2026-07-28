@@ -1,0 +1,27 @@
+클래스명: UnitVisual (MonoBehaviour)
+태그: UnitVisual
+경로: Assets/Script/Unit/Visual/UnitVisual.cs
+의도: UnitVisual의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - MonoBehaviour 상속 및 구현
+
+변수:
+  - boundUnit: Unit 타입 데이터
+  - _visionRangeLine: LineRenderer 타입 데이터
+  - _perceptionRangeLine: LineRenderer 타입 데이터
+  - _circularPerceptionLine: LineRenderer 타입 데이터
+  - _statusLabel: TextMesh 타입 데이터
+  - _belowLabel: TextMesh 타입 데이터
+
+함수:
+  - Setup(): void 반환
+  - UpdateStatusLabel(): void 반환
+  - EnsureStatusLabel(): void 반환
+  - UpdateBelowLabel(): void 반환
+  - EnsureBelowLabel(): void 반환
+  - CreateRangeLine(): LineRenderer 반환
+  - SetVisionRangesVisible(): void 반환
+  - DrawVisionAndPerceptionRange(): void 반환
+  - DrawCone(): void 반환
+  - DrawCircle(): void 반환

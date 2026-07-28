@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
@@ -84,26 +84,21 @@ public class ThreatTileRenderer
 	}
 #endif
 
-	// pattern을 시계 방향으로 k*90도 회전시킨 결과 (슬롯 순서: forward, right, backward, left)
-	private static bool[] RotateSlots(bool[] pattern, int k)
-	{
-		bool[] result = new bool[4];
-		for (int i = 0; i < 4; i++)
-			result[i] = pattern[((i - k) % 4 + 4) % 4];
-		return result;
-	}
-
 	// 4방향 경계 패턴에 맞는 라벨과 추가 회전(0~3, *90도)을 찾는다.
 	private static (int label, int rotSteps) MatchPattern(bool forward, bool right, bool backward, bool left)
 	{
-		bool[] required = { forward, right, backward, left };
 		for (int label = 0; label < LabelPatterns.Length; label++)
 		{
+			bool[] p = LabelPatterns[label];
 			for (int k = 0; k < 4; k++)
 			{
-				bool[] rotated = RotateSlots(LabelPatterns[label], k);
-				if (rotated[0] == required[0] && rotated[1] == required[1] &&
-					rotated[2] == required[2] && rotated[3] == required[3])
+				bool r0 = p[((0 - k) % 4 + 4) % 4];
+				bool r1 = p[((1 - k) % 4 + 4) % 4];
+				bool r2 = p[((2 - k) % 4 + 4) % 4];
+				bool r3 = p[((3 - k) % 4 + 4) % 4];
+
+				if (r0 == forward && r1 == right &&
+					r2 == backward && r3 == left)
 					return (label, k);
 			}
 		}
@@ -124,14 +119,18 @@ public class ThreatTileRenderer
 		return sr;
 	}
 
+	private HashSet<Unit> _cachedAliveUnits = new HashSet<Unit>();
+	private List<Unit> _cachedRemoveList = new List<Unit>();
+
 	public void Render(List<Unit> units)
 	{
-		HashSet<Unit> aliveUnits = new HashSet<Unit>(units);
+		_cachedAliveUnits.Clear();
+		foreach(var u in units) _cachedAliveUnits.Add(u);
 
 		// =====================================
 		// REMOVE PHASE
 		// =====================================
-		List<Unit> removeList = new();
+		_cachedRemoveList.Clear();
 
 		foreach (var pair in activeVisuals)
 		{
@@ -139,19 +138,19 @@ public class ThreatTileRenderer
 
 			bool shouldRemove =
 				u == null ||
-				!aliveUnits.Contains(u) ||
-				u.currentThreat == null;
+				!_cachedAliveUnits.Contains(u) ||
+				u.AIState.currentThreat == null;
 
 			if (shouldRemove)
 			{
 				if (pair.Value != null && pair.Value.root != null)
 					Object.Destroy(pair.Value.root.gameObject);
 
-				removeList.Add(u);
+				_cachedRemoveList.Add(u);
 			}
 		}
 
-		foreach (var u in removeList)
+		foreach (var u in _cachedRemoveList)
 			activeVisuals.Remove(u);
 
 		// =====================================
@@ -159,10 +158,10 @@ public class ThreatTileRenderer
 		// =====================================
 		foreach (Unit u in units)
 		{
-			if (u == null || u.currentThreat == null)
+			if (u == null || u.AIState.currentThreat == null)
 				continue;
 
-			ThreatTileData threat = u.currentThreat;
+			ThreatTileData threat = u.AIState.currentThreat;
 
 			if (threat.hitbox.size == Vector2.zero)
 				continue;
@@ -190,7 +189,11 @@ public class ThreatTileRenderer
 			float cos = Mathf.Cos(rad);
 			float sin = Mathf.Sin(rad);
 
-			Color color = u is Human ? Color.green : Color.red;
+			// 2026-07-27 사용자 요청: 야생 몬스터(WildMonsterBehavior)의 공격 위협타일은 회색으로
+			// 구분한다 — 그 외 몬스터(플레이어 소속)는 기존대로 빨강.
+			Color color = u is Human ? Color.green
+				: u.FactionBehavior is WildMonsterBehavior ? Color.gray
+				: Color.red;
 			color.a = threat.color.a;
 
 			int index = 0;

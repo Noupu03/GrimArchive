@@ -1,8 +1,0 @@
-[스크립트 이름]: AnimationUIEditor
-[스크립트의 목적]: (추가 주석 필요)
-[의존성과 상속같은 관계]: UnityEditor
-[변수]: propertiesToExclude, hoverImageProp, hoverColorProp, animationProp, clickAnimationFlagProp, clickDurationProp, clickPunchScaleProp, hoverAnimationFlagProp, hoverScaleProp, hoverDurationProp, animationSlideProp, animationPopupProp, slideDurationProp, slideEaseTypeProp, onScreenProp, offScreenProp, popupDurationProp, popupEaseTypeProp
-[함수 및 목적]:
- - OnInspectorGUI: (목적 설명 없음)
- - OnInspectorGUI: (목적 설명 없음)
---------------------------------------------------

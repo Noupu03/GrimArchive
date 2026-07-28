@@ -1,0 +1,382 @@
+GrimArchive 03_탐색반응·경계·조사·함정대응_시스템_v0.6 — 구현 현황 재검증 (2026-07-24)
+
+배경: 이전 버전(같은 폴더에 있던 시야인지반응_03_구현현황_2026-07-22.txt)은 GOAP 아키텍처
+(GoapCore.cs/Goals.cs/Actions.cs/GoapPlanner.cs/GoapWorldState.cs) 기준으로 작성됐다. 2026-07-24
+"GOAP to FSM+BT 대략적 구현" 세션에서 그 파일들이 전부 삭제되고 UnitFSM/PlayerCommandFSMState/
+CombatFSMState/TacticalFSMState/NavigationFSMState(Assets/Script/Unit/AI/States, FSM)로 완전히
+대체됐다 — 이전 문서가 참조하는 클래스 자체가 지금 코드에 없다. 이전 문서와 그 설계 근거였던
+시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt / 시야인지반응_GOAP전체목표_마스터우선순위표_
+2026-07-22.txt는 전부 구현현황/지난거/로 옮겼다(사용자 요청). 이 문서는 그 자리를 대체하며, 이전
+문서의 태그를 옮기지 않고 지금 코드를 처음부터 다시 열어 문서 GrimArchive_03_탐색반응·경계·조사·
+함정대응_시스템_v0.6.docx.md(Assets/문서/공식문서/시야인지반응/)의 장(章)별로 재검증했다.
+
+갱신 이력: 2026-07-24 최초 작성 → 2026-07-25 우선순위 1~3번(6-4 배치/5-6·9-7 진행도 손실/8-2
+AnyEscortHitThisTurn) 실제 코드 수정 + 실행 검증 반영 → 2026-07-25 4장 전체 재검증(사용자 요청
+"꼼꼼하게 다시 체크")으로 4-1/4-4/4-5/4-11 태그 정정 및 우선순위 재선정. 파일명은 최초 작성일 그대로
+유지(관례상 같은 날 내 갱신은 새 파일을 만들지 않음).
+
+기준 문서: Assets/문서/공식문서/시야인지반응/GrimArchive_03_탐색반응·경계·조사·함정대응_시스템_v0.6.docx.md
+핵심 코드: Assets/Script/Unit/AI/States/{PlayerCommandFSMState,CombatFSMState,TacticalFSMState,
+NavigationFSMState}.cs, Assets/Script/Unit/AI/FSM/UnitFSM.cs, Assets/Script/Unit/Exploration/*.cs
+(AlertSearchState/InvestigationState/WaitState/FormationState/TrapInteractionState/ExplorationMath),
+Assets/Script/Unit/Core/Unit.cs(Human 클래스), Assets/Script/Unit/Core/UnitFunction.cs(OnUpdate 타이머
++ 피격 처리), Assets/Script/Unit/Party/Party.cs.
+
+태그
+  ✅ 구현       — 문서 규칙이 코드에 정확히 있고 실제 게임 루프에서 자동 발동.
+  🔶 부분/근사  — 동작은 하지만 문서 세부 규칙 일부를 단순화했거나 근사치로 대체.
+  ❌ 미구현     — 트리거/로직 자체가 코드에 없음(필드/상수만 선언돼 있고 아무도 안 읽는 "죽은 스텁" 포함).
+
+════════════════════════════════════════════════════════════════════════
+■ 1장. 문서 목적 — 구현 대상 아님
+════════════════════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════════════════════
+■ 2장. 탐색 반응 기본 흐름
+════════════════════════════════════════════════════════════════════════
+✅ 2-1. 기본 우선순위(함정 대응 > 경계 > 조사 > 대기) — TacticalFSMState.BuildBTNodes()의 기본 폴백
+   순서(Panic, TrapResponse, Alert, Investigate, Wait, Formation)가 이 순서를 그대로 지킨다. "집결은
+   자율 우선순위에서 제외"도 집결이 별도 트리거 없이 존재하지 않으므로 자동으로 성립.
+   다만 맨 앞의 Panic(공황)은 이 문서(v0.6)에 없는 개념이다 — 06_위기반응·도주·후퇴_시스템(미작성,
+   15장 연계문서 참고)이 다룰 자리를 GOAP 시절부터 임시로 대신 채워온 것으로 보인다. Panic이 활성화
+   되면(정신력 < 최대치의 30%) 진행 중이던 조사/함정 해제라도 즉시 밀려난다 — "이미 수행 중인 조사나
+   함정 해제는 자동 중단하지 않는다"는 규칙이 Trap/Alert/Investigate/Wait 넷 사이에서는 지켜지지만
+   (BTSelector 순서 + 각 브랜치 Condition이 Failure를 반환할 때만 전환), 03문서 범위 밖인 Panic에는
+   적용되지 않는다.
+✅ 2-2. 우선순위 적용 예시 3가지 — 함정+조사 동시 인지 시 함정 우선(Selector가 TrapResponse를
+   Investigate보다 먼저 검사), 수상한 타일+조사 동시 확인 시 경계 우선(Alert가 Investigate보다 먼저),
+   함정 해제 합류 대기 중 수상한 타일 확인 시 대기 유지(TrapResponse가 Alert보다 먼저) 전부 일치.
+
+════════════════════════════════════════════════════════════════════════
+■ 3장. 일반 탐색
+════════════════════════════════════════════════════════════════════════
+✅ 목표를 향한 이동 + 시야 확인 + 인지 판정 반복 — NavigationFSMState.RandomExplore가 진영 공유
+   맵이 아니라 개인 지도(personalMap) 기준 BFS로 미탐색 프론티어를 찾아 이동하고(2026-07-24 개선,
+   이전엔 진영 공유 맵 반경 10칸 로컬 탐색이라 일부 유닛이 시작방에 고립되는 문제가 있었음 — 사용자
+   확인), UpdateFOV는 상태와 무관하게 매 틱 항상 돈다.
+✅ 안전타일 확인 시 별도 전환 없이 일반 탐색 유지 — 안전타일은 애초에 트리거를 만들지 않음(주석 확인).
+🔶 탐색 반응 완료 후 "기존 목표 유효하면 재개/무효화되면 재설정" — currentExplorationTarget 캐시가
+   유효성을 재확인(GetTileTerrain==0)하지만, 이건 "일반 탐색끼리의 목표 유지"에만 해당하고 조사/함정/
+   경계 등 탐색 반응이 끝난 뒤 "일반 탐색으로 복귀"는 단순히 그 틱에 다시 BFS를 돌리는 것으로 근사.
+
+════════════════════════════════════════════════════════════════════════
+■ 4장. 경계
+════════════════════════════════════════════════════════════════════════
+※ 2026-07-25 재검증(사용자 요청 "꼼꼼하게 문서 항목별로 대조하면서 다시 체크") — 아래 최초 검증
+   (같은 날 앞서 작성)에서 4-1/4-4/4-5/4-11을 실제보다 나쁘게(미구현으로) 잘못 적었던 걸 코드를 다시
+   추적해서 바로잡았다. 태그 옆에 "(2차 검증)"이라고 표시한 항목이 이번에 수정된 것.
+
+✅(2차 검증) 4-1. 발생 상황 4가지 — 전부 실제로 연결돼 있다: "수상한 타일"은
+   UnitFunction.ForceRollPerception(444줄 부근)이 새로 SuspiciousTile 판정이 나오면
+   currentAlertSearch를 생성, "전투 종료 후 재확인"은 CombatFSMState.OnExit, "공격자 미인식 피격"은
+   RecordHitWeightEvent(88~100줄 부근)가 방향을 아는 경우(TargetPosition 설정)/모르는 경우(null) 둘
+   다 처리한다. 최초 검증 때 ForceRollPerception의 트리거를 놓쳐서 "수상한 타일 발생" 조건을 ❌로
+   잘못 적었었다.
+❌ 4-2. 경계 반응속도 ×1.2 — (2차 검증으로 원인 구체화) BaseStat.reaction 자체는 죽은 스탯이
+   아니다 — UnitFunction.OnThreatDetected가 `reactionTimeMs = 30000 / BaseStat.reaction`으로 기습
+   공격에 대한 반응 시간을 실제로 계산한다(아마 05_전투반응·기습·방어반응_시스템 소관 로직). 다만 이
+   계산에 03문서가 요구하는 경계 상태 ×1.2 배율은 전혀 반영되지 않는다 — AIBehaviorConfig.
+   alertReactionSpeedRatio/ExplorationMath.AlertReactionSpeedRatio는 선언 외 참조 0건 그대로.
+❌ 4-3. 경계 이동속도 = 일반 이동속도 × 75% — AIBehaviorConfig.alertMoveSpeedRatio/ExplorationMath.
+   AlertMoveSpeedRatio 참조 0건 그대로. walkSpeed를 곱셈으로 보정하는 지점 자체가 코드에 없다
+   (GameSession.ProcessUnitAction의 actionCooldown = 1/walkSpeed가 유일한 소비처).
+✅(2차 검증) 4-4. 수상한 타일 접근(방향 전환→경계 진입→접근→2칸 이내 재인지) — 최초 검증에서
+   "흐름 자체가 없다"고 잘못 적었으나, 실제로는 ForceRollPerception이 만든 AlertSearchState를
+   TacticalFSMState.AlertApproach가 소비해 방향 전환(currentDir 갱신) + 접근까지 수행하고,
+   UnitFunction.ResolveReachedTarget이 PendingSuspiciousInvestigation + dist ≤
+   PerceptionMath.SuspiciousTileReapproachDistanceTiles(=2)일 때 실제로 재판정(ForceRollPerception
+   재호출)을 돌린다 — 4-4 전체가 코드로 확인됨. 유일하게 빠진 조각은 "경계 이동속도로" 부분(4-3
+   부재로 일반 속도 그대로 접근).
+🔶(2차 검증) 4-5. 재인지 결과별 후속 행동 — 표의 각 전환(적 정확인지→전투/함정 정확인지→함정
+   대응/조사 가능 정확인지→조사/미인식→안전타일 처리) 자체는 실제로 잘 일어난다 — Combat/Tactical
+   우선순위 구조(Combat이 배열상 먼저 검사됨) 덕분에, AlertSearchState의 존재 여부와 무관하게 정확
+   인지 즉시 해당 상태로 전환된다. 문제는 **그 전환 시점에 옛 AlertSearchState가 명시적으로 정리되지
+   않는다는 것** — currentAlertSearch를 null로 되돌리는 코드는 코드베이스 전체에 딱 2곳뿐이다
+   (TacticalFSMState.AlertApproach의 거리≤1.5 클리어, UnitFunction.OnUpdate의 타임아웃). 그래서
+   수상한 타일 추적 중 상대가 먼저 정확 인지돼 전투로 전환되면, 전투가 끝나도
+   CombatFSMState.OnExit의 `if (currentAlertSearch == null)` 가드가 막혀서 의도된 "전투 종료 10초
+   스윕"이 아예 안 만들어지고, 그 자리에 옛(수상한 타일 추적용, IsPostCombatSweep=false) 경계가
+   그대로 남아 15초 타임아웃 규칙을 대신 적용받는다 — 이번 재검증에서 새로 찾은 버그.
+❌ 4-6. 수상한 타일 대상 이동 시 임시 가시성 +20 누적 — VisionMath.NonEmptyTileTempWeight가 코드
+   주석에 스스로 "소비자 없는 스텁"이라고 적어둔 상태(PerceptionMath.cs:115). AIBehaviorConfig.
+   suspiciousVisibilityBoostPerMove/ExplorationMath.SuspiciousTargetVisibilityBoostPerMove 둘 다 참조
+   0건. "이동 횟수"를 세는 카운터 자체도 어디에도 없음(재검증 재확인).
+❌ 4-7. 적 위치 간접 인지 후 접근 — 간접 인지(소리/전파) 시스템 자체가 없음(대표 가중치 문서 쪽
+   구현현황에도 동일하게 기록된 제약). BroadcastWitnessEvent는 가중치(이해도/위험도) 갱신용
+   목격자 순회일 뿐 위치 기반 소리/전파 추적과 무관함을 재확인.
+✅ 4-8. 전투 종료 후 10초 경계 — ExplorationMath.PostCombatAlertSeconds(10f) + AlertSearchState.
+   IsPostCombatSweep으로 정확히 구현, UnitFunction.OnUpdate가 매 프레임 ElapsedSeconds를 흘려보내
+   시간 종료 시 해제한다. (단 위 4-5에 적은 정리 누락 버그 때문에, 수상한 타일 추적이 전투로 이어진
+   경우엔 이 스윕 자체가 생성되지 않는 사각지대가 있음.)
+❌ 4-8 후반부. "경계 완료와 동시에 리더가 집결 명령 생성" — Party.RallyPoint/IsRallyActive는 필드만
+   있고 어디서도 값이 설정되지 않는다(재검증 재확인, 아래 11장 참고). 경계가 끝나도 집결 명령은
+   생기지 않는다.
+🔶 4-9. 수색(바라보는 정면 방향으로만 이동, 다른 방향으로 이동하지 않음) — AlertPerimeterSearch는
+   currentDir부터 시작해 8방향을 순서대로 시도하는 폴백이라, 정면이 막히면 다른 방향으로도 이동한다
+   — "다른 방향으로 이동하지 않는다"는 문서 규칙과 다르게 완전히 막히지 않도록 폴백을 둔 것(단,
+   이동한 방향으로 currentDir도 같이 돌려서 "보는 방향=이동 방향"의 일관성 자체는 유지함).
+✅ 4-10. 공격 방향을 아는 경우의 수색 — AlertApproach가 AlertSearchState.TargetPosition으로 이동.
+🔶(2차 검증) 4-11. 공격 방향을 모르는 경우의 수색 — "경계 상태로 전환해 주변을 확인한다"는 일반
+   케이스는 AlertPerimeterSearch로 이미 충족(❌였던 최초 판정 정정). 다만 "상호작용 보호 포메이션에서
+   대기 중 방향 미상 시 위치별(전방/후방/좌우/중앙) 분산 수색"은 여전히 없음 — AlertPerimeterSearch는
+   포메이션 위치 개념 없이 유닛 하나하나가 독립적으로 8방향을 시도할 뿐이다(6장의 포메이션 위치
+   미배정 한계를 그대로 물려받음).
+✅ 4-12. 미식별 공격 수색 15초 — ExplorationMath.UnidentifiedAttackSearchSeconds(15f), 추가 공격 시
+   피격 처리 코드가 매번 새 AlertSearchState로 덮어써 자동으로 재설정된다.
+
+════════════════════════════════════════════════════════════════════════
+■ 5장. 조사
+════════════════════════════════════════════════════════════════════════
+🔶 5-1. 조사 후 처리(파괴/회수/이벤트/정보) — PickUpObject는 "Loot" 태그(회수 전용)만 실제로
+   처리한다. InteractableObject.Tags 체계 자체에 "파괴 가능"/"이벤트 연결"/"정보 제공" 카테고리가
+   없어 나머지 3종은 개념조차 없다.
+🔶 5-2. 조사 대상 범위 — Human.ComputeInvestigateTarget()이 Trap/Corpse/WipeoutTrace를 제외한 나머지
+   전부를 대상으로 삼는다. "비전투 건물"/"이벤트 오브젝트"라는 별도 종류는 코드에 없다(현재 스폰되는
+   비전투 오브젝트는 사실상 Loot 계열뿐).
+✅ 5-3. 조사 시작 5조건 — 정확 인지(personalMap.IsObjectKnown)/선택(FindInvestigateTarget)/도달
+   (Chebyshev≤1)/비전투(personalSpottedEnemies.Count==0)까지 확인. "도주·후퇴 중 아님"은 06문서 부재로
+   자동 충족(해당 상태 자체가 없음). 도달 즉시(다른 파티원 대기 없이) 시작 ✅.
+🔶 5-4. 조사 중 보정(시야/인지/반응속도 각 50%) — ExplorationPenaltyActive가 UpdateFOV의 시야 거리·
+   인지 거리·인지각에 0.5배를 곱하는 것까지는 ✅. "반응속도 50%"는 4-2와 같은 이유로 ❌(반응속도
+   보정 자체가 어디에도 적용되지 않음).
+🔶 5-5. 조사 완료와 정보 공유 — InvestigatePerform이 완료 즉시 같은 파티 전원에게 한 번에
+   RegisterObject/OnObjectInvestigated를 적용한다. 문서가 요구하는 "전파 범위 안으로 들어온 파티원
+   에게만 점진적으로 재전파"가 아니라 "즉시 파티 전체 공유"로 단순화됨(07_전파 문서 부재로 인한 근사).
+✅(수정 완료) 5-6. 조사 중단과 50% 진행도 손실 — 원래는 50% 손실 처리가 TacticalFSMState.OnExit()에만
+   있어서, UnitFSM이 Tactical **상태 자체**를 벗어날 때(예: PlayerCommand로 전환)만 적용되고,
+   CanInvestigate 실패로 Tactical 안에서 Investigate 브랜치가 Panic/Trap/Alert 브랜치로 대체되는
+   경우(문서가 실제로 말하는 "피격/위협 인지로 중단"의 전형적인 경로)는 같은 State 객체가 유지되므로
+   진행도가 전혀 깎이지 않는 gap이 있었다 — 실제 Human/UnitFSM을 생성해 돌려서 재현 확인(2026-07-25).
+   CanInvestigate가 피격/위협 인지로 실패를 반환하는 바로 그 지점에서 ApplyInvestigateInterruptPenalty
+   를 호출해 50%를 적용하도록 고쳤다. InvestigatePerform이 매 틱 세팅하는 PenaltyActive 플래그를
+   "아직 이번 중단에서 손실 처리 안 함" 신호로 재사용해서, 중단이 여러 틱 이어져도(위협 콜라이더 지속
+   등) 중복으로 깎이지 않는 1회성 손실도 실제 실행으로 확인했다.
+✅ 5-7. 조사 재개(남은 진행도부터) — 위 5-6이 고쳐지면서 "50% 손실 후 남은 진행도부터 재개"가 이제
+   실제 의도대로 동작한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 6장. 상호작용 보호 포메이션
+════════════════════════════════════════════════════════════════════════
+🔶 6-1. 발생(전파 수신 또는 직접 확인) — Human.FindDirectlyVisibleInteractingAlly()로 "직접 확인"만
+   ✅. "상호작용 유닛의 전파를 받은 경우"는 07문서 부재로 ❌.
+✅ 6-2. 동시 보호 포메이션·기존 유지 — FindDirectlyVisibleInteractingAlly가 이미 다른 대상을 호위
+   중이면 그 대상이 아닌 새 상호작용 유닛으로는 갈아타지 않는다.
+🔶 6-3. 포메이션 전방 기준(상호작용 유닛이 오브젝트를 보는 방향) — GetEscortSlotPosition이
+   escortTarget.currentDir을 전방으로 가정하지만, 상호작용 유닛의 currentDir을 "오브젝트를 정면으로
+   본다"고 명시적으로 고정하는 코드는 없다 — 이동 중 자연스럽게 갱신되는 값에 암묵적으로 의존.
+🔶(수정 완료) 6-4. 근접 유닛 배치(1.전방 2.좌우 3.가장 가까운 이동 가능 타일) — 검증 중 반대로
+   구현돼 있던 걸 발견(GetEscortSlotPosition(backDistance≤1)이 offset = -sign(facing)을 써서 근접
+   호위 유닛이 상호작용 유닛 **후방**에 서고 있었음). 버그로 확인(사용자 확인, 2026-07-24 "버그다,
+   문서대로 전방으로 고쳐줘") 후 offset 부호를 +sign(facing)으로 수정해 이제 전방에 선다. 좌우/가장
+   가까운 타일로의 폴백은 여전히 없음(슬롯이 막혀 있으면 그냥 그 자리를 향해 계속 이동만 시도) —
+   아래 다음 우선순위 참고.
+✅ 6-5. 원거리 유닛 배치(후방 2칸 이상) — backDistance=formationRangedMinBackDistance(2f) 사용 시
+   결과적으로 상호작용 유닛 후방 2칸에 배치되므로 이 조항은 부합한다(근접과 같은 공식을 쓰지만
+   원거리 쪽만 우연히 문서 요구와 일치).
+❌ 6-6. 보호 포메이션 시야 방향 세부표(전방/후방 인원수별 분담) — FormationState는 EscortTarget
+   하나만 들고 있어 위치별 인원 분담 개념이 없다. HoldFormation은 그냥 항상 escortTarget 쪽을 본다.
+❌ 6-7. 좁은 공간 시야 방향 재배정(벽에 50% 이상 막히면) — ExplorationMath.
+   FormationNarrowSpaceBlockRatio 참조 0건.
+🔶 6-8. 보호 포메이션 종료 — 명시적 "해제" 단계가 없고, escortTarget이 더 이상 IsInteracting이
+   아니게 되면 다음 틱 HasFormationNeed가 자동으로 false가 되는 방식으로 암묵적으로 종료된다.
+
+════════════════════════════════════════════════════════════════════════
+■ 7장. 파티 목표 오브젝트 상호작용
+════════════════════════════════════════════════════════════════════════
+🔶 이 장 전체가 InteractableObject 레벨의 "파티 목표" 플래그로는 구현돼 있지 않다. 대신
+   HumanWaveManager(Assets/Script/Wave/HumanWaveManager.cs)가 완전히 별도의 메커니즘으로 비슷한
+   역할(웨이브당 하나의 회수 목표를 파티 전체가 추적)을 수행한다 — dummyTarget을 찾으면
+   UpdatePartyDestination()이 매 틱 파티원 전원의 playerMoveTarget을 그 위치로 세팅. 7-2의
+   "합류 정보 전파 후 현재 상태별 처리표"(전투/도주 중이면 유지 등)나 7-3의 "리더만 상호작용 유닛과
+   같은 방향을 본다"는 세부 규칙은 구현돼 있지 않다 — HumanWaveManager는 상태별 분기 없이 조건에
+   맞는 멤버 전원의 이동 목표를 일괄 갱신할 뿐이다.
+
+════════════════════════════════════════════════════════════════════════
+■ 8장. 상호작용 중 공격 대응
+════════════════════════════════════════════════════════════════════════
+✅(수정 완료) 8-1. 상호작용 유닛이 공격받은 경우 — CanInvestigate/CanDisarm이 isHitThisTurn이면 그
+   틱 실패를 반환해 Panic/Alert 등으로 넘어가는 것 ✅ + 5-6/9-7 수정으로 진행도 50% 손실까지 같은
+   지점에서 처리되므로(ApplyInvestigateInterruptPenalty/ApplyTrapDisarmInterruptPenalty) "상호작용
+   중단"의 명시적 의미(진행도 처리 포함)까지 이제 충족한다.
+✅(수정 완료) 8-2. 보호 포메이션 유닛이 공격받은 경우(파티 목표 여부로 유지/중단 분기) — 원래
+   Human.AnyEscortHitThisTurn()이 정확히 이 판정을 위해 작성돼 있었는데 코드베이스 전체에서 호출하는
+   곳이 한 곳도 없는 죽은 코드였다. CanInvestigate/CanDisarm에 연결했다(2026-07-25) — 보호 유닛이
+   맞으면, 지금 조사 중인 게 이번 웨이브의 파티 목표 오브젝트(HumanWaveManager.dummyTarget과 ID
+   비교로 근사 — 7장 재검증 참고, InteractableObject 자체엔 "파티 목표" 플래그가 없어 이 방법으로
+   대체)면 유지하고, 아니면 중단(진행도 50% 손실)한다. 함정 해제는 파티 목표가 될 수 없으므로(7장
+   대상은 회수/조사 오브젝트뿐) 보호 유닛 피격 시 예외 없이 항상 중단. "공격받은/대응 가능한 보호
+   유닛만 전투·경계로 전환"은 각 유닛 자신의 CombatFSMState/AlertSearch가 개별적으로 이미 처리하므로
+   추가 배선 불필요. 두 분기(파티 목표 유지/일반 중단) 전부 실제 Human/Party를 구성해 실행 검증 완료.
+❌ 8-3. 공격 방향 경계 포메이션(공격받은 유닛 중심 재배치, 전원 같은 방향 수색) — 그룹 단위 재배치
+   로직 없음. ExplorationMath.FormationAttackDirectionSearchSeconds(8-3장 15초) 참조 0건.
+❌ 8-4. 공격 방향 미확인 보호 포메이션 분산 수색 — 없음(4-11과 동일한 사유).
+
+════════════════════════════════════════════════════════════════════════
+■ 9장. 함정 대응
+════════════════════════════════════════════════════════════════════════
+✅ 9-1. 해제/우회/파괴/통과 4종 전부 코드로 존재(TrapDisarmPerform/TrapBypass/TrapDestroy/TrapPass).
+🔶 9-2. 함정 해제 성공률(클래스별 기본 + 레벨 + 이해도) — "클래스"(역할군) 개념이 코드에 없어
+   concentration(집중 스탯)을 대체 지표로 사용(ExplorationMath.TrapDisarmSuccessRate, 주석에 자체
+   판단임을 명시). 레벨·이해도 반영은 ✅.
+🔶 9-3. 미기록 함정 처리(5초 합류 대기, 더 높은 성공률 유닛이 있으면 그쪽이 해제) — 대기 시간 자체는
+   ✅(다만 5초 → 3초로 사용자 요청에 따라 의도적으로 단축, AIBehaviorConfig 주석에 기록됨). 그러나
+   "더 높은 성공률 유닛이 합류 의사를 전파하면 그 유닛이 해제하고 발견자는 대기"는 ❌ —
+   TrapInteractionState.HigherRateJoiner 필드가 선언만 되고 어디서도 대입되지 않는다. 실제로는 5초
+   (3초) 경과 후 발견 유닛이 무조건 자기가 해제를 시도한다.
+✅ 9-4. 기록된 함정(50% 초과 직접 해제, 이하 우회/파괴 판단) — IsDisarmWorthy가 정확히 구현.
+🔶 9-5. 함정 해제 통합 흐름 — 전체 순서는 대체로 일치하나 "함정 정보 전파" 단계는 07문서 부재로
+   빠짐. "상호작용 정보 전파 및 보호 포메이션 형성"은 6장의 나머지 한계(좌우/최근접 폴백 부재 등)를
+   그대로 물려받는다.
+🔶 9-6. 함정 해제 중 보정(시야/인지/반응속도 50%) — 5-4와 동일 — 시야/인지는 ✅, 반응속도는 ❌.
+✅(수정 완료) 9-7. 함정 해제 중단과 50% 손실 — 원래는 DisarmProgress01이 실제로 리셋되는 유일한
+   경로가 해제 시도 자체의 "실패"(확률 롤 실패, `trap.DisarmProgress01 = 0f`)뿐이었고, CanDisarm이
+   피격/위협 인지로 false가 되어 브랜치가 다른 곳으로 넘어가는 경우엔 진행도가 보존되는 5-6과 동일한
+   패턴의 불일치가 있었다. CanDisarm이 피격/위협 인지로 실패를 반환하는 지점에서
+   ApplyTrapDisarmInterruptPenalty를 호출해 50%를 적용하도록 5-6과 같은 패턴으로 고쳤다(1회성 손실도
+   실제 실행으로 확인, 2026-07-25).
+✅ 9-8. 함정 우회 — TrapBypass + IsBlockingPath(BFS 대체 경로 탐색)로 구현.
+✅ 9-9. 함정 파괴 — TrapDestroy, TrapHp 소모(간이 데미지 시스템이지만 개념 자체는 구현됨).
+✅ 9-10. 일반 함정 통과(최대 예상 피해 적용, 통과 후 50% 이상) — TrapPass의 normalSafe 조건.
+✅ 9-11. 아군 보호 목적 함정 통과(기록 30%/미기록 60% 기준) — TrapPass의 rescueSafe 조건.
+
+════════════════════════════════════════════════════════════════════════
+■ 10장. 대기
+════════════════════════════════════════════════════════════════════════
+❌ 이 장 전체가 실질적으로 미구현이다. WaitState/WaitReason 클래스와 TacticalFSMState.ExecuteWait
+   (BT 실행 로직)까지는 만들어져 있지만, **Human.currentWait에 실제 WaitState 인스턴스를 대입하는
+   코드가 코드베이스 전체에 단 한 줄도 없다**(검색 결과 `currentWait = null`로 지우는 코드만 있음).
+   즉 TacticalFSMState.HasWait는 항상 false를 반환하고 이 브랜치는 절대 선택되지 않는다. 3가지 발생
+   상황(미기록 함정 5초 합류 대기/적 위치 접근 전 합류 대기/집결 대기) 중 첫 번째는 TrapInteractionState.
+   JoinWaitElapsed로 별도 구현돼 있어 실질적으로 대체되지만, 나머지 둘은 완전히 빈 자리다.
+
+════════════════════════════════════════════════════════════════════════
+■ 11장. 집결
+════════════════════════════════════════════════════════════════════════
+❌ 마찬가지로 미구현. Party.RallyPoint/IsRallyActive 필드가 "03문서 4-8장/11장 집결의 최소 버전"을
+   구현할 의도로 만들어져 있으나(Party.cs 주석 참고), 어디서도 값이 설정되지 않는다. 리더 자체는
+   Party.AssignLeaderIfNeeded()로 정상 선정되지만(✅, GameSession이 매 프레임 호출), "리더가 집결
+   명령을 생성"하는 코드 자체가 없어 그 리더 정보를 쓸 곳이 없다.
+
+════════════════════════════════════════════════════════════════════════
+■ 12장. 상태 전환 정리
+════════════════════════════════════════════════════════════════════════
+표 자체는 2~11장 내용을 요약한 것이라 별도 태그 없이 위 각 장 판정을 그대로 따른다. 요약하면
+"일반 탐색/경계/조사/함정 대응" 사이의 전환은 대부분 ✅~🔶 수준으로 동작하고, "집결"이 관여하는 모든
+행은 ❌(11장 부재)이다.
+
+════════════════════════════════════════════════════════════════════════
+■ 13장. 인류와 몬스터 적용
+════════════════════════════════════════════════════════════════════════
+표의 인류/몬스터 사용 여부 자체는 코드 분기(`unit is Human` 캐스트 유무)와 대체로 일치한다: 일반
+탐색·경계는 Unit 공통 코드(NavigationFSMState/AlertSearch 관련)라 ✅ 둘 다 적용, 조사·오브젝트
+회수·보호 포메이션·함정 해제/우회·대기는 코드가 `Human`으로 명시 캐스트돼 있어 인류 전용 ✅, 함정
+파괴/통과는 `Unit` 공통 코드라 ✅ 둘 다 적용. 다만 "오브젝트 파괴"는 트랩 파괴(TrapDestroy)만 있고
+트랩이 아닌 일반 오브젝트의 파괴 행동 자체가 없어 🔶(위 5-1 참고). "대기"/"집결"은 인류 전용으로
+분기는 맞게 돼 있지만 10장/11장이 통째로 죽어 있어 사실상 아무도 사용하지 못한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 14장. 조정 가능한 파라미터 — 실제 소비 여부 재점검
+════════════════════════════════════════════════════════════════════════
+AIBehaviorConfig(Assets/Script/Unit/AI/Config/AIBehaviorConfig.cs)에 03문서 기준 파라미터 필드가
+전부 선언돼 있지만, 이번 재검증에서 상당수가 **선언만 되고 실제로는 어디서도 읽히지 않는다**는 걸
+확인했다(AIConfigLoader.Behavior?.X 형태로 참조하는 코드가 0건). 대신 실제 동작은 ExplorationMath의
+같은 이름 상수를 하드코드로 직접 참조한다 — 값 자체는 우연히 일치하는 경우가 많아 수치상 문제는
+없지만, AIBehaviorConfig 에셋을 인스펙터에서 고쳐도 반영되지 않는 구조적 문제다.
+  경계 이동속도(4-3) — 선언만, 미적용(❌ 위 4-3 참고)
+  경계 반응속도(4-2) — 선언만, 미적용(❌ 위 4-2 참고)
+  전투 종료 후 경계시간(4-8) — ExplorationMath.PostCombatAlertSeconds로 적용 ✅(config 필드는 미사용)
+  미식별 공격 수색시간(4-12) — ExplorationMath.UnidentifiedAttackSearchSeconds로 적용 ✅(config 필드는 미사용)
+  이동 대상 임시 가시성 증가(4-6) — 선언만, 미적용(❌)
+  조사 중 시야/인지 범위(5-4) — ExplorationPenaltyActive 경유로 적용 ✅(config 필드는 미사용)
+  조사 중 반응속도(5-4) — 미적용(❌)
+  함정 해제 중 시야/인지 범위(9-6) — 위와 동일 경로로 적용 ✅(config 필드는 미사용)
+  함정 해제 중 반응속도(9-6) — 미적용(❌)
+  조사 중단 진행도 손실(5-6) — ApplyInvestigateInterruptPenalty에서 AIConfigLoader.Behavior?.
+    investigateInterruptLossRatio ?? ExplorationMath.InvestigateInterruptLossRatio로 적용 ✅(수정
+    완료 2026-07-25, config 참조도 이제 실제로 걸림)
+  함정 해제 중단 진행도 손실(9-7) — ApplyTrapDisarmInterruptPenalty에서 동일 패턴으로 적용 ✅(수정
+    완료 2026-07-25)
+  함정 합류 의사 대기시간(9-3) — ExplorationMath.TrapJoinWaitSeconds(3f, 문서 5초에서 사용자 요청으로
+    의도적 단축)로 적용 ✅(config 필드는 미사용)
+  기록 함정 직접 해제/우회 기준(9-4) — AIConfigLoader.Behavior?.trapRecordedDisarmThreshold ??
+    ExplorationMath.TrapRecordedDirectDisarmThreshold로 실제 config 참조 O(에셋이 없어 항상 폴백값
+    사용 중이지만 배선 자체는 돼 있음)
+  일반/아군보호 함정 통과 후 최소 HP(9-10/9-11) — 위와 동일하게 config 참조 O(마찬가지로 에셋 부재로
+    폴백값 사용)
+  원거리 보호 유닛 거리(6-5) — config 참조 O(formationRangedMinBackDistance)
+  벽에 의한 시야 방향 재배정 기준(6-7) — 선언만, 미적용(❌)
+
+════════════════════════════════════════════════════════════════════════
+■ 15장. 연계 문서 — 구현 대상 아님(참고용)
+════════════════════════════════════════════════════════════════════════
+04_은신·가시성·노출/05_전투반응·기습·방어반응/06_위기반응·도주·후퇴/07_전파·소리·간접입력/
+08_리더·명령·파티통제/09_목표설정·이동경로·재설정/10_타일·지형효과·특수타일 — 전부 여전히 미작성.
+위에서 발견한 ❌ 상당수(4-1/4-4~4-7 수상한 타일 이동, 6-1/9-3/9-5 정보 전파, 7장 파티 목표 합류,
+8-2~8-4 그룹 반응, 10~11장 대기·집결)는 이 문서들이 없어 원천적으로 못 채운 부분과, 문서는
+있어도(WaitState/Party.RallyPoint처럼) 실제 배선이 빠진 부분이 섞여 있다 — 아래 우선순위에서 구분.
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 구현 후보 (작업량 순)
+════════════════════════════════════════════════════════════════════════
+1. [매우 작음, 버그 수정 — 완료 2026-07-24] 6-4장 근접 호위 배치가 전방이 아니라 후방으로 뒤집혀
+   있던 문제. 사용자 확인(버그 맞음) 후 Human.GetEscortSlotPosition의 backDistance≤1 분기 offset
+   부호를 수정해 전방으로 배치되도록 고쳤다. 좌우/가장 가까운 타일 폴백은 아직 없음 — 남은 작업으로
+   이월.
+2. [작음, 버그 수정 — 완료 2026-07-25] 5-6/9-7 "중단 시 진행도 50% 손실"이 실제 중단 경로(같은 상태
+   내부에서 브랜치만 바뀌는 경우)에서 전혀 발동하지 않던 문제. CanInvestigate/CanDisarm이 피격·위협
+   인지로 실패를 반환하는 시점에 ApplyInvestigateInterruptPenalty/ApplyTrapDisarmInterruptPenalty를
+   호출하도록 연결했고, 실제 Human/UnitFSM을 생성해 (1) 같은 상태 내부 전환 시 50% 손실이 걸리는지
+   (2) 중단이 여러 틱 이어져도 중복으로 안 깎이는지(1회성) (3) 기존 OnExit 경로(완전 전환)는 그대로
+   작동하는지 세 가지를 전부 실행 검증 완료.
+3. [작음, 완료 2026-07-25] 8-2장 Human.AnyEscortHitThisTurn()을 실제로 아무도 호출하지 않던 죽은
+   코드 — CanInvestigate/CanDisarm에 연결(파티 목표면 유지, 아니면 중단). HumanWaveManager.
+   dummyTarget ID 비교로 "파티 목표 오브젝트" 여부를 근사. 파티목표 유지/일반 중단 두 분기 모두 실제
+   Party/Human을 구성해 실행 검증 완료.
+4. [매우 작음, 2026-07-25 재검증에서 새로 발견] 4-5장 AlertSearchState 정리 누락 버그 — 전투/함정/
+   조사 등 다른 반응으로 정확 인지가 넘어간 뒤에도 옛 currentAlertSearch가 명시적으로 정리되지 않아,
+   그 반응이 끝나면(특히 CombatFSMState.OnExit) 의도된 후속 처리(전투종료 10초 스윕 등)가 안 만들어지고
+   옛 경계가 잔류값으로 되살아난다. CombatFSMState.OnExit/TrapDisarmPerform/TrapBypass/TrapDestroy/
+   InvestigatePerform 등 "정확 인지로 다른 반응이 확정되는" 지점들에서 currentAlertSearch를 명시적으로
+   null 처리하도록 연결 필요.
+5. [중간, 반응속도 소비처 재확인 — 아래 "사용자 확인 판단" 갱신 참고] 이동속도/반응속도 배율 인프라 —
+   Unit에 임시 배율 필드(예: 이동속도 배율/반응속도 배율)를 추가하고 두 곳에 실제로 연결: (1)
+   GameSession.ProcessUnitAction의 `speed = u.BaseStat.walkSpeed`(actionCooldown 계산, 4-3) (2)
+   UnitFunction.OnThreatDetected의 `reactionTimeMs = 30000/BaseStat.reaction`(기습 반응 시간 계산,
+   4-2 — 2026-07-25 재검증에서 실제 소비처로 새로 확인). 조사/함정 해제(5-4/9-6)도 같은 배율 필드를
+   0.5배로 재사용하면 됨.
+6. [작음] 4-6장 수상한 타일 대상 이동 시 임시 가시성 +20 누적 — PerceptionRecord/AlertSearchState에
+   "마지막으로 본 위치가 바뀐 횟수" 카운터를 추가하고, ForceRollPerception의 재판정 시 그 누적치를
+   VisionMath.NonEmptyTileTempWeight 자리에 반영.
+7. [작음] 9-3장 TrapInteractionState.HigherRateJoiner를 실제로 채워서 "더 높은 성공률 유닛이
+   합류하면 그쪽이 해제" 분기를 살리기.
+8. [중간] 10장 대기 / 11장 집결을 실제로 채우기 — Human.currentWait에 WaitState를 대입하는 트리거
+   (특히 AwaitingJoinBeforeApproach)와 Party.RallyPoint를 세팅하는 "전투 종료 경계 10초 완료 시점"
+   훅을 CombatFSMState/AlertSearchState 종료 지점에 연결(위 4번 정리 버그를 먼저 고치면 "경계 완료
+   시점" 자체가 더 명확해져서 순서상 4번 다음에 하는 게 자연스러움).
+9. [중간] AIBehaviorConfig의 다수 필드(14장 표에서 "선언만, 미적용" 표시된 것들)를 실제 소비 코드에
+   연결하거나, 안 쓸 거면 필드 자체를 정리 — 지금은 인스펙터에서 고쳐도 반영 안 되는 죽은 설정값이라
+   나중에 튜닝하다 혼란의 원인이 될 수 있음(5번이 이 중 일부를 자연스럽게 해결함).
+10. [큼, 문서 부재로 보류] 07문서가 생기면 6-1/9-3/9-5(상호작용/함정 정보 전파)과 5-5의 "점진적
+    재전파"(지금은 즉시 전체 공유로 근사) 정식 연결. 4-7(간접 인지 후 접근)도 같은 문서 필요.
+11. [큼, 문서 부재로 보류] 08문서가 생기면 7장(파티 목표 오브젝트) 전체를 InteractableObject 레벨의
+    정식 개념으로 승격 — 지금은 HumanWaveManager의 별도 임시 메커니즘이 비슷한 역할만 대신한다.
+12. [중간, 문서 부재 아님 — 이 03문서 6장 자체의 미완성] 6장 포메이션 위치 배정(6-6/6-7 전방·후방·
+    좌우 인원별 시야 방향, 벽에 의한 재배정) 전체 구현 — FormationState가 지금 EscortTarget 하나만
+    들고 있어 "이 유닛이 포메이션 내 어느 자리인지" 개념 자체가 없다. 이게 채워져야 4-11(포메이션
+    위치별 분산 수색)도 자연히 풀린다. 외부 문서 부재로 막힌 게 아니라 순수 작업량 문제라 원하면
+    지금 시작해도 됨 — 다른 항목보다 뒤로 미룬 이유는 순전히 규모(6장 전체 재설계급) 때문.
+
+════════════════════════════════════════════════════════════════════════
+■ 사용자 확인이 필요했던 판단 — 둘 다 확인 완료(2026-07-24)
+════════════════════════════════════════════════════════════════════════
+- Q. "반응속도"가 실제로 무엇에 대응하는 게임 값인가(BaseStat.reaction은 있으나 경계/조사/함정
+  페널티가 이를 소비하는 지점이 전무했음). → A(2026-07-24). "인지 판정 재시도 주기"로 확정.
+  [2026-07-25 재검증으로 갱신] 그 뒤 코드를 더 뒤지다가 BaseStat.reaction의 진짜(유일한) 실사용처를
+  찾았다 — UnitFunction.OnThreatDetected의 `reactionTimeMs = 30000/BaseStat.reaction`(기습 공격에
+  대한 반응 시간 계산, 05_전투반응·기습·방어반응 소관으로 보임). "인지 판정 재시도 주기"라는 새 개념을
+  만드는 대신 이 기존 계산에 경계/조사/함정 배율을 곱하는 쪽이 훨씬 자연스럽고 04-2장 원문("기습
+  공격... 에 대한 최초 반응에 적용")과도 더 맞아떨어진다 — 위 다음 우선순위 5번을 이 방향으로
+  갱신했다(아직 구현은 안 함, 다음에 진행 시 이 갱신된 방향으로).
+- Q. 6-4 근접 배치가 "후방"으로 뒤집혀 구현된 게 의도적 변경인가, 버그인가 — 관련 커밋 메시지나 사용자
+  피드백 주석을 못 찾아 판단이 필요했음. → A. 버그. Human.GetEscortSlotPosition을 문서(6-4장, 전방)
+  대로 수정 완료 — 위 6장/다음 우선순위 1번 참고.

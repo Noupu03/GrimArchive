@@ -1,4 +1,5 @@
-using UnityEngine;
+﻿using UnityEngine;
+using VContainer;
 using System.Collections.Generic;
 using Haare.Util.Logger;
 
@@ -8,6 +9,8 @@ using Haare.Util.Logger;
 /// </summary>
 public class AttackAngleTestValidator : MonoBehaviour
 {
+    private GameSession _gameSession;
+    private GameSession Session => _gameSession ??= UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>();
     private float testInterval = 1.0f;
     private float testTimer = 0f;
 
@@ -22,32 +25,32 @@ public class AttackAngleTestValidator : MonoBehaviour
 
     private void ValidateAttackAngleMechanics()
     {
-        if (GameSession.Instance == null) return;
+        if (UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>()?.Container?.Resolve<GameSession>() == null) return;
 
-        foreach (var unit in GameSession.Instance.units)
+        foreach (var unit in UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>().units)
         {
             if (unit == null) continue;
             if (!(unit is UnitFunction uf)) continue;
 
             // 1. 현재 공격 상태 및 각도 로깅
-            if (unit.isCastingAttack)
+            if (unit.CombatState.State.isCastingAttack)
             {
-                LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
+                LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 공격 중, 각도 = {unit.CombatState.State.currentAttackAngle * Mathf.Rad2Deg}°, 현재 시야 방향 = {unit.currentDir}");
 
                 // 2. currentThreat가 정상적으로 설정되었는지 확인
-                if (unit.currentThreat != null)
+                if (unit.AIState.currentThreat != null)
                 {
-                    LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 위협 타일 생성됨, 히트박스 크기 = {unit.currentThreat.hitbox.size}");
+                    LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName}: 위협 타일 생성됨, 히트박스 크기 = {unit.AIState.currentThreat.hitbox.size}");
                 }
             }
 
             // 3. 가장 가까운 적 찾기 및 공격 각도 검증
-            // 인간 진영도 몬스터와 동일하게 개인 시야(personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
-            IEnumerable<Unit> enemies = unit.personalSpottedEnemies;
+            // 인간 진영도 몬스터와 동일하게 개인 시야(PerceptionState.personalSpottedEnemies)만 사용 — 진영 공유 시야 제거.
+            IEnumerable<Unit> enemies = unit.Perception.State.personalSpottedEnemies;
 
             foreach (var enemy in enemies)
             {
-                if (enemy == null || enemy.hp <= 0) continue;
+                if (enemy == null || enemy.Health.hp <= 0) continue;
                 if (enemy.currentFloor != unit.currentFloor) continue;
 
                 // 목표까지의 거리와 각도 계산
@@ -57,13 +60,13 @@ public class AttackAngleTestValidator : MonoBehaviour
 
                 // 공격 중이고 사거리 내라면
                 float attackRange = (unit.Generate != null ? unit.Generate.GetEngageDistance(unit.unitType.typeName, 2) : 2);
-                if (unit.isCastingAttack && distance <= attackRange + 1)
+                if (unit.CombatState.State.isCastingAttack && distance <= attackRange + 1)
                 {
-                    float angleDiff = Mathf.Abs(unit.currentAttackAngle - expectedAngle);
+                    float angleDiff = Mathf.Abs(unit.CombatState.State.currentAttackAngle - expectedAngle);
                     if (angleDiff > Mathf.PI) angleDiff = 2 * Mathf.PI - angleDiff;
 
                     LogHelper.Log(LogHelper.GAME, $"[Attack Test] {unit.unitType.typeName} → {enemy.unitType.typeName}: " +
-                        $"거리={distance:F2}, 공격각도={unit.currentAttackAngle * Mathf.Rad2Deg:F1}°, " +
+                        $"거리={distance:F2}, 공격각도={unit.CombatState.State.currentAttackAngle * Mathf.Rad2Deg:F1}°, " +
                         $"예상각도={expectedAngle * Mathf.Rad2Deg:F1}°, 각도차이={angleDiff * Mathf.Rad2Deg:F1}°");
                 }
             }
@@ -76,9 +79,9 @@ public class AttackAngleTestValidator : MonoBehaviour
     private void ValidateMovementDirections()
     {
         // 이동이 8방향만 지원되는지 확인하기 위해 GetDirVector 테스트
-        if (GameSession.Instance == null || GameSession.Instance.units.Count == 0) return;
+        if (UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>()?.Container?.Resolve<GameSession>() == null || UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>().units.Count == 0) return;
 
-        Unit testUnit = GameSession.Instance.units[0];
+        Unit testUnit = UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>().units[0];
         if (!(testUnit is UnitFunction)) return;
 
         int validDirectionCount = 0;
@@ -105,9 +108,9 @@ public class AttackAngleTestValidator : MonoBehaviour
     /// </summary>
     public static void ValidateAttackRecognition()
     {
-        if (GameSession.Instance == null) return;
+        if (UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>()?.Container?.Resolve<GameSession>() == null) return;
 
-        foreach (var attacker in GameSession.Instance.units)
+        foreach (var attacker in UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>().units)
         {
             if (attacker == null || !(attacker is UnitFunction)) continue;
 
@@ -118,9 +121,9 @@ public class AttackAngleTestValidator : MonoBehaviour
                 LogHelper.Log(LogHelper.GAME, $"[Recognition Test] {attacker.unitType.typeName}: {threats.Count}개의 위협 감지됨");
 
                 // 실제 히트박스 충돌 확인
-                foreach (var enemy in GameSession.Instance.units)
+                foreach (var enemy in UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>().units)
                 {
-                    if (enemy == null || enemy == attacker || enemy.hp <= 0) continue;
+                    if (enemy == null || enemy == attacker || enemy.Health.hp <= 0) continue;
                     if (enemy.currentFloor != attacker.currentFloor) continue;
 
                     Hitbox attackerBox = SkillAction.GetUnitHitbox(attacker);

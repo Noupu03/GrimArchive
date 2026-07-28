@@ -1,0 +1,59 @@
+클래스명: PersonalMapKnowledge
+태그: PersonalMapKnowledge
+경로: Assets/Script/Unit/Weight/PersonalMapKnowledge.cs
+의도: PersonalMapKnowledge의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - KnownInterestTiles: IEnumerable<Vector3Int> 타입 데이터
+  - KnownDangerTiles: IEnumerable<Vector3Int> 타입 데이터
+  - _dirtyTerrainFloors: HashSet<int> 타입 데이터
+  - KnownTerrainFloors: IEnumerable<int> 타입 데이터
+  - _trapRecorded: HashSet<string> 타입 데이터
+  - Tile: Vector3Int 타입 데이터
+  - DangerSnapshot: float 타입 데이터
+  - InterestSnapshot: float 타입 데이터
+  - RecordedInfoType: InfoType 타입 데이터
+  - State: RoomExploreState 타입 데이터
+  - IsBossRoom: bool 타입 데이터
+  - RevealedFloorTiles: int 타입 데이터
+
+함수:
+  - TickTileInterestConfirm(): void 반환
+  - GetTileDanger(): float 반환
+  - SetTileDangerFromUnit(): void 반환
+  - TickTileSafety(): void 반환
+  - RevealTile(): bool 반환
+  - GetTileTerrain(): int 반환
+  - IsTileRevealed(): bool 반환
+  - GetTileDanger(): float 반환
+  - GetTerrainTexture(): Texture2D 반환
+  - RegisterObject(): void 반환
+  - IsObjectKnown(): bool 반환
+  - GetObjectIdAtTile(): string 반환
+  - GetTileInterest(): float 반환
+  - GetUnitInterestAtTile(): float 반환
+  - GetTileInterest(): float 반환
+  - OnObjectInvestigated(): void 반환
+  - OnObjectCollected(): void 반환
+  - OnObjectDestroyed(): void 반환
+  - ClearObjectFromRooms(): void 반환
+  - OnObjectDroppedByCarrierDeath(): void 반환
+  - IsTrapRecorded(): bool 반환
+  - GetTrapExpectedSuccessRate(): float 반환
+  - RecordTrapAttempt(): void 반환
+  - ObserveMonster(): void 반환
+  - TryGetMonsterSighting(): bool 반환
+  - GetOrCreateRoom(): RoomKnowledge 반환
+  - SetRoomExploreState(): void 반환
+  - ObserveUnitInRoom(): void 반환
+  - ObserveObjectInRoom(): void 반환
+  - ObserveRoomTileRevealed(): void 반환
+  - GetRoomDanger(): float 반환
+  - GetRoomInterest(): float 반환
+  - GetRoomExploreState(): RoomExploreState 반환
+  - GetPersonalDungeonDanger(): float 반환
+  - GetPersonalDungeonInterest(): float 반환
+  - BuildDebugSummary(): string 반환

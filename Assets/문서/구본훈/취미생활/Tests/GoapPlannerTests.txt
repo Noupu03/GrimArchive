@@ -1,0 +1,20 @@
+클래스명: GoapPlannerTests
+태그: GoapPlannerTests
+경로: Assets/Tests/GoapPlannerTests.cs
+의도: GoapPlannerTests의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - _dummyUnit: Human 타입 데이터
+
+함수:
+  - IsValid(): bool 반환
+  - Execute(): void 반환
+  - SetUp(): void 반환
+  - TearDown(): void 반환
+  - Plan_ChainsTwoActionsWhenFirstEffectUnlocksSecondPrecondition(): void 반환
+  - Plan_ReturnsNullWhenGoalUnreachable(): void 반환
+  - Plan_PicksCheapestPathWhenMultipleSingleStepOptionsExist(): void 반환
+  - Plan_ReturnsEmptyWhenAlreadySatisfied(): void 반환

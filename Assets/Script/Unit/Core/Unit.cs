@@ -3,8 +3,76 @@ using UnityEngine;
 using VContainer;
 using Cysharp.Threading.Tasks;
 
-public abstract class Unit : ScriptableObject
-{
+public abstract class Unit : ScriptableObject {
+    public List<IUnitComponent> Components = new List<IUnitComponent>();
+
+    public T GetComponent<T>() where T : class, IUnitComponent
+    {
+        foreach (var c in Components)
+        {
+            if (c is T tc) return tc;
+        }
+        return null;
+    }
+
+    // Components 리스트를 매번 선형 탐색하는 GetComponent<T>() 호출 비용을 없애기 위한 캐시.
+    // OnEnable에서 null 리셋 → 첫 접근 시 ??= 로 채워지며 이후 O(1)로 반환.
+    private HealthComponent       _healthComp;
+    private CombatStateComponent  _combatStateComp;
+    private CombatStatComponent   _combatStatComp;
+    private PerceptionComponent   _perceptionComp;
+    private VisionStatComponent   _visionStatComp;
+    private BaseStatComponent     _baseStatComp;
+    private StatusEffectsComponent _statusEffectsComp;
+    private AIStateComponent      _aiStateComp;
+    private MemoryComponent       _memoryComp;
+    private PartyComponent        _partyComp;
+
+    public HealthComponent        Health        => _healthComp        ??= GetComponent<HealthComponent>();
+    public CombatStateComponent   CombatState   => _combatStateComp   ??= GetComponent<CombatStateComponent>();
+    public CombatStatComponent    CombatStat    => _combatStatComp    ??= GetComponent<CombatStatComponent>();
+    public PerceptionComponent    Perception    => _perceptionComp    ??= GetComponent<PerceptionComponent>();
+    public VisionStatComponent    VisionStat    => _visionStatComp    ??= GetComponent<VisionStatComponent>();
+    public BaseStatComponent      BaseStat      => _baseStatComp      ??= GetComponent<BaseStatComponent>();
+    public StatusEffectsComponent StatusEffects => _statusEffectsComp ??= GetComponent<StatusEffectsComponent>();
+    public AIStateComponent       AIState       => _aiStateComp       ??= GetComponent<AIStateComponent>();
+    public MemoryComponent        Memory        => _memoryComp        ??= GetComponent<MemoryComponent>();
+    public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
+
+    // 코드 전역에서 bare 이름으로 쓰이는 필드들. 실제 데이터는 컴포넌트에 있고 여기서 위임만 한다.
+    public float hp               { get => Health.hp;                          set => Health.hp = value; }
+    public float maxHp            { get => Health.maxHp;                       set => Health.maxHp = value; }
+    public float HPRegen          { get => BaseStat.HPRegen;                   set => BaseStat.HPRegen = value; }
+    public float spotting         { get => VisionStat.spotting;                set => VisionStat.spotting = value; }
+    public float physicalAttack   { get => CombatStat.physicalAttack;          set => CombatStat.physicalAttack = value; }
+    public float mental           { get => BaseStat.mental;                    set => BaseStat.mental = value; }
+    public float maxMental        { get => BaseStat.maxMental;                 set => BaseStat.maxMental = value; }
+    public float baseDanger       { get => BaseStat.baseDanger;                set => BaseStat.baseDanger = value; }
+    public bool  isHitThisTurn    { get => CombatState.State.isHitThisTurn;    set => CombatState.State.isHitThisTurn = value; }
+    public bool  oneTimeReactUsed { get => CombatState.State.oneTimeReactUsed; set => CombatState.State.oneTimeReactUsed = value; }
+    public List<Unit> personalSpottedEnemies    => Perception.State.personalSpottedEnemies;
+    public List<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
+    public ThreatTileData currentThreat { get => AIState.currentThreat; set => AIState.currentThreat = value; }
+
+    private void OnEnable()
+    {
+        // 에디터 핫리로드나 재활성화 시 캐시가 이전 인스턴스를 물고 있지 않도록 초기화
+        _healthComp = null; _combatStateComp = null; _combatStatComp = null;
+        _perceptionComp = null; _visionStatComp = null; _baseStatComp = null;
+        _statusEffectsComp = null; _aiStateComp = null; _memoryComp = null; _partyComp = null;
+
+        if (Components == null) Components = new List<IUnitComponent>();
+        if (CombatStat == null) Components.Add(new CombatStatComponent(this));
+        if (Health == null) Components.Add(new HealthComponent(this));
+        if (VisionStat == null) Components.Add(new VisionStatComponent(this));
+        if (BaseStat == null) Components.Add(new BaseStatComponent(this));
+        if (Perception == null) Components.Add(new PerceptionComponent(this));
+        if (Memory == null) Components.Add(new MemoryComponent(this));
+        if (UnitParty == null) Components.Add(new PartyComponent(this));
+        if (AIState == null) Components.Add(new AIStateComponent(this));
+        if (CombatState == null) Components.Add(new CombatStateComponent(this));
+        if (StatusEffects == null) Components.Add(new StatusEffectsComponent(this));
+    }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
 
@@ -40,9 +108,19 @@ public abstract class Unit : ScriptableObject
 	// ??? 媛以묒튂 ?쒖뒪???댄빐???꾪뿕???λ??? 愿???????媛以묒튂 ?곗궛怨듭떇 臾몄꽌 v0.7 ????????
 	public bool isSpecialUnit = false;     // 7-1?? 蹂댁뒪/?ㅻ찓?쒖뒪 ??醫낅퀎+媛쒕퀎 ?댄빐?꾨? ?④퍡 ?곕뒗 ?뱀닔 ?좊떅 ?щ?
 	public bool isInterestTarget = false;  // 6-2??18?? IsInterestTarget ?뚮옒洹?(?댄빐???곸듅???곕Ⅸ ?λ???媛먯냼??誘몄쟻??
-	public float baseInterest = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
-	public float baseDanger = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
-	public float heavyHitThreshold = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
+
+	// 유닛 배치 시스템(2026-07-27 신규) — 이 유닛이 방 인구수에서 차지하는 점유량(5.2장 "기본 유닛
+	// 인구수는 1을 기준으로 한다", 2026-07-27 사용자 요청으로 2→1 조정). UnitVisualDefinition.
+	// ApplyStatsTo가 units.json 값을 채운다.
+	public int populationCost = 1;
+
+	// 유닛 배치 시스템(2026-07-27 신규) 2.1/3장 "현재 소속 방" — UnitFunction.OnUpdate가 매 프레임
+	// 실제 위치 기준으로 동기화한다(SyncRoomAffiliation 참고). 배회 몬스터(WildMonsterBehavior)는
+	// 이 시스템 대상이 아니라(9장 보류 항목) 동기화하지 않고 항상 null로 남는다.
+	public Room currentRoom;
+	// baseInterest moved = 0f;        // 6-3?? ?좊떅 湲곕낯 ?λ???
+	// baseDanger moved = 0f;          // 12-1?? ???湲곕낯 ?꾪뿕??
+	// heavyHitThreshold moved = 10f;  // 3?? "?쇱젙 ?쇳빐???댁긽" ?먯젙 湲곗?媛?(?좊떅蹂??곗씠???뚯씠釉?
 
 	// 4?? ???좊떅(?몃쪟 愿?먯쓽 愿李곗옄)????곷퀎濡??ㅺ퀬 ?덈뒗 媛쒖씤 媛以묒튂 湲곕줉.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
@@ -51,52 +129,64 @@ public abstract class Unit : ScriptableObject
 	// "?꾧? 泥섏튂?덈뒗吏"瑜??뚯븘???꾪뿕???댄빐??泥섏튂 ?대깽??E_MONSTER_KILL_SELF ??瑜?湲곕줉?????덉뼱???붾떎.
 	public Unit lastAttacker;
 
+	// 4-14장: 함정 피해는 Unit이 아니라 InteractableObject가 가해자라 lastAttacker로 표현할 수 없다 —
+	// TrapPass 등 함정이 실제로 TakeDamage를 호출하는 지점에서 이 필드를 채우고 lastAttacker는 비워서,
+	// PartyDeathSystem이 "가장 최근 피해가 몬스터인지 함정인지"를 구분할 수 있게 한다.
+	public InteractableObject lastTrapAttacker;
+
+	// 점령 전환/처치 보상 MVP(2026-07-27, 사용자 요청) — lastAttacker는 RecordHitWeightEvent의 인류-몬스터
+	// 교차 히트 전용 가드(defenderIsHuman == attackerIsHuman이면 갱신 안 됨) 때문에 몬스터끼리(예:
+	// 플레이어 몬스터가 야생 몬스터를 처치) 킬에서는 항상 null로 남는다 — 방 소속 전환/처치 보상처럼
+	// "누가 실제로 마지막 피해를 입혔는가"가 진영 조합과 무관하게 필요한 곳에서는 이 필드를 대신 쓴다.
+	// TakePhysicalDamage/TakeMagicalDamage/ApplyDirectDamage에서 attacker가 있을 때마다 갱신된다.
+	public Unit lastDamageDealer;
+
 	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
 	public int level = 1;                 // ?꾩옱 ?덈꺼
-	public float exp = 0f;                // ?꾩옱 寃쏀뿕移?
+	// exp moved = 0f;                // ?꾩옱 寃쏀뿕移?
 	public int killCount = 0;             // ??泥섏튂 ??
 
 	// ??? ?꾪닾 ?몃? ?띿꽦 ???????????????????????????????????????????
-	public float maxHp = 100f;            // 理쒕?泥대젰
-	public float hp    = 100f;            // ?꾩옱 泥대젰
+	// maxHp moved = 100f;            // 理쒕?泥대젰
+	// hp moved    = 100f;            // ?꾩옱 泥대젰
 
-	public float maxMp = 0f;             // 理쒕? 留덈굹
-	public float mp    = 0f;             // ?꾩옱 留덈굹
+	// maxMp moved = 0f;             // 理쒕? 留덈굹
+	// mp moved    = 0f;             // ?꾩옱 留덈굹
 
-	public float physicalAttack  = 10f;  // 臾쇰━ 怨듦꺽??
-	public float magicalAttack   = 0f;   // 留덈쾿 怨듦꺽??
+	// physicalAttack moved  = 10f;  // 臾쇰━ 怨듦꺽??
+	// magicalAttack moved   = 0f;   // 留덈쾿 怨듦꺽??
 
-	public float physicalDefense = 0f;   // 臾쇰━ 諛⑹뼱??
-	public float magicalDefense  = 0f;   // 留덈쾿 諛⑹뼱??
+	// physicalDefense moved = 0f;   // 臾쇰━ 諛⑹뼱??
+	// magicalDefense moved  = 0f;   // 留덈쾿 諛⑹뼱??
 
-	public float HPRegen         = 0f;   // ?ъ깮??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float attackspeed     = 0f;   // 怨듦꺽 ?띾룄->?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float walkSpeed       = 3f;   // ?대룞 ?띾룄
-	public float reaction        = 1f;   // 諛섏쓳?띾룄->濡쒖쭅?놁쓬
-	public float criticalChance  = 0f;   // 移섎챸???>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float cooltimeReduction = 0f; // 荑⑦???媛먯냼??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float statusResistance  = 0f; // ?곹깭?댁긽???>援щ갑???묐룞以? ?덈갑?앹쑝濡쒕뒗 濡쒖쭅?놁쓬
+	// hp movedRegen         = 0f;   // ?ъ깮??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// attackspeed moved     = 0f;   // 怨듦꺽 ?띾룄->?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// walkSpeed moved       = 3f;   // ?대룞 ?띾룄
+	// reaction moved        = 1f;   // 諛섏쓳?띾룄->濡쒖쭅?놁쓬
+	// criticalChance moved  = 0f;   // 移섎챸???>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// cooltimeReduction moved = 0f; // 荑⑦???媛먯냼??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// statusResistance moved  = 0f; // ?곹깭?댁긽???>援щ갑???묐룞以? ?덈갑?앹쑝濡쒕뒗 濡쒖쭅?놁쓬
 
-	public float maxMental = 0f;         // 理쒕? ?뺤떊??>?쏅궇 ?뺤떊怨듦꺽 ?곗궛?쇰줈留??묐룞以?
-	public float mental    = 0f;         // ?꾩옱 ?뺤떊??
+	// maxMental moved = 0f;         // 理쒕? ?뺤떊??>?쏅궇 ?뺤떊怨듦꺽 ?곗궛?쇰줈留??묐룞以?
+	// mental moved    = 0f;         // ?꾩옱 ?뺤떊??
 
-	public float spotting       = 0f;   // 媛먯? ???쒖빞-?몄?-諛섏쓳 臾몄꽌(01-A)??"媛먯? ?ㅽ꺈". ?쒖빞/?몄? 嫄곕━쨌?몄?媛겶룹썝???몄? 踰붿쐞 諛섏?由꾩씠 ?꾨? ??媛믪쑝濡?寃곗젙?쒕떎(VisionMath).
-	public float leadershipRange = 0f;  // 吏?섎쾾??>?덈줈 異붽??? 濡쒖쭅?놁쓬
-	public float charisma        = 0f;  // 移대━?ㅻ쭏->?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// spotting moved       = 0f;   // 媛먯? ???쒖빞-?몄?-諛섏쓳 臾몄꽌(01-A)??"媛먯? ?ㅽ꺈". ?쒖빞/?몄? 嫄곕━쨌?몄?媛겶룹썝???몄? 踰붿쐞 諛섏?由꾩씠 ?꾨? ??媛믪쑝濡?寃곗젙?쒕떎(VisionMath).
+	// leadershipRange moved = 0f;  // 吏?섎쾾??>?덈줈 異붽??? 濡쒖쭅?놁쓬
+	// charisma moved        = 0f;  // 移대━?ㅻ쭏->?덈줈 異붽??? 濡쒖쭅?놁쓬
 
 	// ??? ?쒖빞-?몄?-諛섏쓳 ?쒖뒪??愿????01_?쒖빞쨌?몄?踰붿쐞쨌媛?쒖꽦 臾몄꽌 v0.2 ????????????
-	public float stealth = 0f;         // ?????理쒖쥌 媛?쒖꽦????텛???몃? ?ㅽ꺈(01??10??. 嫄곕━/媛由?蹂댁젙 ?몃??곗떇? 05-A 臾몄꽌 遺?щ줈 ?ㅽ뀅(VisionMath.FinalVisibility 李멸퀬)
-	public float baseVisibility = 100f; // ???湲곕낯 媛?쒖꽦(01??9?? ???쇰컲 ?좊떅? 100, ??좏삎/?뱀닔 ?좊떅? ?곗씠?곕줈 ??쾶 ?ㅼ젙
-	public float attackVisibilityBoostTimer = 0f; // 怨듦꺽 ??媛?쒖꽦 ?곸듅 吏?띿떆媛???대㉧(珥? 01-A 9?? ??SkillAction.BeginAttackCast媛 怨듦꺽 ?ㅽ뻾 ???명똿, UnitFunction.OnUpdate媛 媛먯냼
+	// stealth moved = 0f;         // ?????理쒖쥌 媛?쒖꽦????텛???몃? ?ㅽ꺈(01??10??. 嫄곕━/媛由?蹂댁젙 ?몃??곗떇? 05-A 臾몄꽌 遺?щ줈 ?ㅽ뀅(VisionMath.FinalVisibility 李멸퀬)
+	// baseVisibility moved = 100f; // ???湲곕낯 媛?쒖꽦(01??9?? ???쇰컲 ?좊떅? 100, ??좏삎/?뱀닔 ?좊떅? ?곗씠?곕줈 ??쾶 ?ㅼ젙
+	// attackVisibilityBoostTimer moved = 0f; // 怨듦꺽 ??媛?쒖꽦 ?곸듅 吏?띿떆媛???대㉧(珥? 01-A 9?? ??SkillAction.BeginAttackCast媛 怨듦꺽 ?ㅽ뻾 ???명똿, UnitFunction.OnUpdate媛 媛먯냼
 
 	// ??? ?뺢퇋?붿슜 ?띿꽦 ????????????????????????????????????????????
-	public float sterngth    = 0f; // 洹쇰젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float Durability  = 0f; // ?닿뎄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float agility     = 0f; // 誘쇱꺽. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// sterngth moved    = 0f; // 洹쇰젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// Durability moved  = 0f; // ?닿뎄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// agility moved     = 0f; // 誘쇱꺽. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float concentration = 0f; // 吏묒쨷. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float MagicPower  = 0f; // 留덈젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float resistance  = 0f; // ??? ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float sense       = 0f; // 媛먭컖. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// sense moved       = 0f; // 媛먭컖. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 	public float leadership  = 0f; // ?듭넄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
 
 	// ??? ?뺢퇋??湲곗?媛?????????????????????????????????????????????
@@ -118,53 +208,39 @@ public abstract class Unit : ScriptableObject
 	private const float BASE_CRIT            = 10f;
 	private const float BASE_CDR             = 100f;
 
-	// ??? ?곗궛???꾩떆 ?ㅽ꺈 ?????????????????????????????????????????
-	public float physicalAttackSpeed = 10f; // 臾쇰━怨듦꺽?띾룄
-	public float magicalCastSpeed    = 0f;  // 留덈쾿怨듦꺽?띾룄
-	public float actionCooldown      = 0f;  // ??吏꾪뻾???湲??쒓컙
-	public float[] skillCooldowns    = new float[4]; // ?ㅽ궗 荑⑤떎??
-	public bool  isHitThisTurn       = false; // ?쇨꺽 ?щ?
-	public bool  oneTimeReactUsed    = false; // ?쇨꺽 由ъ븸????1?뚯꽦 ?듭젣??
+	// ?€?€?€ ?곗궛???꾩떆 ?ㅽ꺈 ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+	// StatusEffects moved
+	// CombatState moved
+	/* removed PerceptionState { 
+		perceptionRecords = new Dictionary<object, PerceptionRecord>(),
+		visionOnlyNonEmptyTiles = new List<Vector3Int>(),
+		detectedThreats = new List<ThreatTileData>(),
+		} removed PerceptionState */
+	// $v moved
+	// $v moved
 
-	public HashSet<Unit> reactedAttackers = new HashSet<Unit>();
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
+	// $v moved
 
-	public float         currentReactionWindow = 0f;
-	public ThreatTileData reactingThreat       = null;
-	public Unit          reactingAttacker       = null;
+	// ?€?€?€ ?곹깭?댁긽 ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 
-	public float evadeCooldown  = 0f;  // ?뚰뵾 ???ъ젒洹?愿??
-	public bool  isCastingAttack = false; // ?꾩옱 怨듦꺽 ?좊뵜 吏꾪뻾 ?щ?
-	public float castTimer       = 0f;  // ?좊뵜 ??대㉧
-	public System.Action pendingAttack;  // ?ㅼ젣 怨듦꺽 ?ㅽ뻾 ?덉빟
-	public System.Action pendingCastUpdate; // 罹먯뒪??以?留??꾨젅???낅뜲?댄듃
-	public System.Action pendingVFX;     // 怨듦꺽 ??대컢??留욎떠 ?ъ깮??VFX (媛?쑣룻뙣留?
-	public bool suppressHitVFX = false;  // true?대㈃ TriggerHitEffect?먯꽌 HitSpark ???AttackFail ?ъ깮
-	public ThreatTileData currentThreat; // ?꾩옱 怨듦꺽 ?꾪삊 ???
 
-	// 怨듦꺽 ???먯쑀濡쒖슫 媛곷룄 (?쇰뵒??
-	public float currentAttackAngle = 0f;
-
-	// ??? ?곹깭?댁긽 ??????????????????????????????????????????????????
-	public float stunDuration   = 0f;
-	public float slowDuration   = 0f;
-	public float poisonDuration = 0f;
-	public float burnDuration   = 0f;
-
-	// ??? ?대룞 諛??꾨젅?꾩썙????????????????????????????????????????????
-	public float currentSpeed  = 0f;
-	public float acceleration  = 10f; // ?꾩떆 湲곕낯 媛?띾룄
-	public bool  isWaitState   = false; // Spotting Broadcast???섑븳 ?湲?
-
-	// ??? ?좊떅 諛곗튂 ?쒖뒪??濡ㅻ갚 ?꾨즺 ???
+	// ?€?€?€ ?좊떅 諛곗튂 ?쒖뒪??濡ㅻ갚 ?꾨즺 ?€?€?€
 
 	// 웨이브 유닛이 계단을 통해 다른 층으로 넘어가야 할 때 HumanWaveManager가 세팅 — Goal_UseStairs가
 	// 이 값이 있고 현재 층과 다르면 최우선으로 계단을 찾아 이동/통과한다(GOAP 로직, 2026-07-23 사용자
 	// 요청 "예외처리 없이 goap로직에 넣어도 되겠군"). Action_CrossStairs가 실제로 층을 넘기면 null로
 	// 되돌린다.
 	public int? pendingStairTargetFloor = null;
+	public Vector2Int? currentExplorationTarget = null;
 
 	public Vector2Int? playerMoveTarget    = null;
-	public bool isManualMoveCommand        = false; // ?좎?媛 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
+	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;
 	public Vector3Int? playerInteractTarget = null;
 	public Vector2Int position;
@@ -172,70 +248,36 @@ public abstract class Unit : ScriptableObject
 	public Dir        currentDir   = Dir.DOWN;  // ?꾩옱 諛붾씪蹂대뒗 諛⑺뼢 (?쒖빞 湲곗?)
 	public string     spriteVariation = "";     // ?ㅽ봽?쇱씠??諛붾━?먯씠??(?쇱씠釉뚮윭由?移댄뀒怨좊━紐?
 
-	public List<Unit>          personalSpottedEnemies = new List<Unit>();
-	public List<ThreatTileData> detectedThreats        = new List<ThreatTileData>();
 
-	// ??? ?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━ ?쒖뒪??愿????02_?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━_?쒖뒪??v0.2 ????????
-	// 4?? ??곷퀎(???좊떅=Unit 李몄“, ?ㅻ툕?앺듃=InteractableObject.Id) 吏???몄? ?곹깭. ?몃━嫄??쒖젏?먮쭔
-	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception??媛깆떊?쒕떎 ??personalSpottedEnemies? ?щ━ 留?
+
+	// ?€?€?€ ?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━ ?쒖뒪??愿€????02_?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━_?쒖뒪??v0.2 ?€?€?€?€?€?€?€?€
+	// 4?? ?€?곷퀎(???좊떅=Unit 李몄“, ?ㅻ툕?앺듃=InteractableObject.Id) 吏€???몄? ?곹깭. ?몃━嫄??쒖젏?먮쭔
+	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception??媛깆떊?쒕떎 ??personalSpottedEnemies?€ ?щ━ 留?
 	// UpdateFOV ?몄텧留덈떎 Clear?섏? ?딅뒗??PerceptionRecord.cs 二쇱꽍 李멸퀬).
-	public readonly Dictionary<object, PerceptionRecord> perceptionRecords = new Dictionary<object, PerceptionRecord>();
 
-	// 20?? ?섏긽??????뺤씤 ?湲?以묒씤 ?덉퐫?쒓? ?섎굹?쇰룄 ?덉쑝硫?寃쎄퀎 ?곹깭 ??10??媛먯? 蹂댁젙(+20)怨?
-	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛 ??媛믪쓣 李몄“?쒕떎.
-	// 2026-07-20 ?깅뒫 ?섏젙: ?먮옒 perceptionRecords ?꾩껜瑜?留ㅻ쾲 ?쒗쉶(O(n))?덈뒗?? ???꾨줈?쇳떚媛
-	// UnitFunction.ForceRollPerception(?쇨꺽留덈떎 媛뺤젣 ?몄텧?섎뒗 IsAttackerIdentified 寃쎈줈 ?ы븿) ?덉뿉??
-	// ?쏀? ?꾪닾 以?留??寃⑸쭏??O(n)??諛섎났?먮떎 ??perceptionRecords媛 ?몄뀡 ?대궡 ?뺣━?섏? ?딄퀬 ?볦씠??
-	// 援ъ“(?꾨옒 RemovePerceptionRecord 李멸퀬 ?꾧퉴吏??洹몃옱??? 寃뱀퀜 ?좊떅 ?샕룹쟾???쒓컙???섏닔濡?湲됯꺽??
-	// 臾닿굅?뚯죱?? PendingSuspiciousInvestigation??諛붾뚮뒗 ?좎씪??吏??ForceRollPerception)?먯꽌
-	// _alertRecordCount留?媛깆떊?섎뒗 O(1) 移댁슫?곕줈 援먯껜.
-	private int _alertRecordCount = 0;
-	public bool IsAlert => _alertRecordCount > 0;
 
-	// PendingSuspiciousInvestigation??諛붽씀??紐⑤뱺 吏??ForceRollPerception, ?덉퐫???쒓굅)??諛섎뱶??
-	// ??硫붿꽌?쒕? ?듯빐?쒕쭔 移댁슫?곕? 媛깆떊?쒕떎 ??吏곸젒 ?꾨뱶瑜???낇븯硫?移댁슫?곌? ?닿툔?쒕떎.
-	public void NotifyPerceptionSuspiciousChanged(bool wasSuspicious, bool nowSuspicious)
-	{
-		if (wasSuspicious == nowSuspicious) return;
-		_alertRecordCount += nowSuspicious ? 1 : -1;
-		if (_alertRecordCount < 0) _alertRecordCount = 0; // 諛⑹뼱??泥섎━ ???뺤긽 ?먮쫫?먯꽌??諛쒖깮?섏? ?딆븘????
-	}
-
-	// 2026-07-20: ?좊떅 ?щ쭩/?ㅻ툕?앺듃 ?뚯닔쨌?뚭눼 ????愿李곗옄媛 ?ㅺ퀬 ?덈뜕 ?대떦 ???湲곕줉???뺣━?쒕떎.
-	// perceptionRecords??"??踰?蹂???곸? ?몄뀡 ?대궡 ??吏?뚯??? 援ъ“??붾뜲(?먮옒 ?ㅼ퐫?꾩???愿李곗옄
-	// 媛쒖씤???뚯닔 ??ぉ 媛?뺢낵 ?щ━, ?⑥씠釉뚭? 諛섎났?섎ŉ 二쎌? 紐ъ뒪??李몄“媛 怨꾩냽 ?볦씠???ㅼ궗???섍꼍?먯꽌
-	// ?덉긽蹂대떎 ?⑥뵮 ?ш쾶 ?먮씪 ???꾨젅???쒕∼???ㅼ젣 ?먯씤?댁뿀??, IsAlert 移댁슫??O(1)?붿? 蹂꾧컻濡???
-	// ?뺣━媛 ?놁쑝硫??쒗쉶 鍮꾩슜(UpdateFOV ?앹쓽 sweep ?? ?먯껜媛 怨꾩냽 而ㅼ쭊??
-	public void RemovePerceptionRecord(object key)
-	{
-		if (perceptionRecords.TryGetValue(key, out var record))
-		{
-			NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, false);
-			perceptionRecords.Remove(key);
-		}
-	}
-
-	// 5?? ?몄? ?먯젙 ?먯껜媛 遺덇??ν븳 ?곹깭. 臾몄꽌??湲곗젅/?섎㈃/留덈퉬/?됰룞遺덈뒫 4醫낆쓣 ?ㅼ?留? ??肄붾뱶踰좎씠?ㅼ뿏
-	// ?꾩쭅 ?ㅽ꽩(stunDuration) ?몄쓽 ?곹깭?댁긽 ?쒖뒪?쒖씠 ?녿떎(?섎㈃/留덈퉬/?됰룞遺덈뒫? ?대떦 ?곹깭?댁긽 臾몄꽌
-	// 遺?щ줈 誘멸뎄?? ??洹??곹깭?ㅼ씠 ?앷린硫????꾨줈?쇳떚??議곌굔留?異붽??섎㈃ ?쒕떎.
-	public bool CanPerceive => stunDuration <= 0f;
+	// 20?? ?섏긽???€???뺤씤 ?€湲?以묒씤 ?덉퐫?쒓? ?섎굹?쇰룄 ?덉쑝硫?寃쎄퀎 ?곹깭 ??10??媛먯? 蹂댁젙(+20)怨?
+	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛€ ??媛믪쓣 李몄“?쒕떎.
 
 	// 9?? ?뺤떊??蹂댁젙(?몃쪟 ?꾩슜, 紐ъ뒪?곕뒗 ??긽 0) ??PerceptionMath.MentalCorrectionForHuman 李멸퀬.
-	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(mental, maxMental) : 0f;
+	public bool CanPerceive => StatusEffects.State.stunDuration <= 0f;
+	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(BaseStat.mental, BaseStat.maxMental) : 0f;
 
-	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ???紐⑸줉(?대쾲 UpdateFOV ?몄텧
-	// 湲곗? ?꾩떆 ?ㅻ깄??????κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
-	// 10_紐⑺몴?ㅼ젙쨌?대룞寃쎈줈쨌?ъ꽕??臾몄꽌媛 ?꾩쭅 ?대뜑???놁뼱 ??由ъ뒪?몃? ?ㅼ젣濡??뚮퉬?섎뒗 怨녹? ?녿떎 ??
-	// 洹?臾몄꽌媛 ?앷린硫?VisionMath.NonEmptyTileTempWeight? ?④퍡 諛붾줈 ?????덈룄濡??곗씠?곕쭔 誘몃━ 梨꾩썙?붾떎.
-	public List<Vector3Int> visionOnlyNonEmptyTiles = new List<Vector3Int>();
+	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ?€??紐⑸줉(?대쾲 UpdateFOV ?몄텧
+	// 湲곗? ?꾩떆 ?ㅻ깄?????€?κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
+	// 10_紐⑺몴?ㅼ젙쨌?대룞寃쎈줈쨌?ъ꽕??臾몄꽌媛€ ?꾩쭅 ?대뜑???놁뼱 ??由ъ뒪?몃? ?ㅼ죣濡??뚮퉬?섎뒗 怨녹? ?녿떎 ??
+	// 洹?臾몄꽌媛€ ?앷린硫?VisionMath.NonEmptyTileTempWeight?€ ?④퍡 諛붾줈 ?????덈룄濡??곗씠?곕쭔 誘몃━ 梨꾩썙?붾떎.
 
-	// 01-A 9?? 怨듦꺽???좊떅? 怨좎젙 ?쒓컙(5珥? ?숈븞 媛?쒖꽦??+10 ?곸듅?쒕떎. ?ш났寃???吏?띿떆媛꾨쭔
-	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛 "吏?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
-	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
+
+	// 01-A 9?? 怨듦꺽???좊떅?€ 怨좎젙 ?쒓컙(5珥? ?숈븞 媛€?쒖꽦??+10 ?곸듅?쒕떎. ?ш났寃???吏€?띿떆媛꾨쭔
+	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛€ "吏€?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
+	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛€???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
 	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
-	public bool IsVisibilityBoosted => attackVisibilityBoostTimer > 0f;
-	public void TriggerAttackVisibilityBoost() => attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
-	public float GetFinalVisibility() => VisionMath.FinalVisibility(baseVisibility, stealth, IsVisibilityBoosted);
+	public bool IsVisibilityBoosted => VisionStat.attackVisibilityBoostTimer > 0f;
+	public void TriggerAttackVisibilityBoost() => VisionStat.attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
+	// 4-6장: 수상한 타일 추적 중 이동 1회당 +20씩(개별 5초 유지) 누적된 값을 그대로 더한다.
+	public float GetFinalVisibility() => VisionMath.FinalVisibility(VisionStat.baseVisibility, VisionStat.stealth, IsVisibilityBoosted,
+		VisionStat.suspiciousMoveBoostTimers.Count * ExplorationMath.SuspiciousTargetVisibilityBoostPerMove);
 
 	// ─── 03_탐색반응·경계·조사·함정대응_시스템 관련 ────────────────────────────
 	// 함정 대응(9장)과 경계(4장)는 13장 표에 따라 인류/몬스터 공통이라 base Unit에 둔다. 조사(5장)/
@@ -276,33 +318,33 @@ public abstract class Unit : ScriptableObject
 	public void CalculateDerivedStats()
 	{
 		// ?뺢퇋??
-		float nAtk      = Normalize(physicalAttack,    BASE_PHYSICAL_ATTACK);
-		float nMatk     = Normalize(magicalAttack,     BASE_MAGICAL_ATTACK);
-		float nHp       = Normalize(maxHp,             BASE_MAX_HP);
-		float nMp       = Normalize(maxMp,             BASE_MAX_MP);
-		float nPDef     = Normalize(physicalDefense,   BASE_PHYSICAL_DEF);
-		float nMDef     = Normalize(magicalDefense,    BASE_MAGICAL_DEF);
-		float nRegen    = Normalize(HPRegen,           BASE_HP_REGEN);
-		float nStatus   = Normalize(statusResistance,  BASE_STATUS_RES);
-		float nAtkSpd   = Normalize(attackspeed,       BASE_ATTACK_SPEED);
-		float nReact    = Normalize(reaction,          BASE_REACTION);
-		float nMove     = Normalize(walkSpeed,         BASE_WALK_SPEED);
-		float nSpot     = Normalize(spotting,          BASE_SPOTTING);
-		float nMental   = Normalize(mental,            BASE_MENTAL);
-		float nLeadRange = Normalize(leadershipRange,  BASE_LEAD_RANGE);
-		float nCharisma = Normalize(charisma,          BASE_CHARISMA);
-		float nCrit     = Normalize(criticalChance,    BASE_CRIT);
-		float nCdr      = Normalize(cooltimeReduction, BASE_CDR);
+		float nAtk      = Normalize(CombatStat.physicalAttack,    BASE_PHYSICAL_ATTACK);
+		float nMatk     = Normalize(CombatStat.magicalAttack,     BASE_MAGICAL_ATTACK);
+		float nHp       = Normalize(Health.maxHp,             BASE_MAX_HP);
+		float nMp       = Normalize(Health.maxMp,             BASE_MAX_MP);
+		float nPDef     = Normalize(CombatStat.physicalDefense,   BASE_PHYSICAL_DEF);
+		float nMDef     = Normalize(CombatStat.magicalDefense,    BASE_MAGICAL_DEF);
+		float nRegen    = Normalize(BaseStat.HPRegen,           BASE_HP_REGEN);
+		float nStatus   = Normalize(BaseStat.statusResistance,  BASE_STATUS_RES);
+		float nAtkSpd   = Normalize(CombatStat.attackspeed,       BASE_ATTACK_SPEED);
+		float nReact    = Normalize(BaseStat.reaction,          BASE_REACTION);
+		float nMove     = Normalize(BaseStat.walkSpeed,         BASE_WALK_SPEED);
+		float nSpot     = Normalize(VisionStat.spotting,          BASE_SPOTTING);
+		float nMental   = Normalize(BaseStat.mental,            BASE_MENTAL);
+		float nLeadRange = Normalize(BaseStat.leadershipRange,  BASE_LEAD_RANGE);
+		float nCharisma = Normalize(BaseStat.charisma,          BASE_CHARISMA);
+		float nCrit     = Normalize(CombatStat.criticalChance,    BASE_CRIT);
+		float nCdr      = Normalize(BaseStat.cooltimeReduction, BASE_CDR);
 
 		// 湲곕낯 ?λ젰移?怨꾩궛
 		// 洹쇰젰 = 臾쇰━ 怨듦꺽???뺢퇋??
-		sterngth = nAtk;
+		BaseStat.sterngth = nAtk;
 
 		// ?닿뎄 = 泥대젰 45 + 臾쇰갑 45 + ?ъ깮 10
-		Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
+		BaseStat.Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
 
 		// 誘쇱꺽 = 怨듭냽 35 + ?대룞 25 + 諛섏쓳 40
-		agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
+		BaseStat.agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
 
 		// 吏묒쨷 = 移섎챸 60 + 荑④컧 40
 		concentration = nCrit * 0.60f + nCdr * 0.40f;
@@ -317,7 +359,7 @@ public abstract class Unit : ScriptableObject
 			resistance = nMDef * 0.35f + nStatus * 0.35f + nMental * 0.30f;
 
 		// 媛먭컖 = 媛먯?
-		sense = nSpot;
+		BaseStat.sense = nSpot;
 
 		// ?듭넄 = 吏?섎쾾??50 + 移대━?ㅻ쭏 50
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
@@ -367,6 +409,21 @@ public abstract class Unit : ScriptableObject
 		if (_gameSession == null) return;
 
 		Vector3Int oldKey = new Vector3Int(position.x, position.y, currentFloor);
+
+		// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청 "회피나 점멸 등 행동으로도 방 밖으로
+		// 나갈 수 없게") — Dodge/Blink(DefenseSystem.cs)는 A* 경로탐색을 거치지 않고 이 메서드로 직접
+		// 위치를 옮겨서 RoomConfinedMovement.IsTileWalkable의 방 경계 검사를 우회한다. 여기서 같은
+		// 규칙을 한 번 더 적용한다 — RoomConfinedMovement를 쓰는 유닛이 플레이어 명령 중이 아닌데
+		// 목적지가 현재 방을 벗어나면 이동을 취소(제자리 유지)한다. Dodge/Blink 둘 다 "후보가 없으면
+		// 그 자리에 남는다"는 기존 동작과 자연스럽게 일치한다.
+		if (MovementAlgorithm is RoomConfinedMovement && !isManualMoveCommand
+			&& _gameSession.roomGrid.TryGetValue(oldKey, out Room myRoom))
+		{
+			Vector3Int targetKey = new Vector3Int(targetPos.x, targetPos.y, currentFloor);
+			if (!_gameSession.roomGrid.TryGetValue(targetKey, out Room targetRoom) || targetRoom != myRoom)
+				return;
+		}
+
 		if (_gameSession.unitGrid.ContainsKey(oldKey))
 			_gameSession.unitGrid.Remove(oldKey);
 
@@ -383,19 +440,19 @@ public abstract class Unit : ScriptableObject
 	// ?댁쟾???몄텧?쒕떎(洹몃옒???대룞?쇰줈 媛깆떊??currentDir瑜?"?대룞 以? ?꾨낫??湲곕낯媛믪쑝濡??쒖슜?????덈떎).
 	public abstract void ResolveVisionDirection();
 
-	private GoapBrain _brain;
-	public GoapBrain brain { get { if (_brain == null) _brain = new GoapBrain(); return _brain; } }
+	private UnitFSM _fsm;
+	public UnitFSM fsm { get { if (_fsm == null) _fsm = new UnitFSM(); return _fsm; } }
 
 	public virtual void JudgeState()
 	{
-		if (stunDuration > 0f) return; // 湲곗젅 ???됰룞 遺덇?
-		brain.JudgeState(this);
+		if (StatusEffects.State.stunDuration > 0f) return; // 스턴 중 행동 차단
+		fsm.SelectState(this);
 	}
 
 	public virtual void ExecuteAction()
 	{
-		if (stunDuration > 0f) return;
-		brain.ExecuteAction(this);
+		if (StatusEffects.State.stunDuration > 0f) return;
+		fsm.RunCurrentState(this);
 	}
 
 	public static Hitbox GetUnitHitbox(Unit u)
@@ -428,19 +485,21 @@ public class Human : UnitFunction
 
 	// 媛쒖씤 吏??????ㅻ툕?앺듃/紐ъ뒪??紐⑷꺽/諛??꾪뿕?꽷룻씎誘몃룄) ??吏?꾧????뺣━ 臾몄꽌 湲곗? "吏?꾨뒗
 	// ?몃쪟留??ㅺ퀬 ?덉뼱???쒕떎"??吏?쒖뿉 ?곕씪 Human?먮쭔 ?붾떎(Monster/base Unit?먮뒗 ?놁쓬).
-	public PersonalMapKnowledge personalMap = new PersonalMapKnowledge();
-	public System.Collections.Generic.List<string> collectedObjects = new System.Collections.Generic.List<string>();
+	public PersonalMapKnowledge personalMap => Memory.personalMap;
+	public List<string> collectedObjects    => Memory.collectedObjects;
 
 	// ???좊떅???랁븳 ?뚰떚(?덈떎硫? ??13???뚰떚 ?꾨㈇/6???⑥씠釉?醫낅즺 ?앹〈??諛섏쁺 ?먯젙???곗씤??
 	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
 	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
-	public Party party;
+	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
 	// 03문서 5장(조사)/10장(대기)/6장(보호 포메이션) — 인류 전용(13장 표, 몬스터는 "컨셉에 따라"만
 	// 명시돼 있어 실제 컨셉 시스템이 생기기 전까지는 인류만 구현). null이면 각각 진행 중 아님.
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
 	public FormationState     currentFormation;
+	// 7-3장(2026-07-27 신규): 리더 전용 — 이 유닛이 파티 리더일 때만 의미가 있다(CorePartySystem 참고).
+	public CoreInteractionState currentCoreInteraction;
 
 	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
 	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true. 함정 쪽은 "함정 위치에
@@ -448,13 +507,18 @@ public class Human : UnitFunction
 	// 경계 태세를 취함) — 9-5장 순서가 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호
 	// 포메이션 형성 → 함정 해제 시작"이라, 발견 직후 5초 합류 대기나 이동 중(아직 도착 전)에는
 	// 보호 포메이션이 형성되면 안 된다. 예전엔 함정을 인지한 순간부터(도착 전 포함) true였다.
-	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
+	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null || currentCoreInteraction != null;
 
 	private bool IsActivelyHandlingTrap()
 	{
 		var trap = currentTrapInteraction;
 		if (trap == null) return false;
-		return position == new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+		// "함정 위치에 실제로 도달했을 때"의 도달 판정 반경이 TacticalFSMState.MoveToTrap과 함께
+		// 정확 일치 → Chebyshev ≤ 1(바로 옆 1칸)로 넓어졌다(사용자 요청, 2026-07-25 "함정 바로
+		// 위가 아니라 인근 1칸에서 해제 상호작용 가능하게") — 두 판정이 어긋나면 "이동은 끝났는데
+		// 아직 상호작용 중이 아닌 것으로 보이는" 프레임이 생긴다.
+		Vector2Int trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
+		return Mathf.Max(Mathf.Abs(position.x - trapPos.x), Mathf.Abs(position.y - trapPos.y)) <= 1;
 	}
 
 	// 8-2장: "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계"(파티 목표 개념이
@@ -509,13 +573,24 @@ public class Human : UnitFunction
 			if (!personalMap.IsObjectKnown(obj.Id)) continue;
 
 			bool isTrap = false;
+			bool isCorpse = false;
+			bool isHumanTag = false;
 			bool isTrace = false;
+			bool isCore = false;
 			foreach (var tag in obj.Tags)
 			{
 				if (tag.Contains("Trap")) isTrap = true;
-				if (tag.Contains("Corpse") || tag.Contains("WipeoutTrace")) isTrace = true;
+				if (tag.Contains("Corpse")) isCorpse = true;
+				if (tag == "Human") isHumanTag = true;
+				if (tag.Contains("WipeoutTrace")) isTrace = true;
+				if (tag == "Object/Passable/Core") isCore = true;
 			}
-			if (isTrap || isTrace) continue;
+			// 03문서 5-2장(2026-07-27 개정): 파티원 시체는 조사 대상으로 유지한다(사망 원인·전투 흔적
+			// 등 추가 정보 획득) — 몬스터 시체/전멸 흔적은 여전히 제외(CastRay가 인지 즉시 단일 단계로
+			// 확인 완료하는 대상이라 별도 조사 단계가 없음, 17장 참고). 코어(7-3장)는 리더 전용 조사
+			// 대상이라 이 일반 조사 후보 풀에서 완전히 제외한다(TacticalFSMState.CanContinueCore 참고).
+			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
+			if (isTrap || isExcludedTrace || isCore) continue;
 
 			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
 			if (d < bestDist) { bestDist = d; best = obj; }
@@ -582,18 +657,79 @@ public class Human : UnitFunction
 
 	// GoapAction.MoveToEscortSlot(GoapCore.cs)과 동일한 배치 공식 — GoapWorldState.Build의 atEscortSlot
 	// 판정이 실제 이동 목표와 어긋나지 않도록 공유한다.
+	// 03문서 6-4장: 근접 유닛은 상호작용 유닛 "전방"에 배치(+facing 방향) — 6-5장 원거리는 "후방"
+	// 2칸 이상(-facing 방향)이라 부호가 반대다. 예전엔 근접도 -facing을 써서 후방에 서게 돼 있었다
+	// (검증 발견 버그, 사용자 확인 2026-07-24 "버그다, 문서대로 전방으로 고쳐줘"). facing.x/y는
+	// GetDirVector(8방향)가 이미 -1/0/1로 정규화해서 주므로 그대로 캐스트한다 — Mathf.Sign(0)이 0이
+	// 아니라 1을 반환하는 Unity 특성 때문에 Sign()을 쓰면 정면이 수직/수평(UP/DOWN/LEFT/RIGHT)일 때
+	// 옆으로 밀리는 버그가 있었다(실제 테스트로 검증 발견, 2026-07-25).
 	public Vector2Int GetEscortSlotPosition(Human escortTarget, float backDistance)
 	{
 		Vector2 facing = GetDirVector(escortTarget.currentDir);
 		if (facing == Vector2.zero) facing = Vector2.down;
 
-		Vector2Int offset = backDistance <= 1f
-			? new Vector2Int(-(int)Mathf.Sign(facing.x), -(int)Mathf.Sign(facing.y))
-			: new Vector2Int(
-				Mathf.RoundToInt(-facing.x * backDistance),
-				Mathf.RoundToInt(-facing.y * backDistance));
+		// 2026-07-27 사용자 신고("보호 포메이션 동안 다른 유닛에게 길이 막혀서 리더가 코어에 영구히
+		// 도착 못함") — 상호작용 유닛이 아직 목적지로 걸어가는 중일 때, 근접 호위의 "전방"(+facing)
+		// 배치는 상호작용 유닛이 이동 중인 바로 그 방향과 대개 일치한다(Move()가 이동 방향으로
+		// currentDir을 갱신하므로). 그래서 호위가 상호작용 유닛보다 먼저 그 앞자리를 차지해버리면
+		// 좁은 통로에서 진행 경로 자체를 막아 서로 오도 가도 못하는 교착이 생겼다. 아직 실제
+		// 상호작용을 시작하지 않고 "이동 중"일 때는 전방 대신 후방(따라가기)으로 배치하고, 실제로
+		// 도착해 상호작용이 시작된 뒤에야(예: 조사/함정 페널티 활성화, 코어 Active) 문서대로의
+		// 전방/후방 배치를 적용한다.
+		bool activelyInteracting = IsEscortTargetActivelyInteracting(escortTarget);
 
-		return escortTarget.position + offset;
+		Vector2Int offset;
+		if (!activelyInteracting)
+		{
+			offset = new Vector2Int(Mathf.RoundToInt(-facing.x), Mathf.RoundToInt(-facing.y)); // 이동 중 — 후방에서 뒤따름
+		}
+		else
+		{
+			offset = backDistance <= 1f
+				? new Vector2Int((int)facing.x, (int)facing.y)
+				: new Vector2Int(
+					Mathf.RoundToInt(-facing.x * backDistance),
+					Mathf.RoundToInt(-facing.y * backDistance));
+		}
+
+		Vector2Int slot = escortTarget.position + offset;
+
+		// 2026-07-27 사용자 신고("코어 포메이션에서 유닛이 코어를 밟고 서있어") — 상호작용 유닛이
+		// 오브젝트 바로 옆(1칸)에서 그 방향을 보고 있으면, "전방(근접 배치)" 슬롯 계산이 오브젝트
+		// 자신의 타일과 우연히 겹친다(오브젝트가 조사/함정/코어처럼 Passable이라 실제로 밟고 설 수
+		// 있어서 눈에 띔). 6-4장 폴백 순서(전방→좌우)와 같은 정신으로, 겹치면 한 칸 더 물러난 자리를
+		// 쓰고 그래도 겹치면 옆으로 민다.
+		Vector2Int? interactionPos = GetInteractionObjectPosition(escortTarget);
+		if (interactionPos.HasValue && slot == interactionPos.Value)
+		{
+			Vector2Int farther = escortTarget.position + new Vector2Int((int)facing.x * 2, (int)facing.y * 2);
+			slot = farther != interactionPos.Value ? farther : slot + new Vector2Int(-(int)facing.y, (int)facing.x);
+		}
+
+		return slot;
+	}
+
+	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행/코어 조사)을 시작했는지 — 아직
+	// 목적지로 "이동 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
+	private bool IsEscortTargetActivelyInteracting(Human escortTarget)
+	{
+		if (escortTarget.currentCoreInteraction != null) return escortTarget.currentCoreInteraction.Active;
+		if (escortTarget.currentInvestigation != null) return escortTarget.currentInvestigation.PenaltyActive;
+		if (escortTarget.currentTrapInteraction != null) return escortTarget.currentTrapInteraction.PenaltyActive;
+		return false;
+	}
+
+	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치" —
+	// 조사/함정/코어(7-3장) 셋 중 진행 중인 것을 조회한다.
+	private Vector2Int? GetInteractionObjectPosition(Human escortTarget)
+	{
+		if (escortTarget.currentCoreInteraction != null)
+			return new Vector2Int(escortTarget.currentCoreInteraction.CorePosition.x, escortTarget.currentCoreInteraction.CorePosition.y);
+		if (escortTarget.currentInvestigation != null)
+			return new Vector2Int(escortTarget.currentInvestigation.TargetPosition.x, escortTarget.currentInvestigation.TargetPosition.y);
+		if (escortTarget.currentTrapInteraction != null)
+			return new Vector2Int(escortTarget.currentTrapInteraction.TrapPosition.x, escortTarget.currentTrapInteraction.TrapPosition.y);
+		return null;
 	}
 
 	public override void JudgeState()
@@ -616,6 +752,8 @@ public class Monster : UnitFunction
 		// 紐ъ뒪???곹깭 ?먮떒 濡쒖쭅 異붽?
 	}
 }
+
+
 
 
 

@@ -1,9 +1,0 @@
-[스크립트 이름]: WildSpawner
-[스크립트의 목적]: (추가 주석 필요)
-[의존성과 상속같은 관계]: MonoBehaviour
-[변수]: targetRoom, maxUnits, spawnInterval, currentSpawned, cts, selection, spawnPos, monster
-[함수 및 목적]:
- - Initialize: (목적 설명 없음)
- - SpawnLoop: (목적 설명 없음)
- - OnDestroy: (목적 설명 없음)
---------------------------------------------------

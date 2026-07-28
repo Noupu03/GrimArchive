@@ -1,0 +1,25 @@
+클래스명: UIAnimator
+태그: UI
+경로: Assets/Haare/Scripts/Client/UI/Animator/TweenUI.cs
+의도: 사용자 인터페이스(UI) 중 Animator 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - targetTransform: Transform 타입 데이터
+  - currentHoverTween: Tween 타입 데이터
+  - originalScale: Vector3 타입 데이터
+  - panelRectTransform: RectTransform 타입 데이터
+
+함수:
+  - TriggerHoverEnter(): void 반환
+  - TriggerHoverExit(): void 반환
+  - TriggerClickAsync(): UniTask 반환
+  - TriggerClick(): void 반환
+  - clearSlidePostion(): void 반환
+  - SlideOpenPanel(): void 반환
+  - SlideClosePanel(): void 반환
+  - OpenPopup(): void 반환
+  - ClosePopup(): void 반환
+  - KillAllTweens(): void 반환

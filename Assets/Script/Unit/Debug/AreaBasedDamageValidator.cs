@@ -1,4 +1,5 @@
-using UnityEngine;
+﻿using UnityEngine;
+using VContainer;
 using System.Collections.Generic;
 using Haare.Util.Logger;
 
@@ -8,6 +9,8 @@ using Haare.Util.Logger;
 /// </summary>
 public class AreaBasedDamageValidator : MonoBehaviour
 {
+    private GameSession _gameSession;
+    private GameSession Session => _gameSession ??= UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>();
     private float testInterval = 2.0f;
     private float testTimer = 0f;
     private bool showLogging = true; // 로깅 활성화/비활성화
@@ -24,15 +27,15 @@ public class AreaBasedDamageValidator : MonoBehaviour
 
     private void ValidateAreaBasedDamage()
     {
-        if (GameSession.Instance == null) return;
+        if (Session == null) return;
 
-        foreach (var attacker in GameSession.Instance.units)
+        foreach (var attacker in Session.units)
         {
             if (attacker == null || !(attacker is UnitFunction)) continue;
-            if (!attacker.isCastingAttack || attacker.currentThreat == null) continue;
+            if (!attacker.CombatState.State.isCastingAttack || attacker.AIState.currentThreat == null) continue;
 
             // 현재 공격의 히트박스 정보
-            Hitbox attackHitbox = attacker.currentThreat.hitbox;
+            Hitbox attackHitbox = attacker.AIState.currentThreat.hitbox;
             float attackArea = attackHitbox.size.x * attackHitbox.size.y;
 
             LogHelper.Log(LogHelper.GAME, $"\n[Area Damage Test] {attacker.unitType.typeName} 공격 중");
@@ -40,9 +43,9 @@ public class AreaBasedDamageValidator : MonoBehaviour
             LogHelper.Log(LogHelper.GAME, $"  공격 위치: ({attackHitbox.center.x:F1}, {attackHitbox.center.y:F1})");
 
             // 각 적에 대해 교차 면적과 데미지 비율 계산
-            foreach (var enemy in GameSession.Instance.units)
+            foreach (var enemy in Session.units)
             {
-                if (enemy == null || enemy == attacker || enemy.hp <= 0) continue;
+                if (enemy == null || enemy == attacker || enemy.Health.hp <= 0) continue;
                 if (enemy.currentFloor != attacker.currentFloor) continue;
 
                 Hitbox enemyHitbox = SkillAction.GetUnitHitbox(enemy);
@@ -58,7 +61,7 @@ public class AreaBasedDamageValidator : MonoBehaviour
                     LogHelper.Log(LogHelper.GAME, $"     교차 비율: {overlapRatio:P0}");
 
                     // 예상 데미지 계산
-                    float baseDamage = attacker.physicalAttack;
+                    float baseDamage = attacker.CombatStat.physicalAttack;
                     float expectedDamage = Mathf.Max(1f, baseDamage * Mathf.Max(0.1f, overlapRatio));
                     LogHelper.Log(LogHelper.GAME, $"     예상 데미지: {expectedDamage:F1} (기본 데미지: {baseDamage:F1})");
                 }

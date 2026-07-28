@@ -1,0 +1,25 @@
+클래스명: UI_Encyclopedia (MonoRoutine,)
+태그: UI
+경로: Assets/Script/Encyclopedia/UI/UI_Encyclopedia.cs
+의도: 사용자 인터페이스(UI) 중 _Encyclopedia 요소를 제어하고 갱신하는 클래스입니다. (자동 분석됨)
+
+관계:
+  - MonoRoutine, 상속 및 구현
+
+변수:
+  - _contentContainer: Transform 타입 데이터
+  - _slotPrefab: GameObject 타입 데이터
+  - _detailPanel: UI_EncyclopediaDetail 타입 데이터
+  - _filterCategory: string 타입 데이터
+  - _encyclopediaSystem: IEncyclopediaSystem 타입 데이터
+  - _spawnedSlots: List<UI_EncyclopediaSlot> 타입 데이터
+
+함수:
+  - Constructor(): void 반환
+  - TogglePanel(): void 반환
+  - BindEvent(): void 반환
+  - OpenPanel(): void 반환
+  - ClosePanel(): void 반환
+  - HandleEntryUnlocked(): void 반환
+  - RefreshUI(): void 반환
+  - OnSlotClicked(): void 반환

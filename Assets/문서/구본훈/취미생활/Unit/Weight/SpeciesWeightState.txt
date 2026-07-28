@@ -1,0 +1,25 @@
+클래스명: SpeciesWeightState
+태그: State
+경로: Assets/Script/Unit/Weight/SpeciesWeightState.cs
+의도: SpeciesWeightState의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - SpeciesKey: string 타입 데이터
+  - UnderstandingStored: float 타입 데이터
+  - LastUnderstandingUpdateWave: int 타입 데이터
+  - DangerAccumulatedStored: float 타입 데이터
+  - SummonAccum: float 타입 데이터
+  - BuffAccum: float 타입 데이터
+  - DebuffAccum: float 타입 데이터
+  - UnitId: string 타입 데이터
+  - UnderstandingStored: float 타입 데이터
+  - LastUnderstandingUpdateWave: int 타입 데이터
+  - DangerAccumulatedStored: float 타입 데이터
+
+함수:
+  - AccumulateSummon(): void 반환
+  - AccumulateBuff(): void 반환
+  - AccumulateDebuff(): void 반환

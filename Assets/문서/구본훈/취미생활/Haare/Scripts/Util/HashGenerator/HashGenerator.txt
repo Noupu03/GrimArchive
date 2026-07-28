@@ -1,0 +1,13 @@
+클래스명: HashGenerator
+태그: HashGenerator
+경로: Assets/Haare/Scripts/Util/HashGenerator/HashGenerator.cs
+의도: HashGenerator의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - 외부 노출 변수 없음
+
+함수:
+  - GetUniqueHashCode(): int 반환

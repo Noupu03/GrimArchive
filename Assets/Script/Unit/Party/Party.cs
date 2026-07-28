@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // 파티 — 인류 유닛들이 함께 웨이브(던전)에 입장하는 단위. 연산공식 문서 6장(생존자 전역 반영)/
@@ -48,6 +48,21 @@ public class Party
 	// 판정을 재확인하므로, 한 번 처리한 뒤에는 중복 트리거를 막아야 한다.
 	public bool WaveEnded;
 
+	// 03문서 4-12~4-15장(파티원 사망 발견): 시체 오브젝트 Id → 그 사망 사건의 진행 상태.
+	// PartyDeathSystem(Assets/Script/Unit/Party/PartyDeathRecord.cs)이 읽고 쓴다. WaveSpawner가
+	// 웨이브마다 새 Party를 만들므로(재사용 안 함) 별도 정리 없이 웨이브 경계에서 자연히 초기화된다.
+	public readonly Dictionary<string, PartyDeathRecord> DeathRecords = new Dictionary<string, PartyDeathRecord>();
+
+	// 03문서 9장(함정 대응 개편): 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태.
+	// TrapPartySystem(Assets/Script/Unit/Party/TrapPartyCoordination.cs)이 읽고 쓴다.
+	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
+
+	// 03문서 7-3장(2026-07-27 신규): 발견됐지만 아직 리더가 조사를 완료하지 않은 코어 — null이면
+	// 없음. CorePartySystem/TacticalFSMState가 읽고 쓴다. 리더가 바뀌어도(승계) 이 값 자체는 파티
+	// 소유라 그대로 유지되어 새 리더가 이어받을 수 있다.
+	public string PendingCoreObjectId;
+	public Vector3Int PendingCorePosition;
+
 	public Party(string id, string name)
 	{
 		Id = id;
@@ -61,7 +76,7 @@ public class Party
 		{
 			if (Members.Count == 0) return false;
 			foreach (var m in Members)
-				if (m != null && m.hp > 0) return false;
+				if (m != null && m.Health.hp > 0) return false;
 			return true;
 		}
 	}
@@ -73,7 +88,7 @@ public class Party
 		{
 			if (WaveMonsters.Count == 0) return false;
 			foreach (var m in WaveMonsters)
-				if (m != null && m.hp > 0) return false;
+				if (m != null && m.Health.hp > 0) return false;
 			return true;
 		}
 	}
@@ -85,7 +100,51 @@ public class Party
 	{
 		var survivors = new List<Unit>();
 		foreach (var m in Members)
-			if (m != null && m.hp > 0) survivors.Add(m);
+			if (m != null && m.Health.hp > 0) survivors.Add(m);
 		return survivors;
+	}
+
+	// 11장: 전투 종료 후 10초 경계 스윕이 끝난 유닛이(UnitFunction.OnUpdate) 호출한다. 파티 전체가
+	// 전투/전투직후 스윕에서 완전히 벗어났을 때만 실제로 집결을 시작한다 — 아직 싸우거나 스윕 중인
+	// 파티원이 있으면 그 유닛이 끝날 때 다시 이 메서드가 불려서 재시도된다. 리더 명령 전파 체계가
+	// 없어(08문서 부재) "즉시 전 파티원이 리더 위치를 집결지로 안다"로 근사한다(5-5/9-3장과 동일 관례).
+	public void TryStartRally()
+	{
+		if (IsRallyActive) return;
+
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0) continue;
+			if (m.personalSpottedEnemies.Count > 0) return; // 아직 전투 중인 파티원 있음(명시적 전투 플래그 부재로 근사)
+			if (m.currentAlertSearch != null && m.currentAlertSearch.IsPostCombatSweep) return; // 아직 스윕 중
+		}
+
+		AssignLeaderIfNeeded();
+		if (Leader == null) return;
+
+		RallyPoint = Leader.position;
+		IsRallyActive = true;
+
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0 || m.currentWait != null) continue;
+			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = RallyPoint };
+		}
+	}
+
+	// TacticalFSMState.ExecuteWait이 유닛 하나가 집결지에 도착해 currentWait을 비울 때마다 호출한다.
+	// 아직 집결 대기 중인(AwaitingPartyAtRallyPoint) 파티원이 남아있으면 유지, 전원 도착했으면
+	// 집결을 종료한다(11장 "파티 집결 완료" — 별도 마칭 포메이션 시스템이 없어 "다음 목표 수행"으로
+	// 자연히 넘어가는 것 자체를 포메이션 재정렬의 대체로 본다).
+	public void CheckRallyComplete()
+	{
+		if (!IsRallyActive) return;
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0) continue;
+			if (m.currentWait != null && m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint) return;
+		}
+		IsRallyActive = false;
+		RallyPoint = null;
 	}
 }

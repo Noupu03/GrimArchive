@@ -1,0 +1,49 @@
+클래스명: WeightMath
+태그: WeightMath
+경로: Assets/Script/Unit/Weight/WeightMath.cs
+의도: WeightMath의 역할을 정의하고 데이터를 관리하는 스크립트입니다. (자동 분석됨)
+
+관계:
+  - 독립적인 클래스 구조
+
+변수:
+  - OverflowAmount: float 타입 데이터
+  - DecreaseFloor: float 타입 데이터
+  - DecreaseCapacity: float 타입 데이터
+  - ActualDecrease: float 타입 데이터
+
+함수:
+  - Clamp(): float 반환
+  - AppliedValue(): int 반환
+  - ApplyPersonalChange(): float 반환
+  - RatioValue(): float 반환
+  - RoundRatio(): float 반환
+  - DedupExact(): List<IncidentEntry> 반환
+  - BlendPanicValue(): float 반환
+  - ResolvePanicBlend(): List<float> 반환
+  - RepresentativeChange(): float 반환
+  - ComputeGlobalReflectionAmount(): float 반환
+  - ComposeUnderstanding(): float 반환
+  - ComputePoolDecrease(): PoolOverflowResult 반환
+  - HiddenInfoNoiseRatio(): float 반환
+  - ApplyHiddenInfoNoise(): int 반환
+  - MinDangerFloor(): float 반환
+  - TotalDamageDecreaseQualifies(): bool 반환
+  - PerHitDecreaseQualifies(): bool 반환
+  - ApplyDangerDecrease(): float 반환
+  - GetDangerStage(): DangerStage 반환
+  - ComposeFinalDanger(): float 반환
+  - DangerStageBonus(): float 반환
+  - TileSafetyCheckSeconds(): float 반환
+  - ComposeTileInterest(): float 반환
+  - ComposeTileDanger(): float 반환
+  - GetInterestStage(): InterestStage 반환
+  - TileInterestCheckSeconds(): float 반환
+  - ObjectInterestAfterInvestigate(): float 반환
+  - ObjectInterestAfterDrop(): float 반환
+  - UnitInterestFromUnderstanding(): float 반환
+  - CorpseTraceInterest(): float 반환
+  - WipeoutTraceGlobalReflection(): float 반환
+  - ApplyValueNoise(): int 반환
+  - PriorityRank(): int 반환
+  - ShouldReplace(): bool 반환

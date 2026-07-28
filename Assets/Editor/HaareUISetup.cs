@@ -17,6 +17,7 @@ public static class HaareUISetup
     private const string OutputFolder = "Assets/Prefabs/UI";
     private const string CoreCanvasAddress = "Prefabs/CoreCanvas";
     private const string DebugPanelAddress = "Prefabs/DebugInfoPanel";
+    private const string BuildingControlPanelAddress = "Prefabs/BuildingControlPanel";
     // Haare.Client.Core.DI.UIPresenter.FadeIn()/FadeOut()이 Demo.UI.LoadingFadePanel을 그 클래스에
     // 박힌 [PanelAttribute] 주소로 직접 로드하기 때문에, 우리 프리팹도 이 주소 그대로 등록해야 한다.
     private const string LoadingFadePanelAddress = "Prefabs/Demo_LoadingFadePanel";
@@ -35,14 +36,16 @@ public static class HaareUISetup
         GameObject canvasPrefab = CreateCoreCanvasPrefab();
         GameObject panelPrefab = CreateDebugInfoPanelPrefab();
         GameObject fadePanelPrefab = CreateLoadingFadePanelPrefab();
+        GameObject buildingControlPanelPrefab = CreateBuildingControlPanelPrefab();
 
         RegisterAddressable(canvasPrefab, CoreCanvasAddress);
         RegisterAddressable(panelPrefab, DebugPanelAddress);
         RegisterAddressable(fadePanelPrefab, LoadingFadePanelAddress);
+        RegisterAddressable(buildingControlPanelPrefab, BuildingControlPanelAddress);
 
         WireCompositionRoot(canvasPrefab);
 
-        Debug.Log("[HaareUISetup] 완료: CoreCanvas / DebugInfoPanel / LoadingFadePanel 프리팹 생성, Addressable 등록, CompositionRoot 배선까지 마쳤습니다.");
+        Debug.Log("[HaareUISetup] 완료: CoreCanvas / DebugInfoPanel / LoadingFadePanel / BuildingControlPanel 프리팹 생성, Addressable 등록, CompositionRoot 배선까지 마쳤습니다.");
     }
 
     private static GameObject CreateCoreCanvasPrefab()
@@ -200,6 +203,19 @@ public static class HaareUISetup
         return prefab;
     }
 
+    // 건축물·자원·유닛 생산 MVP(2026-07-27) — BuildingControlPanel은 OnGUI로 그리는 패널이라(다른 두
+    // 게임플레이 패널과 동일 관례) UGUI 계층이 필요 없다. 컴포넌트만 붙은 빈 RectTransform이면 충분.
+    private static GameObject CreateBuildingControlPanelPrefab()
+    {
+        var root = new GameObject("BuildingControlPanel", typeof(RectTransform));
+        root.AddComponent<BuildingControlPanel>();
+
+        string path = OutputFolder + "/BuildingControlPanel.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
     private static GameObject CreateCustomButton(TMP_DefaultControls.Resources tmpResources, string name, string label)
     {
         GameObject go = TMP_DefaultControls.CreateButton(tmpResources);
@@ -253,10 +269,13 @@ public static class HaareUISetup
             closeAfter = true;
         }
 
+        // 이름이 "CompositionRoot"가 아닐 수 있다(예: 이 씬에서는 실제로 "Haare"라는 이름의 오브젝트가
+        // GameCompositionRoot를 들고 있음) — 이름 대신 컴포넌트 존재 여부로 찾는다(2026-07-27, 이름
+        // 불일치로 배선이 조용히 스킵되던 문제 수정).
         GameObject compositionRootGo = null;
         foreach (var rootGo in scene.GetRootGameObjects())
         {
-            if (rootGo.name == "CompositionRoot")
+            if (rootGo.GetComponent<GameCompositionRoot>() != null)
             {
                 compositionRootGo = rootGo;
                 break;
@@ -265,7 +284,7 @@ public static class HaareUISetup
 
         if (compositionRootGo == null)
         {
-            Debug.LogError($"[HaareUISetup] {ScenePath}에서 'CompositionRoot' GameObject를 찾을 수 없습니다.");
+            Debug.LogError($"[HaareUISetup] {ScenePath}에서 GameCompositionRoot 컴포넌트를 가진 GameObject를 찾을 수 없습니다.");
             if (closeAfter) EditorSceneManager.CloseScene(scene, true);
             return;
         }

@@ -1,0 +1,15 @@
+클래스명: DemoTitleUIManager (SceneUIManager)
+태그: Manager
+경로: Assets/Haare/Demo/Script/TitleScene/DemoTitleUIManager.cs
+의도: 게임 내 DemoTitleUI 시스템을 총괄하고 관리하는 매니저 클래스입니다. (자동 분석됨)
+
+관계:
+  - SceneUIManager 상속 및 구현
+
+변수:
+  - debugPanelID: int 타입 데이터
+  - titlePanelID: int 타입 데이터
+
+함수:
+  - Reset(): void 반환
+  - BindIPanel(): void 반환

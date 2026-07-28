@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
 
 // 인류(Human) 유닛 개인이 들고 있는 "지도" — 연산공식 문서 15~21장(타일/오브젝트/방 위험도·흥미도)의
 // 실체. 예전에는 이 데이터가 HumanKnowledgeBase(전역 싱글턴)에 있었지만, 지도관련_정리 문서가
-// 명시하듯 "인류 유닛별로 획득"되는 개인 인지 정보이므로 유닛 개인 소유로 옮겼다 — Human.personalMap
+// 명시하듯 "인류 유닛별로 획득"되는 개인 인지 정보이므로 유닛 개인 소유로 옮겼다 — Human.Memory.personalMap
 // (Unit.cs)로만 보유하고, Monster/base Unit에는 두지 않는다("지도는 인류만" 요구사항).
 //
 // 이번 라운드는 개인 지도 데이터 자체의 완성이 스코프다. 진영(전체) 지도는 만들지 않는다 —

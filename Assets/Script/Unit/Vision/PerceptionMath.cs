@@ -147,6 +147,11 @@ public static class PerceptionMath
 			PerceptionReactionCandidate.Investigate, PerceptionReactionCandidate.Alert,
 			PerceptionReactionCandidate.Propagate,
 		},
+		// 03문서 7-3장(2026-07-27 신규): 코어 — 일반 유닛은 직접 조사하지 않고 전파만 한다.
+		PerceptionTargetKind.Core => new[]
+		{
+			PerceptionReactionCandidate.Propagate, PerceptionReactionCandidate.Investigate,
+		},
 		_ => System.Array.Empty<PerceptionReactionCandidate>(),
 	};
 }
@@ -162,4 +167,5 @@ public enum PerceptionTargetKind
 	Building,
 	Corpse,
 	WipeoutTrace,
+	Core, // 03문서 7-3장(2026-07-27 신규): 리더 전용 조사 오브젝트.
 }

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
@@ -84,23 +84,14 @@ public class UIManager : MonoBehaviour
 
 		//======= 파티 관련 참조 주석처리 ========
         /*// 4. 유닛 머리 위 디버그 텍스트 (카메라 프로젝션 적용, 카메라를 따라 같이 이동함)
-        foreach (var u in GameSession.Instance.units)
+        foreach (var u in _gameSession.units)
         {
-            if (u == null || u.hp <= 0) continue;
+            if (u == null || u.Health.hp <= 0) continue;
 
             Vector3 screenPos = Camera.main.WorldToScreenPoint(new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + u.unitType.footprint.y + 0.5f, 0));
             if (screenPos.z > 0)
             {
-                string actionName = "Idle";
-                if (u.brain != null)
-                {
-                    var field = typeof(GoapBrain).GetField("currentPlannedAction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    if (field != null)
-                    {
-                        var action = field.GetValue(u.brain) as GoapAction;
-                        if (action != null) actionName = action.ActionName;
-                    }
-                }
+                string actionName = u.fsm != null ? u.fsm.GetLabel(u) : "Idle";
 
                 string debugText = $"{u.unitType.typeName}\n{actionName}";
                 if (InputManager.Instance != null && InputManager.Instance.selectedUnit == u)
@@ -136,7 +127,7 @@ public class UIManager : MonoBehaviour
 
             foreach (var u in party.members)
             {
-                if (u == null || u.hp <= 0) continue;
+                if (u == null || u.Health.hp <= 0) continue;
                 humanCount++;
                 totalMental += u.currentMental;
                 if (u.currentMental < u.baseMental * 0.3f)
@@ -206,6 +197,30 @@ public class UIManager : MonoBehaviour
 		mr.sortingOrder = 9999; // ★ 핵심 (맵 위로 올림)
 
 		DOVirtual.DelayedCall(0.5f, () => { if (go != null) Destroy(go); });
+	}
+
+	// 03문서 9-8장(2026-07-27 추가) — 함정 해제 성공/실패 결과 문구용. ShowFloatingText(Unit)와 달리
+	// 유닛이 아니라 임의의 월드 좌표(함정 위치 등)에 띄워야 해서 별도 오버로드로 뒀다. duration을
+	// 인자로 받는 것만 다르고 나머지(월드공간 TextMesh, sortingOrder로 맵 위에 그리기)는 동일하다.
+	public void ShowFloatingTextAt(Vector3 worldPos, string message, Color color, float duration = 0.5f)
+	{
+		GameObject go = new GameObject("FloatingText");
+		go.transform.position = worldPos;
+
+		TextMesh text = go.AddComponent<TextMesh>();
+		text.text = message;
+
+		text.fontSize = 90;
+		text.characterSize = 0.05f;
+
+		text.anchor = TextAnchor.MiddleCenter;
+		text.alignment = TextAlignment.Center;
+		text.color = color;
+
+		MeshRenderer mr = go.GetComponent<MeshRenderer>();
+		mr.sortingOrder = 9999;
+
+		DOVirtual.DelayedCall(duration, () => { if (go != null) Destroy(go); });
 	}
 
 	Vector3 GetWorldTextPosition(Unit unit)
