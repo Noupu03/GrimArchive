@@ -17,6 +17,8 @@ public class AIBehaviorConfig : ScriptableObject
     [Header("FSM 상태 진입 우선순위")]
     [Tooltip("플레이어 수동 명령(공격/이동) 활성 시 우선순위 — 항상 최우선(기본 200, 사용자 요청 2026-07-24)")]
     public float playerCommandPriority = 200f;
+    [Tooltip("이동 명령 혼잡 대기 최대 턴 수 — 이 턴을 초과하면 명령 포기 + 이동 불가 피드백 (내부 판단)")]
+    public int playerCommandStuckTurnLimit = 8;
     [Tooltip("적 인지 시 전투 상태 우선순위 (기본 100)")]
     public float combatPriority     = 100f;
     [Tooltip("전술 조건 충족 시 우선순위 (기본 50)")]
