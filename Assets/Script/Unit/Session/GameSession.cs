@@ -1302,16 +1302,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 영향 없음.
         if (rotationZDegrees != 0f) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
 
-        // 오브젝트 스프라이트마다 원본 픽셀 크기/PPU가 제각각이라(core 32x32@32ppu, trap 30x26@32ppu,
-        // colapse 24x22@32ppu, obj1 16x30@100ppu 등) 고정 스케일(0.5) 하나로는 오브젝트마다 실제
-        // 렌더 크기가 다 달랐고, 특히 obj1은 타일보다 훨씬 작게 보였다(사용자 신고, 2026-07-24
-        // "오브젝트들 스케일이 너무 작아. 모든 오브젝트들은 타일 크기에 맞춘 스케일로"). sprite.bounds
-        // (스케일 1 기준 월드 크기)를 역산해서 타일 1칸(1x1 유닛)에 항상 꽉 차도록 스케일을 계산한다
-        // — UnitGenerate.SetupUnitVisual이 풋프린트 크기에 맞춰 유닛을 스케일하는 것과 같은 원리.
-        Vector2 spriteWorldSize = sr.sprite != null ? (Vector2)sr.sprite.bounds.size : Vector2.one;
-        float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
-        float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
-        visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+        // 사용자 요청(2026-07-28) "오브젝트를 타일 크기에 맞춰 스폰하지 말고 원본 스프라이트 크기에
+        // 맞춰 스폰" — 2026-07-24에 도입했던 "sprite.bounds 역산해서 타일 1칸에 꽉 차도록" 스케일
+        // 보정을 되돌린다. 이제 스케일 1(원본 픽셀 크기/PPU 그대로)로 스폰 — 스프라이트마다 실제
+        // 렌더 크기가 제각각이어도 그대로 둔다.
+        visual.transform.localScale = Vector3.one;
 
         objectVisuals[obj] = visual;
     }
@@ -1679,12 +1674,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 float rotation = closed ? baseRotation : baseRotation + (tileIndex % 2 == 1 ? 180f : 0f);
                 visual.transform.rotation = Quaternion.Euler(0f, 0f, rotation);
 
-                // SpawnObject와 동일한 관례 — 스프라이트마다 원본 크기가 달라 타일 1칸에 맞춰 스케일을
-                // 다시 계산해야 한다(door_open/door_closed의 원본 픽셀 크기가 서로 다를 수 있음).
-                Vector2 spriteWorldSize = sr.sprite != null ? (Vector2)sr.sprite.bounds.size : Vector2.one;
-                float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
-                float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
-                visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+                // SpawnObject와 동일한 관례(2026-07-28, 사용자 요청으로 타일 맞춤 스케일 폐지) —
+                // door_open/door_closed 스프라이트를 원본 크기(스케일 1) 그대로 사용.
+                visual.transform.localScale = Vector3.one;
             }
         }
     }
