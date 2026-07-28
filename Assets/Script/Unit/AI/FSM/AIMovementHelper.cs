@@ -39,6 +39,24 @@ public static class AIMovementHelper
 		return best;
 	}
 
+	// 명령 포기 오판 방지(2026-07-28, 사용자 신고 "자꾸 전투중에 한번씩 플레이어 명령 무시해") —
+	// FindNearbyOpenTile이 "갈 수 있는 칸이 하나도 없다"고 판단해도, 그게 진짜 벽/닫힌 문 때문인지
+	// 아니면 전투 중 다른 유닛들이 그 순간 잠깐 몰려서(점유) 막힌 것뿐인지를 구분하지 못했다.
+	// PlayerCommandFSMState.ExecutePlayerMove가 후자까지 "완전히 막힘"으로 오판해 명령을 그 자리에서
+	// 영구히 취소해 버렸다 — 혼잡한 전투에서 한 틱만 지나면 풀릴 상황인데도 명령이 사라지는 원인.
+	// 여기서는 CanMove(ignoreUnits: true)로 유닛 점유를 무시하고 "지형만" 기준으로 재확인한다.
+	public static bool HasAnyStructurallyOpenNeighbor(Unit unit, Vector2Int center)
+	{
+		if (unit.CanMove(center, ignoreUnits: true)) return true;
+		for (int dx = -1; dx <= 1; dx++)
+		for (int dy = -1; dy <= 1; dy++)
+		{
+			if (dx == 0 && dy == 0) continue;
+			if (unit.CanMove(center + new Vector2Int(dx, dy), ignoreUnits: true)) return true;
+		}
+		return false;
+	}
+
 	public static void MoveAwayFromTarget(Unit unit, Unit target, float desiredDist)
 	{
 		Vector2 away = (Vector2)(unit.position - target.position);

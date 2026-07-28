@@ -63,13 +63,24 @@ public class OffenseProcessor
         {
             // 야생 무리형: 방 안 야생 유닛 전멸
             var roomUnits = GameSession.Instance.GetUnitsInRoom(room.Bounds);
+            bool hasHuman = false, hasPlayerMonster = false;
             foreach (var u in roomUnits)
+            {
                 if (u.FactionBehavior is WildMonsterBehavior) return false;
+                if (u.FactionBehavior is HumanFactionBehavior) hasHuman = true;
+                else if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayerMonster = true;
+            }
+            // 점령 보류 규칙(2026-07-28, 사용자 요청 "야생 유닛 막타쳐서 점령했을때, 만약 인류, 몬스터
+            // 같이 방에 존재한다면, 점령되지 않고, 한 진영만 남을때까지 점령되지 않게 해줘") — 야생이
+            // 전멸해도 인류·몬스터가 동시에 살아있으면 아직 결정 보류. 폴링 방식이라 다음 프레임에
+            // 다시 확인한다(_activeOffenseRooms에서 제거하지 않음).
+            if (hasHuman && hasPlayerMonster) return false;
             return true;
         }
         else
         {
-            // 야생 거점형: 생성 거점 파괴만으로 성공 (MVP 문서 4.2 — 남은 야생 유닛 무관)
+            // 야생 거점형: 생성 거점 파괴만으로 성공 (MVP 문서 4.2 — 남은 야생 유닛 무관, 이 갈래는
+            // 위 점령 보류 규칙 대상이 아니다 — 문서 그대로 유지).
             return !room.HasActiveSpawner;
         }
     }
@@ -82,38 +93,87 @@ public class OffenseProcessor
     public void TryFlipRoomOwnershipOnDeath(Unit deadUnit)
     {
         if (deadUnit == null || GameSession.Instance == null) return;
-
-        FactionType? deadFaction = MapToRoomFaction(deadUnit.FactionBehavior);
-        if (deadFaction == null) return; // 방 소유권 개념이 없는 진영(FactionBehavior가 매핑 안 됨)
+        if (MapToRoomFaction(deadUnit.FactionBehavior) == null) return; // 방 소유권 개념이 없는 진영
 
         UnityEngine.Vector3Int gridPos = new UnityEngine.Vector3Int(deadUnit.position.x, deadUnit.position.y, deadUnit.currentFloor);
         if (!GameSession.Instance.roomGrid.TryGetValue(gridPos, out Room room)) return;
-        if (room.RoomFaction != deadFaction.Value) return; // 이 방은 애초에 죽은 유닛 진영 소유가 아님
 
-        // 같은 진영의 다른 생존 유닛이 이 방에 남아있으면 "마지막 유닛"이 아니다. Room.Bounds는
-        // 사각형 경계일 뿐이라 방 모양이 불규칙하면 인접한 다른 방과 겹쳐 오판할 수 있다(Room.cs 17-18행,
-        // RoomConfinedMovement.cs와 동일한 문제) — roomGrid 타일 단위 조회로 정확히 같은 Room 인스턴스인지
-        // 비교한다.
-        foreach (var other in GameSession.Instance.units)
+        TryResolveRoomOwnership(room, deadUnit.unitType?.typeName ?? "유닛");
+    }
+
+    // 점령 재계산(2026-07-28 재정정, 사용자 신고 "세 진영 유닛 동시에 존재할 때 점령이 작동 안해...
+    // 야생 몬스터와 플레이어 몬스터 유닛 다 죽고 인류만 남으면 점령 처리가 되어야 하는데 안됨(문은
+    // 열림)") — 예전(TryFlipRoomOwnershipOnDeath 구버전)엔 "방금 죽은 유닛의 진영이 이 방의 *현재*
+    // RoomFaction과 같아야만" 점령 전환을 시도했다. 그런데 3파전 도중 야생이 먼저 죽어도 아래 점령
+    // 보류 규칙 때문에 room.RoomFaction을 그대로(Wild) 뒀는데, 나중에 두 번째 진영(예: 플레이어
+    // 몬스터)까지 죽어서 실제로는 인류 단독이 됐어도 "죽은 진영(Player) != 방 소유(여전히 Wild)"로
+    // 게이트에 걸려 전환 자체가 시도되지 않았다 — 문은 이 게이트가 없는 GameSession.
+    // RefreshRoomGateStates 기준이라 정상적으로 열렸는데 점령만 안 따라간 이유. 이제 누가 죽었는지·
+    // 방의 이전 소유가 무엇이었는지와 무관하게, "지금 이 순간 방에 실제로 살아있는 유닛 구성"만 보고
+    // (문 열림 판정과 동일하게 room.ContainedUnits 기준) 매번 재계산한다. public — UnitFunction.
+    // SyncRoomAffiliation(유닛이 방을 "떠날 때", 죽지 않고 그냥 나가서 단일 진영이 되는 경우)도
+    // 문 열림 판정과 대칭으로 이 메서드를 직접 호출한다.
+    public void TryResolveRoomOwnership(Room room, string triggerLabel)
+    {
+        if (room == null) return;
+
+        bool hasHuman = false, hasPlayerMonster = false, hasWild = false;
+        foreach (var u in room.ContainedUnits)
         {
-            if (other == null || other == deadUnit || other.Health.hp <= 0) continue;
-            if (MapToRoomFaction(other.FactionBehavior) != deadFaction.Value) continue;
-
-            UnityEngine.Vector3Int otherGridPos = new UnityEngine.Vector3Int(other.position.x, other.position.y, other.currentFloor);
-            if (GameSession.Instance.roomGrid.TryGetValue(otherGridPos, out Room otherRoom) && otherRoom == room)
-                return;
+            if (u == null || u.hp <= 0) continue;
+            if (u.FactionBehavior is HumanFactionBehavior) hasHuman = true;
+            else if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayerMonster = true;
+            else if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
         }
 
-        Unit killer = deadUnit.lastDamageDealer;
-        FactionType? killerFaction = killer != null ? MapToRoomFaction(killer.FactionBehavior) : null;
-        if (killerFaction == null || killerFaction.Value == deadFaction.Value) return;
+        // 점령 보류 규칙(2026-07-28, 사용자 요청 "야생 유닛 막타쳐서 점령했을때, 만약 인류, 몬스터
+        // 같이 방에 존재한다면, 점령되지 않고, 한 진영만 남을때까지 점령되지 않게 해줘") — 야생이
+        // 남아있거나, 인류·몬스터가 동시에 있거나(hasHuman==hasPlayerMonster==true) 둘 다 없으면
+        // (hasHuman==hasPlayerMonster==false, 완전히 빈 방 — TryClaimEmptyRoomOnEntry 몫이라 여기서는
+        // 손대지 않음) 아직 "한 진영"이 아니므로 보류.
+        if (hasWild || hasHuman == hasPlayerMonster) return;
 
-        room.RoomFaction = killerFaction.Value;
+        FactionType claimant = hasHuman ? FactionType.Human : FactionType.Player;
+        if (room.RoomFaction == claimant) return; // 이미 같은 소유
+
+        room.RoomFaction = claimant;
         _activeOffenseRooms.Remove(room); // 진행 중이던 폴링 기반 오펜스가 있었다면 정리
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(killerFaction.Value));
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(claimant));
+        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState(맵 데이터 원본)도 같이 갱신.
+        // 데모_구현현황_검증_2026-07-28.txt "발견된 사항 1" 참고.
+        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
 
-        LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): {deadFaction.Value} → {killerFaction.Value} (마지막 유닛 처치로 소속 전환, 가해자: {killer.unitType?.typeName})");
+        LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): → {claimant} (유닛 구성 재계산, 계기: {triggerLabel} 사망)");
     }
+
+    // 점령 시스템(2026-07-28, 사용자 요청 "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게 해줘")
+    // — 전투(TryFlipRoomOwnershipOnDeath)나 야생 전멸(OnOffenseSuccess) 없이도, 완전히 비어있던 방에
+    // 유닛이 그냥 걸어 들어오기만 하면 그 진영 소유가 된다. "입성 직전엔 방이 비어 있었다"는 판정은
+    // 호출부(UnitFunction.SyncRoomAffiliation)가 이 유닛을 Room.ContainedUnits에 등록하기 전에 미리
+    // 해 둔다 — 그렇지 않으면 입성한 유닛 자신이 이미 점유 중인 걸로 잡혀 항상 "비어있지 않음"이 된다.
+    public void TryClaimEmptyRoomOnEntry(Room room, Unit enteringUnit)
+    {
+        if (room == null || enteringUnit == null || GameSession.Instance == null) return;
+
+        FactionType? faction = MapToRoomFaction(enteringUnit.FactionBehavior);
+        if (faction == null) return; // 방 소유권 개념이 없는 진영(FactionBehavior가 매핑 안 됨)
+        if (room.RoomFaction == faction.Value) return; // 이미 같은 소유면 할 일 없음
+
+        room.RoomFaction = faction.Value;
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction.Value));
+        GameSession.Instance.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction.Value));
+
+        LogHelper.Log($"[점령] {room.RoomName} 방(F{room.Floor}): 빈 방에 {enteringUnit.unitType?.typeName}({faction.Value})이 입성해 점령했습니다.");
+    }
+
+    // 구조적 이슈 수정(2026-07-28) — FactionType(RoomFaction 쪽) → OccupationState(맵 데이터 쪽)
+    // 역매핑. GetRoomOwnerColor와 나란히 두되 색이 아니라 CreateMap.Chunks.occupationState 갱신용.
+    private static OccupationState MapToOccupationState(FactionType faction) => faction switch
+    {
+        FactionType.Player => OccupationState.PlayerControlled,
+        FactionType.Human => OccupationState.HumanControlled,
+        _ => OccupationState.Neutral,
+    };
 
     private static FactionType? MapToRoomFaction(IFactionBehavior behavior)
     {
@@ -121,6 +181,22 @@ public class OffenseProcessor
         if (behavior is WildMonsterBehavior) return FactionType.Wild;
         if (behavior is HumanFactionBehavior) return FactionType.Human; // 2026-07-27, 사용자 요청 "인류도 소유권 있어"
         return null;
+    }
+
+    // 점령 보류 규칙(2026-07-28) 전용 — 이 방에 인류와 플레이어 소속 몬스터가 동시에 살아있는지.
+    // Room.ContainedUnits는 UnitFunction.SyncRoomAffiliation(인류/몬스터)이 실시간으로 채우는 목록
+    // (야생은 대상 제외라 애초에 이 판정과 무관 — GameSession.RefreshRoomGateStates와 동일 데이터).
+    private static bool HasBothHumanAndPlayerMonster(Room room)
+    {
+        bool hasHuman = false, hasPlayerMonster = false;
+        foreach (var u in room.ContainedUnits)
+        {
+            if (u == null || u.hp <= 0) continue;
+            if (u.FactionBehavior is HumanFactionBehavior) hasHuman = true;
+            else if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayerMonster = true;
+            if (hasHuman && hasPlayerMonster) return true;
+        }
+        return false;
     }
 
     // 점령 색상(2026-07-27, 사용자 정정: "인류 전체가 파랑, 플레이어는 몬스터 소속이고 빨간색") —
@@ -139,14 +215,34 @@ public class OffenseProcessor
         // 건축물·자원·유닛 생산 MVP(2026-07-27) — 처치 보상은 이제 즉시 지급되므로(WildMonsterBehavior.
         // OnDeath) 오펜스 성공 시점의 별도 정산이 필요 없다.
 
-        // 2. 방 소속 변경
-        room.RoomFaction = FactionType.Player;
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(FactionType.Player));
+        // 2. 방 소속 변경 — 2026-07-28 이전엔 무조건 Player로 고정했으나, 점령 보류 규칙 추가로
+        // CheckOffenseSuccess의 Normal 타입 방은 이제 "인류·몬스터 중 하나만 남음"을 보장하므로 실제로
+        // 남아있는 진영에게 점령권을 준다(인류 혼자 정리한 방이면 인류 소유가 맞다 — "인류도 소유권
+        // 있어"와 일관). Spawner 타입(거점 파괴, 인원 구성과 무관하게 성공)처럼 판정이 모호할 수 있는
+        // 경우에만 기존처럼 Player를 기본값으로 유지.
+        FactionType claimant = HasBothHumanAndPlayerMonster(room) ? FactionType.Player : DetermineSoleOccupant(room);
+        room.RoomFaction = claimant;
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(claimant));
+        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState도 같이 갱신(위 참고).
+        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
 
         // 3. 활성 오펜스에서 제거
         _activeOffenseRooms.Remove(room);
 
         // 4. 오펜스 성공 로그 (MVP 8장)
-        LogHelper.Log($"[오펜스 성공] {room.RoomName} 방 점령 완료 — 플레이어 진영으로 전환");
+        LogHelper.Log($"[오펜스 성공] {room.RoomName} 방 점령 완료 — {claimant} 진영으로 전환");
+    }
+
+    // OnOffenseSuccess 전용 — 방에 실제로 남아있는 단일 진영을 찾는다(인류 또는 플레이어 소속 몬스터).
+    // 둘 다 없으면(예: Spawner 파괴만으로 성공해 아무도 안 남은 경우) 기존 기본값 Player로 폴백.
+    private static FactionType DetermineSoleOccupant(Room room)
+    {
+        foreach (var u in room.ContainedUnits)
+        {
+            if (u == null || u.hp <= 0) continue;
+            if (u.FactionBehavior is HumanFactionBehavior) return FactionType.Human;
+            if (u.FactionBehavior is PlayerMonsterBehavior) return FactionType.Player;
+        }
+        return FactionType.Player;
     }
 }

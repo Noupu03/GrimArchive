@@ -240,24 +240,31 @@ public partial class CreateMap
         }
 
         // ⑩ Gate 폭 vs allowMaxFootprint 일관성 검증
-        if (floor.gates != null)
-        {
-            foreach (Gate g in floor.gates)
-            {
-                int maxFpA = 1, maxFpB = 1;
-                for (int x = 0; x < w; x++)
-                    for (int y = 0; y < h; y++)
-                    {
-                        int id = floor.chunks[x, y].roomId;
-                        if (id == g.roomA) maxFpA = Mathf.Max(maxFpA, floor.chunks[x, y].allowMaxFootprint);
-                        if (id == g.roomB) maxFpB = Mathf.Max(maxFpB, floor.chunks[x, y].allowMaxFootprint);
-                    }
-
-                int expected = Mathf.Max(maxFpA, maxFpB);
-                if (g.width < expected)
-                    errors.Add($"F{fId} Gate(room{g.roomA}↔room{g.roomB}): width={g.width}가 allowMaxFootprint 기대값({expected})보다 작습니다.");
-            }
-        }
+        // 사용자 요청(2026-07-28, "통로는 반드시 2*2여야 해") — CreateMap.Connection.cs가 이제
+        // gateWidth를 항상 2로 고정하고(UpdateGateWidthsAfterStairs 호출도 CreateMap.cs에서 막음),
+        // 방 footprint(보스방 3~5, 층2/3 일반방도 랜덤 3~4까지) 요구치를 더 이상 따라가지 않는다.
+        // 이 규칙을 그대로 두면 그런 방을 낀 Gate에서 매번 검증 실패 → GenerateMap이 불필요하게
+        // maxRetryCount까지 재시도하다 결국 실패 로그만 남기고 마지막 결과를 그대로 쓰게 된다(통로
+        // 폭 자체는 이미 2로 고정돼 있어 기능적으로는 문제 없었지만 재시도/오류 로그가 낭비됨). 롤백
+        // 가능성 있어 지우지 않고 주석 처리만.
+        // if (floor.gates != null)
+        // {
+        //     foreach (Gate g in floor.gates)
+        //     {
+        //         int maxFpA = 1, maxFpB = 1;
+        //         for (int x = 0; x < w; x++)
+        //             for (int y = 0; y < h; y++)
+        //             {
+        //                 int id = floor.chunks[x, y].roomId;
+        //                 if (id == g.roomA) maxFpA = Mathf.Max(maxFpA, floor.chunks[x, y].allowMaxFootprint);
+        //                 if (id == g.roomB) maxFpB = Mathf.Max(maxFpB, floor.chunks[x, y].allowMaxFootprint);
+        //             }
+        //
+        //         int expected = Mathf.Max(maxFpA, maxFpB);
+        //         if (g.width < expected)
+        //             errors.Add($"F{fId} Gate(room{g.roomA}↔room{g.roomB}): width={g.width}가 allowMaxFootprint 기대값({expected})보다 작습니다.");
+        //     }
+        // }
 
         // ⑪ 시작방 위치 검증
         {

@@ -301,6 +301,10 @@ namespace GrimArchive.Wave
 
             Debug.Log("[HumanWaveManager] ?�류 ?�이�?발생! (목표물이 ?�성???�까지 ?�기합?�다)");
             currentState = WaveState.Running;
+
+            // 문 닫힘 시스템(2026-07-28, 사용자 요청 "웨이브가 시작되면 모든 문이 닫히며 벽과 같은
+            // 판정이 된다") — 웨이브 본편 스폰/진행 로직보다 먼저, 상태 전환 직후 곧바로 실행한다.
+            GameSession.Instance?.CloseAllDoorsForWaveStart();
             runningStateTimer = 0f;
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)

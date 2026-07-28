@@ -1,0 +1,355 @@
+점령(OccupationState) 시스템 — 데모 구현현황 검증 (2026-07-28)
+
+검증 대상 커밋: 7ebf5d0 "점령 임시" (2026-07-27 13:30:47, 21시간여 전)
+검증 기준 시점(코드 상태): HEAD = 1976afa "일단" (2026-07-28 10:35:26) + 같은 날 이어진 세션 작업
+  (문/통로 2*2 고정, 건물이 문 타일을 침범하지 못하게 하는 수정 등 — 점령 자체와는 별개 트랙이라
+  이 문서에서는 다루지 않음. 해당 내용은 커밋 메시지 "배치 관련 종료"/"일단" 참고)
+기준 문서: 정식 기획서 없음 — Assets/문서/에러방 로그/임시파일.txt (7ebf5d0에서 함께 추가된 비공식
+  메모, 아래 원문 그대로 인용). 정식 문서가 생기면 이 문서를 그 문서 기준으로 다시 검증할 것.
+
+  ────────────────────────────────────────────────────────────────
+  플레이어 방(몬스터)과 야생 방, 인류 방 구분.
+  플레이어 방(몬스터)은 바닥 타일 희미하게 빨간색
+  야생 방은 바닥 타일 희미하게 회색.
+  인류 방은 바닥 타일 희미하게 초록색
+
+  점령 관련 초기 수치.
+  0층은 인류 소유
+  1층의 시작방은 몬스터 소유
+  나머지는 야생방
+
+  플레이어는 자신 소유 및 양옆 방까지만 이동 명령 내릴 수 있음.
+  (인류 명령은 테스트용이므로, 모두 허용)
+  ────────────────────────────────────────────────────────────────
+
+신규/변경 핵심 코드 (7ebf5d0 기준, 점령 관련 파일만 — 같은 커밋에 섞여 있던 함정/코어 진행 막대·
+플로팅 텍스트 등은 무관한 별개 작업이라 이 목록에서 제외):
+  Assets/Script/Map/MapData.cs (OccupationState.HumanControlled 추가)
+  Assets/Script/Map/CreateMap.Stairs.cs (InitOccupationAndDanger, GenerateFloor0)
+  Assets/Script/Map/CreateMap.RuntimeAPI.cs (GetRoomIdAt/CanPlayerCommandRoom/CanPlayerCommandPosition/
+    GetRoomOccupationState/IsPositionPlayerOwned 신규 — SetChunksOccupation/BuildOutpost/RetreatFromRoom
+    등은 이전부터 있던 별도 트랙 API, 아래 "발견된 사항" 참고)
+  Assets/Script/Randering/MapRandering.cs (ApplyOccupationTint, HumanRoomTint/MonsterRoomTint)
+  Assets/Script/Unit/Session/GameSession.cs (BuildRoomGrid 전체 층 순회로 확장, SpawnWildRoomGuards 신규)
+  Assets/Script/Unit/Session/InputManager.cs (우클릭 이동 명령의 CanPlayerCommandPosition 체크)
+  Assets/Script/Unit/Movement/RoomConfinedMovement.cs (야생 몬스터 A 방 경계 이동 제한)
+  Assets/Script/Unit/Core/Room.cs (RoomId/Floor 필드 추가)
+  Assets/Script/Unit/Core/UnitTypes.cs (WildMonsterA 신규)
+  Assets/Script/Unit/AI/States/CombatFSMState.cs (야생 몬스터 A 전투 대상도 같은 방으로 제한)
+  Assets/Script/Unit/Visual/ThreatTileRenderer.cs (야생 몬스터 위협타일 회색 구분)
+
+태그
+  ✅ 구현       — 임시 메모 요구사항이 코드에 정확히 있고 실제 게임 루프에서 자동 발동.
+  🔶 부분/변형  — 동작은 하지만 메모 원문과 다르게 구현됐거나(세션 중 사용자가 구두로 정정) 단순화됨.
+  ❌ 미구현/미연결 — 코드는 있으나 실제로 아무 데서도 호출되지 않거나, 아예 만들어지지 않음.
+
+════════════════════════════════════════════════════════════════════════
+■ 1. 방 색상 구분 (플레이어=빨강 / 인류=초록 / 야생=회색)
+════════════════════════════════════════════════════════════════════════
+✅ MapRandering.ApplyOccupationTint(맵 최초 렌더링)와 OffenseProcessor.ChangeRoomColor(전투로 방
+   소속이 바뀌는 시점, 아래 3번 참고)가 실제로 칠하는 색은 임시파일.txt 원문과는 다르지만, 전부 세션
+   중 사용자가 직접 정정한 최신 사양이다(OffenseProcessor.cs GetRoomOwnerColor 옆 주석 "점령 색상
+   (2026-07-27, 사용자 정정: 인류 전체가 파랑, 플레이어는 몬스터 소속이고 빨간색)"에 그대로 남아있고,
+   2026-07-28 사용자 확인으로 재확인됨):
+     - 플레이어(몬스터) 점령 → 빨강 (1, 0.25, 0.25) — 메모 원문과도 일치.
+     - 인류 소유 → 파랑 (0.25, 0.45, 1) — 메모 원문(초록)에서 사용자가 명시적으로 파랑으로 정정.
+     - 야생(Neutral) → 착색 없음(원래 바닥 스프라이트 색 그대로) — 메모 원문(회색)에서 사용자가
+       "야생 지역은 회색 말고 그냥 원래 색으로"로 정정(MapRandering.cs 주석에 사유 명시).
+✅ 벽 타일은 착색하지 않는다(요청 "바닥 타일 희미하게") — ApplyOccupationTint/ChangeRoomColor 둘 다
+   Wall 타일 스킵 로직 보유.
+🔶 색칠이 "최초 렌더링 시점" + "전투로 방 소속이 바뀌는 시점"(OffenseProcessor 경유)에만 갱신된다 —
+   방이 점령됐다가 다시 야생으로 되돌아가는 CreateMap.RetreatFromRoom(BuildOutpost/DemolishOutpost와
+   마찬가지로 이전부터 있던 API)이 실행돼도 MapRandering을 다시 칠해주는 연결이 없다. 다만
+   RetreatFromRoom/BuildOutpost/DemolishOutpost 셋 다 테스트 코드 말고는 실제로 호출하는 곳이
+   코드베이스에 없어(입력/UI 미연결) 지금 당장 데모에서 재현될 상황 자체가 없다 — "발견된 사항 3"과
+   같은 부류의, 만들어졌지만 아직 안 이어진 API.
+
+════════════════════════════════════════════════════════════════════════
+■ 2. 점령 초기값 (0층=인류 / 1층 시작방=몬스터 / 나머지=야생)
+════════════════════════════════════════════════════════════════════════
+✅ CreateMap.Stairs.cs — GenerateFloor0()이 0층 전체 칸에 OccupationState.HumanControlled를 부여하고,
+   InitOccupationAndDanger()가 1~3층에서 RoomRole.StartRoom만 PlayerControlled, 나머지(BossRoom/
+   SubPurposeRoom/NormalRoom 전부)는 Neutral(야생)로 초기화한다 — 메모 그대로 정확히 일치.
+
+════════════════════════════════════════════════════════════════════════
+■ 3. 이동 명령 범위 (플레이어=자신 소유+인접 방만 / 인류=테스트용 전체 허용)
+════════════════════════════════════════════════════════════════════════
+✅ InputManager 우클릭 핸들러가 unit.IsPlayerMonsterFaction일 때만
+   CreateMap.CanPlayerCommandPosition(현재 점령 중인 모든 방 + 그 방과 Gate로 연결된 인접 방)을
+   확인하고, 실패하면 그 유닛만 이번 명령에서 제외한다. 인류(Human)는 이 체크를 아예 받지 않아
+   "테스트용이므로 모두 허용" 요구사항과 일치. — 메모와 정확히 일치.
+✅ (메모에 없지만 같은 취지로 함께 구현됨) RoomConfinedMovement — 플레이어가 수동 명령을 내리지 않은
+   AI 이동(야생 몬스터 A 등)은 애초에 자기 방 밖으로 한 걸음도 못 나간다(A* 타일 워커빌리티 자체를
+   차단). 수동 명령(isManualMoveCommand)이 걸리면 이 제한 자체를 완전히 건너뛰므로, 방금 확인한
+   "인접 방까지만" 규칙은 오직 InputManager의 CanPlayerCommandPosition 쪽에서만 강제된다 — 이동
+   경로 계산 자체는 인접 여부와 무관하게 목적지까지 그대로 길찾기한다(중간에 소유하지 않은 먼 방을
+   통과해서 도달하는 경로도 막지 않음. "인접 방까지"라는 말이 "직접 명령을 내릴 수 있는 목적지 범위"
+   한정인지 "경로 전체가 소유 범위 안에 있어야 하는지"까지인지 메모에 명시가 없어 전자로 해석해 구현된
+   상태 — 후자였다면 재확인 필요).
+
+════════════════════════════════════════════════════════════════════════
+■ 4. 메모에 없지만 같은 커밋에서 함께 구현된 부가 시스템
+════════════════════════════════════════════════════════════════════════
+✅ 야생 몬스터 A 필수 배치 — GameSession.SpawnWildRoomGuards()가 게임 시작 시(Initialize, 0층 제외)
+   Neutral 상태인 모든 방에 WildMonsterA 2마리씩 스폰(RoomConfinedMovement 부여로 방 밖 이탈 불가).
+🔶 1회성 — 게임 시작 시 딱 한 번만 실행되고 이후 재호출 지점이 없다. 방이 다시 야생으로 돌아가도
+   (RetreatFromRoom) 몬스터가 다시 채워지지 않는다 — "재점령→재수복" 루프가 있다면 이 부분은
+   현재 스텁 상태.
+✅ 야생 몬스터 A 전투 범위 제한 — CombatFSMState.GetPriority/GetClosestEnemy가 WildMonsterBehavior
+   유닛에 한해 적이 같은 방(GetRoomIdAt 비교)에 있을 때만 교전 우선순위를 인정한다("상대가 방 밖으로
+   나가면 전투 해제").
+✅ 위협 타일 색상 구분 — ThreatTileRenderer가 야생 몬스터의 공격 위협 타일만 회색으로 그려 플레이어
+   소속 몬스터(빨강)와 구분한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 5. 발견된 사항 (검증 중 확인된 구조적 이슈 — 1/2/4는 2026-07-28 사용자 확인 후 같은 세션에서 수정
+   완료. 3/5는 정보성 기록만, 수정 안 함)
+════════════════════════════════════════════════════════════════════════
+1) [해결] Chunks.occupationState는 초기화 이후 전투로 인해 절대 갱신되지 않았다.
+   실제 "점령이 바뀌는" 이벤트(OffenseProcessor.TryFlipRoomOwnershipOnDeath — 방 소유 진영의 마지막
+   유닛이 죽으면 그 방이 죽인 진영 소속으로 전환, GameSession.RemoveDeadUnit에서 사망마다 호출됨 /
+   OnOffenseSuccess — 야생 방 전멸 판정 성공)는 Room.RoomFaction(별개 필드, OffenseProcessor 전용)만
+   바꾸고 ChangeRoomColor로 색만 다시 칠했다. 반면 CreateMap.Chunks.occupationState(맵 데이터 쪽
+   원본, CanPlayerCommandRoom/GetRoomOccupationState/IsPositionPlayerOwned가 전부 이것만 읽음)는
+   그대로 남아 "전투로 방을 점령해도 이동 가능 인접범위는 넓어지지 않는" 불일치가 있었다.
+   → 수정: CreateMap.RuntimeAPI.cs에 public SetRoomOccupationState(floorIndex, roomId, state) 추가
+   (기존 private SetChunksOccupation 재사용). OffenseProcessor의 두 지점(TryFlipRoomOwnershipOnDeath/
+   OnOffenseSuccess)에서 room.RoomFaction을 바꾸는 곳마다 나란히 호출해 맵 데이터도 함께 갱신하도록
+   연결(FactionType→OccupationState 매핑은 OffenseProcessor.MapToOccupationState 신규).
+2) [해결] Room.RoomFaction의 기본값은 항상 FactionType.Wild였다(Room.cs 선언부 초기값). GameSession.
+   BuildRoomGrid가 Room 객체를 새로 만들 때 Chunks.occupationState를 참고해 RoomFaction을 맞춰주는
+   코드가 없어, 0층(인류 소유)과 1층 시작방(몬스터 소유)도 Room 객체 기준으로는 생성되자마자
+   "야생(Wild)"으로 시작했다.
+   → 수정: GameSession.cs에 MapOccupationStateToFaction(state) 정적 헬퍼를 추가하고, BuildRoomGrid가
+   Room을 새로 만드는 시점에 RoomFaction = MapOccupationStateToFaction(c.occupationState)로 초기화.
+3) [정보성, 미수정] OccupationState.Occupied는 열거형에 선언만 돼 있고 코드 어디에서도 실제로
+   대입되지 않는다(죽은 값). Outpost는 BuildOutpost/DemolishOutpost로 실제 쓰이는 API가 있지만, 그
+   API 자체를 호출하는 곳이 코드베이스에 없다(UI/입력 연결 없음 — Outpost도 사실상 도달 불가능한
+   상태). 정리하거나 실제로 연결할지는 이후 판단.
+4) [해결] IsPositionPlayerOwned(CreateMap.RuntimeAPI.cs)는 주석에 "플레이어는 자신 소유의 방에만
+   몬스터를 스폰할 수 있음"을 명시하며 7ebf5d0에서 추가됐지만, 코드베이스 어디에서도 호출되지 않고
+   있었다 — 이후(2026-07-27 저녁~2026-07-28) 추가된 건물 기반 유닛 생산(BuildingManager.
+   SpawnUnitFromBuilding/GetSpawnPosAroundBuilding)도 이 API 대신 IsAreaClear + 방 경계만 확인했다.
+   → 수정: BuildingManager.CanInstallAt에 createMap.IsPositionPlayerOwned(pos.z, ...) 체크를
+   추가 — 건물(자원/유닛 생산)을 지을 수 있는 자리를 PlayerControlled 방으로 제한. 이 프로토타입에서
+   몬스터 유닛 생산의 유일한 경로가 건물이므로, "자기 방에만 스폰 가능" 요구사항이 이 체크로 실질적으로
+   충족된다. 1번 수정(occupationState가 전투 결과로도 갱신됨)과 맞물려야 새로 점령한 방에도 건물을
+   지을 수 있다 — 두 수정이 서로 의존관계.
+5) [정보성, 이 문서 범위 밖] MapRandering.ApplyOccupationTint/ChangeRoomColor는 2026-07-28 세션에서
+   "문이 있는 바닥은 점령 색칠 제외"로 추가 수정됐다(GameSession.GetGateDoorTiles 재사용) — 점령
+   시스템 자체의 규칙은 아니라 이 문서에서 더 다루지 않음.
+
+════════════════════════════════════════════════════════════════════════
+■ 6. 웨이브 문 닫힘 시스템 (2026-07-28 신규 지시, 같은 날 구현 완료)
+════════════════════════════════════════════════════════════════════════
+사용자 지시 원문 요약: "웨이브가 시작되면 모든 문이 닫히며 벽과 같은 판정(시야 막힘, 이동 불가)이
+된다. 한 방 안에 단일 진영의 유닛만 남으면(야생만 있는 경우는 제외) 그 방의 인접 문을 연다 — 인간이
+야생을 다 잡아도 열리고, 몬스터가 야생을 다 잡아도 열린다. 인간·몬스터·야생이 모두 섞여 있으면 야생을
+제외한 한 진영만 남을 때까지 안 열린다. 웨이브 시작 시점에 이미 비어있는 방의 인접 문은 그 자리에서
+바로 연다."
+
+✅ 문 닫힘=벽 판정 — Gate 구조체(MapData.cs)에 `isDoorClosed` 필드 신규 추가(기본값 false=열림).
+   GameSession.SetGateClosed가 그 게이트의 문 타일(GetGateDoorTiles, 기존 "통로 2*2" 문 배치 그대로
+   재사용)에 `Tile.isStructureExist`를 씌우거나 벗긴다 — UnitFunction.CanMove(실제 이동 판정)와
+   시야 레이캐스트(UpdateFOV/CastRay 등)가 전부 `tile.name=="Wall" || tile.isStructureExist`라는
+   동일한 OR 조건을 이미 쓰고 있어서, 이 필드 하나만 토글해도 "시야 막힘 + 이동 불가"가 동시에
+   충족된다. tile.name은 그대로 "Floor"로 두고 isStructureExist만 세운다(진짜 벽으로 바꾸지 않음).
+✅ 문 스프라이트 전환 — 닫힘/열림마다 door_closed.png/door_open.png로 교체(둘 다 기존에 이미 있던
+   에셋, 그동안 door_closed는 안 쓰이고 있었다). 닫힘 상태는 통로를 막는 막대 모양이라 타일마다 다른
+   회전을 줄 필요가 없어 SpawnDoors의 0/180 교대 회전(열림 전용)과 다르게 처리.
+✅ 웨이브 시작 시 전체 잠금 — HumanWaveManager.StartWave()가 WaveState.Running 전환 직후
+   GameSession.CloseAllDoorsForWaveStart()를 호출, 모든 층의 모든 게이트를 닫는다.
+✅ 방 정리 판정 — GameSession.RefreshRoomGateStates(room)이 그 방의 ContainedUnits를 훑어
+   Human/PlayerMonster(몬스터)/Wild(야생) 생존 여부를 각각 확인한다:
+     - 완전히 비어있음(셋 다 없음) → 열림
+     - 야생 없이 Human XOR PlayerMonster 중 정확히 하나만 있음 → 열림
+     - 야생만 있음(다른 둘 다 없음) → 닫힘 유지
+     - 그 외(둘 이상 동시 생존, 야생 포함 여부 무관) → 닫힘 유지
+   전부 사용자 지시 원문의 네 가지 예시와 정확히 일치.
+✅ 재평가 트리거 — (1) GameSession.RemoveDeadUnit: 유닛이 죽을 때마다 그 방(roomGrid를 사망 위치로
+   직접 조회 — 야생 몬스터는 Unit.currentRoom이 항상 null이라 그쪽으로는 못 찾음) 재평가.
+   (2) UnitFunction.SyncRoomAffiliation: 유닛이 방을 옮길 때, "떠난 방"만 재평가(들어간 방은 인원이
+   느는 방향이라 새로 열릴 수 없음 — 아래 단방향 설계 참고).
+✅ 웨이브 시작 시 즉시 개방 — CloseAllDoorsForWaveStart가 전체 잠금 직후 allRooms 전체를 한 번씩
+   RefreshRoomGateStates에 돌려서, 이미 비어있던 방은 그 자리에서 곧바로 다시 열린다.
+🔶 단방향 설계(사용자 지시에 명시 안 됐던 판단) — 한번 연 문은 그 웨이브가 끝나도 다시 잠그지 않는다.
+   웨이브 시작 시 CloseAllDoorsForWaveStart가 매번 전체를 다시 잠그므로, 다음 웨이브에선 어차피 다시
+   잠긴 상태에서 시작한다. "열린 뒤 다른 진영이 다시 섞이면 재잠금할지"는 지시에 없어 안 잠그는 쪽을
+   선택했다 — 재잠그면 마침 통로를 지나던 유닛이 방 사이에 낄 수 있어서다. 또한 "웨이브 종료 시 모든
+   문을 강제로 다시 여는" 로직도 추가하지 않았다 — 야생만 남아 아직 안 정리된 방은 웨이브가 끝나도
+   계속 잠겨 있는 게 "정리해야 열리는 방"이라는 컨셉과 더 맞다고 판단했다. 플레이테스트 후 반대라면
+   알려줄 것.
+✅ 규칙 정정 — "완전히 비어있음" 개방 조건은 웨이브 시작 시점 1회성 예외로 축소(2026-07-28, 사용자
+   요청 "문도 한 진영이 남을때까지 열리지 않는거로 하자") — RefreshRoomGateStates(사망/방 이동마다
+   호출되는 상시 재평가)는 이제 순수하게 "야생이 아닌 단일 진영만 남음"일 때만 연다 — 완전히
+   비어있다는 이유만으로는 더 이상 안 연다(웨이브 도중 방이 전멸/전원 이탈로 나중에 비게 되는
+   경우까지 자동 개방하지 않는다는 뜻). 다만 "웨이브 시작시 비어있는 방의 인접 문은 열어라"는 이전
+   지시 자체는 여전히 유효 — 그 부트스트랩이 없으면 애초에 아무도 없던 방은 영원히 "한 진영"이 될
+   기회가 없어 문이 평생 안 열리는 도달 불가 구역이 생기므로, CloseAllDoorsForWaveStart 안에서만
+   빈 방을 별도로 한 번 더 확인해서 연다(IsRoomEmpty + OpenAllGatesForRoom, 웨이브 시작 시에만).
+   RefreshRoomGateStates/CloseAllDoorsForWaveStart가 공유하던 "게이트 열기" 코드는 OpenAllGatesForRoom
+   으로 뽑아냈다.
+🔶 버그 원인 파악됨 — 수정은 롤백됨(2026-07-28, 사용자 신고 "문이 열려서 지나갈 공간이 생기면 다음
+   방으로 자연스럽게 향해야 하는데 방에 고착되어있어", 스크린샷+콘솔 로그로 재현) — 문 열림/닫힘 로직
+   자체(RefreshRoomGateStates/SetGateClosed)는 로그로 확인 결과 정상 동작(예: room5<->room11,
+   room7<->room8 게이트가 실제로 방이 클리어될 때마다 열림 로그를 남김). 진짜 원인은
+   RoomConfinedMovement.IsTileWalkable — "플레이어 소속 몬스터는 명령 없이 방을 못 벗어남"이라는
+   기존(2026-07-27) 제약이 문 상태와 무관하게 인접 방 이동을 항상 막고 있었다. 야생 몬스터
+   (WildMonsterBehavior)만 이 제약을 유지하고 플레이어 소속 몬스터는 문이 열려 있으면(base.
+   IsTileWalkable만 통과하면) 인접 방으로도 이동을 허용하도록 고쳤었으나, 사용자 요청("방금 작업
+   로그 뺀거 제외하고 롤백")으로 이 RoomConfinedMovement.cs 수정 자체는 되돌렸다 — 원인 진단과
+   위 결론은 여전히 유효하며, 같은 수정을 다시 적용할 때 이 문단을 참고하면 된다. 진단용으로
+   추가했던 로그(RefreshRoomGateStates 판정 로그, ApplyGateDoorVisual 시각화 개수 로그)는 원인 확인
+   후 제거된 상태 그대로 유지 — SetGateClosed의 실제 전환 로그와 스프라이트 로드 실패 경고만 남음.
+🔶 알려진 한계(수정 안 함, 정보성) — AStarMovement의 경로 탐색은 진영별 discoveredMap(탐사 기록)
+   캐시를 보고 계획을 짜는데, 문이 방금 닫혀도 그 유닛이 아직 그 타일을 "안 가본 지 오래" 상태라면
+   당장은 여전히 통로로 인식해 그 방향으로 경로를 잡을 수 있다. 실제 이동 시점엔 CanMove가 라이브
+   타일을 다시 확인해 정확히 막지만, 그 순간 A*가 벽에 막혀 재탐색해야 하는 프레임이 한두 번 낄 수
+   있다 — 이 프로토타입의 다른 "새로 생긴 장애물" 상황과 동일한 기존 한계라 이번에 별도로 손대지
+   않았다.
+✅ 설계 정정 — 문은 "몬스터 전용" 게이트, 인류는 문에 영향받지 않음(2026-07-28, 사용자 요청 "플레이어
+   소속 몬스터는 방에서 못나가는게 맞고, 문제는 인류야. 인류는 웨이브 내내 계속 안쪽으로 자율적으로
+   자연스럽게 미탐색 타일 쪽으로 나아가야 하는데 그 부분이 전혀 동작하지 않고 있어") — 몬스터(야생/
+   플레이어)는 이 문서 6번 규칙대로 문에 막히는 게 의도한 동작이 맞다(직전에 되돌린 RoomConfinedMovement
+   완화도 이 결론과 일치 — 몬스터는 방 경계 제약을 그대로 유지). 문제는 문이 Tile.isStructureExist를
+   세우는 방식이라 "몬스터 전용"이 아니라 전체 유닛(인류 포함)에게 적용되고 있었다는 것 — 인류의 탐색
+   경로 탐색(NavigationFSMState.RandomExplore, BFS로 가장 가까운 미탐색 타일을 찾음)이 닫힌 문 앞에서
+   막혀 그 너머로 전혀 진출하지 못했다. 원인이 3중으로 겹쳐 있었다:
+     1) UnitFunction.CanMove — 실제 이동 실행 시점의 라이브 타일 체크. 인류가 문 타일에 한해
+        isStructureExist를 무시하도록 예외 추가(GameSession.IsDoorTile로 문 타일만 정확히 골라냄 —
+        계단(Stair)도 isStructureExist=true지만 문이 아니므로 여전히 막힘, 기존 동작 그대로).
+     2) UnitFunction.CastRay의 discoveredMap/personalMap 타일 각인 — 문이 닫혀 있으면 인류의 개인
+        지도에도 그 타일이 "벽(2)"으로 영구 기록돼, 1번을 고쳐도 RandomExplore의 BFS가 "벽 패스"
+        규칙으로 그 타일을 애초에 경로 후보에서 제외해버렸다(가장 결정적인 원인 — 물리적으로는
+        지나갈 수 있어도 탐색 알고리즘 지도상으론 여전히 막힌 것처럼 보였음). 같은 예외를 적용.
+     3) 같은 함수의 "시야 사각지대 보정(Wall Dilation)" — 문 타일 바로 옆 칸을 먼저 봤을 때 문 타일을
+        미리 벽으로 확정 각인해버리는 보조 로직에도 동일 예외 누락돼 있어 같이 수정.
+   IsFullyBlockedTowards(피격 시 공격자 정체 인지용 LOS, 위 1/2/3과는 별개의 좁은 기능)에도 동일
+   예외를 넣어 일관성을 맞췄다. 몬스터(WildMonsterBehavior/PlayerMonsterBehavior)는 세 곳 모두
+   `this is Human` 조건에 안 걸려 기존 동작(문에 막힘) 그대로 유지된다.
+🔶 알려진 한계(수정 안 함, 정보성, 이번에 같이 발견) — InteractableObject.IsFullyBlocking이 문
+   오브젝트에서 항상 기본값 false로 남아있어, 애초에 "시야 막힘"은 어떤 유닛에게도 실제로 걸린 적이
+   없었다(CastRay의 레이 중단 조건은 tile.visibility/IsFullyBlocking만 보고 isStructureExist는 안
+   봄 — discoveredMap 각인과는 별개 로직). 즉 이 문서 6번의 "시야 막힘"은 지금까지 이동 차단만큼
+   실제로 동작한 적이 없다 — 이번 인류 예외 처리와는 별개로 몬스터 쪽 "문 닫히면 시야도 막힘"을
+   진짜로 원한다면 이 부분을 별도로 고쳐야 한다(범위 밖이라 이번엔 손대지 않음).
+✅ 버그 수정 — 문이 조사(투자게이트) 대상 후보에서 누락돼 있었음(2026-07-28, 사용자 신고 "계속 인간
+   유닛이 전술(조사)상태로 들어가는데 이유가 뭐지? 시체 때문인가?") — 원인은 두 가지였다: (1) 파티원
+   시체는 03문서 5-2장 개정으로 조사 대상 유지가 의도된 설계라 그대로 둠. (2) Unit.
+   ComputeInvestigateTarget(조사 후보 선정)의 제외 목록(함정/몬스터시체·전멸흔적/코어)이 문 시스템
+   도입 이전에 만들어져 문 태그를 전혀 몰랐다 — 맵 전체에 176개나 깔린 통행용 배경 오브젝트가 전부
+   유효한 조사 후보로 잡혀, 인류가 문을 하나 알게 될 때마다(거의 항상, 문을 지나칠 때마다) 탐색을
+   멈추고 조사하러 갔다 — 이번 세션에 추가된 "인류는 문에 안 막힘" 탐색 개선과 맞물려 실질적으로
+   가장 큰 조사-루프 유발 원인이었을 가능성이 높다. 제외 목록에 문(`tag.Contains("Door")`)을 추가해
+   해결.
+✅ 설계 재정정 — "인류는 문에 안 막힘" 예외 전면 철회, 닫힌 문 = 예외 없는 완전한 벽(2026-07-28,
+   사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게 하고, 벽처럼 아예 이동 불가하게 해줘.
+   지금 플레이어 지정 명령으로 이동이 되어버려" + 후속 "지금 모든 유닛이 지정 이동하면 문 통과해") —
+   바로 위 항목에서 도입한 "인류는 문(isStructureExist)에 안 막힘" 예외(CanMove/CastRay 타일 각인·
+   Wall Dilation/IsFullyBlockedTowards, 총 4곳)를 전부 제거했다. 닫힌 문은 이제 진영·명령 종류
+   (AI 자율 이동/PlayerCommandFSMState의 플레이어 지정 이동) 구분 없이 완전히 동일하게 벽 취급된다.
+   부작용으로 인류 자율 탐색이 닫힌 문 앞에서 다시 멈출 수 있음을 인지하고 있다 — "방을 정리해야
+   문이 열리는" 규칙을 인류에게도 예외 없이 적용하는 쪽으로 최종 결론이 바뀐 것으로 이해하고 반영함.
+✅ 버그 수정 — 시야 차단이 실제로는 한 번도 걸린 적이 없었던 문제 해결 — 위 "발견된 사항"/"알려진
+   한계"에 기록해 뒀던 InteractableObject.IsFullyBlocking 미설정 문제를 이번에 실제로 고쳤다.
+   GameSession.ApplyGateDoorVisual(SetGateClosed가 문 열림/닫힘마다 호출하는 지점)에서 문 오브젝트의
+   IsFullyBlocking을 닫힘=true/열림=false로 같이 토글하도록 추가 — CastRay의 레이 중단 조건이 이미
+   IsFullyBlocking을 보고 있었으므로(원래 코드), 이 값만 정확히 세팅해주면 별도 로직 추가 없이 닫힌
+   문에서 레이가 실제로 멈춘다. 이제 "벽과 같은 가시성"이 문자 그대로 성립한다.
+✅ (확인용) PlayerCommandFSMState는 이미 UnitFSM._states 배열 맨 앞(우선순위 200, 활성 시 무조건
+   최우선)이라 FSM 우선순위 구조 자체는 문제 없었다(2026-07-24 도입, 이번 세션에서 변경 없음) — 위
+   "플레이어 지정 이동이 문을 통과해버리는" 증상은 우선순위 문제가 아니라 CanMove가 인류에 한해 문을
+   무시하던 예외 때문이었고, 그 예외를 없앤 것으로 해결된다(가장 우선순위가 높은 상태라도 실제 이동
+   실행은 항상 CanMove를 거치므로, "명령 우선순위"와 "물리적 이동 가능 여부"는 애초에 별개 문제).
+
+════════════════════════════════════════════════════════════════════════
+■ 7. 빈 방 입성 점령 (2026-07-28 신규 지시, 같은 날 구현 완료)
+════════════════════════════════════════════════════════════════════════
+사용자 지시 원문: "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게 해줘."
+
+✅ OffenseProcessor.TryClaimEmptyRoomOnEntry(room, enteringUnit) 신규 — 전투로 마지막 유닛을 죽이는
+   기존 경로(TryFlipRoomOwnershipOnDeath)나 야생 전멸 폴링(OnOffenseSuccess) 없이도, 유닛이 그냥
+   빈 방에 걸어 들어오기만 하면 그 자리에서 Room.RoomFaction + CreateMap.Chunks.occupationState +
+   ChangeRoomColor(색칠)를 전부 그 유닛의 진영으로 갱신한다 — 기존 두 점령 전환 경로와 정확히 같은
+   3종 동기화(사용자 요청으로 2026-07-28에 이미 통합해 둔 SetRoomOccupationState/MapToOccupationState
+   재사용, 이 문서 "발견된 사항 1" 참고).
+✅ "빈 방" 판정 — UnitFunction.SyncRoomAffiliation이 유닛을 새 방의 ContainedUnits에 등록하기
+   *직전* 시점에 그 방에 살아있는 유닛이 하나도 없는지 확인한다(IsRoomEffectivelyEmpty, 위 6번의
+   "완전히 비어있음" 판정과 동일 기준) — 등록 후에 확인하면 입성한 유닛 자신 때문에 항상 "안 비어있음"
+   판정이 나버리는 순서 문제를 피하기 위함.
+✅ 이미 같은 진영 소유면 아무 일도 안 함(멱등) — 예: 시작방은 애초에 PlayerControlled라 몬스터가
+   처음 입장해도 실질적인 변화가 없다.
+🔶 예외 없음(사용자 지시에 시작방/로비 등 예외를 두라는 말이 없어 그대로 구현) — 어떤 이유로든
+   시작방·로비가 일시적으로 완전히 비면(모든 유닛이 죽거나 다른 방으로 이동), 그 다음 그 방에 처음
+   들어오는 진영이 그대로 점령한다. 인류가 몬스터 시작방을 빈 틈에 먼저 밟으면 점령권이 넘어갈 수
+   있다는 뜻 — 의도한 대로인지 실제 플레이로 확인 필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 8. 야생 막타 시 점령 보류(인류·몬스터 혼재 시) (2026-07-28 신규 지시, 같은 날 구현 완료)
+════════════════════════════════════════════════════════════════════════
+사용자 지시 원문: "야생 유닛 막타쳐서 점령했을때, 만약 인류, 몬스터 같이 방에 존재한다면, 점령되지
+않고, 한 진영만 남을때까지 점령되지 않게 해줘." — 6번 "웨이브 문 닫힘"의 "야생을 제외한 한 진영이
+남을 때까지" 규칙을 문 열림뿐 아니라 점령 전환 자체에도 동일하게 적용하라는 지시.
+
+✅ OffenseProcessor.TryFlipRoomOwnershipOnDeath(즉시·사망 이벤트 기반 경로) — 죽은 유닛이 이 방의
+   마지막 야생이라 소유권이 넘어가려는 순간, 이 방에 인류와 플레이어 소속 몬스터가 동시에 살아있으면
+   (신규 헬퍼 HasBothHumanAndPlayerMonster) 점령을 보류하고 그냥 return한다 — RoomFaction/
+   occupationState/색칠 전부 그대로 유지.
+✅ OffenseProcessor.CheckOffenseSuccess/OnOffenseSuccess(폴링 기반 오펜스 경로, RoomType.Normal만
+   해당) — 이 경로도 같이 고쳐야 했다: TryFlipRoomOwnershipOnDeath가 보류하고 그냥 return하면, 이
+   방이 여전히 _activeOffenseRooms에 남아있는 경우 바로 다음 프레임 폴링이 "야생 전멸=성공"으로
+   보고 무조건 Player로 점령시켜버려 보류 규칙을 무력화하는 문제가 있었다 — CheckOffenseSuccess의
+   Normal 타입 분기에도 동일하게 "인류+몬스터 동시 생존 시 실패(false, 계속 폴링)"를 추가.
+🔶 부가 개선(요청엔 없었지만 위 수정과 맞물려 필요/자연스러웠던 변경) — OnOffenseSuccess가 예전엔
+   성공 시 무조건 FactionType.Player로 점령시켰는데, 이제 CheckOffenseSuccess가 Normal 타입 방은
+   "인류·몬스터 중 하나만 남음"을 보장하므로 실제로 남아있는 진영(DetermineSoleOccupant)에게 점령권을
+   주도록 바꿨다 — 안 그러면 인류 혼자 방을 정리해도 Player(몬스터) 소유가 되는 모순이 생긴다("인류도
+   소유권 있어"와 불일치). Spawner 타입(거점 파괴, 인원 구성과 무관하게 성공하는 기존 MVP 규칙)은
+   이번 점령 보류 규칙 대상에서 제외했고, 점령권 귀속만 동일 헬퍼로 개선(모호하면 기존처럼 Player
+   기본값 유지).
+🔶 범위 밖 — TryClaimEmptyRoomOnEntry(7번, 빈 방 입성 점령)는 애초에 "빈 방"에만 적용되는 별개
+   경로라 이번 혼재 보류 규칙과 겹치지 않는다(빈 방엔 애초에 인류·몬스터가 동시에 있을 수 없음).
+✅ 후속 버그 수정(2026-07-28, 사용자 신고 "세 진영 유닛 동시에 존재할 때 점령이 작동 안해. 예시로,
+   야생 몬스터와 플레이어 몬스터 유닛 다 죽고 인류만 남으면 점령 처리가 되어야 하는데 안됨(문은
+   열림)") — 위 보류 규칙 자체는 정상 동작했지만, 보류 이후 "나중에 실제로 단일 진영이 됐을 때
+   재개장"하는 경로에 구멍이 있었다. 원인: 옛 TryFlipRoomOwnershipOnDeath는 "방금 죽은 유닛의
+   진영이 이 방의 *현재* room.RoomFaction과 같아야만" 전환을 시도하는 게이트가 있었는데, 3파전 중
+   야생이 먼저 죽어도 보류 규칙 때문에 room.RoomFaction을 Wild로 그대로 둔 채였다 — 나중에 두 번째
+   진영(예: 플레이어 몬스터)까지 죽어 실제로는 인류 단독이 됐어도 "죽은 진영(Player) != 방 소유
+   (여전히 Wild)"로 게이트에 걸려 전환 자체가 시도조차 안 됐다. 문은 이 게이트가 없는
+   GameSession.RefreshRoomGateStates(room.ContainedUnits 기준 매번 재계산) 기준이라 정상적으로
+   열렸는데 점령만 안 따라간 이유가 이거였다.
+   → 수정: TryFlipRoomOwnershipOnDeath를 전면 재작성해 TryResolveRoomOwnership(신규, public)으로
+   위임 — "누가 죽었는지·방의 이전 소유가 무엇이었는지"는 더 이상 안 보고, 매번 room.ContainedUnits를
+   훑어 지금 이 순간의 실제 유닛 구성(야생 있음/인류만/몬스터만/혼재/빈방)만으로 점령 보류·전환 여부를
+   다시 계산한다 — 문 열림 판정과 완전히 동일한 데이터·기준을 쓰도록 통일. 부가로 UnitFunction.
+   SyncRoomAffiliation(유닛이 방을 "떠날 때", 죽지 않고 그냥 나가서 단일 진영이 되는 경우 — 예: 인류
+   퇴각)에도 이 메서드를 대칭으로 연결했다 — 예전엔 사망 시에만 점령 재계산이 됐고 방 이탈만으로는
+   전혀 안 됐다(문 열림 판정은 이미 두 트리거 모두에 연결돼 있었음 — 점령이 그 중 하나를 놓치고
+   있었던 것도 이번 버그의 일부).
+
+════════════════════════════════════════════════════════════════════════
+■ 미구현/미결정 남은 것
+════════════════════════════════════════════════════════════════════════
+- 위 "발견된 사항 1/2/4"는 2026-07-28에 수정 완료 — 재발 여부는 실제 플레이(전투로 방 점령 → 인접
+  이동 범위 확장 확인, 새로 점령한 방에 건물 설치 확인)로 다음 데모 전에 검증할 것.
+- 야생 몬스터 A 재배치(방이 야생으로 되돌아갔을 때 재스폰) — 완전 미구현.
+- "이동 인접 범위" 규칙이 명령 목적지만 제한하는지, 경로 전체를 제한해야 하는지 — 메모에 명시 없어
+  현재는 전자로 구현(위 3번 참고).
+- OccupationState.Occupied / Outpost 관련 죽은 코드 정리 여부 — 위 "발견된 사항 3" 참고.
+- 6번 "웨이브 문 닫힘"의 단방향 설계(한번 열리면 재잠금 없음, 웨이브 종료 시 강제 개방 없음)와
+  7번 "빈 방 입성 점령"의 예외 없음 처리는 둘 다 지시에 명시되지 않아 이 세션에서 판단한 부분 —
+  실제 플레이로 의도와 맞는지 확인 필요.
+- 6번의 discoveredMap(경로탐색 캐시) 지연 갱신 한계 — 정보성 기록만, 수정 안 함.
+
+════════════════════════════════════════════════════════════════════════
+■ 참고
+════════════════════════════════════════════════════════════════════════
+- 이 문서는 7ebf5d0("점령 임시") 커밋을 계기로 삼아, 그 시점에 도입된 "점령" 개념이 이후 세션
+  (125d73b/c786b68/1976afa 등)을 거치며 지금(HEAD) 코드에서 실제로 어떻게 동작하는지 검증한
+  결과다 — 커밋 시점 코드 스냅샷이 아니라 현재 코드 기준.
+- 같은 시기에 함께 진행된 "유닛 배치 시스템"(인구수/방 소속)은 별도 문서(구현중/
+  유닛배치_구현현황_2026-07-27.txt)가 이미 다루고 있고, 그 문서 13~16행도 이 점령 시스템을
+  "별개 트랙"으로 짧게 언급만 하고 있었다 — 이 문서가 그 빈틈을 채운다.
+- 건물/문/통로 폭 등 2026-07-28 세션 작업은 점령과 직접 관련 없는 별개 기능이라 이 문서에서 다루지
+  않았다.

@@ -130,10 +130,21 @@ public class PlayerCommandFSMState : IFSMState
 			{
 				unit.playerMoveTarget = fallback;
 			}
+			else if (AIMovementHelper.HasAnyStructurallyOpenNeighbor(unit, target))
+			{
+				// 명령 포기 오판 방지(2026-07-28, 사용자 신고 "자꾸 전투중에 한번씩 플레이어 명령
+				// 무시해") — 지금 당장 갈 수 있는 빈 칸이 없는 건 벽/닫힌 문 때문이 아니라 전투 중
+				// 다른 유닛들이 잠깐 몰려서(점유)일 수 있다. 그런 경우엔 명령을 포기하지 않고 다음
+				// 틱에 다시 시도한다 — 혼잡이 풀리면 자연히 이어서 이동한다.
+				return BTStatus.Running;
+			}
 			else
 			{
-				// 목표 주변에도 갈 수 있는 칸이 하나도 없다 — 더 이상 수행 불가능하므로 명령을
-				// 포기하고 다음 틱부터 정상 판단으로 돌아간다(무한 고착 방지).
+				// 목표 주변이 지형(벽/닫힌 문)으로 진짜 완전히 막혀 있다 — 더 이상 수행 불가능하므로
+				// 명령을 포기하고 다음 틱부터 정상 판단으로 돌아간다(무한 고착 방지).
+				// 진단 로그(2026-07-28, 임시) — 이 give-up이 실제로 얼마나 자주/왜 발동하는지 추적.
+				Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME,
+					$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 이동 명령 포기 — target={target} pos={unit.position} (구조적으로 완전히 막힘)");
 				unit.playerMoveTarget    = null;
 				unit.isManualMoveCommand = false;
 				unit.oneTimeReactUsed    = false;

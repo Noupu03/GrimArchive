@@ -181,9 +181,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (c.roomId == -1 || c.chunk == null) return true;
 
 			Tile tile = c.chunk[tx, ty];
+			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
+			// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게
+			// 하고, 벽처럼 아예 이동 불가하게 해줘") — 인류가 문(isStructureExist)에 안 막히던 예외를
+			// 없앤다. 닫힌 문은 이제 어느 진영이든 예외 없이 벽과 동일하게 취급한다.
 			if (tile.name == "Wall" || tile.isStructureExist) return true;
 
-			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
 			if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
 				!blocker.IsCollected && blocker.IsFullyBlocking)
 			{
@@ -317,7 +320,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
-				if (c.chunk[tx, cyVal].name == "Wall" || c.chunk[tx, cyVal].isStructureExist) return false;
+				Tile moveTile = c.chunk[tx, cyVal];
+				// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면... 벽처럼 아예 이동
+				// 불가하게 해줘. 지금 플레이어 지정 명령으로 이동이 되어버려") — 인류가 문(isStructureExist)
+				// 에 안 막히던 예외(2026-07-28 앞선 요청 "인류는 문에 안 막혀야")를 없앤다. 닫힌 문은
+				// 이제 진영·명령 종류(AI 자율 이동/플레이어 지정 명령) 구분 없이 예외 없이 벽과 동일하게
+				// 막는다 — 인류 자율 탐색이 닫힌 문 앞에서 다시 멈추는 건 의도된 트레이드오프(방을
+				// 정리해야 문이 열리는 규칙을 인류에게도 예외 없이 적용).
+				if (moveTile.name == "Wall" || moveTile.isStructureExist) return false;
 
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
@@ -558,6 +568,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 
 			Tile tile = c.chunk[tx, ty];
+			// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게
+			// 하고, 벽처럼 아예 이동 불가하게 해줘") — 인류가 문(isStructureExist)을 벽으로 기억하지
+			// 않던 예외를 없앤다. 닫힌 문은 이제 예외 없이 벽과 동일하게 기억/차단된다(열린 문은 원래도
+			// isStructureExist=false라 전부 자연히 통과 가능).
 			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
@@ -579,7 +593,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 							else
 							{
 								Chunks nc = floor.chunks[ncx, ncy];
-								if (nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall" || nc.chunk[ntx, nty].isStructureExist)
+								bool nIsWall = nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall"
+									|| nc.chunk[ntx, nty].isStructureExist;
+								if (nIsWall)
 								{
 									myData.discoveredMap[currentFloor][nx, ny] = 2; // 숨은 벽 및 청크 빈 공간(허공) 즉시 확정
 								}
@@ -945,9 +961,41 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
 		if (actualRoom == currentRoom) return;
 
+		// 점령 시스템(2026-07-28, 사용자 요청 "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게
+		// 해줘") — "비어있었다"는 이 유닛이 실제로 등록되기 전(AddUnit 호출 전) 기준이어야 하므로 여기서
+		// 먼저 스냅샷을 뜬다.
+		bool enteredRoomWasEmpty = actualRoom != null && IsRoomEffectivelyEmpty(actualRoom);
+
+		Room previousRoom = currentRoom;
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
+
+		// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 유닛이 방을 떠나면서 그 방이 "정리된 상태"가 될 수
+		// 있다(예: 마지막 몬스터가 방을 벗어남). 들어간 방(actualRoom)은 인원이 늘어날 뿐이라 새로
+		// 열릴 조건을 만들 수 없고(문은 한번 열리면 다시 잠그지 않음) 떠난 방만 확인하면 된다.
+		if (previousRoom != null)
+		{
+			Session.RefreshRoomGateStates(previousRoom);
+			// 점령 재계산(2026-07-28) — 죽지 않고 그냥 방을 나가서(예: 인류가 퇴각) 단일 진영이 되는
+			// 경우도 GameSession.RemoveDeadUnit과 대칭으로 처리한다. TryFlipRoomOwnershipOnDeath 위
+			// 주석 참고.
+			Session.OffenseProcessor?.TryResolveRoomOwnership(previousRoom, $"{unitType?.typeName ?? "유닛"} 방 이탈");
+		}
+
+		// 점령 시스템(2026-07-28) — 전투 없이도 빈 방에 그냥 들어오기만 하면 입성한 유닛의 진영이 그
+		// 방을 점령한다. OffenseProcessor.TryClaimEmptyRoomOnEntry가 기존 점령 전환 경로(전투 사망/
+		// 야생 전멸 시)와 동일하게 Room.RoomFaction + CreateMap.occupationState + 방 색칠을 함께 갱신.
+		if (enteredRoomWasEmpty) Session.OffenseProcessor?.TryClaimEmptyRoomOnEntry(actualRoom, this);
+	}
+
+	// SyncRoomAffiliation 전용 — 살아있는 점유 유닛이 하나도 없으면 "빈 방"으로 본다(GameSession.
+	// RefreshRoomGateStates의 "완전히 비어있음" 판정과 동일 기준).
+	private static bool IsRoomEffectivelyEmpty(Room room)
+	{
+		foreach (var u in room.ContainedUnits)
+			if (u != null && u.hp > 0) return false;
+		return true;
 	}
 
 	private Dir DirectionToward(Vector2Int targetPos)

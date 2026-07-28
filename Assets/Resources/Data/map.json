@@ -7372,11 +7372,51 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -7386,7 +7426,127 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -7456,7 +7616,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -7466,7 +7626,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -7536,17 +7696,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -7560,156 +7710,6 @@
                             "understand": 0,
                             "weight": -1,
                             "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
                         },
                         {
                             "name": "Wall",
@@ -7966,14 +7966,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -8036,24 +8036,24 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -8116,14 +8116,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -8131,7 +8131,7 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
@@ -8201,7 +8201,7 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
@@ -8211,7 +8211,7 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
@@ -8281,19 +8281,19 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -8356,14 +8356,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -8620,11 +8620,171 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -8704,87 +8864,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
                             "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -8860,76 +8940,6 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -8938,16 +8948,6 @@
                             "understand": 0,
                             "weight": -1,
                             "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
                         },
                         {
                             "name": "Floor",
@@ -28086,14 +28086,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -32104,14 +32104,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -36238,14 +36238,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 7,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -36822,14 +36822,14 @@
                             "visibility": 50
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -37976,7 +37976,7 @@
                     "chunkAY": 3,
                     "chunkBX": 0,
                     "chunkBY": 2,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -37986,7 +37986,7 @@
                     "chunkAY": 3,
                     "chunkBX": 0,
                     "chunkBY": 4,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -38076,7 +38076,7 @@
                     "chunkAY": 5,
                     "chunkBX": 5,
                     "chunkBY": 5,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -38096,7 +38096,7 @@
                     "chunkAY": 5,
                     "chunkBX": 6,
                     "chunkBY": 4,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -41326,12 +41326,32 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 0,
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 0,
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
@@ -41341,39 +41361,19 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -45998,11 +45998,31 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46012,37 +46032,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46078,11 +46068,21 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46092,7 +46092,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46102,7 +46102,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46112,7 +46112,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -46122,7 +46122,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -62918,14 +62918,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -67590,14 +67590,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -68150,14 +68150,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -71070,14 +71070,14 @@
                             "visibility": 50
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 7,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -71310,14 +71310,14 @@
                             "visibility": 50
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 7,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -71654,14 +71654,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -71894,14 +71894,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -72822,14 +72822,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -73686,6 +73686,86 @@
                             "visibility": 100
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
@@ -73846,86 +73926,6 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -74036,14 +74036,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -74270,14 +74270,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -76956,14 +76956,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -77540,14 +77540,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -78708,14 +78708,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -80002,7 +80002,7 @@
                     "chunkAY": 4,
                     "chunkBX": 1,
                     "chunkBY": 4,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -80032,7 +80032,7 @@
                     "chunkAY": 5,
                     "chunkBX": 5,
                     "chunkBY": 5,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -80042,7 +80042,7 @@
                     "chunkAY": 6,
                     "chunkBX": 7,
                     "chunkBY": 6,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -80052,7 +80052,7 @@
                     "chunkAY": 6,
                     "chunkBX": 6,
                     "chunkBY": 7,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -80062,7 +80062,7 @@
                     "chunkAY": 4,
                     "chunkBX": 7,
                     "chunkBY": 3,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -80072,7 +80072,7 @@
                     "chunkAY": 5,
                     "chunkBX": 6,
                     "chunkBY": 5,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -80092,7 +80092,7 @@
                     "chunkAY": 3,
                     "chunkBX": 6,
                     "chunkBY": 2,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -83322,12 +83322,32 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 0,
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 0,
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
@@ -83337,39 +83357,19 @@
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
+                            "understand": 100,
                             "weight": 1,
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "understand": 100,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -87560,14 +87560,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -87800,14 +87800,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -88144,94 +88144,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 1,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -88554,6 +88474,96 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -88584,24 +88594,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 1,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -88648,56 +88648,6 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -88732,60 +88682,30 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 0,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 1,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -88812,7 +88732,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -88822,7 +88742,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -88832,7 +88752,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -88842,7 +88762,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -88852,7 +88772,7 @@
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
-                            "dangerous": 0,
+                            "dangerous": 1,
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
@@ -89198,6 +89118,96 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 1,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -89238,24 +89248,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 1,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 1,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -93796,660 +93796,6 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        }
-                    ],
-                    "landform": 1,
-                    "roomId": 115,
-                    "roomName": "room115",
-                    "roomRole": 2,
-                    "floorId": 3,
-                    "occupationState": 0,
-                    "stairTargetFloor": -1,
-                    "allowMaxFootprint": 1,
-                    "stairIsOpen": false,
-                    "stairHumanOnly": false
-                },
-                {
-                    "tiles": [
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
-                            "name": "Wall",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 2,
-                            "understand": 0,
-                            "weight": -1,
-                            "visibility": 0
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -94544,6 +93890,86 @@
                             "visibility": 0
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
@@ -94582,6 +94008,580 @@
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        }
+                    ],
+                    "landform": 1,
+                    "roomId": 115,
+                    "roomName": "room115",
+                    "roomRole": 2,
+                    "floorId": 3,
+                    "occupationState": 0,
+                    "stairTargetFloor": -1,
+                    "allowMaxFootprint": 1,
+                    "stairIsOpen": false,
+                    "stairHumanOnly": false
+                },
+                {
+                    "tiles": [
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 2,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -99122,14 +99122,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -101294,14 +101294,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -101514,34 +101514,34 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 2,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -101878,14 +101878,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -102118,14 +102118,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -102902,16 +102902,6 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 3,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -102952,14 +102942,24 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 3,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -102982,14 +102982,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -104914,14 +104914,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 3,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -108278,14 +108278,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -108308,14 +108308,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -110240,14 +110240,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -114714,14 +114714,24 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 4,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -114744,24 +114754,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 4,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -116686,14 +116686,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -116716,14 +116716,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 4,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -120040,14 +120040,24 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -120070,24 +120080,14 @@
                             "visibility": 50
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -122012,14 +122012,14 @@
                             "visibility": 0
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -122042,14 +122042,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -124758,6 +124758,26 @@
                             "visibility": 100
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
@@ -124766,6 +124786,66 @@
                             "understand": 0,
                             "weight": 1,
                             "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": 1,
+                            "visibility": 100
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 6,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Wall",
@@ -124998,16 +125078,6 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
                             "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
@@ -125016,76 +125086,6 @@
                             "understand": 0,
                             "weight": -1,
                             "visibility": 0
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 6,
-                            "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
                         },
                         {
                             "name": "Wall",
@@ -125342,6 +125342,16 @@
                             "visibility": 50
                         },
                         {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
+                        },
+                        {
                             "name": "Floor",
                             "effect": 0,
                             "isObjectExist": false,
@@ -125350,6 +125360,76 @@
                             "understand": 0,
                             "weight": 2,
                             "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Floor",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": 2,
+                            "visibility": 50
+                        },
+                        {
+                            "name": "Wall",
+                            "effect": 0,
+                            "isObjectExist": false,
+                            "isStructureExist": false,
+                            "dangerous": 5,
+                            "understand": 0,
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -125582,94 +125662,14 @@
                             "visibility": 50
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
-                        },
-                        {
-                            "name": "Floor",
-                            "effect": 0,
-                            "isObjectExist": false,
-                            "isStructureExist": false,
-                            "dangerous": 5,
-                            "understand": 0,
-                            "weight": 2,
-                            "visibility": 50
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -128108,14 +128108,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -128348,14 +128348,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 5,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -128692,14 +128692,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -128932,14 +128932,14 @@
                             "visibility": 100
                         },
                         {
-                            "name": "Floor",
+                            "name": "Wall",
                             "effect": 0,
                             "isObjectExist": false,
                             "isStructureExist": false,
                             "dangerous": 6,
                             "understand": 0,
-                            "weight": 1,
-                            "visibility": 100
+                            "weight": -1,
+                            "visibility": 0
                         },
                         {
                             "name": "Floor",
@@ -133116,7 +133116,7 @@
                     "chunkAY": 4,
                     "chunkBX": 1,
                     "chunkBY": 4,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133126,7 +133126,7 @@
                     "chunkAY": 4,
                     "chunkBX": 2,
                     "chunkBY": 4,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133136,7 +133136,7 @@
                     "chunkAY": 5,
                     "chunkBX": 3,
                     "chunkBY": 6,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -133146,7 +133146,7 @@
                     "chunkAY": 3,
                     "chunkBX": 2,
                     "chunkBY": 3,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133156,7 +133156,7 @@
                     "chunkAY": 7,
                     "chunkBX": 4,
                     "chunkBY": 7,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133166,7 +133166,7 @@
                     "chunkAY": 3,
                     "chunkBX": 1,
                     "chunkBY": 2,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -133176,7 +133176,7 @@
                     "chunkAY": 7,
                     "chunkBX": 6,
                     "chunkBY": 7,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133196,7 +133196,7 @@
                     "chunkAY": 6,
                     "chunkBX": 7,
                     "chunkBY": 5,
-                    "width": 5,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {
@@ -133206,7 +133206,7 @@
                     "chunkAY": 2,
                     "chunkBX": 3,
                     "chunkBY": 2,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133216,7 +133216,7 @@
                     "chunkAY": 1,
                     "chunkBX": 5,
                     "chunkBY": 1,
-                    "width": 3,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133226,7 +133226,7 @@
                     "chunkAY": 1,
                     "chunkBX": 7,
                     "chunkBY": 1,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": true
                 },
                 {
@@ -133236,7 +133236,7 @@
                     "chunkAY": 1,
                     "chunkBX": 8,
                     "chunkBY": 2,
-                    "width": 4,
+                    "width": 2,
                     "isHorizontal": false
                 },
                 {

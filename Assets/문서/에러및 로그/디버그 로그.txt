@@ -1,0 +1,1636 @@
+<b><color=lightgreen>[HAARE]</color></b> Start Haare Framework
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+HaareClient/<Main>d__0:MoveNext () (at Assets/Haare/Scripts/Client/Core/HaareClient.cs:22)
+System.Runtime.CompilerServices.AsyncVoidMethodBuilder:Start<HaareClient/<Main>d__0> (HaareClient/<Main>d__0&)
+HaareClient:Main ()
+
+<b><color=lightgreen>[HAARE]</color></b> GameProcessorScope start
+UnityEngine.Debug:Log (object)
+Haare.Util.Logger.LogHelper:Log (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:19)
+Haare.Client.Core.DI.CoreLifetimeScope:Configure (VContainer.IContainerBuilder) (at Assets/Haare/Scripts/Client/DI/Container/CoreLifetimeScope.cs:37)
+GameCompositionRoot:Configure (VContainer.IContainerBuilder) (at Assets/Script/Unit/Session/GameCompositionRoot.cs:22)
+VContainer.Unity.LifetimeScope:InstallTo (VContainer.IContainerBuilder) (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:290)
+VContainer.Unity.LifetimeScope:Build () (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:219)
+VContainer.Unity.LifetimeScope:Awake () (at ./Library/PackageCache/jp.hadashikick.vcontainer@dcf16cda6a65/Runtime/Unity/LifetimeScope.cs:149)
+Haare.Client.Core.DI.CoreLifetimeScope:Awake () (at Assets/Haare/Scripts/Client/DI/Container/CoreLifetimeScope.cs:22)
+GameCompositionRoot:Awake () (at Assets/Script/Unit/Session/GameCompositionRoot.cs:17)
+
+<b><color=lightgreen>[HAARE]</color></b> GamePresenter PostInitialize
+
+FADEIN
+
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: Waiting for Haare Processor...
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> RegisterProcesses -> end
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Finished Constructor
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadingFadePanel(Clone) (Demo.UI.LoadingFadePanel)
+
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: Processor ready. Resolving all game systems...
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Haare.Scripts.Client.Data.DataManager
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Haare.Client.Routine.Service.SceneService.SceneService
+
+<b><color=teal>[TASK]</color></b> <b><color=#6495ED>[SERVICE]</color></b> SceneService Initialize
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadingFadePanel(Clone) (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : FPSText (FPSLogger)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> FPSLogger Init
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : FPSText (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : CoreCanvas(Clone) (Haare.Client.UI.CoreUIManager)
+
+<b><color=lightgreen>[HAARE]</color></b> SceneUIManager Initialize
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : MapRandering
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GrimArchive.Wave.HumanWaveManager
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : MapManager
+
+<b><color=#40C4FF>[GAME]</color></b> MapManager: Initialize.
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GrimArchive.Wave.WaveSpawner
+
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: MapManager initialized.
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : GameSession
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Initialize START
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: UIManager Resolved
+
+<b><color=#40C4FF>[GAME]</color></b> CreateMap: 맵 역직렬화 완료. Floors: 4
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Map deserialized from Data/map.
+
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F0에 총 576개의 타일을 모두 꽉 채워 배치했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F1에 총 3136개의 타일을 모두 꽉 채워 배치했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F2에 총 4096개의 타일을 모두 꽉 채워 배치했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: F3에 총 5184개의 타일을 모두 꽉 채워 배치했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> MapRandering: 전체 4개 Floor 렌더링 완료.
+
+<b><color=#40C4FF>[GAME]</color></b> MapManager: 맵 렌더링 및 웨이브 스포너 초기화 완료, 브로드캐스트 전송.
+
+<b><color=#40C4FF>[GAME]</color></b> BuildRoomGrid: 전체 4개 층에서 방 48개 생성됨.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_3_23 at Floor 1, (3, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_4_23 at Floor 1, (4, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_3_24 at Floor 1, (3, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_4_24 at Floor 1, (4, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_3_31 at Floor 1, (3, 31) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_4_31 at Floor 1, (4, 31) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_3_32 at Floor 1, (3, 32) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_4_32 at Floor 1, (4, 32) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_11_39 at Floor 1, (11, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_12_39 at Floor 1, (12, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_11_40 at Floor 1, (11, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_12_40 at Floor 1, (12, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_11_15 at Floor 1, (11, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_12_15 at Floor 1, (12, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_11_16 at Floor 1, (11, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_12_16 at Floor 1, (12, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_23_11 at Floor 1, (23, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_23_12 at Floor 1, (23, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_24_11 at Floor 1, (24, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_24_12 at Floor 1, (24, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_15_43 at Floor 1, (15, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_15_44 at Floor 1, (15, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_16_43 at Floor 1, (16, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_16_44 at Floor 1, (16, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_31_3 at Floor 1, (31, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_31_4 at Floor 1, (31, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_32_3 at Floor 1, (32, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_32_4 at Floor 1, (32, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_23_43 at Floor 1, (23, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_23_44 at Floor 1, (23, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_24_43 at Floor 1, (24, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_24_44 at Floor 1, (24, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_31_51 at Floor 1, (31, 51) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_31_52 at Floor 1, (31, 52) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_32_51 at Floor 1, (32, 51) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_32_52 at Floor 1, (32, 52) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_39_3 at Floor 1, (39, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_39_4 at Floor 1, (39, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_40_3 at Floor 1, (40, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_40_4 at Floor 1, (40, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_39_43 at Floor 1, (39, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_39_44 at Floor 1, (39, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_40_43 at Floor 1, (40, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_40_44 at Floor 1, (40, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_43_7 at Floor 1, (43, 7) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_44_7 at Floor 1, (44, 7) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_43_8 at Floor 1, (43, 8) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_44_8 at Floor 1, (44, 8) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_51_39 at Floor 1, (51, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_52_39 at Floor 1, (52, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_51_40 at Floor 1, (51, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_52_40 at Floor 1, (52, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_51_15 at Floor 1, (51, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_52_15 at Floor 1, (52, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_51_16 at Floor 1, (51, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_52_16 at Floor 1, (52, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_43_23 at Floor 1, (43, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_44_23 at Floor 1, (44, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_43_24 at Floor 1, (43, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_1_44_24 at Floor 1, (44, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_7_35 at Floor 2, (7, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_7_36 at Floor 2, (7, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_8_35 at Floor 2, (8, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_8_36 at Floor 2, (8, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_15_35 at Floor 2, (15, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_15_36 at Floor 2, (15, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_16_35 at Floor 2, (16, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_16_36 at Floor 2, (16, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_19_39 at Floor 2, (19, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_20_39 at Floor 2, (20, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_19_40 at Floor 2, (19, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_20_40 at Floor 2, (20, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_39_43 at Floor 2, (39, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_39_44 at Floor 2, (39, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_40_43 at Floor 2, (40, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_40_44 at Floor 2, (40, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_55_51 at Floor 2, (55, 51) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_55_52 at Floor 2, (55, 52) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_56_51 at Floor 2, (56, 51) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_56_52 at Floor 2, (56, 52) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_51_55 at Floor 2, (51, 55) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_52_55 at Floor 2, (52, 55) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_51_56 at Floor 2, (51, 56) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_52_56 at Floor 2, (52, 56) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_59_31 at Floor 2, (59, 31) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_60_31 at Floor 2, (60, 31) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_59_32 at Floor 2, (59, 32) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_60_32 at Floor 2, (60, 32) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_47_43 at Floor 2, (47, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_47_44 at Floor 2, (47, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_48_43 at Floor 2, (48, 43) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_48_44 at Floor 2, (48, 44) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_27_23 at Floor 2, (27, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_28_23 at Floor 2, (28, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_27_24 at Floor 2, (27, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_28_24 at Floor 2, (28, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_51_23 at Floor 2, (51, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_52_23 at Floor 2, (52, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_51_24 at Floor 2, (51, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_52_24 at Floor 2, (52, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_23_35 at Floor 2, (23, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_23_36 at Floor 2, (23, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_24_35 at Floor 2, (24, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_24_36 at Floor 2, (24, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_35_15 at Floor 2, (35, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_36_15 at Floor 2, (36, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_35_16 at Floor 2, (35, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_2_36_16 at Floor 2, (36, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_7_35 at Floor 3, (7, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_7_36 at Floor 3, (7, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_8_35 at Floor 3, (8, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_8_36 at Floor 3, (8, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_15_35 at Floor 3, (15, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_15_36 at Floor 3, (15, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_16_35 at Floor 3, (16, 35) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_16_36 at Floor 3, (16, 36) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_27_47 at Floor 3, (27, 47) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_28_47 at Floor 3, (28, 47) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_27_48 at Floor 3, (27, 48) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_28_48 at Floor 3, (28, 48) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_15_27 at Floor 3, (15, 27) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_15_28 at Floor 3, (15, 28) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_16_27 at Floor 3, (16, 27) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_16_28 at Floor 3, (16, 28) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_31_59 at Floor 3, (31, 59) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_31_60 at Floor 3, (31, 60) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_32_59 at Floor 3, (32, 59) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_32_60 at Floor 3, (32, 60) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_11_23 at Floor 3, (11, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_12_23 at Floor 3, (12, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_11_24 at Floor 3, (11, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_12_24 at Floor 3, (12, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_47_59 at Floor 3, (47, 59) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_47_60 at Floor 3, (47, 60) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_48_59 at Floor 3, (48, 59) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_48_60 at Floor 3, (48, 60) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_19_15 at Floor 3, (19, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_20_15 at Floor 3, (20, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_19_16 at Floor 3, (19, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_20_16 at Floor 3, (20, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_59_47 at Floor 3, (59, 47) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_60_47 at Floor 3, (60, 47) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_59_48 at Floor 3, (59, 48) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_60_48 at Floor 3, (60, 48) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_19 at Floor 3, (23, 19) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_20 at Floor 3, (23, 20) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_19 at Floor 3, (24, 19) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_20 at Floor 3, (24, 20) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_39_11 at Floor 3, (39, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_39_12 at Floor 3, (39, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_40_11 at Floor 3, (40, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_40_12 at Floor 3, (40, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_55_11 at Floor 3, (55, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_55_12 at Floor 3, (55, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_56_11 at Floor 3, (56, 11) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_56_12 at Floor 3, (56, 12) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_67_15 at Floor 3, (67, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_68_15 at Floor 3, (68, 15) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_67_16 at Floor 3, (67, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_68_16 at Floor 3, (68, 16) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_51_23 at Floor 3, (51, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_52_23 at Floor 3, (52, 23) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_51_24 at Floor 3, (51, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_52_24 at Floor 3, (52, 24) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_3 at Floor 3, (23, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_4 at Floor 3, (23, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_3 at Floor 3, (24, 3) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_4 at Floor 3, (24, 4) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_27 at Floor 3, (23, 27) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_23_28 at Floor 3, (23, 28) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_27 at Floor 3, (24, 27) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_24_28 at Floor 3, (24, 28) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_51_39 at Floor 3, (51, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_52_39 at Floor 3, (52, 39) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_51_40 at Floor 3, (51, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Door_3_52_40 at Floor 3, (52, 40) with Tags: [Object/Passable/Door]
+
+<b><color=#40C4FF>[GAME]</color></b> SpawnDoors: 전체 4개 층에 문 176개 배치 완료.
+
+<b><color=#40C4FF>[GAME]</color></b> SpawnWildRoomGuards: 야생 방 배치 완료.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated DungeonCore_aac5 at Floor 1, (42, 42) with Tags: [Object/Passable/Loot/DungeonCore, Object/Passable/Core]
+
+<b><color=#40C4FF>[GAME]</color></b> Installed Building '자원 생산 시설' at (5, 26, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> Installed Building '유닛 생산 시설' at (2, 28, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: 맵 데이터 로드 성공.
+
+<b><color=#40C4FF>[GAME]</color></b> GameSession: Initialize END
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : ResourceManager
+
+<b><color=#40C4FF>[GAME]</color></b> ResourceManager Initialized
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : BuildingManager
+
+<b><color=#40C4FF>[GAME]</color></b> BuildingManager Initialized
+
+<b><color=lightgreen>[HAARE]</color></b> GameBootstrapper: All systems ready. GameSession: True, MapManager: True
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : DebugInfoPanel(Clone) (DebugInfoPanel)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Text (TMP) (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadButton (Haare.Client.UI.CustomButton)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : LoadButton (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : Text (TMP) (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : SaveButton (Haare.Client.UI.CustomButton)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : SaveButton (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : InfoText (Haare.Client.UI.CustomText)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : InfoBox (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : StatusInfoPanel(Clone) (StatusInfoPanel)
+
+<color=cyan>[UI_Encyclopedia]</color> 단축키(<Keyboard>/I) 구독 완료 (OnEnable).
+
+DontDestroyOnLoad only works for root GameObjects or components on root GameObjects.
+UnityEngine.Object:DontDestroyOnLoad (UnityEngine.Object)
+Game.Encyclopedia.EncyclopediaManager:Awake () (at Assets/Script/Encyclopedia/EncyclopediaManager.cs:32)
+UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationBase`1/<>c__DisplayClass60_0<UnityEngine.GameObject>:<add_CompletedTypeless>b__0 (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>)
+DelegateList`1<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>>:Invoke (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>) (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/DelegateList.cs:75)
+UnityEngine.ResourceManagement.Util.DelayedActionManager:LateUpdate ()
+
+[EncyclopediaManager] 도감 데이터 불러옴.
+
+<color=cyan>[UI_Encyclopedia]</color> BindEvent 호출됨! (단축키: I)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : EncyclopediaPanel(Clone) (Game.Encyclopedia.UI.UI_Encyclopedia)
+
+FADEOUT
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> Registered : BuildingControlPanel(Clone) (BuildingControlPanel)
+
+UI Stack Count0
+
+UI DICT Count4
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> UnRegister : LoadingFadePanel(Clone) (Haare.Client.UI.CustomImage)
+
+<b><color=teal>[TASK]</color></b> <b><color=lightgreen>[HAARE]</color></b> UnRegister : LoadingFadePanel(Clone) (Demo.UI.LoadingFadePanel)
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 405
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 405
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 410
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 410
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 415
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 415
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 420
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 420
+
+[HumanWaveManager] 0층에 웨이브 파티 6명 사전 스폰(배회 대기) — 신규 6명, 이전 웨이브 생존자 0명 합류.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 425
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 425
+
+[HumanWaveManager] ?�류 ?�이�?발생! (목표물이 ?�성???�까지 ?�기합?�다)
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room44<->room5) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[0](room44<->room5) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room44<->room7) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[1](room44<->room7) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room7<->room8) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[2](room7<->room8) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room5<->room11) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[3](room5<->room11) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room11<->room22) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[4](room11<->room22) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room8<->room20) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[5](room8<->room20) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room22<->room29) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[6](room22<->room29) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room20<->room27) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[7](room20<->room27) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room27<->room33) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[8](room27<->room33) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room29<->room35) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[9](room29<->room35) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room33<->room0) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[10](room33<->room0) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room35<->room40) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[11](room35<->room40) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room0<->room43) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[12](room0<->room43) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room40<->room41) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[13](room40<->room41) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room38<->room41) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[14](room38<->room41) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room98<->room59) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[0](room98<->room59) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room59<->room65) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[1](room59<->room65) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room65<->room74) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[2](room65<->room74) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room74<->room87) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[3](room74<->room87) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room87<->room95) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[4](room87<->room95) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room87<->room97) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[5](room87<->room97) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room95<->room93) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[6](room95<->room93) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room87<->room50) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[7](room87<->room50) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room65<->room70) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[8](room65<->room70) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room93<->room46) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[9](room93<->room46) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room73<->room65) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[10](room73<->room65) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room78<->room70) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[11](room78<->room70) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room127<->room128) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[0](room127<->room128) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room128<->room107) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[1](room128<->room107) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room107<->room112) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[2](room107<->room112) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room128<->room115) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[3](room128<->room115) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room112<->room111) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[4](room112<->room111) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room128<->room114) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[5](room128<->room114) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room111<->room100) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[6](room111<->room100) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room115<->room102) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[7](room115<->room102) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room100<->room126) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[8](room100<->room126) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room115<->room106) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[9](room115<->room106) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room106<->room110) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[10](room106<->room110) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room110<->room104) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[11](room110<->room104) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room104<->room113) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[12](room104<->room113) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room110<->room101) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[13](room110<->room101) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room121<->room102) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[14](room121<->room102) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room122<->room115) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[15](room122<->room115) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room124<->room101) 닫힘 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[16](room124<->room101) → 닫힘
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=6 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=0 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room44<->room5) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[0](room44<->room5) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room44<->room7) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[1](room44<->room7) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room8(room8) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room20(room20) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room22(room22) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room27(room27) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room29(room29) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room33(room33) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room35(room35) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room40(room40) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room41(room41) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room38(room38) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room0(room0) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room43(room43) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room98(room98) 유닛=0 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F2 Gate(room98<->room59) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F2 Gate[0](room98<->room59) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room98 개방 조건 충족 — 연결된 게이트 1개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room59(room59) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room65(room65) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room74(room74) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room70(room70) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room73(room73) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room78(room78) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room46(room46) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room87(room87) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room93(room93) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room50(room50) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room97(room97) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F2 room95(room95) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room114(room114) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room128(room128) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room127(room127) 유닛=0 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F3 Gate(room127<->room128) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F3 Gate[0](room127<->room128) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room127 개방 조건 충족 — 연결된 게이트 1개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room102(room102) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room115(room115) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room107(room107) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room112(room112) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room121(room121) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room106(room106) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room122(room122) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room111(room111) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room110(room110) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room101(room101) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room124(room124) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room100(room100) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room104(room104) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room113(room113) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F3 room126(room126) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> CloseAllDoorsForWaveStart: 모든 문을 잠그고, 이미 비어있는 방의 인접 문은 다시 열었습니다.
+
+[HumanWaveManager] ?��?가 ?�성??목표�?DungeonCore_aac5)??발견?�습?�다! 추적???�작?�니??
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 430
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 430
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=5 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+[점령] room44 방(F1): 빈 방에 아처형(Human)이 입성해 점령했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=2 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=1 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129(room129) 유닛=0 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F0 room129 개방 조건 충족 — 연결된 게이트 0개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 435
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 435
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 440
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 440
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 445
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 445
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_49c7 at Floor 1, (2, 21) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=2 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 450
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 450
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+[점령 전환] room5 방(F1): Wild → Human (마지막 유닛 처치로 소속 전환, 가해자: 아처형)
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room5<->room11) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[3](room5<->room11) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_7a21 at Floor 1, (4, 20) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 455
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 455
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=2 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 460
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 460
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 299.3
+
+<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 360
+
+<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 260
+
+<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 160
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 60
+
+<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (2, 28, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+[오펜스 시작] room128 방에 플레이어 유닛 진입 — 오펜스 개시
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=yellow>[<b><color=#40C4FF>[GAME]</color></b>]</color></b> Not enough Wood to consume 100.
+UnityEngine.Debug:LogWarning (object)
+Haare.Util.Logger.LogHelper:Warning (string[]) (at Assets/Haare/Scripts/Util/LogHelper/LogHelper.cs:49)
+ResourceManager:TryConsumeResources (System.Collections.Generic.List`1<ResourceCost>) (at Assets/Script/Production/ResourceManager.cs:94)
+BuildingControlPanel:OnGUI () (at Assets/Script/UI/BuildingControlPanel.cs:107)
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_eb6a at Floor 1, (12, 14) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (2, 28, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=3 hasHuman=True hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (2, 28, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 65
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 465
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (2, 28, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=5 hasHuman=True hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_4a30 at Floor 1, (8, 35) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+[점령 전환] room7 방(F1): Wild → Human (마지막 유닛 처치로 소속 전환, 가해자: 기사형)
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=5 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room7<->room8) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[2](room7<->room8) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_1ee3 at Floor 1, (9, 36) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=4 hasHuman=False hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 70
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 470
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=4 hasHuman=False hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 130.0
+
+[점령 전환] room11 방(F1): Wild → Human (마지막 유닛 처치로 소속 전환, 가해자: 아처형)
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> ApplyGateDoorVisual: F1 Gate(room11<->room22) 열림 적용 — 시각화 갱신 4개, 못 찾음 0개.
+
+<b><color=#40C4FF>[GAME]</color></b> SetGateClosed: F1 Gate[4](room11<->room22) → 열림
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_73e6 at Floor 1, (10, 11) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 75
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 475
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 야생 몬스터 A에게 적중! 데미지: 143.9
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room8(room8) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=True → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=4 hasHuman=False hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 80
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 480
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=4 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11(room11) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room11 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 85
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 485
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=6 hasHuman=True hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 308.8
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 199.5
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=6 hasHuman=True hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_aad1 at Floor 1, (4, 30) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 90
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 490
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 95
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 495
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=3 hasHuman=True hasPlayerMonster=False hasWild=False → isEmpty=False isSingleNonWildFaction=True
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7(room7) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room7 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=7 hasHuman=True hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Wood. Total: 100
+
+<b><color=#40C4FF>[GAME]</color></b> Added 5 Stone. Total: 500
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5(room5) 유닛=2 hasHuman=False hasPlayerMonster=False hasWild=False → isEmpty=True isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room5 개방 조건 충족 — 연결된 게이트 2개에 SetGateClosed(false) 호출.
+
+<b><color=#40C4FF>[GAME]</color></b> [오펜스 트리거] 플레이어가 야생 방(room128)에 물리적으로 진입했습니다.
+
+<b><color=#40C4FF>[GAME]</color></b> RefreshRoomGateStates: F1 room44(room44) 유닛=7 hasHuman=True hasPlayerMonster=True hasWild=False → isEmpty=False isSingleNonWildFaction=False
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 130.0
+
+<b><color=#40C4FF>[GAME]</color></b> BuildingManager Disposed
+
+<b><color=#40C4FF>[GAME]</color></b> ResourceManager Disposed
+
+<b><color=lightgreen>[HAARE]</color></b> GameUIPresenter Disposed
+
+<b><color=lightgreen>[HAARE]</color></b> instance destroyed
+
+[HumanWaveManager] ?�티가 ?�멸?�습?�다. ?�이�??�패.
+UnityEngine.Debug:Log (object)
+GrimArchive.Wave.HumanWaveManager:MonitorWave () (at Assets/Script/Wave/HumanWaveManager.cs:371)
+GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30:MoveNext () (at Assets/Script/Wave/HumanWaveManager.cs:132)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskVoid`1<GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:104)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/YieldPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:292)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+
+Destroy may not be called from edit mode! Use DestroyImmediate instead.
+Destroying an object in edit mode destroys it permanently.
+UnityEngine.Object:Destroy (UnityEngine.Object)
+GameSession:CollectObject (UnityEngine.Vector3Int) (at Assets/Script/Unit/Session/GameSession.cs:1366)
+GrimArchive.Wave.HumanWaveManager:EndWave (bool) (at Assets/Script/Wave/HumanWaveManager.cs:613)
+GrimArchive.Wave.HumanWaveManager:MonitorWave () (at Assets/Script/Wave/HumanWaveManager.cs:372)
+GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30:MoveNext () (at Assets/Script/Wave/HumanWaveManager.cs:132)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskVoid`1<GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:104)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/YieldPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:292)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+
+[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 30초 대기.
+UnityEngine.Debug:Log (object)
+GrimArchive.Wave.HumanWaveManager:EndWave (bool) (at Assets/Script/Wave/HumanWaveManager.cs:630)
+GrimArchive.Wave.HumanWaveManager:MonitorWave () (at Assets/Script/Wave/HumanWaveManager.cs:372)
+GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30:MoveNext () (at Assets/Script/Wave/HumanWaveManager.cs:132)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskVoid`1<GrimArchive.Wave.HumanWaveManager/<WaveLoop>d__30>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:104)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/YieldPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.Delay.cs:292)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
+
+MissingReferenceException: The object of type 'UnityEngine.Tilemaps.Tilemap' has been destroyed but you are still trying to access it.
+Your script should either check if it is null or you should not destroy the object.
+UnityEngine.Object+MarshalledUnityObject.TryThrowEditorNullExceptionObject (UnityEngine.Object unityObj, System.String parameterName) (at <5fbef2e591e14a4c91f3c5e34508b853>:0)
+UnityEngine.Bindings.ThrowHelper.ThrowNullReferenceException (System.Object obj) (at <5fbef2e591e14a4c91f3c5e34508b853>:0)
+UnityEngine.Tilemaps.Tilemap.SetTileFlags (UnityEngine.Vector3Int position, UnityEngine.Tilemaps.TileFlags flags) (at <11585d20875045bcb4ec74ceee986b4f>:0)
+MapRandering.ChangeRoomColor (Room room, UnityEngine.Color color) (at Assets/Script/Randering/MapRandering.cs:387)
+OffenseProcessor.OnOffenseSuccess (Room room) (at Assets/Script/Unit/Core/OffenseProcessor.cs:176)
+OffenseProcessor.UpdateProcess () (at Assets/Script/Unit/Core/OffenseProcessor.cs:56)
+GameSession.UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:349)
+Haare.Client.Core.Processor+<>c__DisplayClass11_0.<RegisterEvents>b__1 (R3.Unit _) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
+R3.AnonymousObserver`1[T].OnNextCore (T value) (at <a6479622a9314fcba3eb70d4da8dd460>:0)
+R3.Observer`1[T].OnNext (T value) (at <a6479622a9314fcba3eb70d4da8dd460>:0)
+UnityEngine.Debug:LogException(Exception)
+R3.<>c:<SetDefaultObservableSystem>b__1_0(Exception) (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityProviderInitializer.cs:21)
+R3.AnonymousObserver`1:OnErrorResumeCore(Exception)
+R3.Observer`1:OnErrorResume(Exception)
+R3.Observer`1:OnNext(Unit)
+R3.Subject`1:OnNext(Unit)
+Haare.Client.Routine.MonoRoutine:UpdateProcess() (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
+Haare.Client.Core.<>c__DisplayClass11_0:<RegisterEvents>b__3(Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
+R3.AnonymousObserver`1:OnNextCore(Unit)
+R3.Observer`1:OnNext(Unit)
+R3.Internal.CancellableFrameRunnerWorkItemBase`1:PublishOnNext(Unit)
+R3.EveryUpdateRunnerWorkItem:MoveNextCore(Int64)
+R3.Internal.CancellableFrameRunnerWorkItemBase`1:MoveNext(Int64)
+R3.UnityFrameProvider:Run() (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+R3.<>c__DisplayClass8_0:<InsertRunner>b__0(PlayModeStateChange) (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/PlayerLoopHelper.cs:125)
+UnityEditor.EditorApplication:Internal_PlayModeStateChanged(PlayModeStateChange)
+

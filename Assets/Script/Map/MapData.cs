@@ -75,6 +75,11 @@ public struct Gate
 	public int width;
 	// 방향: true=수평(좌우 인접), false=수직(상하 인접)
 	public bool isHorizontal;
+
+	// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 웨이브 진행 중 이 게이트의 문이 잠겨 벽처럼 취급되는지
+	// 여부. 기본값(false)=열림 — 기존처럼 항상 통행 가능하던 상태를 그대로 유지한다. GameSession.
+	// SetGateClosed가 이 값과 실제 타일(Tile.isStructureExist)·문 스프라이트를 함께 갱신한다.
+	public bool isDoorClosed;
 }
 
 [Serializable]

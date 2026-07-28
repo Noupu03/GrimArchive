@@ -194,7 +194,6 @@ public class OffenseDebugWindow : EditorWindow
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("+ Wood")) resourceManager.AddResource(ResourceType.Wood, _addResourceAmount);
             if (GUILayout.Button("+ Stone")) resourceManager.AddResource(ResourceType.Stone, _addResourceAmount);
-            if (GUILayout.Button("+ Gold")) resourceManager.AddResource(ResourceType.Gold, _addResourceAmount);
             GUILayout.EndHorizontal();
         }
         else
