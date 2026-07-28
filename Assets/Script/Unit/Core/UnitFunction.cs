@@ -987,6 +987,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 방을 점령한다. OffenseProcessor.TryClaimEmptyRoomOnEntry가 기존 점령 전환 경로(전투 사망/
 		// 야생 전멸 시)와 동일하게 Room.RoomFaction + CreateMap.occupationState + 방 색칠을 함께 갱신.
 		if (enteredRoomWasEmpty) Session.OffenseProcessor?.TryClaimEmptyRoomOnEntry(actualRoom, this);
+
+		// 안개 시스템(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이
+		// 있어야지만 사라져") — 플레이어 진영 몬스터가 아직 안개가 걷히지 않은 방에 처음 들어오는
+		// 순간을 감지해 GameSession.RevealRoomFog로 넘긴다(영구 해제 + 페이드아웃).
+		if (actualRoom != null && !actualRoom.FogRevealed && IsPlayerMonsterFaction)
+			Session.RevealRoomFog(actualRoom);
 	}
 
 	// SyncRoomAffiliation 전용 — 살아있는 점유 유닛이 하나도 없으면 "빈 방"으로 본다(GameSession.

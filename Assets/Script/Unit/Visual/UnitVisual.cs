@@ -58,8 +58,18 @@ public class UnitVisual : MonoBehaviour
 	// 지우는 처리가 필요 없다.
 	public void UpdateStatusLabel(string planText, bool isHuman)
 	{
+		// 안개 시스템(2026-07-28, 사용자 요청 "안개 속의 유닛은 머리 위의 상태도 보이지 않게") —
+		// UnitGenerate.SyncVisuals가 안개에 가려진 유닛이면 planText로 null/빈 문자열을 넘긴다.
+		// UpdateBelowLabel과 동일한 "null이면 숨김" 관례.
+		if (string.IsNullOrEmpty(planText))
+		{
+			if (_statusLabel != null) _statusLabel.gameObject.SetActive(false);
+			return;
+		}
+
 		EnsureStatusLabel();
 		if (_statusLabel == null) return;
+		_statusLabel.gameObject.SetActive(true);
 		_statusLabel.text = planText;
 		_statusLabel.color = isHuman ? Color.cyan : Color.yellow;
 	}

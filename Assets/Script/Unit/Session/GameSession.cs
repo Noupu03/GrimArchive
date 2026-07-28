@@ -142,6 +142,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청): 던전 1층 시작방(플레이어=몬스터
                 // 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 무상으로 하나씩 미리 깔아둔다.
                 SpawnInitialBuildings();
+                // 안개 시스템(2026-07-28, 사용자 요청): 위에서 스폰된 모든 초기 콘텐츠(야생 몬스터/
+                // 던전 코어/건물)를 가리도록 맨 마지막에 깐다 — 시각 오버레이라 스폰 순서 자체가
+                // 렌더링에 영향을 주진 않지만(sortingOrder가 그리는 순서를 결정), 논리적으로 "모든
+                // 방 콘텐츠가 갖춰진 뒤 안개를 덮는다" 순서를 그대로 따른다.
+                InitializeFogOfWar();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -289,6 +294,385 @@ public class GameSession : NativeRoutine, IOffenseQuery
         OccupationState.HumanControlled => FactionType.Human,
         _ => FactionType.Wild,
     };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 안개 시스템(2026-07-28, 사용자 요청 "0층, 시작방과 양옆 방을 제외하고는 안개가 생겨. 이 안개는,
+    // 인접 방으로 플레이어 진영 몬스터가 진입한 경험이 있어야지만 사라져.") — 순수 시각 오버레이라
+    // 이동/시야/AI 판정 등 어떤 게임플레이 로직도 건드리지 않는다(Room.FogRevealed는 UI/시각 목적
+    // 전용 플래그). 0층은 안개 개념 자체가 없고(인류 로비), 1층 이상은 그 층의 시작방(BuildRoomGrid
+    // 직후 시점 RoomFaction==Player로 식별 — 아직 전투/점령 변화가 전혀 없는 순수 생성값)과 그 방과
+    // Gate로 직접 연결된 인접 방만 처음부터 안개 없이 시작한다. 문 타일은 ApplyOccupationTint/
+    // ChangeRoomColor와 동일한 선례(문이 있는 바닥은 점령색 칠도 안 함)를 따라 안개도 씌우지 않는다
+    // (문은 이미 별도 스프라이트로 열림/닫힘을 표현).
+    // ══════════════════════════════════════════════════════════════════════
+    private readonly Dictionary<Room, List<GameObject>> _roomFogVisuals = new Dictionary<Room, List<GameObject>>();
+    // 문/통로 안개(2026-07-28, 사용자 요청 "문이 있는 공간(복도)도 옆방중에 하나라도 안개가 있다면 다
+    // 안개로 가리고") — 게이트 하나는 두 방을 잇는 통로라 어느 한 쪽 Room에도 배타적으로 속하지 않는다.
+    // (floorIndex, min(roomA,roomB), max(roomA,roomB))로 게이트를 식별해 별도로 추적한다.
+    private readonly Dictionary<(int floor, int roomA, int roomB), List<GameObject>> _gateFogVisuals = new Dictionary<(int, int, int), List<GameObject>>();
+    private Sprite _fogSprite;
+    private Sprite _fogBackingSprite;
+    // "스윽 사라지게"(사용자 요청, 구체적 초 수 지정 없음) — 자리표시자, 나중에 조정 요청 오면 이
+    // 상수만 바꾸면 됨.
+    private const float FogFadeOutSeconds = 0.6f;
+    // 후속 신고(2026-07-28, "안개를 통해 몬스터의 상태 보인다") — 위협타일(ThreatTileRenderer,
+    // 999)이 안개(기존 900)보다 위라 공격 예고 셀이 뚫고 보였다. 이 값보다 확실히 위여야 유닛/
+    // 오브젝트/라벨/위협타일 등 안개 아래 모든 것이 실제로 안 보인다. 안개 자체가 배경(Backing)+
+    // 무늬(Pattern) 2겹이라 배경=이 값, 무늬=+1을 쓴다.
+    private const int FogSortingOrder = 1000;
+    // 후속 신고(2026-07-28, "안개 좀더 선명하게. 약간 투명해서 안에 다 비쳐보여") — obj/fog.png
+    // 단독으로는 줄무늬 사이 틈으로 안이 비쳐서, 그 뒤에 불투명에 가까운 단색 배경 한 겹을 깔고
+    // 그 위에 무늬를 얹는 2겹 구조로 바꿨다. 배경색 자체(RGB)는 임의 선택 — 조정 요청 오면 이
+    // 상수만 바꾸면 됨.
+    private static readonly Color FogBackingColor = new Color(0.05f, 0.05f, 0.08f, 0.95f);
+
+    private void InitializeFogOfWar()
+    {
+        if (allRooms == null || cmap == null || cmap.map.floors == null) return;
+
+        foreach (var room in allRooms)
+        {
+            if (room != null) room.FogRevealed = room.Floor == 0;
+        }
+
+        for (int floorIndex = 1; floorIndex < cmap.map.floors.Length; floorIndex++)
+        {
+            Room startRoom = null;
+            foreach (var room in allRooms)
+            {
+                if (room != null && room.Floor == floorIndex && room.RoomFaction == FactionType.Player)
+                {
+                    startRoom = room;
+                    break;
+                }
+            }
+            if (startRoom == null) continue;
+            startRoom.FogRevealed = true;
+
+            Floor floor = cmap.map.floors[floorIndex];
+            if (floor.gates == null) continue;
+            foreach (Gate g in floor.gates)
+            {
+                int neighborId = -1;
+                if (g.roomA == startRoom.RoomId) neighborId = g.roomB;
+                else if (g.roomB == startRoom.RoomId) neighborId = g.roomA;
+                if (neighborId < 0) continue;
+
+                Room neighbor = FindRoomByFloorAndId(floorIndex, neighborId);
+                if (neighbor != null) neighbor.FogRevealed = true;
+            }
+        }
+
+        foreach (var room in allRooms)
+        {
+            if (room != null && !room.FogRevealed) SpawnFogForRoom(room);
+        }
+
+        // 문/통로 안개 + 방이 생성되지 않은 청크(2026-07-28, 사용자 요청 "문이 있는 공간(복도)도
+        // 옆방중에 하나라도 안개가 있다면 다 안개로 가리고, 벽만 있는, 방이 생성되지 않은 청크도
+        // 안개 씌워줘") — 룸 기준 루프가 끝나 모든 Room.FogRevealed가 최종 확정된 뒤에 실행해야
+        // "양옆 다 걷혔는지" 판정이 정확하다.
+        for (int floorIndex = 1; floorIndex < cmap.map.floors.Length; floorIndex++)
+        {
+            SpawnFogForEmptyChunks(floorIndex);
+
+            Floor floor = cmap.map.floors[floorIndex];
+            if (floor.gates == null) continue;
+            foreach (Gate g in floor.gates)
+            {
+                Room roomA = FindRoomByFloorAndId(floorIndex, g.roomA);
+                Room roomB = FindRoomByFloorAndId(floorIndex, g.roomB);
+                bool aRevealed = roomA == null || roomA.FogRevealed;
+                bool bRevealed = roomB == null || roomB.FogRevealed;
+                if (!aRevealed || !bRevealed) SpawnFogForGate(floorIndex, g);
+            }
+        }
+    }
+
+    private Room FindRoomByFloorAndId(int floorIndex, int roomId)
+    {
+        if (allRooms == null || roomId < 0) return null;
+        foreach (var r in allRooms)
+            if (r != null && r.Floor == floorIndex && r.RoomId == roomId) return r;
+        return null;
+    }
+
+    private static (int floor, int roomA, int roomB) GateKey(int floorIndex, Gate g)
+    {
+        int a = Mathf.Min(g.roomA, g.roomB);
+        int b = Mathf.Max(g.roomA, g.roomB);
+        return (floorIndex, a, b);
+    }
+
+    private HashSet<Vector2Int> CollectDoorTilesForFloor(int floorIndex)
+    {
+        var doorTiles = new HashSet<Vector2Int>();
+        if (cmap == null || cmap.map.floors == null || floorIndex < 0 || floorIndex >= cmap.map.floors.Length) return doorTiles;
+
+        Floor floor = cmap.map.floors[floorIndex];
+        if (floor.gates == null) return doorTiles;
+        foreach (var gate in floor.gates)
+            foreach (var row in GetGateDoorTiles(gate))
+                foreach (var tile in row)
+                    doorTiles.Add(tile);
+        return doorTiles;
+    }
+
+    // SpawnObject의 단색 폴백 텍스처 생성과 동일한 방식(사용자 요청 "안개 좀더 선명하게, 안 비쳐
+    // 보이게") — 불투명에 가까운 배경 한 장을 미리 만들어두고 모든 안개 타일이 공유해서 쓴다.
+    private Sprite EnsureFogBackingSprite()
+    {
+        if (_fogBackingSprite != null) return _fogBackingSprite;
+
+        Texture2D tex = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        _fogBackingSprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+        return _fogBackingSprite;
+    }
+
+    // 안개 스프라이트/배경 로드 실패 시 false. 성공하면 backingSprite와 스케일 4종을 채워준다 —
+    // SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks가 모두 재사용.
+    private bool TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)
+    {
+        backingSprite = null; patScaleX = patScaleY = backScaleX = backScaleY = 1f;
+        if (_fogSprite == null) _fogSprite = Resources.Load<Sprite>("obj/fog");
+        if (_fogSprite == null)
+        {
+            LogHelper.Warning(LogHelper.GAME, "TryPrepareFogAssets: Resources.Load<Sprite>(\"obj/fog\")가 null입니다 — Import 설정(Sprite Mode) 확인 필요.");
+            return false;
+        }
+        backingSprite = EnsureFogBackingSprite();
+
+        Vector2 patternWorldSize = _fogSprite.bounds.size;
+        patScaleX = patternWorldSize.x > 0f ? 1f / patternWorldSize.x : 1f;
+        patScaleY = patternWorldSize.y > 0f ? 1f / patternWorldSize.y : 1f;
+        Vector2 backingWorldSize = backingSprite.bounds.size;
+        backScaleX = backingWorldSize.x > 0f ? 1f / backingWorldSize.x : 1f;
+        backScaleY = backingWorldSize.y > 0f ? 1f / backingWorldSize.y : 1f;
+        return true;
+    }
+
+    // 안개 타일 하나(배경+무늬 2겹) 생성 — SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 공용.
+    private GameObject SpawnFogTile(int x, int y, Vector3 offset, GameObject parentTilemap, Sprite backingSprite,
+        float patScaleX, float patScaleY, float backScaleX, float backScaleY, string namePrefix)
+    {
+        GameObject go = new GameObject($"Fog_{namePrefix}_{x}_{y}");
+        if (parentTilemap != null) go.transform.SetParent(parentTilemap.transform);
+        go.transform.position = new Vector3(x + 0.5f, y + 0.5f, 0f) + offset;
+
+        // 배경(불투명에 가까움, 아래) + 무늬(위) 2겹 — 무늬 텍스처의 줄무늬 틈으로 안이 비쳐 보이지
+        // 않도록 배경이 항상 먼저 완전히 가린다.
+        GameObject backingGo = new GameObject("Backing");
+        backingGo.transform.SetParent(go.transform, false);
+        SpriteRenderer backingSr = backingGo.AddComponent<SpriteRenderer>();
+        backingSr.sprite = backingSprite;
+        backingSr.color = FogBackingColor;
+        backingSr.sortingOrder = FogSortingOrder;
+        backingGo.transform.localScale = new Vector3(backScaleX, backScaleY, 1f);
+
+        GameObject patternGo = new GameObject("Pattern");
+        patternGo.transform.SetParent(go.transform, false);
+        SpriteRenderer patternSr = patternGo.AddComponent<SpriteRenderer>();
+        patternSr.sprite = _fogSprite;
+        patternSr.sortingOrder = FogSortingOrder + 1;
+        patternGo.transform.localScale = new Vector3(patScaleX, patScaleY, 1f);
+
+        return go;
+    }
+
+    private void SpawnFogForRoom(Room room)
+    {
+        if (room == null || room.Floor < 0) return;
+        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
+
+        HashSet<Vector2Int> doorTiles = CollectDoorTilesForFloor(room.Floor);
+        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && room.Floor < mapRandering.floorOffsets.Length)
+            ? mapRandering.floorOffsets[room.Floor] : Vector3.zero;
+        GameObject childTilemap = GameObject.Find($"F{room.Floor}_Tilemap");
+
+        var tiles = new List<GameObject>();
+        for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
+        {
+            for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
+            {
+                // 청크 전체를 가린다(사용자 요청 "바닥만 가리는게 아니라, 청크 전체 가려야됨") — 벽
+                // 타일도 더 이상 건너뛰지 않는다. 문/통로 타일만 예외 — SpawnFogForGate가 두 방의
+                // 안개 상태를 함께 보고 따로 처리한다(아래 참고).
+                var p2 = new Vector2Int(x, y);
+                if (doorTiles.Contains(p2)) continue;
+                // Bounds는 사각 경계값이라 방이 L자 등 비직사각형이면 다른 방 타일까지 포함할 수 있다
+                // — roomGrid로 실제 소유 방을 재확인해 그 방 타일만 안개로 덮는다.
+                if (!roomGrid.TryGetValue(new Vector3Int(x, y, room.Floor), out Room owner) || owner != room) continue;
+
+                tiles.Add(SpawnFogTile(x, y, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, room.RoomName));
+            }
+        }
+
+        if (tiles.Count > 0) _roomFogVisuals[room] = tiles;
+    }
+
+    // 문/통로 안개(2026-07-28, 사용자 요청 "문이 있는 공간(복도)도 옆방중에 하나라도 안개가 있다면 다
+    // 안개로 가리고") — 게이트가 잇는 두 방 중 하나라도 아직 FogRevealed==false면 그 게이트의 문
+    // 타일들(GetGateDoorTiles) 전체를 안개로 덮는다. 방이 없는 쪽(neighborId가 실제 Room을 못 찾는
+    // 경우, 이론상 발생 안 함)은 "이미 걷힌 것"으로 간주해 반대쪽 방 상태만으로 판단한다.
+    private void SpawnFogForGate(int floorIndex, Gate g)
+    {
+        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
+
+        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
+            ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
+        GameObject childTilemap = GameObject.Find($"F{floorIndex}_Tilemap");
+
+        var tiles = new List<GameObject>();
+        foreach (var row in GetGateDoorTiles(g))
+            foreach (var pos in row)
+                tiles.Add(SpawnFogTile(pos.x, pos.y, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Gate"));
+
+        if (tiles.Count > 0) _gateFogVisuals[GateKey(floorIndex, g)] = tiles;
+    }
+
+    // 방이 생성되지 않은 청크(2026-07-28, 사용자 요청 "벽만 있는, 방이 생성되지 않은 청크도 안개
+    // 씌워줘") — CreateMap.Chunks.roomId < 0인 청크는 BuildRoomGrid가 아예 roomGrid에 등록하지
+    // 않아(어떤 Room에도 안 속함) SpawnFogForRoom 루프에 걸리지 않는다. 이런 청크는 유닛이 물리적으로
+    // 들어갈 방법이 없어(벽뿐이거나 방 자체가 없음) 해제 트리거가 있을 수 없으므로 영구 안개로 둔다
+    // (별도 딕셔너리 추적 없이 스폰만 하고 끝 — 다른 타일 오브젝트들처럼 씬 파괴 시 자연 정리됨).
+    private void SpawnFogForEmptyChunks(int floorIndex)
+    {
+        if (cmap == null || cmap.map.floors == null || floorIndex <= 0 || floorIndex >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[floorIndex];
+        if (floor.chunks == null) return;
+        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
+
+        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
+            ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
+        GameObject childTilemap = GameObject.Find($"F{floorIndex}_Tilemap");
+
+        int w = floor.config.width, h = floor.config.height;
+        for (int cx = 0; cx < w; cx++)
+        {
+            for (int cy = 0; cy < h; cy++)
+            {
+                if (floor.chunks[cx, cy].roomId >= 0) continue;
+                for (int tx = 0; tx < 8; tx++)
+                    for (int ty = 0; ty < 8; ty++)
+                        SpawnFogTile(cx * 8 + tx, cy * 8 + ty, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
+            }
+        }
+    }
+
+    // 안개 해제(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이 있어야지만
+    // 사라져") — UnitFunction.SyncRoomAffiliation이 플레이어 진영 몬스터의 방 최초 입장을 감지하면
+    // 호출한다. Room.FogRevealed는 한번 true가 되면 다시 false로 안 돌아간다(영구 해제).
+    public void RevealRoomFog(Room room)
+    {
+        if (room == null || room.FogRevealed) return;
+        room.FogRevealed = true;
+
+        if (_roomFogVisuals.TryGetValue(room, out List<GameObject> tiles) && tiles != null && tiles.Count > 0)
+        {
+            _roomFogVisuals.Remove(room);
+            FadeOutAndDestroyFogAsync(tiles).Forget();
+        }
+
+        TryRevealAdjacentGates(room);
+    }
+
+    // 안개 해금 규칙 변경(2026-07-28, 사용자 요청 "안개 해금이 잘 안돼. 규칙을 바꾸자. 플레이어
+    // 유닛이 해당 방을 점령한 적이 있으면 인접 방의 안개가 사라지도록 처리하자") — 기존 "유닛이 방에
+    // 물리적으로 들어오면 그 방 자체의 안개가 사라짐"(RevealRoomFog, UnitFunction.SyncRoomAffiliation
+    // 트리거)은 신뢰도가 낮았다고 판단해(RoomConfinedMovement로 방 밖 자율 이동이 막혀 있고, 플레이어
+    // 명령도 이미 소유/인접 방으로만 제한돼 있어 "새 방에 처음 들어가는" 순간 자체가 드물게만 발생)
+    // 그대로 안전장치로 남겨두고, 훨씬 확실한 이벤트인 "점령"(OffenseProcessor의
+    // TryResolveRoomOwnership/TryClaimEmptyRoomOnEntry/OnOffenseSuccess 세 경로가 Room.RoomFaction을
+    // Player로 확정하는 순간)을 새 트리거로 추가한다. 점령된 방 자기 자신과, 그 방과 Gate로 직접
+    // 연결된 인접 방들의 안개를 함께 걷는다(2칸 이상 떨어진 방까지 한꺼번에 열리진 않음 — 정확히
+    // "인접 방"까지만).
+    public void RevealFogAroundCapturedRoom(Room room)
+    {
+        if (room == null) return;
+        RevealRoomFog(room);
+
+        if (cmap == null || cmap.map.floors == null) return;
+        if (room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return;
+
+        foreach (Gate g in floor.gates)
+        {
+            if (g.roomA != room.RoomId && g.roomB != room.RoomId) continue;
+            int neighborId = g.roomA == room.RoomId ? g.roomB : g.roomA;
+            Room neighbor = FindRoomByFloorAndId(room.Floor, neighborId);
+            if (neighbor != null) RevealRoomFog(neighbor);
+        }
+    }
+
+    // 문/통로 안개 해제 — room이 막 걷혔을 때, 그 room과 맞닿은 게이트들 중 반대쪽 방도 이미 걷혀
+    // 있으면(즉 양쪽 다 FogRevealed) 그 게이트의 안개도 같이 걷는다. 아직 반대쪽이 안 걷혔으면
+    // 그대로 둔다("옆방중에 하나라도 안개가 있다면 다 안개로 가리고").
+    private void TryRevealAdjacentGates(Room room)
+    {
+        if (room == null || cmap == null || cmap.map.floors == null) return;
+        if (room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return;
+
+        foreach (Gate g in floor.gates)
+        {
+            if (g.roomA != room.RoomId && g.roomB != room.RoomId) continue;
+            int neighborId = g.roomA == room.RoomId ? g.roomB : g.roomA;
+            Room neighbor = FindRoomByFloorAndId(room.Floor, neighborId);
+            bool neighborRevealed = neighbor == null || neighbor.FogRevealed;
+            if (!neighborRevealed) continue;
+
+            var key = GateKey(room.Floor, g);
+            if (_gateFogVisuals.TryGetValue(key, out List<GameObject> tiles) && tiles != null && tiles.Count > 0)
+            {
+                _gateFogVisuals.Remove(key);
+                FadeOutAndDestroyFogAsync(tiles).Forget();
+            }
+        }
+    }
+
+    // "스윽 사라지게"(사용자 요청) — SceneTransitionFade.FadeAsync와 동일한 UniTask 알파 페이드 관례.
+    // 안개 타일 하나가 배경/무늬 2겹(서로 다른 시작 알파값)이라, 각 렌더러의 "시작 알파"를 미리
+    // 찍어두고 거기서부터 0으로 보간한다(전부 1→0으로 고정하면 배경(0.95)이 페이드 시작 순간 잠깐
+    // 더 진해지는 튐이 생김).
+    private async UniTaskVoid FadeOutAndDestroyFogAsync(List<GameObject> tiles)
+    {
+        var renderers = new List<SpriteRenderer>();
+        var startAlphas = new List<float>();
+        foreach (var go in tiles)
+        {
+            if (go == null) continue;
+            foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>())
+            {
+                renderers.Add(sr);
+                startAlphas.Add(sr.color.a);
+            }
+        }
+
+        float t = 0f;
+        while (t < FogFadeOutSeconds)
+        {
+            t += Time.deltaTime;
+            float progress = Mathf.Clamp01(t / FogFadeOutSeconds);
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                var sr = renderers[i];
+                if (sr == null) continue;
+                Color c = sr.color;
+                c.a = Mathf.Lerp(startAlphas[i], 0f, progress);
+                sr.color = c;
+            }
+            await UniTask.Yield();
+        }
+
+        foreach (var go in tiles)
+            if (go != null) UnityEngine.Object.Destroy(go);
+    }
 
     // 2026-07-27 신규 — "모든 야생 진영 방에 야생 몬스터 A 2마리씩 필수 배치(위치는 랜덤), 방 밖으로
     // 나갈 수 없음" 요구사항. BuildRoomGrid() 직후(Initialize 참고) 한 번 호출한다. 야생 여부는
@@ -961,8 +1345,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 불가능. 몬스터 배치도 불가능(이동만 가능)") — 문은 SpawnDoors()가 다른 오브젝트/유닛보다 먼저
     // 깔아 objectGrid를 선점하므로, 그 뒤에 오는 모든 "이 타일에 뭔가 놓아도 되는지" 판정이 이 메서드로
     // 문 타일을 걸러내야 한다. BuildingManager.CanInstallAt(건물 배치)과 UnitGenerate.IsAreaClear(유닛/
-    // 몬스터 스폰 위치 판정)가 호출한다 — 이동(AStarMovement 등)은 여전히 objectGrid를 보지 않으므로
-    // 문을 그냥 통과할 수 있고, 이 메서드는 "배치"만 막는다.
+    // 몬스터 스폰 위치 판정)가 호출한다 — 대부분의 이동(AStarMovement 등)은 여전히 objectGrid를 보지
+    // 않으므로 문을 그냥 통과할 수 있고, 이 메서드는 원래 "배치"만 막는 용도였다. 다만 2026-07-28
+    // 사용자 요청("배회하는 야생 몬스터가 문이 있는 공간을 돌아다니지 못하게")으로 RoomConfinedMovement
+    // (야생/일부 플레이어 몬스터의 자율 이동)도 이 메서드를 호출해 문 타일 자체를 walkable에서 제외한다.
     public bool IsDoorTile(Vector3Int pos)
     {
         return objectGrid.TryGetValue(pos, out InteractableObject obj) &&
@@ -1097,7 +1483,50 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (IsRoomEmpty(room)) OpenAllGatesForRoom(room);
         }
 
+        // 문 끼임 방지(2026-07-28, 사용자 요청 "웨이브가 시작하며 문이 닫혔을때, 문에 있는 유닛들이
+        // 끼이지 않도록 밀어줘") — 위 재개방까지 끝나 최종적으로 "닫힘"으로 남은 문들만 대상으로,
+        // 마침 그 문 타일 위에 서 있던 유닛을 인접한 빈 칸으로 밀어낸다.
+        PushUnitsOffClosedDoorTiles();
+
         LogHelper.Log(LogHelper.GAME, "CloseAllDoorsForWaveStart: 모든 문을 잠그고, 이미 비어있는 방의 인접 문은 다시 열었습니다.");
+    }
+
+    // CloseAllDoorsForWaveStart 전용 — isStructureExist가 켜져도 "이미 그 칸에 있던" 유닛은 저절로
+    // 튕겨나가지 않는다(새로 들어오는 이동만 막음, UnitFunction.CanMove 참고) — 그대로 두면 문이 닫힌
+    // 칸 위에 유닛이 갇힌 것처럼 보인다. AIMovementHelper.FindNearbyOpenTile과 동일한 "8방향 중 가장
+    // 가까운 갈 수 있는 칸" 탐색으로 밀어내고, 위치만 직접 갱신한다(HumanWaveManager의 강제 층 이동과
+    // 동일한 텔레포트 관례 — 경로탐색 없이 Unregister→position 대입→Register).
+    private void PushUnitsOffClosedDoorTiles()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+
+        for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.gates == null) continue;
+
+            foreach (Gate g in floor.gates)
+            {
+                if (!g.isDoorClosed) continue;
+
+                foreach (var row in GetGateDoorTiles(g))
+                {
+                    foreach (var doorPos in row)
+                    {
+                        Vector3Int gridPos = new Vector3Int(doorPos.x, doorPos.y, floorIdx);
+                        if (!unitGrid.TryGetValue(gridPos, out Unit u) || u == null || u.hp <= 0) continue;
+
+                        Vector2Int pushTo = AIMovementHelper.FindNearbyOpenTile(u, doorPos);
+                        if (pushTo == doorPos) continue; // 밀어낼 빈 칸을 못 찾음(드묾) — 그대로 둠
+
+                        UnregisterUnitPos(u, u.position);
+                        u.position = pushTo;
+                        RegisterUnitPos(u, u.position);
+                        LogHelper.Log(LogHelper.GAME, $"PushUnitsOffClosedDoorTiles: {u.unitType?.typeName}({u.name})를 닫힌 문 {doorPos} → {pushTo}로 밀어냈습니다.");
+                    }
+                }
+            }
+        }
     }
 
     // 문 닫힘 시스템(2026-07-28, 사용자 정정 "문도 한 진영이 남을때까지 열리지 않는거로 하자") — 방

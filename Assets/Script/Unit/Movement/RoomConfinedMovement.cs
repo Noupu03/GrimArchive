@@ -19,6 +19,14 @@ public class RoomConfinedMovement : AStarMovement
         // 되지 않으므로(플레이어가 조종하지 않음) 이 분기는 기존 야생 몬스터 동작에 영향 없다.
         if (unit.isManualMoveCommand) return true;
 
+        // 배회 금지(2026-07-28, 사용자 요청 "배회하는 야생 몬스터가, 문이 있는 공간을 돌아다니지
+        // 못하게") — 문/통로 타일은 그 문을 낀 두 방 중 한쪽의 roomGrid 소유 청크에 포함돼 있어(같은
+        // 방 소속으로 잡힘) 아래 방 경계 검사만으로는 걸러지지 않는다. GameSession.IsDoorTile은 원래
+        // "배치"만 막는 용도였지만(주석 참고) 여기서는 자율 이동(플레이어 명령이 아닌 경우, 위에서
+        // 이미 걸러짐)에도 문 타일 자체를 walkable에서 제외해 방 안쪽에서만 배회하게 한다.
+        if (unit.Session != null && unit.Session.IsDoorTile(new Vector3Int(neighborPos.x, neighborPos.y, floorIdx)))
+            return false;
+
         // 추가 검사: 유닛이 소속된 방을 벗어나는 타일은 벽으로 취급
         if (unit.Session != null && unit.Session.roomGrid != null)
         {

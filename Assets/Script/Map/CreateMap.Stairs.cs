@@ -309,7 +309,12 @@ public partial class CreateMap
                 Chunks c = floor.chunks[x, y];
                 switch (c.roomRole)
                 {
-                    case RoomRole.StartRoom:      c.occupationState = OccupationState.PlayerControlled; break;
+                    // 사용자 요청(2026-07-28) "2층과 3층 시작방은 초기 플레이어 몬스터 진영 점령
+                    // 대상에서 제외" — 1층 시작방(플레이어=몬스터 진영 거점)만 처음부터 PlayerControlled
+                    // 로 시작하고, 2층 이상은 다른 일반 방과 동일하게 Neutral(야생)로 시작해서 실제로
+                    // 싸워서 점령해야 한다. currentFloorIndex는 이 메서드를 호출하는 CreateMap.cs의
+                    // Phase 3 루프(`for f in 1..floors.Length`)가 매 층마다 미리 세팅해준다.
+                    case RoomRole.StartRoom:      c.occupationState = currentFloorIndex == 1 ? OccupationState.PlayerControlled : OccupationState.Neutral; break;
                     case RoomRole.BossRoom:       c.occupationState = OccupationState.Neutral; break;
                     case RoomRole.SubPurposeRoom: c.occupationState = OccupationState.Neutral; break;
                     case RoomRole.NormalRoom:     c.occupationState = OccupationState.Neutral; break;
