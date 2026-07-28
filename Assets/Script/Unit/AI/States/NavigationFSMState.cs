@@ -123,7 +123,8 @@ public class NavigationFSMState : IFSMState
 		human.currentFloor = toFloor;
 		human.position     = arrivePos;
 		human.Session.RegisterUnitPos(human, human.position);
-		human.pendingStairTargetFloor = null;
+		human.pendingStairTargetFloor  = null;
+		human.currentExplorationTarget = null; // 층 이동 후 이전 층 BFS 타깃을 초기화 — 새 층에서 처음부터 탐색
 		return BTStatus.Success;
 	}
 
