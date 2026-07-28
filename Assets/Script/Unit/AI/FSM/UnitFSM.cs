@@ -1,25 +1,52 @@
 using UnityEngine;
-using Haare.Util.Logger;
 
 public class UnitFSM
 {
 	private IFSMState   _current;
+	private readonly PlayerCommandFSMState _playerCommandState = new PlayerCommandFSMState();
+
 	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) →
 	// Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의 GetPriority가 0보다 크면 그 뒤는
 	// 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧 우선순위다.
-	private readonly IFSMState[] _states = new IFSMState[]
+	private readonly IFSMState[] _states;
+
+	public UnitFSM()
 	{
-		new PlayerCommandFSMState(),
-		new CombatFSMState(),
-		new TacticalFSMState(),
-		new NavigationFSMState(),
-	};
+		_states = new IFSMState[]
+		{
+			_playerCommandState,
+			new CombatFSMState(),
+			new TacticalFSMState(),
+			new NavigationFSMState(),
+		};
+	}
 
 	public IFSMState CurrentState => _current;
 
 	// JudgeState 대응: 우선순위 순으로 전환 후보를 탐색하고 상태를 바꾼다.
 	public void SelectState(Unit unit)
 	{
+		// 명령 강제 잠금(2026-07-28, 사용자 신고 "전투 중에 플레이어 명령 안 들어와... 도착할 때까지
+		// 다른 상태로 전환하지 않도록 강하게 통제해줘") — 예전엔 PlayerCommandFSMState.IsSticky/
+		// ShouldInterrupt와 배열 순서(GetPriority)의 조합에만 의존했는데, 그건 "다른 상태 구현들이
+		// 스스로 명령을 존중해야" 성립하는 간접적인 보장이었다(진단 로그를 심어도 실제 이탈 지점을
+		// 못 찾았던 이유이기도 함). 여기서는 그 어떤 상태의 IsSticky/ShouldInterrupt/GetPriority
+		// 구현과도 무관하게, 대기 중인 명령이 있으면 아래 판단을 전부 건너뛰고 무조건 이 상태로
+		// 고정한다 — 도착(또는 공격 대상 무효화)으로 PlayerCommandFSMState가 스스로 명령을 끝내기
+		// 전까지는 다른 어떤 조건으로도 벗어날 수 없다.
+		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
+			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
+		if (hasPendingCommand)
+		{
+			if (_current != _playerCommandState)
+			{
+				_current?.OnExit(unit);
+				_current = _playerCommandState;
+				_current.OnEnter(unit);
+			}
+			return;
+		}
+
 		// Sticky 유지: 현재 상태가 고착이고 아직 중단 조건이 안 됐으면 그대로.
 		if (_current != null && _current.IsSticky(unit) && !_current.ShouldInterrupt(unit)) return;
 
@@ -34,18 +61,6 @@ public class UnitFSM
 			// 전투 상태가 아닐 때 oneTimeReact 리셋 (원본 GoapBrain.JudgeState 동작)
 			if (!(_current is CombatFSMState)) unit.oneTimeReactUsed = false;
 			return;
-		}
-
-		// 진단 로그(2026-07-28, 사용자 신고 "여전히 명령 잘 안먹혀") — 명령이 대기 중인데도
-		// PlayerCommandFSMState가 아닌 다른 상태로 전환되면 남긴다. 원인 확인되면 지워도 되는 임시 로그.
-		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
-			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
-		if (hasPendingCommand && !(next is PlayerCommandFSMState))
-		{
-			LogHelper.Warning(LogHelper.GAME,
-				$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 명령 대기 중인데 {(_current?.GetType().Name ?? "null")} → {(next?.GetType().Name ?? "null")}로 전환됨. " +
-				$"playerMoveTarget={unit.playerMoveTarget} isManualMoveCommand={unit.isManualMoveCommand} " +
-				$"playerAttackTarget={(unit.playerAttackTarget != null ? unit.playerAttackTarget.name : "null")}");
 		}
 
 		_current?.OnExit(unit); // CombatFSMState.OnExit가 AlertSearch 세팅을 담당

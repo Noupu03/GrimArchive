@@ -119,9 +119,16 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             ProductionRule toCancel = null;
             foreach (var queued in _current.Queue)
             {
-                string progressText = index == 0 && _current.IsProducing
-                    ? $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
-                    : "";
+                string progressText = "";
+                if (index == 0 && _current.IsProducing)
+                {
+                    // 인구수 초과로 진행이 멈춰있으면(2026-07-28, 사용자 요청) 진행중 대신 중지됨을
+                    // 표시한다 — BuildingManager.UpdateProcess가 이 동안 진행도를 안 늘려서 실제로도
+                    // 값이 정지해 있다(예: 0.0/1.0s에서 그대로).
+                    progressText = _current.WaitingForRoomSpace
+                        ? $" - 중지됨(방 인원 초과) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
+                        : $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s";
+                }
 
                 GUILayout.BeginHorizontal();
                 GUILayout.Label($"{index + 1}. {queued.displayName}{progressText}");

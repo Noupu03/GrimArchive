@@ -412,8 +412,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (_roomPopulationLabelText.TryGetValue(room, out string prevText) && prevText == text) continue;
             label.text = text;
             _roomPopulationLabelText[room] = text;
+
+            // 인구수 초과 시각 피드백(2026-07-28, 사용자 요청 "방 인원수가 꽉차면 방 라벨 빨간색으로
+            // 바꾸고, 아니면 다시 원래대로 돌려") — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
+            // 같이 재계산하면 충분하다(CurrentPopulation이 바뀌지 않으면 가득 참 여부도 안 바뀜).
+            label.color = room.CurrentPopulation >= room.MaxPopulation ? Color.red : DefaultRoomPopulationLabelColor;
         }
     }
+
+    private static readonly Color DefaultRoomPopulationLabelColor = new Color(1f, 1f, 1f, 0.75f);
 
     // BuildRoomGrid가 다시 호출될 때(맵 재생성 등) 컨테이너는 그대로 두고 라벨만 갈아 끼운다.
     private void ClearRoomPopulationLabels()
@@ -441,7 +448,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         tm.characterSize = 0.11f;
         tm.anchor = TextAnchor.MiddleCenter;
         tm.alignment = TextAlignment.Center;
-        tm.color = new Color(1f, 1f, 1f, 0.75f);
+        tm.color = DefaultRoomPopulationLabelColor;
 
         MeshRenderer mr = go.GetComponent<MeshRenderer>();
         mr.sortingOrder = 50; // 바닥/오브젝트(5)보다 위, 위협타일 셀(999)보다는 아래
