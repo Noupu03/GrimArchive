@@ -1,4 +1,5 @@
 using UnityEngine;
+using Haare.Util.Logger;
 
 public class UnitFSM
 {
@@ -33,6 +34,18 @@ public class UnitFSM
 			// 전투 상태가 아닐 때 oneTimeReact 리셋 (원본 GoapBrain.JudgeState 동작)
 			if (!(_current is CombatFSMState)) unit.oneTimeReactUsed = false;
 			return;
+		}
+
+		// 진단 로그(2026-07-28, 사용자 신고 "여전히 명령 잘 안먹혀") — 명령이 대기 중인데도
+		// PlayerCommandFSMState가 아닌 다른 상태로 전환되면 남긴다. 원인 확인되면 지워도 되는 임시 로그.
+		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
+			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
+		if (hasPendingCommand && !(next is PlayerCommandFSMState))
+		{
+			LogHelper.Warning(LogHelper.GAME,
+				$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 명령 대기 중인데 {(_current?.GetType().Name ?? "null")} → {(next?.GetType().Name ?? "null")}로 전환됨. " +
+				$"playerMoveTarget={unit.playerMoveTarget} isManualMoveCommand={unit.isManualMoveCommand} " +
+				$"playerAttackTarget={(unit.playerAttackTarget != null ? unit.playerAttackTarget.name : "null")}");
 		}
 
 		_current?.OnExit(unit); // CombatFSMState.OnExit가 AlertSearch 세팅을 담당

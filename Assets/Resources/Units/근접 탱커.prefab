@@ -390,6 +390,7 @@ MonoBehaviour:
   unitTypeName: "\uADFC\uC811 \uD0F1\uCEE4"
   footprint: {x: 1, y: 1}
   engageDistance: 3
+  populationCost: 1
   stats:
     maxHp: 180
     maxMp: 0

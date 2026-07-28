@@ -66,11 +66,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
             }
         }
 
-        if (stairDownSprite == null) stairDownSprite = Resources.Load<Sprite>("obj/stair_down");
-        if (stairUpSprite == null) stairUpSprite = Resources.Load<Sprite>("obj/stair_up");
+        // 계단 스프라이트 교체(2026-07-28, 사용자 요청) — stair_down2/stair_up2로 변경.
+        // 2026-07-28 추가 정정(사용자 요청 "올라가는 계단과 내려가는 계단 스프라이트를 스왑해줘.
+        // 기획자가 의도와 다르대") — 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어
+        // 로드 시점에 바꿔 배정한다(RenderStairOverlays의 goesDown 판정 로직 자체는 정상이라 그쪽은
+        // 안 건드림).
+        if (stairDownSprite == null) stairDownSprite = Resources.Load<Sprite>("obj/stair_up2");
+        if (stairUpSprite == null) stairUpSprite = Resources.Load<Sprite>("obj/stair_down2");
         if (stairDownSprite == null || stairUpSprite == null)
         {
-            LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down/stair_up 이미지를 찾지 못했습니다.");
+            LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down2/stair_up2 이미지를 찾지 못했습니다.");
         }
 
         wallTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();

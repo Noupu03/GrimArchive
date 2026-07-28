@@ -111,7 +111,11 @@ public abstract class Unit : ScriptableObject {
 
 	// 유닛 배치 시스템(2026-07-27 신규) — 이 유닛이 방 인구수에서 차지하는 점유량(5.2장 "기본 유닛
 	// 인구수는 1을 기준으로 한다", 2026-07-27 사용자 요청으로 2→1 조정). UnitVisualDefinition.
-	// ApplyStatsTo가 units.json 값을 채운다.
+	// ApplyStatsTo가 units.json 값을 채운다. 필드 자체는 Unit 공통이지만 실제로 읽는 곳(Room.
+	// CurrentPopulation)이 IsPlayerMonsterFaction만 걸러 합산하므로, 사용자 정정(2026-07-28 "플레이어
+	// 몬스터 진영만 코스트가 필요해, 나머지 유닛은 코스트 아예 필요없어")대로 인류/야생 유닛의 값은
+	// 의미가 없다 — units.json/프리팹에도 그 두 진영은 populationCost 0으로 맞춰 뒀다(현재 유일한
+	// 플레이어 몬스터 유닛인 MeleeTank만 1).
 	public int populationCost = 1;
 
 	// 유닛 배치 시스템(2026-07-27 신규) 2.1/3장 "현재 소속 방" — UnitFunction.OnUpdate가 매 프레임

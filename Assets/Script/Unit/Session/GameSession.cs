@@ -1067,8 +1067,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 문 닫힘 시스템(2026-07-28, 사용자 요청) — "웨이브가 시작되면 모든 문이 닫히며 벽과 같은 판정이
     // 된다(시야 막힘, 이동 불가)." HumanWaveManager.StartWave()가 웨이브 시작 시점에 이 메서드를
     // 호출한다. 이후 "비어있는 방의 인접 문은 다 열어버리는거로 처리해" 요구사항에 따라, 잠그자마자
-    // 이미 비어있는 방들은 그 자리에서 곧바로 다시 연다(RefreshRoomGateStates 재사용 — 판정 기준은
-    // 그 메서드 주석 참고).
+    // 이미 비어있는 방들은 그 자리에서 곧바로 다시 연다 — 이 "완전히 비어있으면 연다" 예외는 웨이브
+    // 시작 시점에만 적용되는 1회성 부트스트랩이다(사용자 정정 2026-07-28 "문도 한 진영이 남을때까지
+    // 열리지 않는거로 하자" — RefreshRoomGateStates 쪽 일반 규칙에서는 아래처럼 이 예외를 뺐다). 만약
+    // 이 부트스트랩이 없으면, 애초에 아무도 없던 방은 영원히 "한 진영"이 될 기회 자체가 없어 문이
+    // 평생 안 열리는 도달 불가 구역이 생긴다 — 그래서 웨이브 시작 순간에 한해서만 별도로 열어준다.
     public void CloseAllDoorsForWaveStart()
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -1082,17 +1085,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         foreach (var room in allRooms)
+        {
             RefreshRoomGateStates(room);
+            if (IsRoomEmpty(room)) OpenAllGatesForRoom(room);
+        }
 
         LogHelper.Log(LogHelper.GAME, "CloseAllDoorsForWaveStart: 모든 문을 잠그고, 이미 비어있는 방의 인접 문은 다시 열었습니다.");
     }
 
-    // 문 닫힘 시스템(2026-07-28) — 방 하나의 현재 유닛 구성을 보고 "정리된 방"(완전히 비었거나, 야생이
-    // 아닌 단일 진영만 남음)이면 그 방과 연결된 모든 문을 연다. 사용자 지시 그대로:
+    // 문 닫힘 시스템(2026-07-28, 사용자 정정 "문도 한 진영이 남을때까지 열리지 않는거로 하자") — 방
+    // 하나의 현재 유닛 구성을 보고 "야생이 아닌 단일 진영만 남음"이면 그 방과 연결된 모든 문을 연다.
+    // 사용자 지시 그대로:
     //   - 인간만 남음(야생 전멸, 몬스터 없음) → 열림 / 몬스터만 남음(야생 전멸, 인간 없음) → 열림
     //   - 야생만 남음(인간·몬스터 모두 없음) → 그래도 닫힘 유지
     //   - 인간+몬스터+야생 중 둘 이상이 동시에 살아있음 → 닫힘 유지("야생을 제외한 한 진영이 남을 때까지")
-    //   - 완전히 비어있음(셋 다 없음) → 열림
+    //   - 완전히 비어있음(셋 다 없음) → 이 메서드만으로는 열리지 않는다(위 정정) — 웨이브 시작 시점의
+    //     1회성 예외(CloseAllDoorsForWaveStart)에서만 별도로 처리한다. 웨이브 도중에 방이 나중에
+    //     비게 되는 경우(전멸/모두 이탈)까지 자동으로 열어주지는 않는다 — "한 진영"이 아니기 때문.
     // 한번 연 문은 다시 잠그지 않는다(단방향) — 열린 뒤 다른 진영이 흘러들어와 다시 섞여도 그 순간
     // 문을 잠그면 마침 통로에 있던 유닛이 방 사이에 갇히는 부작용이 생긴다. 전체 재잠금은 다음 웨이브
     // 시작 시 CloseAllDoorsForWaveStart가 한 번에 처리한다. GameSession.RemoveDeadUnit(사망 시)과
@@ -1101,9 +1110,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         if (room == null || cmap == null || cmap.map.floors == null) return;
         if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
-
-        Floor floor = cmap.map.floors[room.Floor];
-        if (floor.gates == null) return;
 
         bool hasHuman = false, hasPlayerMonster = false, hasWild = false;
         foreach (var u in room.ContainedUnits)
@@ -1114,9 +1120,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
             else if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
         }
 
-        bool isEmpty = !hasHuman && !hasPlayerMonster && !hasWild;
         bool isSingleNonWildFaction = !hasWild && (hasHuman ^ hasPlayerMonster);
-        if (!isEmpty && !isSingleNonWildFaction) return;
+        if (!isSingleNonWildFaction) return;
+
+        OpenAllGatesForRoom(room);
+    }
+
+    // RefreshRoomGateStates/CloseAllDoorsForWaveStart 공용 — 이 방과 연결된 모든 게이트를 연다.
+    private void OpenAllGatesForRoom(Room room)
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
+
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return;
 
         for (int i = 0; i < floor.gates.Count; i++)
         {
@@ -1124,6 +1141,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (g.roomA == room.RoomId || g.roomB == room.RoomId)
                 SetGateClosed(room.Floor, i, false);
         }
+    }
+
+    // CloseAllDoorsForWaveStart 전용 — 살아있는 유닛이 하나도 없으면 "빈 방"(UnitFunction.
+    // IsRoomEffectivelyEmpty와 동일 기준).
+    private static bool IsRoomEmpty(Room room)
+    {
+        foreach (var u in room.ContainedUnits)
+            if (u != null && u.hp > 0) return false;
+        return true;
     }
 
     // 문 닫힘 시스템(2026-07-28) — 게이트 하나를 열거나 잠근다: (1) Gate.isDoorClosed 갱신,
@@ -1180,6 +1206,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 바꾼다(GetObjectVisual로 기존 GameObject를 그대로 재사용, 새로 생성하지 않음). 닫힘 상태는 통로
     // 전체를 막는 막대 모양이라 타일마다 다른 회전을 줄 필요가 없다 — SpawnDoors의 0/180 교대 패턴은
     // 열림 상태(문짝이 한쪽 벽에 접혀 붙은 모습)에만 의미가 있다.
+    //
+    // 시야 차단(2026-07-28, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게 해줘") — 여기서
+    // 문 InteractableObject.IsFullyBlocking도 함께 토글한다. UnitFunction.CastRay의 레이 중단 조건이
+    // "tile.name==Wall / tile.visibility / IsFullyBlocking"만 보고 Tile.isStructureExist는 안 보는
+    // 별개 로직이라(데모_구현현황_검증_2026-07-28.txt "알려진 한계" 참고), isStructureExist만 세워서는
+    // 타일 각인(discoveredMap)은 정확해도 실제 레이가 문에서 멈추지 않았다 — IsFullyBlocking을 같이
+    // 세워야 진짜로 "벽과 같은 가시성"이 된다.
     private void ApplyGateDoorVisual(int floorIndex, Gate gate, bool closed)
     {
         string spritePath = closed ? "obj/door_closed" : "obj/door_open";
@@ -1196,6 +1229,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             for (int tileIndex = 0; tileIndex < row.Count; tileIndex++)
             {
                 Vector3Int gridPos = new Vector3Int(row[tileIndex].x, row[tileIndex].y, floorIndex);
+
+                if (objectGrid.TryGetValue(gridPos, out InteractableObject doorObj))
+                    doorObj.IsFullyBlocking = closed;
+
                 GameObject visual = GetObjectVisual(gridPos);
                 if (visual == null) continue;
 
