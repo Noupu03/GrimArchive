@@ -8,6 +8,7 @@ using Haare.Client.Routine;
 using Haare.Util.Logger;
 using GrimArchive.Wave;
 using Haare.Scripts.Client.Data;
+using UnityEngine.Rendering.Universal;
 
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
 // NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
@@ -63,11 +64,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     public List<Room> allRooms { get; private set; } = new List<Room>();
 
-    // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). ThreatTileRenderer._root와
-    // 동일한 관례 — 컨테이너를 필드 초기화 시점에 딱 1번 만들고 재생성하지 않는다. 정리는 Finalize()/
-    // OnApplicationQuit()에서(하단 참고), 에디터 Play 종료 후 잔재 방지는 Assets/Editor/
-    // RoomPopulationLabelCleanup.cs가 맡는다.
-    private readonly Transform _roomLabelRoot = new GameObject("RoomPopulationLabels").transform;
+    // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). 예전엔 독립 최상위
+    // GameObject("RoomPopulationLabels")를 필드 초기화 시점에 만들어 썼는데, 사용자 요청(2026-07-28
+    // "RoomPopulationLabels가 계층상, MapRoot_Grid 아래에 들어가야 할거 같아. 따로 오브젝트로 존재할
+    // 이유가 없음")으로 층별 라벨 그룹(GetFloorCategoryGroup(floor, "Labels"))에 흡수됐다. 개별 라벨
+    // 이름("RoomPopLabel_")은 그대로라 Assets/Editor/RoomPopulationLabelCleanup.cs의 재귀 탐색
+    // (부모가 뭐든 이름만 보고 청소)에는 영향 없음.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     private readonly Dictionary<Room, string> _roomPopulationLabelText = new Dictionary<Room, string>();
 
@@ -124,6 +126,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 cmap.DeserializeMap(mapTextAsset.text);
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
+                // 기존 맵 데이터 보정(2026-07-28, 사용자 요청 "초기 점령 방 중 2층, 3층은 시작방...
+                // 야생으로 남겨주고") — CreateMap.Stairs.cs의 InitOccupationAndDanger는 "새로 생성할
+                // 때"만 2층 이상 시작방을 Neutral로 만든다. 이미 저장된 Resources/Data/map.json(맵을
+                // 다시 생성하지 않고 그대로 불러 쓰는 기존 스냅샷)에는 예전 로직(전 층 시작방=
+                // PlayerControlled)이 그대로 박혀있을 수 있어, 시각화/방 그리드 구성 전에 여기서 다시
+                // 한번 강제로 바로잡는다 — 맵을 재생성하지 않아도 항상 올바른 상태가 되도록.
+                EnforceFloor2And3StartRoomsAreWild();
                 _mapManager.SetupAndVisualizeMap(cmap);
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
@@ -143,10 +152,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 무상으로 하나씩 미리 깔아둔다.
                 SpawnInitialBuildings();
                 // 안개 시스템(2026-07-28, 사용자 요청): 위에서 스폰된 모든 초기 콘텐츠(야생 몬스터/
-                // 던전 코어/건물)를 가리도록 맨 마지막에 깐다 — 시각 오버레이라 스폰 순서 자체가
-                // 렌더링에 영향을 주진 않지만(sortingOrder가 그리는 순서를 결정), 논리적으로 "모든
-                // 방 콘텐츠가 갖춰진 뒤 안개를 덮는다" 순서를 그대로 따른다.
+                // 던전 코어/건물)를 가리도록 깐다 — 각 방의 Room.FogRevealed 최종 상태를 여기서 먼저
+                // 확정해야, 바로 다음의 SpawnTorches가 "안개 안 걷힌 방은 지금 스폰하지 않고 대기"를
+                // 정확히 판단할 수 있다(사용자 요청, 2026-07-28 "안개가 있는 방에 토치 미리 생성하지
+                // 말고, 안개 걷히고 나서 토치 생성하게 해줘" — 순서를 InitializeFogOfWar → SpawnTorches
+                // 로 바꾼 이유).
                 InitializeFogOfWar();
+                // 횃불 배치(2026-07-28, 사용자 요청): 시작방을 제외한 모든 방의 각 청크마다 하나씩
+                // (Prefabs/Torch.prefab, Light2D 포함). 0층은 청크별 대신 층 전체를 덮는 큰 불빛
+                // 하나만 정중앙에. 안개가 안 걷힌 방은 즉시 스폰하지 않고 대기열에 넣는다.
+                SpawnTorches();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -173,6 +188,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // 부모-자식 관계에 기대지 않고 각 라벨을 직접 들고 있는 참조(_roomPopulationLabels)로 파괴한다.
+    // 라벨은 이제 독립 루트가 아니라 층별 타일맵의 "Labels" 하위 그룹 자식이라(위 필드 주석 참고)
+    // 별도 루트를 따로 파괴할 필요가 없다 — MapRoot_Grid/타일맵이 정리될 때 자연히 함께 정리됨.
     private void DestroyRoomLabelRoot()
     {
         foreach (var label in _roomPopulationLabels.Values)
@@ -181,8 +198,74 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         _roomPopulationLabels.Clear();
         _roomPopulationLabelText.Clear();
+    }
 
-        if (_roomLabelRoot != null) UnityEngine.Object.Destroy(_roomLabelRoot.gameObject);
+    // 기존 맵 데이터 보정(2026-07-28, 사용자 요청 "초기 점령 방 중 2층, 3층은 시작방 플레이어 몬스터
+    // 진영에게 점령되는게 아닌, 야생으로 남겨주고") — CreateMap.Stairs.cs.InitOccupationAndDanger는
+    // "새로 생성할 때"만 2층 이상 시작방을 Neutral로 만든다. 이미 저장된 Resources/Data/map.json(맵을
+    // 다시 생성하지 않고 그대로 불러 쓰는 기존 스냅샷)에는 예전 로직(전 층 시작방=PlayerControlled)이
+    // 그대로 박혀있을 수 있어, GameSession.Initialize()가 역직렬화 직후·시각화/방 그리드 구성 전에
+    // 호출해 다시 한번 강제로 바로잡는다 — 맵을 재생성하지 않아도 항상 올바른 상태가 되도록.
+    private void EnforceFloor2And3StartRoomsAreWild()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+
+        for (int floorIdx = 2; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.chunks == null) continue;
+
+            int w = floor.config.width, h = floor.config.height;
+            for (int cx = 0; cx < w; cx++)
+            {
+                for (int cy = 0; cy < h; cy++)
+                {
+                    Chunks c = floor.chunks[cx, cy];
+                    if (c.roomRole != RoomRole.StartRoom) continue;
+                    if (c.occupationState != OccupationState.PlayerControlled) continue;
+
+                    c.occupationState = OccupationState.Neutral;
+                    floor.chunks[cx, cy] = c;
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 계층 정리(2026-07-28, 사용자 요청 "RoomPopulationLabels가 계층상, MapRoot_Grid 아래에 들어가야
+    // 할거 같아. 따로 오브젝트로 존재할 이유가 없음. 그리고 각 층에 자식으로 할당된 오브젝트들을 좀
+    // 유닛이면 유닛, 라벨이면 라벨, 문이면 문, 안개면 안개끼리 묶어서 나타나게 해줘") — 그동안 문/
+    // 트랩·시체·루팅·코어/안개/횃불/건물/유닛이 전부 F{n}_Tilemap 바로 아래 뒤섞여 flat하게 매달려
+    // 있었다. 층별·종류별 하위 그룹 GameObject(Units/Labels/Doors/Objects/Fog/Torches/Buildings)를
+    // 만들어 그 아래로 모은다. (floorIdx, category) 조합마다 한 번만 만들고 캐시해서 재사용 —
+    // GameObject.Find/Transform.Find 반복 호출을 피한다.
+    // ══════════════════════════════════════════════════════════════════════
+    private readonly Dictionary<(int floor, string category), Transform> _floorCategoryGroups = new Dictionary<(int, string), Transform>();
+
+    public Transform GetFloorCategoryGroup(int floorIdx, string category)
+    {
+        var key = (floorIdx, category);
+        if (_floorCategoryGroups.TryGetValue(key, out Transform cached) && cached != null) return cached;
+
+        Transform floorRoot = null;
+        if (mapRandering != null && mapRandering.floorTilemaps != null && floorIdx >= 0 && floorIdx < mapRandering.floorTilemaps.Length)
+        {
+            var tilemap = mapRandering.floorTilemaps[floorIdx];
+            if (tilemap != null) floorRoot = tilemap.transform;
+        }
+        if (floorRoot == null) return null;
+
+        Transform existing = floorRoot.Find(category);
+        if (existing != null)
+        {
+            _floorCategoryGroups[key] = existing;
+            return existing;
+        }
+
+        GameObject groupGo = new GameObject(category);
+        groupGo.transform.SetParent(floorRoot, false);
+        _floorCategoryGroups[key] = groupGo.transform;
+        return groupGo.transform;
     }
 
     // 유닛 배치 시스템(2026-07-27 신규) 5.1장 — 방 최대 인구수 = 청크 수 × 이 값(문서에 수치가 없어
@@ -456,11 +539,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // 안개 타일 하나(배경+무늬 2겹) 생성 — SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 공용.
-    private GameObject SpawnFogTile(int x, int y, Vector3 offset, GameObject parentTilemap, Sprite backingSprite,
+    private GameObject SpawnFogTile(int x, int y, Vector3 offset, Transform parentGroup, Sprite backingSprite,
         float patScaleX, float patScaleY, float backScaleX, float backScaleY, string namePrefix)
     {
         GameObject go = new GameObject($"Fog_{namePrefix}_{x}_{y}");
-        if (parentTilemap != null) go.transform.SetParent(parentTilemap.transform);
+        if (parentGroup != null) go.transform.SetParent(parentGroup);
         go.transform.position = new Vector3(x + 0.5f, y + 0.5f, 0f) + offset;
 
         // 배경(불투명에 가까움, 아래) + 무늬(위) 2겹 — 무늬 텍스처의 줄무늬 틈으로 안이 비쳐 보이지
@@ -491,7 +574,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         HashSet<Vector2Int> doorTiles = CollectDoorTilesForFloor(room.Floor);
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && room.Floor < mapRandering.floorOffsets.Length)
             ? mapRandering.floorOffsets[room.Floor] : Vector3.zero;
-        GameObject childTilemap = GameObject.Find($"F{room.Floor}_Tilemap");
+        Transform fogGroup = GetFloorCategoryGroup(room.Floor, "Fog");
 
         var tiles = new List<GameObject>();
         for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
@@ -507,7 +590,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // — roomGrid로 실제 소유 방을 재확인해 그 방 타일만 안개로 덮는다.
                 if (!roomGrid.TryGetValue(new Vector3Int(x, y, room.Floor), out Room owner) || owner != room) continue;
 
-                tiles.Add(SpawnFogTile(x, y, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, room.RoomName));
+                tiles.Add(SpawnFogTile(x, y, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, room.RoomName));
             }
         }
 
@@ -524,12 +607,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
             ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
-        GameObject childTilemap = GameObject.Find($"F{floorIndex}_Tilemap");
+        Transform fogGroup = GetFloorCategoryGroup(floorIndex, "Fog");
 
         var tiles = new List<GameObject>();
         foreach (var row in GetGateDoorTiles(g))
             foreach (var pos in row)
-                tiles.Add(SpawnFogTile(pos.x, pos.y, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Gate"));
+                tiles.Add(SpawnFogTile(pos.x, pos.y, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Gate"));
 
         if (tiles.Count > 0) _gateFogVisuals[GateKey(floorIndex, g)] = tiles;
     }
@@ -548,7 +631,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
             ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
-        GameObject childTilemap = GameObject.Find($"F{floorIndex}_Tilemap");
+        Transform fogGroup = GetFloorCategoryGroup(floorIndex, "Fog");
 
         int w = floor.config.width, h = floor.config.height;
         for (int cx = 0; cx < w; cx++)
@@ -558,7 +641,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 if (floor.chunks[cx, cy].roomId >= 0) continue;
                 for (int tx = 0; tx < 8; tx++)
                     for (int ty = 0; ty < 8; ty++)
-                        SpawnFogTile(cx * 8 + tx, cy * 8 + ty, offset, childTilemap, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
+                        SpawnFogTile(cx * 8 + tx, cy * 8 + ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
             }
         }
     }
@@ -576,6 +659,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _roomFogVisuals.Remove(room);
             FadeOutAndDestroyFogAsync(tiles).Forget();
         }
+
+        // 횃불 지연 스폰(2026-07-28, 사용자 요청 "안개가 있는 방에 토치 미리 생성하지 말고, 안개
+        // 걷히고 나서 토치 생성하게 해줘") — 이 방을 위해 대기 중이던 횃불이 있으면 지금 배치한다.
+        SpawnPendingTorchesForRoom(room);
 
         TryRevealAdjacentGates(room);
     }
@@ -820,7 +907,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private TextMesh CreateRoomPopulationLabel(Room room)
     {
         GameObject go = new GameObject($"RoomPopLabel_{room.RoomName}");
-        go.transform.SetParent(_roomLabelRoot, false);
+        Transform labelGroup = GetFloorCategoryGroup(room.Floor, "Labels");
+        if (labelGroup != null) go.transform.SetParent(labelGroup, false);
 
         Vector3 floorOffset = _unitGenerate != null ? _unitGenerate.GetFloorOffset(room.Floor) : Vector3.zero;
         Vector2 center = room.Bounds.center;
@@ -1287,12 +1375,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 offset = mapRandering.floorOffsets[obj.Position.z];
             }
-            
-            // 시각적 부모로 Tilemap 객체를 찾기 위해 약간의 꼼수(이름 기반 검색) 유지
-            GameObject childTilemap = GameObject.Find($"F{obj.Position.z}_Tilemap");
-            if (childTilemap != null)
+
+            // 계층 정리(2026-07-28, 사용자 요청) — 문은 "Doors", 그 외(트랩/시체/코어/루팅)는
+            // "Objects" 하위 그룹으로 나눠 담는다.
+            Transform group = GetFloorCategoryGroup(obj.Position.z, isDoor ? "Doors" : "Objects");
+            if (group != null)
             {
-                visual.transform.SetParent(childTilemap.transform);
+                visual.transform.SetParent(group);
             }
         }
         
@@ -1729,6 +1818,199 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 유닛 생산 건물을 놓을 자리를 찾지 못했습니다.");
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 횃불 배치(2026-07-28, 사용자 요청 "spot light2d 이용해서 토치 프리팹 생성하도록 해봐. 생성
+    // 로직은 동일함. 프리팹은 너가 직접 생성해서 실제 파일로 존재해야 해") — 이전엔 SpriteRenderer만
+    // 코드로 조립했지만, 이번엔 Assets/Resources/Prefabs/Torch.prefab(직접 작성한 실제 .prefab 에셋
+    // — SpriteRenderer(obj/torch.png) + Light2D(Point/원형, 따뜻한 색, 반경 4)를 가진 GameObject)을
+    // Resources.Load로 불러와 Instantiate한다. 배치 로직(시작방 제외, 청크 정중앙, 계단 회피)은
+    // 이전과 동일하게 유지. 후속 요청(같은 세션, "0층만 예외로 0층 전체를 덮는 큰 불빛의 토치 하나만
+    // 정 중앙에 둬")으로 0층만 청크별 배치 대신 층 전체 정중앙에 하나, Light2D의
+    // pointLightOuterRadius를 런타임에 층 전체를 덮는 대각선 반경으로 덮어쓴다.
+    // ══════════════════════════════════════════════════════════════════════
+    private GameObject _torchPrefab;
+    // "0층 방 더 밝게 해줘"(2026-07-28, 최초 1.6 → 후속 요청으로 상향) — 자리표시자, 조정 요청 오면
+    // 이 상수만 바꾸면 됨.
+    private const float FloorWideTorchIntensityMultiplier = 2.4f;
+    // "범위는 지름 2칸정도 늘려주고"(2026-07-28, 사용자 요청) — 층 전체를 덮는 대각선 반경에 추가로
+    // 더한다(지름 +2 = 반지름 +1).
+    private const float FloorWideTorchExtraRadius = 1f;
+    // 횃불 지연 스폰(2026-07-28, 사용자 요청 "안개가 있는 방에 토치 미리 생성하지 말고, 안개 걷히고
+    // 나서 토치 생성하게 해줘") — 아직 안개가 안 걷힌 방의 횃불 배치 좌표는 바로 스폰하지 않고 방
+    // 단위로 모아뒀다가, RevealRoomFog가 그 방을 걷는 순간 SpawnPendingTorchesForRoom이 실제로 꺼내
+    // 스폰한다.
+    private readonly Dictionary<Room, List<Vector2Int>> _pendingTorchTiles = new Dictionary<Room, List<Vector2Int>>();
+    // "토치 범위 더 넓혀줘"(사용자 요청) — Torch.prefab의 Light2D.pointLightOuterRadius 자체를
+    // 4→6으로 늘렸다(청크 폭 8의 절반이던 "딱 그 청크만큼만"에서 이웃 청크 가장자리까지 살짝 넘치도록).
+
+    private void SpawnTorches()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/Torch");
+        if (_torchPrefab == null)
+        {
+            LogHelper.Warning(LogHelper.GAME, "SpawnTorches: Resources.Load<GameObject>(\"Prefabs/Torch\")가 null입니다.");
+            return;
+        }
+
+        for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.chunks == null) continue;
+
+            // 0층 전용(사용자 요청): 청크별 배치 대신 층 전체를 덮는 큰 불빛 하나만 정중앙에. 0층은
+            // 안개가 없는 층이라(FogRevealed 항상 true) 지연 스폰 대상이 아니다.
+            if (floorIdx == 0)
+            {
+                SpawnFloorWideTorch(floorIdx, floor);
+                continue;
+            }
+
+            int w = floor.config.width, h = floor.config.height;
+            for (int cx = 0; cx < w; cx++)
+            {
+                for (int cy = 0; cy < h; cy++)
+                {
+                    Chunks c = floor.chunks[cx, cy];
+                    if (c.roomId < 0 || c.chunk == null) continue;
+                    // 시작방 제외 규칙 폐지(2026-07-28, 사용자 요청 "1층 시작방에 토치 깔려야 해" +
+                    // "물론 횃불로직에도 포함되어야겠지" — 2/3층 시작방을 야생으로 되돌린 것과 짝을
+                    // 맞춰) — 1층 진짜 시작방(플레이어 거점)도, 이제 야생으로 남는 2/3층 시작방도
+                    // 전부 일반 방과 동일하게 청크마다 배치한다. 0층만 위에서 별도로 처리.
+
+                    if (!TryFindTorchTilePos(floorIdx, cx, cy, c, out Vector2Int tilePos)) continue;
+
+                    Room room = FindRoomByFloorAndId(floorIdx, c.roomId);
+                    if (room != null && !room.FogRevealed)
+                    {
+                        if (!_pendingTorchTiles.TryGetValue(room, out List<Vector2Int> pending))
+                        {
+                            pending = new List<Vector2Int>();
+                            _pendingTorchTiles[room] = pending;
+                        }
+                        pending.Add(tilePos);
+                        continue;
+                    }
+
+                    SpawnTorchAt(floorIdx, tilePos);
+                }
+            }
+        }
+
+        LogHelper.Log(LogHelper.GAME, "SpawnTorches: 횃불 배치 완료(안개가 안 걷힌 방은 대기열로 보류).");
+    }
+
+    // 횃불 지연 스폰 전용 — RevealRoomFog가 room을 막 걷었을 때 호출된다. 그 방을 위해 쌓여있던
+    // 대기 좌표가 있으면 지금 실제로 Instantiate한다.
+    private void SpawnPendingTorchesForRoom(Room room)
+    {
+        if (room == null) return;
+        if (!_pendingTorchTiles.TryGetValue(room, out List<Vector2Int> pending)) return;
+        _pendingTorchTiles.Remove(room);
+
+        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/Torch");
+        if (_torchPrefab == null) return;
+
+        foreach (var tilePos in pending)
+            SpawnTorchAt(room.Floor, tilePos);
+    }
+
+    // 청크 정중앙(로컬 (4,4) — 계단 2x2 블록((3,3)~(4,4), PlaceStairTiles와 동일 좌표 공식)과 안 겹치는
+    // 나머지 중앙 타일)을 1순위 후보로, 계단이 있는 청크는 그 블록 바로 옆(우→좌→아래→위 순서로 시도)
+    // 타일을 대신 쓴다. 벽 타일이거나 이미 다른 오브젝트(문 등)가 있으면 건너뛴다.
+    private bool TryFindTorchTilePos(int floorIdx, int cx, int cy, Chunks c, out Vector2Int tilePos)
+    {
+        tilePos = default;
+        bool hasStairs = c.stairTargetFloor >= 0;
+
+        Vector2Int[] candidates = hasStairs
+            ? new[] { new Vector2Int(5, 4), new Vector2Int(2, 3), new Vector2Int(4, 5), new Vector2Int(3, 2) }
+            : new[] { new Vector2Int(4, 4) };
+
+        foreach (var local in candidates)
+        {
+            if (local.x < 0 || local.x > 7 || local.y < 0 || local.y > 7) continue;
+            if (c.chunk[local.x, local.y].name == "Wall") continue;
+
+            Vector2Int cand = new Vector2Int(cx * 8 + local.x, cy * 8 + local.y);
+            if (objectGrid.ContainsKey(new Vector3Int(cand.x, cand.y, floorIdx))) continue;
+
+            tilePos = cand;
+            return true;
+        }
+
+        return false;
+    }
+
+    private GameObject SpawnTorchAt(int floorIdx, Vector2Int tilePos)
+    {
+        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIdx < mapRandering.floorOffsets.Length)
+            ? mapRandering.floorOffsets[floorIdx] : Vector3.zero;
+        Transform torchGroup = GetFloorCategoryGroup(floorIdx, "Torches");
+        Vector3 worldPos = new Vector3(tilePos.x + 0.5f, tilePos.y + 0.5f, 0f) + offset;
+
+        GameObject go = UnityEngine.Object.Instantiate(_torchPrefab, worldPos, Quaternion.identity);
+        go.name = $"Torch_{tilePos.x}_{tilePos.y}";
+        if (torchGroup != null) go.transform.SetParent(torchGroup, true);
+        return go;
+    }
+
+    // 0층 전용(2026-07-28, 사용자 요청 "0층만 예외로 0층 전체를 덮는 큰 불빛의 토치 하나만 정 중앙에
+    // 둬") — 층 전체(청크 단위 폭×높이를 타일로 환산) 정중앙에 횃불 하나만 놓고, Light2D의
+    // pointLightOuterRadius를 층 전체 모서리까지 확실히 덮는 대각선 반경으로 덮어쓴다.
+    private void SpawnFloorWideTorch(int floorIdx, Floor floor)
+    {
+        int chunkW = floor.config.width, chunkH = floor.config.height;
+        if (chunkW <= 0 || chunkH <= 0) return;
+
+        Vector2Int center = new Vector2Int(chunkW * 8 / 2, chunkH * 8 / 2);
+        Vector2Int tilePos = FindNearestOpenTileForTorch(floorIdx, floor, center);
+
+        GameObject go = SpawnTorchAt(floorIdx, tilePos);
+        if (go == null) return;
+
+        Light2D light = go.GetComponentInChildren<Light2D>();
+        if (light == null) return;
+
+        float halfW = chunkW * 8 / 2f;
+        float halfH = chunkH * 8 / 2f;
+        light.pointLightOuterRadius = Mathf.Sqrt(halfW * halfW + halfH * halfH) + FloorWideTorchExtraRadius;
+        // "0층 방 더 밝게 해줘"(사용자 요청) — 프리팹 기본 intensity보다 이 층 전용 불빛만 더 올린다.
+        light.intensity *= FloorWideTorchIntensityMultiplier;
+    }
+
+    // SpawnFloorWideTorch 전용 — 층 정중앙이 벽/오브젝트에 막혀 있을 수 있어(0층 로비 구조에 따라)
+    // 중심에서부터 링 단위로 반경을 넓혀가며 실제로 놓을 수 있는 가장 가까운 타일을 찾는다.
+    private Vector2Int FindNearestOpenTileForTorch(int floorIdx, Floor floor, Vector2Int center)
+    {
+        int chunkW = floor.config.width, chunkH = floor.config.height;
+        int maxTileX = chunkW * 8, maxTileY = chunkH * 8;
+
+        for (int radius = 0; radius < 16; radius++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue; // 링(테두리)만 훑기
+
+                    int x = center.x + dx, y = center.y + dy;
+                    if (x < 0 || y < 0 || x >= maxTileX || y >= maxTileY) continue;
+
+                    int cx = x / 8, tx = x % 8;
+                    int cy = y / 8, ty = y % 8;
+                    Chunks c = floor.chunks[cx, cy];
+                    if (c.chunk == null || c.chunk[tx, ty].name == "Wall") continue;
+                    if (objectGrid.ContainsKey(new Vector3Int(x, y, floorIdx))) continue;
+
+                    return new Vector2Int(x, y);
+                }
+            }
+        }
+
+        return center; // 못 찾으면(극히 드묾) 그냥 중앙 좌표라도 반환 — 호출부가 방어적으로 처리
     }
 
     // 시작방 안에서 건물을 놓을 수 있는 랜덤 위치를 찾는다 — 자원/유닛 생산 건물 두 개가 같은 자리를
