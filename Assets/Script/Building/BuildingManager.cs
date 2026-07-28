@@ -27,6 +27,10 @@ public class BuildingData
     public Queue<ProductionRule> Queue = new Queue<ProductionRule>();
     public float ProductionProgress;
     public bool IsProducing;
+
+    // 방 인구수 초과로 배출을 보류 중인지(2026-07-28, 사용자 요청 "건물에서 유닛이 나오는거도, 방
+    // 인원수 제한에 걸리게") — 대기 진입/해제 시 한 번씩만 로그를 남기기 위한 상태 플래그.
+    public bool WaitingForRoomSpace;
 }
 
 public class BuildingManager : NativeRoutine
@@ -193,6 +197,22 @@ public class BuildingManager : NativeRoutine
 
             if (b.IsProducing)
             {
+                // 방 인구수 제한(2026-07-28, 사용자 요청 "인원 초과로 인해 몬스터 생산 불가시... 시간
+                // 안흐르게") — 생산 완료 시점이 아니라 진행 자체를 인구수로 게이팅한다. 방이 꽉 차 있는
+                // 동안은 진행도를 아예 증가시키지 않아(0/1.0s 등 현재 값에서 그대로 정지) 자리가 나기
+                // 전까지 타이머가 흐르지 않는다 — UI(BuildingControlPanel)는 WaitingForRoomSpace를 보고
+                // "중지됨"을 표시한다.
+                if (!HasRoomForProduction(b))
+                {
+                    if (!b.WaitingForRoomSpace)
+                    {
+                        b.WaitingForRoomSpace = true;
+                        LogHelper.Warning(LogHelper.GAME, $"방 인구수 초과로 생산을 중지합니다: {b.Position}");
+                    }
+                    continue;
+                }
+                b.WaitingForRoomSpace = false;
+
                 b.ProductionProgress += dt;
                 ProductionRule current = b.Queue.Peek();
                 if (b.ProductionProgress >= current.productionTime)
@@ -204,6 +224,20 @@ public class BuildingManager : NativeRoutine
                 }
             }
         }
+    }
+
+    // 건물이 속한 방에 생산된 유닛 하나가 더 들어갈 자리가 있는지 확인한다. 현재 플레이어 진영
+    // 몬스터로 생산 가능한 유닛은 MeleeTank뿐이고 그 populationCost가 1로 고정돼 있어(units.json/
+    // 프리팹, 2026-07-28 확정) 여기서도 1로 단순화했다 — 생산 가능한 유닛 종류가 늘어나면 실제
+    // UnitType의 populationCost를 조회하도록 바꿔야 한다. 방을 못 찾으면(예: 건물이 방 밖) 막지 않는다.
+    private bool HasRoomForProduction(BuildingData b)
+    {
+        GameSession gameSession = GameSession.Instance;
+        if (gameSession == null) return true;
+        if (!gameSession.roomGrid.TryGetValue(b.Position, out Room room)) return true;
+
+        const int meleeTankPopulationCost = 1;
+        return room.CurrentPopulation + meleeTankPopulationCost <= room.MaxPopulation;
     }
 
     // 9단계: 기존 GameSession 파이프라인 연계
