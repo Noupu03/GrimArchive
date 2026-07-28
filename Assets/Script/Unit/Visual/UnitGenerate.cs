@@ -372,8 +372,12 @@ public class UnitGenerate
 			if (uv != null)
 			{
 				// 선택 여부와 무관하게 항상 표시 — GOAP이 앞으로 실행할 계획을 카메라 위치/배율과
-				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel).
-				uv.UpdateStatusLabel(u.fsm.GetLabel(u), u is Human);
+				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel). 다만 안개에
+				// 가려진 방 안에 있으면 숨긴다(사용자 요청, 2026-07-28 "안개 속의 유닛은 머리 위의
+				// 상태도 보이지 않게 해줘") — 라벨은 유닛 머리 위로 오프셋(0.35 유닛)이 붙어 안개
+				// 스프라이트 sortingOrder만으로는 항상 완전히 덮인다고 보장할 수 없어 명시적으로 끈다.
+				bool hiddenByFog = u.currentRoom != null && !u.currentRoom.FogRevealed;
+				uv.UpdateStatusLabel(hiddenByFog ? null : u.fsm.GetLabel(u), u is Human);
 
 				// 함정 해제 시도 중임을 유닛 하단에 표시(사용자 요청, 2026-07-23) — 머리 위 상태
 				// 라벨과 같은 world-space TextMesh 방식, 위치만 하단으로 뒤집는다.

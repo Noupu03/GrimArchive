@@ -830,8 +830,12 @@ public class CreateMapPlayTests
                     switch (c.roomRole)
                     {
                         case RoomRole.StartRoom:
-                            Assert.AreEqual(OccupationState.PlayerControlled, c.occupationState,
-                                $"F{f} chunk[{x},{y}] StartRoom의 OccupationState가 PlayerControlled가 아닙니다.");
+                            // 사용자 요청(2026-07-28) "2층과 3층 시작방은 초기 플레이어 몬스터 진영
+                            // 점령 대상에서 제외" — 1층 시작방만 처음부터 PlayerControlled이고, 2층
+                            // 이상은 다른 방과 동일하게 Neutral로 시작해 실제로 점령해야 한다.
+                            OccupationState expected = f == 1 ? OccupationState.PlayerControlled : OccupationState.Neutral;
+                            Assert.AreEqual(expected, c.occupationState,
+                                $"F{f} chunk[{x},{y}] StartRoom의 OccupationState가 예상({expected})과 다릅니다.");
                             break;
                         case RoomRole.BossRoom:
                             Assert.AreEqual(OccupationState.Neutral, c.occupationState,

@@ -357,6 +357,135 @@
    이 문서부터 참고.
 
 ════════════════════════════════════════════════════════════════════════
+■ 10. 안개(Fog of War) 시스템 (신규, 점령/문 시스템과 별개 트랙)
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "0층, 시작방과 양옆 방을 제외하고는, 안개가 생겨. 이 안개는, 인접 방으로
+   플레이어 진영 몬스터가 진입한 경험이 있어야지만, 사라져. (fade로 스윽 사라지게)") — 순수 시각
+   오버레이(Room.FogRevealed, GameSession._roomFogVisuals)로 구현, 이동/시야/AI 판정에는 전혀 관여
+   안 함.
+   → 0층은 전 구간 안개 없음(HumanControlled 로비). 1층 이상은 GameSession.InitializeFogOfWar가
+   BuildRoomGrid 직후(아직 전투/점령 변화가 없는 순수 생성 시점) 각 층의 시작방(RoomFaction==Player로
+   식별)과 그 방과 Gate로 직접 연결된 인접 방만 미리 걷어두고, 나머지 모든 방(전 층수 대상,
+   RoomRole.StartRoom이 매 층에 생기는 구조라 1층에만 한정하지 않았다 — 문서에 층 범위가 명시돼
+   있지 않아 이렇게 일반화한 판단, 실제 플레이로 의도와 맞는지 확인 필요)에 obj/fog.png 스프라이트를
+   타일 하나당 하나씩 깐다(SpawnFogForRoom). 문 타일(GetGateDoorTiles 재사용, ApplyOccupationTint/
+   ChangeRoomColor와 동일 선례로 제외 — 문은 별도 스프라이트로 열림/닫힘을 이미 표현 중)만 예외이고,
+   벽 타일 포함 방의 청크 전체를 덮는다(후속 신고 반영, 아래 참고 — 처음엔 벽을 건너뛰었었음).
+   → 해제: UnitFunction.SyncRoomAffiliation이 플레이어 진영 몬스터(IsPlayerMonsterFaction)가 아직
+   안 걷힌 방에 처음 들어오는 순간을 감지해 GameSession.RevealRoomFog를 호출 — Room.FogRevealed를
+   영구히 true로 바꾸고("경험이 있어야지만 사라져" = 한번 해제되면 다시 안 생김, 재입장 없어도 유지),
+   그 방의 안개 타일들을 FadeOutAndDestroyFogAsync(UniTask 알파 페이드, SceneTransitionFade.FadeAsync와
+   동일 관례)로 부드럽게 지운다. 페이드 시간(0.6초)은 문서/사용자 지시에 구체적 수치가 없어 자리표시자로
+   선택 — GameSession.FogFadeOutSeconds 상수만 바꾸면 조정 가능.
+   → obj/fog.png의 스프라이트 임포트 설정(spriteMode=Multiple)에서 fog_0 서브스프라이트 pivot이
+   {0,0}(좌하단)으로 돼 있어 다른 오브젝트 스프라이트들(전부 {0.5,0.5} 중앙)과 달랐다 — 그대로 두면
+   타일 배치 좌표 공식(중심 기준)이 안 맞아 반 칸씩 밀려 보이므로 {0.5,0.5}로 맞춰 수정.
+✅ 후속 요청(같은 세션, "안개 안에 있는 유닛들은, 머리 위의 현재 상태가 보이지 않게 해") — 안개
+   타일의 sortingOrder(당시 900, 이후 1000으로 상향 — 아래 후속 신고 참고)가 유닛 스프라이트보다는
+   위지만, 머리 위 상태 라벨(UnitVisual._statusLabel,
+   GOAP 계획 텍스트)은 유닛 위로 오프셋(0.35 유닛)이 붙어 있어 sortingOrder만으로 완전히 가려진다고
+   보장하기 어려워 명시적으로 껐다. UnitGenerate.SyncVisuals가 매 프레임 u.currentRoom.FogRevealed를
+   확인해 안 걷힌 방이면 UnitVisual.UpdateStatusLabel에 null을 넘기고(UpdateBelowLabel과 동일한
+   "null이면 숨김" 관례로 통일), 라벨 자체를 SetActive(false)한다.
+✅ 후속 신고 3종(같은 세션, "바닥만 가리는게 아니라, 청크 전체 가려야됨. 그리고 안개를 통해 몬스터의
+   상태 보인다. 그리고 안개 좀더 선명하게. 약간 투명해서 안에 다 비쳐보여") —
+   1) SpawnFogForRoom이 벽 타일을 건너뛰던 조건을 없애 방의 청크 전체(문 타일 제외 전부)를 덮도록
+   수정.
+   2) FogSortingOrder를 900→1000으로 올렸다 — ThreatTileRenderer(공격 예고 셀 시각화, "몬스터의
+   상태")가 999라 안개(900)보다 위에 그려져 뚫고 보였다.
+   3) obj/fog.png 단독으로는 줄무늬 텍스처 틈으로 안이 비쳐 보여서, 그 뒤에 불투명에 가까운
+   단색 배경(FogBackingColor, 알파 0.95, SpawnObject의 폴백 텍스처 생성과 동일한 방식으로 1회 생성해
+   공유) 한 겹을 깔고 그 위에 무늬를 얹는 배경+무늬 2겹 구조로 바꿨다(안개 타일 GameObject 하나당
+   자식 GameObject 2개). 페이드아웃도 두 겹을 각자의 시작 알파값부터 0으로 함께 보간하도록
+   FadeOutAndDestroyFogAsync를 GetComponentsInChildren 기반으로 수정.
+✅ 후속 요청(같은 세션, "문이 있는 공간(복도)도 옆방중에 하나라도 안개가 있다면 다 안개로 가리고,
+   벽만 있는, 방이 생성되지 않은 청크도 안개 씌워줘") —
+   1) 문/통로 안개: 게이트(문) 타일은 어느 한 방에도 배타적으로 속하지 않아 방 단위 루프로는 다룰 수
+   없다 — GameSession._gateFogVisuals(신규, (floor, min(roomA,roomB), max(roomA,roomB)) 키)로 게이트
+   단위 추적을 별도로 추가. InitializeFogOfWar가 모든 Room.FogRevealed가 확정된 뒤(중요 — 순서가
+   바뀌면 "양옆 다 걷혔는지" 오판) 각 게이트를 훑어 양쪽 방(roomA/roomB) 중 하나라도 안 걷혔으면
+   SpawnFogForGate로 그 게이트의 문 타일 전체(GetGateDoorTiles)를 덮는다. 해제는 RevealRoomFog가
+   방 하나를 걷을 때마다 TryRevealAdjacentGates(신규)를 호출해, 그 방과 맞닿은 게이트들의 반대쪽
+   방이 이미 걷혀 있으면(양쪽 다 FogRevealed) 그제서야 게이트 안개도 페이드아웃 — "옆방 중 하나라도
+   안개가 있으면 가림" 조건을 정확히 만족.
+   2) 방 없는 청크: CreateMap.Chunks.roomId<0인 청크(BuildRoomGrid가 roomGrid에 아예 등록 안 하는,
+   어떤 Room에도 안 속하는 순수 벽/미사용 칸)는 기존 방 기준 루프에 걸리지 않아 안 덮이고 있었다 —
+   SpawnFogForGate(신규)가 각 층의 roomId<0 청크를 훑어 8x8 타일 전부를 안개로 덮는다. 유닛이 물리적
+   으로 들어갈 방법이 없는 칸이라 해제 트리거를 만들 수 없으므로 영구 안개(딕셔너리 추적 없이 스폰만).
+   3) 리팩터링: SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 3곳이 스프라이트 로드+스케일
+   계산(TryPrepareFogAssets)과 타일 하나 생성(SpawnFogTile, 배경+무늬 2겹)을 공유하도록 정리.
+🔶 알려진 한계 — 야생 몬스터 A(WildMonsterBehavior)는 9장 보류 항목(유닛배치_구현현황 문서)이라
+   Unit.currentRoom이 항상 null로 남는다. 따라서 안개 속에 있어도 야생 몬스터의 머리 위 상태 라벨은
+   숨겨지지 않는다(플레이어가 볼 일이 거의 없는 방이라 실사용 영향은 낮다고 판단, 별도 수정 안 함).
+   같은 이유로 야생 몬스터의 방 최초 입장은 안개를 해제하지도 않는다(원래도 플레이어 진영 몬스터만
+   해제 대상이라 의도와 일치).
+🔶 범위 밖/판단 근거 — 안개가 한번 해제된 후 다시 생기는 경우(예: 방 재점령·전멸)는 다루지 않는다
+   ("경험이 있어야지만 사라져"를 영구 해제로 해석 — 재발생 조건이 지시에 없어 가장 단순한 해석 채택).
+   방 Bounds가 비직사각형(L자 등)일 때 다른 방과 겹치는 부분은 roomGrid 소유권으로 재확인해 걸러낸다
+   (ChangeRoomColor는 이 재확인이 없어 이론상 겹칠 수 있는 기존 코드 — 안개 쪽만 더 엄격하게 처리).
+
+════════════════════════════════════════════════════════════════════════
+■ 11. 2층/3층 시작방 초기 점령 제외 (점령 시스템 버그 수정, 안개 시스템과도 연동)
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "2층과 3층 시작방은 초기 플레이어 몬스터 진영 점령 대상에서 제외시켜줘")
+   — 문서 맨 위에 인용된 원본 메모("1층의 시작방은 몬스터 소유, 나머지는 야생방")도 애초에 1층만
+   명시했었는데, CreateMap.Stairs.cs의 InitOccupationAndDanger가 `case RoomRole.StartRoom:` 분기를
+   층 구분 없이 전 층에 OccupationState.PlayerControlled로 통일 적용하고 있었다 — 원본 스펙과 어긋난
+   기존 버그였다. currentFloorIndex(InitOccupationAndDanger를 층마다 호출하는 CreateMap.cs Phase 3
+   루프가 미리 세팅해줌)를 확인해 1층만 PlayerControlled, 2층 이상은 다른 일반 방과 동일하게
+   Neutral(야생)로 시작하도록 수정.
+   → 연쇄 효과(전부 기존 로직이 이미 occupationState/RoomFaction 기준으로 동작해 자동으로 따라옴,
+   추가 수정 불필요): SpawnWildRoomGuards가 2/3층 시작방에도 야생 몬스터 A 2마리를 배치(Neutral 방
+   전부에 적용되는 기존 조건). GameSession.BuildRoomGrid의 RoomFaction도 Wild로 시작. 10번 섹션의
+   안개 시스템(InitializeFogOfWar)이 "시작방" 식별을 RoomFaction==Player 기준으로 하므로, 2/3층은
+   startRoom을 못 찾아 그 층 전체가 안개로 덮인 채 시작(별도 수정 없이 자연히 의도와 맞아떨어짐 —
+   플레이어가 아직 아무것도 소유하지 않은 층은 전부 안개인 게 맞음).
+   → 테스트 수정: Assets/Tests/CreateMapPlayTests.cs의 OccupationState_MatchesRoomRole(㉒)이 모든
+   층의 StartRoom을 PlayerControlled로 기대하고 있어 실패하게 돼 있었다 — f==1만 PlayerControlled,
+   나머지는 Neutral을 기대하도록 수정.
+🔶 미확인 — CanReenterFloor(CreateMap.RuntimeAPI.cs)는 "시작방이 PlayerControlled인 층만 재진입
+   가능"을 판정하는데, 현재 게임 루프 어디서도 호출되지 않는(테스트에서만 쓰임) 미완성 API라 이번
+   변경의 실질적 영향은 없음 — 실제 재진입 루프가 생기면 그때 이 조건이 의도대로 동작하는지 재확인.
+
+════════════════════════════════════════════════════════════════════════
+■ 12. 야생 몬스터 문 통행 금지 + 웨이브 시작 시 문 끼임 방지
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "배회하는 야생 몬스터가, 문이 있는 공간을 돌아다니지 못하게 해줘") — 문/
+   통로 타일은 그 문을 낀 두 방 중 한쪽의 roomGrid 소유 청크에 포함돼 있어(같은 방 소속으로 잡힘)
+   RoomConfinedMovement의 기존 "같은 방인지" 검사만으로는 걸러지지 않았다. RoomConfinedMovement.
+   IsTileWalkable에 GameSession.IsDoorTile 검사를 추가해, 플레이어 명령이 아닌 자율 이동(야생 몬스터
+   전부 + 건물에서 생산된 플레이어 몬스터의 비명령 이동)에서는 문 타일 자체를 walkable에서 제외한다.
+   IsDoorTile은 원래 "배치"만 막는 용도였는데(주석 참고) 이번에 이동 판정에도 재사용하도록 주석 갱신.
+✅ 사용자 요청(같은 메시지, "웨이브가 시작하며 문이 닫혔을때, 문에 있는 유닛들이 끼이지 않도록
+   밀어줘") — Tile.isStructureExist가 true가 돼도 "이미 그 칸에 있던" 유닛은 저절로 튕겨나가지
+   않는다(새로 들어오는 이동만 막힘, UnitFunction.CanMove 참고) — 방치하면 문이 닫힌 칸 위에 유닛이
+   갇힌 것처럼 보인다. GameSession.CloseAllDoorsForWaveStart 끝에 PushUnitsOffClosedDoorTiles(신규)를
+   추가 — 재개방까지 끝나 최종적으로 "닫힘"으로 남은 모든 게이트를 훑어, 문 타일 위에 있는 유닛을
+   AIMovementHelper.FindNearbyOpenTile(8방향 중 가장 가까운 갈 수 있는 칸)로 밀어낸다. 위치 갱신은
+   HumanWaveManager의 강제 층 이동과 동일한 텔레포트 관례(Unregister→position 대입→Register).
+🔶 범위 밖 — 밀어낼 빈 칸을 8방향에서 하나도 못 찾는 극단적 상황(주변이 전부 벽/다른 유닛으로 꽉 참)
+   은 그대로 둔다(원래도 드문 경우, FindNearbyOpenTile의 기존 폴백 동작 그대로 재사용).
+
+════════════════════════════════════════════════════════════════════════
+■ 13. 안개 해금 규칙 변경 — "점령" 기반으로 전환
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 신고(2026-07-28, "안개 해금이 잘 안돼. 규칙을 바꾸자. 플레이어 유닛이 해당 방을 점령한
+   적이 있으면 인접 방의 안개가 사라지도록 처리하자") — 기존 규칙(10번 섹션, "유닛이 방에 물리적으로
+   들어오면 그 방 자체의 안개가 사라짐", UnitFunction.SyncRoomAffiliation → GameSession.RevealRoomFog)
+   은 신뢰도가 낮았던 것으로 추정 — RoomConfinedMovement가 자율 이동을 자기 방 안으로 막아두고,
+   플레이어 명령조차 이미 "소유 방 + 인접 방"으로만 제한돼 있어(CanPlayerCommandRoom) 애초에 "안 걷힌
+   새 방에 처음 들어가는" 순간 자체가 드물게만 발생했다.
+   → 기존 규칙은 안전장치로 그대로 두고(idempotent라 중복 호출해도 안전), 훨씬 확실한 이벤트인
+   "점령"을 새 트리거로 추가했다: OffenseProcessor의 방 소유권 전환 경로 3곳(TryResolveRoomOwnership
+   —전투 사망, TryClaimEmptyRoomOnEntry—빈 방 입성, OnOffenseSuccess—오펜스 성공) 전부에서
+   Room.RoomFaction이 Player로 확정되는 순간 GameSession.RevealFogAroundCapturedRoom(신규)을 호출한다
+   — 점령된 방 자기 자신과, 그 방과 Gate로 직접 연결된 인접 방들의 안개를 함께 걷는다(2칸 이상
+   떨어진 방까지 한꺼번에 열리진 않음 — "인접 방"까지만, 사용자 표현 그대로).
+🔶 판단 근거 — "그 방을 점령한 적이 있으면"이라는 표현을 "점령이 확정되는 순간 1회성 트리거"로
+   해석했다(이후 그 방을 다시 잃어도 인접 방 안개가 재발생하진 않음 — Room.FogRevealed 자체가 10번
+   섹션에서 이미 영구 해제로 설계돼 있어 자연히 그렇게 동작함, 별도 처리 불필요).
+
+════════════════════════════════════════════════════════════════════════
 ■ 미구현/미결정 남은 것
 ════════════════════════════════════════════════════════════════════════
 - 위 "발견된 사항 1/2/4"는 2026-07-28에 수정 완료 — 재발 여부는 실제 플레이(전투로 방 점령 → 인접

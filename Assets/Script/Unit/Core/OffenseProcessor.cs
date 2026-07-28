@@ -142,6 +142,9 @@ public class OffenseProcessor
         // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState(맵 데이터 원본)도 같이 갱신.
         // 데모_구현현황_검증_2026-07-28.txt "발견된 사항 1" 참고.
         GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
+        // 안개 해금 규칙 변경(2026-07-28, 사용자 요청 "플레이어 유닛이 해당 방을 점령한 적이 있으면
+        // 인접 방의 안개가 사라지도록") — 아래 참고.
+        if (claimant == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
 
         LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): → {claimant} (유닛 구성 재계산, 계기: {triggerLabel} 사망)");
     }
@@ -162,6 +165,8 @@ public class OffenseProcessor
         room.RoomFaction = faction.Value;
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction.Value));
         GameSession.Instance.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction.Value));
+        // 안개 해금 규칙 변경(2026-07-28) — OffenseProcessor.TryResolveRoomOwnership 위 주석 참고.
+        if (faction.Value == FactionType.Player) GameSession.Instance.RevealFogAroundCapturedRoom(room);
 
         LogHelper.Log($"[점령] {room.RoomName} 방(F{room.Floor}): 빈 방에 {enteringUnit.unitType?.typeName}({faction.Value})이 입성해 점령했습니다.");
     }
@@ -225,6 +230,8 @@ public class OffenseProcessor
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(claimant));
         // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState도 같이 갱신(위 참고).
         GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
+        // 안개 해금 규칙 변경(2026-07-28) — OffenseProcessor.TryResolveRoomOwnership 위 주석 참고.
+        if (claimant == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
 
         // 3. 활성 오펜스에서 제거
         _activeOffenseRooms.Remove(room);

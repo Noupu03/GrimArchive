@@ -31,6 +31,14 @@ public class Room
     // GameSession.BuildRoomGrid가 계산해서 채운다.
     public int MaxPopulation { get; set; } = 0;
 
+    // 안개 시스템(2026-07-28, 사용자 요청 "0층, 시작방과 양옆 방을 제외하고는 안개가 생겨") — 이
+    // 방의 안개가 걷혔는지(=플레이어 진영 몬스터가 한 번이라도 들어온 적이 있는지). 한번 true가 되면
+    // 다시 false로 되돌아가지 않는다(영구 해제, "경험이 있어야지만 사라져"). GameSession.
+    // InitializeFogOfWar가 0층 전체와 각 층 시작방+인접방을 생성 시점에 미리 true로 깔아 두고, 그
+    // 외에는 false로 시작해서 UnitFunction.SyncRoomAffiliation이 최초 입장 시 GameSession.
+    // RevealRoomFog를 통해 true로 바꾼다.
+    public bool FogRevealed { get; set; } = false;
+
     // 5.2장 "방의 현재 인구수는 소속된 모든 유닛의 인구수 합계" — ContainedUnits 기준으로 매번
     // 계산한다(별도 캐시 없이 항상 최신값 보장, 방 하나에 보통 유닛 수가 많지 않아 비용 낮음).
     // 2026-07-27 사용자 요청(정정): 인구수는 "플레이어 진영 몬스터"만 포함한다 — 인류는 원래 제외
