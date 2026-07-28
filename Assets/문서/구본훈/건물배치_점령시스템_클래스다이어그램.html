@@ -1,0 +1,586 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>건물 배치 · 점령 시스템 — 클래스 다이어그램</title>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    darkMode: true,
+    background: '#161b27',
+    primaryColor: '#1c2233',
+    primaryTextColor: '#e4dcc8',
+    primaryBorderColor: '#3a4460',
+    lineColor: '#8a9ab8',
+    fontFamily: 'ui-monospace, Consolas, monospace',
+    fontSize: '13px'
+  }
+});
+</script><style>
+  :root {
+    --bg:      #0f1117;
+    --surface: #161b27;
+    --border:  #252e44;
+    --accent:  #c8a050;
+    --text:    #e4dcc8;
+    --muted:   #7a7a6a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, "Noto Sans KR", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    padding-bottom: 60px;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 32px 48px 28px;
+    background: var(--surface);
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+  }
+  h1 { font-size: 22px; font-weight: 700; margin-top: 6px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  main { max-width: 1360px; margin: 0 auto; padding: 0 48px; }
+
+  .section-title {
+    margin: 40px 0 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 12px;
+    overflow-x: auto;
+  }
+  .diagram-wrap div.mermaid { display: flex; justify-content: center; }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-left: 2px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  .flow-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .flow-table th {
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .flow-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .flow-table tr:last-child td { border-bottom: none; }
+  .flow-table tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+  code {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    background: rgba(200,160,80,.12);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent-dim, #5a4020);
+    background: rgba(200,160,80,.18);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: ui-monospace, monospace;
+    flex-shrink: 0;
+  }
+  .step-cell { display: flex; align-items: flex-start; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">GrimArchive Prototype · 내부 기술 문서</div>
+  <h1>건물 배치 &amp; 점령 시스템 — 클래스 다이어그램</h1>
+  <div class="subtitle">갱신 2026-07-28 · 담당 구본훈 · 참조 소스: Assets/Script/{Building, Map, Unit/Core, Wave}</div>
+</header>
+
+<main>
+
+<!-- ═══════════════════════ 다이어그램 1 ═══════════════════════ -->
+<div class="section-title">① 지도 데이터 레이어 — MapData 구조체 계층</div>
+<div class="diagram-wrap">
+<div class="mermaid">
+classDiagram
+  direction TB
+
+  class Map {
+    +Floor[] floors
+    +Floor GetFloor(int floorIndex)
+  }
+
+  class Floor {
+    +FloorConfig config
+    +Chunks[,] chunks
+    +List~Gate~ gates
+  }
+
+  class FloorConfig {
+    <<struct>>
+    +FloorId floorId
+    +int width
+    +int height
+    +int normalRoomCount
+    +int subPurposeRoomCount
+    +int totalRoomCount
+    +int wallThicknessMin
+    +int wallThicknessMax
+    +int maxNormalRoomChunks
+  }
+
+  class Chunks {
+    <<struct>>
+    +Tile[,] chunk
+    +int roomId
+    +string roomName
+    +RoomRole roomRole
+    +int floorId
+    +OccupationState occupationState
+    +int stairTargetFloor
+    +int allowMaxFootprint
+    +bool stairIsOpen
+    +bool stairHumanOnly
+  }
+
+  class Gate {
+    <<struct>>
+    +int roomA
+    +int roomB
+    +int chunkAX, chunkAY
+    +int chunkBX, chunkBY
+    +int width
+    +bool isHorizontal
+    +bool isDoorClosed
+  }
+
+  class Tile {
+    <<struct>>
+    +string name
+    +TileEffect effect
+    +bool isObjectExist
+    +bool isStructureExist
+    +int dangerous
+    +int visibility
+  }
+
+  class OccupationState {
+    <<enumeration>>
+    Neutral
+    PlayerControlled
+    Occupied
+    Outpost
+    HumanControlled
+  }
+
+  class RoomRole {
+    <<enumeration>>
+    None
+    StartRoom
+    NormalRoom
+    SubPurposeRoom
+    BossRoom
+  }
+
+  class RoomType {
+    <<enumeration>>
+    Normal
+    Spawner
+  }
+
+  class FactionType {
+    <<enumeration>>
+    Player
+    Wild
+    RegularMonster
+    Human
+  }
+
+  Map "1" *-- "1..*" Floor : floors
+  Floor "1" *-- "1" FloorConfig : config
+  Floor "1" *-- "N*M" Chunks : chunks 2D
+  Floor "1" *-- "*" Gate : gates
+  Chunks "1" *-- "8*8" Tile : chunk 2D
+  Chunks ..> OccupationState : occupationState
+  Chunks ..> RoomRole : roomRole
+</div>
+</div>
+<div class="note">Map·Floor·Chunks·Gate·Tile 모두 직렬화 가능한 구조체(struct). OccupationState는 Chunks에 직접 저장되고, OffenseProcessor가 CreateMap.SetRoomOccupationState()를 통해 갱신한다.</div>
+
+<!-- ═══════════════════════ 다이어그램 2 ═══════════════════════ -->
+<div class="section-title">② 런타임 시스템 — 건물·점령·웨이브</div>
+<div class="diagram-wrap">
+<div class="mermaid">
+classDiagram
+  direction TB
+
+  class CreateMap {
+    <<partial MonoBehaviour>>
+    +Map map
+    +FloorConfig[] floorConfigs
+    +int currentFloorIndex
+    +void GenerateMap()
+    +Floor GetCurrentFloor()
+
+    +void ConquerRoom(int floor, int roomId)
+    +void RetreatFromRoom(int floor, int roomId)
+    +void SetRoomOccupationState(int, int, OccupationState)
+    +OccupationState GetRoomOccupationState(int, int)
+    +bool CanPlayerCommandRoom(int, int)
+    +bool CanPlayerCommandPosition(int, Vector2Int)
+    +bool IsPositionPlayerOwned(int, Vector2Int)
+    +int GetRoomIdAt(int, Vector2Int)
+    +bool TryGetStairPosition(int, int, out Vector2Int)
+    +int FindRetreatTarget(int, int)
+    +int GetRoomAllowMaxFootprint(int, int)
+    +bool IsStaticTileWalkable(int, Vector2Int)
+  }
+
+  class Room {
+    +string RoomName
+    +FactionType RoomFaction
+    +RoomType Type
+    +int RoomId
+    +int Floor
+    +RectInt Bounds
+    +bool HasActiveSpawner
+    +int MaxPopulation
+    +int CurrentPopulation
+    +IReadOnlyList~Unit~ ContainedUnits
+    +void AddUnit(Unit)
+    +void RemoveUnit(Unit)
+    +Vector2Int GetRandomPosInRoom()
+  }
+
+  class InteractableObject {
+    +string Id
+    +Vector3Int Position
+    +List~string~ Tags
+    +bool IsFullyBlocking
+    +bool IsCollected
+    +bool IsInvestigated
+    +float BaseInterest
+    +float BaseDanger
+    +float BaseVisibility
+    +float TrapHp
+    +float TrapDamageMin
+    +float TrapDamageMax
+  }
+
+  class BuildingManager {
+    <<NativeRoutine>>
+    +int ResourceBuildingCount
+    +float CurrentResourceProductionPerSecond
+    +bool CanInstallAt(Vector3Int)
+    +BuildingData GetBuildingAt(Vector3Int)
+    +bool InstallResourceBuilding(Vector3Int, Sprite)
+    +bool InstallProductionBuilding(Vector3Int, List~ProductionRule~, Sprite)
+    +void UninstallBuilding(Vector3Int)
+  }
+
+  class BuildingData {
+    +Vector3Int Position
+    +GameObject VisualObject
+    +bool IsResourceBuilding
+    +float ResourceTickTimer
+    +List~ProductionRule~ AvailableRules
+    +Queue~ProductionRule~ Queue
+    +float ProductionProgress
+    +bool IsProducing
+  }
+
+  class ProductionRule {
+    <<ScriptableObject>>
+    +string ruleId
+    +string displayName
+    +List~ResourceCost~ costs
+    +float productionTime
+    +string targetUnitTypeName
+    +static List~ProductionRule~ CreateDefaultPlayerUnitRules()
+  }
+
+  class ResourceCost {
+    +ResourceType resourceType
+    +int amount
+  }
+
+  class OffenseProcessor {
+    +Room currentOffenseRoom
+    +bool IsRoomInOffense(Room)
+    +void TryStartOffense(Room, Unit)
+    +void StartOffense(Room, Unit)
+    +void UpdateProcess()
+    +void TryFlipRoomOwnershipOnDeath(Unit)
+    +void TryResolveRoomOwnership(Room, string)
+    +void TryClaimEmptyRoomOnEntry(Room, Unit)
+  }
+
+  class IMapColorizer {
+    <<interface>>
+    +void ChangeRoomColor(Room, Color)
+  }
+
+  class GameSession {
+    <<NativeRoutine>>
+    +CreateMap cmap
+    +List~Unit~ units
+    +List~Party~ parties
+    +List~Room~ allRooms
+    +roomGrid : Dictionary
+    +objectGrid : Dictionary
+    +void BuildRoomGrid()
+    +void SpawnWildRoomGuards()
+    +void SpawnDoors()
+    +void SpawnInitialBuildings()
+    +void SpawnInitialDungeonCore()
+    +void CloseAllDoorsForWaveStart()
+    +void RefreshRoomGateStates(Room)
+    +void SetGateClosed(int, int, bool)
+    +bool IsDoorTile(Vector3Int)
+    +Party CreateParty(string, List~Human~)
+  }
+
+  class WaveSpawner {
+    <<NativeRoutine>>
+    +WaveData waveData
+    +void SpawnWave()
+    +Human InstantiatePreSpawnHumanAt(string, Vector2Int, int)
+  }
+
+  class WaveData {
+    <<ScriptableObject>>
+    +float waveCooldown
+    +SpawnMode spawnMode
+    +int targetFloor
+    +RoomRole targetRoomRole
+    +int targetRoomId
+    +List~WavePartyConfig~ parties
+  }
+
+  class WavePartyConfig {
+    +string partyName
+    +PartyFaction faction
+    +List~WaveUnitGroup~ units
+  }
+
+  class HumanWaveManager {
+    <<NativeRoutine>>
+    +static HumanWaveManager Instance
+    +WaveState currentState
+    +float waveCooldown
+    +Party activeParty
+    +InteractableObject dummyTarget
+    +DummyTargetState targetState
+    +Human targetCarrier
+  }
+
+  class MapManager {
+    <<NativeRoutine>>
+    +MapRandering mapRandering
+    +WaveSpawner waveSpawner
+    +static event OnRuntimeMapDataUpdated
+    +void SetupAndVisualizeMap(CreateMap)
+  }
+
+  %% CreateMap 소유 관계
+  CreateMap "1" *-- "1" Map : owns
+
+  %% Room은 Chunks에서 GameSession이 생성
+  GameSession ..> Room : BuildRoomGrid()로 생성
+  Room ..> FactionType : RoomFaction
+
+  %% 건물 시스템
+  BuildingManager "1" *-- "*" BuildingData : buildingGrid
+  BuildingData "*" o-- "*" ProductionRule : AvailableRules / Queue
+  ProductionRule "1" *-- "*" ResourceCost : costs
+  BuildingManager --> CreateMap : IsPositionPlayerOwned()
+
+  %% 점령 시스템
+  OffenseProcessor --> Room : RoomFaction 변경
+  OffenseProcessor --> CreateMap : SetRoomOccupationState()
+  OffenseProcessor --> IMapColorizer : ChangeRoomColor()
+
+  %% GameSession — 오케스트레이터
+  GameSession "1" o-- "1" CreateMap : cmap
+  GameSession "1" o-- "1" OffenseProcessor : _offenseProcessor
+  GameSession "1" o-- "1" BuildingManager : SpawnInitialBuildings()
+  GameSession "1" o-- "1" HumanWaveManager : humanWaveManager
+  GameSession --> InteractableObject : SpawnDoors() 생성
+
+  %% 웨이브
+  MapManager "1" o-- "1" WaveSpawner : waveSpawner
+  HumanWaveManager "1" o-- "1" WaveSpawner : targetSpawner
+  WaveSpawner "1" o-- "1" WaveData : waveData
+  WaveData "1" *-- "*" WavePartyConfig : parties
+  HumanWaveManager --> GameSession : CloseAllDoorsForWaveStart()
+  HumanWaveManager --> CreateMap : TryGetStairPosition()
+</div>
+</div>
+<div class="note">
+  <strong>partial class 주의:</strong> CreateMap은 7개 파일 분할(CreateMap.cs / RoomPlacement / RoomRoles / Connection / TileWall / RuntimeAPI / 기타).
+  런타임 점령 API는 전부 <code>CreateMap.RuntimeAPI.cs</code>에 집중되어 있다.
+</div>
+
+<!-- ═══════════════════════ 범례 ═══════════════════════ -->
+<div class="section-title">범례</div>
+<div class="legend">
+  <div class="legend-item"><div class="dot" style="background:#4a7c59"></div>struct (직렬화 구조체)</div>
+  <div class="legend-item"><div class="dot" style="background:#9e6b3c"></div>enumeration</div>
+  <div class="legend-item"><div class="dot" style="background:#7060a8"></div>interface</div>
+  <div class="legend-item"><div class="dot" style="background:#3c6e9e"></div>ScriptableObject</div>
+  <div class="legend-item"><div class="dot" style="background:#7c3c3c"></div>NativeRoutine (VContainer)</div>
+  <div class="legend-item"><div class="dot" style="background:#3a4460"></div>plain class</div>
+  <div class="legend-item"><div class="dot" style="background:#8a9ab8"></div>◆ 컴포지션 / ○ 집합 / .. 의존</div>
+</div>
+
+<!-- ═══════════════════════ 점령 흐름 ═══════════════════════ -->
+<div class="section-title">점령(Offense) 실행 흐름</div>
+<table class="flow-table">
+  <thead>
+    <tr>
+      <th style="width:36px">#</th>
+      <th style="width:220px">호출 지점</th>
+      <th>처리 내용</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">1</span></div></td>
+      <td><code>GameSession.ProcessUnitAction()</code></td>
+      <td>PlayerMonster 이동 후 <code>TryTriggerOffenseForUnit(unit)</code> 호출</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">2</span></div></td>
+      <td><code>OffenseProcessor.TryStartOffense()</code></td>
+      <td>야생 방(RoomFaction == Wild)이면 <code>_activeOffenseRooms</code>에 추가. 빈 방이면 즉시 <code>TryClaimEmptyRoomOnEntry()</code>로 무혈 점령</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">3</span></div></td>
+      <td><code>OffenseProcessor.UpdateProcess()</code></td>
+      <td>매 프레임 <code>CheckOffenseSuccess(room)</code> 폴링. Normal 방: 야생 유닛 전멸 확인. Spawner 방: 거점(DungeonCore) 파괴 확인</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">4</span></div></td>
+      <td><code>OffenseProcessor.OnOffenseSuccess()</code></td>
+      <td><code>room.RoomFaction</code> 변경 → <code>IMapColorizer.ChangeRoomColor()</code> → <code>CreateMap.SetRoomOccupationState()</code>로 Chunks.occupationState 동기화</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">5</span></div></td>
+      <td><code>GameSession.RemoveDeadUnit()</code></td>
+      <td>유닛 사망 시 <code>OffenseProcessor.TryFlipRoomOwnershipOnDeath(deadUnit)</code> → <code>TryResolveRoomOwnership(room, ...)</code>로 방 소유권 재계산</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">6</span></div></td>
+      <td><code>GameSession.RefreshRoomGateStates()</code></td>
+      <td>단일 진영만 남은 방의 Gate.isDoorClosed를 false로 갱신. 웨이브 시작 시에는 <code>CloseAllDoorsForWaveStart()</code>로 전체 문 잠금</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════ 건물 배치 흐름 ═══════════════════════ -->
+<div class="section-title">건물(Building) 배치 흐름</div>
+<table class="flow-table">
+  <thead>
+    <tr>
+      <th style="width:36px">#</th>
+      <th style="width:220px">호출 지점</th>
+      <th>처리 내용</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">1</span></div></td>
+      <td><code>GameSession.SpawnInitialBuildings()</code></td>
+      <td>시작 방(StartRoom)에서 설치 가능한 타일 탐색 후 자원 건물·유닛 생산 건물 자동 배치</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">2</span></div></td>
+      <td><code>BuildingManager.CanInstallAt(pos)</code></td>
+      <td><code>CreateMap.IsPositionPlayerOwned()</code>로 플레이어 지배 타일인지 확인 + 기존 건물 없는지 체크</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">3</span></div></td>
+      <td><code>BuildingManager.InstallResourceBuilding()</code> / <code>InstallProductionBuilding()</code></td>
+      <td><code>BuildingData</code> 생성 → <code>buildingGrid[pos]</code> 등록 → <code>CreateMap</code> 해당 타일 obstacle 갱신 → 시각 오브젝트 생성</td>
+    </tr>
+    <tr>
+      <td><div class="step-cell"><span class="step-num">4</span></div></td>
+      <td><code>BuildingManager.UpdateProcess()</code></td>
+      <td>자원 건물: 5초마다 ResourceManager에 자원 +5. 생산 건물: Queue의 ProductionRule을 소비하며 생산 시간 경과 시 <code>SpawnUnitFromBuilding()</code> 호출</td>
+    </tr>
+  </tbody>
+</table>
+
+</main>
+</body>
+</html>

@@ -414,11 +414,17 @@
    으로 들어갈 방법이 없는 칸이라 해제 트리거를 만들 수 없으므로 영구 안개(딕셔너리 추적 없이 스폰만).
    3) 리팩터링: SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 3곳이 스프라이트 로드+스케일
    계산(TryPrepareFogAssets)과 타일 하나 생성(SpawnFogTile, 배경+무늬 2겹)을 공유하도록 정리.
-🔶 알려진 한계 — 야생 몬스터 A(WildMonsterBehavior)는 9장 보류 항목(유닛배치_구현현황 문서)이라
-   Unit.currentRoom이 항상 null로 남는다. 따라서 안개 속에 있어도 야생 몬스터의 머리 위 상태 라벨은
-   숨겨지지 않는다(플레이어가 볼 일이 거의 없는 방이라 실사용 영향은 낮다고 판단, 별도 수정 안 함).
-   같은 이유로 야생 몬스터의 방 최초 입장은 안개를 해제하지도 않는다(원래도 플레이어 진영 몬스터만
-   해제 대상이라 의도와 일치).
+✅ 후속 신고(같은 세션, "지금 안개가 덮여있는 방 유닛 머리 위의 상태 표시가 미약하게 보여. 안개로
+   잘 가려지게 처리해줘") — 원인은 바로 위 항목의 hiddenByFog 판정이 Unit.currentRoom을 봤는데, 야생
+   몬스터 A(WildMonsterBehavior)는 9장 보류 항목(유닛배치_구현현황 문서)이라 SyncRoomAffiliation
+   동기화 대상에서 제외돼 currentRoom이 항상 null로 남는다 — 그래서 야생 몬스터의 라벨은 이 조건이
+   절대 true가 안 돼 한 번도 SetActive(false)되지 않고, 순전히 안개 sortingOrder(1000)에만 기대는
+   채로 살짝 비쳐 보였다(sortingOrder 20인 라벨이 유닛 머리 위로 0.35 유닛 오프셋돼 있어 완전히
+   가려진다고 보장 못 한다던 원래 우려가 실제로 야생 몬스터 쪽에서 나타난 것). UnitGenerate.
+   SyncVisuals의 hiddenByFog 계산을 u.currentRoom 대신 Session.roomGrid에 유닛의 실시간 위치
+   (position, currentFloor)로 직접 조회하도록 바꿔 — currentRoom 동기화 여부·진영과 무관하게 모든
+   유닛에 동일하게 적용된다. 방 최초 입장이 안개를 해제하는 트리거 자체는 여전히 플레이어 진영
+   몬스터 전용(원래 의도와 일치, 그대로 유지) — 이번 수정은 오직 "라벨을 숨기는 판정"에만 해당.
 🔶 범위 밖/판단 근거 — 안개가 한번 해제된 후 다시 생기는 경우(예: 방 재점령·전멸)는 다루지 않는다
    ("경험이 있어야지만 사라져"를 영구 해제로 해석 — 재발생 조건이 지시에 없어 가장 단순한 해석 채택).
    방 Bounds가 비직사각형(L자 등)일 때 다른 방과 겹치는 부분은 roomGrid 소유권으로 재확인해 걸러낸다
@@ -484,6 +490,180 @@
 🔶 판단 근거 — "그 방을 점령한 적이 있으면"이라는 표현을 "점령이 확정되는 순간 1회성 트리거"로
    해석했다(이후 그 방을 다시 잃어도 인접 방 안개가 재발생하진 않음 — Room.FogRevealed 자체가 10번
    섹션에서 이미 영구 해제로 설계돼 있어 자연히 그렇게 동작함, 별도 처리 불필요).
+
+════════════════════════════════════════════════════════════════════════
+■ 14. 오브젝트 스폰 스케일 — "타일 맞춤" 폐지, 원본 스프라이트 크기로 되돌림
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "오브젝트를 지금 타일 크기에 맞춰 스폰하고 있는데, 그렇게 하지 말고 원본
+   스프라이트 크기에 맞춰 스폰으로 바꿔줘") — 2026-07-24에 사용자 요청으로 도입했던 "sprite.bounds
+   역산해서 타일 1칸(1x1 유닛)에 항상 꽉 차도록" 스케일 보정을 이번에 다시 되돌리는 명시적 반전.
+   GameSession.SpawnObject(트랩/시체/코어/루팅/문 전부의 최초 스폰)와 ApplyGateDoorVisual(문 열림/
+   닫힘 스프라이트 교체 시 재계산하던 스케일)의 스케일 계산을 걷어내고 둘 다 localScale = Vector3.one
+   (원본 픽셀 크기/PPU 그대로)으로 스폰하도록 수정.
+🔶 범위 밖 — 같은 "타일 1칸 맞춤 스케일" 패턴을 쓰는 BuildingManager.CreateBuildingVisual(건물)과
+   안개 시스템(GameSession.SpawnFogTile, obj/fog.png+배경)은 "오브젝트"가 아니라 각각 건물/안개
+   오버레이로 판단해 이번 변경 대상에서 제외했다 — 건물/안개는 여전히 타일 크기에 정확히 맞춰야 하는
+   기능적 이유(안개는 틈 없이 타일을 덮어야 함)가 있어 그대로 둠. 사용자가 원하면 별도로 알려달라고
+   요청할 것.
+
+════════════════════════════════════════════════════════════════════════
+■ 15. 횃불 배치 + 은은한 원형 글로우 — 구현 후 사용자 요청으로 전체 롤백됨
+════════════════════════════════════════════════════════════════════════
+❌ 롤백됨(2026-07-28, 사용자 요청 "횃불 관련 수정사항 롤백해봐") — 한때 GameSession.cs에
+   SpawnTorches/TryFindTorchTilePos/SpawnTorchAt/EnsureTorchGlowSprite/EnsureDarknessSprite와 관련
+   필드·상수(_torchSprite/_torchGlowSprite/_darknessSprite/TorchGlowSortingOrder/TorchSortingOrder/
+   DarknessSortingOrder/TorchGlowDiameterTiles/TorchGlowMaxAlpha/TorchGlowColor/DarknessMaxAlpha/
+   DarknessColor)로 구현돼 있었다 — 시작방(0층은 별도 처리로 포함) 제외 각 청크 정중앙에 obj/torch.png
+   오브젝트 배치(계단 청크는 옆으로 회피), SpriteRenderer 기반 정적 원형 글로우(청크 폭만큼, 최대
+   알파 0.22)와 그 반대 그라데이션의 어둠 오버레이(가장자리 진하게, 최대 알파 0.7)까지 전부 구현
+   완료된 상태였으나, 사용자가 롤백을 요청해 Initialize()의 SpawnTorches() 호출과 위 메서드/필드/
+   상수 전체를 코드에서 완전히 제거했다(주석 처리가 아니라 삭제 — 최근에 추가된 자기완결적 블록이라
+   git 히스토리로 언제든 복원 가능, 남겨두면 죽은 코드가 됨).
+   → 롤백 이유는 사용자가 밝히지 않음 — 나중에 다시 필요해지면 이 문서(git 커밋 로그 기준 이 절
+   작성 시점 근방)와 이전 세션 대화가 참고 자료.
+   → 함께 조사했던 사실(여전히 유효, 재구현 시 참고): 이 프로젝트는 실제로는 Built-in 렌더
+   파이프라인으로 동작 중이라(ProjectSettings/GraphicsSettings.asset의 m_CustomRenderPipeline이
+   비어있음) URP Light2D를 붙여도 아무 효과가 없다 — 진짜 동적 조명을 쓰려면 프로젝트 전체를 URP로
+   전환해야 하고, 기존 유닛/오브젝트/타일맵 머티리얼이 전부 Built-in용이라 범위가 크다.
+🔶 롤백 대상이 아닌 것 — 같은 세션에 이 작업 전에 먼저 한 "오브젝트 원본 스프라이트 크기로 스폰"
+   변경(14번 섹션, GameSession.SpawnObject/ApplyGateDoorVisual의 타일 맞춤 스케일 폐지)은 횃불 전용이
+   아니라 모든 오브젝트에 적용되는 별개 변경이라 이번 롤백에서 제외 — 그대로 유지됨.
+
+════════════════════════════════════════════════════════════════════════
+■ 16. 횃불 재구현 — 실제 .prefab 에셋 + Light2D(URP 2D 동적 조명)
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "spot light2d 이용해서 토치 프리팹 생성하도록 해봐. 생성 로직은 동일함.
+   프리팹은 너가 직접 생성해서 실제 파일로 존재해야 해") — 15번 섹션에서 롤백했던 걸 이번엔 방식을
+   바꿔 재구현. 이 프로젝트의 다른 모든 "오브젝트"는 런타임에 코드로 GameObject를 조립하는 방식인데
+   (SpawnObject/SpawnFogTile/CreateBuildingVisual 등), 이번엔 사용자가 명시적으로 "실제 파일로
+   존재하는 프리팹"을 요구해서 이례적으로 Assets/Resources/Prefabs/Torch.prefab을 직접 손으로 작성한
+   Unity YAML 에셋 파일로 새로 만들었다(대응하는 .prefab.meta도 함께, guid는 임의 생성).
+   → Torch.prefab 구성: 루트 GameObject 하나에 SpriteRenderer(obj/torch.png, sortingOrder=5,
+   머티리얼은 기존 유닛 프리팹들과 동일한 guid 재사용)와 Light2D(MonoBehaviour, script guid는 씬
+   ssh.unity에 이미 있던 비활성 테스트 Light2D 오브젝트에서 그대로 가져옴 — 이 프로젝트 패키지 버전에
+   대해 검증된 값) — LightType=Point(원형, inner/outer angle 360), 따뜻한 주황색, intensity 1.3,
+   falloffIntensity 0.6("애매하게"에 대응하는 부드러운 감쇠), pointLightOuterRadius=4("그 청크
+   만큼만" — 청크 폭 8의 절반), 그림자는 꺼둠(단순화).
+   → 배치 로직은 이전(15번 섹션, 롤백 전)과 동일하게 유지: GameSession.SpawnTorches가 시작방을 제외한
+   각 청크 정중앙(로컬 (4,4))에 하나씩, 계단이 있는 청크는 그 2x2 블록과 안 겹치게 옆 타일로 회피
+   (TryFindTorchTilePos). 다만 이번엔 SpriteRenderer를 코드로 새로 만드는 대신 Resources.Load<
+   GameObject>("Prefabs/Torch")로 프리팹을 불러와 Instantiate한다(SpawnTorchAt).
+✅ 후속 요청(같은 세션, "0층만 예외로 0층 전체를 덮는 큰 불빛의 토치 하나만 정 중앙에 둬") — 0층은
+   청크별 반복 배치 대신 SpawnFloorWideTorch(신규)가 층 전체 정중앙에 딱 하나만 놓고, Instantiate된
+   Light2D의 pointLightOuterRadius를 층 전체 모서리까지 확실히 덮는 대각선 반경(가로/세로 절반 길이의
+   피타고라스)으로 런타임에 덮어쓴다. 정중앙이 벽/오브젝트로 막혀 있을 가능성을 대비해
+   FindNearestOpenTileForTorch(신규, 링 단위 확장 탐색)로 가장 가까운 빈 타일을 찾는다.
+🔶 판단 근거/알려진 한계 — 이 프로젝트는 실제로는 Built-in 렌더 파이프라인으로 동작 중이라(15번
+   섹션 참고) Light2D를 붙여도 지금 상태에선 시각 효과가 없을 수 있다는 점은 이전에 이미 사용자에게
+   보고했고, 이번엔 사용자가 "그래도 Light2D로, 프리팹 실제 파일로" 명시적으로 재요청해 그대로
+   구현했다 — URP 패키지 자체(com.unity.render-pipelines.universal 17.3.0)는 프로젝트에 설치돼 있어
+   Light2D 타입 자체는 스크립트에서 정상적으로 참조 가능함을 확인(using UnityEngine.Rendering.
+   Universal). 실제 렌더 파이프라인이 URP로 전환되기 전까지는 씬에서 빛이 눈에 보이지 않을 수 있다.
+🔶 검증 필요 — Torch.prefab은 Unity 에디터가 아니라 직접 작성한 YAML 파일이라, 다음에 에디터로 열어
+   1) 프리팹이 "Missing Script" 없이 정상 로드되는지, 2) SpriteRenderer/Light2D 인스펙터 값이
+   의도대로 보이는지, 3) 플레이 모드에서 SpawnTorches가 실제로 인스턴스를 생성하는지 반드시 확인할 것
+   — 손으로 쓴 에셋 파일이라 자동 테스트로 못 잡는 오탈자/필드 누락 위험이 이론상 있음.
+✅ 후속 요청 3종(같은 세션, "안개가 있는 방에 토치 미리 생성하지 말고, 안개 걷히고 나서 토치 생성하게
+   해줘. 그리고 토치 범위 더 넓혀줘" + "그리고 0층도 조금 더 밝게 해줘") —
+   1) 지연 스폰: GameSession._pendingTorchTiles(신규, Room→대기 좌표 목록)를 추가. SpawnTorches가
+   각 청크의 배치 좌표를 계산한 뒤 그 청크가 속한 Room을 FindRoomByFloorAndId로 찾아 FogRevealed가
+   false면 즉시 스폰하지 않고 대기열에 쌓아둔다. RevealRoomFog(안개를 걷는 유일한 지점 — 물리적 입장/
+   점령 두 트리거 전부 여기로 모임)에 SpawnPendingTorchesForRoom 호출을 추가해, 방이 실제로 걷히는
+   순간 대기 중이던 횃불을 그제서야 Instantiate한다. Initialize()의 호출 순서를 SpawnTorches →
+   InitializeFogOfWar에서 InitializeFogOfWar → SpawnTorches로 뒤집었다 — 각 방의 FogRevealed 최종
+   상태가 먼저 확정돼야 대기 여부를 정확히 판단할 수 있기 때문. 0층은 안개 자체가 없는 층(FogRevealed
+   항상 true)이라 이 지연 대상에서 자동으로 제외된다(원래처럼 즉시 스폰).
+   2) 범위 확장: Torch.prefab의 Light2D.pointLightOuterRadius(+연동된 m_LocalBounds.m_Extent)를
+   4→6으로 늘렸다 — "그 청크만큼만"이던 것에서 이웃 청크 가장자리까지 살짝 넘치도록.
+   3) 0층 밝기: SpawnFloorWideTorch가 반경을 층 전체로 덮어쓴 뒤, intensity에도
+   FloorWideTorchIntensityMultiplier(1.6, 자리표시자)를 곱해 0층 전용 불빛만 더 밝게 만든다 — 일반
+   청크 횃불(프리팹 기본값 그대로)에는 영향 없음.
+
+════════════════════════════════════════════════════════════════════════
+■ 17. 2층/3층 시작방 야생 복귀 — 기존 map.json 데이터 보정 + 횃불 로직 동기화
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "초기 점령 방 중 2층, 3층은 시작방 플레이어 몬스터 진영에게 점령되는게
+   아닌, 야생으로 남겨주고, 안개도 다 씌워줘") — 11번 섹션에서 CreateMap.Stairs.cs.
+   InitOccupationAndDanger를 이미 "새로 생성할 때 2층 이상 시작방=Neutral"로 고쳐뒀었지만, 그건
+   생성 로직만 고친 것이라 이미 저장된 Assets/Resources/Data/map.json(맵을 다시 생성하지 않고 그대로
+   불러 쓰는 기존 스냅샷, 예전 로직으로 구운 파일)에는 여전히 2/3층 시작방이 PlayerControlled로 박혀
+   있었다 — 실제 게임 로드 경로(GameSession.Initialize → cmap.DeserializeMap)는 이 파일을 그대로
+   읽어들일 뿐 InitOccupationAndDanger를 다시 안 돌린다는 걸 놓쳤던 것.
+   → 수정: GameSession.EnforceFloor2And3StartRoomsAreWild(신규)를 DeserializeMap 직후·
+   SetupAndVisualizeMap/BuildRoomGrid 이전에 호출 — 2층 이상 시작방 청크의 occupationState가
+   PlayerControlled면 그 자리에서 Neutral로 강제 보정한다. 맵을 재생성하지 않아도 항상 올바른
+   상태가 되도록 방어적으로 처리(생성 로직 수정과 별개로, 로드 경로에서도 한번 더 단속).
+   → 연쇄 효과(전부 기존 occupationState/RoomFaction 기준 로직이 자동으로 따라옴 — 추가 수정 불필요):
+   SpawnWildRoomGuards가 2/3층 시작방에도 야생 몬스터 A를 배치, BuildRoomGrid의 RoomFaction도 Wild로
+   시작, InitializeFogOfWar가 그 층에서 RoomFaction==Player인 "시작방"을 못 찾아 층 전체가 안개로
+   덮인 채 시작("안개도 다 씌워줘" 자동 충족).
+✅ 후속 요청(같은 메시지, "물론 횃불로직에도 포함되어야겠지" + "그리고 1층 시작방에 토치 깔려야 해")
+   — SpawnTorches의 "시작방(RoomRole.StartRoom) 전부 제외" 규칙을 완전히 폐지했다. 1층 진짜 시작방
+   (플레이어 거점, 항상 안개 없음 → 즉시 스폰)도, 이제 야생으로 남는 2/3층 시작방(안개 있음 → 지연
+   스폰 대기열)도 다른 일반 방과 완전히 동일한 청크 단위 배치를 받는다. 0층만 여전히 SpawnFloorWideTorch
+   로 별도 처리(청크별이 아니라 층 전체 하나).
+🔶 알려진 한계 — 1층 시작방에는 SpawnInitialBuildings가 건물 2개(자원/유닛 생산)를 별도 배치하는데,
+   건물은 objectGrid가 아니라 BuildingManager 자체 buildingGrid에 등록돼 TryFindTorchTilePos의 충돌
+   검사(objectGrid만 확인)로는 못 걸러낸다 — 극히 드물게 횃불이 건물과 같은 칸에 겹칠 수 있음(순수
+   장식이라 게임플레이에는 영향 없음, 시각적으로만 어색할 수 있는 정도). 실사용 확인 후 필요하면
+   buildingGrid 충돌 검사를 추가할 것.
+✅ 후속 요청(같은 세션, "0층 방 더 밝게 해줘. 범위는 지름 2칸정도 늘려주고") — SpawnFloorWideTorch
+   두 값을 추가 조정. 1) 밝기: FloorWideTorchIntensityMultiplier를 1.6→2.4로 상향(자리표시자, 이후
+   또 조정 요청 오면 이 상수만 바꾸면 됨). 2) 범위: 신규 상수 FloorWideTorchExtraRadius(1)를 만들어
+   기존 "층 전체를 정확히 덮는 대각선 반경" 계산 결과에 더한다(반지름 +1 = 지름 +2, 사용자 표현
+   그대로). 일반 청크 횃불(Torch.prefab 기본값)에는 영향 없음 — 0층 전용 인스턴스만 런타임에 두 값을
+   다시 덮어쓰는 구조라 서로 독립적.
+
+════════════════════════════════════════════════════════════════════════
+■ 18. 씬 계층 정리 — 층별·종류별 하위 그룹으로 재편
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "RoomPopulationLabels가 계층상, MapRoot_Grid 아래에 들어가야 할거 같아.
+   따로 오브젝트로 존재할 이유가 없음. 그리고 각 층에 자식으로 할당된 오브젝트들을 좀 유닛이면 유닛,
+   라벨이면 라벨, 문이면 문, 안개면 안개끼리 묶어서 나타나게 해줘") — 그동안 문/트랩·시체·루팅·코어/
+   안개/횃불/건물/유닛이 전부 각 층 타일맵(F{n}_Tilemap) 바로 아래 종류 구분 없이 flat하게 매달려
+   있었고, 방 인구수 라벨은 그마저도 아니라 MapRoot_Grid와 무관한 독립 최상위 GameObject
+   ("RoomPopulationLabels")였다.
+   → GameSession.GetFloorCategoryGroup(신규, public) — (floorIdx, category) 조합마다 그 층 타일맵
+   바로 아래 하위 그룹 GameObject를 하나만 만들어 캐시해서 재사용하는 공용 헬퍼. 예시로 든 4종
+   (유닛/라벨/문/안개)뿐 아니라 같은 원리로 다루던 다른 종류(트랩/시체/루팅/코어→Objects, 횃불→
+   Torches, 건물→Buildings)까지 전부 같은 방식으로 정리해 "일부만 그룹화되고 나머지는 여전히 flat"
+   상태가 안 남게 했다.
+   → 반영 지점: GameSession.SpawnObject(문→Doors, 그 외→Objects), SpawnFogTile 호출부 3곳(SpawnFogForRoom/
+   SpawnFogForGate/SpawnFogForEmptyChunks→Fog, SpawnFogTile 파라미터 타입도 GameObject에서 Transform
+   으로 정리), SpawnTorchAt(→Torches), CreateRoomPopulationLabel(→Labels, 독립 루트 폐지),
+   BuildingManager.CreateBuildingVisual(→Buildings), UnitGenerate.GetFloorTilemapTransform(→Units,
+   유닛 생성 시점과 층 이동 시 재배치 시점 둘 다 이 메서드를 거치므로 한 곳만 고치면 됨).
+   → RoomPopulationLabels 독립 루트 폐지: 필드 초기화 시점에 만들던 `new GameObject("RoomPopulationLabels")`
+   를 없애고 라벨을 층별 "Labels" 그룹 자식으로 흡수. Finalize()/OnApplicationQuit()의
+   DestroyRoomLabelRoot는 이제 각 라벨을 직접 파괴하기만 하면 되고(원래도 그렇게 했음), 별도 루트
+   파괴가 필요 없어졌다. 개별 라벨 이름("RoomPopLabel_")은 그대로 유지해서 Assets/Editor/
+   RoomPopulationLabelCleanup.cs(에디터 Play 종료 후 잔재 청소, 씬 전체를 이름 기준으로 재귀 탐색)는
+   부모가 바뀌어도 그대로 잘 찾아서 정리한다 — 별도 수정 불필요.
+🔶 판단 근거 — 모든 SetParent 호출부가 이미 부모 지정 "이후"에 visual.transform.position(절대
+   월드좌표)을 다시 대입하는 패턴이라, 중간에 종류별 그룹 한 단계가 더 끼어들어도(그 그룹 자체는
+   로컬 위치 0,0,0으로 타일맵에 바로 붙음) 기존 위치 계산 로직을 전혀 건드릴 필요가 없었다.
+
+════════════════════════════════════════════════════════════════════════
+■ 19. 플레이어 몬스터 방 제한 — 문 타일 회피/점멸 구멍 보강
+════════════════════════════════════════════════════════════════════════
+✅ 사용자 요청(2026-07-28, "플레이어 진영 몬스터들 방 밖으로는 나가지 못하도록 했는데, 문이 있는
+   공간도 사용자 명령이 있지 않으면 갈 수 없는거로 해. 회피 점멸 등을 통항 이동도 포함해서 막아야
+   하고") — 두 절반으로 나눠서 확인·수정.
+   1) 일반 이동(경로탐색)은 12번 섹션("배회하는 야생 몬스터가 문이 있는 공간을 돌아다니지 못하게")
+   에서 이미 RoomConfinedMovement.IsTileWalkable에 IsDoorTile 검사를 넣어뒀고, 그 클래스는 야생
+   몬스터와 플레이어 진영 몬스터(BuildingManager.SpawnUnitFromBuilding이 배정) 둘 다 공유해서 이미
+   양쪽 다 적용돼 있었다 — 추가 수정 불필요, 재확인만.
+   2) 회피/점멸(DefenseSystem.cs의 Dodge/Blink)은 A* 경로탐색이 아니라 Unit.ForceMove로 위치를 직접
+   옮겨서 IsTileWalkable을 아예 거치지 않는다. ForceMove는 2026-07-27에 이미 "방 경계를 벗어나는
+   목적지면 취소" 규칙이 있었지만, 문 타일은 그 문을 낀 두 방 중 한쪽의 roomGrid 소유 청크에 포함돼
+   있어(같은 방 소속으로 잡힘) 그 방 경계 검사만으로는 안 걸러졌다 — "자기 방의 문 타일로는 회피/
+   점멸로 순간이동 가능한" 구멍이 있었다. ForceMove의 기존 방 경계 검사 바로 뒤에 GameSession.
+   IsDoorTile 검사를 추가해 막았다 — 일반 이동 쪽 규칙과 정확히 동일한 기준.
+🔶 판단 근거 — Blink(DefenseSystem.ExecuteEarlyReaction의 DefenseType.Blink 분기)의 안전 타일 탐색
+   (FindSafeTiles/HasPathWithoutWalls)
+   자체는 방/문 경계를 모르고 반경만으로 후보를 고른다 — 문제 없음. ForceMove가 최종 게이트 역할을
+   해서 후보가 방을 벗어나거나 문 타일이면 그 시도만 조용히 무산되고(제자리 유지) 다음 기회에 다시
+   시도하는 기존 동작(2026-07-27 설계)과 자연스럽게 맞물린다.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 미구현/미결정 남은 것

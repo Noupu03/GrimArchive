@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>UnitFSM 상태 전환 다이어그램</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', sans-serif; background: #1a1a2e; color: #eee; padding: 24px; }
+h1 { text-align: center; font-size: 1.4rem; color: #a8d8ea; margin-bottom: 8px; }
+.subtitle { text-align: center; font-size: 0.8rem; color: #888; margin-bottom: 32px; }
+
+/* ── 우선순위 스택 ─────────────────────── */
+.priority-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 40px;
+}
+.p-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 160px;
+}
+.p-badge {
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 4px 4px 0 0;
+}
+.p-box {
+  width: 100%;
+  text-align: center;
+  padding: 14px 8px;
+  border: 2px solid;
+  font-size: 0.85rem;
+  font-weight: bold;
+  position: relative;
+}
+.p-box .p-label { font-size: 1rem; }
+.p-box .p-priority { font-size: 0.7rem; margin-top: 4px; opacity: 0.8; }
+.p-arrow {
+  display: flex;
+  align-items: center;
+  font-size: 1.4rem;
+  color: #555;
+  padding-top: 36px;
+}
+
+.state-cmd  { border-color: #e74c3c; background: #1e0a0a; }
+.badge-cmd  { background: #e74c3c; }
+.state-cbt  { border-color: #e67e22; background: #1a0e05; }
+.badge-cbt  { background: #e67e22; }
+.state-tac  { border-color: #2ecc71; background: #051a0d; }
+.badge-tac  { background: #2ecc71; color: #000; }
+.state-nav  { border-color: #3498db; background: #050f1a; }
+.badge-nav  { background: #3498db; }
+
+/* ── 전환 조건 표 ─────────────────────── */
+.section-title {
+  font-size: 1rem;
+  color: #a8d8ea;
+  border-left: 4px solid #a8d8ea;
+  padding-left: 10px;
+  margin: 32px 0 12px;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+th { background: #0f3460; color: #a8d8ea; padding: 8px 12px; text-align: left; }
+td { padding: 7px 12px; border-bottom: 1px solid #2a2a4a; vertical-align: top; }
+tr:nth-child(even) td { background: #16213e; }
+.tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.72rem; font-weight: bold; margin-right: 4px; }
+.tag-cmd { background: #5c1010; color: #f88; }
+.tag-cbt { background: #5c2d08; color: #fba; }
+.tag-tac { background: #0a3d1e; color: #6f6; }
+.tag-nav { background: #092040; color: #6af; }
+
+/* ── SelectState 흐름도 ───────────────── */
+.flow-wrap { display: flex; justify-content: center; margin: 20px 0 32px; }
+.flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.flow-box {
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 0.82rem;
+  text-align: center;
+  width: 340px;
+}
+.flow-diamond {
+  width: 240px;
+  padding: 8px 12px;
+  background: #0f3460;
+  border: 2px solid #3a5f9a;
+  font-size: 0.8rem;
+  text-align: center;
+  transform: skewX(-1deg);
+  border-radius: 4px;
+  color: #bdf;
+}
+.flow-action {
+  background: #0d2d0d;
+  border: 1px solid #2ecc71;
+  color: #6f6;
+  border-radius: 4px;
+}
+.flow-end {
+  background: #2d0d0d;
+  border: 1px solid #e74c3c;
+  color: #f88;
+  border-radius: 4px;
+}
+.flow-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #555;
+  font-size: 0.72rem;
+  margin: 2px 0;
+}
+.flow-arrow-line { width: 2px; height: 16px; background: #444; }
+.flow-arrow-head { color: #888; font-size: 1rem; line-height: 1; }
+.flow-row { display: flex; gap: 12px; align-items: center; width: 340px; }
+.flow-row .flow-box { width: auto; flex: 1; }
+
+/* ── IsSticky / ShouldInterrupt ──────── */
+.sticky-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+.sticky-card { background: #0f1f35; border: 1px solid #2a3a5a; border-radius: 6px; padding: 14px; }
+.sticky-card h3 { font-size: 0.85rem; color: #a8d8ea; margin-bottom: 8px; }
+.sticky-card p { font-size: 0.78rem; color: #aaa; line-height: 1.5; }
+.mono { font-family: monospace; color: #ff9; font-size: 0.78rem; }
+
+/* ── 소주석 ──────────────────────────── */
+.note { font-size: 0.72rem; color: #666; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<h1>UnitFSM — 상태 전환 다이어그램</h1>
+<p class="subtitle">Assets/Script/Unit/AI/FSM/UnitFSM.cs &nbsp;|&nbsp; 2026-07-28</p>
+
+<!-- ── 우선순위 스택 ──────────────────── -->
+<div class="section-title">우선순위 스택 (배열 순서 = 검사 순서)</div>
+
+<div class="priority-bar">
+  <div class="p-state">
+    <div class="p-badge badge-cmd">우선 1위</div>
+    <div class="p-box state-cmd">
+      <div class="p-label">🎮 PlayerCommand</div>
+      <div class="p-priority">priority = 200</div>
+    </div>
+  </div>
+  <div class="p-arrow">›</div>
+  <div class="p-state">
+    <div class="p-badge badge-cbt">우선 2위</div>
+    <div class="p-box state-cbt">
+      <div class="p-label">⚔️ Combat</div>
+      <div class="p-priority">priority = 100</div>
+    </div>
+  </div>
+  <div class="p-arrow">›</div>
+  <div class="p-state">
+    <div class="p-badge badge-tac">우선 3위</div>
+    <div class="p-box state-tac">
+      <div class="p-label">🧠 Tactical</div>
+      <div class="p-priority">priority = 50</div>
+    </div>
+  </div>
+  <div class="p-arrow">›</div>
+  <div class="p-state">
+    <div class="p-badge badge-nav">기본값</div>
+    <div class="p-box state-nav">
+      <div class="p-label">🗺️ Navigation</div>
+      <div class="p-priority">priority = 10 (항상 &gt; 0)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SelectState 흐름 ─────────────── -->
+<div class="section-title">SelectState() 흐름 — 매 턴 실행</div>
+
+<div class="flow-wrap">
+<div class="flow">
+
+  <div class="flow-box flow-diamond">현재 상태 IsSticky &amp;&amp; !ShouldInterrupt ?</div>
+  <div class="flow-arrow">
+    <div class="flow-arrow-line"></div>
+    <div class="flow-arrow-head">▼</div>
+    <span>NO (전환 평가)</span>
+  </div>
+
+  <div class="flow-box flow-diamond">_states 배열 순서로 GetPriority(unit) &gt; 0 검사</div>
+  <div class="flow-arrow">
+    <div class="flow-arrow-line"></div>
+    <div class="flow-arrow-head">▼</div>
+    <span>처음 &gt; 0인 상태 → next</span>
+  </div>
+
+  <div class="flow-box flow-diamond">next == _current ?</div>
+  <div class="flow-arrow">
+    <div class="flow-arrow-line"></div>
+    <div class="flow-arrow-head">▼</div>
+    <span>NO (상태 전환)</span>
+  </div>
+
+  <div class="flow-box flow-action">_current.OnExit(unit)<br>_current = next<br>_current.OnEnter(unit)</div>
+
+</div>
+</div>
+
+<p class="note" style="text-align:center">YES 분기(같은 상태 유지)는 oneTimeReactUsed 리셋 후 종료. 진단 로그: 명령 대기 중인데 non-PlayerCommand로 전환되면 Warning 출력.</p>
+
+<!-- ── 전환 조건 표 ─────────────────── -->
+<div class="section-title">각 상태 진입 조건 (GetPriority &gt; 0 조건)</div>
+
+<table>
+  <tr>
+    <th>상태</th>
+    <th>진입 조건</th>
+    <th>OnExit 효과</th>
+  </tr>
+  <tr>
+    <td><span class="tag tag-cmd">PlayerCommand</span></td>
+    <td>
+      <code>playerAttackTarget != null &amp;&amp; hp &gt; 0</code><br>
+      OR<br>
+      <code>playerMoveTarget.HasValue &amp;&amp; isManualMoveCommand</code>
+    </td>
+    <td>없음</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-cbt">Combat</span></td>
+    <td>
+      <code>personalSpottedEnemies</code> 중 살아있고 같은 층인 적 존재<br>
+      <span style="color:#888;font-size:0.75rem">※ RoomConfinedMovement 유닛은 방 밖 적 제외</span>
+    </td>
+    <td>
+      <code>currentAlertSearch</code> = 새 AlertSearchState<br>
+      (IsPostCombatSweep=true)
+    </td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-tac">Tactical</span></td>
+    <td>
+      IsPanic <br>
+      OR currentTrapInteraction != null <br>
+      OR currentAlertSearch != null <br>
+      OR currentInvestigation 존재 / HasReachableInvestigateTarget() <br>
+      OR currentWait != null <br>
+      OR HasProtectiveFormationNeed() <br>
+      OR 리더 &amp;&amp; PendingCoreObjectId != null (같은 층일 때만)
+    </td>
+    <td>
+      조사/함정 중단 시 진행도 50% 손실<br>
+      (PenaltyActive가 true인 경우만)
+    </td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-nav">Navigation</span></td>
+    <td>항상 priority = 10 (폴백 기본 상태)</td>
+    <td>없음</td>
+  </tr>
+</table>
+
+<!-- ── IsSticky / ShouldInterrupt ──── -->
+<div class="section-title">IsSticky / ShouldInterrupt 동작</div>
+
+<div class="sticky-grid">
+  <div class="sticky-card">
+    <h3>🎮 PlayerCommand</h3>
+    <p>
+      <span class="mono">IsSticky</span> = <strong>HasActivePlayerCommand(unit)</strong><br>
+      명령이 진행 중인 동안 고착 — 매 틱 재평가가 차단돼 전투 AI도 끼어들 수 없음.<br>
+      명령 완료(목표 도착 / 대상 무효화) 시 자동 해제.
+    </p>
+  </div>
+  <div class="sticky-card">
+    <h3>⚔️ Combat</h3>
+    <p>
+      <span class="mono">IsSticky</span> = <strong>false</strong><br>
+      적 소멸 / 층 이동 시 즉시 전환 허용.<br>
+      <span class="mono">OnExit</span>에서 전투 후 경계(AlertSearch) 자동 세팅.
+    </p>
+  </div>
+  <div class="sticky-card">
+    <h3>🧠 Tactical</h3>
+    <p>
+      <span class="mono">IsSticky</span> = <strong>false</strong><br>
+      BT 내부 Running이 서브태스크 연속성을 자연히 유지.<br>
+      피격/위협 인지 시 각 BT Condition이 Failure 반환으로 처리.
+    </p>
+  </div>
+  <div class="sticky-card">
+    <h3>🗺️ Navigation</h3>
+    <p>
+      <span class="mono">IsSticky</span> = <strong>false</strong><br>
+      항상 priority &gt; 0이지만, 앞선 세 상태 중 하나라도 활성이면 선택되지 않음.<br>
+      폴백 역할만 담당.
+    </p>
+  </div>
+</div>
+
+<!-- ── RunCurrentState ─────────────── -->
+<div class="section-title">RunCurrentState() — 매 턴 실행</div>
+<table>
+  <tr><th>조건</th><th>동작</th></tr>
+  <tr><td><code>isCastingAttack == true</code></td><td>즉시 반환 (공격 모션 중 중단 방지)</td></tr>
+  <tr><td><code>_current != null</code></td><td><code>_current.Tick(unit)</code> 실행</td></tr>
+  <tr><td><code>_current == null</code></td><td>무작위 방향으로 이동 (비상 폴백)</td></tr>
+  <tr><td>매 틱 끝</td><td><code>isHitThisTurn = false</code> 리셋</td></tr>
+</table>
+
+</body>
+</html>

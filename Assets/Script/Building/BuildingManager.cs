@@ -368,8 +368,10 @@ public class BuildingManager : NativeRoutine
         float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
         visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
 
-        GameObject childTilemap = GameObject.Find($"F{pos.z}_Tilemap");
-        if (childTilemap != null) visual.transform.SetParent(childTilemap.transform, true);
+        // 계층 정리(2026-07-28, 사용자 요청 "각 층에 자식으로 할당된 오브젝트들을... 종류별로 묶어서")
+        // — 건물은 "Buildings" 하위 그룹으로.
+        Transform buildingGroup = GameSession.Instance?.GetFloorCategoryGroup(pos.z, "Buildings");
+        if (buildingGroup != null) visual.transform.SetParent(buildingGroup, true);
 
         return visual;
     }

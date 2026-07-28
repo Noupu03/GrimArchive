@@ -263,8 +263,15 @@ public class UnitGenerate
 
 	#region 유닛 생성 보조 기능성
 
+	// 계층 정리(2026-07-28, 사용자 요청 "각 층에 자식으로 할당된 오브젝트들을... 유닛이면 유닛...
+	// 묶어서 나타나게 해줘") — 예전엔 F{n}_Tilemap 바로 아래에 유닛을 매달았는데, 이제 그 층의
+	// "Units" 하위 그룹(GameSession.GetFloorCategoryGroup)으로 통일한다. 실패(GameSession 아직 준비
+	// 안 됨 등) 시 예전처럼 타일맵 자체로 폴백.
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
+		Transform unitsGroup = Session?.GetFloorCategoryGroup(floorIdx, "Units");
+		if (unitsGroup != null) return unitsGroup;
+
 		var mr = GetMapRandering();
 		if (mr != null && mr.floorTilemaps != null && floorIdx >= 0 && floorIdx < mr.floorTilemaps.Length)
 		{
@@ -376,7 +383,18 @@ public class UnitGenerate
 				// 가려진 방 안에 있으면 숨긴다(사용자 요청, 2026-07-28 "안개 속의 유닛은 머리 위의
 				// 상태도 보이지 않게 해줘") — 라벨은 유닛 머리 위로 오프셋(0.35 유닛)이 붙어 안개
 				// 스프라이트 sortingOrder만으로는 항상 완전히 덮인다고 보장할 수 없어 명시적으로 끈다.
-				bool hiddenByFog = u.currentRoom != null && !u.currentRoom.FogRevealed;
+				// 후속 신고(2026-07-28, "안개가 덮여있는 방 유닛 머리 위의 상태 표시가 미약하게 보여")
+				// — u.currentRoom(SyncRoomAffiliation 기반)은 야생 몬스터 A(WildMonsterBehavior)가
+				// 동기화 대상에서 제외돼 있어 항상 null로 남는다 — 그래서 야생 몬스터는 이 조건이 절대
+				// true가 안 돼 라벨이 안개 sortingOrder에만 기대는 채로 살짝 비쳐 보였다. currentRoom
+				// 대신 실시간 위치 기준 roomGrid 조회로 바꿔 진영/동기화 여부와 무관하게 모든 유닛에
+				// 똑같이 적용한다.
+				bool hiddenByFog = false;
+				if (Session != null && Session.roomGrid != null &&
+					Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room liveRoom))
+				{
+					hiddenByFog = !liveRoom.FogRevealed;
+				}
 				uv.UpdateStatusLabel(hiddenByFog ? null : u.fsm.GetLabel(u), u is Human);
 
 				// 함정 해제 시도 중임을 유닛 하단에 표시(사용자 요청, 2026-07-23) — 머리 위 상태

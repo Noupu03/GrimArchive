@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시스템별 정리 — GrimArchive Prototype</title>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    darkMode: true,
+    background: '#161b27',
+    primaryColor: '#1c2233',
+    primaryTextColor: '#e4dcc8',
+    primaryBorderColor: '#3a4460',
+    lineColor: '#8a9ab8',
+    secondaryColor: '#1a2030',
+    tertiaryColor: '#222a3a',
+    edgeLabelBackground: '#1a2030',
+    fontFamily: 'ui-monospace, Consolas, monospace',
+    fontSize: '13px'
+  }
+});
+</script>
+<style>
+:root {
+  --bg:       #0f1117;
+  --surface:  #161b27;
+  --raised:   #1c2233;
+  --border:   #252e44;
+  --accent:   #c8a050;
+  --text:     #e4dcc8;
+  --muted:    #7a7a6a;
+  --green:    #5abf7a;
+  --blue:     #60a0d8;
+  --purple:   #a070d8;
+  --red:      #d87070;
+  --orange:   #d89050;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,"Noto Sans KR",system-ui,sans-serif;font-size:14px;line-height:1.7;}
+
+/* ── top nav ── */
+.topnav{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:0 40px;display:flex;align-items:center;gap:4px;overflow-x:auto;}
+.topnav a{display:block;padding:12px 14px;font-size:12px;color:var(--muted);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+.topnav a:hover{color:var(--text);}
+.topnav a.active{color:var(--accent);border-color:var(--accent);}
+.logo{font-size:12px;font-weight:700;color:var(--accent);font-family:ui-monospace,monospace;padding:12px 20px 12px 0;border-right:1px solid var(--border);margin-right:8px;flex-shrink:0;}
+
+/* ── layout ── */
+main{max-width:1200px;margin:0 auto;padding:0 40px 80px;}
+
+/* ── section ── */
+.sys-section{padding:48px 0 16px;border-bottom:1px solid var(--border);}
+.sys-section:last-child{border-bottom:none;}
+.sys-header{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
+.sys-num{font-size:11px;font-family:ui-monospace,monospace;color:var(--accent);letter-spacing:.1em;opacity:.7;}
+.sys-title{font-size:20px;font-weight:700;letter-spacing:-.01em;}
+.sys-lead{color:var(--muted);font-size:13.5px;margin-bottom:24px;max-width:700px;}
+
+/* ── subsection ── */
+.sub-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:28px 0 10px;display:flex;align-items:center;gap:8px;}
+.sub-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ── diagram wrap ── */
+.diagram-wrap{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:20px 12px;overflow-x:auto;margin-bottom:4px;}
+.diagram-wrap div.mermaid{display:flex;justify-content:center;}
+
+/* ── tables ── */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:8px 14px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);background:var(--surface);border-bottom:1px solid var(--border);font-weight:600;}
+td{padding:9px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+code{font-family:ui-monospace,monospace;font-size:12px;background:rgba(200,160,80,.12);color:var(--accent);padding:1px 5px;border-radius:3px;white-space:nowrap;}
+.num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(200,160,80,.18);color:var(--accent);font-size:11px;font-weight:700;font-family:ui-monospace,monospace;flex-shrink:0;}
+
+/* ── tag chips ── */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chip{padding:3px 10px;border-radius:3px;font-size:11.5px;font-family:ui-monospace,monospace;border:1px solid;}
+.chip-green{background:rgba(90,191,122,.1);border-color:rgba(90,191,122,.3);color:var(--green);}
+.chip-blue{background:rgba(96,160,216,.1);border-color:rgba(96,160,216,.3);color:var(--blue);}
+.chip-purple{background:rgba(160,112,216,.1);border-color:rgba(160,112,216,.3);color:var(--purple);}
+.chip-red{background:rgba(216,112,112,.1);border-color:rgba(216,112,112,.3);color:var(--red);}
+.chip-orange{background:rgba(216,144,80,.1);border-color:rgba(216,144,80,.3);color:var(--orange);}
+.chip-gold{background:rgba(200,160,80,.1);border-color:rgba(200,160,80,.3);color:var(--accent);}
+
+.note{font-size:12.5px;color:var(--muted);margin-top:8px;padding:10px 14px;background:rgba(255,255,255,.02);border-left:2px solid var(--border);border-radius:0 4px 4px 0;}
+
+/* ── BT tree ── */
+.bt-tree{font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.8;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px 20px;white-space:pre;overflow-x:auto;}
+.bt-sel{color:var(--orange);}
+.bt-seq{color:var(--blue);}
+.bt-cond{color:var(--green);}
+.bt-leaf{color:var(--text);}
+.bt-dim{color:var(--muted);}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo">GrimArchive</div>
+  <a href="#install">설치</a>
+  <a href="#offense">점령</a>
+  <a href="#building-unit">건물 유닛</a>
+  <a href="#room-affil">방 귀속</a>
+  <a href="#door">문</a>
+  <a href="#fsm-bt">FSM + BT</a>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════ 1. 설치 -->
+<section class="sys-section" id="install">
+  <div class="sys-header">
+    <span class="sys-num">01</span>
+    <h2 class="sys-title">설치 (Building Installation)</h2>
+  </div>
+  <p class="sys-lead">
+    <code>BuildingManager</code>가 맵 타일 위에 건물 오브젝트를 올려놓는 시스템.
+    설치 가능 여부 판단 → 건물 데이터 등록 → 시각 오브젝트 생성 → 타일 obstacle 갱신 순으로 진행된다.
+    자원 건물과 유닛 생산 건물 두 종류가 있으며, 두 경로 모두 내부에서 <code>InstallBuildingInternal()</code>로 합쳐진다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-red">BuildingManager.cs</span>
+    <span class="chip chip-blue">CreateMap.RuntimeAPI.cs</span>
+    <span class="chip chip-gold">ProductionRule.cs</span>
+    <span class="chip chip-green">GameSession.cs (SpawnInitialBuildings)</span>
+  </div>
+
+  <div class="sub-label">클래스 구조</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+classDiagram
+  direction LR
+
+  class BuildingManager {
+    <<NativeRoutine>>
+    -buildingGrid : Dictionary
+    +int ResourceBuildingCount
+    +float CurrentResourceProductionPerSecond
+    +bool CanInstallAt(Vector3Int pos)
+    +BuildingData GetBuildingAt(Vector3Int pos)
+    +bool InstallResourceBuilding(Vector3Int, Sprite)
+    +bool InstallProductionBuilding(Vector3Int, List, Sprite)
+    +void UninstallBuilding(Vector3Int pos)
+    -bool InstallBuildingInternal(...)
+    -void UpdateMapDataObstacle(Vector3Int, bool)
+    -GameObject CreateBuildingVisual(Vector3Int, Sprite, string)
+  }
+
+  class BuildingData {
+    +Vector3Int Position
+    +GameObject VisualObject
+    +bool IsResourceBuilding
+    +float ResourceTickTimer
+    +List~ProductionRule~ AvailableRules
+    +Queue~ProductionRule~ ProductionQueue
+    +float ProductionProgress
+    +bool IsProducing
+  }
+
+  class ProductionRule {
+    <<ScriptableObject>>
+    +string ruleId
+    +string displayName
+    +List~ResourceCost~ costs
+    +float productionTime
+    +string targetUnitTypeName
+  }
+
+  class ResourceCost {
+    +ResourceType resourceType
+    +int amount
+  }
+
+  class CreateMap {
+    +bool IsPositionPlayerOwned(int floor, Vector2Int)
+    +void UpdateMapDataObstacle(Vector3Int, bool isObstacle)
+  }
+
+  BuildingManager "1" *-- "*" BuildingData : buildingGrid
+  BuildingData "1" o-- "*" ProductionRule : AvailableRules / Queue
+  ProductionRule "1" *-- "*" ResourceCost : costs
+  BuildingManager --> CreateMap : CanInstallAt / obstacle 갱신
+</div>
+  </div>
+
+  <div class="sub-label">설치 흐름</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  A["GameSession.SpawnInitialBuildings()\n또는 플레이어 명령"] --> B["BuildingManager.CanInstallAt(pos)"]
+  B --> C{buildingGrid에\n이미 존재?}
+  C -- 예 --> FAIL["false 반환 (설치 불가)"]
+  C -- 아니오 --> D["CreateMap.IsPositionPlayerOwned(pos)"]
+  D --> E{플레이어 지배\n타일인가?}
+  E -- 아니오 --> FAIL
+  E -- 예 --> F{자원 건물?\n생산 건물?}
+  F -- 자원 --> G["InstallBuildingInternal\nisResource = true"]
+  F -- 생산 --> H["InstallBuildingInternal\nisResource = false, rules 전달"]
+  G --> I["BuildingData 생성, buildingGrid 등록"]
+  H --> I
+  I --> J["CreateBuildingVisual()\nGameObject 생성, 스프라이트 할당"]
+  J --> K["UpdateMapDataObstacle(pos, true)\n타일 isStructureExist = true"]
+  K --> L["true 반환 (설치 완료)"]
+</div>
+  </div>
+
+  <div class="sub-label">설치 취소 (UninstallBuilding)</div>
+  <table>
+    <thead><tr><th>단계</th><th>처리</th></tr></thead>
+    <tbody>
+      <tr><td><div style="display:flex;align-items:center;gap:8px"><span class="num">1</span></div></td><td><code>buildingGrid.TryGetValue(pos)</code>로 존재 확인</td></tr>
+      <tr><td><div style="display:flex;align-items:center;gap:8px"><span class="num">2</span></div></td><td><code>GameObject.Destroy(b.VisualObject)</code></td></tr>
+      <tr><td><div style="display:flex;align-items:center;gap:8px"><span class="num">3</span></div></td><td><code>buildingGrid.Remove(pos)</code></td></tr>
+      <tr><td><div style="display:flex;align-items:center;gap:8px"><span class="num">4</span></div></td><td><code>UpdateMapDataObstacle(pos, false)</code> — 타일 obstacle 해제</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 2. 점령 -->
+<section class="sys-section" id="offense">
+  <div class="sys-header">
+    <span class="sys-num">02</span>
+    <h2 class="sys-title">점령 (Room Occupation / Offense)</h2>
+  </div>
+  <p class="sys-lead">
+    PlayerMonster가 야생(Wild) 방에 진입하면 오펜스가 시작된다.
+    <code>OffenseProcessor</code>가 매 프레임 폴링하다가 야생 유닛이 전멸하거나 Spawner 방의 거점이 파괴되면
+    점령 성공으로 판정하고 <code>Room.RoomFaction</code>과 <code>Chunks.occupationState</code>를 동기화한다.
+    유닛 사망 시에도 소유권 재계산이 트리거된다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-red">OffenseProcessor.cs</span>
+    <span class="chip chip-green">GameSession.cs (TryTriggerOffenseForUnit)</span>
+    <span class="chip chip-blue">Room.cs</span>
+    <span class="chip chip-gold">CreateMap.RuntimeAPI.cs</span>
+    <span class="chip chip-purple">IMapColorizer.cs</span>
+  </div>
+
+  <div class="sub-label">점령 흐름</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  A["GameSession.ProcessUnitAction(unit)\n유닛 이동 완료 후"] --> B["TryTriggerOffenseForUnit(unit)"]
+  B --> C{unit이 PlayerMonster\n이고 방이 Wild?}
+  C -- 아니오 --> END1["종료"]
+  C -- 예 --> D{방이 사실상\n비었나?}
+  D -- 예 --> E["TryClaimEmptyRoomOnEntry(room, unit)\n즉시 PlayerControlled 전환"]
+  D -- 아니오 --> F["TryStartOffense(room, unit)\n_activeOffenseRooms.Add(room)"]
+  F --> G["UpdateProcess()\n(매 프레임 NativeRoutine)"]
+  G --> H["각 activeOffenseRoom에 대해\nCheckOffenseSuccess(room)"]
+  H --> I{방 타입?}
+  I -- Normal --> J{야생 유닛이\n모두 사망?}
+  I -- Spawner --> K{DungeonCore가\n파괴됐나?}
+  J -- 아니오 --> G
+  K -- 아니오 --> G
+  J -- 예 --> L["OnOffenseSuccess(room)"]
+  K -- 예 --> L
+  L --> M["DetermineSoleOccupant(room) FactionType 결정"]
+  M --> N["room.RoomFaction 변경"]
+  N --> O["IMapColorizer.ChangeRoomColor(room, color)"]
+  O --> P["CreateMap.SetRoomOccupationState Chunks 동기화"]
+  P --> Q["_activeOffenseRooms.Remove(room)"]
+
+  R["GameSession.RemoveDeadUnit(unit)"] --> S["TryFlipRoomOwnershipOnDeath(deadUnit)"]
+  S --> T["TryResolveRoomOwnership(room, label)"]
+  T --> U{방에 단일 진영만\n남았나?}
+  U -- 예 --> N
+  U -- 아니오 --> END2["현상 유지"]
+</div>
+  </div>
+
+  <div class="sub-label">핵심 판정 메서드</div>
+  <table>
+    <thead><tr><th>메서드</th><th>위치</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td><code>TryStartOffense</code></td><td>OffenseProcessor</td><td>야생 방 오펜스 등록. 빈 방이면 즉시 <code>TryClaimEmptyRoomOnEntry</code>로 분기</td></tr>
+      <tr><td><code>CheckOffenseSuccess</code></td><td>OffenseProcessor</td><td>Normal: 야생 유닛 전멸 확인. Spawner: <code>HasActiveSpawner == false</code> 확인</td></tr>
+      <tr><td><code>DetermineSoleOccupant</code></td><td>OffenseProcessor</td><td>생존 유닛의 진영을 집계해 단일 FactionType 결정 (혼재 시 Wild 반환)</td></tr>
+      <tr><td><code>TryResolveRoomOwnership</code></td><td>OffenseProcessor</td><td>사망 이벤트 등 트리거 시 현재 방의 유닛 구성을 다시 분석해 소유권 재계산</td></tr>
+      <tr><td><code>SetRoomOccupationState</code></td><td>CreateMap (RuntimeAPI)</td><td>해당 roomId의 모든 Chunk에 대해 <code>occupationState</code> 일괄 갱신</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><code>OccupationState</code>와 <code>FactionType</code>은 별개의 열거형이다. <code>MapToOccupationState(FactionType)</code>로 변환: Player→PlayerControlled, Wild→Neutral, RegularMonster→Occupied, Human→HumanControlled.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 3. 건물 유닛 -->
+<section class="sys-section" id="building-unit">
+  <div class="sys-header">
+    <span class="sys-num">03</span>
+    <h2 class="sys-title">건물 유닛 생산 (Building Unit Production)</h2>
+  </div>
+  <p class="sys-lead">
+    생산 건물은 <code>Queue&lt;ProductionRule&gt;</code>에 쌓인 규칙을 순서대로 소화한다.
+    매 프레임 <code>UpdateProcess()</code>가 자원 차감 → 진행도 누적 → 생산 완료 시 건물 주변 빈 타일에 유닛 스폰하는 사이클을 돌린다.
+    자원 건물은 별도 경로로 5초마다 ResourceManager에 자원을 공급한다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-red">BuildingManager.cs (UpdateProcess, SpawnUnitFromBuilding)</span>
+    <span class="chip chip-gold">ProductionRule.cs (ScriptableObject)</span>
+    <span class="chip chip-green">UnitGenerate.cs (GenerateUnitAtPos)</span>
+  </div>
+
+  <div class="sub-label">생산 사이클 흐름</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  A["BuildingManager.UpdateProcess()\n(NativeRoutine — 매 프레임)"] --> B["buildingGrid의 모든 BuildingData 순회"]
+
+  subgraph RESOURCE ["자원 건물 경로"]
+    B --> R1{IsResourceBuilding?}
+    R1 -- 예 --> R2["ResourceTickTimer += deltaTime"]
+    R2 --> R3{Timer ≥ 5초\nResourceTickInterval?}
+    R3 -- 아니오 --> NEXT["다음 건물로"]
+    R3 -- 예 --> R4["ResourceManager.Add(Wood/Stone, +5)\nTimer = 0"]
+    R4 --> NEXT
+  end
+
+  subgraph PRODUCTION ["생산 건물 경로"]
+    R1 -- 아니오 --> P1{Queue가 비었나?}
+    P1 -- 예 --> P2["IsProducing = false"]
+    P2 --> NEXT
+    P1 -- 아니오 --> P3["rule = Queue.Peek()"]
+    P3 --> P4{ResourceManager\n자원 충분?}
+    P4 -- 아니오 --> NEXT
+    P4 -- 예 --> P5["자원 차감\nQueue.Dequeue()\nIsProducing = true"]
+    P5 --> P6["ProductionProgress += deltaTime"]
+    P6 --> P7{Progress ≥\nrule.productionTime?}
+    P7 -- 아니오 --> NEXT
+    P7 -- 예 --> P8["SpawnUnitFromBuilding(b, rule)"]
+    P8 --> P9["GetSpawnPosAroundBuilding()\n상하좌우 4방향 빈 타일 탐색"]
+    P9 --> P10["UnitGenerate.GenerateUnitAtPos\n(rule.targetUnitTypeName, spawnPos)"]
+    P10 --> P11["IsProducing = false\nProductionProgress = 0"]
+    P11 --> NEXT
+  end
+</div>
+  </div>
+
+  <div class="sub-label">ProductionRule ScriptableObject 필드</div>
+  <table>
+    <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>ruleId</code></td><td>string</td><td>규칙 식별자</td></tr>
+      <tr><td><code>displayName</code></td><td>string</td><td>UI 표시명</td></tr>
+      <tr><td><code>costs</code></td><td>List&lt;ResourceCost&gt;</td><td>소모 자원 종류·수량 목록</td></tr>
+      <tr><td><code>productionTime</code></td><td>float</td><td>생산 소요 시간 (초)</td></tr>
+      <tr><td><code>targetUnitTypeName</code></td><td>string</td><td>스폰할 유닛 타입 이름 (리플렉션으로 인스턴스화)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">스폰 위치 탐색 <code>GetSpawnPosAroundBuilding()</code>은 건물 위치 주변 4방향을 순서대로 시도하며, 유닛 footprint를 고려해 타일이 비어있는지 확인한다. 모두 막히면 스폰을 건너뛰고 생산 완료 처리만 진행한다.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 4. 방 귀속 -->
+<section class="sys-section" id="room-affil">
+  <div class="sys-header">
+    <span class="sys-num">04</span>
+    <h2 class="sys-title">유닛 방 귀속 (Unit Room Affiliation)</h2>
+  </div>
+  <p class="sys-lead">
+    유닛이 한 칸 이동할 때마다 <code>UnitFunction.SyncRoomAffiliation()</code>이 위치 변화를 감지하고
+    <code>roomGrid</code>에서 현재 방을 조회해 <code>Room.ContainedUnits</code>를 갱신한다.
+    방 전환이 일어나면 이전 방의 문 상태와 소유권 재계산이 연쇄적으로 트리거된다.
+    Wild 몬스터는 이 동기화 대상에서 제외된다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-red">UnitFunction.cs (SyncRoomAffiliation, OnUpdate)</span>
+    <span class="chip chip-blue">Room.cs (AddUnit, RemoveUnit)</span>
+    <span class="chip chip-green">GameSession.cs (roomGrid, RefreshRoomGateStates)</span>
+    <span class="chip chip-orange">OffenseProcessor.cs (TryClaimEmptyRoomOnEntry, TryResolveRoomOwnership)</span>
+  </div>
+
+  <div class="sub-label">동기화 흐름</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  A["UnitFunction.OnUpdate(deltaTime)\n(매 프레임)"] --> B["SyncRoomAffiliation()"]
+  B --> C{_lastRoomSyncPos == position\n&& _lastRoomSyncFloor == floor?}
+  C -- 예 --> SKIP["조기 반환 (이동 없음)"]
+  C -- 아니오 --> D["_lastRoomSyncPos = position 갱신"]
+  D --> E["Session.roomGrid.TryGetValue\n(Vector3Int) actualRoom 조회"]
+  E --> F{actualRoom ==\ncurrentRoom?}
+  F -- 예 --> SKIP2["변화 없음, 반환"]
+  F -- 아니오 --> G["previousRoom = currentRoom"]
+  G --> H["previousRoom?.RemoveUnit(this)"]
+  H --> I["actualRoom?.AddUnit(this)"]
+  I --> J["currentRoom = actualRoom"]
+  J --> K["Session.RefreshRoomGateStates(previousRoom)\n문 열림/닫힘 재판정"]
+  K --> L["OffenseProcessor.TryResolveRoomOwnership\n(previousRoom, 'UnitLeft')"]
+  L --> M{actualRoom이\n비어 있었나?}
+  M -- 예 --> N["OffenseProcessor.TryClaimEmptyRoomOnEntry\n(actualRoom, this)"]
+  M -- 아니오 --> END["종료"]
+  N --> END
+</div>
+  </div>
+
+  <div class="sub-label">Room 클래스 핵심 멤버</div>
+  <table>
+    <thead><tr><th>멤버</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td><code>ContainedUnits</code> (IReadOnlyList)</td><td>현재 방 안의 유닛 목록. <code>AddUnit/RemoveUnit</code>으로만 변경</td></tr>
+      <tr><td><code>CurrentPopulation</code></td><td>Player·Monster·Human 진영 유닛의 <code>populationCost</code> 합산 계산 프로퍼티</td></tr>
+      <tr><td><code>MaxPopulation</code></td><td>방의 인구 상한 (초과 시 스폰 제한 가능)</td></tr>
+      <tr><td><code>RoomFaction</code></td><td>현재 점령 진영. <code>OffenseProcessor</code>가 변경</td></tr>
+      <tr><td><code>HasActiveSpawner</code></td><td>Spawner 방의 거점(DungeonCore) 생존 여부. 파괴 시 false</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">Wild 몬스터(<code>WildMonsterBehavior</code>)는 <code>SyncRoomAffiliation</code> 대상에서 제외된다. 처음 스폰된 방에 영구 귀속되어 점령 전멸 판정의 분모로만 쓰인다.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 5. 문 -->
+<section class="sys-section" id="door">
+  <div class="sys-header">
+    <span class="sys-num">05</span>
+    <h2 class="sys-title">문 (Door / Gate System)</h2>
+  </div>
+  <p class="sys-lead">
+    맵 생성 시 모든 <code>Gate</code>에 <code>InteractableObject(Door)</code>가 배치된다.
+    평소에는 열려 있다가 웨이브 시작 시 전체 잠금 → 방에 단일 진영만 남으면 그 방의 게이트가 자동으로 열린다.
+    물리적 차단은 타일의 이동 가능 여부(obstacle)와 <code>IsFullyBlocking</code> 플래그 두 가지로 표현된다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-green">GameSession.cs (SpawnDoors, CloseAllDoorsForWaveStart, RefreshRoomGateStates, SetGateClosed)</span>
+    <span class="chip chip-blue">MapData.cs (Gate struct)</span>
+    <span class="chip chip-red">InteractableObject.cs (Door 태그)</span>
+    <span class="chip chip-orange">HumanWaveManager.cs (StartWave 트리거)</span>
+  </div>
+
+  <div class="sub-label">데이터 구조 관계</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+classDiagram
+  direction LR
+
+  class Gate {
+    <<struct>>
+    +int roomA
+    +int roomB
+    +int chunkAX
+    +int chunkAY
+    +int chunkBX
+    +int chunkBY
+    +int width
+    +bool isHorizontal
+    +bool isDoorClosed
+  }
+
+  class InteractableObject {
+    +string Id
+    +Vector3Int Position
+    +List~string~ Tags
+    +bool IsFullyBlocking
+    +bool IsCollected
+    +float BaseVisibility
+  }
+
+  class GameSession {
+    +objectGrid : Dictionary
+    +void SpawnDoors()
+    +void CloseAllDoorsForWaveStart()
+    +void RefreshRoomGateStates(Room)
+    +void SetGateClosed(int floor, int gateIdx, bool closed)
+    -void OpenAllGatesForRoom(Room)
+    -void ApplyGateTileBlocking(Floor, Gate, bool)
+    -void ApplyGateDoorVisual(int floor, Gate, bool)
+    +bool IsDoorTile(Vector3Int)
+    +GetGateDoorTiles(Gate) List
+  }
+
+  GameSession --> Gate : Floor.gates 순회
+  GameSession "1" *-- "*" InteractableObject : objectGrid
+  Gate ..> InteractableObject : 문 오브젝트와 일대일 연결
+</div>
+  </div>
+
+  <div class="sub-label">문 생명 주기 흐름</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  INIT["GameSession.Initialize()"] --> SD["SpawnDoors()\n모든 Floor.gates 순회"]
+  SD --> CREATE["각 Gate마다\nInteractableObject 생성\nTags: Object/Passable/Door\nIsFullyBlocking: false\nobjectGrid에 등록"]
+
+  WAVE["HumanWaveManager.StartWave()"] --> CLOSE["CloseAllDoorsForWaveStart()\n모든 Gate 닫기"]
+  CLOSE --> SETG["SetGateClosed(floor, gateIdx, closed=true)"]
+  SETG --> GA["Gate.isDoorClosed = true"]
+  SETG --> GB["ApplyGateTileBlocking()\n문 타일 isStructureExist 갱신 (이동 불가)"]
+  SETG --> GC["ApplyGateDoorVisual()\n문 오브젝트 숨김/표시"]
+
+  SYNC["SyncRoomAffiliation()\n유닛이 방을 떠남"] --> RGS["RefreshRoomGateStates(previousRoom)"]
+  RGS --> CHECK{방이 비었거나\n단일 진영만?}
+  CHECK -- 아니오 --> HOLD["문 유지"]
+  CHECK -- 예 --> OPEN["OpenAllGatesForRoom(room)\n해당 방의 모든 Gate SetGateClosed(false)"]
+</div>
+  </div>
+
+  <div class="sub-label">GetGateDoorTiles — 문 타일 배치 규칙</div>
+  <table>
+    <thead><tr><th>항목</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td>반환 형태</td><td><code>List&lt;Vector2Int&gt;[2]</code> — [0] A쪽 문턱 / [1] B쪽 문턱, 각각 width만큼의 타일 목록</td></tr>
+      <tr><td>수평 게이트</td><td>chunkA의 아랫줄 + chunkB의 윗줄</td></tr>
+      <tr><td>수직 게이트</td><td>chunkA의 오른쪽 열 + chunkB의 왼쪽 열</td></tr>
+      <tr><td><code>IsDoorTile(pos)</code></td><td>objectGrid에 해당 위치에 Door 태그가 있는 오브젝트가 있는지 확인</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 6. FSM + BT -->
+<section class="sys-section" id="fsm-bt">
+  <div class="sys-header">
+    <span class="sys-num">06</span>
+    <h2 class="sys-title">FSM + BT (유닛 AI 구조)</h2>
+  </div>
+  <p class="sys-lead">
+    유닛은 <strong>FSM(우선순위 상태 머신)</strong>으로 현재 활성 상태를 선택하고,
+    각 상태 내부에서 <strong>BT(행동 트리)</strong>로 구체적 행동을 결정한다.
+    매 턴 <code>JudgeState() → SelectState()</code>로 상태를 선택한 뒤
+    <code>ExecuteAction() → RunCurrentState() → Tick()</code>으로 BT를 한 틱 실행한다.
+  </p>
+
+  <div class="chips">
+    <span class="chip chip-red">UnitFSM.cs · IFSMState.cs · BTNode.cs</span>
+    <span class="chip chip-blue">PlayerCommandFSMState · CombatFSMState · TacticalFSMState · NavigationFSMState</span>
+    <span class="chip chip-orange">AIBehaviorConfig.cs (ScriptableObject)</span>
+    <span class="chip chip-green">Unit.cs (JudgeState / ExecuteAction)</span>
+    <span class="chip chip-purple">UnitFunction.cs (OnUpdate → SyncRoom, 타이머 등)</span>
+  </div>
+
+  <div class="sub-label">클래스 구조</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+classDiagram
+  direction TB
+
+  class Unit {
+    <<abstract ScriptableObject>>
+    -UnitFSM _fsm
+    +List~IUnitComponent~ Components
+    +void JudgeState()
+    +void ExecuteAction()
+  }
+
+  class UnitFSM {
+    -IFSMState[] _states
+    +void SelectState(Unit unit)
+    +void RunCurrentState(Unit unit)
+  }
+
+  class IFSMState {
+    <<interface>>
+    +float GetPriority(Unit)
+    +bool IsSticky(Unit)
+    +bool ShouldInterrupt(Unit)
+    +void OnEnter(Unit)
+    +void OnExit(Unit)
+    +BTStatus Tick(Unit)
+    +string GetLabel(Unit)
+  }
+
+  class PlayerCommandFSMState {
+    +priority 200
+    +IsSticky HasActivePlayerCommand
+  }
+  class CombatFSMState {
+    +priority 100
+    +IsSticky false
+  }
+  class TacticalFSMState {
+    +priority 50
+    +IsSticky false
+  }
+  class NavigationFSMState {
+    +priority 10
+    +IsSticky false
+  }
+
+  class BTNode {
+    <<abstract>>
+    +BTStatus Tick(Unit)
+  }
+  class BTSequence {
+    +AND 모든자식Success필요
+    +첫Failure또는Running에서반환
+  }
+  class BTSelector {
+    +OR 첫Success반환
+    +모두Failure여야Failure
+  }
+  class BTCondition {
+    +predicate Func
+    +true=Success false=Failure
+  }
+  class BTLeaf {
+    +action Func
+    +람다로 행동 수행
+  }
+
+  class BTStatus {
+    <<enumeration>>
+    Success
+    Failure
+    Running
+  }
+
+  Unit "1" *-- "1" UnitFSM
+  UnitFSM "1" *-- "4" IFSMState : _states (우선순위순)
+  PlayerCommandFSMState ..|> IFSMState
+  CombatFSMState ..|> IFSMState
+  TacticalFSMState ..|> IFSMState
+  NavigationFSMState ..|> IFSMState
+  BTNode <|-- BTSequence
+  BTNode <|-- BTSelector
+  BTNode <|-- BTCondition
+  BTNode <|-- BTLeaf
+  IFSMState --> BTNode : Tick()에서 BT 루트 실행
+  BTNode ..> BTStatus : 반환값
+</div>
+  </div>
+
+  <div class="sub-label">턴 AI 루프 실행 순서</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+sequenceDiagram
+  participant GS as GameSession
+  participant U as Unit
+  participant FSM as UnitFSM
+  participant ST as "현재 FSMState"
+  participant BT as "BTNode 트리"
+
+  GS->>U: OnUpdate(deltaTime)
+  Note over U: SyncRoomAffiliation()<br>타이머 감소, 상태이상 처리<br>personalMap 갱신, HP 회복
+  GS->>U: UpdateFOV(allUnits)
+  Note over U: CastRay 72개 시야 계산<br>적 인지 판정 업데이트
+  GS->>U: ResolveVisionDirection()
+  Note over U: 공격자/적/수상한 타일 기준<br>시야 방향 결정
+  GS->>U: JudgeState()
+  U->>FSM: SelectState(unit)
+  Note over FSM: stun이면 건너뜀<br>고착 확인 후 우선순위순 탐색
+  FSM-->>U: 상태 전환 OnExit then OnEnter
+  GS->>U: ExecuteAction()
+  U->>FSM: RunCurrentState(unit)
+  Note over FSM: isCastingAttack이면 건너뜀
+  FSM->>ST: Tick(unit)
+  ST->>BT: 루트 노드 Tick(unit)
+  BT-->>ST: BTStatus (Success/Failure/Running)
+  ST-->>FSM: BTStatus
+</div>
+  </div>
+
+  <div class="sub-label">FSM 상태 선택 규칙 (SelectState)</div>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  A["SelectState(unit) 시작"] --> B{"현재 상태가\n고착(IsSticky)?"}
+  B -- 아니오 --> SCAN
+  B -- 예 --> C{"ShouldInterrupt\n(unit)?"}
+  C -- 아니오 --> KEEP["현재 상태 유지"]
+  C -- 예 --> SCAN
+
+  subgraph SCAN["우선순위순 스캔"]
+    D["PlayerCommandFSMState.GetPriority(unit)"] --> E{활성?}
+    E -- 예 --> SEL["선택"]
+    E -- 아니오 --> F["CombatFSMState.GetPriority(unit)"] --> G{활성?}
+    G -- 예 --> SEL
+    G -- 아니오 --> H["TacticalFSMState.GetPriority(unit)"] --> I{활성?}
+    I -- 예 --> SEL
+    I -- 아니오 --> J["NavigationFSMState (항상 > 0)"] --> SEL
+  end
+
+  SEL --> K{이전 상태와 다른가?}
+  K -- 예 --> L["이전.OnExit(unit)\n선택.OnEnter(unit)"]
+  K -- 아니오 --> SAME["그대로 유지"]
+</div>
+  </div>
+
+  <div class="sub-label">각 FSM 상태의 BT 구조</div>
+
+  <!-- PlayerCommand -->
+  <p style="font-size:12px;color:var(--accent);margin-top:16px;margin-bottom:6px;font-family:ui-monospace,monospace;letter-spacing:.05em;">PLAYER COMMAND (priority ~200)</p>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart LR
+  classDef sel fill:#2e1c08,stroke:#d89050,color:#d89050
+  classDef seq fill:#08162a,stroke:#60a0d8,color:#60a0d8
+  classDef cond fill:#081a08,stroke:#5abf7a,color:#5abf7a
+  classDef act fill:#1c1e2c,stroke:#8898b8,color:#c8c0a0
+
+  R("Selector"):::sel
+  S1("Sequence"):::seq
+  S2("Sequence"):::seq
+  C1["HasPlayerAttackTarget"]:::cond
+  A1["ExecutePlayerAttack"]:::act
+  C2["HasPlayerMoveCommand"]:::cond
+  A2["ExecutePlayerMove\n길막힘 FindNearbyOpenTile\n완전차단 명령 포기"]:::act
+  A3["CompletePlayerCommand"]:::act
+
+  R --> S1
+  R --> S2
+  S1 --> C1
+  S1 --> A1
+  S2 --> C2
+  S2 --> A2
+  S2 --> A3
+</div>
+  </div>
+
+  <!-- Combat -->
+  <p style="font-size:12px;color:var(--accent);margin-top:16px;margin-bottom:6px;font-family:ui-monospace,monospace;letter-spacing:.05em;">COMBAT (priority ~100, 적 인지 시 활성)</p>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart TD
+  classDef act fill:#1c1e2c,stroke:#8898b8,color:#c8c0a0
+  classDef note fill:#1a1a0e,stroke:#d89050,color:#d89050
+
+  LEAF("Leaf: ExecuteCombat"):::act
+  T1["타깃 선정\nreactedAttackers / currentThreat / 인지 적"]:::act
+  K{"원거리 키팅 조건?"}
+  KY["거리 벌리기"]:::act
+  SK["스킬 우선순위 선정"]:::act
+  RR{"사거리 내?"}
+  EX["Execute 스킬"]:::act
+  CD{"모든 스킬 쿨다운?"}
+  AP["A* 접근"]:::act
+  SF["안전거리 유지"]:::act
+  EXIT["OnExit: AlertSearchState\nIsPostCombatSweep = true"]:::note
+
+  LEAF --> T1
+  T1 --> K
+  K -- 예 --> KY
+  K -- 아니오 --> SK
+  SK --> RR
+  RR -- 예 --> EX
+  RR -- 아니오 --> CD
+  CD -- 아니오 --> AP
+  CD -- 예 --> SF
+  LEAF -. OnExit .-> EXIT
+</div>
+  </div>
+
+  <!-- Tactical -->
+  <p style="font-size:12px;color:var(--accent);margin-top:16px;margin-bottom:6px;font-family:ui-monospace,monospace;letter-spacing:.05em;">TACTICAL (priority ~50, 전술 상태 보유 시 활성)</p>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart LR
+  classDef sel fill:#2e1c08,stroke:#d89050,color:#d89050
+  classDef seq fill:#08162a,stroke:#60a0d8,color:#60a0d8
+  classDef cond fill:#081a08,stroke:#5abf7a,color:#5abf7a
+  classDef act fill:#1c1e2c,stroke:#8898b8,color:#c8c0a0
+
+  R("Selector"):::sel
+
+  P("Seq: Panic"):::seq
+  CP["IsPanic"]:::cond
+  AP["ExecutePanic"]:::act
+  R --> P
+  P --> CP
+  P --> AP
+
+  TR("Sel: TrapResponse"):::sel
+  TR1("Sequence"):::seq
+  TRC1["IsSearchingForMissingUnit"]:::cond
+  TRA1["TrapSearchForMissingUnit"]:::act
+  TR2("Sequence"):::seq
+  TRC2["IsAwaitingSelectedUnit"]:::cond
+  TRA2["TrapAwaitSelectedUnit"]:::act
+  TR3("Sequence"):::seq
+  TRC3["CanDisarm"]:::cond
+  TRA3["JoinWait / MoveToTrap / Disarm"]:::act
+  R --> TR
+  TR --> TR1
+  TR1 --> TRC1
+  TR1 --> TRA1
+  TR --> TR2
+  TR2 --> TRC2
+  TR2 --> TRA2
+  TR --> TR3
+  TR3 --> TRC3
+  TR3 --> TRA3
+
+  A("Seq: AlertSearch"):::seq
+  CA["HasAlert"]:::cond
+  AS("Selector"):::sel
+  AS1["DeathSearchMove"]:::act
+  AS2["AlertApproach"]:::act
+  AS3["AlertPerimeterSearch"]:::act
+  R --> A
+  A --> CA
+  A --> AS
+  AS --> AS1
+  AS --> AS2
+  AS --> AS3
+
+  I("Seq: Investigate"):::seq
+  CI["CanInvestigate"]:::cond
+  II1["MoveToInvestigateTarget"]:::act
+  II2["InvestigatePerform"]:::act
+  II3["PickUpObject"]:::act
+  R --> I
+  I --> CI
+  I --> II1
+  I --> II2
+  I --> II3
+
+  W("Seq: Wait"):::seq
+  CW["HasWait"]:::cond
+  AW["ExecuteWait"]:::act
+  R --> W
+  W --> CW
+  W --> AW
+
+  F("Seq: Formation"):::seq
+  CF["HasFormationNeed"]:::cond
+  FS("Selector"):::sel
+  FM["MoveToMeleeSlot"]:::act
+  FR["MoveToRangedSlot"]:::act
+  FH["HoldFormation"]:::act
+  R --> F
+  F --> CF
+  F --> FS
+  FS --> FM
+  FS --> FR
+  F --> FH
+
+  CO("Seq: CoreObjective"):::seq
+  CC["CanContinueCore"]:::cond
+  CO1["MoveToCore"]:::act
+  CO2["CoreInvestigatePerform"]:::act
+  R --> CO
+  CO --> CC
+  CO --> CO1
+  CO --> CO2
+</div>
+  </div>
+
+  <!-- Navigation -->
+  <p style="font-size:12px;color:var(--accent);margin-top:16px;margin-bottom:6px;font-family:ui-monospace,monospace;letter-spacing:.05em;">NAVIGATION (priority ~10, 항상 활성 — 기본 상태)</p>
+  <div class="diagram-wrap">
+<div class="mermaid">
+flowchart LR
+  classDef sel fill:#2e1c08,stroke:#d89050,color:#d89050
+  classDef seq fill:#08162a,stroke:#60a0d8,color:#60a0d8
+  classDef cond fill:#081a08,stroke:#5abf7a,color:#5abf7a
+  classDef act fill:#1c1e2c,stroke:#8898b8,color:#c8c0a0
+
+  R("Selector"):::sel
+  S("Sequence"):::seq
+  CS["HasPendingStairs\n0층에서 웨이브 전 차단"]:::cond
+  A1["MoveToStairs"]:::act
+  A2["CrossStairs"]:::act
+  A3["RandomExplore\nBFS 미탐색 타일\nFindNearestUnexplored\nAStar 이동 / MoveRandomlyValid"]:::act
+
+  R --> S
+  R --> A3
+  S --> CS
+  S --> A1
+  S --> A2
+</div>
+  </div>
+  <div class="sub-label">AI 상태 데이터 컴포넌트 (IUnitComponent)</div>
+  <table>
+    <thead><tr><th>컴포넌트</th><th>유닛</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td><code>AIStateComponent</code></td><td>Unit 공통</td><td>reactedAttackers, currentThreat, pendingAttack(공격 예약), oneTimeReactUsed</td></tr>
+      <tr><td><code>AlertSearchState</code> (필드)</td><td>Unit 공통</td><td>경계 목표 타일, 전투 후 스윕 여부, 사망 수색 여부, 경과 시간</td></tr>
+      <tr><td><code>TrapInteractionState</code> (필드)</td><td>Unit 공통</td><td>함정 대응 단계(JoinWait/Disarming/Destroying), 타이머</td></tr>
+      <tr><td><code>InvestigationState</code> (필드)</td><td>Human</td><td>조사 대상 오브젝트, 진행도(Progress01), 패널티 활성 여부</td></tr>
+      <tr><td><code>WaitState</code> (필드)</td><td>Human</td><td>집결·합류 대기 목표 위치, 타이머</td></tr>
+      <tr><td><code>FormationState</code> (필드)</td><td>Human</td><td>EscortTarget, 근접/원거리 슬롯 위치</td></tr>
+      <tr><td><code>CoreInteractionState</code> (필드)</td><td>Human (리더)</td><td>코어 조사 진행도, 전파 타이머</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<script>
+// 스크롤에 따라 topnav 활성 링크 갱신
+const sections = document.querySelectorAll('.sys-section');
+const links = document.querySelectorAll('.topnav a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const link = document.querySelector(`.topnav a[href="#${e.target.id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, { rootMargin: '-40% 0px -55% 0px' });
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

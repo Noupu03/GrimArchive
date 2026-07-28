@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>UnitFSM BT(Behavior Tree) 다이어그램</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', sans-serif; background: #1a1a2e; color: #eee; padding: 24px; }
+h1 { text-align: center; font-size: 1.4rem; color: #a8d8ea; margin-bottom: 6px; }
+.subtitle { text-align: center; font-size: 0.78rem; color: #888; margin-bottom: 32px; }
+
+/* ── 범례 ───────────── */
+.legend {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 28px; font-size: 0.75rem;
+}
+.leg { display: flex; align-items: center; gap: 6px; }
+.leg-box { width: 22px; height: 16px; border-radius: 3px; }
+
+/* ── BT 섹션 ─────────── */
+.bt-section { margin-bottom: 36px; }
+.bt-header {
+  font-size: 0.95rem; font-weight: bold;
+  padding: 8px 14px 8px 14px;
+  border-radius: 5px 5px 0 0;
+  margin-bottom: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.bt-body {
+  border: 2px solid;
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+  padding: 16px 12px;
+  overflow-x: auto;
+}
+
+/* ── 트리 노드 ─────── */
+.tree { font-size: 0.8rem; }
+.tree ul { list-style: none; padding-left: 0; margin: 0; }
+.tree li { margin: 0; padding: 0; position: relative; }
+.tree li > .row { display: flex; align-items: center; gap: 0; }
+
+/* 수직/수평 라인 */
+.tree li::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0; bottom: 0;
+  border-left: 2px solid #333;
+}
+.tree li:last-child::before { height: 14px; }
+.tree li > .row::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  min-width: 16px;
+  height: 2px;
+  background: #333;
+  margin-right: 4px;
+}
+.tree > ul > li::before { display: none; }
+.tree > ul > li > .row::before { display: none; }
+
+/* 자식 ul */
+.tree ul ul { padding-left: 24px; margin-top: 2px; }
+
+/* 노드 뱃지 */
+.node {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  margin: 2px 0;
+  border: 1px solid transparent;
+}
+
+/* 노드 타입별 색 */
+.n-sel   { background: #1a1a4a; border-color: #5555cc; color: #aaf; }
+.n-seq   { background: #1a3a1a; border-color: #33aa33; color: #afa; }
+.n-cond  { background: #3a2a00; border-color: #cc8800; color: #fc9; }
+.n-leaf  { background: #2a1a1a; border-color: #aa3333; color: #faa; }
+.n-root  { background: #0f3460; border-color: #a8d8ea; color: #a8d8ea; font-weight: bold; font-size: 0.85rem; }
+
+/* type label */
+.t-sel   { color: #88f; font-size: 0.65rem; font-weight: bold; }
+.t-seq   { color: #8f8; font-size: 0.65rem; font-weight: bold; }
+.t-cond  { color: #fa8; font-size: 0.65rem; font-weight: bold; }
+.t-leaf  { color: #f88; font-size: 0.65rem; font-weight: bold; }
+
+/* 상태별 헤더 색 */
+.hdr-cmd  { background: #3a0a0a; border-color: #e74c3c; }
+.bdy-cmd  { border-color: #e74c3c; }
+.hdr-cbt  { background: #3a1f05; border-color: #e67e22; }
+.bdy-cbt  { border-color: #e67e22; }
+.hdr-tac  { background: #0a2a14; border-color: #2ecc71; }
+.bdy-tac  { border-color: #2ecc71; }
+.hdr-nav  { background: #051528; border-color: #3498db; }
+.bdy-nav  { border-color: #3498db; }
+
+/* ── 노트 박스 ─────── */
+.notes { margin-top: 10px; font-size: 0.74rem; color: #888; }
+.notes li { margin-left: 16px; list-style: disc; line-height: 1.7; }
+.notes li span { color: #aaa; }
+
+/* ── BTStatus 설명 ─── */
+.status-table { margin-top: 24px; }
+.status-table table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.status-table th { background: #0f3460; color: #a8d8ea; padding: 6px 12px; text-align: left; }
+.status-table td { padding: 5px 12px; border-bottom: 1px solid #2a2a4a; }
+</style>
+</head>
+<body>
+
+<h1>BT (Behavior Tree) 다이어그램</h1>
+<p class="subtitle">각 FSM 상태의 BT 구조 &nbsp;|&nbsp; 2026-07-28</p>
+
+<!-- 범례 -->
+<div class="legend">
+  <div class="leg"><div class="leg-box" style="background:#1a1a4a;border:1px solid #5555cc"></div><span><b style="color:#aaf">Selector (OR)</b> — 첫 Success/Running 반환</span></div>
+  <div class="leg"><div class="leg-box" style="background:#1a3a1a;border:1px solid #33aa33"></div><span><b style="color:#afa">Sequence (AND)</b> — 첫 Failure/Running 반환</span></div>
+  <div class="leg"><div class="leg-box" style="background:#3a2a00;border:1px solid #cc8800"></div><span><b style="color:#fc9">Condition</b> — bool → Success/Failure</span></div>
+  <div class="leg"><div class="leg-box" style="background:#2a1a1a;border:1px solid #aa3333"></div><span><b style="color:#faa">Leaf</b> — 실제 행동 실행</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     1. PlayerCommandFSMState
+═══════════════════════════════════════════ -->
+<div class="bt-section">
+  <div class="bt-header hdr-cmd">🎮 PlayerCommandFSMState — BT</div>
+  <div class="bt-body bdy-cmd">
+    <div class="tree">
+      <ul>
+        <li>
+          <div class="row"><span class="node n-root">Selector</span><span class="t-sel">[OR]</span></div>
+          <ul>
+            <li>
+              <div class="row"><span class="node n-seq">Sequence</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasPlayerAttackTarget</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: ExecutePlayerAttack</span></div></li>
+              </ul>
+            </li>
+            <li>
+              <div class="row"><span class="node n-seq">Sequence</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasPlayerMoveCommand</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: ExecutePlayerMove</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: CompletePlayerCommand</span></div></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <ul class="notes">
+      <li><span>ExecutePlayerAttack</span>: 적 유효하면 스킬 범위 내 → 공격, 아니면 MoveTowardsTarget. 막히면 FindNearbyOpenTile로 우회.</li>
+      <li><span>ExecutePlayerMove</span>: 목표 도착 시 Success. 막히면 fallback 재지정 → 구조적 완전 차단 시 명령 포기(로그 출력).</li>
+      <li><span>CompletePlayerCommand</span>: playerMoveTarget=null, isManualMoveCommand=false, oneTimeReactUsed=false.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     2. CombatFSMState
+═══════════════════════════════════════════ -->
+<div class="bt-section">
+  <div class="bt-header hdr-cbt">⚔️ CombatFSMState — BT</div>
+  <div class="bt-body bdy-cbt">
+    <div class="tree">
+      <ul>
+        <li>
+          <div class="row"><span class="node n-root">Leaf: ExecuteCombat</span><span class="t-leaf">[단일 노드]</span></div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ExecuteCombat 내부 우선순위 흐름 -->
+    <div style="margin-top:14px; padding:10px 14px; background:#1a1200; border:1px solid #554400; border-radius:5px; font-size:0.78rem;">
+      <div style="color:#fa8; font-weight:bold; margin-bottom:8px;">ExecuteCombat 내부 우선순위 (코드 순서)</div>
+      <ol style="margin-left:16px; line-height:2; color:#ccc;">
+        <li>isCastingAttack? → <span style="color:#888">즉시 Running 반환 (공격 모션 중 대기)</span></li>
+        <li>GetClosestEnemy → target 선택 (같은 층, 같은 방 제한 적용)</li>
+        <li>우선순위 높은 사용 가능 스킬 선택 (bestSkill)</li>
+        <li style="color:#faa">bestSkill이 원거리(hitRange ≥ 4) &amp;&amp; 적이 위험거리(range/2) 이하 → <b>키팅: MoveAwayFromTarget</b></li>
+        <li style="color:#afa">bestSkill의 히트박스 안에 적 포함 → <b>스킬 Execute</b></li>
+        <li style="color:#aaf">그 외 → <b>MoveTowardsTarget (접근)</b></li>
+        <li>모든 스킬 쿨다운 시 → 원거리면 안전거리 유지, 근거리면 거리 조정</li>
+      </ol>
+    </div>
+    <ul class="notes">
+      <li><span>IsRoomConfined</span>: MovementAlgorithm이 RoomConfinedMovement인 경우 방 밖 적 무시.</li>
+      <li><span>evadeCooldown &gt; 0</span>: 이동 행동 스킵 (회피 쿨다운 중).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     3. TacticalFSMState
+═══════════════════════════════════════════ -->
+<div class="bt-section">
+  <div class="bt-header hdr-tac">🧠 TacticalFSMState — BT</div>
+  <div class="bt-body bdy-tac">
+    <div class="tree">
+      <ul>
+        <li>
+          <div class="row"><span class="node n-root">Selector (TacticalBehaviorPriorityConfig 순서)</span><span class="t-sel">[OR]</span></div>
+          <ul>
+
+            <!-- Panic -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Panic</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: IsPanic (mental &lt; maxMental×0.3)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: Panic (50% 확률 무작위 이동)</span></div></li>
+              </ul>
+            </li>
+
+            <!-- TrapResponse -->
+            <li>
+              <div class="row"><span class="node n-sel">Selector — TrapResponse</span><span class="t-sel">[OR]</span></div>
+              <ul>
+                <li>
+                  <div class="row"><span class="node n-seq">Sequence — 선정 유닛 수색 중</span><span class="t-seq">[AND]</span></div>
+                  <ul>
+                    <li><div class="row"><span class="node n-cond">Condition: IsSearchingForMissingUnit</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: TrapSearchForMissingUnit</span></div></li>
+                  </ul>
+                </li>
+                <li>
+                  <div class="row"><span class="node n-seq">Sequence — 선정 유닛 대기</span><span class="t-seq">[AND]</span></div>
+                  <ul>
+                    <li><div class="row"><span class="node n-cond">Condition: IsAwaitingSelectedUnit</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: TrapAwaitSelectedUnit</span></div></li>
+                  </ul>
+                </li>
+                <li>
+                  <div class="row"><span class="node n-seq">Sequence — 해제 (Disarm)</span><span class="t-seq">[AND]</span></div>
+                  <ul>
+                    <li><div class="row"><span class="node n-cond">Condition: CanDisarm (해제 가치 있음 &amp;&amp; 피격/위협 없음)</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: TrapJoinWait (합류 대기)</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: MoveToTrap (Chebyshev≤1까지 이동)</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: TrapDisarmPerform (진행도 타이머 → 성공/실패)</span></div></li>
+                  </ul>
+                </li>
+                <li><div class="row"><span class="node n-leaf">Leaf: TrapBypass (길 비켜서 우회)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: TrapPass (HP 계산 후 통과 감수)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: TrapDestroy (함정 파괴)</span></div></li>
+              </ul>
+            </li>
+
+            <!-- Alert -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Alert (경계)</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasAlert (currentAlertSearch != null)</span></div></li>
+                <li>
+                  <div class="row"><span class="node n-sel">Selector</span><span class="t-sel">[OR]</span></div>
+                  <ul>
+                    <li><div class="row"><span class="node n-leaf">Leaf: DeathSearchMove (4-15장: 원인미상 사망 수색)</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: AlertApproach (목표 지점으로 접근)</span></div></li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: AlertPerimeterSearch (주변 순찰)</span></div></li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Investigate -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Investigate (조사)</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: CanInvestigate (Human &amp;&amp; 타깃 있음 &amp;&amp; 피격/위협 없음)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: MoveToInvestigateTarget (Chebyshev≤1까지 이동)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: InvestigatePerform (진행도 타이머 → 파티 공유)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: PickUpObject (Loot면 회수 → 탈출 스타트)</span></div></li>
+              </ul>
+            </li>
+
+            <!-- Wait -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Wait (대기)</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasWait (Human &amp;&amp; currentWait != null &amp;&amp; 피격/적 없음)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: ExecuteWait (집결지 이동 → 도착 시 CheckRallyComplete)</span></div></li>
+              </ul>
+            </li>
+
+            <!-- Formation -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Formation (포메이션)</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasFormationNeed (HasProtectiveFormationNeed)</span></div></li>
+                <li>
+                  <div class="row"><span class="node n-seq">Sequence</span><span class="t-seq">[AND]</span></div>
+                  <ul>
+                    <li>
+                      <div class="row"><span class="node n-sel">Selector</span><span class="t-sel">[OR]</span></div>
+                      <ul>
+                        <li><div class="row"><span class="node n-leaf">Leaf: MoveToMeleeSlot (근거리 슬롯)</span></div></li>
+                        <li><div class="row"><span class="node n-leaf">Leaf: MoveToRangedSlot (원거리 슬롯)</span></div></li>
+                      </ul>
+                    </li>
+                    <li><div class="row"><span class="node n-leaf">Leaf: HoldFormation (감시 방향 배정, 벽 차단 시 재배정)</span></div></li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Core -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — Core (리더 전용)</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: CanContinueCore (리더 &amp;&amp; PendingCore &amp;&amp; 같은 층 &amp;&amp; 피격없음)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: MoveToCore (Chebyshev≤1, 코어 타일 위면 StepOff)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: CoreInvestigatePerform (전파→진행도→파티 공유→Loot회수)</span></div></li>
+              </ul>
+            </li>
+
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <ul class="notes">
+      <li><span>TacticalBehaviorPriorityConfig</span> 에셋이 있으면 그 order/enabled 순서로 Selector 구성. 없으면 위 기본 순서.</li>
+      <li>함정 해제/조사 중단(피격·위협) 시 PenaltyActive=true인 경우만 진행도 50% 손실 적용(중복 방지).</li>
+      <li>CanInvestigate: 파티 목표 오브젝트(HumanWaveManager.dummyTarget)면 호위 피격 시에도 조사 유지.</li>
+      <li>Formation 감시 방향: 전방/후방 구간·좌우 인원수 기준 표 배정 → 벽 50% 차단 시 인접 방향으로 재배정.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     4. NavigationFSMState
+═══════════════════════════════════════════ -->
+<div class="bt-section">
+  <div class="bt-header hdr-nav">🗺️ NavigationFSMState — BT</div>
+  <div class="bt-body bdy-nav">
+    <div class="tree">
+      <ul>
+        <li>
+          <div class="row"><span class="node n-root">Selector</span><span class="t-sel">[OR]</span></div>
+          <ul>
+            <!-- 계단 -->
+            <li>
+              <div class="row"><span class="node n-seq">Sequence — 계단 이동</span><span class="t-seq">[AND]</span></div>
+              <ul>
+                <li><div class="row"><span class="node n-cond">Condition: HasPendingStairs</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: MoveToStairs (비어있는 가장 가까운 계단 접근 타일로)</span></div></li>
+                <li><div class="row"><span class="node n-leaf">Leaf: CrossStairs (2×2 블록 Chebyshev≤1 → 층 이동)</span></div></li>
+              </ul>
+            </li>
+            <!-- 자유탐색 -->
+            <li><div class="row"><span class="node n-leaf">Leaf: RandomExplore (BFS 미탐색 타일 탐색)</span></div></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <!-- HasPendingStairs 상세 -->
+    <div style="margin-top:14px; padding:10px 14px; background:#051025; border:1px solid #224466; border-radius:5px; font-size:0.78rem;">
+      <div style="color:#6af; font-weight:bold; margin-bottom:6px;">HasPendingStairs 판정 순서</div>
+      <ol style="margin-left:16px; line-height:2; color:#ccc;">
+        <li>pendingStairTargetFloor 있고 현재 층과 다름 → true</li>
+        <li>currentFloor == 0 → false (웨이브 시작 전 자동 이동 방지)</li>
+        <li>personalMap에 다음 층 계단 위치가 밝혀짐 → pendingStairTargetFloor 세팅 후 true</li>
+      </ol>
+    </div>
+
+    <!-- RandomExplore 상세 -->
+    <div style="margin-top:10px; padding:10px 14px; background:#051025; border:1px solid #224466; border-radius:5px; font-size:0.78rem;">
+      <div style="color:#6af; font-weight:bold; margin-bottom:6px;">RandomExplore 동작</div>
+      <ol style="margin-left:16px; line-height:2; color:#ccc;">
+        <li>currentExplorationTarget이 아직 미탐색(terrain==0)이면 유지, 아니면 BFS로 새 타깃 탐색</li>
+        <li>BFS는 personalMap(개인 지도) 기준 — 공유 지도 쓰면 남이 밝힌 곳을 이미 가본 줄 앎</li>
+        <li>A* 경로 탐색 실패(닿을 수 없음) → 타깃을 벽(2)으로 치부하고 MoveRandomlyValid 폴백</li>
+        <li>MoveRandomlyValid: 8방향 중 이동 가능한 첫 방향으로 이동</li>
+      </ol>
+    </div>
+    <ul class="notes">
+      <li>BFS 최대 탐색 노드: 30,000 (맵 횡단 가능)</li>
+      <li>탐색 완료(미탐색 타일 없음)시에도 MoveRandomlyValid로 폴백 — 영구 정지 없음.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── BTStatus 요약 ─── -->
+<div class="status-table">
+  <div style="font-size:0.85rem; color:#a8d8ea; border-left:4px solid #a8d8ea; padding-left:10px; margin-bottom:10px;">BTStatus 반환값 의미</div>
+  <table>
+    <tr><th>값</th><th>Sequence 해석</th><th>Selector 해석</th><th>대표 사용</th></tr>
+    <tr>
+      <td style="color:#afa">Success</td>
+      <td>다음 자식으로 진행</td>
+      <td>즉시 Success 반환 (이 자식 성공)</td>
+      <td>조건 충족, 행동 완료</td>
+    </tr>
+    <tr>
+      <td style="color:#faa">Failure</td>
+      <td>즉시 Failure 반환 (중단)</td>
+      <td>다음 자식으로 진행</td>
+      <td>조건 불충족, 수행 불가</td>
+    </tr>
+    <tr>
+      <td style="color:#aaf">Running</td>
+      <td>즉시 Running 반환 (대기)</td>
+      <td>즉시 Running 반환 (대기)</td>
+      <td>이동 중, 타이머 진행 중</td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>
