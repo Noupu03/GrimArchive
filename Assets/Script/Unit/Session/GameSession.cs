@@ -223,6 +223,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
                                 RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName,
                                 RoomId = c.roomId,
                                 Floor = currentFloor,
+                                // 구조적 이슈 수정(2026-07-28, 사용자 요청 — 데모_구현현황_검증_2026-07-28.txt
+                                // "발견된 사항 2") — 예전엔 Room.RoomFaction이 항상 클래스 기본값(Wild)으로
+                                // 시작해서, 0층(HumanControlled)/1층 시작방(PlayerControlled)도 Room 객체
+                                // 기준으로는 생성 직후 "야생"으로 취급됐다. CreateMap.Chunks.occupationState
+                                // (맵 데이터 원본, 방 하나는 항상 단일 값)를 그대로 반영해 초기값부터 일치시킨다.
+                                RoomFaction = MapOccupationStateToFaction(c.occupationState),
                             };
                             generatedRooms[c.roomId] = room;
                             allRooms.Add(room);
@@ -271,6 +277,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 전체 {cmap.map.floors.Length}개 층에서 방 {generatedRooms.Count}개 생성됨.");
     }
+
+    // BuildRoomGrid 전용(2026-07-28) — CreateMap.Chunks.occupationState → Room.RoomFaction 매핑.
+    // Outpost/Occupied는 OffenseProcessor.MapToRoomFaction 쪽 FactionType 값과 1:1 대응이 없어(Outpost는
+    // "PlayerControlled 이후 인류가 거점화한 상태"이므로 Player로, 실사용 안 되는 Occupied는 Wild로 폴백)
+    // 안전한 값으로 근사한다.
+    private static FactionType MapOccupationStateToFaction(OccupationState state) => state switch
+    {
+        OccupationState.PlayerControlled => FactionType.Player,
+        OccupationState.Outpost => FactionType.Player,
+        OccupationState.HumanControlled => FactionType.Human,
+        _ => FactionType.Wild,
+    };
 
     // 2026-07-27 신규 — "모든 야생 진영 방에 야생 몬스터 A 2마리씩 필수 배치(위치는 랜덤), 방 밖으로
     // 나갈 수 없음" 요구사항. BuildRoomGrid() 직후(Initialize 참고) 한 번 호출한다. 야생 여부는

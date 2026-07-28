@@ -102,6 +102,15 @@ public class BuildingManager : NativeRoutine
         // 의존성 회피를 위해 GameSession도 DI 대신 Instance를 직접 참조한다(위 Construct 주석 참고).
         if (GameSession.Instance != null && GameSession.Instance.IsDoorTile(pos)) return false;
 
+        // 1-2. 구조적 이슈 수정(2026-07-28, 사용자 요청 "구조적 이슈는 고쳐보자" — 데모_구현현황_검증_
+        // 2026-07-28.txt "발견된 사항 4") — CreateMap.IsPositionPlayerOwned가 "플레이어는 자신 소유의
+        // 방에만 몬스터를 스폰할 수 있음" 주석과 함께 2026-07-27에 만들어졌지만 실제로는 아무 데도
+        // 연결돼 있지 않았다. 이 프로토타입에서 몬스터 유닛 생산은 전부 이 건물(B/V키)을 거치므로
+        // 여기서 연결한다 — 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. 게임 시작 시
+        // 자동 배치되는 시작 건물(SpawnInitialBuildings)도 시작방이 처음부터 PlayerControlled라
+        // 그대로 통과한다.
+        if (createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
+
         // 2. 맵의 타일 장애물 정보 확인
         if (createMap != null && createMap.map.floors != null)
         {

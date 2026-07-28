@@ -111,9 +111,21 @@ public class OffenseProcessor
         room.RoomFaction = killerFaction.Value;
         _activeOffenseRooms.Remove(room); // 진행 중이던 폴링 기반 오펜스가 있었다면 정리
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(killerFaction.Value));
+        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState(맵 데이터 원본)도 같이 갱신.
+        // 데모_구현현황_검증_2026-07-28.txt "발견된 사항 1" 참고.
+        GameSession.Instance.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(killerFaction.Value));
 
         LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): {deadFaction.Value} → {killerFaction.Value} (마지막 유닛 처치로 소속 전환, 가해자: {killer.unitType?.typeName})");
     }
+
+    // 구조적 이슈 수정(2026-07-28) — FactionType(RoomFaction 쪽) → OccupationState(맵 데이터 쪽)
+    // 역매핑. GetRoomOwnerColor와 나란히 두되 색이 아니라 CreateMap.Chunks.occupationState 갱신용.
+    private static OccupationState MapToOccupationState(FactionType faction) => faction switch
+    {
+        FactionType.Player => OccupationState.PlayerControlled,
+        FactionType.Human => OccupationState.HumanControlled,
+        _ => OccupationState.Neutral,
+    };
 
     private static FactionType? MapToRoomFaction(IFactionBehavior behavior)
     {
@@ -142,6 +154,8 @@ public class OffenseProcessor
         // 2. 방 소속 변경
         room.RoomFaction = FactionType.Player;
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(FactionType.Player));
+        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState도 같이 갱신(위 참고).
+        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, OccupationState.PlayerControlled);
 
         // 3. 활성 오펜스에서 제거
         _activeOffenseRooms.Remove(room);

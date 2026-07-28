@@ -176,6 +176,22 @@ public partial class CreateMap
                 }
     }
 
+    // 구조적 이슈 수정(2026-07-28, 사용자 요청 — 데모_구현현황_검증_2026-07-28.txt "발견된 사항 1") —
+    // OffenseProcessor.TryFlipRoomOwnershipOnDeath/OnOffenseSuccess는 예전엔 Room.RoomFaction만 바꾸고
+    // ChangeRoomColor로 색만 다시 칠했을 뿐, 이동 인접범위 판정(CanPlayerCommandRoom)/야생 몬스터
+    // 배치 판정(GetRoomOccupationState)이 실제로 읽는 CreateMap.Chunks.occupationState(맵 데이터
+    // 원본)는 그대로 남아있었다 — "전투로 방을 점령해도 그 방을 기준으로 인접방에 명령을 내릴 수
+    // 없는" 불일치가 있었다. 외부(OffenseProcessor)에서 점령 전환이 일어날 때마다 이 메서드로 맵
+    // 데이터도 함께 갱신한다. SetChunksOccupation과 동일한 부수효과(PlayerControlled 전환 시 이해도
+    // 100 적용)를 그대로 받는다.
+    public void SetRoomOccupationState(int floorIndex, int roomId, OccupationState state)
+    {
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return;
+        if (roomId < 0) return;
+        ref Floor floor = ref map.floors[floorIndex];
+        SetChunksOccupation(ref floor, roomId, state);
+    }
+
     // 전초기지는 인류가 명시적으로 점령방을 거점화한 상태 (자동 확산 아님)
     public void BuildOutpost(int floorIndex, int roomId)
     {
