@@ -8,8 +8,7 @@ using UnityEngine;
 public enum ResourceType
 {
     Wood,
-    Stone,
-    Gold
+    Stone
 }
 
 public class ResourceManager : NativeRoutine
@@ -38,12 +37,14 @@ public class ResourceManager : NativeRoutine
         Instance = this;
 
         resources.Clear();
-        // 초기 보유량(2026-07-27, 사용자 확정 수치) — Wood/Stone 각 200. 시간 경과 자동 증가는 더 이상
-        // "고정값" 원칙이 아니라 V키 자원 생산 건물이 있을 때만 발생한다(BuildingManager 참고) — 문서
-        // 5장의 "건축물을 통한 임시 자원 확보" 요구사항을 그 건물에 연결한 것.
-        resources[ResourceType.Wood] = 200;
-        resources[ResourceType.Stone] = 200;
-        resources[ResourceType.Gold] = 50;
+        // 초기 보유량(2026-07-27, 사용자 확정 수치 200 → 2026-07-28 사용자 요청 "초기 자원값 200씩
+        // 더 늘려줘"로 Wood/Stone 각 400으로 조정. Gold는 소모처가 없는 미사용 자원이라 2026-07-28
+        // 사용자 요청으로 완전히 제거(enum 자체에서 삭제, 아래 ShowKillRewardText/OffenseDebugWindow/
+        // StatusInfoPanel의 관련 참조도 함께 정리). 시간 경과 자동 증가는 더 이상 "고정값" 원칙이
+        // 아니라 V키 자원 생산 건물이 있을 때만 발생한다(BuildingManager 참고) — 문서 5장의 "건축물을
+        // 통한 임시 자원 확보" 요구사항을 그 건물에 연결한 것.
+        resources[ResourceType.Wood] = 400;
+        resources[ResourceType.Stone] = 400;
 
         LogHelper.Log(LogHelper.GAME, "ResourceManager Initialized");
     }
@@ -127,7 +128,6 @@ public class ResourceManager : NativeRoutine
         {
             ResourceType.Wood => "나무",
             ResourceType.Stone => "돌",
-            ResourceType.Gold => "골드",
             _ => type.ToString()
         };
 

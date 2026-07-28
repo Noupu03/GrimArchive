@@ -577,6 +577,7 @@ public class Human : UnitFunction
 			bool isHumanTag = false;
 			bool isTrace = false;
 			bool isCore = false;
+			bool isDoor = false;
 			foreach (var tag in obj.Tags)
 			{
 				if (tag.Contains("Trap")) isTrap = true;
@@ -584,13 +585,19 @@ public class Human : UnitFunction
 				if (tag == "Human") isHumanTag = true;
 				if (tag.Contains("WipeoutTrace")) isTrace = true;
 				if (tag == "Object/Passable/Core") isCore = true;
+				if (tag.Contains("Door")) isDoor = true;
 			}
 			// 03문서 5-2장(2026-07-27 개정): 파티원 시체는 조사 대상으로 유지한다(사망 원인·전투 흔적
 			// 등 추가 정보 획득) — 몬스터 시체/전멸 흔적은 여전히 제외(CastRay가 인지 즉시 단일 단계로
 			// 확인 완료하는 대상이라 별도 조사 단계가 없음, 17장 참고). 코어(7-3장)는 리더 전용 조사
 			// 대상이라 이 일반 조사 후보 풀에서 완전히 제외한다(TacticalFSMState.CanContinueCore 참고).
+			// 문(2026-07-28, 사용자 신고 "계속 전술(조사) 상태로 들어가는데 이유가 뭐지?") — 문은 이
+			// 목록이 만들어질 당시(문 시스템 도입 전)엔 존재하지 않던 오브젝트 종류라 제외 목록에서
+			// 빠져 있었다. 맵 전체에 176개나 깔려 있는 통행용 배경 오브젝트일 뿐 조사할 대상이 아닌데
+			// 인류가 알게 될 때마다(거의 항상 — 통로마다 있으므로) 조사 후보로 잡혀 탐색을 계속
+			// 가로막고 있었다 — 명백한 누락이라 제외 목록에 추가한다.
 			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
-			if (isTrap || isExcludedTrace || isCore) continue;
+			if (isTrap || isExcludedTrace || isCore || isDoor) continue;
 
 			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
 			if (d < bestDist) { bestDist = d; best = obj; }

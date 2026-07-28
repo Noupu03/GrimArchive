@@ -17,7 +17,6 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
     [SerializeField] private TMPro.TextMeshProUGUI waveTimerText;
     [SerializeField] private TMPro.TextMeshProUGUI resourceWoodText;
     [SerializeField] private TMPro.TextMeshProUGUI resourceStoneText;
-    [SerializeField] private TMPro.TextMeshProUGUI resourceGoldText;
     [SerializeField] private TMPro.TextMeshProUGUI resourceBText;
 
     public void OpenPanel()

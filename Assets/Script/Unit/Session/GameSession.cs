@@ -477,6 +477,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 그 방은 죽인 진영 소속으로 전환된다. OnDeath 직후(포지션이 아직 유효한 시점)에 확인한다.
             _offenseProcessor?.TryFlipRoomOwnershipOnDeath(u);
 
+            // 문 닫힘 시스템(2026-07-28, 사용자 요청) — 이 유닛의 죽음으로 방이 "정리된 상태"가 됐을
+            // 수 있으니 인접 문 개방 조건을 다시 확인한다. u.currentRoom(유닛 배치 시스템 전용 필드)은
+            // 야생 몬스터에서 항상 null이라(SyncRoomAffiliation이 야생을 대상에서 제외) 쓸 수 없어,
+            // OffenseProcessor와 동일하게 roomGrid를 위치로 직접 조회한다.
+            if (roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room deadUnitRoom))
+                RefreshRoomGateStates(deadUnitRoom);
+
             // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
             // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
             foreach (var comp in u.Components)
@@ -1055,6 +1062,158 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         return new[] { tilesA, tilesB };
+    }
+
+    // 문 닫힘 시스템(2026-07-28, 사용자 요청) — "웨이브가 시작되면 모든 문이 닫히며 벽과 같은 판정이
+    // 된다(시야 막힘, 이동 불가)." HumanWaveManager.StartWave()가 웨이브 시작 시점에 이 메서드를
+    // 호출한다. 이후 "비어있는 방의 인접 문은 다 열어버리는거로 처리해" 요구사항에 따라, 잠그자마자
+    // 이미 비어있는 방들은 그 자리에서 곧바로 다시 연다(RefreshRoomGateStates 재사용 — 판정 기준은
+    // 그 메서드 주석 참고).
+    public void CloseAllDoorsForWaveStart()
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+
+        for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.gates == null) continue;
+            for (int i = 0; i < floor.gates.Count; i++)
+                SetGateClosed(floorIdx, i, true);
+        }
+
+        foreach (var room in allRooms)
+            RefreshRoomGateStates(room);
+
+        LogHelper.Log(LogHelper.GAME, "CloseAllDoorsForWaveStart: 모든 문을 잠그고, 이미 비어있는 방의 인접 문은 다시 열었습니다.");
+    }
+
+    // 문 닫힘 시스템(2026-07-28) — 방 하나의 현재 유닛 구성을 보고 "정리된 방"(완전히 비었거나, 야생이
+    // 아닌 단일 진영만 남음)이면 그 방과 연결된 모든 문을 연다. 사용자 지시 그대로:
+    //   - 인간만 남음(야생 전멸, 몬스터 없음) → 열림 / 몬스터만 남음(야생 전멸, 인간 없음) → 열림
+    //   - 야생만 남음(인간·몬스터 모두 없음) → 그래도 닫힘 유지
+    //   - 인간+몬스터+야생 중 둘 이상이 동시에 살아있음 → 닫힘 유지("야생을 제외한 한 진영이 남을 때까지")
+    //   - 완전히 비어있음(셋 다 없음) → 열림
+    // 한번 연 문은 다시 잠그지 않는다(단방향) — 열린 뒤 다른 진영이 흘러들어와 다시 섞여도 그 순간
+    // 문을 잠그면 마침 통로에 있던 유닛이 방 사이에 갇히는 부작용이 생긴다. 전체 재잠금은 다음 웨이브
+    // 시작 시 CloseAllDoorsForWaveStart가 한 번에 처리한다. GameSession.RemoveDeadUnit(사망 시)과
+    // UnitFunction.SyncRoomAffiliation(유닛이 방을 떠날 때)이 관련 방이 바뀔 때마다 이 메서드를 호출한다.
+    public void RefreshRoomGateStates(Room room)
+    {
+        if (room == null || cmap == null || cmap.map.floors == null) return;
+        if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
+
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return;
+
+        bool hasHuman = false, hasPlayerMonster = false, hasWild = false;
+        foreach (var u in room.ContainedUnits)
+        {
+            if (u == null || u.hp <= 0) continue;
+            if (u.FactionBehavior is HumanFactionBehavior) hasHuman = true;
+            else if (u.FactionBehavior is PlayerMonsterBehavior) hasPlayerMonster = true;
+            else if (u.FactionBehavior is WildMonsterBehavior) hasWild = true;
+        }
+
+        bool isEmpty = !hasHuman && !hasPlayerMonster && !hasWild;
+        bool isSingleNonWildFaction = !hasWild && (hasHuman ^ hasPlayerMonster);
+        if (!isEmpty && !isSingleNonWildFaction) return;
+
+        for (int i = 0; i < floor.gates.Count; i++)
+        {
+            Gate g = floor.gates[i];
+            if (g.roomA == room.RoomId || g.roomB == room.RoomId)
+                SetGateClosed(room.Floor, i, false);
+        }
+    }
+
+    // 문 닫힘 시스템(2026-07-28) — 게이트 하나를 열거나 잠근다: (1) Gate.isDoorClosed 갱신,
+    // (2) 그 게이트의 문 타일(GetGateDoorTiles)에 Tile.isStructureExist를 씌우거나 벗겨 실제 벽처럼
+    // 시야·이동을 막고(UnitFunction.CanMove/CastRay가 이미 Wall과 함께 이 필드를 확인), (3) 문
+    // 스프라이트를 door_closed/door_open으로 교체한다. 이미 같은 상태면 아무 것도 하지 않는다(중복
+    // 호출·재계산 방지).
+    public void SetGateClosed(int floorIndex, int gateIndex, bool closed)
+    {
+        if (cmap == null || cmap.map.floors == null) return;
+        if (floorIndex < 0 || floorIndex >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[floorIndex];
+        if (floor.gates == null || gateIndex < 0 || gateIndex >= floor.gates.Count) return;
+
+        Gate gate = floor.gates[gateIndex];
+        if (gate.isDoorClosed == closed) return;
+        gate.isDoorClosed = closed;
+        floor.gates[gateIndex] = gate;
+
+        ApplyGateTileBlocking(floor, gate, closed);
+        ApplyGateDoorVisual(floorIndex, gate, closed);
+
+        // 실제 상태 전환이 일어난 경우에만 남는다(위 short-circuit 덕분에 스팸 아님) — 문 개폐 이력을
+        // 추적할 수 있는 이벤트 로그로 계속 유지.
+        LogHelper.Log(LogHelper.GAME, $"SetGateClosed: F{floorIndex} Gate[{gateIndex}](room{gate.roomA}<->room{gate.roomB}) → {(closed ? "닫힘" : "열림")}");
+    }
+
+    // SetGateClosed 전용 — 문이 놓인 타일들의 Tile.isStructureExist를 토글한다. tile.name은 "Floor"
+    // 그대로 둔다(실제 Wall로 바꾸지 않아도 UnitFunction의 모든 차단 판정이 "name==Wall || isStructureExist"
+    // OR 조건이라 이것만으로 충분 — CanMove/CastRay/UpdateFOV 전부 동일 패턴 사용).
+    private void ApplyGateTileBlocking(Floor floor, Gate gate, bool closed)
+    {
+        if (floor.chunks == null) return;
+
+        foreach (var row in GetGateDoorTiles(gate))
+        {
+            foreach (var tilePos in row)
+            {
+                int cx = tilePos.x / 8, cy = tilePos.y / 8;
+                int tx = tilePos.x % 8, ty = tilePos.y % 8;
+                if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) continue;
+
+                Chunks c = floor.chunks[cx, cy];
+                if (c.chunk == null) continue;
+                Tile t = c.chunk[tx, ty];
+                t.isStructureExist = closed;
+                c.chunk[tx, ty] = t;
+                floor.chunks[cx, cy] = c;
+            }
+        }
+    }
+
+    // SetGateClosed 전용 — 이미 SpawnDoors가 심어둔 문 오브젝트의 스프라이트/회전을 닫힘·열림에 맞게
+    // 바꾼다(GetObjectVisual로 기존 GameObject를 그대로 재사용, 새로 생성하지 않음). 닫힘 상태는 통로
+    // 전체를 막는 막대 모양이라 타일마다 다른 회전을 줄 필요가 없다 — SpawnDoors의 0/180 교대 패턴은
+    // 열림 상태(문짝이 한쪽 벽에 접혀 붙은 모습)에만 의미가 있다.
+    private void ApplyGateDoorVisual(int floorIndex, Gate gate, bool closed)
+    {
+        string spritePath = closed ? "obj/door_closed" : "obj/door_open";
+        Sprite sprite = Resources.Load<Sprite>(spritePath);
+        // Resources.Load 실패(Import 설정 등)를 조용히 넘기지 않고 경고로 남긴다 — 그 외에는 스프라이트
+        // 교체를 그냥 건너뛴다(아래 sprite != null 체크).
+        if (sprite == null)
+            LogHelper.Warning(LogHelper.GAME, $"ApplyGateDoorVisual: Resources.Load<Sprite>(\"{spritePath}\")가 null을 반환했습니다 — Import 설정(Sprite Mode) 확인 필요.");
+
+        float baseRotation = gate.isHorizontal ? 90f : 0f;
+
+        foreach (var row in GetGateDoorTiles(gate))
+        {
+            for (int tileIndex = 0; tileIndex < row.Count; tileIndex++)
+            {
+                Vector3Int gridPos = new Vector3Int(row[tileIndex].x, row[tileIndex].y, floorIndex);
+                GameObject visual = GetObjectVisual(gridPos);
+                if (visual == null) continue;
+
+                SpriteRenderer sr = visual.GetComponent<SpriteRenderer>();
+                if (sr == null) continue;
+                if (sprite != null) sr.sprite = sprite;
+
+                float rotation = closed ? baseRotation : baseRotation + (tileIndex % 2 == 1 ? 180f : 0f);
+                visual.transform.rotation = Quaternion.Euler(0f, 0f, rotation);
+
+                // SpawnObject와 동일한 관례 — 스프라이트마다 원본 크기가 달라 타일 1칸에 맞춰 스케일을
+                // 다시 계산해야 한다(door_open/door_closed의 원본 픽셀 크기가 서로 다를 수 있음).
+                Vector2 spriteWorldSize = sr.sprite != null ? (Vector2)sr.sprite.bounds.size : Vector2.one;
+                float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
+                float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
+                visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+            }
+        }
     }
 
     // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).

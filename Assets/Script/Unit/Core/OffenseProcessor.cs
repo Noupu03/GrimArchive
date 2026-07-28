@@ -118,6 +118,26 @@ public class OffenseProcessor
         LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): {deadFaction.Value} → {killerFaction.Value} (마지막 유닛 처치로 소속 전환, 가해자: {killer.unitType?.typeName})");
     }
 
+    // 점령 시스템(2026-07-28, 사용자 요청 "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게 해줘")
+    // — 전투(TryFlipRoomOwnershipOnDeath)나 야생 전멸(OnOffenseSuccess) 없이도, 완전히 비어있던 방에
+    // 유닛이 그냥 걸어 들어오기만 하면 그 진영 소유가 된다. "입성 직전엔 방이 비어 있었다"는 판정은
+    // 호출부(UnitFunction.SyncRoomAffiliation)가 이 유닛을 Room.ContainedUnits에 등록하기 전에 미리
+    // 해 둔다 — 그렇지 않으면 입성한 유닛 자신이 이미 점유 중인 걸로 잡혀 항상 "비어있지 않음"이 된다.
+    public void TryClaimEmptyRoomOnEntry(Room room, Unit enteringUnit)
+    {
+        if (room == null || enteringUnit == null || GameSession.Instance == null) return;
+
+        FactionType? faction = MapToRoomFaction(enteringUnit.FactionBehavior);
+        if (faction == null) return; // 방 소유권 개념이 없는 진영(FactionBehavior가 매핑 안 됨)
+        if (room.RoomFaction == faction.Value) return; // 이미 같은 소유면 할 일 없음
+
+        room.RoomFaction = faction.Value;
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction.Value));
+        GameSession.Instance.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction.Value));
+
+        LogHelper.Log($"[점령] {room.RoomName} 방(F{room.Floor}): 빈 방에 {enteringUnit.unitType?.typeName}({faction.Value})이 입성해 점령했습니다.");
+    }
+
     // 구조적 이슈 수정(2026-07-28) — FactionType(RoomFaction 쪽) → OccupationState(맵 데이터 쪽)
     // 역매핑. GetRoomOwnerColor와 나란히 두되 색이 아니라 CreateMap.Chunks.occupationState 갱신용.
     private static OccupationState MapToOccupationState(FactionType faction) => faction switch

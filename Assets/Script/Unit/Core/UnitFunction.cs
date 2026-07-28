@@ -181,9 +181,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (c.roomId == -1 || c.chunk == null) return true;
 
 			Tile tile = c.chunk[tx, ty];
-			if (tile.name == "Wall" || tile.isStructureExist) return true;
-
 			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
+			// 문 닫힘 시스템(2026-07-28) — CanMove/CastRay와 동일하게, 인류는 문(isStructureExist)에
+			// 막히지 않는다.
+			bool isHumanDoorTile = this is Human && Session != null && Session.IsDoorTile(tilePos);
+			if (tile.name == "Wall" || (tile.isStructureExist && !isHumanDoorTile)) return true;
+
 			if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
 				!blocker.IsCollected && blocker.IsFullyBlocking)
 			{
@@ -317,7 +320,21 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomId == -1 || c.chunk == null) return false;
-				if (c.chunk[tx, cyVal].name == "Wall" || c.chunk[tx, cyVal].isStructureExist) return false;
+				Tile moveTile = c.chunk[tx, cyVal];
+				if (moveTile.name == "Wall") return false;
+				if (moveTile.isStructureExist)
+				{
+					// 문 닫힘 시스템(2026-07-28, 사용자 요청 "인류는 웨이브 내내 계속 안쪽으로 자율적으로
+					// 자연스럽게 미탐색 타일 쪽으로 나아가야 하는데 그 부분이 전혀 동작하지 않고 있어") —
+					// 문은 몬스터(야생/플레이어) 전용 진행 게이트다. 인류(탐색·파티 웨이브)는 문이 열려
+					// 있든 닫혀 있든 상관없이 항상 지나갈 수 있어야 한다 — 안 그러면 "정리 안 된 방의
+					// 닫힌 문"에 인류 탐색 경로 전체가 막혀버린다(몬스터 방 확장과는 별개 트랙). 계단
+					// 블록(Stair)도 isStructureExist=true라, IsDoorTile로 정확히 문 타일만 골라 예외를
+					// 준다 — 계단은 여전히 원래대로(옆 approach 타일을 밟아야 함) 막힌다.
+					bool isHumanDoorException = this is Human && Session != null
+						&& Session.IsDoorTile(new Vector3Int(targetX, targetY, currentFloor));
+					if (!isHumanDoorException) return false;
+				}
 
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
@@ -558,7 +575,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 
 			Tile tile = c.chunk[tx, ty];
-			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
+			// 문 닫힘 시스템(2026-07-28, 사용자 요청 "인류는 웨이브 내내 계속 안쪽으로... 탐험해나가야
+			// 하는데 전혀 동작하지 않고 있어") — 인류는 문(isStructureExist)을 벽으로 기억하면 안 된다.
+			// 안 그러면 물리 이동(CanMove, 위에서 이미 예외 처리)은 통과할 수 있어도, 탐색 BFS가
+			// 참고하는 personalMap/discoveredMap에는 그 문 타일이 "벽(2)"으로 영구히 각인돼 그 너머로
+			// 가는 경로 자체를 절대 찾지 못한다(RandomExplore가 terrain==2를 항상 회피). CanMove와
+			// 동일한 예외를 여기도 적용한다.
+			bool isHumanDoorTile = this is Human && Session != null
+				&& Session.IsDoorTile(new Vector3Int(x, y, currentFloor));
+			bool tileIsWall = tile.name == "Wall" || (tile.isStructureExist && !isHumanDoorTile);
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
 			// 시야 사각지대(DDA 틈새) 근본적 해결: 바닥을 보았다면, 그 바닥과 맞닿은 8방향의 숨은 벽을 즉시 시야에 추가합니다. (Wall Dilation)
@@ -579,7 +604,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 							else
 							{
 								Chunks nc = floor.chunks[ncx, ncy];
-								if (nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall" || nc.chunk[ntx, nty].isStructureExist)
+								bool nIsHumanDoorTile = this is Human && Session != null
+									&& Session.IsDoorTile(new Vector3Int(nx, ny, currentFloor));
+								bool nIsWall = nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall"
+									|| (nc.chunk[ntx, nty].isStructureExist && !nIsHumanDoorTile);
+								if (nIsWall)
 								{
 									myData.discoveredMap[currentFloor][nx, ny] = 2; // 숨은 벽 및 청크 빈 공간(허공) 즉시 확정
 								}
@@ -945,9 +974,34 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
 		if (actualRoom == currentRoom) return;
 
+		// 점령 시스템(2026-07-28, 사용자 요청 "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게
+		// 해줘") — "비어있었다"는 이 유닛이 실제로 등록되기 전(AddUnit 호출 전) 기준이어야 하므로 여기서
+		// 먼저 스냅샷을 뜬다.
+		bool enteredRoomWasEmpty = actualRoom != null && IsRoomEffectivelyEmpty(actualRoom);
+
+		Room previousRoom = currentRoom;
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
+
+		// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 유닛이 방을 떠나면서 그 방이 "정리된 상태"가 될 수
+		// 있다(예: 마지막 몬스터가 방을 벗어남). 들어간 방(actualRoom)은 인원이 늘어날 뿐이라 새로
+		// 열릴 조건을 만들 수 없고(문은 한번 열리면 다시 잠그지 않음) 떠난 방만 확인하면 된다.
+		if (previousRoom != null) Session.RefreshRoomGateStates(previousRoom);
+
+		// 점령 시스템(2026-07-28) — 전투 없이도 빈 방에 그냥 들어오기만 하면 입성한 유닛의 진영이 그
+		// 방을 점령한다. OffenseProcessor.TryClaimEmptyRoomOnEntry가 기존 점령 전환 경로(전투 사망/
+		// 야생 전멸 시)와 동일하게 Room.RoomFaction + CreateMap.occupationState + 방 색칠을 함께 갱신.
+		if (enteredRoomWasEmpty) Session.OffenseProcessor?.TryClaimEmptyRoomOnEntry(actualRoom, this);
+	}
+
+	// SyncRoomAffiliation 전용 — 살아있는 점유 유닛이 하나도 없으면 "빈 방"으로 본다(GameSession.
+	// RefreshRoomGateStates의 "완전히 비어있음" 판정과 동일 기준).
+	private static bool IsRoomEffectivelyEmpty(Room room)
+	{
+		foreach (var u in room.ContainedUnits)
+			if (u != null && u.hp > 0) return false;
+		return true;
 	}
 
 	private Dir DirectionToward(Vector2Int targetPos)
