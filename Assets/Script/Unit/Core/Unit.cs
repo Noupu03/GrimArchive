@@ -420,11 +420,19 @@ public abstract class Unit : ScriptableObject {
 		// 규칙을 한 번 더 적용한다 — RoomConfinedMovement를 쓰는 유닛이 플레이어 명령 중이 아닌데
 		// 목적지가 현재 방을 벗어나면 이동을 취소(제자리 유지)한다. Dodge/Blink 둘 다 "후보가 없으면
 		// 그 자리에 남는다"는 기존 동작과 자연스럽게 일치한다.
+		//
+		// 문 타일 회피/점멸 금지(2026-07-28, 사용자 요청 "문이 있는 공간도 사용자 명령이 있지 않으면
+		// 갈 수 없는거로 해. 회피 점멸 등을 통한 이동도 포함해서 막아야") — 문 타일은 그 문을 낀 두
+		// 방 중 한쪽의 roomGrid 소유 청크에 포함돼 있어(같은 방 소속으로 잡힘) 위 방 경계 검사만으로는
+		// 걸러지지 않는다(자기 방의 문으로는 순간이동 가능한 구멍이었음). RoomConfinedMovement.
+		// IsTileWalkable(일반 이동)과 동일하게 IsDoorTile로 한 번 더 막는다.
 		if (MovementAlgorithm is RoomConfinedMovement && !isManualMoveCommand
 			&& _gameSession.roomGrid.TryGetValue(oldKey, out Room myRoom))
 		{
 			Vector3Int targetKey = new Vector3Int(targetPos.x, targetPos.y, currentFloor);
 			if (!_gameSession.roomGrid.TryGetValue(targetKey, out Room targetRoom) || targetRoom != myRoom)
+				return;
+			if (_gameSession.IsDoorTile(targetKey))
 				return;
 		}
 
