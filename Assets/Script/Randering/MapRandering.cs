@@ -301,6 +301,11 @@ public class MapRandering : NativeRoutine, IMapColorizer
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
 
+        // 사용자 요청(2026-07-28, "문이 있는 바닥 공간은 점령으로 인한 바닥 색 변화가 없게") — 문은
+        // 항상 특정 타일(Floor.gates → GameSession.GetGateDoorTiles와 동일 공식으로 역산)에 놓이므로,
+        // 점령 색칠 전에 미리 그 타일 집합을 구해 건너뛴다.
+        HashSet<Vector2Int> doorTiles = CollectDoorTiles(ref floor);
+
         for (int cx = 0; cx < chunkCountX; cx++)
         {
             for (int cy = 0; cy < chunkCountY; cy++)
@@ -321,13 +326,33 @@ public class MapRandering : NativeRoutine, IMapColorizer
                     for (int ty = 0; ty < ChunkSize; ty++)
                     {
                         if (chunk.chunk[tx, ty].name == "Wall") continue;
-                        Vector3Int pos = new Vector3Int(cx * ChunkSize + tx, cy * ChunkSize + ty, 0);
+                        Vector2Int tilePos2D = new Vector2Int(cx * ChunkSize + tx, cy * ChunkSize + ty);
+                        if (doorTiles.Contains(tilePos2D)) continue;
+                        Vector3Int pos = new Vector3Int(tilePos2D.x, tilePos2D.y, 0);
                         tilemap.SetTileFlags(pos, TileFlags.None);
                         tilemap.SetColor(pos, tint.Value);
                     }
                 }
             }
         }
+    }
+
+    // 사용자 요청(2026-07-28) — Floor.gates에 이미 기록된 통로 정보로부터 문이 놓일 모든 타일 좌표를
+    // 모은다. GameSession.SpawnDoors가 실제 문 오브젝트를 심을 때 쓰는 것과 동일한
+    // GameSession.GetGateDoorTiles 공식을 그대로 재사용해 좌표가 항상 일치하게 한다.
+    private static HashSet<Vector2Int> CollectDoorTiles(ref Floor floor)
+    {
+        var doorTiles = new HashSet<Vector2Int>();
+        if (floor.gates == null) return doorTiles;
+
+        foreach (var gate in floor.gates)
+        {
+            foreach (var row in GameSession.GetGateDoorTiles(gate))
+                foreach (var tile in row)
+                    doorTiles.Add(tile);
+        }
+
+        return doorTiles;
     }
 
     public void ChangeRoomColor(Room room, Color color)
@@ -347,11 +372,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
             && room.Floor < createMap.map.floors.Length;
         if (hasFloorData) floorData = createMap.map.floors[room.Floor];
 
+        // 사용자 요청(2026-07-28, "문이 있는 바닥 공간은 점령으로 인한 바닥 색 변화가 없게") —
+        // ApplyOccupationTint와 동일하게 문 타일 집합을 구해 건너뛴다.
+        HashSet<Vector2Int> doorTiles = hasFloorData ? CollectDoorTiles(ref floorData) : new HashSet<Vector2Int>();
+
         for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
         {
             for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
             {
                 if (hasFloorData && IsWallTile(ref floorData, x, y)) continue;
+                if (doorTiles.Contains(new Vector2Int(x, y))) continue;
 
                 Vector3Int pos = new Vector3Int(x, y, 0);
                 tm.SetTileFlags(pos, TileFlags.None);

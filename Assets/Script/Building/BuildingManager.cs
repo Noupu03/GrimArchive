@@ -95,6 +95,13 @@ public class BuildingManager : NativeRoutine
         // 1. 이미 건물이 있는지 확인 (1타일 1오브젝트)
         if (buildingGrid.ContainsKey(pos)) return false;
 
+        // 1-1. 문 타일은 최우선 예약 — 건물이 문 위에 겹쳐 설치될 수 없다(사용자 신고 2026-07-28,
+        // "시작방에 있는 건물이 문 위치와 겹쳐서"). GameSession.SpawnDoors()가 다른 오브젝트/건물보다
+        // 먼저 실행돼 objectGrid를 선점하지만, 이 클래스의 buildingGrid/타일 장애물 검사만으로는 문을
+        // 걸러내지 못했다(문은 Tile.isStructureExist를 세우지 않는 "통행 가능" 오브젝트라서). 순환
+        // 의존성 회피를 위해 GameSession도 DI 대신 Instance를 직접 참조한다(위 Construct 주석 참고).
+        if (GameSession.Instance != null && GameSession.Instance.IsDoorTile(pos)) return false;
+
         // 2. 맵의 타일 장애물 정보 확인
         if (createMap != null && createMap.map.floors != null)
         {

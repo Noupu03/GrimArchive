@@ -925,9 +925,27 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 통행 가능하다.
     private const string DoorTag = "Object/Passable/Door";
 
+    // 사용자 정정(2026-07-28, "문이 있는 자리가 가장 최우선이며, 문이 있는 자리에는 오브젝트 배치
+    // 불가능. 몬스터 배치도 불가능(이동만 가능)") — 문은 SpawnDoors()가 다른 오브젝트/유닛보다 먼저
+    // 깔아 objectGrid를 선점하므로, 그 뒤에 오는 모든 "이 타일에 뭔가 놓아도 되는지" 판정이 이 메서드로
+    // 문 타일을 걸러내야 한다. BuildingManager.CanInstallAt(건물 배치)과 UnitGenerate.IsAreaClear(유닛/
+    // 몬스터 스폰 위치 판정)가 호출한다 — 이동(AStarMovement 등)은 여전히 objectGrid를 보지 않으므로
+    // 문을 그냥 통과할 수 있고, 이 메서드는 "배치"만 막는다.
+    public bool IsDoorTile(Vector3Int pos)
+    {
+        return objectGrid.TryGetValue(pos, out InteractableObject obj) &&
+               obj.Tags != null && obj.Tags.Contains(DoorTag);
+    }
+
     // 문 시스템(2026-07-27, 사용자 요청 "모든 방과 방 사이 통로에 문이 일렬로 설치") — CreateMap이
     // 생성 단계에서 이미 기록해 둔 Floor.gates(방 연결 통로: 청크 좌표+폭+수평/수직)를 그대로 재사용해
     // 실제 통로 타일 좌표를 되짚는다. 새로 통로를 탐색하는 로직을 만들 필요가 없다 — 모든 층을 순회.
+    //
+    // 사용자 정정(2026-07-28, "문이 한쪽 공간에 몰려서... 문을 양쪽에 달자, 2*1로 존재하던 문을 2*2로")
+    // — 기존에는 통로 양 끝(청크 A/B 경계) 중 B쪽 문턱 한 줄에만 문을 심어서, 방마다 문이 한쪽에만
+    // 몰려 보였다. GetGateDoorTiles가 이제 A쪽/B쪽 문턱 두 줄을 모두 돌려주므로(폭 W일 때 W*2개),
+    // 각 방 입구마다 독립적으로 문이 생긴다. 회전은 두 줄 각각 기존과 같은 0/180 교대 패턴을 적용
+    // — 두 문턱 사이의 힌지 방향을 서로 맞물리게 할지는 실제로 봐야 판단 가능해 일단 독립 적용.
     private void SpawnDoors()
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -955,18 +973,21 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 보인다. 통로를 가로지르며 타일 순서대로 0도/180도를 번갈아 적용해 절반은 한쪽 벽에,
                 // 나머지 절반은 반대쪽 벽에 붙어 열린 것처럼 — 즉 통로 양쪽으로 열어젖힌 이중문 형태로
                 // 보이게 한다.
-                List<Vector2Int> gateTiles = GetGateDoorTiles(gate);
-                for (int tileIndex = 0; tileIndex < gateTiles.Count; tileIndex++)
+                List<Vector2Int>[] gateTileRows = GetGateDoorTiles(gate);
+                foreach (List<Vector2Int> gateTiles in gateTileRows)
                 {
-                    Vector2Int tilePos = gateTiles[tileIndex];
-                    Vector3Int gridPos = new Vector3Int(tilePos.x, tilePos.y, floorIdx);
-                    if (objectGrid.ContainsKey(gridPos)) continue;
+                    for (int tileIndex = 0; tileIndex < gateTiles.Count; tileIndex++)
+                    {
+                        Vector2Int tilePos = gateTiles[tileIndex];
+                        Vector3Int gridPos = new Vector3Int(tilePos.x, tilePos.y, floorIdx);
+                        if (objectGrid.ContainsKey(gridPos)) continue;
 
-                    float doorRotation = baseRotation + (tileIndex % 2 == 1 ? 180f : 0f);
-                    string objId = $"Door_{floorIdx}_{tilePos.x}_{tilePos.y}";
-                    InteractableObject door = new InteractableObject(objId, gridPos, 0f, 0f, new List<string> { DoorTag });
-                    SpawnObject(door, Color.white, doorRotation);
-                    doorCount++;
+                        float doorRotation = baseRotation + (tileIndex % 2 == 1 ? 180f : 0f);
+                        string objId = $"Door_{floorIdx}_{tilePos.x}_{tilePos.y}";
+                        InteractableObject door = new InteractableObject(objId, gridPos, 0f, 0f, new List<string> { DoorTag });
+                        SpawnObject(door, Color.white, doorRotation);
+                        doorCount++;
+                    }
                 }
             }
         }
@@ -979,29 +1000,43 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // (8-width)/2부터 width칸)을 재사용해 정확히 같은 타일들을 되짚는다 — chunkAX/BX(또는 AY/BY) 중
     // 어느 쪽이 A/B로 기록됐는지는 방향(왼쪽/오른쪽, 아래/위)에 따라 뒤바뀔 수 있어 Min으로 왼쪽·아래
     // 청크를 먼저 찾는다.
-    private static List<Vector2Int> GetGateDoorTiles(Gate gate)
+    //
+    // 사용자 정정(2026-07-28, "문을 양쪽에 달자, 2*1로 존재하던 문을 2*2로") — 통로 양 끝(A쪽 청크의
+    // 마지막 칸 / B쪽 청크의 첫 칸) 두 줄을 모두 반환한다. 반환값은 [A쪽 문턱 줄, B쪽 문턱 줄] 순서의
+    // 배열. MapRandering.ApplyOccupationTint/ChangeRoomColor가 "문이 있는 바닥은 점령 색칠 제외"
+    // (사용자 요청 2026-07-28)를 위해 그대로 재사용하므로 public static.
+    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate)
     {
-        var tiles = new List<Vector2Int>();
+        var tilesA = new List<Vector2Int>();
+        var tilesB = new List<Vector2Int>();
         int start = (8 - gate.width) / 2;
 
         if (gate.isHorizontal)
         {
             int leftChunkX = Mathf.Min(gate.chunkAX, gate.chunkBX);
-            int doorWorldX = (leftChunkX + 1) * 8; // 오른쪽(문턱 너머) 청크의 첫 칸을 문 위치로 삼는다
+            int doorWorldXA = leftChunkX * 8 + 7; // 왼쪽 청크의 마지막 칸
+            int doorWorldXB = (leftChunkX + 1) * 8; // 오른쪽(문턱 너머) 청크의 첫 칸
             int chunkY = gate.chunkAY; // 수평 게이트는 두 청크가 같은 행(chunkY == chunkBY)
             for (int i = 0; i < gate.width; i++)
-                tiles.Add(new Vector2Int(doorWorldX, chunkY * 8 + start + i));
+            {
+                tilesA.Add(new Vector2Int(doorWorldXA, chunkY * 8 + start + i));
+                tilesB.Add(new Vector2Int(doorWorldXB, chunkY * 8 + start + i));
+            }
         }
         else
         {
             int bottomChunkY = Mathf.Min(gate.chunkAY, gate.chunkBY);
-            int doorWorldY = (bottomChunkY + 1) * 8;
+            int doorWorldYA = bottomChunkY * 8 + 7; // 아래쪽 청크의 마지막 칸
+            int doorWorldYB = (bottomChunkY + 1) * 8; // 위쪽 청크의 첫 칸
             int chunkX = gate.chunkAX; // 수직 게이트는 두 청크가 같은 열(chunkX == chunkBX)
             for (int i = 0; i < gate.width; i++)
-                tiles.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldY));
+            {
+                tilesA.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldYA));
+                tilesB.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldYB));
+            }
         }
 
-        return tiles;
+        return new[] { tilesA, tilesB };
     }
 
     // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).
