@@ -217,6 +217,12 @@ public class NavigationFSMState : IFSMState
 	{
 		// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서
 		// 다음 틱에 진짜 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다.
+		// 단 방 제한 유닛(RoomConfinedMovement)은 CanMove가 방 경계를 확인하지 않으므로 별도로 검사한다.
+		bool roomConfined = unit.MovementAlgorithm is RoomConfinedMovement;
+		Room myRoom = null;
+		if (roomConfined && unit.Session?.roomGrid != null)
+			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor), out myRoom);
+
 		int startOffset = Random.Range(0, 8);
 		for (int i = 0; i < 8; i++)
 		{
@@ -224,6 +230,20 @@ public class NavigationFSMState : IFSMState
 			Vector2Int dirVec = unit.GetDirVector(tryDir);
 			Vector2Int nextPos = unit.position + dirVec;
 			if (!unit.CanMove(nextPos)) continue;
+
+			// 방 제한 유닛: RoomConfinedMovement.IsTileWalkable와 동일 기준(문 타일 + roomGrid) 재적용.
+			if (roomConfined && unit.Session != null)
+			{
+				if (unit.Session.IsDoorTile(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor)))
+					continue;
+				if (myRoom != null)
+				{
+					if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor), out Room nextRoom)
+						|| nextRoom != myRoom)
+						continue;
+				}
+			}
+
 			// Move()의 대각선 코너 커팅 방지 로직과 동일하게 먼저 검사한다.
 			if (Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
 			{
@@ -241,15 +261,22 @@ public class NavigationFSMState : IFSMState
 		{
 			data.bfsVisitedGrid = new int[mapW + 20, mapH + 20];
 		}
-		
+
 		data.bfsVisitToken++;
 		if (data.bfsVisitToken == 0) data.bfsVisitToken = 1;
+
+		// 방 제한 유닛은 자기 방 안에서만 탐색한다 — 방 밖 타일을 BFS 목표로 잡으면 A* 실패 →
+		// MoveRandomlyValid 반복 호출 사이클이 발생한다.
+		bool roomConfined = unit.MovementAlgorithm is RoomConfinedMovement;
+		Room myRoom = null;
+		if (roomConfined && unit.Session?.roomGrid != null)
+			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, fi), out myRoom);
 
 		var q = data.bfsQueue;
 		q.Clear();
 		q.Enqueue(unit.position);
 		data.bfsVisitedGrid[unit.position.x, unit.position.y] = data.bfsVisitToken;
-		
+
 		int maxSearchNodes = 30000; // 맵 횡단을 위해 탐색 범위를 크게 확장
 		int iter = 0;
 
@@ -259,7 +286,7 @@ public class NavigationFSMState : IFSMState
 		{
 			iter++;
 			Vector2Int cur = q.Dequeue();
-			
+
 			// FactionData(공유 지도)가 아닌 각 유닛의 개인 지도를 기준으로 안 가본 곳을 판별합니다.
 			// 공유 지도를 쓰면 남이 밝힌 곳을 자기도 가본 줄 알고 구석에서 영원히 방황하게 됩니다.
 			int currentTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cur.x, cur.y, fi)) : data.discoveredMap[fi][cur.x, cur.y];
@@ -267,23 +294,33 @@ public class NavigationFSMState : IFSMState
 			{
 				return cur; // 어둠(미탐색) 발견 시 최종 목적지(Target) 좌표 반환
 			}
-			
+
 			for (int i = 0; i < 8; i++)
 			{
 				Dir d = (Dir)i;
 				Vector2Int next = cur + unit.GetDirVector(d);
-				
+
 				if (next.x < 0 || next.x >= mapW || next.y < 0 || next.y >= mapH) continue;
 				if (data.bfsVisitedGrid[next.x, next.y] == data.bfsVisitToken) continue;
-				
+
+				// 방 제한 유닛: 방 밖 타일은 BFS에서 완전히 제외한다.
+				if (roomConfined && myRoom != null && unit.Session?.roomGrid != null)
+				{
+					if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(next.x, next.y, fi), out Room nextRoom) || nextRoom != myRoom)
+					{
+						data.bfsVisitedGrid[next.x, next.y] = data.bfsVisitToken; // 재방문 방지
+						continue;
+					}
+				}
+
 				int nextTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(next.x, next.y, fi)) : data.discoveredMap[fi][next.x, next.y];
 				if (nextTerrain == 2) continue; // 벽 패스
-				
+
 				data.bfsVisitedGrid[next.x, next.y] = data.bfsVisitToken;
 				q.Enqueue(next);
 			}
 		}
-		
+
 		return null;
 	}
 
