@@ -14,6 +14,11 @@ public class TacticalFSMState : IFSMState
 	// GetPriority 조건과 BT 내부 Condition이 엇갈려 전체 Selector가 Failure를 반환하는 극단적 상황
 	// 방지용 폴백 — 어떤 브랜치도 매치되지 않아도 Running을 반환해 Combat/Navigation으로 튀는 것을 막는다.
 	private static readonly BTNode _fallbackRunning = new BTLeaf(_ => BTStatus.Running);
+	// F: ComputeIsBlockingPath BFS 내 Enum.GetValues(typeof(Dir)) 매 노드 호출 → static 캐시
+	private static readonly Dir[] _allDirs = (Dir[])System.Enum.GetValues(typeof(Dir));
+	// G: AssignFormationWatchDirection 매 틱 new List<Human>() × 2 → static 버퍼 재사용
+	private static readonly List<Human> _frontBuffer = new List<Human>();
+	private static readonly List<Human> _backBuffer  = new List<Human>();
 
 	public TacticalFSMState()
 	{
@@ -322,7 +327,7 @@ public class TacticalFSMState : IFSMState
 		{
 			Vector2Int cur = queue.Dequeue();
 			if (cur == dest.Value) return false;
-			foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+			foreach (Dir d in _allDirs)
 			{
 				Vector2Int next = cur + unit.GetDirVector(d);
 				if (visited.Contains(next)) continue;
@@ -735,8 +740,11 @@ public class TacticalFSMState : IFSMState
 		if (facing == Vector2.zero) facing = Vector2.down;
 		Vector2 right = new Vector2(facing.y, -facing.x);
 
-		var front = new List<Human>();
-		var back  = new List<Human>();
+		// G: 매 틱 new List 할당 → static 버퍼 재사용
+		_frontBuffer.Clear();
+		_backBuffer.Clear();
+		var front = _frontBuffer;
+		var back  = _backBuffer;
 
 		foreach (var m in partyMembers)
 		{

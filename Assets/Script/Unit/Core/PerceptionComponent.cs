@@ -8,7 +8,7 @@ public class PerceptionComponent : IUnitComponent
     
     public UnitPerceptionState State = new UnitPerceptionState { 
         perceptionRecords = new Dictionary<object, PerceptionRecord>(),
-        visionOnlyNonEmptyTiles = new List<Vector3Int>(),
+        visionOnlyNonEmptyTiles = new HashSet<Vector3Int>(),
         detectedThreats = new List<ThreatTileData>(),
         personalSpottedEnemies = new HashSet<Unit>()
     };

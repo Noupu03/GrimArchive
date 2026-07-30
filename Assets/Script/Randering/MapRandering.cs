@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using UnityEngine.Rendering.Universal;
@@ -139,7 +140,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
             RenderFloor(tilemap, ref floor, f);
             RenderStairOverlays(tilemapObj.transform, ref floor, f);
             ApplyOccupationTint(tilemap, ref floor);
-            SetupWallShadowCasters(tilemapObj.transform, ref floor);
+            // 1층 이상은 RebuildFloorFogShadowCasters가 벽+안개 통합 캐스터를 구성하므로
+            // 벽 전용 캐스터는 0층(로비, 안개 없음)에만 생성한다.
+            if (f == 0) SetupWallShadowCasters(tilemapObj.transform, ref floor);
         }
 
         LogHelper.Log(LogHelper.GAME, $"MapRandering: 전체 {floorCount}개 Floor 렌더링 완료.");
@@ -389,15 +392,18 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return loops;
     }
 
-    // TraceContours가 뽑아낸 폐곡선마다 EdgeCollider2D(닫힌 선) + ShadowCaster2D 오브젝트를 하나씩
-    // 만든다. 처음엔 PolygonCollider2D 하나에 외곽선/구멍(방)을 전부 경로로 몰아넣었는데(바깥은
-    // 반시계, 구멍은 시계 — Unity PolygonCollider2D의 문서화된 구멍 규약), 방향을 맞게 뒤집어도
-    // 안/밖 차단이 계속 거꾸로였다(사용자 확인, 2026-07-28 "래이캐스팅 부여가 반대로 됐다" →
-    // "아직 반대로 됨"). PolygonCollider2D는 "채워진 도형"이라 안/밖(구멍) 판정이 꼭 필요하지만,
-    // EdgeCollider2D는 그냥 "선"이라 안/밖 개념 자체가 없다 — 빛은 그 선을 넘어가지 못할 뿐이니
-    // 폐곡선 하나하나를 선으로만 넘기면 방향과 무관하게 항상 올바르게 막는다. 대신 콜라이더 하나당
-    // 경로 하나만 담을 수 있어 폐곡선 개수만큼(방 개수 정도) 오브젝트가 생기지만, 방 개수는 타일
-    // 개수보다 훨씬 적어 성능 문제는 없다.
+    // TraceContours가 뽑아낸 폐곡선마다 ShadowCaster2D 오브젝트를 하나씩 만든다.
+    // 원래 EdgeCollider2D를 매개체로 썼으나(ShapeProvider 경로), TryGetDefaultShadowShapeProviderSource가
+    // #if UNITY_EDITOR 전용이라 빌드에서는 EdgeCollider2D 형태가 무시되고 1×1 기본 박스로 대체되는
+    // 버그가 있었다. m_ShapePath(ShapeEditor 경로)에 직접 쓰면 에디터/빌드 모두 동일하게 동작하고
+    // Physics2D 브로드페이즈 등록 부하도 사라진다(URP 17.3.0 ShadowCaster2D 소스 확인).
+    private static readonly FieldInfo s_FieldShapePath =
+        typeof(ShadowCaster2D).GetField("m_ShapePath", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo s_FieldShapePathHash =
+        typeof(ShadowCaster2D).GetField("m_ShapePathHash", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo s_FieldForceRebuild =
+        typeof(ShadowCaster2D).GetField("m_ForceShadowMeshRebuild", BindingFlags.NonPublic | BindingFlags.Instance);
+
     public static void CreateEdgeShadowCasters(Transform parent, List<List<Vector2>> loops, string namePrefix, List<GameObject> createdOut = null)
     {
         if (loops == null) return;
@@ -410,16 +416,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
             var go = new GameObject($"{namePrefix}_{i}");
             go.transform.SetParent(parent, false);
 
-            // EdgeCollider2D는 닫힌 도형 표현이 따로 없어 시작점을 끝에 한 번 더 넣어 닫아준다.
-            var points = new Vector2[loop.Count + 1];
-            for (int j = 0; j < loop.Count; j++) points[j] = loop[j];
-            points[loop.Count] = loop[0];
+            var shapePath = new Vector3[loop.Count];
+            for (int j = 0; j < loop.Count; j++)
+                shapePath[j] = new Vector3(loop[j].x, loop[j].y, 0f);
 
-            var edgeCollider = go.AddComponent<EdgeCollider2D>();
-            edgeCollider.isTrigger = true;
-            edgeCollider.points = points;
+            var caster = go.AddComponent<ShadowCaster2D>();
+            // Awake()가 즉시 실행돼 기본 박스를 세팅하므로, 실제 윤곽선으로 덮어쓴다.
+            s_FieldShapePath.SetValue(caster, shapePath);
+            s_FieldShapePathHash.SetValue(caster, shapePath.GetHashCode());
+            s_FieldForceRebuild.SetValue(caster, true);
 
-            go.AddComponent<ShadowCaster2D>();
             createdOut?.Add(go);
         }
     }

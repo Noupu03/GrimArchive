@@ -40,7 +40,7 @@ public struct UnitPerceptionState
     
     public Dictionary<object, PerceptionRecord> perceptionRecords;
     public int alertRecordCount;
-    public List<Vector3Int> visionOnlyNonEmptyTiles;
+    public HashSet<Vector3Int> visionOnlyNonEmptyTiles;
     public List<ThreatTileData> detectedThreats;
     public HashSet<Unit> personalSpottedEnemies;
 }

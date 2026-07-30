@@ -51,7 +51,7 @@ public abstract class Unit : ScriptableObject {
     public bool  isHitThisTurn    { get => CombatState.State.isHitThisTurn;    set => CombatState.State.isHitThisTurn = value; }
     public bool  oneTimeReactUsed { get => CombatState.State.oneTimeReactUsed; set => CombatState.State.oneTimeReactUsed = value; }
     public HashSet<Unit> personalSpottedEnemies => Perception.State.personalSpottedEnemies;
-    public List<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
+    public HashSet<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
     public ThreatTileData currentThreat { get => AIState.currentThreat; set => AIState.currentThreat = value; }
 
     private void OnEnable()

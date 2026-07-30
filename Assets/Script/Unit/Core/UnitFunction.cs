@@ -265,7 +265,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public float CalculateAttackAngleToEnemy(Unit targetEnemy, int attackRange)
 	{
 		if (targetEnemy == null)
-			return Mathf.Atan2(GetDirVector(currentDir).y, GetDirVector(currentDir).x);
+		{
+			// J: GetDirVector를 같은 인수로 두 번 호출하던 것을 캐시로 교체
+			Vector2Int dv = GetDirVector(currentDir);
+			return Mathf.Atan2(dv.y, dv.x);
+		}
 
 		Vector2 dirToTarget = ((Vector2)targetEnemy.position - (Vector2)position).normalized;
 		return Mathf.Atan2(dirToTarget.y, dirToTarget.x);
@@ -646,9 +650,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 							// 같은 경로를 탄다(사용자 요청 "코어에 대해서, 통합하자") — 웨이브 목표 추적·
 							// 운반 기능(HumanWaveManager)은 여전히 Loot 하위 태그로 별도 동작하고, 이
 							// 발견 훅은 그 위에 리더 전용 발견~조사 절차만 추가로 얹는다.
-							PerceptionTargetKind objKind = obj.Tags.Any(t => t.Contains("WipeoutTrace")) ? PerceptionTargetKind.WipeoutTrace
-								: obj.Tags.Any(t => t.Contains("Corpse")) ? PerceptionTargetKind.Corpse
-								: obj.Tags.Any(t => t.Contains("Trap")) ? PerceptionTargetKind.Trap
+							// C: LINQ Any → TagsContain(static for루프)으로 교체해 IEnumerator 박싱 제거
+							PerceptionTargetKind objKind = TagsContain(obj.Tags, "WipeoutTrace") ? PerceptionTargetKind.WipeoutTrace
+								: TagsContain(obj.Tags, "Corpse") ? PerceptionTargetKind.Corpse
+								: TagsContain(obj.Tags, "Trap") ? PerceptionTargetKind.Trap
 								: obj.Tags.Contains("Object/Passable/Core") ? PerceptionTargetKind.Core
 								: PerceptionTargetKind.None;
 							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
@@ -665,7 +670,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 								terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
 
 								// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
-								if (obj.Tags.Any(t => t.Contains("WipeoutTrace")) && !string.IsNullOrEmpty(obj.TraceId))
+								if (objKind == PerceptionTargetKind.WipeoutTrace && !string.IsNullOrEmpty(obj.TraceId))
 								{
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
 								}
@@ -1045,15 +1050,21 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	private Unit FindAdjacentEnemy()
 	{
-		if (Session == null) return null;
-		foreach (Unit u in Session.units)
+		// A: Session.units 전체 O(N) 순회 → personalSpottedEnemies(이미 IsEnemy 보장)만 순회
+		foreach (Unit u in Perception.State.personalSpottedEnemies)
 		{
-			if (u == null || u == this || u.Health.hp <= 0) continue;
-			bool isEnemy = this.IsEnemy(u);
-			if (!isEnemy) continue;
-			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u; // 1칸 이내(대각 포함)
+			if (u == null || u.Health.hp <= 0 || u.currentFloor != currentFloor) continue;
+			if (Vector2Int.Distance(u.position, position) <= 1.5f) return u;
 		}
 		return null;
+	}
+
+	// C: LINQ Any(lambda) → IEnumerator 박싱 없이 직접 for 루프로 순회
+	private static bool TagsContain(System.Collections.Generic.List<string> tags, string sub)
+	{
+		for (int i = 0; i < tags.Count; i++)
+			if (tags[i].Contains(sub)) return true;
+		return false;
 	}
 
 	#endregion
@@ -1333,10 +1344,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	private Unit FindAttackerFromThreat(ThreatTileData threat)
 	{
-		foreach (Unit u in Session.units)
+		// B: castingUnits는 isCastingAttack=true 유닛만 포함 → Session.units 전체 순회 불필요
+		foreach (Unit u in Session.castingUnits)
 		{
 			if (u == null) continue;
-			if (!u.CombatState.State.isCastingAttack) continue;
 			if (u.AIState.currentThreat == threat) return u;
 		}
 		return null;

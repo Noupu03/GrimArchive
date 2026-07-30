@@ -1,0 +1,47 @@
+■ BroadcastWitnessEvent — Session.units 전체 순회 최적화 고려사항
+
+파일: Assets/Script/Unit/Core/UnitFunction.cs
+메서드: BroadcastWitnessEvent(EventId id, Unit participant, Unit target, string incidentId)
+트리거: 피격 시(TakePhysicalDamage/TakeMagicalDamage → RecordHitWeightEvent)
+
+─────────────────────────────────────────
+현재 문제
+─────────────────────────────────────────
+
+```csharp
+foreach (var witness in Session.units)   // O(N) — 전체 유닛 순회
+{
+    if (witness == null || witness == participant || !(witness is Human) || witness.Health.hp <= 0) continue;
+    this.Knowledge.RecordEvent(id, witness, target, InfoType.DirectWitness, incidentId);
+}
+```
+
+전투 중 피격이 빈번하게 발생하므로, 유닛 수(N)가 늘어날수록
+"피격 횟수 × N" 비용이 선형 증가함.
+
+─────────────────────────────────────────
+해결 방향 (구조적 변경 필요)
+─────────────────────────────────────────
+
+GameSession에 살아있는 인류 유닛만 추적하는 컬렉션을 별도로 유지:
+
+  public readonly HashSet<Human> livingHumans = new HashSet<Human>();
+
+연결 지점:
+  - UnitGenerate.SpawnUnit() 또는 GameSession.AddUnit() → livingHumans.Add(human)
+  - GameSession.RemoveDeadUnit() → livingHumans.Remove(human)
+  - Unit.TakeDamage()에서 hp≤0이 되는 순간 → livingHumans.Remove(this)
+
+그러면 BroadcastWitnessEvent가 순회하는 컬렉션 크기가
+전체 units(몬스터 포함) → 생존 인류만으로 줄어든다.
+
+유의 사항:
+  - livingHumans 동기화를 누락하면 유닛이 죽어도 목록에 남아
+    RecordEvent가 죽은 유닛에 대해 호출되는 버그 발생
+  - RemoveDeadUnit 외에도 hp가 직접 깎이는 경로(DoT, 함정 etc.)에서
+    죽을 때 제거가 필요하므로, Unit.TakeDamage 내 hp≤0 분기에서
+    Session?.livingHumans.Remove(this as Human) 한 줄이 가장 안전
+
+임팩트: MEDIUM — 전투 중 피격마다 실행. 유닛 수 적을 때는 체감 미비,
+         파티 규모가 커지면 효과 증가.
+체감 변화: 없음 (내부 로직만 변경).

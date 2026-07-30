@@ -71,19 +71,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 이름("RoomPopLabel_")은 그대로라 Assets/Editor/RoomPopulationLabelCleanup.cs의 재귀 탐색
     // (부모가 뭐든 이름만 보고 청소)에는 영향 없음.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
-    private readonly Dictionary<Room, string> _roomPopulationLabelText = new Dictionary<Room, string>();
+    // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
+    private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();
 
+    // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
+    private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
     public IReadOnlyList<Unit> GetUnitsInRoom(RectInt bounds)
     {
-        List<Unit> result = new List<Unit>();
+        _unitsInRoomResult.Clear();
         foreach (var u in units)
         {
             if (bounds.Contains(u.position))
-            {
-                result.Add(u);
-            }
+                _unitsInRoomResult.Add(u);
         }
-        return result;
+        return _unitsInRoomResult;
     }
 
     public List<Unit> units { get; private set; } = new List<Unit>();
@@ -983,13 +984,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 label = CreateRoomPopulationLabel(room);
                 _roomPopulationLabels[room] = label;
-                _roomPopulationLabelText[room] = null;
+                _roomPopulationLabelText[room] = (-1, -1);
             }
 
-            string text = $"{room.CurrentPopulation}/{room.MaxPopulation}";
-            if (_roomPopulationLabelText.TryGetValue(room, out string prevText) && prevText == text) continue;
-            label.text = text;
-            _roomPopulationLabelText[room] = text;
+            // E: int 비교로 변화 감지 → 바뀐 경우에만 $"" 문자열 생성
+            if (_roomPopulationLabelText.TryGetValue(room, out var prev)
+                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation) continue;
+            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation);
+            label.text = $"{room.CurrentPopulation}/{room.MaxPopulation}";
 
             // 인구수 초과 시각 피드백(2026-07-28, 사용자 요청 "방 인원수가 꽉차면 방 라벨 빨간색으로
             // 바꾸고, 아니면 다시 원래대로 돌려") — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만

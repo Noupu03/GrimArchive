@@ -66,32 +66,44 @@ public class Projectile : MonoBehaviour
         // 2. 시각적 위치 동기화
         transform.position = GetVisualPosition(_logicalCollider.center);
 
-        // 3. 충돌 판정 (기존 기능 재활용: SkillAction.GetEnemiesInHitbox)
-        List<Unit> hitEnemies = SkillAction.GetEnemiesInHitbox(_attacker, _logicalCollider);
-        
+        // 3. 충돌 판정 — H: GetEnemiesInHitbox(O(N) 전체 순회) → unitGrid 셀 직접 조회
+        // 히트박스 AABB 범위를 구해 그 셀만 unitGrid에서 조회, 실제 겹침은 Overlaps()로 정밀 확인.
+        float rad      = _logicalCollider.rotation * Mathf.Deg2Rad;
+        float cosA     = Mathf.Abs(Mathf.Cos(rad));
+        float sinA     = Mathf.Abs(Mathf.Sin(rad));
+        float halfW    = _logicalCollider.size.x * 0.5f;
+        float halfH    = _logicalCollider.size.y * 0.5f;
+        int minX = Mathf.FloorToInt(_logicalCollider.center.x - (halfW * cosA + halfH * sinA));
+        int maxX = Mathf.FloorToInt(_logicalCollider.center.x + (halfW * cosA + halfH * sinA));
+        int minY = Mathf.FloorToInt(_logicalCollider.center.y - (halfW * sinA + halfH * cosA));
+        int maxY = Mathf.FloorToInt(_logicalCollider.center.y + (halfW * sinA + halfH * cosA));
+
         bool hasHitNewEnemy = false;
-
-        foreach(var enemy in hitEnemies)
+        var unitGrid = _attacker.Session?.unitGrid;
+        if (unitGrid != null)
         {
-            if (_hitTargets.Contains(enemy)) continue; // 이미 타격한 적은 무시
-
-            Hitbox enemyBox = SkillAction.GetUnitHitbox(enemy);
-            float overlapRatio = _logicalCollider.CalculateOverlapRatio(enemyBox);
-            float finalRatio = Mathf.Max(0.2f, overlapRatio);
-
-            ApplyHitEffect(enemy, finalRatio);
-
-            _hitTargets.Add(enemy);
-            hasHitNewEnemy = true;
-        }
-
-        if (hasHitNewEnemy)
-        {
-            // 관통(Pierce) 옵션이 꺼져있다면 즉시 투사체 소멸
-            if (!_skillData.isPiercing)
+            int floor = _attacker.currentFloor;
+            for (int cx = minX; cx <= maxX; cx++)
+            for (int cy = minY; cy <= maxY; cy++)
             {
-                DestroyProjectile();
-                return;
+                if (!unitGrid.TryGetValue(new Vector3Int(cx, cy, floor), out Unit u)) continue;
+                if (u == null || u == _attacker || u.Health.hp <= 0) continue;
+                if (!_attacker.IsEnemy(u)) continue;
+                if (_hitTargets.Contains(u)) continue; // 발자국 중복·이미 타격한 적 무시
+
+                Hitbox enemyBox = SkillAction.GetUnitHitbox(u);
+                if (!_logicalCollider.Overlaps(enemyBox)) continue; // AABB 오탐 제거
+
+                float finalRatio = Mathf.Max(0.2f, _logicalCollider.CalculateOverlapRatio(enemyBox));
+                ApplyHitEffect(u, finalRatio);
+                _hitTargets.Add(u);
+                hasHitNewEnemy = true;
+
+                if (!_skillData.isPiercing)
+                {
+                    DestroyProjectile();
+                    return;
+                }
             }
         }
 
