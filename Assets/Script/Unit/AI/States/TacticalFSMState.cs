@@ -116,23 +116,24 @@ public class TacticalFSMState : IFSMState
 		if (IsPanic(unit)) return p;
 		if (unit.currentTrapInteraction != null) return p;
 		if (unit.currentAlertSearch != null) return p;
-		if (unit is Human h && (h.currentInvestigation != null || h.HasReachableInvestigateTarget())) return p;
-		if (unit is Human hw && hw.currentWait != null) return p;
-		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return p;
-		if (unit is Human hc && hc.party != null && hc.party.Leader == hc && hc.party.PendingCoreObjectId != null)
+		Human hu = unit as Human;
+		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
+		if (hu != null && hu.currentWait != null) return p;
+		if (hu != null && hu.HasProtectiveFormationNeed()) return p;
+		if (hu != null && hu.party != null && hu.party.Leader == hu && hu.party.PendingCoreObjectId != null)
 		{
 			// 2026-07-27 버그 수정("코어가 없는 이상한 곳에서 코어 로직이 실행됨"): 리더가 코어와 다른
 			// 층에 있으면(예: 웨이브 시작 직후 아직 0층 대기 구역) 여기서 층 이동을 계단 이동
 			// 파이프라인(NavigationFSMState.HasPendingStairs/MoveToStairs/CrossStairs — 이미 검증된
 			// 기존 메커니즘)에 맡기고, 코어 쪽은 우선순위를 양보한다. 그래야 MoveToCore의 도착 판정
 			// (X/Y만 비교, 층 비교 없음)이 다른 층에서 좌표만 우연히 근접했을 때 오작동하는 걸 막는다.
-			if (hc.currentFloor != hc.party.PendingCorePosition.z)
+			if (hu.currentFloor != hu.party.PendingCorePosition.z)
 			{
 				// [의도적 부수효과 — GetPriority 내 유일 예외]
 				// 리더가 코어와 다른 층에 있을 때 계단 이동 파이프라인에 목적지 층 정보를 주입한다.
 				// NavigationFSMState.HasPendingStairs가 이 값을 읽어 즉시 계단 이동을 시작하게 하는 것이
 				// 목적이며, 이 조건 이외에서 GetPriority가 상태를 변경하는 부분은 없다.
-				if (!hc.pendingStairTargetFloor.HasValue) hc.pendingStairTargetFloor = hc.party.PendingCorePosition.z;
+				if (!hu.pendingStairTargetFloor.HasValue) hu.pendingStairTargetFloor = hu.party.PendingCorePosition.z;
 				return 0f;
 			}
 			return p;

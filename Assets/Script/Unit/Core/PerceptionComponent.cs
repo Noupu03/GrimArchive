@@ -10,7 +10,7 @@ public class PerceptionComponent : IUnitComponent
         perceptionRecords = new Dictionary<object, PerceptionRecord>(),
         visionOnlyNonEmptyTiles = new List<Vector3Int>(),
         detectedThreats = new List<ThreatTileData>(),
-        personalSpottedEnemies = new List<Unit>()
+        personalSpottedEnemies = new HashSet<Unit>()
     };
 
     public int AlertRecordCount { get => State.alertRecordCount; set => State.alertRecordCount = value; }

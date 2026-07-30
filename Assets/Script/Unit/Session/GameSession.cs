@@ -87,6 +87,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     public List<Unit> units { get; private set; } = new List<Unit>();
+    // ①: isCastingAttack=true인 유닛만 모아두는 집합 — DetectThreats가 전체 units 대신 이걸 순회.
+    public readonly HashSet<Unit> castingUnits = new HashSet<Unit>();
     public List<Party> parties => _partyService.parties;
     private float updateTimer = 0f;
 
@@ -896,6 +898,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 monster.MovementAlgorithm = new RoomConfinedMovement();
 
                 units.Add(monster);
+                // 2번: 동시 스폰된 유닛들이 같은 프레임에 actionCooldown이 만료돼 버스트가 일어나는
+                // 것을 막는다. 초기값을 0~1액션주기 범위에서 랜덤 지터로 흩뿌린다.
+                monster.CombatState.State.actionCooldown = monster.BaseStat.walkSpeed > 0f
+                    ? UnityEngine.Random.Range(0f, 1f / monster.BaseStat.walkSpeed) : UnityEngine.Random.Range(0f, 1f);
                 RegisterUnitPos(monster, monster.position);
                 room.AddUnit(monster);
             }
@@ -1114,6 +1120,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         if (u != null) UnregisterUnitPos(u, u.position);
         if (u != null) ClearPerceptionRecordsFor(u);
+        if (u != null) castingUnits.Remove(u);
         units.RemoveAt(index);
         if (u != null) UnityEngine.Object.Destroy(u);
     }
@@ -1335,6 +1342,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
             units.Add(human);
+            human.CombatState.State.actionCooldown = human.BaseStat.walkSpeed > 0f
+                ? UnityEngine.Random.Range(0f, 1f / human.BaseStat.walkSpeed) : UnityEngine.Random.Range(0f, 1f);
 
             RegisterUnitPos(human, human.position);
         }
@@ -1403,6 +1412,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             Human human = _unitGenerate.GenerateUnitAtPos<Human>(types[i], pos, floorIdx);
             human.FactionBehavior = new HumanFactionBehavior();
             units.Add(human);
+            human.CombatState.State.actionCooldown = human.BaseStat.walkSpeed > 0f
+                ? UnityEngine.Random.Range(0f, 1f / human.BaseStat.walkSpeed) : UnityEngine.Random.Range(0f, 1f);
 
             RegisterUnitPos(human, human.position);
             LogHelper.Log(LogHelper.GAME, $"Generated Archer (Human Faction) at Floor {human.currentFloor}, {human.position}");

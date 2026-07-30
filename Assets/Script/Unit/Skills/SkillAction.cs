@@ -40,6 +40,7 @@ public abstract class SkillAction
 	{
 		unit.CombatState.State.isCastingAttack = true;
 		unit.CombatState.State.castTimer       = castMs / 1000f;
+		unit.Session?.castingUnits.Add(unit);
 		unit.AIState.pendingCastUpdate = castUpdateAction;
 
 		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
@@ -74,9 +75,12 @@ public abstract class SkillAction
 
 	// ─── 히트박스 검색 / 데미지 ──────────────────────────────────────
 
+	// ⑤: 공격마다 new List<Unit>()를 할당하던 것을 static 캐시로 교체 — 호출자는 반환값을 즉시 소비해야 함.
+	private static readonly List<Unit> _hitboxQueryResult = new List<Unit>();
+
 	public static List<Unit> GetEnemiesInHitbox(Unit attacker, Hitbox box)
 	{
-		List<Unit> result = new List<Unit>();
+		_hitboxQueryResult.Clear();
 
 		foreach (var u in attacker.Session.units)
 		{
@@ -86,9 +90,9 @@ public abstract class SkillAction
 			bool isEnemy = attacker.IsEnemy(u);
 			if (!isEnemy) continue;
 
-			if (box.Overlaps(GetUnitHitbox(u))) result.Add(u);
+			if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
 		}
-		return result;
+		return _hitboxQueryResult;
 	}
 
 	public static Hitbox GetUnitHitbox(Unit u)

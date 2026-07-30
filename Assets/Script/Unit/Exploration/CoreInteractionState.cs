@@ -19,4 +19,7 @@ public class CoreInteractionState
 	// true일 때만(=코어 위치에 실제로 도달해 수행 중일 때만) 전파/진행도 타이머를 흘려보낸다
 	// (InvestigationState.PenaltyActive와 동일한 패턴).
 	public bool Active;
+
+	// ⑫: GetComponent<ObjectProgressBarVisual> 호출 비용을 Active 첫 틱에만 내고 이후엔 재사용.
+	public ObjectProgressBarVisual CachedProgressBar;
 }

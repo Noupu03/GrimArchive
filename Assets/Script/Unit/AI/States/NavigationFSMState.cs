@@ -163,6 +163,9 @@ public class NavigationFSMState : IFSMState
 		{
 			target = FindNearestUnexploredTarget(unit, data, fi, mapW, mapH);
 			unit.currentExplorationTarget = target;
+			// G: BFS(최대 3만 노드)와 A*(최대 5만 회)를 같은 틱에 돌리면 스파이크가 발생한다.
+			// 타깃을 찾았으면 이번 틱은 BFS로 끝내고, A*는 다음 틱에 처리한다.
+			if (target.HasValue) return BTStatus.Running;
 		}
 		// ---------------------
 
@@ -212,18 +215,23 @@ public class NavigationFSMState : IFSMState
 
 	private static void MoveRandomlyValid(Unit unit)
 	{
-		if (unit.MovementAlgorithm == null) return;
+		// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서
+		// 다음 틱에 진짜 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다.
 		int startOffset = Random.Range(0, 8);
 		for (int i = 0; i < 8; i++)
 		{
 			Dir tryDir = (Dir)((startOffset + i) % 8);
-			Vector2Int nextPos = unit.position + unit.GetDirVector(tryDir);
-			// TryGetNextStep 내부에서 A* 및 충돌(벽) 검사를 수행하므로, 이동 가능한 방향만 걸러집니다.
-			if (unit.MovementAlgorithm.TryGetNextStep(unit, nextPos, out Dir step))
+			Vector2Int dirVec = unit.GetDirVector(tryDir);
+			Vector2Int nextPos = unit.position + dirVec;
+			if (!unit.CanMove(nextPos)) continue;
+			// Move()의 대각선 코너 커팅 방지 로직과 동일하게 먼저 검사한다.
+			if (Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
 			{
-				unit.Move(step);
-				return;
+				if (!unit.CanMove(unit.position + new Vector2Int(dirVec.x, 0)) ||
+					!unit.CanMove(unit.position + new Vector2Int(0, dirVec.y))) continue;
 			}
+			unit.Move(tryDir);
+			return;
 		}
 	}
 

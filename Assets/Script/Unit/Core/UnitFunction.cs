@@ -63,7 +63,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		bool attackerIsHuman = attacker is Human;
 		if (defenderIsHuman == attackerIsHuman) return; // 같은 진영끼리는 이 시스템의 대상이 아님
 
-		string incidentId = System.Guid.NewGuid().ToString();
+		string incidentId = (++_incidentIdCounter).ToString();
 		lastAttacker = attacker;
 		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
@@ -254,7 +254,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 피격 시퀀스에서 이미 판정을 굴려놨으므로 여기서는 그 결과만 조회한다(재판정 아님).
 		if (!IsCurrentlyIdentified(lastAttacker)) return;
 
-		string incidentId = System.Guid.NewGuid().ToString();
+		string incidentId = (++_incidentIdCounter).ToString();
 		this.Knowledge.RecordEvent(EventId.E_STATUS_SELF, this, lastAttacker, InfoType.DirectExperience, incidentId);
 		BroadcastWitnessEvent(EventId.E_STATUS_SEEN, this, lastAttacker, incidentId);
 	}
@@ -372,7 +372,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 1회마다 이 유닛 자신의 가시성을 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는
 			// 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
 			if (IsTrackedAsSuspiciousByAnyEnemy())
-				VisionStat.suspiciousMoveBoostTimers.Add(VisionMath.SuspiciousMoveBoostDurationSeconds);
+				VisionStat.suspiciousMoveBoostTimers.Enqueue(UnityEngine.Time.time + VisionMath.SuspiciousMoveBoostDurationSeconds);
 		}
 
 		if (this.Generate != null)
@@ -382,18 +382,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 4-6장 트리거 판정 — Session 전체를 순회해 "나를 적으로 보는 유닛 중 지금 나를 수상한 타일로
 	// 추적 중인 관찰자가 있는가"를 확인한다. 관찰자별로 다른 값을 주는 대신(07 전파 문서 부재로 이번
 	// 구현에서도 단순화) 이 유닛 자신의 가시성 하나에 반영해 모든 관찰자에게 동일하게 적용한다.
-	private bool IsTrackedAsSuspiciousByAnyEnemy()
-	{
-		if (Session == null) return false;
-		foreach (var u in Session.units)
-		{
-			if (u == null || u == this || u.Health.hp <= 0) continue;
-			if (!u.IsEnemy(this)) continue;
-			if (u.Perception.State.perceptionRecords.TryGetValue(this, out var rec) && rec.PendingSuspiciousInvestigation)
-				return true;
-		}
-		return false;
-	}
+	// J: ForceRollPerception이 PendingSuspiciousInvestigation 변경 시마다 _suspiciousObserverCount를
+	// 증감하므로 O(N) 순회 없이 O(1)로 판정한다.
+	private bool IsTrackedAsSuspiciousByAnyEnemy() => _suspiciousObserverCount > 0;
 
 	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
 	// 이번 UpdateFOV 패스에서 인지 범위 안으로 실제 도달한 대상(적 유닛=Unit 참조, 오브젝트=Id)의
@@ -403,6 +394,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 후 재등장 모두 포함) 새 트리거로 인식돼 재판정이 걸린다(4장 조건1~3이 전부 "지금 안 보이다가
 	// 다시 보임"이라는 동일 신호라 이 하나의 메커니즘으로 셋 다 커버된다).
 	private readonly Dictionary<object, (float dist, Vector3Int tile)> _reachedPerceptionThisPass = new Dictionary<object, (float, Vector3Int)>();
+
+	// I: ResolveVisionDirection이 매 틱 new List<>()를 할당하던 것을 제거 — 재사용 필드로 교체한다.
+	private readonly List<VisionMath.VisionDirectionCandidate> _visionDirectionCandidates = new List<VisionMath.VisionDirectionCandidate>();
+	// ⑩: Guid.NewGuid().ToString() 대신 단조 증가 카운터로 incidentId 생성 — 문자열 1회 할당으로 감소.
+	private static int _incidentIdCounter;
+	// ⑨: KnownDangerTiles/KnownInterestTiles.ToList()가 0.1초마다 List를 새로 할당하던 것을 제거.
+	private readonly List<Vector3Int> _dangerTilesCopy = new List<Vector3Int>();
+	private readonly List<Vector3Int> _interestTilesCopy = new List<Vector3Int>();
 
 	// 이번 패스에 처음 도달한 대상이면 트리거 조건(최초 진입/재진입/수상한 타일 2칸 재접근)을 검사해
 	// 필요하면 재판정하고, 이미 이번 패스에 다른 레이로 처리된 대상이면 그 결과를 그대로 반환한다
@@ -466,7 +465,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 			Perception.State.perceptionRecords[key] = record;
 		}
 		bool nowSuspicious = outcome == PerceptionOutcome.SuspiciousTile;
-		Perception.NotifyPerceptionSuspiciousChanged(record.PendingSuspiciousInvestigation, nowSuspicious); // Perception.IsAlert 카운터 O(1) 유지
+		bool wasSuspicious = record.PendingSuspiciousInvestigation;
+		Perception.NotifyPerceptionSuspiciousChanged(wasSuspicious, nowSuspicious); // Perception.IsAlert 카운터 O(1) 유지
+		// J: key가 Unit이면 그 유닛의 _suspiciousObserverCount를 증감해 IsTrackedAsSuspiciousByAnyEnemy를 O(1)로 만든다.
+		if (key is Unit suspTrackedUnit)
+		{
+			if (!wasSuspicious && nowSuspicious) suspTrackedUnit._suspiciousObserverCount++;
+			else if (wasSuspicious && !nowSuspicious) suspTrackedUnit._suspiciousObserverCount--;
+		}
 		record.Outcome = outcome;
 		record.WasInRange = true;
 		record.LastKnownTile = tile;
@@ -497,15 +503,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public void AddVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Add(tile);
 	public void AddPersonalSpottedEnemy(Unit unit)
 	{
-		if (!Perception.State.personalSpottedEnemies.Contains(unit)) Perception.State.personalSpottedEnemies.Add(unit);
+		Perception.State.personalSpottedEnemies.Add(unit); // HashSet이므로 Contains 검사 불필요
 	}
 
-	private IVisionTileHandler[] _visionHandlers = new IVisionTileHandler[]
-	{
-		new TerrainRevealHandler(),
-		new ObjectPerceptionHandler(),
-		new UnitPerceptionHandler()
-	};
 	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits, bool rayInPerceptionAngle, float perceptionDistance)
 	{
 		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
@@ -573,10 +573,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 않던 예외를 없앤다. 닫힌 문은 이제 예외 없이 벽과 동일하게 기억/차단된다(열린 문은 원래도
 			// isStructureExist=false라 전부 자연히 통과 가능).
 			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
+			// H: 이미 탐색된 타일(비-0)은 이웃 검사를 건너뛴다 — 같은 타일에 여러 레이가 도달하면
+			// Wall Dilation 3×3 루프가 중복 실행되므로, 처음 발견할 때(0→1/2)만 실행한다.
+			bool wasUndiscovered = myData.discoveredMap[currentFloor][x, y] == 0;
 			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
 
 			// 시야 사각지대(DDA 틈새) 근본적 해결: 바닥을 보았다면, 그 바닥과 맞닿은 8방향의 숨은 벽을 즉시 시야에 추가합니다. (Wall Dilation)
-			if (!tileIsWall)
+			if (!tileIsWall && wasUndiscovered)
 			{
 				for (int dx = -1; dx <= 1; dx++)
 				{
@@ -609,9 +612,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;
 			Human terrainObserver = this as Human;
 
-			foreach (var handler in _visionHandlers)
+			// ③: _visionHandlers 3개짜리 loop이었지만 handler 변수를 전혀 사용하지 않아 동일 블록이
+			// 3× 실행되던 버그. if로 교체해 1×만 실행한다.
+			if (terrainObserver != null)
 			{
-				if (terrainObserver == null) continue;
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
 				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
 
@@ -854,7 +858,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 10_목표설정 문서(부재) 몫이라 방향 전환만 담당한다. 실제로 활성화 가능한 후보만 아래에서 구성한다.
 	public override void ResolveVisionDirection()
 	{
-		var candidates = new List<VisionMath.VisionDirectionCandidate>();
+		_visionDirectionCandidates.Clear();
+		var candidates = _visionDirectionCandidates;
 
 		// 1순위: 스킬 사용 중(캐스팅 중) — 공격에 사용한 자유 각도(CombatState.State.currentAttackAngle) 기준.
 		if (CombatState.State.isCastingAttack)
@@ -894,11 +899,23 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
 		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
 		// 전환만 이 판정 결과에서 직접 나온다.
-		var nearestSuspiciousTile = NearestTile(Perception.State.perceptionRecords.Values.Where(r => r.PendingSuspiciousInvestigation).Select(r => r.LastKnownTile));
-		if (nearestSuspiciousTile.HasValue)
+		// I: .Where().Select() LINQ 체인이 IEnumerable 할당 2개를 만들던 것을 수동 루프로 교체한다.
 		{
-			var t = nearestSuspiciousTile.Value;
-			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Alert, DirectionToward(new Vector2Int(t.x, t.y))));
+			Vector3Int? nearestSuspiciousTile = null;
+			float nearestSuspDistSq = float.MaxValue;
+			foreach (var kv in Perception.State.perceptionRecords)
+			{
+				if (!kv.Value.PendingSuspiciousInvestigation) continue;
+				var t = kv.Value.LastKnownTile;
+				float dx = t.x - position.x, dy = t.y - position.y;
+				float dSq = dx * dx + dy * dy;
+				if (dSq < nearestSuspDistSq) { nearestSuspDistSq = dSq; nearestSuspiciousTile = t; }
+			}
+			if (nearestSuspiciousTile.HasValue)
+			{
+				var t = nearestSuspiciousTile.Value;
+				candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.Alert, DirectionToward(new Vector2Int(t.x, t.y))));
+			}
 		}
 
 		// 10순위(최하위, 항상 후보로 존재): 이동 중이면 Move()가 이미 반영한 이동 방향, 아니면 기존 시야
@@ -1066,14 +1083,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (VisionStat.attackVisibilityBoostTimer > 0f) VisionStat.attackVisibilityBoostTimer = Mathf.Max(0f, VisionStat.attackVisibilityBoostTimer - deltaTime);
 
 		// 4-6장: 이동당 +20 증가분을 개별적으로 5초 뒤 제거한다(먼저 생긴 증가분부터 먼저 사라짐).
-		if (VisionStat.suspiciousMoveBoostTimers.Count > 0)
-		{
-			for (int i = VisionStat.suspiciousMoveBoostTimers.Count - 1; i >= 0; i--)
-			{
-				VisionStat.suspiciousMoveBoostTimers[i] -= deltaTime;
-				if (VisionStat.suspiciousMoveBoostTimers[i] <= 0f) VisionStat.suspiciousMoveBoostTimers.RemoveAt(i);
-			}
-		}
+		// ⑪: 만료시간(절대값)을 Queue에 저장 → Peek/Dequeue로 O(1), O(N) RemoveAt/shift 제거.
+		while (VisionStat.suspiciousMoveBoostTimers.Count > 0 && VisionStat.suspiciousMoveBoostTimers.Peek() <= UnityEngine.Time.time)
+			VisionStat.suspiciousMoveBoostTimers.Dequeue();
 
 		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
 		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
@@ -1091,14 +1103,20 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			if (this is Human human && Session != null && CanPerceive)
 			{
-				foreach (var tile in human.Memory.personalMap.KnownDangerTiles.ToList())
+				// ⑨: ToList()가 매 0.1초마다 새 List를 할당하던 것을 캐시 필드 재사용으로 교체.
+				// TickTileSafety/TickTileInterestConfirm이 컬렉션을 수정(Remove)할 수 있어 직접 순회 불가.
+				_dangerTilesCopy.Clear();
+				_dangerTilesCopy.AddRange(human.Memory.personalMap.KnownDangerTiles);
+				foreach (var tile in _dangerTilesCopy)
 				{
 					bool threatPresent = Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant is Monster
 						&& occupant.Health.hp > 0f && human.Perception.State.personalSpottedEnemies.Contains(occupant);
 					human.Memory.personalMap.TickTileSafety(tile, threatPresent, _safetyTickTimer);
 				}
 
-				foreach (var tile in human.Memory.personalMap.KnownInterestTiles.ToList())
+				_interestTilesCopy.Clear();
+				_interestTilesCopy.AddRange(human.Memory.personalMap.KnownInterestTiles);
+				foreach (var tile in _interestTilesCopy)
 				{
 					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
 				}
@@ -1158,7 +1176,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / ExplorationMath.TrapDisarmDurationSeconds);
 				// 9-7/9-8장(2026-07-27 추가): 함정 바로 아래 진행 막대 갱신 — 실제 해제 중일 때만.
-				Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(trap.DisarmProgress01, true);
+				// ⑫: GetComponent를 첫 틱에만 캐시하고 이후엔 재사용.
+				if (trap.CachedProgressBar == null && Session != null)
+					trap.CachedProgressBar = Session.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>();
+				if (trap.CachedProgressBar != null) trap.CachedProgressBar.SetProgress(trap.DisarmProgress01, true);
 			}
 			else if (trap.Phase == TrapPhase.Destroying && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
 			{
@@ -1185,7 +1206,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				core.Progress01 = Mathf.Min(1f, core.Progress01 + deltaTime / ExplorationMath.CoreInvestigateDurationSeconds);
 				// 2026-07-27 추가: 코어 바로 아래 진행 막대 갱신(함정 해제 막대와 같은 컴포넌트 재사용).
-				Session?.GetObjectVisual(core.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(core.Progress01, true);
+				// ⑫: GetComponent를 첫 틱에만 캐시하고 이후엔 재사용.
+				if (core.CachedProgressBar == null && Session != null)
+					core.CachedProgressBar = Session.GetObjectVisual(core.CorePosition)?.GetComponent<ObjectProgressBarVisual>();
+				if (core.CachedProgressBar != null) core.CachedProgressBar.SetProgress(core.Progress01, true);
 			}
 		}
 
@@ -1214,6 +1238,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 
 				CombatState.State.isCastingAttack = false;
+				Session?.castingUnits.Remove(this);
 				AIState.currentThreat   = null;
 				AIState.pendingAttack?.Invoke();
 				AIState.pendingAttack   = null;
@@ -1335,14 +1360,17 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public override List<ThreatTileData> DetectThreats()
 	{
 		_cachedThreats.Clear();
+		if (Session == null) return _cachedThreats;
 
-		foreach (Unit u in Session.units)
+		// ①: Session.units(전체) 대신 castingUnits(공격 모션 중인 유닛만)를 순회.
+		// 실제 공격 중인 유닛은 보통 0~3개 → O(N²) → O(N × 0~3)
+		foreach (Unit u in Session.castingUnits)
 		{
 			if (u == null || u == this) continue;
 			if (u.currentFloor != currentFloor) continue;
 
 			ThreatTileData threat = u.AIState.currentThreat;
-			if (threat == null || !u.CombatState.State.isCastingAttack) continue;
+			if (threat == null) continue;
 
 			if (threat.hitbox.Overlaps(Unit.GetUnitHitbox(this)))
 				_cachedThreats.Add(threat);

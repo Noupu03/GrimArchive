@@ -101,11 +101,42 @@ public class AStarMovement : IMovementAlgorithm
             items[a].HeapIndex = a;
             items[b].HeapIndex = b;
         }
+
+        public void Clear() { items.Clear(); }
     }
+
+    // D: Enum.GetValues는 호출마다 새 배열을 힙에 할당한다 — A* 핫패스(최대 5만 회 반복)에서 매번
+    // 호출되면 GC 압력이 폭발하므로, 한 번만 평가해 정적 배열로 고정한다.
+    private static readonly Dir[] _allDirs = (Dir[])System.Enum.GetValues(typeof(Dir));
 
     private Vector2Int _cacheTarget = new Vector2Int(-9999, -9999);
     private Dictionary<Vector2Int, Dir> _pathMap = new Dictionary<Vector2Int, Dir>();
     private float _cacheTime = 0f;
+
+    // F: A* 실행마다 새로 생성하던 컨테이너를 인스턴스 필드로 올려 재사용한다.
+    private readonly MinHeap _openList = new MinHeap();
+    private readonly HashSet<Vector2Int> _closedSet = new HashSet<Vector2Int>();
+    private readonly Dictionary<Vector2Int, AStarNode> _allNodes = new Dictionary<Vector2Int, AStarNode>();
+
+    // 1번: AStarNode 객체 풀 — 매 A* 실행마다 수천~수만 개를 new로 생성하던 것을 없앤다.
+    // 실행 종료 시 _allNodes에 남은 노드를 전부 반납하고, 다음 실행 시 꺼내 재사용한다.
+    private readonly Stack<AStarNode> _nodePool = new Stack<AStarNode>();
+
+    private AStarNode RentNode()
+    {
+        if (_nodePool.Count > 0)
+        {
+            var n = _nodePool.Pop();
+            n.Parent = null; n.GCost = 0; n.HCost = 0; n.HeapIndex = -1;
+            return n;
+        }
+        return new AStarNode();
+    }
+
+    private void ReturnAllNodes()
+    {
+        foreach (var n in _allNodes.Values) _nodePool.Push(n);
+    }
 
     public bool TryGetNextStep(Unit unit, Vector2Int targetPos, out Dir nextDir)
     {
@@ -145,11 +176,16 @@ public class AStarMovement : IMovementAlgorithm
 
         Vector2Int startPos = unit.position;
 
-        MinHeap openList = new MinHeap();
-        HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
-        Dictionary<Vector2Int, AStarNode> allNodes = new Dictionary<Vector2Int, AStarNode>();
+        _openList.Clear();
+        _closedSet.Clear();
+        ReturnAllNodes(); // 이전 실행 노드를 풀에 반납한 뒤 컨테이너를 비운다.
+        _allNodes.Clear();
+        MinHeap openList = _openList;
+        HashSet<Vector2Int> closedSet = _closedSet;
+        Dictionary<Vector2Int, AStarNode> allNodes = _allNodes;
 
-        AStarNode startNode = new AStarNode { Pos = startPos, GCost = 0, HCost = GetHeuristic(startPos, targetPos), HeapIndex = -1 };
+        AStarNode startNode = RentNode();
+        startNode.Pos = startPos; startNode.GCost = 0; startNode.HCost = GetHeuristic(startPos, targetPos);
         openList.Push(startNode);
         allNodes[startPos] = startNode;
 
@@ -166,7 +202,7 @@ public class AStarMovement : IMovementAlgorithm
             if (current.Pos == targetPos) { closestNode = current; break; }
             if (current.HCost < closestNode.HCost) closestNode = current;
 
-            foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+            foreach (Dir d in _allDirs)
             {
                 Vector2Int dirVec = unit.GetDirVector(d);
                 if (dirVec == Vector2Int.zero) continue;
@@ -181,7 +217,8 @@ public class AStarMovement : IMovementAlgorithm
 
                 if (!allNodes.TryGetValue(neighborPos, out AStarNode neighborNode))
                 {
-                    neighborNode = new AStarNode { Pos = neighborPos, HCost = GetHeuristic(neighborPos, targetPos), HeapIndex = -1 };
+                    neighborNode = RentNode();
+                    neighborNode.Pos = neighborPos; neighborNode.HCost = GetHeuristic(neighborPos, targetPos);
                     allNodes[neighborPos] = neighborNode;
                 }
 
@@ -203,7 +240,7 @@ public class AStarMovement : IMovementAlgorithm
         while (stepNode.Parent != null)
         {
             Vector2Int diff = stepNode.Pos - stepNode.Parent.Pos;
-            foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+            foreach (Dir d in _allDirs)
             {
                 if (unit.GetDirVector(d) == diff)
                 {
@@ -338,7 +375,7 @@ public class AStarMovement : IMovementAlgorithm
             mapH = myData.discoveredMap[floorIdx].GetLength(1);
         }
 
-        foreach (Dir d in System.Enum.GetValues(typeof(Dir)))
+        foreach (Dir d in _allDirs)
         {
             Vector2Int dirVec = unit.GetDirVector(d);
             if (dirVec == new Vector2Int(dx, dy))

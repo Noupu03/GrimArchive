@@ -55,4 +55,7 @@ public class TrapInteractionState
 	// A* 대체경로 탐색(Action_TrapJoinWait.IsBlockingPath)으로 한 번만 계산해서 캐시해둔다 — 매 틱
 	// 다시 계산하면 비용이 크다.
 	public bool? IsBlockingPath;
+
+	// ⑫: GetComponent<ObjectProgressBarVisual> 호출 비용을 Disarming 첫 틱에만 내고 이후엔 재사용.
+	public ObjectProgressBarVisual CachedProgressBar;
 }

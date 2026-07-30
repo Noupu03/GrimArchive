@@ -50,7 +50,7 @@ public abstract class Unit : ScriptableObject {
     public float baseDanger       { get => BaseStat.baseDanger;                set => BaseStat.baseDanger = value; }
     public bool  isHitThisTurn    { get => CombatState.State.isHitThisTurn;    set => CombatState.State.isHitThisTurn = value; }
     public bool  oneTimeReactUsed { get => CombatState.State.oneTimeReactUsed; set => CombatState.State.oneTimeReactUsed = value; }
-    public List<Unit> personalSpottedEnemies    => Perception.State.personalSpottedEnemies;
+    public HashSet<Unit> personalSpottedEnemies => Perception.State.personalSpottedEnemies;
     public List<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
     public ThreatTileData currentThreat { get => AIState.currentThreat; set => AIState.currentThreat = value; }
 
@@ -144,6 +144,10 @@ public abstract class Unit : ScriptableObject {
 	// "누가 실제로 마지막 피해를 입혔는가"가 진영 조합과 무관하게 필요한 곳에서는 이 필드를 대신 쓴다.
 	// TakePhysicalDamage/TakeMagicalDamage/ApplyDirectDamage에서 attacker가 있을 때마다 갱신된다.
 	public Unit lastDamageDealer;
+
+	// J: "수상한 타일"로 추적 중인 적(관찰자) 수 — IsTrackedAsSuspiciousByAnyEnemy가 O(N) 순회 대신 O(1)로
+	// 조회할 수 있도록 ForceRollPerception에서 PendingSuspiciousInvestigation 변경 시마다 증감한다.
+	public int _suspiciousObserverCount;
 
 	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
 	public int level = 1;                 // ?꾩옱 ?덈꺼

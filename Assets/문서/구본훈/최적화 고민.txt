@@ -1,0 +1,9 @@
+1.설치의 자원 건물, 생산 건물 구분을 bool로 하나 추후 건물이 추가될 것이란 가정이면 enum으로 변경해야 할듯 함.
+
+2.건물 유닛 UpdateProcess()(매 프레임 NativeRoutine) 으로 하고 있는데 Event로 종료조건을 Publisher에 의해 전달하여 Subscriber가 받아서 처리하는게 더 좋을듯 하며 RemoveDeadUnit이 실제로 이와 겹침. 이에 대하여 개선요망.
+
+3.AI한테 건물 유닛 생산쪽에 대하여 질문하기
+3.1 BuildingData 순회하면 자원 많이 잡아먹을꺼 같은데 괜찮나
+3.2 GetSpawnPosAroundBuilding()상하좌우 4방향 빈 타일 탐색에서 종료되면 다음건물로 가느냐
+3.3 건물을 enum으로 구분하는 순간IsResourceBuilding에서 분기가 더 많이 생겨야 한다.
+

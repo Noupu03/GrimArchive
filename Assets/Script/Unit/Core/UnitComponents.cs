@@ -42,7 +42,7 @@ public struct UnitPerceptionState
     public int alertRecordCount;
     public List<Vector3Int> visionOnlyNonEmptyTiles;
     public List<ThreatTileData> detectedThreats;
-    public List<Unit> personalSpottedEnemies;
+    public HashSet<Unit> personalSpottedEnemies;
 }
 
 [Serializable]
