@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
@@ -50,6 +50,7 @@ public abstract class SkillAction
 			threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
 
 		unit.AIState.currentThreat = threat;
+		unit.Session?.OnThreatCreated.OnNext((unit, threat));
 
 		unit.AIState.pendingAttack = () =>
 		{
@@ -82,16 +83,45 @@ public abstract class SkillAction
 	{
 		_hitboxQueryResult.Clear();
 
-		foreach (var u in attacker.Session.units)
+		var unitGrid = attacker.Session?.unitGrid;
+		if (unitGrid != null)
 		{
-			if (u == null || u == attacker || u.Health.hp <= 0) continue;
-			if (u.currentFloor != attacker.currentFloor) continue;
+			float rad      = box.rotation * Mathf.Deg2Rad;
+			float cosA     = Mathf.Abs(Mathf.Cos(rad));
+			float sinA     = Mathf.Abs(Mathf.Sin(rad));
+			float halfW    = box.size.x * 0.5f;
+			float halfH    = box.size.y * 0.5f;
+			int minX = Mathf.FloorToInt(box.center.x - (halfW * cosA + halfH * sinA));
+			int maxX = Mathf.FloorToInt(box.center.x + (halfW * cosA + halfH * sinA));
+			int minY = Mathf.FloorToInt(box.center.y - (halfW * sinA + halfH * cosA));
+			int maxY = Mathf.FloorToInt(box.center.y + (halfW * sinA + halfH * cosA));
+            
+			int floor = attacker.currentFloor;
+			for (int cx = minX; cx <= maxX; cx++)
+			{
+				for (int cy = minY; cy <= maxY; cy++)
+				{
+					if (!unitGrid.TryGetValue(new Vector3Int(cx, cy, floor), out Unit u)) continue;
+					if (u == null || u == attacker || u.Health.hp <= 0) continue;
+					if (!attacker.IsEnemy(u)) continue;
+					if (_hitboxQueryResult.Contains(u)) continue; // Footprint 중복 셀 무시
 
-			bool isEnemy = attacker.IsEnemy(u);
-			if (!isEnemy) continue;
-
-			if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
+					if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
+				}
+			}
 		}
+		else 
+		{
+			foreach (var u in attacker.Session.units)
+			{
+				if (u == null || u == attacker || u.Health.hp <= 0) continue;
+				if (u.currentFloor != attacker.currentFloor) continue;
+				if (!attacker.IsEnemy(u)) continue;
+
+				if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
+			}
+		}
+
 		return _hitboxQueryResult;
 	}
 

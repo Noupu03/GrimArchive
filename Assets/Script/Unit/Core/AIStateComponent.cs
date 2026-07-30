@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 [System.Serializable]
@@ -8,6 +8,7 @@ public class AIStateComponent : IUnitComponent
     
     public UnitAIWeightState AIWeightState;
     public HashSet<Unit> reactedAttackers = new HashSet<Unit>();
+    public HashSet<Unit> unitsReactingToMe = new HashSet<Unit>();
     public float currentReactionWindow = 0f;
     public ThreatTileData reactingThreat = null;
     public Unit reactingAttacker = null;

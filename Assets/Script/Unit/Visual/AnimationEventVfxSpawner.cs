@@ -27,14 +27,10 @@ public class AnimationEventVfxSpawner : MonoBehaviour
         Vector3 pos = reference.TransformPoint(def.positionOffset);
         Quaternion rot = reference.rotation * Quaternion.Euler(def.rotationOffset);
 
-        GameObject instance = Instantiate(def.effectPrefab, pos, rot);
-        instance.transform.localScale = def.effectPrefab.transform.localScale; // 스케일은 프리팹 원본 그대로 유지
-
-        float lifetime = 2f;
-        ParticleSystem ps = instance.GetComponent<ParticleSystem>();
-        if (ps != null)
-            lifetime = ps.main.duration + ps.main.startLifetime.constantMax;
-
-        Destroy(instance, lifetime);
+        GameObject instance = VFXManager.Spawn(def.effectPrefab, pos, rot);
+        if (instance != null)
+        {
+            instance.transform.localScale = def.effectPrefab.transform.localScale; // 스케일은 프리팹 원본 그대로 유지
+        }
     }
 }

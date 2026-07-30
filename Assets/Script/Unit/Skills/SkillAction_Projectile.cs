@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
@@ -9,6 +9,7 @@ public class SkillAction_Projectile : SkillAction
 {
     readonly SkillData _d;
     private GameObject _projectilePrefab;
+    private GameObject _fallbackPrefab;
 
     public SkillAction_Projectile(SkillData data, GameObject projectilePrefab = null)
     {
@@ -106,26 +107,25 @@ public class SkillAction_Projectile : SkillAction
         );
     }
 
+    // 프리팹이 지정되지 않은 경우 1회만 생성해 두고 이후엔 풀링 키로 재사용한다.
+    private GameObject GetOrCreateFallbackPrefab()
+    {
+        if (_fallbackPrefab != null) return _fallbackPrefab;
+        _fallbackPrefab = new GameObject($"Projectile_{SkillName}_Template");
+        var sr = _fallbackPrefab.AddComponent<SpriteRenderer>();
+        sr.sprite = CreateFallbackSprite();
+        sr.color = Color.yellow;
+        sr.sortingOrder = 15;
+        _fallbackPrefab.AddComponent<Projectile>();
+        UnityEngine.Object.DontDestroyOnLoad(_fallbackPrefab);
+        _fallbackPrefab.SetActive(false);
+        return _fallbackPrefab;
+    }
+
     private void FireProjectile(Unit attacker, int maxDistance)
     {
-        // 투사체 게임 오브젝트 생성
-        GameObject projObj;
-        if (_projectilePrefab != null)
-        {
-            projObj = Object.Instantiate(_projectilePrefab);
-        }
-        else
-        {
-            projObj = new GameObject($"Projectile_{SkillName}");
-            // 폴백 비주얼 (임시)
-            var sr = projObj.AddComponent<SpriteRenderer>();
-            sr.sprite = CreateFallbackSprite();
-            sr.color = Color.yellow;
-            sr.sortingOrder = 15;
-        }
-
-        Projectile proj = projObj.GetComponent<Projectile>();
-        if (proj == null) proj = projObj.AddComponent<Projectile>();
+        GameObject prefabKey = _projectilePrefab != null ? _projectilePrefab : GetOrCreateFallbackPrefab();
+        Projectile proj = Projectile.Spawn(prefabKey);
 
         // 투사체 자체의 실제 충돌(Hitbox) 크기는 위협 타일 전체가 아닌 투사체 머리 부분의 사이즈입니다.
         Hitbox projectileHitbox = new Hitbox

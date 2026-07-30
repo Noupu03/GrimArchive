@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using System;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ public class InputManager : MonoBehaviour
 	}
 
 	public List<Unit> selectedUnits = new List<Unit>();
+	public Action OnSelectionChanged;
 
 	// 드래그 박스(스타크래프트식) 관련 상태
 	private const float DragThresholdPixels = 6f;

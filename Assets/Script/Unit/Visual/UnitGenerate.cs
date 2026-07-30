@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using VContainer;
@@ -340,11 +340,9 @@ public class UnitGenerate
 		if (sr != null) sr.DOKill();
 	}
 
-	public void SyncVisuals(List<Unit> units)
+	public void SyncVisual(Unit u)
 	{
-		foreach (var u in units)
-		{
-			if (u == null || !visualMap.TryGetValue(u, out GameObject go)) continue;
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
 
 			Vector3 newPos = new Vector3(
 				u.position.x + u.unitType.footprint.x / 2f,
@@ -429,7 +427,6 @@ public class UnitGenerate
 				bool isSelected = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
 				cache.SelectionMarker.gameObject.SetActive(isSelected);
 			}
-		}
 	}
 
 	// 캐릭터 스프라이트/애니메이션과 완전히 무관한, 풋프린트 기반 발밑 링을 go의 자식으로 한 번만

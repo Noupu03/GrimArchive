@@ -156,7 +156,8 @@ public class AStarMovement : IMovementAlgorithm
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
         // --- 캐싱 로직: A* 연산 폭주를 막아 프레임 드랍(지랄나는 연산량) 방지 ---
-        if (_cacheTarget == targetPos && Time.time - _cacheTime < 5f)
+        // 타겟이 약간(3칸 이내) 움직였더라도 기존 목적지 방향 캐시를 유지한다 (근시안적 길찾기 유지).
+        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f)
         {
             if (_pathMap.TryGetValue(unit.position, out Dir cachedDir))
             {

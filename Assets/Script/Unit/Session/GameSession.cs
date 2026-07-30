@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.InputSystem;
@@ -9,6 +9,7 @@ using Haare.Client.Routine;
 using Haare.Util.Logger;
 using GrimArchive.Wave;
 using Haare.Scripts.Client.Data;
+using R3;
 
 // Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
 // NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
@@ -16,6 +17,7 @@ using Haare.Scripts.Client.Data;
 
 public class GameSession : NativeRoutine, IOffenseQuery
 {
+    public Subject<(Unit attacker, ThreatTileData threat)> OnThreatCreated = new Subject<(Unit attacker, ThreatTileData threat)>();
     public static GameSession Instance { get; private set; }
 
     public CreateMap cmap { get; private set; }
@@ -58,6 +60,17 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _debugInputHandler = debugInputHandler;
         _buildingManager = buildingManager;
         Instance = this;
+
+        OnThreatCreated.Subscribe(data =>
+        {
+            // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
+            // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
+            var snapshot = new List<Unit>(SkillAction.GetEnemiesInHitbox(data.attacker, data.threat.hitbox));
+            foreach (var u in snapshot)
+            {
+                u.OnReactToThreat(data.attacker, data.threat);
+            }
+        });
     }
     public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry.unitGrid;
     public Dictionary<Vector3Int, InteractableObject> objectGrid => _objectSpawner.objectGrid;
@@ -927,8 +940,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         
         _offenseProcessor?.UpdateProcess();
 
-        bool visualNeedsSync = false;
-
         // 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
         for (int i = units.Count - 1; i >= 0; i--)
         {
@@ -936,7 +947,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (u == null || u.Health.hp <= 0)
             {
                 RemoveDeadUnit(i, u);
-                visualNeedsSync = true;
                 continue; // 사망/파괴 시 시각적 요소 제거 완료
             }
 
@@ -946,15 +956,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (u.CombatState.State.actionCooldown <= 0f)
             {
                 ProcessUnitAction(u);
-                visualNeedsSync = true;
             }
         }
 
-        if (visualNeedsSync || Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
+        if (Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
         {
             if (_unitGenerate != null)
             {
-                _unitGenerate.SyncVisuals(units);
+                foreach(var u in units) _unitGenerate.SyncVisual(u);
             }
         }
 
@@ -1270,7 +1279,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         u.JudgeState();
         Vector2Int oldPos = u.position;
+        string oldLabel = u.fsm.GetLabel(u);
+        Dir oldDir = u.currentDir;
         u.ExecuteAction();
+        string newLabel = u.fsm.GetLabel(u);
+
+        bool stateChanged = oldPos != u.position || oldLabel != newLabel || oldDir != u.currentDir;
 
         if (oldPos != u.position)
         {
@@ -1281,6 +1295,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
             if (u.IsPlayerMonsterFaction)
                 TryTriggerOffenseForUnit(u);
+                
+            // 능동적 위협 감지: 유닛이 이동하여 활성화된 공격 범위로 직접 들어간 경우
+            foreach (var caster in castingUnits)
+            {
+                if (caster == u || caster.AIState.currentThreat == null) continue;
+                if (caster.AIState.currentThreat.hitbox.Overlaps(SkillAction.GetUnitHitbox(u)))
+                {
+                    u.OnReactToThreat(caster, caster.AIState.currentThreat);
+                }
+            }
         }
 
         // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
@@ -1288,6 +1312,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 기본값으로 넘겨줄 수 있고, UpdateFOV() 이전에 호출해야 그 방향 기준으로 시야/인지 범위를 계산한다.
         u.ResolveVisionDirection();
         u.UpdateFOV(units);
+
+        if (stateChanged && _unitGenerate != null)
+        {
+            _unitGenerate.SyncVisual(u);
+        }
     }
 
     // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른

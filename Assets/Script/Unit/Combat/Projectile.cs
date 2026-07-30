@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using UnityEngine;
+using UnityEngine.Pool;
 using System.Collections.Generic;
 
 /// <summary>
@@ -8,6 +9,63 @@ using System.Collections.Generic;
 /// </summary>
 public class Projectile : MonoBehaviour
 {
+    private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
+    private static Transform _poolRoot;
+
+    private static Transform GetPoolRoot()
+    {
+        if (_poolRoot != null) return _poolRoot;
+        var root = GameObject.Find("Object Pooling");
+        if (root == null)
+        {
+            root = new GameObject("Object Pooling");
+            GameObject.DontDestroyOnLoad(root);
+        }
+        _poolRoot = root.transform;
+        return _poolRoot;
+    }
+
+    public static Projectile Spawn(GameObject prefab)
+    {
+        if (prefab == null) return null;
+
+        if (!_pools.TryGetValue(prefab, out var pool))
+        {
+            pool = new ObjectPool<GameObject>(
+                createFunc: () => {
+                    var go = Object.Instantiate(prefab);
+                    go.transform.SetParent(GetPoolRoot());
+                    var proj = go.GetComponent<Projectile>();
+                    if (proj == null) proj = go.AddComponent<Projectile>();
+                    proj._originalPrefab = prefab;
+                    return go;
+                },
+                actionOnGet: (obj) => { if (obj != null) obj.SetActive(true); },
+                actionOnRelease: (obj) => { 
+                    if (obj != null) {
+                        obj.SetActive(false); 
+                        obj.transform.SetParent(GetPoolRoot());
+                    } 
+                },
+                actionOnDestroy: (obj) => { if (obj != null) Object.Destroy(obj); },
+                collectionCheck: false,
+                defaultCapacity: 20,
+                maxSize: 200
+            );
+            _pools[prefab] = pool;
+        }
+
+        var instance = pool.Get();
+        if (instance == null)
+        {
+            pool.Clear();
+            instance = pool.Get();
+        }
+        return instance.GetComponent<Projectile>();
+    }
+
+    private GameObject _originalPrefab;
+
     // 공격자 정보 및 자체 논리적 Collider(Hitbox)
     private Unit _attacker;
     private SkillData _skillData;
@@ -134,19 +192,27 @@ public class Projectile : MonoBehaviour
         // 3. 피격 이펙트(VFX) 스폰
         if (_skillData.hitEffectPrefab != null && _attacker.VFX != null)
         {
-            // Hit 위치를 투사체 현재 위치와 적 위치의 중간쯤으로 잡거나 적 위치로 잡음
-            Vector3 hitPos = GetVisualPosition(_logicalCollider.center);
-            
-            // 임시로 프리팹 인스턴스화 후 파괴 로직 추가 (VFX 매니저가 안해준다면)
-            GameObject fx = Instantiate(_skillData.hitEffectPrefab, hitPos, Quaternion.identity);
-            Destroy(fx, 1.5f); // 1.5초 후 자동 삭제 (이펙트 시스템에 맞춰 조정 필요)
+            // VFXManager는 pool 시스템을 사용하도록 변경되었음
+            _attacker.VFX.Spawn(_skillData.hitEffectPrefab, enemy);
         }
     }
 
     private void DestroyProjectile()
     {
+        _isInitialized = false;
+        
         // TODO: 파괴 시 터지는 전역 VFX 처리 추가 가능
-        Destroy(gameObject);
+        if (_originalPrefab != null && _pools.TryGetValue(_originalPrefab, out var pool))
+        {
+            if (gameObject.activeInHierarchy)
+            {
+                pool.Release(gameObject);
+            }
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
     /// <summary>

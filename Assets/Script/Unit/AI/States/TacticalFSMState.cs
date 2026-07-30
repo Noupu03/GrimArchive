@@ -206,8 +206,14 @@ public class TacticalFSMState : IFSMState
 		if (trap == null || !trap.PenaltyActive) return;
 		trap.DisarmProgress01 *= (AIConfigLoader.Behavior?.trapDisarmInterruptLossRatio ?? ExplorationMath.TrapDisarmInterruptLossRatio);
 		trap.PenaltyActive = false;
-		// 2026-07-27 추가: 중단으로 실제 해제 동작을 멈췄으니 진행 막대도 숨긴다.
-		unit.Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		if (trap.CachedProgressBar != null)
+		{
+			trap.CachedProgressBar.SetProgress(0f, false);
+		}
+		else
+		{
+			unit.Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		}
 	}
 
 	private static bool CanInvestigate(Unit unit)
@@ -454,7 +460,14 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
-		trapVisual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		if (trap.CachedProgressBar != null)
+		{
+			trap.CachedProgressBar.SetProgress(0f, false);
+		}
+		else
+		{
+			trapVisual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		}
 		trap.DisarmProgress01 = 0f;
 		return BTStatus.Running;
 	}
@@ -905,7 +918,14 @@ public class TacticalFSMState : IFSMState
 		if (human.isHitThisTurn || human.HasPerceivedThreatCollider())
 		{
 			// 2026-07-27 추가: 조사 중단으로 진행 막대도 숨긴다(트랩 해제 중단과 동일 관례).
-			human.Session?.GetObjectVisual(human.currentCoreInteraction.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+			if (human.currentCoreInteraction.CachedProgressBar != null)
+			{
+				human.currentCoreInteraction.CachedProgressBar.SetProgress(0f, false);
+			}
+			else
+			{
+				human.Session?.GetObjectVisual(human.currentCoreInteraction.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+			}
 			human.currentCoreInteraction = null;
 			return false;
 		}
@@ -1026,7 +1046,14 @@ public class TacticalFSMState : IFSMState
 		{
 			// 2026-07-27 추가: Loot 태그 없는 테스트 전용 코어는 회수되지 않고 그대로 남으므로,
 			// 완료된 진행 막대를 직접 숨겨야 한다(Loot 케이스는 CollectObject가 오브젝트째 파괴함).
-			human.Session?.GetObjectVisual(obj.Position)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+			if (human.currentCoreInteraction != null && human.currentCoreInteraction.CachedProgressBar != null)
+			{
+				human.currentCoreInteraction.CachedProgressBar.SetProgress(0f, false);
+			}
+			else
+			{
+				human.Session?.GetObjectVisual(obj.Position)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+			}
 		}
 
 		// 코어 파괴/특정 상호작용/인류 메리트·플레이어 디메리트 등 후속 효과는 코어·핵심방어목표 문서

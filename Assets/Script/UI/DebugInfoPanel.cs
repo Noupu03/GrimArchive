@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -97,6 +97,24 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         LogHelper.Log(LogHelper.GAME, "맵 불러오기 완료");
     }
 
+    private int _lastSelectionCount = -1;
+    private Unit _lastSelectedUnit = null;
+
+    private void Update()
+    {
+        if (_inputManager == null) return;
+
+        int currentCount = _inputManager.selectedUnits.Count;
+        Unit currentFirst = currentCount > 0 ? _inputManager.selectedUnits[0] : null;
+
+        if (currentCount != _lastSelectionCount || currentFirst != _lastSelectedUnit)
+        {
+            _lastSelectionCount = currentCount;
+            _lastSelectedUnit = currentFirst;
+            RefreshSelectedUnitInfo();
+        }
+    }
+
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
@@ -108,8 +126,6 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             if (!Mathf.Approximately(scroll, 0f))
                 Zoom(-scroll * ScrollZoomSpeed);
         }
-
-        RefreshSelectedUnitInfo();
     }
 
     private void OnGUI()

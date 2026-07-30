@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
@@ -108,7 +108,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 02문서 4장 조건5/26장("인지 판정: 인류/몬스터 공통 사용"): 이 RecordEvent 자체는 게이팅
 			// 대상이 아니다(attacker=인류가 이미 자기 공격 대상을 스스로 알고 있음) — 다만 몬스터(this)
 			// 쪽 인지 판정도 인류와 동일하게 "피격 시 재판정" 트리거를 받아야 하므로, 게이팅 없이
-			// 재판정만 수행해 둔다(이후 CastRay/GOAP의 Perception.State.personalSpottedEnemies 등에 반영될 수 있게).
+			// 재판정만 수행해 둔다(이후 UpdateFOV/GOAP의 Perception.State.personalSpottedEnemies 등에 반영될 수 있게).
 			ForceReidentifyAttacker(attacker);
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
@@ -119,7 +119,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 	// 증가를 반영해 즉시 재판정한다." 이 규칙 자체는 26장 표(인지 판정: 인류/몬스터 공통 사용)에 따라
 	// 관찰자가 인류든 몬스터든 동일하게 적용된다 — attacker에 대한 perceptionRecords가 여기서 갱신된다.
 	// 벽/차단 오브젝트에 의한 시야 차단(LOS)까지는 재확인하지 않는다 — 근접 공격자는 인접 타일에서만
-	// 발생해 사실상 항상 차단이 없고, 원거리/마법 공격자를 위해 CastRay와 동일한 레이마칭을 매 피격마다
+	// 발생해 사실상 항상 차단이 없고, 원거리/마법 공격자를 위해 UpdateFOV와 동일한 쉐도우 캐스팅을 매 피격마다
 	// 다시 도는 것은 이번 범위에 비해 과한 비용이라 거리+인지각만으로 판정한다(판단 근거: 구현현황 문서).
 	private void ForceReidentifyAttacker(Unit attacker)
 	{
@@ -143,9 +143,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		ForceRollPerception(attacker, attacker.GetFinalVisibility(), tile, PerceptionTargetKind.EnemyUnit);
 	}
 
-	// 01-A 8장 조건2 전용 최소 LOS 체크 — CastRay의 DDA 레이마칭과 동일한 차단 기준(벽 타일/
-	// InteractableObject.IsFullyBlocking)만 재현한다. 지형 밝히기/오브젝트 발견 등 CastRay의 부수효과는
-	// 전혀 일으키지 않는 순수 판정 함수.
+	// 01-A 8장 조건2 전용 최소 LOS 체크 — DDA 레이마칭으로 벽 타일/InteractableObject.IsFullyBlocking만
+	// 확인한다. 지형 밝히기/오브젝트 발견 등 UpdateFOV의 ProcessTile 부수효과는 일으키지 않는 순수 판정 함수.
 	private bool IsFullyBlockedTowards(float angleRad, float maxDistance)
 	{
 		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
@@ -392,12 +391,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
 	// 이번 UpdateFOV 패스에서 인지 범위 안으로 실제 도달한 대상(적 유닛=Unit 참조, 오브젝트=Id)의
-	// 집합 — UpdateFOV 시작 시 비우고, CastRay가 레이를 쏘며 채운다. 이 패스가 끝난 뒤(모든 레이 +
-	// 특수 원형 스윕 완료 후) 이 집합에 없는 기존 perceptionRecords는 "이번엔 못 봤다"로 판정해
+	// 집합 — UpdateFOV 시작 시 비우고, 쉐도우 캐스팅의 ProcessTile이 채운다. 이 패스가 끝난 뒤(메인
+	// 쉐도우 캐스팅 + 특수 원형 스윕 완료 후) 이 집합에 없는 기존 perceptionRecords는 "이번엔 못 봤다"로 판정해
 	// PerceptionRecord.WasInRange를 false로 내린다 — 그래야 나중에 다시 보였을 때(재진입/완전 차단
 	// 후 재등장 모두 포함) 새 트리거로 인식돼 재판정이 걸린다(4장 조건1~3이 전부 "지금 안 보이다가
 	// 다시 보임"이라는 동일 신호라 이 하나의 메커니즘으로 셋 다 커버된다).
 	private readonly Dictionary<object, (float dist, Vector3Int tile)> _reachedPerceptionThisPass = new Dictionary<object, (float, Vector3Int)>();
+	// 쉐도우 캐스팅 결과 버퍼 — UpdateFOV가 패스마다 Clear() 후 재사용한다.
+	private readonly HashSet<Vector2Int> _shadowCastResult = new HashSet<Vector2Int>();
 
 	// I: ResolveVisionDirection이 매 틱 new List<>()를 할당하던 것을 제거 — 재사용 필드로 교체한다.
 	private readonly List<VisionMath.VisionDirectionCandidate> _visionDirectionCandidates = new List<VisionMath.VisionDirectionCandidate>();
@@ -510,277 +511,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Perception.State.personalSpottedEnemies.Add(unit); // HashSet이므로 Contains 검사 불필요
 	}
 
-	protected void CastRay(FactionData myData, CreateMap cmap, Vector2Int startPos, float angleRad, float maxRadius, List<Unit> allUnits, bool rayInPerceptionAngle, float perceptionDistance)
-	{
-		Vector2 dir = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad));
-
-		float rayPosX = startPos.x + 0.5f;
-		float rayPosY = startPos.y + 0.5f;
-
-		int x = startPos.x;
-		int y = startPos.y;
-
-		int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
-		int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
-
-		float tMaxX   = dir.x != 0 ? Mathf.Abs(((dir.x > 0 ? x + 1 : x) - rayPosX) / dir.x) : float.PositiveInfinity;
-		float tMaxY   = dir.y != 0 ? Mathf.Abs(((dir.y > 0 ? y + 1 : y) - rayPosY) / dir.y) : float.PositiveInfinity;
-		float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
-		float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
-
-		float dist = 0f;
-
-		Floor floor = cmap.map.floors[currentFloor];
-		if (floor.chunks == null) return;
-		int mapWidth  = floor.config.width  * 8;
-		int mapHeight = floor.config.height * 8;
-
-		// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청 "몬스터는 방과 방 사이 못봄", 사용자
-		// 신고 "시야각 차단이 잘 안되는거 같아"/"자꾸 전투 상태가 됨") — ClampDirectionToOwnRoom(시야
-		// "방향"만 방 안쪽으로 트는 근사)만으로는 넓은 시야각(120도) 콘이 인접 방까지 걸치는 경우를
-		// 못 막는다. 방 제한 유닛(RoomConfinedMovement)이면 레이 자체가 자기 방 밖 타일에 닿는 순간
-		// 벽을 만난 것처럼 끊는다 — 지형/오브젝트/유닛 인지가 전부 이 지점 이후로는 발생하지 않는다.
-		bool roomRestrictedObserver = MovementAlgorithm is RoomConfinedMovement;
-		int myRoomId = roomRestrictedObserver ? cmap.GetRoomIdAt(currentFloor, startPos) : -1;
-
-		while (dist <= maxRadius)
-		{
-			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) break;
-
-			int cx = x / 8;
-			int tx = x % 8;
-			int cy = y / 8;
-			int ty = y % 8;
-
-			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height)
-			{
-				if (x >= 0 && x < mapWidth && y >= 0 && y < mapHeight)
-					myData.discoveredMap[currentFloor][x, y] = 2;
-				break;
-			}
-
-			Chunks c = floor.chunks[cx, cy];
-			if (c.roomId == -1 || c.chunk == null)
-			{
-				myData.discoveredMap[currentFloor][x, y] = 2;
-				break;
-			}
-
-			if (roomRestrictedObserver && myRoomId >= 0 && c.roomId != myRoomId)
-			{
-				break; // 자기 방을 벗어난 타일 — 벽과 동일하게 레이 차단(지형도 더 안 밝힘)
-			}
-
-			Tile tile = c.chunk[tx, ty];
-			// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게
-			// 하고, 벽처럼 아예 이동 불가하게 해줘") — 인류가 문(isStructureExist)을 벽으로 기억하지
-			// 않던 예외를 없앤다. 닫힌 문은 이제 예외 없이 벽과 동일하게 기억/차단된다(열린 문은 원래도
-			// isStructureExist=false라 전부 자연히 통과 가능).
-			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
-			// H: 이미 탐색된 타일(비-0)은 이웃 검사를 건너뛴다 — 같은 타일에 여러 레이가 도달하면
-			// Wall Dilation 3×3 루프가 중복 실행되므로, 처음 발견할 때(0→1/2)만 실행한다.
-			bool wasUndiscovered = myData.discoveredMap[currentFloor][x, y] == 0;
-			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
-
-			// 시야 사각지대(DDA 틈새) 근본적 해결: 바닥을 보았다면, 그 바닥과 맞닿은 8방향의 숨은 벽을 즉시 시야에 추가합니다. (Wall Dilation)
-			if (!tileIsWall && wasUndiscovered)
-			{
-				for (int dx = -1; dx <= 1; dx++)
-				{
-					for (int dy = -1; dy <= 1; dy++)
-					{
-						int nx = x + dx, ny = y + dy;
-						if (nx >= 0 && nx < mapWidth && ny >= 0 && ny < mapHeight && myData.discoveredMap[currentFloor][nx, ny] == 0)
-						{
-							int ncx = nx / 8, ntx = nx % 8, ncy = ny / 8, nty = ny % 8;
-							if (ncx < 0 || ncx >= floor.config.width || ncy < 0 || ncy >= floor.config.height)
-							{
-								myData.discoveredMap[currentFloor][nx, ny] = 2; // 맵 밖은 벽
-							}
-							else
-							{
-								Chunks nc = floor.chunks[ncx, ncy];
-								bool nIsWall = nc.roomId == -1 || nc.chunk == null || nc.chunk[ntx, nty].name == "Wall"
-									|| nc.chunk[ntx, nty].isStructureExist;
-								if (nIsWall)
-								{
-									myData.discoveredMap[currentFloor][nx, ny] = 2; // 숨은 벽 및 청크 빈 공간(허공) 즉시 확정
-								}
-							}
-						}
-					}
-				}
-			}
-
-			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
-			bool inPerceptionRange = rayInPerceptionAngle && dist <= perceptionDistance;
-			Human terrainObserver = this as Human;
-
-			// ③: _visionHandlers 3개짜리 loop이었지만 handler 변수를 전혀 사용하지 않아 동일 블록이
-			// 3× 실행되던 버그. if로 교체해 1×만 실행한다.
-			if (terrainObserver != null)
-			{
-				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
-				bool isBossRoom = c.roomRole == RoomRole.BossRoom;
-
-				// 20장/21장: 방 탐사 상태(Unexplored→Exploring→Complete). 바닥 타일을 "처음" 밝힐
-				// 때만 카운트한다 — 매 프레임 다시 세면 총 타일 수(cmap.GetRoomFloorTileCount)를
-				// 순식간에 넘겨버린다. 벽 타일은 셀 대상이 아니다(총 타일 수도 바닥만 셈).
-				if (isFirstReveal && !tileIsWall)
-				{
-					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, c.roomId);
-					terrainObserver.personalMap.ObserveRoomTileRevealed(c.roomId, isBossRoom, totalFloorTiles);
-				}
-
-				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
-				{
-					// "처음 발견"인지는 수치(흥미도 등)로 추측하지 않고 IsObjectKnown으로 직접 확인한다
-					// — 예전엔 "현재 흥미도<=5"로 추측했는데, base흥미도가 낮은 오브젝트나 조사로
-					// 감쇠된 오브젝트를 다시 "새로 발견"으로 오판해 RegisterObject가 재호출되면서
-					// 감쇠된 값이 기본값으로 되돌아가는 버그가 있었다(2026-07-08 수정).
-					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
-					{
-						if (inPerceptionRange)
-						{
-							// 02문서 6장: 오브젝트 유형별 가시성(시체/전멸흔적=100 고정, 그 외=BaseVisibility).
-							float objVisibility = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
-							// Core는 정확히 일치하는 태그("Object/Passable/Core")로만 판정한다(substring이
-							// 아님 — "DungeonCore" 같은 다른 태그와 우연히 겹치지 않도록). 2026-07-27부터
-							// 보스방 던전 코어(GameSession.DungeonCoreTag)도 이 태그를 함께 갖도록 통합돼
-							// 같은 경로를 탄다(사용자 요청 "코어에 대해서, 통합하자") — 웨이브 목표 추적·
-							// 운반 기능(HumanWaveManager)은 여전히 Loot 하위 태그로 별도 동작하고, 이
-							// 발견 훅은 그 위에 리더 전용 발견~조사 절차만 추가로 얹는다.
-							// C: LINQ Any → TagsContain(static for루프)으로 교체해 IEnumerator 박싱 제거
-							PerceptionTargetKind objKind = TagsContain(obj.Tags, "WipeoutTrace") ? PerceptionTargetKind.WipeoutTrace
-								: TagsContain(obj.Tags, "Corpse") ? PerceptionTargetKind.Corpse
-								: TagsContain(obj.Tags, "Trap") ? PerceptionTargetKind.Trap
-								: obj.Tags.Contains("Object/Passable/Core") ? PerceptionTargetKind.Core
-								: PerceptionTargetKind.None;
-							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVisibility, revealedTile, dist, objKind, out bool firstTouch);
-
-							// 02문서 12장/14장: 정확 인지된 오브젝트만 실제로 등록한다. 수상한 타일/미인식은
-							// 정체를 등록하지 않는다 — 미인식은 01장 5절 마지막 규칙("실제로 위험 요소가
-							// 있어도 안전하다고 오판할 수 있다")과 동일하게 안전타일 취급으로 이어진다.
-							if (firstTouch && outcome == PerceptionOutcome.AccuratePerception)
-							{
-								// 15장(오브젝트 위험도 합성)/16장(오브젝트 흥미도 합성) 동시 등록.
-								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
-
-								// 20장/21장: 이 오브젝트가 있는 방의 "확인된 오브젝트" 목록에도 반영.
-								terrainObserver.personalMap.ObserveObjectInRoom(c.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
-
-								// 13-2장: 생환 파티가 전멸 흔적을 발견하면 동일 traceId당 1회만 던전 위험도에 반영.
-								if (objKind == PerceptionTargetKind.WipeoutTrace && !string.IsNullOrEmpty(obj.TraceId))
-								{
-									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
-								}
-
-								// 03문서 9장(2026-07-27 개편): 함정을 처음 정확 인지하면 발견/선정 조율은
-								// TrapPartySystem이 전담한다(발견자 단독 처리가 아니라 파티 전체 성공률 비교 +
-								// ETA 동률 우선 선정 — 9-2/9-3장).
-								if (objKind == PerceptionTargetKind.Trap)
-								{
-									TrapPartySystem.OnTrapDiscovered(terrainObserver, obj);
-								}
-
-								// 03문서 4-12~4-15장(2026-07-27 신규): 파티원 시체를 나중에(사망 순간 목격이
-								// 아니라) 처음 정확 인지하는 경우의 "발견" 트리거.
-								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Human"))
-								{
-									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
-								}
-
-								// 03문서 7-3장(2026-07-27 신규): 코어를 처음 정확 인지하면 리더에게 전파한다.
-								if (objKind == PerceptionTargetKind.Core)
-								{
-									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
-								}
-							}
-							// else: 수상한 타일/미인식 — 다음 트리거(재진입/2칸 재접근)까지 이 판정을 유지한다.
-						}
-						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
-						{
-							// 01장 7절/01-A 7장: 인지 범위 밖 — 아직 정체를 모르는 "비어있지 않은 타일".
-							// 정식 등록(RegisterObject 등)은 인지 범위에 들어와야만 가능하다.
-							visionOnlyNonEmptyTiles.Add(revealedTile);
-						}
-					}
-				}
-			}
-
-			// 유닛 인지 — _visionHandlers의 foreach가 handler.Handle()을 호출하지 않아
-			// UnitPerceptionHandler가 데드 코드 상태이므로 직접 처리한다.
-			// 인류·몬스터 모두 동작해야 전투가 성립된다.
-			if (Session != null && Session.unitGrid.TryGetValue(revealedTile, out Unit unitAtTile)
-				&& unitAtTile != null && unitAtTile != this && unitAtTile.Health.hp > 0
-				&& this.IsEnemy(unitAtTile))
-			{
-				if (inPerceptionRange)
-				{
-					PerceptionOutcome unitOutcome = ResolveReachedTarget(unitAtTile, unitAtTile.GetFinalVisibility(), revealedTile, dist, out bool _);
-					if (unitOutcome == PerceptionOutcome.AccuratePerception)
-					{
-						AddPersonalSpottedEnemy(unitAtTile);
-						// 4-15장: 원인미상 파티원 사망 수색 중 몬스터를 정확 인지하면 사망 원인 확인 시도.
-						if (this is Human deathSearchObserver)
-							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
-					}
-				}
-				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionOnlyNonEmptyTiles.Contains(revealedTile))
-				{
-					visionOnlyNonEmptyTiles.Add(revealedTile);
-				}
-			}
-
-
-			/*=======아티팩트 관련 참조 주석처리========
-			// 유물 발견
-			if (ArtifactManager.Instance != null)
-			{
-				foreach(var art in ArtifactManager.Instance.artifacts)
-				{
-					if (!art.isPickedUp && art.floor == currentFloor && art.position.x == x && art.position.y == y)
-					{
-						if (!myData.spottedArtifacts.Contains(art)) myData.spottedArtifacts.Add(art);
-					}
-				}
-			}*/
-
-			if (x != startPos.x || y != startPos.y)
-			{
-				int vis = tile.visibility;
-
-				// visibility 데이터가 설정되지 않은 맵을 위한 예외처리
-				if (vis == 0 && tile.name != "Wall") vis = 100;
-				if (tile.name == "Wall") vis = 0;
-
-				if (vis <= 0) break; // 시야 즉시 차단
-				if (vis < 100 && Random.Range(0, 100) >= vis) break; // 시야 차단 막힘
-
-				// 01장 11절(2026-07-13 개정): "완전 차단 오브젝트"는 벽과 동일하게 레이를 막는다.
-				// 이 판정은 InteractableObject.IsFullyBlocking(구조물 성격 여부)만 본다 — 그 오브젝트
-				// 자신의 BaseVisibility(=미인식 판정, 위 인지 판정 블록에서 이미 처리됨)와는 완전히
-				// 별개다. "시야 판정 불가 오브젝트"(=미인식 대상, 구조물이 아닌 일반 오브젝트/유닛)는
-				// 이 플래그가 꺼져 있어 레이를 막지 않는다.
-				if (Session != null &&
-					Session.objectGrid.TryGetValue(revealedTile, out InteractableObject blocker) &&
-					!blocker.IsCollected && blocker.IsFullyBlocking)
-				{
-					break;
-				}
-			}
-
-			if (tMaxX < tMaxY)
-			{
-				dist = tMaxX; tMaxX += tDeltaX; x += stepX;
-			}
-			else
-			{
-				dist = tMaxY; tMaxY += tDeltaY; y += stepY;
-			}
-		}
-	}
-
 	public override void UpdateFOV(List<Unit> allUnits)
 	{
 		Perception.State.personalSpottedEnemies.Clear();
@@ -814,37 +544,152 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
-		// 방사형 레이캐스트 최적화 적용 (800 -> 72)
-		int numRays = 72; // 최적화: 시야각 누락되지 않는 선에서 최대한 감소
+		// 대칭 쉐도우 캐스팅 — 72레이 DDA + Wall Dilation 대체.
+		// 방 제한 유닛(RoomConfinedMovement)은 isOpaque에서 방 밖 타일을 불투명 처리해 시야를 차단한다.
+		bool roomRestrictedObserver = MovementAlgorithm is RoomConfinedMovement;
+		int myRoomId = roomRestrictedObserver ? cmap.GetRoomIdAt(currentFloor, position) : -1;
 
-		for (int i = 0; i <= numRays; i++)
+		Floor floorData = cmap.map.floors[currentFloor];
+		if (floorData.chunks == null) return;
+		int mapWidth  = floorData.config.width  * 8;
+		int mapHeight = floorData.config.height * 8;
+
+		Human terrainObserver = this as Human;
+		var visionNonEmpty = Perception.State.visionOnlyNonEmptyTiles;
+
+		// 불투명 판정 함수: 벽/구조물/방 밖(방제한유닛)/완전차단오브젝트 → true
+		System.Func<Vector2Int, bool> isOpaque = (Vector2Int pos) =>
 		{
-			float angle = centerAngle - (viewAngle / 2f) + (viewAngle * i / numRays);
-			float rad   = angle * Mathf.Deg2Rad;
+			int px = pos.x, py = pos.y;
+			if (px < 0 || px >= mapWidth || py < 0 || py >= mapHeight) return true;
+			int ocx = px / 8, otx = px % 8, ocy = py / 8, oty = py % 8;
+			if (ocx >= floorData.config.width || ocy >= floorData.config.height) return true;
+			Chunks oc = floorData.chunks[ocx, ocy];
+			if (oc.roomId == -1 || oc.chunk == null) return true;
+			if (roomRestrictedObserver && myRoomId >= 0 && oc.roomId != myRoomId) return true;
+			Tile ot = oc.chunk[otx, oty];
+			if (ot.name == "Wall" || ot.isStructureExist) return true;
+			if (Session != null && Session.objectGrid.TryGetValue(new Vector3Int(px, py, currentFloor), out InteractableObject bl)
+				&& !bl.IsCollected && bl.IsFullyBlocking) return true;
+			return false;
+		};
 
-			// 인지각은 시야각과 같은 중심(centerAngle)을 공유하는 좁은 안쪽 부채꼴이라, 이 레이가 그
-			// 부채꼴 안인지는 중심 각도와의 차이만 비교하면 된다 — 인지각이 120도(시야각과 동일)에
-			// 도달하면 이 조건이 항상 참이 되어 "시야 범위 전체가 인지 범위화"(01장 4절)가 자연히 성립한다.
-			bool rayInPerceptionAngle = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angle)) <= perceptionAngle / 2f;
-
-			CastRay(myData, cmap, position, rad, viewDistance, allUnits, rayInPerceptionAngle, perceptionDistance);
-		}
-
-		// 01-A 12장: 엘리트/네메시스/보스 보조 원형 인지 범위 — 정면 각도와 무관하게 주변 위협을
-		// 감지한다(전용 유닛 타입이 없어 isSpecialUnit 플래그로 대상을 판정, VisionMath 주석 참고).
-		// 벽에는 여전히 막힌다(원형 인지 범위는 "각도 무관"일 뿐 "완전 차단 무시"는 아니다 — 01장 15절).
-		if (isSpecialUnit)
+		// 가시 타일 처리 로컬 함수 — discoveredMap 갱신, 지형 발견, 오브젝트/유닛 인지
+		void ProcessTile(int x, int y, bool inPerceptionRange)
 		{
-			int circularRadius = VisionMath.CircularPerceptionRadius(VisionStat.spotting);
-			int circularRays = 32;
-			for (int i = 0; i < circularRays; i++)
+			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return;
+			int pcx = x / 8, ptx = x % 8, pcy = y / 8, pty = y % 8;
+			if (pcx >= floorData.config.width || pcy >= floorData.config.height) return;
+			Chunks chunk = floorData.chunks[pcx, pcy];
+			if (chunk.roomId == -1 || chunk.chunk == null) return;
+			// 방 제한 유닛: 방 밖 타일은 discoveredMap에도 반영하지 않는다
+			if (roomRestrictedObserver && myRoomId >= 0 && chunk.roomId != myRoomId) return;
+
+			Tile tile = chunk.chunk[ptx, pty];
+			bool tileIsWall = tile.name == "Wall" || tile.isStructureExist;
+			myData.discoveredMap[currentFloor][x, y] = tileIsWall ? 2 : 1;
+
+			Vector3Int revealedTile = new Vector3Int(x, y, currentFloor);
+			float dist = (x == position.x && y == position.y) ? 0f
+				: Mathf.Sqrt((x - position.x) * (x - position.x) + (y - position.y) * (y - position.y));
+
+			if (terrainObserver != null)
 			{
-				float rad = (360f * i / circularRays) * Mathf.Deg2Rad;
-				CastRay(myData, cmap, position, rad, circularRadius, allUnits, true, circularRadius);
+				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
+				bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
+				if (isFirstReveal && !tileIsWall)
+				{
+					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, chunk.roomId);
+					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles);
+				}
+				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
+				{
+					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
+					{
+						if (inPerceptionRange)
+						{
+							float objVis = VisionMath.ResolveObjectVisibility(obj.BaseVisibility, obj.Tags);
+							PerceptionTargetKind objKind = TagsContain(obj.Tags, "WipeoutTrace") ? PerceptionTargetKind.WipeoutTrace
+								: TagsContain(obj.Tags, "Corpse") ? PerceptionTargetKind.Corpse
+								: TagsContain(obj.Tags, "Trap") ? PerceptionTargetKind.Trap
+								: obj.Tags.Contains("Object/Passable/Core") ? PerceptionTargetKind.Core
+								: PerceptionTargetKind.None;
+							PerceptionOutcome outcome = ResolveReachedTarget(obj.Id, objVis, revealedTile, dist, objKind, out bool firstTouch);
+							if (firstTouch && outcome == PerceptionOutcome.AccuratePerception)
+							{
+								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+								terrainObserver.personalMap.ObserveObjectInRoom(chunk.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+								if (objKind == PerceptionTargetKind.WipeoutTrace && !string.IsNullOrEmpty(obj.TraceId))
+									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
+								if (objKind == PerceptionTargetKind.Trap)
+									TrapPartySystem.OnTrapDiscovered(terrainObserver, obj);
+								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Human"))
+									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
+								if (objKind == PerceptionTargetKind.Core)
+									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
+							}
+						}
+						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionNonEmpty.Contains(revealedTile))
+							visionNonEmpty.Add(revealedTile);
+					}
+				}
+			}
+
+			if (Session != null && Session.unitGrid.TryGetValue(revealedTile, out Unit unitAtTile)
+				&& unitAtTile != null && unitAtTile != this && unitAtTile.Health.hp > 0
+				&& this.IsEnemy(unitAtTile))
+			{
+				if (inPerceptionRange)
+				{
+					PerceptionOutcome unitOutcome = ResolveReachedTarget(unitAtTile, unitAtTile.GetFinalVisibility(), revealedTile, dist, out bool _);
+					if (unitOutcome == PerceptionOutcome.AccuratePerception)
+					{
+						AddPersonalSpottedEnemy(unitAtTile);
+						if (this is Human deathSearchObserver)
+							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
+					}
+				}
+				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionNonEmpty.Contains(revealedTile))
+					visionNonEmpty.Add(revealedTile);
 			}
 		}
 
-		// 02문서 4장: 이번 패스(레이 전체 + 특수 원형 스윕)에서 한 번도 도달하지 못한 기존 기록은
+		// 메인 패스: 시야 반경 내 쉐도우 캐스팅 → FOV 120° 콘 필터 후 처리
+		_shadowCastResult.Clear();
+		VisionMath.SymmetricShadowCast(position, (int)viewDistance, isOpaque, _shadowCastResult);
+		float halfViewAngle = viewAngle * 0.5f;
+		float halfPercAngle = perceptionAngle * 0.5f;
+		foreach (Vector2Int tp in _shadowCastResult)
+		{
+			int x = tp.x, y = tp.y;
+			bool isOrigin = (x == position.x && y == position.y);
+			bool inPerc;
+			if (isOrigin)
+			{
+				inPerc = true;
+			}
+			else
+			{
+				float angleToTile = Mathf.Atan2(y - position.y, x - position.x) * Mathf.Rad2Deg;
+				float delta = Mathf.Abs(Mathf.DeltaAngle(centerAngle, angleToTile));
+				if (delta > halfViewAngle) continue;
+				float d = Mathf.Sqrt((x - position.x) * (x - position.x) + (y - position.y) * (y - position.y));
+				inPerc = delta <= halfPercAngle && d <= perceptionDistance;
+			}
+			ProcessTile(x, y, inPerc);
+		}
+
+		// 특수 유닛 원형 인지 패스: 360° 전방향, 원형 반경 내 전부 인지 범위로 처리
+		if (isSpecialUnit)
+		{
+			int circularRadius = VisionMath.CircularPerceptionRadius(VisionStat.spotting);
+			_shadowCastResult.Clear();
+			VisionMath.SymmetricShadowCast(position, circularRadius, isOpaque, _shadowCastResult);
+			foreach (Vector2Int tp in _shadowCastResult)
+				ProcessTile(tp.x, tp.y, true);
+		}
+
+		// 02문서 4장: 이번 패스(메인 쉐도우 캐스팅 + 특수 원형 스윕)에서 한 번도 도달하지 못한 기존 기록은
 		// "지금 안 보인다"로 내려둔다 — Outcome(정확 인지/수상한 타일/미인식) 자체는 건드리지 않고
 		// WasInRange만 false로 바꿔서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입/완전 차단
 		// 후 재등장 트리거로 인식하게 한다.
@@ -891,8 +736,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
 		// 죽은 값이었다(소비자 부재) — "경로 판단" 절반은 여전히 10_목표설정·이동경로·재설정 문서
 		// (부재)의 몫이지만, "탐색 방향 판단" 절반은 이 시야 방향 전환 후보로 지금 바로 충족 가능해
-		// 연결한다. Perception.State.visionOnlyNonEmptyTiles는 CastRay가 매 UpdateFOV마다 채우는, 아직 인지 범위엔
-		// 안 들어온 "비어있지 않은 타일" 목록 그대로다.
+		// 연결한다. Perception.State.visionOnlyNonEmptyTiles는 UpdateFOV의 ProcessTile이 매 패스 채우는, 아직
+		// 인지 범위엔 안 들어온 "비어있지 않은 타일" 목록 그대로다.
 		var nearestUnconfirmedTile = NearestTile(Perception.State.visionOnlyNonEmptyTiles);
 		if (nearestUnconfirmedTile.HasValue)
 		{
@@ -934,8 +779,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 사이 못봄"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중 원래
 		// 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 다만 이것만으로는 넓은 시야각(120도)
 		// 콘이 인접 방까지 걸치는 경우를 못 막아서(사용자 신고 "시야각 차단이 잘 안되는거 같아") 실제
-		// 차단은 CastRay에서 레이 자체를 방 경계로 끊는 걸로 보강했다 — 여기 방향 클램프는 그 위에 얹는
-		// 보조 근사(자연스러운 실루엣)로 남겨둔다.
+		// 차단은 isOpaque 클로저가 방 밖 타일을 불투명 처리해 쉐도우 캐스팅이 방 경계에서 전파를 멈추는
+		// 걸로 대체했다 — 여기 방향 클램프는 그 위에 얹는 보조 근사(자연스러운 실루엣)로 남겨둔다.
 		if (MovementAlgorithm is RoomConfinedMovement)
 			currentDir = ClampDirectionToOwnRoom(currentDir);
 	}
@@ -1240,9 +1085,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 공격 타이밍: 반응한 유닛의 VFX(가드·패링) 실행
 				if (Session != null)
 				{
-					foreach (Unit u in Session.units)
+					foreach (Unit u in AIState.unitsReactingToMe)
 					{
-						if (u == null || u.AIState.reactingAttacker != this) continue;
+						if (u == null) continue;
 						u.AIState.pendingVFX?.Invoke();
 						u.AIState.pendingVFX = null;
 					}
@@ -1257,7 +1102,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 				if (Session != null)
 				{
-					foreach (Unit u in Session.units)
+					foreach (Unit u in AIState.unitsReactingToMe)
 					{
 						if (u == null) continue;
 						u.AIState.reactedAttackers.Remove(this);
@@ -1267,6 +1112,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 							u.AIState.reactingThreat   = null;
 						}
 					}
+					AIState.unitsReactingToMe.Clear();
 				}
 			}
 		}
@@ -1275,9 +1121,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			if (CombatState.State.skillCooldowns[i] > 0f) CombatState.State.skillCooldowns[i] -= deltaTime;
 		}
-
-		List<ThreatTileData> detectedThreats = DetectThreats();
-		if (detectedThreats.Count > 0) OnThreatDetected(detectedThreats);
 	}
 
 	public override void OnThreatDetected(List<ThreatTileData> threats)
@@ -1293,7 +1136,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 4-2장: 경계 상태에서 기습/신규 공격에 대한 최초 반응은 반응속도가 1.2배 빨라진다.
 			// reactedAttackers가 공격자별로 한 번만 이 계산을 타게 게이팅해주므로 별도 처리 없이
 			// "최초 반응"에만 적용된다. 5-4/9-8장: 조사·함정 해제 중에는 반대로 반응속도가 50%로
-			// 느려진다(ExplorationPenaltyActive — CastRay의 시야/인지 페널티와 같은 플래그 재사용).
+			// 느려진다(ExplorationPenaltyActive — UpdateFOV의 시야/인지 페널티와 같은 플래그 재사용).
 			float alertReaction = BaseStat.reaction * (currentAlertSearch != null ? ExplorationMath.AlertReactionSpeedRatio : 1f);
 			if (ExplorationPenaltyActive) alertReaction *= ExplorationMath.InvestigatePenaltyRatio;
 			float reactionTimeMs  = 30000f / Mathf.Max(1f, alertReaction);
@@ -1307,6 +1150,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 					AIState.currentReactionWindow = reactionTimeSec;
 					AIState.reactingThreat        = threat;
 					AIState.reactingAttacker      = attacker;
+					attacker.AIState.unitsReactingToMe.Add(this);
 					OnReactToThreat(attacker, threat);
 				}
 				else

@@ -107,12 +107,12 @@ public static class VisionMath
 	//
 	// 01장 11절(2026-07-13 개정 "시야 판정 불가 오브젝트")은 두 갈래로 나뉜다 — 이 함수(가시성 수치)는
 	// 그중 "시야 판정 불가 오브젝트"(=미인식) 쪽에만 쓰인다:
-	//   1. 완전 차단 오브젝트 — 벽처럼 레이 자체를 물리적으로 막는다(쉐도우 캐스팅). 이 함수의 가시성
-	//      수치와 무관한 별개 속성(InteractableObject.IsFullyBlocking)이 결정하며, 판정 지점은
-	//      UnitFunction.CastRay다.
-	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 레이는 막지 않되, 이 함수가
+	//   1. 완전 차단 오브젝트 — 벽처럼 시야를 물리적으로 막는다(쉐도우 캐스팅 isOpaque). 이 함수의
+	//      가시성 수치와 무관한 별개 속성(InteractableObject.IsFullyBlocking)이 결정하며, 판정 지점은
+	//      UnitFunction.UpdateFOV의 isOpaque 클로저다.
+	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 시야는 막지 않되, 이 함수가
 	//      계산한 값에 02문서 8장 보정을 더한 최종 계산 가시성으로 12장 확률표를 굴려 인지 결과(정확
-	//      인지/수상한 타일/미인식)를 정한다(UnitFunction.ForceRollPerception). 판정 지점은 CastRay.
+	//      인지/수상한 타일/미인식)를 정한다(UnitFunction.ForceRollPerception). 판정 지점은 ProcessTile.
 	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted, float suspiciousMoveBoost = 0f)
 	{
 		float value = baseVisibility - stealth;
@@ -199,5 +199,97 @@ public static class VisionMath
 		if (top.Count == 1) return top[0].Direction;
 
 		return top.OrderBy(c => DirStepDistance(c.Direction, currentDir)).First().Direction;
+	}
+
+	// ─────────────────────────── 대칭 쉐도우 캐스팅 (Symmetric Shadow Casting) ───────────────────────────
+	// Albert Ford의 Symmetric Shadowcasting 알고리즘. 72레이 DDA + Wall Dilation 방식에 비해:
+	//   • 대칭성 보장: A가 B를 보면 B도 A를 본다(DDA는 레이 방향에 따라 비대칭 발생 가능).
+	//   • Wall Dilation 불필요: 인접 벽이 자연스럽게 가시 집합에 포함된다.
+	//   • O(시야 내 타일 수): 시야 반경²에 비례하는 고정 복잡도(72 × 시야거리 vs. π × 반경²).
+	// result에 가시 타일(Vector2Int)을 기록한다. 호출자가 미리 Clear()해야 한다.
+	public static void SymmetricShadowCast(
+		Vector2Int origin,
+		int maxRadius,
+		System.Func<Vector2Int, bool> isOpaque,
+		HashSet<Vector2Int> result)
+	{
+		result.Add(origin);
+		for (int octant = 0; octant < 8; octant++)
+			ScanOctant(origin, maxRadius, octant, 1, 0f, 1f, isOpaque, result);
+	}
+
+	// 8방향 옥탄트 변환: tile = origin + depth*(dr,dc) + col*(cr,cc)
+	// oct 0: 주=+X 부=+Y(0°~45°)  oct 1: 주=+Y 부=+X(45°~90°)
+	// oct 2: 주=+Y 부=-X(90°~135°) oct 3: 주=-X 부=+Y(135°~180°)
+	// oct 4: 주=-X 부=-Y(180°~225°) oct 5: 주=-Y 부=-X(225°~270°)
+	// oct 6: 주=-Y 부=+X(270°~315°) oct 7: 주=+X 부=-Y(315°~360°)
+	private static readonly (int dr, int dc, int cr, int cc)[] _octantXforms = {
+		( 1,  0,  0,  1), ( 0,  1,  1,  0), ( 0,  1, -1,  0), (-1,  0,  0,  1),
+		(-1,  0,  0, -1), ( 0, -1, -1,  0), ( 0, -1,  1,  0), ( 1,  0,  0, -1),
+	};
+
+	private static Vector2Int OctantTile(Vector2Int o, int depth, int col, int octant)
+	{
+		var (dr, dc, cr, cc) = _octantXforms[octant];
+		return new Vector2Int(o.x + depth * dr + col * cr, o.y + depth * dc + col * cc);
+	}
+
+	// 한 옥탄트를 행(depth)별로 스캔한다. 스택 기반 반복으로 재귀 스택 오버플로우를 방지한다.
+	private static void ScanOctant(
+		Vector2Int origin, int maxRadius, int octant,
+		int startDepth, float startSlope, float endSlope,
+		System.Func<Vector2Int, bool> isOpaque,
+		HashSet<Vector2Int> result)
+	{
+		var stack = new Stack<(int depth, float start, float end)>();
+		stack.Push((startDepth, startSlope, endSlope));
+
+		while (stack.Count > 0)
+		{
+			var (depth, start, end) = stack.Pop();
+			if (depth > maxRadius) continue;
+
+			int minCol = Mathf.Max(0, Mathf.FloorToInt(depth * start));
+			int maxCol = Mathf.Min(depth, Mathf.CeilToInt(depth * end));
+
+			float runStart = start;
+			bool prevOpaque = false;
+			bool hasPrev    = false;
+
+			for (int col = minCol; col <= maxCol; col++)
+			{
+				bool inCircle = depth * depth + col * col <= maxRadius * maxRadius;
+				Vector2Int tile = OctantTile(origin, depth, col, octant);
+				bool opaque = !inCircle || isOpaque(tile);
+
+				// 대칭 가시성 조건(Albert Ford): 불투명 타일은 항상 표시, 투명 타일은 슬로프 구간 안일 때만.
+				bool symmetric = inCircle && (float)col >= depth * start && (float)col <= depth * end;
+				if (inCircle && (opaque || symmetric))
+					result.Add(tile);
+
+				if (hasPrev)
+				{
+					if (!prevOpaque && opaque)
+					{
+						// 바닥→벽 전환: 벽 왼쪽 엣지까지 다음 depth로 전파
+						float wallLeft = (col - 0.5f) / depth;
+						if (wallLeft > runStart)
+							stack.Push((depth + 1, runStart, wallLeft));
+					}
+					else if (prevOpaque && !opaque)
+					{
+						// 벽→바닥 전환: 이전 벽의 오른쪽 엣지부터 새 투명 구간 시작
+						runStart = (col - 0.5f) / depth;
+					}
+				}
+
+				prevOpaque = opaque;
+				hasPrev    = true;
+			}
+
+			// 이 행이 투명 타일로 끝났으면 다음 depth로 계속 전파
+			if (hasPrev && !prevOpaque)
+				stack.Push((depth + 1, runStart, end));
+		}
 	}
 }
