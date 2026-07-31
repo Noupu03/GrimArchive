@@ -113,6 +113,33 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<int, Texture2D> _terrainTextures = new();
 	private readonly HashSet<int> _dirtyTerrainFloors = new();
 
+	// 2026-07-31 — "가장 가까운 미탐사 타일 찾기"(NavigationFSMState.FindNearestUnexploredTarget)가
+	// 매번 이미 탐색된 영역 전체를 BFS로 훑어야 해서, 탐사가 진행될수록(explored 면적이 커질수록)
+	// 호출 1번의 비용이 계속 늘어나는 문제가 있었다(프로파일러 확인, 84회 호출에 134ms). 원래도
+	// "인류 유닛별 개인 지도"를 이 목적(탐사 경계 추적)까지 염두에 두고 설계한 것이었다(사용자 확인).
+	// _frontierTilesByFloor는 "아직 미탐사(_tileTerrain에 없음)지만 이미 밝혀진 바닥 타일과 인접한"
+	// 타일 집합을 층별로 나눠 들고 있는다 — RevealTile이 매번 갱신하므로, 목표를 고를 때는 이 집합
+	// (탐사 경계 길이에 비례 = 면적보다 훨씬 작음)에서만 최근접 탐색을 하면 된다.
+	//
+	// 최초 구현(단일 HashSet<Vector3Int>, 층 구분 없이 전부 순회 후 z로 필터)이 오히려 프레임을
+	// 더 깎아먹는 역효과를 낸 걸 프로파일러로 확인(단 1회 호출인데 self 20.80ms) — 두 가지 원인:
+	// 1) 층을 옮겨도 이전 층의 미해결 항목이 안 비워져서 조회할 때마다 그것까지 전부 순회했다 →
+	//    층별로 분리해 해당 층 집합만 순회하도록 해결(아래 GetOrCreateFrontierSet).
+	// 2) 대각선 인접 칸까지 후보로 넣었더니, 이 코드베이스 전반의 "코너 커팅 방지" 규칙 때문에
+	//    실제로는 결코 직접 RevealTile이 안 불리는(영원히 안 풀리는) 대각선 좀비 후보가 계속
+	//    쌓였다 → 아래에서 직교 4방향만 후보로 추가하도록 축소해 해결.
+	private readonly Dictionary<int, HashSet<Vector2Int>> _frontierTilesByFloor = new();
+
+	private HashSet<Vector2Int> GetOrCreateFrontierSet(int floor)
+	{
+		if (!_frontierTilesByFloor.TryGetValue(floor, out var set))
+		{
+			set = new HashSet<Vector2Int>();
+			_frontierTilesByFloor[floor] = set;
+		}
+		return set;
+	}
+
 	// 반환값: 이 타일을 처음 밝히는 것이면 true — 3-2장 E_EXPLORED_SAFE_TILE(탐사완료+안전확인
 	// 타일 → 흥미도 0)이 실제로 발생하는 순간이 정확히 이 "처음 밝혀지는 시점"이라, 호출부
 	// (UnitFunction.CastRay)가 이 값으로 그 이벤트를 로그로 남긴다.
@@ -121,6 +148,25 @@ public class PersonalMapKnowledge
 		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);
 		_tileTerrain[pos] = isWall ? 2 : 1;
 		_dirtyTerrainFloors.Add(pos.z);
+
+		// 프론티어 갱신은 "처음 밝히는 타일"에서만 의미가 있다(이미 밝혀진 타일을 다시 보는 건 매
+		// UpdateFOV 패스마다 일어나는데, 그때마다 다시 스캔하면 오히려 새 핫패스가 된다) — 이 타일
+		// 자체는 이제 탐사됐으니 프론티어 후보에서 빠지고, 바닥이면 직교 인접 4칸 중 아직 미탐사인
+		// 칸들이 새 프론티어 후보로 추가된다(대각선 제외 — 위 필드 주석 참고).
+		if (isFirstReveal)
+		{
+			if (_frontierTilesByFloor.TryGetValue(pos.z, out var existingFrontier))
+				existingFrontier.Remove(new Vector2Int(pos.x, pos.y));
+
+			if (!isWall)
+			{
+				var frontier = GetOrCreateFrontierSet(pos.z);
+				AddFrontierCandidateIfUnexplored(frontier, pos.x + 1, pos.y, pos.z);
+				AddFrontierCandidateIfUnexplored(frontier, pos.x - 1, pos.y, pos.z);
+				AddFrontierCandidateIfUnexplored(frontier, pos.x, pos.y + 1, pos.z);
+				AddFrontierCandidateIfUnexplored(frontier, pos.x, pos.y - 1, pos.z);
+			}
+		}
 
 		// 15장: "미탐사 타일 기본 위험도 2"도 다른 기록 위험도와 동일하게 안전 확인 절차를 거쳐야
 		// 한다 — 처음 시야에 들어오는 순간 바로 0(탐사완료+안전확인)이 되는 게 아니라, 위험도
@@ -144,10 +190,43 @@ public class PersonalMapKnowledge
 		return isFirstReveal;
 	}
 
+	// RevealTile 전용 헬퍼 — (x,y,z)가 아직 미탐사(_tileTerrain에 없음)면 층별 프론티어 집합에 추가.
+	private void AddFrontierCandidateIfUnexplored(HashSet<Vector2Int> frontier, int x, int y, int z)
+	{
+		if (!_tileTerrain.ContainsKey(new Vector3Int(x, y, z))) frontier.Add(new Vector2Int(x, y));
+	}
+
 	// 0=미탐색, 1=바닥, 2=벽 — discoveredMap과 동일한 값 관례.
 	public int GetTileTerrain(Vector3Int pos) => _tileTerrain.GetValueOrDefault(pos, 0);
 
 	public bool IsTileRevealed(Vector3Int pos) => _tileTerrain.ContainsKey(pos);
+
+	// NavigationFSMState.RandomExplore 전용 — 지정한 층에서 from과 가장 가까운 프론티어(미탐사 경계)
+	// 타일을 반환한다. 층별로 분리된 집합(_frontierTilesByFloor)에서 해당 층 것만 선형 탐색하므로,
+	// 예전 BFS처럼 explored 영역 전체를 다시 훑거나 다른 층의 누적 항목까지 훑을 필요가 없다.
+	// 직선거리 기준 최근접이라 실제 이동 경로상 최단은 아닐 수 있지만(방/벽에 막힌 프론티어를 고를
+	// 가능성), 그 경우는 호출부의 기존 A* 실패 처리(대상을 벽으로 표시하고 재시도)가 그대로 흡수한다.
+	public bool TryGetNearestFrontierTile(int floor, Vector2Int from, out Vector2Int nearest)
+	{
+		nearest = default;
+		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier) || frontier.Count == 0)
+			return false;
+
+		float bestDistSq = float.MaxValue;
+		bool found = false;
+		foreach (var t in frontier)
+		{
+			float dx = t.x - from.x, dy = t.y - from.y;
+			float distSq = dx * dx + dy * dy;
+			if (distSq < bestDistSq)
+			{
+				bestDistSq = distSq;
+				nearest = t;
+				found = true;
+			}
+		}
+		return found;
+	}
 
 	// 지형이 밝혀졌으면 "탐사 여부"를 직접 넘겨줄 필요 없이 이 오버로드로 자동 판단할 수 있다
 	// (explored 파라미터를 직접 넘기는 기존 오버로드는 호환을 위해 그대로 남겨둔다).

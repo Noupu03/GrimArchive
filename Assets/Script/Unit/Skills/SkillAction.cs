@@ -77,11 +77,17 @@ public abstract class SkillAction
 	// ─── 히트박스 검색 / 데미지 ──────────────────────────────────────
 
 	// ⑤: 공격마다 new List<Unit>()를 할당하던 것을 static 캐시로 교체 — 호출자는 반환값을 즉시 소비해야 함.
+	// 2026-07-31 프로파일러 분석(Object.CompareBaseObjects 39,397회/IsNativeObjectAlive 28,565회) —
+	// Unit이 ScriptableObject(UnityEngine.Object)라서 List<Unit>.Contains()가 원소마다 네이티브
+	// 유효성 검사가 딸린 Equals를 호출한다. Footprint 중복 셀 제거용 Contains 검사를 HashSet으로
+	// 병행 관리해 해시코드(인스턴스ID, 네이티브 호출 없음) 기반 O(1) 조회로 대체한다.
 	private static readonly List<Unit> _hitboxQueryResult = new List<Unit>();
+	private static readonly HashSet<Unit> _hitboxQueryResultSet = new HashSet<Unit>();
 
 	public static List<Unit> GetEnemiesInHitbox(Unit attacker, Hitbox box)
 	{
 		_hitboxQueryResult.Clear();
+		_hitboxQueryResultSet.Clear();
 
 		var unitGrid = attacker.Session?.unitGrid;
 		if (unitGrid != null)
@@ -95,7 +101,7 @@ public abstract class SkillAction
 			int maxX = Mathf.FloorToInt(box.center.x + (halfW * cosA + halfH * sinA));
 			int minY = Mathf.FloorToInt(box.center.y - (halfW * sinA + halfH * cosA));
 			int maxY = Mathf.FloorToInt(box.center.y + (halfW * sinA + halfH * cosA));
-            
+
 			int floor = attacker.currentFloor;
 			for (int cx = minX; cx <= maxX; cx++)
 			{
@@ -104,13 +110,17 @@ public abstract class SkillAction
 					if (!unitGrid.TryGetValue(new Vector3Int(cx, cy, floor), out Unit u)) continue;
 					if (u == null || u == attacker || u.Health.hp <= 0) continue;
 					if (!attacker.IsEnemy(u)) continue;
-					if (_hitboxQueryResult.Contains(u)) continue; // Footprint 중복 셀 무시
+					if (_hitboxQueryResultSet.Contains(u)) continue; // Footprint 중복 셀 무시
 
-					if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
+					if (box.Overlaps(GetUnitHitbox(u)))
+					{
+						_hitboxQueryResult.Add(u);
+						_hitboxQueryResultSet.Add(u);
+					}
 				}
 			}
 		}
-		else 
+		else
 		{
 			foreach (var u in attacker.Session.units)
 			{
@@ -118,11 +128,24 @@ public abstract class SkillAction
 				if (u.currentFloor != attacker.currentFloor) continue;
 				if (!attacker.IsEnemy(u)) continue;
 
-				if (box.Overlaps(GetUnitHitbox(u))) _hitboxQueryResult.Add(u);
+				if (box.Overlaps(GetUnitHitbox(u)))
+				{
+					_hitboxQueryResult.Add(u);
+					_hitboxQueryResultSet.Add(u);
+				}
 			}
 		}
 
 		return _hitboxQueryResult;
+	}
+
+	// 2026-07-31 — CombatFSMState/PlayerCommandFSMState가 GetEnemiesInHitbox(...).Contains(target)로
+	// 특정 대상 포함 여부만 확인하던 자리를 위한 전용 진입점. 위 _hitboxQueryResultSet을 그대로 재사용해
+	// List.Contains()의 선형 Equals 호출을 피한다. GetEnemiesInHitbox와 동일하게 호출 직후 즉시 소비할 것.
+	public static bool GetEnemiesInHitboxContains(Unit attacker, Hitbox box, Unit target)
+	{
+		GetEnemiesInHitbox(attacker, box);
+		return _hitboxQueryResultSet.Contains(target);
 	}
 
 	public static Hitbox GetUnitHitbox(Unit u)

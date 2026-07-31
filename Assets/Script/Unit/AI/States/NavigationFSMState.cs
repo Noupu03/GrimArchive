@@ -257,6 +257,18 @@ public class NavigationFSMState : IFSMState
 
 	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
 	{
+		// 2026-07-31 최적화 — 인류 유닛(방 제한 없이 던전 전체를 탐사)은 personalMap이 RevealTile마다
+		// 유지하는 프론티어(미탐사 경계) 집합에서 바로 최근접 후보를 찾는다. 예전 BFS는 이미 탐색된
+		// 영역 전체를 매번 다시 훑어야 해서 탐사가 진행될수록 호출 1번의 비용이 계속 늘어났다
+		// (프로파일러 확인: 84회 호출에 134ms). 방 제한 유닛(몬스터, RoomConfinedMovement)은 애초에
+		// 탐색 범위가 자기 방으로 좁아 BFS 비용이 낮으므로 아래 기존 방식을 그대로 둔다.
+		if (unit is Human explorer)
+		{
+			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget)
+				? frontierTarget
+				: (Vector2Int?)null;
+		}
+
 		if (data.bfsVisitedGrid == null || data.bfsVisitedGrid.GetLength(0) < mapW || data.bfsVisitedGrid.GetLength(1) < mapH)
 		{
 			data.bfsVisitedGrid = new int[mapW + 20, mapH + 20];

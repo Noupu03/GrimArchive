@@ -98,7 +98,7 @@ public class CombatFSMState : IFSMState
 			}
 
 			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
-			if (SkillAction.GetEnemiesInHitbox(unit, skillBox).Contains(target))
+			if (SkillAction.GetEnemiesInHitboxContains(unit, skillBox, target))
 			{
 				bestSkill.Execute(unit, target, minDist);
 				unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);

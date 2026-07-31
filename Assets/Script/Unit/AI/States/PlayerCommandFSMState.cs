@@ -112,7 +112,7 @@ public class PlayerCommandFSMState : IFSMState
 		if (best != null)
 		{
 			Hitbox box = best.BuildSkillHitbox(unit);
-			if (SkillAction.GetEnemiesInHitbox(unit, box).Contains(target))
+			if (SkillAction.GetEnemiesInHitboxContains(unit, box, target))
 			{
 				best.Execute(unit, target, chebDist);
 				return BTStatus.Running;

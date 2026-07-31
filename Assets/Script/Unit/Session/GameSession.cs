@@ -65,8 +65,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
             // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
-            var snapshot = new List<Unit>(SkillAction.GetEnemiesInHitbox(data.attacker, data.threat.hitbox));
-            foreach (var u in snapshot)
+            // 2026-07-31 GC 최적화 — 공격마다 new List<Unit>()를 할당하던 것을 재사용 버퍼로 교체.
+            _threatSnapshotBuffer.Clear();
+            _threatSnapshotBuffer.AddRange(SkillAction.GetEnemiesInHitbox(data.attacker, data.threat.hitbox));
+            foreach (var u in _threatSnapshotBuffer)
             {
                 u.OnReactToThreat(data.attacker, data.threat);
             }
@@ -89,6 +91,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
     private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
+
+    // 2026-07-31 GC 최적화 — OnThreatCreated 핸들러(생성자 참고)가 공격마다 new List<Unit>()로
+    // GetEnemiesInHitbox 결과를 복사하던 것을 재사용 버퍼로 교체.
+    private static readonly List<Unit> _threatSnapshotBuffer = new List<Unit>();
     public IReadOnlyList<Unit> GetUnitsInRoom(RectInt bounds)
     {
         _unitsInRoomResult.Clear();
@@ -103,6 +109,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public List<Unit> units { get; private set; } = new List<Unit>();
     // ①: isCastingAttack=true인 유닛만 모아두는 집합 — DetectThreats가 전체 units 대신 이걸 순회.
     public readonly HashSet<Unit> castingUnits = new HashSet<Unit>();
+
+    // 뭉침 완화(2026-07-31 프로파일러 분석): actionCooldown 소진 판정에 쓰는 Time.deltaTime이 Unity
+    // 기본 클램프(TimeManager Maximum Allowed Timestep=0.333초)의 영향을 받는데, 유닛 행동 주기
+    // (1/walkSpeed)도 대략 0.28~0.4초로 같은 자릿수다. 그래서 로딩 직후 등 단 한 프레임만 느려져도
+    // 거의 모든 유닛의 쿨다운이 그 한 프레임에 동시에 0 이하로 떨어져 한꺼번에 처리된다 — 특히
+    // NavigationFSMState.FindNearestUnexploredTarget(배회 유닛의 미탐사 타겟 탐색)처럼 콜당 비용이
+    // 있는 경로가 몰리면 그 프레임이 또 느려져 다음 프레임에도 뭉침이 재생산된다.
+    // 전투/전술/플레이어 명령 중인 유닛은 반응성이 중요하므로 즉시 처리하고, 그 외(주로 배회/탐색)
+    // 유닛만 프레임당 처리 상한을 둔 큐로 미뤄 스파이크를 여러 프레임에 걸쳐 분산시킨다.
+    private readonly Queue<Unit> _throttledActionQueue = new Queue<Unit>();
+    private readonly HashSet<Unit> _queuedForThrottledAction = new HashSet<Unit>();
+    // 튜닝값 — 값이 클수록 뭉침 분산 효과가 줄고, 작을수록 배회 유닛의 반응(다음 목적지 결정 등)이
+    // 더 늦어진다. 실측 후 조정할 것.
+    private const int MaxThrottledUnitActionsPerFrame = 30;
     public List<Party> parties => _partyService.parties;
     private float updateTimer = 0f;
 
@@ -955,8 +975,27 @@ public class GameSession : NativeRoutine, IOffenseQuery
             u.CombatState.State.actionCooldown -= Time.deltaTime;
             if (u.CombatState.State.actionCooldown <= 0f)
             {
-                ProcessUnitAction(u);
+                if (IsHighPriorityFsmState(u))
+                {
+                    ProcessUnitAction(u);
+                }
+                else if (_queuedForThrottledAction.Add(u))
+                {
+                    _throttledActionQueue.Enqueue(u);
+                }
             }
+        }
+
+        // 위 루프에서 큐로 미룬 배회/탐색 유닛을 프레임당 상한만큼만 꺼내 처리 — 나머지는 다음
+        // 프레임(들)로 자연스럽게 넘어간다.
+        int throttledProcessed = 0;
+        while (throttledProcessed < MaxThrottledUnitActionsPerFrame && _throttledActionQueue.Count > 0)
+        {
+            Unit u = _throttledActionQueue.Dequeue();
+            _queuedForThrottledAction.Remove(u);
+            if (u == null || u.Health.hp <= 0) continue; // 대기 중 사망 — 예산 소모 없이 건너뜀
+            ProcessUnitAction(u);
+            throttledProcessed++;
         }
 
         if (Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
@@ -1266,6 +1305,17 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
 
+
+    // 전투/전술/플레이어 명령 상태는 즉시 처리 대상(위 뭉침 완화 큐를 건너뜀) — 반응성이 중요한
+    // 상태만 골라낸다. 판정 기준은 "이번 프레임 JudgeState 이전, 마지막으로 확정된 상태"라 최대
+    // 1행동주기(≈0.3초)만큼 지연될 수 있지만(예: 지금 막 적을 발견해 이번 프레임에 Combat으로
+    // 전환될 유닛), 그 경우도 공격을 받는 쪽 반응(OnReactToThreat/DefenseSystem)은 이 유닛의 턴과
+    // 무관하게 별도 경로로 처리되므로 안전하다.
+    private static bool IsHighPriorityFsmState(Unit unit)
+    {
+        IFSMState state = unit.fsm.CurrentState;
+        return state is CombatFSMState || state is TacticalFSMState || state is PlayerCommandFSMState;
+    }
 
     private void ProcessUnitAction(Unit u)
     {

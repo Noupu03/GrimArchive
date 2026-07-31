@@ -190,15 +190,35 @@ public static class VisionMath
 	// 없거나, 대상이 사라졌거나, 현재 행동 때문에 적용할 수 없는 후보는 우선순위 비교에서 제외한다"
 	// (11장)는 규칙은 이 함수가 아니라 후보 목록을 구성하는 호출부의 책임이다.
 	// currentDir: 동일 우선순위 후보가 여럿일 때 더 가까운 쪽을 고르기 위한 기존 시야 방향.
+	// 2026-07-31 GC 최적화 — 매 유닛 액션 틱(UnitFunction.ResolveVisionDirection)마다 호출되는
+	// 핫패스인데, candidates가 IReadOnlyList<T> 인터페이스 타입이라 LINQ(Min/Where/OrderBy)를 쓰면
+	// 내부적으로 열거자가 박싱되고 Where/OrderBy가 각각 추가 할당을 만든다. 결과는 동일하게 유지한 채
+	// (최소 우선순위 랭크 → 동률이면 currentDir에 가장 가까운 방향, 동률 중에는 먼저 나온 후보 우선 —
+	// OrderBy가 안정 정렬이라 기존 동작과 동일) 수동 2-패스 루프로 대체한다.
 	public static Dir ResolveVisionDirection(IReadOnlyList<VisionDirectionCandidate> candidates, Dir currentDir)
 	{
 		if (candidates == null || candidates.Count == 0) return currentDir;
 
-		int bestRank = candidates.Min(c => PriorityRank(c.Reason));
-		var top = candidates.Where(c => PriorityRank(c.Reason) == bestRank).ToList();
-		if (top.Count == 1) return top[0].Direction;
+		int bestRank = int.MaxValue;
+		for (int i = 0; i < candidates.Count; i++)
+		{
+			int rank = PriorityRank(candidates[i].Reason);
+			if (rank < bestRank) bestRank = rank;
+		}
 
-		return top.OrderBy(c => DirStepDistance(c.Direction, currentDir)).First().Direction;
+		Dir bestDir = currentDir;
+		int bestDist = int.MaxValue;
+		for (int i = 0; i < candidates.Count; i++)
+		{
+			if (PriorityRank(candidates[i].Reason) != bestRank) continue;
+			int dist = DirStepDistance(candidates[i].Direction, currentDir);
+			if (dist < bestDist)
+			{
+				bestDist = dist;
+				bestDir = candidates[i].Direction;
+			}
+		}
+		return bestDir;
 	}
 
 	// ─────────────────────────── 대칭 쉐도우 캐스팅 (Symmetric Shadow Casting) ───────────────────────────
