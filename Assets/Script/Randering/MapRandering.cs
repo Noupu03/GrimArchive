@@ -23,6 +23,15 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private Sprite stairDownSprite;
     private Sprite stairUpSprite;
 
+    // 방 점령 색칠용 오버레이 — 타일 한 장씩 SetTileFlags+SetColor를 호출하면 타일당 Material 인스턴스가
+    // 생성돼 수만 개가 쌓이는 문제(2026-07-31 프로파일러 확인: 112k 인스턴스, 5.42 GB)를 해결하기 위해
+    // 방 전체를 덮는 단일 SpriteRenderer 오버레이 쿼드로 교체. 방마다 SpriteRenderer 1개만 생성하므로
+    // Material 인스턴스도 방 개수만큼만 생긴다. MaterialPropertyBlock으로 색을 설정해 공유 Material 유지.
+    private Sprite _overlayWhiteSprite;
+    private readonly Dictionary<(int floor, int roomId), SpriteRenderer> _roomOverlays
+        = new Dictionary<(int, int), SpriteRenderer>();
+    private static readonly MaterialPropertyBlock _overlayMpb = new MaterialPropertyBlock();
+
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
@@ -90,6 +99,14 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         stairTile.sprite = floorSprite;
+
+        if (_overlayWhiteSprite == null)
+        {
+            Texture2D overlayTex = new Texture2D(1, 1);
+            overlayTex.SetPixel(0, 0, Color.white);
+            overlayTex.Apply();
+            _overlayWhiteSprite = Sprite.Create(overlayTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+        }
     }
 
     private Sprite CreateColorSprite(Color color)
@@ -139,7 +156,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);
             RenderStairOverlays(tilemapObj.transform, ref floor, f);
-            ApplyOccupationTint(tilemap, ref floor);
+            ApplyOccupationTint(tilemap, ref floor, f);
             // 1층 이상은 RebuildFloorFogShadowCasters가 벽+안개 통합 캐스터를 구성하므로
             // 벽 전용 캐스터는 0층(로비, 안개 없음)에만 생성한다.
             if (f == 0) SetupWallShadowCasters(tilemapObj.transform, ref floor);
@@ -433,6 +450,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     void ClearExistingTilemaps()
     {
         floorTilemaps = null;
+        _roomOverlays.Clear();
         if (mapRoot != null)
         {
             for (int i = mapRoot.transform.childCount - 1; i >= 0; i--)
@@ -458,123 +476,92 @@ public class MapRandering : NativeRoutine, IMapColorizer
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
     }
 
-    // 점령 관련(2026-07-27 신규) — 방 점령 상태별로 바닥 타일에 옅은 색을 입힌다. 벽 타일은 제외한다
-    // (요청: "바닥 타일 희미하게"). RenderFloor와 같은 타일 좌표 변환(cx*8+tx, cy*8+ty)을 그대로
-    // 재사용해 같은 Tilemap 위에 SetColor만 덧씌운다. 야생(Neutral)/Occupied/Outpost는 착색하지
-    // 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로") — 기본 바닥 스프라이트
-    // 색 그대로 노출된다.
-    private static readonly Color HumanRoomTint = new Color(0.25f, 0.45f, 1f, 1f);  // 인류 소유 — 파랑(2026-07-27 사용자 요청으로 더 진하게)
-    private static readonly Color MonsterRoomTint = new Color(1f, 0.25f, 0.25f, 1f); // 몬스터(플레이어) 점령 — 빨강(위와 동일 조정)
+    // 점령 관련(2026-07-27 신규) — 방 점령 상태별로 바닥에 옅은 색을 표시한다. 야생(Neutral)/Occupied/
+    // Outpost는 착색하지 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로").
+    // 2026-07-31: 기존 타일별 SetTileFlags+SetColor(112k Material 인스턴스, 5.42 GB) →
+    // 방 단위 SpriteRenderer 오버레이 쿼드로 교체(SetRoomOverlay 참고).
+    // 색상 alpha=0.5로 낮춰 바닥 텍스처가 비치게 한다 — 원래 타일 곱셈 착색과 다르지만 훨씬 가볍다.
+    private static readonly Color HumanRoomTint   = new Color(0.25f, 0.45f, 1f,  0.5f); // 인류 소유 — 반투명 파랑
+    private static readonly Color MonsterRoomTint  = new Color(1f,   0.25f, 0.25f, 0.5f); // 몬스터 점령 — 반투명 빨강
 
-    void ApplyOccupationTint(Tilemap tilemap, ref Floor floor)
+    void ApplyOccupationTint(Tilemap tilemap, ref Floor floor, int floorIdx)
     {
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
 
-        // 사용자 요청(2026-07-28, "문이 있는 바닥 공간은 점령으로 인한 바닥 색 변화가 없게") — 문은
-        // 항상 특정 타일(Floor.gates → GameSession.GetGateDoorTiles와 동일 공식으로 역산)에 놓이므로,
-        // 점령 색칠 전에 미리 그 타일 집합을 구해 건너뛴다.
-        HashSet<Vector2Int> doorTiles = CollectDoorTiles(ref floor);
+        // 청크를 roomId별로 묶어 타일 범위(union bounds)를 계산한 뒤 오버레이 쿼드 1개씩 배치.
+        var roomData = new Dictionary<int, (Color color, int xMin, int yMin, int xMax, int yMax)>();
 
         for (int cx = 0; cx < chunkCountX; cx++)
         {
             for (int cy = 0; cy < chunkCountY; cy++)
             {
                 Chunks chunk = floor.chunks[cx, cy];
-                if (chunk.chunk == null) continue;
+                if (chunk.chunk == null || chunk.roomId < 0) continue;
 
                 Color? tint = chunk.occupationState switch
                 {
-                    OccupationState.HumanControlled => HumanRoomTint,
+                    OccupationState.HumanControlled  => HumanRoomTint,
                     OccupationState.PlayerControlled => MonsterRoomTint,
                     _ => (Color?)null,
                 };
                 if (tint == null) continue;
 
-                for (int tx = 0; tx < ChunkSize; tx++)
+                int xMin = cx * ChunkSize, yMin = cy * ChunkSize;
+                int xMax = xMin + ChunkSize, yMax = yMin + ChunkSize;
+
+                if (roomData.TryGetValue(chunk.roomId, out var existing))
                 {
-                    for (int ty = 0; ty < ChunkSize; ty++)
-                    {
-                        if (chunk.chunk[tx, ty].name == "Wall") continue;
-                        Vector2Int tilePos2D = new Vector2Int(cx * ChunkSize + tx, cy * ChunkSize + ty);
-                        if (doorTiles.Contains(tilePos2D)) continue;
-                        Vector3Int pos = new Vector3Int(tilePos2D.x, tilePos2D.y, 0);
-                        tilemap.SetTileFlags(pos, TileFlags.None);
-                        tilemap.SetColor(pos, tint.Value);
-                    }
+                    roomData[chunk.roomId] = (existing.color,
+                        Mathf.Min(existing.xMin, xMin), Mathf.Min(existing.yMin, yMin),
+                        Mathf.Max(existing.xMax, xMax), Mathf.Max(existing.yMax, yMax));
+                }
+                else
+                {
+                    roomData[chunk.roomId] = (tint.Value, xMin, yMin, xMax, yMax);
                 }
             }
         }
-    }
 
-    // 사용자 요청(2026-07-28) — Floor.gates에 이미 기록된 통로 정보로부터 문이 놓일 모든 타일 좌표를
-    // 모은다. GameSession.SpawnDoors가 실제 문 오브젝트를 심을 때 쓰는 것과 동일한
-    // GameSession.GetGateDoorTiles 공식을 그대로 재사용해 좌표가 항상 일치하게 한다.
-    private static HashSet<Vector2Int> CollectDoorTiles(ref Floor floor)
-    {
-        var doorTiles = new HashSet<Vector2Int>();
-        if (floor.gates == null) return doorTiles;
-
-        foreach (var gate in floor.gates)
+        foreach (var kvp in roomData)
         {
-            foreach (var row in GameSession.GetGateDoorTiles(gate))
-                foreach (var tile in row)
-                    doorTiles.Add(tile);
+            var (color, xMin, yMin, xMax, yMax) = kvp.Value;
+            SetRoomOverlay(floorIdx, kvp.Key, new RectInt(xMin, yMin, xMax - xMin, yMax - yMin), color, tilemap.transform);
         }
-
-        return doorTiles;
     }
 
     public void ChangeRoomColor(Room room, Color color)
     {
         if (floorTilemaps == null || floorTilemaps.Length == 0) return;
-        // 예전엔 "MVP: 0층 기준"으로 floorTilemaps[0]에 고정 — 야생 몬스터 방은 전부 1층 이상이라
-        // (SpawnWildRoomGuards가 0층을 명시적으로 제외) 점령 색칠이 항상 엉뚱한 층(0층 로비)에
-        // 적용되고 있었다(사용자 신고 2026-07-27 "점령 처리해도 바닥 색깔이 안 바뀜"). room.Floor를
-        // 그대로 써서 실제 방이 있는 층에 칠하도록 수정.
         if (room.Floor < 0 || room.Floor >= floorTilemaps.Length) return;
-        Tilemap tm = floorTilemaps[room.Floor];
-
-        // 벽 타일은 칠하지 않는다(사용자 요청 "벽은 색깔 바꾸지 마, 바닥만") — ApplyOccupationTint와
-        // 동일한 청크/타일 조회 방식으로 벽 여부를 확인한다.
-        Floor floorData = default;
-        bool hasFloorData = createMap != null && createMap.map.floors != null
-            && room.Floor < createMap.map.floors.Length;
-        if (hasFloorData) floorData = createMap.map.floors[room.Floor];
-
-        // 사용자 요청(2026-07-28, "문이 있는 바닥 공간은 점령으로 인한 바닥 색 변화가 없게") —
-        // ApplyOccupationTint와 동일하게 문 타일 집합을 구해 건너뛴다.
-        HashSet<Vector2Int> doorTiles = hasFloorData ? CollectDoorTiles(ref floorData) : new HashSet<Vector2Int>();
-
-        for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
-        {
-            for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
-            {
-                if (hasFloorData && IsWallTile(ref floorData, x, y)) continue;
-                if (doorTiles.Contains(new Vector2Int(x, y))) continue;
-
-                Vector3Int pos = new Vector3Int(x, y, 0);
-                tm.SetTileFlags(pos, TileFlags.None);
-                tm.SetColor(pos, color);
-            }
-        }
+        SetRoomOverlay(room.Floor, room.RoomId, room.Bounds, color, floorTilemaps[room.Floor].transform);
     }
 
-    // ChangeRoomColor 전용 — ApplyOccupationTint와 동일한 청크 좌표 변환(cx*8+tx)으로 벽 타일인지 확인.
-    private bool IsWallTile(ref Floor floor, int x, int y)
+    // 방 하나를 덮는 SpriteRenderer 오버레이를 생성하거나 갱신한다.
+    // 같은 (층, roomId) 키에 기존 오버레이가 있으면 위치·크기·색만 갱신하고 새 오브젝트는 만들지 않는다.
+    private const int RoomOverlaySortingOrder = 1; // 타일맵(0) 위, 계단 아이콘(5) 아래
+
+    private void SetRoomOverlay(int floorIdx, int roomId, RectInt tileBounds, Color color, Transform parent)
     {
-        if (x < 0 || y < 0 || floor.chunks == null) return false;
+        var key = (floorIdx, roomId);
+        if (!_roomOverlays.TryGetValue(key, out SpriteRenderer sr) || sr == null)
+        {
+            var go = new GameObject($"RoomOverlay_F{floorIdx}_R{roomId}");
+            go.transform.SetParent(parent, false);
+            sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = _overlayWhiteSprite;
+            sr.sortingOrder = RoomOverlaySortingOrder;
+            _roomOverlays[key] = sr;
+        }
 
-        int cx = x / ChunkSize;
-        int cy = y / ChunkSize;
-        int tx = x % ChunkSize;
-        int ty = y % ChunkSize;
-        if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+        float cx = tileBounds.xMin + tileBounds.width  * 0.5f;
+        float cy = tileBounds.yMin + tileBounds.height * 0.5f;
+        sr.transform.localPosition = new Vector3(cx, cy, 0f);
+        sr.transform.localScale    = new Vector3(tileBounds.width, tileBounds.height, 1f);
 
-        Chunks chunk = floor.chunks[cx, cy];
-        if (chunk.chunk == null) return false;
-
-        return chunk.chunk[tx, ty].name == "Wall";
+        sr.GetPropertyBlock(_overlayMpb);
+        _overlayMpb.SetColor("_Color", color);
+        sr.SetPropertyBlock(_overlayMpb);
     }
 }
 

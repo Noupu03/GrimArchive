@@ -1156,7 +1156,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				else
 				{
 					AIState.reactedAttackers.Add(attacker);
-					// Failed to react in time - brace for impact (no early damage applied)
+					attacker.AIState.unitsReactingToMe.Add(this);
 				}
 			}
 		}
@@ -1164,6 +1164,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
+		if (attacker != null)
+		{
+			AIState.reactedAttackers.Add(attacker);
+			attacker.AIState.unitsReactingToMe.Add(this);
+		}
 		DefenseSystem.EvaluateEarlyReaction(this, attacker, threat);
 	}
 

@@ -106,14 +106,13 @@ public class CombatFSMState : IFSMState
 				return BTStatus.Running;
 			}
 
-			if (unit.CombatState.State.evadeCooldown <= 0f)
-				AIMovementHelper.MoveTowardsTarget(unit, target);
+			AIMovementHelper.MoveTowardsTarget(unit, target);
 		}
 		else
 		{
 			// 모든 스킬 쿨다운 — 원거리 유닛은 안전거리 유지
 			int fallbackRange = maxSkillRange >= rangedMin ? maxSkillRange / 2 + 1 : 1;
-			if (chebDist != fallbackRange && unit.CombatState.State.evadeCooldown <= 0f)
+			if (chebDist != fallbackRange)
 			{
 				if (chebDist < fallbackRange) AIMovementHelper.MoveAwayFromTarget(unit, target, fallbackRange);
 				else                          AIMovementHelper.MoveTowardsTarget(unit, target);
