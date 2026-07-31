@@ -1141,6 +1141,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (objectGrid.ContainsKey(gridPos))
                 gridPos = FindNearbyFreeObjectTile(gridPos);
 
+            // 07문서 14장: 사망 시 사망 위치에서 사망음 발생(Destroy 전, 위치가 아직 유효한 지금 시점).
+            PropagationSystem.EmitSound(this, SoundType.Death, u.position, u.currentFloor, u);
+
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Object/Passable/Corpse", isMonsterCorpse ? "Monster" : "Human" };
             // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
@@ -1320,7 +1323,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private void ProcessUnitAction(Unit u)
     {
         // 4-3장: 경계 상태에서 위치/방향을 확인하며 이동할 때는 이동속도가 75%로 줄어든다.
-        float speed = u.BaseStat.walkSpeed * (u.currentAlertSearch != null ? ExplorationMath.AlertMoveSpeedRatio : 1f);
+        // 07문서 16-3장: 단, 피격 발생 공격음/피격 비명/사망음 확인 접근은 긴급 소리라 감속 없이 정상
+        // 이동속도를 유지한다(AlertSearchState.IsUrgentSoundApproach).
+        bool alertMoveSlowdown = u.currentAlertSearch != null && !u.currentAlertSearch.IsUrgentSoundApproach;
+        float speed = u.BaseStat.walkSpeed * (alertMoveSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
         u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
         // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를

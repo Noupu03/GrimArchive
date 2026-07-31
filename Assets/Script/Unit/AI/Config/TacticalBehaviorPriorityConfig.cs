@@ -27,7 +27,8 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
     [Tooltip("위에서 아래 순서로 우선순위 높음. 03문서 2-1장 기준 기본값 적용.")]
     public List<Entry> order = new List<Entry>
     {
-        new Entry { behavior = TacticalBehaviorType.Panic,        enabled = true },
+        new Entry { behavior = TacticalBehaviorType.Panic,          enabled = true },
+        new Entry { behavior = TacticalBehaviorType.JoinCombatWait, enabled = true },
         new Entry { behavior = TacticalBehaviorType.TrapResponse, enabled = true },
         new Entry { behavior = TacticalBehaviorType.Alert,        enabled = true },
         new Entry { behavior = TacticalBehaviorType.Investigate,  enabled = true },
@@ -51,6 +52,10 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
 public enum TacticalBehaviorType
 {
     Panic,         // 공황 — 정신력 panicMentalRatio 이하
+    // 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — 위험도 2단계+비근거리 정확 인지 적.
+    // 소리·함정 대응보다 먼저 확인해야 "정확 인지 적에 대한 전투 합류 대기: 현재 적 대상 행동 우선"
+    // (07문서 16-4장 표)이 성립한다.
+    JoinCombatWait,
     TrapResponse,  // 함정 대응 (Disarm → Bypass → Pass → Destroy 내부 순서 고정)
     Alert,         // 경계 (수상한 타일 접근 / 전투 후 주변 수색)
     Investigate,   // 조사 오브젝트 상호작용

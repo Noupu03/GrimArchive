@@ -30,11 +30,15 @@ public static class TrapPartySystem
 		};
 		party.TrapCoordinations[trapObj.Id] = coord;
 
-		// 9-3장: "함정 정보를 즉시 전파" — 07 전파 문서 부재로 5-5장과 동일하게 파티 전체 즉시 공유로
-		// 근사한다. 비선정 유닛이 이 위치를 알고 있어야 9-6장 "인접 1칸 회피"가 의미를 가진다.
+		// 9-3장: "함정 정보를 즉시 전파" — 2026-07-31: 07문서 6장 일반 전파 조건(비전투+같은 공간+전파
+		// 범위)으로 교체. 발견자 본인은 항상 알고, 그 조건을 만족하는 파티원만 함께 안다 — 비선정
+		// 유닛이 이 위치를 알고 있어야 9-6장 "인접 1칸 회피"가 의미를 가진다.
 		foreach (var m in party.Members)
 		{
 			if (m == null || m.hp <= 0) continue;
+			bool receivesInfo = m == discoverer || PropagationSystem.CanPropagate(discoverer, m);
+			if (!receivesInfo) continue;
+
 			if (!m.personalMap.IsObjectKnown(trapObj.Id))
 				m.personalMap.RegisterObject(trapObj.Id, trapObj.Position, trapObj.BaseDanger, trapObj.BaseInterest, trapObj.Tags, trapObj.CauserStage);
 
@@ -107,10 +111,8 @@ public static class TrapPartySystem
 		}
 
 		// 9-2장: "발견 유닛과 전파 범위 안에 있는 모든 유닛의 성공률을 확인하되, 실제 해제 담당은
-		// 함정 대응으로 전환 가능한 유닛 중에서 선정" — 전파 범위는 07 문서 부재로 기존 관례대로
-		// ViewDistance(discoverer.spotting)로 근사한다.
-		float propagationRange = VisionMath.ViewDistance(discoverer.spotting);
-
+		// 함정 대응으로 전환 가능한 유닛 중에서 선정" — 2026-07-31: 07문서 6장 전파 조건(PropagationSystem.
+		// CanPropagate)으로 교체.
 		Human best = discoverer;
 		float bestRate = ExplorationMath.TrapDisarmSuccessRate(discoverer.concentration, discoverer.level, 0);
 		float bestEta = EstimateEta(discoverer, trap.TrapPosition);
@@ -118,7 +120,7 @@ public static class TrapPartySystem
 		foreach (var m in party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
-			if (Vector2Int.Distance(m.position, discoverer.position) > propagationRange) continue;
+			if (!PropagationSystem.CanPropagate(discoverer, m)) continue;
 			if (!CanSwitchToTrapResponse(m)) continue;
 
 			float rate = ExplorationMath.TrapDisarmSuccessRate(m.concentration, m.level, 0);

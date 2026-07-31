@@ -17,6 +17,8 @@ public class CombatFSMState : IFSMState
 			? unit.Session.cmap.GetRoomIdAt(unit.currentFloor, unit.position)
 			: -1;
 
+		Human hu = unit as Human;
+
 		foreach (var e in unit.Perception.State.personalSpottedEnemies)
 		{
 			if (e == null || e.hp <= 0 || e.currentFloor != unit.currentFloor) continue;
@@ -26,6 +28,23 @@ public class CombatFSMState : IFSMState
 			// 뚫리는 예외를 막는 안전망.
 			if (isRoomConfined && myRoomId >= 0 && unit.Session.cmap.GetRoomIdAt(e.currentFloor, e.position) != myRoomId)
 				continue;
+
+			// 07문서 7장/07-A 9장(2026-07-31 신규): 위험도 2단계 이상 + 비근거리(>2칸)면 즉시 전투 대신
+			// 합류 대기로 넘긴다 — 이미 이 적을 기준으로 대기 중이면 그대로 Tactical에 양보(대기 완료 시
+			// PropagationSystem.TickJoinCombatWait이 currentJoinCombatWait를 비워 다음 틱에 정상 진입).
+			if (hu != null)
+			{
+				if (hu.currentJoinCombatWait != null)
+				{
+					if (hu.currentJoinCombatWait.TargetEnemy == e) continue;
+				}
+				else if (PropagationSystem.ShouldDeferForJoinWait(hu, e))
+				{
+					PropagationSystem.StartJoinCombatWait(hu, e);
+					continue;
+				}
+			}
+
 			return AIConfigLoader.Behavior?.combatPriority ?? 100f;
 		}
 		return 0f;

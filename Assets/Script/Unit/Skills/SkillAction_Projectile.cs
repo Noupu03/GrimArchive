@@ -103,7 +103,8 @@ public class SkillAction_Projectile : SkillAction
             },
             () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
             null,
-            updateThreatAction
+            updateThreatAction,
+            shape: AttackShape.Projectile
         );
     }
 

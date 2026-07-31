@@ -29,6 +29,9 @@ public struct UnitCombatState
     public float currentSpeed;
     public float acceleration;
     public bool isWaitState;
+    // 07문서 17장(2026-07-31 신규): 이번 공격의 형태 — 피격 대상이 공격자를 정확 인지하지 못했을 때
+    // 방향 정보를 얻을 수 있는지 판정하는 데 쓰인다(SkillAction.BeginAttackCast가 세팅).
+    public AttackShape lastAttackShape;
 }
 
 [Serializable]

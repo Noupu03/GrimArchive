@@ -27,6 +27,7 @@ public abstract class Unit : ScriptableObject {
     private AIStateComponent      _aiStateComp;
     private MemoryComponent       _memoryComp;
     private PartyComponent        _partyComp;
+    private PropagationComponent  _propagationComp;
 
     public HealthComponent        Health        => _healthComp        ??= GetComponent<HealthComponent>();
     public CombatStateComponent   CombatState   => _combatStateComp   ??= GetComponent<CombatStateComponent>();
@@ -38,6 +39,7 @@ public abstract class Unit : ScriptableObject {
     public AIStateComponent       AIState       => _aiStateComp       ??= GetComponent<AIStateComponent>();
     public MemoryComponent        Memory        => _memoryComp        ??= GetComponent<MemoryComponent>();
     public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
+    public PropagationComponent   Propagation   => _propagationComp   ??= GetComponent<PropagationComponent>();
 
     // 코드 전역에서 bare 이름으로 쓰이는 필드들. 실제 데이터는 컴포넌트에 있고 여기서 위임만 한다.
     public float hp               { get => Health.hp;                          set => Health.hp = value; }
@@ -60,6 +62,7 @@ public abstract class Unit : ScriptableObject {
         _healthComp = null; _combatStateComp = null; _combatStatComp = null;
         _perceptionComp = null; _visionStatComp = null; _baseStatComp = null;
         _statusEffectsComp = null; _aiStateComp = null; _memoryComp = null; _partyComp = null;
+        _propagationComp = null;
 
         if (Components == null) Components = new List<IUnitComponent>();
         if (CombatStat == null) Components.Add(new CombatStatComponent(this));
@@ -72,6 +75,7 @@ public abstract class Unit : ScriptableObject {
         if (AIState == null) Components.Add(new AIStateComponent(this));
         if (CombatState == null) Components.Add(new CombatStateComponent(this));
         if (StatusEffects == null) Components.Add(new StatusEffectsComponent(this));
+        if (Propagation == null) Components.Add(new PropagationComponent(this));
     }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
@@ -517,6 +521,8 @@ public class Human : UnitFunction
 	public FormationState     currentFormation;
 	// 7-3장(2026-07-27 신규): 리더 전용 — 이 유닛이 파티 리더일 때만 의미가 있다(CorePartySystem 참고).
 	public CoreInteractionState currentCoreInteraction;
+	// 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
+	public JoinCombatWaitState currentJoinCombatWait;
 
 	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
 	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true. 함정 쪽은 "함정 위치에
@@ -630,15 +636,16 @@ public class Human : UnitFunction
 		return FindInvestigateTarget() != null;
 	}
 
-	// 6-1장 두 번째 조건("자신의 시야 범위 안에서 상호작용 유닛을 직접 확인") — 07_전파 문서가 없어
-	// 지금 구현 가능한 유일한 트리거. 정확 인지 확률 판정을 다시 거치지 않고(아군은 "보이면 안다"로
-	// 취급, 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 3-5절 근거) 시야 범위 안의 같은 파티
-	// 인류 중 IsInteracting인 대상을 직접 찾는다.
+	// 6-1장 두 번째 조건("상호작용 유닛 본인의 최초 전파를 직접 받은 일반 탐색 유닛") — 2026-07-31:
+	// 07문서 10장 구현으로 시야 기반 근사(예전엔 "시야 범위 안에서 직접 확인"이면 참여)를 대체했다.
+	// 07문서는 "상호작용 유닛을 시야에서 직접 확인한 것만으로는 참여하지 않는다"고 명시하므로, 이제는
+	// PropagationSystem.NotifyInteractionStarted가 상호작용 시작 시점에 전파한 정보를 실제로 받은
+	// 파티원만 후보가 된다(TacticalFSMState의 InvestigatePerform/TrapDisarmPerform/CoreInvestigatePerform
+	// 참고).
 	public Human FindDirectlyVisibleInteractingAlly()
 	{
 		if (party == null || Session == null) return null;
 
-		float viewDistance = VisionMath.ViewDistance(spotting);
 		Human best = null;
 		float bestDist = float.MaxValue;
 
@@ -646,12 +653,12 @@ public class Human : UnitFunction
 		{
 			if (m == null || m == this || m.hp <= 0 || m.currentFloor != currentFloor) continue;
 			if (!m.IsInteracting) continue;
+			if (!PropagationSystem.HasReceivedInteractionNotice(this, m)) continue;
 			// 이미 다른 유닛을 호위 중이면 그 대상이 아닌 새 상호작용 유닛으로는 갈아타지 않는다
 			// (6-2장 "기존 포메이션 유지").
 			if (currentFormation != null && currentFormation.EscortTarget != null && currentFormation.EscortTarget != m) continue;
 
 			float d = Vector2Int.Distance(position, m.position);
-			if (d > viewDistance) continue;
 			if (d < bestDist) { bestDist = d; best = m; }
 		}
 		return best;

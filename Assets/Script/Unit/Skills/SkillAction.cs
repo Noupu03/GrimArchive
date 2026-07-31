@@ -36,10 +36,12 @@ public abstract class SkillAction
 		System.Action attackAction,
 		System.Action cooldownAction = null,
 		System.Action effectAction   = null,
-		System.Action castUpdateAction = null)
+		System.Action castUpdateAction = null,
+		AttackShape  shape = AttackShape.Melee)
 	{
 		unit.CombatState.State.isCastingAttack = true;
 		unit.CombatState.State.castTimer       = castMs / 1000f;
+		unit.CombatState.State.lastAttackShape = shape; // 07문서 17장: 방향 간접입력 판정용
 		unit.Session?.castingUnits.Add(unit);
 		unit.AIState.pendingCastUpdate = castUpdateAction;
 
@@ -59,6 +61,8 @@ public abstract class SkillAction
 				effectAction?.Invoke();
 				attackAction?.Invoke();
 				unit.TriggerAttackVisibilityBoost(); // 01-A 9장: 공격 후 가시성 상승(+10, 5초, 재공격 시 지속시간 초기화)
+				// 07문서 14장: 공격 실행 시 공격자 위치에서 공격 실행음 발생(명중 여부와 무관).
+				PropagationSystem.EmitSound(unit.Session, SoundType.AttackExecution, unit.position, unit.currentFloor, unit);
 			}
 			finally
 			{

@@ -7,8 +7,10 @@ using UnityEngine;
 //   - UnitFunction.CastRay(오브젝트 인지 블록): OnCorpseDiscovered(나중에 시체를 발견한 경우)
 //   - TacticalFSMState.InvestigatePerform: OnCorpseInvestigated(시체 조사로 사망 원인 확인)
 //   - UnitFunction.CastRay(유닛 인지 블록): OnDeathSearchSpotted(원인미상 수색 중 몬스터 정확 인지)
-// "07_전파·소리·간접입력_시스템" 문서가 없어 전파 범위는 기존 관례(Human.
-// FindDirectlyVisibleInteractingAlly 등)와 동일하게 VisionMath.ViewDistance(spotting)로 근사한다.
+// 2026-07-31: 07_전파·소리·간접입력 구현으로 전파(PropagateFrom)는 실제 전파 조건(PropagationSystem.
+// CanPropagate — 비전투+같은 공간+카리스마 기반 전파 범위)을 쓴다. "사망 순간 직접 목격" 판정
+// (TryConfirmCauseByWitness 등)은 전파가 아니라 시야 기반 목격이라 VisionMath.ViewDistance(spotting)를
+// 그대로 유지한다(성격이 다름 — 혼동 주의).
 public static class PartyDeathSystem
 {
 	// ─────────────────────────── 4-12/4-14장: 사망 순간 직접 목격 ───────────────────────────
@@ -171,13 +173,36 @@ public static class PartyDeathSystem
 	private static void PropagateFrom(Party party, PartyDeathRecord record, Human deadUnitPositionOwner, Human representative)
 	{
 		if (representative == null) return;
-		float range = VisionMath.ViewDistance(representative.spotting);
 		foreach (var m in party.Members)
 		{
 			if (m == null || m.hp <= 0 || m == representative || (deadUnitPositionOwner != null && m == deadUnitPositionOwner)) continue;
 			if (record.InfoKnownUnits.Contains(m.name)) continue;
-			if (Vector2Int.Distance(m.position, representative.position) > range) continue;
+			if (!PropagationSystem.CanPropagate(representative, m)) continue;
 			ApplyDeathInfo(record, m, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
+		}
+	}
+
+	// 07문서 9장(정보 동기화)/03문서 4-13장(2026-07-31 신규): 최초 전파 시점의 스냅샷 범위 체크뿐이던
+	// 것을 실제 지속 재전파로 교체 — UnitFunction.OnUpdate의 기존 0.1초 틱에서 인류마다 호출한다. 아직
+	// 정보를 모르는 파티원이, 이미 아는 파티원("정보 보유자")의 전파 범위 안으로 나중에 들어오면 그
+	// 시점에 정보를 받는다.
+	public static void TickOngoingPropagation(Human human)
+	{
+		var party = human.party;
+		if (party == null || party.DeathRecords.Count == 0) return;
+
+		foreach (var record in party.DeathRecords.Values)
+		{
+			if (record.InfoKnownUnits.Contains(human.name)) continue;
+
+			foreach (var carrier in party.Members)
+			{
+				if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+				if (!record.InfoKnownUnits.Contains(carrier.name)) continue;
+				if (!PropagationSystem.CanPropagate(carrier, human)) continue;
+				ApplyDeathInfo(record, human, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
+				break;
+			}
 		}
 	}
 

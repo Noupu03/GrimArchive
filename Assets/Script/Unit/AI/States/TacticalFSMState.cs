@@ -39,6 +39,7 @@ public class TacticalFSMState : IFSMState
 			// 설정 에셋 없음 — 03문서 2-1장 기본 순서로 폴백
 			_bt = new BTSelector(
 				nodes[TacticalBehaviorType.Panic],
+				nodes[TacticalBehaviorType.JoinCombatWait],
 				nodes[TacticalBehaviorType.TrapResponse],
 				nodes[TacticalBehaviorType.Alert],
 				nodes[TacticalBehaviorType.Investigate],
@@ -60,26 +61,38 @@ public class TacticalFSMState : IFSMState
 				new BTCondition(IsPanic),
 				new BTLeaf(Panic)
 			),
-			[TacticalBehaviorType.TrapResponse] = new BTSelector(
-				// 9-7장(신규): 선정 유닛을 찾아 나서는 중이면 최우선으로 그 이동을 계속한다.
-				new BTSequence(new BTCondition(IsSearchingForMissingUnit), new BTLeaf(TrapSearchForMissingUnit)),
-				// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 대기.
-				new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
-				// Disarm → Bypass → Pass → Destroy 내부 순서는 고정 (문서 9장 우선순위)
-				new BTSequence(
-					new BTCondition(CanDisarm),
-					new BTLeaf(TrapJoinWait),
-					new BTLeaf(MoveToTrap),
-					new BTLeaf(TrapDisarmPerform)
-				),
-				new BTLeaf(TrapBypass),
-				new BTLeaf(TrapPass),
-				new BTLeaf(TrapDestroy)
+			[TacticalBehaviorType.JoinCombatWait] = new BTSequence(
+				new BTCondition(HasJoinCombatWait),
+				new BTLeaf(JoinCombatWaitPerform)
+			),
+			[TacticalBehaviorType.TrapResponse] = new BTSequence(
+				// 07문서 16-4장: 함정 대응 대기·해제는 함정 작동음을 제외한 소리(전투 관련/이동음)에
+				// 중단된다. 함정작동음은 이 조건에서 애초에 걸리지 않아(PropagationSystem 참고) 표대로
+				// "유지"된다.
+				new BTCondition(unit => !IsTrapResponseBlockedBySound(unit)),
+				new BTSelector(
+					// 9-7장(신규): 선정 유닛을 찾아 나서는 중이면 최우선으로 그 이동을 계속한다.
+					new BTSequence(new BTCondition(IsSearchingForMissingUnit), new BTLeaf(TrapSearchForMissingUnit)),
+					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 대기.
+					new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
+					// Disarm → Bypass → Pass → Destroy 내부 순서는 고정 (문서 9장 우선순위)
+					new BTSequence(
+						new BTCondition(CanDisarm),
+						new BTLeaf(TrapJoinWait),
+						new BTLeaf(MoveToTrap),
+						new BTLeaf(TrapDisarmPerform)
+					),
+					new BTLeaf(TrapBypass),
+					new BTLeaf(TrapPass),
+					new BTLeaf(TrapDestroy)
+				)
 			),
 			[TacticalBehaviorType.Alert] = new BTSequence(
 				new BTCondition(HasAlert),
 				new BTSelector(
-					new BTLeaf(DeathSearchMove), // 4-15장: 원인미상 파티원 사망 수색(배정 방향으로 퍼져 수색)
+					new BTLeaf(DeathSearchMove),   // 4-15장: 원인미상 파티원 사망 수색(배정 방향으로 퍼져 수색)
+					new BTLeaf(SoundMoveReact),    // 07문서 8-1장: 이동음 반응(시야전환+2초 유지, 이동 없음)
+					new BTLeaf(SoundAreaApproach), // 07문서 8-2장: 추정 지역형 소리 반응(접근+2초 유지)
 					new BTLeaf(AlertApproach),
 					new BTLeaf(AlertPerimeterSearch)
 				)
@@ -119,6 +132,7 @@ public class TacticalFSMState : IFSMState
 		// 포함해) 여기서 따로 예외 처리할 필요가 없다.
 		float p = AIConfigLoader.Behavior?.tacticalPriority ?? 50f;
 		if (IsPanic(unit)) return p;
+		if (unit is Human joinWaitHu && joinWaitHu.currentJoinCombatWait != null) return p;
 		if (unit.currentTrapInteraction != null) return p;
 		if (unit.currentAlertSearch != null) return p;
 		Human hu = unit as Human;
@@ -267,9 +281,24 @@ public class TacticalFSMState : IFSMState
 		return true;
 	}
 
-	private static bool HasAlert(Unit unit)   => unit.currentAlertSearch != null;
+	// 07문서 16장(2026-07-31): currentAlertSearch가 비어있어도 아직 시작 안 한 유효한 소리 반응이
+	// 있으면 이 지점에서 지연 승격한다(함정 대응 등 상위 분기가 먼저 실패해야 여기 도달하므로,
+	// 함정작동음처럼 "현재 행동을 유지"시키는 소리는 자연히 그 행동이 끝난 뒤에야 승격된다).
+	private static bool HasAlert(Unit unit)
+		=> unit.currentAlertSearch != null || (unit is Human human && PropagationSystem.TryPromotePendingSoundToAlert(human));
 	private static bool HasFormationNeed(Unit unit)
 		=> unit is Human human && human.HasProtectiveFormationNeed();
+	private static bool HasJoinCombatWait(Unit unit) => unit is Human human && human.currentJoinCombatWait != null;
+
+	// 07문서 16-4장: 함정 대응 대기·해제는 함정작동음을 제외한 소리에 중단된다. 진행도가 있었으면
+	// (5-6/9-7장과 동일한 패턴) 중단 시 50% 손실을 함께 적용한다.
+	private static bool IsTrapResponseBlockedBySound(Unit unit)
+	{
+		if (!(unit is Human human)) return false;
+		if (!PropagationSystem.HasPendingInterruptingSound(human)) return false;
+		ApplyTrapDisarmInterruptPenalty(unit);
+		return true;
+	}
 
 	// ── 공황 ───────────────────────────────────────────────────────
 
@@ -432,6 +461,8 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 		trap.Phase = TrapPhase.Disarming;
+		// 07문서 10장: 해제가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
+		if (!trap.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
 		trap.PenaltyActive = true;
 		if (trap.DisarmProgress01 < 1f) return BTStatus.Running;
 
@@ -517,6 +548,8 @@ public class TacticalFSMState : IFSMState
 		// 섞이지 않도록 lastAttacker는 비운다.
 		unit.lastAttacker = null;
 		unit.lastTrapAttacker = obj;
+		// 07문서 14장: 함정 작동 시 작동 위치에서 함정 작동음 발생.
+		PropagationSystem.EmitSound(unit.Session, SoundType.TrapActivation, trapPos2D, unit.currentFloor, null);
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
 		unit.currentTrapInteraction = null;
@@ -583,6 +616,8 @@ public class TacticalFSMState : IFSMState
 		// 이미 조사 완료 → PickUpObject로 넘어간다
 		if (obj.IsInvestigated) return BTStatus.Success;
 
+		// 07문서 10장: 조사가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
+		if (!inv.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
 		inv.PenaltyActive = true;
 		if (inv.Progress01 < 1f) return BTStatus.Running;
 
@@ -683,6 +718,86 @@ public class TacticalFSMState : IFSMState
 		if (Vector2Int.Distance(unit.position, target) <= 1f)
 			return BTStatus.Running; // 배정 위치 도착 — 방향을 유지한 채 대기(시간 종료는 OnUpdate가 처리)
 		AIMovementHelper.MoveTowardsPos(unit, target);
+		return BTStatus.Running;
+	}
+
+	// 07문서 8-1장: 이동음 반응 — '?' 표시 → 방향으로 시야 전환 → 인지 판정 1회(평소 UpdateFOV 패스가
+	// 자연히 처리하므로 별도 재판정 호출 없음) → 2초간 그 방향 시야만 유지하고 종료. 이동은 하지 않는다.
+	private static BTStatus SoundMoveReact(Unit unit)
+	{
+		var alert = unit.currentAlertSearch;
+		if (alert == null || !alert.IsSoundResponse || alert.SoundKind != SoundType.Movement || !alert.TargetPosition.HasValue)
+			return BTStatus.Failure;
+
+		unit.currentDir = SkillAction.GetDirection8(alert.TargetPosition.Value - unit.position);
+		if (!alert.SoundPerceptionRolled)
+		{
+			alert.SoundPerceptionRolled = true;
+			alert.ElapsedSeconds = 0f; // 여기서부터 2초 유지 타이머 시작(OnUpdate가 매 프레임 증가시킴)
+		}
+		if (alert.ElapsedSeconds >= PropagationMath.MoveSoundHoldSeconds)
+		{
+			ClearSoundAlert(unit);
+			return BTStatus.Success;
+		}
+		return BTStatus.Running;
+	}
+
+	// 07문서 8-2장: 추정 지역형 소리 반응(공격 실행음/피격 발생 공격음/피격 비명/사망음/함정 작동음) —
+	// '?' 표시 → 추정 지역 중심이 인지 범위 안에 들어오는 거리까지 접근 → 인지 판정 1회(평소 UpdateFOV
+	// 패스가 자연히 처리) → 원인 미확인이면 2초 유지 후 종료. 도중에 원인을 정확 인지하면(적/시체 등)
+	// personalSpottedEnemies 등 다른 경로가 다음 틱에 자연히 우선권을 가져간다.
+	private static BTStatus SoundAreaApproach(Unit unit)
+	{
+		var alert = unit.currentAlertSearch;
+		if (alert == null || !alert.IsSoundResponse || !alert.SoundHasEstimatedArea || !alert.TargetPosition.HasValue)
+			return BTStatus.Failure;
+
+		Vector2Int center = alert.TargetPosition.Value;
+		unit.currentDir = SkillAction.GetDirection8(center - unit.position);
+
+		float effectiveSpotting = unit.VisionStat.spotting + (unit.Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f);
+		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
+		if (Vector2Int.Distance(unit.position, center) > perceptionDistance)
+		{
+			AIMovementHelper.MoveTowardsPos(unit, center);
+			return BTStatus.Running;
+		}
+
+		if (!alert.SoundPerceptionRolled)
+		{
+			alert.SoundPerceptionRolled = true;
+			alert.ElapsedSeconds = 0f;
+		}
+		if (alert.ElapsedSeconds >= PropagationMath.EstimatedAreaHoldSeconds)
+		{
+			ClearSoundAlert(unit);
+			return BTStatus.Success;
+		}
+		return BTStatus.Running;
+	}
+
+	private static void ClearSoundAlert(Unit unit)
+	{
+		unit.currentAlertSearch = null;
+		if (unit is Human human) human.Propagation.PendingSound = null;
+	}
+
+	// 07-A 9장: 발견자는 제자리에서 가장 가까운 정확 인지 적을 향해 시야를 유지하고(09_전투반응 문서
+	// 부재로 "방어 계산 활성화"는 스텁), 합류자는 발견자 위치로 이동한다.
+	private static BTStatus JoinCombatWaitPerform(Unit unit)
+	{
+		if (!(unit is Human human) || human.currentJoinCombatWait == null) return BTStatus.Failure;
+		var wait = human.currentJoinCombatWait;
+
+		if (wait.IsDiscoverer)
+		{
+			if (wait.TargetEnemy != null)
+				unit.currentDir = SkillAction.GetDirection8(wait.TargetEnemy.position - unit.position);
+			return BTStatus.Running;
+		}
+
+		AIMovementHelper.MoveTowardsPos(unit, wait.RallyTarget);
 		return BTStatus.Running;
 	}
 
@@ -1008,6 +1123,8 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 
+		// 07문서 10장: 코어 조사가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
+		if (!core.Active) PropagationSystem.NotifyInteractionStarted(human);
 		core.Active = true; // UnitFunction.OnUpdate가 이 플래그를 보고 전파/진행도 타이머를 흘려보낸다.
 		if (!core.PropagationDone) return BTStatus.Running;
 		if (core.Progress01 < 1f) return BTStatus.Running;

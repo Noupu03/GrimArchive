@@ -25,4 +25,19 @@ public class AlertSearchState
 	public Dir AssignedSearchDir;
 	// PartyDeathRecord 조회용 — Party.DeathRecords의 키(시체 오브젝트 Id)를 그대로 들고 있는다.
 	public string DeathRecordCorpseId;
+
+	// 07문서 16장(2026-07-31 신규): 소리 반응으로 만들어진 경계인지 — true면 TargetPosition은 이동음의
+	// 발생 위치(방향만) 또는 추정 지역형 소리의 중심(SoundHasEstimatedArea)이다. DeathSearch와
+	// 마찬가지로 "경계"의 한 갈래로 재사용한다(같은 currentAlertSearch 슬롯 — 8-1/8-2장 접근·시야유지
+	// 흐름이 기존 AlertApproach/AlertPerimeterSearch와 사실상 동일한 모양이라 별도 상태를 새로 만들지
+	// 않았다).
+	public bool IsSoundResponse;
+	public SoundType SoundKind;
+	public bool SoundHasEstimatedArea;
+	public int SoundEstimatedAreaRadius;
+	// 8-1/8-2장: 인지 판정 1회 완료 후 2초간 시야만 유지하고 종료하는 단계인지.
+	public bool SoundPerceptionRolled;
+	// 16-3장: 피격 발생 공격음/피격 비명/사망음은 긴급 소리라 경계 상태의 이동속도 감속(75%)을 적용하지
+	// 않고 정상 이동속도로 현장을 확인한다. GameSession.ProcessUnitAction이 읽는다.
+	public bool IsUrgentSoundApproach;
 }

@@ -67,6 +67,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		lastAttacker = attacker;
 		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
+		// 07문서 14장/4-1장: 피격 발생 공격음은 피격 위치에서 항상 발생하고, 최종 HP 감소량이 최대
+		// HP의 10% 이상이면 별도로 피격 비명도 함께 발생한다(appliedDamage가 곧 TakeDamage로 이미
+		// 적용된 최종 HP 감소량이다 — TakePhysicalDamage/TakeMagicalDamage 호출 순서 참고).
+		PropagationSystem.EmitSound(Session, SoundType.HitImpact, position, currentFloor, this);
+		if (PropagationMath.IsHitScreamTriggered(appliedDamage, Health.maxHp))
+			PropagationSystem.EmitSound(Session, SoundType.HitScream, position, currentFloor, this);
+
 		if (defenderIsHuman)
 		{
 			// 02문서 17장: "피격 사실/피해량은 확정되지만 공격자 정체는 별도 인지 판정이 필요하다."
@@ -90,16 +97,25 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 			else
 			{
-				// 03문서 4-1/4-10/4-11/4-12장: 공격자 정체를 인지하지 못한 피격 — 경계 상태로 전환해
-				// 수색을 시작한다. 공격 방향까지 인지했는지는 별도 판정 공식이 없어(02문서는 "정체"만
-				// 게이팅하고 "방향"은 규정하지 않음) 인지 범위 안이면 방향도 안다고 근사한다(4-10장
-				// 방향 수색으로 이어짐, 범위 밖이면 4-11장 주변 수색). 추가 공격이 오면 수색시간을
-				// 15초로 재설정한다(4-12장) — 매번 새 레코드로 덮어써 자동으로 재설정된다.
-				bool directionKnown = Vector2.Distance(position, attacker.position) <= VisionMath.AwarenessDistance(spotting);
+				// 03문서 4-1/4-10/4-11/4-12장 + 07문서 17장(2026-07-31): 공격자 정체를 인지하지 못한
+				// 피격 — 경계 상태로 전환해 수색을 시작한다. 방향 정보는 이제 두 조건을 모두 만족해야
+				// "안다"로 취급한다 — 인지 범위 안(기존 근사) + 공격 형태가 방향을 특정할 수 있는 형태
+				// (17장: 근접=공격원 방향/투사체=진행 방향 O, 광역·지면 영역 공격은 방향 정보 없음).
+				bool inAwarenessRange = Vector2.Distance(position, attacker.position) <= VisionMath.AwarenessDistance(spotting);
+				bool shapeProvidesDirection = PropagationMath.AttackShapeProvidesDirection(attacker.CombatState.State.lastAttackShape);
+				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
 				currentAlertSearch = new AlertSearchState
 				{
 					TargetPosition = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null,
 				};
+				if (directionKnown && this is Human dirHuman)
+				{
+					dirHuman.Propagation.PendingAttackDir = new PendingAttackDirection
+					{
+						Direction = SkillAction.GetDirection8(attacker.position - position),
+						DetectedAtTime = UnityEngine.Time.time,
+					};
+				}
 			}
 		}
 		else
@@ -376,6 +392,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
 			if (IsTrackedAsSuspiciousByAnyEnemy())
 				VisionStat.suspiciousMoveBoostTimers.Enqueue(UnityEngine.Time.time + VisionMath.SuspiciousMoveBoostDurationSeconds);
+
+			// 07문서 14장: 이동 시 이동음 발생.
+			PropagationSystem.EmitSound(Session, SoundType.Movement, position, currentFloor, this);
 		}
 
 		if (this.Generate != null)
@@ -731,6 +750,19 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (playerAttackTarget != null && playerAttackTarget.Health.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
+		// 7순위: 소리 감지 — 07문서(00/02문서 표기로는 "08_전파·소리") 구현(2026-07-31)으로 연결됨.
+		// 아직 확인 행동을 시작하지 않은(또는 이미 시작된) 유효한 소리 반응 대상이 있으면 그 방향으로.
+		if (this is Human soundHuman)
+		{
+			var pendingSound = soundHuman.Propagation.PendingSound;
+			var alert = currentAlertSearch;
+			Vector2Int? soundDir = (alert != null && alert.IsSoundResponse && alert.TargetPosition.HasValue) ? alert.TargetPosition
+				: (pendingSound != null && UnityEngine.Time.time <= pendingSound.ValidUntilTime) ? pendingSound.SourcePosition
+				: (Vector2Int?)null;
+			if (soundDir.HasValue)
+				candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SoundDetected, DirectionToward(soundDir.Value)));
+		}
+
 		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
 		// 않은 타일 → 임시 위험도/흥미도 +5, "처리: 경로와 탐색 방향 판단에만 사용") + 10장 8순위 표.
 		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
@@ -976,6 +1008,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 				{
 					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
 				}
+
+				// 07문서 16장: 소리 감지·선택도 같은 0.1초 틱에 얹는다(위험/흥미 확인 타이머와 동일하게
+				// CanPerceive 게이팅을 받는다 — 기절 등 인지 불가 상태에서는 소리도 못 듣는다고 근사).
+				PropagationSystem.TickSoundPerception(human);
+				// 07문서 6장/03문서 4-13장: 사망 정보의 지속적 재전파(스냅샷이 아니라 매 틱 재확인) —
+				// 파티 규모×활성 사망기록 수만큼 비용이 늘지만 현재 게임 규모에선 무시할 만하다.
+				PartyDeathSystem.TickOngoingPropagation(human);
+				// 03문서 7-3장/07문서 6장: 리더가 아직 코어를 모르면 전파 조건을 다시 확인한다.
+				CorePartySystem.TickLeaderPropagation(human);
 			}
 			_safetyTickTimer = 0f;
 		}
@@ -999,6 +1040,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 					human.party.TryStartRally();
 			}
 		}
+
+		// 07-A 9장(2026-07-31 신규): 전투 진입 합류 대기 타이머 — currentAlertSearch와 동일하게 실제
+		// 경과 시간으로 매 프레임 흐른다.
+		if (this is Human joinWaitHuman && joinWaitHuman.currentJoinCombatWait != null)
+			PropagationSystem.TickJoinCombatWait(joinWaitHuman, deltaTime);
 
 		if (currentTrapInteraction != null)
 		{

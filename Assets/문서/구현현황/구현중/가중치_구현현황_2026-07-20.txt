@@ -79,14 +79,17 @@ weight_events.json/WeightEventTable.cs/WeightEnums.cs)를 문서 1장부터 25�
    라인에 태울 방법이 없어(시체는 죽은 유닛의 잔재라 살아있는 target Unit이 없음) 여전히 미연결—
    "흥미도 0" 부분만 이번에 풀렸다. (2026-07-20 재검증: grep으로 재확인, 여전히 호출부 0곳.)
 
-4. [설계 필요, 반복적으로 나오는 큰 블로커] 소리/전파(간접 파악 InfoType.Indirect) 시스템
-   3-1장의 INDIRECT 계열 이벤트 3종(E_HUMAN_KILL_INDIRECT, E_HIT_HEAVY_INDIRECT,
-   E_MONSTER_KILL_INDIRECT) 전부 데이터는 등록돼 있지만 발동 지점이 없다. "시야 밖에서 소리로
-   사건을 인지"하는 별도 판정 시스템이 필요해 파티/오브젝트보다 설계 범위가 크다. 6장(생존자 전역
-   반영의 5:3:2 비율), 23장(정보 오차 ±10%)이 이미 InfoType.Indirect 분기를 완비해 두고 대기
-   중이라 "발동 지점만 만들면 나머지 파이프라인은 이미 있다"는 점에서 여전히 우선순위 후보.
-   (참고: 02_인지·정보판정·실패처리 문서 24/25장도 동일하게 08_전파·소리 문서를 기다리는 중 —
-   이 시스템이 생기면 두 문서의 블로커가 동시에 풀린다.)
+4. [2026-07-31 진행됨, 마지막 배선만 남음] 소리/전파(간접 파악 InfoType.Indirect) 시스템
+   07_전파·소리·간접입력 문서가 실제로 도착해 `Assets/Script/Unit/Propagation/`에 구현됐다(자세한
+   내용은 시야인지반응_구현현황_2026-07-31.txt 참고). E_HUMAN_KILL_INDIRECT는 이미 실제 호출부가
+   생겼지만(PartyDeathSystem의 시체 조사/원인미상 수색 경로 — 07 소리와는 별개 경로), 3-1장의 나머지
+   INDIRECT 이벤트(E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT)는 07 소리 시스템이 만들어졌음에도
+   아직 발동 지점이 없다 — "소리를 감지→확인 접근→인지 판정"까지는 되는데, 그 결과가 실제 피격/처치
+   사건이었을 때 이 이벤트들을 RecordEvent로 기록하는 마지막 연결이 빠져있다(PropagationSystem.
+   SoundAreaApproach가 인지 성공 시 "무엇을 확인했는지" 판정해서 호출하는 로직 필요). 6장(생존자 전역
+   반영의 5:3:2 비율), 23장(정보 오차 ±10%), 24장(위치·상태 기록 우선순위)은 이미 InfoType.Indirect
+   분기를 완비해 두고 대기 중이라 이 마지막 배선만 하면 나머지 파이프라인은 그대로 탄다.
+   (참고: 02_인지·정보판정·실패처리 문서 24/25장도 이 07 구현으로 함께 풀렸다.)
 
 5. [더 큰 스코프] 버프/디버프/소환 시스템 — E_STATUS_SELF/SEEN은 스턴에서만 부분 작동
    (ApplySlow/Poison/Burn 호출부 없음), E_DEBUFF_*/E_BUFF_SEEN/E_SUMMON_SEEN은 대응 개념 자체가
