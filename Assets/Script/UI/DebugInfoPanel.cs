@@ -28,13 +28,15 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     private InputManager _inputManager;
     private DataManager _dataManager;
     private GameSession _gameSession;
+    private PropagationDebugVisualizer _propagationDebugVisualizer;
 
     [Inject]
-    public void Construct(InputManager inputManager, DataManager dataManager, GameSession gameSession)
+    public void Construct(InputManager inputManager, DataManager dataManager, GameSession gameSession, PropagationDebugVisualizer propagationDebugVisualizer)
     {
         _inputManager = inputManager;
         _dataManager = dataManager;
         _gameSession = gameSession;
+        _propagationDebugVisualizer = propagationDebugVisualizer;
     }
 
     public void OpenPanel()
@@ -131,6 +133,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     private void OnGUI()
     {
         DrawVisionToggle();
+        DrawPropagationToggle();
 
         if (_inputManager == null || _inputManager.selectedUnits.Count == 0) return;
 
@@ -182,6 +185,21 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         if (GUILayout.Button($"시야 표시: {(current ? "켜짐" : "꺼짐")}"))
         {
             _gameSession.unitGenerate.ShowAllVisionRanges = !current;
+        }
+        GUILayout.EndArea();
+    }
+
+    // 시야 토글 바로 아래 — 켜면 인류 전파 범위(하늘색 원)/현재 유효한 소리 이벤트(종류별 색 원, 남은
+    // 시간에 따라 투명해짐)가 표시된다(PropagationDebugVisualizer, 07 소리·전파 시스템 임시 검증용).
+    private void DrawPropagationToggle()
+    {
+        if (_propagationDebugVisualizer == null) return;
+
+        GUILayout.BeginArea(new Rect(Screen.width - 220, 55, 200, 40));
+        bool current = _propagationDebugVisualizer.Enabled;
+        if (GUILayout.Button($"소리/전파 표시: {(current ? "켜짐" : "꺼짐")}"))
+        {
+            _propagationDebugVisualizer.Enabled = !current;
         }
         GUILayout.EndArea();
     }

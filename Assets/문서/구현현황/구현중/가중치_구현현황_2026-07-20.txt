@@ -3,6 +3,10 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황 �
          (Assets/문서/공식문서/가중치 관련/ — "(1)" 개정판이 최신본)
 작성일: 2026-07-20 (이전 버전은 구현현황/지난거/가중치_구현현황_2026-07-09.txt)
 동반 문서: 같은 폴더의 `가중치_수정예정_2026-07-20.txt` — 이번 재검증에서 찾은 보류 항목 1개.
+2026-08-05 추가 반영: 아래 "다음 우선순위 구현 후보" 4번(소리/전파 INDIRECT 이벤트 연결)이 완료돼
+3-1장의 E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT가 이제 ✅발동으로 바뀌었다 — 해당 항목과
+자세한 구현 내용은 시야인지반응_구현현황_2026-08-05.txt 참고(이 문서는 큰 개편이 아니라 그 두 줄만
+직접 갱신했다).
 
 이 버전은 새 구현 라운드가 아니라 **전면 재검증**이다 — 07-09 이후 11일 동안 이 시스템의 코드
 (WeightMath.cs/HumanKnowledgeBase.cs/PersonalWeightRecord.cs/IncidentLog.cs/SpeciesWeightState.cs/
@@ -79,17 +83,17 @@ weight_events.json/WeightEventTable.cs/WeightEnums.cs)를 문서 1장부터 25�
    라인에 태울 방법이 없어(시체는 죽은 유닛의 잔재라 살아있는 target Unit이 없음) 여전히 미연결—
    "흥미도 0" 부분만 이번에 풀렸다. (2026-07-20 재검증: grep으로 재확인, 여전히 호출부 0곳.)
 
-4. [2026-07-31 진행됨, 마지막 배선만 남음] 소리/전파(간접 파악 InfoType.Indirect) 시스템
+4. [완료, 2026-08-05] 소리/전파(간접 파악 InfoType.Indirect) 시스템
    07_전파·소리·간접입력 문서가 실제로 도착해 `Assets/Script/Unit/Propagation/`에 구현됐다(자세한
-   내용은 시야인지반응_구현현황_2026-07-31.txt 참고). E_HUMAN_KILL_INDIRECT는 이미 실제 호출부가
-   생겼지만(PartyDeathSystem의 시체 조사/원인미상 수색 경로 — 07 소리와는 별개 경로), 3-1장의 나머지
-   INDIRECT 이벤트(E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT)는 07 소리 시스템이 만들어졌음에도
-   아직 발동 지점이 없다 — "소리를 감지→확인 접근→인지 판정"까지는 되는데, 그 결과가 실제 피격/처치
-   사건이었을 때 이 이벤트들을 RecordEvent로 기록하는 마지막 연결이 빠져있다(PropagationSystem.
-   SoundAreaApproach가 인지 성공 시 "무엇을 확인했는지" 판정해서 호출하는 로직 필요). 6장(생존자 전역
-   반영의 5:3:2 비율), 23장(정보 오차 ±10%), 24장(위치·상태 기록 우선순위)은 이미 InfoType.Indirect
-   분기를 완비해 두고 대기 중이라 이 마지막 배선만 하면 나머지 파이프라인은 그대로 탄다.
-   (참고: 02_인지·정보판정·실패처리 문서 24/25장도 이 07 구현으로 함께 풀렸다.)
+   내용은 시야인지반응_구현현황_2026-08-05.txt, 이전 진행분은 지난거/시야인지반응_구현현황_2026-07-31.txt
+   참고). E_HUMAN_KILL_INDIRECT는 실제 호출부가 있고(PartyDeathSystem의 시체 조사/원인미상 수색
+   경로 — 07 소리와는 별개 경로), 3-1장의 나머지 INDIRECT 이벤트도 이번에 마지막 배선까지 끝났다 —
+   E_HIT_HEAVY_INDIRECT는 PropagationSystem.TryConfirmIndirectHit(TacticalFSMState.
+   SoundAreaApproach의 인지 판정 시점에서 호출), E_MONSTER_KILL_INDIRECT는 PropagationSystem.
+   OnMonsterCorpseDiscovered(UnitFunction.CastRay의 몬스터 시체 발견 지점에서 호출, E_HUMAN_KILL_
+   INDIRECT의 시체 발견 경로와 대칭 구조)가 담당한다. 6장(생존자 전역 반영의 5:3:2 비율), 23장(정보
+   오차 ±10%), 24장(위치·상태 기록 우선순위)이 이미 완비해 둔 InfoType.Indirect 분기를 그대로 탄다.
+   (참고: 02_인지·정보판정·실패처리 문서 24/25장도 07 구현으로 함께 풀려 있었다.)
 
 5. [더 큰 스코프] 버프/디버프/소환 시스템 — E_STATUS_SELF/SEEN은 스턴에서만 부분 작동
    (ApplySlow/Poison/Burn 호출부 없음), E_DEBUFF_*/E_BUFF_SEEN/E_SUMMON_SEEN은 대응 개념 자체가
@@ -208,13 +212,20 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ✅데이터 ✅발동 E_HIT_HEAVY_SEEN(+0.05,+0.15)  — RecordHitWeightEvent→BroadcastWitnessEvent 근사.
    목격자(BroadcastWitnessEvent) 쪽은 정체 게이팅 대상이 아님(기존 근사 그대로 유지, 시야인지반응
    구현현황 문서의 "다음 우선순위 3번" 참고).
-✅데이터 ❌발동  E_HIT_HEAVY_INDIRECT(+0.025,+0.075) — 소리/전파 시스템 없음
+✅데이터 ✅발동 E_HIT_HEAVY_INDIRECT(+0.025,+0.075) — 🔵 2026-08-05: PropagationSystem.
+   TryConfirmIndirectHit(TacticalFSMState.SoundAreaApproach의 인지 판정 시점에서 호출) — 피격
+   발생 공격음/피격 비명을 듣고 접근한 인류가 공격자를 정확 인지하면 발동. 자세한 내용은
+   시야인지반응_구현현황_2026-08-05.txt 참고.
 ✅데이터 ✅발동 E_MONSTER_HIT_SELF(+0.025,0)   — 위 TakePhysicalDamage 계열과 동일 지점(이쪽은
    attacker=인류가 자기 공격 대상을 스스로 아는 경우라 게이팅 대상 아님)
 ✅데이터 ✅발동 E_MONSTER_HIT_SEEN(+0.0125,0)  — BroadcastWitnessEvent 근사
 ✅데이터 ✅발동 E_MONSTER_KILL_SELF(+1,-0.5)   — GameSession.RemoveDeadUnit→RecordKillWeightEvent
 ✅데이터 ✅발동 E_MONSTER_KILL_SEEN(+0.5,-0.25) — 동일 지점, 처치자 제외 근사
-✅데이터 ❌발동  E_MONSTER_KILL_INDIRECT(+0.25,-0.125) — 소리/전파 시스템 없음
+✅데이터 ✅발동 E_MONSTER_KILL_INDIRECT(+0.25,-0.125) — 🔵 2026-08-05: PropagationSystem.
+   OnMonsterCorpseDiscovered(UnitFunction.CastRay의 몬스터 시체 발견 지점에서 호출) — 인류에게
+   죽은 몬스터 시체를 처음 정확 인지하면 발동(야생끼리 죽인 시체는 제외). HumanKnowledgeBase.
+   RecordEventByKey 신설(target Unit 대신 스냅샷 키를 받는 경로 — 몬스터는 Destroy돼 참조를
+   못 쓰므로). 자세한 내용은 시야인지반응_구현현황_2026-08-05.txt 참고.
 ✅데이터 🔶발동 E_STATUS_SELF(+0.2,+0.4)       — UnitFunction.ApplyStun/Slow/Poison/Burn 공통
    호출(RecordStatusWeightEvent)이지만 실제 호출자는 Projectile/SkillAction의 ApplyStun뿐 —
    ApplySlow/Poison/Burn을 부르는 코드가 게임에 아직 없어 사실상 스턴에서만 발동. 🔵 07-20: 이

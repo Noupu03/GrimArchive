@@ -308,6 +308,27 @@ public class WeightSystemTests
 		Assert.AreEqual(35f, kb.GetDungeonDanger(), 0.001f); // 25 + 10
 	}
 
+	// ── E_MONSTER_KILL_INDIRECT 연결(2026-08-05): 죽은 몬스터는 Destroy돼 target Unit을 다시 못 쓰므로
+	// RecordEventByKey(스냅샷 키 직접 전달)로 우회한다 — RecordEvent(target Unit)와 동일한 개인 즉시
+	// 반영 결과(4장)가 나오는지 확인. weight_events.json: E_MONSTER_KILL_INDIRECT(understanding +0.25,
+	// danger -0.125).
+	[Test]
+	public void RecordEventByKey_AppliesSamePersonalDeltaAsRecordEvent()
+	{
+		var kb = new HumanKnowledgeBase();
+		var observer = ScriptableObject.CreateInstance<Human>();
+
+		kb.RecordEventByKey(EventId.E_MONSTER_KILL_INDIRECT, observer, "근접 탱커", false, InfoType.Indirect, "INC_KILL_1");
+
+		// danger는 -0.125지만 개인 즉시 반영값은 [0,999]로 클램프되므로(WeightMath.DangerMin=0) 0으로
+		// 관측된다 — 클램프 전 델타가 실제로 적용됐다는 신호는 클램프 영향이 없는 understanding(+0.25,
+		// [0,100] 범위 안)으로 확인한다.
+		string dangerKey = PersonalWeightRecord.MakeKey("근접 탱커", WeightType.Danger);
+		string understandingKey = PersonalWeightRecord.MakeKey("근접 탱커", WeightType.Understanding);
+		Assert.AreEqual(0f, observer.personalWeights[dangerKey].StoredValue, 0.0001f);
+		Assert.AreEqual(0.25f, observer.personalWeights[understandingKey].StoredValue, 0.0001f);
+	}
+
 	// ── 24장. 위치 및 상태 기록 충돌 처리 규칙 1: 직접 경험은 나중에 들어온 직접 목격보다 우선한다 ──
 	[Test]
 	public void MonsterSighting_DirectExperienceBeatsLaterDirectWitness()

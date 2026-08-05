@@ -67,12 +67,18 @@ public abstract class UnitFunction : Unit, IVisionContext
 		lastAttacker = attacker;
 		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
+		// E_HIT_HEAVY_INDIRECT 연결용(2026-08-05) — "인류가 몬스터에게 heavyHitThreshold 이상 맞았다"는
+		// SELF/SEEN과 동일한 판정 조건을 소리 메타데이터에도 실어 보낸다. 공격자 정체 인지 게이팅
+		// (IsAttackerIdentified, 아래)은 이 피격 당사자 기준 판정이라 간접 확인 쪽에는 적용하지 않는다 —
+		// 간접 확인은 별도 관찰자가 나중에 스스로 공격자를 인지해야 하므로(TryConfirmIndirectHit).
+		bool isHeavyHitOnHuman = defenderIsHuman && !attackerIsHuman && appliedDamage >= BaseStat.heavyHitThreshold;
+
 		// 07문서 14장/4-1장: 피격 발생 공격음은 피격 위치에서 항상 발생하고, 최종 HP 감소량이 최대
 		// HP의 10% 이상이면 별도로 피격 비명도 함께 발생한다(appliedDamage가 곧 TakeDamage로 이미
 		// 적용된 최종 HP 감소량이다 — TakePhysicalDamage/TakeMagicalDamage 호출 순서 참고).
-		PropagationSystem.EmitSound(Session, SoundType.HitImpact, position, currentFloor, this);
+		PropagationSystem.EmitSound(Session, SoundType.HitImpact, position, currentFloor, this, attacker, isHeavyHitOnHuman, incidentId);
 		if (PropagationMath.IsHitScreamTriggered(appliedDamage, Health.maxHp))
-			PropagationSystem.EmitSound(Session, SoundType.HitScream, position, currentFloor, this);
+			PropagationSystem.EmitSound(Session, SoundType.HitScream, position, currentFloor, this, attacker, isHeavyHitOnHuman, incidentId);
 
 		if (defenderIsHuman)
 		{
@@ -644,6 +650,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 									TrapPartySystem.OnTrapDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Human"))
 									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
+								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Monster"))
+									PropagationSystem.OnMonsterCorpseDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Core)
 									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
 							}
@@ -1009,9 +1017,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
 				}
 
-				// 07문서 16장: 소리 감지·선택도 같은 0.1초 틱에 얹는다(위험/흥미 확인 타이머와 동일하게
-				// CanPerceive 게이팅을 받는다 — 기절 등 인지 불가 상태에서는 소리도 못 듣는다고 근사).
-				PropagationSystem.TickSoundPerception(human);
+				// 07문서 16장: 2026-08-05 재설계로 소리 감지는 더 이상 이 틱에서 폴링하지 않는다 —
+				// PropagationSystem.EmitSound가 발생 즉시 범위 스캔+R3 통지까지 끝내므로(사용자 피드백:
+				// "소리가 5초 동안 남아있다가 나중에 감지되는" 게 아니라 "발생 순간에만 감지되는" 게
+				// 의도였음), 여기서 반복 재평가할 대상 자체가 없다.
 				// 07문서 6장/03문서 4-13장: 사망 정보의 지속적 재전파(스냅샷이 아니라 매 틱 재확인) —
 				// 파티 규모×활성 사망기록 수만큼 비용이 늘지만 현재 게임 규모에선 무시할 만하다.
 				PartyDeathSystem.TickOngoingPropagation(human);
@@ -1027,17 +1036,30 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (currentAlertSearch != null)
 		{
 			currentAlertSearch.ElapsedSeconds += deltaTime;
-			float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
-				: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
-				: ExplorationMath.UnidentifiedAttackSearchSeconds;
-			if (currentAlertSearch.ElapsedSeconds >= limit)
+			// 07-A 7-3장: "확인 행동 시작 기한은 5초 안이지만, 시작 후 5초를 넘겨도 확인 행동은 계속
+			// 수행한다" — 즉 소리 반응 접근 자체엔 시간 제한이 없다(문서에 명시). 아직 인지 판정을
+			// 안 굴린(SoundPerceptionRolled=false) 소리 반응 접근 중엔 아래 4-11장 "미식별 공격 수색
+			// 15초" 워치독을 적용하지 않는다 — 그 15초는 03문서 4-11장이 "미식별 공격 수색"(공격은
+			// 당했는데 공격자를 모르는 경우) 전용으로 정의한 값이라 소리를 듣고 접근하는 시나리오와는
+			// 무관하다(2026-08-05, 사용자 신고로 발견: 감지 범위가 멀면 도착 전에 이 워치독에 걸려
+			// 소리 반응이 조용히 취소되던 버그). 롤 이후엔 손댈 필요 없음 — SoundAreaApproach/
+			// SoundMoveReact가 롤 시점에 ElapsedSeconds를 0으로 리셋하고 2초(EstimatedAreaHoldSeconds/
+			// MoveSoundHoldSeconds) 안에 스스로 정리하므로 이 15초 워치독과 절대 겹치지 않는다.
+			bool isSoundResponseStillApproaching = currentAlertSearch.IsSoundResponse && !currentAlertSearch.SoundPerceptionRolled;
+			if (!isSoundResponseStillApproaching)
 			{
-				bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
-				currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
-				// 11장: 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작(Party.TryStartRally
-				// 자체가 다른 파티원이 아직 스윕/전투 중이면 조용히 아무 것도 안 하고 반환한다).
-				if (wasPostCombatSweep && this is Human human && human.party != null)
-					human.party.TryStartRally();
+				float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
+					: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
+					: ExplorationMath.UnidentifiedAttackSearchSeconds;
+				if (currentAlertSearch.ElapsedSeconds >= limit)
+				{
+					bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
+					currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
+					// 11장: 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작(Party.TryStartRally
+					// 자체가 다른 파티원이 아직 스윕/전투 중이면 조용히 아무 것도 안 하고 반환한다).
+					if (wasPostCombatSweep && this is Human human && human.party != null)
+						human.party.TryStartRally();
+				}
 			}
 		}
 

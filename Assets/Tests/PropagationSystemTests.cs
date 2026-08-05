@@ -173,5 +173,107 @@ public class PropagationSystemTests
 		Assert.IsTrue(PropagationMath.AttackShapeProvidesDirection(AttackShape.Projectile));
 		Assert.IsFalse(PropagationMath.AttackShapeProvidesDirection(AttackShape.AreaGround));
 	}
+
+	// ========================================================================
+	// 아래부터는 PropagationSystem(부수효과 있는 호출부) 테스트 — FSMBehaviorTests.cs와 동일 컨벤션으로
+	// ScriptableObject.CreateInstance로 실제 Human/Monster를 만들어 검증한다. Knowledge는 [Inject] private
+	// 필드라 DI 컨테이너 없이는 채워지지 않으므로, 테스트에서만 리플렉션으로 직접 주입한다.
+	// ========================================================================
+
+	private static void InjectKnowledge(Unit u, HumanKnowledgeBase kb)
+	{
+		typeof(Unit).GetField("_knowledgeBase", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+			.SetValue(u, kb);
+	}
+
+	// ── 2026-08-05 재설계: 소리는 발생 즉시(EmitSound가 범위 스캔까지 끝내고) OnSoundPerceived로
+	// 통지되고, 이 이벤트가 곧바로 PendingSound를 세팅한다 — 예전처럼 활성 소리 목록을 매 틱 다시
+	// 훑지 않는다는 걸 이벤트를 직접 발행해서 검증한다(EmitSound 자체는 GameSession/CreateMap 전체
+	// 셋업이 필요해 이 테스트 범위 밖 — 실제 플레이 검증 항목으로 남겨둠). 7-2장 우선순위 유지/교체
+	// 규칙도 함께 고정한다.
+	[Test]
+	public void OnSoundPerceived_SetsPendingSound_AndRespectsPriority()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = Vector2Int.zero;
+
+		// 낮은 우선순위(이동음, rank 5) 먼저 도착.
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			human, SoundType.Movement, new Vector2Int(1, 0), 0, null, null, false, "INC_A"));
+		Assert.AreEqual(SoundType.Movement, human.Propagation.PendingSound.Type);
+
+		// 더 급한 소리(피격 비명, rank 1) 도착 — 교체돼야 한다.
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			human, SoundType.HitScream, new Vector2Int(2, 0), 0, null, null, false, "INC_B"));
+		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
+
+		// 다시 이동음이 와도 이미 더 급한 소리가 대기 중이므로 무시돼야 한다(7-2장 "기존 유지").
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			human, SoundType.Movement, new Vector2Int(3, 0), 0, null, null, false, "INC_C"));
+		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
+	}
+
+	// ── E_HIT_HEAVY_INDIRECT 연결(2026-08-05): 인지 판정 성공 시점(TryConfirmIndirectHit)에서만 기록되고,
+	// 공격자를 아직 정확 인지하지 못한 상태에서는 기록되지 않는다.
+	[Test]
+	public void TryConfirmIndirectHit_RecordsOnlyWhenAttackerAccuratelyPerceived()
+	{
+		var kb = new HumanKnowledgeBase();
+		var observer = ScriptableObject.CreateInstance<Human>();
+		InjectKnowledge(observer, kb);
+
+		var attacker = ScriptableObject.CreateInstance<Monster>();
+		attacker.unitType = new MeleeTank();
+		attacker.hp = 10f;
+
+		var victim = ScriptableObject.CreateInstance<Human>();
+		victim.hp = 10f;
+
+		var alert = new AlertSearchState { IsSoundResponse = true, SoundKind = SoundType.HitImpact };
+		observer.Propagation.PendingSound = new PendingSoundReaction
+		{
+			IsHeavyHit = true,
+			Victim = victim,
+			Attacker = attacker,
+			IncidentId = "INC_HIT_1",
+		};
+
+		string dangerKey = PersonalWeightRecord.MakeKey("근접 탱커", WeightType.Danger);
+
+		// 아직 공격자를 정확 인지하지 못한 상태 — 기록되면 안 됨.
+		PropagationSystem.TryConfirmIndirectHit(observer, alert);
+		Assert.IsFalse(observer.personalWeights.ContainsKey(dangerKey));
+
+		// 정확 인지로 전환된 뒤에는 기록된다(weight_events.json E_HIT_HEAVY_INDIRECT danger +0.075).
+		observer.Perception.State.perceptionRecords[attacker] = new PerceptionRecord { Outcome = PerceptionOutcome.AccuratePerception };
+		PropagationSystem.TryConfirmIndirectHit(observer, alert);
+		Assert.AreEqual(0.075f, observer.personalWeights[dangerKey].StoredValue, 0.0001f);
+	}
+
+	// ── E_MONSTER_KILL_INDIRECT 연결(2026-08-05): 인류에게 죽은 몬스터 시체만 확인 대상이고, 그 외
+	// (야생끼리 등)는 발견해도 기록되지 않는다.
+	[Test]
+	public void OnMonsterCorpseDiscovered_OnlyRecordsWhenKilledByHuman()
+	{
+		var kb = new HumanKnowledgeBase();
+		var discoverer = ScriptableObject.CreateInstance<Human>();
+		InjectKnowledge(discoverer, kb);
+
+		// danger(-0.125)는 개인 즉시 반영이 [0,999]로 클램프돼(WeightMath.DangerMin=0) 기록 여부를 못
+		// 구분하므로, 클램프 영향이 없는 understanding(+0.25)으로 기록 여부를 확인한다.
+		string understandingKey = PersonalWeightRecord.MakeKey("근접 탱커", WeightType.Understanding);
+
+		var wildCorpse = new InteractableObject("corpse_wild", Vector3Int.zero, 0f, tags: new System.Collections.Generic.List<string> { "Object/Passable/Corpse", "Monster" });
+		wildCorpse.MonsterKilledByHuman = false;
+		wildCorpse.MonsterSpeciesKey = "근접 탱커";
+		PropagationSystem.OnMonsterCorpseDiscovered(discoverer, wildCorpse);
+		Assert.IsFalse(discoverer.personalWeights.ContainsKey(understandingKey));
+
+		var humanKilledCorpse = new InteractableObject("corpse_hk", Vector3Int.zero, 0f, tags: new System.Collections.Generic.List<string> { "Object/Passable/Corpse", "Monster" });
+		humanKilledCorpse.MonsterKilledByHuman = true;
+		humanKilledCorpse.MonsterSpeciesKey = "근접 탱커";
+		PropagationSystem.OnMonsterCorpseDiscovered(discoverer, humanKilledCorpse);
+		Assert.AreEqual(0.25f, discoverer.personalWeights[understandingKey].StoredValue, 0.0001f);
+	}
 }
 #endif

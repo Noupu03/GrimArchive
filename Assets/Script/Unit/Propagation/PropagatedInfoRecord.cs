@@ -31,6 +31,14 @@ public class PendingSoundReaction
 	public float DetectedAtTime;
 	public float ValidUntilTime;           // 7-3장: 발생 후 5초 — 이 시각을 넘기면 확인 행동을 새로 시작 못함
 	public bool ResponseStarted;           // AlertSearchState로 승격돼 확인 행동을 이미 시작했는지
+
+	// 가중치 시스템 E_HIT_HEAVY_INDIRECT 연결용(2026-08-05, 구현현황 문서 "다음 우선순위 1번") — 소리가
+	// 피격 발생 공격음/피격 비명이고 실제로 몬스터가 인류에게 heavyHitThreshold 이상 피해를 준 경우에만
+	// 채워진다. 확인 행동이 인지 판정에 성공한 순간(SoundAreaApproach) 이 정보로 간접 이벤트를 기록한다.
+	public Unit Victim;
+	public Unit Attacker;
+	public bool IsHeavyHit;
+	public string IncidentId; // 원본 RecordHitWeightEvent가 발급한 값 그대로(6장 전역 반영 그룹화 공유)
 }
 
 // 17장: 공격자를 정확 인지하지 못했지만 공격 형태로 방향은 아는 경우의 마지막 공격 방향 정보.

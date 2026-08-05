@@ -42,6 +42,16 @@ public class InteractableObject
     // GameSession.parties에서 원본 파티를 찾아 Party.DeathRecords[Id]를 조회/갱신한다.
     public string OwnerPartyId;
 
+    // E_MONSTER_KILL_INDIRECT 연결용(2026-08-05) — 몬스터 시체(Tags에 "Monster" 포함)일 때만 사용.
+    // 몬스터는 Destroy된 뒤라 Unit 참조로 종/개체 키를 다시 조회할 수 없으므로, GameSession.RemoveDeadUnit이
+    // Destroy 전에 HumanKnowledgeBase.ResolveTargetKey와 동일한 규칙(개체=isSpecialUnit ? name : unitType.
+    // typeName)으로 스냅샷해 둔다. MonsterKilledByHuman이 false면(야생 개체끼리 등) 이 시체는 간접 확인
+    // 대상이 아니다 — E_MONSTER_KILL_SELF/SEEN과 동일하게 "인류가 처치"한 경우만 다룬다.
+    public bool MonsterKilledByHuman;
+    public string MonsterSpeciesKey;
+    public bool MonsterIsSpecialUnit;
+    public string MonsterIndividualKey;
+
     // 03문서 9장(함정 대응): Trap 태그("Object/Building/Passable/Trap" — 오브젝트→건축물→지나갈 수
     // 있는 건축물, 2026-07-22 사용자 지정 계층)일 때만 의미가 있다(그 외 태그는 전부 0). 9-9장
     // "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.

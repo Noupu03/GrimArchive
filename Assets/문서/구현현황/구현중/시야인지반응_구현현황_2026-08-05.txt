@@ -1,0 +1,324 @@
+GrimArchive 시야-인지-반응 시스템 구현 현황 — 2026-08-05 (07문서 "다음 우선순위 1번"
+E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT 실제 연결 + 임시 디버그 시각화 추가 반영.
+이전 버전은 구현현황/지난거/시야인지반응_구현현황_2026-07-31.txt.)
+기준 문서: Assets/문서/공식문서/시야인지반응/
+  00_시야-인지-반응_상위구조_Current.docx.md          (v0.7, 상위 구조 — 구현 대상 아님)
+  01_시야·인지범위·가시성_개념_Current.docx.md        (v0.2, 개념)
+  01-A_시야·인지범위·가시성_연산공식_Current.docx.md  (v0.2, 연산공식 — 구현 대상)
+  02_인지·정보판정·실패처리_시스템_v0.2.docx.md        (v0.2, 개념+연산공식 통합 — 구현 대상)
+  07_전파·소리·간접입력_개념_v0.2.docx.md              (v0.2, 개념)
+  07_A_전파·소리·간접입력_연산공식_v0.2.docx.md        (v0.2, 연산공식)
+작성일: 2026-08-05
+
+문서 번호 참고: 00_상위구조/02문서는 이 시스템을 "08_전파·소리"로 표기하지만 실제 폴더 파일명은
+"07_..."이다(리네이밍 드리프트로 추정 — 두 표기가 가리키는 대상은 동일하다).
+
+태그
+  ✅ 구현       — 공식/수치가 코드에 정확히 있고, 실제 게임 루프에서 자동 발동.
+  🔶 부분/근사  — 동작은 하지만 문서 세부 규칙 일부를 단순화했거나 근사치로 대체.
+  ❌ 미구현     — 대응 게임 시스템 자체가 없어 후보/공식을 만들 수조차 없음.
+
+════════════════════════════════════════════════════════════════════════
+■ 이번 반영 내역 (2026-08-05)
+════════════════════════════════════════════════════════════════════════
+사용자가 07-31 구현현황 문서의 "다음 우선순위 1번"(가중치 구현현황 문서의 "다음 우선순위 4번"과
+동일 작업)을 진행해 달라고 요청했다 — 07 소리 시스템 자체는 이미 완성돼 있었지만, "소리로 접근해서
+확인한 결과가 실제 피격/처치 사건이었다"를 대표 가중치 시스템의 INDIRECT 이벤트로 기록하는 마지막
+배선이 빠져 있었다. 이번에 그 배선 두 개를 마무리했고, 검증을 돕기 위한 임시 디버그 시각화도
+함께 추가했다.
+
+1. E_HIT_HEAVY_INDIRECT 연결 — "몬스터가 인류에게 heavyHitThreshold 이상 피해를 준" 사건을 다른
+   인류가 소리로 접근해 공격자를 정확 인지하면 기록한다.
+   - PropagationSystem.SoundEvent(private)에 Attacker/IsHeavyHit/IncidentId 필드 추가. EmitSound에
+     동명 선택적 매개변수 추가(다른 소리 종류는 기본값 그대로 넘기면 영향 없음).
+   - UnitFunction.RecordHitWeightEvent가 "인류 피해자 + 몬스터 공격자 + appliedDamage ≥
+     heavyHitThreshold"를 판정해 HitImpact/HitScream 소리에 이 메타데이터를 실어 보낸다. 공격자
+     정체 인지 게이팅(IsAttackerIdentified)은 피해 당사자 기준 판정이라 이 메타데이터에는 적용하지
+     않는다 — 간접 확인은 전혀 다른 관찰자가 나중에 스스로 공격자를 인지해야 하는 별개 판정이기
+     때문(TryConfirmIndirectHit).
+   - PendingSoundReaction에 Victim/Attacker/IsHeavyHit/IncidentId 추가 — TickSoundPerception이 소리를
+     PendingSound로 승격시킬 때 그대로 복사한다.
+   - PropagationSystem.IsAccuratelyPerceived(observer, target) 신설 — UnitFunction.IsCurrentlyIdentified와
+     동일 패턴(재판정 없이 perceptionRecords 조회만).
+   - PropagationSystem.TryConfirmIndirectHit(human, alert) 신설 — TacticalFSMState.SoundAreaApproach의
+     인지 판정 1회 시점(SoundPerceptionRolled이 false→true로 바뀌는 바로 그 지점)에서 호출한다. 소리
+     종류가 HitImpact/HitScream이고, PendingSound에 IsHeavyHit 메타데이터가 있고, 피해자·공격자가 둘 다
+     그 시점까지 생존해 있고, 관찰자가 공격자를 정확 인지했을 때만 HumanKnowledgeBase.RecordEvent를
+     호출한다. incidentId는 원본 RecordHitWeightEvent가 발급한 값을 그대로 재사용해 SELF/SEEN/INDIRECT가
+     같은 사건으로 묶이게 했다(6장 전역 반영 그룹화가 이 값을 키로 쓴다).
+   ✅ 07문서 18장(후속 시스템 연결 표)의 이 항목이 이제 스텁이 아니라 실제 발동.
+
+2. E_MONSTER_KILL_INDIRECT 연결 — 인류에게 죽은 몬스터의 시체를 (소리로 접근했든 우연히 지나가다
+   봤든) 처음 정확 인지하면 기록한다. E_HUMAN_KILL_INDIRECT가 이미 쓰고 있던 것과 동일한 경로
+   (PartyDeathSystem.OnCorpseDiscovered와 대칭 — "07 소리와는 별개의, 시체 발견 자체가 트리거인 경로")를
+   몬스터 시체에도 그대로 만들었다.
+   - InteractableObject에 MonsterKilledByHuman/MonsterSpeciesKey/MonsterIsSpecialUnit/
+     MonsterIndividualKey 필드 추가 — 몬스터는 죽으면 Object.Destroy되어 나중에 Unit 참조로 종/개체
+     키를 다시 조회할 수 없으므로(특히 target.name처럼 Unity 네이티브 프로퍼티는 Destroy 이후 접근이
+     안전하지 않다), GameSession.RemoveDeadUnit이 Destroy 전(시체 InteractableObject 생성 시점)에
+     HumanKnowledgeBase.ResolveTargetKey와 동일한 규칙으로 스냅샷해 둔다. u.lastAttacker가 Human일
+     때만(E_MONSTER_KILL_SELF/SEEN과 동일 조건 — "인류가 처치") MonsterKilledByHuman=true.
+   - HumanKnowledgeBase.RecordEventByKey(id, observer, targetKey, isIndividualTarget, infoType,
+     incidentId) 신설 — target: Unit이 아니라 스냅샷 키를 직접 받는 경로. 기존 RecordEvent(target: Unit)는
+     이제 ResolveTargetKey(target)을 얹어 이 메서드를 호출하는 얇은 래퍼로 리팩터링됐다(동작 동일,
+     회귀 없음 — WeightSystemTests.cs에 새 테스트로 고정).
+   - UnitFunction.CastRay의 기존 오브젝트 발견 파이프라인에 `objKind == Corpse && Tags.Contains
+     ("Monster")` 분기 추가(Corpse+Human 분기 바로 아래, 완전히 동일한 firstTouch/AccuratePerception
+     게이팅) → PropagationSystem.OnMonsterCorpseDiscovered(discoverer, corpse) 호출.
+   - PropagationSystem.OnMonsterCorpseDiscovered — MonsterKilledByHuman이 아니면(야생끼리 등) 조용히
+     무시, 맞으면 RecordEventByKey로 기록. incidentId는 corpse.Id를 그대로 써서, 같은 시체를 나중에
+     다른 인류가 또 발견해도 같은 사건으로 그룹화된다.
+   ✅ 07문서 18장 이 항목도 이제 스텁이 아니라 실제 발동.
+
+3. [임시, 검증 보조 — 이후 4/5번에서 계속 수정됨] PropagationDebugVisualizer 신설 — ThreatTileRenderer와
+   동일 컨벤션(GameObject 불필요한 순수 C# 클래스, GameSession이 매 프레임 Render(units) 호출,
+   GameCompositionRoot에 Singleton 등록)으로 씬에 두 가지를 그린다: (1) 살아있는 인류마다 현재 전파
+   범위(6장, 카리스마 기반)를 옅은 하늘색 원으로, (2) 소리 발생 위치에 소리 종류별 색 원. 최초 버전은
+   반경이 남은 유효시간에 비례해 줄어드는 연출이었으나, 아래 4/5번에서 사용자 피드백으로 두 차례 더
+   수정됐다 — 이 문서에서 "지금 실제로 어떻게 동작하는지"는 4/5번 항목을 봐야 정확하다.
+
+4. [사용자 피드백 반영] 소리 시각화 반경 표현 수정 — "실제 소리 감지 범위가 시간이 지나며 줄어드는
+   건 아니잖아, 반경이 줄어드는 연출은 오해를 준다"는 지적을 받아, 반경은 PropagationMath.
+   SoundBaseRange(소리 종류별 고정값)로 그대로 두고 남은 시간은 투명도로만 표현하도록 고쳤다(반경
+   고정 + 알파 페이드아웃).
+
+5. [사용자 피드백으로 아키텍처 자체를 재설계 — 이번 반영 중 가장 큰 항목] 소리 시스템을 폴링에서
+   이벤트 기반(R3+UniTask)으로 전환.
+   배경: 위 4번 수정 과정에서 사용자가 "소리 유효시간 5초가 원래 이렇게 긴가?"라고 물어 07-A 7-3장
+   ("일반 소리 유효시간: 발생 후 5초")을 확인시켜줬는데, 이어서 사용자가 이 5초의 실제 의도를
+   정정했다 — "5초는 유닛이 소리를 감지했을 때 그 인지반응이 유효한 시간이지, 소리 자체가 5초 동안
+   계속 발생 중이라는 뜻이 아니다." 그런데 기존 구현(EmitSound가 SoundEvent를 5초짜리 _activeSounds
+   목록에 넣고, 모든 인류가 UnitFunction.OnUpdate의 0.1초 틱마다 TickSoundPerception으로 그 목록
+   전체를 훑는 폴링 방식)은 정확히 그 반대로 동작하고 있었다 — 소리가 5초 동안 "월드에 남아있어서"
+   그 사이 범위 안으로 뒤늦게 걸어 들어온 유닛도 주워들을 수 있었다. 사용자는 이걸 기획 관점에서도
+   최적화 관점에서도(모든 인류가 상시 폴링) 문제로 판단해 다음 방향으로 전환을 지시했다: "범위
+   스캔 후 R3 이벤트를 터뜨려 인지반응을 위한 5초를 UniTask 등으로 발동시키는 것."
+   구현 (PropagationSystem.cs 대폭 재작성):
+   - EmitSound(session, type, position, floorIndex, source, attacker, isHeavyHit, incidentId)가
+     호출된 그 자리에서 즉시 session.units를 순회하며 범위 스캔을 끝낸다(같은 층/같은 공간(roomId)/
+     CanPerceive/IsSoundUnresponsive/이동음 자기·아군 제외/SoundDetectionRange 이내 — 기존
+     TickSoundPerception이 각 인류 관점에서 하던 조건 판정을 그대로, 다만 "소리쪽에서 한 번에" 수행).
+   - 조건을 만족하는 인류마다 PropagationSystem.OnSoundPerceived(R3 Subject<SoundPerceivedEvent>)로
+     1회 통지한다. 이 Subject는 public으로 열려 있어 디버그 시각화 등 다른 구독자도 자유롭게 붙을 수
+     있다 — 핵심 게임 로직(PendingSound 갱신)은 static 생성자에서 스스로 구독해 항상 보장된다.
+   - private HandleSoundPerceived(SoundPerceivedEvent)가 실제 PendingSound 갱신을 담당 — 우선순위/
+     거리 비교로 "기존 유지할지 교체할지" 판단하는 로직(7-2장)은 예전 TickSoundPerception 안에 있던
+     것을 그대로 옮겼다(동작 동일, 트리거 방식만 바뀜 — 같은 공격에서 공격 실행음→피격 발생 공격음→
+     비명이 연속 EmitSound 호출로 이어져도 R3 Subject.OnNext가 동기 호출이라 매번 "그 시점의
+     PendingSound"와 비교되므로 최종적으로 가장 급한 소리가 남는다, 예전과 동일한 결과 보장).
+   - 5초 유예시간은 ExpireAfterDelay(async UniTaskVoid)가 담당 — UniTask.Delay(5초) 후 그 reaction이
+     여전히 PendingSound에 남아있고 ResponseStarted가 안 됐으면 null로 비운다. 기존에도
+     TryPromotePendingSoundToAlert 안에 "Time.time > ValidUntilTime이면 정리"하는 지연 체크가 있어
+     사실 완전히 새 보장이 필요한 건 아니었지만(그 체크가 TacticalFSMState.HasAlert를 통해 매 틱
+     계속 호출되므로 결과적으로 비슷하게 정리됨), 그 정리가 "다른 시스템이 우연히 그 체크 지점을
+     다시 지나가는지"에 기대는 구조라 사용자 요청대로 감지 시점 자체를 기준으로 하는 명시적 타이머로
+     교체해 더 견고하게 만들었다.
+   - UnitFunction.OnUpdate에서 PropagationSystem.TickSoundPerception(human) 호출 삭제 — 이제 그
+     자리에서 반복 재평가할 대상 자체가 없다(감지는 EmitSound 시점에 끝남).
+   - PropagationDebugVisualizer도 함께 재작성 — DebugGetActiveSounds()(활성 소리 목록 조회)가
+     사라졌으므로, 대신 OnSoundPerceived를 구독해 "방금 감지된 소리"를 받을 때마다 그 위치에 짧은
+     플래시(DebugFlashSeconds=1.2초, 07-A 7-3장의 5초 유예시간과는 무관한 순수 시각화용 임의값)를
+     기록해뒀다가 그 시간 동안만 표시하고 지운다. 같은 소리를 여러 인류가 동시에 감지하면 관찰자별로
+     이벤트가 여러 번 오므로 같은 위치에 원이 겹쳐 그려질 수 있는데(중복 제거 안 함), 임시 시각화라
+     정확한 집계보다 "여기서 방금 무슨 소리가 났는지"가 한눈에 보이는 걸 우선했다.
+   범위 스캔 방식 자체에 대한 자문: 사용자가 "좌표계를 통한 수학적 계산이 유리한지 다른 방식이
+   나은지" 조언을 요청해, 다음과 같이 답하고 우선 기존 방식(session.units 전체 순회 + Euclidean
+   거리)을 그대로 유지했다 — 결정된 사안이 아니라 자문으로 남긴 것이라 코드는 바꾸지 않음:
+     * 지금 게임 규모(웨이브당 인류 소수, 활성 소리도 순간적으로 몇 개뿐)에서는 이 정도 전체 순회
+       비용이 무시할 만하다.
+     * 좌표 수학(거리 계산) 자체는 어느 방식을 쓰든 최종 판정에 필요하다 — 공간 분할/인덱싱은
+       "스캔 후보를 줄이는" 역할이지 거리 계산 자체를 대체하지 않는다.
+     * 유닛 수가 늘어나 스캔 비용이 문제가 되면, CreateMap이 이미 갖고 있는 roomId를 키로 하는
+       "방별 인류 후보 인덱스"(Dictionary<int, List<Human>>, 유닛이 방을 옮길 때 갱신)를 추가해
+       EmitSound가 그 소리가 발생한 방(과 필요시 인접 통로)에 있는 인류만 순회하도록 좁히는 게
+       다음 단계로 자연스럽다 — GameSession이 이미 방/유닛 위치를 추적하는 인프라(roomGrid,
+       RegisterUnitPos 등)가 있어 그 위에 얹기 쉽다. 쿼드트리/공간 해시 같은 범용 공간 분할은 지금
+       규모(작은 웨이브 단위 던전, 유닛 수 적음)에는 과한 최적화로 판단해 추천하지 않았다.
+   테스트: PropagationSystemTests.cs에 OnSoundPerceived_SetsPendingSound_AndRespectsPriority 신규 —
+   이벤트를 직접 발행해 PendingSound가 세팅되는지, 우선순위 낮은 소리가 기존 소리를 못 덮어쓰는지,
+   더 급한 소리는 덮어쓰는지 고정. EmitSound 자체의 범위 스캔은 GameSession/CreateMap 전체 셋업이
+   필요해 이 테스트 범위 밖 — 실제 플레이 검증 항목으로 아래에 남긴다.
+
+6. [사용자 요청] DebugInfoPanel에 "소리/전파 표시" 토글 추가 — 기존 "시야 표시" 토글
+   (UnitGenerate.ShowAllVisionRanges, DebugInfoPanel.DrawVisionToggle)과 완전히 동일한 컨벤션으로
+   우측 상단에 버튼을 하나 더 그린다(그 바로 아래, Rect(Screen.width-220, 55, 200, 40)). 기본값은
+   꺼짐 — PropagationDebugVisualizer.Enabled를 토글한다.
+
+7. [버그 수정] 버튼을 켜도 원이 전혀 안 보인다는 신고 — 렌더러를 LineRenderer에서 SpriteRenderer로
+   교체. 최초 구현은 LineRenderer + `new Material(Shader.Find("Sprites/Default"))`로 원을 그렸는데,
+   이 프로젝트가 URP를 쓰고 있어(ProjectSettings/GraphicsSettings.asset 확인) 그렇게 즉석으로 만든
+   머티리얼이 정상 렌더링된다는 보장이 없었다(실제로 안 보였음 — 검증된 적 없는 경로였다). 대신
+   ThreatTileRenderer가 이미 증명한 방식(SpriteRenderer + 스프라이트, 머티리얼을 직접 안 건드리고
+   SpriteRenderer 기본 스프라이트 머티리얼에 맡김)을 그대로 따라, 원형 링 텍스처를 코드로 한 번
+   절차적으로 생성(Texture2D 픽셀 채우기 → Sprite.Create, 128px, 링 두께 outerR 0.95~innerR 0.75로
+   충분히 두껍게)해 재사용하는 방식으로 교체했다. transform.localScale로 반지름을 조절한다(스프라이트
+   자체는 로컬 반지름 1로 만들어 scale=반지름 매핑을 단순하게 유지). 사망음 색도 검정(어두운 바닥
+   위에서 안 보일 수 있음)에서 흰색으로 바꿨다.
+
+════════════════════════════════════════════════════════════════════════
+■ 07문서 장별 구현 현황 (07-31 대비 변경분만 — 나머지는 지난거/시야인지반응_구현현황_2026-07-31.txt
+  그대로 유효)
+════════════════════════════════════════════════════════════════════════
+✅ 18장(후속 시스템 연결 표) — E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT 두 항목이 위 "이번 반영
+   내역" 1/2번으로 실제 발동한다. 남은 미연결 항목(합류 5초 초과 처리/코어 물리적 전파/10장 상호작용
+   인스턴스 구분/전투 중 소리 새 타겟 탐색/함정 수치/몬스터 무리형 전파)은 07-31본과 동일하게 아직
+   후속 문서(08/09/06/함정) 부재로 스텁.
+
+════════════════════════════════════════════════════════════════════════
+■ 검증 상태
+════════════════════════════════════════════════════════════════════════
+- 컴파일: `dotnet build Assembly-CSharp.csproj`로 전체 빌드 성공 확인(오류 0, 기존 경고 39개와 동일 —
+  4/5/6번(소리 재설계+시각화 수정+UI 토글) 포함해서 새로 생긴 경고 없음). Assembly-CSharp.csproj는
+  gitignore 대상이라 이번에 추가한 PropagationDebugVisualizer.cs의 Compile 항목은 지금은 수동으로
+  넣어뒀고, Unity가 다음에 프로젝트를 열 때 재생성되며 자동으로 유지된다.
+- 테스트: WeightSystemTests.cs에 RecordEventByKey_AppliesSamePersonalDeltaAsRecordEvent 1개,
+  PropagationSystemTests.cs에 TryConfirmIndirectHit_RecordsOnlyWhenAttackerAccuratelyPerceived +
+  OnMonsterCorpseDiscovered_OnlyRecordsWhenKilledByHuman + OnSoundPerceived_SetsPendingSound_
+  AndRespectsPriority(5번 재설계 검증 — 이벤트 직접 발행으로 PendingSound 세팅/우선순위 유지·교체
+  확인) 3개, 총 4개 신규 — 전부 dotnet build로 컴파일 확인 + 손으로 재계산해 기대값과 대조. 기존
+  07/07-A 테스트(20여 개)와 마찬가지로 Unity Test Runner로 실제 실행은 아직 안 했다(에디터 필요) —
+  다음 세션 최우선 확인 대상 항목에 이번 신규 4개도 포함.
+- 실제 플레이 검증: 전무 — 07-31본이 남긴 4개 항목(합류 대기/소리 반응/보호 포메이션 참여/코어·함정·
+  사망 정보 공유 지연 전달) 그대로 유효하고, 이번에 추가로 확인이 필요한 항목:
+  5. E_HIT_HEAVY_INDIRECT — 몬스터에게 얻어맞는 소리를 다른 인류가 듣고 접근해 공격자를 정확
+     인지했을 때 실제로 위험도/이해도가 오르는지, 공격자를 못 알아본 채로 확인 시간이 끝나면
+     (EstimatedAreaHoldSeconds 경과) 기록 없이 조용히 종료되는지.
+  6. E_MONSTER_KILL_INDIRECT — 인류가 처치한 몬스터 시체를 나중에 다른 인류가 발견하면 이해도가
+     오르고 위험도가 완화되는지, 야생 몬스터끼리 죽인 시체는 발견해도 아무 반응이 없는지.
+  7. [5번 재설계로 성격이 바뀐 항목] 소리 감지 — 예전엔 "범위 안에 들어오면 나중에라도 반응하는지"가
+     확인 대상이었는데, 이제는 반대로 "소리가 발생한 그 순간 범위 밖에 있던 인류가 나중에 그 자리로
+     들어와도 반응하지 않는지"(의도된 동작), 그리고 "발생 순간 범위 안에 있던 인류는 즉시 반응하고
+     ExpireAfterDelay로 5초 뒤 정확히 정리되는지(다른 더 급한 소리로 안 바뀐 채 5초가 지나면
+     PendingSound가 비는지)"가 확인 대상이다.
+  8. PropagationDebugVisualizer(임시, DebugInfoPanel "소리/전파 표시" 토글로 켬) — 전파 범위 원이
+     실제로 씬에 그려지는지, 소리를 실제로 감지한 순간에만 짧게(1.2초) 플래시가 뜨는지(예전처럼
+     5초씩 오래 안 남는지), 다층 구조 던전에서 현재 보고 있는 층이 아닌 다른 층의 소리도 같이
+     그려져 혼동을 줄 수 있다는 한계(임시 시각화라 층 필터링은 넣지 않았음)를 사용자가 인지하고
+     있는지.
+  9. 방별 인류 후보 인덱스(9번) — 방을 옮겨도(계단/워프 포함) 그 인류가 새 방에서 소리를 정상적으로
+     듣는지(인덱스 갱신 누락으로 "투명 인간"이 되지 않는지), 죽은 인류가 인덱스에서 실제로 빠지는지
+     (메모리 누수·유령 감지 방지), 파티 여러 개가 서로 다른 방에서 동시에 활동할 때 다른 방의 소리에
+     반응하지 않는지(공간 판정 자체는 원래도 있었지만 인덱스가 그 경계를 흐트러뜨리지 않는지 재확인).
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 구현 후보 (2026-08-05, 07-31본에서 1번이 완료돼 빠지고 번호가 당겨짐)
+════════════════════════════════════════════════════════════════════════
+1. [작음] 07-A 11장 "실제 합류 최대 대기 5초 초과 후 행동" — 09_목표·이동경로 문서 부재로 지금은
+   안전한 기본값(단독 전투 시작)으로 스텁. 09문서가 생기면 재검토.
+2. [작음] 코어 발견 물리적 전파(발견자→리더 실제 이동) — 09문서 부재로 TickLeaderPropagation의
+   "우연히 범위 안에 들어오면 전달" 근사로 대체 중.
+3. [작음] 10장 NotifiedActiveInteractions의 상호작용 인스턴스 구분 — 지금은 유닛 단위 영구 기록이라
+   드물게 오래된 전파 기록으로 잘못 참여자격을 얻는 경우가 있을 수 있음.
+4. [큼, 문서 부재로 보류] 06_전투반응·기습 문서가 생기면: 16-5장 "전투 중 소리를 새 타겟 탐색 입력으로
+   사용" 연결(전투 타겟 변경 시스템 자체가 없어 현재 스텁), 15장 반응 후보 실제 선택 로직.
+5. [큼, 문서 부재로 보류] 08/09문서가 생기면: 7-3장 전투 합류 시 정보 전달, 09-A 11장 5초 초과 처리,
+   09장 정식 파티 통신 체계로 지금의 즉석 판정(StartJoinCombatWait 등)을 대체.
+6. [큼, 문서 부재로 보류] 함정 시스템 문서가 생기면: 함정 피해 인원수·단계별 위험도 증가량, 함정
+   발동 흔적 이해도 상승량(1회/최대) — 07-A 11장이 "미정"으로 명시. 함정작동음 소리 이벤트 자체는
+   이미 발생하므로, 값만 정해지면 바로 연결 가능.
+7. [작음] 몬스터 무리형 전파/재전파, 몬스터 소리 감지 실제 행동 반응 — 대응 "역할군 AI" 시스템 부재로
+   스텁(PropagationMath.SoundDetectionRange(isMonster:true)는 값만 준비됨).
+8. [정리, 급하지 않음] PropagationDebugVisualizer(임시 시각화) — 위 "실제 플레이 검증" 항목 5/6번
+   확인이 끝나면 필요 없어지는 코드다. 계속 유지할지, 검증 후 지울지 사용자 판단 필요(파일 자체가
+   "임시" 용도임을 주석에 명시해 뒀으니 판단 근거는 남아있음).
+9. [완료, 2026-08-05] EmitSound 범위 스캔 최적화 — 사용자가 자문(9번 원안) 내용을 그대로 적용하기로
+   결정해 구현까지 끝났다. PropagationSystem에 (Floor, RoomId) 튜플을 키로 하는
+   Dictionary<(int,int), HashSet<Human>> _humansByRoom + 역방향 Dictionary<Human,(int,int)>
+   _humanRoomKey를 추가(UpdateHumanRoomIndex/RemoveFromRoomIndex). roomId는 층마다 번호가 재사용될
+   수 있어(CreateMap.GetRoomOccupationState가 floorIndex를 항상 별도로 요구하는 것과 동일 이유)
+   튜플 키를 썼다. 유지보수는 새 폴링을 만들지 않고 기존 유닛 그리드 관리 지점(GameSession.
+   RegisterUnitPos/UnregisterUnitPos — 스폰/이동/사망 시 이미 호출되는 곳, WaveSpawner/
+   HumanWaveManager/NavigationFSMState/DebugInputHandler 등 모든 인류 스폰·이동·제거 경로가 이
+   두 래퍼를 거치는 걸 grep으로 확인)에 얹었다. EmitSound는 이제 session.units 전체 대신
+   _humansByRoom[(floorIndex, roomId)]만 순회한다(최종 거리 판정은 자문대로 여전히 Vector2Int.
+   Distance 좌표 수학 — 공간 분할은 후보를 줄이는 역할이지 거리 계산을 대체하지 않는다는 원칙 유지).
+   순회 중 인덱스 변경 가능성에 대비해 재사용 버퍼(_scanBuffer)로 스냅샷 후 순회. 테스트: 이 인덱스
+   내부 상태를 직접 조회하는 public API가 없어(private 필드) 전용 단위 테스트는 추가하지 않았다 —
+   EmitSound 자체가 GameSession 풀 셋업이 필요해 애초에 플레이 검증 항목이었던 것과 동일 사유,
+   아래 "실제 플레이 검증"에 추가.
+
+════════════════════════════════════════════════════════════════════════
+■ 사용자 확인이 필요했던 판단
+════════════════════════════════════════════════════════════════════════
+- 이번 작업(E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT 연결)은 CLAUDE.md 관례상 확인이 필요할 수
+  있는 설계 결정 두 개를 포함했지만, 둘 다 기존 코드베이스의 이미 확립된 전례를 그대로 따르는
+  선택이라 별도로 묻지 않고 진행했다 — 판단 근거만 남긴다.
+  1. "간접 확인 시점을 언제로 볼 것인가" — 07-A 8-2장 원문이 "인지 판정 1회, 원인을 정확 인지하면
+     다른 경로가 우선권을 가져간다"고만 말하고 세부 로직은 안 준다. E_HUMAN_KILL_INDIRECT가 이미
+     "시체 발견(오브젝트 인지 파이프라인)"을 트리거로 쓰고 있던 전례를 그대로 따라 E_MONSTER_KILL_
+     INDIRECT도 동일 경로(Corpse 발견)로, E_HIT_HEAVY_INDIRECT는 대응할 영속 오브젝트가 없어(피격은
+     시체를 안 남긴다) SoundAreaApproach의 인지 판정 시점을 직접 훅했다.
+  2. "죽은 몬스터의 종/개체 키를 어떻게 안전하게 들고 있을 것인가" — PartyDeathRecord가 이미
+     "Destroy될 대상의 정보는 스냅샷으로 미리 떠 둔다"는 패턴을 쓰고 있어(DeadUnitName 등 문자열
+     필드) 그대로 InteractableObject에 스냅샷 필드를 추가하는 동일 패턴을 적용했다.
+
+- 위 4/5/6번(소리 시각화 반경 수정 → 소리 시스템 이벤트 기반 재설계 → UI 토글)은 전부 사용자가 직접
+  구체적으로 지시한 방향이라 확인 절차 없이 그대로 구현했다 — 다만 5번 안에서 "범위 스캔 방식 자체"는
+  사용자가 명시적으로 "아직 고려 안 함, 조언해달라"고 선을 그은 별개 사안이라, 코드는 바꾸지 않고
+  자문만 제공했다(위 "다음 우선순위" 9번에 자문 내용 기록). 사용자가 방별 인덱스 적용을 원하면
+  그때 실제로 구현하면 된다.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-05 추가 수정 8번 (같은 날 두 번째 버그 수정)
+════════════════════════════════════════════════════════════════════════
+소리 플래시가 "한 프레임만에 사라지는 것 아니냐"는 사용자 지적으로 재점검해 실제 버그를 하나 더
+찾았다 — RenderActiveSounds가 원을 "_recentSounds 리스트의 인덱스 위치"로 재사용 풀에 배정하고
+있었다. 프레임마다 오래된 플래시가 만료되고 새 플래시가 추가되며 리스트 구성이 바뀌면, 같은 풀
+슬롯(GameObject)이 순간적으로 다른 플래시의 위치·색으로 재배정될 수 있었다(원이 있어야 할 자리에서
+사라지거나 다른 곳으로 튀는 것처럼 보이는 원인). 각 플래시가 발생 즉시(구독 콜백에서) 자기 전용
+GameObject를 만들어 만료될 때까지 그대로 들고 있다가 Destroy하는 방식으로 교체해 이 재배정 자체를
+없앴다 — 풀링 로직(_soundVisualPool)도 함께 제거. dotnet build로 컴파일 확인 완료(오류 0).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-05 추가 수정 9번 (임시 진단 로그 제거 + 시각화 트리거 변경)
+════════════════════════════════════════════════════════════════════════
+직전(8번)에 넣었던 [SoundDebug] 임시 진단 로그(EnableSoundDebugLog/DebugLogSound)는 사용자 요청으로
+전부 제거했다. 대신 사용자가 원한 건 "감지 성공 여부와 무관하게, 몬스터가 소리를 내는 범위 자체가
+보이는 시각화"였다 — 기존 PropagationDebugVisualizer는 OnSoundPerceived(누군가 실제로 감지에
+성공했을 때만 발동)를 구독하고 있어서, 범위 밖이거나 이미 다른 걸 보고 있어서 감지가 안 되면 원 자체가
+안 떴다(이게 "몬스터 이동음이 안 보임" 신고의 실제 원인이었을 가능성이 큼 — IsSoundUnresponsive/거리
+등으로 거를 때마다 조용히 아무 것도 안 그려짐).
+
+PropagationSystem에 새 이벤트 OnSoundEmitted(SoundEmittedEvent: Type/Position/FloorIndex/
+RangeTiles) 신설 — EmitSound가 room/candidate 스캔 결과와 무관하게 매번 무조건 1회 발행한다(순수
+디버그 시각화 전용, 게임 로직은 이 이벤트를 쓰지 않음). PropagationDebugVisualizer는 이제
+OnSoundPerceived 대신 이 이벤트를 구독한다 — 이제 감지 성공 여부와 상관없이 소리가 날 때마다
+그 위치에 SoundBaseRange 반경의 원이 뜬다. 다만 이 방식은 "실제로 누가 반응했는지"는 더 이상 이
+시각화만으로는 알 수 없다는 한계가 생겼다(원이 뜬다고 반드시 어떤 인류가 반응했다는 뜻은 아님) —
+필요하면 나중에 OnSoundPerceived 쪽 시각화(예: 감지 성공한 인류 위에 표시)를 별도로 추가하는 것도
+고려 가능. dotnet build로 컴파일 확인 완료(오류 0).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-05 추가 수정 10번 (실제 버그 수정: 소리 반응 접근 중 15초 워치독 오적용)
+════════════════════════════════════════════════════════════════════════
+사용자가 "소리 반응이 여러 번 겹칠 때 다른 로직과 꼬이는 부분이 있는지" 분석을 요청해 fork로 조사한
+결과, TacticalFSMState/CombatFSMState 우선순위 체계 자체는 설계대로 정확히 반영돼 있었지만(전투 중엔
+소리 스캔 후보에서 아예 제외/함정 대응 중 소리 인터럽트 게이팅 실동작/JoinCombatWait 우선순위 등
+전부 확인됨), 실제 버그를 하나 발견했다.
+
+원인: AlertSearchState.ElapsedSeconds 필드를 두 군데가 서로 다른 목적으로 공유해서 썼다.
+- UnitFunction.OnUpdate(당시 줄1036-1050): currentAlertSearch가 있으면 매 프레임 무조건 누적시키다가
+  IsPostCombatSweep/IsDeathSearch가 아니면 03문서 4-11장 "미식별 공격 수색시간"(15초, 공격은 당했는데
+  누가 때렸는지 모르는 경우 전용)을 워치독으로 적용 — IsSoundResponse 여부를 전혀 안 봄.
+- TacticalFSMState.SoundAreaApproach/SoundMoveReact: 인지 판정 롤 시점에 같은 필드를 0으로 리셋해서
+  "롤 이후 2초 유지"(EstimatedAreaHoldSeconds/MoveSoundHoldSeconds)용으로 재사용.
+
+07-A 7-3장 표를 재확인한 결과 "확인 행동 시작 기한: 5초 안에 시작 / 시작 후 5초 초과: 확인 행동
+계속 수행"이라고 명시돼 있어 — 소리 반응 접근 자체엔 완료 시간 제한이 없는 게 문서 의도임을 확인.
+15초는 03문서 4-11장이 명시적으로 "미식별 공격 수색" 전용으로 정의한 값이라 소리 반응 접근에 적용될
+근거가 없다. 실제로는 감지 범위가 멀면(spotting 보정 포함 8~12칸까지 가능) 도착 전에 이 워치독에
+걸려 currentAlertSearch가 조용히 통째로 사라지는 버그였다 — SoundPerceptionRolled가 영원히
+false인 채 끝나서 인지 판정 자체가 안 굴려지고, TryConfirmIndirectHit(E_HIT_HEAVY_INDIRECT 확인)
+기회도 함께 날아갔다. 이동음/공격실행음/함정작동음(IsUrgentSoundApproach 아님)은 경계 이동속도
+75%까지 겹쳐서 이 워치독에 걸릴 위험이 더 컸다.
+
+수정: UnitFunction.OnUpdate에 `IsSoundResponse && !SoundPerceptionRolled`(아직 접근 중) 조건이면
+15초 워치독 자체를 적용하지 않는 예외를 추가. 롤 이후엔 손댈 필요 없음 — 롤 시점에 ElapsedSeconds가
+0으로 리셋되고 2초 규칙이 15초보다 항상 먼저 트리거되므로 워치독과 절대 안 겹친다.
+
+테스트: Assets/Tests/FSMBehaviorTests.cs에 SoundResponseApproach_NotCutOffByUnidentifiedAttackWatchdog
+(16초를 한 번에 흘려도 소리 반응 접근 중이면 안 잘림) + UnidentifiedAttackSearch_
+StillCutOffAfter15Seconds(회귀 방지 — 원래 4-11장 워치독 자체는 그대로 작동하는지) 2개 신규.
+human.OnUpdate(deltaTime)을 직접 호출하는 이 프로젝트 최초의 테스트 — SyncRoomAffiliation이
+Session?.roomGrid==null 가드가 있어 Session 없이도 안전하게 호출 가능함을 확인 후 작성.
+dotnet build로 컴파일 확인 완료(오류 0).

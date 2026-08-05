@@ -48,6 +48,13 @@ public class HumanKnowledgeBase
 	// target: 이해도/위험도의 대상이 되는 유닛(주로 몬스터). incidentId: 같은 사건을 여러 유닛이
 	// 공유할 때 묶는 키 — 호출부(전투 이벤트 발생 지점)에서 사건 1건당 하나 발급해서 전달한다.
 	public void RecordEvent(EventId id, Unit observer, Unit target, InfoType infoType, string incidentId)
+		=> RecordEventByKey(id, observer, ResolveTargetKey(target), target.isSpecialUnit, infoType, incidentId);
+
+	// target Unit이 이미 Destroy됐거나(예: 처치된 몬스터 시체를 나중에 발견) Unity 네이티브 프로퍼티에
+	// 안전하게 접근할 수 없을 때를 위한 경로 — 호출부가 target이 살아있을 때 미리 스냅샷해 둔 종/개체
+	// 키를 직접 넘긴다. RecordEvent는 이 메서드에 ResolveTargetKey(target)를 얹어 호출하는 얇은 래퍼다.
+	// (PropagationSystem.OnMonsterCorpseDiscovered — E_MONSTER_KILL_INDIRECT, 2026-08-05 신규)
+	public void RecordEventByKey(EventId id, Unit observer, string targetKey, bool isIndividualTarget, InfoType infoType, string incidentId)
 	{
 		if (!WeightEventTable.TryGet(id, out var delta))
 		{
@@ -55,14 +62,12 @@ public class HumanKnowledgeBase
 			return;
 		}
 
-		string targetId = ResolveTargetKey(target);
-		bool isIndividualTarget = target.isSpecialUnit;
 		MentalErrorState mentalState = GetMentalState(observer);
 
 		if (delta.Understanding != 0f)
-			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
+			RecordEventForWeight(id, observer, targetKey, isIndividualTarget, WeightType.Understanding, delta.Understanding, infoType, mentalState, incidentId);
 		if (delta.Danger != 0f)
-			RecordEventForWeight(id, observer, targetId, isIndividualTarget, WeightType.Danger, delta.Danger, infoType, mentalState, incidentId);
+			RecordEventForWeight(id, observer, targetKey, isIndividualTarget, WeightType.Danger, delta.Danger, infoType, mentalState, incidentId);
 	}
 
 	// 일반 유닛은 종별 누적(4-3장/7장), 특수 유닛(보스/네메시스)은 개별 누적(7-1장)을 쓰므로

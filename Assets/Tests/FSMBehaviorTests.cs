@@ -114,5 +114,34 @@ public class FSMBehaviorTests
 		// OnExit에서 조사 중단 처리 — 0.6 * 0.5 = 0.3으로 손실.
 		Assert.AreEqual(0.3f, human.currentInvestigation.Progress01, 0.001f);
 	}
+
+	// ── 07-A 7-3장 재확인(2026-08-05): "확인 행동 시작 기한은 5초지만, 시작 후엔 시간 제한 없이 계속
+	// 수행" — 소리 반응 접근 중(아직 인지 판정 안 굴림)엔 03문서 4-11장 "미식별 공격 수색 15초"
+	// 워치독이 적용되면 안 된다. 사용자가 "소리 발생 지점이 멀면 도착 전에 취소된다"고 신고해서 발견한
+	// 버그의 수정 검증 — UnitFunction.OnUpdate의 AlertSearchState 정리 분기.
+	[Test]
+	public void SoundResponseApproach_NotCutOffByUnidentifiedAttackWatchdog()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.currentAlertSearch = new AlertSearchState { IsSoundResponse = true, SoundPerceptionRolled = false };
+
+		// 4-11장 워치독(15초)을 넘는 16초를 한 번에 흘려보낸다 — 아직 인지 판정 전이므로 취소되면 안 됨.
+		human.OnUpdate(16f);
+
+		Assert.IsNotNull(human.currentAlertSearch, "소리 반응 접근 중엔 시간 제한 없이 계속 수행돼야 한다(07-A 7-3장).");
+	}
+
+	// 회귀 방지 — 위 수정이 원래 4-11장 "미식별 공격 수색"(IsSoundResponse=false) 자체의 15초 워치독까지
+	// 없애버린 건 아닌지 확인.
+	[Test]
+	public void UnidentifiedAttackSearch_StillCutOffAfter15Seconds()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.currentAlertSearch = new AlertSearchState(); // IsSoundResponse=false — 미식별 공격 수색
+
+		human.OnUpdate(16f);
+
+		Assert.IsNull(human.currentAlertSearch, "미식별 공격 수색은 4-11장 그대로 15초 후 종료돼야 한다.");
+	}
 }
 #endif

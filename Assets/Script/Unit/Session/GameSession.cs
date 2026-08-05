@@ -31,6 +31,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private UnitGenerate _unitGenerate;
     private ThreatTileRenderer _threatTileRenderer;
+    private PropagationDebugVisualizer _propagationDebugVisualizer;
     private IObjectResolver _resolver;
 
     private DataManager _dataManager;
@@ -46,10 +47,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private BuildingManager _buildingManager;
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler, BuildingManager buildingManager)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, DebugInputHandler debugInputHandler, BuildingManager buildingManager)
     {
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
+        _propagationDebugVisualizer = propagationDebugVisualizer;
         _resolver = resolver;
         cmap = injectedMap;
         _dataManager = dataManager;
@@ -132,11 +134,17 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RegisterUnitPos(Unit u, Vector2Int pos)
     {
         _unitRegistry.RegisterUnitPos(u, pos);
+        // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 인류 후보"만 훑을 수
+        // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다.
+        if (u is Human human)
+            PropagationSystem.UpdateHumanRoomIndex(human, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)
     {
         _unitRegistry.UnregisterUnitPos(u, pos);
+        if (u is Human human)
+            PropagationSystem.RemoveFromRoomIndex(human);
     }
 
     public GameSession()
@@ -1011,6 +1019,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _threatTileRenderer.Render(units);
         }
 
+        if (_propagationDebugVisualizer != null)
+        {
+            _propagationDebugVisualizer.Render(units);
+        }
+
         RefreshRoomPopulationLabels();
     }
 
@@ -1162,6 +1175,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
             else
             {
+                // E_MONSTER_KILL_INDIRECT 연결용(2026-08-05) — 인류에게 죽은 몬스터만 스냅샷한다(u는
+                // 아직 Destroy 전이라 unitType/name 접근이 안전한 지금 시점). PropagationSystem.
+                // OnMonsterCorpseDiscovered가 나중에 이 값으로 RecordEventByKey를 호출한다.
+                if (isMonsterCorpse && u.lastAttacker is Human)
+                {
+                    corpse.MonsterKilledByHuman = true;
+                    corpse.MonsterIsSpecialUnit = u.isSpecialUnit;
+                    corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
+                    corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
+                }
                 SpawnObject(corpse, corpseColor);
             }
         }

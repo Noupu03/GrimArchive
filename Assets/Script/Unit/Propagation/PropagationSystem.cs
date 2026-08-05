@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
+using R3;
 using UnityEngine;
 
 // 07_전파·소리·간접입력 구현부(부수효과 있는 호출부) — PartyDeathSystem/TrapPartySystem과 동일 성격.
 // PropagationMath(순수 계산)와 PropagatedInfoRecord/PendingSoundReaction/JoinCombatWaitState(저장소)를
-// 실제 게임 루프(UnitFunction.OnUpdate/Move/RecordHitWeightEvent, GameSession.RemoveDeadUnit,
+// 실제 게임 루프(UnitFunction.Move/RecordHitWeightEvent, GameSession.RemoveDeadUnit,
 // TacticalFSMState.TrapPass, CombatFSMState.GetPriority)에 연결한다.
 //
 // 08(리더·명령)/09(목표·경로)/06(전투반응·기습) 문서가 아직 없어 위임된 부분(발견자가 리더에게 실제로
@@ -11,96 +14,186 @@ using UnityEngine;
 // CLAUDE.md 관례대로 가장 단순한 기본값으로 스텁 처리한다 — 각 지점에 근거를 남긴다.
 public static class PropagationSystem
 {
-	// ═══════════════════════════ 소리 이벤트 버스 ═══════════════════════════
-
-	private class SoundEvent
+	// ═══════════════════════════ 소리 이벤트 (2026-08-05 재설계) ═══════════════════════════
+	// 사용자 피드백: 소리는 "발생한 그 순간"에만 존재하는 1회성 사건이다 — 예전 구현처럼 5초 동안
+	// _activeSounds 목록에 남아 있다가 나중에 범위 안으로 걸어 들어온 유닛까지 뒤늦게 주워듣는 건
+	// 기획 의도와도, 최적화 관점에서도(모든 인류가 0.1초마다 활성 소리 목록 전체를 훑는 상시 폴링)
+	// 어긋난다. 07-A 7-3장의 "일반 소리 유효시간 5초"는 소리 자체의 수명이 아니라 "그 순간 감지한
+	// 인류 개인이 확인 행동을 시작할 수 있는 유예시간"이었다.
+	//
+	// 그래서 이제 EmitSound가 호출된 그 자리에서 범위 스캔까지 끝내고, 그 순간 조건을 만족한 인류에게만
+	// R3 이벤트(OnSoundPerceived)로 통지한다 — 나중에 범위 안으로 들어온 유닛은 이 사건 자체를 아예
+	// 못 받는다(실제 소리처럼 순간적). 5초 유예시간은 이벤트를 받은 인류 각자의 PendingSound에 대해서만
+	// UniTask 타이머로 개별 적용된다(ExpireAfterDelay) — 다른 시스템의 틱 호출 유무에 기대지 않고
+	// 감지 시점 자체를 기준으로 명시적으로 만료시킨다.
+	//
+	// 범위 스캔 방식 자체(지금은 session.units 전체를 매 EmitSound 호출마다 순회)는 아직 최적화
+	// 전이다 — 사용자에게 별도로 자문한 결과, 지금 게임 규모(웨이브당 인류 소수)에서는 이 정도 스캔
+	// 비용이 무시할 만해 우선 단순한 형태로 남겨두기로 했다. 유닛 수가 늘어나 문제가 되면 CreateMap의
+	// roomId를 키로 하는 "방별 인류 후보 인덱스"를 추가해 스캔 대상을 그 방(과 인접 통로)으로 좁히는
+	// 것이 다음 단계 — 최종 판정(거리 비교)은 그 후보군 안에서 지금처럼 좌표 수학(Vector2Int.Distance)
+	// 그대로 쓰면 된다(공간 분할은 "후보를 줄이는" 역할이지 "거리 계산 자체를 대체"하지 않는다).
+	public readonly struct SoundPerceivedEvent
 	{
-		public SoundType Type;
-		public Vector2Int Position;
-		public int FloorIndex;
-		public int RoomId;
-		public Unit Source; // 이동음의 "자신·아군 이동음 제외" 판정에 사용. 함정 등은 null.
-		public float CreatedAtTime;
+		public readonly Human Observer;
+		public readonly SoundType Type;
+		public readonly Vector2Int Position;
+		public readonly int FloorIndex;
+		public readonly Unit Victim; // 피격 발생 공격음/피격 비명일 때만 의미 있음(= 피격당한 유닛)
+		public readonly Unit Attacker;
+		public readonly bool IsHeavyHit;
+		public readonly string IncidentId;
+
+		public SoundPerceivedEvent(Human observer, SoundType type, Vector2Int position, int floorIndex,
+			Unit victim, Unit attacker, bool isHeavyHit, string incidentId)
+		{
+			Observer = observer;
+			Type = type;
+			Position = position;
+			FloorIndex = floorIndex;
+			Victim = victim;
+			Attacker = attacker;
+			IsHeavyHit = isHeavyHit;
+			IncidentId = incidentId;
+		}
 	}
 
-	private static readonly List<SoundEvent> _activeSounds = new List<SoundEvent>();
+	// 다른 시스템(디버그 시각화/로그/향후 UI 등)도 "누가 방금 무슨 소리를 들었는지"를 자유롭게 구독할
+	// 수 있도록 공개 Observable로 노출한다. 실제 게임 로직(PendingSound 갱신)은 이 클래스가 정적
+	// 생성자에서 내부적으로 구독해 처리한다 — 다른 구독자가 있든 없든 핵심 동작은 항상 보장된다.
+	public static readonly Subject<SoundPerceivedEvent> OnSoundPerceived = new Subject<SoundPerceivedEvent>();
+
+	// "소리가 실제로 발생한 사건" 자체를 알리는 이벤트 — OnSoundPerceived와 달리 아무도 그 소리를
+	// 감지하지 못했어도(범위 밖/인덱스 문제/이미 다른 걸 보고 있어서 등) 무조건 1회 발행된다. 게임
+	// 로직은 이 이벤트를 쓰지 않는다(감지 여부와 무관하게 "소리가 남" 자체를 보여주고 싶은 디버그
+	// 시각화 전용 — PropagationDebugVisualizer가 이걸 구독해 소리 종류별 범위 원을 그린다).
+	public readonly struct SoundEmittedEvent
+	{
+		public readonly SoundType Type;
+		public readonly Vector2Int Position;
+		public readonly int FloorIndex;
+		public readonly int RangeTiles; // 이 소리가 도달하는 기준 반경(14장 소리별 기본 범위)
+
+		public SoundEmittedEvent(SoundType type, Vector2Int position, int floorIndex, int rangeTiles)
+		{
+			Type = type;
+			Position = position;
+			FloorIndex = floorIndex;
+			RangeTiles = rangeTiles;
+		}
+	}
+	public static readonly Subject<SoundEmittedEvent> OnSoundEmitted = new Subject<SoundEmittedEvent>();
+
+	static PropagationSystem()
+	{
+		OnSoundPerceived.Subscribe(HandleSoundPerceived);
+	}
+
+	// ═══════════════════════════ 방별 인류 후보 인덱스 (스캔 최적화, 2026-08-05) ═══════════════════════════
+	// EmitSound가 매번 session.units(던전 전체 인류) 전체를 순회하던 것을 "그 소리가 발생한 방에 있는
+	// 인류"로만 좁힌다 — 사용자 자문 결과 "던전에 여러 파티/방이 동시에 활동하면 전체 순회가 O(N²)로
+	// 커진다"는 근거로 결정. GameSession.RegisterUnitPos/UnregisterUnitPos(스폰/이동/사망 시 이미
+	// 호출되는 기존 유닛 그리드 관리 지점)가 그대로 이 인덱스도 함께 유지해준다 — 별도의 매 틱 폴링이
+	// 필요 없다. roomId는 층마다 번호가 재사용될 수 있어(CreateMap.GetRoomOccupationState가 floorIndex를
+	// 별도로 요구하는 것과 동일한 이유) (층, roomId) 조합을 키로 쓴다.
+	private static readonly Dictionary<(int Floor, int RoomId), HashSet<Human>> _humansByRoom = new Dictionary<(int, int), HashSet<Human>>();
+	private static readonly Dictionary<Human, (int Floor, int RoomId)> _humanRoomKey = new Dictionary<Human, (int, int)>();
+	private static readonly List<Human> _scanBuffer = new List<Human>();
+
+	// GameSession.RegisterUnitPos가 인류를 등록/이동시킬 때마다 호출한다. roomId < 0(맵 밖 등)이면
+	// 인덱스에서 빠진다 — 그 상태로는 어차피 소리를 주고받을 공간 판정 자체가 성립하지 않는다.
+	public static void UpdateHumanRoomIndex(Human human, int floorIndex, int roomId)
+	{
+		if (human == null) return;
+		var newKey = (floorIndex, roomId);
+		if (_humanRoomKey.TryGetValue(human, out var oldKey))
+		{
+			if (oldKey == newKey) return;
+			if (_humansByRoom.TryGetValue(oldKey, out var oldSet)) oldSet.Remove(human);
+		}
+		if (roomId < 0) { _humanRoomKey.Remove(human); return; }
+
+		if (!_humansByRoom.TryGetValue(newKey, out var set))
+		{
+			set = new HashSet<Human>();
+			_humansByRoom[newKey] = set;
+		}
+		set.Add(human);
+		_humanRoomKey[human] = newKey;
+	}
+
+	// GameSession.UnregisterUnitPos(사망/제거 시)가 호출한다.
+	public static void RemoveFromRoomIndex(Human human)
+	{
+		if (human == null) return;
+		if (_humanRoomKey.TryGetValue(human, out var key))
+		{
+			if (_humansByRoom.TryGetValue(key, out var set)) set.Remove(human);
+			_humanRoomKey.Remove(human);
+		}
+	}
 
 	// 14장: 이동/공격 실행/피격/사망/함정 작동 시 각각 호출한다. session이 null이거나 맵 조회에
 	// 실패하면(방 밖 등) 조용히 무시한다 — 소리는 항상 공간 안에서만 유효하다(12장).
-	public static void EmitSound(GameSession session, SoundType type, Vector2Int position, int floorIndex, Unit source)
+	// attacker/isHeavyHit/incidentId: 피격 발생 공격음/피격 비명에서만 쓰는 선택적 메타데이터
+	// (E_HIT_HEAVY_INDIRECT 연결용) — 다른 소리 종류는 기본값(null/false/null) 그대로 넘기면 된다.
+	public static void EmitSound(GameSession session, SoundType type, Vector2Int position, int floorIndex, Unit source,
+		Unit attacker = null, bool isHeavyHit = false, string incidentId = null)
 	{
 		if (session == null || session.cmap == null) return;
 		int roomId = session.cmap.GetRoomIdAt(floorIndex, position);
 		if (roomId < 0) return;
 
-		PruneExpiredSounds();
-		_activeSounds.Add(new SoundEvent
+		// 감지 성공 여부와 무관하게 "소리가 발생했다" 자체는 항상 알린다(디버그 시각화 전용).
+		OnSoundEmitted.OnNext(new SoundEmittedEvent(type, position, floorIndex, PropagationMath.SoundBaseRange(type)));
+
+		if (!_humansByRoom.TryGetValue((floorIndex, roomId), out var candidates) || candidates.Count == 0) return;
+
+		// 이 스캔 도중 인덱스가 바뀔 일은 없지만(핸들러가 방을 옮기는 로직을 안 건드림), 방어적으로
+		// 스냅샷해서 순회한다 — 재사용 버퍼라 매 호출 GC 없음.
+		_scanBuffer.Clear();
+		_scanBuffer.AddRange(candidates);
+
+		foreach (var human in _scanBuffer)
 		{
-			Type = type,
-			Position = position,
-			FloorIndex = floorIndex,
-			RoomId = roomId,
-			Source = source,
-			CreatedAtTime = Time.time,
-		});
-	}
-
-	private static void PruneExpiredSounds()
-	{
-		for (int i = _activeSounds.Count - 1; i >= 0; i--)
-		{
-			if (Time.time - _activeSounds[i].CreatedAtTime > PropagationMath.SoundValidSeconds)
-				_activeSounds.RemoveAt(i);
-		}
-	}
-
-	// ═══════════════════════════ 소리 감지·선택 (16장) ═══════════════════════════
-
-	// UnitFunction.OnUpdate의 기존 0.1초 틱에서 인류에 한해 호출한다(몬스터는 07문서 16-6장 "역할군
-	// AI가 감지 결과를 해석"이 담당해야 하는데 그런 역할군 AI 자체가 아직 없어, 몬스터 청각 계산은
-	// PropagationMath.SoundDetectionRange(isMonster:true)로 값만 준비해 두고 실제 소비는 스텁으로
-	// 남긴다 — VisionMath.NonEmptyTileTempWeight와 동일한 전례).
-	public static void TickSoundPerception(Human human)
-	{
-		if (human.Session == null || human.Session.cmap == null) return;
-		if (IsSoundUnresponsive(human)) return;
-
-		PruneExpiredSounds();
-		int myRoomId = human.Session.cmap.GetRoomIdAt(human.currentFloor, human.position);
-		if (myRoomId < 0) return;
-
-		bool isAlert = human.Perception.IsAlert;
-		SoundEvent best = null;
-		int bestRank = int.MaxValue;
-		float bestDist = float.MaxValue;
-
-		foreach (var ev in _activeSounds)
-		{
-			if (ev.FloorIndex != human.currentFloor) continue;
-			if (ev.Source == human) continue;
+			if (human == null || human.hp <= 0 || human == source) continue;
+			if (human.currentFloor != floorIndex) continue; // 인덱스 정합성 방어 — 이론상 항상 참
 			// 16-2장: 자신의 이동음과 모든 아군의 일반 이동음은 반응 대상에서 제외(다른 소리 종류는
 			// 대상 제외 규칙이 없다 — 전투 관련 소리는 출처와 무관하게 긴급하기 때문).
-			if (ev.Type == SoundType.Movement && ev.Source is Human) continue;
-			if (!PropagationMath.SameSpace(myRoomId, ev.RoomId)) continue;
+			if (type == SoundType.Movement && source is Human) continue;
+			if (!human.CanPerceive) continue; // 기절 등 인지 판정 불가 상태 — 못 듣는다고 근사
+			if (IsSoundUnresponsive(human)) continue;
 
-			float dist = Vector2Int.Distance(human.position, ev.Position);
-			int detectRange = PropagationMath.SoundDetectionRange(ev.Type, human.spotting, isAlert, isMonster: false);
+			float dist = Vector2Int.Distance(human.position, position);
+			bool isAlert = human.Perception.IsAlert;
+			int detectRange = PropagationMath.SoundDetectionRange(type, human.spotting, isAlert, isMonster: false);
 			if (dist > detectRange) continue;
 
-			int rank = PropagationMath.SoundPriorityRank(ev.Type);
-			if (best == null || PropagationMath.ShouldReplaceSound(rank, dist, bestRank, bestDist))
-			{
-				best = ev; bestRank = rank; bestDist = dist;
-			}
+			OnSoundPerceived.OnNext(new SoundPerceivedEvent(human, type, position, floorIndex, source, attacker, isHeavyHit, incidentId));
 		}
-		if (best == null) return;
+	}
+
+	// ═══════════════════════════ 소리 감지 반응 (16장) ═══════════════════════════
+
+	// OnSoundPerceived 내부 구독자 — EmitSound가 스캔한 각 인류에 대해 정확히 1회 호출된다(예전
+	// TickSoundPerception처럼 유효한 5초 동안 매 틱 반복 재평가하지 않는다). 우선순위 비교 로직은
+	// 그대로 유지 — 같은 공격에서 공격 실행음→피격 발생 공격음→비명이 순서대로 발생해도(각각
+	// EmitSound 호출 = 각각 이 핸들러 호출) 매번 "지금 저장된 PendingSound"와 비교해 최종적으로
+	// 가장 급한 소리가 남는다.
+	private static void HandleSoundPerceived(SoundPerceivedEvent e)
+	{
+		Human human = e.Observer;
+		if (human == null || human.hp <= 0) return;
+
+		int rank = PropagationMath.SoundPriorityRank(e.Type);
+		float dist = Vector2Int.Distance(human.position, e.Position);
 
 		var pending = human.Propagation.PendingSound;
 		if (pending != null && !pending.ResponseStarted && Time.time <= pending.ValidUntilTime)
 		{
 			int curRank = PropagationMath.SoundPriorityRank(pending.Type);
 			float curDist = Vector2Int.Distance(human.position, pending.SourcePosition);
-			if (!PropagationMath.ShouldReplaceSound(bestRank, bestDist, curRank, curDist)) return; // 7-2장: 기존 유지
+			if (!PropagationMath.ShouldReplaceSound(rank, dist, curRank, curDist)) return; // 7-2장: 기존 유지
 		}
 		else if (pending != null && pending.ResponseStarted)
 		{
@@ -109,27 +202,47 @@ public static class PropagationSystem
 			// 폐기하고 교체한다(그래야 아래에서 새로 세팅하는 PendingSound가 다음 HasAlert 호출 때
 			// 막히지 않고 바로 승격된다).
 			int curRank = PropagationMath.SoundPriorityRank(pending.Type);
-			if (bestRank >= curRank) return;
+			if (rank >= curRank) return;
 			if (human.currentAlertSearch != null && human.currentAlertSearch.IsSoundResponse)
 				human.currentAlertSearch = null;
 		}
 
-		human.Propagation.PendingSound = new PendingSoundReaction
+		var reaction = new PendingSoundReaction
 		{
-			Type = best.Type,
-			SourcePosition = best.Position,
-			HasEstimatedArea = PropagationMath.HasEstimatedArea(best.Type),
-			EstimatedAreaCenter = new Vector3Int(best.Position.x, best.Position.y, best.FloorIndex),
-			EstimatedAreaRadius = PropagationMath.EstimatedAreaRadius(best.Type),
+			Type = e.Type,
+			SourcePosition = e.Position,
+			HasEstimatedArea = PropagationMath.HasEstimatedArea(e.Type),
+			EstimatedAreaCenter = new Vector3Int(e.Position.x, e.Position.y, e.FloorIndex),
+			EstimatedAreaRadius = PropagationMath.EstimatedAreaRadius(e.Type),
 			DetectedAtTime = Time.time,
 			ValidUntilTime = Time.time + PropagationMath.SoundValidSeconds,
 			ResponseStarted = false,
+			Victim = e.Victim,
+			Attacker = e.Attacker,
+			IsHeavyHit = e.IsHeavyHit,
+			IncidentId = e.IncidentId,
 		};
+		human.Propagation.PendingSound = reaction;
 
 		// 함정 작동음이 아니면(=전투 관련 소리/이동음) 현재 행동을 중단시킬 수 있다(16-4장) — 그 판단은
 		// TacticalFSMState의 트랩 분기 게이팅이 담당하고, 여기서는 곧바로 승격을 시도한다(막혀 있으면
 		// 실패하고 트랩 분기가 끝나는 시점에 HasAlert가 다시 시도한다).
 		TryPromotePendingSoundToAlert(human);
+
+		// 07-A 7-3장: 확인 행동을 5초 안에 시작하지 못하면 이 유예시간 자체가 소멸한다. 다른 시스템의
+		// 틱 호출이 우연히 이 인지 판정 지점을 다시 지나가길 기다리지 않고(사용자 요청), 감지된 이
+		// 순간을 기준으로 명시적 타이머를 건다.
+		ExpireAfterDelay(human, reaction).Forget();
+	}
+
+	private static async UniTaskVoid ExpireAfterDelay(Human human, PendingSoundReaction reaction)
+	{
+		await UniTask.Delay(TimeSpan.FromSeconds(PropagationMath.SoundValidSeconds));
+		if (human == null || human.hp <= 0) return;
+		// 그 사이 이미 확인 행동을 시작했거나(ResponseStarted) 더 급한 소리로 완전히 교체됐으면
+		// (참조가 더 이상 이 reaction이 아니면) 손대지 않는다.
+		if (human.Propagation.PendingSound == reaction && !reaction.ResponseStarted)
+			human.Propagation.PendingSound = null;
 	}
 
 	// 16-4/16-5/10장: 소리에 아예 반응하지 않는 상태 — 파티 목표·코어 상호작용 당사자, 전투 진입 합류
@@ -178,6 +291,43 @@ public static class PropagationSystem
 		if (pending == null || pending.ResponseStarted) return false;
 		if (Time.time > pending.ValidUntilTime) return false;
 		return pending.Type != SoundType.TrapActivation;
+	}
+
+	// ═══════════════════════════ 피격 간접 확인 (E_HIT_HEAVY_INDIRECT) ═══════════════════════════
+	// 07-A 8-2장: 추정 지역 접근 후 인지 판정 1회 시점(TacticalFSMState.SoundAreaApproach)에서 호출한다.
+	// "원인을 정확 인지" = 그 순간 공격자(몬스터)를 정확 인지 상태로 판정받았는지로 근사한다(별도
+	// 재판정을 새로 굴리지 않고 UnitFunction.ForceReidentifyAttacker/UpdateFOV가 이미 채워둔 기록을
+	// 조회만 한다 — IsCurrentlyIdentified와 동일 패턴). 가중치 구현현황 문서 "다음 우선순위 4번"/
+	// 시야인지반응 구현현황 문서 "다음 우선순위 1번"이 가리키던 마지막 배선이다.
+	public static bool IsAccuratelyPerceived(Human observer, Unit target)
+		=> target != null && observer.Perception.State.perceptionRecords.TryGetValue(target, out var record)
+			&& record.Outcome == PerceptionOutcome.AccuratePerception;
+
+	public static void TryConfirmIndirectHit(Human human, AlertSearchState alert)
+	{
+		if (alert == null || (alert.SoundKind != SoundType.HitImpact && alert.SoundKind != SoundType.HitScream)) return;
+		var pending = human.Propagation.PendingSound;
+		if (pending == null || !pending.IsHeavyHit || pending.Victim == null || pending.Attacker == null) return;
+		if (pending.Victim.hp <= 0 || pending.Attacker.hp <= 0) return; // 둘 다 그 사이 사망하면 다른 경로(사망음/시체)로 넘어간다
+		if (human.Knowledge == null || !IsAccuratelyPerceived(human, pending.Attacker)) return;
+
+		human.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_INDIRECT, human, pending.Attacker, InfoType.Indirect, pending.IncidentId);
+	}
+
+	// ═══════════════════════════ 몬스터 처치 간접 확인 (E_MONSTER_KILL_INDIRECT) ═══════════════════════════
+	// UnitFunction.CastRay의 기존 오브젝트 발견 파이프라인이 Corpse+Monster 태그를 처음 정확 인지하는
+	// 순간(firstTouch && AccuratePerception, PartyDeathSystem.OnCorpseDiscovered와 동일 지점) 호출한다.
+	// 몬스터는 죽으면 Destroy되어 Unit 참조로 직접 RecordEvent를 부를 수 없으므로(target.name 등 Unity
+	// 네이티브 프로퍼티 접근이 안전하지 않음), GameSession.RemoveDeadUnit이 Destroy 전에 InteractableObject
+	// 시체에 스냅샷해 둔 종/개체 키를 그대로 쓴다 — HumanKnowledgeBase.RecordEventByKey 참고.
+	public static void OnMonsterCorpseDiscovered(Human discoverer, InteractableObject corpse)
+	{
+		if (corpse == null || !corpse.Tags.Contains("Monster") || !corpse.MonsterKilledByHuman) return;
+		if (discoverer.Knowledge == null || string.IsNullOrEmpty(corpse.MonsterSpeciesKey)) return;
+
+		discoverer.Knowledge.RecordEventByKey(EventId.E_MONSTER_KILL_INDIRECT, discoverer,
+			corpse.MonsterIsSpecialUnit ? corpse.MonsterIndividualKey : corpse.MonsterSpeciesKey,
+			corpse.MonsterIsSpecialUnit, InfoType.Indirect, corpse.Id);
 	}
 
 	// ═══════════════════════════ 일반 전파 조건 (6장) ═══════════════════════════

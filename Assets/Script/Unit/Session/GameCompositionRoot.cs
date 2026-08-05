@@ -48,6 +48,10 @@ public class GameCompositionRoot : CoreLifetimeScope
         // �� GameObject�� �ʿ䰡 ���� ���� C# Ŭ������ ��ȯ��.
         builder.Register<ThreatTileRenderer>(Lifetime.Singleton).AsSelf();
 
+        // PropagationDebugVisualizer: 07 소리/전파 시스템 임시 검증용 디버그 시각화 — ThreatTileRenderer와
+        // 동일하게 GameObject 불필요한 순수 C# 클래스. 검증 끝나면 이 등록 줄만 지워도 됨.
+        builder.Register<PropagationDebugVisualizer>(Lifetime.Singleton).AsSelf();
+
         // �� �����͸� ����/�����ϰ� ��Ÿ�ӿ� Ȱ���ϴ� ���� C# Ŭ����
         builder.Register<CreateMap>(Lifetime.Singleton).AsSelf();
 

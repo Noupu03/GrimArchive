@@ -768,6 +768,11 @@ public class TacticalFSMState : IFSMState
 		{
 			alert.SoundPerceptionRolled = true;
 			alert.ElapsedSeconds = 0f;
+			// E_HIT_HEAVY_INDIRECT 연결(2026-08-05): 인지 판정 1회가 이뤄지는 바로 이 시점에 "원인을
+			// 정확 인지했는지" 확인한다 — 피격 발생 공격음/피격 비명이 아니거나 조건 미충족이면 조용히
+			// 무시된다(PropagationSystem.TryConfirmIndirectHit 내부 게이팅).
+			if (unit is Human indirectObserver)
+				PropagationSystem.TryConfirmIndirectHit(indirectObserver, alert);
 		}
 		if (alert.ElapsedSeconds >= PropagationMath.EstimatedAreaHoldSeconds)
 		{
