@@ -116,7 +116,11 @@ public class NavigationFSMState : IFSMState
 		if (DistanceToStairBlock(human.position, stairPos) > (AIConfigLoader.Behavior?.stairArrivalRadius ?? 1))
 			return BTStatus.Running;
 
-		if (!human.Session.cmap.TryGetStairApproachPosition(toFloor, fromFloor, out Vector2Int arrivePos))
+		// 2026-08-05 사용자 신고 "유닛끼리 겹친다" 수정 — 힌트 없는 TryGetStairApproachPosition(항상
+		// 같은 대표 좌표 1칸)로 점유 확인 없이 텔레포트하던 걸, MoveToStairs(접근 측)와 동일하게
+		// 여러 후보 중 점유 안 된 칸을 고르는 방식으로 교체했다. 후보가 전부 점유돼 있으면(극단적
+		// 혼잡) 실패로 보고 다음 틱에 재시도한다 — 절대 겹치는 칸으로는 텔레포트하지 않는다.
+		if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(human.Session, toFloor, fromFloor, out Vector2Int arrivePos))
 			return BTStatus.Running;
 
 		human.Session.UnregisterUnitPos(human, human.position);

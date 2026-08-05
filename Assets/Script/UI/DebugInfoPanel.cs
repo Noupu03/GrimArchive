@@ -189,19 +189,46 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         GUILayout.EndArea();
     }
 
-    // 시야 토글 바로 아래 — 켜면 인류 전파 범위(하늘색 원)/현재 유효한 소리 이벤트(종류별 색 원, 남은
-    // 시간에 따라 투명해짐)가 표시된다(PropagationDebugVisualizer, 07 소리·전파 시스템 임시 검증용).
+    // 항목별로 켜고 끌 수 있다(PropagationDebugVisualizer, 07 소리·전파 시스템 임시 검증용).
+    // 2026-08-05: 사용자 요청으로 단일 on/off 버튼을 색 표 기준별 개별 토글로 분리하고, 버튼 배경색을
+    // 켜짐/꺼짐에 따라 뚜렷하게 다르게 칠해 상태가 한눈에 보이게 했다(전에는 텍스트만 바뀌어서 눈에
+    // 잘 안 띈다는 지적을 받음). 켜짐일 땐 실제 원 색과 같은 색으로 칠해 표와 바로 대응되게 한다.
+    // 위치는 원래 우측 상단(시야 표시 토글 바로 아래)에 뒀었는데, StatusInfoPanel(오펜스 현황/자원
+    // 사용 안내, x:Screen.width-270~Screen.width-10, y:50~350)과 그대로 겹친다는 지적을 받아 좌측
+    // 상단으로 옮겼다 — UIManager.DrawTopLeftUI가 y10~100(FPS 카운터+게임 속도 표시)만 쓰고 나머지
+    // 좌측 상단 UI(유물 생성 모드/파티 상태 등)는 전부 주석 처리돼 죽어 있어서 y110부터는 비어 있다.
+    // 화면 하단 좌측(x10~250, BuildingControlPanel 왼쪽)의 선택 유닛 정보 UGUI 프리팹과도 세로로
+    // 충분히 떨어져 있어(그쪽은 화면 하단에서 위로 480px만 차지) 겹치지 않는다.
+    private const int PanelX = 10;
+    private const int PanelY = 110;
+    private static readonly Color OffButtonColor = new Color(0.4f, 0.4f, 0.4f);
+
     private void DrawPropagationToggle()
     {
         if (_propagationDebugVisualizer == null) return;
+        var v = _propagationDebugVisualizer;
 
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 55, 200, 40));
-        bool current = _propagationDebugVisualizer.Enabled;
-        if (GUILayout.Button($"소리/전파 표시: {(current ? "켜짐" : "꺼짐")}"))
-        {
-            _propagationDebugVisualizer.Enabled = !current;
-        }
+        GUILayout.BeginArea(new Rect(PanelX, PanelY, 220, 240), GUI.skin.box);
+        GUILayout.Label("<b>소리/전파 시각화</b>");
+        DrawColorToggle("전파 범위", ref v.ShowPropagationRange, new Color(0.2f, 0.8f, 1f));
+        DrawColorToggle("이동음", ref v.ShowMovement, new Color(0.6f, 0.6f, 0.6f));
+        DrawColorToggle("공격 실행음", ref v.ShowAttackExecution, new Color(1f, 0.6f, 0f));
+        DrawColorToggle("피격 발생 공격음", ref v.ShowHitImpact, new Color(1f, 0.2f, 0.2f));
+        DrawColorToggle("피격 비명", ref v.ShowHitScream, new Color(1f, 0f, 0.6f));
+        DrawColorToggle("사망음", ref v.ShowDeath, Color.white);
+        DrawColorToggle("함정 작동음", ref v.ShowTrapActivation, new Color(1f, 1f, 0f));
         GUILayout.EndArea();
+    }
+
+    // label 앞에 켜짐/꺼짐 표시 문자를 붙이고, 버튼 배경색을 켜짐이면 그 항목의 실제 원 색(진하게),
+    // 꺼짐이면 회색으로 칠한다 — 텍스트만으로 상태를 구분해야 했던 예전 버튼보다 훨씬 눈에 띈다.
+    private static void DrawColorToggle(string label, ref bool state, Color onColor)
+    {
+        Color prevColor = GUI.backgroundColor;
+        GUI.backgroundColor = state ? onColor : OffButtonColor;
+        if (GUILayout.Button(state ? $"■ {label} (ON)" : $"□ {label} (OFF)"))
+            state = !state;
+        GUI.backgroundColor = prevColor;
     }
 
     private void RefreshSelectedUnitInfo()

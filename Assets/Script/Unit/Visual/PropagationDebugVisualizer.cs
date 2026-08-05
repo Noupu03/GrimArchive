@@ -27,8 +27,29 @@ using VContainer;
 public class PropagationDebugVisualizer
 {
 	// DebugInfoPanel의 "시야 표시" 토글(UnitGenerate.ShowAllVisionRanges)과 동일 컨벤션 — 기본은 꺼짐,
-	// 우측 상단 버튼(DrawPropagationToggle)으로 켠다.
-	public bool Enabled = false;
+	// 우측 상단 패널(DrawPropagationToggle)에서 항목별로 켠다. 2026-08-05: 사용자 요청으로 단일
+	// Enabled 스위치를 색 표 기준별(전파 범위 + 소리 6종) 개별 토글로 분리했다.
+	public bool ShowPropagationRange = false;
+	public bool ShowMovement = false;
+	public bool ShowAttackExecution = false;
+	public bool ShowHitImpact = false;
+	public bool ShowHitScream = false;
+	public bool ShowDeath = false;
+	public bool ShowTrapActivation = false;
+
+	private bool AnySoundEnabled => ShowMovement || ShowAttackExecution || ShowHitImpact || ShowHitScream || ShowDeath || ShowTrapActivation;
+	private bool AnyEnabled => ShowPropagationRange || AnySoundEnabled;
+
+	private bool IsSoundTypeEnabled(SoundType type) => type switch
+	{
+		SoundType.Movement => ShowMovement,
+		SoundType.AttackExecution => ShowAttackExecution,
+		SoundType.HitImpact => ShowHitImpact,
+		SoundType.HitScream => ShowHitScream,
+		SoundType.Death => ShowDeath,
+		SoundType.TrapActivation => ShowTrapActivation,
+		_ => false,
+	};
 
 	private const float DebugFlashSeconds = 1.2f;
 	// 링 텍스처 자체의 반지름(스프라이트 로컬 단위) — RingSprite가 이 반지름의 원을 그리도록 만들고,
@@ -77,11 +98,11 @@ public class PropagationDebugVisualizer
 		// 구독한다 — "몬스터가 소리를 내는 범위 자체를 보고 싶다"는 사용자 요청(2026-08-05)에 맞춰,
 		// 실제로 아무도 감지 못 했어도(범위 밖/이미 다른 걸 보고 있어서 등) 소리가 날 때마다 무조건
 		// 원이 뜬다 — 감지 성공 여부와 무관하게 "이 소리가 어디까지 들리는 범위였는지"를 보여준다.
-		// Enabled가 꺼져 있을 땐 만들어봐야 그릴 일이 없으니 구독 콜백에서 바로 걸러낸다(이동음처럼
-		// 잦은 소리까지 꺼진 상태에서 GameObject가 무한정 생기는 걸 방지).
+		// 해당 소리 종류 토글이 꺼져 있을 땐 만들어봐야 그릴 일이 없으니 구독 콜백에서 바로 걸러낸다
+		// (이동음처럼 잦은 소리까지 꺼진 상태에서 GameObject가 무한정 생기는 걸 방지).
 		PropagationSystem.OnSoundEmitted.Subscribe(e =>
 		{
-			if (!Enabled) return;
+			if (!IsSoundTypeEnabled(e.Type)) return;
 			var cv = CreateCircle("Sound_" + e.Type);
 			PlaceCircle(cv.Renderer, TileCenter(e.Position, e.FloorIndex), e.RangeTiles);
 			_recentSounds.Add(new SoundFlash { Type = e.Type, StartTime = Time.time, Renderer = cv.Renderer });
@@ -91,8 +112,8 @@ public class PropagationDebugVisualizer
 	public void Render(List<Unit> units)
 	{
 		if (_root == null || _root.gameObject == null) return;
-		_root.gameObject.SetActive(Enabled);
-		if (!Enabled) return;
+		_root.gameObject.SetActive(AnyEnabled);
+		if (!AnyEnabled) return;
 
 		RenderPropagationRanges(units);
 		RenderActiveSounds();
@@ -100,6 +121,14 @@ public class PropagationDebugVisualizer
 
 	private void RenderPropagationRanges(List<Unit> units)
 	{
+		if (!ShowPropagationRange)
+		{
+			foreach (var kv in _rangeVisuals)
+				if (kv.Value.Renderer != null) Object.Destroy(kv.Value.Renderer.gameObject);
+			_rangeVisuals.Clear();
+			return;
+		}
+
 		_cachedAliveHumans.Clear();
 		foreach (var u in units)
 			if (u is Human human && human.hp > 0) _cachedAliveHumans.Add(u);

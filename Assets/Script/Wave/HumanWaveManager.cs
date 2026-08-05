@@ -237,8 +237,10 @@ namespace GrimArchive.Wave
 
                 if (forceCross)
                 {
-                    ForceCrossToTargetFloor(member, targetFloor);
-                    arrived.Add(member);
+                    // 도착 지점이 전부 점유돼 있으면(극단적 혼잡, 2026-08-05 겹침 수정) 이번 틱은
+                    // 실패로 보고 staging에 그대로 남겨 다음 틱에 재시도한다.
+                    if (ForceCrossToTargetFloor(member, targetFloor))
+                        arrived.Add(member);
                 }
             }
 
@@ -248,11 +250,18 @@ namespace GrimArchive.Wave
         // 정상 GOAP 경로(Action_CrossStairs)가 시간 안에 처리하지 못한 파티원을 강제로 목표 층
         // 계단 지점으로 옮긴다 — 위치/그리드만 직접 갱신하고 나머지(목표 배정 등)는 다음 틱
         // UpdatePartyDestination이 이어받는다.
-        private void ForceCrossToTargetFloor(Human member, int targetFloor)
+        // 2026-08-05 사용자 신고 "유닛끼리 겹친다" 수정 — 예전엔 캐시해둔 floor1StairPos(항상 같은
+        // 대표 좌표 1칸)로 점유 확인 없이 텔레포트해서, 같은 틱에 여러 파티원이 강제 이동되면 전부
+        // 같은 칸에 겹쳤다. 점유 안 된 후보 칸을 찾아서 그쪽으로 보내고, 전부 점유면(극단적 혼잡)
+        // false를 반환해 호출부가 다음 틱에 재시도하게 한다. 반환값: 실제로 이동했는지.
+        private bool ForceCrossToTargetFloor(Human member, int targetFloor)
         {
+            if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, targetFloor, 0, out Vector2Int arrivePos))
+                return false;
+
             GameSession.Instance.UnregisterUnitPos(member, member.position);
             member.currentFloor = targetFloor;
-            member.position = floor1StairPos;
+            member.position = arrivePos;
             GameSession.Instance.RegisterUnitPos(member, member.position);
 
             member.pendingStairTargetFloor = null;
@@ -260,6 +269,7 @@ namespace GrimArchive.Wave
             member.isManualMoveCommand = false;
 
             Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName}가 {StairForceCrossTimeoutSeconds}초 동안 계단을 못 넘어와 강제로 F{targetFloor}로 이동시켰습니다.");
+            return true;
         }
 
         // 목표를 확보하고 탈출 지점(계단)에 도착한 파티원을 게임에서 지우는 대신 0층으로 돌려보낸다
@@ -277,9 +287,22 @@ namespace GrimArchive.Wave
                 return;
             }
 
+            // 2026-08-05 사용자 신고 "유닛끼리 겹친다" 수정 — 파티 전원이 한꺼번에 퇴각할 때(같은
+            // foreach 루프 안에서 연달아 호출됨) 전부 같은 floor0StairPos 한 칸으로 텔레포트해서
+            // 겹쳤다. 점유 안 된 후보 칸을 찾아 보낸다 — 이 호출부는(퇴각 루프) "다음 틱 재시도"가
+            // 자연스럽지 않은 일회성 호출이라, 후보가 전부 점유된 극단적 혼잡(거의 안 생김)에서만
+            // 예전처럼 대표 좌표로 보내고 경고를 남긴다(완전히 막아 그 파티원이 영영 못 돌아오게
+            // 하는 것보다 낫다는 판단).
+            int targetFloor = targetSpawner.waveData.targetFloor;
+            if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, 0, targetFloor, out Vector2Int arrivePos))
+            {
+                Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName} 퇴각 도착 지점이 전부 점유돼 대표 좌표로 보냅니다(드물게 겹칠 수 있음).");
+                arrivePos = floor0StairPos;
+            }
+
             GameSession.Instance.UnregisterUnitPos(member, member.position);
             member.currentFloor = 0;
-            member.position = floor0StairPos;
+            member.position = arrivePos;
             GameSession.Instance.RegisterUnitPos(member, member.position);
 
             member.pendingStairTargetFloor = null;

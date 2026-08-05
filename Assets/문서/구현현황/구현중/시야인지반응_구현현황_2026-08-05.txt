@@ -322,3 +322,34 @@ StillCutOffAfter15Seconds(회귀 방지 — 원래 4-11장 워치독 자체는 �
 human.OnUpdate(deltaTime)을 직접 호출하는 이 프로젝트 최초의 테스트 — SyncRoomAffiliation이
 Session?.roomGrid==null 가드가 있어 Session 없이도 안전하게 호출 가능함을 확인 후 작성.
 dotnet build로 컴파일 확인 완료(오류 0).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-05 추가 수정 11번 (UI 요청: 항목별 토글 + 상태 가시성 개선)
+════════════════════════════════════════════════════════════════════════
+사용자 요청 2가지: (1) 단일 "소리/전파 표시" 토글을 앞서 정리한 색 표 기준(전파 범위 + 소리 6종)별로
+개별 토글 가능하게, (2) 버튼 자체가 켜짐/꺼짐 상태를 눈에 띄게 보여주도록.
+
+PropagationDebugVisualizer: 단일 `Enabled` bool을 `ShowPropagationRange`/`ShowMovement`/
+`ShowAttackExecution`/`ShowHitImpact`/`ShowHitScream`/`ShowDeath`/`ShowTrapActivation` 7개로 분리.
+`IsSoundTypeEnabled(SoundType)` 스위치로 OnSoundEmitted 구독 콜백에서 해당 종류가 꺼져 있으면 아예
+GameObject를 안 만들도록 필터링. `AnyEnabled`(하나라도 켜졌으면 true)로 루트 GameObject
+활성화 여부를 판단 — 전파 범위만 꺼도 그 원들은 즉시 정리(Destroy)되도록 RenderPropagationRanges
+앞단에 처리 추가.
+
+DebugInfoPanel.DrawPropagationToggle: 기존 버튼 1개 → 7개 버튼(전파 범위 하늘색/이동음 회색/공격
+실행음 주황/피격 발생 공격음 빨강/피격 비명 분홍/사망음 흰색/함정 작동음 노랑) 세로 나열로 교체
+(Rect 55~295, y=360 "Unit Status Test" 패널과 안 겹침 확인). `DrawColorToggle` 헬퍼가
+`GUI.backgroundColor`를 켜짐이면 그 항목의 실제 원 색, 꺼짐이면 회색으로 칠해서 — 텍스트만 바뀌던
+예전 버튼보다 상태가 훨씬 잘 보이고, 버튼 색이 실제 원 색과 대응돼 표를 안 봐도 직관적으로 연결된다.
+dotnet build로 컴파일 확인 완료(오류 0).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-05 추가 수정 12번 (UI 배치: 자원 현황과 겹침 해소)
+════════════════════════════════════════════════════════════════════════
+"소리/전파 시각화" 7토글 패널(Screen.width-220, y55~295)이 StatusInfoPanel(오펜스 현황/자원 사용
+안내, x:Screen.width-270~Screen.width-10, y:50~350)과 그대로 겹친다는 지적을 받아 좌측 상단으로
+옮겼다. UIManager.DrawTopLeftUI를 확인해보니 y10~100(FPS 카운터+게임 속도 표시)만 실제로 쓰고
+있고 나머지 좌측 상단 UI(유물 생성 모드/파티 상태/유닛 라벨)는 전부 주석 처리돼 죽어있어 y110부터
+비어있다는 걸 확인 — 그 자리(Rect(10, 110, 220, 240))로 이동. 화면 하단 좌측(x10~250)의 선택 유닛
+정보 UGUI 프리팹, BuildingControlPanel(x260~520, 화면 하단)과도 세로로 충분히 떨어져 있어 겹치지
+않는다. dotnet build로 컴파일 확인 완료(오류 0).

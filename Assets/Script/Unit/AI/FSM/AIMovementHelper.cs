@@ -2,6 +2,32 @@ using UnityEngine;
 
 public static class AIMovementHelper
 {
+	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
+	// (NavigationFSMState.CrossStairs, HumanWaveManager의 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야
+	// 한다 — 2026-08-05 사용자 신고 "유닛끼리 겹친다"의 원인이 바로 이 지점들이었다: 전부
+	// CreateMap.TryGetStairApproachPosition의 힌트 없는 오버로드(항상 같은 대표 좌표 1칸만 반환)를
+	// 점유 확인 없이 그대로 썼다. 계단 "접근" 측(NavigationFSMState.MoveToStairs)은 이미
+	// TryGetStairApproachCandidates + unitGrid 점유 확인으로 여러 후보 중 빈 칸을 고르고 있었는데
+	// (2026-07-23 병목 수정), "도착" 측만 그 수정이 안 돼 있었다 — 여러 인류가 같은 계단으로 동시에
+	// 넘어가면 전부 같은 한 칸에 텔레포트돼 겹쳤다.
+	// 반환값: 빈 후보를 찾았으면 true(pos에 담김) / 후보 전부 점유(극단적 혼잡) 또는 계단 정보 자체를
+	// 못 찾으면 false — 호출부가 "이번엔 실패, 나중에 재시도"로 처리할지 판단한다.
+	public static bool TryResolveUnoccupiedStairArrival(GameSession session, int arrivalFloor, int fromFloor, out Vector2Int pos)
+	{
+		pos = Vector2Int.zero;
+		if (session?.cmap == null) return false;
+		if (!session.cmap.TryGetStairApproachCandidates(arrivalFloor, fromFloor, out var candidates) || candidates.Count == 0)
+			return false;
+
+		foreach (var c in candidates)
+		{
+			bool occupied = session.unitGrid.TryGetValue(new Vector3Int(c.x, c.y, arrivalFloor), out Unit occupant)
+				&& occupant != null && occupant.hp > 0;
+			if (!occupied) { pos = c; return true; }
+		}
+		return false;
+	}
+
 	// 반환값: 실제로 한 칸이라도 다가갈 수 있었는지(true) / 더 다가갈 방법이 전혀 없어 제자리에
 	// 머물렀는지(false, 목표 칸이 다른 유닛/벽으로 완전히 막혀 있고 이미 갈 수 있는 가장 가까운
 	// 지점까지 도달한 상태). 호출부(PlayerCommandFSMState)가 이 신호로 "길이 막혔다"를 판단해
