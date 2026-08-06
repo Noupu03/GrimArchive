@@ -163,7 +163,9 @@ public static class PropagationMath
 	}
 
 	public const float SoundValidSeconds = 5f;           // 7-3장: 일반 소리 유효시간(확인 행동 시작 기한)
-	public const int MaxPendingSoundsPerUnit = 1;         // 7-3장: 유닛당 보류 소리 1건
+	// 7-3장 "유닛당 보류 소리 1건"은 PendingSound가 컬렉션이 아니라 단일 필드라 데이터 구조 자체로
+	// 이미 강제된다 — 별도 상수로 값을 비교하는 코드가 없어 죽은 상수였던 MaxPendingSoundsPerUnit은
+	// 삭제(2026-08-06, 07-A 검증 중 발견).
 
 	// ─────────────────────────── 8장. 소리 확인 판정·연출 시간 ───────────────────────────
 	public const float MoveSoundHoldSeconds = 2f;         // 8-1장: 이동음 반응 후 시야 유지
