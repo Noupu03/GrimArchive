@@ -21,21 +21,20 @@ public static class PropagationSystem
 	// 어긋난다. 07-A 7-3장의 "일반 소리 유효시간 5초"는 소리 자체의 수명이 아니라 "그 순간 감지한
 	// 인류 개인이 확인 행동을 시작할 수 있는 유예시간"이었다.
 	//
-	// 그래서 이제 EmitSound가 호출된 그 자리에서 범위 스캔까지 끝내고, 그 순간 조건을 만족한 인류에게만
+	// 그래서 이제 EmitSound가 호출된 그 자리에서 범위 스캔까지 끝내고, 그 순간 조건을 만족한 감지자에게만
 	// R3 이벤트(OnSoundPerceived)로 통지한다 — 나중에 범위 안으로 들어온 유닛은 이 사건 자체를 아예
-	// 못 받는다(실제 소리처럼 순간적). 5초 유예시간은 이벤트를 받은 인류 각자의 PendingSound에 대해서만
+	// 못 받는다(실제 소리처럼 순간적). 5초 유예시간은 이벤트를 받은 각 감지자의 PendingSound에 대해서만
 	// UniTask 타이머로 개별 적용된다(ExpireAfterDelay) — 다른 시스템의 틱 호출 유무에 기대지 않고
 	// 감지 시점 자체를 기준으로 명시적으로 만료시킨다.
 	//
-	// 범위 스캔 방식 자체(지금은 session.units 전체를 매 EmitSound 호출마다 순회)는 아직 최적화
-	// 전이다 — 사용자에게 별도로 자문한 결과, 지금 게임 규모(웨이브당 인류 소수)에서는 이 정도 스캔
-	// 비용이 무시할 만해 우선 단순한 형태로 남겨두기로 했다. 유닛 수가 늘어나 문제가 되면 CreateMap의
-	// roomId를 키로 하는 "방별 인류 후보 인덱스"를 추가해 스캔 대상을 그 방(과 인접 통로)으로 좁히는
-	// 것이 다음 단계 — 최종 판정(거리 비교)은 그 후보군 안에서 지금처럼 좌표 수학(Vector2Int.Distance)
-	// 그대로 쓰면 된다(공간 분할은 "후보를 줄이는" 역할이지 "거리 계산 자체를 대체"하지 않는다).
+	// 범위 스캔 방식 자체는 아래 "방별 소리 감지자 인덱스"(2026-08-05 도입, 2026-08-06 몬스터까지 확장)로
+	// 이미 좁혀져 있다 — 최종 판정(거리 비교)은 그 후보군 안에서 좌표 수학(Vector2Int.Distance) 그대로
+	// 쓴다(공간 분할은 "후보를 줄이는" 역할이지 "거리 계산 자체를 대체"하지 않는다).
 	public readonly struct SoundPerceivedEvent
 	{
-		public readonly Human Observer;
+		// 2026-08-06: 07문서 1장 "소리 감지: 인류/몬스터 모두 적용"에 맞춰 Human 고정에서 Unit으로
+		// 일반화했다 — 몬스터도 감지자가 될 수 있다(전파는 여전히 인류 전용, 아래 별도 함수들 참고).
+		public readonly Unit Observer;
 		public readonly SoundType Type;
 		public readonly Vector2Int Position;
 		public readonly int FloorIndex;
@@ -44,7 +43,7 @@ public static class PropagationSystem
 		public readonly bool IsHeavyHit;
 		public readonly string IncidentId;
 
-		public SoundPerceivedEvent(Human observer, SoundType type, Vector2Int position, int floorIndex,
+		public SoundPerceivedEvent(Unit observer, SoundType type, Vector2Int position, int floorIndex,
 			Unit victim, Unit attacker, bool isHeavyHit, string incidentId)
 		{
 			Observer = observer;
@@ -89,47 +88,50 @@ public static class PropagationSystem
 		OnSoundPerceived.Subscribe(HandleSoundPerceived);
 	}
 
-	// ═══════════════════════════ 방별 인류 후보 인덱스 (스캔 최적화, 2026-08-05) ═══════════════════════════
-	// EmitSound가 매번 session.units(던전 전체 인류) 전체를 순회하던 것을 "그 소리가 발생한 방에 있는
-	// 인류"로만 좁힌다 — 사용자 자문 결과 "던전에 여러 파티/방이 동시에 활동하면 전체 순회가 O(N²)로
+	// ═══════════════════════════ 방별 소리 감지자 인덱스 (스캔 최적화, 2026-08-05 / 2026-08-06 몬스터 확장) ═══════════════════════════
+	// EmitSound가 매번 session.units(던전 전체 유닛) 전체를 순회하던 것을 "그 소리가 발생한 방에 있는
+	// 유닛"으로만 좁힌다 — 사용자 자문 결과 "던전에 여러 파티/방이 동시에 활동하면 전체 순회가 O(N²)로
 	// 커진다"는 근거로 결정. GameSession.RegisterUnitPos/UnregisterUnitPos(스폰/이동/사망 시 이미
 	// 호출되는 기존 유닛 그리드 관리 지점)가 그대로 이 인덱스도 함께 유지해준다 — 별도의 매 틱 폴링이
 	// 필요 없다. roomId는 층마다 번호가 재사용될 수 있어(CreateMap.GetRoomOccupationState가 floorIndex를
 	// 별도로 요구하는 것과 동일한 이유) (층, roomId) 조합을 키로 쓴다.
-	private static readonly Dictionary<(int Floor, int RoomId), HashSet<Human>> _humansByRoom = new Dictionary<(int, int), HashSet<Human>>();
-	private static readonly Dictionary<Human, (int Floor, int RoomId)> _humanRoomKey = new Dictionary<Human, (int, int)>();
-	private static readonly List<Human> _scanBuffer = new List<Human>();
+	// 2026-08-06: 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 몬스터가 이 인덱스에 아예
+	// 등록되지 않아 EmitSound의 스캔 대상이 될 수 없던 갭을 발견해 Human 전용에서 Unit 공통으로
+	// 일반화했다(전파/재전파는 여전히 인류 전용 — 아래 "일반 전파 조건" 섹션은 손대지 않음).
+	private static readonly Dictionary<(int Floor, int RoomId), HashSet<Unit>> _listenersByRoom = new Dictionary<(int, int), HashSet<Unit>>();
+	private static readonly Dictionary<Unit, (int Floor, int RoomId)> _listenerRoomKey = new Dictionary<Unit, (int, int)>();
+	private static readonly List<Unit> _scanBuffer = new List<Unit>();
 
-	// GameSession.RegisterUnitPos가 인류를 등록/이동시킬 때마다 호출한다. roomId < 0(맵 밖 등)이면
+	// GameSession.RegisterUnitPos가 유닛을 등록/이동시킬 때마다 호출한다. roomId < 0(맵 밖 등)이면
 	// 인덱스에서 빠진다 — 그 상태로는 어차피 소리를 주고받을 공간 판정 자체가 성립하지 않는다.
-	public static void UpdateHumanRoomIndex(Human human, int floorIndex, int roomId)
+	public static void UpdateListenerRoomIndex(Unit unit, int floorIndex, int roomId)
 	{
-		if (human == null) return;
+		if (unit == null) return;
 		var newKey = (floorIndex, roomId);
-		if (_humanRoomKey.TryGetValue(human, out var oldKey))
+		if (_listenerRoomKey.TryGetValue(unit, out var oldKey))
 		{
 			if (oldKey == newKey) return;
-			if (_humansByRoom.TryGetValue(oldKey, out var oldSet)) oldSet.Remove(human);
+			if (_listenersByRoom.TryGetValue(oldKey, out var oldSet)) oldSet.Remove(unit);
 		}
-		if (roomId < 0) { _humanRoomKey.Remove(human); return; }
+		if (roomId < 0) { _listenerRoomKey.Remove(unit); return; }
 
-		if (!_humansByRoom.TryGetValue(newKey, out var set))
+		if (!_listenersByRoom.TryGetValue(newKey, out var set))
 		{
-			set = new HashSet<Human>();
-			_humansByRoom[newKey] = set;
+			set = new HashSet<Unit>();
+			_listenersByRoom[newKey] = set;
 		}
-		set.Add(human);
-		_humanRoomKey[human] = newKey;
+		set.Add(unit);
+		_listenerRoomKey[unit] = newKey;
 	}
 
 	// GameSession.UnregisterUnitPos(사망/제거 시)가 호출한다.
-	public static void RemoveFromRoomIndex(Human human)
+	public static void RemoveFromRoomIndex(Unit unit)
 	{
-		if (human == null) return;
-		if (_humanRoomKey.TryGetValue(human, out var key))
+		if (unit == null) return;
+		if (_listenerRoomKey.TryGetValue(unit, out var key))
 		{
-			if (_humansByRoom.TryGetValue(key, out var set)) set.Remove(human);
-			_humanRoomKey.Remove(human);
+			if (_listenersByRoom.TryGetValue(key, out var set)) set.Remove(unit);
+			_listenerRoomKey.Remove(unit);
 		}
 	}
 
@@ -147,29 +149,34 @@ public static class PropagationSystem
 		// 감지 성공 여부와 무관하게 "소리가 발생했다" 자체는 항상 알린다(디버그 시각화 전용).
 		OnSoundEmitted.OnNext(new SoundEmittedEvent(type, position, floorIndex, PropagationMath.SoundBaseRange(type)));
 
-		if (!_humansByRoom.TryGetValue((floorIndex, roomId), out var candidates) || candidates.Count == 0) return;
+		if (!_listenersByRoom.TryGetValue((floorIndex, roomId), out var candidates) || candidates.Count == 0) return;
 
 		// 이 스캔 도중 인덱스가 바뀔 일은 없지만(핸들러가 방을 옮기는 로직을 안 건드림), 방어적으로
 		// 스냅샷해서 순회한다 — 재사용 버퍼라 매 호출 GC 없음.
 		_scanBuffer.Clear();
 		_scanBuffer.AddRange(candidates);
 
-		foreach (var human in _scanBuffer)
+		foreach (var listener in _scanBuffer)
 		{
-			if (human == null || human.hp <= 0 || human == source) continue;
-			if (human.currentFloor != floorIndex) continue; // 인덱스 정합성 방어 — 이론상 항상 참
-			// 16-2장: 자신의 이동음과 모든 아군의 일반 이동음은 반응 대상에서 제외(다른 소리 종류는
-			// 대상 제외 규칙이 없다 — 전투 관련 소리는 출처와 무관하게 긴급하기 때문).
-			if (type == SoundType.Movement && source is Human) continue;
-			if (!human.CanPerceive) continue; // 기절 등 인지 판정 불가 상태 — 못 듣는다고 근사
-			if (IsSoundUnresponsive(human)) continue;
+			if (listener == null || listener.hp <= 0 || listener == source) continue;
+			if (listener.currentFloor != floorIndex) continue; // 인덱스 정합성 방어 — 이론상 항상 참
+			// 16-2장: "자신의 이동음과 모든 아군의 일반 이동음은 반응 대상에서 제외"(다른 소리 종류는
+			// 대상 제외 규칙이 없다 — 전투 관련 소리는 출처와 무관하게 긴급하기 때문). 몬스터가 감지자로
+			// 추가되면서(2026-08-06) "아군"을 종족 단위로 근사한다 — 인류는 인류의 이동음을, 몬스터는
+			// 몬스터의 이동음을 서로 반응 대상에서 제외하되, 서로 다른 진영의 이동음(=상대 진영 접근)은
+			// 여전히 감지 대상으로 남긴다.
+			bool sourceIsHuman = source is Human;
+			bool listenerIsHuman = listener is Human;
+			if (type == SoundType.Movement && sourceIsHuman == listenerIsHuman) continue;
+			if (!listener.CanPerceive) continue; // 기절 등 인지 판정 불가 상태 — 못 듣는다고 근사
+			if (IsSoundUnresponsive(listener)) continue;
 
-			float dist = Vector2Int.Distance(human.position, position);
-			bool isAlert = human.Perception.IsAlert;
-			int detectRange = PropagationMath.SoundDetectionRange(type, human.spotting, isAlert, isMonster: false);
+			float dist = Vector2Int.Distance(listener.position, position);
+			bool isAlert = listener.Perception.IsAlert;
+			int detectRange = PropagationMath.SoundDetectionRange(type, listener.spotting, isAlert, isMonster: !listenerIsHuman);
 			if (dist > detectRange) continue;
 
-			OnSoundPerceived.OnNext(new SoundPerceivedEvent(human, type, position, floorIndex, source, attacker, isHeavyHit, incidentId));
+			OnSoundPerceived.OnNext(new SoundPerceivedEvent(listener, type, position, floorIndex, source, attacker, isHeavyHit, incidentId));
 		}
 	}
 
@@ -182,22 +189,22 @@ public static class PropagationSystem
 	// 가장 급한 소리가 남는다.
 	private static void HandleSoundPerceived(SoundPerceivedEvent e)
 	{
-		Human human = e.Observer;
-		if (human == null || human.hp <= 0) return;
+		Unit listener = e.Observer;
+		if (listener == null || listener.hp <= 0) return;
 
 		int rank = PropagationMath.SoundPriorityRank(e.Type);
-		float dist = Vector2Int.Distance(human.position, e.Position);
+		float dist = Vector2Int.Distance(listener.position, e.Position);
 
-		var pending = human.Propagation.PendingSound;
+		var pending = listener.Propagation.PendingSound;
 		if (pending != null && !pending.ResponseStarted && Time.time <= pending.ValidUntilTime)
 		{
 			int curRank = PropagationMath.SoundPriorityRank(pending.Type);
-			float curDist = Vector2Int.Distance(human.position, pending.SourcePosition);
+			float curDist = Vector2Int.Distance(listener.position, pending.SourcePosition);
 			// 7-2장 마지막 타이브레이크: 순위·거리가 모두 같으면 현재 시야 방향(currentDir)에 더 가까운
 			// 소리를 우선한다. 두 지점 모두 관찰자와 정확히 같은 위치인 근접 사건이면 방향이 무의미하므로
 			// GetDirection8이 기본 방향을 돌려줘도 안전하다(둘 다 같은 값이라 타이브레이크에 영향 없음).
-			int candidateDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(e.Position - human.position), human.currentDir);
-			int curDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(pending.SourcePosition - human.position), human.currentDir);
+			int candidateDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(e.Position - listener.position), listener.currentDir);
+			int curDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(pending.SourcePosition - listener.position), listener.currentDir);
 			if (!PropagationMath.ShouldReplaceSound(rank, dist, curRank, curDist, candidateDirStep, curDirStep)) return; // 7-2장: 기존 유지
 		}
 		else if (pending != null && pending.ResponseStarted)
@@ -208,8 +215,8 @@ public static class PropagationSystem
 			// 막히지 않고 바로 승격된다).
 			int curRank = PropagationMath.SoundPriorityRank(pending.Type);
 			if (rank >= curRank) return;
-			if (human.currentAlertSearch != null && human.currentAlertSearch.IsSoundResponse)
-				human.currentAlertSearch = null;
+			if (listener.currentAlertSearch != null && listener.currentAlertSearch.IsSoundResponse)
+				listener.currentAlertSearch = null;
 		}
 
 		var reaction = new PendingSoundReaction
@@ -227,36 +234,43 @@ public static class PropagationSystem
 			IsHeavyHit = e.IsHeavyHit,
 			IncidentId = e.IncidentId,
 		};
-		human.Propagation.PendingSound = reaction;
+		listener.Propagation.PendingSound = reaction;
 
 		// 함정 작동음이 아니면(=전투 관련 소리/이동음) 현재 행동을 중단시킬 수 있다(16-4장) — 그 판단은
 		// TacticalFSMState의 트랩 분기 게이팅이 담당하고, 여기서는 곧바로 승격을 시도한다(막혀 있으면
-		// 실패하고 트랩 분기가 끝나는 시점에 HasAlert가 다시 시도한다).
-		TryPromotePendingSoundToAlert(human);
+		// 실패하고 트랩 분기가 끝나는 시점에 HasAlert가 다시 시도한다). 트랩 대응 자체는 인류 전용이라
+		// 몬스터는 이 게이팅 없이 바로 승격된다.
+		TryPromotePendingSoundToAlert(listener);
 
 		// 07-A 7-3장: 확인 행동을 5초 안에 시작하지 못하면 이 유예시간 자체가 소멸한다. 다른 시스템의
 		// 틱 호출이 우연히 이 인지 판정 지점을 다시 지나가길 기다리지 않고(사용자 요청), 감지된 이
 		// 순간을 기준으로 명시적 타이머를 건다.
-		ExpireAfterDelay(human, reaction).Forget();
+		ExpireAfterDelay(listener, reaction).Forget();
 	}
 
-	private static async UniTaskVoid ExpireAfterDelay(Human human, PendingSoundReaction reaction)
+	private static async UniTaskVoid ExpireAfterDelay(Unit listener, PendingSoundReaction reaction)
 	{
 		await UniTask.Delay(TimeSpan.FromSeconds(PropagationMath.SoundValidSeconds));
-		if (human == null || human.hp <= 0) return;
+		if (listener == null || listener.hp <= 0) return;
 		// 그 사이 이미 확인 행동을 시작했거나(ResponseStarted) 더 급한 소리로 완전히 교체됐으면
 		// (참조가 더 이상 이 reaction이 아니면) 손대지 않는다.
-		if (human.Propagation.PendingSound == reaction && !reaction.ResponseStarted)
-			human.Propagation.PendingSound = null;
+		if (listener.Propagation.PendingSound == reaction && !reaction.ResponseStarted)
+			listener.Propagation.PendingSound = null;
 	}
 
-	// 16-4/16-5/10장: 소리에 아예 반응하지 않는 상태 — 파티 목표·코어 상호작용 당사자, 전투 진입 합류
-	// 대기 중, 이미 전투 목표가 있는 경우(16-5장 "현재 공격 목표가 있으면 소리로 반응하지 않는다").
-	private static bool IsSoundUnresponsive(Human human)
+	// 16-4/16-5/10장: 소리에 아예 반응하지 않는 상태 — 이미 전투 목표가 있는 경우(16-5장 "현재 공격
+	// 목표가 있으면 소리로 반응하지 않는다", 인류/몬스터 공통 규칙)는 모든 유닛에 적용하고, 파티
+	// 목표·코어 상호작용 당사자·전투 진입 합류 대기 중은 인류 전용 상태라 Human일 때만 확인한다
+	// (몬스터는 해당 필드 자체가 없다 — 16-6장 "몬스터는 소리 감지와 방향·추정 지역 획득까지만 공통
+	// 규칙을 사용한다").
+	private static bool IsSoundUnresponsive(Unit unit)
 	{
-		if (human.personalSpottedEnemies.Count > 0) return true;
-		if (human.currentJoinCombatWait != null) return true;
-		if (human.currentCoreInteraction != null && human.currentCoreInteraction.Active) return true;
+		if (unit.personalSpottedEnemies.Count > 0) return true;
+		if (unit is Human human)
+		{
+			if (human.currentJoinCombatWait != null) return true;
+			if (human.currentCoreInteraction != null && human.currentCoreInteraction.Active) return true;
+		}
 		return false;
 	}
 
@@ -264,14 +278,17 @@ public static class PropagationSystem
 	// 상태로 승격시킨다. TacticalFSMState.HasAlert(Alert 분기 조건)가 지연 호출한다 — 상위 분기(함정
 	// 대응 등)가 이미 처리 중이면 애초에 이 지점까지 오지 않으므로, 함정작동음처럼 "현재 행동을 유지"
 	// 시키는 소리는 자연히 그 행동이 끝난 뒤에야 여기 도달해 승격된다(16-4장).
-	public static bool TryPromotePendingSoundToAlert(Human human)
+	// 2026-08-06: Human 고정에서 Unit으로 일반화 — currentAlertSearch/Propagation 모두 base Unit
+	// 소유라 로직 변경 없이 그대로 몬스터에도 적용된다. TacticalFSMState.HasAlert가 인류/몬스터 구분
+	// 없이 호출한다(HasAlert 자체가 어느 유닛에 대해 호출되는지는 UnitFSM이 이미 결정해 둔 뒤다).
+	public static bool TryPromotePendingSoundToAlert(Unit unit)
 	{
-		if (human.currentAlertSearch != null) return human.currentAlertSearch.IsSoundResponse;
-		var pending = human.Propagation.PendingSound;
+		if (unit.currentAlertSearch != null) return unit.currentAlertSearch.IsSoundResponse;
+		var pending = unit.Propagation.PendingSound;
 		if (pending == null || pending.ResponseStarted) return false;
-		if (Time.time > pending.ValidUntilTime) { human.Propagation.PendingSound = null; return false; }
+		if (Time.time > pending.ValidUntilTime) { unit.Propagation.PendingSound = null; return false; }
 
-		human.currentAlertSearch = new AlertSearchState
+		unit.currentAlertSearch = new AlertSearchState
 		{
 			IsSoundResponse = true,
 			SoundKind = pending.Type,

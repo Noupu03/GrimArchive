@@ -229,6 +229,47 @@ public class PropagationSystemTests
 		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
 	}
 
+	// ── 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 발견한 갭 수정(2026-08-06) — 몬스터도
+	// SoundPerceivedEvent의 Observer가 될 수 있고, PendingSound는 Propagation(base Unit 소유)이라
+	// 인류와 동일하게 채워져야 한다.
+	[Test]
+	public void OnSoundPerceived_MonsterListener_SetsPendingSound()
+	{
+		var monster = ScriptableObject.CreateInstance<Monster>();
+		monster.unitType = new MeleeTank();
+		monster.position = Vector2Int.zero;
+
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			monster, SoundType.Movement, new Vector2Int(1, 0), 0, null, null, false, "INC_MON_1"));
+
+		Assert.AreEqual(SoundType.Movement, monster.Propagation.PendingSound.Type);
+	}
+
+	// TryPromotePendingSoundToAlert가 Human 전용이었을 때는 몬스터의 PendingSound가 채워져도
+	// currentAlertSearch로 절대 승격되지 않아 TacticalFSMState.HasAlert가 몬스터에 대해 항상 실패했다
+	// (07문서 1장 검증 중 발견). Unit으로 일반화한 뒤에는 인류와 동일하게 승격되어야 한다.
+	[Test]
+	public void TryPromotePendingSoundToAlert_PromotesForMonsterToo()
+	{
+		var monster = ScriptableObject.CreateInstance<Monster>();
+		monster.unitType = new MeleeTank();
+		monster.position = Vector2Int.zero;
+		monster.Propagation.PendingSound = new PendingSoundReaction
+		{
+			Type = SoundType.Movement,
+			SourcePosition = new Vector2Int(2, 0),
+			HasEstimatedArea = false,
+			ValidUntilTime = 9999f,
+		};
+
+		bool promoted = PropagationSystem.TryPromotePendingSoundToAlert(monster);
+
+		Assert.IsTrue(promoted);
+		Assert.IsNotNull(monster.currentAlertSearch);
+		Assert.IsTrue(monster.currentAlertSearch.IsSoundResponse);
+		Assert.AreEqual(SoundType.Movement, monster.currentAlertSearch.SoundKind);
+	}
+
 	// ── E_HIT_HEAVY_INDIRECT 연결(2026-08-05): 인지 판정 성공 시점(TryConfirmIndirectHit)에서만 기록되고,
 	// 공격자를 아직 정확 인지하지 못한 상태에서는 기록되지 않는다.
 	[Test]

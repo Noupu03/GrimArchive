@@ -284,8 +284,11 @@ public class TacticalFSMState : IFSMState
 	// 07문서 16장(2026-07-31): currentAlertSearch가 비어있어도 아직 시작 안 한 유효한 소리 반응이
 	// 있으면 이 지점에서 지연 승격한다(함정 대응 등 상위 분기가 먼저 실패해야 여기 도달하므로,
 	// 함정작동음처럼 "현재 행동을 유지"시키는 소리는 자연히 그 행동이 끝난 뒤에야 승격된다).
+	// 2026-08-06: 07문서 1장 검증 중 소리 감지 승격이 Human으로만 게이팅돼 몬스터는 PendingSound가
+	// 채워져도 currentAlertSearch로 승격되지 못하던 갭을 발견해 인류/몬스터 구분 없이 호출하도록 고쳤다
+	// (TryPromotePendingSoundToAlert 자체가 이미 Unit 기준으로 일반화됨).
 	private static bool HasAlert(Unit unit)
-		=> unit.currentAlertSearch != null || (unit is Human human && PropagationSystem.TryPromotePendingSoundToAlert(human));
+		=> unit.currentAlertSearch != null || PropagationSystem.TryPromotePendingSoundToAlert(unit);
 	private static bool HasFormationNeed(Unit unit)
 		=> unit is Human human && human.HasProtectiveFormationNeed();
 	private static bool HasJoinCombatWait(Unit unit) => unit is Human human && human.currentJoinCombatWait != null;
@@ -791,7 +794,10 @@ public class TacticalFSMState : IFSMState
 	private static void ClearSoundAlert(Unit unit)
 	{
 		unit.currentAlertSearch = null;
-		if (unit is Human human) human.Propagation.PendingSound = null;
+		// 2026-08-06: PendingSound도 Propagation(base Unit 소유)이라 Human 게이팅 없이 정리한다 —
+		// 예전 Human 전용 게이팅을 그대로 두면 몬스터의 PendingSound가 영영 안 지워져 새 소리를
+		// 못 받는 상태로 고착됐다.
+		unit.Propagation.PendingSound = null;
 	}
 
 	// 07-A 9장: 발견자는 제자리에서 가장 가까운 정확 인지 적을 향해 시야를 유지하고(09_전투반응 문서

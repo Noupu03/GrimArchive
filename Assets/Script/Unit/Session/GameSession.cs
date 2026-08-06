@@ -134,17 +134,19 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RegisterUnitPos(Unit u, Vector2Int pos)
     {
         _unitRegistry.RegisterUnitPos(u, pos);
-        // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 인류 후보"만 훑을 수
-        // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다.
-        if (u is Human human)
-            PropagationSystem.UpdateHumanRoomIndex(human, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
+        // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 소리 감지자"만 훑을 수
+        // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다. 2026-08-06:
+        // 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 몬스터가 이 인덱스에서 빠져 있던
+        // 갭을 발견해 Human 전용에서 모든 Unit으로 확장했다(전파는 여전히 인류 전용 — 이 인덱스는
+        // "소리를 들을 수 있는지"만 판단하고, 전파 가능 여부는 PropagationSystem의 별도 함수가
+        // 여전히 Human으로 게이팅한다).
+        PropagationSystem.UpdateListenerRoomIndex(u, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)
     {
         _unitRegistry.UnregisterUnitPos(u, pos);
-        if (u is Human human)
-            PropagationSystem.RemoveFromRoomIndex(human);
+        PropagationSystem.RemoveFromRoomIndex(u);
     }
 
     public GameSession()
