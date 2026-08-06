@@ -1021,6 +1021,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 				PartyDeathSystem.TickOngoingPropagation(human);
 				// 03문서 7-3장/07문서 6장: 리더가 아직 코어를 모르면 전파 조건을 다시 확인한다.
 				CorePartySystem.TickLeaderPropagation(human);
+				// 07문서 9장(2026-08-06 검증 중 발견): 함정 정보도 최초 발견 시점 1회 전파뿐이었다 —
+				// 사망/코어와 동일하게 미보유 파티원의 지속 재전파를 추가한다.
+				TrapPartySystem.TickOngoingPropagation(human);
 			}
 			_safetyTickTimer = 0f;
 		}

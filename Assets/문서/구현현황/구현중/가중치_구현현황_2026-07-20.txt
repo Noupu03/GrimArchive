@@ -50,7 +50,12 @@ weight_events.json/WeightEventTable.cs/WeightEnums.cs)를 문서 1장부터 25�
 지금 남은 미구현/부분구현 중 실제로 다음에 손댈 만한 것들을 작업량 순으로 정리한 것이다. 남은
 항목 대부분이 "이 이벤트를 발생시킬 하위 게임 시스템이 아직 없다"는 동일한 원인으로 수렴한다.
 
-0. [신규, 코드 반영 전] 가중치_수정예정_2026-07-20.txt 항목 1(19장 전멸 흔적 흥미도 보정) —
+0. [완료, 2026-08-06] 가중치_수정예정_2026-07-20.txt 항목 1(19장 전멸 흔적 흥미도 보정) — 다른
+   작업자와 파일이 안 겹치는 것 확인 후(git status 클린) 제안 코드 그대로 반영. WeightMath.cs에
+   WipeoutTraceInterest(causerStage)(WipeoutTraceGlobalReflection 위임) 신설,
+   PersonalMapKnowledge.RegisterObject의 WipeoutTrace 분기가 고정값 25 대신 이 함수를 쓴다.
+   WeightSystemTests.cs에 WipeoutTraceInterest_AppliesCauserStageBonus(Stage2 → 25+10=35) 신규.
+   dotnet build 확인(오류 0, 새 경고 없음). 아래는 원래 이 항목의 배경 설명(과거형 유지) —
    판단은 끝났고 제안 코드도 있음, 다른 작업자와 파일이 안 겹치는지만 확인하면 바로 적용 가능.
 
 1. [완료, 2026-07-09 점검에서 처리] 13-2장 전멸 흔적 "발견→전역 반영" 연결

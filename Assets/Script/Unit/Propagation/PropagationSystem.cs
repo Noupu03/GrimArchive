@@ -143,7 +143,8 @@ public static class PropagationSystem
 		Unit attacker = null, bool isHeavyHit = false, string incidentId = null)
 	{
 		if (session == null || session.cmap == null) return;
-		int roomId = session.cmap.GetRoomIdAt(floorIndex, position);
+		CreateMap cmap = session.cmap;
+		int roomId = cmap.GetRoomIdAt(floorIndex, position);
 		if (roomId < 0) return;
 
 		// 감지 성공 여부와 무관하게 "소리가 발생했다" 자체는 항상 알린다(디버그 시각화 전용).
@@ -171,10 +172,15 @@ public static class PropagationSystem
 			if (!listener.CanPerceive) continue; // 기절 등 인지 판정 불가 상태 — 못 듣는다고 근사
 			if (IsSoundUnresponsive(listener)) continue;
 
-			float dist = Vector2Int.Distance(listener.position, position);
 			bool isAlert = listener.Perception.IsAlert;
 			int detectRange = PropagationMath.SoundDetectionRange(type, listener.spotting, isAlert, isMonster: !listenerIsHuman);
-			if (dist > detectRange) continue;
+			// 07-A 1장 "전파·소리 공통 공간 거리 판정" — 소리도 전파와 동일하게 벽 우회 최단경로를 써야
+			// 한다(직선거리만 쓰면 방 안 장애물(isStructureExist)을 무시하게 됨, 2026-08-06 검증 중 발견).
+			// _listenersByRoom로 이미 같은 방 후보만 남아있지만, 우회 경로 자체가 게이트를 스치지 않도록
+			// GetRoomIdAt(floorIndex,p)==roomId로 같은 공간 안에서만 우회하도록 제한한다.
+			bool reachable = PropagationMath.TryGetSpaceDistance(position, listener.position, detectRange,
+				p => cmap.IsStaticTileWalkable(floorIndex, p) && cmap.GetRoomIdAt(floorIndex, p) == roomId, out _);
+			if (!reachable) continue;
 
 			OnSoundPerceived.OnNext(new SoundPerceivedEvent(listener, type, position, floorIndex, source, attacker, isHeavyHit, incidentId));
 		}
@@ -360,7 +366,11 @@ public static class PropagationSystem
 	// 발견자가 정보를 전달"하는 경우, 발견자는 그 인지 자체 때문에 personalSpottedEnemies가 이미 채워져
 	// 있어(합류 대기 중이라 아직 전투로는 안 넘어갔을 뿐) 일반적인 "비전투" 판정을 그대로 쓸 수 없다 —
 	// StartJoinCombatWait가 이 헬퍼를 직접 쓰고 수신자 쪽 비전투 조건만 별도로 확인한다.
-	private static bool InPropagationRange(Human sender, Human receiver)
+	// 8장: 사망 정보(PartyDeathSystem)가 "일반적인 비전투 전파 조건보다 사망 정보 규칙을 우선한다"는
+	// 예외를 적용할 때도 이 공간+범위 판정만 재사용한다 — CanPropagate처럼 비전투 조건까지 강제하지
+	// 않는다(2026-08-06 검증 중 발견, 03문서 4-12장 "현재 상태에 관계없이 즉시 처리"와 동일 근거로
+	// public 승격).
+	public static bool InPropagationRange(Human sender, Human receiver)
 	{
 		if (sender == null || receiver == null || sender.hp <= 0 || receiver.hp <= 0) return false;
 		if (sender.currentFloor != receiver.currentFloor) return false;
@@ -373,8 +383,12 @@ public static class PropagationSystem
 		int range = GetPropagationRange(sender);
 		CreateMap cmap = sender.Session.cmap;
 		int floor = sender.currentFloor;
+		// 07-A 1-2장: 우회 경로는 "같은 공간 안에서"만 유효하다 — IsStaticTileWalkable만으로는 구조적
+		// 통행 가능 여부만 볼 뿐 방 소속을 안 봐서, 우회 경로가 게이트를 지나 옆방/통로를 스치는 경우까지
+		// 허용해버릴 수 있었다. senderRoom(=receiverRoom, 위에서 이미 SameSpace로 확인됨)과 같은 방의
+		// 타일만 후보로 남긴다(2026-08-06 검증 중 발견).
 		return PropagationMath.TryGetSpaceDistance(sender.position, receiver.position, range,
-			p => cmap.IsStaticTileWalkable(floor, p), out _);
+			p => cmap.IsStaticTileWalkable(floor, p) && cmap.GetRoomIdAt(floor, p) == senderRoom, out _);
 	}
 
 	// 6장: 발신자·수신자 모두 비전투 + 같은 공간(방/통로) + 전파 범위 안. "정보 미보유/구버전" 조건은
@@ -530,6 +544,29 @@ public static class PropagationSystem
 			LastKnownTimestamp = Time.time,
 			SourceInfoType = InfoType.Indirect,
 		};
+	}
+
+	// ═══════════════════════════ 최신 위치 판단 (07문서 13장 / 07-A 3장) ═══════════════════════════
+	// 직접 정보(PersonalMapKnowledge.MonsterSighting)와 전파 정보(PropagatedInfo)는 저장소 자체는
+	// 계속 분리한다(3장 "직접 정보/전파 정보" 구분, 4장 "전파받은 정보가 구체적이어도 직접 인지
+	// 결과로 취급 안 함"). 다만 "이 대상 지금 어디로 알고 있나"를 판단할 때는 24장 PriorityRank
+	// (직접이 간접보다 항상 우선, 오래됐어도)가 아니라 13장 자체의 규칙 — "더 최신의 확인 정보로
+	// 갱신, 더 오래된 정보는 유지"만 순수 비교한다(사용자 결정, 2026-08-06). 두 저장소 다 없으면
+	// false, 하나만 있으면 그 값, 둘 다 있으면 ShouldUpdateLastKnownPosition(07-A 3장)으로 비교한다.
+	public static bool GetLatestKnownPosition(Human observer, Unit target, out Vector3Int tile, out float timestamp)
+	{
+		bool hasDirect = observer.personalMap.TryGetMonsterSighting(target.name, out var directTile, out _, out _, out var directTime);
+		bool hasPropagated = observer.Propagation.PropagatedInfo.TryGetValue(target, out var propagated);
+
+		if (hasDirect && (!hasPropagated || !PropagationMath.ShouldUpdateLastKnownPosition(propagated.LastKnownTimestamp, directTime)))
+		{
+			tile = directTile; timestamp = directTime; return true;
+		}
+		if (hasPropagated)
+		{
+			tile = propagated.LastKnownTile; timestamp = propagated.LastKnownTimestamp; return true;
+		}
+		tile = default; timestamp = default; return false;
 	}
 
 	// UnitFunction.OnUpdate가 매 프레임(currentAlertSearch와 동일 패턴) 호출한다.

@@ -75,6 +75,32 @@ public static class TrapPartySystem
 		}
 	}
 
+	// 07문서 9장: "미보유 유닛이 있으면 재전파" — 최초 발견 시점 전파 범위 밖이었던 파티원도 나중에
+	// 범위 안으로 들어오면 함정 정보를 받는다(PartyDeathSystem.TickOngoingPropagation/CorePartySystem.
+	// TickLeaderPropagation과 동일 패턴, 2026-08-06 검증 중 발견 — 기존엔 OnTrapDiscovered 시점 1회
+	// 전파뿐이었다). UnitFunction.OnUpdate가 매 인류 0.1초 틱에서 호출.
+	public static void TickOngoingPropagation(Human human)
+	{
+		var party = human.party;
+		if (party == null || party.TrapCoordinations.Count == 0 || human.Session == null) return;
+
+		foreach (var coord in party.TrapCoordinations.Values)
+		{
+			if (human.personalMap.IsObjectKnown(coord.TrapObjectId)) continue;
+
+			foreach (var carrier in party.Members)
+			{
+				if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+				if (!carrier.personalMap.IsObjectKnown(coord.TrapObjectId)) continue;
+				if (!PropagationSystem.CanPropagate(carrier, human)) continue;
+				if (!human.Session.objectGrid.TryGetValue(coord.TrapPosition, out var trapObj)) break;
+
+				human.personalMap.RegisterObject(trapObj.Id, trapObj.Position, trapObj.BaseDanger, trapObj.BaseInterest, trapObj.Tags, trapObj.CauserStage);
+				break;
+			}
+		}
+	}
+
 	private static void StepAwayFromTrap(Human unit, Vector2Int trapPos2D)
 	{
 		Vector2Int away = unit.position - trapPos2D;

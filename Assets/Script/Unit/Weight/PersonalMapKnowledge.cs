@@ -299,7 +299,9 @@ public class PersonalMapKnowledge
 			// 항상 false를 반환하는 잠재 버그였다).
 			if (tags.Any(t => t.Contains("WipeoutTrace")))
 			{
-				_objectInterest[objectId] = WeightMath.WipeoutTraceBaseInterest;
+				// 2026-07-20: 19장도 13-2장과 동일하게 원인 대상 위험도 단계 보정을 받는다(사용자 확인,
+				// 가중치_수정예정_2026-07-20.txt 항목 1 — 고정값 25만 쓰던 걸 교체).
+				_objectInterest[objectId] = WeightMath.WipeoutTraceInterest(causerStage);
 			}
 			else if (tags.Any(t => t.Contains("Corpse")))
 			{
@@ -421,6 +423,9 @@ public class PersonalMapKnowledge
 		public float DangerSnapshot;
 		public float InterestSnapshot;
 		public InfoType RecordedInfoType;
+		// 07문서 13장 "정보의 최신성과 갱신" — 전파 정보(PropagatedInfoRecord.LastKnownTimestamp)와
+		// 동일 대상을 놓고 어느 쪽이 더 최신인지 비교할 때 쓴다(PropagationSystem.GetLatestKnownPosition).
+		public float Timestamp;
 	}
 	private readonly Dictionary<string, MonsterSighting> _monsterSightings = new();
 
@@ -449,6 +454,7 @@ public class PersonalMapKnowledge
 			DangerSnapshot = dangerSnapshot,
 			InterestSnapshot = interestSnapshot,
 			RecordedInfoType = infoType,
+			Timestamp = Time.time,
 		};
 		SetTileDangerFromUnit(tile, dangerSnapshot); // 15장: "적이 있거나 있었던 타일은 그 적의 기록 위험도를 가짐"
 		// 시야에서 벗어나도 이 항목을 지우지 않는다 — 15장 "유닛 사라짐 → 기록 위험도 유지 →
@@ -456,13 +462,16 @@ public class PersonalMapKnowledge
 	}
 
 	public bool TryGetMonsterSighting(string monsterKey, out Vector3Int tile, out float danger, out float interest)
+		=> TryGetMonsterSighting(monsterKey, out tile, out danger, out interest, out _);
+
+	public bool TryGetMonsterSighting(string monsterKey, out Vector3Int tile, out float danger, out float interest, out float timestamp)
 	{
 		if (_monsterSightings.TryGetValue(monsterKey, out var s))
 		{
-			tile = s.Tile; danger = s.DangerSnapshot; interest = s.InterestSnapshot;
+			tile = s.Tile; danger = s.DangerSnapshot; interest = s.InterestSnapshot; timestamp = s.Timestamp;
 			return true;
 		}
-		tile = default; danger = 0f; interest = 0f;
+		tile = default; danger = 0f; interest = 0f; timestamp = 0f;
 		return false;
 	}
 

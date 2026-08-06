@@ -332,5 +332,81 @@ public class PropagationSystemTests
 		PropagationSystem.OnMonsterCorpseDiscovered(discoverer, humanKilledCorpse);
 		Assert.AreEqual(0.25f, discoverer.personalWeights[understandingKey].StoredValue, 0.0001f);
 	}
+
+	// ── 07문서 13장(저장소 분리 + 최신성만으로 판단, 사용자 결정 2026-08-06) ──
+	[Test]
+	public void GetLatestKnownPosition_ReturnsFalse_WhenNeitherRecorded()
+	{
+		var observer = ScriptableObject.CreateInstance<Human>();
+		var target = ScriptableObject.CreateInstance<Monster>();
+		target.unitType = new MeleeTank();
+		target.name = "target_none";
+
+		bool found = PropagationSystem.GetLatestKnownPosition(observer, target, out _, out _);
+		Assert.IsFalse(found);
+	}
+
+	[Test]
+	public void GetLatestKnownPosition_UsesDirect_WhenOnlyDirectRecorded()
+	{
+		var observer = ScriptableObject.CreateInstance<Human>();
+		var target = ScriptableObject.CreateInstance<Monster>();
+		target.unitType = new MeleeTank();
+		target.name = "target_direct";
+		var directTile = new Vector3Int(3, 3, 0);
+
+		observer.personalMap.ObserveMonster(target.name, directTile, 1f, 1f);
+
+		bool found = PropagationSystem.GetLatestKnownPosition(observer, target, out var tile, out _);
+		Assert.IsTrue(found);
+		Assert.AreEqual(directTile, tile);
+	}
+
+	// 직접 정보가 더 오래됐으면 24장 PriorityRank(직접>간접 항상 우선)가 아니라 전파 정보가 이긴다 —
+	// 13장이 24장과 다른 규칙(순수 최신성)임을 못박는 테스트.
+	[Test]
+	public void GetLatestKnownPosition_PrefersNewerPropagated_OverOlderDirect()
+	{
+		var observer = ScriptableObject.CreateInstance<Human>();
+		var target = ScriptableObject.CreateInstance<Monster>();
+		target.unitType = new MeleeTank();
+		target.name = "target_newer_propagated";
+		var directTile = new Vector3Int(1, 1, 0);
+		var propagatedTile = new Vector3Int(5, 5, 0);
+
+		observer.personalMap.ObserveMonster(target.name, directTile, 1f, 1f); // Timestamp = Time.time
+		observer.Propagation.PropagatedInfo[target] = new PropagatedInfoRecord
+		{
+			LastKnownTile = propagatedTile,
+			LastKnownTimestamp = 999f, // 직접 정보보다 확실히 최신
+		};
+
+		bool found = PropagationSystem.GetLatestKnownPosition(observer, target, out var tile, out var timestamp);
+		Assert.IsTrue(found);
+		Assert.AreEqual(propagatedTile, tile);
+		Assert.AreEqual(999f, timestamp);
+	}
+
+	[Test]
+	public void GetLatestKnownPosition_KeepsDirect_WhenNewerThanPropagated()
+	{
+		var observer = ScriptableObject.CreateInstance<Human>();
+		var target = ScriptableObject.CreateInstance<Monster>();
+		target.unitType = new MeleeTank();
+		target.name = "target_direct_newer";
+		var directTile = new Vector3Int(2, 2, 0);
+		var propagatedTile = new Vector3Int(9, 9, 0);
+
+		observer.Propagation.PropagatedInfo[target] = new PropagatedInfoRecord
+		{
+			LastKnownTile = propagatedTile,
+			LastKnownTimestamp = -100f, // Time.time(항상 >=0)보다 확실히 오래됨
+		};
+		observer.personalMap.ObserveMonster(target.name, directTile, 1f, 1f);
+
+		bool found = PropagationSystem.GetLatestKnownPosition(observer, target, out var tile, out _);
+		Assert.IsTrue(found);
+		Assert.AreEqual(directTile, tile);
+	}
 }
 #endif

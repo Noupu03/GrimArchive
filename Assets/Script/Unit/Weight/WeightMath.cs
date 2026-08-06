@@ -309,6 +309,12 @@ public static class WeightMath
 
 	public static float CorpseTraceInterest(DangerStage causerStage) => CorpseTraceBaseInterest + DangerStageBonus(causerStage);
 
+	// 2026-07-20: 전멸 흔적도 시체/흔적과 동일하게 원인 대상 위험도 단계 보정을 받는다(사용자 확인,
+	// 가중치_수정예정_2026-07-20.txt 항목 1) — 13-2장 WipeoutTraceGlobalReflection과 공식이 완전히
+	// 같아(둘 다 25 + DangerStageBonus) 그 함수를 그대로 재사용한다. 호출부(19장 타일 흥미도)와
+	// 13-2장(던전 전역 위험도 반영값)의 의미가 달라 이름만 별도로 둔다.
+	public static float WipeoutTraceInterest(DangerStage causerStage) => WipeoutTraceGlobalReflection(causerStage);
+
 	// ─────────────────────────── 13-2장. 전멸 흔적 발견 전역 반영값 ───────────────────────────
 	public const float WipeoutTraceGlobalBase = 25f;
 	public static float WipeoutTraceGlobalReflection(DangerStage causerStage) => WipeoutTraceGlobalBase + DangerStageBonus(causerStage);

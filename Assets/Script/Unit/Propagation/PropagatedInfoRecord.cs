@@ -9,6 +9,11 @@ using UnityEngine;
 // 전파 정보 — 다른 유닛에게 전달받은 대상(적 유닛 Unit 참조 또는 InteractableObject.Id)의 마지막
 // 확인 위치·시각. 13장: 전파 시점이 새로운 확인 시점으로 취급되지 않으며, 전달된 위치를 대상의 현재
 // 위치로 확정하지 않는다 — 그래서 "직접 인지"(PerceptionRecord)와 분리된 별도 기록이다.
+//
+// 저장소 분리 vs 판단 시점 병합(사용자 결정, 2026-08-06): 저장소 자체(이 클래스 vs PersonalMapKnowledge)는
+// 계속 분리하되, "이 대상을 지금 어디로 알고 있나" 판단은 두 저장소 중 타임스탬프가 더 최신인 쪽만
+// 쓴다 — 24장 PriorityRank(직접이 오래됐어도 간접보다 우선)가 아니라 13장 자체의 순수 최신성 규칙.
+// PropagationSystem.GetLatestKnownPosition이 이 비교를 담당한다.
 public class PropagatedInfoRecord
 {
 	public Vector3Int LastKnownTile;

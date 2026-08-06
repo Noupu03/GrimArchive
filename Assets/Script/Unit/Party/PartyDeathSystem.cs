@@ -7,10 +7,15 @@ using UnityEngine;
 //   - UnitFunction.CastRay(오브젝트 인지 블록): OnCorpseDiscovered(나중에 시체를 발견한 경우)
 //   - TacticalFSMState.InvestigatePerform: OnCorpseInvestigated(시체 조사로 사망 원인 확인)
 //   - UnitFunction.CastRay(유닛 인지 블록): OnDeathSearchSpotted(원인미상 수색 중 몬스터 정확 인지)
-// 2026-07-31: 07_전파·소리·간접입력 구현으로 전파(PropagateFrom)는 실제 전파 조건(PropagationSystem.
-// CanPropagate — 비전투+같은 공간+카리스마 기반 전파 범위)을 쓴다. "사망 순간 직접 목격" 판정
-// (TryConfirmCauseByWitness 등)은 전파가 아니라 시야 기반 목격이라 VisionMath.ViewDistance(spotting)를
-// 그대로 유지한다(성격이 다름 — 혼동 주의).
+// 2026-07-31: 07_전파·소리·간접입력 구현으로 전파(PropagateFrom)는 실제 전파 조건(같은 공간+카리스마
+// 기반 전파 범위)을 쓴다. "사망 순간 직접 목격" 판정(TryConfirmCauseByWitness 등)은 전파가 아니라
+// 시야 기반 목격이라 VisionMath.ViewDistance(spotting)를 그대로 유지한다(성격이 다름 — 혼동 주의).
+// 2026-08-06(검증 중 발견): 07문서 8장 "사망 정보는 일반적인 비전투 전파 조건보다 사망 정보 규칙을
+// 우선한다" + 03문서 4-12장 "현재 상태와 탐색 반응 우선순위에 관계없이 즉시 처리한다" — 그래서
+// PropagateFrom/TickOngoingPropagation은 CanPropagate(비전투 조건 포함)가 아니라
+// PropagationSystem.InPropagationRange(공간+범위만, 7-1/7-2와 동일 패턴)를 쓴다. 전투 중인 대표
+// 발견자나 수신자도 사망 정보 자체는 즉시 주고받는다 — 막히는 건 "경계 수색으로 전환"뿐(그건 현재
+// 행동 우선순위를 그대로 따름, TriggerUnknownCauseSearch의 CanJoinDeathSearch가 담당).
 public static class PartyDeathSystem
 {
 	// ─────────────────────────── 4-12/4-14장: 사망 순간 직접 목격 ───────────────────────────
@@ -173,7 +178,7 @@ public static class PartyDeathSystem
 		{
 			if (m == null || m.hp <= 0 || m == representative || (deadUnitPositionOwner != null && m == deadUnitPositionOwner)) continue;
 			if (record.InfoKnownUnits.Contains(m.name)) continue;
-			if (!PropagationSystem.CanPropagate(representative, m)) continue;
+			if (!PropagationSystem.InPropagationRange(representative, m)) continue;
 			ApplyDeathInfo(record, m, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
 		}
 	}
@@ -195,7 +200,7 @@ public static class PartyDeathSystem
 			{
 				if (carrier == null || carrier == human || carrier.hp <= 0) continue;
 				if (!record.InfoKnownUnits.Contains(carrier.name)) continue;
-				if (!PropagationSystem.CanPropagate(carrier, human)) continue;
+				if (!PropagationSystem.InPropagationRange(carrier, human)) continue;
 				ApplyDeathInfo(record, human, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
 				break;
 			}

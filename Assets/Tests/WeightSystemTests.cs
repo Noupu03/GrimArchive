@@ -308,6 +308,20 @@ public class WeightSystemTests
 		Assert.AreEqual(35f, kb.GetDungeonDanger(), 0.001f); // 25 + 10
 	}
 
+	// ── 19장(2026-07-20 가중치_수정예정 항목 1 반영): 전멸 흔적도 시체/흔적과 동일하게 원인 대상
+	// 위험도 단계 보정을 받는다 — 13-2장과 동일 공식(25 + 단계보정). 예전엔 고정값 25만 썼다.
+	[Test]
+	public void WipeoutTraceInterest_AppliesCauserStageBonus()
+	{
+		var map = new PersonalMapKnowledge();
+		var pos = new Vector3Int(1, 1, 0);
+		map.RegisterObject("trace_1", pos, baseDanger: 0f, baseInterest: 0f,
+			tags: new List<string> { "Object/Passable/WipeoutTrace" },
+			causerStage: DangerStage.Stage2); // +10 보정
+
+		Assert.AreEqual(35f, map.GetTileInterest(pos, explored: true, objectIdAtTile: "trace_1"), 0.001f); // 25 + 10
+	}
+
 	// ── E_MONSTER_KILL_INDIRECT 연결(2026-08-05): 죽은 몬스터는 Destroy돼 target Unit을 다시 못 쓰므로
 	// RecordEventByKey(스냅샷 키 직접 전달)로 우회한다 — RecordEvent(target Unit)와 동일한 개인 즉시
 	// 반영 결과(4장)가 나오는지 확인. weight_events.json: E_MONSTER_KILL_INDIRECT(understanding +0.25,
