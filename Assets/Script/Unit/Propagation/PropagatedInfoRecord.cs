@@ -40,11 +40,3 @@ public class PendingSoundReaction
 	public bool IsHeavyHit;
 	public string IncidentId; // 원본 RecordHitWeightEvent가 발급한 값 그대로(6장 전역 반영 그룹화 공유)
 }
-
-// 17장: 공격자를 정확 인지하지 못했지만 공격 형태로 방향은 아는 경우의 마지막 공격 방향 정보.
-// 대상별이 아니라 유닛당 최신 1건만 의미가 있어(경계 상태로 그 방향을 확인하는 것뿐) 단일 필드로 둔다.
-public class PendingAttackDirection
-{
-	public Dir Direction;
-	public float DetectedAtTime;
-}

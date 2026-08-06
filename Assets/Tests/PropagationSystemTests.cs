@@ -152,6 +152,22 @@ public class PropagationSystemTests
 		Assert.IsFalse(PropagationMath.ShouldReplaceSound(candidateRank: 2, candidateDist: 5f, currentRank: 2, currentDist: 3f));
 	}
 
+	// 7-2장 마지막 타이브레이크: 순위·거리가 모두 같으면 현재 시야 방향에 더 가까운 소리를 우선한다.
+	[Test]
+	public void ShouldReplaceSound_SameRankAndDistance_PrefersCloserToCurrentViewDirection()
+	{
+		Assert.IsTrue(PropagationMath.ShouldReplaceSound(
+			candidateRank: 2, candidateDist: 5f, currentRank: 2, currentDist: 5f,
+			candidateDirStepDist: 1, currentDirStepDist: 3));
+		Assert.IsFalse(PropagationMath.ShouldReplaceSound(
+			candidateRank: 2, candidateDist: 5f, currentRank: 2, currentDist: 5f,
+			candidateDirStepDist: 3, currentDirStepDist: 1));
+		// 방향까지 동률이면 기존(현재 확인 중) 소리를 유지한다.
+		Assert.IsFalse(PropagationMath.ShouldReplaceSound(
+			candidateRank: 2, candidateDist: 5f, currentRank: 2, currentDist: 5f,
+			candidateDirStepDist: 2, currentDirStepDist: 2));
+	}
+
 	// ── 9-1/9-2장. 근거리 즉시 전투(2칸), 위험도 단계별 합류 대기 ──
 	[Test]
 	public void RequiresJoinWait_Table()

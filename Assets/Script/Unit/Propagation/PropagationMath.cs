@@ -152,11 +152,14 @@ public static class PropagationMath
 	};
 
 	// true면 candidate가 현재 확인 중인 소리를 대체해야 함(우선순위가 더 높거나, 같은 순위면서 더
-	// 가깝거나, 거리도 같으면서 현재 시야 방향에 더 가까울 때) — 7-2장.
-	public static bool ShouldReplaceSound(int candidateRank, float candidateDist, int currentRank, float currentDist)
+	// 가깝거나, 순위·거리가 모두 같으면서 현재 시야 방향에 더 가까울 때) — 7-2장. 방향 인자는 기본값
+	// 0으로 두면 마지막 타이브레이크가 비활성화된다(호출부가 방향 정보를 안 줄 수도 있는 기존 테스트 호환).
+	public static bool ShouldReplaceSound(int candidateRank, float candidateDist, int currentRank, float currentDist,
+		int candidateDirStepDist = 0, int currentDirStepDist = 0)
 	{
 		if (candidateRank != currentRank) return candidateRank < currentRank;
-		return candidateDist < currentDist;
+		if (candidateDist != currentDist) return candidateDist < currentDist;
+		return candidateDirStepDist < currentDirStepDist;
 	}
 
 	public const float SoundValidSeconds = 5f;           // 7-3장: 일반 소리 유효시간(확인 행동 시작 기한)

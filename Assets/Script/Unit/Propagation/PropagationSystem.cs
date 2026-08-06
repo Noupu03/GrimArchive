@@ -193,7 +193,12 @@ public static class PropagationSystem
 		{
 			int curRank = PropagationMath.SoundPriorityRank(pending.Type);
 			float curDist = Vector2Int.Distance(human.position, pending.SourcePosition);
-			if (!PropagationMath.ShouldReplaceSound(rank, dist, curRank, curDist)) return; // 7-2장: 기존 유지
+			// 7-2장 마지막 타이브레이크: 순위·거리가 모두 같으면 현재 시야 방향(currentDir)에 더 가까운
+			// 소리를 우선한다. 두 지점 모두 관찰자와 정확히 같은 위치인 근접 사건이면 방향이 무의미하므로
+			// GetDirection8이 기본 방향을 돌려줘도 안전하다(둘 다 같은 값이라 타이브레이크에 영향 없음).
+			int candidateDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(e.Position - human.position), human.currentDir);
+			int curDirStep = VisionMath.DirStepDistance(SkillAction.GetDirection8(pending.SourcePosition - human.position), human.currentDir);
+			if (!PropagationMath.ShouldReplaceSound(rank, dist, curRank, curDist, candidateDirStep, curDirStep)) return; // 7-2장: 기존 유지
 		}
 		else if (pending != null && pending.ResponseStarted)
 		{
@@ -364,7 +369,54 @@ public static class PropagationSystem
 		return InPropagationRange(sender, receiver);
 	}
 
+	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
+
+	// 7-2장: "적을 정확 인지하기 전에 공격받은 경우 일반 전파의 발신자 상태 조건에 대한 예외로 정보를
+	// 1회 전파할 수 있다" — 전달 내용은 "자신이 공격받았다는 사실" + "공격 형태상 확인 가능한 공격
+	// 방향"(attackerPosition, 없으면 방향도 모름) 둘뿐이다(공격자를 이미 정확 인지했다면 그 정보도
+	// 포함되지만, 이 메서드는 UnitFunction.RecordHitWeightEvent의 "공격자 미인지" 분기에서만 호출돼
+	// 그 경우는 애초에 해당하지 않는다). "이 예외는 발신자의 상태 조건만 예외 처리하며, 수신자의
+	// 상태·동일 공간·전파 범위 조건은 일반 전파 규칙을 따른다" — 그래서 CanPropagate(양쪽 비전투 확인)
+	// 대신 InPropagationRange(공간+범위만)를 쓰고 수신자 쪽 비전투 조건만 IsSoundUnresponsive로 별도
+	// 확인한다(7-1장 StartJoinCombatWait와 동일 패턴 — 발견자/피해자는 이 사건 자체 때문에 비전투
+	// 조건을 만족 못 할 수 있어 일반 CanPropagate를 못 쓴다).
+	// 수신자 반응은 "이후 상태 전환과 공격 방향에 따른 행동은 17을 따른다"(7-2장) 그대로 — 17장은
+	// 발신자(피해자)와 수신자를 구분하지 않으므로, 피해자 본인이 받는 것과 동일한 모양의 일반
+	// AlertSearchState(03문서 4-10~4-12장 미식별 공격 수색, 15초 워치독 포함)를 그대로 재사용한다.
+	// 소리 반응(IsSoundResponse)과는 다른 채널이라 소리 전용 필드는 세팅하지 않는다(07문서 2-1장:
+	// "전파는 시스템상 소리가 아니다").
+	public static void PropagateAttackedFact(Human victim, Vector2Int? attackerPosition)
+	{
+		if (victim?.party == null) return;
+		foreach (var m in victim.party.Members)
+		{
+			if (m == null || m == victim || m.hp <= 0) continue;
+			if (IsSoundUnresponsive(m)) continue;
+			if (!InPropagationRange(victim, m)) continue;
+			if (m.currentAlertSearch != null) continue; // 더 급한 상태(이미 반응 중)는 덮어쓰지 않는다.
+
+			m.currentAlertSearch = new AlertSearchState { TargetPosition = attackerPosition };
+		}
+	}
+
 	// ═══════════════════════════ 상호작용 정보·보호 포메이션 (10장) ═══════════════════════════
+
+	// 10장 마지막 문단(2026-08-06 수정): "재전파 수신자는... 같은 대상에 대한 중복 조사·해제 목표를
+	// 선택하지 않는다"는 "같은 상호작용 인스턴스"를 전제로 한다 — 예전엔 Unit 단위 영구 기록이라, A가
+	// 상호작용1을 끝내고 완전히 다른 상호작용2를 나중에(범위 밖에서) 시작해도 옛 알림이 그대로 유효해
+	// 잘못 참여자격을 줄 수 있었다(07-31본이 이미 지적한 갭). currentTrapInteraction/currentInvestigation/
+	// currentCoreInteraction은 상호작용을 새로 시작할 때마다 TacticalFSMState가 `new ...State`로 교체
+	// 하므로, 그 참조 자체를 "이번 인스턴스"의 토큰으로 쓰면 별도 ID 체계 없이 인스턴스를 구분할 수 있다.
+	private static object GetInteractionToken(Unit unit)
+	{
+		if (unit.currentTrapInteraction != null) return unit.currentTrapInteraction;
+		if (unit is Human h)
+		{
+			if (h.currentInvestigation != null) return h.currentInvestigation;
+			if (h.currentCoreInteraction != null) return h.currentCoreInteraction;
+		}
+		return null;
+	}
 
 	// 조사/함정 해제/코어 조사가 실제로 시작되는 시점(TacticalFSMState의 각 Perform 리프)에 1회 호출한다.
 	// 이 전파를 직접 받은 파티원만 보호 포메이션 참여 자격을 얻는다 — "상호작용 유닛을 시야에서 직접
@@ -372,16 +424,25 @@ public static class PropagationSystem
 	public static void NotifyInteractionStarted(Human interactingUnit)
 	{
 		if (interactingUnit.party == null) return;
+		object token = GetInteractionToken(interactingUnit);
+		if (token == null) return; // 호출 시점엔 항상 있어야 하지만(막 시작한 상호작용) 방어적으로.
 		foreach (var m in interactingUnit.party.Members)
 		{
 			if (m == null || m == interactingUnit || m.hp <= 0) continue;
 			if (!CanPropagate(interactingUnit, m)) continue;
-			m.Propagation.NotifiedActiveInteractions.Add(interactingUnit);
+			m.Propagation.NotifiedInteractionTokens[interactingUnit] = token;
 		}
 	}
 
+	// 저장된 토큰이 상호작용 유닛의 "지금 이 순간" 인스턴스와 여전히 같은 참조일 때만 유효 — 상호작용이
+	// 끝나 인스턴스가 사라지거나(token != null인데 현재 token이 null) 완전히 새 인스턴스로 교체되면
+	// (참조 불일치) 자동으로 무효화된다.
 	public static bool HasReceivedInteractionNotice(Human observer, Unit interactingUnit)
-		=> observer.Propagation.NotifiedActiveInteractions.Contains(interactingUnit);
+	{
+		if (!observer.Propagation.NotifiedInteractionTokens.TryGetValue(interactingUnit, out var token) || token == null)
+			return false;
+		return ReferenceEquals(token, GetInteractionToken(interactingUnit));
+	}
 
 	// ═══════════════════════════ 전투 진입 합류 판정 (07문서 7장 / 07-A 9장) ═══════════════════════════
 

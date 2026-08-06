@@ -420,10 +420,19 @@ GrimArchive 03_탐색반응·경계·조사·함정대응_시스템_v0.6 — 신
    막힐 확률 자체는 낮아졌지만, 다른 이유(다른 파티원과의 우연한 경합 등)로 조사/함정 해제 유닛이
    막히는 경우까지 대비하려면 PlayerCommandFSMState.ExecutePlayerMove와 동일한 관례를 그쪽에도
    넣어주는 게 일관적이다.
-1. [작음] 4-5장 AlertSearchState 정리 누락 버그 — 지난 파일부터 이월된 기존 버그. 전투/함정/조사로
-   정확 인지가 넘어간 뒤에도 옛 currentAlertSearch(이번엔 IsDeathSearch 포함)가 명시적으로 안 비워져
-   후속 처리(전투종료 10초 스윕 등)가 씹히는 경우가 있다. CombatFSMState.OnExit/TrapDisarmPerform/
-   TrapBypass/TrapDestroy/InvestigatePerform 등에서 currentAlertSearch=null을 명시적으로 연결 필요.
+1. [완료, 2026-08-06 — 07문서 구현현황 세션에서 처리] 4-5장 AlertSearchState 정리 누락 버그 — 07문서
+   재검증 도중 "Combat 진입 시 currentAlertSearch가 안 지워짐"으로 같은 버그를 독립적으로 재발견해
+   함께 고쳤다(자세한 근거는 시야인지반응_구현현황_2026-08-05.txt "2026-08-06 1순위 작업" 참고).
+   CombatFSMState.OnEnter(빈 메서드였음)에 currentAlertSearch=null 추가 — 원래 문서가 "OnExit"을
+   지목했지만, 실제 원인은 전투 진입 시점에 옛 상태가 안 지워지는 것이라(전투 중엔 IsSoundUnresponsive가
+   새 소리 반응 생성 자체를 막아 OnExit 시점의 currentAlertSearch는 항상 "전투 진입 전 잔재 또는
+   null"뿐이다) OnEnter에서 미리 비우는 쪽이 더 정확하고, 기존 OnExit의 "null이면 전투 후 스윕 세팅"
+   로직도 그대로 살릴 수 있어 이 방식을 택했다. TrapDisarmPerform(성공)/TrapBypass/TrapPass(문서엔
+   없었지만 동일 패턴이라 함께 처리)/TrapDestroy(전부 성공 반환 직전)/InvestigatePerform이 아니라
+   실제 조사 종료 지점인 PickUpObject(두 반환 지점 모두)/CoreInvestigatePerform(두 반환 지점 모두,
+   문서 목록엔 없었지만 동일 BT 구조라 함께 처리)에 currentAlertSearch=null 명시적 연결 완료.
+   dotnet build 확인(오류 0). 실제 플레이 검증(전투/함정/조사 종료 후 낡은 경계 상태 잔재로 인한
+   오작동이 사라졌는지)은 아직 안 함.
 2. [작음] 9-6장 인접 1칸 지속 회피 — 지금은 "이미 서있던 경우"만 1회성으로 처리한다. 비선정 유닛의
    일반 탐색/BFS 경로 계산(NavigationFSMState.RandomExplore)에 활성 함정 인접 타일을 "선호하지 않는
    타일"로 얹으면 완성도가 올라간다.

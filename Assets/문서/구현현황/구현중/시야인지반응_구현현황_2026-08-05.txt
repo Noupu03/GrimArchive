@@ -199,6 +199,10 @@ E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT 실제 연결 + 임시 디버그 �
      듣는지(인덱스 갱신 누락으로 "투명 인간"이 되지 않는지), 죽은 인류가 인덱스에서 실제로 빠지는지
      (메모리 누수·유령 감지 방지), 파티 여러 개가 서로 다른 방에서 동시에 활동할 때 다른 방의 소리에
      반응하지 않는지(공간 판정 자체는 원래도 있었지만 인덱스가 그 경계를 흐트러뜨리지 않는지 재확인).
+  10. [2026-08-06 신규] PropagationSystem.PropagateAttackedFact(7-2장) — 파티원이 공격자를 못 알아본
+     채 맞았을 때 같은 방·전파 범위 안의 비전투 다른 파티원이 실제로 미식별 공격 수색 상태로 전환되는지,
+     범위 밖·다른 방 파티원은 반응하지 않는지, 이미 다른 경계/조사/전투 중인 파티원은 상태가 안
+     덮어써지는지.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 다음 우선순위 구현 후보 (2026-08-05, 07-31본에서 1번이 완료돼 빠지고 번호가 당겨짐)
@@ -236,6 +240,13 @@ E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT 실제 연결 + 임시 디버그 �
    내부 상태를 직접 조회하는 public API가 없어(private 필드) 전용 단위 테스트는 추가하지 않았다 —
    EmitSound 자체가 GameSession 풀 셋업이 필요해 애초에 플레이 검증 항목이었던 것과 동일 사유,
    아래 "실제 플레이 검증"에 추가.
+10. [완료, 2026-08-06] 07-A 7-2장 동순위 소리 타이브레이크 3단계 중 "거리도 같으면 현재 시야 방향과
+    가까운 쪽 우선" — PropagationMath.ShouldReplaceSound에 방향 인자 추가로 해결(위 "2026-08-06 갭
+    해결" 1번 참고).
+11. [완료, 2026-08-06] PropagationComponent.PendingAttackDir 죽은 필드 — 완전 삭제(위 "2026-08-06 갭
+    해결" 2번 참고).
+12. [완료, 2026-08-06] 07 문서 7-2장 "공격받았지만 미인지" 시 다른 유닛에게로의 실제 브로드캐스트 —
+    PropagationSystem.PropagateAttackedFact 신설로 해결(위 "2026-08-06 새 이슈 해결" 참고).
 
 ════════════════════════════════════════════════════════════════════════
 ■ 사용자 확인이 필요했던 판단
@@ -353,3 +364,200 @@ dotnet build로 컴파일 확인 완료(오류 0).
 비어있다는 걸 확인 — 그 자리(Rect(10, 110, 220, 240))로 이동. 화면 하단 좌측(x10~250)의 선택 유닛
 정보 UGUI 프리팹, BuildingControlPanel(x260~520, 화면 하단)과도 세로로 충분히 떨어져 있어 겹치지
 않는다. dotnet build로 컴파일 확인 완료(오류 0).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-06 재검증 (구현현황_정리_20260805.txt 7개 항목 + 07/07-A 전체 항목 코드 대조)
+════════════════════════════════════════════════════════════════════════
+사용자가 (구본훈 공유용) 구현현황_정리_20260805.txt와 07/07-A 원본 문서를 근거로 "각 항목별로
+재검증해서 정리해달라"고 요청 — fork로 실제 소스 코드를 직접 읽어 어제 기록을 독립 재확인했다(코드
+수정 없음, 조사만).
+
+**정리_20260805.txt 7개 항목 — 전부 CONFIRMED(코드와 정확히 일치).**
+1. E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT — TryConfirmIndirectHit이 SoundAreaApproach의 인지
+   판정 롤 시점에서 정확히 호출되고, RecordEventByKey/RecordEvent 래퍼 관계, RemoveDeadUnit의 Destroy
+   전 스냅샷, IsAttackerIdentified와 간접 확인 판정의 분리까지 서술대로.
+2. 소리 폴링→이벤트 재설계 — EmitSound 즉시 스캔, OnSoundPerceived static 구독, ExpireAfterDelay(5초
+   UniTask.Delay + ResponseStarted 체크), TickSoundPerception 폴링 호출 완전 삭제 확인.
+3. 방별 인류 인덱스 — _humansByRoom/_humanRoomKey 튜플 키, RegisterUnitPos/UnregisterUnitPos 동일
+   지점 갱신, EmitSound가 인덱스만 순회.
+4. 15초 워치독 버그 수정 — IsSoundResponse && !SoundPerceptionRolled 예외 확인. 07-A 7-3장 "시작
+   기한 5초"는 접근 로직 자체가 아니라 PendingSoundReaction.ValidUntilTime(감지 후 5초 안에
+   TryPromotePendingSoundToAlert 안 불리면 폐기)이 담당 — 별도 경로로 문서 규칙을 정확히 충족.
+5. 계단 텔레포트 겹침 수정 — TryResolveUnoccupiedStairArrival + CrossStairs/ForceCrossToTargetFloor
+   (bool 반환)/RetreatMemberToFloor0(폴백+경고로그) 전부 확인.
+6. PropagationDebugVisualizer — OnSoundEmitted 구독, 7개 토글 여전히 존재(아직 임시 코드 상태 유지).
+7. FSM 우선순위 — Combat priority 100 vs Tactical 50, 전투 중 IsSoundUnresponsive 차단, TrapResponse
+   소리 인터럽트, JoinCombatWait 순위, "Combat 진입 시 currentAlertSearch 안 지워짐" 잔존 이슈까지
+   전부 서술 그대로.
+
+**07/07-A 전체 재대조 — 기존 07-31본 장별 태그와도 일치, 새로 발견된 것은 아래 2건뿐(사소함):**
+- 6~13장(일반 전파)이 정리_20260805.txt엔 언급이 없었지만(그 문서는 소리 얘기만 다룸) 실제로는
+  CorePartySystem/PartyDeathSystem/TrapPartySystem/TacticalFSMState 여러 지점에 이미 광범위하게
+  배선돼 있음 재확인 — 07-31본의 ✅ 6장 태그가 최신 코드에서도 여전히 유효.
+- 16-5장(전투·도주·퇴각 중 소리)은 여전히 미구현 — 07-31본이 이미 "다음 우선순위 5번, 06문서 부재로
+  스텁"으로 기록해 둔 것과 동일, 새 버그 아님.
+
+**새로 찾은 사소한 갭 2건(둘 다 심각도 낮음, 별도 수정 없이 기록만):**
+- 07-A 7-2장 동순위 소리 타이브레이크 3단계 중 마지막(랭크 동일·거리도 동일하면 현재 시야 방향과
+  가까운 쪽 우선)이 PropagationMath.ShouldReplaceSound에 없음 — 랭크→거리 2단계까지만 구현. 두 소리가
+  정확히 같은 거리로 동시 발생하는 극단적 동률 케이스에만 영향(현재는 나중 소리가 이김 — 순서
+  의존적).
+- PropagationComponent.PendingAttackDir(17장 공격 방향 필드)가 UnitFunction에서 기록만 되고 어디서도
+  안 읽힘(전체 grep 확인) — 실제 방향 확인 접근은 AlertSearchState.TargetPosition 경로로 대체돼
+  있어 기능 문제는 없으나 죽은 필드. 정리 후보.
+
+결론: 어제 하루 작업 보고서(구현현황_정리_20260805.txt)는 실제 코드 상태를 정확히 반영하고 있고,
+문서(07/07-A) 대비 새로운 미구현 사항도 없다 — 위 2건은 기존에 알려진 스텁이 아니라 "이번에 처음
+찾은 사소한 단순화/죽은 코드"라 다음 우선순위 목록에 추가한다(아래).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-06 갭 해결 (위 재검증에서 찾은 사소한 갭 2건 모두 수정)
+════════════════════════════════════════════════════════════════════════
+사용자가 "갭 다 해결해봐"라고 요청 — 두 건 다 실제로 고쳤다(다음 우선순위 10/11번 항목 완료로 종료).
+
+1. **07-A 7-2장 시야 방향 타이브레이크 추가.**
+   PropagationMath.ShouldReplaceSound에 candidateDirStepDist/currentDirStepDist 선택 매개변수(기본값
+   0, 기존 호출부·테스트 호환) 추가 — 랭크 동일 → 거리 동일까지도 같으면 VisionMath.DirStepDistance로
+   계산한 "현재 시야 방향(human.currentDir)과의 회전 단계 차이"가 더 작은 쪽을 우선하도록 3단계
+   비교로 확장. PropagationSystem.HandleSoundPerceived 호출부에서 SkillAction.GetDirection8(사건
+   위치 - 관찰자 위치)로 두 후보의 방향을 구해 넘긴다 — 01-A 11장 VisionMath.ResolveVisionDirection이
+   이미 쓰던 것과 동일한 "회전 단계 차이" 개념을 그대로 재사용(새 알고리즘을 만들지 않음).
+   테스트: PropagationSystemTests.cs에 ShouldReplaceSound_SameRankAndDistance_
+   PrefersCloserToCurrentViewDirection 신규(방향까지 동률이면 기존 소리 유지 확인 포함).
+2. **PropagationComponent.PendingAttackDir 죽은 필드 삭제.**
+   기록만 되고 어디서도 안 읽히는 걸 재확인(전체 grep으로 재검증) — PropagatedInfoRecord.cs의
+   PendingAttackDirection 클래스, PropagationComponent.cs의 필드, UnitFunction.RecordHitWeightEvent의
+   기록 블록을 전부 제거했다. 실제 방향 확인 접근 동작(AlertSearchState.TargetPosition 경로)은 이
+   필드에 의존하지 않으므로 동작 변화 없음 — CLAUDE.md/시스템 지침의 "확실히 안 쓰는 코드는 완전히
+   삭제" 원칙을 따름(부분 스텁으로 남겨두지 않음). 07-A 7-2장이 요구하는 "공격 방향을 다른 유닛에게도
+   전파" 자체(발신자→다른 인류로의 실제 브로드캐스트)는 여전히 미구현인데, 이건 이 필드의 사인방향
+   재활용으로 때울 수 있는 사소한 갭이 아니라 CanPropagate 기반 전파 경로 신설이 필요한 별도 기능이라
+   범위 밖으로 남겨둔다(다음 우선순위 12번 참고).
+
+검증: dotnet build Assembly-CSharp.csproj 성공(오류 0, 경고 39개 그대로 — 신규 경고 없음).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-06 새 이슈 해결 (다음 우선순위 12번 — 07문서 7-2장 공격받은 사실의 실제 전파)
+════════════════════════════════════════════════════════════════════════
+사용자가 "새 이슈 해결해봐"로 요청 — 위 갭 해결 과정에서 새로 찾은 12번(7-2장 브로드캐스트 미구현)도
+마저 구현했다.
+
+**구현:** PropagationSystem.PropagateAttackedFact(victim, attackerPosition) 신설, UnitFunction.
+RecordHitWeightEvent의 "공격자 미인지" 분기(else, PendingAttackDir를 지웠던 바로 그 자리)에서
+victim이 Human일 때 호출한다.
+- 7-2장 "이 예외는 발신자의 상태 조건만 예외 처리, 수신자의 상태·동일 공간·전파 범위는 일반 전파
+  규칙을 따른다"를 그대로 반영 — CanPropagate(양쪽 비전투 확인) 대신 InPropagationRange(공간+범위만,
+  발신자 비전투 조건 없음)를 쓰고, 수신자 쪽 비전투·비상호작용 조건만 IsSoundUnresponsive로 확인한다.
+  7-1장 StartJoinCombatWait가 이미 "발견자는 이 사건 자체 때문에 비전투 조건을 못 만족할 수 있다"는
+  동일한 이유로 같은 패턴(InPropagationRange 직접 사용)을 쓰고 있어 그 전례를 그대로 따랐다.
+- 전달 내용은 문서 그대로 "공격받았다는 사실" + "확인 가능하면 공격 방향"(attackerPosition, 없으면
+  null) 둘뿐이다. "공격자를 이미 정확 인지했다면 그 정보도 포함" 조건은 이 메서드가 호출되는 분기
+  자체가 "공격자 미인지"일 때만이라 애초에 해당 사항이 없다(별도 처리 불필요).
+- 수신자 반응은 17장 "발신자든 수신자든 동일 규칙"에 따라 피해자 본인과 완전히 같은 모양의 일반
+  AlertSearchState(03문서 4-10~4-12장 미식별 공격 수색, 기존 15초 워치독 그대로 적용)를 재사용한다 —
+  IsSoundResponse 등 소리 전용 필드는 세팅하지 않는다(07문서 2-1장 "전파는 소리가 아니다"). 이미
+  currentAlertSearch가 있는(더 급한 상태 처리 중인) 수신자는 덮어쓰지 않는다.
+
+**검증:** dotnet build 성공(오류 0, 경고 39개 그대로). 단위 테스트는 추가하지 않음 —
+InPropagationRange가 sender.Session.cmap(방/통로 판정)을 요구해 CanPropagate/StartJoinCombatWait와
+동일하게 GameSession/CreateMap 풀 셋업이 필요한 범위라, 기존에도 이 두 함수가 단위 테스트 없이 "실제
+플레이 검증" 항목으로 남아있던 것과 같은 사유(전례 일치, 새로 예외를 만들지 않음). 아래 "실제 플레이
+검증" 목록에 추가.
+
+07문서 7장 상태 갱신: 07-31본이 7-2를 "AlertSearchState 경로에 통합"으로 ✅ 처리해 둔 것은 사실
+"피해자 자신의 반응"만 구현된 상태였다(2026-08-06 재검증에서 발견) — 이번 구현으로 "다른 파티원에게
+실제 전파"까지 채워져 이제 명실상부하게 ✅다. 다음 우선순위 12번 항목은 완료로 종료한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-06 추가 조사 (사용자 "더 찾아봐") — 07문서 10장 중복 조사 버그 발견 + 수정
+════════════════════════════════════════════════════════════════════════
+fork로 아직 안 본 영역(9장 합류판정 세부/8장 사망정보/코어·함정 전파조건/공간거리BFS/16-6몬스터/10장
+보호포메이션)을 추가로 훑었다. 대부분 CONFIRMED(문제없음)였고, 실제 버그 1건을 새로 찾아 바로 고쳤다.
+
+**CONFIRMED(문제없음, 상세 생략) — 9장 합류판정(2초/5초/선공시 즉시전투 전부 정확), 8장 사망정보
+(기록/정신력/전파 3종 다 있음, TickOngoingPropagation은 UnitFunction.OnUpdate에서 실제로 매 틱
+호출되는 살아있는 코드), 코어·함정 전파의 "발신자 보유 정보만" 게이팅, TryGetSpaceDistance BFS(문서
+예시 "직선2·우회4→범위3 실패/범위4 성공" 그대로 재현, 코너 커팅 방지 포함), 16-6장 몬스터 소리(스텁
+그대로, 죽은 코드 조각 없음).**
+"합류 대기 중 발견자의 방어 계산 활성화"(7-1장)는 TacticalFSMState.cs 주석에 이미 "06_전투반응·기습
+문서 부재로 스텁"이라 명시돼 있던 기존 스텁 — 새 발견 아님.
+
+**새로 찾은 버그: 07문서 10장 마지막 문단 미구현 — 일반 조사 중복 선택.**
+"재전파 수신자는 보호 포메이션에는 참여하지 않지만, 같은 대상에 대한 중복 조사·해제 목표를 선택하지
+않는다"에서 뒷부분("중복 조사·해제 목표 선택 금지")이 함정(TrapPartySystem.TrapPartyCoordination,
+SelectionLocked)에만 구현돼 있고 일반 조사(Human.ComputeInvestigateTarget)에는 전혀 없었다 — 파티원
+둘이 동시에 같은 오브젝트를 향해 조사를 시작할 수 있는 실제 버그.
+**수정:** Unit.cs의 Human.ComputeInvestigateTarget(조사 후보 스캔 루프)에 IsInvestigationClaimedByPartyMember
+게이팅 추가 — 다른 파티원이 이미 그 오브젝트를 currentInvestigation.TargetObjectId로 갖고 있으면 후보에서
+제외한다. TrapPartySystem처럼 별도 코디네이션 dict를 새로 만들지 않고, 파티 순회로 즉석 확인하는 더
+가벼운 방식을 택했다(파티 규모가 작아 매 프레임 캐시 재계산 비용에 무리 없음 — FindInvestigateTarget이
+이미 프레임 단위로 캐시하고 있어 추가 비용도 프레임당 1회로 제한됨).
+검증: dotnet build 성공(오류 0, 경고 39개 그대로). 단위 테스트는 Session/objectGrid/party 풀 셋업이
+필요해 기존 ComputeInvestigateTarget과 동일 사유로 추가 안 함 — 실제 플레이 검증 항목에 추가(파티원
+두 명이 같은 미발견 오브젝트를 동시에 알게 됐을 때 한 명만 조사를 시작하는지).
+
+**07 범위 밖 참고 — 2026-08-06 "1순위들 다해봐"에서 마저 삭제 완료.** PartyDeathRecord.
+CauseConfirmedDirectly(03문서 소속) 죽은 필드는 아래 "1순위 재정리" 3번에서 처리.
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 재정리 (2026-08-06, 오늘 완료분 정리 후 남은 것만 — 위 1~12번 중 완료 표시 안 된
+  것 + 03문서 쪽에서 오늘 작업과 맞물리는 항목 포함)
+════════════════════════════════════════════════════════════════════════
+오늘 하루로 07/07-A 문서는 사실상 전 장(1~18장) 검증 완료 + 발견된 실제 버그 4건(15초 워치독 오적용,
+계단 겹침, 7-2 브로드캐스트 누락, 10장 중복 조사) 전부 수정 상태다. 남은 건 "문서 부재로 못 만드는
+큰 것들"과 "당장 만들 수 있는 작은 정리"로 갈린다.
+
+**0순위 — 코드 작업 아님, 선행 필수:** 오늘 고친 것 전부(E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT,
+소리 이벤트 재설계, 방별 인덱스, 15초 워치독, 계단 겹침, 타이브레이크, 7-2 브로드캐스트, 중복 조사
+방지) 실제 플레이 검증이 전무하다 — 전부 dotnet build + 손계산 테스트로만 확인됐다. 다음 세션은 새
+기능을 더 만들기보다 먼저 실제로 켜서 확인하는 걸 최우선으로 권장한다(위 "실제 플레이 검증" 목록
+1~10번이 체크리스트).
+
+**1순위 — 2026-08-06에 전부 처리(사용자 "1순위들 다해봐"):**
+1. [완료] **03문서 4-5장 AlertSearchState 정리 누락 버그.** CombatFSMState.OnEnter(빈 메서드였음)에
+   currentAlertSearch=null 추가 — 문서 원문은 "OnExit"을 지목했지만, 전투 중엔 IsSoundUnresponsive가
+   새 소리 반응 생성 자체를 막아 OnExit 시점의 currentAlertSearch는 항상 "전투 진입 전 잔재 또는
+   null"뿐이라 OnEnter에서 미리 비우는 쪽이 더 정확하다(OnExit의 기존 "null이면 전투 후 스윕 세팅"
+   로직도 그대로 살아있음). TrapDisarmPerform(해제 성공)/TrapBypass/TrapPass(문서엔 없었지만 동일
+   패턴이라 추가)/TrapDestroy(전부 성공 반환 직전) + 실제 조사 종료 지점인 PickUpObject(두 반환
+   지점)/CoreInvestigatePerform(두 반환 지점, 동일 BT 구조라 함께 처리)에 currentAlertSearch=null
+   명시적 연결 완료. 03문서 쪽 구현현황(시야인지반응_03_구현현황_2026-07-27.txt "다음 우선순위 1번")도
+   완료로 갱신.
+2. [완료] **10장 NotifiedActiveInteractions 인스턴스 구분.** PropagationComponent.
+   NotifiedActiveInteractions(HashSet<Unit>)를 NotifiedInteractionTokens(Dictionary<Unit, object>)로
+   교체 — PropagationSystem.GetInteractionToken(unit)이 currentTrapInteraction/currentInvestigation/
+   currentCoreInteraction 중 non-null인 것의 참조 자체를 "이번 상호작용 인스턴스"의 토큰으로 쓴다(이
+   상태 객체들은 TacticalFSMState가 상호작용을 새로 시작할 때마다 `new`로 교체하므로 별도 ID 체계 없이
+   인스턴스 구분이 됨). NotifyInteractionStarted가 토큰을 같이 저장하고, HasReceivedInteractionNotice는
+   저장된 토큰이 상호작용 유닛의 "지금 이 순간" 토큰과 참조가 같을 때만 true — 상호작용이 끝나거나
+   완전히 새 상호작용으로 바뀌면 자동으로 무효화된다.
+3. [완료, 07 범위 밖] **PartyDeathRecord.CauseConfirmedDirectly 죽은 필드 삭제.** PendingAttackDir와
+   동일 패턴 재확인(4개 쓰기 지점, 읽는 곳 0곳) — ApplyDangerOnce가 이미 호출부에서 명시적 EventId/
+   InfoType(E_HUMAN_KILL_SEEN/DirectWitness vs E_HUMAN_KILL_INDIRECT/Indirect)를 직접 받고 있어 이
+   필드가 애초에 중복 정보였다. PartyDeathRecord.cs 필드 + PartyDeathSystem.cs 4개 쓰기 지점 전부 제거.
+4. [결정] **PropagationDebugVisualizer 존치.** 0순위(실제 플레이 검증)가 아직 하나도 안 끝나 지금
+   지우면 검증 도구 자체가 없어진다 — "삭제할지 사용자 판단 필요"였던 항목을 "0순위 검증 끝날 때까지
+   보류"로 직접 결정하고 그대로 뒀다(코드 변경 없음, 되돌리기 쉬운 선택).
+5. [재확인, 코드 변경 없음] **몬스터 무리형 전파/소리 감지.** 실제로 손대볼지 검토했으나, 07문서
+   16-6장이 "몬스터는 소리 감지+방향·추정지역 획득까지만 07 담당, 반응 해석은 각 역할군 AI 몫"이라고
+   명시하는데 그 역할군 AI 시스템 자체가 없다 — 지금 소리 감지를 몬스터까지 연결해도 아무도 그 결과를
+   못 읽는 죽은 데이터만 새로 만드는 셈이라(PendingAttackDir/CauseConfirmedDirectly와 같은 패턴을
+   스스로 만드는 꼴) 손대지 않았다. 역할군 AI 문서/시스템이 생길 때 같이 연결하는 게 맞다.
+
+빌드: 위 1~3번 전부 dotnet build 확인 완료(오류 0, 경고 39개 그대로, 매 항목마다 개별 확인).
+단위 테스트는 추가 안 함 — 1번은 FSM 리프 완료 지점 단순 대입이라 기존 FSMBehaviorTests 스타일로
+Session 셋업 없이 값만 검증하긴 애매하고(실제로는 human.OnUpdate 등 전체 틱 흐름이 얽힘), 2번은
+Session/party 풀 셋업이 필요해 CanPropagate류와 동일 사유로 실제 플레이 검증 항목에 위임.
+
+**2순위 — 문서 부재로 여전히 보류(문서가 나오면 바로 손댈 것들, 지금은 대기만):**
+- 09문서(목표·이동경로): 07-A 11장 합류 5초 초과 처리, 코어 발견 물리적 전파, 08/09장 정식 파티
+  통신 체계.
+- 06문서(전투반응·기습): 16-5장 전투 중 소리 기반 새 타겟 탐색, 15장 반응 후보 실제 선택 로직,
+  합류 대기 중 "방어 계산 활성화"(7-1장).
+- 함정 시스템 문서: 함정 피해 인원수·단계별 위험도 증가량, 함정 흔적 이해도 상승량(수치만 정해지면
+  소리 이벤트 자체는 이미 있어 바로 연결 가능).
+
+**3순위 — 다른 시스템(참고용, 이 문서 범위 밖):** 가중치_구현현황 문서의 남은 큰 항목(버프/디버프/
+소환 시스템, 13-1장 레벨 총합 보정값 — 둘 다 전투/레벨 시스템 쪽 선행 설계 필요), 03_구현현황 문서의
+나머지 작은 항목(9-6장 인접 회피, 4-13장 진짜 연속 재전파 등)도 남아있다 — 필요하면 각 문서의
+"다음 우선순위" 섹션 참고.

@@ -488,6 +488,7 @@ public class TacticalFSMState : IFSMState
 			// EncyclopediaManager가 경고만 남기고 조용히 무시하므로 안전하다.
 			Game.Encyclopedia.EncyclopediaManager.Instance?.UnlockEntry(trap.TrapObjectId);
 			human.currentTrapInteraction = null;
+			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
 		}
 		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
@@ -518,6 +519,7 @@ public class TacticalFSMState : IFSMState
 			System.Math.Sign(away.y));
 		AIMovementHelper.MoveTowardsPos(human, sidePos);
 		human.currentTrapInteraction = null;
+		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -553,6 +555,7 @@ public class TacticalFSMState : IFSMState
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
 		unit.currentTrapInteraction = null;
+		unit.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -576,6 +579,7 @@ public class TacticalFSMState : IFSMState
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 파괴했습니다.");
 		unit.Session.CollectObject(trap.TrapPosition);
 		unit.currentTrapInteraction = null;
+		unit.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -651,6 +655,7 @@ public class TacticalFSMState : IFSMState
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 		{
 			human.currentInvestigation = null;
+			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
 		}
 
@@ -665,6 +670,7 @@ public class TacticalFSMState : IFSMState
 				human.pendingStairTargetFloor = human.currentFloor + 1;
 		}
 		human.currentInvestigation = null;
+		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -1124,6 +1130,7 @@ public class TacticalFSMState : IFSMState
 		if (human.Session == null || !human.Session.objectGrid.TryGetValue(core.CorePosition, out var obj) || obj.IsInvestigated)
 		{
 			human.currentCoreInteraction = null;
+			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 			if (human.party != null) human.party.PendingCoreObjectId = null;
 			return BTStatus.Success;
 		}
@@ -1181,6 +1188,7 @@ public class TacticalFSMState : IFSMState
 		// 코어 파괴/특정 상호작용/인류 메리트·플레이어 디메리트 등 후속 효과는 코어·핵심방어목표 문서
 		// (추후 작성)의 몫 — 이번 구현은 사용자 확인대로 "발견~리더조사 흐름"까지만 다룬다.
 		human.currentCoreInteraction = null;
+		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 

@@ -88,7 +88,6 @@ public static class PartyDeathSystem
 		if (record.CauseMonster == null || record.CauseMonster.hp <= 0) return;
 
 		record.CauseConfirmed = true;
-		record.CauseConfirmedDirectly = false;
 		ApplyDangerOnce(record, investigator, EventId.E_HUMAN_KILL_INDIRECT, InfoType.Indirect);
 	}
 
@@ -108,7 +107,6 @@ public static class PartyDeathSystem
 		if (!record.CauseConfirmed && record.CauseMonster == spotted && spotted != null && spotted.hp > 0)
 		{
 			record.CauseConfirmed = true;
-			record.CauseConfirmedDirectly = false;
 			ApplyDangerOnce(record, observer, EventId.E_HUMAN_KILL_INDIRECT, InfoType.Indirect);
 		}
 		// 원인 몬스터든 다른 적이든, 정확 인지 즉시 전투 상태 우선순위(CombatFSMState)가 자연히
@@ -144,7 +142,6 @@ public static class PartyDeathSystem
 		if (Vector2Int.Distance(witness.position, record.CauseMonster.position) > VisionMath.ViewDistance(witness.spotting)) return;
 
 		record.CauseConfirmed = true;
-		record.CauseConfirmedDirectly = true;
 		ApplyDangerOnce(record, witness, EventId.E_HUMAN_KILL_SEEN, InfoType.DirectWitness);
 	}
 
@@ -157,7 +154,6 @@ public static class PartyDeathSystem
 	{
 		if (record.CauseConfirmed || record.CauseTrap == null) return false;
 		record.CauseConfirmed = true;
-		record.CauseConfirmedDirectly = true;
 		return true;
 	}
 

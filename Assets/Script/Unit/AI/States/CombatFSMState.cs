@@ -52,7 +52,13 @@ public class CombatFSMState : IFSMState
 
 	public bool IsSticky(Unit unit)        => false;
 	public bool ShouldInterrupt(Unit unit) => true;
-	public void OnEnter(Unit unit)         { }
+
+	// 03문서 4-5장(2026-08-06 수정): 경계/소리반응 중 정확 인지로 전투에 진입하면 Tactical의 Alert
+	// 리프가 자기 완료 코드(TacticalFSMState.cs의 currentAlertSearch=null 처리)를 못 거치고 그대로
+	// 버려진다 — 전투 중에는 IsSoundUnresponsive가 새 소리 반응 생성 자체를 막으므로, 전투 종료 시점의
+	// currentAlertSearch는 항상 이 낡은 전투-진입-전 잔재이거나 null 둘 중 하나다. 여기서 미리 비워두면
+	// 아래 OnExit의 "currentAlertSearch==null이면 전투 후 스윕 세팅" 분기가 매번 정상 동작한다.
+	public void OnEnter(Unit unit)         { unit.currentAlertSearch = null; }
 
 	// 전투 종료 시 전투 후 경계 세팅 (03문서 4-8장).
 	// 단, 플레이어 명령이 활성화된 채 전투 상태를 벗어나는 경우엔 경계를 세팅하지 않는다 —

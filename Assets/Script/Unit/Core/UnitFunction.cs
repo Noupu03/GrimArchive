@@ -110,18 +110,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 				bool inAwarenessRange = Vector2.Distance(position, attacker.position) <= VisionMath.AwarenessDistance(spotting);
 				bool shapeProvidesDirection = PropagationMath.AttackShapeProvidesDirection(attacker.CombatState.State.lastAttackShape);
 				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
-				currentAlertSearch = new AlertSearchState
-				{
-					TargetPosition = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null,
-				};
-				if (directionKnown && this is Human dirHuman)
-				{
-					dirHuman.Propagation.PendingAttackDir = new PendingAttackDirection
-					{
-						Direction = SkillAction.GetDirection8(attacker.position - position),
-						DetectedAtTime = UnityEngine.Time.time,
-					};
-				}
+				Vector2Int? attackerPos = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null;
+				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos };
+
+				// 07문서 7-2장(2026-08-06): "적을 정확 인지하기 전에 공격받은 경우" 발신자의 비전투 상태
+				// 조건을 예외 처리하고 이 사실(+ 방향)을 파티원에게 1회 전파한다.
+				if (this is Human victimHuman)
+					PropagationSystem.PropagateAttackedFact(victimHuman, attackerPos);
 			}
 		}
 		else

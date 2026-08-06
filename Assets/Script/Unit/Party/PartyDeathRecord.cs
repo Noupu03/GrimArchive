@@ -22,7 +22,6 @@ public class PartyDeathRecord
 	// 적용되므로(4-14장 "사망 원인이 몬스터로 확인되면") 이 경우 DangerApplied는 계속 false로 남는다.
 	public InteractableObject CauseTrap;
 	public bool CauseConfirmed;
-	public bool CauseConfirmedDirectly; // true=목격(SEEN,+3) / false=간접 확인(INDIRECT,+1.5)
 	public bool DangerApplied; // 이 사망 사건으로 위험도 이벤트를 이미 적용했는지(중복 방지)
 	public string IncidentId;
 

@@ -621,11 +621,27 @@ public class Human : UnitFunction
 			// 가로막고 있었다 — 명백한 누락이라 제외 목록에 추가한다.
 			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
 			if (isTrap || isExcludedTrace || isCore || isDoor) continue;
+			// 07문서 10장 마지막 문단: "재전파 수신자는... 같은 대상에 대한 중복 조사·해제 목표를
+			// 선택하지 않는다" — 다른 파티원이 이미 이 오브젝트를 currentInvestigation으로 잡고 있으면
+			// 후보에서 뺀다. TrapPartySystem이 함정 쪽에서 쓰는 것과 동일하게 별도 코디네이션 자료구조
+			// 없이 파티 순회로 즉석 확인한다(2026-08-06, 재검증에서 발견한 중복 조사 버그 수정).
+			if (IsInvestigationClaimedByPartyMember(obj.Id)) continue;
 
 			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
 			if (d < bestDist) { bestDist = d; best = obj; }
 		}
 		return best;
+	}
+
+	private bool IsInvestigationClaimedByPartyMember(string objectId)
+	{
+		if (party == null) return false;
+		foreach (var m in party.Members)
+		{
+			if (m == null || m == this || m.hp <= 0) continue;
+			if (m.currentInvestigation != null && m.currentInvestigation.TargetObjectId == objectId) return true;
+		}
+		return false;
 	}
 
 	// 5-3장 5가지 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택/도달은 위
