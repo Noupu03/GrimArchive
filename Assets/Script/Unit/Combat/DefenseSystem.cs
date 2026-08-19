@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 #if UNITY_EDITOR
@@ -29,7 +29,7 @@ public static class DefenseSystem
 
 	public static void EvaluateEarlyReaction(Unit defender, Unit attacker, ThreatTileData threat)
 	{
-		if (defender == null || attacker == null) return;
+		if (defender == null || attacker == null || threat == null) return;
 
 		List<DefenseCandidate> candidates = BuildDefenseCandidates(defender, attacker, threat, true); // true = early reaction only
 
@@ -38,7 +38,7 @@ public static class DefenseSystem
 		DefenseCandidate selected = SelectDefense(candidates);
 		if (selected == null) return;
 
-		ExecuteEarlyReaction(defender, attacker, selected);
+		ExecuteEarlyReaction(defender, attacker, selected, threat);
 	}
 
 	public static float EvaluateImpactDefense(Unit defender, Unit attacker, float rawDamage)
@@ -182,7 +182,7 @@ public static class DefenseSystem
 		return false;
 	}
 
-	static void ExecuteEarlyReaction(Unit defender, Unit attacker, DefenseCandidate selected)
+	static void ExecuteEarlyReaction(Unit defender, Unit attacker, DefenseCandidate selected, ThreatTileData threat)
 	{
 		switch (selected.type)
 		{
@@ -196,7 +196,7 @@ public static class DefenseSystem
 
 				if (Random.value <= success)
 				{
-					bool moved = TryDodgeMove(defender, defender.AIState.reactingThreat);
+					bool moved = TryDodgeMove(defender, threat);
 					if (moved)
 					{
 						defender.CombatState.State.evadeCooldown = 1.2f;
@@ -209,7 +209,7 @@ public static class DefenseSystem
 				float cost = defender.Health.maxMp * CombatConstants.BLINK_MP_COST_RATIO;
 				if (defender.Health.mp < cost) return;
 
-				List<Vector2Int> safeTiles = FindSafeTiles(defender, defender.AIState.reactingThreat, 4, true);
+				List<Vector2Int> safeTiles = FindSafeTiles(defender, threat, 4, true);
 				
 				// 벽 관통 방지 필터링: 출발지부터 목적지까지 벽을 뚫지 않는 경로가 존재하는 타일만 선별
 				List<Vector2Int> validTiles = new List<Vector2Int>();
@@ -242,9 +242,8 @@ public static class DefenseSystem
 					CombatConstants.MAX_BLOCK_DAMAGE_REDUCTION
 				);
 
-				var guardDef = defender;
-				guardDef.CombatState.State.suppressHitVFX = true;
-				guardDef.AIState.pendingVFX = () => defender.Generate?.SpawnGuardVFX(guardDef);
+				defender.CombatState.State.suppressHitVFX = true;
+				defender.Generate?.SpawnGuardVFX(defender, attacker);
 				
 				return rawDamage * (1f - reduction);
 			}
@@ -259,12 +258,15 @@ public static class DefenseSystem
 
 				if (Random.value <= success)
 				{
-					// 반격 데미지
-					attacker.TakePhysicalDamage(defender.CombatStat.physicalAttack * 0.5f, defender);
+					// 반격 데미지: 패링 성공 시 공격자는 자세가 무너진 무방비 상태이므로 방어/패링 재연산 없이 직접 피해를 입힌다.
+					float counterRaw = defender.CombatStat.physicalAttack * 0.5f;
+					float counterDamage = Mathf.Max(1f, counterRaw - attacker.CombatStat.physicalDefense);
+					attacker.lastDamageDealer = defender;
+					attacker.TakeDamage(counterDamage);
+					(attacker as UnitFunction)?.RecordHitWeightEvent(counterDamage, defender, counterRaw);
 
-					var parryDef = defender;
-					parryDef.CombatState.State.suppressHitVFX = true;
-					parryDef.AIState.pendingVFX = () => defender.Generate?.SpawnParryVFX(parryDef);
+					defender.CombatState.State.suppressHitVFX = true;
+					defender.Generate?.SpawnParryVFX(defender, attacker);
 					
 					return 0f;
 				}

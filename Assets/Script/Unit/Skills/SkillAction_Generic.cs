@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class SkillAction_Generic : SkillAction
 {
@@ -30,8 +30,6 @@ public class SkillAction_Generic : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.CombatStat.attackspeed)));
-
         var threat = ThreatTileData.Create();
         threat.shape = HitShape;
         if (HitShape == ThreatShape.RECT)
@@ -44,7 +42,7 @@ public class SkillAction_Generic : SkillAction
             threat.range = _d.threatRange;
         }
 
-        BeginAttackCast(unit, finalDelayMs, threat,
+        BeginAttackCast(unit, 0f, threat,
             () =>
             {
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
@@ -1199,32 +1199,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (attacker == null) continue;
 			if (AIState.reactedAttackers.Contains(attacker)) continue;
 
-			// 4-2장: 경계 상태에서 기습/신규 공격에 대한 최초 반응은 반응속도가 1.2배 빨라진다.
-			// reactedAttackers가 공격자별로 한 번만 이 계산을 타게 게이팅해주므로 별도 처리 없이
-			// "최초 반응"에만 적용된다. 5-4/9-8장: 조사·함정 해제 중에는 반대로 반응속도가 50%로
-			// 느려진다(ExplorationPenaltyActive — UpdateFOV의 시야/인지 페널티와 같은 플래그 재사용).
-			float alertReaction = BaseStat.reaction * (currentAlertSearch != null ? ExplorationMath.AlertReactionSpeedRatio : 1f);
-			if (ExplorationPenaltyActive) alertReaction *= ExplorationMath.InvestigatePenaltyRatio;
-			float reactionTimeMs  = 30000f / Mathf.Max(1f, alertReaction);
-			float reactionTimeSec = reactionTimeMs / 1000f;
-
-			if (attacker.CombatState.State.isCastingAttack)
-			{
-				if (attacker.CombatState.State.castTimer >= reactionTimeSec)
-				{
-					AIState.reactedAttackers.Add(attacker);
-					AIState.currentReactionWindow = reactionTimeSec;
-					AIState.reactingThreat        = threat;
-					AIState.reactingAttacker      = attacker;
-					attacker.AIState.unitsReactingToMe.Add(this);
-					OnReactToThreat(attacker, threat);
-				}
-				else
-				{
-					AIState.reactedAttackers.Add(attacker);
-					attacker.AIState.unitsReactingToMe.Add(this);
-				}
-			}
+			AIState.reactedAttackers.Add(attacker);
+			AIState.reactingThreat        = threat;
+			AIState.reactingAttacker      = attacker;
+			attacker.AIState.unitsReactingToMe.Add(this);
+			OnReactToThreat(attacker, threat);
 		}
 	}
 

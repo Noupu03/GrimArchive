@@ -65,6 +65,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         OnThreatCreated.Subscribe(data =>
         {
+            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, 0.5f);
+
             // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
             // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
             // 2026-07-31 GC 최적화 — 공격마다 new List<Unit>()를 할당하던 것을 재사용 버퍼로 교체.
@@ -1195,6 +1197,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (_unitGenerate != null && u != null)
         {
             _unitGenerate.RemoveVisual(u);
+        }
+        if (_threatTileRenderer != null && u != null)
+        {
+            _threatTileRenderer.RemoveThreatZone(u);
         }
         if (u != null) UnregisterUnitPos(u, u.position);
         if (u != null) ClearPerceptionRecordsFor(u);

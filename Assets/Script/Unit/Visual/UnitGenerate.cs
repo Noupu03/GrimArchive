@@ -223,8 +223,73 @@ public class UnitGenerate
 	private UnitVisualDefinition GetVisualDef(Unit u) =>
 		visualMap.TryGetValue(u, out GameObject go) && go != null ? GetCache(go).UnitVisualDefinition : null;
 
-	public void SpawnGuardVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.guardPrefab, u);
-	public void SpawnParryVFX(Unit u) => u?.VFX?.Spawn(GetVisualDef(u)?.parryPrefab, u);
+	public void SpawnGuardVFX(Unit defender, Unit attacker = null)
+	{
+		if (defender == null) return;
+		GameObject prefab = GetVisualDef(defender)?.guardPrefab;
+		if (prefab == null) return;
+
+		Transform parent = GetVisualTransform(defender);
+		Vector3 defPos = parent != null ? parent.position : VFXManager.GetWorldPos(defender);
+		Quaternion rotation = Quaternion.identity;
+
+		if (attacker != null)
+		{
+			Transform atkTrans = GetVisualTransform(attacker);
+			Vector3 atkPos = atkTrans != null ? atkTrans.position : VFXManager.GetWorldPos(attacker);
+			Vector3 dir = atkPos - defPos;
+			if (dir.sqrMagnitude > 0.0001f)
+			{
+				float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+				rotation = Quaternion.Euler(0f, 0f, angle);
+			}
+		}
+		else
+		{
+			Vector2 dir = defender.GetDirVector(defender.currentDir);
+			if (dir.sqrMagnitude > 0.0001f)
+			{
+				float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+				rotation = Quaternion.Euler(0f, 0f, angle);
+			}
+		}
+
+		VFXManager.Spawn(prefab, defPos, rotation, parent);
+	}
+
+	public void SpawnParryVFX(Unit defender, Unit attacker = null)
+	{
+		if (defender == null) return;
+		GameObject prefab = GetVisualDef(defender)?.parryPrefab;
+		if (prefab == null) return;
+
+		Transform parent = GetVisualTransform(defender);
+		Vector3 defPos = parent != null ? parent.position : VFXManager.GetWorldPos(defender);
+		Quaternion rotation = Quaternion.identity;
+
+		if (attacker != null)
+		{
+			Transform atkTrans = GetVisualTransform(attacker);
+			Vector3 atkPos = atkTrans != null ? atkTrans.position : VFXManager.GetWorldPos(attacker);
+			Vector3 dir = atkPos - defPos;
+			if (dir.sqrMagnitude > 0.0001f)
+			{
+				float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+				rotation = Quaternion.Euler(0f, 0f, angle);
+			}
+		}
+		else
+		{
+			Vector2 dir = defender.GetDirVector(defender.currentDir);
+			if (dir.sqrMagnitude > 0.0001f)
+			{
+				float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+				rotation = Quaternion.Euler(0f, 0f, angle);
+			}
+		}
+
+		VFXManager.Spawn(prefab, defPos, rotation, parent);
+	}
 
 	public List<SkillAction> GetSkills(string unitTypeName) =>
 		_unitSpriteManager != null ? _unitSpriteManager.GetSkills(unitTypeName) : new List<SkillAction>();

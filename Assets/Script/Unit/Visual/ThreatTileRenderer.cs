@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
@@ -39,6 +39,9 @@ public class ThreatTileRenderer
 	{
 		public Transform root;
 		public List<SpriteRenderer> cellSprites = new List<SpriteRenderer>();
+		public float durationTimer;
+		public float maxDuration;
+		public Color baseColor;
 	}
 
 	// Unit당 1개만 관리
@@ -122,127 +125,131 @@ public class ThreatTileRenderer
 		return sr;
 	}
 
-	private HashSet<Unit> _cachedAliveUnits = new HashSet<Unit>();
+	public void ShowThreatZone(Unit u, ThreatTileData threat, float duration = 0.5f)
+	{
+		if (u == null || threat == null || threat.hitbox.size == Vector2.zero) return;
+
+		Vector3 floorOffset = _unitGenerate != null ? _unitGenerate.GetFloorOffset(u.currentFloor) : Vector3.zero;
+
+		if (!activeVisuals.TryGetValue(u, out ThreatVisual tv) || tv.root == null)
+		{
+			GameObject rootGo = new GameObject("ThreatZone");
+			rootGo.transform.SetParent(_root);
+			tv = new ThreatVisual { root = rootGo.transform };
+			activeVisuals[u] = tv;
+		}
+
+		Hitbox box = threat.hitbox;
+		int depth = Mathf.Max(1, Mathf.RoundToInt(box.size.x));
+		int width = Mathf.Max(1, Mathf.RoundToInt(box.size.y));
+
+		float rad = box.rotation * Mathf.Deg2Rad;
+		float cos = Mathf.Cos(rad);
+		float sin = Mathf.Sin(rad);
+
+		bool isWild = !(u is Human) && u.FactionBehavior is WildMonsterBehavior;
+		Color color = u is Human ? Color.green
+			: isWild ? WildThreatColor
+			: Color.red;
+		color.a = isWild ? Mathf.Max(threat.color.a, 0.85f) : (threat.color.a > 0f ? threat.color.a : 0.85f);
+
+		tv.durationTimer = duration;
+		tv.maxDuration   = duration;
+		tv.baseColor     = color;
+
+		int index = 0;
+		for (int dx = 0; dx < depth; dx++)
+		{
+			for (int dy = 0; dy < width; dy++)
+			{
+				bool forward  = dx == depth - 1;
+				bool backward = dx == 0;
+				bool right    = dy == width - 1;
+				bool left     = dy == 0;
+
+				var (label, rotSteps) = MatchPattern(forward, right, backward, left);
+
+				SpriteRenderer sr = GetOrCreateCellSprite(tv, index);
+				index++;
+
+#if UNITY_2022_2_OR_NEWER
+				sr.sprite = GetLabelSprite(label);
+#endif
+
+				Vector2 localOffset = new Vector2(
+					-depth * 0.5f + 0.5f + dx,
+					-width * 0.5f + 0.5f + dy
+				);
+				Vector2 rotatedOffset = new Vector2(
+					localOffset.x * cos - localOffset.y * sin,
+					localOffset.x * sin + localOffset.y * cos
+				);
+
+				sr.transform.position = new Vector3(box.center.x + rotatedOffset.x, box.center.y + rotatedOffset.y, 0f) + floorOffset;
+				sr.transform.rotation = Quaternion.Euler(0f, 0f, box.rotation + 90f + rotSteps * 90f);
+				sr.color = color;
+				sr.enabled = true;
+			}
+		}
+
+		for (int i = index; i < tv.cellSprites.Count; i++)
+			tv.cellSprites[i].enabled = false;
+	}
+
+	public void RemoveThreatZone(Unit u)
+	{
+		if (u == null) return;
+		if (activeVisuals.TryGetValue(u, out ThreatVisual tv))
+		{
+			if (tv != null && tv.root != null)
+			{
+				Object.Destroy(tv.root.gameObject);
+			}
+			activeVisuals.Remove(u);
+		}
+	}
+
 	private List<Unit> _cachedRemoveList = new List<Unit>();
 
 	public void Render(List<Unit> units)
 	{
-		_cachedAliveUnits.Clear();
-		foreach(var u in units) _cachedAliveUnits.Add(u);
-
-		// =====================================
-		// REMOVE PHASE
-		// =====================================
 		_cachedRemoveList.Clear();
 
 		foreach (var pair in activeVisuals)
 		{
 			Unit u = pair.Key;
+			ThreatVisual tv = pair.Value;
 
-			bool shouldRemove =
-				u == null ||
-				!_cachedAliveUnits.Contains(u) ||
-				u.AIState.currentThreat == null;
-
-			if (shouldRemove)
+			// 유닛이 파괴되었거나, 체력이 0 이하(사망)이거나, 시각화 루트가 없으면 즉시 정리
+			if (u == null || u.Health.hp <= 0 || tv == null || tv.root == null)
 			{
-				if (pair.Value != null && pair.Value.root != null)
-					Object.Destroy(pair.Value.root.gameObject);
-
+				if (tv != null && tv.root != null)
+				{
+					Object.Destroy(tv.root.gameObject);
+				}
 				_cachedRemoveList.Add(u);
+				continue;
+			}
+
+			tv.durationTimer -= Time.deltaTime;
+			if (tv.durationTimer <= 0f)
+			{
+				if (tv.root != null) Object.Destroy(tv.root.gameObject);
+				_cachedRemoveList.Add(u);
+			}
+			else
+			{
+				float ratio = Mathf.Clamp01(tv.durationTimer / Mathf.Max(0.001f, tv.maxDuration));
+				Color fadedColor = tv.baseColor;
+				fadedColor.a = tv.baseColor.a * ratio;
+				foreach (var sr in tv.cellSprites)
+				{
+					if (sr != null && sr.enabled) sr.color = fadedColor;
+				}
 			}
 		}
 
 		foreach (var u in _cachedRemoveList)
 			activeVisuals.Remove(u);
-
-		// =====================================
-		// RENDER PHASE
-		// =====================================
-		foreach (Unit u in units)
-		{
-			if (u == null || u.AIState.currentThreat == null)
-				continue;
-
-			ThreatTileData threat = u.AIState.currentThreat;
-
-			if (threat.hitbox.size == Vector2.zero)
-				continue;
-
-			Vector3 floorOffset =
-				_unitGenerate != null
-				? _unitGenerate.GetFloorOffset(u.currentFloor)
-				: Vector3.zero;
-
-			if (!activeVisuals.TryGetValue(u, out ThreatVisual tv))
-			{
-				GameObject rootGo = new GameObject("ThreatZone");
-				rootGo.transform.SetParent(_root);
-				tv = new ThreatVisual { root = rootGo.transform };
-				activeVisuals[u] = tv;
-			}
-
-			Hitbox box = threat.hitbox;
-
-			// 히트박스 로컬 그리드: depth(공격 방향으로 뻗는 칸 수) x width(좌우 폭)
-			int depth = Mathf.Max(1, Mathf.RoundToInt(box.size.x));
-			int width = Mathf.Max(1, Mathf.RoundToInt(box.size.y));
-
-			float rad = box.rotation * Mathf.Deg2Rad;
-			float cos = Mathf.Cos(rad);
-			float sin = Mathf.Sin(rad);
-
-			// 야생 몬스터(WildMonsterBehavior)의 공격 위협타일은 그 외 몬스터(플레이어 소속, 빨강)와
-			// 구분되는 색을 쓴다 — 원래 회색이었으나(2026-07-27) 채도가 낮아 던전 벽/바닥의 회색 톤과
-			// 비슷해 안 보인다는 신고를 거쳐(2026-07-28), 지난 논의에서 핑크와 보라 사이 색으로
-			// 정하기로 했었다 — WildThreatColor로 교체.
-			bool isWild = !(u is Human) && u.FactionBehavior is WildMonsterBehavior;
-			Color color = u is Human ? Color.green
-				: isWild ? WildThreatColor
-				: Color.red;
-			color.a = isWild ? Mathf.Max(threat.color.a, 0.85f) : threat.color.a;
-
-			int index = 0;
-			for (int dx = 0; dx < depth; dx++)
-			{
-				for (int dy = 0; dy < width; dy++)
-				{
-					bool forward  = dx == depth - 1; // 공격 방향 끝 (더 뻗을 칸이 없음)
-					bool backward = dx == 0;         // 유닛과 맞닿은 칸 (더 가까운 칸이 없음)
-					bool right    = dy == width - 1;
-					bool left     = dy == 0;
-
-					var (label, rotSteps) = MatchPattern(forward, right, backward, left);
-
-					SpriteRenderer sr = GetOrCreateCellSprite(tv, index);
-					index++;
-
-#if UNITY_2022_2_OR_NEWER
-					sr.sprite = GetLabelSprite(label);
-#endif
-
-					Vector2 localOffset = new Vector2(
-						-depth * 0.5f + 0.5f + dx,
-						-width * 0.5f + 0.5f + dy
-					);
-					Vector2 rotatedOffset = new Vector2(
-						localOffset.x * cos - localOffset.y * sin,
-						localOffset.x * sin + localOffset.y * cos
-					);
-
-					sr.transform.position = new Vector3(box.center.x + rotatedOffset.x, box.center.y + rotatedOffset.y, 0f) + floorOffset;
-					// 스프라이트가 "아래(-Y)" 방향 기준으로 그려져 있어 게임 각도 관례와 맞추려면 +90도,
-					// 여기에 칸별 패턴 정렬을 위한 rotSteps*90도를 추가로 더한다.
-					sr.transform.rotation = Quaternion.Euler(0f, 0f, box.rotation + 90f + rotSteps * 90f);
-
-					sr.color = color;
-					sr.enabled = true;
-				}
-			}
-
-			// 이번 프레임에 안 쓰인 여분 칸 스프라이트는 꺼둔다 (재사용 대비 유지)
-			for (int i = index; i < tv.cellSprites.Count; i++)
-				tv.cellSprites[i].enabled = false;
-		}
 	}
 }

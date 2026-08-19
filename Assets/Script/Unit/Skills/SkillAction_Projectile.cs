@@ -39,8 +39,6 @@ public class SkillAction_Projectile : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        float finalDelayMs = Mathf.Max(200f, _d.baseDelayMs * (100f / Mathf.Max(1f, unit.CombatStat.attackspeed)));
-
         var threat = ThreatTileData.Create();
         threat.shape = ThreatShape.RECT;
         
@@ -58,52 +56,43 @@ public class SkillAction_Projectile : SkillAction
         int maxRange = _d.threatRange > 0 ? _d.threatRange : 15;
         threat.depth = maxRange;
 
-        System.Action updateThreatAction = () =>
+        if (!_d.isPiercing)
         {
-            if (unit.AIState.currentThreat != null)
+            Hitbox maxHitbox = BuildRectHitboxWithAngle(unit, threat.width, maxRange, unit.CombatState.State.currentAttackAngle);
+            List<Unit> enemies = GetEnemiesInHitbox(unit, maxHitbox);
+            float minHitDist = maxRange;
+            
+            Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
+            Vector2 forward = new Vector2(Mathf.Cos(unit.CombatState.State.currentAttackAngle), Mathf.Sin(unit.CombatState.State.currentAttackAngle));
+
+            foreach(var enemy in enemies)
             {
-                Hitbox maxHitbox = BuildRectHitboxWithAngle(unit, threat.width, maxRange, unit.CombatState.State.currentAttackAngle);
+                Hitbox enemyBox = GetUnitHitbox(enemy);
+                Vector2 toEnemy = enemyBox.center - unitCenter;
+                float dist = Vector2.Dot(toEnemy, forward);
                 
-                if (!_d.isPiercing)
+                if (dist > 0 && dist < minHitDist)
                 {
-                    List<Unit> enemies = GetEnemiesInHitbox(unit, maxHitbox);
-                    float minHitDist = maxRange;
-                    
-                    Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
-                    Vector2 forward = new Vector2(Mathf.Cos(unit.CombatState.State.currentAttackAngle), Mathf.Sin(unit.CombatState.State.currentAttackAngle));
-
-                    foreach(var enemy in enemies)
-                    {
-                        Hitbox enemyBox = GetUnitHitbox(enemy);
-                        Vector2 toEnemy = enemyBox.center - unitCenter;
-                        float dist = Vector2.Dot(toEnemy, forward);
-                        
-                        if (dist > 0 && dist < minHitDist)
-                        {
-                            minHitDist = dist;
-                        }
-                    }
-                    threat.depth = Mathf.Max(1, Mathf.CeilToInt(minHitDist));
+                    minHitDist = dist;
                 }
-                else
-                {
-                    threat.depth = maxRange;
-                }
-                
-                unit.AIState.currentThreat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
             }
-        };
+            threat.depth = Mathf.Max(1, Mathf.CeilToInt(minHitDist));
+        }
+        else
+        {
+            threat.depth = maxRange;
+        }
+        
+        threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
 
-        updateThreatAction();
-
-        BeginAttackCast(unit, finalDelayMs, threat,
+        BeginAttackCast(unit, 0f, threat,
             () =>
             {
                 FireProjectile(unit, threat.depth);
             },
             () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
             null,
-            updateThreatAction,
+            null,
             shape: AttackShape.Projectile
         );
     }

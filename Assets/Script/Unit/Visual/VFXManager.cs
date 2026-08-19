@@ -69,9 +69,25 @@ public class VFXManager
             go = pool.Get();
         }
         
-        go.transform.position = position;
-        go.transform.rotation = rotation;
-        go.transform.SetParent(parent != null ? parent : null);
+        if (parent != null)
+        {
+            go.transform.SetParent(parent);
+            go.transform.localPosition = Vector3.zero;
+            Vector3 pScale = parent.lossyScale;
+            go.transform.localScale = new Vector3(
+                Mathf.Abs(pScale.x) > 0.0001f ? (1f / pScale.x) : 1f,
+                Mathf.Abs(pScale.y) > 0.0001f ? (1f / pScale.y) : 1f,
+                1f
+            );
+            go.transform.rotation = rotation;
+        }
+        else
+        {
+            go.transform.SetParent(GetPoolRoot());
+            go.transform.position = position;
+            go.transform.localScale = Vector3.one;
+            go.transform.rotation = rotation;
+        }
 
         var ps = go.GetComponent<ParticleSystem>();
         if (ps != null)
@@ -97,15 +113,18 @@ public class VFXManager
         }
     }
 
-    static Vector3 GetWorldPos(Unit unit)
+    public static Vector3 GetWorldPos(Unit unit)
     {
+        if (unit == null) return Vector3.zero;
         Vector3 offset = unit.Generate != null
             ? unit.Generate.GetFloorOffset(unit.currentFloor)
             : Vector3.zero;
 
+        Vector2 footprint = unit.unitType != null ? unit.unitType.footprint : Vector2.one;
+
         return new Vector3(
-            unit.position.x + unit.unitType.footprint.x * 0.5f,
-            unit.position.y + unit.unitType.footprint.y * 0.5f,
+            unit.position.x + footprint.x * 0.5f,
+            unit.position.y + footprint.y * 0.5f,
             0f
         ) + offset;
     }

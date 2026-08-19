@@ -39,43 +39,69 @@ public abstract class SkillAction
 		System.Action castUpdateAction = null,
 		AttackShape  shape = AttackShape.Melee)
 	{
-		unit.CombatState.State.isCastingAttack = true;
-		unit.CombatState.State.castTimer       = castMs / 1000f;
 		unit.CombatState.State.lastAttackShape = shape; // 07문서 17장: 방향 간접입력 판정용
-		unit.Session?.castingUnits.Add(unit);
-		unit.AIState.pendingCastUpdate = castUpdateAction;
 
 		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
-		if (threat.shape == ThreatShape.LINE)
-			threat.hitbox = BuildLineHitboxWithAngle(unit, threat.range, unit.CombatState.State.currentAttackAngle);
-		else if (threat.shape == ThreatShape.RECT)
-			threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
+		if (threat.hitbox.size == Vector2.zero)
+		{
+			if (threat.shape == ThreatShape.LINE)
+				threat.hitbox = BuildLineHitboxWithAngle(unit, threat.range, unit.CombatState.State.currentAttackAngle);
+			else if (threat.shape == ThreatShape.RECT)
+				threat.hitbox = BuildRectHitboxWithAngle(unit, threat.width, threat.depth, unit.CombatState.State.currentAttackAngle);
+		}
 
 		unit.AIState.currentThreat = threat;
 		unit.Session?.OnThreatCreated.OnNext((unit, threat));
 
-		unit.AIState.pendingAttack = () =>
+		if (castMs <= 0f)
 		{
+			// 즉시 공격 실행: 시전 대기 없이 바로 공격 및 방어/피해 연산
 			try
 			{
 				effectAction?.Invoke();
 				attackAction?.Invoke();
 				unit.TriggerAttackVisibilityBoost(); // 01-A 9장: 공격 후 가시성 상승(+10, 5초, 재공격 시 지속시간 초기화)
-				// 07문서 14장: 공격 실행 시 공격자 위치에서 공격 실행음 발생(명중 여부와 무관).
 				PropagationSystem.EmitSound(unit.Session, SoundType.AttackExecution, unit.position, unit.currentFloor, unit);
 			}
 			finally
 			{
 				cooldownAction?.Invoke();
-
-				// ❗ 여기 중요: 반드시 완전 초기화
-				unit.AIState.currentThreat   = null;
+				unit.AIState.currentThreat             = null;
 				unit.CombatState.State.isCastingAttack = false;
-				unit.AIState.pendingAttack   = null;
-				unit.AIState.pendingCastUpdate = null;
 				unit.CombatState.State.castTimer       = 0f;
+				unit.AIState.pendingAttack             = null;
+				unit.AIState.pendingCastUpdate         = null;
+				unit.Session?.castingUnits.Remove(unit);
 			}
-		};
+		}
+		else
+		{
+			unit.CombatState.State.isCastingAttack = true;
+			unit.CombatState.State.castTimer       = castMs / 1000f;
+			unit.Session?.castingUnits.Add(unit);
+			unit.AIState.pendingCastUpdate = castUpdateAction;
+
+			unit.AIState.pendingAttack = () =>
+			{
+				try
+				{
+					effectAction?.Invoke();
+					attackAction?.Invoke();
+					unit.TriggerAttackVisibilityBoost();
+					PropagationSystem.EmitSound(unit.Session, SoundType.AttackExecution, unit.position, unit.currentFloor, unit);
+				}
+				finally
+				{
+					cooldownAction?.Invoke();
+
+					unit.AIState.currentThreat             = null;
+					unit.CombatState.State.isCastingAttack = false;
+					unit.AIState.pendingAttack             = null;
+					unit.AIState.pendingCastUpdate         = null;
+					unit.CombatState.State.castTimer       = 0f;
+				}
+			};
+		}
 	}
 
 	// ─── 히트박스 검색 / 데미지 ──────────────────────────────────────
