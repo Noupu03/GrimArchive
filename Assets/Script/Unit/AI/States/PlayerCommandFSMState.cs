@@ -194,6 +194,11 @@ public class PlayerCommandFSMState : IFSMState
 
 	private static BTStatus CompletePlayerCommand(Unit unit)
 	{
+		// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "소집 도착 후 바라보는 방향을 설정하자") — 소집
+		// 중인 몬스터가 디펜스 시작 위치까지의 이동을 마치는 시점(=이동 명령 완료 시점)에 방향을
+		// 맞춘다. 시작방이면 그 방의 문을, 아니면 시작방쪽으로 가장 가까운 문을 바라본다.
+		if (unit.isMustered) unit.Session?.ApplyDefenseFacingDirection(unit);
+
 		unit.playerMoveTarget        = null;
 		unit.isManualMoveCommand     = false;
 		unit.oneTimeReactUsed        = false;

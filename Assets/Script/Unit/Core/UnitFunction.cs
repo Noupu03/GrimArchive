@@ -873,6 +873,22 @@ public abstract class UnitFunction : Unit, IVisionContext
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
 
+		// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "배치가 정해진 몬스터들이 다른 방으로 이동시,
+		// 해당 몬스터는 배치에서 사라지도록") — 디펜스 시작 위치가 지정된 방과 실제로 정착한 방이
+		// 달라지면 배치를 취소한다. "정착"은 "지금 플레이어 이동 명령을 수행 중이 아님"으로 근사한다
+		// — 그래야 이 배치 위치로 가는 도중 거쳐가는 방/복도에서 매 프레임 잘못 취소되지 않는다
+		// (같은 명령으로 목적지에 도착하면 그 방과 항상 일치해 자연히 통과됨). 플레이어가 배치된
+		// 몬스터를 다른 명령으로 딴 방까지 옮기면, 그 새 명령이 끝나 정착하는 시점에 취소된다.
+		if (defenseStartPosition.HasValue && !(isManualMoveCommand && playerMoveTarget.HasValue))
+		{
+			Vector2Int dsp = defenseStartPosition.Value;
+			Session.roomGrid.TryGetValue(new Vector3Int(dsp.x, dsp.y, currentFloor), out Room assignedRoom);
+			if (assignedRoom != actualRoom)
+			{
+				defenseStartPosition = null;
+			}
+		}
+
 		// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 유닛이 방을 떠나면서 그 방이 "정리된 상태"가 될 수
 		// 있다(예: 마지막 몬스터가 방을 벗어남). 들어간 방(actualRoom)은 인원이 늘어날 뿐이라 새로
 		// 열릴 조건을 만들 수 없고(문은 한번 열리면 다시 잠그지 않음) 떠난 방만 확인하면 된다.

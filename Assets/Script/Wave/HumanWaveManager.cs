@@ -180,6 +180,11 @@ namespace GrimArchive.Wave
 
             preSpawnedParty = GameSession.Instance.CreateParty("PreSpawnParty", members);
             Debug.Log($"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
+
+            // 몬스터 배치 프리셋(2026-08-19 재구현, 사용자 요청 "0층에 인류가 소환된 시점부터, 몬스터들은
+            // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 바로 이 지점이 "0층에 인류가
+            // 소환된 시점"이다.
+            GameSession.Instance.ApplyMonsterDefenseStartPositions();
         }
 
         private bool ResolveStairPositions()
@@ -314,6 +319,45 @@ namespace GrimArchive.Wave
             Debug.Log($"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
         }
 
+        // 웨이브 시각화(2026-08-19 신규) — 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입
+        // 이름을 최대 max개 반환한다. 이미 사전 스폰된 파티가 있으면(마지막 PreSpawnLeadSeconds
+        // 구간) 그 실제 구성을, 아직 스폰 전이면 waveData에 정의된 다음 웨이브의 인류 파티 구성을
+        // 그대로 사용한다(실제 스폰과 동일한 순서 — 위 PreSpawnWaveUnits 참고).
+        public List<string> GetApproachingPartyTypeNames(int max)
+        {
+            var result = new List<string>();
+
+            if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
+            {
+                foreach (var member in preSpawnedParty.Members)
+                {
+                    if (member == null || member.unitType == null) continue;
+                    result.Add(member.unitType.typeName);
+                    if (result.Count >= max) return result;
+                }
+                return result;
+            }
+
+            if (targetSpawner != null && targetSpawner.waveData != null && targetSpawner.waveData.parties != null)
+            {
+                foreach (var config in targetSpawner.waveData.parties)
+                {
+                    if (config == null || config.faction != PartyFaction.Human || config.units == null) continue;
+                    foreach (var group in config.units)
+                    {
+                        if (string.IsNullOrEmpty(group.unitTypeName)) continue;
+                        for (int i = 0; i < group.count; i++)
+                        {
+                            result.Add(group.unitTypeName);
+                            if (result.Count >= max) return result;
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
         private void StartWave()
         {
             if (targetSpawner == null)
@@ -365,6 +409,12 @@ namespace GrimArchive.Wave
                     {
                         exitAreaPos = activeParty.Members[0].position;
                     }
+
+                    // 몬스터 배치 프리셋(2026-08-19 재구현) — 사전 스폰이 건너뛰어진 이 폴백 경로에서는
+                    // PreSpawnWaveUnits가 아예 호출되지 않으므로 여기서 대신 호출한다. preSpawnedParty
+                    // 경로에서는 이미 그쪽에서 호출됐으므로 여기서 다시 부르지 않는다 — 그 사이(사전
+                    // 스폰~웨이브 시작) 전투를 인지해 소집이 풀린 몬스터를 다시 소집시키는 부작용을 피한다.
+                    GameSession.Instance.ApplyMonsterDefenseStartPositions();
                 }
                 else
                 {

@@ -16,7 +16,14 @@ public class NavigationFSMState : IFSMState
 				new BTLeaf(MoveToStairs),
 				new BTLeaf(CrossStairs)
 			),
-			// 2. 자유탐색 (원본 ExploreFSMState p=10)
+			// 2. 소집 대기 — 몬스터 배치 프리셋(2026-08-19 재구현): 소집 중인 몬스터는 기본 탐색을
+			// 멈추고 현재 위치에서 대기한다. 이 상태는 Combat/Tactical이 우선순위로 먼저 가로채지
+			// 않았을 때만 호출되므로(UnitFSM._states 순서) 전투/전술 AI는 그대로 유지된다.
+			new BTSequence(
+				new BTCondition(IsMustered),
+				new BTLeaf(HoldPosition)
+			),
+			// 3. 자유탐색 (원본 ExploreFSMState p=10)
 			new BTLeaf(RandomExplore)
 		);
 	}
@@ -133,6 +140,12 @@ public class NavigationFSMState : IFSMState
 	}
 
 
+
+	// ── 소집 대기 ─────────────────────────────────────────────────
+
+	private static bool IsMustered(Unit unit) => unit.isMustered;
+
+	private static BTStatus HoldPosition(Unit unit) => BTStatus.Running;
 
 	// ── 자유탐색 ─────────────────────────────────────────────────
 
@@ -342,6 +355,8 @@ public class NavigationFSMState : IFSMState
 
 	// ── 라벨 ──────────────────────────────────────────────────────
 
+	// isMustered 표시는 UnitFSM.GetLabel이 상위에서 가로채 "소집"으로 통일 표시한다(이동 중이든
+	// 도착 후 대기 중이든 무관) — 여기서는 손대지 않는다.
 	private static string GetSubLabel(Unit unit)
 	{
 		if (HasPendingStairs(unit)) return "탐색(계단)";

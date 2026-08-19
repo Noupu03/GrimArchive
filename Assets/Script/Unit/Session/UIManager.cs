@@ -16,10 +16,12 @@ public class UIManager : MonoBehaviour
         _gameSession = gameSession;
     }
 
-    // 웨이브 시작 몇 초 전부터 화면 중앙 경고 문구를 띄울지(고정값, 2026-07-23 사용자 요청 "잠시 후,
-    // 웨이브가 시작됩니다"). HumanWaveManager.cooldownTimer가 이 값 이하로 떨어지면 표시되다가
-    // 웨이브가 실제로 시작되는 순간(currentState != Idle) 사라진다.
+    // 웨이브 시작 몇 초 전부터 알림을 띄울지(고정값, 2026-07-23 사용자 요청 "잠시 후, 웨이브가
+    // 시작됩니다"). HumanWaveManager.cooldownTimer가 이 값 이하로 떨어지는 순간(엣지 트리거) 딱 한
+    // 번 NoticeCenter에 Push한다(2026-08-19 수정, 사용자 요청 "이 문구들을 시스템화" — 매 프레임
+    // 조건부로 직접 그리던 방식에서, 알림 시스템(NoticeCenter)에 한 번 알리는 방식으로 교체).
     private const float WaveStartWarningSeconds = 3f;
+    private bool _waveStartNoticeShown;
 
     void OnGUI()
     {
@@ -27,36 +29,29 @@ public class UIManager : MonoBehaviour
 
         DrawTopLeftUI();
         DrawUnitLabels();
-        DrawWaveStartBanner();
+        CheckWaveStartNotice();
 		//DrawPartyStatus();=======파티 관련 참조 주석처리========
 	}
 
-    private void DrawWaveStartBanner()
+    private void CheckWaveStartNotice()
     {
         HumanWaveManager wm = HumanWaveManager.Instance;
         if (wm == null) return;
-        if (wm.currentState != WaveState.Idle) return;
-        if (wm.cooldownTimer > WaveStartWarningSeconds || wm.cooldownTimer <= 0f) return;
 
-        GUIStyle style = new GUIStyle(GUI.skin.label)
+        bool inWarningWindow = wm.currentState == WaveState.Idle
+            && wm.cooldownTimer <= WaveStartWarningSeconds
+            && wm.cooldownTimer > 0f;
+
+        if (inWarningWindow && !_waveStartNoticeShown)
         {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 32,
-            fontStyle = FontStyle.Bold,
-            richText = true
-        };
-        style.normal.textColor = Color.yellow;
-
-        float w = 700f, h = 60f;
-        Rect rect = new Rect(Screen.width / 2f - w / 2f, Screen.height * 0.2f, w, h);
-
-        // 검은 배경을 살짝 깔아 어떤 배경 위에서도 글자가 잘 보이게 한다.
-        Color prevColor = GUI.color;
-        GUI.color = new Color(0f, 0f, 0f, 0.5f);
-        GUI.DrawTexture(rect, Texture2D.whiteTexture);
-        GUI.color = prevColor;
-
-        GUI.Label(rect, "잠시 후, 웨이브가 시작됩니다.", style);
+            _waveStartNoticeShown = true;
+            NoticeCenter.Instance?.Push("잠시 후, 웨이브가 시작됩니다.", NoticeCenter.WarningColor, WaveStartWarningSeconds);
+        }
+        else if (!inWarningWindow && wm.currentState != WaveState.Idle)
+        {
+            // 다음 웨이브 대기 사이클로 넘어가면 다시 엣지 트리거될 수 있도록 리셋.
+            _waveStartNoticeShown = false;
+        }
     }
 
 	private void DrawTopLeftUI()

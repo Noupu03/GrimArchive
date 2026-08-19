@@ -254,6 +254,20 @@ public abstract class Unit : ScriptableObject {
 	public Vector2Int? playerMoveTarget    = null;
 	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;
+
+	// 몬스터 배치 프리셋(2026-08-19 재구현 — 방 단위 배치 모드) — 웨이브 대기 중 R키 배치 모드에서
+	// 지정한 디펜스 시작 위치. "현재 이동 목적지"(playerMoveTarget)와는 분리된 별도 데이터로, 일반
+	// 탐색/이동/전투 중 위치 변경이 이 값을 건드리지 않는다. 0층에 인류가 사전 스폰되는 시점
+	// (HumanWaveManager.PreSpawnWaveUnits → GameSession.ApplyMonsterDefenseStartPositions)에 이
+	// 위치로 실제 이동 명령이 내려지며, 값이 없으면 기존 기본 행동(탐색)을 그대로 유지한다.
+	public Vector2Int? defenseStartPosition = null;
+
+	// 위 이동이 걸리는 순간 함께 true가 된다 — 도착 후 NavigationFSMState가 기본 탐색 대신 제자리
+	// 대기("소집 대기")를 하게 만드는 플래그. 전투/전술 AI는 그대로 동작한다(탐색만 멈추는 것이지
+	// 전투 AI를 바꾸는 시스템이 아님). 해제 시점은 "어떤 형태로든 전투 시작을 인지한 시점"(UnitFSM이
+	// Combat/Tactical 상태로 전이하는 순간 자동 해제 — 직접 목격뿐 아니라 소리·전파 간접 인지 포함).
+	public bool isMustered = false;
+
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
 	public Vector2Int position;

@@ -30,6 +30,9 @@ public class GameCompositionRoot : CoreLifetimeScope
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
         // UIManager�� OnGUI() ������ MonoBehaviour�� ���������� �ν����� �����Ͱ� ���� �� ��ġ�� ���ʿ�.
         builder.RegisterComponentOnNewGameObject<UIManager>(Lifetime.Singleton, "UIManager");
+        // NoticeCenter (2026-08-19 new, ported from rythoom project's NoticeCenter) - same pattern as
+        // UIManager: always-on OnGUI overlay, no prefab. Call from anywhere via Instance (Push).
+        builder.RegisterComponentOnNewGameObject<NoticeCenter>(Lifetime.Singleton, "NoticeCenter");
 
         // UnitGenerate: Update/OnGUI/�ν����� �����Ͱ� ���� ���� ���� C# Ŭ������ ��ȯ��.
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();

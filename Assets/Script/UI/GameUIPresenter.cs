@@ -38,6 +38,18 @@ public class GameUIPresenter : UIPresenter
                 Debug.LogError($"[UI] UI_Encyclopedia 로드 실패: {e.Message}");
             }
 
+            // 웨이브 시각화(2026-08-19 신규) — 화면 상단 웨이브 게이지, 항상 켜져 있어야 하므로
+            // StatusInfoPanel과 동일하게 부팅 즉시 OpenPanel한다.
+            try
+            {
+                int waveGaugePanelId = await _coreUIManager.LoadPanel<WaveGaugePanel>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<WaveGaugePanel>(waveGaugePanelId).OpenPanel();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UI] WaveGaugePanel 로드 실패: {e.Message}");
+            }
+
             // 건축물·자원·유닛 생산 MVP(2026-07-27) — 건물 클릭 시에만 뜨는 패널이라 평소엔 닫아 둔다.
             try
             {
