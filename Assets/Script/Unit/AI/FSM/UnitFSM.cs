@@ -4,6 +4,9 @@ public class UnitFSM
 {
 	private IFSMState   _current;
 	private readonly PlayerCommandFSMState _playerCommandState = new PlayerCommandFSMState();
+	// "집결 및 정지"(2026-08-20) — PlayerCommand와 동일한 방식으로 SelectState가 직접 강제 배정하는
+	// 상태라 _states 배열에는 넣지 않는다(HaltFSMState.cs 주석 참고).
+	private readonly HaltFSMState _haltState = new HaltFSMState();
 
 	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) → Muster(30,
 	// 2026-08-20 신규 — 소집 중인 유닛은 Idle/Navigation보다 항상 우선해 제자리 대기. "소집이 대기보다
@@ -48,6 +51,22 @@ public class UnitFSM
 			{
 				_current?.OnExit(unit);
 				_current = _playerCommandState;
+				_current.OnEnter(unit);
+			}
+			return;
+		}
+
+		// "정지"(동상) 강제 잠금(2026-08-20, 사용자 요청 "정지 상태는 플레이어 직접 명령이나 명령
+		// 해제를 제외하고, 절대 해제할 수 없는 상태임") — 위 hasPendingCommand 게이트 바로 다음에
+		// 둬서, 새 직접 명령(위에서 이미 처리됨) 또는 명령 취소(InputManager.
+		// CancelSelectedUnitsCommands가 isHalted를 직접 false로 되돌림)만이 이 잠금을 풀 수 있다.
+		// Combat/Tactical/Idle/Muster/Navigation 그 무엇도 이 잠금 아래에서는 검사조차 되지 않는다.
+		if (unit.isHalted)
+		{
+			if (_current != _haltState)
+			{
+				_current?.OnExit(unit);
+				_current = _haltState;
 				_current.OnEnter(unit);
 			}
 			return;
@@ -116,6 +135,10 @@ public class UnitFSM
 	// 인지로 isMustered가 풀리는 즉시(SelectState 참고) 원래 상태 라벨로 자동 복귀한다.
 	public string GetLabel(Unit unit)
 	{
+		// "정지"(동상)가 "소집"보다 항상 우선한다(사용자 확인, 2026-08-20 "정지는 소집으로 전환되면
+		// 안돼") — MonsterDefensePlacementSystem.ApplyDefenseStartPositions가 halted 유닛을 건너뛰도록
+		// 이미 막아뒀지만, 혹시 다른 경로로 isMustered가 켜지더라도 라벨만큼은 이 순서로 확실히 보호한다.
+		if (unit.isHalted) return "정지";
 		if (unit.isMustered) return "소집";
 		return _current?.GetLabel(unit) ?? "0";
 	}

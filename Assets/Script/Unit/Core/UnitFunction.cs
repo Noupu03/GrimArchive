@@ -1225,6 +1225,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
+		// "정지"(동상) 상태(2026-08-20, 사용자 확인) — 완전 무반응이라 회피/블링크(DefenseSystem.
+		// EvaluateEarlyReaction)도 발동하지 않는다. 이 경로는 UnitFSM.RunCurrentState/HaltFSMState.Tick
+		// 바깥(GameSession의 위협 감지 루프)에서 직접 호출되므로 여기서 별도로 막아야 한다.
+		if (isHalted) return;
+
 		if (attacker != null)
 		{
 			AIState.reactedAttackers.Add(attacker);

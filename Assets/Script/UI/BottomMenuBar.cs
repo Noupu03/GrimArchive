@@ -353,20 +353,24 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 명령 서브메뉴 — "명령 취소"(토글) + "이동 및 공격"(토글) + 예정 2개. 2026-08-20, 사용자 요청
-    // "명령 취소 로직을 바꿀게. 토글형으로 바꾸고, 해당 유닛들을 선택 후 우클릭을 눌러 즉시 명령
-    // 취소되게 하자" — 예전엔 눌러서 즉시 "모든 유닛"의 명령을 취소했는데, 이제 "이동 및 공격"과
-    // 대칭 구조(토글 on → 선택 + 우클릭으로 발동)다. 두 토글은 InputManager 안에서 서로 배타로
-    // 관리된다(SetCommandModeActive/SetCancelCommandModeActive).
+    // 명령 서브메뉴 — "명령 취소"(토글) + "이동 및 공격"(토글) + "집결 및 정지"(토글, 2026-08-20 신규) +
+    // 예정 1개. 2026-08-20, 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고..."로 "명령 취소"가
+    // "이동 및 공격"과 대칭 구조(토글 on → 선택 + 우클릭으로 발동)가 됐고, 이어서 "명령 메뉴에 '집결
+    // 및 정지' 모드를 넣어줘. 선택한 유닛들을 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고,
+    // 이동 후에는 '정지' 상태가 됨"으로 세 번째 토글이 추가됐다. 셋 다 InputManager 안에서 서로 배타로
+    // 관리된다(SetCommandModeActive/SetCancelCommandModeActive/SetRallyHaltModeActive).
     // =====================================================
+    // 2026-08-20, 사용자 요청 "메뉴에서 이동 및 공격을 최상단으로 올려. 위에서부터 이동 및 공격,
+    // 집결 및 정지, 명령취소, (예정)으로 바꿔" — DrawVerticalSubmenu는 바로 아래에서부터 위로 쌓아
+    // 그리므로(리스트 앞쪽 항목일수록 화면상 더 아래) 화면 맨 위에 올 항목을 리스트 맨 뒤에 둔다.
     private List<SubmenuItem> BuildCommandItems()
     {
         return new List<SubmenuItem>
         {
+            new SubmenuItem("(예정)", false, false, null),
             new SubmenuItem("명령 취소", _inputManager != null && _inputManager.IsCancelCommandModeActive, true, OnClickToggleCancelCommandMode),
+            new SubmenuItem("집결 및 정지", _inputManager != null && _inputManager.IsRallyHaltModeActive, true, OnClickToggleRallyHaltMode),
             new SubmenuItem("이동 및 공격", _inputManager != null && _inputManager.IsCommandModeActive, true, OnClickToggleCommandMode),
-            new SubmenuItem("(예정)", false, false, null),
-            new SubmenuItem("(예정)", false, false, null),
         };
     }
 
@@ -387,6 +391,18 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         _inputManager.SetCancelCommandModeActive(newState);
         NoticeCenter.Instance?.PushMomentary(
             newState ? "명령 취소 모드 켜짐: 유닛을 선택하고 우클릭하면 그 유닛들의 명령이 즉시 취소됩니다." : "명령 취소 모드 꺼짐.",
+            NoticeCenter.InfoColor);
+    }
+
+    private void OnClickToggleRallyHaltMode()
+    {
+        if (_inputManager == null) return;
+        bool newState = !_inputManager.IsRallyHaltModeActive;
+        _inputManager.SetRallyHaltModeActive(newState);
+        NoticeCenter.Instance?.PushMomentary(
+            newState
+                ? "집결 및 정지 모드 켜짐: 유닛을 선택하고 우클릭하면 그 위치로 이동한 뒤 정지 상태가 됩니다(새 명령/명령 취소 전까지 해제 불가)."
+                : "집결 및 정지 모드 꺼짐.",
             NoticeCenter.InfoColor);
     }
 

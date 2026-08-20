@@ -881,9 +881,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
         TrapInteractionState trapInteractionBefore = u.currentTrapInteraction;
 
+        // 라벨 스냅샷은 JudgeState()보다 먼저 찍어야 한다(2026-08-20 버그 수정, 사용자 신고 "머리 위에
+        // (정지)라는 상태가 안 떠") — JudgeState()가 FSM _current를 실제로 전환시키는 지점인데, 예전엔
+        // 이 스냅샷을 JudgeState() 다음에 찍어서 "전환 직후"의 라벨을 old/new 둘 다로 잡아버렸다(그
+        // 틱엔 위치·방향도 안 바뀌는 전환이면 stateChanged가 전혀 감지되지 않음 — HaltFSMState처럼
+        // 진입 즉시 아무것도 안 하는 상태에서 특히 두드러진다). 소집("소집" 라벨)은 UnitFSM.GetLabel이
+        // isMustered를 매번 새로 확인하는 별도 오버라이드라 이 문제를 우연히 피해갔을 뿐, 근본적으로는
+        // 모든 FSM 상태 전환 라벨에 해당하는 일반적인 결함이었다.
+        string oldLabel = u.fsm.GetLabel(u);
         u.JudgeState();
         Vector2Int oldPos = u.position;
-        string oldLabel = u.fsm.GetLabel(u);
         Dir oldDir = u.currentDir;
         u.ExecuteAction();
         string newLabel = u.fsm.GetLabel(u);

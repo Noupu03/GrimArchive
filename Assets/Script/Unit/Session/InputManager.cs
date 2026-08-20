@@ -142,14 +142,20 @@ public class InputManager : MonoBehaviour
 			SetCancelCommandModeActive(false);
 			NoticeCenter.Instance?.PushMomentary("명령 취소 모드 꺼짐.", NoticeCenter.InfoColor);
 		}
+		if (IsRallyHaltModeActive)
+		{
+			SetRallyHaltModeActive(false);
+			NoticeCenter.Instance?.PushMomentary("집결 및 정지 모드 꺼짐.", NoticeCenter.InfoColor);
+		}
 	}
 
 	public void SetCommandModeActive(bool active)
 	{
 		IsCommandModeActive = active;
-		// 우클릭 한 번이 "이동"과 "명령 취소" 두 의미를 동시에 가지면 안 되므로 서로 배타로 둔다
-		// (2026-08-20, 사용자 요청 "명령 취소 로직을... 토글형으로" — SetCancelCommandModeActive 참고).
-		if (active) IsCancelCommandModeActive = false;
+		// 우클릭 한 번이 여러 의미(이동/명령 취소/집결 및 정지)를 동시에 가지면 안 되므로 셋을 서로
+		// 배타로 둔다(2026-08-20, "명령 취소 로직을... 토글형으로" → "집결 및 정지" 모드 추가로 3종
+		// 확장).
+		if (active) { IsCancelCommandModeActive = false; IsRallyHaltModeActive = false; }
 		if (!active)
 		{
 			_isMouseDown = false;
@@ -166,7 +172,20 @@ public class InputManager : MonoBehaviour
 	public void SetCancelCommandModeActive(bool active)
 	{
 		IsCancelCommandModeActive = active;
-		if (active) SetCommandModeActive(false);
+		if (active) { SetCommandModeActive(false); IsRallyHaltModeActive = false; }
+	}
+
+	// "집결 및 정지" 모드(2026-08-20, 사용자 요청 "명령 메뉴에 '집결 및 정지' 모드를 넣어줘. 선택한
+	// 유닛들을 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고, 이동 후에는 '정지' 상태가 됨") —
+	// "이동 및 공격"과 대칭 구조의 토글이다. 켠 뒤 유닛을 선택하고 우클릭하면 이동 명령이 나가고
+	// (기존 IssueMoveCommand 재사용), 도착하면 Unit.isHalted가 켜져 UnitFSM이 절대 해제되지 않는
+	// "정지"(동상) 상태로 강제 고정한다(HaltFSMState.cs 참고) — 새 직접 명령이나 "명령 취소"만 예외.
+	public bool IsRallyHaltModeActive { get; private set; }
+
+	public void SetRallyHaltModeActive(bool active)
+	{
+		IsRallyHaltModeActive = active;
+		if (active) { SetCommandModeActive(false); IsCancelCommandModeActive = false; }
 	}
 
 	private void CancelSelectedUnitsCommands()
@@ -175,13 +194,17 @@ public class InputManager : MonoBehaviour
 		foreach (var u in selectedUnits)
 		{
 			if (u == null) continue;
-			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue || u.isManualMoveCommand;
+			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue
+				|| u.isManualMoveCommand || u.isHalted || u.pendingHaltOnArrival;
 			if (!hasCommand) continue;
 
 			u.playerMoveTarget = null;
 			u.playerAttackTarget = null;
 			u.playerInteractTarget = null;
 			u.isManualMoveCommand = false;
+			// "명령 해제"는 "정지"(동상) 상태를 풀 수 있는 두 예외 중 하나다(사용자 명시, 2026-08-20).
+			u.isHalted = false;
+			u.pendingHaltOnArrival = false;
 			count++;
 		}
 
@@ -318,76 +341,91 @@ public class InputManager : MonoBehaviour
 		}
 
 		// =====================================================
-		// 우클릭 (이동) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격" 토글이 켜져
-		// 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만 가능). IsCommandModeActive/
-		// IsCancelCommandModeActive는 서로 배타이므로 위 분기와 동시에 걸릴 일은 없다.
+		// 우클릭 (이동 / 집결 및 정지) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격"
+		// 또는 "집결 및 정지" 토글이 켜져 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만
+		// 가능). 셋 다 서로 배타이므로(SetCommandModeActive 등 참고) 위 명령 취소 분기와 동시에 걸릴
+		// 일은 없다. "집결 및 정지"는 도착 후 Unit.isHalted를 켜도록 markHaltOnArrival만 다르게 넘긴다
+		// (2026-08-20, 사용자 요청).
 		// =====================================================
-		else if (IsCommandModeActive && rightClickPressed)
+		else if ((IsCommandModeActive || IsRallyHaltModeActive) && rightClickPressed)
 		{
-			Vector2 mousePos = Mouse.current.position.ReadValue();
-			Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
-
-			// 유닛 배치 시스템(2026-07-27 신규) 4.1/5.3장: 목적지 방의 잔여 인구수를 먼저 확인한다.
-			// 초과하면 선택된 유닛 전체의 이동 명령을 취소한다 — 일부만 자동으로 이동시키는 기능은
-			// 제공하지 않는다(문서 5.3장, "전체 이동 명령 취소" + "직접 선택 대상을 조정해 재시도").
-			// 클릭 위치가 어느 방에도 속하지 않으면(예: 방 경계 밖) 검사를 건너뛴다. 사용자 요청·정정
-			// (2026-07-27): 인구수는 "플레이어 진영 몬스터"만 포함 — 인류와 야생 몬스터는 둘 다 제외.
-			_gameSession.roomGrid.TryGetValue(new Vector3Int(gridPos.x, gridPos.y, currentFloor), out Room destRoom);
-			int incomingPopulation = 0;
-			if (destRoom != null)
-			{
-				foreach (var u in selectedUnits)
-					if (u != null && u.Health.hp > 0 && u.IsPlayerMonsterFaction && u.currentRoom != destRoom)
-						incomingPopulation += u.populationCost;
-			}
-			bool populationOk = destRoom == null || destRoom.CurrentPopulation + incomingPopulation <= destRoom.MaxPopulation;
-
-			if (!populationOk)
-			{
-				LogHelper.Warning(LogHelper.GAME,
-					$"목적지 방({destRoom.RoomName}) 인구수 초과로 이동 명령을 취소합니다. " +
-					$"(현재 {destRoom.CurrentPopulation} + 이동 {incomingPopulation} > 최대 {destRoom.MaxPopulation})");
-				NoticeCenter.Instance?.PushMomentary(
-					$"{destRoom.RoomName} 인구수 초과로 이동 명령을 취소합니다. ({destRoom.CurrentPopulation}+{incomingPopulation}/{destRoom.MaxPopulation})",
-					NoticeCenter.WarningColor);
-			}
-			else
-			{
-			foreach (var unit in selectedUnits)
-			{
-				if (unit == null || unit.Health.hp <= 0) continue;
-
-				unit.playerInteractTarget = null;
-
-				if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
-				{
-					if (!obj.IsCollected)
-					{
-						unit.playerInteractTarget = gridPos;
-					}
-				}
-
-				// 점령 관련(2026-07-27 신규): 플레이어(몬스터 진영) 이동 명령은 자신이 점령한 방과
-				// 그 방과 Gate로 연결된 인접 방까지만 허용한다. 인류 명령은 테스트용이므로 이
-				// 제한을 받지 않는다(사용자 확인).
-				if (unit.IsPlayerMonsterFaction && _gameSession.cmap != null
-					&& !_gameSession.cmap.CanPlayerCommandPosition(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
-				{
-					continue;
-				}
-
-				unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
-				unit.isManualMoveCommand = true;
-				unit.playerAttackTarget = null;
-			}
-
-			LogHelper.Log(LogHelper.GAME,
-				$"일반 이동 명령: {selectedUnits.Count}기 -> ({gridPos.x}, {gridPos.y})"
-			);
-			}
+			IssueMoveCommand(floorOffset, currentFloor, markHaltOnArrival: IsRallyHaltModeActive);
 		}
 
 		HandleGameSpeedShortcuts();
+	}
+
+	// "이동 및 공격"과 "집결 및 정지"가 공유하는 우클릭 이동 명령 발동부(2026-08-20, 사용자 요청으로
+	// "집결 및 정지" 모드를 추가하며 기존 이동 로직에서 분리) — markHaltOnArrival이 true면 도착 후
+	// Unit.isHalted를 켜서 "정지"(동상) 상태로 고정한다(HaltFSMState.cs 참고). 이 명령 자체가 "정지"를
+	// 풀 수 있는 두 예외 중 "플레이어 직접 명령"에 해당하므로, 대상 유닛이 기존에 정지 중이었더라도
+	// 여기서 무조건 해제하고 새 명령을 부여한다.
+	private void IssueMoveCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival)
+	{
+		Vector2 mousePos = Mouse.current.position.ReadValue();
+		Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+		// 유닛 배치 시스템(2026-07-27 신규) 4.1/5.3장: 목적지 방의 잔여 인구수를 먼저 확인한다.
+		// 초과하면 선택된 유닛 전체의 이동 명령을 취소한다 — 일부만 자동으로 이동시키는 기능은
+		// 제공하지 않는다(문서 5.3장, "전체 이동 명령 취소" + "직접 선택 대상을 조정해 재시도").
+		// 클릭 위치가 어느 방에도 속하지 않으면(예: 방 경계 밖) 검사를 건너뛴다. 사용자 요청·정정
+		// (2026-07-27): 인구수는 "플레이어 진영 몬스터"만 포함 — 인류와 야생 몬스터는 둘 다 제외.
+		_gameSession.roomGrid.TryGetValue(new Vector3Int(gridPos.x, gridPos.y, currentFloor), out Room destRoom);
+		int incomingPopulation = 0;
+		if (destRoom != null)
+		{
+			foreach (var u in selectedUnits)
+				if (u != null && u.Health.hp > 0 && u.IsPlayerMonsterFaction && u.currentRoom != destRoom)
+					incomingPopulation += u.populationCost;
+		}
+		bool populationOk = destRoom == null || destRoom.CurrentPopulation + incomingPopulation <= destRoom.MaxPopulation;
+
+		if (!populationOk)
+		{
+			LogHelper.Warning(LogHelper.GAME,
+				$"목적지 방({destRoom.RoomName}) 인구수 초과로 이동 명령을 취소합니다. " +
+				$"(현재 {destRoom.CurrentPopulation} + 이동 {incomingPopulation} > 최대 {destRoom.MaxPopulation})");
+			NoticeCenter.Instance?.PushMomentary(
+				$"{destRoom.RoomName} 인구수 초과로 이동 명령을 취소합니다. ({destRoom.CurrentPopulation}+{incomingPopulation}/{destRoom.MaxPopulation})",
+				NoticeCenter.WarningColor);
+			return;
+		}
+
+		int issuedCount = 0;
+		foreach (var unit in selectedUnits)
+		{
+			if (unit == null || unit.Health.hp <= 0) continue;
+
+			unit.playerInteractTarget = null;
+
+			if (unit is Human && _gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj))
+			{
+				if (!obj.IsCollected)
+				{
+					unit.playerInteractTarget = gridPos;
+				}
+			}
+
+			// 점령 관련(2026-07-27 신규): 플레이어(몬스터 진영) 이동 명령은 자신이 점령한 방과
+			// 그 방과 Gate로 연결된 인접 방까지만 허용한다. 인류 명령은 테스트용이므로 이
+			// 제한을 받지 않는다(사용자 확인).
+			if (unit.IsPlayerMonsterFaction && _gameSession.cmap != null
+				&& !_gameSession.cmap.CanPlayerCommandPosition(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
+			{
+				continue;
+			}
+
+			// "정지"(동상) 해제(2026-08-20) — 새 직접 명령은 정지 잠금을 풀 수 있는 예외다(사용자 명시).
+			unit.isHalted = false;
+			unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
+			unit.isManualMoveCommand = true;
+			unit.playerAttackTarget = null;
+			unit.pendingHaltOnArrival = markHaltOnArrival;
+			issuedCount++;
+		}
+
+		string commandLabel = markHaltOnArrival ? "집결 및 정지" : "일반 이동";
+		LogHelper.Log(LogHelper.GAME, $"{commandLabel} 명령: {issuedCount}기 -> ({gridPos.x}, {gridPos.y})");
 	}
 
 	// =====================================================

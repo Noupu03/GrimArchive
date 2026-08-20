@@ -97,6 +97,10 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
     private const float BoxWidth = 480f;
     private const float BoxHeight = 52f;
     private const float BoxGap = 10f;
+    // 사용자 요청(2026-08-20 "notice에 텍스트가 초과되지 않도록 해줘") — 문구가 한 줄(BoxHeight 기준)에
+    // 안 들어갈 만큼 길면 줄바꿈해서 박스 높이 자체를 늘린다. 이 값은 늘어난 박스 안에서 텍스트 위/
+    // 아래 여백으로 쓴다.
+    private const float BoxVerticalPadding = 14f;
     private const float AccentBarWidth = 6f;
     private const float BorderWidth = 2f;
     private const int FontSize = 19;
@@ -184,15 +188,23 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
             alignment = TextAnchor.MiddleLeft,
             fontSize = FontSize,
             fontStyle = FontStyle.Bold,
-            richText = true
+            richText = true,
+            wordWrap = true,
         };
+
+        float textAreaWidth = BoxWidth - AccentBarWidth - 20f;
 
         foreach (var notice in _notices)
         {
             float elapsed = notice.DurationSeconds - notice.RemainingSeconds;
             float alpha = ComputeAlpha(elapsed, notice.RemainingSeconds);
 
-            Rect rect = new Rect(x, y, BoxWidth, BoxHeight);
+            // 문구가 길어 한 줄에 안 들어가면 박스 높이를 실제 필요한 줄 수만큼 늘린다(BoxHeight는
+            // 최소값으로만 쓴다) — 그래야 텍스트가 박스 밖으로 넘치지 않는다.
+            float textHeight = style.CalcHeight(new GUIContent(notice.Text), textAreaWidth);
+            float boxHeight = Mathf.Max(BoxHeight, textHeight + BoxVerticalPadding);
+
+            Rect rect = new Rect(x, y, BoxWidth, boxHeight);
 
             GUI.color = BoxBackgroundColor * new Color(1f, 1f, 1f, alpha);
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
@@ -202,9 +214,9 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
             GUI.DrawTexture(new Rect(rect.x, rect.y, AccentBarWidth, rect.height), Texture2D.whiteTexture);
 
             style.normal.textColor = TextColor * new Color(1f, 1f, 1f, alpha);
-            GUI.Label(new Rect(rect.x + AccentBarWidth + 12f, rect.y, rect.width - AccentBarWidth - 20f, rect.height), notice.Text, style);
+            GUI.Label(new Rect(rect.x + AccentBarWidth + 12f, rect.y, textAreaWidth, rect.height), notice.Text, style);
 
-            y += BoxHeight + BoxGap;
+            y += boxHeight + BoxGap;
         }
 
         GUI.color = prevColor;

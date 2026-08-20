@@ -27,6 +27,13 @@ public static class MonsterDefensePlacementSystem
             if (unit == null || unit.Health.hp <= 0) continue;
             if (!unit.IsPlayerMonsterFaction) continue;
 
+            // "집결 및 정지" 명령 중인 유닛은 절대 건드리지 않는다(사용자 확인, 2026-08-20 "정지는
+            // 소집으로 전환되면 안돼" → "집결 및 정지로 인한 이동 중에도 소집 상태가 되면 안됨") —
+            // 이미 도착해 정지(동상, isHalted)한 경우뿐 아니라, 목적지로 이동 중인 단계
+            // (pendingHaltOnArrival, 아직 isHalted==false)도 포함한다. 새 웨이브의 소집 트리거라 해도
+            // 예외가 아니다 — isMustered를 켜지도, defenseStartPosition으로 이동시키지도 않는다.
+            if (unit.isHalted || unit.pendingHaltOnArrival) continue;
+
             if (unit.defenseStartPosition.HasValue)
             {
                 unit.playerMoveTarget    = unit.defenseStartPosition.Value;

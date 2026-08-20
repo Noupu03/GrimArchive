@@ -220,6 +220,18 @@ public abstract class Unit : ScriptableObject {
 	public Vector2Int? idleAnchorPosition = null;
 	public float idleNextMoveTime = 0f;
 
+	// "집결 및 정지" 명령(2026-08-20, 사용자 요청 "명령 메뉴에 '집결 및 정지' 모드를 넣어줘. 선택한
+	// 유닛들을 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고, 이동 후에는 '정지' 상태가 됨") —
+	// 이동이 끝나는 순간(PlayerCommandFSMState.CompletePlayerCommand) 이 플래그를 보고 isHalted로
+	// 전환한다.
+	public bool pendingHaltOnArrival = false;
+
+	// "정지"(동상) 상태 — 켜지면 UnitFSM.SelectState가 무조건 HaltFSMState로 고정해 그 무엇으로도
+	// 풀리지 않는다. 사용자 확인(2026-08-20): 완전 무반응 — 공격/스킬/회피 일체 하지 않는다(적이 옆에
+	// 있어도 자동 반격 없음). 오직 플레이어의 새 직접 명령이나 "명령 취소"로만 해제된다
+	// (InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
+	public bool isHalted = false;
+
 	// 위 이동이 걸리는 순간 함께 true가 된다 — 도착 후 NavigationFSMState가 기본 탐색 대신 제자리
 	// 대기("소집 대기")를 하게 만드는 플래그. 전투/전술 AI는 그대로 동작한다(탐색만 멈추는 것이지
 	// 전투 AI를 바꾸는 시스템이 아님). 해제 시점은 "어떤 형태로든 전투 시작을 인지한 시점"(UnitFSM이

@@ -210,6 +210,15 @@ public class PlayerCommandFSMState : IFSMState
 			MonsterDefensePlacementSystem.ApplyDefenseFacingDirection(unit.Session, unit);
 		}
 
+		// "집결 및 정지" 명령(2026-08-20) — 이동이 끝나는 지금 이 시점에 정지(동상) 상태로 고정한다.
+		// UnitFSM.SelectState가 다음 판단(hasPendingCommand==false가 되는 바로 다음 틱)에서 isHalted를
+		// 보고 HaltFSMState로 강제 전환한다.
+		if (unit.pendingHaltOnArrival)
+		{
+			unit.pendingHaltOnArrival = false;
+			unit.isHalted = true;
+		}
+
 		unit.playerMoveTarget        = null;
 		unit.isManualMoveCommand     = false;
 		unit.oneTimeReactUsed        = false;
