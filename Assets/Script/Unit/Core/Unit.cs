@@ -83,14 +83,16 @@ public abstract class Unit : ScriptableObject {
 	// UnitGenerate媛 ScriptableObject.CreateInstance 吏곹썑 IObjectResolver.Inject(this)濡?梨꾩썙以??
 	// GoapAction/SkillAction ??DI 而⑦뀒?대꼫媛 吏곸젒 ?우? ?딅뒗 ?쒖닔 C# 濡쒖쭅?????좊떅???듯빐 ?쒕퉬?ㅼ뿉 ?묎렐?쒕떎.
 	[Inject] private UnitGenerate _unitGenerate;
-	[Inject] private UIManager _uiManager;
 	[Inject] private VFXManager _vfxManager;
 	[Inject] private InputManager _inputManager;
 	[Inject] private GameSession _gameSession;
 	[Inject] private HumanKnowledgeBase _knowledgeBase;
 
 	public UnitGenerate Generate => _unitGenerate;
-	public UIManager UI => _uiManager;
+	// UI 리팩토링(2026-08-20, "모든 UI Haare 프레임워크에 편입") — UIManager가 Haare ICustomPanel로
+	// 바뀌면서 VContainer 컨테이너에 더는 등록되지 않아 [Inject]로 주입받을 수 없다. BuildingControlPanel.
+	// Instance와 동일한 정적 접근으로 교체(사용자 확인).
+	public UIManager UI => UIManager.Instance;
 	public VFXManager VFX => _vfxManager;
 	public InputManager InputMgr => _inputManager;
 	public GameSession Session => _gameSession;

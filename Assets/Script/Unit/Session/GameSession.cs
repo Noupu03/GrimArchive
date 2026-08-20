@@ -165,11 +165,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize START");
         try {
-            if (_resolver != null)
-            {
-                _resolver.Resolve<UIManager>();
-                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: UIManager Resolved");
-            }
+            // UI 리팩토링(2026-08-20) — UIManager가 Haare ICustomPanel로 편입되면서 VContainer에
+            // 더는 등록되지 않는다(GameUIPresenter.BootSequence가 로드를 담당). 여기서 강제로
+            // Resolve<UIManager>()하던 코드는 이제 미등록 타입이라 예외만 던지므로 제거.
 
             TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
             if (mapTextAsset != null && !string.IsNullOrEmpty(mapTextAsset.text))
@@ -228,26 +226,24 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize END");
     }
 
+    // 종료 시퀀스 안전장치(2026-08-20, 사용자 신고 "게임 실행 종료시 안전 destroy 검사... roomlabel
+    // 파괴가 꼬이는것 같이 보임") — Finalize()/OnApplicationQuit() 중 하나가 먼저 라벨을 Destroy해서
+    // _roomPopulationLabels를 비워도, UpdateProcess()는 Processor 등록 해제 타이밍과 별개로 그 뒤에도
+    // 한두 프레임 더 돌 수 있다(Dispose 순서가 엄격히 보장되지 않음). 그러면 RefreshRoomPopulationLabels
+    // 가 "라벨이 없네" 하고 CreateRoomPopulationLabel로 새로 만들어버리는데, 그 시점엔 부모로 쓸 층별
+    // 타일맵/그룹(GetFloorCategoryGroup)이 이미 같이 파괴되고 있는 중일 수 있어 고아 GameObject가
+    // 생기거나 파괴 순서가 뒤엉킨 것처럼 보인다. 종료가 시작되면 이 플래그로 UpdateProcess() 전체를
+    // 끊어서 더 이상 아무것도 새로 만들지 않게 한다.
+    private bool _isShuttingDown;
+
     // NativeRoutine 생명주기: Processor에서 UnRegister될 때(Dispose()→Finalize(), VContainer 컨테이너
     // 파괴 시) 한 번 호출됨 — ResourceManager/BuildingManager와 동일 관례. NativeRoutine은 OnDestroy가
     // 없어서 런타임에 만든 GameObject는 여기서 직접 정리해야 한다.
     public override async UniTask Finalize()
     {
-        DestroyRoomLabelRoot();
+        _isShuttingDown = true;
+        ClearRoomPopulationLabels();
         await base.Finalize();
-    }
-
-    // 부모-자식 관계에 기대지 않고 각 라벨을 직접 들고 있는 참조(_roomPopulationLabels)로 파괴한다.
-    // 라벨은 이제 독립 루트가 아니라 층별 타일맵의 "Labels" 하위 그룹 자식이라(위 필드 주석 참고)
-    // 별도 루트를 따로 파괴할 필요가 없다 — MapRoot_Grid/타일맵이 정리될 때 자연히 함께 정리됨.
-    private void DestroyRoomLabelRoot()
-    {
-        foreach (var label in _roomPopulationLabels.Values)
-        {
-            if (label != null) UnityEngine.Object.Destroy(label.gameObject);
-        }
-        _roomPopulationLabels.Clear();
-        _roomPopulationLabelText.Clear();
     }
 
     // 기존 맵 데이터 보정(2026-07-28, 사용자 요청 "초기 점령 방 중 2층, 3층은 시작방 플레이어 몬스터
@@ -484,17 +480,21 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // 빌드에서는 Application.Quit() 시 OnDestroy 호출이 보장되지 않아 Finalize()만으로는 부족할 수
-    // 있다 — Processor.OnApplicationQuit()(실제 Unity 콜백)로 한 번 더 정리한다. DestroyRoomLabelRoot()는
+    // 있다 — Processor.OnApplicationQuit()(실제 Unity 콜백)로 한 번 더 정리한다. ClearRoomPopulationLabels()는
     // 중복 호출해도 안전(Unity 파괴된 오브젝트 == null 오버로드).
     public override void OnApplicationQuit()
     {
         base.OnApplicationQuit();
-        DestroyRoomLabelRoot();
+        _isShuttingDown = true;
+        ClearRoomPopulationLabels();
     }
 
     // Processor가 등록된 Routine들을 순회하며 매 프레임 호출함(기존 Update()와 동일한 역할)
     public override void UpdateProcess()
     {
+        // 종료 시퀀스 중엔 아무 것도 새로 만들거나 건드리지 않는다(위 _isShuttingDown 주석 참고).
+        if (_isShuttingDown) return;
+
         _offenseProcessor?.UpdateProcess();
 
         // 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화

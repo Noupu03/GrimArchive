@@ -139,6 +139,6 @@ public class ResourceManager : NativeRoutine
         Vector3 pos = new Vector3(killer.position.x + 0.5f, killer.position.y + 1.2f, 0f);
         if (killer.Generate != null) pos += killer.Generate.GetFloorOffset(killer.currentFloor);
 
-        killer.UI.ShowFloatingTextAt(pos, $"{label} {amount}개 획득!", Color.yellow, 0.8f);
+        killer.UI?.ShowFloatingTextAt(pos, $"{label} {amount}개 획득!", Color.yellow, 0.8f);
     }
 }

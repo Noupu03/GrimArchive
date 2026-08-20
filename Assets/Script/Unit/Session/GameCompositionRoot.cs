@@ -28,11 +28,10 @@ public class GameCompositionRoot : CoreLifetimeScope
 
         // ������ GameSession.Awake()/Start()�� ��Ÿ�ӿ� ���� �����ϴ� ����
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
-        // UIManager�� OnGUI() ������ MonoBehaviour�� ���������� �ν����� �����Ͱ� ���� �� ��ġ�� ���ʿ�.
-        builder.RegisterComponentOnNewGameObject<UIManager>(Lifetime.Singleton, "UIManager");
-        // NoticeCenter (2026-08-19 new, ported from rythoom project's NoticeCenter) - same pattern as
-        // UIManager: always-on OnGUI overlay, no prefab. Call from anywhere via Instance (Push).
-        builder.RegisterComponentOnNewGameObject<NoticeCenter>(Lifetime.Singleton, "NoticeCenter");
+        // UIManager/NoticeCenter (2026-08-20 UI 리팩토링, "모든 UI Haare 프레임워크에 편입") — 예전엔
+        // 여기서 RegisterComponentOnNewGameObject로 직접 배선했는데, 다른 UI 패널들과 동일하게
+        // [PanelAttribute] Haare ICustomPanel로 옮겨서 GameUIPresenter.BootSequence가 생성을 담당한다
+        // (Assets/Script/Unit/Session/UIManager.cs, Assets/Script/UI/NoticeCenter.cs 참고).
 
         // UnitGenerate: Update/OnGUI/�ν����� �����Ͱ� ���� ���� ���� C# Ŭ������ ��ȯ��.
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();

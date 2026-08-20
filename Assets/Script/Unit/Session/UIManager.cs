@@ -1,12 +1,29 @@
-﻿using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine;
 using VContainer;
 using DG.Tweening;
+using Haare.Client.Routine;
+using Haare.Client.UI;
 
 // 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter(Haare UIPresenter/RegisterEntryPoint
-// 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)만 담당한다.
-public class UIManager : MonoBehaviour
+// 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)와 플로팅 텍스트만 담당한다.
+//
+// UI 리팩토링(2026-08-20, 사용자 요청 "모든 UI Haare 프레임워크에 편입") — 예전엔 GameCompositionRoot가
+// RegisterComponentOnNewGameObject로 직접 배선하는 "느슨한" MonoBehaviour였는데(NoticeCenter와 동일
+// 사유), 다른 UI 패널들(BuildingControlPanel/BottomMenuBar 등)과 동일하게 [PanelAttribute] Haare
+// ICustomPanel로 편입했다. 그 대신 Unit.cs의 모든 유닛이 쓰던 [Inject] private UIManager _uiManager
+// 생성자 주입은(Haare 패널은 VContainer 컨테이너에 등록되지 않아 더는 주입받을 수 없다) BuildingControlPanel.
+// Instance와 동일한 정적 Instance 접근으로 교체했다(사용자 확인) — GameSession.Initialize의
+// _resolver.Resolve<UIManager>() 강제 인스턴스화 호출도 더는 필요 없어 제거됐다(GameUIPresenter.
+// BootSequence가 그 역할을 대신함).
+[PanelAttribute("Prefabs/UIManager")]
+public class UIManager : MonoRoutine, ICustomPanel
 {
+    public SceneUIManager uiManager { get; set; }
+    public GameObject panel { get; set; }
+
+    // Unit.UI 프로퍼티(Unit.cs) 등 정적 접근이 필요한 소비처가 쓴다.
+    public static UIManager Instance { get; private set; }
+
     private GameSession _gameSession;
 
     [Inject]
@@ -14,6 +31,25 @@ public class UIManager : MonoBehaviour
     {
         _gameSession = gameSession;
     }
+
+    protected override void Constructor()
+    {
+        base.Constructor();
+        Instance = this;
+    }
+
+    public void OpenPanel()
+    {
+        gameObject.SetActive(true);
+        panel = gameObject;
+    }
+
+    public void ClosePanel()
+    {
+        gameObject.SetActive(false);
+    }
+
+    public void BindEvent() { }
 
     void OnGUI()
     {

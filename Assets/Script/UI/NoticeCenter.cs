@@ -1,13 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Client.Routine;
+using Haare.Client.UI;
 
 // Notice 시스템(2026-08-19 신규, 사용자 요청 "배치모드시 뜨는 방 선택 문구와, 웨이브 시작을 알리는
 // 문구들을 시스템화") — 화면 어디서든 한 줄로 띄울 수 있는 스택형 알림. 다른 rythoom 프로젝트
 // (C:\Users\songs\Documents\GitHub\rythoom\adapter\Autoload\NoticeCenter.cs, Godot Autoload)의
-// 동일한 개념/API를 이 프로젝트 관례로 그대로 옮겼다 — 프리팹/Addressables 없이 GameCompositionRoot가
-// InputManager/UIManager와 같은 방식(RegisterComponentOnNewGameObject)으로 항상 하나 띄워두고,
-// 실제 그리기는 OnGUI로 한다("프리팹 껍데기 + OnGUI" 대신 아예 프리팹도 없는, UIManager와 동일한
-// 상시 오버레이 패턴).
+// 동일한 개념/API를 이 프로젝트 관례로 그대로 옮겼다. Haare ICustomPanel로 편입된 뒤(아래 2026-08-20
+// 단락 참고)로는 다른 UI 패널들과 동일하게 빈 프리팹 + GameUIPresenter.BootSequence 부팅 로드를
+// 쓴다 — 실제 그리기는 여전히 OnGUI.
 //
 // 두 종류로 명확히 구분해서 캡슐화한다(2026-08-20, 사용자 요청 "notice를 두개로 구분하자... 이 두개
 // 구분해서 캡슐화 해두자" — 이름만 봐도 어느 쪽을 써야 할지 알 수 있게 하는 게 목적, 예전엔 Push/
@@ -42,8 +43,17 @@ using UnityEngine;
 // 순간형 둘 다 이 규칙을 따른다(2026-08-20 사용자 확인: "notice가 시간에 영향받지 않게 하라는거지,
 // 웨이브 로직이 시간에 영향 받지 않게 하란 소리가 아니야" — 정지 중 멈춰야 하는 건 게임 로직 쪽이지
 // notice의 표시/소멸 타이밍이 아니다).
-public class NoticeCenter : MonoBehaviour
+// UI 리팩토링(2026-08-20, 사용자 요청 "모든 UI Haare 프레임워크에 편입") — 예전엔 GameCompositionRoot가
+// RegisterComponentOnNewGameObject로 직접 배선하는 "느슨한" MonoBehaviour였는데(UIManager와 동일
+// 사유), 다른 UI 패널들(BuildingControlPanel/BottomMenuBar 등)과 동일하게 [PanelAttribute] Haare
+// ICustomPanel로 편입했다. 실제 그리기는 여전히 OnGUI(이 프로젝트의 확립된 관례, 빈 프리팹 +
+// OnGUI) — 접근 방식(Instance 정적 접근)은 전혀 안 바뀌어서 호출부 변경은 필요 없었다.
+[PanelAttribute("Prefabs/NoticeCenter")]
+public class NoticeCenter : MonoRoutine, ICustomPanel
 {
+    public SceneUIManager uiManager { get; set; }
+    public GameObject panel { get; set; }
+
     public static NoticeCenter Instance { get; private set; }
 
     private readonly struct Notice
@@ -95,15 +105,24 @@ public class NoticeCenter : MonoBehaviour
 
     private readonly List<Notice> _notices = new List<Notice>();
 
-    private void Awake()
+    protected override void Constructor()
     {
+        base.Constructor();
         Instance = this;
     }
 
-    private void OnDestroy()
+    public void OpenPanel()
     {
-        if (Instance == this) Instance = null;
+        gameObject.SetActive(true);
+        panel = gameObject;
     }
+
+    public void ClosePanel()
+    {
+        gameObject.SetActive(false);
+    }
+
+    public void BindEvent() { }
 
     // =====================================================
     // 순간형(Momentary) — 몇 초 뒤 자동으로 사라지는 일회성 알림. accentColor를 생략하면 InfoColor,

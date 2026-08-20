@@ -16,6 +16,29 @@ public class GameUIPresenter : UIPresenter
         {
             await FadeIn();
 
+            // UI 리팩토링(2026-08-20, "모든 UI Haare 프레임워크에 편입") — NoticeCenter/UIManager는
+            // 다른 모든 패널·게임플레이 코드(Unit.UI 등)가 기대는 가장 기초적인 상시 오버레이라
+            // 맨 먼저 띄운다.
+            try
+            {
+                int noticeCenterId = await _coreUIManager.LoadPanel<NoticeCenter>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<NoticeCenter>(noticeCenterId).OpenPanel();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UI] NoticeCenter 로드 실패: {e.Message}");
+            }
+
+            try
+            {
+                int uiManagerId = await _coreUIManager.LoadPanel<UIManager>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<UIManager>(uiManagerId).OpenPanel();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UI] UIManager 로드 실패: {e.Message}");
+            }
+
             int debugPanelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver, null, false, false);
             _coreUIManager.RentPanel<DebugInfoPanel>(debugPanelId).OpenPanel();
 

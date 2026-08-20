@@ -358,7 +358,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 {
                     _activeCategory = MenuCategory.None;
                     CameraController.Instance?.GoToFloor(floorIndex);
-                    NoticeCenter.Instance?.PushMomentary($"{floorIndex}층으로 이동", NoticeCenter.InfoColor);
+                    NoticeCenter.Instance?.PushMomentary($"{floorIndex}층으로 카메라 전환", NoticeCenter.InfoColor);
                 }));
         }
         DrawVerticalSubmenu(items);

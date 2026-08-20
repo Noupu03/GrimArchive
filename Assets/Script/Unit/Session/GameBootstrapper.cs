@@ -41,12 +41,11 @@ public class GameBootstrapper : IAsyncStartable
         // 4단계: InputManager Resolve (MonoBehaviour 생성)
         var inputManager = _resolver.Resolve<InputManager>();
 
-        // NoticeCenter도 여기서 명시적으로 Resolve해야 GameObject가 실제로 생성된다(2026-08-19,
-        // 사용자 신고 "UI 안보여" — UIManager처럼 다른 컴포넌트가 [Inject]로 끌어다 쓰는 경우와
-        // 달리 NoticeCenter는 정적 Instance로만 접근해서 아무도 의존성 그래프에 끌어들이지 않았고,
-        // GameBootstrapper 목록에도 없어서 컨테이너에 등록만 되고 실제로는 한 번도 만들어지지
-        // 않았다 — InputManager와 동일하게 명시적 Resolve로 생성을 보장한다).
-        var noticeCenter = _resolver.Resolve<NoticeCenter>();
+        // UI 리팩토링(2026-08-20) — NoticeCenter/UIManager는 이제 Haare ICustomPanel로 편입돼
+        // GameUIPresenter.BootSequence가 생성을 담당한다(다른 UI 패널들과 동일한 경로). 예전엔 둘 다
+        // 정적 Instance로만 접근돼서 아무도 의존성 그래프에 끌어들이지 않아 여기서 명시적으로
+        // Resolve해야만 GameObject가 실제로 생성됐는데, VContainer 등록 자체가 없어졌으니 그 필요도
+        // 사라졌다(더 이상 등록 안 된 타입이라 Resolve하면 예외만 던짐).
 
         // 5단계: GameSession Resolve - _mapManager property inject가 이미 완료된 상태
         var gameSession = _resolver.Resolve<GameSession>();
