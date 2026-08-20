@@ -132,14 +132,24 @@ public class InputManager : MonoBehaviour
 	// 예: 이동 및 공격을 켠 채로 명령 메뉴를 닫으면 다른 메뉴들이 그 상태로 동작 가능해지는 게 문제).
 	public void CancelCommandModeIfActive()
 	{
-		if (!IsCommandModeActive) return;
-		SetCommandModeActive(false);
-		NoticeCenter.Instance?.PushMomentary("명령 모드 꺼짐: 정보 조회만 가능합니다.", NoticeCenter.InfoColor);
+		if (IsCommandModeActive)
+		{
+			SetCommandModeActive(false);
+			NoticeCenter.Instance?.PushMomentary("명령 모드 꺼짐: 정보 조회만 가능합니다.", NoticeCenter.InfoColor);
+		}
+		if (IsCancelCommandModeActive)
+		{
+			SetCancelCommandModeActive(false);
+			NoticeCenter.Instance?.PushMomentary("명령 취소 모드 꺼짐.", NoticeCenter.InfoColor);
+		}
 	}
 
 	public void SetCommandModeActive(bool active)
 	{
 		IsCommandModeActive = active;
+		// 우클릭 한 번이 "이동"과 "명령 취소" 두 의미를 동시에 가지면 안 되므로 서로 배타로 둔다
+		// (2026-08-20, 사용자 요청 "명령 취소 로직을... 토글형으로" — SetCancelCommandModeActive 참고).
+		if (active) IsCancelCommandModeActive = false;
 		if (!active)
 		{
 			_isMouseDown = false;
@@ -147,12 +157,22 @@ public class InputManager : MonoBehaviour
 		}
 	}
 
-	// "명령 취소" — 선택 여부와 무관하게 현재 실행 중인 모든 유닛의 이동/공격/상호작용 명령을 취소한다
-	// (문서: "실행중인 명령들 모두 취소").
-	public void CancelAllCommands()
+	// "명령 취소" 모드(2026-08-20 재설계, 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고, 해당
+	// 유닛들을 선택 후 우클릭을 눌러 즉시 명령 취소되게 하자") — 예전엔 버튼을 누르는 즉시 "모든 유닛"의
+	// 명령을 취소했는데(선택 여부 무관), 이제 "이동 및 공격"과 대칭 구조의 토글이다: 토글을 켠 뒤 유닛을
+	// 선택하고 우클릭하면 그 선택된 유닛들의 명령만 즉시 취소된다.
+	public bool IsCancelCommandModeActive { get; private set; }
+
+	public void SetCancelCommandModeActive(bool active)
+	{
+		IsCancelCommandModeActive = active;
+		if (active) SetCommandModeActive(false);
+	}
+
+	private void CancelSelectedUnitsCommands()
 	{
 		int count = 0;
-		foreach (var u in _gameSession.units)
+		foreach (var u in selectedUnits)
 		{
 			if (u == null) continue;
 			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue || u.isManualMoveCommand;
@@ -165,8 +185,8 @@ public class InputManager : MonoBehaviour
 			count++;
 		}
 
-		LogHelper.Log(LogHelper.GAME, $"명령 취소: {count}기의 이동/공격 명령을 취소했습니다.");
-		NoticeCenter.Instance?.PushMomentary($"모든 명령이 취소되었습니다. ({count}기)", NoticeCenter.InfoColor);
+		LogHelper.Log(LogHelper.GAME, $"명령 취소: 선택된 유닛 중 {count}기의 이동/공격 명령을 취소했습니다.");
+		NoticeCenter.Instance?.PushMomentary($"선택한 유닛의 명령을 취소했습니다. ({count}기)", NoticeCenter.InfoColor);
 	}
 
 	public void EnterUnitBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterBuildMode(); }
@@ -282,13 +302,27 @@ public class InputManager : MonoBehaviour
 		// "기본 상태에서도 드래그로 다중 선택 등은 가능해야지").
 		UpdateSelectionDragAndClick(floorOffset, currentFloor, addHeld);
 
-		// =====================================================
-		// 우클릭 (이동) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격" 토글이 켜져
-		// 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만 가능).
-		// =====================================================
 		bool rightClickOverUI = (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
 			|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
-		if (IsCommandModeActive && Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0 && !rightClickOverUI)
+		bool rightClickPressed = Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0 && !rightClickOverUI;
+
+		// =====================================================
+		// 우클릭 (명령 취소) - "명령 취소" 토글이 켜져 있을 때는 우클릭이 이동 대신 선택된 유닛들의
+		// 명령 취소로 동작한다(2026-08-20, 사용자 요청 "명령 취소 로직을... 토글형으로 바꾸고, 해당
+		// 유닛들을 선택 후 우클릭을 눌러 즉시 명령 취소되게"). SetCommandModeActive/SetCancelCommandModeActive가
+		// 서로 배타로 관리하므로 이 분기와 아래 이동 분기가 동시에 걸릴 일은 없다.
+		// =====================================================
+		if (IsCancelCommandModeActive && rightClickPressed)
+		{
+			CancelSelectedUnitsCommands();
+		}
+
+		// =====================================================
+		// 우클릭 (이동) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격" 토글이 켜져
+		// 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만 가능). IsCommandModeActive/
+		// IsCancelCommandModeActive는 서로 배타이므로 위 분기와 동시에 걸릴 일은 없다.
+		// =====================================================
+		else if (IsCommandModeActive && rightClickPressed)
 		{
 			Vector2 mousePos = Mouse.current.position.ReadValue();
 			Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);

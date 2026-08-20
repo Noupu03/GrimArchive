@@ -58,11 +58,59 @@ public class UIManager : MonoRoutine, ICustomPanel
         DrawTopLeftUI();
 	}
 
+	// 사용자 요청(2026-08-20 "좌상단의 배속... 글자 크기 좀 키워주고, 메뉴 스타일로 바꿔줘" → "배속표시는
+	// 크기 좀 줄이자" → "배속 표시 다시 큰 상태로 만들어주고, 텍스트 잘리지 않게만 해줘. 가로 길이 너무
+	// 길어서 빈 공간이 많이 보임") — 주 문구(게임 속도)는 메뉴 스타일 큰 굵은 글씨로 키우고, 보조 안내문
+	// (조작키 힌트)은 작은 글씨로 남겨 두 줄의 실제 렌더 크기를 각각 측정한 뒤 박스를 그 최대 폭에 맞춰
+	// 동적으로 그린다 — 고정폭(300)을 쓰면 큰 글씨일 때 잘리거나 작은 글씨일 때 빈 공간이 남는 문제를
+	// 동시에 해결.
+	private const int SpeedIndicatorFontSize = GUIMenuStyleUtil.LabelFontSize;
+	private const int SpeedIndicatorHintFontSize = 13;
+	private static GUIStyle _speedIndicatorStyle;
+	private static GUIStyle _speedIndicatorHintStyle;
+
+	private GUIStyle GetSpeedIndicatorStyle()
+	{
+		if (_speedIndicatorStyle == null)
+		{
+			_speedIndicatorStyle = new GUIStyle(GUI.skin.label) { fontSize = SpeedIndicatorFontSize, fontStyle = FontStyle.Bold, richText = true };
+			_speedIndicatorStyle.normal.textColor = Color.white;
+		}
+		return _speedIndicatorStyle;
+	}
+
+	private GUIStyle GetSpeedIndicatorHintStyle()
+	{
+		if (_speedIndicatorHintStyle == null)
+		{
+			_speedIndicatorHintStyle = new GUIStyle(GUI.skin.label) { fontSize = SpeedIndicatorHintFontSize, richText = true };
+			_speedIndicatorHintStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+		}
+		return _speedIndicatorHintStyle;
+	}
+
 	private void DrawTopLeftUI()
     {
         int y = 50; // 좌상단 FPS 카운터(CoreCanvas의 FPSText, y 10~40)와 안 겹치게 그 아래부터 시작.
-		GUI.Label(new Rect(10, y, 300, 40), $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}\nSpace: 일시정지 | 0/1/2/3: 배속(0.5x/1x/2x/3x)");
-        y += 50;
+
+        string line1 = $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}";
+        const string line2 = "Space: 일시정지 | 0/1/2/3: 배속(0.5x/1x/2x/3x)";
+
+        GUIStyle line1Style = GetSpeedIndicatorStyle();
+        GUIStyle line2Style = GetSpeedIndicatorHintStyle();
+        Vector2 size1 = line1Style.CalcSize(new GUIContent(line1));
+        Vector2 size2 = line2Style.CalcSize(new GUIContent(line2));
+
+        const int paddingX = 10;
+        const int paddingY = 6;
+        const int lineGap = 2;
+        float width = Mathf.Max(size1.x, size2.x) + paddingX * 2;
+        float height = size1.y + size2.y + lineGap + paddingY * 2;
+
+        Rect rect = new Rect(10, y, width, height);
+        GUIMenuStyleUtil.DrawPanelBox(rect);
+        GUI.Label(new Rect(rect.x + paddingX, rect.y + paddingY, size1.x, size1.y), line1, line1Style);
+        GUI.Label(new Rect(rect.x + paddingX, rect.y + paddingY + size1.y + lineGap, size2.x, size2.y), line2, line2Style);
     }
 
 	// 2026-08-20 — ShowFloatingText(Unit)는 위치/기본색/기본시간만 유닛 기준으로 채워 ShowFloatingTextAt로

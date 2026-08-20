@@ -44,6 +44,21 @@ public class CameraController : MonoBehaviour
     // 비활성화하는 데 쓴다.
     public bool TryGetFloorCount(out int floorCount) => TryGetFloorCountStatic(out floorCount);
 
+    // 층 전환 메뉴에 "아직 플레이어에게 밝혀지지 않은 층" 버튼을 아예 숨기는 데 쓴다(2026-08-20,
+    // 사용자 요청 "플레이어에게 밝혀지지 않은 층은, 층 전환 메뉴에 아예 버튼이 뜨지 않게 해줘. 밝혀진
+    // 순간부터 메뉴에 뜨도록"). "밝혀짐"의 기준은 FogOfWarSystem이 이미 방마다 들고 있는
+    // Room.FogRevealed(한번 true가 되면 다시 false로 안 돌아가는 영구 해제 플래그)를 그대로 재사용한다
+    // — 그 층에 안개가 걷힌 방이 하나라도 있으면 밝혀진 층으로 본다. 0층은 FogOfWarSystem.Initialize()가
+    // 모든 방을 무조건 걷어두므로 항상 밝혀짐 취급된다.
+    public bool IsFloorRevealed(int floorIndex)
+    {
+        var allRooms = GameSession.Instance?.allRooms;
+        if (allRooms == null) return false;
+        foreach (var room in allRooms)
+            if (room != null && room.Floor == floorIndex && room.FogRevealed) return true;
+        return false;
+    }
+
     // 특정 층으로 즉시 이동(맵 메뉴 버튼용) — SwitchFloor(방향)와 달리 절대 인덱스를 받는다.
     public void GoToFloor(int floorIndex)
     {

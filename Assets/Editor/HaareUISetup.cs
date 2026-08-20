@@ -119,7 +119,8 @@ public static class HaareUISetup
         infoBoxRt.anchorMax = new Vector2(0, 0);
         infoBoxRt.pivot = new Vector2(0, 0);
         infoBoxRt.anchoredPosition = new Vector2(10, 10);
-        infoBoxRt.sizeDelta = new Vector2(240, 480);
+        // 사용자 요청(2026-08-20 "정보 UI 너무 길어. 반 크기로 줄이자") — 세로 길이를 절반으로.
+        infoBoxRt.sizeDelta = new Vector2(240, 240);
         infoBox.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
         infoBox.AddComponent<CustomImage>();
 

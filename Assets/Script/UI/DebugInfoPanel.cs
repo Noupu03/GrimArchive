@@ -30,7 +30,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     [SerializeField] private RectTransform infoBoxRect;
 
     private const float ScrollZoomSpeed = 0.02f;
-    private const float InfoBoxBottomGap = 10f;
+    // 사용자 요청(2026-08-20 "정보 UI 밑으로 메뉴 바로 위에 오게 딱 붙여줘") — 여백 없이 밀착.
+    private const float InfoBoxBottomGap = 0f;
 
     private InputManager _inputManager;
 
@@ -54,29 +55,21 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     }
 
     // InputManager가 월드 클릭 처리 전에 확인하는 공개 API(BuildingControlPanel.IsMouseOverPanel과
-    // 동일 관례) — 정보 박스 + 탭 버튼(있으면) + 우상단 유닛 편집 창(있으면)을 모두 포함한다.
+    // 동일 관례) — 정보 박스 + 탭 버튼(있으면)을 모두 포함한다. 우상단 "Unit Status Test" 창은
+    // debug 메뉴로 옮겨져(BottomMenuBar) 여기서 더는 확인하지 않는다.
     public bool IsMouseOverUI()
     {
-        if (infoBoxRect != null && _inputManager != null && _inputManager.selectedUnits.Count > 0)
-        {
-            bool tabsVisible = _inputManager.selectedUnits.Count == 1;
-            float extraTop = tabsVisible ? (TabHeight + TabGap) : 0f;
+        if (infoBoxRect == null || _inputManager == null || _inputManager.selectedUnits.Count == 0) return false;
 
-            float left = infoBoxRect.anchoredPosition.x;
-            float width = infoBoxRect.sizeDelta.x;
-            float height = infoBoxRect.sizeDelta.y + extraTop;
-            float top = Screen.height - (infoBoxRect.anchoredPosition.y + infoBoxRect.sizeDelta.y + extraTop);
+        bool tabsVisible = _inputManager.selectedUnits.Count == 1;
+        float extraTop = tabsVisible ? (TabHeight + TabGap) : 0f;
 
-            if (GUIMouseUtil.IsMouseOverRect(new Rect(left, top, width, height))) return true;
-        }
+        float left = infoBoxRect.anchoredPosition.x;
+        float width = infoBoxRect.sizeDelta.x;
+        float height = infoBoxRect.sizeDelta.y + extraTop;
+        float top = Screen.height - (infoBoxRect.anchoredPosition.y + infoBoxRect.sizeDelta.y + extraTop);
 
-        if (_inputManager != null && _inputManager.selectedUnits.Count > 0
-            && GUIMouseUtil.IsMouseOverRect(new Rect(Screen.width - 220, 360, 200, 150)))
-        {
-            return true;
-        }
-
-        return false;
+        return GUIMouseUtil.IsMouseOverRect(new Rect(left, top, width, height));
     }
 
     public void OpenPanel()
@@ -148,51 +141,33 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     private void OnGUI()
     {
+        DrawInfoBoxBorder();
         DrawInfoTabs();
+    }
 
-        if (_inputManager == null || _inputManager.selectedUnits.Count == 0) return;
+    // 사용자 요청(2026-08-20 "세부 정보창 전체에 하얀색 테두리도 그려주고") — infoBoxRect는 uGUI Image라
+    // 다른 메뉴 UI들처럼 GUIMenuStyleUtil을 직접 못 쓰지만, IsMouseOverUI가 이미 하듯 anchoredPosition/
+    // sizeDelta를 OnGUI 화면 좌표로 변환해서 그 위에 테두리만 겹쳐 그린다 — 하단 메뉴 바/탭과 같은
+    // 흰 테두리 스타일로 통일.
+    private void DrawInfoBoxBorder()
+    {
+        if (infoBoxRect == null || !infoBoxRect.gameObject.activeInHierarchy) return;
 
-        bool isMultiSelect = _inputManager.selectedUnits.Count > 1;
-        string title = isMultiSelect
-            ? $"Unit Status Test ({_inputManager.selectedUnits.Count}기 선택됨)"
-            : "Unit Status Test";
-        // StatusInfoPanel의 우상단 박스(y50~350)와 안 겹치도록 그 아래에서 시작한다
-        // (사용자 요청 "UI 배치들 겹치지 않게 정리", 2026-07-23).
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 360, 200, 150), title, GUI.skin.window);
+        float left = infoBoxRect.anchoredPosition.x;
+        float width = infoBoxRect.sizeDelta.x;
+        float height = infoBoxRect.sizeDelta.y;
+        float top = Screen.height - (infoBoxRect.anchoredPosition.y + height);
 
-        // 다수 선택 시엔 특정 유닛 하나를 편집하는 버튼들이 의미가 없어서 숨긴다 —
-        // 아래 selectedUnitInfoText 쪽도 스탯 대신 선택된 유닛 목록만 보여준다(RefreshSelectedUnitInfo).
-        if (!isMultiSelect)
-        {
-            Unit u = _inputManager.selectedUnit;
-
-            if (GUILayout.Button("Add 10 EXP"))
-            {
-                u.BaseStat.exp += 10f;
-                RefreshSelectedUnitInfo();
-            }
-
-            if (GUILayout.Button("Add 1 Kill"))
-            {
-                u.killCount += 1;
-                RefreshSelectedUnitInfo();
-            }
-
-            if (GUILayout.Button("Level Up"))
-            {
-                u.level += 1;
-                RefreshSelectedUnitInfo();
-            }
-        }
-
-        GUILayout.EndArea();
+        GUIMenuStyleUtil.DrawButtonBorder(new Rect(left, top, width, height));
     }
 
     // 정보 박스(InfoBox) 바로 위에 "기본 정보"/"세부 스탯"/"장비" 탭 버튼 3개를 그린다. 유닛을 정확히
     // 1기 선택했을 때만 의미가 있다(다중 선택/미선택 시엔 탭 없이 기존 목록/빈 텍스트 그대로). 탭이
     // 3개로 늘어나서 박스 폭에 맞춰 버튼 폭을 동적으로 계산한다(고정폭이면 박스 밖으로 넘침).
-    private const float TabHeight = 26f;
-    private const float TabGap = 4f;
+    // 크기/폰트/테두리는 GUIMenuStyleUtil로 하단 메뉴 바와 동일한 스타일을 쓴다(2026-08-20, 사용자
+    // 요청 "정보 UI도 메뉴와 동일한 스타일로").
+    private const float TabHeight = 40f;
+    private const float TabGap = 6f;
     private const int TabCount = 3;
 
     private void DrawInfoTabs()
@@ -210,22 +185,22 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         DrawInfoTabButton(boxX + (tabWidth + TabGap) * 2, y, tabWidth, TabHeight, "장비", InfoTab.Equipment);
     }
 
-    private static readonly Color TabActiveColor = new Color(0.25f, 0.75f, 1f, 1f);
-    private static readonly Color TabInactiveColor = new Color(0.3f, 0.3f, 0.3f, 0.9f);
 
     private void DrawInfoTabButton(float x, float y, float w, float h, string label, InfoTab tab)
     {
-        Color prev = GUI.backgroundColor;
-        GUI.backgroundColor = _currentTab == tab ? TabActiveColor : TabInactiveColor;
-        if (GUI.Button(new Rect(x, y, w, h), label) && _currentTab != tab)
+        Rect rect = new Rect(x, y, w, h);
+        bool clicked = GUIMenuStyleUtil.DrawFlatButton(rect, label, _currentTab == tab);
+
+        if (clicked && _currentTab != tab)
         {
             _currentTab = tab;
             RefreshSelectedUnitInfo();
         }
-        GUI.backgroundColor = prev;
     }
 
-    private void RefreshSelectedUnitInfo()
+    // BottomMenuBar의 debug 메뉴(옮겨진 "Unit Status Test" 버튼들)가 스탯을 바꾼 뒤 화면 텍스트를
+    // 즉시 갱신하려고 호출하는 공개 진입점(2026-08-20).
+    public void RefreshSelectedUnitInfo()
     {
         if (selectedUnitInfoText == null) return;
 
