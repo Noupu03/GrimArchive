@@ -214,7 +214,7 @@ public static class PartyDeathSystem
 		record.UnknownCauseSearchTriggered = true;
 
 		Dir front = record.DeadFacing;
-		Dir[] slots = { front, Opposite(front), RotateCW(front, -2), RotateCW(front, 2) };
+		Dir[] slots = { front, DirUtil.Opposite(front), DirUtil.RotateCW(front, -2), DirUtil.RotateCW(front, 2) };
 		int slotIndex = 0;
 		Vector2Int origin = new Vector2Int(record.DeathPosition.x, record.DeathPosition.y);
 
@@ -244,7 +244,4 @@ public static class PartyDeathSystem
 		if (h.personalSpottedEnemies.Count > 0) return false; // 전투 중 근사(명시적 전투 상태 플래그 부재)
 		return true;
 	}
-
-	private static Dir Opposite(Dir d) => (Dir)(((int)d + 4) % 8);
-	private static Dir RotateCW(Dir d, int steps) => (Dir)(((int)d + steps + 8) % 8);
 }

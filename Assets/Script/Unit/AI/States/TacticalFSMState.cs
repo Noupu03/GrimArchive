@@ -321,7 +321,7 @@ public class TacticalFSMState : IFSMState
 
 	// ── 함정 공통 ─────────────────────────────────────────────────
 
-	public static bool IsDisarmWorthy(Unit unit)
+	private static bool IsDisarmWorthy(Unit unit)
 	{
 		if (!(unit is Human human) || human.currentTrapInteraction == null) return false;
 		var trap = human.currentTrapInteraction;
@@ -331,7 +331,7 @@ public class TacticalFSMState : IFSMState
 			> (AIConfigLoader.Behavior?.trapRecordedDisarmThreshold ?? ExplorationMath.TrapRecordedDirectDisarmThreshold) * 100f;
 	}
 
-	public static bool IsBlockingPath(Unit unit)
+	private static bool IsBlockingPath(Unit unit)
 	{
 		var trap = unit.currentTrapInteraction;
 		if (trap == null) return false;
@@ -447,7 +447,7 @@ public class TacticalFSMState : IFSMState
 		// 함정도 오브젝트처럼 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1(바로 옆 1칸)로
 		// 도달 판정한다(사용자 요청, 2026-07-25 "함정 바로 위에서가 아니라 인근 1칸에서 해제 상호작용
 		// 가능하게") — MoveToInvestigateTarget과 동일한 관례.
-		if (Mathf.Max(Mathf.Abs(unit.position.x - trapPos.x), Mathf.Abs(unit.position.y - trapPos.y)) <= 1)
+		if (AIMovementHelper.IsAdjacent(unit.position, trapPos))
 			return BTStatus.Success;
 		AIMovementHelper.MoveTowardsPos(unit, trapPos);
 		return BTStatus.Running;
@@ -605,7 +605,7 @@ public class TacticalFSMState : IFSMState
 		}
 		var pos = new Vector2Int(inv.TargetPosition.x, inv.TargetPosition.y);
 		// 오브젝트는 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1로 도달 판정
-		if (Mathf.Max(Mathf.Abs(human.position.x - pos.x), Mathf.Abs(human.position.y - pos.y)) <= 1) return BTStatus.Success;
+		if (AIMovementHelper.IsAdjacent(human.position, pos)) return BTStatus.Success;
 		AIMovementHelper.MoveTowardsPos(human, pos);
 		return BTStatus.Running;
 	}
@@ -920,8 +920,8 @@ public class TacticalFSMState : IFSMState
 		{
 			// 6-6장 "중간" 구간 — 좌우 위치는 좌/우, 애매한 중앙 잔여 인원은 감시 인원이 적은 방향.
 			float side = Vector2.Dot(((Vector2)(self.position - esc.position)).normalized, right);
-			if (side < -0.2f) ideal = RotateCW(esc.currentDir, -2);
-			else if (side > 0.2f) ideal = RotateCW(esc.currentDir, 2);
+			if (side < -0.2f) ideal = DirUtil.RotateCW(esc.currentDir, -2);
+			else if (side > 0.2f) ideal = DirUtil.RotateCW(esc.currentDir, 2);
 			else ideal = LeastWatchedDirection(partyMembers, esc, self);
 		}
 
@@ -931,9 +931,9 @@ public class TacticalFSMState : IFSMState
 	// 전방/후방 구간 내 인원수·좌우 순서에 따라 6-6장 표대로 정면·좌우전방(후방) 방향을 배정한다.
 	private static Dir AssignZoneDirection(List<Human> zone, int index, Dir facingDir, bool isFront)
 	{
-		Dir centerDir = isFront ? facingDir : Opposite(facingDir);
-		Dir leftDir   = isFront ? RotateCW(facingDir, -1) : RotateCW(facingDir, -3);
-		Dir rightDir  = isFront ? RotateCW(facingDir, 1)  : RotateCW(facingDir, 3);
+		Dir centerDir = isFront ? facingDir : DirUtil.Opposite(facingDir);
+		Dir leftDir   = isFront ? DirUtil.RotateCW(facingDir, -1) : DirUtil.RotateCW(facingDir, -3);
+		Dir rightDir  = isFront ? DirUtil.RotateCW(facingDir, 1)  : DirUtil.RotateCW(facingDir, 3);
 
 		int count = zone.Count;
 		if (count <= 1) return centerDir;
@@ -996,11 +996,11 @@ public class TacticalFSMState : IFSMState
 		int rel = ((int)blocked - (int)facingDir + 8) % 8; // 0=정면,2=우측,4=후면,6=좌측
 		switch (rel)
 		{
-			case 6: return new[] { RotateCW(facingDir, -3), RotateCW(facingDir, -1) }; // 좌측 → 좌측후방/좌측전방
-			case 2: return new[] { RotateCW(facingDir, 1),  RotateCW(facingDir, 3)  }; // 우측 → 우측전방/우측후방
-			case 0: return new[] { RotateCW(facingDir, -1), RotateCW(facingDir, 1)  }; // 정면 → 좌측전방/우측전방
-			case 4: return new[] { RotateCW(facingDir, -3), RotateCW(facingDir, 3)  }; // 후면 → 좌측후방/우측후방
-			default: return new[] { RotateCW(blocked, -1), RotateCW(blocked, 1) };      // 이미 대각 방향이면 인접 방향
+			case 6: return new[] { DirUtil.RotateCW(facingDir, -3), DirUtil.RotateCW(facingDir, -1) }; // 좌측 → 좌측후방/좌측전방
+			case 2: return new[] { DirUtil.RotateCW(facingDir, 1),  DirUtil.RotateCW(facingDir, 3)  }; // 우측 → 우측전방/우측후방
+			case 0: return new[] { DirUtil.RotateCW(facingDir, -1), DirUtil.RotateCW(facingDir, 1)  }; // 정면 → 좌측전방/우측전방
+			case 4: return new[] { DirUtil.RotateCW(facingDir, -3), DirUtil.RotateCW(facingDir, 3)  }; // 후면 → 좌측후방/우측후방
+			default: return new[] { DirUtil.RotateCW(blocked, -1), DirUtil.RotateCW(blocked, 1) };      // 이미 대각 방향이면 인접 방향
 		}
 	}
 
@@ -1018,8 +1018,6 @@ public class TacticalFSMState : IFSMState
 		return blocked >= tiles * 0.5f;
 	}
 
-	private static Dir Opposite(Dir d) => (Dir)(((int)d + 4) % 8);
-	private static Dir RotateCW(Dir d, int steps) => (Dir)(((int)d + steps + 80) % 8);
 
 	// ── 코어(7-3장, 2026-07-27 신규) — 리더 전용 ───────────────────
 
@@ -1098,7 +1096,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Running;
 		}
 
-		if (Mathf.Max(Mathf.Abs(human.position.x - pos.x), Mathf.Abs(human.position.y - pos.y)) <= 1) return BTStatus.Success;
+		if (AIMovementHelper.IsAdjacent(human.position, pos)) return BTStatus.Success;
 
 		// 2026-07-27 사용자 신고("보호 포메이션 동안 다른 유닛에게 길이 막혀서 리더가 코어에 영구히
 		// 도착 못함") 방어책 — 근본 원인(호위가 이동 중인 리더의 전방을 가로막던 것)은

@@ -1,69 +1,12 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
-using VContainer;
+using System.Collections.Generic;
 
+// 파티 목록 저장소. CreateParty/CheckPartyWaveState는 한때 이 클래스가 갖고 있었지만(구버전
+// Unit.UnitParty.party API 기준), 실제로는 GameSession이 자기 안에 별도로 같은 역할의 메서드를
+// 직접 구현해 써왔다(GameSession.CreateParty/CheckPartyWaveState, HumanWaveManager/WaveSpawner가
+// GameSession.Instance.CreateParty를 호출) — 이 클래스의 두 메서드는 어디서도 호출되지 않는 죽은
+// 코드였다(2026-08-20 grep으로 호출부 없음 확인 후 제거). parties 리스트만 GameSession.parties
+// 프로퍼티로 계속 노출된다.
 public class PartyService
 {
     public List<Party> parties { get; private set; } = new List<Party>();
-
-    private ObjectSpawner _objectSpawner;
-
-    [Inject]
-    public void Construct(ObjectSpawner objectSpawner)
-    {
-        _objectSpawner = objectSpawner;
-    }
-
-    public Party CreateParty(string name, List<Human> members)
-    {
-        var party = new Party(System.Guid.NewGuid().ToString(), name);
-        foreach (var m in members)
-        {
-            if (m == null) continue;
-            party.Members.Add(m);
-            m.UnitParty.party = party;
-
-            m.Knowledge?.InitializeNewUnitPersonalInfo(m);
-        }
-        parties.Add(party);
-        return party;
-    }
-
-    public void CheckPartyWaveState(Unit deadUnit)
-    {
-        var knowledge = deadUnit.Knowledge;
-        if (knowledge == null) return;
-
-        if (deadUnit is Human deadHuman && deadHuman.UnitParty.party != null)
-        {
-            var party = deadHuman.UnitParty.party;
-            if (party.WaveEnded || !party.IsWiped) return;
-
-            party.WaveEnded = true;
-            knowledge.OnPartyWipeout();
-
-            Unit causer = deadHuman.lastAttacker;
-            DangerStage causerStage = DangerStage.Stage0;
-            if (causer != null)
-                causerStage = knowledge.GetDangerStage(causer.unitType.typeName, causer.isSpecialUnit ? causer.name : null, causer.BaseStat.baseDanger);
-            string traceId = knowledge.RegisterWipeoutTrace(causerStage);
-
-            string objId = "Wipeout_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-            Vector3Int gridPos = new Vector3Int(deadHuman.position.x, deadHuman.position.y, deadHuman.currentFloor);
-            List<string> tags = new List<string> { "Object/Passable/WipeoutTrace" };
-            InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
-            _objectSpawner?.SpawnObject(wipeoutObj, Color.black);
-        }
-        else if (deadUnit is Monster deadMonster)
-        {
-            foreach (var party in parties)
-            {
-                if (party.WaveEnded || !party.WaveMonsters.Contains(deadMonster) || !party.IsWaveCleared) continue;
-
-                party.WaveEnded = true;
-                var survivors = party.GetSurvivors();
-                knowledge.OnWaveEnd(survivors);
-            }
-        }
-    }
 }

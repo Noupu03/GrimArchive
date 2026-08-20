@@ -13,10 +13,29 @@ public class UnitSpriteManager
     private const string UnitPrefabResourceFolder = "Units";
 
     private readonly Dictionary<string, List<SkillAction>> _skillsCache = new();
+    private readonly Dictionary<string, Sprite> _iconCache = new();
 
     public GameObject GetPrefab(string unitTypeName)
     {
         return Resources.Load<GameObject>($"{UnitPrefabResourceFolder}/{unitTypeName}");
+    }
+
+    // 유닛 타입의 대표 아이콘(프리팹의 "Visual" 자식 SpriteRenderer.sprite) — 웨이브 게이지 파티
+    // 아이콘(WaveGaugePanel)/몬스터 배치 실루엣(InputManager)이 공유한다(2026-08-20, 두 곳에서
+    // 각자 동일한 로직을 중복 구현했던 것을 여기로 통합).
+    public Sprite GetIcon(string unitTypeName)
+    {
+        if (string.IsNullOrEmpty(unitTypeName)) return null;
+        if (_iconCache.TryGetValue(unitTypeName, out var cached)) return cached;
+
+        Sprite icon = null;
+        GameObject prefab = GetPrefab(unitTypeName);
+        Transform visual = prefab != null ? prefab.transform.Find("Visual") : null;
+        SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
+        if (sr != null) icon = sr.sprite;
+
+        _iconCache[unitTypeName] = icon;
+        return icon;
     }
 
     public List<SkillAction> GetSkills(string unitTypeName)

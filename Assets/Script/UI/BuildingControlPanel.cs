@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 using VContainer;
@@ -69,10 +68,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // InputManager가 좌클릭을 월드 입력으로 처리하기 전에 이 패널 영역 위인지 먼저 확인하도록 노출한다.
     public bool IsMouseOverPanel()
     {
-        if (_current == null || Mouse.current == null) return false;
-        Vector2 screenPos = Mouse.current.position.ReadValue(); // 화면 좌표(y=0이 아래)
-        Vector2 guiPos = new Vector2(screenPos.x, Screen.height - screenPos.y); // OnGUI 좌표(y=0이 위)
-        return GetPanelRect().Contains(guiPos);
+        if (_current == null) return false;
+        return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
     private void OnGUI()

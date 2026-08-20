@@ -235,7 +235,7 @@ public class NavigationFSMState : IFSMState
 		// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서
 		// 다음 틱에 진짜 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다.
 		// 단 방 제한 유닛(RoomConfinedMovement)은 CanMove가 방 경계를 확인하지 않으므로 별도로 검사한다.
-		bool roomConfined = unit.MovementAlgorithm is RoomConfinedMovement;
+		bool roomConfined = AIMovementHelper.IsRoomConfined(unit);
 		Room myRoom = null;
 		if (roomConfined && unit.Session?.roomGrid != null)
 			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor), out myRoom);
@@ -296,7 +296,7 @@ public class NavigationFSMState : IFSMState
 
 		// 방 제한 유닛은 자기 방 안에서만 탐색한다 — 방 밖 타일을 BFS 목표로 잡으면 A* 실패 →
 		// MoveRandomlyValid 반복 호출 사이클이 발생한다.
-		bool roomConfined = unit.MovementAlgorithm is RoomConfinedMovement;
+		bool roomConfined = AIMovementHelper.IsRoomConfined(unit);
 		Room myRoom = null;
 		if (roomConfined && unit.Session?.roomGrid != null)
 			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, fi), out myRoom);

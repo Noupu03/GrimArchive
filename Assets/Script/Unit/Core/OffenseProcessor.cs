@@ -136,15 +136,8 @@ public class OffenseProcessor
         FactionType claimant = hasHuman ? FactionType.Human : FactionType.Player;
         if (room.RoomFaction == claimant) return; // 이미 같은 소유
 
-        room.RoomFaction = claimant;
         _activeOffenseRooms.Remove(room); // 진행 중이던 폴링 기반 오펜스가 있었다면 정리
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(claimant));
-        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState(맵 데이터 원본)도 같이 갱신.
-        // 데모_구현현황_검증_2026-07-28.txt "발견된 사항 1" 참고.
-        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
-        // 안개 해금 규칙 변경(2026-07-28, 사용자 요청 "플레이어 유닛이 해당 방을 점령한 적이 있으면
-        // 인접 방의 안개가 사라지도록") — 아래 참고.
-        if (claimant == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
+        ApplyRoomOwnership(room, claimant);
 
         LogHelper.Log($"[점령 전환] {room.RoomName} 방(F{room.Floor}): → {claimant} (유닛 구성 재계산, 계기: {triggerLabel} 사망)");
     }
@@ -162,11 +155,7 @@ public class OffenseProcessor
         if (faction == null) return; // 방 소유권 개념이 없는 진영(FactionBehavior가 매핑 안 됨)
         if (room.RoomFaction == faction.Value) return; // 이미 같은 소유면 할 일 없음
 
-        room.RoomFaction = faction.Value;
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction.Value));
-        GameSession.Instance.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction.Value));
-        // 안개 해금 규칙 변경(2026-07-28) — OffenseProcessor.TryResolveRoomOwnership 위 주석 참고.
-        if (faction.Value == FactionType.Player) GameSession.Instance.RevealFogAroundCapturedRoom(room);
+        ApplyRoomOwnership(room, faction.Value);
 
         LogHelper.Log($"[점령] {room.RoomName} 방(F{room.Floor}): 빈 방에 {enteringUnit.unitType?.typeName}({faction.Value})이 입성해 점령했습니다.");
     }
@@ -215,6 +204,20 @@ public class OffenseProcessor
         _ => UnityEngine.Color.white,
     };
 
+    // 방 소유권 전환 4줄(RoomFaction 대입 + 색칠 + CreateMap.Chunks.occupationState 동기화 + 플레이어
+    // 점령 시 안개 해금) — TryResolveRoomOwnership/TryClaimEmptyRoomOnEntry/OnOffenseSuccess 3곳에서
+    // 변수명만 다르게 그대로 반복되고 있던 것을 통합했다(2026-08-20). room.RoomFaction 대입 자체는
+    // 호출부가 "이미 같은 소유면 return" 가드를 각자 먼저 거치므로 이 헬퍼 안에서는 다시 확인하지 않는다.
+    private void ApplyRoomOwnership(Room room, FactionType faction)
+    {
+        room.RoomFaction = faction;
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction));
+        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState(맵 데이터 원본)도 같이 갱신.
+        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction));
+        // 안개 해금 규칙 변경(2026-07-28) — 점령된 방과 인접 방의 안개를 함께 걷는다.
+        if (faction == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
+    }
+
     private void OnOffenseSuccess(Room room)
     {
         // 건축물·자원·유닛 생산 MVP(2026-07-27) — 처치 보상은 이제 즉시 지급되므로(WildMonsterBehavior.
@@ -226,12 +229,7 @@ public class OffenseProcessor
         // 있어"와 일관). Spawner 타입(거점 파괴, 인원 구성과 무관하게 성공)처럼 판정이 모호할 수 있는
         // 경우에만 기존처럼 Player를 기본값으로 유지.
         FactionType claimant = HasBothHumanAndPlayerMonster(room) ? FactionType.Player : DetermineSoleOccupant(room);
-        room.RoomFaction = claimant;
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(claimant));
-        // 구조적 이슈 수정(2026-07-28) — CreateMap.Chunks.occupationState도 같이 갱신(위 참고).
-        GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(claimant));
-        // 안개 해금 규칙 변경(2026-07-28) — OffenseProcessor.TryResolveRoomOwnership 위 주석 참고.
-        if (claimant == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
+        ApplyRoomOwnership(room, claimant);
 
         // 3. 활성 오펜스에서 제거
         _activeOffenseRooms.Remove(room);

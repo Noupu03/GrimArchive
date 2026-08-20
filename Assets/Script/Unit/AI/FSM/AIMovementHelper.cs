@@ -2,6 +2,22 @@ using UnityEngine;
 
 public static class AIMovementHelper
 {
+	// 체비셰프(8방향 격자) 거리 — CombatFSMState/PlayerCommandFSMState/TacticalFSMState(함정 접근/조사
+	// 목표/코어 접근)가 각자 Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) 형태로 동일하게 중복 구현하고
+	// 있던 것을 통합했다(2026-08-20).
+	public static int ChebyshevDistance(Vector2Int a, Vector2Int b)
+		=> Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
+
+	// 인접(기본 반경 1칸, 대각 포함) 판정 — 위 거리 계산의 가장 흔한 용도.
+	public static bool IsAdjacent(Vector2Int a, Vector2Int b, int radius = 1)
+		=> ChebyshevDistance(a, b) <= radius;
+
+	// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27) — FactionBehavior 타입을 나열하는 대신 실제 방 제한
+	// 여부를 결정하는 MovementAlgorithm(RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
+	// CombatFSMState/NavigationFSMState가 각자 동일한 `is RoomConfinedMovement` 검사를 중복하고
+	// 있던 것을 통합했다(2026-08-20).
+	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
+
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
 	// (NavigationFSMState.CrossStairs, HumanWaveManager의 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야
 	// 한다 — 2026-08-05 사용자 신고 "유닛끼리 겹친다"의 원인이 바로 이 지점들이었다: 전부
@@ -59,7 +75,7 @@ public static class AIMovementHelper
 			if (dx == 0 && dy == 0) continue;
 			Vector2Int cand = center + new Vector2Int(dx, dy);
 			if (!unit.CanMove(cand)) continue;
-			int dist = Mathf.Max(Mathf.Abs(cand.x - unit.position.x), Mathf.Abs(cand.y - unit.position.y));
+			int dist = ChebyshevDistance(cand, unit.position);
 			if (dist < bestDist) { bestDist = dist; best = cand; }
 		}
 		return best;

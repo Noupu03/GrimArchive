@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using VContainer;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 using GrimArchive.Wave;
@@ -13,6 +14,14 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
 {
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
+
+    private UnitSpriteManager _unitSpriteManager;
+
+    [Inject]
+    public void Construct(UnitSpriteManager unitSpriteManager)
+    {
+        _unitSpriteManager = unitSpriteManager;
+    }
 
     public void OpenPanel()
     {
@@ -39,11 +48,6 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     private Sprite _trackSprite;
     private bool _spritesLoadAttempted;
 
-    // 인류 유닛 타입별 대표 아이콘 캐시 — Resources.Load를 매 OnGUI 프레임 반복하지 않기 위함.
-    // "별도의 전용 UI 캐릭터 이미지는 제작하지 않는다"(문서) — 유닛 프리팹의 Visual 자식 스프라이트를
-    // 그대로 가져다 쓴다(UnitGenerate.cs의 "Visual" 자식 오브젝트 관례 재사용).
-    private readonly Dictionary<string, Sprite> _unitIconCache = new Dictionary<string, Sprite>();
-
     // ── 레이아웃 ──────────────────────────────────────────────────
     private const float BarWidth = 480f;
     private const float BarTopMargin = 10f;
@@ -68,21 +72,6 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
             if (s.name == FrameSpriteName) _frameSprite = s;
             else if (s.name == TrackSpriteName) _trackSprite = s;
         }
-    }
-
-    private Sprite GetUnitIcon(string unitTypeName)
-    {
-        if (string.IsNullOrEmpty(unitTypeName)) return null;
-        if (_unitIconCache.TryGetValue(unitTypeName, out var cached)) return cached;
-
-        Sprite icon = null;
-        GameObject prefab = Resources.Load<GameObject>($"Units/{unitTypeName}");
-        Transform visual = prefab != null ? prefab.transform.Find("Visual") : null;
-        SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
-        if (sr != null) icon = sr.sprite;
-
-        _unitIconCache[unitTypeName] = icon;
-        return icon;
     }
 
     private void OnGUI()
@@ -133,7 +122,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
 
         // 1) 프레임("왕국의 문" ─ 게이지 ─ "던전의 문") — 배경은 원래 그림 그대로, 손대지 않는다.
         GUI.color = Color.white;
-        DrawSprite(_frameSprite, barRect);
+        GUISpriteUtil.Draw(_frameSprite, barRect);
 
         // 2) 프레임 안쪽 회색 트랙 — 진행도만큼만 그려서 그 자체가 차오르는 것처럼 보이게 한다
         // (사용자 피드백 2026-08-19 "백그라운드는 기존으로 두고, 회색 바가 차오르는 방식으로").
@@ -161,7 +150,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
 
         for (int i = 0; i < typeNames.Count; i++)
         {
-            Sprite icon = GetUnitIcon(typeNames[i]);
+            Sprite icon = _unitSpriteManager != null ? _unitSpriteManager.GetIcon(typeNames[i]) : null;
             if (icon == null) continue;
 
             Vector2 offset = offsets[i % offsets.Length];
@@ -170,17 +159,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
             float h = PartyIconSize * aspect;
 
             Rect iconRect = new Rect(markerX + offset.x - w * 0.5f, markerY + offset.y - h * 0.5f, w, h);
-            DrawSprite(icon, iconRect);
+            GUISpriteUtil.Draw(icon, iconRect);
         }
-    }
-
-    // 스프라이트 시트에서 서브스프라이트 하나를 지정한 화면 Rect에 맞춰 그린다.
-    private static void DrawSprite(Sprite sprite, Rect screenRect)
-    {
-        Texture2D tex = sprite.texture;
-        Rect r = sprite.rect;
-        Rect uv = new Rect(r.x / tex.width, r.y / tex.height, r.width / tex.width, r.height / tex.height);
-        GUI.DrawTextureWithTexCoords(screenRect, tex, uv);
     }
 
     // 왼쪽부터 widthRatio(0~1)만큼만 잘라 그린다 — 진행도에 따라 트랙이 차오르는 효과.

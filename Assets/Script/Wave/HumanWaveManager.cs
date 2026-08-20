@@ -184,7 +184,7 @@ namespace GrimArchive.Wave
             // 몬스터 배치 프리셋(2026-08-19 재구현, 사용자 요청 "0층에 인류가 소환된 시점부터, 몬스터들은
             // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 바로 이 지점이 "0층에 인류가
             // 소환된 시점"이다.
-            GameSession.Instance.ApplyMonsterDefenseStartPositions();
+            MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
         }
 
         private bool ResolveStairPositions()
@@ -414,7 +414,7 @@ namespace GrimArchive.Wave
                     // PreSpawnWaveUnits가 아예 호출되지 않으므로 여기서 대신 호출한다. preSpawnedParty
                     // 경로에서는 이미 그쪽에서 호출됐으므로 여기서 다시 부르지 않는다 — 그 사이(사전
                     // 스폰~웨이브 시작) 전투를 인지해 소집이 풀린 몬스터를 다시 소집시키는 부작용을 피한다.
-                    GameSession.Instance.ApplyMonsterDefenseStartPositions();
+                    MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
                 }
                 else
                 {

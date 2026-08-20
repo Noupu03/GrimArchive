@@ -277,16 +277,33 @@ public static class DefenseSystem
 		return rawDamage;
 	}
 
+	// 방 제한 유닛(RoomConfinedMovement)의 "현재 방" 스냅샷 — FindSafeTiles/TryDodgeMove가 각자 동일한
+	// 3줄을 중복 구현하고 있던 것을 통합했다(2026-08-20).
+	static void ResolveRoomConfinement(Unit defender, out bool roomConfined, out Room myRoom)
+	{
+		roomConfined = AIMovementHelper.IsRoomConfined(defender);
+		myRoom = null;
+		if (roomConfined && defender.Session?.roomGrid != null)
+			defender.Session.roomGrid.TryGetValue(new Vector3Int(defender.position.x, defender.position.y, defender.currentFloor), out myRoom);
+	}
+
+	// 방 제한 유닛 기준으로 pos가 "방 밖(또는 문 타일)이라 갈 수 없는 후보"인지 — FindSafeTiles/
+	// TryDodgeMove가 각자 거의 동일한 검사 블록을 변수명만 다르게 중복 구현하고 있던 것을 통합했다.
+	static bool IsBlockedByRoomConfinement(Unit defender, bool roomConfined, Room myRoom, Vector2Int pos)
+	{
+		if (!roomConfined || defender.Session == null) return false;
+		if (defender.Session.IsDoorTile(new Vector3Int(pos.x, pos.y, defender.currentFloor))) return true;
+		if (myRoom != null && (!defender.Session.roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, defender.currentFloor), out Room posRoom) || posRoom != myRoom)) return true;
+		return false;
+	}
+
 	// =========================================================
 	// 안전 타일 탐색 (HITBOX 기반)
 	// =========================================================
 
 	static List<Vector2Int> FindSafeTiles(Unit defender, ThreatTileData threat, int radius, bool ignoreUnits)
 	{
-		bool roomConfined = defender.MovementAlgorithm is RoomConfinedMovement;
-		Room myRoom = null;
-		if (roomConfined && defender.Session?.roomGrid != null)
-			defender.Session.roomGrid.TryGetValue(new Vector3Int(defender.position.x, defender.position.y, defender.currentFloor), out myRoom);
+		ResolveRoomConfinement(defender, out bool roomConfined, out Room myRoom);
 
 		List<Vector2Int> result = new List<Vector2Int>();
 
@@ -321,13 +338,7 @@ public static class DefenseSystem
 				if (!defender.CanMove(pos, ignoreUnits)) continue;
 
 				// RoomConfinedMovement 방 경계 확인 — Blink 후보도 방 밖은 제외
-				if (roomConfined && defender.Session != null)
-				{
-					if (defender.Session.IsDoorTile(new Vector3Int(pos.x, pos.y, defender.currentFloor)))
-						continue;
-					if (myRoom != null && (!defender.Session.roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, defender.currentFloor), out Room posRoom) || posRoom != myRoom))
-						continue;
-				}
+				if (IsBlockedByRoomConfinement(defender, roomConfined, myRoom, pos)) continue;
 
 				result.Add(pos);
 			}
@@ -342,10 +353,7 @@ public static class DefenseSystem
 
 	static bool TryDodgeMove(Unit defender, ThreatTileData threat)
 	{
-		bool roomConfined = defender.MovementAlgorithm is RoomConfinedMovement;
-		Room myRoom = null;
-		if (roomConfined && defender.Session?.roomGrid != null)
-			defender.Session.roomGrid.TryGetValue(new Vector3Int(defender.position.x, defender.position.y, defender.currentFloor), out myRoom);
+		ResolveRoomConfinement(defender, out bool roomConfined, out Room myRoom);
 
 		float currentOverlap = threat != null
 			? GetOverlapArea(defender, defender.position, threat.hitbox)
@@ -365,13 +373,7 @@ public static class DefenseSystem
 				if (!defender.CanMove(candidate)) continue;
 
 				// RoomConfinedMovement 방 경계 확인 — CanMove는 roomGrid를 검사하지 않으므로 별도 게이팅
-				if (roomConfined && defender.Session != null)
-				{
-					if (defender.Session.IsDoorTile(new Vector3Int(candidate.x, candidate.y, defender.currentFloor)))
-						continue;
-					if (myRoom != null && (!defender.Session.roomGrid.TryGetValue(new Vector3Int(candidate.x, candidate.y, defender.currentFloor), out Room candidateRoom) || candidateRoom != myRoom))
-						continue;
-				}
+				if (IsBlockedByRoomConfinement(defender, roomConfined, myRoom, candidate)) continue;
 
 				// 코너 커팅(벽 뚫기) 방지: 대각선 회피 시 양옆 직교 타일 중 하나라도 이동 불가면 회피 불가
 				if (Mathf.Abs(x) == 1 && Mathf.Abs(y) == 1)

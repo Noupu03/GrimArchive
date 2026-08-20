@@ -417,22 +417,6 @@ public partial class CreateMap
         return false;
     }
 
-    public int GetRoomAllowMaxFootprint(int floorIndex, int roomId)
-    {
-        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return 0;
-        Floor floor = map.floors[floorIndex];
-        int w = floor.config.width;
-        int h = floor.config.height;
-        int maxFp = 0;
-
-        for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-                if (floor.chunks[x, y].roomId == roomId)
-                    maxFp = Mathf.Max(maxFp, floor.chunks[x, y].allowMaxFootprint);
-
-        return maxFp;
-    }
-
     public static bool IsValidFootprint(int value)
     {
         return value >= 1 && value <= 5;
@@ -650,49 +634,11 @@ public partial class CreateMap
         return false;
     }
 
+    // FindPathAcrossFloors(아래)와 동일한 층간 계단 BFS를 중복 구현하고 있었다(2026-08-20 통합) —
+    // 경로 자체가 필요 없는 호출부라도 그 결과의 존재 여부만 보면 되므로, 실제 층 수(BFS 큐 규모)가
+    // 작아 경로 리스트 할당 비용이 무시할 만한 수준이라 그대로 위임한다.
     public bool CanReachFloor(int fromFloor, int toFloor, bool monsterCanUse = true)
-    {
-        if (map.floors == null) return false;
-        if (fromFloor < 0 || fromFloor >= map.floors.Length) return false;
-        if (toFloor < 0 || toFloor >= map.floors.Length) return false;
-        if (fromFloor == toFloor) return true;
-
-        var visited = new HashSet<int>();
-        var queue = new Queue<int>();
-        queue.Enqueue(fromFloor);
-        visited.Add(fromFloor);
-
-        while (queue.Count > 0)
-        {
-            int currentFloor = queue.Dequeue();
-            if (currentFloor == toFloor) return true;
-
-            Floor floor = map.floors[currentFloor];
-            int w = floor.config.width;
-            int h = floor.config.height;
-
-            for (int x = 0; x < w; x++)
-            {
-                for (int y = 0; y < h; y++)
-                {
-                    Chunks c = floor.chunks[x, y];
-                    if (c.stairTargetFloor >= 0 && c.stairIsOpen)
-                    {
-                        if (!monsterCanUse && c.stairHumanOnly) continue;
-
-                        int target = c.stairTargetFloor;
-                        if (target >= 0 && target < map.floors.Length && !visited.Contains(target))
-                        {
-                            visited.Add(target);
-                            queue.Enqueue(target);
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
+        => FindPathAcrossFloors(fromFloor, toFloor, monsterCanUse).Count > 0;
 
     public bool CanReenterFloor(int floorIndex)
     {

@@ -641,7 +641,7 @@ public class UnitGenerate
 				if (c.chunk[tx, ty].name == "Wall") return false;
 				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
 				// 사용자 정정(2026-07-28, "문이 있는 자리에는... 몬스터 배치도 불가능(이동만 가능)")
-				// — 문은 통행은 가능해야 하므로(GameSession.DoorTag 주석 참고) 여기서는 스폰 위치
+				// — 문은 통행은 가능해야 하므로(DoorSystem.DoorTag 주석 참고) 여기서는 스폰 위치
 				// 판정만 막고, AStarMovement 등 이동 판정 쪽은 건드리지 않는다.
 				if (Session != null && Session.IsDoorTile(new Vector3Int(x, y, floorIdx))) return false;
 			}

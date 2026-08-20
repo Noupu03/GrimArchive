@@ -12,12 +12,16 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
     public GameObject panel { get; set; }
 
     private GameSession _gameSession;
-    private GameSession Session => _gameSession ??= UnityEngine.Object.FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>();
 
-    [SerializeField] private TMPro.TextMeshProUGUI waveTimerText;
-    [SerializeField] private TMPro.TextMeshProUGUI resourceWoodText;
-    [SerializeField] private TMPro.TextMeshProUGUI resourceStoneText;
-    [SerializeField] private TMPro.TextMeshProUGUI resourceBText;
+    // 2026-08-20 — DebugInfoPanel/BuildingControlPanel과 동일한 [Inject] Construct 패턴으로 교체.
+    // 예전엔 FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>()로 직접
+    // 서비스 로케이터를 썼는데, GameUIPresenter가 이미 _resolver를 넘겨 LoadPanel하므로 다른 패널과
+    // 동일하게 정상 주입받을 수 있다.
+    [Inject]
+    public void Construct(GameSession gameSession)
+    {
+        _gameSession = gameSession;
+    }
 
     public void OpenPanel()
     {
@@ -56,10 +60,10 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
             GUILayout.Label($"보유 돌(Stone): {ResourceManager.Instance.GetResourceAmount(ResourceType.Stone)}");
         }
 
-        if (Session != null && Session.OffenseProcessor != null && Session.OffenseProcessor.currentOffenseRoom != null)
+        if (_gameSession != null && _gameSession.OffenseProcessor != null && _gameSession.OffenseProcessor.currentOffenseRoom != null)
         {
             GUI.color = Color.red;
-            GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {Session.OffenseProcessor.currentOffenseRoom.RoomName}");
+            GUILayout.Label($"!!! 현재 오팬스 진행 중 !!!\n위치: {_gameSession.OffenseProcessor.currentOffenseRoom.RoomName}");
             GUI.color = Color.white;
         }
 

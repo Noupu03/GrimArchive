@@ -250,3 +250,182 @@ Unity 에디터에서의 실제 플레이 검증은 진행하지 못했다(코�
    데모 화면에서 보고 조정.
 3. "알려진 제약" 항목(타일 배치 시 유닛 점유 미확인, 시작방 다중 문 미대응)은 데모 시나리오에서
    실제로 문제가 되는지 먼저 확인하고, 필요하면 그때 보강.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-20 리팩토링 (아키텍처/재사용성 점검, 로직 변경 없음)
+════════════════════════════════════════════════════════════════════════
+어제 작업분을 GameSession 비대화/코드 중복 관점에서 점검해 아래 두 건을 순수 코드 이동/통합으로
+정리했다 — 동작 로직은 전혀 바꾸지 않았다(값/조건/호출 시점 모두 동일).
+
+1. [GameSession 비대화] ApplyMonsterDefenseStartPositions/ApplyDefenseFacingDirection/
+   TryGetStartRoomId/TryGetDefenseFacingDoorTile(141줄, 몬스터 배치 소집·방향 계산) — GameSession이
+   이미 2400줄대라 계속 그 안에 쌓이는 걸 막기 위해 PropagationSystem/PartyDeathSystem과 동일 성격의
+   정적 클래스 Assets/Script/Wave/MonsterDefensePlacementSystem.cs로 분리했다. GameSession의 필요한
+   상태는 전부 기존 공개 프로퍼티(cmap/roomGrid/units/unitGenerate)로만 접근해서 새 public API를
+   추가하지 않았다. 호출부 갱신: HumanWaveManager.cs 2곳, PlayerCommandFSMState.
+   CompletePlayerCommand 1곳 — 전부 `GameSession.Instance.XXX()` → `MonsterDefensePlacementSystem.
+   XXX(GameSession.Instance, ...)` 형태로 바뀜.
+2. [아이콘/스프라이트 그리기 중복] WaveGaugePanel.GetUnitIcon과 InputManager.GetPlacementUnitIcon이
+   "프리팹 Resources.Load → Visual 자식 SpriteRenderer.sprite" 로직을 각자 중복 구현하고 있었다
+   (WaveGaugePanel은 UnitSpriteManager를 아예 안 쓰고 Resources.Load를 직접 호출해서 기존 DI
+   레지스트리도 우회하고 있었음). UnitSpriteManager.GetIcon(캐시 포함)으로 통합하고, WaveGaugePanel도
+   DebugInfoPanel/BuildingControlPanel과 동일한 [Inject] Construct 패턴으로 UnitSpriteManager를
+   주입받게 했다. 두 파일의 동일한 DrawSprite(sprite, rect) UV 슬라이싱 로직도 GUISpriteUtil.Draw
+   (신규, Assets/Script/UI/)로 통합.
+[알려진 한계] Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 밸런스 확인만으로 진행했다 —
+데모 전 반드시 실제 플레이로 배치 모드/웨이브 게이지가 여전히 정상 동작하는지 확인할 것(위 "검증
+상태" 섹션과 동일한 항목들).
+
+3. [InputManager 비대화] 사용자 지적("기존에 있던 아키텍처 패턴도 다 분리하는게 좋겠는데") — 몬스터
+   배치 모드뿐 아니라 이미 있던 빌드 모드(B/V)와 오브젝트/함정/코어 배치 모드(O/P/C)도 전부
+   InputManager.cs 안에 그대로 들어있던 걸 확인하고, 세 배치 모드 전부를 InputManager.cs에서 분리해
+   각자 컨트롤러 클래스로 뺐다(전부 Assets/Script/Unit/Session/, InputManager와 같은 폴더):
+     - BuildPlacementController.cs — 빌드 모드(B/V).
+     - ObjectPlacementController.cs — 오브젝트/함정/코어 배치 모드(O/P/C).
+     - MonsterPlacementController.cs — 몬스터 배치 모드(R, 위 1번 섹션 전체).
+   세 클래스 다 VContainer 등록 없이 InputManager.Construct()가 직접 new로 생성해 소유한다(각각
+   InputManager별 상태를 갖는 협력 객체라 DI 싱글턴으로 둘 이유가 없음). 모드 간 배타 진입(예: 빌드
+   모드 진입 시 오브젝트 배치 모드 종료)은 컨트롤러끼리 서로 참조하지 않고 InputManager.Update()가
+   조율한다(순환 참조 방지 — Build↔Object가 서로의 Exit를 직접 호출하던 원래 구조를 그대로 옮기면
+   순환 참조가 생겨서, "어느 모드에 진입하든 먼저 다른 모드부터 끈다"는 정책을 InputManager 쪽으로
+   올렸다). 추가로 두 개의 작은 공용 유틸도 새로 뺐다:
+     - ScreenGridUtil.cs — 화면→월드/그리드 좌표 변환(세 컨트롤러가 각자 들고 있던 걸 통합).
+     - PlacementGhost.cs — "마우스를 따라다니는 고스트 스프라이트" 생성/위치갱신/가부 색상 로직
+       (빌드 모드와 오브젝트 모드가 GameObject 생성부터 색상 전환까지 동일하게 중복 구현하고 있었음).
+   결과: InputManager.cs 1426줄 → 566줄(약 60% 감소), 신규 파일 5개(BuildPlacementController 130줄/
+   ObjectPlacementController 127줄/MonsterPlacementController 631줄/PlacementGhost 48줄/
+   ScreenGridUtil 26줄)로 책임이 나뉨. selectedUnits 리스트는 InputManager가 소유한 채 참조로 세
+   컨트롤러(정확히는 MonsterPlacementController만 필요)에 공유되고, 일반 클릭/드래그/더블클릭 선택
+   로직이 몬스터 배치 모드의 "선택 가능 여부" 필터를 물어보는 지점(IsUnitSelectable)만 InputManager
+   → MonsterPlacementController 단방향 호출로 남아있다. 이번에도 로직/조건/수치는 전혀 바꾸지 않았고
+   (ExitBuildMode가 빌드 모드가 꺼져있어도 "Exited Build Mode" 로그를 남기는 기존의 사소한 로그
+   스팸까지 포함해 그대로 보존), 코드 이동/캡슐화만 했다. Unity 에디터 실행 불가로 브레이스/괄호
+   밸런스 확인과 타입/시그니처 존재 여부 grep 검증만 했다 — 데모 전 반드시 R/B/V/O/P/C 키 전부
+   에디터에서 실제로 눌러서 기존과 동일하게 동작하는지 확인할 것.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-20 리팩토링 2차 (사용자 요청 "전체 코드 리팩토링, 같은 방식으로" — GameSession 위주)
+════════════════════════════════════════════════════════════════════════
+1차 리팩토링 이후 사용자가 "H/K/O 디버그 키 아예 없애줘" + "전체 코드를 같은 방식으로"를 요청해
+GameSession.cs(당시 2216줄, 코드베이스 최대 파일) 전체를 처음부터 끝까지 정독하며 죽은 코드/비대화/
+중복을 점검했다. 로직/조건/수치는 전혀 바꾸지 않았다(순수 코드 이동/삭제만).
+
+1. [완전 죽은 코드 제거]
+   - DebugInputHandler.cs(H/K/O 디버그 키 스폰) 클래스 자체를 삭제. DI로 생성만 되고 HandleDebugInput()
+     이 어디서도 호출되지 않는 죽은 코드였다(GameCompositionRoot 등록/GameSession 필드 보관만 하고
+     실제 프레임 루프에서 호출 안 됨 — grep으로 호출부 0건 확인). GameSession 자신이 별도로 갖고
+     있던 "진짜" 디버그 키 로직(HandleDebugInput/OnKeyDown_H/OnKeyDown_K, GameSession.UpdateProcess가
+     실제로 매 프레임 호출하던 것)도 함께 삭제 — 사용자가 원한 게 "H/K/O 키 자체"였으므로. 단
+     GetRandomStartRoomPos(H/K 스폰 위치 계산에 쓰던 헬퍼)는 FindInstallableStartRoomPos(건물 자동
+     배치, 살아있는 기능)가 여전히 쓰고 있어 남겨뒀다.
+   - ObjectSpawner.SpawnObject(단색 사각형 스폰, 구버전)와 그 objectVisuals 필드 제거 — 아무도
+     호출하지 않는 죽은 코드였다(GameSession.SpawnObject가 완전히 대체, 발견 경위: GameSession.
+     CollectObject의 기존 주석이 "ObjectSpawner.objectVisuals는 항상 비어있다"고 스스로 문서화하고
+     있었음 — 그 이유를 추적하다 발견).
+   - PartyService.CreateParty/CheckPartyWaveState 제거 — GameSession이 완전히 별도로 같은 이름의
+     메서드를 자체 구현해 실제로 쓰고 있었고(HumanWaveManager/WaveSpawner가 GameSession.Instance.
+     CreateParty를 호출, GameSession.RemoveDeadUnit이 자신의 private CheckPartyWaveState를 호출),
+     PartyService 쪽 두 메서드는 어디서도 호출되지 않았다(grep으로 호출부 0건 확인 — 구버전
+     Unit.UnitParty.party API 기준으로 짜여진 걸 보면 폐기된 리팩토링 시도로 추정). PartyService는
+     이제 parties 리스트 저장소 역할만 남음.
+2. [GameSession 비대화 — 2개 서브시스템 추가 분리, DoorSystem과 동일한 패턴]
+   - DoorSystem.cs(신규, 388줄) — 문/게이트 배치·웨이브 시작 시 전체 잠금·"야생 제외 한 진영만 남으면
+     재개방"·문 타일 이동/시야 차단 판정(IsDoorTile, 외부 호출부 다수: BuildingManager/
+     RoomConfinedMovement/NavigationFSMState/Unit/DefenseSystem/UnitGenerate) 전체를 뺐다.
+   - FogOfWarSystem.cs(신규, 643줄) — 안개 스폰/해제/문 통합 셰도우 재계산 + 횃불 배치를 한 클래스로
+     뺐다(횃불이 안개 해제 타이밍에 강하게 결합돼 있어 — SpawnPendingTorchesForRoom이 RevealRoomFog
+     안에서 호출됨 — 별도 클래스로 쪼개지 않고 하나로 묶음).
+   - 둘 다 UnitRegistry가 이미 쓰고 있던 지연 조회 패턴(IObjectResolver를 주입받고, GameSession은
+     Resolve를 첫 사용 시점까지 미룸)을 그대로 재사용했다 — GameSession.Construct()가 이 두 클래스를
+     파라미터로 받는 시점엔 GameSession 자신의 생성이 아직 안 끝나 즉시 주입은 순환 참조가 되기
+     때문(IObjectResolver 자체는 즉시 해결 가능해 순환이 안 생김). GameSession.Instance.X() 형태로
+     걸려있던 외부 호출부(IsDoorTile/CloseAllDoorsForWaveStart/RefreshRoomGateStates/
+     GetGateDoorTiles/RevealRoomFog/RevealFogAroundCapturedRoom, 10곳 이상)는 전부 GameSession에
+     얇은 위임 메서드로 남겨 그대로 유지했다 — 외부 호출부 자체를 고치는 대신(1차 리팩토링의
+     MonsterDefensePlacementSystem 방식과 차이점 — 그쪽은 호출부가 3곳뿐이라 직접 고쳤음).
+   - 결과: GameSession.cs 2424줄(오늘 시작 시점 기준 2216줄) → 1261줄, 약 48%(오늘 하루 기준) 감소.
+3. [알려진 한계] 역시 Unity 에디터 실행 불가 — 브레이스/괄호 밸런스 + 심볼 참조 grep 검증만 했다.
+   특히 DoorSystem/FogOfWarSystem은 게임 시작 시퀀스(맵 로드→문 배치→안개→횃불)와 전투 중 문 열림/
+   닫힘·안개 해제 경로를 다수 건드리므로, 데모 전 실제 플레이로 웨이브 시작 시 문이 잠기는지, 방을
+   비우면 다시 열리는지, 인접 방 점령 시 안개가 걷히는지, 안개 걷힌 방에 횃불이 뒤늦게 생기는지를
+   반드시 확인할 것.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-20 리팩토링 3차 (전체 코드베이스 스캔 — GameSession 밖 파일들)
+════════════════════════════════════════════════════════════════════════
+2차까지는 GameSession/InputManager 위주였다. 사용자가 "이번에는 전체 코드 리팩토링 부탁해, 같은
+방식으로"를 재요청해 코드베이스 전체(약 29,000줄)를 6개 영역으로 나눠 조사(fork 6개 병렬 실행 —
+GameSession / Unit·UnitFunction·UnitGenerate / AI·FSM / Wave·Party·Weight·Propagation /
+UI·Building·Combat / Map·Vision)한 뒤, 파일:줄번호까지 확인된 항목만 골라 직접 수정했다. 로직/조건/
+수치는 바꾸지 않았다(순수 이동·통합·삭제만).
+
+[완전 죽은 코드 제거]
+  - Unit.OnDirectHit(abstract) + UnitFunction의 빈 override — 전체 호출부 0건(주석에도 "Obsolete:
+    Impact defense and damage is now handled in TakePhysicalDamage"라고 스스로 명시).
+  - CreateMap.GetRoomAllowMaxFootprint — 실제 코드 호출부 0건(설계 문서 HTML 다이어그램에만 존재).
+  - Unit.cs 129~244줄의 "moved"/"removed" 플레이스홀더 주석 더미(약 63줄, 인코딩까지 깨져 있던
+    구버전 필드 마이그레이션 흔적) — 그 사이에 낀 살아있는 필드(currentRoom/personalWeights/
+    lastAttacker/lastDamageDealer/_suspiciousObserverCount/level/killCount/concentration/
+    MagicPower/resistance/leadership/BASE_* 상수)는 전부 보존.
+  - StatusInfoPanel.cs의 SerializeField TextMeshProUGUI 4개(waveTimerText 등) — OnGUI로 전환된 뒤
+    한 번도 참조 안 됨.
+  - UIManager.cs의 주석 처리된 죽은 코드 ~110줄(ArtifactManager 유물모드 토글, 파티 디버그 라벨,
+    DrawPartyStatus 전체) — 참조 타입(ArtifactManager/PartyController) 자체가 코드베이스에 더 이상
+    존재하지 않음(grep 확인). 완전 no-op이던 DrawUnitLabels()도 호출부와 함께 제거.
+
+[캡슐화]
+  - Unit._suspiciousObserverCount를 public → protected로 좁히고 Increment/DecrementSuspicious
+    ObserverCount() 메서드 추가 — UnitFunction.ForceRollPerception이 "다른 유닛 인스턴스"의 이
+    필드를 직접 ++/--하던 지점을 공개 메서드 호출로 교체.
+  - StatusInfoPanel.cs — FindAnyObjectByType<GameCompositionRoot>().Container.Resolve<GameSession>()
+    직접 서비스 로케이터 패턴을 DebugInfoPanel/BuildingControlPanel과 동일한 [Inject] Construct로
+    교체(GameUIPresenter가 이미 _resolver를 넘겨 LoadPanel하므로 정상 주입 가능함을 확인 후 적용).
+
+[재사용성/중복 통합 — 새 공용 유틸/헬퍼]
+  - GUIMouseUtil.cs(신규) — "마우스 스크린 좌표 → OnGUI 좌표 Y반전 → Rect.Contains" 패턴을
+    BuildingControlPanel.IsMouseOverPanel/MonsterPlacementController.IsMouseOverPanel이 중복
+    구현하던 것을 통합.
+  - UnitTypes.cs에 DirUtil(Opposite/RotateCW) 추가 — PartyDeathSystem.cs와 TacticalFSMState.cs가
+    각자 구현하던 걸 통합(TacticalFSMState 쪽 RotateCW의 모듈러 안전 마진 +80을 채택, PartyDeathSystem
+    쪽 +8은 실사용 범위에선 안전했지만 더 좁은 마진이었음 — 복붙 drift 사례).
+  - AIMovementHelper.cs에 ChebyshevDistance/IsAdjacent/IsRoomConfined 추가 — CombatFSMState.cs/
+    PlayerCommandFSMState.cs/TacticalFSMState.cs(3곳)가 각자 Mathf.Max(Mathf.Abs(dx),Mathf.Abs(dy))
+    체비셰프 거리 계산을, CombatFSMState(private)/NavigationFSMState(2곳)가 각자 `unit.
+    MovementAlgorithm is RoomConfinedMovement` 판정을 중복 구현하던 것을 통합.
+  - DefenseSystem.cs에 ResolveRoomConfinement/IsBlockedByRoomConfinement 추가 — FindSafeTiles/
+    TryDodgeMove가 "현재 방 스냅샷 계산" 3줄과 "후보 타일이 방 밖/문 타일인지" 검사 블록을 변수명만
+    바꿔 그대로 중복하던 것을 통합.
+  - OffenseProcessor.cs에 ApplyRoomOwnership 추가 — 방 소유권 전환 4줄(RoomFaction 대입+색칠+
+    CreateMap.Chunks.occupationState 동기화+플레이어 점령 시 안개 해금)이 TryResolveRoomOwnership/
+    TryClaimEmptyRoomOnEntry/OnOffenseSuccess 3곳에 그대로 반복되던 것을 통합.
+  - CreateMap.CanReachFloor를 FindPathAcrossFloors(fromFloor,toFloor,monsterCanUse).Count>0으로
+    교체 — 완전히 동일한 층간 계단 BFS를 두 번 구현하고 있었다(경로 자체는 안 쓰고 존재 여부만 필요한
+    호출부라 리스트 할당 비용은 무시할 수준 — CanReachFloor는 프로덕션 코드에서는 미사용, 테스트
+    (CreateMapPlayTests.cs)에서만 호출돼 성능 영향 자체가 없음).
+  - UnitFunction.CanMove/IsFullyBlockedTowards의 "청크 인덱싱 + Wall/isStructureExist 판정" 중복을
+    CreateMap.IsStaticTileWalkable 호출로 교체(동일 유닛 currentFloor 기준이라 결과 완전히 동일함을
+    직접 검증). UnitGenerate.IsAreaClear/UnitFunction.UpdateFOV의 isOpaque 클로저/BuildingManager.
+    CanInstallAt은 겉보기엔 같은 패턴이지만 실제로는 조건이 미묘하게 다르다(IsAreaClear는
+    isStructureExist를 안 보고 문 타일만 별도 검사, isOpaque는 방 제한 관찰자 판정이 끼어들고 매 프레임
+    호출되는 성능 민감 구간, CanInstallAt은 roomId==-1 검사가 없음) — 그대로 통합하면 동작이 바뀌므로
+    의도적으로 손대지 않았다.
+  - UIManager.ShowFloatingText(Unit)를 ShowFloatingTextAt(Vector3,...) 호출로 위임하도록 축약(둘이
+    거의 동일한 바디를 중복 구현).
+  - TacticalFSMState.IsBlockingPath/IsDisarmWorthy를 public → private로 좁힘(외부 호출부 0건 확인).
+
+[검토했지만 손대지 않은 항목 — 근거]
+  - GameSession.GetRandomStartRoomPos / WaveSpawner.CollectRoomChunks+TryPickTileInChunks —
+    겉모양(청크 스캔 후 타일 선택)은 비슷하지만 실제 알고리즘이 다르다(전자는 후보 전수 수집 후
+    랜덤 선택=항상 성공 보장, 후자는 랜덤 샘플링 50회 재시도=실패 가능) — 통합하면 동작이 바뀐다.
+  - HumanWaveManager.MonitorWave()(약 180줄, 목표 대기/운반 추적/드랍/퇴각 판정 혼재)와
+    TacticalFSMState.cs의 함정/포메이션/코어/경계/조사 5개 블록(주석 헤더로 경계는 이미 명확) —
+    InputManager와 같은 방식으로 분리 가능해 보이지만, 전투/웨이브 핵심 로직이라 정적 분석만으로는
+    이번 세션에서 검증 확신이 부족해 보류했다. 다음에 이 영역을 다시 볼 때 우선순위 후보로 남겨둔다.
+  - HumanWaveManager.cs의 깨진 한글 주석(모지바케) — CLAUDE.md 관례대로 기존 파일 인코딩 문제는
+    건드리지 않음.
+
+[검증 방법] 이번에도 Unity 에디터 실행 불가 — 모든 수정 파일 브레이스/괄호 밸런스 확인(Unit.cs의
+괄호 불균형은 삭제한 모지바케 주석 텍스트 안의 자연어 괄호였음을 원본과 대조해 확인, 코드 구조와
+무관), 죽은 코드 주장은 전부 grep으로 호출부 0건 확인 후 삭제, 새로 옮긴 함수는 파라미터/접근제한자
+존재 여부를 grep으로 재확인. 데모 전 R/B/V/O/P/C 키, 전투/함정 해제, 오펜스 점령 전환을 실제
+플레이로 확인할 것 — 특히 UnitFunction.CanMove/IsFullyBlockedTowards 변경은 이동/시야 핵심 경로.

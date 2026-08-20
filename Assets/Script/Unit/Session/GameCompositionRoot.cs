@@ -70,8 +70,13 @@ public class GameCompositionRoot : CoreLifetimeScope
         // ���� �̺�Ʈ ���� (�и���)
         builder.Register<CombatEventService>(Lifetime.Singleton).AsSelf();
 
-        // ����� �Է� �ڵ鷯 (�и���)
-        builder.Register<DebugInputHandler>(Lifetime.Singleton).AsSelf();
+        // DoorSystem (2026-08-20, split out of GameSession to keep it from growing further) - lazily
+        // resolves GameSession via IObjectResolver, same pattern as UnitRegistry.
+        builder.Register<DoorSystem>(Lifetime.Singleton).AsSelf();
+
+        // FogOfWarSystem (2026-08-20, same reason/pattern as DoorSystem - fog of war + torches, torches
+        // are bundled in because they're timing-coupled to fog reveal).
+        builder.Register<FogOfWarSystem>(Lifetime.Singleton).AsSelf();
 
         // �� ������ ���� - MonoBehaviour���� NativeRoutine���� ��ȯ
         builder.Register<MapRandering>(Lifetime.Singleton).AsSelf().As<IMapColorizer>();

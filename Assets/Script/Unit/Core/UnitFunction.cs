@@ -191,17 +191,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (dist >= maxDistance) break; // 공격자 자신이 서 있는 타일은 차단 판정에서 제외.
 
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
-			int cx = x / 8, tx = x % 8, cy = y / 8, ty = y % 8;
-			if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return true;
-			Chunks c = floor.chunks[cx, cy];
-			if (c.roomId == -1 || c.chunk == null) return true;
-
-			Tile tile = c.chunk[tx, ty];
 			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
 			// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게
 			// 하고, 벽처럼 아예 이동 불가하게 해줘") — 인류가 문(isStructureExist)에 안 막히던 예외를
 			// 없앤다. 닫힌 문은 이제 어느 진영이든 예외 없이 벽과 동일하게 취급한다.
-			if (tile.name == "Wall" || tile.isStructureExist) return true;
+			// 2026-08-20 — 청크 인덱싱+벽 판정 중복을 CreateMap.IsStaticTileWalkable 호출로 통합.
+			if (!cmap.IsStaticTileWalkable(currentFloor, new Vector2Int(x, y))) return true;
 
 			if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
 				!blocker.IsCollected && blocker.IsFullyBlocking)
@@ -329,25 +324,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 				int targetX = pos.x + dx;
 				int targetY = pos.y + dy;
 
-				if (targetX < 0 || targetY < 0) return false;
-
-				int cx    = targetX / 8;
-				int tx    = targetX % 8;
-				int cy    = targetY / 8;
-				int cyVal = targetY % 8;
-
-				if (cx >= floor.config.width || cy >= floor.config.height) return false;
-
-				Chunks c = floor.chunks[cx, cy];
-				if (c.roomId == -1 || c.chunk == null) return false;
-				Tile moveTile = c.chunk[tx, cyVal];
 				// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면... 벽처럼 아예 이동
 				// 불가하게 해줘. 지금 플레이어 지정 명령으로 이동이 되어버려") — 인류가 문(isStructureExist)
 				// 에 안 막히던 예외(2026-07-28 앞선 요청 "인류는 문에 안 막혀야")를 없앤다. 닫힌 문은
 				// 이제 진영·명령 종류(AI 자율 이동/플레이어 지정 명령) 구분 없이 예외 없이 벽과 동일하게
 				// 막는다 — 인류 자율 탐색이 닫힌 문 앞에서 다시 멈추는 건 의도된 트레이드오프(방을
 				// 정리해야 문이 열리는 규칙을 인류에게도 예외 없이 적용).
-				if (moveTile.name == "Wall" || moveTile.isStructureExist) return false;
+				// 2026-08-20 — 청크 인덱싱+벽 판정 중복을 CreateMap.IsStaticTileWalkable(동일 기준)
+				// 호출로 통합(이 유닛 자신의 currentFloor 기준이라 결과는 기존과 완전히 동일하다).
+				if (!cmap.IsStaticTileWalkable(currentFloor, new Vector2Int(targetX, targetY))) return false;
 
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
@@ -495,8 +480,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// J: key가 Unit이면 그 유닛의 _suspiciousObserverCount를 증감해 IsTrackedAsSuspiciousByAnyEnemy를 O(1)로 만든다.
 		if (key is Unit suspTrackedUnit)
 		{
-			if (!wasSuspicious && nowSuspicious) suspTrackedUnit._suspiciousObserverCount++;
-			else if (wasSuspicious && !nowSuspicious) suspTrackedUnit._suspiciousObserverCount--;
+			if (!wasSuspicious && nowSuspicious) suspTrackedUnit.IncrementSuspiciousObserverCount();
+			else if (wasSuspicious && !nowSuspicious) suspTrackedUnit.DecrementSuspiciousObserverCount();
 		}
 		record.Outcome = outcome;
 		record.WasInRange = true;
@@ -1231,11 +1216,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 			attacker.AIState.unitsReactingToMe.Add(this);
 		}
 		DefenseSystem.EvaluateEarlyReaction(this, attacker, threat);
-	}
-
-	public override void OnDirectHit(Unit attacker, ThreatTileData threat)
-	{
-		// Obsolete: Impact defense and damage is now handled in TakePhysicalDamage
 	}
 
 	public override void ApplyDirectDamage(Unit attacker, float multiplier = 1f)
