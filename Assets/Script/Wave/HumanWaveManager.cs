@@ -248,7 +248,7 @@ namespace GrimArchive.Wave
             // 던전 입구 구조(2026-08-20) — 스폰 직후 곧바로 입구 진입 시퀀스(숨은 청크→1x3 입구
             // 이동→대기→계단 이동)를 시작한다. floor0StairPos는 ResolveStairPositions가 이미
             // 계단 바로 옆 실제로 밟을 수 있는 타일로 구해뒀다(위 rowY와 같은 행).
-            _dungeonEntrance.Begin(GameSession.Instance, preSpawnedParty, 0, rowY, DungeonEntranceRoomEntryX, floor0StairPos.x);
+            _dungeonEntrance.Begin(GameSession.Instance, preSpawnedParty, rowY, DungeonEntranceRoomEntryX, floor0StairPos.x);
         }
 
         // 사전 스폰(및 던전 입구 시퀀스 시작) 트리거 시점을 계산한다(2026-08-20, 사용자 확인) —

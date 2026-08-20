@@ -505,3 +505,74 @@ UI·Building·Combat / Map·Vision)한 뒤, 파일:줄번호까지 확인된 항
   4. [ / ] 키와 화면 좌우 버튼으로 층 전환이 되는지, 줌아웃해도 다른 층이 화면에 같이 안 보이는지,
      WASD로 층 경계 밖으로 못 나가는지.
   5. 0층 신규 크기(4×1)로 맵이 실제로 정상 생성되는지(청크/방/시작방 검증 통과, 콘솔 에러 없음).
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-08-20 추가 반영 — 사용자 피드백 후속 수정 + 리팩토링
+════════════════════════════════════════════════════════════════════════
+
+Phase 7 구현 직후 실제 확인 과정에서 나온 사용자 피드백을 순서대로 반영했다. 코드는 매번 즉시
+브레이스/괄호 밸런스 확인 + git show로 기존 모지바케 여부 대조하는 방식으로 검증(Unity 에디터 실행
+불가는 동일).
+
+1) 층 간격 재조정 + "잠시후 웨이브 시작" 문구 제거
+   - MapRandering.FloorGapTiles: 10 → 120. 원인: CameraController의 층별 클램프는 카메라 "중심"만
+     묶을 뿐 줌아웃 시 보이는 화면 폭 자체는 못 줄여서, 최대 줌아웃(orthographicSize 50)에서 중심이
+     경계에 붙으면 절반 폭(≈89타일)만큼 옆 층이 넘어와 보였다 — 그 케이스까지 포함해 여유 있게 상향.
+   - UIManager.CheckWaveStartNotice/_waveStartNoticeShown 삭제(사용자 요청 "필요 없을 듯") — 게이지
+     점멸(WaveGaugePanel)은 같은 트리거(IsMonstersSummonedThisCycle)를 쓰지만 별개 연출이라 유지.
+
+2) 웨이브 진행 바 재설계 (2회 반복)
+   - 1차: "바 100%가 1층 진입 시작과 일치해야 한다"는 요청에 따라 DungeonEntranceSystem에 자체
+     Progress01(경과/예상 총시간 비율)을 만들어 HumanWaveManager가 가중 합산하는 방식을 시도.
+   - 2차(최종): 사용자가 "대기 10초는 6초를 포함한 10초, 그 10초도 waveData 시간에 포함되어야 한다"고
+     구체화 — 1차 설계를 폐기하고 훨씬 단순한 구조로 교체:
+     · WaveProgress01 = 1 - cooldownTimer/waveCooldown (waveData 값 그대로가 바 시간).
+     · ComputePreSpawnTriggerSeconds() — 입구까지 거리(고정 상수) ÷ 기준 이동속도(3f, BaseStatComponent
+       기본값)로 WalkingIn 소요시간을 추정하고 Waiting 10초를 더해, 그만큼 cooldownTimer가 남았을 때
+       스폰 — "1층 진입 시작(Waiting 10초 종료 시점)"이 cooldownTimer==0과 일치하도록 역산 스케줄링.
+     · "인간 파티가 진입을 준비하고 있습니다" 문구는 DungeonEntranceSystem 내부 단계 전환이 아니라
+       cooldownTimer<=6(PrepareNoticeLeadSeconds) 기준으로 직접 띄우도록 Update 시그니처에
+       cooldownTimerRemaining 파라미터 추가.
+     · 1차 설계의 Progress01/_elapsedSeconds/_estimatedTotalSeconds/PreEntrancePhaseWeight는 전부
+       제거(죽은 코드로 남기지 않고 완전히 되돌림).
+
+3) 던전 입구 대형을 1열 종대 → 랭크/레인 블록 포메이션으로 재설계
+   - 사용자 지적: "1열로 하지 말고 1선/2선/3선처럼, 무더기로 생성됐다가 포메이션 맞춰서 대기하고
+     그 포메이션대로 입장하는 느낌으로."
+   - DungeonEntranceSystem.FormationSlot(Unit/Rank/Lane) 도입. Rank 0=근접(탱커+근접딜러 병합, 기존
+     사유 유지), Rank 1=리더, Rank 2=원거리 — 랭크 간 2칸(RankSpacingX) 간격으로 블록 전체가 상대
+     형태를 유지한 채 전진. 같은 랭크에 유닛이 여럿이면 AddRank/LaneOffset이 rowY 기준 좌우(Y축)로
+     늘어세운다. 스폰 자체는 기존처럼 좁은 반경 "무더기"로 두고, WalkingIn 동안 각 유닛이 자기
+     슬롯으로 수렴하게 해서 "무더기→대형" 정렬을 자연스럽게 얻는다(별도 스폰 단계 추가 없이).
+   - 버그 1(사용자 신고 "아래로 쏠려있어"): LaneOffset이 애초 `i - n/2`(정수 나눗셈) 공식이라 짝수
+     인원에서 항상 -Y(아래) 쪽에 한 명 더 치우쳤다. 홀수는 중앙 포함 대칭(-1,0,1), 짝수는 중앙을
+     비우고 좌우 동수 대칭(-2,-1,+1,+2)이 되는 LaneOffset(i,n)으로 교체.
+   - 버그 2(같은 신고, 재확인 후 발견): 레인은 고쳤는데도 기준선 rowY 자체가 안 맞았다. 원인은
+     HumanWaveManager.ResolveStairPositions가 힌트 없이 TryGetStairApproachPosition을 불러서, 항상
+     dx=-1,dy=-1(계단 2x2 블록 바로 왼쪽 "위") 칸을 먼저 찾아 반환했기 때문 — 이 칸을 그대로 rowY로
+     써서 대형 전체가 청크 세로 중앙(계단 블록이 차지하는 두 중앙 행)보다 한 칸 아래였다. 계단 블록
+     좌상단(TryGetStairPosition)과 같은 행을 힌트로 넘겨 "블록 바로 왼쪽, 같은 행" 칸을 고르도록 수정.
+
+4) 리팩토링 (사용자 요청 "오늘 새 작업들 리팩토링 부탁해" — 커밋 95f4841(버그수정)..b40bb01(층 카메라
+   분리/0층 리뉴얼/웨이브 시각화) 사이 diff, 즉 오늘 새로 만든 던전입구+카메라+웨이브게이지 부분만
+   대상. 어제 작업 리팩토링(702c769)과 그 버그수정(95f4841)은 이미 별도로 검토 완료라 범위 밖.)
+   - CameraController.TryGetFloorViewBounds가 "층의 월드 범위" 계산을 자체적으로(원점+config.width/
+     height*ChunkSizeTiles) 들고 있었는데, ChunkSize는 MapRandering이 이미 private const로 갖고 있는
+     값이라 카메라 쪽에 매직넘버로 중복 정의한 상태였다(캡슐화/재사용성 위반). MapRandering에
+     public TryGetFloorWorldBounds(floorIndex, out Rect) 신설 — CameraController는 이걸 받아서
+     "0층 숨은 청크 제외" 같은 카메라 고유 조정만 얹는다. ChunkSize 자체는 여전히 카메라 쪽에도 한
+     줄(Floor0HiddenChunksX를 타일로 환산하는 용도) 남지만, "층 전체 범위" 계산의 중복은 제거.
+   - DungeonEntranceSystem에 죽은 필드 발견: `_floor`(Begin()에서 대입만 되고 어디서도 읽히지 않음)
+     — Begin()의 floor 매개변수째로 제거(호출부 HumanWaveManager.PreSpawnWaveUnits도 함께 정리).
+     클래스 전체가 "0층 던전 입구" 전용으로 설계돼 있어 floor 매개변수가 애초에 가짜 일반성이었다.
+   - 주석 오탈자 수정(BuildFormation 주석이 존재하지 않는 "AssignLane" 메서드명을 언급 — 실제
+     이름인 AddRank/LaneOffset으로 정정).
+   - 그 외(CreateMap.Stairs.cs 계단 위치, MapData.cs 0층 config, NavigationFSMState/Unit.cs의
+     isInDungeonEntranceSequence 배선, UIManager/WaveGaugePanel의 게이지 로직)는 전부 검토했으나
+     기존 패턴(GetEngageDistance 재사용, MonsterDefensePlacementSystem과 동일한 SyncVisual 수동
+     동기화 패턴, IsMustered와 동일한 BT 분기 패턴)을 그대로 따르고 있어 추가로 손댈 지점 없음.
+   - HumanWaveManager.cs가 오늘 순증 +111줄로 847줄까지 늘었다(원래도 컸음, 어제 리팩토링 때
+     MonitorWave() 추가 분리는 "다음 후보"로 의도적으로 미뤄둔 상태였음 — 참고). 오늘 추가된 부분
+     (ComputePreSpawnTriggerSeconds/FindSpawnPosInHiddenChunk/OnDungeonEntranceArrivedAtStairs 등)은
+     전부 cooldownTimer/waveCooldown 같은 이 클래스 고유 상태에 직접 의존하는 "접착 코드"라 지금
+     당장 더 쪼개면 오히려 어색해 보류 — 추가 분리는 요청 시에만 진행.

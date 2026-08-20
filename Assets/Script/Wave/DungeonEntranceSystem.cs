@@ -49,7 +49,6 @@ namespace GrimArchive.Wave
         private int _frontX;
         private int _targetX;
         private int _rowY;
-        private int _floor;
         private int _pendingStairApproachX;
         private bool _prepareNoticeShown;
 
@@ -64,13 +63,12 @@ namespace GrimArchive.Wave
         // 포메이션을 맞춰서 대기하고, 그 포메이션대로 입장") — 스폰 직후엔 HumanWaveManager가 좁은
         // 반경 안에 흩어 놓은 "무더기" 상태 그대로 두고, 이후 매 스텝 각 유닛이 자기 대형 슬롯(랭크/
         // 레인)으로 이동하게 하면 WalkingIn이 진행되는 동안 자연스럽게 무더기→대형으로 정렬된다.
-        public void Begin(GameSession session, Party party, int floor, int rowY, int roomEntryX, int stairApproachX)
+        public void Begin(GameSession session, Party party, int rowY, int roomEntryX, int stairApproachX)
         {
             _formation.Clear();
             BuildFormation(session, party, _formation);
             if (_formation.Count == 0) { _phase = Phase.Idle; return; }
 
-            _floor = floor;
             _rowY = rowY;
             _frontX = FrontmostSpawnX(_formation);
             _targetX = roomEntryX;
@@ -209,8 +207,8 @@ namespace GrimArchive.Wave
         // 둔다(문서 요구대로 리더는 유형과 무관하게 항상 근접-원거리 그룹 사이). 근접/원거리 판정은
         // UnitGenerate.GetEngageDistance(이미 전투 사거리 판정에 쓰이는 값)를 그대로 재사용한다 — 새
         // 분류 데이터를 만들지 않는다. 2026-08-20 사용자 요청("1열로 하지 말고 1선/2선/3선 포메이션
-        // 느낌으로") — 같은 랭크에 유닛이 여럿이면 AssignLane으로 rowY를 기준으로 좌우(Y축)에 나란히
-        // 늘어서게 한다.
+        // 느낌으로") — 같은 랭크에 유닛이 여럿이면 AddRank/LaneOffset이 rowY를 기준으로 좌우(Y축)에
+        // 나란히 늘어서게 한다.
         private static void BuildFormation(GameSession session, Party party, List<FormationSlot> outFormation)
         {
             outFormation.Clear();

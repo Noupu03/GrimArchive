@@ -294,6 +294,24 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return offsets;
     }
 
+    // floorIndex 층이 월드 좌표에서 차지하는 전체 사각 범위(floorOffsets 원점 + 그 층의 청크
+    // 크기×ChunkSize) — 2026-08-20, CameraController의 층별 클램프(TryGetFloorViewBounds)가 필요로
+    // 해서 추가. floorOffsets/ChunkSize 둘 다 이 클래스가 이미 들고 있는 값이라, 카메라 쪽에서
+    // ChunkSize를 별도 상수로 중복 정의하는 대신 여기서 한 번만 계산해 공개한다(다른 시스템도
+    // "이 층이 화면에서 어디부터 어디까지인지"가 필요하면 재사용 가능).
+    public bool TryGetFloorWorldBounds(int floorIndex, out Rect bounds)
+    {
+        bounds = default;
+        if (createMap?.map.floors == null || floorOffsets == null) return false;
+        if (floorIndex < 0 || floorIndex >= createMap.map.floors.Length || floorIndex >= floorOffsets.Length) return false;
+
+        Floor floor = createMap.map.floors[floorIndex];
+        Vector3Int origin = floorOffsets[floorIndex];
+
+        bounds = new Rect(origin.x, origin.y, floor.config.width * ChunkSize, floor.config.height * ChunkSize);
+        return true;
+    }
+
     // 빛(Light2D)이 벽을 통과하지 않게(사용자 요청). 시행착오 요약(2026-07-28):
     // 1) Collider2D 기반(TilemapCollider2D+CompositeCollider2D) — ShadowCaster2D의 자동 소스 판정이
     //    같은 오브젝트의 두 Collider2D 중 어느 쪽을 잡을지 불확실해서 실패(빛이 벽을 그냥 통과).
