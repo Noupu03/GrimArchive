@@ -268,7 +268,14 @@ public class MapRandering : NativeRoutine, IMapColorizer
     // (ShowFloor로 한 층만 보이게 하는 기능은 아직 어디서도 안 쓰임 — RenderAllFloors 참고), 예전의
     // "계단 위치를 맞춰서 겹쳐 쌓기" 오프셋은 층들이 화면에서 서로 거의 같은 자리에 겹쳐 보이는
     // 문제가 있었다. 계단 정렬 대신 층마다 가로로 나란히 떨어뜨려 배치한다.
-    private const int FloorGapTiles = 10;
+    //
+    // 2026-08-20, 사용자 요청 "층별 간격 더 띄워줘. 아직 한번에 다 보여. 많이 띄워야 해" — 10칸으로는
+    // CameraController의 층별 클램프(ClampToCurrentFloorBounds)가 카메라 "중심"만 그 층 경계 안으로
+    // 묶어줄 뿐 줌아웃 시 보이는 폭 자체는 못 줄이기 때문에, 최대 줌아웃(CameraController.maxZoom=50,
+    // 16:9 기준 화면 절반 폭 ≈ 50*1.778 ≈ 89타일)에서는 중심이 층 경계에 붙었을 때 그 절반 폭만큼
+    // 옆 층 쪽으로 화면이 넘어가 버렸다 — 그 케이스까지 포함해 절대 겹쳐 보이지 않도록 여유를 크게
+    // 두고 120으로 올린다.
+    private const int FloorGapTiles = 120;
 
     Vector3Int[] ComputeSpacedOffsets()
     {

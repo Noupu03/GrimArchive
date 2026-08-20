@@ -84,22 +84,12 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         EnsureSprites();
         if (_frameSprite == null || _trackSprite == null) return;
 
-        float progress;
-        bool waveApproaching; // Idle(카운트다운 중)일 때만 도착 임박 연출을 켠다.
-        if (wm.currentState == WaveState.Idle)
-        {
-            float remaining = Mathf.Max(0f, wm.cooldownTimer);
-            float total = Mathf.Max(0.0001f, wm.waveCooldown);
-            progress = Mathf.Clamp01(1f - remaining / total);
-            waveApproaching = true;
-        }
-        else
-        {
-            // 도착(Running) 또는 그 이후 — "게이지 끝 지점 도달 = 던전 도착"까지만 이번 범위이고,
-            // 도착 이후 UI 제거/전환 방식은 문서가 후속 구현으로 명시 위임했으므로 만땅 상태로 고정.
-            progress = 1f;
-            waveApproaching = false;
-        }
+        // 2026-08-20, 사용자 요청 — waveData에 설정된 시간(waveCooldown) 그대로가 진행 바 시간이
+        // 되도록 HumanWaveManager.WaveProgress01(cooldownTimer/waveCooldown 비율)을 그대로 쓴다.
+        // HumanWaveManager가 스폰 시점을 waveCooldown 예산에 맞춰 미리 계산해두므로, 바가 100%에
+        // 도달하는 순간(cooldownTimer==0)이 곧 인간 파티의 "1층 진입 시작" 순간과 일치한다.
+        float progress = Mathf.Clamp01(wm.WaveProgress01);
+        bool waveApproaching = progress < 1f; // 1층 진입 시작 전까지는 계속 "다가오는 중" 취급.
 
         bool imminent = waveApproaching && wm.IsMonstersSummonedThisCycle;
         float blinkAlpha = imminent ? (0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * BlinkSpeed)) : 1f;

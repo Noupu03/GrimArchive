@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using VContainer;
 using DG.Tweening;
-using GrimArchive.Wave;
 
 // 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter(Haare UIPresenter/RegisterEntryPoint
 // 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)만 담당한다.
@@ -16,40 +15,12 @@ public class UIManager : MonoBehaviour
         _gameSession = gameSession;
     }
 
-    // 웨이브 시작 알림을 언제 띄울지(2026-07-23 사용자 요청 "잠시 후, 웨이브가 시작됩니다").
-    // 2026-08-20 수정, 사용자 요청 "문구 및 관련 표시들 등장하는 시점을 0층 몬스터 소환 시점으로
-    // 바꿔줘" — 예전엔 남은 시간이 고정값(3초) 이하로 떨어지는 순간이었는데, 이제 실제로 플레이어
-    // 몬스터들이 배치 위치로 소집되는 순간(HumanWaveManager.IsMonstersSummonedThisCycle이 켜지는
-    // 순간)에 맞춘다 — 몬스터 소집이 화면에 보이기 시작하는 시점과 알림이 항상 같이 뜬다. 지속시간도
-    // 고정값 대신 그 시점에 남은 실제 웨이브 시작까지의 시간(cooldownTimer)만큼 표시해 웨이브 시작과
-    // 거의 동시에 자연스럽게 사라지게 한다.
-    private bool _waveStartNoticeShown;
-
     void OnGUI()
     {
         if (_gameSession == null) return;
 
         DrawTopLeftUI();
-        CheckWaveStartNotice();
 	}
-
-    private void CheckWaveStartNotice()
-    {
-        HumanWaveManager wm = HumanWaveManager.Instance;
-        if (wm == null) return;
-
-        if (wm.currentState == WaveState.Idle && wm.IsMonstersSummonedThisCycle && !_waveStartNoticeShown)
-        {
-            _waveStartNoticeShown = true;
-            float duration = Mathf.Max(0.1f, wm.cooldownTimer); // 소집 시점부터 실제 웨이브 시작까지 남은 시간만큼 표시
-            NoticeCenter.Instance?.Push("잠시 후, 웨이브가 시작됩니다.", NoticeCenter.WarningColor, duration);
-        }
-        else if (wm.currentState != WaveState.Idle)
-        {
-            // 웨이브가 실제로 시작되면(다음 대기 사이클에서 다시 엣지 트리거될 수 있도록) 리셋.
-            _waveStartNoticeShown = false;
-        }
-    }
 
 	private void DrawTopLeftUI()
     {

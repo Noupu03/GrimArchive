@@ -8,6 +8,20 @@ public class CameraController : MonoBehaviour
     public float minZoom = 5f;
     public float maxZoom = 50f;
 
+    // 층별 카메라 전환(2026-08-20, "층별 카메라 전환 프로그래머 지시서") — 층 전환은 유닛 이동이
+    // 아니라 카메라 관찰 위치 변경으로만 처리한다(문서 명시). 별도의 Fog of War/렌더링 분리 시스템은
+    // 쓰지 않고(MapRandering.ComputeSpacedOffsets가 이미 층마다 가로로 충분히 떨어뜨려 배치해둠),
+    // 카메라가 "지금 보고 있는 층" 범위 밖으로 못 나가게 막는 것만으로 "다른 층이 동시에 노출되지
+    // 않음"을 만족시킨다.
+    private const int ChunkSizeTiles = 8; // CreateMap/MapRandering 전역에서 쓰는 청크 크기(타일)와 동일.
+    // 던전 입구 구조(2026-08-19, "던전 입구 구조 프로그래머 지시서")의 0층 최좌측 1x1 청크는 인간
+    // 파티가 등장하는, 플레이어에게 보이지 않아야 하는 칸이다 — 별도 렌더링 은폐 없이 카메라가 그
+    // 칸까지 가지 못하게 관찰 가능 범위 자체에서 제외해 "안 보임"을 구현한다.
+    private const int Floor0HiddenChunksX = 1;
+
+    private int _currentFloor = -1; // -1 = 아직 초기화 전(맵 로드 대기 중).
+    private bool _floorViewInitialized = false;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoAttach()
     {
@@ -34,6 +48,11 @@ public class CameraController : MonoBehaviour
 
     void Update()
     {
+        // AutoAttach가 씬 로드 직후(맵/GameSession 생성보다 먼저) 실행될 수 있어, 층 범위 정보가
+        // 준비될 때까지는 관찰 층 개념 없이 대기한다 — 이 지연 초기화가 끝나기 전엔 패닝만 자유롭게
+        // 허용(기존 동작 그대로)하고 층 클램프는 걸지 않는다.
+        EnsureFloorViewInitialized();
+
         Vector3 pos = transform.position;
 
         if (Keyboard.current != null)
@@ -43,6 +62,9 @@ public class CameraController : MonoBehaviour
             if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) pos.y -= move;
             if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) pos.x += move;
             if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) pos.x -= move;
+
+            if (Keyboard.current.leftBracketKey.wasPressedThisFrame) SwitchFloor(-1);
+            if (Keyboard.current.rightBracketKey.wasPressedThisFrame) SwitchFloor(1);
         }
 
         if (Mouse.current != null)
@@ -55,6 +77,108 @@ public class CameraController : MonoBehaviour
             }
         }
 
+        if (_floorViewInitialized) pos = ClampToCurrentFloorBounds(pos);
+
         transform.position = pos;
+    }
+
+    // 맵이 준비되는 순간(GameSession/CreateMap이 아직 없을 수 있는 씬 로드 직후 몇 프레임을 버틴 뒤)
+    // 딱 한 번 초기 관찰 층을 정한다 — 플레이어가 실제로 몬스터를 배치·조작하는 1층을 기본값으로
+    // 삼는다(0층은 인간 파티 대기 공간일 뿐 플레이어가 조작할 대상이 없음).
+    private void EnsureFloorViewInitialized()
+    {
+        if (_floorViewInitialized) return;
+        if (!TryGetFloorCount(out int floorCount) || floorCount <= 0) return;
+
+        _currentFloor = Mathf.Clamp(1, 0, floorCount - 1);
+        _floorViewInitialized = true;
+        SnapToFloorCenter(_currentFloor);
+    }
+
+    private void SwitchFloor(int direction)
+    {
+        if (!_floorViewInitialized || !TryGetFloorCount(out int floorCount) || floorCount <= 0) return;
+
+        int next = Mathf.Clamp(_currentFloor + direction, 0, floorCount - 1);
+        if (next == _currentFloor) return;
+
+        _currentFloor = next;
+        SnapToFloorCenter(_currentFloor);
+    }
+
+    private void SnapToFloorCenter(int floorIndex)
+    {
+        if (!TryGetFloorViewBounds(floorIndex, out Rect bounds)) return;
+
+        Vector3 pos = transform.position;
+        pos.x = bounds.center.x;
+        pos.y = bounds.center.y;
+        transform.position = pos;
+    }
+
+    private Vector3 ClampToCurrentFloorBounds(Vector3 pos)
+    {
+        if (!TryGetFloorViewBounds(_currentFloor, out Rect bounds)) return pos;
+
+        pos.x = Mathf.Clamp(pos.x, bounds.xMin, bounds.xMax);
+        pos.y = Mathf.Clamp(pos.y, bounds.yMin, bounds.yMax);
+        return pos;
+    }
+
+    private static bool TryGetFloorCount(out int floorCount)
+    {
+        floorCount = 0;
+        var cmap = GameSession.Instance?.cmap;
+        if (cmap == null || cmap.map.floors == null) return false;
+        floorCount = cmap.map.floors.Length;
+        return true;
+    }
+
+    // floorIndex 층에서 카메라가 실제로 관찰 가능한 월드 범위(중심 클램프 대상) — MapRandering.
+    // floorOffsets(층별 물리적 배치 원점)와 그 층의 청크 크기로 계산한다. 0층은 최좌측 숨김 스폰
+    // 청크(Floor0HiddenChunksX)만큼 왼쪽 경계를 안으로 당겨서 그 칸이 화면에 안 잡히게 한다.
+    private static bool TryGetFloorViewBounds(int floorIndex, out Rect bounds)
+    {
+        bounds = default;
+        var session = GameSession.Instance;
+        var cmap = session?.cmap;
+        var mapRandering = session?.mapRandering;
+        if (cmap == null || cmap.map.floors == null || mapRandering == null || mapRandering.floorOffsets == null) return false;
+        if (floorIndex < 0 || floorIndex >= cmap.map.floors.Length || floorIndex >= mapRandering.floorOffsets.Length) return false;
+
+        Floor floor = cmap.map.floors[floorIndex];
+        Vector3Int origin = mapRandering.floorOffsets[floorIndex];
+
+        int hiddenChunksX = floorIndex == 0 ? Floor0HiddenChunksX : 0;
+        float xMin = origin.x + hiddenChunksX * ChunkSizeTiles;
+        float xMax = origin.x + floor.config.width * ChunkSizeTiles;
+        float yMin = origin.y;
+        float yMax = origin.y + floor.config.height * ChunkSizeTiles;
+
+        if (xMax < xMin) xMax = xMin; // 방어적 처리(설정 오류로 숨김 청크가 층 폭 이상일 경우)
+
+        bounds = new Rect(xMin, yMin, xMax - xMin, yMax - yMin);
+        return true;
+    }
+
+    // 층 전환 UI(2026-08-20) — 화면 좌/우 가장자리 세로 중앙에 이전/다음 층 버튼을 둔다(기획서의
+    // "[: 이전 층, ]: 다음 층" 키 입력과 동일 동작). 다른 OnGUI 패널(DebugInfoPanel 등)과 겹치지
+    // 않는 화면 좌우 가장자리를 썼다.
+    private const float FloorButtonWidth = 36f;
+    private const float FloorButtonHeight = 48f;
+
+    void OnGUI()
+    {
+        if (!_floorViewInitialized) return;
+
+        float y = Screen.height * 0.5f - FloorButtonHeight * 0.5f;
+
+        if (GUI.Button(new Rect(8f, y, FloorButtonWidth, FloorButtonHeight), "<"))
+            SwitchFloor(-1);
+
+        if (GUI.Button(new Rect(Screen.width - FloorButtonWidth - 8f, y, FloorButtonWidth, FloorButtonHeight), ">"))
+            SwitchFloor(1);
+
+        GUI.Label(new Rect(Screen.width * 0.5f - 40f, 6f, 80f, 24f), $"<b>{_currentFloor}F</b>", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, richText = true, fontSize = 16 });
     }
 }

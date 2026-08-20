@@ -23,7 +23,14 @@ public class NavigationFSMState : IFSMState
 				new BTCondition(IsMustered),
 				new BTLeaf(HoldPosition)
 			),
-			// 3. 자유탐색 (원본 ExploreFSMState p=10)
+			// 3. 던전 입구 시퀀스 대기 — 던전 입구 구조(2026-08-20): DungeonEntranceSystem이 0층
+			// 스폰~계단 도달까지 파티 진형을 직접 제어하는 동안 자유탐색이 끼어들지 않게 막는다.
+			// pendingStairTargetFloor는 시퀀스가 끝나야 세팅되므로 위 1번 계단 이동 분기와 겹치지 않는다.
+			new BTSequence(
+				new BTCondition(IsInDungeonEntranceSequence),
+				new BTLeaf(HoldPosition)
+			),
+			// 4. 자유탐색 (원본 ExploreFSMState p=10)
 			new BTLeaf(RandomExplore)
 		);
 	}
@@ -146,6 +153,10 @@ public class NavigationFSMState : IFSMState
 	private static bool IsMustered(Unit unit) => unit.isMustered;
 
 	private static BTStatus HoldPosition(Unit unit) => BTStatus.Running;
+
+	// ── 던전 입구 시퀀스 대기 ──────────────────────────────────────
+
+	private static bool IsInDungeonEntranceSequence(Unit unit) => unit is Human h && h.isInDungeonEntranceSequence;
 
 	// ── 자유탐색 ─────────────────────────────────────────────────
 

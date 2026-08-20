@@ -56,6 +56,11 @@ namespace GrimArchive.Wave
         // 웨이브가 시작돼 pendingStairTargetFloor가 세팅되면 Goal_UseStairs(140)가 그보다 훨씬
         // 높은 우선순위로 자연스럽게 목표를 가로챈다 — 별도의 "배회 고정" 상태나 HumanWaveManager의
         // 수동 배회 코드가 전혀 필요 없다.
+        // 2026-08-20 이후 이 상수의 역할이 둘로 늘었다: (1) 계단 위치를 못 구해 거리 추정이 불가능할
+        // 때 ComputePreSpawnTriggerSeconds()의 폴백 값, (2) DungeonEntranceSystem.PrepareNoticeLeadSeconds
+        // 와 같은 값(6초)으로, "인간 파티가 진입을 준비하고 있습니다" 문구가 웨이브 시작(=1층 진입
+        // 시작) 몇 초 전에 뜨는지를 나타낸다(사용자 확인: "저 6초 포함해서 10초"). 두 클래스가 서로를
+        // 참조하지 않으므로 값 자체는 각자 상수로 따로 들고 있다 — 바꿀 때 둘 다 같이 바꿀 것.
         private const float PreSpawnLeadSeconds = 6f;
         private bool preSpawnTriggered = false;
         // 2026-08-20, 사용자 요청 "잠시후 웨이브가 시작됩니다 문구 및 관련 표시들 등장하는 시점을,
@@ -64,18 +69,39 @@ namespace GrimArchive.Wave
         // 에서는 실제 몬스터 소집(MonsterDefensePlacementSystem.ApplyDefenseStartPositions)이 그보다
         // 훨씬 나중인 StartWave()의 즉시 스폰 폴백 시점에야 일어난다 — 그래서 이 시도 시점 플래그
         // 대신, 실제로 ApplyDefenseStartPositions가 호출된 순간에만 켜지는 전용 플래그를 따로 둔다.
-        // UIManager(웨이브 임박 알림)/WaveGaugePanel(게이지 점멸)이 각자 갖고 있던 시간/진행도
-        // 임계값 대신 이 플래그를 직접 구독해서 "정확히 몬스터 소집이 실제로 일어나는 순간"과 항상
-        // 일치하게 한다.
+        // WaveGaugePanel(게이지 점멸)이 이 플래그를 직접 구독해서 "정확히 몬스터 소집이 실제로
+        // 일어나는 순간"과 항상 일치하게 한다.
         private bool monstersSummonedThisCycle = false;
         public bool IsMonstersSummonedThisCycle => monstersSummonedThisCycle;
         private Party preSpawnedParty;
+
+        // 웨이브 게이지 진행도(2026-08-20, 사용자 요청) — waveData에 설정된 시간(waveCooldown) 그대로가
+        // 실제 진행 바 시간이 되도록 단순 비율을 쓴다. "1층 진입 시작"(=Waiting 10초가 끝나고
+        // WalkingToStairs로 넘어가는 순간, 사용자 확인)이 cooldownTimer==0과 같은 순간이 되도록
+        // ComputePreSpawnTriggerSeconds()가 스폰 시점을 미리 계산해두므로, 바가 100%에 도달하는
+        // 시점과 실제 1층 진입 시작 시점은 이 스케줄링으로 인해 일치한다(아래 ComputePreSpawnTriggerSeconds
+        // 참고).
+        public float WaveProgress01
+        {
+            get
+            {
+                if (currentState != WaveState.Idle) return 1f;
+                return Mathf.Clamp01(1f - cooldownTimer / waveCooldown);
+            }
+        }
+
         // 아직 0층에서 계단으로 걸어가는 중(=목표 층에 아직 도착 못한) 파티원 집합 — MonitorWave/
         // UpdatePartyDestination의 목표물 추적 로직이 이 유닛들을 건드리지 않도록 걸러내는 데도 쓴다.
         private readonly HashSet<Human> stagingUnits = new HashSet<Human>();
         private Vector2Int floor0StairPos;
         private Vector2Int floor1StairPos;
         private bool stairPosResolved = false;
+
+        // 던전 입구 구조(2026-08-20) — 0층 숨은 스폰 청크~계단까지 파티 진형 이동 시퀀스 전담(자체
+        // 클래스로 분리, HumanWaveManager 비대화 방지 — MonsterDefensePlacementSystem/DoorSystem과
+        // 동일한 이유). PreSpawnWaveUnits가 시작시키고, 매 프레임 Update, 계단 도달 시
+        // OnDungeonEntranceArrivedAtStairs 콜백으로 stagingUnits/pendingStairTargetFloor를 넘겨받는다.
+        private readonly DungeonEntranceSystem _dungeonEntrance = new DungeonEntranceSystem();
 
         // 이전 웨이브에서 살아남아 0층으로 퇴각한 파티원 — 다음 웨이브에 그대로 합류시킨다(사용자
         // 요청, 2026-07-23 "살아남은 유닛들도 다음 웨이브에 포함해서 같이 이동하도록 해줘"). 새로
@@ -127,7 +153,7 @@ namespace GrimArchive.Wave
                 if (currentState == WaveState.Idle)
                 {
                     cooldownTimer -= Time.deltaTime;
-                    if (!preSpawnTriggered && cooldownTimer <= PreSpawnLeadSeconds)
+                    if (!preSpawnTriggered && cooldownTimer <= ComputePreSpawnTriggerSeconds())
                     {
                         preSpawnTriggered = true;
                         PreSpawnWaveUnits();
@@ -143,12 +169,22 @@ namespace GrimArchive.Wave
                     MonitorWave();
                 }
 
+                // 던전 입구 구조(2026-08-20) — cooldownTimer/currentState와 무관하게 독립적으로
+                // 진행된다(웨이브가 이미 Running으로 넘어가 문이 닫히고 몬스터가 소집된 뒤에도, 인간
+                // 파티는 여전히 입구에서 걸어들어오거나 대기 중일 수 있다 — 사용자 확인 사항).
+                // cooldownTimer를 그대로 넘겨 "진입 준비" 문구를 실제 웨이브 시작까지 남은 시간
+                // 기준으로 띄우게 한다(DungeonEntranceSystem.Update 참고).
+                _dungeonEntrance.Update(GameSession.Instance, Time.deltaTime, cooldownTimer, OnDungeonEntranceArrivedAtStairs);
+
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken: cts);
             }
         }
 
-        // 웨이브 시작 PreSpawnLeadSeconds초 전에 이번 웨이브의 인류 파티를 0층에 미리 스폰한다 —
-        // 아무 목표도 안 심어주므로 GOAP이 알아서 Goal_Explore(19번)로 배회한다.
+        // ComputePreSpawnTriggerSeconds()가 계산한 시점(웨이브 시작=1층 진입 시작에 맞춰 역산한 시간)에
+        // 이번 웨이브의 인류 파티를 0층에 미리 스폰한다 — 아무 목표도 안 심어주므로 GOAP이 알아서
+        // Goal_Explore(19번)로 배회한다. 던전 입구 구조(2026-08-20) 이후로는 이 "사전 스폰 시점"이
+        // 문서가 말하는 "웨이브가 던전에 도착한 시점"의 실체다(사용자 확인) — 숨은 스폰 청크에
+        // 등장시킨 뒤 DungeonEntranceSystem에게 나머지 진입 시퀀스(입구 이동→대기→계단 이동)를 넘긴다.
         private void PreSpawnWaveUnits()
         {
             if (targetSpawner == null || targetSpawner.waveData == null || targetSpawner.waveData.parties == null) return;
@@ -157,6 +193,8 @@ namespace GrimArchive.Wave
                 Debug.LogWarning("[HumanWaveManager] 0층 계단 위치를 찾지 못해 사전 스폰을 건너뜁니다(즉시 스폰으로 대체됩니다).");
                 return;
             }
+
+            int rowY = floor0StairPos.y;
 
             var members = new List<Human>();
             foreach (var config in targetSpawner.waveData.parties)
@@ -167,7 +205,7 @@ namespace GrimArchive.Wave
                     if (string.IsNullOrEmpty(group.unitTypeName)) continue;
                     for (int i = 0; i < group.count; i++)
                     {
-                        Vector2Int spawnPos = FindSpawnPosNearFloor0Entrance();
+                        Vector2Int spawnPos = FindSpawnPosInHiddenChunk(rowY);
                         Human human = targetSpawner.InstantiatePreSpawnHumanAt(group.unitTypeName, spawnPos, 0);
                         if (human == null) continue;
 
@@ -177,11 +215,20 @@ namespace GrimArchive.Wave
             }
 
             // 이전 웨이브에서 살아남아 0층으로 퇴각해 있던 파티원들도 그대로 이번 파티에 합류시킨다
-            // (사용자 요청, 2026-07-23) — 이미 0층에 존재하는 유닛이라 새로 스폰하지 않는다.
+            // (사용자 요청, 2026-07-23) — 이미 0층에 존재하는 유닛이라 새로 스폰하지 않는다. 던전 입구
+            // 구조(2026-08-20)부터는 대형 시작 위치를 통일해야 하므로, 이들도 숨은 스폰 청크로
+            // 다시 위치시킨다(어차피 플레이어 시야 밖).
             int survivorCount = 0;
             foreach (var survivor in retreatedSurvivors)
             {
                 if (survivor == null || survivor.hp <= 0) continue;
+
+                Vector2Int pos = FindSpawnPosInHiddenChunk(rowY);
+                GameSession.Instance.UnregisterUnitPos(survivor, survivor.position);
+                survivor.currentFloor = 0;
+                survivor.position = pos;
+                GameSession.Instance.RegisterUnitPos(survivor, survivor.position);
+
                 members.Add(survivor);
                 survivorCount++;
             }
@@ -197,6 +244,32 @@ namespace GrimArchive.Wave
             // 소환된 시점"이다.
             MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
             monstersSummonedThisCycle = true;
+
+            // 던전 입구 구조(2026-08-20) — 스폰 직후 곧바로 입구 진입 시퀀스(숨은 청크→1x3 입구
+            // 이동→대기→계단 이동)를 시작한다. floor0StairPos는 ResolveStairPositions가 이미
+            // 계단 바로 옆 실제로 밟을 수 있는 타일로 구해뒀다(위 rowY와 같은 행).
+            _dungeonEntrance.Begin(GameSession.Instance, preSpawnedParty, 0, rowY, DungeonEntranceRoomEntryX, floor0StairPos.x);
+        }
+
+        // 사전 스폰(및 던전 입구 시퀀스 시작) 트리거 시점을 계산한다(2026-08-20, 사용자 확인) —
+        // 예전엔 PreSpawnLeadSeconds(6초) 고정이었지만, "웨이브 진행 바 100% = 1층 진입 시작(=Waiting
+        // 10초가 끝나 WalkingToStairs로 넘어가는 순간)"이 되려면 WalkingIn(입구까지 이동)이 그
+        // Waiting 10초가 시작되기 전에 끝나 있어야 한다. 실제 파티 구성(이동속도)은 스폰 전엔 알 수
+        // 없으므로, BaseStatComponent 기본 이동속도(3f)를 기준으로 입구까지 거리를 추정해 필요한
+        // 시간을 구하고, 그 뒤에 Waiting 10초(DungeonEntranceSystem.WaitSeconds)를 더한다 — 이 총
+        // 시간만큼 cooldownTimer가 남았을 때 스폰한다. 계단 위치를 못 구했으면(맵에 계단 데이터가
+        // 없는 등) 추정할 거리가 없으므로 예전처럼 PreSpawnLeadSeconds를 그대로 쓴다(뒤이어
+        // ResolveStairPositions가 다시 실패하면 PreSpawnWaveUnits가 즉시 스폰 폴백으로 넘긴다).
+        private const float ReferenceWalkSpeedForSpawnEstimate = 3f; // BaseStatComponent.walkSpeed 기본값과 동일.
+
+        private float ComputePreSpawnTriggerSeconds()
+        {
+            if (!ResolveStairPositions()) return PreSpawnLeadSeconds;
+
+            int walkInDistanceEstimate = Mathf.Abs(DungeonEntranceRoomEntryX - DungeonEntranceHiddenChunkCenterX);
+            float stepIntervalEstimate = 1f / ReferenceWalkSpeedForSpawnEstimate;
+            float estimate = walkInDistanceEstimate * stepIntervalEstimate + DungeonEntranceSystem.WaitSeconds;
+            return Mathf.Max(estimate, PreSpawnLeadSeconds);
         }
 
         private bool ResolveStairPositions()
@@ -209,24 +282,61 @@ namespace GrimArchive.Wave
             // 없고, 이걸 퇴각 목표(exitAreaPos)로 쓰면 A*가 안개 속에서 그 타일을 목적지로 잡아
             // 영원히 도착 못 하는 버그가 있었다(사용자 제보 콘솔 로그, 2026-07-23).
             int targetFloor = targetSpawner.waveData.targetFloor;
-            if (!GameSession.Instance.cmap.TryGetStairApproachPosition(0, targetFloor, out floor0StairPos)) return false;
+
+            // 0층 쪽은 힌트 없이 부르면(2026-08-20 사용자 신고 "대기할 때 아래로 쳐져있어") 항상
+            // dx=-1,dy=-1(계단 블록 바로 왼쪽 위) 칸을 먼저 찾아 반환해서, 이걸 그대로 rowY로 쓰던
+            // 던전 입구 대형 전체가 청크 세로 중앙(계단 블록이 차지하는 두 중앙 행)보다 한 칸 아래로
+            // 처져 있었다. 계단 블록 좌상단(TryGetStairPosition, 두 중앙 행 중 위쪽)과 같은 행을
+            // 힌트로 줘서 그 행 위의 칸(블록 바로 왼쪽)을 고르게 한다.
+            if (!GameSession.Instance.cmap.TryGetStairPosition(0, targetFloor, out Vector2Int floor0StairBlockPos)) return false;
+            Vector2Int floor0RowHint = new Vector2Int(floor0StairBlockPos.x - 1, floor0StairBlockPos.y);
+            if (!GameSession.Instance.cmap.TryGetStairApproachPosition(0, targetFloor, floor0RowHint, out floor0StairPos)) return false;
+
             if (!GameSession.Instance.cmap.TryGetStairApproachPosition(targetFloor, 0, out floor1StairPos)) return false;
 
             stairPosResolved = true;
             return true;
         }
 
-        private Vector2Int FindSpawnPosNearFloor0Entrance()
+        // 던전 입구 구조(2026-08-20) — 0층 최좌측 숨은 1x1 스폰 청크(카메라 관찰 범위 밖,
+        // CameraController.Floor0HiddenChunksX 참고) 안에서 스폰 위치를 고른다. rowY는
+        // DungeonEntranceSystem이 그대로 이어받아 쓸 행이라 ResolveStairPositions가 구한
+        // floor0StairPos.y와 통일한다(입구~계단까지 한 행에서 직선으로만 움직이면 되게).
+        private const int DungeonEntranceHiddenChunkCenterX = 4; // 청크0(숨김) 로컬 중앙.
+        private const int DungeonEntranceRoomEntryX = 12;        // 청크1(가시 영역 최좌측) 중앙.
+
+        private Vector2Int FindSpawnPosInHiddenChunk(int rowY)
         {
             var generator = GameSession.Instance.unitGenerate;
-            for (int i = 0; i < 20; i++)
+            Vector2Int center = new Vector2Int(DungeonEntranceHiddenChunkCenterX, rowY);
+            for (int i = 0; i < 10; i++)
             {
-                int ox = UnityEngine.Random.Range(-4, 5);
-                int oy = UnityEngine.Random.Range(-4, 5);
-                Vector2Int cand = floor0StairPos + new Vector2Int(ox, oy);
+                int ox = UnityEngine.Random.Range(-2, 3);
+                Vector2Int cand = center + new Vector2Int(ox, 0);
                 if (generator != null && generator.IsAreaClear(cand, Vector2.one, 0)) return cand;
             }
-            return floor0StairPos;
+            return center;
+        }
+
+        // 던전 입구 구조(2026-08-20) — DungeonEntranceSystem이 파티 진형을 계단까지 이끌고 도착했을
+        // 때(0층 던전 계단 도달) 호출하는 콜백. 여기서 비로소 pendingStairTargetFloor를 세팅해
+        // Goal_UseStairs(140, 최우선순위)가 Goal_Explore/던전 입구 시퀀스 홀드를 밀어내고 정상
+        // GOAP 계단 통과를 맡게 한다(StartWave에서 하던 일을 그대로 여기로 옮긴 것 — "웨이브 시작"과
+        // "인간 파티의 실제 1층 진입"이 이제 서로 다른 시점이기 때문).
+        private void OnDungeonEntranceArrivedAtStairs(List<Human> members)
+        {
+            if (targetSpawner?.waveData == null) return;
+
+            int targetFloor = targetSpawner.waveData.targetFloor;
+            stagingUnits.Clear();
+            foreach (var member in members)
+            {
+                if (member == null) continue;
+                member.pendingStairTargetFloor = targetFloor;
+                stagingUnits.Add(member);
+            }
+
+            preSpawnedParty = null;
         }
 
         // WaveState.Running 동안(웨이브 시작 후) 매 프레임 호출 — 계단 이동/통과 자체는 정상
@@ -388,29 +498,30 @@ namespace GrimArchive.Wave
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
             {
-                // 0층에 미리 대기시켜둔 파티를 그대로 이번 웨이브에 쓴다 — 새로 스폰하는 대신
-                // 계단으로 걸어가게 하고, UpdateStagingStairWalk가 도착을 감시해서 목표 층으로
-                // 넘겨준다.
+                // 0층에 미리 대기시켜둔 파티를 그대로 이번 웨이브에 쓴다. 던전 입구 구조(2026-08-20,
+                // 사용자 확인) 이후로는 이 시점에도 파티가 아직 입구를 걸어들어오거나 대기 중일 수
+                // 있다 — "웨이브 시작"(문 닫힘/몬스터 소집, 지금 이 메서드)과 "인간 파티의 실제 1층
+                // 진입"은 이제 서로 다른 시점이다. 여기서는 activeParty/exitAreaPos만 미리 세팅해
+                // 다른 시스템(웨이브 게이지 등)이 참조할 수 있게 하고, stagingUnits는 비워둔 채로
+                // 둔다 — pendingStairTargetFloor는 DungeonEntranceSystem이 계단에 실제로 도달했을
+                // 때(OnDungeonEntranceArrivedAtStairs) 세팅해야 Goal_UseStairs가 그 전에 끼어들지
+                // 않는다.
                 activeParty = preSpawnedParty;
-                preSpawnedParty = null;
                 exitAreaPos = floor1StairPos; // 목표 층 진입 지점을 그대로 탈출 지점으로도 사용
-
-                // pendingStairTargetFloor를 세팅하는 순간 Goal_UseStairs(140, 최우선순위)가
-                // Goal_Explore(10, 대기 중 배회하던 것)를 밀어내고 계단 이동/통과를 맡는다(사용자 요청,
-                // 2026-07-23). 층별 인지 필터(UpdatePartyDestination/MonitorWave)가 있어서 계단을
-                // 넘기 전까지는 다른 층의 웨이브 목표를 잘못 쫓아가지 않는다.
-                stagingUnits.Clear();
-                foreach (var member in activeParty.Members)
-                {
-                    if (member == null) continue;
-                    member.pendingStairTargetFloor = targetSpawner.waveData.targetFloor;
-                    stagingUnits.Add(member);
-                }
+            }
+            else if (monstersSummonedThisCycle)
+            {
+                // 던전 입구 시퀀스가 PreSpawnLeadSeconds보다 빨리 끝나(대기시간이 극단적으로
+                // 짧아지는 등) 이 시점 이전에 이미 OnDungeonEntranceArrivedAtStairs로 완료 처리된
+                // 극단적 경우 — preSpawnedParty가 이미 비워져 있다. 이번 사이클엔 이미 정상 진행됐다는
+                // 뜻이라 아래 즉시 스폰 폴백으로 새 파티를 중복 생성하지 않는다(activeParty는 이미
+                // 세팅돼 있음).
             }
             else
             {
-                // 사전 스폰이 안 됐으면(대기시간이 PreSpawnLeadSeconds보다 짧았던 경우 등) 예전처럼
-                // 즉시 스폰한다 — 기존 WaveSpawner 재사용.
+                // 사전 스폰 자체가 안 됐으면(0층 계단 위치를 못 찾는 등 PreSpawnWaveUnits 실패) 예전처럼
+                // 즉시 스폰한다 — 기존 WaveSpawner 재사용. 이 폴백 경로는 던전 입구 시퀀스를 거치지
+                // 않고 계단 바로 옆에 즉시 등장한다(입구 연출은 스킵되지만 예외적 안전장치이므로 허용).
                 int beforePartyCount = GameSession.Instance.parties.Count;
                 targetSpawner.SpawnWave();
 

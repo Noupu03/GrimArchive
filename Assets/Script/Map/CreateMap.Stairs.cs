@@ -74,7 +74,10 @@ public partial class CreateMap
         int w0 = f0.config.width;
         int h0 = f0.config.height;
 
-        int stairX = 0;
+        // 던전 입구 구조(2026-08-20) — "중앙 행 최우측의 던전 계단"(문서 명시). 예전엔 최좌측
+        // 고정이었으나, 이제 최좌측 1칸은 숨은 스폰 청크(FloorConfigFactory 참고)라 그 반대편
+        // 끝(가시 영역의 가장 오른쪽)에 둔다.
+        int stairX = w0 - 1;
         int stairY = h0 / 2;
         if (stairX < w0 && stairY < h0)
         {

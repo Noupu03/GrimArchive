@@ -275,11 +275,15 @@ public static class FloorConfigFactory
 	{
 		return new FloorConfig[]
 		{
-			// Floor 0: 입구/로비 (크기는 이후 단계에서 결정)
+			// Floor 0: 던전 입구(2026-08-20, "던전 입구 구조 프로그래머 지시서") — 1×3 청크 고정
+			// 프리셋(가시 영역) + 최좌측에 플레이어에게 안 보이는 1×1 스폰 청크 1개, 합쳐서
+			// width=4, height=1. GenerateFloor0은 이 4청크 전체를 여전히 단일 StartRoom으로 균일하게
+			// 채운다(기존 로직 그대로) — 숨김 스폰 청크가 "안 보임"은 별도 렌더링 분리 없이
+			// CameraController의 층별 카메라 관찰 범위 제한(Floor0HiddenChunksX)만으로 구현한다.
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_0,
-				width = 3, height = 3,
+				width = 4, height = 1,
 				normalRoomCount = 0, subPurposeRoomCount = 0,
 				bossRoomFormat = "",
 				wallThicknessMin = 1, wallThicknessMax = 1,

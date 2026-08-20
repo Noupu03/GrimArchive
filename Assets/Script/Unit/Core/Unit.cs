@@ -479,6 +479,12 @@ public class Human : UnitFunction
 	// 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
 
+	// 던전 입구 구조(2026-08-20, "던전 입구 구조 프로그래머 지시서") — DungeonEntranceSystem이 0층
+	// 숨은 스폰 청크→1x3 입구→계단까지 파티 진형을 직접(GOAP 우회) 제어하는 동안 켜진다.
+	// NavigationFSMState의 자유탐색(Goal_Explore)이 이 값이 켜진 동안 끼어들지 않도록 막는 용도 —
+	// isMustered(몬스터 소집)와 동일한 성격이지만, 인류 전용 별개 개념이라 필드도 따로 둔다.
+	public bool isInDungeonEntranceSequence = false;
+
 	// 6-1장 두 번째 조건("직접 시야로 상호작용 유닛을 확인한 일반 탐색 유닛") + 8-2장 판정에 쓴다 —
 	// 함정 대응이나 조사 중이면(=다른 유닛이 나를 호위할 만한 상황이면) true. 함정 쪽은 "함정 위치에
 	// 실제로 도달했을 때"만 true로 좁혔다(2026-07-22, 사용자 신고 — 함정이 이미 해제됐는데도 주변이
