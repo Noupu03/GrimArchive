@@ -452,22 +452,24 @@ namespace GrimArchive.Wave
         // 이름을 최대 max개 반환한다. 이미 사전 스폰된 파티가 있으면(마지막 PreSpawnLeadSeconds
         // 구간) 그 실제 구성을, 아직 스폰 전이면 waveData에 정의된 다음 웨이브의 인류 파티 구성을
         // 그대로 사용한다(실제 스폰과 동일한 순서 — 위 PreSpawnWaveUnits 참고).
+        //
+        // 2026-08-20 사용자 신고("기사형 3명이 떠버려서 어색하다") — 예전엔 파티 순서대로 앞 max명을
+        // 그대로 뽑아서, 같은 유형이 앞쪽에 몰려 있으면 그 유형만 중복으로 보였다. 유형별로 먼저
+        // 하나씩 채우고(BuildDistinctFirstTypeNames), 실제 유형 종류가 max보다 적을 때만 중복을
+        // 허용해 남은 자리를 채운다(사용자 요청 "유형별로 1개씩... 유형이 3개 미만이라면 중복 허용").
         public List<string> GetApproachingPartyTypeNames(int max)
         {
-            var result = new List<string>();
+            var allNames = new List<string>();
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
             {
                 foreach (var member in preSpawnedParty.Members)
                 {
                     if (member == null || member.unitType == null) continue;
-                    result.Add(member.unitType.typeName);
-                    if (result.Count >= max) return result;
+                    allNames.Add(member.unitType.typeName);
                 }
-                return result;
             }
-
-            if (targetSpawner != null && targetSpawner.waveData != null && targetSpawner.waveData.parties != null)
+            else if (targetSpawner != null && targetSpawner.waveData != null && targetSpawner.waveData.parties != null)
             {
                 foreach (var config in targetSpawner.waveData.parties)
                 {
@@ -476,11 +478,33 @@ namespace GrimArchive.Wave
                     {
                         if (string.IsNullOrEmpty(group.unitTypeName)) continue;
                         for (int i = 0; i < group.count; i++)
-                        {
-                            result.Add(group.unitTypeName);
-                            if (result.Count >= max) return result;
-                        }
+                            allNames.Add(group.unitTypeName);
                     }
+                }
+            }
+
+            return BuildDistinctFirstTypeNames(allNames, max);
+        }
+
+        // 서로 다른 유형을 우선 하나씩 채우고, 유형 종류가 max보다 적을 때만 원래 순서대로 다시 채워
+        // 남는 자리를 중복으로 메운다. 실제 인원수(allNames.Count)보다 많은 아이콘은 만들지 않는다
+        // (인원이 2명뿐인데 3개를 채우겠다고 없는 3번째를 지어내지 않음).
+        private static List<string> BuildDistinctFirstTypeNames(List<string> allNames, int max)
+        {
+            int cap = Mathf.Min(max, allNames.Count);
+            var result = new List<string>();
+
+            foreach (var name in allNames)
+            {
+                if (result.Count >= cap) break;
+                if (!result.Contains(name)) result.Add(name);
+            }
+            if (result.Count < cap)
+            {
+                foreach (var name in allNames)
+                {
+                    if (result.Count >= cap) break;
+                    result.Add(name);
                 }
             }
 

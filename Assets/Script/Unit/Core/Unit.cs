@@ -756,6 +756,10 @@ public class Monster : UnitFunction
         FactionBehavior = new PlayerMonsterBehavior();
     }
 
+	// 몬스터용 개인 지도(2026-08-20, 사용자 요청) — Human.personalMap과 동일한 노출 패턴, 다만
+	// 담는 내용은 지형 밝히기 + 함정 위치뿐(가중치 없음). UnitFunction.CastRay가 채운다.
+	public MonsterMapKnowledge monsterMap => Memory.monsterMap;
+
 	public override void JudgeState()
 	{
 		base.JudgeState();

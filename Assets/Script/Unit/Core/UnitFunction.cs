@@ -560,6 +560,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 		int mapHeight = floorData.config.height * 8;
 
 		Human terrainObserver = this as Human;
+		// 몬스터 개인 지도(2026-08-20, 사용자 요청 "몬스터들도 개인 지도는 있어야 한다") — 인류와
+		// 동일한 시야 파이프라인에 편승하되, 아래 ProcessTile에서 지형/함정만 기록하고 위험도·흥미도·
+		// 방·오브젝트 등록 등 인류 전용 로직(RegisterObject/ObserveRoomTileRevealed 등)은 타지 않는다.
+		Monster terrainObserverMonster = this as Monster;
 		var visionNonEmpty = Perception.State.visionOnlyNonEmptyTiles;
 
 		// 불투명 판정 함수: 벽/구조물/방 밖(방제한유닛)/완전차단오브젝트 → true
@@ -639,6 +643,17 @@ public abstract class UnitFunction : Unit, IVisionContext
 						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionNonEmpty.Contains(revealedTile))
 							visionNonEmpty.Add(revealedTile);
 					}
+				}
+			}
+			else if (terrainObserverMonster != null)
+			{
+				// 인류(PersonalMapKnowledge)와 달리 위험도·흥미도·방·오브젝트 등록은 전혀 하지 않는다
+				// (사용자 요청 "가중치 X") — 지형 기록 + 함정 위치만 단순히 남긴다.
+				terrainObserverMonster.monsterMap.RevealTile(revealedTile, tileIsWall);
+				if (!tileIsWall && Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject monsterSeenObj)
+					&& !monsterSeenObj.IsCollected && TagsContain(monsterSeenObj.Tags, "Trap"))
+				{
+					terrainObserverMonster.monsterMap.RecordTrap(monsterSeenObj.Id, monsterSeenObj.Position);
 				}
 			}
 
