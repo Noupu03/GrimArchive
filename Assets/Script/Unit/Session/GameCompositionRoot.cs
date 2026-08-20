@@ -82,6 +82,7 @@ public class GameCompositionRoot : CoreLifetimeScope
 
         // ���潺 ���μ��� (DI)
         builder.Register<OffenseProcessor>(Lifetime.Singleton).AsSelf();
+        builder.Register<DefenseProcessor>(Lifetime.Singleton).AsSelf();
 
         // ���̺� ������ - MonoBehaviour���� NativeRoutine���� ��ȯ
         builder.Register<WaveSpawner>(Lifetime.Singleton).AsSelf();

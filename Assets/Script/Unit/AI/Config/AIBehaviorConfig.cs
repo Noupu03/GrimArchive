@@ -25,6 +25,19 @@ public class AIBehaviorConfig : ScriptableObject
     public float tacticalPriority   = 50f;
     [Tooltip("항상 활성, 기본 탐색 우선순위 (기본 10)")]
     public float navigationPriority = 10f;
+    [Tooltip("소집(MusterFSMState) 우선순위 — Tactical(50)과 Idle(20) 사이. 소집 중인 유닛은 대기(배회)보다 항상 우선해 제자리를 지킨다 (내부 판단, 2026-08-20 사용자 요청 \"소집 규칙이 더 우선이여야 해\")")]
+    public float musterPriority = 30f;
+    [Tooltip("대기(IdleFSMState) 우선순위 — Muster(30)와 Navigation(10) 사이. 오펜스/디펜스 중이 아니고 소집도 아닌 방에서 명령 없는 플레이어 몬스터/야생 몬스터가 이 상태로 들어간다 (내부 판단, 2026-08-20 사용자 요청)")]
+    public float idlePriority = 20f;
+
+    // ── 대기 (IdleFSMState) ────────────────────────────────────────────────
+    [Header("대기 (IdleFSMState, 내부 판단 — 문서 미명시)")]
+    [Tooltip("1칸 이동 후 정지하는 최소 시간(초)")]
+    public float idlePauseMinSeconds = 2f;
+    [Tooltip("1칸 이동 후 정지하는 최대 시간(초)")]
+    public float idlePauseMaxSeconds = 4f;
+    [Tooltip("배회 기준점(플레이어 몬스터: 디펜스 시작 위치, 야생: 소환 위치)으로부터 벗어날 수 있는 최대 반경(칸, 체비쇼프 거리)")]
+    public int idleWanderRadius = 2;
 
     // ── 공황 ────────────────────────────────────────────────────────────────
     [Header("공황 (내부 판단 — 문서 미명시)")]

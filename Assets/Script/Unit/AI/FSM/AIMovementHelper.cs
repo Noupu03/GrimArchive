@@ -18,6 +18,59 @@ public static class AIMovementHelper
 	// 있던 것을 통합했다(2026-08-20).
 	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
 
+	// 방 제한 유닛의 무작위 인접 이동 — 8방향 중 유효한 칸(문/방 경계/벽/유닛 점유/대각선 코너 커팅 확인)을
+	// 찾아 1칸 이동한다. NavigationFSMState.MoveRandomlyValid(자유탐색 폴백)와 IdleFSMState(대기 상태
+	// 배회, 2026-08-20 신규)가 공유한다 — anchor/radius를 주면(체비쇼프 거리) 그 범위를 벗어나는 칸은
+	// 후보에서 제외해 "배회 기준점 주변 N칸"으로 반경을 제한할 수 있다(기본값은 무제한이라 기존
+	// MoveRandomlyValid 동작과 동일).
+	// forceRoomConfine(2026-08-20, 사용자 요청 "대기로 인한 이동 중일때는, 방 밖으로 나가면 안됨(문이
+	// 있는 타일도 안됨)") — 기본값(false)은 지금까지처럼 유닛의 MovementAlgorithm이 RoomConfinedMovement
+	// 일 때만 방/문 제한을 건다(NavigationFSMState의 자유탐색은 인류처럼 방 제한이 없는 유닛도 호출하므로
+	// 이 동작을 유지해야 한다). true면 MovementAlgorithm 종류와 무관하게 무조건 "현재 방 밖 금지 + 문
+	// 타일 금지"를 강제한다 — IdleFSMState가 이 값으로 호출해서, 스폰 경로에 따라 우연히
+	// RoomConfinedMovement가 안 붙은 플레이어 몬스터가 있더라도 대기 배회만큼은 절대 방을 벗어나지
+	// 않도록 보장한다.
+	public static bool TryMoveRandomlyWithinRadius(Unit unit, Vector2Int? anchor = null, int radius = int.MaxValue, bool forceRoomConfine = false)
+	{
+		bool roomConfined = forceRoomConfine || IsRoomConfined(unit);
+		Room myRoom = null;
+		if (roomConfined && unit.Session?.roomGrid != null)
+			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor), out myRoom);
+
+		int startOffset = Random.Range(0, 8);
+		for (int i = 0; i < 8; i++)
+		{
+			Dir tryDir = (Dir)((startOffset + i) % 8);
+			Vector2Int dirVec = unit.GetDirVector(tryDir);
+			Vector2Int nextPos = unit.position + dirVec;
+			if (!unit.CanMove(nextPos)) continue;
+
+			if (anchor.HasValue && ChebyshevDistance(nextPos, anchor.Value) > radius) continue;
+
+			if (roomConfined && unit.Session != null)
+			{
+				if (unit.Session.IsDoorTile(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor)))
+					continue;
+				if (myRoom != null)
+				{
+					if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor), out Room nextRoom)
+						|| nextRoom != myRoom)
+						continue;
+				}
+			}
+
+			// Move()의 대각선 코너 커팅 방지 로직과 동일하게 먼저 검사한다.
+			if (Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
+			{
+				if (!unit.CanMove(unit.position + new Vector2Int(dirVec.x, 0)) ||
+					!unit.CanMove(unit.position + new Vector2Int(0, dirVec.y))) continue;
+			}
+			unit.Move(tryDir);
+			return true;
+		}
+		return false;
+	}
+
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
 	// (NavigationFSMState.CrossStairs, HumanWaveManager의 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야
 	// 한다 — 2026-08-05 사용자 신고 "유닛끼리 겹친다"의 원인이 바로 이 지점들이었다: 전부

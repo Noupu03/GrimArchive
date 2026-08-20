@@ -75,6 +75,21 @@ namespace GrimArchive.Wave
         public bool IsMonstersSummonedThisCycle => monstersSummonedThisCycle;
         private Party preSpawnedParty;
 
+        // 소집 시점(2026-08-20, 사용자 요청 "소집 시점 바꿔줘. '인간 파티가 진입을 준비하고 있습니다'
+        // 시점에서 소집하게") — 예전엔 ApplyDefenseStartPositions가 PreSpawnWaveUnits(0층 스폰 시점)에서
+        // 곧바로 호출됐는데, 그건 "진입 준비" 문구(DungeonEntranceSystem.PrepareNoticeLeadSeconds, 웨이브
+        // 시작 6초 전)보다 훨씬 이른 시점이었다(ComputePreSpawnTriggerSeconds가 Waiting 10초까지 감안해
+        // 역산하므로). 이제는 그 6초 기준을 여기서도 그대로 써서(PreSpawnLeadSeconds, 두 클래스가 반드시
+        // 같은 값을 들고 있어야 함 — 위 주석 참고) "진입 준비" 문구와 같은 순간에 소집이 걸리게 한다.
+        private bool monsterMusterTriggered = false;
+        // preSpawnedParty만으로 "사전 스폰이 성공했는지"를 판단하면 안 되는 이유 — 던전 입구 시퀀스가
+        // 아주 빨리 끝나면(대기시간이 극단적으로 짧은 등) OnDungeonEntranceArrivedAtStairs가 위
+        // monsterMusterTriggered 체크(cooldownTimer<=PreSpawnLeadSeconds)보다 먼저 preSpawnedParty를
+        // null로 비워버릴 수 있다 — StartWave()의 "던전 입구 시퀀스가 빨리 끝난 극단적 경우" 주석과
+        // 같은 시나리오. 그 경우에도 소집은 이미 한 번 걸렸어야 하므로, "이번 사이클에 사전 스폰이
+        // 성공했다"는 사실 자체는 별도 플래그로 고정해서 preSpawnedParty가 나중에 비워져도 유지한다.
+        private bool preSpawnSucceeded = false;
+
         // 웨이브 게이지 진행도(2026-08-20, 사용자 요청) — waveData에 설정된 시간(waveCooldown) 그대로가
         // 실제 진행 바 시간이 되도록 단순 비율을 쓴다. "1층 진입 시작"(=Waiting 10초가 끝나고
         // WalkingToStairs로 넘어가는 순간, 사용자 확인)이 cooldownTimer==0과 같은 순간이 되도록
@@ -157,6 +172,16 @@ namespace GrimArchive.Wave
                     {
                         preSpawnTriggered = true;
                         PreSpawnWaveUnits();
+                    }
+                    // 소집 시점(위 monsterMusterTriggered/preSpawnSucceeded 주석 참고) — 사전 스폰이
+                    // 실제로 성공했을 때만 여기서 소집한다. 사전 스폰이 실패한 경로(0층 계단 위치를
+                    // 못 찾음 등)는 던전 입구 시퀀스 자체가 없어 "진입 준비" 문구도 안 뜨므로, 그 경우는
+                    // 여전히 StartWave()의 즉시 스폰 폴백이 그 자리에서 바로 소집한다.
+                    if (!monsterMusterTriggered && preSpawnSucceeded && cooldownTimer <= PreSpawnLeadSeconds)
+                    {
+                        monsterMusterTriggered = true;
+                        MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
+                        monstersSummonedThisCycle = true;
                     }
                     if (cooldownTimer <= 0f)
                     {
@@ -244,13 +269,15 @@ namespace GrimArchive.Wave
             if (members.Count == 0) return;
 
             preSpawnedParty = GameSession.Instance.CreateParty("PreSpawnParty", members);
+            preSpawnSucceeded = true;
             Debug.Log($"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
 
             // 몬스터 배치 프리셋(2026-08-19 재구현, 사용자 요청 "0층에 인류가 소환된 시점부터, 몬스터들은
-            // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 바로 이 지점이 "0층에 인류가
-            // 소환된 시점"이다.
-            MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
-            monstersSummonedThisCycle = true;
+            // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 처음엔 바로 이 지점("0층에
+            // 인류가 소환된 시점")에서 곧바로 소집했는데, 2026-08-20 사용자 요청("소집 시점 바꿔줘.
+            // '인간 파티가 진입을 준비하고 있습니다' 시점에서 소집하게")으로 실제 소집 호출은
+            // WaveLoop()의 cooldownTimer <= PreSpawnLeadSeconds 체크(위 monsterMusterTriggered)로
+            // 옮겨졌다 — 여기서는 그 체크가 참조할 preSpawnedParty만 준비해둔다.
 
             // 던전 입구 구조(2026-08-20) — 스폰 직후 곧바로 입구 진입 시퀀스(숨은 청크→1x3 입구
             // 이동→대기→계단 이동)를 시작한다. floor0StairPos는 ResolveStairPositions가 이미
@@ -865,6 +892,8 @@ namespace GrimArchive.Wave
 
             // 다음 웨이브 사이클을 위해 사전 스폰 관련 상태 초기화.
             preSpawnTriggered = false;
+            monsterMusterTriggered = false;
+            preSpawnSucceeded = false;
             monstersSummonedThisCycle = false;
             preSpawnedParty = null;
             stagingUnits.Clear();

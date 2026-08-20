@@ -16,21 +16,14 @@ public class NavigationFSMState : IFSMState
 				new BTLeaf(MoveToStairs),
 				new BTLeaf(CrossStairs)
 			),
-			// 2. 소집 대기 — 몬스터 배치 프리셋(2026-08-19 재구현): 소집 중인 몬스터는 기본 탐색을
-			// 멈추고 현재 위치에서 대기한다. 이 상태는 Combat/Tactical이 우선순위로 먼저 가로채지
-			// 않았을 때만 호출되므로(UnitFSM._states 순서) 전투/전술 AI는 그대로 유지된다.
-			new BTSequence(
-				new BTCondition(IsMustered),
-				new BTLeaf(HoldPosition)
-			),
-			// 3. 던전 입구 시퀀스 대기 — 던전 입구 구조(2026-08-20): DungeonEntranceSystem이 0층
+			// 2. 던전 입구 시퀀스 대기 — 던전 입구 구조(2026-08-20): DungeonEntranceSystem이 0층
 			// 스폰~계단 도달까지 파티 진형을 직접 제어하는 동안 자유탐색이 끼어들지 않게 막는다.
 			// pendingStairTargetFloor는 시퀀스가 끝나야 세팅되므로 위 1번 계단 이동 분기와 겹치지 않는다.
 			new BTSequence(
 				new BTCondition(IsInDungeonEntranceSequence),
 				new BTLeaf(HoldPosition)
 			),
-			// 4. 자유탐색 (원본 ExploreFSMState p=10)
+			// 3. 자유탐색 (원본 ExploreFSMState p=10)
 			new BTLeaf(RandomExplore)
 		);
 	}
@@ -148,10 +141,9 @@ public class NavigationFSMState : IFSMState
 
 
 
-	// ── 소집 대기 ─────────────────────────────────────────────────
-
-	private static bool IsMustered(Unit unit) => unit.isMustered;
-
+	// 소집 대기(IsMustered/HoldPosition)는 2026-08-20에 MusterFSMState로 분리됐다 — UnitFSM.cs 주석
+	// 참고("소집이 대기보다 우선"이라는 규칙을 배열 순서만으로 명확히 보장하기 위함). HoldPosition은
+	// 아래 던전 입구 시퀀스 대기 분기가 여전히 재사용한다.
 	private static BTStatus HoldPosition(Unit unit) => BTStatus.Running;
 
 	// ── 던전 입구 시퀀스 대기 ──────────────────────────────────────
@@ -241,47 +233,11 @@ public class NavigationFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	private static void MoveRandomlyValid(Unit unit)
-	{
-		// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서
-		// 다음 틱에 진짜 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다.
-		// 단 방 제한 유닛(RoomConfinedMovement)은 CanMove가 방 경계를 확인하지 않으므로 별도로 검사한다.
-		bool roomConfined = AIMovementHelper.IsRoomConfined(unit);
-		Room myRoom = null;
-		if (roomConfined && unit.Session?.roomGrid != null)
-			unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor), out myRoom);
-
-		int startOffset = Random.Range(0, 8);
-		for (int i = 0; i < 8; i++)
-		{
-			Dir tryDir = (Dir)((startOffset + i) % 8);
-			Vector2Int dirVec = unit.GetDirVector(tryDir);
-			Vector2Int nextPos = unit.position + dirVec;
-			if (!unit.CanMove(nextPos)) continue;
-
-			// 방 제한 유닛: RoomConfinedMovement.IsTileWalkable와 동일 기준(문 타일 + roomGrid) 재적용.
-			if (roomConfined && unit.Session != null)
-			{
-				if (unit.Session.IsDoorTile(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor)))
-					continue;
-				if (myRoom != null)
-				{
-					if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(nextPos.x, nextPos.y, unit.currentFloor), out Room nextRoom)
-						|| nextRoom != myRoom)
-						continue;
-				}
-			}
-
-			// Move()의 대각선 코너 커팅 방지 로직과 동일하게 먼저 검사한다.
-			if (Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
-			{
-				if (!unit.CanMove(unit.position + new Vector2Int(dirVec.x, 0)) ||
-					!unit.CanMove(unit.position + new Vector2Int(0, dirVec.y))) continue;
-			}
-			unit.Move(tryDir);
-			return;
-		}
-	}
+	// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서 다음 틱에 진짜
+	// 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다 — 실제 방 제한/
+	// 대각선 코너 커팅 검사는 AIMovementHelper.TryMoveRandomlyWithinRadius로 통합됐다(IdleFSMState와
+	// 공유, 2026-08-20).
+	private static void MoveRandomlyValid(Unit unit) => AIMovementHelper.TryMoveRandomlyWithinRadius(unit);
 
 	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
 	{

@@ -206,6 +206,20 @@ public abstract class Unit : ScriptableObject {
 	// 위치로 실제 이동 명령이 내려지며, 값이 없으면 기존 기본 행동(탐색)을 그대로 유지한다.
 	public Vector2Int? defenseStartPosition = null;
 
+	// 대기 상태(IdleFSMState, 2026-08-20 신규, 사용자 요청 "대기 상태를 새로 만들어줘... 야생의 경우...
+	// 소환 위치(야생) 주변 배회") — 야생 몬스터가 스폰된 좌표. GameSession.SpawnWildRoomGuards/
+	// WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅하고 그 뒤로는 안 바뀐다. 플레이어
+	// 진영 몬스터는 대신 위 defenseStartPosition을 배회 기준점으로 쓴다(사용자 확인, "야생과 동일하게
+	// anchor+2칸 반경").
+	public Vector2Int? summonPosition = null;
+
+	// IdleFSMState.OnEnter가 매번 다시 계산해 세팅하는 배회 기준점(위 summonPosition/defenseStartPosition
+	// 중 하나, 혹은 둘 다 없으면 진입 시점 위치)과 다음 1칸 이동이 허용되는 시각(Time.time 기준, 정지
+	// 시간이 지날 때마다 갱신) — 상태를 넘나들 때마다 새로 계산하므로 여기서는 그냥 마지막 값을 들고
+	// 있기만 한다.
+	public Vector2Int? idleAnchorPosition = null;
+	public float idleNextMoveTime = 0f;
+
 	// 위 이동이 걸리는 순간 함께 true가 된다 — 도착 후 NavigationFSMState가 기본 탐색 대신 제자리
 	// 대기("소집 대기")를 하게 만드는 플래그. 전투/전술 AI는 그대로 동작한다(탐색만 멈추는 것이지
 	// 전투 AI를 바꾸는 시스템이 아님). 해제 시점은 "어떤 형태로든 전투 시작을 인지한 시점"(UnitFSM이

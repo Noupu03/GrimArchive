@@ -81,7 +81,8 @@ public class WildBaseSpawnerComponent : IUnitComponent
         Monster monster = _owner.Session.unitGenerate.GenerateUnitAtPos<Monster>(monsterType, spawnPos, _owner.currentFloor);
         monster.FactionBehavior = new WildMonsterBehavior();
         monster.MovementAlgorithm = new RoomConfinedMovement();
-        
+        monster.summonPosition = spawnPos; // IdleFSMState 배회 기준점(소환 위치)
+
         _owner.Session.units.Add(monster);
         _owner.Session.RegisterUnitPos(monster, monster.position);
         _targetRoom.AddUnit(monster);

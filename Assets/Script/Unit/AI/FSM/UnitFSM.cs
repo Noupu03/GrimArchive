@@ -5,9 +5,13 @@ public class UnitFSM
 	private IFSMState   _current;
 	private readonly PlayerCommandFSMState _playerCommandState = new PlayerCommandFSMState();
 
-	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) →
-	// Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의 GetPriority가 0보다 크면 그 뒤는
-	// 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧 우선순위다.
+	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) → Muster(30,
+	// 2026-08-20 신규 — 소집 중인 유닛은 Idle/Navigation보다 항상 우선해 제자리 대기. "소집이 대기보다
+	// 우선"이라는 규칙을 배열 순서 자체로 보장하려고 전용 상태로 분리했다, MusterFSMState.cs 주석
+	// 참고) → Idle(20, 2026-08-20 신규 — 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/
+	// 야생의 "1칸 이동 후 정지" 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의
+	// GetPriority가 0보다 크면 그 뒤는 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧
+	// 우선순위다.
 	private readonly IFSMState[] _states;
 
 	public UnitFSM()
@@ -17,6 +21,8 @@ public class UnitFSM
 			_playerCommandState,
 			new CombatFSMState(),
 			new TacticalFSMState(),
+			new MusterFSMState(),
+			new IdleFSMState(),
 			new NavigationFSMState(),
 		};
 	}

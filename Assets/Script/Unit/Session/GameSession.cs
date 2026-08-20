@@ -38,6 +38,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     [Inject] public MapManager _mapManager { get; set; }
     [Inject] public OffenseProcessor _offenseProcessor { get; set; }
     public OffenseProcessor OffenseProcessor => _offenseProcessor;
+    [Inject] public DefenseProcessor _defenseProcessor { get; set; }
+    public DefenseProcessor DefenseProcessor => _defenseProcessor;
     private UnitRegistry _unitRegistry;
     private ObjectSpawner _objectSpawner;
     private Dictionary<InteractableObject, GameObject> objectVisuals = new Dictionary<InteractableObject, GameObject>();
@@ -465,6 +467,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Monster monster = _unitGenerate.GenerateUnitAtPos<Monster>(monsterType, spawnPos, room.Floor);
                 monster.FactionBehavior = new WildMonsterBehavior();
                 monster.MovementAlgorithm = new RoomConfinedMovement();
+                monster.summonPosition = spawnPos; // IdleFSMState 배회 기준점(소환 위치)
 
                 units.Add(monster);
                 // 2번: 동시 스폰된 유닛들이 같은 프레임에 actionCooldown이 만료돼 버스트가 일어나는
@@ -496,6 +499,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (_isShuttingDown) return;
 
         _offenseProcessor?.UpdateProcess();
+        _defenseProcessor?.UpdateProcess();
 
         // 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
         for (int i = units.Count - 1; i >= 0; i--)
@@ -895,7 +899,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
             if (u.IsPlayerMonsterFaction)
                 TryTriggerOffenseForUnit(u);
-                
+
+            // 디펜스 자동 트리거(2026-08-20, OffenseProcessor와 대칭): 야생/인류가 플레이어 방에
+            // 진입하면 즉시 디펜스 시작 — IdleFSMState가 "평시 배회 금지" 판단에 쓴다.
+            if (u.FactionBehavior is WildMonsterBehavior || u.FactionBehavior is HumanFactionBehavior)
+                TryTriggerDefenseForUnit(u);
+
+
             // 능동적 위협 감지: 유닛이 이동하여 활성화된 공격 범위로 직접 들어간 경우
             foreach (var caster in castingUnits)
             {
@@ -935,6 +945,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
         if (roomGrid.TryGetValue(gridPos, out Room room) && room.RoomFaction == FactionType.Wild)
             _offenseProcessor?.TryStartOffense(room, unit);
+    }
+
+    // TryTriggerOffenseForUnit의 대칭 — 야생/인류 유닛이 플레이어 소유 방으로 걸어 들어오면 디펜스 시작.
+    private void TryTriggerDefenseForUnit(Unit unit)
+    {
+        Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+        if (roomGrid.TryGetValue(gridPos, out Room room) && room.RoomFaction == FactionType.Player)
+            _defenseProcessor?.TryStartDefense(room, unit);
     }
 
     private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
