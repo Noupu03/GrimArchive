@@ -369,7 +369,7 @@ MonoBehaviour:
     statusResistance: 60
     maxMental: 0
     mental: 0
-    spotting: 65
+    spotting: 0
     leadershipRange: 0
     charisma: 0
     physicalAttackSpeed: 10

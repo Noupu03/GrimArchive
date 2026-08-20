@@ -197,7 +197,18 @@ public class PlayerCommandFSMState : IFSMState
 		// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "소집 도착 후 바라보는 방향을 설정하자") — 소집
 		// 중인 몬스터가 디펜스 시작 위치까지의 이동을 마치는 시점(=이동 명령 완료 시점)에 방향을
 		// 맞춘다. 시작방이면 그 방의 문을, 아니면 시작방쪽으로 가장 가까운 문을 바라본다.
-		if (unit.isMustered && unit.Session != null) MonsterDefensePlacementSystem.ApplyDefenseFacingDirection(unit.Session, unit);
+		// 2026-08-20, 사용자 요청 "소집 상태 동안... 문이 있는 타일에 서있지 않도록" — 배치 모드에서
+		// 플레이어가 문 타일에 직접 배치 위치를 지정했을 수 있으므로(열린 문은 통행 가능이라 배치 자체는
+		// 막히지 않음), 도착한 자리가 문 타일이면 방향을 정하기 전에 먼저 밀어낸다. 이 지점은
+		// GameSession.ProcessUnitAction의 ExecuteAction() 실행 도중이라(unit.position이 아직 unitGrid에
+		// 등록되지 않은 상태) updateUnitGrid=false로 넘겨 position만 바꾸고, 등록은 ProcessUnitAction의
+		// 기존 oldPos/최종 position diff 메커니즘에 맡긴다(MonsterDefensePlacementSystem.
+		// EnsureNotStandingOnDoorTile 주석 참고).
+		if (unit.isMustered && unit.Session != null)
+		{
+			MonsterDefensePlacementSystem.EnsureNotStandingOnDoorTile(unit.Session, unit, updateUnitGrid: false);
+			MonsterDefensePlacementSystem.ApplyDefenseFacingDirection(unit.Session, unit);
+		}
 
 		unit.playerMoveTarget        = null;
 		unit.isManualMoveCommand     = false;

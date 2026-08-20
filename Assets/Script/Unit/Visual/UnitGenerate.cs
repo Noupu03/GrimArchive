@@ -626,19 +626,16 @@ public class UnitGenerate
 				int x = pos.x + dx;
 				int y = pos.y + dy;
 
-				// C#의 정수 나눗셈/나머지는 0쪽으로 버림하므로(예: -1/8=0, -1%8=-1), 이 사전 체크
-				// 없이 바로 나누면 음수 좌표가 cx/cy=0으로 잘못 계산되고 tx/ty가 음수가 되어 아래
-				// c.chunk[tx, ty] 인덱싱에서 IndexOutOfRangeException이 난다(UnitFunction.CanMove와
-				// 동일한 버그 패턴).
+				// 버그 수정(2026-08-20, 사용자 신고 "계단 인접 유닛생산 건물에서 유닛 생산시, 계단
+				// 위로 스폰되는 경우가 있어") — 예전엔 여기서 c.chunk[tx,ty].name=="Wall"만 확인해서,
+				// 이름은 "Wall"이 아니지만 isStructureExist=true인 타일(계단 2x2 블록, TileFactory.
+				// Stair() 참고 — name="Stair", isStructureExist=true)은 걸러지지 않고 스폰 가능한
+				// 자리로 취급됐다. CreateMap.IsStaticTileWalkable(UnitFunction.CanMove와 동일 기준,
+				// name!="Wall" && !isStructureExist)로 교체해 청크 인덱싱 중복도 함께 없앤다 — 문
+				// 타일(아래 IsDoorTile 검사)은 열린 상태일 때 isStructureExist가 꺼져 있어도 여전히
+				// 별도로 막아야 하므로 그 검사는 그대로 둔다.
 				if (x < 0 || y < 0) return false;
-
-				int cx = x / 8; int cy = y / 8;
-				int tx = x % 8; int ty = y % 8;
-
-				if (cx >= floor.config.width || cy >= floor.config.height) return false;
-				Chunks c = floor.chunks[cx, cy];
-				if (c.roomId == -1 || c.chunk == null) return false;
-				if (c.chunk[tx, ty].name == "Wall") return false;
+				if (!cmap.IsStaticTileWalkable(floorIdx, new Vector2Int(x, y))) return false;
 				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
 				// 사용자 정정(2026-07-28, "문이 있는 자리에는... 몬스터 배치도 불가능(이동만 가능)")
 				// — 문은 통행은 가능해야 하므로(DoorSystem.DoorTag 주석 참고) 여기서는 스폰 위치

@@ -16,11 +16,13 @@ public class UIManager : MonoBehaviour
         _gameSession = gameSession;
     }
 
-    // 웨이브 시작 몇 초 전부터 알림을 띄울지(고정값, 2026-07-23 사용자 요청 "잠시 후, 웨이브가
-    // 시작됩니다"). HumanWaveManager.cooldownTimer가 이 값 이하로 떨어지는 순간(엣지 트리거) 딱 한
-    // 번 NoticeCenter에 Push한다(2026-08-19 수정, 사용자 요청 "이 문구들을 시스템화" — 매 프레임
-    // 조건부로 직접 그리던 방식에서, 알림 시스템(NoticeCenter)에 한 번 알리는 방식으로 교체).
-    private const float WaveStartWarningSeconds = 3f;
+    // 웨이브 시작 알림을 언제 띄울지(2026-07-23 사용자 요청 "잠시 후, 웨이브가 시작됩니다").
+    // 2026-08-20 수정, 사용자 요청 "문구 및 관련 표시들 등장하는 시점을 0층 몬스터 소환 시점으로
+    // 바꿔줘" — 예전엔 남은 시간이 고정값(3초) 이하로 떨어지는 순간이었는데, 이제 실제로 플레이어
+    // 몬스터들이 배치 위치로 소집되는 순간(HumanWaveManager.IsMonstersSummonedThisCycle이 켜지는
+    // 순간)에 맞춘다 — 몬스터 소집이 화면에 보이기 시작하는 시점과 알림이 항상 같이 뜬다. 지속시간도
+    // 고정값 대신 그 시점에 남은 실제 웨이브 시작까지의 시간(cooldownTimer)만큼 표시해 웨이브 시작과
+    // 거의 동시에 자연스럽게 사라지게 한다.
     private bool _waveStartNoticeShown;
 
     void OnGUI()
@@ -36,18 +38,15 @@ public class UIManager : MonoBehaviour
         HumanWaveManager wm = HumanWaveManager.Instance;
         if (wm == null) return;
 
-        bool inWarningWindow = wm.currentState == WaveState.Idle
-            && wm.cooldownTimer <= WaveStartWarningSeconds
-            && wm.cooldownTimer > 0f;
-
-        if (inWarningWindow && !_waveStartNoticeShown)
+        if (wm.currentState == WaveState.Idle && wm.IsMonstersSummonedThisCycle && !_waveStartNoticeShown)
         {
             _waveStartNoticeShown = true;
-            NoticeCenter.Instance?.Push("잠시 후, 웨이브가 시작됩니다.", NoticeCenter.WarningColor, WaveStartWarningSeconds);
+            float duration = Mathf.Max(0.1f, wm.cooldownTimer); // 소집 시점부터 실제 웨이브 시작까지 남은 시간만큼 표시
+            NoticeCenter.Instance?.Push("잠시 후, 웨이브가 시작됩니다.", NoticeCenter.WarningColor, duration);
         }
-        else if (!inWarningWindow && wm.currentState != WaveState.Idle)
+        else if (wm.currentState != WaveState.Idle)
         {
-            // 다음 웨이브 대기 사이클로 넘어가면 다시 엣지 트리거될 수 있도록 리셋.
+            // 웨이브가 실제로 시작되면(다음 대기 사이클에서 다시 엣지 트리거될 수 있도록) 리셋.
             _waveStartNoticeShown = false;
         }
     }

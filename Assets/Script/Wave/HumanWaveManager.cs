@@ -58,6 +58,17 @@ namespace GrimArchive.Wave
         // 수동 배회 코드가 전혀 필요 없다.
         private const float PreSpawnLeadSeconds = 6f;
         private bool preSpawnTriggered = false;
+        // 2026-08-20, 사용자 요청 "잠시후 웨이브가 시작됩니다 문구 및 관련 표시들 등장하는 시점을,
+        // 0층 몬스터 소환 시점으로 바꿔줘" — preSpawnTriggered는 "사전 스폰을 시도한 시점"일 뿐이고,
+        // 0층 계단 위치를 못 찾아 사전 스폰이 통째로 스킵되는 예외 경로(ResolveStairPositions 실패)
+        // 에서는 실제 몬스터 소집(MonsterDefensePlacementSystem.ApplyDefenseStartPositions)이 그보다
+        // 훨씬 나중인 StartWave()의 즉시 스폰 폴백 시점에야 일어난다 — 그래서 이 시도 시점 플래그
+        // 대신, 실제로 ApplyDefenseStartPositions가 호출된 순간에만 켜지는 전용 플래그를 따로 둔다.
+        // UIManager(웨이브 임박 알림)/WaveGaugePanel(게이지 점멸)이 각자 갖고 있던 시간/진행도
+        // 임계값 대신 이 플래그를 직접 구독해서 "정확히 몬스터 소집이 실제로 일어나는 순간"과 항상
+        // 일치하게 한다.
+        private bool monstersSummonedThisCycle = false;
+        public bool IsMonstersSummonedThisCycle => monstersSummonedThisCycle;
         private Party preSpawnedParty;
         // 아직 0층에서 계단으로 걸어가는 중(=목표 층에 아직 도착 못한) 파티원 집합 — MonitorWave/
         // UpdatePartyDestination의 목표물 추적 로직이 이 유닛들을 건드리지 않도록 걸러내는 데도 쓴다.
@@ -185,6 +196,7 @@ namespace GrimArchive.Wave
             // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 바로 이 지점이 "0층에 인류가
             // 소환된 시점"이다.
             MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
+            monstersSummonedThisCycle = true;
         }
 
         private bool ResolveStairPositions()
@@ -415,6 +427,7 @@ namespace GrimArchive.Wave
                     // 경로에서는 이미 그쪽에서 호출됐으므로 여기서 다시 부르지 않는다 — 그 사이(사전
                     // 스폰~웨이브 시작) 전투를 인지해 소집이 풀린 몬스터를 다시 소집시키는 부작용을 피한다.
                     MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
+                    monstersSummonedThisCycle = true;
                 }
                 else
                 {
@@ -710,6 +723,7 @@ namespace GrimArchive.Wave
 
             // 다음 웨이브 사이클을 위해 사전 스폰 관련 상태 초기화.
             preSpawnTriggered = false;
+            monstersSummonedThisCycle = false;
             preSpawnedParty = null;
             stagingUnits.Clear();
             pickupCandidateUnit = null;

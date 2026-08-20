@@ -53,9 +53,11 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     private const float BarTopMargin = 10f;
     private const float PartyIconSize = 26f;
 
-    // 도착 임박 구간(정규화 진행도 기준)과 점멸 속도 — 문서가 "정확한 강조 시작 시점과 점멸 속도는
-    // 구현 후 플레이 테스트를 통해 조정한다"고 명시 위임했으므로 우선 자리표시자 값을 쓴다.
-    private const float ImminentThresholdProgress = 0.85f;
+    // 도착 임박 점멸 속도 — 문서가 "정확한 점멸 속도는 구현 후 플레이 테스트를 통해 조정한다"고
+    // 명시 위임했으므로 우선 자리표시자 값을 쓴다. 점멸 시작 시점 자체는 진행도 임계값이 아니라
+    // HumanWaveManager.IsMonstersSummonedThisCycle(2026-08-20 수정, 사용자 요청 "잠시후 웨이브가
+    // 시작됩니다 문구 및 관련 표시들 등장하는 시점을 0층 몬스터 소환 시점으로 바꿔줘") — 실제로
+    // 플레이어 몬스터들이 배치 위치로 소집되는 순간과 항상 같이 켜진다.
     private const float BlinkSpeed = 6f;
 
     private void EnsureSprites()
@@ -99,7 +101,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
             waveApproaching = false;
         }
 
-        bool imminent = waveApproaching && progress >= ImminentThresholdProgress;
+        bool imminent = waveApproaching && wm.IsMonstersSummonedThisCycle;
         float blinkAlpha = imminent ? (0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * BlinkSpeed)) : 1f;
 
         float barHeight = BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);

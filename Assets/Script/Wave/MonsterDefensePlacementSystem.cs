@@ -38,6 +38,10 @@ public static class MonsterDefensePlacementSystem
             else
             {
                 unit.isMustered = true;
+                // 제자리 소집 위치가 마침 문 타일이면 밀어낸다 — 이 호출은 ProcessUnitAction의 틱
+                // 실행 밖(HumanWaveManager가 직접 호출)이라 unit.position이 곧 unitGrid 등록값이므로
+                // updateUnitGrid=true로 안전하게 즉시 Unregister/Register한다.
+                EnsureNotStandingOnDoorTile(session, unit, updateUnitGrid: true);
                 ApplyDefenseFacingDirection(session, unit); // 제자리 소집도 배치된 몬스터와 동일하게 방향을 맞춘다.
                 inPlaceCount++;
             }
@@ -76,8 +80,15 @@ public static class MonsterDefensePlacementSystem
         if (TryGetStartRoomId(session, unit.currentFloor, out int startRoomId) && room.RoomId == startRoomId)
         {
             // 시작방 — 이 층으로 올라오는 계단(이전 층으로 내려가는 계단) 방향을 바라본다.
-            found = session.cmap.TryGetStairApproachPosition(unit.currentFloor, unit.currentFloor - 1, unit.position, out target)
-                || session.cmap.TryGetStairPosition(unit.currentFloor, unit.currentFloor - 1, out target);
+            // 버그 수정(2026-08-20, 사용자 신고 "계단 인접 타일 유닛들이 바라보는 방향이 이상해") —
+            // 예전엔 TryGetStairApproachPosition(fromHint: unit.position)로 "계단을 둘러싼 진입 타일
+            // 링 중 자신과 가장 가까운 칸"을 목표로 삼았는데, 계단이 2x2라 그 링이 넓어서 소집된
+            // 유닛이 이미 그 링 위에 서 있는 경우가 흔했다 — 힌트가 곧 자기 위치라 결과도 자기 위치와
+            // 같은 칸으로 나와 diff==zero가 되고, 아래 "if (diff == Vector2Int.zero) return;"에 걸려
+            // 방향 갱신 자체가 조용히 스킵됐다. 계단 블록의 실제 좌표(TryGetStairPosition, 2x2 블록
+            // 자체는 isStructureExist라 유닛이 그 위에 설 수 없음 — diff가 항상 0이 아님이 보장됨)를
+            // 바로 목표로 쓰면 이 문제가 근본적으로 사라진다.
+            found = session.cmap.TryGetStairPosition(unit.currentFloor, unit.currentFloor - 1, out target);
         }
         else
         {
@@ -89,6 +100,60 @@ public static class MonsterDefensePlacementSystem
         Vector2Int diff = target - unit.position;
         if (diff == Vector2Int.zero) return;
         unit.currentDir = SkillAction.GetDirection8(diff);
+    }
+
+    // 소집 상태 동안 문 타일 위에 서 있지 않게(2026-08-20, 사용자 요청 "소집 상태 동안, 만약 문이
+    // 있는 타일 위에 있다면, 문이 있는 타일에 서있지 않도록 처리해줘") — 두 경로 모두에서 걸릴 수
+    // 있다: (1) 제자리 소집 위치가 우연히 문 타일인 경우, (2) 배치 모드에서 플레이어가 문 타일에
+    // 직접 배치 위치를 지정한 경우(TryStaticTileWalkable은 열린 문을 통행 가능으로 보므로 배치
+    // 자체는 막히지 않음). DoorSystem.PushUnitsOffClosedDoorTiles(문이 실제로 닫힐 때 그 위 유닛을
+    // 밀어내는 로직)와 동일한 "8방향 중 가장 가까운, 문이 아닌 갈 수 있는 칸" 탐색 + 즉시 텔레포트
+    // 관례를 재사용하되, 문 타일 자체도 후보에서 제외한다는 점만 다르다(AIMovementHelper.
+    // FindNearbyOpenTile은 열린 문도 CanMove가 true라 후보에 포함시켜 버림).
+    //
+    // updateUnitGrid — 두 호출부의 실행 컨텍스트가 달라서 꼭 필요하다. ApplyDefenseStartPositions의
+    // 제자리 소집 분기는 GameSession.ProcessUnitAction 밖(HumanWaveManager가 직접 호출)에서 도니까
+    // 이 시점의 unit.position이 곧 unitGrid에 실제로 등록된 값이라 true로 넘겨 안전하게 Unregister/
+    // Register한다. 반면 PlayerCommandFSMState.CompletePlayerCommand는 ProcessUnitAction의
+    // ExecuteAction() 안, 즉 "이번 틱 시작 시점 위치(oldPos)"를 아직 캡처만 해두고 실제 Register는
+    // ExecuteAction()이 끝난 뒤 ProcessUnitAction이 diff로 한 번에 처리하는 구간에서 실행된다 — 그
+    // 시점의 unit.position(막 이동해 도착한 문 타일)은 아직 unitGrid에 등록된 적이 없으므로, 여기서
+    // UnregisterUnitPos(그 좌표)를 부르면 하필 같은 칸에 있던 "다른" 유닛의 등록을 잘못 지울 위험이
+    // 있다 — false로 넘겨 position만 바꾸고, 등록은 ProcessUnitAction의 기존 oldPos/최종 position
+    // diff 메커니즘에 그대로 맡긴다(position이 이 함수 안에서 한 번 더 바뀌어도 그 diff는 항상
+    // "진짜 oldPos vs 최종 position"만 비교하므로 자연히 올바르게 처리된다).
+    public static void EnsureNotStandingOnDoorTile(GameSession session, Unit unit, bool updateUnitGrid)
+    {
+        Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+        if (!session.IsDoorTile(gridPos)) return;
+
+        Vector2Int best = unit.position;
+        int bestDist = int.MaxValue;
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                Vector2Int cand = unit.position + new Vector2Int(dx, dy);
+                if (!unit.CanMove(cand)) continue;
+                if (session.IsDoorTile(new Vector3Int(cand.x, cand.y, unit.currentFloor))) continue;
+
+                int dist = AIMovementHelper.ChebyshevDistance(cand, unit.position);
+                if (dist < bestDist) { bestDist = dist; best = cand; }
+            }
+        }
+
+        if (best == unit.position) return; // 문이 아니면서 갈 수 있는 인접 칸을 못 찾음(드묾) — 그대로 둠
+
+        if (!updateUnitGrid)
+        {
+            unit.position = best;
+            return;
+        }
+
+        session.UnregisterUnitPos(unit, unit.position);
+        unit.position = best;
+        session.RegisterUnitPos(unit, unit.position);
     }
 
     private static bool TryGetStartRoomId(GameSession session, int floorIndex, out int startRoomId)
