@@ -80,6 +80,12 @@ public class MonsterPlacementController
 
     public bool IsMouseOverPanel()
     {
+        bool overBottomMenu = BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI();
+        if (overBottomMenu) return true;
+
+        bool overInfoPanel = DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI();
+        if (overInfoPanel) return true;
+
         if (_placementSelectedRoom == null) return false;
         return GUIMouseUtil.IsMouseOverRect(GetPlacementPanelRect());
     }
@@ -97,6 +103,7 @@ public class MonsterPlacementController
             if (wm != null && wm.currentState != WaveState.Idle)
             {
                 LogHelper.Warning(LogHelper.GAME, "웨이브 진행 중에는 몬스터 배치 모드를 사용할 수 없습니다.");
+                NoticeCenter.Instance?.PushMomentary("웨이브 진행 중에는 몬스터 배치 모드를 사용할 수 없습니다.", NoticeCenter.WarningColor);
                 return;
             }
 
@@ -139,7 +146,7 @@ public class MonsterPlacementController
 
         // 사용자 요청(2026-08-19) "배치모드 완전히 종료 시에만 사라지게" — 진행 단계별 안내 알림은
         // 배치 모드가 완전히 끝날 때만 지운다(중간 단계 전환에서는 PushPersistent가 알아서 교체).
-        NoticeCenter.Instance?.Remove(PlacementNoticeKey);
+        NoticeCenter.Instance?.ClearFixed(PlacementNoticeKey);
 
         LogHelper.Log(LogHelper.GAME, "플레이어 몬스터 배치 모드 종료.");
     }
@@ -176,13 +183,13 @@ public class MonsterPlacementController
     {
         string text;
         if (_placementSelectedRoom == null)
-            text = "배치모드 : 배치모드를 실행할 점령된 방을 선택하세요.";
+            text = "소집 배치 모드 : 배치모드를 실행할 점령된 방을 선택하세요.";
         else if (_placementSubMode == PlacementSubMode.MonsterSelect)
-            text = "배치모드 : 배치를 사용할 유닛들을 선택하고, \"타일 선택\"으로 전환해주세요.";
+            text = "소집 배치 모드 : 배치를 사용할 유닛들을 선택하고, \"타일 선택\"으로 전환해주세요.";
         else
-            text = "배치모드 : 배치할 타일을 선택하고 R키를 눌러 배치모드를 종료하세요.";
+            text = "소집 배치 모드 : 배치할 타일을 선택하고 R키를 눌러 배치모드를 종료하세요.";
 
-        NoticeCenter.Instance?.PushPersistent(PlacementNoticeKey, text, NoticeCenter.InfoColor);
+        NoticeCenter.Instance?.PushFixed(PlacementNoticeKey, text, NoticeCenter.InfoColor);
     }
 
     // =====================================================
@@ -270,8 +277,10 @@ public class MonsterPlacementController
         // Phase 1: 방 미선택 — 좌클릭으로 점령한 방을 선택한다.
         if (_placementSelectedRoom == null)
         {
-            if (Mouse.current.leftButton.wasPressedThisFrame
-                && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
+            bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+                || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+            if (Mouse.current.leftButton.wasPressedThisFrame && !overUI)
             {
                 Vector2 mousePos = Mouse.current.position.ReadValue();
                 Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);

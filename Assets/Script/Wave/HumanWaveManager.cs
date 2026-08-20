@@ -174,6 +174,13 @@ namespace GrimArchive.Wave
                 // 파티는 여전히 입구에서 걸어들어오거나 대기 중일 수 있다 — 사용자 확인 사항).
                 // cooldownTimer를 그대로 넘겨 "진입 준비" 문구를 실제 웨이브 시작까지 남은 시간
                 // 기준으로 띄우게 한다(DungeonEntranceSystem.Update 참고).
+                //
+                // 2026-08-20: 한때 일시정지 중엔 Time.unscaledDeltaTime을 써서 이 시퀀스가 정지와
+                // 무관하게 진행되게 한 적이 있었는데, 사용자가 정정했다 — "notice가 시간에 영향받지
+                // 않게 하라는거지, 웨이브 로직이 시간에 영향 받지 않게 하란 소리가 아니야. 정지되면
+                // 웨이브 진행도 멈춰야지." notice 자체는 NoticeCenter가 이미 Time.unscaledDeltaTime로
+                // 페이드/지속시간을 계산해서 정지 영향을 안 받으므로, 여기서 별도 처리할 필요가 없었다.
+                // 게임 전체와 동일하게 Time.deltaTime을 그대로 쓴다(파티도 게임이 멈추면 같이 멈춘다).
                 _dungeonEntrance.Update(GameSession.Instance, Time.deltaTime, cooldownTimer, OnDungeonEntranceArrivedAtStairs);
 
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken: cts);

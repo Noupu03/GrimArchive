@@ -24,6 +24,38 @@ public class CameraController : MonoBehaviour
     private int _currentFloor = -1; // -1 = 아직 초기화 전(맵 로드 대기 중).
     private bool _floorViewInitialized = false;
 
+    // UI 리뉴얼(2026-08-20, "맵" 하단 메뉴 서브메뉴가 층 버튼 4개로 직접 층을 지정) — BottomMenuBar가
+    // VContainer 주입 대상이 아니라 정적 접근이 필요해 다른 매니저들(NoticeCenter.Instance 등)과 동일한
+    // 관례를 따른다.
+    public static CameraController Instance { get; private set; }
+    public int CurrentFloor => _currentFloor;
+
+    private void Awake()
+    {
+        Instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    // BottomMenuBar가 층 버튼 개수(현재는 문서 명시대로 4개 고정)를 실제 층 수와 대조해 범위 밖 버튼을
+    // 비활성화하는 데 쓴다.
+    public bool TryGetFloorCount(out int floorCount) => TryGetFloorCountStatic(out floorCount);
+
+    // 특정 층으로 즉시 이동(맵 메뉴 버튼용) — SwitchFloor(방향)와 달리 절대 인덱스를 받는다.
+    public void GoToFloor(int floorIndex)
+    {
+        if (!_floorViewInitialized || !TryGetFloorCountStatic(out int floorCount) || floorCount <= 0) return;
+
+        int clamped = Mathf.Clamp(floorIndex, 0, floorCount - 1);
+        if (clamped == _currentFloor) return;
+
+        _currentFloor = clamped;
+        SnapToFloorCenter(_currentFloor);
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoAttach()
     {
@@ -127,7 +159,7 @@ public class CameraController : MonoBehaviour
         return pos;
     }
 
-    private static bool TryGetFloorCount(out int floorCount)
+    private static bool TryGetFloorCountStatic(out int floorCount)
     {
         floorCount = 0;
         var cmap = GameSession.Instance?.cmap;
@@ -153,24 +185,4 @@ public class CameraController : MonoBehaviour
         return true;
     }
 
-    // 층 전환 UI(2026-08-20) — 화면 좌/우 가장자리 세로 중앙에 이전/다음 층 버튼을 둔다(기획서의
-    // "[: 이전 층, ]: 다음 층" 키 입력과 동일 동작). 다른 OnGUI 패널(DebugInfoPanel 등)과 겹치지
-    // 않는 화면 좌우 가장자리를 썼다.
-    private const float FloorButtonWidth = 36f;
-    private const float FloorButtonHeight = 48f;
-
-    void OnGUI()
-    {
-        if (!_floorViewInitialized) return;
-
-        float y = Screen.height * 0.5f - FloorButtonHeight * 0.5f;
-
-        if (GUI.Button(new Rect(8f, y, FloorButtonWidth, FloorButtonHeight), "<"))
-            SwitchFloor(-1);
-
-        if (GUI.Button(new Rect(Screen.width - FloorButtonWidth - 8f, y, FloorButtonWidth, FloorButtonHeight), ">"))
-            SwitchFloor(1);
-
-        GUI.Label(new Rect(Screen.width * 0.5f - 40f, 6f, 80f, 24f), $"<b>{_currentFloor}F</b>", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, richText = true, fontSize = 16 });
-    }
 }

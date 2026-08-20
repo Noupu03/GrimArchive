@@ -143,30 +143,14 @@ public static class HaareUISetup
         infoTmp.text = "";
         var infoCustomText = infoTextGo.AddComponent<CustomText>();
 
-        // 맵 저장/불러오기 버튼 (우상단)
-        GameObject saveGo = CreateCustomButton(tmpResources, "SaveButton", "Save");
-        saveGo.transform.SetParent(root.transform, false);
-        var saveRt = saveGo.GetComponent<RectTransform>();
-        saveRt.anchorMin = new Vector2(1, 1);
-        saveRt.anchorMax = new Vector2(1, 1);
-        saveRt.pivot = new Vector2(1, 1);
-        saveRt.anchoredPosition = new Vector2(-10, -10);
-        saveRt.sizeDelta = new Vector2(90, 30);
-
-        GameObject loadGo = CreateCustomButton(tmpResources, "LoadButton", "Load");
-        loadGo.transform.SetParent(root.transform, false);
-        var loadRt = loadGo.GetComponent<RectTransform>();
-        loadRt.anchorMin = new Vector2(1, 1);
-        loadRt.anchorMax = new Vector2(1, 1);
-        loadRt.pivot = new Vector2(1, 1);
-        loadRt.anchoredPosition = new Vector2(-10, -50);
-        loadRt.sizeDelta = new Vector2(90, 30);
-
+        // 맵 저장/불러오기 버튼은 UI 리뉴얼(2026-08-20)로 하단 메뉴 "debug" 서브탭(BottomMenuBar)으로
+        // 옮겨졌다 — 더 이상 이 패널에 붙이지 않는다.
         var debugPanel = root.AddComponent<DebugInfoPanel>();
         var so = new SerializedObject(debugPanel);
         so.FindProperty("selectedUnitInfoText").objectReferenceValue = infoCustomText;
-        so.FindProperty("saveButton").objectReferenceValue = saveGo.GetComponent<CustomButton>();
-        so.FindProperty("loadButton").objectReferenceValue = loadGo.GetComponent<CustomButton>();
+        // UI 리뉴얼(2026-08-20) — 하단 메뉴 바가 지금 차지한 높이만큼 이 박스를 매 프레임 위로 밀어
+        // 올리는 데 쓴다(DebugInfoPanel.RepositionInfoBoxAboveBottomMenu 참고).
+        so.FindProperty("infoBoxRect").objectReferenceValue = infoBoxRt;
         so.ApplyModifiedPropertiesWithoutUndo();
 
         string path = OutputFolder + "/DebugInfoPanel.prefab";
@@ -214,23 +198,6 @@ public static class HaareUISetup
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
         return prefab;
-    }
-
-    private static GameObject CreateCustomButton(TMP_DefaultControls.Resources tmpResources, string name, string label)
-    {
-        GameObject go = TMP_DefaultControls.CreateButton(tmpResources);
-        go.name = name;
-        Object.DestroyImmediate(go.GetComponent<Button>());
-        go.AddComponent<CustomImage>();
-        go.AddComponent<CustomButton>();
-
-        var textGo = go.transform.Find("Text (TMP)").gameObject;
-        var buttonTmp = textGo.GetComponent<TextMeshProUGUI>();
-        buttonTmp.font = GetKoreanFont();
-        buttonTmp.text = label;
-        textGo.AddComponent<CustomText>();
-
-        return go;
     }
 
     private static void RegisterAddressable(GameObject prefab, string address)

@@ -28,6 +28,13 @@ public class InputManager : MonoBehaviour
 	public List<Unit> selectedUnits = new List<Unit>();
 	public Action OnSelectionChanged;
 
+	// UI 리뉴얼(2026-08-20, "명령" 하단 메뉴의 "이동 및 공격" 토글) — 클릭/드래그 박스/더블클릭/Ctrl+
+	// 추가 선택은 이 토글과 무관하게 항상 가능하다(사용자 피드백: "기본 상태에서도 드래그로 다중
+	// 선택 등은 가능해야지"). 이 토글이 막는 건 실제 명령 발동(우클릭 이동)뿐 — 꺼진 기본 상태에서는
+	// 선택해서 정보만 볼 수 있고, 켜지면 우클릭으로 이동 명령을 내릴 수 있다. 문서 7줄 "기존 UI와
+	// 거의 동일한 방식의 모드. 시간은 계속 흐름"을 반영(별도 시간 정지 없음, 배치 모드류와 다름).
+	public bool IsCommandModeActive { get; private set; }
+
 	// 드래그 박스(스타크래프트식) 관련 상태
 	private const float DragThresholdPixels = 6f;
 	private bool _isMouseDown;
@@ -66,6 +73,113 @@ public class InputManager : MonoBehaviour
 		_buildPlacement = new BuildPlacementController(buildingManager, resourceManager);
 		_objectPlacement = new ObjectPlacementController(gameSession, unitGenerate, resourceManager);
 		_monsterPlacement = new MonsterPlacementController(gameSession, unitGenerate, unitSpriteManager, selectedUnits);
+	}
+
+	// =====================================================
+	// BottomMenuBar(2026-08-20 UI 리뉴얼)가 호출하는 공개 API — 키보드 단축키(R/B/V/O/P/C)와 정확히
+	// 같은 코드 경로를 타게 해서 키/버튼 두 입력이 어긋나지 않게 한다.
+	// =====================================================
+	public bool IsBuildPlacementActive => _buildPlacement != null && _buildPlacement.IsActive;
+	public bool IsObjectPlacementActive => _objectPlacement != null && _objectPlacement.IsActive;
+	public bool IsMonsterPlacementActive => _monsterPlacement != null && _monsterPlacement.IsActive;
+
+	// 개별 서브모드 단위 상태(2026-08-20, 사용자 신고 "자원 생산 건물과 유닛 생산 건물이 다중 선택되어
+	// 버리는 UI 버그") — BottomMenuBar가 설치/debug 서브메뉴 버튼을 각각 따로 하이라이트하고, 이미
+	// 활성인 버튼을 다시 눌렀을 때만 취소하도록(재클릭 토글) 판단하는 데 쓴다.
+	public bool IsUnitBuildModeActive => _buildPlacement != null && _buildPlacement.IsUnitBuildModeActive;
+	public bool IsResourceBuildModeActive => _buildPlacement != null && _buildPlacement.IsResourceBuildModeActive;
+	public bool IsObjectOnlyPlacementActive => _objectPlacement != null && _objectPlacement.IsObjectModeActive;
+	public bool IsTrapPlacementActive => _objectPlacement != null && _objectPlacement.IsTrapModeActive;
+	public bool IsCorePlacementActive => _objectPlacement != null && _objectPlacement.IsCoreModeActive;
+
+	// 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) BottomMenuBar가 "다른 메뉴로 전환" 또는 "같은
+	// 서브 버튼 재클릭" 시점에 호출하는 단일 취소 진입점. 소집 배치(MonsterPlacementController)는
+	// 별도의 토글 방식 진입/종료를 그대로 유지하므로 여기서 건드리지 않는다. 취소 notice도 (재클릭이든
+	// 메뉴 전환이든) 이 한 곳에서만 띄워서 두 경로가 서로 다른 문구를 중복해서 띄우지 않게 한다
+	// (2026-08-20, 사용자 요청 "메뉴를 통한 모드 클릭시 모두 notice로 설명이 뜨게").
+	public void ExitActivePlacementMode()
+	{
+		string label = GetActivePlacementModeLabel();
+		if (label == null) return;
+
+		_buildPlacement?.ExitMode();
+		_objectPlacement?.ExitMode();
+		NoticeCenter.Instance?.PushMomentary($"{label} 배치 모드 취소", NoticeCenter.InfoColor);
+	}
+
+	private string GetActivePlacementModeLabel()
+	{
+		if (IsUnitBuildModeActive) return "유닛 생산 건물";
+		if (IsResourceBuildModeActive) return "자원 생산 건물";
+		if (IsTrapPlacementActive) return "함정";
+		if (IsObjectOnlyPlacementActive) return "오브젝트";
+		if (IsCorePlacementActive) return "코어";
+		return null;
+	}
+
+	// 소집 배치(몬스터 배치 모드)는 자체 토글(Toggle)로만 열고 닫히므로 위 ExitActivePlacementMode의
+	// 대상이 아니다 — BottomMenuBar가 "소집 배치" 버튼이 아닌 다른 상단 버튼을 눌렀을 때 이 모드도
+	// 함께 취소하는 데 쓴다(2026-08-20, 사용자 요청 "소집 배치 메뉴도 다른 메뉴랑 중복되지 않게"). 진입/
+	// 종료 안내 notice는 MonsterPlacementController가 이미 자체적으로(RefreshPlacementModeNotice) 담당.
+	public void ExitMonsterPlacementModeIfActive()
+	{
+		if (_monsterPlacement != null && _monsterPlacement.IsActive)
+			_monsterPlacement.Toggle();
+	}
+
+	// "명령" 상위 메뉴를 닫거나 다른 메뉴로 전환할 때 "이동 및 공격" 토글도 함께 꺼지도록 하는 진입점
+	// (2026-08-20, 사용자 요청 "명령에서 상위 메뉴를 눌러 꺼버리면, 위에서 토글했던것들도 취소되게" —
+	// 예: 이동 및 공격을 켠 채로 명령 메뉴를 닫으면 다른 메뉴들이 그 상태로 동작 가능해지는 게 문제).
+	public void CancelCommandModeIfActive()
+	{
+		if (!IsCommandModeActive) return;
+		SetCommandModeActive(false);
+		NoticeCenter.Instance?.PushMomentary("명령 모드 꺼짐: 정보 조회만 가능합니다.", NoticeCenter.InfoColor);
+	}
+
+	public void SetCommandModeActive(bool active)
+	{
+		IsCommandModeActive = active;
+		if (!active)
+		{
+			_isMouseDown = false;
+			_dragBoxActive = false;
+		}
+	}
+
+	// "명령 취소" — 선택 여부와 무관하게 현재 실행 중인 모든 유닛의 이동/공격/상호작용 명령을 취소한다
+	// (문서: "실행중인 명령들 모두 취소").
+	public void CancelAllCommands()
+	{
+		int count = 0;
+		foreach (var u in _gameSession.units)
+		{
+			if (u == null) continue;
+			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue || u.isManualMoveCommand;
+			if (!hasCommand) continue;
+
+			u.playerMoveTarget = null;
+			u.playerAttackTarget = null;
+			u.playerInteractTarget = null;
+			u.isManualMoveCommand = false;
+			count++;
+		}
+
+		LogHelper.Log(LogHelper.GAME, $"명령 취소: {count}기의 이동/공격 명령을 취소했습니다.");
+		NoticeCenter.Instance?.PushMomentary($"모든 명령이 취소되었습니다. ({count}기)", NoticeCenter.InfoColor);
+	}
+
+	public void EnterUnitBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterBuildMode(); }
+	public void EnterResourceBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterResourceBuildMode(); }
+	public void EnterObjectPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterObjectMode(); }
+	public void EnterTrapPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterTrapMode(); }
+	public void EnterCorePlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterCoreMode(); }
+
+	public void ToggleMonsterPlacementMode()
+	{
+		bool inOtherPlaceMode = _buildPlacement.IsActive || _objectPlacement.IsActive;
+		if (inOtherPlaceMode) return;
+		_monsterPlacement.Toggle();
 	}
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
@@ -109,11 +223,12 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		// 플레이어 몬스터 배치 모드(2026-08-19 신규) — R키. 다른 배치 모드(빌드/오브젝트/함정/코어)와
 		// 배타적으로 동작한다 — 그쪽 모드 중엔 R을 무시하고, 이 모드 중엔 그쪽 단축키를 모두 막는다.
+		// UI 리뉴얼(2026-08-20) — "소집 배치" 하단 메뉴 버튼도 동일한 ToggleMonsterPlacementMode()를
+		// 호출한다(단일 진입점).
 		// =====================================================
-		bool inOtherPlaceMode = _buildPlacement.IsActive || _objectPlacement.IsActive;
-		if (Keyboard.current.rKey.wasPressedThisFrame && !inOtherPlaceMode)
+		if (Keyboard.current.rKey.wasPressedThisFrame)
 		{
-			_monsterPlacement.Toggle();
+			ToggleMonsterPlacementMode();
 		}
 
 		if (_monsterPlacement.IsActive)
@@ -130,18 +245,11 @@ public class InputManager : MonoBehaviour
 
 		// =====================================================
 		// 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드 단축키. B=유닛 생산 건물, V=자원 생산 건물.
-		// M키(구 몬스터 즉시 배치)는 이 MVP로 완전히 대체되어 삭제됨.
+		// M키(구 몬스터 즉시 배치)는 이 MVP로 완전히 대체되어 삭제됨. UI 리뉴얼(2026-08-20) — "설치"
+		// 하단 메뉴 서브버튼도 동일한 EnterUnitBuildMode()/EnterResourceBuildMode()를 호출한다.
 		// =====================================================
-		if (Keyboard.current.bKey.wasPressedThisFrame)
-		{
-			_objectPlacement.ExitMode(); // 오브젝트/함정/코어 배치 모드와 동시에 켜지지 않게 한다
-			_buildPlacement.EnterBuildMode();
-		}
-		if (Keyboard.current.vKey.wasPressedThisFrame)
-		{
-			_objectPlacement.ExitMode();
-			_buildPlacement.EnterResourceBuildMode();
-		}
+		if (Keyboard.current.bKey.wasPressedThisFrame) EnterUnitBuildMode();
+		if (Keyboard.current.vKey.wasPressedThisFrame) EnterResourceBuildMode();
 
 		if (_buildPlacement.IsActive)
 		{
@@ -155,9 +263,12 @@ public class InputManager : MonoBehaviour
 		// (사용자 요청, 2026-07-22 — 예전엔 O/P가 GameSession.HandleDebugInput에서 즉시 무작위 위치에
 		// 스폰했음).
 		// =====================================================
-		if (Keyboard.current.oKey.wasPressedThisFrame) { _buildPlacement.ExitMode(); _objectPlacement.EnterObjectMode(); }
-		if (Keyboard.current.pKey.wasPressedThisFrame) { _buildPlacement.ExitMode(); _objectPlacement.EnterTrapMode(); }
-		if (Keyboard.current.cKey.wasPressedThisFrame) { _buildPlacement.ExitMode(); _objectPlacement.EnterCoreMode(); }
+		// UI 리뉴얼(2026-08-20) — 오브젝트(O)/코어(C) 배치는 하단 메뉴 "debug" 서브탭으로, 함정(P)은
+		// "설치" 서브탭으로 옮겨졌다(기획 문서에 설치 메뉴로 유닛/자원 생산 건물/함정 3개만 명시돼
+		// 있어, 테스트용 오브젝트/코어 배치는 debug로 분류). 키보드 단축키는 그대로 유지.
+		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlacementMode();
+		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlacementMode();
+		if (Keyboard.current.cKey.wasPressedThisFrame) EnterCorePlacementMode();
 
 		if (_objectPlacement.IsActive)
 		{
@@ -165,12 +276,19 @@ public class InputManager : MonoBehaviour
 			return; // 배치 모드 중에는 유닛 선택 로직 스킵
 		}
 
+		// 선택(클릭/드래그 박스/더블클릭/Ctrl+추가)은 명령 모드와 무관하게 항상 가능하다 — "기본
+		// 상태에서는 정보 조회만 가능"(문서 19줄)이 막는 건 실제 명령 발동(우클릭 이동)뿐이고, 선택
+		// 자체까지 막으면 다중 선택으로 정보를 훑어보는 것조차 못 하게 된다(사용자 피드백, 2026-08-20:
+		// "기본 상태에서도 드래그로 다중 선택 등은 가능해야지").
 		UpdateSelectionDragAndClick(floorOffset, currentFloor, addHeld);
 
 		// =====================================================
-		// 우클릭 (이동) - 선택된 유닛 전원에게 명령
+		// 우클릭 (이동) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격" 토글이 켜져
+		// 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만 가능).
 		// =====================================================
-		if (Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0)
+		bool rightClickOverUI = (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+			|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+		if (IsCommandModeActive && Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0 && !rightClickOverUI)
 		{
 			Vector2 mousePos = Mouse.current.position.ReadValue();
 			Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
@@ -195,6 +313,9 @@ public class InputManager : MonoBehaviour
 				LogHelper.Warning(LogHelper.GAME,
 					$"목적지 방({destRoom.RoomName}) 인구수 초과로 이동 명령을 취소합니다. " +
 					$"(현재 {destRoom.CurrentPopulation} + 이동 {incomingPopulation} > 최대 {destRoom.MaxPopulation})");
+				NoticeCenter.Instance?.PushMomentary(
+					$"{destRoom.RoomName} 인구수 초과로 이동 명령을 취소합니다. ({destRoom.CurrentPopulation}+{incomingPopulation}/{destRoom.MaxPopulation})",
+					NoticeCenter.WarningColor);
 			}
 			else
 			{
@@ -232,9 +353,14 @@ public class InputManager : MonoBehaviour
 			}
 		}
 
-		// =====================================================
-		// 속도 / 일시정지 (그대로 유지)
-		// =====================================================
+		HandleGameSpeedShortcuts();
+	}
+
+	// =====================================================
+	// 속도 / 일시정지 — 명령 모드 게이팅과 무관하게 항상 동작해야 해서 별도 메서드로 뺐다(2026-08-20).
+	// =====================================================
+	private void HandleGameSpeedShortcuts()
+	{
 		if (Keyboard.current.spaceKey.wasPressedThisFrame)
 		{
 			_gameSession.isPaused = !_gameSession.isPaused;
@@ -284,7 +410,9 @@ public class InputManager : MonoBehaviour
 			// "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림"). 몬스터 배치 모드 패널도 동일 사유로 확인.
 			bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
 				|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel())
-				|| (_monsterPlacement.IsActive && _monsterPlacement.IsMouseOverPanel());
+				|| (_monsterPlacement.IsActive && _monsterPlacement.IsMouseOverPanel())
+				|| (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+				|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
 
 			if (!overUI)
 			{

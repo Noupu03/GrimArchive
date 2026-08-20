@@ -3,40 +3,80 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VContainer;
-using R3;
-using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
 using Haare.Client.UI;
-using Haare.Scripts.Client.Data;
-using Haare.Util.Loader;
-using Haare.Util.Logger;
 
 // UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널.
 // 프리팹은 Assets/Editor/HaareUISetup.cs("Tools/GrimArchive/Haare UI 셋업 생성")로 생성/배선된다.
+// UI 리뉴얼(2026-08-20) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 하단 메뉴 "debug" 서브탭
+// (BottomMenuBar)으로 옮겨졌다. 이 패널은 이제 선택 유닛 정보 표시 + 마우스 휠 줌만 담당한다.
 [PanelAttribute("Prefabs/DebugInfoPanel")]
 public class DebugInfoPanel : MonoRoutine, ICustomPanel
 {
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
 
+    // BuildingControlPanel.Instance/BottomMenuBar.Instance와 동일 관례 — InputManager가 "지금
+    // 마우스가 이 정보창(박스+탭 버튼) 위에 있는가"를 물어볼 때 쓴다(2026-08-20, 사용자 신고 "세부
+    // 스탯에서 장비 클릭하면 화면이 사라져버려" — 이 정보창 위 클릭이 InputManager의 월드 클릭으로도
+    // 처리돼 선택이 풀리면서 정보 텍스트가 빈 문자열이 돼 버렸던 문제).
+    public static DebugInfoPanel Instance { get; private set; }
+
     [SerializeField] private CustomText selectedUnitInfoText;
-    [SerializeField] private CustomButton saveButton;
-    [SerializeField] private CustomButton loadButton;
+    // UI 리뉴얼(2026-08-20, 사용자 요청 "정보 UI랑 다른 UI 겹치지 않게, 메뉴로 생성된 UI 위에 쌓이는
+    // 방식으로") — 이 박스(InfoBox)의 RectTransform을 직접 들고 있다가, 하단 메뉴 바가 지금 차지하고
+    // 있는 높이(BottomMenuBar.GetReservedBottomLeftHeight, 서브메뉴 열림에 따라 매 프레임 바뀜)만큼
+    // 매 프레임 위로 밀어 올려서 겹치지 않게 한다.
+    [SerializeField] private RectTransform infoBoxRect;
 
     private const float ScrollZoomSpeed = 0.02f;
+    private const float InfoBoxBottomGap = 10f;
 
     private InputManager _inputManager;
-    private DataManager _dataManager;
-    private GameSession _gameSession;
-    private PropagationDebugVisualizer _propagationDebugVisualizer;
+
+    // "기본 정보"/"세부 스탯"/"장비" 탭(2026-08-20, 사용자 요청, 림월드 캐릭터창 참고) — 장비는 아직
+    // 시스템 자체가 없어 자리만 만들고 "구현 예정" 문구만 보여준다. 각 탭은 사용자가 명시한 필드만
+    // 보여준다(기본 정보: 이름/진영/LV/EXP/킬카운트, 세부 스탯: 근력/내구/민첩/집중/마력/저항/감각/
+    // 통솔 — 그 외 HP/MP/정신력/파티/전투스탯/이동속도/위치/상태이상 등은 전부 표시 안 함).
+    private enum InfoTab { Basic, Stats, Equipment }
+    private InfoTab _currentTab = InfoTab.Basic;
 
     [Inject]
-    public void Construct(InputManager inputManager, DataManager dataManager, GameSession gameSession, PropagationDebugVisualizer propagationDebugVisualizer)
+    public void Construct(InputManager inputManager)
     {
         _inputManager = inputManager;
-        _dataManager = dataManager;
-        _gameSession = gameSession;
-        _propagationDebugVisualizer = propagationDebugVisualizer;
+    }
+
+    protected override void Constructor()
+    {
+        base.Constructor();
+        Instance = this;
+    }
+
+    // InputManager가 월드 클릭 처리 전에 확인하는 공개 API(BuildingControlPanel.IsMouseOverPanel과
+    // 동일 관례) — 정보 박스 + 탭 버튼(있으면) + 우상단 유닛 편집 창(있으면)을 모두 포함한다.
+    public bool IsMouseOverUI()
+    {
+        if (infoBoxRect != null && _inputManager != null && _inputManager.selectedUnits.Count > 0)
+        {
+            bool tabsVisible = _inputManager.selectedUnits.Count == 1;
+            float extraTop = tabsVisible ? (TabHeight + TabGap) : 0f;
+
+            float left = infoBoxRect.anchoredPosition.x;
+            float width = infoBoxRect.sizeDelta.x;
+            float height = infoBoxRect.sizeDelta.y + extraTop;
+            float top = Screen.height - (infoBoxRect.anchoredPosition.y + infoBoxRect.sizeDelta.y + extraTop);
+
+            if (GUIMouseUtil.IsMouseOverRect(new Rect(left, top, width, height))) return true;
+        }
+
+        if (_inputManager != null && _inputManager.selectedUnits.Count > 0
+            && GUIMouseUtil.IsMouseOverRect(new Rect(Screen.width - 220, 360, 200, 150)))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public void OpenPanel()
@@ -52,51 +92,12 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     public void BindEvent()
     {
-        // 프리팹이 스크립트보다 오래돼서(Tools > GrimArchive > Haare UI 셋업 생성 재실행 전) 참조가
-        // 비어있는 경우 하나가 null이어도 나머지 바인딩까지 통째로 죽지 않도록 방어적으로 처리한다.
-        if (saveButton == null || loadButton == null)
-        {
-            LogHelper.Error(LogHelper.GAME,
-                "DebugInfoPanel 필드가 비어 있습니다. Tools > GrimArchive > Haare UI 셋업 생성을 다시 실행해서 프리팹을 갱신하세요.");
-        }
-
-        if (saveButton != null) saveButton.Onclicked.Subscribe(_ => SaveMapAsync().Forget()).AddTo(disposables);
-        if (loadButton != null) loadButton.Onclicked.Subscribe(_ => LoadMapAsync().Forget()).AddTo(disposables);
     }
 
     private void Zoom(float delta)
     {
         if (Camera.main == null) return;
         Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize + delta, 5f, 50f);
-    }
-
-    // 유닛 상태는 저장 대상이 아님 — 맵(층/청크/타일/점령 상태)만 저장/복원한다.
-    private async UniTaskVoid SaveMapAsync()
-    {
-        var cmap = _gameSession != null ? _gameSession.cmap : null;
-        if (cmap == null) return;
-
-        var dto = MapSerializer.MapToDto(cmap.map);
-        await _dataManager.SaveData<MapSaveModel, MapSerializer.MapDto>(null, dto);
-        LogHelper.Log(LogHelper.GAME, "맵 저장 완료 (Save/map.json)");
-    }
-
-    private async UniTaskVoid LoadMapAsync()
-    {
-        var cmap = _gameSession != null ? _gameSession.cmap : null;
-        if (cmap == null) return;
-
-        if (!AssetLoader.Exists("Save/map.json"))
-        {
-            LogHelper.Warning(LogHelper.GAME, "저장된 맵이 없습니다.");
-            return;
-        }
-
-        var model = await _dataManager.GetModel<MapSaveModel>();
-        if (model == null) return;
-
-        cmap.ApplyMap(model.Map);
-        LogHelper.Log(LogHelper.GAME, "맵 불러오기 완료");
     }
 
     private int _lastSelectionCount = -1;
@@ -115,6 +116,10 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             _lastSelectedUnit = currentFirst;
             RefreshSelectedUnitInfo();
         }
+
+        // 사용자 신고(2026-08-20) "정보창 배경이 계속 떠있잖아? 정보 열람할때만 뜨게" — InfoBox는
+        // OpenPanel() 이후로는 항상 SetActive(true)인 채였다. 선택된 유닛이 있을 때만 보이게 한다.
+        if (infoBoxRect != null) infoBoxRect.gameObject.SetActive(currentCount > 0);
     }
 
     protected override void UpdateProcess()
@@ -128,12 +133,22 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             if (!Mathf.Approximately(scroll, 0f))
                 Zoom(-scroll * ScrollZoomSpeed);
         }
+
+        RepositionInfoBoxAboveBottomMenu();
+    }
+
+    private void RepositionInfoBoxAboveBottomMenu()
+    {
+        if (infoBoxRect == null) return;
+
+        float reserved = BottomMenuBar.Instance != null ? BottomMenuBar.Instance.GetReservedBottomLeftHeight() : 0f;
+        Vector2 pos = infoBoxRect.anchoredPosition;
+        infoBoxRect.anchoredPosition = new Vector2(pos.x, InfoBoxBottomGap + reserved);
     }
 
     private void OnGUI()
     {
-        DrawVisionToggle();
-        DrawPropagationToggle();
+        DrawInfoTabs();
 
         if (_inputManager == null || _inputManager.selectedUnits.Count == 0) return;
 
@@ -173,62 +188,41 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         GUILayout.EndArea();
     }
 
-    // 우측 상단, 선택 상태와 무관하게 항상 보이는 전역 토글 — 켜면 모든 유닛의 시야 범위(연한
-    // 색)/인지 범위(진한 색)가 진영별 색(인류 파랑 계열/몬스터 빨강 계열)으로 동시에 표시된다
-    // (UnitGenerate.ShowAllVisionRanges, UnitVisual 참고).
-    private void DrawVisionToggle()
-    {
-        if (_gameSession == null || _gameSession.unitGenerate == null) return;
+    // 정보 박스(InfoBox) 바로 위에 "기본 정보"/"세부 스탯"/"장비" 탭 버튼 3개를 그린다. 유닛을 정확히
+    // 1기 선택했을 때만 의미가 있다(다중 선택/미선택 시엔 탭 없이 기존 목록/빈 텍스트 그대로). 탭이
+    // 3개로 늘어나서 박스 폭에 맞춰 버튼 폭을 동적으로 계산한다(고정폭이면 박스 밖으로 넘침).
+    private const float TabHeight = 26f;
+    private const float TabGap = 4f;
+    private const int TabCount = 3;
 
-        GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 200, 40));
-        bool current = _gameSession.unitGenerate.ShowAllVisionRanges;
-        if (GUILayout.Button($"시야 표시: {(current ? "켜짐" : "꺼짐")}"))
+    private void DrawInfoTabs()
+    {
+        if (infoBoxRect == null || _inputManager == null || _inputManager.selectedUnits.Count != 1) return;
+
+        float boxX = infoBoxRect.anchoredPosition.x;
+        float boxWidth = infoBoxRect.sizeDelta.x;
+        float boxTopY = Screen.height - (infoBoxRect.anchoredPosition.y + infoBoxRect.sizeDelta.y);
+        float y = boxTopY - TabHeight - TabGap;
+        float tabWidth = (boxWidth - (TabCount - 1) * TabGap) / TabCount;
+
+        DrawInfoTabButton(boxX, y, tabWidth, TabHeight, "기본 정보", InfoTab.Basic);
+        DrawInfoTabButton(boxX + (tabWidth + TabGap) * 1, y, tabWidth, TabHeight, "세부 스탯", InfoTab.Stats);
+        DrawInfoTabButton(boxX + (tabWidth + TabGap) * 2, y, tabWidth, TabHeight, "장비", InfoTab.Equipment);
+    }
+
+    private static readonly Color TabActiveColor = new Color(0.25f, 0.75f, 1f, 1f);
+    private static readonly Color TabInactiveColor = new Color(0.3f, 0.3f, 0.3f, 0.9f);
+
+    private void DrawInfoTabButton(float x, float y, float w, float h, string label, InfoTab tab)
+    {
+        Color prev = GUI.backgroundColor;
+        GUI.backgroundColor = _currentTab == tab ? TabActiveColor : TabInactiveColor;
+        if (GUI.Button(new Rect(x, y, w, h), label) && _currentTab != tab)
         {
-            _gameSession.unitGenerate.ShowAllVisionRanges = !current;
+            _currentTab = tab;
+            RefreshSelectedUnitInfo();
         }
-        GUILayout.EndArea();
-    }
-
-    // 항목별로 켜고 끌 수 있다(PropagationDebugVisualizer, 07 소리·전파 시스템 임시 검증용).
-    // 2026-08-05: 사용자 요청으로 단일 on/off 버튼을 색 표 기준별 개별 토글로 분리하고, 버튼 배경색을
-    // 켜짐/꺼짐에 따라 뚜렷하게 다르게 칠해 상태가 한눈에 보이게 했다(전에는 텍스트만 바뀌어서 눈에
-    // 잘 안 띈다는 지적을 받음). 켜짐일 땐 실제 원 색과 같은 색으로 칠해 표와 바로 대응되게 한다.
-    // 위치는 원래 우측 상단(시야 표시 토글 바로 아래)에 뒀었는데, StatusInfoPanel(오펜스 현황/자원
-    // 사용 안내, x:Screen.width-270~Screen.width-10, y:50~350)과 그대로 겹친다는 지적을 받아 좌측
-    // 상단으로 옮겼다 — UIManager.DrawTopLeftUI가 y10~100(FPS 카운터+게임 속도 표시)만 쓰고 나머지
-    // 좌측 상단 UI(유물 생성 모드/파티 상태 등)는 전부 주석 처리돼 죽어 있어서 y110부터는 비어 있다.
-    // 화면 하단 좌측(x10~250, BuildingControlPanel 왼쪽)의 선택 유닛 정보 UGUI 프리팹과도 세로로
-    // 충분히 떨어져 있어(그쪽은 화면 하단에서 위로 480px만 차지) 겹치지 않는다.
-    private const int PanelX = 10;
-    private const int PanelY = 110;
-    private static readonly Color OffButtonColor = new Color(0.4f, 0.4f, 0.4f);
-
-    private void DrawPropagationToggle()
-    {
-        if (_propagationDebugVisualizer == null) return;
-        var v = _propagationDebugVisualizer;
-
-        GUILayout.BeginArea(new Rect(PanelX, PanelY, 220, 240), GUI.skin.box);
-        GUILayout.Label("<b>소리/전파 시각화</b>");
-        DrawColorToggle("전파 범위", ref v.ShowPropagationRange, new Color(0.2f, 0.8f, 1f));
-        DrawColorToggle("이동음", ref v.ShowMovement, new Color(0.6f, 0.6f, 0.6f));
-        DrawColorToggle("공격 실행음", ref v.ShowAttackExecution, new Color(1f, 0.6f, 0f));
-        DrawColorToggle("피격 발생 공격음", ref v.ShowHitImpact, new Color(1f, 0.2f, 0.2f));
-        DrawColorToggle("피격 비명", ref v.ShowHitScream, new Color(1f, 0f, 0.6f));
-        DrawColorToggle("사망음", ref v.ShowDeath, Color.white);
-        DrawColorToggle("함정 작동음", ref v.ShowTrapActivation, new Color(1f, 1f, 0f));
-        GUILayout.EndArea();
-    }
-
-    // label 앞에 켜짐/꺼짐 표시 문자를 붙이고, 버튼 배경색을 켜짐이면 그 항목의 실제 원 색(진하게),
-    // 꺼짐이면 회색으로 칠한다 — 텍스트만으로 상태를 구분해야 했던 예전 버튼보다 훨씬 눈에 띈다.
-    private static void DrawColorToggle(string label, ref bool state, Color onColor)
-    {
-        Color prevColor = GUI.backgroundColor;
-        GUI.backgroundColor = state ? onColor : OffButtonColor;
-        if (GUILayout.Button(state ? $"■ {label} (ON)" : $"□ {label} (OFF)"))
-            state = !state;
-        GUI.backgroundColor = prevColor;
+        GUI.backgroundColor = prev;
     }
 
     private void RefreshSelectedUnitInfo()
@@ -249,58 +243,47 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         }
 
         Unit u = _inputManager.selectedUnit;
-        var sb = new StringBuilder();
+        string text = _currentTab switch
+        {
+            InfoTab.Basic => BuildBasicInfoTabText(u),
+            InfoTab.Equipment => BuildEquipmentTabText(u),
+            _ => BuildDetailedStatsTabText(u),
+        };
+        selectedUnitInfoText.SetupText(text);
+    }
 
-        // 2026-07-27 사용자 요청 — 파티 리더를 이름 옆 별표로 구분(어느 유닛이 7-3장 코어 조사 등을
-        // 담당하는 리더인지 클릭만으로 알 수 있게).
-        bool isLeader = u is Human leaderCheck && leaderCheck.party != null && leaderCheck.party.Leader == leaderCheck;
-        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}{(isLeader ? " <color=yellow>★(리더)</color>" : "")}");
+    // "기본 정보" 탭(2026-08-20, 사용자 명시) — 이름/진영/LV/EXP/킬카운트만.
+    private string BuildBasicInfoTabText(Unit u)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
         sb.AppendLine($"<b>진영:</b> {(u.IsHumanFaction ? "인류" : (u.IsPlayerMonsterFaction ? "플레이어 몬스터" : "야생 몬스터"))}");
         sb.AppendLine($"<b>LV:</b> {u.level}");
         sb.AppendLine($"<b>EXP:</b> {u.BaseStat.exp:F1}");
         sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");
-        sb.AppendLine();
-        sb.AppendLine($"<b>HP:</b> {u.Health.hp:F1}");
-        if (u is Human humanObj)
-        {
-            sb.AppendLine($"<b>MP:</b> {humanObj.Health.mp:F1}");
-            string panicStr = (humanObj.BaseStat.mental < humanObj.BaseStat.maxMental * 0.3f) ? " <color=red>공황</color>" : "";
-            sb.AppendLine($"<b>정신력:</b> {humanObj.BaseStat.mental:F1} / {humanObj.BaseStat.maxMental:F1}{panicStr}");
-            
-            if (humanObj.Memory.collectedObjects.Count > 0)
-                sb.AppendLine($"<color=yellow><b>Collected Objects:</b> {humanObj.Memory.collectedObjects.Count}</color>");
-            else
-                sb.AppendLine($"<b>Collected Objects:</b> 0");
+        return sb.ToString();
+    }
 
-            sb.AppendLine();
-            if (humanObj.UnitParty.party != null)
-            {
-                Party party = humanObj.UnitParty.party;
-                string wipeStr = party.IsWiped ? " <color=red>(전멸)</color>" : (party.WaveEnded ? " <color=cyan>(웨이브 종료)</color>" : "");
-                sb.AppendLine($"<b>파티:</b> {party.Name} ({party.Members.Count}명){wipeStr}");
-                foreach (var member in party.Members)
-                {
-                    if (member == null) continue;
-                    string color = member.Health.hp <= 0 ? "red" : (member == u ? "yellow" : "white");
-                    string self = member == u ? " ◀" : "";
-                    string leaderMark = member == party.Leader ? " ★" : "";
-                    sb.AppendLine($"  <color={color}>{member.unitType.typeName}{leaderMark}: {member.Health.hp:F0}/{member.Health.maxHp:F0}{self}</color>");
-                }
-            }
-            else
-            {
-                sb.AppendLine("<b>파티:</b> 없음");
-            }
-        }
+    // 림월드 캐릭터창의 "장비" 탭 참고(2026-08-20, 사용자 요청) — 장비 시스템 자체가 아직 없어서
+    // 슬롯 자리만 보여주고 전부 "구현 예정"으로 표시한다.
+    private string BuildEquipmentTabText(Unit u)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
         sb.AppendLine();
-        sb.AppendLine($"<b>물리공격력:</b> {u.CombatStat.physicalAttack:F1}");
-        sb.AppendLine($"<b>물리방어력:</b> {u.CombatStat.physicalDefense:F1}");
-        sb.AppendLine($"<b>마법공격력:</b> {u.CombatStat.magicalAttack:F1}");
-        sb.AppendLine($"<b>마법방어력:</b> {u.CombatStat.magicalDefense:F1}");
+        sb.AppendLine("<b>장비</b>");
+        sb.AppendLine("<color=grey>(구현 예정 — 아직 장비 시스템이 없습니다)</color>");
         sb.AppendLine();
-        sb.AppendLine($"<b>이동속도:</b> {u.BaseStat.walkSpeed:F1}");
-        sb.AppendLine();
-        sb.AppendLine("<b>기본 능력치</b>");
+        sb.AppendLine("무기: -");
+        sb.AppendLine("방어구: -");
+        sb.AppendLine("장신구: -");
+        return sb.ToString();
+    }
+
+    // "세부 스탯" 탭(2026-08-20, 사용자 명시) — 근력/내구/민첩/집중/마력/저항/감각/통솔만.
+    private string BuildDetailedStatsTabText(Unit u)
+    {
+        var sb = new StringBuilder();
         sb.AppendLine($"근력: {u.BaseStat.sterngth:F1}");
         sb.AppendLine($"내구: {u.BaseStat.Durability:F1}");
         sb.AppendLine($"민첩: {u.BaseStat.agility:F1}");
@@ -309,17 +292,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine($"저항: {u.resistance:F1}");
         sb.AppendLine($"감각: {u.BaseStat.sense:F1}");
         sb.AppendLine($"통솔: {u.leadership:F1}");
-        sb.AppendLine($"<b>위치:</b> ({u.position.x}, {u.position.y}) F{u.currentFloor}");
-
-        string statusStr = "";
-        if (u.StatusEffects.State.stunDuration > 0) statusStr += $"기절({u.StatusEffects.State.stunDuration:F1}s) ";
-        if (u.StatusEffects.State.slowDuration > 0) statusStr += $"둔화({u.StatusEffects.State.slowDuration:F1}s) ";
-        if (u.StatusEffects.State.poisonDuration > 0) statusStr += $"중독({u.StatusEffects.State.poisonDuration:F1}s) ";
-        if (u.StatusEffects.State.burnDuration > 0) statusStr += $"화상({u.StatusEffects.State.burnDuration:F1}s) ";
-        if (statusStr != "")
-            sb.AppendLine($"<color=red>상태이상: {statusStr}</color>");
-
-        selectedUnitInfoText.SetupText(sb.ToString());
+        return sb.ToString();
     }
 
     // 다수 선택 시 스탯 대신 보여줄 목록. 스탯 대신 "무엇이 선택돼 있는지"만 한눈에 보이면 되므로

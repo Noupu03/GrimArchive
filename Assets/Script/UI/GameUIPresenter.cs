@@ -61,6 +61,17 @@ public class GameUIPresenter : UIPresenter
                 Debug.LogError($"[UI] BuildingControlPanel 로드 실패: {e.Message}");
             }
 
+            // UI 리뉴얼(2026-08-20) — 좌하단 하단 메뉴 바, WaveGaugePanel처럼 항상 켜져 있어야 한다.
+            try
+            {
+                int bottomMenuPanelId = await _coreUIManager.LoadPanel<BottomMenuBar>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<BottomMenuBar>(bottomMenuPanelId).OpenPanel();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[UI] BottomMenuBar 로드 실패: {e.Message}");
+            }
+
             await FadeOut();
         }
         catch (System.Exception ex)

@@ -20,6 +20,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 07036edcd97646c4f8e8a168aea23138
+    m_Address: Prefabs/BottomMenuBar
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 11ddbe05fb42033419f826434f6c9193
     m_Address: Prefabs/GrimArchive_TitlePanel
     m_ReadOnly: 0

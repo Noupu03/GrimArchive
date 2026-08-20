@@ -208,6 +208,7 @@ public class BuildingManager : NativeRoutine
                     {
                         b.WaitingForRoomSpace = true;
                         LogHelper.Warning(LogHelper.GAME, $"방 인구수 초과로 생산을 중지합니다: {b.Position}");
+                        NoticeCenter.Instance?.PushMomentary($"방 인구수 초과로 생산이 중지됐습니다. ({b.Position})", NoticeCenter.WarningColor);
                     }
                     continue;
                 }

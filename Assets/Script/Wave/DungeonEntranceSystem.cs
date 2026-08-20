@@ -79,7 +79,7 @@ namespace GrimArchive.Wave
 
             foreach (var slot in _formation) slot.Unit.isInDungeonEntranceSequence = true;
 
-            NoticeCenter.Instance?.PushPersistent(EntranceNoticeKey, "인간 파티가 던전 입구로 이동 중입니다...", NoticeCenter.InfoColor);
+            NoticeCenter.Instance?.PushFixed(EntranceNoticeKey, "인간 파티가 던전 입구로 이동 중입니다...", NoticeCenter.InfoColor);
 
             // 이어지는 WalkingToStairs 단계에서 쓸 목적지를 미리 저장해둔다.
             _pendingStairApproachX = stairApproachX;
@@ -97,7 +97,7 @@ namespace GrimArchive.Wave
             if (!_prepareNoticeShown && cooldownTimerRemaining <= PrepareNoticeLeadSeconds)
             {
                 _prepareNoticeShown = true;
-                NoticeCenter.Instance?.PushPersistent(EntranceNoticeKey, "인간 파티가 진입을 준비하고 있습니다...", NoticeCenter.WarningColor);
+                NoticeCenter.Instance?.PushFixed(EntranceNoticeKey, "인간 파티가 진입을 준비하고 있습니다...", NoticeCenter.WarningColor);
             }
 
             PruneDead();
@@ -119,7 +119,7 @@ namespace GrimArchive.Wave
                     {
                         _targetX = _pendingStairApproachX;
                         _phase = Phase.WalkingToStairs;
-                        NoticeCenter.Instance?.PushPersistent(EntranceNoticeKey, "인간 파티가 던전으로 진입합니다!", NoticeCenter.WarningColor);
+                        NoticeCenter.Instance?.PushFixed(EntranceNoticeKey, "인간 파티가 던전으로 진입합니다!", NoticeCenter.WarningColor);
                     }
                     break;
 
@@ -142,7 +142,7 @@ namespace GrimArchive.Wave
                 if (slot.Unit == null) continue;
                 slot.Unit.isInDungeonEntranceSequence = false;
             }
-            NoticeCenter.Instance?.Remove(EntranceNoticeKey);
+            NoticeCenter.Instance?.ClearFixed(EntranceNoticeKey);
             _formation.Clear();
             _phase = Phase.Done;
         }

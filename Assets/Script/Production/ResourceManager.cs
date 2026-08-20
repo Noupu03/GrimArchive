@@ -81,6 +81,10 @@ public class ResourceManager : NativeRoutine
         }
 
         LogHelper.Warning(LogHelper.GAME, $"Not enough {type} to consume {amount}. Current: {(resources.ContainsKey(type) ? resources[type] : 0)}");
+        // 자원 부족은 플레이어 행동(건물/함정 설치, 유닛 생산 등)이 실패하는 원인이라 단일 지점에서
+        // notice로도 알린다(2026-08-20, 사용자 요청 "게임에 영향을 주는 실패로그들 notice로 뜨게") —
+        // 호출부마다 따로 notice를 띄우면 중복되므로 여기 한 곳으로 모은다.
+        NoticeCenter.Instance?.PushMomentary($"{type} 자원이 부족합니다. (필요: {amount})", NoticeCenter.WarningColor);
         return false;
     }
 
@@ -92,6 +96,7 @@ public class ResourceManager : NativeRoutine
             if (!HasEnoughResource(cost.resourceType, cost.amount))
             {
                 LogHelper.Warning(LogHelper.GAME, $"Not enough {cost.resourceType} to consume {cost.amount}.");
+                NoticeCenter.Instance?.PushMomentary($"{cost.resourceType} 자원이 부족합니다. (필요: {cost.amount})", NoticeCenter.WarningColor);
                 return false;
             }
         }

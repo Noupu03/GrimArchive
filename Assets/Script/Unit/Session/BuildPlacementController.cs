@@ -15,6 +15,11 @@ using Haare.Util.Logger;
 public class BuildPlacementController
 {
     public bool IsActive => _isBuildMode || _isResourceBuildMode;
+    // BottomMenuBar가 "유닛 생산 건물"/"자원 생산 건물" 서브버튼을 각각 따로 하이라이트/토글하는 데
+    // 쓴다(2026-08-20, 사용자 신고 "자원 생산 건물과 유닛 생산 건물이 다중 선택되어버리는 UI 버그" —
+    // 이전엔 합쳐진 IsActive만 있어서 둘 다 항상 같이 켜진 것처럼 보였다).
+    public bool IsUnitBuildModeActive => _isBuildMode;
+    public bool IsResourceBuildModeActive => _isResourceBuildMode;
 
     private readonly BuildingManager _buildingManager;
     private readonly ResourceManager _resourceManager;
@@ -71,15 +76,15 @@ public class BuildPlacementController
 
         _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos));
 
-        if (Mouse.current.rightButton.wasPressedThisFrame)
-        {
-            ExitMode();
-            return;
-        }
-
+        // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청 "우클릭 취소 없애고, 오직 메뉴 바꾸기 혹은 메뉴
+        // 다시 클릭으로 바꿀 수 있게") — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브
+        // 버튼을 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유).
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
-            if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+            bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+                || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+            if (!overUI)
             {
                 TryInstallBuilding(gridPos);
             }
@@ -100,6 +105,7 @@ public class BuildPlacementController
         if (!_buildingManager.CanInstallAt(gridPos))
         {
             LogHelper.Warning(LogHelper.GAME, "장애물이 있거나 설치할 수 없는 지형입니다.");
+            NoticeCenter.Instance?.PushMomentary("장애물이 있거나 설치할 수 없는 지형입니다.", NoticeCenter.WarningColor);
             return;
         }
 

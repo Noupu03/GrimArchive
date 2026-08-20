@@ -60,7 +60,15 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // (2026-07-27)로 그 오른쪽으로 옮겼다.
     private const int PanelX = 260;
 
-    private Rect GetPanelRect() => new Rect(PanelX, Screen.height - PanelHeight - 10, PanelWidth, PanelHeight);
+    // UI 리뉴얼(2026-08-20, 사용자 요청 "정보 UI랑 다른 UI 겹치지 않게, 메뉴로 생성된 UI 위에 쌓이는
+    // 방식으로") — 이 패널의 x 범위(260~520)가 하단 메뉴 바(x:10~약606)와 겹쳐서, 하단 바가 지금
+    // 차지한 높이(BottomMenuBar.GetReservedBottomLeftHeight, 서브메뉴 열림에 따라 매 프레임 바뀜)만큼
+    // 위로 밀어 올린다. DebugInfoPanel.RepositionInfoBoxAboveBottomMenu와 동일한 접근.
+    private Rect GetPanelRect()
+    {
+        float reserved = BottomMenuBar.Instance != null ? BottomMenuBar.Instance.GetReservedBottomLeftHeight() : 0f;
+        return new Rect(PanelX, Screen.height - PanelHeight - 10 - reserved, PanelWidth, PanelHeight);
+    }
 
     // 사용자 신고(2026-07-27) "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림" — OnGUI(IMGUI)는 UGUI의
     // EventSystem.IsPointerOverGameObject()로 감지가 안 돼서, 패널 안 버튼을 클릭해도 그 클릭이 그대로

@@ -14,6 +14,11 @@ using Haare.Util.Logger;
 public class ObjectPlacementController
 {
     public bool IsActive => _isObjectPlaceMode || _isTrapPlaceMode || _isCorePlaceMode;
+    // BottomMenuBar의 개별 서브버튼(오브젝트/함정/코어) 하이라이트·토글용(2026-08-20) —
+    // BuildPlacementController.IsUnitBuildModeActive/IsResourceBuildModeActive와 동일한 이유.
+    public bool IsObjectModeActive => _isObjectPlaceMode;
+    public bool IsTrapModeActive => _isTrapPlaceMode;
+    public bool IsCoreModeActive => _isCorePlaceMode;
 
     private readonly GameSession _gameSession;
     private readonly UnitGenerate _unitGenerate;
@@ -40,7 +45,7 @@ public class ObjectPlacementController
 
         // 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
         _ghost.Show(Resources.Load<Sprite>("obj/core"));
-        LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성, 우클릭: 취소)");
+        LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성)");
     }
 
     public void EnterTrapMode()
@@ -52,7 +57,7 @@ public class ObjectPlacementController
 
         // 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
         _ghost.Show(Resources.Load<Sprite>("obj/trap"));
-        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성, 우클릭: 취소)");
+        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성)");
     }
 
     // 03문서 7-3장(2026-07-27 신규) 테스트용 — 자원 소모 없이 즉시 배치(리더 전용 조사 흐름 검증 목적).
@@ -64,7 +69,7 @@ public class ObjectPlacementController
         _isCorePlaceMode = true;
 
         _ghost.Show(Resources.Load<Sprite>("obj/core"));
-        LogHelper.Log(LogHelper.GAME, "코어 배치 모드 진입 (테스트용, 좌클릭: 생성, 우클릭: 취소)");
+        LogHelper.Log(LogHelper.GAME, "코어 배치 모드 진입 (테스트용, 좌클릭: 생성)");
     }
 
     public void ExitMode()
@@ -87,15 +92,14 @@ public class ObjectPlacementController
 
         _ghost.UpdatePosition(gridPos, floorOffset, canPlace);
 
-        if (Mouse.current.rightButton.wasPressedThisFrame)
-        {
-            ExitMode();
-            return;
-        }
-
+        // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청) — BuildPlacementController.Update()와 동일한
+        // 이유. 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을 다시 눌러야 한다.
         if (Mouse.current.leftButton.wasPressedThisFrame && canPlace)
         {
-            if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+            bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+                || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+            if (!overUI)
             {
                 if (_isObjectPlaceMode)
                 {
@@ -105,7 +109,7 @@ public class ObjectPlacementController
                 else if (_isTrapPlaceMode)
                 {
                     // 돌 자원이 부족하면 배치를 취소하지 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에
-                    // 다시 시도할 수 있게 한다(배치 모드 자체는 우클릭으로만 취소).
+                    // 다시 시도할 수 있게 한다(배치 모드 자체는 메뉴 전환/재클릭으로만 취소).
                     if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost))
                     {
                         _gameSession.SpawnTrapAt(gridPos);
