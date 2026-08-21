@@ -505,9 +505,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
     // Outpost는 착색하지 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로").
     // 2026-07-31: 기존 타일별 SetTileFlags+SetColor(112k Material 인스턴스, 5.42 GB) →
     // 방 단위 SpriteRenderer 오버레이 쿼드로 교체(SetRoomOverlay 참고).
-    // 색상 alpha=0.5로 낮춰 바닥 텍스처가 비치게 한다 — 원래 타일 곱셈 착색과 다르지만 훨씬 가볍다.
-    private static readonly Color HumanRoomTint   = new Color(0.25f, 0.45f, 1f,  0.5f); // 인류 소유 — 반투명 파랑
-    private static readonly Color MonsterRoomTint  = new Color(1f,   0.25f, 0.25f, 0.5f); // 몬스터 점령 — 반투명 빨강
+    // 색상 alpha를 낮춰 바닥 텍스처가 비치게 한다 — 원래 타일 곱셈 착색과 다르지만 훨씬 가볍다.
+    // 2026-08-21, 사용자 신고 "점령 방 색깔이 너무 쨍해" — 0.5 → 0.32로 더 낮췄다(GUI/렌더링 비용과는
+    // 무관, SetRoomOverlay는 방 소유권이 바뀌는 순간에만 한 번 호출되는 정적 SpriteRenderer 색 설정이라
+    // 매 프레임 다시 계산되지 않는다 — 이 값을 낮춰도 프레임당 비용 변화는 없다). public으로 열어서
+    // OffenseProcessor.GetRoomOwnerColor가 이 값을 직접 참조하게 했다 — 예전엔 그쪽이 이 색을 alpha만
+    // 1.0으로 다르게 하드코딩해 중복 보관하고 있었는데(주석은 "동일하다"고 했지만 실제로는 안 그랬음),
+    // 방 소유권이 실제로 전환될 때(오펜스 성공 등)는 항상 그 하드코딩된 완전 불투명 버전이 칠해져서
+    // "쨍해 보임"의 실제 원인이었다 — 값 하나로 합쳐 드리프트 자체를 없앴다.
+    public static readonly Color HumanRoomTint   = new Color(0.25f, 0.45f, 1f,  0.32f); // 인류 소유 — 반투명 파랑
+    public static readonly Color MonsterRoomTint  = new Color(1f,   0.25f, 0.25f, 0.32f); // 몬스터 점령 — 반투명 빨강
 
     void ApplyOccupationTint(Tilemap tilemap, ref Floor floor, int floorIdx)
     {

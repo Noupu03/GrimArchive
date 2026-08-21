@@ -194,13 +194,16 @@ public class OffenseProcessor
     }
 
     // 점령 색상(2026-07-27, 사용자 정정: "인류 전체가 파랑, 플레이어는 몬스터 소속이고 빨간색") —
-    // MapRandering.HumanRoomTint/MonsterRoomTint(OccupationState 틴트 시스템)와 같은 색으로 맞춰서
-    // 두 시스템이 같은 의미(인류=파랑/플레이어=빨강)를 일관되게 쓰도록 한다. Wild(야생 탈환)는 특별한
-    // 색 없이 흰색(곱연산 항등원)으로 틴트를 해제해 원래 바닥색을 그대로 드러낸다.
+    // MapRandering.HumanRoomTint/MonsterRoomTint(OccupationState 틴트 시스템)를 직접 참조한다(2026-08-21
+    // 정리 — 예전엔 이 메서드가 같은 색을 alpha만 1.0으로 다르게 하드코딩해 따로 들고 있었는데, 주석은
+    // "동일하다"고 했지만 실제로는 방 소유권이 전환될 때만 훨씬 진한 색이 칠해지는 드리프트 버그였다
+    // (사용자 신고 "점령 방 색깔이 너무 쨍해"의 원인). 값을 하나로 합쳐 이제 두 경로가 항상 같은 색을
+    // 쓴다). Wild(야생 탈환)는 특별한 색 없이 흰색(곱연산 항등원)으로 틴트를 해제해 원래 바닥색을
+    // 그대로 드러낸다.
     private static UnityEngine.Color GetRoomOwnerColor(FactionType faction) => faction switch
     {
-        FactionType.Player => new UnityEngine.Color(1f, 0.25f, 0.25f, 1f),   // MapRandering.MonsterRoomTint와 동일
-        FactionType.Human => new UnityEngine.Color(0.25f, 0.45f, 1f, 1f),   // MapRandering.HumanRoomTint와 동일
+        FactionType.Player => MapRandering.MonsterRoomTint,
+        FactionType.Human => MapRandering.HumanRoomTint,
         _ => UnityEngine.Color.white,
     };
 
