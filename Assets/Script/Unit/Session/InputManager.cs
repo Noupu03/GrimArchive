@@ -28,12 +28,9 @@ public class InputManager : MonoBehaviour
 	public List<Unit> selectedUnits = new List<Unit>();
 	public Action OnSelectionChanged;
 
-	// UI 리뉴얼(2026-08-20, "명령" 하단 메뉴의 "이동 및 공격" 토글) — 클릭/드래그 박스/더블클릭/Ctrl+
-	// 추가 선택은 이 토글과 무관하게 항상 가능하다(사용자 피드백: "기본 상태에서도 드래그로 다중
-	// 선택 등은 가능해야지"). 이 토글이 막는 건 실제 명령 발동(우클릭 이동)뿐 — 꺼진 기본 상태에서는
-	// 선택해서 정보만 볼 수 있고, 켜지면 우클릭으로 이동 명령을 내릴 수 있다. 문서 7줄 "기존 UI와
-	// 거의 동일한 방식의 모드. 시간은 계속 흐름"을 반영(별도 시간 정지 없음, 배치 모드류와 다름).
-	public bool IsCommandModeActive { get; private set; }
+	// 2026-08-21, 사용자 요청으로 "이동 및 공격" 토글을 롤백 — 우클릭 이동/공격은 다시 별도 토글 없이
+	// 기본으로 항상 가능하다("명령 취소"/"집결 및 정지" 토글이 켜져 있을 때만 우클릭의 의미가 각각
+	// 명령 취소/집결 후 정지로 바뀐다, 아래 Update() 우클릭 분기 참고).
 
 	// 드래그 박스(스타크래프트식) 관련 상태
 	private const float DragThresholdPixels = 6f;
@@ -127,16 +124,11 @@ public class InputManager : MonoBehaviour
 			_monsterPlacement.Toggle();
 	}
 
-	// "명령" 상위 메뉴를 닫거나 다른 메뉴로 전환할 때 "이동 및 공격" 토글도 함께 꺼지도록 하는 진입점
-	// (2026-08-20, 사용자 요청 "명령에서 상위 메뉴를 눌러 꺼버리면, 위에서 토글했던것들도 취소되게" —
-	// 예: 이동 및 공격을 켠 채로 명령 메뉴를 닫으면 다른 메뉴들이 그 상태로 동작 가능해지는 게 문제).
+	// "명령" 상위 메뉴를 닫거나 다른 메뉴로 전환할 때 "명령 취소"/"집결 및 정지" 토글도 함께 꺼지도록
+	// 하는 진입점(2026-08-20, 사용자 요청 "명령에서 상위 메뉴를 눌러 꺼버리면, 위에서 토글했던것들도
+	// 취소되게"). "이동 및 공격"은 2026-08-21 롤백으로 더 이상 토글이 아니라 여기서 다룰 대상이 아니다.
 	public void CancelCommandModeIfActive()
 	{
-		if (IsCommandModeActive)
-		{
-			SetCommandModeActive(false);
-			NoticeCenter.Instance?.PushMomentary("명령 모드 꺼짐: 정보 조회만 가능합니다.", NoticeCenter.InfoColor);
-		}
 		if (IsCancelCommandModeActive)
 		{
 			SetCancelCommandModeActive(false);
@@ -149,43 +141,29 @@ public class InputManager : MonoBehaviour
 		}
 	}
 
-	public void SetCommandModeActive(bool active)
-	{
-		IsCommandModeActive = active;
-		// 우클릭 한 번이 여러 의미(이동/명령 취소/집결 및 정지)를 동시에 가지면 안 되므로 셋을 서로
-		// 배타로 둔다(2026-08-20, "명령 취소 로직을... 토글형으로" → "집결 및 정지" 모드 추가로 3종
-		// 확장).
-		if (active) { IsCancelCommandModeActive = false; IsRallyHaltModeActive = false; }
-		if (!active)
-		{
-			_isMouseDown = false;
-			_dragBoxActive = false;
-		}
-	}
-
 	// "명령 취소" 모드(2026-08-20 재설계, 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고, 해당
 	// 유닛들을 선택 후 우클릭을 눌러 즉시 명령 취소되게 하자") — 예전엔 버튼을 누르는 즉시 "모든 유닛"의
-	// 명령을 취소했는데(선택 여부 무관), 이제 "이동 및 공격"과 대칭 구조의 토글이다: 토글을 켠 뒤 유닛을
-	// 선택하고 우클릭하면 그 선택된 유닛들의 명령만 즉시 취소된다.
+	// 명령을 취소했는데(선택 여부 무관), 이제 토글이다: 토글을 켠 뒤 유닛을 선택하고 우클릭하면 그
+	// 선택된 유닛들의 명령만 즉시 취소된다. 기본 우클릭(이동/공격)과 배타적으로 동작한다.
 	public bool IsCancelCommandModeActive { get; private set; }
 
 	public void SetCancelCommandModeActive(bool active)
 	{
 		IsCancelCommandModeActive = active;
-		if (active) { SetCommandModeActive(false); IsRallyHaltModeActive = false; }
+		if (active) IsRallyHaltModeActive = false;
 	}
 
 	// "집결 및 정지" 모드(2026-08-20, 사용자 요청 "명령 메뉴에 '집결 및 정지' 모드를 넣어줘. 선택한
 	// 유닛들을 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고, 이동 후에는 '정지' 상태가 됨") —
-	// "이동 및 공격"과 대칭 구조의 토글이다. 켠 뒤 유닛을 선택하고 우클릭하면 이동 명령이 나가고
-	// (기존 IssueMoveCommand 재사용), 도착하면 Unit.isHalted가 켜져 UnitFSM이 절대 해제되지 않는
-	// "정지"(동상) 상태로 강제 고정한다(HaltFSMState.cs 참고) — 새 직접 명령이나 "명령 취소"만 예외.
+	// 켠 뒤 유닛을 선택하고 우클릭하면 이동 명령이 나가고(기존 IssueMoveCommand 재사용), 도착하면
+	// Unit.isHalted가 켜져 UnitFSM이 절대 해제되지 않는 "정지"(동상) 상태로 강제 고정한다(HaltFSMState.cs
+	// 참고) — 새 직접 명령이나 "명령 취소"만 예외.
 	public bool IsRallyHaltModeActive { get; private set; }
 
 	public void SetRallyHaltModeActive(bool active)
 	{
 		IsRallyHaltModeActive = active;
-		if (active) { SetCommandModeActive(false); IsCancelCommandModeActive = false; }
+		if (active) IsCancelCommandModeActive = false;
 	}
 
 	private void CancelSelectedUnitsCommands()
@@ -332,8 +310,8 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		// 우클릭 (명령 취소) - "명령 취소" 토글이 켜져 있을 때는 우클릭이 이동 대신 선택된 유닛들의
 		// 명령 취소로 동작한다(2026-08-20, 사용자 요청 "명령 취소 로직을... 토글형으로 바꾸고, 해당
-		// 유닛들을 선택 후 우클릭을 눌러 즉시 명령 취소되게"). SetCommandModeActive/SetCancelCommandModeActive가
-		// 서로 배타로 관리하므로 이 분기와 아래 이동 분기가 동시에 걸릴 일은 없다.
+		// 유닛들을 선택 후 우클릭을 눌러 즉시 명령 취소되게"). SetCancelCommandModeActive/
+		// SetRallyHaltModeActive가 서로 배타로 관리하므로 이 분기와 아래 이동 분기가 동시에 걸릴 일은 없다.
 		// =====================================================
 		if (IsCancelCommandModeActive && rightClickPressed)
 		{
@@ -341,13 +319,12 @@ public class InputManager : MonoBehaviour
 		}
 
 		// =====================================================
-		// 우클릭 (이동 / 집결 및 정지) - 선택된 유닛 전원에게 명령. "명령" 하단 메뉴의 "이동 및 공격"
-		// 또는 "집결 및 정지" 토글이 켜져 있을 때만 실제로 명령이 나간다(기본 상태에서는 정보 조회만
-		// 가능). 셋 다 서로 배타이므로(SetCommandModeActive 등 참고) 위 명령 취소 분기와 동시에 걸릴
-		// 일은 없다. "집결 및 정지"는 도착 후 Unit.isHalted를 켜도록 markHaltOnArrival만 다르게 넘긴다
-		// (2026-08-20, 사용자 요청).
+		// 우클릭 (이동 / 공격) - 선택된 유닛 전원에게 명령. 2026-08-21 롤백(사용자 요청) — 별도 토글
+		// 없이 기본으로 항상 동작한다. "집결 및 정지" 토글이 켜져 있으면 같은 우클릭이 도착 후
+		// Unit.isHalted를 켜는 집결 및 정지 명령으로 바뀐다(markHaltOnArrival). "명령 취소" 토글이
+		// 켜져 있을 때는 위 분기가 먼저 처리하므로 여기와 동시에 걸릴 일은 없다.
 		// =====================================================
-		else if ((IsCommandModeActive || IsRallyHaltModeActive) && rightClickPressed)
+		else if (rightClickPressed)
 		{
 			IssueMoveCommand(floorOffset, currentFloor, markHaltOnArrival: IsRallyHaltModeActive);
 		}

@@ -74,7 +74,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     // 한 번 뜨고 몇 초 뒤 자동으로 사라지는 일반 Push 방식으로 통일했다(NoticeCenter는 Push/PushPersistent
     // 둘 다 Time.unscaledDeltaTime 기반이라 원래도 게임 정지 영향은 안 받는다 — 여기서 바뀐 건 "계속
     // 떠 있음" → "클릭 시 한 번 뜨고 사라짐"뿐). 실제 Push 호출은 각 모드 진입/취소 지점
-    // (ToggleBuildSubMode/OnClickToggleCommandMode/InputManager.ExitActivePlacementMode 등)에 있다.
+    // (ToggleBuildSubMode/OnClickToggleCancelCommandMode/InputManager.ExitActivePlacementMode 등)에 있다.
 
     private enum MenuCategory { None, Command, Build, Map, Encyclopedia, Debug }
     private MenuCategory _activeCategory = MenuCategory.None;
@@ -213,7 +213,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         // "다른 버튼을 누르면 소집 배치를 취소" 규칙에서 제외한다(cancelMonsterPlacement: false) —
         // 안 그러면 이미 켜진 상태에서 다시 눌렀을 때 (취소 → 곧바로 재진입)이 되어 꺼지지 않는다.
         DrawBarButton(ref x, y, "소집 배치", _inputManager != null && _inputManager.IsMonsterPlacementActive, OnClickDeploy, cancelMonsterPlacement: false);
-        // 맵/debug는 정보 열람·시각화 위주라 "명령"의 이동 및 공격 토글과 공존해도 된다(사용자 확인,
+        // 맵/debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존해도 된다(사용자 확인,
         // 2026-08-20 "맵,debug는 제외. 다른 메뉴 가도 상관없음") — 이 둘만 cancelCommandMode: false.
         DrawBarButton(ref x, y, "맵", _activeCategory == MenuCategory.Map, () => ToggleCategory(MenuCategory.Map), cancelCommandMode: false);
         // 도감은 아직 기능이 없지만(문서: "추후 추가될 기능인데, 버튼만 미리 두기"), 다른 메뉴들과
@@ -234,9 +234,9 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             // 카테고리로 전환/같은 카테고리 닫기/도감) 그 시점에 진행 중이던 건물·오브젝트 배치 모드는
             // 함께 취소된다 — "메뉴 바꾸기"로 취소하는 경로. 소집 배치(몬스터 배치 모드)도 같은 이유로
             // 다른 메뉴와 겹치지 않도록 함께 취소한다(사용자 요청, 2026-08-20 "소집 배치 메뉴도 다른
-            // 메뉴랑 중복되지 않게"). "명령"의 이동 및 공격 토글도 마찬가지 — 메뉴를 닫거나 다른(맵/
-            // debug 제외) 메뉴로 가면 함께 꺼진다(사용자 요청, 2026-08-20 "상위 메뉴를 눌러 꺼버리면,
-            // 위에서 토글했던것들도 취소되게").
+            // 메뉴랑 중복되지 않게"). "명령"의 "명령 취소"/"집결 및 정지" 토글도 마찬가지 — 메뉴를
+            // 닫거나 다른(맵/debug 제외) 메뉴로 가면 함께 꺼진다(사용자 요청, 2026-08-20 "상위 메뉴를
+            // 눌러 꺼버리면, 위에서 토글했던것들도 취소되게").
             _inputManager?.ExitActivePlacementMode();
             if (cancelMonsterPlacement) _inputManager?.ExitMonsterPlacementModeIfActive();
             if (cancelCommandMode) _inputManager?.CancelCommandModeIfActive();
@@ -353,16 +353,17 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 명령 서브메뉴 — "명령 취소"(토글) + "이동 및 공격"(토글) + "집결 및 정지"(토글, 2026-08-20 신규) +
-    // 예정 1개. 2026-08-20, 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고..."로 "명령 취소"가
-    // "이동 및 공격"과 대칭 구조(토글 on → 선택 + 우클릭으로 발동)가 됐고, 이어서 "명령 메뉴에 '집결
-    // 및 정지' 모드를 넣어줘. 선택한 유닛들을 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고,
-    // 이동 후에는 '정지' 상태가 됨"으로 세 번째 토글이 추가됐다. 셋 다 InputManager 안에서 서로 배타로
-    // 관리된다(SetCommandModeActive/SetCancelCommandModeActive/SetRallyHaltModeActive).
+    // 명령 서브메뉴 — "명령 취소"(토글) + "집결 및 정지"(토글, 2026-08-20 신규) + 예정 1개. 2026-08-20,
+    // 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고..."로 "명령 취소"가 토글(토글 on → 선택 +
+    // 우클릭으로 발동) 구조가 됐고, 이어서 "명령 메뉴에 '집결 및 정지' 모드를 넣어줘. 선택한 유닛들을
+    // 우클릭을 통해 장소를 지정하면 해당 위치로 이동하고, 이동 후에는 '정지' 상태가 됨"으로 두 번째
+    // 토글이 추가됐다. 둘 다 InputManager 안에서 서로 배타로 관리된다(SetCancelCommandModeActive/
+    // SetRallyHaltModeActive). 기본 우클릭 이동/공격("이동 및 공격")은 2026-08-20에 잠깐 별도 토글로
+    // 분리됐다가 2026-08-21, 사용자 요청("명령의 이동 및 공격 항목을 기본 설정으로 빼줘(이전 상태로
+    // 롤백). 명령에서 굳이 선택하지 않아도 기본으로 이동 및 공격은 기존대로 시킬 수 있는거지")으로
+    // 다시 토글 없는 기본 동작으로 롤백됐다 — 메뉴에는 더 이상 항목이 없다(InputManager.Update()의
+    // 우클릭 분기가 명령 취소/집결 및 정지가 꺼져 있으면 항상 이동/공격을 낸다).
     // =====================================================
-    // 2026-08-20, 사용자 요청 "메뉴에서 이동 및 공격을 최상단으로 올려. 위에서부터 이동 및 공격,
-    // 집결 및 정지, 명령취소, (예정)으로 바꿔" — DrawVerticalSubmenu는 바로 아래에서부터 위로 쌓아
-    // 그리므로(리스트 앞쪽 항목일수록 화면상 더 아래) 화면 맨 위에 올 항목을 리스트 맨 뒤에 둔다.
     private List<SubmenuItem> BuildCommandItems()
     {
         return new List<SubmenuItem>
@@ -370,18 +371,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             new SubmenuItem("(예정)", false, false, null),
             new SubmenuItem("명령 취소", _inputManager != null && _inputManager.IsCancelCommandModeActive, true, OnClickToggleCancelCommandMode),
             new SubmenuItem("집결 및 정지", _inputManager != null && _inputManager.IsRallyHaltModeActive, true, OnClickToggleRallyHaltMode),
-            new SubmenuItem("이동 및 공격", _inputManager != null && _inputManager.IsCommandModeActive, true, OnClickToggleCommandMode),
         };
-    }
-
-    private void OnClickToggleCommandMode()
-    {
-        if (_inputManager == null) return;
-        bool newState = !_inputManager.IsCommandModeActive;
-        _inputManager.SetCommandModeActive(newState);
-        NoticeCenter.Instance?.PushMomentary(
-            newState ? "명령 모드 켜짐: 선택한 유닛에게 이동 명령을 내릴 수 있습니다." : "명령 모드 꺼짐: 정보 조회만 가능합니다.",
-            NoticeCenter.InfoColor);
     }
 
     private void OnClickToggleCancelCommandMode()
