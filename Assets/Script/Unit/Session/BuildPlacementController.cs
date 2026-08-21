@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using Haare.Util.Logger;
 
@@ -71,7 +70,7 @@ public class BuildPlacementController
 
     public void Update(Vector3 floorOffset, int currentFloor)
     {
-        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
         _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos));
@@ -79,7 +78,7 @@ public class BuildPlacementController
         // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청 "우클릭 취소 없애고, 오직 메뉴 바꾸기 혹은 메뉴
         // 다시 클릭으로 바꿀 수 있게") — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브
         // 버튼을 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유).
-        if (Mouse.current.leftButton.wasPressedThisFrame)
+        if (GameInputScheme.PrimaryDown)
         {
             bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                 || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())

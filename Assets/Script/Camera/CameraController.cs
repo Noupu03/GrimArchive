@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class CameraController : MonoBehaviour
 {
@@ -59,7 +58,8 @@ public class CameraController : MonoBehaviour
         return false;
     }
 
-    // 특정 층으로 즉시 이동(맵 메뉴 버튼용) — SwitchFloor(방향)와 달리 절대 인덱스를 받는다.
+    // 특정 층으로 즉시 이동(맵 메뉴 버튼용) — 절대 인덱스를 받는다. 2026-08-21 입력 정리로 상대 이동
+    // 버전(SwitchFloor, 대괄호 키 전용)은 제거됐다 — 층 전환은 이제 이 메서드(맵 메뉴 버튼)뿐이다.
     public void GoToFloor(int floorIndex)
     {
         if (!_floorViewInitialized || !TryGetFloorCountStatic(out int floorCount) || floorCount <= 0) return;
@@ -104,26 +104,22 @@ public class CameraController : MonoBehaviour
 
         Vector3 pos = transform.position;
 
-        if (Keyboard.current != null)
-        {
-            float move = panSpeed * Time.unscaledDeltaTime;
-            if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) pos.y += move;
-            if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) pos.y -= move;
-            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) pos.x += move;
-            if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) pos.x -= move;
+        // 입력 정리(2026-08-21, 사용자 요청 "wasd, 마우스 휠, 스페이스바, 마우스 좌클릭 우클릭, 0123
+        // 속도조절만 남기고 전부 없애줘") — 방향키(WASD와 중복)와 층 전환 대괄호 키(맵 메뉴의 층 버튼이
+        // GoToFloor로 이미 동일 기능을 제공해 완전히 중복이었다)를 제거했다. 입력 자체는 GameInputScheme
+        // (구조 개선, 2026-08-21)이 중앙에서 읽는다 — 카메라 줌은 이 클래스만 적용한다(DebugInfoPanel이
+        // 같은 휠 값을 별도로 다시 적용해 줌 속도가 겹치던 버그를 없앤 지점, GameInputScheme 주석 참고).
+        float move = panSpeed * Time.unscaledDeltaTime;
+        if (GameInputScheme.MoveUp)    pos.y += move;
+        if (GameInputScheme.MoveDown)  pos.y -= move;
+        if (GameInputScheme.MoveRight) pos.x += move;
+        if (GameInputScheme.MoveLeft)  pos.x -= move;
 
-            if (Keyboard.current.leftBracketKey.wasPressedThisFrame) SwitchFloor(-1);
-            if (Keyboard.current.rightBracketKey.wasPressedThisFrame) SwitchFloor(1);
-        }
-
-        if (Mouse.current != null)
+        float scroll = GameInputScheme.ZoomDelta;
+        if (scroll != 0.0f)
         {
-            float scroll = Mouse.current.scroll.ReadValue().y;
-            if (scroll != 0.0f)
-            {
-                Camera.main.orthographicSize -= scroll * zoomSpeed;
-                Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize, minZoom, maxZoom);
-            }
+            Camera.main.orthographicSize -= scroll * zoomSpeed;
+            Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize, minZoom, maxZoom);
         }
 
         if (_floorViewInitialized) pos = ClampToCurrentFloorBounds(pos);
@@ -141,17 +137,6 @@ public class CameraController : MonoBehaviour
 
         _currentFloor = Mathf.Clamp(1, 0, floorCount - 1);
         _floorViewInitialized = true;
-        SnapToFloorCenter(_currentFloor);
-    }
-
-    private void SwitchFloor(int direction)
-    {
-        if (!_floorViewInitialized || !TryGetFloorCount(out int floorCount) || floorCount <= 0) return;
-
-        int next = Mathf.Clamp(_currentFloor + direction, 0, floorCount - 1);
-        if (next == _currentFloor) return;
-
-        _currentFloor = next;
         SnapToFloorCenter(_currentFloor);
     }
 

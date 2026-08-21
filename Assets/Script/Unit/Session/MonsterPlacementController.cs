@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using Haare.Util.Logger;
 using GrimArchive.Wave;
 
-// 플레이어 몬스터 배치 모드(2026-08-19, "몬스터 배치 프리셋 프로그래머 지시서") — R키. 웨이브 대기
+// 플레이어 몬스터 배치 모드(2026-08-19, "몬스터 배치 프리셋 프로그래머 지시서") — "소집 배치" 버튼
+// (2026-08-21 입력 정리 전엔 R키도 동일 진입점이었으나 제거됨, InputManager.ToggleMonsterPlacementMode
+// 참고). 웨이브 대기
 // 중(HumanWaveManager.WaveState.Idle)에만 진입 가능. 시간을 멈추고, 점령한 방을 단위로 선택 →
 // 몬스터 선택/타일 선택 두 서브모드를 오가며 몬스터별 디펜스 시작 위치를 지정한다. 실제 이동은 이
 // 모드 안에서 일어나지 않는다(MonsterDefensePlacementSystem.ApplyDefenseStartPositions가 0층 인류
@@ -187,7 +188,7 @@ public class MonsterPlacementController
         else if (_placementSubMode == PlacementSubMode.MonsterSelect)
             text = "소집 배치 모드 : 배치를 사용할 유닛들을 선택하고, \"타일 선택\"으로 전환해주세요.";
         else
-            text = "소집 배치 모드 : 배치할 타일을 선택하고 R키를 눌러 배치모드를 종료하세요.";
+            text = "소집 배치 모드 : 배치할 타일을 선택하고 \"소집 배치\" 버튼을 눌러 배치모드를 종료하세요.";
 
         NoticeCenter.Instance?.PushFixed(PlacementNoticeKey, text, NoticeCenter.InfoColor);
     }
@@ -280,9 +281,9 @@ public class MonsterPlacementController
             bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                 || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
                 || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
-            if (Mouse.current.leftButton.wasPressedThisFrame && !overUI)
+            if (GameInputScheme.PrimaryDown && !overUI)
             {
-                Vector2 mousePos = Mouse.current.position.ReadValue();
+                Vector2 mousePos = GameInputScheme.PointerScreenPos;
                 Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
                 if (_gameSession.roomGrid.TryGetValue(new Vector3Int(gridPos.x, gridPos.y, currentFloor), out Room room)
@@ -313,13 +314,13 @@ public class MonsterPlacementController
 
     private void HandleTilePlacementInput(Vector3 floorOffset, int currentFloor)
     {
-        if (!Mouse.current.leftButton.isPressed)
+        if (!GameInputScheme.PrimaryHeld)
         {
             _placementHasLastPaintedTile = false;
             return;
         }
 
-        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
         // 드래그로 같은 칸을 여러 프레임 지나가도 한 번만 소모한다.

@@ -1,7 +1,6 @@
 using System.Text;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using VContainer;
 using Haare.Client.Routine;
 using Haare.Client.UI;
@@ -9,7 +8,10 @@ using Haare.Client.UI;
 // UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널.
 // 프리팹은 Assets/Editor/HaareUISetup.cs("Tools/GrimArchive/Haare UI 셋업 생성")로 생성/배선된다.
 // UI 리뉴얼(2026-08-20) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 하단 메뉴 "debug" 서브탭
-// (BottomMenuBar)으로 옮겨졌다. 이 패널은 이제 선택 유닛 정보 표시 + 마우스 휠 줌만 담당한다.
+// (BottomMenuBar)으로 옮겨졌다. 이 패널은 이제 선택 유닛 정보 표시만 담당한다. 마우스 휠 줌은
+// CameraController가 유일하게 담당한다(2026-08-21, 사용자 신고 "입력 시스템 개선 여지 체크" —
+// 이 패널이 별도로 Camera.main.orthographicSize를 매 프레임 건드려 CameraController의 줌과 이중으로
+// 겹쳐 적용되던 버그를 여기서 제거해 해결했다).
 [PanelAttribute("Prefabs/DebugInfoPanel")]
 public class DebugInfoPanel : MonoRoutine, ICustomPanel
 {
@@ -29,7 +31,6 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // 매 프레임 위로 밀어 올려서 겹치지 않게 한다.
     [SerializeField] private RectTransform infoBoxRect;
 
-    private const float ScrollZoomSpeed = 0.02f;
     // 사용자 요청(2026-08-20 "정보 UI 밑으로 메뉴 바로 위에 오게 딱 붙여줘") — 여백 없이 밀착.
     private const float InfoBoxBottomGap = 0f;
 
@@ -87,12 +88,6 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     {
     }
 
-    private void Zoom(float delta)
-    {
-        if (Camera.main == null) return;
-        Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize + delta, 5f, 50f);
-    }
-
     private int _lastSelectionCount = -1;
     private Unit _lastSelectedUnit = null;
 
@@ -118,14 +113,6 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
-
-        // 줌인/줌아웃 버튼 대신 마우스 휠로 카메라 줌 조절.
-        if (Mouse.current != null)
-        {
-            float scroll = Mouse.current.scroll.ReadValue().y;
-            if (!Mathf.Approximately(scroll, 0f))
-                Zoom(-scroll * ScrollZoomSpeed);
-        }
 
         RepositionInfoBoxAboveBottomMenu();
     }

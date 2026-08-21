@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using VContainer;
@@ -73,8 +72,8 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// BottomMenuBar(2026-08-20 UI 리뉴얼)가 호출하는 공개 API — 키보드 단축키(R/B/V/O/P/C)와 정확히
-	// 같은 코드 경로를 타게 해서 키/버튼 두 입력이 어긋나지 않게 한다.
+	// BottomMenuBar(2026-08-20 UI 리뉴얼)가 호출하는 공개 API. 원래는 키보드 단축키(R/B/V/O/P/C)와
+	// 같은 코드 경로를 공유했으나, 2026-08-21 입력 정리로 그 단축키들은 제거되고 이 버튼 호출만 남았다.
 	// =====================================================
 	public bool IsBuildPlacementActive => _buildPlacement != null && _buildPlacement.IsActive;
 	public bool IsObjectPlacementActive => _objectPlacement != null && _objectPlacement.IsActive;
@@ -230,7 +229,7 @@ public class InputManager : MonoBehaviour
 	void Update()
 	{
 		if (_gameSession == null) return;
-		if (Keyboard.current == null || Mouse.current == null) return;
+		if (!GameInputScheme.IsReady) return;
 
 		int currentFloor = 1;
 		Vector3 floorOffset =
@@ -238,19 +237,13 @@ public class InputManager : MonoBehaviour
 			? _unitGenerate.GetFloorOffset(currentFloor)
 			: Vector3.zero;
 
-		// Ctrl = "기존 선택에 추가" (클릭/드래그/더블클릭 공통).
-		bool addHeld = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
-
-		// =====================================================
-		// 플레이어 몬스터 배치 모드(2026-08-19 신규) — R키. 다른 배치 모드(빌드/오브젝트/함정/코어)와
-		// 배타적으로 동작한다 — 그쪽 모드 중엔 R을 무시하고, 이 모드 중엔 그쪽 단축키를 모두 막는다.
-		// UI 리뉴얼(2026-08-20) — "소집 배치" 하단 메뉴 버튼도 동일한 ToggleMonsterPlacementMode()를
-		// 호출한다(단일 진입점).
-		// =====================================================
-		if (Keyboard.current.rKey.wasPressedThisFrame)
-		{
-			ToggleMonsterPlacementMode();
-		}
+		// 입력 정리(2026-08-21, 사용자 요청 "wasd, 마우스 휠, 스페이스바, 마우스 좌클릭 우클릭, 0123
+		// 속도조절만 남기고 전부 없애줘" → 이후 "더블클릭과 ctrl+클릭은 있어야 해") — 배치 모드 진입
+		// 단축키(R/B/V/O/P/C)는 제거했다(BottomMenuBar의 "소집 배치"/"설치"/"debug" 버튼이 이미 동일한
+		// EnterXMode()/ToggleMonsterPlacementMode()를 호출해 마우스만으로도 기능 손실이 없다). Ctrl은
+		// "선택 추가" 모디파이어로 남긴다(GameInputScheme.SelectAddHeld) — 마우스 좌/우클릭처럼 이
+		// 게임의 핵심 선택 조작이라 없애면 다중 그룹 선택이 아예 불가능해진다.
+		bool addHeld = GameInputScheme.SelectAddHeld;
 
 		if (_monsterPlacement.IsActive)
 		{
@@ -258,38 +251,17 @@ public class InputManager : MonoBehaviour
 			if (!consumed)
 			{
 				// 몬스터 선택 서브모드 — 기존 좌클릭 드래그/더블클릭/Ctrl+클릭 선택 로직만 재사용하고,
-				// 우클릭 이동·빌드/배치 단축키·게임 속도 단축키는 모두 건너뛴다(시간이 멈춰 있어야 함).
+				// 우클릭 이동·게임 속도 단축키는 모두 건너뛴다(시간이 멈춰 있어야 함).
 				UpdateSelectionDragAndClick(floorOffset, currentFloor, addHeld);
 			}
 			return;
 		}
-
-		// =====================================================
-		// 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드 단축키. B=유닛 생산 건물, V=자원 생산 건물.
-		// M키(구 몬스터 즉시 배치)는 이 MVP로 완전히 대체되어 삭제됨. UI 리뉴얼(2026-08-20) — "설치"
-		// 하단 메뉴 서브버튼도 동일한 EnterUnitBuildMode()/EnterResourceBuildMode()를 호출한다.
-		// =====================================================
-		if (Keyboard.current.bKey.wasPressedThisFrame) EnterUnitBuildMode();
-		if (Keyboard.current.vKey.wasPressedThisFrame) EnterResourceBuildMode();
 
 		if (_buildPlacement.IsActive)
 		{
 			_buildPlacement.Update(floorOffset, currentFloor);
 			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
 		}
-
-		// =====================================================
-		// 오브젝트(O)/함정(P) 배치 모드 — B키(빌드 모드)와 동일한 방식(고스트 스프라이트가 마우스를
-		// 따라다니다 좌클릭한 위치에 생성, 우클릭으로 취소)으로 원하는 위치를 직접 골라서 놓는다
-		// (사용자 요청, 2026-07-22 — 예전엔 O/P가 GameSession.HandleDebugInput에서 즉시 무작위 위치에
-		// 스폰했음).
-		// =====================================================
-		// UI 리뉴얼(2026-08-20) — 오브젝트(O)/코어(C) 배치는 하단 메뉴 "debug" 서브탭으로, 함정(P)은
-		// "설치" 서브탭으로 옮겨졌다(기획 문서에 설치 메뉴로 유닛/자원 생산 건물/함정 3개만 명시돼
-		// 있어, 테스트용 오브젝트/코어 배치는 debug로 분류). 키보드 단축키는 그대로 유지.
-		if (Keyboard.current.oKey.wasPressedThisFrame) EnterObjectPlacementMode();
-		if (Keyboard.current.pKey.wasPressedThisFrame) EnterTrapPlacementMode();
-		if (Keyboard.current.cKey.wasPressedThisFrame) EnterCorePlacementMode();
 
 		if (_objectPlacement.IsActive)
 		{
@@ -305,7 +277,7 @@ public class InputManager : MonoBehaviour
 
 		bool rightClickOverUI = (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
 			|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
-		bool rightClickPressed = Mouse.current.rightButton.wasPressedThisFrame && selectedUnits.Count > 0 && !rightClickOverUI;
+		bool rightClickPressed = GameInputScheme.SecondaryDown && selectedUnits.Count > 0 && !rightClickOverUI;
 
 		// =====================================================
 		// 우클릭 (명령 취소) - "명령 취소" 토글이 켜져 있을 때는 우클릭이 이동 대신 선택된 유닛들의
@@ -339,7 +311,7 @@ public class InputManager : MonoBehaviour
 	// 여기서 무조건 해제하고 새 명령을 부여한다.
 	private void IssueMoveCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival)
 	{
-		Vector2 mousePos = Mouse.current.position.ReadValue();
+		Vector2 mousePos = GameInputScheme.PointerScreenPos;
 		Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
 		// 유닛 배치 시스템(2026-07-27 신규) 4.1/5.3장: 목적지 방의 잔여 인구수를 먼저 확인한다.
@@ -410,32 +382,32 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	private void HandleGameSpeedShortcuts()
 	{
-		if (Keyboard.current.spaceKey.wasPressedThisFrame)
+		if (GameInputScheme.PausePressedThisFrame)
 		{
 			_gameSession.isPaused = !_gameSession.isPaused;
 			Time.timeScale = _gameSession.isPaused
 				? 0.0001f
 				: _gameSession.currentGameSpeed;
 		}
-		if (Keyboard.current.digit0Key.wasPressedThisFrame)
+		if (GameInputScheme.Speed0PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 0.5f;
 			if (!_gameSession.isPaused) Time.timeScale = 0.5f;
 		}
 
-		if (Keyboard.current.digit1Key.wasPressedThisFrame)
+		if (GameInputScheme.Speed1PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 1f;
 			if (!_gameSession.isPaused) Time.timeScale = 1f;
 		}
 
-		if (Keyboard.current.digit2Key.wasPressedThisFrame)
+		if (GameInputScheme.Speed2PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 2f;
 			if (!_gameSession.isPaused) Time.timeScale = 2f;
 		}
 
-		if (Keyboard.current.digit3Key.wasPressedThisFrame)
+		if (GameInputScheme.Speed3PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 3f;
 			if (!_gameSession.isPaused) Time.timeScale = 3f;
@@ -452,7 +424,7 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		// 좌클릭 - 드래그 시작
 		// =====================================================
-		if (Mouse.current.leftButton.wasPressedThisFrame)
+		if (GameInputScheme.PrimaryDown)
 		{
 			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다. BuildingControlPanel은
 			// OnGUI(IMGUI)라 IsPointerOverGameObject()로 안 잡혀서 별도로 확인한다(사용자 신고, 2026-07-27
@@ -467,7 +439,7 @@ public class InputManager : MonoBehaviour
 			{
 				_isMouseDown = true;
 				_dragBoxActive = false;
-				_dragStartScreenPos = Mouse.current.position.ReadValue();
+				_dragStartScreenPos = GameInputScheme.PointerScreenPos;
 				_dragCurrentScreenPos = _dragStartScreenPos;
 			}
 		}
@@ -475,9 +447,9 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		// 좌클릭 - 드래그 중 (박스 갱신)
 		// =====================================================
-		if (_isMouseDown && Mouse.current.leftButton.isPressed)
+		if (_isMouseDown && GameInputScheme.PrimaryHeld)
 		{
-			_dragCurrentScreenPos = Mouse.current.position.ReadValue();
+			_dragCurrentScreenPos = GameInputScheme.PointerScreenPos;
 
 			if (!_dragBoxActive &&
 				Vector2.Distance(_dragCurrentScreenPos, _dragStartScreenPos) >= DragThresholdPixels)
@@ -489,7 +461,7 @@ public class InputManager : MonoBehaviour
 		// =====================================================
 		// 좌클릭 - 뗌 (드래그였으면 박스 선택, 아니면 기존 클릭 선택/공격)
 		// =====================================================
-		if (_isMouseDown && Mouse.current.leftButton.wasReleasedThisFrame)
+		if (_isMouseDown && GameInputScheme.PrimaryUp)
 		{
 			if (_dragBoxActive)
 			{

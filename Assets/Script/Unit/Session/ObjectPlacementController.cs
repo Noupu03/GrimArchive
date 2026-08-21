@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 using Haare.Util.Logger;
 
@@ -82,7 +81,7 @@ public class ObjectPlacementController
 
     public void Update(Vector3 floorOffset, int currentFloor)
     {
-        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
         // 이미 다른 오브젝트가 있거나(objectGrid) 벽/유닛으로 막혀있으면(IsAreaClear) 놓을 수 없다.
@@ -94,7 +93,7 @@ public class ObjectPlacementController
 
         // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청) — BuildPlacementController.Update()와 동일한
         // 이유. 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을 다시 눌러야 한다.
-        if (Mouse.current.leftButton.wasPressedThisFrame && canPlace)
+        if (GameInputScheme.PrimaryDown && canPlace)
         {
             bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                 || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
