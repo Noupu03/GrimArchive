@@ -91,9 +91,20 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
     // 세션 중 0 밑으로 내려갈 일이 없다.
     private const float PersistentDurationSeconds = 86400f;
     private const float FadeSeconds = 0.4f;
-    // 사용자 요청(2026-08-19 "notice ui 조금 아래로 내려줘. 웨이브 진행바랑 겹친다") — WaveGaugePanel이
-    // 화면 상단 중앙 y10~약42(BarTopMargin 10 + barHeight ≈32)를 차지하므로 그 아래로 여유를 두고 배치.
-    private const float TopMargin = 60f;
+    // 사용자 요청(2026-08-19 "notice ui 조금 아래로 내려줘. 웨이브 진행바랑 겹친다") — WaveGaugePanel
+    // 바로 아래에 여유를 두고 배치한다. 예전엔 이 여백을 상수(60f)로 하드코딩해서, 나중에 게이지
+    // 크기가 바뀌면(2026-08-21, 사용자 요청 "웨이브 시각화 UI 크기를 50% 늘려줘") 손으로 다시 맞춰야
+    // 했다(정확히 방 점령색 alpha 드리프트와 같은 종류의 실수 위험) — 이제 WaveGaugePanel.
+    // GetReservedTopHeight()를 그대로 물어봐서 항상 실제 크기에 맞게 계산한다(BottomMenuBar.
+    // GetReservedBottomLeftHeight와 동일 관례). 인스턴스가 아직 없으면(패널 부팅 순서 등) 예전 상수로
+    // 폴백.
+    private const float TopMarginGap = 18f;
+    private const float TopMarginFallback = 60f;
+
+    private static float TopMargin
+        => WaveGaugePanel.Instance != null
+            ? WaveGaugePanel.Instance.GetReservedTopHeight() + TopMarginGap
+            : TopMarginFallback;
     private const float BoxWidth = 480f;
     private const float BoxHeight = 52f;
     private const float BoxGap = 10f;

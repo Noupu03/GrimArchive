@@ -15,12 +15,23 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
 
+    // DebugInfoPanel.Instance/BuildingControlPanel.Instance와 동일 관례 — NoticeCenter가 "지금 이
+    // 게이지가 화면 위쪽을 얼마나 차지하고 있는지" 물어볼 때 쓴다(2026-08-21, 사용자 요청 "인류 웨이브
+    // 시각화 UI 크기를 50% 늘려줘. 그에 따라 notice UI 생성 위치도 같이 내려줘").
+    public static WaveGaugePanel Instance { get; private set; }
+
     private UnitSpriteManager _unitSpriteManager;
 
     [Inject]
     public void Construct(UnitSpriteManager unitSpriteManager)
     {
         _unitSpriteManager = unitSpriteManager;
+    }
+
+    protected override void Constructor()
+    {
+        base.Constructor();
+        Instance = this;
     }
 
     public void OpenPanel()
@@ -49,9 +60,14 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     private bool _spritesLoadAttempted;
 
     // ── 레이아웃 ──────────────────────────────────────────────────
-    private const float BarWidth = 480f;
+    // 2026-08-21, 사용자 요청 "인류 웨이브 시각화 UI 크기를 50% 늘려줘" — BarWidth/PartyIconSize를
+    // 1.5배(480→720/26→39). barHeight는 BarWidth에서 스프라이트 비율로 계산되므로(아래 OnGUI) 같이
+    // 커진다 — NoticeCenter의 TopMargin 프로퍼티가 이 클래스의 GetReservedTopHeight()를 통해 그
+    // 커진 높이를 실시간으로 반영한다(하드코딩 상수로 따로 안 둠 — 방 점령색 alpha 드리프트 버그와
+    // 같은 종류의 실수를 막기 위함).
+    private const float BarWidth = 720f;
     private const float BarTopMargin = 10f;
-    private const float PartyIconSize = 26f;
+    private const float PartyIconSize = 39f;
 
     // 도착 임박 점멸 속도 — 문서가 "정확한 점멸 속도는 구현 후 플레이 테스트를 통해 조정한다"고
     // 명시 위임했으므로 우선 자리표시자 값을 쓴다. 점멸 시작 시점 자체는 진행도 임계값이 아니라
@@ -76,6 +92,22 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         }
     }
 
+    // 게이지 프레임 스프라이트의 실제 가로세로비로 계산한 세로 크기(스프라이트가 아직 안 불려왔으면
+    // 0). OnGUI와 GetReservedTopHeight()가 공유해서, 이 UI가 커질 때(BarWidth 변경) 두 값이 항상
+    // 같이 맞아떨어진다.
+    private float GetBarHeight()
+    {
+        EnsureSprites();
+        if (_frameSprite == null) return 0f;
+        return BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);
+    }
+
+    // NoticeCenter가 이 게이지 바로 아래에 자기 UI를 배치하려고 물어보는 공개 API(2026-08-21,
+    // 사용자 요청 "그에 따라 notice UI 생성 위치도 같이 내려줘") — BottomMenuBar.
+    // GetReservedBottomLeftHeight와 동일한 관례. 스프라이트를 아직 못 불러왔으면(초기 프레임 등)
+    // 안전하게 BarTopMargin만 반환한다.
+    public float GetReservedTopHeight() => BarTopMargin + GetBarHeight();
+
     private void OnGUI()
     {
         HumanWaveManager wm = HumanWaveManager.Instance;
@@ -94,7 +126,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         bool imminent = waveApproaching && wm.IsMonstersSummonedThisCycle;
         float blinkAlpha = imminent ? (0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * BlinkSpeed)) : 1f;
 
-        float barHeight = BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);
+        float barHeight = GetBarHeight();
         Rect barRect = new Rect((Screen.width - BarWidth) * 0.5f, BarTopMargin, BarWidth, barHeight);
 
         // "왕국의 문 ─ 던전의 문" 장식 캡 폭만큼 좌우로 인셋하고, 프레임 안쪽 세로 중앙에 맞춰
