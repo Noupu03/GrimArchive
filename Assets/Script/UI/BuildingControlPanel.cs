@@ -33,6 +33,19 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         Instance = this;
     }
 
+    // 좌하단 패널 스택 구조 개선(2026-08-21, 사용자 요청 "빈틈이 안 당겨져" 재확인 + "구조 개선 필요한
+    // 부분 있는지 체크") — 예전엔 OnGUI/IsMouseOverPanel이 `if (_current == null) return;`으로 먼저
+    // 걸러진 뒤에야 GetPanelRect()(=Report 호출부)를 불러서, 패널이 닫히는 순간 "안 보인다"는 보고
+    // 자체가 실행되지 않았다(BottomLeftPanelStack의 프레임 스윕이 안전망으로 뒤늦게 정리해주긴
+    // 했지만 최대 1~2프레임 지연). UpdateProcess는 _current 상태와 무관하게 매 프레임 무조건
+    // 실행되므로, 여기서 직접 보고하면 패널이 닫히는 바로 그 프레임에 즉시 정리된다 — 스윕은 이제
+    // 이 보고를 놓치는 다른 소비자를 위한 이중 안전망일 뿐, 이 패널은 더 이상 거기 의존하지 않는다.
+    protected override void UpdateProcess()
+    {
+        base.UpdateProcess();
+        BottomLeftPanelStack.Report(StackId, _current != null, PanelWidth);
+    }
+
     public void OpenPanel()
     {
         gameObject.SetActive(true);

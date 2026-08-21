@@ -245,6 +245,13 @@ public class InputManager : MonoBehaviour
 		// 게임의 핵심 선택 조작이라 없애면 다중 그룹 선택이 아예 불가능해진다.
 		bool addHeld = GameInputScheme.SelectAddHeld;
 
+		// 좌하단 패널 스택 구조 개선(2026-08-21) — _monsterPlacement의 다른 모든 진입점은 IsActive일
+		// 때만 아래에서 호출되므로, 배치 모드를 완전히 나가는 프레임에는 이 컨트롤러의 어떤 메서드도
+		// 더 이상 안 불려서 "안 보인다"는 보고 자체가 실행될 기회가 없었다(MonsterPlacementController.
+		// ReportStackVisibility 주석 참고). IsActive 여부와 무관하게 매 프레임 무조건 호출해 즉시
+		// 정리되게 한다.
+		_monsterPlacement.ReportStackVisibility();
+
 		if (_monsterPlacement.IsActive)
 		{
 			bool consumed = _monsterPlacement.Update(floorOffset, currentFloor);

@@ -428,6 +428,16 @@ public class MonsterPlacementController
         return new Rect(x, y, PlacementPanelWidth, PlacementPanelHeight);
     }
 
+    // 좌하단 패널 스택 구조 개선(2026-08-21, 사용자 요청 "빈틈이 안 당겨져" 재확인 + "구조 개선 필요한
+    // 부분 있는지 체크") — GetPlacementPanelRect()는 DrawGUI/IsMouseOverPanel을 거쳐서만 호출되는데,
+    // 이 컨트롤러의 모든 진입점은 IsActive일 때만 InputManager가 불러준다(Update()도 마찬가지). 즉
+    // 배치 모드를 완전히 나가는 순간부터는 이 컨트롤러의 어떤 메서드도 더 이상 호출되지 않아서
+    // "안 보인다"는 보고 자체가 실행될 기회가 없다(BottomLeftPanelStack의 프레임 스윕이 안전망으로
+    // 늦게라도 정리해주긴 하지만 최대 1~2프레임 지연). InputManager.Update()가 IsActive 여부와
+    // 무관하게 매 프레임 이 메서드를 호출해서, 모드를 나가는 바로 그 프레임에 즉시 정리되게 한다.
+    public void ReportStackVisibility()
+        => BottomLeftPanelStack.Report(StackId, _placementSelectedRoom != null, PlacementPanelWidth);
+
     // UI 스타일 통일(2026-08-21, 사용자 요청 "소집 배치 모드에서 유닛선택, 타일선택 전환및 정보창...
     // 다른 메뉴들과 동일한 스타일로") — 기본 Unity GUI 스킨 대신 BottomMenuBar/StatusInfoPanel과 같은
     // GUIMenuStyleUtil을 쓴다. 서브모드 전환 버튼도 예전엔 "[몬스터 선택]"처럼 대괄호 텍스트로만
