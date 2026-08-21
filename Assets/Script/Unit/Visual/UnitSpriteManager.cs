@@ -76,6 +76,20 @@ public class UnitSpriteManager
     }
 
 #if UNITY_2022_2_OR_NEWER
+    // SpriteResolver에 category/label을 적용하고 flipX까지 같이 세팅하는 공통 절차(2026-08-21 추출) —
+    // 원래 UnitGenerate.UpdateSpriteResolver 안에 있던 걸, FogOfWarSystem의 횃불 방향별 스프라이트
+    // 적용(TorchVisual.ApplyTorchVisual)이 완전히 동일한 절차를 별도로 다시 구현하고 있어서 이 한
+    // 곳으로 합쳤다. resolver가 붙은 GameObject에 SpriteRenderer가 없으면 flipX는 조용히 건너뛴다.
+    public static void ApplySpriteResolverLabel(SpriteResolver resolver, string category, string label, bool flipX)
+    {
+        if (resolver == null) return;
+
+        resolver.SetCategoryAndLabel(category, label);
+
+        SpriteRenderer sr = resolver.GetComponent<SpriteRenderer>();
+        if (sr != null) sr.flipX = flipX;
+    }
+
     // 스프라이트 라이브러리의 카테고리 목록을 바리에이션 후보로 반환
     public List<string> GetVariationCategories(SpriteLibraryAsset asset)
     {

@@ -308,4 +308,67 @@ public partial class CreateMap
         floor.chunks[x, y] = cA;
         floor.chunks[x, y + 1] = cB;
     }
+
+    // ── 횃불 벽걸이 배치(2026-08-21) 전용 청크 경계 질의 ──────────────────────────────
+    // FogOfWarSystem(순수 시각 오버레이)이 직접 타일을 스캔하던 걸 여기로 옮겼다 — "청크 경계 한
+    // 면이 벽인지/게이트로 뚫렸는지" 판정은 이 파일이 이미 담당하는 청크 벽 도메인 지식이라, 그
+    // 판정 로직 자체는 지도 생성 계층에 속해야 시각 오버레이 계층이 타일 이름 문자열까지 직접
+    // 알 필요가 없다(레이어 경계 유지).
+    //
+    // side 하나당 "어느 축을 따라 훑는지(isYAxis) + 그 축에서 벽 쪽 끝 좌표(edgeValue) + 안쪽으로
+    // 전진하는 방향(inward)"만 정의하면 IsSolidWallEdge(경계 8칸 전부 스캔)와
+    // TryFindFloorTileInFrontOfWall(중앙 기준선을 따라 안쪽으로 전진) 둘 다 이 하나의 축 정의에서
+    // 파생된다 — 예전엔 두 메서드가 Top/Right/Bottom/Left 4갈래 switch를 각자 따로 들고 있어 벽면
+    // 정의가 바뀌면 손으로 둘 다 맞춰야 했다.
+    private static void GetWallAxis(TorchWallSide side, out bool isYAxis, out int edgeValue, out int inward)
+    {
+        switch (side)
+        {
+            case TorchWallSide.Top:    isYAxis = true;  edgeValue = 7; inward = -1; break;
+            case TorchWallSide.Bottom: isYAxis = true;  edgeValue = 0; inward = 1;  break;
+            case TorchWallSide.Right:  isYAxis = false; edgeValue = 7; inward = -1; break;
+            default:                   isYAxis = false; edgeValue = 0; inward = 1;  break; // Left
+        }
+    }
+
+    // 청크 로컬 8칸짜리 경계 한 줄이 전부 Wall이면 "복도 없이 완전히 막힌 벽"(횃불 후보), 일부만
+    // Wall이면 게이트(복도)가 뚫려 있다는 뜻(제외), 전부 Wall이 아니면 애초에 벽이 아니다(같은 방
+    // 인접 청크와 통짜로 붙어있음, 제외) — OpenInternalWalls/OpenHorizontalPassage·
+    // OpenVerticalPassage(게이트 폭 2~6칸 부분 개방)가 만드는 세 경우를 타일 값만으로 구분한다.
+    public static bool IsSolidWallEdge(Chunks c, TorchWallSide side)
+    {
+        GetWallAxis(side, out bool isYAxis, out int edgeValue, out _);
+        for (int i = 0; i < 8; i++)
+        {
+            int tx = isYAxis ? i : edgeValue;
+            int ty = isYAxis ? edgeValue : i;
+            if (c.chunk[tx, ty].name != "Wall") return false;
+        }
+        return true;
+    }
+
+    // 벽 중앙 기준선(가로 벽은 로컬 x=4 열, 세로 벽은 로컬 y=4 행)을 따라 벽 안쪽으로 걸어 들어가
+    // 처음 만나는 Floor 타일을 반환한다 — 벽 두께(1~3칸, ApplyOuterWallThickness)가 얼마든 항상
+    // "벽에 맞닿은 바닥 칸"을 정확히 찾아 벽과 스프라이트가 겹치지 않게 한다. 도중에 Floor가 아닌
+    // 타일(Stair 등)을 만나면 실패 처리한다.
+    public static bool TryFindFloorTileInFrontOfWall(Chunks c, TorchWallSide side, out Vector2Int local)
+    {
+        const int center = 4;
+        GetWallAxis(side, out bool isYAxis, out int edgeValue, out int inward);
+        for (int step = 0; step < 8; step++)
+        {
+            int coord = edgeValue + inward * step;
+            int tx = isYAxis ? center : coord;
+            int ty = isYAxis ? coord : center;
+
+            string name = c.chunk[tx, ty].name;
+            if (name == "Wall") continue;
+
+            local = new Vector2Int(tx, ty);
+            return name == "Floor";
+        }
+
+        local = default;
+        return false;
+    }
 }

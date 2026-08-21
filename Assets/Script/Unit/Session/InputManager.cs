@@ -613,16 +613,7 @@ public class InputManager : MonoBehaviour
 				boxed.Add(u);
 		}
 
-		if (addHeld)
-		{
-			foreach (var u in boxed)
-				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
-		}
-		else
-		{
-			selectedUnits.Clear();
-			selectedUnits.AddRange(boxed);
-		}
+		MergeIntoSelection(boxed, addHeld);
 
 		if (selectedUnits.Count > 0)
 			LogHelper.Log(LogHelper.GAME, $"드래그 선택: {selectedUnits.Count}기");
@@ -653,18 +644,26 @@ public class InputManager : MonoBehaviour
 				nearby.Add(u);
 		}
 
+		MergeIntoSelection(nearby, addHeld);
+
+		LogHelper.Log(LogHelper.GAME, $"더블클릭 선택: {origin.unitType.typeName} 근방 {selectedUnits.Count}기");
+	}
+
+	// DoBoxSelect/SelectNearbySameType이 공유하는 "후보 목록을 선택에 반영" 절차(2026-08-21 추출,
+	// simplify 리뷰 지적 — 두 메서드가 이 8줄을 그대로 복붙하고 있었다). DoClickSelect의 단일 클릭
+	// 분기는 addHeld일 때 "이미 선택돼 있으면 제거"라는 다른 의미(토글)라 여기 합치지 않는다.
+	private void MergeIntoSelection(List<Unit> candidates, bool addHeld)
+	{
 		if (addHeld)
 		{
-			foreach (var u in nearby)
+			foreach (var u in candidates)
 				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
 		}
 		else
 		{
 			selectedUnits.Clear();
-			selectedUnits.AddRange(nearby);
+			selectedUnits.AddRange(candidates);
 		}
-
-		LogHelper.Log(LogHelper.GAME, $"더블클릭 선택: {origin.unitType.typeName} 근방 {selectedUnits.Count}기");
 	}
 
 	// =====================================================

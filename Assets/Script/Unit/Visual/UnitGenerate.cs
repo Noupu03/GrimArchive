@@ -318,9 +318,7 @@ public class UnitGenerate
 	{
 #if UNITY_2022_2_OR_NEWER
 		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string label, out bool flipX);
-		spriteResolver.SetCategoryAndLabel(variation, label);
-		SpriteRenderer sr = spriteResolver.GetComponent<SpriteRenderer>();
-		if (sr != null) sr.flipX = flipX;
+		UnitSpriteManager.ApplySpriteResolverLabel(spriteResolver, variation, label, flipX);
 #else
 		LogHelper.Error(LogHelper.GAME, "SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
 #endif

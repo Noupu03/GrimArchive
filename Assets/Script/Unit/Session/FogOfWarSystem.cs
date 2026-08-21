@@ -62,7 +62,7 @@ public class FogOfWarSystem
     // 나서 토치 생성하게 해줘") — 아직 안개가 안 걷힌 방의 횃불 배치 좌표는 바로 스폰하지 않고 방
     // 단위로 모아뒀다가, RevealRoomFog가 그 방을 걷는 순간 SpawnPendingTorchesForRoom이 실제로 꺼내
     // 스폰한다.
-    private readonly Dictionary<Room, List<Vector2Int>> _pendingTorchTiles = new Dictionary<Room, List<Vector2Int>>();
+    private readonly Dictionary<Room, List<(Vector2Int pos, TorchWallSide side)>> _pendingTorchTiles = new Dictionary<Room, List<(Vector2Int, TorchWallSide)>>();
 
     // GameSession.Initialize()가 맵 역직렬화/방 그리드 구성 직후 한 번 호출한다(옛 이름:
     // InitializeFogOfWar). 0층은 안개 개념 자체가 없고(인류 로비), 1층 이상은 그 층의 시작방
@@ -535,10 +535,28 @@ public class FogOfWarSystem
     // ── 횃불 ──────────────────────────────────────────────────────────
     // 횃불 배치(2026-07-28, 사용자 요청 "spot light2d 이용해서 토치 프리팹 생성하도록 해봐. 생성
     // 로직은 동일함. 프리팹은 너가 직접 생성해서 실제 파일로 존재해야 해") — Assets/Resources/
-    // Prefabs/Torch.prefab(SpriteRenderer(obj/torch.png) + Light2D(Point/원형, 따뜻한 색, 반경 4~6))을
-    // Resources.Load로 불러와 Instantiate한다. 배치 로직(시작방 제외, 청크 정중앙, 계단 회피)은 유지.
-    // 0층 전용 "층 전체를 덮는 대형 횃불 하나" 예외는 폐지됐다(사용자 요청 "0층 예외 지우고, 0층
-    // 청크도 기존 규칙에 따라 토치 깔아줘") — 0층도 다른 층과 완전히 동일한 청크 단위 배치를 받는다.
+    // Prefabs/Torch.prefab(SpriteRenderer + Light2D(Point/원형, 따뜻한 색, 반경 4~6))을 Resources.Load로
+    // 불러와 Instantiate한다. 0층 전용 "층 전체를 덮는 대형 횃불 하나" 예외는 폐지됐다(사용자 요청
+    // "0층 예외 지우고, 0층 청크도 기존 규칙에 따라 토치 깔아줘") — 0층도 다른 층과 완전히 동일한
+    // 청크 단위 배치를 받는다.
+    //
+    // 배치 로직 재설계(2026-08-21, 사용자 요청) — 예전엔 청크 정중앙 바닥 타일에 놓았지만, 이제
+    // "복도(게이트)가 뚫리지 않은 완전히 막힌 벽 1면"을 청크당 최대 1개 랜덤으로 골라 그 벽의 중앙
+    // 바로 앞(벽에 맞닿은 바닥 칸)에 놓는다 — TryFindTorchTilePos 및 그 안에서 쓰는
+    // CreateMap.IsSolidWallEdge/TryFindFloorTileInFrontOfWall 참고(청크 경계가 벽인지/게이트인지는
+    // 지도 생성 계층이 이미 담당하는 지식이라 그쪽으로 옮겼다 — 이 클래스는 여전히 "언제·어디에 뭘
+    // 놓을지"만 결정하고 타일 이름 자체는 들여다보지 않는다). 그런 벽이 하나도 없는 청크(예: 사방이
+    // 게이트로 뚫렸거나 다른 방 청크와 완전히 붙어있는 내부 청크)는 횃불을 놓지 않는다. 계단 전용
+    // 후보 로직은 이제 필요 없다 — 계단은 항상 청크 내부(로컬 (3,3)~(4,4))에 있어 벽에 붙는 바닥
+    // 후보와 겹치지 않고, 혹시 겹치더라도 TryFindFloorTileInFrontOfWall이 "Floor"가 아닌 타일(Stair
+    // 포함)에서 멈추면 실패 처리하므로 안전하다.
+    //
+    // 렌더 순서(2026-08-21, 사용자 요청 "다른 오브젝트들이랑 겹쳤을때 최상단에 위치하게") —
+    // Torch.prefab의 SpriteRenderer.sortingOrder를 5(바닥 오브젝트/건물/계단 아이콘 공통값)에서
+    // 51로 올렸다. 유닛(8~11)·선택 마커(9)·상태 라벨(20)·방 인구수 라벨(50)까지 전부 위지만, 위협
+    // 타일 셀(999)·소리전파 디버그(998)·안개(1000~)처럼 항상 최상단이어야 하는 특수 오버레이보다는
+    // 아래다(GameSession.CreateRoomPopulationLabel의 50 선택과 동일한 관례 — "일반 오브젝트보다 위,
+    // 특수 오버레이보다는 아래").
     public void SpawnTorches()
     {
         CreateMap cmap = Session.cmap;
@@ -563,21 +581,21 @@ public class FogOfWarSystem
                     Chunks c = floor.chunks[cx, cy];
                     if (c.roomId < 0 || c.chunk == null) continue;
 
-                    if (!TryFindTorchTilePos(floorIdx, cx, cy, c, out Vector2Int tilePos)) continue;
+                    if (!TryFindTorchTilePos(floorIdx, cx, cy, c, out Vector2Int tilePos, out TorchWallSide side)) continue;
 
                     Room room = FindRoomByFloorAndId(floorIdx, c.roomId);
                     if (room != null && !room.FogRevealed)
                     {
-                        if (!_pendingTorchTiles.TryGetValue(room, out List<Vector2Int> pending))
+                        if (!_pendingTorchTiles.TryGetValue(room, out var pending))
                         {
-                            pending = new List<Vector2Int>();
+                            pending = new List<(Vector2Int, TorchWallSide)>();
                             _pendingTorchTiles[room] = pending;
                         }
-                        pending.Add(tilePos);
+                        pending.Add((tilePos, side));
                         continue;
                     }
 
-                    SpawnTorchAt(floorIdx, tilePos);
+                    SpawnTorchAt(floorIdx, tilePos, side);
                 }
             }
         }
@@ -590,44 +608,47 @@ public class FogOfWarSystem
     private void SpawnPendingTorchesForRoom(Room room)
     {
         if (room == null) return;
-        if (!_pendingTorchTiles.TryGetValue(room, out List<Vector2Int> pending)) return;
+        if (!_pendingTorchTiles.TryGetValue(room, out var pending)) return;
         _pendingTorchTiles.Remove(room);
 
         if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/Torch");
         if (_torchPrefab == null) return;
 
-        foreach (var tilePos in pending)
-            SpawnTorchAt(room.Floor, tilePos);
+        foreach (var entry in pending)
+            SpawnTorchAt(room.Floor, entry.pos, entry.side);
     }
 
-    // 청크 정중앙(로컬 (4,4) — 계단 2x2 블록((3,3)~(4,4), PlaceStairTiles와 동일 좌표 공식)과 안 겹치는
-    // 나머지 중앙 타일)을 1순위 후보로, 계단이 있는 청크는 그 블록 바로 옆(우→좌→아래→위 순서로 시도)
-    // 타일을 대신 쓴다. 벽 타일이거나 이미 다른 오브젝트(문 등)가 있으면 건너뛴다.
-    private bool TryFindTorchTilePos(int floorIdx, int cx, int cy, Chunks c, out Vector2Int tilePos)
+    // 청크의 4면(위/오른쪽/아래/왼쪽) 중 "복도(게이트)로 뚫리지 않은 완전히 막힌 벽"만 후보로 모아
+    // 그중 하나를 랜덤으로 고르고(사용자 요청 "랜덤 벽 1개만"), 그 벽 중앙 바로 앞의 바닥 칸을 반환한다.
+    // 후보가 하나도 없으면(벽이 없는 청크) false — 그 청크는 횃불을 놓지 않는다. "이 청크 경계가
+    // 벽인지/게이트인지"는 CreateMap.IsSolidWallEdge/TryFindFloorTileInFrontOfWall(지도 생성 계층
+    // 소유 지식, 2026-08-21 이관)에 위임하고, 여기서는 여러 방 중 "언제·어디에" 횃불을 놓을지만 결정한다.
+    private bool TryFindTorchTilePos(int floorIdx, int cx, int cy, Chunks c, out Vector2Int tilePos, out TorchWallSide side)
     {
         tilePos = default;
-        bool hasStairs = c.stairTargetFloor >= 0;
+        side = default;
 
-        Vector2Int[] candidates = hasStairs
-            ? new[] { new Vector2Int(5, 4), new Vector2Int(2, 3), new Vector2Int(4, 5), new Vector2Int(3, 2) }
-            : new[] { new Vector2Int(4, 4) };
+        var candidates = new List<TorchWallSide>(4);
+        foreach (TorchWallSide s in _allWallSides)
+            if (CreateMap.IsSolidWallEdge(c, s)) candidates.Add(s);
 
-        foreach (var local in candidates)
-        {
-            if (local.x < 0 || local.x > 7 || local.y < 0 || local.y > 7) continue;
-            if (c.chunk[local.x, local.y].name == "Wall") continue;
+        if (candidates.Count == 0) return false;
 
-            Vector2Int cand = new Vector2Int(cx * 8 + local.x, cy * 8 + local.y);
-            if (Session.objectGrid.ContainsKey(new Vector3Int(cand.x, cand.y, floorIdx))) continue;
+        side = candidates[UnityEngine.Random.Range(0, candidates.Count)];
 
-            tilePos = cand;
-            return true;
-        }
+        if (!CreateMap.TryFindFloorTileInFrontOfWall(c, side, out Vector2Int local)) return false;
 
-        return false;
+        Vector2Int cand = new Vector2Int(cx * 8 + local.x, cy * 8 + local.y);
+        if (Session.objectGrid.ContainsKey(new Vector3Int(cand.x, cand.y, floorIdx))) return false;
+
+        tilePos = cand;
+        return true;
     }
 
-    private GameObject SpawnTorchAt(int floorIdx, Vector2Int tilePos)
+    private static readonly TorchWallSide[] _allWallSides =
+        { TorchWallSide.Top, TorchWallSide.Right, TorchWallSide.Bottom, TorchWallSide.Left };
+
+    private GameObject SpawnTorchAt(int floorIdx, Vector2Int tilePos, TorchWallSide side)
     {
         MapRandering mapRandering = Session.mapRandering;
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIdx < mapRandering.floorOffsets.Length)
@@ -638,6 +659,13 @@ public class FogOfWarSystem
         GameObject go = UnityEngine.Object.Instantiate(_torchPrefab, worldPos, Quaternion.identity);
         go.name = $"Torch_{tilePos.x}_{tilePos.y}";
         if (torchGroup != null) go.transform.SetParent(torchGroup, true);
+
+        // 방향별 스프라이트 적용 + 위치 보정은 Visual 계층(TorchVisual.cs)이 전담한다(2026-08-21
+        // 정리 — 이 클래스는 SpriteResolver를 직접 건드리지 않는다). 위치 보정은 루트(=Light2D가
+        // 달린 실제 광원 위치)가 아니라 스프라이트 전용 자식 "Visual"의 로컬 좌표에만 적용된다
+        // (사용자 요청 "스프라이트 오프셋만 조절되고, 생성 위치 자체는 그대로인거로... 빛 때문에
+        // 그럼") — 루트를 옮기면 빛도 같이 밀려서 실제 타일 앞이 아닌 곳을 비추게 되기 때문이다.
+        TorchVisual.ApplyTorchVisual(go, side);
         return go;
     }
 }

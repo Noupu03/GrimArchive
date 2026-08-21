@@ -208,9 +208,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 말고, 안개 걷히고 나서 토치 생성하게 해줘" — 순서를 InitializeFogOfWar → SpawnTorches
                 // 로 바꾼 이유).
                 _fogOfWarSystem.Initialize();
-                // 횃불 배치(2026-07-28, 사용자 요청): 시작방을 제외한 모든 방(0층 포함, 모든 층 동일
-                // 규칙)의 각 청크마다 하나씩(Prefabs/Torch.prefab, Light2D 포함). 안개가 안 걷힌 방은
-                // 즉시 스폰하지 않고 대기열에 넣는다.
+                // 횃불 배치(2026-07-28, 사용자 요청; 2026-08-21 벽걸이 방식으로 재설계): 시작방을
+                // 제외한 모든 방(0층 포함, 모든 층 동일 규칙)의 각 청크마다 최대 하나씩(Prefabs/
+                // Torch.prefab, Light2D 포함) — 복도(게이트)가 뚫리지 않은 벽이 하나도 없는 청크는
+                // 건너뛴다(FogOfWarSystem.TryFindTorchTilePos 참고). 안개가 안 걷힌 방은 즉시 스폰하지
+                // 않고 대기열에 넣는다.
                 _fogOfWarSystem.SpawnTorches();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }

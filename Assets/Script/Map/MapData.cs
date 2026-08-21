@@ -48,6 +48,13 @@ public enum TileEffect
 	// 효과 종류는 필요에 따라 확장하세요.
 }
 
+// ── 청크 경계 벽면 방향 ── (2026-08-21, 횃불 벽걸이 배치 신규) — 원래 FogOfWarSystem.cs에 있었으나
+// CreateMap.TileWall.cs(청크 경계 판정)와 Assets/Script/Unit/Visual/TorchVisual.cs(스프라이트 라벨)가
+// 둘 다 참조해야 해서, 유닛의 Dir(Assets/Script/Unit/Core/UnitTypes.cs)과 동일한 이유로 어느 한쪽
+// 레이어에 속하지 않는 이 파일로 옮겼다. new_torch.png의 스프라이트 라벨(Up/Right/Down)과 1:1
+// 대응한다 — Left는 별도 스프라이트가 없어 Right 라벨을 좌우 반전(flipX)해서 재사용한다.
+public enum TorchWallSide { Top, Right, Bottom, Left }
+
 // ── Footprint 크기 (정사각형 전용, 1~5) ──
 [Serializable]
 public enum Footprint
