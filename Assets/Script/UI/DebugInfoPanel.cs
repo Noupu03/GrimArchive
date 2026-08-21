@@ -31,10 +31,10 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // 매 프레임 위로 밀어 올려서 겹치지 않게 한다.
     [SerializeField] private RectTransform infoBoxRect;
 
-    // 사용자 요청(2026-08-20 "정보 UI 밑으로 메뉴 바로 위에 오게 딱 붙여줘") — 여백 없이 밀착.
-    private const float InfoBoxBottomGap = 0f;
-
     private InputManager _inputManager;
+
+    // 좌하단 패널 스택(2026-08-21) 등록용 ID — BottomLeftPanelStack.Report 참고.
+    private const string StackId = "DebugInfo";
 
     // "기본 정보"/"세부 스탯"/"장비" 탭(2026-08-20, 사용자 요청, 림월드 캐릭터창 참고) — 장비는 아직
     // 시스템 자체가 없어 자리만 만들고 "구현 예정" 문구만 보여준다. 각 탭은 사용자가 명시한 필드만
@@ -117,13 +117,16 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         RepositionInfoBoxAboveBottomMenu();
     }
 
+    // 좌하단 패널 스택(2026-08-21) — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다.
+    // 등록 순서 기반이라(BottomLeftPanelStack 주석 참고) 다른 패널이 새로 나타나도 이 박스가 이미
+    // 떠 있었다면 위치가 절대 바뀌지 않는다.
     private void RepositionInfoBoxAboveBottomMenu()
     {
         if (infoBoxRect == null) return;
 
-        float reserved = BottomMenuBar.Instance != null ? BottomMenuBar.Instance.GetReservedBottomLeftHeight() : 0f;
-        Vector2 pos = infoBoxRect.anchoredPosition;
-        infoBoxRect.anchoredPosition = new Vector2(pos.x, InfoBoxBottomGap + reserved);
+        bool visible = _inputManager != null && _inputManager.selectedUnits.Count > 0;
+        float x = BottomLeftPanelStack.Report(StackId, visible, infoBoxRect.sizeDelta.x);
+        infoBoxRect.anchoredPosition = new Vector2(x, BottomLeftPanelStack.GetReservedBottomHeight());
     }
 
     private void OnGUI()

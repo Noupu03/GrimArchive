@@ -80,6 +80,17 @@ public static class GUIMenuStyleUtil
         return clicked;
     }
 
+    // GUILayout 흐름 안에서 DrawFlatButton을 쓰기 위한 래퍼(2026-08-21, 사용자 요청 "건물 선택 정보
+    // UI/소집 배치 모드 UI도 다른 메뉴들과 동일한 스타일로") — BuildingControlPanel(생산 대기열)/
+    // MonsterPlacementController(배치 대기열)처럼 항목 개수가 가변적인 목록은 BottomMenuBar처럼
+    // 매번 손으로 Rect를 계산하기보다 GUILayout 자동 배치가 훨씬 간단해서, GUILayoutUtility.GetRect로
+    // 흐름상의 Rect만 받아와 그 위에 기존 DrawFlatButton을 그대로 그린다 — 스타일은 완전히 동일하다.
+    public static bool DrawFlatButtonLayout(string label, bool active = false, bool interactable = true, params GUILayoutOption[] options)
+    {
+        Rect rect = GUILayoutUtility.GetRect(new GUIContent(label), GUIStyle.none, options);
+        return DrawFlatButton(rect, label, active, interactable);
+    }
+
     // 2026-08-20, 사용자 요청 "좌상단의 배속, 우상단의 자원 보유량도 글자 크기 좀 키워주고, 메뉴
     // 스타일로 바꿔줘" — 버튼이 아닌 상시 표시 텍스트(UIManager 배속 안내, StatusInfoPanel 자원
     // 보유량)도 같은 스타일 언어(굵은 큰 글씨 + 어두운 배경 박스 + 흰 테두리)를 쓰도록 확장.
@@ -98,6 +109,25 @@ public static class GUIMenuStyleUtil
                 _labelStyle.normal.textColor = Color.white;
             }
             return _labelStyle;
+        }
+    }
+
+    // 정보량이 많은 패널(생산 대기열/배치 대기열 등, 2026-08-21 신규)은 LabelStyle(20px)이 너무 커서
+    // 좁은 패널 안에서 줄바꿈/잘림이 심해진다 — 같은 색·굵기 언어는 유지하면서 크기만 줄인 보조
+    // 스타일. wordWrap을 켜서 긴 문장이 패널 폭에 맞게 자연스럽게 줄바꿈되게 한다.
+    public const int BodyLabelFontSize = 14;
+    private static GUIStyle _bodyLabelStyle;
+
+    public static GUIStyle BodyLabelStyle
+    {
+        get
+        {
+            if (_bodyLabelStyle == null)
+            {
+                _bodyLabelStyle = new GUIStyle(GUI.skin.label) { fontSize = BodyLabelFontSize, fontStyle = FontStyle.Bold, richText = true, wordWrap = true };
+                _bodyLabelStyle.normal.textColor = Color.white;
+            }
+            return _bodyLabelStyle;
         }
     }
 

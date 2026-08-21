@@ -55,19 +55,19 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     private const int PanelWidth = 260;
     private const int PanelHeight = 260;
-    // DebugInfoPanel의 좌하단 선택 유닛 정보 박스(Assets/Editor/HaareUISetup.cs CreateDebugInfoPanelPrefab
-    // — anchoredPosition(10,10), sizeDelta(240,480), 즉 x:10~250 구간을 차지)와 겹친다는 사용자 신고
-    // (2026-07-27)로 그 오른쪽으로 옮겼다.
-    private const int PanelX = 260;
 
-    // UI 리뉴얼(2026-08-20, 사용자 요청 "정보 UI랑 다른 UI 겹치지 않게, 메뉴로 생성된 UI 위에 쌓이는
-    // 방식으로") — 이 패널의 x 범위(260~520)가 하단 메뉴 바(x:10~약606)와 겹쳐서, 하단 바가 지금
-    // 차지한 높이(BottomMenuBar.GetReservedBottomLeftHeight, 서브메뉴 열림에 따라 매 프레임 바뀜)만큼
-    // 위로 밀어 올린다. DebugInfoPanel.RepositionInfoBoxAboveBottomMenu와 동일한 접근.
+    // 좌하단 패널 스택(2026-08-21, 사용자 요청 "유닛 정보 UI와 같은 방식으로... 스택형태로 좌우로
+    // 쌓이게" → "새 창이 왼쪽으로 오는 형태가 아니라 오른쪽으로 늘어나는 형태로") — 지금 보이는 동안
+    // 매 프레임 자기 폭을 보고하고 시작 X를 받아온다. 등록 순서 기반이라(BottomLeftPanelStack 주석
+    // 참고) 이 패널이 먼저 떠 있었다면(예: 유닛을 아직 하나도 선택 안 한 채 건물부터 클릭) 나중에
+    // 유닛 정보 UI가 나타나도 이 패널 위치는 그대로고, 유닛 정보 UI가 오른쪽에 새로 붙는다.
+    private const string StackId = "BuildingControl";
+
     private Rect GetPanelRect()
     {
-        float reserved = BottomMenuBar.Instance != null ? BottomMenuBar.Instance.GetReservedBottomLeftHeight() : 0f;
-        return new Rect(PanelX, Screen.height - PanelHeight - 10 - reserved, PanelWidth, PanelHeight);
+        float x = BottomLeftPanelStack.Report(StackId, _current != null, PanelWidth);
+        float y = Screen.height - PanelHeight - BottomLeftPanelStack.GetReservedBottomHeight();
+        return new Rect(x, y, PanelWidth, PanelHeight);
     }
 
     // 사용자 신고(2026-07-27) "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림" — OnGUI(IMGUI)는 UGUI의
@@ -80,34 +80,42 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
+    // UI 스타일 통일(2026-08-21, 사용자 요청 "건물 선택시 정보 UI... 다른 메뉴들과 동일한 스타일로") —
+    // 기본 Unity GUI 스킨(GUI.skin.box/Button/Label) 대신 BottomMenuBar/StatusInfoPanel과 같은
+    // GUIMenuStyleUtil(어두운 패널 박스 + 흰 테두리 + 굵은 흰 글씨 + 채우기형 버튼)을 쓴다. 항목 개수가
+    // 가변적인 목록(생산 가능 목록/대기열)이라 BottomMenuBar처럼 손으로 Rect를 계산하는 대신
+    // GUIMenuStyleUtil.DrawFlatButtonLayout(GUILayout 흐름 안에서 같은 버튼 스타일을 그리는 래퍼)을 쓴다.
     private void OnGUI()
     {
         if (_current == null) return;
 
         // StatusInfoPanel(우상단)/DebugInfoPanel(우측 상단 버튼, 좌하단 유닛 정보)과 안 겹치도록
         // 좌하단에서 유닛 정보 박스 오른쪽(PanelX)으로 옮겨 띄운다.
-        GUILayout.BeginArea(GetPanelRect(), GUI.skin.box);
+        Rect rect = GetPanelRect();
+        GUIMenuStyleUtil.DrawPanelBox(rect);
+
+        GUILayout.BeginArea(new Rect(rect.x + 12, rect.y + 8, rect.width - 24, rect.height - 16));
 
         if (_current.IsResourceBuilding)
         {
-            GUILayout.Label("<size=14><b>[ 자원 생산 시설 ]</b></size>");
-            GUILayout.Label("5초마다 Wood/Stone이 자동으로 증가합니다.");
-            GUILayout.Label($"다음 증가까지: {BuildingManager.ResourceTickInterval - _current.ResourceTickTimer:F1}초");
+            GUILayout.Label("[ 자원 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
+            GUILayout.Label("5초마다 Wood/Stone이 자동으로 증가합니다.", GUIMenuStyleUtil.BodyLabelStyle);
+            GUILayout.Label($"다음 증가까지: {BuildingManager.ResourceTickInterval - _current.ResourceTickTimer:F1}초", GUIMenuStyleUtil.BodyLabelStyle);
             if (_buildingManager != null)
             {
-                GUILayout.Label($"생산 건물 {_buildingManager.ResourceBuildingCount}개로 인해, 현재 생산량 초당 {_buildingManager.CurrentResourceProductionPerSecond:F1}개");
+                GUILayout.Label($"생산 건물 {_buildingManager.ResourceBuildingCount}개로 인해, 현재 생산량 초당 {_buildingManager.CurrentResourceProductionPerSecond:F1}개", GUIMenuStyleUtil.BodyLabelStyle);
             }
         }
         else
         {
-            GUILayout.Label("<size=14><b>[ 유닛 생산 시설 ]</b></size>");
+            GUILayout.Label("[ 유닛 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
 
             if (_current.AvailableRules != null)
             {
                 foreach (var rule in _current.AvailableRules)
                 {
                     string costText = BuildCostText(rule.costs);
-                    if (GUILayout.Button($"{rule.displayName} ({costText})"))
+                    if (GUIMenuStyleUtil.DrawFlatButtonLayout($"{rule.displayName} ({costText})", options: new[] { GUILayout.Height(28f) }))
                     {
                         if (_resourceManager != null && _resourceManager.TryConsumeResources(rule.costs))
                         {
@@ -118,7 +126,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             }
 
             GUILayout.Space(6);
-            GUILayout.Label($"<b>대기열 ({_current.Queue.Count})</b>");
+            GUILayout.Label($"대기열 ({_current.Queue.Count})", GUIMenuStyleUtil.BodyLabelStyle);
 
             int index = 0;
             ProductionRule toCancel = null;
@@ -136,9 +144,9 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 }
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label($"{index + 1}. {queued.displayName}{progressText}");
+                GUILayout.Label($"{index + 1}. {queued.displayName}{progressText}", GUIMenuStyleUtil.BodyLabelStyle);
                 // 취소해도 자원은 환불되지 않는다(문서 10장 "생산 취소 및 자원 환불" 제외 범위).
-                if (GUILayout.Button("취소", GUILayout.Width(40)))
+                if (GUIMenuStyleUtil.DrawFlatButtonLayout("취소", options: new[] { GUILayout.Width(50f), GUILayout.Height(24f) }))
                 {
                     toCancel = queued;
                 }
@@ -153,7 +161,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
 
         GUILayout.Space(6);
-        if (GUILayout.Button("닫기"))
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout("닫기", options: new[] { GUILayout.Height(28f) }))
         {
             ClosePanel();
         }

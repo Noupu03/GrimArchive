@@ -53,9 +53,6 @@ public class MonsterPlacementController
 
     private const float PlacementPanelWidth = 230f;
     private const float PlacementPanelHeight = 280f;
-    // 오른쪽 상단에 이미 DebugInfoPanel/StatusInfoPanel이 y10~510 구간을 꽉 채우고 있어(사용자 요청
-    // "생성되는 UI들 기존 UI와 겹치지 않는지 체크해줘") 그 아래로 내려서 겹치지 않게 고정한다.
-    private const float PlacementPanelTopY = 530f;
 
     public MonsterPlacementController(GameSession gameSession, UnitGenerate unitGenerate, UnitSpriteManager unitSpriteManager, List<Unit> selectedUnits)
     {
@@ -415,45 +412,66 @@ public class MonsterPlacementController
     }
 
     // =====================================================
-    // 배치 모드 UI(오른쪽 중앙) — 몬스터 선택/타일 선택 버튼 + 남은 배치 대기열 목록
+    // 배치 모드 UI — 몬스터 선택/타일 선택 버튼 + 남은 배치 대기열 목록
     // =====================================================
-    private Rect GetPlacementPanelRect()
-        => new Rect(Screen.width - PlacementPanelWidth - 16f, PlacementPanelTopY, PlacementPanelWidth, PlacementPanelHeight);
+    // 좌하단 패널 스택(2026-08-21, 사용자 요청 "유닛 정보 UI와 같은 방식으로... 스택형태로 좌우로
+    // 쌓이게" → "새 창이 왼쪽으로 오는 형태가 아니라 오른쪽으로 늘어나는 형태로") — 예전엔 우측 상단
+    // 고정 위치였는데, DebugInfoPanel/BuildingControlPanel과 같은 줄에서 등록 순서대로 쌓이는 칸으로
+    // 옮겼다(몬스터 선택 서브모드 중에도 건물을 클릭하면 BuildingControlPanel이 함께 뜰 수 있다). 이미
+    // 떠 있는 다른 패널의 위치는 이 패널이 나타나도 바뀌지 않는다 — 항상 스택 맨 오른쪽에 새로 붙는다.
+    private const string StackId = "MonsterPlacement";
 
+    private Rect GetPlacementPanelRect()
+    {
+        float x = BottomLeftPanelStack.Report(StackId, _placementSelectedRoom != null, PlacementPanelWidth);
+        float y = Screen.height - PlacementPanelHeight - BottomLeftPanelStack.GetReservedBottomHeight();
+        return new Rect(x, y, PlacementPanelWidth, PlacementPanelHeight);
+    }
+
+    // UI 스타일 통일(2026-08-21, 사용자 요청 "소집 배치 모드에서 유닛선택, 타일선택 전환및 정보창...
+    // 다른 메뉴들과 동일한 스타일로") — 기본 Unity GUI 스킨 대신 BottomMenuBar/StatusInfoPanel과 같은
+    // GUIMenuStyleUtil을 쓴다. 서브모드 전환 버튼도 예전엔 "[몬스터 선택]"처럼 대괄호 텍스트로만
+    // 활성 상태를 표시했는데, 이제 BottomMenuBar 카테고리 버튼과 동일하게 실제 활성/비활성 배경색
+    // (DrawFlatButtonLayout의 active 인자)으로 표시한다.
     private void DrawMonsterPlacementUI()
     {
         // 방 미선택 안내 문구는 NoticeCenter가 담당한다(모드 진입 시 Toggle에서 1회 Push, 2026-08-19
         // "이 문구들을 시스템화" 요청) — 여기서는 방이 선택된 뒤의 패널만 그린다.
         if (_placementSelectedRoom == null) return;
 
-        GUILayout.BeginArea(GetPlacementPanelRect(), GUI.skin.box);
-        GUILayout.Label($"<b>[ 몬스터 배치: {_placementSelectedRoom.RoomName} ]</b>");
+        Rect rect = GetPlacementPanelRect();
+        GUIMenuStyleUtil.DrawPanelBox(rect);
+
+        GUILayout.BeginArea(new Rect(rect.x + 12, rect.y + 8, rect.width - 24, rect.height - 16));
+        GUILayout.Label($"[ 몬스터 배치: {_placementSelectedRoom.RoomName} ]", GUIMenuStyleUtil.BodyLabelStyle);
         GUILayout.Space(4);
 
         GUILayout.BeginHorizontal();
-        string monsterLabel = _placementSubMode == PlacementSubMode.MonsterSelect ? "[몬스터 선택]" : "몬스터 선택";
-        string tileLabel = _placementSubMode == PlacementSubMode.TileSelect ? "[타일 선택]" : "타일 선택";
-        if (GUILayout.Button(monsterLabel)) SwitchToMonsterSelectSubMode();
-        if (GUILayout.Button(tileLabel) && _placementSubMode != PlacementSubMode.TileSelect) EnterTileSelectSubMode();
+        bool monsterActive = _placementSubMode == PlacementSubMode.MonsterSelect;
+        var tabHeight = new[] { GUILayout.Height(30f) };
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout("몬스터 선택", monsterActive, options: tabHeight))
+            SwitchToMonsterSelectSubMode();
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout("타일 선택", !monsterActive, options: tabHeight) && monsterActive)
+            EnterTileSelectSubMode();
         GUILayout.EndHorizontal();
 
         GUILayout.Space(6);
 
-        if (_placementSubMode == PlacementSubMode.MonsterSelect)
+        if (monsterActive)
         {
-            GUILayout.Label($"선택된 몬스터: {_selectedUnits.Count}기");
-            GUILayout.Label("더블클릭/드래그/Ctrl+클릭으로\n배치할 몬스터를 고르세요.");
+            GUILayout.Label($"선택된 몬스터: {_selectedUnits.Count}기", GUIMenuStyleUtil.BodyLabelStyle);
+            GUILayout.Label("더블클릭/드래그/Ctrl+클릭으로\n배치할 몬스터를 고르세요.", GUIMenuStyleUtil.BodyLabelStyle);
         }
         else
         {
-            GUILayout.Label("남은 배치 대기열:");
+            GUILayout.Label("남은 배치 대기열:", GUIMenuStyleUtil.BodyLabelStyle);
             foreach (var group in GetPlacementQueueGroups())
-                GUILayout.Label($"{group.typeName} X{group.count}");
+                GUILayout.Label($"{group.typeName} X{group.count}", GUIMenuStyleUtil.BodyLabelStyle);
             if (_placementQueue.Count == 0)
-                GUILayout.Label("(없음)");
+                GUILayout.Label("(없음)", GUIMenuStyleUtil.BodyLabelStyle);
 
             GUILayout.Space(6);
-            GUILayout.Label("방 안 타일을 클릭/드래그해\n순서대로 배치하세요.");
+            GUILayout.Label("방 안 타일을 클릭/드래그해\n순서대로 배치하세요.", GUIMenuStyleUtil.BodyLabelStyle);
         }
 
         GUILayout.EndArea();
