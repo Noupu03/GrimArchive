@@ -525,6 +525,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             u.OnUpdate(Time.deltaTime);
 
+            // 선택 표시(발밑 링)/단일 선택 시야 범위(2026-08-22 사용자 신고 "선택 담당 시각화들이
+            // 꼬임" — 발밑 링이 몇 개는 생기고 몇 개는 안 생기거나, 시야 범위 표시가 계속 남거나,
+            // 다른 유닛을 선택해도 안 사라지는 문제) — 아래 ProcessUnitAction 경유 SyncVisual은
+            // "이번 틱에 위치/라벨/방향이 실제로 바뀐 유닛"에게만 호출되므로, 가만히 서 있는 유닛은
+            // 선택 상태가 바뀌어도 시각이 갱신되지 않았다. 상태 변화 여부와 무관하게 모든 살아있는
+            // 유닛에 대해 매 프레임 무조건 갱신한다(SetActive/불리언 비교뿐이라 비용이 낮다).
+            _unitGenerate?.RefreshSelectionVisual(u);
+
             u.CombatState.State.actionCooldown -= Time.deltaTime;
             if (u.CombatState.State.actionCooldown <= 0f)
             {

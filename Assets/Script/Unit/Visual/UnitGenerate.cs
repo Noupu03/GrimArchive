@@ -85,6 +85,12 @@ public class UnitGenerate
 #if UNITY_2022_2_OR_NEWER
 		public SpriteResolver SpriteResolver;
 #endif
+		// 시야/인지 범위 콘(LineRenderer) 다시 그리기 여부 판단용(2026-08-22, 프레임 드랍 대응) —
+		// DrawVisionAndPerceptionRange는 삼각함수 20+세그먼트 계산 + LineRenderer.SetPosition을
+		// 두 콘(시야/인지)에 매번 새로 돌리는 비용이 있어, "보이는 상태 + 방향이 실제로 바뀌었을 때"
+		// 에만 다시 그린다 — RefreshSelectionVisual 자체는 매 프레임 호출되지만 이 필드로 걸러낸다.
+		public bool VisionRangeShown;
+		public Vector2 LastVisionForward;
 	}
 
 	private Dictionary<GameObject, VisualCache> _cacheMap = new Dictionary<GameObject, VisualCache>();
@@ -190,6 +196,14 @@ public class UnitGenerate
 #endif
 
 		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
+
+		// 발밑 선택 링을 스폰 시점에 미리 만들어둔다(2026-08-22 사용자 신고 "프레임 드랍이 심해짐" —
+		// RefreshSelectionVisual을 모든 유닛에 매 프레임 무조건 호출하게 되면서, 마커가 아직 없는
+		// 유닛들(특히 웨이브 스폰으로 한 번에 여러 명이 등장한 직후)이 전부 같은 프레임에 몰려
+		// EnsureSelectionMarker의 GameObject/SpriteRenderer 생성 비용이 한꺼번에 터졌다 — "괜찮다가
+		// 순간적으로 프레임이 9까지 떨어졌다가 다시 올라감" 증상과 일치. 스폰은 원래 한 유닛씩
+		// 처리되므로 여기서 만들면 그 비용이 자연히 분산된다.
+		EnsureSelectionMarker(cache, go, unit);
 
 		go.transform.position = new Vector3(
 			unit.position.x + unit.unitType.footprint.x / 2f,
@@ -464,32 +478,69 @@ public class UnitGenerate
 					&& hDisarm.currentTrapInteraction != null
 					&& hDisarm.currentTrapInteraction.Phase == TrapPhase.Disarming;
 				uv.UpdateBelowLabel(isDisarmingTrap ? "" : null);//오류 때문에 잠시 비워둠
+			}
 
-				bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
-				bool showRanges = ShowAllVisionRanges || isSoleSelected;
-				uv.SetVisionRangesVisible(showRanges);
+			UpdateUnitSpriteForDirection(u);
+			RefreshSelectionVisual(u, cache, go);
+	}
 
-				if (showRanges)
+	// 선택 표시(발밑 링)/단일 선택 시 시야 범위 시각화(2026-08-22 사용자 신고 "선택 담당 시각화들이
+	// 꼬임 — 유닛 발밑의 동그라미가 몇개는 생기고 몇개는 안생김. 단일 선택시 나타나는 시야 표현
+	// 시각화가 계속 남아있음. 유닛 발밑의 동그라미가 다른 유닛 선택해도 사라지지 않음") — 원인은 이
+	// 두 표시를 SyncVisual 안에서만 갱신했는데, SyncVisual 자체가 GameSession.ProcessUnitAction의
+	// stateChanged 게이트(그 유닛의 position/label/currentDir이 "이번 틱에 실제로 바뀐 경우"에만
+	// 호출됨) 뒤에 있었다는 것 — 가만히 서 있는 유닛은 선택 상태가 바뀌어도 그 사실이 전혀 반영되지
+	// 않았다(발밑 링이 안 생기거나/안 사라짐, 시야 범위가 계속 남음). SyncVisual에서 분리해 별도
+	// 공개 메서드로 빼고, GameSession.UpdateProcess의 매 프레임 무조건 도는 유닛 순회 루프에서
+	// 상태 변화 여부와 무관하게 매 프레임 호출한다(가벼운 SetActive/불리언 비교뿐이라 비용 낮음).
+	public void RefreshSelectionVisual(Unit u)
+	{
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
+		RefreshSelectionVisual(u, GetCache(go), go);
+	}
+
+	private void RefreshSelectionVisual(Unit u, VisualCache cache, GameObject go)
+	{
+		UnitVisual uv = cache.UnitVisual;
+		if (uv != null)
+		{
+			bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
+			bool showRanges = ShowAllVisionRanges || isSoleSelected;
+			uv.SetVisionRangesVisible(showRanges); // 켜고 끄는 것 자체는 저렴 — 매 프레임 갱신해도 무관.
+
+			if (showRanges)
+			{
+				Vector2 forward = u.GetDirVector(u.currentDir);
+				if (forward == Vector2.zero) forward = Vector2.down;
+
+				// DrawVisionAndPerceptionRange는 콘 2개(시야/인지)마다 20+ 세그먼트 삼각함수 계산 +
+				// LineRenderer.SetPosition을 돌리는 무거운 작업이다 — 매 프레임 무조건 다시 그리면
+				// (특히 "시야 표시" 전역 토글로 여러 유닛이 동시에 켜져 있을 때) 프레임 드랍이
+				// 심해진다(사용자 신고, 2026-08-22). 실제로 "막 보이게 된 순간" 또는 "바라보는 방향이
+				// 바뀐 순간"에만 다시 그리고, 그 외엔 이전에 그려둔 모양을 그대로 둔다.
+				if (!cache.VisionRangeShown || cache.LastVisionForward != forward)
 				{
-					Vector2 forward = u.GetDirVector(u.currentDir);
-					if (forward == Vector2.zero) forward = Vector2.down;
-
 					uv.DrawVisionAndPerceptionRange(
 						VisionMath.ViewDistance(u.VisionStat.spotting), VisionMath.BaseViewAngleDeg,
 						VisionMath.AwarenessDistance(u.VisionStat.spotting), VisionMath.AwarenessAngle(u.VisionStat.spotting),
 						u.isSpecialUnit, VisionMath.CircularPerceptionRadius(u.VisionStat.spotting),
 						forward);
+					cache.LastVisionForward = forward;
 				}
+				cache.VisionRangeShown = true;
 			}
-
-			UpdateUnitSpriteForDirection(u);
-
-			EnsureSelectionMarker(cache, go, u);
-			if (cache.SelectionMarker != null)
+			else
 			{
-				bool isSelected = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
-				cache.SelectionMarker.gameObject.SetActive(isSelected);
+				cache.VisionRangeShown = false;
 			}
+		}
+
+		EnsureSelectionMarker(cache, go, u);
+		if (cache.SelectionMarker != null)
+		{
+			bool isSelected = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
+			cache.SelectionMarker.gameObject.SetActive(isSelected);
+		}
 	}
 
 	// 캐릭터 스프라이트/애니메이션과 완전히 무관한, 풋프린트 기반 발밑 링을 go의 자식으로 한 번만
