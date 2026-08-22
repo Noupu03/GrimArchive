@@ -367,9 +367,29 @@ public class InputManager : MonoBehaviour
 		int incomingPopulation = 0;
 		if (destRoom != null)
 		{
+			var selectedSet = new HashSet<Unit>(selectedUnits);
 			foreach (var u in selectedUnits)
 				if (u != null && u.Health.hp > 0 && u.IsPlayerMonsterFaction && u.currentRoom != destRoom)
 					incomingPopulation += u.populationCost;
+
+			// 광클 대응(2026-08-23, 사용자 신고 "가끔 광클하면 맵 제한 유닛 이상으로 유닛을 넣을 수
+			// 있어") — Room.CurrentPopulation은 "이미 그 방에 물리적으로 도착한" 유닛만 센다. 서로 다른
+			// 부대를 빠르게 연달아 같은 방으로 이동시키면, 먼저 명령받은 부대가 아직 도착 전이라
+			// CurrentPopulation에 반영되지 않은 채로 다음 명령의 검사를 통과해버려(둘 다 그 순간엔 여유가
+			// 있어 보임) 결과적으로 도착 인원 합이 정원을 넘길 수 있었다. 이미 이 방으로 이동 중인(선택되지
+			// 않은) 다른 유닛들의 인구수도 여유분에서 미리 빼서, 아직 도착하지 않은 "예약된" 인구까지
+			// 반영한다.
+			foreach (var u in _gameSession.units)
+			{
+				if (u == null || selectedSet.Contains(u) || u.Health.hp <= 0 || !u.IsPlayerMonsterFaction) continue;
+				if (u.currentRoom == destRoom || !u.isManualMoveCommand || !u.playerMoveTarget.HasValue) continue;
+				Vector2Int pendingTarget = u.playerMoveTarget.Value;
+				if (_gameSession.roomGrid.TryGetValue(new Vector3Int(pendingTarget.x, pendingTarget.y, u.currentFloor), out Room pendingRoom)
+					&& pendingRoom == destRoom)
+				{
+					incomingPopulation += u.populationCost;
+				}
+			}
 		}
 		bool populationOk = destRoom == null || destRoom.CurrentPopulation + incomingPopulation <= destRoom.MaxPopulation;
 

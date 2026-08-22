@@ -105,8 +105,15 @@ public static class AIMovementHelper
 	{
 		if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
 		{
+			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다(2026-08-22, 사용자 신고 "2*2문에서
+			// 1개 문만 남겨두고 이동할때 중간에 멈춤, 명령해도 안먹음") — A*와 Move()의 판정이 어긋나면
+			// (코너 커팅/같은 프레임 내 점유 변화 등) Move()가 조용히 실패하는데, 예전엔 그래도 true를
+			// 반환해 호출부(PlayerCommandFSMState 등)가 stuckTurns를 리셋하며 "정상 이동 중"으로 오판해
+			// 아무 피드백 없이 영원히 얼어붙었다. 실패를 false로 드러내면 기존 혼잡 인내/포기 로직이
+			// 그대로 안전망이 된다.
+			Vector2Int before = unit.position;
 			unit.Move(nextDir);
-			return true;
+			return unit.position != before;
 		}
 		return false;
 	}
@@ -143,6 +150,25 @@ public static class AIMovementHelper
 	public static bool HasAnyStructurallyOpenNeighbor(Unit unit, Vector2Int center)
 	{
 		if (unit.CanMove(center, ignoreUnits: true)) return true;
+		for (int dx = -1; dx <= 1; dx++)
+		for (int dy = -1; dy <= 1; dy++)
+		{
+			if (dx == 0 && dy == 0) continue;
+			if (unit.CanMove(center + new Vector2Int(dx, dy), ignoreUnits: true)) return true;
+		}
+		return false;
+	}
+
+	// 유닛 "자기 자신의 현재 위치" 기준 혼잡 판정 전용(2026-08-23, PlayerCommandFSMState 좁은 병목
+	// 간헐적 정지 수정) — 위 HasAnyStructurallyOpenNeighbor(unit, center)를 center=unit.position으로
+	// 그대로 호출하면 안 된다: 그 함수의 첫 줄이 "center 자신이 열려있는지"부터 확인하는데, center가
+	// 유닛이 이미 서 있는 칸이면 당연히 항상 열려있어(트루) 검사 자체가 무의미해진다. 여기서는 자기
+	// 자신은 제외하고 인접 8칸만(점유 무시) 확인 — 그중 하나라도 갈 수 있으면 "지금은 다른 유닛이
+	// 막고 있을 뿐 구조적으로는 갈 곳이 있다"(혼잡, 인내 대기), 8칸 전부 벽/닫힌 문이면 "진짜 완전히
+	// 막힘"(포기)으로 판정한다.
+	public static bool HasAnyStructurallyOpenAdjacentTile(Unit unit)
+	{
+		Vector2Int center = unit.position;
 		for (int dx = -1; dx <= 1; dx++)
 		for (int dy = -1; dy <= 1; dy++)
 		{

@@ -229,13 +229,31 @@ public class PlayerCommandFSMState : IFSMState
 			// 빈칸으로 목표 재지정"). 여러 유닛을 같은 지점으로 한꺼번에 명령했을 때(전원이 동일한
 			// gridPos를 목표로 받음, InputManager.cs) 한 명만 그 칸을 차지하고 나머지가 영원히
 			// 도착하지 못하던 문제의 근본 원인이었다.
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
+			//
+			// 버그 수정(2026-08-23, 사용자 신고 "2*2 문 중 1개만 남기고 파괴했을 때 방 진입 직전에서
+			// 이동 명령이 간헐적으로 멈춤") — FindNearbyOpenTile(unit, target)은 target 주변 로컬
+			// 칸이 "지금 당장 비어있는지"만 보고 실제 도달 가능성(경로 연결)은 전혀 확인하지 않는다.
+			// target이 방 안쪽처럼 멀리 있으면 그 주변 8칸 중 하나는 거의 항상 로컬로 비어있어서
+			// fallback != target이 매 틱 성립해 버렸고, 그때마다 아래 stuckTurns가 0으로 리셋돼
+			// "8틱 지나면 포기" 안전장치가 사실상 무력화됐다 — 좁은 1칸 병목(부서진 2*2 문 중 1개만
+			// 남은 통로)에서 다른 유닛이 그 한 칸을 순간 점유할 때마다 이 오판단이 반복돼, 유닛이
+			// 아무 피드백 없이 문 앞에서 계속 멈춰있는 것처럼 보였다. 이 재지정은 원래 "목표 칸 자체가
+			// 다른 유닛에 점유된 경우"(여러 유닛이 같은 지점으로 명령받은 경우)를 위한 것이므로, 유닛이
+			// 이미 목표에 인접해 있을 때만 적용한다 — 목표가 멀리 있으면(=병목이 경로 중간 어딘가에
+			// 있다는 뜻) 이 재지정은 의미가 없으므로 건너뛰고 아래 혼잡/완전차단 판정으로 곧장 넘어간다.
+			Vector2Int fallback = AIMovementHelper.IsAdjacent(unit.position, target, radius: 2)
+				? AIMovementHelper.FindNearbyOpenTile(unit, target)
+				: target;
 			if (fallback != target)
 			{
 				unit.playerMoveTarget      = fallback;
 				unit.playerCommandStuckTurns = 0;
 			}
-			else if (AIMovementHelper.HasAnyStructurallyOpenNeighbor(unit, target))
+			// 혼잡 판정 기준도 target(멀리 있을 수 있음)이 아니라 유닛 자신의 현재 위치(실제 막힌
+			// 지점)로 바꾼다 — target 기준이면 방 안쪽처럼 구조적으로 뚫린 곳이 항상 true를 반환해
+			// "진짜 완전히 막힘" 판정이 나올 수 없었다. HasAnyStructurallyOpenAdjacentTile은 유닛
+			// 자신의 칸(항상 트루가 되는 자기 자신)은 제외하고 인접 8칸만 확인한다.
+			else if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(unit))
 			{
 				// 명령 포기 오판 방지(2026-07-28, 사용자 신고 "자꾸 전투중에 한번씩 플레이어 명령
 				// 무시해") — 지금 당장 갈 수 있는 빈 칸이 없는 건 벽/닫힌 문 때문이 아니라 전투 중

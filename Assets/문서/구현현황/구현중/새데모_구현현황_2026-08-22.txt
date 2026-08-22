@@ -658,6 +658,37 @@ FSM 상태/위치/방향이 우연히 같이 안 바뀌면 시각이 전혀 갱�
    무조건 갱신한다 — 정확성 수정 자체는 그대로 유지된다.
 
 ════════════════════════════════════════════════════════════════════════
+■ 19. 2*2 게이트에 문 1개만 남은 통로에서 이동 명령이 말없이 얼어붙는 문제 — A*/Move() 코너 커팅
+   판정 불일치 (2026-08-22 추가, 사용자 신고 "여전히 2*2문에서 1개 문만 남겨두고 이동할때 중간에
+   멈추는 경우가 생겨. 명령해도 안먹음. 명령(이동)인데 안움직여")
+════════════════════════════════════════════════════════════════════════
+16/17번 섹션(자동 문 공격 하드 룰)과는 별개의 진짜 이동 버그였다 — 유닛이 "명령(이동)" 라벨인
+채로(=PlayerCommandFSMState.ExecutePlayerMove가 매 틱 돌고 있음) 전혀 안 움직이고, 재명령해도
+같은 자리에서 다시 얼어붙었다.
+
+근본 원인: AStarMovement의 대각선 코너 커팅 검사(IsCoordBlocked)가 벽(discoveredMap==2)+유닛
+점유만 확인하고 **닫힌 문(Session.IsBlockedByClosedDoor)을 빼먹었다**. 실제 이동을 실행하는
+UnitFunction.Move()의 코너 커팅 검사는 CanMove를 쓰므로 문까지 막힌 것으로 본다 — IsTileWalkable
+본문(이웃 칸 자체 판정)에는 2026-08-22 개편 때 문 판정을 넣었지만 코너 검사 쪽 헬퍼에는 빠져
+있었다. 2*2 게이트에 상대 진영 문 1개만 남은 통로에서는 뚫린 타일로 들어가는 경로가 "남은 문
+바로 옆을 스치는 대각선"이 되기 쉬운데, A*는 그 대각선을 통과 가능이라 추천하고 Move()는 코너
+커팅으로 조용히 거부했다. 여기에 AIMovementHelper.MoveTowardsPos가 "TryGetNextStep이 방향을
+반환했는지"만 보고 true를 돌려줘서, ExecutePlayerMove는 "정상 이동 중"으로 오판해 stuckTurns를
+매 틱 0으로 리셋 — 8틱 포기 안전장치조차 발동하지 않는 무한 정지가 됐다(같은 부류의 A*/Move
+불일치 버그가 2026-07-22 점유 칸, 2026-07-23 코너 점유에 이어 세 번째 — 이번엔 문 판정).
+
+✅ AStarMovement.IsCoordBlocked — Session.IsBlockedByClosedDoor 확인 추가. 코너 커팅 판정이
+   Move()의 실제 판정(CanMove: 벽+점유+문)과 다시 일치한다 — A*가 이제 그 대각선을 막힌 것으로
+   보고 직교 스텝(옆 칸으로 한 칸 이동 후 직진) 경로를 대신 찾는다. 캐시 경로 재검증/
+   TryFallbackMove도 같은 헬퍼를 거치므로 함께 고쳐진다.
+✅ AIMovementHelper.MoveTowardsPos — Move() 호출 전후 position을 비교해 "실제로 움직였는지"를
+   반환하도록 변경(안전망). 앞으로 A*/Move 판정이 또 어긋나거나 같은 프레임 내 점유 변화로 Move가
+   조용히 실패해도, 호출부의 기존 혼잡 인내(stuckTurns 8틱)/포기 로직이 정상 발동해 "말없이 영원히
+   정지" 대신 눈에 보이는 피드백("이동 불가")으로 끝난다. 반환값을 쓰는 호출부는
+   PlayerCommandFSMState 3곳 + TacticalFSMState 2곳(조사 접근/MoveToDoorAttack)뿐이고 전부
+   "false=막힘→폴백" 처리라 의미 변경이 자연스럽게 맞는다(나머지 호출부는 반환값 무시).
+
+════════════════════════════════════════════════════════════════════════
 ■ 검증 상태 — 실제로 켜서 확인이 필요한 항목
 ════════════════════════════════════════════════════════════════════════
 Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 밸런스 확인(수정 파일 전체 { }
@@ -721,6 +752,10 @@ Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 �
   22. [18번 섹션 확인용] 여러 유닛을 선택해 일부를 정지/제자리 공격 등으로 가만히 세워두고 선택을
       반복 변경(다른 유닛 선택, 선택 해제, 재선택)해도 발밑 링이 매번 정확히 나타나고 사라지는지,
       단일 선택 해제 시 시야 범위 표시가 즉시 사라지는지.
+  23. [19번 섹션 확인용] 2*2 게이트의 상대 진영 문 중 1개만 남겨두고 파괴한 뒤, 뚫린 타일을 지나는
+      이동 명령을 여러 방향/여러 유닛으로 반복 — 문턱 앞에서 "명령(이동)" 라벨인 채 말없이 멈추는
+      증상이 재현되지 않는지(직교 스텝으로 돌아 들어가야 함), 진짜 막힌 경우(문이 다 남아있는
+      게이트 너머로 명령)엔 8틱 내에 "이동 불가" 피드백과 함께 명령이 정리되는지.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 변경된 소스 파일 전체 목록
@@ -756,7 +791,9 @@ Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 �
   Assets/Script/Unit/Session/BuildPlacementController.cs(설치 확정 입력 우클릭으로 변경)
   Assets/Script/Unit/Session/InputManager.cs(대규모 정리 — 소집 배치 제거, 제자리 공격 추가, 클릭
     관례 전면 개편으로 ExecuteRightClickCommand 신설)
-  Assets/Script/Unit/Movement/AStarMovement.cs(IsTileWalkable에 문 진영 판정 추가)
+  Assets/Script/Unit/Movement/AStarMovement.cs(IsTileWalkable에 문 진영 판정 추가 + IsCoordBlocked
+    코너 커팅 검사에도 문 판정 추가 — 19번 섹션)
+  Assets/Script/Unit/AI/FSM/AIMovementHelper.cs(MoveTowardsPos가 실제 이동 여부 반환 — 19번 섹션)
   Assets/Script/Map/MapData.cs(Gate.isDoorClosed 주석만 갱신 — 필드는 저장 호환을 위해 유지, 미사용)
   Assets/Script/UI/BottomMenuBar.cs
   Assets/Script/Unit/AI/Config/TacticalBehaviorPriorityConfig.cs(Core→CoreAttack)
