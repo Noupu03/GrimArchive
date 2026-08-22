@@ -285,6 +285,15 @@ public class AStarMovement : IMovementAlgorithm
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
                 if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
 
+                // 문 진영 통행 판정(기초문서.md 피드백, 2026-08-22) — UnitFunction.CanMove와 반드시
+                // 같은 결론을 내야 한다(위 "코너 커팅 방지" 주석과 동일한 이유 — 둘이 어긋나면 A*가
+                // 실제로는 막힌 경로를 갈 수 있다고 오판한다).
+                if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
+                {
+                    isWall = true;
+                    break;
+                }
+
                 if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {

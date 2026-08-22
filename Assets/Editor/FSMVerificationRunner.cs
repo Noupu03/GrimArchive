@@ -26,12 +26,10 @@ public static class FSMVerificationRunner
 		GetEscortSlotPosition_RangedSlot_IsBehindInteractingUnit();
 		GetEscortSlotPosition_TargetStillMoving_IsBehindNotFront();
 		GetEscortSlotPosition_OverlapWithInteractionObject_StepsFartherOrSideways();
-		MoveToCore_DifferentFloor_NeverFalsePositiveArrives();
 		Investigate_InterruptedByHit_ProgressIsHalvedOnce();
 		Investigate_InterruptedByPlayerCommand_ProgressIsHalved();
 		TrapDisarm_InterruptedByHit_ProgressIsHalvedOnce();
-		Investigate_EscortHit_NonPartyObjective_Interrupts();
-		Investigate_EscortHit_PartyObjective_Continues();
+		Investigate_EscortHit_Interrupts();
 
 		if (_failCount == 0)
 		{
@@ -148,35 +146,6 @@ public static class FSMVerificationRunner
 		Check(
 			"6-4 전방 슬롯이 상호작용 오브젝트와 겹치면 다른 자리로 회피",
 			slot != naiveFrontSlot, $"slot이 오브젝트 위치({naiveFrontSlot})와 그대로 겹침, got {slot}");
-	}
-
-	// 2026-07-27 신규 — 리더가 코어와 다른 층에 있으면 MoveToCore의 Chebyshev 도착 판정이 층을 무시하고
-	// X/Y만 봐서 "도착"으로 오판하던 버그의 방어 코드(둘째 안전망)를 검증한다. CanContinueCore가 이미
-	// 층이 다르면 코어 상호작용 자체를 안 만드므로, 여기서는 MoveToCore 그 자체에 대한 방어만 별도로
-	// 리플렉션 호출로 확인한다(CanContinueCore를 우회해 currentCoreInteraction을 직접 주입).
-	private static void MoveToCore_DifferentFloor_NeverFalsePositiveArrives()
-	{
-		var human = ScriptableObject.CreateInstance<Human>();
-		human.position = new Vector2Int(5, 5); // 코어와 X/Y가 우연히 같은 위치
-		human.currentFloor = 0;
-		human.currentCoreInteraction = new CoreInteractionState
-		{
-			CoreObjectId = "core",
-			CorePosition = new Vector3Int(5, 5, 1), // 층(Z)이 다름
-		};
-		human.party = new Party("p1", "TestParty");
-		human.party.PendingCoreObjectId = "core";
-		human.party.PendingCorePosition = new Vector3Int(5, 5, 1);
-		AttachMinimalSession(human, new InteractableObject("core", new Vector3Int(5, 5, 1), 10f));
-
-		var method = typeof(TacticalFSMState).GetMethod("MoveToCore", BindingFlags.NonPublic | BindingFlags.Static);
-		object status = method.Invoke(null, new object[] { human });
-		bool stillHasInteraction = human.currentCoreInteraction != null;
-
-		Check(
-			"7-3 MoveToCore는 층이 다르면 도착 오판 없이 Running만 반환",
-			status.ToString() == "Running" && stillHasInteraction,
-			$"status={status} (expected Running), stillHasInteraction={stillHasInteraction} (expected true)");
 	}
 
 	private static void Investigate_InterruptedByHit_ProgressIsHalvedOnce()
@@ -298,42 +267,22 @@ public static class FSMVerificationRunner
 		return interactor;
 	}
 
-	private static void SetWaveDummyTarget(InteractableObject obj)
-	{
-		var waveManager = new HumanWaveManager();
-		waveManager.dummyTarget = obj;
-		typeof(HumanWaveManager)
-			.GetField("<Instance>k__BackingField", BindingFlags.NonPublic | BindingFlags.Static)
-			.SetValue(null, waveManager);
-	}
-
-	private static void Investigate_EscortHit_NonPartyObjective_Interrupts()
+	// 8-2장(2026-08-22 갱신) — 코어 공격 도입(기초문서.md 피드백)으로 웨이브 목표가 더 이상 "조사할
+	// 오브젝트"(HumanWaveManager.dummyTarget, 폐기됨)가 아니게 되면서, "보호 유닛 피격 시에도 파티
+	// 목표 조사만은 유지" 예외(구 IsPartyObjectiveInvestigation)가 없어졌다 — 이제 보호 유닛이 피격
+	// 당하면 조사 종류와 무관하게 항상 중단된다. 예전 두 테스트(NonPartyObjective_Interrupts/
+	// PartyObjective_Continues)를 이 단일 테스트로 대체.
+	private static void Investigate_EscortHit_Interrupts()
 	{
 		var interactor = BuildEscortedInvestigator(out _, "regular_loot");
-		SetWaveDummyTarget(null); // 이번 웨이브의 파티 목표 없음(또는 다른 오브젝트) — 지금 조사 중인 건 그냥 일반 조사
 
 		bool canInvestigate = CallCanInvestigate(interactor);
 		float progress = interactor.currentInvestigation != null ? interactor.currentInvestigation.Progress01 : -1f;
 
 		Check(
-			"8-2 보호 유닛 피격 시 일반 조사(비-파티목표)는 중단",
+			"8-2 보호 유닛 피격 시 조사 중단",
 			!canInvestigate && Mathf.Abs(progress - 0.3f) < 0.001f,
 			$"canInvestigate={canInvestigate} (expected false), progress={progress} (expected 0.3)");
-	}
-
-	private static void Investigate_EscortHit_PartyObjective_Continues()
-	{
-		var targetObj = new InteractableObject("wave_goal", new Vector3Int(0, 0, 0), 10f);
-		var interactor = BuildEscortedInvestigator(out _, "wave_goal");
-		SetWaveDummyTarget(targetObj); // 지금 조사 중인 대상이 이번 웨이브의 파티 목표 오브젝트
-
-		bool canInvestigate = CallCanInvestigate(interactor);
-		float progress = interactor.currentInvestigation != null ? interactor.currentInvestigation.Progress01 : -1f;
-
-		Check(
-			"8-2 보호 유닛 피격 시 파티 목표 조사는 유지",
-			canInvestigate && Mathf.Abs(progress - 0.6f) < 0.001f,
-			$"canInvestigate={canInvestigate} (expected true), progress={progress} (expected 0.6, unhalved)");
 	}
 
 	private static void Investigate_InterruptedByPlayerCommand_ProgressIsHalved()

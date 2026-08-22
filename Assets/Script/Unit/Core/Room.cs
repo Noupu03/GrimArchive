@@ -39,6 +39,12 @@ public class Room
     // RevealRoomFog를 통해 true로 바꾼다.
     public bool FogRevealed { get; set; } = false;
 
+    // 기초문서.md 피드백(2026-08-22) — 코어 전면 개편: 모든 방이 항상 코어를 하나씩 갖는다.
+    // GameSession.SpawnAllRoomCores가 방 생성 직후 채워준다. CoreObjectId가 null이면(발생하면 안
+    // 되지만) 코어 공격 행동(TacticalBehaviorType.CoreAttack)이 이 방을 목표로 삼지 않는다.
+    public string CoreObjectId;
+    public Vector3Int CorePosition;
+
     // 5.2장 "방의 현재 인구수는 소속된 모든 유닛의 인구수 합계" — ContainedUnits 기준으로 매번
     // 계산한다(별도 캐시 없이 항상 최신값 보장, 방 하나에 보통 유닛 수가 많지 않아 비용 낮음).
     // 2026-07-27 사용자 요청(정정): 인구수는 "플레이어 진영 몬스터"만 포함한다 — 인류는 원래 제외

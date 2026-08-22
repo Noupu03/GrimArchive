@@ -23,6 +23,12 @@ public class PlayerCommandFSMState : IFSMState
 				new BTCondition(HasPlayerAttackTarget),
 				new BTLeaf(ExecutePlayerAttack)
 			),
+			// 기초문서.md 피드백(2026-08-22, "코어와 문을 명령으로 인한 파괴 대상으로 지정할 수 있게
+			// 해줘") — 유닛 공격과 동급, 이동보다 먼저 확인한다.
+			new BTSequence(
+				new BTCondition(HasPlayerAttackObjectTarget),
+				new BTLeaf(ExecutePlayerAttackObject)
+			),
 			new BTSequence(
 				new BTCondition(HasPlayerMoveCommand),
 				new BTLeaf(ExecutePlayerMove),
@@ -47,7 +53,7 @@ public class PlayerCommandFSMState : IFSMState
 	public void  OnEnter(Unit unit)        { unit.playerCommandStuckTurns = 0; }
 	public void  OnExit(Unit unit)         { }
 	public BTStatus Tick(Unit unit)        => _bt.Tick(unit);
-	public string   GetLabel(Unit unit)    => HasPlayerAttackTarget(unit) ? "명령(공격)" : "명령(이동)";
+	public string   GetLabel(Unit unit)    => (HasPlayerAttackTarget(unit) || HasPlayerAttackObjectTarget(unit)) ? "명령(공격)" : "명령(이동)";
 
 	// ── 헬퍼 ─────────────────────────────────────────────────────
 
@@ -74,11 +80,50 @@ public class PlayerCommandFSMState : IFSMState
 	private static bool HasPlayerAttackTarget(Unit unit)
 		=> unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0;
 
+	// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령이 걸려 있는지. 대상 자체가 여전히 유효한지
+	// (파괴/소유권 전환됐는지)는 ExecutePlayerAttackObject가 매 틱 다시 확인해 스스로 정리한다.
+	private static bool HasPlayerAttackObjectTarget(Unit unit)
+		=> unit.playerAttackObjectTarget.HasValue;
+
 	private static bool HasPlayerMoveCommand(Unit unit)
 		=> unit.playerMoveTarget.HasValue && unit.isManualMoveCommand;
 
 	private static bool HasActivePlayerCommand(Unit unit)
-		=> HasPlayerAttackTarget(unit) || HasPlayerMoveCommand(unit);
+		=> HasPlayerAttackTarget(unit) || HasPlayerAttackObjectTarget(unit) || HasPlayerMoveCommand(unit);
+
+	// 기초문서.md 피드백(2026-08-22) — pos에 있는 오브젝트가 unit이 명령으로 공격할 수 있는 대상인지
+	// 판정한다(코어: 아직 파괴 전이고 이미 내 진영 소유가 아닐 것 / 문: 아직 파괴 전일 것). InputManager
+	// 가 명령 발행 전 검증에도 그대로 재사용한다(public) — 자동 코어 공격(TacticalFSMState.
+	// HasCoreAttackTarget/FindHostileRoomCore)과 별개 경로지만 코어 쪽 유효성 판정 취지는 동일하다.
+	public static bool IsPendingObjectAttackValid(Unit unit, Vector3Int pos)
+	{
+		if (unit == null || unit.Session == null || !unit.Session.objectGrid.TryGetValue(pos, out var obj) || obj.Tags == null)
+			return false;
+
+		if (obj.Tags.Contains(GameSession.CoreTag))
+		{
+			if (obj.CoreHp <= 0f) return false;
+			// 코어는 파괴돼도 사라지지 않고 반피로 회복된다 — 이미 내 진영 소유가 됐으면(=파괴 성공)
+			// 더 공격할 이유가 없으므로 명령을 완료 처리한다.
+			FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
+			if (myFaction != null && unit.Session.roomGrid.TryGetValue(pos, out Room room) && room.RoomFaction == myFaction.Value)
+				return false;
+			return true;
+		}
+		if (obj.Tags.Contains(DoorSystem.DoorTag))
+		{
+			if (obj.DoorHp <= 0f) return false;
+			// 자기 진영 문은 공격 대상이 아니다(사용자 요청, 2026-08-22 "자기 진영의 문은 우클릭시
+			// 공격 대상이 되면 안돼... 문 너머의 상대 진영 문 선택시, 공격이 가능하게 해주면 됨") —
+			// 어차피 항상 통과 가능하므로, 이 경우 호출부(InputManager.ExecuteRightClickCommand)가
+			// 대신 일반 이동 명령으로 처리한다. 문 소유 진영은 방 소유권과 분리된 고정값이라
+			// (InteractableObject.DoorOwnerFaction, 2026-08-22 재조정) 방 조회 없이 바로 읽는다.
+			FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
+			if (myFaction != null && obj.DoorOwnerFaction == myFaction.Value) return false;
+			return true;
+		}
+		return false;
+	}
 
 	// ── 실행 ─────────────────────────────────────────────────────
 
@@ -128,6 +173,45 @@ public class PlayerCommandFSMState : IFSMState
 			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target.position);
 			if (fallback != target.position)
 				AIMovementHelper.MoveTowardsPos(unit, fallback);
+		}
+		return BTStatus.Running;
+	}
+
+	// 기초문서.md 피드백(2026-08-22, "코어와 문을 명령으로 인한 파괴 대상으로 지정할 수 있게 해줘") —
+	// ExecutePlayerAttack(유닛 대상)과 동일한 구조: 인접하면 currentAttackObjectTarget을 채워 채널링을
+	// 맡기고(UnitFunction.OnUpdate가 실제 데미지 적용), 아니면 접근한다. 대상이 무효화되면(파괴/소유권
+	// 전환/사라짐) 명령을 스스로 종료한다.
+	private static BTStatus ExecutePlayerAttackObject(Unit unit)
+	{
+		if (!unit.playerAttackObjectTarget.HasValue) return BTStatus.Failure;
+		Vector3Int targetPos = unit.playerAttackObjectTarget.Value;
+
+		if (unit.currentFloor != targetPos.z || !IsPendingObjectAttackValid(unit, targetPos))
+		{
+			unit.playerAttackObjectTarget = null;
+			unit.currentAttackObjectTarget = null;
+			unit.oneTimeReactUsed = false;
+			// InputManager.ExecuteRightClickCommand가 이 명령을 걸 때 방 경계/문 타일 제한을 우회하려고
+			// 켰던 예외(2026-08-22, 위 참고)를 명령 종료 시점에 반드시 꺼야 한다 — 안 그러면 대상이
+			// 파괴/무효화된 뒤에도 RoomConfinedMovement 유닛이 방 밖을 자유롭게 드나들 수 있게 된다.
+			unit.isManualMoveCommand = false;
+			return BTStatus.Success;
+		}
+
+		Vector2Int pos2D = new Vector2Int(targetPos.x, targetPos.y);
+
+		if (AIMovementHelper.IsAdjacent(unit.position, pos2D))
+		{
+			unit.currentDir = SkillAction.GetDirection8(pos2D - unit.position);
+			unit.currentAttackObjectTarget = targetPos;
+			return BTStatus.Running;
+		}
+
+		unit.currentAttackObjectTarget = null; // 인접하지 않게 됐으면(밀려남 등) 채널링 중단
+		if (!AIMovementHelper.MoveTowardsPos(unit, pos2D))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos2D);
+			if (fallback != pos2D) AIMovementHelper.MoveTowardsPos(unit, fallback);
 		}
 		return BTStatus.Running;
 	}
@@ -194,22 +278,6 @@ public class PlayerCommandFSMState : IFSMState
 
 	private static BTStatus CompletePlayerCommand(Unit unit)
 	{
-		// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "소집 도착 후 바라보는 방향을 설정하자") — 소집
-		// 중인 몬스터가 디펜스 시작 위치까지의 이동을 마치는 시점(=이동 명령 완료 시점)에 방향을
-		// 맞춘다. 시작방이면 그 방의 문을, 아니면 시작방쪽으로 가장 가까운 문을 바라본다.
-		// 2026-08-20, 사용자 요청 "소집 상태 동안... 문이 있는 타일에 서있지 않도록" — 배치 모드에서
-		// 플레이어가 문 타일에 직접 배치 위치를 지정했을 수 있으므로(열린 문은 통행 가능이라 배치 자체는
-		// 막히지 않음), 도착한 자리가 문 타일이면 방향을 정하기 전에 먼저 밀어낸다. 이 지점은
-		// GameSession.ProcessUnitAction의 ExecuteAction() 실행 도중이라(unit.position이 아직 unitGrid에
-		// 등록되지 않은 상태) updateUnitGrid=false로 넘겨 position만 바꾸고, 등록은 ProcessUnitAction의
-		// 기존 oldPos/최종 position diff 메커니즘에 맡긴다(MonsterDefensePlacementSystem.
-		// EnsureNotStandingOnDoorTile 주석 참고).
-		if (unit.isMustered && unit.Session != null)
-		{
-			MonsterDefensePlacementSystem.EnsureNotStandingOnDoorTile(unit.Session, unit, updateUnitGrid: false);
-			MonsterDefensePlacementSystem.ApplyDefenseFacingDirection(unit.Session, unit);
-		}
-
 		// "집결 및 정지" 명령(2026-08-20) — 이동이 끝나는 지금 이 시점에 정지(동상) 상태로 고정한다.
 		// UnitFSM.SelectState가 다음 판단(hasPendingCommand==false가 되는 바로 다음 틱)에서 isHalted를
 		// 보고 HaltFSMState로 강제 전환한다.
@@ -217,6 +285,15 @@ public class PlayerCommandFSMState : IFSMState
 		{
 			unit.pendingHaltOnArrival = false;
 			unit.isHalted = true;
+		}
+
+		// "제자리 공격" 명령(기초문서.md 피드백, 2026-08-22, R키 배치모드 폐기를 대체) — 이동이 끝나는
+		// 시점에 제자리 공격 상태로 고정한다. HaltFSMState와 동일한 강제 전환 패턴이지만, 이 상태는
+		// 이동은 하지 않되 사거리 내 적은 공격한다(StandGroundAttackFSMState.cs 참고).
+		if (unit.pendingStandGroundOnArrival)
+		{
+			unit.pendingStandGroundOnArrival = false;
+			unit.isStandGroundAttack = true;
 		}
 
 		unit.playerMoveTarget        = null;

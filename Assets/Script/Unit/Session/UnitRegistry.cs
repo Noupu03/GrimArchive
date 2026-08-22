@@ -20,13 +20,31 @@ public class UnitRegistry
         _resolver = resolver;
     }
 
-    public void RegisterUnitPos(Unit u, Vector2Int pos)
+    // 2026-08-22 사용자 신고 "난전중 겹침... 어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — 예전엔
+    // 무조건 덮어써서, 이미 다른 유닛이 등록된 칸에 또 다른 유닛을 등록하면(스폰/이동/텔레포트 등
+    // 호출부가 사전에 점유 확인을 빠뜨리거나 놓치면) 그 칸의 등록이 뒤 호출로 조용히 덮어써지고
+    // 원래 유닛은 unitGrid 상 "존재하지 않는" 상태가 되면서도 화면상 위치(position 필드)는 그대로
+    // 남아 — 다른 유닛이 그 자리를 빈 칸으로 오판해 걸어 들어오는 식으로 겹침이 발생했다. 이제
+    // 반환값(bool)으로 성공 여부를 알려준다 — 발자국(footprint) 칸 중 하나라도 이미 다른 살아있는
+    // 유닛이 점유하고 있으면 어떤 칸도 등록하지 않고(부분 오염 방지) false를 반환한다. 호출부
+    // (GameSession.ProcessUnitAction/Unit.ForceMove)는 실패 시 위치 변경 자체를 되돌린다.
+    public bool RegisterUnitPos(Unit u, Vector2Int pos)
     {
-        if (u == null) return;
-        
+        if (u == null) return false;
+
         int w = u.unitType != null ? (int)u.unitType.footprint.x : 1;
         int h = u.unitType != null ? (int)u.unitType.footprint.y : 1;
-        
+
+        for (int dx = 0; dx < w; dx++)
+        {
+            for (int dy = 0; dy < h; dy++)
+            {
+                Vector3Int key = new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor);
+                if (unitGrid.TryGetValue(key, out Unit occupant) && occupant != null && occupant != u && occupant.hp > 0)
+                    return false;
+            }
+        }
+
         for (int dx = 0; dx < w; dx++)
         {
             for (int dy = 0; dy < h; dy++)
@@ -34,7 +52,7 @@ public class UnitRegistry
                 unitGrid[new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor)] = u;
             }
         }
-        
+
         if (u.FactionBehavior is PlayerMonsterBehavior && _offenseProcessor != null)
         {
             if (_gameSession != null && _gameSession.allRooms != null)
@@ -70,6 +88,8 @@ public class UnitRegistry
                 }
             }
         }
+
+        return true;
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)

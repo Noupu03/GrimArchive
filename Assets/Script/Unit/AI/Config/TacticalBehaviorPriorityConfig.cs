@@ -34,7 +34,8 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
         new Entry { behavior = TacticalBehaviorType.Investigate,  enabled = true },
         new Entry { behavior = TacticalBehaviorType.Wait,         enabled = true },
         new Entry { behavior = TacticalBehaviorType.Formation,    enabled = true },
-        new Entry { behavior = TacticalBehaviorType.Core,         enabled = true },
+        new Entry { behavior = TacticalBehaviorType.CoreAttack,   enabled = true },
+        new Entry { behavior = TacticalBehaviorType.DoorAttack,   enabled = true },
     };
 
     public bool IsEnabled(TacticalBehaviorType type)
@@ -61,5 +62,14 @@ public enum TacticalBehaviorType
     Investigate,   // 조사 오브젝트 상호작용
     Wait,          // 지정 위치/목적 대기
     Formation,     // 보호 포메이션 유지
-    Core,          // 03문서 7-3장(2026-07-27 신규): 리더 전용 코어 조사 — 다른 비전투 행동을 마친 뒤 최후순위
+    // 기초문서.md 피드백(2026-08-22 전면 개편): 자기 진영 소유가 아닌 방의 코어 공격 — 최후순위.
+    // 2026-08-22 재조정(사용자 확정 "플레이어 측 몬스터는 절대 스스로 문이나 코어를 파괴하려
+    // 시도해서는 안 된다. 반드시 플레이어의 명령으로만 시도해야 한다. 자동 오브젝트 공격은 오직
+    // 인류만의 로직이다") — 인류 전용으로 축소. 플레이어 몬스터는 PlayerCommandFSMState.
+    // ExecutePlayerAttackObject(명령)로만 코어/문을 공격할 수 있다.
+    CoreAttack,
+    // 2026-08-22 신규(사용자 요청 "인간쪽에만 적용되는 fsm... 방을 점령하고 난 다음, 다른 방으로
+    // 향하는 다른 진영 문이 발견되었으면 공격하고, 탐험을 이어나가는 로직") — 인류 전용. 이미 점령한
+    // 방의 경계 문 중 아직 다른 진영 소유인 문을 부순다. CoreAttack과 동급 최후순위(자리표시자).
+    DoorAttack,
 }

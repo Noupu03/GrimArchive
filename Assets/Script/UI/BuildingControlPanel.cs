@@ -7,6 +7,13 @@ using VContainer;
 // 건축물·자원·유닛 생산 MVP(2026-07-27) — B/V키로 지은 건물을 클릭하면 뜨는 조작 UI(스타크래프트 참고,
 // 사용자 요청). DebugInfoPanel/StatusInfoPanel과 동일한 관례 — [PanelAttribute]로 등록된 얇은 UGUI
 // 프리팹 껍데기 + 실제 인터랙션은 OnGUI로 그린다(이 프로젝트에서 이미 검증된 패턴).
+//
+// 오브젝트 정보 조회 겸용(2026-08-22 후속 피드백, 사용자 요청 "모든 오브젝트는 이제 클릭을 통해
+// 정보를 볼 수 있어(건물처럼)") — 코어/문/함정/전리품/시체/전멸흔적 등 InteractableObject 전반의
+// 클릭 정보 표시도 이 클래스가 겸한다. 새 프리팹을 만들려면 Unity 에디터에서 GUID를 새로 발급받아야
+// 하는데 이 환경에서는 에디터 실행이 불가능해 안전하게 만들 수 없다 — 이미 있는 이 패널(내용은 전부
+// OnGUI라 프리팹 자체는 빈 껍데기, DebugInfoPanel의 "시야 표시" 토글 재사용 전례와 동일한 이유)의
+// _current(건물)/_currentObject(오브젝트) 두 상태를 상호 배타로 관리해 확장했다.
 [PanelAttribute("Prefabs/BuildingControlPanel")]
 public class BuildingControlPanel : MonoRoutine, ICustomPanel
 {
@@ -19,6 +26,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private ResourceManager _resourceManager;
     private BuildingManager _buildingManager;
     private BuildingData _current;
+    private InteractableObject _currentObject;
 
     [Inject]
     public void Construct(ResourceManager resourceManager, BuildingManager buildingManager)
@@ -43,7 +51,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
-        BottomLeftPanelStack.Report(StackId, _current != null, PanelWidth);
+        BottomLeftPanelStack.Report(StackId, _current != null || _currentObject != null, PanelWidth);
     }
 
     public void OpenPanel()
@@ -56,6 +64,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     {
         gameObject.SetActive(false);
         _current = null;
+        _currentObject = null;
     }
 
     public void BindEvent() { }
@@ -63,6 +72,16 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     public void ShowForBuilding(BuildingData building)
     {
         _current = building;
+        _currentObject = null;
+        OpenPanel();
+    }
+
+    // 오브젝트 정보 조회(2026-08-22 후속 피드백) — InputManager가 유닛도 건물도 아닌 오브젝트
+    // (코어/문/함정/전리품/시체/전멸흔적)를 클릭했을 때 호출한다.
+    public void ShowForObject(InteractableObject obj)
+    {
+        _currentObject = obj;
+        _current = null;
         OpenPanel();
     }
 
@@ -78,7 +97,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     private Rect GetPanelRect()
     {
-        float x = BottomLeftPanelStack.Report(StackId, _current != null, PanelWidth);
+        float x = BottomLeftPanelStack.Report(StackId, _current != null || _currentObject != null, PanelWidth);
         float y = Screen.height - PanelHeight - BottomLeftPanelStack.GetReservedBottomHeight();
         return new Rect(x, y, PanelWidth, PanelHeight);
     }
@@ -89,7 +108,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // InputManager가 좌클릭을 월드 입력으로 처리하기 전에 이 패널 영역 위인지 먼저 확인하도록 노출한다.
     public bool IsMouseOverPanel()
     {
-        if (_current == null) return false;
+        if (_current == null && _currentObject == null) return false;
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
@@ -100,7 +119,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // GUIMenuStyleUtil.DrawFlatButtonLayout(GUILayout 흐름 안에서 같은 버튼 스타일을 그리는 래퍼)을 쓴다.
     private void OnGUI()
     {
-        if (_current == null) return;
+        if (_current == null && _currentObject == null) return;
 
         // StatusInfoPanel(우상단)/DebugInfoPanel(우측 상단 버튼, 좌하단 유닛 정보)과 안 겹치도록
         // 좌하단에서 유닛 정보 박스 오른쪽(PanelX)으로 옮겨 띄운다.
@@ -109,7 +128,11 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         GUILayout.BeginArea(new Rect(rect.x + 12, rect.y + 8, rect.width - 24, rect.height - 16));
 
-        if (_current.IsResourceBuilding)
+        if (_currentObject != null)
+        {
+            DrawObjectInfo(_currentObject);
+        }
+        else if (_current.IsResourceBuilding)
         {
             GUILayout.Label("[ 자원 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
             GUILayout.Label("5초마다 Wood/Stone이 자동으로 증가합니다.", GUIMenuStyleUtil.BodyLabelStyle);
@@ -180,6 +203,78 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
 
         GUILayout.EndArea();
+    }
+
+    // 오브젝트 정보 표시(2026-08-22 후속 피드백, 사용자 요청 "그 정보에는 만약 체력이 있는 오브젝트면
+    // 체력 표기, 만약 진영 소유 가능한 오브젝트면 오브젝트 어디 진영 소유인지 표기, 해당 오브젝트의
+    // 기본적인 정보 표기 등") — 코어/문/함정/전리품/시체/전멸흔적 등 모든 InteractableObject 공통.
+    // 순수 조회용이라 버튼은 아래 공용 "닫기"뿐이다.
+    private void DrawObjectInfo(InteractableObject obj)
+    {
+        GUILayout.Label($"[ {GetObjectDisplayName(obj)} ]", GUIMenuStyleUtil.LabelStyle);
+        GUILayout.Label($"위치: ({obj.Position.x}, {obj.Position.y}) / {obj.Position.z}층", GUIMenuStyleUtil.BodyLabelStyle);
+
+        if (TryGetObjectHp(obj, out float hp, out float maxHp))
+        {
+            GUILayout.Label($"체력: {hp:F0} / {maxHp:F0}", GUIMenuStyleUtil.BodyLabelStyle);
+        }
+
+        FactionType? owner = GetObjectOwnerFaction(obj);
+        if (owner != null)
+        {
+            GUILayout.Label($"소유 진영: {owner.Value}", GUIMenuStyleUtil.BodyLabelStyle);
+        }
+
+        if (obj.Tags != null && obj.Tags.Contains("Object/Passable/Loot"))
+        {
+            string state = obj.IsCollected ? "회수됨" : obj.IsInvestigated ? "조사 완료(회수 대기)" : "미조사";
+            GUILayout.Label($"상태: {state}", GUIMenuStyleUtil.BodyLabelStyle);
+        }
+    }
+
+    private static string GetObjectDisplayName(InteractableObject obj)
+    {
+        if (obj.Tags == null) return "오브젝트";
+        if (obj.Tags.Contains(DoorSystem.DoorTag)) return "문";
+        if (obj.Tags.Contains(GameSession.CoreTag)) return "코어";
+        if (obj.Tags.Contains("Object/Building/Passable/Trap")) return "함정";
+        if (obj.Tags.Contains("Object/Passable/Corpse"))
+            return obj.Tags.Contains("Human") ? "인류 시체" : "몬스터 시체";
+        if (obj.Tags.Contains("Object/Passable/WipeoutTrace")) return "전멸 흔적";
+        if (obj.Tags.Contains("Object/Passable/Loot")) return "전리품";
+        return "오브젝트";
+    }
+
+    // 체력이 있는 오브젝트(코어/문/함정)만 true를 반환한다 — 그 외(전리품/시체/전멸흔적)는 체력 개념이
+    // 없으므로 hp/maxHp를 표시하지 않는다.
+    private static bool TryGetObjectHp(InteractableObject obj, out float hp, out float maxHp)
+    {
+        if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag) && obj.DoorMaxHp > 0f)
+        {
+            hp = obj.DoorHp; maxHp = obj.DoorMaxHp; return true;
+        }
+        if (obj.Tags != null && obj.Tags.Contains(GameSession.CoreTag) && obj.CoreMaxHp > 0f)
+        {
+            hp = obj.CoreHp; maxHp = obj.CoreMaxHp; return true;
+        }
+        if (obj.Tags != null && obj.Tags.Contains("Object/Building/Passable/Trap") && obj.TrapMaxHp > 0f)
+        {
+            hp = obj.TrapHp; maxHp = obj.TrapMaxHp; return true;
+        }
+        hp = 0f; maxHp = 0f; return false;
+    }
+
+    // 진영 소유 가능한 오브젝트(코어/문)만 값을 반환한다. 코어는 자신이 물리적으로 속한 방의
+    // Room.RoomFaction을 그대로 따르지만, 문은 2026-08-22부터 방 소유권과 분리된 고정값
+    // (InteractableObject.DoorOwnerFaction — 점령으로 안 바뀌고 파괴+재설치로만 바뀜)을 쓴다.
+    private static FactionType? GetObjectOwnerFaction(InteractableObject obj)
+    {
+        if (obj.Tags == null) return null;
+        if (obj.Tags.Contains(DoorSystem.DoorTag)) return obj.DoorOwnerFaction;
+        if (!obj.Tags.Contains(GameSession.CoreTag) || GameSession.Instance == null) return null;
+        return GameSession.Instance.roomGrid.TryGetValue(obj.Position, out Room room) && room != null
+            ? room.RoomFaction
+            : (FactionType?)null;
     }
 
     private static string BuildCostText(List<ResourceCost> costs)

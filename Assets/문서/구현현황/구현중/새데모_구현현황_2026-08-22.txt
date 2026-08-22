@@ -1,0 +1,741 @@
+새 데모 구현현황 (2026-08-22)
+════════════════════════════════════════════════════════════════════════
+작성 목적: Assets/문서/공식문서/송성현구본훈데모/기초문서.md(플레이테스트 피드백 4개 항목)를
+반영한 작업 전체를 정리한다. 대화 중 사용자가 여러 차례 방향을 정정·구체화한 결과가 기초문서.md
+원문보다 우선한다(아래 각 장에 반영). 가중치/시야인지반응 구현현황 문서와 동일한 관례
+(✅구현/🔶부분/❌미구현 태그 + "다음 우선순위" 섹션)를 따른다.
+
+■ 다음 우선순위 구현 후보 (사용자 확인 필요)
+────────────────────────────────────────────────────────────────────────
+1. **수치 전부 자리표시자** — RoomCoreMaxHp=1000(GameSession.cs, 2026-08-22 사용자 요청으로 200→5배),
+   DoorMaxHp=300(DoorSystem.cs, 2026-08-22 사용자 요청으로 100→3배), 채널링 배율은 트랩과 동일
+   (ExplorationMath.TrapDestroyDamagePerSecondPerAttack=0.5) 재사용 — 물리공격력 40 기준 코어 약
+   50초/문 약 15초 파괴. 실제 플레이로 체감을 확인하고 추가 조정 필요.
+2. **HumanWaveManager의 웨이브 목표 방** — targetFloor의 보스방(_unitGenerate.GetBossRoomPos)으로
+   고정했다(옛 던전 코어와 동일 위치 관례 재사용). WaveData에 별도 목표 방 필드를 추가하는 대신 이
+   방식을 택함 — 여러 웨이브가 서로 다른 방을 노리게 하려면 WaveData 확장이 필요하다.
+3. **문 진영 개폐가 소리 전파(PropagationSystem)/공격자 정체 인지(UnitFunction.
+   IsFullyBlockedTowards)/A* 코너 판정(CreateMap.IsStaticTileWalkable 기반 discoveredMap) 등 문
+   타일을 참조하던 기존 로직에 준 부수 영향은 검토하지 않았다** — 이 세 곳은 여전히 "문=벽 취급"
+   가정을 일부 갖고 있는데, 새 설계는 Tile.isStructureExist를 더 이상 건드리지 않으므로(진영 판정은
+   별도 경로) 미세하게 달라질 수 있다. 실제 플레이에서 체감상 문제가 없는지 확인 필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 1. 첫 웨이브 시간 넉넉하게
+════════════════════════════════════════════════════════════════════════
+✅ 완료 — 사용자 확인: "첫 웨이브만 별도로 늘림, 60초".
+  - WaveData.cs/WaveData.asset: firstWaveCooldown 필드 신규(기존 waveCooldown=20은 그대로).
+  - HumanWaveManager.cs: firstWaveCooldown 프로퍼티, Initialize에서 cooldownTimer 초기값으로 사용,
+    _isFirstWaveCycle 플래그로 WaveProgress01(게이지 진행률)의 분모도 첫 사이클만 60으로 계산.
+    두 번째 웨이브부터는 EndWave에서 _isFirstWaveCycle=false로 전환돼 기존 20초 그대로.
+
+════════════════════════════════════════════════════════════════════════
+■ 2. 코어 시스템 전면 개편 ("모든 곳에 코어")
+════════════════════════════════════════════════════════════════════════
+배경: 기존 코어는 1층 보스방에 딱 1개, HP 없이 "인류 리더가 조사해서 회수하는 웨이브 목표물"
+(CorePartySystem/CoreInteractionState/TacticalBehaviorType.Core, "리더 전용 조사~회수" 흐름)이었고
+방 점령(OffenseProcessor)과는 완전히 별개 시스템이었다. 사용자 확정 설계: "코어는 사라지지 않아.
+모든 방에 항상 존재하고, 체력 0이 되고, 그 막타친 유닛의 소유로 소유권이 계속해서 바뀌는 방식임."
++ "야생 방만(미점령)+점령된 방 모두" 전부 코어 보유 + "코어 파괴 = 새 웨이브 승리조건".
+
+✅ 제거 — 옛 "코어 조사·회수" McGuffin 시스템 전체:
+  - Assets/Script/Unit/Party/CorePartySystem.cs, Assets/Script/Unit/Exploration/CoreInteractionState.cs
+    파일 삭제.
+  - TacticalFSMState.cs의 CanContinueCore/MoveToCore/CoreInvestigatePerform + GetPriority의 리더
+    전용 분기 + GetSubLabel "전술(코어)" 제거.
+  - Party.cs의 PendingCoreObjectId/PendingCorePosition, Unit.cs의 currentCoreInteraction 제거
+    (Unit.IsInteracting/에스코트 슬롯 계산/PropagationSystem의 관련 분기도 함께 정리).
+  - GameSession.SpawnInitialDungeonCore(보스방 1개 한정)와 DungeonCoreTag/이원 태그 체계 제거.
+  - 테스트용 수동 코어 스폰 경로(GameSession.SpawnCoreAt, ObjectPlacementController.EnterCoreMode,
+    InputManager.EnterCorePlacementMode, BottomMenuBar "코어 배치" 버튼) 제거 — 모든 방에 이미 코어가
+    있는 새 구조와 맞지 않음(수동 스폰 시 Room.CoreObjectId 갱신이 안 돼 추적 불가).
+
+✅ 신규 — 코어 체력제 + 소유권 전환:
+  - InteractableObject.cs: TrapHp/TrapMaxHp와 동일 패턴으로 CoreHp/CoreMaxHp 필드 추가(생성자에
+    coreHp 옵션 파라미터).
+  - Room.cs: CoreObjectId(string)/CorePosition(Vector3Int) 필드 신규.
+  - GameSession.SpawnAllRoomCores() 신규(Initialize에서 SpawnInitialDungeonCore 대체 호출) —
+    SpawnWildRoomGuards와 동일한 "방 안 랜덤 위치 + IsAreaClear 재시도" 패턴으로 0층 제외 모든 방에
+    코어 1개씩(RoomCoreMaxHp=1000, 2026-08-22 5배 상향, 자리표시자) 배치, Room.CoreObjectId/
+    CorePosition 기록.
+  - OffenseProcessor.cs: 기존 유닛 전멸/빈방 입성 기반 소유권 전환(TryFlipRoomOwnershipOnDeath/
+    TryResolveRoomOwnership/TryClaimEmptyRoomOnEntry/CheckOffenseSuccess/OnOffenseSuccess) 전부
+    제거. 신규 OnCoreDestroyed(Room, InteractableObject core, Unit killer) — 유일한 소유권 전환
+    진입점, 막타친 유닛 진영으로 ApplyRoomOwnership(기존 헬퍼 재사용: 색칠+occupationState+안개
+    해금) 호출 + CoreHp를 CoreMaxHp의 절반으로 즉시 회복. _activeOffenseRooms(오펜스 중 추적,
+    IdleFSMState가 배회 억제에 씀)는 유지하되 이제 순수 "교전 중 추적"용(DefenseProcessor와 동일
+    성격)으로 UpdateProcess를 재작성 — 야생 전멸 시 추적만 종료, 소유권은 안 건드림.
+  - UnitFunction.SyncRoomAffiliation에서 TryResolveRoomOwnership/TryClaimEmptyRoomOnEntry 호출
+    제거(방을 그냥 떠나거나 빈 방에 들어가는 것만으로는 더 이상 점령이 바뀌지 않음), GameSession.
+    RemoveDeadUnit에서 TryFlipRoomOwnershipOnDeath 호출 제거.
+  - TacticalFSMState.cs 신규 TacticalBehaviorType.CoreAttack(우선순위 최후순위, 옛 Core 자리 대체) —
+    HasCoreAttackTarget(조건, 인류/몬스터 공통 — OffenseProcessor.MapToRoomFaction으로 진영 판정,
+    야생은 방 점령 개념 없어 제외)/MoveToCoreAttack(인접 이동)/CoreAttackPerform(도착 유지 확인).
+    실제 데미지는 TrapPhase.Destroying과 동일한 채널링 패턴으로 UnitFunction.OnUpdate가
+    currentCoreAttackTarget(Unit.cs 신규 필드)을 보고 매 프레임 physicalAttack 기반 적용,
+    CoreHp<=0 되는 순간 OffenseProcessor.OnCoreDestroyed 호출.
+  - HumanWaveManager.cs: 옛 DummyTargetState(OnGround/Carried/WaitingForTarget/Secured) 운반-탈출
+    웨이브 승리 로직 전체 제거. 신규 흐름 — StartWave에서 목표 방(_targetRoom, targetFloor의
+    보스방)을 미리 찾아두고, MonitorWave가 매 틱 UpdatePartyDestination으로 파티를 그 방의
+    CorePosition으로 보낸다(실제 공격은 TacticalFSMState가 담당, HumanWaveManager는 목적지 지정과
+    성공 판정만). _targetRoom.RoomFaction이 Human으로 바뀌는 순간(=코어 파괴 성공) _retreating=true로
+    전환해 기존 탈출 지점 이동/개별 탈출/전원 탈출 시 EndWave(true) 로직을 그대로 재사용.
+
+════════════════════════════════════════════════════════════════════════
+■ 3. 문도 방어건물화 + 진영 기반 개폐 (2026-08-22 두 차례 갱신)
+════════════════════════════════════════════════════════════════════════
+배경 1차(체력/파괴/재설치): 기존 문은 모든 방(야생 포함)에 자동 배치, HP 없음/파괴 불가, 자동 개폐만.
+사용자 확정: "자동문은 그대로, 체력만 추가" + "문은 부술 수 있고, 부순 후에 설치 모드에서 설치하게
+해줘" + "복도 자리에만 설치 가능".
+
+배경 2차(진영 개폐 전면 개편, "문은 진영별로 색상을 다르게 하되, 기본적으로 닫혀있게 해줘. 보유
+진영의 유닛만 지나갈 수 있고, (지나갈때만 열렸다가 닫힘). 그게 아니라면, 공격해서 파괴해야 해."):
+기존 문 개폐는 "방 유닛 구성이 야생 제외 한 진영이 되면 영구히 열림"(RefreshRoomGateStates)이라는
+전혀 다른 규칙이었다. 이 요청으로 그 규칙 전체(CloseAllDoorsForWaveStart/RefreshRoomGateStates/
+SetGateClosed/ApplyGateTileBlocking/ApplyGateDoorVisual/PushUnitsOffClosedDoorTiles/
+OpenAllGatesForRoom, Gate.isDoorClosed 필드 사용)를 걷어내고 완전히 새 모델로 교체했다.
+
+✅ InteractableObject.cs: DoorHp/DoorMaxHp(1차), DoorIsOpenVisual(2차 신규, 현재 시각 개폐 상태 캐시
+   — 프레임마다 스프라이트/색상을 무의미하게 재적용하지 않기 위함) 필드.
+✅ DoorSystem.cs 전면 재작성 —
+   - 문 소유 진영: 문 타일이 물리적으로 속한 Room(GetGateDoorTiles가 게이트 양쪽 청크의 마지막/첫
+     칸을 각각 반환하므로 항상 어느 한쪽 방 소속)의 RoomFaction을 그때그때 조회(GetDoorOwnerFaction)
+     — 캐싱하지 않아 코어 파괴로 방 소유권이 바뀌면 다음 프레임부터 즉시 반영된다.
+   - 기본 항상 닫힘(SpawnDoorAt이 IsFullyBlocking=true로 생성 + 닫힘 스프라이트 즉시 적용).
+   - 신규 UpdateProcess()(GameSession.UpdateProcess가 매 프레임 호출, OffenseProcessor/
+     DefenseProcessor.UpdateProcess와 동일한 자리) — 문마다 소유 진영 색(OffenseProcessor.
+     GetRoomOwnerColor, public으로 전환해 재사용)을 매 프레임 칠하고, 열림/닫힘 스프라이트를 전환
+     (상태가 실제로 바뀔 때만 스프라이트 재할당).
+   - 개폐 트리거 재조정(2026-08-22 3차, 사용자 요청 "자기 진영 문 1칸 접근시 열리는 형식이 아닌,
+     문 인접 칸에서 문에 접근 시도시 열리는 방식으로") — 최초 구현은 체비셰프 거리 1(3x3, 문 타일
+     자신 포함) 안에 소유 진영의 살아있는 유닛이 "존재하기만" 해도 열림으로 봤다(단순 위치 폴링,
+     실제로 지나가려는 의도와 무관). 이제는 UnitFunction.Move가 인접 칸에서 이 문 타일로 "넘어가려는
+     시도"를 하는 그 프레임에만(신규 DoorSystem.NotifyApproachAttempt(pos, unit), 이동 성공 여부와
+     무관 — 시각 연출용이라 실패해도 열어 보여준다) 열림으로 표시하고, UpdateProcess가 매 프레임 끝에
+     그 표시를 비운다(_approachedThisFrame, HashSet). 문 타일 위에 이미 서 있는 보유 진영 유닛이
+     있으면(통과 도중 정지 등 방어적 케이스) 계속 열림으로 유지한다. 실제 통행 가능 여부
+     (IsBlockedByClosedDoor)는 이 절차와 완전히 무관 — 원래부터 시각 상태와 분리돼 있었다(자기 진영
+     문은 닫혀 보여도 항상 통과 가능).
+   - 신규 IsBlockedByClosedDoor(pos, unit) — **실제 통행 가능 여부의 유일한 판정 지점**. 시각적
+     개폐(DoorIsOpenVisual)와는 완전히 별개로 "문이 속한 방의 현재 소유 진영 == 이 유닛의 진영"만
+     본다. 문 타일은 이제 Tile.isStructureExist를 전혀 건드리지 않는다(항상 통행 가능한 일반 지형
+     취급) — 이 메서드가 그 대신 진영 불일치 시에만 막는다.
+   - RemoveDoor(pos): objectGrid에서 제거 + _doorPositions(신규, UpdateProcess 순회 대상 캐시)에서도
+     제거 — 파괴된 문은 개폐 판정 대상 자체가 사라지므로 재설치 전까지 아무나 통과.
+   - RebuildDoorAt(pos)/IsRepairableDoorTile(pos): 기존 게이트 자리인지 되짚는 로직(TryFindGateAt로
+     통합) 유지, 재설치도 항상 기본 닫힘으로 생성.
+✅ UnitFunction.CanMove/AStarMovement.IsTileWalkable: 벽 판정(IsStaticTileWalkable)과 별개로
+   Session.IsBlockedByClosedDoor를 추가 확인 — 두 함수가 반드시 같은 결론을 내야 한다는 기존 "코너
+   커팅 방지" 원칙과 동일하게 나란히 추가했다. RoomConfinedMovement(야생/플레이어 몬스터 자율 이동)는
+   base.IsTileWalkable을 먼저 호출하므로 자동으로 상속.
+✅ ObjectPlacementController.cs: EnterDoorRepairMode — canPlace 판정이 일반 IsAreaClear 대신
+   IsRepairableDoorTile을 사용(자유 배치 아님). InputManager.EnterDoorRepairPlacementMode /
+   BottomMenuBar "문 재설치" 버튼(설치 서브메뉴)까지 연결 완료.
+✅ 문 파괴 트리거(2026-08-22, 사용자 요청 "코어와 문을 명령으로 인한 파괴 대상으로 지정할 수 있게
+   해줘") — 아래 5번 섹션의 "오브젝트 공격 명령" 참고. 자동 AI가 아니라 플레이어 좌클릭 명령으로만
+   문을 공격한다(자기 진영 문은 애초에 안 막히니 공격할 이유가 없고, 다른 진영 문만 공격 대상이 됨 —
+   PlayerCommandFSMState.IsPendingObjectAttackValid는 문에 대해서는 진영 확인 없이 DoorHp>0만
+   보므로, 이론상 자기 진영 문도 공격 명령 자체는 낼 수 있다 — 막을 필요가 딱히 없어 그대로 둠).
+✅ 제거된 옛 시스템: GameSession.CloseAllDoorsForWaveStart/RefreshRoomGateStates 위임 메서드와 호출부
+   3곳(HumanWaveManager.StartWave, GameSession.RemoveDeadUnit, UnitFunction.SyncRoomAffiliation)
+   전부 삭제 — 웨이브 시작 시 문을 한꺼번에 잠그는 절차 자체가 필요 없어졌다(문은 항상 기본 닫힘).
+[알려진 제약] 문 타일이 더 이상 Tile.isStructureExist를 세우지 않으므로, 그 값을 참조하던 다른
+시스템(소리 전파 BFS, 공격자 정체 인지의 "완전 차단 구조" 판정, A* discoveredMap 갱신 등)에서 문의
+존재감이 이전보다 옅어졌을 수 있다 — 위 "다음 우선순위" 3번 참고, 실제 플레이 확인 필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 4. R키 배치모드 제거 + "제자리 공격" 명령
+════════════════════════════════════════════════════════════════════════
+배경: "디펜스 오펜스 분리말고 자연스럽게" 피드백의 원인은 R키 몬스터 배치 모드가 진입 시
+Time.timeScale을 0.0001로 낮춰 게임 전체를 완전히 멈추는 것이었다. 사용자 결정: "배치 모드 완전
+제거. 대신, 명령 항목에 하나 추가(제자리 공격). 이 명령을 넣어두면, 제자리에서 절대 이동하지 않고
+공격만 함."
+
+✅ 완전 삭제 — MonsterPlacementController.cs, Assets/Script/Wave/MonsterDefensePlacementSystem.cs,
+   Assets/Script/Unit/AI/States/MusterFSMState.cs 파일 자체. 관련 필드/분기 정리:
+   - Unit.cs: defenseStartPosition/isMustered 필드 제거.
+   - UnitFSM.cs: _states 배열에서 MusterFSMState 제거, SelectState의 isMustered 자동 해제 로직
+     (isGenuineCombatPerception 계산 포함) 제거, GetLabel의 "소집" 분기 제거.
+   - IdleFSMState.cs: defenseStartPosition 기반 배회 기준점 폴백 제거(summonPosition만 남음).
+   - UnitFunction.SyncRoomAffiliation: defenseStartPosition 방 이탈 감지 취소 로직 제거.
+   - PlayerCommandFSMState.CompletePlayerCommand: isMustered 방향 설정 분기(EnsureNotStandingOnDoorTile
+     /ApplyDefenseFacingDirection 호출) 제거, 대신 pendingStandGroundOnArrival 처리 추가(아래).
+   - HumanWaveManager.cs 2곳의 ApplyDefenseStartPositions 호출 제거(monsterMusterTriggered/
+     monstersSummonedThisCycle 타이밍 플래그 자체는 WaveGaugePanel이 계속 참조하므로 유지).
+   - InputManager.cs: _monsterPlacement 필드/생성/R키 진입점/선택 필터링(IsUnitSelectable)/GUI 위임
+     전부 제거. BottomMenuBar.cs의 "소집 배치" 바 버튼 및 OnClickDeploy 제거.
+✅ 신규 — "제자리 공격" 명령(기존 "명령 취소"/"집결 및 정지"와 동급인 3번째 토글):
+   - Unit.cs: isStandGroundAttack/pendingStandGroundOnArrival 필드.
+   - StandGroundAttackFSMState.cs(신규) — HaltFSMState와 동일하게 UnitFSM.SelectState가 강제
+     배정하는 고착 상태. CombatFSMState.GetClosestEnemy(internal로 공개 전환)로 타깃을 찾고, 스킬
+     우선순위/히트박스 판정은 CombatFSMState.ExecuteCombat과 동일하되 키팅·접근 이동 코드를 전부
+     제거 — 사거리 밖이면 그냥 대기, 사거리 안이면 공격만.
+   - InputManager.cs: IsStandGroundModeActive/SetStandGroundModeActive(집결·정지/명령취소와 3자
+     배타), IssueMoveCommand에 markStandGroundOnArrival 파라미터 추가(집결·정지와 동일한 "이동 후
+     도착 시 강제상태 진입" 파이프라인 재사용), CancelSelectedUnitsCommands/CancelCommandModeIfActive
+     에도 제자리 공격 해제 반영.
+   - BottomMenuBar.cs: "명령" 서브메뉴에 "제자리 공격" 토글 버튼 추가.
+
+════════════════════════════════════════════════════════════════════════
+■ 5. 오브젝트(코어/문) 공격 명령 (2026-08-22 추가, 사용자 요청 "코어와 문을 명령으로 인한 파괴
+   대상으로 지정할 수 있게 해줘")
+════════════════════════════════════════════════════════════════════════
+배경: 코어는 이미 자동 AI(TacticalBehaviorType.CoreAttack)가 방 진입 시 알아서 공격했지만, 문은
+공격 수단 자체가 없었다. 이번 요청으로 플레이어가 유닛을 선택해 코어/문을 직접 좌클릭하면 공격
+명령을 내릴 수 있게 됐다 — 유닛 공격(좌클릭)과 동일한 경로, 이동(우클릭)이 아니다.
+[2026-08-22 갱신] 아래 "2b. 오브젝트 공격 처리"가 좌클릭에 있던 것은 이후 6번 섹션의 클릭 관례
+전면 개편으로 우클릭으로 옮겨졌다 — IsPendingObjectAttackValid 등 판정 로직 자체는 그대로,
+호출 위치만 InputManager.DoClickSelect → ExecuteRightClickCommand로 이동했다.
+
+✅ Unit.cs: playerAttackObjectTarget(Vector3Int?, 신규) — playerAttackTarget(Unit 대상)의 오브젝트
+   버전. currentCoreAttackTarget을 currentAttackObjectTarget으로 개명(코어 전용 → 코어+문 공용
+   채널링 필드로 일반화, TacticalFSMState/UnitFunction 전체 참조 갱신).
+✅ UnitFunction.OnUpdate: 채널링 블록을 태그 기반 분기로 확장 — CoreTag면 CoreHp를 깎아 0이 되면
+   OffenseProcessor.OnCoreDestroyed(기존 로직 그대로), DoorTag면 DoorHp를 깎아 0이 되면
+   GameSession.RemoveDoor 호출(신규). 어느 쪽도 아니면 채널링 종료.
+✅ PlayerCommandFSMState.cs: 신규 BT 분기(유닛 공격 다음, 이동보다 먼저) — HasPlayerAttackObjectTarget
+   → ExecutePlayerAttackObject(인접 시 currentAttackObjectTarget을 채워 채널링 위임, 아니면 접근).
+   신규 공개 정적 IsPendingObjectAttackValid(unit, pos) — 코어는 CoreHp>0이고 아직 내 진영 소유가
+   아닐 것(이미 소유 전환됐으면 파괴 성공으로 보고 명령 자동 종료), 문은 DoorHp>0이고 **문이 속한
+   방의 소유 진영이 내 진영과 다를 것**(2026-08-22 재조정, 사용자 요청 "자기 진영의 문은 우클릭시
+   공격 대상이 되면 안돼... 문 너머의 상대 진영 문 선택시, 공격이 가능하게 해주면 됨" — 자기 진영
+   문은 애초에 항상 통과 가능하므로 공격 대상에서 제외하고, 6번 섹션의 ExecuteRightClickCommand가
+   이 경우 자동으로 일반 이동 명령으로 넘어가 "그 문 위치로 이동해서 서는" 동작이 된다)을 확인.
+   InputManager의 명령 발행 전 검증에도 그대로 재사용(public).
+✅ UnitFSM.cs: hasPendingCommand(최우선 강제 잠금 게이트)에 playerAttackObjectTarget 추가.
+   CombatFSMState.OnExit/IdleFSMState.GetPriority의 "플레이어 명령 활성" 판정에도 동일하게 반영
+   (기존에 playerMoveTarget/playerAttackTarget만 보던 중복 체크 두 곳).
+✅ InputManager.cs: DoClickSelect의 "2. 공격 처리"(유닛 대상) 바로 다음에 "2b. 오브젝트 공격 처리"
+   신설 — 유닛을 못 찾았고 클릭 위치에 오브젝트가 있으면 선택된 유닛마다 IsPendingObjectAttackValid로
+   검증 후 playerAttackObjectTarget을 채운다(기존 이동/공격/정지/제자리공격 필드는 모두 초기화,
+   기존 명령 발행 관례와 동일). IssueMoveCommand(새 이동 명령)/CancelSelectedUnitsCommands(명령
+   취소)/유닛 공격 발행 지점 세 곳 모두 playerAttackObjectTarget·currentAttackObjectTarget을 함께
+   정리하도록 갱신 — 새 명령이 이전 오브젝트 공격을 덮어쓰거나, 명령 취소로 채널링이 확실히 끊기게.
+[알려진 제약] 자동 AI(플레이어 몬스터/인류)가 스스로 문을 공격하지는 않는다 — 코어처럼 방 진입 시
+자동 발동하게 할지는 이번 요청 범위 밖(필요해지면 TacticalFSMState에 CoreAttack과 대칭인 DoorAttack
+행동을 추가하면 된다, HasCoreAttackTarget/FindHostileRoomCore와 유사한 구조로).
+
+════════════════════════════════════════════════════════════════════════
+■ 6. 클릭 관례 전면 개편: 좌클릭=선택, 우클릭=실행 (2026-08-22 추가, 사용자 요청 "기존 관례
+   바꾸자. 어떤 기능이든 좌클릭은 선택, 우클릭은 실행으로 두자. 설치나 명령 전반 모두 포함.")
+════════════════════════════════════════════════════════════════════════
+배경: 5번 섹션까지는 좌클릭=선택+공격, 우클릭=이동으로 나뉘어 있었다. 그 결과 "우클릭으로는 문을
+공격할 수 없다"(사용자 신고 "지금 문을 공격 못하는데?")는 구조적 불일치가 생겼다 — 원인 진단
+(코드만 읽어 확인, Unity 실행 불가) 결과 오브젝트 공격이 좌클릭 전용으로만 연결돼 있었고 사용자가
+우클릭으로 시도했을 것으로 추정. 이 진단이 계기가 되어 사용자가 아예 전역 클릭 관례 자체를 좌클릭
+=선택 / 우클릭=실행으로 통일하기로 결정했다(배치 모드 포함).
+
+✅ InputManager.DoClickSelect — "2. 공격 처리"(유닛)/"2b. 오브젝트 공격 처리"(코어/문) 두 블록을
+   완전히 제거. 이제 이 메서드는 건물 패널 열기, 유닛 선택/더블클릭 그룹 선택, 허공 클릭 해제만
+   담당한다(순수 선택 전용).
+✅ InputManager.Update — 우클릭 분기의 기본 이동 호출(IssueMoveCommand)을 신규
+   ExecuteRightClickCommand로 교체. 이 디스패처가 클릭 위치를 1) 적 유닛 공격 → 2) 코어/문 공격
+   (PlayerCommandFSMState.IsPendingObjectAttackValid로 검증, 5번 섹션 로직 그대로 재사용) → 3) 기존
+   이동(IssueMoveCommand) 순서로 판정해 첫 번째로 성립하는 것을 실행한다. "집결 및 정지"/"제자리
+   공격" 예약 토글이 켜져 있어도 공격 가능한 대상이 있으면 공격이 우선한다(이동 예약 토글은 이동할
+   때만 의미가 있으므로) — 토글은 그대로 IssueMoveCommand 호출부에 markHaltOnArrival/
+   markStandGroundOnArrival로 전달된다.
+✅ BuildPlacementController.Update / ObjectPlacementController.Update — 설치 확정 트리거를
+   GameInputScheme.PrimaryDown → SecondaryDown으로 변경(우클릭 취소가 2026-08-20에 이미 없어져 그
+   자리가 비어 있었다 — 재활용). 배치 모드 진입 자체(BottomMenuBar 버튼 클릭)는 좌클릭 UI 조작이라
+   영향 없음.
+✅ 좌클릭 드래그박스/클릭선택(UpdateSelectionDragAndClick, PrimaryDown/Held/Up)은 그대로 유지 —
+   "선택"에 해당하므로 관례상 이미 올바른 위치에 있었다.
+[검증 필요] 실제 플레이로 확인할 것: 우클릭으로 적 유닛 공격/코어 공격/문 공격/일반 이동이 모두
+정상 동작하는지, 건축/오브젝트 배치 모드에서 우클릭 설치가 정상 동작하는지, "집결 및 정지"/
+"제자리 공격" 토글이 켜진 채로 적/오브젝트를 우클릭했을 때 공격이 우선하는 게 실제로 자연스러운지
+(토글의 의미상 이동 예약 중에는 오히려 공격을 무시하고 이동만 해야 할 가능성도 있음 — 플레이테스트
+후 필요하면 우선순위를 뒤집는다).
+
+════════════════════════════════════════════════════════════════════════
+■ 7. 문 색상 원복 + 오브젝트 정보 조회 UI (2026-08-22 추가, 사용자 요청 "문색깔과 방 진영색이
+   동일해서 아예 안 보여. 문 색상은 바꾸지 않고 그대로 두자. 대신, 모든 오브젝튼 이제 클릭을 통해
+   정보를 볼 수 있어(건물처럼). 그 정보에는... 체력... 진영 소유... 기본적인 정보 표기 등")
+════════════════════════════════════════════════════════════════════════
+배경: 3번 섹션에서 문을 방 소유 진영 색(OffenseProcessor.GetRoomOwnerColor)으로 틴트했는데, 방
+바닥 타일도 같은 색으로 칠해져서 문이 배경에 묻혀 안 보이는 문제가 있었다. 사용자 결정: 문 색상
+틴트는 완전히 제거하고, 대신 모든 오브젝트를 클릭하면(건물 클릭과 동일한 UX) 정보 패널이 뜨게 해서
+그 안에서 소유 진영/체력/기본 정보를 확인하게 한다.
+
+✅ DoorSystem.UpdateProcess — `sr.color = OffenseProcessor.GetRoomOwnerColor(ownerFaction)` 줄
+   제거. 문은 이제 스폰 시 지정한 기본 색(Color.white)을 프레임 내내 그대로 유지한다(개폐 스프라이트
+   전환 로직 자체는 변경 없음).
+✅ BuildingControlPanel.cs — 오브젝트 정보 조회 겸용으로 확장. 새 프리팹을 만들려면 Unity 에디터에서
+   새 GUID를 발급받아야 하는데 이 환경은 에디터 실행이 불가능해 안전하게 만들 수 없다(잘못된 GUID로
+   프리팹을 손으로 작성하면 스크립트 연결이 깨진 채로 남는다) — 그래서 새 패널 클래스+프리팹을 만드는
+   대신, 이미 존재하는 이 패널(내용이 전부 OnGUI라 프리팹 자체는 빈 껍데기, DebugInfoPanel의 "시야
+   표시" 토글을 재사용했던 전례와 동일한 판단)의 _current(건물)/_currentObject(오브젝트) 두 상태를
+   상호 배타로 관리해 겸용시켰다.
+   - ShowForObject(InteractableObject) 신규 — ShowForBuilding과 대칭, 서로 반대쪽 필드를 null로
+     비운다. OpenPanel/ClosePanel/UpdateProcess(BottomLeftPanelStack 보고)/IsMouseOverPanel/
+     GetPanelRect 전부 "_current != null || _currentObject != null"로 조건 확장.
+   - OnGUI — `_currentObject != null`이면 신규 DrawObjectInfo(obj)를 그리고, 아니면 기존 건물 UI
+     그대로(if→else if 체인으로 삽입, 아래 "닫기" 버튼은 두 모드 공용으로 그대로 재사용).
+   - DrawObjectInfo — 이름(GetObjectDisplayName, Tags 문자열 매칭: 코어/문/함정/인류 시체/몬스터
+     시체/전멸 흔적/전리품/오브젝트), 위치, 체력(TryGetObjectHp — Door/Core/Trap만 해당 Hp/MaxHp
+     쌍을 반환, 나머지는 체력 개념이 없어 생략), 소유 진영(GetObjectOwnerFaction — Door/Core만
+     해당, 오브젝트가 물리적으로 속한 방의 Room.RoomFaction을 그대로 조회, DoorSystem.
+     GetDoorOwnerFaction과 동일한 방식), 전리품 상태(미조사/조사 완료/회수됨)를 표시한다.
+✅ InputManager.DoClickSelect — 건물 체크·유닛 선택 다음, 허공 클릭(선택 해제) 이전에 오브젝트
+   체크 신설: `_gameSession.objectGrid.TryGetValue(gridPos, out obj)`가 성공하면
+   `BuildingControlPanel.Instance?.ShowForObject(obj)` 호출 후 반환 — 유닛 선택이 항상 최우선이고,
+   유닛도 건물도 없는 위치에 오브젝트가 있을 때만 정보 패널이 뜬다.
+[알려진 제약] BuildingControlPanel이라는 클래스 이름은 그대로 유지했다(프리팹의
+m_EditorClassIdentifier가 클래스명을 참조하므로 이름을 바꾸면 프리팹 연결이 깨진다) — 실제로는
+건물+오브젝트 정보를 모두 담당하는 범용 패널이 됐다는 점에 유의. 오브젝트 정보는 순수 조회용이라
+버튼이 없다(공격/이동 등 실행 명령은 여전히 우클릭 전용, 6번 섹션 참고).
+
+════════════════════════════════════════════════════════════════════════
+■ 8. 오브젝트 공격 명령의 방 경계 이동 버그 수정 (2026-08-22 추가, 사용자 신고 "2*2 통로에 아래쪽
+   가로로 플레이어 문 2칸, 위쪽 문 가로로 야생 문 2칸 있는 경우에, 플레이어 몬스터가 야생 문에 공격
+   시도를 한 경우, 자신의 진영의 문 앞에서 가만히 서있는 문제가 있어")
+════════════════════════════════════════════════════════════════════════
+원인: `InputManager.ExecuteRightClickCommand`의 오브젝트 공격 발행부가 `isManualMoveCommand = false`
+로 세팅하고 있었다. `RoomConfinedMovement.IsTileWalkable`은 "오직 플레이어의 명령에 의해서만 다른
+방으로 이동 가능" 규칙의 예외 판정을 이 플래그 하나로만 본다 — false면 문 타일 자체를 무조건
+walkable에서 제외한다(3번 섹션의 4장 "배회 금지" 규칙, 자율 이동뿐 아니라 이 플래그가 꺼진 모든
+이동에 적용됨). 그 결과 플레이어 몬스터가 야생 문을 공격하려고 접근할 때 "자기 진영 문 타일"조차
+못 밟고 그 앞(문에 안 닿은 칸)에서 멈춰 섰다 — 자기 진영 문은 실제 통행 판정(IsBlockedByClosedDoor)
+상으로는 이미 항상 통과 가능한데, RoomConfinedMovement의 방 제한 계층이 그보다 먼저 막은 것.
+
+✅ InputManager.ExecuteRightClickCommand — 오브젝트 공격 명령 발행 시 `isManualMoveCommand = true`로
+   변경(일반 이동 명령과 동일한 "플레이어 명령이므로 방 제한 예외" 취급). 이제 접근 경로 계산에서
+   자기 진영 문 타일도 정상적으로 walkable로 잡혀, 문 위까지 올라가 인접한 상대 진영 문을 공격할 수
+   있다 — 상대 진영 문 타일 자체는 여전히 IsBlockedByClosedDoor(진영 불일치)가 막으므로 그 안쪽으로
+   들어가지는 못하고(그럴 필요도 없음, 인접이면 공격 가능), 딱 자기 문 위 접근까지만 허용된다.
+✅ PlayerCommandFSMState.ExecutePlayerAttackObject — 명령이 자연 종료(대상 파괴/소유권 전환/무효화)될
+   때 `isManualMoveCommand = false`로 되돌리는 처리 추가 — 안 그러면 방 제한 예외가 명령 종료 이후
+   에도 계속 남아 그 유닛이 이후 자율 행동 중에도 방 경계를 무단으로 넘나들 수 있게 된다(명령 취소
+   경로인 CancelSelectedUnitsCommands는 이미 이 플래그를 되돌리고 있어서 문제 없었다).
+[참고] 같은 메커니즘이 코어 공격 명령(플레이어가 다른 방의 코어를 직접 지정해 공격시키는 경우)에도
+동일하게 적용된다 — 별도 신고는 없었지만 원인이 동일한 코드 경로라 함께 해결됐다.
+
+════════════════════════════════════════════════════════════════════════
+■ 9. 문 소유권 고정(점령과 분리) + 문 재설치 "설치" 메뉴 이전·자원화 (2026-08-22 추가, 사용자 요청
+   "점령으로 인해서 문의 소유권을 바뀌지 않아. 부수고 다시 재설치하는게 원칙임. debug에 있던 문
+   설치를 '설치'란에 넣고, 자원을 소모해서 설치하게 다시 바꿔줘")
+════════════════════════════════════════════════════════════════════════
+배경: 3번 섹션 구현 당시 `DoorSystem.GetDoorOwnerFaction`이 문이 물리적으로 속한 방의
+`Room.RoomFaction`을 매번 실시간 조회했다 — 그 결과 코어 파괴로 방 소유권이 바뀌는 순간 그 방에
+붙은 모든 문의 소유권도 자동으로 같이 바뀌었다. 사용자 결정: 문 소유권은 방 점령과 완전히 분리하고,
+"파괴 후 재설치"만이 소유권을 바꾸는 유일한 방법이 되어야 한다.
+
+✅ InteractableObject.cs — `DoorOwnerFaction`(FactionType, 기본값 Wild) 필드 신규. 문 전용, 생성/
+   재설치 시점에만 값이 정해지고 그 뒤로는 아무도 자동으로 갱신하지 않는다.
+✅ DoorSystem.cs —
+   - `SpawnDoorAt(pos, rotation, ownerFaction)`에 진영 파라미터 추가(더 이상 스스로 방을 조회하지
+     않는다). `SpawnDoors()`(최초 맵 생성)는 그 순간의 `Room.RoomFaction`을 스냅샷해서 넘긴다 —
+     그래서 시작 상태는 기존과 동일하게 보인다. `RebuildDoorAt()`(파괴 후 재설치)는 항상
+     `FactionType.Player`를 넘긴다 — 재설치는 `ObjectPlacementController`를 통해 오직 플레이어만
+     실행하므로, 재설치된 문은 곧 플레이어가 새로 세운 방어선이라는 의미다.
+   - `GetDoorOwnerFaction(pos)` — `Room.RoomFaction` 조회 대신 문 오브젝트 자신의
+     `DoorOwnerFaction`을 그대로 읽도록 변경. `IsBlockedByClosedDoor`/`NotifyApproachAttempt`/
+     `UpdateProcess`는 이 메서드를 그대로 호출하므로 별도 수정 없이 자동으로 새 동작을 따른다.
+✅ PlayerCommandFSMState.IsPendingObjectAttackValid — 문 판정에서 `roomGrid` 조회를 없애고
+   `obj.DoorOwnerFaction`을 직접 비교하도록 변경(기능은 동일, 조회 경로만 단순화).
+✅ BuildingControlPanel.GetObjectOwnerFaction — 문은 `obj.DoorOwnerFaction`을, 코어는 기존대로
+   `Room.RoomFaction`을 반환하도록 분기(코어는 여전히 방 소유권을 그대로 따르는 게 맞음 — 점령과
+   분리된 건 문뿐).
+✅ 문 재설치 메뉴 이전 + 자원화 — `BottomMenuBar.cs`의 "문 재설치" 버튼을 debug 서브메뉴
+   (BuildDebugPrimaryItems)에서 설치 서브메뉴(BuildBuildItems, 유닛/자원 생산 건물·함정과 같은
+   줄)로 이동. `ResourceManager.DoorRepairStoneCost`(=100, 함정과 동일한 급의 자리표시자) 신규 —
+   `ObjectPlacementController.Update()`의 문 재설치 분기가 함정 배치와 동일한 패턴(자원 부족 시
+   배치는 취소하지 않고 모드만 유지)으로 `TryConsumeResource`를 거치도록 변경. 원래는 완전 무료였다.
+[참고] 코어는 이 변경의 대상이 아니다 — "모든 곳에 코어" 설계 자체가 "코어 파괴 = 방 점령"이라
+방 소유권과 코어 소유권이 애초에 하나로 묶여 있어야 의미가 성립한다. 이번 요청은 명시적으로
+"문의 소유권"만 가리켰다.
+
+════════════════════════════════════════════════════════════════════════
+■ 10. 인류 전용 "전술(문 공격)" — 점령한 방의 경계 문 자동 파괴 (2026-08-22 추가, 사용자 요청
+   "인간쪽에만 적용되는 fsm인데, 방을 점령하고 난 다음, 다른 방으로 향하는 다른 진영 문이 발견되었
+   으면 공격하고, 탐험을 이어나가는 로직으로 바꿔줘")
+════════════════════════════════════════════════════════════════════════
+배경: 5번 섹션 "[알려진 제약]"에 남겨뒀던 후속 작업 — 자동 AI가 스스로 문을 공격하지는 않았다.
+CoreAttack(자기 진영 소유가 아닌 방에 들어가면 코어를 최우선 목표로 삼음)과 정반대 방향의 논리다:
+이미 점령(자기 진영 소유)한 방에 있을 때, 그 방 경계에 아직 다른 진영 소유인 문이 남아있으면
+그걸 부수고 지나가서 계속 확장/탐험한다. 인류 전용(플레이어 몬스터/야생에는 전혀 적용 안 됨).
+
+✅ TacticalBehaviorType.DoorAttack(신규, CoreAttack 바로 다음 최후순위) + TacticalBehaviorPriorityConfig
+   기본 순서에 추가.
+✅ TacticalFSMState.cs —
+   - `FindHostileExitDoor(unit, out doorPos, out door)` — unit이 Human이 아니면 즉시 false. unit이
+     서 있는 방이 `Room.RoomFaction == FactionType.Human`이 아니면(=아직 점령 전) false("방을
+     점령하고 난 다음"). 그 방의 `Floor.gates` 중 `roomA`/`roomB`가 이 방 ID와 일치하는 게이트를
+     찾아 `DoorSystem.GetGateDoorTiles`로 문턱 타일들을 되짚고, 그중 파괴되지 않았고
+     (`DoorHp > 0`) 소유 진영이 인류가 아닌 문을 발견하면 그 위치를 반환한다("다른 방으로 향하는
+     다른 진영 문이 발견되었으면").
+   - `HasDoorAttackTarget`/`MoveToDoorAttack`/`DoorAttackPerform` — CoreAttack의 3종
+     (HasCoreAttackTarget/MoveToCoreAttack/CoreAttackPerform)과 동일한 구조. 문은 아군 소유가
+     아니면 IsBlockedByClosedDoor가 항상 막아 그 타일 위에 직접 설 수 없으므로, 코어에 있던
+     "타일 위에 서 있으면 한 칸 물러난다"(StepOffObjectTile) 처리는 필요 없다 — 인접에서 채널링만
+     한다. 실제 데미지는 UnitFunction.OnUpdate의 기존 채널링 블록(DoorTag 분기, 이미 있음)이 그대로
+     처리 — 새 코드 없이 currentAttackObjectTarget 공유만으로 재사용된다.
+   - GetSubLabel — `currentAttackObjectTarget`이 가리키는 오브젝트의 태그를 확인해 "전술(코어
+     공격)"과 "전술(문 공격)"을 구분 표시(전엔 둘 다 "전술(코어 공격)"으로만 떴다).
+   - "탐험을 이어나가는" 부분은 별도 구현이 필요 없다 — 문이 파괴되거나 이미 아군 소유가 되면
+     `FindHostileExitDoor`가 자연히 false를 반환해 BT가 다음 우선순위(조사 등 기존 탐험 로직)로
+     넘어간다.
+[알려진 제약] 매 틱 해당 방의 모든 게이트·문턱 타일을 순회한다(방 하나당 게이트 수가 적어 자리
+표시자로는 문제 없다고 판단 — 게이트가 매우 많은 대형 방에서 체감 성능 이슈가 보이면 방 단위
+캐시를 고려). 우선순위는 CoreAttack과 동급 최후순위로 잠정 배치했다 — 플레이 테스트로 조정 필요.
+
+🔶 [버그 수정 시도, 2026-08-22] 사용자 신고 "인류 자동으로 문 못부수는데?" → 후속 확인 "문으로
+접근은 하는데 공격(채널링)이 안 걸림" → 재확인 "전술 상태로만 전환되고 접근만 하고 로그 안뜸"
+(즉 MoveToDoorAttack의 IsAdjacent(반경1) 체크가 끝내 true가 안 됨 — 채널링 시작 로그 자체가 안
+찍혔으므로 인접 판정 실패가 확정적 원인).
+
+원인 추정: 문은 소유 진영이 아니면 IsBlockedByClosedDoor가 항상 막는다 — 그런데 이제(9번 섹션)
+문 소유권이 방 점령과 분리돼 있으므로, 인류가 막 점령한 방의 "자기 쪽" 경계 문(게이트 근접 쪽
+문턱, tilesA)도 아직 재설치 전이면 여전히 옛 진영 소유일 수 있다. 좁은 통로(2*2 통로 — 게이트
+폭이 방 폭과 같아 문턱 줄 전체가 문 타일뿐이고 그 옆으로 빠질 일반 바닥이 없는 경우)에서는 이
+"아직 안 뚫린 내 편 문"이 체비셰프 거리 1 이내의 모든 칸을 막아버려서, 목표 문(반대쪽 문턱,
+tilesB)에 정확히 거리 1까지는 영원히 못 붙는 경우가 생긴다 — AStarMovement.TryGetNextStep이
+"더 가까워질 방법이 없다"(closestNode == startNode)고 판단해 그 자리에 멈추지만, 정확한 거리 1
+조건은 충족을 못 해 채널링 시작 조건 자체를 못 만족한다.
+
+✅ TacticalFSMState.MoveToDoorAttack 수정 — MoveTowardsPos가 false(더 가까워질 수 없음)를
+   반환했는데 이미 반경 2 이내라면, 그 자리에서 채널링을 시작하도록 폴백 추가(BeginDoorChannel
+   헬퍼로 분리, 중복 로그 방지 겸용). 정상적으로 반경 1까지 붙을 수 있는 경우는 기존과 동일하게
+   동작 — 이 폴백은 "더 가까워질 수 없는데 거리 1이 아닌" 막다른 경우에만 발동한다.
+🔶 진단 로그는 당장은 남겨뒀다(TacticalFSMState.BeginDoorChannel — 채널링 시작 1회,
+   UnitFunction.OnUpdate 문 채널링 분기 — 진행 중 초당 1회 샘플링 + 실패 시 매번 경고). 다음
+   플레이 테스트에서 실제로 채널링이 시작되는지, 시작된다면 반경 1인지 2(폴백)인지 로그로 확인해
+   가설을 검증할 것 — 확인되면 진단 로그는 제거한다.
+
+■ 10-1. 후속 수정 — 먼 쪽 문부터 공격하려는 버그 (2026-08-22, 사용자 신고 "인류가 2*2 문을 부술때
+   멀리 있는 문부터 부수려고 시도하는데? 멀리 있는 문을 부술 수 있으면 안돼. 코어 파괴나 문 파괴는
+   인접 1칸에서만 시도할 수 있으니, 가까운 것부터 부숴야 해")
+근본 원인: FindHostileExitDoor가 DoorSystem.GetGateDoorTiles(gate)가 반환하는 [tilesA, tilesB] 중
+"먼저 찾은 것"을 그대로 목표로 삼았는데, 이 배열 순서는 "왼쪽/아래 청크가 A"라는 순전히 기하학적
+규칙일 뿐 "지금 방 쪽이 A"라는 보장이 전혀 없었다 — 운이 나쁘면 반대편 방(원천적으로 인접 1칸이
+불가능한 먼 쪽) 문을 먼저 집어 위 10번 섹션의 "막다른 접근" 버그를 그대로 재현시켰다.
+✅ FindHostileExitDoor 수정 — "먼저 찾은 것" 대신 게이트의 모든 후보 문턱 타일을 전부 순회하며
+   지금 유닛 위치에서 체비셰프 거리가 가장 가까운 것 하나만 고르도록 변경(AIMovementHelper.
+   ChebyshevDistance 재사용). 가까운 쪽(지금 방 경계) 문이 남아있는 한 항상 더 가까우므로 자동으로
+   그것부터 공격하고, 그 문이 파괴돼 통로가 뚫려 더 다가갈 수 있게 되면 그때 비로소 먼 쪽 문이 새
+   최단 거리 대상이 된다 — "가까운 것부터" 순서가 방 소속을 따로 판정하지 않아도 거리 계산만으로
+   자연히 성립한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 11. 코어/문 공격 데미지 방식 변경 + 채널링 중 대상 바라보기 (2026-08-22 추가, 사용자 요청 "코어
+   공격을, 공격 시도 중일때만 체력이 초당으로 다는 형식으로 바꿔줘.(공격 시도중인 유닛 마리 수 당
+   추가.) 그리고 코어 공격 중일때는 코어를 바라보면서 하게 해줘" + 후속 "문도 동일")
+════════════════════════════════════════════════════════════════════════
+배경: 예전엔 코어/문 채널링 데미지가 공격자의 physicalAttack 스탯에 비례했다(물리공격력 40 기준
+0.5배 = 초당 20). 사용자 결정: 스탯과 무관하게 채널링 중인 유닛 1명당 고정된 초당 데미지만 적용
+하고, 여러 명이 동시에 공격하면 그 인원수만큼 자연히 늘어나게 한다.
+
+✅ GameSession.CoreAttackDamagePerSecond(신규, =20, public) / DoorSystem.
+   DoorAttackDamagePerSecond(신규, =20, public) — 자리표시자, 기존 물리공격력 40 기준 수치와
+   동일하게 맞춰서 1명이 공격할 때 파괴 시간(코어 약 50초/문 약 15초)은 그대로 유지된다.
+✅ UnitFunction.OnUpdate의 공유 채널링 블록 — `physicalAttack * ExplorationMath.
+   TrapDestroyDamagePerSecondPerAttack * deltaTime` 대신 `GameSession.CoreAttackDamagePerSecond *
+   deltaTime`(코어)/`DoorSystem.DoorAttackDamagePerSecond * deltaTime`(문)을 쓰도록 변경. 별도의
+   "공격 인원 수 세기" 로직은 없다 — 채널링 중인 유닛마다 자기 자신의 OnUpdate에서 독립적으로 이
+   고정값을 적용하므로, N명이 같은 대상을 동시에 공격하면 N번의 독립적인 감소가 자연히 합산돼
+   "인원수 비례"가 성립한다. 함정(TrapHp)은 이번 변경 대상이 아니다 — 여전히 physicalAttack 기반.
+✅ 채널링 중 대상 바라보기 — 같은 블록에서 isCore/isDoor로 판정된 순간(데미지 적용 여부와 무관하게
+   매 프레임) `currentDir = SkillAction.GetDirection8(targetPos2D - position)`로 갱신 — 자동 AI
+   (TacticalFSMState.MoveToCoreAttack/MoveToDoorAttack)와 플레이어 명령
+   (PlayerCommandFSMState.ExecutePlayerAttackObject) 양쪽 다 이 공유 블록을 거치므로 경로 구분 없이
+   전부 적용된다. 예전엔 플레이어 명령 경로만 채널링 시작 시 1회 방향을 세팅했고 자동 AI 경로
+   (MoveToCoreAttack)는 전혀 세팅하지 않았다 — 이제 두 경로 다 매 프레임 갱신되므로 더 정확하고
+   일관적이다.
+
+════════════════════════════════════════════════════════════════════════
+■ 12. "제자리 공격" 회피/점멸 확인 + 방향 전환 시간 추가 (2026-08-22 추가, 사용자 요청 "1. 제자리
+   공격에서 회피, 점멸 등이 가능하기 때문에, 움직임. 2. 제자리 공격 중 한 방향만 바라보기 때문에,
+   대기 상태와 동일한 바라보는 방향 전환 시간을 가져야 해")
+════════════════════════════════════════════════════════════════════════
+✅ 1번(회피/점멸 허용 확인) — 코드 확인 결과 이미 요구사항대로 동작 중, 변경 불필요. 위협 반응
+   (회피/점멸)은 UnitFunction.OnReactToThreat이 담당하는데, 이 메서드는 `isHalted`(정지)만 확인해서
+   막고 `isStandGroundAttack`은 전혀 확인하지 않는다(HaltFSMState.cs 주석 "위협 반응은 FSM Tick 밖
+   경로라 여기서 따로 막아야 한다" 참고) — 즉 "제자리 공격" 중에는 정지와 달리 회피/점멸이 이미
+   정상적으로 발동해 유닛이 살짝 움직일 수 있다.
+✅ 2번(방향 전환 시간) — [2026-08-22 후속 수정으로 폐기, 15번 섹션 참고] 최초 구현은 Unit.cs에
+   `standGroundNextFaceTime`(IdleFSMState.idleNextMoveTime과 동일한 역할의 별도 타이머 필드)를 두고
+   StandGroundAttackFSMState.ExecuteStandGroundAttack의 `currentDir` 갱신을 IdleFSMState와 동일한
+   주기(2~4초)로 늦췄었는데, 사용자 재확인("자연스러운 시선 전환이 구현 안됨... 소리나 피격 등으로
+   인지해서 그 방향을 바라봐야 함")으로 이 접근 자체가 잘못됐음이 드러나 완전히 되돌렸다 — 15번
+   섹션 참고.
+
+════════════════════════════════════════════════════════════════════════
+■ 13. 난전 중 유닛 겹침 버그 + 코어/문 공격 방향 스프라이트 미갱신 (2026-08-22 추가, 사용자 신고
+   "지금 난전 중에 유닛끼리 겹쳐지는거 같은데? 어떤 상황에서도 유닛끼리는 겹쳐지면 안돼. 문이나
+   코어 공격중 바라보는 방향이 여전히 부자연스러워. 실제 공격과 같은 로직으로 다양한 방향을 바라볼
+   수 있게 해줘")
+════════════════════════════════════════════════════════════════════════
+[유닛 겹침] 원인: DefenseSystem의 점멸(Blink) 후보 탐색이 `FindSafeTiles(defender, threat, 4, true)`
+로 `ignoreUnits:true`를 써서 "경로 중간에 다른 유닛이 서 있어도 지나갈 수 있다"는 의도였는데, 이
+플래그가 후보 타일 자체(최종 착지 지점)의 점유 여부까지 함께 건너뛰어버렸다 — 그 결과 다른 유닛이
+이미 서 있는 칸도 "안전한 착지 후보"로 뽑혔고, `Unit.ForceMove`도 점유 여부를 전혀 재확인하지 않고
+그대로 텔레포트시켜서 겹침이 발생했다. 회피(Dodge)는 애초에 `CanMove(candidate)`(ignoreUnits
+기본값 false)로 후보를 걸러서 이 문제가 없었다.
+✅ DefenseSystem.cs Blink 처리부 — `HasPathWithoutWalls` 필터링 직전에
+   `defender.CanMove(tile, ignoreUnits: false)` 재검증을 추가해 최종 착지 후보에서 이미 점유된
+   칸을 제외한다(벽/문 판정은 이미 FindSafeTiles가 확인했으므로 이 재검증은 사실상 점유 여부만
+   추가로 본다).
+✅ Unit.ForceMove — 최종 안전장치로 착지 지점 점유 여부를 한 번 더 확인하는 가드 추가(이미 다른
+   유닛이 있으면 이동 자체를 취소하고 제자리 유지 — 후보가 없을 때의 기존 회피/점멸 관례와 동일).
+   ForceMove 호출부가 앞으로 또 실수해도 최종적으로는 절대 겹치지 않도록 하는 방어선.
+
+[코어/문 공격 방향 부자연스러움] 원인: 이전 섹션(11번)에서 채널링 중 currentDir을 매 프레임
+갱신하도록 고쳤지만, `Generate.UpdateUnitSpriteForDirection(this)` 호출을 짝지어 부르지 않아서
+내부 값(currentDir)만 바뀌고 실제로 화면에 보이는 스프라이트 방향은 갱신되지 않았다 — CombatFSMState.
+ExecuteCombat/Unit.Move는 currentDir을 세팅할 때마다 항상 이 호출도 같이 하는데 이 블록만 빠져있었다.
+✅ UnitFunction.OnUpdate의 채널링 블록 — currentDir 갱신 직후 `Generate?.UpdateUnitSpriteForDirection
+   (this)`를 추가해 실제 전투(CombatFSMState)와 동일한 방식으로 매 프레임 스프라이트까지 갱신되게
+   했다. 이제 코어/문을 공격 중인 유닛이 접근 방향이 바뀌거나 타겟(코어/문 위치는 고정이지만
+   유닛 자신이 밀려나는 등)이 달라지면 매 프레임 그 방향으로 스프라이트가 자연스럽게 돈다.
+
+════════════════════════════════════════════════════════════════════════
+■ 14. 유닛 겹침 근본 수정 + 제자리 공격 회피/점멸 완전 차단 (2026-08-22 추가, 사용자 신고 "난전중
+   겹침+제자리 공격중 회피및 점멸 여전히 존재함")
+════════════════════════════════════════════════════════════════════════
+[유닛 겹침, 13번 섹션 후속] 13번 섹션에서 점멸(Blink) 후보 재검증은 고쳤지만 근본 원인은 더 깊은
+곳에 있었다: `UnitRegistry.RegisterUnitPos`가 이미 다른 유닛이 등록된 칸이어도 무조건 덮어썼다 —
+호출부가(스폰/텔레포트/퇴각 등 여러 군데) 사전 점유 확인을 빠뜨리거나 그 확인과 실제 등록 사이에
+다른 유닛이 먼저 그 칸을 차지하면, 뒤에 등록한 유닛이 앞 유닛의 자리를 조용히 빼앗아 unitGrid에는
+한 명만 남지만 두 유닛의 position 필드는 화면상 같은 칸을 가리키게 됐다(유닛 겹침의 최종 형태).
+`Unit.ForceMove`도 발자국(footprint)을 전혀 고려하지 않고 원점 타일 하나만 unitGrid에 직접 써서
+다중 타일 유닛에서는 등록이 어긋날 수 있었다.
+✅ UnitRegistry.RegisterUnitPos — 시그니처를 `bool` 반환으로 변경. 발자국 전체 칸을 먼저 훑어
+   하나라도 다른 살아있는 유닛이 점유 중이면 어떤 칸도 등록하지 않고 false를 반환(부분 오염 방지).
+✅ GameSession.RegisterUnitPos — 반환값을 그대로 전달, 성공했을 때만 소리 감지 인덱스(PropagationSystem.
+   UpdateListenerRoomIndex)를 갱신하도록 변경(실패 시 실제로 위치가 안 바뀌므로).
+✅ GameSession.ProcessUnitAction(매 유닛 정상 이동 동기화 지점) — 등록 실패 시 그 틱의 이동 자체를
+   되돌린다(position을 원래 자리로 복구 + 재등록). Move()/CanMove 정상 경로는 이동 시점에 이미
+   점유를 확인하지만, 그 확인과 이 grid 동기화 사이의 미세한 시점 차이를 잡는 최종 안전망.
+✅ Unit.ForceMove — unitGrid를 직접 건드리던 코드를 GameSession.RegisterUnitPos/UnregisterUnitPos
+   호출로 교체(발자국 인식 통일 + 실패 시 자동 롤백). 예전 임시 조치(13번 섹션의 단일 타일 점유
+   확인)는 이 정식 경로로 대체됐다.
+✅ HumanWaveManager.ForceCrossToTargetFloor / 생존자 재합류 스폰 / NavigationFSMState.CrossStairs —
+   전부 등록 실패 시 위치(+층)를 원래대로 되돌리는 방어 코드 추가(이미 TryResolveUnoccupiedStairArrival
+   등으로 사전 점유 확인을 하고 있어 실전에서 거의 발동하지 않겠지만, "어떤 상황에서도"라는 요구에
+   맞춰 마지막 한 칸까지 막았다). HumanWaveManager.RetreatMemberToFloor0의 "후보 전부 점유 시 대표
+   좌표로 강제 이동"(극단적 혼잡 대비, 기존 문서화된 트레이드오프)은 이번 변경 대상이 아니다 — 완전
+   차단보다 그 파티원을 영영 못 돌아오게 하는 게 더 나쁘다는 기존 판단을 유지.
+
+[제자리 공격 중 회피/점멸] 12번 섹션에서 "이미 허용되고 있다"고 확인했던 판단을 이번 신고로
+뒤집었다 — 사용자가 원한 건 확인이 아니라 차단이었다. "제자리에서 절대 이동하지 않는다"는 조건에
+회피/점멸도 예외 없이 포함된다.
+✅ UnitFunction.OnReactToThreat — `if (isHalted) return;`를 `if (isHalted || isStandGroundAttack)
+   return;`로 변경. HaltFSMState.cs/StandGroundAttackFSMState.cs 상단 주석도 함께 갱신.
+
+════════════════════════════════════════════════════════════════════════
+■ 15. "제자리 공격" 시선 전환 재조정 — 기존 시야 방향 전환 시스템 재사용 (2026-08-22 추가, 사용자
+   신고 "제자리 공격 중 자연스러운 시선 전환이 구현 안됨. 기존에 있던 로직인 소리나 피격 등으로
+   공격을 인지해서 그 방향을 바라봐야 함")
+════════════════════════════════════════════════════════════════════════
+배경: 12번 섹션에서 만든 "IdleFSMState와 동일한 2~4초 주기로만 방향 갱신" 타이머가 근본적으로
+잘못된 접근이었다. 이 프로젝트에는 이미 UnitFunction.ResolveVisionDirection(01-A 11장 "시야 방향
+전환 우선순위")이라는 완성된 시스템이 있다 — GameSession.ProcessUnitAction이 모든 유닛의
+ExecuteAction() 직후 매 틱 호출해서, 스킬 사용 중(1순위)/1칸 인접 근접 대상(3순위)/플레이어 수동
+공격 명령(0순위 특례)/소리 감지(7순위, PropagationSystem 연동)/미확인 타일(8순위)/경계·수상한 타일
+(9순위) 등 여러 후보 중 가장 급한 방향으로 currentDir을 자동 갱신하고, 아무 후보도 없으면 최하위
+후보("이동 중" — 값은 그 틱 ExecuteAction()이 이미 세팅해둔 currentDir 그대로)로 폴백한다. 즉
+"기본 시선은 지금 하던 행동이 가리키는 방향, 더 급한 일(소리/피격/경계)이 생기면 그쪽을 본다"는
+동작이 이미 모든 유닛에 공통 적용되고 있었다.
+
+12번 섹션의 타이머는 바로 이 폴백 메커니즘과 충돌했다 — ExecuteStandGroundAttack이 2~4초 동안
+`currentDir`을 얼어붙게 해두면, ResolveVisionDirection의 최하위 후보("이동 중" = 그 순간의
+currentDir)도 그 얼어붙은 옛 방향을 그대로 이어받아 버려서, 실제로는 타겟이 움직였는데도 계속
+엉뚱한 방향을 보거나, 소리/피격 반응이 겹치면서 더 부자연스러워 보였다.
+
+✅ StandGroundAttackFSMState.ExecuteStandGroundAttack — 타이머 완전히 제거. CombatFSMState.
+   ExecuteCombat과 동일하게 매 틱 즉시 `currentDir = SkillAction.GetDirection8(target.position -
+   unit.position)`로 갱신한다. 이 값이 그대로 ResolveVisionDirection의 "이동 중" 최하위 폴백
+   후보가 되어 "평소엔 공격 대상을 본다"가 자연스럽게 성립하고, 소리 감지/경계 등 더 높은 순위
+   후보가 활성화되면 ResolveVisionDirection이 자동으로 그쪽으로 덮어써서 "소리나 피격을 인지하면
+   그 방향을 본다"도 별도 코드 없이 그대로 재현된다.
+✅ Unit.cs의 `standGroundNextFaceTime` 필드 제거(더 이상 아무도 참조하지 않음).
+[교훈] "이미 있는 유사 시스템을 재사용할 수 있는지" 먼저 확인하지 않고 새 타이머를 만든 게
+원인이었다 — 이 프로젝트는 CLAUDE.md에 정리된 여러 문서 기반 시스템(시야-인지-반응 등)이 서로
+맞물려 있어서, 새 상태를 추가할 때는 그 상태가 기존 시스템의 어떤 후크(여기서는
+ResolveVisionDirection의 매 틱 자동 재계산)를 우회하거나 방해하지 않는지 먼저 확인해야 한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 16. [오진단으로 전체 롤백됨 — 17번 섹션이 진짜 원인/수정] 이동 명령이 상대 진영 문 앞에서 말없이
+   멈추는 문제 (2026-08-22 추가, 사용자 신고 "다른 방으로 넘어갈때 명령(이동)중이고 앞에 막힌게
+   없는데도, 진입 직전에 멈춤(들어가기 바로 직전의 문 앞에서)")
+════════════════════════════════════════════════════════════════════════
+[2026-08-22 후속] 아래 진단/수정은 틀렸다 — 사용자가 진짜 원인을 특정했다(2*2 통로에 일부러 남겨둔
+마지막 상대 진영 문 하나를 플레이어 몬스터가 이동 중 "스스로 판단해서" 공격하려다 막힌 것). 아래
+✅ 표시된 PlayerCommandFSMState.cs 수정(IsBlockedByHostileDoorNearby 등)은 코드에서 완전히
+롤백했다 — 17번 섹션 참고. 이 섹션은 잘못된 진단 과정을 기록으로만 남겨둔다.
+배경: 사용자가 "소집(Muster) 잔재 때문에 가끔 행동이 고장나는 것 같다"고 의심해 먼저 그 시스템이
+완전히 폐기됐는지 감사했다 — MonsterPlacementController/MonsterDefensePlacementSystem/
+MusterFSMState 파일 삭제, Unit.isMustered/defenseStartPosition 필드 삭제, UnitFSM._states 배열에
+Muster 슬롯 없음까지 전부 확인 완료(코드상 완전 제거, 남은 건 주석뿐). HumanWaveManager.
+monsterMusterTriggered/monstersSummonedThisCycle는 이름만 "소집"일 뿐 WaveGaugePanel 점멸 타이밍만
+조절하는 순수 UI 플래그라 유닛 행동과 무관 — 이 신고의 원인이 아니었다.
+
+실제 원인은 PlayerCommandFSMState.ExecutePlayerMove의 "명령 포기 오판 방지" 휴리스틱과 새 문
+시스템의 상호작용이었다: 목표 지점(target)까지 A*로 더 다가갈 수 없을 때, 이 메서드는
+FindNearbyOpenTile(target)/HasAnyStructurallyOpenNeighbor(target) 둘 다 "목표 지점 주변"만
+확인한다(원래 "여러 유닛을 같은 좌표로 명령했을 때 목표 자체가 붐빈 경우"를 노린 설계, 2026-07-24/
+2026-07-28 도입). 그런데 상대 진영 문에 막힌 이번 경우엔 막힌 지점이 목표가 아니라 "가는 길 중간의
+문"이라 target 주변은 뻥 뚫려 있고, 그래서 "일시적 혼잡"(HasAnyStructurallyOpenNeighbor==true)으로
+오판해 playerCommandStuckTurns가 한도(기본 8틱)에 찰 때까지 문 앞에서 얼어붙어 보이다가 뒤늦게
+"이동 불가" 피드백과 함께 포기했다 — 상대 진영 문은 부수기 전엔 시간이 지나도 절대 안 풀리는
+확정적 봉쇄인데 "곧 풀릴 수도 있는 혼잡"과 동일하게 취급된 게 문제였다.
+
+✅ PlayerCommandFSMState.ExecutePlayerMove — MoveTowardsPos 실패 직후, 기존 혼잡 판정보다 먼저
+   IsPendingObjectAttackValid와 별개인 신규 IsBlockedByHostileDoorNearby(unit)로 유닛 인접 8칸에
+   상대 진영 문(IsBlockedByClosedDoor==true)이 있는지 확인한다. 있으면 확정적 봉쇄로 보고 즉시
+   포기 — stuckTurns 누적 없이 그 자리에서 명령을 정리하고 "문이 막혀 있음(파괴 필요)" 피드백을
+   띄운다(기존 ShowMoveFailFeedback에 메시지 파라미터 추가).
+[알려진 제약] 이동 명령 자체로 상대 진영 문을 억지로 통과하는 기능은 여전히 없다(설계상 의도 —
+파괴해야만 지나갈 수 있음) — 이번 수정은 "말없이 몇 초간 얼어붙는" 증상만 없애고 "이동 불가" 피드백
+타이밍을 즉시로 당긴 것. 실제로 지나가려면 오브젝트 공격 명령(우클릭)으로 문을 파괴해야 한다.
+
+════════════════════════════════════════════════════════════════════════
+■ 17. [하드 룰 확정] 자동 오브젝트(코어/문) 공격은 인류 전용 — 플레이어 몬스터는 절대 자동으로
+   하지 않는다 (2026-08-22, 16번 섹션 재조사 결과 확정 + 사용자 명시)
+════════════════════════════════════════════════════════════════════════
+경위: 16번 섹션에서 "이동 명령중이고 앞에 막힌게 없는데도 문 앞에서 멈춤" 버그의 원인을
+"HasAnyStructurallyOpenNeighbor가 목표 지점 주변만 본다"는 휴리스틱 결함으로 진단하고 즉시 포기
+로직(IsBlockedByHostileDoorNearby)을 추가했었다. 그런데 사용자가 진짜 원인을 특정했다: "2*2 문중에
+한개의 상대진영 문만 남겨두고 다 파괴했었는데, 그 한개의 문을 발견해서 문 파괴 시도를 하려 한 것
+같아." 즉 실제로는 **플레이어 몬스터가 이동 명령 도중 스스로 판단해서 그 문을 자동으로 공격하려
+시도**한 것이었다(당시 TacticalBehaviorType.CoreAttack이 "인류/몬스터 공통"이었음 — 최초 구현
+당시의 설계, 위 CLAUDE.md 새 하드 룰 섹션 참고). 16번 섹션의 수정은 잘못된 진단에 기반한 것이라
+되돌렸다(git 커밋 전 상태라 해당 파일 수정만 정밀하게 롤백 — PlayerCommandFSMState.cs의
+ShowMoveFailFeedback 메시지 파라미터/IsBlockedByHostileDoorNearby 전부 제거).
+
+사용자 확정 지시: "플레이어 측 몬스터는 절대, 스스로 문이나 코어를 파괴하려 시도해서는 안돼.
+반드시 플레이어의 명령으로만 시도 하게. 자동 오브젝트 공격은 오직 인류만의 로직이야."
+
+✅ TacticalFSMState.FindHostileRoomCore — `if (!(unit is Human)) return false;` 추가(기존
+   `unit.FactionBehavior is WildMonsterBehavior` 배제 줄은 이걸로 자동 포함돼 삭제). CoreAttack도
+   이제 DoorAttack과 동일하게 인류 전용 — 플레이어 몬스터는 코어를 절대 자동으로 공격하지 않는다.
+✅ TacticalBehaviorPriorityConfig.cs — CoreAttack enum 주석 갱신("인류/몬스터 공통" 삭제, 인류
+   전용으로 정정 + 하드 룰 근거 명시).
+✅ CLAUDE.md — "⚠️ 자동 오브젝트(코어/문) 공격은 인류 전용" 섹션을 코어 설명 문단 맨 앞에 신설해
+   눈에 띄게 배치. 이 시스템을 다시 손댈 때 플레이어 몬스터용 자동 코어/문 공격 조건을 절대 추가하지
+   말 것 — 필요해지면 반드시 사용자에게 먼저 확인.
+[영향] 플레이어 몬스터는 이제 야생 방에 들어가도 그 방 코어를 자동으로 공격하지 않는다 — 방을
+점령(=코어 파괴)하려면 플레이어가 직접 그 코어를 우클릭해서 명령해야 한다. 자동 확장이 사라지고
+전적으로 수동 지시 기반이 됐다 — 사용자가 명시적으로 확정한 방향이므로 의도된 변경이다.
+
+════════════════════════════════════════════════════════════════════════
+■ 검증 상태 — 실제로 켜서 확인이 필요한 항목
+════════════════════════════════════════════════════════════════════════
+Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 밸런스 확인(수정 파일 전체 { }
+개수 일치 확인 완료)/grep 기반 죽은 참조 검증(제거한 심볼 전체 재검색, 남은 것은 주석뿐임을 확인)
+수준으로만 진행했다. 데모 전 반드시 확인할 것:
+  1. 첫 웨이브 60초 게이지가 정상적으로 채워지는지.
+  2. 모든 방(야생/점령 방 모두)에 코어가 실제로 스폰되는지, 좌표가 겹치거나 문 타일을 막지 않는지.
+  3. 코어를 파괴하면 그 자리에서 즉시 소유권이 넘어가고(색칠/안개/occupationState까지) 반피로
+     회복되는지, 같은 방을 반복해서 뺏고 뺏기는지(양방향 전환).
+  4. 인류 웨이브가 목표 방(보스방) 코어를 파괴하면 웨이브가 승리 처리되고 생존자가 퇴각하는지.
+  5. 방 점령이 이제 코어 파괴로만 일어나는지 — 예전처럼 유닛만 전멸시키거나 빈 방에 들어가는
+     것만으로는 점령되지 않아야 함(의도된 동작 변경이지만 실제로 그렇게 되는지 확인).
+  6. 유닛을 선택하고 코어/문을 우클릭하면 실제로 접근해서 채널링·파괴까지 이어지는지(6번 섹션
+     클릭 관례 개편으로 좌클릭이 아닌 우클릭), 코어는 파괴 후 명령이 자동 종료(재공격 안 함)되고
+     문은 재설치 모드로만 복구 가능한지.
+  7. "제자리 공격" 명령을 내린 유닛이 실제로 이동 없이 사거리 내 적만 공격하는지, 새 명령/명령
+     취소로 정상 해제되는지.
+  8. R/B/V/O/P 등 기존 배치 키·메뉴가 여전히 정상 동작하는지(소집 배치 버튼만 제거됨).
+  9. 문이 기본적으로 항상 닫혀 보이고(색상은 소유 진영에 따라 다르게), 보유 진영 유닛이 인접 칸에서
+     문 쪽으로 이동을 시도하는 순간 그 문만 열렸다가(NotifyApproachAttempt 기반, 2026-08-22 3차
+     재조정 — 더 이상 단순 반경 존재 여부가 아님) 시도가 끊기면(1프레임 지연 후) 다시 닫히는지 —
+     특히 방 소유권이 코어 파괴로 바뀐 직후 그 방을 둘러싼 문들의 색이 즉시 새 진영 색으로 바뀌는지.
+  10. 다른 진영 유닛은 문에 막혀 절대 못 지나가고(자율 이동/플레이어 명령 이동 둘 다), 그 문을
+      공격해서 파괴해야만 지나갈 수 있는지 — 파괴 후에는 진영 무관하게 아무나 통과 가능한지.
+  11. 우클릭 하나로 적 유닛 공격/코어·문 공격/일반 이동이 클릭 위치에 따라 올바르게 갈리는지
+      (ExecuteRightClickCommand), 건축/오브젝트 배치 모드에서 좌클릭이 아닌 우클릭으로 설치가
+      확정되는지.
+  12. 자기 진영 문을 우클릭하면 공격이 아니라 그 문 위치로 이동해서 서는지, 상대 진영 문을
+      우클릭하면 정상적으로 공격(접근~채널링~파괴)이 걸리는지(IsPendingObjectAttackValid 진영 확인
+      재조정, 2026-08-22).
+  13. 문이 더 이상 방 색으로 물들지 않고 항상 기본 색으로 잘 보이는지. 코어/문/함정/전리품/시체/
+      전멸흔적을 좌클릭하면 정보 패널이 뜨고, 체력·소유 진영·기본 정보가 각 오브젝트 종류에 맞게
+      올바르게 표시되는지(체력 없는 오브젝트엔 체력 줄 자체가 안 보이는지 등). 건물 패널과 오브젝트
+      패널이 서로 전환될 때 이전 내용이 남지 않는지.
+  14. 2칸 폭 통로(플레이어 문 2칸+야생 문 2칸)에서 플레이어 몬스터에게 야생 문 공격을 명령하면 자기
+      문 위까지 올라가 정상적으로 접근~채널링~파괴가 되는지, 문 파괴/명령 취소 후에는 그 유닛이
+      다시 정상적으로 방 안에서만 자율 이동하는지(방 제한 예외가 새는 채로 안 남는지).
+  15. 코어 파괴로 방이 점령돼도 그 방에 붙은 기존 문들의 소유 진영(정보 패널에서 확인)이 그대로
+      유지되는지, 문을 파괴하고 재설치하면 그제서야 Player 소유로 바뀌는지. "설치" 메뉴에서 문
+      재설치 버튼이 보이고 돌 자원을 소모하는지(부족하면 배치 모드 유지한 채 경고만 뜨는지),
+      debug 메뉴에는 더 이상 문 재설치가 없는지.
+  16. 인류 유닛이 방을 점령한 뒤, 그 방 경계에 다른 진영 문이 남아있으면 자동으로 접근해 부수는지
+      (전술(문 공격) 라벨 확인), 문을 부순 뒤에는 자연스럽게 다음 방으로 탐험을 이어가는지. 플레이어
+      몬스터/야생 유닛에게는 이 행동이 전혀 발동하지 않는지.
+  17. 코어/문을 여러 유닛이 동시에 공격하면 인원수에 비례해서 더 빨리 파괴되는지(예: 2명이면 약
+      절반 시간), 공격력이 서로 다른 유닛들이어도 동일한 속도로 깎이는지(스탯 무관 고정 비율
+      확인). 코어/문을 공격하는 동안 유닛이 계속 그 방향을 바라보는지(자동 AI/플레이어 명령 둘 다).
+  18. [14/15번 섹션으로 대체됨] "제자리 공격" 중 방향이 대상을 향해 자연스럽게 갱신되고, 소리를
+      감지하거나 피격당하면 그 방향을 보는지(ResolveVisionDirection 우선순위가 정상 작동하는지),
+      공격받아도 회피/점멸로 전혀 움직이지 않는지.
+  19. 유닛이 많이 몰리는 난전(특히 점멸을 쓸 수 있는 마법 계열 유닛이 섞인 전투)에서 유닛끼리
+      겹치는 현상이 재현되지 않는지 — 특히 점멸이 자주 발동하는 상황에서 집중적으로 확인. 코어/문을
+      공격하는 유닛의 스프라이트가 실제로 그 방향을 보고 있는지(내부 값이 아니라 화면에 보이는
+      모습 기준).
+  20. "제자리 공격" 중인 유닛이 공격을 받아도 회피/점멸로 전혀 움직이지 않는지(정지와 동일하게
+      완전히 그 자리에 고정되는지). 계단 강제 이동/퇴각/생존자 재합류가 극단적 혼잡 상황에서도
+      실제로 겹치지 않는지(콘솔에 "대표 좌표로 보냅니다" 경고가 뜨는 극히 드문 경우 제외).
+  21. [17번 섹션 확인용] 플레이어 몬스터를 야생 방에 들여보내도 그 방 코어를 절대 자동으로 공격하지
+      않는지(전술 라벨이 "전술(코어 공격)"으로 안 뜨는지) — 직접 그 코어를 우클릭으로 명령해야만
+      공격하는지. 인류는 여전히 기존대로 자동 코어 공격이 되는지(인류만 회귀 확인).
+
+════════════════════════════════════════════════════════════════════════
+■ 변경된 소스 파일 전체 목록
+════════════════════════════════════════════════════════════════════════
+[신규]
+  Assets/Script/Unit/AI/States/StandGroundAttackFSMState.cs
+
+[삭제]
+  Assets/Script/Unit/Party/CorePartySystem.cs
+  Assets/Script/Unit/Exploration/CoreInteractionState.cs
+  Assets/Script/Unit/Session/MonsterPlacementController.cs
+  Assets/Script/Wave/MonsterDefensePlacementSystem.cs
+  Assets/Script/Unit/AI/States/MusterFSMState.cs
+
+[수정 — 핵심]
+  Assets/Script/Wave/WaveData.cs, WaveData.asset(firstWaveCooldown)
+  Assets/Script/Wave/HumanWaveManager.cs(코어 기반 승리조건 전면 재작성)
+  Assets/Script/Map/InteractableObject.cs(CoreHp/DoorHp)
+  Assets/Script/Unit/Core/Room.cs(CoreObjectId/CorePosition)
+  Assets/Script/Unit/Session/GameSession.cs(SpawnAllRoomCores, RemoveDoor/RebuildDoorAt 위임 등)
+  Assets/Script/Unit/Core/OffenseProcessor.cs(OnCoreDestroyed로 전면 재작성)
+  Assets/Script/Unit/AI/States/TacticalFSMState.cs(CoreAttack 행동 신규)
+  Assets/Script/Unit/Core/UnitFunction.cs(코어 채널링, 옛 코드 제거)
+  Assets/Script/Unit/Core/Unit.cs(필드 정리/신설)
+  Assets/Script/Unit/AI/FSM/UnitFSM.cs(제자리 공격 강제상태 배선)
+  Assets/Script/Unit/AI/States/PlayerCommandFSMState.cs
+  Assets/Script/Unit/AI/States/CombatFSMState.cs(GetClosestEnemy internal화)
+  Assets/Script/Unit/AI/States/IdleFSMState.cs
+  Assets/Script/Unit/Session/DoorSystem.cs(전면 재작성 — 진영 기반 개폐, DoorHp/RemoveDoor/
+    RebuildDoorAt/IsRepairableDoorTile/IsBlockedByClosedDoor/UpdateProcess/NotifyApproachAttempt)
+  Assets/Script/Unit/Session/ObjectPlacementController.cs(문 재설치 모드, 코어 모드 제거, 설치 확정
+    입력 우클릭으로 변경)
+  Assets/Script/Unit/Session/BuildPlacementController.cs(설치 확정 입력 우클릭으로 변경)
+  Assets/Script/Unit/Session/InputManager.cs(대규모 정리 — 소집 배치 제거, 제자리 공격 추가, 클릭
+    관례 전면 개편으로 ExecuteRightClickCommand 신설)
+  Assets/Script/Unit/Movement/AStarMovement.cs(IsTileWalkable에 문 진영 판정 추가)
+  Assets/Script/Map/MapData.cs(Gate.isDoorClosed 주석만 갱신 — 필드는 저장 호환을 위해 유지, 미사용)
+  Assets/Script/UI/BottomMenuBar.cs
+  Assets/Script/Unit/AI/Config/TacticalBehaviorPriorityConfig.cs(Core→CoreAttack)
+  Assets/Script/Unit/AI/Config/AIBehaviorConfig.cs(musterPriority 제거)
+  Assets/Script/Unit/Exploration/ExplorationMath.cs(CoreInvestigateDurationSeconds 제거)
+  Assets/Script/Unit/Propagation/PropagationSystem.cs(코어 조사 관련 분기 제거)
+  Assets/Script/UI/BuildingControlPanel.cs(오브젝트 정보 조회 겸용으로 확장 — ShowForObject/
+    DrawObjectInfo/GetObjectDisplayName/TryGetObjectHp/GetObjectOwnerFaction 신규)
+  Assets/Script/UI/BottomMenuBar.cs(문 재설치 버튼을 debug → 설치 서브메뉴로 이전)
+  Assets/Script/Production/ResourceManager.cs(DoorRepairStoneCost 신규)
+  Assets/Script/Unit/AI/Config/TacticalBehaviorPriorityConfig.cs(TacticalBehaviorType.DoorAttack 신규)
+
+════════════════════════════════════════════════════════════════════════
+■ 다음에 이 시스템을 확장할 때
+════════════════════════════════════════════════════════════════════════
+1. 위 "다음 우선순위 구현 후보" 3개(수치 튜닝, 웨이브 목표 방 확장, 문 진영 개편의 부수 영향
+   재검토)부터 확인.
+2. "검증 상태" 21개 항목을 실제 플레이로 확인 — 특히 2/3/4번(코어 스폰·소유권 전환·웨이브 승리
+   조건)과 9/10번(문 진영 개폐·통행), 11번(우클릭 실행 디스패처)은 이번 변경의 핵심 게임 루프라
+   우선순위가 가장 높다.
+3. 자동 AI가 문도 스스로 공격하게 하려면 TacticalFSMState.CoreAttack 3종 메서드
+   (HasCoreAttackTarget/MoveToCoreAttack/CoreAttackPerform)와 UnitFunction.OnUpdate의 코어 채널링
+   블록을 그대로 복제해
+   DoorAttack으로 만들면 된다 — 패턴은 이미 두 번(트랩/코어) 검증됐다.

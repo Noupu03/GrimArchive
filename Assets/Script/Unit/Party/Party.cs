@@ -57,12 +57,6 @@ public class Party
 	// TrapPartySystem(Assets/Script/Unit/Party/TrapPartyCoordination.cs)이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
 
-	// 03문서 7-3장(2026-07-27 신규): 발견됐지만 아직 리더가 조사를 완료하지 않은 코어 — null이면
-	// 없음. CorePartySystem/TacticalFSMState가 읽고 쓴다. 리더가 바뀌어도(승계) 이 값 자체는 파티
-	// 소유라 그대로 유지되어 새 리더가 이어받을 수 있다.
-	public string PendingCoreObjectId;
-	public Vector3Int PendingCorePosition;
-
 	public Party(string id, string name)
 	{
 		Id = id;

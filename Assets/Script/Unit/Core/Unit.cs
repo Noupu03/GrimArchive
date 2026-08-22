@@ -199,22 +199,20 @@ public abstract class Unit : ScriptableObject {
 	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;
 
-	// 몬스터 배치 프리셋(2026-08-19 재구현 — 방 단위 배치 모드) — 웨이브 대기 중 R키 배치 모드에서
-	// 지정한 디펜스 시작 위치. "현재 이동 목적지"(playerMoveTarget)와는 분리된 별도 데이터로, 일반
-	// 탐색/이동/전투 중 위치 변경이 이 값을 건드리지 않는다. 0층에 인류가 사전 스폰되는 시점
-	// (HumanWaveManager.PreSpawnWaveUnits → MonsterDefensePlacementSystem.ApplyDefenseStartPositions)에 이
-	// 위치로 실제 이동 명령이 내려지며, 값이 없으면 기존 기본 행동(탐색)을 그대로 유지한다.
-	public Vector2Int? defenseStartPosition = null;
+	// 기초문서.md 피드백(2026-08-22, "코어와 문을 명령으로 인한 파괴 대상으로 지정할 수 있게 해줘") —
+	// 플레이어가 좌클릭으로 지정한 공격 대상 오브젝트(코어/문) 위치. playerAttackTarget(Unit 대상)과
+	// 동급이지만 InteractableObject는 오브젝트라 위치 기반으로 추적한다. PlayerCommandFSMState.
+	// ExecutePlayerAttackObject가 소비 — 파괴/소유권 전환 등으로 더 이상 유효한 대상이 아니게 되면
+	// 스스로 null로 비운다.
+	public Vector3Int? playerAttackObjectTarget = null;
 
 	// 대기 상태(IdleFSMState, 2026-08-20 신규, 사용자 요청 "대기 상태를 새로 만들어줘... 야생의 경우...
 	// 소환 위치(야생) 주변 배회") — 야생 몬스터가 스폰된 좌표. GameSession.SpawnWildRoomGuards/
-	// WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅하고 그 뒤로는 안 바뀐다. 플레이어
-	// 진영 몬스터는 대신 위 defenseStartPosition을 배회 기준점으로 쓴다(사용자 확인, "야생과 동일하게
-	// anchor+2칸 반경").
+	// WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅하고 그 뒤로는 안 바뀐다.
 	public Vector2Int? summonPosition = null;
 
-	// IdleFSMState.OnEnter가 매번 다시 계산해 세팅하는 배회 기준점(위 summonPosition/defenseStartPosition
-	// 중 하나, 혹은 둘 다 없으면 진입 시점 위치)과 다음 1칸 이동이 허용되는 시각(Time.time 기준, 정지
+	// IdleFSMState.OnEnter가 매번 다시 계산해 세팅하는 배회 기준점(위 summonPosition, 없으면 진입
+	// 시점 위치)과 다음 1칸 이동이 허용되는 시각(Time.time 기준, 정지
 	// 시간이 지날 때마다 갱신) — 상태를 넘나들 때마다 새로 계산하므로 여기서는 그냥 마지막 값을 들고
 	// 있기만 한다.
 	public Vector2Int? idleAnchorPosition = null;
@@ -232,11 +230,15 @@ public abstract class Unit : ScriptableObject {
 	// (InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
 	public bool isHalted = false;
 
-	// 위 이동이 걸리는 순간 함께 true가 된다 — 도착 후 NavigationFSMState가 기본 탐색 대신 제자리
-	// 대기("소집 대기")를 하게 만드는 플래그. 전투/전술 AI는 그대로 동작한다(탐색만 멈추는 것이지
-	// 전투 AI를 바꾸는 시스템이 아님). 해제 시점은 "어떤 형태로든 전투 시작을 인지한 시점"(UnitFSM이
-	// Combat/Tactical 상태로 전이하는 순간 자동 해제 — 직접 목격뿐 아니라 소리·전파 간접 인지 포함).
-	public bool isMustered = false;
+	// "제자리 공격" 명령(기초문서.md 피드백, 2026-08-22 — R키 몬스터 배치 모드를 대체) — 이동이 걸리는
+	// 순간 함께 true가 된다. 이동 완료(PlayerCommandFSMState.CompletePlayerCommand)가 이 플래그를 보고
+	// isStandGroundAttack으로 전환한다.
+	public bool pendingStandGroundOnArrival = false;
+
+	// 켜지면 UnitFSM.SelectState가 무조건 StandGroundAttackFSMState로 고정한다 — 이동은 절대 하지
+	// 않지만 사거리 내 적은 공격한다(정지·완전 무반응과 다름). 오직 플레이어의 새 직접 명령이나
+	// "명령 취소"로만 해제된다(InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
+	public bool isStandGroundAttack = false;
 
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
@@ -282,6 +284,13 @@ public abstract class Unit : ScriptableObject {
 	// Human 쪽에 둔다(아래 Human 클래스 참고).
 	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
 	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
+
+	// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 채널링 공용 필드. 자동(TacticalFSMState.
+	// CoreAttackPerform, 코어 전용, 방 소유권 없는 진영 제외) + 플레이어 명령(PlayerCommandFSMState.
+	// ExecutePlayerAttackObject, 코어+문 둘 다) 양쪽이 인접 도착 시 채운다. 값이 있는 동안만
+	// UnitFunction.OnUpdate가 매 프레임 CoreHp/DoorHp를 깎는다(TrapInteractionState의 Destroying
+	// 단계와 동일한 채널링 패턴).
+	public Vector3Int? currentAttackObjectTarget;
 
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
 	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
@@ -429,13 +438,23 @@ public abstract class Unit : ScriptableObject {
 				return;
 		}
 
-		if (_gameSession.unitGrid.ContainsKey(oldKey))
-			_gameSession.unitGrid.Remove(oldKey);
-
+		// 최종 안전장치(2026-08-22 사용자 신고 "난전 중 유닛끼리 겹쳐진다. 어떤 상황에서도 유닛끼리는
+		// 겹쳐지면 안돼") — ForceMove는 A*/CanMove 정상 경로를 거치지 않는 예외 이동(회피/점멸)이라,
+		// 호출부가 후보를 고를 때 점유 검사를 빠뜨리면(실제로 DefenseSystem의 점멸 후보 탐색이
+		// ignoreUnits:true를 써서 이 문제가 있었다 — 그쪽은 이미 착지 칸 재검증으로 고쳤다) 바로 겹침
+		// 사고로 이어진다. GameSession.RegisterUnitPos(발자국 크기까지 고려해 점유를 확인, 이미 다른
+		// 유닛이 있으면 false 반환)를 거쳐 등록하고, 실패하면 이동 자체를 취소하고 원래 자리에 남는다
+		// (후보가 없으면 제자리 유지라는 기존 회피/점멸 관례와 동일). 예전엔 이 메서드가 unitGrid를
+		// 직접 건드리면서 발자국(footprint)을 전혀 고려하지 않아 다중 타일 유닛에서 등록이 어긋날 수
+		// 있었는데, 공용 헬퍼로 옮기며 그 문제도 함께 해결됐다.
+		_gameSession.UnregisterUnitPos(this, position);
+		Vector2Int oldPos = position;
 		position = targetPos;
-
-		Vector3Int newKey = new Vector3Int(position.x, position.y, currentFloor);
-		_gameSession.unitGrid[newKey] = this;
+		if (!_gameSession.RegisterUnitPos(this, targetPos))
+		{
+			position = oldPos;
+			_gameSession.RegisterUnitPos(this, oldPos);
+		}
 	}
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
@@ -502,8 +521,6 @@ public class Human : UnitFunction
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
 	public FormationState     currentFormation;
-	// 7-3장(2026-07-27 신규): 리더 전용 — 이 유닛이 파티 리더일 때만 의미가 있다(CorePartySystem 참고).
-	public CoreInteractionState currentCoreInteraction;
 	// 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
 
@@ -519,7 +536,7 @@ public class Human : UnitFunction
 	// 경계 태세를 취함) — 9-5장 순서가 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호
 	// 포메이션 형성 → 함정 해제 시작"이라, 발견 직후 5초 합류 대기나 이동 중(아직 도착 전)에는
 	// 보호 포메이션이 형성되면 안 된다. 예전엔 함정을 인지한 순간부터(도착 전 포함) true였다.
-	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null || currentCoreInteraction != null;
+	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
 
 	private bool IsActivelyHandlingTrap()
 	{
@@ -745,22 +762,19 @@ public class Human : UnitFunction
 		return slot;
 	}
 
-	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행/코어 조사)을 시작했는지 — 아직
+	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행)을 시작했는지 — 아직
 	// 목적지로 "이동 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
 	private bool IsEscortTargetActivelyInteracting(Human escortTarget)
 	{
-		if (escortTarget.currentCoreInteraction != null) return escortTarget.currentCoreInteraction.Active;
 		if (escortTarget.currentInvestigation != null) return escortTarget.currentInvestigation.PenaltyActive;
 		if (escortTarget.currentTrapInteraction != null) return escortTarget.currentTrapInteraction.PenaltyActive;
 		return false;
 	}
 
 	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치" —
-	// 조사/함정/코어(7-3장) 셋 중 진행 중인 것을 조회한다.
+	// 조사/함정 중 진행 중인 것을 조회한다.
 	private Vector2Int? GetInteractionObjectPosition(Human escortTarget)
 	{
-		if (escortTarget.currentCoreInteraction != null)
-			return new Vector2Int(escortTarget.currentCoreInteraction.CorePosition.x, escortTarget.currentCoreInteraction.CorePosition.y);
 		if (escortTarget.currentInvestigation != null)
 			return new Vector2Int(escortTarget.currentInvestigation.TargetPosition.x, escortTarget.currentInvestigation.TargetPosition.y);
 		if (escortTarget.currentTrapInteraction != null)

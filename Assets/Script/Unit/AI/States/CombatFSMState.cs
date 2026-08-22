@@ -66,7 +66,8 @@ public class CombatFSMState : IFSMState
 	public void OnExit(Unit unit)
 	{
 		bool playerCommandActive = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
-			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
+			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
+			|| unit.playerAttackObjectTarget.HasValue; // 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령도 동일 취급.
 		if (playerCommandActive) return;
 
 		if (unit.currentAlertSearch == null)
@@ -149,7 +150,9 @@ public class CombatFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	private static Unit GetClosestEnemy(Unit unit, out float minDist)
+	// internal — StandGroundAttackFSMState("제자리 공격", 기초문서.md 피드백 2026-08-22)가 이동 없이
+	// 사거리 내 적만 공격할 때 동일한 타깃 선정 로직을 재사용한다.
+	internal static Unit GetClosestEnemy(Unit unit, out float minDist)
 	{
 		// 2026-07-27 신규: GetPriority와 동일한 방 제한(야생 몬스터 A) — 다른 이유로 방 안 적을
 		// 상대로 전투가 켜져 있어도 실제 타깃팅에서 방 밖 적을 고르지 않도록 일관되게 적용.

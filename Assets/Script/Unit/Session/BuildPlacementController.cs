@@ -77,8 +77,10 @@ public class BuildPlacementController
 
         // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청 "우클릭 취소 없애고, 오직 메뉴 바꾸기 혹은 메뉴
         // 다시 클릭으로 바꿀 수 있게") — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브
-        // 버튼을 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유).
-        if (GameInputScheme.PrimaryDown)
+        // 버튼을 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유). 설치 확정 입력은
+        // 2026-08-22(사용자 요청 "좌클릭은 선택, 우클릭은 실행으로 두자. 설치나 명령 전반 모두 포함")로
+        // 좌클릭에서 우클릭으로 옮겼다.
+        if (GameInputScheme.SecondaryDown)
         {
             bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                 || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())

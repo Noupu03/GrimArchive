@@ -265,17 +265,15 @@ public static class PropagationSystem
 	}
 
 	// 16-4/16-5/10장: 소리에 아예 반응하지 않는 상태 — 이미 전투 목표가 있는 경우(16-5장 "현재 공격
-	// 목표가 있으면 소리로 반응하지 않는다", 인류/몬스터 공통 규칙)는 모든 유닛에 적용하고, 파티
-	// 목표·코어 상호작용 당사자·전투 진입 합류 대기 중은 인류 전용 상태라 Human일 때만 확인한다
-	// (몬스터는 해당 필드 자체가 없다 — 16-6장 "몬스터는 소리 감지와 방향·추정 지역 획득까지만 공통
-	// 규칙을 사용한다").
+	// 목표가 있으면 소리로 반응하지 않는다", 인류/몬스터 공통 규칙)는 모든 유닛에 적용하고, 전투 진입
+	// 합류 대기 중은 인류 전용 상태라 Human일 때만 확인한다(몬스터는 해당 필드 자체가 없다 — 16-6장
+	// "몬스터는 소리 감지와 방향·추정 지역 획득까지만 공통 규칙을 사용한다").
 	private static bool IsSoundUnresponsive(Unit unit)
 	{
 		if (unit.personalSpottedEnemies.Count > 0) return true;
 		if (unit is Human human)
 		{
 			if (human.currentJoinCombatWait != null) return true;
-			if (human.currentCoreInteraction != null && human.currentCoreInteraction.Active) return true;
 		}
 		return false;
 	}
@@ -435,21 +433,20 @@ public static class PropagationSystem
 	// 10장 마지막 문단(2026-08-06 수정): "재전파 수신자는... 같은 대상에 대한 중복 조사·해제 목표를
 	// 선택하지 않는다"는 "같은 상호작용 인스턴스"를 전제로 한다 — 예전엔 Unit 단위 영구 기록이라, A가
 	// 상호작용1을 끝내고 완전히 다른 상호작용2를 나중에(범위 밖에서) 시작해도 옛 알림이 그대로 유효해
-	// 잘못 참여자격을 줄 수 있었다(07-31본이 이미 지적한 갭). currentTrapInteraction/currentInvestigation/
-	// currentCoreInteraction은 상호작용을 새로 시작할 때마다 TacticalFSMState가 `new ...State`로 교체
-	// 하므로, 그 참조 자체를 "이번 인스턴스"의 토큰으로 쓰면 별도 ID 체계 없이 인스턴스를 구분할 수 있다.
+	// 잘못 참여자격을 줄 수 있었다(07-31본이 이미 지적한 갭). currentTrapInteraction/currentInvestigation
+	// 은 상호작용을 새로 시작할 때마다 TacticalFSMState가 `new ...State`로 교체하므로, 그 참조 자체를
+	// "이번 인스턴스"의 토큰으로 쓰면 별도 ID 체계 없이 인스턴스를 구분할 수 있다.
 	private static object GetInteractionToken(Unit unit)
 	{
 		if (unit.currentTrapInteraction != null) return unit.currentTrapInteraction;
 		if (unit is Human h)
 		{
 			if (h.currentInvestigation != null) return h.currentInvestigation;
-			if (h.currentCoreInteraction != null) return h.currentCoreInteraction;
 		}
 		return null;
 	}
 
-	// 조사/함정 해제/코어 조사가 실제로 시작되는 시점(TacticalFSMState의 각 Perform 리프)에 1회 호출한다.
+	// 조사/함정 해제가 실제로 시작되는 시점(TacticalFSMState의 각 Perform 리프)에 1회 호출한다.
 	// 이 전파를 직접 받은 파티원만 보호 포메이션 참여 자격을 얻는다 — "상호작용 유닛을 시야에서 직접
 	// 확인한 것만으로는 참여하지 않는다"(10장)가 기존 03문서 6-1장의 시야 기반 근사를 대체한다.
 	public static void NotifyInteractionStarted(Human interactingUnit)
@@ -525,7 +522,6 @@ public static class PropagationSystem
 		if (m.currentJoinCombatWait != null) return false;
 		if (m.currentTrapInteraction != null) return false;
 		if (m.currentInvestigation != null) return false;
-		if (m.currentCoreInteraction != null && m.currentCoreInteraction.Active) return false;
 		if (m.personalSpottedEnemies.Count > 0) return false;
 		return true;
 	}

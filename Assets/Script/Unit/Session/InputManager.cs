@@ -5,11 +5,13 @@ using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
 
-// 입력 라우팅 + 유닛 선택/이동/공격의 핵심 로직을 담당한다. 배치 모드 3종(빌드/오브젝트·함정·코어/
-// 몬스터)은 각자 별도 컨트롤러(BuildPlacementController/ObjectPlacementController/
-// MonsterPlacementController, 전부 이 폴더)로 분리돼 있다(2026-08-20, InputManager 비대화 방지) —
-// 이 클래스는 그 세 컨트롤러의 진입/배타 처리를 조율(Update()/OnGUI() 위임)하고, 일반 선택(드래그
-// 박스/클릭/더블클릭)과 우클릭 이동/공격, 게임 속도 제어라는 "입력 관리자 본연의 책임"만 갖는다.
+// 입력 라우팅 + 유닛 선택/이동/공격의 핵심 로직을 담당한다. 배치 모드 2종(빌드/오브젝트·함정·문
+// 재설치)은 각자 별도 컨트롤러(BuildPlacementController/ObjectPlacementController, 전부 이 폴더)로
+// 분리돼 있다(2026-08-20, InputManager 비대화 방지) — 이 클래스는 그 두 컨트롤러의 진입/배타 처리를
+// 조율(Update()/OnGUI() 위임)하고, 일반 선택(드래그 박스/클릭/더블클릭)과 우클릭 이동/공격, 게임
+// 속도 제어라는 "입력 관리자 본연의 책임"만 갖는다. 몬스터 배치 프리셋(R키 방 단위 배치 모드)은
+// 기초문서.md 피드백(2026-08-22, "배치 모드 완전 제거")으로 폐기됐다 — 대신 "제자리 공격" 명령
+// 토글(IsStandGroundModeActive)이 그 자리를 대신한다(아래 참고).
 public class InputManager : MonoBehaviour
 {
 	// 하위 호환용: 기존 코드는 "선택된 유닛 1기"를 이렇게 참조한다.
@@ -51,13 +53,12 @@ public class InputManager : MonoBehaviour
 	// 자기 몫의 BuildingManager 참조를 갖는다(같은 싱글턴, 서로 다른 책임의 두 소비처).
 	private BuildingManager _buildingManager;
 
-	// 배치 모드 3종 컨트롤러(2026-08-20 분리) — 전부 이 Construct()에서 InputManager가 직접 생성해
+	// 배치 모드 2종 컨트롤러(2026-08-20 분리) — 전부 이 Construct()에서 InputManager가 직접 생성해
 	// 소유한다(VContainer 등록 대상 아님 — InputManager별 상태를 갖는 협력 객체라 DI 싱글턴으로 둘
 	// 이유가 없다). 서로 다른 배치 모드끼리의 배타 진입(예: 빌드 모드 진입 시 오브젝트 배치 모드 종료)은
 	// 컨트롤러끼리 직접 참조하지 않고 이 클래스의 Update()가 조율한다(순환 참조 방지).
 	private BuildPlacementController _buildPlacement;
 	private ObjectPlacementController _objectPlacement;
-	private MonsterPlacementController _monsterPlacement;
 
 	[Inject]
 	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager, UnitSpriteManager unitSpriteManager)
@@ -68,7 +69,6 @@ public class InputManager : MonoBehaviour
 
 		_buildPlacement = new BuildPlacementController(buildingManager, resourceManager);
 		_objectPlacement = new ObjectPlacementController(gameSession, unitGenerate, resourceManager);
-		_monsterPlacement = new MonsterPlacementController(gameSession, unitGenerate, unitSpriteManager, selectedUnits);
 	}
 
 	// =====================================================
@@ -77,7 +77,6 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	public bool IsBuildPlacementActive => _buildPlacement != null && _buildPlacement.IsActive;
 	public bool IsObjectPlacementActive => _objectPlacement != null && _objectPlacement.IsActive;
-	public bool IsMonsterPlacementActive => _monsterPlacement != null && _monsterPlacement.IsActive;
 
 	// 개별 서브모드 단위 상태(2026-08-20, 사용자 신고 "자원 생산 건물과 유닛 생산 건물이 다중 선택되어
 	// 버리는 UI 버그") — BottomMenuBar가 설치/debug 서브메뉴 버튼을 각각 따로 하이라이트하고, 이미
@@ -86,13 +85,12 @@ public class InputManager : MonoBehaviour
 	public bool IsResourceBuildModeActive => _buildPlacement != null && _buildPlacement.IsResourceBuildModeActive;
 	public bool IsObjectOnlyPlacementActive => _objectPlacement != null && _objectPlacement.IsObjectModeActive;
 	public bool IsTrapPlacementActive => _objectPlacement != null && _objectPlacement.IsTrapModeActive;
-	public bool IsCorePlacementActive => _objectPlacement != null && _objectPlacement.IsCoreModeActive;
+	public bool IsDoorRepairPlacementActive => _objectPlacement != null && _objectPlacement.IsDoorRepairModeActive;
 
 	// 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) BottomMenuBar가 "다른 메뉴로 전환" 또는 "같은
-	// 서브 버튼 재클릭" 시점에 호출하는 단일 취소 진입점. 소집 배치(MonsterPlacementController)는
-	// 별도의 토글 방식 진입/종료를 그대로 유지하므로 여기서 건드리지 않는다. 취소 notice도 (재클릭이든
-	// 메뉴 전환이든) 이 한 곳에서만 띄워서 두 경로가 서로 다른 문구를 중복해서 띄우지 않게 한다
-	// (2026-08-20, 사용자 요청 "메뉴를 통한 모드 클릭시 모두 notice로 설명이 뜨게").
+	// 서브 버튼 재클릭" 시점에 호출하는 단일 취소 진입점. 취소 notice도 (재클릭이든 메뉴 전환이든) 이
+	// 한 곳에서만 띄워서 두 경로가 서로 다른 문구를 중복해서 띄우지 않게 한다(2026-08-20, 사용자 요청
+	// "메뉴를 통한 모드 클릭시 모두 notice로 설명이 뜨게").
 	public void ExitActivePlacementMode()
 	{
 		string label = GetActivePlacementModeLabel();
@@ -109,23 +107,14 @@ public class InputManager : MonoBehaviour
 		if (IsResourceBuildModeActive) return "자원 생산 건물";
 		if (IsTrapPlacementActive) return "함정";
 		if (IsObjectOnlyPlacementActive) return "오브젝트";
-		if (IsCorePlacementActive) return "코어";
+		if (IsDoorRepairPlacementActive) return "문 재설치";
 		return null;
 	}
 
-	// 소집 배치(몬스터 배치 모드)는 자체 토글(Toggle)로만 열고 닫히므로 위 ExitActivePlacementMode의
-	// 대상이 아니다 — BottomMenuBar가 "소집 배치" 버튼이 아닌 다른 상단 버튼을 눌렀을 때 이 모드도
-	// 함께 취소하는 데 쓴다(2026-08-20, 사용자 요청 "소집 배치 메뉴도 다른 메뉴랑 중복되지 않게"). 진입/
-	// 종료 안내 notice는 MonsterPlacementController가 이미 자체적으로(RefreshPlacementModeNotice) 담당.
-	public void ExitMonsterPlacementModeIfActive()
-	{
-		if (_monsterPlacement != null && _monsterPlacement.IsActive)
-			_monsterPlacement.Toggle();
-	}
-
-	// "명령" 상위 메뉴를 닫거나 다른 메뉴로 전환할 때 "명령 취소"/"집결 및 정지" 토글도 함께 꺼지도록
-	// 하는 진입점(2026-08-20, 사용자 요청 "명령에서 상위 메뉴를 눌러 꺼버리면, 위에서 토글했던것들도
-	// 취소되게"). "이동 및 공격"은 2026-08-21 롤백으로 더 이상 토글이 아니라 여기서 다룰 대상이 아니다.
+	// "명령" 상위 메뉴를 닫거나 다른 메뉴로 전환할 때 "명령 취소"/"집결 및 정지"/"제자리 공격" 토글도
+	// 함께 꺼지도록 하는 진입점(2026-08-20, 사용자 요청 "명령에서 상위 메뉴를 눌러 꺼버리면, 위에서
+	// 토글했던것들도 취소되게"). "이동 및 공격"은 2026-08-21 롤백으로 더 이상 토글이 아니라 여기서
+	// 다룰 대상이 아니다.
 	public void CancelCommandModeIfActive()
 	{
 		if (IsCancelCommandModeActive)
@@ -138,6 +127,11 @@ public class InputManager : MonoBehaviour
 			SetRallyHaltModeActive(false);
 			NoticeCenter.Instance?.PushMomentary("집결 및 정지 모드 꺼짐.", NoticeCenter.InfoColor);
 		}
+		if (IsStandGroundModeActive)
+		{
+			SetStandGroundModeActive(false);
+			NoticeCenter.Instance?.PushMomentary("제자리 공격 모드 꺼짐.", NoticeCenter.InfoColor);
+		}
 	}
 
 	// "명령 취소" 모드(2026-08-20 재설계, 사용자 요청 "명령 취소 로직을 바꿀게. 토글형으로 바꾸고, 해당
@@ -149,7 +143,7 @@ public class InputManager : MonoBehaviour
 	public void SetCancelCommandModeActive(bool active)
 	{
 		IsCancelCommandModeActive = active;
-		if (active) IsRallyHaltModeActive = false;
+		if (active) { IsRallyHaltModeActive = false; IsStandGroundModeActive = false; }
 	}
 
 	// "집결 및 정지" 모드(2026-08-20, 사용자 요청 "명령 메뉴에 '집결 및 정지' 모드를 넣어줘. 선택한
@@ -162,7 +156,19 @@ public class InputManager : MonoBehaviour
 	public void SetRallyHaltModeActive(bool active)
 	{
 		IsRallyHaltModeActive = active;
-		if (active) IsCancelCommandModeActive = false;
+		if (active) { IsCancelCommandModeActive = false; IsStandGroundModeActive = false; }
+	}
+
+	// "제자리 공격" 모드(기초문서.md 피드백, 2026-08-22 — R키 몬스터 배치 모드 폐기를 대체, 사용자 결정
+	// "명령 항목에 하나 추가... 이 명령을 넣어두면, 제자리에서 절대 이동하지 않고 공격만 함") — "집결
+	// 및 정지"와 동일한 이동 파이프라인을 재사용하되, 도착 후 isHalted 대신 isStandGroundAttack을 켠다
+	// (StandGroundAttackFSMState.cs 참고).
+	public bool IsStandGroundModeActive { get; private set; }
+
+	public void SetStandGroundModeActive(bool active)
+	{
+		IsStandGroundModeActive = active;
+		if (active) { IsCancelCommandModeActive = false; IsRallyHaltModeActive = false; }
 	}
 
 	private void CancelSelectedUnitsCommands()
@@ -172,16 +178,24 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null) continue;
 			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue
-				|| u.isManualMoveCommand || u.isHalted || u.pendingHaltOnArrival;
+				|| u.isManualMoveCommand || u.isHalted || u.pendingHaltOnArrival
+				|| u.isStandGroundAttack || u.pendingStandGroundOnArrival
+				|| u.playerAttackObjectTarget.HasValue;
 			if (!hasCommand) continue;
 
 			u.playerMoveTarget = null;
 			u.playerAttackTarget = null;
 			u.playerInteractTarget = null;
 			u.isManualMoveCommand = false;
-			// "명령 해제"는 "정지"(동상) 상태를 풀 수 있는 두 예외 중 하나다(사용자 명시, 2026-08-20).
+			// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령과 그 채널링도 함께 취소한다.
+			u.playerAttackObjectTarget = null;
+			u.currentAttackObjectTarget = null;
+			// "명령 해제"는 "정지"(동상)/"제자리 공격" 상태를 풀 수 있는 두 예외 중 하나다(사용자 명시,
+			// 2026-08-20 — 제자리 공격도 동일 규칙 적용, 2026-08-22).
 			u.isHalted = false;
 			u.pendingHaltOnArrival = false;
+			u.isStandGroundAttack = false;
+			u.pendingStandGroundOnArrival = false;
 			count++;
 		}
 
@@ -193,14 +207,7 @@ public class InputManager : MonoBehaviour
 	public void EnterResourceBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterResourceBuildMode(); }
 	public void EnterObjectPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterObjectMode(); }
 	public void EnterTrapPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterTrapMode(); }
-	public void EnterCorePlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterCoreMode(); }
-
-	public void ToggleMonsterPlacementMode()
-	{
-		bool inOtherPlaceMode = _buildPlacement.IsActive || _objectPlacement.IsActive;
-		if (inOtherPlaceMode) return;
-		_monsterPlacement.Toggle();
-	}
+	public void EnterDoorRepairPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterDoorRepairMode(); }
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{
@@ -239,30 +246,11 @@ public class InputManager : MonoBehaviour
 
 		// 입력 정리(2026-08-21, 사용자 요청 "wasd, 마우스 휠, 스페이스바, 마우스 좌클릭 우클릭, 0123
 		// 속도조절만 남기고 전부 없애줘" → 이후 "더블클릭과 ctrl+클릭은 있어야 해") — 배치 모드 진입
-		// 단축키(R/B/V/O/P/C)는 제거했다(BottomMenuBar의 "소집 배치"/"설치"/"debug" 버튼이 이미 동일한
-		// EnterXMode()/ToggleMonsterPlacementMode()를 호출해 마우스만으로도 기능 손실이 없다). Ctrl은
-		// "선택 추가" 모디파이어로 남긴다(GameInputScheme.SelectAddHeld) — 마우스 좌/우클릭처럼 이
-		// 게임의 핵심 선택 조작이라 없애면 다중 그룹 선택이 아예 불가능해진다.
+		// 단축키(R/B/V/O/P/C)는 제거했다(BottomMenuBar의 "설치"/"debug" 버튼이 이미 동일한 EnterXMode()를
+		// 호출해 마우스만으로도 기능 손실이 없다). Ctrl은 "선택 추가" 모디파이어로 남긴다
+		// (GameInputScheme.SelectAddHeld) — 마우스 좌/우클릭처럼 이 게임의 핵심 선택 조작이라 없애면
+		// 다중 그룹 선택이 아예 불가능해진다.
 		bool addHeld = GameInputScheme.SelectAddHeld;
-
-		// 좌하단 패널 스택 구조 개선(2026-08-21) — _monsterPlacement의 다른 모든 진입점은 IsActive일
-		// 때만 아래에서 호출되므로, 배치 모드를 완전히 나가는 프레임에는 이 컨트롤러의 어떤 메서드도
-		// 더 이상 안 불려서 "안 보인다"는 보고 자체가 실행될 기회가 없었다(MonsterPlacementController.
-		// ReportStackVisibility 주석 참고). IsActive 여부와 무관하게 매 프레임 무조건 호출해 즉시
-		// 정리되게 한다.
-		_monsterPlacement.ReportStackVisibility();
-
-		if (_monsterPlacement.IsActive)
-		{
-			bool consumed = _monsterPlacement.Update(floorOffset, currentFloor);
-			if (!consumed)
-			{
-				// 몬스터 선택 서브모드 — 기존 좌클릭 드래그/더블클릭/Ctrl+클릭 선택 로직만 재사용하고,
-				// 우클릭 이동·게임 속도 단축키는 모두 건너뛴다(시간이 멈춰 있어야 함).
-				UpdateSelectionDragAndClick(floorOffset, currentFloor, addHeld);
-			}
-			return;
-		}
 
 		if (_buildPlacement.IsActive)
 		{
@@ -298,25 +286,106 @@ public class InputManager : MonoBehaviour
 		}
 
 		// =====================================================
-		// 우클릭 (이동 / 공격) - 선택된 유닛 전원에게 명령. 2026-08-21 롤백(사용자 요청) — 별도 토글
-		// 없이 기본으로 항상 동작한다. "집결 및 정지" 토글이 켜져 있으면 같은 우클릭이 도착 후
-		// Unit.isHalted를 켜는 집결 및 정지 명령으로 바뀐다(markHaltOnArrival). "명령 취소" 토글이
-		// 켜져 있을 때는 위 분기가 먼저 처리하므로 여기와 동시에 걸릴 일은 없다.
+		// 우클릭 (공격 / 이동) - 선택된 유닛 전원에게 명령. 2026-08-21 롤백(사용자 요청) — 별도 토글
+		// 없이 기본으로 항상 동작한다. "집결 및 정지"/"제자리 공격" 토글이 켜져 있으면 같은 우클릭이
+		// 도착 후 각각 Unit.isHalted/isStandGroundAttack을 켜는 명령으로 바뀐다. "명령 취소" 토글이
+		// 켜져 있을 때는 위 분기가 먼저 처리하므로 여기와 동시에 걸릴 일은 없다. 2026-08-22(사용자
+		// 요청 "좌클릭은 선택, 우클릭은 실행으로 두자") — 클릭 위치에 공격 가능한 대상(적 유닛/코어/문)이
+		// 있으면 공격을, 없으면 기존 이동을 발동하도록 ExecuteRightClickCommand로 위임한다.
 		// =====================================================
 		else if (rightClickPressed)
 		{
-			IssueMoveCommand(floorOffset, currentFloor, markHaltOnArrival: IsRallyHaltModeActive);
+			ExecuteRightClickCommand(floorOffset, currentFloor, markHaltOnArrival: IsRallyHaltModeActive, markStandGroundOnArrival: IsStandGroundModeActive);
 		}
 
 		HandleGameSpeedShortcuts();
 	}
 
-	// "이동 및 공격"과 "집결 및 정지"가 공유하는 우클릭 이동 명령 발동부(2026-08-20, 사용자 요청으로
-	// "집결 및 정지" 모드를 추가하며 기존 이동 로직에서 분리) — markHaltOnArrival이 true면 도착 후
-	// Unit.isHalted를 켜서 "정지"(동상) 상태로 고정한다(HaltFSMState.cs 참고). 이 명령 자체가 "정지"를
-	// 풀 수 있는 두 예외 중 "플레이어 직접 명령"에 해당하므로, 대상 유닛이 기존에 정지 중이었더라도
-	// 여기서 무조건 해제하고 새 명령을 부여한다.
-	private void IssueMoveCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival)
+	// 우클릭 실행 디스패처(2026-08-22, 사용자 요청 "좌클릭은 선택, 우클릭은 실행으로 두자. 설치나
+	// 명령 전반 모두 포함") — 이전에는 좌클릭(DoClickSelect)이 유닛/오브젝트 공격을, 우클릭
+	// (IssueMoveCommand)이 이동만 담당해 둘이 분리돼 있었다(그 결과 "우클릭으로는 문을 공격할 수
+	// 없다"는 사용자 신고가 나왔다). 이제는 우클릭 하나가 클릭 위치를 보고 적 유닛 공격 → 코어/문
+	// 공격 → 이동 순서로 판단해 실행한다. "집결 및 정지"/"제자리 공격" 예약 토글이 켜져 있어도 클릭
+	// 위치에 공격 가능한 대상이 있으면 공격이 우선한다(이동 예약 토글은 이동할 때만 의미가 있으므로).
+	private void ExecuteRightClickCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival, bool markStandGroundOnArrival)
+	{
+		Vector2 mousePos = GameInputScheme.PointerScreenPos;
+		Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
+
+		// 1. 적 유닛 공격
+		Unit targetUnit = FindUnitAtGridPos(gridPos, currentFloor);
+		if (targetUnit != null && targetUnit.Health.hp > 0)
+		{
+			bool anyAttacked = false;
+			foreach (var selUnit in selectedUnits)
+			{
+				if (selUnit == null || selUnit.Health.hp <= 0) continue;
+
+				bool isEnemy =
+					(selUnit is Monster && targetUnit is Human) ||
+					(selUnit is Human && targetUnit is Monster);
+				if (!isEnemy) continue;
+
+				selUnit.playerAttackTarget = targetUnit;
+				selUnit.playerMoveTarget = null;
+				selUnit.playerAttackObjectTarget = null;
+				selUnit.currentAttackObjectTarget = null;
+				selUnit.isHalted = false;
+				selUnit.isStandGroundAttack = false;
+				anyAttacked = true;
+			}
+
+			if (anyAttacked)
+			{
+				LogHelper.Log(LogHelper.GAME, $"공격 명령: {selectedUnits.Count}기 -> {targetUnit.unitType.typeName}");
+				return;
+			}
+		}
+
+		// 2. 오브젝트(코어/문) 공격 — 유닛 공격 대상을 못 찾았을 때만 확인한다.
+		if (_gameSession.objectGrid.ContainsKey(gridPos))
+		{
+			bool anyIssued = false;
+			foreach (var selUnit in selectedUnits)
+			{
+				if (selUnit == null || selUnit.Health.hp <= 0) continue;
+				if (!PlayerCommandFSMState.IsPendingObjectAttackValid(selUnit, gridPos)) continue;
+
+				selUnit.playerAttackTarget = null;
+				selUnit.playerMoveTarget = null;
+				// 2*2 통로(플레이어 문 2칸 + 야생 문 2칸)에서 야생 문 공격 명령을 내리면 플레이어
+				// 몬스터가 자기 진영 문 앞에서 멈춰버리는 버그(사용자 신고, 2026-08-22) — 원인은 이
+				// 플래그가 false라 RoomConfinedMovement가 "플레이어 명령 중이 아님"으로 보고 자기
+				// 진영 문 타일조차 walkable에서 제외했기 때문이다(방 제한 규칙 "오직 플레이어의
+				// 명령에 의해서만 다른 방으로 이동 가능"의 예외 조건). true로 켜서 일반 이동 명령과
+				// 동일하게 방 경계·문 타일 제한을 우회시킨다 — 상대 진영 문 타일 자체는 여전히
+				// IsBlockedByClosedDoor(진영 불일치)가 막으므로, 자기 문 위까지만 접근해 인접
+				// 공격하게 된다.
+				selUnit.isManualMoveCommand = true;
+				selUnit.isHalted = false;
+				selUnit.isStandGroundAttack = false;
+				selUnit.playerAttackObjectTarget = gridPos;
+				anyIssued = true;
+			}
+
+			if (anyIssued)
+			{
+				LogHelper.Log(LogHelper.GAME, $"오브젝트 공격 명령: {selectedUnits.Count}기 -> {gridPos}");
+				return;
+			}
+		}
+
+		// 3. 공격 대상이 없으면 기존 이동 명령.
+		IssueMoveCommand(floorOffset, currentFloor, markHaltOnArrival, markStandGroundOnArrival);
+	}
+
+	// "이동 및 공격"/"집결 및 정지"/"제자리 공격"이 공유하는 우클릭 이동 명령 발동부(2026-08-20, 사용자
+	// 요청으로 "집결 및 정지" 모드를 추가하며 기존 이동 로직에서 분리, 2026-08-22 "제자리 공격" 추가) —
+	// markHaltOnArrival/markStandGroundOnArrival이 true면 도착 후 각각 Unit.isHalted/
+	// isStandGroundAttack을 켜서 강제 상태로 고정한다(HaltFSMState.cs/StandGroundAttackFSMState.cs
+	// 참고). 이 명령 자체가 그 강제 상태들을 풀 수 있는 예외 중 "플레이어 직접 명령"에 해당하므로,
+	// 대상 유닛이 기존에 그 상태였더라도 여기서 무조건 해제하고 새 명령을 부여한다.
+	private void IssueMoveCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival, bool markStandGroundOnArrival)
 	{
 		Vector2 mousePos = GameInputScheme.PointerScreenPos;
 		Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
@@ -371,16 +440,22 @@ public class InputManager : MonoBehaviour
 				continue;
 			}
 
-			// "정지"(동상) 해제(2026-08-20) — 새 직접 명령은 정지 잠금을 풀 수 있는 예외다(사용자 명시).
+			// "정지"(동상)/"제자리 공격" 해제(2026-08-20/2026-08-22) — 새 직접 명령은 두 강제 상태
+			// 모두를 풀 수 있는 예외다(사용자 명시).
 			unit.isHalted = false;
+			unit.isStandGroundAttack = false;
 			unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
 			unit.isManualMoveCommand = true;
 			unit.playerAttackTarget = null;
+			// 기초문서.md 피드백(2026-08-22) — 새 이동 명령은 진행 중이던 코어/문 공격 명령도 덮어쓴다.
+			unit.playerAttackObjectTarget = null;
+			unit.currentAttackObjectTarget = null;
 			unit.pendingHaltOnArrival = markHaltOnArrival;
+			unit.pendingStandGroundOnArrival = markStandGroundOnArrival;
 			issuedCount++;
 		}
 
-		string commandLabel = markHaltOnArrival ? "집결 및 정지" : "일반 이동";
+		string commandLabel = markHaltOnArrival ? "집결 및 정지" : markStandGroundOnArrival ? "제자리 공격" : "일반 이동";
 		LogHelper.Log(LogHelper.GAME, $"{commandLabel} 명령: {issuedCount}기 -> ({gridPos.x}, {gridPos.y})");
 	}
 
@@ -422,9 +497,7 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 좌클릭 드래그 박스/클릭 선택 — Update()의 일반 흐름과 몬스터 배치 모드의 "몬스터 선택" 서브모드
-	// (2026-08-19 신규)가 공유한다(사용자 요청 "몬스터를 선택하고(더블클릭, 드래그, 컨트롤+클릭, 단일
-	// 선택 무관.)" — 기존 선택 로직을 그대로 재사용).
+	// 좌클릭 드래그 박스/클릭 선택 (더블클릭, 드래그, 컨트롤+클릭 모두 지원)
 	// =====================================================
 	private void UpdateSelectionDragAndClick(Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
@@ -435,10 +508,9 @@ public class InputManager : MonoBehaviour
 		{
 			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다. BuildingControlPanel은
 			// OnGUI(IMGUI)라 IsPointerOverGameObject()로 안 잡혀서 별도로 확인한다(사용자 신고, 2026-07-27
-			// "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림"). 몬스터 배치 모드 패널도 동일 사유로 확인.
+			// "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림").
 			bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
 				|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel())
-				|| (_monsterPlacement.IsActive && _monsterPlacement.IsMouseOverPanel())
 				|| (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
 				|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
 
@@ -485,7 +557,9 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 클릭 선택 / 공격 (드래그 없이 뗀 경우)
+	// 클릭 선택 (드래그 없이 뗀 경우) — 좌클릭은 오직 선택만 담당한다(2026-08-22, 사용자 요청 "어떤
+	// 기능이든 좌클릭은 선택, 우클릭은 실행으로 두자"). 공격/이동/오브젝트 공격 등 실행 계열 명령은
+	// 전부 우클릭(ExecuteRightClickCommand)으로 옮겼다.
 	// =====================================================
 	private void DoClickSelect(Vector2 screenPos, Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
@@ -503,14 +577,8 @@ public class InputManager : MonoBehaviour
 		// 건물이 아닌 다른 곳(유닛/허공)을 클릭하면 열려 있던 건물 패널은 닫는다.
 		BuildingControlPanel.Instance?.ClosePanel();
 
-		// 1. 유닛 클릭이면 최우선으로 선택 처리 (진영 제한 없음, 기존 동작 유지)
+		// 유닛 클릭이면 선택 처리 (진영 제한 없음, 기존 동작 유지)
 		Unit clickedUnit = FindUnitAtGridPos(gridPos, currentFloor);
-
-		if (clickedUnit != null && !_monsterPlacement.IsUnitSelectable(clickedUnit))
-		{
-			// 배치 모드 몬스터 선택 서브모드: 선택된 방 밖 유닛 클릭은 완전히 무시(선택도 공격도 안 함).
-			return;
-		}
 
 		if (clickedUnit != null)
 		{
@@ -545,47 +613,16 @@ public class InputManager : MonoBehaviour
 			return;
 		}
 
-		// 2. 공격 처리 (선택된 유닛이 있을 때만, 기존 단일 선택 로직을 다중 선택으로 확장)
-		if (selectedUnits.Count > 0)
+		// 오브젝트(코어/문/함정/전리품/시체/전멸흔적) 클릭 시 정보 패널 표시(2026-08-22 후속 피드백,
+		// 사용자 요청 "모든 오브젝트는 이제 클릭을 통해 정보를 볼 수 있어(건물처럼)") — 유닛도 건물도
+		// 아닌 위치에 오브젝트가 있을 때만 확인한다(유닛 선택이 항상 우선).
+		if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject clickedObj))
 		{
-			foreach (var unit in _gameSession.units)
-			{
-				if (unit == null || unit.Health.hp <= 0) continue;
-				if (unit.currentFloor != currentFloor) continue;
-				if (selectedUnits.Contains(unit)) continue;
-
-				if (IsPointInFootprint(gridPos, unit))
-				{
-					bool anyAttacked = false;
-
-					foreach (var selUnit in selectedUnits)
-					{
-						if (selUnit == null || selUnit.Health.hp <= 0) continue;
-
-						bool isEnemy =
-							(selUnit is Monster && unit is Human) ||
-							(selUnit is Human && unit is Monster);
-
-						if (isEnemy)
-						{
-							selUnit.playerAttackTarget = unit;
-							selUnit.playerMoveTarget = null;
-							anyAttacked = true;
-						}
-					}
-
-					if (anyAttacked)
-					{
-						LogHelper.Log(LogHelper.GAME,
-							$"공격 명령: {selectedUnits.Count}기 -> {unit.unitType.typeName}"
-						);
-						return;
-					}
-				}
-			}
+			BuildingControlPanel.Instance?.ShowForObject(clickedObj);
+			return;
 		}
 
-		// 3. 허공 클릭 → 선택 해제 (Ctrl 중이면 기존 선택 유지)
+		// 허공 클릭 → 선택 해제 (Ctrl 중이면 기존 선택 유지)
 		if (!addHeld)
 			selectedUnits.Clear();
 	}
@@ -609,7 +646,6 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null || u.Health.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
-			if (!_monsterPlacement.IsUnitSelectable(u)) continue;
 
 			float fw = u.unitType != null ? u.unitType.footprint.x : 1f;
 			float fh = u.unitType != null ? u.unitType.footprint.y : 1f;
@@ -638,7 +674,6 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null || u.Health.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
-			if (!_monsterPlacement.IsUnitSelectable(u)) continue;
 			// UnitType은 ScriptableObject 에셋 공유가 아니라 스폰마다 new Knight() 식으로 새로 만들어지는
 			// 순수 C# 인스턴스라(GameSession.cs 스폰 코드 참고) 참조 비교(==)로는 "같은 유형"을 못 잡는다
 			// (자기 자신 말고는 전부 다른 인스턴스라 항상 실패) — typeName 문자열로 비교해야 한다.
@@ -678,8 +713,6 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	void OnGUI()
 	{
-		if (_monsterPlacement == null) return; // Construct() 이전(주입 완료 전) 프레임 방어
-
 		if (_dragBoxActive)
 		{
 			Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);
@@ -692,11 +725,6 @@ public class InputManager : MonoBehaviour
 			DrawRectBorder(r, 2f);
 
 			GUI.color = prevColor;
-		}
-
-		if (_monsterPlacement.IsActive)
-		{
-			_monsterPlacement.DrawGUI();
 		}
 	}
 

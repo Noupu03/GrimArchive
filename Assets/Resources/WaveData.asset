@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: WaveData
   m_EditorClassIdentifier: Assembly-CSharp::GrimArchive.Wave.WaveData
   waveCooldown: 20
+  firstWaveCooldown: 60
   spawnMode: 1
   targetFloor: 1
   spawnCenter: {x: 0, y: 0, z: 0}

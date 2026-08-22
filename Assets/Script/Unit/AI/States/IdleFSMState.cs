@@ -10,24 +10,19 @@ using UnityEngine;
 // (PlayerCommandFSMState가 이미 UnitFSM._states 진입 전에 최우선으로 가로채므로 이 상태까지 내려오는
 // 시점엔 이미 명령이 없는 상태가 보장되지만, 의도를 코드로도 명시하기 위해 아래서 다시 확인한다).
 //
-// 배회 기준점(사용자 확인, 2026-08-20): 플레이어 몬스터는 defenseStartPosition(몬스터 배치 프리셋이
-// 지정한 디펜스 시작 위치), 야생은 summonPosition(스폰 위치) — 둘 다 없으면 이 상태에 처음 진입한
-// 위치를 그 자리에서 기준점으로 삼는다. 반경은 둘 다 2칸(AIBehaviorConfig.idleWanderRadius, 사용자
-// 선택 "야생과 동일하게 anchor+2칸 반경"). 소집(isMustered) 중인 유닛은 이 상태보다 우선순위가 높은
-// MusterFSMState가 전담하므로(사용자 신고 2026-08-20 "소집 규칙이 더 우선이여야 해... 소집이 되었다가
-// 다시 대기 상태가 되어버리는듯" — 배열 순서로 명확히 보장하도록 전용 상태로 분리) 이 상태로 들어오지
-// 않는다.
+// 배회 기준점(사용자 확인, 2026-08-20): summonPosition(스폰 위치)이 없으면 이 상태에 처음 진입한
+// 위치를 그 자리에서 기준점으로 삼는다. 반경은 2칸(AIBehaviorConfig.idleWanderRadius, 사용자 선택
+// "야생과 동일하게 anchor+2칸 반경").
 public class IdleFSMState : IFSMState
 {
 	public float GetPriority(Unit unit)
 	{
 		if (unit is Human) return 0f; // 인류 대기 상태는 추후 별도 구현(사용자 명시, 지금은 제외)
-		// 소집 중인 유닛은 MusterFSMState(30, 이 상태보다 배열에서 먼저 검사됨)가 항상 먼저 가로채므로
-		// 여기까지 내려오지 않는다 — 별도로 isMustered를 다시 확인할 필요가 없다(UnitFSM.cs 참고).
 
 		bool isWild = unit.FactionBehavior is WildMonsterBehavior;
 		bool hasPlayerCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
-			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
+			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
+			|| unit.playerAttackObjectTarget.HasValue; // 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령도 동일 취급.
 		bool isIdlePlayerMonster = unit.IsPlayerMonsterFaction && !hasPlayerCommand;
 		if (!isWild && !isIdlePlayerMonster) return 0f;
 
@@ -77,7 +72,6 @@ public class IdleFSMState : IFSMState
 
 	private static Vector2Int ResolveAnchor(Unit unit)
 	{
-		if (unit.IsPlayerMonsterFaction && unit.defenseStartPosition.HasValue) return unit.defenseStartPosition.Value;
 		if (unit.summonPosition.HasValue) return unit.summonPosition.Value;
 		return unit.position;
 	}
