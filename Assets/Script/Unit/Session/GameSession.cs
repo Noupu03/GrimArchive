@@ -1223,12 +1223,53 @@ public class GameSession : NativeRoutine, IOffenseQuery
             string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { CoreTag }, coreHp: RoomCoreMaxHp);
             SpawnObject(obj, Color.magenta);
+            MarkTileObstacle(gridPos, true);
 
             room.CoreObjectId = objId;
             room.CorePosition = gridPos;
         }
 
         LogHelper.Log(LogHelper.GAME, "SpawnAllRoomCores: 모든 방에 코어 배치 완료.");
+    }
+
+    // 코어도 건물처럼 벽과 동일한 판정으로 취급되게 해달라는 요청(2026-08-22) — BuildingManager.
+    // UpdateMapDataObstacle과 동일한 패턴(맵 타일 데이터 + 양 진영 discoveredMap 동기화). 코어는
+    // 건물과 달리 철거(Uninstall)되지 않고 파괴 시 방 소유권만 바뀐 채 반피로 회복되므로, 여기엔
+    // 해제(false) 경로가 없다.
+    private void MarkTileObstacle(Vector3Int pos, bool isObstacle)
+    {
+        if (pos.x < 0 || pos.y < 0 || pos.z < 0) return;
+        if (cmap == null || cmap.map.floors == null) return;
+        if (pos.z >= cmap.map.floors.Length) return;
+
+        Floor floor = cmap.map.floors[pos.z];
+        int cx = pos.x / 8;
+        int cy = pos.y / 8;
+        int tx = pos.x % 8;
+        int ty = pos.y % 8;
+
+        if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
+        {
+            var chunk = floor.chunks[cx, cy];
+            if (chunk.chunk != null)
+            {
+                chunk.chunk[tx, ty].isStructureExist = isObstacle;
+            }
+        }
+
+        int mapValue = isObstacle ? 2 : 1;
+
+        if (Unit.humanFactionData != null && Unit.humanFactionData.discoveredMap != null
+            && pos.z >= 0 && pos.z < Unit.humanFactionData.discoveredMap.Length)
+        {
+            Unit.humanFactionData.discoveredMap[pos.z][pos.x, pos.y] = mapValue;
+        }
+
+        if (Unit.monsterFactionData != null && Unit.monsterFactionData.discoveredMap != null
+            && pos.z >= 0 && pos.z < Unit.monsterFactionData.discoveredMap.Length)
+        {
+            Unit.monsterFactionData.discoveredMap[pos.z][pos.x, pos.y] = mapValue;
+        }
     }
 
     // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청) — 게임 시작 시 던전 1층 시작방(RoomRole.
