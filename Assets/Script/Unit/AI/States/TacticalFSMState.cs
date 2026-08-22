@@ -408,7 +408,12 @@ public class TacticalFSMState : IFSMState
 			if (unit is Human h) TrapPartySystem.RestartSelection(h, trap);
 			return BTStatus.Success;
 		}
-		AIMovementHelper.MoveTowardsPos(unit, target);
+		// 2026-08-23 버그 수정: MoveToTrap과 동일한 이유로 완전히 막히면 근처 빈 칸으로 우회 시도.
+		if (!AIMovementHelper.MoveTowardsPos(unit, target))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
+			if (fallback != target) AIMovementHelper.MoveTowardsPos(unit, fallback);
+		}
 		return BTStatus.Running;
 	}
 
@@ -432,7 +437,15 @@ public class TacticalFSMState : IFSMState
 		// 가능하게") — MoveToInvestigateTarget과 동일한 관례.
 		if (AIMovementHelper.IsAdjacent(unit.position, trapPos))
 			return BTStatus.Success;
-		AIMovementHelper.MoveTowardsPos(unit, trapPos);
+		// 2026-08-23 버그 수정: 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도 —
+		// MoveToCoreAttack과 동일한 관례. 예전엔 반환값을 무시해서, 진행 경로가 막히면(특히 2026-08-22
+		// 문 시스템 개편 이후 다른 진영 문이 항상 통행을 막는 경우) 해제 담당 유닛이 영원히 Running만
+		// 반환하며 그 자리에서 멈춰 함정이 끝내 처리되지 않는 문제가 있었다.
+		if (!AIMovementHelper.MoveTowardsPos(unit, trapPos))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, trapPos);
+			if (fallback != trapPos) AIMovementHelper.MoveTowardsPos(unit, fallback);
+		}
 		return BTStatus.Running;
 	}
 

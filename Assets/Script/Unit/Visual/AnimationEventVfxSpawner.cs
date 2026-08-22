@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 // AnimatorController로 재생되는 AnimationClip에 찍은 AnimationEvent에서 호출되어
 // 파티클 이펙트 프리팹을 스폰하는 독립 컴포넌트. Unit/UnitGenerate/VFXManager 등
@@ -19,7 +20,7 @@ public class AnimationEventVfxSpawner : MonoBehaviour
         VfxEventDefinition def = vfxEvents.Find(e => e.eventKey == eventKey);
         if (def == null || def.effectPrefab == null)
         {
-            Debug.LogWarning($"[AnimationEventVfxSpawner] eventKey '{eventKey}'에 대한 정의를 찾을 수 없습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"[AnimationEventVfxSpawner] eventKey '{eventKey}'에 대한 정의를 찾을 수 없습니다.");
             return;
         }
 

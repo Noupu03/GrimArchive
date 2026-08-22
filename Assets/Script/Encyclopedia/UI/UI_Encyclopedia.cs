@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 using VContainer;
+using Haare.Util.Logger;
 
 namespace Game.Encyclopedia.UI
 {
@@ -38,7 +39,7 @@ namespace Game.Encyclopedia.UI
 
         private void TogglePanel()
         {
-            Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> 토글 키 입력 감지! 현재 활성 상태: {gameObject.activeSelf}");
+            LogHelper.Log(LogHelper.GAME, $"<color=cyan>[UI_Encyclopedia]</color> 토글 키 입력 감지! 현재 활성 상태: {gameObject.activeSelf}");
             if (gameObject.activeSelf) 
                 ClosePanel();
             else 
@@ -54,13 +55,13 @@ namespace Game.Encyclopedia.UI
                 _toggleAction = new UnityEngine.InputSystem.InputAction(binding: keyPath);
                 _toggleAction.performed += _ => TogglePanel();
                 _toggleAction.Enable();
-                Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> 단축키({keyPath}) 구독 완료 (OnEnable).");
+                LogHelper.Log(LogHelper.GAME, $"<color=cyan>[UI_Encyclopedia]</color> 단축키({keyPath}) 구독 완료 (OnEnable).");
             }
         }
 
         public void BindEvent()
         {
-            Debug.Log($"<color=cyan>[UI_Encyclopedia]</color> BindEvent 호출됨! (단축키: {_toggleKey.ToString()})");
+            LogHelper.Log(LogHelper.GAME, $"<color=cyan>[UI_Encyclopedia]</color> BindEvent 호출됨! (단축키: {_toggleKey.ToString()})");
             
             // 의존성 수동 연결 (EncyclopediaManager가 아직 DI 컨테이너에 등록되지 않은 경우 싱글톤 사용)
             if (_encyclopediaSystem == null && EncyclopediaManager.Instance != null)
@@ -75,7 +76,7 @@ namespace Game.Encyclopedia.UI
             }
             else
             {
-                Debug.LogWarning("[UI_Encyclopedia] IEncyclopediaSystem를 찾을 수 없습니다.");
+                LogHelper.Warning(LogHelper.GAME, "[UI_Encyclopedia] IEncyclopediaSystem를 찾을 수 없습니다.");
             }
         }
 

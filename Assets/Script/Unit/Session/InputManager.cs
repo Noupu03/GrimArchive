@@ -15,18 +15,24 @@ using Haare.Util.Logger;
 public class InputManager : MonoBehaviour
 {
 	// 하위 호환용: 기존 코드는 "선택된 유닛 1기"를 이렇게 참조한다.
-	// 실제 저장소는 selectedUnits이고, 이 프로퍼티는 그 목록의 첫 번째 유닛을 가리킨다.
+	// 실제 저장소는 _selectedUnits이고, 이 프로퍼티는 그 목록의 첫 번째 유닛을 가리킨다.
 	public Unit selectedUnit
 	{
-		get => selectedUnits.Count > 0 ? selectedUnits[0] : null;
+		get => _selectedUnits.Count > 0 ? _selectedUnits[0] : null;
 		set
 		{
-			selectedUnits.Clear();
-			if (value != null) selectedUnits.Add(value);
+			_selectedUnits.Clear();
+			if (value != null) _selectedUnits.Add(value);
 		}
 	}
 
-	public List<Unit> selectedUnits = new List<Unit>();
+	// 캡슐화(2026-08-22 리팩토링): 외부(UI/UnitGenerate)는 항상 읽기만 하고, 실제 추가/제거/비우기는
+	// 전부 이 클래스 안(선택/드래그/더블클릭 로직)에서만 일어난다 — 그 불변식을 타입으로 강제한다.
+	private readonly List<Unit> _selectedUnits = new List<Unit>();
+	public IReadOnlyList<Unit> selectedUnits => _selectedUnits;
+	// List<Unit>.Contains(무할당)을 그대로 쓰기 위한 헬퍼 — 매 프레임 호출되는 UnitGenerate의 선택 표시
+	// 갱신(RefreshSelectionVisual)이 IReadOnlyList 너머로 LINQ Contains(열거자 박싱)를 타지 않게 한다.
+	public bool IsUnitSelected(Unit u) => _selectedUnits.Contains(u);
 	public Action OnSelectionChanged;
 
 	// 2026-08-21, 사용자 요청으로 "이동 및 공격" 토글을 롤백 — 우클릭 이동/공격은 다시 별도 토글 없이
@@ -579,13 +585,13 @@ public class InputManager : MonoBehaviour
 			if (addHeld)
 			{
 				// Ctrl+클릭: 이미 선택돼 있으면 선택 해제, 아니면 추가
-				if (!selectedUnits.Remove(clickedUnit))
-					selectedUnits.Add(clickedUnit);
+				if (!_selectedUnits.Remove(clickedUnit))
+					_selectedUnits.Add(clickedUnit);
 			}
 			else
 			{
-				selectedUnits.Clear();
-				selectedUnits.Add(clickedUnit);
+				_selectedUnits.Clear();
+				_selectedUnits.Add(clickedUnit);
 			}
 
 			LogHelper.Log(LogHelper.GAME, $"선택: {clickedUnit.unitType.typeName} (총 {selectedUnits.Count}기)");
@@ -603,7 +609,7 @@ public class InputManager : MonoBehaviour
 
 		// 허공 클릭 → 선택 해제 (Ctrl 중이면 기존 선택 유지)
 		if (!addHeld)
-			selectedUnits.Clear();
+			_selectedUnits.Clear();
 	}
 
 	// =====================================================
@@ -678,12 +684,12 @@ public class InputManager : MonoBehaviour
 		if (addHeld)
 		{
 			foreach (var u in candidates)
-				if (!selectedUnits.Contains(u)) selectedUnits.Add(u);
+				if (!_selectedUnits.Contains(u)) _selectedUnits.Add(u);
 		}
 		else
 		{
-			selectedUnits.Clear();
-			selectedUnits.AddRange(candidates);
+			_selectedUnits.Clear();
+			_selectedUnits.AddRange(candidates);
 		}
 	}
 

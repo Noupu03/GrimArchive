@@ -10,20 +10,6 @@ using System.Collections.Generic;
 public class Projectile : MonoBehaviour
 {
     private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
-    private static Transform _poolRoot;
-
-    private static Transform GetPoolRoot()
-    {
-        if (_poolRoot != null) return _poolRoot;
-        var root = GameObject.Find("Object Pooling");
-        if (root == null)
-        {
-            root = new GameObject("Object Pooling");
-            GameObject.DontDestroyOnLoad(root);
-        }
-        _poolRoot = root.transform;
-        return _poolRoot;
-    }
 
     public static Projectile Spawn(GameObject prefab)
     {
@@ -34,7 +20,7 @@ public class Projectile : MonoBehaviour
             pool = new ObjectPool<GameObject>(
                 createFunc: () => {
                     var go = Object.Instantiate(prefab);
-                    go.transform.SetParent(GetPoolRoot());
+                    go.transform.SetParent(PooledObjectRoot.Get());
                     var proj = go.GetComponent<Projectile>();
                     if (proj == null) proj = go.AddComponent<Projectile>();
                     proj._originalPrefab = prefab;
@@ -43,9 +29,9 @@ public class Projectile : MonoBehaviour
                 actionOnGet: (obj) => { if (obj != null) obj.SetActive(true); },
                 actionOnRelease: (obj) => { 
                     if (obj != null) {
-                        obj.SetActive(false); 
-                        obj.transform.SetParent(GetPoolRoot());
-                    } 
+                        obj.SetActive(false);
+                        obj.transform.SetParent(PooledObjectRoot.Get());
+                    }
                 },
                 actionOnDestroy: (obj) => { if (obj != null) Object.Destroy(obj); },
                 collectionCheck: false,
@@ -136,7 +122,6 @@ public class Projectile : MonoBehaviour
         int minY = Mathf.FloorToInt(_logicalCollider.center.y - (halfW * sinA + halfH * cosA));
         int maxY = Mathf.FloorToInt(_logicalCollider.center.y + (halfW * sinA + halfH * cosA));
 
-        bool hasHitNewEnemy = false;
         var unitGrid = _attacker.Session?.unitGrid;
         if (unitGrid != null)
         {
@@ -155,7 +140,6 @@ public class Projectile : MonoBehaviour
                 float finalRatio = Mathf.Max(0.2f, _logicalCollider.CalculateOverlapRatio(enemyBox));
                 ApplyHitEffect(u, finalRatio);
                 _hitTargets.Add(u);
-                hasHitNewEnemy = true;
 
                 if (!_skillData.isPiercing)
                 {

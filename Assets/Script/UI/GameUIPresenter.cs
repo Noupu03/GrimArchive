@@ -1,6 +1,7 @@
 ﻿using Cysharp.Threading.Tasks;
 using Haare.Client.Core.DI;
 using UnityEngine;
+using Haare.Util.Logger;
 
 public class GameUIPresenter : UIPresenter
 {
@@ -26,7 +27,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] NoticeCenter 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] NoticeCenter 로드 실패: {e.Message}");
             }
 
             try
@@ -36,7 +37,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] UIManager 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] UIManager 로드 실패: {e.Message}");
             }
 
             int debugPanelId = await _coreUIManager.LoadPanel<DebugInfoPanel>(_resolver, null, false, false);
@@ -49,7 +50,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] StatusInfoPanel 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] StatusInfoPanel 로드 실패: {e.Message}");
             }
 
             try
@@ -58,7 +59,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] UI_Encyclopedia 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] UI_Encyclopedia 로드 실패: {e.Message}");
             }
 
             // 웨이브 시각화(2026-08-19 신규) — 화면 상단 웨이브 게이지, 항상 켜져 있어야 하므로
@@ -70,7 +71,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] WaveGaugePanel 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] WaveGaugePanel 로드 실패: {e.Message}");
             }
 
             // 건축물·자원·유닛 생산 MVP(2026-07-27) — 건물 클릭 시에만 뜨는 패널이라 평소엔 닫아 둔다.
@@ -81,7 +82,7 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] BuildingControlPanel 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] BuildingControlPanel 로드 실패: {e.Message}");
             }
 
             // UI 리뉴얼(2026-08-20) — 좌하단 하단 메뉴 바, WaveGaugePanel처럼 항상 켜져 있어야 한다.
@@ -92,14 +93,14 @@ public class GameUIPresenter : UIPresenter
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[UI] BottomMenuBar 로드 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[UI] BottomMenuBar 로드 실패: {e.Message}");
             }
 
             await FadeOut();
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[GameUIPresenter] BootSequence Exception: {ex}");
+            LogHelper.Error(LogHelper.GAME, $"[GameUIPresenter] BootSequence Exception: {ex}");
             try
             {
                 await FadeOut();

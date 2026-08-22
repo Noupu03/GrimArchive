@@ -132,7 +132,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 더 늦어진다. 실측 후 조정할 것.
     private const int MaxThrottledUnitActionsPerFrame = 30;
     public List<Party> parties => _partyService.parties;
-    private float updateTimer = 0f;
 
     public float currentGameSpeed = 1f;
     public bool isPaused = false;
@@ -1352,7 +1351,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 데미지 상향(2026-07-22, 사용자 요청 "실제로 데미지 들어가게, 꽤 크게") — 기존 10~25에서
             // 30~60으로. 자동 트리거(GameSession.TriggerTrapIfStepped)까지 추가돼 실제로 자주
             // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
-            baseVisibility: 40f, trapHp: 20f, trapDamageMin: 30f, trapDamageMax: 60f);
+            // 체력 상향(2026-08-23, 사용자 요청) — 기존 20은 물리공격력 비례 파괴 데미지(0.5×physicalAttack
+            // /초) 앞에서 실제 유닛 스탯(26~55)이면 1초 안팎에 파괴돼 사실상 "툭 치면 끝"이었다.
+            // DoorSystem.DoorMaxHp(300)와 동일한 값으로 맞춤 — 코어/문처럼 실제 저지력을 갖도록.
+            baseVisibility: 40f, trapHp: 300f, trapDamageMin: 30f, trapDamageMax: 60f);
         SpawnObject(obj, Color.red);
     }
 

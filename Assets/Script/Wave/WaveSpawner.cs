@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using Haare.Util.Logger;
 
 namespace GrimArchive.Wave
 {
@@ -50,12 +51,12 @@ namespace GrimArchive.Wave
         {
             if (waveData == null)
             {
-                Debug.LogWarning("[WaveSpawner] waveData 참조가 할당되지 않았습니다.");
+                LogHelper.Warning(LogHelper.GAME, "[WaveSpawner] waveData 참조가 할당되지 않았습니다.");
                 return;
             }
             if (GameSession.Instance == null || GameSession.Instance.unitGenerate == null)
             {
-                Debug.LogError("[WaveSpawner] GameSession 또는 unitGenerate 인스턴스를 찾을 수 없습니다.");
+                LogHelper.Error(LogHelper.GAME, "[WaveSpawner] GameSession 또는 unitGenerate 인스턴스를 찾을 수 없습니다.");
                 return;
             }
 
@@ -110,9 +111,9 @@ namespace GrimArchive.Wave
 
             // 스폰된 몬스터 전체를 파티 객체에 공유
             foreach (var party in spawnedParties)
-                party.WaveMonsters = spawnedMonsters;
+                party.SetWaveMonsters(spawnedMonsters);
 
-            Debug.Log($"[WaveSpawner] 몬스터 {spawnedMonsters.Count}마리, 파티 {spawnedParties.Count}팀 소환 완료(모드: {waveData.spawnMode}).");
+            LogHelper.Log(LogHelper.GAME, $"[WaveSpawner] 몬스터 {spawnedMonsters.Count}마리, 파티 {spawnedParties.Count}팀 소환 완료(모드: {waveData.spawnMode}).");
         }
 
         private Type ResolveUnitType(string typeName)
@@ -147,7 +148,7 @@ namespace GrimArchive.Wave
             Type t = ResolveUnitType(typeName);
             if (t == null)
             {
-                Debug.LogWarning($"[WaveSpawner] '{typeName}' 클래스 또는 타입 이름을 찾을 수 없습니다.");
+                LogHelper.Warning(LogHelper.GAME, $"[WaveSpawner] '{typeName}' 클래스 또는 타입 이름을 찾을 수 없습니다.");
                 return null;
             }
 
@@ -157,7 +158,7 @@ namespace GrimArchive.Wave
             }
             catch (Exception e)
             {
-                Debug.LogError($"[WaveSpawner] '{typeName}' 인스턴스 생성 실패: {e.Message}");
+                LogHelper.Error(LogHelper.GAME, $"[WaveSpawner] '{typeName}' 인스턴스 생성 실패: {e.Message}");
                 return null;
             }
         }
@@ -241,7 +242,7 @@ namespace GrimArchive.Wave
                 if (TryFindPosByRoomId(waveData.targetRoomId, footprint, out Vector2Int pos)) return pos;
             }
 
-            Debug.Log("[WaveSpawner] 유효한 스폰 위치를 찾지 못하여 맵 전체에서 랜덤한 위치를 반환합니다.");
+            LogHelper.Log(LogHelper.GAME, "[WaveSpawner] 유효한 스폰 위치를 찾지 못하여 맵 전체에서 랜덤한 위치를 반환합니다.");
             return generator.GetRandomFloorPos(footprint, waveData.targetFloor);
         }
 
@@ -250,7 +251,7 @@ namespace GrimArchive.Wave
             List<Vector2Int> chunks = CollectRoomChunks(c => c.roomRole == role);
             if (chunks.Count == 0)
             {
-                Debug.LogWarning($"[WaveSpawner] 조건에 맞는 방({role})을 찾지 못했습니다.");
+                LogHelper.Warning(LogHelper.GAME, $"[WaveSpawner] 조건에 맞는 방({role})을 찾지 못했습니다.");
                 pos = default;
                 return false;
             }
@@ -262,7 +263,7 @@ namespace GrimArchive.Wave
             List<Vector2Int> chunks = CollectRoomChunks(c => c.roomId == roomId);
             if (chunks.Count == 0)
             {
-                Debug.LogWarning($"[WaveSpawner] 조건에 맞는 방({roomId})을 찾지 못했습니다.");
+                LogHelper.Warning(LogHelper.GAME, $"[WaveSpawner] 조건에 맞는 방({roomId})을 찾지 못했습니다.");
                 pos = default;
                 return false;
             }

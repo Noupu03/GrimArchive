@@ -4,6 +4,7 @@ using Haare.Client.Routine;
 using Cysharp.Threading.Tasks;
 using System.Linq;
 using VContainer;
+using Haare.Util.Logger;
 
 namespace GrimArchive.Wave
 {
@@ -209,7 +210,7 @@ namespace GrimArchive.Wave
             if (targetSpawner == null || targetSpawner.waveData == null || targetSpawner.waveData.parties == null) return;
             if (!ResolveStairPositions())
             {
-                Debug.LogWarning("[HumanWaveManager] 0층 계단 위치를 찾지 못해 사전 스폰을 건너뜁니다(즉시 스폰으로 대체됩니다).");
+                LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 0층 계단 위치를 찾지 못해 사전 스폰을 건너뜁니다(즉시 스폰으로 대체됩니다).");
                 return;
             }
 
@@ -264,7 +265,7 @@ namespace GrimArchive.Wave
 
             preSpawnedParty = GameSession.Instance.CreateParty("PreSpawnParty", members);
             preSpawnSucceeded = true;
-            Debug.Log($"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
 
             // 몬스터 배치 프리셋(2026-08-19 재구현, 사용자 요청 "0층에 인류가 소환된 시점부터, 몬스터들은
             // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 처음엔 바로 이 지점("0층에
@@ -433,7 +434,7 @@ namespace GrimArchive.Wave
             member.playerMoveTarget = null;
             member.isManualMoveCommand = false;
 
-            Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName}가 {StairForceCrossTimeoutSeconds}초 동안 계단을 못 넘어와 강제로 F{targetFloor}로 이동시켰습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 {StairForceCrossTimeoutSeconds}초 동안 계단을 못 넘어와 강제로 F{targetFloor}로 이동시켰습니다.");
             return true;
         }
 
@@ -461,7 +462,7 @@ namespace GrimArchive.Wave
             int targetFloor = targetSpawner.waveData.targetFloor;
             if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, 0, targetFloor, out Vector2Int arrivePos))
             {
-                Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName} 퇴각 도착 지점이 전부 점유돼 대표 좌표로 보냅니다(드물게 겹칠 수 있음).");
+                LogHelper.Warning(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName} 퇴각 도착 지점이 전부 점유돼 대표 좌표로 보냅니다(드물게 겹칠 수 있음).");
                 arrivePos = floor0StairPos;
             }
 
@@ -476,7 +477,7 @@ namespace GrimArchive.Wave
 
             retreatedSurvivors.Add(member);
 
-            Debug.Log($"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
         }
 
         // 웨이브 시각화(2026-08-19 신규) — 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입
@@ -546,11 +547,11 @@ namespace GrimArchive.Wave
         {
             if (targetSpawner == null)
             {
-                Debug.LogError("[HumanWaveManager] Target Spawner가 설정되지 않았습니다.");
+                LogHelper.Error(LogHelper.GAME, "[HumanWaveManager] Target Spawner가 설정되지 않았습니다.");
                 return;
             }
 
-            Debug.Log("[HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)");
+            LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)");
             currentState = WaveState.Running;
 
             // 문은 이제 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐한다
@@ -601,7 +602,7 @@ namespace GrimArchive.Wave
                 }
                 else
                 {
-                    Debug.LogWarning("[HumanWaveManager] 웨이브 소환 시도했으나 파티가 생성되지 않았습니다.");
+                    LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 웨이브 소환 시도했으나 파티가 생성되지 않았습니다.");
                     EndWave(false);
                     return;
                 }
@@ -619,7 +620,7 @@ namespace GrimArchive.Wave
                 GameSession.Instance.roomGrid.TryGetValue(new Vector3Int(bossPos.x, bossPos.y, targetFloor), out _targetRoom);
             }
             if (_targetRoom == null || _targetRoom.CoreObjectId == null)
-                Debug.LogWarning("[HumanWaveManager] 목표 방의 코어를 찾지 못했습니다 — 이번 웨이브는 목표 없이 진행됩니다.");
+                LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 목표 방의 코어를 찾지 못했습니다 — 이번 웨이브는 목표 없이 진행됩니다.");
         }
 
         private void MonitorWave()
@@ -628,12 +629,12 @@ namespace GrimArchive.Wave
             {
                 if (_retreating)
                 {
-                    Debug.Log("[HumanWaveManager] 파티가 전멸했지만 코어는 이미 파괴되어 웨이브 성공.");
+                    LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 파티가 전멸했지만 코어는 이미 파괴되어 웨이브 성공.");
                     EndWave(true);
                 }
                 else
                 {
-                    Debug.Log("[HumanWaveManager] 파티가 전멸했습니다. 웨이브 실패.");
+                    LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 파티가 전멸했습니다. 웨이브 실패.");
                     EndWave(false);
                 }
                 return;
@@ -647,7 +648,7 @@ namespace GrimArchive.Wave
             // 지정과 성공 판정만 한다.
             if (!_retreating && _targetRoom != null && _targetRoom.RoomFaction == FactionType.Human)
             {
-                Debug.Log("[HumanWaveManager] 목표 방 코어 파괴 성공! 생존 파티원 퇴각 시작.");
+                LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 목표 방 코어 파괴 성공! 생존 파티원 퇴각 시작.");
                 _retreating = true;
             }
 
@@ -669,7 +670,7 @@ namespace GrimArchive.Wave
 
                 if (member.position == exitAreaPos)
                 {
-                    Debug.Log($"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
+                    LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
 
                     // 탈출 지점에 도착한 파티원은 사라지는(Despawn) 대신 0층으로 돌려보낸다
                     // (사용자 요청, 2026-07-23 "퇴각 로직 후에 0층으로 이동시키자").
@@ -681,7 +682,7 @@ namespace GrimArchive.Wave
             // 모든 파티원이 탈출했거나 사망했다면 웨이브 종료
             if (activeParty.GetSurvivors().Count == 0)
             {
-                Debug.Log("[HumanWaveManager] 코어 파괴 후 모든 파티원이 탈출(또는 사망)하여 웨이브가 성공적으로 종료됩니다.");
+                LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 코어 파괴 후 모든 파티원이 탈출(또는 사망)하여 웨이브가 성공적으로 종료됩니다.");
                 EndWave(true);
             }
         }
@@ -740,7 +741,7 @@ namespace GrimArchive.Wave
                 }
             }
 
-            Debug.Log($"[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 {waveCooldown}초 대기.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 {waveCooldown}초 대기.");
 
             activeParty = null;
             _targetRoom = null;

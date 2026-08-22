@@ -438,7 +438,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         else
         {
             enterMode?.Invoke();
-            NoticeCenter.Instance?.PushMomentary($"{label} 배치 모드 시작 (좌클릭: 설치, 취소: 메뉴 전환/재클릭)", NoticeCenter.InfoColor);
+            NoticeCenter.Instance?.PushMomentary($"{label} 배치 모드 시작 (우클릭: 설치, 취소: 메뉴 전환/재클릭)", NoticeCenter.InfoColor);
         }
     }
 

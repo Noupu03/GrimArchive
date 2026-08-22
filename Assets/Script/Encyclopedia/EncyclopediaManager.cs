@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Haare.Util.Logger;
 
 namespace Game.Encyclopedia
 {
@@ -53,7 +54,7 @@ namespace Game.Encyclopedia
                     }
                     else
                     {
-                        Debug.LogWarning($"[EncyclopediaManager] 중복된 도감 ID가 존재합니다: {entry.Id}");
+                        LogHelper.Warning(LogHelper.GAME, $"[EncyclopediaManager] 중복된 도감 ID가 존재합니다: {entry.Id}");
                     }
                 }
             }
@@ -76,7 +77,7 @@ namespace Game.Encyclopedia
             }
             else
             {
-                Debug.LogWarning($"[EncyclopediaManager] 잠금 해제 실패. 존재하지 않는 ID입니다: {id}");
+                LogHelper.Warning(LogHelper.GAME, $"[EncyclopediaManager] 잠금 해제 실패. 존재하지 않는 ID입니다: {id}");
             }
             return false;
         }
@@ -114,14 +115,14 @@ namespace Game.Encyclopedia
         {
             // TODO: 실제 프로젝트의 SaveSystem(JSON, PlayerPrefs 등)과 연동
             // PlayerPrefs.SetString("Encyclopedia_Unlocked", string.Join(",", _unlockedIds));
-            Debug.Log("[EncyclopediaManager] 도감 데이터 저장됨.");
+            LogHelper.Log(LogHelper.GAME, "[EncyclopediaManager] 도감 데이터 저장됨.");
         }
 
         private void LoadData()
         {
             // TODO: 실제 프로젝트의 LoadSystem과 연동
             // 예시: string savedData = PlayerPrefs.GetString("Encyclopedia_Unlocked", "");
-            Debug.Log("[EncyclopediaManager] 도감 데이터 불러옴.");
+            LogHelper.Log(LogHelper.GAME, "[EncyclopediaManager] 도감 데이터 불러옴.");
         }
     }
 }

@@ -262,7 +262,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
 
     // 다수 선택 시 스탯 대신 보여줄 목록. 스탯 대신 "무엇이 선택돼 있는지"만 한눈에 보이면 되므로
     // 유닛별 상세 능력치는 넣지 않는다.
-    private string BuildMultiSelectListText(List<Unit> units)
+    private string BuildMultiSelectListText(IReadOnlyList<Unit> units)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"<b>선택됨: {units.Count}기</b>");

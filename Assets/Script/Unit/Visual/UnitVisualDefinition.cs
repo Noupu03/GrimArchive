@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 // 유닛 타입별 프리팹의 루트에 붙는 컴포넌트.
 // 스탯/스킬/이펙트를 인스펙터에서 직접 편집한다 (스프라이트/애니메이션은 프리팹 자식 계층의
@@ -112,7 +113,7 @@ public class UnitVisualDefinition : MonoBehaviour
     {
         if (string.IsNullOrEmpty(unitTypeName))
         {
-            Debug.LogError("Unit Type Name이 없습니다. (예: 아처형)");
+            LogHelper.Error(LogHelper.GAME, "Unit Type Name이 없습니다. (예: 아처형)");
             return;
         }
 
@@ -121,7 +122,7 @@ public class UnitVisualDefinition : MonoBehaviour
 
         if (!System.IO.File.Exists(unitsPath) || !System.IO.File.Exists(skillsPath))
         {
-            Debug.LogError("Data 폴더에 units.json 또는 skills.json이 없습니다.");
+            LogHelper.Error(LogHelper.GAME, "Data 폴더에 units.json 또는 skills.json이 없습니다.");
             return;
         }
 
@@ -145,7 +146,7 @@ public class UnitVisualDefinition : MonoBehaviour
 
         if (targetNode == null)
         {
-            Debug.LogError($"{unitTypeName} 데이터를 units.json에서 찾을 수 없습니다.");
+            LogHelper.Error(LogHelper.GAME, $"{unitTypeName} 데이터를 units.json에서 찾을 수 없습니다.");
             return;
         }
 
@@ -173,7 +174,7 @@ public class UnitVisualDefinition : MonoBehaviour
         }
 
         UnityEditor.EditorUtility.SetDirty(this);
-        Debug.Log($"[{unitTypeName}] 데이터 JSON 불러오기 완료!");
+        LogHelper.Log(LogHelper.GAME, $"[{unitTypeName}] 데이터 JSON 불러오기 완료!");
     }
 #endif
 }

@@ -53,7 +53,7 @@ public class ObjectPlacementController
 
         // 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
         _ghost.Show(CoreSprite);
-        LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성)");
+        LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (우클릭: 생성)");
     }
 
     public void EnterTrapMode()
@@ -65,7 +65,7 @@ public class ObjectPlacementController
 
         // 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
         _ghost.Show(TrapSprite);
-        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성)");
+        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 우클릭: 생성)");
     }
 
     // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — 파괴된 문을 원래 게이트 자리에만 재설치.
