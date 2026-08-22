@@ -48,12 +48,19 @@ public class DoorSystem
     // 문 전체 위치 목록(2026-08-22 신규) — 매 프레임 개폐 판정을 돌 대상. SpawnDoors/RebuildDoorAt에서
     // 추가하고 RemoveDoor에서 제거한다(objectGrid를 매 프레임 전체 스캔하지 않기 위한 캐시).
     private readonly List<Vector3Int> _doorPositions = new List<Vector3Int>();
+    private readonly System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer> _doorVisuals = new System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer>();
 
     // 진영 개폐 시각 트리거(2026-08-22 재조정, 사용자 요청 "자기 진영 문 1칸 접근시 열리는 형식이
     // 아닌, 문 인접 칸에서 문에 접근 시도시 열리는 방식으로") — 단순 반경 내 존재 여부(정적 위치)
     // 대신, UnitFunction.Move가 인접 칸에서 이 문 타일로 넘어가려는 시도를 한 그 프레임에만 채워지는
     // 집합. UpdateProcess가 매 프레임 끝에 비운다(1프레임 지연은 시각 연출이라 체감상 문제 없음).
     private readonly HashSet<Vector3Int> _approachedThisFrame = new HashSet<Vector3Int>();
+
+    private Sprite _doorOpenSprite;
+    private Sprite _doorClosedSprite;
+
+    private Sprite DoorOpenSprite => _doorOpenSprite ??= Resources.Load<Sprite>("obj/door_open");
+    private Sprite DoorClosedSprite => _doorClosedSprite ??= Resources.Load<Sprite>("obj/door_closed");
 
     private IObjectResolver _resolver;
     private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
@@ -128,10 +135,9 @@ public class DoorSystem
         // 기본값(false)과 IsFullyBlocking=true(생성자 인자)는 이미 "닫힘"과 일치한다.
         GameObject visual = Session.GetObjectVisual(gridPos);
         SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
-        if (sr != null)
+        if (sr != null && DoorClosedSprite != null)
         {
-            Sprite closedSprite = Resources.Load<Sprite>("obj/door_closed");
-            if (closedSprite != null) sr.sprite = closedSprite;
+            sr.sprite = DoorClosedSprite;
         }
     }
 
@@ -196,11 +202,15 @@ public class DoorSystem
         {
             if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door)) continue;
 
-            GameObject visual = Session.GetObjectVisual(pos);
-            SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
+            if (!_doorVisuals.TryGetValue(pos, out SpriteRenderer sr) || sr == null)
+            {
+                GameObject visual = Session.GetObjectVisual(pos);
+                sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
+                if (sr != null) _doorVisuals[pos] = sr;
+            }
             if (sr == null) continue;
 
-            FactionType ownerFaction = GetDoorOwnerFaction(pos) ?? FactionType.Wild;
+            FactionType ownerFaction = door.DoorOwnerFaction;
 
             // 접근 시도(이번 프레임 NotifyApproachAttempt) 또는 이미 문 타일 위에 보유 진영 유닛이
             // 서 있는 경우(통과 도중 정지 등 방어적 케이스) 열림으로 본다.
@@ -212,10 +222,9 @@ public class DoorSystem
                 door.DoorIsOpenVisual = shouldBeOpen;
                 door.IsFullyBlocking = !shouldBeOpen; // "문이 닫혀버리면 벽과 같은 가시성" — 열림/닫힘 공통 규칙, 진영 무관.
 
-                string spritePath = shouldBeOpen ? "obj/door_open" : "obj/door_closed";
-                Sprite sprite = Resources.Load<Sprite>(spritePath);
+                Sprite sprite = shouldBeOpen ? DoorOpenSprite : DoorClosedSprite;
                 if (sprite != null) sr.sprite = sprite;
-                else LogHelper.Warning(LogHelper.GAME, $"DoorSystem.UpdateProcess: Resources.Load<Sprite>(\"{spritePath}\")가 null입니다.");
+                else LogHelper.Warning(LogHelper.GAME, $"DoorSystem.UpdateProcess: 문 스프라이트가 null입니다 (shouldBeOpen={shouldBeOpen}).");
             }
         }
 
@@ -242,7 +251,7 @@ public class DoorSystem
         if (unit == null) return;
         if (!Session.objectGrid.TryGetValue(pos, out InteractableObject obj) || obj.Tags == null || !obj.Tags.Contains(DoorTag)) return;
 
-        FactionType? doorFaction = GetDoorOwnerFaction(pos);
+        FactionType? doorFaction = obj.DoorOwnerFaction;
         FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
         if (doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value) return;
 
@@ -259,7 +268,7 @@ public class DoorSystem
         if (unit == null || !Session.objectGrid.TryGetValue(pos, out InteractableObject obj)) return false;
         if (obj.Tags == null || !obj.Tags.Contains(DoorTag)) return false;
 
-        FactionType? doorFaction = GetDoorOwnerFaction(pos);
+        FactionType? doorFaction = obj.DoorOwnerFaction;
         FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
         return doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value;
     }
@@ -282,6 +291,7 @@ public class DoorSystem
     public void RemoveDoor(Vector3Int pos)
     {
         _doorPositions.Remove(pos);
+        _doorVisuals.Remove(pos);
         Session.CollectObject(pos); // objectGrid 제거 + 비주얼 파괴
         LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {pos} 위치의 문이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
     }

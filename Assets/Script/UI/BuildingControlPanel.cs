@@ -280,9 +280,14 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private static string BuildCostText(List<ResourceCost> costs)
     {
         if (costs == null || costs.Count == 0) return "무료";
-        var parts = new List<string>();
-        foreach (var c in costs) parts.Add($"{c.resourceType} {c.amount}");
-        return string.Join(", ", parts);
+        if (costs.Count == 1) return $"{costs[0].resourceType} {costs[0].amount}";
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < costs.Count; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(costs[i].resourceType).Append(' ').Append(costs[i].amount);
+        }
+        return sb.ToString();
     }
 
     // Queue<T>는 임의 위치 제거를 지원하지 않아, 취소 대상만 뺀 새 큐로 다시 만든다(대기열 길이가

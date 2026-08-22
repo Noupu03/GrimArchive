@@ -539,7 +539,8 @@ public class UnitGenerate
 		if (cache.SelectionMarker != null)
 		{
 			bool isSelected = (u.InputMgr != null && u.InputMgr.selectedUnits.Contains(u));
-			cache.SelectionMarker.gameObject.SetActive(isSelected);
+			if (cache.SelectionMarker.gameObject.activeSelf != isSelected)
+				cache.SelectionMarker.gameObject.SetActive(isSelected);
 		}
 	}
 

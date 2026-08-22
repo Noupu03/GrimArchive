@@ -247,10 +247,7 @@ public class PlayerCommandFSMState : IFSMState
 				if (unit.playerCommandStuckTurns >= limit)
 				{
 					ShowMoveFailFeedback(unit);
-					unit.playerMoveTarget        = null;
-					unit.isManualMoveCommand     = false;
-					unit.oneTimeReactUsed        = false;
-					unit.playerCommandStuckTurns = 0;
+					unit.AbortMoveCommand();
 					return BTStatus.Success;
 				}
 				return BTStatus.Running;
@@ -262,10 +259,7 @@ public class PlayerCommandFSMState : IFSMState
 				// 진단 로그(2026-07-28, 임시) — 이 give-up이 실제로 얼마나 자주/왜 발동하는지 추적.
 				Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME,
 					$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 이동 명령 포기 — target={target} pos={unit.position} (구조적으로 완전히 막힘)");
-				unit.playerMoveTarget        = null;
-				unit.isManualMoveCommand     = false;
-				unit.oneTimeReactUsed        = false;
-				unit.playerCommandStuckTurns = 0;
+				unit.AbortMoveCommand();
 				return BTStatus.Success;
 			}
 		}
@@ -278,28 +272,9 @@ public class PlayerCommandFSMState : IFSMState
 
 	private static BTStatus CompletePlayerCommand(Unit unit)
 	{
-		// "집결 및 정지" 명령(2026-08-20) — 이동이 끝나는 지금 이 시점에 정지(동상) 상태로 고정한다.
-		// UnitFSM.SelectState가 다음 판단(hasPendingCommand==false가 되는 바로 다음 틱)에서 isHalted를
-		// 보고 HaltFSMState로 강제 전환한다.
-		if (unit.pendingHaltOnArrival)
-		{
-			unit.pendingHaltOnArrival = false;
-			unit.isHalted = true;
-		}
-
-		// "제자리 공격" 명령(기초문서.md 피드백, 2026-08-22, R키 배치모드 폐기를 대체) — 이동이 끝나는
-		// 시점에 제자리 공격 상태로 고정한다. HaltFSMState와 동일한 강제 전환 패턴이지만, 이 상태는
-		// 이동은 하지 않되 사거리 내 적은 공격한다(StandGroundAttackFSMState.cs 참고).
-		if (unit.pendingStandGroundOnArrival)
-		{
-			unit.pendingStandGroundOnArrival = false;
-			unit.isStandGroundAttack = true;
-		}
-
-		unit.playerMoveTarget        = null;
-		unit.isManualMoveCommand     = false;
-		unit.oneTimeReactUsed        = false;
-		unit.playerCommandStuckTurns = 0;
+		// "집결 및 정지" 명령(2026-08-20)과 "제자리 공격" 명령(2026-08-22)의 
+		// 상태 전이 논리는 unit.FinishMoveCommand 내부로 캡슐화되었다.
+		unit.FinishMoveCommand();
 		return BTStatus.Success;
 	}
 }

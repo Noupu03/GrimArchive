@@ -1214,17 +1214,8 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 임시 진단 로그 포함(2026-08-22, 사용자 신고 "접근은 하는데 채널링이 안 걸림" 원인 파악용) —
-	// 새로 채널링을 시작하는 순간에만 1회 출력(이미 같은 대상을 채널링 중이면 재출력 안 함).
 	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
 	{
-		if (unit.currentAttackObjectTarget != doorPos)
-		{
-			bool hasObj = unit.Session != null && unit.Session.objectGrid.TryGetValue(doorPos, out var dbgObj);
-			LogHelper.Log(LogHelper.GAME,
-				$"[진단:문공격] {unit.unitType?.typeName}({unit.position})가 {doorPos} 문 채널링 시작 시도(거리={AIMovementHelper.ChebyshevDistance(unit.position, new Vector2Int(doorPos.x, doorPos.y))}) — " +
-				$"objectGrid 존재={hasObj}, DoorHp={(hasObj ? unit.Session.objectGrid[doorPos].DoorHp.ToString("F0") : "N/A")}");
-		}
 		unit.currentAttackObjectTarget = doorPos;
 	}
 

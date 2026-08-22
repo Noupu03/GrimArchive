@@ -768,6 +768,17 @@ Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 �
   Assets/Script/UI/BottomMenuBar.cs(문 재설치 버튼을 debug → 설치 서브메뉴로 이전)
   Assets/Script/Production/ResourceManager.cs(DoorRepairStoneCost 신규)
   Assets/Script/Unit/AI/Config/TacticalBehaviorPriorityConfig.cs(TacticalBehaviorType.DoorAttack 신규)
+════════════════════════════════════════════════════════════════════════
+■ 8. 코드 리팩토링 및 최적화 (2026-08-22)
+════════════════════════════════════════════════════════════════════════
+✅ DoorSystem 스프라이트 캐싱 및 중복 룩업 제거 — Resources.Load 매 프레임 호출 방지, DoorOwnerFaction 직접 조회
+✅ UnitRegistry 공간 인덱스 최적화 — roomGrid O(1) 조회로 방 순회(O(N)) 제거
+✅ UnitGenerate SelectionMarker 더티 체크 — activeSelf 상태 비교 후 SetActive 호출
+✅ ObjectPlacementController 고스트 스프라이트 캐싱 — 모드 진입 시 불필요한 파일 로드 방지
+✅ InputManager 미사용 DI 파라미터 정리 — UnitSpriteManager 제거
+✅ UnitFunction / TacticalFSMState 임시 진단 로그 정리 — 매 프레임 샘플링 및 GC 할당 방지
+✅ BuildingControlPanel BuildCostText 할당 최적화 — StringBuilder 기반 구성
+✅ HumanWaveManager 깨진 한글 주석/로그 복구
 
 ════════════════════════════════════════════════════════════════════════
 ■ 다음에 이 시스템을 확장할 때
@@ -779,5 +790,4 @@ Unity 에디터 실행이 불가능한 환경에서 코드 리뷰/브레이스 �
    우선순위가 가장 높다.
 3. 자동 AI가 문도 스스로 공격하게 하려면 TacticalFSMState.CoreAttack 3종 메서드
    (HasCoreAttackTarget/MoveToCoreAttack/CoreAttackPerform)와 UnitFunction.OnUpdate의 코어 채널링
-   블록을 그대로 복제해
-   DoorAttack으로 만들면 된다 — 패턴은 이미 두 번(트랩/코어) 검증됐다.
+   블록을 그대로 복제해 DoorAttack으로 만들면 된다 — 패턴은 이미 두 번(트랩/코어) 검증됐다.

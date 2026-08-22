@@ -242,6 +242,98 @@ public abstract class Unit : ScriptableObject {
 
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
+
+	// Encapsulated command setters (2026-08-22 refactoring)
+	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
+	{
+		isHalted = false;
+		isStandGroundAttack = false;
+		playerMoveTarget = target;
+		isManualMoveCommand = true;
+		playerAttackTarget = null;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		pendingHaltOnArrival = markHalt;
+		pendingStandGroundOnArrival = markStandGround;
+	}
+
+	public void SetAttackCommand(Unit target)
+	{
+		playerAttackTarget = target;
+		playerMoveTarget = null;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		isHalted = false;
+		isStandGroundAttack = false;
+	}
+
+	public void SetObjectAttackCommand(Vector3Int target)
+	{
+		playerAttackObjectTarget = target;
+		playerAttackTarget = null;
+		playerMoveTarget = null;
+		isManualMoveCommand = true;
+		isHalted = false;
+		isStandGroundAttack = false;
+	}
+
+	public void ClearPlayerCommand()
+	{
+		playerMoveTarget = null;
+		playerAttackTarget = null;
+		playerInteractTarget = null;
+		isManualMoveCommand = false;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		isHalted = false;
+		pendingHaltOnArrival = false;
+		isStandGroundAttack = false;
+		pendingStandGroundOnArrival = false;
+	}
+
+	public void FinishMoveCommand()
+	{
+		if (pendingHaltOnArrival)
+		{
+			pendingHaltOnArrival = false;
+			isHalted = true;
+		}
+		if (pendingStandGroundOnArrival)
+		{
+			pendingStandGroundOnArrival = false;
+			isStandGroundAttack = true;
+		}
+		playerMoveTarget = null;
+		isManualMoveCommand = false;
+		oneTimeReactUsed = false;
+		playerCommandStuckTurns = 0;
+	}
+
+	public void AbortMoveCommand()
+	{
+		playerMoveTarget = null;
+		isManualMoveCommand = false;
+		oneTimeReactUsed = false;
+		playerCommandStuckTurns = 0;
+	}
+
+	public bool HasActivePlayerCommand()
+	{
+		return playerMoveTarget.HasValue || playerAttackTarget != null || playerInteractTarget.HasValue
+			|| isManualMoveCommand || isHalted || pendingHaltOnArrival
+			|| isStandGroundAttack || pendingStandGroundOnArrival
+			|| playerAttackObjectTarget.HasValue;
+	}
+
+	public bool ContainsPos(int x, int y)
+	{
+		if (unitType == null) return false;
+		int w = (int)unitType.footprint.x;
+		int h = (int)unitType.footprint.y;
+		return (x >= position.x && x < position.x + w &&
+				y >= position.y && y < position.y + h);
+	}
+
 	public Vector2Int position;
 	public int        currentFloor = 0;        // ?꾩옱 ?좊떅???꾩튂??痢??뺣낫
 	public Dir        currentDir   = Dir.DOWN;  // ?꾩옱 諛붾씪蹂대뒗 諛⑺뼢 (?쒖빞 湲곗?)

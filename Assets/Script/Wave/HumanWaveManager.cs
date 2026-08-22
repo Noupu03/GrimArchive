@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using Haare.Client.Routine;
 using Cysharp.Threading.Tasks;
@@ -15,8 +15,8 @@ namespace GrimArchive.Wave
     }
 
     /// <summary>
-    /// ?�류 ?�이브의 ?�이?�사?�클(발생, 목표 추적, ?�탈, 종료)???�제?�는 ?�스?�입?�다.
-    /// 기획???�칙???�라 발생조건, 목적, ?��? 구성, 종료 조건??모듈?�하??관리합?�다.
+    /// 인류 웨이브의 라이프사이클(발생, 목표 추적, 이탈, 종료)을 제어하는 시스템입니다.
+    /// 기획 원칙에 따라 발생조건, 목적, 파티 구성, 종료 조건을 모듈화하여 관리합니다.
     /// </summary>
     public class HumanWaveManager : NativeRoutine
     {
@@ -44,7 +44,7 @@ namespace GrimArchive.Wave
         private Room _targetRoom;
         private bool _retreating;
 
-        // ?�탈 지???�역 (?�시: ?�전 ?�구??StartRoom 기�? ?�치)
+        // 탈출 지점 영역 (임시: 던전 입구/StartRoom 기준 위치)
         public Vector2Int exitAreaPos;
 
         // ── 0층 사전 스폰 (웨이브 시작 전 대기 연출, 2026-07-23 사용자 요청) ──
@@ -146,7 +146,7 @@ namespace GrimArchive.Wave
             cooldownTimer = firstWaveCooldown;
             currentState = WaveState.Idle;
 
-            // Haare Framework 기�?: UniTask 기반 Native Routine 루프 ?�행
+            // Haare Framework 기준: UniTask 기반 Native Routine 루프 실행
             WaveLoop(cts).Forget();
         }
 
@@ -546,11 +546,11 @@ namespace GrimArchive.Wave
         {
             if (targetSpawner == null)
             {
-                Debug.LogError("[HumanWaveManager] Target Spawner가 ?�정?��? ?�았?�니??");
+                Debug.LogError("[HumanWaveManager] Target Spawner가 설정되지 않았습니다.");
                 return;
             }
 
-            Debug.Log("[HumanWaveManager] ?�류 ?�이�?발생! (목표물이 ?�성???�까지 ?�기합?�다)");
+            Debug.Log("[HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)");
             currentState = WaveState.Running;
 
             // 문은 이제 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐한다

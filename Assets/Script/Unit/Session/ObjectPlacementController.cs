@@ -29,6 +29,14 @@ public class ObjectPlacementController
     private bool _isTrapPlaceMode;
     private bool _isDoorRepairMode;
 
+    private Sprite _coreSprite;
+    private Sprite _trapSprite;
+    private Sprite _doorOpenSprite;
+
+    private Sprite CoreSprite => _coreSprite ??= Resources.Load<Sprite>("obj/core");
+    private Sprite TrapSprite => _trapSprite ??= Resources.Load<Sprite>("obj/trap");
+    private Sprite DoorOpenSprite => _doorOpenSprite ??= Resources.Load<Sprite>("obj/door_open");
+
     public ObjectPlacementController(GameSession gameSession, UnitGenerate unitGenerate, ResourceManager resourceManager)
     {
         _gameSession = gameSession;
@@ -44,7 +52,7 @@ public class ObjectPlacementController
         _isObjectPlaceMode = true;
 
         // 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
-        _ghost.Show(Resources.Load<Sprite>("obj/core"));
+        _ghost.Show(CoreSprite);
         LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (좌클릭: 생성)");
     }
 
@@ -56,7 +64,7 @@ public class ObjectPlacementController
         _isTrapPlaceMode = true;
 
         // 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
-        _ghost.Show(Resources.Load<Sprite>("obj/trap"));
+        _ghost.Show(TrapSprite);
         LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 좌클릭: 생성)");
     }
 
@@ -68,7 +76,7 @@ public class ObjectPlacementController
         _isTrapPlaceMode = false;
         _isDoorRepairMode = true;
 
-        _ghost.Show(Resources.Load<Sprite>("obj/door_open"));
+        _ghost.Show(DoorOpenSprite);
         LogHelper.Log(LogHelper.GAME, $"문 재설치 모드 진입 (돌 {ResourceManager.DoorRepairStoneCost}개 소모, 파괴된 문 자리만 선택 가능, 우클릭: 설치)");
     }
 

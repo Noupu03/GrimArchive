@@ -61,7 +61,7 @@ public class InputManager : MonoBehaviour
 	private ObjectPlacementController _objectPlacement;
 
 	[Inject]
-	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager, UnitSpriteManager unitSpriteManager)
+	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager)
 	{
 		_unitGenerate = unitGenerate;
 		_gameSession = gameSession;
@@ -177,25 +177,9 @@ public class InputManager : MonoBehaviour
 		foreach (var u in selectedUnits)
 		{
 			if (u == null) continue;
-			bool hasCommand = u.playerMoveTarget.HasValue || u.playerAttackTarget != null || u.playerInteractTarget.HasValue
-				|| u.isManualMoveCommand || u.isHalted || u.pendingHaltOnArrival
-				|| u.isStandGroundAttack || u.pendingStandGroundOnArrival
-				|| u.playerAttackObjectTarget.HasValue;
-			if (!hasCommand) continue;
+			if (!u.HasActivePlayerCommand()) continue;
 
-			u.playerMoveTarget = null;
-			u.playerAttackTarget = null;
-			u.playerInteractTarget = null;
-			u.isManualMoveCommand = false;
-			// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령과 그 채널링도 함께 취소한다.
-			u.playerAttackObjectTarget = null;
-			u.currentAttackObjectTarget = null;
-			// "명령 해제"는 "정지"(동상)/"제자리 공격" 상태를 풀 수 있는 두 예외 중 하나다(사용자 명시,
-			// 2026-08-20 — 제자리 공격도 동일 규칙 적용, 2026-08-22).
-			u.isHalted = false;
-			u.pendingHaltOnArrival = false;
-			u.isStandGroundAttack = false;
-			u.pendingStandGroundOnArrival = false;
+			u.ClearPlayerCommand();
 			count++;
 		}
 
@@ -211,13 +195,7 @@ public class InputManager : MonoBehaviour
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{
-		if (u == null || u.unitType == null) return false;
-
-		int w = (int)u.unitType.footprint.x;
-		int h = (int)u.unitType.footprint.y;
-
-		return (pos.x >= u.position.x && pos.x < u.position.x + w &&
-				pos.y >= u.position.y && pos.y < u.position.y + h);
+		return u != null && u.ContainsPos(pos.x, pos.y);
 	}
 
 	private Unit FindUnitAtGridPos(Vector3Int gridPos, int currentFloor)
@@ -326,12 +304,7 @@ public class InputManager : MonoBehaviour
 					(selUnit is Human && targetUnit is Monster);
 				if (!isEnemy) continue;
 
-				selUnit.playerAttackTarget = targetUnit;
-				selUnit.playerMoveTarget = null;
-				selUnit.playerAttackObjectTarget = null;
-				selUnit.currentAttackObjectTarget = null;
-				selUnit.isHalted = false;
-				selUnit.isStandGroundAttack = false;
+				selUnit.SetAttackCommand(targetUnit);
 				anyAttacked = true;
 			}
 
@@ -351,20 +324,15 @@ public class InputManager : MonoBehaviour
 				if (selUnit == null || selUnit.Health.hp <= 0) continue;
 				if (!PlayerCommandFSMState.IsPendingObjectAttackValid(selUnit, gridPos)) continue;
 
-				selUnit.playerAttackTarget = null;
-				selUnit.playerMoveTarget = null;
 				// 2*2 통로(플레이어 문 2칸 + 야생 문 2칸)에서 야생 문 공격 명령을 내리면 플레이어
 				// 몬스터가 자기 진영 문 앞에서 멈춰버리는 버그(사용자 신고, 2026-08-22) — 원인은 이
 				// 플래그가 false라 RoomConfinedMovement가 "플레이어 명령 중이 아님"으로 보고 자기
 				// 진영 문 타일조차 walkable에서 제외했기 때문이다(방 제한 규칙 "오직 플레이어의
-				// 명령에 의해서만 다른 방으로 이동 가능"의 예외 조건). true로 켜서 일반 이동 명령과
-				// 동일하게 방 경계·문 타일 제한을 우회시킨다 — 상대 진영 문 타일 자체는 여전히
-				// IsBlockedByClosedDoor(진영 불일치)가 막으므로, 자기 문 위까지만 접근해 인접
-				// 공격하게 된다.
-				selUnit.isManualMoveCommand = true;
-				selUnit.isHalted = false;
-				selUnit.isStandGroundAttack = false;
-				selUnit.playerAttackObjectTarget = gridPos;
+				// 명령에 의해서만 다른 방으로 이동 가능"의 예외 조건). SetObjectAttackCommand가 내부적으로
+				// isManualMoveCommand를 true로 켜서 일반 이동 명령과 동일하게 방 경계·문 타일 제한을 우회시킨다 —
+				// 상대 진영 문 타일 자체는 여전히 IsBlockedByClosedDoor(진영 불일치)가 막으므로, 자기 문 위까지만
+				// 접근해 인접 공격하게 된다.
+				selUnit.SetObjectAttackCommand(gridPos);
 				anyIssued = true;
 			}
 
@@ -442,16 +410,7 @@ public class InputManager : MonoBehaviour
 
 			// "정지"(동상)/"제자리 공격" 해제(2026-08-20/2026-08-22) — 새 직접 명령은 두 강제 상태
 			// 모두를 풀 수 있는 예외다(사용자 명시).
-			unit.isHalted = false;
-			unit.isStandGroundAttack = false;
-			unit.playerMoveTarget = new Vector2Int(gridPos.x, gridPos.y);
-			unit.isManualMoveCommand = true;
-			unit.playerAttackTarget = null;
-			// 기초문서.md 피드백(2026-08-22) — 새 이동 명령은 진행 중이던 코어/문 공격 명령도 덮어쓴다.
-			unit.playerAttackObjectTarget = null;
-			unit.currentAttackObjectTarget = null;
-			unit.pendingHaltOnArrival = markHaltOnArrival;
-			unit.pendingStandGroundOnArrival = markStandGroundOnArrival;
+			unit.SetMoveCommand(new Vector2Int(gridPos.x, gridPos.y), markHaltOnArrival, markStandGroundOnArrival);
 			issuedCount++;
 		}
 

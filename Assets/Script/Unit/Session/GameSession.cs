@@ -205,23 +205,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 모든 방에 코어를 하나씩 자동
                 // 생성한다(이전엔 보스방 1개 한정). HumanWaveManager는 WaveData.targetRoomRole/
                 // targetRoomId로 지정된 방의 Room.CorePosition을 직접 목표로 삼는다.
-                SpawnAllRoomCores();
-                // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청): 던전 1층 시작방(플레이어=몬스터
-                // 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 무상으로 하나씩 미리 깔아둔다.
-                SpawnInitialBuildings();
-                // 안개 시스템(2026-07-28, 사용자 요청): 위에서 스폰된 모든 초기 콘텐츠(야생 몬스터/
-                // 던전 코어/건물)를 가리도록 깐다 — 각 방의 Room.FogRevealed 최종 상태를 여기서 먼저
-                // 확정해야, 바로 다음의 SpawnTorches가 "안개 안 걷힌 방은 지금 스폰하지 않고 대기"를
-                // 정확히 판단할 수 있다(사용자 요청, 2026-07-28 "안개가 있는 방에 토치 미리 생성하지
-                // 말고, 안개 걷히고 나서 토치 생성하게 해줘" — 순서를 InitializeFogOfWar → SpawnTorches
-                // 로 바꾼 이유).
+                // 안개 시스템 초기화 (2026-08-22 코어/건물이 횃불 자리 뺏지 않게 먼저 스폰)
                 _fogOfWarSystem.Initialize();
-                // 횃불 배치(2026-07-28, 사용자 요청; 2026-08-21 벽걸이 방식으로 재설계): 시작방을
-                // 제외한 모든 방(0층 포함, 모든 층 동일 규칙)의 각 청크마다 최대 하나씩(Prefabs/
-                // Torch.prefab, Light2D 포함) — 복도(게이트)가 뚫리지 않은 벽이 하나도 없는 청크는
-                // 건너뛴다(FogOfWarSystem.TryFindTorchTilePos 참고). 안개가 안 걷힌 방은 즉시 스폰하지
-                // 않고 대기열에 넣는다.
                 _fogOfWarSystem.SpawnTorches();
+
+                SpawnAllRoomCores();
+                // 자원/유닛 생산 건물(MVP, 2026-07-27)
+                SpawnInitialBuildings();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -1182,6 +1172,30 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 게임 시작 시 모든 방(야생 포함, 0층 제외)에
     // 코어를 하나씩 자동 생성한다. 이전엔 보스방 1개뿐이었다(SpawnInitialDungeonCore, 폐기).
     // SpawnWildRoomGuards와 동일한 "방 안 랜덤 위치 + IsAreaClear 재시도" 패턴을 재사용한다.
+    // 2026-08-22 초기 생성 시 문이나 횃불 바로 앞을 막지 않도록 판별하는 메서드
+    private bool IsGoodForInitialSpawn(Vector3Int gridPos, Vector2 footprint)
+    {
+        int fw = (int)footprint.x;
+        int fh = (int)footprint.y;
+
+        for (int dx = -1; dx <= fw; dx++)
+        {
+            for (int dy = -1; dy <= fh; dy++)
+            {
+                Vector3Int checkPos = new Vector3Int(gridPos.x + dx, gridPos.y + dy, gridPos.z);
+                
+                // 횃불이 있는 위치인지 확인
+                if (_fogOfWarSystem != null && _fogOfWarSystem.ActiveTorchPositions.Contains(checkPos))
+                    return false;
+                
+                // 문/게이트 바로 앞인지 확인 (통로 차단 방지)
+                if (_doorSystem != null && _doorSystem.IsDoorTile(checkPos))
+                    return false;
+            }
+        }
+        return true;
+    }
+
     private void SpawnAllRoomCores()
     {
         if (_unitGenerate == null || allRooms == null) return;
@@ -1194,7 +1208,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             Vector2Int spawnPos = room.GetRandomPosInRoom();
             int attempts = 0;
             while ((objectGrid.ContainsKey(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor))
-                    || !_unitGenerate.IsAreaClear(spawnPos, Vector2.one, room.Floor)) && attempts < 20)
+                    || !_unitGenerate.IsAreaClear(spawnPos, Vector2.one, room.Floor) || !IsGoodForInitialSpawn(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor), Vector2.one)) && attempts < 20)
             {
                 spawnPos = room.GetRandomPosInRoom();
                 attempts++;
@@ -1262,7 +1276,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             Vector2Int pos = GetRandomStartRoomPos(Vector2.one, floorIdx);
             Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
-            if (_buildingManager.CanInstallAt(gridPos)) return gridPos;
+            if (_buildingManager.CanInstallAt(gridPos) && IsGoodForInitialSpawn(gridPos, Vector2.one)) return gridPos;
         }
         return null;
     }

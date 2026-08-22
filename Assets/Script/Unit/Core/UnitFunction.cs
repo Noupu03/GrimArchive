@@ -1139,11 +1139,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				else if (isDoor && targetObj.DoorHp > 0f)
 				{
-					// 임시 진단 로그(2026-08-22, 사용자 신고 "접근은 하는데 채널링이 안 걸림" 원인
-					// 파악용) — 매 프레임 찍으면 스팸이라 대략 초당 1회 정도로 샘플링.
-					if (UnityEngine.Random.value < 0.02f)
-						LogHelper.Log(LogHelper.GAME, $"[진단:문공격] {unitType?.typeName} 채널링 중 — DoorHp={targetObj.DoorHp:F0}, deltaTime={deltaTime:F3}");
-
 					// 고정 초당 데미지(코어와 동일한 설계, 2026-08-22 "문도 동일") — DoorSystem.
 					// DoorAttackDamagePerSecond 참고.
 					targetObj.DoorHp = Mathf.Max(0f, targetObj.DoorHp - DoorSystem.DoorAttackDamagePerSecond * deltaTime);
@@ -1155,9 +1150,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				else
 				{
-					// 임시 진단 로그 — 왜 채널링이 안 걸리는지(코어도 문도 아니거나 이미 파괴된 것으로
-					// 판정됐는지) 확인용.
-					LogHelper.Warning(LogHelper.GAME, $"[진단:문공격] {unitType?.typeName} 채널링 실패 — isCore={isCore}, isDoor={isDoor}, CoreHp={targetObj.CoreHp:F0}, DoorHp={targetObj.DoorHp:F0}, Tags={(targetObj.Tags != null ? string.Join(",", targetObj.Tags) : "null")}");
 					currentAttackObjectTarget = null; // 이미 파괴됐거나 해당 없는 오브젝트
 				}
 			}
