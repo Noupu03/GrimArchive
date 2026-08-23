@@ -207,7 +207,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
+    hitEffectPrefab: {fileID: 7426814093425917336, guid: a137e096ff7bcfa4a96212a7d36f3e58, type: 3}
     hitShape: LINE
     hitRange: 4
     hitWidth: 1

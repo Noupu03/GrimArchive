@@ -406,6 +406,21 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 - `skillArchetype`이 비어있으면 `SkillAction_Generic`으로 폴백한다 — 몬스터 기본 스킬은 이게
   정상이지만, 값이 있는데 `switch`의 case에 없으면 `Debug.LogWarning`이 뜬다. 2026-08-23에 클래스
   프리팹 8종 전부가 이 필드를 잃어버린 채 전원 Generic으로 돌던 사고가 있었다.
+- **스킬 타겟팅은 서로 독립적인 두 축이다**(`SkillTargeting.cs`, 2026-08-23 신설, 사용자 제안).
+  `SkillOrigin`(판정을 어디에 만드는가 — `SelfArea`/`Projectile`/`TargetArea`)과
+  `SkillAffinity`(누구를 대상으로 하는가 — `Enemy`/`Ally`)를 **한 enum으로 합치지 말 것.** 처음엔
+  4분류 하나로 만들었다가 `Support`만 대상 진영이라 축이 섞여, "아군 좌표 기준 광역 힐" 같은 조합을
+  표현할 수 없어 같은 날 다시 나눴다. 효과의 성격(피해/회복/버프/디버프)은 또 다른 축이므로 필요해
+  지면 세 번째 enum을 나란히 두면 된다 — 기존 두 축에 끼워넣지 말 것.
+- **새 스킬을 만들면 두 축을 반드시 확인할 것** — 기본값이 `SelfArea` + `Enemy`라, 아군 대상 스킬에서
+  `Affinity`를 빠뜨리면 "적이 사거리에 있어야만 발동"하는 옛 버그가 그대로 재현된다.
+- 대상 선정과 사거리 판정은 `SkillAction.ResolveTarget`(진영 축) → `CanExecuteAgainst`(판정 축)
+  두 단계로 통합돼 있고, `CombatFSMState`/`StandGroundAttackFSMState`/`PlayerCommandFSMState` 세 곳이
+  모두 이 순서로만 호출한다 — 게이트 로직을 세 곳에 복붙하던 예전 방식으로 되돌리지 말 것.
+  `Execute`가 받는 `target`은 이제 "`ResolveTarget`이 돌려준 대상"이라 아군일 수도 있다.
+- **`SkillAction` 인스턴스는 같은 유닛 타입 전체가 공유한다** — 스킬 안에 캐시나 상태를 두려면
+  반드시 소유자(`unit`)를 키에 포함할 것(`SkillAction_Heal`의 1틱 대상 캐시가 그 예). 개인 상태는
+  원칙적으로 유닛 쪽(`unit.CombatState.State` 등)에 저장한다.
 - 파이어볼은 **투사체가 아니라 지정 좌표에 지연 착탄하는 메테오**다(2026-08-23 사용자 확정 —
   "유닛에게서 발사되는 형식이 아님 / 그 지점에 생성되는 방식임 / 좌표 선택 후 일정 시간이 지난 뒤에
   떨어지는 느낌이지, 공격하자마자 범위 판정과 공격이 동시에 일어나면 안 됨"). 흐름은

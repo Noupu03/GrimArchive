@@ -19,6 +19,10 @@ public class SkillAction_GroundAoE : SkillAction
     public override int HitWidth => _d.threatWidth > 0 ? _d.threatWidth : (_d.hitWidth > 0 ? _d.hitWidth : 3);
     public override int HitDepth => _d.threatDepth > 0 ? _d.threatDepth : (_d.hitDepth > 0 ? _d.hitDepth : 3);
 
+    // 시전자 앞이 아니라 대상이 서 있는 좌표에 판정을 만든다 — 전방 히트박스가 아니라 대상까지의
+    // 거리로 사거리를 따진다(파이어볼도 GroundAoE 파생이라 그대로 적용된다).
+    public override SkillOrigin Origin => SkillOrigin.TargetArea;
+
     // AI(CombatFSMState)가 원거리 사거리 내 적을 감지할 수 있도록 [너비 x 사거리] 히트박스 반환
     public override Hitbox BuildSkillHitbox(Unit unit)
     {

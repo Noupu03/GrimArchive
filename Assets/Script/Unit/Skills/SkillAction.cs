@@ -16,6 +16,41 @@ public abstract class SkillAction
 	public virtual int HitWidth => 1;
 	public virtual int HitDepth => 1;
 
+	// ─── 타겟팅 두 축 (2026-08-23, 자세한 설명은 SkillTargeting.cs) ──────
+	// 기본값은 가장 흔한 조합인 "시전자 앞 히트박스로 적을 때린다".
+
+	/// <summary>판정을 어디에 만드는가.</summary>
+	public virtual SkillOrigin Origin => SkillOrigin.SelfArea;
+
+	/// <summary>누구를 대상으로 하는가.</summary>
+	public virtual SkillAffinity Affinity => SkillAffinity.Enemy;
+
+	/// <summary>
+	/// 이 스킬이 실제로 겨눌 대상을 결정한다. AI는 "가장 가까운 적"만 알고 있으므로, 아군을 대상으로
+	/// 하는 스킬은 여기서 자기 대상을 직접 찾아 돌려준다(진영 축이 소비되는 지점). 대상이 없으면 null.
+	/// 반환값은 그대로 CanExecuteAgainst와 Execute로 전달되므로, 대상 탐색이 한 번만 일어난다.
+	/// </summary>
+	public virtual Unit ResolveTarget(Unit unit, Unit nearestEnemy) => nearestEnemy;
+
+	/// <summary>
+	/// 지금 이 스킬을 실제로 쓸 수 있는 위치인가. AI 쪽(CombatFSMState/StandGroundAttackFSMState/
+	/// PlayerCommandFSMState)이 스킬을 고른 뒤 실행 직전에 부르는 공통 관문이다 — 예전에는 세 곳이
+	/// 각자 "적이 시전자 앞 히트박스에 들어왔는가"만 검사해서, 아군 대상 스킬까지 그 잣대에 걸렸다.
+	/// 인자로 받는 target은 ResolveTarget이 돌려준 "이미 해결된 대상"이다(적일 수도 아군일 수도 있다).
+	/// </summary>
+	public virtual bool CanExecuteAgainst(Unit unit, Unit target, float dist)
+	{
+		if (unit == null || target == null) return false;
+
+		// 적을 시전자 기준 히트박스로 때리는 방식만 히트박스 검사를 거친다.
+		// 그 외(대상 좌표 기준 / 아군 대상)는 대상까지의 거리로 판단한다.
+		if (Affinity == SkillAffinity.Enemy && Origin != SkillOrigin.TargetArea)
+			return GetEnemiesInHitboxContains(unit, BuildSkillHitbox(unit), target);
+
+		int range = HitRange > 0 ? HitRange : 1;
+		return AIMovementHelper.ChebyshevDistance(unit.position, target.position) <= range;
+	}
+
 	public virtual Hitbox BuildSkillHitbox(Unit unit)
 	{
 		if (HitShape == ThreatShape.RECT)

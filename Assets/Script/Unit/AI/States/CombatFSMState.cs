@@ -110,8 +110,9 @@ public class CombatFSMState : IFSMState
 
 		if (bestSkill != null)
 		{
-			// 키팅: 원거리 스킬이고 적이 위험거리 이하
-			if (bestSkill.HitRange >= rangedMin)
+			// 키팅: 원거리 스킬이고 적이 위험거리 이하 — 단, 아군 대상 스킬(치유/보호막/파티버프)이
+			// 최우선으로 뽑혔다는 건 아군이 위독하다는 뜻이므로 물러나지 말고 그 자리에서 바로 쓴다.
+			if (bestSkill.Affinity != SkillAffinity.Ally && bestSkill.HitRange >= rangedMin)
 			{
 				int dangerDist = bestSkill.HitRange / 2;
 				if (chebDist <= dangerDist && unit.CombatState.State.evadeCooldown <= 0f)
@@ -123,10 +124,12 @@ public class CombatFSMState : IFSMState
 				}
 			}
 
-			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
-			if (SkillAction.GetEnemiesInHitboxContains(unit, skillBox, target))
+			// 스킬이 실제로 겨눌 대상을 먼저 결정한다 — 아군 대상 스킬(치유/보호막/버프)은 여기서
+			// 자기 대상을 직접 찾아 돌려주므로, 아래 사거리 판정과 실행이 그 대상을 그대로 쓴다.
+			Unit resolved = bestSkill.ResolveTarget(unit, target);
+			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
-				bestSkill.Execute(unit, target, minDist);
+				bestSkill.Execute(unit, resolved, minDist);
 				unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 				unit.Generate?.UpdateUnitSpriteForDirection(unit);
 				return BTStatus.Running;

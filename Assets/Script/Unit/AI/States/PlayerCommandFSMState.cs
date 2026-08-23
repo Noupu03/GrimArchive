@@ -156,10 +156,11 @@ public class PlayerCommandFSMState : IFSMState
 
 		if (best != null)
 		{
-			Hitbox box = best.BuildSkillHitbox(unit);
-			if (SkillAction.GetEnemiesInHitboxContains(unit, box, target))
+			// 스킬이 겨눌 대상 결정(아군 대상 스킬은 여기서 자기 대상을 찾는다) → 사거리 판정 → 실행.
+			Unit resolved = best.ResolveTarget(unit, target);
+			if (best.CanExecuteAgainst(unit, resolved, chebDist))
 			{
-				best.Execute(unit, target, chebDist);
+				best.Execute(unit, resolved, chebDist);
 				return BTStatus.Running;
 			}
 		}

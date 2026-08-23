@@ -60,9 +60,10 @@ public class StandGroundAttackFSMState : IFSMState
 		// 사거리 밖이면 그냥 대기 — "절대 이동하지 않는다"는 명시된 조건이라 키팅/접근 이동을 전혀 하지 않는다.
 		if (bestSkill != null)
 		{
-			Hitbox skillBox = bestSkill.BuildSkillHitbox(unit);
-			if (SkillAction.GetEnemiesInHitboxContains(unit, skillBox, target))
-				bestSkill.Execute(unit, target, minDist);
+			// 스킬이 겨눌 대상 결정(아군 대상 스킬은 여기서 자기 대상을 찾는다) → 사거리 판정 → 실행.
+			Unit resolved = bestSkill.ResolveTarget(unit, target);
+			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
+				bestSkill.Execute(unit, resolved, minDist);
 		}
 
 		unit.Generate?.UpdateUnitSpriteForDirection(unit);

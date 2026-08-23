@@ -29,9 +29,9 @@ MonoBehaviour:
     - unitTypeName: "\uB3C4\uC801"
       count: 0
     - unitTypeName: "\uB9C8\uBC95\uC0AC"
-      count: 2
-    - unitTypeName: "\uBB34\uB3C4\uAC00"
       count: 0
+    - unitTypeName: "\uBB34\uB3C4\uAC00"
+      count: 2
     - unitTypeName: "\uC0AC\uC81C"
       count: 0
     - unitTypeName: "\uC131\uAE30\uC0AC"

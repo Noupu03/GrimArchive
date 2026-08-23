@@ -21,6 +21,10 @@ public class SkillAction_Curse : SkillAction
     public override int HitWidth => _d.hitWidth > 0 ? _d.hitWidth : (_d.threatWidth > 0 ? _d.threatWidth : 1);
     public override int HitDepth => _d.hitDepth > 0 ? _d.hitDepth : (_d.threatDepth > 0 ? _d.threatDepth : 1);
 
+    // 이름은 디버프지만 대상은 적이고(Affinity=Enemy), 판정도 시전자 기준 전방 히트박스다
+    // (Origin=SelfArea, Execute의 GetEnemiesInHitbox) — 즉 일반 공격과 완전히 같은 조합이라
+    // 기본값 그대로면 된다. 효과가 피해가 아니라 스탯 감소라는 것은 타겟팅과는 다른 축의 이야기다.
+
     public override bool IsAvailable(Unit unit)
     {
         if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;

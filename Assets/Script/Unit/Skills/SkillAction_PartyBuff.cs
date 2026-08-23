@@ -21,6 +21,13 @@ public class SkillAction_PartyBuff : SkillAction
     public override int HitWidth => 1;
     public override int HitDepth => 1;
 
+    // 아군 전체 대상 — 적이 사거리 안에 있는지와 무관하게 발동한다.
+    public override SkillAffinity Affinity => SkillAffinity.Ally;
+
+    // 특정 한 명이 아니라 같은 층 아군 전체가 대상이라, 사거리 판정의 기준점으로 시전자 자신을 돌려준다
+    // (거리 0이므로 항상 통과한다). 실제 대상 순회는 Execute가 한다.
+    public override Unit ResolveTarget(Unit unit, Unit nearestEnemy) => unit;
+
     public override bool IsAvailable(Unit unit)
     {
         if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
@@ -62,6 +69,10 @@ public class SkillAction_PartyBuff : SkillAction
 
                         applied[u] = (pBonus, mBonus);
                         u.UI?.ShowFloatingTextAt(new Vector3(u.position.x + 0.5f, u.position.y + 1f, 0f), "공격력 증가!", Color.cyan, 1.2f);
+
+                        // 버프 이펙트 — 버프받은 아군 각자의 위치에 터진다(2026-08-23 추가).
+                        if (_d.hitEffectPrefab != null)
+                            unit.VFX?.Spawn(_d.hitEffectPrefab, u);
                     }
                 }
                 else

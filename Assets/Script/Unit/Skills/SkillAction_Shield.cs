@@ -20,6 +20,13 @@ public class SkillAction_Shield : SkillAction
     public override int HitWidth => 1;
     public override int HitDepth => 1;
 
+    // 아군 대상 — 적이 사거리 안에 있는지와 무관하게 발동한다. (Origin은 기본값 SelfArea:
+    // 시전자 기준 사거리 안에서 대상을 찾는다.)
+    public override SkillAffinity Affinity => SkillAffinity.Ally;
+
+    // Heal과 달리 IsAvailable/GetPriority가 대상을 묻지 않으므로 탐색은 여기 한 번뿐이다(캐시 불필요).
+    public override Unit ResolveTarget(Unit unit, Unit nearestEnemy) => FindShieldTarget(unit);
+
     public Unit FindShieldTarget(Unit unit, int maxRange = -1)
     {
         if (unit == null || unit.Session == null || unit.Session.units == null) return unit;
@@ -62,7 +69,11 @@ public class SkillAction_Shield : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        Unit targetAlly = FindShieldTarget(unit) ?? unit;
+        // AI 경로에서는 ResolveTarget이 찾아 넘겨준 아군이 그대로 들어온다(탐색 재실행 없음).
+        // 테스트처럼 직접 호출해 적을 넘기는 경우가 있으므로, 아군이 아니면 스스로 다시 찾는다.
+        Unit targetAlly = (target != null && target.Health != null && target.Health.hp > 0 && !unit.IsEnemy(target))
+            ? target
+            : (FindShieldTarget(unit) ?? unit);
 
         var threat = ThreatTileData.Create();
         threat.shape = ThreatShape.LINE;
@@ -79,6 +90,11 @@ public class SkillAction_Shield : SkillAction
                     targetAlly.Health.maxHp += boost;
                     targetAlly.Health.hp += boost;
                     targetAlly.UI?.ShowFloatingTextAt(new Vector3(targetAlly.position.x + 0.5f, targetAlly.position.y + 1f, 0f), "보호막 +" + boost.ToString("F0"), Color.cyan, 1.2f);
+
+                    // 보호막 이펙트 — 대상 아군 위치에 터진다(2026-08-23 추가, 치유와 동일한 누락이었음).
+                    if (_d.hitEffectPrefab != null)
+                        unit.VFX?.Spawn(_d.hitEffectPrefab, targetAlly);
+
                     ApplyShieldRollbackAsync(targetAlly, boost, duration).Forget();
                 }
             },
