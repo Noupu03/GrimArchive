@@ -3,8 +3,9 @@ using UnityEngine.InputSystem;
 
 // 입력 스킴 중앙화(2026-08-21, 사용자 요청 "wasd, 마우스 휠, 스페이스바, 마우스 좌클릭 우클릭, 0123
 // 속도조절만 남기고 전부 없애줘" 정리 이후 "구조적 제안도 너가 개선해봐") — 이 게임이 실제로 쓰는
-// 입력은 정확히 이것뿐이다: WASD(카메라 이동) / 마우스 휠(줌) / 스페이스바(일시정지) / 0~3(게임 속도)
-// / 좌클릭 / 우클릭 / Ctrl(선택 추가 모디파이어). 예전엔 이 입력들을 InputManager/CameraController/
+// 입력은 정확히 이것뿐이다: WASD(카메라 이동) / 마우스 휠(줌) / 스페이스바(일시정지) / 1~4(게임 속도
+// 0.5x/1.0x/1.5x/2.0x, 2026-08-23 사용자 요청으로 0~3에서 재배정) / 좌클릭 / 우클릭 / Ctrl(선택
+// 추가 모디파이어). 예전엔 이 입력들을 InputManager/CameraController/
 // BuildPlacementController/ObjectPlacementController/MonsterPlacementController 5곳이 각자
 // Keyboard.current.xKey / Mouse.current.yButton을 직접 폴링해서 흩어져 있었다 — "지금 이 게임이 정확히
 // 어떤 입력을 쓰는지" 감사하려면 5개 파일을 다 grep해야 했다(이번 정리 작업 자체가 그 비용을 보여줌).
@@ -39,11 +40,11 @@ public static class GameInputScheme
     // ── 일시정지(스페이스바) ──
     public static bool PausePressedThisFrame => Kb != null && Kb.spaceKey.wasPressedThisFrame;
 
-    // ── 게임 속도(0~3) ──
-    public static bool Speed0PressedThisFrame => Kb != null && Kb.digit0Key.wasPressedThisFrame;
-    public static bool Speed1PressedThisFrame => Kb != null && Kb.digit1Key.wasPressedThisFrame;
-    public static bool Speed2PressedThisFrame => Kb != null && Kb.digit2Key.wasPressedThisFrame;
-    public static bool Speed3PressedThisFrame => Kb != null && Kb.digit3Key.wasPressedThisFrame;
+    // ── 게임 속도(1~4 → 0.5x/1.0x/1.5x/2.0x, 2026-08-23 사용자 요청으로 0~3에서 재배정) ──
+    public static bool Speed05PressedThisFrame => Kb != null && Kb.digit1Key.wasPressedThisFrame;
+    public static bool Speed10PressedThisFrame => Kb != null && Kb.digit2Key.wasPressedThisFrame;
+    public static bool Speed15PressedThisFrame => Kb != null && Kb.digit3Key.wasPressedThisFrame;
+    public static bool Speed20PressedThisFrame => Kb != null && Kb.digit4Key.wasPressedThisFrame;
 
     // ── 선택 추가 모디파이어(Ctrl, 좌/우 구분 없음) ──
     public static bool SelectAddHeld => Kb != null && (Kb.leftCtrlKey.isPressed || Kb.rightCtrlKey.isPressed);

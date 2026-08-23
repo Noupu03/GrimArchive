@@ -332,7 +332,14 @@ namespace GrimArchive.Wave
         // DungeonEntranceSystem이 그대로 이어받아 쓸 행이라 ResolveStairPositions가 구한
         // floor0StairPos.y와 통일한다(입구~계단까지 한 행에서 직선으로만 움직이면 되게).
         private const int DungeonEntranceHiddenChunkCenterX = 4; // 청크0(숨김) 로컬 중앙.
-        private const int DungeonEntranceRoomEntryX = 12;        // 청크1(가시 영역 최좌측) 중앙.
+        // 대기 포메이션 우측 이동(2026-08-23 사용자 요청 "0층에서의 대기 포메이션 자체를 좀더
+        // 우측으로 옮겨줘. 안개에 가려진다") — 예전엔 청크1(가시 영역 최좌측) 중앙(12)이었는데,
+        // DungeonEntranceSystem의 대형은 이 값(선두 랭크 위치)에서 뒤로 갈수록(원거리딜러 랭크가
+        // 가장 뒤) RankSpacingX(2)*랭크수(최대 2)=최대 4칸까지 밀려나 최후미가 8(=청크1의 시작=
+        // FogOfWarSystem.Floor0HiddenFogPadding 확장 전 기준으로도 숨은 청크 바로 옆 경계)까지
+        // 닿아 있어 안개 경계에 걸려 보였다. 4칸(대형 전체 깊이만큼) 더 밀어 최후미도 안개 경계에서
+        // 충분히 떨어지게 한다.
+        private const int DungeonEntranceRoomEntryX = 16;        // 청크1/2 경계 — 대형 전체가 안개에서 떨어짐.
 
         private Vector2Int FindSpawnPosInHiddenChunk(int rowY)
         {

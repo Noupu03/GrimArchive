@@ -456,28 +456,28 @@ public class InputManager : MonoBehaviour
 				? 0.0001f
 				: _gameSession.currentGameSpeed;
 		}
-		if (GameInputScheme.Speed0PressedThisFrame)
+		if (GameInputScheme.Speed05PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 0.5f;
 			if (!_gameSession.isPaused) Time.timeScale = 0.5f;
 		}
 
-		if (GameInputScheme.Speed1PressedThisFrame)
+		if (GameInputScheme.Speed10PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 1f;
 			if (!_gameSession.isPaused) Time.timeScale = 1f;
 		}
 
-		if (GameInputScheme.Speed2PressedThisFrame)
+		if (GameInputScheme.Speed15PressedThisFrame)
+		{
+			_gameSession.currentGameSpeed = 1.5f;
+			if (!_gameSession.isPaused) Time.timeScale = 1.5f;
+		}
+
+		if (GameInputScheme.Speed20PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 2f;
 			if (!_gameSession.isPaused) Time.timeScale = 2f;
-		}
-
-		if (GameInputScheme.Speed3PressedThisFrame)
-		{
-			_gameSession.currentGameSpeed = 3f;
-			if (!_gameSession.isPaused) Time.timeScale = 3f;
 		}
 	}
 

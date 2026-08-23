@@ -94,7 +94,7 @@ public class UIManager : MonoRoutine, ICustomPanel
         int y = 50; // 좌상단 FPS 카운터(CoreCanvas의 FPSText, y 10~40)와 안 겹치게 그 아래부터 시작.
 
         string line1 = $"게임 속도: {_gameSession.currentGameSpeed}x {(_gameSession.isPaused ? "<color=red>[일시정지]</color>" : "")}";
-        const string line2 = "Space: 일시정지 | 0/1/2/3: 배속(0.5x/1x/2x/3x)";
+        const string line2 = "Space: 일시정지 | 1/2/3/4: 배속(0.5x/1.0x/1.5x/2.0x)";
 
         GUIStyle line1Style = GetSpeedIndicatorStyle();
         GUIStyle line2Style = GetSpeedIndicatorHintStyle();
