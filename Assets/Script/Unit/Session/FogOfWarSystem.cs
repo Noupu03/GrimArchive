@@ -82,6 +82,15 @@ public class FogOfWarSystem
             if (room != null) room.FogRevealed = room.Floor == 0;
         }
 
+        // 0층 숨은 스폰 청크 상시 안개(2026-08-23 사용자 요청, "던전 입구 구조 프로그래머 지시서" —
+        // "1x3 청크 왼쪽에 플레이어에게 보이지 않는 1x1 청크를 붙여") — 0층은 위에서 보듯 안개 개념
+        // 자체가 없어(FogRevealed 항상 true) 이 클래스의 나머지 로직을 전혀 안 타는데, 그동안
+        // "안 보임"은 CameraController.Floor0HiddenChunksX(카메라가 그 칸까지 못 가게 관찰 범위 자체를
+        // 제한)로만 구현돼 있었다. 카메라 클램프는 안전장치이지 렌더링 차단이 아니므로, 이 청크만
+        // 예외적으로 하드코딩 안개를 씌운다 — 방 기반 Reveal 시스템 어디에도 등록하지 않아 어떤
+        // 트리거로도 영원히 안 걷힌다.
+        SpawnPermanentFogForFloor0HiddenChunk();
+
         for (int floorIndex = 1; floorIndex < cmap.map.floors.Length; floorIndex++)
         {
             Room startRoom = null;
@@ -321,6 +330,43 @@ public class FogOfWarSystem
         }
     }
 
+    // 0층 최좌측 숨은 스폰 청크(청크 좌표 (0,0), 타일 로컬 x∈[0,8) — HumanWaveManager.
+    // DungeonEntranceHiddenChunkCenterX=4가 이 청크의 로컬 중앙을 가리키는 것과 동일한 청크) 전용
+    // 상시 안개(2026-08-23). Initialize()가 한 번만 호출한다 — 방 기반 Reveal 트리거(RevealRoomFog 등)
+    // 대상이 아니라서 _roomFogVisuals에 등록하지 않고 스폰만 하고 끝(SpawnFogForEmptyChunks의 "빈 청크"
+    // 영구 안개와 동일한 패턴). 마지막에 이 청크가 반영된 0층 전용 벽+안개 통합 셰도우도 함께 굽는다
+    // (RebuildFloorFogShadowCasters는 원래 1층 이상만 돌았다 — 0층은 안개가 전혀 없었으므로).
+    private const int Floor0HiddenChunkTiles = 8; // 청크 1개 = 8x8 타일(이 파일의 다른 청크 순회들과 동일 상수).
+    // 상/하/좌 여유 안개(2026-08-23 사용자 요청 "0층 상, 하, 좌 부분 안개를 1칸씩 늘려줘") — 청크
+    // 경계에 정확히 맞춰 깔면 카메라 클램프/벽 렌더링과의 미세한 오차로 가장자리에 틈이 보일 위험이
+    // 있어 안전 여유분을 둔다. 우측(=보이는 1x3 던전 입구와 맞닿는 면)만 그대로 둔다 — 그쪽까지
+    // 늘리면 실제로 보여야 할 구역을 침범한다. 시각적 스프라이트 오버레이라 실제 맵 타일 범위를
+    // 벗어난 좌표(x=-1, y=-1/8)에 놓여도 그냥 빈 배경 위에 그려질 뿐 문제없다.
+    private const int Floor0HiddenFogPadding = 1;
+
+    private void SpawnPermanentFogForFloor0HiddenChunk()
+    {
+        CreateMap cmap = Session.cmap;
+        if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return;
+        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
+
+        MapRandering mapRandering = Session.mapRandering;
+        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && mapRandering.floorOffsets.Length > 0)
+            ? mapRandering.floorOffsets[0] : Vector3.zero;
+        Transform fogGroup = Session.GetFloorCategoryGroup(0, "Fog");
+
+        int xStart = -Floor0HiddenFogPadding;
+        int xEnd = Floor0HiddenChunkTiles; // 우측 경계는 확장하지 않음.
+        int yStart = -Floor0HiddenFogPadding;
+        int yEnd = Floor0HiddenChunkTiles + Floor0HiddenFogPadding;
+
+        for (int tx = xStart; tx < xEnd; tx++)
+            for (int ty = yStart; ty < yEnd; ty++)
+                SpawnFogTile(tx, ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Floor0Hidden");
+
+        RebuildFloorFogShadowCasters(0);
+    }
+
     // 벽 + "아직 안 걷힌 안개" 전체를 하나의 격자로 합쳐서 한 번에 윤곽선을 뽑는다(사용자 요청,
     // 2026-07-28 "지금 문에잇는 안개만 섀도캐스팅 박혀있어. 문+ 벽 섀도우캐스팅과 겹치는 안개 모두
     // 한번에 해서 구워줘"). 안개(방/문/빈 청크)를 벽과 따로따로 셰도우 캐스팅하면 방 경계에서 벽의
@@ -346,6 +392,17 @@ public class FogOfWarSystem
                 else
                     mask[x, y] = true; // 방이 없는 칸(빈 청크) — 영구 안개
             }
+        }
+
+        // 0층 숨은 스폰 청크(SpawnPermanentFogForFloor0HiddenChunk) — 0층 Room.FogRevealed는 항상
+        // true라 위 방 기반 판정만으로는 이 칸이 "안 걷힌 것"으로 안 잡힌다. 여기서 강제로 덮어써야
+        // 벽+안개 통합 셰도우 캐스터가 이 칸도 실제로 빛을 막아준다.
+        if (floorIndex == 0)
+        {
+            int hiddenX = Mathf.Min(Floor0HiddenChunkTiles, worldW);
+            for (int x = 0; x < hiddenX; x++)
+                for (int y = 0; y < worldH; y++)
+                    mask[x, y] = true;
         }
 
         // 게이트(문) 타일은 두 방 중 하나라도 안 걷혔으면 안개 — 각 타일이 속한 청크의 개별 방
@@ -579,6 +636,12 @@ public class FogOfWarSystem
             {
                 for (int cy = 0; cy < h; cy++)
                 {
+                    // 0층 최좌측 숨은 스폰 청크(SpawnPermanentFogForFloor0HiddenChunk와 동일한 청크,
+                    // 2026-08-23 사용자 요청 "그 청크에는 횃불 생성 안되어야 해") — 상시 안개로 덮여
+                    // 있어 어차피 안 보이는 데다, 횃불 Light2D가 안개 경계 너머로 새어 보일 여지 자체를
+                    // 없앤다.
+                    if (floorIdx == 0 && cx == 0) continue;
+
                     Chunks c = floor.chunks[cx, cy];
                     if (c.roomId < 0 || c.chunk == null) continue;
 

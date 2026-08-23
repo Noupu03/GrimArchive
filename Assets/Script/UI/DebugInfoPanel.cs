@@ -36,11 +36,13 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // 좌하단 패널 스택(2026-08-21) 등록용 ID — BottomLeftPanelStack.Report 참고.
     private const string StackId = "DebugInfo";
 
-    // "기본 정보"/"세부 스탯"/"장비" 탭(2026-08-20, 사용자 요청, 림월드 캐릭터창 참고) — 장비는 아직
-    // 시스템 자체가 없어 자리만 만들고 "구현 예정" 문구만 보여준다. 각 탭은 사용자가 명시한 필드만
+    // "기본 정보"/"세부 스탯"/"장비"/"스킬" 탭(2026-08-20, 사용자 요청, 림월드 캐릭터창 참고) — 장비는
+    // 아직 시스템 자체가 없어 자리만 만들고 "구현 예정" 문구만 보여준다. 각 탭은 사용자가 명시한 필드만
     // 보여준다(기본 정보: 이름/진영/LV/EXP/킬카운트, 세부 스탯: 근력/내구/민첩/집중/마력/저항/감각/
-    // 통솔 — 그 외 HP/MP/정신력/파티/전투스탯/이동속도/위치/상태이상 등은 전부 표시 안 함).
-    private enum InfoTab { Basic, Stats, Equipment }
+    // 통솔 — 그 외 HP/MP/정신력/파티/전투스탯/이동속도/위치/상태이상 등은 전부 표시 안 함). 스킬 탭은
+    // 2026-08-23 사용자 요청으로 추가 — 진실의 원천인 프리팹(UnitGenerate.GetSkills → CLAUDE.md
+    // "스킬/공격 시스템" 섹션 참고)에서 실제 장착된 스킬 목록을 그대로 읽어 보여준다.
+    private enum InfoTab { Basic, Stats, Equipment, Skills }
     private InfoTab _currentTab = InfoTab.Basic;
 
     [Inject]
@@ -151,14 +153,14 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         GUIMenuStyleUtil.DrawButtonBorder(new Rect(left, top, width, height));
     }
 
-    // 정보 박스(InfoBox) 바로 위에 "기본 정보"/"세부 스탯"/"장비" 탭 버튼 3개를 그린다. 유닛을 정확히
-    // 1기 선택했을 때만 의미가 있다(다중 선택/미선택 시엔 탭 없이 기존 목록/빈 텍스트 그대로). 탭이
-    // 3개로 늘어나서 박스 폭에 맞춰 버튼 폭을 동적으로 계산한다(고정폭이면 박스 밖으로 넘침).
+    // 정보 박스(InfoBox) 바로 위에 "기본 정보"/"세부 스탯"/"장비"/"스킬" 탭 버튼 4개를 그린다. 유닛을
+    // 정확히 1기 선택했을 때만 의미가 있다(다중 선택/미선택 시엔 탭 없이 기존 목록/빈 텍스트 그대로).
+    // TabCount에 맞춰 박스 폭 기준으로 버튼 폭을 동적으로 계산한다(고정폭이면 박스 밖으로 넘침).
     // 크기/폰트/테두리는 GUIMenuStyleUtil로 하단 메뉴 바와 동일한 스타일을 쓴다(2026-08-20, 사용자
     // 요청 "정보 UI도 메뉴와 동일한 스타일로").
     private const float TabHeight = 40f;
     private const float TabGap = 6f;
-    private const int TabCount = 3;
+    private const int TabCount = 4;
 
     private void DrawInfoTabs()
     {
@@ -173,6 +175,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         DrawInfoTabButton(boxX, y, tabWidth, TabHeight, "기본 정보", InfoTab.Basic);
         DrawInfoTabButton(boxX + (tabWidth + TabGap) * 1, y, tabWidth, TabHeight, "세부 스탯", InfoTab.Stats);
         DrawInfoTabButton(boxX + (tabWidth + TabGap) * 2, y, tabWidth, TabHeight, "장비", InfoTab.Equipment);
+        DrawInfoTabButton(boxX + (tabWidth + TabGap) * 3, y, tabWidth, TabHeight, "스킬", InfoTab.Skills);
     }
 
 
@@ -212,6 +215,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         {
             InfoTab.Basic => BuildBasicInfoTabText(u),
             InfoTab.Equipment => BuildEquipmentTabText(u),
+            InfoTab.Skills => BuildSkillsTabText(u),
             _ => BuildDetailedStatsTabText(u),
         };
         selectedUnitInfoText.SetupText(text);
@@ -242,6 +246,30 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine("무기: -");
         sb.AppendLine("방어구: -");
         sb.AppendLine("장신구: -");
+        return sb.ToString();
+    }
+
+    // "스킬" 탭(2026-08-23 사용자 요청) — CLAUDE.md "스킬/공격 시스템" 섹션대로 진실의 원천은
+    // skills.json이 아니라 프리팹이므로, UnitGenerate.GetSkills(런타임에 프리팹에서 조립된 실제
+    // SkillAction 목록)를 그대로 읽는다. 이름/사거리/쿨다운만 보여준다(다른 탭들과 동일하게 최소 정보).
+    private string BuildSkillsTabText(Unit u)
+    {
+        var sb = new StringBuilder();
+        var skills = u.Generate != null ? u.Generate.GetSkills(u.unitType.typeName) : null;
+
+        if (skills == null || skills.Count == 0)
+        {
+            sb.AppendLine("<color=grey>(보유 스킬 없음)</color>");
+            return sb.ToString();
+        }
+
+        foreach (var s in skills)
+        {
+            if (s == null) continue;
+            sb.AppendLine($"<b>{s.SkillName}</b>");
+            sb.AppendLine($"사거리: {s.HitRange} / 쿨다운: {s.DefaultBaseCooldown:F1}초");
+            sb.AppendLine();
+        }
         return sb.ToString();
     }
 

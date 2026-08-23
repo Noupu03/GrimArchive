@@ -10,9 +10,10 @@ using Haare.Util.Loader;
 using Haare.Util.Logger;
 
 // UI 리뉴얼(2026-08-20, "Assets/문서/공식문서/데모 버전 기획서/08.19 최신/UI 리뉴얼.txt") — 화면
-// 좌측 하단에 상시 표시되는 6개 카테고리(명령/설치/소집 배치/맵/도감/debug) 메뉴 바. 카테고리를
-// 누르면 그 바로 위에 세로 버튼 목록(서브메뉴)이 뜨고, 다른 카테고리를 누르거나 같은 카테고리를
-// 다시 누르면 닫힌다("스택형으로 쌓이고, 다른 메뉴 진입 혹은 비활성화시 사라짐").
+// 좌측 하단에 상시 표시되는 카테고리(명령/설치/도감/debug) 메뉴 바. 카테고리를 누르면 그 바로 위에
+// 세로 버튼 목록(서브메뉴)이 뜨고, 다른 카테고리를 누르거나 같은 카테고리를 다시 누르면 닫힌다
+// ("스택형으로 쌓이고, 다른 메뉴 진입 혹은 비활성화시 사라짐"). 원래 있던 "맵" 카테고리(층 이동)는
+// 2026-08-23 사용자 요청으로 카테고리 토글 없는 상시 좌측 중앙 패널(DrawFloorPanel)로 빠져나갔다.
 //
 // StatusInfoPanel/BuildingControlPanel/WaveGaugePanel과 동일한 이 프로젝트의 확립된 관례를 따른다 —
 // [PanelAttribute] 패널은 빈 프리팹 껍데기(RectTransform+CanvasRenderer)만 있고 실제 그리기는
@@ -76,7 +77,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     // 떠 있음" → "클릭 시 한 번 뜨고 사라짐"뿐). 실제 Push 호출은 각 모드 진입/취소 지점
     // (ToggleBuildSubMode/OnClickToggleCancelCommandMode/InputManager.ExitActivePlacementMode 등)에 있다.
 
-    private enum MenuCategory { None, Command, Build, Map, Encyclopedia, Debug }
+    private enum MenuCategory { None, Command, Build, Encyclopedia, Debug }
     private MenuCategory _activeCategory = MenuCategory.None;
 
     // 사용자 요청(2026-08-20 "메뉴 UI와 누르면 나오는 버튼들 더 크게 해주고") — 전체적으로 확대.
@@ -96,6 +97,12 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     // 사용자 신고 "디버그 메뉴 버튼들 화면 넘침").
     private const float SubmenuColumnGap = 10f;
 
+    // 층 이동 상시 패널(DrawFloorPanel) 전용 버튼 크기 — 사용자 요청(2026-08-23 "버튼 사이즈 작게")로
+    // 서브메뉴 버튼보다 작게 별도 상수를 둔다.
+    private const float FloorPanelButtonWidth = 90f;
+    private const float FloorPanelButtonHeight = 28f;
+    private const float FloorPanelGap = 4f;
+
     // 버튼 폰트/흰 테두리 스타일은 GUIMenuStyleUtil로 옮겼다(2026-08-20, 사용자 요청 "정보 UI도
     // 메뉴와 동일한 스타일로" — DebugInfoPanel 탭 버튼과 완전히 같은 스타일을 공유하기 위함).
 
@@ -105,6 +112,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     public bool IsMouseOverUI()
     {
         if (GUIMouseUtil.IsMouseOverRect(GetBarRect())) return true;
+        if (GUIMouseUtil.IsMouseOverRect(GetFloorPanelRect())) return true;
         return _activeCategory != MenuCategory.None && GUIMouseUtil.IsMouseOverRect(GetSubmenuBoundingRect());
     }
 
@@ -126,7 +134,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
     private Rect GetBarRect()
     {
-        int buttonCount = 6;
+        // 2026-08-23: "맵" 버튼이 상시 좌측 패널(DrawFloorPanel)로 빠지면서 5개로 줄었다.
+        int buttonCount = 5;
         float width = buttonCount * BarButtonWidth + (buttonCount - 1) * BarGap;
         return new Rect(BarMarginX, Screen.height - BarMarginY - BarHeight, width, BarHeight);
     }
@@ -159,7 +168,6 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         {
             case MenuCategory.Command: groups.Add(BuildCommandItems()); break;
             case MenuCategory.Build: groups.Add(BuildBuildItems()); break;
-            case MenuCategory.Map: groups.Add(BuildMapItems()); break;
             case MenuCategory.Encyclopedia: groups.Add(BuildEncyclopediaItems()); break;
             case MenuCategory.Debug:
                 var primary = BuildDebugPrimaryItems();
@@ -199,6 +207,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         DrawBar();
         DrawSubmenu();
+        DrawFloorPanel();
     }
 
     private void DrawBar()
@@ -209,9 +218,9 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         DrawBarButton(ref x, y, "명령", _activeCategory == MenuCategory.Command, () => ToggleCategory(MenuCategory.Command));
         DrawBarButton(ref x, y, "설치", _activeCategory == MenuCategory.Build, () => ToggleCategory(MenuCategory.Build));
-        // 맵/debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존해도 된다(사용자 확인,
-        // 2026-08-20 "맵,debug는 제외. 다른 메뉴 가도 상관없음") — 이 둘만 cancelCommandMode: false.
-        DrawBarButton(ref x, y, "맵", _activeCategory == MenuCategory.Map, () => ToggleCategory(MenuCategory.Map), cancelCommandMode: false);
+        // debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존해도 된다(사용자 확인,
+        // 2026-08-20 "맵,debug는 제외. 다른 메뉴 가도 상관없음") — 맵은 2026-08-23에 상시 UI
+        // (DrawFloorPanel)로 완전히 빠져나가 이 하단 바에서 없어졌으므로 이제 debug만 남는다.
         // 도감은 아직 기능이 없지만(문서: "추후 추가될 기능인데, 버튼만 미리 두기"), 다른 메뉴들과
         // 동일하게 카테고리 토글 + 서브메뉴(버튼 1개, "구현 예정")로 동작한다(2026-08-20, 사용자 요청
         // "다른 메뉴들처럼 동작하게 만들어놓기" — notice로 안내하던 것 대신).
@@ -443,33 +452,63 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 맵 서브메뉴 — 층 버튼, 층별 카메라 시스템과 연동(CameraController.GoToFloor). 2026-08-20, 사용자
-    // 요청 "플레이어에게 밝혀지지 않은 층은, 층 전환 메뉴에 아예 버튼이 뜨지 않게 해줘. 밝혀진 순간부터
-    // 메뉴에 뜨도록" — 예전엔 4개 버튼을 항상 그리고 범위 밖(floorCount 이상)만 비활성화했는데, 이제
-    // CameraController.IsFloorRevealed로 아직 안 밝혀진 층은 버튼 자체를 리스트에서 뺀다.
+    // 층 이동 상시 패널 — 화면 좌측 중앙에 항상 떠 있는 층 버튼 목록, 층별 카메라 시스템과 연동
+    // (CameraController.GoToFloor). 원래 하단 바의 "맵" 메뉴 서브메뉴였던 것을 2026-08-23 사용자 요청
+    // ("메뉴-> 맵에 의한 층 이동을 상시 UI로 빼두자. 좌측중앙 부분에. 작동 방식은 기존과 동일")으로
+    // 카테고리 토글 없이 항상 그려지는 독립 패널로 옮겼다 — 클릭해서 열고 닫을 필요 없이 항상 접근
+    // 가능해야 한다는 취지. 동작 자체(밝혀진 층만 버튼 표시/현재 층 강조/클릭 시 카메라 전환+notice)는
+    // 예전 BuildMapItems 그대로다. 2026-08-20, 사용자 요청 "플레이어에게 밝혀지지 않은 층은, 층 전환
+    // 메뉴에 아예 버튼이 뜨지 않게 해줘. 밝혀진 순간부터 메뉴에 뜨도록"에 따라 CameraController.
+    // IsFloorRevealed로 아직 안 밝혀진 층은 버튼 자체를 리스트에서 뺀다.
     // =====================================================
-    private List<SubmenuItem> BuildMapItems()
+    private Rect GetFloorPanelRect()
+    {
+        int revealedCount = CountRevealedFloors();
+        if (revealedCount == 0) return new Rect(0f, 0f, 0f, 0f);
+
+        float height = revealedCount * FloorPanelButtonHeight + (revealedCount - 1) * FloorPanelGap;
+        float y = (Screen.height - height) * 0.5f;
+        return new Rect(BarMarginX, y, FloorPanelButtonWidth, height);
+    }
+
+    private static int CountRevealedFloors()
+    {
+        var cam = CameraController.Instance;
+        int floorCount = 4;
+        if (cam == null || !cam.TryGetFloorCount(out floorCount)) floorCount = 4;
+
+        int count = 0;
+        for (int f = 0; f < floorCount; f++)
+            if (cam != null && cam.IsFloorRevealed(f)) count++;
+        return count;
+    }
+
+    private void DrawFloorPanel()
     {
         var cam = CameraController.Instance;
         int currentFloor = cam != null ? cam.CurrentFloor : -1;
         int floorCount = 4;
         if (cam == null || !cam.TryGetFloorCount(out floorCount)) floorCount = 4;
 
-        var items = new List<SubmenuItem>();
+        Rect panelRect = GetFloorPanelRect();
+        if (panelRect.height <= 0f) return;
+
+        float y = panelRect.y;
         for (int f = 0; f < floorCount; f++)
         {
             if (cam == null || !cam.IsFloorRevealed(f)) continue;
 
-            int floorIndex = f; // 클로저 캡처
-            items.Add(new SubmenuItem($"{floorIndex}층", floorIndex == currentFloor, true,
-                () =>
-                {
-                    _activeCategory = MenuCategory.None;
-                    CameraController.Instance?.GoToFloor(floorIndex);
-                    NoticeCenter.Instance?.PushMomentary($"{floorIndex}층으로 카메라 전환", NoticeCenter.InfoColor);
-                }));
+            // 0층은 "던전입구"로 표시(2026-08-23 사용자 요청) — 그 외 층은 기존과 동일하게 "N층".
+            string label = f == 0 ? "던전입구" : $"{f}층";
+            Rect rect = new Rect(panelRect.x, y, FloorPanelButtonWidth, FloorPanelButtonHeight);
+            // 상시 패널로 빠지면서 버튼 자체가 항상 보이는 즉시 피드백이라, 클릭할 때마다 뜨던 notice는
+            // 뺐다(2026-08-23 사용자 요청 "카메라 전환시 notice 없애줘").
+            if (GUIMenuStyleUtil.DrawFlatButton(rect, label, f == currentFloor))
+            {
+                CameraController.Instance?.GoToFloor(f);
+            }
+            y += FloorPanelButtonHeight + FloorPanelGap;
         }
-        return items;
     }
 
     // =====================================================
