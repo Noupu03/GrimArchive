@@ -331,7 +331,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 6739841593041194530, guid: 8a50990d728b6be48a808e1bd19b8ffa, type: 3}
+    hitEffectPrefab: {fileID: 1980553920939913900, guid: 242cf38a46dfa57408e7b18780e45626, type: 3}
     hitShape: RECT
     hitRange: 5
     hitWidth: 3
