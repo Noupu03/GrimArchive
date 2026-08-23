@@ -166,7 +166,6 @@ public class Projectile : MonoBehaviour
                 float finalRatio = Mathf.Max(0.2f, _logicalCollider.CalculateOverlapRatio(enemyBox));
                 ApplyHitEffect(u, finalRatio);
                 _hitTargets.Add(u);
-                hasHitNewEnemy = true;
 
                 if (!_skillData.isPiercing)
                 {

@@ -69,10 +69,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         OnThreatCreated.Subscribe(data =>
         {
-            float duration = data.attacker != null && data.attacker.CombatState.State.castTimer > 0f
-                ? data.attacker.CombatState.State.castTimer
-                : 0.5f;
-            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, duration);
+            // 시전이 있는 공격(castTimer > 0)은 "예고"다 — 범위가 뜬 시점부터 피해가 들어가는 순간까지
+            // 옅어지지 않고 그대로 남아있어야 한다(holdUntilImpact). 시전 없는 즉발 공격은 표시 시점에
+            // 이미 피해가 끝나 있으므로 종전대로 0.5초짜리 잔상으로 그린다.
+            bool isTelegraph = data.attacker != null && data.attacker.CombatState.State.castTimer > 0f;
+            float duration = isTelegraph ? data.attacker.CombatState.State.castTimer : 0.5f;
+            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, duration, isTelegraph);
 
             // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
             // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.

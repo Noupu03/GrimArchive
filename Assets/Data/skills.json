@@ -200,7 +200,7 @@
     },
     {
       "skillName": "파이어볼",
-      "baseDelayMs": 800,
+      "baseDelayMs": 1500,
       "baseCooldown": 5.0,
       "cooldownSlot": 1,
       "hitShape": "RECT",
@@ -220,7 +220,7 @@
       "priorityRangeBonus": 10,
       "skillArchetype": "Fireball",
       "explosionRadius": 1.5,
-      "hitEffectPrefab": "VFX_GuardBreak"
+      "hitEffectPrefab": "VFX_Fire"
     },
     {
       "skillName": "치유",

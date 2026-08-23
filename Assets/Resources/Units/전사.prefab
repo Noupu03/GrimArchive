@@ -347,6 +347,11 @@ MonoBehaviour:
     priorityKillBonus: 20
     priorityRangeThreshold: 1.5
     priorityRangeBonus: 10
+    skillArchetype: Generic
+    multiHitCount: 0
+    effectDuration: 0
+    effectAmount: 0
+    explosionRadius: 0
   hitSparkPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}

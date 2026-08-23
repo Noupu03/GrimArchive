@@ -51,6 +51,19 @@ public abstract class SkillAction
 		}
 
 		unit.AIState.currentThreat = threat;
+
+		// 시전 상태를 통지보다 먼저 세팅한다 — 위협 타일이 화면에 표시되는 시간(GameSession의
+		// OnThreatCreated 구독)이 공격자의 castTimer를 읽어 결정되기 때문이다. 순서가 반대면
+		// 통지 시점의 castTimer가 항상 0이라 시전 시간과 무관하게 0.5초 폴백이 쓰였고, 시전이
+		// 긴 스킬(파이어볼 등 지연 착탄)은 예고가 착탄 한참 전에 사라졌다(2026-08-23 수정).
+		if (castMs > 0f)
+		{
+			unit.CombatState.State.isCastingAttack = true;
+			unit.CombatState.State.castTimer       = castMs / 1000f;
+			unit.Session?.castingUnits.Add(unit);
+			unit.AIState.pendingCastUpdate = castUpdateAction;
+		}
+
 		unit.Session?.OnThreatCreated.OnNext((unit, threat));
 
 		if (castMs <= 0f)
@@ -76,11 +89,8 @@ public abstract class SkillAction
 		}
 		else
 		{
-			unit.CombatState.State.isCastingAttack = true;
-			unit.CombatState.State.castTimer       = castMs / 1000f;
-			unit.Session?.castingUnits.Add(unit);
-			unit.AIState.pendingCastUpdate = castUpdateAction;
-
+			// 시전 상태(isCastingAttack/castTimer/castingUnits/pendingCastUpdate)는 위 통지 직전에
+			// 이미 세팅했다.
 			unit.AIState.pendingAttack = () =>
 			{
 				try

@@ -1,3 +1,14 @@
+/// <summary>
+/// 파이어볼 — 시전자에게서 날아가는 투사체가 아니라, 지정한 좌표에 직접 떨어지는 "메테오"형 스킬이다.
+/// (2026-08-23 사용자 확정: "유닛에게서 발사되는 형식이 아님 / 그 지점에 생성되는 방식임 / 좌표 선택 후
+///  일정 시간이 지난 뒤에 떨어지는 느낌이지, 공격하자마자 범위 판정과 공격이 동시에 일어나면 안 됨".)
+///
+/// 흐름은 부모 SkillAction_GroundAoE가 그대로 담당한다:
+///   1) 시전 순간 대상 중심 좌표를 확정하고 그 자리에 3x3(explosionRadius 1.5) 위협 타일을 띄운다.
+///   2) baseDelayMs 동안 시전 대기 — 이 사이 적은 예고 범위 밖으로 걸어나가 회피할 수 있다.
+///   3) 대기가 끝나면 1)에서 굳힌 좌표에 범위 판정 + 마법 피해 + 착탄 이펙트(VFX_Fire).
+/// 좌표는 1)에서 클로저에 캡처되므로 대상이 이동해도 따라가지 않는다(빗나갈 수 있다).
+/// </summary>
 public class SkillAction_Fireball : SkillAction_GroundAoE
 {
     public SkillAction_Fireball(SkillData data) : base(data)

@@ -97,6 +97,13 @@ public class UnitVisualDefinition : MonoBehaviour
                 case "MultiHit":  list.Add(new SkillAction_MultiHit(sd)); break;
                 case "PartyBuff": list.Add(new SkillAction_PartyBuff(sd)); break;
                 default:
+                    // 아키타입이 비어있는 건 정상(몬스터 기본 스킬 등)이지만, 값이 있는데 여기로 떨어졌다면
+                    // 오타이거나 위 case 목록에 빠진 것이다 — 조용히 Generic으로 폴백하면 스킬 하나가
+                    // 통째로 근접 평타처럼 동작하면서도 아무 흔적이 안 남는다(2026-08-23 파이어볼 사례).
+                    if (!string.IsNullOrEmpty(sd.skillArchetype))
+                        Debug.LogWarning($"[UnitVisualDefinition] '{unitTypeName}'의 스킬 '{sd.skillName}': " +
+                                         $"알 수 없는 skillArchetype '{sd.skillArchetype}' — Generic으로 폴백합니다.");
+
                     if (sd.isProjectile)
                         list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab));
                     else

@@ -74,9 +74,14 @@ public class SkillAction_GroundAoE : SkillAction
             rotation = 0f
         };
 
-        // 1번 디버깅 및 상태 확인용 로그 (콘솔에서 확인 가능)
-        Debug.Log($"[GroundAoE/{SkillName}] 시전 시작! 시전자: {unit.unitType?.typeName}, 대상 위치: {targetCenter}, 반경: {aoeSize}x{aoeSize}, SessionNull: {unit.Session == null}");
+        // 2026-08-23: Debug.Log 직접 호출이었는데, 파이어볼이 실제로 이 경로를 타게 되면서 매 시전마다
+        // 콘솔에 찍히게 됐다 — 프로젝트 로깅 체계(LogHelper)로 낮춘다.
+        Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME,
+            $"[GroundAoE/{SkillName}] 시전 시작 — 시전자: {unit.unitType?.typeName}, 착탄 좌표: {targetCenter}, " +
+            $"범위: {aoeSize}x{aoeSize}, 착탄까지: {_d.baseDelayMs}ms");
 
+        // 좌표(targetCenter)와 위협 타일은 지금 확정되고, 실제 범위 판정/피해는 baseDelayMs 뒤에 실행된다
+        // — "좌표 선택 → 예고 → 낙하"라는 메테오 흐름이 여기서 성립한다(2026-08-23 사용자 확정).
         BeginAttackCast(unit, _d.baseDelayMs, threat,
             () =>
             {

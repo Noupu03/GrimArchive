@@ -42,6 +42,10 @@ public class ThreatTileRenderer
 		public float durationTimer;
 		public float maxDuration;
 		public Color baseColor;
+		// 시전(예고) 중인 공격의 범위인지. true면 시간에 따라 옅어지지 않고 원래 색을 그대로 유지하다가,
+		// 시전이 끝나는 순간(= 피해가 들어가는 순간) 사라진다. 파이어볼처럼 시전이 긴 스킬은 예전
+		// 페이드 방식으로는 정작 피해가 들어갈 때 거의 투명해져 범위가 보이지 않았다(2026-08-23).
+		public bool holdUntilImpact;
 	}
 
 	// Unit당 1개만 관리
@@ -125,7 +129,12 @@ public class ThreatTileRenderer
 		return sr;
 	}
 
-	public void ShowThreatZone(Unit u, ThreatTileData threat, float duration = 0.5f)
+	/// <param name="holdUntilImpact">
+	/// 시전 중인 공격의 예고 범위인지. true면 시전이 끝나 실제 피해가 들어갈 때까지 색이 옅어지지 않고
+	/// 그대로 남아있다가 그 순간 사라진다. false(기본)면 종전대로 duration에 걸쳐 서서히 사라지는
+	/// 잔상으로 그린다 — 즉발 공격은 표시 시점에 이미 피해가 끝나 있으므로 그쪽이 맞다.
+	/// </param>
+	public void ShowThreatZone(Unit u, ThreatTileData threat, float duration = 0.5f, bool holdUntilImpact = false)
 	{
 		if (u == null || threat == null || threat.hitbox.size == Vector2.zero) return;
 
@@ -153,9 +162,10 @@ public class ThreatTileRenderer
 			: Color.red;
 		color.a = isWild ? Mathf.Max(threat.color.a, 0.85f) : (threat.color.a > 0f ? threat.color.a : 0.85f);
 
-		tv.durationTimer = duration;
-		tv.maxDuration   = duration;
-		tv.baseColor     = color;
+		tv.durationTimer    = duration;
+		tv.maxDuration      = duration;
+		tv.baseColor        = color;
+		tv.holdUntilImpact  = holdUntilImpact;
 
 		int index = 0;
 		for (int dx = 0; dx < depth; dx++)
@@ -228,6 +238,27 @@ public class ThreatTileRenderer
 					Object.Destroy(tv.root.gameObject);
 				}
 				_cachedRemoveList.Add(u);
+				continue;
+			}
+
+			// 예고 범위(시전 중인 공격)는 시간에 따라 옅어지지 않는다 — 시전이 살아있는 동안 원래 색을
+			// 그대로 유지하다가, 시전이 끝나는 순간(피해 실행 또는 취소) 사라진다. 그래야 "범위가 뜬
+			// 시점부터 피해가 들어가는 순간까지" 계속 보인다(2026-08-23 사용자 요청).
+			if (tv.holdUntilImpact)
+			{
+				bool stillCasting = u.CombatState.State.isCastingAttack && u.AIState.currentThreat != null;
+				if (stillCasting)
+				{
+					foreach (var sr in tv.cellSprites)
+					{
+						if (sr != null && sr.enabled) sr.color = tv.baseColor;
+					}
+				}
+				else
+				{
+					if (tv.root != null) Object.Destroy(tv.root.gameObject);
+					_cachedRemoveList.Add(u);
+				}
 				continue;
 			}
 
