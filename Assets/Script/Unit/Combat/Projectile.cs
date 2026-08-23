@@ -148,6 +148,33 @@ public class Projectile : MonoBehaviour
                 }
             }
         }
+        else if (_attacker.Session != null)
+        {
+            // unitGrid가 비어있거나(아직 등록 안 됨) null인 경우의 폴백 — SkillAction.GetEnemiesInHitbox의
+            // 폴백과 동일한 이유. 이게 없으면 투사체가 적을 그대로 통과해 사거리 끝에 조용히 소멸한다.
+            int floor = _attacker.currentFloor;
+            foreach (var u in _attacker.Session.units)
+            {
+                if (u == null || u == _attacker || u.Health.hp <= 0) continue;
+                if (u.currentFloor != floor) continue;
+                if (!_attacker.IsEnemy(u)) continue;
+                if (_hitTargets.Contains(u)) continue;
+
+                Hitbox enemyBox = SkillAction.GetUnitHitbox(u);
+                if (!_logicalCollider.Overlaps(enemyBox)) continue;
+
+                float finalRatio = Mathf.Max(0.2f, _logicalCollider.CalculateOverlapRatio(enemyBox));
+                ApplyHitEffect(u, finalRatio);
+                _hitTargets.Add(u);
+                hasHitNewEnemy = true;
+
+                if (!_skillData.isPiercing)
+                {
+                    DestroyProjectile();
+                    return;
+                }
+            }
+        }
 
         // 4. 최대 사거리 도달 시 소멸
         if (Vector2.Distance(_startPos, _logicalCollider.center) > _maxDistance)

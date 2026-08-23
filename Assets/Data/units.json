@@ -187,6 +187,398 @@
           "parry": "VFX_Parry"
         }
       }
+    },
+    {
+      "typeName": "전사",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 1,
+      "populationCost": 0,
+      "skills": ["강타"],
+      "stats": {
+        "maxHp": 160,
+        "maxMp": 30,
+        "physicalAttack": 42,
+        "magicalAttack": 8,
+        "physicalDefense": 15,
+        "magicalDefense": 10,
+        "HPRegen": 5,
+        "attackspeed": 110,
+        "walkSpeed": 3.2,
+        "reaction": 90,
+        "criticalChance": 15,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 18,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 30,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_Warrior",
+        "animatorController": "Char",
+        "weapon": {
+          "sprite": "Weapon_LongSwordA_0",
+          "nativeSpriteAngle": 135
+        },
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "도적",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 1,
+      "populationCost": 0,
+      "skills": ["기습"],
+      "stats": {
+        "maxHp": 120,
+        "maxMp": 40,
+        "physicalAttack": 48,
+        "magicalAttack": 10,
+        "physicalDefense": 8,
+        "magicalDefense": 8,
+        "HPRegen": 5,
+        "attackspeed": 140,
+        "walkSpeed": 4.0,
+        "reaction": 120,
+        "criticalChance": 35,
+        "cooltimeReduction": 95,
+        "statusResistance": 85,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 25,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 35,
+        "heavyHitThreshold": 10,
+        "stealth": 30,
+        "baseVisibility": 70
+      },
+      "visual": {
+        "spriteLibrary": "Char_NinjaA",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "마법사",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 5,
+      "populationCost": 0,
+      "skills": ["파이어볼"],
+      "stats": {
+        "maxHp": 100,
+        "maxMp": 120,
+        "physicalAttack": 10,
+        "magicalAttack": 58,
+        "physicalDefense": 6,
+        "magicalDefense": 16,
+        "HPRegen": 5,
+        "attackspeed": 95,
+        "walkSpeed": 3.0,
+        "reaction": 85,
+        "criticalChance": 18,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 10,
+        "magicalCastSpeed": 25
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 40,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_mage",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "사제",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 4,
+      "populationCost": 0,
+      "skills": ["치유"],
+      "stats": {
+        "maxHp": 115,
+        "maxMp": 100,
+        "physicalAttack": 12,
+        "magicalAttack": 40,
+        "physicalDefense": 8,
+        "magicalDefense": 15,
+        "HPRegen": 5,
+        "attackspeed": 100,
+        "walkSpeed": 3.2,
+        "reaction": 90,
+        "criticalChance": 12,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 10,
+        "magicalCastSpeed": 20
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 25,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_PriestA",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "성기사",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 2,
+      "populationCost": 0,
+      "skills": ["성스러운 방패"],
+      "stats": {
+        "maxHp": 180,
+        "maxMp": 50,
+        "physicalAttack": 35,
+        "magicalAttack": 18,
+        "physicalDefense": 18,
+        "magicalDefense": 16,
+        "HPRegen": 5,
+        "attackspeed": 100,
+        "walkSpeed": 3.0,
+        "reaction": 95,
+        "criticalChance": 10,
+        "cooltimeReduction": 90,
+        "statusResistance": 95,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 15,
+        "magicalCastSpeed": 10
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 30,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_Paladin",
+        "animatorController": "Char",
+        "weapon": {
+          "sprite": "Weapon_LongSwordA_0",
+          "nativeSpriteAngle": 135
+        },
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "주술사",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 4,
+      "populationCost": 0,
+      "skills": ["저주"],
+      "stats": {
+        "maxHp": 110,
+        "maxMp": 90,
+        "physicalAttack": 15,
+        "magicalAttack": 45,
+        "physicalDefense": 8,
+        "magicalDefense": 14,
+        "HPRegen": 5,
+        "attackspeed": 105,
+        "walkSpeed": 3.2,
+        "reaction": 90,
+        "criticalChance": 14,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 12,
+        "magicalCastSpeed": 18
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 35,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_Shaman",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "무도가",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 1,
+      "populationCost": 0,
+      "skills": ["연격"],
+      "stats": {
+        "maxHp": 140,
+        "maxMp": 40,
+        "physicalAttack": 36,
+        "magicalAttack": 10,
+        "physicalDefense": 11,
+        "magicalDefense": 10,
+        "HPRegen": 5,
+        "attackspeed": 160,
+        "walkSpeed": 3.8,
+        "reaction": 115,
+        "criticalChance": 22,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 26,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 30,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Char_Knight",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "음유시인",
+      "unitClass": "Human",
+      "footprint": [1, 1],
+      "engageDistance": 6,
+      "populationCost": 0,
+      "skills": ["전투의 노래"],
+      "stats": {
+        "maxHp": 125,
+        "maxMp": 80,
+        "physicalAttack": 25,
+        "magicalAttack": 32,
+        "physicalDefense": 10,
+        "magicalDefense": 12,
+        "HPRegen": 5,
+        "attackspeed": 120,
+        "walkSpeed": 3.5,
+        "reaction": 105,
+        "criticalChance": 16,
+        "cooltimeReduction": 90,
+        "statusResistance": 90,
+        "maxMental": 100,
+        "mental": 40,
+        "spotting": 0,
+        "leadershipRange": 4,
+        "charisma": 3,
+        "physicalAttackSpeed": 18,
+        "magicalCastSpeed": 15
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 40,
+        "baseDanger": 25,
+        "heavyHitThreshold": 10,
+        "stealth": 10,
+        "baseVisibility": 90
+      },
+      "visual": {
+        "spriteLibrary": "Char_ArcherElf",
+        "animatorController": "Char",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
     }
   ]
 }

@@ -111,6 +111,12 @@ public static class JsonToUnitPrefabConverter
         public float  priorityKillBonus;
         public float  priorityRangeThreshold;
         public float  priorityRangeBonus;
+        
+        public string skillArchetype;
+        public int    multiHitCount;
+        public float  effectDuration;
+        public float  effectAmount;
+        public float  explosionRadius;
 
         public SkillData ToSkillData() => new SkillData
         {
@@ -134,6 +140,11 @@ public static class JsonToUnitPrefabConverter
             priorityKillBonus      = priorityKillBonus,
             priorityRangeThreshold = priorityRangeThreshold,
             priorityRangeBonus     = priorityRangeBonus,
+            skillArchetype   = skillArchetype,
+            multiHitCount    = multiHitCount,
+            effectDuration   = effectDuration,
+            effectAmount     = effectAmount,
+            explosionRadius  = explosionRadius,
         };
     }
 
