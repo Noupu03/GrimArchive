@@ -209,10 +209,6 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         DrawBarButton(ref x, y, "명령", _activeCategory == MenuCategory.Command, () => ToggleCategory(MenuCategory.Command));
         DrawBarButton(ref x, y, "설치", _activeCategory == MenuCategory.Build, () => ToggleCategory(MenuCategory.Build));
-        // 소집 배치는 자기 자신의 onClick(OnClickDeploy)이 스스로 토글을 책임지므로, 아래 공용
-        // "다른 버튼을 누르면 소집 배치를 취소" 규칙에서 제외한다(cancelMonsterPlacement: false) —
-        // 안 그러면 이미 켜진 상태에서 다시 눌렀을 때 (취소 → 곧바로 재진입)이 되어 꺼지지 않는다.
-        DrawBarButton(ref x, y, "소집 배치", _inputManager != null && _inputManager.IsMonsterPlacementActive, OnClickDeploy, cancelMonsterPlacement: false);
         // 맵/debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존해도 된다(사용자 확인,
         // 2026-08-20 "맵,debug는 제외. 다른 메뉴 가도 상관없음") — 이 둘만 cancelCommandMode: false.
         DrawBarButton(ref x, y, "맵", _activeCategory == MenuCategory.Map, () => ToggleCategory(MenuCategory.Map), cancelCommandMode: false);
@@ -224,7 +220,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     private void DrawBarButton(ref float x, float y, string label, bool active, Action onClick,
-        bool cancelMonsterPlacement = true, bool cancelCommandMode = true)
+        bool cancelCommandMode = true)
     {
         Rect rect = new Rect(x, y, BarButtonWidth, BarHeight);
         bool clicked = GUIMenuStyleUtil.DrawFlatButton(rect, label, active);
@@ -232,13 +228,10 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         {
             // 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) 하단 바의 어떤 버튼을 누르든(다른
             // 카테고리로 전환/같은 카테고리 닫기/도감) 그 시점에 진행 중이던 건물·오브젝트 배치 모드는
-            // 함께 취소된다 — "메뉴 바꾸기"로 취소하는 경로. 소집 배치(몬스터 배치 모드)도 같은 이유로
-            // 다른 메뉴와 겹치지 않도록 함께 취소한다(사용자 요청, 2026-08-20 "소집 배치 메뉴도 다른
-            // 메뉴랑 중복되지 않게"). "명령"의 "명령 취소"/"집결 및 정지" 토글도 마찬가지 — 메뉴를
-            // 닫거나 다른(맵/debug 제외) 메뉴로 가면 함께 꺼진다(사용자 요청, 2026-08-20 "상위 메뉴를
-            // 눌러 꺼버리면, 위에서 토글했던것들도 취소되게").
+            // 함께 취소된다 — "메뉴 바꾸기"로 취소하는 경로. "명령"의 "명령 취소"/"집결 및 정지"/
+            // "제자리 공격" 토글도 마찬가지 — 메뉴를 닫거나 다른(맵/debug 제외) 메뉴로 가면 함께 꺼진다
+            // (사용자 요청, 2026-08-20 "상위 메뉴를 눌러 꺼버리면, 위에서 토글했던것들도 취소되게").
             _inputManager?.ExitActivePlacementMode();
-            if (cancelMonsterPlacement) _inputManager?.ExitMonsterPlacementModeIfActive();
             if (cancelCommandMode) _inputManager?.CancelCommandModeIfActive();
             onClick();
         }
@@ -248,12 +241,6 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     private void ToggleCategory(MenuCategory category)
     {
         _activeCategory = (_activeCategory == category) ? MenuCategory.None : category;
-    }
-
-    private void OnClickDeploy()
-    {
-        _activeCategory = MenuCategory.None; // 소집 배치는 서브메뉴 없이 즉시 토글(문서: "누르면 즉시 기존의 소집 배치 모드처럼 작동")
-        _inputManager?.ToggleMonsterPlacementMode();
     }
 
     // 지금 활성 카테고리의 블록들을 순서대로 그린다 — 블록마다 자기가 실제로 쓴 열 수만큼 다음 블록의
@@ -368,10 +355,24 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         return new List<SubmenuItem>
         {
-            new SubmenuItem("(예정)", false, false, null),
+            new SubmenuItem("제자리 공격", _inputManager != null && _inputManager.IsStandGroundModeActive, true, OnClickToggleStandGroundMode),
             new SubmenuItem("명령 취소", _inputManager != null && _inputManager.IsCancelCommandModeActive, true, OnClickToggleCancelCommandMode),
             new SubmenuItem("집결 및 정지", _inputManager != null && _inputManager.IsRallyHaltModeActive, true, OnClickToggleRallyHaltMode),
         };
+    }
+
+    // 기초문서.md 피드백(2026-08-22, R키 몬스터 배치 모드 폐기를 대체) — "명령 취소"/"집결 및 정지"와
+    // 동일한 토글 패턴.
+    private void OnClickToggleStandGroundMode()
+    {
+        if (_inputManager == null) return;
+        bool newState = !_inputManager.IsStandGroundModeActive;
+        _inputManager.SetStandGroundModeActive(newState);
+        NoticeCenter.Instance?.PushMomentary(
+            newState
+                ? "제자리 공격 모드 켜짐: 유닛을 선택하고 우클릭하면 그 위치에서 이동 없이 사거리 내 적만 공격합니다(새 명령/명령 취소 전까지 해제 불가)."
+                : "제자리 공격 모드 꺼짐.",
+            NoticeCenter.InfoColor);
     }
 
     private void OnClickToggleCancelCommandMode()
@@ -397,23 +398,29 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 설치 서브메뉴 — 유닛 생산 건물(B) / 자원 생산 건물(V) / 함정(P). 우클릭 취소를 없앤 대신(2026-08-20,
-    // 사용자 요청) 각 버튼이 자기 모드일 때만 켜진 걸로 표시하고(예전엔 IsBuildPlacementActive 하나를
-    // 셋이 공유해서 "자원 생산 건물"을 골라도 "유닛 생산 건물"까지 같이 켜진 것처럼 보이는 버그가
-    // 있었다), 이미 켜진 버튼을 다시 누르면 취소한다 — 그래서 클릭 후에도 카테고리를 닫지 않고 계속
-    // 열어둬서 같은 버튼을 바로 다시 누를 수 있게 한다.
+    // 설치 서브메뉴 — 유닛 생산 건물(B) / 자원 생산 건물(V) / 함정(P) / 문 재설치(2026-08-22, 원래
+    // debug 서브메뉴에 있던 걸 이전 — 사용자 요청 "debug에 있던 문 설치를 '설치'란에 넣고, 자원을
+    // 소모해서 설치하게 다시 바꿔줘"). 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) 각 버튼이
+    // 자기 모드일 때만 켜진 걸로 표시하고(예전엔 IsBuildPlacementActive 하나를 셋이 공유해서 "자원
+    // 생산 건물"을 골라도 "유닛 생산 건물"까지 같이 켜진 것처럼 보이는 버그가 있었다), 이미 켜진
+    // 버튼을 다시 누르면 취소한다 — 그래서 클릭 후에도 카테고리를 닫지 않고 계속 열어둬서 같은 버튼을
+    // 바로 다시 누를 수 있게 한다.
     // =====================================================
     private List<SubmenuItem> BuildBuildItems()
     {
         bool unitActive = _inputManager != null && _inputManager.IsUnitBuildModeActive;
         bool resourceActive = _inputManager != null && _inputManager.IsResourceBuildModeActive;
         bool trapActive = _inputManager != null && _inputManager.IsTrapPlacementActive;
+        // 문 재설치(2026-08-22 사용자 요청 "debug에 있던 문 설치를 '설치'란에 넣고, 자원을 소모해서
+        // 설치하게 다시 바꿔줘") — 원래 debug 서브메뉴(BuildDebugPrimaryItems)에 있던 걸 여기로 이전.
+        bool doorRepairActive = _inputManager != null && _inputManager.IsDoorRepairPlacementActive;
 
         return new List<SubmenuItem>
         {
             new SubmenuItem("유닛 생산 건물", unitActive, true, () => ToggleBuildSubMode(unitActive, () => _inputManager?.EnterUnitBuildMode(), "유닛 생산 건물")),
             new SubmenuItem("자원 생산 건물", resourceActive, true, () => ToggleBuildSubMode(resourceActive, () => _inputManager?.EnterResourceBuildMode(), "자원 생산 건물")),
             new SubmenuItem("함정", trapActive, true, () => ToggleBuildSubMode(trapActive, () => _inputManager?.EnterTrapPlacementMode(), "함정")),
+            new SubmenuItem("문 재설치", doorRepairActive, true, () => ToggleBuildSubMode(doorRepairActive, () => _inputManager?.EnterDoorRepairPlacementMode(), "문 재설치")),
         };
     }
 
@@ -431,7 +438,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         else
         {
             enterMode?.Invoke();
-            NoticeCenter.Instance?.PushMomentary($"{label} 배치 모드 시작 (좌클릭: 설치, 취소: 메뉴 전환/재클릭)", NoticeCenter.InfoColor);
+            NoticeCenter.Instance?.PushMomentary($"{label} 배치 모드 시작 (우클릭: 설치, 취소: 메뉴 전환/재클릭)", NoticeCenter.InfoColor);
         }
     }
 
@@ -491,9 +498,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         }
 
         bool objActive = _inputManager != null && _inputManager.IsObjectOnlyPlacementActive;
-        bool coreActive = _inputManager != null && _inputManager.IsCorePlacementActive;
         items.Add(new SubmenuItem("오브젝트 배치", objActive, true, () => ToggleBuildSubMode(objActive, () => _inputManager?.EnterObjectPlacementMode(), "오브젝트")));
-        items.Add(new SubmenuItem("코어 배치", coreActive, true, () => ToggleBuildSubMode(coreActive, () => _inputManager?.EnterCorePlacementMode(), "코어")));
         items.Add(SubmenuItem.Header("배치 테스트"));
 
         items.Add(new SubmenuItem("맵 저장", false, true, () => SaveMapAsync().Forget()));

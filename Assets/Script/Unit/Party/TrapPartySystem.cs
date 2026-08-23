@@ -164,6 +164,10 @@ public static class TrapPartySystem
 
 		if (best != discoverer)
 		{
+			// 9-7장 미도착 유예 판정의 기준 ETA를 선정 확정 시점에 고정한다(TickWaitingForSelectedUnit
+			// 주석 및 TrapInteractionState.SelectedUnitInitialEta 참고 — 매 틱 재계산하면 안 됨).
+			trap.SelectedUnitInitialEta = bestEta;
+
 			if (best.currentTrapInteraction == null)
 				best.currentTrapInteraction = new TrapInteractionState { TrapObjectId = trap.TrapObjectId, TrapPosition = trap.TrapPosition };
 			best.currentTrapInteraction.JoinWaitElapsed = true;
@@ -211,7 +215,11 @@ public static class TrapPartySystem
 		Vector2Int trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		if (Vector2Int.Distance(selected.position, trapPos2D) <= 1f) return; // 이미 도착 — 대기 계속
 
-		float eta = EstimateEta(selected, trap.TrapPosition);
+		// 2026-08-23 버그 수정: 여기서 매 틱 EstimateEta를 새로 구해 MissingUnitTimer(누적 경과시간)와
+		// 비교하면, 선정 유닛이 정상적으로 접근할수록 "남은" ETA도 함께 줄어들어 두 값이 원래 의도
+		// (최초 ETA + 3초)보다 훨씬 이르게(대략 절반 지점에) 만나 정상 이동 중인 유닛까지 "실종"으로
+		// 오판정됐다. ResolveSelection이 선정 확정 시점에 고정해둔 SelectedUnitInitialEta를 그대로 쓴다.
+		float eta = trap.SelectedUnitInitialEta >= 0f ? trap.SelectedUnitInitialEta : EstimateEta(selected, trap.TrapPosition);
 		trap.MissingUnitTimer += deltaTime;
 		if (trap.MissingUnitTimer >= eta + ExplorationMath.TrapSelectedUnitLateGraceSeconds)
 			trap.SearchingForSelectedUnit = true;
@@ -232,5 +240,6 @@ public static class TrapPartySystem
 		trap.JoinWaitElapsed = false;
 		trap.JoinWaitTimer = 0f;
 		trap.MissingUnitTimer = 0f;
+		trap.SelectedUnitInitialEta = -1f;
 	}
 }

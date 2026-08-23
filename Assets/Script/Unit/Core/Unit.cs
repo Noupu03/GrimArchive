@@ -80,8 +80,8 @@ public abstract class Unit : ScriptableObject {
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
 
-	// UnitGenerate媛 ScriptableObject.CreateInstance 吏곹썑 IObjectResolver.Inject(this)濡?梨꾩썙以??
-	// GoapAction/SkillAction ??DI 而⑦뀒?대꼫媛 吏곸젒 ?우? ?딅뒗 ?쒖닔 C# 濡쒖쭅?????좊떅???듯빐 ?쒕퉬?ㅼ뿉 ?묎렐?쒕떎.
+	// UnitGenerate가 ScriptableObject.CreateInstance 직후 IObjectResolver.Inject(this)로 채워준다.
+	// GoapAction/SkillAction 등 DI 컨테이너가 직접 닿지 않는 순수 C# 로직도 Unit을 통해 서비스에 접근한다.
 	[Inject] private UnitGenerate _unitGenerate;
 	[Inject] private VFXManager _vfxManager;
 	[Inject] private InputManager _inputManager;
@@ -98,7 +98,7 @@ public abstract class Unit : ScriptableObject {
 	public GameSession Session => _gameSession;
 	public HumanKnowledgeBase Knowledge => _knowledgeBase;
 
-	// HAARE ?꾨젅?꾩썙??(Native Routine): ?좊떅 ?뚯냽怨??됰룞 ?⑦꽩??寃곗젙?섎뒗 ?명꽣?섏씠??
+	// HAARE 프레임워크(Native Routine)와 별개로: 유닛 소속과 행동 패턴을 결정하는 인터페이스
 	public IFactionBehavior FactionBehavior { get; set; }
 
 	public virtual bool IsHumanFaction => FactionBehavior is HumanFactionBehavior;
@@ -106,14 +106,14 @@ public abstract class Unit : ScriptableObject {
 	public virtual bool IsWildMonsterFaction => FactionBehavior is WildMonsterBehavior;
 
 
-	// ?꾨왂 ?⑦꽩: ?좊떅???대룞 ?뚭퀬由ъ쬁???고??꾩뿉 媛덉븘?쇱슱 ???덈뒗 援ъ“
+	// 전략 패턴: 유닛의 이동 알고리즘을 상황에 따라 갈아끼울 수 있는 구조
 	public IMovementAlgorithm MovementAlgorithm { get; set; } = new AStarMovement();
 
 	public UnitType unitType;
 
-	// ??? 媛以묒튂 ?쒖뒪???댄빐???꾪뿕???λ??? 愿???????媛以묒튂 ?곗궛怨듭떇 臾몄꽌 v0.7 ????????
-	public bool isSpecialUnit = false;     // 7-1?? 蹂댁뒪/?ㅻ찓?쒖뒪 ??醫낅퀎+媛쒕퀎 ?댄빐?꾨? ?④퍡 ?곕뒗 ?뱀닔 ?좊떅 ?щ?
-	public bool isInterestTarget = false;  // 6-2??18?? IsInterestTarget ?뚮옒洹?(?댄빐???곸듅???곕Ⅸ ?λ???媛먯냼??誘몄쟻??
+	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ───
+	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쌓는 특수 유닛 여부
+	public bool isInterestTarget = false;  // 6-2장/18장 IsInterestTarget 플래그(이해도 상승에 따른 흥미도 감소 미적용)
 
 	// 유닛 배치 시스템(2026-07-27 신규) — 이 유닛이 방 인구수에서 차지하는 점유량(5.2장 "기본 유닛
 	// 인구수는 1을 기준으로 한다", 2026-07-27 사용자 요청으로 2→1 조정). UnitVisualDefinition.
@@ -129,11 +129,11 @@ public abstract class Unit : ScriptableObject {
 	// 이 시스템 대상이 아니라(9장 보류 항목) 동기화하지 않고 항상 null로 남는다.
 	public Room currentRoom;
 
-	// 4?? ???좊떅(?몃쪟 愿?먯쓽 愿李곗옄)????곷퀎濡??ㅺ퀬 ?덈뒗 媛쒖씤 媛以묒튂 湲곕줉.
+	// 4장: 각 유닛(인류 관측자)이 대상별로 갖고 있는 개인 가중치 기록.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
 
-	// 媛??理쒓렐?????좊떅?먭쾶 ?쇳빐瑜??낇엺 ??? ?щ쭩 ?쒖젏(GameSession.RemoveDeadUnit)?먯꽌
-	// "?꾧? 泥섏튂?덈뒗吏"瑜??뚯븘???꾪뿕???댄빐??泥섏튂 ?대깽??E_MONSTER_KILL_SELF ??瑜?湲곕줉?????덉뼱???붾떎.
+	// 가장 최근에 나에게 피해를 입힌 유닛 — 사망 시점(GameSession.RemoveDeadUnit)에서
+	// "누가 처치했는지"를 파악해 위험도/이해도 처치 이벤트(E_MONSTER_KILL_SELF 등)를 기록할 수 있게 해준다.
 	public Unit lastAttacker;
 
 	// 4-14장: 함정 피해는 Unit이 아니라 InteractableObject가 가해자라 lastAttacker로 표현할 수 없다 —
@@ -157,17 +157,17 @@ public abstract class Unit : ScriptableObject {
 	public void IncrementSuspiciousObserverCount() => _suspiciousObserverCount++;
 	public void DecrementSuspiciousObserverCount() => _suspiciousObserverCount--;
 
-	// ??? ?덈꺼 諛??깆옣 ?띿꽦 ????????????????????????????????????????
+	// ─── 레벨 및 성장 속성 ───
 	public int level = 1;                 // ?꾩옱 ?덈꺼
 	public int killCount = 0;             // ??泥섏튂 ??
 
-	// ??? ?뺢퇋?붿슜 ?띿꽦 ????????????????????????????????????????????
-	public float concentration = 0f; // 吏묒쨷. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float MagicPower  = 0f; // 留덈젰. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float resistance  = 0f; // ??? ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
-	public float leadership  = 0f; // ?듭넄. ?뺢퇋?붾? ?듯빐 ?곗텧?댁빞 ??
+	// ─── 정규화용 속성 ───
+	public float concentration = 0f; // 집중. 정규화를 통해 산출해야 함
+	public float MagicPower  = 0f; // 마력. 정규화를 통해 산출해야 함
+	public float resistance  = 0f; // 저항. 정규화를 통해 산출해야 함
+	public float leadership  = 0f; // 통솔. 정규화를 통해 산출해야 함
 
-	// ??? ?뺢퇋??湲곗?媛?????????????????????????????????????????????
+	// ─── 정규화 기준값 ───
 	private const float BASE_PHYSICAL_ATTACK = 20f;
 	private const float BASE_MAGICAL_ATTACK  = 20f;
 	private const float BASE_MAX_HP          = 120f;
@@ -186,7 +186,7 @@ public abstract class Unit : ScriptableObject {
 	private const float BASE_CRIT            = 10f;
 	private const float BASE_CDR             = 100f;
 
-	// ?€?€?€ ?좊떅 諛곗튂 ?쒖뒪??濡ㅻ갚 ?꾨즺 ?€?€?€
+	// ─── 유닛 배치 시스템 롤백 완료 ───
 
 	// 웨이브 유닛이 계단을 통해 다른 층으로 넘어가야 할 때 HumanWaveManager가 세팅 — Goal_UseStairs가
 	// 이 값이 있고 현재 층과 다르면 최우선으로 계단을 찾아 이동/통과한다(GOAP 로직, 2026-07-23 사용자
@@ -196,25 +196,23 @@ public abstract class Unit : ScriptableObject {
 	public Vector2Int? currentExplorationTarget = null;
 
 	public Vector2Int? playerMoveTarget    = null;
-	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
+	public bool isManualMoveCommand        = false; // 플레이어가 직접 클릭하여 내린 이동 명령인지 여부
 	public Unit        playerAttackTarget   = null;
 
-	// 몬스터 배치 프리셋(2026-08-19 재구현 — 방 단위 배치 모드) — 웨이브 대기 중 R키 배치 모드에서
-	// 지정한 디펜스 시작 위치. "현재 이동 목적지"(playerMoveTarget)와는 분리된 별도 데이터로, 일반
-	// 탐색/이동/전투 중 위치 변경이 이 값을 건드리지 않는다. 0층에 인류가 사전 스폰되는 시점
-	// (HumanWaveManager.PreSpawnWaveUnits → MonsterDefensePlacementSystem.ApplyDefenseStartPositions)에 이
-	// 위치로 실제 이동 명령이 내려지며, 값이 없으면 기존 기본 행동(탐색)을 그대로 유지한다.
-	public Vector2Int? defenseStartPosition = null;
+	// 기초문서.md 피드백(2026-08-22, "코어와 문을 명령으로 인한 파괴 대상으로 지정할 수 있게 해줘") —
+	// 플레이어가 좌클릭으로 지정한 공격 대상 오브젝트(코어/문) 위치. playerAttackTarget(Unit 대상)과
+	// 동급이지만 InteractableObject는 오브젝트라 위치 기반으로 추적한다. PlayerCommandFSMState.
+	// ExecutePlayerAttackObject가 소비 — 파괴/소유권 전환 등으로 더 이상 유효한 대상이 아니게 되면
+	// 스스로 null로 비운다.
+	public Vector3Int? playerAttackObjectTarget = null;
 
 	// 대기 상태(IdleFSMState, 2026-08-20 신규, 사용자 요청 "대기 상태를 새로 만들어줘... 야생의 경우...
 	// 소환 위치(야생) 주변 배회") — 야생 몬스터가 스폰된 좌표. GameSession.SpawnWildRoomGuards/
-	// WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅하고 그 뒤로는 안 바뀐다. 플레이어
-	// 진영 몬스터는 대신 위 defenseStartPosition을 배회 기준점으로 쓴다(사용자 확인, "야생과 동일하게
-	// anchor+2칸 반경").
+	// WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅하고 그 뒤로는 안 바뀐다.
 	public Vector2Int? summonPosition = null;
 
-	// IdleFSMState.OnEnter가 매번 다시 계산해 세팅하는 배회 기준점(위 summonPosition/defenseStartPosition
-	// 중 하나, 혹은 둘 다 없으면 진입 시점 위치)과 다음 1칸 이동이 허용되는 시각(Time.time 기준, 정지
+	// IdleFSMState.OnEnter가 매번 다시 계산해 세팅하는 배회 기준점(위 summonPosition, 없으면 진입
+	// 시점 위치)과 다음 1칸 이동이 허용되는 시각(Time.time 기준, 정지
 	// 시간이 지날 때마다 갱신) — 상태를 넘나들 때마다 새로 계산하므로 여기서는 그냥 마지막 값을 들고
 	// 있기만 한다.
 	public Vector2Int? idleAnchorPosition = null;
@@ -232,44 +230,140 @@ public abstract class Unit : ScriptableObject {
 	// (InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
 	public bool isHalted = false;
 
-	// 위 이동이 걸리는 순간 함께 true가 된다 — 도착 후 NavigationFSMState가 기본 탐색 대신 제자리
-	// 대기("소집 대기")를 하게 만드는 플래그. 전투/전술 AI는 그대로 동작한다(탐색만 멈추는 것이지
-	// 전투 AI를 바꾸는 시스템이 아님). 해제 시점은 "어떤 형태로든 전투 시작을 인지한 시점"(UnitFSM이
-	// Combat/Tactical 상태로 전이하는 순간 자동 해제 — 직접 목격뿐 아니라 소리·전파 간접 인지 포함).
-	public bool isMustered = false;
+	// "제자리 공격" 명령(기초문서.md 피드백, 2026-08-22 — R키 몬스터 배치 모드를 대체) — 이동이 걸리는
+	// 순간 함께 true가 된다. 이동 완료(PlayerCommandFSMState.CompletePlayerCommand)가 이 플래그를 보고
+	// isStandGroundAttack으로 전환한다.
+	public bool pendingStandGroundOnArrival = false;
+
+	// 켜지면 UnitFSM.SelectState가 무조건 StandGroundAttackFSMState로 고정한다 — 이동은 절대 하지
+	// 않지만 사거리 내 적은 공격한다(정지·완전 무반응과 다름). 오직 플레이어의 새 직접 명령이나
+	// "명령 취소"로만 해제된다(InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
+	public bool isStandGroundAttack = false;
 
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
+
+	// Encapsulated command setters (2026-08-22 refactoring)
+	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
+	{
+		isHalted = false;
+		isStandGroundAttack = false;
+		playerMoveTarget = target;
+		isManualMoveCommand = true;
+		playerAttackTarget = null;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		pendingHaltOnArrival = markHalt;
+		pendingStandGroundOnArrival = markStandGround;
+	}
+
+	public void SetAttackCommand(Unit target)
+	{
+		playerAttackTarget = target;
+		playerMoveTarget = null;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		isHalted = false;
+		isStandGroundAttack = false;
+	}
+
+	public void SetObjectAttackCommand(Vector3Int target)
+	{
+		playerAttackObjectTarget = target;
+		playerAttackTarget = null;
+		playerMoveTarget = null;
+		isManualMoveCommand = true;
+		isHalted = false;
+		isStandGroundAttack = false;
+	}
+
+	public void ClearPlayerCommand()
+	{
+		playerMoveTarget = null;
+		playerAttackTarget = null;
+		playerInteractTarget = null;
+		isManualMoveCommand = false;
+		playerAttackObjectTarget = null;
+		currentAttackObjectTarget = null;
+		isHalted = false;
+		pendingHaltOnArrival = false;
+		isStandGroundAttack = false;
+		pendingStandGroundOnArrival = false;
+	}
+
+	public void FinishMoveCommand()
+	{
+		if (pendingHaltOnArrival)
+		{
+			pendingHaltOnArrival = false;
+			isHalted = true;
+		}
+		if (pendingStandGroundOnArrival)
+		{
+			pendingStandGroundOnArrival = false;
+			isStandGroundAttack = true;
+		}
+		playerMoveTarget = null;
+		isManualMoveCommand = false;
+		oneTimeReactUsed = false;
+		playerCommandStuckTurns = 0;
+	}
+
+	public void AbortMoveCommand()
+	{
+		playerMoveTarget = null;
+		isManualMoveCommand = false;
+		oneTimeReactUsed = false;
+		playerCommandStuckTurns = 0;
+	}
+
+	public bool HasActivePlayerCommand()
+	{
+		return playerMoveTarget.HasValue || playerAttackTarget != null || playerInteractTarget.HasValue
+			|| isManualMoveCommand || isHalted || pendingHaltOnArrival
+			|| isStandGroundAttack || pendingStandGroundOnArrival
+			|| playerAttackObjectTarget.HasValue;
+	}
+
+	public bool ContainsPos(int x, int y)
+	{
+		if (unitType == null) return false;
+		int w = (int)unitType.footprint.x;
+		int h = (int)unitType.footprint.y;
+		return (x >= position.x && x < position.x + w &&
+				y >= position.y && y < position.y + h);
+	}
+
 	public Vector2Int position;
-	public int        currentFloor = 0;        // ?꾩옱 ?좊떅???꾩튂??痢??뺣낫
-	public Dir        currentDir   = Dir.DOWN;  // ?꾩옱 諛붾씪蹂대뒗 諛⑺뼢 (?쒖빞 湲곗?)
-	public string     spriteVariation = "";     // ?ㅽ봽?쇱씠??諛붾━?먯씠??(?쇱씠釉뚮윭由?移댄뀒怨좊━紐?
+	public int        currentFloor = 0;        // 현재 유닛의 위치 층 정보
+	public Dir        currentDir   = Dir.DOWN;  // 현재 바라보는 방향 (시야 기준)
+	public string     spriteVariation = "";     // 스프라이트 배리에이션 (라이브러리 카테고리명)
 
 
 
-	// ?€?€?€ ?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━ ?쒖뒪??愿€????02_?몄?쨌?뺣낫?먯젙쨌?ㅽ뙣泥섎━_?쒖뒪??v0.2 ?€?€?€?€?€?€?€?€
-	// 4?? ?€?곷퀎(???좊떅=Unit 李몄“, ?ㅻ툕?앺듃=InteractableObject.Id) 吏€???몄? ?곹깭. ?몃━嫄??쒖젏?먮쭔
-	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception??媛깆떊?쒕떎 ??personalSpottedEnemies?€ ?щ━ 留?
-	// UpdateFOV ?몄텧留덈떎 Clear?섏? ?딅뒗??PerceptionRecord.cs 二쇱꽍 李멸퀬).
+	// ─── 인지·정보판정·실패처리 시스템 관련 (02_인지·정보판정·실패처리_시스템_v0.2) ───
+	// 4장: 대상별(내 유닛=Unit 참조, 오브젝트=InteractableObject.Id) 지속 인지 상태. 트리거 시점에만
+	// UnitFunction.CastRay/ResolveReachedTarget/ForceRollPerception이 갱신한다 — personalSpottedEnemies와 달리
+	// UpdateFOV 호출마다 Clear하지 않는다(PerceptionRecord.cs 주석 참고).
 
 
-	// 20?? ?섏긽???€???뺤씤 ?€湲?以묒씤 ?덉퐫?쒓? ?섎굹?쇰룄 ?덉쑝硫?寃쎄퀎 ?곹깭 ??10??媛먯? 蹂댁젙(+20)怨?
-	// 01-A 10??援?11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞??Alert ?ъ쑀媛€ ??媛믪쓣 李몄“?쒕떎.
+	// 20장: 수상한 타일 확인 대기 중인 인류가 하나라도 있으면 경계 상태 시 10% 감지 보정(+20)과
+	// 01-A 10장/11장 시야 방향 전환 우선순위의 Alert 사유가 이 값을 참조한다.
 
-	// 9?? ?뺤떊??蹂댁젙(?몃쪟 ?꾩슜, 紐ъ뒪?곕뒗 ??긽 0) ??PerceptionMath.MentalCorrectionForHuman 李멸퀬.
+	// 9장: 정신력 보정(인류 전용, 몬스터는 항상 0) — PerceptionMath.MentalCorrectionForHuman 참고.
 	public bool CanPerceive => StatusEffects.State.stunDuration <= 0f;
 	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(BaseStat.mental, BaseStat.maxMental) : 0f;
 
-	// 01??7??01-A 7?? ?쒖빞 踰붿쐞 ??+ ?몄? 踰붿쐞 諛?+ 鍮꾩뼱?덉? ?딆? ?€??紐⑸줉(?대쾲 UpdateFOV ?몄텧
-	// 湲곗? ?꾩떆 ?ㅻ깄?????€?κ컪 ?꾨떂, 留?UpdateFOV留덈떎 鍮꾩슦怨??ㅼ떆 梨꾩슫??. 紐⑺몴/寃쎈줈 ?ъ꽕?뺤쓣 ?ㅻ（??
-	// 10_紐⑺몴?ㅼ젙쨌?대룞寃쎈줈쨌?ъ꽕??臾몄꽌媛€ ?꾩쭅 ?대뜑???놁뼱 ??由ъ뒪?몃? ?ㅼ죣濡??뚮퉬?섎뒗 怨녹? ?녿떎 ??
-	// 洹?臾몄꽌媛€ ?앷린硫?VisionMath.NonEmptyTileTempWeight?€ ?④퍡 諛붾줈 ?????덈룄濡??곗씠?곕쭔 誘몃━ 梨꾩썙?붾떎.
+	// 01장/7장, 01-A 7장: 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록(이번 UpdateFOV 호출
+	// 기준 임시 스냅샷 값 전달, 매 UpdateFOV마다 비우고 다시 채운다. 목표/경로 재설정을 다루는
+	// 10_목표설정·이동경로·재설정 문서가 아직 없어서 이 리스트를 완전하게 소비하는 곳은 없다 —
+	// 그 문서가 생기면 VisionMath.NonEmptyTileTempWeight와 함께 바로 쓸 수 있도록 데이터만 미리 채워둔다.
 
 
-	// 01-A 9?? 怨듦꺽???좊떅?€ 怨좎젙 ?쒓컙(5珥? ?숈븞 媛€?쒖꽦??+10 ?곸듅?쒕떎. ?ш났寃???吏€?띿떆媛꾨쭔
-	// 珥덇린?붾릺怨??곸듅?됱? ?꾩쟻?섏? ?딅뒗??臾몄꽌媛€ "吏€?띿떆媛꾩쓣 ?ㅼ떆 5珥덈줈 珥덇린???쇨퀬留?紐낆떆??肉?
-	// "?곸듅?됱씠 異붽??쒕떎"怨좊뒗 ?섏? ?딆븘, ?곹븳 100 洹쒖튃怨??④퍡 媛€???⑥닚?섍쾶 ?댁꽍??寃????먮떒 洹쇨굅??
-	// 援ы쁽?꾪솴 臾몄꽌??湲곗옱).
+	// 01-A 9장: 공격 시도 중인 유닛은 고정 시간(5초) 동안 가시성이 +10 상승한다. 재공격해도 지속시간만
+	// 초기화되고 상승치는 누적되지 않는다 — 문서가 "지속시간을 다시 5초로 초기화"라고만 명시했지
+	// "상승치가 추가된다"고는 하지 않아, 상한 100 규칙과 함께 가장 단순하게 해석한 것(불확실, 판단 근거는
+	// 구현현황 문서에 기재).
 	public bool IsVisibilityBoosted => VisionStat.attackVisibilityBoostTimer > 0f;
 	public void TriggerAttackVisibilityBoost() => VisionStat.attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
 	// 4-6장: 수상한 타일 추적 중 이동 1회당 +20씩(개별 5초 유지) 누적된 값을 그대로 더한다.
@@ -282,6 +376,13 @@ public abstract class Unit : ScriptableObject {
 	// Human 쪽에 둔다(아래 Human 클래스 참고).
 	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
 	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
+
+	// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 채널링 공용 필드. 자동(TacticalFSMState.
+	// CoreAttackPerform, 코어 전용, 방 소유권 없는 진영 제외) + 플레이어 명령(PlayerCommandFSMState.
+	// ExecutePlayerAttackObject, 코어+문 둘 다) 양쪽이 인접 도착 시 채운다. 값이 있는 동안만
+	// UnitFunction.OnUpdate가 매 프레임 CoreHp/DoorHp를 깎는다(TrapInteractionState의 Destroying
+	// 단계와 동일한 채널링 패턴).
+	public Vector3Int? currentAttackObjectTarget;
 
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
 	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
@@ -304,8 +405,8 @@ public abstract class Unit : ScriptableObject {
 		return false;
 	}
 
-	// ??? ?뺢퇋???⑥닔 ?????????????????????????????????????????????????
-	// 0%~200% 踰붿쐞濡??대옩?? 100%媛 湲곗?媛믨낵 ?쇱튂?섎룄濡?
+	// ─── 정규화 함수 ───
+	// 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록
 	private float Normalize(float value, float baseValue)
 	{
 		if (baseValue <= 0f) return 0f;
@@ -333,37 +434,37 @@ public abstract class Unit : ScriptableObject {
 		float nCrit     = Normalize(CombatStat.criticalChance,    BASE_CRIT);
 		float nCdr      = Normalize(BaseStat.cooltimeReduction, BASE_CDR);
 
-		// 湲곕낯 ?λ젰移?怨꾩궛
-		// 洹쇰젰 = 臾쇰━ 怨듦꺽???뺢퇋??
+		// 기본 능력치 계산
+		// 근력 = 물리 공격력 정규화
 		BaseStat.sterngth = nAtk;
 
-		// ?닿뎄 = 泥대젰 45 + 臾쇰갑 45 + ?ъ깮 10
+		// 내구 = 체력 45 + 물방 45 + 재생 10
 		BaseStat.Durability = nHp * 0.45f + nPDef * 0.45f + nRegen * 0.10f;
 
-		// 誘쇱꺽 = 怨듭냽 35 + ?대룞 25 + 諛섏쓳 40
+		// 민첩 = 공속 35 + 이동 25 + 반응 40
 		BaseStat.agility = nAtkSpd * 0.35f + nMove * 0.25f + nReact * 0.40f;
 
-		// 吏묒쨷 = 移섎챸 60 + 荑④컧 40
+		// 집중 = 치명 60 + 쿨감 40
 		concentration = nCrit * 0.60f + nCdr * 0.40f;
 
-		// 留덈젰 = 留덇났 60 + 留덈굹 40
+		// 마력 = 마공 60 + 마나 40
 		MagicPower = nMatk * 0.60f + nMp * 0.40f;
 
-		// ???(紐ъ뒪???덉쇅)
+		// 저항(몬스터 예외)
 		if (this is Monster)
 			resistance = nMDef * 0.5f + nStatus * 0.5f;
 		else
 			resistance = nMDef * 0.35f + nStatus * 0.35f + nMental * 0.30f;
 
-		// 媛먭컖 = 媛먯?
+		// 감각 = 감지
 		BaseStat.sense = nSpot;
 
-		// ?듭넄 = 吏?섎쾾??50 + 移대━?ㅻ쭏 50
+		// 통솔 = 지도범위 50 + 카리스마 50
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
 	}
 
-	// ?ㅽ꺈 ?곸슜? ?댁젣 UnitGenerate媛 ?ㅽ룿???꾨━?뱀쓽 UnitVisualDefinition.ApplyStatsTo(unit)??
-	// SetupStats() ?몄텧 ?꾩뿉 ?대떦?쒕떎. ?ш린?쒕뒗 洹?湲곕낯 ?ㅽ꺈?쇰줈遺???뚯깮 ?ㅽ꺈留?怨꾩궛?쒕떎.
+	// 스탯 적용은 이제 UnitGenerate가 스폰될 프리팹의 UnitVisualDefinition.ApplyStatsTo(unit)이
+	// SetupStats() 호출 전에 담당한다. 여기서는 그 기본 스탯으로부터 파생 스탯만 계산한다.
 	public void SetupStats()
 	{
 		CalculateDerivedStats();
@@ -386,7 +487,7 @@ public abstract class Unit : ScriptableObject {
 		return Quaternion.Euler(0f, 0f, angle);
 	}
 
-	// ??? 異붿긽 硫붿꽌????????????????????????????????????????????????????
+	// ─── 추상 메서드 ───
 	public abstract void TakeDamage(float damage);
 	public abstract void TakePhysicalDamage(float rawDamage, Unit attacker);
 	public abstract void TakeMagicalDamage(float rawDamage, Unit attacker);
@@ -429,20 +530,30 @@ public abstract class Unit : ScriptableObject {
 				return;
 		}
 
-		if (_gameSession.unitGrid.ContainsKey(oldKey))
-			_gameSession.unitGrid.Remove(oldKey);
-
+		// 최종 안전장치(2026-08-22 사용자 신고 "난전 중 유닛끼리 겹쳐진다. 어떤 상황에서도 유닛끼리는
+		// 겹쳐지면 안돼") — ForceMove는 A*/CanMove 정상 경로를 거치지 않는 예외 이동(회피/점멸)이라,
+		// 호출부가 후보를 고를 때 점유 검사를 빠뜨리면(실제로 DefenseSystem의 점멸 후보 탐색이
+		// ignoreUnits:true를 써서 이 문제가 있었다 — 그쪽은 이미 착지 칸 재검증으로 고쳤다) 바로 겹침
+		// 사고로 이어진다. GameSession.RegisterUnitPos(발자국 크기까지 고려해 점유를 확인, 이미 다른
+		// 유닛이 있으면 false 반환)를 거쳐 등록하고, 실패하면 이동 자체를 취소하고 원래 자리에 남는다
+		// (후보가 없으면 제자리 유지라는 기존 회피/점멸 관례와 동일). 예전엔 이 메서드가 unitGrid를
+		// 직접 건드리면서 발자국(footprint)을 전혀 고려하지 않아 다중 타일 유닛에서 등록이 어긋날 수
+		// 있었는데, 공용 헬퍼로 옮기며 그 문제도 함께 해결됐다.
+		_gameSession.UnregisterUnitPos(this, position);
+		Vector2Int oldPos = position;
 		position = targetPos;
-
-		Vector3Int newKey = new Vector3Int(position.x, position.y, currentFloor);
-		_gameSession.unitGrid[newKey] = this;
+		if (!_gameSession.RegisterUnitPos(this, targetPos))
+		{
+			position = oldPos;
+			_gameSession.RegisterUnitPos(this, oldPos);
+		}
 	}
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
 
-	// 01-A 11?? ?쒖빞 諛⑺뼢 ?꾪솚 ?곗꽑?쒖쐞 ?먯젙 ???대쾲 ?댁뿉 ?쒖꽦?붾맂 ?꾨낫??以?媛???믪? ?곗꽑?쒖쐞瑜?
-	// 怨⑤씪 currentDir瑜?媛깆떊?쒕떎. GameSession.ProcessUnitAction??ExecuteAction() ?댄썑, UpdateFOV()
-	// ?댁쟾???몄텧?쒕떎(洹몃옒???대룞?쇰줈 媛깆떊??currentDir瑜?"?대룞 以? ?꾨낫??湲곕낯媛믪쑝濡??쒖슜?????덈떎).
+	// 01-A 11장 시야 방향 전환 우선순위 결정 — 이번 틱에 활성화된 후보들 중 가장 높은 우선순위를
+	// 골라 currentDir를 갱신한다. GameSession.ProcessUnitAction이 ExecuteAction() 이후, UpdateFOV()
+	// 이전에 호출한다(그래야 이동으로 갱신된 currentDir를 "이동 중 방향 기본값으로 사용할 수 있다).
 	public abstract void ResolveVisionDirection();
 
 	private UnitFSM _fsm;
@@ -487,14 +598,14 @@ public class Human : UnitFunction
         FactionBehavior = new HumanFactionBehavior();
     }
 
-	// 媛쒖씤 吏??????ㅻ툕?앺듃/紐ъ뒪??紐⑷꺽/諛??꾪뿕?꽷룻씎誘몃룄) ??吏?꾧????뺣━ 臾몄꽌 湲곗? "吏?꾨뒗
-	// ?몃쪟留??ㅺ퀬 ?덉뼱???쒕떎"??吏?쒖뿉 ?곕씪 Human?먮쭔 ?붾떎(Monster/base Unit?먮뒗 ?놁쓬).
+	// 개인 지도(오브젝트/몬스터 목격/방 위험도·흥미도) — 지도 기록 정리 문서 기준 "지도는
+	// 인류만 갖고 있어야 한다"는 지침에 따라 Human에만 둔다(Monster/base Unit에는 없음).
 	public PersonalMapKnowledge personalMap => Memory.personalMap;
 	public List<string> collectedObjects    => Memory.collectedObjects;
 
-	// ???좊떅???랁븳 ?뚰떚(?덈떎硫? ??13???뚰떚 ?꾨㈇/6???⑥씠釉?醫낅즺 ?앹〈??諛섏쁺 ?먯젙???곗씤??
-	// GameSession.CreateParty()媛 ?뚰떚 ?앹꽦 ??梨꾩썙以?? ?뚰떚 ?놁씠 ?ㅽ룿???몃쪟(?붾쾭洹??⑤룆 ?뚰솚
-	// ????null濡??좎? ???뚰떚 愿???먯젙 ??곸뿉???먯뿰???쒖쇅?쒕떎.
+	// 이 유닛에 한정된 파티(있다면, 6장 파티 전멸/6장 웨이브클리어 상태 반영 사정과 연관)
+	// GameSession.CreateParty()가 파티 생성 시 채워준다. 파티 없이 스폰된 인류(디버그/단독 소환
+	// 등)는 null로 남아 파티 관련 사정 산정에서 자연히 제외된다.
 	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
 	// 03문서 5장(조사)/10장(대기)/6장(보호 포메이션) — 인류 전용(13장 표, 몬스터는 "컨셉에 따라"만
@@ -502,8 +613,6 @@ public class Human : UnitFunction
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
 	public FormationState     currentFormation;
-	// 7-3장(2026-07-27 신규): 리더 전용 — 이 유닛이 파티 리더일 때만 의미가 있다(CorePartySystem 참고).
-	public CoreInteractionState currentCoreInteraction;
 	// 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
 
@@ -519,7 +628,7 @@ public class Human : UnitFunction
 	// 경계 태세를 취함) — 9-5장 순서가 "해제 유닛이 함정 위치 도달 → 상호작용 정보 전파 및 보호
 	// 포메이션 형성 → 함정 해제 시작"이라, 발견 직후 5초 합류 대기나 이동 중(아직 도착 전)에는
 	// 보호 포메이션이 형성되면 안 된다. 예전엔 함정을 인지한 순간부터(도착 전 포함) true였다.
-	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null || currentCoreInteraction != null;
+	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
 
 	private bool IsActivelyHandlingTrap()
 	{
@@ -745,22 +854,19 @@ public class Human : UnitFunction
 		return slot;
 	}
 
-	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행/코어 조사)을 시작했는지 — 아직
+	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행)을 시작했는지 — 아직
 	// 목적지로 "이동 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
 	private bool IsEscortTargetActivelyInteracting(Human escortTarget)
 	{
-		if (escortTarget.currentCoreInteraction != null) return escortTarget.currentCoreInteraction.Active;
 		if (escortTarget.currentInvestigation != null) return escortTarget.currentInvestigation.PenaltyActive;
 		if (escortTarget.currentTrapInteraction != null) return escortTarget.currentTrapInteraction.PenaltyActive;
 		return false;
 	}
 
 	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치" —
-	// 조사/함정/코어(7-3장) 셋 중 진행 중인 것을 조회한다.
+	// 조사/함정 중 진행 중인 것을 조회한다.
 	private Vector2Int? GetInteractionObjectPosition(Human escortTarget)
 	{
-		if (escortTarget.currentCoreInteraction != null)
-			return new Vector2Int(escortTarget.currentCoreInteraction.CorePosition.x, escortTarget.currentCoreInteraction.CorePosition.y);
 		if (escortTarget.currentInvestigation != null)
 			return new Vector2Int(escortTarget.currentInvestigation.TargetPosition.x, escortTarget.currentInvestigation.TargetPosition.y);
 		if (escortTarget.currentTrapInteraction != null)
@@ -771,7 +877,7 @@ public class Human : UnitFunction
 	public override void JudgeState()
 	{
 		base.JudgeState();
-		// ?몃쪟 ?곹깭 ?먮떒 濡쒖쭅 異붽?
+		// 인류 상태 판단 로직 추가
 	}
 }
 
@@ -789,7 +895,7 @@ public class Monster : UnitFunction
 	public override void JudgeState()
 	{
 		base.JudgeState();
-		// 紐ъ뒪???곹깭 ?먮떒 濡쒖쭅 異붽?
+		// 몬스터 상태 판단 로직 추가
 	}
 }
 

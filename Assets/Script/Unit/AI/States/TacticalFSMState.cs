@@ -45,7 +45,8 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.Investigate],
 				nodes[TacticalBehaviorType.Wait],
 				nodes[TacticalBehaviorType.Formation],
-				nodes[TacticalBehaviorType.Core],
+				nodes[TacticalBehaviorType.CoreAttack],
+				nodes[TacticalBehaviorType.DoorAttack],
 				_fallbackRunning
 			);
 		}
@@ -117,10 +118,15 @@ public class TacticalFSMState : IFSMState
 					new BTLeaf(HoldFormation)
 				)
 			),
-			[TacticalBehaviorType.Core] = new BTSequence(
-				new BTCondition(CanContinueCore),
-				new BTLeaf(MoveToCore),
-				new BTLeaf(CoreInvestigatePerform)
+			[TacticalBehaviorType.CoreAttack] = new BTSequence(
+				new BTCondition(HasCoreAttackTarget),
+				new BTLeaf(MoveToCoreAttack),
+				new BTLeaf(CoreAttackPerform)
+			),
+			[TacticalBehaviorType.DoorAttack] = new BTSequence(
+				new BTCondition(HasDoorAttackTarget),
+				new BTLeaf(MoveToDoorAttack),
+				new BTLeaf(DoorAttackPerform)
 			)
 		};
 	}
@@ -139,24 +145,8 @@ public class TacticalFSMState : IFSMState
 		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
 		if (hu != null && hu.currentWait != null) return p;
 		if (hu != null && hu.HasProtectiveFormationNeed()) return p;
-		if (hu != null && hu.party != null && hu.party.Leader == hu && hu.party.PendingCoreObjectId != null)
-		{
-			// 2026-07-27 버그 수정("코어가 없는 이상한 곳에서 코어 로직이 실행됨"): 리더가 코어와 다른
-			// 층에 있으면(예: 웨이브 시작 직후 아직 0층 대기 구역) 여기서 층 이동을 계단 이동
-			// 파이프라인(NavigationFSMState.HasPendingStairs/MoveToStairs/CrossStairs — 이미 검증된
-			// 기존 메커니즘)에 맡기고, 코어 쪽은 우선순위를 양보한다. 그래야 MoveToCore의 도착 판정
-			// (X/Y만 비교, 층 비교 없음)이 다른 층에서 좌표만 우연히 근접했을 때 오작동하는 걸 막는다.
-			if (hu.currentFloor != hu.party.PendingCorePosition.z)
-			{
-				// [의도적 부수효과 — GetPriority 내 유일 예외]
-				// 리더가 코어와 다른 층에 있을 때 계단 이동 파이프라인에 목적지 층 정보를 주입한다.
-				// NavigationFSMState.HasPendingStairs가 이 값을 읽어 즉시 계단 이동을 시작하게 하는 것이
-				// 목적이며, 이 조건 이외에서 GetPriority가 상태를 변경하는 부분은 없다.
-				if (!hu.pendingStairTargetFloor.HasValue) hu.pendingStairTargetFloor = hu.party.PendingCorePosition.z;
-				return 0f;
-			}
-			return p;
-		}
+		if (HasCoreAttackTarget(unit)) return p;
+		if (HasDoorAttackTarget(unit)) return p;
 		return 0f;
 	}
 
@@ -242,24 +232,17 @@ public class TacticalFSMState : IFSMState
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
 		}
-		// 8-2장: 보호 유닛이 피격당했을 때 — 지금 조사 중인 대상이 파티의 웨이브 목표 오브젝트(7장)면
-		// 상호작용을 유지하고(공격받은/대응 가능한 보호 유닛만 각자 알아서 전투·경계로 전환 — 그건 그
-		// 유닛 자신의 FSM이 담당하므로 여기서 따로 처리할 게 없다), 그 밖의 일반 조사면 중단한다.
-		// 2026-07-25 사용자 요청으로 연결(AnyEscortHitThisTurn()이 그동안 아무도 호출하지 않는 죽은
-		// 코드였다) — InteractableObject에 "파티 목표" 플래그가 따로 없어(7장 재검증 참고)
-		// HumanWaveManager.dummyTarget(지금 이 웨이브의 유일한 목표 오브젝트)과 ID를 비교해 근사한다.
-		if (human.AnyEscortHitThisTurn() && !IsPartyObjectiveInvestigation(human.currentInvestigation))
+		// 8-2장: 보호 유닛이 피격당했을 때 일반 조사는 중단한다(2026-07-25 사용자 요청으로 연결 —
+		// AnyEscortHitThisTurn()이 그동안 아무도 호출하지 않는 죽은 코드였다). 예전엔 웨이브 목표
+		// 오브젝트(HumanWaveManager.dummyTarget) 조사만 예외로 유지했지만, 웨이브 목표가 코어 공격
+		// (TacticalBehaviorType.CoreAttack, 별도 상태)으로 바뀌면서(기초문서.md 피드백, 2026-08-22)
+		// 이 Investigate 분기가 다루는 대상은 전부 "일반 조사"뿐이라 예외 자체가 없어졌다.
+		if (human.AnyEscortHitThisTurn())
 		{
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
 		}
 		return true;
-	}
-
-	private static bool IsPartyObjectiveInvestigation(InvestigationState inv)
-	{
-		var wave = HumanWaveManager.Instance;
-		return wave != null && wave.dummyTarget != null && inv != null && wave.dummyTarget.Id == inv.TargetObjectId;
 	}
 
 	// 5-6장: 조사 진행도(Progress01)의 50% 손실 — InvestigatePerform이 매 틱 PenaltyActive를 true로
@@ -425,7 +408,12 @@ public class TacticalFSMState : IFSMState
 			if (unit is Human h) TrapPartySystem.RestartSelection(h, trap);
 			return BTStatus.Success;
 		}
-		AIMovementHelper.MoveTowardsPos(unit, target);
+		// 2026-08-23 버그 수정: MoveToTrap과 동일한 이유로 완전히 막히면 근처 빈 칸으로 우회 시도.
+		if (!AIMovementHelper.MoveTowardsPos(unit, target))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
+			if (fallback != target) AIMovementHelper.MoveTowardsPos(unit, fallback);
+		}
 		return BTStatus.Running;
 	}
 
@@ -449,7 +437,15 @@ public class TacticalFSMState : IFSMState
 		// 가능하게") — MoveToInvestigateTarget과 동일한 관례.
 		if (AIMovementHelper.IsAdjacent(unit.position, trapPos))
 			return BTStatus.Success;
-		AIMovementHelper.MoveTowardsPos(unit, trapPos);
+		// 2026-08-23 버그 수정: 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도 —
+		// MoveToCoreAttack과 동일한 관례. 예전엔 반환값을 무시해서, 진행 경로가 막히면(특히 2026-08-22
+		// 문 시스템 개편 이후 다른 진영 문이 항상 통행을 막는 경우) 해제 담당 유닛이 영원히 Running만
+		// 반환하며 그 자리에서 멈춰 함정이 끝내 처리되지 않는 문제가 있었다.
+		if (!AIMovementHelper.MoveTowardsPos(unit, trapPos))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, trapPos);
+			if (fallback != trapPos) AIMovementHelper.MoveTowardsPos(unit, fallback);
+		}
 		return BTStatus.Running;
 	}
 
@@ -1019,180 +1015,239 @@ public class TacticalFSMState : IFSMState
 	}
 
 
-	// ── 코어(7-3장, 2026-07-27 신규) — 리더 전용 ───────────────────
-
-	// 리더 승계로 새로 리더가 된 유닛도 이 조건을 통해 자연스럽게 CoreInteractionState를 새로 만든다
-	// (Party.PendingCoreObjectId는 파티 소유라 리더가 바뀌어도 그대로 유지됨).
-	private static bool CanContinueCore(Unit unit)
+	// ── 코어 공격(기초문서.md 피드백, 2026-08-22 전면 개편, 2026-08-22 재조정 — 인류 전용으로 축소) ──
+	// 모든 방이 항상 코어를 하나씩 갖고, 코어 체력이 0이 되면 막타친 유닛의 진영으로 방 소유권이
+	// 즉시 전환된다(OffenseProcessor.OnCoreDestroyed, 코어 자체는 반피로 회복돼 사라지지 않음).
+	// 예전 "리더 전용 조사·회수" 흐름(CorePartySystem/CoreInteractionState)을 완전히 대체.
+	//
+	// [중요, 2026-08-22 재조정] 최초 구현은 "인류/몬스터 공통"이었으나, 사용자 신고("이동 명령중이고
+	// 앞에 막힌게 없는데도 문 앞에서 멈춤" — 2*2 통로에 남겨둔 마지막 상대 진영 문 하나를 플레이어
+	// 몬스터가 이동 중 발견하고 스스로 파괴를 시도하다 막힌 것으로 추정됨)로 확정 — "플레이어 측
+	// 몬스터는 절대 스스로 문이나 코어를 파괴하려 시도해서는 안 된다. 반드시 플레이어의 명령으로만
+	// 시도해야 한다. 자동 오브젝트 공격(코어/문 모두)은 오직 인류만의 로직이다." 이제 인류가 아니면
+	// (플레이어 몬스터 포함) 이 조건 자체가 항상 false — DoorAttack(TacticalBehaviorType.DoorAttack)
+	// 과 동일하게 인류 전용이다. 플레이어 몬스터가 코어/문을 부수려면 반드시 PlayerCommandFSMState.
+	// ExecutePlayerAttackObject(우클릭 명령)를 거쳐야 한다.
+	private static bool HasCoreAttackTarget(Unit unit)
 	{
-		if (!(unit is Human human) || human.party == null || human.party.Leader != human || human.party.PendingCoreObjectId == null)
-			return false;
+		return FindHostileRoomCore(unit, out _, out _);
+	}
 
-		// 방어적 재확인(2026-07-27) — 정상 경로면 GetPriority가 층이 다를 때 이미 우선순위를 양보해서
-		// 이 지점에 도달하지 않지만, 혹시라도 층이 다른 채로 들어오면 X/Y만 보는 MoveToCore의 오작동을
-		// 막기 위해 여기서도 한 번 더 막는다.
-		if (human.currentFloor != human.party.PendingCorePosition.z) return false;
+	// unit이 지금 서 있는 방의 코어가 "공격 대상"인지 확인한다 — 인류가 아니면(플레이어 몬스터/야생
+	// 모두) 항상 대상 아님. 그 외엔 방이 이미 내 진영 소유이거나, 코어 정보가 없거나(생성 실패 등
+	// 방어적 상황), 이미 파괴돼(회복 전 찰나) HP가 0이면 대상이 아니다.
+	private static bool FindHostileRoomCore(Unit unit, out Room room, out InteractableObject core)
+	{
+		room = null;
+		core = null;
+		if (!(unit is Human)) return false; // 인류 전용(2026-08-22 재조정) — 플레이어 몬스터는 자동으로 코어를 공격하지 않는다.
+		if (unit.Session?.cmap == null) return false;
 
-		if (human.currentCoreInteraction == null || human.currentCoreInteraction.CoreObjectId != human.party.PendingCoreObjectId)
-		{
-			human.currentCoreInteraction = new CoreInteractionState
-			{
-				CoreObjectId = human.party.PendingCoreObjectId,
-				CorePosition = human.party.PendingCorePosition,
-			};
-		}
+		FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
+		if (myFaction == null) return false; // 방 소유권 개념이 없는 진영(매핑 불가)
 
-		// 8-1장: 리더 본인이 피격되거나 위협을 인지하면 코어 조사를 중단(전투/경계로 전환)한다.
-		// 8-2장의 "보호 유닛 피격 시 유지" 예외는 AnyEscortHitThisTurn을 의도적으로 확인하지 않아
-		// 이미 충족된다.
-		if (human.isHitThisTurn || human.HasPerceivedThreatCollider())
-		{
-			// 2026-07-27 추가: 조사 중단으로 진행 막대도 숨긴다(트랩 해제 중단과 동일 관례).
-			if (human.currentCoreInteraction.CachedProgressBar != null)
-			{
-				human.currentCoreInteraction.CachedProgressBar.SetProgress(0f, false);
-			}
-			else
-			{
-				human.Session?.GetObjectVisual(human.currentCoreInteraction.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
-			}
-			human.currentCoreInteraction = null;
-			return false;
-		}
+		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+		if (!unit.Session.roomGrid.TryGetValue(gridPos, out room) || room == null) return false;
+		if (room.RoomFaction == myFaction.Value) return false; // 이미 내 진영 소유
+		if (room.CoreObjectId == null) return false;
+		if (!unit.Session.objectGrid.TryGetValue(room.CorePosition, out core) || core.CoreHp <= 0f) return false;
 		return true;
 	}
 
-	private static BTStatus MoveToCore(Unit unit)
+	private static BTStatus MoveToCoreAttack(Unit unit)
 	{
-		var human = (Human)unit;
-		var core  = human.currentCoreInteraction;
-		if (core == null) return BTStatus.Failure;
-
-		// 2026-07-27 버그 수정("코어가 없는 이상한 곳에서 코어 로직이 실행됨") — 아래 도착 판정이
-		// X/Y만 비교하고 층은 안 봐서, 리더가 다른 층에서 우연히 같은 X/Y 근처에 있으면 그 자리를
-		// "도착"으로 착각했다. 정상 경로면 GetPriority가 층이 다를 때 이미 계단 이동으로 양보하지만,
-		// 여기서도 한 번 더 막아 절대 다른 층에서 도착 판정이 나지 않게 한다.
-		if (human.currentFloor != core.CorePosition.z) return BTStatus.Running;
-
-		if (human.Session == null || !human.Session.objectGrid.TryGetValue(core.CorePosition, out var obj) || obj.IsInvestigated)
+		if (!FindHostileRoomCore(unit, out Room room, out InteractableObject core))
 		{
-			human.currentCoreInteraction = null;
-			human.party.PendingCoreObjectId = null;
-			return BTStatus.Success;
+			unit.currentAttackObjectTarget = null;
+			return BTStatus.Failure;
 		}
-		if (!human.personalMap.IsObjectKnown(obj.Id))
-			human.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 
-		var pos = new Vector2Int(core.CorePosition.x, core.CorePosition.y);
+		Vector2Int pos = new Vector2Int(room.CorePosition.x, room.CorePosition.y);
 
-		// 2026-07-27 사용자 신고("유닛이 코어에 겹쳐서 포메이션을 잡음") — 코어는 Passable이라 리더가
-		// 실제로 그 타일 위까지 걸어가 설 수 있다(도착 판정이 Chebyshev≤1이라 거리 0도 통과). 리더가
-		// 코어 타일 자체를 점유하면 호위 슬롯 계산의 기준점(escortTarget.position)도 코어 위가 돼버려
-		// 포메이션 전체가 코어 위/주변에 이상하게 겹친다. 정확히 그 타일에 서 있으면 인접 빈 칸으로
-		// 한 걸음 물러난 뒤에만 "도착"으로 인정한다.
-		if (human.position == pos)
+		// 코어는 Passable이라 유닛이 그 타일 위까지 걸어가 설 수 있다 — MoveToCore(구 코어 조사)와
+		// 동일하게, 정확히 그 타일에 서 있으면 인접 빈 칸으로 한 걸음 물러난 뒤에만 "도착"으로 인정한다.
+		if (unit.position == pos)
 		{
-			StepOffObjectTile(human, pos);
+			StepOffObjectTile(unit, pos);
 			return BTStatus.Running;
 		}
 
-		if (AIMovementHelper.IsAdjacent(human.position, pos)) return BTStatus.Success;
-
-		// 2026-07-27 사용자 신고("보호 포메이션 동안 다른 유닛에게 길이 막혀서 리더가 코어에 영구히
-		// 도착 못함") 방어책 — 근본 원인(호위가 이동 중인 리더의 전방을 가로막던 것)은
-		// GetEscortSlotPosition 쪽에서 고쳤지만, 혹시 다른 이유로 한 칸도 못 나아가면(길이 완전히
-		// 막힘) PlayerCommandFSMState.ExecutePlayerMove와 동일한 관례로 근처 빈 칸으로 목표를 잠깐
-		// 대신해 우회를 시도한다 — 매 틱 다시 원래 pos로 재시도하므로 영구 고착은 아니다.
-		if (!AIMovementHelper.MoveTowardsPos(human, pos))
+		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(human, pos);
-			if (fallback != pos) AIMovementHelper.MoveTowardsPos(human, fallback);
+			unit.currentAttackObjectTarget = room.CorePosition;
+			return BTStatus.Success;
+		}
+
+		unit.currentAttackObjectTarget = null;
+		if (!AIMovementHelper.MoveTowardsPos(unit, pos))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos);
+			if (fallback != pos) AIMovementHelper.MoveTowardsPos(unit, fallback);
 		}
 		return BTStatus.Running;
 	}
 
-	// 위 MoveToCore 전용 — 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음
-	// 물러난다(9-6장 TrapPartySystem.StepAwayFromTrap과 동일한 관례).
-	private static void StepOffObjectTile(Human human, Vector2Int objectPos)
+	// 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음 물러난다(9-6장
+	// TrapPartySystem.StepAwayFromTrap과 동일한 관례).
+	private static void StepOffObjectTile(Unit unit, Vector2Int objectPos)
 	{
 		for (int i = 0; i < 8; i++)
 		{
-			Vector2Int candidate = objectPos + human.GetDirVector((Dir)i);
-			if (human.CanMove(candidate))
+			Vector2Int candidate = objectPos + unit.GetDirVector((Dir)i);
+			if (unit.CanMove(candidate))
 			{
-				AIMovementHelper.MoveTowardsPos(human, candidate);
+				AIMovementHelper.MoveTowardsPos(unit, candidate);
 				return;
 			}
 		}
 	}
 
-	private static BTStatus CoreInvestigatePerform(Unit unit)
+	// 실제 데미지 적용은 UnitFunction.OnUpdate가 currentAttackObjectTarget을 보고 매 프레임 처리한다
+	// (TrapPhase.Destroying과 동일한 채널링 패턴) — 여기서는 도착 유지/파괴 완료만 확인한다.
+	private static BTStatus CoreAttackPerform(Unit unit)
 	{
-		var human = (Human)unit;
-		var core  = human.currentCoreInteraction;
-		if (core == null) return BTStatus.Failure;
-		if (human.Session == null || !human.Session.objectGrid.TryGetValue(core.CorePosition, out var obj) || obj.IsInvestigated)
+		if (!unit.currentAttackObjectTarget.HasValue) return BTStatus.Failure;
+		Vector3Int corePos = unit.currentAttackObjectTarget.Value;
+
+		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(corePos, out var obj))
 		{
-			human.currentCoreInteraction = null;
-			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
-			if (human.party != null) human.party.PendingCoreObjectId = null;
+			unit.currentAttackObjectTarget = null;
+			return BTStatus.Success;
+		}
+		if (obj.CoreHp > 0f) return BTStatus.Running; // 파괴 완료는 OffenseProcessor.OnCoreDestroyed가 처리
+
+		unit.currentAttackObjectTarget = null;
+		return BTStatus.Success;
+	}
+
+	// ── 문 공격(2026-08-22 신규, 사용자 요청 "인간쪽에만 적용되는 fsm인데, 방을 점령하고 난 다음,
+	// 다른 방으로 향하는 다른 진영 문이 발견되었으면 공격하고, 탐험을 이어나가는 로직으로 바꿔줘") ──
+	// 인류 전용. CoreAttack(자기 진영 소유가 아닌 방에 들어가 코어를 공격)과 반대로, 이미 점령(자기
+	// 진영 소유)한 방에 서 있을 때 그 방 경계의 게이트 중 아직 다른 진영 소유인 문을 찾아 부순다.
+	// 대상이 없어지면(파괴 완료/이미 아군 소유/방 자체가 미점령) 이 조건이 자연히 false가 되어 BT가
+	// 다음 우선순위(조사/탐험 등)로 넘어간다 — 별도의 "탐험 재개" 코드가 필요 없다.
+	private static bool HasDoorAttackTarget(Unit unit)
+	{
+		return FindHostileExitDoor(unit, out _, out _);
+	}
+
+	// unit이 지금 서 있는 방이 이미 자기 진영(인류) 소유이고, 그 방의 게이트(Floor.gates 중 roomA/
+	// roomB가 이 방인 것) 문턱 타일 중 아직 파괴되지 않았고 소유 진영이 인류가 아닌 문이 있으면 그
+	// 위치를 돌려준다. 인류가 아닌 유닛(플레이어 몬스터/야생)에는 전혀 적용되지 않는다.
+	//
+	// 가까운 문부터 공격(2026-08-22 사용자 요청 "코어 파괴나 문 파괴는 인접 1칸에서만 시도할 수
+	// 있으니, 가까운 것부터 부숴야 해") — 게이트 문턱은 항상 두 줄(가까운 쪽/먼 쪽)인데, GetGateDoorTiles
+	// 가 반환하는 [tilesA, tilesB] 순서는 "왼쪽/아래" 청크 기준일 뿐 어느 쪽이 실제로 지금 방 쪽인지와
+	// 무관하다 — 그 순서를 그대로 믿고 먼저 발견된 것을 집으면 먼 쪽(반대편 방, 애초에 인접 1칸이
+	// 불가능한 대상)을 먼저 노리는 버그가 생겼다. 대신 후보를 전부 모아 지금 위치에서 체비셰프 거리가
+	// 가장 가까운 것 하나만 고른다 — 가까운 쪽 문이 남아있는 한 항상 더 가깝고, 그 문이 파괴돼 통로가
+	// 뚫리면(그래서 그 근처까지 다가갈 수 있게 되면) 자연히 먼 쪽 문이 새로운 최단 거리 대상이 된다.
+	private static bool FindHostileExitDoor(Unit unit, out Vector3Int doorPos, out InteractableObject door)
+	{
+		doorPos = default;
+		door = null;
+		if (!(unit is Human)) return false; // 인류 전용
+		if (unit.Session?.cmap == null) return false;
+
+		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
+		if (!unit.Session.roomGrid.TryGetValue(gridPos, out Room room) || room == null) return false;
+		if (room.RoomFaction != FactionType.Human) return false; // "방을 점령하고 난 다음"
+		if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= unit.Session.cmap.map.floors.Length) return false;
+
+		Floor floor = unit.Session.cmap.map.floors[room.Floor];
+		if (floor.gates == null) return false;
+
+		int bestDist = int.MaxValue;
+
+		foreach (var gate in floor.gates)
+		{
+			if (gate.roomA != room.RoomId && gate.roomB != room.RoomId) continue;
+
+			foreach (var tileRow in DoorSystem.GetGateDoorTiles(gate))
+			{
+				foreach (var tile in tileRow)
+				{
+					Vector3Int pos = new Vector3Int(tile.x, tile.y, room.Floor);
+					if (!unit.Session.objectGrid.TryGetValue(pos, out InteractableObject obj)) continue;
+					if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
+					if (obj.DoorHp <= 0f) continue; // 이미 파괴됨 — 재설치 전까지 통행 가능이라 대상 아님
+					if (obj.DoorOwnerFaction == FactionType.Human) continue; // 이미 아군 문
+
+					int dist = AIMovementHelper.ChebyshevDistance(unit.position, new Vector2Int(tile.x, tile.y));
+					if (dist < bestDist)
+					{
+						bestDist = dist;
+						doorPos = pos;
+						door = obj;
+					}
+				}
+			}
+		}
+		return door != null;
+	}
+
+	private static BTStatus MoveToDoorAttack(Unit unit)
+	{
+		if (!FindHostileExitDoor(unit, out Vector3Int doorPos, out _))
+		{
+			unit.currentAttackObjectTarget = null;
+			return BTStatus.Failure;
+		}
+
+		Vector2Int pos = new Vector2Int(doorPos.x, doorPos.y);
+
+		// 문은 아군 소유가 아니면 IsBlockedByClosedDoor가 항상 막으므로, 이 문 타일 위에 직접 서는
+		// 경우(StepOffObjectTile) 자체가 없다 — 인접에서 채널링만 하면 된다.
+		if (AIMovementHelper.IsAdjacent(unit.position, pos))
+		{
+			BeginDoorChannel(unit, doorPos);
 			return BTStatus.Success;
 		}
 
-		// 07문서 10장: 코어 조사가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
-		if (!core.Active) PropagationSystem.NotifyInteractionStarted(human);
-		core.Active = true; // UnitFunction.OnUpdate가 이 플래그를 보고 전파/진행도 타이머를 흘려보낸다.
-		if (!core.PropagationDone) return BTStatus.Running;
-		if (core.Progress01 < 1f) return BTStatus.Running;
-
-		obj.IsInvestigated = true;
-		human.personalMap.OnObjectInvestigated(obj.Id);
-		if (human.party != null)
+		bool madeProgress = AIMovementHelper.MoveTowardsPos(unit, pos);
+		if (!madeProgress)
 		{
-			foreach (var m in human.party.Members)
+			// 좁은 통로(2*2 통로 등)에서는 문 타일 자체가 막혀 있고 그 바로 옆(체비셰프 거리 1) 칸도
+			// 전부 다른 문/벽/유닛으로 막혀 있어 정확히 거리 1까지는 절대 못 붙는 경우가 있다 —
+			// TryGetNextStep이 "더 가까워질 방법이 없다"(closestNode == startNode)고 판단해
+			// MoveTowardsPos가 false를 반환하는 게 바로 이 상황. 사용자 신고(2026-08-22, "인류가
+			// 문으로 접근은 하는데 채널링이 안 걸림")의 원인으로 추정 — 더 가까워질 수 없는데 이미
+			// 어느 정도 가까이(반경 2) 왔다면 그 자리에서 채널링을 시작한다.
+			if (AIMovementHelper.IsAdjacent(unit.position, pos, radius: 2))
 			{
-				if (m == null || m == human || m.hp <= 0) continue;
-				if (!m.personalMap.IsObjectKnown(obj.Id))
-					m.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
-				m.personalMap.OnObjectInvestigated(obj.Id);
+				BeginDoorChannel(unit, doorPos);
+				return BTStatus.Success;
 			}
-			human.party.PendingCoreObjectId = null;
+
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos);
+			if (fallback != pos) AIMovementHelper.MoveTowardsPos(unit, fallback);
 		}
 
-		// 2026-07-27 수정("코어 조사 후에도 코어가 사라지지 않는다") — 보스방 던전 코어는 Loot 하위
-		// 태그도 함께 갖도록 통합됐는데(GameSession.SpawnInitialDungeonCore), 코어 조사는 일반
-		// InvestigationState가 아니라 이 별도 CoreInteractionState로 진행되기 때문에 조사가 끝나도
-		// TacticalFSMState.PickUpObject(Loot 실제 회수 처리)로 자연스럽게 이어지지 않았다. 리더 조사가
-		// "발견~조사 흐름"의 마지막 단계이자 이 오브젝트의 최초·유일한 조사이므로, PickUpObject의
-		// Loot 분기와 동일한 처리를 여기서 그대로 수행해 리더 본인이 즉시 회수하게 한다(일반 Loot
-		// 오브젝트가 조사 직후 같은 유닛이 즉시 집어가던 것과 동일 동작 — "다른 코어의 기능은 그대로
-		// 둔채" 요청대로 웨이브 목표 회수 자체는 그대로 유지). Loot 태그가 없는 테스트 전용 코어
-		// (SpawnCoreAt)는 이 분기를 안 타 그대로 남는다(의도대로).
-		if (obj.Tags.Exists(t => t.Contains("Loot")))
-		{
-			human.Session.CollectObject(obj.Position);
-			human.collectedObjects.Add(obj.Id);
-			if (!human.pendingStairTargetFloor.HasValue)
-				human.pendingStairTargetFloor = human.currentFloor + 1;
-		}
-		else
-		{
-			// 2026-07-27 추가: Loot 태그 없는 테스트 전용 코어는 회수되지 않고 그대로 남으므로,
-			// 완료된 진행 막대를 직접 숨겨야 한다(Loot 케이스는 CollectObject가 오브젝트째 파괴함).
-			if (human.currentCoreInteraction != null && human.currentCoreInteraction.CachedProgressBar != null)
-			{
-				human.currentCoreInteraction.CachedProgressBar.SetProgress(0f, false);
-			}
-			else
-			{
-				human.Session?.GetObjectVisual(obj.Position)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
-			}
-		}
+		unit.currentAttackObjectTarget = null;
+		return BTStatus.Running;
+	}
 
-		// 코어 파괴/특정 상호작용/인류 메리트·플레이어 디메리트 등 후속 효과는 코어·핵심방어목표 문서
-		// (추후 작성)의 몫 — 이번 구현은 사용자 확인대로 "발견~리더조사 흐름"까지만 다룬다.
-		human.currentCoreInteraction = null;
-		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
+	{
+		unit.currentAttackObjectTarget = doorPos;
+	}
+
+	// 실제 데미지 적용은 UnitFunction.OnUpdate가 currentAttackObjectTarget을 보고 매 프레임 처리한다
+	// (CoreAttackPerform과 동일한 채널링 패턴, DoorTag 분기는 이미 그 안에 있음) — 여기서는 도착
+	// 유지/파괴 완료만 확인한다.
+	private static BTStatus DoorAttackPerform(Unit unit)
+	{
+		if (!unit.currentAttackObjectTarget.HasValue) return BTStatus.Failure;
+		Vector3Int doorPos = unit.currentAttackObjectTarget.Value;
+
+		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(doorPos, out var obj))
+		{
+			unit.currentAttackObjectTarget = null;
+			return BTStatus.Success; // 파괴 완료(DoorSystem.RemoveDoor가 objectGrid에서 제거)
+		}
+		if (obj.DoorHp > 0f) return BTStatus.Running;
+
+		unit.currentAttackObjectTarget = null;
 		return BTStatus.Success;
 	}
 
@@ -1209,7 +1264,13 @@ public class TacticalFSMState : IFSMState
 		}
 		if (unit.currentAlertSearch != null) return "전술(경계)";
 		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return "전술(포메이션)";
-		if (unit is Human hc && hc.party != null && hc.party.Leader == hc && hc.party.PendingCoreObjectId != null) return "전술(코어)";
+		if (unit.currentAttackObjectTarget.HasValue)
+		{
+			bool isDoor = unit.Session != null
+				&& unit.Session.objectGrid.TryGetValue(unit.currentAttackObjectTarget.Value, out var attackObj)
+				&& attackObj.Tags != null && attackObj.Tags.Contains(DoorSystem.DoorTag);
+			return isDoor ? "전술(문 공격)" : "전술(코어 공격)";
+		}
 		return "전술";
 	}
 }

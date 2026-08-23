@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using System.Threading;
+using Haare.Util.Logger;
 
 [System.Serializable]
 public class WildBaseSpawnerComponent : IUnitComponent
@@ -29,7 +30,7 @@ public class WildBaseSpawnerComponent : IUnitComponent
         // HAARE 프레임워크 (Native Routine): UniTask 기반 스폰 루프 실행
         SpawnLoop(_cts.Token).Forget();
         
-        Debug.Log($"[WildBaseSpawnerComponent] 야생 거점 스포너 모듈이 부착되었습니다. (부착된 유닛 체력: {_owner.Health.hp})");
+        LogHelper.Log(LogHelper.GAME, $"[WildBaseSpawnerComponent] 야생 거점 스포너 모듈이 부착되었습니다. (부착된 유닛 체력: {_owner.Health.hp})");
     }
 
     private async UniTaskVoid SpawnLoop(CancellationToken token)
@@ -87,7 +88,7 @@ public class WildBaseSpawnerComponent : IUnitComponent
         _owner.Session.RegisterUnitPos(monster, monster.position);
         _targetRoom.AddUnit(monster);
         
-        Debug.Log($"[WildBaseSpawnerComponent] 거점에서 야생 몬스터를 {spawnPos} 좌표에 생성했습니다!");
+        LogHelper.Log(LogHelper.GAME, $"[WildBaseSpawnerComponent] 거점에서 야생 몬스터를 {spawnPos} 좌표에 생성했습니다!");
     }
 
     public void OnDespawn()
@@ -98,7 +99,7 @@ public class WildBaseSpawnerComponent : IUnitComponent
         if (_targetRoom != null)
             _targetRoom.HasActiveSpawner = false;
 
-        Debug.Log("[WildBaseSpawnerComponent] 거점 스포너 모듈이 파괴되었습니다!");
+        LogHelper.Log(LogHelper.GAME, "[WildBaseSpawnerComponent] 거점 스포너 모듈이 파괴되었습니다!");
     }
 }
 

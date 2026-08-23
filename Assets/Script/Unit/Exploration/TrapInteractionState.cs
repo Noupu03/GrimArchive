@@ -40,6 +40,12 @@ public class TrapInteractionState
 	public float MissingUnitTimer;
 	public bool SearchingForSelectedUnit;
 	public Vector2Int? SelectedUnitLastKnownPos;
+	// 선정 확정 시점에 한 번만 계산해 고정하는 ETA(2026-08-23 버그 수정) — TickWaitingForSelectedUnit이
+	// 매 틱 선정 유닛의 "현재" 위치 기준으로 ETA를 다시 계산해 MissingUnitTimer(실제 경과시간)와
+	// 비교하면, 유닛이 정상적으로 접근할수록 남은 ETA도 함께 줄어들어 두 값이 원래 의도(최초 ETA+3초)
+	// 보다 훨씬 이르게(대략 절반 지점에) 만나버린다 — 정상적으로 이동 중인 유닛까지 "실종"으로
+	// 오판정되는 버그였다. 선정 시점의 ETA를 여기 고정해두고 그 값과 비교한다.
+	public float SelectedUnitInitialEta = -1f;
 
 	// 9-9장: 파괴 진행 중 함정에 누적한 피해.
 	public float DestroyProgressDamage;

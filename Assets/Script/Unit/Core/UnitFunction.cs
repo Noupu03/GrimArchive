@@ -324,15 +324,16 @@ public abstract class UnitFunction : Unit, IVisionContext
 				int targetX = pos.x + dx;
 				int targetY = pos.y + dy;
 
-				// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면... 벽처럼 아예 이동
-				// 불가하게 해줘. 지금 플레이어 지정 명령으로 이동이 되어버려") — 인류가 문(isStructureExist)
-				// 에 안 막히던 예외(2026-07-28 앞선 요청 "인류는 문에 안 막혀야")를 없앤다. 닫힌 문은
-				// 이제 진영·명령 종류(AI 자율 이동/플레이어 지정 명령) 구분 없이 예외 없이 벽과 동일하게
-				// 막는다 — 인류 자율 탐색이 닫힌 문 앞에서 다시 멈추는 건 의도된 트레이드오프(방을
-				// 정리해야 문이 열리는 규칙을 인류에게도 예외 없이 적용).
 				// 2026-08-20 — 청크 인덱싱+벽 판정 중복을 CreateMap.IsStaticTileWalkable(동일 기준)
 				// 호출로 통합(이 유닛 자신의 currentFloor 기준이라 결과는 기존과 완전히 동일하다).
 				if (!cmap.IsStaticTileWalkable(currentFloor, new Vector2Int(targetX, targetY))) return false;
+
+				// 문 진영 통행 판정(기초문서.md 피드백, 2026-08-22 전면 개편 — "보유 진영의 유닛만
+				// 지나갈 수 있고... 그게 아니라면 공격해서 파괴해야 해") — 벽 판정과 별개로, 문 타일은
+				// Tile.isStructureExist를 더 이상 건드리지 않는다(DoorSystem 참고) — 대신 여기서 진영
+				// 일치 여부를 직접 확인한다. 예외·진영 구분 없이 벽과 동일하게 막던 예전 규칙을
+				// "보유 진영만 예외" 규칙으로 교체.
+				if (Session != null && Session.IsBlockedByClosedDoor(new Vector3Int(targetX, targetY, currentFloor), this)) return false;
 
 				if (!ignoreUnits && Session != null &&
 					Session.unitGrid.TryGetValue(new Vector3Int(targetX, targetY, currentFloor), out Unit u))
@@ -350,6 +351,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 	{
 		Vector2Int dirVec = GetDirVector(dir);
 		Vector2Int nextPos = position + dirVec;
+
+		// 문 개폐 시각 트리거(2026-08-22 재조정, 사용자 요청 "문 인접 칸에서 문에 접근 시도시 열리는
+		// 방식으로") — 실제 이동 성공 여부와 무관하게, 인접 칸에서 이 칸으로 넘어가려는 시도 자체가
+		// 열림 신호다(통행 가능 여부 판정과는 완전히 별개, 순수 시각 연출).
+		Session?.NotifyDoorApproachAttempt(new Vector3Int(nextPos.x, nextPos.y, currentFloor), this);
 
 		bool canMove = CanMove(nextPos);
 
@@ -636,8 +642,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Monster"))
 									PropagationSystem.OnMonsterCorpseDiscovered(terrainObserver, obj);
-								if (objKind == PerceptionTargetKind.Core)
-									CorePartySystem.OnCoreDiscovered(terrainObserver, obj);
+								// 코어 발견 시 파티 전파(CorePartySystem)는 기초문서.md 피드백(2026-08-22)으로
+								// 제거됨 — 이제 코어는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접
+								// 확인하므로 발견 이벤트가 따로 필요 없다.
 							}
 						}
 						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionNonEmpty.Contains(revealedTile))
@@ -863,63 +870,19 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
 		if (actualRoom == currentRoom) return;
 
-		// 점령 시스템(2026-07-28, 사용자 요청 "빈 방에 그냥 입성시, 그 방은 입성한 진영이 점령하게
-		// 해줘") — "비어있었다"는 이 유닛이 실제로 등록되기 전(AddUnit 호출 전) 기준이어야 하므로 여기서
-		// 먼저 스냅샷을 뜬다.
-		bool enteredRoomWasEmpty = actualRoom != null && IsRoomEffectivelyEmpty(actualRoom);
-
-		Room previousRoom = currentRoom;
+		// 방 소유권 전환은 이제 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다(기초문서.md
+		// 피드백, 2026-08-22) — 방을 그냥 떠나는 것만으로는 더 이상 점령이 바뀌지 않는다. 문 개폐도
+		// 이제 방 유닛 구성이 아니라 매 프레임 진영·근접 여부로 직접 판정하므로(DoorSystem.
+		// UpdateProcess) 방 이탈 시점에 따로 재확인할 필요가 없다.
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
-
-		// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "배치가 정해진 몬스터들이 다른 방으로 이동시,
-		// 해당 몬스터는 배치에서 사라지도록") — 디펜스 시작 위치가 지정된 방과 실제로 정착한 방이
-		// 달라지면 배치를 취소한다. "정착"은 "지금 플레이어 이동 명령을 수행 중이 아님"으로 근사한다
-		// — 그래야 이 배치 위치로 가는 도중 거쳐가는 방/복도에서 매 프레임 잘못 취소되지 않는다
-		// (같은 명령으로 목적지에 도착하면 그 방과 항상 일치해 자연히 통과됨). 플레이어가 배치된
-		// 몬스터를 다른 명령으로 딴 방까지 옮기면, 그 새 명령이 끝나 정착하는 시점에 취소된다.
-		if (defenseStartPosition.HasValue && !(isManualMoveCommand && playerMoveTarget.HasValue))
-		{
-			Vector2Int dsp = defenseStartPosition.Value;
-			Session.roomGrid.TryGetValue(new Vector3Int(dsp.x, dsp.y, currentFloor), out Room assignedRoom);
-			if (assignedRoom != actualRoom)
-			{
-				defenseStartPosition = null;
-			}
-		}
-
-		// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 유닛이 방을 떠나면서 그 방이 "정리된 상태"가 될 수
-		// 있다(예: 마지막 몬스터가 방을 벗어남). 들어간 방(actualRoom)은 인원이 늘어날 뿐이라 새로
-		// 열릴 조건을 만들 수 없고(문은 한번 열리면 다시 잠그지 않음) 떠난 방만 확인하면 된다.
-		if (previousRoom != null)
-		{
-			Session.RefreshRoomGateStates(previousRoom);
-			// 점령 재계산(2026-07-28) — 죽지 않고 그냥 방을 나가서(예: 인류가 퇴각) 단일 진영이 되는
-			// 경우도 GameSession.RemoveDeadUnit과 대칭으로 처리한다. TryFlipRoomOwnershipOnDeath 위
-			// 주석 참고.
-			Session.OffenseProcessor?.TryResolveRoomOwnership(previousRoom, $"{unitType?.typeName ?? "유닛"} 방 이탈");
-		}
-
-		// 점령 시스템(2026-07-28) — 전투 없이도 빈 방에 그냥 들어오기만 하면 입성한 유닛의 진영이 그
-		// 방을 점령한다. OffenseProcessor.TryClaimEmptyRoomOnEntry가 기존 점령 전환 경로(전투 사망/
-		// 야생 전멸 시)와 동일하게 Room.RoomFaction + CreateMap.occupationState + 방 색칠을 함께 갱신.
-		if (enteredRoomWasEmpty) Session.OffenseProcessor?.TryClaimEmptyRoomOnEntry(actualRoom, this);
 
 		// 안개 시스템(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이
 		// 있어야지만 사라져") — 플레이어 진영 몬스터가 아직 안개가 걷히지 않은 방에 처음 들어오는
 		// 순간을 감지해 GameSession.RevealRoomFog로 넘긴다(영구 해제 + 페이드아웃).
 		if (actualRoom != null && !actualRoom.FogRevealed && IsPlayerMonsterFaction)
 			Session.RevealRoomFog(actualRoom);
-	}
-
-	// SyncRoomAffiliation 전용 — 살아있는 점유 유닛이 하나도 없으면 "빈 방"으로 본다(GameSession.
-	// RefreshRoomGateStates의 "완전히 비어있음" 판정과 동일 기준).
-	private static bool IsRoomEffectivelyEmpty(Room room)
-	{
-		foreach (var u in room.ContainedUnits)
-			if (u != null && u.hp > 0) return false;
-		return true;
 	}
 
 	private Dir DirectionToward(Vector2Int targetPos)
@@ -1035,8 +998,6 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 07문서 6장/03문서 4-13장: 사망 정보의 지속적 재전파(스냅샷이 아니라 매 틱 재확인) —
 				// 파티 규모×활성 사망기록 수만큼 비용이 늘지만 현재 게임 규모에선 무시할 만하다.
 				PartyDeathSystem.TickOngoingPropagation(human);
-				// 03문서 7-3장/07문서 6장: 리더가 아직 코어를 모르면 전파 조건을 다시 확인한다.
-				CorePartySystem.TickLeaderPropagation(human);
 				// 07문서 9장(2026-08-06 검증 중 발견): 함정 정보도 최초 발견 시점 1회 전파뿐이었다 —
 				// 사망/코어와 동일하게 미보유 파티원의 지속 재전파를 추가한다.
 				TrapPartySystem.TickOngoingPropagation(human);
@@ -1131,23 +1092,70 @@ public abstract class UnitFunction : Unit, IVisionContext
 			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
 		}
 
-		// 7-3장(2026-07-27 신규): 리더의 코어 조사 — 도착 후 1초 전파, 이후 조사 진행도 증가.
-		if (this is Human coreHuman && coreHuman.currentCoreInteraction != null && coreHuman.currentCoreInteraction.Active)
+		// 오브젝트(코어/문) 공격 채널링(기초문서.md 피드백, 2026-08-22, "코어와 문을 명령으로 인한
+		// 파괴 대상으로 지정할 수 있게 해줘") — TrapPhase.Destroying과 동일한 패턴. 자동(TacticalFSMState.
+		// MoveToCoreAttack/MoveToDoorAttack)과 플레이어 명령(PlayerCommandFSMState.
+		// ExecutePlayerAttackObject) 양쪽이 인접 도착 시 이 필드를 채운다. 대상이 파괴/전환될 때까지
+		// (또는 사라질 때까지) 매 프레임 데미지를 적용한다.
+		if (currentAttackObjectTarget.HasValue && Session != null)
 		{
-			var core = coreHuman.currentCoreInteraction;
-			if (!core.PropagationDone)
+			Vector3Int targetPos = currentAttackObjectTarget.Value;
+			if (Session.objectGrid.TryGetValue(targetPos, out var targetObj))
 			{
-				core.PropagationTimer += deltaTime;
-				if (core.PropagationTimer >= ExplorationMath.PartyGoalInitialPropagationSeconds) core.PropagationDone = true;
+				bool isCore = targetObj.Tags != null && targetObj.Tags.Contains(GameSession.CoreTag);
+				bool isDoor = targetObj.Tags != null && targetObj.Tags.Contains(DoorSystem.DoorTag);
+
+				// 채널링 중에는 항상 공격 대상을 바라본다(2026-08-22 사용자 요청 "코어 공격 중일때는
+				// 코어를 바라보면서 하게 해줘" + "문도 동일", 실제 전투(CombatFSMState.ExecuteCombat)와
+				// 동일하게 매 프레임 갱신). 후속 사용자 신고("여전히 부자연스러워") 원인 — currentDir만
+				// 세팅하고 Generate.UpdateUnitSpriteForDirection을 호출하지 않아서 내부 값은 바뀌어도
+				// 실제 스프라이트가 그 방향으로 갱신되지 않았다. Move()/CombatFSMState 둘 다 currentDir
+				// 세팅 직후 이 호출을 짝지어 하므로 여기서도 동일하게 맞춘다.
+				if (isCore || isDoor)
+				{
+					Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
+					if (targetPos2D != position)
+					{
+						currentDir = SkillAction.GetDirection8(targetPos2D - position);
+						Generate?.UpdateUnitSpriteForDirection(this);
+					}
+				}
+
+				if (isCore && targetObj.CoreHp > 0f)
+				{
+					// 고정 초당 데미지(2026-08-22 사용자 요청 "코어 공격을... 공격 시도중인 유닛 마리
+					// 수 당 추가") — physicalAttack 스탯과 무관하게 채널링 유닛 1명당 항상 이 값만큼만
+					// 깎는다. 여러 명이 같은 코어를 동시에 공격하면 각자 이 블록을 독립적으로 실행하므로
+					// 인원수만큼 자연히 합산된다.
+					targetObj.CoreHp = Mathf.Max(0f, targetObj.CoreHp - GameSession.CoreAttackDamagePerSecond * deltaTime);
+					if (targetObj.CoreHp <= 0f)
+					{
+						// 코어 파괴 순간 OffenseProcessor.OnCoreDestroyed로 방 소유권을 즉시 전환한다
+						// (코어 자체는 사라지지 않고 반피로 회복 — 소유권 전환이 곧 "파괴 완료").
+						if (Session.roomGrid.TryGetValue(targetPos, out Room coreRoom))
+							Session.OffenseProcessor?.OnCoreDestroyed(coreRoom, targetObj, this);
+						currentAttackObjectTarget = null;
+					}
+				}
+				else if (isDoor && targetObj.DoorHp > 0f)
+				{
+					// 고정 초당 데미지(코어와 동일한 설계, 2026-08-22 "문도 동일") — DoorSystem.
+					// DoorAttackDamagePerSecond 참고.
+					targetObj.DoorHp = Mathf.Max(0f, targetObj.DoorHp - DoorSystem.DoorAttackDamagePerSecond * deltaTime);
+					if (targetObj.DoorHp <= 0f)
+					{
+						Session.RemoveDoor(targetPos); // 문 오브젝트 자체를 제거 — 재설치 전까지 통로가 뚫린다.
+						currentAttackObjectTarget = null;
+					}
+				}
+				else
+				{
+					currentAttackObjectTarget = null; // 이미 파괴됐거나 해당 없는 오브젝트
+				}
 			}
 			else
 			{
-				core.Progress01 = Mathf.Min(1f, core.Progress01 + deltaTime / ExplorationMath.CoreInvestigateDurationSeconds);
-				// 2026-07-27 추가: 코어 바로 아래 진행 막대 갱신(함정 해제 막대와 같은 컴포넌트 재사용).
-				// ⑫: GetComponent를 첫 틱에만 캐시하고 이후엔 재사용.
-				if (core.CachedProgressBar == null && Session != null)
-					core.CachedProgressBar = Session.GetObjectVisual(core.CorePosition)?.GetComponent<ObjectProgressBarVisual>();
-				if (core.CachedProgressBar != null) core.CachedProgressBar.SetProgress(core.Progress01, true);
+				currentAttackObjectTarget = null;
 			}
 		}
 
@@ -1228,7 +1236,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "정지"(동상) 상태(2026-08-20, 사용자 확인) — 완전 무반응이라 회피/블링크(DefenseSystem.
 		// EvaluateEarlyReaction)도 발동하지 않는다. 이 경로는 UnitFSM.RunCurrentState/HaltFSMState.Tick
 		// 바깥(GameSession의 위협 감지 루프)에서 직접 호출되므로 여기서 별도로 막아야 한다.
-		if (isHalted) return;
+		// "제자리 공격" 상태도 동일하게 막는다(2026-08-22 사용자 신고 "제자리 공격중 회피및 점멸
+		// 여전히 존재함" — "제자리에서 절대 이동하지 않는다"는 명시된 조건이므로 회피/점멸로 인한
+		// 위치 이동도 예외 없이 차단해야 한다는 뜻으로 확정).
+		if (isHalted || isStandGroundAttack) return;
 
 		if (attacker != null)
 		{

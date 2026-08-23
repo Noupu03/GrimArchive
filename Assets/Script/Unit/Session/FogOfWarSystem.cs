@@ -58,6 +58,7 @@ public class FogOfWarSystem
 
     // ── 횃불 ──────────────────────────────────────────────────────────
     private GameObject _torchPrefab;
+    public readonly HashSet<Vector3Int> ActiveTorchPositions = new HashSet<Vector3Int>();
     // 횃불 지연 스폰(2026-07-28, 사용자 요청 "안개가 있는 방에 토치 미리 생성하지 말고, 안개 걷히고
     // 나서 토치 생성하게 해줘") — 아직 안개가 안 걷힌 방의 횃불 배치 좌표는 바로 스폰하지 않고 방
     // 단위로 모아뒀다가, RevealRoomFog가 그 방을 걷는 순간 SpawnPendingTorchesForRoom이 실제로 꺼내
@@ -659,6 +660,7 @@ public class FogOfWarSystem
         GameObject go = UnityEngine.Object.Instantiate(_torchPrefab, worldPos, Quaternion.identity);
         go.name = $"Torch_{tilePos.x}_{tilePos.y}";
         if (torchGroup != null) go.transform.SetParent(torchGroup, true);
+        ActiveTorchPositions.Add(new Vector3Int(tilePos.x, tilePos.y, floorIdx));
 
         // 방향별 스프라이트 적용 + 위치 보정은 Visual 계층(TorchVisual.cs)이 전담한다(2026-08-21
         // 정리 — 이 클래스는 SpriteResolver를 직접 건드리지 않는다). 위치 보정은 루트(=Light2D가

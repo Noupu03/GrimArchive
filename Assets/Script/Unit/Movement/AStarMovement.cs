@@ -285,6 +285,15 @@ public class AStarMovement : IMovementAlgorithm
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
                 if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
 
+                // 문 진영 통행 판정(기초문서.md 피드백, 2026-08-22) — UnitFunction.CanMove와 반드시
+                // 같은 결론을 내야 한다(위 "코너 커팅 방지" 주석과 동일한 이유 — 둘이 어긋나면 A*가
+                // 실제로는 막힌 경로를 갈 수 있다고 오판한다).
+                if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
+                {
+                    isWall = true;
+                    break;
+                }
+
                 if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
@@ -343,6 +352,12 @@ public class AStarMovement : IMovementAlgorithm
     {
         if (x < 0 || x >= mapW || y < 0 || y >= mapH) return true;
         if (myData.discoveredMap[floorIdx][x, y] == 2) return true;
+
+        // 닫힌 문 판정(2026-08-22, 사용자 신고 "2*2문에서 1개 문만 남겨두고 이동할때 중간에 멈춤") —
+        // Move()의 코너 커팅 검사는 CanMove를 쓰므로 문(다른 진영 소유)까지 막힌 것으로 보는데, 여기가
+        // 벽+점유만 확인하면 A*는 "남은 적 문 옆 뚫린 칸으로의 대각선"을 통과 가능이라 판단하고 Move()는
+        // 거부하는 불일치가 생긴다 — 유닛이 아무 피드백 없이 문턱 앞에서 영영 멈추는 원인.
+        if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(x, y, floorIdx), unit)) return true;
 
         if (unit.Session != null &&
             unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))

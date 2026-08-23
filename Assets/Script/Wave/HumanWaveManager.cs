@@ -1,9 +1,10 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using Haare.Client.Routine;
 using Cysharp.Threading.Tasks;
 using System.Linq;
 using VContainer;
+using Haare.Util.Logger;
 
 namespace GrimArchive.Wave
 {
@@ -14,23 +15,18 @@ namespace GrimArchive.Wave
         Ended
     }
 
-    public enum DummyTargetState
-    {
-        OnGround,
-        Carried,
-        WaitingForTarget, // ?��?가 ?�브?�트�??�성???�까지 ?�기하???�태 추�?
-        Secured // 목표물이 ?�전?�게 반출 ?�료?�었?�나, ?�머지 ?�티?�들???�출 중인 ?�태
-    }
-
     /// <summary>
-    /// ?�류 ?�이브의 ?�이?�사?�클(발생, 목표 추적, ?�탈, 종료)???�제?�는 ?�스?�입?�다.
-    /// 기획???�칙???�라 발생조건, 목적, ?��? 구성, 종료 조건??모듈?�하??관리합?�다.
+    /// 인류 웨이브의 라이프사이클(발생, 목표 추적, 이탈, 종료)을 제어하는 시스템입니다.
+    /// 기획 원칙에 따라 발생조건, 목적, 파티 구성, 종료 조건을 모듈화하여 관리합니다.
     /// </summary>
     public class HumanWaveManager : NativeRoutine
     {
         public static HumanWaveManager Instance { get; private set; }
 
         public float waveCooldown => targetSpawner?.waveData?.waveCooldown ?? 10f;
+        // 첫 웨이브만 넉넉한 시간을 주기 위한 별도 값(기초문서.md 피드백, 2026-08-22 — 사용자 확인
+        // "첫 웨이브만 별도로 늘림", 60초). waveData에 값이 없으면(구 버전 에셋) 기존 waveCooldown으로 폴백.
+        public float firstWaveCooldown => targetSpawner?.waveData?.firstWaveCooldown ?? waveCooldown;
 
         [Inject]
         public WaveSpawner targetSpawner; // VContainer를 통해 자동 주입
@@ -38,13 +34,18 @@ namespace GrimArchive.Wave
         public WaveState currentState = WaveState.Idle;
         public float cooldownTimer = 0f;
 
-        // 추적 중인 ?�이�??�이??
+        // 추적 중인 웨이브 데이터
         public Party activeParty;
-        public InteractableObject dummyTarget;
-        public DummyTargetState targetState = DummyTargetState.WaitingForTarget;
-        public Human targetCarrier = null;
 
-        // ?�탈 지???�역 (?�시: ?�전 ?�구??StartRoom 기�? ?�치)
+        // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 웨이브 승리 조건이 "루팅 오브젝트 운반-탈출"
+        // 에서 "목표 방의 코어를 인류 소유로 전환"으로 바뀌었다. 목표 방은 예전 던전 코어와 동일하게
+        // waveData.targetFloor의 보스방으로 고정한다(_unitGenerate.GetBossRoomPos, 옛
+        // SpawnInitialDungeonCore와 동일 좌표 기준). _retreating이 true가 되면(=코어 파괴 성공)
+        // UpdatePartyDestination이 목적지를 exitAreaPos로 바꿔 기존 퇴각 로직을 그대로 재사용한다.
+        private Room _targetRoom;
+        private bool _retreating;
+
+        // 탈출 지점 영역 (임시: 던전 입구/StartRoom 기준 위치)
         public Vector2Int exitAreaPos;
 
         // ── 0층 사전 스폰 (웨이브 시작 전 대기 연출, 2026-07-23 사용자 요청) ──
@@ -101,7 +102,8 @@ namespace GrimArchive.Wave
             get
             {
                 if (currentState != WaveState.Idle) return 1f;
-                return Mathf.Clamp01(1f - cooldownTimer / waveCooldown);
+                float budget = _isFirstWaveCycle ? firstWaveCooldown : waveCooldown;
+                return Mathf.Clamp01(1f - cooldownTimer / budget);
             }
         }
 
@@ -131,21 +133,9 @@ namespace GrimArchive.Wave
         private const float StairForceCrossTimeoutSeconds = 15f;
         private float runningStateTimer = 0f;
 
-        // O 오브젝트(목표) 수집 소요시간 — 이전엔 도착 즉시 획득이었는데 "너무 바로 가져가 버린다"는
-        // 사용자 피드백(2026-07-23)으로 10초 수집 시간을 부여한다. 같은 유닛이 목표 타일에 계속
-        // 머무는 동안만 진행도가 쌓이고, 자리를 벗어나거나 다른 유닛으로 바뀌면 초기화된다.
-        private const float ObjectPickupDurationSeconds = 10f;
-        private float pickupProgressSeconds = 0f;
-        private Human pickupCandidateUnit = null;
-
-        // 03문서 7-2장(2026-07-27 개정): "웨이브 진입 전 설정된 파티 목표 오브젝트에 도달한 유닛은
-        // 1초 동안 합류 정보를 전파한 뒤 상호작용(=여기서는 10초 수집 타이머)을 시작한다." dummyTarget이
-        // 이 문서가 말하는 "파티 목표 오브젝트"의 실체라 도착~수집 사이에 1초 지연을 끼워 넣는다.
-        // 다른 파티원의 "1초 재전파 후 합류" 절반은 UpdatePartyDestination이 이미 매 틱 전원에게
-        // playerMoveTarget을 부여하는(즉시·상시 공유) 더 단순한 모델이라 별도 재전파 지연을 얹을
-        // 실익이 없어 생략했다(구현현황에 근사 사유 기재).
-        private const float PartyGoalJoinPropagationSeconds = 1f;
-        private float joinPropagationTimer = 0f;
+        // 첫 웨이브 쿨다운(firstWaveCooldown)은 딱 한 번만 적용된다 — 두 번째 웨이브부터는 항상
+        // waveCooldown 기준. WaveProgress01이 진행 바 분모를 고를 때 참조한다.
+        private bool _isFirstWaveCycle = true;
 
         public override async UniTask Initialize(System.Threading.CancellationToken cts)
         {
@@ -154,10 +144,10 @@ namespace GrimArchive.Wave
             // WaveSpawner.Initialize()와의 NativeRoutine 실행 순서 경합 방지(2026-07-27, 사용자 신고
             // "게임 시작 시 웨이브가 10초인 것 같다") — WaveSpawner.cs의 EnsureWaveDataLoaded() 주석 참고.
             targetSpawner?.EnsureWaveDataLoaded();
-            cooldownTimer = waveCooldown;
+            cooldownTimer = firstWaveCooldown;
             currentState = WaveState.Idle;
 
-            // Haare Framework 기�?: UniTask 기반 Native Routine 루프 ?�행
+            // Haare Framework 기준: UniTask 기반 Native Routine 루프 실행
             WaveLoop(cts).Forget();
         }
 
@@ -173,14 +163,12 @@ namespace GrimArchive.Wave
                         preSpawnTriggered = true;
                         PreSpawnWaveUnits();
                     }
-                    // 소집 시점(위 monsterMusterTriggered/preSpawnSucceeded 주석 참고) — 사전 스폰이
-                    // 실제로 성공했을 때만 여기서 소집한다. 사전 스폰이 실패한 경로(0층 계단 위치를
-                    // 못 찾음 등)는 던전 입구 시퀀스 자체가 없어 "진입 준비" 문구도 안 뜨므로, 그 경우는
-                    // 여전히 StartWave()의 즉시 스폰 폴백이 그 자리에서 바로 소집한다.
+                    // 몬스터 소집 배치(R키 배치모드)는 기초문서.md 피드백(2026-08-22)으로 폐기됐지만,
+                    // 이 타이밍 플래그들은 WaveGaugePanel(게이지 점멸)/"진입 준비" 문구가 여전히
+                    // 참조하므로 그대로 유지한다(위 monsterMusterTriggered/preSpawnSucceeded 주석 참고).
                     if (!monsterMusterTriggered && preSpawnSucceeded && cooldownTimer <= PreSpawnLeadSeconds)
                     {
                         monsterMusterTriggered = true;
-                        MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
                         monstersSummonedThisCycle = true;
                     }
                     if (cooldownTimer <= 0f)
@@ -222,7 +210,7 @@ namespace GrimArchive.Wave
             if (targetSpawner == null || targetSpawner.waveData == null || targetSpawner.waveData.parties == null) return;
             if (!ResolveStairPositions())
             {
-                Debug.LogWarning("[HumanWaveManager] 0층 계단 위치를 찾지 못해 사전 스폰을 건너뜁니다(즉시 스폰으로 대체됩니다).");
+                LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 0층 계단 위치를 찾지 못해 사전 스폰을 건너뜁니다(즉시 스폰으로 대체됩니다).");
                 return;
             }
 
@@ -256,10 +244,17 @@ namespace GrimArchive.Wave
                 if (survivor == null || survivor.hp <= 0) continue;
 
                 Vector2Int pos = FindSpawnPosInHiddenChunk(rowY);
-                GameSession.Instance.UnregisterUnitPos(survivor, survivor.position);
+                Vector2Int survivorOldPos = survivor.position;
+                GameSession.Instance.UnregisterUnitPos(survivor, survivorOldPos);
                 survivor.currentFloor = 0;
                 survivor.position = pos;
-                GameSession.Instance.RegisterUnitPos(survivor, survivor.position);
+                // 2026-08-22 사용자 신고 "어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — 이미 다른
+                // 유닛이 그 칸에 있으면(극히 드문 스폰 혼잡) 등록을 취소하고 원래 자리로 되돌린다.
+                if (!GameSession.Instance.RegisterUnitPos(survivor, survivor.position))
+                {
+                    survivor.position = survivorOldPos;
+                    GameSession.Instance.RegisterUnitPos(survivor, survivorOldPos);
+                }
 
                 members.Add(survivor);
                 survivorCount++;
@@ -270,7 +265,7 @@ namespace GrimArchive.Wave
 
             preSpawnedParty = GameSession.Instance.CreateParty("PreSpawnParty", members);
             preSpawnSucceeded = true;
-            Debug.Log($"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
 
             // 몬스터 배치 프리셋(2026-08-19 재구현, 사용자 요청 "0층에 인류가 소환된 시점부터, 몬스터들은
             // 배치모드에서 배치했던 지점으로 이동하고 소집 대기를 해") — 처음엔 바로 이 지점("0층에
@@ -420,16 +415,26 @@ namespace GrimArchive.Wave
             if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, targetFloor, 0, out Vector2Int arrivePos))
                 return false;
 
-            GameSession.Instance.UnregisterUnitPos(member, member.position);
+            Vector2Int memberOldPos = member.position;
+            int memberOldFloor = member.currentFloor;
+            GameSession.Instance.UnregisterUnitPos(member, memberOldPos);
             member.currentFloor = targetFloor;
             member.position = arrivePos;
-            GameSession.Instance.RegisterUnitPos(member, member.position);
+            // 2026-08-22 사용자 신고 "어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — TryResolveUnoccupiedStairArrival
+            // 이 확인한 시점과 이 등록 시점 사이에 다른 경로가 같은 칸을 먼저 차지했을 수 있는 최종 안전망.
+            if (!GameSession.Instance.RegisterUnitPos(member, member.position))
+            {
+                member.currentFloor = memberOldFloor;
+                member.position = memberOldPos;
+                GameSession.Instance.RegisterUnitPos(member, memberOldPos);
+                return false;
+            }
 
             member.pendingStairTargetFloor = null;
             member.playerMoveTarget = null;
             member.isManualMoveCommand = false;
 
-            Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName}가 {StairForceCrossTimeoutSeconds}초 동안 계단을 못 넘어와 강제로 F{targetFloor}로 이동시켰습니다.");
+            LogHelper.Warning(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 {StairForceCrossTimeoutSeconds}초 동안 계단을 못 넘어와 강제로 F{targetFloor}로 이동시켰습니다.");
             return true;
         }
 
@@ -457,7 +462,7 @@ namespace GrimArchive.Wave
             int targetFloor = targetSpawner.waveData.targetFloor;
             if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, 0, targetFloor, out Vector2Int arrivePos))
             {
-                Debug.LogWarning($"[HumanWaveManager] {member.unitType.typeName} 퇴각 도착 지점이 전부 점유돼 대표 좌표로 보냅니다(드물게 겹칠 수 있음).");
+                LogHelper.Warning(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName} 퇴각 도착 지점이 전부 점유돼 대표 좌표로 보냅니다(드물게 겹칠 수 있음).");
                 arrivePos = floor0StairPos;
             }
 
@@ -472,7 +477,7 @@ namespace GrimArchive.Wave
 
             retreatedSurvivors.Add(member);
 
-            Debug.Log($"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
         }
 
         // 웨이브 시각화(2026-08-19 신규) — 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입
@@ -542,16 +547,16 @@ namespace GrimArchive.Wave
         {
             if (targetSpawner == null)
             {
-                Debug.LogError("[HumanWaveManager] Target Spawner가 ?�정?��? ?�았?�니??");
+                LogHelper.Error(LogHelper.GAME, "[HumanWaveManager] Target Spawner가 설정되지 않았습니다.");
                 return;
             }
 
-            Debug.Log("[HumanWaveManager] ?�류 ?�이�?발생! (목표물이 ?�성???�까지 ?�기합?�다)");
+            LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)");
             currentState = WaveState.Running;
 
-            // 문 닫힘 시스템(2026-07-28, 사용자 요청 "웨이브가 시작되면 모든 문이 닫히며 벽과 같은
-            // 판정이 된다") — 웨이브 본편 스폰/진행 로직보다 먼저, 상태 전환 직후 곧바로 실행한다.
-            GameSession.Instance?.CloseAllDoorsForWaveStart();
+            // 문은 이제 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐한다
+            // (기초문서.md 피드백, 2026-08-22 — DoorSystem.UpdateProcess) — 웨이브 시작 시점에 별도로
+            // 잠글 필요가 없어졌다.
             runningStateTimer = 0f;
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
@@ -591,39 +596,45 @@ namespace GrimArchive.Wave
                         exitAreaPos = activeParty.Members[0].position;
                     }
 
-                    // 몬스터 배치 프리셋(2026-08-19 재구현) — 사전 스폰이 건너뛰어진 이 폴백 경로에서는
-                    // PreSpawnWaveUnits가 아예 호출되지 않으므로 여기서 대신 호출한다. preSpawnedParty
-                    // 경로에서는 이미 그쪽에서 호출됐으므로 여기서 다시 부르지 않는다 — 그 사이(사전
-                    // 스폰~웨이브 시작) 전투를 인지해 소집이 풀린 몬스터를 다시 소집시키는 부작용을 피한다.
-                    MonsterDefensePlacementSystem.ApplyDefenseStartPositions(GameSession.Instance);
+                    // 몬스터 소집 배치(R키 배치모드)는 기초문서.md 피드백(2026-08-22)으로 폐기됐지만,
+                    // 이 플래그는 WaveGaugePanel이 여전히 참조하므로 그대로 유지한다.
                     monstersSummonedThisCycle = true;
                 }
                 else
                 {
-                    Debug.LogWarning("[HumanWaveManager] 웨이브 소환 시도했으나 파티가 생성되지 않았습니다.");
+                    LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 웨이브 소환 시도했으나 파티가 생성되지 않았습니다.");
                     EndWave(false);
                     return;
                 }
             }
 
-            // 2. ?��?가 O?�로 목표물을 ?�폰???�까지 ?��??�태 진입
-            targetState = DummyTargetState.WaitingForTarget;
-            dummyTarget = null;
-            targetCarrier = null;
+            // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 목표 방(옛 던전 코어와 동일하게
+            // targetFloor의 보스방)의 Room을 미리 찾아둔다. 실제 코어 위치는 GameSession.
+            // SpawnAllRoomCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 쓴다.
+            _retreating = false;
+            _targetRoom = null;
+            int targetFloor = targetSpawner.waveData.targetFloor;
+            if (GameSession.Instance?.unitGenerate != null)
+            {
+                Vector2Int bossPos = GameSession.Instance.unitGenerate.GetBossRoomPos(Vector2.one, targetFloor);
+                GameSession.Instance.roomGrid.TryGetValue(new Vector3Int(bossPos.x, bossPos.y, targetFloor), out _targetRoom);
+            }
+            if (_targetRoom == null || _targetRoom.CoreObjectId == null)
+                LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 목표 방의 코어를 찾지 못했습니다 — 이번 웨이브는 목표 없이 진행됩니다.");
         }
 
         private void MonitorWave()
         {
             if (activeParty == null || activeParty.IsWiped)
             {
-                if (targetState == DummyTargetState.Secured)
+                if (_retreating)
                 {
-                    Debug.Log("[HumanWaveManager] ?��? ?�티?�이 ?�멸?��?�?목표???��? 반출?�었?�니?? ?�이�??�공.");
+                    LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 파티가 전멸했지만 코어는 이미 파괴되어 웨이브 성공.");
                     EndWave(true);
                 }
                 else
                 {
-                    Debug.Log("[HumanWaveManager] ?�티가 ?�멸?�습?�다. ?�이�??�패.");
+                    LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 파티가 전멸했습니다. 웨이브 실패.");
                     EndWave(false);
                 }
                 return;
@@ -631,204 +642,57 @@ namespace GrimArchive.Wave
 
             int targetFloor = targetSpawner.waveData.targetFloor;
 
-            // 유저가 목표 오브젝트(O키)를 생성할 때까지 대기 — 인지 범위를 웨이브가 실제로 진행되는
-            // 층(targetFloor)으로 한정한다(사용자 요청, 2026-07-23 "유닛들의 인지 범위를 해당 층
-            // 내로") — 다른 층(예: 아직 계단을 안 넘은 0층)에 있는 오브젝트는 이 웨이브의 목표로
-            // 인식하지 않는다.
-            if (targetState == DummyTargetState.WaitingForTarget)
+            // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 목표 방의 코어를 파괴(=인류 소유로
+            // 전환, OffenseProcessor.OnCoreDestroyed)하면 그 순간 퇴각으로 전환한다. 실제 코어 공격은
+            // TacticalFSMState.CoreAttackPerform/UnitFunction.OnUpdate가 담당 — 여기서는 목적지
+            // 지정과 성공 판정만 한다.
+            if (!_retreating && _targetRoom != null && _targetRoom.RoomFaction == FactionType.Human)
             {
-                foreach (var obj in GameSession.Instance.objectGrid.Values)
-                {
-                    // O키로 생성된 오브젝트가 "Loot" 태그를 가짐 (하위 계층 포함 지원)
-                    if (obj != null && obj.Position.z == targetFloor && obj.Tags != null && obj.Tags.Any(tag => tag.Contains("Loot")))
-                    {
-                        dummyTarget = obj;
-                        targetState = DummyTargetState.OnGround;
-                        UpdatePartyDestination();
-                        Debug.Log($"[HumanWaveManager] ?��?가 ?�성??목표�?{obj.Id})??발견?�습?�다! 추적???�작?�니??");
-                        break;
-                    }
-                }
-
-                // 여전히 목표가 없다면(또는 그 층에 없다면) 유닛들은 기본 AI에 따라 자유롭게
-                // 돌아다니도록 둡니다. (0층에서 계단으로 이동 중인 사전 스폰 파티원은 건드리지 않는다
-                // — UpdateStagingStairWalk가 그쪽 이동을 따로 관리한다.)
-                if (targetState == DummyTargetState.WaitingForTarget)
-                {
-                    foreach (var member in activeParty.Members)
-                    {
-                        if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
-                        // 플레이어가 방금 수동으로 이동/공격을 지시했다면 건드리지 않는다(사용자 신고,
-                        // 2026-07-24 "플레이어 지정 명령 잘 안 작동해") — 이 메서드가 매 프레임(웨이브
-                        // 진행 중 내내) 돌면서 무조건 playerMoveTarget/isManualMoveCommand를 초기화해
-                        // 버려서, 우클릭 명령이 사실상 같은 프레임 안에 지워지던 게 원인이었다. 명령이
-                        // 끝나면(PlayerCommandFSMState가 직접 플래그를 정리) 다음 프레임부터 자동으로
-                        // 이 메서드가 다시 챙긴다.
-                        if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
-                        if (member.playerAttackTarget != null) continue;
-                        member.playerMoveTarget = null; // 목표 없음 -> 자유 배회
-                        member.isManualMoveCommand = false;
-                    }
-                    return; // 목표가 없으므로 로직 종료
-                }
-            }
-
-            // ?�재 ?�겟을 ?�고 ?�는 경우, ?�겟의 ?�리???�치�??�반?�의 ?�치�?�??�레??갱신
-            if (targetState == DummyTargetState.Carried && targetCarrier != null)
-            {
-                dummyTarget.Position = new Vector3Int(targetCarrier.position.x, targetCarrier.position.y, dummyTarget.Position.z);
-            }
-
-            // Carrier ?�망 체크 (?�랍 로직)
-            if (targetState == DummyTargetState.Carried && (targetCarrier == null || targetCarrier.Health.hp <= 0))
-            {
-                DropDummyTarget();
+                LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 목표 방 코어 파괴 성공! 생존 파티원 퇴각 시작.");
+                _retreating = true;
             }
 
             // 목표가 이미 정해진 뒤에도 매 틱 다시 적용한다(사용자 요청, 2026-07-23) — 계단을 막
             // 넘어와 stagingUnits에서 빠진 파티원처럼, 목표가 "처음 발견된 순간"엔 아직 다른 층에
-            // 있어서 건너뛰어졌던 유닛도 이걸로 자동으로 따라잡는다(같은 값 재적용이라 매 틱 불러도
-            // 무해 — GOAP은 목표/계획이 실제로 바뀔 때만 재계획한다).
+            // 있어서 건너뛰어졌던 유닛도 이걸로 자동으로 따라잡는다(같은 값 재적용이라 매 틱 불러도 무해).
             UpdatePartyDestination();
 
-            // 목표 획득 체크 (OnGround 일때) — 같은 층에 있고, 아직 0층에서 계단으로 걸어가는 중인
-            // 사전 스폰 파티원은 제외한다. 도착 즉시 획득이 아니라 ObjectPickupDurationSeconds(10초)
-            // 동안 같은 유닛이 목표 타일에 머물러야 획득된다(사용자 요청, 2026-07-23).
-            if (targetState == DummyTargetState.OnGround)
+            if (!_retreating) return; // 아직 코어를 파괴하지 못함 — 유닛은 자유롭게(GOAP) 방으로 접근·공격
+
+            // 탈출 지점 체크 (퇴각 중)
+            // [TODO: 향후에는 주변 유닛이 부상병을 호위하는 편대 AI 시스템을 추가해야 함]
+            // 현재는 단순히 코어 파괴 후 각자 탈출 지점으로 이동하며, 탈출 지점에 도착하는 개별 유닛부터 삭제(탈출) 처리합니다.
+            for (int i = activeParty.Members.Count - 1; i >= 0; i--)
             {
-                Human unitOnTarget = null;
-                foreach (var member in activeParty.Members)
-                {
-                    if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
-                    if (member.currentFloor != dummyTarget.Position.z) continue;
+                var member = activeParty.Members[i];
+                if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
+                if (member.currentFloor != targetFloor) continue;
 
-                    if (member.position.x == dummyTarget.Position.x && member.position.y == dummyTarget.Position.y)
-                    {
-                        unitOnTarget = member;
-                        break;
-                    }
-                }
-
-                if (unitOnTarget != null)
+                if (member.position == exitAreaPos)
                 {
-                    if (pickupCandidateUnit != unitOnTarget)
-                    {
-                        pickupCandidateUnit = unitOnTarget;
-                        pickupProgressSeconds = 0f;
-                        joinPropagationTimer = 0f; // 7-2장: 새로 도착한 유닛부터 1초 합류 전파 재시작
-                    }
+                    LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
 
-                    // 7-2장: 1초 합류 정보 전파가 끝나야 실제 수집(상호작용) 타이머가 흐르기 시작한다.
-                    if (joinPropagationTimer < PartyGoalJoinPropagationSeconds)
-                    {
-                        joinPropagationTimer += Time.deltaTime;
-                    }
-                    else
-                    {
-                        pickupProgressSeconds += Time.deltaTime;
-                        if (pickupProgressSeconds >= ObjectPickupDurationSeconds)
-                        {
-                            PickupDummyTarget(unitOnTarget);
-                            pickupCandidateUnit = null;
-                            pickupProgressSeconds = 0f;
-                        }
-                    }
-                }
-                else
-                {
-                    pickupCandidateUnit = null;
-                    pickupProgressSeconds = 0f;
-                    joinPropagationTimer = 0f;
+                    // 탈출 지점에 도착한 파티원은 사라지는(Despawn) 대신 0층으로 돌려보낸다
+                    // (사용자 요청, 2026-07-23 "퇴각 로직 후에 0층으로 이동시키자").
+                    RetreatMemberToFloor0(member);
+                    activeParty.Members.RemoveAt(i);
                 }
             }
-            // ?�탈 지??체크 (Carried ?�는 Secured ?�때)
-            else if (targetState == DummyTargetState.Carried || targetState == DummyTargetState.Secured)
+
+            // 모든 파티원이 탈출했거나 사망했다면 웨이브 종료
+            if (activeParty.GetSurvivors().Count == 0)
             {
-                // [TODO: 향후에는 주변 유닛이 오브젝트를 든 유닛을 호위하는 편대 AI 시스템을 추가해야 함]
-                // 현재는 단순히 목표를 획득해서 퇴각할 때부터 각자 탈출 지점으로 이동하며, 탈출 지점에 도착하는 개별 유닛부터 삭제(탈출) 처리합니다.
-
-                for (int i = activeParty.Members.Count - 1; i >= 0; i--)
-                {
-                    var member = activeParty.Members[i];
-                    if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
-                    if (member.currentFloor != targetFloor) continue;
-
-                    if (member.position == exitAreaPos)
-                    {
-                        if (targetState == DummyTargetState.Carried && member == targetCarrier)
-                        {
-                            Debug.Log("[HumanWaveManager] 목표 반출 ?�공! ?��? ?�티?�들 ?�출 ?��?�?..");
-                            targetState = DummyTargetState.Secured;
-                            targetCarrier = null;
-                        }
-                        else
-                        {
-                            Debug.Log($"[HumanWaveManager] {member.name} ?�닛 개별 ?�출 ?�공.");
-                        }
-
-                        // 탈출 지점에 도착한 파티원은 사라지는(Despawn) 대신 0층으로 돌려보낸다
-                        // (사용자 요청, 2026-07-23 "퇴각 로직 후에 0층으로 이동시키자").
-                        RetreatMemberToFloor0(member);
-                        activeParty.Members.RemoveAt(i);
-                    }
-                }
-
-                // 모든 ?�티?�이 ?�출?�거???�망?�다�??�이�?종료
-                if (activeParty.GetSurvivors().Count == 0)
-                {
-                    bool isSuccess = (targetState == DummyTargetState.Secured);
-                    if (isSuccess)
-                    {
-                        Debug.Log("[HumanWaveManager] 목표 ?�보 ??모든 ?�티?�이 ?�탈(?�는 ?�망)?�여 ?�이브�? ?�공?�으�?종료?�니??");
-                    }
-                    else
-                    {
-                        Debug.Log("[HumanWaveManager] ?�각 �?모든 ?�티?�이 ?�망?�여 ?�이브에 ?�패?�습?�다.");
-                    }
-
-                    EndWave(isSuccess);
-                    return;
-                }
+                LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 코어 파괴 후 모든 파티원이 탈출(또는 사망)하여 웨이브가 성공적으로 종료됩니다.");
+                EndWave(true);
             }
-        }
-
-        private void PickupDummyTarget(Human unit)
-        {
-            Debug.Log($"[HumanWaveManager] {unit.name} 유닛이 더미 목표를 획득했습니다.");
-
-            GameSession.Instance.CollectObject(dummyTarget.Position);
-
-            targetState = DummyTargetState.Carried;
-            targetCarrier = unit;
-
-            UpdatePartyDestination();
-        }
-
-        private void DropDummyTarget()
-        {
-            Debug.Log("[HumanWaveManager] 목표 보유자가 사망하여 목표를 드랍합니다.");
-
-            // dummyTarget.Position은 매 프레임 Carrier의 위치로 동기화되므로 최신 사망 위치 유지
-            dummyTarget.IsCollected = false;
-
-            // SpawnObject ?��??�서 objectGrid ?�록�??�각 ?�과(Visual) ?�성???�시??처리??
-            GameSession.Instance.SpawnObject(dummyTarget, Color.magenta);
-
-            targetState = DummyTargetState.OnGround;
-            targetCarrier = null;
-            pickupCandidateUnit = null;
-            pickupProgressSeconds = 0f;
-            joinPropagationTimer = 0f;
-
-            UpdatePartyDestination();
         }
 
         private void UpdatePartyDestination()
         {
-            Vector2Int dest = targetState == DummyTargetState.OnGround ?
-                              new Vector2Int(dummyTarget.Position.x, dummyTarget.Position.y) :
-                              exitAreaPos;
-            int destFloor = targetState == DummyTargetState.OnGround ? dummyTarget.Position.z : targetSpawner.waveData.targetFloor;
+            if (!_retreating && _targetRoom == null) return; // 목표 없음 — 자유 배회에 맡김(에러 상황)
+
+            Vector2Int dest = _retreating ? exitAreaPos : new Vector2Int(_targetRoom.CorePosition.x, _targetRoom.CorePosition.y);
+            int destFloor = _retreating ? targetSpawner.waveData.targetFloor : _targetRoom.CorePosition.z;
 
             // 인지 범위를 해당 층 내로 한정한다(사용자 요청, 2026-07-23) — 목표와 다른 층에 있는
             // 파티원(주로 아직 0층에서 계단으로 이동 중인 사전 스폰 파티원)은 건드리지 않는다. 그쪽은
@@ -863,11 +727,6 @@ namespace GrimArchive.Wave
                 }
             }
 
-            if (targetState == DummyTargetState.OnGround && dummyTarget != null)
-            {
-                GameSession.Instance.CollectObject(dummyTarget.Position);
-            }
-
             if (isSuccess && activeParty != null)
             {
                 // 파티가 전멸 없이 목표를 확보한 채 웨이브가 끝난 경우(예: 개별 탈출 루프를 거치지
@@ -882,12 +741,13 @@ namespace GrimArchive.Wave
                 }
             }
 
-            Debug.Log($"[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 {waveCooldown}초 대기.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 웨이브 정리 완료. 다음 웨이브까지 {waveCooldown}초 대기.");
 
             activeParty = null;
-            dummyTarget = null;
-            targetCarrier = null;
+            _targetRoom = null;
+            _retreating = false;
             cooldownTimer = waveCooldown;
+            _isFirstWaveCycle = false;
             currentState = WaveState.Idle;
 
             // 다음 웨이브 사이클을 위해 사전 스폰 관련 상태 초기화.
@@ -897,9 +757,6 @@ namespace GrimArchive.Wave
             monstersSummonedThisCycle = false;
             preSpawnedParty = null;
             stagingUnits.Clear();
-            pickupCandidateUnit = null;
-            pickupProgressSeconds = 0f;
-            joinPropagationTimer = 0f;
         }
     }
 }

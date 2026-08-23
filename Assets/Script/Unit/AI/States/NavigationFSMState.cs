@@ -130,10 +130,20 @@ public class NavigationFSMState : IFSMState
 		if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(human.Session, toFloor, fromFloor, out Vector2Int arrivePos))
 			return BTStatus.Running;
 
-		human.Session.UnregisterUnitPos(human, human.position);
+		Vector2Int oldPos = human.position;
+		int oldFloor = human.currentFloor;
+		human.Session.UnregisterUnitPos(human, oldPos);
 		human.currentFloor = toFloor;
 		human.position     = arrivePos;
-		human.Session.RegisterUnitPos(human, human.position);
+		// 2026-08-22 사용자 신고 "어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — TryResolveUnoccupiedStairArrival
+		// 이 확인한 시점과 이 등록 시점 사이에 다른 경로가 같은 칸을 먼저 차지했을 수 있는 최종 안전망.
+		if (!human.Session.RegisterUnitPos(human, human.position))
+		{
+			human.currentFloor = oldFloor;
+			human.position = oldPos;
+			human.Session.RegisterUnitPos(human, oldPos);
+			return BTStatus.Running;
+		}
 		human.pendingStairTargetFloor  = null;
 		human.currentExplorationTarget = null; // 층 이동 후 이전 층 BFS 타깃을 초기화 — 새 층에서 처음부터 탐색
 		return BTStatus.Success;
@@ -141,9 +151,8 @@ public class NavigationFSMState : IFSMState
 
 
 
-	// 소집 대기(IsMustered/HoldPosition)는 2026-08-20에 MusterFSMState로 분리됐다 — UnitFSM.cs 주석
-	// 참고("소집이 대기보다 우선"이라는 규칙을 배열 순서만으로 명확히 보장하기 위함). HoldPosition은
-	// 아래 던전 입구 시퀀스 대기 분기가 여전히 재사용한다.
+	// 몬스터 소집 배치(MusterFSMState)는 기초문서.md 피드백(2026-08-22)으로 R키 배치모드 전체와 함께
+	// 폐기됐다 — HoldPosition은 아래 던전 입구 시퀀스 대기 분기만 남아서 계속 재사용한다.
 	private static BTStatus HoldPosition(Unit unit) => BTStatus.Running;
 
 	// ── 던전 입구 시퀀스 대기 ──────────────────────────────────────
@@ -322,8 +331,6 @@ public class NavigationFSMState : IFSMState
 
 	// ── 라벨 ──────────────────────────────────────────────────────
 
-	// isMustered 표시는 UnitFSM.GetLabel이 상위에서 가로채 "소집"으로 통일 표시한다(이동 중이든
-	// 도착 후 대기 중이든 무관) — 여기서는 손대지 않는다.
 	private static string GetSubLabel(Unit unit)
 	{
 		if (HasPendingStairs(unit)) return "탐색(계단)";

@@ -61,7 +61,33 @@ public class InteractableObject
     public float TrapDamageMin;
     public float TrapDamageMax;
 
-    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f, bool isFullyBlocking = false, float trapHp = 0f, float trapDamageMin = 0f, float trapDamageMax = 0f)
+    // 기초문서.md 피드백(2026-08-22) — 코어 전면 개편: RoomCoreTag가 붙은 오브젝트에만 의미가 있다.
+    // 체력이 0이 되면 그 순간 막타친 유닛의 진영으로 방 소유권이 전환되고(OffenseProcessor.
+    // OnCoreDestroyed), 코어 자체는 사라지지 않고 즉시 CoreMaxHp의 절반으로 회복된다.
+    public float CoreHp;
+    public float CoreMaxHp;
+
+    // 기초문서.md 피드백(2026-08-22) — 문도 방어건물화: DoorTag가 붙은 오브젝트에만 의미가 있다.
+    // 체력이 0이 되면 DoorSystem.RemoveDoor가 오브젝트를 제거해 통로가 뚫리고, 이후 배치 모드로만
+    // (원래 게이트 타일 자리에 한해) 재설치할 수 있다.
+    public float DoorHp;
+    public float DoorMaxHp;
+
+    // 문 진영 시스템(기초문서.md 피드백, 2026-08-22 "문은 진영별로 색상을 다르게 하되, 기본적으로
+    // 닫혀있게... 보유 진영의 유닛만 지나갈 수 있고... 지나갈때만 열렸다가 닫힘") — DoorSystem.
+    // UpdateProcess가 매 프레임 계산해 캐싱하는 현재 시각적 개폐 상태(스프라이트/IsFullyBlocking
+    // 중복 재적용 방지용). 실제 통행 가능 여부(진영 일치)와는 별개 — 그쪽은 상시 판정
+    // (DoorSystem.IsBlockedByClosedDoor)이라 이 값에 의존하지 않는다.
+    public bool DoorIsOpenVisual;
+
+    // 문 소유 진영 고정(2026-08-22 사용자 요청 "점령으로 인해서 문의 소유권을 바뀌지 않아. 부수고
+    // 다시 재설치하는게 원칙임") — 이전엔 방 소유권(Room.RoomFaction)이 바뀔 때마다 문 소유권도
+    // 실시간으로 같이 바뀌었는데, 이제는 문이 생성/재설치되는 그 순간에만 값이 정해지고 이후 방
+    // 점령과 무관하게 유지된다. 최초 스폰 시엔 그 시점 방 소유 진영을 그대로 스냅샷(DoorSystem.
+    // SpawnDoors), 파괴 후 재설치 시엔 재설치한 플레이어 진영으로 고정(DoorSystem.RebuildDoorAt).
+    public FactionType DoorOwnerFaction = FactionType.Wild;
+
+    public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f, bool isFullyBlocking = false, float trapHp = 0f, float trapDamageMin = 0f, float trapDamageMax = 0f, float coreHp = 0f, float doorHp = 0f)
     {
         Id = id;
         Position = position;
@@ -74,6 +100,10 @@ public class InteractableObject
         TrapMaxHp = trapHp;
         TrapDamageMin = trapDamageMin;
         TrapDamageMax = trapDamageMax;
+        CoreHp = coreHp;
+        CoreMaxHp = coreHp;
+        DoorHp = doorHp;
+        DoorMaxHp = doorHp;
 
         if (tags != null)
         {

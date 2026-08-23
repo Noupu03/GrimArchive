@@ -4,17 +4,15 @@ public class UnitFSM
 {
 	private IFSMState   _current;
 	private readonly PlayerCommandFSMState _playerCommandState = new PlayerCommandFSMState();
-	// "집결 및 정지"(2026-08-20) — PlayerCommand와 동일한 방식으로 SelectState가 직접 강제 배정하는
-	// 상태라 _states 배열에는 넣지 않는다(HaltFSMState.cs 주석 참고).
+	// "집결 및 정지"/"제자리 공격"(2026-08-20/2026-08-22) — PlayerCommand와 동일한 방식으로
+	// SelectState가 직접 강제 배정하는 상태라 _states 배열에는 넣지 않는다(HaltFSMState.cs 주석 참고).
 	private readonly HaltFSMState _haltState = new HaltFSMState();
+	private readonly StandGroundAttackFSMState _standGroundState = new StandGroundAttackFSMState();
 
-	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) → Muster(30,
-	// 2026-08-20 신규 — 소집 중인 유닛은 Idle/Navigation보다 항상 우선해 제자리 대기. "소집이 대기보다
-	// 우선"이라는 규칙을 배열 순서 자체로 보장하려고 전용 상태로 분리했다, MusterFSMState.cs 주석
-	// 참고) → Idle(20, 2026-08-20 신규 — 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/
-	// 야생의 "1칸 이동 후 정지" 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의
-	// GetPriority가 0보다 크면 그 뒤는 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧
-	// 우선순위다.
+	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) → Idle(20,
+	// 2026-08-20 신규 — 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/야생의 "1칸 이동 후
+	// 정지" 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의 GetPriority가 0보다 크면
+	// 그 뒤는 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧 우선순위다.
 	private readonly IFSMState[] _states;
 
 	public UnitFSM()
@@ -24,7 +22,6 @@ public class UnitFSM
 			_playerCommandState,
 			new CombatFSMState(),
 			new TacticalFSMState(),
-			new MusterFSMState(),
 			new IdleFSMState(),
 			new NavigationFSMState(),
 		};
@@ -44,7 +41,10 @@ public class UnitFSM
 		// 고정한다 — 도착(또는 공격 대상 무효화)으로 PlayerCommandFSMState가 스스로 명령을 끝내기
 		// 전까지는 다른 어떤 조건으로도 벗어날 수 없다.
 		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
-			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
+			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
+			// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령(PlayerCommandFSMState.
+			// ExecutePlayerAttackObject)도 유닛 공격과 동일하게 최우선 강제 잠금 대상이다.
+			|| unit.playerAttackObjectTarget.HasValue;
 		if (hasPendingCommand)
 		{
 			if (_current != _playerCommandState)
@@ -60,13 +60,27 @@ public class UnitFSM
 		// 해제를 제외하고, 절대 해제할 수 없는 상태임") — 위 hasPendingCommand 게이트 바로 다음에
 		// 둬서, 새 직접 명령(위에서 이미 처리됨) 또는 명령 취소(InputManager.
 		// CancelSelectedUnitsCommands가 isHalted를 직접 false로 되돌림)만이 이 잠금을 풀 수 있다.
-		// Combat/Tactical/Idle/Muster/Navigation 그 무엇도 이 잠금 아래에서는 검사조차 되지 않는다.
+		// Combat/Tactical/Idle/Navigation 그 무엇도 이 잠금 아래에서는 검사조차 되지 않는다.
 		if (unit.isHalted)
 		{
 			if (_current != _haltState)
 			{
 				_current?.OnExit(unit);
 				_current = _haltState;
+				_current.OnEnter(unit);
+			}
+			return;
+		}
+
+		// "제자리 공격" 강제 잠금(기초문서.md 피드백, 2026-08-22, R키 배치모드를 대체) — "정지"(동상)와
+		// 동일한 패턴: 이동은 절대 하지 않지만 사거리 내 적은 공격한다(StandGroundAttackFSMState.cs
+		// 참고). 새 직접 명령이나 명령 취소만 이 잠금을 풀 수 있다.
+		if (unit.isStandGroundAttack)
+		{
+			if (_current != _standGroundState)
+			{
+				_current?.OnExit(unit);
+				_current = _standGroundState;
 				_current.OnEnter(unit);
 			}
 			return;
@@ -79,26 +93,6 @@ public class UnitFSM
 		foreach (var s in _states)
 		{
 			if (s.GetPriority(unit) > 0f) { next = s; break; }
-		}
-
-		// 몬스터 배치 프리셋(2026-08-19 버그 수정, 사용자 신고 "미배치 몬스터 소집 상태로 전환되는지
-		// 체크해봐. 잘 작동 안되는거 같은데") — 처음엔 next가 TacticalFSMState이기만 하면 무조건
-		// 해제했는데, TacticalFSMState는 전투와 무관한 상태(함정 상호작용/전투 종료 후 경계 스윕 등)도
-		// 같이 처리하는 상태라 너무 넓었다. 특히 "전투 종료 후 경계 스윕"(IsPostCombatSweep)은 예전
-		// 웨이브에서 이미 끝난 전투의 뒷정리일 뿐 "새로 전투를 인지"한 게 아닌데도, 소집을 걸자마자
-		// 이 스윕이 아직 안 끝난 몬스터는 다음 틱에 바로 다시 해제돼 버려 소집이 사실상 안 걸리는
-		// 것처럼 보였다. 실제 "전투 시작 시점 인지"만 정확히 골라서 해제한다:
-		//   - 전투 상태(Combat) 진입
-		//   - 적을 직접 목격(personalSpottedEnemies)
-		//   - 경계/수색 중이되 전투 종료 후 뒷정리가 아닌 경우(=소리·수상한 타일 등으로 새로 인지)
-		bool isGenuineCombatPerception =
-			next is CombatFSMState
-			|| unit.personalSpottedEnemies.Count > 0
-			|| (unit.currentAlertSearch != null && !unit.currentAlertSearch.IsPostCombatSweep);
-
-		if (unit.isMustered && isGenuineCombatPerception)
-		{
-			unit.isMustered = false;
 		}
 
 		if (next == _current)
@@ -129,17 +123,10 @@ public class UnitFSM
 		unit.CombatState.State.isHitThisTurn = false;
 	}
 
-	// 몬스터 배치 프리셋(2026-08-19, 사용자 요청 "소집한 후 다시 전투 상태가 되기까지 몬스터의 행동
-	// 상태를 '소집'으로 바꿔줘") — 소집 중엔 실제로는 이동 중(PlayerCommandFSMState)이든 도착 후
-	// 대기 중(NavigationFSMState)이든 현재 FSM 상태와 무관하게 항상 "소집"으로 표시한다. 전투/전술
-	// 인지로 isMustered가 풀리는 즉시(SelectState 참고) 원래 상태 라벨로 자동 복귀한다.
 	public string GetLabel(Unit unit)
 	{
-		// "정지"(동상)가 "소집"보다 항상 우선한다(사용자 확인, 2026-08-20 "정지는 소집으로 전환되면
-		// 안돼") — MonsterDefensePlacementSystem.ApplyDefenseStartPositions가 halted 유닛을 건너뛰도록
-		// 이미 막아뒀지만, 혹시 다른 경로로 isMustered가 켜지더라도 라벨만큼은 이 순서로 확실히 보호한다.
 		if (unit.isHalted) return "정지";
-		if (unit.isMustered) return "소집";
+		if (unit.isStandGroundAttack) return "제자리 공격";
 		return _current?.GetLabel(unit) ?? "0";
 	}
 }

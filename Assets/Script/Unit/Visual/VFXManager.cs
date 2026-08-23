@@ -9,20 +9,6 @@ using Cysharp.Threading.Tasks;
 public class VFXManager
 {
     private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
-    private static Transform _poolRoot;
-
-    private static Transform GetPoolRoot()
-    {
-        if (_poolRoot != null) return _poolRoot;
-        var root = GameObject.Find("Object Pooling");
-        if (root == null)
-        {
-            root = new GameObject("Object Pooling");
-            GameObject.DontDestroyOnLoad(root);
-        }
-        _poolRoot = root.transform;
-        return _poolRoot;
-    }
 
     public void Spawn(GameObject prefab, Unit unit)
     {
@@ -43,15 +29,15 @@ public class VFXManager
             pool = new ObjectPool<GameObject>(
                 createFunc: () => {
                     var go = Object.Instantiate(prefab);
-                    go.transform.SetParent(GetPoolRoot());
+                    go.transform.SetParent(PooledObjectRoot.Get());
                     return go;
                 },
                 actionOnGet: (obj) => { if (obj != null) obj.SetActive(true); },
                 actionOnRelease: (obj) => { 
-                    if (obj != null) { 
-                        obj.SetActive(false); 
-                        obj.transform.SetParent(GetPoolRoot()); 
-                    } 
+                    if (obj != null) {
+                        obj.SetActive(false);
+                        obj.transform.SetParent(PooledObjectRoot.Get());
+                    }
                 },
                 actionOnDestroy: (obj) => { if (obj != null) Object.Destroy(obj); },
                 collectionCheck: false,
@@ -83,7 +69,7 @@ public class VFXManager
         }
         else
         {
-            go.transform.SetParent(GetPoolRoot());
+            go.transform.SetParent(PooledObjectRoot.Get());
             go.transform.position = position;
             go.transform.localScale = Vector3.one;
             go.transform.rotation = rotation;

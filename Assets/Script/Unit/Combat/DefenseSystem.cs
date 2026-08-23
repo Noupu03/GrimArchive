@@ -210,11 +210,19 @@ public static class DefenseSystem
 				if (defender.Health.mp < cost) return;
 
 				List<Vector2Int> safeTiles = FindSafeTiles(defender, threat, 4, true);
-				
+
 				// 벽 관통 방지 필터링: 출발지부터 목적지까지 벽을 뚫지 않는 경로가 존재하는 타일만 선별
 				List<Vector2Int> validTiles = new List<Vector2Int>();
 				foreach (var tile in safeTiles)
 				{
+					// 착지 지점 자체는 유닛 점유 여부를 다시 확인한다(2026-08-22 사용자 신고 "난전 중
+					// 유닛끼리 겹쳐진다" — 어떤 상황에서도 유닛끼리는 겹쳐지면 안 됨). 위
+					// FindSafeTiles(ignoreUnits:true)는 "점멸 경로 중간에 유닛이 서 있어도 지나갈 수
+					// 있다"는 의도로 점유 검사를 건너뛰지만, 그 결과 최종 착지 후보 칸 자체까지 다른
+					// 유닛이 서 있어도 통과해버렸다 — CanMove(ignoreUnits:false)로 착지 칸만 별도
+					// 재검증한다(벽/문 판정은 위에서 이미 확인했으므로 여기서는 점유 여부만 추가된다).
+					if (!defender.CanMove(tile, ignoreUnits: false)) continue;
+
 					if (HasPathWithoutWalls(defender, defender.position, tile, 4))
 					{
 						validTiles.Add(tile);

@@ -27,12 +27,20 @@ public class SkillAction_Projectile : SkillAction
     public override int HitWidth => _d.threatWidth;
     public override int HitDepth => _d.threatDepth;
 
-    public override bool IsAvailable(Unit unit) => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
+    // 시전자에게서 발사되어 경로상의 대상을 맞힌다 — 발동 조건은 일반 공격과 같다.
+    public override SkillOrigin Origin => SkillOrigin.Projectile;
+
+    public override bool IsAvailable(Unit unit)
+    {
+        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
+        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
+        return unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
+    }
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {
         float p = _d.priorityBase;
-        if (unit.CombatStat.physicalAttack * _d.priorityKillMultiplier >= target.Health.hp) p += _d.priorityKillBonus;
+        if (target != null && target.Health != null && unit.CombatStat.physicalAttack * _d.priorityKillMultiplier >= target.Health.hp) p += _d.priorityKillBonus;
         if (minDist <= _d.priorityRangeThreshold)                         p += _d.priorityRangeBonus;
         return p;
     }

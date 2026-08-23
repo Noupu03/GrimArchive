@@ -41,8 +41,10 @@ public class Party
 
 	// 이번 웨이브(던전 진입)에 이 파티와 함께 소환된 몬스터 목록 — 전부 죽으면 "웨이브 클리어"로
 	// 보고 6장 생존자 전역 반영(HumanKnowledgeBase.OnWaveEnd)을 트리거한다.
-	// WaveSpawner.SpawnWave()가 파티와 함께 스폰된 몬스터를 채워준다.
-	public List<Monster> WaveMonsters = new List<Monster>();
+	// WaveSpawner.SpawnWave()가 SetWaveMonsters로 스폰된 몬스터를 채워준다(2026-08-22 캡슐화 —
+	// 여러 Party가 같은 리스트 참조를 공유하는 설계라 통짜 재대입은 스폰 시점 한 곳에서만 허용한다).
+	public List<Monster> WaveMonsters { get; private set; } = new List<Monster>();
+	public void SetWaveMonsters(List<Monster> monsters) => WaveMonsters = monsters;
 
 	// 이 파티의 이번 웨이브가 이미 종료 처리(전멸 또는 클리어)됐는지 — GameSession이 유닛 사망마다
 	// 판정을 재확인하므로, 한 번 처리한 뒤에는 중복 트리거를 막아야 한다.
@@ -56,12 +58,6 @@ public class Party
 	// 03문서 9장(함정 대응 개편): 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태.
 	// TrapPartySystem(Assets/Script/Unit/Party/TrapPartyCoordination.cs)이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
-
-	// 03문서 7-3장(2026-07-27 신규): 발견됐지만 아직 리더가 조사를 완료하지 않은 코어 — null이면
-	// 없음. CorePartySystem/TacticalFSMState가 읽고 쓴다. 리더가 바뀌어도(승계) 이 값 자체는 파티
-	// 소유라 그대로 유지되어 새 리더가 이어받을 수 있다.
-	public string PendingCoreObjectId;
-	public Vector3Int PendingCorePosition;
 
 	public Party(string id, string name)
 	{

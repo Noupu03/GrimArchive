@@ -3,3 +3,13 @@ C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prot
 C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.AssemblyInfo.cs
 C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.csproj.CoreCompileInputs.cache
 C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.sourcelink.json
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\bin\Debug\net10.0\ScratchProj.exe
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\bin\Debug\net10.0\ScratchProj.deps.json
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\bin\Debug\net10.0\ScratchProj.runtimeconfig.json
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\bin\Debug\net10.0\ScratchProj.dll
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\bin\Debug\net10.0\ScratchProj.pdb
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.dll
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\refint\ScratchProj.dll
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.pdb
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ScratchProj.genruntimeconfig.cache
+C:\Users\wish0\Kubonhun\자료\Kubonhun\Project_file\Team_Dummy\GrimArchive_Prototype\ScratchProj\obj\Debug\net10.0\ref\ScratchProj.dll

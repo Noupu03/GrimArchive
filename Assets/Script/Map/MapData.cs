@@ -83,9 +83,9 @@ public struct Gate
 	// 방향: true=수평(좌우 인접), false=수직(상하 인접)
 	public bool isHorizontal;
 
-	// 문 닫힘 시스템(2026-07-28, 사용자 요청) — 웨이브 진행 중 이 게이트의 문이 잠겨 벽처럼 취급되는지
-	// 여부. 기본값(false)=열림 — 기존처럼 항상 통행 가능하던 상태를 그대로 유지한다. GameSession.
-	// SetGateClosed가 이 값과 실제 타일(Tile.isStructureExist)·문 스프라이트를 함께 갱신한다.
+	// 문 닫힘 시스템(2026-07-28 최초 도입, 2026-08-22 DoorSystem 진영 기반 개폐로 대체되며 미사용
+	// 필드가 됨 — 기존 맵 저장 파일과의 직렬화 호환을 위해 필드 자체는 남겨둔다). 개폐 상태는 이제
+	// InteractableObject.DoorIsOpenVisual(매 프레임 진영·근접 여부로 재계산)이 대신 담당한다.
 	public bool isDoorClosed;
 }
 

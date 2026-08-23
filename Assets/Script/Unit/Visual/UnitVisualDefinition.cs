@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
+using Haare.Util.Logger;
 
 // 유닛 타입별 프리팹의 루트에 붙는 컴포넌트.
 // 스탯/스킬/이펙트를 인스펙터에서 직접 편집한다 (스프라이트/애니메이션은 프리팹 자식 계층의
@@ -85,10 +86,30 @@ public class UnitVisualDefinition : MonoBehaviour
         var list = new List<SkillAction>();
         foreach (var sd in skills)
         {
-            if (sd.isProjectile)
-                list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab)); // 설정된 프리팹 전달
-            else
-                list.Add(new SkillAction_Generic(sd));
+            switch (sd.skillArchetype)
+            {
+                case "GroundAoE": list.Add(new SkillAction_GroundAoE(sd)); break;
+                case "Backstab":  list.Add(new SkillAction_Backstab(sd)); break;
+                case "Fireball":  list.Add(new SkillAction_Fireball(sd)); break;
+                case "Heal":      list.Add(new SkillAction_Heal(sd)); break;
+                case "Shield":    list.Add(new SkillAction_Shield(sd)); break;
+                case "Curse":     list.Add(new SkillAction_Curse(sd)); break;
+                case "MultiHit":  list.Add(new SkillAction_MultiHit(sd)); break;
+                case "PartyBuff": list.Add(new SkillAction_PartyBuff(sd)); break;
+                default:
+                    // 아키타입이 비어있는 건 정상(몬스터 기본 스킬 등)이지만, 값이 있는데 여기로 떨어졌다면
+                    // 오타이거나 위 case 목록에 빠진 것이다 — 조용히 Generic으로 폴백하면 스킬 하나가
+                    // 통째로 근접 평타처럼 동작하면서도 아무 흔적이 안 남는다(2026-08-23 파이어볼 사례).
+                    if (!string.IsNullOrEmpty(sd.skillArchetype))
+                        Debug.LogWarning($"[UnitVisualDefinition] '{unitTypeName}'의 스킬 '{sd.skillName}': " +
+                                         $"알 수 없는 skillArchetype '{sd.skillArchetype}' — Generic으로 폴백합니다.");
+
+                    if (sd.isProjectile)
+                        list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab));
+                    else
+                        list.Add(new SkillAction_Generic(sd));
+                    break;
+            }
         }
         return list;
     }
@@ -112,7 +133,7 @@ public class UnitVisualDefinition : MonoBehaviour
     {
         if (string.IsNullOrEmpty(unitTypeName))
         {
-            Debug.LogError("Unit Type Name이 없습니다. (예: 아처형)");
+            LogHelper.Error(LogHelper.GAME, "Unit Type Name이 없습니다. (예: 아처형)");
             return;
         }
 
@@ -121,7 +142,7 @@ public class UnitVisualDefinition : MonoBehaviour
 
         if (!System.IO.File.Exists(unitsPath) || !System.IO.File.Exists(skillsPath))
         {
-            Debug.LogError("Data 폴더에 units.json 또는 skills.json이 없습니다.");
+            LogHelper.Error(LogHelper.GAME, "Data 폴더에 units.json 또는 skills.json이 없습니다.");
             return;
         }
 
@@ -145,7 +166,7 @@ public class UnitVisualDefinition : MonoBehaviour
 
         if (targetNode == null)
         {
-            Debug.LogError($"{unitTypeName} 데이터를 units.json에서 찾을 수 없습니다.");
+            LogHelper.Error(LogHelper.GAME, $"{unitTypeName} 데이터를 units.json에서 찾을 수 없습니다.");
             return;
         }
 
@@ -173,7 +194,7 @@ public class UnitVisualDefinition : MonoBehaviour
         }
 
         UnityEditor.EditorUtility.SetDirty(this);
-        Debug.Log($"[{unitTypeName}] 데이터 JSON 불러오기 완료!");
+        LogHelper.Log(LogHelper.GAME, $"[{unitTypeName}] 데이터 JSON 불러오기 완료!");
     }
 #endif
 }

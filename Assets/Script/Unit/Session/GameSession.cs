@@ -69,7 +69,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         OnThreatCreated.Subscribe(data =>
         {
-            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, 0.5f);
+            // 시전이 있는 공격(castTimer > 0)은 "예고"다 — 범위가 뜬 시점부터 피해가 들어가는 순간까지
+            // 옅어지지 않고 그대로 남아있어야 한다(holdUntilImpact). 시전 없는 즉발 공격은 표시 시점에
+            // 이미 피해가 끝나 있으므로 종전대로 0.5초짜리 잔상으로 그린다.
+            bool isTelegraph = data.attacker != null && data.attacker.CombatState.State.castTimer > 0f;
+            float duration = isTelegraph ? data.attacker.CombatState.State.castTimer : 0.5f;
+            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, duration, isTelegraph);
 
             // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
             // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
@@ -82,7 +87,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
         });
     }
-    public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry.unitGrid;
+    public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry?.unitGrid;
     public Dictionary<Vector3Int, InteractableObject> objectGrid => _objectSpawner.objectGrid;
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     public List<Room> allRooms { get; private set; } = new List<Room>();
@@ -132,21 +137,29 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 더 늦어진다. 실측 후 조정할 것.
     private const int MaxThrottledUnitActionsPerFrame = 30;
     public List<Party> parties => _partyService.parties;
-    private float updateTimer = 0f;
 
     public float currentGameSpeed = 1f;
     public bool isPaused = false;
 
-    public void RegisterUnitPos(Unit u, Vector2Int pos)
+    // 2026-08-22 사용자 신고 "난전중 겹침... 어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — 반환값
+    // (bool)으로 등록 성공 여부를 알려준다(UnitRegistry.RegisterUnitPos 참고, 이미 다른 유닛이
+    // 점유 중이면 false). 실패 시엔 그 유닛의 실제 위치가 바뀌지 않은 것이므로 소리 감지 인덱스도
+    // 건드리지 않는다 — 호출부(ProcessUnitAction/Unit.ForceMove)가 이 반환값으로 위치 변경 자체를
+    // 되돌린다.
+    public bool RegisterUnitPos(Unit u, Vector2Int pos)
     {
-        _unitRegistry.RegisterUnitPos(u, pos);
-        // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 소리 감지자"만 훑을 수
-        // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다. 2026-08-06:
-        // 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 몬스터가 이 인덱스에서 빠져 있던
-        // 갭을 발견해 Human 전용에서 모든 Unit으로 확장했다(전파는 여전히 인류 전용 — 이 인덱스는
-        // "소리를 들을 수 있는지"만 판단하고, 전파 가능 여부는 PropagationSystem의 별도 함수가
-        // 여전히 Human으로 게이팅한다).
-        PropagationSystem.UpdateListenerRoomIndex(u, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
+        bool ok = _unitRegistry.RegisterUnitPos(u, pos);
+        if (ok)
+        {
+            // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 소리 감지자"만 훑을 수
+            // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다. 2026-08-06:
+            // 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 몬스터가 이 인덱스에서 빠져 있던
+            // 갭을 발견해 Human 전용에서 모든 Unit으로 확장했다(전파는 여전히 인류 전용 — 이 인덱스는
+            // "소리를 들을 수 있는지"만 판단하고, 전파 가능 여부는 PropagationSystem의 별도 함수가
+            // 여전히 Human으로 게이팅한다).
+            PropagationSystem.UpdateListenerRoomIndex(u, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
+        }
+        return ok;
     }
 
     public void UnregisterUnitPos(Unit u, Vector2Int pos)
@@ -193,27 +206,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 _doorSystem.SpawnDoors();
                 // 점령 관련(2026-07-27 신규): 모든 야생 방에 야생 몬스터 A 2마리씩 필수 배치.
                 SpawnWildRoomGuards();
-                // 게임을 시작하자마자 보스방에 던전 코어를 자동 생성한다(사용자 요청, 2026-07-23 최초 도입
-                // → 2026-07-24 전용 오브젝트로 분리) — HumanWaveManager.MonitorWave()가 이 오브젝트를
-                // "Loot" 태그(DungeonCoreTag 참고)로 발견해서 첫 웨이브부터 곧바로 목표로 추적하므로,
-                // 유저가 매번 수동으로 O키를 눌러줄 필요가 없어진다.
-                SpawnInitialDungeonCore();
-                // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청): 던전 1층 시작방(플레이어=몬스터
-                // 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 무상으로 하나씩 미리 깔아둔다.
-                SpawnInitialBuildings();
-                // 안개 시스템(2026-07-28, 사용자 요청): 위에서 스폰된 모든 초기 콘텐츠(야생 몬스터/
-                // 던전 코어/건물)를 가리도록 깐다 — 각 방의 Room.FogRevealed 최종 상태를 여기서 먼저
-                // 확정해야, 바로 다음의 SpawnTorches가 "안개 안 걷힌 방은 지금 스폰하지 않고 대기"를
-                // 정확히 판단할 수 있다(사용자 요청, 2026-07-28 "안개가 있는 방에 토치 미리 생성하지
-                // 말고, 안개 걷히고 나서 토치 생성하게 해줘" — 순서를 InitializeFogOfWar → SpawnTorches
-                // 로 바꾼 이유).
+                // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 모든 방에 코어를 하나씩 자동
+                // 생성한다(이전엔 보스방 1개 한정). HumanWaveManager는 WaveData.targetRoomRole/
+                // targetRoomId로 지정된 방의 Room.CorePosition을 직접 목표로 삼는다.
+                // 안개 시스템 초기화 (2026-08-22 코어/건물이 횃불 자리 뺏지 않게 먼저 스폰)
                 _fogOfWarSystem.Initialize();
-                // 횃불 배치(2026-07-28, 사용자 요청; 2026-08-21 벽걸이 방식으로 재설계): 시작방을
-                // 제외한 모든 방(0층 포함, 모든 층 동일 규칙)의 각 청크마다 최대 하나씩(Prefabs/
-                // Torch.prefab, Light2D 포함) — 복도(게이트)가 뚫리지 않은 벽이 하나도 없는 청크는
-                // 건너뛴다(FogOfWarSystem.TryFindTorchTilePos 참고). 안개가 안 걷힌 방은 즉시 스폰하지
-                // 않고 대기열에 넣는다.
                 _fogOfWarSystem.SpawnTorches();
+
+                SpawnAllRoomCores();
+                // 자원/유닛 생산 건물(MVP, 2026-07-27)
+                SpawnInitialBuildings();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
             }
             else
@@ -502,6 +504,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         _offenseProcessor?.UpdateProcess();
         _defenseProcessor?.UpdateProcess();
+        // 문 개폐(기초문서.md 피드백, 2026-08-22) — 기본 닫힘 + 보유 진영 근접 시에만 시각적으로 열림.
+        _doorSystem?.UpdateProcess();
 
         // 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
         for (int i = units.Count - 1; i >= 0; i--)
@@ -514,6 +518,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
 
             u.OnUpdate(Time.deltaTime);
+
+            // 선택 표시(발밑 링)/단일 선택 시야 범위(2026-08-22 사용자 신고 "선택 담당 시각화들이
+            // 꼬임" — 발밑 링이 몇 개는 생기고 몇 개는 안 생기거나, 시야 범위 표시가 계속 남거나,
+            // 다른 유닛을 선택해도 안 사라지는 문제) — 아래 ProcessUnitAction 경유 SyncVisual은
+            // "이번 틱에 위치/라벨/방향이 실제로 바뀐 유닛"에게만 호출되므로, 가만히 서 있는 유닛은
+            // 선택 상태가 바뀌어도 시각이 갱신되지 않았다. 상태 변화 여부와 무관하게 모든 살아있는
+            // 유닛에 대해 매 프레임 무조건 갱신한다(SetActive/불리언 비교뿐이라 비용이 낮다).
+            _unitGenerate?.RefreshSelectionVisual(u);
 
             u.CombatState.State.actionCooldown -= Time.deltaTime;
             if (u.CombatState.State.actionCooldown <= 0f)
@@ -645,16 +657,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 항상 null이 된다 — Unit.lastDamageDealer 필드 주석 참고.
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
 
-            // 점령 전환 MVP(2026-07-27, 사용자 요청): 방 소유 진영의 마지막 유닛이 다른 진영에게 죽으면
-            // 그 방은 죽인 진영 소속으로 전환된다. OnDeath 직후(포지션이 아직 유효한 시점)에 확인한다.
-            _offenseProcessor?.TryFlipRoomOwnershipOnDeath(u);
-
-            // 문 닫힘 시스템(2026-07-28, 사용자 요청) — 이 유닛의 죽음으로 방이 "정리된 상태"가 됐을
-            // 수 있으니 인접 문 개방 조건을 다시 확인한다. u.currentRoom(유닛 배치 시스템 전용 필드)은
-            // 야생 몬스터에서 항상 null이라(SyncRoomAffiliation이 야생을 대상에서 제외) 쓸 수 없어,
-            // OffenseProcessor와 동일하게 roomGrid를 위치로 직접 조회한다.
-            if (roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room deadUnitRoom))
-                RefreshRoomGateStates(deadUnitRoom);
+            // 방 소유권 전환은 이제 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다
+            // (기초문서.md 피드백, 2026-08-22) — 유닛 사망 자체는 더 이상 점령 전환을 트리거하지 않는다.
+            // 문 개폐도 이제 방 유닛 구성이 아니라 매 프레임 진영·근접 여부로 직접 판정하므로
+            // (DoorSystem.UpdateProcess) 사망 시점에 따로 재확인할 필요가 없다.
 
             // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
             // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
@@ -710,6 +716,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 }
                 SpawnObject(corpse, corpseColor);
             }
+
+            // 사용자 요청(2026-08-23): 시체는 1분 뒤 자동으로 사라진다. 그 사이 조사/파티 사망 추적
+            // 등 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른 시체가 새로 자리잡았을
+            // 수 있으니, 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이 corpse 인스턴스인지
+            // 확인한 뒤에만 제거한다.
+            DespawnCorpseAfterDelay(gridPos, corpse).Forget();
         }
 
         if (u != null) CheckPartyWaveState(u);
@@ -902,27 +914,38 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (oldPos != u.position)
         {
             UnregisterUnitPos(u, oldPos);
-            RegisterUnitPos(u, u.position);
-            TriggerTrapIfStepped(u, trapInteractionBefore);
-
-            // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
-            if (u.IsPlayerMonsterFaction)
-                TryTriggerOffenseForUnit(u);
-
-            // 디펜스 자동 트리거(2026-08-20, OffenseProcessor와 대칭): 야생/인류가 플레이어 방에
-            // 진입하면 즉시 디펜스 시작 — IdleFSMState가 "평시 배회 금지" 판단에 쓴다.
-            if (u.FactionBehavior is WildMonsterBehavior || u.FactionBehavior is HumanFactionBehavior)
-                TryTriggerDefenseForUnit(u);
-
-
-            // 능동적 위협 감지: 유닛이 이동하여 활성화된 공격 범위로 직접 들어간 경우
-            foreach (var caster in castingUnits)
+            if (RegisterUnitPos(u, u.position))
             {
-                if (caster == u || caster.AIState.currentThreat == null) continue;
-                if (caster.AIState.currentThreat.hitbox.Overlaps(SkillAction.GetUnitHitbox(u)))
+                TriggerTrapIfStepped(u, trapInteractionBefore);
+
+                // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
+                if (u.IsPlayerMonsterFaction)
+                    TryTriggerOffenseForUnit(u);
+
+                // 디펜스 자동 트리거(2026-08-20, OffenseProcessor와 대칭): 야생/인류가 플레이어 방에
+                // 진입하면 즉시 디펜스 시작 — IdleFSMState가 "평시 배회 금지" 판단에 쓴다.
+                if (u.FactionBehavior is WildMonsterBehavior || u.FactionBehavior is HumanFactionBehavior)
+                    TryTriggerDefenseForUnit(u);
+
+
+                // 능동적 위협 감지: 유닛이 이동하여 활성화된 공격 범위로 직접 들어간 경우
+                foreach (var caster in castingUnits)
                 {
-                    u.OnReactToThreat(caster, caster.AIState.currentThreat);
+                    if (caster == u || caster.AIState.currentThreat == null) continue;
+                    if (caster.AIState.currentThreat.hitbox.Overlaps(SkillAction.GetUnitHitbox(u)))
+                    {
+                        u.OnReactToThreat(caster, caster.AIState.currentThreat);
+                    }
                 }
+            }
+            else
+            {
+                // 목적지가 이미 다른 유닛에 점유돼 있다(2026-08-22 사용자 신고 "난전중 겹침... 어떤
+                // 상황에서도 유닛끼리는 겹쳐지면 안돼") — 이 프레임의 이동 자체를 되돌린다. Move()/
+                // ForceMove가 이동 시점엔 이미 자체적으로 점유를 확인하지만, 그 확인과 이 grid 동기화
+                // 사이에 다른 경로(스폰/텔레포트 등)가 같은 칸을 먼저 차지했을 수 있는 최종 안전망이다.
+                u.position = oldPos;
+                RegisterUnitPos(u, oldPos);
             }
         }
 
@@ -1032,26 +1055,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
 
         // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 시체는 colapse.png, 함정은
-        // trap.png. Loot 계열은 던전 코어(DungeonCore, 보스방 자동 배치 전용)만 core.png를 그대로
-        // 쓰고, 그 외 일반 루팅 오브젝트(O키로 수동 생성)는 obj1.png로 바꿨다(사용자 요청,
-        // 2026-07-24) — DungeonCoreTag가 "Loot"를 포함하는 하위 태그라 DungeonCore 여부를 먼저
-        // 확인해야 한다. Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형 폴백(함정=삼각형,
-        // 그 외=단색 사각형)으로 되돌아간다.
+        // trap.png, 코어는 core.png, 그 외 일반 루팅 오브젝트(O키로 수동 생성)는 obj1.png.
+        // Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형 폴백(함정=삼각형, 그 외=단색
+        // 사각형)으로 되돌아간다.
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
-        bool isDungeonCore = obj.Tags != null && obj.Tags.Exists(t => t.Contains("DungeonCore"));
-        // 03문서 7-3장(2026-07-27) — 리더 전용 조사용 "코어"도 기존 던전 코어와 같은 아트를 그대로
-        // 쓴다(사용자 요청 "스프라이트도 기존에 쓰던 던전코어 스프라이트 이용").
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
-        // 문 시스템(2026-07-27) — 기본적으로 열린 상태(door_open) 스프라이트로 그린다. 닫힌 상태
-        // (obj/door_closed)는 아직 여닫는 기능이 없어 안 쓰지만 에셋은 이미 있음(추후 확장용).
+        // 문 시스템(2026-07-27, 2026-08-22 기본 닫힘으로 전면 개편) — 여기서는 기본 열림(door_open)
+        // 스프라이트로 그리지만, DoorSystem.SpawnDoorAt/RebuildDoorAt이 바로 이어서 기본 닫힘
+        // (door_closed)으로 교체한다. 이후 개폐는 DoorSystem.UpdateProcess가 매 프레임 진영·근접
+        // 여부로 직접 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
         else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
-        else if (isDungeonCore || isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
+        else if (isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
         else if (isDoor) sprite = Resources.Load<Sprite>("obj/door_open");
         else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
 
@@ -1080,7 +1100,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         // 빛(Light2D)이 문도 막게(사용자 요청, 2026-07-28) — MapRandering의 벽 셰도우 캐스터와 동일한
         // 기법(유닛 프리팹과 같은 SpriteRenderer 실루엣 기반 ShadowCaster2D). 문은 열림/닫힘에 따라
-        // sr.sprite가 바뀌는데(ApplyGateDoorVisual), ShadowCaster2D의 SpriteRenderer 프로바이더가
+        // sr.sprite가 바뀌는데(DoorSystem.UpdateProcess), ShadowCaster2D의 SpriteRenderer 프로바이더가
         // 스프라이트 변경 콜백을 등록해두므로 별도 갱신 코드 없이 셰이프가 따라 바뀐다.
         if (isDoor) visual.AddComponent<ShadowCaster2D>();
 
@@ -1119,48 +1139,147 @@ public class GameSession : NativeRoutine, IOffenseQuery
         objectVisuals[obj] = visual;
     }
 
-    // 던전 코어 태그 — 일반 루팅 오브젝트("Object/Passable/Loot")의 하위 태그로 둬서, 기존 Loot
-    // 판정(HumanWaveManager 목표 탐지/GameSession 스프라이트 선택 — 전부 Tags.Contains("Loot")로
-    // 검사한다)을 코드 변경 없이 그대로 재사용한다. O키/InputManager 고스트 배치 등 수동 생성 경로는
-    // 이 태그를 만들지 않는다 — 오직 SpawnInitialDungeonCore()로만, 보스방에 자동으로 하나 배치된다
-    // (사용자 요청, 2026-07-24 "따로 생성할 수 없고 보스방에만 자동 배치").
-    private const string DungeonCoreTag = "Object/Passable/Loot/DungeonCore";
-
-    // 03문서 7-3장(2026-07-27, 사용자 요청 "코어에 대해서, 통합하자") — 보스방 자동배치·웨이브 목표라는
-    // 기존 던전 코어의 정체성은 그대로 두고, 그 위에 7-3장 "코어" 정확 일치 태그를 추가로 얹었다.
-    // "Object/Passable/Core"가 붙으면: (1) Human.ComputeInvestigateTarget이 이 오브젝트를 일반 조사
-    // 후보에서 제외하고(더 이상 아무 인류나 즉시 조사·회수하지 않음), (2) UnitFunction.CastRay가
-    // PerceptionTargetKind.Core로 분류해 CorePartySystem.OnCoreDiscovered(파티 전파 → 리더 전용
-    // 발견~조사 흐름, TacticalFSMState.CanContinueCore 등)를 태운다. HumanWaveManager의 웨이브 목표
-    // 추적·운반·탈출(Carried/Secured) 메커니즘은 여전히 Loot 하위 태그만 보고 동작하므로 손대지 않고
-    // 그대로 둔다(사용자 요청 "다른 코어의 기능은 그대로 둔채") — 즉 리더가 먼저 조사를 마치든 말든
-    // 파티는 기존과 동일하게 이 오브젝트를 웨이브 목표로 들고 나갈 수 있고, 리더의 조사는 그 위에
-    // 병행되는 별개 절차로 결합된다.
-    private const string CoreTag = "Object/Passable/Core";
+    // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — "Object/Passable/Core" 태그가 붙으면:
+    // (1) Human.ComputeInvestigateTarget이 이 오브젝트를 일반 조사 후보에서 제외하고, (2)
+    // UnitFunction.CastRay가 PerceptionTargetKind.Core로 분류해 개인 지도에 등록한다. 방 소유권
+    // 판정 자체는 태그가 아니라 Room.CoreObjectId/CorePosition을 직접 참조한다(TacticalFSMState.
+    // FindHostileRoomCore). 이제 모든 방이 항상 코어를 하나씩 갖는다 — 보스방 1개 한정이던 예전
+    // 던전 코어(DungeonCoreTag)는 폐기.
+    public const string CoreTag = "Object/Passable/Core";
+    // 모든 방에 공통 적용하는 자리표시자 값(플레이 테스트 후 조정) — 물리공격력 40 기준 코어 파괴
+    // 배율(TrapDestroyDamagePerSecondPerAttack=0.5)을 그대로 적용하면 약 10초 만에 파괴된다.
+    // 2026-08-22 사용자 요청 "코어의 체력을 5배로 늘려줘" — 200 → 1000(약 50초).
+    private const float RoomCoreMaxHp = 1000f;
+    // 코어 공격 데미지 고정 초당 비율(2026-08-22 사용자 요청 "코어 공격을, 공격 시도 중일때만 체력이
+    // 초당으로 다는 형식으로 바꿔줘. 공격 시도중인 유닛 마리 수 당 추가") — 예전엔 각 유닛의
+    // physicalAttack 스탯(물리공격력 40 기준 0.5배 = 초당 20)에 비례해서 깎였는데, 이제는 유닛 스탯과
+    // 무관하게 채널링 중인 유닛 1명당 항상 이 고정값만큼만 초당 깎인다. UnitFunction.OnUpdate가 채널링
+    // 중인 유닛마다 독립적으로 이 값을 적용하므로, 같은 코어를 여러 명이 동시에 공격하면 그 인원수만큼
+    // 자연히 합산된다(별도의 "공격 인원 수 세기" 로직 없이 인원수 비례가 성립). 자리표시자 20은 기존
+    // 물리공격력 40 기준 수치와 동일하게 맞춰 1명이 공격할 때의 파괴 시간(약 50초)이 그대로 유지되게
+    // 했다 — 플레이 테스트 후 조정.
+    public const float CoreAttackDamagePerSecond = 20f;
     // 문/게이트 시스템(2026-07-27~28 구현, 2026-08-20 분리) — 문 배치/웨이브 시작 시 전체 잠금/단일
     // 진영만 남으면 재개방/문 타일 이동·시야 차단 판정을 UnitRegistry와 동일한 지연 조회 패턴을 쓰는
     // DoorSystem(Assets/Script/Unit/Session/)으로 뺐다. GameSession이 지나치게 커지는 것을 막기
     // 위함(MonsterDefensePlacementSystem 분리와 동일한 이유). 아래는 외부에서 GameSession.Instance.X()
     // 형태로 호출하던 기존 진입점을 유지하기 위한 얇은 위임이다 — 실제 구현은 전부 DoorSystem에 있다.
     public bool IsDoorTile(Vector3Int pos) => _doorSystem.IsDoorTile(pos);
-    public void CloseAllDoorsForWaveStart() => _doorSystem.CloseAllDoorsForWaveStart();
-    public void RefreshRoomGateStates(Room room) => _doorSystem.RefreshRoomGateStates(room);
     public static List<Vector2Int>[] GetGateDoorTiles(Gate gate) => DoorSystem.GetGateDoorTiles(gate);
+    // 문 진영 판정(기초문서.md 피드백, 2026-08-22 "문은 보유 진영의 유닛만 지나갈 수 있고... 그게
+    // 아니라면 공격해서 파괴해야 해") — UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에
+    // 직접 사용(GameSession.Instance 없이도 static으로 호출 가능하도록 DoorSystem에 그대로 위임).
+    public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit) => _doorSystem.IsBlockedByClosedDoor(pos, unit);
+    // 문 개폐 시각 트리거(2026-08-22 재조정, 사용자 요청 "문 인접 칸에서 문에 접근 시도시 열리는
+    // 방식으로") — UnitFunction.Move가 인접 칸에서 문 타일로 넘어가려는 시도가 있을 때마다 호출한다.
+    // 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
+    public void NotifyDoorApproachAttempt(Vector3Int pos, Unit unit) => _doorSystem.NotifyApproachAttempt(pos, unit);
+    // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — DoorSystem에 얇게 위임(위 세 메서드와 동일 관례).
+    public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
+    public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
+    public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
 
-    // 게임 시작 시 보스방에 던전 코어를 1회 자동 생성 (GameSession.Initialize 참고).
-    private void SpawnInitialDungeonCore()
+    // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 게임 시작 시 모든 방(야생 포함, 0층 제외)에
+    // 코어를 하나씩 자동 생성한다. 이전엔 보스방 1개뿐이었다(SpawnInitialDungeonCore, 폐기).
+    // SpawnWildRoomGuards와 동일한 "방 안 랜덤 위치 + IsAreaClear 재시도" 패턴을 재사용한다.
+    // 2026-08-22 초기 생성 시 문이나 횃불 바로 앞을 막지 않도록 판별하는 메서드
+    private bool IsGoodForInitialSpawn(Vector3Int gridPos, Vector2 footprint)
     {
-        if (_unitGenerate == null) return;
+        int fw = (int)footprint.x;
+        int fh = (int)footprint.y;
 
-        int floorIdx = 1;
-        Vector2Int pos = _unitGenerate.GetBossRoomPos(Vector2.one, floorIdx);
-        Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
+        for (int dx = -1; dx <= fw; dx++)
+        {
+            for (int dy = -1; dy <= fh; dy++)
+            {
+                Vector3Int checkPos = new Vector3Int(gridPos.x + dx, gridPos.y + dy, gridPos.z);
+                
+                // 횃불이 있는 위치인지 확인
+                if (_fogOfWarSystem != null && _fogOfWarSystem.ActiveTorchPositions.Contains(checkPos))
+                    return false;
+                
+                // 문/게이트 바로 앞인지 확인 (통로 차단 방지)
+                if (_doorSystem != null && _doorSystem.IsDoorTile(checkPos))
+                    return false;
+            }
+        }
+        return true;
+    }
 
-        if (objectGrid.ContainsKey(gridPos)) return;
+    private void SpawnAllRoomCores()
+    {
+        if (_unitGenerate == null || allRooms == null) return;
 
-        string objId = "DungeonCore_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { DungeonCoreTag, CoreTag });
-        SpawnObject(obj, Color.magenta);
+        foreach (var room in allRooms)
+        {
+            if (room.RoomId < 0 || room.Floor < 0) continue;
+            if (room.Floor == 0) continue; // 0층(인류 소유 로비)은 방 점령 개념이 없음
+
+            Vector2Int spawnPos = room.GetRandomPosInRoom();
+            int attempts = 0;
+            while ((objectGrid.ContainsKey(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor))
+                    || !_unitGenerate.IsAreaClear(spawnPos, Vector2.one, room.Floor) || !IsGoodForInitialSpawn(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor), Vector2.one)) && attempts < 20)
+            {
+                spawnPos = room.GetRandomPosInRoom();
+                attempts++;
+            }
+            if (attempts >= 20)
+            {
+                LogHelper.Warning(LogHelper.GAME, $"SpawnAllRoomCores: {room.RoomName} 방(F{room.Floor})에 코어를 놓을 자리를 찾지 못했습니다.");
+                continue;
+            }
+
+            Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, room.Floor);
+            string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { CoreTag }, coreHp: RoomCoreMaxHp);
+            SpawnObject(obj, Color.magenta);
+            MarkTileObstacle(gridPos, true);
+
+            room.CoreObjectId = objId;
+            room.CorePosition = gridPos;
+        }
+
+        LogHelper.Log(LogHelper.GAME, "SpawnAllRoomCores: 모든 방에 코어 배치 완료.");
+    }
+
+    // 코어도 건물처럼 벽과 동일한 판정으로 취급되게 해달라는 요청(2026-08-22) — BuildingManager.
+    // UpdateMapDataObstacle과 동일한 패턴(맵 타일 데이터 + 양 진영 discoveredMap 동기화). 코어는
+    // 건물과 달리 철거(Uninstall)되지 않고 파괴 시 방 소유권만 바뀐 채 반피로 회복되므로, 여기엔
+    // 해제(false) 경로가 없다.
+    private void MarkTileObstacle(Vector3Int pos, bool isObstacle)
+    {
+        if (pos.x < 0 || pos.y < 0 || pos.z < 0) return;
+        if (cmap == null || cmap.map.floors == null) return;
+        if (pos.z >= cmap.map.floors.Length) return;
+
+        Floor floor = cmap.map.floors[pos.z];
+        int cx = pos.x / 8;
+        int cy = pos.y / 8;
+        int tx = pos.x % 8;
+        int ty = pos.y % 8;
+
+        if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
+        {
+            var chunk = floor.chunks[cx, cy];
+            if (chunk.chunk != null)
+            {
+                chunk.chunk[tx, ty].isStructureExist = isObstacle;
+            }
+        }
+
+        int mapValue = isObstacle ? 2 : 1;
+
+        if (Unit.humanFactionData != null && Unit.humanFactionData.discoveredMap != null
+            && pos.z >= 0 && pos.z < Unit.humanFactionData.discoveredMap.Length)
+        {
+            Unit.humanFactionData.discoveredMap[pos.z][pos.x, pos.y] = mapValue;
+        }
+
+        if (Unit.monsterFactionData != null && Unit.monsterFactionData.discoveredMap != null
+            && pos.z >= 0 && pos.z < Unit.monsterFactionData.discoveredMap.Length)
+        {
+            Unit.monsterFactionData.discoveredMap[pos.z][pos.x, pos.y] = mapValue;
+        }
     }
 
     // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청) — 게임 시작 시 던전 1층 시작방(RoomRole.
@@ -1208,7 +1327,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             Vector2Int pos = GetRandomStartRoomPos(Vector2.one, floorIdx);
             Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
-            if (_buildingManager.CanInstallAt(gridPos)) return gridPos;
+            if (_buildingManager.CanInstallAt(gridPos) && IsGoodForInitialSpawn(gridPos, Vector2.one)) return gridPos;
         }
         return null;
     }
@@ -1243,25 +1362,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 데미지 상향(2026-07-22, 사용자 요청 "실제로 데미지 들어가게, 꽤 크게") — 기존 10~25에서
             // 30~60으로. 자동 트리거(GameSession.TriggerTrapIfStepped)까지 추가돼 실제로 자주
             // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
-            baseVisibility: 40f, trapHp: 20f, trapDamageMin: 30f, trapDamageMax: 60f);
+            // 체력 상향(2026-08-23, 사용자 요청) — 기존 20은 물리공격력 비례 파괴 데미지(0.5×physicalAttack
+            // /초) 앞에서 실제 유닛 스탯(26~55)이면 1초 안팎에 파괴돼 사실상 "툭 치면 끝"이었다.
+            // DoorSystem.DoorMaxHp(300)와 동일한 값으로 맞춤 — 코어/문처럼 실제 저지력을 갖도록.
+            baseVisibility: 40f, trapHp: 300f, trapDamageMin: 30f, trapDamageMax: 60f);
         SpawnObject(obj, Color.red);
-    }
-
-    // 03문서 7-3장 테스트용 — 정식 배치 시스템(파티 종류·목표·포메이션 문서 부재) 대신 함정과 동일한
-    // 관례로 수동 스폰 훅만 만들어둔다. 웨이브 목표가 아닌 "리더 조사 흐름"만 단독으로 검증하고 싶을
-    // 때 쓴다 — 보스방 던전 코어(DungeonCoreTag+CoreTag 둘 다 붙음, 2026-07-27부터 통합)와 달리 이
-    // 오브젝트는 CoreTag만 붙어 웨이브 목표로는 추적되지 않는다(HumanWaveManager는 Loot 하위 태그만
-    // 봄). 오직 수동 생성 경로에서만 CoreTag 단독으로 스폰되며, 자동 배치(SpawnInitialDungeonCore)는
-    // 항상 DungeonCoreTag를 겸해서 붙인다는 원칙(2026-07-24)은 그대로 유지한다.
-    public void SpawnCoreAt(Vector3Int gridPos)
-    {
-        if (cmap == null || cmap.map.floors == null) return;
-        if (objectGrid.ContainsKey(gridPos)) return;
-
-        string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-        InteractableObject obj = new InteractableObject(objId, gridPos, baseInterest: 120f, baseDanger: 0f,
-            tags: new List<string> { CoreTag }, baseVisibility: 60f);
-        SpawnObject(obj, Color.magenta);
     }
 
     // 9-7/9-8장(2026-07-27 추가) — 함정 해제 진행 막대/결과 문구가 함정 위치의 실제 비주얼
@@ -1283,6 +1388,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
             objectVisuals.Remove(objToRemove);
         }
         _objectSpawner.CollectObject(pos);
+    }
+
+    // 시체 자동 소멸(사용자 요청, 2026-08-23) — 1분.
+    public const float CorpseDespawnSeconds = 60f;
+
+    private async UniTaskVoid DespawnCorpseAfterDelay(Vector3Int gridPos, InteractableObject corpse)
+    {
+        await UniTask.Delay(System.TimeSpan.FromSeconds(CorpseDespawnSeconds));
+        // 그 사이 조사/PartyDeathSystem 등 다른 경로로 이미 치워졌거나, 같은 타일에 다른 오브젝트가
+        // 새로 자리잡았을 수 있으므로 여전히 이 corpse 인스턴스가 그 자리에 있을 때만 제거한다.
+        if (objectGrid.TryGetValue(gridPos, out var current) && current == corpse)
+            CollectObject(gridPos);
     }
 
 }

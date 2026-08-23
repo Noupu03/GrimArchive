@@ -37,6 +37,9 @@ namespace GrimArchive.Wave
         [Tooltip("다음 웨이브 발생까지의 대기 시간 (초)")]
         public float waveCooldown = 10f;
 
+        [Tooltip("첫 웨이브 전용 대기 시간 (초) — 플레이어가 초반 세팅할 시간을 넉넉하게 주기 위한 값. 이후 웨이브는 waveCooldown을 그대로 사용")]
+        public float firstWaveCooldown = 60f;
+
         public SpawnMode spawnMode = SpawnMode.ByRoomRole;
 
         [Tooltip("몇 층(Floor)에 소환할 것인가?")]

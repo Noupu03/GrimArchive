@@ -98,13 +98,21 @@ public struct Hitbox
 
 	/// <summary>
 	/// 두 히트박스의 교차 비율을 계산합니다 (0~1).
-	/// 비율 = 교차 면적 / 이 히트박스의 면적
+	/// 비율 = 교차 면적 / 두 히트박스 중 "작은 쪽"의 면적.
+	///
+	/// 2026-08-23 수정: 예전에는 분모가 항상 이 히트박스(공격 범위)의 면적이었다. 그러면 3x3 광역기에
+	/// 1x1 유닛이 완전히 들어가도 비율이 1/9로 계산돼 범위가 넓을수록 데미지가 깎였다(파이어볼이
+	/// 근접 평타보다 약했던 원인). 반대로 대상 면적으로만 나누면 2x2 대형 유닛이 1x1 근접 공격에
+	/// 덜 맞는 정반대 문제가 생긴다. 작은 쪽 면적을 기준으로 삼으면 "완전히 겹치면 1.0, 스치면
+	/// 그만큼 감소"라는 원래 의도가 두 경우 모두 성립한다.
 	/// </summary>
 	public float CalculateOverlapRatio(Hitbox other)
 	{
-		float thisArea = size.x * size.y;
-		if (thisArea <= 0) return 0f;
-		return Mathf.Clamp01(CalculateOverlapArea(other) / thisArea);
+		float thisArea  = size.x * size.y;
+		float otherArea = other.size.x * other.size.y;
+		float baseArea  = Mathf.Min(thisArea, otherArea);
+		if (baseArea <= 0) return 0f;
+		return Mathf.Clamp01(CalculateOverlapArea(other) / baseArea);
 	}
 
 	public static bool IsInside(Vector2Int pos, Hitbox box)

@@ -90,7 +90,4 @@ public static class ExplorationMath
 	// ─────────────────────────── 7장/14장. 파티 목표·코어 (2026-07-27 신규) ───────────────────────────
 	public const float PartyGoalInitialPropagationSeconds = 1f; // 7-2장: 파티 목표 도달 시 최초 합류 전파
 	public const float PartyGoalRePropagationSeconds = 1f;      // 7-2장: 합류 정보 수신 유닛의 재전파
-	// 7-3장: 코어 조사 자체의 소요시간(문서 미명시) — 일반 조사(5-4장 InvestigateDurationSeconds)와
-	// 같은 값을 내부 판단으로 재사용한다.
-	public const float CoreInvestigateDurationSeconds = 8f;
 }

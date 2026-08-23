@@ -19,6 +19,11 @@ public class ResourceManager : NativeRoutine
     // UI(StatusInfoPanel의 자원 사용 안내)가 같은 값을 참조하도록 여기 한 곳에만 정의한다.
     public const int TrapPlaceStoneCost = 100;
 
+    // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — 문 재설치 1회당 소모 자원. 자리표시자
+    // (플레이 테스트 후 조정) — 함정과 동일한 급으로 우선 맞춰뒀다. 2026-08-22 사용자 요청
+    // "debug에 있던 문 설치를 '설치'란에 넣고, 자원을 소모해서 설치하게 다시 바꿔줘" — 원래는 무료였다.
+    public const int DoorRepairStoneCost = 100;
+
     // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 확정 수치) — B/V키 건물 설치비와 유닛 생산비.
     public const int UnitProductionWoodCost = 100;
     public const int ResourceBuildingStoneCost = 300;

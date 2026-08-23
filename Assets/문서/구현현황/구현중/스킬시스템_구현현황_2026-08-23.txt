@@ -1,0 +1,267 @@
+스킬 시스템 구현현황 (2026-08-23)
+════════════════════════════════════════════════════════════════════════
+작성 목적: "마법사의 파이어볼이 근접공격처럼 나간다"는 신고에서 출발해, 원인이었던 프리팹 스킬
+데이터 유실과 그 뒤에 있던 공격 시스템 구조 문제까지 정리한다. 가중치/시야인지반응/새데모
+구현현황 문서와 동일한 관례(✅구현/🔶부분/❌미구현 태그 + "다음 우선순위" 섹션)를 따른다.
+
+※ 작업 도중 파이어볼 설계가 한 번 뒤집혔다. 처음에는 "투사체 비행 후 착탄 3x3"으로 만들었으나,
+  사용자가 의도를 정정했다 — "유닛에게서 발사되는 형식이 아님 / 그 지점에 생성되는 방식임 /
+  좌표 선택 후 일정 시간이 지난 뒤에 메테오가 떨어지는 느낌을 원하는 것이지 공격하자마자 범위
+  판정과 공격이 동시에 일어나면 안 됨". 투사체 구현은 전부 되돌렸고, 최종 형태는 아래 2장이다.
+
+■ 다음 우선순위 구현 후보 (사용자 확인 필요)
+────────────────────────────────────────────────────────────────────────
+1. **착탄 지연 시간(1500ms)이 적당한지** — 자리표시자다. 원래 baseDelayMs 800이었는데 "일정 시간이
+   지난 뒤" 느낌을 내기 위해 1.5초로 늘렸다. 이 값이 곧 예고 타일이 떠 있는 시간이자 적이 피할 수
+   있는 시간이다. 플레이로 체감 확인 후 조정할 것(skills.json + 마법사.prefab 두 곳).
+2. **낙하 오브젝트 연출 없음** — 지금은 "예고 타일 → 착탄 이펙트(VFX_Fire)"까지다. 실제로 화염구가
+   하늘에서 내려와 땅에 닿는 연출을 원하면 Projectile을 수직 낙하용으로 확장해야 한다(전용 프리팹도
+   필요 — 에디터 실행 불가 환경이라 이번엔 만들지 않았다).
+3. **광역기 데미지 재튜닝** — Hitbox.CalculateOverlapRatio의 분모를 고치면서(4장) 넓은 RECT 스킬의
+   실효 데미지가 크게 올랐다. 특히 몬스터 3종 공용 "육중한 내리찍기"(threat 3x3)는 기존 대비 최대
+   9배다. damageMultiplier 재조정이 필요한지 실제 플레이로 확인할 것.
+4. **SkillData에 damageType 필드 없음** — 물리/마법 구분이 아키타입별 하드코딩이다
+   (Generic=물리 / GroundAoE=마법 / Projectile=물리). 새 마법 스킬을 추가할 때마다 클래스를 파생해야
+   하므로 데이터 필드로 빼는 편이 낫다. 5장의 두 축과 같은 방식으로 정리할 수 있다.
+   덧붙여, "효과의 성격"(피해/회복/버프/디버프)도 아직 축이 없다 — 지금은 Curse가 디버프라는 걸
+   시스템이 알 방법이 없다. UI에서 스킬을 종류별로 표시하거나 상태이상 중첩 규칙이 생기면 그때
+   SkillEffectKind 같은 세 번째 축을 나란히 두면 된다(타겟팅 두 축과 독립적으로).
+5. **전투 밖에서는 Support 스킬을 못 쓴다**(5장 말미 참고) — 전투가 끝나면 사제가 다친 아군을 두고도
+   치유하지 않는다. 스킬 선택이 CombatFSMState 안에서만 일어나기 때문으로, 별도 상태에서 Support
+   스킬을 쓰는 경로를 만들어야 한다.
+5. **UnitVisualDefinition.LoadDataFromJson(프리팹 우클릭 컨텍스트 메뉴)은 쓰지 말 것** —
+   JsonUtility로 SkillData를 직접 파싱하는데 projectilePrefab/hitEffectPrefab이 GameObject 타입이라
+   JSON의 이름 문자열을 해석하지 못하고 참조가 날아간다. 프리팹을 다시 뽑을 때는 반드시
+   Tools/GrimArchive/JSON -> 유닛 프리팹 생성(JsonToUnitPrefabConverter, FindAssetByName로 해석)을
+   쓸 것. 컨텍스트 메뉴 쪽도 같은 해석 로직을 타게 고치는 게 바람직하다.
+
+════════════════════════════════════════════════════════════════════════
+■ 1. 근본 원인 — 프리팹 스킬 아키타입 유실 (전 클래스 영향)
+════════════════════════════════════════════════════════════════════════
+✅ 완료.
+
+런타임 스킬 소스는 skills.json이 아니라 **프리팹**이다
+(UnitSpriteManager.GetSkills → UnitVisualDefinition.BuildSkillActions). 그런데 클래스 유닛 프리팹
+8종에 SkillData의 확장 필드(skillArchetype/multiHitCount/effectDuration/effectAmount/
+explosionRadius)가 유실돼 있었다 — 마법사만 필드는 있고 값이 비었고, 나머지 7종은 필드 자체가
+직렬화되지 않은 상태(그 필드들이 SkillData에 추가되기 이전 버전 컨버터로 생성된 흔적).
+
+그 결과 BuildSkillActions의 switch가 전부 default로 떨어져 **8개 클래스 스킬 전원이
+SkillAction_Generic으로 동작**하고 있었다. 파이어볼은 시전자 전방 3x3 박스 + 물리 데미지
+(마법사 physicalAttack 10, magicalAttack 58 무시)에 **시전 딜레이 0(BeginAttackCast의 castMs가
+Generic에서는 0f 하드코딩)** 이라 "근접공격처럼" 보였다. 사용자가 지적한 "공격하자마자 범위 판정과
+공격이 동시에 일어난다"가 바로 이 즉발 경로다. 같은 이유로 사제 "치유"는 damageMultiplier 0인
+Generic이 되어 아군 회복 대신 적에게 1뎀을 넣고 있었다.
+
+복구 내역(프리팹 YAML 직접 편집, skills.json 값 기준):
+  도적/기습        → Backstab,  effectAmount 2
+  사제/치유        → Heal,      effectAmount 35
+  성기사/성스러운 방패 → Shield,    effectDuration 5, effectAmount 40
+  전사/강타        → Generic
+  주술사/저주      → Curse,     effectDuration 6, effectAmount 14
+  무도가/연격      → MultiHit,  multiHitCount 3
+  음유시인/전투의 노래 → PartyBuff, effectDuration 7, effectAmount 12
+  마법사/파이어볼  → Fireball,  explosionRadius 1.5 (+ 2장의 지연/이펙트 설정)
+
+몬스터/기존 유닛 프리팹(근접 탱커·기사형·야생 몬스터 A·아처형)은 skills.json에도 아키타입이 없는
+게 정상이라 그대로 뒀다. 아처형 "정밀 사격"의 isProjectile=1 설정도 원래 정상이었다.
+
+재발 방지: BuildSkillActions의 default 분기에 경고 로그를 추가했다 — skillArchetype이 비어있는
+건 정상(몬스터 기본 스킬)이지만, 값이 있는데 case에 없으면 Debug.LogWarning을 남긴다. 예전에는
+조용히 Generic으로 폴백해서 스킬 하나가 통째로 평타가 되어도 아무 흔적이 남지 않았다.
+
+════════════════════════════════════════════════════════════════════════
+■ 2. 파이어볼 = 지정 좌표에 지연 착탄하는 메테오
+════════════════════════════════════════════════════════════════════════
+✅ 완료 — 사용자 확정(2026-08-23, 정정된 최종 설계).
+
+요구 3가지: (1) 유닛에게서 발사되지 않는다 (2) 그 지점에 생성된다 (3) 좌표 확정과 범위 판정 사이에
+시간 간격이 있어야 한다.
+
+구조상 SkillAction_GroundAoE가 이미 이 흐름을 그대로 갖고 있었다 — 1장의 아키타입 유실 때문에 그
+경로를 아예 타지 못했을 뿐이다. 그래서 SkillAction_Fireball은 GroundAoE를 상속한 얇은 클래스로
+두고(의도를 클래스 주석에 명시), 동작은 부모가 담당한다:
+  1) 시전 순간 대상 중심 좌표(targetCenter)를 확정하고 그 자리에 3x3 위협 타일을 띄운다.
+     좌표는 클로저에 캡처되므로 대상이 이동해도 따라가지 않는다 — 적은 예고를 보고 걸어나가
+     회피할 수 있다(GameSession의 OnThreatCreated 구독이 범위 내 적에게 OnReactToThreat을
+     걸어주므로 회피/점멸 반응도 자동으로 붙는다).
+  2) baseDelayMs 동안 시전 대기.
+  3) 대기가 끝나면 1)에서 굳힌 좌표에 범위 판정 + 마법 피해 + 착탄 이펙트(VFX_Fire).
+
+데이터(skills.json + 마법사.prefab 양쪽):
+  baseDelayMs 800 → 1500(착탄 지연 = 예고 표시 시간 = 회피 가능 시간),
+  hitEffectPrefab VFX_GuardBreak → VFX_Fire.
+  - hitEffectPrefab은 프리팹에 정밀사격_투사체 GUID가 들어가 있었다(컨버터의 이름 해석이 잘못
+    걸린 것으로 추정). GroundAoE 주석도 VFX_Fire/VFX_Burst를 안내하고 있어 VFX_Fire로 지정했다.
+  - explosionRadius 1.5 → aoeSize = round(1.5*2) = 3 → 정확히 3x3.
+  - isProjectile/projectilePrefab/projectileSpeed는 손대지 않았다(0 그대로) — 투사체가 아니다.
+
+되돌린 것(초기 투사체 구현): Projectile.cs의 HandleHit/Explode/isMagical,
+SkillAction_Projectile의 protected 훅 3종(IsMagical/CastDelayMs/ProjectileColliderWidth),
+skills.json·마법사.prefab의 투사체 설정 — 전부 원복했다. 사용처가 사라진 죽은 코드가 되기 때문이다.
+"투사체가 날아가 착탄 지점에서 폭발"이 나중에 다시 필요해지면 그때 되살리면 된다(당시 구현은
+SkillData.explosionRadius > 0이면 Projectile이 단일 타격 대신 폭발로 분기하는 방식이었다).
+
+동작 검증(좌표 수학 수기 계산): 마법사(10,10) → 적(14,10) 기준 사거리 판정 통과(GroundAoE의
+BuildSkillHitbox는 전방 [threatWidth 3 x threatRange 5] 박스) → 착탄 박스 center (14.5,10.5)
+size 3x3 → 타일 x13~15, y9~11 = 적 중심 3x3 정확. 데미지 = magicalAttack 58 × 2.0 = 116
+(4장 수정 반영, 이전 산식이면 12.9).
+
+════════════════════════════════════════════════════════════════════════
+■ 3. 예고 범위가 "뜬 순간부터 피해 순간까지" 남아있게
+════════════════════════════════════════════════════════════════════════
+✅ 완료 — 사용자 요청: "공격범위가 파티클 생성타이밍부터 피해순간까지로 남아있게".
+   버그가 두 겹이었다(아래 3-1 표시 시간, 3-2 페이드). 둘 다 고쳐야 실제로 남아있는다.
+
+────────────────────────────────────────────────────────────────────────
+3-2. 남은 시간에 비례해 옅어지던 페이드
+────────────────────────────────────────────────────────────────────────
+ThreatTileRenderer.Render가 durationTimer/maxDuration 비율로 알파를 깎고 있었다. 즉발 공격에는
+맞는 연출이다 — 표시 시점에 이미 피해가 끝나 있으니 "지나간 잔상"이 서서히 사라지는 게 자연스럽다.
+그런데 시전이 있는 예고에는 정반대다. 파이어볼은 1.5초에 걸쳐 옅어져서 **정작 피해가 들어가는
+순간에 거의 투명**했다.
+
+ThreatVisual에 holdUntilImpact 플래그를 추가해 두 경우를 갈랐다:
+  - 예고(시전 있음): 색을 그대로 유지하다가, 시전이 끝나는 순간(isCastingAttack이 꺼지거나
+    currentThreat가 null이 되는 시점 = 피해가 실행되는 그 프레임) 사라진다. 시전이 중간에
+    취소되면 그 순간 바로 사라진다.
+  - 즉발(시전 없음): 종전 그대로 0.5초 잔상 페이드.
+플래그는 GameSession의 OnThreatCreated 구독에서 castTimer > 0 여부로 자동 결정된다 — 스킬마다
+따로 지정할 필요가 없다.
+
+※ "파티클 생성타이밍"이 정확히 무엇을 가리키는지는 확인받지 못했다. 위협 범위가 뜨는 시점
+  (= 시전 시작)으로 해석해 구현했다. 만약 시전 시작에 별도의 예고 파티클(VFX)을 띄우길 원한
+  것이라면 그건 아직 없다 — 지금 파티클(VFX_Fire)은 착탄 순간에만 생성된다.
+
+────────────────────────────────────────────────────────────────────────
+3-1. 표시 시간이 항상 0.5초로 고정되던 버그
+────────────────────────────────────────────────────────────────────────
+✅ 완료 — 2장 작업 중 발견.
+
+SkillAction.BeginAttackCast가 위협 타일 생성을 통지(OnThreatCreated)한 **뒤에야** castTimer를
+세팅하고 있었다. 그런데 GameSession의 OnThreatCreated 구독은 표시 시간을 공격자의 castTimer에서
+읽는다(ThreatTileRenderer.ShowThreatZone의 duration). 순서가 반대라 통지 시점의 castTimer는 항상
+0이었고, 결과적으로 **시전 시간과 무관하게 0.5초 폴백**이 쓰였다.
+
+지금까지는 시전 딜레이가 짧은 스킬만 실제로 쓰여서 눈에 띄지 않았지만, 파이어볼처럼 1.5초 지연을
+두면 예고가 착탄 1초 전에 사라져 "예고 → 낙하"가 성립하지 않는다. 시전 상태 세팅(isCastingAttack/
+castTimer/castingUnits/pendingCastUpdate)을 통지 직전으로 옮겨 해결했다.
+
+부수 효과: 위협에 반응하는 쪽(DefenseSystem.EvaluateEarlyReaction)이 공격자의 캐스팅 상태를 이미
+켜진 상태로 보게 된다 — 회피/점멸 판정에는 castTimer/isCastingAttack을 참조하는 로직이 없어
+동작 차이는 없다(확인함).
+
+════════════════════════════════════════════════════════════════════════
+■ 4. 공격 시스템 기반 수정 — 겹침 비율 분모
+════════════════════════════════════════════════════════════════════════
+✅ 완료.
+
+Hitbox.CalculateOverlapRatio가 겹친 면적을 **공격 히트박스 자신의 면적**으로 나누고 있었다.
+3x3 광역기(면적 9)에 1x1 유닛이 완전히 들어가도 비율이 1/9로 계산돼, 범위가 넓을수록 데미지가
+깎였다(광역기가 근접 평타보다 약해지는 원인). 반대로 대상 면적으로만 나누면 2x2 대형 유닛이
+1x1 근접 공격에 덜 맞는 정반대 문제가 생긴다.
+
+수정: 분모를 **두 히트박스 중 작은 쪽 면적**으로 바꿨다. "완전히 겹치면 1.0, 스치면 그만큼 감소"
+라는 원래 의도가 양쪽 경우 모두 성립한다.
+
+영향 범위(이 함수를 쓰는 곳 전부):
+  - SkillAction.DamageEnemiesInHitboxWithAreaRatio / DamageMagicalEnemiesInHitboxWithAreaRatio
+    → Generic·GroundAoE·Backstab·MultiHit 등 대부분의 스킬.
+  - Projectile의 단일 타격 비율.
+  - DefenseSystem은 CalculateOverlapArea(면적)만 쓰므로 영향 없음.
+  - AreaBasedDamageValidator는 로그 출력용 디버그 도구라 영향 없음.
+  1x1 근접 스킬 vs 1x1 유닛은 값이 그대로(1.0)라 대다수 근접 평타는 변화가 없고, 넓은 RECT
+  스킬만 올라간다 — 위 "다음 우선순위" 3번 참고.
+
+════════════════════════════════════════════════════════════════════════
+■ 5. 스킬 타겟팅 4분류 (SkillTargeting) — 확장성 개선
+════════════════════════════════════════════════════════════════════════
+✅ 완료 — 사용자 제안: "공격 유형을 4가지로 해서 일반 공격 / 투사체 공격 / 일반 공격(상대좌표기준) /
+   버프로 확장성 있게 개선".
+
+배경: "무엇을 기준으로 판정하는가"가 각 SkillAction_*의 Execute 안에만 있어서, 스킬을 고른 뒤
+실행 직전에 검사하는 쪽(CombatFSMState / StandGroundAttackFSMState / PlayerCommandFSMState 세 곳에
+같은 코드가 복붙돼 있었다)은 모든 스킬을 "적이 시전자 앞 히트박스에 들어왔는가" 하나로만 판정했다.
+그래서 **아군을 대상으로 하는 치유/보호막/파티버프가 "적이 사거리 안에 있어야만" 발동**했다 —
+사제는 아군이 죽어가도 적이 정면 4칸 밖이면 치유 대신 적에게 걸어갔다.
+
+신설: Assets/Script/Unit/Skills/SkillTargeting.cs — **서로 독립적인 두 축**의 enum.
+
+  [축 1] SkillOrigin — 판정을 어디에 만드는가
+    SelfArea   시전자 기준 히트박스 (Generic/Backstab/MultiHit/Curse/Heal/Shield/PartyBuff)
+    Projectile 시전자에게서 발사, 발동 조건은 SelfArea와 동일 (Projectile)
+    TargetArea 대상 좌표에 판정 생성 → 거리로만 사거리 판정 (GroundAoE/Fireball)
+
+  [축 2] SkillAffinity — 누구를 대상으로 하는가
+    Enemy      AI가 찾아준 가장 가까운 적 (기본값)
+    Ally       아군/자신, 대상은 스킬이 ResolveTarget에서 직접 찾는다 (Heal/Shield/PartyBuff)
+
+  처음에는 이 둘을 SkillTargeting 하나(SelfArea/Projectile/TargetArea/Support)로 합쳐 만들었는데,
+  앞의 셋은 "판정 기준"인 반면 Support만 "대상 진영"이라 축이 섞여 있었다. 그러면 "아군 좌표를
+  기준으로 터지는 광역 힐" 같은 조합을 표현할 수 없다 — 두 축이면 (TargetArea, Ally)로 그냥 나온다.
+  사용자와 논의해 같은 날 두 축으로 다시 나눴다.
+
+※ Curse는 이름이 디버프라 아군 쪽으로 오해하기 쉬운데, Execute가 GetEnemiesInHitbox로 시전자 기준
+  전방 히트박스에서 적을 찾으므로 (SelfArea, Enemy) = 일반 공격과 완전히 같은 조합이다. 효과가
+  피해가 아니라 스탯 감소라는 건 타겟팅과 다른 축의 이야기다(클래스에 주석으로 명시해뒀다).
+
+관문 통합 — SkillAction에 다음 셋을 추가하고, FSM 세 곳의 중복 게이트를 전부 교체했다:
+  Origin / Affinity                    두 축(기본값: SelfArea + Enemy)
+  ResolveTarget(unit, nearestEnemy)    진영 축이 소비되는 지점. 아군 대상 스킬은 여기서 자기 대상을
+                                       찾아 돌려주고, 그 결과가 아래 판정과 Execute로 그대로 전달된다.
+  CanExecuteAgainst(unit, target, dist) 판정 축이 소비되는 지점. 인자는 "이미 해결된 대상"이다.
+세 FSM은 이제 ResolveTarget → CanExecuteAgainst → Execute 순서로만 부른다. 새 스킬을 추가할 때
+두 축만 지정하면 대상 선정과 사거리 판정이 알아서 갈린다 — 세 곳을 각각 고칠 필요가 없다.
+
+대상 탐색 중복 제거: Heal은 IsAvailable/GetPriority/Execute가 각각 FindLowestHpAlly를 불러 한 틱에
+Session.units를 세 번 훑었다. ResolveTarget 도입으로 Execute의 재탐색이 사라졌고, 남은 두 곳은
+1틱 캐시(GetHealTarget)로 묶어 한 번으로 줄였다. **주의: SkillAction 인스턴스는 같은 유닛 타입
+전체가 공유하므로**(사제가 여럿이면 이 객체 하나를 나눠 쓴다) 캐시 키에 소유자(unit)와 프레임을
+함께 넣어야 서로의 대상이 섞이지 않는다. Shield는 IsAvailable/GetPriority가 대상을 묻지 않아
+탐색이 원래 한 번뿐이라 캐시를 두지 않았다.
+
+Execute의 target 의미: 이제 "ResolveTarget이 돌려준 대상"이라 아군일 수도 있다. Heal/Shield는
+넘겨받은 대상이 아군이면 그대로 쓰고, 아니면(테스트처럼 직접 호출해 적을 넘기는 경우) 스스로 다시
+찾는다 — 기존 단위 테스트가 전부 아군을 넘기고 있어 동작이 바뀌지 않는다(확인함).
+
+키팅 예외: CombatFSMState의 "원거리 스킬이면 적이 가까울 때 물러난다" 로직에서 Affinity=Ally를 제외했다.
+아군 대상 스킬이 최우선으로 뽑혔다는 건 아군이 위독하다는 뜻이므로, 물러나지 말고 그 자리에서 바로
+시전해야 한다(사제 HitRange 4 >= rangedMin 4라 예전엔 적이 2칸 이내면 치유 대신 후퇴만 반복했다).
+
+회복/버프 이펙트: Heal/Shield/PartyBuff 모두 데이터에 hitEffectPrefab이 지정돼 있는데도 어디에서도
+스폰하지 않아 플로팅 텍스트만 떴다. 셋 다 대상 아군 위치에 이펙트를 터뜨리도록 추가했다
+(PartyBuff는 버프받은 아군 각자에게). 사제 프리팹의 hitEffectPrefab은 현재 VFX_IceCloud다.
+
+❌ 남은 한계: **전투 중이 아니면 여전히 치유를 쓸 수 없다.** 스킬 선택 자체가 CombatFSMState에서만
+   일어나는데, 이 상태는 GetClosestEnemy가 null이면 곧바로 Failure로 빠지기 때문이다. 전투가 끝난 뒤
+   다친 아군을 회복시키려면 별도 상태(TacticalFSMState 계열)에서 Support 스킬을 쓰는 경로가 필요하다
+   — FSM 구조 변경이라 이번 범위에서 제외했다.
+
+════════════════════════════════════════════════════════════════════════
+■ 6. 부수적으로 정리한 것
+════════════════════════════════════════════════════════════════════════
+✅ 병합 사고로 깨져 있던 컴파일 오류 — df2f60f 병합 시점의 Projectile.cs는 hasHitNewEnemy 지역변수
+   선언이 사라진 채 대입문만 남아 컴파일이 되지 않았다. 해당 대입문을 제거했다(선언이 사라진 쪽이
+   의도된 변경으로 보여, 쓰이지 않는 변수를 되살리는 대신 잔재를 지우는 방향으로 맞췄다).
+✅ SkillAction_GroundAoE의 Debug.Log — 주석부터 "1번 디버깅 및 상태 확인용"이었는데, 파이어볼이
+   이제 실제로 이 경로를 타므로 매 시전마다 콘솔에 찍히게 된다. LogHelper.Log(GAME)로 낮췄다.
+🔶 착탄 시 "BOOM!" 플로팅 텍스트(GroundAoE)는 그대로 뒀다 — 마찬가지로 이번에 처음 화면에 보이게
+   되는 디버그 흔적이지만, 착탄 피드백으로 쓸 수 있어 판단을 사용자에게 넘긴다. 불필요하면
+   SkillAction_GroundAoE.Execute의 ShowFloatingTextAt 한 줄을 지우면 된다.
+
+════════════════════════════════════════════════════════════════════════
+■ 검증 상태
+════════════════════════════════════════════════════════════════════════
+✅ 컴파일: dotnet build Assembly-CSharp.csproj — 오류 0, 경고 0.
+✅ 데이터: 프리팹 12종 전수 확인 — 클래스 8종 아키타입 복구, 몬스터 4종은 의도대로 아키타입 없음.
+✅ 좌표 수학: 파이어볼 사거리 판정 → 착탄 좌표 → 3x3 범위를 수기 계산으로 확인(2장).
+❌ 실제 플레이 검증: 에디터 실행 불가 환경이라 미실시. 특히 아래 항목은 플레이로 확인 필요.
+   - 1.5초 지연이 체감상 적당한지, 예고 범위가 그 시간 내내 옅어지지 않고 보이다가 피해 순간에
+     사라지는지(3장 수정의 실물 확인).
+   - 적이 예고를 보고 실제로 걸어나가 회피하는지.
+   - 4장 수정 이후의 광역기 데미지 밸런스.
+❌ 단위 테스트 실행: Unity Test Runner가 필요해 미실시. 다만 기존 AoE 테스트는 부등호 기반
+   (Assert.Less/Greater)이고 이번 변경은 데미지가 커지는 방향이라 논리적으로는 통과한다.
+   PlayableClassSkillTests의 아키타입 라우팅 테스트는 "파이어볼"을 skillArchetype="GroundAoE"로
+   만들어 SkillAction_GroundAoE를 기대하는데, GroundAoE 클래스와 그 case는 그대로이고
+   SkillAction_Fireball도 GroundAoE 파생이라 영향 없다.
