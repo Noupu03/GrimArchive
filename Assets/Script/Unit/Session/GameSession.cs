@@ -716,6 +716,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 }
                 SpawnObject(corpse, corpseColor);
             }
+
+            // 사용자 요청(2026-08-23): 시체는 1분 뒤 자동으로 사라진다. 그 사이 조사/파티 사망 추적
+            // 등 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른 시체가 새로 자리잡았을
+            // 수 있으니, 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이 corpse 인스턴스인지
+            // 확인한 뒤에만 제거한다.
+            DespawnCorpseAfterDelay(gridPos, corpse).Forget();
         }
 
         if (u != null) CheckPartyWaveState(u);
@@ -1382,6 +1388,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
             objectVisuals.Remove(objToRemove);
         }
         _objectSpawner.CollectObject(pos);
+    }
+
+    // 시체 자동 소멸(사용자 요청, 2026-08-23) — 1분.
+    public const float CorpseDespawnSeconds = 60f;
+
+    private async UniTaskVoid DespawnCorpseAfterDelay(Vector3Int gridPos, InteractableObject corpse)
+    {
+        await UniTask.Delay(System.TimeSpan.FromSeconds(CorpseDespawnSeconds));
+        // 그 사이 조사/PartyDeathSystem 등 다른 경로로 이미 치워졌거나, 같은 타일에 다른 오브젝트가
+        // 새로 자리잡았을 수 있으므로 여전히 이 corpse 인스턴스가 그 자리에 있을 때만 제거한다.
+        if (objectGrid.TryGetValue(gridPos, out var current) && current == corpse)
+            CollectObject(gridPos);
     }
 
 }
