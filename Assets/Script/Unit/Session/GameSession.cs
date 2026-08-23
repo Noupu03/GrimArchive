@@ -69,7 +69,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         OnThreatCreated.Subscribe(data =>
         {
-            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, 0.5f);
+            float duration = data.attacker != null && data.attacker.CombatState.State.castTimer > 0f
+                ? data.attacker.CombatState.State.castTimer
+                : 0.5f;
+            _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, duration);
 
             // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
             // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
@@ -82,7 +85,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
         });
     }
-    public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry.unitGrid;
+    public Dictionary<Vector3Int, Unit> unitGrid => _unitRegistry?.unitGrid;
     public Dictionary<Vector3Int, InteractableObject> objectGrid => _objectSpawner.objectGrid;
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     public List<Room> allRooms { get; private set; } = new List<Room>();

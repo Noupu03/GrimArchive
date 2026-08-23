@@ -62,11 +62,57 @@ public class WildMonsterA : UnitType
 // ----------------------------------------------------
 public class Archer : UnitType
 {
-    public Archer() 
-    { 
-        typeName = "아처형"; 
-        footprint = new Vector2(1, 1); 
+    public Archer()
+    {
+        typeName = "아처형";
+        footprint = new Vector2(1, 1);
     }
+}
+
+// ----------------------------------------------------
+// 플레이어블 8개 직업 (units.json 기준 — WaveSpawner.ResolveUnitType이 리플렉션으로 typeName을
+// 매칭하므로 WaveData에서 이 이름들을 unitTypeName으로 쓰려면 여기 서브클래스가 있어야 한다.
+// 실제 footprint는 어차피 UnitGenerate.SetupUnitVisual이 프리팹의 UnitVisualDefinition.footprint로
+// 다시 덮어쓰므로 여기 값은 units.json과 맞춰두는 정도의 의미다.)
+// ----------------------------------------------------
+public class Warrior : UnitType
+{
+    public Warrior() { typeName = "전사"; footprint = new Vector2(1, 1); }
+}
+
+public class Rogue : UnitType
+{
+    public Rogue() { typeName = "도적"; footprint = new Vector2(1, 1); }
+}
+
+public class Mage : UnitType
+{
+    public Mage() { typeName = "마법사"; footprint = new Vector2(1, 1); }
+}
+
+public class Priest : UnitType
+{
+    public Priest() { typeName = "사제"; footprint = new Vector2(1, 1); }
+}
+
+public class Paladin : UnitType
+{
+    public Paladin() { typeName = "성기사"; footprint = new Vector2(1, 1); }
+}
+
+public class Shaman : UnitType
+{
+    public Shaman() { typeName = "주술사"; footprint = new Vector2(1, 1); }
+}
+
+public class Monk : UnitType
+{
+    public Monk() { typeName = "무도가"; footprint = new Vector2(1, 1); }
+}
+
+public class Bard : UnitType
+{
+    public Bard() { typeName = "음유시인"; footprint = new Vector2(1, 1); }
 }
 // 공통 전투 상수 정의
 public static class CombatConstants

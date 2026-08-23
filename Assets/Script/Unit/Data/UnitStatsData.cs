@@ -40,4 +40,11 @@ public class SkillData
     public float  priorityKillBonus;
     public float  priorityRangeThreshold;
     public float  priorityRangeBonus;
+
+    [Header("확장 스킬 설정 (테스트용)")]
+    public string skillArchetype; // "GroundAoE", "Backstab", "Heal", "Shield", "Curse", "MultiHit", "PartyBuff" 등
+    public int    multiHitCount;
+    public float  effectDuration;
+    public float  effectAmount;
+    public float  explosionRadius;
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 // 유닛 타입별 프리팹의 루트에 붙는 컴포넌트.
@@ -85,10 +85,23 @@ public class UnitVisualDefinition : MonoBehaviour
         var list = new List<SkillAction>();
         foreach (var sd in skills)
         {
-            if (sd.isProjectile)
-                list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab)); // 설정된 프리팹 전달
-            else
-                list.Add(new SkillAction_Generic(sd));
+            switch (sd.skillArchetype)
+            {
+                case "GroundAoE": list.Add(new SkillAction_GroundAoE(sd)); break;
+                case "Backstab":  list.Add(new SkillAction_Backstab(sd)); break;
+                case "Fireball":  list.Add(new SkillAction_Fireball(sd)); break;
+                case "Heal":      list.Add(new SkillAction_Heal(sd)); break;
+                case "Shield":    list.Add(new SkillAction_Shield(sd)); break;
+                case "Curse":     list.Add(new SkillAction_Curse(sd)); break;
+                case "MultiHit":  list.Add(new SkillAction_MultiHit(sd)); break;
+                case "PartyBuff": list.Add(new SkillAction_PartyBuff(sd)); break;
+                default:
+                    if (sd.isProjectile)
+                        list.Add(new SkillAction_Projectile(sd, sd.projectilePrefab));
+                    else
+                        list.Add(new SkillAction_Generic(sd));
+                    break;
+            }
         }
         return list;
     }

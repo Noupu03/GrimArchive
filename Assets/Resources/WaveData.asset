@@ -25,6 +25,22 @@ MonoBehaviour:
     faction: 0
     units:
     - unitTypeName: "\uAE30\uC0AC\uD615"
-      count: 4
-    - unitTypeName: "\uC544\uCC98\uD615"
+      count: 0
+    - unitTypeName: "\uB3C4\uC801"
+      count: 0
+    - unitTypeName: "\uB9C8\uBC95\uC0AC"
       count: 2
+    - unitTypeName: "\uBB34\uB3C4\uAC00"
+      count: 0
+    - unitTypeName: "\uC0AC\uC81C"
+      count: 0
+    - unitTypeName: "\uC131\uAE30\uC0AC"
+      count: 0
+    - unitTypeName: "\uC544\uCC98\uD615"
+      count: 0
+    - unitTypeName: "\uC74C\uC720\uC2DC\uC778"
+      count: 0
+    - unitTypeName: "\uC8FC\uC220\uC0AC"
+      count: 0
+    - unitTypeName: "\uC804\uC0AC"
+      count: 0

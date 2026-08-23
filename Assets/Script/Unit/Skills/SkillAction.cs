@@ -16,7 +16,7 @@ public abstract class SkillAction
 	public virtual int HitWidth => 1;
 	public virtual int HitDepth => 1;
 
-	public Hitbox BuildSkillHitbox(Unit unit)
+	public virtual Hitbox BuildSkillHitbox(Unit unit)
 	{
 		if (HitShape == ThreatShape.RECT)
 			return BuildRectHitboxWithAngle(unit, HitWidth, HitDepth, unit.CombatState.State.currentAttackAngle);
@@ -150,7 +150,7 @@ public abstract class SkillAction
 				}
 			}
 		}
-		else
+		else if (attacker.Session != null)
 		{
 			foreach (var u in attacker.Session.units)
 			{
