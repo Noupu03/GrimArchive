@@ -406,21 +406,45 @@ public abstract class Unit : ScriptableObject {
 	// CoreAttackPerform, 코어 전용, 방 소유권 없는 진영 제외) + 플레이어 명령(PlayerCommandFSMState.
 	// ExecutePlayerAttackObject, 코어+문 둘 다) 양쪽이 인접 도착 시 채운다. 값이 있는 동안만
 	// UnitFunction.OnUpdate가 매 프레임 CoreHp/DoorHp를 깎는다(TrapInteractionState의 Destroying
-	// 단계와 동일한 채널링 패턴).
+	// 단계와 동일한 채널링 패턴). 직접 대입하지 말고 항상 SetAttackObjectTarget/
+	// ClearAttackObjectTarget을 거칠 것 — 파괴 VFX 시작/종료가 그 두 메서드에 물려 있다.
 	public Vector3Int? currentAttackObjectTarget;
 
-	// 코어/문 파괴 진행도 표시(2026-08-24 사용자 요청 "함정 해제할때 쓰는 로직처럼 스프라이트
-	// 하단에 표시") — 채널링이 어떤 이유로든(완료/파괴/명령 취소/대상 이탈) 끝날 때는 항상 이
-	// 메서드를 거쳐 진행 막대를 같이 숨긴다. TrapInteractionState의 진행 막대(ObjectProgressBarVisual,
-	// TacticalFSMState.TrapDisarmPerform 등)와 동일한 컴포넌트를 재사용한다.
+	// 파괴 채널링 VFX 인스턴스(2026-08-24 신규, VFX_BlockBreaking.prefab) — SetAttackObjectTarget/
+	// ClearAttackObjectTarget만 건드린다.
+	private GameObject _attackObjectVfxInstance;
+
+	// currentAttackObjectTarget을 설정하는 유일한 진입점(2026-08-24 사용자 요청 "문/코어 파괴 VFX,
+	// 재생시간 끝나도 파괴 행동 끝날 때까지 계속") — BT가 채널링 중에도 매 틱 같은 값을 다시 대입할
+	// 수 있어(예: TacticalFSMState.MoveToCoreAttack이 인접할 때마다 재확인), 값이 실제로 바뀔 때만
+	// VFX를 새로 시작해 중복 재생을 막는다. VFX_BlockBreaking 자체가 looping이라 재생 시간과 무관하게
+	// 계속 돌고, ClearAttackObjectTarget이 호출되는 순간(파괴 완료/중단 무관) 즉시 멈춘다.
+	public void SetAttackObjectTarget(Vector3Int pos)
+	{
+		if (currentAttackObjectTarget == pos) return;
+		StopAttackObjectVfx();
+		currentAttackObjectTarget = pos;
+		_attackObjectVfxInstance = VFXManager.SpawnBlockBreakingVfx(this, pos);
+	}
+
+	// 코어/문 파괴 채널링 종료(2026-08-24 재조정, 사용자 요청 "파괴가 진행된지 5초 지난 시점부터
+	// 서서히 회복 + 동일 시점에 진행바 숨김, 다시 파괴 시도하면 다시 표시") — 채널링이 어떤 이유로든
+	// (완료/파괴/명령 취소/대상 이탈) 끝날 때 파괴 VFX는 항상 즉시 멈추지만, 진행 막대는 더 이상
+	// 여기서 즉시 숨기지 않는다 — 공격이 끊긴 뒤에도 회복 지연시간(CoreRegenDelaySeconds/
+	// DoorRegenDelaySeconds) 동안은 마지막 체력 그대로 막대를 보여줘야 하기 때문이다. 막대 숨김은
+	// GameSession.TickCoreRegen/DoorSystem.UpdateProcess가 그 지연시간이 지나 회복이 실제로 시작되는
+	// 순간에 처리한다(InteractableObject.TimeSinceLastDamaged 참고).
 	public void ClearAttackObjectTarget()
 	{
-		if (currentAttackObjectTarget.HasValue)
-		{
-			Vector3Int pos = currentAttackObjectTarget.Value;
-			Session?.GetObjectVisual(pos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
-		}
+		StopAttackObjectVfx();
 		currentAttackObjectTarget = null;
+	}
+
+	private void StopAttackObjectVfx()
+	{
+		if (_attackObjectVfxInstance == null) return;
+		VFXManager.StopBlockBreakingVfx(_attackObjectVfxInstance);
+		_attackObjectVfxInstance = null;
 	}
 
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.

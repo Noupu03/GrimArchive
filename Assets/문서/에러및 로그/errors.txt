@@ -1,12 +1,29 @@
-Assets\Editor\FSMVerificationRunner.cs(162,9): error CS1061: 'Human' does not contain a definition for 'currentCoreInteraction' and no accessible extension method 'currentCoreInteraction' accepting a first argument of type 'Human' could be found (are you missing a using directive or an assembly reference?)
+UnityEngine.AddressableAssets.InvalidKeyException: Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. No Location found for Key=Prefabs/GrimArchive_TitlePanel
+UnityEngine.AddressableAssets.Addressables:InstantiateAsync (object,UnityEngine.Transform,bool,bool)
+Haare.Util.Loader.AssetLoader/<InstantiatePrefab>d__4`1<GameTitlePanel>:MoveNext () (at Assets/Haare/Scripts/Util/AssetLoader/AssetLoader.cs:30)
+Haare.Util.Loader.AssetLoader:InstantiatePrefab<GameTitlePanel> (UnityEngine.Transform,string,System.Threading.CancellationToken)
+Haare.Client.UI.SceneUIManager:Register<GameTitlePanel> () (at Assets/Haare/Scripts/Client/UI/UiManager/SceneUiManager.cs:110)
+Haare.Client.UI.SceneUIManager/<LoadPanel>d__20`1<GameTitlePanel>:MoveNext () (at Assets/Haare/Scripts/Client/UI/UiManager/SceneUiManager.cs:244)
+Haare.Client.UI.SceneUIManager:LoadPanel<GameTitlePanel> (bool,bool)
+Haare.Client.UI.SceneUIManager/<LoadPanel>d__16`1<GameTitlePanel>:MoveNext () (at Assets/Haare/Scripts/Client/UI/UiManager/SceneUiManager.cs:139)
+Haare.Client.UI.SceneUIManager:LoadPanel<GameTitlePanel> (System.Func`1<Cysharp.Threading.Tasks.UniTask>,bool,bool)
+TitleUIManager/<Initialize>d__0:MoveNext () (at Assets/Script/UI/Title/TitleUIManager.cs:13)
+TitleUIManager:Initialize (System.Threading.CancellationToken)
+Haare.Client.Core.Processor/<Register>d__13:MoveNext () (at Assets/Haare/Scripts/Client/Core/Processor.cs:149)
+Haare.Client.Core.Processor:Register (Haare.Client.Routine.IRoutine,System.Threading.CancellationToken)
+Haare.Client.Routine.MonoRoutine/<InitializeAsync>d__37:MoveNext () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:50)
+Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1<Haare.Client.Routine.MonoRoutine/<InitializeAsync>d__37>:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/CompilerServices/StateMachineRunner.cs:189)
+Cysharp.Threading.Tasks.AwaiterActions:Continuation (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.cs:25)
+Cysharp.Threading.Tasks.UniTaskCompletionSourceCore`1<object>:TrySetResult (object) (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTaskCompletionSource.cs:139)
+Cysharp.Threading.Tasks.UniTask/WaitUntilPromise:MoveNext () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/UniTask.WaitUntil.cs:159)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:RunCore () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:175)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Update () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:145)
+Cysharp.Threading.Tasks.Internal.PlayerLoopRunner:Run () (at ./Library/PackageCache/com.cysharp.unitask@360e370345b9/Runtime/Internal/PlayerLoopRunner.cs:104)
 
-Assets\Editor\FSMVerificationRunner.cs(162,38): error CS0246: The type or namespace name 'CoreInteractionState' could not be found (are you missing a using directive or an assembly reference?)
-
-Assets\Editor\FSMVerificationRunner.cs(168,15): error CS1061: 'Party' does not contain a definition for 'PendingCoreObjectId' and no accessible extension method 'PendingCoreObjectId' accepting a first argument of type 'Party' could be found (are you missing a using directive or an assembly reference?)
-
-Assets\Editor\FSMVerificationRunner.cs(169,15): error CS1061: 'Party' does not contain a definition for 'PendingCorePosition' and no accessible extension method 'PendingCorePosition' accepting a first argument of type 'Party' could be found (are you missing a using directive or an assembly reference?)
-
-Assets\Editor\FSMVerificationRunner.cs(174,36): error CS1061: 'Human' does not contain a definition for 'currentCoreInteraction' and no accessible extension method 'currentCoreInteraction' accepting a first argument of type 'Human' could be found (are you missing a using directive or an assembly reference?)
-
-Assets\Editor\FSMVerificationRunner.cs(304,15): error CS1061: 'HumanWaveManager' does not contain a definition for 'dummyTarget' and no accessible extension method 'dummyTarget' accepting a first argument of type 'HumanWaveManager' could be found (are you missing a using directive or an assembly reference?)
+OperationException : ChainOperation failed because dependent operation failed
+UnityEngine.AddressableAssets.InvalidKeyException: Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. No Location found for Key=Prefabs/GrimArchive_TitlePanel
+UnityEngine.ResourceManagement.ChainOperationTypelessDepedency`1<UnityEngine.GameObject>:OnWrappedCompleted (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>)
+DelegateList`1<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>>:Invoke (UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle`1<UnityEngine.GameObject>) (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/DelegateList.cs:75)
+UnityEngine.ResourceManagement.ResourceManager:Update (single)
+MonoBehaviourCallbackHooks:Update () (at ./Library/PackageCache/com.unity.addressables@1d7f6a740e58/Runtime/ResourceManager/Util/MonoBehaviourCallbackHooks.cs:29)
 

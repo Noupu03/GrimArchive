@@ -682,6 +682,33 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         RefreshRoomPopulationLabels();
+        TickCoreRegen();
+    }
+
+    // 코어 자동 회복(2026-08-24 신규, DoorSystem.UpdateProcess의 문 회복 로직과 대칭) — RefreshRoomPopulationLabels와
+    // 동일하게 allRooms를 매 프레임 순회해 room.CorePosition의 코어를 직접 찾는다(전용 위치 목록이
+    // 없어도 되도록 기존 순회를 재사용). 공격 중인 코어는 UnitFunction.OnUpdate가 매 프레임
+    // TimeSinceLastDamaged를 0으로 리셋하므로 회복 지연시간(CoreRegenDelaySeconds)을 넘기지 못한다.
+    private void TickCoreRegen()
+    {
+        if (allRooms == null) return;
+
+        foreach (var room in allRooms)
+        {
+            if (room == null || room.CoreObjectId == null) continue;
+            if (!objectGrid.TryGetValue(room.CorePosition, out InteractableObject core)) continue;
+            if (core.CoreHp >= core.CoreMaxHp) continue;
+
+            bool wasBeforeDelay = core.TimeSinceLastDamaged < CoreRegenDelaySeconds;
+            core.TimeSinceLastDamaged += Time.deltaTime;
+            if (core.TimeSinceLastDamaged < CoreRegenDelaySeconds) continue;
+
+            core.CoreHp = Mathf.Min(core.CoreMaxHp, core.CoreHp + CoreRegenPerSecond * Time.deltaTime);
+            // 문턱을 막 넘는 그 프레임에만 막대를 숨겨 불필요한 반복 호출을 피한다 — 이후 다시
+            // 공격받으면 UnitFunction.OnUpdate의 SetProgress(_, true)가 다시 걸려 자연히 재표시된다.
+            if (wasBeforeDelay)
+                GetObjectVisual(room.CorePosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+        }
     }
 
     // 유닛 배치 시스템(2026-07-27 신규) — "방의 최대 인원수를 맵에 표시, 카메라를 따라다니지 않게,
@@ -805,40 +832,36 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             // 03문서 4-12~4-15장(2026-07-27 신규): 인류 시체는 사망 사건 추적(정신력 감소/사망 원인
             // 확인/원인미상 수색)의 시작점이다 — Destroy 전인 지금(u는 Human) 위치/방향/lastAttacker를
-            // 스냅샷으로 남겨야 한다.
+            // 스냅샷으로 남겨야 한다. corpse.OwnerPartyId는 실제 오브젝트가 나중에(사망 연출이 끝난
+            // 뒤) 스폰돼도 미리 채워둔 값 그대로 붙어 나간다 — SpawnObject 호출 자체만 아래에서 지연.
             if (!isMonsterCorpse && u is Human deadHuman && deadHuman.party != null)
             {
                 corpse.OwnerPartyId = deadHuman.party.Id;
-                SpawnObject(corpse, corpseColor);
                 PartyDeathSystem.OnPartyMemberDied(deadHuman, objId);
             }
-            else
+            else if (isMonsterCorpse && u.lastAttacker is Human)
             {
                 // E_MONSTER_KILL_INDIRECT 연결용(2026-08-05) — 인류에게 죽은 몬스터만 스냅샷한다(u는
                 // 아직 Destroy 전이라 unitType/name 접근이 안전한 지금 시점). PropagationSystem.
                 // OnMonsterCorpseDiscovered가 나중에 이 값으로 RecordEventByKey를 호출한다.
-                if (isMonsterCorpse && u.lastAttacker is Human)
-                {
-                    corpse.MonsterKilledByHuman = true;
-                    corpse.MonsterIsSpecialUnit = u.isSpecialUnit;
-                    corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
-                    corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
-                }
-                SpawnObject(corpse, corpseColor);
+                corpse.MonsterKilledByHuman = true;
+                corpse.MonsterIsSpecialUnit = u.isSpecialUnit;
+                corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
+                corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
             }
 
-            // 사용자 요청(2026-08-23): 시체는 1분 뒤 자동으로 사라진다. 그 사이 조사/파티 사망 추적
-            // 등 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른 시체가 새로 자리잡았을
-            // 수 있으니, 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이 corpse 인스턴스인지
-            // 확인한 뒤에만 제거한다.
-            DespawnCorpseAfterDelay(gridPos, corpse).Forget();
+            // 사망 연출(2026-08-24 사용자 요청 "죽자마자 사망 vfx 터지고, 스프라이트만 사망 스프라이트
+            // 1.5초 재생 후(이거부터 이미 죽은 판정) 시체 생성") — 킬 이벤트/파티 사망 기록/컴포넌트
+            // 정리(OnDespawn) 등 게임플레이 판정은 전부 위에서 이미 끝났다. 여기서부터는 순수 연출
+            // 시간차만 남는다: 사망 VFX와 사망 스프라이트 고정은 지금 즉시(PlayDeathVisual), 시체
+            // 오브젝트 스폰과 유닛 비주얼/ScriptableObject 파괴는 DeathVisualDurationSeconds만큼
+            // 미룬다. 이 유닛은 아래에서 곧장 units 리스트/위치 등록에서 빠지므로 대기 중에
+            // SyncVisual이 다시 걸려 스프라이트를 되돌릴 일이 없다.
+            _unitGenerate?.PlayDeathVisual(u);
+            FinishDeathAfterDelay(u, gridPos, corpse, corpseColor).Forget();
         }
 
         if (u != null) CheckPartyWaveState(u);
-        if (_unitGenerate != null && u != null)
-        {
-            _unitGenerate.RemoveVisual(u);
-        }
         if (_threatTileRenderer != null && u != null)
         {
             _threatTileRenderer.RemoveThreatZone(u);
@@ -847,7 +870,31 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (u != null) ClearPerceptionRecordsFor(u);
         if (u != null) castingUnits.Remove(u);
         units.RemoveAt(index);
-        if (u != null) UnityEngine.Object.Destroy(u);
+        // u가 실제로 사망 처리된 경우(hp<=0), 시체 스폰 + _unitGenerate.RemoveVisual + Destroy(u)는
+        // FinishDeathAfterDelay가 사망 연출이 끝난 뒤 처리한다(위 주석 참고) — u가 애초에 null이었던
+        // 경우(이미 다른 경로로 정리된 참조)는 그 분기 자체를 안 타므로 여기서 더 할 일이 없다.
+    }
+
+    // 사망 연출 시간(2026-08-24 사용자 요청, 1.5초 → 1초 → 0.8초로 단축) — 죽는 순간 VFX가 터지고
+    // 사망 스프라이트로 고정된 채 이 시간만큼 유지되다가 시체 오브젝트로 교체된다.
+    public const float DeathVisualDurationSeconds = 0.8f;
+
+    // 사망 연출 대기(2026-08-24 신규, RemoveDeadUnit 주석 참고) — DeathVisualDurationSeconds 동안
+    // 기다렸다가 시체를 실제로 배치하고, 그제서야 유닛 비주얼/ScriptableObject를 정리한다. corpse는
+    // RemoveDeadUnit이 이미 Position/태그/OwnerPartyId 등을 전부 채워둔 상태로 넘어온다 — 여기서는
+    // 순수하게 "언제 실제로 세상에 등장시키는지"만 결정한다.
+    private async UniTaskVoid FinishDeathAfterDelay(Unit u, Vector3Int gridPos, InteractableObject corpse, Color corpseColor)
+    {
+        await UniTask.Delay(System.TimeSpan.FromSeconds(DeathVisualDurationSeconds));
+
+        SpawnObject(corpse, corpseColor);
+        // 사용자 요청(2026-08-23): 시체는 1분 뒤 자동으로 사라진다. 그 사이 조사/파티 사망 추적 등
+        // 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른 시체가 새로 자리잡았을 수 있으니,
+        // 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이 corpse 인스턴스인지 확인한 뒤에만 제거한다.
+        DespawnCorpseAfterDelay(gridPos, corpse).Forget();
+
+        if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
+        UnityEngine.Object.Destroy(u);
     }
 
     // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
@@ -1272,6 +1319,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 물리공격력 40 기준 수치와 동일하게 맞춰 1명이 공격할 때의 파괴 시간(약 50초)이 그대로 유지되게
     // 했다 — 플레이 테스트 후 조정.
     public const float CoreAttackDamagePerSecond = 20f;
+    // 코어 자동 회복(2026-08-24 사용자 요청 "파괴가 진행된지 5초가 지난 시점부터 서서히 회복") — 마지막
+    // 피해로부터 이 시간(초)이 지나면 회복이 시작된다. DoorSystem.DoorRegenDelaySeconds와 동일한 값
+    // (사용자가 코어/문 공통으로 5초를 지정) — 자리표시자 회복 속도는 파괴 속도의 절반으로 잡았다
+    // (CoreAttackDamagePerSecond=20의 절반, 플레이 테스트 후 조정).
+    public const float CoreRegenDelaySeconds = 5f;
+    public const float CoreRegenPerSecond = 10f;
     // 문/게이트 시스템(2026-07-27~28 구현, 2026-08-20 분리) — 문 배치/웨이브 시작 시 전체 잠금/단일
     // 진영만 남으면 재개방/문 타일 이동·시야 차단 판정을 UnitRegistry와 동일한 지연 조회 패턴을 쓰는
     // DoorSystem(Assets/Script/Unit/Session/)으로 뺐다. GameSession이 지나치게 커지는 것을 막기

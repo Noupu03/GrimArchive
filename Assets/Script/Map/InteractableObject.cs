@@ -73,6 +73,14 @@ public class InteractableObject
     public float DoorHp;
     public float DoorMaxHp;
 
+    // 코어/문 자동 회복(2026-08-24 사용자 요청 "파괴가 진행된지 5초가 지난 시점부터 서서히 회복") —
+    // 마지막으로 채널링 데미지를 받은 뒤 흐른 시간. UnitFunction.OnUpdate가 데미지를 적용할 때마다
+    // 0으로 리셋하고, GameSession.TickCoreRegen/DoorSystem.UpdateProcess가 공격이 없는 동안 매 프레임
+    // deltaTime만큼 누적하며 회복 지연시간(CoreRegenDelaySeconds/DoorRegenDelaySeconds)을 넘기면 그
+    // 순간부터 회복을 시작하고 진행 막대도 숨긴다. 기본값 float.MaxValue = "데미지 이력 없음"(회복
+    // 대상 아님)과 동일하게 취급.
+    public float TimeSinceLastDamaged = float.MaxValue;
+
     // 문 진영 시스템(기초문서.md 피드백, 2026-08-22 "문은 진영별로 색상을 다르게 하되, 기본적으로
     // 닫혀있게... 보유 진영의 유닛만 지나갈 수 있고... 지나갈때만 열렸다가 닫힘") — DoorSystem.
     // UpdateProcess가 매 프레임 계산해 캐싱하는 현재 시각적 개폐 상태(스프라이트/IsFullyBlocking

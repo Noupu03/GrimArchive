@@ -597,7 +597,7 @@ public class FogOfWarSystem
     // ── 횃불 ──────────────────────────────────────────────────────────
     // 횃불 배치(2026-07-28, 사용자 요청 "spot light2d 이용해서 토치 프리팹 생성하도록 해봐. 생성
     // 로직은 동일함. 프리팹은 너가 직접 생성해서 실제 파일로 존재해야 해") — Assets/Resources/
-    // Prefabs/Torch.prefab(SpriteRenderer + Light2D(Point/원형, 따뜻한 색, 반경 4~6))을 Resources.Load로
+    // Prefabs/VFX/Torch.prefab(SpriteRenderer + Light2D(Point/원형, 따뜻한 색, 반경 4~6))을 Resources.Load로
     // 불러와 Instantiate한다. 0층 전용 "층 전체를 덮는 대형 횃불 하나" 예외는 폐지됐다(사용자 요청
     // "0층 예외 지우고, 0층 청크도 기존 규칙에 따라 토치 깔아줘") — 0층도 다른 층과 완전히 동일한
     // 청크 단위 배치를 받는다.
@@ -623,10 +623,10 @@ public class FogOfWarSystem
     {
         CreateMap cmap = Session.cmap;
         if (cmap == null || cmap.map.floors == null) return;
-        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/Torch");
+        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/VFX/Torch");
         if (_torchPrefab == null)
         {
-            LogHelper.Warning(LogHelper.GAME, "SpawnTorches: Resources.Load<GameObject>(\"Prefabs/Torch\")가 null입니다.");
+            LogHelper.Warning(LogHelper.GAME, "SpawnTorches: Resources.Load<GameObject>(\"Prefabs/VFX/Torch\")가 null입니다.");
             return;
         }
 
@@ -679,7 +679,7 @@ public class FogOfWarSystem
         if (!_pendingTorchTiles.TryGetValue(room, out var pending)) return;
         _pendingTorchTiles.Remove(room);
 
-        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/Torch");
+        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/VFX/Torch");
         if (_torchPrefab == null) return;
 
         foreach (var entry in pending)
