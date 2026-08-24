@@ -349,6 +349,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void Move(Dir dir)
 	{
+		// 고정 유닛(2026-08-24, 보스 골렘) 최종 안전망 — FSM/명령/배회 등 어느 경로로 이동 요청이
+		// 들어와도 여기서 전부 무시한다. UnitFSM이 이미 StandGroundAttackFSMState로 묶어두지만,
+		// 이동 호출부가 FSM 바깥에도 여럿 있어(UnitFSM.RunCurrentState의 _current==null 폴백 랜덤
+		// 이동 등) 단일 관문에서 한 번 더 막는 편이 확실하다.
+		if (isImmobile) return;
+
 		Vector2Int dirVec = GetDirVector(dir);
 		Vector2Int nextPos = position + dirVec;
 
@@ -1239,7 +1245,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "제자리 공격" 상태도 동일하게 막는다(2026-08-22 사용자 신고 "제자리 공격중 회피및 점멸
 		// 여전히 존재함" — "제자리에서 절대 이동하지 않는다"는 명시된 조건이므로 회피/점멸로 인한
 		// 위치 이동도 예외 없이 차단해야 한다는 뜻으로 확정).
-		if (isHalted || isStandGroundAttack) return;
+		// 고정 유닛(2026-08-24, 보스 골렘)도 동일 — 회피/점멸로도 절대 자리를 뜨지 않는다.
+		if (isHalted || isStandGroundAttack || isImmobile) return;
 
 		if (attacker != null)
 		{
