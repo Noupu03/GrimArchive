@@ -112,6 +112,17 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
+    // 다른 OnGUI 패널이 "지금 이 패널과 실제로 겹치는지" 판정할 때 쓴다(2026-08-24 사용자 신고
+    // "층 변경 UI가 다른 UI(메뉴 정보 포함)를 가려버림" — BottomMenuBar.DrawFloorPanel 참고,
+    // DebugInfoPanel.TryGetVisibleInfoBoxRect와 동일 관례).
+    public bool TryGetVisibleRect(out Rect rect)
+    {
+        rect = default;
+        if (_current == null && _currentObject == null) return false;
+        rect = GetPanelRect();
+        return true;
+    }
+
     // UI 스타일 통일(2026-08-21, 사용자 요청 "건물 선택시 정보 UI... 다른 메뉴들과 동일한 스타일로") —
     // 기본 Unity GUI 스킨(GUI.skin.box/Button/Label) 대신 BottomMenuBar/StatusInfoPanel과 같은
     // GUIMenuStyleUtil(어두운 패널 박스 + 흰 테두리 + 굵은 흰 글씨 + 채우기형 버튼)을 쓴다. 항목 개수가

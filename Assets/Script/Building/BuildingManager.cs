@@ -40,7 +40,9 @@ public class BuildingManager : NativeRoutine
     // KillRewardWood/Stone = 30, 훨씬 커야 한다는 사용자 기준)의 1/6로 잡았다 — 플레이테스트 후 조정
     // 요청이 오면 이 두 상수만 바꾸면 된다.
     public const float ResourceTickInterval = 5f;
-    private const int ResourceTickAmount = 5;
+    // 사용자 요청(2026-08-24 "자원 건물의 자원 생산량 늘려줘. 3배로" → 같은 날 "3배 -> 2배로 줄여줘") —
+    // 5 → 10으로 2배.
+    private const int ResourceTickAmount = 10;
 
     // 유닛 생산 건물에서 완성된 유닛이 나오는 4방향(사용자 요청: "상하좌우에서 랜덤으로 하나").
     private static readonly Vector2Int[] AdjacentOffsets =

@@ -23,10 +23,10 @@ namespace GrimArchive.Wave
     {
         public static HumanWaveManager Instance { get; private set; }
 
+        // 첫 웨이브 전용 대기 시간은 폐지됐다(2026-08-24 사용자 요청 "하드코딩 되었던 첫 웨이브 시간
+        // 없애고, 모두 동일하게 wavedata의 waveCooldown으로만 동작하게 해줘") — 첫 웨이브를 포함해
+        // 항상 이 값 하나로만 동작한다.
         public float waveCooldown => targetSpawner?.waveData?.waveCooldown ?? 10f;
-        // 첫 웨이브만 넉넉한 시간을 주기 위한 별도 값(기초문서.md 피드백, 2026-08-22 — 사용자 확인
-        // "첫 웨이브만 별도로 늘림", 60초). waveData에 값이 없으면(구 버전 에셋) 기존 waveCooldown으로 폴백.
-        public float firstWaveCooldown => targetSpawner?.waveData?.firstWaveCooldown ?? waveCooldown;
 
         [Inject]
         public WaveSpawner targetSpawner; // VContainer를 통해 자동 주입
@@ -102,8 +102,7 @@ namespace GrimArchive.Wave
             get
             {
                 if (currentState != WaveState.Idle) return 1f;
-                float budget = _isFirstWaveCycle ? firstWaveCooldown : waveCooldown;
-                return Mathf.Clamp01(1f - cooldownTimer / budget);
+                return Mathf.Clamp01(1f - cooldownTimer / waveCooldown);
             }
         }
 
@@ -133,10 +132,6 @@ namespace GrimArchive.Wave
         private const float StairForceCrossTimeoutSeconds = 15f;
         private float runningStateTimer = 0f;
 
-        // 첫 웨이브 쿨다운(firstWaveCooldown)은 딱 한 번만 적용된다 — 두 번째 웨이브부터는 항상
-        // waveCooldown 기준. WaveProgress01이 진행 바 분모를 고를 때 참조한다.
-        private bool _isFirstWaveCycle = true;
-
         public override async UniTask Initialize(System.Threading.CancellationToken cts)
         {
             await base.Initialize(cts);
@@ -144,7 +139,7 @@ namespace GrimArchive.Wave
             // WaveSpawner.Initialize()와의 NativeRoutine 실행 순서 경합 방지(2026-07-27, 사용자 신고
             // "게임 시작 시 웨이브가 10초인 것 같다") — WaveSpawner.cs의 EnsureWaveDataLoaded() 주석 참고.
             targetSpawner?.EnsureWaveDataLoaded();
-            cooldownTimer = firstWaveCooldown;
+            cooldownTimer = waveCooldown;
             currentState = WaveState.Idle;
 
             // Haare Framework 기준: UniTask 기반 Native Routine 루프 실행
@@ -755,7 +750,6 @@ namespace GrimArchive.Wave
             _targetRoom = null;
             _retreating = false;
             cooldownTimer = waveCooldown;
-            _isFirstWaveCycle = false;
             currentState = WaveState.Idle;
 
             // 다음 웨이브 사이클을 위해 사전 스폰 관련 상태 초기화.

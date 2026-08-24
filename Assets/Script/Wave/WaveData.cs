@@ -34,11 +34,8 @@ namespace GrimArchive.Wave
     public class WaveData : ScriptableObject
     {
         [Header("웨이브 소환 설정")]
-        [Tooltip("다음 웨이브 발생까지의 대기 시간 (초)")]
+        [Tooltip("다음 웨이브 발생까지의 대기 시간 (초) — 첫 웨이브를 포함해 항상 이 값 하나로만 동작한다 (2026-08-24 사용자 요청: 첫 웨이브 전용 시간 제거)")]
         public float waveCooldown = 10f;
-
-        [Tooltip("첫 웨이브 전용 대기 시간 (초) — 플레이어가 초반 세팅할 시간을 넉넉하게 주기 위한 값. 이후 웨이브는 waveCooldown을 그대로 사용")]
-        public float firstWaveCooldown = 60f;
 
         public SpawnMode spawnMode = SpawnMode.ByRoomRole;
 

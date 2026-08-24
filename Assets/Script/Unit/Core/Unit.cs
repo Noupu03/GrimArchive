@@ -268,6 +268,13 @@ public abstract class Unit : ScriptableObject {
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
 
+	// 코어/문 자동 파괴 접근 중 "인접도 못 하고 대체 자리도 없는" 상태가 몇 틱째 이어지는지(2026-08-24
+	// 사용자 신고 "파괴할거면 파괴만, 경계할거면 경계만... 왔다갔다 하면서 이상하게 동작함") —
+	// playerCommandStuckTurns와 동일한 이유(PlayerCommandFSMState.cs 참고: "다른 유닛들이 잠깐
+	// 몰려서(점유)일 수 있다")로 단 1틱 실패만 보고 즉시 경계로 전환하면, 코어 주변에 유닛이 몰릴 때마다
+	// 매 틱 판정이 뒤집혀 파괴↔경계를 왔다갔다한다. 일정 틱 이상 연속으로 막혀야만 진짜로 포기한다.
+	public int tacticalObjectAttackStuckTurns = 0;
+
 	// Encapsulated command setters (2026-08-22 refactoring)
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
