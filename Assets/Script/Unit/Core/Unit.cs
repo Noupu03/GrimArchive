@@ -240,21 +240,6 @@ public abstract class Unit : ScriptableObject {
 	// "명령 취소"로만 해제된다(InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
 	public bool isStandGroundAttack = false;
 
-	// 유닛 자체가 영구히 고정된 개체임을 뜻하는 플래그(2026-08-24, 보스 골렘용) — 위 isHalted/
-	// isStandGroundAttack이 "플레이어 명령으로 켜고 끄는 일시 상태"인 것과 달리 이건 스폰 시점에
-	// 한 번 켜지고 절대 꺼지지 않는 유닛의 성질이다. 그래서 HasActivePlayerCommand()/
-	// ClearPlayerCommand() 같은 명령 계열 로직에는 일부러 포함하지 않는다(명령 취소로 풀리면 안 됨).
-	//
-	// 효과는 isStandGroundAttack과 동일하다 — UnitFSM.SelectState가 StandGroundAttackFSMState를
-	// 강제 배정해 "이동은 절대 안 하지만 사거리 내 적은 공격"하게 만들고, UnitFunction.
-	// OnReactToThreat이 회피/점멸로 인한 위치 이동까지 막고, UnitFunction.Move가 최종 안전망으로
-	// 모든 이동 시도를 무시한다.
-	//
-	// 주의(2026-08-24 사용자 신고 "보스가 움직임"): units.json의 walkSpeed=0으로는 이동이 막히지
-	// 않는다 — walkSpeed는 GameSession.ProcessUnitAction에서 "행동 주기(actionCooldown)"만 결정할
-	// 뿐 이동 가능 여부와 무관하다. 고정 유닛은 반드시 이 플래그를 써야 한다.
-	public bool isImmobile = false;
-
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
 

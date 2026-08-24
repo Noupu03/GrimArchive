@@ -75,10 +75,7 @@ public class UnitFSM
 		// "제자리 공격" 강제 잠금(기초문서.md 피드백, 2026-08-22, R키 배치모드를 대체) — "정지"(동상)와
 		// 동일한 패턴: 이동은 절대 하지 않지만 사거리 내 적은 공격한다(StandGroundAttackFSMState.cs
 		// 참고). 새 직접 명령이나 명령 취소만 이 잠금을 풀 수 있다.
-		// 고정 유닛(2026-08-24, 보스 골렘) — "제자리 공격"과 동작이 완전히 같아 같은 상태를 재사용한다.
-		// 다만 이건 명령이 아니라 유닛의 영구 성질이라 위 hasPendingCommand 게이트보다 아래에 둔다(플레이어
-		// 명령 대상이 될 일은 없지만, 만약 생기더라도 명령이 이 고정을 이기지는 못하게 할 이유가 없다).
-		if (unit.isStandGroundAttack || unit.isImmobile)
+		if (unit.isStandGroundAttack)
 		{
 			if (_current != _standGroundState)
 			{
@@ -129,7 +126,6 @@ public class UnitFSM
 	public string GetLabel(Unit unit)
 	{
 		if (unit.isHalted) return "정지";
-		if (unit.isImmobile) return "고정"; // 보스 골렘 등 영구 고정 유닛(플레이어 명령인 "제자리 공격"과 구분)
 		if (unit.isStandGroundAttack) return "제자리 공격";
 		return _current?.GetLabel(unit) ?? "0";
 	}
