@@ -25,6 +25,12 @@ public class UnitVisualDefinition : MonoBehaviour
     public GameObject guardPrefab;
     public GameObject parryPrefab;
     public GameObject attackFailPrefab;
+    [Tooltip("사망 연출(2026-08-24 신규) — 유닛이 죽는 즉시 1회 재생되는 VFX. 비워두면 사망 VFX 없이 넘어간다.")]
+    public GameObject deathVfxPrefab;
+    [Tooltip("사망 연출(2026-08-24 신규) — 죽는 즉시 방향별 애니메이션 대신 이 스프라이트로 고정된다. " +
+             "GameSession.DeathVisualDurationSeconds(기본 1.5초) 동안 유지되다가 시체 오브젝트로 교체된다. " +
+             "비워두면 죽는 순간의 마지막 스프라이트가 그대로 유지된다.")]
+    public Sprite deathSprite;
 
     [Header("가중치 시스템 (이해도/위험도/흥미도)")]
     [Tooltip("보스/네메시스 등 종별+개별 이해도를 함께 쓰는 특수 유닛인지 (연산공식 문서 7-1장)")]

@@ -45,6 +45,13 @@ public class DoorSystem
     // 그대로 유지되게 했다 — 플레이 테스트 후 조정.
     public const float DoorAttackDamagePerSecond = 20f;
 
+    // 문 자동 회복(2026-08-24 사용자 요청 "파괴가 진행된지 5초가 지난 시점부터 서서히 회복") — 마지막
+    // 피해로부터 이 시간(초)이 지나면 회복이 시작된다. GameSession.CoreRegenDelaySeconds와 동일한 값
+    // (사용자가 코어/문 공통으로 5초를 지정) — 자리표시자 회복 속도는 파괴 속도의 절반으로 잡았다
+    // (DoorAttackDamagePerSecond=20의 절반, 플레이 테스트 후 조정).
+    public const float DoorRegenDelaySeconds = 5f;
+    public const float DoorRegenPerSecond = 10f;
+
     // 문 전체 위치 목록(2026-08-22 신규) — 매 프레임 개폐 판정을 돌 대상. SpawnDoors/RebuildDoorAt에서
     // 추가하고 RemoveDoor에서 제거한다(objectGrid를 매 프레임 전체 스캔하지 않기 위한 캐시).
     private readonly List<Vector3Int> _doorPositions = new List<Vector3Int>();
@@ -203,6 +210,23 @@ public class DoorSystem
         foreach (var pos in _doorPositions)
         {
             if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door)) continue;
+
+            // 자동 회복(2026-08-24 사용자 요청) — 마지막 피해로부터 DoorRegenDelaySeconds가 지나면
+            // 그 순간부터 서서히 회복 + 진행 막대 숨김(공격 중이면 UnitFunction.OnUpdate가 매 프레임
+            // TimeSinceLastDamaged를 0으로 리셋하므로 여기 도달하지 않는다). 문턱을 막 넘는 그 프레임에만
+            // 막대를 숨겨 불필요한 반복 호출을 피한다 — 이후 다시 공격받으면 SetProgress(_, true)가
+            // 다시 걸려 자연히 재표시된다.
+            if (door.DoorHp < door.DoorMaxHp)
+            {
+                bool wasBeforeDelay = door.TimeSinceLastDamaged < DoorRegenDelaySeconds;
+                door.TimeSinceLastDamaged += Time.deltaTime;
+                if (door.TimeSinceLastDamaged >= DoorRegenDelaySeconds)
+                {
+                    door.DoorHp = Mathf.Min(door.DoorMaxHp, door.DoorHp + DoorRegenPerSecond * Time.deltaTime);
+                    if (wasBeforeDelay)
+                        Session.GetObjectVisual(pos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+                }
+            }
 
             if (!_doorVisuals.TryGetValue(pos, out SpriteRenderer sr) || sr == null)
             {

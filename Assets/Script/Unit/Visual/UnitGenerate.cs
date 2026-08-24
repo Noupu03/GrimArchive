@@ -380,28 +380,52 @@ public class UnitGenerate
 		return Vector3.zero;
 	}
 
+	// 사망 연출 도입(2026-08-24)으로 "hp<=0인 다른 유닛도 한꺼번에 정리"하던 예전 안전망 스윕을
+	// 제거했다 — 이제 사망한 유닛은 GameSession.RemoveDeadUnit이 곧장 units 리스트에서 뺀 뒤에도
+	// 사망 VFX/스프라이트를 보여주려고 DeathVisualDurationSeconds 동안 의도적으로 visualMap에
+	// 남아있는다(hp<=0 상태로). 이 스윕이 남아있으면 다른 아무 유닛의 RemoveVisual 호출 한 번에
+	// 그 대기 중인 사망 연출들이 전부 즉시 파괴돼버린다. 이제 모든 사망은 각자의 지연 콜백
+	// (GameSession.FinishDeathAfterDelay)에서 명시적으로 RemoveVisual(u)를 호출하므로 안전망이 필요 없다.
 	public void RemoveVisual(Unit u)
 	{
-		if (u != null && visualMap.TryGetValue(u, out GameObject go))
-		{
-			if (go != null) { KillVisualTweens(go); Object.Destroy(go); _cacheMap.Remove(go); }
-			visualMap.Remove(u);
-			targetPosMap.Remove(u);
-		}
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
+		if (go != null) { KillVisualTweens(go); Object.Destroy(go); _cacheMap.Remove(go); }
+		visualMap.Remove(u);
+		targetPosMap.Remove(u);
+	}
 
-		List<Unit> deadKeys = new List<Unit>();
-		foreach (var kvp in visualMap)
+	// 사망 연출(2026-08-24 신규, 사용자 요청 "죽자마자 사망 vfx 터지고, 스프라이트만 사망 스프라이트
+	// 1.5초 재생 후 시체 생성") — GameSession.RemoveDeadUnit이 사망 판정 직후 즉시 호출한다. 사망
+	// VFX를 한 번 터뜨리고, 스프라이트를 UnitVisualDefinition.deathSprite로 고정한다. 이 시점 이후
+	// 유닛은 곧장 units 리스트에서 빠지므로(SyncVisual/UpdateUnitSpriteForDirection이 더 이상 이
+	// 유닛을 대상으로 호출되지 않음) 별도 잠금 없이도 이 스프라이트가 그대로 유지된다 — 실제 파괴는
+	// RemoveVisual이 사망 연출 시간이 지난 뒤에 처리한다.
+	public void PlayDeathVisual(Unit u)
+	{
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return;
+
+		var cache = GetCache(go);
+		var def = cache.UnitVisualDefinition;
+		if (def == null) return;
+
+		if (def.deathVfxPrefab != null)
+			u.VFX?.Spawn(def.deathVfxPrefab, u);
+
+		if (def.deathSprite != null)
 		{
-			if (kvp.Key == null || kvp.Key.Health.hp <= 0)
-			{
-				if (kvp.Value != null) { KillVisualTweens(kvp.Value); Object.Destroy(kvp.Value); _cacheMap.Remove(kvp.Value); }
-				deadKeys.Add(kvp.Key);
-			}
+			SpriteRenderer sr = go.transform.Find("Visual")?.GetComponent<SpriteRenderer>()
+				?? go.GetComponentInChildren<SpriteRenderer>();
+			if (sr != null) sr.sprite = def.deathSprite;
 		}
-		foreach (var deadKey in deadKeys)
+		else
 		{
-			visualMap.Remove(deadKey);
-			targetPosMap.Remove(deadKey);
+			// 사망 스프라이트 미설정 예외처리(2026-08-24 사용자 요청 "death 스프라이트가 없으면
+			// 그냥 기존 정면 스프라이트 사용") — 죽은 순간의 방향(옆/뒤 등) 프레임에 어중간하게
+			// 고정되지 않도록, 원래 있던 정면(Dir.DOWN) 스프라이트로 고정한다.
+#if UNITY_2022_2_OR_NEWER
+			if (cache.SpriteResolver != null)
+				UpdateSpriteResolver(cache.SpriteResolver, Dir.DOWN, u.spriteVariation);
+#endif
 		}
 	}
 

@@ -204,7 +204,7 @@ public class PlayerCommandFSMState : IFSMState
 		if (AIMovementHelper.IsAdjacent(unit.position, pos2D))
 		{
 			unit.currentDir = SkillAction.GetDirection8(pos2D - unit.position);
-			unit.currentAttackObjectTarget = targetPos;
+			unit.SetAttackObjectTarget(targetPos);
 			return BTStatus.Running;
 		}
 

@@ -1074,7 +1074,7 @@ public class TacticalFSMState : IFSMState
 
 		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
-			unit.currentAttackObjectTarget = room.CorePosition;
+			unit.SetAttackObjectTarget(room.CorePosition);
 			return BTStatus.Success;
 		}
 
@@ -1229,7 +1229,7 @@ public class TacticalFSMState : IFSMState
 
 	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
 	{
-		unit.currentAttackObjectTarget = doorPos;
+		unit.SetAttackObjectTarget(doorPos);
 	}
 
 	// 실제 데미지 적용은 UnitFunction.OnUpdate가 currentAttackObjectTarget을 보고 매 프레임 처리한다

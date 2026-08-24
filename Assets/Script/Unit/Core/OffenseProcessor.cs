@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Haare.Util.Logger;
 using VContainer;
+using UnityEngine;
 
 public class OffenseProcessor
 {
@@ -102,6 +103,14 @@ public class OffenseProcessor
         _activeOffenseRooms.Remove(room);
         ApplyRoomOwnership(room, claimant.Value);
         core.CoreHp = core.CoreMaxHp * 0.5f;
+
+        // 점령 VFX(2026-08-24 사용자 요청 "인간 점령시 VFX_CoreBoomHuman, 플레이어 몬스터 점령시
+        // VFX_CoreBoomMonster") — 점령한 진영에 따라 다른 폭발 이펙트를 코어 위치에 1회 재생.
+        GameObject coreVisual = GameSession.Instance?.GetObjectVisual(core.Position);
+        Vector3 vfxWorldPos = coreVisual != null
+            ? coreVisual.transform.position
+            : new Vector3(core.Position.x + 0.5f, core.Position.y + 0.5f, 0f);
+        VFXManager.SpawnCoreCaptureVfx(claimant.Value, vfxWorldPos);
 
         LogHelper.Log($"[코어 파괴] {room.RoomName} 방(F{room.Floor}): {killer.unitType?.typeName}({claimant.Value})이 코어를 파괴해 점령 — 코어 체력 절반 회복.");
     }

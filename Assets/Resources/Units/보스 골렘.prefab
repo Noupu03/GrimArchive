@@ -289,6 +289,8 @@ MonoBehaviour:
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
+  deathVfxPrefab: {fileID: 0}
+  deathSprite: {fileID: 0}
   isSpecialUnit: 1
   isInterestTarget: 1
   baseInterest: 100

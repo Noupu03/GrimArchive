@@ -99,6 +99,78 @@ public class VFXManager
         }
     }
 
+    // 코어/문 파괴 채널링 전용 VFX(2026-08-24 사용자 요청, VFX_BlockBreaking.prefab) — "재생 시간이
+    // 끝나도 파괴 행동이 끝날 때까지 계속, 파괴가 끝나면 즉시 종료"라는 요구라 위 Spawn()의 "재생
+    // 시간만큼 지난 뒤 자동으로 풀에 반납" 방식과는 맞지 않는다(프리팹 자체도 looping=1이라 자동으로
+    // 안 끝남 — 호출부가 명시적으로 멈춰야 한다). 채널링 시작/종료가 잦은 이벤트가 아니라 풀링 이득이
+    // 적어 순수 Instantiate/Destroy로 관리한다. Unit.SetAttackObjectTarget/ClearAttackObjectTarget이
+    // 각각 시작/종료를 담당한다.
+    private static GameObject _blockBreakingVfxPrefab;
+    private static GameObject BlockBreakingVfxPrefab =>
+        _blockBreakingVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_BlockBreaking");
+
+    public static GameObject SpawnBlockBreakingVfx(Unit unit, Vector3Int targetPos)
+    {
+        if (BlockBreakingVfxPrefab == null || unit == null || unit.Session == null) return null;
+
+        // 대상(문/코어) 오브젝트의 실제 비주얼에 자식으로 붙인다 — 위치가 자동으로 맞고, 그 오브젝트의
+        // 비주얼이 파괴되면(예: 문 파괴 시 Session.RemoveDoor) 이 이펙트도 함께 파괴되는 안전망이 된다.
+        GameObject targetVisual = unit.Session.GetObjectVisual(targetPos);
+        Transform parent = targetVisual != null ? targetVisual.transform : null;
+        Vector3 worldPos = parent != null ? parent.position : Vector3.zero;
+
+        GameObject instance = Object.Instantiate(BlockBreakingVfxPrefab, worldPos, Quaternion.identity, parent);
+        if (parent != null) instance.transform.localPosition = Vector3.zero;
+
+        // 정렬 순서(2026-08-24 사용자 신고 "이펙트 여전히 안 나옴" 원인) — 프리팹의 ParticleSystemRenderer가
+        // 기본값(Sorting Layer "Default"/Order 0)이라, 같은 자리의 문/코어 스프라이트(GameSession.
+        // SpawnObject가 sortingOrder=5로 그림)에 완전히 가려져 재생은 되지만 안 보였다. 대상 스프라이트와
+        // 같은 정렬 레이어에, 그보다 확실히 위인 순서로 맞춘다.
+        var psr = instance.GetComponent<ParticleSystemRenderer>();
+        if (psr != null)
+        {
+            SpriteRenderer targetSr = targetVisual != null ? targetVisual.GetComponent<SpriteRenderer>() : null;
+            if (targetSr != null) psr.sortingLayerID = targetSr.sortingLayerID;
+            psr.sortingOrder = (targetSr != null ? targetSr.sortingOrder : 5) + 10;
+        }
+
+        var ps = instance.GetComponent<ParticleSystem>();
+        if (ps != null) ps.Play();
+
+        return instance;
+    }
+
+    // SpawnBlockBreakingVfx로 만든 인스턴스를 멈출 때 사용 — looping VFX라 자연 종료가 없으므로
+    // 항상 명시적으로 파괴해야 한다.
+    public static void StopBlockBreakingVfx(GameObject instance)
+    {
+        if (instance != null) Object.Destroy(instance);
+    }
+
+    // 방 점령(코어 파괴로 소유권 전환) 축하 폭발 VFX(2026-08-24 사용자 요청 "인간 점령시 VFX_CoreBoomHuman,
+    // 플레이어 몬스터 점령시 VFX_CoreBoomMonster") — 단발성이라 위 SpawnBlockBreakingVfx와 달리 기존
+    // 풀링 Spawn()을 그대로 쓴다(재생 시간 지나면 자동으로 풀에 반납). OffenseProcessor.OnCoreDestroyed가
+    // 소유권이 실제로 바뀐 순간에만 호출한다.
+    private static GameObject _coreBoomHumanVfxPrefab;
+    private static GameObject _coreBoomMonsterVfxPrefab;
+    private static GameObject CoreBoomHumanVfxPrefab =>
+        _coreBoomHumanVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_CoreBoomHuman Variant");
+    private static GameObject CoreBoomMonsterVfxPrefab =>
+        _coreBoomMonsterVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_CoreBoomMonster Variant");
+
+    public static void SpawnCoreCaptureVfx(FactionType claimant, Vector3 worldPos)
+    {
+        GameObject prefab = claimant switch
+        {
+            FactionType.Human => CoreBoomHumanVfxPrefab,
+            FactionType.Player => CoreBoomMonsterVfxPrefab,
+            _ => null,
+        };
+        if (prefab == null) return;
+
+        Spawn(prefab, worldPos, Quaternion.identity);
+    }
+
     public static Vector3 GetWorldPos(Unit unit)
     {
         if (unit == null) return Vector3.zero;
