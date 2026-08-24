@@ -27,12 +27,7 @@ public class SkillAction_GolemSweep : SkillAction
     // CanExecuteAgainst가 "대상까지의 거리"로 사거리를 판단해준다(대상 A까지의 거리).
     public override SkillOrigin Origin => SkillOrigin.TargetArea;
 
-    public override bool IsAvailable(Unit unit)
-    {
-        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
-        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
-        return unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
-    }
+    public override bool IsAvailable(Unit unit) => IsCooldownReady(unit, _d.cooldownSlot);
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {

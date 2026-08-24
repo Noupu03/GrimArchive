@@ -86,8 +86,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 기획자가 의도와 다르대") — 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어
         // 로드 시점에 바꿔 배정한다(RenderStairOverlays의 goesDown 판정 로직 자체는 정상이라 그쪽은
         // 안 건드림).
-        if (stairDownSprite == null) stairDownSprite = Resources.Load<Sprite>("obj/stair_up2");
-        if (stairUpSprite == null) stairUpSprite = Resources.Load<Sprite>("obj/stair_down2");
+        SpriteCache.GetOrLoad(ref stairDownSprite, "obj/stair_up2");
+        SpriteCache.GetOrLoad(ref stairUpSprite, "obj/stair_down2");
         if (stairDownSprite == null || stairUpSprite == null)
         {
             LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down2/stair_up2 이미지를 찾지 못했습니다.");

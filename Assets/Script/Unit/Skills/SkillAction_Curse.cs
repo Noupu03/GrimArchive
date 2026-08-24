@@ -25,12 +25,7 @@ public class SkillAction_Curse : SkillAction
     // (Origin=SelfArea, Execute의 GetEnemiesInHitbox) — 즉 일반 공격과 완전히 같은 조합이라
     // 기본값 그대로면 된다. 효과가 피해가 아니라 스탯 감소라는 것은 타겟팅과는 다른 축의 이야기다.
 
-    public override bool IsAvailable(Unit unit)
-    {
-        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
-        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
-        return unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
-    }
+    public override bool IsAvailable(Unit unit) => IsCooldownReady(unit, _d.cooldownSlot);
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {

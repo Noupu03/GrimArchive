@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using Haare.Util.Logger;
 
 // 오브젝트(O)/함정(P)/문 재설치 배치 모드 — 빌드 모드와 동일한 고스트 방식(2026-07-22/23, 사용자
@@ -51,11 +50,11 @@ public class ObjectPlacementController
     private Sprite _dummyBuildingSprite;
     private string _dummyBuildingDisplayName;
 
-    private Sprite CoreSprite => _coreSprite ??= Resources.Load<Sprite>("obj/core");
-    private Sprite TrapSprite => _trapSprite ??= Resources.Load<Sprite>("obj/trap");
-    private Sprite DoorOpenSprite => _doorOpenSprite ??= Resources.Load<Sprite>("obj/door_open");
+    private Sprite CoreSprite => SpriteCache.GetOrLoad(ref _coreSprite, "obj/core");
+    private Sprite TrapSprite => SpriteCache.GetOrLoad(ref _trapSprite, "obj/trap");
+    private Sprite DoorOpenSprite => SpriteCache.GetOrLoad(ref _doorOpenSprite, "obj/door_open");
     // MapRandering.BuildTileCache와 동일한 리소스 경로 — 실제 벽 타일과 같은 아트로 미리보기.
-    private Sprite WallSprite => _wallSprite ??= Resources.Load<Sprite>("Tile_StoneWall");
+    private Sprite WallSprite => SpriteCache.GetOrLoad(ref _wallSprite, "Tile_StoneWall");
 
     public ObjectPlacementController(GameSession gameSession, UnitGenerate unitGenerate, ResourceManager resourceManager, BuildingManager buildingManager)
     {
@@ -177,10 +176,7 @@ public class ObjectPlacementController
         // 우클릭으로 옮겼다.
         if (GameInputScheme.SecondaryDown && canPlace)
         {
-            bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-                || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
-                || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
-            if (!overUI)
+            if (!GUIMouseUtil.IsPointerOverAnyPanel())
             {
                 if (_isObjectPlaceMode)
                 {
@@ -196,14 +192,12 @@ public class ObjectPlacementController
                     {
                         _gameSession.SpawnTrapAt(gridPos);
                     }
-                    else if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost))
-                    {
-                        _gameSession.SpawnTrapAt(gridPos);
-                        ExitMode();
-                    }
                     else
                     {
-                        LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
+                        PlacementResourceHelper.OnConsumeResult(
+                            _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost),
+                            () => { _gameSession.SpawnTrapAt(gridPos); ExitMode(); },
+                            $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
                     }
                 }
                 else if (_isWallConvertMode)
@@ -215,15 +209,10 @@ public class ObjectPlacementController
                 {
                     // 자원 소모 재설치(2026-08-22 사용자 요청 "자원을 소모해서 설치하게 다시 바꿔줘")
                     // — 함정과 동일하게, 자원이 부족하면 배치를 취소하지 않고 모드만 유지한다.
-                    if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.DoorRepairStoneCost))
-                    {
-                        _gameSession.RebuildDoorAt(gridPos);
-                        ExitMode();
-                    }
-                    else
-                    {
-                        LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 문을 재설치할 수 없습니다. (필요: {ResourceManager.DoorRepairStoneCost})");
-                    }
+                    PlacementResourceHelper.OnConsumeResult(
+                        _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.DoorRepairStoneCost),
+                        () => { _gameSession.RebuildDoorAt(gridPos); ExitMode(); },
+                        $"돌이 부족하여 문을 재설치할 수 없습니다. (필요: {ResourceManager.DoorRepairStoneCost})");
                 }
                 else if (_isDummyBuildingMode)
                 {

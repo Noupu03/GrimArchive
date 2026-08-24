@@ -63,6 +63,16 @@ public abstract class SkillAction
 	public abstract float GetPriority(Unit unit, Unit target, float minDist);
 	public abstract void  Execute(Unit unit, Unit target, float minDist);
 
+	// 대부분의 IsAvailable override가 앞머리에 반복하던 쿨다운 게이트(2026-08-25 리팩토링 — 12개
+	// 서브클래스 중복). 각 서브클래스가 SkillData(_d)를 개별 소유해(베이스 클래스엔 없음) cooldownSlot을
+	// 파라미터로 받는다.
+	protected static bool IsCooldownReady(Unit unit, int cooldownSlot)
+	{
+		if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
+		if (cooldownSlot < 0 || cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
+		return unit.CombatState.State.skillCooldowns[cooldownSlot] <= 0f;
+	}
+
 	// ─── 공격 시작 ────────────────────────────────────────────────────
 
 	public static void BeginAttackCast(
@@ -289,26 +299,6 @@ public abstract class SkillAction
 
 	// ─── 히트박스 빌더 ─────────────────────────────────────────────────
 
-	public static Hitbox BuildLineHitbox(Unit unit, int range)
-	{
-		Vector2 dir = unit.GetDirVector(unit.currentDir);
-		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
-		Vector2 offset     = dir.normalized * (range * 0.5f + 0.5f);
-		Vector2 center     = unitCenter + offset;
-
-		bool isHorizontal = Mathf.Abs(dir.x) > 0 && Mathf.Abs(dir.y) == 0;
-		bool isVertical   = Mathf.Abs(dir.y) > 0 && Mathf.Abs(dir.x) == 0;
-
-		Vector2 size;
-		float   rotation;
-
-		if (isHorizontal)      { size = new Vector2(range, 1); rotation = 0f; }
-		else if (isVertical)   { size = new Vector2(1, range); rotation = 0f; }
-		else                   { size = new Vector2(range, 1); rotation = GetRotationForDirection(unit.currentDir); } // 대각선
-
-		return new Hitbox { center = center, size = size, rotation = rotation };
-	}
-
 	/// <summary>
 	/// 주어진 각도 기반으로 라인 히트박스를 생성합니다 (공격 시 자유 각도 지원)
 	/// </summary>
@@ -324,26 +314,6 @@ public abstract class SkillAction
 			size     = new Vector2(range, 1),
 			rotation = angleRad * Mathf.Rad2Deg
 		};
-	}
-
-	public static Hitbox BuildRectHitbox(Unit unit, int width, int depth)
-	{
-		Vector2 forward    = unit.GetDirVector(unit.currentDir);
-		Vector2 unitCenter = (Vector2)unit.position + new Vector2(unit.unitType.footprint.x, unit.unitType.footprint.y) * 0.5f;
-		Vector2 offset     = forward.normalized * (depth * 0.5f + 0.5f);
-		Vector2 center     = unitCenter + offset;
-
-		bool isHorizontal = Mathf.Abs(forward.x) > 0 && Mathf.Abs(forward.y) == 0;
-		bool isVertical   = Mathf.Abs(forward.y) > 0 && Mathf.Abs(forward.x) == 0;
-
-		Vector2 size;
-		float   rotation;
-
-		if (isHorizontal)    { size = new Vector2(depth, width); rotation = 0f; }
-		else if (isVertical) { size = new Vector2(width, depth); rotation = 0f; }
-		else                 { size = new Vector2(width, depth); rotation = GetRotationForDirection(unit.currentDir); } // 대각선
-
-		return new Hitbox { center = center, size = size, rotation = rotation };
 	}
 
 	/// <summary>
@@ -364,22 +334,6 @@ public abstract class SkillAction
 	}
 
 	// ─── 유틸리티 ──────────────────────────────────────────────────────
-
-	public static float GetRotationForDirection(Dir dir)
-	{
-		return dir switch
-		{
-			Dir.UP         => 90f,
-			Dir.UP_RIGHT   => 45f,
-			Dir.RIGHT      => 0f,
-			Dir.DOWN_RIGHT => -45f,
-			Dir.DOWN       => -90f,
-			Dir.DOWN_LEFT  => -135f,
-			Dir.LEFT       => 180f,
-			Dir.UP_LEFT    => 135f,
-			_              => 0f
-		};
-	}
 
 	public static Dir GetDirection8(Vector2Int diff)
 	{

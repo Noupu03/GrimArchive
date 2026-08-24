@@ -243,7 +243,9 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
         return Mathf.Min(fadeIn, fadeOut);
     }
 
-    private static void DrawRectBorder(Rect r, float thickness)
+    // InputManager의 드래그 박스 선택 테두리도 같은 구현을 그대로 재사용한다(2026-08-25 리팩토링 —
+    // 두 곳이 동일한 4줄을 각자 갖고 있었음).
+    internal static void DrawRectBorder(Rect r, float thickness)
     {
         GUI.DrawTexture(new Rect(r.xMin, r.yMin, r.width, thickness), Texture2D.whiteTexture);
         GUI.DrawTexture(new Rect(r.xMin, r.yMax - thickness, r.width, thickness), Texture2D.whiteTexture);

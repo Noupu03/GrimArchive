@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using Haare.Util.Logger;
 
 // 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드(고스트 프리팹) 컨트롤러. B키=유닛 생산 건물,
@@ -89,10 +88,7 @@ public class BuildPlacementController
         // 좌클릭에서 우클릭으로 옮겼다.
         if (GameInputScheme.SecondaryDown)
         {
-            bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-                || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
-                || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
-            if (!overUI)
+            if (!GUIMouseUtil.IsPointerOverAnyPanel())
             {
                 TryInstallBuilding(gridPos);
             }
@@ -121,26 +117,16 @@ public class BuildPlacementController
 
         if (_isResourceBuildMode)
         {
-            if (_resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.ResourceBuildingStoneCost))
-            {
-                _buildingManager.InstallResourceBuilding(gridPos, _currentBuildSprite);
-                ExitMode();
-            }
-            else
-            {
-                LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 자원 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.ResourceBuildingStoneCost})");
-            }
+            PlacementResourceHelper.OnConsumeResult(
+                _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.ResourceBuildingStoneCost),
+                () => { _buildingManager.InstallResourceBuilding(gridPos, _currentBuildSprite); ExitMode(); },
+                $"돌이 부족하여 자원 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.ResourceBuildingStoneCost})");
             return;
         }
 
-        if (_resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.UnitBuildingStoneCost))
-        {
-            _buildingManager.InstallProductionBuilding(gridPos, _currentProductionRules, _currentBuildSprite);
-            ExitMode();
-        }
-        else
-        {
-            LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 유닛 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.UnitBuildingStoneCost})");
-        }
+        PlacementResourceHelper.OnConsumeResult(
+            _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.UnitBuildingStoneCost),
+            () => { _buildingManager.InstallProductionBuilding(gridPos, _currentProductionRules, _currentBuildSprite); ExitMode(); },
+            $"돌이 부족하여 유닛 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.UnitBuildingStoneCost})");
     }
 }

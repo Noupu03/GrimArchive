@@ -214,7 +214,7 @@ public class FogOfWarSystem
     {
         if (_fogBackingTile != null && _fogPatternTile != null) return true;
 
-        if (_fogSprite == null) _fogSprite = Resources.Load<Sprite>("obj/fog");
+        SpriteCache.GetOrLoad(ref _fogSprite, "obj/fog");
         if (_fogSprite == null)
         {
             LogHelper.Warning(LogHelper.GAME, "TryPrepareFogTiles: Resources.Load<Sprite>(\"obj/fog\")가 null입니다 — Import 설정(Sprite Mode) 확인 필요.");

@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using VContainer;
 using Haare.Util.Logger;
@@ -553,10 +552,8 @@ public class InputManager : MonoBehaviour
 			// UI(디버그 패널 등) 위에서 누른 클릭은 월드 선택으로 취급하지 않는다. BuildingControlPanel은
 			// OnGUI(IMGUI)라 IsPointerOverGameObject()로 안 잡혀서 별도로 확인한다(사용자 신고, 2026-07-27
 			// "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림").
-			bool overUI = (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-				|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel())
-				|| (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
-				|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+			bool overUI = GUIMouseUtil.IsPointerOverAnyPanel()
+				|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel());
 
 			if (!overUI)
 			{
@@ -776,7 +773,7 @@ public class InputManager : MonoBehaviour
 			GUI.DrawTexture(r, Texture2D.whiteTexture);
 
 			GUI.color = new Color(0.3f, 1f, 0.3f, 0.9f);
-			DrawRectBorder(r, 2f);
+			NoticeCenter.DrawRectBorder(r, 2f);
 
 			GUI.color = prevColor;
 		}
@@ -791,13 +788,5 @@ public class InputManager : MonoBehaviour
 		float yMax = Screen.height - Mathf.Min(a.y, b.y);
 
 		return new Rect(xMin, yMin, xMax - xMin, yMax - yMin);
-	}
-
-	private void DrawRectBorder(Rect r, float thickness)
-	{
-		GUI.DrawTexture(new Rect(r.xMin, r.yMin, r.width, thickness), Texture2D.whiteTexture);
-		GUI.DrawTexture(new Rect(r.xMin, r.yMax - thickness, r.width, thickness), Texture2D.whiteTexture);
-		GUI.DrawTexture(new Rect(r.xMin, r.yMin, thickness, r.height), Texture2D.whiteTexture);
-		GUI.DrawTexture(new Rect(r.xMax - thickness, r.yMin, thickness, r.height), Texture2D.whiteTexture);
 	}
 }

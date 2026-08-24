@@ -30,12 +30,7 @@ public class SkillAction_Projectile : SkillAction
     // 시전자에게서 발사되어 경로상의 대상을 맞힌다 — 발동 조건은 일반 공격과 같다.
     public override SkillOrigin Origin => SkillOrigin.Projectile;
 
-    public override bool IsAvailable(Unit unit)
-    {
-        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
-        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
-        return unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
-    }
+    public override bool IsAvailable(Unit unit) => IsCooldownReady(unit, _d.cooldownSlot);
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {
