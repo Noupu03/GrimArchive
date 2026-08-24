@@ -1,22 +1,22 @@
 fileFormatVersion: 2
-guid: 1550960e88127724d932c75826a8e5c9
+guid: 6b200a997c4feaa41b709879f281208e
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 2971653748508199937
-    second: mage_0
+      213: 3548662474061444758
+    second: merged_sheet_5frames (9)_0
   - first:
-      213: -1182937539813507409
-    second: mage_1
+      213: 1348050858013078571
+    second: merged_sheet_5frames (9)_1
   - first:
-      213: 7310728498343965544
-    second: mage_2
+      213: 874989344207935711
+    second: merged_sheet_5frames (9)_2
   - first:
-      213: -7672788158911853900
-    second: mage_3
+      213: 4178760983504610711
+    second: merged_sheet_5frames (9)_3
   - first:
-      213: 8619904004745130942
-    second: mage_4
+      213: -7935989506005961947
+    second: merged_sheet_5frames (9)_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -87,7 +87,7 @@ TextureImporter:
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: 4
-    textureCompression: 0
+    textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
@@ -108,154 +108,115 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: Android
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: WebGL
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: WindowsStoreApps
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_mage_0
+      name: merged_sheet_5frames (9)_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 28
-        height: 28
+        width: 36
+        height: 36
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: ef5a7b1693bb3144eac5348b1d6e9d9a
-      internalID: -256310008
+      spriteID: 696f032f7b16f3130800000000000000
+      internalID: 3548662474061444758
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_1
+      name: merged_sheet_5frames (9)_1
       rect:
         serializedVersion: 2
-        x: 28
+        x: 36
         y: 0
-        width: 28
-        height: 28
+        width: 36
+        height: 36
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 9822ea620851050479c8fd4ccf705d55
-      internalID: -765592622
+      spriteID: b24b703fc1d35b210800000000000000
+      internalID: 1348050858013078571
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_2
+      name: merged_sheet_5frames (9)_2
       rect:
         serializedVersion: 2
-        x: 56
+        x: 72
         y: 0
-        width: 28
-        height: 28
+        width: 36
+        height: 36
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: eaff39d143eaf764dbac898e01a71959
-      internalID: -781066101
+      spriteID: fd814c33c26942c00800000000000000
+      internalID: 874989344207935711
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_3
+      name: merged_sheet_5frames (9)_3
       rect:
         serializedVersion: 2
-        x: 84
+        x: 108
         y: 0
-        width: 28
-        height: 28
+        width: 36
+        height: 36
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 55fdd440a59bfbb40bc8885d4bd5a37d
-      internalID: 1022525959
+      spriteID: 795ed0779f0fdf930800000000000000
+      internalID: 4178760983504610711
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_4
+      name: merged_sheet_5frames (9)_4
       rect:
         serializedVersion: 2
-        x: 112
+        x: 144
         y: 0
-        width: 28
-        height: 28
+        width: 36
+        height: 36
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: 0b392e445bbdbb349847852cc4e4b3b2
-      internalID: -387541084
+      spriteID: 52379494793bdd190800000000000000
+      internalID: -7935989506005961947
       vertices: []
       indices: 
       edges: []
@@ -264,7 +225,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 65883a90ff600804297109c637984495
+    spriteID: e5cca95a75defc44a9061b9e558c85f8
     internalID: 0
     vertices: []
     indices: 
@@ -274,13 +235,13 @@ TextureImporter:
     spriteCustomMetadata:
       entries:
       - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":28.0,"y":28.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":36.0,"y":36.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Char_mage_0: -256310008
-      Char_mage_1: -765592622
-      Char_mage_2: -781066101
-      Char_mage_3: 1022525959
-      Char_mage_4: -387541084
+      merged_sheet_5frames (9)_0: 3548662474061444758
+      merged_sheet_5frames (9)_1: 1348050858013078571
+      merged_sheet_5frames (9)_2: 874989344207935711
+      merged_sheet_5frames (9)_3: 4178760983504610711
+      merged_sheet_5frames (9)_4: -7935989506005961947
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -82,14 +82,14 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 100
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 2971653748508199937, guid: 1550960e88127724d932c75826a8e5c9, type: 3}
+  m_Sprite: {fileID: -256310008, guid: 1550960e88127724d932c75826a8e5c9, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 0.6875, y: 0.875}
+  m_Size: {x: 0.875, y: 0.875}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -327,10 +327,10 @@ MonoBehaviour:
     baseDelayMs: 1500
     baseCooldown: 5
     cooldownSlot: 1
-    isProjectile: 0
-    projectilePrefab: {fileID: 0}
-    projectileSpeed: 0
-    isPiercing: 0
+    isProjectile: 1
+    projectilePrefab: {fileID: 8268503077936916764, guid: 167c4129bc08faa448e930839e829898, type: 3}
+    projectileSpeed: 1
+    isPiercing: 1
     hitEffectPrefab: {fileID: 1980553920939913900, guid: 242cf38a46dfa57408e7b18780e45626, type: 3}
     hitShape: RECT
     hitRange: 5

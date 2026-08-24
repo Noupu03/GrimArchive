@@ -1,22 +1,19 @@
 fileFormatVersion: 2
-guid: 97c57e303dd25f7479b9bceeaa801690
+guid: d76465c8785c33e44a98e96b8ab692f9
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 2417493862282948155
-    second: Char_KnightA_0
+      213: 3701221562574985551
+    second: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_0"
   - first:
-      213: -8289434126273795730
-    second: Char_KnightA_1
+      213: -5063864673810925119
+    second: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_1"
   - first:
-      213: -7085069805788865461
-    second: Char_KnightA_2
+      213: -1729789312693136285
+    second: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_2"
   - first:
-      213: -535276440569488476
-    second: Char_KnightA_3
-  - first:
-      213: -5366866980729748420
-    second: Char_KnightA_4
+      213: -8561895145475307004
+    second: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_3"
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -58,7 +55,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -112,111 +109,89 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_KnightA_0
+      name: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_0"
       rect:
         serializedVersion: 2
         x: 0
-        y: 0
+        y: 1
         width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
+        height: 23
+      alignment: 0
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b3eef0cfbd9ac8120800000000000000
-      internalID: 2417493862282948155
+      spriteID: f495c48b6616d5330800000000000000
+      internalID: 3701221562574985551
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_KnightA_1
+      name: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_1"
       rect:
         serializedVersion: 2
-        x: 32
-        y: 0
-        width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
+        x: 1
+        y: 20
+        width: 15
+        height: 11
+      alignment: 0
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: e69237ad49306fc80800000000000000
-      internalID: -8289434126273795730
+      spriteID: 1c9b9de98e989b9b0800000000000000
+      internalID: -5063864673810925119
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_KnightA_2
+      name: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_2"
       rect:
         serializedVersion: 2
-        x: 64
-        y: 0
-        width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
+        x: 20
+        y: 20
+        width: 7
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b4cdb19cc86ccad90800000000000000
-      internalID: -7085069805788865461
+      spriteID: 36498a0f8cd8ef7e0800000000000000
+      internalID: -1729789312693136285
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_KnightA_3
+      name: "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_3"
       rect:
         serializedVersion: 2
-        x: 96
-        y: 0
-        width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
+        x: 0
+        y: 7
+        width: 6
+        height: 6
+      alignment: 0
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 4ab583fc9e05298f0800000000000000
-      internalID: -535276440569488476
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_KnightA_4
-      rect:
-        serializedVersion: 2
-        x: 128
-        y: 0
-        width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: c3484d87aee0585b0800000000000000
-      internalID: -5366866980729748420
+      spriteID: 40a8dc16ab90e2980800000000000000
+      internalID: -8561895145475307004
       vertices: []
       indices: 
       edges: []
@@ -225,7 +200,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: efdcba9e5d3e06c4d80c95e98f9e86d2
+    spriteID: 5e97eb03825dee720800000000000000
     internalID: 0
     vertices: []
     indices: 
@@ -233,15 +208,12 @@ TextureImporter:
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
-      entries:
-      - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":32.0,"y":32.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
+      entries: []
     nameFileIdTable:
-      Char_KnightA_0: 2417493862282948155
-      Char_KnightA_1: -8289434126273795730
-      Char_KnightA_2: -7085069805788865461
-      Char_KnightA_3: -535276440569488476
-      Char_KnightA_4: -5366866980729748420
+      "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_0": 3701221562574985551
+      "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_1": -5063864673810925119
+      "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_2": -1729789312693136285
+      "AI_\uD53C_\uD280\uAE30\uB294_\uC2A4\uD504 (1)_3": -8561895145475307004
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -82,14 +82,14 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 100
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -5475462657751251510, guid: 09b88fdfb65402c44a4641eae2105c9f, type: 3}
+  m_Sprite: {fileID: 1418701420, guid: 09b88fdfb65402c44a4641eae2105c9f, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 0.625, y: 1}
+  m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -120,8 +120,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 0
-  m_labelHash: 0
+  m_CategoryHash: 5.4934837e-27
+  m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
 --- !u!1 &5981395126933330937
@@ -331,7 +331,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
+    hitEffectPrefab: {fileID: 2458213468699407609, guid: 1fe02688c8e344e439a3f5910b00ffca, type: 3}
     hitShape: LINE
     hitRange: 4
     hitWidth: 1
