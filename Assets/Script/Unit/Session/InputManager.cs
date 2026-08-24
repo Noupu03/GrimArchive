@@ -99,6 +99,11 @@ public class InputManager : MonoBehaviour
 		get => _objectPlacement != null && _objectPlacement.DebugUnlimitedTrapPlacement;
 		set { if (_objectPlacement != null) _objectPlacement.DebugUnlimitedTrapPlacement = value; }
 	}
+	// "모든 유닛 선택 가능" debug 토글(2026-08-24, 사용자 요청) — IsSelectableUnit의 진영/안개 제한을
+	// 우회해 인류·야생 몬스터·안개 속 유닛까지 클릭/드래그박스/더블클릭으로 선택하고 정보를 열람할 수
+	// 있게 한다. 실행 계열 명령(공격/이동)은 이 토글과 무관하게 기존 진영 규칙(예: 자기 유닛만 이동
+	// 명령 가능)을 그대로 따른다 — 이 토글은 어디까지나 "선택/정보열람" 게이트만 완화한다.
+	public bool DebugSelectAllUnits { get; set; }
 
 	// 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) BottomMenuBar가 "다른 메뉴로 전환" 또는 "같은
 	// 서브 버튼 재클릭" 시점에 호출하는 단일 취소 진입점. 취소 notice도 (재클릭이든 메뉴 전환이든) 이
@@ -225,6 +230,30 @@ public class InputManager : MonoBehaviour
 				return u;
 		}
 		return null;
+	}
+
+	// 선택/정보열람 가능 여부(2026-08-24, 사용자 요청 "플레이어 유닛만 선택 가능하게... 안개에 있는
+	// 오브젝트와 유닛들 또한 선택 불가") — 클릭/드래그박스/더블클릭 선택 전부가 이 한 곳을 거친다.
+	// 공격 대상 탐색(ExecuteRightClickCommand의 FindUnitAtGridPos 호출)은 "선택"이 아니라 별개의
+	// 명령 판정이라 이 필터를 타지 않는다.
+	private bool IsSelectableUnit(Unit u)
+	{
+		if (u == null || u.Health.hp <= 0) return false;
+		if (DebugSelectAllUnits) return true;
+		if (!u.IsPlayerMonsterFaction) return false;
+		if (IsPositionHiddenByFog(u.position, u.currentFloor)) return false;
+		return true;
+	}
+
+	// Room.FogRevealed 기반 판정(UnitGenerate.SyncVisual의 hiddenByFog와 동일한 조회 패턴) — 그 좌표가
+	// 속한 방이 아직 안개에 덮여 있으면 true. 어느 방에도 속하지 않는 칸(빈 청크)은 항상 영구 안개라
+	// roomGrid에 아예 없으므로, 조회 실패도 안개로 취급한다.
+	private bool IsPositionHiddenByFog(Vector2Int pos, int floor)
+	{
+		if (_gameSession == null || _gameSession.roomGrid == null) return true;
+		if (!_gameSession.roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, floor), out Room room) || room == null)
+			return true;
+		return !room.FogRevealed;
 	}
 
 	void Update()
@@ -585,8 +614,13 @@ public class InputManager : MonoBehaviour
 		// 건물이 아닌 다른 곳(유닛/허공)을 클릭하면 열려 있던 건물 패널은 닫는다.
 		BuildingControlPanel.Instance?.ClosePanel();
 
-		// 유닛 클릭이면 선택 처리 (진영 제한 없음, 기존 동작 유지)
+		// 유닛 클릭이면 선택 처리 — 플레이어 유닛만 선택/정보열람 가능하다(2026-08-24, 사용자 요청
+		// "플레이어 유닛만 선택 가능하게... 다른 유닛들은 선택 불가. 정보 열람도 불가"). 다른 진영
+		// 유닛이나 안개에 가려진 유닛을 클릭하면 그 자리에 아무것도 없었던 것처럼(오브젝트 → 허공
+		// 클릭 순으로) 계속 판정한다.
 		Unit clickedUnit = FindUnitAtGridPos(gridPos, currentFloor);
+		if (clickedUnit != null && !IsSelectableUnit(clickedUnit))
+			clickedUnit = null;
 
 		if (clickedUnit != null)
 		{
@@ -623,8 +657,10 @@ public class InputManager : MonoBehaviour
 
 		// 오브젝트(코어/문/함정/전리품/시체/전멸흔적) 클릭 시 정보 패널 표시(2026-08-22 후속 피드백,
 		// 사용자 요청 "모든 오브젝트는 이제 클릭을 통해 정보를 볼 수 있어(건물처럼)") — 유닛도 건물도
-		// 아닌 위치에 오브젝트가 있을 때만 확인한다(유닛 선택이 항상 우선).
-		if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject clickedObj))
+		// 아닌 위치에 오브젝트가 있을 때만 확인한다(유닛 선택이 항상 우선). 안개에 가려진 오브젝트는
+		// 선택/정보열람 불가(2026-08-24, 사용자 요청) — 못 찾은 것처럼 허공 클릭 처리로 넘어간다.
+		if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject clickedObj)
+			&& !IsPositionHiddenByFog(new Vector2Int(gridPos.x, gridPos.y), currentFloor))
 		{
 			BuildingControlPanel.Instance?.ShowForObject(clickedObj);
 			return;
@@ -636,7 +672,8 @@ public class InputManager : MonoBehaviour
 	}
 
 	// =====================================================
-	// 드래그 박스 선택 (진영 제한 없음 — 인류/몬스터 둘 다 드래그로 선택하고 조종할 수 있다)
+	// 드래그 박스 선택 — 플레이어 유닛만 선택 가능(2026-08-24, 사용자 요청). 예전엔 "진영 제한 없음"
+	// 이었으나 이제 IsSelectableUnit(플레이어 진영 + 안개 미적용)만 통과한다.
 	// =====================================================
 	private void DoBoxSelect(Vector2 startScreenPos, Vector2 endScreenPos, Vector3 floorOffset, int currentFloor, bool addHeld)
 	{
@@ -654,6 +691,7 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null || u.Health.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
+			if (!IsSelectableUnit(u)) continue;
 
 			float fw = u.unitType != null ? u.unitType.footprint.x : 1f;
 			float fh = u.unitType != null ? u.unitType.footprint.y : 1f;
@@ -682,6 +720,7 @@ public class InputManager : MonoBehaviour
 		{
 			if (u == null || u.Health.hp <= 0) continue;
 			if (u.currentFloor != currentFloor) continue;
+			if (!IsSelectableUnit(u)) continue;
 			// UnitType은 ScriptableObject 에셋 공유가 아니라 스폰마다 new Knight() 식으로 새로 만들어지는
 			// 순수 C# 인스턴스라(GameSession.cs 스폰 코드 참고) 참조 비교(==)로는 "같은 유형"을 못 잡는다
 			// (자기 자신 말고는 전부 다른 인스턴스라 항상 실패) — typeName 문자열로 비교해야 한다.
