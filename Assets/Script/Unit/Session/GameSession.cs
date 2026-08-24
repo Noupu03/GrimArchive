@@ -829,6 +829,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
             Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);
+            // 캐릭터별 시체 스프라이트(2026-08-24 사용자 요청) — u가 아직 Destroy되기 전인 지금 시점에
+            // UnitVisualDefinition.corpseSprite를 스냅샷해 둔다(MonsterSpeciesKey 등과 동일한 이유).
+            // 없으면 null 그대로 두고 SpawnObject가 기존 공용 스프라이트로 폴백한다.
+            corpse.CorpseSpriteOverride = u.Generate?.GetVisualDefinition(u)?.corpseSprite;
 
             // 03문서 4-12~4-15장(2026-07-27 신규): 인류 시체는 사망 사건 추적(정신력 감소/사망 원인
             // 확인/원인미상 수색)의 시작점이다 — Destroy 전인 지금(u는 Human) 위치/방향/lastAttacker를
@@ -1235,7 +1239,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
-        else if (isCorpse) sprite = Resources.Load<Sprite>("obj/colapse");
+        // 캐릭터별 시체 스프라이트(2026-08-24 사용자 요청) — RemoveDeadUnit이 스냅샷해둔
+        // CorpseSpriteOverride가 있으면 그걸 쓰고, 없으면 기존 공용 시체 스프라이트로 폴백한다.
+        else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : Resources.Load<Sprite>("obj/colapse");
         else if (isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
         else if (isDoor) sprite = Resources.Load<Sprite>("obj/door_open");
         else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
@@ -1569,8 +1575,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _objectSpawner.CollectObject(pos);
     }
 
-    // 시체 자동 소멸(사용자 요청, 2026-08-23) — 1분.
-    public const float CorpseDespawnSeconds = 60f;
+    // 시체 자동 소멸(사용자 요청, 2026-08-23 1분 → 2026-08-24 45초로 조정).
+    public const float CorpseDespawnSeconds = 45f;
 
     private async UniTaskVoid DespawnCorpseAfterDelay(Vector3Int gridPos, InteractableObject corpse)
     {

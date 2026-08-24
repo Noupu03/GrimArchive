@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 971017539222805629}
   - component: {fileID: 858146344145911689}
   - component: {fileID: 7520630996689825801}
+  - component: {fileID: 6966792535676234398}
   m_Layer: 0
   m_Name: VFX_BloodSplash
   m_TagString: Untagged
@@ -4837,6 +4838,19 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &6966792535676234398
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6651800158703548414}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1
 --- !u!1 &7685366221964950710
 GameObject:
   m_ObjectHideFlags: 0

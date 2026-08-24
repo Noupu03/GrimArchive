@@ -52,6 +52,12 @@ public class InteractableObject
     public bool MonsterIsSpecialUnit;
     public string MonsterIndividualKey;
 
+    // 캐릭터별 시체 스프라이트(2026-08-24 사용자 요청) — Corpse 태그일 때만 의미가 있다. 죽은 유닛의
+    // UnitVisualDefinition.corpseSprite를 Destroy 전에 스냅샷해 둔다(MonsterSpeciesKey 등과 동일한
+    // 이유 — 유닛이 Destroy된 뒤엔 조회할 수 없다). null이면 GameSession.SpawnObject가 기존 공용
+    // 시체 스프라이트(obj/colapse)로 폴백한다.
+    public Sprite CorpseSpriteOverride;
+
     // 03문서 9장(함정 대응): Trap 태그("Object/Building/Passable/Trap" — 오브젝트→건축물→지나갈 수
     // 있는 건축물, 2026-07-22 사용자 지정 계층)일 때만 의미가 있다(그 외 태그는 전부 0). 9-9장
     // "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.

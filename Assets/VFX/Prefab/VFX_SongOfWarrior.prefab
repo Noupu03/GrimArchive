@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3203714364515756804}
   - component: {fileID: 7203846055336294613}
   - component: {fileID: 6598994996225956225}
+  - component: {fileID: 2991770510346872050}
   m_Layer: 0
   m_Name: VFX_SongOfWarrior
   m_TagString: Untagged
@@ -4837,3 +4838,16 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &2991770510346872050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8746278311700403781}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1

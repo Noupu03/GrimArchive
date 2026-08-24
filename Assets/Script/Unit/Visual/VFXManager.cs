@@ -10,6 +10,10 @@ public class VFXManager
 {
     private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
 
+    // 캐릭터 스프라이트 피벗(바텀 센터) 기준 로컬 오프셋 — 부모 지정 스폰 시 이펙트를 몸통 높이로
+    // 띄운다(2026-08-24 사용자 요청, 아래 Spawn 참고).
+    private static readonly Vector3 ParentedSpawnPivotOffset = new Vector3(0f, 0.5f, 0f);
+
     public void Spawn(GameObject prefab, Unit unit)
     {
         if (prefab == null || unit == null) return;
@@ -58,7 +62,12 @@ public class VFXManager
         if (parent != null)
         {
             go.transform.SetParent(parent);
-            go.transform.localPosition = Vector3.zero;
+            // 캐릭터 스프라이트는 피벗이 바텀 센터(발밑)라 로컬 원점(0,0)에 그대로 붙이면 이펙트가
+            // 발밑에서 나오는 것처럼 보인다(사용자 신고, 2026-08-24 "파티클 피벗 0.5 위로 올려서
+            // 나오게 해주세요 — 스프라이트는 피벗이 바텀 센터 중심이라 기준점 이상해짐"). 몸통
+            // 높이에 가깝도록 0.5만큼 위로 띄운다 — 히트 스파크/가드/패리/사망 VFX 등 부모 지정
+            // 스폰 전부가 이 한 지점을 거치므로 한 번에 고쳐진다.
+            go.transform.localPosition = ParentedSpawnPivotOffset;
             Vector3 pScale = parent.lossyScale;
             go.transform.localScale = new Vector3(
                 Mathf.Abs(pScale.x) > 0.0001f ? (1f / pScale.x) : 1f,
@@ -81,11 +90,28 @@ public class VFXManager
             ps.Play(); // 재사용 시 파티클 재생
         }
 
-        float lifetime = ps != null
-            ? ps.main.duration + ps.main.startLifetime.constantMax
-            : 2f;
-        
-        ReleaseToPoolAfterTime(pool, go, lifetime).Forget();
+        // 프리팹에 ParticleLifetimeController가 붙어있으면 정지 타이밍을 그 컴포넌트에 맡긴다(2026-08-24
+        // 사용자 요청 "파티클 프리팹 비활성화로 처리하면 중간에 짤려버림... 생성 중단 → 남은 파티클이
+        // 없으면 프리팹 비활성화") — 아래 "재생 길이만큼 지난 뒤 통째로 반납"하던 기존 방식은 진행 중인
+        // 파티클까지 그 순간 화면에서 뚝 끊겼다. 컴포넌트가 없는 기존 프리팹은 기존 자동 추정 방식으로
+        // 그대로 폴백한다(하위 호환).
+        var lifetimeController = go.GetComponent<ParticleLifetimeController>();
+        if (lifetimeController != null)
+        {
+            lifetimeController.BeginLifecycle(() =>
+            {
+                // 씬 전환 등으로 이미 파괴된 경우 방어(ReleaseToPoolAfterTime과 동일한 안전장치).
+                if (go != null) pool.Release(go);
+            });
+        }
+        else
+        {
+            float lifetime = ps != null
+                ? ps.main.duration + ps.main.startLifetime.constantMax
+                : 2f;
+
+            ReleaseToPoolAfterTime(pool, go, lifetime).Forget();
+        }
         return go;
     }
 
