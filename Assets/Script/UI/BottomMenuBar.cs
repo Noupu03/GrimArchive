@@ -578,6 +578,12 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             bool unlimitedTrapOn = _inputManager.DebugUnlimitedTrapPlacement;
             items.Add(new SubmenuItem(unlimitedTrapOn ? "■ 함정 무제한 설치 (ON)" : "□ 함정 무제한 설치 (OFF)", unlimitedTrapOn, true,
                 () => _inputManager.DebugUnlimitedTrapPlacement = !_inputManager.DebugUnlimitedTrapPlacement));
+
+            // 모든 유닛 선택 가능(2026-08-24 사용자 요청) — 플레이어 유닛만 선택 가능하게 제한한
+            // InputManager.IsSelectableUnit(진영/안개 게이트)을 debug에서만 우회하는 토글.
+            bool selectAllOn = _inputManager.DebugSelectAllUnits;
+            items.Add(new SubmenuItem(selectAllOn ? "■ 모든 유닛 선택 가능 (ON)" : "□ 모든 유닛 선택 가능 (OFF)", selectAllOn, true,
+                () => _inputManager.DebugSelectAllUnits = !_inputManager.DebugSelectAllUnits));
         }
 
         // 바닥 타일 → 벽 전환(2026-08-24 사용자 요청) — 다른 배치 모드들과 동일한 패턴(우클릭으로 실행,

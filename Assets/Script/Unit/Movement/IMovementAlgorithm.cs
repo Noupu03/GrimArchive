@@ -11,4 +11,5 @@ public interface IMovementAlgorithm
     // 보여주기 위함, 매 프레임 읽어도 비용이 사실상 없다).
     bool TryGetCachedDestination(out Vector2Int destination);
     List<Vector2Int> BuildCachedPathPreview(Unit unit, int maxSteps);
+    void ClearCache();
 }

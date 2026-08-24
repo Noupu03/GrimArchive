@@ -278,6 +278,7 @@ public abstract class Unit : ScriptableObject {
 	// Encapsulated command setters (2026-08-22 refactoring)
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
+		MovementAlgorithm?.ClearCache();
 		isHalted = false;
 		isStandGroundAttack = false;
 		playerMoveTarget = target;
@@ -291,6 +292,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void SetAttackCommand(Unit target)
 	{
+		MovementAlgorithm?.ClearCache();
 		playerAttackTarget = target;
 		playerMoveTarget = null;
 		playerAttackObjectTarget = null;
@@ -308,6 +310,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void SetObjectAttackCommand(Vector3Int target)
 	{
+		MovementAlgorithm?.ClearCache();
 		playerAttackObjectTarget = target;
 		playerAttackTarget = null;
 		playerMoveTarget = null;
@@ -318,6 +321,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void ClearPlayerCommand()
 	{
+		MovementAlgorithm?.ClearCache();
 		playerMoveTarget = null;
 		playerAttackTarget = null;
 		playerInteractTarget = null;
@@ -350,6 +354,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void AbortMoveCommand()
 	{
+		MovementAlgorithm?.ClearCache();
 		playerMoveTarget = null;
 		isManualMoveCommand = false;
 		oneTimeReactUsed = false;
