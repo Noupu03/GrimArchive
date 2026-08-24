@@ -670,7 +670,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // "이번 틱에 위치/라벨/방향이 실제로 바뀐 유닛"에게만 호출되므로, 가만히 서 있는 유닛은
             // 선택 상태가 바뀌어도 시각이 갱신되지 않았다. 상태 변화 여부와 무관하게 모든 살아있는
             // 유닛에 대해 매 프레임 무조건 갱신한다(SetActive/불리언 비교뿐이라 비용이 낮다).
-            _unitGenerate?.RefreshSelectionVisual(u);
+            // 2026-08-25 프레임 드랍 대응 — 카메라는 지금 보고 있는 층 범위 밖으로 못 나가게 강제
+            // 제한되어 있어(CameraController.ClampToCurrentFloorBounds) 다른 층 유닛은 설계상 항상
+            // 화면 밖이다. 위 u.OnUpdate(시뮬레이션 본체)는 그대로 두고, 화면에 보이지도 않는 층의
+            // 시각 갱신만 건너뛴다 — 웨이브/야생 스폰이 여러 층에서 동시에 진행되는 구조라 유닛 수가
+            // 늘어날수록 이득이 커진다.
+            if (CameraController.Instance == null || u.currentFloor == CameraController.Instance.CurrentFloor)
+            {
+                _unitGenerate?.RefreshSelectionVisual(u);
+            }
 
             u.CombatState.State.actionCooldown -= Time.deltaTime;
             if (u.CombatState.State.actionCooldown <= 0f)

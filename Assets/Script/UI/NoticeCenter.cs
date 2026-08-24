@@ -120,6 +120,12 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
 
     private readonly List<Notice> _notices = new List<Notice>();
 
+    // 2026-08-25 프레임 드랍 대응 — OnGUI는 Layout+Repaint로 프레임당 최대 2회 호출되는데, 알림이 하나라도
+    // 떠 있으면 매 호출 new GUIStyle을, 알림 개수만큼 new GUIContent를 새로 만들고 있었다. 스타일은 한 번만
+    // 만들어 캐시하고, GUIContent는 재사용 가능한 스크래치 인스턴스 하나의 .text만 매번 바꿔써서 없앤다.
+    private GUIStyle _noticeStyle;
+    private readonly GUIContent _scratchContent = new GUIContent();
+
     protected override void Constructor()
     {
         base.Constructor();
@@ -194,7 +200,7 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
         float y = TopMargin;
         Color prevColor = GUI.color;
 
-        GUIStyle style = new GUIStyle(GUI.skin.label)
+        GUIStyle style = _noticeStyle ??= new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleLeft,
             fontSize = FontSize,
@@ -212,7 +218,8 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
 
             // 문구가 길어 한 줄에 안 들어가면 박스 높이를 실제 필요한 줄 수만큼 늘린다(BoxHeight는
             // 최소값으로만 쓴다) — 그래야 텍스트가 박스 밖으로 넘치지 않는다.
-            float textHeight = style.CalcHeight(new GUIContent(notice.Text), textAreaWidth);
+            _scratchContent.text = notice.Text;
+            float textHeight = style.CalcHeight(_scratchContent, textAreaWidth);
             float boxHeight = Mathf.Max(BoxHeight, textHeight + BoxVerticalPadding);
 
             Rect rect = new Rect(x, y, BoxWidth, boxHeight);

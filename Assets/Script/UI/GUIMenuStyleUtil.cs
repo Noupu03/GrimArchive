@@ -29,12 +29,15 @@ public static class GUIMenuStyleUtil
     // 배경/테두리를 직접 그리고 GUI.Button은 클릭 판정 + 텍스트 렌더링에만 쓰기 때문 — 그러지 않으면
     // Unity 기본 버튼 스킨이 우리가 그린 순색 배경 위에 다시 겹쳐 그려져 탁해진다. 같은 (라벨, 폭)
     // 조합은 캐시해서 매 프레임 GUIStyle을 새로 만들지 않는다.
-    private static readonly Dictionary<string, GUIStyle> _fittedTransparentStyleCache = new Dictionary<string, GUIStyle>();
+    // 2026-08-25 프레임 드랍 대응 — 스타일 자체는 캐시돼 있었지만, 캐시 키를 문자열 보간으로 매 버튼
+    // 그리기·매 OnGUI 패스마다(캐시 히트 여부와 무관하게) 새로 만들고 있었다. 값 타입 튜플 키로
+    // 바꿔 캐싱 동작(같은 조합 → 같은 스타일)은 그대로 두고 문자열 할당만 없앤다.
+    private static readonly Dictionary<(string label, int width, int fontSize), GUIStyle> _fittedTransparentStyleCache = new();
     private const float FittedButtonHorizontalPadding = 16f;
 
     private static GUIStyle GetFittedTransparentButtonStyle(string label, float maxWidth, int maxFontSize = ButtonFontSize, int minFontSize = 11)
     {
-        string key = $"{label}|{Mathf.RoundToInt(maxWidth)}|{maxFontSize}";
+        var key = (label, Mathf.RoundToInt(maxWidth), maxFontSize);
         if (_fittedTransparentStyleCache.TryGetValue(key, out var cached)) return cached;
 
         var style = new GUIStyle(GUIStyle.none)

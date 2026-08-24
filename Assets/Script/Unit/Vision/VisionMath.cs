@@ -254,6 +254,14 @@ public static class VisionMath
 		return new Vector2Int(o.x + depth * dr + col * cr, o.y + depth * dc + col * cc);
 	}
 
+	// 옥탄트 스캔용 스크래치 스택(2026-08-25 리팩토링, 프레임 드랍 대응) — SymmetricShadowCast가
+	// 옥탄트 8개마다 이 메서드를 호출하므로(UpdateFOV 1회당 최대 16회) 매 호출 new Stack<>()이었던
+	// 것을 스레드별 재사용 버퍼로 바꿨다. VisionMath는 "순수 계산 함수, 부수효과 없음"이 설계
+	// 원칙(파일 상단 주석)이라 일반 static 필드 대신 [ThreadStatic]을 써서 스레드 경계를 넘는 관측
+	// 가능한 부수효과가 없게 한다(테스트 병렬 실행과도 안전).
+	[System.ThreadStatic]
+	private static Stack<(int depth, float start, float end)> _octantScanStack;
+
 	// 한 옥탄트를 행(depth)별로 스캔한다. 스택 기반 반복으로 재귀 스택 오버플로우를 방지한다.
 	private static void ScanOctant(
 		Vector2Int origin, int maxRadius, int octant,
@@ -261,7 +269,8 @@ public static class VisionMath
 		System.Func<Vector2Int, bool> isOpaque,
 		HashSet<Vector2Int> result)
 	{
-		var stack = new Stack<(int depth, float start, float end)>();
+		var stack = _octantScanStack ??= new Stack<(int depth, float start, float end)>();
+		stack.Clear();
 		stack.Push((startDepth, startSlope, endSlope));
 
 		while (stack.Count > 0)

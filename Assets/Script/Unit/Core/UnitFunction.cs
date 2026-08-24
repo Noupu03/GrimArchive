@@ -427,6 +427,32 @@ public abstract class UnitFunction : Unit, IVisionContext
 	private readonly List<Vector3Int> _dangerTilesCopy = new List<Vector3Int>();
 	private readonly List<Vector3Int> _interestTilesCopy = new List<Vector3Int>();
 
+	// ⑪(2026-08-25, 프레임 드랍 대응): UpdateFOV의 isOpaque가 mapWidth/mapHeight/csVision/floorData/
+	// roomRestrictedObserver/myRoomId 6개 지역변수를 캡처하는 람다라 호출마다(=A항목 ScanOctant와
+	// 동일 빈도) 델리게이트+캡처 객체가 새로 할당됐다. 캡처값을 인스턴스 필드로 옮기고 람다 대신
+	// 인스턴스 메서드(IsOpaqueAt)를 가리키는 델리게이트를 캐시해 유닛 생애 첫 호출에만 할당되게 한다.
+	private int _fovMapWidth, _fovMapHeight, _fovChunkSize;
+	private Floor _fovFloorData;
+	private bool _fovRoomRestrictedObserver;
+	private int _fovMyRoomId;
+	private System.Func<Vector2Int, bool> _isOpaqueDelegate;
+
+	private bool IsOpaqueAt(Vector2Int pos)
+	{
+		int px = pos.x, py = pos.y;
+		if (px < 0 || px >= _fovMapWidth || py < 0 || py >= _fovMapHeight) return true;
+		int ocx = px / _fovChunkSize, otx = px % _fovChunkSize, ocy = py / _fovChunkSize, oty = py % _fovChunkSize;
+		if (ocx >= _fovFloorData.config.width || ocy >= _fovFloorData.config.height) return true;
+		Chunks oc = _fovFloorData.chunks[ocx, ocy];
+		if (oc.roomId == -1 || oc.chunk == null) return true;
+		if (_fovRoomRestrictedObserver && _fovMyRoomId >= 0 && oc.roomId != _fovMyRoomId) return true;
+		Tile ot = oc.chunk[otx, oty];
+		if (ot.name == "Wall" || ot.isStructureExist) return true;
+		if (Session != null && Session.objectGrid.TryGetValue(new Vector3Int(px, py, currentFloor), out InteractableObject bl)
+			&& !bl.IsCollected && bl.IsFullyBlocking) return true;
+		return false;
+	}
+
 	// 이번 패스에 처음 도달한 대상이면 트리거 조건(최초 진입/재진입/수상한 타일 2칸 재접근)을 검사해
 	// 필요하면 재판정하고, 이미 이번 패스에 다른 레이로 처리된 대상이면 그 결과를 그대로 반환한다
 	// (여러 레이가 같은 타일에 도달해도 판정은 패스당 한 번만 — firstTouchThisPass로 호출부가 후속
@@ -590,22 +616,16 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Monster terrainObserverMonster = this as Monster;
 		var visionNonEmpty = Perception.State.visionOnlyNonEmptyTiles;
 
-		// 불투명 판정 함수: 벽/구조물/방 밖(방제한유닛)/완전차단오브젝트 → true
-		System.Func<Vector2Int, bool> isOpaque = (Vector2Int pos) =>
-		{
-			int px = pos.x, py = pos.y;
-			if (px < 0 || px >= mapWidth || py < 0 || py >= mapHeight) return true;
-			int ocx = px / csVision, otx = px % csVision, ocy = py / csVision, oty = py % csVision;
-			if (ocx >= floorData.config.width || ocy >= floorData.config.height) return true;
-			Chunks oc = floorData.chunks[ocx, ocy];
-			if (oc.roomId == -1 || oc.chunk == null) return true;
-			if (roomRestrictedObserver && myRoomId >= 0 && oc.roomId != myRoomId) return true;
-			Tile ot = oc.chunk[otx, oty];
-			if (ot.name == "Wall" || ot.isStructureExist) return true;
-			if (Session != null && Session.objectGrid.TryGetValue(new Vector3Int(px, py, currentFloor), out InteractableObject bl)
-				&& !bl.IsCollected && bl.IsFullyBlocking) return true;
-			return false;
-		};
+		// 불투명 판정 함수: 벽/구조물/방 밖(방제한유닛)/완전차단오브젝트 → true. 매 호출 람다 할당
+		// 대신 인스턴스 필드+캐시된 델리게이트를 쓴다(위 ⑪ 필드 선언부 주석 참고) — 판정 로직은
+		// IsOpaqueAt에 그대로, 여기서는 이번 패스의 캡처값만 필드에 채운다.
+		_fovMapWidth = mapWidth;
+		_fovMapHeight = mapHeight;
+		_fovChunkSize = csVision;
+		_fovFloorData = floorData;
+		_fovRoomRestrictedObserver = roomRestrictedObserver;
+		_fovMyRoomId = myRoomId;
+		System.Func<Vector2Int, bool> isOpaque = _isOpaqueDelegate ??= IsOpaqueAt;
 
 		// 가시 타일 처리 로컬 함수 — discoveredMap 갱신, 지형 발견, 오브젝트/유닛 인지
 		void ProcessTile(int x, int y, bool inPerceptionRange)
