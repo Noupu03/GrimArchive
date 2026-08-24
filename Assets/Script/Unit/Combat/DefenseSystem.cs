@@ -77,8 +77,8 @@ public static class DefenseSystem
 			float dodgeScore = agility * 0.75f + sense * 0.25f;
 			result.Add(new DefenseCandidate(DefenseType.Dodge, dodgeScore, dodgeScore));
 
-			// Blink
-			if (magic >= 80f)
+			// Blink — CombatConstants.ENABLE_BLINK로 켜고 끈다(2026-08-24 사용자 요청으로 현재 꺼짐).
+			if (CombatConstants.ENABLE_BLINK && magic >= 80f)
 			{
 				float blinkScore = magic * 0.80f + agility * 0.20f;
 				result.Add(new DefenseCandidate(DefenseType.Blink, blinkScore, blinkScore));
@@ -188,8 +188,10 @@ public static class DefenseSystem
 		{
 			case DefenseType.Dodge:
 			{
+				// 2026-08-24 계수 하향(0.007/0.003 → 0.003/0.001). 민첩 100이면 예전엔 0.7이라
+				// 상한에 붙어 거의 모든 공격을 피했다.
 				float success = Mathf.Clamp(
-					defender.BaseStat.agility * 0.007f + defender.BaseStat.sense * 0.003f,
+					defender.BaseStat.agility * 0.003f + defender.BaseStat.sense * 0.001f,
 					CombatConstants.MIN_DEFENSE_SUCCESS_RATE,
 					CombatConstants.MAX_DEFENSE_SUCCESS_RATE
 				);
@@ -244,8 +246,12 @@ public static class DefenseSystem
 		{
 			case DefenseType.Block:
 			{
+				// 2026-08-24 계수 하향(0.0075/0.0025 → 0.0025/0.001). 예전 계수는 내구 130/저항 105
+				// 정도의 평범한 유닛도 합계가 1.26이 나와 상한에 그대로 붙었다 — 모두가 항상 최대
+				// 감소를 받아 방어력 차이가 의미를 잃었다. 지금은 같은 유닛이 약 0.43으로 상한(0.50)
+				// 아래에 들어와 스탯에 따라 실제로 갈린다.
 				float reduction = Mathf.Clamp(
-					defender.BaseStat.Durability * 0.0075f + defender.resistance * 0.0025f,
+					defender.BaseStat.Durability * 0.0025f + defender.resistance * 0.001f,
 					CombatConstants.MIN_BLOCK_DAMAGE_REDUCTION,
 					CombatConstants.MAX_BLOCK_DAMAGE_REDUCTION
 				);
@@ -258,10 +264,13 @@ public static class DefenseSystem
 
 			case DefenseType.Parry:
 			{
+				// 2026-08-24 하향(계수 0.006/0.002/0.002 → 0.002/0.001/0.001, 상한 0.85 → 0.35).
+				// 패링은 성공하면 피해 0 + 반격이라 가장 강한 방어인데, 예전 계수로는 집중 126짜리
+				// 유닛이 상한 0.85에 붙어 공격 대부분이 반격으로 되돌아왔다.
 				float success = Mathf.Clamp(
-					defender.concentration * 0.006f + defender.BaseStat.sense * 0.002f + defender.BaseStat.agility * 0.002f,
+					defender.concentration * 0.002f + defender.BaseStat.sense * 0.001f + defender.BaseStat.agility * 0.001f,
 					0.05f,
-					0.85f
+					0.35f
 				);
 
 				if (Random.value <= success)

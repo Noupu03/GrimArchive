@@ -50,6 +50,9 @@ public class SkillAction_Generic : SkillAction
         BeginAttackCast(unit, 0f, threat,
             () =>
             {
+                // hitEffectPrefab을 여기서 따로 스폰하지 않는다 — 근접 계열은 데이터상 그 값이
+                // 유닛 공용 피격 스파크(UnitVisualDefinition.hitSparkPrefab)와 같은 프리팹이라,
+                // TakePhysicalDamage → TriggerHitEffect가 이미 띄우는 것과 겹쳐 두 번 뜬다.
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,
                     _d.damageMultiplier, _d.hasStun, _d.stunDuration);
             },

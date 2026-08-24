@@ -206,6 +206,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 _doorSystem.SpawnDoors();
                 // 점령 관련(2026-07-27 신규): 모든 야생 방에 야생 몬스터 A 2마리씩 필수 배치.
                 SpawnWildRoomGuards();
+                // 보스 골렘(2026-08-24 기획 확정): 1층 보스방에 고정 소환, 야생 소속.
+                SpawnBossGolem();
                 // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 모든 방에 코어를 하나씩 자동
                 // 생성한다(이전엔 보스방 1개 한정). HumanWaveManager는 WaveData.targetRoomRole/
                 // targetRoomId로 지정된 방의 Room.CorePosition을 직접 목표로 삼는다.
@@ -484,6 +486,113 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         LogHelper.Log(LogHelper.GAME, "SpawnWildRoomGuards: 야생 방 배치 완료.");
+    }
+
+    // 보스 골렘(2026-08-24, 기획 확정: "1층 보스방에 고정 소환, 야생 소속") — SpawnWildRoomGuards처럼
+    // 야생 방마다 반복 배치되는 게 아니라, 게임 전체에 1층 보스방 안 고정된 한 마리만 배치한다.
+    private const int BossGolemFloor = 1;
+
+    public void SpawnBossGolem()
+    {
+        if (cmap == null || _unitGenerate == null) return;
+
+        UnitType golemType = new BossGolem();
+        Room bossRoom = FindBossRoom(BossGolemFloor);
+        if (bossRoom == null)
+        {
+            LogHelper.Warning(LogHelper.GAME, $"SpawnBossGolem: {BossGolemFloor}층에 보스방이 없습니다 — 보스 골렘을 배치하지 않습니다.");
+            return;
+        }
+
+        if (!TryFindRoomCenterSpawnPos(bossRoom, golemType.footprint, out Vector2Int spawnPos))
+        {
+            LogHelper.Warning(LogHelper.GAME,
+                $"SpawnBossGolem: {bossRoom.RoomName} 방({bossRoom.Bounds}) 안에서 3x3이 들어갈 빈자리를 찾지 못했습니다 — " +
+                "보스 골렘을 배치하지 않습니다(복도를 막지 않도록 임의 위치 폴백은 하지 않는다).");
+            return;
+        }
+
+        Monster golem = _unitGenerate.GenerateUnitAtPos<Monster>(golemType, spawnPos, BossGolemFloor);
+        golem.FactionBehavior = new WildMonsterBehavior();
+        golem.MovementAlgorithm = new RoomConfinedMovement(); // 실제로는 isImmobile이 모든 이동을 막지만 다른 몬스터와 동일 관례 유지
+        golem.summonPosition = spawnPos;
+        // 기획 확정(2026-08-24): "본체가 고정" — 사용자 신고 "보스가 움직임"으로 확인된 대로
+        // units.json의 walkSpeed=0만으로는 이동이 막히지 않는다(walkSpeed는 행동 주기만 결정).
+        // 실제 고정은 이 플래그가 담당한다(Unit.isImmobile 주석 참고).
+        golem.isImmobile = true;
+        // 사용자 요청(2026-08-24) "보스 시야 360도로 해줄래? 제자리에 있는데 시야각때문에 공격범위가
+        // 이상하게 됨" — 고정 유닛이라 등 뒤 적을 영영 못 보는 문제를 각도 제한 해제로 푼다.
+        golem.hasOmnidirectionalVision = true;
+
+        units.Add(golem);
+        RegisterUnitPos(golem, golem.position);
+        bossRoom.AddUnit(golem);
+
+        LogHelper.Log(LogHelper.GAME,
+            $"SpawnBossGolem: {BossGolemFloor}층 보스방(roomId={bossRoom.RoomId}) 중앙 {spawnPos}에 보스 골렘 배치 완료 " +
+            $"(방 범위={bossRoom.Bounds}, 점유타일={spawnPos}~{spawnPos + new Vector2Int(2, 2)}).");
+    }
+
+    // 해당 층에서 RoomRole.BossRoom인 청크의 roomId를 찾아 그에 대응하는 Room을 돌려준다.
+    private Room FindBossRoom(int floorIdx)
+    {
+        if (cmap?.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length || allRooms == null) return null;
+
+        Floor floor = cmap.map.floors[floorIdx];
+        if (floor.chunks == null) return null;
+
+        for (int cx = 0; cx < floor.config.width; cx++)
+        {
+            for (int cy = 0; cy < floor.config.height; cy++)
+            {
+                Chunks c = floor.chunks[cx, cy];
+                if (c.roomRole != RoomRole.BossRoom || c.roomId < 0) continue;
+
+                foreach (var room in allRooms)
+                    if (room.Floor == floorIdx && room.RoomId == c.roomId) return room;
+            }
+        }
+        return null;
+    }
+
+    // 방 중앙에서 시작해 바깥쪽 링으로 넓혀가며 footprint가 들어갈 첫 빈자리를 찾는다(2026-08-24
+    // 사용자 요청 "보스방 중앙에서 스폰하게 해줘"). UnitGenerate.GetBossRoomPos는 청크 로컬 tx/ty
+    // 2~5를 순서대로 훑어 "첫 번째" 빈칸을 잡기 때문에 방이 여러 청크면 중앙이 아니라 구석에 가까웠고,
+    // 자리를 못 찾으면 조용히 층 전체 랜덤 위치로 폴백해 3x3 덩치가 복도를 막을 위험이 있었다.
+    private bool TryFindRoomCenterSpawnPos(Room room, Vector2 footprint, out Vector2Int result)
+    {
+        int fw = Mathf.Max(1, (int)footprint.x);
+        int fh = Mathf.Max(1, (int)footprint.y);
+
+        // footprint의 좌하단 원점 기준으로 방 정중앙에 오도록 보정한다.
+        Vector2Int center = new Vector2Int(
+            room.Bounds.xMin + (room.Bounds.width  - fw) / 2,
+            room.Bounds.yMin + (room.Bounds.height - fh) / 2);
+
+        int maxRing = Mathf.Max(room.Bounds.width, room.Bounds.height);
+        for (int ring = 0; ring <= maxRing; ring++)
+        {
+            for (int dx = -ring; dx <= ring; dx++)
+            {
+                for (int dy = -ring; dy <= ring; dy++)
+                {
+                    // 링 테두리만 검사(안쪽은 이전 ring에서 이미 확인함)
+                    if (ring > 0 && Mathf.Abs(dx) != ring && Mathf.Abs(dy) != ring) continue;
+
+                    Vector2Int cand = new Vector2Int(center.x + dx, center.y + dy);
+                    if (cand.x < room.Bounds.xMin || cand.y < room.Bounds.yMin) continue;
+                    if (cand.x + fw > room.Bounds.xMax || cand.y + fh > room.Bounds.yMax) continue;
+                    if (!_unitGenerate.IsAreaClear(cand, footprint, room.Floor)) continue;
+                    if (!IsGoodForInitialSpawn(new Vector3Int(cand.x, cand.y, room.Floor), footprint)) continue;
+
+                    result = cand;
+                    return true;
+                }
+            }
+        }
+
+        result = default;
+        return false;
     }
 
     // 빌드에서는 Application.Quit() 시 OnDestroy 호출이 보장되지 않아 Finalize()만으로는 부족할 수

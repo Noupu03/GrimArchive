@@ -579,6 +579,53 @@
           "parry": "VFX_Parry"
         }
       }
+    },
+    {
+      "typeName": "보스 골렘",
+      "unitClass": "Monster",
+      "footprint": [3, 3],
+      "engageDistance": 8,
+      "populationCost": 0,
+      "skills": ["골렘 내려찍기", "골렘 손쓸기", "골렘 박수"],
+      "stats": {
+        "maxHp": 1800,
+        "maxMp": 0,
+        "physicalAttack": 60,
+        "magicalAttack": 0,
+        "physicalDefense": 20,
+        "magicalDefense": 16,
+        "HPRegen": 0,
+        "attackspeed": 90,
+        "walkSpeed": 3.0,
+        "reaction": 70,
+        "criticalChance": 5,
+        "cooltimeReduction": 50,
+        "statusResistance": 100,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 0,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 8,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": true,
+        "isInterestTarget": true,
+        "baseInterest": 100,
+        "baseDanger": 400,
+        "heavyHitThreshold": 60,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Mon_BossGolem",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
     }
   ]
 }
