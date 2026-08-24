@@ -893,6 +893,43 @@ stillHostile이 항상 false로 나와 ClearAttackObjectTarget()이 즉시 실�
 (isAdjacent만 확인) — 코어 경로에만 있던 문제였다.
 
 ════════════════════════════════════════════════════════════════════════
+■ 22. FSM 리팩토링 감사 — 유닛 공격 명령이 다른 방 진입 시 문 앞에서 멈추는 버그 (2026-08-24 추가,
+   사용자 요청 "FSM 관련 리팩토링 부탁함. 놓친 부분들 있는지 위주" — fork 감사로 발견)
+════════════════════════════════════════════════════════════════════════
+원인: 8번 섹션에서 오브젝트(코어/문) 공격 명령의 "방 경계·문 타일 제한 우회" 버그를 진단·수정했을 때
+`Unit.SetObjectAttackCommand`에만 `isManualMoveCommand = true`를 추가했다 — 형제 메서드인
+`Unit.SetAttackCommand`(유닛 우클릭 공격 명령)는 그때도 지금도 이 플래그를 세팅하지 않은 채였다.
+`RoomConfinedMovement.IsTileWalkable`의 "플레이어 명령 중이면 방 경계·문 타일 제한을 우회" 예외는
+오직 `isManualMoveCommand` 하나만 본다 — 그 결과 플레이어 몬스터에게 다른 방에 있는 적 유닛을
+우클릭 공격 명령해도, 자기 진영 문 타일조차 못 밟고 그 앞에서 멈춘다(8번 섹션에서 진단했던 것과
+정확히 같은 근본 원인이 유닛 공격 명령 경로엔 미적용 상태로 남아있었다).
+
+✅ Unit.SetAttackCommand — `isManualMoveCommand = true` 추가(SetObjectAttackCommand/SetMoveCommand와
+   동일).
+✅ PlayerCommandFSMState.ExecutePlayerAttack — 자연 종료 지점(대상 사망/층 이동)에
+   `unit.isManualMoveCommand = false`를 추가(ExecutePlayerAttackObject와 동일한 이유 — 명령 종료
+   후에도 방 경계 우회 예외가 계속 남아있지 않도록). `ClearPlayerCommand()`(명령 취소 경로)는
+   이미 무조건 되돌리고 있어서 문제 없었다.
+[검증] `isManualMoveCommand`를 읽는 다른 모든 지점(UnitFSM.hasPendingCommand/IdleFSMState.
+GetPriority/CombatFSMState.OnExit/InputManager 인구수 예약 검사/HasActivePlayerCommand)을 전부
+확인 — 전부 `playerAttackTarget != null`을 이미 독립적으로 OR 조건에 넣고 있거나
+`playerMoveTarget.HasValue`도 함께 요구해서, 공격 명령 중 이 플래그가 true가 되는 것 자체는
+그 판정 결과를 바꾸지 않는다(오직 RoomConfinedMovement.IsTileWalkable만 실제로 영향받음, 의도한
+지점).
+
+✅ PlayerCommandFSMState.cs — 2026-07-28 표시된 임시 진단 로그("[FSM진단] ... 이동 명령 포기")
+   제거. 다른 파일들은 이미 "임시 진단 로그 정리"로 지워졌는데(8번 섹션 근처 코드 리팩토링 항목) 이
+   파일만 빠져 있었다 — 목적(포기 빈도 추적)은 이후 여러 차례의 stuck-turn 로직 반복으로 이미
+   완료됐다.
+
+✅ [사용자 확인 완료 — 삭제] `NavigationBehaviorPriorityConfig`가 죽은 설정으로 확인돼 사용자가
+   삭제를 선택했다. `Config/NavigationBehaviorPriorityConfig.cs` 파일 삭제, `AIConfigLoader.cs`의
+   `NavigationPriority` 프로퍼티/`_navigation` 캐시 필드 제거, `Editor/AIConfigAutoSetup.cs`의 생성
+   목록에서 제외. 실제 `.asset` 인스턴스는 애초에 생성된 적이 없어 정리할 게 없었다.
+   `문서/AI/FSM+BT_설계_현황.md`도 함께 정정(NavigationFSMState BT 섹션이 2026-07-24 이전의
+   PlayerAttack/PlayerMove 분기와 영문 GetLabel 표기를 그대로 남긴 채 안 맞았던 것도 이 김에 바로잡음).
+
+════════════════════════════════════════════════════════════════════════
 ■ 다음에 이 시스템을 확장할 때
 ════════════════════════════════════════════════════════════════════════
 1. 위 "다음 우선순위 구현 후보" 3개(수치 튜닝, 웨이브 목표 방 확장, 문 진영 개편의 부수 영향

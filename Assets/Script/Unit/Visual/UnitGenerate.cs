@@ -22,6 +22,11 @@ public class UnitGenerate
 	// 여부와 무관하게 모든 유닛의 시야/인지 범위를 SyncVisuals가 표시한다(SetVisionRangesVisible 참고).
 	public bool ShowAllVisionRanges = false;
 
+	// debug 메뉴 "유닛 상태 표시" 토글(2026-08-24 사용자 요청) — 꺼지면 유닛 머리 위 현재 FSM 상태
+	// 라벨(SyncVisual의 uv.UpdateStatusLabel 호출부 참고)을 전부 숨긴다. 기존 동작(항상 표시)을 그대로
+	// 유지하도록 기본값은 true.
+	public bool ShowUnitStatusLabels = true;
+
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
 	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
@@ -498,7 +503,7 @@ public class UnitGenerate
 				{
 					hiddenByFog = !liveRoom.FogRevealed;
 				}
-				uv.UpdateStatusLabel(hiddenByFog ? null : u.fsm.GetLabel(u), u is Human);
+				uv.UpdateStatusLabel(ShowUnitStatusLabels && !hiddenByFog ? u.fsm.GetLabel(u) : null, u is Human);
 
 				// 함정 해제 시도 중임을 유닛 하단에 표시(사용자 요청, 2026-07-23) — 머리 위 상태
 				// 라벨과 같은 world-space TextMesh 방식, 위치만 하단으로 뒤집는다.

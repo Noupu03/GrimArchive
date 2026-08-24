@@ -297,6 +297,13 @@ public abstract class Unit : ScriptableObject {
 		ClearAttackObjectTarget();
 		isHalted = false;
 		isStandGroundAttack = false;
+		// SetObjectAttackCommand/SetMoveCommand와 동일한 이유로 켜야 한다(2026-08-24 리팩토링 감사로
+		// 발견) — RoomConfinedMovement.IsTileWalkable의 "플레이어 명령 중이면 방 경계·문 타일 제한을
+		// 우회" 예외가 오직 이 플래그만 본다. 이게 빠져 있으면 플레이어 몬스터에게 다른 방에 있는 적
+		// 유닛을 우클릭 공격 명령해도, 자기 진영 문 타일조차 못 밟고 그 앞에서 멈춘다 — 오브젝트 공격
+		// 명령에서 이미 한 번 진단·수정했던 것과 정확히 같은 근본 원인(새데모_구현현황_2026-08-22.txt
+		// 8번 섹션 참고)이 유닛 공격 명령 경로엔 미적용 상태로 남아있었다.
+		isManualMoveCommand = true;
 	}
 
 	public void SetObjectAttackCommand(Vector3Int target)

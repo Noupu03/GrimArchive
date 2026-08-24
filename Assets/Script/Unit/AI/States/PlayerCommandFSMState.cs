@@ -135,6 +135,11 @@ public class PlayerCommandFSMState : IFSMState
 		{
 			unit.playerAttackTarget = null;
 			unit.oneTimeReactUsed   = false;
+			// ExecutePlayerAttackObject와 동일한 이유로 되돌려야 한다(2026-08-24 리팩토링 감사로 발견) —
+			// SetAttackCommand가 방 경계·문 타일 제한 우회를 위해 이 플래그를 켜므로, 명령이 자연
+			// 종료될 때 여기서도 반드시 꺼야 한다. 안 그러면 대상이 죽거나 층이 바뀐 뒤에도 이 예외가
+			// 계속 남아 그 유닛이 이후 자율 행동 중에도 방 경계를 무단으로 넘나들 수 있게 된다.
+			unit.isManualMoveCommand = false;
 			return BTStatus.Success;
 		}
 
@@ -275,9 +280,6 @@ public class PlayerCommandFSMState : IFSMState
 			{
 				// 목표 주변이 지형(벽/닫힌 문)으로 진짜 완전히 막혀 있다 — 더 이상 수행 불가능하므로
 				// 명령을 포기하고 다음 틱부터 정상 판단으로 돌아간다(무한 고착 방지).
-				// 진단 로그(2026-07-28, 임시) — 이 give-up이 실제로 얼마나 자주/왜 발동하는지 추적.
-				Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME,
-					$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 이동 명령 포기 — target={target} pos={unit.position} (구조적으로 완전히 막힘)");
 				unit.AbortMoveCommand();
 				return BTStatus.Success;
 			}

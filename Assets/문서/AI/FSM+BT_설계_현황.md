@@ -117,7 +117,10 @@ BTSelector  ← 03문서 기본 순서
 
 ## NavigationFSMState BT
 
-BT 자식 순서는 `Assets/Resources/FSM+BT/NavigationPriority.asset`에서 변경 가능.
+BT 자식 순서는 생성자에 하드코딩(설정 에셋 없음 — 2026-08-24 FSM 리팩토링 감사로
+`NavigationBehaviorPriorityConfig`/`NavigationPriority.asset`가 죽은 설정임이 확인돼 삭제됨. 실제
+에셋 인스턴스가 생성된 적도 없었다). 플레이어 공격/이동 명령은 2026-07-24에
+`PlayerCommandFSMState`로 완전히 분리됐다 — 아래 트리엔 더 이상 없다.
 
 ```
 BTSelector
@@ -126,21 +129,19 @@ BTSelector
 │    ├─ Leaf: MoveToStairs   (매 틱 최적 접근 후보 타일로 이동)
 │    └─ Leaf: CrossStairs    (2×2 블록 반경 stairArrivalRadius 이내 → 층 이동 실행)
 │
-├─ [PlayerAttack] BTSequence
-│    ├─ Condition: playerAttackTarget != null && hp > 0
-│    └─ Leaf: ExecutePlayerAttack (사거리 내 스킬 사용, 아니면 접근)
-│
-├─ [PlayerMove]   BTSequence
-│    ├─ Condition: playerMoveTarget.HasValue && isManualMoveCommand
-│    ├─ Leaf: ExecutePlayerMove   (목표 위치 도달까지 이동)
-│    └─ Leaf: CompletePlayerCommand (명령 클리어)
+├─ [DungeonEntranceWait] BTSequence (2026-08-20 신규)
+│    ├─ Condition: IsInDungeonEntranceSequence (DungeonEntranceSystem이 0층 진형을 제어 중)
+│    └─ Leaf: HoldPosition
 │
 └─ [Explore]      Leaf: RandomExplore
       30% 확률 무작위 이동,
       나머지: exploreRadius 내 미탐색 타일(discoveredMap==0) 중 가장 가까운 곳으로 이동
 ```
 
-**GetLabel**: `"Stairs"` / `"PlayerAttack"` / `"PlayerMove"` / `"Explore"`
+**GetLabel**: `"탐색(계단)"` / `"탐색(탐험)"`(2026-08-24 문서 정정 — 예전 영문 라벨 표기는 이미 오래
+전에 한국어 라벨로 교체돼 실제 코드와 안 맞았다. 플레이어 명령 중엔 PlayerCommandFSMState.
+GetLabel이 별도로 `"명령(공격)"`/`"명령(이동)"`을 반환 — NavigationFSMState는 그 라벨을 관여하지
+않는다)
 
 ---
 
@@ -161,7 +162,9 @@ BTSelector
 |----------|-------|------|
 | `Resources/FSM+BT/AIBehaviorConfig.asset` | `AIBehaviorConfig` | 수치 파라미터 전체 (우선순위, 비율, 초 단위 값 등) |
 | `Resources/FSM+BT/TacticalPriority.asset` | `TacticalBehaviorPriorityConfig` | Tactical BT 자식 순서 + 활성화 여부 |
-| `Resources/FSM+BT/NavigationPriority.asset` | `NavigationBehaviorPriorityConfig` | Navigation BT 자식 순서 + 활성화 여부 |
+
+(`NavigationPriority.asset`/`NavigationBehaviorPriorityConfig`는 2026-08-24 삭제 — Navigation BT는
+설정 에셋 없이 생성자에 하드코딩된 순서로만 동작한다. 위 NavigationFSMState BT 섹션 참고.)
 
 에셋 생성 메뉴: **GrimArchive → AI → FSM+BT 설정 에셋 생성**  
 에셋이 없으면 각 값은 `?? 하드코딩 기본값`으로 폴백한다.
@@ -183,6 +186,6 @@ GetLabel()     → fsm.GetLabel(this)   // UI/디버그 표시용
 | 현재 | 전환 후 |
 |------|--------|
 | `AIConfigLoader`의 `Resources.Load<T>()` | `BTGraphAsset` 로더로 교체 |
-| `TacticalBehaviorType` / `NavigationBehaviorType` enum | BTNodeSO 파생 클래스의 타입 식별자 |
+| `TacticalBehaviorType` enum | BTNodeSO 파생 클래스의 타입 식별자 |
 | `BuildBTNodes()` 딕셔너리 | BTNodeSO 에셋에서 직접 트리 구성 |
-| `TacticalPriority.asset`, `NavigationPriority.asset` | 그래프 에셋으로 통합 |
+| `TacticalPriority.asset` | 그래프 에셋으로 통합 |
