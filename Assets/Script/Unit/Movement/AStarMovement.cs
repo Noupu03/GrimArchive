@@ -261,6 +261,33 @@ public class AStarMovement : IMovementAlgorithm
         return false;
     }
 
+    // 명령 경로 시각화용(2026-08-24 사용자 요청, IMovementAlgorithm 인터페이스 주석 참고) — TryGetNextStep이
+    // 채워둔 _cacheTarget/_pathMap을 그대로 읽기만 한다. _cacheTarget은 필드 초기값이 (-9999,-9999)라
+    // 아직 한 번도 경로를 계산한 적 없으면 _pathMap.Count == 0이라 false를 반환한다.
+    public bool TryGetCachedDestination(out Vector2Int destination)
+    {
+        destination = _cacheTarget;
+        return _pathMap.Count > 0;
+    }
+
+    // unit.position에서 시작해 _pathMap을 따라 _cacheTarget까지 좌표를 나열한다. _pathMap은 마지막
+    // TryGetNextStep 호출 시점의 경로 백본이라 유닛이 그 사이 이동했으면 앞쪽 일부 좌표가 이미 없을 수
+    // 있다(자연스럽게 그 지점에서 경로가 끊겨 보인다 — 다음 TryGetNextStep 호출에서 다시 채워진다).
+    public List<Vector2Int> BuildCachedPathPreview(Unit unit, int maxSteps)
+    {
+        var result = new List<Vector2Int> { unit.position };
+        Vector2Int cur = unit.position;
+        int steps = 0;
+        while (cur != _cacheTarget && steps < maxSteps)
+        {
+            if (!_pathMap.TryGetValue(cur, out Dir dir)) break;
+            cur += unit.GetDirVector(dir);
+            result.Add(cur);
+            steps++;
+        }
+        return result;
+    }
+
     // 유닛 점유 타일을 "비용만 추가되는 통행 가능 칸"으로 취급했었는데, 실제 이동을 실행하는
     // UnitFunction.CanMove/Move()는 점유된 칸을 예외 없이 완전히 막는다(2026-07-22 발견) — A*가
     // "이 길로 가면 조금 더 걸리지만 갈 수는 있다"고 추천한 칸이 실제로는 Move() 단계에서 조용히

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 public class UnitVisual : MonoBehaviour
 {
@@ -312,6 +313,87 @@ public class UnitVisual : MonoBehaviour
 		{
 			float rad = (360f * i / segments) * Mathf.Deg2Rad;
 			line.SetPosition(i, new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius);
+		}
+	}
+
+	// ─────────────────────────── 명령 경로 시각화 (선택 중일 때만, 월드 좌표) ───────────────────────────
+	// 2026-08-24 사용자 요청 "유닛에게 명령 실행시, 유닛이 명령받은 지점과, 명령 경로가 뜨도록 시각화를
+	// 하게 해줘. 길찾기 알고리즘에 따른 변경도 같이 실시간 반영. 이 시각화는 유닛 선택 중일때만 보임.
+	// (다중 선택했을때도.)" — 위 시야/인지 콘과 달리 유닛 트랜스폼을 따라다니면 안 되므로(경로는 절대
+	// 월드 좌표) useWorldSpace=true로 별도 LineRenderer를 쓴다. 새로 경로를 계산하지 않고
+	// Unit.MovementAlgorithm(AStarMovement)이 실제 이동 판단에 쓰던 캐시(_cacheTarget/_pathMap)를 그대로
+	// 읽기만 하므로, 길찾기가 다시 도는 순간(장애물 변화 등) 자동으로 갱신된 경로가 반영된다.
+	private LineRenderer _commandPathLine;
+	private LineRenderer _commandDestMarker;
+	private static readonly Color CommandPathColor = new Color(1f, 0.95f, 0.2f, 0.95f); // 선명한 노랑
+	private const float CommandPathLineWidth = 0.06f;
+	private const float CommandDestMarkerRadius = 0.28f;
+	private const int CommandPathSortingOrder = 12;
+	private const int CommandDestMarkerSortingOrder = 13;
+
+	// floorOffset(2026-08-24 버그 수정, 사용자 신고 "안보이는데?") — unit.position은 층별 로컬 그리드
+	// 좌표라 실제 월드 좌표가 되려면 그 층의 타일맵 오프셋(UnitGenerate.GetFloorOffset)을 더해야 한다
+	// (SyncVisual의 newPos 계산과 동일한 이유). 이 오프셋 없이 그리면 여러 층이 월드 공간에 나란히
+	// 떨어져 배치돼 있는 경우 엉뚱한(대개 화면 밖) 위치에 그려져 아예 안 보였다.
+	public void UpdateCommandPathVisual(bool visible, List<Vector2Int> pathTiles, Vector3 floorOffset)
+	{
+		if (!visible || pathTiles == null || pathTiles.Count < 2)
+		{
+			if (_commandPathLine != null) _commandPathLine.enabled = false;
+			if (_commandDestMarker != null) _commandDestMarker.enabled = false;
+			return;
+		}
+
+		EnsureCommandPathVisuals();
+		_commandPathLine.enabled = true;
+		_commandDestMarker.enabled = true;
+
+		_commandPathLine.positionCount = pathTiles.Count;
+		for (int i = 0; i < pathTiles.Count; i++)
+			_commandPathLine.SetPosition(i, TileCenterWorld(pathTiles[i], floorOffset));
+
+		DrawWorldCircle(_commandDestMarker, TileCenterWorld(pathTiles[pathTiles.Count - 1], floorOffset), CommandDestMarkerRadius);
+	}
+
+	private static Vector3 TileCenterWorld(Vector2Int tile, Vector3 floorOffset) => new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
+
+	private void EnsureCommandPathVisuals()
+	{
+		if (_commandPathLine != null) return;
+
+		_commandPathLine = CreateWorldLine("CommandPathLine", CommandPathColor, CommandPathLineWidth, CommandPathSortingOrder);
+		_commandDestMarker = CreateWorldLine("CommandDestMarker", CommandPathColor, CommandPathLineWidth, CommandDestMarkerSortingOrder);
+		_commandDestMarker.loop = true;
+	}
+
+	private LineRenderer CreateWorldLine(string name, Color color, float width, int sortingOrder)
+	{
+		GameObject go = new GameObject(name);
+		go.transform.SetParent(transform, false);
+
+		LineRenderer line = go.AddComponent<LineRenderer>();
+		line.startWidth = width;
+		line.endWidth = width;
+		line.material = new Material(Shader.Find("Sprites/Default"));
+		line.startColor = color;
+		line.endColor = color;
+		line.useWorldSpace = true; // 경로 좌표는 유닛 트랜스폼과 무관한 절대 월드 좌표.
+		line.sortingOrder = sortingOrder;
+		line.enabled = false;
+		return line;
+	}
+
+	private static void DrawWorldCircle(LineRenderer line, Vector3 worldCenter, float radius)
+	{
+		if (line == null) return;
+
+		int segments = 16;
+		line.loop = true;
+		line.positionCount = segments;
+		for (int i = 0; i < segments; i++)
+		{
+			float rad = (360f * i / segments) * Mathf.Deg2Rad;
+			line.SetPosition(i, worldCenter + new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius);
 		}
 	}
 }

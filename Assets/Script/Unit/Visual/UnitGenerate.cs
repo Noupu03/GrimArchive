@@ -29,6 +29,10 @@ public class UnitGenerate
 	// 메뉴에서 켠다.
 	public bool ShowUnitStatusLabels = false;
 
+	// 명령 경로 시각화(2026-08-24) — BuildCachedPathPreview가 따라갈 최대 waypoint 수. 정상적인 경로는
+	// 이보다 훨씬 짧다 — 캐시가 어긋난 극단적 상황에서 무한 루프/과도한 LineRenderer 포인트를 막는 안전판.
+	private const int CommandPathMaxSteps = 200;
+
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
 	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
@@ -593,6 +597,20 @@ public class UnitGenerate
 			{
 				cache.VisionRangeShown = false;
 			}
+
+			// 명령 경로 시각화(2026-08-24 사용자 요청 "유닛에게 명령 실행시, 유닛이 명령받은 지점과,
+			// 명령 경로가 뜨도록... 이 시각화는 유닛 선택 중일때만 보임(다중 선택했을때도)") — 시야
+			// 표시와 달리 다중 선택된 유닛 각각에 대해 독립적으로 보여준다(단일 선택 제한 없음).
+			// MovementAlgorithm이 실제 이동 판단에 쓰던 경로 캐시를 그대로 읽어 새로 계산하지 않는다 —
+			// 길찾기가 다시 도는 순간 자동으로 최신 경로가 반영된다.
+			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u);
+			List<Vector2Int> commandPath = null;
+			if (isSelected && u.HasActivePlayerCommand() && u.MovementAlgorithm != null
+				&& u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int _))
+			{
+				commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
+			}
+			uv.UpdateCommandPathVisual(isSelected, commandPath, GetFloorOffset(u.currentFloor));
 		}
 
 		EnsureSelectionMarker(cache, go, u);
