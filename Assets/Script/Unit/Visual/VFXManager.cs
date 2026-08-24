@@ -59,6 +59,13 @@ public class VFXManager
             go = pool.Get();
         }
         
+        // 이펙트 크기는 항상 "프리팹에 저장된 스케일" 그대로다(2026-08-24 사용자 요청 "파티클 생성시
+        // 게임 프리팹의 Scale이 아닌 임의로 (1,1,1) 데이터를 사용하는 듯 함 — 불러오려는 VFX 파티클의
+        // Scale을 그대로 적용되게"). 예전엔 부모 지정 스폰이 부모 lossyScale의 역수를, 무부모 스폰이
+        // Vector3.one을 통째로 덮어써서 프리팹 루트에서 조정한 크기(Assets/VFX/Prefab/*.prefab의 루트
+        // 스케일 0.01 등)가 전부 무시되고 항상 1배로 나왔다.
+        Vector3 authoredScale = prefab.transform.localScale;
+
         if (parent != null)
         {
             go.transform.SetParent(parent);
@@ -68,19 +75,15 @@ public class VFXManager
             // 높이에 가깝도록 0.5만큼 위로 띄운다 — 히트 스파크/가드/패리/사망 VFX 등 부모 지정
             // 스폰 전부가 이 한 지점을 거치므로 한 번에 고쳐진다.
             go.transform.localPosition = ParentedSpawnPivotOffset;
-            Vector3 pScale = parent.lossyScale;
-            go.transform.localScale = new Vector3(
-                Mathf.Abs(pScale.x) > 0.0001f ? (1f / pScale.x) : 1f,
-                Mathf.Abs(pScale.y) > 0.0001f ? (1f / pScale.y) : 1f,
-                1f
-            );
+            go.transform.localScale = ToLocalScale(authoredScale, parent);
             go.transform.rotation = rotation;
         }
         else
         {
-            go.transform.SetParent(PooledObjectRoot.Get());
+            Transform poolRoot = PooledObjectRoot.Get();
+            go.transform.SetParent(poolRoot);
             go.transform.position = position;
-            go.transform.localScale = Vector3.one;
+            go.transform.localScale = ToLocalScale(authoredScale, poolRoot);
             go.transform.rotation = rotation;
         }
 
@@ -115,6 +118,25 @@ public class VFXManager
         return go;
     }
 
+    // "이펙트의 최종 월드 스케일 == 프리팹에 저장된 스케일"이 되도록 부모의 누적 스케일(lossyScale)만
+    // 상쇄한 로컬 스케일을 계산한다(2026-08-24). 이 프로젝트의 VFX 프리팹은 전부 ParticleSystem의
+    // Scaling Mode가 Hierarchy(scalingMode: 0)라 파티클 크기가 계층 전체 스케일을 따라간다 — 프리팹
+    // 루트 스케일 하나로 자식 파티클까지 통째로 조절할 수 있는 대신, 그대로 두면 유닛 비주얼 루트의
+    // footprint 배율(2x2 유닛이면 (2,2,1) — UnitGenerate.SetupUnitVisual)까지 곱해져 대형 유닛의
+    // 이펙트만 커진다. 이펙트 크기는 유닛 크기와 무관하게 프리팹이 정한 값으로 통일한다.
+    // 부호까지 그대로 나눠 상쇄하므로 부모가 좌우 반전(스케일 x 음수)돼 있어도 이펙트는 반전되지 않는다.
+    private static Vector3 ToLocalScale(Vector3 authoredScale, Transform parent)
+    {
+        if (parent == null) return authoredScale;
+
+        Vector3 pScale = parent.lossyScale;
+        return new Vector3(
+            Mathf.Abs(pScale.x) > 0.0001f ? authoredScale.x / pScale.x : authoredScale.x,
+            Mathf.Abs(pScale.y) > 0.0001f ? authoredScale.y / pScale.y : authoredScale.y,
+            Mathf.Abs(pScale.z) > 0.0001f ? authoredScale.z / pScale.z : authoredScale.z
+        );
+    }
+
     private static async UniTaskVoid ReleaseToPoolAfterTime(ObjectPool<GameObject> pool, GameObject go, float delay)
     {
         // Cancel if the gameobject is destroyed unexpectedly (e.g. scene change)
@@ -146,7 +168,13 @@ public class VFXManager
         Vector3 worldPos = parent != null ? parent.position : Vector3.zero;
 
         GameObject instance = Object.Instantiate(BlockBreakingVfxPrefab, worldPos, Quaternion.identity, parent);
-        if (parent != null) instance.transform.localPosition = Vector3.zero;
+        if (parent != null)
+        {
+            instance.transform.localPosition = Vector3.zero;
+            // 위 Spawn()과 동일한 규칙 — 대상(문/코어) 비주얼의 스케일이 어떻든 이펙트는 프리팹이 정한
+            // 크기 그대로 보이게 한다(Scaling Mode가 Hierarchy라 상쇄하지 않으면 부모 스케일이 곱해진다).
+            instance.transform.localScale = ToLocalScale(BlockBreakingVfxPrefab.transform.localScale, parent);
+        }
 
         // 정렬 순서(2026-08-24 사용자 신고 "이펙트 여전히 안 나옴" 원인) — 프리팹의 ParticleSystemRenderer가
         // 기본값(Sorting Layer "Default"/Order 0)이라, 같은 자리의 문/코어 스프라이트(GameSession.

@@ -452,7 +452,31 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // CreateMap.Chunks.occupationState(Neutral=야생)로 판정한다 — Room.RoomFaction(오펜스 시스템)과는
     // 별개의 개념이라 건드리지 않는다. WildBaseSpawnerComponent.SpawnMonster와 동일한 스폰 패턴
     // (랜덤 위치 + IsAreaClear 재시도 + WildMonsterBehavior/RoomConfinedMovement 부여)을 재사용한다.
+    // 2026-08-24: 배치되는 종류가 야생 몬스터 A 고정에서 4종 랜덤으로 확장됐다(아래 참고).
     private const int WildRoomGuardCount = 2;
+
+    // 2026-08-24 사용자 요청("야생 몬스터 A만 야생유닛으로 설정해뒀는데 재미없어 보여서 / 주술사와
+    // 도적 그리고 전사도 야생유닛으로 소환시켜줘 / 야생유닛, 주술사, 도적, 전사를 랜덤으로 해서
+    // 소환하는거야") — 야생 방 가드는 이제 아래 4종에서 한 마리씩 독립적으로 균등 추첨한다(같은 방의
+    // 2마리가 서로 다른 종류일 수 있다).
+    //
+    // 인류 직업 3종을 섞지만 생성 클래스는 야생 몬스터 A와 똑같이 Monster다 — Human으로 만들면
+    // 파티/자유탐색/코어·문 자동 공격 같은 인류 전용 AI가 통째로 붙어 "자기 방 안에만 머무는 야생
+    // 가드"가 아니게 된다(CLAUDE.md의 "자동 오브젝트 공격은 인류 전용" 하드 룰과도 충돌한다).
+    // 스탯/스킬/스프라이트는 전부 프리팹(Assets/Resources/Units/{typeName}.prefab의
+    // UnitVisualDefinition)에서 오므로 unitType만 바꿔주면 그 직업 그대로 나오고, 방 제한 이동/전투
+    // 유지 판정도 unitType이 아니라 MovementAlgorithm(AIMovementHelper.IsRoomConfined)을 보므로
+    // 아래 스폰 루프가 부여하는 RoomConfinedMovement 그대로 야생 몬스터 A와 동일하게 동작한다.
+    private static readonly System.Func<UnitType>[] WildRoomGuardTypeFactories =
+    {
+        () => new WildMonsterA(),
+        () => new Shaman(),
+        () => new Rogue(),
+        () => new Warrior(),
+    };
+
+    private static UnitType PickRandomWildGuardType()
+        => WildRoomGuardTypeFactories[UnityEngine.Random.Range(0, WildRoomGuardTypeFactories.Length)]();
 
     public void SpawnWildRoomGuards()
     {
@@ -466,7 +490,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             for (int i = 0; i < WildRoomGuardCount; i++)
             {
-                UnitType monsterType = new WildMonsterA();
+                UnitType monsterType = PickRandomWildGuardType();
                 Vector2Int spawnPos = room.GetRandomPosInRoom();
                 int attempts = 0;
                 while (!_unitGenerate.IsAreaClear(spawnPos, monsterType.footprint, room.Floor) && attempts < 20)
