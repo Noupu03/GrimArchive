@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class UnitVisual : MonoBehaviour
@@ -325,39 +325,64 @@ public class UnitVisual : MonoBehaviour
 	// 읽기만 하므로, 길찾기가 다시 도는 순간(장애물 변화 등) 자동으로 갱신된 경로가 반영된다.
 	private LineRenderer _commandPathLine;
 	private LineRenderer _commandDestMarker;
+	private LineRenderer _hoverMarker;
 	private static readonly Color CommandPathColor = new Color(1f, 0.95f, 0.2f, 0.95f); // 선명한 노랑
 	private const float CommandPathLineWidth = 0.06f;
 	private const float CommandDestMarkerRadius = 0.28f;
 	private const int CommandPathSortingOrder = 12;
 	private const int CommandDestMarkerSortingOrder = 13;
+	private const int HoverMarkerSortingOrder = 14;
 
 	// floorOffset(2026-08-24 버그 수정, 사용자 신고 "안보이는데?") — unit.position은 층별 로컬 그리드
 	// 좌표라 실제 월드 좌표가 되려면 그 층의 타일맵 오프셋(UnitGenerate.GetFloorOffset)을 더해야 한다
 	// (SyncVisual의 newPos 계산과 동일한 이유). 이 오프셋 없이 그리면 여러 층이 월드 공간에 나란히
 	// 떨어져 배치돼 있는 경우 엉뚱한(대개 화면 밖) 위치에 그려져 아예 안 보였다.
-	public void UpdateCommandPathVisual(bool visible, List<Vector2Int> pathTiles, Vector3 floorOffset)
+	public void UpdateCommandPathVisual(bool visible, List<Vector2Int> pathTiles, Vector3 floorOffset, Vector2Int? hoverTile = null, Vector2Int? explicitDestTile = null)
 	{
-		if (!visible || pathTiles == null || pathTiles.Count < 2)
+		if (!visible)
 		{
 			if (_commandPathLine != null) _commandPathLine.enabled = false;
 			if (_commandDestMarker != null) _commandDestMarker.enabled = false;
+			if (_hoverMarker != null) _hoverMarker.enabled = false;
 			return;
 		}
 
 		EnsureCommandPathVisuals();
-		_commandPathLine.enabled = true;
-		_commandDestMarker.enabled = true;
 
-		_commandPathLine.positionCount = pathTiles.Count;
-		for (int i = 0; i < pathTiles.Count; i++)
-			_commandPathLine.SetPosition(i, TileCenterWorld(pathTiles[i], floorOffset));
+		if (hoverTile.HasValue)
+		{
+			_hoverMarker.enabled = true;
+			DrawWorldSquare(_hoverMarker, TileCenterWorld(hoverTile.Value, floorOffset), 1.0f);
+		}
+		else
+		{
+			_hoverMarker.enabled = false;
+		}
 
-		DrawWorldSquare(
-    _commandDestMarker,
-    TileCenterWorld(pathTiles[pathTiles.Count - 1], floorOffset),
-    0.9f
-);
+		bool hasPath = pathTiles != null && pathTiles.Count >= 2;
+		Vector2Int? dest = explicitDestTile ?? (hasPath ? pathTiles[pathTiles.Count - 1] : (Vector2Int?)null);
 
+		if (hasPath)
+		{
+			_commandPathLine.enabled = true;
+			_commandPathLine.positionCount = pathTiles.Count;
+			for (int i = 0; i < pathTiles.Count; i++)
+				_commandPathLine.SetPosition(i, TileCenterWorld(pathTiles[i], floorOffset));
+		}
+		else
+		{
+			_commandPathLine.enabled = false;
+		}
+
+		if (dest.HasValue)
+		{
+			_commandDestMarker.enabled = true;
+			DrawWorldSquare(_commandDestMarker, TileCenterWorld(dest.Value, floorOffset), 0.9f);
+		}
+		else
+		{
+			_commandDestMarker.enabled = false;
+		}
 	}
 
 	private static Vector3 TileCenterWorld(Vector2Int tile, Vector3 floorOffset) => new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
@@ -369,6 +394,8 @@ public class UnitVisual : MonoBehaviour
 		_commandPathLine = CreateWorldLine("CommandPathLine", CommandPathColor, CommandPathLineWidth, CommandPathSortingOrder);
 		_commandDestMarker = CreateWorldLine("CommandDestMarker", CommandPathColor, CommandPathLineWidth, CommandDestMarkerSortingOrder);
 		_commandDestMarker.loop = true;
+		_hoverMarker = CreateWorldLine("HoverMarker", CommandPathColor, CommandPathLineWidth, HoverMarkerSortingOrder);
+		_hoverMarker.loop = true;
 	}
 
 	private LineRenderer CreateWorldLine(string name, Color color, float width, int sortingOrder)

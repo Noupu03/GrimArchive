@@ -605,12 +605,41 @@ public class UnitGenerate
 			// 길찾기가 다시 도는 순간 자동으로 최신 경로가 반영된다.
 			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u);
 			List<Vector2Int> commandPath = null;
-			if (isSelected && u.HasActivePlayerCommand() && u.MovementAlgorithm != null
-				&& u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int _))
+			Vector2Int? hoverTile = null;
+			Vector2Int? explicitDest = null;
+
+			if (isSelected)
 			{
-				commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
+				bool overUI = (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+					|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel())
+					|| (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+					|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+
+				if (!overUI)
+				{
+					Vector2 mousePos = GameInputScheme.PointerScreenPos;
+					Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, GetFloorOffset(u.currentFloor), u.currentFloor);
+					hoverTile = new Vector2Int(gridPos.x, gridPos.y);
+				}
+
+				if (u.HasActivePlayerCommand())
+				{
+					explicitDest = u.playerMoveTarget;
+					if (!explicitDest.HasValue && u.playerAttackObjectTarget.HasValue)
+						explicitDest = new Vector2Int(u.playerAttackObjectTarget.Value.x, u.playerAttackObjectTarget.Value.y);
+					if (!explicitDest.HasValue && u.playerAttackTarget != null)
+						explicitDest = u.playerAttackTarget.position;
+					if (!explicitDest.HasValue && u.playerInteractTarget.HasValue)
+						explicitDest = new Vector2Int(u.playerInteractTarget.Value.x, u.playerInteractTarget.Value.y);
+
+					if (u.MovementAlgorithm != null && u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int cacheDest))
+					{
+						commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
+						if (!explicitDest.HasValue) explicitDest = cacheDest;
+					}
+				}
 			}
-			uv.UpdateCommandPathVisual(isSelected, commandPath, GetFloorOffset(u.currentFloor));
+			uv.UpdateCommandPathVisual(isSelected, commandPath, GetFloorOffset(u.currentFloor), hoverTile, explicitDest);
 		}
 
 		EnsureSelectionMarker(cache, go, u);
