@@ -92,6 +92,13 @@ public class InputManager : MonoBehaviour
 	public bool IsObjectOnlyPlacementActive => _objectPlacement != null && _objectPlacement.IsObjectModeActive;
 	public bool IsTrapPlacementActive => _objectPlacement != null && _objectPlacement.IsTrapModeActive;
 	public bool IsDoorRepairPlacementActive => _objectPlacement != null && _objectPlacement.IsDoorRepairModeActive;
+	// 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드 / 함정 무제한 설치 토글.
+	public bool IsWallConvertPlacementActive => _objectPlacement != null && _objectPlacement.IsWallConvertModeActive;
+	public bool DebugUnlimitedTrapPlacement
+	{
+		get => _objectPlacement != null && _objectPlacement.DebugUnlimitedTrapPlacement;
+		set { if (_objectPlacement != null) _objectPlacement.DebugUnlimitedTrapPlacement = value; }
+	}
 
 	// 우클릭 취소를 없앤 대신(2026-08-20, 사용자 요청) BottomMenuBar가 "다른 메뉴로 전환" 또는 "같은
 	// 서브 버튼 재클릭" 시점에 호출하는 단일 취소 진입점. 취소 notice도 (재클릭이든 메뉴 전환이든) 이
@@ -114,6 +121,7 @@ public class InputManager : MonoBehaviour
 		if (IsTrapPlacementActive) return "함정";
 		if (IsObjectOnlyPlacementActive) return "오브젝트";
 		if (IsDoorRepairPlacementActive) return "문 재설치";
+		if (IsWallConvertPlacementActive) return "벽 변환";
 		return null;
 	}
 
@@ -198,6 +206,8 @@ public class InputManager : MonoBehaviour
 	public void EnterObjectPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterObjectMode(); }
 	public void EnterTrapPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterTrapMode(); }
 	public void EnterDoorRepairPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterDoorRepairMode(); }
+	// 2026-08-24 debug 전용.
+	public void EnterWallConvertPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterWallConvertMode(); }
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{
@@ -221,6 +231,15 @@ public class InputManager : MonoBehaviour
 	{
 		if (_gameSession == null) return;
 		if (!GameInputScheme.IsReady) return;
+
+		// 사망 후 Destroy된 유닛이 선택 목록에 계속 남는 문제 예방(2026-08-24, 사용자 요청 "사망시
+		// destroy 처리 잘 되게") — GameSession.RemoveDeadUnit이 Destroy(u)를 호출해도 InputManager가
+		// 따로 들고 있는 _selectedUnits에서는 자동으로 안 빠진다. Unity는 실제 파괴를 프레임 끝에
+		// 처리하므로 다음 프레임부터 u==null이 true가 되는데, 그때까지 목록에 남아있으면
+		// DebugInfoPanel 등 소비처가 파괴된 참조의 멤버(u.unitType 등)에 접근하다가
+		// MissingReferenceException을 던질 수 있다 — 매 프레임 시작 시점에 선제적으로 정리한다.
+		if (_selectedUnits.RemoveAll(u => u == null) > 0)
+			OnSelectionChanged?.Invoke();
 
 		int currentFloor = 1;
 		Vector3 floorOffset =

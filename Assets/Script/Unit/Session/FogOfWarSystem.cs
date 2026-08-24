@@ -471,6 +471,12 @@ public class FogOfWarSystem
     // 생겨서 그 프레임에 빛이 새어 보였다. 그래서 새 캐스터를 먼저 만들어 등록될 시간을 확실히 준
     // 뒤에(2프레임 대기) 기존 걸 지우는 순서로 바꿨다 — 겹치는 몇 프레임 동안 신/구 캐스터가 같이
     // 있어도 중복으로 막아줄 뿐 문제 없다.
+    // 2026-08-24 debug 전용(GameSession.DebugConvertFloorTileToWall) — 맵 데이터에 벽 타일을 즉석에서
+    // 추가한 뒤, 빛(Light2D)이 그 벽도 막게 벽+안개 통합 셰도우 캐스터를 다시 굽는다. RevealRoomFog 등
+    // 기존 호출부와 동일한 private 메서드를 그대로 재사용 — 이 메서드는 floorIndex==0을 포함해 항상
+    // MapRandering.BuildWallMask를 그 시점 데이터로 새로 읽으므로 방금 바뀐 벽도 곧바로 반영된다.
+    public void NotifyFloorGeometryChanged(int floorIndex) => RebuildFloorFogShadowCasters(floorIndex);
+
     private void RebuildFloorFogShadowCasters(int floorIndex)
     {
         CreateMap cmap = Session.cmap;

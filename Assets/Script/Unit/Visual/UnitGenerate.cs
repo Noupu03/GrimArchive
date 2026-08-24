@@ -29,6 +29,10 @@ public class UnitGenerate
 	// 메뉴에서 켠다.
 	public bool ShowUnitStatusLabels = false;
 
+	// 명령 경로 시각화(2026-08-24) — BuildCachedPathPreview가 따라갈 최대 waypoint 수. 정상적인 경로는
+	// 이보다 훨씬 짧다 — 캐시가 어긋난 극단적 상황에서 무한 루프/과도한 LineRenderer 포인트를 막는 안전판.
+	private const int CommandPathMaxSteps = 200;
+
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
 	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
@@ -551,8 +555,21 @@ public class UnitGenerate
 		UnitVisual uv = cache.UnitVisual;
 		if (uv != null)
 		{
-			bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
-			bool showRanges = ShowAllVisionRanges || isSoleSelected;
+			// 체력바(2026-08-24 사용자 요청 "유닛의 머리 위에 체력바 항상 뜨도록") — SyncVisual의
+			// UpdateStatusLabel과 달리 여기(상태 변화 여부와 무관하게 모든 살아있는 유닛에 대해 매
+			// 프레임 갱신되는 지점, 위 RefreshSelectionVisual(Unit) 호출부 주석 참고)에 둔다 — 가만히
+			// 서서 원거리/함정 피해만 입는 경우처럼 위치·라벨·방향이 전혀 안 바뀌어도 체력은 계속
+			// 바뀌므로 stateChanged 게이팅에 묶이면 갱신이 누락된다. 안개에 가려진 유닛은 상태 라벨과
+			// 동일하게 숨긴다.
+			bool hpBarHiddenByFog = Session != null && Session.roomGrid != null &&
+				Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room hpBarRoom) &&
+				!hpBarRoom.FogRevealed;
+			uv.UpdateHealthBar(!hpBarHiddenByFog, u.hp, u.maxHp);
+
+			// 단일 선택 시 자동 표시 제거(2026-08-24 사용자 요청 "유닛을 단일 선택했을때, 시야
+			// 시각화가 보이는데, 안보이게 해줘") — 이제 우측 하단 "시야 표시" 전역 토글
+			// (ShowAllVisionRanges)로만 켜고 끈다. 선택 여부와는 완전히 무관.
+			bool showRanges = ShowAllVisionRanges;
 			uv.SetVisionRangesVisible(showRanges); // 켜고 끄는 것 자체는 저렴 — 매 프레임 갱신해도 무관.
 
 			if (showRanges)
@@ -580,6 +597,63 @@ public class UnitGenerate
 			{
 				cache.VisionRangeShown = false;
 			}
+
+			// 명령 경로 시각화(2026-08-24 사용자 요청 "유닛에게 명령 실행시, 유닛이 명령받은 지점과,
+			// 명령 경로가 뜨도록... 이 시각화는 유닛 선택 중일때만 보임(다중 선택했을때도)") — 시야
+			// 표시와 달리 다중 선택된 유닛 각각에 대해 독립적으로 보여준다(단일 선택 제한 없음).
+			// MovementAlgorithm이 실제 이동 판단에 쓰던 경로 캐시를 그대로 읽어 새로 계산하지 않는다 —
+			// 길찾기가 다시 도는 순간 자동으로 최신 경로가 반영된다.
+			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u);
+			List<Vector2Int> commandPath = null;
+			Vector2Int? hoverTile = null;
+			Vector2Int? explicitDest = null;
+
+			if (isSelected)
+			{
+				bool overUI = (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+					|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel())
+					|| (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
+					|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+
+				if (!overUI)
+				{
+					Vector2 mousePos = GameInputScheme.PointerScreenPos;
+					Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, GetFloorOffset(u.currentFloor), u.currentFloor);
+					hoverTile = new Vector2Int(gridPos.x, gridPos.y);
+				}
+
+				if (u.HasActivePlayerCommand())
+				{
+					explicitDest = u.playerMoveTarget;
+					if (!explicitDest.HasValue && u.playerAttackObjectTarget.HasValue)
+						explicitDest = new Vector2Int(u.playerAttackObjectTarget.Value.x, u.playerAttackObjectTarget.Value.y);
+					if (!explicitDest.HasValue && u.playerAttackTarget != null)
+						explicitDest = u.playerAttackTarget.position;
+					if (!explicitDest.HasValue && u.playerInteractTarget.HasValue)
+						explicitDest = new Vector2Int(u.playerInteractTarget.Value.x, u.playerInteractTarget.Value.y);
+
+					if (u.MovementAlgorithm != null)
+					{
+						// 정지 상태(Time.timeScale < 0.01f)에서는 FSM이 멈춰있어 경로 캐시가 갱신되지 않으므로,
+						// 시각화를 위해 목적지가 다르면 1회 강제 계산하여 _pathMap을 채워준다.
+						if (explicitDest.HasValue && Time.timeScale < 0.01f)
+						{
+							u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int cacheDestForCheck);
+							if (cacheDestForCheck != explicitDest.Value)
+							{
+								u.MovementAlgorithm.TryGetNextStep(u, explicitDest.Value, out _);
+							}
+						}
+
+						if (u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int currentCache))
+						{
+							commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
+							if (!explicitDest.HasValue) explicitDest = currentCache;
+						}
+					}
+				}
+			}
+			uv.UpdateCommandPathVisual(isSelected, commandPath, GetFloorOffset(u.currentFloor), hoverTile, explicitDest);
 		}
 
 		EnsureSelectionMarker(cache, go, u);

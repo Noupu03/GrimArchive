@@ -58,6 +58,12 @@ public class InteractableObject
     // 시체 스프라이트(obj/colapse)로 폴백한다.
     public Sprite CorpseSpriteOverride;
 
+    // 시체 웨이브 카운트 소멸(2026-08-24 사용자 요청 "시체는 2웨이브 동안 존재하게, 시간 단위로 측정하지
+    // 말고(현재 웨이브 포함)") — Corpse 태그일 때만 의미가 있다. 스폰 시점의 HumanWaveManager.
+    // WaveNumber를 스냅샷해두면, GameSession.DespawnCorpsesForNewWave가 새 웨이브가 시작될 때마다
+    // "스폰 웨이브 + 2 <= 지금 웨이브"인 시체를 정리한다(45초 고정 타이머 방식을 대체).
+    public int SpawnWaveNumber;
+
     // 03문서 9장(함정 대응): Trap 태그("Object/Building/Passable/Trap" — 오브젝트→건축물→지나갈 수
     // 있는 건축물, 2026-07-22 사용자 지정 계층)일 때만 의미가 있다(그 외 태그는 전부 0). 9-9장
     // "함정별 hp 존재"의 실체 — Action_TrapDestroy가 매 틱 TrapHp를 깎는다.

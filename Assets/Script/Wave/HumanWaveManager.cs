@@ -34,6 +34,13 @@ namespace GrimArchive.Wave
         public WaveState currentState = WaveState.Idle;
         public float cooldownTimer = 0f;
 
+        // 시체 웨이브 카운트 소멸(2026-08-24 사용자 요청 "시체는 2웨이브 동안 존재하게, 시간 단위로
+        // 측정하지 말고") — StartWave()가 새 웨이브를 시작할 때마다 1씩 증가한다(첫 웨이브=1). 시체는
+        // 스폰 시점의 이 값을 스냅샷해두고(InteractableObject.SpawnWaveNumber), GameSession이 매
+        // 웨이브 시작마다 "스폰 웨이브 + 2 <= 지금 웨이브"인 시체를 정리한다(GameSession.
+        // DespawnCorpsesForNewWave 참고).
+        public int WaveNumber { get; private set; } = 0;
+
         // 추적 중인 웨이브 데이터
         public Party activeParty;
 
@@ -556,6 +563,9 @@ namespace GrimArchive.Wave
 
             LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)");
             currentState = WaveState.Running;
+
+            WaveNumber++;
+            GameSession.Instance?.DespawnCorpsesForNewWave(WaveNumber);
 
             // 문은 이제 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐한다
             // (기초문서.md 피드백, 2026-08-22 — DoorSystem.UpdateProcess) — 웨이브 시작 시점에 별도로

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using System.Collections.Generic;
+using UnityEngine;
 
 public class UnitVisual : MonoBehaviour
 {
@@ -49,7 +50,8 @@ public class UnitVisual : MonoBehaviour
 	// 같은 컴포넌트, 저 쪽은 0.5초짜리 팝업이고 이건 계속 갱신되는 상시 라벨이라는 차이만 있음).
 	private TextMesh _statusLabel;
 	private const int StatusLabelSortingOrder = 20; // 시야/인지선(8~10)보다 위, 선택 마커보다도 위
-	private const float StatusLabelWorldOffsetAboveTop = 0.35f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
+	// 체력바(아래 EnsureHealthBar) 바로 위로 올라오게, 기존 0.35에서 상향(2026-08-24).
+	private const float StatusLabelWorldOffsetAboveTop = 0.55f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
 
 	// GoapBrain.PlanText(예: "6-7" = MoveToTrap→TrapDisarmPerform, Actions.cs의 ActionCode 1~19 참고)를
 	// 그대로 받아 표시한다 — 과거에 실행한 목표를 누적해서 보여주던 이전 방식(GoalTrailText) 대신,
@@ -104,6 +106,91 @@ public class UnitVisual : MonoBehaviour
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
 		go.transform.localScale = new Vector3(invX, invY, 1f);
 		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) * invY, 0f);
+	}
+
+	// ─────────────────────────── 체력바 (머리 위, 월드 고정, 항상 표시) ───────────────────────────
+	// 2026-08-24 사용자 요청 "유닛의 머리 위에 체력바 항상 뜨도록 표기해줘". ObjectProgressBarVisual
+	// (함정 해제/코어 조사 진행률)과 동일한 배경+채움 SpriteRenderer 2장 구성을 재사용하되, 그쪽은
+	// 오브젝트 "아래"에 붙는 반면 이 체력바는 StatusLabel과 같은 "머리 위" 계열이라 별도로 둔다 — 위치
+	// 계산도 StatusLabel/EnsureBelowLabel과 동일하게 실제 부모 localScale을 역산한다(같은 이유,
+	// visualScaleIgnoresFootprint 유닛 대응).
+	private SpriteRenderer _healthBarBg;
+	private SpriteRenderer _healthBarFill;
+	private float _healthBarFillBaseScaleX;
+	private const int HealthBarSortingOrder = 19; // 상태 라벨(20)보다 한 단계 아래, 시야/인지선보다는 위
+	private const float HealthBarWidth = 0.8f;
+	private const float HealthBarHeight = 0.12f;
+	private const float HealthBarWorldOffsetAboveTop = 0.2f; // 유닛 스프라이트 상단에서 띄우는 높이(월드 단위)
+
+	private static Sprite _sharedHealthBarCenterSprite;
+	private static Sprite _sharedHealthBarLeftSprite;
+
+	// 단일 색상(2026-08-24 사용자 요청 "체력바 단일 색상으로 처리해주고, 초록색 말고 다른색으로 해줘.
+	// 바닥 색이랑 겹쳐서 안봄") — 원래 비율별 초록/노랑/빨강 3색이었는데, 초록이 바닥 타일 색과 거의
+	// 구분이 안 돼 요청으로 고정 단색으로 바꿨다. 바닥/시체·오브젝트 색과 잘 겹치지 않는 선명한
+	// 마젠타 계열로 선택.
+	private static readonly Color HealthBarFillColor = new Color(1f, 0.15f, 0.6f, 1f);
+
+	public void UpdateHealthBar(bool visible, float hp, float maxHp)
+	{
+		EnsureHealthBar();
+		if (_healthBarBg == null || _healthBarFill == null) return;
+
+		_healthBarBg.enabled = visible;
+		_healthBarFill.enabled = visible;
+		if (!visible) return;
+
+		float ratio = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
+		_healthBarFill.transform.localScale = new Vector3(_healthBarFillBaseScaleX * ratio, _healthBarFill.transform.localScale.y, 1f);
+	}
+
+	private void EnsureHealthBar()
+	{
+		if (_healthBarBg != null || boundUnit == null) return;
+
+		Vector2 footprint = boundUnit.unitType.footprint;
+		if (footprint.x <= 0f || footprint.y <= 0f) footprint = Vector2.one;
+
+		Vector3 parentScale = transform.localScale;
+		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
+		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
+
+		Vector3 anchor = new Vector3(0f, (footprint.y + HealthBarWorldOffsetAboveTop) * invY, 0f);
+
+		_healthBarBg = CreateHealthBarSprite("HealthBarBg", new Color(0f, 0f, 0f, 0.6f), centerPivot: true);
+		_healthBarBg.transform.localPosition = anchor;
+		_healthBarBg.transform.localScale = new Vector3(HealthBarWidth * invX, HealthBarHeight * invY, 1f);
+
+		_healthBarFill = CreateHealthBarSprite("HealthBarFill", HealthBarFillColor, centerPivot: false);
+		_healthBarFillBaseScaleX = HealthBarWidth * invX;
+		_healthBarFill.transform.localPosition = anchor + new Vector3(-HealthBarWidth * invX / 2f, 0f, 0f);
+		_healthBarFill.transform.localScale = new Vector3(_healthBarFillBaseScaleX, HealthBarHeight * invY, 1f);
+
+		_healthBarBg.enabled = false;
+		_healthBarFill.enabled = false;
+	}
+
+	private SpriteRenderer CreateHealthBarSprite(string name, Color color, bool centerPivot)
+	{
+		GameObject go = new GameObject(name);
+		go.transform.SetParent(transform, false);
+		var sr = go.AddComponent<SpriteRenderer>();
+		sr.sprite = centerPivot
+			? (_sharedHealthBarCenterSprite ??= CreateWhiteSprite(new Vector2(0.5f, 0.5f)))
+			: (_sharedHealthBarLeftSprite ??= CreateWhiteSprite(new Vector2(0f, 0.5f)));
+		sr.color = color;
+		sr.sortingOrder = HealthBarSortingOrder;
+		return sr;
+	}
+
+	private static Sprite CreateWhiteSprite(Vector2 pivot)
+	{
+		Texture2D tex = new Texture2D(4, 4);
+		Color[] pixels = new Color[16];
+		for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+		tex.SetPixels(pixels);
+		tex.Apply();
+		return Sprite.Create(tex, new Rect(0, 0, 4, 4), pivot, 4f);
 	}
 
 	// ─────────────────────────── 하단 상태 라벨 (함정 해제 시도중 등, 월드 고정) ───────────────────────────
@@ -228,4 +315,127 @@ public class UnitVisual : MonoBehaviour
 			line.SetPosition(i, new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius);
 		}
 	}
+
+	// ─────────────────────────── 명령 경로 시각화 (선택 중일 때만, 월드 좌표) ───────────────────────────
+	// 2026-08-24 사용자 요청 "유닛에게 명령 실행시, 유닛이 명령받은 지점과, 명령 경로가 뜨도록 시각화를
+	// 하게 해줘. 길찾기 알고리즘에 따른 변경도 같이 실시간 반영. 이 시각화는 유닛 선택 중일때만 보임.
+	// (다중 선택했을때도.)" — 위 시야/인지 콘과 달리 유닛 트랜스폼을 따라다니면 안 되므로(경로는 절대
+	// 월드 좌표) useWorldSpace=true로 별도 LineRenderer를 쓴다. 새로 경로를 계산하지 않고
+	// Unit.MovementAlgorithm(AStarMovement)이 실제 이동 판단에 쓰던 캐시(_cacheTarget/_pathMap)를 그대로
+	// 읽기만 하므로, 길찾기가 다시 도는 순간(장애물 변화 등) 자동으로 갱신된 경로가 반영된다.
+	private LineRenderer _commandPathLine;
+	private LineRenderer _commandDestMarker;
+	private LineRenderer _hoverMarker;
+	private static readonly Color CommandPathColor = new Color(1f, 0.95f, 0.2f, 0.8f); // 경로 선: 노란색
+	private static readonly Color CommandDestColor = new Color(0.2f, 0.9f, 0.2f, 0.95f); // 확정된 목적지: 녹색
+	private static readonly Color HoverMarkerColor = new Color(0.3f, 0.8f, 1f, 0.8f); // 포인터 호버 타일: 하늘색
+	private const float CommandPathLineWidth = 0.06f;
+	private const float CommandDestMarkerRadius = 0.28f;
+	private const int CommandPathSortingOrder = 12;
+	private const int CommandDestMarkerSortingOrder = 13;
+	private const int HoverMarkerSortingOrder = 14;
+
+	// floorOffset(2026-08-24 버그 수정, 사용자 신고 "안보이는데?") — unit.position은 층별 로컬 그리드
+	// 좌표라 실제 월드 좌표가 되려면 그 층의 타일맵 오프셋(UnitGenerate.GetFloorOffset)을 더해야 한다
+	// (SyncVisual의 newPos 계산과 동일한 이유). 이 오프셋 없이 그리면 여러 층이 월드 공간에 나란히
+	// 떨어져 배치돼 있는 경우 엉뚱한(대개 화면 밖) 위치에 그려져 아예 안 보였다.
+	public void UpdateCommandPathVisual(bool visible, List<Vector2Int> pathTiles, Vector3 floorOffset, Vector2Int? hoverTile = null, Vector2Int? explicitDestTile = null)
+	{
+		if (!visible)
+		{
+			if (_commandPathLine != null) _commandPathLine.enabled = false;
+			if (_commandDestMarker != null) _commandDestMarker.enabled = false;
+			if (_hoverMarker != null) _hoverMarker.enabled = false;
+			return;
+		}
+
+		EnsureCommandPathVisuals();
+
+		if (hoverTile.HasValue)
+		{
+			_hoverMarker.enabled = true;
+			DrawWorldSquare(_hoverMarker, TileCenterWorld(hoverTile.Value, floorOffset), 1.0f);
+		}
+		else
+		{
+			_hoverMarker.enabled = false;
+		}
+
+		bool hasPath = pathTiles != null && pathTiles.Count >= 2;
+		Vector2Int? dest = explicitDestTile ?? (hasPath ? pathTiles[pathTiles.Count - 1] : (Vector2Int?)null);
+
+		if (hasPath)
+		{
+			_commandPathLine.enabled = true;
+			_commandPathLine.positionCount = pathTiles.Count;
+			for (int i = 0; i < pathTiles.Count; i++)
+				_commandPathLine.SetPosition(i, TileCenterWorld(pathTiles[i], floorOffset));
+		}
+		else
+		{
+			_commandPathLine.enabled = false;
+		}
+
+		if (dest.HasValue)
+		{
+			_commandDestMarker.enabled = true;
+			DrawWorldSquare(_commandDestMarker, TileCenterWorld(dest.Value, floorOffset), 0.9f);
+		}
+		else
+		{
+			_commandDestMarker.enabled = false;
+		}
+	}
+
+	private static Vector3 TileCenterWorld(Vector2Int tile, Vector3 floorOffset) => new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
+
+	private void EnsureCommandPathVisuals()
+	{
+		if (_commandPathLine != null) return;
+
+		_commandPathLine = CreateWorldLine("CommandPathLine", CommandPathColor, CommandPathLineWidth, CommandPathSortingOrder);
+		_commandDestMarker = CreateWorldLine("CommandDestMarker", CommandDestColor, CommandPathLineWidth, CommandDestMarkerSortingOrder);
+		_commandDestMarker.loop = true;
+		_hoverMarker = CreateWorldLine("HoverMarker", HoverMarkerColor, CommandPathLineWidth, HoverMarkerSortingOrder);
+		_hoverMarker.loop = true;
+	}
+
+	private LineRenderer CreateWorldLine(string name, Color color, float width, int sortingOrder)
+	{
+		GameObject go = new GameObject(name);
+		go.transform.SetParent(transform, false);
+
+		LineRenderer line = go.AddComponent<LineRenderer>();
+		line.startWidth = width;
+		line.endWidth = width;
+		line.material = new Material(Shader.Find("Sprites/Default"));
+		line.startColor = color;
+		line.endColor = color;
+		line.useWorldSpace = true; // 경로 좌표는 유닛 트랜스폼과 무관한 절대 월드 좌표.
+		line.sortingOrder = sortingOrder;
+		line.enabled = false;
+		return line;
+	}
+
+	private static void DrawWorldSquare(LineRenderer line, Vector3 worldCenter, float size)
+{
+    if (line == null) return;
+
+    float half = size * 0.5f;
+
+    Vector3[] corners =
+    {
+        worldCenter + new Vector3(-half, -half, 0f),
+        worldCenter + new Vector3( half, -half, 0f),
+        worldCenter + new Vector3( half,  half, 0f),
+        worldCenter + new Vector3(-half,  half, 0f)
+    };
+
+    line.loop = true;
+    line.positionCount = 4;
+
+    for (int i = 0; i < 4; i++)
+        line.SetPosition(i, corners[i]);
+}
+
 }

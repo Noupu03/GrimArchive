@@ -13,12 +13,18 @@ using Haare.Util.Logger;
 // 참조하지 않고 InputManager.Update()가 조율한다.
 public class ObjectPlacementController
 {
-    public bool IsActive => _isObjectPlaceMode || _isTrapPlaceMode || _isDoorRepairMode;
+    public bool IsActive => _isObjectPlaceMode || _isTrapPlaceMode || _isDoorRepairMode || _isWallConvertMode;
     // BottomMenuBar의 개별 서브버튼(오브젝트/함정/문 재설치) 하이라이트·토글용(2026-08-20) —
     // BuildPlacementController.IsUnitBuildModeActive/IsResourceBuildModeActive와 동일한 이유.
     public bool IsObjectModeActive => _isObjectPlaceMode;
     public bool IsTrapModeActive => _isTrapPlaceMode;
     public bool IsDoorRepairModeActive => _isDoorRepairMode;
+    // 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드(BottomMenuBar debug 서브메뉴).
+    public bool IsWallConvertModeActive => _isWallConvertMode;
+
+    // 2026-08-24 debug 전용 토글(사용자 요청 "함정을 무제한 설치하는 기능을 debug에 넣어줘") — 켜져
+    // 있으면 돌 자원을 소모하지 않고, 배치 후에도 모드를 유지해 연속으로 계속 배치할 수 있다.
+    public bool DebugUnlimitedTrapPlacement;
 
     private readonly GameSession _gameSession;
     private readonly UnitGenerate _unitGenerate;
@@ -28,14 +34,18 @@ public class ObjectPlacementController
     private bool _isObjectPlaceMode;
     private bool _isTrapPlaceMode;
     private bool _isDoorRepairMode;
+    private bool _isWallConvertMode;
 
     private Sprite _coreSprite;
     private Sprite _trapSprite;
     private Sprite _doorOpenSprite;
+    private Sprite _wallSprite;
 
     private Sprite CoreSprite => _coreSprite ??= Resources.Load<Sprite>("obj/core");
     private Sprite TrapSprite => _trapSprite ??= Resources.Load<Sprite>("obj/trap");
     private Sprite DoorOpenSprite => _doorOpenSprite ??= Resources.Load<Sprite>("obj/door_open");
+    // MapRandering.BuildTileCache와 동일한 리소스 경로 — 실제 벽 타일과 같은 아트로 미리보기.
+    private Sprite WallSprite => _wallSprite ??= Resources.Load<Sprite>("Tile_StoneWall");
 
     public ObjectPlacementController(GameSession gameSession, UnitGenerate unitGenerate, ResourceManager resourceManager)
     {
@@ -49,6 +59,7 @@ public class ObjectPlacementController
         if (_isObjectPlaceMode) return;
         _isTrapPlaceMode = false;
         _isDoorRepairMode = false;
+        _isWallConvertMode = false;
         _isObjectPlaceMode = true;
 
         // 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
@@ -61,11 +72,26 @@ public class ObjectPlacementController
         if (_isTrapPlaceMode) return;
         _isObjectPlaceMode = false;
         _isDoorRepairMode = false;
+        _isWallConvertMode = false;
         _isTrapPlaceMode = true;
 
         // 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
         _ghost.Show(TrapSprite);
-        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 (돌 {ResourceManager.TrapPlaceStoneCost}개 소모, 우클릭: 생성)");
+        string costNotice = DebugUnlimitedTrapPlacement ? "debug 무제한 설치 — 자원 소모 없음" : $"돌 {ResourceManager.TrapPlaceStoneCost}개 소모";
+        LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 ({costNotice}, 우클릭: 생성)");
+    }
+
+    // 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드 진입.
+    public void EnterWallConvertMode()
+    {
+        if (_isWallConvertMode) return;
+        _isObjectPlaceMode = false;
+        _isTrapPlaceMode = false;
+        _isDoorRepairMode = false;
+        _isWallConvertMode = true;
+
+        _ghost.Show(WallSprite);
+        LogHelper.Log(LogHelper.GAME, "debug 벽 변환 모드 진입 (우클릭: 바닥 타일을 벽으로 전환)");
     }
 
     // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — 파괴된 문을 원래 게이트 자리에만 재설치.
@@ -74,6 +100,7 @@ public class ObjectPlacementController
         if (_isDoorRepairMode) return;
         _isObjectPlaceMode = false;
         _isTrapPlaceMode = false;
+        _isWallConvertMode = false;
         _isDoorRepairMode = true;
 
         _ghost.Show(DoorOpenSprite);
@@ -85,6 +112,7 @@ public class ObjectPlacementController
         _isObjectPlaceMode = false;
         _isTrapPlaceMode = false;
         _isDoorRepairMode = false;
+        _isWallConvertMode = false;
         _ghost.Hide();
     }
 
@@ -94,12 +122,14 @@ public class ObjectPlacementController
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
 
         // 이미 다른 오브젝트가 있거나(objectGrid) 벽/유닛으로 막혀있으면(IsAreaClear) 놓을 수 없다.
-        // 문 재설치 모드는 그 대신 "원래 게이트(복도) 자리"인지만 확인한다(기초문서.md 피드백,
-        // 2026-08-22 "복도 자리에만 설치 가능") — 자유로운 위치 배치가 아니다.
+        // 문 재설치 모드는 그 대신 "원래 게이트(복도) 자리"인지만(기초문서.md 피드백, 2026-08-22
+        // "복도 자리에만 설치 가능"), 벽 변환 모드(2026-08-24 debug)는 "아직 벽이 아닌 타일"인지만
+        // 확인한다 — 둘 다 자유로운 위치 배치가 아니다.
         bool canPlace = _gameSession != null && _unitGenerate != null
             && !_gameSession.objectGrid.ContainsKey(gridPos)
             && (_isDoorRepairMode ? _gameSession.IsRepairableDoorTile(gridPos)
-                                  : _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor));
+                : _isWallConvertMode ? _gameSession.IsFloorTileConvertibleToWall(gridPos)
+                : _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor));
 
         _ghost.UpdatePosition(gridPos, floorOffset, canPlace);
 
@@ -121,9 +151,14 @@ public class ObjectPlacementController
                 }
                 else if (_isTrapPlaceMode)
                 {
-                    // 돌 자원이 부족하면 배치를 취소하지 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에
-                    // 다시 시도할 수 있게 한다(배치 모드 자체는 메뉴 전환/재클릭으로만 취소).
-                    if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost))
+                    // debug 무제한 설치(2026-08-24)면 자원 소모 자체를 건너뛰고, 배치 후에도 모드를
+                    // 유지해 계속 이어서 설치할 수 있게 한다. 평소엔 돌 자원이 부족하면 배치를 취소하지
+                    // 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에 다시 시도할 수 있게 한다.
+                    if (DebugUnlimitedTrapPlacement)
+                    {
+                        _gameSession.SpawnTrapAt(gridPos);
+                    }
+                    else if (_resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost))
                     {
                         _gameSession.SpawnTrapAt(gridPos);
                         ExitMode();
@@ -132,6 +167,11 @@ public class ObjectPlacementController
                     {
                         LogHelper.Warning(LogHelper.GAME, $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
                     }
+                }
+                else if (_isWallConvertMode)
+                {
+                    // debug 도구라 배치 후에도 모드를 유지 — 연속으로 여러 타일을 벽으로 바꿀 수 있다.
+                    _gameSession.DebugConvertFloorTileToWall(gridPos);
                 }
                 else if (_isDoorRepairMode)
                 {
