@@ -23,14 +23,13 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private Sprite stairDownSprite;
     private Sprite stairUpSprite;
 
-    // 방 점령 색칠용 오버레이 — 타일 한 장씩 SetTileFlags+SetColor를 호출하면 타일당 Material 인스턴스가
-    // 생성돼 수만 개가 쌓이는 문제(2026-07-31 프로파일러 확인: 112k 인스턴스, 5.42 GB)를 해결하기 위해
-    // 방 전체를 덮는 단일 SpriteRenderer 오버레이 쿼드로 교체. 방마다 SpriteRenderer 1개만 생성하므로
-    // Material 인스턴스도 방 개수만큼만 생긴다. MaterialPropertyBlock으로 색을 설정해 공유 Material 유지.
-    private Sprite _overlayWhiteSprite;
-    private readonly Dictionary<(int floor, int roomId), SpriteRenderer> _roomOverlays
-        = new Dictionary<(int, int), SpriteRenderer>();
-    private static readonly MaterialPropertyBlock _overlayMpb = new MaterialPropertyBlock();
+    // 방 점령 표현(2026-08-24 전면 개편, 사용자 요청 "방 전체 타일 색을 바꾸는 방식 대신, 방의 바닥
+    // 부분 모서리 선을 따고 그 선에 색 차이를 두는 방식으로") — 방 전체를 채우던 SpriteRenderer 오버레이
+    // 쿼드를 걷어내고, TraceContours(벽 셰도우캐스팅에 이미 쓰이던 격자 윤곽선 추적 알고리즘)를 재사용해
+    // "이 방에 속하고 벽이 아닌" 타일들의 실제 윤곽선을 그대로 뽑아 LineRenderer로 그린다 — 방 모양이
+    // 사각형이 아니어도(L/T/ㄷ/S자 등) 근사 없이 실제 바닥 모양 그대로 나온다.
+    private readonly Dictionary<(int floor, int roomId), List<LineRenderer>> _roomOutlines
+        = new Dictionary<(int, int), List<LineRenderer>>();
 
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
@@ -100,14 +99,6 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         stairTile.sprite = floorSprite;
-
-        if (_overlayWhiteSprite == null)
-        {
-            Texture2D overlayTex = new Texture2D(1, 1);
-            overlayTex.SetPixel(0, 0, Color.white);
-            overlayTex.Apply();
-            _overlayWhiteSprite = Sprite.Create(overlayTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
-        }
     }
 
     private Sprite CreateColorSprite(Color color)
@@ -481,7 +472,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
     void ClearExistingTilemaps()
     {
         floorTilemaps = null;
-        _roomOverlays.Clear();
+        // 아래 mapRoot 자식 파괴가 outline GameObject도 함께 정리하므로(_roomOverlays.Clear()와
+        // 동일한 관례) 여기서는 딕셔너리만 비운다.
+        _roomOutlines.Clear();
         if (mapRoot != null)
         {
             for (int i = mapRoot.transform.childCount - 1; i >= 0; i--)
@@ -507,30 +500,21 @@ public class MapRandering : NativeRoutine, IMapColorizer
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
     }
 
-    // 점령 관련(2026-07-27 신규) — 방 점령 상태별로 바닥에 옅은 색을 표시한다. 야생(Neutral)/Occupied/
-    // Outpost는 착색하지 않는다(사용자 요청, 2026-07-27: "야생 지역은 회색 말고 그냥 원래 색으로").
-    // 2026-07-31: 기존 타일별 SetTileFlags+SetColor(112k Material 인스턴스, 5.42 GB) →
-    // 방 단위 SpriteRenderer 오버레이 쿼드로 교체(SetRoomOverlay 참고).
-    // 색상 alpha를 낮춰 바닥 텍스처가 비치게 한다 — 원래 타일 곱셈 착색과 다르지만 훨씬 가볍다.
-    // 2026-08-21, 사용자 신고 "점령 방 색깔이 너무 쨍해" — 0.5 → 0.32로 더 낮췄다(GUI/렌더링 비용과는
-    // 무관, SetRoomOverlay는 방 소유권이 바뀌는 순간에만 한 번 호출되는 정적 SpriteRenderer 색 설정이라
-    // 매 프레임 다시 계산되지 않는다 — 이 값을 낮춰도 프레임당 비용 변화는 없다). public으로 열어서
-    // OffenseProcessor.GetRoomOwnerColor가 이 값을 직접 참조하게 했다 — 예전엔 그쪽이 이 색을 alpha만
-    // 1.0으로 다르게 하드코딩해 중복 보관하고 있었는데(주석은 "동일하다"고 했지만 실제로는 안 그랬음),
-    // 방 소유권이 실제로 전환될 때(오펜스 성공 등)는 항상 그 하드코딩된 완전 불투명 버전이 칠해져서
-    // "쨍해 보임"의 실제 원인이었다 — 값 하나로 합쳐 드리프트 자체를 없앴다.
-    public static readonly Color HumanRoomTint   = new Color(0.25f, 0.45f, 1f,  0.32f); // 인류 소유 — 반투명 파랑
-    public static readonly Color MonsterRoomTint  = new Color(1f,   0.25f, 0.25f, 0.32f); // 몬스터 점령 — 반투명 빨강
+    // 점령 표현(2026-07-27 신규 → 2026-08-24 윤곽선 방식으로 전면 개편, 위 필드 주석 참고). 이제
+    // 야생(Wild)도 검은 윤곽선으로 표시한다(예전엔 "착색 없음"이었다 — 사용자 요청: "야생은 검은색,
+    // 인류는 파란색, 플레이어 몬스터는 빨간색"). 윤곽선은 얇은 선이라 반투명일 필요가 없어 전부
+    // 완전 불투명. public으로 열어서 OffenseProcessor.GetRoomOwnerColor가 이 값을 직접 참조한다.
+    public static readonly Color WildRoomOutlineColor     = Color.black;
+    public static readonly Color HumanRoomOutlineColor    = new Color(0.25f, 0.55f, 1f,   1f); // 인류 소유 — 파랑
+    public static readonly Color MonsterRoomOutlineColor  = new Color(1f,    0.25f, 0.25f, 1f); // 몬스터 점령 — 빨강
 
     void ApplyOccupationTint(Tilemap tilemap, ref Floor floor, int floorIdx)
     {
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
-        int chunkSize = floor.config.chunkSize;
 
-        // 청크를 roomId별로 묶어 타일 범위(union bounds)를 계산한 뒤 오버레이 쿼드 1개씩 배치.
-        var roomData = new Dictionary<int, (Color color, int xMin, int yMin, int xMax, int yMax)>();
-
+        // 청크를 roomId별로 대표 색 하나로 묶는다(한 방의 모든 청크는 항상 같은 occupationState).
+        var roomColors = new Dictionary<int, Color>();
         for (int cx = 0; cx < chunkCountX; cx++)
         {
             for (int cy = 0; cy < chunkCountY; cy++)
@@ -538,69 +522,153 @@ public class MapRandering : NativeRoutine, IMapColorizer
                 Chunks chunk = floor.chunks[cx, cy];
                 if (chunk.chunk == null || chunk.roomId < 0) continue;
 
-                Color? tint = chunk.occupationState switch
+                Color color = chunk.occupationState switch
                 {
-                    OccupationState.HumanControlled  => HumanRoomTint,
-                    OccupationState.PlayerControlled => MonsterRoomTint,
-                    _ => (Color?)null,
+                    OccupationState.HumanControlled  => HumanRoomOutlineColor,
+                    OccupationState.PlayerControlled => MonsterRoomOutlineColor,
+                    _ => WildRoomOutlineColor,
                 };
-                if (tint == null) continue;
-
-                int xMin = cx * chunkSize, yMin = cy * chunkSize;
-                int xMax = xMin + chunkSize, yMax = yMin + chunkSize;
-
-                if (roomData.TryGetValue(chunk.roomId, out var existing))
-                {
-                    roomData[chunk.roomId] = (existing.color,
-                        Mathf.Min(existing.xMin, xMin), Mathf.Min(existing.yMin, yMin),
-                        Mathf.Max(existing.xMax, xMax), Mathf.Max(existing.yMax, yMax));
-                }
-                else
-                {
-                    roomData[chunk.roomId] = (tint.Value, xMin, yMin, xMax, yMax);
-                }
+                roomColors[chunk.roomId] = color;
             }
         }
 
-        foreach (var kvp in roomData)
-        {
-            var (color, xMin, yMin, xMax, yMax) = kvp.Value;
-            SetRoomOverlay(floorIdx, kvp.Key, new RectInt(xMin, yMin, xMax - xMin, yMax - yMin), color, tilemap.transform);
-        }
+        foreach (var kvp in roomColors)
+            SetRoomOutline(floorIdx, kvp.Key, ref floor, kvp.Value, tilemap.transform);
     }
 
     public void ChangeRoomColor(Room room, Color color)
     {
-        if (floorTilemaps == null || floorTilemaps.Length == 0) return;
-        if (room.Floor < 0 || room.Floor >= floorTilemaps.Length) return;
-        SetRoomOverlay(room.Floor, room.RoomId, room.Bounds, color, floorTilemaps[room.Floor].transform);
+        if (createMap?.map.floors == null) return;
+        if (room.Floor < 0 || room.Floor >= createMap.map.floors.Length) return;
+        if (floorTilemaps == null || room.Floor >= floorTilemaps.Length || floorTilemaps[room.Floor] == null) return;
+
+        Floor floor = createMap.map.floors[room.Floor];
+        SetRoomOutline(room.Floor, room.RoomId, ref floor, color, floorTilemaps[room.Floor].transform);
     }
 
-    // 방 하나를 덮는 SpriteRenderer 오버레이를 생성하거나 갱신한다.
-    // 같은 (층, roomId) 키에 기존 오버레이가 있으면 위치·크기·색만 갱신하고 새 오브젝트는 만들지 않는다.
-    private const int RoomOverlaySortingOrder = 1; // 타일맵(0) 위, 계단 아이콘(5) 아래
-
-    private void SetRoomOverlay(int floorIdx, int roomId, RectInt tileBounds, Color color, Transform parent)
+    // roomId 소속이면서 벽이 아닌("Wall" 타일이 아닌, BuildWallMask와 동일한 판정) 타일들의 격자
+    // 마스크를 만든다 — BuildWallMask와 동일한 월드 크기(worldW×worldH)라 TraceContours가 뽑아내는
+    // 윤곽선 좌표가 그대로 이 층 타일맵의 로컬 좌표와 일치한다(별도 오프셋 계산 불필요).
+    // 문이 있는 경계(Gate)의 이 방 쪽 문턱 타일은 마스크에서 제외한다(2026-08-24 사용자 요청 "문이
+    // 있는 복도쪽에는 선을 그리지 말아줘") — TraceContours가 이 제외된 자리를 돌아가며 윤곽선을 그려
+    // 문/복도 폭만큼 자연스러운 빈틈이 생긴다. 인접 방도 자기 쪽 문턱을 똑같이 제외하므로 두 틈이
+    // 합쳐져 복도 전체가 선 없이 뚫려 보인다.
+    private static bool[,] BuildRoomFloorMask(ref Floor floor, int roomId, out int worldW, out int worldH)
     {
-        var key = (floorIdx, roomId);
-        if (!_roomOverlays.TryGetValue(key, out SpriteRenderer sr) || sr == null)
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+        int chunkSize = floor.config.chunkSize;
+        worldW = chunkCountX * chunkSize;
+        worldH = chunkCountY * chunkSize;
+
+        bool[,] isFloor = new bool[worldW, worldH];
+        for (int cx = 0; cx < chunkCountX; cx++)
         {
-            var go = new GameObject($"RoomOverlay_F{floorIdx}_R{roomId}");
-            go.transform.SetParent(parent, false);
-            sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = _overlayWhiteSprite;
-            sr.sortingOrder = RoomOverlaySortingOrder;
-            _roomOverlays[key] = sr;
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null || chunk.roomId != roomId) continue;
+
+                for (int tx = 0; tx < chunkSize; tx++)
+                    for (int ty = 0; ty < chunkSize; ty++)
+                        if (chunk.chunk[tx, ty].name != "Wall")
+                            isFloor[cx * chunkSize + tx, cy * chunkSize + ty] = true;
+            }
         }
 
-        float cx = tileBounds.xMin + tileBounds.width  * 0.5f;
-        float cy = tileBounds.yMin + tileBounds.height * 0.5f;
-        sr.transform.localPosition = new Vector3(cx, cy, 0f);
-        sr.transform.localScale    = new Vector3(tileBounds.width, tileBounds.height, 1f);
+        ExcludeOwnGateDoorTiles(ref floor, roomId, isFloor, worldW, worldH);
+        return isFloor;
+    }
 
-        sr.GetPropertyBlock(_overlayMpb);
-        _overlayMpb.SetColor("_Color", color);
-        sr.SetPropertyBlock(_overlayMpb);
+    // floor.gates 중 이 방과 접한 게이트마다, "이 방 쪽" 문턱 타일 행을 마스크에서 false로 되돌린다.
+    // DoorSystem.GetGateDoorTiles가 반환하는 [tilesA, tilesB] 순서는 "왼쪽/아래 청크가 A"라는 순전히
+    // 기하학적 규칙일 뿐 gate.roomA/roomB와는 무관하다(TacticalFSMState.FindHostileExitDoor가 이걸
+    // 그대로 믿었다가 겪었던 것과 동일한 함정) — 각 행의 대표 타일이 실제로 속한 청크의 roomId를
+    // 직접 조회해서 "이 방 쪽" 행을 정확히 골라낸다.
+    private static void ExcludeOwnGateDoorTiles(ref Floor floor, int roomId, bool[,] isFloor, int worldW, int worldH)
+    {
+        if (floor.gates == null) return;
+        int chunkSize = floor.config.chunkSize;
+
+        foreach (var gate in floor.gates)
+        {
+            if (gate.roomA != roomId && gate.roomB != roomId) continue;
+
+            var tileRows = DoorSystem.GetGateDoorTiles(gate, chunkSize);
+            foreach (var row in tileRows)
+            {
+                if (row.Count == 0) continue;
+
+                Vector2Int sample = row[0];
+                int cx = sample.x / chunkSize, cy = sample.y / chunkSize;
+                if (cx < 0 || cx >= floor.chunks.GetLength(0) || cy < 0 || cy >= floor.chunks.GetLength(1)) continue;
+                if (floor.chunks[cx, cy].roomId != roomId) continue; // 인접 방 쪽 행 — 이 방 트레이스와 무관
+
+                foreach (var tile in row)
+                    if (tile.x >= 0 && tile.x < worldW && tile.y >= 0 && tile.y < worldH)
+                        isFloor[tile.x, tile.y] = false;
+            }
+        }
+    }
+
+    // 방 하나의 바닥 윤곽선을 LineRenderer(들)로 그리거나 갱신한다. 폐곡선이 여러 개면(방이 벽으로
+    // 갈라진 두 덩어리 등, 드묾) LineRenderer도 그만큼 여러 개 쓴다 — 같은 (층, roomId) 키에 이미
+    // 만든 게 있으면 재사용하고, 이번엔 필요 없어진 나머지는 비활성화만 한다(파괴하지 않음 — 다음
+    // 소유권 전환 때 다시 켜서 재사용).
+    private const int RoomOutlineSortingOrder = 1; // 타일맵(0) 위, 계단 아이콘(5) 아래
+    private const float RoomOutlineWidth = 0.12f;
+
+    private void SetRoomOutline(int floorIdx, int roomId, ref Floor floor, Color color, Transform parent)
+    {
+        bool[,] mask = BuildRoomFloorMask(ref floor, roomId, out int worldW, out int worldH);
+        List<List<Vector2>> loops = TraceContours(mask, worldW, worldH);
+
+        var key = (floorIdx, roomId);
+        if (!_roomOutlines.TryGetValue(key, out var renderers))
+        {
+            renderers = new List<LineRenderer>();
+            _roomOutlines[key] = renderers;
+        }
+
+        for (int i = 0; i < loops.Count; i++)
+        {
+            var loop = loops[i];
+            if (loop.Count < 3) continue;
+
+            LineRenderer lr;
+            if (i < renderers.Count && renderers[i] != null)
+            {
+                lr = renderers[i];
+                lr.gameObject.SetActive(true);
+            }
+            else
+            {
+                var go = new GameObject($"RoomOutline_F{floorIdx}_R{roomId}_{i}");
+                go.transform.SetParent(parent, false);
+                lr = go.AddComponent<LineRenderer>();
+                lr.useWorldSpace = false;
+                lr.loop = true;
+                lr.material = new Material(Shader.Find("Sprites/Default"));
+                lr.sortingOrder = RoomOutlineSortingOrder;
+                lr.numCapVertices = 2;
+                lr.numCornerVertices = 2;
+                if (i < renderers.Count) renderers[i] = lr;
+                else renderers.Add(lr);
+            }
+
+            lr.startWidth = RoomOutlineWidth;
+            lr.endWidth = RoomOutlineWidth;
+            lr.startColor = color;
+            lr.endColor = color;
+            lr.positionCount = loop.Count;
+            for (int p = 0; p < loop.Count; p++)
+                lr.SetPosition(p, new Vector3(loop[p].x, loop[p].y, 0f));
+        }
+
+        // 이전엔 있었지만 이번엔 안 쓰는 여분 LineRenderer는 꺼둔다(방 모양이 바뀌어 폐곡선 개수가
+        // 줄어든 경우 — 예: 파괴됐던 벽이 재설치돼 두 덩어리가 다시 하나로 합쳐지는 등).
+        for (int i = loops.Count; i < renderers.Count; i++)
+            if (renderers[i] != null) renderers[i].gameObject.SetActive(false);
     }
 }
 

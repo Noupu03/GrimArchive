@@ -58,8 +58,17 @@ public class SkillAction_GolemSweep : SkillAction
 
         float multiplier = _d.damageMultiplier > 0 ? _d.damageMultiplier : 1.2f;
 
+        // hitEffectPrefab을 실제로 스친 대상 각각의 위치에 스폰한다(2026-08-24 사용자 신고
+        // "HitEffectPrefab에 있는 VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — 손쓸기는 이
+        // 필드를 전혀 쓰지 않고 있었다).
+        GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
         BeginAttackCast(unit, _d.baseDelayMs, threat,
-            attackAction: () => DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, multiplier, _d.hasStun, _d.stunDuration),
+            attackAction: () => DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, multiplier, _d.hasStun, _d.stunDuration,
+                onHit: t =>
+                {
+                    if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
+                        unit.VFX?.Spawn(_d.hitEffectPrefab, t);
+                }),
             cooldownAction: () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
         );
 

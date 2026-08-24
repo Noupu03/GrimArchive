@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
@@ -246,7 +247,12 @@ public abstract class SkillAction
 	/// 히트박스와의 교차 면적 비율에 따라 데미지를 적용합니다.
 	/// 면적이 많이 겹칠수록 더 많은 데미지를 입습니다.
 	/// </summary>
-	public static void DamageEnemiesInHitboxWithAreaRatio(Unit attacker, Hitbox attackBox, float multiplier, bool stun = false, float stunDuration = 0f)
+	// onHit(2026-08-24 신규) — 대상별 피해 적용 직후(스턴 적용 포함) 호출되는 선택적 콜백. 스킬별
+	// hitEffectPrefab을 "실제로 맞은 대상 각각"의 위치에 스폰하려는 호출부가 쓴다(사용자 신고
+	// "HitEffectPrefab에 있는 VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — GetEnemiesInHitbox를
+	// 이 메서드 밖에서 따로 다시 호출하면 그 사이 죽은 대상이 두 번째 조회에서 걸러져 정작 킬 데미지를
+	// 넣은 히트에는 이펙트가 안 뜨는 문제가 생긴다. 같은 순회에서 함께 처리해야 그 문제가 없다).
+	public static void DamageEnemiesInHitboxWithAreaRatio(Unit attacker, Hitbox attackBox, float multiplier, bool stun = false, float stunDuration = 0f, Action<Unit> onHit = null)
 	{
 		foreach (var t in GetEnemiesInHitbox(attacker, attackBox))
 		{
@@ -257,6 +263,7 @@ public abstract class SkillAction
 			float finalDamage = Mathf.Max(1f, attacker.CombatStat.physicalAttack * Mathf.Max(0.1f, multiplier * overlapRatio));
 			t.TakePhysicalDamage(finalDamage, attacker);
 			if (stun) t.ApplyStun(stunDuration);
+			onHit?.Invoke(t);
 
 			// 로깅: 개발용 (필요시 제거)
 			// LogHelper.Log(LogHelper.GAME, $"{attacker.unitType.typeName} → {t.unitType.typeName}: 교차비율={overlapRatio:P0}, 데미지={finalDamage:F1}");

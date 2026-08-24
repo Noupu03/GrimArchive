@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 using VContainer;
 using DG.Tweening;
 using Haare.Util.Logger;
@@ -22,10 +23,11 @@ public class UnitGenerate
 	// 여부와 무관하게 모든 유닛의 시야/인지 범위를 SyncVisuals가 표시한다(SetVisionRangesVisible 참고).
 	public bool ShowAllVisionRanges = false;
 
-	// debug 메뉴 "유닛 상태 표시" 토글(2026-08-24 사용자 요청) — 꺼지면 유닛 머리 위 현재 FSM 상태
-	// 라벨(SyncVisual의 uv.UpdateStatusLabel 호출부 참고)을 전부 숨긴다. 기존 동작(항상 표시)을 그대로
-	// 유지하도록 기본값은 true.
-	public bool ShowUnitStatusLabels = true;
+	// debug 메뉴 "유닛 상태 표시" 토글(2026-08-24 신규, 2026-08-24 후속 사용자 요청으로 기본값 꺼짐으로
+	// 변경) — 꺼지면 유닛 머리 위 현재 FSM 상태 라벨(SyncVisual의 uv.UpdateStatusLabel 호출부 참고)을
+	// 전부 숨긴다. "시야 표시"(ShowAllVisionRanges)와 마찬가지로 기본은 꺼짐 — 필요할 때 debug
+	// 메뉴에서 켠다.
+	public bool ShowUnitStatusLabels = false;
 
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
@@ -87,6 +89,8 @@ public class UnitGenerate
 		public UnitVisualDefinition UnitVisualDefinition;
 		public WeaponAttachment WeaponAttachment;
 		public SpriteRenderer SelectionMarker;
+		// 횃불 위 예외 처리(2026-08-24 사용자 요청, 아래 SyncVisual 참고)용 캐시.
+		public ShadowCaster2D ShadowCaster;
 #if UNITY_2022_2_OR_NEWER
 		public SpriteResolver SpriteResolver;
 #endif
@@ -109,6 +113,7 @@ public class UnitGenerate
 			cache.UnitVisual = go.GetComponent<UnitVisual>();
 			cache.UnitVisualDefinition = go.GetComponent<UnitVisualDefinition>();
 			cache.WeaponAttachment = go.GetComponentInChildren<WeaponAttachment>();
+			cache.ShadowCaster = go.GetComponentInChildren<ShadowCaster2D>();
 #if UNITY_2022_2_OR_NEWER
 			cache.SpriteResolver = go.GetComponentInChildren<SpriteResolver>();
 #endif
@@ -390,11 +395,11 @@ public class UnitGenerate
 	}
 
 	// 사망 연출 도입(2026-08-24)으로 "hp<=0인 다른 유닛도 한꺼번에 정리"하던 예전 안전망 스윕을
-	// 제거했다 — 이제 사망한 유닛은 GameSession.RemoveDeadUnit이 곧장 units 리스트에서 뺀 뒤에도
-	// 사망 VFX/스프라이트를 보여주려고 DeathVisualDurationSeconds 동안 의도적으로 visualMap에
-	// 남아있는다(hp<=0 상태로). 이 스윕이 남아있으면 다른 아무 유닛의 RemoveVisual 호출 한 번에
-	// 그 대기 중인 사망 연출들이 전부 즉시 파괴돼버린다. 이제 모든 사망은 각자의 지연 콜백
-	// (GameSession.FinishDeathAfterDelay)에서 명시적으로 RemoveVisual(u)를 호출하므로 안전망이 필요 없다.
+	// 제거했다 — 사망한 유닛은 GameSession.RemoveDeadUnit이 units 리스트에서 뺀 그 자리에서 곧장 이
+	// 메서드까지 호출해 visualMap에서도 함께 제거된다(2026-08-24 후속: 사망 스프라이트를 잠깐 붙들고
+	// 있던 지연 단계 자체를 없애면서, "일정 시간 동안 hp<=0 상태로 남아있는" 중간 상태가 사라졌다 —
+	// 아래 PlayDeathVisual 참고). 모든 사망은 RemoveDeadUnit이 명시적으로 RemoveVisual(u)를 호출하므로
+	// 별도 안전망 스윕이 필요 없다는 결론 자체는 그대로 유지된다.
 	public void RemoveVisual(Unit u)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
@@ -403,39 +408,29 @@ public class UnitGenerate
 		targetPosMap.Remove(u);
 	}
 
-	// 사망 연출(2026-08-24 신규, 사용자 요청 "죽자마자 사망 vfx 터지고, 스프라이트만 사망 스프라이트
-	// 1.5초 재생 후 시체 생성") — GameSession.RemoveDeadUnit이 사망 판정 직후 즉시 호출한다. 사망
-	// VFX를 한 번 터뜨리고, 스프라이트를 UnitVisualDefinition.deathSprite로 고정한다. 이 시점 이후
-	// 유닛은 곧장 units 리스트에서 빠지므로(SyncVisual/UpdateUnitSpriteForDirection이 더 이상 이
-	// 유닛을 대상으로 호출되지 않음) 별도 잠금 없이도 이 스프라이트가 그대로 유지된다 — 실제 파괴는
-	// RemoveVisual이 사망 연출 시간이 지난 뒤에 처리한다.
+	// 사망 VFX(2026-08-24 신규, 2026-08-24 후속 수정 — 사용자 요청 "Death 스프라이트 단계 자체를
+	// 삭제하고 싶어... 사망 판정 즉시 Corpse 스프라이트로 전환 및 Death VFX Prefab이 발동되게") —
+	// GameSession.RemoveDeadUnit이 사망 판정 직후, 시체 오브젝트를 스폰하고 이 유닛의 비주얼을 파괴하기
+	// 직전에 호출한다. VFX만 1회 재생하고 끝 — 예전엔 스프라이트를 UnitVisualDefinition.deathSprite로
+	// 고정한 채 DeathVisualDurationSeconds(0.8초)만큼 붙들고 있다가 시체로 교체했는데, 이제 그 중간
+	// 단계 없이 시체 오브젝트가 즉시 나타나므로 스프라이트를 잠깐이라도 바꿔둘 이유가 없다(교체 자체가
+	// 그 즉시 일어난다). deathSprite 필드는 그래서 함께 제거했다.
 	public void PlayDeathVisual(Unit u)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return;
 
 		var cache = GetCache(go);
 		var def = cache.UnitVisualDefinition;
-		if (def == null) return;
+		if (def == null || def.deathVfxPrefab == null) return;
 
-		if (def.deathVfxPrefab != null)
-			u.VFX?.Spawn(def.deathVfxPrefab, u);
-
-		if (def.deathSprite != null)
-		{
-			SpriteRenderer sr = go.transform.Find("Visual")?.GetComponent<SpriteRenderer>()
-				?? go.GetComponentInChildren<SpriteRenderer>();
-			if (sr != null) sr.sprite = def.deathSprite;
-		}
-		else
-		{
-			// 사망 스프라이트 미설정 예외처리(2026-08-24 사용자 요청 "death 스프라이트가 없으면
-			// 그냥 기존 정면 스프라이트 사용") — 죽은 순간의 방향(옆/뒤 등) 프레임에 어중간하게
-			// 고정되지 않도록, 원래 있던 정면(Dir.DOWN) 스프라이트로 고정한다.
-#if UNITY_2022_2_OR_NEWER
-			if (cache.SpriteResolver != null)
-				UpdateSpriteResolver(cache.SpriteResolver, Dir.DOWN, u.spriteVariation);
-#endif
-		}
+		// u.VFX?.Spawn(prefab, u)(2-인자, 유닛에 부모로 붙는 오버로드)를 쓰면 안 된다 — GameSession.
+		// RemoveDeadUnit이 이 메서드를 호출한 직후 같은 프레임에 RemoveVisual(u)로 이 유닛의 비주얼
+		// GameObject(go)를 Destroy하는데, 그 자식으로 붙은 VFX 인스턴스도 함께 파괴되어 렌더링될
+		// 기회조차 없이 사라진다(2026-08-24 사용자 신고 "Death VFX가 발생 안 함(적어도 시각적으로는)"
+		// — 지연 단계를 없애면서 생긴 회귀). 고정 월드 좌표에 부모 없이 스폰해서 유닛 비주얼의
+		// 생명주기와 완전히 분리한다 — 죽는 자리에서 한 번 재생되면 그만이라 유닛을 따라다닐 필요도
+		// 없다.
+		VFXManager.Spawn(def.deathVfxPrefab, VFXManager.GetWorldPos(u), Quaternion.identity);
 	}
 
 	// go.transform.DOKill()만으로는 TriggerHitEffect()가 Visual 자식의 SpriteRenderer를 타겟으로
@@ -479,6 +474,24 @@ public class UnitGenerate
 			}
 
 			var cache = GetCache(go);
+
+			// 횃불 위 유닛 빛 투과 예외(2026-08-24 사용자 요청 "모든 유닛에 [ShadowCaster2D] 넣고,
+			// 횃불 바로 위에 있으면 빛 그냥 투과로 예외처리") — 유닛 스프라이트의 ShadowCaster2D가
+			// 평소엔 빛을 정상적으로 가리지만(그림자), 유닛이 서 있는 타일(발자국 전체) 중 하나라도
+			// 횃불 타일과 겹치면 그 순간만 컴포넌트를 꺼서 빛이 그대로 통과하게 한다 — 안 그러면
+			// 유닛이 광원 위치를 그대로 덮어 횃불 빛 전체가 가려져 보였다.
+			if (cache.ShadowCaster != null && Session != null)
+			{
+				bool onTorch = false;
+				int fw = Mathf.Max(1, Mathf.RoundToInt(u.unitType.footprint.x));
+				int fh = Mathf.Max(1, Mathf.RoundToInt(u.unitType.footprint.y));
+				for (int dx = 0; dx < fw && !onTorch; dx++)
+					for (int dy = 0; dy < fh && !onTorch; dy++)
+						if (Session.IsTorchAt(new Vector3Int(u.position.x + dx, u.position.y + dy, u.currentFloor)))
+							onTorch = true;
+
+				cache.ShadowCaster.enabled = !onTorch;
+			}
 
 			// 시야/인지 범위 표시 — 유닛을 단일 선택했을 때, 또는 우측 상단 "시야 표시" 토글
 			// (ShowAllVisionRanges)이 켜져 있을 때 그린다. 여러 유닛을 동시에 선택했을 때는 "이
@@ -623,7 +636,15 @@ public class UnitGenerate
 		}
 		else
 		{
-			if (visualDef != null) u.VFX?.Spawn(visualDef.hitSparkPrefab, u);
+			if (visualDef != null)
+			{
+				u.VFX?.Spawn(visualDef.hitSparkPrefab, u);
+				// 피격 추가 이펙트(2026-08-24 사용자 요청 "hitspark는 유지하고 추가로 BloodDrip이
+				// 출력되게") — hitSparkPrefab을 대체하지 않고 같은 피격에 함께 스폰한다. 두 프리팹이
+				// 서로 다른 VFXManager 풀 슬롯을 쓰므로(Dictionary 키가 프리팹 자체) 동시 재생이
+				// 자연스럽게 처리된다.
+				u.VFX?.Spawn(visualDef.bloodEffectPrefab, u);
+			}
 		}
 
 		if (visualMap.TryGetValue(u, out GameObject go))

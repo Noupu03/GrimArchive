@@ -930,6 +930,45 @@ GetPriority/CombatFSMState.OnExit/InputManager 인구수 예약 검사/HasActive
    PlayerAttack/PlayerMove 분기와 영문 GetLabel 표기를 그대로 남긴 채 안 맞았던 것도 이 김에 바로잡음).
 
 ════════════════════════════════════════════════════════════════════════
+■ 23. 점령 표현을 방 전체 색칠에서 바닥 윤곽선으로 전면 개편 (2026-08-24 추가, 사용자 요청 "방 전체의
+   타일 색을 바꾸는 방식 대신, 방의 바닥 부분 모서리 선을 따고 그 선에 차이를 두는거로... 벽은 제외한
+   바닥 부분 모서리만... 야생은 검은색, 인류는 파란색, 플레이어 몬스터는 빨간색")
+════════════════════════════════════════════════════════════════════════
+배경: 예전엔 `MapRandering.ApplyOccupationTint`/`ChangeRoomColor`가 방의 청크 union bounds 전체를
+덮는 반투명 SpriteRenderer 사각형 하나로 점령 진영을 표시했다(2026-07-31 도입, 타일별 SetTileFlags
+방식의 Material 인스턴스 폭증을 막기 위한 방편이었음). 야생(Wild)은 아예 착색하지 않고 건너뛰었다.
+
+✅ `MapRandering.cs` — 방 전체 사각형 오버레이(`SetRoomOverlay`/`_roomOverlays`/`_overlayWhiteSprite`)
+   전부 제거. 대신 벽 셰도우캐스팅에 이미 쓰이던 격자 윤곽선 추적 알고리즘 `TraceContours`(bool[,]
+   mask → 폐곡선 목록, L/T/ㄷ/S자 등 비정형 방 모양도 근사 없이 실제 타일 모양 그대로 추출)를 그대로
+   재사용한다. 신규 `BuildRoomFloorMask(ref Floor, roomId)`가 `BuildWallMask`와 동일한 패턴으로
+   "이 방 소속이면서 `Tile.name != "Wall"`인" 타일만 true인 마스크를 만들고(벽은 자동으로 윤곽선
+   대상에서 빠짐 — 사용자 요청의 핵심), `TraceContours` → `SetRoomOutline`(폐곡선마다 LineRenderer
+   생성/재사용, `useWorldSpace=false`+`loop=true`로 그림)으로 이어진다. `BuildWallMask`와 같은
+   월드 크기 마스크를 쓰므로 `TraceContours` 결과 좌표가 타일맵 로컬 좌표와 그대로 일치해 별도 오프셋
+   계산이 필요 없다.
+✅ 색상 — `WildRoomOutlineColor`(검정, 신규) / `HumanRoomOutlineColor`(파랑) /
+   `MonsterRoomOutlineColor`(빨강) 3종 전부 완전 불투명(옛 `HumanRoomTint`/`MonsterRoomTint`는
+   반투명 채우기용이라 alpha 0.32였음 — 얇은 선은 불투명이어야 잘 보인다). 필드명도 의미가
+   "채우기"에서 "윤곽선"으로 바뀐 만큼 함께 개명(`OffenseProcessor.GetRoomOwnerColor`가 참조하는
+   이름도 같이 갱신). 야생도 이제 검은 윤곽선으로 명시적으로 표시된다(예전엔 "착색 없음"이 곧
+   "야생"의 시각적 상태였다).
+✅ `ApplyOccupationTint`(맵 최초 렌더링 시 저장된 `occupationState` 기준 초기 표시)와
+   `ChangeRoomColor`(런타임 소유권 전환 시 `OffenseProcessor.ApplyRoomOwnership` 경유 호출) 둘 다
+   같은 `SetRoomOutline`을 거치므로 초기 상태/전환 시점 동작이 항상 일치한다.
+✅ [2026-08-24 후속 수정] 사용자 요청 "문이 있는 복도쪽에는 선을 그리지 말아줘" — 처음 구현은 문
+   타일도 "벽 아님"으로 분류돼 게이트 경계에도 선이 그대로 이어졌다. 신규 `ExcludeOwnGateDoorTiles`가
+   `floor.gates` 중 이 방과 접한 게이트마다 `DoorSystem.GetGateDoorTiles`로 문턱 타일 두 행([tilesA,
+   tilesB])을 얻고, 그중 실제로 이 방의 청크에 속한 행만(대표 타일이 속한 청크의 roomId를 직접 조회해
+   판정 — `[tilesA, tilesB]` 순서 자체는 "왼쪽/아래 청크가 A"라는 기하학적 규칙일 뿐 gate.roomA/roomB와
+   무관하므로, `TacticalFSMState.FindHostileExitDoor`가 예전에 겪었던 것과 같은 함정을 피하려면 순서를
+   믿지 말고 매번 확인해야 한다) `BuildRoomFloorMask`의 결과에서 false로 되돌린다. 인접 방도 자기 쪽
+   문턱을 독립적으로 제외하므로, 두 방의 트레이스를 합치면 복도 폭 전체가 선 없이 뚫려 보인다.
+[검증 필요] 실제 플레이로 확인할 것: 방 모양이 사각형이 아닐 때(L자 등) 윤곽선이 실제 바닥 모양을
+정확히 따라가는지, 코어 파괴로 소유권이 바뀌는 순간 색이 즉시 갱신되는지, 문/복도 자리에서 윤곽선이
+정말로 끊겨 보이는지(양쪽 방 모두에서).
+
+════════════════════════════════════════════════════════════════════════
 ■ 다음에 이 시스템을 확장할 때
 ════════════════════════════════════════════════════════════════════════
 1. 위 "다음 우선순위 구현 후보" 3개(수치 튜닝, 웨이브 목표 방 확장, 문 진영 개편의 부수 영향

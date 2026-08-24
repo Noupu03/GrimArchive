@@ -58,6 +58,7 @@ public class SkillAction_Curse : SkillAction
 
         float duration = _d.effectDuration > 0 ? _d.effectDuration : 5.0f;
 
+        GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
         BeginAttackCast(unit, _d.baseDelayMs, threat,
             () =>
             {
@@ -67,11 +68,11 @@ public class SkillAction_Curse : SkillAction
                 {
                     if (enemy == null || enemy.Health == null || enemy.Health.hp <= 0 || enemy.CombatStat == null) continue;
 
-                    float debuffAtk = _d.effectAmount > 1.0f 
+                    float debuffAtk = _d.effectAmount > 1.0f
                         ? Mathf.Min(enemy.CombatStat.physicalAttack, _d.effectAmount)
                         : (_d.effectAmount > 0f ? enemy.CombatStat.physicalAttack * _d.effectAmount : Mathf.Min(enemy.CombatStat.physicalAttack, 10f));
 
-                    float debuffDef = _d.effectAmount > 1.0f 
+                    float debuffDef = _d.effectAmount > 1.0f
                         ? Mathf.Min(enemy.CombatStat.physicalDefense, _d.effectAmount)
                         : (_d.effectAmount > 0f ? enemy.CombatStat.physicalDefense * _d.effectAmount : Mathf.Min(enemy.CombatStat.physicalDefense, 10f));
 
@@ -81,6 +82,12 @@ public class SkillAction_Curse : SkillAction
                     float magicDmg = unit != null && unit.CombatStat != null ? unit.CombatStat.magicalAttack * (_d.damageMultiplier > 0 ? _d.damageMultiplier : 1.0f) : 0f;
                     enemy.TakeMagicalDamage(magicDmg, unit);
                     if (_d.hasStun) enemy.ApplyStun(_d.stunDuration);
+
+                    // hitEffectPrefab을 대상 위치에 스폰(2026-08-24 사용자 신고 "HitEffectPrefab에 있는
+                    // VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — 저주는 이 필드를 전혀 쓰지
+                    // 않고 있었다). 유닛 공용 피격 스파크와 같은 프리팹이면 중복 렌더링을 피한다.
+                    if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
+                        unit.VFX?.Spawn(_d.hitEffectPrefab, enemy);
 
                     enemy.UI?.ShowFloatingTextAt(new Vector3(enemy.position.x + 0.5f, enemy.position.y + 1f, 0f), "저주!", Color.magenta, 1.2f);
                     RollbackCurseAsync(enemy, debuffAtk, debuffDef, duration).Forget();

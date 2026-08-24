@@ -47,6 +47,7 @@
         },
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -94,6 +95,7 @@
         "spriteLibrary": "Mon_GnoleA",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -138,7 +140,10 @@
         "baseVisibility": 80
       },
       "visual": {
-        "spriteLibrary": "Char_ArcherElf"
+        "spriteLibrary": "Char_ArcherElf",
+        "effects": {
+          "bloodDrip": "VFX_BloodDrip"
+        }
       }
     },
     {
@@ -183,6 +188,7 @@
         "spriteLibrary": "Mon_GnoleA",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -235,6 +241,7 @@
         },
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -283,6 +290,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -331,6 +339,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -379,6 +388,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -431,6 +441,7 @@
         },
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -479,6 +490,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -527,6 +539,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -575,6 +588,7 @@
         "animatorController": "Char",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }
@@ -622,6 +636,7 @@
         "spriteLibrary": "Mon_BossGolem",
         "effects": {
           "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
           "guard": "VFX_Guard",
           "parry": "VFX_Parry"
         }

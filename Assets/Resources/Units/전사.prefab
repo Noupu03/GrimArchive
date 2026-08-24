@@ -138,6 +138,7 @@ GameObject:
   - component: {fileID: 7279167433169956537}
   - component: {fileID: 8462755996199058862}
   - component: {fileID: 3756860635528672718}
+  - component: {fileID: 8299237875804792217}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -250,6 +251,59 @@ MonoBehaviour:
   m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
+--- !u!114 &8299237875804792217
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5780764361686825177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7db70e0ea77f5ac47a8f4565a9406397, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
+  m_ShadowGroup: 0
+  m_Priority: 0
+  m_ComponentVersion: 5
+  m_HasRenderer: 0
+  m_UseRendererSilhouette: 1
+  m_CastsShadows: 1
+  m_SelfShadows: 0
+  m_AlphaCutoff: 0.1
+  m_ApplyToSortingLayers: 00000000
+  m_ShapePath:
+  - {x: -0.5625, y: 0, z: 0}
+  - {x: -0.5625, y: 1.125, z: 0}
+  - {x: 0.5625, y: 1.125, z: 0}
+  - {x: 0.5625, y: 0, z: 0}
+  m_ShapePathHash: 0
+  m_InstanceId: 0
+  m_ShadowShape2DComponent: {fileID: 7279167433169956537}
+  m_ShadowShape2DProvider:
+    rid: 8634810611613302896
+  m_ShadowCastingSource: 2
+  m_ShadowMesh:
+    m_Mesh: {fileID: 0}
+    m_LocalBounds:
+      m_Center: {x: 0, y: 0.5625, z: 0}
+      m_Extent: {x: 0.41874695, y: 0.51249695, z: 0}
+    m_EdgeProcessing: 1
+    m_TrimEdge: 0.05
+    m_FlipX: 0
+    m_FlipY: 0
+    m_InitialTrim: 0.05
+  m_CastingOption: 1
+  m_PreviousTrimEdge: 0
+  m_PreviousEdgeProcessing: -1
+  m_PreviousShadowCastingSource: -1
+  m_PreviousShadowShape2DSource: {fileID: 0}
+  references:
+    version: 2
+    RefIds:
+    - rid: 8634810611613302896
+      type: {class: ShadowShape2DProvider_SpriteRenderer, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.2D.Runtime}
+      data: 
 --- !u!1 &7557316305232995494
 GameObject:
   m_ObjectHideFlags: 0
@@ -353,11 +407,11 @@ MonoBehaviour:
     effectAmount: 0
     explosionRadius: 0
   hitSparkPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
+  bloodEffectPrefab: {fileID: 2831406977958313705, guid: e490908566bcd4745a4dc86653e0385e, type: 3}
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
   deathVfxPrefab: {fileID: 6651800158703548414, guid: 8ffeeb8f057359f45b6b4071256bd6cc, type: 3}
-  deathSprite: {fileID: 0}
   corpseSprite: {fileID: 21300000, guid: 460a2b68e1cf6774f8b91c2f8ea24f5b, type: 3}
   isSpecialUnit: 0
   isInterestTarget: 0

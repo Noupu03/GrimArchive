@@ -22,18 +22,22 @@ public class UnitVisualDefinition : MonoBehaviour
 
     [Header("이펙트")]
     public GameObject hitSparkPrefab;
+    [Tooltip("피격 추가 이펙트(2026-08-24 신규, 예: 피 튀김) — hitSparkPrefab을 대체하지 않고 같이 " +
+             "재생된다(피격 시 매번 함께 스폰). 회피/막기 등 실제 피해가 없을 때(suppressHitVFX)는 " +
+             "hitSparkPrefab과 마찬가지로 재생되지 않는다. 비워두면 추가 효과 없이 기존과 동일.")]
+    public GameObject bloodEffectPrefab;
     public GameObject guardPrefab;
     public GameObject parryPrefab;
     public GameObject attackFailPrefab;
     [Tooltip("사망 연출(2026-08-24 신규) — 유닛이 죽는 즉시 1회 재생되는 VFX. 비워두면 사망 VFX 없이 넘어간다.")]
     public GameObject deathVfxPrefab;
-    [Tooltip("사망 연출(2026-08-24 신규) — 죽는 즉시 방향별 애니메이션 대신 이 스프라이트로 고정된다. " +
-             "GameSession.DeathVisualDurationSeconds(기본 1.5초) 동안 유지되다가 시체 오브젝트로 교체된다. " +
-             "비워두면 죽는 순간의 마지막 스프라이트가 그대로 유지된다.")]
-    public Sprite deathSprite;
-    [Tooltip("사망 연출(2026-08-24 신규) — deathSprite 이후 실제로 바닥에 남는 시체 오브젝트의 " +
-             "스프라이트. 캐릭터별로 지정 가능 — 비워두면 기존 공용 시체 스프라이트(obj/colapse)로 " +
-             "폴백한다.")]
+    // deathSprite(사망 포즈로 잠깐 고정하던 중간 단계용 스프라이트) 필드는 2026-08-24 삭제 —
+    // 사용자 요청으로 "죽는 즉시 시체 스프라이트로 전환"으로 바뀌면서 그 중간 단계 자체가 없어졌다
+    // (UnitGenerate.PlayDeathVisual/GameSession.RemoveDeadUnit 참고). 13개 유닛 프리팹 전부 이 필드가
+    // 미설정(null) 상태였어서 삭제로 잃는 데이터가 없었다.
+    [Tooltip("사망 연출(2026-08-24 신규) — 사망 판정 즉시(deathVfxPrefab과 동시에) 바닥에 나타나는 " +
+             "시체 오브젝트의 스프라이트. 캐릭터별로 지정 가능 — 비워두면 기존 공용 시체 스프라이트" +
+             "(obj/colapse)로 폴백한다.")]
     public Sprite corpseSprite;
 
     [Header("가중치 시스템 (이해도/위험도/흥미도)")]

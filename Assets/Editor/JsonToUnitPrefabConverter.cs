@@ -52,6 +52,7 @@ public static class JsonToUnitPrefabConverter
     private class JsonEffectsData
     {
         public string hitSpark;
+        public string bloodDrip;
         public string guard;
         public string parry;
         public string attackFail;
@@ -209,6 +210,7 @@ public static class JsonToUnitPrefabConverter
             if (u.visual?.effects != null)
             {
                 def.hitSparkPrefab   = FindAssetByName<GameObject>(u.visual.effects.hitSpark);
+                def.bloodEffectPrefab = FindAssetByName<GameObject>(u.visual.effects.bloodDrip);
                 def.guardPrefab      = FindAssetByName<GameObject>(u.visual.effects.guard);
                 def.parryPrefab      = FindAssetByName<GameObject>(u.visual.effects.parry);
                 def.attackFailPrefab = FindAssetByName<GameObject>(u.visual.effects.attackFail);

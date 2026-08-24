@@ -84,6 +84,7 @@ public class SkillAction_Backstab : SkillAction
             threat.range = _d.threatRange > 0 ? _d.threatRange : 1;
         }
 
+        GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
         BeginAttackCast(unit, _d.baseDelayMs, threat,
             () =>
             {
@@ -98,6 +99,12 @@ public class SkillAction_Backstab : SkillAction
 
                     t.TakePhysicalDamage(unit.CombatStat.physicalAttack * finalMultiplier, unit);
                     if (_d.hasStun) t.ApplyStun(_d.stunDuration);
+
+                    // hitEffectPrefab을 맞은 대상 위치에 스폰(2026-08-24 사용자 신고 "HitEffectPrefab에
+                    // 있는 VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — 기습은 이 필드를 전혀
+                    // 쓰지 않고 있었다). 유닛 공용 피격 스파크와 같은 프리팹이면 중복 렌더링을 피한다.
+                    if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
+                        unit.VFX?.Spawn(_d.hitEffectPrefab, t);
 
                     if (backstab)
                     {

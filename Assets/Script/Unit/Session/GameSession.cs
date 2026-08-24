@@ -441,6 +441,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RevealRoomFog(Room room) => _fogOfWarSystem.RevealRoomFog(room);
     public void RevealFogAroundCapturedRoom(Room room) => _fogOfWarSystem.RevealFogAroundCapturedRoom(room);
 
+    // 횃불 위 유닛 빛 투과 예외(2026-08-24 사용자 요청 "횃불 바로 위에 있으면 빛 그냥 투과로 예외처리")
+    // — UnitGenerate.SyncVisual이 매 위치 갱신 시 이 자리에 횃불이 있는지 확인해 그 유닛의
+    // ShadowCaster2D를 임시로 끈다.
+    public bool IsTorchAt(Vector3Int pos) => _fogOfWarSystem != null && _fogOfWarSystem.ActiveTorchPositions.Contains(pos);
+
 
     // 2026-07-27 신규 — "모든 야생 진영 방에 야생 몬스터 A 2마리씩 필수 배치(위치는 랜덤), 방 밖으로
     // 나갈 수 없음" 요구사항. BuildRoomGrid() 직후(Initialize 참고) 한 번 호출한다. 야생 여부는
@@ -855,14 +860,21 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
 
             // 사망 연출(2026-08-24 사용자 요청 "죽자마자 사망 vfx 터지고, 스프라이트만 사망 스프라이트
-            // 1.5초 재생 후(이거부터 이미 죽은 판정) 시체 생성") — 킬 이벤트/파티 사망 기록/컴포넌트
-            // 정리(OnDespawn) 등 게임플레이 판정은 전부 위에서 이미 끝났다. 여기서부터는 순수 연출
-            // 시간차만 남는다: 사망 VFX와 사망 스프라이트 고정은 지금 즉시(PlayDeathVisual), 시체
-            // 오브젝트 스폰과 유닛 비주얼/ScriptableObject 파괴는 DeathVisualDurationSeconds만큼
-            // 미룬다. 이 유닛은 아래에서 곧장 units 리스트/위치 등록에서 빠지므로 대기 중에
-            // SyncVisual이 다시 걸려 스프라이트를 되돌릴 일이 없다.
+            // 재생 후 시체 생성" → 같은 날 후속 요청 "Death 스프라이트 단계 자체를 삭제하고 싶어...
+            // 사망 판정 즉시 Corpse 스프라이트로 전환 및 Death VFX Prefab이 발동되게") — 킬 이벤트/
+            // 파티 사망 기록/컴포넌트 정리(OnDespawn) 등 게임플레이 판정은 전부 위에서 이미 끝났다.
+            // 사망 VFX 재생(PlayDeathVisual)과 시체 스폰, 유닛 비주얼/ScriptableObject 파괴까지 전부
+            // 지연 없이 이 자리에서 즉시 처리한다 — 예전엔 사망 스프라이트를 DeathVisualDurationSeconds
+            // (0.8초)만큼 붙들고 있다가 시체로 교체했지만, 그 중간 단계 자체가 요청으로 사라졌다.
             _unitGenerate?.PlayDeathVisual(u);
-            FinishDeathAfterDelay(u, gridPos, corpse, corpseColor).Forget();
+            SpawnObject(corpse, corpseColor);
+            // 사용자 요청(2026-08-23, 2026-08-24 45초로 조정): 시체는 시간이 지나면 자동으로 사라진다.
+            // 그 사이 조사/파티 사망 추적 등 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른
+            // 시체가 새로 자리잡았을 수 있으니, 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이
+            // corpse 인스턴스인지 확인한 뒤에만 제거한다.
+            DespawnCorpseAfterDelay(gridPos, corpse).Forget();
+            if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
+            UnityEngine.Object.Destroy(u);
         }
 
         if (u != null) CheckPartyWaveState(u);
@@ -878,31 +890,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (u != null) ClearPerceptionRecordsFor(u);
         if (u != null) castingUnits.Remove(u);
         units.RemoveAt(index);
-        // u가 실제로 사망 처리된 경우(hp<=0), 시체 스폰 + _unitGenerate.RemoveVisual + Destroy(u)는
-        // FinishDeathAfterDelay가 사망 연출이 끝난 뒤 처리한다(위 주석 참고) — u가 애초에 null이었던
-        // 경우(이미 다른 경로로 정리된 참조)는 그 분기 자체를 안 타므로 여기서 더 할 일이 없다.
-    }
-
-    // 사망 연출 시간(2026-08-24 사용자 요청, 1.5초 → 1초 → 0.8초로 단축) — 죽는 순간 VFX가 터지고
-    // 사망 스프라이트로 고정된 채 이 시간만큼 유지되다가 시체 오브젝트로 교체된다.
-    public const float DeathVisualDurationSeconds = 0.8f;
-
-    // 사망 연출 대기(2026-08-24 신규, RemoveDeadUnit 주석 참고) — DeathVisualDurationSeconds 동안
-    // 기다렸다가 시체를 실제로 배치하고, 그제서야 유닛 비주얼/ScriptableObject를 정리한다. corpse는
-    // RemoveDeadUnit이 이미 Position/태그/OwnerPartyId 등을 전부 채워둔 상태로 넘어온다 — 여기서는
-    // 순수하게 "언제 실제로 세상에 등장시키는지"만 결정한다.
-    private async UniTaskVoid FinishDeathAfterDelay(Unit u, Vector3Int gridPos, InteractableObject corpse, Color corpseColor)
-    {
-        await UniTask.Delay(System.TimeSpan.FromSeconds(DeathVisualDurationSeconds));
-
-        SpawnObject(corpse, corpseColor);
-        // 사용자 요청(2026-08-23): 시체는 1분 뒤 자동으로 사라진다. 그 사이 조사/파티 사망 추적 등
-        // 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른 시체가 새로 자리잡았을 수 있으니,
-        // 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이 corpse 인스턴스인지 확인한 뒤에만 제거한다.
-        DespawnCorpseAfterDelay(gridPos, corpse).Forget();
-
-        if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
-        UnityEngine.Object.Destroy(u);
+        // u가 실제로 사망 처리된 경우(hp<=0)의 시체 스폰/비주얼 정리는 전부 위에서 이미 즉시 처리됐다
+        // (2026-08-24 후속 수정으로 "사망 스프라이트를 붙들고 있다가 지연 처리" 단계 자체를 없앴다) —
+        // u가 애초에 null이었던 경우(이미 다른 경로로 정리된 참조)는 그 분기 자체를 안 타므로 여기서
+        // 더 할 일이 없다.
     }
 
     // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
