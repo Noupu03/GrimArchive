@@ -440,7 +440,11 @@ public class BuildingManager : NativeRoutine
         GameObject visual = new GameObject($"Building_{objectName}_{pos.x}_{pos.y}_{pos.z}");
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = buildingSprite;
-        sr.sortingOrder = 5; // 바닥 위, 유닛/오브젝트와 동일한 순서(GameSession.SpawnObject 참고)
+        // 2026-08-25 사용자 요청 "계단보다 건물의 레이어가 더 높게" — 계단 오버레이(MapRandering.
+        // StairOverlaySortingOrder)와 GameSession.SpawnObject의 루팅/함정/코어/문 오브젝트가 모두
+        // 5를 쓰던 것과 같은 값을 공유해 겹칠 때 렌더 순서가 정해져 있지 않았다. 건물만 6으로 올려서
+        // 항상 그 위에 그려지게 한다(6은 다른 sortingOrder 상수와 충돌하지 않는 빈 값).
+        sr.sortingOrder = 6;
 
         Vector3 floorOffset = unitGenerate != null ? unitGenerate.GetFloorOffset(pos.z) : Vector3.zero;
         visual.transform.position = new Vector3(pos.x + footprint.x / 2f, pos.y + footprint.y / 2f, 0f) + floorOffset;
