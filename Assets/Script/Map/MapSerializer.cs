@@ -76,10 +76,11 @@ public static class MapSerializer
 
                         if (c.chunk != null)
                         {
-                            cDto.tiles = new Tile[64];
-                            for (int tx = 0; tx < 8; tx++)
-                                for (int ty = 0; ty < 8; ty++)
-                                    cDto.tiles[tx * 8 + ty] = c.chunk[tx, ty];
+                            int cs = c.chunk.GetLength(0);
+                            cDto.tiles = new Tile[cs * cs];
+                            for (int tx = 0; tx < cs; tx++)
+                                for (int ty = 0; ty < cs; ty++)
+                                    cDto.tiles[tx * cs + ty] = c.chunk[tx, ty];
                         }
 
                         floorDto.chunks[x * h + y] = cDto;
@@ -145,12 +146,20 @@ public static class MapSerializer
                         c.stairIsOpen = cDto.stairIsOpen;
                         c.stairHumanOnly = cDto.stairHumanOnly;
 
-                        if (cDto.tiles != null && cDto.tiles.Length == 64)
+                        // 청크 크기가 층별 설정값이 된 뒤(2026-08-23, 맵 1.5배 확장)로는 64 고정 대신
+                        // 배열 길이의 정수 제곱근으로 실제 청크 크기를 역산한다 — floor.config는 바로
+                        // 위에서 이미 복원됐으므로 floorDto.config.chunkSize를 그대로 믿어도 되지만,
+                        // 저장 당시의 실제 배열 길이와 항상 정확히 일치시키기 위해 배열 자체에서 구한다.
+                        if (cDto.tiles != null && cDto.tiles.Length > 0)
                         {
-                            c.chunk = new Tile[8, 8];
-                            for (int tx = 0; tx < 8; tx++)
-                                for (int ty = 0; ty < 8; ty++)
-                                    c.chunk[tx, ty] = cDto.tiles[tx * 8 + ty];
+                            int cs = Mathf.RoundToInt(Mathf.Sqrt(cDto.tiles.Length));
+                            if (cs * cs == cDto.tiles.Length)
+                            {
+                                c.chunk = new Tile[cs, cs];
+                                for (int tx = 0; tx < cs; tx++)
+                                    for (int ty = 0; ty < cs; ty++)
+                                        c.chunk[tx, ty] = cDto.tiles[tx * cs + ty];
+                            }
                         }
 
                         floor.chunks[x, y] = c;
@@ -193,7 +202,7 @@ public static class MapSerializer
     [Serializable]
     public class ChunksDto
     {
-        public Tile[] tiles;  // 8×8 = 64 (tx*8+ty 순서)
+        public Tile[] tiles;  // 청크 크기(cs)×cs, tx*cs+ty 순서 — cs는 층별 FloorConfig.chunkSize.
         public int landform;
         public int roomId;
         public string roomName;

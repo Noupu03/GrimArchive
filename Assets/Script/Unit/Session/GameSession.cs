@@ -381,23 +381,24 @@ public class GameSession : NativeRoutine, IOffenseQuery
                         }
                         roomChunkCount[c.roomId]++;
 
-                        int startX = cx * 8;
-                        int startY = cy * 8;
+                        int cs = floor.config.chunkSize;
+                        int startX = cx * cs;
+                        int startY = cy * cs;
 
                         var min = roomMin[c.roomId];
                         var max = roomMax[c.roomId];
                         min.x = Mathf.Min(min.x, startX);
                         min.y = Mathf.Min(min.y, startY);
-                        max.x = Mathf.Max(max.x, startX + 8);
-                        max.y = Mathf.Max(max.y, startY + 8);
+                        max.x = Mathf.Max(max.x, startX + cs);
+                        max.y = Mathf.Max(max.y, startY + cs);
                         roomMin[c.roomId] = min;
                         roomMax[c.roomId] = max;
 
-                        for (int tx = 0; tx < 8; tx++)
+                        for (int tx = 0; tx < cs; tx++)
                         {
-                            for (int ty = 0; ty < 8; ty++)
+                            for (int ty = 0; ty < cs; ty++)
                             {
-                                Vector3Int pos = new Vector3Int(cx * 8 + tx, cy * 8 + ty, currentFloor);
+                                Vector3Int pos = new Vector3Int(cx * cs + tx, cy * cs + ty, currentFloor);
                                 roomGrid[pos] = room;
                             }
                         }
@@ -1134,11 +1135,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Chunks c = floor.chunks[cx, cy];
                 if (c.roomRole != RoomRole.StartRoom || c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
+                int cs = floor.config.chunkSize;
+                for (int tx = 0; tx < cs; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < cs; ty++)
                     {
-                        Vector2Int pos = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+                        Vector2Int pos = new Vector2Int(cx * cs + tx, cy * cs + ty);
 
                         if (_unitGenerate.IsAreaClear(pos, footprint, floorIdx))
                             candidates.Add(pos);
@@ -1204,8 +1206,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         sr.sortingOrder = 5;
 
         // 9-7/9-8장/7-3장(2026-07-27 추가) — 함정 해제·코어 조사 진행 막대를 붙일 자리. 그 외
-        // 오브젝트에는 붙이지 않는다(불필요한 컴포넌트/자식 GameObject 낭비 방지).
-        if (isTrap || isCoreOnly) visual.AddComponent<ObjectProgressBarVisual>();
+        // 오브젝트에는 붙이지 않는다(불필요한 컴포넌트/자식 GameObject 낭비 방지). 문도 코어와 동일하게
+        // 파괴 채널링 대상이라(기초문서.md 피드백, 2026-08-22) 2026-08-24 사용자 요청("문과 코어 파괴
+        // 행동 중... 함정 해제할때 쓰는 로직처럼 스프라이트 하단에 표시")로 추가.
+        if (isTrap || isCoreOnly || isDoor) visual.AddComponent<ObjectProgressBarVisual>();
 
         // 빛(Light2D)이 문도 막게(사용자 요청, 2026-07-28) — MapRandering의 벽 셰도우 캐스터와 동일한
         // 기법(유닛 프리팹과 같은 SpriteRenderer 실루엣 기반 ShadowCaster2D). 문은 열림/닫힘에 따라
@@ -1274,7 +1278,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 위함(MonsterDefensePlacementSystem 분리와 동일한 이유). 아래는 외부에서 GameSession.Instance.X()
     // 형태로 호출하던 기존 진입점을 유지하기 위한 얇은 위임이다 — 실제 구현은 전부 DoorSystem에 있다.
     public bool IsDoorTile(Vector3Int pos) => _doorSystem.IsDoorTile(pos);
-    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate) => DoorSystem.GetGateDoorTiles(gate);
+    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate, int chunkSize) => DoorSystem.GetGateDoorTiles(gate, chunkSize);
     // 문 진영 판정(기초문서.md 피드백, 2026-08-22 "문은 보유 진영의 유닛만 지나갈 수 있고... 그게
     // 아니라면 공격해서 파괴해야 해") — UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에
     // 직접 사용(GameSession.Instance 없이도 static으로 호출 가능하도록 DoorSystem에 그대로 위임).
@@ -1287,6 +1291,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
+    // 이동 명령 도달성(2026-08-24 신규) — 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영
+    // 소유)만 거쳐 도달 가능한 방인지 판정한다(InputManager.IssueMoveCommand가 사용). DoorSystem에
+    // 그대로 위임(위 메서드들과 동일 관례).
+    public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)
+        => _doorSystem.CanFactionReachRoom(faction, floorIndex, fromRoomId, targetRoomId);
 
     // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 게임 시작 시 모든 방(야생 포함, 0층 제외)에
     // 코어를 하나씩 자동 생성한다. 이전엔 보스방 1개뿐이었다(SpawnInitialDungeonCore, 폐기).
@@ -1362,10 +1371,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (pos.z >= cmap.map.floors.Length) return;
 
         Floor floor = cmap.map.floors[pos.z];
-        int cx = pos.x / 8;
-        int cy = pos.y / 8;
-        int tx = pos.x % 8;
-        int ty = pos.y % 8;
+        int cs = floor.config.chunkSize;
+        int cx = pos.x / cs;
+        int cy = pos.y / cs;
+        int tx = pos.x % cs;
+        int ty = pos.y % cs;
 
         if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
         {

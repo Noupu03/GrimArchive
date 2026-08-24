@@ -180,7 +180,7 @@ public partial class CreateMap
                 for (int y = 0; y < h; y++)
                 {
                     Chunks c = new Chunks();
-                    c.chunk = new Tile[8, 8];
+                    c.chunk = new Tile[cfg.chunkSize, cfg.chunkSize];
                     c.landform = 0;
                     c.roomId = -1;
                     c.roomName = string.Empty;

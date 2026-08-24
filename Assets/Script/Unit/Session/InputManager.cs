@@ -425,11 +425,15 @@ public class InputManager : MonoBehaviour
 				}
 			}
 
-			// 점령 관련(2026-07-27 신규): 플레이어(몬스터 진영) 이동 명령은 자신이 점령한 방과
-			// 그 방과 Gate로 연결된 인접 방까지만 허용한다. 인류 명령은 테스트용이므로 이
-			// 제한을 받지 않는다(사용자 확인).
-			if (unit.IsPlayerMonsterFaction && _gameSession.cmap != null
-				&& !_gameSession.cmap.CanPlayerCommandPosition(currentFloor, new Vector2Int(gridPos.x, gridPos.y)))
+			// 이동 명령 도달성(2026-07-27 신규, 2026-08-24 점령 기준→도달 기준으로 변경) — 예전엔
+			// "자신이 점령한 방과 그 바로 옆(1홉)"까지만 허용해서, 문을 다 부숴놔도 중간 방들을
+			// 하나하나 점령해야만 그 너머로 이동 명령을 낼 수 있었다(사용자 신고, "지금 점령하지
+			// 않으면 다음 방으로 지나갈 수가 없는 현상"). 이제는 점령 여부와 무관하게, 지금 있는
+			// 방에서 통행 가능한 문(파괴됐거나 자기 진영 소유)만 거쳐 도달 가능한 방이면 전부
+			// 허용한다(GameSession.CanFactionReachRoom). 인류 명령은 테스트용이므로 이 제한을
+			// 받지 않는다(사용자 확인).
+			if (unit.IsPlayerMonsterFaction
+				&& !_gameSession.CanFactionReachRoom(FactionType.Player, currentFloor, unit.currentRoom?.RoomId ?? -1, destRoom?.RoomId ?? -1))
 			{
 				continue;
 			}

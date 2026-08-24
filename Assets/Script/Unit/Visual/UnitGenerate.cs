@@ -705,6 +705,7 @@ public class UnitGenerate
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
+		int csRandom = floor.config.chunkSize;
 		for (int i = 0; i < 2000; i++)
 		{
 			int cx = Random.Range(0, floor.config.width);
@@ -712,9 +713,9 @@ public class UnitGenerate
 			Chunks c = floor.chunks[cx, cy];
 			if (c.roomId != -1 && c.chunk != null)
 			{
-				int tx = Random.Range(0, 8);
-				int ty = Random.Range(0, 8);
-				Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+				int tx = Random.Range(0, csRandom);
+				int ty = Random.Range(0, csRandom);
+				Vector2Int cand = new Vector2Int(cx * csRandom + tx, cy * csRandom + ty);
 				if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 			}
 		}
@@ -729,15 +730,19 @@ public class UnitGenerate
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
+		// 청크 바깥쪽 벽을 피해 안쪽 절반만 후보로 삼는다 — 청크 크기 8 기준 [2,6)이었던 걸 비율
+		// 그대로 일반화했다(2026-08-23, 맵 1.5배 확장). chunkSize=8이면 margin=2로 원래 값과 동일.
+		int csStart = floor.config.chunkSize;
+		int marginStart = csStart / 4;
 		for (int cx = 0; cx < floor.config.width; cx++)
 			for (int cy = 0; cy < floor.config.height; cy++)
 			{
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomRole == RoomRole.StartRoom && c.chunk != null)
-					for (int tx = 2; tx < 6; tx++)
-						for (int ty = 2; ty < 6; ty++)
+					for (int tx = marginStart; tx < csStart - marginStart; tx++)
+						for (int ty = marginStart; ty < csStart - marginStart; ty++)
 						{
-							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+							Vector2Int cand = new Vector2Int(cx * csStart + tx, cy * csStart + ty);
 							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 						}
 			}
@@ -752,15 +757,17 @@ public class UnitGenerate
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
+		int csBoss = floor.config.chunkSize;
+		int marginBoss = csBoss / 4; // GetStartRoomPos와 동일한 비율 일반화.
 		for (int cx = 0; cx < floor.config.width; cx++)
 			for (int cy = 0; cy < floor.config.height; cy++)
 			{
 				Chunks c = floor.chunks[cx, cy];
 				if (c.roomRole == RoomRole.BossRoom && c.chunk != null)
-					for (int tx = 2; tx < 6; tx++)
-						for (int ty = 2; ty < 6; ty++)
+					for (int tx = marginBoss; tx < csBoss - marginBoss; tx++)
+						for (int ty = marginBoss; ty < csBoss - marginBoss; ty++)
 						{
-							Vector2Int cand = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+							Vector2Int cand = new Vector2Int(cx * csBoss + tx, cy * csBoss + ty);
 							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
 						}
 			}

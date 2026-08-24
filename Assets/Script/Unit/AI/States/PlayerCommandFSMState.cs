@@ -190,7 +190,7 @@ public class PlayerCommandFSMState : IFSMState
 		if (unit.currentFloor != targetPos.z || !IsPendingObjectAttackValid(unit, targetPos))
 		{
 			unit.playerAttackObjectTarget = null;
-			unit.currentAttackObjectTarget = null;
+			unit.ClearAttackObjectTarget();
 			unit.oneTimeReactUsed = false;
 			// InputManager.ExecuteRightClickCommand가 이 명령을 걸 때 방 경계/문 타일 제한을 우회하려고
 			// 켰던 예외(2026-08-22, 위 참고)를 명령 종료 시점에 반드시 꺼야 한다 — 안 그러면 대상이
@@ -208,7 +208,7 @@ public class PlayerCommandFSMState : IFSMState
 			return BTStatus.Running;
 		}
 
-		unit.currentAttackObjectTarget = null; // 인접하지 않게 됐으면(밀려남 등) 채널링 중단
+		unit.ClearAttackObjectTarget(); // 인접하지 않게 됐으면(밀려남 등) 채널링 중단
 		if (!AIMovementHelper.MoveTowardsPos(unit, pos2D))
 		{
 			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos2D);

@@ -170,7 +170,7 @@ public partial class CreateMap
                 for (int y = 0; y < h && startWx < 0; y++)
                     if (floor.chunks[x, y].roomRole == RoomRole.StartRoom)
                     {
-                        var startTile = FindFirstFloorTile(floor.chunks[x, y], x, y);
+                        var startTile = FindFirstFloorTile(floor.chunks[x, y], x, y, floor.config.chunkSize);
                         startWx = startTile.wx;
                         startWy = startTile.wy;
                     }
@@ -480,8 +480,9 @@ public partial class CreateMap
     {
         int w = floor.config.width;
         int h = floor.config.height;
-        int totalW = w * 8;
-        int totalH = h * 8;
+        int cs = floor.config.chunkSize;
+        int totalW = w * cs;
+        int totalH = h * cs;
 
         bool[,] visited = new bool[totalW, totalH];
         var queue = new Queue<(int x, int y)>();
@@ -501,8 +502,8 @@ public partial class CreateMap
                 if (nx < 0 || nx >= totalW || ny < 0 || ny >= totalH) continue;
                 if (visited[nx, ny]) continue;
 
-                int chunkX = nx / 8, chunkY = ny / 8;
-                int tileX = nx % 8, tileY = ny % 8;
+                int chunkX = nx / cs, chunkY = ny / cs;
+                int tileX = nx % cs, tileY = ny % cs;
                 Tile t = floor.chunks[chunkX, chunkY].chunk[tileX, tileY];
                 if (t.name != "Wall")
                 {
@@ -517,34 +518,34 @@ public partial class CreateMap
             for (int y = 0; y < h; y++)
             {
                 if (floor.chunks[x, y].roomId < 0) continue;
-                if (IsChunkReachable(floor.chunks[x, y], x, y, visited))
+                if (IsChunkReachable(floor.chunks[x, y], x, y, visited, cs))
                     reachable.Add(floor.chunks[x, y].roomId);
             }
 
         return reachable;
     }
 
-    bool IsChunkReachable(Chunks chunk, int cx, int cy, bool[,] visited)
+    bool IsChunkReachable(Chunks chunk, int cx, int cy, bool[,] visited, int chunkSize)
     {
         if (chunk.chunk == null) return false;
-        for (int tx = 0; tx < 8; tx++)
-            for (int ty = 0; ty < 8; ty++)
+        for (int tx = 0; tx < chunkSize; tx++)
+            for (int ty = 0; ty < chunkSize; ty++)
             {
-                if (chunk.chunk[tx, ty].name != "Wall" && visited[cx * 8 + tx, cy * 8 + ty])
+                if (chunk.chunk[tx, ty].name != "Wall" && visited[cx * chunkSize + tx, cy * chunkSize + ty])
                     return true;
             }
         return false;
     }
 
-    (int wx, int wy) FindFirstFloorTile(Chunks chunk, int cx, int cy)
+    (int wx, int wy) FindFirstFloorTile(Chunks chunk, int cx, int cy, int chunkSize)
     {
         if (chunk.chunk != null)
         {
-            for (int tx = 0; tx < 8; tx++)
-                for (int ty = 0; ty < 8; ty++)
+            for (int tx = 0; tx < chunkSize; tx++)
+                for (int ty = 0; ty < chunkSize; ty++)
                     if (chunk.chunk[tx, ty].name != "Wall")
-                        return (cx * 8 + tx, cy * 8 + ty);
+                        return (cx * chunkSize + tx, cy * chunkSize + ty);
         }
-        return (cx * 8 + 4, cy * 8 + 4);
+        return (cx * chunkSize + chunkSize / 2, cy * chunkSize + chunkSize / 2);
     }
 }
