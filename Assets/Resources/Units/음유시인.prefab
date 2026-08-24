@@ -81,7 +81,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
+    hitEffectPrefab: {fileID: 8746278311700403781, guid: cfd7b8c95bea0fe4087d9b24ae47e8ec, type: 3}
     hitShape: LINE
     hitRange: 6
     hitWidth: 1
@@ -230,7 +230,7 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 100
   m_MaskInteraction: 0
   m_Sprite: {fileID: 2138258690, guid: 9bc06e8f6a0d63a4491fce3fcf64b469, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -268,8 +268,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 0
-  m_labelHash: 0
+  m_CategoryHash: 2.0107608e-32
+  m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 345551559
 --- !u!1 &9031575455657636542
