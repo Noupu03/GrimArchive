@@ -358,6 +358,7 @@ MonoBehaviour:
   attackFailPrefab: {fileID: 0}
   deathVfxPrefab: {fileID: 6651800158703548414, guid: 8ffeeb8f057359f45b6b4071256bd6cc, type: 3}
   deathSprite: {fileID: 0}
+  corpseSprite: {fileID: 21300000, guid: fe40dd0535050f449bb55aa9c1961d67, type: 3}
   isSpecialUnit: 0
   isInterestTarget: 0
   baseInterest: 40

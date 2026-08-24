@@ -303,7 +303,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 10
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -1151322697, guid: f4c916e3f24fd434d8bb2608edf7c395, type: 3}
+  m_Sprite: {fileID: -206313129, guid: 4b5bb41408ba77e4186b01e9c846fde0, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -326,7 +326,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteLibrary
   m_Library: []
-  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 0674e05a6589b4a4d99cad4a0b2c95da, type: 3}
+  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 56445808682c3204486bf723aa7ae578, type: 3}
 --- !u!114 &4858693510987481363
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -378,8 +378,8 @@ MonoBehaviour:
   m_ShadowMesh:
     m_Mesh: {fileID: 0}
     m_LocalBounds:
-      m_Center: {x: 0, y: 0.40625, z: 0}
-      m_Extent: {x: 0.20625305, y: 0.20625305, z: 0}
+      m_Center: {x: 0, y: 0.5, z: 0}
+      m_Extent: {x: 0.11250305, y: 0.30000305, z: 0}
     m_EdgeProcessing: 1
     m_TrimEdge: 0.2
     m_FlipX: 0
@@ -446,9 +446,9 @@ MonoBehaviour:
   engageDistance: 3
   populationCost: 1
   stats:
-    maxHp: 180
+    maxHp: 300
     maxMp: 0
-    physicalAttack: 30
+    physicalAttack: 60
     magicalAttack: 9
     physicalDefense: 10
     magicalDefense: 8

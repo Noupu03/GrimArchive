@@ -1,22 +1,22 @@
 fileFormatVersion: 2
-guid: 4c717d96dd9ac38439c6a9767839f634
+guid: b7342c44a882e84408a73d167a580ba6
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -7692775764324846419
-    second: Char_NinjaA_0
+      213: -5257598594487292022
+    second: merged_sheet_5frames (14)_0
   - first:
-      213: 5761665103674091838
-    second: Char_NinjaA_1
+      213: 1433755846144663154
+    second: merged_sheet_5frames (14)_1
   - first:
-      213: -5159122343297121029
-    second: Char_NinjaA_2
+      213: -534085401836483731
+    second: merged_sheet_5frames (14)_2
   - first:
-      213: 1978281763852455694
-    second: Char_NinjaA_3
+      213: 2997194639372046968
+    second: merged_sheet_5frames (14)_3
   - first:
-      213: -2228526319872051976
-    second: Char_NinjaA_4
+      213: 785267120591747115
+    second: merged_sheet_5frames (14)_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -112,7 +112,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_NinjaA_0
+      name: Char_Bard_0
       rect:
         serializedVersion: 2
         x: 0
@@ -125,16 +125,16 @@ TextureImporter:
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: da4feae4335cd3590800000000000000
-      internalID: -7692775764324846419
+      spriteID: f326a6dd8375e2d468c2e64456794cc6
+      internalID: -1480788080
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_NinjaA_1
+      name: Char_Bard_1
       rect:
         serializedVersion: 2
         x: 32
@@ -147,16 +147,16 @@ TextureImporter:
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: e39224b92eb85ff40800000000000000
-      internalID: 5761665103674091838
+      spriteID: 11a8402365be5eb44a736a5d5dca4ce7
+      internalID: -46983942
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_NinjaA_2
+      name: Char_Bard_2
       rect:
         serializedVersion: 2
         x: 64
@@ -169,16 +169,16 @@ TextureImporter:
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: bf48efe109d1768b0800000000000000
-      internalID: -5159122343297121029
+      spriteID: a9f9f5b3c831c65419b1843327f17cf0
+      internalID: -2133526119
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_NinjaA_3
+      name: Char_Bard_3
       rect:
         serializedVersion: 2
         x: 96
@@ -191,16 +191,16 @@ TextureImporter:
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: e0f0f0868c4447b10800000000000000
-      internalID: 1978281763852455694
+      spriteID: b2cf1b63bcd70e043813eb4ee5105662
+      internalID: -1348317067
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_NinjaA_4
+      name: Char_Bard_4
       rect:
         serializedVersion: 2
         x: 128
@@ -213,10 +213,10 @@ TextureImporter:
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 8f4fa6b8e1fa211e0800000000000000
-      internalID: -2228526319872051976
+      spriteID: 74ae8215540984a4cbc3b9ee0be05a89
+      internalID: -896087934
       vertices: []
       indices: 
       edges: []
@@ -225,7 +225,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 396cb38604276a84b9c01b5e76992723
+    spriteID: 4ddf1b4c38dcc344b924068d3579dca1
     internalID: 0
     vertices: []
     indices: 
@@ -237,11 +237,11 @@ TextureImporter:
       - key: SpriteEditor.SliceSettings
         value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":32.0,"y":32.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Char_NinjaA_0: -7692775764324846419
-      Char_NinjaA_1: 5761665103674091838
-      Char_NinjaA_2: -5159122343297121029
-      Char_NinjaA_3: 1978281763852455694
-      Char_NinjaA_4: -2228526319872051976
+      Char_Bard_0: -1480788080
+      Char_Bard_1: -46983942
+      Char_Bard_2: -2133526119
+      Char_Bard_3: -1348317067
+      Char_Bard_4: -896087934
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -17,7 +17,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &3713539126273365399
 Transform:
   m_ObjectHideFlags: 0
@@ -358,6 +358,7 @@ MonoBehaviour:
   attackFailPrefab: {fileID: 0}
   deathVfxPrefab: {fileID: 6651800158703548414, guid: 8ffeeb8f057359f45b6b4071256bd6cc, type: 3}
   deathSprite: {fileID: 0}
+  corpseSprite: {fileID: 21300000, guid: d86ce30c129786948b1274a6d3fbe254, type: 3}
   isSpecialUnit: 0
   isInterestTarget: 0
   baseInterest: 40
