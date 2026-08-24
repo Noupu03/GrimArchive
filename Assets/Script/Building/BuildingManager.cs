@@ -123,10 +123,11 @@ public class BuildingManager : NativeRoutine
                 Floor floor = createMap.map.floors[pos.z];
                 if (floor.chunks != null)
                 {
-                    int cx = pos.x / 8;
-                    int cy = pos.y / 8;
-                    int tx = pos.x % 8;
-                    int ty = pos.y % 8;
+                    int cs = floor.config.chunkSize;
+                    int cx = pos.x / cs;
+                    int cy = pos.y / cs;
+                    int tx = pos.x % cs;
+                    int ty = pos.y % cs;
                     if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
                     {
                         var chunk = floor.chunks[cx, cy];
@@ -402,10 +403,11 @@ public class BuildingManager : NativeRoutine
 
         // 1. 세이브/로드 및 기반 데이터를 위한 MapData 갱신
         Floor floor = createMap.map.floors[pos.z];
-        int cx = pos.x / 8;
-        int cy = pos.y / 8;
-        int tx = pos.x % 8;
-        int ty = pos.y % 8;
+        int cs = floor.config.chunkSize;
+        int cx = pos.x / cs;
+        int cy = pos.y / cs;
+        int tx = pos.x % cs;
+        int ty = pos.y % cs;
 
         if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
         {

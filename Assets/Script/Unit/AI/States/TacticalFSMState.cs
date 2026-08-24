@@ -1058,7 +1058,7 @@ public class TacticalFSMState : IFSMState
 	{
 		if (!FindHostileRoomCore(unit, out Room room, out InteractableObject core))
 		{
-			unit.currentAttackObjectTarget = null;
+			unit.ClearAttackObjectTarget();
 			return BTStatus.Failure;
 		}
 
@@ -1078,7 +1078,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 
-		unit.currentAttackObjectTarget = null;
+		unit.ClearAttackObjectTarget();
 		if (!AIMovementHelper.MoveTowardsPos(unit, pos))
 		{
 			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos);
@@ -1111,12 +1111,12 @@ public class TacticalFSMState : IFSMState
 
 		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(corePos, out var obj))
 		{
-			unit.currentAttackObjectTarget = null;
+			unit.ClearAttackObjectTarget();
 			return BTStatus.Success;
 		}
 		if (obj.CoreHp > 0f) return BTStatus.Running; // 파괴 완료는 OffenseProcessor.OnCoreDestroyed가 처리
 
-		unit.currentAttackObjectTarget = null;
+		unit.ClearAttackObjectTarget();
 		return BTStatus.Success;
 	}
 
@@ -1163,7 +1163,7 @@ public class TacticalFSMState : IFSMState
 		{
 			if (gate.roomA != room.RoomId && gate.roomB != room.RoomId) continue;
 
-			foreach (var tileRow in DoorSystem.GetGateDoorTiles(gate))
+			foreach (var tileRow in DoorSystem.GetGateDoorTiles(gate, floor.config.chunkSize))
 			{
 				foreach (var tile in tileRow)
 				{
@@ -1190,7 +1190,7 @@ public class TacticalFSMState : IFSMState
 	{
 		if (!FindHostileExitDoor(unit, out Vector3Int doorPos, out _))
 		{
-			unit.currentAttackObjectTarget = null;
+			unit.ClearAttackObjectTarget();
 			return BTStatus.Failure;
 		}
 
@@ -1223,7 +1223,7 @@ public class TacticalFSMState : IFSMState
 			if (fallback != pos) AIMovementHelper.MoveTowardsPos(unit, fallback);
 		}
 
-		unit.currentAttackObjectTarget = null;
+		unit.ClearAttackObjectTarget();
 		return BTStatus.Running;
 	}
 
@@ -1242,12 +1242,12 @@ public class TacticalFSMState : IFSMState
 
 		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(doorPos, out var obj))
 		{
-			unit.currentAttackObjectTarget = null;
+			unit.ClearAttackObjectTarget();
 			return BTStatus.Success; // 파괴 완료(DoorSystem.RemoveDoor가 objectGrid에서 제거)
 		}
 		if (obj.DoorHp > 0f) return BTStatus.Running;
 
-		unit.currentAttackObjectTarget = null;
+		unit.ClearAttackObjectTarget();
 		return BTStatus.Success;
 	}
 

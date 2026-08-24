@@ -18,7 +18,18 @@ public class CameraController : MonoBehaviour
     // 파티가 등장하는, 플레이어에게 보이지 않아야 하는 칸이다 — 별도 렌더링 은폐 없이 카메라가 그
     // 칸까지 가지 못하게 관찰 가능 범위 자체에서 제외해 "안 보임"을 구현한다.
     private const int Floor0HiddenChunksX = 1;
-    private const int ChunkSizeTiles = 8; // Floor0HiddenChunksX(청크 단위)를 타일 단위로 환산할 때만 씀.
+    // Floor0HiddenChunksX(청크 단위)를 타일 단위로 환산할 때 쓰는 0층 청크 크기 — 맵 1.5배 확장
+    // (2026-08-23 "0층은 청크 크기만 늘려")으로 청크 크기가 층별 설정값(FloorConfig.chunkSize)이 된
+    // 뒤로는 별도 상수로 손으로 맞추지 않고 실제 맵 데이터에서 그대로 읽는다.
+    private static int Floor0ChunkSizeTiles
+    {
+        get
+        {
+            var cmap = GameSession.Instance?.cmap;
+            if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return 8;
+            return cmap.map.floors[0].config.chunkSize;
+        }
+    }
 
     private int _currentFloor = -1; // -1 = 아직 초기화 전(맵 로드 대기 중).
     private bool _floorViewInitialized = false;
@@ -178,7 +189,7 @@ public class CameraController : MonoBehaviour
         if (mapRandering == null || !mapRandering.TryGetFloorWorldBounds(floorIndex, out Rect raw)) return false;
 
         int hiddenChunksX = floorIndex == 0 ? Floor0HiddenChunksX : 0;
-        float xMin = raw.xMin + hiddenChunksX * ChunkSizeTiles;
+        float xMin = raw.xMin + hiddenChunksX * Floor0ChunkSizeTiles;
         float xMax = Mathf.Max(xMin, raw.xMax); // 방어적 처리(설정 오류로 숨김 청크가 층 폭 이상일 경우)
 
         bounds = new Rect(xMin, raw.yMin, xMax - xMin, raw.height);

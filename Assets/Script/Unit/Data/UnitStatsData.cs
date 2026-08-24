@@ -42,7 +42,8 @@ public class SkillData
     public float  priorityRangeBonus;
 
     [Header("확장 스킬 설정 (테스트용)")]
-    public string skillArchetype; // "GroundAoE", "Backstab", "Heal", "Shield", "Curse", "MultiHit", "PartyBuff" 등
+    public string skillArchetype; // "GroundAoE", "Backstab", "Heal", "Shield", "Curse", "MultiHit", "PartyBuff",
+                                   // "GolemSlam", "GolemSweep", "GolemClap"(보스 골렘 전용) 등
     public int    multiHitCount;
     public float  effectDuration;
     public float  effectAmount;

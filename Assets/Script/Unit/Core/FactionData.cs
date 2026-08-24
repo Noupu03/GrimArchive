@@ -25,8 +25,8 @@ public class FactionData
 		int maxH = 0;
 		for (int i = 0; i < floorCount; i++)
 		{
-			int w = cmap.map.floors[i].config.width  * 8;
-			int h = cmap.map.floors[i].config.height * 8;
+			int w = cmap.map.floors[i].config.width  * cmap.map.floors[i].config.chunkSize;
+			int h = cmap.map.floors[i].config.height * cmap.map.floors[i].config.chunkSize;
 			discoveredMap[i] = new int[w, h];
 			if (w > maxW) maxW = w;
 			if (h > maxH) maxH = h;

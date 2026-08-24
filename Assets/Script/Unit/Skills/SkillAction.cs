@@ -401,9 +401,15 @@ public abstract class SkillAction
 		return isDiagonal ? 0.75f : 1f;
 	}
 
+	// 쿨감 상한 (2026-08-24: 50 → 25). units.json의 cooltimeReduction이 거의 모든 유닛에서 90~95라
+	// 예전 상한으로는 전원이 항상 최대 감소를 받아 모든 스킬 쿨다운이 절반이 됐다("공격과 공격 사이
+	// 간격이 너무 짧음"). 지금은 최대 25% 감소라 실질 쿨다운이 예전의 1.5배다.
+	// 더 늘리려면 이 상한을 낮추거나(전역), skills.json + 해당 프리팹의 baseCooldown을 올린다(개별).
+	public const float MaxCooldownReductionPercent = 25f;
+
 	public static float ApplyCooldown(Unit unit, float baseCd)
 	{
-		float reduction = Mathf.Min(50f, unit.BaseStat.cooltimeReduction);
+		float reduction = Mathf.Min(MaxCooldownReductionPercent, unit.BaseStat.cooltimeReduction);
 		return baseCd * (1f - reduction / 100f);
 	}
 }

@@ -30,6 +30,14 @@ public class OffenseProcessor
 
         _activeOffenseRooms.Add(room);
         LogHelper.Log($"[오펜스 시작] {room.RoomName} 방에 플레이어 유닛 진입 — 오펜스 개시");
+
+        // 다음 방 미리 밝히기(2026-08-24 사용자 요청 "이전 방에 도달하면(오펜스 진행시) 다음 방
+        // 밝혀지도록") — 이 방 자체는 SyncRoomAffiliation(UnitFunction.cs)이 진입 시점에 이미
+        // RevealRoomFog로 걷지만, 그 방과 Gate로 직접 연결된 다음 방까지 미리 걷어주진 않았다.
+        // 점령 시 이미 쓰던 RevealFogAroundCapturedRoom(자기 자신 + 인접 방까지 함께 해제)을 그대로
+        // 재사용 — 오펜스 시작도 "이 방에 도달했다"는 같은 성격의 이벤트라 idempotent한 이 함수를
+        // 그대로 걸어도 안전하다(이미 걷힌 방은 RevealRoomFog 내부 가드로 조용히 무시됨).
+        GameSession.Instance?.RevealFogAroundCapturedRoom(room);
     }
 
     // 하위 호환성 (디버그 창 호출용)

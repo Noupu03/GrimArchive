@@ -145,7 +145,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		float dist = Vector2.Distance(position, attacker.position);
 		float effectiveSpotting = VisionStat.spotting + (Perception.IsAlert ? PerceptionMath.AlertDetectionBonus : 0f); // 02문서 10장: 경계 중 감지 보정
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
-		float perceptionAngle = VisionMath.AwarenessAngle(effectiveSpotting);
+		// 전방위 시야(2026-08-24, 보스 골렘) — UpdateFOV와 동일하게 각도 제한만 없앤다. 거리와
+		// 완전 차단(IsFullyBlockedTowards) 판정은 아래에서 그대로 적용된다.
+		float perceptionAngle = hasOmnidirectionalVision ? 360f : VisionMath.AwarenessAngle(effectiveSpotting);
 
 		Vector2 forward = GetDirVector(currentDir);
 		if (forward == Vector2.zero) forward = Vector2.down;
@@ -180,8 +182,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
 		float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
 
-		int mapWidth = floor.config.width * 8;
-		int mapHeight = floor.config.height * 8;
+		int mapWidth = floor.config.width * floor.config.chunkSize;
+		int mapHeight = floor.config.height * floor.config.chunkSize;
 		float dist = 0f;
 
 		while (dist < maxDistance)
@@ -349,6 +351,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void Move(Dir dir)
 	{
+		// 고정 유닛(2026-08-24, 보스 골렘) 최종 안전망 — FSM/명령/배회 등 어느 경로로 이동 요청이
+		// 들어와도 여기서 전부 무시한다. UnitFSM이 이미 StandGroundAttackFSMState로 묶어두지만,
+		// 이동 호출부가 FSM 바깥에도 여럿 있어(UnitFSM.RunCurrentState의 _current==null 폴백 랜덤
+		// 이동 등) 단일 관문에서 한 번 더 막는 편이 확실하다.
+		if (isImmobile) return;
+
 		Vector2Int dirVec = GetDirVector(dir);
 		Vector2Int nextPos = position + dirVec;
 
@@ -553,6 +561,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 			perceptionDistance *= ExplorationMath.InvestigatePenaltyRatio;
 		}
 
+		// 전방위 시야(2026-08-24, 보스 골렘) — 각도 제한만 없앤다. 거리(viewDistance/perceptionDistance)와
+		// 차폐(isOpaque의 벽·방 경계 판정)는 그대로 적용되므로 "벽을 뚫어 본다"가 되지는 않는다.
+		// 위 조사 페널티(50%)보다 뒤에 둬서 페널티가 각도를 다시 깎지 않도록 한다.
+		if (hasOmnidirectionalVision)
+		{
+			viewAngle       = 360f;
+			perceptionAngle = 360f;
+		}
+
 		float centerAngle = Mathf.Atan2(forward.y, forward.x) * Mathf.Rad2Deg;
 
 		// 대칭 쉐도우 캐스팅 — 72레이 DDA + Wall Dilation 대체.
@@ -562,8 +579,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		Floor floorData = cmap.map.floors[currentFloor];
 		if (floorData.chunks == null) return;
-		int mapWidth  = floorData.config.width  * 8;
-		int mapHeight = floorData.config.height * 8;
+		int csVision = floorData.config.chunkSize;
+		int mapWidth  = floorData.config.width  * csVision;
+		int mapHeight = floorData.config.height * csVision;
 
 		Human terrainObserver = this as Human;
 		// 몬스터 개인 지도(2026-08-20, 사용자 요청 "몬스터들도 개인 지도는 있어야 한다") — 인류와
@@ -577,7 +595,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			int px = pos.x, py = pos.y;
 			if (px < 0 || px >= mapWidth || py < 0 || py >= mapHeight) return true;
-			int ocx = px / 8, otx = px % 8, ocy = py / 8, oty = py % 8;
+			int ocx = px / csVision, otx = px % csVision, ocy = py / csVision, oty = py % csVision;
 			if (ocx >= floorData.config.width || ocy >= floorData.config.height) return true;
 			Chunks oc = floorData.chunks[ocx, ocy];
 			if (oc.roomId == -1 || oc.chunk == null) return true;
@@ -593,7 +611,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		void ProcessTile(int x, int y, bool inPerceptionRange)
 		{
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return;
-			int pcx = x / 8, ptx = x % 8, pcy = y / 8, pty = y % 8;
+			int pcx = x / csVision, ptx = x % csVision, pcy = y / csVision, pty = y % csVision;
 			if (pcx >= floorData.config.width || pcy >= floorData.config.height) return;
 			Chunks chunk = floorData.chunks[pcx, pcy];
 			if (chunk.roomId == -1 || chunk.chunk == null) return;
@@ -1128,13 +1146,19 @@ public abstract class UnitFunction : Unit, IVisionContext
 					// 깎는다. 여러 명이 같은 코어를 동시에 공격하면 각자 이 블록을 독립적으로 실행하므로
 					// 인원수만큼 자연히 합산된다.
 					targetObj.CoreHp = Mathf.Max(0f, targetObj.CoreHp - GameSession.CoreAttackDamagePerSecond * deltaTime);
+
+					// 파괴 진행도 표시(2026-08-24 사용자 요청 "함정 해제할때 쓰는 로직처럼 스프라이트
+					// 하단에 표시") — TrapDisarmPerform의 CachedProgressBar/SetProgress 패턴과 동일.
+					float coreProgress = targetObj.CoreMaxHp > 0f ? 1f - targetObj.CoreHp / targetObj.CoreMaxHp : 0f;
+					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(coreProgress, true);
+
 					if (targetObj.CoreHp <= 0f)
 					{
 						// 코어 파괴 순간 OffenseProcessor.OnCoreDestroyed로 방 소유권을 즉시 전환한다
 						// (코어 자체는 사라지지 않고 반피로 회복 — 소유권 전환이 곧 "파괴 완료").
 						if (Session.roomGrid.TryGetValue(targetPos, out Room coreRoom))
 							Session.OffenseProcessor?.OnCoreDestroyed(coreRoom, targetObj, this);
-						currentAttackObjectTarget = null;
+						ClearAttackObjectTarget();
 					}
 				}
 				else if (isDoor && targetObj.DoorHp > 0f)
@@ -1142,20 +1166,24 @@ public abstract class UnitFunction : Unit, IVisionContext
 					// 고정 초당 데미지(코어와 동일한 설계, 2026-08-22 "문도 동일") — DoorSystem.
 					// DoorAttackDamagePerSecond 참고.
 					targetObj.DoorHp = Mathf.Max(0f, targetObj.DoorHp - DoorSystem.DoorAttackDamagePerSecond * deltaTime);
+
+					float doorProgress = targetObj.DoorMaxHp > 0f ? 1f - targetObj.DoorHp / targetObj.DoorMaxHp : 0f;
+					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(doorProgress, true);
+
 					if (targetObj.DoorHp <= 0f)
 					{
 						Session.RemoveDoor(targetPos); // 문 오브젝트 자체를 제거 — 재설치 전까지 통로가 뚫린다.
-						currentAttackObjectTarget = null;
+						ClearAttackObjectTarget();
 					}
 				}
 				else
 				{
-					currentAttackObjectTarget = null; // 이미 파괴됐거나 해당 없는 오브젝트
+					ClearAttackObjectTarget(); // 이미 파괴됐거나 해당 없는 오브젝트
 				}
 			}
 			else
 			{
-				currentAttackObjectTarget = null;
+				ClearAttackObjectTarget();
 			}
 		}
 
@@ -1239,7 +1267,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// "제자리 공격" 상태도 동일하게 막는다(2026-08-22 사용자 신고 "제자리 공격중 회피및 점멸
 		// 여전히 존재함" — "제자리에서 절대 이동하지 않는다"는 명시된 조건이므로 회피/점멸로 인한
 		// 위치 이동도 예외 없이 차단해야 한다는 뜻으로 확정).
-		if (isHalted || isStandGroundAttack) return;
+		// 고정 유닛(2026-08-24, 보스 골렘)도 동일 — 회피/점멸로도 절대 자리를 뜨지 않는다.
+		if (isHalted || isStandGroundAttack || isImmobile) return;
 
 		if (attacker != null)
 		{

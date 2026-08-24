@@ -96,6 +96,9 @@ public class UnitVisualDefinition : MonoBehaviour
                 case "Curse":     list.Add(new SkillAction_Curse(sd)); break;
                 case "MultiHit":  list.Add(new SkillAction_MultiHit(sd)); break;
                 case "PartyBuff": list.Add(new SkillAction_PartyBuff(sd)); break;
+                case "GolemSlam":  list.Add(new SkillAction_GolemSlam(sd)); break;
+                case "GolemSweep": list.Add(new SkillAction_GolemSweep(sd)); break;
+                case "GolemClap":  list.Add(new SkillAction_GolemClap(sd)); break;
                 default:
                     // 아키타입이 비어있는 건 정상(몬스터 기본 스킬 등)이지만, 값이 있는데 여기로 떨어졌다면
                     // 오타이거나 위 case 목록에 빠진 것이다 — 조용히 Generic으로 폴백하면 스킬 하나가

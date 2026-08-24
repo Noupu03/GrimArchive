@@ -57,6 +57,14 @@ public class WildMonsterA : UnitType
 	public WildMonsterA() { typeName = "야생 몬스터 A"; footprint = new Vector2(1, 1); }
 }
 
+// 보스용 골렘(2026-08-24, 기획 확정: "1층 보스방에 고정 소환, 야생 소속") — 기본 몬스터의 3배
+// 풋프린트. GameSession.SpawnBossGolem이 1층 보스방 안 빈 좌표 하나에만 고정 배치한다(WildMonsterA처럼
+// 야생 방마다 반복 배치되는 게 아니라 게임 전체에 한 마리).
+public class BossGolem : UnitType
+{
+	public BossGolem() { typeName = "보스 골렘"; footprint = new Vector2(3, 3); }
+}
+
 // ----------------------------------------------------
 // 원거리 유닛 (투사체 사용)
 // ----------------------------------------------------
@@ -135,15 +143,20 @@ public static class CombatConstants
 	// =======방어 성공률=======
 	// 최소 방어 성공률
 	public const float MIN_DEFENSE_SUCCESS_RATE = 0.05f;
-	// 최대 방어 성공률
-	public const float MAX_DEFENSE_SUCCESS_RATE = 0.95f;
+	// 최대 방어 성공률 (2026-08-24: 0.95 → 0.60. 회피/패링이 사실상 항상 성공해 전투가 끝나지 않았다)
+	public const float MAX_DEFENSE_SUCCESS_RATE = 0.60f;
 	// =======점멸=======
+	// 점멸 사용 여부 (2026-08-24 사용자 요청으로 비활성화).
+	// false면 DefenseSystem의 선제 반응 후보에서 점멸이 아예 빠지고 회피만 남는다.
+	// 실행 로직(ExecuteEarlyReaction의 Blink 분기)은 그대로 남겨뒀으므로 true로 되돌리면 즉시 부활한다.
+	public const bool ENABLE_BLINK = false;
 	// 점멸 MP 소모 비율
 	// (최대 MP의 30%)
 	public const float BLINK_MP_COST_RATIO = 0.30f;
 	// =======막기=======
 	// 최소 피해 감소율
 	public const float MIN_BLOCK_DAMAGE_REDUCTION = 0.01f;
-	// 최대 피해 감소율
-	public const float MAX_BLOCK_DAMAGE_REDUCTION = 1.00f;
+	// 최대 피해 감소율 (2026-08-24: 1.00 → 0.50. 1.00은 "막으면 피해 0"이라 방어력이 어느 정도만
+	// 있어도 계수 계산이 상한에 붙어 공격이 통째로 무효화됐다 — 전투가 끝나지 않던 주원인)
+	public const float MAX_BLOCK_DAMAGE_REDUCTION = 0.50f;
 }
