@@ -252,7 +252,7 @@ public abstract class Unit : ScriptableObject {
 		isManualMoveCommand = true;
 		playerAttackTarget = null;
 		playerAttackObjectTarget = null;
-		currentAttackObjectTarget = null;
+		ClearAttackObjectTarget();
 		pendingHaltOnArrival = markHalt;
 		pendingStandGroundOnArrival = markStandGround;
 	}
@@ -262,7 +262,7 @@ public abstract class Unit : ScriptableObject {
 		playerAttackTarget = target;
 		playerMoveTarget = null;
 		playerAttackObjectTarget = null;
-		currentAttackObjectTarget = null;
+		ClearAttackObjectTarget();
 		isHalted = false;
 		isStandGroundAttack = false;
 	}
@@ -284,7 +284,7 @@ public abstract class Unit : ScriptableObject {
 		playerInteractTarget = null;
 		isManualMoveCommand = false;
 		playerAttackObjectTarget = null;
-		currentAttackObjectTarget = null;
+		ClearAttackObjectTarget();
 		isHalted = false;
 		pendingHaltOnArrival = false;
 		isStandGroundAttack = false;
@@ -383,6 +383,20 @@ public abstract class Unit : ScriptableObject {
 	// UnitFunction.OnUpdate가 매 프레임 CoreHp/DoorHp를 깎는다(TrapInteractionState의 Destroying
 	// 단계와 동일한 채널링 패턴).
 	public Vector3Int? currentAttackObjectTarget;
+
+	// 코어/문 파괴 진행도 표시(2026-08-24 사용자 요청 "함정 해제할때 쓰는 로직처럼 스프라이트
+	// 하단에 표시") — 채널링이 어떤 이유로든(완료/파괴/명령 취소/대상 이탈) 끝날 때는 항상 이
+	// 메서드를 거쳐 진행 막대를 같이 숨긴다. TrapInteractionState의 진행 막대(ObjectProgressBarVisual,
+	// TacticalFSMState.TrapDisarmPerform 등)와 동일한 컴포넌트를 재사용한다.
+	public void ClearAttackObjectTarget()
+	{
+		if (currentAttackObjectTarget.HasValue)
+		{
+			Vector3Int pos = currentAttackObjectTarget.Value;
+			Session?.GetObjectVisual(pos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		}
+		currentAttackObjectTarget = null;
+	}
 
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
 	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.

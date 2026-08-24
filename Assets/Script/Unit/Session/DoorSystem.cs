@@ -275,6 +275,61 @@ public class DoorSystem
         return doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value;
     }
 
+    // 이동 명령 도달성 판정(2026-08-24 사용자 요청 "지금 점령하지 않으면 다음 방으로 지나갈 수가
+    // 없는 현상이 있으니, 굳이 점령하지 않아도 문만 파괴하면 지나가는데 문제 없게 해줘") — 예전
+    // CreateMap.CanPlayerCommandRoom은 "점령한 방 자신, 또는 그 방과 Gate로 바로 연결된 1홉 이웃"까지만
+    // 이동 명령을 허용했다. 그래서 문을 전부 부숴놔서 물리적으로는 쭉 지나갈 수 있는 길이어도, 중간
+    // 방들을 하나하나 점령하지 않으면 그 너머로는 명령 자체를 낼 수 없었다. 이제는 점령 여부와 무관하게,
+    // 시작 방에서 "그 진영이 통행 가능한 문"(파괴됐거나 자기 진영 소유, IsBlockedByClosedDoor와 동일
+    // 기준)만 거쳐 도달할 수 있는 방이면 전부 허용한다 — 실제 타일 단위 이동 판정 기준을 그대로 방
+    // 단위 그래프로 확장한 것이라 "명령은 허용됐는데 실제로는 막혀서 못 감" 같은 불일치가 없다.
+    public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)
+    {
+        if (fromRoomId < 0 || targetRoomId < 0) return false;
+        if (fromRoomId == targetRoomId) return true;
+
+        CreateMap cmap = Session.cmap;
+        if (cmap == null || cmap.map.floors == null || floorIndex < 0 || floorIndex >= cmap.map.floors.Length) return false;
+        Floor floor = cmap.map.floors[floorIndex];
+        if (floor.gates == null || floor.gates.Count == 0) return false;
+
+        var visited = new HashSet<int> { fromRoomId };
+        var queue = new Queue<int>();
+        queue.Enqueue(fromRoomId);
+
+        while (queue.Count > 0)
+        {
+            int room = queue.Dequeue();
+
+            foreach (Gate g in floor.gates)
+            {
+                if (g.roomA != room && g.roomB != room) continue;
+                int neighbor = g.roomA == room ? g.roomB : g.roomA;
+                if (visited.Contains(neighbor) || !IsGatePassableForFaction(g, floor.config.chunkSize, floorIndex, faction))
+                    continue;
+
+                if (neighbor == targetRoomId) return true;
+                visited.Add(neighbor);
+                queue.Enqueue(neighbor);
+            }
+        }
+
+        return false;
+    }
+
+    // 게이트 하나가 특정 진영에게 통행 가능한지 — 문이 파괴됐으면(그 위치에 오브젝트가 없음) 무조건
+    // 통과 가능, 남아있으면 보유 진영이 일치할 때만 통과(IsBlockedByClosedDoor와 동일 기준). 게이트
+    // 폭 전체가 같은 시점에 함께 스폰/파괴되므로 대표 타일 하나만 확인해도 충분하다.
+    private bool IsGatePassableForFaction(Gate gate, int chunkSize, int floorIndex, FactionType faction)
+    {
+        var tileRows = GetGateDoorTiles(gate, chunkSize);
+        if (tileRows.Length == 0 || tileRows[0].Count == 0) return true; // 문 타일 정보가 없으면 막을 이유 없음
+
+        Vector2Int tile = tileRows[0][0];
+        FactionType? owner = GetDoorOwnerFaction(new Vector3Int(tile.x, tile.y, floorIndex));
+        return owner == null || owner.Value == faction; // null = 문이 없음(파괴됨) = 통과 가능
+    }
+
     // 사용자 정정(2026-07-28, "문이 있는 자리가 가장 최우선이며, 문이 있는 자리에는 오브젝트 배치
     // 불가능. 몬스터 배치도 불가능(이동만 가능)") — 문은 SpawnDoors()가 다른 오브젝트/유닛보다 먼저
     // 깔아 objectGrid를 선점하므로, 그 뒤에 오는 모든 "이 타일에 뭔가 놓아도 되는지" 판정이 이 메서드로

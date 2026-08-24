@@ -1129,13 +1129,19 @@ public abstract class UnitFunction : Unit, IVisionContext
 					// 깎는다. 여러 명이 같은 코어를 동시에 공격하면 각자 이 블록을 독립적으로 실행하므로
 					// 인원수만큼 자연히 합산된다.
 					targetObj.CoreHp = Mathf.Max(0f, targetObj.CoreHp - GameSession.CoreAttackDamagePerSecond * deltaTime);
+
+					// 파괴 진행도 표시(2026-08-24 사용자 요청 "함정 해제할때 쓰는 로직처럼 스프라이트
+					// 하단에 표시") — TrapDisarmPerform의 CachedProgressBar/SetProgress 패턴과 동일.
+					float coreProgress = targetObj.CoreMaxHp > 0f ? 1f - targetObj.CoreHp / targetObj.CoreMaxHp : 0f;
+					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(coreProgress, true);
+
 					if (targetObj.CoreHp <= 0f)
 					{
 						// 코어 파괴 순간 OffenseProcessor.OnCoreDestroyed로 방 소유권을 즉시 전환한다
 						// (코어 자체는 사라지지 않고 반피로 회복 — 소유권 전환이 곧 "파괴 완료").
 						if (Session.roomGrid.TryGetValue(targetPos, out Room coreRoom))
 							Session.OffenseProcessor?.OnCoreDestroyed(coreRoom, targetObj, this);
-						currentAttackObjectTarget = null;
+						ClearAttackObjectTarget();
 					}
 				}
 				else if (isDoor && targetObj.DoorHp > 0f)
@@ -1143,20 +1149,24 @@ public abstract class UnitFunction : Unit, IVisionContext
 					// 고정 초당 데미지(코어와 동일한 설계, 2026-08-22 "문도 동일") — DoorSystem.
 					// DoorAttackDamagePerSecond 참고.
 					targetObj.DoorHp = Mathf.Max(0f, targetObj.DoorHp - DoorSystem.DoorAttackDamagePerSecond * deltaTime);
+
+					float doorProgress = targetObj.DoorMaxHp > 0f ? 1f - targetObj.DoorHp / targetObj.DoorMaxHp : 0f;
+					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(doorProgress, true);
+
 					if (targetObj.DoorHp <= 0f)
 					{
 						Session.RemoveDoor(targetPos); // 문 오브젝트 자체를 제거 — 재설치 전까지 통로가 뚫린다.
-						currentAttackObjectTarget = null;
+						ClearAttackObjectTarget();
 					}
 				}
 				else
 				{
-					currentAttackObjectTarget = null; // 이미 파괴됐거나 해당 없는 오브젝트
+					ClearAttackObjectTarget(); // 이미 파괴됐거나 해당 없는 오브젝트
 				}
 			}
 			else
 			{
-				currentAttackObjectTarget = null;
+				ClearAttackObjectTarget();
 			}
 		}
 
