@@ -447,6 +447,30 @@ public abstract class Unit : ScriptableObject {
 		_attackObjectVfxInstance = null;
 	}
 
+	// 유닛이 죽거나(GameSession.RemoveDeadUnit) 소환 해제(GameSession.DespawnUnit)될 때 반드시 호출
+	// (2026-08-24 사용자 신고 "코어/문 파괴 시도중 유닛이 죽었는데 VFX 안 사라짐") — 이 유닛이 진행
+	// 중이던 "월드 오브젝트 쪽" 임시 시각 요소를 전부 정리한다. 이런 요소들은 전부 "이 유닛이 살아서
+	// 매 프레임 OnUpdate를 돌아야만" 자연스럽게 정리되는 구조라(코어/문 파괴 VFX는 진행도 회복
+	// 타이머가 결국 스스로 정리해주지만 그것도 최대 5초 뒤라 즉시성이 없고, 함정 해제 진행바는 그런
+	// 자동 안전망조차 없어 유닛이 갑자기 사라지면 영원히 남는다) 유닛이 갑자기 사라지는 두 경로
+	// (사망/소환 해제) 모두에서 명시적으로 정리해야 한다. 새로 "유닛에 종속된, 오브젝트 쪽에 붙는
+	// 임시 비주얼"을 추가하면 여기도 같이 정리할 것.
+	public void ClearTransientWorldVisuals()
+	{
+		ClearAttackObjectTarget();
+
+		if (this is Human human && human.currentTrapInteraction != null)
+		{
+			var trap = human.currentTrapInteraction;
+			if (trap.Phase == TrapPhase.Disarming)
+			{
+				if (trap.CachedProgressBar == null)
+					trap.CachedProgressBar = Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>();
+				trap.CachedProgressBar?.SetProgress(0f, false);
+			}
+		}
+	}
+
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
 	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
 	public bool ExplorationPenaltyActive =>

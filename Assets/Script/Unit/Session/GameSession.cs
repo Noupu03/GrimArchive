@@ -862,6 +862,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         if (u != null) CheckPartyWaveState(u);
+        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리(2026-08-24
+        // 사용자 신고) — 사망 연출 대기와 무관하게 지금 즉시 처리한다(죽은 유닛이 더 채널링할 일은
+        // 없으므로 미룰 이유가 없다).
+        if (u != null) u.ClearTransientWorldVisuals();
         if (_threatTileRenderer != null && u != null)
         {
             _threatTileRenderer.RemoveThreatZone(u);
@@ -946,6 +950,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void DespawnUnit(Unit u)
     {
         if (u == null) return;
+        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리(2026-08-24
+        // 사용자 신고 — RemoveDeadUnit과 동일한 이유, 이 유닛도 갑자기 사라지는 경로이므로 동일하게 필요).
+        u.ClearTransientWorldVisuals();
         if (_unitGenerate != null)
         {
             _unitGenerate.RemoveVisual(u);
