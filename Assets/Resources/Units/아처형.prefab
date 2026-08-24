@@ -354,6 +354,7 @@ MonoBehaviour:
   footprint: {x: 1, y: 1}
   engageDistance: 7
   populationCost: 1
+  visualScaleIgnoresFootprint: 0
   stats:
     maxHp: 80
     maxMp: 40
@@ -384,7 +385,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 58539068245993549, guid: afcfb8fa95573bc42bd5e0e5952660a5, type: 3}
     projectileSpeed: 25
     isPiercing: 0
-    hitEffectPrefab: {fileID: 6419741993954675100, guid: d92c9a61cf3a18d41abc1046a353fa7b, type: 3}
+    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
     hitShape: RECT
     hitRange: 7
     hitWidth: 1

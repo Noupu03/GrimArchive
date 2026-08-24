@@ -142,6 +142,7 @@ MonoBehaviour:
   footprint: {x: 1, y: 1}
   engageDistance: 2
   populationCost: 1
+  visualScaleIgnoresFootprint: 0
   stats:
     maxHp: 150
     maxMp: 30
@@ -172,7 +173,7 @@ MonoBehaviour:
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 1980553920939913900, guid: 242cf38a46dfa57408e7b18780e45626, type: 3}
+    hitEffectPrefab: {fileID: 24266621285927940, guid: 799f405bd842348469667879a202101f, type: 3}
     hitShape: LINE
     hitRange: 2
     hitWidth: 1
@@ -381,9 +382,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
   m_ShadowGroup: 0
-  m_Priority: 0
+  m_Priority: 100
   m_ComponentVersion: 5
-  m_HasRenderer: 0
+  m_HasRenderer: 1
   m_UseRendererSilhouette: 1
   m_CastsShadows: 1
   m_SelfShadows: 0
@@ -411,10 +412,10 @@ MonoBehaviour:
     m_FlipY: 0
     m_InitialTrim: 0.05
   m_CastingOption: 1
-  m_PreviousTrimEdge: 0
-  m_PreviousEdgeProcessing: -1
-  m_PreviousShadowCastingSource: -1
-  m_PreviousShadowShape2DSource: {fileID: 0}
+  m_PreviousTrimEdge: 0.05
+  m_PreviousEdgeProcessing: 1
+  m_PreviousShadowCastingSource: 2
+  m_PreviousShadowShape2DSource: {fileID: 5918597988384680962}
   references:
     version: 2
     RefIds:
