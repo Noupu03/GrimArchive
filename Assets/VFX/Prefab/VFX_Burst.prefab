@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8459807363386995875}
   - component: {fileID: 7761713516853494727}
   - component: {fileID: 3702338497855057052}
+  - component: {fileID: 2300090601788177074}
   m_Layer: 10
   m_Name: VFX_Burst
   m_TagString: Untagged
@@ -4897,6 +4898,19 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &2300090601788177074
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 477071781210785037}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1
 --- !u!1 &2929683076379870549
 GameObject:
   m_ObjectHideFlags: 0

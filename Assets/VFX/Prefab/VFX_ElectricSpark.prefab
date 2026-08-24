@@ -4905,6 +4905,7 @@ GameObject:
   - component: {fileID: 8946973381751032557}
   - component: {fileID: 5704089175747921516}
   - component: {fileID: 2010606078746416006}
+  - component: {fileID: 7657431252978821928}
   m_Layer: 0
   m_Name: VFX_ElectricSpark
   m_TagString: Untagged
@@ -9809,6 +9810,19 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &7657431252978821928
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6419741993954675100}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1
 --- !u!1 &7593037497619468426
 GameObject:
   m_ObjectHideFlags: 0

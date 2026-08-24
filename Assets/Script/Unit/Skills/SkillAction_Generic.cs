@@ -50,11 +50,18 @@ public class SkillAction_Generic : SkillAction
         BeginAttackCast(unit, 0f, threat,
             () =>
             {
-                // hitEffectPrefab을 여기서 따로 스폰하지 않는다 — 근접 계열은 데이터상 그 값이
-                // 유닛 공용 피격 스파크(UnitVisualDefinition.hitSparkPrefab)와 같은 프리팹이라,
-                // TakePhysicalDamage → TriggerHitEffect가 이미 띄우는 것과 겹쳐 두 번 뜬다.
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox,
                     _d.damageMultiplier, _d.hasStun, _d.stunDuration);
+
+                // hitEffectPrefab이 유닛 공용 피격 스파크(UnitVisualDefinition.hitSparkPrefab)와
+                // 같은 프리팹이면 TakePhysicalDamage → TriggerHitEffect가 이미 그걸 띄우므로 중복
+                // 렌더링을 피하려 건너뛴다. 다르면(디자이너가 이 근접 스킬 전용 이펙트를 따로
+                // 지정한 경우) 정상적으로 스폰한다 — 2026-08-24 사용자 신고 "근접 공격하는 애들
+                // 스킬 이펙트 출력이 안됨" 수정: 예전엔 근접 계열이면 조건 없이 무조건 건너뛰어서,
+                // 서로 다른 프리팹을 지정해도 절대 표시되지 않았다.
+                GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
+                if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
+                    unit.VFX?.Spawn(_d.hitEffectPrefab, unit);
             },
             () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
         );

@@ -237,6 +237,10 @@ public class UnitGenerate
 	private UnitVisualDefinition GetVisualDef(Unit u) =>
 		visualMap.TryGetValue(u, out GameObject go) && go != null ? GetCache(go).UnitVisualDefinition : null;
 
+	// 외부(SkillAction 등)에서 유닛 타입별 이펙트/시체 스프라이트 등을 조회할 수 있게 하는 공개 창구
+	// (2026-08-24 신규) — GetVisualDef 자체는 private으로 유지하고, 꼭 필요한 만큼만 공개한다.
+	public UnitVisualDefinition GetVisualDefinition(Unit u) => GetVisualDef(u);
+
 	public void SpawnGuardVFX(Unit defender, Unit attacker = null)
 	{
 		if (defender == null) return;

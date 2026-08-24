@@ -31,6 +31,10 @@ public class UnitVisualDefinition : MonoBehaviour
              "GameSession.DeathVisualDurationSeconds(기본 1.5초) 동안 유지되다가 시체 오브젝트로 교체된다. " +
              "비워두면 죽는 순간의 마지막 스프라이트가 그대로 유지된다.")]
     public Sprite deathSprite;
+    [Tooltip("사망 연출(2026-08-24 신규) — deathSprite 이후 실제로 바닥에 남는 시체 오브젝트의 " +
+             "스프라이트. 캐릭터별로 지정 가능 — 비워두면 기존 공용 시체 스프라이트(obj/colapse)로 " +
+             "폴백한다.")]
+    public Sprite corpseSprite;
 
     [Header("가중치 시스템 (이해도/위험도/흥미도)")]
     [Tooltip("보스/네메시스 등 종별+개별 이해도를 함께 쓰는 특수 유닛인지 (연산공식 문서 7-1장)")]

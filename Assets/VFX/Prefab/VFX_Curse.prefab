@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3828159299248879895}
   - component: {fileID: 8008109911094311912}
   - component: {fileID: 4200974731388032221}
+  - component: {fileID: 2837587682429188712}
   m_Layer: 0
   m_Name: VFX_Curse
   m_TagString: Untagged
@@ -4836,3 +4837,16 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &2837587682429188712
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2458213468699407609}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1

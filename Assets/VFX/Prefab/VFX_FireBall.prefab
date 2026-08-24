@@ -14519,6 +14519,7 @@ GameObject:
   - component: {fileID: 8355070145607050883}
   - component: {fileID: 5200825811670234133}
   - component: {fileID: 3004177409477613028}
+  - component: {fileID: 537010236392690336}
   m_Layer: 0
   m_Name: VFX_FireBall
   m_TagString: Untagged
@@ -19347,3 +19348,16 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &537010236392690336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8268503077936916764}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
+  emissionDuration: -1
