@@ -1082,7 +1082,15 @@ public class TacticalFSMState : IFSMState
 		}
 
 		unit.ClearAttackObjectTarget();
-		if (AIMovementHelper.MoveTowardsPos(unit, pos))
+		// stuckTurns를 "MoveTowardsPos가 true(=한 칸이라도 움직였다)"만 보고 리셋하면 안 된다
+		// (2026-08-24 사용자 신고 "자리 없고 가는 길도 막혔는데, 경계 안 하고 계속 문만 쳐다보고
+		// 있음") — 혼잡한 구역에서는 목표에 실제로 가까워지지 못한 채 옆 칸으로 셔플만 계속하는
+		// 경우가 흔한데, 그 셔플도 Move() 관점에선 "성공"이라 매번 카운터가 0으로 리셋돼 4틱을 절대
+		// 못 채웠다. 리셋 기준을 "목표까지의 체비셰프 거리가 실제로 줄었는지"로 바꿔, 제자리 셔플은
+		// 더 이상 진행으로 인정하지 않는다.
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, pos);
+		AIMovementHelper.MoveTowardsPos(unit, pos);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
 		{
 			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Running;
@@ -1101,8 +1109,11 @@ public class TacticalFSMState : IFSMState
 		if (fallback != pos)
 		{
 			AIMovementHelper.MoveTowardsPos(unit, fallback);
-			unit.tacticalObjectAttackStuckTurns = 0;
-			return BTStatus.Running;
+			if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
+			{
+				unit.tacticalObjectAttackStuckTurns = 0;
+				return BTStatus.Running;
+			}
 		}
 
 		// 유닛 자신의 위치 기준으로 "구조적으로(지형상) 갈 곳이 아예 없는지"를 확인한다(2026-08-24
@@ -1270,7 +1281,15 @@ public class TacticalFSMState : IFSMState
 		// 2 예외를 완전히 제거해 채널링 시작 조건도 반드시 반경 1로 통일했다 — 진짜로 반경 1까지
 		// 못 붙는 경우는 아래에서 처리한다.
 		unit.ClearAttackObjectTarget();
-		if (AIMovementHelper.MoveTowardsPos(unit, pos))
+		// stuckTurns를 "MoveTowardsPos가 true(=한 칸이라도 움직였다)"만 보고 리셋하면 안 된다
+		// (2026-08-24 사용자 신고 "자리 없고 가는 길도 막혔는데, 경계 안 하고 계속 문만 쳐다보고
+		// 있음") — 혼잡한 구역에서는 목표에 실제로 가까워지지 못한 채 옆 칸으로 셔플만 계속하는
+		// 경우가 흔한데, 그 셔플도 Move() 관점에선 "성공"이라 매번 카운터가 0으로 리셋돼 4틱을 절대
+		// 못 채웠다. 리셋 기준을 "목표까지의 체비셰프 거리가 실제로 줄었는지"로 바꿔, 제자리 셔플은
+		// 더 이상 진행으로 인정하지 않는다.
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, pos);
+		AIMovementHelper.MoveTowardsPos(unit, pos);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
 		{
 			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Running;
@@ -1289,8 +1308,11 @@ public class TacticalFSMState : IFSMState
 		if (fallback != pos)
 		{
 			AIMovementHelper.MoveTowardsPos(unit, fallback);
-			unit.tacticalObjectAttackStuckTurns = 0;
-			return BTStatus.Running;
+			if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
+			{
+				unit.tacticalObjectAttackStuckTurns = 0;
+				return BTStatus.Running;
+			}
 		}
 
 		// 유닛 자신의 위치 기준으로 "구조적으로(지형상) 갈 곳이 아예 없는지"를 확인한다(2026-08-24
