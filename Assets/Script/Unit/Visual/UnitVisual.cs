@@ -49,7 +49,8 @@ public class UnitVisual : MonoBehaviour
 	// 같은 컴포넌트, 저 쪽은 0.5초짜리 팝업이고 이건 계속 갱신되는 상시 라벨이라는 차이만 있음).
 	private TextMesh _statusLabel;
 	private const int StatusLabelSortingOrder = 20; // 시야/인지선(8~10)보다 위, 선택 마커보다도 위
-	private const float StatusLabelWorldOffsetAboveTop = 0.35f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
+	// 체력바(아래 EnsureHealthBar) 바로 위로 올라오게, 기존 0.35에서 상향(2026-08-24).
+	private const float StatusLabelWorldOffsetAboveTop = 0.55f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
 
 	// GoapBrain.PlanText(예: "6-7" = MoveToTrap→TrapDisarmPerform, Actions.cs의 ActionCode 1~19 참고)를
 	// 그대로 받아 표시한다 — 과거에 실행한 목표를 누적해서 보여주던 이전 방식(GoalTrailText) 대신,
@@ -104,6 +105,91 @@ public class UnitVisual : MonoBehaviour
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
 		go.transform.localScale = new Vector3(invX, invY, 1f);
 		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) * invY, 0f);
+	}
+
+	// ─────────────────────────── 체력바 (머리 위, 월드 고정, 항상 표시) ───────────────────────────
+	// 2026-08-24 사용자 요청 "유닛의 머리 위에 체력바 항상 뜨도록 표기해줘". ObjectProgressBarVisual
+	// (함정 해제/코어 조사 진행률)과 동일한 배경+채움 SpriteRenderer 2장 구성을 재사용하되, 그쪽은
+	// 오브젝트 "아래"에 붙는 반면 이 체력바는 StatusLabel과 같은 "머리 위" 계열이라 별도로 둔다 — 위치
+	// 계산도 StatusLabel/EnsureBelowLabel과 동일하게 실제 부모 localScale을 역산한다(같은 이유,
+	// visualScaleIgnoresFootprint 유닛 대응).
+	private SpriteRenderer _healthBarBg;
+	private SpriteRenderer _healthBarFill;
+	private float _healthBarFillBaseScaleX;
+	private const int HealthBarSortingOrder = 19; // 상태 라벨(20)보다 한 단계 아래, 시야/인지선보다는 위
+	private const float HealthBarWidth = 0.8f;
+	private const float HealthBarHeight = 0.12f;
+	private const float HealthBarWorldOffsetAboveTop = 0.2f; // 유닛 스프라이트 상단에서 띄우는 높이(월드 단위)
+
+	private static Sprite _sharedHealthBarCenterSprite;
+	private static Sprite _sharedHealthBarLeftSprite;
+
+	// 단일 색상(2026-08-24 사용자 요청 "체력바 단일 색상으로 처리해주고, 초록색 말고 다른색으로 해줘.
+	// 바닥 색이랑 겹쳐서 안봄") — 원래 비율별 초록/노랑/빨강 3색이었는데, 초록이 바닥 타일 색과 거의
+	// 구분이 안 돼 요청으로 고정 단색으로 바꿨다. 바닥/시체·오브젝트 색과 잘 겹치지 않는 선명한
+	// 마젠타 계열로 선택.
+	private static readonly Color HealthBarFillColor = new Color(1f, 0.15f, 0.6f, 1f);
+
+	public void UpdateHealthBar(bool visible, float hp, float maxHp)
+	{
+		EnsureHealthBar();
+		if (_healthBarBg == null || _healthBarFill == null) return;
+
+		_healthBarBg.enabled = visible;
+		_healthBarFill.enabled = visible;
+		if (!visible) return;
+
+		float ratio = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
+		_healthBarFill.transform.localScale = new Vector3(_healthBarFillBaseScaleX * ratio, _healthBarFill.transform.localScale.y, 1f);
+	}
+
+	private void EnsureHealthBar()
+	{
+		if (_healthBarBg != null || boundUnit == null) return;
+
+		Vector2 footprint = boundUnit.unitType.footprint;
+		if (footprint.x <= 0f || footprint.y <= 0f) footprint = Vector2.one;
+
+		Vector3 parentScale = transform.localScale;
+		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
+		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
+
+		Vector3 anchor = new Vector3(0f, (footprint.y + HealthBarWorldOffsetAboveTop) * invY, 0f);
+
+		_healthBarBg = CreateHealthBarSprite("HealthBarBg", new Color(0f, 0f, 0f, 0.6f), centerPivot: true);
+		_healthBarBg.transform.localPosition = anchor;
+		_healthBarBg.transform.localScale = new Vector3(HealthBarWidth * invX, HealthBarHeight * invY, 1f);
+
+		_healthBarFill = CreateHealthBarSprite("HealthBarFill", HealthBarFillColor, centerPivot: false);
+		_healthBarFillBaseScaleX = HealthBarWidth * invX;
+		_healthBarFill.transform.localPosition = anchor + new Vector3(-HealthBarWidth * invX / 2f, 0f, 0f);
+		_healthBarFill.transform.localScale = new Vector3(_healthBarFillBaseScaleX, HealthBarHeight * invY, 1f);
+
+		_healthBarBg.enabled = false;
+		_healthBarFill.enabled = false;
+	}
+
+	private SpriteRenderer CreateHealthBarSprite(string name, Color color, bool centerPivot)
+	{
+		GameObject go = new GameObject(name);
+		go.transform.SetParent(transform, false);
+		var sr = go.AddComponent<SpriteRenderer>();
+		sr.sprite = centerPivot
+			? (_sharedHealthBarCenterSprite ??= CreateWhiteSprite(new Vector2(0.5f, 0.5f)))
+			: (_sharedHealthBarLeftSprite ??= CreateWhiteSprite(new Vector2(0f, 0.5f)));
+		sr.color = color;
+		sr.sortingOrder = HealthBarSortingOrder;
+		return sr;
+	}
+
+	private static Sprite CreateWhiteSprite(Vector2 pivot)
+	{
+		Texture2D tex = new Texture2D(4, 4);
+		Color[] pixels = new Color[16];
+		for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+		tex.SetPixels(pixels);
+		tex.Apply();
+		return Sprite.Create(tex, new Rect(0, 0, 4, 4), pivot, 4f);
 	}
 
 	// ─────────────────────────── 하단 상태 라벨 (함정 해제 시도중 등, 월드 고정) ───────────────────────────

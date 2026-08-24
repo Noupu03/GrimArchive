@@ -122,6 +122,11 @@ public class PlayerCommandFSMState : IFSMState
 			if (myFaction != null && obj.DoorOwnerFaction == myFaction.Value) return false;
 			return true;
 		}
+		// 함정 공격 명령(2026-08-24 사용자 요청 "플레이어 몬스터도 함정으로 이동(기본) 명령 내리면
+		// 함정 파괴 가능하게") — 코어/문과 동일한 우클릭 오브젝트 공격 명령 체계에 편입. 함정은 진영
+		// 소유 개념이 없어 코어/문과 달리 소유권 확인 없이 체력만 확인한다.
+		if (obj.Tags.Exists(t => t.Contains("Trap")))
+			return obj.TrapHp > 0f;
 		return false;
 	}
 

@@ -1122,6 +1122,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				bool isCore = targetObj.Tags != null && targetObj.Tags.Contains(GameSession.CoreTag);
 				bool isDoor = targetObj.Tags != null && targetObj.Tags.Contains(DoorSystem.DoorTag);
+				// 함정 공격 명령(2026-08-24 사용자 요청 "플레이어 몬스터도 함정으로 이동(기본) 명령
+				// 내리면 함정 파괴 가능하게") — 코어/문과 동일한 채널링 필드(currentAttackObjectTarget)를
+				// 공유한다. 자동 AI가 스스로 판단해 트리거하는 경로는 없다 — PlayerCommandFSMState.
+				// ExecutePlayerAttackObject(플레이어 우클릭 명령)만 이 필드를 채운다(코어/문의 "자동
+				// 공격은 인류 전용" 하드 룰과 별개로, 함정은 애초에 자동 트리거 자체가 없다).
+				bool isTrap = targetObj.Tags != null && targetObj.Tags.Exists(t => t.Contains("Trap"));
 				Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
 
 				// 채널링 중에는 항상 공격 대상을 바라본다(2026-08-22 사용자 요청 "코어 공격 중일때는
@@ -1130,7 +1136,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 세팅하고 Generate.UpdateUnitSpriteForDirection을 호출하지 않아서 내부 값은 바뀌어도
 				// 실제 스프라이트가 그 방향으로 갱신되지 않았다. Move()/CombatFSMState 둘 다 currentDir
 				// 세팅 직후 이 호출을 짝지어 하므로 여기서도 동일하게 맞춘다.
-				if ((isCore || isDoor) && targetPos2D != position)
+				if ((isCore || isDoor || isTrap) && targetPos2D != position)
 				{
 					currentDir = SkillAction.GetDirection8(targetPos2D - position);
 					Generate?.UpdateUnitSpriteForDirection(this);
@@ -1162,6 +1168,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 					ClearAttackObjectTarget();
 				}
 				else if (isDoor && !isAdjacent)
+				{
+					ClearAttackObjectTarget();
+				}
+				else if (isTrap && !isAdjacent)
 				{
 					ClearAttackObjectTarget();
 				}
@@ -1203,6 +1213,23 @@ public abstract class UnitFunction : Unit, IVisionContext
 					if (targetObj.DoorHp <= 0f)
 					{
 						Session.RemoveDoor(targetPos); // 문 오브젝트 자체를 제거 — 재설치 전까지 통로가 뚫린다.
+						ClearAttackObjectTarget();
+					}
+				}
+				else if (isTrap && targetObj.TrapHp > 0f)
+				{
+					// 함정 파괴 데미지 — 코어/문의 고정 초당 비율과 달리, 인류 GOAP TrapDestroy
+					// (TrapPhase.Destroying, 위 OnUpdate 앞부분 참고)가 이미 쓰던 physicalAttack 비례
+					// 배율을 그대로 재사용한다. 함정을 부수는 난이도는 누가(자동 인류 GOAP든 플레이어
+					// 몬스터 명령이든) 하든 동일해야 하므로 별도 상수를 새로 만들지 않는다.
+					targetObj.TrapHp = Mathf.Max(0f, targetObj.TrapHp - physicalAttack * ExplorationMath.TrapDestroyDamagePerSecondPerAttack * deltaTime);
+
+					float trapProgress = targetObj.TrapMaxHp > 0f ? targetObj.TrapHp / targetObj.TrapMaxHp : 0f;
+					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(trapProgress, true);
+
+					if (targetObj.TrapHp <= 0f)
+					{
+						Session.CollectObject(targetPos); // 함정 오브젝트 자체를 제거.
 						ClearAttackObjectTarget();
 					}
 				}

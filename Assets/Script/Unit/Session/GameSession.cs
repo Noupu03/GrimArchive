@@ -838,6 +838,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // UnitVisualDefinition.corpseSprite를 스냅샷해 둔다(MonsterSpeciesKey 등과 동일한 이유).
             // 없으면 null 그대로 두고 SpawnObject가 기존 공용 스프라이트로 폴백한다.
             corpse.CorpseSpriteOverride = u.Generate?.GetVisualDefinition(u)?.corpseSprite;
+            // 웨이브 카운트 소멸용 스냅샷(2026-08-24 사용자 요청, 아래 SpawnObject 직후 주석 참고).
+            // GameSession의 humanWaveManager 필드는 아무도 채워주지 않는 죽은 필드라(2026-08-24 확인)
+            // HumanWaveManager.Instance 정적 싱글턴을 직접 참조한다 — WaveSpawner/HumanWaveManager
+            // 자신도 이미 이 관례(GameSession.Instance 등)로 서로를 참조한다.
+            corpse.SpawnWaveNumber = HumanWaveManager.Instance != null ? HumanWaveManager.Instance.WaveNumber : 0;
 
             // 03문서 4-12~4-15장(2026-07-27 신규): 인류 시체는 사망 사건 추적(정신력 감소/사망 원인
             // 확인/원인미상 수색)의 시작점이다 — Destroy 전인 지금(u는 Human) 위치/방향/lastAttacker를
@@ -868,11 +873,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // (0.8초)만큼 붙들고 있다가 시체로 교체했지만, 그 중간 단계 자체가 요청으로 사라졌다.
             _unitGenerate?.PlayDeathVisual(u);
             SpawnObject(corpse, corpseColor);
-            // 사용자 요청(2026-08-23, 2026-08-24 45초로 조정): 시체는 시간이 지나면 자동으로 사라진다.
-            // 그 사이 조사/파티 사망 추적 등 다른 경로가 이미 CollectObject로 치웠거나 같은 타일에 다른
-            // 시체가 새로 자리잡았을 수 있으니, 타이머가 끝나는 시점에 objectGrid[gridPos]가 여전히 이
-            // corpse 인스턴스인지 확인한 뒤에만 제거한다.
-            DespawnCorpseAfterDelay(gridPos, corpse).Forget();
+            // 시체 소멸은 더 이상 시간(초) 단위가 아니라 웨이브 카운트 단위다(2026-08-24 사용자 요청
+            // "시체는 2웨이브 동안 존재하게 해줘. 시간 단위로 측정하지 말고(현재 웨이브 포함)") — 스폰
+            // 웨이브를 방금 스냅샷해뒀으니(corpse.SpawnWaveNumber), HumanWaveManager.StartWave가 새
+            // 웨이브를 시작할 때마다 GameSession.DespawnCorpsesForNewWave가 정리를 담당한다. 여기서는
+            // 더 할 일이 없다(예전 DespawnCorpseAfterDelay 타이머 방식 폐기).
             if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
             UnityEngine.Object.Destroy(u);
         }
@@ -1120,17 +1125,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른
-    // 함정에 정신 팔려) 그냥 밟고 지나가면 GOAP의 선택과 무관하게 자동으로 피해를 입는다 — 해제/우회가
-    // 거의 항상 먼저 성공해서 Action_TrapPass가 실전에서 거의 발동하지 않는다는 사용자 피드백
-    // (2026-07-22)에 따라 추가. trapInteractionBefore로 "이번 틱 시작 시점에 이미 이 함정을 알고
-    // 대응 중이었는지"를 확인해서, 그런 경우(해제 접근/통과/파괴가 이미 진행 중이던 것)엔 제외한다 —
-    // 안 그러면 의도적 대응(Action_TrapPass 등)과 중복으로 두 번 맞는다. 함정은 일회성이 아니다
-    // (사용자 요청, 2026-07-22) — 해제/파괴로 실제 없앴을 때만 사라지고, 그냥 밟은 것만으로는
-    // 소모되지 않는다 — 같은 자리를 다시 밟으면(이 유닛이든 다른 유닛이든) 또 맞는다.
-    // 인류 전용(사용자 요청, 2026-07-22) — Goal_TrapResponse를 인류 전용으로 좁힌 것과 맞춰, 몬스터는
-    // 이 자동 트리거로도 함정에 전혀 영향받지 않는다(우연히 밟아도 무해 — Passable 태그 그대로 그냥
-    // 지나간다).
     private void TryTriggerOffenseForUnit(Unit unit)
     {
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
@@ -1146,10 +1140,21 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _defenseProcessor?.TryStartDefense(room, unit);
     }
 
+    // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른
+    // 함정에 정신 팔려) 그냥 밟고 지나가면 GOAP의 선택과 무관하게 자동으로 피해를 입는다 — 해제/우회가
+    // 거의 항상 먼저 성공해서 Action_TrapPass가 실전에서 거의 발동하지 않는다는 사용자 피드백
+    // (2026-07-22)에 따라 추가. trapInteractionBefore로 "이번 틱 시작 시점에 이미 이 함정을 알고
+    // 대응 중이었는지"를 확인해서, 그런 경우(해제 접근/통과/파괴가 이미 진행 중이던 것)엔 제외한다 —
+    // 안 그러면 의도적 대응(Action_TrapPass 등)과 중복으로 두 번 맞는다. 함정은 일회성이 아니다
+    // (사용자 요청, 2026-07-22) — 해제/파괴로 실제 없앴을 때만 사라지고, 그냥 밟은 것만으로는
+    // 소모되지 않는다 — 같은 자리를 다시 밟으면(이 유닛이든 다른 유닛이든) 또 맞는다.
+    // 전 유닛 대상(2026-08-24 사용자 요청 "함정에 모든 유닛이 데미지를 입게, 인류 유닛에게 있던 함정
+    // 피해 로직을 모든 유닛에게 부여") — 원래 인류 전용이었으나(Goal_TrapResponse가 여전히 인류 전용인
+    // 해제/우회/의도적 통과 GOAP과는 별개로) 이 "우연히 밟은 자동 피해"는 야생/플레이어 몬스터에도 동일
+    // 적용한다. 몬스터는 currentTrapInteraction이 애초에 세팅되지 않으므로 alreadyHandling은 항상
+    // false — 매번 밟을 때마다 그대로 피해를 입는다.
     private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
     {
-        if (!(unit is Human)) return;
-
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
         if (!objectGrid.TryGetValue(gridPos, out InteractableObject obj)) return;
         if (obj.Tags == null || !obj.Tags.Exists(t => t.Contains("Trap"))) return;
@@ -1545,6 +1550,61 @@ public class GameSession : NativeRoutine, IOffenseQuery
         SpawnObject(obj, Color.red);
     }
 
+    // 2026-08-24 debug 전용(사용자 요청 "바닥 타일을 벽으로 바꾸는 기능을 debug에 넣어줘") — 맵 생성이
+    // 만든 정적 벽 배치와 별개로 즉석에서 벽 타일을 추가한다. BuildingManager.UpdateMapDataObstacle과
+    // 같은 방식으로 MapData/discoveredMap을 갱신하지만, isStructureExist가 아니라 tile.name 자체를
+    // "Wall"로 바꾼다 — 실제 맵 생성이 만든 벽과 완전히 동일하게 취급되도록 한다(이동 차단은 물론
+    // BuildWallMask 기반 빛 차단까지, isStructureExist만으로는 빛을 막지 못한다).
+    public bool IsFloorTileConvertibleToWall(Vector3Int gridPos)
+    {
+        return TryGetFloorTile(gridPos, out _, out _, out _, out _, out Tile tile) && tile.name != "Wall";
+    }
+
+    public bool DebugConvertFloorTileToWall(Vector3Int gridPos)
+    {
+        if (!TryGetFloorTile(gridPos, out Floor floor, out Chunks chunk, out int cx, out int cy, out Tile _)) return false;
+        int cs = floor.config.chunkSize;
+        int tx = gridPos.x - cx * cs;
+        int ty = gridPos.y - cy * cs;
+        if (chunk.chunk[tx, ty].name == "Wall") return false;
+
+        chunk.chunk[tx, ty].name = "Wall";
+
+        const int WallMapValue = 2;
+        if (Unit.humanFactionData?.discoveredMap != null && gridPos.z < Unit.humanFactionData.discoveredMap.Length)
+            Unit.humanFactionData.discoveredMap[gridPos.z][gridPos.x, gridPos.y] = WallMapValue;
+        if (Unit.monsterFactionData?.discoveredMap != null && gridPos.z < Unit.monsterFactionData.discoveredMap.Length)
+            Unit.monsterFactionData.discoveredMap[gridPos.z][gridPos.x, gridPos.y] = WallMapValue;
+
+        mapRandering?.SetTileToWall(gridPos.z, new Vector3Int(gridPos.x, gridPos.y, 0));
+        _fogOfWarSystem?.NotifyFloorGeometryChanged(gridPos.z);
+
+        return true;
+    }
+
+    // 위 두 메서드가 공유하는 층/청크/타일 조회 — BuildingManager.UpdateMapDataObstacle과 동일한
+    // 좌표 변환(gridPos.x/y를 chunkSize로 나눠 청크·타일 인덱스로 분해).
+    private bool TryGetFloorTile(Vector3Int gridPos, out Floor floor, out Chunks chunk, out int cx, out int cy, out Tile tile)
+    {
+        floor = default; chunk = default; cx = 0; cy = 0; tile = default;
+        if (cmap == null || cmap.map.floors == null) return false;
+        if (gridPos.z < 0 || gridPos.z >= cmap.map.floors.Length) return false;
+
+        floor = cmap.map.floors[gridPos.z];
+        if (floor.chunks == null) return false;
+
+        int cs = floor.config.chunkSize;
+        cx = gridPos.x / cs; cy = gridPos.y / cs;
+        if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+
+        chunk = floor.chunks[cx, cy];
+        if (chunk.chunk == null) return false;
+
+        int tx = gridPos.x - cx * cs, ty = gridPos.y - cy * cs;
+        tile = chunk.chunk[tx, ty];
+        return true;
+    }
+
     // 9-7/9-8장(2026-07-27 추가) — 함정 해제 진행 막대/결과 문구가 함정 위치의 실제 비주얼
     // GameObject(트랜스폼 위치·자식 컴포넌트 포함)를 찾아야 해서 추가한 조회용 공개 메서드.
     public GameObject GetObjectVisual(Vector3Int pos)
@@ -1566,16 +1626,28 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _objectSpawner.CollectObject(pos);
     }
 
-    // 시체 자동 소멸(사용자 요청, 2026-08-23 1분 → 2026-08-24 45초로 조정).
-    public const float CorpseDespawnSeconds = 45f;
+    // 시체 자동 소멸 — 웨이브 카운트 기준(2026-08-23 1분 → 2026-08-24 45초 타이머 → 같은 날 후속 요청
+    // "시체는 2웨이브 동안 존재하게 해줘. 시간 단위로 측정하지 말고(현재 웨이브 포함)"로 최종 교체).
+    // 시체는 스폰된 웨이브를 포함해 2웨이브 동안 존재한다 — 예를 들어 웨이브 3에 생긴 시체는 웨이브
+    // 3·4에는 남아있고, 웨이브 5가 시작되는 순간 정리된다. HumanWaveManager.StartWave가 새 웨이브를
+    // 시작할 때마다(WaveNumber 증가 직후) 호출한다.
+    public const int CorpseDespawnAfterWaves = 2;
 
-    private async UniTaskVoid DespawnCorpseAfterDelay(Vector3Int gridPos, InteractableObject corpse)
+    public void DespawnCorpsesForNewWave(int currentWaveNumber)
     {
-        await UniTask.Delay(System.TimeSpan.FromSeconds(CorpseDespawnSeconds));
-        // 그 사이 조사/PartyDeathSystem 등 다른 경로로 이미 치워졌거나, 같은 타일에 다른 오브젝트가
-        // 새로 자리잡았을 수 있으므로 여전히 이 corpse 인스턴스가 그 자리에 있을 때만 제거한다.
-        if (objectGrid.TryGetValue(gridPos, out var current) && current == corpse)
-            CollectObject(gridPos);
+        List<Vector3Int> toRemove = null;
+        foreach (var kv in objectGrid)
+        {
+            InteractableObject obj = kv.Value;
+            if (obj.Tags == null || !obj.Tags.Exists(t => t.Contains("Corpse"))) continue;
+            if (obj.SpawnWaveNumber + CorpseDespawnAfterWaves > currentWaveNumber) continue;
+
+            (toRemove ??= new List<Vector3Int>()).Add(kv.Key);
+        }
+
+        if (toRemove == null) return;
+        foreach (var pos in toRemove)
+            CollectObject(pos);
     }
 
 }

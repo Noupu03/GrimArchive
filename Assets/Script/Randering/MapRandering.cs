@@ -363,6 +363,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return isWall;
     }
 
+    // 2026-08-24 debug 전용(GameSession.DebugConvertFloorTileToWall) — 이미 렌더링된 타일맵의 셀 하나만
+    // 벽 스프라이트로 바꾼다. RenderFloor 전체를 다시 돌리지 않고 그 칸만 갱신.
+    public void SetTileToWall(int floorIndex, Vector3Int localPos)
+    {
+        if (floorTilemaps == null || floorIndex < 0 || floorIndex >= floorTilemaps.Length) return;
+        Tilemap tilemap = floorTilemaps[floorIndex];
+        if (tilemap == null || wallTile == null) return;
+        tilemap.SetTile(localPos, wallTile);
+    }
+
     // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 벽/방
     // 뭉치가 사각형이 아니라 방마다 두께가 다르고 L/T/ㄷ/S자 등 비정형이어도(CreateMap.
     // RoomPlacement.cs shapeTemplates) 근사 없이 실제 타일 모양 그대로 나온다. solid 뭉치 하나가

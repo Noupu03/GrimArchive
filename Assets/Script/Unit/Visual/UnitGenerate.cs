@@ -551,8 +551,21 @@ public class UnitGenerate
 		UnitVisual uv = cache.UnitVisual;
 		if (uv != null)
 		{
-			bool isSoleSelected = u.InputMgr != null && u.InputMgr.selectedUnits.Count == 1 && u.InputMgr.selectedUnits[0] == u;
-			bool showRanges = ShowAllVisionRanges || isSoleSelected;
+			// 체력바(2026-08-24 사용자 요청 "유닛의 머리 위에 체력바 항상 뜨도록") — SyncVisual의
+			// UpdateStatusLabel과 달리 여기(상태 변화 여부와 무관하게 모든 살아있는 유닛에 대해 매
+			// 프레임 갱신되는 지점, 위 RefreshSelectionVisual(Unit) 호출부 주석 참고)에 둔다 — 가만히
+			// 서서 원거리/함정 피해만 입는 경우처럼 위치·라벨·방향이 전혀 안 바뀌어도 체력은 계속
+			// 바뀌므로 stateChanged 게이팅에 묶이면 갱신이 누락된다. 안개에 가려진 유닛은 상태 라벨과
+			// 동일하게 숨긴다.
+			bool hpBarHiddenByFog = Session != null && Session.roomGrid != null &&
+				Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room hpBarRoom) &&
+				!hpBarRoom.FogRevealed;
+			uv.UpdateHealthBar(!hpBarHiddenByFog, u.hp, u.maxHp);
+
+			// 단일 선택 시 자동 표시 제거(2026-08-24 사용자 요청 "유닛을 단일 선택했을때, 시야
+			// 시각화가 보이는데, 안보이게 해줘") — 이제 우측 하단 "시야 표시" 전역 토글
+			// (ShowAllVisionRanges)로만 켜고 끈다. 선택 여부와는 완전히 무관.
+			bool showRanges = ShowAllVisionRanges;
 			uv.SetVisionRangesVisible(showRanges); // 켜고 끄는 것 자체는 저렴 — 매 프레임 갱신해도 무관.
 
 			if (showRanges)

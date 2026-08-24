@@ -569,6 +569,23 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         bool objActive = _inputManager != null && _inputManager.IsObjectOnlyPlacementActive;
         items.Add(new SubmenuItem("오브젝트 배치", objActive, true, () => ToggleBuildSubMode(objActive, () => _inputManager?.EnterObjectPlacementMode(), "오브젝트")));
+
+        // 함정 무제한 설치(2026-08-24 사용자 요청) — 자원 소모 없이 연속으로 함정을 배치할 수 있는
+        // debug 토글. 배치 모드 자체(EnterTrapPlacementMode)는 "설치" 메뉴에 그대로 두고, 여기서는
+        // 그 배치가 무제한인지 여부만 켜고 끈다.
+        if (_inputManager != null)
+        {
+            bool unlimitedTrapOn = _inputManager.DebugUnlimitedTrapPlacement;
+            items.Add(new SubmenuItem(unlimitedTrapOn ? "■ 함정 무제한 설치 (ON)" : "□ 함정 무제한 설치 (OFF)", unlimitedTrapOn, true,
+                () => _inputManager.DebugUnlimitedTrapPlacement = !_inputManager.DebugUnlimitedTrapPlacement));
+        }
+
+        // 바닥 타일 → 벽 전환(2026-08-24 사용자 요청) — 다른 배치 모드들과 동일한 패턴(우클릭으로 실행,
+        // 재클릭/메뉴 전환으로 취소).
+        bool wallConvertActive = _inputManager != null && _inputManager.IsWallConvertPlacementActive;
+        items.Add(new SubmenuItem("바닥 → 벽 변환", wallConvertActive, true,
+            () => ToggleBuildSubMode(wallConvertActive, () => _inputManager?.EnterWallConvertPlacementMode(), "벽 변환")));
+
         items.Add(SubmenuItem.Header("배치 테스트"));
 
         items.Add(new SubmenuItem("맵 저장", false, true, () => SaveMapAsync().Forget()));
