@@ -824,9 +824,17 @@ public class TacticalFSMState : IFSMState
 			Vector2Int pos = unit.position + unit.GetDirVector(tryDir);
 			if (unit.MovementAlgorithm.TryGetNextStep(unit, pos, out Dir nextDir))
 			{
-				unit.currentDir = tryDir;
+				// 2026-08-24 사용자 신고 "경계 주변 탐색 방향 튐"(+ 코어/문 공격 실패 시 경계 전환이
+				// 즉시 튀어 보이는 문제, 같은 함수를 거침) 수정 — 예전엔 TryGetNextStep이 방향을
+				// 승인하기만 하면 실제 Move() 성패와 무관하게 currentDir을 그 방향으로 먼저 찍어놨다.
+				// Move() 본체는 2026-07-23에 "코너 커팅 등으로 실패해도 방향만 계속 바뀌어 제자리에서
+				// 홱홱 도는" 동일 부류 버그를 "실제 이동 성공 시에만 방향 갱신"으로 이미 고쳤는데, 이
+				// 함수만 그 규칙을 우회해 재발했다. 이제는 실제로 이동한 경우에만(Move()가 스스로
+				// currentDir을 nextDir로 갱신) 그 자리에서 멈추고, 실패하면 다음 후보 방향을 계속
+				// 시도한다 — AIMovementHelper.MoveTowardsPos와 동일한 "위치 변화로 성공 판정" 관례.
+				Vector2Int before = unit.position;
 				unit.Move(nextDir);
-				return BTStatus.Running;
+				if (unit.position != before) return BTStatus.Running;
 			}
 		}
 		return BTStatus.Running;
@@ -1043,14 +1051,29 @@ public class TacticalFSMState : IFSMState
 		if (!(unit is Human)) return false; // 인류 전용(2026-08-22 재조정) — 플레이어 몬스터는 자동으로 코어를 공격하지 않는다.
 		if (unit.Session?.cmap == null) return false;
 
-		FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
-		if (myFaction == null) return false; // 방 소유권 개념이 없는 진영(매핑 불가)
-
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
 		if (!unit.Session.roomGrid.TryGetValue(gridPos, out room) || room == null) return false;
-		if (room.RoomFaction == myFaction.Value) return false; // 이미 내 진영 소유
 		if (room.CoreObjectId == null) return false;
-		if (!unit.Session.objectGrid.TryGetValue(room.CorePosition, out core) || core.CoreHp <= 0f) return false;
+		if (!IsRoomCoreStillHostile(unit, room.CorePosition)) return false;
+		unit.Session.objectGrid.TryGetValue(room.CorePosition, out core);
+		return true;
+	}
+
+	// unit 진영 기준으로 corePos의 코어가 여전히 적대적인지(소유권 미전환 + HP>0) — FindHostileRoomCore
+	// (자동 AI가 "이 코어를 새로 공격 대상으로 삼을지" 결정하는 인류 전용 진입점)와 달리 종족 제한이
+	// 없다. 이미 확정된 채널링(자동 AI든 플레이어 명령이든)이 여전히 유효한지 매 프레임 재검증하는
+	// 용도라, 여기에 인류 전용 게이트를 걸면 플레이어 몬스터의 정상적인 수동 코어 공격 명령까지 매
+	// 프레임 취소돼버린다(2026-08-24 사용자 신고 "플레이어 몬스터 유닛들이 코어 공격 못하는 버그" —
+	// UnitFunction.OnUpdate의 재검증부가 이 인류 전용 게이트를 가진 FindHostileRoomCore를 그대로
+	// 재사용해서, 채널링을 시작하자마자 바로 다음 프레임에 !stillHostile로 스스로 취소했던 것이 원인).
+	internal static bool IsRoomCoreStillHostile(Unit unit, Vector3Int corePos)
+	{
+		if (unit.Session?.cmap == null) return false;
+		FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
+		if (myFaction == null) return false; // 방 소유권 개념이 없는 진영(매핑 불가)
+		if (!unit.Session.roomGrid.TryGetValue(corePos, out Room room) || room == null) return false;
+		if (room.RoomFaction == myFaction.Value) return false; // 이미 내 진영 소유
+		if (!unit.Session.objectGrid.TryGetValue(corePos, out InteractableObject core) || core.CoreHp <= 0f) return false;
 		return true;
 	}
 

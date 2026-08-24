@@ -1150,10 +1150,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 경우(OffenseProcessor.OnCoreDestroyed가 즉시 반피로 회복시킴) — CoreHp는 다시 0
 				// 초과라 아래 CoreHp > 0f 조건만으로는 이 유닛이 계속 깎아먹는 걸 막지 못한다(2026-08-24
 				// 사용자 신고 "반피로 수복이 되었는데도 이전의 감소처리가 남아서 체력이 조금 깎여있어").
-				// FindHostileRoomCore로 "지금도 여전히 이 유닛 진영에게 적대적인 코어인지"(방금 뒤바뀐
-				// 소유권 포함)를 데미지 적용 직전에 다시 확인한다 — CoreAttackPerform의 매 틱 재검증과
-				// 같은 목적이지만, 그건 다음 BT 틱에야 실행되어 이번 프레임의 과다 감소를 막지 못한다.
-				bool stillHostile = isCore && TacticalFSMState.FindHostileRoomCore(this, out _, out _);
+				// IsRoomCoreStillHostile로 "지금도 여전히 이 유닛 진영에게 적대적인 코어인지"(방금
+				// 뒤바뀐 소유권 포함)를 데미지 적용 직전에 다시 확인한다 — CoreAttackPerform의 매 틱
+				// 재검증과 같은 목적이지만, 그건 다음 BT 틱에야 실행되어 이번 프레임의 과다 감소를
+				// 막지 못한다. FindHostileRoomCore(인류 전용 자동 결정 진입점)가 아니라 이 종족 무관
+				// 헬퍼를 써야 한다 — 안 그러면 플레이어 몬스터의 수동 코어 공격이 매 프레임 스스로
+				// 취소된다(2026-08-24 버그, 아래 stillHostile 참고).
+				bool stillHostile = isCore && TacticalFSMState.IsRoomCoreStillHostile(this, targetPos);
 				if (isCore && (!isAdjacent || !stillHostile))
 				{
 					ClearAttackObjectTarget();
