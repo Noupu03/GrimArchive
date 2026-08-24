@@ -1545,9 +1545,69 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             Vector2Int pos = GetRandomStartRoomPos(footprint, floorIdx);
             Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
-            if (_buildingManager.CanInstallAt(gridPos, footprintInt) && IsGoodForInitialSpawn(gridPos, footprint)) return gridPos;
+            if (!_buildingManager.CanInstallAt(gridPos, footprintInt)) continue;
+            if (!IsGoodForInitialSpawn(gridPos, footprint)) continue;
+
+            // 건물이 3x3/2x2로 커지면서(2026-08-25) 좁은 시작방에서는 건물 하나가 방을 완전히
+            // 갈라놓을(길을 막을) 가능성이 생겼다 — 후보 자리를 확정하기 전에 방의 나머지 통행 가능
+            // 영역이 여전히 하나로 연결돼 있는지 검사해서, 갈라놓는 자리는 거르고 재시도한다.
+            if (roomGrid.TryGetValue(gridPos, out Room room) && WouldFootprintBlockRoomPath(room, gridPos, footprintInt))
+                continue;
+
+            return gridPos;
         }
         return null;
+    }
+
+    // footprint가 room의 나머지 통행 가능 타일들을 서로 갈라놓는지(고립시키는지) 검사한다(2026-08-25,
+    // 사용자 요청 "시작방 생성시 길이 완전히 가로막히는 경우가 있는지"). footprint가 차지할 칸은 막힌
+    // 것으로 치고, room에 속한 나머지 통행 가능 타일 전부가 floodfill로 서로 도달 가능한지 확인한다 —
+    // 하나라도 고립되면(문 쪽이든 반대쪽이든) true를 반환해 그 자리를 거부하게 한다. CreateMap.
+    // RepairGateConnectivity(맵 생성 단계 방-방 연결 보수)와 같은 floodfill 원리를 방 내부 타일
+    // 단위로 재사용한 것 — 여긴 이미 만들어진 방 하나 안에서 건물 배치가 통로를 끊는지만 본다.
+    private bool WouldFootprintBlockRoomPath(Room room, Vector3Int footprintOrigin, Vector2Int footprint)
+    {
+        if (room == null || cmap == null) return false;
+
+        var footprintSet = new HashSet<Vector2Int>();
+        for (int dx = 0; dx < footprint.x; dx++)
+            for (int dy = 0; dy < footprint.y; dy++)
+                footprintSet.Add(new Vector2Int(footprintOrigin.x + dx, footprintOrigin.y + dy));
+
+        var floorTiles = new List<Vector2Int>();
+        for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
+        {
+            for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
+            {
+                Vector2Int p = new Vector2Int(x, y);
+                if (footprintSet.Contains(p)) continue;
+                if (cmap.GetRoomIdAt(room.Floor, p) != room.RoomId) continue;
+                if (!cmap.IsStaticTileWalkable(room.Floor, p)) continue;
+                floorTiles.Add(p);
+            }
+        }
+
+        if (floorTiles.Count <= 1) return false;
+
+        var floorSet = new HashSet<Vector2Int>(floorTiles);
+        var visited = new HashSet<Vector2Int> { floorTiles[0] };
+        var queue = new Queue<Vector2Int>();
+        queue.Enqueue(floorTiles[0]);
+        Vector2Int[] dirs = { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+
+        while (queue.Count > 0)
+        {
+            Vector2Int cur = queue.Dequeue();
+            foreach (var d in dirs)
+            {
+                Vector2Int n = cur + d;
+                if (!floorSet.Contains(n) || visited.Contains(n)) continue;
+                visited.Add(n);
+                queue.Enqueue(n);
+            }
+        }
+
+        return visited.Count < floorTiles.Count;
     }
 
     // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)
