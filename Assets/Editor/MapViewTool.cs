@@ -234,7 +234,8 @@ public class MapViewTool : EditorWindow
     void DrawTileGrid(CreateMap cm, ref Floor floor)
     {
         Chunks chunk = floor.chunks[selectedChunkX, selectedChunkY];
-        showTileGrid = EditorGUILayout.Foldout(showTileGrid, $"🧱 타일 그리드 (8×8) — 청크[{selectedChunkX},{selectedChunkY}] {chunk.roomName}", true, sectionHeaderStyle);
+        int cs = chunk.chunk != null ? chunk.chunk.GetLength(0) : floor.config.chunkSize;
+        showTileGrid = EditorGUILayout.Foldout(showTileGrid, $"🧱 타일 그리드 ({cs}×{cs}) — 청크[{selectedChunkX},{selectedChunkY}] {chunk.roomName}", true, sectionHeaderStyle);
         if (!showTileGrid) return;
 
         if (chunk.chunk == null)
@@ -250,11 +251,11 @@ public class MapViewTool : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         tileScrollPos = EditorGUILayout.BeginScrollView(tileScrollPos, GUILayout.MaxHeight(360));
-        for (int ty = 7; ty >= 0; ty--)
+        for (int ty = cs - 1; ty >= 0; ty--)
         {
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label(ty.ToString(), EditorStyles.centeredGreyMiniLabel, GUILayout.Width(16));
-            for (int tx = 0; tx < 8; tx++)
+            for (int tx = 0; tx < cs; tx++)
             {
                 Tile t = chunk.chunk[tx, ty];
                 Color tileColor = GetTileColor(t.name);

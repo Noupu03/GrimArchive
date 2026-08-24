@@ -93,7 +93,7 @@ public class DoorSystem
                 // 수직 통로(isHorizontal=false) 기준이라, 수평 통로에서는 90도 돌려야 벽 방향과 맞는다.
                 float rotation = gate.isHorizontal ? 90f : 0f;
 
-                foreach (List<Vector2Int> gateTiles in GetGateDoorTiles(gate))
+                foreach (List<Vector2Int> gateTiles in GetGateDoorTiles(gate, floor.config.chunkSize))
                 {
                     foreach (var tilePos in gateTiles)
                     {
@@ -150,34 +150,36 @@ public class DoorSystem
     // 통로 양 끝(A쪽 청크의 마지막 칸 / B쪽 청크의 첫 칸) 두 줄을 모두 반환한다(2026-07-28, "문을
     // 양쪽에 달자"). 반환값은 [A쪽 문턱 줄, B쪽 문턱 줄] 순서의 배열. MapRandering.ApplyOccupationTint/
     // ChangeRoomColor가 "문이 있는 바닥은 점령 색칠 제외"를 위해 그대로 재사용하므로 public static.
-    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate)
+    // chunkSize: 이 게이트가 속한 층의 FloorConfig.chunkSize(2026-08-23, 맵 1.5배 확장으로 층별
+    // 설정값이 됨) — Gate 자체는 어느 층 소속인지 모르므로 호출부가 넘겨야 한다.
+    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate, int chunkSize)
     {
         var tilesA = new List<Vector2Int>();
         var tilesB = new List<Vector2Int>();
-        int start = (8 - gate.width) / 2;
+        int start = (chunkSize - gate.width) / 2;
 
         if (gate.isHorizontal)
         {
             int leftChunkX = Mathf.Min(gate.chunkAX, gate.chunkBX);
-            int doorWorldXA = leftChunkX * 8 + 7; // 왼쪽 청크의 마지막 칸
-            int doorWorldXB = (leftChunkX + 1) * 8; // 오른쪽(문턱 너머) 청크의 첫 칸
+            int doorWorldXA = leftChunkX * chunkSize + chunkSize - 1; // 왼쪽 청크의 마지막 칸
+            int doorWorldXB = (leftChunkX + 1) * chunkSize; // 오른쪽(문턱 너머) 청크의 첫 칸
             int chunkY = gate.chunkAY; // 수평 게이트는 두 청크가 같은 행(chunkY == chunkBY)
             for (int i = 0; i < gate.width; i++)
             {
-                tilesA.Add(new Vector2Int(doorWorldXA, chunkY * 8 + start + i));
-                tilesB.Add(new Vector2Int(doorWorldXB, chunkY * 8 + start + i));
+                tilesA.Add(new Vector2Int(doorWorldXA, chunkY * chunkSize + start + i));
+                tilesB.Add(new Vector2Int(doorWorldXB, chunkY * chunkSize + start + i));
             }
         }
         else
         {
             int bottomChunkY = Mathf.Min(gate.chunkAY, gate.chunkBY);
-            int doorWorldYA = bottomChunkY * 8 + 7; // 아래쪽 청크의 마지막 칸
-            int doorWorldYB = (bottomChunkY + 1) * 8; // 위쪽 청크의 첫 칸
+            int doorWorldYA = bottomChunkY * chunkSize + chunkSize - 1; // 아래쪽 청크의 마지막 칸
+            int doorWorldYB = (bottomChunkY + 1) * chunkSize; // 위쪽 청크의 첫 칸
             int chunkX = gate.chunkAX; // 수직 게이트는 두 청크가 같은 열(chunkX == chunkBX)
             for (int i = 0; i < gate.width; i++)
             {
-                tilesA.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldYA));
-                tilesB.Add(new Vector2Int(chunkX * 8 + start + i, doorWorldYB));
+                tilesA.Add(new Vector2Int(chunkX * chunkSize + start + i, doorWorldYA));
+                tilesB.Add(new Vector2Int(chunkX * chunkSize + start + i, doorWorldYB));
             }
         }
 
@@ -328,7 +330,7 @@ public class DoorSystem
 
         foreach (var g in floor.gates)
         {
-            foreach (var row in GetGateDoorTiles(g))
+            foreach (var row in GetGateDoorTiles(g, floor.config.chunkSize))
             {
                 foreach (var tile in row)
                 {

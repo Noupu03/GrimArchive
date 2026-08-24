@@ -60,7 +60,7 @@ public partial class CreateMap
         if (floor.chunks == null) return 0;
 
         int count = 0;
-        int w = floor.config.width, h = floor.config.height;
+        int w = floor.config.width, h = floor.config.height, cs = floor.config.chunkSize;
         for (int cx = 0; cx < w; cx++)
         {
             for (int cy = 0; cy < h; cy++)
@@ -68,8 +68,8 @@ public partial class CreateMap
                 Chunks c = floor.chunks[cx, cy];
                 if (c.roomId != roomId || c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
-                    for (int ty = 0; ty < 8; ty++)
+                for (int tx = 0; tx < cs; tx++)
+                    for (int ty = 0; ty < cs; ty++)
                         if (c.chunk[tx, ty].name != "Wall") count++;
             }
         }
@@ -163,8 +163,9 @@ public partial class CreateMap
 
                     if (state == OccupationState.PlayerControlled && c.chunk != null)
                     {
-                        for (int tx = 0; tx < 8; tx++)
-                            for (int ty = 0; ty < 8; ty++)
+                        int cs = c.chunk.GetLength(0);
+                        for (int tx = 0; tx < cs; tx++)
+                            for (int ty = 0; ty < cs; ty++)
                             {
                                 Tile t = c.chunk[tx, ty];
                                 t.understand = 100;
@@ -271,12 +272,14 @@ public partial class CreateMap
 
         int w = floor.config.width;
         int h = floor.config.height;
+        int cs = floor.config.chunkSize;
+        int stairLo = cs / 2 - 1; // PlaceStairTiles(CreateMap.Stairs.cs)와 동일한 2x2 블록 좌상단 오프셋.
 
         for (int x = 0; x < w; x++)
             for (int y = 0; y < h; y++)
                 if (floor.chunks[x, y].stairTargetFloor == targetFloor)
                 {
-                    pos = new Vector2Int(x * 8 + 3, y * 8 + 3);
+                    pos = new Vector2Int(x * cs + stairLo, y * cs + stairLo);
                     return true;
                 }
 
@@ -384,8 +387,9 @@ public partial class CreateMap
         Floor floor = map.floors[floorIndex];
         if (floor.chunks == null) return false;
 
-        int cx = p.x / 8, tx = p.x % 8;
-        int cy = p.y / 8, ty = p.y % 8;
+        int cs = floor.config.chunkSize;
+        int cx = p.x / cs, tx = p.x % cs;
+        int cy = p.y / cs, ty = p.y % cs;
         if (cx >= floor.config.width || cy >= floor.config.height) return false;
 
         Chunks c = floor.chunks[cx, cy];
@@ -535,7 +539,8 @@ public partial class CreateMap
         Floor floor = map.floors[floorIndex];
         if (floor.chunks == null) return -1;
 
-        int cx = tilePos.x / 8, cy = tilePos.y / 8;
+        int cs = floor.config.chunkSize;
+        int cx = tilePos.x / cs, cy = tilePos.y / cs;
         if (cx >= floor.config.width || cy >= floor.config.height) return -1;
 
         return floor.chunks[cx, cy].roomId;
@@ -610,7 +615,8 @@ public partial class CreateMap
         Floor floor = map.floors[floorIndex];
         if (floor.chunks == null) return false;
 
-        int cx = tilePos.x / 8, cy = tilePos.y / 8;
+        int cs = floor.config.chunkSize;
+        int cx = tilePos.x / cs, cy = tilePos.y / cs;
         if (cx >= floor.config.width || cy >= floor.config.height) return false;
 
         return floor.chunks[cx, cy].occupationState == OccupationState.PlayerControlled;

@@ -331,15 +331,16 @@ namespace GrimArchive.Wave
         // CameraController.Floor0HiddenChunksX 참고) 안에서 스폰 위치를 고른다. rowY는
         // DungeonEntranceSystem이 그대로 이어받아 쓸 행이라 ResolveStairPositions가 구한
         // floor0StairPos.y와 통일한다(입구~계단까지 한 행에서 직선으로만 움직이면 되게).
-        private const int DungeonEntranceHiddenChunkCenterX = 4; // 청크0(숨김) 로컬 중앙.
+        // 맵 1.5배 확장(2026-08-23 사용자 요청 "0층은 청크 크기만 늘려") — 0층 청크 타일 크기가
+        // 8→12로 바뀌면서 이 두 상수도 그대로 1.5배 스케일했다(청크 중심/경계를 가리키는 선형
+        // 값이라 8→12 배율을 그대로 곱하면 새 청크 경계에서도 정확히 같은 상대 위치가 나온다 —
+        // 아래 최종 값들이 각각 청크0 로컬 중앙/청크1·2 경계와 정확히 일치함을 계산으로 확인했다).
+        // 두 값 다 CreateMap.FloorConfigFactory의 Floor_0.chunkSize와 반드시 같이 맞춰야 한다.
+        private const int DungeonEntranceHiddenChunkCenterX = 6; // 청크0(숨김) 로컬 중앙(12/2).
         // 대기 포메이션 우측 이동(2026-08-23 사용자 요청 "0층에서의 대기 포메이션 자체를 좀더
-        // 우측으로 옮겨줘. 안개에 가려진다") — 예전엔 청크1(가시 영역 최좌측) 중앙(12)이었는데,
-        // DungeonEntranceSystem의 대형은 이 값(선두 랭크 위치)에서 뒤로 갈수록(원거리딜러 랭크가
-        // 가장 뒤) RankSpacingX(2)*랭크수(최대 2)=최대 4칸까지 밀려나 최후미가 8(=청크1의 시작=
-        // FogOfWarSystem.Floor0HiddenFogPadding 확장 전 기준으로도 숨은 청크 바로 옆 경계)까지
-        // 닿아 있어 안개 경계에 걸려 보였다. 4칸(대형 전체 깊이만큼) 더 밀어 최후미도 안개 경계에서
-        // 충분히 떨어지게 한다.
-        private const int DungeonEntranceRoomEntryX = 16;        // 청크1/2 경계 — 대형 전체가 안개에서 떨어짐.
+        // 우측으로 옮겨줘. 안개에 가려진다") — 청크1(가시 영역 최좌측) 중앙(18)에서 DungeonEntranceSystem
+        // 대형 최후미가 뒤로 밀리는 최대 깊이(RankSpacingX(2)*랭크수(최대 2)=4)만큼 더 민 값.
+        private const int DungeonEntranceRoomEntryX = 24;        // 청크1/2 경계 — 대형 전체가 안개에서 떨어짐.
 
         private Vector2Int FindSpawnPosInHiddenChunk(int rowY)
         {

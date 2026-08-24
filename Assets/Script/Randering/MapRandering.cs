@@ -39,7 +39,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private UnityEngine.Tilemaps.Tile floorTile;
     private UnityEngine.Tilemaps.Tile stairTile;
 
-    private const int ChunkSize = 8;
+    // 맵 1.5배 확장(2026-08-23 사용자 요청)으로 청크 크기가 층별 설정값(FloorConfig.chunkSize)이 됐다
+    // — 전 층 공용 상수는 삭제하고 아래 메서드들이 각자 floor.config.chunkSize를 참조한다.
     private GameObject mapRoot;
 
     [Inject]
@@ -169,7 +170,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
     {
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
-        int totalTiles = chunkCountX * ChunkSize * chunkCountY * ChunkSize;
+        int chunkSize = floor.config.chunkSize;
+        int totalTiles = chunkCountX * chunkSize * chunkCountY * chunkSize;
         var positions = new Vector3Int[totalTiles];
         var tiles = new UnityEngine.Tilemaps.TileBase[totalTiles];
         int idx = 0;
@@ -181,16 +183,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
                 Chunks chunk = floor.chunks[cx, cy];
                 if (chunk.chunk == null) continue;
 
-                for (int tx = 0; tx < ChunkSize; tx++)
+                for (int tx = 0; tx < chunkSize; tx++)
                 {
-                    for (int ty = 0; ty < ChunkSize; ty++)
+                    for (int ty = 0; ty < chunkSize; ty++)
                     {
                         string tileName = chunk.chunk[tx, ty].name;
                         UnityEngine.Tilemaps.TileBase tileBase = floorTile;
                         if (tileName == "Wall") tileBase = wallTile;
                         else if (tileName == "Stair") tileBase = stairTile;
 
-                        positions[idx] = new Vector3Int(cx * ChunkSize + tx, cy * ChunkSize + ty, 0);
+                        positions[idx] = new Vector3Int(cx * chunkSize + tx, cy * chunkSize + ty, 0);
                         tiles[idx] = tileBase;
                         idx++;
                     }
@@ -229,6 +231,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
+        int chunkSize = floor.config.chunkSize;
+        // PlaceStairTiles(CreateMap.Stairs.cs)와 동일한 2x2 블록 좌상단 오프셋 — chunkSize=8이면 3(원래 값).
+        int stairLo = chunkSize / 2 - 1;
 
         for (int cx = 0; cx < chunkCountX; cx++)
         {
@@ -244,9 +249,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
                 var go = new GameObject(goesDown ? "StairDownIcon" : "StairUpIcon");
                 go.transform.SetParent(parent, false);
 
-                // 계단 블록(2x2) 중심 좌표 — 블록은 (cx*8+3, cy*8+3)~(cx*8+5, cy*8+5) 구간을 차지한다.
-                float centerX = cx * ChunkSize + 3 + StairBlockSize / 2f;
-                float centerY = cy * ChunkSize + 3 + StairBlockSize / 2f;
+                // 계단 블록(2x2) 중심 좌표 — 블록은 (cx*cs+stairLo, cy*cs+stairLo)~(+1,+1) 구간을 차지한다.
+                float centerX = cx * chunkSize + stairLo + StairBlockSize / 2f;
+                float centerY = cy * chunkSize + stairLo + StairBlockSize / 2f;
                 go.transform.localPosition = new Vector3(centerX, centerY, 0f);
 
                 var sr = go.AddComponent<SpriteRenderer>();
@@ -287,7 +292,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         {
             offsets[f] = new Vector3Int(cursorX, 0, 0);
 
-            int widthTiles = createMap.map.floors[f].config.width * ChunkSize;
+            int widthTiles = createMap.map.floors[f].config.width * createMap.map.floors[f].config.chunkSize;
             cursorX += widthTiles + FloorGapTiles;
         }
 
@@ -295,9 +300,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
     }
 
     // floorIndex 층이 월드 좌표에서 차지하는 전체 사각 범위(floorOffsets 원점 + 그 층의 청크
-    // 크기×ChunkSize) — 2026-08-20, CameraController의 층별 클램프(TryGetFloorViewBounds)가 필요로
-    // 해서 추가. floorOffsets/ChunkSize 둘 다 이 클래스가 이미 들고 있는 값이라, 카메라 쪽에서
-    // ChunkSize를 별도 상수로 중복 정의하는 대신 여기서 한 번만 계산해 공개한다(다른 시스템도
+    // 개수×chunkSize) — 2026-08-20, CameraController의 층별 클램프(TryGetFloorViewBounds)가 필요로
+    // 해서 추가. floorOffsets/floor.config.chunkSize 둘 다 이 클래스가 이미 접근 가능한 값이라, 카메라
+    // 쪽에서 청크 크기를 별도 상수로 중복 정의하는 대신 여기서 한 번만 계산해 공개한다(다른 시스템도
     // "이 층이 화면에서 어디부터 어디까지인지"가 필요하면 재사용 가능).
     public bool TryGetFloorWorldBounds(int floorIndex, out Rect bounds)
     {
@@ -308,7 +313,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         Floor floor = createMap.map.floors[floorIndex];
         Vector3Int origin = floorOffsets[floorIndex];
 
-        bounds = new Rect(origin.x, origin.y, floor.config.width * ChunkSize, floor.config.height * ChunkSize);
+        bounds = new Rect(origin.x, origin.y, floor.config.width * floor.config.chunkSize, floor.config.height * floor.config.chunkSize);
         return true;
     }
 
@@ -345,8 +350,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
     {
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
-        worldW = chunkCountX * ChunkSize;
-        worldH = chunkCountY * ChunkSize;
+        int chunkSize = floor.config.chunkSize;
+        worldW = chunkCountX * chunkSize;
+        worldH = chunkCountY * chunkSize;
 
         bool[,] isWall = new bool[worldW, worldH];
         for (int cx = 0; cx < chunkCountX; cx++)
@@ -356,10 +362,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
                 Chunks chunk = floor.chunks[cx, cy];
                 if (chunk.chunk == null) continue;
 
-                for (int tx = 0; tx < ChunkSize; tx++)
-                    for (int ty = 0; ty < ChunkSize; ty++)
+                for (int tx = 0; tx < chunkSize; tx++)
+                    for (int ty = 0; ty < chunkSize; ty++)
                         if (chunk.chunk[tx, ty].name == "Wall")
-                            isWall[cx * ChunkSize + tx, cy * ChunkSize + ty] = true;
+                            isWall[cx * chunkSize + tx, cy * chunkSize + ty] = true;
             }
         }
 
@@ -520,6 +526,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     {
         int chunkCountX = floor.config.width;
         int chunkCountY = floor.config.height;
+        int chunkSize = floor.config.chunkSize;
 
         // 청크를 roomId별로 묶어 타일 범위(union bounds)를 계산한 뒤 오버레이 쿼드 1개씩 배치.
         var roomData = new Dictionary<int, (Color color, int xMin, int yMin, int xMax, int yMax)>();
@@ -539,8 +546,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
                 };
                 if (tint == null) continue;
 
-                int xMin = cx * ChunkSize, yMin = cy * ChunkSize;
-                int xMax = xMin + ChunkSize, yMax = yMin + ChunkSize;
+                int xMin = cx * chunkSize, yMin = cy * chunkSize;
+                int xMax = xMin + chunkSize, yMax = yMin + chunkSize;
 
                 if (roomData.TryGetValue(chunk.roomId, out var existing))
                 {

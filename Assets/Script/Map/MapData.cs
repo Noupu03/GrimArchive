@@ -186,6 +186,10 @@ public struct FloorConfig
 	public int maxNormalRoomChunks;
 	// 총 방 수 (시작방 + 일반방 + 보스방). 서브 목적방은 별도 카운트.
 	public int totalRoomCount;
+	// 청크 1개의 타일 한 변 크기(정사각형, 기존엔 전 층 공용 상수 8이었음). 맵 크기 1.5배 확장
+	// (2026-08-23 사용자 요청)으로 층별 설정값이 됐다 — CreateMap의 모든 청크 배열 할당/타일 좌표
+	// 변환과 MapRandering/DoorSystem/FogOfWarSystem의 렌더링·문·안개 계산이 전부 이 값을 참조한다.
+	public int chunkSize;
 }
 
 public struct MapData
@@ -287,6 +291,12 @@ public static class FloorConfigFactory
 			// width=4, height=1. GenerateFloor0은 이 4청크 전체를 여전히 단일 StartRoom으로 균일하게
 			// 채운다(기존 로직 그대로) — 숨김 스폰 청크가 "안 보임"은 별도 렌더링 분리 없이
 			// CameraController의 층별 카메라 관찰 범위 제한(Floor0HiddenChunksX)만으로 구현한다.
+			// 맵 크기 1.5배 확장(2026-08-23 사용자 요청 "0층은 청크 크기만 늘려") — 청크 개수
+			// (width/height)는 그대로 두고 청크 자체의 타일 크기만 8→12로 다른 층과 통일했다.
+			// CameraController.Floor0ChunkSizeTiles/FogOfWarSystem의 0층 안개 스폰은 이 값을 그대로
+			// 읽어가므로 자동으로 맞는다 — 다만 HumanWaveManager의 DungeonEntranceHiddenChunkCenterX/
+			// DungeonEntranceRoomEntryX(0층 던전 입구 대기 위치)는 손으로 미리 계산해둔 상수라 이
+			// chunkSize를 다시 바꾸면 그 두 값도 반드시 같이(비율 그대로) 맞춰야 한다.
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_0,
@@ -295,9 +305,10 @@ public static class FloorConfigFactory
 				bossRoomFormat = "",
 				wallThicknessMin = 1, wallThicknessMax = 1,
 				maxNormalRoomChunks = 0,
-				totalRoomCount = 1
+				totalRoomCount = 1,
+				chunkSize = 12
 			},
-			// Floor 1: 7×7
+			// Floor 1: 7×7 (청크 개수는 그대로, 청크 자체 크기만 1.5배 — 아래 청크 크기 주석 참고)
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_1,
@@ -306,7 +317,8 @@ public static class FloorConfigFactory
 				bossRoomFormat = "2x2",
 				wallThicknessMin = 1, wallThicknessMax = 2,
 				maxNormalRoomChunks = 2,
-				totalRoomCount = 6
+				totalRoomCount = 6,
+				chunkSize = 12
 			},
 			// Floor 2: 8×8
 			new FloorConfig
@@ -317,7 +329,8 @@ public static class FloorConfigFactory
 				bossRoomFormat = "ㄷ7",
 				wallThicknessMin = 1, wallThicknessMax = 6,
 				maxNormalRoomChunks = 3,
-				totalRoomCount = 7
+				totalRoomCount = 7,
+				chunkSize = 12
 			},
 			// Floor 3: 9×9
 			new FloorConfig
@@ -328,7 +341,8 @@ public static class FloorConfigFactory
 				bossRoomFormat = "3x3",
 				wallThicknessMin = 1, wallThicknessMax = 6,
 				maxNormalRoomChunks = 5,
-				totalRoomCount = 8
+				totalRoomCount = 8,
+				chunkSize = 12
 			}
 		};
 	}

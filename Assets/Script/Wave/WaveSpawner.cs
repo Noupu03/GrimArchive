@@ -299,14 +299,15 @@ namespace GrimArchive.Wave
         private bool TryPickTileInChunks(List<Vector2Int> validRoomChunks, Vector2 footprint, out Vector2Int pos)
         {
             UnitGenerate generator = GameSession.Instance.unitGenerate;
+            int cs = GameSession.Instance.cmap.map.floors[waveData.targetFloor].config.chunkSize;
 
             for (int i = 0; i < 50; i++)
             {
                 Vector2Int chunkPos = validRoomChunks[UnityEngine.Random.Range(0, validRoomChunks.Count)];
-                int tx = UnityEngine.Random.Range(0, 8);
-                int ty = UnityEngine.Random.Range(0, 8);
+                int tx = UnityEngine.Random.Range(0, cs);
+                int ty = UnityEngine.Random.Range(0, cs);
 
-                Vector2Int globalPos = new Vector2Int(chunkPos.x * 8 + tx, chunkPos.y * 8 + ty);
+                Vector2Int globalPos = new Vector2Int(chunkPos.x * cs + tx, chunkPos.y * cs + ty);
                 if (generator.IsAreaClear(globalPos, footprint, waveData.targetFloor))
                 {
                     pos = globalPos;

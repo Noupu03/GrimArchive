@@ -42,6 +42,7 @@ public partial class CreateMap
         AssignTileNames(ref floor);
         OpenInternalWalls(ref floor);
 
+        int cs0 = floor.config.chunkSize;
         for (int x = 0; x < w; x++)
         {
             for (int y = 0; y < h; y++)
@@ -49,9 +50,9 @@ public partial class CreateMap
                 Chunks c = floor.chunks[x, y];
                 if (c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
+                for (int tx = 0; tx < cs0; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < cs0; ty++)
                     {
                         Tile t = c.chunk[tx, ty];
                         t.visibility = 100;
@@ -288,9 +289,13 @@ public partial class CreateMap
 
         c.stairTargetFloor = targetFloor;
 
-        for (int tx = 3; tx <= 4; tx++)
+        // 2x2 계단 블록을 청크 중앙에 배치 — 청크 크기 8 기준 로컬(3,3)~(4,4)였던 걸 일반화했다
+        // (2026-08-23, 맵 1.5배 확장). chunkSize=8이면 half=4, lo=3이라 원래 값과 정확히 같다.
+        int half = floor.config.chunkSize / 2;
+        int lo = half - 1;
+        for (int tx = lo; tx <= half; tx++)
         {
-            for (int ty = 3; ty <= 4; ty++)
+            for (int ty = lo; ty <= half; ty++)
             {
                 c.chunk[tx, ty] = TileFactory.Stair();
             }
@@ -366,6 +371,7 @@ public partial class CreateMap
             }
         }
 
+        int csDanger = floor.config.chunkSize;
         for (int x = 0; x < w; x++)
         {
             for (int y = 0; y < h; y++)
@@ -380,9 +386,9 @@ public partial class CreateMap
                 int dangerValue = roomDist;
                 int understandValue = (c.roomRole == RoomRole.StartRoom) ? 100 : 0;
 
-                for (int tx = 0; tx < 8; tx++)
+                for (int tx = 0; tx < csDanger; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < csDanger; ty++)
                     {
                         Tile t = c.chunk[tx, ty];
                         t.dangerous = dangerValue;
@@ -433,9 +439,10 @@ public partial class CreateMap
 
                 bool isBoss = (c.roomRole == RoomRole.BossRoom);
 
-                for (int tx = 0; tx < 8; tx++)
+                int csLandform = floor.config.chunkSize;
+                for (int tx = 0; tx < csLandform; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < csLandform; ty++)
                     {
                         Tile t = c.chunk[tx, ty];
 

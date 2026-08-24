@@ -180,8 +180,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		float tDeltaX = dir.x != 0 ? Mathf.Abs(1f / dir.x) : float.PositiveInfinity;
 		float tDeltaY = dir.y != 0 ? Mathf.Abs(1f / dir.y) : float.PositiveInfinity;
 
-		int mapWidth = floor.config.width * 8;
-		int mapHeight = floor.config.height * 8;
+		int mapWidth = floor.config.width * floor.config.chunkSize;
+		int mapHeight = floor.config.height * floor.config.chunkSize;
 		float dist = 0f;
 
 		while (dist < maxDistance)
@@ -562,8 +562,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		Floor floorData = cmap.map.floors[currentFloor];
 		if (floorData.chunks == null) return;
-		int mapWidth  = floorData.config.width  * 8;
-		int mapHeight = floorData.config.height * 8;
+		int csVision = floorData.config.chunkSize;
+		int mapWidth  = floorData.config.width  * csVision;
+		int mapHeight = floorData.config.height * csVision;
 
 		Human terrainObserver = this as Human;
 		// 몬스터 개인 지도(2026-08-20, 사용자 요청 "몬스터들도 개인 지도는 있어야 한다") — 인류와
@@ -577,7 +578,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			int px = pos.x, py = pos.y;
 			if (px < 0 || px >= mapWidth || py < 0 || py >= mapHeight) return true;
-			int ocx = px / 8, otx = px % 8, ocy = py / 8, oty = py % 8;
+			int ocx = px / csVision, otx = px % csVision, ocy = py / csVision, oty = py % csVision;
 			if (ocx >= floorData.config.width || ocy >= floorData.config.height) return true;
 			Chunks oc = floorData.chunks[ocx, ocy];
 			if (oc.roomId == -1 || oc.chunk == null) return true;
@@ -593,7 +594,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		void ProcessTile(int x, int y, bool inPerceptionRange)
 		{
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return;
-			int pcx = x / 8, ptx = x % 8, pcy = y / 8, pty = y % 8;
+			int pcx = x / csVision, ptx = x % csVision, pcy = y / csVision, pty = y % csVision;
 			if (pcx >= floorData.config.width || pcy >= floorData.config.height) return;
 			Chunks chunk = floorData.chunks[pcx, pcy];
 			if (chunk.roomId == -1 || chunk.chunk == null) return;

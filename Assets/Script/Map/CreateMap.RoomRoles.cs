@@ -326,8 +326,9 @@ public partial class CreateMap
 
                     if (c.chunk != null)
                     {
-                        for (int tx = 0; tx < 8; tx++)
-                            for (int ty = 0; ty < 8; ty++)
+                        int cs = c.chunk.GetLength(0);
+                        for (int tx = 0; tx < cs; tx++)
+                            for (int ty = 0; ty < cs; ty++)
                                 c.chunk[tx, ty] = TileFactory.Wall();
                     }
 

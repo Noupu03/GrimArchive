@@ -379,23 +379,24 @@ public class GameSession : NativeRoutine, IOffenseQuery
                         }
                         roomChunkCount[c.roomId]++;
 
-                        int startX = cx * 8;
-                        int startY = cy * 8;
+                        int cs = floor.config.chunkSize;
+                        int startX = cx * cs;
+                        int startY = cy * cs;
 
                         var min = roomMin[c.roomId];
                         var max = roomMax[c.roomId];
                         min.x = Mathf.Min(min.x, startX);
                         min.y = Mathf.Min(min.y, startY);
-                        max.x = Mathf.Max(max.x, startX + 8);
-                        max.y = Mathf.Max(max.y, startY + 8);
+                        max.x = Mathf.Max(max.x, startX + cs);
+                        max.y = Mathf.Max(max.y, startY + cs);
                         roomMin[c.roomId] = min;
                         roomMax[c.roomId] = max;
 
-                        for (int tx = 0; tx < 8; tx++)
+                        for (int tx = 0; tx < cs; tx++)
                         {
-                            for (int ty = 0; ty < 8; ty++)
+                            for (int ty = 0; ty < cs; ty++)
                             {
-                                Vector3Int pos = new Vector3Int(cx * 8 + tx, cy * 8 + ty, currentFloor);
+                                Vector3Int pos = new Vector3Int(cx * cs + tx, cy * cs + ty, currentFloor);
                                 roomGrid[pos] = room;
                             }
                         }
@@ -1025,11 +1026,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 Chunks c = floor.chunks[cx, cy];
                 if (c.roomRole != RoomRole.StartRoom || c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
+                int cs = floor.config.chunkSize;
+                for (int tx = 0; tx < cs; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < cs; ty++)
                     {
-                        Vector2Int pos = new Vector2Int(cx * 8 + tx, cy * 8 + ty);
+                        Vector2Int pos = new Vector2Int(cx * cs + tx, cy * cs + ty);
 
                         if (_unitGenerate.IsAreaClear(pos, footprint, floorIdx))
                             candidates.Add(pos);
@@ -1165,7 +1167,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 위함(MonsterDefensePlacementSystem 분리와 동일한 이유). 아래는 외부에서 GameSession.Instance.X()
     // 형태로 호출하던 기존 진입점을 유지하기 위한 얇은 위임이다 — 실제 구현은 전부 DoorSystem에 있다.
     public bool IsDoorTile(Vector3Int pos) => _doorSystem.IsDoorTile(pos);
-    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate) => DoorSystem.GetGateDoorTiles(gate);
+    public static List<Vector2Int>[] GetGateDoorTiles(Gate gate, int chunkSize) => DoorSystem.GetGateDoorTiles(gate, chunkSize);
     // 문 진영 판정(기초문서.md 피드백, 2026-08-22 "문은 보유 진영의 유닛만 지나갈 수 있고... 그게
     // 아니라면 공격해서 파괴해야 해") — UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에
     // 직접 사용(GameSession.Instance 없이도 static으로 호출 가능하도록 DoorSystem에 그대로 위임).
@@ -1253,10 +1255,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (pos.z >= cmap.map.floors.Length) return;
 
         Floor floor = cmap.map.floors[pos.z];
-        int cx = pos.x / 8;
-        int cy = pos.y / 8;
-        int tx = pos.x % 8;
-        int ty = pos.y % 8;
+        int cs = floor.config.chunkSize;
+        int cx = pos.x / cs;
+        int cy = pos.y / cs;
+        int tx = pos.x % cs;
+        int ty = pos.y % cs;
 
         if (cx >= 0 && cx < floor.config.width && cy >= 0 && cy < floor.config.height)
         {

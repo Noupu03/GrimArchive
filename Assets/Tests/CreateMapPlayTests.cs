@@ -63,10 +63,10 @@ public class CreateMapPlayTests
     }
 
     // ====================================================================
-    // ② 모든 청크에 8x8 타일 배열 할당 검증 (Floor 1 기준)
+    // ② 모든 청크에 FloorConfig.chunkSize×chunkSize 타일 배열 할당 검증 (Floor 1 기준)
     // ====================================================================
     [Test]
-    public void AllChunks_Have8x8TileArray()
+    public void AllChunks_HaveChunkSizeTileArray()
     {
         var cm = SetupCreateMap();
         cm.GenerateMap();
@@ -76,6 +76,7 @@ public class CreateMapPlayTests
             Floor floor = cm.map.floors[f];
             int w = floor.config.width;
             int h = floor.config.height;
+            int cs = floor.config.chunkSize;
 
             for (int x = 0; x < w; x++)
             {
@@ -83,8 +84,8 @@ public class CreateMapPlayTests
                 {
                     Chunks c = floor.chunks[x, y];
                     Assert.IsNotNull(c.chunk, $"F{f} chunk[{x},{y}].chunk이 null입니다.");
-                    Assert.AreEqual(8, c.chunk.GetLength(0), $"F{f} chunk[{x},{y}] X축 타일 수가 8이 아닙니다.");
-                    Assert.AreEqual(8, c.chunk.GetLength(1), $"F{f} chunk[{x},{y}] Y축 타일 수가 8이 아닙니다.");
+                    Assert.AreEqual(cs, c.chunk.GetLength(0), $"F{f} chunk[{x},{y}] X축 타일 수가 {cs}가 아닙니다.");
+                    Assert.AreEqual(cs, c.chunk.GetLength(1), $"F{f} chunk[{x},{y}] Y축 타일 수가 {cs}가 아닙니다.");
                 }
             }
         }
@@ -143,9 +144,10 @@ public class CreateMapPlayTests
         Assert.IsTrue(sx >= 0 && sy >= 0, "시작방을 찾을 수 없습니다.");
 
         Chunks c = floor.chunks[sx, sy];
+        int csCorner = c.chunk.GetLength(0);
 
         Assert.AreEqual("Wall", c.chunk[0, 0].name, "좌하단 꼭짓점이 Wall이 아닙니다.");
-        Assert.AreEqual("Wall", c.chunk[7, 7].name, "우상단 꼭짓점이 Wall이 아닙니다.");
+        Assert.AreEqual("Wall", c.chunk[csCorner - 1, csCorner - 1].name, "우상단 꼭짓점이 Wall이 아닙니다.");
         Assert.AreEqual("Floor", c.chunk[2, 2].name, "내부 타일(2,2)이 Floor가 아닙니다.");
         Assert.AreEqual("Floor", c.chunk[5, 5].name, "내부 타일(5,5)이 Floor가 아닙니다.");
 
@@ -164,6 +166,7 @@ public class CreateMapPlayTests
         Floor floor = cm.map.floors[1];
         int w = floor.config.width;
         int h = floor.config.height;
+        int cs = floor.config.chunkSize;
         int openedCount = 0;
 
         // 수평 내부 벽 검증
@@ -179,10 +182,10 @@ public class CreateMapPlayTests
                     Chunks cA = floor.chunks[x, y];
                     Chunks cB = floor.chunks[x + 1, y];
 
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < cs; ty++)
                     {
-                        Assert.AreEqual("Floor", cA.chunk[7, ty].name,
-                            $"내부벽 미허물: F1 chunk[{x},{y}] tx=7, ty={ty}");
+                        Assert.AreEqual("Floor", cA.chunk[cs - 1, ty].name,
+                            $"내부벽 미허물: F1 chunk[{x},{y}] tx={cs - 1}, ty={ty}");
                         Assert.AreEqual("Floor", cB.chunk[0, ty].name,
                             $"내부벽 미허물: F1 chunk[{x + 1},{y}] tx=0, ty={ty}");
                     }
@@ -204,10 +207,10 @@ public class CreateMapPlayTests
                     Chunks cA = floor.chunks[x, y];
                     Chunks cB = floor.chunks[x, y + 1];
 
-                    for (int tx = 0; tx < 8; tx++)
+                    for (int tx = 0; tx < cs; tx++)
                     {
-                        Assert.AreEqual("Floor", cA.chunk[tx, 7].name,
-                            $"내부벽 미허물: F1 chunk[{x},{y}] tx={tx}, ty=7");
+                        Assert.AreEqual("Floor", cA.chunk[tx, cs - 1].name,
+                            $"내부벽 미허물: F1 chunk[{x},{y}] tx={tx}, ty={cs - 1}");
                         Assert.AreEqual("Floor", cB.chunk[tx, 0].name,
                             $"내부벽 미허물: F1 chunk[{x},{y + 1}] tx={tx}, ty=0");
                     }
@@ -552,6 +555,7 @@ public class CreateMapPlayTests
         Floor floor = cm.map.floors[1];
         int w = floor.config.width;
         int h = floor.config.height;
+        int cs = floor.config.chunkSize;
         int thkMin = floor.config.wallThicknessMin;
 
         bool foundThickWall = false;
@@ -563,7 +567,7 @@ public class CreateMapPlayTests
             if (c.roomId == -1) continue;
 
             // ty=0 ~ thkMin-1 라인은 반드시 Wall
-            for (int tx = 0; tx < 8; tx++)
+            for (int tx = 0; tx < cs; tx++)
             {
                 for (int ty = 0; ty < thkMin; ty++)
                 {
@@ -662,7 +666,11 @@ public class CreateMapPlayTests
     }
 
     // ====================================================================
-    // ⑱ Floor 0 로비 생성 검증: 3×3 전체가 하나의 방
+    // ⑱ Floor 0 로비 생성 검증: 전체가 하나의 방
+    // 2026-08-20 "던전 입구 구조 프로그래머 지시서"로 F0이 3×3 로비에서 1×3 가시 영역+숨은
+    // 스폰 청크 1개(합쳐서 4×1)로 개편됐다 — 이 테스트의 "3×3" 기대값은 그 이전부터 이미
+    // 실제 FloorConfigFactory와 어긋나 있었다(오늘 청크 크기 변경과는 무관한 기존 결함,
+    // 2026-08-23 발견하여 같이 정정).
     // ====================================================================
     [Test]
     public void Floor0_IsFullLobby()
@@ -674,8 +682,8 @@ public class CreateMapPlayTests
         int w = floor.config.width;
         int h = floor.config.height;
 
-        Assert.AreEqual(3, w, "F0 width가 3이 아닙니다.");
-        Assert.AreEqual(3, h, "F0 height가 3이 아닙니다.");
+        Assert.AreEqual(4, w, "F0 width가 4가 아닙니다.");
+        Assert.AreEqual(1, h, "F0 height가 1이 아닙니다.");
 
         // 전체 청크가 같은 roomId를 가져야 함
         int lobbyId = floor.chunks[0, 0].roomId;
@@ -788,10 +796,14 @@ public class CreateMapPlayTests
                 if (floor.chunks[x, y].stairTargetFloor >= 0)
                 {
                     Chunks c = floor.chunks[x, y];
-                    // 중앙 2×2 (3~4, 3~4)가 Stair여야 함
-                    for (int tx = 3; tx <= 4; tx++)
+                    // 중앙 2×2가 Stair여야 함 — PlaceStairTiles(CreateMap.Stairs.cs)와 동일한
+                    // chunkSize/2-1 ~ chunkSize/2 블록(청크 크기 8 기준이던 3~4를 일반화, 2026-08-23).
+                    int csStair = c.chunk.GetLength(0);
+                    int halfStair = csStair / 2;
+                    int loStair = halfStair - 1;
+                    for (int tx = loStair; tx <= halfStair; tx++)
                     {
-                        for (int ty = 3; ty <= 4; ty++)
+                        for (int ty = loStair; ty <= halfStair; ty++)
                         {
                             Assert.AreEqual("Stair", c.chunk[tx, ty].name,
                                 $"F0 chunk[{x},{y}] tile[{tx},{ty}]이 Stair가 아닙니다.");
@@ -1011,9 +1023,10 @@ public class CreateMapPlayTests
                     Chunks c = floor.chunks[x, y];
                     if (c.chunk == null) continue;
 
-                    for (int tx = 0; tx < 8; tx++)
+                    int csWeight = c.chunk.GetLength(0);
+                    for (int tx = 0; tx < csWeight; tx++)
                     {
-                        for (int ty = 0; ty < 8; ty++)
+                        for (int ty = 0; ty < csWeight; ty++)
                         {
                             Tile t = c.chunk[tx, ty];
                             if (t.name == "Wall")
@@ -1059,9 +1072,10 @@ public class CreateMapPlayTests
                     Chunks c = floor.chunks[x, y];
                     if (c.roomRole != RoomRole.BossRoom || c.chunk == null) continue;
 
-                    for (int tx = 0; tx < 8; tx++)
+                    int csBossW = c.chunk.GetLength(0);
+                    for (int tx = 0; tx < csBossW; tx++)
                     {
-                        for (int ty = 0; ty < 8; ty++)
+                        for (int ty = 0; ty < csBossW; ty++)
                         {
                             Tile t = c.chunk[tx, ty];
                             if (t.name == "Floor")
@@ -1103,9 +1117,10 @@ public class CreateMapPlayTests
                 Chunks c = floor.chunks[x, y];
                 if (c.roomRole != RoomRole.BossRoom || c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
+                int csDim = c.chunk.GetLength(0);
+                for (int tx = 0; tx < csDim; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < csDim; ty++)
                     {
                         Tile t = c.chunk[tx, ty];
                         if (t.name != "Wall")
@@ -1256,9 +1271,10 @@ public class CreateMapPlayTests
                     Chunks c = floor.chunks[x, y];
                     if (c.roomId == -1 && c.chunk != null)
                     {
-                        for (int tx = 0; tx < 8; tx++)
+                        int csPruned = c.chunk.GetLength(0);
+                        for (int tx = 0; tx < csPruned; tx++)
                         {
-                            for (int ty = 0; ty < 8; ty++)
+                            for (int ty = 0; ty < csPruned; ty++)
                             {
                                 Assert.AreEqual("Wall", c.chunk[tx, ty].name,
                                     $"Floor {f} 빈 chunk[{x},{y}] tile[{tx},{ty}]이 Wall이 아닙니다.");
@@ -1286,6 +1302,7 @@ public class CreateMapPlayTests
             Floor floor = cm.map.floors[f];
             int w = floor.config.width;
             int h = floor.config.height;
+            int cs = floor.config.chunkSize;
 
             // 유효한 roomId 수집
             var validRoomIds = new HashSet<int>();
@@ -1299,7 +1316,7 @@ public class CreateMapPlayTests
 
             // BFS: 임의의 시작 roomId에서 통로(Floor 타일)를 통해 도달 가능 여부 확인
             // 타일 기반 flood fill
-            bool[,] visited = new bool[w * 8, h * 8];
+            bool[,] visited = new bool[w * cs, h * cs];
             int startWx = -1, startWy = -1;
 
             // 시작방의 Floor 타일 찾기
@@ -1307,8 +1324,8 @@ public class CreateMapPlayTests
                 for (int y = 0; y < h && startWx < 0; y++)
                     if (floor.chunks[x, y].roomRole == RoomRole.StartRoom)
                     {
-                        startWx = x * 8 + 2;
-                        startWy = y * 8 + 2;
+                        startWx = x * cs + 2;
+                        startWy = y * cs + 2;
                     }
 
             Assert.IsTrue(startWx >= 0, $"Floor {f}: 시작방을 찾을 수 없습니다.");
@@ -1328,11 +1345,11 @@ public class CreateMapPlayTests
                 {
                     int nx = cx + ddx[d];
                     int ny = cy + ddy[d];
-                    if (nx < 0 || nx >= w * 8 || ny < 0 || ny >= h * 8) continue;
+                    if (nx < 0 || nx >= w * cs || ny < 0 || ny >= h * cs) continue;
                     if (visited[nx, ny]) continue;
 
-                    int chunkX = nx / 8, chunkY = ny / 8;
-                    int tileX = nx % 8, tileY = ny % 8;
+                    int chunkX = nx / cs, chunkY = ny / cs;
+                    int tileX = nx % cs, tileY = ny % cs;
                     Tile t = floor.chunks[chunkX, chunkY].chunk[tileX, tileY];
                     if (t.name != "Wall")
                     {
@@ -1350,8 +1367,8 @@ public class CreateMapPlayTests
                 {
                     if (floor.chunks[x, y].roomId >= 0)
                     {
-                        int wx = x * 8 + 2;
-                        int wy = y * 8 + 2;
+                        int wx = x * cs + 2;
+                        int wy = y * cs + 2;
                         if (visited[wx, wy])
                             reachedRoomIds.Add(floor.chunks[x, y].roomId);
                     }
@@ -1829,6 +1846,9 @@ public class CreateMapPlayTests
                 $"F{f}: subPurposeRoomCount 불일치");
             Assert.AreEqual(orig.bossRoomFormat, rest.bossRoomFormat,
                 $"F{f}: bossRoomFormat 불일치");
+            // 맵 1.5배 확장(2026-08-23)으로 청크 크기가 층별 설정값이 됐다 — 왕복 후에도 보존되는지 확인.
+            Assert.AreEqual(orig.chunkSize, rest.chunkSize,
+                $"F{f}: chunkSize 불일치");
         }
 
         Cleanup();
@@ -1916,9 +1936,12 @@ public class CreateMapPlayTests
                 Assert.IsNotNull(restC.chunk,
                     $"F1 chunk[{cx},{cy}]: 원본은 유효하지만 복원본이 null입니다.");
 
-                for (int tx = 0; tx < 8; tx++)
+                int csSerialize = origC.chunk.GetLength(0);
+                Assert.AreEqual(csSerialize, restC.chunk.GetLength(0),
+                    $"F1 chunk[{cx},{cy}]: 왕복 후 청크 크기가 다릅니다.");
+                for (int tx = 0; tx < csSerialize; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < csSerialize; ty++)
                     {
                         Tile origT = origC.chunk[tx, ty];
                         Tile restT = restC.chunk[tx, ty];
@@ -3008,9 +3031,10 @@ public class CreateMapPlayTests
                 Chunks c = f0.chunks[cx, cy];
                 if (c.chunk == null) continue;
 
-                for (int tx = 0; tx < 8; tx++)
+                int csF0 = c.chunk.GetLength(0);
+                for (int tx = 0; tx < csF0; tx++)
                 {
-                    for (int ty = 0; ty < 8; ty++)
+                    for (int ty = 0; ty < csF0; ty++)
                     {
                         Tile t = c.chunk[tx, ty];
                         Assert.AreEqual(100, t.visibility,

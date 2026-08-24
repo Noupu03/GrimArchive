@@ -1163,7 +1163,7 @@ public class TacticalFSMState : IFSMState
 		{
 			if (gate.roomA != room.RoomId && gate.roomB != room.RoomId) continue;
 
-			foreach (var tileRow in DoorSystem.GetGateDoorTiles(gate))
+			foreach (var tileRow in DoorSystem.GetGateDoorTiles(gate, floor.config.chunkSize))
 			{
 				foreach (var tile in tileRow)
 				{

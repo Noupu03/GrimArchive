@@ -172,7 +172,7 @@ public class FogOfWarSystem
         Floor floor = cmap.map.floors[floorIndex];
         if (floor.gates == null) return doorTiles;
         foreach (var gate in floor.gates)
-            foreach (var row in DoorSystem.GetGateDoorTiles(gate))
+            foreach (var row in DoorSystem.GetGateDoorTiles(gate, floor.config.chunkSize))
                 foreach (var tile in row)
                     doorTiles.Add(tile);
         return doorTiles;
@@ -290,9 +290,10 @@ public class FogOfWarSystem
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
             ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(floorIndex, "Fog");
+        int chunkSize = Session.cmap.map.floors[floorIndex].config.chunkSize;
 
         var tiles = new List<GameObject>();
-        foreach (var row in DoorSystem.GetGateDoorTiles(g))
+        foreach (var row in DoorSystem.GetGateDoorTiles(g, chunkSize))
             foreach (var pos in row)
                 tiles.Add(SpawnFogTile(pos.x, pos.y, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Gate"));
 
@@ -317,31 +318,33 @@ public class FogOfWarSystem
             ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(floorIndex, "Fog");
 
-        int w = floor.config.width, h = floor.config.height;
+        int w = floor.config.width, h = floor.config.height, cs = floor.config.chunkSize;
         for (int cx = 0; cx < w; cx++)
         {
             for (int cy = 0; cy < h; cy++)
             {
                 if (floor.chunks[cx, cy].roomId >= 0) continue;
-                for (int tx = 0; tx < 8; tx++)
-                    for (int ty = 0; ty < 8; ty++)
-                        SpawnFogTile(cx * 8 + tx, cy * 8 + ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
+                for (int tx = 0; tx < cs; tx++)
+                    for (int ty = 0; ty < cs; ty++)
+                        SpawnFogTile(cx * cs + tx, cy * cs + ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
             }
         }
     }
 
-    // 0층 최좌측 숨은 스폰 청크(청크 좌표 (0,0), 타일 로컬 x∈[0,8) — HumanWaveManager.
-    // DungeonEntranceHiddenChunkCenterX=4가 이 청크의 로컬 중앙을 가리키는 것과 동일한 청크) 전용
-    // 상시 안개(2026-08-23). Initialize()가 한 번만 호출한다 — 방 기반 Reveal 트리거(RevealRoomFog 등)
-    // 대상이 아니라서 _roomFogVisuals에 등록하지 않고 스폰만 하고 끝(SpawnFogForEmptyChunks의 "빈 청크"
-    // 영구 안개와 동일한 패턴). 마지막에 이 청크가 반영된 0층 전용 벽+안개 통합 셰도우도 함께 굽는다
-    // (RebuildFloorFogShadowCasters는 원래 1층 이상만 돌았다 — 0층은 안개가 전혀 없었으므로).
-    private const int Floor0HiddenChunkTiles = 8; // 청크 1개 = 8x8 타일(이 파일의 다른 청크 순회들과 동일 상수).
+    // 0층 최좌측 숨은 스폰 청크(청크 좌표 (0,0) — HumanWaveManager.DungeonEntranceHiddenChunkCenterX가
+    // 이 청크의 로컬 중앙을 가리키는 것과 동일한 청크) 전용 상시 안개(2026-08-23). Initialize()가
+    // 한 번만 호출한다 — 방 기반 Reveal 트리거(RevealRoomFog 등) 대상이 아니라서 _roomFogVisuals에
+    // 등록하지 않고 스폰만 하고 끝(SpawnFogForEmptyChunks의 "빈 청크" 영구 안개와 동일한 패턴). 마지막에
+    // 이 청크가 반영된 0층 전용 벽+안개 통합 셰도우도 함께 굽는다(RebuildFloorFogShadowCasters는 원래
+    // 1층 이상만 돌았다 — 0층은 안개가 전혀 없었으므로). 청크 타일 크기는 별도 상수로 들고 있지 않고
+    // cmap.map.floors[0].config.chunkSize를 그대로 읽는다(맵 1.5배 확장, 2026-08-23 "0층은 청크 크기만
+    // 늘려" — CreateMap의 실제 생성 설정과 항상 일치시키기 위함, 손으로 맞춰야 하는 별도 상수가 아님).
     // 상/하/좌 여유 안개(2026-08-23 사용자 요청 "0층 상, 하, 좌 부분 안개를 1칸씩 늘려줘") — 청크
     // 경계에 정확히 맞춰 깔면 카메라 클램프/벽 렌더링과의 미세한 오차로 가장자리에 틈이 보일 위험이
     // 있어 안전 여유분을 둔다. 우측(=보이는 1x3 던전 입구와 맞닿는 면)만 그대로 둔다 — 그쪽까지
     // 늘리면 실제로 보여야 할 구역을 침범한다. 시각적 스프라이트 오버레이라 실제 맵 타일 범위를
-    // 벗어난 좌표(x=-1, y=-1/8)에 놓여도 그냥 빈 배경 위에 그려질 뿐 문제없다.
+    // 벗어난 좌표에 놓여도 그냥 빈 배경 위에 그려질 뿐 문제없다. 청크 크기가 커져도 이 여유분 자체는
+    // "렌더링 오차 흡수용 1타일"이라는 목적이 그대로라 스케일하지 않는다.
     private const int Floor0HiddenFogPadding = 1;
 
     private void SpawnPermanentFogForFloor0HiddenChunk()
@@ -354,11 +357,12 @@ public class FogOfWarSystem
         Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && mapRandering.floorOffsets.Length > 0)
             ? mapRandering.floorOffsets[0] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(0, "Fog");
+        int chunkTiles = cmap.map.floors[0].config.chunkSize;
 
         int xStart = -Floor0HiddenFogPadding;
-        int xEnd = Floor0HiddenChunkTiles; // 우측 경계는 확장하지 않음.
+        int xEnd = chunkTiles; // 우측 경계는 확장하지 않음.
         int yStart = -Floor0HiddenFogPadding;
-        int yEnd = Floor0HiddenChunkTiles + Floor0HiddenFogPadding;
+        int yEnd = chunkTiles + Floor0HiddenFogPadding;
 
         for (int tx = xStart; tx < xEnd; tx++)
             for (int ty = yStart; ty < yEnd; ty++)
@@ -399,7 +403,7 @@ public class FogOfWarSystem
         // 벽+안개 통합 셰도우 캐스터가 이 칸도 실제로 빛을 막아준다.
         if (floorIndex == 0)
         {
-            int hiddenX = Mathf.Min(Floor0HiddenChunkTiles, worldW);
+            int hiddenX = Mathf.Min(floor.config.chunkSize, worldW);
             for (int x = 0; x < hiddenX; x++)
                 for (int y = 0; y < worldH; y++)
                     mask[x, y] = true;
@@ -417,7 +421,7 @@ public class FogOfWarSystem
                 bool bRevealed = roomB == null || roomB.FogRevealed;
                 bool stillFogged = !aRevealed || !bRevealed;
 
-                foreach (var row in DoorSystem.GetGateDoorTiles(g))
+                foreach (var row in DoorSystem.GetGateDoorTiles(g, floor.config.chunkSize))
                     foreach (var pos in row)
                         if (pos.x >= 0 && pos.x < worldW && pos.y >= 0 && pos.y < worldH)
                             mask[pos.x, pos.y] = stillFogged;
@@ -702,7 +706,8 @@ public class FogOfWarSystem
 
         if (!CreateMap.TryFindFloorTileInFrontOfWall(c, side, out Vector2Int local)) return false;
 
-        Vector2Int cand = new Vector2Int(cx * 8 + local.x, cy * 8 + local.y);
+        int cs = c.chunk.GetLength(0);
+        Vector2Int cand = new Vector2Int(cx * cs + local.x, cy * cs + local.y);
         if (Session.objectGrid.ContainsKey(new Vector3Int(cand.x, cand.y, floorIdx))) return false;
 
         tilePos = cand;

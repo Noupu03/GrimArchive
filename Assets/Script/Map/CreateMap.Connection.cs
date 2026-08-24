@@ -423,10 +423,11 @@ public partial class CreateMap
             c.roomRole = RoomRole.NormalRoom;
             c.allowMaxFootprint = 1;
 
-            if (c.chunk == null) c.chunk = new Tile[8, 8];
-            for (int tx = 0; tx < 8; tx++)
-                for (int ty = 0; ty < 8; ty++)
-                    c.chunk[tx, ty] = (tx == 0 || tx == 7 || ty == 0 || ty == 7)
+            int cs = floor.config.chunkSize;
+            if (c.chunk == null) c.chunk = new Tile[cs, cs];
+            for (int tx = 0; tx < cs; tx++)
+                for (int ty = 0; ty < cs; ty++)
+                    c.chunk[tx, ty] = (tx == 0 || tx == cs - 1 || ty == 0 || ty == cs - 1)
                         ? TileFactory.Wall()
                         : TileFactory.Floor();
 
@@ -538,9 +539,10 @@ public partial class CreateMap
     {
         Chunks cA = floor.chunks[x, y];
         Chunks cB = floor.chunks[x + 1, y];
+        int cs = floor.config.chunkSize;
 
         int width = Mathf.Clamp(gateWidth, 2, 6);
-        int startTy = (8 - width) / 2;
+        int startTy = (cs - width) / 2;
         int endTy = startTy + width - 1;
 
         int thkA = GetWallThickness(cA.roomId, true);
@@ -549,7 +551,7 @@ public partial class CreateMap
         int opened = 0;
         for (int ty = startTy; ty <= endTy; ty++)
         {
-            for (int tx = 8 - thkA; tx < 8; tx++)
+            for (int tx = cs - thkA; tx < cs; tx++)
                 cA.chunk[tx, ty] = TileFactory.Floor();
             for (int tx = 0; tx < thkB; tx++)
                 cB.chunk[tx, ty] = TileFactory.Floor();
@@ -565,9 +567,10 @@ public partial class CreateMap
     {
         Chunks cA = floor.chunks[x, y];
         Chunks cB = floor.chunks[x, y + 1];
+        int cs = floor.config.chunkSize;
 
         int width = Mathf.Clamp(gateWidth, 2, 6);
-        int startTx = (8 - width) / 2;
+        int startTx = (cs - width) / 2;
         int endTx = startTx + width - 1;
 
         int thkA = GetWallThickness(cA.roomId, false);
@@ -576,7 +579,7 @@ public partial class CreateMap
         int opened = 0;
         for (int tx = startTx; tx <= endTx; tx++)
         {
-            for (int ty = 8 - thkA; ty < 8; ty++)
+            for (int ty = cs - thkA; ty < cs; ty++)
                 cA.chunk[tx, ty] = TileFactory.Floor();
             for (int ty = 0; ty < thkB; ty++)
                 cB.chunk[tx, ty] = TileFactory.Floor();
@@ -639,6 +642,7 @@ public partial class CreateMap
 
     void ClosePassage(ref Floor floor, Gate gate)
     {
+        int cs = floor.config.chunkSize;
         int width = Mathf.Clamp(gate.width, 2, 6);
 
         if (gate.isHorizontal)
@@ -653,11 +657,11 @@ public partial class CreateMap
             int thkLeft = GetWallThickness(cLeft.roomId, true);
             int thkRight = GetWallThickness(cRight.roomId, true);
 
-            int startTy = (8 - width) / 2;
+            int startTy = (cs - width) / 2;
             int endTy = startTy + width - 1;
             for (int ty = startTy; ty <= endTy; ty++)
             {
-                for (int tx = 8 - thkLeft; tx < 8; tx++)
+                for (int tx = cs - thkLeft; tx < cs; tx++)
                     cLeft.chunk[tx, ty] = TileFactory.Wall();
                 for (int tx = 0; tx < thkRight; tx++)
                     cRight.chunk[tx, ty] = TileFactory.Wall();
@@ -678,11 +682,11 @@ public partial class CreateMap
             int thkBottom = GetWallThickness(cBottom.roomId, false);
             int thkTop = GetWallThickness(cTop.roomId, false);
 
-            int startTx = (8 - width) / 2;
+            int startTx = (cs - width) / 2;
             int endTx = startTx + width - 1;
             for (int tx = startTx; tx <= endTx; tx++)
             {
-                for (int ty = 8 - thkBottom; ty < 8; ty++)
+                for (int ty = cs - thkBottom; ty < cs; ty++)
                     cBottom.chunk[tx, ty] = TileFactory.Wall();
                 for (int ty = 0; ty < thkTop; ty++)
                     cTop.chunk[tx, ty] = TileFactory.Wall();
@@ -698,8 +702,9 @@ public partial class CreateMap
     {
         int w = floor.config.width;
         int h = floor.config.height;
-        int totalW = w * 8;
-        int totalH = h * 8;
+        int cs = floor.config.chunkSize;
+        int totalW = w * cs;
+        int totalH = h * cs;
 
         int[] ddx = { 1, 0, -1, 0 };
         int[] ddy = { 0, 1, 0, -1 };
@@ -711,10 +716,10 @@ public partial class CreateMap
                 if (floor.chunks[x, y].roomRole == RoomRole.StartRoom)
                 {
                     if (floor.chunks[x, y].chunk == null) continue;
-                    for (int tx = 0; tx < 8 && startWx < 0; tx++)
-                        for (int ty = 0; ty < 8 && startWx < 0; ty++)
+                    for (int tx = 0; tx < cs && startWx < 0; tx++)
+                        for (int ty = 0; ty < cs && startWx < 0; ty++)
                             if (floor.chunks[x, y].chunk[tx, ty].name != "Wall")
-                            { startWx = x * 8 + tx; startWy = y * 8 + ty; }
+                            { startWx = x * cs + tx; startWy = y * cs + ty; }
                 }
 
         if (startWx < 0) return;
@@ -740,8 +745,8 @@ public partial class CreateMap
                     if (nx < 0 || nx >= totalW || ny < 0 || ny >= totalH) continue;
                     if (floodVisited[nx, ny]) continue;
 
-                    int chunkX = nx / 8, chunkY = ny / 8;
-                    int tileX = nx % 8, tileY = ny % 8;
+                    int chunkX = nx / cs, chunkY = ny / cs;
+                    int tileX = nx % cs, tileY = ny % cs;
                     if (floor.chunks[chunkX, chunkY].chunk == null) continue;
                     if (floor.chunks[chunkX, chunkY].chunk[tileX, tileY].name != "Wall")
                     {
@@ -762,9 +767,9 @@ public partial class CreateMap
                     allRoomIds.Add(rid);
                     if (floor.chunks[x, y].chunk == null) continue;
                     if (reachable.Contains(rid)) continue;
-                    for (int tx = 0; tx < 8; tx++)
-                        for (int ty = 0; ty < 8; ty++)
-                            if (floor.chunks[x, y].chunk[tx, ty].name != "Wall" && floodVisited[x * 8 + tx, y * 8 + ty])
+                    for (int tx = 0; tx < cs; tx++)
+                        for (int ty = 0; ty < cs; ty++)
+                            if (floor.chunks[x, y].chunk[tx, ty].name != "Wall" && floodVisited[x * cs + tx, y * cs + ty])
                             { reachable.Add(rid); goto nextChunk; }
                     nextChunk:;
                 }
