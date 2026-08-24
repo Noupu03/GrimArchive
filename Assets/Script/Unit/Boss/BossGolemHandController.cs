@@ -14,10 +14,16 @@ using DG.Tweening;
 // 보스 프리팹의 Visual 계층 아래에 이 컴포넌트를 붙이고 leftHand/rightHand를 인스펙터에서 연결한다.
 //
 // 크기 기준(2026-08-24 사용자 확정): 본체(풋프린트)는 기본 몬스터의 3배 — units.json의 "보스 골렘"
-// 항목이 footprint [3,3]으로 이미 그렇게 등록돼 있다(UnitGenerate.SetupUnitVisual이 루트 오브젝트의
-// localScale을 footprint 크기로 그대로 키운다). 손 일러스트는 일반 유닛 스프라이트와 같은 크기 —
-// 몸통을 따라 3배로 커지면 안 되므로 Awake에서 부모 스케일의 역수를 걸어 상쇄한다(아래
-// ApplyNormalSpriteScale 참고).
+// 항목이 footprint [3,3]으로 등록돼 있다. [2026-08-24 후속 수정] 원래는 UnitGenerate.SetupUnitVisual이
+// 루트 오브젝트의 localScale을 footprint 배율만큼 그대로 키우는 방식이었는데, 본체 스프라이트 원본
+// 아트 자체가 이미 3배 크기로 그려져 있어서 (footprint 3배) × (이미 3배인 이미지) = 9배로 렌더링되는
+// 버그가 있었다(사용자 신고 "이미지 자체가 3배 스케일링, 3배해서 9배가 되어버림") — 이제
+// UnitVisualDefinition.visualScaleIgnoresFootprint를 이 프리팹에 켜서, footprint는 인구수/충돌 등
+// 게임플레이 판정에만 쓰이고 루트 localScale은 1배 그대로 유지된다(BossGolemVisualScaleFix.cs 참고).
+// 손 일러스트는 일반 유닛 스프라이트와 같은 크기인데, 이 변경 이후로는 부모(본체) 자체가 이미 1배라
+// 아래 ApplyNormalSpriteScale의 역수 계산이 사실상 항상 1을 곱하는 것과 같아진다 — 그래도 "부모
+// lossyScale의 역수"라는 계산 자체는 그대로 두는 게 안전하다(나중에 본체 스케일 기준이 다시 바뀌어도
+// 손은 자동으로 정상 크기를 유지).
 public class BossGolemHandController : MonoBehaviour
 {
     [SerializeField] private Transform leftHand;

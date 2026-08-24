@@ -183,11 +183,12 @@ public class UnitGenerate
 
 		Transform tilemapTransform = GetFloorTilemapTransform(unit.currentFloor);
 		if (tilemapTransform != null) go.transform.SetParent(tilemapTransform);
-		go.transform.localScale = new Vector3(
-			unit.unitType.footprint.x * visualScale,
-			unit.unitType.footprint.y * visualScale,
-			1f
-		);
+		// 스프라이트 아트가 이미 footprint 배율로 그려진 유닛(2026-08-24, 보스 골렘 대응 — 사용자 신고
+		// "이미지 자체가 3배 스케일링, 3배해서 9배가 되어버림")은 footprint를 시각적 확대에 다시 곱하지
+		// 않는다 — footprint 값 자체는 UnitStatsData/인구수/충돌 판정 등 다른 곳에서 여전히 그대로 쓰인다.
+		float scaleX = visualDef != null && visualDef.visualScaleIgnoresFootprint ? visualScale : unit.unitType.footprint.x * visualScale;
+		float scaleY = visualDef != null && visualDef.visualScaleIgnoresFootprint ? visualScale : unit.unitType.footprint.y * visualScale;
+		go.transform.localScale = new Vector3(scaleX, scaleY, 1f);
 
 		UnitVisual uv = go.GetComponent<UnitVisual>();
 		if (uv == null) uv = go.AddComponent<UnitVisual>();
@@ -613,11 +614,19 @@ public class UnitGenerate
 
 		// go의 로컬 X=0은 이미 풋프린트 가로 중앙, 로컬 Y=0은 풋프린트 바닥(발밑)에 해당한다
 		// (SyncVisuals의 newPos = position + footprint.x/2, position.y + 0.05f 참고).
-		float diameter = Mathf.Max(footprint.x, footprint.y) * SelectionRingDiameterRatio;
-		float scaleX = diameter / footprint.x;
-		float scaleY = diameter * SelectionRingFlatten / footprint.y;
+		// go의 실제 localScale을 역산한다(2026-08-24 수정) — footprint를 그대로 나누면
+		// UnitVisualDefinition.visualScaleIgnoresFootprint가 켜진 유닛(보스 골렘 등, 루트 localScale이
+		// footprint가 아니라 1로 고정됨)에서 발밑 링이 실제 부모 스케일과 어긋나 잘못된 크기로 그려진다
+		// — UnitVisual.EnsureStatusLabel과 동일한 이유/패턴.
+		Vector3 parentScale = go.transform.localScale;
+		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
+		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
 
-		markerGo.transform.localPosition = new Vector3(0f, SelectionRingFootOffset / footprint.y, 0f);
+		float diameter = Mathf.Max(footprint.x, footprint.y) * SelectionRingDiameterRatio;
+		float scaleX = diameter * invX;
+		float scaleY = diameter * SelectionRingFlatten * invY;
+
+		markerGo.transform.localPosition = new Vector3(0f, SelectionRingFootOffset * invY, 0f);
 		markerGo.transform.localScale    = new Vector3(scaleX, scaleY, 1f);
 
 		cache.SelectionMarker = sr;

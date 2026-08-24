@@ -93,12 +93,17 @@ public class UnitVisual : MonoBehaviour
 		MeshRenderer mr = go.GetComponent<MeshRenderer>();
 		mr.sortingOrder = StatusLabelSortingOrder;
 
-		// go(=이 UnitVisual의 트랜스폼)의 localScale이 이미 풋프린트 크기로 맞춰져 있어서
-		// (UnitGenerate.SetupUnitVisual 참고, EnsureSelectionMarker와 동일한 이유) 라벨이 유닛
-		// 크기에 따라 늘어나 보이지 않게 부모 스케일을 역산한다. 위치도 같은 이유로 "풋프린트 상단
-		// + 월드 여백"을 로컬 좌표로 환산한다.
-		go.transform.localScale = new Vector3(1f / footprint.x, 1f / footprint.y, 1f);
-		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) / footprint.y, 0f);
+		// go(=이 UnitVisual의 트랜스폼)의 실제 localScale을 역산한다(2026-08-24 수정) — 예전엔 항상
+		// footprint를 그대로 썼는데, UnitVisualDefinition.visualScaleIgnoresFootprint가 켜진 유닛
+		// (보스 골렘 등 — 스프라이트 아트 자체가 이미 footprint 배율로 그려져 있어 루트 localScale이
+		// footprint가 아니라 1로 고정됨, UnitGenerate.SetupUnitVisual 참고)에서는 실제 부모 스케일이
+		// footprint와 달라져 라벨이 잘못된 배율/위치로 렌더링됐다. "풋프린트 상단 + 월드 여백"이라는
+		// 월드 공간 목표 자체는 그대로다 — 로컬 좌표로 환산할 때 나누는 값만 실제 부모 스케일로 바꾼다.
+		Vector3 parentScale = transform.localScale;
+		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
+		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
+		go.transform.localScale = new Vector3(invX, invY, 1f);
+		go.transform.localPosition = new Vector3(0f, (footprint.y + StatusLabelWorldOffsetAboveTop) * invY, 0f);
 	}
 
 	// ─────────────────────────── 하단 상태 라벨 (함정 해제 시도중 등, 월드 고정) ───────────────────────────
@@ -143,10 +148,13 @@ public class UnitVisual : MonoBehaviour
 		MeshRenderer mr = go.GetComponent<MeshRenderer>();
 		mr.sortingOrder = BelowLabelSortingOrder;
 
-		// StatusLabel과 같은 이유(부모 스케일이 풋프린트에 맞춰져 있음)로 스케일을 역산하고, 위치는
-		// "풋프린트 하단 - 월드 여백"으로 뒤집는다.
-		go.transform.localScale = new Vector3(1f / footprint.x, 1f / footprint.y, 1f);
-		go.transform.localPosition = new Vector3(0f, -BelowLabelWorldOffsetBelowBottom / footprint.y, 0f);
+		// StatusLabel과 동일한 이유/방식(2026-08-24 수정 — 실제 부모 localScale을 역산, footprint를
+		// 그대로 쓰지 않음)으로 스케일을 역산하고, 위치는 "풋프린트 하단 - 월드 여백"으로 뒤집는다.
+		Vector3 parentScale = transform.localScale;
+		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
+		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
+		go.transform.localScale = new Vector3(invX, invY, 1f);
+		go.transform.localPosition = new Vector3(0f, -BelowLabelWorldOffsetBelowBottom * invY, 0f);
 	}
 
 	private LineRenderer CreateRangeLine(string name, Color color, float width, int sortingOrder)

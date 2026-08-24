@@ -13,6 +13,12 @@ public class UnitVisualDefinition : MonoBehaviour
     public int engageDistance = 2;
     [Tooltip("유닛 배치 시스템(2026-07-27 신규) 5.2장: 방 인구수 점유량 - 기본 유닛 1")]
     public int populationCost = 1;
+    [Tooltip("2026-08-24 신규(보스 골렘 대응) — footprint(예: [3,3])는 그대로 인구수·충돌·타일 점유 등 " +
+             "게임플레이 판정에 계속 쓰이지만, 원본 스프라이트 아트 자체가 이미 그 배율로 그려져 있어서 " +
+             "UnitGenerate.SetupUnitVisual이 루트 오브젝트에 footprint만큼 추가로 곱하는 시각적 확대는 " +
+             "건너뛰어야 하는 유닛에 켠다. 켜지 않으면(기본값) 기존과 동일하게 footprint만큼 시각적으로도 " +
+             "커진다 — 일반 유닛은 그대로 두면 된다.")]
+    public bool visualScaleIgnoresFootprint = false;
 
     [Header("스탯")]
     public UnitStatsData stats = new UnitStatsData();
