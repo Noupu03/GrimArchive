@@ -57,12 +57,21 @@ public class BossGolemHandController : MonoBehaviour
     // 부모(3배로 커진 본체) 스케일의 역수를 곱해 손을 월드 기준 1배(일반 유닛 스프라이트 크기)로
     // 되돌린다. 손이 계층 더 깊이 중첩되더라도 "바로 위 부모"의 lossyScale만 상쇄하면 되므로 이 정도로
     // 충분하다 — 부모 자체가 회전/추가 스케일까지 걸려있는 특수 케이스는 지금 대상이 아니다.
+    //
+    // [2026-08-24 수정] 프리팹에 저장된 localScale의 "부호"는 절대 건드리지 않는다 — GolemHand.spriteLib에는
+    // 손 스프라이트가 방향별 한 벌뿐이라 반대쪽 손은 좌우 반전으로 만드는데(프리팹에서 RightHand의
+    // localScale.x = -1), 예전처럼 크기 보정 결과를 양수로 덮어쓰면 에디터에서는 뒤집혀 보이던 오른손이
+    // 플레이 시작(Awake) 순간 원래 방향으로 되돌아가 양손이 같은 방향을 봤다(사용자 신고 "골렘의
+    // RightHand가 게임 작동할 때 flip이 안됨"). 크기 보정은 절댓값으로만 하고 부호는 프리팹 값을 그대로
+    // 따른다 — 손의 좌우 반전은 SpriteRenderer.flipX가 아니라 이 localScale 부호가 담당한다(flipX는
+    // 나중에 본체처럼 방향별 스프라이트를 손에도 적용하게 될 때를 위해 비워둔다).
     private static void ApplyNormalSpriteScale(Transform hand)
     {
         Vector3 parentScale = hand.parent != null ? hand.parent.lossyScale : Vector3.one;
+        Vector3 authored = hand.localScale;
         hand.localScale = new Vector3(
-            parentScale.x != 0f ? 1f / parentScale.x : 1f,
-            parentScale.y != 0f ? 1f / parentScale.y : 1f,
+            Mathf.Sign(authored.x) * (parentScale.x != 0f ? 1f / Mathf.Abs(parentScale.x) : 1f),
+            Mathf.Sign(authored.y) * (parentScale.y != 0f ? 1f / Mathf.Abs(parentScale.y) : 1f),
             1f);
     }
 

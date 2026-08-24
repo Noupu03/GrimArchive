@@ -124,7 +124,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
   m_CategoryHash: 5.4934837e-27
-  m_labelHash: 0.025054464
+  m_labelHash: 1.76724e-10
   m_SpriteKey: 0
   m_SpriteHash: 185100933
 --- !u!114 &3340606377985358245
@@ -168,7 +168,7 @@ MonoBehaviour:
     m_TrimEdge: 0.1
     m_FlipX: 0
     m_FlipY: 0
-    m_InitialTrim: 0.1
+    m_InitialTrim: 0
   m_CastingOption: 1
   m_PreviousTrimEdge: 0.1
   m_PreviousEdgeProcessing: 1
@@ -742,6 +742,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
   m_CategoryHash: 5.4934837e-27
-  m_labelHash: 0.025054464
+  m_labelHash: 1.1696226e-25
   m_SpriteKey: 0
   m_SpriteHash: 851792356

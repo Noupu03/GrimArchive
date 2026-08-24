@@ -38,8 +38,8 @@ public static class BossGolemHandSetupTool
 
         // 본체(footprint 3x3, 부모 Visual/루트가 런타임에 3배로 스케일됨) 기준 로컬 좌표 자리표시자 —
         // 월드 기준 대략 좌우 (±1.2, 0.3) 위치에 놓이도록 로컬 좌표는 3으로 나눈 값을 쓴다.
-        Transform leftHand  = EnsureHandChild(visual, "LeftHand",  new Vector3(-0.4f, 0.1f, 0f));
-        Transform rightHand = EnsureHandChild(visual, "RightHand", new Vector3( 0.4f, 0.1f, 0f));
+        Transform leftHand  = EnsureHandChild(visual, "LeftHand",  new Vector3(-0.4f, 0.1f, 0f), mirrored: false);
+        Transform rightHand = EnsureHandChild(visual, "RightHand", new Vector3( 0.4f, 0.1f, 0f), mirrored: true);
 
         var hands = root.GetComponent<BossGolemHandController>();
         if (hands == null) hands = root.AddComponent<BossGolemHandController>();
@@ -59,7 +59,10 @@ public static class BossGolemHandSetupTool
                   "(BossGolemHandController.Awake가 부모의 3배 스케일을 자동 상쇄하므로 크기 보정은 불필요).");
     }
 
-    private static Transform EnsureHandChild(Transform parent, string name, Vector3 restLocalPos)
+    // mirrored: 손 스프라이트는 방향별로 한 벌뿐이라 반대쪽 손은 localScale.x = -1로 좌우 반전해서 쓴다
+    // (2026-08-24 — 이 부호를 빠뜨리면 양손이 같은 방향을 본다. BossGolemHandController.
+    // ApplyNormalSpriteScale이 런타임에 크기만 보정하고 이 부호는 그대로 살려준다).
+    private static Transform EnsureHandChild(Transform parent, string name, Vector3 restLocalPos, bool mirrored)
     {
         Transform hand = parent.Find(name);
         if (hand == null)
@@ -70,6 +73,7 @@ public static class BossGolemHandSetupTool
             hand = go.transform;
         }
         hand.localPosition = restLocalPos;
+        hand.localScale = new Vector3(mirrored ? -1f : 1f, 1f, 1f);
         return hand;
     }
 }
