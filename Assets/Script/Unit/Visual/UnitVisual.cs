@@ -352,7 +352,12 @@ public class UnitVisual : MonoBehaviour
 		for (int i = 0; i < pathTiles.Count; i++)
 			_commandPathLine.SetPosition(i, TileCenterWorld(pathTiles[i], floorOffset));
 
-		DrawWorldCircle(_commandDestMarker, TileCenterWorld(pathTiles[pathTiles.Count - 1], floorOffset), CommandDestMarkerRadius);
+		DrawWorldSquare(
+    _commandDestMarker,
+    TileCenterWorld(pathTiles[pathTiles.Count - 1], floorOffset),
+    0.9f
+);
+
 	}
 
 	private static Vector3 TileCenterWorld(Vector2Int tile, Vector3 floorOffset) => new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
@@ -383,17 +388,25 @@ public class UnitVisual : MonoBehaviour
 		return line;
 	}
 
-	private static void DrawWorldCircle(LineRenderer line, Vector3 worldCenter, float radius)
-	{
-		if (line == null) return;
+	private static void DrawWorldSquare(LineRenderer line, Vector3 worldCenter, float size)
+{
+    if (line == null) return;
 
-		int segments = 16;
-		line.loop = true;
-		line.positionCount = segments;
-		for (int i = 0; i < segments; i++)
-		{
-			float rad = (360f * i / segments) * Mathf.Deg2Rad;
-			line.SetPosition(i, worldCenter + new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius);
-		}
-	}
+    float half = size * 0.5f;
+
+    Vector3[] corners =
+    {
+        worldCenter + new Vector3(-half, -half, 0f),
+        worldCenter + new Vector3( half, -half, 0f),
+        worldCenter + new Vector3( half,  half, 0f),
+        worldCenter + new Vector3(-half,  half, 0f)
+    };
+
+    line.loop = true;
+    line.positionCount = 4;
+
+    for (int i = 0; i < 4; i++)
+        line.SetPosition(i, corners[i]);
+}
+
 }
