@@ -177,6 +177,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             case MenuCategory.Debug:
                 var primary = BuildDebugPrimaryItems();
                 if (primary.Count > 0) groups.Add(primary);
+                var secondary = BuildDebugSecondaryItems();
+                if (secondary.Count > 0) groups.Add(secondary);
                 var propagation = BuildDebugPropagationItems();
                 if (propagation.Count > 0) groups.Add(propagation);
                 break;
@@ -540,9 +542,12 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     // (전부 기존 DebugInfoPanel/InputManager 단축키·UI에서 이전). 2026-08-20, 사용자 요청 "debug의
     // 버튼들을 주제별로 나눠줘"로 헤더 그룹 구분을 도입했고, 이후 "디버그 메뉴 넘침... 소리 전파
     // 시각화 부분을 옆으로 따로 떼서 옮겨봐"에 맞춰 소리·전파 시각화(토글 7개, 항목이 가장 많음)만
-    // 별도 블록(BuildDebugPropagationItems)으로 분리했다 — 나머지(시야/인지, 배치 테스트, 맵 저장/
-    // 불러오기, 유닛 테스트)는 여전히 한 블록(BuildDebugPrimaryItems)에 쌓인다. GetActiveSubmenuGroups가
-    // 이 두 블록을 옆으로 나란히 그려서, 주 목록 높이가 줄어들어 화면 상단(배속 표시 등)과 안 겹친다.
+    // 별도 블록(BuildDebugPropagationItems)으로 분리했다. 2026-08-25, 사용자 요청 "debug의 절반정도
+    // 항목을 옆으로 옮겨줘. 지금 세로로 너무 길어진다"에 맞춰 남은 항목도 다시 절반씩
+    // BuildDebugPrimaryItems(시야/인지, 유닛 상태 HUD, 배치 테스트)/BuildDebugSecondaryItems(더미
+    // 건물, 맵 저장/불러오기, 유닛 테스트) 두 블록으로 나눴다 — GetActiveSubmenuGroups가 이 세 블록을
+    // 옆으로 나란히 그려서, 주 목록 높이가 줄어들어 화면 상단(배속 표시 등)과 안 겹치고 한 열이
+    // 지나치게 길어지지도 않는다.
     // =====================================================
     private List<SubmenuItem> BuildDebugPrimaryItems()
     {
@@ -593,6 +598,36 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             () => ToggleBuildSubMode(wallConvertActive, () => _inputManager?.EnterWallConvertPlacementMode(), "벽 변환")));
 
         items.Add(SubmenuItem.Header("배치 테스트"));
+
+        return items;
+    }
+
+    // debug 서브메뉴 항목 세로 길이 개선(2026-08-25, 사용자 요청 "debug의 절반정도 항목을 옆으로
+    // 옮겨줘. 지금 세로로 너무 길어진다") — DrawVerticalSubmenu가 화면 높이를 넘으면 자동으로 다음
+    // 열로 넘기긴 하지만, 화면이 넉넉히 큰 경우 한 열에 다 들어가버려 시각적으로 지나치게 길어 보이는
+    // 문제가 있었다. BuildDebugPrimaryItems(시야/인지, 유닛 상태 HUD, 배치 테스트)와 이 블록(더미
+    // 건물, 맵 저장/불러오기, 유닛 테스트)으로 주제 경계를 기준 삼아 절반씩 나눠 항상 별도 열에
+    // 그려지게 했다 — BuildDebugPropagationItems(소리·전파 시각화)와 동일한 관례.
+    private List<SubmenuItem> BuildDebugSecondaryItems()
+    {
+        var items = new List<SubmenuItem>();
+
+        // 더미 건물 배치(2026-08-25, 사용자 요청 "기존에 쓰던 두 스프라이트는 디버그용 툴에다가
+        // 배치할건데... 아무런 기능도 하지 않는, 건물 판정만 있는 더미 건물") — 건물 스프라이트/크기
+        // 개편으로 더 이상 쓰지 않게 된 예전 유닛/자원 생산 건물 스프라이트를 1x1 더미 건물로 재활용.
+        if (_inputManager != null)
+        {
+            const string dummy1Name = "더미 건물 (구 유닛 생산형)";
+            bool dummy1Active = _inputManager.IsDummyBuildingModeActive(dummy1Name);
+            items.Add(new SubmenuItem("더미 건물 (구 유닛 생산형)", dummy1Active, true,
+                () => ToggleBuildSubMode(dummy1Active, () => _inputManager?.EnterDummyBuildingPlacementMode("obj/building", dummy1Name), dummy1Name)));
+
+            const string dummy2Name = "더미 건물 (구 자원 생산형)";
+            bool dummy2Active = _inputManager.IsDummyBuildingModeActive(dummy2Name);
+            items.Add(new SubmenuItem("더미 건물 (구 자원 생산형)", dummy2Active, true,
+                () => ToggleBuildSubMode(dummy2Active, () => _inputManager?.EnterDummyBuildingPlacementMode("obj/resource_building", dummy2Name), dummy2Name)));
+        }
+        items.Add(SubmenuItem.Header("더미 건물 (기능 없음, 건물 판정만)"));
 
         items.Add(new SubmenuItem("맵 저장", false, true, () => SaveMapAsync().Forget()));
         items.Add(new SubmenuItem("맵 불러오기", false, true, () => LoadMapAsync().Forget()));

@@ -1502,11 +1502,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (_buildingManager == null || _unitGenerate == null) return;
 
         int floorIdx = 1;
-        // 사용자 요청(2026-07-27) — V키(자원 생산 건물)는 별도 스프라이트(obj/resource_building)를 쓴다.
-        Sprite resourceBuildingSprite = Resources.Load<Sprite>("obj/resource_building");
-        Sprite productionBuildingSprite = Resources.Load<Sprite>("obj/building");
+        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — 자원 생산 건물은 GothicClocktower(2x2),
+        // 유닛 생산 건물은 GothicDollhouse(3x3). 예전 스프라이트(obj/building, obj/resource_building)는
+        // 디버그 더미 건물용으로 남겨뒀다(BuildDebugPrimaryItems 참고).
+        Sprite resourceBuildingSprite = Resources.Load<Sprite>("obj/GothicClocktower");
+        Sprite productionBuildingSprite = Resources.Load<Sprite>("obj/GothicDollhouse");
 
-        Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx);
+        // 2026-08-25 건물 스프라이트/크기 개편 — 자원 생산 건물 2x2 / 유닛 생산 건물 3x3, 각자 실제
+        // footprint로 자리를 찾아야 설치 시 CanInstallAt(footprint)이 다시 실패하지 않는다.
+        Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.ResourceBuildingFootprint);
         if (resourcePos.HasValue)
         {
             _buildingManager.InstallResourceBuilding(resourcePos.Value, resourceBuildingSprite);
@@ -1516,7 +1520,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 자원 생산 건물을 놓을 자리를 찾지 못했습니다.");
         }
 
-        Vector3Int? productionPos = FindInstallableStartRoomPos(floorIdx);
+        Vector3Int? productionPos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.UnitBuildingFootprint);
         if (productionPos.HasValue)
         {
             _buildingManager.InstallProductionBuilding(productionPos.Value, ProductionRule.CreateDefaultPlayerUnitRules(), productionBuildingSprite);
@@ -1530,15 +1534,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     // 시작방 안에서 건물을 놓을 수 있는 랜덤 위치를 찾는다 — 자원/유닛 생산 건물 두 개가 같은 자리를
     // 뽑아 겹치지 않도록(CanInstallAt이 이미 건물이 있는 타일은 거부) 여러 번 재시도한다
-    // (SpawnWildRoomGuards의 자리 재시도 패턴과 동일).
-    private Vector3Int? FindInstallableStartRoomPos(int floorIdx)
+    // (SpawnWildRoomGuards의 자리 재시도 패턴과 동일). footprint는 실제로 설치될 건물 크기와 일치해야
+    // 한다(2026-08-25 다중 타일 건물 지원 — 1x1로 찾은 자리에 3x3/2x2를 설치하면 CanInstallAt이
+    // 다시 실패할 수 있다).
+    private Vector3Int? FindInstallableStartRoomPos(int floorIdx, Vector2 footprint)
     {
         const int maxAttempts = 20;
+        Vector2Int footprintInt = new Vector2Int((int)footprint.x, (int)footprint.y);
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
-            Vector2Int pos = GetRandomStartRoomPos(Vector2.one, floorIdx);
+            Vector2Int pos = GetRandomStartRoomPos(footprint, floorIdx);
             Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
-            if (_buildingManager.CanInstallAt(gridPos) && IsGoodForInitialSpawn(gridPos, Vector2.one)) return gridPos;
+            if (_buildingManager.CanInstallAt(gridPos, footprintInt) && IsGoodForInitialSpawn(gridPos, footprint)) return gridPos;
         }
         return null;
     }

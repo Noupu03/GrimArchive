@@ -8,7 +8,13 @@ using VContainer;
 
 public class BuildingData
 {
+    // 건물이 차지하는 타일 중 최소 좌표(좌하단) 앵커 — UnitGenerate.IsAreaClear 등 기존 footprint
+    // 관례(position=최소 좌표, +x/+y 방향으로 확장)와 동일하게 맞췄다.
     public Vector3Int Position;
+
+    // 건물이 차지하는 타일 크기(2026-08-25, 사용자 요청 "건물의 스프라이트와 크기를 바꿀거야" —
+    // 유닛 생산 건물 3x3 / 자원 생산 건물 2x2). 더미 건물(디버그용)은 항상 (1,1).
+    public Vector2Int Footprint = Vector2Int.one;
 
     // 렌더링용 GameObject(2026-07-27, 사용자 신고 "건물 스프라이트 바깥쪽이 파란색" 대응) — 예전엔
     // Tilemap.SetTile로 바닥 타일 자체를 건물 타일로 갈아치웠는데, 그러면 스프라이트의 투명 영역이
@@ -20,6 +26,10 @@ public class BuildingData
     // false면 유닛 생산 건물(B키) — 아래 AvailableRules/Queue를 사용한다.
     public bool IsResourceBuilding;
     public float ResourceTickTimer;
+
+    // 디버그용 더미 건물(2026-08-25, 사용자 요청 "아무런 기능도 하지 않는, 건물 판정만 있는 더미
+    // 건물") — 생산/자원 로직 전부 건너뛰고 타일 점유(건물 판정)만 한다.
+    public bool IsDummy;
 
     // 유닛 생산 건물이 생산 가능한 규칙 목록(문서 6장 "건축물마다 서로 다른 생산 규칙을 지정할 수
     // 있어야 함") — BuildingControlPanel이 이 목록을 버튼으로 나열한다.
@@ -44,14 +54,29 @@ public class BuildingManager : NativeRoutine
     // 5 → 10으로 2배.
     private const int ResourceTickAmount = 10;
 
-    // 유닛 생산 건물에서 완성된 유닛이 나오는 4방향(사용자 요청: "상하좌우에서 랜덤으로 하나").
-    private static readonly Vector2Int[] AdjacentOffsets =
+    // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — 유닛 생산 건물은 GothicDollhouse(3x3),
+    // 자원 생산 건물은 GothicClocktower(2x2). 더미 건물(디버그용)은 항상 1x1.
+    public static readonly Vector2Int UnitBuildingFootprint = new Vector2Int(3, 3);
+    public static readonly Vector2Int ResourceBuildingFootprint = new Vector2Int(2, 2);
+    private static readonly Vector2Int DummyBuildingFootprint = Vector2Int.one;
+
+    // footprint 크기의 건물을 감싸는 바로 바깥쪽 테두리 한 칸 오프셋 전체를 만든다(원점=Position
+    // 기준). footprint(1,1)이면 (0,1)/(0,-1)/(-1,0)/(1,0) 상하좌우 4칸 그대로다.
+    private static List<Vector2Int> GetBuildingBorderOffsets(Vector2Int footprint)
     {
-        new Vector2Int(0, 1),
-        new Vector2Int(0, -1),
-        new Vector2Int(-1, 0),
-        new Vector2Int(1, 0),
-    };
+        var offsets = new List<Vector2Int>();
+        for (int x = -1; x <= footprint.x; x++)
+        {
+            offsets.Add(new Vector2Int(x, -1));
+            offsets.Add(new Vector2Int(x, footprint.y));
+        }
+        for (int y = 0; y < footprint.y; y++)
+        {
+            offsets.Add(new Vector2Int(-1, y));
+            offsets.Add(new Vector2Int(footprint.x, y));
+        }
+        return offsets;
+    }
 
     private Dictionary<Vector3Int, BuildingData> buildingGrid = new Dictionary<Vector3Int, BuildingData>();
 
@@ -92,8 +117,27 @@ public class BuildingManager : NativeRoutine
         await base.Finalize();
     }
 
-    // 5단계: 1타일 1오브젝트 규칙 (캡슐화된 쿼리)
-    public bool CanInstallAt(Vector3Int pos)
+    // 5단계: 1타일 1오브젝트 규칙 (캡슐화된 쿼리) — 더미 건물(1x1) 등 단일 타일 판정용.
+    public bool CanInstallAt(Vector3Int pos) => CanInstallAt(pos, DummyBuildingFootprint);
+
+    // footprint가 차지할 모든 타일이 각각 설치 가능해야 전체 설치가 가능하다(2026-08-25, 다중 타일
+    // 건물 지원). footprint=(1,1)이면 위 단일 타일 오버로드와 동일하게 동작한다. requireOwnership=false면
+    // 방 점령(소유) 여부를 무시한다(2026-08-25, 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나
+    // 설치 가능하게 해줘. (점령 여부 무관)") — 디버그용 더미 건물 전용, 실제 생산 건물은 항상 true.
+    public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
+    {
+        for (int dx = 0; dx < footprint.x; dx++)
+        {
+            for (int dy = 0; dy < footprint.y; dy++)
+            {
+                if (!CanInstallSingleTile(new Vector3Int(pos.x + dx, pos.y + dy, pos.z), requireOwnership))
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    private bool CanInstallSingleTile(Vector3Int pos, bool requireOwnership = true)
     {
         // 좌표가 음수면 맵 밖이므로 바로 false 반환 (IndexOutOfRangeException 방지)
         if (pos.x < 0 || pos.y < 0 || pos.z < 0) return false;
@@ -114,8 +158,8 @@ public class BuildingManager : NativeRoutine
         // 연결돼 있지 않았다. 이 프로토타입에서 몬스터 유닛 생산은 전부 이 건물(B/V키)을 거치므로
         // 여기서 연결한다 — 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. 게임 시작 시
         // 자동 배치되는 시작 건물(SpawnInitialBuildings)도 시작방이 처음부터 PlayerControlled라
-        // 그대로 통과한다.
-        if (createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
+        // 그대로 통과한다. requireOwnership=false(더미 건물)면 이 검사를 건너뛴다.
+        if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
 
         // 2. 맵의 타일 장애물 정보 확인
         if (createMap != null && createMap.map.floors != null)
@@ -162,9 +206,11 @@ public class BuildingManager : NativeRoutine
     {
         get
         {
+            // 다중 타일 건물(2026-08-25)은 footprint 칸 수만큼 buildingGrid에 같은 BuildingData가
+            // 여러 키로 중복 등록되므로, 앵커 타일(kvp.Key == b.Position)일 때만 세어 중복 집계를 막는다.
             int count = 0;
-            foreach (var b in buildingGrid.Values)
-                if (b.IsResourceBuilding) count++;
+            foreach (var kvp in buildingGrid)
+                if (kvp.Key == kvp.Value.Position && kvp.Value.IsResourceBuilding) count++;
             return count;
         }
     }
@@ -178,6 +224,13 @@ public class BuildingManager : NativeRoutine
         foreach (var kvp in buildingGrid)
         {
             BuildingData b = kvp.Value;
+
+            // 다중 타일 건물(2026-08-25)은 footprint 칸 수만큼 같은 BuildingData가 buildingGrid에
+            // 여러 키로 등록되므로, 앵커 타일에서만 한 번 처리해 생산/자원 틱이 칸 수만큼 중복 실행되는
+            // 것을 막는다.
+            if (kvp.Key != b.Position) continue;
+
+            if (b.IsDummy) continue;
 
             if (b.IsResourceBuilding)
             {
@@ -266,7 +319,7 @@ public class BuildingManager : NativeRoutine
             return;
         }
 
-        Vector2Int pos = GetSpawnPosAroundBuilding(b.Position, t.footprint);
+        Vector2Int pos = GetSpawnPosAroundBuilding(b, t.footprint);
 
         Monster m = unitGenerate.GenerateUnitAtPos<Monster>(t, pos, b.Position.z);
         // 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청) — "해당 방 안에서만 돌아다님,
@@ -278,15 +331,18 @@ public class BuildingManager : NativeRoutine
         gameSession.RegisterUnitPos(m, m.position);
     }
 
-    // 건물의 상/하/좌/우 4칸을 랜덤 순서로 섞어서 첫 번째로 비어있는 칸을 반환한다(사용자 요청).
-    // 4칸이 다 막혀 있으면 건물이 속한 방 안에서 재시도한다(사용자 요청, 2026-07-27: "플레이어 진영
-    // 몬스터는 해당 방 안에서만 스폰" — 층 전체에서 뽑으면 다른 방에 떨어질 수 있어 더 이상 그 폴백을
-    // 쓰지 않는다). 방을 못 찾거나 방 안에도 자리가 없는 극단적인 경우에만 최후 수단으로 층 전체에서
-    // 찾되, 그 경우엔 경고 로그를 남긴다.
-    private Vector2Int GetSpawnPosAroundBuilding(Vector3Int buildingPos, Vector2 footprint)
+    // 건물 테두리(상/하/좌/우변) 칸들을 랜덤 순서로 섞어서 첫 번째로 비어있는 칸을 반환한다(사용자
+    // 요청 — 2026-08-25 다중 타일 건물 지원으로, 건물 footprint 크기와 무관하게 항상 건물 바로
+    // 바깥쪽 테두리 한 칸에서 스폰되도록 일반화했다: footprint(1,1)이면 예전과 동일하게 상하좌우
+    // 4칸이 된다). 테두리가 다 막혀 있으면 건물이 속한 방 안에서 재시도한다(사용자 요청, 2026-07-27:
+    // "플레이어 진영 몬스터는 해당 방 안에서만 스폰" — 층 전체에서 뽑으면 다른 방에 떨어질 수 있어
+    // 더 이상 그 폴백을 쓰지 않는다). 방을 못 찾거나 방 안에도 자리가 없는 극단적인 경우에만 최후
+    // 수단으로 층 전체에서 찾되, 그 경우엔 경고 로그를 남긴다.
+    private Vector2Int GetSpawnPosAroundBuilding(BuildingData b, Vector2 footprint)
     {
+        Vector3Int buildingPos = b.Position;
         Vector2Int origin = new Vector2Int(buildingPos.x, buildingPos.y);
-        var offsets = new List<Vector2Int>(AdjacentOffsets);
+        var offsets = GetBuildingBorderOffsets(b.Footprint);
         for (int i = offsets.Count - 1; i > 0; i--)
         {
             int j = Random.Range(0, i + 1);
@@ -316,39 +372,60 @@ public class BuildingManager : NativeRoutine
     }
 
     // 6단계: 설치 (Install) 로직 — 자원 생산 건물(V키)과 유닛 생산 건물(B키)은 얇은 래퍼로 분리해서
-    // 호출부에서 헷갈리지 않게 한다(공통 로직은 InstallBuildingInternal).
+    // 호출부에서 헷갈리지 않게 한다(공통 로직은 InstallBuildingInternal). 2026-08-25 건물 스프라이트/
+    // 크기 개편으로 각 건물이 자신의 footprint 상수(UnitBuildingFootprint/ResourceBuildingFootprint)를
+    // 고정으로 사용하고, 디버그용 더미 건물(기능 없음, 건물 판정만)이 1x1로 추가됐다.
     public bool InstallResourceBuilding(Vector3Int pos, Sprite buildingSprite)
     {
-        return InstallBuildingInternal(pos, isResourceBuilding: true, availableRules: null, buildingSprite, "자원 생산 시설");
+        return InstallBuildingInternal(pos, ResourceBuildingFootprint, isResourceBuilding: true, isDummy: false, availableRules: null, buildingSprite, "자원 생산 시설");
     }
 
     public bool InstallProductionBuilding(Vector3Int pos, List<ProductionRule> availableRules, Sprite buildingSprite)
     {
-        return InstallBuildingInternal(pos, isResourceBuilding: false, availableRules, buildingSprite, "유닛 생산 시설");
+        return InstallBuildingInternal(pos, UnitBuildingFootprint, isResourceBuilding: false, isDummy: false, availableRules, buildingSprite, "유닛 생산 시설");
     }
 
-    private bool InstallBuildingInternal(Vector3Int pos, bool isResourceBuilding, List<ProductionRule> availableRules, Sprite buildingSprite, string displayNameForLog)
+    // 디버그용 더미 건물(2026-08-25, 사용자 요청 "기존에 쓰던 두 스프라이트는 디버그용 툴에다가
+    // 배치할건데... 아무런 기능도 하지 않는, 건물 판정만 있는 더미 건물") — 생산/자원 로직 전부 없이
+    // 1타일 점유(CanInstallAt 판정 대상이 됨)만 한다. displayName은 시각화 오브젝트 이름과 로그에만
+    // 쓰임. requireOwnership: false(2026-08-25 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나
+    // 설치 가능하게 해줘. (점령 여부 무관)") — 방 소유/점령 여부와 무관하게 바닥 타일이면 설치 가능.
+    public bool InstallDummyBuilding(Vector3Int pos, Sprite buildingSprite, string displayName)
     {
-        if (!CanInstallAt(pos))
+        return InstallBuildingInternal(pos, DummyBuildingFootprint, isResourceBuilding: false, isDummy: true, availableRules: null, buildingSprite, displayName, requireOwnership: false);
+    }
+
+    private bool InstallBuildingInternal(Vector3Int pos, Vector2Int footprint, bool isResourceBuilding, bool isDummy, List<ProductionRule> availableRules, Sprite buildingSprite, string displayNameForLog, bool requireOwnership = true)
+    {
+        if (!CanInstallAt(pos, footprint, requireOwnership))
         {
-            LogHelper.Warning(LogHelper.GAME, $"Cannot install building at {pos}");
+            LogHelper.Warning(LogHelper.GAME, $"Cannot install building at {pos} (footprint {footprint})");
             return false;
         }
 
-        GameObject visual = CreateBuildingVisual(pos, buildingSprite, displayNameForLog);
+        GameObject visual = CreateBuildingVisual(pos, footprint, buildingSprite, displayNameForLog);
 
         BuildingData newBuilding = new BuildingData
         {
             Position = pos,
+            Footprint = footprint,
             IsResourceBuilding = isResourceBuilding,
+            IsDummy = isDummy,
             AvailableRules = availableRules,
             VisualObject = visual,
         };
-        buildingGrid[pos] = newBuilding;
 
-        UpdateMapDataObstacle(pos, true);
+        for (int dx = 0; dx < footprint.x; dx++)
+        {
+            for (int dy = 0; dy < footprint.y; dy++)
+            {
+                buildingGrid[new Vector3Int(pos.x + dx, pos.y + dy, pos.z)] = newBuilding;
+            }
+        }
 
-        LogHelper.Log(LogHelper.GAME, $"Installed Building '{displayNameForLog}' at {pos}");
+        UpdateMapDataObstacle(pos, footprint, true);
+
+        LogHelper.Log(LogHelper.GAME, $"Installed Building '{displayNameForLog}' at {pos} (footprint {footprint})");
         return true;
     }
 
@@ -356,8 +433,9 @@ public class BuildingManager : NativeRoutine
     // 바닥 타일을 통째로 갈아치우면 스프라이트의 투명 영역이 원래 바닥이 아니라 타일맵 뒤(카메라
     // 배경색)를 그대로 드러냈다. GameSession.SpawnObject(루팅/함정/시체/코어)와 동일한 관례로, 바닥은
     // 그대로 두고 이 GameObject를 그 위에 얹는 방식으로 바꿨다 — 스프라이트 크기도 sprite.bounds
-    // 기준으로 역산해 항상 타일 1칸에 꽉 차도록 스케일한다(SpawnObject와 동일 원리).
-    private GameObject CreateBuildingVisual(Vector3Int pos, Sprite buildingSprite, string objectName)
+    // 기준으로 역산해 항상 footprint 칸 수(가로 x 세로)에 꽉 차도록 스케일한다(2026-08-25, 다중 타일
+    // 건물 지원 — SpawnObject의 1칸 고정 스케일 원리를 footprint만큼 일반화).
+    private GameObject CreateBuildingVisual(Vector3Int pos, Vector2Int footprint, Sprite buildingSprite, string objectName)
     {
         GameObject visual = new GameObject($"Building_{objectName}_{pos.x}_{pos.y}_{pos.z}");
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
@@ -365,11 +443,11 @@ public class BuildingManager : NativeRoutine
         sr.sortingOrder = 5; // 바닥 위, 유닛/오브젝트와 동일한 순서(GameSession.SpawnObject 참고)
 
         Vector3 floorOffset = unitGenerate != null ? unitGenerate.GetFloorOffset(pos.z) : Vector3.zero;
-        visual.transform.position = new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0f) + floorOffset;
+        visual.transform.position = new Vector3(pos.x + footprint.x / 2f, pos.y + footprint.y / 2f, 0f) + floorOffset;
 
         Vector2 spriteWorldSize = sr.sprite != null ? (Vector2)sr.sprite.bounds.size : Vector2.one;
-        float scaleX = spriteWorldSize.x > 0f ? 1f / spriteWorldSize.x : 1f;
-        float scaleY = spriteWorldSize.y > 0f ? 1f / spriteWorldSize.y : 1f;
+        float scaleX = spriteWorldSize.x > 0f ? footprint.x / spriteWorldSize.x : footprint.x;
+        float scaleY = spriteWorldSize.y > 0f ? footprint.y / spriteWorldSize.y : footprint.y;
         visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
 
         // 계층 정리(2026-07-28, 사용자 요청 "각 층에 자식으로 할당된 오브젝트들을... 종류별로 묶어서")
@@ -380,7 +458,8 @@ public class BuildingManager : NativeRoutine
         return visual;
     }
 
-    // 6단계: 철거 (Uninstall) 로직
+    // 6단계: 철거 (Uninstall) 로직 — pos는 footprint 안 어느 타일이든 상관없다(buildingGrid가 모든
+    // 점유 타일에 같은 BuildingData를 등록해두므로).
     public void UninstallBuilding(Vector3Int pos)
     {
         if (!buildingGrid.TryGetValue(pos, out BuildingData data)) return;
@@ -388,16 +467,33 @@ public class BuildingManager : NativeRoutine
         // 1. 시각 오브젝트 파괴
         if (data.VisualObject != null) UnityEngine.Object.Destroy(data.VisualObject);
 
-        // 2. MapData 롤백
-        UpdateMapDataObstacle(pos, false);
+        // 2. MapData 롤백 (footprint 전체 타일)
+        UpdateMapDataObstacle(data.Position, data.Footprint, false);
 
-        // 3. 데이터 삭제
-        buildingGrid.Remove(pos);
+        // 3. 데이터 삭제 (footprint 전체 타일)
+        for (int dx = 0; dx < data.Footprint.x; dx++)
+        {
+            for (int dy = 0; dy < data.Footprint.y; dy++)
+            {
+                buildingGrid.Remove(new Vector3Int(data.Position.x + dx, data.Position.y + dy, data.Position.z));
+            }
+        }
 
-        LogHelper.Log(LogHelper.GAME, $"Uninstalled Building at {pos}");
+        LogHelper.Log(LogHelper.GAME, $"Uninstalled Building at {data.Position} (footprint {data.Footprint})");
     }
 
-    private void UpdateMapDataObstacle(Vector3Int pos, bool isObstacle)
+    private void UpdateMapDataObstacle(Vector3Int pos, Vector2Int footprint, bool isObstacle)
+    {
+        for (int dx = 0; dx < footprint.x; dx++)
+        {
+            for (int dy = 0; dy < footprint.y; dy++)
+            {
+                UpdateMapDataObstacleSingleTile(new Vector3Int(pos.x + dx, pos.y + dy, pos.z), isObstacle);
+            }
+        }
+    }
+
+    private void UpdateMapDataObstacleSingleTile(Vector3Int pos, bool isObstacle)
     {
         if (pos.x < 0 || pos.y < 0 || pos.z < 0) return;
         if (createMap == null || createMap.map.floors == null) return;

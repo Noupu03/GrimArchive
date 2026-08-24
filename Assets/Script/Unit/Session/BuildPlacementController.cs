@@ -42,7 +42,8 @@ public class BuildPlacementController
         _isBuildMode = true;
 
         EnsureProductionRules();
-        _currentBuildSprite = Resources.Load<Sprite>("obj/building");
+        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicDollhouse(3x3).
+        _currentBuildSprite = Resources.Load<Sprite>("obj/GothicDollhouse");
         _ghost.Show(_currentBuildSprite);
         LogHelper.Log(LogHelper.GAME, $"유닛 생산 건물 배치 모드 진입 (돌 {ResourceManager.UnitBuildingStoneCost} 소모)");
     }
@@ -53,9 +54,8 @@ public class BuildPlacementController
         _isBuildMode = false;
         _isResourceBuildMode = true;
 
-        // 사용자 요청(2026-07-27) — V키(자원 생산 건물)는 별도 스프라이트(obj/resource_building)를 쓴다.
-        // B키(유닛 생산 건물)는 기존 obj/building 그대로.
-        _currentBuildSprite = Resources.Load<Sprite>("obj/resource_building");
+        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicClocktower(2x2).
+        _currentBuildSprite = Resources.Load<Sprite>("obj/GothicClocktower");
         _ghost.Show(_currentBuildSprite);
         LogHelper.Log(LogHelper.GAME, $"자원 생산 건물 배치 모드 진입 (돌 {ResourceManager.ResourceBuildingStoneCost} 소모)");
     }
@@ -68,12 +68,19 @@ public class BuildPlacementController
         LogHelper.Log(LogHelper.GAME, "Exited Build Mode");
     }
 
+    // 지금 활성화된 모드가 실제로 설치할 건물의 footprint(2026-08-25, 다중 타일 건물 지원) — 유닛
+    // 생산 건물 3x3 / 자원 생산 건물 2x2. 둘 다 아니면(모드 비활성) 의미 없는 값이라 1x1로 둔다.
+    private Vector2Int CurrentFootprint => _isResourceBuildMode ? BuildingManager.ResourceBuildingFootprint
+        : _isBuildMode ? BuildingManager.UnitBuildingFootprint
+        : Vector2Int.one;
+
     public void Update(Vector3 floorOffset, int currentFloor)
     {
         Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
+        Vector2Int footprint = CurrentFootprint;
 
-        _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos));
+        _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos, footprint), footprint);
 
         // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청 "우클릭 취소 없애고, 오직 메뉴 바꾸기 혹은 메뉴
         // 다시 클릭으로 바꿀 수 있게") — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브
@@ -103,7 +110,9 @@ public class BuildPlacementController
 
     private void TryInstallBuilding(Vector3Int gridPos)
     {
-        if (!_buildingManager.CanInstallAt(gridPos))
+        // footprint(2026-08-25) 전체가 비어있어야 설치 가능 — 단일 타일만 확인하면 3x3/2x2 건물의
+        // 나머지 칸이 막혀 있어도 자원을 먼저 소모해버릴 수 있다.
+        if (!_buildingManager.CanInstallAt(gridPos, CurrentFootprint))
         {
             LogHelper.Warning(LogHelper.GAME, "장애물이 있거나 설치할 수 없는 지형입니다.");
             NoticeCenter.Instance?.PushMomentary("장애물이 있거나 설치할 수 없는 지형입니다.", NoticeCenter.WarningColor);

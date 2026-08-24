@@ -74,7 +74,7 @@ public class InputManager : MonoBehaviour
 		_buildingManager = buildingManager;
 
 		_buildPlacement = new BuildPlacementController(buildingManager, resourceManager);
-		_objectPlacement = new ObjectPlacementController(gameSession, unitGenerate, resourceManager);
+		_objectPlacement = new ObjectPlacementController(gameSession, unitGenerate, resourceManager, buildingManager);
 	}
 
 	// =====================================================
@@ -94,6 +94,10 @@ public class InputManager : MonoBehaviour
 	public bool IsDoorRepairPlacementActive => _objectPlacement != null && _objectPlacement.IsDoorRepairModeActive;
 	// 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드 / 함정 무제한 설치 토글.
 	public bool IsWallConvertPlacementActive => _objectPlacement != null && _objectPlacement.IsWallConvertModeActive;
+	// 더미 건물 배치 모드(2026-08-25 debug 전용) — displayName으로 어느 더미 건물 버튼인지 구분한다
+	// (같은 부류 버튼 두 개를 BottomMenuBar가 각각 따로 하이라이트해야 하므로).
+	public bool IsDummyBuildingModeActive(string displayName)
+		=> _objectPlacement != null && _objectPlacement.IsDummyBuildingModeActive && _objectPlacement.ActiveDummyBuildingName == displayName;
 	public bool DebugUnlimitedTrapPlacement
 	{
 		get => _objectPlacement != null && _objectPlacement.DebugUnlimitedTrapPlacement;
@@ -127,6 +131,7 @@ public class InputManager : MonoBehaviour
 		if (IsObjectOnlyPlacementActive) return "오브젝트";
 		if (IsDoorRepairPlacementActive) return "문 재설치";
 		if (IsWallConvertPlacementActive) return "벽 변환";
+		if (_objectPlacement != null && _objectPlacement.IsDummyBuildingModeActive) return _objectPlacement.ActiveDummyBuildingName;
 		return null;
 	}
 
@@ -213,6 +218,8 @@ public class InputManager : MonoBehaviour
 	public void EnterDoorRepairPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterDoorRepairMode(); }
 	// 2026-08-24 debug 전용.
 	public void EnterWallConvertPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterWallConvertMode(); }
+	// 2026-08-25 debug 전용 — resourcePath는 Resources.Load 경로, displayName은 표시 이름.
+	public void EnterDummyBuildingPlacementMode(string resourcePath, string displayName) { _buildPlacement.ExitMode(); _objectPlacement.EnterDummyBuildingMode(resourcePath, displayName); }
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{

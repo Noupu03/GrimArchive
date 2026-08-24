@@ -121,7 +121,8 @@ public class UnitVisual : MonoBehaviour
 	// "대상 스프라이트(보통 10) + 10"으로 매겨 기존 19(상태 라벨 20 바로 아래) 정도로는 쉽게
 	// 역전당했다. 웬만한 이펙트(대상 sortingOrder+10)보다는 확실히 위지만, 위협타일(999)/
 	// 안개(1000~) 같은 특수 오버레이보다는 아래인 값으로 조정.
-	private const int HealthBarSortingOrder = 100;
+	// 2026-08-25 사용자 요청으로 100 → 101.
+	private const int HealthBarSortingOrder = 101;
 	private const float HealthBarWidth = 0.8f;
 	private const float HealthBarHeight = 0.12f;
 	private const float HealthBarWorldOffsetAboveTop = 0.2f; // 유닛 스프라이트 상단에서 띄우는 높이(월드 단위)

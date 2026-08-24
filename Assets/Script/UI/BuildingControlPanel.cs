@@ -143,6 +143,13 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         {
             DrawObjectInfo(_currentObject);
         }
+        else if (_current.IsDummy)
+        {
+            // 디버그용 더미 건물(2026-08-25, 사용자 요청 "아무런 기능도 하지 않는, 건물 판정만 있는
+            // 더미 건물") — 생산/자원 UI 없이 안내 문구만 표시한다.
+            GUILayout.Label("[ 더미 건물 (디버그) ]", GUIMenuStyleUtil.LabelStyle);
+            GUILayout.Label("기능 없음 — 건물 판정(타일 점유)만 있는 디버그용 오브젝트입니다.", GUIMenuStyleUtil.BodyLabelStyle);
+        }
         else if (_current.IsResourceBuilding)
         {
             GUILayout.Label("[ 자원 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
