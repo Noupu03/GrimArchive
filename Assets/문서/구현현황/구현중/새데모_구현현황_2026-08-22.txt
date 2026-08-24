@@ -23,11 +23,11 @@
 ════════════════════════════════════════════════════════════════════════
 ■ 1. 첫 웨이브 시간 넉넉하게
 ════════════════════════════════════════════════════════════════════════
-✅ 완료 — 사용자 확인: "첫 웨이브만 별도로 늘림, 60초".
-  - WaveData.cs/WaveData.asset: firstWaveCooldown 필드 신규(기존 waveCooldown=20은 그대로).
-  - HumanWaveManager.cs: firstWaveCooldown 프로퍼티, Initialize에서 cooldownTimer 초기값으로 사용,
-    _isFirstWaveCycle 플래그로 WaveProgress01(게이지 진행률)의 분모도 첫 사이클만 60으로 계산.
-    두 번째 웨이브부터는 EndWave에서 _isFirstWaveCycle=false로 전환돼 기존 20초 그대로.
+🔁 2026-08-24 폐지 — 사용자 요청 "하드코딩 되었던 첫 웨이브 시간 없애고, 모두 동일하게, wavedata의
+  wavecooldown으로만 동작하게 해줘". firstWaveCooldown 필드/프로퍼티(WaveData.cs/HumanWaveManager.cs)
+  와 _isFirstWaveCycle 플래그를 전부 제거 — 첫 웨이브 포함 모든 웨이브가 이제 waveCooldown 하나만
+  본다(Initialize의 cooldownTimer 초기값, WaveProgress01 분모, EndWave의 다음 대기 시간 전부 동일).
+  WaveData.asset에 남아있던 firstWaveCooldown 값은 필드 자체가 없어져 무시된다.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 2. 코어 시스템 전면 개편 ("모든 곳에 코어")
@@ -397,10 +397,32 @@ tilesB)에 정확히 거리 1까지는 영원히 못 붙는 경우가 생긴다 
    반환했는데 이미 반경 2 이내라면, 그 자리에서 채널링을 시작하도록 폴백 추가(BeginDoorChannel
    헬퍼로 분리, 중복 로그 방지 겸용). 정상적으로 반경 1까지 붙을 수 있는 경우는 기존과 동일하게
    동작 — 이 폴백은 "더 가까워질 수 없는데 거리 1이 아닌" 막다른 경우에만 발동한다.
-🔶 진단 로그는 당장은 남겨뒀다(TacticalFSMState.BeginDoorChannel — 채널링 시작 1회,
-   UnitFunction.OnUpdate 문 채널링 분기 — 진행 중 초당 1회 샘플링 + 실패 시 매번 경고). 다음
-   플레이 테스트에서 실제로 채널링이 시작되는지, 시작된다면 반경 1인지 2(폴백)인지 로그로 확인해
-   가설을 검증할 것 — 확인되면 진단 로그는 제거한다.
+🔁 [2026-08-24 후속 수정, 이 반경 2 폴백 완전 제거 — 진단 로그 항목은 폐기됨] 세 가지가 연쇄로
+   드러났다:
+   1. 사용자 신고 "원거리에서 문이나 코어 파괴 안되도록... 반드시 인접 1칸. 지금 내가 원거리
+      공격하는거 보고왔어" → UnitFunction.OnUpdate 데미지 적용부에 매 프레임 반경 1 재검증(isAdjacent)
+      추가.
+   2. 사용자 재신고 "마법사 같은 유닛들이 계속 코어나 문 파괴를 원거리로 한다" → 실은 위 1번 수정과
+      이 반경 2 폴백이 서로 충돌한 것이었다: 반경 2에서 채널링을 시작해도 그 프레임/다음 프레임
+      데미지 적용부의 반경 1 게이트가 즉시 취소시키고, 매 틱 반경 2 조건이 다시 성립해 시작→즉시
+      취소가 끝없이 반복됐다(VFX/방향 전환만 매 틱 켜졌다 꺼지며 원거리 파괴처럼 보임, 회피/점멸과
+      무관하게 인류끼리만 있어도 재현). → 반경 2 폴백 자체를 완전히 제거, 채널링 시작 조건도 반경
+      1로 통일.
+   3. 반경 2 폴백을 없애자 "반경 1에 못 붙으면 어떻게 하냐" 문제가 되돌아왔는데, 이번엔 Unit.
+      tacticalObjectAttackStuckTurns(연속 실패 카운터, MoveToCoreAttack/MoveToDoorAttack 공용,
+      AIBehaviorConfig.tacticalObjectAttackStuckTurnLimit=4)로 해결 — 몇 틱 이상 연속으로 못 붙으면
+      포기하고 currentAlertSearch로 전환한다(얼어붙지 않음). 그런데 이 카운터의 리셋 조건
+      (`AIMovementHelper.FindNearbyOpenTile(unit, pos)`가 target 주변 로컬 빈 칸을 찾으면 매번
+      리셋)이 PlayerCommandFSMState.ExecutePlayerMove가 2026-08-23에 이미 겪었던 것과 똑같은 함정
+      이었다 — target이 멀리 있으면 그 주변 8칸 중 하나는 로컬로 거의 항상 비어있어서(도달
+      가능성과 무관) fallback != pos가 매 틱 성립해 카운터가 4틱을 절대 못 채웠다(사용자 신고
+      "문에서 오브젝트 공격→경계 간 전환이 안 되는거 같아... 공격이 아닌 경계를 해야하는(자리가
+      없는) 상황인데도"). → ExecutePlayerMove와 동일한 패턴으로 수정: 이 폴백은 이미 목표에 근접
+      (반경 2)했을 때만 쓰고, 아니면 스킵해서 유닛 자신의 위치 기준
+      AIMovementHelper.HasAnyStructurallyOpenAdjacentTile로 "일시적 혼잡(어딘가는 지형상 열려있음,
+      stuckTurns 인내 재시도)"과 "진짜 완전히 막힘(사방이 벽/닫힌 문, 지나갈 길 자체가 없음)"을
+      구분한다 — 사용자 요청 "자리가 없음뿐만 아니라 지나갈 길 없음도 판단 요소로 추가해줘"대로,
+      후자는 stuckTurns를 기다릴 필요 없이 그 자리에서 즉시 경계로 전환한다.
 
 ■ 10-1. 후속 수정 — 먼 쪽 문부터 공격하려는 버그 (2026-08-22, 사용자 신고 "인류가 2*2 문을 부술때
    멀리 있는 문부터 부수려고 시도하는데? 멀리 있는 문을 부술 수 있으면 안돼. 코어 파괴나 문 파괴는

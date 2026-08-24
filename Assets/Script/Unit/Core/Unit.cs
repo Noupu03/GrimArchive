@@ -268,6 +268,13 @@ public abstract class Unit : ScriptableObject {
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
 
+	// 코어/문 자동 파괴 접근 중 "인접도 못 하고 대체 자리도 없는" 상태가 몇 틱째 이어지는지(2026-08-24
+	// 사용자 신고 "파괴할거면 파괴만, 경계할거면 경계만... 왔다갔다 하면서 이상하게 동작함") —
+	// playerCommandStuckTurns와 동일한 이유(PlayerCommandFSMState.cs 참고: "다른 유닛들이 잠깐
+	// 몰려서(점유)일 수 있다")로 단 1틱 실패만 보고 즉시 경계로 전환하면, 코어 주변에 유닛이 몰릴 때마다
+	// 매 틱 판정이 뒤집혀 파괴↔경계를 왔다갔다한다. 일정 틱 이상 연속으로 막혀야만 진짜로 포기한다.
+	public int tacticalObjectAttackStuckTurns = 0;
+
 	// Encapsulated command setters (2026-08-22 refactoring)
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
@@ -445,6 +452,30 @@ public abstract class Unit : ScriptableObject {
 		if (_attackObjectVfxInstance == null) return;
 		VFXManager.StopBlockBreakingVfx(_attackObjectVfxInstance);
 		_attackObjectVfxInstance = null;
+	}
+
+	// 유닛이 죽거나(GameSession.RemoveDeadUnit) 소환 해제(GameSession.DespawnUnit)될 때 반드시 호출
+	// (2026-08-24 사용자 신고 "코어/문 파괴 시도중 유닛이 죽었는데 VFX 안 사라짐") — 이 유닛이 진행
+	// 중이던 "월드 오브젝트 쪽" 임시 시각 요소를 전부 정리한다. 이런 요소들은 전부 "이 유닛이 살아서
+	// 매 프레임 OnUpdate를 돌아야만" 자연스럽게 정리되는 구조라(코어/문 파괴 VFX는 진행도 회복
+	// 타이머가 결국 스스로 정리해주지만 그것도 최대 5초 뒤라 즉시성이 없고, 함정 해제 진행바는 그런
+	// 자동 안전망조차 없어 유닛이 갑자기 사라지면 영원히 남는다) 유닛이 갑자기 사라지는 두 경로
+	// (사망/소환 해제) 모두에서 명시적으로 정리해야 한다. 새로 "유닛에 종속된, 오브젝트 쪽에 붙는
+	// 임시 비주얼"을 추가하면 여기도 같이 정리할 것.
+	public void ClearTransientWorldVisuals()
+	{
+		ClearAttackObjectTarget();
+
+		if (this is Human human && human.currentTrapInteraction != null)
+		{
+			var trap = human.currentTrapInteraction;
+			if (trap.Phase == TrapPhase.Disarming)
+			{
+				if (trap.CachedProgressBar == null)
+					trap.CachedProgressBar = Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>();
+				trap.CachedProgressBar?.SetProgress(0f, false);
+			}
+		}
 	}
 
 	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.

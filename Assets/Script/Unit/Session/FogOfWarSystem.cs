@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using VContainer;
 using Cysharp.Threading.Tasks;
 using Haare.Util.Logger;
@@ -32,13 +33,25 @@ public class FogOfWarSystem
     }
 
     // ── 안개 ──────────────────────────────────────────────────────────
-    private readonly Dictionary<Room, List<GameObject>> _roomFogVisuals = new Dictionary<Room, List<GameObject>>();
+    // Tilemap 일괄 렌더링으로 전환(2026-08-24 사용자 요청 "안개가 프레임 드랍을 많이 유발함 —
+    // 방 전체를 하나의 안개로 bake") — 이전엔 방 하나(청크 여러 개, 타일 수백 개)당 타일마다
+    // GameObject 1개 + 자식 SpriteRenderer 2개(배경/무늬)를 만들어서, 큰 방은 수천 개의
+    // GameObject/Transform/SpriteRenderer가 쌓였다. 이제 방/게이트 하나당 Tilemap 2장(배경/무늬)
+    // 뿐이라(TilemapRenderer는 칠해진 셀 수와 무관하게 청크 단위로 몇 번의 드로우콜만 낸다) 값은
+    // GameObject 개수가 100~1000배 가까이 줄어든다. 그래서 Dictionary 값 타입이 List<GameObject>
+    // (타일별 오브젝트 목록)에서 GameObject(배경+무늬 Tilemap 2개를 자식으로 둔 루트 오브젝트
+    // 하나) 하나로 바뀌었다 — 아래 SpawnFogBlock/FadeOutAndDestroyFogAsync 참고.
+    private readonly Dictionary<Room, GameObject> _roomFogVisuals = new Dictionary<Room, GameObject>();
     // 문/통로 안개(2026-07-28, 사용자 요청 "문이 있는 공간(복도)도 옆방중에 하나라도 안개가 있다면 다
     // 안개로 가리고") — 게이트 하나는 두 방을 잇는 통로라 어느 한 쪽 Room에도 배타적으로 속하지 않는다.
     // (floorIndex, min(roomA,roomB), max(roomA,roomB))로 게이트를 식별해 별도로 추적한다.
-    private readonly Dictionary<(int floor, int roomA, int roomB), List<GameObject>> _gateFogVisuals = new Dictionary<(int, int, int), List<GameObject>>();
+    private readonly Dictionary<(int floor, int roomA, int roomB), GameObject> _gateFogVisuals = new Dictionary<(int, int, int), GameObject>();
     private Sprite _fogSprite;
     private Sprite _fogBackingSprite;
+    // Tilemap이 공유하는 타일 애셋 2장(배경/무늬) — 방/게이트/빈 청크 등 모든 안개 스폰이 이 둘만
+    // 재사용한다(예전처럼 스폰마다 스프라이트를 새로 만들지 않음). TryPrepareFogTiles가 지연 생성.
+    private UnityEngine.Tilemaps.Tile _fogBackingTile;
+    private UnityEngine.Tilemaps.Tile _fogPatternTile;
     // "스윽 사라지게"(사용자 요청, 구체적 초 수 지정 없음) — 자리표시자, 나중에 조정 요청 오면 이
     // 상수만 바꾸면 됨.
     private const float FogFadeOutSeconds = 0.6f;
@@ -193,71 +206,95 @@ public class FogOfWarSystem
         return _fogBackingSprite;
     }
 
-    // 안개 스프라이트/배경 로드 실패 시 false. 성공하면 backingSprite와 스케일 4종을 채워준다 —
-    // SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks가 모두 재사용.
-    private bool TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)
+    // 안개 타일 애셋(배경/무늬) 지연 생성 — 최초 1회만 만들고 이후 모든 안개 스폰이 이 둘을
+    // 공유한다(2026-08-24, Tilemap 전환). 스프라이트 원본 크기가 1 월드유닛과 정확히 안 맞을 수
+    // 있어(예: obj/fog.png의 PPU 설정에 따라) Tile.transform으로 셀 크기(1x1)에 정확히 맞춘다 —
+    // 예전 per-GameObject 방식의 patScaleX/Y·backScaleX/Y 계산과 동일한 목적.
+    private bool TryPrepareFogTiles()
     {
-        backingSprite = null; patScaleX = patScaleY = backScaleX = backScaleY = 1f;
+        if (_fogBackingTile != null && _fogPatternTile != null) return true;
+
         if (_fogSprite == null) _fogSprite = Resources.Load<Sprite>("obj/fog");
         if (_fogSprite == null)
         {
-            LogHelper.Warning(LogHelper.GAME, "TryPrepareFogAssets: Resources.Load<Sprite>(\"obj/fog\")가 null입니다 — Import 설정(Sprite Mode) 확인 필요.");
+            LogHelper.Warning(LogHelper.GAME, "TryPrepareFogTiles: Resources.Load<Sprite>(\"obj/fog\")가 null입니다 — Import 설정(Sprite Mode) 확인 필요.");
             return false;
         }
-        backingSprite = EnsureFogBackingSprite();
+        Sprite backingSprite = EnsureFogBackingSprite();
 
         Vector2 patternWorldSize = _fogSprite.bounds.size;
-        patScaleX = patternWorldSize.x > 0f ? 1f / patternWorldSize.x : 1f;
-        patScaleY = patternWorldSize.y > 0f ? 1f / patternWorldSize.y : 1f;
+        float patScaleX = patternWorldSize.x > 0f ? 1f / patternWorldSize.x : 1f;
+        float patScaleY = patternWorldSize.y > 0f ? 1f / patternWorldSize.y : 1f;
         Vector2 backingWorldSize = backingSprite.bounds.size;
-        backScaleX = backingWorldSize.x > 0f ? 1f / backingWorldSize.x : 1f;
-        backScaleY = backingWorldSize.y > 0f ? 1f / backingWorldSize.y : 1f;
+        float backScaleX = backingWorldSize.x > 0f ? 1f / backingWorldSize.x : 1f;
+        float backScaleY = backingWorldSize.y > 0f ? 1f / backingWorldSize.y : 1f;
+
+        // 배경(불투명에 가까움) — 무늬 텍스처의 줄무늬 틈으로 안이 비쳐 보이지 않도록 항상 먼저
+        // 완전히 가린다. 무늬(위) — obj/fog.png 그대로.
+        _fogBackingTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+        _fogBackingTile.sprite = backingSprite;
+        _fogBackingTile.color = FogBackingColor;
+        _fogBackingTile.transform = Matrix4x4.Scale(new Vector3(backScaleX, backScaleY, 1f));
+
+        _fogPatternTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+        _fogPatternTile.sprite = _fogSprite;
+        _fogPatternTile.color = Color.white;
+        _fogPatternTile.transform = Matrix4x4.Scale(new Vector3(patScaleX, patScaleY, 1f));
+
         return true;
     }
 
-    // 안개 타일 하나(배경+무늬 2겹) 생성 — SpawnFogForRoom/SpawnFogForGate/SpawnFogForEmptyChunks 공용.
-    // 셰도우 캐스트는 여기서 타일 단위로 안 붙인다(사용자 요청, 2026-07-28) — 문 안개는
-    // SpawnFogForGate가 타일들을 다 모은 뒤 윤곽선 하나짜리 캐스터를 별도로 만든다(벽과 동일한
-    // MapRandering.TraceContours 기법 — 타일마다 독립된 캐스터를 붙이면 그 이음새에서 빛이 샌다).
-    private GameObject SpawnFogTile(int x, int y, Vector3 offset, Transform parentGroup, Sprite backingSprite,
-        float patScaleX, float patScaleY, float backScaleX, float backScaleY, string namePrefix)
+    // 안개 "덩어리" 하나(배경+무늬 Tilemap 2장) 생성 — SpawnFogForRoom/SpawnFogForGate/
+    // SpawnFogForEmptyChunks/SpawnPermanentFogForFloor0HiddenChunk 공용(2026-08-24, 사용자 요청
+    // "안개가 프레임 드랍을 많이 유발함 — 방 전체를 하나의 안개로 bake"로 per-tile GameObject
+    // 방식에서 전환). parentGroup(Session.GetFloorCategoryGroup의 "Fog" 그룹)이 이미 그 층의
+    // floorOffset만큼 계층 구조로 옮겨져 있으므로(MapRandering.floorTilemaps 자식), 예전처럼
+    // 좌표마다 offset을 더할 필요 없이 원본 월드 타일 좌표를 그대로 셀 좌표로 쓴다 — SetParent(...,
+    // false)로 로컬 좌표 0을 유지하면 부모 계층의 오프셋이 자동으로 적용된다. 셰도우 캐스트는
+    // 여기서 셀 단위로 안 붙인다(사용자 요청, 2026-07-28) — 문 안개는 SpawnFogForGate가 타일들을
+    // 다 모은 뒤 윤곽선 하나짜리 캐스터를 별도로 만든다(RebuildFloorFogShadowCasters 참고).
+    private GameObject SpawnFogBlock(List<Vector3Int> cells, Transform parentGroup, string namePrefix)
     {
-        GameObject go = new GameObject($"Fog_{namePrefix}_{x}_{y}");
-        if (parentGroup != null) go.transform.SetParent(parentGroup);
-        go.transform.position = new Vector3(x + 0.5f, y + 0.5f, 0f) + offset;
+        if (cells == null || cells.Count == 0) return null;
+        if (!TryPrepareFogTiles()) return null;
 
-        // 배경(불투명에 가까움, 아래) + 무늬(위) 2겹 — 무늬 텍스처의 줄무늬 틈으로 안이 비쳐 보이지
-        // 않도록 배경이 항상 먼저 완전히 가린다.
+        GameObject root = new GameObject($"Fog_{namePrefix}");
+        if (parentGroup != null) root.transform.SetParent(parentGroup, false);
+
+        var cellArray = cells.ToArray();
+        var backingTiles = new UnityEngine.Tilemaps.TileBase[cellArray.Length];
+        var patternTiles = new UnityEngine.Tilemaps.TileBase[cellArray.Length];
+        for (int i = 0; i < cellArray.Length; i++)
+        {
+            backingTiles[i] = _fogBackingTile;
+            patternTiles[i] = _fogPatternTile;
+        }
+
         GameObject backingGo = new GameObject("Backing");
-        backingGo.transform.SetParent(go.transform, false);
-        SpriteRenderer backingSr = backingGo.AddComponent<SpriteRenderer>();
-        backingSr.sprite = backingSprite;
-        backingSr.color = FogBackingColor;
-        backingSr.sortingOrder = FogSortingOrder;
-        backingGo.transform.localScale = new Vector3(backScaleX, backScaleY, 1f);
+        backingGo.transform.SetParent(root.transform, false);
+        var backingTilemap = backingGo.AddComponent<UnityEngine.Tilemaps.Tilemap>();
+        var backingRenderer = backingGo.AddComponent<UnityEngine.Tilemaps.TilemapRenderer>();
+        backingRenderer.sortingOrder = FogSortingOrder;
+        backingTilemap.SetTiles(cellArray, backingTiles);
 
         GameObject patternGo = new GameObject("Pattern");
-        patternGo.transform.SetParent(go.transform, false);
-        SpriteRenderer patternSr = patternGo.AddComponent<SpriteRenderer>();
-        patternSr.sprite = _fogSprite;
-        patternSr.sortingOrder = FogSortingOrder + 1;
-        patternGo.transform.localScale = new Vector3(patScaleX, patScaleY, 1f);
+        patternGo.transform.SetParent(root.transform, false);
+        var patternTilemap = patternGo.AddComponent<UnityEngine.Tilemaps.Tilemap>();
+        var patternRenderer = patternGo.AddComponent<UnityEngine.Tilemaps.TilemapRenderer>();
+        patternRenderer.sortingOrder = FogSortingOrder + 1;
+        patternTilemap.SetTiles(cellArray, patternTiles);
 
-        return go;
+        return root;
     }
 
     private void SpawnFogForRoom(Room room)
     {
         if (room == null || room.Floor < 0) return;
-        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
 
         HashSet<Vector2Int> doorTiles = CollectDoorTilesForFloor(room.Floor);
-        MapRandering mapRandering = Session.mapRandering;
-        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && room.Floor < mapRandering.floorOffsets.Length)
-            ? mapRandering.floorOffsets[room.Floor] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(room.Floor, "Fog");
 
-        var tiles = new List<GameObject>();
+        var cells = new List<Vector3Int>();
         for (int x = room.Bounds.xMin; x < room.Bounds.xMax; x++)
         {
             for (int y = room.Bounds.yMin; y < room.Bounds.yMax; y++)
@@ -271,11 +308,12 @@ public class FogOfWarSystem
                 // — roomGrid로 실제 소유 방을 재확인해 그 방 타일만 안개로 덮는다.
                 if (!Session.roomGrid.TryGetValue(new Vector3Int(x, y, room.Floor), out Room owner) || owner != room) continue;
 
-                tiles.Add(SpawnFogTile(x, y, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, room.RoomName));
+                cells.Add(new Vector3Int(x, y, 0));
             }
         }
 
-        if (tiles.Count > 0) _roomFogVisuals[room] = tiles;
+        GameObject block = SpawnFogBlock(cells, fogGroup, room.RoomName);
+        if (block != null) _roomFogVisuals[room] = block;
     }
 
     // 문/통로 안개(2026-07-28, 사용자 요청 "문이 있는 공간(복도)도 옆방중에 하나라도 안개가 있다면 다
@@ -284,20 +322,16 @@ public class FogOfWarSystem
     // 경우, 이론상 발생 안 함)은 "이미 걷힌 것"으로 간주해 반대쪽 방 상태만으로 판단한다.
     private void SpawnFogForGate(int floorIndex, Gate g)
     {
-        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
-
-        MapRandering mapRandering = Session.mapRandering;
-        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
-            ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(floorIndex, "Fog");
         int chunkSize = Session.cmap.map.floors[floorIndex].config.chunkSize;
 
-        var tiles = new List<GameObject>();
+        var cells = new List<Vector3Int>();
         foreach (var row in DoorSystem.GetGateDoorTiles(g, chunkSize))
             foreach (var pos in row)
-                tiles.Add(SpawnFogTile(pos.x, pos.y, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Gate"));
+                cells.Add(new Vector3Int(pos.x, pos.y, 0));
 
-        if (tiles.Count > 0) _gateFogVisuals[GateKey(floorIndex, g)] = tiles;
+        GameObject block = SpawnFogBlock(cells, fogGroup, "Gate");
+        if (block != null) _gateFogVisuals[GateKey(floorIndex, g)] = block;
     }
 
     // 방이 생성되지 않은 청크(2026-07-28, 사용자 요청 "벽만 있는, 방이 생성되지 않은 청크도 안개
@@ -311,14 +345,11 @@ public class FogOfWarSystem
         if (cmap == null || cmap.map.floors == null || floorIndex <= 0 || floorIndex >= cmap.map.floors.Length) return;
         Floor floor = cmap.map.floors[floorIndex];
         if (floor.chunks == null) return;
-        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
 
-        MapRandering mapRandering = Session.mapRandering;
-        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && floorIndex < mapRandering.floorOffsets.Length)
-            ? mapRandering.floorOffsets[floorIndex] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(floorIndex, "Fog");
 
         int w = floor.config.width, h = floor.config.height, cs = floor.config.chunkSize;
+        var cells = new List<Vector3Int>();
         for (int cx = 0; cx < w; cx++)
         {
             for (int cy = 0; cy < h; cy++)
@@ -326,9 +357,11 @@ public class FogOfWarSystem
                 if (floor.chunks[cx, cy].roomId >= 0) continue;
                 for (int tx = 0; tx < cs; tx++)
                     for (int ty = 0; ty < cs; ty++)
-                        SpawnFogTile(cx * cs + tx, cy * cs + ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Void");
+                        cells.Add(new Vector3Int(cx * cs + tx, cy * cs + ty, 0));
             }
         }
+
+        SpawnFogBlock(cells, fogGroup, "Void");
     }
 
     // 0층 최좌측 숨은 스폰 청크(청크 좌표 (0,0) — HumanWaveManager.DungeonEntranceHiddenChunkCenterX가
@@ -351,11 +384,7 @@ public class FogOfWarSystem
     {
         CreateMap cmap = Session.cmap;
         if (cmap == null || cmap.map.floors == null || cmap.map.floors.Length == 0) return;
-        if (!TryPrepareFogAssets(out Sprite backingSprite, out float patScaleX, out float patScaleY, out float backScaleX, out float backScaleY)) return;
 
-        MapRandering mapRandering = Session.mapRandering;
-        Vector3 offset = (mapRandering != null && mapRandering.floorOffsets != null && mapRandering.floorOffsets.Length > 0)
-            ? mapRandering.floorOffsets[0] : Vector3.zero;
         Transform fogGroup = Session.GetFloorCategoryGroup(0, "Fog");
         int chunkTiles = cmap.map.floors[0].config.chunkSize;
 
@@ -364,9 +393,12 @@ public class FogOfWarSystem
         int yStart = -Floor0HiddenFogPadding;
         int yEnd = chunkTiles + Floor0HiddenFogPadding;
 
+        var cells = new List<Vector3Int>();
         for (int tx = xStart; tx < xEnd; tx++)
             for (int ty = yStart; ty < yEnd; ty++)
-                SpawnFogTile(tx, ty, offset, fogGroup, backingSprite, patScaleX, patScaleY, backScaleX, backScaleY, "Floor0Hidden");
+                cells.Add(new Vector3Int(tx, ty, 0));
+
+        SpawnFogBlock(cells, fogGroup, "Floor0Hidden");
 
         RebuildFloorFogShadowCasters(0);
     }
@@ -481,10 +513,10 @@ public class FogOfWarSystem
         if (room == null || room.FogRevealed) return;
         room.FogRevealed = true;
 
-        if (_roomFogVisuals.TryGetValue(room, out List<GameObject> tiles) && tiles != null && tiles.Count > 0)
+        if (_roomFogVisuals.TryGetValue(room, out GameObject block) && block != null)
         {
             _roomFogVisuals.Remove(room);
-            FadeOutAndDestroyFogAsync(tiles).Forget();
+            FadeOutAndDestroyFogAsync(block).Forget();
         }
 
         // 횃불 지연 스폰(2026-07-28, 사용자 요청 "안개가 있는 방에 토치 미리 생성하지 말고, 안개
@@ -548,50 +580,40 @@ public class FogOfWarSystem
             if (!neighborRevealed) continue;
 
             var key = GateKey(room.Floor, g);
-            if (_gateFogVisuals.TryGetValue(key, out List<GameObject> tiles) && tiles != null && tiles.Count > 0)
+            if (_gateFogVisuals.TryGetValue(key, out GameObject block) && block != null)
             {
                 _gateFogVisuals.Remove(key);
-                FadeOutAndDestroyFogAsync(tiles).Forget();
+                FadeOutAndDestroyFogAsync(block).Forget();
             }
         }
     }
 
     // "스윽 사라지게"(사용자 요청) — SceneTransitionFade.FadeAsync와 동일한 UniTask 알파 페이드 관례.
-    // 안개 타일 하나가 배경/무늬 2겹(서로 다른 시작 알파값)이라, 각 렌더러의 "시작 알파"를 미리
-    // 찍어두고 거기서부터 0으로 보간한다(전부 1→0으로 고정하면 배경(0.95)이 페이드 시작 순간 잠깐
-    // 더 진해지는 튐이 생김).
-    private async UniTaskVoid FadeOutAndDestroyFogAsync(List<GameObject> tiles)
+    // Tilemap 전환(2026-08-24) 이후로는 배경/무늬 각각 Tilemap.color(전체 셀에 곱해지는 틴트) 하나만
+    // 0으로 보간하면 된다 — Tile 자산 자체의 baked 알파(배경 0.95/무늬 1.0)에 곱해지므로, 예전처럼
+    // 렌더러마다 "시작 알파"를 따로 기억해둘 필요 없이 둘 다 1→0으로 페이드해도 배경이 잠깐 더
+    // 진해지는 튐 없이 동일한 결과가 나온다.
+    private async UniTaskVoid FadeOutAndDestroyFogAsync(GameObject block)
     {
-        var renderers = new List<SpriteRenderer>();
-        var startAlphas = new List<float>();
-        foreach (var go in tiles)
-        {
-            if (go == null) continue;
-            foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>())
-            {
-                renderers.Add(sr);
-                startAlphas.Add(sr.color.a);
-            }
-        }
+        if (block == null) return;
+        var tilemaps = block.GetComponentsInChildren<UnityEngine.Tilemaps.Tilemap>();
 
         float t = 0f;
         while (t < FogFadeOutSeconds)
         {
             t += Time.deltaTime;
-            float progress = Mathf.Clamp01(t / FogFadeOutSeconds);
-            for (int i = 0; i < renderers.Count; i++)
+            float alpha = Mathf.Lerp(1f, 0f, Mathf.Clamp01(t / FogFadeOutSeconds));
+            foreach (var tm in tilemaps)
             {
-                var sr = renderers[i];
-                if (sr == null) continue;
-                Color c = sr.color;
-                c.a = Mathf.Lerp(startAlphas[i], 0f, progress);
-                sr.color = c;
+                if (tm == null) continue;
+                Color c = tm.color;
+                c.a = alpha;
+                tm.color = c;
             }
             await UniTask.Yield();
         }
 
-        foreach (var go in tiles)
-            if (go != null) UnityEngine.Object.Destroy(go);
+        if (block != null) UnityEngine.Object.Destroy(block);
     }
 
     // ── 횃불 ──────────────────────────────────────────────────────────

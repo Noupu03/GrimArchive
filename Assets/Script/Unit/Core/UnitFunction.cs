@@ -1122,6 +1122,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				bool isCore = targetObj.Tags != null && targetObj.Tags.Contains(GameSession.CoreTag);
 				bool isDoor = targetObj.Tags != null && targetObj.Tags.Contains(DoorSystem.DoorTag);
+				Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
 
 				// 채널링 중에는 항상 공격 대상을 바라본다(2026-08-22 사용자 요청 "코어 공격 중일때는
 				// 코어를 바라보면서 하게 해줘" + "문도 동일", 실제 전투(CombatFSMState.ExecuteCombat)와
@@ -1129,17 +1130,39 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 세팅하고 Generate.UpdateUnitSpriteForDirection을 호출하지 않아서 내부 값은 바뀌어도
 				// 실제 스프라이트가 그 방향으로 갱신되지 않았다. Move()/CombatFSMState 둘 다 currentDir
 				// 세팅 직후 이 호출을 짝지어 하므로 여기서도 동일하게 맞춘다.
-				if (isCore || isDoor)
+				if ((isCore || isDoor) && targetPos2D != position)
 				{
-					Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
-					if (targetPos2D != position)
-					{
-						currentDir = SkillAction.GetDirection8(targetPos2D - position);
-						Generate?.UpdateUnitSpriteForDirection(this);
-					}
+					currentDir = SkillAction.GetDirection8(targetPos2D - position);
+					Generate?.UpdateUnitSpriteForDirection(this);
 				}
 
-				if (isCore && targetObj.CoreHp > 0f)
+				// 코어/문 파괴는 반드시 인접 1칸에서만 이뤄져야 한다(2026-08-24 사용자 신고 "원거리에서
+				// 문이나 코어 파괴 안되도록... 반드시 인접 1칸. 지금 내가 원거리 공격하는거 보고왔어") —
+				// MoveToCoreAttack/MoveToDoorAttack/ExecutePlayerAttackObject는 채널링을 "시작"하는
+				// 순간에만 인접을 확인하고, CoreAttackPerform/DoorAttackPerform은 대상 유효성만 재검증할
+				// 뿐 거리는 전혀 보지 않았다 — 그래서 채널링 도중 위협 회피/점멸(OnReactToThreat, 이
+				// 채널링 상태를 확인하지 않음) 등으로 유닛이 밀려나도 데미지는 멈추지 않고 계속 적용돼
+				// 실질적인 "원거리 파괴"가 됐다. 데미지 적용 직전 이 한 곳에서 매 프레임 인접을 다시
+				// 확인하면 자동 AI/플레이어 명령 두 경로 모두 자동으로 막힌다.
+				bool isAdjacent = AIMovementHelper.IsAdjacent(position, targetPos2D);
+
+				// 같은 프레임 안에서 다른 유닛이 먼저 이 코어를 파괴시켜 방 소유권이 이미 전환된
+				// 경우(OffenseProcessor.OnCoreDestroyed가 즉시 반피로 회복시킴) — CoreHp는 다시 0
+				// 초과라 아래 CoreHp > 0f 조건만으로는 이 유닛이 계속 깎아먹는 걸 막지 못한다(2026-08-24
+				// 사용자 신고 "반피로 수복이 되었는데도 이전의 감소처리가 남아서 체력이 조금 깎여있어").
+				// FindHostileRoomCore로 "지금도 여전히 이 유닛 진영에게 적대적인 코어인지"(방금 뒤바뀐
+				// 소유권 포함)를 데미지 적용 직전에 다시 확인한다 — CoreAttackPerform의 매 틱 재검증과
+				// 같은 목적이지만, 그건 다음 BT 틱에야 실행되어 이번 프레임의 과다 감소를 막지 못한다.
+				bool stillHostile = isCore && TacticalFSMState.FindHostileRoomCore(this, out _, out _);
+				if (isCore && (!isAdjacent || !stillHostile))
+				{
+					ClearAttackObjectTarget();
+				}
+				else if (isDoor && !isAdjacent)
+				{
+					ClearAttackObjectTarget();
+				}
+				else if (isCore && targetObj.CoreHp > 0f)
 				{
 					// 고정 초당 데미지(2026-08-22 사용자 요청 "코어 공격을... 공격 시도중인 유닛 마리
 					// 수 당 추가") — physicalAttack 스탯과 무관하게 채널링 유닛 1명당 항상 이 값만큼만

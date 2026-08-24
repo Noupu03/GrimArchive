@@ -54,6 +54,11 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         base.Constructor();
         Instance = this;
+
+        // 층 변경 패널을 다른 UI보다 뒤로 깔기 위한 별도 컴포넌트(2026-08-24 사용자 요청,
+        // FloorPanelOverlay.cs 주석 참고) — 새 프리팹/GUID 없이 이 GameObject에 런타임으로 붙인다.
+        if (gameObject.GetComponent<FloorPanelOverlay>() == null)
+            gameObject.AddComponent<FloorPanelOverlay>();
     }
 
     public void OpenPanel()
@@ -207,7 +212,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         DrawBar();
         DrawSubmenu();
-        DrawFloorPanel();
+        // DrawFloorPanel()은 더 이상 여기서 안 부른다 — FloorPanelOverlay(낮은 실행 순서로 먼저
+        // 그려짐)가 대신 호출해서, 겹칠 때 다른 UI가 층 패널을 덮도록 한다(위 Constructor 주석 참고).
     }
 
     private void DrawBar()
@@ -483,7 +489,9 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return count;
     }
 
-    private void DrawFloorPanel()
+    // FloorPanelOverlay가 호출한다(2026-08-24, 다른 UI보다 뒤로 깔기 위해 실행 순서가 이른 별도
+    // 컴포넌트로 분리 — 위 Constructor/FloorPanelOverlay.cs 주석 참고).
+    public void DrawFloorPanel()
     {
         var cam = CameraController.Instance;
         int currentFloor = cam != null ? cam.CurrentFloor : -1;
@@ -492,6 +500,22 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         Rect panelRect = GetFloorPanelRect();
         if (panelRect.height <= 0f) return;
+
+        // 다른 UI와 실제로 겹치면 이번 프레임엔 층 패널을 그리지 않는다(2026-08-24 사용자 신고
+        // "층 변경 UI가 다른 UI를 가려버림. 다른 패널들이 층 변경 패널을 가리게 하라") — 유닛
+        // 상세정보(DebugInfoPanel)는 uGUI Canvas라 OnGUI 실행 순서로는 애초에 못 가릴 수 있어
+        // (Canvas가 항상 OnGUI보다 먼저 그려지는 별개 렌더 패스), FloorPanelOverlay의 낮은 실행
+        // 순서만으로는 부족하다 — 겹치는 쪽(층 패널)이 아예 자기 자신을 안 그리는 방식으로 우선순위를
+        // 확실히 양보한다. 메뉴 정보(BuildingControlPanel)도 동일하게 확인.
+        if (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.TryGetVisibleInfoBoxRect(out Rect infoRect) && panelRect.Overlaps(infoRect))
+            return;
+        if (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.TryGetVisibleRect(out Rect buildRect) && panelRect.Overlaps(buildRect))
+            return;
+        // 하단 바 자신의 서브메뉴(예: debug 서브메뉴 — 항목이 많아 세로로 길게 늘어남)도 같은 클래스
+        // 안에서 그려지는 거라 실행 순서 트릭이 아예 적용되지 않는다(사용자 재신고, 2026-08-24 "지금
+        // debug 클릭하면 나오는 메뉴가 커서, 층 변경 패널이 가려버려") — 같은 방식으로 직접 확인한다.
+        if (_activeCategory != MenuCategory.None && panelRect.Overlaps(GetSubmenuBoundingRect()))
+            return;
 
         float y = panelRect.y;
         for (int f = 0; f < floorCount; f++)

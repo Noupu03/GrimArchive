@@ -30,7 +30,8 @@ public class ResourceManager : NativeRoutine
     public const int UnitBuildingStoneCost = 200;
 
     // 처치 보상(2026-07-27, 문서에 수치 미명시 — "시간기반 자동증가보다 훨씬 커야 한다"는 사용자
-    // 기준만 있어 판단 근거를 남기고 상수로 뺌) — BuildingManager의 자원 건물 틱(5초당 +5)의 6배.
+    // 기준만 있어 판단 근거를 남기고 상수로 뺌) — BuildingManager의 자원 건물 틱(5초당 +5, 2026-08-24
+    // 사용자 요청으로 2배 = 5초당 +10)의 3배.
     public const int KillRewardWood = 30;
     public const int KillRewardStone = 30;
 

@@ -62,7 +62,20 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // debug 메뉴로 옮겨져(BottomMenuBar) 여기서 더는 확인하지 않는다.
     public bool IsMouseOverUI()
     {
+        if (!TryGetVisibleInfoBoxRect(out Rect rect)) return false;
+        return GUIMouseUtil.IsMouseOverRect(rect);
+    }
+
+    // 다른 OnGUI 패널이 "지금 이 정보창과 실제로 겹치는지" 판정할 때 쓴다(2026-08-24 사용자 신고
+    // "층 변경 UI가 다른 UI를 가려버림" — BottomMenuBar.DrawFloorPanel 참고). 이 박스는 배경/텍스트가
+    // uGUI Canvas라 OnGUI 스크립트 실행 순서로는 겹침 순서를 못 바꾼다(Canvas는 항상 OnGUI보다 먼저
+    // 그려지는 별개 렌더 패스) — 그래서 겹치는 다른 OnGUI 패널 쪽에서 아예 자기 자신을 안 그리는
+    // 방식으로 우선순위를 준다. IsMouseOverUI와 동일한 사각형 계산을 재사용.
+    public bool TryGetVisibleInfoBoxRect(out Rect rect)
+    {
+        rect = default;
         if (infoBoxRect == null || _inputManager == null || _inputManager.selectedUnits.Count == 0) return false;
+        if (!infoBoxRect.gameObject.activeInHierarchy) return false;
 
         bool tabsVisible = _inputManager.selectedUnits.Count == 1;
         float extraTop = tabsVisible ? (TabHeight + TabGap) : 0f;
@@ -72,7 +85,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         float height = infoBoxRect.sizeDelta.y + extraTop;
         float top = Screen.height - (infoBoxRect.anchoredPosition.y + infoBoxRect.sizeDelta.y + extraTop);
 
-        return GUIMouseUtil.IsMouseOverRect(new Rect(left, top, width, height));
+        rect = new Rect(left, top, width, height);
+        return true;
     }
 
     public void OpenPanel()

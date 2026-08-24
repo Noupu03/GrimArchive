@@ -1036,7 +1036,7 @@ public class TacticalFSMState : IFSMState
 	// unit이 지금 서 있는 방의 코어가 "공격 대상"인지 확인한다 — 인류가 아니면(플레이어 몬스터/야생
 	// 모두) 항상 대상 아님. 그 외엔 방이 이미 내 진영 소유이거나, 코어 정보가 없거나(생성 실패 등
 	// 방어적 상황), 이미 파괴돼(회복 전 찰나) HP가 0이면 대상이 아니다.
-	private static bool FindHostileRoomCore(Unit unit, out Room room, out InteractableObject core)
+	internal static bool FindHostileRoomCore(Unit unit, out Room room, out InteractableObject core)
 	{
 		room = null;
 		core = null;
@@ -1059,6 +1059,7 @@ public class TacticalFSMState : IFSMState
 		if (!FindHostileRoomCore(unit, out Room room, out InteractableObject core))
 		{
 			unit.ClearAttackObjectTarget();
+			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Failure;
 		}
 
@@ -1069,22 +1070,62 @@ public class TacticalFSMState : IFSMState
 		if (unit.position == pos)
 		{
 			StepOffObjectTile(unit, pos);
+			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Running;
 		}
 
 		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
 			unit.SetAttackObjectTarget(room.CorePosition);
+			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Success;
 		}
 
 		unit.ClearAttackObjectTarget();
-		if (!AIMovementHelper.MoveTowardsPos(unit, pos))
+		if (AIMovementHelper.MoveTowardsPos(unit, pos))
 		{
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos);
-			if (fallback != pos) AIMovementHelper.MoveTowardsPos(unit, fallback);
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Running;
 		}
-		return BTStatus.Running;
+
+		// ExecutePlayerMove(PlayerCommandFSMState.cs, 2026-08-23)와 동일한 이유로 바꾼다 — target(코어)
+		// 주변의 "지금 당장 비어있는 칸"만 보는 FindNearbyOpenTile은 목표가 멀리 있으면 로컬 판단이라
+		// 도달 가능성과 무관하게 거의 항상 뭔가를 찾아버려서, fallback != pos가 매 틱 성립해
+		// tacticalObjectAttackStuckTurns가 계속 0으로 리셋되고 "자리가 없어서 경계로 전환"이 사실상
+		// 절대 발동하지 않았다(2026-08-24 사용자 신고 "문에서 오브젝트 공격→경계 간 전환이 안 되는거
+		// 같아... 공격이 아닌 경계를 해야하는(자리가 없는) 상황인데도"). 이미 목표에 근접(반경 2)했을
+		// 때만 이 폴백을 쓰고, 아니면 스킵해서 아래 혼잡/완전차단 판정으로 곧장 넘어간다.
+		Vector2Int fallback = AIMovementHelper.IsAdjacent(unit.position, pos, radius: 2)
+			? AIMovementHelper.FindNearbyOpenTile(unit, pos)
+			: pos;
+		if (fallback != pos)
+		{
+			AIMovementHelper.MoveTowardsPos(unit, fallback);
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Running;
+		}
+
+		// 유닛 자신의 위치 기준으로 "구조적으로(지형상) 갈 곳이 아예 없는지"를 확인한다(2026-08-24
+		// 사용자 요청 "자리가 없음뿐만 아니라 지나갈 길 없음도 판단 요소로 추가해줘") — 다른 유닛이
+		// 잠깐 몰려서 막힌 것뿐이면(지형상으로는 어딘가 열려있음) 몇 틱 인내하며 재시도하고, 벽/닫힌
+		// 문으로 사방이 진짜 막혀 있으면(=지나갈 길 자체가 없음) 몇 틱 기다릴 필요 없이 그 자리에서
+		// 즉시 포기하고 경계 상태로 전환한다.
+		if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(unit))
+		{
+			unit.tacticalObjectAttackStuckTurns++;
+			int limit = AIConfigLoader.Behavior?.tacticalObjectAttackStuckTurnLimit ?? 4;
+			if (unit.tacticalObjectAttackStuckTurns >= limit)
+			{
+				unit.tacticalObjectAttackStuckTurns = 0;
+				unit.currentAlertSearch = new AlertSearchState();
+				return BTStatus.Failure;
+			}
+			return BTStatus.Running;
+		}
+
+		unit.tacticalObjectAttackStuckTurns = 0;
+		unit.currentAlertSearch = new AlertSearchState();
+		return BTStatus.Failure;
 	}
 
 	// 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음 물러난다(9-6장
@@ -1114,10 +1155,23 @@ public class TacticalFSMState : IFSMState
 			unit.ClearAttackObjectTarget();
 			return BTStatus.Success;
 		}
-		if (obj.CoreHp > 0f) return BTStatus.Running; // 파괴 완료는 OffenseProcessor.OnCoreDestroyed가 처리
 
-		unit.ClearAttackObjectTarget();
-		return BTStatus.Success;
+		// 여러 유닛이 같은 코어를 동시에 공격 중일 때(2026-08-24 사용자 신고 "너무 많은 유닛들이
+		// 시도시, 끝나도 계속 파괴 이펙트가 남아있고 실제로 체력이 닳고있어") — 코어는 문과 달리
+		// 파괴돼도 오브젝트가 사라지지 않고 즉시 반피로 회복돼(OffenseProcessor.OnCoreDestroyed)
+		// 계속 존재한다. 예전엔 이 함수가 obj.CoreHp > 0f만 확인해서, "내 동료가 이미 점령을
+		// 끝낸" 뒤에도(HP는 회복돼 계속 0 초과) 나머지 공격자들은 그 사실을 전혀 모른 채 채널링
+		// (VFX/데미지)을 무한히 이어갔다. FindHostileRoomCore로 "지금도 여전히 이 유닛 진영에게
+		// 적대적인 코어인지"(진영 재확인 포함)를 매 틱 다시 검증한다 — PlayerCommandFSMState.
+		// IsPendingObjectAttackValid가 플레이어 명령 경로에서 이미 하던 것과 동일한 재검증을
+		// 자동 AI 경로에도 맞춘 것.
+		if (!FindHostileRoomCore(unit, out _, out _))
+		{
+			unit.ClearAttackObjectTarget();
+			return BTStatus.Success;
+		}
+
+		return BTStatus.Running;
 	}
 
 	// ── 문 공격(2026-08-22 신규, 사용자 요청 "인간쪽에만 적용되는 fsm인데, 방을 점령하고 난 다음,
@@ -1191,6 +1245,7 @@ public class TacticalFSMState : IFSMState
 		if (!FindHostileExitDoor(unit, out Vector3Int doorPos, out _))
 		{
 			unit.ClearAttackObjectTarget();
+			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Failure;
 		}
 
@@ -1201,30 +1256,64 @@ public class TacticalFSMState : IFSMState
 		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
 			BeginDoorChannel(unit, doorPos);
+			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Success;
 		}
 
-		bool madeProgress = AIMovementHelper.MoveTowardsPos(unit, pos);
-		if (!madeProgress)
+		// 좁은 통로(2*2 통로 등)에서 정확히 거리 1까지는 못 붙는 경우, 예전엔(2026-08-22) 반경 2에서
+		// 그냥 채널링을 시작했다 — 그런데 데미지 적용부(UnitFunction.OnUpdate)는 반드시 반경 1만
+		// 인정하므로(2026-08-24, "원거리에서 문이나 코어 파괴 안되도록... 반드시 인접 1칸"), 반경
+		// 2에서 시작한 채널링은 데미지가 적용되기도 전에 그 프레임/다음 프레임에 바로 취소되고, 매 틱
+		// 다시 반경 2 조건이 성립해 채널링 시작→즉시 취소가 끝없이 반복됐다 — 이게 사용자가 신고한
+		// "마법사 같은 유닛들이 계속 코어나 문 파괴를 원거리로 한다"의 실체였다(VFX/방향 전환만 매
+		// 틱 켜졌다 꺼지며 원거리 파괴처럼 보임, 회피/점멸과 무관하게 인류끼리만 있어도 재현). 반경
+		// 2 예외를 완전히 제거해 채널링 시작 조건도 반드시 반경 1로 통일했다 — 진짜로 반경 1까지
+		// 못 붙는 경우는 아래에서 처리한다.
+		unit.ClearAttackObjectTarget();
+		if (AIMovementHelper.MoveTowardsPos(unit, pos))
 		{
-			// 좁은 통로(2*2 통로 등)에서는 문 타일 자체가 막혀 있고 그 바로 옆(체비셰프 거리 1) 칸도
-			// 전부 다른 문/벽/유닛으로 막혀 있어 정확히 거리 1까지는 절대 못 붙는 경우가 있다 —
-			// TryGetNextStep이 "더 가까워질 방법이 없다"(closestNode == startNode)고 판단해
-			// MoveTowardsPos가 false를 반환하는 게 바로 이 상황. 사용자 신고(2026-08-22, "인류가
-			// 문으로 접근은 하는데 채널링이 안 걸림")의 원인으로 추정 — 더 가까워질 수 없는데 이미
-			// 어느 정도 가까이(반경 2) 왔다면 그 자리에서 채널링을 시작한다.
-			if (AIMovementHelper.IsAdjacent(unit.position, pos, radius: 2))
-			{
-				BeginDoorChannel(unit, doorPos);
-				return BTStatus.Success;
-			}
-
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, pos);
-			if (fallback != pos) AIMovementHelper.MoveTowardsPos(unit, fallback);
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Running;
 		}
 
-		unit.ClearAttackObjectTarget();
-		return BTStatus.Running;
+		// ExecutePlayerMove(PlayerCommandFSMState.cs, 2026-08-23)와 동일한 이유로 바꾼다 — target(문)
+		// 주변의 "지금 당장 비어있는 칸"만 보는 FindNearbyOpenTile은 목표가 멀리 있으면 로컬 판단이라
+		// 도달 가능성과 무관하게 거의 항상 뭔가를 찾아버려서, fallback != pos가 매 틱 성립해
+		// tacticalObjectAttackStuckTurns가 계속 0으로 리셋되고 "자리가 없어서 경계로 전환"이 사실상
+		// 절대 발동하지 않았다(2026-08-24 사용자 신고 "문에서 오브젝트 공격→경계 간 전환이 안 되는거
+		// 같아... 공격이 아닌 경계를 해야하는(자리가 없는) 상황인데도"). 이미 목표에 근접(반경 2)했을
+		// 때만 이 폴백을 쓰고, 아니면 스킵해서 아래 혼잡/완전차단 판정으로 곧장 넘어간다.
+		Vector2Int fallback = AIMovementHelper.IsAdjacent(unit.position, pos, radius: 2)
+			? AIMovementHelper.FindNearbyOpenTile(unit, pos)
+			: pos;
+		if (fallback != pos)
+		{
+			AIMovementHelper.MoveTowardsPos(unit, fallback);
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Running;
+		}
+
+		// 유닛 자신의 위치 기준으로 "구조적으로(지형상) 갈 곳이 아예 없는지"를 확인한다(2026-08-24
+		// 사용자 요청 "자리가 없음뿐만 아니라 지나갈 길 없음도 판단 요소로 추가해줘") — 다른 유닛이
+		// 잠깐 몰려서 막힌 것뿐이면(지형상으로는 어딘가 열려있음) 몇 틱 인내하며 재시도하고, 벽/닫힌
+		// 문으로 사방이 진짜 막혀 있으면(=지나갈 길 자체가 없음) 몇 틱 기다릴 필요 없이 그 자리에서
+		// 즉시 포기하고 경계 상태로 전환한다.
+		if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(unit))
+		{
+			unit.tacticalObjectAttackStuckTurns++;
+			int limit = AIConfigLoader.Behavior?.tacticalObjectAttackStuckTurnLimit ?? 4;
+			if (unit.tacticalObjectAttackStuckTurns >= limit)
+			{
+				unit.tacticalObjectAttackStuckTurns = 0;
+				unit.currentAlertSearch = new AlertSearchState();
+				return BTStatus.Failure;
+			}
+			return BTStatus.Running;
+		}
+
+		unit.tacticalObjectAttackStuckTurns = 0;
+		unit.currentAlertSearch = new AlertSearchState();
+		return BTStatus.Failure;
 	}
 
 	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
