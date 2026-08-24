@@ -30,6 +30,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
     // 사각형이 아니어도(L/T/ㄷ/S자 등) 근사 없이 실제 바닥 모양 그대로 나온다.
     private readonly Dictionary<(int floor, int roomId), List<LineRenderer>> _roomOutlines
         = new Dictionary<(int, int), List<LineRenderer>>();
+    // 방 하나의 윤곽선 조각(_0, _1, ...)들을 한데 묶어두는 부모 오브젝트. 방이 벽으로 갈라져 폐곡선이
+    // 여러 개인 경우에도 하이어라키에서 낱개로 흩어지지 않고 "RoomOutline_F{f}_R{roomId}" 하나로 보인다.
+    private readonly Dictionary<(int floor, int roomId), Transform> _roomOutlineGroups
+        = new Dictionary<(int, int), Transform>();
 
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
@@ -485,6 +489,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 아래 mapRoot 자식 파괴가 outline GameObject도 함께 정리하므로(_roomOverlays.Clear()와
         // 동일한 관례) 여기서는 딕셔너리만 비운다.
         _roomOutlines.Clear();
+        _roomOutlineGroups.Clear();
         if (mapRoot != null)
         {
             for (int i = mapRoot.transform.childCount - 1; i >= 0; i--)
@@ -640,6 +645,14 @@ public class MapRandering : NativeRoutine, IMapColorizer
             _roomOutlines[key] = renderers;
         }
 
+        if (!_roomOutlineGroups.TryGetValue(key, out var group) || group == null)
+        {
+            var groupGo = new GameObject($"RoomOutline_F{floorIdx}_R{roomId}");
+            groupGo.transform.SetParent(parent, false);
+            group = groupGo.transform;
+            _roomOutlineGroups[key] = group;
+        }
+
         for (int i = 0; i < loops.Count; i++)
         {
             var loop = loops[i];
@@ -653,8 +666,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
             }
             else
             {
-                var go = new GameObject($"RoomOutline_F{floorIdx}_R{roomId}_{i}");
-                go.transform.SetParent(parent, false);
+                var go = new GameObject($"Outline_{i}");
+                go.transform.SetParent(group, false);
                 lr = go.AddComponent<LineRenderer>();
                 lr.useWorldSpace = false;
                 lr.loop = true;

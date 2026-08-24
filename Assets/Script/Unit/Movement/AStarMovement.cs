@@ -288,6 +288,13 @@ public class AStarMovement : IMovementAlgorithm
         return result;
     }
 
+    public void ClearCache()
+    {
+        _cacheTarget = new Vector2Int(-9999, -9999);
+        _pathMap.Clear();
+        _cacheTime = 0f;
+    }
+
     // 유닛 점유 타일을 "비용만 추가되는 통행 가능 칸"으로 취급했었는데, 실제 이동을 실행하는
     // UnitFunction.CanMove/Move()는 점유된 칸을 예외 없이 완전히 막는다(2026-07-22 발견) — A*가
     // "이 길로 가면 조금 더 걸리지만 갈 수는 있다"고 추천한 칸이 실제로는 Move() 단계에서 조용히
