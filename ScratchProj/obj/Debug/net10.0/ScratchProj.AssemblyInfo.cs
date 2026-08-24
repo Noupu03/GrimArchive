@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ScratchProj")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3a8d3094d1a30efd20ffb9c6ad85ce7ce1326513")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+782b3c2450212456f0940c8d98baf48d295999b8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ScratchProj")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ScratchProj")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

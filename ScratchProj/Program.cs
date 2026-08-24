@@ -1,783 +1,480 @@
 using System;
+using System.IO;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Reflection;
 using System.Collections.Generic;
+using System.Linq;
 
-namespace GrimArchive.StressTests
+namespace Verification
 {
-    public enum Dir
-    {
-        UP,
-        UP_RIGHT,
-        RIGHT,
-        DOWN_RIGHT,
-        DOWN,
-        DOWN_LEFT,
-        LEFT,
-        UP_LEFT
-    }
-
-    public struct Vector2
-    {
-        public float x, y;
-        public Vector2(float x, float y) { this.x = x; this.y = y; }
-        public static Vector2 zero => new Vector2(0, 0);
-        public static Vector2 down => new Vector2(0, -1);
-        public static Vector2 up => new Vector2(0, 1);
-        public static Vector2 left => new Vector2(-1, 0);
-        public static Vector2 right => new Vector2(1, 0);
-
-        public static Vector2 operator -(Vector2 a, Vector2 b) => new Vector2(a.x - b.x, a.y - b.y);
-        public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.x + b.x, a.y + b.y);
-        public static bool operator !=(Vector2 a, Vector2 b) => MathF.Abs(a.x - b.x) > 1e-5f || MathF.Abs(a.y - b.y) > 1e-5f;
-        public static bool operator ==(Vector2 a, Vector2 b) => MathF.Abs(a.x - b.x) <= 1e-5f && MathF.Abs(a.y - b.y) <= 1e-5f;
-        public override bool Equals(object? obj) => obj is Vector2 other && this == other;
-        public override int GetHashCode() => HashCode.Combine(x, y);
-
-        public float magnitude => MathF.Sqrt(x * x + y * y);
-        public Vector2 normalized
-        {
-            get
-            {
-                float mag = magnitude;
-                return mag > 1e-5f ? new Vector2(x / mag, y / mag) : zero;
-            }
-        }
-
-        public static float Dot(Vector2 lhs, Vector2 rhs) => lhs.x * rhs.x + lhs.y * rhs.y;
-        public static float Distance(Vector2 a, Vector2 b) => (a - b).magnitude;
-    }
-
-    public struct Vector2Int
-    {
-        public int x, y;
-        public Vector2Int(int x, int y) { this.x = x; this.y = y; }
-        public static implicit operator Vector2(Vector2Int v) => new Vector2(v.x, v.y);
-        public static Vector2Int operator -(Vector2Int a, Vector2Int b) => new Vector2Int(a.x - b.x, a.y - b.y);
-        public static bool operator !=(Vector2Int a, Vector2Int b) => a.x != b.x || a.y != b.y;
-        public static bool operator ==(Vector2Int a, Vector2Int b) => a.x == b.x && a.y == b.y;
-        public override bool Equals(object? obj) => obj is Vector2Int other && this == other;
-        public override int GetHashCode() => HashCode.Combine(x, y);
-    }
-
-    public static class Mathf
-    {
-        public static float Max(float a, float b) => MathF.Max(a, b);
-        public static float Min(float a, float b) => MathF.Min(a, b);
-        public static float Clamp(float v, float min, float max) => MathF.Max(min, MathF.Min(max, v));
-    }
-
-    public class MockHealth
-    {
-        public float maxHp = 100f;
-        public float hp = 100f;
-    }
-
-    public class MockCombatStat
-    {
-        public float physicalAttack = 40f;
-        public float magicalAttack = 20f;
-        public float physicalDefense = 10f;
-        public float magicalDefense = 10f;
-    }
-
-    public class MockSession
-    {
-        public List<MockUnit> units = new List<MockUnit>();
-    }
-
-    public class MockUnit
-    {
-        public string name = "Unit";
-        public Vector2Int position;
-        public Dir currentDir;
-        public int currentFloor = 0;
-        public bool isPlayer = true;
-        public MockHealth Health = new MockHealth();
-        public MockCombatStat CombatStat = new MockCombatStat();
-        public MockSession? Session;
-
-        public bool IsEnemy(MockUnit other) => this.isPlayer != other.isPlayer;
-
-        public Vector2Int GetDirVector(Dir dir)
-        {
-            return dir switch
-            {
-                Dir.UP => new Vector2Int(0, 1),
-                Dir.UP_RIGHT => new Vector2Int(1, 1),
-                Dir.RIGHT => new Vector2Int(1, 0),
-                Dir.DOWN_RIGHT => new Vector2Int(1, -1),
-                Dir.DOWN => new Vector2Int(0, -1),
-                Dir.DOWN_LEFT => new Vector2Int(-1, -1),
-                Dir.LEFT => new Vector2Int(-1, 0),
-                Dir.UP_LEFT => new Vector2Int(-1, 1),
-                _ => new Vector2Int(0, 0)
-            };
-        }
-    }
-
-    public class SkillData
-    {
-        public string skillName = "";
-        public string skillArchetype = "";
-        public float effectAmount;
-        public float effectDuration;
-        public float damageMultiplier = 1.0f;
-        public int multiHitCount = 1;
-        public float explosionRadius = 1.0f;
-        public int hitRange = 4;
-        public bool hasStun = false;
-        public float stunDuration = 0f;
-    }
-
-    // Logic identical to SkillAction_Backstab
-    public static class BackstabLogic
-    {
-        public static bool IsBackstab(MockUnit? attacker, MockUnit? target)
-        {
-            if (attacker == null || target == null) return false;
-
-            Vector2 targetForward = target.GetDirVector(target.currentDir);
-            Vector2 attackerForward = attacker.GetDirVector(attacker.currentDir);
-            Vector2 toTarget = target.position != attacker.position
-                ? ((Vector2)(target.position - attacker.position)).normalized
-                : Vector2.zero;
-
-            float posDot = Vector2.Dot(toTarget, targetForward);
-
-            if (posDot < -0.3f) return false;
-
-            bool isDirAligned = attacker.currentDir == target.currentDir || Vector2.Dot(attackerForward, targetForward) > 0.3f;
-
-            if (posDot > 0.3f)
-            {
-                if (isDirAligned || posDot > 0.5f) return true;
-            }
-
-            if (isDirAligned && posDot >= -0.1f) return true;
-
-            return false;
-        }
-    }
-
-    // Logic identical to SkillAction_Shield
-    public static class ShieldLogic
-    {
-        public static MockUnit FindShieldTarget(MockUnit unit, int maxRange = -1)
-        {
-            if (unit == null || unit.Session == null || unit.Session.units == null) return unit ?? new MockUnit();
-
-            MockUnit bestTarget = unit;
-            float lowestHpRatio = unit.Health != null ? (unit.Health.hp / Mathf.Max(1f, unit.Health.maxHp)) : 1f;
-            int range = maxRange >= 0 ? maxRange : 4;
-
-            foreach (var u in unit.Session.units)
-            {
-                if (u == null || u.Health == null || u.Health.hp <= 0 || u.currentFloor != unit.currentFloor) continue;
-                if (unit.IsEnemy(u)) continue;
-
-                float dist = Vector2.Distance(unit.position, u.position);
-                if (dist > range) continue;
-
-                float hpRatio = u.Health.hp / Mathf.Max(1f, u.Health.maxHp);
-                if (hpRatio < lowestHpRatio)
-                {
-                    lowestHpRatio = hpRatio;
-                    bestTarget = u;
-                }
-            }
-            return bestTarget;
-        }
-
-        public static void ApplyShield(MockUnit target, SkillData d, out float boost)
-        {
-            boost = d.effectAmount > 0 ? d.effectAmount : 40f;
-            if (target != null && target.Health != null && target.Health.hp > 0)
-            {
-                target.Health.maxHp += boost;
-                target.Health.hp += boost;
-            }
-        }
-
-        public static void RollbackShield(MockUnit target, float boost)
-        {
-            if (target != null && target.Health != null && target.Health.hp > 0)
-            {
-                target.Health.maxHp = Mathf.Max(1f, target.Health.maxHp - boost);
-                target.Health.hp = Mathf.Min(target.Health.hp, target.Health.maxHp);
-            }
-        }
-    }
-
-    // Logic identical to SkillAction_PartyBuff
-    public static class PartyBuffLogic
-    {
-        public static Dictionary<MockUnit, (float pAtk, float mAtk)> ApplyBuff(MockUnit caster, SkillData d)
-        {
-            var applied = new Dictionary<MockUnit, (float pAtk, float mAtk)>();
-            if (caster.Session != null && caster.Session.units != null)
-            {
-                foreach (var u in caster.Session.units)
-                {
-                    if (u == null || u.Health == null || u.Health.hp <= 0 || u.currentFloor != caster.currentFloor || u.CombatStat == null) continue;
-                    if (caster.IsEnemy(u)) continue;
-
-                    float pBonus = d.effectAmount > 1.0f ? d.effectAmount : (d.effectAmount > 0f ? u.CombatStat.physicalAttack * d.effectAmount : 10f);
-                    float mBonus = d.effectAmount > 1.0f ? d.effectAmount : (d.effectAmount > 0f ? u.CombatStat.magicalAttack * d.effectAmount : 10f);
-
-                    u.CombatStat.physicalAttack += pBonus;
-                    u.CombatStat.magicalAttack += mBonus;
-
-                    applied[u] = (pBonus, mBonus);
-                }
-            }
-            else
-            {
-                if (caster.CombatStat != null)
-                {
-                    float pBonus = d.effectAmount > 1.0f ? d.effectAmount : (d.effectAmount > 0f ? caster.CombatStat.physicalAttack * d.effectAmount : 10f);
-                    float mBonus = d.effectAmount > 1.0f ? d.effectAmount : (d.effectAmount > 0f ? caster.CombatStat.magicalAttack * d.effectAmount : 10f);
-
-                    caster.CombatStat.physicalAttack += pBonus;
-                    caster.CombatStat.magicalAttack += mBonus;
-                    applied[caster] = (pBonus, mBonus);
-                }
-            }
-            return applied;
-        }
-
-        public static void RollbackBuff(Dictionary<MockUnit, (float pAtk, float mAtk)> applied)
-        {
-            foreach (var kvp in applied)
-            {
-                var ally = kvp.Key;
-                if (ally != null && ally.Health != null && ally.Health.hp > 0 && ally.CombatStat != null)
-                {
-                    ally.CombatStat.physicalAttack = Mathf.Max(0f, ally.CombatStat.physicalAttack - kvp.Value.pAtk);
-                    ally.CombatStat.magicalAttack = Mathf.Max(0f, ally.CombatStat.magicalAttack - kvp.Value.mAtk);
-                }
-            }
-        }
-    }
-
-    // Logic identical to SkillAction_Curse
-    public static class CurseLogic
-    {
-        public static Dictionary<MockUnit, (float debuffAtk, float debuffDef)> ApplyCurse(MockUnit caster, List<MockUnit> enemiesInHitbox, SkillData d)
-        {
-            var results = new Dictionary<MockUnit, (float, float)>();
-            foreach (var enemy in enemiesInHitbox)
-            {
-                if (enemy == null || enemy.Health == null || enemy.Health.hp <= 0 || enemy.CombatStat == null) continue;
-
-                float debuffAtk = d.effectAmount > 1.0f 
-                    ? Mathf.Min(enemy.CombatStat.physicalAttack, d.effectAmount)
-                    : (d.effectAmount > 0f ? enemy.CombatStat.physicalAttack * d.effectAmount : Mathf.Min(enemy.CombatStat.physicalAttack, 10f));
-
-                float debuffDef = d.effectAmount > 1.0f 
-                    ? Mathf.Min(enemy.CombatStat.physicalDefense, d.effectAmount)
-                    : (d.effectAmount > 0f ? enemy.CombatStat.physicalDefense * d.effectAmount : Mathf.Min(enemy.CombatStat.physicalDefense, 10f));
-
-                enemy.CombatStat.physicalAttack = Mathf.Max(0f, enemy.CombatStat.physicalAttack - debuffAtk);
-                enemy.CombatStat.physicalDefense = Mathf.Max(0f, enemy.CombatStat.physicalDefense - debuffDef);
-
-                results[enemy] = (debuffAtk, debuffDef);
-            }
-            return results;
-        }
-
-        public static void RollbackCurse(MockUnit enemy, float debuffAtk, float debuffDef)
-        {
-            if (enemy != null && enemy.Health != null && enemy.Health.hp > 0 && enemy.CombatStat != null)
-            {
-                enemy.CombatStat.physicalAttack += debuffAtk;
-                enemy.CombatStat.physicalDefense += debuffDef;
-            }
-        }
-    }
-
-    // Logic identical to SkillAction_Heal
-    public static class HealLogic
-    {
-        public static MockUnit FindLowestHpAlly(MockUnit unit, int maxRange = -1)
-        {
-            if (unit == null || unit.Session == null || unit.Session.units == null) return unit ?? new MockUnit();
-
-            MockUnit bestTarget = unit;
-            float lowestHpRatio = unit.Health != null ? (unit.Health.hp / Mathf.Max(1f, unit.Health.maxHp)) : 1f;
-            int range = maxRange >= 0 ? maxRange : 5;
-
-            foreach (var u in unit.Session.units)
-            {
-                if (u == null || u.Health == null || u.Health.hp <= 0 || u.currentFloor != unit.currentFloor) continue;
-                if (unit.IsEnemy(u)) continue;
-
-                float dist = Vector2.Distance(unit.position, u.position);
-                if (dist > range) continue;
-
-                float hpRatio = u.Health.hp / Mathf.Max(1f, u.Health.maxHp);
-                if (hpRatio < lowestHpRatio)
-                {
-                    lowestHpRatio = hpRatio;
-                    bestTarget = u;
-                }
-            }
-            return bestTarget;
-        }
-
-        public static void ExecuteHeal(MockUnit caster, MockUnit target, SkillData d)
-        {
-            if (target != null && target.Health != null && target.Health.hp > 0)
-            {
-                float healAmt = d.effectAmount > 0f ? d.effectAmount : 30.0f;
-                target.Health.hp = Mathf.Min(target.Health.maxHp, target.Health.hp + healAmt);
-            }
-        }
-    }
-
-    // Logic identical to SkillAction_GroundAoE
-    public static class GroundAoELogic
-    {
-        public static List<MockUnit> GetEnemiesInRadius(MockUnit caster, Vector2 center, float radius)
-        {
-            var list = new List<MockUnit>();
-            if (caster.Session == null || caster.Session.units == null) return list;
-
-            foreach (var u in caster.Session.units)
-            {
-                if (u == null || u.Health == null || u.Health.hp <= 0 || u.currentFloor != caster.currentFloor) continue;
-                if (!caster.IsEnemy(u)) continue;
-
-                float dist = Vector2.Distance(u.position, center);
-                if (dist <= radius)
-                {
-                    list.Add(u);
-                }
-            }
-            return list;
-        }
-    }
-
     class Program
     {
         static int totalTests = 0;
         static int passedTests = 0;
         static int failedTests = 0;
+        static List<string> failureDetails = new();
 
-        static void Assert(bool condition, string testName, string message = "")
+        static void Assert(bool condition, string testName, string failMessage = "")
         {
             totalTests++;
             if (condition)
             {
                 passedTests++;
+                Console.WriteLine($"[PASS] {testName}");
             }
             else
             {
                 failedTests++;
+                string err = $"[FAIL] {testName}: {failMessage}";
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[FAIL] {testName}: {message}");
+                Console.WriteLine(err);
                 Console.ResetColor();
+                failureDetails.Add(err);
             }
+        }
+
+        static void SetupAssemblyResolver(string rootDir)
+        {
+            var searchPaths = new List<string>
+            {
+                Path.Combine(rootDir, "Temp/bin/Debug"),
+                Path.Combine(rootDir, "Library/Bee/PlayerScriptAssemblies"),
+                Path.Combine(rootDir, "Library/ScriptAssemblies"),
+                Path.Combine(rootDir, "Assets/Plugins/Demigiant/DOTween"),
+                @"C:\Program Files\Unity\Hub\Editor\6000.3.12f1\Editor\Data\Managed",
+                @"C:\Program Files\Unity\Hub\Editor\6000.3.12f1\Editor\Data\Managed\UnityEngine"
+            };
+
+            string pkgDir = Path.Combine(rootDir, "Assets/Packages");
+            if (Directory.Exists(pkgDir))
+            {
+                foreach (var dll in Directory.GetFiles(pkgDir, "*.dll", SearchOption.AllDirectories))
+                {
+                    string dir = Path.GetDirectoryName(dll);
+                    if (!searchPaths.Contains(dir)) searchPaths.Add(dir);
+                }
+            }
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                string asmName = new AssemblyName(args.Name).Name;
+                foreach (var dir in searchPaths)
+                {
+                    if (Directory.Exists(dir))
+                    {
+                        string candidate = Path.Combine(dir, asmName + ".dll");
+                        if (File.Exists(candidate))
+                        {
+                            try
+                            {
+                                return Assembly.LoadFrom(candidate);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                return null;
+            };
         }
 
         static void Main(string[] args)
         {
-            Console.WriteLine("=======================================================================");
-            Console.WriteLine("EMPIRE ADVERSARIAL STRESS SUITE: M1 ITERATION 2 GATE VERIFICATION");
-            Console.WriteLine("=======================================================================");
+            string rootDir = Directory.GetCurrentDirectory();
+            Console.WriteLine("================================================================================");
+            Console.WriteLine("CHALLENGER 2: EMPIRICAL STRESS TEST & REFLECTION / RESOURCE HARNESS");
+            Console.WriteLine($"Root: {rootDir}");
+            Console.WriteLine("================================================================================\n");
 
-            TestBackstabExhaustiveGeometryMatrix();
-            TestBackstabRandomContinuousFuzzing();
-            TestShieldLifecycleExhaustiveMatrix();
-            TestShieldTargetTriagePriority();
-            TestPartyBuffFlatVsRatioExhaustiveMatrix();
-            TestPartyBuffMultiCasterStacking();
-            TestCurseFlatVsRatioExhaustiveMatrix();
-            TestCurseOverDebuffZeroFloorAndRestoration();
-            TestPriestDynamicTriageDeadAndFullUnitExclusion();
-            TestGroundAoERadiusBoundaryPrecision();
-            TestEndToEndFullCombatCrossFeatureFlow();
+            SetupAssemblyResolver(rootDir);
 
-            Console.WriteLine("=======================================================================");
-            Console.WriteLine($"RESULTS: Total: {totalTests} | Passed: {passedTests} | Failed: {failedTests}");
-            Console.WriteLine("=======================================================================");
+            // -------------------------------------------------------------------------
+            // PART 1: Assembly Reflection & WaveSpawner.ResolveUnitType Consistency
+            // -------------------------------------------------------------------------
+            Console.WriteLine(">>> TEST SUITE 1: WaveSpawner Reflection & UnitTypes Dynamic Resolution");
+            string asmPath = Path.Combine(rootDir, "Temp/bin/Debug/Assembly-CSharp.dll");
+            Assert(File.Exists(asmPath), "Assembly-CSharp.dll existence", $"File not found at {asmPath}");
+
+            if (File.Exists(asmPath))
+            {
+                var asm = Assembly.LoadFrom(asmPath);
+                var unitTypeBase = asm.GetType("UnitType");
+                Assert(unitTypeBase != null, "UnitType base class exists in Assembly-CSharp");
+
+                Type[] allTypes;
+                try
+                {
+                    allTypes = asm.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    allTypes = ex.Types.Where(t => t != null).ToArray();
+                }
+
+                var nonAbstractSubclasses = allTypes
+                    .Where(t => t.BaseType != null && (t.BaseType == unitTypeBase || t.IsSubclassOf(unitTypeBase)) && !t.IsAbstract)
+                    .ToList();
+
+                Assert(nonAbstractSubclasses.Count >= 15, $"Subclasses of UnitType discovered (found {nonAbstractSubclasses.Count})");
+
+                // Simulate WaveSpawner.ResolveUnitType and CreateUnitTypeInstance exactly
+                Type ResolveUnitType(string typeName)
+                {
+                    if (string.IsNullOrEmpty(typeName)) return null;
+
+                    Type t = asm.GetType(typeName);
+                    if (t == null)
+                    {
+                        foreach (Type type in nonAbstractSubclasses)
+                        {
+                            try
+                            {
+                                var tempInstance = Activator.CreateInstance(type);
+                                var field = type.GetField("typeName");
+                                if (field != null && (string)field.GetValue(tempInstance) == typeName)
+                                {
+                                    t = type;
+                                    break;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    return t;
+                }
+
+                object CreateUnitTypeInstance(string typeName)
+                {
+                    Type t = ResolveUnitType(typeName);
+                    if (t == null) return null;
+                    try
+                    {
+                        var inst = Activator.CreateInstance(t);
+                        if (!unitTypeBase.IsAssignableFrom(t)) return null;
+                        return inst;
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+
+                // 1.1 Test Target Monsters
+                var targetMonsters = new Dictionary<string, string>
+                {
+                    { "인형 기사", "DollKnight" },
+                    { "놀", "GnoleA" },
+                    { "고블린 후드", "GoblinHoodA" }
+                };
+
+                foreach (var kvp in targetMonsters)
+                {
+                    string targetName = kvp.Key;
+                    string expectedClassName = kvp.Value;
+
+                    Type resolved = ResolveUnitType(targetName);
+                    Assert(resolved != null, $"ResolveUnitType('{targetName}') resolves non-null", "Returned null");
+                    if (resolved != null)
+                    {
+                        Assert(resolved.Name == expectedClassName, $"ResolveUnitType('{targetName}') maps to {expectedClassName}", $"Resolved to {resolved.Name}");
+
+                        var inst = Activator.CreateInstance(resolved);
+                        var nameField = resolved.GetField("typeName");
+                        var footField = resolved.GetField("footprint");
+
+                        string actualName = (string)nameField.GetValue(inst);
+                        object footprintVal = footField.GetValue(inst);
+
+                        Assert(actualName == targetName, $"{expectedClassName}.typeName field matches '{targetName}'", $"Actual: {actualName}");
+                        Assert(footprintVal != null, $"{expectedClassName}.footprint is non-null");
+
+                        var created = CreateUnitTypeInstance(targetName);
+                        Assert(created != null, $"CreateUnitTypeInstance('{targetName}') returns valid UnitType instance");
+                    }
+                }
+
+                // 1.2 Test Legacy & Human Unit Types
+                var otherTypes = new Dictionary<string, string>
+                {
+                    { "근접 탱커", "MeleeTank" },
+                    { "야생 몬스터 A", "WildMonsterA" },
+                    { "보스 골렘", "BossGolem" },
+                    { "야생 거점", "WildBaseType" },
+                    { "전사", "Warrior" },
+                    { "도적", "Rogue" },
+                    { "마법사", "Mage" },
+                    { "사제", "Priest" },
+                    { "성기사", "Paladin" },
+                    { "주술사", "Shaman" },
+                    { "무도가", "Monk" },
+                    { "음유시인", "Bard" },
+                    { "기사형", "Knight" },
+                    { "인간", "HumanBaseType" },
+                    { "아처형", "Archer" }
+                };
+
+                foreach (var kvp in otherTypes)
+                {
+                    Type resolved = ResolveUnitType(kvp.Key);
+                    Assert(resolved != null && resolved.Name == kvp.Value, $"ResolveUnitType('{kvp.Key}') -> {kvp.Value}");
+                    var created = CreateUnitTypeInstance(kvp.Key);
+                    Assert(created != null, $"CreateUnitTypeInstance('{kvp.Key}') returns instance of {kvp.Value}");
+                }
+
+                // 1.3 Adversarial Reflection Inputs
+                string[] adversarialInputs = new[]
+                {
+                    "",
+                    "   ",
+                    "인형기사", // missing space
+                    "놀 ",     // trailing space
+                    " 고블린 후드", // leading space
+                    "NonExistentMonster_12345",
+                    "UnitType", // abstract base class
+                    "Monster",  // entity class, not UnitType
+                    "Human",    // entity class
+                    null
+                };
+
+                foreach (var adv in adversarialInputs)
+                {
+                    var created = CreateUnitTypeInstance(adv);
+                    Assert(created == null, $"CreateUnitTypeInstance('{adv ?? "<null>"}') safely evaluates to null without uncaught exception");
+                }
+
+                // 1.4 Parameterless Constructor & Exception Safety on all UnitType subclasses
+                foreach (var t in nonAbstractSubclasses)
+                {
+                    bool canInstantiate = false;
+                    try
+                    {
+                        var inst = Activator.CreateInstance(t);
+                        canInstantiate = (inst != null);
+                    }
+                    catch { }
+                    Assert(canInstantiate, $"Public parameterless constructor works for {t.Name}");
+                }
+            }
+
+            Console.WriteLine();
+
+            // -------------------------------------------------------------------------
+            // PART 2: Resource Path Loading & Prefab Integrity (UnitSpriteManager)
+            // -------------------------------------------------------------------------
+            Console.WriteLine(">>> TEST SUITE 2: UnitSpriteManager Resource Loading & Prefab Architecture");
+
+            string[] testPrefabs = new[] { "인형 기사", "놀", "고블린 후드" };
+            var expectedSpriteLibMetas = new Dictionary<string, string>
+            {
+                { "인형 기사", "Assets/Sprite/Mon/Mon_DollKnight/Mon_DollKnight.spriteLib.meta" },
+                { "놀", "Assets/Sprite/Mon/Mon_Gnole/Mon_GnoleA.spriteLib.meta" },
+                { "고블린 후드", "Assets/Sprite/Mon/Mon_GoblinHood/Mon_GoblinHoodA.spriteLib.meta" }
+            };
+
+            foreach (var pName in testPrefabs)
+            {
+                string relPrefabPath = $"Assets/Resources/Units/{pName}.prefab";
+                string fullPrefabPath = Path.Combine(rootDir, relPrefabPath);
+                string metaPath = fullPrefabPath + ".meta";
+
+                Assert(File.Exists(fullPrefabPath), $"Prefab exists: {relPrefabPath}");
+                Assert(File.Exists(metaPath), $"Prefab .meta exists: {relPrefabPath}.meta");
+
+                if (File.Exists(fullPrefabPath))
+                {
+                    string rawContent = File.ReadAllText(fullPrefabPath);
+                    // Unescape unicode strings in YAML (e.g. \uC778\uD615 -> 인형)
+                    string content = Regex.Unescape(rawContent);
+
+                    // 2.1 Check Root Components
+                    Assert(content.Contains("m_Name: " + pName) || content.Contains("m_Name: \"" + pName + "\""), $"Prefab '{pName}' root name matches");
+                    Assert(content.Contains("UnitVisualDefinition"), $"Prefab '{pName}' has UnitVisualDefinition");
+                    Assert(content.Contains("unitTypeName: " + pName) || content.Contains("unitTypeName: \"" + pName + "\""), $"Prefab '{pName}' UnitVisualDefinition.unitTypeName matches");
+
+                    // 2.2 Check Child Visual & 2D Animation Components
+                    Assert(content.Contains("SpriteRenderer"), $"Prefab '{pName}' has SpriteRenderer");
+                    Assert(content.Contains("SpriteLibrary"), $"Prefab '{pName}' has SpriteLibrary");
+                    Assert(content.Contains("SpriteResolver"), $"Prefab '{pName}' has SpriteResolver");
+                    Assert(content.Contains("ShadowCaster2D"), $"Prefab '{pName}' has ShadowCaster2D");
+
+                    // 2.3 Check SpriteLibrary GUID Linkage
+                    if (expectedSpriteLibMetas.TryGetValue(pName, out string sMetaPath))
+                    {
+                        string fullSMetaPath = Path.Combine(rootDir, sMetaPath);
+                        Assert(File.Exists(fullSMetaPath), $"SpriteLibrary .meta exists: {sMetaPath}");
+                        if (File.Exists(fullSMetaPath))
+                        {
+                            string sMetaText = File.ReadAllText(fullSMetaPath);
+                            var match = Regex.Match(sMetaText, @"guid:\s*([0-9a-fA-F]{32})");
+                            Assert(match.Success, $"SpriteLib meta GUID parsed: {sMetaPath}");
+                            if (match.Success)
+                            {
+                                string guid = match.Groups[1].Value;
+                                Assert(content.Contains(guid), $"Prefab '{pName}' contains valid SpriteLibrary GUID ({guid})");
+                            }
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine();
+
+            // -------------------------------------------------------------------------
+            // PART 3: JSON Parsing Robustness & Cross-Referencing
+            // -------------------------------------------------------------------------
+            Console.WriteLine(">>> TEST SUITE 3: JSON Parsing Robustness & Data Integrity");
+
+            // 3.1 units.json
+            string unitsJsonPath = Path.Combine(rootDir, "Assets/Data/units.json");
+            Assert(File.Exists(unitsJsonPath), "Assets/Data/units.json existence");
+
+            // 3.2 skills.json
+            string skillsJsonPath = Path.Combine(rootDir, "Assets/Data/skills.json");
+            Assert(File.Exists(skillsJsonPath), "Assets/Data/skills.json existence");
+
+            HashSet<string> validSkillNames = new();
+            if (File.Exists(skillsJsonPath))
+            {
+                using var skillDoc = JsonDocument.Parse(File.ReadAllText(skillsJsonPath));
+                var skillsArray = skillDoc.RootElement.GetProperty("skills");
+                foreach (var s in skillsArray.EnumerateArray())
+                {
+                    validSkillNames.Add(s.GetProperty("skillName").GetString());
+                }
+                Assert(validSkillNames.Count >= 15, $"Loaded {validSkillNames.Count} valid skills from skills.json");
+            }
+
+            if (File.Exists(unitsJsonPath))
+            {
+                string unitsJsonText = File.ReadAllText(unitsJsonPath);
+                using var doc = JsonDocument.Parse(unitsJsonText);
+                var root = doc.RootElement;
+                Assert(root.TryGetProperty("units", out var unitsArr), "units.json has root 'units' array");
+
+                Dictionary<string, JsonElement> unitsMap = new();
+                bool duplicateFound = false;
+
+                foreach (var u in unitsArr.EnumerateArray())
+                {
+                    string tName = u.GetProperty("typeName").GetString();
+                    if (unitsMap.ContainsKey(tName))
+                    {
+                        duplicateFound = true;
+                    }
+                    unitsMap[tName] = u;
+                }
+
+                Assert(!duplicateFound, "No duplicate typeNames in units.json");
+                Assert(unitsMap.ContainsKey("인형 기사"), "'인형 기사' present in units.json");
+                Assert(unitsMap.ContainsKey("놀"), "'놀' present in units.json");
+                Assert(unitsMap.ContainsKey("고블린 후드"), "'고블린 후드' present in units.json");
+                Assert(unitsMap.ContainsKey("근접 탱커"), "'근접 탱커' preserved in units.json");
+
+                // Validate Monster fields & cross-reference skills
+                string[] targetMonKeys = new[] { "인형 기사", "놀", "고블린 후드" };
+                foreach (var monKey in targetMonKeys)
+                {
+                    if (unitsMap.TryGetValue(monKey, out var mon))
+                    {
+                        string uClass = mon.GetProperty("unitClass").GetString();
+                        Assert(uClass == "Monster", $"Unit '{monKey}' unitClass is 'Monster'");
+
+                        // Footprint
+                        var fp = mon.GetProperty("footprint");
+                        Assert(fp.GetArrayLength() == 2 && fp[0].GetInt32() == 1 && fp[1].GetInt32() == 1, $"Unit '{monKey}' footprint is [1, 1]");
+
+                        // Skills validation against skills.json
+                        var skills = mon.GetProperty("skills");
+                        Assert(skills.GetArrayLength() == 3, $"Unit '{monKey}' has exactly 3 skills");
+                        foreach (var sk in skills.EnumerateArray())
+                        {
+                            string skName = sk.GetString();
+                            Assert(validSkillNames.Contains(skName), $"Skill '{skName}' referenced by '{monKey}' exists in skills.json");
+                        }
+
+                        // Stats complete check
+                        var stats = mon.GetProperty("stats");
+                        string[] requiredStats = new[] {
+                            "maxHp", "maxMp", "physicalAttack", "magicalAttack", "physicalDefense",
+                            "magicalDefense", "HPRegen", "attackspeed", "walkSpeed", "reaction",
+                            "criticalChance", "cooltimeReduction", "statusResistance", "maxMental",
+                            "mental", "spotting", "leadershipRange", "charisma", "physicalAttackSpeed",
+                            "magicalCastSpeed"
+                        };
+                        bool allStatsPresent = true;
+                        foreach (var sName in requiredStats)
+                        {
+                            if (!stats.TryGetProperty(sName, out _))
+                            {
+                                allStatsPresent = false;
+                                break;
+                            }
+                        }
+                        Assert(allStatsPresent, $"Unit '{monKey}' contains all 20 required stat properties");
+
+                        // Weight complete check
+                        var weight = mon.GetProperty("weight");
+                        string[] requiredWeights = new[] {
+                            "isSpecialUnit", "isInterestTarget", "baseInterest", "baseDanger",
+                            "heavyHitThreshold", "stealth", "baseVisibility"
+                        };
+                        bool allWeightsPresent = true;
+                        foreach (var wName in requiredWeights)
+                        {
+                            if (!weight.TryGetProperty(wName, out _))
+                            {
+                                allWeightsPresent = false;
+                                break;
+                            }
+                        }
+                        Assert(allWeightsPresent, $"Unit '{monKey}' contains all 7 required weight properties");
+
+                        // Visual effects check
+                        var effects = mon.GetProperty("visual").GetProperty("effects");
+                        Assert(effects.TryGetProperty("hitSpark", out _) &&
+                               effects.TryGetProperty("bloodDrip", out _) &&
+                               effects.TryGetProperty("guard", out _) &&
+                               effects.TryGetProperty("parry", out _),
+                               $"Unit '{monKey}' contains hitSpark, bloodDrip, guard, parry VFX keys");
+                    }
+                }
+
+                // 3.3 Adversarial JSON parser test (malformed JSON resilience)
+                bool caughtMalformed = false;
+                try
+                {
+                    JsonDocument.Parse("{ units: [ { typeName: missing_quotes } ] }");
+                }
+                catch (JsonException)
+                {
+                    caughtMalformed = true;
+                }
+                Assert(caughtMalformed, "JsonException correctly triggers on invalid JSON syntax");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("================================================================================");
+            Console.WriteLine($"RESULTS SUMMARY: Total: {totalTests}, Passed: {passedTests}, Failed: {failedTests}");
+            Console.WriteLine("================================================================================");
 
             if (failedTests > 0)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("VERIFICATION OUTCOME: FAIL");
+                Console.WriteLine("\nFailures:");
+                foreach (var f in failureDetails)
+                {
+                    Console.WriteLine(" - " + f);
+                }
                 Console.ResetColor();
                 Environment.Exit(1);
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("VERIFICATION OUTCOME: APPROVE (100% Empirically Validated)");
+                Console.WriteLine("\n>>> VERDICT: ALL TESTS PASSED EMPIRICALLY! NO DEFECTS FOUND <<<");
                 Console.ResetColor();
+                Environment.Exit(0);
             }
-        }
-
-        static void TestBackstabExhaustiveGeometryMatrix()
-        {
-            var target = new MockUnit { position = new Vector2Int(10, 10) };
-            var attacker = new MockUnit();
-
-            // 1. Direct Frontal Attacks: Attacker positioned in front (within -1..-0.3 cone)
-            foreach (Dir targetDir in Enum.GetValues(typeof(Dir)))
-            {
-                target.currentDir = targetDir;
-                Vector2Int fwd = target.GetDirVector(targetDir);
-                attacker.position = new Vector2Int(target.position.x + fwd.x, target.position.y + fwd.y);
-
-                foreach (Dir attackerDir in Enum.GetValues(typeof(Dir)))
-                {
-                    attacker.currentDir = attackerDir;
-                    bool result = BackstabLogic.IsBackstab(attacker, target);
-                    Assert(!result, $"FrontalAttack_{targetDir}_{attackerDir}", 
-                        $"Frontal attack ({attacker.position.x},{attacker.position.y}) facing {targetDir} must be rejected!");
-                }
-            }
-
-            // 2. Direct Rear Attacks: Attacker positioned behind (posDot > 0.5)
-            foreach (Dir targetDir in Enum.GetValues(typeof(Dir)))
-            {
-                target.currentDir = targetDir;
-                Vector2Int fwd = target.GetDirVector(targetDir);
-                attacker.position = new Vector2Int(target.position.x - fwd.x, target.position.y - fwd.y);
-
-                attacker.currentDir = targetDir; // Aligned
-                bool result = BackstabLogic.IsBackstab(attacker, target);
-                Assert(result, $"RearAttack_Aligned_{targetDir}", 
-                    $"Attacker behind target facing same direction {targetDir} MUST be approved as Backstab!");
-            }
-
-            // 3. Null checks
-            Assert(!BackstabLogic.IsBackstab(null, target), "Backstab_NullAttacker_ReturnsFalse");
-            Assert(!BackstabLogic.IsBackstab(attacker, null), "Backstab_NullTarget_ReturnsFalse");
-            Assert(!BackstabLogic.IsBackstab(null, null), "Backstab_NullBoth_ReturnsFalse");
-        }
-
-        static void TestBackstabRandomContinuousFuzzing()
-        {
-            var rng = new Random(42);
-            int fuzzIterations = 5000;
-
-            for (int i = 0; i < fuzzIterations; i++)
-            {
-                int tx = rng.Next(-50, 50);
-                int ty = rng.Next(-50, 50);
-                int ax = rng.Next(-50, 50);
-                int ay = rng.Next(-50, 50);
-
-                var targetDir = (Dir)rng.Next(0, 8);
-                var attackerDir = (Dir)rng.Next(0, 8);
-
-                var target = new MockUnit { position = new Vector2Int(tx, ty), currentDir = targetDir };
-                var attacker = new MockUnit { position = new Vector2Int(ax, ay), currentDir = attackerDir };
-
-                bool isBackstab = BackstabLogic.IsBackstab(attacker, target);
-
-                Vector2 targetForward = target.GetDirVector(target.currentDir);
-                Vector2 toTarget = target.position != attacker.position
-                    ? ((Vector2)(target.position - attacker.position)).normalized
-                    : Vector2.zero;
-
-                float posDot = Vector2.Dot(toTarget, targetForward);
-
-                if (posDot < -0.3f)
-                {
-                    Assert(!isBackstab, $"Fuzz_FrontConeRejection_{i}", "Front cone must never produce backstab");
-                }
-                if (posDot > 0.5f && (attackerDir == targetDir))
-                {
-                    Assert(isBackstab, $"Fuzz_RearConeApproval_{i}", "Direct rear aligned must always produce backstab");
-                }
-            }
-        }
-
-        static void TestShieldLifecycleExhaustiveMatrix()
-        {
-            float[] initialHps = { 10f, 50f, 100f, 150f, 300f };
-            float[] maxHps = { 100f, 150f, 300f };
-            float[] boostAmounts = { 0f, 20f, 40f, 100f, 250f };
-            float[] damages = { 0f, 10f, 40f, 80f, 150f, 500f };
-
-            foreach (var maxHp in maxHps)
-            {
-                foreach (var initHp in initialHps)
-                {
-                    if (initHp > maxHp) continue;
-
-                    foreach (var boost in boostAmounts)
-                    {
-                        foreach (var dmg in damages)
-                        {
-                            var unit = new MockUnit();
-                            unit.Health.maxHp = maxHp;
-                            unit.Health.hp = initHp;
-
-                            var skill = new SkillData { effectAmount = boost, effectDuration = 5f };
-                            ShieldLogic.ApplyShield(unit, skill, out float actualBoost);
-
-                            float expectedBoost = boost > 0 ? boost : 40f;
-                            Assert(MathF.Abs(actualBoost - expectedBoost) < 0.001f, "Shield_ActualBoostExpected");
-                            Assert(MathF.Abs(unit.Health.maxHp - (maxHp + expectedBoost)) < 0.001f, "Shield_MaxHpBoosted");
-                            Assert(MathF.Abs(unit.Health.hp - (initHp + expectedBoost)) < 0.001f, "Shield_HpBoosted");
-
-                            // Apply damage
-                            unit.Health.hp -= dmg;
-
-                            // Rollback
-                            ShieldLogic.RollbackShield(unit, actualBoost);
-
-                            if (unit.Health.hp <= 0f)
-                            {
-                                Assert(unit.Health.hp <= 0f, "Shield_DeadUnitRemainsDead");
-                            }
-                            else
-                            {
-                                Assert(MathF.Abs(unit.Health.maxHp - maxHp) < 0.001f, "Shield_MaxHpRestoredExactly");
-                                Assert(unit.Health.hp <= unit.Health.maxHp, "Shield_HpCappedAtMaxHp");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        static void TestShieldTargetTriagePriority()
-        {
-            var session = new MockSession();
-            var paladin = new MockUnit { position = new Vector2Int(10, 10), isPlayer = true, Session = session };
-            var allyFull = new MockUnit { position = new Vector2Int(10, 11), isPlayer = true, Session = session };
-            var allyLow = new MockUnit { position = new Vector2Int(10, 12), isPlayer = true, Session = session };
-            var allyFar = new MockUnit { position = new Vector2Int(10, 25), isPlayer = true, Session = session }; // Out of range
-
-            allyFull.Health.maxHp = 100f; allyFull.Health.hp = 100f; // 100%
-            allyLow.Health.maxHp = 100f; allyLow.Health.hp = 30f;   // 30%
-            allyFar.Health.maxHp = 100f; allyFar.Health.hp = 10f;   // 10% but far
-
-            session.units.AddRange(new[] { paladin, allyFull, allyLow, allyFar });
-
-            var target = ShieldLogic.FindShieldTarget(paladin, 4);
-            Assert(target == allyLow, "Shield_Triage_SelectsLowestHpAllyInRange", 
-                $"Expected allyLow, got {target?.name}");
-        }
-
-        static void TestPartyBuffFlatVsRatioExhaustiveMatrix()
-        {
-            var session = new MockSession();
-            var bard = new MockUnit { position = new Vector2Int(0, 0), isPlayer = true, Session = session };
-            var a1 = new MockUnit { position = new Vector2Int(1, 0), isPlayer = true, Session = session };
-            var a2 = new MockUnit { position = new Vector2Int(2, 0), isPlayer = true, Session = session };
-            session.units.AddRange(new[] { bard, a1, a2 });
-
-            float[] testAmounts = { 0f, 0.10f, 0.25f, 0.50f, 1.0f, 1.5f, 12f, 25f, 50f };
-
-            foreach (var amt in testAmounts)
-            {
-                a1.CombatStat.physicalAttack = 40f; a1.CombatStat.magicalAttack = 20f;
-                a2.CombatStat.physicalAttack = 80f; a2.CombatStat.magicalAttack = 60f;
-
-                var skill = new SkillData { effectAmount = amt };
-                var applied = PartyBuffLogic.ApplyBuff(bard, skill);
-
-                float expectedA1P = amt > 1.0f ? 40f + amt : (amt > 0f ? 40f + 40f * amt : 40f + 10f);
-                float expectedA2P = amt > 1.0f ? 80f + amt : (amt > 0f ? 80f + 80f * amt : 80f + 10f);
-
-                Assert(MathF.Abs(a1.CombatStat.physicalAttack - expectedA1P) < 0.001f, $"PartyBuff_Applied_A1_{amt}");
-                Assert(MathF.Abs(a2.CombatStat.physicalAttack - expectedA2P) < 0.001f, $"PartyBuff_Applied_A2_{amt}");
-
-                PartyBuffLogic.RollbackBuff(applied);
-
-                Assert(MathF.Abs(a1.CombatStat.physicalAttack - 40f) < 0.001f, $"PartyBuff_Restored_A1_{amt}");
-                Assert(MathF.Abs(a1.CombatStat.magicalAttack - 20f) < 0.001f, $"PartyBuff_Restored_A1_Mag_{amt}");
-                Assert(MathF.Abs(a2.CombatStat.physicalAttack - 80f) < 0.001f, $"PartyBuff_Restored_A2_{amt}");
-                Assert(MathF.Abs(a2.CombatStat.magicalAttack - 60f) < 0.001f, $"PartyBuff_Restored_A2_Mag_{amt}");
-            }
-        }
-
-        static void TestPartyBuffMultiCasterStacking()
-        {
-            var session = new MockSession();
-            var bard1 = new MockUnit { position = new Vector2Int(0, 0), isPlayer = true, Session = session };
-            var bard2 = new MockUnit { position = new Vector2Int(0, 1), isPlayer = true, Session = session };
-            var ally = new MockUnit { position = new Vector2Int(1, 1), isPlayer = true, Session = session };
-            session.units.AddRange(new[] { bard1, bard2, ally });
-
-            ally.CombatStat.physicalAttack = 50f;
-            ally.CombatStat.magicalAttack = 30f;
-
-            // Bard 1 casts +15 flat buff
-            var buff1 = PartyBuffLogic.ApplyBuff(bard1, new SkillData { effectAmount = 15f });
-            // Bard 2 casts +20% ratio buff (applied to current 65 -> +13)
-            var buff2 = PartyBuffLogic.ApplyBuff(bard2, new SkillData { effectAmount = 0.20f });
-
-            Assert(MathF.Abs(ally.CombatStat.physicalAttack - (50f + 15f + 65f * 0.20f)) < 0.001f, "PartyBuff_StackedAttack_78");
-
-            // Rollback Bard 1 first
-            PartyBuffLogic.RollbackBuff(buff1);
-            Assert(MathF.Abs(ally.CombatStat.physicalAttack - (50f + 65f * 0.20f)) < 0.001f, "PartyBuff_RollbackBuff1First");
-
-            // Rollback Bard 2 second
-            PartyBuffLogic.RollbackBuff(buff2);
-            Assert(MathF.Abs(ally.CombatStat.physicalAttack - 50f) < 0.001f, "PartyBuff_RollbackBoth_Restored50");
-        }
-
-        static void TestCurseFlatVsRatioExhaustiveMatrix()
-        {
-            var caster = new MockUnit { isPlayer = true };
-            var enemy = new MockUnit { isPlayer = false };
-
-            float[] testAmounts = { 0f, 0.10f, 0.30f, 0.50f, 1.0f, 1.5f, 10f, 20f, 100f };
-
-            foreach (var amt in testAmounts)
-            {
-                enemy.CombatStat.physicalAttack = 50f;
-                enemy.CombatStat.physicalDefense = 30f;
-
-                var skill = new SkillData { effectAmount = amt };
-                var results = CurseLogic.ApplyCurse(caster, new List<MockUnit> { enemy }, skill);
-
-                var (dAtk, dDef) = results[enemy];
-
-                float expectedDAtk = amt > 1.0f ? MathF.Min(50f, amt) : (amt > 0f ? 50f * amt : MathF.Min(50f, 10f));
-                float expectedDDef = amt > 1.0f ? MathF.Min(30f, amt) : (amt > 0f ? 30f * amt : MathF.Min(30f, 10f));
-
-                Assert(MathF.Abs(dAtk - expectedDAtk) < 0.001f, $"Curse_DebuffAtkCalculated_{amt}");
-                Assert(MathF.Abs(dDef - expectedDDef) < 0.001f, $"Curse_DebuffDefCalculated_{amt}");
-                Assert(MathF.Abs(enemy.CombatStat.physicalAttack - (50f - expectedDAtk)) < 0.001f, $"Curse_EnemyAtkApplied_{amt}");
-                Assert(MathF.Abs(enemy.CombatStat.physicalDefense - (30f - expectedDDef)) < 0.001f, $"Curse_EnemyDefApplied_{amt}");
-
-                CurseLogic.RollbackCurse(enemy, dAtk, dDef);
-
-                Assert(MathF.Abs(enemy.CombatStat.physicalAttack - 50f) < 0.001f, $"Curse_EnemyAtkRestored_{amt}");
-                Assert(MathF.Abs(enemy.CombatStat.physicalDefense - 30f) < 0.001f, $"Curse_EnemyDefRestored_{amt}");
-            }
-        }
-
-        static void TestCurseOverDebuffZeroFloorAndRestoration()
-        {
-            var caster = new MockUnit { isPlayer = true };
-            var weakEnemy = new MockUnit { isPlayer = false };
-            weakEnemy.CombatStat.physicalAttack = 5f;
-            weakEnemy.CombatStat.physicalDefense = 2f;
-
-            var hugeCurse = new SkillData { effectAmount = 50f };
-            var results = CurseLogic.ApplyCurse(caster, new List<MockUnit> { weakEnemy }, hugeCurse);
-            var (dAtk, dDef) = results[weakEnemy];
-
-            Assert(MathF.Abs(dAtk - 5f) < 0.001f, "Curse_OverDebuff_AtkClampedTo5");
-            Assert(MathF.Abs(dDef - 2f) < 0.001f, "Curse_OverDebuff_DefClampedTo2");
-            Assert(MathF.Abs(weakEnemy.CombatStat.physicalAttack - 0f) < 0.001f, "Curse_OverDebuff_AtkFloorZero");
-            Assert(MathF.Abs(weakEnemy.CombatStat.physicalDefense - 0f) < 0.001f, "Curse_OverDebuff_DefFloorZero");
-
-            CurseLogic.RollbackCurse(weakEnemy, dAtk, dDef);
-
-            Assert(MathF.Abs(weakEnemy.CombatStat.physicalAttack - 5f) < 0.001f, "Curse_OverDebuff_AtkRestoredExact5");
-            Assert(MathF.Abs(weakEnemy.CombatStat.physicalDefense - 2f) < 0.001f, "Curse_OverDebuff_DefRestoredExact2");
-        }
-
-        static void TestPriestDynamicTriageDeadAndFullUnitExclusion()
-        {
-            var session = new MockSession();
-            var priest = new MockUnit { position = new Vector2Int(5, 5), isPlayer = true, Session = session };
-            var deadAlly = new MockUnit { position = new Vector2Int(5, 6), isPlayer = true, Session = session };
-            var woundedAlly = new MockUnit { position = new Vector2Int(6, 5), isPlayer = true, Session = session };
-            var fullAlly = new MockUnit { position = new Vector2Int(5, 4), isPlayer = true, Session = session };
-
-            deadAlly.Health.maxHp = 100f; deadAlly.Health.hp = 0f;
-            woundedAlly.Health.maxHp = 100f; woundedAlly.Health.hp = 40f;
-            fullAlly.Health.maxHp = 100f; fullAlly.Health.hp = 100f;
-
-            session.units.AddRange(new[] { priest, deadAlly, woundedAlly, fullAlly });
-
-            var target = HealLogic.FindLowestHpAlly(priest, 5);
-            Assert(target == woundedAlly, "Priest_Triage_ExcludesDeadAndFull_SelectsWounded");
-
-            HealLogic.ExecuteHeal(priest, target, new SkillData { effectAmount = 50f });
-            Assert(MathF.Abs(woundedAlly.Health.hp - 90f) < 0.001f, "Priest_Heal_RestoresHealthTo90");
-
-            // Overhealing clamp test
-            HealLogic.ExecuteHeal(priest, woundedAlly, new SkillData { effectAmount = 50f });
-            Assert(MathF.Abs(woundedAlly.Health.hp - 100f) < 0.001f, "Priest_Heal_ClampsToMaxHp100");
-        }
-
-        static void TestGroundAoERadiusBoundaryPrecision()
-        {
-            var session = new MockSession();
-            var mage = new MockUnit { position = new Vector2Int(10, 10), isPlayer = true, Session = session };
-            var eCenter = new MockUnit { position = new Vector2Int(15, 10), isPlayer = false, Session = session };
-            var eRadius1 = new MockUnit { position = new Vector2Int(16, 10), isPlayer = false, Session = session }; // dist 1.0
-            var eRadiusDiag = new MockUnit { position = new Vector2Int(16, 11), isPlayer = false, Session = session }; // dist 1.414
-            var eOutside = new MockUnit { position = new Vector2Int(17, 10), isPlayer = false, Session = session }; // dist 2.0
-
-            session.units.AddRange(new[] { mage, eCenter, eRadius1, eRadiusDiag, eOutside });
-
-            var hitUnits = GroundAoELogic.GetEnemiesInRadius(mage, new Vector2(15, 10), 1.5f);
-
-            Assert(hitUnits.Contains(eCenter), "GroundAoE_HitsCenter");
-            Assert(hitUnits.Contains(eRadius1), "GroundAoE_HitsRadius1");
-            Assert(hitUnits.Contains(eRadiusDiag), "GroundAoE_HitsRadius1_414");
-            Assert(!hitUnits.Contains(eOutside), "GroundAoE_ExcludesOutsideRadius2");
-        }
-
-        static void TestEndToEndFullCombatCrossFeatureFlow()
-        {
-            var session = new MockSession();
-
-            // 8-Class party
-            var warrior = new MockUnit { name = "Warrior", position = new Vector2Int(10, 10), isPlayer = true, Session = session };
-            var rogue   = new MockUnit { name = "Rogue",   position = new Vector2Int(10, 12), isPlayer = true, currentDir = Dir.DOWN, Session = session };
-            var mage    = new MockUnit { name = "Mage",    position = new Vector2Int(9, 8),   isPlayer = true, Session = session };
-            var priest  = new MockUnit { name = "Priest",  position = new Vector2Int(11, 8),  isPlayer = true, Session = session };
-            var paladin = new MockUnit { name = "Paladin", position = new Vector2Int(10, 9),  isPlayer = true, Session = session };
-            var shaman  = new MockUnit { name = "Shaman",  position = new Vector2Int(12, 8),  isPlayer = true, Session = session };
-            var monk    = new MockUnit { name = "Monk",    position = new Vector2Int(11, 10), isPlayer = true, Session = session };
-            var bard    = new MockUnit { name = "Bard",    position = new Vector2Int(8, 8),   isPlayer = true, Session = session };
-
-            // Boss at (10, 11) facing DOWN (towards warrior at 10, 10)
-            var boss = new MockUnit { name = "Boss", position = new Vector2Int(10, 11), currentDir = Dir.DOWN, isPlayer = false, Session = session };
-            boss.Health.maxHp = 1000f; boss.Health.hp = 1000f;
-            boss.CombatStat.physicalAttack = 60f; boss.CombatStat.physicalDefense = 20f;
-
-            session.units.AddRange(new[] { warrior, rogue, mage, priest, paladin, shaman, monk, bard, boss });
-
-            // 1. Bard casts party buff (+15 atk)
-            var partyBuff = PartyBuffLogic.ApplyBuff(bard, new SkillData { effectAmount = 15f });
-            Assert(MathF.Abs(warrior.CombatStat.physicalAttack - 55f) < 0.001f, "E2E_WarriorBuffed_55");
-
-            // 2. Paladin shields Warrior (+50 shield)
-            ShieldLogic.ApplyShield(warrior, new SkillData { effectAmount = 50f }, out float shieldBoost);
-            Assert(MathF.Abs(warrior.Health.maxHp - 150f) < 0.001f, "E2E_WarriorShieldMaxHp_150");
-            Assert(MathF.Abs(warrior.Health.hp - 150f) < 0.001f, "E2E_WarriorShieldHp_150");
-
-            // 3. Shaman curses Boss (-15 def)
-            var curseResult = CurseLogic.ApplyCurse(shaman, new List<MockUnit> { boss }, new SkillData { effectAmount = 15f });
-            Assert(MathF.Abs(boss.CombatStat.physicalDefense - 5f) < 0.001f, "E2E_BossDefShredded_5");
-
-            // 4. Rogue lands Backstab from (10, 12) behind Boss (10, 11) facing UP
-            bool isBackstab = BackstabLogic.IsBackstab(rogue, boss);
-            Assert(isBackstab, "E2E_RogueLandsBackstabFromBehind");
-
-            // 5. Boss hits Warrior with 70 damage (Shield absorbs 50, 20 hits base)
-            warrior.Health.hp -= 70f; // 150 -> 80
-            Assert(MathF.Abs(warrior.Health.hp - 80f) < 0.001f, "E2E_WarriorHpAfterBossHit_80");
-
-            // 6. Shield expires and rolls back
-            ShieldLogic.RollbackShield(warrior, shieldBoost);
-            Assert(MathF.Abs(warrior.Health.maxHp - 100f) < 0.001f, "E2E_WarriorMaxHpRestored_100");
-            Assert(MathF.Abs(warrior.Health.hp - 80f) < 0.001f, "E2E_WarriorHpPreserved_80");
-
-            // 7. Priest heals Warrior (+40 HP)
-            HealLogic.ExecuteHeal(priest, warrior, new SkillData { effectAmount = 40f });
-            Assert(MathF.Abs(warrior.Health.hp - 100f) < 0.001f, "E2E_WarriorHealedClamped_100");
-
-            // 8. Buffs and Curses expire
-            PartyBuffLogic.RollbackBuff(partyBuff);
-            var (cAtk, cDef) = curseResult[boss];
-            CurseLogic.RollbackCurse(boss, cAtk, cDef);
-
-            Assert(MathF.Abs(warrior.CombatStat.physicalAttack - 40f) < 0.001f, "E2E_WarriorAtkRestored_40");
-            Assert(MathF.Abs(boss.CombatStat.physicalDefense - 20f) < 0.001f, "E2E_BossDefRestored_20");
         }
     }
 }

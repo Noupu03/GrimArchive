@@ -20,7 +20,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Subject<(Unit attacker, ThreatTileData threat)> OnThreatCreated = new Subject<(Unit attacker, ThreatTileData threat)>();
     public static GameSession Instance { get; private set; }
 
-    public CreateMap cmap { get; private set; }
+    public CreateMap cmap { get; private set; } 
     public UnitGenerate unitGenerate => _unitGenerate;
     public MapManager mapManager => _mapManager;
     // MapRandering과 WaveSpawner는 하위 호환성을 위해 MapManager를 통해 노출
@@ -452,27 +452,32 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // CreateMap.Chunks.occupationState(Neutral=야생)로 판정한다 — Room.RoomFaction(오펜스 시스템)과는
     // 별개의 개념이라 건드리지 않는다. WildBaseSpawnerComponent.SpawnMonster와 동일한 스폰 패턴
     // (랜덤 위치 + IsAreaClear 재시도 + WildMonsterBehavior/RoomConfinedMovement 부여)을 재사용한다.
-    // 2026-08-24: 배치되는 종류가 야생 몬스터 A 고정에서 4종 랜덤으로 확장됐다(아래 참고).
-    private const int WildRoomGuardCount = 2;
+    // 2026-08-24: 배치되는 종류가 야생 몬스터 A 고정에서 4종 랜덤으로 확장됐고(아래 참고), 마리 수도
+    // 2마리 고정에서 방마다 3~5마리 랜덤으로 바뀌었다(사용자 요청 "방당 3~5명 소환으로 정의해줘").
+    // 범위는 양 끝 포함(3/4/5 균등) — 방이 좁아 자리를 못 찾은 개체는 아래 루프에서 자연히 빠지므로
+    // 실제 배치 수가 뽑힌 값보다 적을 수는 있다.
+    private const int WildRoomGuardCountMin = 3;
+    private const int WildRoomGuardCountMax = 5;
 
-    // 2026-08-24 사용자 요청("야생 몬스터 A만 야생유닛으로 설정해뒀는데 재미없어 보여서 / 주술사와
-    // 도적 그리고 전사도 야생유닛으로 소환시켜줘 / 야생유닛, 주술사, 도적, 전사를 랜덤으로 해서
-    // 소환하는거야") — 야생 방 가드는 이제 아래 4종에서 한 마리씩 독립적으로 균등 추첨한다(같은 방의
-    // 2마리가 서로 다른 종류일 수 있다).
+    // 야생 방 가드 후보 — 한 마리씩 독립적으로 균등 추첨한다(한 방에 배치되는 3~5마리가 서로 다른
+    // 종류일 수 있고, 같은 종류가 겹쳐 나올 수도 있다). 2026-08-24 사용자 요청으로 두 번 바뀌었다:
+    // 야생 몬스터 A 단독("야생 몬스터 A만 야생유닛으로 설정해뒀는데 재미없어 보여서") → +주술사/
+    // 도적/전사 → 도적·전사를 빼고 고블린 후드·놀을 넣은 지금 구성("야생 몬스터 랜덤에 고블린
+    // 후드와 놀 추가해주고 도적, 전사는 빼줘").
     //
-    // 인류 직업 3종을 섞지만 생성 클래스는 야생 몬스터 A와 똑같이 Monster다 — Human으로 만들면
+    // 주술사만 인류 직업이지만 생성 클래스는 나머지와 똑같이 Monster다 — Human으로 만들면
     // 파티/자유탐색/코어·문 자동 공격 같은 인류 전용 AI가 통째로 붙어 "자기 방 안에만 머무는 야생
     // 가드"가 아니게 된다(CLAUDE.md의 "자동 오브젝트 공격은 인류 전용" 하드 룰과도 충돌한다).
     // 스탯/스킬/스프라이트는 전부 프리팹(Assets/Resources/Units/{typeName}.prefab의
-    // UnitVisualDefinition)에서 오므로 unitType만 바꿔주면 그 직업 그대로 나오고, 방 제한 이동/전투
+    // UnitVisualDefinition)에서 오므로 unitType만 바꿔주면 그 유닛 그대로 나오고, 방 제한 이동/전투
     // 유지 판정도 unitType이 아니라 MovementAlgorithm(AIMovementHelper.IsRoomConfined)을 보므로
     // 아래 스폰 루프가 부여하는 RoomConfinedMovement 그대로 야생 몬스터 A와 동일하게 동작한다.
     private static readonly System.Func<UnitType>[] WildRoomGuardTypeFactories =
     {
         () => new WildMonsterA(),
         () => new Shaman(),
-        () => new Rogue(),
-        () => new Warrior(),
+        () => new GoblinHoodA(), // typeName "고블린 후드"
+        () => new GnoleA(),      // typeName "놀"
     };
 
     private static UnitType PickRandomWildGuardType()
@@ -488,7 +493,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (room.Floor == 0) continue; // 사용자 요청(2026-07-27): 0층(인류 소유 로비)에는 생성 금지.
             if (cmap.GetRoomOccupationState(room.Floor, room.RoomId) != OccupationState.Neutral) continue;
 
-            for (int i = 0; i < WildRoomGuardCount; i++)
+            int guardCount = UnityEngine.Random.Range(WildRoomGuardCountMin, WildRoomGuardCountMax + 1);
+            for (int i = 0; i < guardCount; i++)
             {
                 UnitType monsterType = PickRandomWildGuardType();
                 Vector2Int spawnPos = room.GetRandomPosInRoom();

@@ -45,6 +45,21 @@ public class MeleeTank : UnitType
 	public MeleeTank() { typeName = "근접 탱커"; footprint = new Vector2(1, 1); }
 }
 
+public class DollKnight : UnitType
+{
+	public DollKnight() { typeName = "인형 기사"; footprint = new Vector2(1, 1); }
+}
+
+public class GnoleA : UnitType
+{
+	public GnoleA() { typeName = "놀"; footprint = new Vector2(1, 1); }
+}
+
+public class GoblinHoodA : UnitType
+{
+	public GoblinHoodA() { typeName = "고블린 후드"; footprint = new Vector2(1, 1); }
+}
+
 public class WildBaseType : UnitType
 {
 	public WildBaseType() { typeName = "야생 거점"; footprint = new Vector2(2, 2); }

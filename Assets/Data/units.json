@@ -641,6 +641,150 @@
           "parry": "VFX_Parry"
         }
       }
+    },
+    {
+      "typeName": "인형 기사",
+      "unitClass": "Monster",
+      "footprint": [1, 1],
+      "engageDistance": 3,
+      "populationCost": 1,
+      "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
+      "stats": {
+        "maxHp": 180,
+        "maxMp": 0,
+        "physicalAttack": 44,
+        "magicalAttack": 9,
+        "physicalDefense": 10,
+        "magicalDefense": 8,
+        "HPRegen": 3,
+        "attackspeed": 105,
+        "walkSpeed": 2.8,
+        "reaction": 85,
+        "criticalChance": 12,
+        "cooltimeReduction": 75,
+        "statusResistance": 75,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 0,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 13,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 60,
+        "baseDanger": 120,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Mon_DollKnight",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "놀",
+      "unitClass": "Monster",
+      "footprint": [1, 1],
+      "engageDistance": 3,
+      "populationCost": 1,
+      "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
+      "stats": {
+        "maxHp": 180,
+        "maxMp": 0,
+        "physicalAttack": 44,
+        "magicalAttack": 9,
+        "physicalDefense": 10,
+        "magicalDefense": 8,
+        "HPRegen": 3,
+        "attackspeed": 105,
+        "walkSpeed": 2.8,
+        "reaction": 85,
+        "criticalChance": 12,
+        "cooltimeReduction": 75,
+        "statusResistance": 75,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 0,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 13,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 60,
+        "baseDanger": 120,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Mon_GnoleA",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
+    },
+    {
+      "typeName": "고블린 후드",
+      "unitClass": "Monster",
+      "footprint": [1, 1],
+      "engageDistance": 3,
+      "populationCost": 1,
+      "skills": ["육중한 내리찍기", "급습 할퀴기", "발톱 후려치기"],
+      "stats": {
+        "maxHp": 180,
+        "maxMp": 0,
+        "physicalAttack": 44,
+        "magicalAttack": 9,
+        "physicalDefense": 10,
+        "magicalDefense": 8,
+        "HPRegen": 3,
+        "attackspeed": 105,
+        "walkSpeed": 2.8,
+        "reaction": 85,
+        "criticalChance": 12,
+        "cooltimeReduction": 75,
+        "statusResistance": 75,
+        "maxMental": 0,
+        "mental": 0,
+        "spotting": 0,
+        "leadershipRange": 0,
+        "charisma": 0,
+        "physicalAttackSpeed": 13,
+        "magicalCastSpeed": 0
+      },
+      "weight": {
+        "isSpecialUnit": false,
+        "isInterestTarget": false,
+        "baseInterest": 60,
+        "baseDanger": 120,
+        "heavyHitThreshold": 10,
+        "stealth": 0,
+        "baseVisibility": 100
+      },
+      "visual": {
+        "spriteLibrary": "Mon_GoblinHoodA",
+        "effects": {
+          "hitSpark": "VFX_HitSpark",
+          "bloodDrip": "VFX_BloodDrip",
+          "guard": "VFX_Guard",
+          "parry": "VFX_Parry"
+        }
+      }
     }
   ]
 }

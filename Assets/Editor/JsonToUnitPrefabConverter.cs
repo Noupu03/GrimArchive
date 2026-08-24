@@ -28,6 +28,7 @@ public static class JsonToUnitPrefabConverter
     // 엔진 에셋(스프라이트/프리팹/애니메이터 컨트롤러) 참조는 전부 "이름" 문자열로만 받는다.
     // JsonUtility는 GameObject/Sprite 같은 엔진 레퍼런스 필드를 채워줄 수 없어서, 여기서는 이름만
     // 파싱한 뒤 FindAssetByName으로 프로젝트를 검색해 실제 레퍼런스로 바꿔치기한다.
+#pragma warning disable 0649
 
     [System.Serializable]
     private class JsonWeightData
