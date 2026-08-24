@@ -326,7 +326,9 @@ public class UnitVisual : MonoBehaviour
 	private LineRenderer _commandPathLine;
 	private LineRenderer _commandDestMarker;
 	private LineRenderer _hoverMarker;
-	private static readonly Color CommandPathColor = new Color(1f, 0.95f, 0.2f, 0.95f); // 선명한 노랑
+	private static readonly Color CommandPathColor = new Color(1f, 0.95f, 0.2f, 0.8f); // 경로 선: 노란색
+	private static readonly Color CommandDestColor = new Color(0.2f, 0.9f, 0.2f, 0.95f); // 확정된 목적지: 녹색
+	private static readonly Color HoverMarkerColor = new Color(0.3f, 0.8f, 1f, 0.8f); // 포인터 호버 타일: 하늘색
 	private const float CommandPathLineWidth = 0.06f;
 	private const float CommandDestMarkerRadius = 0.28f;
 	private const int CommandPathSortingOrder = 12;
@@ -392,9 +394,9 @@ public class UnitVisual : MonoBehaviour
 		if (_commandPathLine != null) return;
 
 		_commandPathLine = CreateWorldLine("CommandPathLine", CommandPathColor, CommandPathLineWidth, CommandPathSortingOrder);
-		_commandDestMarker = CreateWorldLine("CommandDestMarker", CommandPathColor, CommandPathLineWidth, CommandDestMarkerSortingOrder);
+		_commandDestMarker = CreateWorldLine("CommandDestMarker", CommandDestColor, CommandPathLineWidth, CommandDestMarkerSortingOrder);
 		_commandDestMarker.loop = true;
-		_hoverMarker = CreateWorldLine("HoverMarker", CommandPathColor, CommandPathLineWidth, HoverMarkerSortingOrder);
+		_hoverMarker = CreateWorldLine("HoverMarker", HoverMarkerColor, CommandPathLineWidth, HoverMarkerSortingOrder);
 		_hoverMarker.loop = true;
 	}
 

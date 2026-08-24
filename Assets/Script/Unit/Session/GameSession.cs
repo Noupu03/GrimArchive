@@ -1589,13 +1589,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
         floor = default; chunk = default; cx = 0; cy = 0; tile = default;
         if (cmap == null || cmap.map.floors == null) return false;
         if (gridPos.z < 0 || gridPos.z >= cmap.map.floors.Length) return false;
+        if (gridPos.x < 0 || gridPos.y < 0) return false;
 
         floor = cmap.map.floors[gridPos.z];
         if (floor.chunks == null) return false;
 
         int cs = floor.config.chunkSize;
         cx = gridPos.x / cs; cy = gridPos.y / cs;
-        if (cx < 0 || cx >= floor.config.width || cy < 0 || cy >= floor.config.height) return false;
+        if (cx >= floor.config.width || cy >= floor.config.height) return false;
 
         chunk = floor.chunks[cx, cy];
         if (chunk.chunk == null) return false;

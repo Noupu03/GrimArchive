@@ -632,10 +632,24 @@ public class UnitGenerate
 					if (!explicitDest.HasValue && u.playerInteractTarget.HasValue)
 						explicitDest = new Vector2Int(u.playerInteractTarget.Value.x, u.playerInteractTarget.Value.y);
 
-					if (u.MovementAlgorithm != null && u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int cacheDest))
+					if (u.MovementAlgorithm != null)
 					{
-						commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
-						if (!explicitDest.HasValue) explicitDest = cacheDest;
+						// 정지 상태(Time.timeScale < 0.01f)에서는 FSM이 멈춰있어 경로 캐시가 갱신되지 않으므로,
+						// 시각화를 위해 목적지가 다르면 1회 강제 계산하여 _pathMap을 채워준다.
+						if (explicitDest.HasValue && Time.timeScale < 0.01f)
+						{
+							u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int cacheDestForCheck);
+							if (cacheDestForCheck != explicitDest.Value)
+							{
+								u.MovementAlgorithm.TryGetNextStep(u, explicitDest.Value, out _);
+							}
+						}
+
+						if (u.MovementAlgorithm.TryGetCachedDestination(out Vector2Int currentCache))
+						{
+							commandPath = u.MovementAlgorithm.BuildCachedPathPreview(u, CommandPathMaxSteps);
+							if (!explicitDest.HasValue) explicitDest = currentCache;
+						}
 					}
 				}
 			}
