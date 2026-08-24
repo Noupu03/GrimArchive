@@ -558,6 +558,13 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             items.Add(new SubmenuItem(visionOn ? "■ 시야 표시 (ON)" : "□ 시야 표시 (OFF)", visionOn, true,
                 () => _gameSession.unitGenerate.ShowAllVisionRanges = !_gameSession.unitGenerate.ShowAllVisionRanges));
             items.Add(SubmenuItem.Header("시야 / 인지"));
+
+            // 유닛 머리 위 현재 FSM 상태 라벨 on/off(2026-08-24 사용자 요청) — "시야 표시"와 동일
+            // 관례지만 주제가 달라(시야/인지가 아니라 FSM 상태 HUD) 별도 헤더로 분리.
+            bool statusLabelOn = _gameSession.unitGenerate.ShowUnitStatusLabels;
+            items.Add(new SubmenuItem(statusLabelOn ? "■ 유닛 상태 표시 (ON)" : "□ 유닛 상태 표시 (OFF)", statusLabelOn, true,
+                () => _gameSession.unitGenerate.ShowUnitStatusLabels = !_gameSession.unitGenerate.ShowUnitStatusLabels));
+            items.Add(SubmenuItem.Header("유닛 상태 HUD"));
         }
 
         bool objActive = _inputManager != null && _inputManager.IsObjectOnlyPlacementActive;

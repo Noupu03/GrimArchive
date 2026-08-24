@@ -5,7 +5,8 @@ using UnityEngine;
 
 /// <summary>
 /// 메뉴: GrimArchive → AI → FSM+BT 설정 에셋 생성
-/// Assets/Resources/FSM+BT/ 폴더에 세 가지 설정 에셋을 한 번에 생성한다.
+/// Assets/Resources/FSM+BT/ 폴더에 설정 에셋을 한 번에 생성한다(2026-08-24: NavigationPriority는
+/// 죽은 설정이라 삭제 — 아래 CreateAllConfigs 참고).
 /// 이미 존재하는 에셋은 덮어쓰지 않는다.
 /// </summary>
 public static class AIConfigAutoSetup
@@ -24,7 +25,6 @@ public static class AIConfigAutoSetup
         bool created = false;
         created |= CreateIfMissing<AIBehaviorConfig>("AIBehaviorConfig");
         created |= CreateIfMissing<TacticalBehaviorPriorityConfig>("TacticalPriority");
-        created |= CreateIfMissing<NavigationBehaviorPriorityConfig>("NavigationPriority");
 
         if (created)
         {
