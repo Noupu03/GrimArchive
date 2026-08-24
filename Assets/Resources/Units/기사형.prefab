@@ -166,7 +166,7 @@ MonoBehaviour:
   skills:
   - skillName: "\uC9D1\uC911 \uCC0C\uB974\uAE30"
     baseDelayMs: 800
-    baseCooldown: 8
+    baseCooldown: 10
     cooldownSlot: 3
     isProjectile: 0
     projectilePrefab: {fileID: 0}
@@ -187,64 +187,6 @@ MonoBehaviour:
     priorityKillMultiplier: 1.25
     priorityKillBonus: 20
     priorityRangeThreshold: 2
-    priorityRangeBonus: 10
-    skillArchetype: 
-    multiHitCount: 0
-    effectDuration: 0
-    effectAmount: 0
-    explosionRadius: 0
-  - skillName: "\uBC29\uD328 \uD0C0\uACA9"
-    baseDelayMs: 650
-    baseCooldown: 6
-    cooldownSlot: 2
-    isProjectile: 0
-    projectilePrefab: {fileID: 0}
-    projectileSpeed: 0
-    isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
-    hitShape: LINE
-    hitRange: 1
-    hitWidth: 1
-    hitDepth: 1
-    threatRange: 1
-    threatWidth: 1
-    threatDepth: 1
-    damageMultiplier: 0.9
-    hasStun: 1
-    stunDuration: 1
-    priorityBase: 55
-    priorityKillMultiplier: 0.9
-    priorityKillBonus: 20
-    priorityRangeThreshold: 1.5
-    priorityRangeBonus: 10
-    skillArchetype: 
-    multiHitCount: 0
-    effectDuration: 0
-    effectAmount: 0
-    explosionRadius: 0
-  - skillName: "\uC804\uBC29 \uBCA0\uAE30"
-    baseDelayMs: 450
-    baseCooldown: 1.2
-    cooldownSlot: 0
-    isProjectile: 0
-    projectilePrefab: {fileID: 0}
-    projectileSpeed: 0
-    isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
-    hitShape: LINE
-    hitRange: 1
-    hitWidth: 1
-    hitDepth: 1
-    threatRange: 1
-    threatWidth: 1
-    threatDepth: 1
-    damageMultiplier: 1
-    hasStun: 0
-    stunDuration: 0
-    priorityBase: 40
-    priorityKillMultiplier: 1
-    priorityKillBonus: 20
-    priorityRangeThreshold: 1.5
     priorityRangeBonus: 10
     skillArchetype: 
     multiHitCount: 0

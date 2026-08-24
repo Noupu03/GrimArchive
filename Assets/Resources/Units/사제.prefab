@@ -201,7 +201,7 @@ MonoBehaviour:
   skills:
   - skillName: "\uCE58\uC720"
     baseDelayMs: 500
-    baseCooldown: 6
+    baseCooldown: 5
     cooldownSlot: 1
     isProjectile: 0
     projectilePrefab: {fileID: 0}
@@ -209,7 +209,7 @@ MonoBehaviour:
     isPiercing: 0
     hitEffectPrefab: {fileID: 3554739430297920082, guid: 8d36b5baed411684ab3e41bcdda5d638, type: 3}
     hitShape: LINE
-    hitRange: 4
+    hitRange: 7
     hitWidth: 1
     hitDepth: 1
     threatRange: 4
@@ -415,9 +415,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
   m_ShadowGroup: 0
-  m_Priority: 0
+  m_Priority: 100
   m_ComponentVersion: 5
-  m_HasRenderer: 0
+  m_HasRenderer: 1
   m_UseRendererSilhouette: 1
   m_CastsShadows: 1
   m_SelfShadows: 0
@@ -445,10 +445,10 @@ MonoBehaviour:
     m_FlipY: 0
     m_InitialTrim: 0.05
   m_CastingOption: 1
-  m_PreviousTrimEdge: 0
-  m_PreviousEdgeProcessing: -1
-  m_PreviousShadowCastingSource: -1
-  m_PreviousShadowShape2DSource: {fileID: 0}
+  m_PreviousTrimEdge: 0.05
+  m_PreviousEdgeProcessing: 1
+  m_PreviousShadowCastingSource: 2
+  m_PreviousShadowShape2DSource: {fileID: 6145874335103876369}
   references:
     version: 2
     RefIds:

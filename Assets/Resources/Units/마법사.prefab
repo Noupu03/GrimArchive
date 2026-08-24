@@ -138,9 +138,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
   m_ShadowGroup: 0
-  m_Priority: 0
+  m_Priority: 100
   m_ComponentVersion: 5
-  m_HasRenderer: 0
+  m_HasRenderer: 1
   m_UseRendererSilhouette: 1
   m_CastsShadows: 1
   m_SelfShadows: 0
@@ -168,10 +168,10 @@ MonoBehaviour:
     m_FlipY: 0
     m_InitialTrim: 0.04
   m_CastingOption: 1
-  m_PreviousTrimEdge: 0
-  m_PreviousEdgeProcessing: -1
-  m_PreviousShadowCastingSource: -1
-  m_PreviousShadowShape2DSource: {fileID: 0}
+  m_PreviousTrimEdge: 0.04
+  m_PreviousEdgeProcessing: 1
+  m_PreviousShadowCastingSource: 2
+  m_PreviousShadowShape2DSource: {fileID: 1820415479019659919}
   references:
     version: 2
     RefIds:
@@ -379,13 +379,13 @@ MonoBehaviour:
   skills:
   - skillName: "\uD30C\uC774\uC5B4\uBCFC"
     baseDelayMs: 1500
-    baseCooldown: 5
+    baseCooldown: 10
     cooldownSlot: 1
-    isProjectile: 1
-    projectilePrefab: {fileID: 8268503077936916764, guid: 167c4129bc08faa448e930839e829898, type: 3}
-    projectileSpeed: 1
-    isPiercing: 1
-    hitEffectPrefab: {fileID: 1980553920939913900, guid: 242cf38a46dfa57408e7b18780e45626, type: 3}
+    isProjectile: 0
+    projectilePrefab: {fileID: 0}
+    projectileSpeed: 0
+    isPiercing: 0
+    hitEffectPrefab: {fileID: 5815198708874241484, guid: 6842894a6f64e15479424bbdd1269fff, type: 3}
     hitShape: RECT
     hitRange: 5
     hitWidth: 3

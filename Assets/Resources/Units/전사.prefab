@@ -379,7 +379,7 @@ MonoBehaviour:
   skills:
   - skillName: "\uAC15\uD0C0"
     baseDelayMs: 400
-    baseCooldown: 3
+    baseCooldown: 10
     cooldownSlot: 1
     isProjectile: 0
     projectilePrefab: {fileID: 0}
