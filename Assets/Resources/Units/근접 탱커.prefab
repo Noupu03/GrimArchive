@@ -384,7 +384,7 @@ MonoBehaviour:
     m_TrimEdge: 0.2
     m_FlipX: 0
     m_FlipY: 0
-    m_InitialTrim: 0.04
+    m_InitialTrim: 0
   m_CastingOption: 1
   m_PreviousTrimEdge: 0.2
   m_PreviousEdgeProcessing: 1
@@ -446,9 +446,9 @@ MonoBehaviour:
   engageDistance: 3
   populationCost: 1
   stats:
-    maxHp: 180
+    maxHp: 500
     maxMp: 0
-    physicalAttack: 80
+    physicalAttack: 300
     magicalAttack: 9
     physicalDefense: 10
     magicalDefense: 8
@@ -491,6 +491,11 @@ MonoBehaviour:
     priorityKillBonus: 20
     priorityRangeThreshold: 2.5
     priorityRangeBonus: 10
+    skillArchetype: 
+    multiHitCount: 0
+    effectDuration: 0
+    effectAmount: 0
+    explosionRadius: 0
   - skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
     baseDelayMs: 240
     baseCooldown: 4
@@ -515,6 +520,11 @@ MonoBehaviour:
     priorityKillBonus: 20
     priorityRangeThreshold: 1.5
     priorityRangeBonus: 10
+    skillArchetype: 
+    multiHitCount: 0
+    effectDuration: 0
+    effectAmount: 0
+    explosionRadius: 0
   - skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
     baseDelayMs: 650
     baseCooldown: 1.4
@@ -539,6 +549,11 @@ MonoBehaviour:
     priorityKillBonus: 20
     priorityRangeThreshold: 3
     priorityRangeBonus: 10
+    skillArchetype: 
+    multiHitCount: 0
+    effectDuration: 0
+    effectAmount: 0
+    explosionRadius: 0
   hitSparkPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
   guardPrefab: {fileID: 6247216677029042054, guid: c940242deb50815479f141bad61683b0, type: 3}
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}

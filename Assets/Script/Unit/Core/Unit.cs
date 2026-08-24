@@ -240,6 +240,31 @@ public abstract class Unit : ScriptableObject {
 	// "명령 취소"로만 해제된다(InputManager.IssueMoveCommand/CancelSelectedUnitsCommands 참고).
 	public bool isStandGroundAttack = false;
 
+	// 유닛 자체가 영구히 고정된 개체임을 뜻하는 플래그(2026-08-24, 보스 골렘용) — 위 isHalted/
+	// isStandGroundAttack이 "플레이어 명령으로 켜고 끄는 일시 상태"인 것과 달리 이건 스폰 시점에
+	// 한 번 켜지고 절대 꺼지지 않는 유닛의 성질이다. 그래서 HasActivePlayerCommand()/
+	// ClearPlayerCommand() 같은 명령 계열 로직에는 일부러 포함하지 않는다(명령 취소로 풀리면 안 됨).
+	//
+	// 효과는 isStandGroundAttack과 동일하다 — UnitFSM.SelectState가 StandGroundAttackFSMState를
+	// 강제 배정해 "이동은 절대 안 하지만 사거리 내 적은 공격"하게 만들고, UnitFunction.
+	// OnReactToThreat이 회피/점멸로 인한 위치 이동까지 막고, UnitFunction.Move가 최종 안전망으로
+	// 모든 이동 시도를 무시한다.
+	//
+	// 주의(2026-08-24 사용자 신고 "보스가 움직임"): units.json의 walkSpeed=0으로는 이동이 막히지
+	// 않는다 — walkSpeed는 GameSession.ProcessUnitAction에서 "행동 주기(actionCooldown)"만 결정할
+	// 뿐 이동 가능 여부와 무관하다. 고정 유닛은 반드시 이 플래그를 써야 한다.
+	public bool isImmobile = false;
+
+	// 전방위(360도) 시야(2026-08-24, 보스 골렘 — 사용자 요청 "보스 시야 360도로 해줄래? 제자리에
+	// 있는데 시야각때문에 공격범위가 이상하게 됨"). 켜지면 UnitFunction.UpdateFOV의 시야각(기본 120도)과
+	// 인지각(감지 스탯에 따라 60~120도)이 둘 다 360도가 되고, 피격 시 공격자 인지 판정(ForceRollPerception)의
+	// 인지각도 함께 360도가 된다 — 거리/차폐(벽·방 경계) 판정은 그대로라 "각도 제한만" 사라진다.
+	//
+	// 고정 유닛에 필요한 이유: isImmobile 유닛은 자리를 못 옮기므로 등 뒤로 돌아간 적을 영영 인지하지
+	// 못해 한쪽만 바라본 채 굳어버린다. 각도 제한을 풀면 어느 방향의 적이든 대상으로 잡고, 그때마다
+	// StandGroundAttackFSMState가 currentDir을 그쪽으로 돌려 공격 히트박스도 정상 방향으로 생성된다.
+	public bool hasOmnidirectionalVision = false;
+
 	public Vector3Int? playerInteractTarget = null;
 	public int         playerCommandStuckTurns = 0;
 
