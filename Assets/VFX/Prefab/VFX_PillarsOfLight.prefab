@@ -29081,7 +29081,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8259051932310790282}
   serializedVersion: 8
-  lengthInSec: 1
+  lengthInSec: 3
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 0
@@ -33889,4 +33889,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c8bf5f35d6f389418d6401b4cacc61c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ParticleLifetimeController
-  emissionDuration: -1
+  emissionDuration: 5
