@@ -52,14 +52,15 @@ public class FogOfWarSystem
     // 재사용한다(예전처럼 스폰마다 스프라이트를 새로 만들지 않음). TryPrepareFogTiles가 지연 생성.
     private UnityEngine.Tilemaps.Tile _fogBackingTile;
     private UnityEngine.Tilemaps.Tile _fogPatternTile;
-    // 안개 배경(EnsureFogBackingSprite, 런타임 생성 스프라이트)이 이 프로젝트 빌드에서 렌더링되지
-    // 않는 문제가 있었다(2026-08-26). 원인을 직접 고치는 대신 벽과 동일한 원리로 우회한다: 안개도
-    // Lit 셰이더로 바꾸면, 벽+안개 통합 셰도우 캐스터(RebuildFloorFogShadowCasters)가 이미 그 자리에
-    // 빛이 전혀 안 닿게 막아주므로 Lit 셰이더 결과가 검정(빛 0 = 출력 0)이 된다 — 배경 스프라이트가
-    // 렌더링되든 안 되든, 무늬(패턴)의 틈으로 비치는 바닥도 똑같이 Lit이라 똑같이 검정이 되어 "틈으로
-    // 비쳐 보임" 자체가 성립하지 않는다. 즉 배경 레이어가 왜 안 보이는지는 여전히 모르지만, 안 보여도
-    // 상관없는 구조로 바꿔서 우회했다.
-    private Material _fogMaterial;
+	// 안개 배경(EnsureFogBackingSprite, 런타임 생성 스프라이트) 자체가 이 프로젝트 빌드에서 계속
+	// 렌더링되지 않는 문제가 있었다(2026-08-26 — meshType FullRect, Texture2D.whiteTexture로 교체
+	// 모두 시도했으나 빌드에서 여전히 안 보임). 대신 벽과 동일한 원리로 우회한다: 안개도 Lit 셰이더로
+	// 바꾸면, 벽+안개 통합 셰도우 캐스터(RebuildFloorFogShadowCasters)가 이미 그 자리에 빛이 전혀
+	// 안 닿게 막아주므로 Lit 셰이더 결과가 검정(빛 0 = 출력 0)이 된다 — 배경 스프라이트가 렌더링되든
+	// 안 되든, 무늬(패턴)의 틈으로 비치는 바닥도 똑같이 Lit이라 똑같이 검정이 되어 "틈으로 비쳐 보임"
+	// 자체가 성립하지 않는다. 즉 배경 레이어의 렌더링 버그를 고치는 대신 애초에 안 보여도 상관없게
+	// 만드는 방식.
+	private Material _fogMaterial;
     // "스윽 사라지게"(사용자 요청, 구체적 초 수 지정 없음) — 자리표시자, 나중에 조정 요청 오면 이
     // 상수만 바꾸면 됨.
     private const float FogFadeOutSeconds = 0.6f;
@@ -205,13 +206,15 @@ public class FogOfWarSystem
     {
         if (_fogBackingSprite != null) return _fogBackingSprite;
 
-        Texture2D tex = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
-        tex.SetPixels(pixels);
-        tex.Apply();
-        _fogBackingSprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
-        return _fogBackingSprite;
+		// Texture2D.whiteTexture(엔진이 미리 만들어 둔 내장 텍스처)를 그대로 쓴다(2026-08-26) — 원래는
+				// new Texture2D+SetPixels로 직접 32x32 흰 텍스처를 만들어 썼는데, 그 "런타임에 새로 생성한
+				// 텍스처"로 만든 스프라이트가 이 프로젝트 빌드에서 계속 렌더링되지 않았다(머티리얼을 명시
+				// 지정해도, meshType을 FullRect로 바꿔도 안 됨 — 무늬(obj/fog.png, 에디터가 임포트한 진짜
+				// 에셋) 쪽은 멀쩡히 보였던 것과 대비됨). 텍스처 자체가 런타임 생성물이라는 게 공통점이라,
+				// 아예 새로 만들지 않고 엔진 내장 텍스처를 재사용하는 쪽으로 바꿨다.
+		_fogBackingSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height), 
+            new Vector2(0.5f, 0.5f), Texture2D.whiteTexture.width, 0, SpriteMeshType.FullRect);
+		return _fogBackingSprite;
     }
 
     // 안개 타일 애셋(배경/무늬) 지연 생성 — 최초 1회만 만들고 이후 모든 안개 스폰이 이 둘을
