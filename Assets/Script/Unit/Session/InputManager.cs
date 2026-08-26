@@ -514,6 +514,16 @@ public class InputManager : MonoBehaviour
 				? 0.0001f
 				: _gameSession.currentGameSpeed;
 		}
+
+		// ESC(2026-08-26, 사용자 요청 "esc를 누르면, 게임이 space 바를 누른 것처럼 정지 상태가 되고,
+		// 옵션 panel이 뜨게 해줘" → 이후 "옵션이라는 말, 설정으로 통일해") — 실제 일시정지/재개 처리와
+		// Time.timeScale 갱신은 GameSettingsPanel이 직접 들고 있다(재개 버튼 클릭과 로직을 공유하기
+		// 위함, Assets/Script/UI/Settings/GameSettingsPanel.cs).
+		if (GameInputScheme.EscapePressedThisFrame)
+		{
+			GameSettingsPanel.Instance?.Toggle();
+		}
+
 		if (GameInputScheme.Speed05PressedThisFrame)
 		{
 			_gameSession.currentGameSpeed = 0.5f;

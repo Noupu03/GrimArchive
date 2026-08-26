@@ -59,9 +59,12 @@ public class TitlePresenter : IPresenter
         SceneTransitionFade.EnsureInstance().LoadSceneWithCoverAsync(GameSceneName, TitleSceneName).Forget();
     }
 
+    // 2026-08-26, 사용자 요청 "설정 버튼 누르면, 설정은 아직 미구현 상태입니다. 라는 창이 뜨도록
+    // 해줘"(rythoom 프로젝트의 NoticeCenter.Push 참고) — 설정 패널 자체는 아직 없어 자리만 잡아둔다
+    // (RealBioSearch 구조 이식 — 버튼 3종 배치는 동일하게 유지).
     private void OpenSettings()
     {
-        // 설정 패널이 아직 없어 자리만 잡아둔다(RealBioSearch 구조 이식 — 버튼 3종 배치는 동일하게 유지).
+        NoticeCenter.Instance?.PushMomentary("설정은 아직 미구현 상태입니다.", NoticeCenter.WarningColor);
         LogHelper.Log(LogHelper.GAME, "[TitlePresenter] 설정 패널은 아직 준비되지 않았습니다.");
     }
 

@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 6839030098881199464}
   - component: {fileID: 8337728867924092484}
   - component: {fileID: 8696655555938133925}
-  - component: {fileID: 3340606377985358245}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -127,59 +126,6 @@ MonoBehaviour:
   m_labelHash: 1.76724e-10
   m_SpriteKey: 0
   m_SpriteHash: 185100933
---- !u!114 &3340606377985358245
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3585324296327969914}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7db70e0ea77f5ac47a8f4565a9406397, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.ShadowCaster2D
-  m_ShadowGroup: 0
-  m_Priority: 10
-  m_ComponentVersion: 5
-  m_HasRenderer: 1
-  m_UseRendererSilhouette: 1
-  m_CastsShadows: 1
-  m_SelfShadows: 0
-  m_AlphaCutoff: 0.1
-  m_ApplyToSortingLayers: 00000000
-  m_ShapePath:
-  - {x: -1.5, y: 0, z: 0}
-  - {x: -1.5, y: 3, z: 0}
-  - {x: 1.5, y: 3, z: 0}
-  - {x: 1.5, y: 0, z: 0}
-  m_ShapePathHash: 0
-  m_InstanceId: 0
-  m_ShadowShape2DComponent: {fileID: 6839030098881199464}
-  m_ShadowShape2DProvider:
-    rid: 8634810611613302890
-  m_ShadowCastingSource: 2
-  m_ShadowMesh:
-    m_Mesh: {fileID: 0}
-    m_LocalBounds:
-      m_Center: {x: -0.078125, y: 1.5, z: 0}
-      m_Extent: {x: 0.7593689, y: 1.3999939, z: 0}
-    m_EdgeProcessing: 1
-    m_TrimEdge: 0.1
-    m_FlipX: 0
-    m_FlipY: 0
-    m_InitialTrim: 0
-  m_CastingOption: 1
-  m_PreviousTrimEdge: 0.1
-  m_PreviousEdgeProcessing: 1
-  m_PreviousShadowCastingSource: 2
-  m_PreviousShadowShape2DSource: {fileID: 6839030098881199464}
-  references:
-    version: 2
-    RefIds:
-    - rid: 8634810611613302890
-      type: {class: ShadowShape2DProvider_SpriteRenderer, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.2D.Runtime}
-      data: 
 --- !u!1 &5531060136436963716
 GameObject:
   m_ObjectHideFlags: 0
