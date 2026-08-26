@@ -42,6 +42,12 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private UnityEngine.Tilemaps.Tile floorTile;
     private UnityEngine.Tilemaps.Tile stairTile;
 
+    // 바닥/벽 TilemapRenderer가 머티리얼을 지정하지 않으면 Unity가 기본값으로 Sprites-Default
+    // (Sprites/Default, Unlit)를 배정한다 — Light2D의 거리 감쇠·그림자가 반응할 셰이더가 아니라서
+    // 던전 전체가 광원과 무관하게 항상 같은 밝기로 보이는 원인이었다(2026-08-26, "거리에 의한 빛
+    // 밝기 감소와 그림자가 전혀 적용이 안됨" 신고). URP 2D Lit 셰이더를 명시적으로 물려 고친다.
+    private Material _floorLitMaterial;
+
     // 맵 1.5배 확장(2026-08-23 사용자 요청)으로 청크 크기가 층별 설정값(FloorConfig.chunkSize)이 됐다
     // — 전 층 공용 상수는 삭제하고 아래 메서드들이 각자 floor.config.chunkSize를 참조한다.
     private GameObject mapRoot;
@@ -136,6 +142,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
         floorTilemaps = new Tilemap[floorCount];
 
+        if (_floorLitMaterial == null)
+            _floorLitMaterial = new Material(Shader.Find("Universal Render Pipeline/2D/Sprite-Lit-Default"));
+
         for (int f = 0; f < floorCount; f++)
         {
             Floor floor = createMap.map.floors[f];
@@ -148,6 +157,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
             Tilemap tilemap = tilemapObj.AddComponent<Tilemap>();
             TilemapRenderer renderer = tilemapObj.AddComponent<TilemapRenderer>();
             renderer.sortingOrder = f;
+            renderer.material = _floorLitMaterial;
 
             floorTilemaps[f] = tilemap;
             RenderFloor(tilemap, ref floor, f);

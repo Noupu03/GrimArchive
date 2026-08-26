@@ -52,6 +52,12 @@ public class FogOfWarSystem
     // 재사용한다(예전처럼 스폰마다 스프라이트를 새로 만들지 않음). TryPrepareFogTiles가 지연 생성.
     private UnityEngine.Tilemaps.Tile _fogBackingTile;
     private UnityEngine.Tilemaps.Tile _fogPatternTile;
+    // TilemapRenderer가 머티리얼을 지정하지 않으면 Unity 기본값(Sprites-Default)에 기대게 되는데,
+    // 이 프로젝트 빌드에서는 그 묵시적 기본 배정이 안 먹혀 안개 배경이 아예 안 보이는 문제가 있었다
+    // (2026-08-26, 바닥/벽 TilemapRenderer에 URP Lit 머티리얼을 명시적으로 물려서 빛 감쇠·그림자
+    // 문제를 고친 것과 같은 원인·같은 해법 — 안개는 빛에 반응하면 안 되므로 Lit이 아니라 기존과
+    // 동일한 Unlit 셰이더를 "명시적으로" 만들어 물린다).
+    private Material _fogMaterial;
     // "스윽 사라지게"(사용자 요청, 구체적 초 수 지정 없음) — 자리표시자, 나중에 조정 요청 오면 이
     // 상수만 바꾸면 됨.
     private const float FogFadeOutSeconds = 0.6f;
@@ -197,12 +203,13 @@ public class FogOfWarSystem
     {
         if (_fogBackingSprite != null) return _fogBackingSprite;
 
-        Texture2D tex = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
-        tex.SetPixels(pixels);
-        tex.Apply();
-        _fogBackingSprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
+        // Texture2D.whiteTexture(엔진이 미리 만들어 둔 내장 텍스처)를 그대로 쓴다(2026-08-26) — 원래는
+        // new Texture2D+SetPixels로 직접 32x32 흰 텍스처를 만들어 썼는데, 그 "런타임에 새로 생성한
+        // 텍스처"로 만든 스프라이트가 이 프로젝트 빌드에서 계속 렌더링되지 않았다(머티리얼을 명시
+        // 지정해도, meshType을 FullRect로 바꿔도 안 됨 — 무늬(obj/fog.png, 에디터가 임포트한 진짜
+        // 에셋) 쪽은 멀쩡히 보였던 것과 대비됨). 텍스처 자체가 런타임 생성물이라는 게 공통점이라,
+        // 아예 새로 만들지 않고 엔진 내장 텍스처를 재사용하는 쪽으로 바꿨다.
+        _fogBackingSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height), new Vector2(0.5f, 0.5f), Texture2D.whiteTexture.width, 0, SpriteMeshType.FullRect);
         return _fogBackingSprite;
     }
 
@@ -258,6 +265,8 @@ public class FogOfWarSystem
         if (cells == null || cells.Count == 0) return null;
         if (!TryPrepareFogTiles()) return null;
 
+        if (_fogMaterial == null) _fogMaterial = new Material(Shader.Find("Sprites/Default"));
+
         GameObject root = new GameObject($"Fog_{namePrefix}");
         if (parentGroup != null) root.transform.SetParent(parentGroup, false);
 
@@ -275,12 +284,14 @@ public class FogOfWarSystem
         var backingTilemap = backingGo.AddComponent<UnityEngine.Tilemaps.Tilemap>();
         var backingRenderer = backingGo.AddComponent<UnityEngine.Tilemaps.TilemapRenderer>();
         backingRenderer.sortingOrder = FogSortingOrder;
+        backingRenderer.material = _fogMaterial;
         backingTilemap.SetTiles(cellArray, backingTiles);
 
         GameObject patternGo = new GameObject("Pattern");
         patternGo.transform.SetParent(root.transform, false);
         var patternTilemap = patternGo.AddComponent<UnityEngine.Tilemaps.Tilemap>();
         var patternRenderer = patternGo.AddComponent<UnityEngine.Tilemaps.TilemapRenderer>();
+        patternRenderer.material = _fogMaterial;
         patternRenderer.sortingOrder = FogSortingOrder + 1;
         patternTilemap.SetTiles(cellArray, patternTiles);
 
