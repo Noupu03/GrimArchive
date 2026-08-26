@@ -13,6 +13,7 @@ public class GameTitlePanel : MonoRoutine, ICustomPanel
     public GameObject panel { get; set; }
 
     [SerializeField] public CustomButton StartButton;
+    [SerializeField] public CustomButton KeyGuideButton;
     [SerializeField] public CustomButton SettingsButton;
     [SerializeField] public CustomButton QuitButton;
 

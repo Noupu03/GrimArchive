@@ -38,6 +38,9 @@ public class TitlePresenter : IPresenter
         if (panel.StartButton != null)
             panel.StartButton.Onclicked.AsObservable().Subscribe(_ => StartGame()).AddTo(disposables);
 
+        if (panel.KeyGuideButton != null)
+            panel.KeyGuideButton.Onclicked.AsObservable().Subscribe(_ => OpenKeyGuide(panel)).AddTo(disposables);
+
         if (panel.SettingsButton != null)
             panel.SettingsButton.Onclicked.AsObservable().Subscribe(_ => OpenSettings()).AddTo(disposables);
 
@@ -66,6 +69,15 @@ public class TitlePresenter : IPresenter
     {
         NoticeCenter.Instance?.PushMomentary("설정은 아직 미구현 상태입니다.", NoticeCenter.WarningColor);
         LogHelper.Log(LogHelper.GAME, "[TitlePresenter] 설정 패널은 아직 준비되지 않았습니다.");
+    }
+
+    // 키 가이드(2026-08-26, 사용자 요청 "타이틀과 esc에 키 가이드 항목 넣어줘" — rythoom의
+    // PauseMenu.OpenKeyGuide와 동일한 패턴: 타이틀 패널을 잠깐 숨기고 KeyGuidePanel을 띄운 뒤, 닫히면
+    // 다시 타이틀 패널을 보여준다). GameSettingsPanel.OpenKeyGuide와 동일한 관례.
+    private void OpenKeyGuide(GameTitlePanel panel)
+    {
+        panel.ClosePanel();
+        KeyGuidePanel.Instance?.Open(() => panel.OpenPanel());
     }
 
     private void QuitGame()

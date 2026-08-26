@@ -108,6 +108,19 @@ public class GameUIPresenter : UIPresenter
                 LogHelper.Error(LogHelper.GAME, $"[UI] GameSettingsPanel 로드 실패: {e.Message}");
             }
 
+            // 키 가이드 패널(2026-08-26, 사용자 요청 "타이틀과 esc에 키 가이드 항목 넣어줘") — 평소엔
+            // 닫아 두고 GameSettingsPanel의 "키 가이드" 버튼이 연다. GameSettingsPanel보다도 나중에
+            // 로드해야(마지막 sibling) 설정 패널 위에 뜬다.
+            try
+            {
+                int keyGuidePanelId = await _coreUIManager.LoadPanel<KeyGuidePanel>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<KeyGuidePanel>(keyGuidePanelId).ClosePanel();
+            }
+            catch (System.Exception e)
+            {
+                LogHelper.Error(LogHelper.GAME, $"[UI] KeyGuidePanel 로드 실패: {e.Message}");
+            }
+
             await FadeOut();
         }
         catch (System.Exception ex)

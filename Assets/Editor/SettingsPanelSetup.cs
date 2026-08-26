@@ -110,16 +110,20 @@ public static class SettingsPanelSetup
         subTmp.outlineWidth = TextOutlineWidth;
         subTmp.outlineColor = TextOutlineColor;
 
-        // 버튼 2종 (세로 스택 — Title 버튼과 같은 배치 방식)
+        // 버튼 3종 (세로 스택 — Title 버튼과 같은 배치 방식, 2026-08-26 "키 가이드" 추가로 2종 -> 3종)
         GameObject resumeGo = CreateSettingsButton(tmpResources, "ResumeButton", "[ 게임으로 돌아가기 ]", new Vector2(0.5f, 0.42f));
         resumeGo.transform.SetParent(root.transform, false);
 
-        GameObject quitGo = CreateSettingsButton(tmpResources, "QuitToTitleButton", "[ 타이틀 화면으로 나가기 ]", new Vector2(0.5f, 0.32f));
+        GameObject keyGuideGo = CreateSettingsButton(tmpResources, "KeyGuideButton", "[ 키 가이드 ]", new Vector2(0.5f, 0.32f));
+        keyGuideGo.transform.SetParent(root.transform, false);
+
+        GameObject quitGo = CreateSettingsButton(tmpResources, "QuitToTitleButton", "[ 타이틀 화면으로 나가기 ]", new Vector2(0.5f, 0.22f));
         quitGo.transform.SetParent(root.transform, false);
 
         var settingsPanel = root.AddComponent<GameSettingsPanel>();
         var so = new SerializedObject(settingsPanel);
         so.FindProperty("ResumeButton").objectReferenceValue = resumeGo.GetComponent<CustomButton>();
+        so.FindProperty("KeyGuideButton").objectReferenceValue = keyGuideGo.GetComponent<CustomButton>();
         so.FindProperty("QuitToTitleButton").objectReferenceValue = quitGo.GetComponent<CustomButton>();
         so.ApplyModifiedPropertiesWithoutUndo();
 

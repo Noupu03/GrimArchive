@@ -25,6 +25,7 @@ public class GameSettingsPanel : MonoRoutine, ICustomPanel
     public static GameSettingsPanel Instance { get; private set; }
 
     [SerializeField] public CustomButton ResumeButton;
+    [SerializeField] public CustomButton KeyGuideButton;
     [SerializeField] public CustomButton QuitToTitleButton;
 
     private const string TitleSceneName = "Title";
@@ -62,8 +63,21 @@ public class GameSettingsPanel : MonoRoutine, ICustomPanel
         if (ResumeButton != null)
             ResumeButton.Onclicked.AsObservable().Subscribe(_ => Close());
 
+        if (KeyGuideButton != null)
+            KeyGuideButton.Onclicked.AsObservable().Subscribe(_ => OpenKeyGuide());
+
         if (QuitToTitleButton != null)
             QuitToTitleButton.Onclicked.AsObservable().Subscribe(_ => ExitToTitle());
+    }
+
+    // 키 가이드(2026-08-26, 사용자 요청 "타이틀과 esc에 키 가이드 항목 넣어줘") — 게임은 이미 ESC로
+    // 일시정지된 상태라 여기서 pause/timeScale을 다시 건드릴 필요는 없다. 이 패널을 잠깐 숨기고
+    // KeyGuidePanel을 띄운 뒤, 닫히면 다시 이 패널을 보여준다(TitlePresenter.OpenKeyGuide와 동일한
+    // 관례).
+    private void OpenKeyGuide()
+    {
+        ClosePanel();
+        KeyGuidePanel.Instance?.Open(() => OpenPanel());
     }
 
     public void Toggle()

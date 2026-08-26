@@ -131,14 +131,18 @@ public static class TitleSceneSetup
         titleTmp.outlineWidth = TextOutlineWidth;
         titleTmp.outlineColor = TextOutlineColor;
 
-        // 버튼 3종 (세로 스택 — RealBioSearch와 같은 y 배치)
+        // 버튼 4종 (세로 스택 — RealBioSearch와 같은 y 배치, 2026-08-26 "키 가이드" 추가로 3종 -> 4종.
+        // rythoom PauseMenu의 재개/키가이드/설정/타이틀 순서를 참고해 시작 바로 다음에 배치).
         GameObject startGo = CreateTitleButton(tmpResources, "StartButton", "[ 시작 ]", new Vector2(0.5f, 0.48f));
         startGo.transform.SetParent(root.transform, false);
 
-        GameObject settingsGo = CreateTitleButton(tmpResources, "SettingsButton", "[ 설정 ]", new Vector2(0.5f, 0.38f));
+        GameObject keyGuideGo = CreateTitleButton(tmpResources, "KeyGuideButton", "[ 키 가이드 ]", new Vector2(0.5f, 0.38f));
+        keyGuideGo.transform.SetParent(root.transform, false);
+
+        GameObject settingsGo = CreateTitleButton(tmpResources, "SettingsButton", "[ 설정 ]", new Vector2(0.5f, 0.28f));
         settingsGo.transform.SetParent(root.transform, false);
 
-        GameObject quitGo = CreateTitleButton(tmpResources, "QuitButton", "[ 종료 ]", new Vector2(0.5f, 0.28f));
+        GameObject quitGo = CreateTitleButton(tmpResources, "QuitButton", "[ 종료 ]", new Vector2(0.5f, 0.18f));
         quitGo.transform.SetParent(root.transform, false);
 
         // 버전 라벨 (우하단)
@@ -161,6 +165,7 @@ public static class TitleSceneSetup
         var titlePanel = root.AddComponent<GameTitlePanel>();
         var so = new SerializedObject(titlePanel);
         so.FindProperty("StartButton").objectReferenceValue = startGo.GetComponent<CustomButton>();
+        so.FindProperty("KeyGuideButton").objectReferenceValue = keyGuideGo.GetComponent<CustomButton>();
         so.FindProperty("SettingsButton").objectReferenceValue = settingsGo.GetComponent<CustomButton>();
         so.FindProperty("QuitButton").objectReferenceValue = quitGo.GetComponent<CustomButton>();
         so.ApplyModifiedPropertiesWithoutUndo();

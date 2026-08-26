@@ -119,11 +119,18 @@ namespace Haare.Client.UI
 
             while (time < duration)
             {
+                // 2026-08-26(사용자 신고) — 이 루프가 여러 프레임에 걸쳐 await로 쉬는 동안, 소유
+                // GameObject가 다른 곳(예: GameSettingsPanel.ExitToTitle의 CoreUIManager 정리)에서
+                // 파괴될 수 있다. Unity가 오버라이드한 null 비교로 파괴 여부를 감지해 조용히 중단
+                // (MissingReferenceException 대신) — 이 컴포넌트가 페이드 도중 사라지는 모든 경우에
+                // 공통으로 적용되는 방어 코드다.
+                if (_image == null) return;
                 time += Time.deltaTime;
                 float progress = time / duration;
                 ChangeAlpha(Mathf.Lerp(startAlpha, targetAlpha, progress));
                 await UniTask.Yield();
             }
+            if (_image == null) return;
             ChangeAlpha(targetAlpha);
         }
 
@@ -144,6 +151,7 @@ namespace Haare.Client.UI
         
         public void ChangeAlpha(float alpha)
         {
+            if (_image == null) return;
             _image.color = new Color(_image.color.r, _image.color.g, _image.color.b, alpha);
         }
         
