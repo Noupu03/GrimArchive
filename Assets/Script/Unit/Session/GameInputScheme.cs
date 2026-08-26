@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 // 속도조절만 남기고 전부 없애줘" 정리 이후 "구조적 제안도 너가 개선해봐") — 이 게임이 실제로 쓰는
 // 입력은 정확히 이것뿐이다: WASD(카메라 이동) / 마우스 휠(줌) / 스페이스바(일시정지) / 1~4(게임 속도
 // 0.5x/1.0x/1.5x/2.0x, 2026-08-23 사용자 요청으로 0~3에서 재배정) / 좌클릭 / 우클릭 / Ctrl(선택
-// 추가 모디파이어). 예전엔 이 입력들을 InputManager/CameraController/
+// 추가 모디파이어) / ESC(2026-08-26 추가, 설정 패널 토글). 예전엔 이 입력들을 InputManager/CameraController/
 // BuildPlacementController/ObjectPlacementController/MonsterPlacementController 5곳이 각자
 // Keyboard.current.xKey / Mouse.current.yButton을 직접 폴링해서 흩어져 있었다 — "지금 이 게임이 정확히
 // 어떤 입력을 쓰는지" 감사하려면 5개 파일을 다 grep해야 했다(이번 정리 작업 자체가 그 비용을 보여줌).
@@ -39,6 +39,10 @@ public static class GameInputScheme
 
     // ── 일시정지(스페이스바) ──
     public static bool PausePressedThisFrame => Kb != null && Kb.spaceKey.wasPressedThisFrame;
+
+    // ── 설정 패널(ESC, 2026-08-26 사용자 요청 "esc를 누르면... 옵션 panel이 뜨게 해줘" → 이후
+    // "옵션이라는 말, 설정으로 통일해") ──
+    public static bool EscapePressedThisFrame => Kb != null && Kb.escapeKey.wasPressedThisFrame;
 
     // ── 게임 속도(1~4 → 0.5x/1.0x/1.5x/2.0x, 2026-08-23 사용자 요청으로 0~3에서 재배정) ──
     public static bool Speed05PressedThisFrame => Kb != null && Kb.digit1Key.wasPressedThisFrame;

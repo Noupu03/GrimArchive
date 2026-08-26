@@ -66,8 +66,8 @@ public class DoorSystem
     private Sprite _doorOpenSprite;
     private Sprite _doorClosedSprite;
 
-    private Sprite DoorOpenSprite => _doorOpenSprite ??= Resources.Load<Sprite>("obj/door_open");
-    private Sprite DoorClosedSprite => _doorClosedSprite ??= Resources.Load<Sprite>("obj/door_closed");
+    private Sprite DoorOpenSprite => SpriteCache.GetOrLoad(ref _doorOpenSprite, "obj/door_open");
+    private Sprite DoorClosedSprite => SpriteCache.GetOrLoad(ref _doorClosedSprite, "obj/door_closed");
 
     private IObjectResolver _resolver;
     private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();

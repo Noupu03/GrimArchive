@@ -96,6 +96,18 @@ public class GameUIPresenter : UIPresenter
                 LogHelper.Error(LogHelper.GAME, $"[UI] BottomMenuBar 로드 실패: {e.Message}");
             }
 
+            // ESC 설정 패널(2026-08-26) — 평소엔 닫아 두고 InputManager가 ESC 입력 시 연다. 다른 모든
+            // UGUI 패널 뒤에 로드해야(마지막 sibling) 열렸을 때 그 위를 덮는다.
+            try
+            {
+                int settingsPanelId = await _coreUIManager.LoadPanel<GameSettingsPanel>(_resolver, null, false, false);
+                _coreUIManager.RentPanel<GameSettingsPanel>(settingsPanelId).ClosePanel();
+            }
+            catch (System.Exception e)
+            {
+                LogHelper.Error(LogHelper.GAME, $"[UI] GameSettingsPanel 로드 실패: {e.Message}");
+            }
+
             await FadeOut();
         }
         catch (System.Exception ex)

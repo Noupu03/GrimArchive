@@ -18,12 +18,7 @@ public class SkillAction_Generic : SkillAction
     public override int HitWidth => _d.hitWidth;
     public override int HitDepth => _d.hitDepth;
 
-    public override bool IsAvailable(Unit unit)
-    {
-        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
-        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
-        return unit.CombatState.State.skillCooldowns[_d.cooldownSlot] <= 0f;
-    }
+    public override bool IsAvailable(Unit unit) => IsCooldownReady(unit, _d.cooldownSlot);
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {

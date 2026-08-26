@@ -81,9 +81,7 @@ public class SkillAction_Heal : SkillAction
 
     public override bool IsAvailable(Unit unit)
     {
-        if (unit == null || unit.CombatState.State.skillCooldowns == null) return false;
-        if (_d.cooldownSlot < 0 || _d.cooldownSlot >= unit.CombatState.State.skillCooldowns.Length) return false;
-        if (unit.CombatState.State.skillCooldowns[_d.cooldownSlot] > 0f) return false;
+        if (!IsCooldownReady(unit, _d.cooldownSlot)) return false;
 
         Unit lowest = GetHealTarget(unit);
         return lowest != null && lowest.Health != null && lowest.Health.hp < lowest.Health.maxHp;

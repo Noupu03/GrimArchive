@@ -60,6 +60,21 @@ public class BuildingManager : NativeRoutine
     public static readonly Vector2Int ResourceBuildingFootprint = new Vector2Int(2, 2);
     private static readonly Vector2Int DummyBuildingFootprint = Vector2Int.one;
 
+    // footprint가 차지하는 모든 타일 좌표를 나열한다(2026-08-25 리팩토링 — CanInstallAt/
+    // InstallBuildingInternal/UpdateMapDataObstacle 3곳이 각자 같은 dx/dy 이중 루프로 좌표만 계산하던
+    // 것을 통합). 순회 대상 좌표만 공유하고, 타일마다 실제로 무엇을 하는지(판정/등록/장애물 갱신)는
+    // 호출부 책임으로 남긴다.
+    private static IEnumerable<Vector3Int> FootprintTiles(Vector3Int origin, Vector2Int footprint)
+    {
+        for (int dx = 0; dx < footprint.x; dx++)
+        {
+            for (int dy = 0; dy < footprint.y; dy++)
+            {
+                yield return new Vector3Int(origin.x + dx, origin.y + dy, origin.z);
+            }
+        }
+    }
+
     // footprint 크기의 건물을 감싸는 바로 바깥쪽 테두리 한 칸 오프셋 전체를 만든다(원점=Position
     // 기준). footprint(1,1)이면 (0,1)/(0,-1)/(-1,0)/(1,0) 상하좌우 4칸 그대로다.
     private static List<Vector2Int> GetBuildingBorderOffsets(Vector2Int footprint)
@@ -117,22 +132,16 @@ public class BuildingManager : NativeRoutine
         await base.Finalize();
     }
 
-    // 5단계: 1타일 1오브젝트 규칙 (캡슐화된 쿼리) — 더미 건물(1x1) 등 단일 타일 판정용.
-    public bool CanInstallAt(Vector3Int pos) => CanInstallAt(pos, DummyBuildingFootprint);
-
-    // footprint가 차지할 모든 타일이 각각 설치 가능해야 전체 설치가 가능하다(2026-08-25, 다중 타일
-    // 건물 지원). footprint=(1,1)이면 위 단일 타일 오버로드와 동일하게 동작한다. requireOwnership=false면
-    // 방 점령(소유) 여부를 무시한다(2026-08-25, 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나
-    // 설치 가능하게 해줘. (점령 여부 무관)") — 디버그용 더미 건물 전용, 실제 생산 건물은 항상 true.
+    // 5단계: 1타일 1오브젝트 규칙 (캡슐화된 쿼리). footprint가 차지할 모든 타일이 각각 설치 가능해야
+    // 전체 설치가 가능하다(2026-08-25, 다중 타일 건물 지원). requireOwnership=false면 방 점령(소유)
+    // 여부를 무시한다(2026-08-25, 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나 설치 가능하게
+    // 해줘. (점령 여부 무관)") — 디버그용 더미 건물 전용, 실제 생산 건물은 항상 true.
     public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
     {
-        for (int dx = 0; dx < footprint.x; dx++)
+        foreach (Vector3Int tile in FootprintTiles(pos, footprint))
         {
-            for (int dy = 0; dy < footprint.y; dy++)
-            {
-                if (!CanInstallSingleTile(new Vector3Int(pos.x + dx, pos.y + dy, pos.z), requireOwnership))
-                    return false;
-            }
+            if (!CanInstallSingleTile(tile, requireOwnership))
+                return false;
         }
         return true;
     }
@@ -415,12 +424,9 @@ public class BuildingManager : NativeRoutine
             VisualObject = visual,
         };
 
-        for (int dx = 0; dx < footprint.x; dx++)
+        foreach (Vector3Int tile in FootprintTiles(pos, footprint))
         {
-            for (int dy = 0; dy < footprint.y; dy++)
-            {
-                buildingGrid[new Vector3Int(pos.x + dx, pos.y + dy, pos.z)] = newBuilding;
-            }
+            buildingGrid[tile] = newBuilding;
         }
 
         UpdateMapDataObstacle(pos, footprint, true);
@@ -462,38 +468,11 @@ public class BuildingManager : NativeRoutine
         return visual;
     }
 
-    // 6단계: 철거 (Uninstall) 로직 — pos는 footprint 안 어느 타일이든 상관없다(buildingGrid가 모든
-    // 점유 타일에 같은 BuildingData를 등록해두므로).
-    public void UninstallBuilding(Vector3Int pos)
-    {
-        if (!buildingGrid.TryGetValue(pos, out BuildingData data)) return;
-
-        // 1. 시각 오브젝트 파괴
-        if (data.VisualObject != null) UnityEngine.Object.Destroy(data.VisualObject);
-
-        // 2. MapData 롤백 (footprint 전체 타일)
-        UpdateMapDataObstacle(data.Position, data.Footprint, false);
-
-        // 3. 데이터 삭제 (footprint 전체 타일)
-        for (int dx = 0; dx < data.Footprint.x; dx++)
-        {
-            for (int dy = 0; dy < data.Footprint.y; dy++)
-            {
-                buildingGrid.Remove(new Vector3Int(data.Position.x + dx, data.Position.y + dy, data.Position.z));
-            }
-        }
-
-        LogHelper.Log(LogHelper.GAME, $"Uninstalled Building at {data.Position} (footprint {data.Footprint})");
-    }
-
     private void UpdateMapDataObstacle(Vector3Int pos, Vector2Int footprint, bool isObstacle)
     {
-        for (int dx = 0; dx < footprint.x; dx++)
+        foreach (Vector3Int tile in FootprintTiles(pos, footprint))
         {
-            for (int dy = 0; dy < footprint.y; dy++)
-            {
-                UpdateMapDataObstacleSingleTile(new Vector3Int(pos.x + dx, pos.y + dy, pos.z), isObstacle);
-            }
+            UpdateMapDataObstacleSingleTile(tile, isObstacle);
         }
     }
 

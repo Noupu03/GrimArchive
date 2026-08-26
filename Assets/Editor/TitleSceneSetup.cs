@@ -27,6 +27,7 @@ public static class TitleSceneSetup
     private const string TitlePanelAddress = "Prefabs/GrimArchive_TitlePanel";
     private const string TitleScenePath = "Assets/Scenes/Title.unity";
     private const string SshScenePath = "Assets/Scenes/ssh.unity";
+    private const string BackgroundImagePath = "Assets/Resources/Prefabs/그림2.png";
 
     // TMP 기본 폰트(LiberationSans SDF)엔 한글 글리프가 없어서 한글이 다 깨져 보인다.
     // 이미 프로젝트에 있는 한글 지원 폰트를 대신 쓴다(HaareUISetup.cs와 동일한 관례).
@@ -36,6 +37,15 @@ public static class TitleSceneSetup
     private static readonly Color BackgroundColor = new Color(0.031f, 0.039f, 0.06f, 1f); // #080A0F
     private static readonly Color TitleColor = new Color(0.651f, 0.8f, 0.749f, 1f);        // #A6CCBF
     private static readonly Color ButtonLabelColor = new Color(0.851f, 0.898f, 0.878f, 1f); // #D9E5E0
+    // 시인성 개선(2026-08-26, 사용자 신고 "타이틀 화면의 버튼, 글자 등이 너무 흐려서 잘 안보임") —
+    // 배경 사진(그림2.png)이 밝고 화면 중앙이 특히 밝아서, 그 위에 얹는 옅은 색 텍스트/거의 안 보이는
+    // 버튼(예전엔 흰색 8% 알파)이 배경에 묻혔다. 사진과 텍스트 사이에 어두운 스크림을 깔고, 버튼은
+    // 불투명에 가까운 진한 배경으로 바꾸고, 텍스트엔 검은 아웃라인을 둘러서 어떤 배경 위에서도 읽히게
+    // 한다.
+    private static readonly Color ScrimColor = new Color(0f, 0f, 0f, 0.5f);
+    private static readonly Color ButtonBackgroundColor = new Color(0f, 0f, 0f, 0.55f);
+    private static readonly Color TextOutlineColor = new Color(0.02f, 0.02f, 0.03f, 1f);
+    private const float TextOutlineWidth = 0.25f;
 
     [MenuItem("Tools/GrimArchive/타이틀 씬 생성")]
     public static void SetupTitleScene()
@@ -75,7 +85,30 @@ public static class TitleSceneSetup
         bgRt.anchorMax = Vector2.one;
         bgRt.offsetMin = Vector2.zero;
         bgRt.offsetMax = Vector2.zero;
-        bg.GetComponent<Image>().color = BackgroundColor;
+        var bgImage = bg.GetComponent<Image>();
+        var backgroundSprite = AssetDatabase.LoadAssetAtPath<Sprite>(BackgroundImagePath);
+        if (backgroundSprite != null)
+        {
+            bgImage.sprite = backgroundSprite;
+            bgImage.color = Color.white;
+            bgImage.type = Image.Type.Simple;
+            bgImage.preserveAspect = false;
+        }
+        else
+        {
+            Debug.LogWarning($"[TitleSceneSetup] 배경 이미지를 찾지 못했습니다: {BackgroundImagePath} (기본 배경색으로 대체)");
+            bgImage.color = BackgroundColor;
+        }
+
+        // 스크림(배경 사진과 글자/버튼 사이의 어두운 반투명 레이어) — 배경 사진 위, 글자/버튼 아래.
+        var scrim = new GameObject("Scrim", typeof(RectTransform), typeof(Image));
+        scrim.transform.SetParent(root.transform, false);
+        var scrimRt = scrim.GetComponent<RectTransform>();
+        scrimRt.anchorMin = Vector2.zero;
+        scrimRt.anchorMax = Vector2.one;
+        scrimRt.offsetMin = Vector2.zero;
+        scrimRt.offsetMax = Vector2.zero;
+        scrim.GetComponent<Image>().color = ScrimColor;
 
         // 제목 텍스트
         GameObject titleGo = TMP_DefaultControls.CreateText(tmpResources);
@@ -95,6 +128,8 @@ public static class TitleSceneSetup
         titleTmp.alignment = TextAlignmentOptions.Center;
         titleTmp.color = TitleColor;
         titleTmp.characterSpacing = 4;
+        titleTmp.outlineWidth = TextOutlineWidth;
+        titleTmp.outlineColor = TextOutlineColor;
 
         // 버튼 3종 (세로 스택 — RealBioSearch와 같은 y 배치)
         GameObject startGo = CreateTitleButton(tmpResources, "StartButton", "[ 시작 ]", new Vector2(0.5f, 0.48f));
@@ -152,7 +187,7 @@ public static class TitleSceneSetup
         rt.anchoredPosition = Vector2.zero;
 
         var image = go.GetComponent<Image>();
-        if (image != null) image.color = new Color(1f, 1f, 1f, 0.08f);
+        if (image != null) image.color = ButtonBackgroundColor;
         go.AddComponent<CustomImage>();
         go.AddComponent<CustomButton>();
 
@@ -162,6 +197,8 @@ public static class TitleSceneSetup
         buttonTmp.text = label;
         buttonTmp.color = ButtonLabelColor;
         buttonTmp.fontSize = 24;
+        buttonTmp.outlineWidth = TextOutlineWidth;
+        buttonTmp.outlineColor = TextOutlineColor;
         textGo.AddComponent<CustomText>();
 
         return go;
