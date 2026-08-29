@@ -16,6 +16,7 @@
     <type fullname="Haare.Client.UI.CustomButton" preserve="all" />
     <type fullname="Haare.Client.UI.CustomImage" preserve="all" />
     <type fullname="Haare.Client.UI.CustomText" preserve="all" />
+    <type fullname="KeyGuidePanel" preserve="all" />
     <type fullname="NoticeCenter" preserve="all" />
     <type fullname="StatusInfoPanel" preserve="all" />
     <type fullname="UIManager" preserve="all" />
