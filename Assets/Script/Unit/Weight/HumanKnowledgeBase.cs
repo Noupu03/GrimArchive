@@ -4,11 +4,9 @@ using System.Linq;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// "인류 전역 기록"의 실체 — 종별/개별 누적 가중치, 전멸 위험도 누적, 이해도 총량 한도/감소,
-// 미표기 정보 오차를 관리한다. 타일·오브젝트·방 위험도/흥미도(15~21장)는 Human.Memory.personalMap
-// (PersonalMapKnowledge)으로 개인유닛화되어 이 클래스에는 없다. 순수 C#(VContainer Register<T>().AsSelf()).
-// 실제 호출부는 Party.cs + GameSession.CheckPartyWaveState — 파티 전멸 시 OnPartyWipeout()/
-// RegisterWipeoutTrace(), 웨이브 몬스터 전멸 시 OnWaveEnd(survivors)를 호출한다.
+// "인류 전역 기록"의 실체 — 종별/개별 누적 가중치, 전멸 위험도, 이해도 총량 한도/감소, 정보 오차를
+// 관리한다. 타일·오브젝트·방 위험도/흥미도(15~21장)는 PersonalMapKnowledge로 개인유닛화돼 여기 없다.
+// 순수 C#(VContainer Register<T>().AsSelf()).
 public class HumanKnowledgeBase
 {
 	private readonly Dictionary<string, SpeciesWeightState> _species = new();
@@ -40,15 +38,13 @@ public class HumanKnowledgeBase
 	}
 
 	// ─────────────────────────── 4장/10-1장. 이벤트 기록 (개인 즉시 반영 + 전역 반영 큐잉) ───────────────────────────
-	// observer: 이 사건을 겪은/목격한 인류 유닛(개인 판단이 즉시 갱신됨).
-	// target: 이해도/위험도의 대상이 되는 유닛(주로 몬스터). incidentId: 같은 사건을 여러 유닛이
-	// 공유할 때 묶는 키 — 호출부(전투 이벤트 발생 지점)에서 사건 1건당 하나 발급해서 전달한다.
+	// observer: 사건을 겪은/목격한 인류 유닛(개인 판단 즉시 갱신). target: 이해도/위험도 대상(주로 몬스터).
+	// incidentId: 여러 유닛이 같은 사건을 공유할 때 묶는 키 — 호출부가 사건 1건당 하나 발급해 전달한다.
 	public void RecordEvent(EventId id, Unit observer, Unit target, InfoType infoType, string incidentId)
 		=> RecordEventByKey(id, observer, ResolveTargetKey(target), target.isSpecialUnit, infoType, incidentId);
 
-	// target Unit이 이미 Destroy됐거나 Unity 네이티브 프로퍼티에 안전하게 접근할 수 없을 때를 위한
-	// 경로 — 호출부가 target이 살아있을 때 미리 스냅샷해 둔 종/개체 키를 직접 넘긴다. RecordEvent는
-	// 이 메서드에 ResolveTargetKey(target)를 얹어 호출하는 얇은 래퍼다.
+	// target이 이미 Destroy됐거나 Unity 네이티브 프로퍼티에 안전히 접근 못 할 때를 위한 경로 — 호출부가
+	// 살아있을 때 미리 스냅샷한 종/개체 키를 직접 넘긴다. RecordEvent는 이 메서드의 얇은 래퍼다.
 	public void RecordEventByKey(EventId id, Unit observer, string targetKey, bool isIndividualTarget, InfoType infoType, string incidentId)
 	{
 		if (!WeightEventTable.TryGet(id, out var delta))
@@ -66,8 +62,7 @@ public class HumanKnowledgeBase
 	}
 
 	// 일반 유닛은 종별 누적(4-3장/7장), 특수 유닛은 개별 누적(7-1장)을 쓰므로 키도 갈라야 한다 —
-	// 일반 유닛의 target.name은 스폰마다 유일한 인스턴스명이라 종별 키로 쓰면 GetUnitInterest/
-	// GetFinalDanger가 조회하는 unitType.typeName과 어긋난다.
+	// target.name은 스폰마다 유일한 인스턴스명이라 종별 키로 쓰면 unitType.typeName 조회와 어긋난다.
 	private static string ResolveTargetKey(Unit target) => target.isSpecialUnit ? target.name : target.unitType.typeName;
 
 	private void RecordEventForWeight(EventId id, Unit observer, string targetId, bool isIndividualTarget, WeightType type,
@@ -88,8 +83,8 @@ public class HumanKnowledgeBase
 		_pendingIncidents.Add(new IncidentEntry(incidentId, id, targetId, type, infoType, changeValue, mentalState, observer.name, isIndividualTarget));
 	}
 
-	// 정신력 상태 → MentalErrorState 매핑. 문서가 정확한 임계값을 전투 연산 문서로 위임했으므로
-	// mental/maxMental 비율로 임의 기준을 잡았다(25% 미만=공황, 50% 미만=공포).
+	// 정신력 상태 → MentalErrorState 매핑. 문서가 임계값을 전투 연산 문서로 위임해 mental/maxMental
+	// 비율로 임의 기준을 잡았다(25% 미만=공황, 50% 미만=공포).
 	public static MentalErrorState GetMentalState(Unit u)
 	{
 		if (u == null || u.BaseStat.maxMental <= 0f) return MentalErrorState.Normal;
@@ -135,8 +130,7 @@ public class HumanKnowledgeBase
 			if (amount == 0f) continue;
 
 			string targetId = group.Key.TargetId;
-			// 기록 당시(RecordEvent)의 target.isSpecialUnit을 그대로 들고 온다 — _individuals.ContainsKey
-			// 추측은 호출 순서에 따라 틀릴 수 있어 쓰지 않는다.
+			// 기록 당시 target.isSpecialUnit을 그대로 들고 온다 — _individuals.ContainsKey 추측은 호출 순서에 따라 틀릴 수 있다.
 			bool isIndividual = group.First().IsIndividualTarget;
 
 			if (group.Key.WeightType == WeightType.Understanding)
@@ -155,8 +149,7 @@ public class HumanKnowledgeBase
 	{
 		float currentTotal = ComputeUnderstandingTotal();
 
-		// 감소 대상 후보: 2웨이브 이상 미갱신 것 중 하나(1순위) — 없으면 최대치 도달한 것(2순위, 여기선 단순화해
-		// "가장 오래된 것"으로 통일 처리하고 판단 근거를 구현현황에 남긴다.
+		// 감소 대상 후보: 2웨이브 이상 미갱신 것 중 "가장 오래된 것" 하나로 단순화(원래는 미갱신/최대치 도달 2순위 규칙).
 		var staleCandidate = FindStaleUnderstandingTarget();
 
 		var overflow = staleCandidate != null
@@ -245,11 +238,10 @@ public class HumanKnowledgeBase
 	}
 
 	// 11-2장: 타격 1회별 기준 피해량 미만 판정 — 몬스터 인스턴스별 누적 감소량(전투당 상한 -1).
-	// "같은 전투" 경계가 없어 이 몬스터 인스턴스가 살아있는 동안 전체를 하나의 전투로 근사한다.
+	// "같은 전투" 경계가 없어 이 몬스터가 살아있는 동안 전체를 하나의 전투로 근사한다.
 	private readonly Dictionary<string, float> _perHitDecreaseAccum = new();
 
-	// rawDamage: 방어/저항 적용 전 원래 피해량("몬스터에게 설정된 타격 1회별 기준 피해량" — 공격자의
-	// 공격력 자체가 이 기준값 역할을 한다). actualDamage: 방어력/저항으로 실제 감소된 뒤 적용된 피해량.
+	// rawDamage: 방어/저항 적용 전 원래 피해량(공격자 공격력이 기준값 역할). actualDamage: 방어력/저항 적용 후 실제 피해량.
 	public void ApplyPerHitDangerDecreaseCheck(Unit monster, float rawDamage, float actualDamage)
 	{
 		if (!WeightMath.PerHitDecreaseQualifies(rawDamage, actualDamage, out _)) return;
@@ -276,9 +268,8 @@ public class HumanKnowledgeBase
 		=> WeightMath.GetDangerStage(Mathf.FloorToInt(GetFinalDanger(speciesKey, individualIdOrNull, baseDanger)));
 
 	// ─────────────────── 개인 지도(PersonalMapKnowledge)용 — 관찰자 개인 기준 즉시 반영 ───────────────────
-	// GetFinalDanger/GetUnitInterest가 쓰는 종/개체 "전역" 누적값은 OnWaveEnd가 호출돼야 갱신된다(6장) —
-	// 웨이브 루프가 없으면 영원히 0이다. observer.personalWeights는 RecordEvent 즉시(4장) 갱신되므로
-	// 개인 지도는 이쪽을 쓴다. baseDanger/baseInterest를 기준값 삼아 이 관찰자의 개인 누적만 얹는다.
+	// 전역 누적값은 OnWaveEnd가 있어야 갱신되므로(6장) 웨이브 루프가 없으면 영원히 0이다 —
+	// observer.personalWeights는 RecordEvent 즉시 갱신되므로(4장) 개인 지도는 baseDanger/baseInterest에 이쪽만 얹는다.
 	public float GetPersonalDanger(Unit observer, Unit target)
 	{
 		string targetId = ResolveTargetKey(target);
@@ -287,9 +278,8 @@ public class HumanKnowledgeBase
 		return WeightMath.ComposeFinalDanger(target.BaseStat.baseDanger, personalAccum, 0f);
 	}
 
-	// 18장 공식(흥미도 = 기본흥미도 × (100-이해도)%)을 그대로 쓰되 "이해도"를 전역 종별이 아닌 이
-	// 관찰자 개인의 이해도(personalWeights)로 계산한다. baseInterest가 0인 유닛은 여전히 0을 반환
-	// 하는데, 이는 데이터(units.json) 문제이지 이벤트 연동 문제가 아니다.
+	// 18장 공식(흥미도 = 기본흥미도 × (100-이해도)%)을 그대로 쓰되 이해도는 전역 종별이 아닌 관찰자
+	// 개인의 이해도로 계산한다(baseInterest=0이면 결과도 0 — 데이터 문제지 이벤트 연동 문제 아님).
 	public float GetPersonalInterest(Unit observer, Unit target)
 	{
 		if (target.isInterestTarget) return WeightMath.Clamp(target.BaseStat.baseInterest, WeightType.Interest);
@@ -363,8 +353,7 @@ public class HumanKnowledgeBase
 		foreach (var id in expired) _wipeoutTraces.Remove(id);
 	}
 
-	// 15~17장/20~21장(타일·오브젝트·방 위험도/흥미도)은 개인유닛화되어 PersonalMapKnowledge
-	// (Human.Memory.personalMap)로 이전했다 — 원래도 인류 유닛별로 획득되는 개인 인지 정보였다.
+	// 15~17장/20~21장(타일·오브젝트·방 위험도/흥미도)은 원래도 개인 인지 정보라 PersonalMapKnowledge로 개인유닛화됐다.
 
 	// 18장: 일반 유닛 흥미도 = 기본흥미도 × (100-이해도)%. IsInterestTarget이면 감소식 미적용(그대로 유지).
 	public float GetUnitInterest(Unit unit)
@@ -381,8 +370,8 @@ public class HumanKnowledgeBase
 		return WeightMath.CorpseTraceInterest(stage);
 	}
 
-	// 20장/21장(방 위험도·흥미도)도 PersonalMapKnowledge로 이전했다 — 22장 방 합산 부분도 함께
-	// 옮겨가서, 아래 두 메서드는 진영 차원에서 관리하는 파티전멸/전멸흔적 누적값만 반환한다(13장).
+	// 20장/21장(방 위험도·흥미도)과 22장 방 합산도 PersonalMapKnowledge로 이전 — 아래 두 메서드는
+	// 진영 차원에서 관리하는 파티전멸/전멸흔적 누적값만 반환한다(13장).
 	public float GetDungeonDanger() => _dungeonWipeoutDangerAccum + _wipeoutTraceGlobalAccum;
 
 	public float GetDungeonInterest() => 0f;
@@ -403,9 +392,8 @@ public class HumanKnowledgeBase
 	}
 
 	// ─────────────────────────── 23장. 파티 입장 시 정보 오차 공유 ───────────────────────────
-	// 같은 파티의 모든 유닛은 동일한 오차 수치를 공유해야 한다(23장) — ApplyHiddenInfoNoise/
-	// ApplyInfoValueNoise는 호출마다 _rng로 새로 굴리므로, 파티+cacheKey 조합으로 최초 1회만
-	// 계산하고 이후 같은 파티의 호출은 캐시된 값을 돌려준다.
+	// 같은 파티의 모든 유닛은 동일한 오차 수치를 공유해야 한다(23장) — 호출마다 _rng로 새로 굴리는
+	// ApplyHiddenInfoNoise/ApplyInfoValueNoise 대신, 파티+cacheKey 조합으로 최초 1회만 계산해 캐시한다.
 	private readonly Dictionary<string, int> _partyInfoNoiseCache = new();
 
 	private static string PartyCacheKey(Party party, string cacheKey) => party.Id + "|" + cacheKey;
@@ -428,8 +416,7 @@ public class HumanKnowledgeBase
 		return result;
 	}
 
-	// 파티 재입장(같은 Party 인스턴스 재사용) 시 오차를 다시 산출하기 위한 API — 지금은 WaveSpawner가
-	// 매번 새 Party를 만들어 캐시가 자연히 비므로 필수 호출은 아니다.
+	// 파티 재입장 시 오차를 다시 산출하는 API — 지금은 WaveSpawner가 매번 새 Party를 만들어 필수 호출은 아니다.
 	public void ClearPartyInfoNoiseCache(Party party)
 	{
 		string prefix = party.Id + "|";

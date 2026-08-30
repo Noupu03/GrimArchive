@@ -1,12 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// 입력 스킴 중앙화 — 이 게임이 실제로 쓰는 입력은 정확히 이것뿐이다: WASD(카메라 이동) / 마우스
-// 휠(줌) / 스페이스바(일시정지) / 1~4(게임 속도) / 좌클릭 / 우클릭 / Ctrl(선택 추가) / ESC(설정
-// 패널). 여러 컨트롤러가 각자 device를 직접 폴링하던 걸 이 클래스 하나로 모아, 이 파일만 보면
-// 전체 입력 표면을 알 수 있게 한다. InputAction/InputActionAsset(Enable/Disable 생명주기 필요)
-// 대신 매 프레임 device를 직접 읽는 정적 프로퍼티로 구성해, MonoBehaviour 초기화/파괴 순서에
-// 의존하는 관리가 필요 없게 했다(회귀 위험 낮음).
+// 입력 스킴 중앙화 — WASD/휠/스페이스/1~4/좌클릭/우클릭/Ctrl/ESC 등 여러 컨트롤러가 각자 device를
+// 폴링하던 걸 이 클래스로 모아 이 파일만 보면 전체 입력 표면을 알 수 있게 한다. InputAction/
+// InputActionAsset 대신 매 프레임 device를 직접 읽는 정적 프로퍼티로 구성해 MonoBehaviour 생명주기 의존을 없앴다.
 public static class GameInputScheme
 {
     private static Keyboard Kb => Keyboard.current;
@@ -14,7 +11,7 @@ public static class GameInputScheme
 
     public static bool IsReady => Kb != null && Ms != null;
     // GUIMouseUtil처럼 키보드 유무와 무관하게 "포인터 좌표를 읽을 수 있는가"만 필요한 순수 UI
-    // 히트테스트 호출부용 — IsReady(둘 다 필요)와 분리해 마우스만 있어도 정상 동작하게 한다.
+    // 히트테스트 호출부용 — IsReady(둘 다 필요)와 분리해 마우스만 있어도 정상 동작한다.
     public static bool PointerAvailable => Ms != null;
 
     // ── 카메라 이동(WASD) ──
@@ -23,8 +20,8 @@ public static class GameInputScheme
     public static bool MoveLeft  => Kb != null && Kb.aKey.isPressed;
     public static bool MoveRight => Kb != null && Kb.dKey.isPressed;
 
-    // ── 줌(마우스 휠) — CameraController만 실제로 카메라에 적용한다(이 값을 두 곳에서 동시에
-    // 소비하면 DebugInfoPanel의 중복 줌 적용 버그가 재현된다).
+    // ── 줌(마우스 휠) — CameraController만 실제로 카메라에 적용한다(두 곳에서 동시에 소비하면
+    // DebugInfoPanel의 중복 줌 적용 버그가 재현된다).
     public static float ZoomDelta => Ms != null ? Ms.scroll.ReadValue().y : 0f;
 
     // ── 일시정지(스페이스바) ──

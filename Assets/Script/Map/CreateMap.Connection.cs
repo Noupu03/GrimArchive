@@ -1,11 +1,6 @@
 // ============================================================================
-// CreateMap.Connection.cs — 방 연결 · 통로 생성
-// ----------------------------------------------------------------------------
-// 역할: 방 간 그래프 구축(BuildGraph), Prim MST 기반 연결(ConnectRooms),
-//       통로 개방(OpenPassage), 루프 추가(AddLoops),
-//       미연결 방 브리지(BridgeDisconnectedRoom),
-//       타일 FloodFill 연결 보수(RepairGateConnectivity).
-// 단계: GenerateMap Phase 2 — 방 배치 완료 후 연결 구축
+// CreateMap.Connection.cs — 방 간 그래프 구축·Prim MST 연결·통로 개방·루프 추가·FloodFill 연결성
+// 복구를 담당한다(GenerateMap Phase 2, 방 배치 완료 후 연결 구축).
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -145,8 +140,8 @@ public partial class CreateMap
                 OpenPassage(ref floor, from, to);
         }
 
-        // 2단계: 서브목적방을 인접한 비-서브목적방 1개에만 연결 (단일 입구 보장)
-        // MST에 연결된(visited) 이웃을 우선 선택하여 고립 방지
+        // 2단계: 서브목적방을 인접한 비-서브목적방 1개에만 연결(단일 입구 보장) — MST에 연결된
+        // (visited) 이웃을 우선 선택해 고립 방지.
         foreach (int subId in subPurposeIds)
         {
             if (!roomAdjacency.ContainsKey(subId)) continue;
@@ -330,8 +325,7 @@ public partial class CreateMap
         int total = horizontal.Count + vertical.Count;
         if (total == 0) return;
 
-        // 통로 폭은 항상 2로 고정한다(가변 폭은 들쭉날쭉해 부자연스러움 — 문 배치가 통로 양쪽 문턱
-        // 2줄을 심으므로 2폭×2줄). 롤백 가능성 있어 기존 계산 로직은 주석 처리만 해둔다.
+        // 통로 폭은 항상 2로 고정(가변 폭은 들쭉날쭉해 부자연스러움 — 문 배치가 문턱 2줄을 심으므로 2폭×2줄). 롤백 가능성 있어 기존 계산 로직은 주석 처리만 해둔다.
         // int gateWidth = ComputeGateWidth(ref floor, roomA, roomB);
         int gateWidth = 2;
 

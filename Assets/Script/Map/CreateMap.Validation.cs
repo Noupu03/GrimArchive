@@ -1,9 +1,6 @@
 // ============================================================================
-// CreateMap.Validation.cs — 맵 무결성 검증
-// ----------------------------------------------------------------------------
-// ValidateMap → ValidateFloor0 + ValidateFloor(F1~F3) + ValidateStairs. 시작방/보스방/방 개수,
-// 고아 청크, 연결성(FloodFill), Gate 정합성, Footprint 범위, 계단 양방향 정합성 등 13개 항목 검증.
-// GenerateMap 최종 단계 — 맵 완성 후 품질 보증.
+// CreateMap.Validation.cs — 맵 무결성 검증. GenerateMap 최종 단계에서 시작방/보스방/방 개수,
+// 고아 청크, 연결성(FloodFill), Gate 정합성, 계단 양방향 정합성 등을 일괄 검증한다.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -236,8 +233,7 @@ public partial class CreateMap
             }
         }
 
-        // ⑩ Gate 폭 vs allowMaxFootprint 일관성 검증 — 통로가 항상 2*2로 고정돼 방 footprint를 더 이상
-        // 따라가지 않으므로 비활성화(살리면 매번 실패해 재시도만 낭비). 롤백 가능성 있어 주석 처리만.
+        // ⑩ Gate 폭 vs allowMaxFootprint 일관성 검증 — 통로가 항상 2*2로 고정돼 무의미해져 비활성화(롤백 대비 주석 처리만).
         // if (floor.gates != null)
         // {
         //     foreach (Gate g in floor.gates)

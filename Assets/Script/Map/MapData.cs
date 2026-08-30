@@ -1,11 +1,5 @@
 // ============================================================================
-// MapData.cs — 맵 데이터 구조체 · 열거형 · 팩토리 정의
-// ----------------------------------------------------------------------------
-// 역할: 던전 생성 시스템의 모든 데이터 타입을 정의.
-//       열거형: FloorId, RoomRole, OccupationState, TileEffect, Footprint
-//       구조체: Tile, Chunks, Floor, Map, Gate, FloorConfig, MapData
-//       팩토리: TileFactory, FloorConfigFactory, RoomIdGenerator
-//       CreateMap 및 관련 시스템이 참조하는 순수 데이터 레이어.
+// MapData.cs — 던전 생성 시스템의 데이터 타입(열거형/구조체/팩토리)을 정의하는 순수 데이터 레이어.
 // ============================================================================
 using System;
 
@@ -38,7 +32,7 @@ public enum OccupationState
 	PlayerControlled,   // 플레이어(몬스터 진영) 점령
 	Occupied,           // 적 점령
 	Outpost,            // 전초기지
-	HumanControlled     // 인류 소유(2026-07-27 신규) — 0층 로비 전체가 시작값으로 가짐
+	HumanControlled     // 인류 소유 — 0층 로비 전체가 시작값으로 가짐
 }
 
 [Serializable]
@@ -48,8 +42,8 @@ public enum TileEffect
 	// 효과 종류는 필요에 따라 확장하세요.
 }
 
-// ── 청크 경계 벽면 방향 ── CreateMap.TileWall.cs와 TorchVisual.cs 양쪽이 참조하므로 이 파일에 둔다.
-// new_torch.png 라벨(Up/Right/Down)과 1:1 대응, Left는 전용 스프라이트가 없어 Right를 좌우 반전해 재사용.
+// ── 청크 경계 벽면 방향 ── CreateMap.TileWall.cs/TorchVisual.cs 공용이라 이 파일에 둔다. Left는
+// 전용 스프라이트가 없어 Right를 좌우 반전해 재사용한다.
 public enum TorchWallSide { Top, Right, Bottom, Left }
 
 // ── Footprint 크기 (정사각형 전용, 1~5) ──
@@ -80,7 +74,7 @@ public struct Gate
 	// 방향: true=수평(좌우 인접), false=수직(상하 인접)
 	public bool isHorizontal;
 
-	// 미사용 필드(DoorSystem 진영 기반 개폐로 대체됨) — 기존 맵 저장 파일 직렬화 호환을 위해 남겨둔다.
+	// 미사용 필드 — DoorSystem 진영 기반 개폐로 대체됐지만 기존 맵 저장 파일 직렬화 호환을 위해 유지.
 	// 실제 개폐 상태는 InteractableObject.DoorIsOpenVisual이 매 프레임 재계산한다.
 	public bool isDoorClosed;
 }
@@ -182,8 +176,8 @@ public struct FloorConfig
 	public int maxNormalRoomChunks;
 	// 총 방 수 (시작방 + 일반방 + 보스방). 서브 목적방은 별도 카운트.
 	public int totalRoomCount;
-	// 청크 1개의 타일 한 변 크기(정사각형) — CreateMap/MapRandering/DoorSystem/FogOfWarSystem이
-	// 모두 참조하므로 변경 시 영향 범위가 넓다.
+	// 청크 1개의 타일 한 변 크기(정사각형) — CreateMap/MapRandering/DoorSystem/FogOfWarSystem이 모두
+	// 참조해 변경 시 영향 범위가 넓다.
 	public int chunkSize;
 }
 
@@ -281,10 +275,8 @@ public static class FloorConfigFactory
 	{
 		return new FloorConfig[]
 		{
-			// Floor 0: 던전 입구 — 1×3 가시 프리셋 + 최좌측 숨김 스폰 청크 1개로 width=4, height=1.
-			// 숨김 청크는 별도 렌더링 분리 없이 CameraController의 관찰 범위 제한만으로 "안 보임"을
-			// 구현한다. HumanWaveManager의 DungeonEntranceHiddenChunkCenterX 등은 손계산 상수라
-			// chunkSize를 바꾸면 비율 유지하며 같이 맞춰야 한다.
+			// Floor 0: 던전 입구 — 숨김 스폰 청크는 렌더링 분리 없이 CameraController 관찰 범위 제한만으로
+			// 안 보이게 처리하므로, chunkSize를 바꾸면 HumanWaveManager의 손계산 상수도 같이 조정해야 한다.
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_0,
@@ -296,7 +288,7 @@ public static class FloorConfigFactory
 				totalRoomCount = 1,
 				chunkSize = 12
 			},
-			// Floor 1: 7×7 (청크 개수는 그대로, 청크 자체 크기만 1.5배 — 아래 청크 크기 주석 참고)
+			// Floor 1: 7×7
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_1,

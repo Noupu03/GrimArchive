@@ -3,23 +3,20 @@ using UnityEngine;
 using VContainer;
 using Haare.Util.Logger;
 
-// 문 시스템(진영 기반 개폐) — 문의 보유 진영(DoorOwnerFaction)은 방 소유권(Room.RoomFaction)과
-// 완전히 분리돼 있고 파괴 후 재설치로만 바뀐다. 기본은 항상 닫힘이고 보유 진영 유닛의 접근 시도
-// (NotifyApproachAttempt) 순간에만 시각적으로 열리지만, 실제 통행 가능 여부는 이 시각 상태와
-// 무관하게 항상 진영 일치로만 판정된다(IsBlockedByClosedDoor). GameSession 비대화 방지를 위해 분리했다.
-//
-// GameSession을 직접 [Inject]하지 않고 IObjectResolver를 지연 조회하는 이유: GameSession.Construct()가
-// 이 클래스를 파라미터로 받는 시점엔 아직 GameSession 생성이 끝나지 않아 즉시 주입받으면 순환 참조가 된다.
+// 문 시스템(진영 기반 개폐, GameSession 비대화 방지 목적 분리). DoorOwnerFaction(보유 진영)은
+// Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다. 기본은 항상 닫힘, 접근 시도
+// (NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 가능 여부는 항상 진영 일치로만
+// 판정한다(IsBlockedByClosedDoor). GameSession을 직접 [Inject]하지 않고 IObjectResolver로 지연
+// 조회하는 이유: GameSession.Construct() 시점엔 생성이 끝나지 않아 즉시 주입 시 순환 참조가 된다.
 public class DoorSystem
 {
     public const string DoorTag = "Object/Passable/Door";
 
-    // 자리표시자 — 물리공격력 40 기준 파괴 배율(0.5)을 그대로 적용하면 약 5초 만에 파괴되므로 3배로 늘렸다.
     public const float DoorMaxHp = 300f;
     // 유닛 스탯과 무관한 고정 초당 데미지 — 채널링 중인 유닛 수만큼 자연히 합산된다.
     public const float DoorAttackDamagePerSecond = 20f;
 
-    // 마지막 피해로부터 이 시간(초)이 지나면 회복 시작. GameSession.CoreRegenDelaySeconds와 동일한 값.
+    // 마지막 피해로부터 이 시간(초)이 지나면 회복 시작(GameSession.CoreRegenDelaySeconds와 동일 값).
     public const float DoorRegenDelaySeconds = 5f;
     public const float DoorRegenPerSecond = 10f;
 
@@ -61,8 +58,7 @@ public class DoorSystem
 
             foreach (var gate in floor.gates)
             {
-                // 기본(회전 0도) 그림은 수직 통로(isHorizontal=false) 기준이라, 수평 통로에서는
-                // 90도 돌려야 벽 방향과 맞는다.
+                // 기본(회전 0도) 그림은 수직 통로 기준이라 수평 통로는 90도 돌려야 벽 방향이 맞는다.
                 float rotation = gate.isHorizontal ? 90f : 0f;
 
                 foreach (List<Vector2Int> gateTiles in GetGateDoorTiles(gate, floor.config.chunkSize))
@@ -97,8 +93,8 @@ public class DoorSystem
         Session.SpawnObject(door, Color.white, rotation);
         _doorPositions.Add(gridPos);
 
-        // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — door.DoorIsOpenVisual
-        // 기본값(false)과 IsFullyBlocking=true(생성자 인자)는 이미 "닫힘"과 일치한다.
+        // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — DoorIsOpenVisual
+        // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다.
         GameObject visual = Session.GetObjectVisual(gridPos);
         SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
         if (sr != null && DoorClosedSprite != null)
@@ -107,10 +103,10 @@ public class DoorSystem
         }
     }
 
-    // Gate(청크 경계+폭+방향)로부터 문이 놓일 타일 좌표를 계산한다. CreateMap.Connection.cs의
-    // OpenHorizontalPassage/OpenVerticalPassage와 동일한 공식을 재사용해 같은 타일을 되짚으며,
-    // chunkAX/BX(또는 AY/BY) 중 어느 쪽이 A/B인지는 방향에 따라 뒤바뀔 수 있어 Min으로 정렬한다.
-    // 반환값은 [A쪽 문턱 줄, B쪽 문턱 줄] — MapRandering의 점령 색칠 제외 판정도 재사용하므로 public static.
+    // Gate(청크 경계+폭+방향)로부터 문이 놓일 타일 좌표를 계산한다 — CreateMap.Connection.cs의
+    // OpenHorizontalPassage/OpenVerticalPassage와 동일 공식으로 같은 타일을 되짚으며, A/B 청크 순서가
+    // 방향에 따라 뒤바뀔 수 있어 Min으로 정렬한다. 반환값 [A쪽 문턱 줄, B쪽 문턱 줄]은 MapRandering의
+    // 점령 색칠 제외 판정도 재사용하므로 public static.
     public static List<Vector2Int>[] GetGateDoorTiles(Gate gate, int chunkSize)
     {
         var tilesA = new List<Vector2Int>();
@@ -145,9 +141,8 @@ public class DoorSystem
         return new[] { tilesA, tilesB };
     }
 
-    // 매 프레임 모든 문의 시각 상태(스프라이트/시야 차단)만 갱신한다 — 통행 가능 여부는 이 값과
-    // 무관하게 IsBlockedByClosedDoor가 항상 그 순간의 진영 일치로 판정하는 순수 코스메틱이다.
-    // 문은 방 바닥과 같은 진영 틴트를 쓰면 묻혀 안 보이므로 기본 색(흰색)을 유지한다.
+    // 매 프레임 문의 시각 상태(스프라이트/시야 차단)만 갱신 — 통행 가능 여부는 IsBlockedByClosedDoor가
+    // 그 순간 진영 일치로 판정하는 순수 코스메틱이다(방 바닥과 같은 진영 틴트를 쓰면 안 보여 기본 색 유지).
     public void UpdateProcess()
     {
         if (GameSession.Instance == null || _doorPositions.Count == 0) return;
@@ -179,8 +174,8 @@ public class DoorSystem
 
             FactionType ownerFaction = door.DoorOwnerFaction;
 
-            // 접근 시도(이번 프레임 NotifyApproachAttempt) 또는 이미 문 타일 위에 보유 진영 유닛이
-            // 서 있는 경우(통과 도중 정지 등 방어적 케이스) 열림으로 본다.
+            // 접근 시도(이번 프레임 NotifyApproachAttempt) 또는 문 타일 위에 이미 보유 진영 유닛이
+            // 서 있으면(통과 중 정지 등) 열림으로 본다.
             bool unitOnDoor = Session.unitGrid.TryGetValue(pos, out Unit occupant) && occupant != null
                 && occupant.Health.hp > 0 && OffenseProcessor.MapToRoomFaction(occupant.FactionBehavior) == ownerFaction;
             bool shouldBeOpen = _approachedThisFrame.Contains(pos) || unitOnDoor;
@@ -219,8 +214,8 @@ public class DoorSystem
         _approachedThisFrame.Add(pos);
     }
 
-    // UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에 직접 호출한다. 시각적 개폐와
-    // 무관하게 항상 "문 보유 진영 == 이동하려는 유닛 진영"으로만 결정하며, 문이 없으면(파괴됨) 막지 않는다.
+    // UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에 직접 호출 — 시각적 개폐와
+    // 무관하게 항상 "문 보유 진영 == 유닛 진영"으로만 결정하며, 문이 없으면(파괴됨) 막지 않는다.
     public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit)
     {
         if (unit == null || !Session.objectGrid.TryGetValue(pos, out InteractableObject obj)) return false;
@@ -231,9 +226,9 @@ public class DoorSystem
         return doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value;
     }
 
-    // 이동 명령 도달성 판정 — 점령 여부와 무관하게, 시작 방에서 "그 진영이 통행 가능한 문"(파괴됐거나
-    // 자기 진영 소유, IsBlockedByClosedDoor와 동일 기준)만 거쳐 도달 가능한 방이면 전부 허용한다.
-    // 타일 단위 이동 판정 기준을 방 단위 그래프로 그대로 확장한 것이라 "명령은 허용됐는데 실제로는 막힘" 같은 불일치가 없다.
+    // 이동 명령 도달성 판정 — 점령 여부와 무관하게 "그 진영이 통행 가능한 문"(IsBlockedByClosedDoor와
+    // 동일 기준)만 거쳐 도달 가능한 방이면 허용한다. 타일 판정을 방 단위 그래프로 그대로 확장한 것이라
+    // "명령은 허용됐는데 실제로는 막힘" 같은 불일치가 없다.
     public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)
     {
         if (fromRoomId < 0 || targetRoomId < 0) return false;
@@ -279,15 +274,15 @@ public class DoorSystem
         return owner == null || owner.Value == faction; // null = 문이 없음(파괴됨) = 통과 가능
     }
 
-    // 문이 있는 자리는 오브젝트/몬스터 배치 모두 불가능(이동만 가능) — BuildingManager.CanInstallAt,
-    // UnitGenerate.IsAreaClear, RoomConfinedMovement 등 배치/자율이동 판정이 이 메서드로 문 타일을 걸러낸다.
+    // 문이 있는 자리는 오브젝트/몬스터 배치 모두 불가능(이동만 가능) — BuildingManager.CanInstallAt/
+    // UnitGenerate.IsAreaClear/RoomConfinedMovement 등이 이 메서드로 문 타일을 걸러낸다.
     public bool IsDoorTile(Vector3Int pos)
     {
         return Session.objectGrid.TryGetValue(pos, out InteractableObject obj) &&
                obj.Tags != null && obj.Tags.Contains(DoorTag);
     }
 
-    // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 동일한 채널링 패턴).
+    // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 동일한 채널링 패턴) —
     // 재설치 전까지는 진영 판정 대상 자체가 없어 아무나 통과 가능해진다.
     public void RemoveDoor(Vector3Int pos)
     {
@@ -297,7 +292,7 @@ public class DoorSystem
         LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {pos} 위치의 문이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
     }
 
-    // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorAt과 동일하게 기본 닫힘으로 재생성한다.
+    // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorAt과 동일하게 기본 닫힘으로 재생성하며
     // 재설치는 오직 플레이어만 실행하므로 소유 진영은 항상 Player로 고정된다.
     public void RebuildDoorAt(Vector3Int pos)
     {

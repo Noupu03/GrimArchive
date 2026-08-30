@@ -7,8 +7,8 @@ using VContainer;
 // B/V키로 지은 건물을 클릭하면 뜨는 조작 UI. DebugInfoPanel/StatusInfoPanel과 동일한 관례 —
 // [PanelAttribute]로 등록된 얇은 UGUI 프리팹 껍데기 + 실제 인터랙션은 OnGUI로 그린다.
 // 코어/문/함정/전리품/시체/전멸흔적 등 InteractableObject 전반의 클릭 정보 표시도 이 클래스가 겸한다 —
-// 에디터 실행이 불가능한 환경이라 새 프리팹 GUID를 발급받을 수 없어, 내용이 전부 OnGUI인 이 패널의
-// _current(건물)/_currentObject(오브젝트) 두 상태를 상호 배타로 관리해 확장했다.
+// 새 프리팹 GUID를 발급받을 수 없는 환경이라 _current(건물)/_currentObject(오브젝트) 두 상태를
+// 상호 배타로 관리해 확장했다.
 [PanelAttribute("Prefabs/BuildingControlPanel")]
 public class BuildingControlPanel : MonoRoutine, ICustomPanel
 {
@@ -36,9 +36,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         Instance = this;
     }
 
-    // OnGUI/IsMouseOverPanel의 null 체크 뒤에서만 Report를 부르면 패널이 닫히는 순간의 보고가
-    // 누락돼 BottomLeftPanelStack의 프레임 스윕에 최대 1~2프레임 지연이 생긴다 — UpdateProcess는
-    // 상태와 무관하게 매 프레임 도므로 여기서 직접 보고해 닫히는 프레임에 즉시 정리한다.
+    // OnGUI 쪽 null 체크 뒤에서만 Report를 부르면 패널이 닫히는 순간의 보고가 누락돼 BottomLeftPanelStack
+    // 정리가 몇 프레임 지연된다 — UpdateProcess는 상태와 무관하게 매 프레임 돌므로 여기서 직접 보고한다.
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
@@ -67,8 +66,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         OpenPanel();
     }
 
-    // 오브젝트 정보 조회(2026-08-22 후속 피드백) — InputManager가 유닛도 건물도 아닌 오브젝트
-    // (코어/문/함정/전리품/시체/전멸흔적)를 클릭했을 때 호출한다.
+    // InputManager가 유닛도 건물도 아닌 오브젝트(코어/문/함정/전리품/시체/전멸흔적)를 클릭했을 때 호출한다.
     public void ShowForObject(InteractableObject obj)
     {
         _currentObject = obj;
@@ -79,8 +77,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private const int PanelWidth = 260;
     private const int PanelHeight = 260;
 
-    // 좌하단 패널 스택 — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다. 등록 순서
-    // 기반이라 이 패널이 먼저 떠 있었다면 나중에 뜨는 유닛 정보 UI가 오른쪽에 새로 붙는다.
+    // 좌하단 패널 스택 — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다(등록 순서 기반 정렬).
     private const string StackId = "BuildingControl";
 
     private Rect GetPanelRect()
@@ -90,17 +87,15 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return new Rect(x, y, PanelWidth, PanelHeight);
     }
 
-    // OnGUI(IMGUI)는 UGUI의 EventSystem.IsPointerOverGameObject()로 감지가 안 돼서, 패널 안 버튼
-    // 클릭이 InputManager의 월드 클릭(패널 닫기 분기)으로도 처리되던 문제 — 좌클릭 처리 전에
-    // 이 패널 영역 위인지 먼저 확인하도록 노출한다.
+    // OnGUI(IMGUI)는 UGUI의 EventSystem.IsPointerOverGameObject()로 감지가 안 돼 패널 안 버튼 클릭이
+    // InputManager의 월드 클릭으로도 처리되던 문제 — 좌클릭 처리 전에 패널 영역 위인지 먼저 확인한다.
     public bool IsMouseOverPanel()
     {
         if (_current == null && _currentObject == null) return false;
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
-    // 다른 OnGUI 패널이 이 패널과 실제로 겹치는지 판정할 때 쓴다(BottomMenuBar.DrawFloorPanel,
-    // DebugInfoPanel.TryGetVisibleInfoBoxRect와 동일 관례).
+    // 다른 OnGUI 패널이 이 패널과 실제로 겹치는지 판정할 때 쓴다.
     public bool TryGetVisibleRect(out Rect rect)
     {
         rect = default;
@@ -109,14 +104,12 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return true;
     }
 
-    // 기본 Unity GUI 스킨 대신 BottomMenuBar/StatusInfoPanel과 같은 GUIMenuStyleUtil을 쓴다. 항목
-    // 개수가 가변적인 목록이라 손으로 Rect를 계산하는 대신 DrawFlatButtonLayout(GUILayout 래퍼)을 쓴다.
+    // 기본 Unity GUI 스킨 대신 GUIMenuStyleUtil을 쓴다. 항목 개수가 가변적이라 DrawFlatButtonLayout(GUILayout 래퍼)을 쓴다.
     private void OnGUI()
     {
         if (_current == null && _currentObject == null) return;
 
-        // StatusInfoPanel(우상단)/DebugInfoPanel(우측 상단 버튼, 좌하단 유닛 정보)과 안 겹치도록
-        // 좌하단에서 유닛 정보 박스 오른쪽(PanelX)으로 옮겨 띄운다.
+        // StatusInfoPanel/DebugInfoPanel과 안 겹치도록 좌하단 유닛 정보 박스 오른쪽으로 옮겨 띄운다.
         Rect rect = GetPanelRect();
         GUIMenuStyleUtil.DrawPanelBox(rect);
 
@@ -128,8 +121,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
         else if (_current.IsDummy)
         {
-            // 디버그용 더미 건물(2026-08-25, 사용자 요청 "아무런 기능도 하지 않는, 건물 판정만 있는
-            // 더미 건물") — 생산/자원 UI 없이 안내 문구만 표시한다.
+            // 디버그용 더미 건물 — 생산/자원 UI 없이 안내 문구만 표시한다.
             GUILayout.Label("[ 더미 건물 (디버그) ]", GUIMenuStyleUtil.LabelStyle);
             GUILayout.Label("기능 없음 — 건물 판정(타일 점유)만 있는 디버그용 오브젝트입니다.", GUIMenuStyleUtil.BodyLabelStyle);
         }
@@ -172,8 +164,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 string progressText = "";
                 if (index == 0 && _current.IsProducing)
                 {
-                    // 인구수 초과로 진행이 멈춰있으면 진행중 대신 중지됨을 표시한다 — BuildingManager.
-                    // UpdateProcess가 이 동안 진행도를 안 늘려서 실제로도 값이 정지해 있다.
+                    // 인구수 초과로 진행이 멈춰있으면 진행중 대신 중지됨을 표시한다.
                     progressText = _current.WaitingForRoomSpace
                         ? $" - 중지됨(방 인원 초과) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
                         : $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s";
@@ -205,8 +196,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         GUILayout.EndArea();
     }
 
-    // 코어/문/함정/전리품/시체/전멸흔적 등 모든 InteractableObject 공통 정보 표시 — 체력이 있으면
-    // 체력, 진영 소유 가능하면 소유 진영을 표기한다. 순수 조회용이라 버튼은 공용 "닫기"뿐이다.
+    // 모든 InteractableObject 공통 정보 표시 — 체력이 있으면 체력, 진영 소유 가능하면 소유 진영을 표기한다.
     private void DrawObjectInfo(InteractableObject obj)
     {
         GUILayout.Label($"[ {GetObjectDisplayName(obj)} ]", GUIMenuStyleUtil.LabelStyle);
@@ -243,8 +233,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return "오브젝트";
     }
 
-    // 체력이 있는 오브젝트(코어/문/함정)만 true를 반환한다 — 그 외(전리품/시체/전멸흔적)는 체력 개념이
-    // 없으므로 hp/maxHp를 표시하지 않는다.
+    // 체력이 있는 오브젝트(코어/문/함정)만 true를 반환한다 — 그 외는 체력 개념이 없다.
     private static bool TryGetObjectHp(InteractableObject obj, out float hp, out float maxHp)
     {
         if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag) && obj.DoorMaxHp > 0f)
@@ -262,8 +251,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         hp = 0f; maxHp = 0f; return false;
     }
 
-    // 진영 소유 가능한 오브젝트(코어/문)만 값을 반환한다. 코어는 물리적으로 속한 방의 Room.RoomFaction을
-    // 따르지만, 문은 방 소유권과 분리된 고정값(InteractableObject.DoorOwnerFaction, 파괴+재설치로만 변경)을 쓴다.
+    // 진영 소유 가능한 오브젝트(코어/문)만 값을 반환한다. 코어는 속한 방의 Room.RoomFaction을 따르지만,
+    // 문은 방 소유권과 분리된 고정값(DoorOwnerFaction, 파괴+재설치로만 변경)을 쓴다.
     private static FactionType? GetObjectOwnerFaction(InteractableObject obj)
     {
         if (obj.Tags == null) return null;
@@ -287,8 +276,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return sb.ToString();
     }
 
-    // Queue<T>는 임의 위치 제거를 지원하지 않아, 취소 대상만 뺀 새 큐로 다시 만든다(대기열 길이가
-    // 짧아 성능은 문제되지 않음). 생산 진행 중인(맨 앞) 항목이 취소되면 진행도도 함께 리셋한다.
+    // Queue<T>는 임의 위치 제거를 지원하지 않아 취소 대상만 뺀 새 큐로 다시 만든다. 생산 진행 중인
+    // (맨 앞) 항목이 취소되면 진행도도 함께 리셋한다.
     private static void RemoveFirstFromQueue(BuildingData building, ProductionRule toRemove)
     {
         bool removedFront = building.IsProducing && building.Queue.Count > 0 && ReferenceEquals(building.Queue.Peek(), toRemove);

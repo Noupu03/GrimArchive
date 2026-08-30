@@ -4,15 +4,14 @@ using Cysharp.Threading.Tasks;
 using R3;
 using UnityEngine;
 
-// 07_전파·소리·간접입력 구현부(부수효과 있는 호출부, PartyDeathSystem/TrapPartySystem과 동일 성격) —
-// PropagationMath(순수 계산)/저장소 클래스들을 실제 게임 루프에 연결한다. 리더·명령/목표·경로/전투반응
-// 문서가 없어 위임된 부분(물리적 전파 이동, 합류 5초 초과 처리 등)은 가장 단순한 기본값으로 스텁 처리한다.
+// 07_전파·소리·간접입력 구현부(부수효과 있는 호출부) — PropagationMath(순수 계산)를 게임 루프에
+// 연결한다. 없는 문서(리더·명령/목표·경로/전투반응)가 위임한 부분(물리적 전파 이동, 합류 대기 초과 처리 등)은 가장 단순한 기본값으로 스텁 처리한다.
 public static class PropagationSystem
 {
 	// ═══════════════════════════ 소리 이벤트 ═══════════════════════════
-	// 소리는 발생한 순간에만 존재하는 1회성 사건이다 — EmitSound 호출 시점에 범위 스캔까지 끝내 그 순간
-	// 조건을 만족한 감지자에게만 통지하므로 나중에 들어온 유닛은 못 받는다. 07-A 7-3장의 "유효시간 5초"는
-	// 소리의 수명이 아니라 감지자별 확인 행동 유예시간(UniTask 타이머로 개별 적용)이다.
+	// 소리는 발생한 순간에만 존재하는 1회성 사건이다 — EmitSound 호출 시점에 범위 스캔까지 끝내 그
+	// 순간 조건을 만족한 감지자에게만 통지한다(나중에 들어온 유닛은 못 받음). "유효시간"은 소리
+	// 수명이 아니라 감지자별 확인 행동 유예시간(UniTask 타이머로 개별 적용)이다.
 	public readonly struct SoundPerceivedEvent
 	{
 		// 07문서 1장: 소리 감지는 인류/몬스터 공통이라 Observer는 Unit이다(전파 자체는 인류 전용).
@@ -39,12 +38,10 @@ public static class PropagationSystem
 		}
 	}
 
-	// 공개 Observable — 실제 게임 로직(PendingSound 갱신)은 정적 생성자에서 내부적으로 구독하므로
-	// 다른 구독자(디버그 시각화 등) 존재 여부와 무관하게 핵심 동작은 항상 보장된다.
+	// 공개 Observable — 실제 게임 로직(PendingSound 갱신)은 정적 생성자에서 내부적으로 구독해 다른 구독자 존재 여부와 무관하게 핵심 동작이 보장된다.
 	public static readonly Subject<SoundPerceivedEvent> OnSoundPerceived = new Subject<SoundPerceivedEvent>();
 
-	// OnSoundPerceived와 달리 아무도 감지하지 못했어도 무조건 1회 발행된다 — 게임 로직은 쓰지 않고
-	// PropagationDebugVisualizer가 소리 종류별 범위 원을 그리는 디버그 전용 채널이다.
+	// OnSoundPerceived와 달리 아무도 감지 못 했어도 무조건 1회 발행된다 — PropagationDebugVisualizer 전용 디버그 채널.
 	public readonly struct SoundEmittedEvent
 	{
 		public readonly SoundType Type;
@@ -68,15 +65,13 @@ public static class PropagationSystem
 	}
 
 	// ═══════════════════════════ 방별 소리 감지자 인덱스 (스캔 최적화) ═══════════════════════════
-	// EmitSound가 session.units 전체 대신 소리 발생 방의 유닛만 스캔하도록 좁힌다. GameSession.
-	// RegisterUnitPos/UnregisterUnitPos가 이 인덱스도 함께 유지해 별도 폴링이 필요 없다. roomId는
-	// 층마다 재사용될 수 있어 (층, roomId)를 키로 쓴다. 감지는 인류/몬스터 공통이지만 전파는 인류 전용.
+	// EmitSound가 session.units 전체 대신 소리 발생 방의 유닛만 스캔하도록 좁힌다(GameSession.
+	// RegisterUnitPos/UnregisterUnitPos가 함께 유지해 별도 폴링 불필요). roomId는 층마다 재사용돼 (층, roomId)를 키로 쓴다.
 	private static readonly Dictionary<(int Floor, int RoomId), HashSet<Unit>> _listenersByRoom = new Dictionary<(int, int), HashSet<Unit>>();
 	private static readonly Dictionary<Unit, (int Floor, int RoomId)> _listenerRoomKey = new Dictionary<Unit, (int, int)>();
 	private static readonly List<Unit> _scanBuffer = new List<Unit>();
 
-	// GameSession.RegisterUnitPos가 유닛을 등록/이동시킬 때마다 호출한다. roomId < 0(맵 밖 등)이면
-	// 인덱스에서 빠진다 — 그 상태로는 어차피 소리를 주고받을 공간 판정 자체가 성립하지 않는다.
+	// GameSession.RegisterUnitPos가 유닛 등록/이동 시마다 호출한다. roomId < 0(맵 밖 등)이면 인덱스에서 빠진다.
 	public static void UpdateListenerRoomIndex(Unit unit, int floorIndex, int roomId)
 	{
 		if (unit == null) return;
@@ -108,9 +103,8 @@ public static class PropagationSystem
 		}
 	}
 
-	// 14장: 이동/공격 실행/피격/사망/함정 작동 시 각각 호출한다. session/맵 조회 실패 시 무시.
-	// attacker/isHeavyHit/incidentId는 피격 발생 공격음·피격 비명 전용(E_HIT_HEAVY_INDIRECT 연결용) —
-	// 다른 소리 종류는 기본값 그대로 넘기면 된다.
+	// 14장: 이동/공격 실행/피격/사망/함정 작동 시 각각 호출한다. attacker/isHeavyHit/incidentId는
+	// 피격 발생 공격음·피격 비명 전용(E_HIT_HEAVY_INDIRECT 연결용) — 다른 소리 종류는 기본값을 넘긴다.
 	public static void EmitSound(GameSession session, SoundType type, Vector2Int position, int floorIndex, Unit source,
 		Unit attacker = null, bool isHeavyHit = false, string incidentId = null)
 	{
@@ -124,8 +118,7 @@ public static class PropagationSystem
 
 		if (!_listenersByRoom.TryGetValue((floorIndex, roomId), out var candidates) || candidates.Count == 0) return;
 
-		// 이 스캔 도중 인덱스가 바뀔 일은 없지만(핸들러가 방을 옮기는 로직을 안 건드림), 방어적으로
-		// 스냅샷해서 순회한다 — 재사용 버퍼라 매 호출 GC 없음.
+		// 스캔 도중 인덱스가 바뀔 일은 없지만 방어적으로 스냅샷해서 순회한다 — 재사용 버퍼라 매 호출 GC 없음.
 		_scanBuffer.Clear();
 		_scanBuffer.AddRange(candidates);
 
@@ -133,8 +126,7 @@ public static class PropagationSystem
 		{
 			if (listener == null || listener.hp <= 0 || listener == source) continue;
 			if (listener.currentFloor != floorIndex) continue; // 인덱스 정합성 방어 — 이론상 항상 참
-			// 16-2장: 자신/아군의 일반 이동음은 제외한다(전투 관련 소리는 예외 없음). "아군"은 종족
-			// 단위로 근사하되 서로 다른 진영의 이동음은 감지 대상으로 남긴다.
+			// 16-2장: 자신/아군의 일반 이동음은 제외한다(전투 관련 소리는 예외 없음). "아군"은 종족 단위로 근사한다.
 			bool sourceIsHuman = source is Human;
 			bool listenerIsHuman = listener is Human;
 			if (type == SoundType.Movement && sourceIsHuman == listenerIsHuman) continue;
@@ -143,8 +135,7 @@ public static class PropagationSystem
 
 			bool isAlert = listener.Perception.IsAlert;
 			int detectRange = PropagationMath.SoundDetectionRange(type, listener.spotting, isAlert, isMonster: !listenerIsHuman);
-			// 07-A 1장: 소리도 전파처럼 벽 우회 최단경로를 써야 한다 — 우회가 게이트를 스치지 않도록
-			// GetRoomIdAt==roomId로 같은 공간 안에서만 허용한다.
+			// 07-A 1장: 소리도 전파처럼 벽 우회 최단경로를 써야 한다 — GetRoomIdAt==roomId로 같은 공간 안에서만 허용해 게이트 밖으로 새지 않게 한다.
 			bool reachable = PropagationMath.TryGetSpaceDistance(position, listener.position, detectRange,
 				p => cmap.IsStaticTileWalkable(floorIndex, p) && cmap.GetRoomIdAt(floorIndex, p) == roomId, out _);
 			if (!reachable) continue;
@@ -155,8 +146,7 @@ public static class PropagationSystem
 
 	// ═══════════════════════════ 소리 감지 반응 (16장) ═══════════════════════════
 
-	// OnSoundPerceived 내부 구독자 — 감지 시 정확히 1회 호출되며(매 틱 재평가 없음), 여러 소리가
-	// 순서대로 발생해도 "지금 저장된 PendingSound"와 비교해 가장 급한 소리만 남는다.
+	// OnSoundPerceived 내부 구독자 — 감지 시 1회만 호출되며(매 틱 재평가 없음), "지금 저장된 PendingSound"와 비교해 가장 급한 소리만 남는다.
 	private static void HandleSoundPerceived(SoundPerceivedEvent e)
 	{
 		Unit listener = e.Observer;
@@ -201,8 +191,8 @@ public static class PropagationSystem
 		};
 		listener.Propagation.PendingSound = reaction;
 
-		// 함정 작동음이 아니면 현재 행동을 중단시킬 수 있다(16-4장) — 트랩 분기 게이팅에 막히면
-		// 그 분기가 끝난 뒤 HasAlert가 다시 시도한다. 트랩 대응은 인류 전용이라 몬스터는 게이팅 없음.
+		// 함정 작동음이 아니면 현재 행동을 중단시킬 수 있다(16-4장) — 트랩 분기 게이팅에 막히면 그
+		// 분기가 끝난 뒤 HasAlert가 재시도한다(트랩 대응은 인류 전용이라 몬스터는 게이팅 없음).
 		TryPromotePendingSoundToAlert(listener);
 
 		// 07-A 7-3장: 확인 행동을 5초 안에 시작하지 못하면 유예시간이 소멸한다 — 감지 순간 기준 명시적 타이머.
@@ -213,14 +203,12 @@ public static class PropagationSystem
 	{
 		await UniTask.Delay(TimeSpan.FromSeconds(PropagationMath.SoundValidSeconds));
 		if (listener == null || listener.hp <= 0) return;
-		// 그 사이 이미 확인 행동을 시작했거나(ResponseStarted) 더 급한 소리로 완전히 교체됐으면
-		// (참조가 더 이상 이 reaction이 아니면) 손대지 않는다.
+		// 그 사이 이미 확인 행동을 시작했거나 더 급한 소리로 완전히 교체됐으면(참조 불일치) 손대지 않는다.
 		if (listener.Propagation.PendingSound == reaction && !reaction.ResponseStarted)
 			listener.Propagation.PendingSound = null;
 	}
 
-	// 16-4/16-5/10장: 소리에 반응하지 않는 상태 — 이미 전투 목표가 있으면(인류/몬스터 공통) 무시하고,
-	// 전투 합류 대기 중(인류 전용 상태)도 무시한다.
+	// 16-4/16-5/10장: 소리에 반응하지 않는 상태 — 이미 전투 목표가 있거나(공통) 전투 합류 대기 중(인류 전용)이면 무시한다.
 	private static bool IsSoundUnresponsive(Unit unit)
 	{
 		if (unit.personalSpottedEnemies.Count > 0) return true;
@@ -231,9 +219,8 @@ public static class PropagationSystem
 		return false;
 	}
 
-	// currentAlertSearch가 비어있고 유효한 PendingSound가 있으면 경계 상태로 승격시킨다.
-	// TacticalFSMState.HasAlert가 호출하며, 함정작동음처럼 현재 행동을 유지시키는 소리는 그 행동이
-	// 끝난 뒤에야 승격된다(16-4장). Unit 공통 필드라 인류/몬스터 모두 적용된다.
+	// currentAlertSearch가 비어있고 유효한 PendingSound가 있으면 경계 상태로 승격시킨다. TacticalFSMState.
+	// HasAlert가 호출하며, 함정작동음처럼 현재 행동을 유지시키는 소리는 그 행동이 끝난 뒤에야 승격된다(16-4장).
 	public static bool TryPromotePendingSoundToAlert(Unit unit)
 	{
 		if (unit.currentAlertSearch != null) return unit.currentAlertSearch.IsSoundResponse;
@@ -257,8 +244,8 @@ public static class PropagationSystem
 		return true;
 	}
 
-	// 16-4장: 함정 대응(해제/대기 전 단계 전부)을 중단시킬 수 있는 소리가 대기 중인지 — TacticalFSMState가
-	// 함정 분기 전체를 감싸는 조건으로 쓴다. 함정 작동음은 현재 행동을 유지시키므로 여기서 제외한다.
+	// 16-4장: 함정 대응을 중단시킬 수 있는 소리가 대기 중인지 — TacticalFSMState가 함정 분기 전체를
+	// 감싸는 조건으로 쓴다. 함정 작동음은 현재 행동을 유지시키므로 여기서 제외한다.
 	public static bool HasPendingInterruptingSound(Human human)
 	{
 		if (human.currentAlertSearch != null && human.currentAlertSearch.IsSoundResponse) return true;
@@ -269,8 +256,8 @@ public static class PropagationSystem
 	}
 
 	// ═══════════════════════════ 피격 간접 확인 (E_HIT_HEAVY_INDIRECT) ═══════════════════════════
-	// 07-A 8-2장: 추정 지역 접근 후 인지 판정 시점(TacticalFSMState.SoundAreaApproach)에서 호출한다.
-	// "원인을 정확 인지"는 그 순간 공격자가 정확 인지 상태인지로 근사한다(UpdateFOV가 채운 기록만 조회).
+	// 07-A 8-2장: 추정 지역 접근 후 인지 판정 시점(TacticalFSMState.SoundAreaApproach)에서 호출 —
+	// "원인을 정확 인지"는 그 순간 공격자의 정확 인지 상태로 근사한다(UpdateFOV가 채운 기록만 조회).
 	public static bool IsAccuratelyPerceived(Human observer, Unit target)
 		=> target != null && observer.Perception.State.perceptionRecords.TryGetValue(target, out var record)
 			&& record.Outcome == PerceptionOutcome.AccuratePerception;
@@ -287,8 +274,8 @@ public static class PropagationSystem
 	}
 
 	// ═══════════════════════════ 몬스터 처치 간접 확인 (E_MONSTER_KILL_INDIRECT) ═══════════════════════════
-	// UnitFunction.CastRay가 Corpse+Monster 태그를 처음 정확 인지하는 순간 호출한다. 몬스터는 Destroy되어
-	// Unit 참조로 RecordEvent를 못 부르므로 GameSession.RemoveDeadUnit이 미리 스냅샷해 둔 종/개체 키를 쓴다.
+	// UnitFunction.CastRay가 Corpse+Monster 태그를 처음 정확 인지하는 순간 호출 — 몬스터는 Destroy되어
+	// Unit 참조로 RecordEvent를 못 부르므로 미리 스냅샷해 둔 종/개체 키를 쓴다.
 	public static void OnMonsterCorpseDiscovered(Human discoverer, InteractableObject corpse)
 	{
 		if (corpse == null || !corpse.Tags.Contains("Monster") || !corpse.MonsterKilledByHuman) return;
@@ -304,8 +291,7 @@ public static class PropagationSystem
 	public static int GetPropagationRange(Human human) => PropagationMath.PropagationRange(human.BaseStat.charisma);
 
 	// 공간 판정(같은 방/통로)+전파 범위만 확인한다(6장 "비전투" 조건 제외) — 발견자가 이미 적을 인지해
-	// 일반 비전투 판정을 못 쓰는 경우(7-1장)와 사망 정보가 비전투 조건보다 우선하는 예외(8장)에서
-	// CanPropagate 대신 이 헬퍼를 재사용한다.
+	// 비전투 판정을 못 쓰는 경우(7-1장)나 사망 정보가 비전투 조건보다 우선하는 예외(8장)에서 재사용한다.
 	public static bool InPropagationRange(Human sender, Human receiver)
 	{
 		if (sender == null || receiver == null || sender.hp <= 0 || receiver.hp <= 0) return false;
@@ -319,14 +305,12 @@ public static class PropagationSystem
 		int range = GetPropagationRange(sender);
 		CreateMap cmap = sender.Session.cmap;
 		int floor = sender.currentFloor;
-		// 07-A 1-2장: 우회 경로는 같은 공간 안에서만 유효하다 — senderRoom(=receiverRoom)과 같은
-		// 방의 타일만 후보로 남겨 게이트 너머로 새는 것을 막는다.
+		// 07-A 1-2장: 우회 경로는 같은 공간 안에서만 유효 — senderRoom과 같은 방의 타일만 후보로 남겨 게이트 너머로 새는 것을 막는다.
 		return PropagationMath.TryGetSpaceDistance(sender.position, receiver.position, range,
 			p => cmap.IsStaticTileWalkable(floor, p) && cmap.GetRoomIdAt(floor, p) == senderRoom, out _);
 	}
 
-	// 6장: 발신자·수신자 모두 비전투 + 같은 공간(방/통로) + 전파 범위 안. "정보 미보유/구버전" 조건은
-	// 호출부(각 정보 저장소)가 판단한다.
+	// 6장: 발신자·수신자 모두 비전투 + 같은 공간 + 전파 범위 안. "정보 미보유/구버전" 조건은 호출부(각 정보 저장소)가 판단한다.
 	public static bool CanPropagate(Human sender, Human receiver)
 	{
 		if (sender != null && sender.personalSpottedEnemies.Count > 0) return false;
@@ -336,9 +320,8 @@ public static class PropagationSystem
 
 	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
 
-	// 7-2장: 적을 정확 인지하기 전에 공격받으면 발신자 상태 조건의 예외로 "공격받은 사실"+"공격 방향"을
-	// 1회 전파한다. 발신자(피해자)는 이 사건 때문에 비전투 조건을 못 만족할 수 있어 CanPropagate 대신
-	// InPropagationRange(공간+범위만)를 쓰고, 수신자 쪽 비전투 조건만 IsSoundUnresponsive로 확인한다.
+	// 7-2장: 적을 정확 인지하기 전에 공격받으면 상태 조건 예외로 "공격받은 사실"+"공격 방향"을 1회
+	// 전파한다. 발신자(피해자)는 비전투 조건을 못 만족할 수 있어 CanPropagate 대신 InPropagationRange를 쓴다.
 	public static void PropagateAttackedFact(Human victim, Vector2Int? attackerPosition)
 	{
 		if (victim?.party == null) return;
@@ -356,7 +339,7 @@ public static class PropagationSystem
 	// ═══════════════════════════ 상호작용 정보·보호 포메이션 (10장) ═══════════════════════════
 
 	// 10장의 중복 참여 방지는 "같은 상호작용 인스턴스"를 전제로 한다 — Unit 단위 영구 기록이면 나중에
-	// 시작한 다른 상호작용에도 옛 알림이 잘못 유효해질 수 있어, State 참조 자체를 인스턴스 토큰으로 쓴다.
+	// 시작한 다른 상호작용에도 옛 알림이 잘못 유효해질 수 있어 State 참조 자체를 인스턴스 토큰으로 쓴다.
 	private static object GetInteractionToken(Unit unit)
 	{
 		if (unit.currentTrapInteraction != null) return unit.currentTrapInteraction;
@@ -367,8 +350,7 @@ public static class PropagationSystem
 		return null;
 	}
 
-	// 조사/함정 해제가 실제로 시작되는 시점에 1회 호출한다. 이 전파를 직접 받은 파티원만 보호 포메이션
-	// 참여 자격을 얻는다(10장) — 03문서 6-1장의 시야 기반 근사를 대체.
+	// 조사/함정 해제가 실제로 시작되는 시점에 1회 호출 — 이 전파를 직접 받은 파티원만 보호 포메이션 참여 자격을 얻는다(10장).
 	public static void NotifyInteractionStarted(Human interactingUnit)
 	{
 		if (interactingUnit.party == null) return;
@@ -402,8 +384,7 @@ public static class PropagationSystem
 		return PropagationMath.RequiresJoinWait(stage, dist);
 	}
 
-	// 7-1장: 적을 정확 인지 + 합류가 필요한 상황 — 전파 가능한 파티원에게 적 정보를 1회 전달하고,
-	// 합류 가능한 아군이 있으면 그 아군을 합류자로 지정한다.
+	// 7-1장: 적을 정확 인지 + 합류가 필요한 상황 — 전파 가능한 파티원에게 적 정보를 전달하고, 합류 가능한 아군이 있으면 그 아군을 합류자로 지정한다.
 	public static void StartJoinCombatWait(Human discoverer, Unit enemy)
 	{
 		if (discoverer.currentJoinCombatWait != null) return;
@@ -415,8 +396,7 @@ public static class PropagationSystem
 		foreach (var m in discoverer.party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
-			// 수신자만 비전투 조건을 확인한다 — 발견자는 방금 이 적을 인지했기 때문에
-			// personalSpottedEnemies가 이미 채워져 있다(InPropagationRange 주석 참고).
+			// 수신자만 비전투 조건을 확인한다 — 발견자는 방금 인지해 personalSpottedEnemies가 이미 채워져 있다.
 			if (m.personalSpottedEnemies.Count > 0) continue;
 			if (!InPropagationRange(discoverer, m)) continue;
 
@@ -460,8 +440,8 @@ public static class PropagationSystem
 	}
 
 	// ═══════════════════════════ 최신 위치 판단 (07문서 13장 / 07-A 3장) ═══════════════════════════
-	// 직접 정보와 전파 정보는 저장소를 계속 분리한다(3-4장). "지금 어디로 알고 있나"는 24장
-	// PriorityRank(직접 우선)가 아니라 13장 "더 최신 확인 정보로 갱신" 규칙만 순수 비교한다.
+	// 직접 정보와 전파 정보는 저장소를 계속 분리한다(3-4장) — "지금 어디로 알고 있나"는 24장
+	// PriorityRank(직접 우선)가 아니라 13장 "더 최신 확인 정보로 갱신" 규칙만으로 비교한다.
 	public static bool GetLatestKnownPosition(Human observer, Unit target, out Vector3Int tile, out float timestamp)
 	{
 		bool hasDirect = observer.personalMap.TryGetMonsterSighting(target.name, out var directTile, out _, out _, out var directTime);
@@ -495,21 +475,20 @@ public static class PropagationSystem
 			{
 				wait.ResponseWaitTimer += deltaTime;
 				if (wait.ResponseWaitTimer >= PropagationMath.JoinResponseWaitSeconds)
-					human.currentJoinCombatWait = null; // 2초 내 응답 없음 — 발견자 단독 전투 시작
+					human.currentJoinCombatWait = null; // 응답 시간 초과 — 발견자 단독 전투 시작
 				return;
 			}
 
 			wait.ActualJoinWaitTimer += deltaTime;
 			bool arrived = human.party != null && HasResponderArrived(human, wait.TargetEnemy);
-			// 07-A 11장: 5초 초과 후 처리는 09_목표·이동경로 문서 몫이라 미정 — 스텁으로 대기를 끝내고 단독 전투 시작.
+			// 07-A 11장: 대기 초과 후 처리는 09_목표·이동경로 문서 몫이라 미정 — 스텁으로 대기를 끝내고 단독 전투 시작.
 			if (arrived || wait.ActualJoinWaitTimer >= PropagationMath.ActualJoinMaxWaitSeconds)
 			{
 				ReleaseResponders(human, wait.TargetEnemy);
 				human.currentJoinCombatWait = null;
 			}
 		}
-		// 합류자 쪽은 실제 이동만 TacticalFSMState.JoinCombatWaitPerform이 담당하고, 정리는 발견자의
-		// Tick이 도착을 감지했을 때 ReleaseResponders가 함께 처리한다.
+		// 합류자 쪽 실제 이동은 TacticalFSMState.JoinCombatWaitPerform이 담당하고, 정리는 발견자 Tick의 ReleaseResponders가 함께 처리한다.
 	}
 
 	private static bool HasResponderArrived(Human discoverer, Unit enemy)

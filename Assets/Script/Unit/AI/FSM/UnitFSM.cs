@@ -4,15 +4,14 @@ public class UnitFSM
 {
 	private IFSMState   _current;
 	private readonly PlayerCommandFSMState _playerCommandState = new PlayerCommandFSMState();
-	// "집결 및 정지"/"제자리 공격"(2026-08-20/2026-08-22) — PlayerCommand와 동일한 방식으로
-	// SelectState가 직접 강제 배정하는 상태라 _states 배열에는 넣지 않는다(HaltFSMState.cs 주석 참고).
+	// "정지"/"제자리 공격" — PlayerCommand와 동일하게 SelectState가 직접 강제 배정하는 상태라
+	// _states 배열에는 넣지 않는다(HaltFSMState.cs 참고).
 	private readonly HaltFSMState _haltState = new HaltFSMState();
 	private readonly StandGroundAttackFSMState _standGroundState = new StandGroundAttackFSMState();
 
-	// 우선순위 내림차순: PlayerCommand(200, 활성 시 최우선) → Combat(100) → Tactical(50) → Idle(20,
-	// 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/야생의 "1칸 이동 후 정지" 배회) →
-	// Navigation(10, 항상 활성). 배열에서 먼저 나오는 상태의 GetPriority가 0보다 크면 그 뒤는
-	// 검사하지도 않으므로(SelectState 참고) 이 순서 자체가 곧 우선순위다.
+	// 우선순위 내림차순: PlayerCommand(200) → Combat(100) → Tactical(50) → Idle(20, 오펜스/디펜스
+	// 아닌 방에서 명령 없는 몬스터/야생의 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나온
+	// 상태의 GetPriority가 0보다 크면 그 뒤는 검사하지 않으므로(SelectState) 배열 순서 자체가 곧 우선순위다.
 	private readonly IFSMState[] _states;
 
 	public UnitFSM()
@@ -32,14 +31,12 @@ public class UnitFSM
 	// JudgeState 대응: 우선순위 순으로 전환 후보를 탐색하고 상태를 바꾼다.
 	public void SelectState(Unit unit)
 	{
-		// 명령 강제 잠금 — IsSticky/ShouldInterrupt와 배열 순서(GetPriority) 조합만으로는 "다른 상태들이
-		// 스스로 명령을 존중해야" 성립하는 간접적 보장에 그친다. 여기서는 그 어떤 상태 구현과도 무관하게,
-		// 대기 중인 명령이 있으면 무조건 이 상태로 고정한다 — PlayerCommandFSMState가 도착/대상 무효화로
-		// 스스로 명령을 끝내기 전까지는 다른 어떤 조건으로도 벗어날 수 없다.
+		// 명령 강제 잠금 — IsSticky/ShouldInterrupt와 배열 순서만으로는 "다른 상태가 스스로 명령을
+		// 존중해야" 성립하는 간접적 보장에 그치므로, 대기 중인 명령이 있으면 상태 구현과 무관하게 무조건
+		// 이 상태로 고정한다(PlayerCommandFSMState가 도착/대상 무효화로 스스로 끝내기 전까진 못 벗어남).
 		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
-			// 기초문서.md 피드백(2026-08-22) — 코어/문 공격 명령(PlayerCommandFSMState.
-			// ExecutePlayerAttackObject)도 유닛 공격과 동일하게 최우선 강제 잠금 대상이다.
+			// 코어/문 공격 명령(ExecutePlayerAttackObject)도 유닛 공격과 동일하게 최우선 강제 잠금 대상이다.
 			|| unit.playerAttackObjectTarget.HasValue;
 		if (hasPendingCommand)
 		{
@@ -52,9 +49,8 @@ public class UnitFSM
 			return;
 		}
 
-		// "정지"(동상) 강제 잠금 — 새 직접 명령(위에서 이미 처리됨) 또는 명령 취소(InputManager.
-		// CancelSelectedUnitsCommands가 isHalted를 직접 false로 되돌림)만이 이 잠금을 풀 수 있다.
-		// Combat/Tactical/Idle/Navigation 그 무엇도 이 잠금 아래에서는 검사조차 되지 않는다.
+		// "정지" 강제 잠금 — 새 직접 명령(위에서 처리됨) 또는 명령 취소(InputManager.
+		// CancelSelectedUnitsCommands가 isHalted를 false로 되돌림)만이 풀 수 있다. 다른 상태는 검사조차 안 된다.
 		if (unit.isHalted)
 		{
 			if (_current != _haltState)
@@ -66,10 +62,9 @@ public class UnitFSM
 			return;
 		}
 
-		// "제자리 공격" 강제 잠금 — "정지"(동상)와 동일한 패턴: 이동은 절대 하지 않지만 사거리 내 적은
-		// 공격한다(StandGroundAttackFSMState.cs 참고). 새 직접 명령이나 명령 취소만 풀 수 있다. 고정
-		// 유닛(보스 골렘 등)은 동작이 완전히 같아 같은 상태를 재사용하지만, 유닛의 영구 성질이라
-		// 명령 취소로는 풀리지 않는다.
+		// "제자리 공격" 강제 잠금 — "정지"와 동일한 패턴: 이동은 안 하지만 사거리 내 적은 공격한다. 새
+		// 직접 명령이나 명령 취소만 풀 수 있다. 고정 유닛(보스 골렘 등)은 동작이 같아 같은 상태를
+		// 재사용하지만 영구 성질이라 명령 취소로는 안 풀린다.
 		if (unit.isStandGroundAttack || unit.isImmobile)
 		{
 			if (_current != _standGroundState)

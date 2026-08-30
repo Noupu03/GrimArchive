@@ -2,11 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // 좌하단 패널 스택 — 패널 정체성이 아니라 "실제로 보이기 시작한 순서"로 왼쪽부터 자리를 배정한다.
-// 이미 떠 있는 패널은 다른 패널이 새로 나타나도 움직이지 않고, 새 패널은 항상 스택 끝(맨 오른쪽)에
-// 추가된다.
-// 일부 소비자(BuildingControlPanel 등)는 "안 보이게 된" 프레임에 자기 가드가 먼저 끝나버려
-// Report(visible:false)를 호출 못할 수 있다 — 소비자 보고에만 의존하지 않고 "이번 프레임에 아무도
-// 갱신 안 한 항목은 사라진 것"으로 간주하는 스윕을 안전망으로 둔다(최대 1프레임 지연 자동 정리).
+// 이미 떠 있는 패널은 움직이지 않고 새 패널은 항상 스택 끝(맨 오른쪽)에 추가된다. 일부 소비자
+// (BuildingControlPanel 등)는 "안 보이게 된" 프레임에 Report(visible:false)를 못 부를 수 있어,
+// 소비자 보고에만 의존하지 않고 "이번 프레임에 아무도 갱신 안 한 항목은 사라진 것"으로 간주하는
+// 스윕을 안전망으로 둔다(최대 1프레임 지연 자동 정리).
 public static class BottomLeftPanelStack
 {
     public const float Margin = 10f;

@@ -1,17 +1,12 @@
 using UnityEngine;
 
-// 07문서 3장: "정보는 파티 전체가 하나로 공유하지 않고 유닛별로 개별 보유한다." 이 파일은 그중
-// "전파 정보"(다른 유닛에게 전달받은 확인 정보)와 "일시 간접입력"(소리·공격 방향으로 얻은 임시 사건
-// 정보) 두 계층을 담는다 — "직접 정보"는 기존 PerceptionRecord/PersonalMapKnowledge가 담당한다.
-// PerceptionRecord.cs와 동일 패턴(대상 키 기반, 지속 상태를 트리거 시점에만 갱신)을 따른다.
+// 07문서 3장 원칙에 따라 "전파 정보"(다른 유닛에게 전달받은 확인 정보)와 "일시 간접입력"(소리·공격
+// 방향 임시 사건 정보) 두 계층을 담는다 — "직접 정보"는 PerceptionRecord/PersonalMapKnowledge가 같은
+// 패턴(대상 키 기반·트리거 시점 갱신)으로 담당한다.
 
-// 전파 정보 — 다른 유닛에게 전달받은 대상의 마지막 확인 위치·시각. 13장: 전파 시점이 새로운 확인
-// 시점으로 취급되지 않으며, 전달된 위치를 대상의 현재 위치로 확정하지 않는다 — 그래서 "직접 인지"
-// (PerceptionRecord)와 분리된 별도 기록이다.
-//
-// 저장소(이 클래스 vs PersonalMapKnowledge)는 계속 분리하되, "이 대상을 지금 어디로 알고 있나"
-// 판단은 두 저장소 중 타임스탬프가 더 최신인 쪽만 쓴다 — 24장 PriorityRank가 아니라 13장 자체의
-// 순수 최신성 규칙. PropagationSystem.GetLatestKnownPosition이 이 비교를 담당한다.
+// 전파 정보 — 다른 유닛에게 전달받은 대상의 마지막 확인 위치·시각(13장: 전파 시점·위치를 확정하지
+// 않아 직접 인지 PerceptionRecord와 분리 보관). "지금 어디로 알고 있나"는 이 클래스와
+// PersonalMapKnowledge 중 타임스탬프가 최신인 쪽만 쓴다(13장 고유 규칙 — GetLatestKnownPosition 담당).
 public class PropagatedInfoRecord
 {
 	public Vector3Int LastKnownTile;
@@ -35,9 +30,8 @@ public class PendingSoundReaction
 	public float ValidUntilTime;           // 7-3장: 발생 후 5초 — 이 시각을 넘기면 확인 행동을 새로 시작 못함
 	public bool ResponseStarted;           // AlertSearchState로 승격돼 확인 행동을 이미 시작했는지
 
-	// 가중치 시스템 E_HIT_HEAVY_INDIRECT 연결용 — 소리가 피격 발생 공격음/피격 비명이고 실제로 몬스터가
-	// 인류에게 heavyHitThreshold 이상 피해를 준 경우에만 채워진다. 확인 행동이 인지 판정에 성공한
-	// 순간(SoundAreaApproach) 이 정보로 간접 이벤트를 기록한다.
+	// 가중치 시스템 E_HIT_HEAVY_INDIRECT 연결용 — 소리가 피격발생공격음/피격비명이고 실제
+	// heavyHitThreshold 이상 피해일 때만 채워지며, 인지 판정 성공 시점(SoundAreaApproach)에 기록한다.
 	public Unit Victim;
 	public Unit Attacker;
 	public bool IsHeavyHit;

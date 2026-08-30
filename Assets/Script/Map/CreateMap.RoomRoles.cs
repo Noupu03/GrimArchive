@@ -1,10 +1,6 @@
 // ============================================================================
-// CreateMap.RoomRoles.cs — 방 역할 부여 · 정리
-// ----------------------------------------------------------------------------
-// 역할: 배치된 방들에 역할 부여(AssignRoomRoles),
-//       초과 방 가지치기(PruneExcessRooms),
-//       서브목적방 확보(EnsureSubPurposeRooms).
-// 단계: GenerateMap Phase 1.5 — 방 배치 후, 연결 전에 역할 확정
+// CreateMap.RoomRoles.cs — 배치된 방에 역할 부여, 초과 방 가지치기, 서브목적방 확보를 담당한다
+// (GenerateMap Phase 1.5, 방 배치 후·연결 전).
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -68,8 +64,7 @@ public partial class CreateMap
             sortedByDist.RemoveAt(0);
         }
 
-        // ② 서브목적방: 설정 개수만큼 (먼 방 우선, 1청크 방만 허용)
-        // C: SubPurposeRoom은 반드시 1×1(1청크) 방이어야 함
+        // ② 서브목적방: 설정 개수만큼(먼 방 우선), 반드시 1청크 방만 허용.
         var roomChunkCounts = new Dictionary<int, int>();
         for (int x = 0; x < w; x++)
             for (int y = 0; y < h; y++)

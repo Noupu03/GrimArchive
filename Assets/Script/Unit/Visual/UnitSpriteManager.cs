@@ -4,10 +4,9 @@ using System.Collections.Generic;
 using UnityEngine.U2D.Animation;
 #endif
 
-// 유닛 타입 이름 → 프리팹 매핑 레지스트리. 스프라이트/스탯/스킬/이펙트는 전부
-// 프리팹의 UnitVisualDefinition(+자식 계층)에서 오고, 여기서는 그 프리팹을 찾아주는 역할만 한다.
-// ThreatTileRenderer의 attackZone.spriteLib와 동일한 컨벤션: 인스펙터 매핑 대신
-// Assets/Resources/Units/{unitTypeName}.prefab 경로 컨벤션으로 Resources.Load 조회한다.
+// 유닛 타입 이름 → 프리팹 매핑 레지스트리. 스프라이트/스탯/스킬/이펙트는 전부 프리팹의
+// UnitVisualDefinition(+자식 계층)에서 오고 여기서는 그 프리팹을 찾아주는 역할만 한다 —
+// 인스펙터 매핑 대신 Assets/Resources/Units/{unitTypeName}.prefab 경로 컨벤션으로 조회한다.
 public class UnitSpriteManager
 {
     private const string UnitPrefabResourceFolder = "Units";
@@ -21,7 +20,7 @@ public class UnitSpriteManager
     }
 
     // 유닛 타입의 대표 아이콘(프리팹의 "Visual" 자식 SpriteRenderer.sprite) — 웨이브 게이지 파티
-    // 아이콘(WaveGaugePanel)/몬스터 배치 실루엣(InputManager)이 공유한다(중복 구현 통합).
+    // 아이콘/몬스터 배치 실루엣이 공유한다.
     public Sprite GetIcon(string unitTypeName)
     {
         if (string.IsNullOrEmpty(unitTypeName)) return null;
@@ -75,9 +74,8 @@ public class UnitSpriteManager
     }
 
 #if UNITY_2022_2_OR_NEWER
-    // SpriteResolver에 category/label과 flipX를 적용하는 공통 절차 — UnitGenerate.UpdateSpriteResolver와
-    // TorchVisual.ApplyTorchVisual이 동일한 로직을 중복 구현하던 것을 이 한 곳으로 합쳤다. resolver의
-    // GameObject에 SpriteRenderer가 없으면 flipX는 조용히 건너뛴다.
+    // SpriteResolver에 category/label과 flipX를 적용하는 공통 절차 — UnitGenerate/TorchVisual의
+    // 중복 로직을 이 한 곳으로 합쳤다(SpriteRenderer가 없으면 flipX는 조용히 건너뜀).
     public static void ApplySpriteResolverLabel(SpriteResolver resolver, string category, string label, bool flipX)
     {
         if (resolver == null) return;

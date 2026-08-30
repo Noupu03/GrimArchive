@@ -2,10 +2,8 @@ using Haare.Client.Routine;
 using Haare.Client.UI;
 using UnityEngine;
 
-// RealBioSearch(외부 참고 프로젝트)의 타이틀 씬 구조(배경+제목+시작/설정/종료 버튼+버전 표기)를
-// 이 프로젝트의 Haare DI 패턴(Assets/Haare/Demo/Script/UI/TitlePanel.cs와 동일한 스캐폴딩)으로 이식한
-// 패널. 실제 배경/텍스트/버튼 배치는 Assets/Editor/TitleSceneSetup.cs가 코드로 생성한 프리팹
-// (Prefabs/GrimArchive_TitlePanel)에 있다.
+// 타이틀 씬 패널(배경+제목+시작/설정/종료 버튼+버전 표기) — 이 프로젝트의 Haare DI 패턴으로 이식됐다.
+// 실제 배경/텍스트/버튼 배치는 Assets/Editor/TitleSceneSetup.cs가 코드로 생성한 프리팹에 있다.
 [PanelAttribute("Prefabs/GrimArchive_TitlePanel")]
 public class GameTitlePanel : MonoRoutine, ICustomPanel
 {

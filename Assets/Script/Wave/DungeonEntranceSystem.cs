@@ -6,9 +6,8 @@ namespace GrimArchive.Wave
 {
     // 던전 입구 구조 — 인간 파티가 0층 숨은 스폰 청크에서 등장해 1x3 던전 입구로 걸어들어오고, 고정
     // 시간 대기한 뒤 파티 진형(1선 근접 → 2선 리더 → 3선 원거리)을 유지한 채 계단까지 걸어가는 시퀀스를
-    // 전담한다. HumanWaveManager가 소유하며, 이 시퀀스가 계단에 도달해야만 "웨이브 시작"과 별개로
-    // "실제 1층 진입"이 이뤄진다. 이동은 GOAP/A*가 아니라 이 클래스가 직접 격자 위치를 조작한다 —
-    // 직선 복도라 경로탐색이 불필요하고, 그래야 전원 동일 속도 + 고정 간격 대형 유지를 정확히 보장한다.
+    // 전담한다(계단 도달 = "실제 1층 진입"). 직선 복도라 GOAP/A* 대신 이 클래스가 직접 격자 위치를
+    // 조작해 전원 동일 속도·고정 간격 대형을 보장한다.
     public class DungeonEntranceSystem
     {
         private enum Phase { Idle, WalkingIn, Waiting, WalkingToStairs, Done }
@@ -17,13 +16,13 @@ namespace GrimArchive.Wave
         // HumanWaveManager가 스폰 트리거 시점 계산에도 참조하므로 public.
         public const float WaitSeconds = 10f;
 
-        // "진입 준비" 문구가 뜨는 기준(웨이브 시작까지 남은 시간). HumanWaveManager.PreSpawnLeadSeconds
-        // 와 같은 값(6초)이지만, 이 클래스는 HumanWaveManager를 참조하지 않으므로 별도 상수로 둔다.
+        // "진입 준비" 문구가 뜨는 기준(웨이브 시작까지 남은 시간) — HumanWaveManager.PreSpawnLeadSeconds와
+        // 같은 값(6초)이지만, 이 클래스는 HumanWaveManager를 참조하지 않으므로 별도 상수로 둔다.
         private const float PrepareNoticeLeadSeconds = 6f;
         private const string EntranceNoticeKey = "DungeonEntranceSequence";
 
         // 파티 진형 슬롯 — 대형 내 유닛 한 명의 상대 위치. Rank는 이동 방향 기준 앞(0)부터 뒤로 갈수록
-        // 커지는 선(1선/2선/3선), Lane은 그 선 안에서 rowY 기준 좌우(여기서는 상하, Y축) 오프셋이다.
+        // 커지는 선(1선/2선/3선), Lane은 그 선 안에서 rowY 기준 좌우(Y축) 오프셋이다.
         private struct FormationSlot
         {
             public Human Unit;
@@ -48,8 +47,8 @@ namespace GrimArchive.Wave
         public bool IsActive => _phase != Phase.Idle && _phase != Phase.Done;
 
         // PreSpawnWaveUnits가 숨은 스폰 청크에 인간들을 스폰한 직후 호출한다. roomEntryX/stairApproachX는
-        // 같은 행(rowY) 위의 두 목표 x좌표("입구 이동" → "대기" → "계단 이동"). 스폰 직후의 "무더기"
-        // 상태는 이후 매 스텝 각 유닛이 자기 대형 슬롯으로 이동하며 자연스럽게 정렬된다.
+        // 같은 행(rowY) 위의 두 목표 x좌표("입구 이동"→"대기"→"계단 이동")이며, 스폰 직후 "무더기" 상태는
+        // 이후 매 스텝 각 유닛이 자기 대형 슬롯으로 이동하며 자연스럽게 정렬된다.
         public void Begin(GameSession session, Party party, int rowY, int roomEntryX, int stairApproachX)
         {
             _formation.Clear();
@@ -73,8 +72,8 @@ namespace GrimArchive.Wave
         }
 
         // 매 프레임 호출. 계단에 도달하면 onArrivedAtStairs를 1회 호출한다(HumanWaveManager가
-        // stagingUnits/pendingStairTargetFloor를 세팅). cooldownTimerRemaining은 "진입 준비" 문구가
-        // 실제 웨이브 시작까지 남은 시간 기준으로 뜨도록 HumanWaveManager.cooldownTimer를 그대로 받는다.
+        // stagingUnits/pendingStairTargetFloor를 세팅). cooldownTimerRemaining은 "진입 준비" 문구를 실제
+        // 웨이브 시작까지 남은 시간 기준으로 띄우기 위해 HumanWaveManager.cooldownTimer를 그대로 받는다.
         public void Update(GameSession session, float deltaTime, float cooldownTimerRemaining, Action<List<Human>> onArrivedAtStairs)
         {
             if (!IsActive || session == null) return;
@@ -183,10 +182,9 @@ namespace GrimArchive.Wave
             }
         }
 
-        // 파티 진형(문서 명시): 탱커/근접딜러를 근접 랭크(0)로 합쳐 맨 앞에, 리더는 항상 다음
-        // 랭크(1)에 단독으로, 원거리는 마지막 랭크(2)에 둔다. 근접/원거리 판정은 UnitGenerate.
-        // GetEngageDistance를 재사용한다(새 분류 데이터 없음). 같은 랭크에 유닛이 여럿이면 AddRank/
-        // LaneOffset이 rowY를 기준으로 좌우로 나란히 늘어서게 한다.
+        // 파티 진형(문서 명시): 탱커/근접딜러를 근접 랭크(0)로 합쳐 맨 앞에, 리더는 항상 다음 랭크(1)에
+        // 단독으로, 원거리는 마지막 랭크(2)에 둔다(근접/원거리 판정은 UnitGenerate.GetEngageDistance 재사용,
+        // 새 분류 데이터 없음). 같은 랭크에 유닛이 여럿이면 AddRank/LaneOffset이 rowY 기준 좌우로 늘어서게 한다.
         private static void BuildFormation(GameSession session, Party party, List<FormationSlot> outFormation)
         {
             outFormation.Clear();

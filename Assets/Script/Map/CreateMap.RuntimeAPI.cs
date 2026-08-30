@@ -1,13 +1,6 @@
 // ============================================================================
-// CreateMap.RuntimeAPI.cs — 런타임 공개 API
-// ----------------------------------------------------------------------------
-// 역할: 게임 플레이 중 맵 상태를 변경·조회하는 공개 메서드 모음.
-//       점령(ConquerRoom), 후퇴(RetreatFromRoom), 후퇴 목표 탐색(FindRetreatTarget),
-//       전초기지 건설/해체(BuildOutpost, DemolishOutpost),
-//       계단 개방(OpenStair), 통행 가능 판정(CanEntityPassGate, CanEntityEnterRoom),
-//       층 점령 확인(IsFloorOccupied), 도달/재진입 가능(CanReachFloor, CanReenterFloor),
-//       Gate 폭 재계산(RecalculateGateWidth), 층간 경로 탐색(FindPathAcrossFloors),
-//       직렬화/역직렬화(SerializeMap, DeserializeMap).
+// CreateMap.RuntimeAPI.cs — 게임 플레이 중 맵 상태를 변경·조회하는 공개 메서드 모음(점령/후퇴/전초기지,
+// 계단, 통행 판정, 층간 경로 탐색, 직렬화).
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -43,9 +36,8 @@ public partial class CreateMap
         roomFloorTileCountCache.Clear();
     }
 
-    // 20장/21장: 방 하나("roomId")의 전체 바닥 타일 수(벽 제외) — PersonalMapKnowledge.
-    // ObserveRoomTileRevealed()의 탐사완료 판정용 ground-truth 값. 청크 안에도 벽 타일이 섞여 있어
-    // 청크 개수만으론 부정확하므로 실제 타일 단위로 센다.
+    // 방 하나의 전체 바닥 타일 수(벽 제외) — PersonalMapKnowledge의 탐사완료 판정용 ground-truth.
+    // 청크 안에도 벽 타일이 섞여 청크 개수만으론 부정확해 타일 단위로 센다.
     public int GetRoomFloorTileCount(int floorIndex, int roomId)
     {
         var key = (floorIndex, roomId);
@@ -173,9 +165,7 @@ public partial class CreateMap
                 }
     }
 
-    // OffenseProcessor가 Room.RoomFaction만 바꾸면 이동 인접범위 판정(CanPlayerCommandRoom)/야생
-    // 몬스터 배치 판정(GetRoomOccupationState)이 실제로 읽는 CreateMap.Chunks.occupationState는
-    // 갱신되지 않으므로, 점령 전환마다 이 메서드로 맵 데이터도 함께 갱신해야 한다.
+    // OffenseProcessor가 Room.RoomFaction만 바꾸면 Chunks.occupationState는 갱신되지 않으므로, 점령 전환마다 이 메서드도 같이 호출해야 한다.
     public void SetRoomOccupationState(int floorIndex, int roomId, OccupationState state)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return;
@@ -249,9 +239,8 @@ public partial class CreateMap
         LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
     }
 
-    // floorIndex 층에서 targetFloor로 연결되는 계단 타일의 대표 좌표를 찾는다(HumanWaveManager의
-    // 계단 이동 연출용). PlaceStairTiles가 청크 내부 2x2 블록에 계단 타일을 찍으므로, 청크 좌상단
-    // 기준 +3 오프셋을 대표 좌표로 쓴다.
+    // floorIndex 층에서 targetFloor로 연결되는 계단 타일의 대표 좌표를 찾는다(HumanWaveManager의 계단
+    // 이동 연출용). PlaceStairTiles가 청크 내부 2x2 블록에 계단을 찍으므로 청크 좌상단+3 오프셋을 쓴다.
     public bool TryGetStairPosition(int floorIndex, int targetFloor, out Vector2Int pos)
     {
         pos = Vector2Int.zero;
@@ -276,16 +265,12 @@ public partial class CreateMap
         return false;
     }
 
-    // 계단 2x2 블록은 CanMove가 막아 유닛이 설 수 없고, discoveredMap(안개)은 미확인 타일을 통행
-    // 가능으로 취급해 계단 타일 자체를 목적지로 잡으면 이동이 무한 실패할 수 있다 — 그래서 A*의
-    // 실제 목적지는 계단 블록 옆의 밟을 수 있는 타일로 잡되, GoapWorldState.StairArrivalRadius
-    // (반경 1) 안에서만 찾아 "도착" 판정과 항상 일치시킨다.
+    // 계단 2x2 블록은 CanMove가 막아 설 수 없어 목적지로 잡으면 이동이 무한 실패할 수 있다 — A*의 실제
+    // 목적지는 계단 블록 옆 GoapWorldState.StairArrivalRadius(반경 1) 안 타일로 잡아 "도착" 판정과 일치시킨다.
     public bool TryGetStairApproachPosition(int floorIndex, int targetFloor, out Vector2Int pos) =>
         TryGetStairApproachPosition(floorIndex, targetFloor, null, out pos);
 
-    // fromHint를 주면(유닛 현재 위치 등) 계단 블록을 둘러싼 여러 칸 중 가장 가까운 칸을 고른다 —
-    // 힌트가 없으면 항상 같은 첫 칸을 고른다. 힌트 없이 항상 같은 칸만 고르면 여러 유닛이 몰려
-    // 병목이 생기므로 방향별로 흩어지게 한다.
+    // fromHint를 주면 계단 블록을 둘러싼 칸 중 가장 가까운 칸을 고른다 — 없으면 항상 같은 첫 칸이라 여러 유닛이 몰려 병목이 생긴다.
     public bool TryGetStairApproachPosition(int floorIndex, int targetFloor, Vector2Int? fromHint, out Vector2Int pos)
     {
         pos = Vector2Int.zero;
@@ -294,8 +279,7 @@ public partial class CreateMap
         Vector2Int? best = null;
         int bestDist = int.MaxValue;
 
-        // 반경 1(계단 블록을 둘러싼 테두리 한 칸)만 훑는다 — GoapWorldState.StairArrivalRadius와
-        // 반드시 같은 값이어야 "여기 도착 = atStairs 만족"이 항상 성립한다.
+        // 반경 1만 훑는다 — GoapWorldState.StairArrivalRadius와 같은 값이어야 "도착 = atStairs"가 항상 성립한다.
         for (int dx = -1; dx <= 2; dx++)
         {
             for (int dy = -1; dy <= 2; dy++)
@@ -327,12 +311,12 @@ public partial class CreateMap
             return true;
         }
 
-        pos = stairPos; // 못 찾으면(사실상 없음) 예전처럼 블록 좌표라도 반환 — 호출부가 방어적으로 처리
+        pos = stairPos; // 못 찾으면 블록 좌표라도 반환 — 호출부가 방어적으로 처리
         return false;
     }
 
-    // 계단 블록을 둘러싼 반경 1칸(GoapWorldState.StairArrivalRadius) 중 정적으로 밟을 수 있는 타일을
-    // 전부 반환한다 — 실제 유닛 점유 여부는 모르므로 호출부(Action_MoveToStairs)가 매 틱 골라 쓴다.
+    // 계단 블록을 둘러싼 반경 1칸 중 정적으로 밟을 수 있는 타일을 전부 반환 — 실제 점유 여부는
+    // 모르므로 호출부(Action_MoveToStairs)가 매 틱 골라 쓴다.
     public bool TryGetStairApproachCandidates(int floorIndex, int targetFloor, out List<Vector2Int> candidates)
     {
         candidates = new List<Vector2Int>();
@@ -352,9 +336,7 @@ public partial class CreateMap
         return candidates.Count > 0;
     }
 
-    // discoveredMap(안개)과 무관하게 실제 지형(Wall/isStructureExist)만으로 통행 가능 여부를 판정하는
-    // 정적 버전 — UnitFunction.CanMove와 판정 기준은 같지만 특정 유닛에 묶이지 않는다.
-    // GameSession.FindNearbyFreeObjectTile이 벽 타일을 걸러내려고 재사용해 public으로 노출한다.
+    // 안개와 무관하게 실제 지형만으로 통행 가능 여부를 판정하는 정적 버전 — 특정 유닛에 묶이지 않아 GameSession.FindNearbyFreeObjectTile도 재사용한다.
     public bool IsStaticTileWalkable(int floorIndex, Vector2Int p)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
@@ -410,8 +392,7 @@ public partial class CreateMap
         int sameFloorTarget = FindRetreatTargetInFloor(floorIndex, currentRoomId);
         if (sameFloorTarget >= 0) return sameFloorTarget;
 
-        // 점령 거점이 없으면 던전 입구(0층) 방향으로 후퇴
-        // 현재 층 시작방을 중간 목표로 반환 (시작방 → 계단 → 0층 경로의 첫 단계)
+        // 점령 거점이 없으면 시작방을 중간 목표로 반환(시작방 → 계단 → 0층 경로의 첫 단계)
         Floor floor = map.floors[floorIndex];
         int w = floor.config.width;
         int h = floor.config.height;
@@ -505,8 +486,7 @@ public partial class CreateMap
         return false;
     }
 
-    // 이동 명령을 낼 좌표가 어느 방(roomId)에 속하는지 조회한다.
-    // IsStaticTileWalkable과 동일한 타일→청크 변환(8칸 단위)을 재사용한다.
+    // 이동 명령을 낼 좌표가 어느 방(roomId)에 속하는지 조회 — IsStaticTileWalkable과 동일한 타일→청크 변환 재사용.
     public int GetRoomIdAt(int floorIndex, Vector2Int tilePos)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return -1;
@@ -522,9 +502,8 @@ public partial class CreateMap
         return floor.chunks[cx, cy].roomId;
     }
 
-    // 플레이어는 자신 소유 및 인접 방까지만 이동 명령을 내릴 수 있다. CanCommandEnemyRoom
-    // (playerRoomId 하나만 확인)과 달리, 점령 중인 모든 방을 한 번에 스캔해 그중 하나라도
-    // targetRoomId 자신이거나 Gate로 연결돼 있으면 허용한다.
+    // 플레이어는 자신 소유 및 인접 방까지만 이동 명령을 내릴 수 있다. CanCommandEnemyRoom(방 하나만
+    // 확인)과 달리 점령 중인 모든 방을 스캔해 targetRoomId 자신이거나 Gate로 연결돼 있으면 허용한다.
     public bool CanPlayerCommandRoom(int floorIndex, int targetRoomId)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
@@ -562,8 +541,7 @@ public partial class CreateMap
     public bool CanPlayerCommandPosition(int floorIndex, Vector2Int tilePos)
         => CanPlayerCommandRoom(floorIndex, GetRoomIdAt(floorIndex, tilePos));
 
-    // 방 하나는 항상 단일 점령상태를 가지므로(InitOccupationAndDanger/GenerateFloor0이 방 전체에
-    // 같은 값을 씀) 첫 매치만 반환해도 충분하다.
+    // 방 하나는 항상 단일 점령상태를 가지므로(방 전체에 같은 값을 씀) 첫 매치만 반환해도 충분하다.
     public OccupationState GetRoomOccupationState(int floorIndex, int roomId)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return OccupationState.Neutral;
@@ -580,8 +558,7 @@ public partial class CreateMap
         return OccupationState.Neutral;
     }
 
-    // 플레이어는 자신 소유의 방에만 몬스터를 스폰할 수 있다. 이동 명령(CanPlayerCommandRoom)과
-    // 달리 인접 방까지 허용하지 않고 정확히 점령 중인 방인지만 본다.
+    // 플레이어는 자신 소유의 방에만 몬스터를 스폰할 수 있다 — 이동 명령과 달리 인접 방은 허용 안 함.
     public bool IsPositionPlayerOwned(int floorIndex, Vector2Int tilePos)
     {
         if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
@@ -615,8 +592,7 @@ public partial class CreateMap
         return false;
     }
 
-    // FindPathAcrossFloors(아래)에 위임 — 경로 자체가 필요 없는 호출부라도 존재 여부만 보면 되고,
-    // 실제 층 수(BFS 큐 규모)가 작아 경로 리스트 할당 비용은 무시할 만하다.
+    // FindPathAcrossFloors에 위임 — 층 수가 작아 경로 리스트 할당 비용은 무시할 만하다.
     public bool CanReachFloor(int fromFloor, int toFloor, bool monsterCanUse = true)
         => FindPathAcrossFloors(fromFloor, toFloor, monsterCanUse).Count > 0;
 

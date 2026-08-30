@@ -11,19 +11,18 @@ public static class GUIMenuStyleUtil
     public const int ButtonFontSize = 18;
 
     // 선택/활성 상태 배경색. Unity 기본 버튼 스킨 텍스처는 이미 회색조 음영이 들어가 있어 GUI.backgroundColor로
-    // 곱색(tint)하면 값을 아무리 올려도 탁하게 보인다 — DrawFlatButton은 스킨 텍스처 대신
-    // Texture2D.whiteTexture 위에 이 색을 그대로 칠해서(채우기) 값 그대로의 순색이 나오게 한다.
+    // 곱색(tint)하면 아무리 올려도 탁하게 보이므로, DrawFlatButton은 스킨 텍스처 대신 Texture2D.whiteTexture
+    // 위에 이 색을 그대로 채워 순색이 나오게 한다.
     public static readonly Color ActiveColor = new Color(0.05f, 0.45f, 1f, 1f);
     public static readonly Color InactiveColor = new Color(0.3f, 0.3f, 0.3f, 0.9f);
     public static readonly Color DisabledColor = new Color(0.2f, 0.2f, 0.2f, 0.6f);
     // 활성 버튼은 테두리도 흰색 대신 밝은 하늘색으로 그려서 배경색만으로는 부족할 때도 한눈에 띄게 한다.
     public static readonly Color ActiveBorderColor = new Color(0.65f, 0.9f, 1f, 1f);
 
-    // 버튼마다 고정 폰트 크기 대신, 그 버튼의 실제 폭에 라벨이 들어가는지 CalcSize로 재보고 넘치면
-    // 최소 크기까지 한 단계씩 줄인 스타일을 쓴다. 배경이 없는(투명) 스타일인 이유는 DrawFlatButton이
-    // 배경/테두리를 직접 그리고 GUI.Button은 클릭 판정 + 텍스트 렌더링에만 쓰기 때문 — 그러지 않으면
-    // Unity 기본 버튼 스킨이 우리가 그린 순색 배경 위에 다시 겹쳐 그려져 탁해진다. 캐시 키는 문자열
-    // 보간 대신 값 타입 튜플을 써서 매 프레임 불필요한 문자열 할당이 생기지 않게 한다.
+    // 버튼마다 고정 폰트 크기 대신, 실제 폭에 라벨이 들어가는지 CalcSize로 재보고 넘치면 최소 크기까지
+    // 줄인 스타일을 쓴다. 배경 없는(투명) 스타일인 이유는 DrawFlatButton이 배경/테두리를 직접 그리고
+    // GUI.Button은 클릭 판정+텍스트 렌더링에만 쓰기 때문(안 그러면 Unity 기본 스킨이 순색 배경 위에
+    // 겹쳐져 탁해짐). 캐시 키는 문자열 보간 대신 값 타입 튜플을 써서 매 프레임 문자열 할당을 피한다.
     private static readonly Dictionary<(string label, int width, int fontSize), GUIStyle> _fittedTransparentStyleCache = new();
     private const float FittedButtonHorizontalPadding = 16f;
 
@@ -56,8 +55,7 @@ public static class GUIMenuStyleUtil
     }
 
     // 하단 메뉴 바/서브메뉴/정보 탭이 공유하는 버튼 하나(배경 채우기 + 테두리 + 글자 자동 축소 텍스트)를
-    // 그리고 클릭 여부를 돌려준다 — 위 ActiveColor 주석 참고, 배경을 스킨 텍스처 곱색이 아니라 순색
-    // 채우기로 그려서 선택 상태가 또렷하게 보이게 하는 게 핵심.
+    // 그리고 클릭 여부를 돌려준다(위 ActiveColor 주석 참고 — 순색 채우기로 선택 상태를 또렷하게 함).
     public static bool DrawFlatButton(Rect rect, string label, bool active, bool interactable = true)
     {
         Color fill = !interactable ? DisabledColor : (active ? ActiveColor : InactiveColor);
@@ -76,8 +74,8 @@ public static class GUIMenuStyleUtil
     }
 
     // GUILayout 흐름 안에서 DrawFlatButton을 쓰기 위한 래퍼 — 항목 개수가 가변적인 목록(생산/배치
-    // 대기열 등)은 매번 손으로 Rect를 계산하기보다 GUILayout 자동 배치가 간단해서, GUILayoutUtility.GetRect로
-    // 흐름상의 Rect만 받아와 그 위에 기존 DrawFlatButton을 그대로 그린다 — 스타일은 완전히 동일하다.
+    // 대기열 등)은 GUILayout 자동 배치가 간단해서, GUILayoutUtility.GetRect로 흐름상의 Rect만 받아와
+    // 그 위에 기존 DrawFlatButton을 그대로 그린다.
     public static bool DrawFlatButtonLayout(string label, bool active = false, bool interactable = true, params GUILayoutOption[] options)
     {
         Rect rect = GUILayoutUtility.GetRect(new GUIContent(label), GUIStyle.none, options);
@@ -104,8 +102,8 @@ public static class GUIMenuStyleUtil
         }
     }
 
-    // 정보량이 많은 패널은 LabelStyle(20px)이 너무 커서 줄바꿈/잘림이 심해진다 — 같은 색·굵기 언어는
-    // 유지하면서 크기만 줄인 보조 스타일. wordWrap을 켜서 패널 폭에 맞게 자연스럽게 줄바꿈되게 한다.
+    // 정보량이 많은 패널은 LabelStyle(20px)이 너무 커서 줄바꿈/잘림이 심해지므로, 같은 색·굵기는
+    // 유지하고 크기만 줄이고 wordWrap을 켠 보조 스타일.
     public const int BodyLabelFontSize = 14;
     private static GUIStyle _bodyLabelStyle;
 

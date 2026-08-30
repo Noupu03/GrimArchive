@@ -1,11 +1,6 @@
 // ============================================================================
-// CreateMap.TileWall.cs — 타일 이름 · 벽 두께 처리
-// ----------------------------------------------------------------------------
-// 역할: 청크 내 타일 이름 지정(AssignTileNames),
-//       외곽 벽 두께 적용(ApplyOuterWallThickness),
-//       같은 방 내부 청크 간 벽 허물기(OpenInternalWalls),
-//       벽 두께 계산 유틸리티.
-// 단계: GenerateMap Phase 2 — 연결 구축 직전, 타일 레벨 처리
+// CreateMap.TileWall.cs — 청크 내 타일 이름 지정, 외곽 벽 두께 적용, 같은 방 내부 청크 간 벽 허물기.
+// GenerateMap Phase 2(연결 구축 직전, 타일 레벨 처리)에서 실행된다.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -69,9 +64,8 @@ public partial class CreateMap
 
         var roomBounds = ComputeRoomBounds(ref floor);
 
-        // 같은 방이 여러 청크에 걸쳐 이어지는 변에서 매번 기준 두께로 리셋되면 청크 경계마다 눈에
-        // 띄는 턱이 생긴다. 직전 청크의 마지막 두께 값을 이어받아 다음 청크가 그 값부터 랜덤워크를
-        // 이어가게 한다(같은 roomId라도 실제로 붙어있지 않으면 이어붙이지 않음).
+        // 청크 경계마다 두께가 기준값으로 리셋되면 눈에 띄는 턱이 생기므로, 직전 청크의 마지막 두께
+        // 값을 이어받아 랜덤워크를 이어간다(같은 roomId라도 실제로 붙어있지 않으면 이어붙이지 않음).
         var bottomContinuity = new Dictionary<(int roomId, int cy), (int lastCx, int value)>();
         var topContinuity = new Dictionary<(int roomId, int cy), (int lastCx, int value)>();
         var leftContinuity = new Dictionary<(int roomId, int cx), (int lastCy, int value)>();
@@ -93,8 +87,7 @@ public partial class CreateMap
 
                 bool isFixedThicknessRoom = c.roomRole == RoomRole.StartRoom || c.roomRole == RoomRole.BossRoom;
 
-                // StartRoom/BossRoom: 정확히 1칸 고정 두께 직선 벽(WallThickness_StartAndBossRoomsHaveThickness1
-                // 테스트가 이를 보장하는 고정 규격 방이라 아래 랜덤 프로파일 대상에서 제외).
+                // StartRoom/BossRoom은 고정 규격 방이라 1칸 고정 두께 직선 벽만 적용하고 아래 랜덤 프로파일 대상에서 제외한다.
                 if (isFixedThicknessRoom)
                 {
                     int fixedThickness = 1;
@@ -123,8 +116,7 @@ public partial class CreateMap
                 int thicknessX = cached.thicknessX;
                 int thicknessY = cached.thicknessY;
 
-                // 양쪽이 모두 외곽인 축(좁은 통로)은 벽 두께 합이 청크 크기 이상이면 내부 Floor가
-                // 완전히 사라지므로 최소 2칸 확보하도록 제한(SampleThicknessForSpan과 동일한 비율 상한).
+                // 양쪽이 모두 외곽인 축(좁은 통로)은 벽 두께 합이 청크 크기 이상이면 내부 Floor가 사라지므로 제한한다.
                 int bothSidesCap = cs * 3 / 8;
                 bool bothX = isLeft && isRight;
                 bool bothY = isBottom && isTop;
@@ -132,9 +124,8 @@ public partial class CreateMap
                 if (bothY) thicknessY = Mathf.Min(thicknessY, bothSidesCap);
 
                 // ── 가장자리를 따라 두께가 굵게 출렁이는 랜덤워크 프로파일 ──────────────────
-                // 방 하나에 값 하나가 아니라 가장자리 칸마다 독립적으로 값이 출렁이게 해 자연 지형처럼
-                // 만든다. 순수 시각적 외곽 채움(통로·게이트와는 분리된 야생/맵경계 접촉면 전용)이라
-                // 통행 경로에는 영향이 없다.
+                // 가장자리 칸마다 값이 독립적으로 출렁여 자연 지형처럼 보이게 한다 — 순수 시각적 외곽
+                // 채움(야생/맵경계 접촉면 전용)이라 통행 경로에는 영향 없음.
                 int minGuaranteed = Mathf.Max(thkMin, 2); // 최소 채움 보장 — 1칸짜리 약한 벽 방지
                 // 한쪽만 외곽인 경우(통로 폭 제한 없음): 청크 절반까지 과감하게 허용.
                 int singleSideMax = Mathf.Max(minGuaranteed, cs / 2);
@@ -185,9 +176,8 @@ public partial class CreateMap
         }
     }
 
-    // 길이 length의 가장자리를 따라 두께가 startValue에서 시작해, 칸마다 30% 확률로만 ±1씩 흔들리는
-    // 프로파일을 만든다. startValue가 범위를 벗어나 있어도 즉시 스냅하지 않고 한 칸에 1칸씩만
-    // 계단식으로 복귀시켜, 청크 경계에서 두께가 뚝 끊기지 않게 한다.
+    // 길이 length의 가장자리를 따라 두께가 startValue에서 시작해 낮은 확률로만 ±1씩 흔들리는 프로파일을
+    // 만든다. startValue가 범위를 벗어나도 즉시 스냅하지 않고 계단식으로 복귀시켜 청크 경계 단절을 방지.
     int[] BuildEdgeThicknessProfile(int length, int startValue, int minThickness, int maxThickness)
     {
         int lo = Mathf.Min(minThickness, maxThickness);
@@ -203,8 +193,7 @@ public partial class CreateMap
                 current--;                          // 과감한 최대치 쪽으로 한 칸씩 계단 복귀
             else if (UnityEngine.Random.value < 0.3f)
             {
-                // 매 칸마다 흔들리면 전체가 구불구불해 보이므로 낮은 확률로만 ±1 스텝을 밟고
-                // 나머지 칸은 직전 값을 유지한다 — 평평한 구간 사이사이에 완만한 턱만 생기게 절제.
+                // 매 칸마다 흔들리면 전체가 구불구불해 보이므로 낮은 확률로만 ±1 스텝을 밟고 나머지는 직전 값 유지.
                 int step = UnityEngine.Random.Range(-1, 2);
                 current = Mathf.Clamp(current + step, lo, hi);
             }
@@ -263,8 +252,7 @@ public partial class CreateMap
 
     int SampleThicknessForSpan(int span, int thkMin, int thkMax, int chunkSize)
     {
-        // 양쪽이 동시에 외곽일 때 내부 Floor가 사라지지 않도록 한쪽 최대 두께를 제한한다. 청크
-        // 크기가 층별로 달라질 수 있어 비율로 일반화했다.
+        // 양쪽이 동시에 외곽일 때 내부 Floor가 사라지지 않도록 최대 두께를 제한(청크 크기 비율로 일반화).
         int upperLimit = (span <= 1) ? chunkSize / 4 : chunkSize * 3 / 8;
 
         // 기본 두께 시드 자체도 1칸까지 내려가지 않게 해서 랜덤워크가 항상 든든한 값에서 출발하게 한다.
@@ -402,9 +390,8 @@ public partial class CreateMap
     }
 
     // ── 횃불 벽걸이 배치 전용 청크 경계 질의 ──────────────────────────────
-    // "청크 경계 한 면이 벽인지/게이트로 뚫렸는지" 판정은 이 파일이 담당해 시각 오버레이 계층이
-    // 타일 이름 문자열을 직접 알 필요가 없게 한다. side 하나당 축 정의(isYAxis/edgeValue/inward)만
-    // 있으면 IsSolidWallEdge와 TryFindFloorTileInFrontOfWall 둘 다 여기서 파생된다.
+    // "청크 경계 한 면이 벽인지/게이트로 뚫렸는지" 판정을 이 파일이 맡아 시각 오버레이 계층이 타일 이름
+    // 문자열을 직접 알 필요가 없게 한다.
     private static void GetWallAxis(TorchWallSide side, int chunkSize, out bool isYAxis, out int edgeValue, out int inward)
     {
         switch (side)
@@ -416,8 +403,7 @@ public partial class CreateMap
         }
     }
 
-    // 청크 로컬 경계 한 줄이 전부 Wall이면 "완전히 막힌 벽"(횃불 후보), 일부만 Wall이면 게이트(복도)가
-    // 뚫려 있다는 뜻(제외), 전부 Wall이 아니면 애초에 벽이 아니다(제외).
+    // 경계 한 줄이 전부 Wall이면 "완전히 막힌 벽"(횃불 후보), 일부만 Wall이면 게이트로 뚫린 것이라 제외.
     public static bool IsSolidWallEdge(Chunks c, TorchWallSide side)
     {
         int cs = c.chunk.GetLength(0);
@@ -431,8 +417,8 @@ public partial class CreateMap
         return true;
     }
 
-    // 벽 중앙 기준선을 따라 안쪽으로 걸어 들어가 처음 만나는 Floor 타일을 반환한다 — 벽 두께가
-    // 얼마든 "벽에 맞닿은 바닥 칸"을 정확히 찾는다. 도중 Floor가 아닌 타일(Stair 등)을 만나면 실패 처리.
+    // 벽 중앙 기준선을 따라 안쪽으로 걸어 들어가 처음 만나는 Floor 타일을 반환(벽 두께와 무관하게 정확).
+    // 도중 Floor가 아닌 타일(Stair 등)을 만나면 실패 처리.
     public static bool TryFindFloorTileInFrontOfWall(Chunks c, TorchWallSide side, out Vector2Int local)
     {
         int cs = c.chunk.GetLength(0);

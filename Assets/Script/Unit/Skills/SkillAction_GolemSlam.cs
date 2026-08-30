@@ -1,11 +1,9 @@
 using UnityEngine;
 
 // 보스 골렘 공격1 — 대상 좌표로 일반 공격. GroundAoE와 같은 "좌표에 지연 착탄" 흐름을 그대로 쓰되,
-// 파티클 대신 BossGolemHandController가 손을 들어올렸다 내려찍는 연출로 대체한다.
-//
-// 손 애니메이션은 Execute 시점에 곧바로 시작해 시전(castMs) 동안 진행되고, 실제 피해는 기존
-// BeginAttackCast 흐름대로 castMs 경과 시점에 별도로 계산된다 — 자세한 이유는
-// BossGolemHandController.cs 상단 주석 참고.
+// 파티클 대신 BossGolemHandController가 손을 들어올렸다 내려찍는 연출로 대체한다. 손 애니메이션은
+// Execute 시점에 곧바로 시작해 시전(castMs) 동안 진행되고, 실제 피해는 기존 BeginAttackCast 흐름대로
+// castMs 경과 시점에 별도 계산된다(자세한 이유는 BossGolemHandController.cs 상단 주석 참고).
 public class SkillAction_GolemSlam : SkillAction
 {
     private readonly SkillData _d;

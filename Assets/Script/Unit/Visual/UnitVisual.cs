@@ -3,8 +3,8 @@ using UnityEngine;
 
 public class UnitVisual : MonoBehaviour
 {
-	// 이 GameObject가 표현하는 논리 유닛(ScriptableObject) 참조 — UnitGenerate.SetupUnitVisual에서
-	// 설정한다. 인스펙터에서 개인 지도(Human.Memory.personalMap)를 볼 수 있게 한다(UnitVisualEditor.cs 참고).
+	// 이 GameObject가 표현하는 논리 유닛 참조 — 인스펙터에서 개인 지도(Human.Memory.personalMap)를
+	// 볼 수 있게 한다(UnitVisualEditor.cs 참고).
 	public Unit boundUnit;
 
 	// 시야 범위/인지 범위 표시선 — UnitGenerate.SyncVisuals가 "단일 선택된 유닛" 또는
@@ -14,9 +14,8 @@ public class UnitVisual : MonoBehaviour
 	// 엘리트/네메시스/보스의 원형 인지 범위(01-A 12장) — 위와 동일 표시 조건일 때만 함께 표시.
 	private LineRenderer _circularPerceptionLine;
 
-	// 시야/인지 범위는 명도·채도 차이만으로는 구분이 잘 안 돼 색상(Hue) 자체를 다르게 쓴다 — 진영은
-	// "차가운 계열(인류)/따뜻한 계열(몬스터)"로, 그 안에서 시야=넓고 옅은 색, 인지=전혀 다른 톤의
-	// 진하고 굵은 색으로 나눈다(선 굵기도 함께 달리해 이중으로 구분).
+	// 명도·채도만으로는 구분이 안 돼 색상(Hue) 자체를 진영별(인류=차가운 계열/몬스터=따뜻한 계열)·
+	// 용도별(시야=옅고 얇게/인지=진하고 굵게)로 나눈다.
 	private static readonly Color HumanVisionColor      = new Color(0.15f, 0.85f, 0.90f, 0.55f); // 청록(cyan)
 	private static readonly Color HumanPerceptionColor  = new Color(0.55f, 0.20f, 1.00f, 0.95f);  // 남보라(violet)
 	private static readonly Color HumanCircularColor    = new Color(0.95f, 0.95f, 1.00f, 0.85f);  // 흰빛 하이라이트
@@ -40,20 +39,19 @@ public class UnitVisual : MonoBehaviour
 	}
 
 	// ─────────────────────────── GOAP 상태 라벨 (머리 위, 월드 고정) ───────────────────────────
-	// GameSession.ProcessUnitAction → Unit.JudgeState → GoapBrain이 세워둔 "앞으로 실행할 계획"을
-	// 보여준다. 카메라와 무관하게 유닛 위에 붙어야 하므로 Screen Space Canvas 대신 world-space
-	// TextMesh로 만든다(UIManager.ShowFloatingText는 0.5초짜리 팝업이라 다름).
+	// GoapBrain이 세운 계획을 유닛 머리 위에 표시한다. 카메라와 무관하게 유닛을 따라야 해서
+	// Screen Space Canvas 대신 world-space TextMesh를 쓴다.
 	private TextMesh _statusLabel;
 	private const int StatusLabelSortingOrder = 20; // 시야/인지선(8~10)보다 위, 선택 마커보다도 위
-	// 체력바(아래 EnsureHealthBar) 바로 위로 올라오게, 기존 0.35에서 상향(2026-08-24).
+	// 체력바(아래 EnsureHealthBar) 바로 위로 올라오도록 맞춘 값.
 	private const float StatusLabelWorldOffsetAboveTop = 0.55f; // 유닛 스프라이트 상단에서 얼마나 띄울지(월드 단위)
 
-	// GoapBrain.PlanText(예: "6-7" = MoveToTrap→TrapDisarmPerform, ActionCode 1~19 참고)를 그대로
-	// 받아 표시한다 — 실행이 끝난 스텝은 GoapBrain.currentPlan에서 곧바로 빠져 따로 지울 필요 없다.
+	// GoapBrain.PlanText(예: "6-7", ActionCode 1~19 참고)를 그대로 표시한다 — 끝난 스텝은
+	// currentPlan에서 곧바로 빠지므로 따로 지울 필요 없다.
 	public void UpdateStatusLabel(string planText, bool isHuman)
 	{
-		// 안개에 가려진 유닛은 UnitGenerate.SyncVisuals가 planText로 null/빈 문자열을 넘긴다 —
-		// UpdateBelowLabel과 동일한 "null이면 숨김" 관례.
+		// 안개에 가려진 유닛은 SyncVisuals가 null/빈 문자열을 넘긴다(UpdateBelowLabel과 동일한
+		// "null이면 숨김" 관례).
 		if (string.IsNullOrEmpty(planText))
 		{
 			if (_statusLabel != null) _statusLabel.gameObject.SetActive(false);
@@ -86,8 +84,8 @@ public class UnitVisual : MonoBehaviour
 		MeshRenderer mr = go.GetComponent<MeshRenderer>();
 		mr.sortingOrder = StatusLabelSortingOrder;
 
-		// 실제 부모 localScale을 역산한다 — footprint를 그대로 쓰면 visualScaleIgnoresFootprint가
-		// 켜진 유닛(루트 localScale=1 고정)에서 라벨이 잘못된 배율/위치로 렌더링된다.
+		// 부모 localScale을 역산한다 — footprint를 그대로 쓰면 visualScaleIgnoresFootprint 유닛
+		// (루트 localScale=1 고정)에서 라벨이 잘못된 배율/위치로 렌더링된다.
 		Vector3 parentScale = transform.localScale;
 		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
@@ -96,13 +94,13 @@ public class UnitVisual : MonoBehaviour
 	}
 
 	// ─────────────────────────── 체력바 (머리 위, 월드 고정, 항상 표시) ───────────────────────────
-	// ObjectProgressBarVisual과 동일한 배경+채움 SpriteRenderer 2장 구성을 재사용하되, 체력바는
-	// StatusLabel과 같은 "머리 위" 계열이라 별도로 둔다. 위치 계산도 동일하게 부모 localScale을 역산한다.
+	// ObjectProgressBarVisual과 동일한 배경+채움 SpriteRenderer 2장 구성이지만, StatusLabel과 같은
+	// "머리 위" 계열이라 별도로 두고 위치 계산(부모 localScale 역산)도 동일하게 따른다.
 	private SpriteRenderer _healthBarBg;
 	private SpriteRenderer _healthBarFill;
 	private float _healthBarFillBaseScaleX;
-	// VFXManager가 이펙트 sortingOrder를 "대상 스프라이트+10"으로 매겨 기존 19로는 쉽게 역전당했다 —
-	// 웬만한 이펙트보다 위, 위협타일(999)/안개(1000~)보다는 아래인 값.
+	// 대부분의 이펙트보다는 위, 위협타일(999)/안개(1000~)보다는 아래여야 한다(VFXManager가 이펙트
+	// sortingOrder를 "대상 스프라이트+10"으로 매겨 너무 낮으면 쉽게 역전됨).
 	private const int HealthBarSortingOrder = 101;
 	private const float HealthBarWidth = 0.8f;
 	private const float HealthBarHeight = 0.12f;
@@ -111,8 +109,8 @@ public class UnitVisual : MonoBehaviour
 	private static Sprite _sharedHealthBarCenterSprite;
 	private static Sprite _sharedHealthBarLeftSprite;
 
-	// 단일 색상 — 비율별 초록/노랑/빨강 3색은 초록이 바닥 타일 색과 구분이 안 돼, 잘 겹치지 않는
-	// 선명한 마젠타 계열 고정 단색으로 대체.
+	// 비율별 초록/노랑/빨강 3색은 초록이 바닥 타일 색과 안 겹쳐서, 잘 안 겹치는 마젠타 계열
+	// 단색으로 고정했다.
 	private static readonly Color HealthBarFillColor = new Color(1f, 0.15f, 0.6f, 1f);
 
 	public void UpdateHealthBar(bool visible, float hp, float maxHp)
@@ -178,8 +176,8 @@ public class UnitVisual : MonoBehaviour
 	}
 
 	// ─────────────────────────── 하단 상태 라벨 (함정 해제 시도중 등, 월드 고정) ───────────────────────────
-	// 머리 위 상태 라벨(StatusLabel)과 완전히 같은 world-space TextMesh 방식이고, 유닛 풋프린트
-	// "하단 - 여백" 쪽에 붙는다는 것만 다르다.
+	// StatusLabel과 완전히 같은 world-space TextMesh 방식이고, 유닛 풋프린트 "하단 - 여백" 쪽에
+	// 붙는다는 것만 다르다.
 	private TextMesh _belowLabel;
 	private const int BelowLabelSortingOrder = 20;
 	private const float BelowLabelWorldOffsetBelowBottom = 0.35f;
@@ -218,8 +216,8 @@ public class UnitVisual : MonoBehaviour
 		MeshRenderer mr = go.GetComponent<MeshRenderer>();
 		mr.sortingOrder = BelowLabelSortingOrder;
 
-		// StatusLabel과 동일한 이유/방식(실제 부모 localScale을 역산)으로 스케일을 역산하고, 위치는
-		// "풋프린트 하단 - 월드 여백"으로 뒤집는다.
+		// StatusLabel과 동일하게 부모 localScale을 역산하되, 위치는 "풋프린트 하단 - 월드 여백"으로
+		// 뒤집는다.
 		Vector3 parentScale = transform.localScale;
 		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
@@ -251,8 +249,8 @@ public class UnitVisual : MonoBehaviour
 		if (!visible && _circularPerceptionLine != null) _circularPerceptionLine.enabled = false;
 	}
 
-	// viewRadius/viewAngle: 시야 범위(01-A 2장, 120도 고정). perceptionRadius/perceptionAngle: 인지
-	// 범위(01-A 3~4장). showCircular/circularRadius: 엘리트/네메시스/보스 전용 원형 인지 범위(13장).
+	// viewRadius/viewAngle=시야 범위(01-A 2장), perceptionRadius/perceptionAngle=인지 범위(01-A
+	// 3~4장), showCircular/circularRadius=엘리트/네메시스/보스 전용 원형 인지 범위(13장).
 	public void DrawVisionAndPerceptionRange(float viewRadius, float viewAngle, float perceptionRadius, float perceptionAngle, bool showCircular, float circularRadius, Vector2 forward)
 	{
 		DrawCone(_visionRangeLine, viewRadius, viewAngle, forward);
@@ -270,8 +268,8 @@ public class UnitVisual : MonoBehaviour
 		if (line == null) return;
 
 		int segments = 20;
-		// loop=true로 마지막 호 끝점 -> 중심점을 잇는 변까지 그려야 완전한 부채꼴(원뿔) 윤곽이 된다.
-		// loop=false였을 때는 이 닫는 변이 그려지지 않아 한쪽 변이 뚫려 보였다.
+		// loop=true여야 마지막 호 끝점→중심점을 잇는 변까지 그려져 부채꼴이 완전히 닫힌다
+		// (false면 한쪽이 뚫려 보임).
 		line.loop = true;
 		line.positionCount = segments + 2;
 		line.SetPosition(0, Vector3.zero);
@@ -300,9 +298,8 @@ public class UnitVisual : MonoBehaviour
 	}
 
 	// ─────────────────────────── 명령 경로 시각화 (선택 중일 때만, 월드 좌표) ───────────────────────────
-	// 위 시야/인지 콘과 달리 유닛 트랜스폼을 따라다니면 안 되므로(경로는 절대 월드 좌표)
-	// useWorldSpace=true로 별도 LineRenderer를 쓴다. Unit.MovementAlgorithm의 기존 경로 캐시를
-	// 그대로 읽기만 해서, 길찾기가 다시 도는 순간 자동으로 갱신된다.
+	// 경로는 절대 월드 좌표라 유닛 트랜스폼을 따라가면 안 돼 useWorldSpace=true로 별도 LineRenderer를
+	// 쓴다. Unit.MovementAlgorithm의 기존 경로 캐시를 그대로 읽어 길찾기가 다시 돌 때 자동 갱신된다.
 	private LineRenderer _commandPathLine;
 	private LineRenderer _commandDestMarker;
 	private LineRenderer _hoverMarker;
@@ -315,8 +312,8 @@ public class UnitVisual : MonoBehaviour
 	private const int CommandDestMarkerSortingOrder = 13;
 	private const int HoverMarkerSortingOrder = 14;
 
-	// floorOffset — unit.position은 층별 로컬 그리드 좌표라 그 층의 타일맵 오프셋(GetFloorOffset)을
-	// 더해야 실제 월드 좌표가 된다. 없으면 여러 층이 나란히 배치된 경우 화면 밖에 그려진다.
+	// floorOffset — unit.position은 층별 로컬 그리드 좌표라 타일맵 오프셋을 더해야 실제 월드 좌표가
+	// 된다(안 더하면 여러 층이 나란히 배치될 때 화면 밖에 그려짐).
 	public void UpdateCommandPathVisual(bool visible, List<Vector2Int> pathTiles, Vector3 floorOffset, Vector2Int? hoverTile = null, Vector2Int? explicitDestTile = null)
 	{
 		if (!visible)

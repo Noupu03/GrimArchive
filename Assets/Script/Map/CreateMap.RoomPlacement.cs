@@ -1,10 +1,6 @@
 // ============================================================================
-// CreateMap.RoomPlacement.cs — 방 배치 · 형태 결정
-// ----------------------------------------------------------------------------
-// 역할: 보스방 배치(PlaceBossRoom), 일반/서브 방 배치(PlaceRooms),
-//       시작방 지정(AssignStartRoom), 방 형태 템플릿(Shape Templates),
-//       인접 단일 청크 병합(Merge) 로직.
-// 단계: GenerateMap Phase 1 — 그리드 위에 방들을 물리적으로 배치
+// CreateMap.RoomPlacement.cs — 방 배치·형태 결정 (GenerateMap Phase 1)
+// 보스방/일반방 배치, 시작방 지정, 방 형태 템플릿, 인접 1x1 방 병합을 담당한다.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;

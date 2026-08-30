@@ -23,8 +23,7 @@ namespace GrimArchive.Wave
     {
         public static HumanWaveManager Instance { get; private set; }
 
-        // 첫 웨이브 전용 대기 시간은 폐지됐다 — 첫 웨이브를 포함해 항상 waveData.waveCooldown
-        // 하나로만 동작한다.
+        // 첫 웨이브를 포함해 항상 waveData.waveCooldown 하나로만 동작한다.
         public float waveCooldown => targetSpawner?.waveData?.waveCooldown ?? 10f;
 
         [Inject]
@@ -34,34 +33,29 @@ namespace GrimArchive.Wave
         public float cooldownTimer = 0f;
 
         // 시체는 시간이 아닌 웨이브 수 단위로 소멸한다 — 스폰 시점 WaveNumber를 스냅샷하고
-        // (InteractableObject.SpawnWaveNumber), "스폰 웨이브 + 2 <= 지금 웨이브"면 정리한다
-        // (GameSession.DespawnCorpsesForNewWave).
+        // (InteractableObject.SpawnWaveNumber), "스폰 웨이브+2 <= 지금 웨이브"면 정리한다(GameSession.DespawnCorpsesForNewWave).
         public int WaveNumber { get; private set; } = 0;
 
         // 추적 중인 웨이브 데이터
         public Party activeParty;
 
-        // 웨이브 승리 조건은 "목표 방(waveData.targetFloor의 보스방)의 코어를 인류 소유로 전환"이다.
-        // _retreating이 true가 되면(=코어 파괴 성공) UpdatePartyDestination이 목적지를 exitAreaPos로
-        // 바꿔 기존 퇴각 로직을 재사용한다.
+        // 웨이브 승리 조건: 목표 방(waveData.targetFloor의 보스방) 코어를 인류 소유로 전환. _retreating이
+        // true가 되면(코어 파괴 성공) UpdatePartyDestination이 목적지를 exitAreaPos로 바꿔 퇴각 로직을 재사용한다.
         private Room _targetRoom;
         private bool _retreating;
 
         // 탈출 지점 영역 (임시: 던전 입구/StartRoom 기준 위치)
         public Vector2Int exitAreaPos;
 
-        // ── 0층 사전 스폰 (웨이브 시작 전 대기 연출) ──
-        // 웨이브 타이머가 돌면 0층에 미리 스폰해 대기시키고, 웨이브가 시작되면 계단으로 이동해 목표
-        // 층으로 넘어간다. 사전 스폰된 유닛은 목표가 없어 Goal_Explore(10)로 배회하다가
-        // pendingStairTargetFloor가 세팅되면 Goal_UseStairs(140)가 가로챈다 — 별도 상태 불필요.
-        // 이 상수는 (1) 계단 위치를 못 구했을 때 ComputePreSpawnTriggerSeconds()의 폴백 값,
-        // (2) DungeonEntranceSystem.PrepareNoticeLeadSeconds와 같은 값(6초)이어야 하는 "진입 준비"
-        // 문구 타이밍 두 역할을 겸한다 — 두 클래스가 서로 참조하지 않으므로 바꿀 때 둘 다 같이 바꿀 것.
+        // ── 0층 사전 스폰(웨이브 시작 전 대기 연출) ── 웨이브 타이머가 돌면 0층에 미리 스폰해 대기시키고
+        // 계단으로 이동해 목표 층으로 넘어간다(목표 없는 사전 스폰 유닛은 Goal_Explore로 배회하다
+        // pendingStairTargetFloor 세팅 시 Goal_UseStairs가 가로챔). 이 상수는 DungeonEntranceSystem.
+        // PrepareNoticeLeadSeconds와 같은 값(6초)이어야 하므로 두 클래스를 바꿀 땐 반드시 같이 바꿔야 한다.
         private const float PreSpawnLeadSeconds = 6f;
         private bool preSpawnTriggered = false;
-        // "사전 스폰을 시도한 시점"일 뿐이라 실제 몬스터 소집 시점과 다를 수 있다(계단 위치를 못 찾으면
-        // 사전 스폰이 스킵되고 소집은 StartWave() 폴백에서야 일어남) — 소집이 실제로 걸린 순간에만 켜지는
-        // 전용 플래그를 따로 둔다. WaveGaugePanel의 게이지 점멸이 이 플래그를 구독한다.
+        // "사전 스폰을 시도한 시점"과 실제 몬스터 소집 시점은 다를 수 있어(계단 미확보 시 사전 스폰이
+        // 스킵되고 소집은 StartWave() 폴백에서 일어남), 소집이 실제로 걸린 순간에만 켜지는 전용 플래그를
+        // 둔다(WaveGaugePanel 게이지 점멸이 구독).
         private bool monstersSummonedThisCycle = false;
         public bool IsMonstersSummonedThisCycle => monstersSummonedThisCycle;
         private Party preSpawnedParty;
@@ -95,12 +89,12 @@ namespace GrimArchive.Wave
         // 콜백으로 stagingUnits/pendingStairTargetFloor를 넘겨받는다.
         private readonly DungeonEntranceSystem _dungeonEntrance = new DungeonEntranceSystem();
 
-        // 이전 웨이브에서 살아남아 0층으로 퇴각한 파티원 — 다음 웨이브에 그대로 합류시킨다. 새로
-        // 스폰하지 않고 이미 0층에 있는 유닛을 그대로 다음 파티에 편입한다.
+        // 이전 웨이브에서 살아남아 0층으로 퇴각한 파티원 — 새로 스폰하지 않고 이미 0층에 있는 유닛을
+        // 그대로 다음 파티에 편입한다.
         private readonly List<Human> retreatedSurvivors = new List<Human>();
 
-        // 웨이브 시작 후 이 시간이 지나도 0층에 남아있는 파티원은 강제로 목표 층으로 건너뛰게 한다 —
-        // A* 교착 등으로 몇 명이 계단 근처에서 영구히 못 넘어오는 경우의 안전장치.
+        // 웨이브 시작 후 이 시간이 지나도 0층에 남아있는 파티원은 강제로 목표 층으로 건너뛰게 한다
+        // (A* 교착 등으로 계단 근처에서 영구히 못 넘어오는 경우의 안전장치).
         private const float StairForceCrossTimeoutSeconds = 15f;
         private float runningStateTimer = 0f;
 
@@ -130,8 +124,8 @@ namespace GrimArchive.Wave
                         preSpawnTriggered = true;
                         PreSpawnWaveUnits();
                     }
-                    // 몬스터 소집 배치(R키 배치모드)는 폐기됐지만, 이 타이밍 플래그들은
-                    // WaveGaugePanel(게이지 점멸)/"진입 준비" 문구가 여전히 참조하므로 유지한다.
+                    // 몬스터 소집 배치(R키 배치모드)는 폐기됐지만, 이 타이밍 플래그는 WaveGaugePanel
+                    // (게이지 점멸)/"진입 준비" 문구가 여전히 참조하므로 유지한다.
                     if (!monsterMusterTriggered && preSpawnSucceeded && cooldownTimer <= PreSpawnLeadSeconds)
                     {
                         monsterMusterTriggered = true;
@@ -148,9 +142,9 @@ namespace GrimArchive.Wave
                     MonitorWave();
                 }
 
-                // 던전 입구 구조는 cooldownTimer/currentState와 무관하게 독립 진행된다(웨이브가 이미
-                // Running으로 넘어간 뒤에도 인간 파티는 여전히 입구를 걸어들어올 수 있다). Time.deltaTime을
-                // 그대로 써서 게임이 멈추면 파티도 같이 멈춘다(notice 자체는 NoticeCenter가 unscaled로 처리).
+                // 던전 입구 구조는 cooldownTimer/currentState와 무관하게 독립 진행된다(웨이브가 Running으로
+                // 넘어간 뒤에도 인간 파티는 입구를 걸어들어올 수 있음). Time.deltaTime을 그대로 써서 게임이
+                // 멈추면 파티도 같이 멈춘다(notice 자체는 NoticeCenter가 unscaled 처리).
                 _dungeonEntrance.Update(GameSession.Instance, Time.deltaTime, cooldownTimer, OnDungeonEntranceArrivedAtStairs);
 
                 await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken: cts);
@@ -158,8 +152,8 @@ namespace GrimArchive.Wave
         }
 
         // ComputePreSpawnTriggerSeconds()가 계산한 시점에 이번 웨이브 인류 파티를 0층에 미리 스폰한다 —
-        // 목표를 안 심어 GOAP이 Goal_Explore로 배회하게 두고, 숨은 스폰 청크에 등장시킨 뒤
-        // DungeonEntranceSystem에게 나머지 진입 시퀀스(입구 이동→대기→계단 이동)를 넘긴다.
+        // 목표를 안 심어 GOAP이 Goal_Explore로 배회하게 두고, 숨은 스폰 청크에 등장시킨 뒤 나머지 진입
+        // 시퀀스(입구 이동→대기→계단 이동)는 DungeonEntranceSystem에 넘긴다.
         private void PreSpawnWaveUnits()
         {
             if (targetSpawner == null || targetSpawner.waveData == null || targetSpawner.waveData.parties == null) return;
@@ -189,8 +183,8 @@ namespace GrimArchive.Wave
                 }
             }
 
-            // 이전 웨이브 생존자는 새로 스폰하지 않고 그대로 이번 파티에 합류시킨다 — 대형 시작 위치
-            // 통일을 위해 숨은 스폰 청크로 다시 위치시킨다(어차피 플레이어 시야 밖).
+            // 이전 웨이브 생존자는 새로 스폰하지 않고 그대로 이번 파티에 합류시킨다(대형 시작 위치
+            // 통일을 위해 숨은 스폰 청크로 다시 위치시킴 — 어차피 플레이어 시야 밖).
             int survivorCount = 0;
             foreach (var survivor in retreatedSurvivors)
             {
@@ -220,17 +214,17 @@ namespace GrimArchive.Wave
             preSpawnSucceeded = true;
             LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
 
-            // 몬스터 소집 호출은 WaveLoop()의 cooldownTimer <= PreSpawnLeadSeconds 체크로 옮겨져
-            // 있다 — 여기서는 그 체크가 참조할 preSpawnedParty만 준비해둔다.
+            // 몬스터 소집 호출은 WaveLoop()의 cooldownTimer <= PreSpawnLeadSeconds 체크로 옮겨져 있다 —
+            // 여기서는 그 체크가 참조할 preSpawnedParty만 준비해둔다.
 
-            // 스폰 직후 곧바로 입구 진입 시퀀스(숨은 청크→입구 이동→대기→계단 이동)를 시작한다.
-            // floor0StairPos는 ResolveStairPositions가 계단 옆 실제로 밟을 수 있는 타일로 구해뒀다.
+            // 스폰 직후 곧바로 입구 진입 시퀀스(숨은 청크→입구 이동→대기→계단 이동)를 시작한다
+            // (floor0StairPos는 ResolveStairPositions가 계단 옆 실제로 밟을 수 있는 타일로 구해둔 값).
             _dungeonEntrance.Begin(GameSession.Instance, preSpawnedParty, rowY, DungeonEntranceRoomEntryX, floor0StairPos.x);
         }
 
-        // "웨이브 진행 바 100% = 1층 진입 시작"이 되려면 입구까지 이동(WalkingIn)이 Waiting 시간 전에
-        // 끝나야 한다. 실제 파티 이동속도는 스폰 전엔 알 수 없으므로 기준 속도로 거리를 추정해 필요
-        // 시간을 구하고 Waiting 시간을 더한다. 계단 위치를 못 구했으면 PreSpawnLeadSeconds로 폴백.
+        // "웨이브 진행 바 100% = 1층 진입 시작"이 되려면 입구까지 이동(WalkingIn)이 Waiting 시간 전에 끝나야
+        // 한다 — 실제 이동속도는 스폰 전엔 알 수 없어 기준 속도로 거리를 추정해 시간을 구하고 Waiting 시간을
+        // 더한다(계단 위치를 못 구했으면 PreSpawnLeadSeconds 폴백).
         private const float ReferenceWalkSpeedForSpawnEstimate = 3f; // BaseStatComponent.walkSpeed 기본값과 동일.
 
         private float ComputePreSpawnTriggerSeconds()
@@ -248,9 +242,9 @@ namespace GrimArchive.Wave
             if (stairPosResolved) return true;
             if (GameSession.Instance == null || GameSession.Instance.cmap == null || targetSpawner.waveData == null) return false;
 
-            // 계단 블록 자체가 아니라 그 옆 실제로 밟을 수 있는 타일(TryGetStairApproachPosition)을
-            // 쓴다 — 계단 타일은 isStructureExist라 서 있을 수 없고, 퇴각 목표로 쓰면 A*가 안개 속에서
-            // 영원히 도착 못 하는 버그가 있었다.
+            // 계단 블록 자체가 아니라 그 옆 실제로 밟을 수 있는 타일(TryGetStairApproachPosition)을 쓴다 —
+            // 계단 타일은 isStructureExist라 서 있을 수 없고, 퇴각 목표로 쓰면 A*가 안개 속에서 영원히
+            // 도착 못 하는 버그가 있었다.
             int targetFloor = targetSpawner.waveData.targetFloor;
 
             // 힌트 없이 부르면 계단 블록 왼쪽 아래 칸을 반환해 대형이 청크 중앙보다 한 칸 처진다 —
@@ -265,9 +259,9 @@ namespace GrimArchive.Wave
             return true;
         }
 
-        // 0층 최좌측 숨은 스폰 청크(카메라 관찰 범위 밖, CameraController.Floor0HiddenChunksX 참고)
-        // 안에서 스폰 위치를 고른다. rowY는 ResolveStairPositions가 구한 floor0StairPos.y와 통일한다.
-        // 이 두 상수는 CreateMap.FloorConfigFactory의 Floor_0.chunkSize와 반드시 같이 맞춰야 한다.
+        // 0층 최좌측 숨은 스폰 청크(카메라 관찰 범위 밖, CameraController.Floor0HiddenChunksX 참고) 안에서
+        // 스폰 위치를 고른다(rowY는 floor0StairPos.y와 통일). 이 두 상수는 CreateMap.FloorConfigFactory의
+        // Floor_0.chunkSize와 반드시 같이 맞춰야 한다.
         private const int DungeonEntranceHiddenChunkCenterX = 6; // 청크0(숨김) 로컬 중앙(12/2).
         // 청크1(가시 영역 최좌측) 중앙(18)에서 DungeonEntranceSystem 대형 최후미가 뒤로 밀리는 최대
         // 깊이(RankSpacingX(2)*랭크수(최대 2)=4)만큼 더 민 값 — 대기 포메이션이 안개에 가리지 않게.
@@ -334,9 +328,9 @@ namespace GrimArchive.Wave
             foreach (var member in arrived) stagingUnits.Remove(member);
         }
 
-        // 정상 GOAP 경로가 시간 안에 처리하지 못한 파티원을 강제로 목표 층 계단 지점으로 옮긴다 —
-        // 위치/그리드만 갱신하고 나머지는 다음 틱 UpdatePartyDestination이 이어받는다. 점유 안 된
-        // 후보 칸을 찾아 보내며, 전부 점유면 false를 반환해 호출부가 재시도하게 한다.
+        // 정상 GOAP 경로가 시간 안에 처리하지 못한 파티원을 강제로 목표 층 계단 지점으로 옮긴다 — 위치/
+        // 그리드만 갱신하고 나머지는 다음 틱 UpdatePartyDestination이 이어받는다. 점유 안 된 후보 칸을
+        // 찾아 보내며, 전부 점유면 false를 반환해 호출부가 재시도하게 한다.
         private bool ForceCrossToTargetFloor(Human member, int targetFloor)
         {
             if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, targetFloor, 0, out Vector2Int arrivePos))
@@ -398,9 +392,9 @@ namespace GrimArchive.Wave
             LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
         }
 
-        // 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입 이름을 최대 max개 반환한다. 사전 스폰된
-        // 파티가 있으면 그 구성을, 없으면 waveData의 다음 웨이브 구성을 사용한다. 앞 max명을 그대로
-        // 뽑으면 같은 유형이 몰려 중복만 보일 수 있어 유형별로 먼저 하나씩 채운다.
+        // 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입 이름을 최대 max개 반환한다(사전 스폰된
+        // 파티가 있으면 그 구성을, 없으면 waveData의 다음 웨이브 구성을 사용). 앞 max명을 그대로 뽑으면
+        // 같은 유형이 몰려 중복만 보일 수 있어 유형별로 먼저 하나씩 채운다.
         public List<string> GetApproachingPartyTypeNames(int max)
         {
             var allNames = new List<string>();
@@ -474,9 +468,8 @@ namespace GrimArchive.Wave
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
             {
-                // 0층에 미리 대기시켜둔 파티를 그대로 쓴다. "웨이브 시작"과 "실제 1층 진입"은 다른
-                // 시점이라, 여기서는 activeParty/exitAreaPos만 세팅하고 stagingUnits는 비워둔다 —
-                // pendingStairTargetFloor는 OnDungeonEntranceArrivedAtStairs가 세팅해야
+                // 0층에 미리 대기시켜둔 파티를 그대로 쓴다. activeParty/exitAreaPos만 세팅하고 stagingUnits는
+                // 비워둔다 — pendingStairTargetFloor는 OnDungeonEntranceArrivedAtStairs가 세팅해야
                 // Goal_UseStairs가 그 전에 끼어들지 않는다.
                 activeParty = preSpawnedParty;
                 exitAreaPos = floor1StairPos; // 목표 층 진입 지점을 그대로 탈출 지점으로도 사용
@@ -512,8 +505,8 @@ namespace GrimArchive.Wave
                 }
             }
 
-            // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아둔다. 실제 코어 위치는 GameSession.
-            // SpawnAllRoomCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 쓴다.
+            // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아둔다(실제 코어 위치는 GameSession.
+            // SpawnAllRoomCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 사용).
             _retreating = false;
             _targetRoom = null;
             int targetFloor = targetSpawner.waveData.targetFloor;
@@ -545,9 +538,9 @@ namespace GrimArchive.Wave
 
             int targetFloor = targetSpawner.waveData.targetFloor;
 
-            // 목표 방의 코어를 파괴(=인류 소유로 전환, OffenseProcessor.OnCoreDestroyed)하면 그 순간
-            // 퇴각으로 전환한다. 실제 코어 공격은 TacticalFSMState/UnitFunction.OnUpdate가 담당하고
-            // 여기서는 목적지 지정과 성공 판정만 한다.
+            // 목표 방의 코어를 파괴(=인류 소유로 전환, OffenseProcessor.OnCoreDestroyed)하면 그 순간 퇴각으로
+            // 전환한다(실제 코어 공격은 TacticalFSMState/UnitFunction.OnUpdate가 담당, 여기선 목적지 지정과
+            // 성공 판정만 한다).
             if (!_retreating && _targetRoom != null && _targetRoom.RoomFaction == FactionType.Human)
             {
                 LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 목표 방 코어 파괴 성공! 생존 파티원 퇴각 시작.");
@@ -593,8 +586,8 @@ namespace GrimArchive.Wave
             Vector2Int dest = _retreating ? exitAreaPos : new Vector2Int(_targetRoom.CorePosition.x, _targetRoom.CorePosition.y);
             int destFloor = _retreating ? targetSpawner.waveData.targetFloor : _targetRoom.CorePosition.z;
 
-            // 목표와 다른 층에 있는 파티원(계단 이동 중인 사전 스폰 파티원 등)은 건드리지 않는다 —
-            // 그쪽은 pendingStairTargetFloor 기반으로 별도 관리된다.
+            // 목표와 다른 층에 있는 파티원(계단 이동 중인 사전 스폰 파티원 등)은 건드리지 않는다
+            // (그쪽은 pendingStairTargetFloor 기반으로 별도 관리된다).
             foreach (var member in activeParty.Members)
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;

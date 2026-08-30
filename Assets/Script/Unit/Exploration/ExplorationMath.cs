@@ -2,8 +2,8 @@ using UnityEngine;
 
 // 03_탐색반응·경계·조사·함정대응_시스템_v0.6 순수 계산 함수 모음. VisionMath.cs/PerceptionMath.cs/
 // WeightMath.cs와 같은 스타일(부수효과 없음, 테스트 용이) — 14장 "조정 가능한 파라미터" 표의 수치를
-// 그대로 상수화했다. 문서가 수치를 안 주는 항목(함정 해제 성공률 공식 자체)만 이번 구현의 자체
-// 판단으로 스텁을 채웠다 — 그 부분은 아래 TrapDisarmSuccessRate 주석에 별도로 표시.
+// 그대로 상수화했다. 문서가 수치를 안 주는 항목(함정 해제 성공률 공식 자체)만 자체 판단으로 스텁을
+// 채웠다(아래 TrapDisarmSuccessRate 주석에 별도 표시).
 public static class ExplorationMath
 {
 	// ─────────────────────────── 4장/14장. 경계 ───────────────────────────
@@ -39,10 +39,9 @@ public static class ExplorationMath
 	public const float TrapAllyRescueUnrecordedMinCurrentHpRatio = 0.6f; // 9-11장: 미기록 함정, 이동 유닛 현재 HP 60% 이상
 	public const float AllyRescueTargetHpRatio = 0.3f;   // 9-11장: 즉시 보호 대상 아군 HP 30% 이하
 
-	// 9-2장은 "클래스별 기본 성공률+레벨+이해도 보정"이라고만 서술할 뿐, 이 코드베이스엔 "클래스"
-	// 개념 자체가 없어(UnitType은 스폰 타입일 뿐) 대체 지표가 필요했다 — 파생스탯 "집중(concentration)"을
-	// "정교한 손기술" 성격의 대체 지표로 쓴 밸런스 미확정 자리표시자다. 이해도 보정은
-	// WeightMath.AppliedValue(0~100 정수)를 그대로 0~100% 스케일에 얹는다.
+	// 9-2장은 "클래스별 기본 성공률+레벨+이해도 보정"이라고만 서술하지만 이 코드베이스엔 "클래스" 개념이
+	// 없어(UnitType은 스폰 타입일 뿐) 파생스탯 "집중(concentration)"을 "정교한 손기술" 대체 지표로 쓴
+	// 밸런스 미확정 자리표시자다. 이해도 보정은 WeightMath.AppliedValue(0~100 정수)를 그대로 얹는다.
 	public const float TrapDisarmBaseRateFloor = 20f;    // 최소 기본 성공률(%) — concentration=0이어도 완전히 0%는 아니게
 	public const float TrapDisarmConcentrationWeight = 0.4f; // concentration(0~200 정규화값) 반영 비율
 	public const float TrapDisarmLevelBonusPerLevel = 1.5f;  // 레벨 1당 보너스(%)
@@ -64,7 +63,7 @@ public static class ExplorationMath
 		=> TrapExpectedRateMaxErrorMargin * (1f - Mathf.Clamp(understandingApplied, 0, 100) / 100f);
 
 	// 조사와 같은 이유의 자리표시자 — 문서가 해제 자체의 기준 소요시간은 안 주고(§14 파라미터표에도
-	// 없음, TrapJoinWaitSeconds만 명시) 밸런스 미확정 값이다.
+	// TrapJoinWaitSeconds만 명시) 밸런스 미확정 값이다.
 	public const float TrapDisarmDurationSeconds = 5f;
 	// 9-9장: 파괴 중 매초 함정 Hp를 얼마나 깎는지(정식 Hitbox 경유가 아닌 간이 구현, physicalAttack에
 	// 비례 — 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 8-7절에 이미 명시된 한계).

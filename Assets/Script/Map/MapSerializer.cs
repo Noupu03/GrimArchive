@@ -4,14 +4,8 @@ using UnityEngine;
 using Haare.Scripts.Client.Data;
 
 // ========================================================================
-// 맵 직렬화 유틸리티
-// ========================================================================
-// Unity JsonUtility는 다차원 배열(Tile[,], Chunks[,])을 지원하지 않으므로
-// 1차원 래퍼 클래스를 사용하여 JSON 변환합니다.
-//
-// 사용법:
-//   string json = MapSerializer.ToJson(map);
-//   Map restored = MapSerializer.FromJson(json);
+// 맵 직렬화 유틸리티 — Unity JsonUtility는 다차원 배열(Tile[,], Chunks[,])을 지원하지 않으므로
+// 1차원 래퍼 클래스를 사용해 JSON으로 변환한다.
 // ========================================================================
 
 public static class MapSerializer
@@ -146,8 +140,7 @@ public static class MapSerializer
                         c.stairIsOpen = cDto.stairIsOpen;
                         c.stairHumanOnly = cDto.stairHumanOnly;
 
-                        // floorDto.config.chunkSize 대신 배열 길이의 정수 제곱근으로 청크 크기를
-                        // 역산한다 — 저장 당시 실제 배열 길이와 항상 정확히 일치시키기 위함(64 고정 폐기).
+                        // floorDto.config.chunkSize 대신 배열 길이의 정수 제곱근으로 청크 크기를 역산한다 — 저장 당시 실제 배열 길이와 항상 정확히 일치시키기 위함.
                         if (cDto.tiles != null && cDto.tiles.Length > 0)
                         {
                             int cs = Mathf.RoundToInt(Mathf.Sqrt(cDto.tiles.Length));

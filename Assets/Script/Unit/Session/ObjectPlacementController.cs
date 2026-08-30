@@ -2,27 +2,23 @@ using UnityEngine;
 using Haare.Util.Logger;
 
 // 오브젝트(O)/함정(P)/문 재설치 배치 모드 — 빌드 모드와 동일한 고스트 하나를 공유하고 모양/색만
-// 종류별로 바꿔 쓴다. 몬스터(M)/코어(C) 배치 모드는 각각 건축물 생산 MVP와 코어 전면 개편(모든
-// 방이 항상 코어를 가짐)으로 대체돼 제거됐다(문 재설치 모드가 그 자리를 대신). InputManager
-// 비대화를 막기 위해 분리됐고, 모드 간 배타 진입은 이 클래스가 아니라 InputManager.Update()가 조율한다.
+// 종류별로 바꿔 쓴다. 몬스터(M)/코어(C) 배치 모드는 각각 건축물 생산 MVP와 코어 전면 개편으로
+// 대체돼 제거됐다. InputManager 비대화를 막기 위해 분리됐고, 모드 간 배타 진입은 InputManager.Update()가 조율한다.
 public class ObjectPlacementController
 {
     public bool IsActive => _isObjectPlaceMode || _isTrapPlaceMode || _isDoorRepairMode || _isWallConvertMode || _isDummyBuildingMode;
-    // BottomMenuBar의 개별 서브버튼(오브젝트/함정/문 재설치) 하이라이트·토글용(2026-08-20) —
-    // BuildPlacementController.IsUnitBuildModeActive/IsResourceBuildModeActive와 동일한 이유.
+    // BottomMenuBar의 개별 서브버튼(오브젝트/함정/문 재설치) 하이라이트·토글용.
     public bool IsObjectModeActive => _isObjectPlaceMode;
     public bool IsTrapModeActive => _isTrapPlaceMode;
     public bool IsDoorRepairModeActive => _isDoorRepairMode;
-    // 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드(BottomMenuBar debug 서브메뉴).
+    // debug 전용 — 바닥 타일을 벽으로 전환하는 모드(BottomMenuBar debug 서브메뉴).
     public bool IsWallConvertModeActive => _isWallConvertMode;
     // 더미 건물 배치 모드(debug 전용) — 기능 없이 건물 판정만 있는 더미 건물. 어느 더미 건물이
-    // 켜져 있는지는 표시용 이름(ActiveDummyBuildingName)으로 구분한다(같은 그룹 버튼 두 개를
-    // BottomMenuBar가 각각 따로 하이라이트해야 하므로).
+    // 켜져 있는지는 표시용 이름(ActiveDummyBuildingName)으로 구분한다.
     public bool IsDummyBuildingModeActive => _isDummyBuildingMode;
     public string ActiveDummyBuildingName => _dummyBuildingDisplayName;
 
-    // 2026-08-24 debug 전용 토글(사용자 요청 "함정을 무제한 설치하는 기능을 debug에 넣어줘") — 켜져
-    // 있으면 돌 자원을 소모하지 않고, 배치 후에도 모드를 유지해 연속으로 계속 배치할 수 있다.
+    // debug 전용 토글 — 켜져 있으면 돌 자원을 소모하지 않고, 배치 후에도 모드를 유지해 연속으로 계속 배치할 수 있다.
     public bool DebugUnlimitedTrapPlacement;
 
     private readonly GameSession _gameSession;
@@ -67,7 +63,6 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isObjectPlaceMode = true;
 
-        // 코어(루팅 오브젝트) 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 벽 타일을 임시로 썼다.
         _ghost.Show(CoreSprite);
         LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (우클릭: 생성)");
     }
@@ -81,13 +76,12 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isTrapPlaceMode = true;
 
-        // 함정 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 이전엔 세모 폴백 스프라이트를 썼다.
         _ghost.Show(TrapSprite);
         string costNotice = DebugUnlimitedTrapPlacement ? "debug 무제한 설치 — 자원 소모 없음" : $"돌 {ResourceManager.TrapPlaceStoneCost}개 소모";
         LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 ({costNotice}, 우클릭: 생성)");
     }
 
-    // 2026-08-24 debug 전용 — 바닥 타일을 벽으로 전환하는 모드 진입.
+    // debug 전용 — 바닥 타일을 벽으로 전환하는 모드 진입.
     public void EnterWallConvertMode()
     {
         if (_isWallConvertMode) return;
@@ -101,7 +95,7 @@ public class ObjectPlacementController
         LogHelper.Log(LogHelper.GAME, "debug 벽 변환 모드 진입 (우클릭: 바닥 타일을 벽으로 전환)");
     }
 
-    // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — 파괴된 문을 원래 게이트 자리에만 재설치.
+    // 문도 방어건물화 — 파괴된 문을 원래 게이트 자리에만 재설치.
     public void EnterDoorRepairMode()
     {
         if (_isDoorRepairMode) return;
@@ -115,8 +109,7 @@ public class ObjectPlacementController
         LogHelper.Log(LogHelper.GAME, $"문 재설치 모드 진입 (돌 {ResourceManager.DoorRepairStoneCost}개 소모, 파괴된 문 자리만 선택 가능, 우클릭: 설치)");
     }
 
-    // 더미 건물 배치 모드(debug 전용) — resourcePath는 Resources.Load 경로("obj/building"/
-    // "obj/resource_building", 건물 개편 전 유닛/자원 생산 건물이 쓰던 스프라이트), displayName은
+    // 더미 건물 배치 모드(debug 전용) — resourcePath는 Resources.Load 경로, displayName은
     // BuildingControlPanel/로그에 쓰일 표시 이름이다. 같은 그룹의 다른 더미 스프라이트로 전환할
     // 때도(이미 이 모드여도) 다시 진입시켜 스프라이트/이름을 갱신한다.
     public void EnterDummyBuildingMode(string resourcePath, string displayName)
@@ -175,9 +168,8 @@ public class ObjectPlacementController
                 }
                 else if (_isTrapPlaceMode)
                 {
-                    // debug 무제한 설치(2026-08-24)면 자원 소모 자체를 건너뛰고, 배치 후에도 모드를
-                    // 유지해 계속 이어서 설치할 수 있게 한다. 평소엔 돌 자원이 부족하면 배치를 취소하지
-                    // 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에 다시 시도할 수 있게 한다.
+                    // debug 무제한 설치면 자원 소모 자체를 건너뛰고 모드를 유지한다. 평소엔 돌 자원이
+                    // 부족하면 배치를 취소하지 않고 모드를 유지 — 자원을 모은 뒤 같은 위치에 다시 시도할 수 있게 한다.
                     if (DebugUnlimitedTrapPlacement)
                     {
                         _gameSession.SpawnTrapAt(gridPos);
@@ -197,8 +189,7 @@ public class ObjectPlacementController
                 }
                 else if (_isDoorRepairMode)
                 {
-                    // 자원 소모 재설치(2026-08-22 사용자 요청 "자원을 소모해서 설치하게 다시 바꿔줘")
-                    // — 함정과 동일하게, 자원이 부족하면 배치를 취소하지 않고 모드만 유지한다.
+                    // 자원 소모 재설치 — 함정과 동일하게, 자원이 부족하면 배치를 취소하지 않고 모드만 유지한다.
                     PlacementResourceHelper.OnConsumeResult(
                         _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.DoorRepairStoneCost),
                         () => { _gameSession.RebuildDoorAt(gridPos); ExitMode(); },

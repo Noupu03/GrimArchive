@@ -2,13 +2,8 @@
 using System.Linq;
 using UnityEngine;
 
-// 시야-인지-반응 시스템(01_시야·인지범위·가시성)의 순수 계산 함수 모음. 부수효과 없음(테스트 용이) —
-// WeightMath와 동일한 컨벤션. 저장/조회는 Unit(런타임 상태)과 UnitFunction(호출부)이 담당하고
-// 이 클래스는 숫자만 계산한다.
-//
-// 03~10번 문서(가중치판단 연동, 탐색 반응, 은신 세부산식, 전투 반응, 소리 등)가 아직 없어, 그
-// 문서들에 위임된 세부 공식은 "가장 단순하고 합리적인 기본값"으로만 스텁 처리한다. 각 스텁 지점에
-// 주석으로 근거를 남긴다.
+// 시야-인지-반응 시스템(01장)의 순수 계산 함수 모음(부수효과 없음, WeightMath와 동일 컨벤션) —
+// 저장/조회는 Unit/UnitFunction 담당. 세부 공식이 위임된 문서(03~10번)가 아직 없는 지점은 단순 기본값 스텁.
 public static class VisionMath
 {
 	// ─────────────────────────── 1장. 기본 변수 ───────────────────────────
@@ -33,8 +28,8 @@ public static class VisionMath
 	public const float AttackVisibilityBoostAmount = 10f;
 	public const float AttackVisibilityBoostDuration = 5f; // 초
 
-	// 03문서 4-6장: 수상한 타일 대상 이동 1회당 가시성 +20이 "하나의 누적값"이 아니라 증가분별로
-	// 개별 5초씩 유지된다 — Unit.cs의 suspiciousMoveBoostTimers가 증가분별 잔여시간을 리스트로 관리.
+	// 03문서 4-6장: 수상한 타일 이동 시 가시성 +20은 단일 누적값이 아니라 증가분마다 개별 5초씩 유지된다
+	// (Unit.suspiciousMoveBoostTimers가 증가분별 잔여시간을 리스트로 관리).
 	public const float SuspiciousMoveBoostDurationSeconds = 5f;
 
 	public const float SurpriseHighThreatMultiplier = 2f; // 기습 방향 전환 기준: 근접 공격 기대값의 2배 이상
@@ -42,9 +37,8 @@ public static class VisionMath
 	public const int SpecialCircularBaseRadius = 1;
 	public const int SpecialCircularMaxRadius = 3;
 
-	// 시야 범위 내 "비어있지 않은 타일"에 부여되는 임시 위험도/흥미도(7장) — 저장값이 아닌 일회성
-	// 조회값. "탐색 방향 판단" 쪽은 존재 여부(불리언)만으로 이미 연결됐고, "경로 판단"(크기 비교
-	// 필요) 쪽은 10_목표설정 문서 부재로 아직 미연결이라 숫자만 미리 채워둔다.
+	// 시야 범위 내 비어있지 않은 타일에 부여되는 임시 위험도/흥미도(7장, 일회성 조회값) — 탐색 방향
+	// 판단에는 이미 쓰이지만, 경로 판단(크기 비교)은 10_목표설정 문서 부재로 미연결, 숫자만 미리 채워둠.
 	public const float NonEmptyTileTempWeight = 5f;
 
 	// ─────────────────────────── 2장/3장. 시야/인지 거리 공식 ───────────────────────────
@@ -83,10 +77,9 @@ public static class VisionMath
 		return isWall ? WallVisibility : NormalTileVisibility;
 	}
 
-	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분(진행 중일 때만), 상한 100만 클램프한다(거리
-	// 감쇠는 미작성 05-A 문서 몫이라 은신 차감만 반영한 스텁). 하한은 클램프하지 않는데, 8장 감지/
-	// 정신력 보정에서 음수 여유분을 그대로 써야 하기 때문이다(하한 클램프는 PerceptionMath 확률표
-	// 조회 쪽 몫) — 01장 11절 "미인식" 판정에만 쓰인다.
+	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분, 상한 100만 클램프(거리 감쇠는 미작성 05-A
+	// 문서 몫이라 미반영). 하한은 클램프하지 않는다 — 8장 감지/정신력 보정이 음수 여유분을 그대로
+	// 써야 하기 때문(하한 클램프는 PerceptionMath 확률표 조회 쪽 몫).
 	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted, float suspiciousMoveBoost = 0f)
 	{
 		float value = baseVisibility - stealth;
@@ -96,8 +89,8 @@ public static class VisionMath
 	}
 
 	// ─────────────────────────── 02문서 6장. 오브젝트 유형별 가시성 ───────────────────────────
-	// 시체/전멸 흔적은 가시성 100 고정(기본값 0이면 영원히 미인식 처리되는 문제 방지). 나머지는
-	// 오브젝트 자신의 BaseVisibility를 쓴다. Tags는 계층형 문자열이라 부분 일치로 검사한다.
+	// 시체/전멸 흔적은 가시성 100 고정(기본값 0이면 영구 미인식되는 문제 방지), 나머지는 오브젝트의
+	// BaseVisibility 사용. Tags는 계층형 문자열이라 부분 일치로 검사한다.
 	public static float ResolveObjectVisibility(float baseVisibility, List<string> tags)
 	{
 		if (tags != null && (tags.Any(t => t.Contains("Corpse")) || tags.Any(t => t.Contains("WipeoutTrace"))))
@@ -106,8 +99,8 @@ public static class VisionMath
 	}
 
 	// ─────────────────────────── 13장. 특수 원형 인지 범위 ───────────────────────────
-	// 엘리트/네메시스/보스 전용(01장 15절) — 이 코드베이스엔 전용 유닛 타입이 없어 Unit.isSpecialUnit
-	// 플래그(가중치 문서 7-1장, 보스/네메시스 등 특수 유닛 판정에 이미 쓰이는 값)를 그대로 재사용한다.
+	// 엘리트/네메시스/보스 전용(01장 15절) — 전용 유닛 타입이 없어 가중치 문서 7-1장의
+	// Unit.isSpecialUnit 플래그를 재사용한다.
 	public static int CircularPerceptionRadius(float spotting)
 	{
 		if (spotting >= 60f) return SpecialCircularMaxRadius;
@@ -156,9 +149,8 @@ public static class VisionMath
 		}
 	}
 
-	// candidates: 적용 가능한 후보만 호출부가 걸러서 넘긴다. currentDir: 동일 우선순위 후보가 여럿일
-	// 때 더 가까운 쪽을 고르는 기준. 매 틱 호출되는 핫패스라 LINQ 대신 GC 할당 없는 수동 2-패스
-	// 루프를 쓴다(결과는 최소 랭크 → 동률이면 currentDir에 가장 가까운 방향 순).
+	// candidates는 호출부가 적용 가능한 후보만 걸러서 넘긴다. 매 틱 도는 핫패스라 LINQ 대신 GC 할당
+	// 없는 수동 2-패스 루프 사용(최소 랭크 → 동률이면 currentDir에 가장 가까운 방향 순).
 	public static Dir ResolveVisionDirection(IReadOnlyList<VisionDirectionCandidate> candidates, Dir currentDir)
 	{
 		if (candidates == null || candidates.Count == 0) return currentDir;
@@ -186,11 +178,9 @@ public static class VisionMath
 	}
 
 	// ─────────────────────────── 대칭 쉐도우 캐스팅 (Symmetric Shadow Casting) ───────────────────────────
-	// Albert Ford의 Symmetric Shadowcasting 알고리즘. 72레이 DDA + Wall Dilation 방식에 비해:
-	//   • 대칭성 보장: A가 B를 보면 B도 A를 본다(DDA는 레이 방향에 따라 비대칭 발생 가능).
-	//   • Wall Dilation 불필요: 인접 벽이 자연스럽게 가시 집합에 포함된다.
-	//   • O(시야 내 타일 수): 시야 반경²에 비례하는 고정 복잡도(72 × 시야거리 vs. π × 반경²).
-	// result에 가시 타일(Vector2Int)을 기록한다. 호출자가 미리 Clear()해야 한다.
+	// Albert Ford의 Symmetric Shadowcasting — 기존 72레이 DDA와 달리 대칭성(A가 B를 보면 B도 A를 봄)이
+	// 보장되고 Wall Dilation 없이 인접 벽이 가시 집합에 자연히 포함된다. result에 가시 타일을 기록하며,
+	// 호출자가 미리 Clear()해야 한다.
 	public static void SymmetricShadowCast(
 		Vector2Int origin,
 		int maxRadius,
@@ -218,8 +208,8 @@ public static class VisionMath
 		return new Vector2Int(o.x + depth * dr + col * cr, o.y + depth * dc + col * cc);
 	}
 
-	// 옥탄트 스캔용 스크래치 스택 — 매번 new Stack<>() 대신 재사용 버퍼를 쓴다. "순수 계산, 부수효과
-	// 없음" 원칙을 지키기 위해 일반 static 대신 [ThreadStatic]으로 스레드 경계를 넘는 부수효과를 막는다.
+	// 옥탄트 스캔용 재사용 스크래치 스택(매 호출 new Stack<>() 방지) — "순수 계산" 원칙을 지키기 위해
+	// 일반 static 대신 [ThreadStatic]으로 스레드 간 부수효과를 차단한다.
 	[System.ThreadStatic]
 	private static Stack<(int depth, float start, float end)> _octantScanStack;
 

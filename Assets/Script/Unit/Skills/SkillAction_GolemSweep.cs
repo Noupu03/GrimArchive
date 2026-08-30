@@ -1,9 +1,9 @@
 using UnityEngine;
 
 // 보스 골렘 공격2: 대상 A부터 대상 B인 적까지 손을 쭉 이동하며 스치는 적들에게 피해를 입힌다. A는
-// CombatFSMState가 넘겨주는 "가장 가까운 적"을 그대로 쓰고, B는 A를 기준으로 사거리(HitRange) 내에서
-// 가장 먼 적을 자동으로 고른다 — 기획 문서가 선정 기준을 명시하지 않아 잡은 자리표시자 기본값이다
-// (적이 하나뿐이면 그 적을 지나 반대 방향으로 더 뻗은 지점을 B로 삼는다). 바꾸려면 FindFarthestEnemyFrom만 고치면 된다.
+// CombatFSMState가 넘겨주는 "가장 가까운 적", B는 A 기준 사거리(HitRange) 내 가장 먼 적을 자동으로
+// 고른다 — 기획 문서에 선정 기준이 없어 잡은 자리표시자다(적이 하나뿐이면 반대 방향으로 더 뻗은
+// 지점을 B로 삼음, 바꾸려면 FindFarthestEnemyFrom만 고치면 됨).
 public class SkillAction_GolemSweep : SkillAction
 {
     private readonly SkillData _d;

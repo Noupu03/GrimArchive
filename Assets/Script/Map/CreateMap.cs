@@ -1,11 +1,6 @@
 ﻿// ============================================================================
-// CreateMap.cs — 메인 파일 (partial class 루트)
-// ----------------------------------------------------------------------------
-// 역할: CreateMap MonoBehaviour의 진입점.
-//       Inspector 노출 필드, Awake/GenerateMap 호출 흐름, InitMap,
-//       공용 유틸리티(ShuffleList, BfsDistances, SetRoomRole, BuildRoomRoleMap)
-//       를 포함한다.
-// 호출 흐름: Awake → GenerateMap → (각 partial 파일의 메서드 순차 호출)
+// CreateMap.cs — CreateMap MonoBehaviour의 진입점(partial class 루트). Inspector 필드,
+// GenerateMap 호출 흐름, InitMap, 공용 유틸리티(ShuffleList/BfsDistances/SetRoomRole 등)를 담는다.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -44,9 +39,8 @@ public partial class CreateMap
     private Dictionary<int, (int thicknessX, int thicknessY)> wallThicknessCache = new Dictionary<int, (int, int)>();
     private Dictionary<int, Dictionary<int, (int thicknessX, int thicknessY)>> perFloorWallThicknessCache = new Dictionary<int, Dictionary<int, (int, int)>>();
 
-    // 20장/21장(방 위험도·흥미도) "탐사완료" 판정용 — 방 하나의 전체 바닥 타일 수는 맵이 재생성/
-    // 재적용되기 전까지 바뀌지 않으므로, 한 번 세면 계속 재사용한다. GetRoomFloorTileCount()
-    // (CreateMap.RuntimeAPI.cs)가 채우고, GenerateMap()/ApplyMap()이 무효화한다.
+    // 20장/21장 "탐사완료" 판정용 캐시 — 방의 전체 바닥 타일 수는 맵 재생성 전까진 안 바뀌므로 한 번
+    // 세면 재사용한다(GetRoomFloorTileCount가 채우고 GenerateMap/ApplyMap이 무효화).
     private readonly Dictionary<(int floorIndex, int roomId), int> roomFloorTileCountCache = new();
 
     public void GenerateMap()
@@ -121,10 +115,8 @@ public partial class CreateMap
                 // ⑧ 층간 계단 배치
                 PlaceStairs();
 
-                // ⑧-b 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭 갱신
-                // 이 호출은 계단 방 등 allowMaxFootprint가 큰 방으로 이어지는 Gate를 다시 넓혀
-                // "통로 항상 2*2" 규칙을 깨뜨려서 막아뒀다. 롤백 가능성 있어 함수 정의
-                // (UpdateGateWidthsAfterStairs 본문, CreateMap.Stairs.cs)는 남기고 호출만 주석 처리.
+                // ⑧-b 계단 배치 후 Gate 폭 갱신 — "통로 항상 2*2" 규칙을 깨뜨려서 막아뒀다. 함수 정의는
+                // 남기고 호출만 주석 처리.
                 // UpdateGateWidthsAfterStairs();
 
                 // ⑨ 검증: 모든 Floor 무결성 확인

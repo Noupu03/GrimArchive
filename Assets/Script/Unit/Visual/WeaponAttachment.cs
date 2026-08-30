@@ -1,9 +1,8 @@
 using UnityEngine;
 
-// 유닛 프리팹의 Visual 자식(예: Visual/WeaponSocket)에 붙여 8방향(Dir)에 맞춰 무기 스프라이트의
-// 위치/회전/정렬순서를 조정하는 범용 컴포넌트 — 유닛/무기 종류 무관하게 재사용 가능하며 프리팹마다
-// poses/nativeSpriteAngle만 튜닝하면 된다. UnitSpriteManager.GetSpriteLabelForDirection()과 동일하게
-// UP/UP_LEFT/LEFT/DOWN_LEFT/DOWN 5개 기준 방향만 데이터로 갖고 RIGHT 계열은 좌우 미러링으로 재사용한다.
+// 유닛 프리팹의 Visual 자식에 붙여 8방향(Dir)에 맞춰 무기 스프라이트의 위치/회전/정렬순서를 조정하는
+// 범용 컴포넌트 — 프리팹마다 poses/nativeSpriteAngle만 튜닝하면 재사용 가능하다. UnitSpriteManager와
+// 동일하게 UP/UP_LEFT/LEFT/DOWN_LEFT/DOWN 5개 기준 방향만 데이터로 갖고 RIGHT 계열은 미러링으로 재사용한다.
 [RequireComponent(typeof(SpriteRenderer))]
 public class WeaponAttachment : MonoBehaviour
 {
@@ -62,8 +61,8 @@ public class WeaponAttachment : MonoBehaviour
         _sr.flipX = mirror;
         transform.localPosition = new Vector3(mirror ? -pose.offset.x : pose.offset.x, pose.offset.y, 0f);
 
-        // 미러링 시 목표 각도 자체도 좌우 반사(180 - angle)되고, 스프라이트 보정각도 flipX로 인해
-        // 같이 반사(180 - nativeSpriteAngle)되므로 두 반사가 상쇄되어 부호만 반대가 된다.
+        // 미러링 시 목표 각도(180-angle)와 보정각도(180-nativeSpriteAngle) 둘 다 반사되므로 두 반사가
+        // 상쇄되어 부호만 반대가 된다.
         float targetAngle = mirror ? 180f - pose.targetAngle : pose.targetAngle;
         float nativeAngle  = mirror ? 180f - nativeSpriteAngle : nativeSpriteAngle;
         transform.localRotation = Quaternion.Euler(0f, 0f, targetAngle - nativeAngle);

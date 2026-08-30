@@ -4,10 +4,9 @@ using VContainer.Unity;
 using Haare.Client.Core.DI;
 using GrimArchive.Wave;
 
-// GameSession.Awake()가 예전엔 직접 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션
-// 루트 — ssh.unity 씬에 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
-// CoreLifetimeScope를 상속하므로 DataManager/SceneService/CoreUIManager(+ SceneUIManager)/GamePresenter는
-// 부모(CoreLifetimeScope.Configure)가 등록해줘 여기서 다시 등록하지 않는다.
+// GameSession.Awake()가 예전에 직접 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션
+// 루트 — ssh.unity 씬에 이 컴포넌트가 붙은 GameObject가 하나 있어야 한다. CoreLifetimeScope를
+// 상속하므로 DataManager/SceneService/CoreUIManager/GamePresenter는 부모가 등록해 여기선 다루지 않는다.
 public class GameCompositionRoot : CoreLifetimeScope
 {
     protected override void Awake()
@@ -19,34 +18,33 @@ public class GameCompositionRoot : CoreLifetimeScope
     {
         base.Configure(builder);
 
-        // 일반 Log는 콜스택이 5~7줄씩 따라붙어 콘솔이 지저분해지므로 Log만 스택 트레이스를 끈다
-        // (Warning/Error는 원인 추적에 필요해 그대로 둠).
+        // 일반 Log는 콜스택이 5~7줄씩 붙어 콘솔이 지저분해지므로 Log만 스택 트레이스를 끈다
+        // (Warning/Error는 원인 추적을 위해 유지).
         Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
 
         // 이제는 GameSession.Awake()/Start()가 런타임에 직접 생성하던 것을 DI가 대체
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
-        // UIManager/NoticeCenter — 다른 UI 패널들과 동일하게 [PanelAttribute] Haare ICustomPanel로
-        // 옮겨서 GameUIPresenter.BootSequence가 생성을 담당한다(더 이상 여기서 직접 배선하지 않음).
+        // UIManager/NoticeCenter — 다른 UI 패널처럼 [PanelAttribute] Haare ICustomPanel로 옮겨
+        // GameUIPresenter.BootSequence가 생성을 담당한다(여기서 직접 배선하지 않음).
 
         // UnitGenerate: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 C# 클래스로 전환됨.
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();
 
-        // GameSession: 인스펙터 디버그 텍스처 뷰 제거 후 씬 배치가 불필요해져서 NativeRoutine(순수 C#)으로 전환됨.
+        // GameSession: 인스펙터 디버그 텍스처 뷰가 없어 씬 배치가 불필요한 NativeRoutine(순수 C#).
         builder.Register<GameSession>(Lifetime.Singleton).AsSelf().As<IOffenseQuery>();
 
-        // UnitSpriteManager: 인스펙터 세팅 없이 항상 Resources.Load(Assets/Resources/Units/) 기반
-        // 정적으로만 동작되어 순수 C# 클래스로 됨.
+        // UnitSpriteManager: 인스펙터 세팅 없이 항상 Resources.Load(Assets/Resources/Units/) 기반으로만
+        // 동작하는 순수 C# 클래스.
         builder.Register<UnitSpriteManager>(Lifetime.Singleton).AsSelf();
 
         // VFXManager: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 이펙트 매니저라서 씬 배치가 불필요.
         builder.Register<VFXManager>(Lifetime.Singleton).AsSelf();
 
-        // ThreatTileRenderer: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 위협/시야 렌더러라서
-        // 씬 GameObject가 필요가 없는 순수 C# 클래스로 전환됨.
+        // ThreatTileRenderer: Update/OnGUI/인스펙터 데이터 없는 순수 위협/시야 렌더러 — 씬 GameObject 불필요.
         builder.Register<ThreatTileRenderer>(Lifetime.Singleton).AsSelf();
 
-        // PropagationDebugVisualizer: 07 소리/전파 시스템 임시 검증용 디버그 시각화 — ThreatTileRenderer와
-        // 동일하게 GameObject 불필요한 순수 C# 클래스. 검증 끝나면 이 등록 줄만 지워도 됨.
+        // PropagationDebugVisualizer: 07 소리/전파 시스템 임시 검증용 디버그 시각화(검증 끝나면 지워도
+        // 됨) — ThreatTileRenderer와 동일한 순수 C# 클래스.
         builder.Register<PropagationDebugVisualizer>(Lifetime.Singleton).AsSelf();
 
         // 맵 데이터를 생성/관리하고 런타임에 활용하는 순수 C# 클래스
@@ -64,12 +62,12 @@ public class GameCompositionRoot : CoreLifetimeScope
         // 전투 이벤트 서비스 (분리됨)
         builder.Register<CombatEventService>(Lifetime.Singleton).AsSelf();
 
-        // DoorSystem - split out of GameSession to keep it from growing further; lazily resolves
-        // GameSession via IObjectResolver, same pattern as UnitRegistry.
+        // DoorSystem - split out of GameSession to keep it from growing further; resolves GameSession
+        // lazily via IObjectResolver (same pattern as UnitRegistry).
         builder.Register<DoorSystem>(Lifetime.Singleton).AsSelf();
 
-        // FogOfWarSystem - same reason/pattern as DoorSystem (fog of war + torches, bundled together
-        // since torches are timing-coupled to fog reveal).
+        // FogOfWarSystem - same pattern as DoorSystem (fog of war + torches bundled since torches
+        // are timing-coupled to fog reveal).
         builder.Register<FogOfWarSystem>(Lifetime.Singleton).AsSelf();
 
         // 맵 렌더링 담당 - MonoBehaviour에서 NativeRoutine으로 전환됨

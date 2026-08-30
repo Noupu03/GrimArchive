@@ -1,20 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Human/Party/Knowledge를 직접 건드리는 부수효과 호출부. 호출 지점:
-//   - GameSession.RemoveDeadUnit: OnPartyMemberDied(사망 순간 직접 목격)
-//   - UnitFunction.CastRay(오브젝트 인지): OnCorpseDiscovered(나중에 시체 발견)
-//   - TacticalFSMState.InvestigatePerform: OnCorpseInvestigated(시체 조사로 원인 확인)
-//   - UnitFunction.CastRay(유닛 인지): OnDeathSearchSpotted(원인미상 수색 중 정확 인지)
-// 전파(PropagateFrom)는 실제 전파 범위 조건을 쓰지만, "사망 순간 직접 목격" 판정은 전파가 아니라
-// 시야 기반 목격이라 VisionMath.ViewDistance를 그대로 쓴다(성격이 다름 — 혼동 주의). 사망 정보는
-// 일반 비전투 전파 조건보다 우선해 현재 행동 우선순위와 무관하게 즉시 처리된다 — 전투 중이라도
-// 정보 자체는 즉시 주고받고, 막히는 건 "경계 수색으로 전환"뿐(CanJoinDeathSearch가 담당).
+// Human/Party/Knowledge를 직접 건드리는 부수효과 호출부. 호출 지점: GameSession.RemoveDeadUnit(직접
+// 목격), UnitFunction.CastRay(나중에 시체 발견), TacticalFSMState.InvestigatePerform(조사로 원인 확인).
+// "사망 순간 직접 목격"은 전파가 아니라 시야 기반이라 VisionMath.ViewDistance를 쓴다(PropagateFrom의
+// 전파 범위 조건과 혼동 주의). 사망 정보는 전투 중에도 즉시 주고받으며, 막히는 건 CanJoinDeathSearch가
+// 담당하는 "경계 수색 전환"뿐이다.
 public static class PartyDeathSystem
 {
 	// ─────────────────────────── 4-12/4-14장: 사망 순간 직접 목격 ───────────────────────────
-	// GameSession.RemoveDeadUnit이 인류 사망 시(시체 오브젝트 생성 직후) 호출한다. dead는 아직
-	// Destroy되지 않은 상태(이 프레임 끝에 Destroy)라 위치/방향/lastAttacker를 안전하게 읽을 수 있다.
+	// GameSession.RemoveDeadUnit이 인류 사망 시 호출한다. dead는 아직 Destroy 전이라(이 프레임 끝에
+	// Destroy) 위치/방향/lastAttacker를 안전하게 읽을 수 있다.
 	public static void OnPartyMemberDied(Human dead, string corpseObjectId)
 	{
 		var party = dead.party;
@@ -55,8 +51,7 @@ public static class PartyDeathSystem
 	}
 
 	// ─────────────────────────── 4-12/4-13장: 나중에 시체를 발견한 경우 ───────────────────────────
-	// UnitFunction.CastRay가 시체(Corpse+Human 태그)를 처음 정확 인지한 순간(firstTouch &&
-	// AccuratePerception) 호출한다.
+	// UnitFunction.CastRay가 시체(Corpse+Human 태그)를 처음 정확 인지한 순간 호출한다.
 	public static void OnCorpseDiscovered(Human discoverer, InteractableObject corpse)
 	{
 		if (corpse == null || !corpse.Tags.Contains("Human")) return; // 몬스터 시체는 이 시스템 대상 아님
@@ -108,8 +103,7 @@ public static class PartyDeathSystem
 			record.CauseConfirmed = true;
 			ApplyDangerOnce(record, observer, EventId.E_HUMAN_KILL_INDIRECT, InfoType.Indirect);
 		}
-		// 원인 몬스터든 다른 적이든, 정확 인지 즉시 전투 상태 우선순위(CombatFSMState)가 자연히
-		// 넘겨받으므로 경계 수색 레코드는 여기서 정리만 해준다(12-2장 "전투" 전환).
+		// 정확 인지 즉시 전투 상태 우선순위(CombatFSMState)가 자연히 넘겨받으므로 여기선 레코드만 정리한다.
 		observer.currentAlertSearch = null;
 	}
 
@@ -130,7 +124,7 @@ public static class PartyDeathSystem
 	{
 		if (record.InfoKnownUnits.Contains(unit.name)) return;
 		record.InfoKnownUnits.Add(unit.name);
-		unit.BaseStat.mental += mentalDelta; // mentalDelta는 음수(-10 또는 -5)
+		unit.BaseStat.mental += mentalDelta; // mentalDelta는 음수
 	}
 
 	private static void TryConfirmCauseByWitness(PartyDeathRecord record, Human witness)
@@ -142,8 +136,7 @@ public static class PartyDeathSystem
 		ApplyDangerOnce(record, witness, EventId.E_HUMAN_KILL_SEEN, InfoType.DirectWitness);
 	}
 
-	// 함정이 원인으로 확인되면 원인 확인만 처리한다 — E_HUMAN_KILL_SEEN/INDIRECT는 "사망 원인이
-	// 몬스터로 확인되면"에만 적용되므로 함정 원인은 DangerApplied를 건드리지 않고 원인미상 수색만 막는다.
+	// 함정 원인은 확인만 처리한다 — E_HUMAN_KILL_SEEN/INDIRECT는 "사망 원인이 몬스터로 확인되면"에만 적용되므로 DangerApplied는 건드리지 않는다.
 	private static bool TryConfirmTrapCause(PartyDeathRecord record)
 	{
 		if (record.CauseConfirmed || record.CauseTrap == null) return false;
@@ -158,8 +151,7 @@ public static class PartyDeathSystem
 		record.DangerApplied = true;
 	}
 
-	// 사망 시점(deadUnitPositionOwner!=null, 죽은 유닛 본인은 제외)과 발견 시점(null) 호출을 함께
-	// 지원한다 — 둘 다 "대표 발견자의 전파 범위 안 파티원에게 최초 전파(-5)"라는 동일 로직이라 하나로 묶었다.
+	// 사망 시점과 발견 시점 호출을 함께 지원한다 — 둘 다 "대표 발견자의 전파 범위 안 파티원에게 최초 전파"라는 동일 로직이라 하나로 묶었다.
 	private static void PropagateFrom(Party party, PartyDeathRecord record, Human deadUnitPositionOwner, Human representative)
 	{
 		if (representative == null) return;
@@ -172,8 +164,8 @@ public static class PartyDeathSystem
 		}
 	}
 
-	// 최초 전파 시점 스냅샷 체크가 아니라 지속 재전파 — UnitFunction.OnUpdate의 0.1초 틱에서 인류마다
-	// 호출한다. 아직 모르는 파티원이 이미 아는 파티원의 전파 범위 안으로 나중에 들어오면 그때 정보를 받는다.
+	// 최초 전파 시점 스냅샷이 아니라 지속 재전파 — UnitFunction.OnUpdate 틱마다 인류마다 호출해, 아직
+	// 모르는 파티원이 나중에 전파 범위 안으로 들어오면 그때 정보를 받게 한다.
 	public static void TickOngoingPropagation(Human human)
 	{
 		var party = human.party;

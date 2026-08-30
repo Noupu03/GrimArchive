@@ -3,11 +3,9 @@ using UnityEngine;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 
-// Notice 시스템 — 화면 어디서든 한 줄로 띄울 수 있는 스택형 알림(Haare ICustomPanel, 그리기는
-// OnGUI). 고정형(PushFixed/ClearFixed, key로 교체·제거)과 순간형(PushMomentary, 몇 초 뒤 자동
-// 소멸) 두 종류가 같은 스택에 쌓이며, 알림마다 독립적인 남은 시간을 가져 사라지면 아래 알림이
-// 한 칸씩 올라온다. Time.unscaledDeltaTime을 써서 timeScale≈0(일시정지/배치 모드)에서도 항상
-// 실시간으로 뜨고 사라진다.
+// Notice 시스템 — 화면 어디서든 한 줄로 띄울 수 있는 스택형 알림(Haare ICustomPanel, 그리기는 OnGUI).
+// 고정형(PushFixed/ClearFixed, key로 교체·제거)과 순간형(PushMomentary, 몇 초 뒤 자동 소멸)이 같은
+// 스택에 쌓이며, Time.unscaledDeltaTime을 써서 timeScale≈0(일시정지/배치 모드)에서도 실시간으로 동작한다.
 [PanelAttribute("Prefabs/NoticeCenter")]
 public class NoticeCenter : MonoRoutine, ICustomPanel
 {
@@ -49,8 +47,8 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
     // 고정형 알림(PushFixed)의 "지속시간" — ClearFixed(key)로만 사라지므로 충분히 긴 값(하루)을 둔다.
     private const float PersistentDurationSeconds = 86400f;
     private const float FadeSeconds = 0.4f;
-    // WaveGaugePanel 바로 아래에 배치 — 여백 하드코딩 대신 GetReservedTopHeight()로 실제 크기에
-    // 맞게 계산한다. 인스턴스가 아직 없으면 예전 상수로 폴백.
+    // WaveGaugePanel 바로 아래에 배치 — 여백 하드코딩 대신 GetReservedTopHeight()로 실제 크기에 맞게
+    // 계산하고, 인스턴스가 아직 없으면 예전 상수로 폴백한다.
     private const float TopMarginGap = 18f;
     private const float TopMarginFallback = 60f;
 
@@ -72,8 +70,8 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
 
     private readonly List<Notice> _notices = new List<Notice>();
 
-    // 프레임 드랍 대응 — OnGUI는 Layout+Repaint로 프레임당 최대 2회 호출되므로, GUIStyle은 한 번만
-    // 만들어 캐시하고 GUIContent는 재사용 가능한 스크래치 인스턴스 하나의 .text만 매번 바꿔쓴다.
+    // 프레임 드랍 대응 — OnGUI는 Layout+Repaint로 프레임당 최대 2회 호출되므로 GUIStyle은 한 번만
+    // 캐시하고 GUIContent는 스크래치 인스턴스의 .text만 매번 바꿔쓴다.
     private GUIStyle _noticeStyle;
     private readonly GUIContent _scratchContent = new GUIContent();
 
@@ -161,8 +159,7 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
             float elapsed = notice.DurationSeconds - notice.RemainingSeconds;
             float alpha = ComputeAlpha(elapsed, notice.RemainingSeconds);
 
-            // 문구가 길어 한 줄에 안 들어가면 박스 높이를 실제 필요한 줄 수만큼 늘린다(BoxHeight는
-            // 최소값으로만 쓴다) — 그래야 텍스트가 박스 밖으로 넘치지 않는다.
+            // 문구가 길어 한 줄에 안 들어가면 박스 높이를 늘린다(BoxHeight는 최소값) — 텍스트가 박스 밖으로 안 넘치게.
             _scratchContent.text = notice.Text;
             float textHeight = style.CalcHeight(_scratchContent, textAreaWidth);
             float boxHeight = Mathf.Max(BoxHeight, textHeight + BoxVerticalPadding);
@@ -194,8 +191,8 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
         return Mathf.Min(fadeIn, fadeOut);
     }
 
-    // InputManager의 드래그 박스 선택 테두리도 같은 구현을 그대로 재사용한다(2026-08-25 리팩토링 —
-    // 두 곳이 동일한 4줄을 각자 갖고 있었음).
+    // InputManager의 드래그 박스 선택 테두리도 같은 구현을 그대로 재사용한다(두 곳이 동일한 4줄을
+    // 각자 갖고 있던 것을 통합).
     internal static void DrawRectBorder(Rect r, float thickness)
     {
         GUI.DrawTexture(new Rect(r.xMin, r.yMin, r.width, thickness), Texture2D.whiteTexture);

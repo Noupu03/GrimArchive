@@ -12,11 +12,9 @@ public class PropagationComponent : IUnitComponent
 	// 일시 간접입력 — 유닛당 최대 1건(07-A 7-3장)만 보류.
 	public PendingSoundReaction PendingSound;
 
-	// 07문서 10장: 이 유닛이 "진행 중" 정보를 직접 전파받은 상호작용 유닛 → 그 시점 상호작용 인스턴스
-	// 토큰(PropagationSystem.GetInteractionToken, 실제로는 currentTrapInteraction/currentInvestigation/
-	// currentCoreInteraction 참조 자체). 보호 포메이션 참여 자격(직접 시야 확인만으로는 참여하지 않음)에
-	// 쓰인다 — Unit뿐 아니라 인스턴스 토큰까지 함께 저장해, 예전 상호작용에 대한 낡은 알림이 완전히
-	// 다른 새 상호작용에도 유효자격을 주는 문제를 막는다.
+	// 이 유닛이 "진행 중" 정보를 직접 전파받은 상호작용 유닛 → 그 시점 상호작용 인스턴스 토큰
+	// (PropagationSystem.GetInteractionToken) 매핑. 보호 포메이션 참여 자격에 쓰이며, 인스턴스
+	// 토큰까지 저장해 예전 상호작용의 낡은 알림이 새 상호작용에 유효자격을 주는 문제를 막는다.
 	public readonly Dictionary<Unit, object> NotifiedInteractionTokens = new Dictionary<Unit, object>();
 
 	public PropagationComponent() { }

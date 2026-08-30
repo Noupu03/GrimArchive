@@ -1,13 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// "제자리 공격" 상태 — R키 몬스터 배치 모드를 대체하는 명령 항목. 제자리에서 절대 이동하지 않고
-// 공격만 한다. HaltFSMState와 동일하게 UnitFSM.SelectState가 배열 우선순위와 무관하게
-// unit.isStandGroundAttack==true인 동안 이 상태를 직접 강제 배정한다(_states 배열에는 없어 GetPriority는 무의미).
-//
-// HaltFSMState("정지")와의 차이: 정지는 완전 무반응이지만 이 상태는 사거리 내 적을 CombatFSMState와
-// 동일하게 공격한다(키팅·접근 이동만 빠짐). 해제 조건도 정지와 동일하고, "절대 이동하지 않는다"는
-// 조건에 예외가 없어 회피/블링크로 인한 위치 이동도 차단된다(UnitFunction.OnReactToThreat이 isHalted와 함께 확인).
+// "제자리 공격" 명령 상태 — 제자리에서 절대 이동하지 않고 사거리 내 적만 CombatFSMState와 동일하게
+// 공격한다(키팅·접근 이동만 빠짐). "절대 이동하지 않는다"는 조건에 예외가 없어 회피/블링크도
+// 차단된다(UnitFunction.OnReactToThreat이 isHalted와 함께 확인). HaltFSMState와 동일하게
+// UnitFSM.SelectState가 배열 우선순위와 무관하게 강제 배정한다(GetPriority는 무의미).
 public class StandGroundAttackFSMState : IFSMState
 {
 	private readonly BTNode _bt = new BTLeaf(ExecuteStandGroundAttack);
@@ -31,9 +28,8 @@ public class StandGroundAttackFSMState : IFSMState
 			? unit.Generate.GetSkills(unit.unitType.typeName)
 			: new List<SkillAction>();
 
-		// 방향 전환은 CombatFSMState.ExecuteCombat과 동일하게 매 틱 즉시 대상 방향으로 갱신한다 — 갱신을
-		// 늦추는 타이머를 두면 ResolveVisionDirection(01-A 11장, 소리/경계 등 더 급한 후보가 있을 때 이
-		// 값을 자동으로 덮어쓰는 시스템)의 폴백값이 얼어붙어 부자연스러워진다.
+		// 방향 전환은 CombatFSMState.ExecuteCombat과 동일하게 매 틱 즉시 갱신한다 — 늦추면
+		// ResolveVisionDirection(더 급한 후보가 있을 때 자동 덮어쓰는 시스템)의 폴백값이 얼어붙는다.
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 		unit.CombatState.State.currentAttackAngle = ((UnitFunction)unit).CalculateAttackAngleToEnemy(target, 1);
 

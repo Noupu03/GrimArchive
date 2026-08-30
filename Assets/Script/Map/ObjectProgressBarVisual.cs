@@ -1,21 +1,17 @@
 using UnityEngine;
 
 // 함정 해제·코어 조사처럼 시간이 걸리는 상호작용의 진행률을 오브젝트 바로 아래 세계공간 막대로
-// 표시한다(03문서 9-7/9-8/7-3장). UnitVisual의 world-space TextMesh/LineRenderer와 같은 이유로
-// Screen Space Canvas 대신 오브젝트 트랜스폼의 자식 SpriteRenderer 두 장(배경/채움)으로 만든다 —
-// 카메라 위치/배율과 무관하게 항상 오브젝트 아래에 붙어 있어야 하기 때문이다. 성공/실패/완료 결과
-// 문구는 오브젝트 파괴와 동시에 사라지면 안 되므로 여기 자식으로 넣지 않고, UIManager.ShowFloatingTextAt으로
-// 독립 world-space 텍스트를 따로 띄운다(TacticalFSMState.TrapDisarmPerform/CoreInvestigatePerform 참고).
+// 표시한다. 카메라 위치/배율과 무관하게 항상 오브젝트 아래에 붙어야 해서 Screen Space Canvas 대신
+// 자식 SpriteRenderer 두 장(배경/채움)으로 만든다. 성공/실패 결과 문구는 오브젝트 파괴와 동시에
+// 사라지면 안 되므로 여기 자식으로 넣지 않고 UIManager.ShowFloatingTextAt으로 독립 표시한다.
 public class ObjectProgressBarVisual : MonoBehaviour
 {
 	private const float BarWidth = 0.8f;
 	private const float BarHeight = 0.12f;
 	private const float BarWorldOffsetBelowBottom = 0.45f;
 
-	// 배경/채움 스프라이트를 모든 인스턴스가 공유 — GameObject.Destroy는 SpriteRenderer가 참조하던
-	// Texture2D까지 해제하지 않아, 파괴→재설치를 반복하는 문 오브젝트에서 텍스처가 계속 쌓이는
-	// 누수가 있었다. 배경/채움 둘 다 어차피 같은 흰 단색 4x4(피벗만 다름)라 인스턴스별로 새로 만들
-	// 이유가 없으므로, 텍스처 1장 + 스프라이트 2장만 정적으로 만들어 게임 전체가 공유한다.
+	// 배경/채움 스프라이트를 모든 인스턴스가 공유 — GameObject.Destroy가 SpriteRenderer의 Texture2D를
+	// 해제하지 않아 파괴→재설치를 반복하는 문 오브젝트에서 텍스처가 누적되는 누수가 있었다.
 	private static Sprite _sharedCenterPivotSprite;
 	private static Sprite _sharedLeftPivotSprite;
 
@@ -39,10 +35,8 @@ public class ObjectProgressBarVisual : MonoBehaviour
 	{
 		if (_bg != null) return;
 
-		// 이 오브젝트(트랩/코어 스프라이트) 자신의 localScale이 타일 1칸을 채우려고 스프라이트별로
-		// 제각각 스케일돼 있다(GameSession.SpawnObject 참고) — 그대로 자식에 물리면 막대가 스프라이트
-		// 종류마다 다르게 늘어나 보이므로, 부모 스케일의 역수를 곱해 항상 같은 월드 크기로 보이게 한다
-		// (UnitVisual.EnsureBelowLabel과 동일한 이유/관례).
+		// 이 오브젝트의 localScale이 타일 1칸을 채우려고 스프라이트별로 제각각이라 그대로 자식에 물리면
+		// 막대 크기가 종류마다 달라진다 — 부모 스케일의 역수를 곱해 항상 같은 월드 크기로 보이게 한다.
 		Vector3 parentScale = transform.localScale;
 		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;

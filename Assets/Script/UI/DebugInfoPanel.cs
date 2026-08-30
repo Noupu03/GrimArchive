@@ -5,10 +5,9 @@ using VContainer;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 
-// UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널 — 프리팹은
-// Assets/Editor/HaareUISetup.cs("Haare UI 셋업 생성")로 생성/배선된다. 시야/전파 시각화 토글과 맵
-// 저장/불러오기 버튼은 BottomMenuBar debug 서브탭으로 옮겨져 이 패널은 선택 유닛 정보만 담당한다.
-// 마우스 휠 줌은 CameraController 전담 — 이 패널이 orthographicSize를 같이 건드리면 이중 적용된다.
+// UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널(프리팹은
+// Assets/Editor/HaareUISetup.cs로 생성/배선) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 BottomMenuBar
+// debug 서브탭으로 옮겨져 이 패널은 선택 유닛 정보만 담당한다. 마우스 휠 줌은 CameraController 전담이므로 건드리지 말 것.
 [PanelAttribute("Prefabs/DebugInfoPanel")]
 public class DebugInfoPanel : MonoRoutine, ICustomPanel
 {
@@ -56,9 +55,9 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         return GUIMouseUtil.IsMouseOverRect(rect);
     }
 
-    // 다른 OnGUI 패널이 이 정보창과 실제로 겹치는지 판정할 때 쓴다. 이 박스는 uGUI Canvas라 OnGUI
-    // 실행 순서로 겹침을 못 바꾸므로(Canvas가 항상 먼저 그려짐), 겹치는 OnGUI 패널 쪽이 자기 자신을
-    // 안 그리는 방식으로 우선순위를 준다. IsMouseOverUI와 동일한 사각형 계산을 재사용.
+    // 다른 OnGUI 패널이 이 정보창과 실제로 겹치는지 판정할 때 쓴다. 이 박스는 uGUI Canvas라 OnGUI 실행
+    // 순서로 겹침을 못 바꾸므로(Canvas가 항상 먼저 그려짐), 겹치는 패널 쪽이 자기 자신을 안 그리는
+    // 방식으로 우선순위를 준다(IsMouseOverUI와 동일한 사각형 계산 재사용).
     public bool TryGetVisibleInfoBoxRect(out Rect rect)
     {
         rect = default;
@@ -109,8 +108,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
             RefreshSelectedUnitInfo();
         }
 
-        // 사용자 신고(2026-08-20) "정보창 배경이 계속 떠있잖아? 정보 열람할때만 뜨게" — InfoBox는
-        // OpenPanel() 이후로는 항상 SetActive(true)인 채였다. 선택된 유닛이 있을 때만 보이게 한다.
+        // InfoBox는 선택된 유닛이 있을 때만 보이게 한다(예전엔 OpenPanel() 이후 항상 SetActive(true)).
         if (infoBoxRect != null) infoBoxRect.gameObject.SetActive(currentCount > 0);
     }
 
@@ -187,8 +185,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         }
     }
 
-    // BottomMenuBar의 debug 메뉴(옮겨진 "Unit Status Test" 버튼들)가 스탯을 바꾼 뒤 화면 텍스트를
-    // 즉시 갱신하려고 호출하는 공개 진입점(2026-08-20).
+    // BottomMenuBar의 debug 메뉴("Unit Status Test" 버튼들)가 스탯을 바꾼 뒤 화면 텍스트를 즉시
+    // 갱신하려고 호출하는 공개 진입점.
     public void RefreshSelectedUnitInfo()
     {
         if (selectedUnitInfoText == null) return;
@@ -217,7 +215,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         selectedUnitInfoText.SetupText(text);
     }
 
-    // "기본 정보" 탭(2026-08-20, 사용자 명시) — 이름/진영/LV/EXP/킬카운트만.
+    // "기본 정보" 탭 — 이름/진영/LV/EXP/킬카운트만.
     private string BuildBasicInfoTabText(Unit u)
     {
         var sb = new StringBuilder();
@@ -229,8 +227,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         return sb.ToString();
     }
 
-    // 림월드 캐릭터창의 "장비" 탭 참고(2026-08-20, 사용자 요청) — 장비 시스템 자체가 아직 없어서
-    // 슬롯 자리만 보여주고 전부 "구현 예정"으로 표시한다.
+    // 림월드 캐릭터창의 "장비" 탭 참고 — 장비 시스템 자체가 아직 없어서 슬롯 자리만 보여주고 전부
+    // "구현 예정"으로 표시한다.
     private string BuildEquipmentTabText(Unit u)
     {
         var sb = new StringBuilder();
@@ -268,7 +266,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         return sb.ToString();
     }
 
-    // "세부 스탯" 탭(2026-08-20, 사용자 명시) — 근력/내구/민첩/집중/마력/저항/감각/통솔만.
+    // "세부 스탯" 탭 — 근력/내구/민첩/집중/마력/저항/감각/통솔만.
     private string BuildDetailedStatsTabText(Unit u)
     {
         var sb = new StringBuilder();

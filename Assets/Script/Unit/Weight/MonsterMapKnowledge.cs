@@ -3,11 +3,9 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-// 몬스터(Monster) 유닛 개인이 들고 있는 "지도" — Human.Memory.personalMap(PersonalMapKnowledge)의
-// 몬스터용 축소판. PersonalMapKnowledge는 위험도/흥미도/방 추적까지 포함한 무거운 클래스라, 지형
-// 밝히기+함정 위치 기록만 담는 가벼운 클래스로 분리했다(위험도/흥미도/방 상태/몬스터 목격 기록 없음).
-// 문서 없이 자체 판단으로 채운 부분 — 플레이어/야생 구분 없이 Monster 전체에 적용되고, 인류와
-// 동일하게 CastRay 시야 처리에서 자동 갱신되며, 함정은 해제를 시도하지 않으므로 존재 확인만 기록한다.
+// 몬스터(Monster) 유닛 개인이 들고 있는 "지도" — PersonalMapKnowledge의 몬스터용 축소판. 위험도/
+// 흥미도/방 추적은 빼고 지형 밝히기+함정 위치 기록(존재 확인만, 해제 안 함)만 담는다. 문서 없이 자체
+// 판단으로 채운 부분 — 플레이어/야생 구분 없이 Monster 전체에 적용되고 CastRay 시야 처리에서 자동 갱신된다.
 public class MonsterMapKnowledge
 {
 	// ─────────────────────────── 지형 밝히기 (벽/바닥) ───────────────────────────
@@ -16,8 +14,7 @@ public class MonsterMapKnowledge
 	private readonly Dictionary<int, Texture2D> _terrainTextures = new();
 	private readonly HashSet<int> _dirtyTerrainFloors = new();
 
-	// 반환값: 이 타일을 처음 밝히는 것이면 true(호출부가 필요하면 쓸 수 있게 PersonalMapKnowledge.
-	// RevealTile과 동일한 시그니처를 유지 — 지금은 아무도 반환값을 안 쓰지만 나중 확장 대비).
+	// 반환값: 이 타일을 처음 밝히는 것이면 true(PersonalMapKnowledge.RevealTile과 시그니처 통일, 확장 대비).
 	public bool RevealTile(Vector3Int pos, bool isWall)
 	{
 		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);

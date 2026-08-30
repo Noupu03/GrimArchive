@@ -11,10 +11,9 @@ public class TitleUIManager : SceneUIManager
     {
         await base.Initialize(cts);
 
-        // NoticeCenter — Title 씬은 GameSession 등 전역 서비스가 없는 경량 씬(TitleScope.cs)이라
-        // 여기서 직접 로드해야 한다. Addressables Player Content 미빌드 시 LoadPanel이 던지는
-        // InvalidKeyException이 Initialize() 전체를 중단시켜 GameTitlePanel도 못 뜨는 걸 막기 위해
-        // GameUIPresenter.BootSequence와 동일한 try/catch 관례를 맞춘다.
+        // NoticeCenter — Title 씬은 GameSession 등 전역 서비스가 없는 경량 씬(TitleScope.cs)이라 여기서
+        // 직접 로드해야 한다. Addressables Player Content 미빌드 시 LoadPanel이 던지는 InvalidKeyException이
+        // Initialize() 전체를 중단시켜 GameTitlePanel도 못 뜨는 걸 막으려 try/catch로 감싼다.
         try
         {
             int noticeCenterId = await LoadPanel<NoticeCenter>(null, false, false);
@@ -30,8 +29,8 @@ public class TitleUIManager : SceneUIManager
         panel.uiManager = this;
         panel.BindEvent();
 
-        // KeyGuidePanel — 평소엔 닫아 두고 TitlePresenter.OpenKeyGuide가 연다. GameTitlePanel보다
-        // 나중에 로드해야(마지막 sibling) 열렸을 때 그 위를 덮는다.
+        // KeyGuidePanel — 평소엔 닫아 두고 TitlePresenter.OpenKeyGuide가 연다(GameTitlePanel보다 나중에
+        // 로드해야 열렸을 때 그 위를 덮음).
         try
         {
             int keyGuidePanelId = await LoadPanel<KeyGuidePanel>(null, false, false);

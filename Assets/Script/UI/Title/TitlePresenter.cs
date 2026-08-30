@@ -6,11 +6,10 @@ using R3;
 using UnityEngine;
 using VContainer;
 
-// Demo.TitleScene.DemoTitleUIPresenter와 동일한 구조 — 이 씬(Title.unity)의 진입점.
-// GameTitlePanel이 로드되면 시작/설정/종료 버튼을 구독해서 실제 동작(씬 전환/종료)을 연결한다.
-// 씬 전환은 Haare의 SceneService(Addressables 기반, 아직 이 프로젝트 실 전환에는 안 쓰인 미검증
-// 경로) 대신, ssh.unity를 그대로 Build Settings에 등록해서 쓰는 평범한 SceneManager +
-// SceneTransitionFade를 쓴다.
+// Demo.TitleScene.DemoTitleUIPresenter와 동일한 구조 — 이 씬(Title.unity)의 진입점. GameTitlePanel이
+// 로드되면 시작/설정/종료 버튼을 구독해 실제 동작(씬 전환/종료)을 연결한다. 씬 전환은 Haare의
+// SceneService(Addressables 기반, 이 프로젝트에선 미검증) 대신 ssh.unity를 Build Settings에 등록해
+// 쓰는 평범한 SceneManager + SceneTransitionFade를 쓴다.
 public class TitlePresenter : IPresenter
 {
     [Inject] private SceneUIManager _sceneUiManager;

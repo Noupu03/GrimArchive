@@ -9,18 +9,17 @@ using Haare.Scripts.Client.Data;
 using Haare.Util.Loader;
 using Haare.Util.Logger;
 
-// 좌측 하단 상시 카테고리(명령/설치/도감/debug) 메뉴 바 — 카테고리 클릭 시 위에 서브메뉴가 뜨고
-// 재클릭/전환 시 닫힌다. "맵" 카테고리만 별도 좌측 중앙 패널(DrawFloorPanel)로 분리돼 있다.
-// [PanelAttribute]는 빈 프리팹 껍데기이고 실제 그리기는 OnGUI가 담당한다(다른 커스텀 패널과 동일
-// 관례). 오브젝트/코어 배치는 기획 문서의 "설치" 메뉴에 없어 debug 서브탭으로 분류했다.
+// 좌측 하단 상시 카테고리(명령/설치/도감/debug) 메뉴 바 — 클릭 시 서브메뉴가 뜨고 재클릭/전환 시
+// 닫힌다. "맵"만 별도 좌측 중앙 패널(DrawFloorPanel)로 분리돼 있다. [PanelAttribute]는 빈 프리팹
+// 껍데기이고 실제 그리기는 OnGUI가 담당(다른 커스텀 패널과 동일 관례). 오브젝트/코어 배치는 기획
+// 문서의 "설치" 메뉴에 없어 debug 서브탭으로 분류했다.
 [PanelAttribute("Prefabs/BottomMenuBar")]
 public class BottomMenuBar : MonoRoutine, ICustomPanel
 {
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
 
-    // InputManager/BuildPlacementController 등 정적 접근이 필요한 쪽(BuildingControlPanel.Instance와
-    // 동일 관례)이 "지금 마우스가 이 바/서브메뉴 위에 있는가"를 물어볼 때 쓴다.
+    // 정적 접근이 필요한 쪽(BuildingControlPanel.Instance와 동일 관례)이 마우스 오버 여부를 물어볼 때 쓴다.
     public static BottomMenuBar Instance { get; private set; }
 
     private InputManager _inputManager;
@@ -42,8 +41,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         base.Constructor();
         Instance = this;
 
-        // 층 변경 패널을 다른 UI보다 뒤로 깔기 위한 별도 컴포넌트(FloorPanelOverlay.cs 주석 참고) —
-        // 새 프리팹/GUID 없이 이 GameObject에 런타임으로 붙인다.
+        // 층 변경 패널을 다른 UI보다 뒤에 깔기 위한 별도 컴포넌트(FloorPanelOverlay) — 새 프리팹 없이 런타임으로 붙인다.
         if (gameObject.GetComponent<FloorPanelOverlay>() == null)
             gameObject.AddComponent<FloorPanelOverlay>();
     }
@@ -61,8 +59,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
     public void BindEvent() { }
 
-    // 모드 진입/전환 안내는 전부 NoticeCenter.Push(클릭 시 한 번 뜨고 자동 소멸) 방식으로 통일돼
-    // 있다 — PushPersistent로 "지금 활성 모드"를 계속 띄워두지 않는다.
+    // 모드 진입/전환 안내는 NoticeCenter.Push(자동 소멸)로 통일 — PushPersistent로 계속 띄워두지 않는다.
 
     private enum MenuCategory { None, Command, Build, Encyclopedia, Debug }
     private MenuCategory _activeCategory = MenuCategory.None;
@@ -85,11 +82,9 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     private const float FloorPanelButtonHeight = 28f;
     private const float FloorPanelGap = 4f;
 
-    // 버튼 폰트/흰 테두리 스타일은 GUIMenuStyleUtil로 옮겼다 — DebugInfoPanel 탭 버튼과 스타일을
-    // 공유하기 위함.
+    // 버튼 폰트/테두리 스타일은 GUIMenuStyleUtil로 옮겼다 — DebugInfoPanel 탭 버튼과 스타일 공유.
 
-    // "이 화면 좌표가 바 위인가"를 물어보는 공개 API(BuildingControlPanel.IsMouseOverPanel과 동일
-    // 관례) — 안 그러면 바 버튼 클릭이 월드 클릭(유닛 선택/건물 배치)으로도 처리된다.
+    // 바 위 클릭 여부 확인용 공개 API(BuildingControlPanel.IsMouseOverPanel과 동일 관례) — 안 그러면 바 클릭이 월드 클릭으로도 처리된다.
     public bool IsMouseOverUI()
     {
         if (GUIMouseUtil.IsMouseOverRect(GetBarRect())) return true;
@@ -97,8 +92,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return _activeCategory != MenuCategory.None && GUIMouseUtil.IsMouseOverRect(GetSubmenuBoundingRect());
     }
 
-    // 다른 좌하단 UI가 메뉴 UI와 겹치지 않게 쌓일 수 있도록, 하단 바+서브메뉴가 차지하는 총 높이를
-    // 반환한다. 서브메뉴 개폐에 따라 값이 바뀌므로 호출부는 매 프레임 다시 물어봐야 한다.
+    // 다른 좌하단 UI가 겹치지 않게 쌓일 수 있도록 바+서브메뉴 총 높이를 반환한다. 서브메뉴 개폐로 값이 바뀌므로 매 프레임 다시 물어봐야 한다.
     public float GetReservedBottomLeftHeight()
     {
         float height = BarMarginY + BarHeight;
@@ -118,8 +112,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return new Rect(BarMarginX, Screen.height - BarMarginY - BarHeight, width, BarHeight);
     }
 
-    // 서브메뉴 항목이 화면 위로 넘치지 않고 세로로 쌓일 수 있는 최대 개수(=열 하나의 최대 행 수) —
-    // 이 값을 넘으면 DrawVerticalSubmenu가 옆 열로 넘겨서 그린다.
+    // 열 하나가 세로로 쌓을 수 있는 최대 행 수 — 넘으면 DrawVerticalSubmenu가 옆 열로 넘겨서 그린다.
     private int GetMaxSubmenuRows()
     {
         float barY = Screen.height - BarMarginY - BarHeight;
@@ -130,9 +123,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return Mathf.Max(1, rows);
     }
 
-    // 지금 활성 카테고리가 그릴 "독립된 블록" 목록. debug는 항목이 많아 소리·전파 시각화 토글을 별도
-    // 블록으로 분리해 목록 높이를 줄였다. Build*Items()가 유일한 진실 공급원이라 개수를 별도 상수로
-    // 맞춰둘 필요가 없다 — 손으로 세면 목록이 바뀔 때 마우스오버 판정 영역이 어긋난다.
+    // 지금 활성 카테고리가 그릴 "독립된 블록" 목록(debug는 항목이 많아 소리·전파 토글을 별도 블록으로 분리).
+    // Build*Items()가 유일한 진실 공급원 — 개수를 별도 상수로 맞춰두면 목록이 바뀔 때 마우스오버 판정이 어긋난다.
     private List<List<SubmenuItem>> GetActiveSubmenuGroups()
     {
         var groups = new List<List<SubmenuItem>>();
@@ -153,8 +145,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return groups;
     }
 
-    // 지금 활성 카테고리의 모든 블록을 합친 전체 차지 영역(마우스오버 판정/다른 UI가 피할 예약 높이에
-    // 쓰인다) — 블록마다 필요한 열 수는 이어 붙이고, 높이는 그중 가장 긴 열 기준으로 잡는다.
+    // 활성 카테고리 전체 블록이 차지하는 영역(마우스오버 판정/예약 높이용) — 열 수는 이어 붙이고 높이는 가장 긴 열 기준.
     private Rect GetSubmenuBoundingRect()
     {
         var groups = GetActiveSubmenuGroups();
@@ -181,8 +172,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         DrawBar();
         DrawSubmenu();
-        // DrawFloorPanel()은 더 이상 여기서 안 부른다 — FloorPanelOverlay(낮은 실행 순서로 먼저
-        // 그려짐)가 대신 호출해서, 겹칠 때 다른 UI가 층 패널을 덮도록 한다(위 Constructor 주석 참고).
+        // DrawFloorPanel()은 FloorPanelOverlay(더 이른 실행 순서)가 대신 호출한다 — 겹칠 때 다른 UI가 층 패널을 덮도록.
     }
 
     private void DrawBar()
@@ -193,8 +183,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         DrawBarButton(ref x, y, "명령", _activeCategory == MenuCategory.Command, () => ToggleCategory(MenuCategory.Command));
         DrawBarButton(ref x, y, "설치", _activeCategory == MenuCategory.Build, () => ToggleCategory(MenuCategory.Build));
-        // debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존 가능 — 유일한 예외. 도감은 아직
-        // 기능이 없지만 카테고리 토글 + 서브메뉴(버튼 1개, "구현 예정")로 동작한다.
+        // debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존 가능한 유일한 예외.
         DrawBarButton(ref x, y, "도감", _activeCategory == MenuCategory.Encyclopedia, () => ToggleCategory(MenuCategory.Encyclopedia));
         DrawBarButton(ref x, y, "debug", _activeCategory == MenuCategory.Debug, () => ToggleCategory(MenuCategory.Debug), cancelCommandMode: false);
     }
@@ -206,8 +195,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         bool clicked = GUIMenuStyleUtil.DrawFlatButton(rect, label, active);
         if (clicked)
         {
-            // 하단 바의 어떤 버튼을 누르든 진행 중이던 건물·오브젝트 배치 모드는 함께 취소된다 —
-            // 우클릭 취소가 없는 대신 "메뉴 바꾸기"가 취소 경로다.
+            // 어떤 바 버튼을 누르든 진행 중이던 배치 모드는 함께 취소된다 — 우클릭 취소가 없는 대신 "메뉴 바꾸기"가 취소 경로다.
             _inputManager?.ExitActivePlacementMode();
             if (cancelCommandMode) _inputManager?.CancelCommandModeIfActive();
             onClick();
@@ -220,8 +208,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         _activeCategory = (_activeCategory == category) ? MenuCategory.None : category;
     }
 
-    // 지금 활성 카테고리의 블록들을 순서대로 그린다 — 블록마다 자기가 실제로 쓴 열 수만큼 다음 블록의
-    // 시작 열을 밀어서, 블록끼리 겹치지 않고 옆으로 나란히 놓이게 한다.
+    // 활성 카테고리의 블록들을 순서대로 그린다 — 블록마다 실제로 쓴 열 수만큼 다음 블록 시작 열을 밀어 겹치지 않게 한다.
     private void DrawSubmenu()
     {
         var groups = GetActiveSubmenuGroups();
@@ -246,7 +233,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         public bool active;
         public bool interactable;
         public Action onClick;
-        // 주제별 구분용 헤더 행 — 버튼이 아니라 굵은 라벨만 그린다(클릭 불가, 테두리/배경 없음).
+        // 주제별 구분용 헤더 행 — 클릭 불가, 굵은 라벨만 그린다.
         public bool isHeader;
 
         public SubmenuItem(string label, bool active, bool interactable, Action onClick)
@@ -261,8 +248,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         public static SubmenuItem Header(string label) => new SubmenuItem(label, false, false, null) { isHeader = true };
     }
 
-    // 바 위에 아래에서 위로 쌓이는 세로 버튼 목록 하나를 그린다. 헤더 항목은 굵은 라벨로만 그려
-    // 구분한다. startColumn은 이 블록의 시작 열(다른 블록과 나란히 놓을 때 씀).
+    // 바 위에 아래에서 위로 쌓이는 세로 버튼 목록 하나를 그린다. startColumn은 다른 블록과 나란히 놓을 때 쓰는 시작 열.
     private void DrawVerticalSubmenu(List<SubmenuItem> items, int startColumn = 0)
     {
         Rect barRect = GetBarRect();
@@ -270,8 +256,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
         for (int i = 0; i < items.Count; i++)
         {
-            // 한 열에 다 못 쌓일 만큼 항목이 많으면(debug 서브메뉴) 옆 열로 넘겨서 그린다 — 화면 위로
-            // 넘치는 대신 옆으로 늘어난다.
+            // 한 열에 다 못 쌓일 만큼 항목이 많으면 옆 열로 넘겨서 그린다 — 화면 위로 넘치는 대신 옆으로 늘어난다.
             int col = startColumn + i / maxRows;
             int row = i % maxRows;
             float x = barRect.x + col * (SubmenuButtonWidth + SubmenuColumnGap);
@@ -314,9 +299,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 명령 서브메뉴 — "제자리 공격"/"명령 취소"/"집결 및 정지" 세 토글은 InputManager에서 서로 배타로
-    // 관리된다(Set*ModeActive). 기본 우클릭 이동/공격은 토글 없는 기본 동작이라 항목이 없다 —
-    // 나머지 토글이 모두 꺼져 있으면 항상 이동/공격이 나간다.
+    // 명령 서브메뉴 — 세 토글은 InputManager에서 서로 배타로 관리된다(Set*ModeActive). 기본 우클릭
+    // 이동/공격은 토글 없는 기본 동작이라 항목이 없다(나머지가 모두 꺼져 있으면 항상 나감).
     // =====================================================
     private List<SubmenuItem> BuildCommandItems()
     {
@@ -328,7 +312,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         };
     }
 
-    // R키 몬스터 배치 모드 폐기를 대체 — "명령 취소"/"집결 및 정지"와 동일한 토글 패턴.
+    // "명령 취소"/"집결 및 정지"와 동일한 토글 패턴.
     private void OnClickToggleStandGroundMode()
     {
         if (_inputManager == null) return;
@@ -364,16 +348,14 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 설치 서브메뉴 — 유닛 생산 건물(B) / 자원 생산 건물(V) / 함정(P) / 문 재설치(자원 소모). 각
-    // 버튼은 자기 모드 전용 플래그로만 활성 표시된다(공유 플래그를 쓰면 다른 모드도 켜진 것처럼
-    // 보임). 이미 켜진 버튼을 다시 누르면 취소하고, 클릭 후에도 카테고리는 닫지 않는다.
+    // 설치 서브메뉴 — 각 버튼은 자기 모드 전용 플래그로만 활성 표시된다(공유 플래그를 쓰면 다른
+    // 모드도 켜진 것처럼 보임). 이미 켜진 버튼을 다시 누르면 취소하고, 클릭 후에도 카테고리는 안 닫는다.
     // =====================================================
     private List<SubmenuItem> BuildBuildItems()
     {
         bool unitActive = _inputManager != null && _inputManager.IsUnitBuildModeActive;
         bool resourceActive = _inputManager != null && _inputManager.IsResourceBuildModeActive;
         bool trapActive = _inputManager != null && _inputManager.IsTrapPlacementActive;
-        // 문 재설치 — 원래 debug 서브메뉴(BuildDebugPrimaryItems)에 있던 걸 여기로 이전.
         bool doorRepairActive = _inputManager != null && _inputManager.IsDoorRepairPlacementActive;
 
         return new List<SubmenuItem>
@@ -385,8 +367,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         };
     }
 
-    // wasActive면(재클릭) 취소, 아니면 enterMode로 진입 — "설치"/"debug" 서브메뉴의 배치류 버튼이
-    // 공유하는 재클릭 취소 규칙. 취소 notice는 InputManager.ExitActivePlacementMode가 담당한다.
+    // wasActive면(재클릭) 취소, 아니면 enterMode로 진입 — 배치류 버튼이 공유하는 재클릭 취소 규칙.
     private void ToggleBuildSubMode(bool wasActive, Action enterMode, string label)
     {
         if (wasActive)
@@ -401,9 +382,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     }
 
     // =====================================================
-    // 층 이동 상시 패널 — 화면 좌측 중앙에 항상 떠 있는 층 버튼 목록, CameraController.GoToFloor와
-    // 연동. 카테고리 토글 없이 항상 그려지는 독립 패널이다. IsFloorRevealed로 아직 안 밝혀진 층은
-    // 버튼 자체를 리스트에서 뺀다.
+    // 층 이동 상시 패널 — 화면 좌측 중앙에 항상 떠 있는 층 버튼 목록(카테고리 토글 없는 독립 패널),
+    // CameraController.GoToFloor와 연동. IsFloorRevealed로 아직 안 밝혀진 층은 리스트에서 뺀다.
     // =====================================================
     private Rect GetFloorPanelRect()
     {
@@ -439,15 +419,13 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         Rect panelRect = GetFloorPanelRect();
         if (panelRect.height <= 0f) return;
 
-        // 다른 UI와 실제로 겹치면 이번 프레임엔 층 패널을 그리지 않는다 — DebugInfoPanel(uGUI
-        // Canvas)은 OnGUI보다 먼저 그려지는 별개 렌더 패스라 실행 순서만으로는 못 가릴 수 있어
-        // 겹치는 쪽이 양보한다.
+        // 다른 UI와 실제로 겹치면 이번 프레임엔 그리지 않는다 — DebugInfoPanel(uGUI Canvas)은 OnGUI보다
+        // 먼저 그려지는 별개 렌더 패스라 실행 순서만으로는 못 가릴 수 있어 겹치는 쪽이 양보한다.
         if (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.TryGetVisibleInfoBoxRect(out Rect infoRect) && panelRect.Overlaps(infoRect))
             return;
         if (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.TryGetVisibleRect(out Rect buildRect) && panelRect.Overlaps(buildRect))
             return;
-        // 하단 바 자신의 서브메뉴(debug 등)도 같은 클래스 안에서 그려져 실행 순서 트릭이 적용되지
-        // 않으므로 같은 방식으로 직접 겹침을 확인한다.
+        // 하단 바 서브메뉴는 같은 클래스 안에서 그려져 실행 순서 트릭이 안 통하므로 직접 겹침을 확인한다.
         if (_activeCategory != MenuCategory.None && panelRect.Overlaps(GetSubmenuBoundingRect()))
             return;
 
@@ -456,10 +434,9 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         {
             if (cam == null || !cam.IsFloorRevealed(f)) continue;
 
-            // 0층은 "던전입구"로 표시 — 그 외 층은 "N층".
             string label = f == 0 ? "던전입구" : $"{f}층";
             Rect rect = new Rect(panelRect.x, y, FloorPanelButtonWidth, FloorPanelButtonHeight);
-            // 상시 패널로 빠지면서 버튼 자체가 항상 보이는 즉시 피드백이라, 클릭할 때마다 뜨던 notice는 뺐다.
+            // 버튼 자체가 상시 보이는 즉시 피드백이라 클릭 시 별도 notice는 띄우지 않는다.
             if (GUIMenuStyleUtil.DrawFlatButton(rect, label, f == currentFloor))
             {
                 CameraController.Instance?.GoToFloor(f);
@@ -470,15 +447,13 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
 
     // =====================================================
     // debug 서브메뉴 — 시야/소리·전파 시각화, 오브젝트/코어 배치, 맵 저장/불러오기, 유닛 테스트.
-    // 항목이 많아 헤더로 주제별 구분하고 Primary/Secondary/Propagation 세 블록으로 나눠 옆으로
-    // 나란히 그린다(한 열이 화면 높이를 넘지 않도록).
+    // 항목이 많아 Primary/Secondary/Propagation 세 블록으로 나눠 옆으로 나란히 그린다.
     // =====================================================
     private List<SubmenuItem> BuildDebugPrimaryItems()
     {
         var items = new List<SubmenuItem>();
 
-        // DrawVerticalSubmenu는 바로부터 위로 쌓아 그리므로 리스트 앞쪽 항목일수록 화면상 아래에
-        // 그려진다 — 헤더를 그 주제 내용(버튼)들보다 뒤에 추가해야 화면에서 헤더가 위로 보인다.
+        // DrawVerticalSubmenu는 바로부터 위로 쌓으므로 리스트 앞쪽일수록 화면상 아래에 그려진다 — 헤더는 그 내용(버튼)들보다 뒤에 추가해야 화면에서 위로 보인다.
         if (_gameSession != null && _gameSession.unitGenerate != null)
         {
             bool visionOn = _gameSession.unitGenerate.ShowAllVisionRanges;
@@ -486,8 +461,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 () => _gameSession.unitGenerate.ShowAllVisionRanges = !_gameSession.unitGenerate.ShowAllVisionRanges));
             items.Add(SubmenuItem.Header("시야 / 인지"));
 
-            // 유닛 머리 위 현재 FSM 상태 라벨 on/off — "시야 표시"와 동일 관례지만 주제가 달라(시야/
-            // 인지가 아니라 FSM 상태 HUD) 별도 헤더로 분리.
+            // 유닛 머리 위 FSM 상태 라벨 on/off — 시야/인지와 주제가 달라 별도 헤더로 분리.
             bool statusLabelOn = _gameSession.unitGenerate.ShowUnitStatusLabels;
             items.Add(new SubmenuItem(statusLabelOn ? "■ 유닛 상태 표시 (ON)" : "□ 유닛 상태 표시 (OFF)", statusLabelOn, true,
                 () => _gameSession.unitGenerate.ShowUnitStatusLabels = !_gameSession.unitGenerate.ShowUnitStatusLabels));
@@ -497,16 +471,14 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         bool objActive = _inputManager != null && _inputManager.IsObjectOnlyPlacementActive;
         items.Add(new SubmenuItem("오브젝트 배치", objActive, true, () => ToggleBuildSubMode(objActive, () => _inputManager?.EnterObjectPlacementMode(), "오브젝트")));
 
-        // 함정 무제한 설치 — 자원 소모 없이 연속 배치할 수 있는 debug 토글. 배치 모드 자체
-        // (EnterTrapPlacementMode)는 "설치" 메뉴에 그대로 두고, 여기서는 무제한 여부만 켜고 끈다.
+        // 함정 무제한 설치 — 배치 모드 자체는 "설치" 메뉴에 두고, 여기선 자원 소모 없이 연속 배치 가능 여부만 켠다.
         if (_inputManager != null)
         {
             bool unlimitedTrapOn = _inputManager.DebugUnlimitedTrapPlacement;
             items.Add(new SubmenuItem(unlimitedTrapOn ? "■ 함정 무제한 설치 (ON)" : "□ 함정 무제한 설치 (OFF)", unlimitedTrapOn, true,
                 () => _inputManager.DebugUnlimitedTrapPlacement = !_inputManager.DebugUnlimitedTrapPlacement));
 
-            // 모든 유닛 선택 가능 — 플레이어 유닛만 선택 가능하게 제한한 InputManager.IsSelectableUnit
-            // (진영/안개 게이트)을 debug에서만 우회하는 토글.
+            // 모든 유닛 선택 가능 — InputManager.IsSelectableUnit의 진영/안개 게이트를 debug에서만 우회.
             bool selectAllOn = _inputManager.DebugSelectAllUnits;
             items.Add(new SubmenuItem(selectAllOn ? "■ 모든 유닛 선택 가능 (ON)" : "□ 모든 유닛 선택 가능 (OFF)", selectAllOn, true,
                 () => _inputManager.DebugSelectAllUnits = !_inputManager.DebugSelectAllUnits));
@@ -522,14 +494,12 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return items;
     }
 
-    // debug 서브메뉴가 세로로 너무 길어지지 않도록 BuildDebugPrimaryItems와 이 블록을 주제 경계
-    // 기준으로 나눠 항상 별도 열에 그린다 — BuildDebugPropagationItems와 동일한 관례.
+    // debug 서브메뉴가 너무 길어지지 않도록 BuildDebugPrimaryItems와 주제 경계로 나눠 별도 열에 그린다.
     private List<SubmenuItem> BuildDebugSecondaryItems()
     {
         var items = new List<SubmenuItem>();
 
-        // 더미 건물 배치 — 건물 스프라이트/크기 개편으로 더 이상 쓰지 않게 된 예전 유닛/자원 생산
-        // 건물 스프라이트를, 기능 없이 건물 판정만 있는 1x1 더미 건물로 재활용.
+        // 더미 건물 배치 — 더 이상 쓰지 않는 예전 유닛/자원 생산 건물 스프라이트를 건물 판정만 있는 1x1 더미로 재활용.
         if (_inputManager != null)
         {
             const string dummy1Name = "더미 건물 (구 유닛 생산형)";
@@ -574,8 +544,6 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return items;
     }
 
-    // "Unit Status Test" UI를 여기로 이전 — DebugInfoPanel 우상단에 따로 떠 있던 EXP/Kill/LevelUp
-    // 테스트 버튼 3개.
     private void AdjustSelectedUnit(Action<Unit> apply)
     {
         if (_inputManager == null || _inputManager.selectedUnits.Count != 1) return;
@@ -589,7 +557,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         items.Add(new SubmenuItem(on ? $"■ {label} (ON)" : $"□ {label} (OFF)", on, true, () => setter(!getter())));
     }
 
-    // 유닛 상태는 저장 대상이 아님 — 맵(층/청크/타일/점령 상태)만 저장/복원한다(DebugInfoPanel에서 이전).
+    // 유닛 상태는 저장 대상이 아님 — 맵(층/청크/타일/점령 상태)만 저장/복원한다.
     private async UniTaskVoid SaveMapAsync()
     {
         var cmap = _gameSession != null ? _gameSession.cmap : null;

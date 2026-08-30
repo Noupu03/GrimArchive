@@ -14,11 +14,9 @@ public static class AIMovementHelper
 	// (RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
 	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
 
-	// 방 제한 유닛의 무작위 인접 이동 — 8방향 중 유효한 칸을 찾아 1칸 이동하며, NavigationFSMState.
-	// MoveRandomlyValid와 IdleFSMState가 공유한다. anchor/radius로 배회 반경을 제한할 수 있다(기본
-	// 무제한). forceRoomConfine=true면 MovementAlgorithm 종류와 무관하게 방/문 제한을 강제한다 —
-	// RoomConfinedMovement가 안 붙은 유닛도 대기 배회만큼은 방을 벗어나지 않게 하려는 용도로
-	// IdleFSMState가 사용한다.
+	// 방 제한 유닛의 무작위 인접 이동 — NavigationFSMState.MoveRandomlyValid와 IdleFSMState가
+	// 공유한다. anchor/radius로 배회 반경을 제한할 수 있고, forceRoomConfine=true면 MovementAlgorithm
+	// 종류와 무관하게 방/문 제한을 강제한다(RoomConfinedMovement가 안 붙은 유닛도 대기 배회는 방 안에 묶기 위함).
 	public static bool TryMoveRandomlyWithinRadius(Unit unit, Vector2Int? anchor = null, int radius = int.MaxValue, bool forceRoomConfine = false)
 	{
 		bool roomConfined = forceRoomConfine || IsRoomConfined(unit);
@@ -61,10 +59,8 @@ public static class AIMovementHelper
 	}
 
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
-	// (NavigationFSMState.CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 한다 —
-	// 대표 좌표 1칸만 쓰면 여러 유닛이 같은 계단으로 동시에 텔레포트돼 겹친다("접근" 측 MoveToStairs와
-	// 동일하게 여러 후보 중 빈 칸을 고른다). 반환값 false는 후보 전부 점유(혼잡) 또는 계단 정보 없음 —
-	// 호출부가 재시도 여부를 판단한다.
+	// (CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 대표 좌표 1칸에 여러
+	// 유닛이 겹쳐 텔레포트되는 걸 막는다. false는 후보 전부 점유(혼잡) 또는 계단 정보 없음 — 재시도는 호출부 판단.
 	public static bool TryResolveUnoccupiedStairArrival(GameSession session, int arrivalFloor, int fromFloor, out Vector2Int pos)
 	{
 		pos = Vector2Int.zero;
@@ -87,9 +83,8 @@ public static class AIMovementHelper
 	{
 		if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
 		{
-			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다 — A*와 Move()의 판정이 어긋나면
-			// (코너 커팅 등) Move()가 조용히 실패할 수 있는데, true를 그대로 반환하면 호출부가
-			// stuckTurns를 리셋해 영원히 얼어붙는 오판을 한다.
+			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다 — A*와 Move()의 판정이 어긋나면(코너
+			// 커팅 등) Move()가 조용히 실패할 수 있어, 그대로 true를 반환하면 stuckTurns가 리셋돼 영원히 얼어붙는다.
 			Vector2Int before = unit.position;
 			unit.Move(nextDir);
 			return unit.position != before;
@@ -100,9 +95,8 @@ public static class AIMovementHelper
 	public static bool MoveTowardsTarget(Unit unit, Unit target)
 		=> MoveTowardsPos(unit, target.position);
 
-	// 목표 칸이 막혀 더 다가갈 수 없을 때, 바로 옆 8칸 중 실제로 갈 수 있는 가장 가까운(유닛 현재
-	// 위치 기준) 빈 칸을 대신 반환한다. 갈 수 있는 칸이 하나도 없으면 center를 그대로 돌려준다 —
-	// 호출부가 "재지정도 불가능"으로 판단해 처리한다.
+	// 목표 칸이 막혀 더 다가갈 수 없을 때, 바로 옆 8칸 중 실제로 갈 수 있는 가장 가까운 빈 칸을
+	// 대신 반환한다(하나도 없으면 center 그대로 반환해 "재지정도 불가능"을 알림).
 	public static Vector2Int FindNearbyOpenTile(Unit unit, Vector2Int center)
 	{
 		Vector2Int best = center;
@@ -119,9 +113,8 @@ public static class AIMovementHelper
 		return best;
 	}
 
-	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지, 다른 유닛이 잠깐 몰려(점유) 막힌 것뿐인지 구분해야
-	// 한다. 후자를 완전히 막힘으로 오판하면 곧 풀릴 상황에서도 명령이 영구히 취소되므로, CanMove
-	// (ignoreUnits: true)로 점유를 무시하고 지형만 기준으로 재확인한다.
+	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지 다른 유닛이 잠깐 몰려 막힌 것뿐인지 구분하려고
+	// CanMove(ignoreUnits: true)로 점유 무시하고 지형만 재확인한다(후자를 오판하면 명령이 영구히 취소됨).
 	public static bool HasAnyStructurallyOpenNeighbor(Unit unit, Vector2Int center)
 	{
 		if (unit.CanMove(center, ignoreUnits: true)) return true;
@@ -134,10 +127,8 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 유닛 자기 위치 기준 혼잡 판정 전용 — HasAnyStructurallyOpenNeighbor(unit, unit.position)를 그대로
-	// 쓰면 안 된다(center 자신이 항상 열려있어 검사가 무의미해짐). 여기서는 자기 자신은 제외하고 인접
-	// 8칸만(점유 무시) 확인해 하나라도 갈 수 있으면 혼잡(인내), 전부 막히면 완전히 막힘(포기)으로
-	// 판정한다.
+	// 유닛 자기 위치 기준 혼잡 판정 전용 — HasAnyStructurallyOpenNeighbor(unit, unit.position)는
+	// center 자신이 항상 열려있어 무의미하므로 안 쓴다. 인접 8칸만(점유 무시) 확인해 판정한다.
 	public static bool HasAnyStructurallyOpenAdjacentTile(Unit unit)
 	{
 		Vector2Int center = unit.position;

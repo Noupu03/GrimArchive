@@ -5,10 +5,8 @@ using Haare.Client.Routine;
 using Haare.Client.UI;
 
 // 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter로 옮겨졌다 — 이 클래스는 이제
-// OnGUI() 오버레이(게임 속도/일시정지 표시)와 플로팅 텍스트만 담당한다.
-// 다른 UI 패널들과 동일하게 [PanelAttribute] Haare ICustomPanel로 편입돼 있다 — Haare 패널은
-// VContainer 컨테이너에 등록되지 않아 더는 생성자 주입을 받을 수 없으므로, Unit.cs 등 소비처는
-// BuildingControlPanel.Instance와 동일한 정적 Instance 접근을 쓴다.
+// OnGUI() 오버레이(게임 속도/일시정지 표시)와 플로팅 텍스트만 담당한다. Haare 패널은 VContainer
+// 컨테이너에 등록되지 않아 생성자 주입을 못 받으므로, 소비처는 정적 Instance 접근을 쓴다.
 [PanelAttribute("Prefabs/UIManager")]
 public class UIManager : MonoRoutine, ICustomPanel
 {
@@ -52,9 +50,8 @@ public class UIManager : MonoRoutine, ICustomPanel
         DrawTopLeftUI();
 	}
 
-	// 주 문구(게임 속도)는 큰 굵은 글씨, 보조 안내문(조작키 힌트)은 작은 글씨로 두고 두 줄의 실제
-	// 렌더 크기를 각각 측정해 박스를 그 최대 폭에 맞춰 동적으로 그린다 — 고정폭을 쓰면 큰 글씨일 때
-	// 잘리거나 작은 글씨일 때 빈 공간이 남는 문제를 피한다.
+	// 두 줄의 실제 렌더 크기를 각각 측정해 박스를 그 최대 폭에 맞춰 동적으로 그린다 — 고정폭이면
+	// 큰 글씨일 때 잘리거나 작은 글씨일 때 빈 공간이 남는다.
 	private const int SpeedIndicatorFontSize = GUIMenuStyleUtil.LabelFontSize;
 	private const int SpeedIndicatorHintFontSize = 13;
 	private static GUIStyle _speedIndicatorStyle;
@@ -104,8 +101,7 @@ public class UIManager : MonoRoutine, ICustomPanel
         GUI.Label(new Rect(rect.x + paddingX, rect.y + paddingY + size1.y + lineGap, size2.x, size2.y), line2, line2Style);
     }
 
-	// 2026-08-20 — ShowFloatingText(Unit)는 위치/기본색/기본시간만 유닛 기준으로 채워 ShowFloatingTextAt로
-	// 위임한다(둘이 거의 동일한 바디를 중복 구현하고 있었음).
+	// ShowFloatingText(Unit)는 위치/기본색만 유닛 기준으로 채워 ShowFloatingTextAt로 위임한다.
 	public void ShowFloatingText(Unit unit, string message)
 	{
 		if (unit == null) return;
@@ -117,8 +113,7 @@ public class UIManager : MonoRoutine, ICustomPanel
 		ShowFloatingTextAt(pos, message, color);
 	}
 
-	// 03문서 9-8장(2026-07-27 추가) — 함정 해제 성공/실패 결과 문구용. ShowFloatingText(Unit)와 달리
-	// 유닛이 아니라 임의의 월드 좌표(함정 위치 등)에 띄워야 해서 별도 오버로드로 뒀다.
+	// 함정 해제 성공/실패 결과 문구용. 유닛이 아니라 임의의 월드 좌표(함정 위치 등)에 띄워야 해서 별도 오버로드로 뒀다.
 	public void ShowFloatingTextAt(Vector3 worldPos, string message, Color color, float duration = 0.5f)
 	{
 		GameObject go = new GameObject("FloatingText");

@@ -15,8 +15,7 @@ public abstract class Unit : ScriptableObject {
         return null;
     }
 
-    // Components 리스트를 매번 선형 탐색하는 GetComponent<T>() 호출 비용을 없애기 위한 캐시.
-    // OnEnable에서 null 리셋 → 첫 접근 시 ??= 로 채워지며 이후 O(1)로 반환.
+    // Components 선형 탐색 비용을 없애는 캐시 — OnEnable에서 null 리셋 → 첫 접근 시 ??=로 채워져 이후 O(1).
     private HealthComponent       _healthComp;
     private CombatStateComponent  _combatStateComp;
     private CombatStatComponent   _combatStatComp;
@@ -80,8 +79,8 @@ public abstract class Unit : ScriptableObject {
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
 
-	// UnitGenerate가 ScriptableObject.CreateInstance 직후 IObjectResolver.Inject(this)로 채워준다.
-	// GoapAction/SkillAction 등 DI 컨테이너가 직접 닿지 않는 순수 C# 로직도 Unit을 통해 서비스에 접근한다.
+	// UnitGenerate가 ScriptableObject.CreateInstance 직후 IObjectResolver.Inject(this)로 채워준다 —
+	// DI 컨테이너가 직접 닿지 않는 순수 C# 로직도 Unit을 통해 서비스에 접근한다.
 	[Inject] private UnitGenerate _unitGenerate;
 	[Inject] private VFXManager _vfxManager;
 	[Inject] private InputManager _inputManager;
@@ -89,8 +88,7 @@ public abstract class Unit : ScriptableObject {
 	[Inject] private HumanKnowledgeBase _knowledgeBase;
 
 	public UnitGenerate Generate => _unitGenerate;
-	// UIManager가 Haare ICustomPanel로 전환되며 VContainer에 등록되지 않아 [Inject] 불가 —
-	// BuildingControlPanel.Instance와 동일하게 정적 접근으로 대체.
+	// UIManager가 Haare ICustomPanel로 전환되며 VContainer에 등록되지 않아 [Inject] 불가 — 정적 접근으로 대체.
 	public UIManager UI => UIManager.Instance;
 	public VFXManager VFX => _vfxManager;
 	public InputManager InputMgr => _inputManager;
@@ -114,31 +112,27 @@ public abstract class Unit : ScriptableObject {
 	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쌓는 특수 유닛 여부
 	public bool isInterestTarget = false;  // 6-2장/18장 IsInterestTarget 플래그(이해도 상승에 따른 흥미도 감소 미적용)
 
-	// 방 인구수 점유량(5.2장 기준 1) — Room.CurrentPopulation이 IsPlayerMonsterFaction만 걸러
-	// 합산하므로 인류/야생 유닛의 값은 의미가 없다(플레이어 몬스터만 실제 사용).
+	// 방 인구수 점유량 — Room.CurrentPopulation이 IsPlayerMonsterFaction만 걸러 합산하므로 인류/야생 유닛의 값은 의미가 없다.
 	public int populationCost = 1;
 
-	// 2.1/3장 "현재 소속 방" — UnitFunction.OnUpdate가 매 프레임 실제 위치 기준으로 동기화한다
-	// (SyncRoomAffiliation 참고). 배회 몬스터(WildMonsterBehavior)는 동기화 대상이 아니라 항상 null.
+	// "현재 소속 방" — UnitFunction.OnUpdate가 매 프레임 실제 위치 기준으로 동기화한다. 배회 몬스터는 동기화 대상이 아니라 항상 null.
 	public Room currentRoom;
 
 	// 4장: 각 유닛(인류 관측자)이 대상별로 갖고 있는 개인 가중치 기록.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
 
-	// 가장 최근에 나에게 피해를 입힌 유닛 — 사망 시점(GameSession.RemoveDeadUnit)에서
-	// "누가 처치했는지"를 파악해 위험도/이해도 처치 이벤트(E_MONSTER_KILL_SELF 등)를 기록할 수 있게 해준다.
+	// 가장 최근에 나에게 피해를 입힌 유닛 — 사망 시점에 "누가 처치했는지"를 파악해 위험도/이해도 처치 이벤트를 기록할 수 있게 해준다.
 	public Unit lastAttacker;
 
-	// 4-14장: 함정 피해는 Unit이 아니라 InteractableObject가 가해자라 lastAttacker로 표현할 수 없어
-	// 별도 필드로 둔다 — PartyDeathSystem이 이 필드로 "몬스터 피해 vs 함정 피해"를 구분한다.
+	// 함정 피해는 Unit이 아니라 InteractableObject가 가해자라 lastAttacker로 표현할 수 없어 별도 필드로
+	// 둔다 — PartyDeathSystem이 이 필드로 "몬스터 피해 vs 함정 피해"를 구분한다.
 	public InteractableObject lastTrapAttacker;
 
-	// lastAttacker는 RecordHitWeightEvent의 인류-몬스터 교차 히트 전용 가드 때문에 몬스터끼리 킬에서는
-	// 항상 null이라, 진영 무관하게 "마지막 피해자"가 필요한 곳(방 소속 전환/처치 보상)은 이 필드를 쓴다.
+	// lastAttacker는 인류-몬스터 교차 히트 전용 가드 때문에 몬스터끼리 킬에서는 항상 null이라, 진영
+	// 무관하게 "마지막 피해자"가 필요한 곳(방 소속 전환/처치 보상)은 이 필드를 쓴다.
 	public Unit lastDamageDealer;
 
-	// "수상한 타일"로 추적 중인 적(관찰자) 수 — O(N) 순회 대신 O(1) 조회를 위해 ForceRollPerception이
-	// 증감시킨다. protected + 전용 증감 메서드로 캡슐화.
+	// "수상한 타일"로 추적 중인 적(관찰자) 수 — O(N) 순회 대신 O(1) 조회를 위해 ForceRollPerception이 증감시킨다.
 	protected int _suspiciousObserverCount;
 	public void IncrementSuspiciousObserverCount() => _suspiciousObserverCount++;
 	public void DecrementSuspiciousObserverCount() => _suspiciousObserverCount--;
@@ -174,8 +168,8 @@ public abstract class Unit : ScriptableObject {
 
 	// ─── 유닛 배치 시스템 롤백 완료 ───
 
-	// 웨이브 유닛이 다른 층으로 넘어가야 할 때 HumanWaveManager가 세팅 — Goal_UseStairs가 이 값이
-	// 있고 현재 층과 다르면 최우선으로 계단을 찾아 이동한다. Action_CrossStairs가 층을 넘기면 null로 되돌린다.
+	// 웨이브 유닛이 다른 층으로 넘어가야 할 때 HumanWaveManager가 세팅 — 있고 현재 층과 다르면 최우선으로
+	// 계단을 찾아 이동한다. Action_CrossStairs가 층을 넘기면 null로 되돌린다.
 	public int? pendingStairTargetFloor = null;
 	public Vector2Int? currentExplorationTarget = null;
 
@@ -184,41 +178,35 @@ public abstract class Unit : ScriptableObject {
 	public Unit        playerAttackTarget   = null;
 
 	// 플레이어가 지정한 공격 대상 오브젝트(코어/문) 위치 — playerAttackTarget과 동급이지만
-	// InteractableObject는 위치 기반으로 추적한다. 대상이 무효화되면 스스로 null로 비운다.
+	// InteractableObject는 위치 기반으로 추적한다.
 	public Vector3Int? playerAttackObjectTarget = null;
 
-	// 대기 상태(IdleFSMState)에서 야생 몬스터가 주변을 배회할 기준점 — 스폰된 좌표. GameSession.
-	// SpawnWildRoomGuards/WildBaseSpawnerComponent.SpawnMonster가 생성 직후 한 번 세팅 후 불변.
+	// 대기 상태(IdleFSMState)에서 야생 몬스터가 주변을 배회할 기준점 — 스폰 직후 한 번 세팅 후 불변.
 	public Vector2Int? summonPosition = null;
 
-	// IdleFSMState.OnEnter가 매번 재계산하는 배회 기준점(위 summonPosition, 없으면 진입 시점 위치)과
-	// 다음 1칸 이동이 허용되는 시각(Time.time 기준) — 상태 전환마다 새로 계산되므로 마지막 값만 보관.
+	// IdleFSMState.OnEnter가 매번 재계산하는 배회 기준점과 다음 1칸 이동이 허용되는 시각 — 상태 전환마다 새로 계산되므로 마지막 값만 보관.
 	public Vector2Int? idleAnchorPosition = null;
 	public float idleNextMoveTime = 0f;
 
-	// "집결 및 정지" 명령 — 지정 위치로 이동 후 정지. 이동이 끝나는 순간
-	// (PlayerCommandFSMState.CompletePlayerCommand) 이 플래그를 보고 isHalted로 전환한다.
+	// "집결 및 정지" 명령 — 지정 위치로 이동 후 정지. 이동이 끝나는 순간 이 플래그를 보고 isHalted로 전환한다.
 	public bool pendingHaltOnArrival = false;
 
-	// "정지"(동상) 상태 — 켜지면 UnitFSM.SelectState가 무조건 HaltFSMState로 고정, 완전 무반응
-	// (공격/스킬/회피 없음). 플레이어의 새 명령이나 "명령 취소"로만 해제된다.
+	// "정지"(동상) 상태 — 켜지면 UnitFSM.SelectState가 무조건 HaltFSMState로 고정, 완전 무반응(공격/
+	// 스킬/회피 없음). 플레이어의 새 명령이나 "명령 취소"로만 해제된다.
 	public bool isHalted = false;
 
-	// "제자리 공격" 명령 — 이동이 걸리는 순간 함께 true가 된다. 이동 완료
-	// (PlayerCommandFSMState.CompletePlayerCommand)가 이 플래그를 보고 isStandGroundAttack으로 전환한다.
+	// "제자리 공격" 명령 — 이동이 걸리는 순간 함께 true가 된다. 이동 완료가 이 플래그를 보고 isStandGroundAttack으로 전환한다.
 	public bool pendingStandGroundOnArrival = false;
 
 	// 켜지면 UnitFSM.SelectState가 무조건 StandGroundAttackFSMState로 고정 — 이동은 절대 하지 않지만
-	// 사거리 내 적은 공격한다(정지·완전 무반응과 다름). 플레이어의 새 명령이나 "명령 취소"로만 해제.
+	// 사거리 내 적은 공격한다(정지·완전 무반응과 다름).
 	public bool isStandGroundAttack = false;
 
-	// 유닛이 영구히 고정된 개체임을 뜻하는 플래그(보스 골렘용) — isHalted/isStandGroundAttack과 달리
-	// 명령 취소로 풀리지 않는 스폰 시점 고정 성질이다. 효과는 isStandGroundAttack과 동일(이동 없이
-	// 사거리 내 적 공격). walkSpeed=0은 이동 가능 여부와 무관하므로 고정 유닛은 반드시 이 플래그를 써야 한다.
+	// 유닛이 영구히 고정된 개체임을 뜻하는 플래그(보스 골렘용) — 명령 취소로 풀리지 않는 스폰 시점 고정
+	// 성질이다. 효과는 isStandGroundAttack과 동일하며, walkSpeed=0은 이동 가능 여부와 무관하므로 고정 유닛은 반드시 이 플래그를 써야 한다.
 	public bool isImmobile = false;
 
-	// 전방위(360도) 시야(보스 골렘용) — 시야각/인지각 제한을 해제한다(거리/차폐 판정은 그대로).
-	// isImmobile 유닛은 자리를 못 옮겨 등 뒤 적을 영영 인지 못하는 문제를 이걸로 우회한다.
+	// 전방위(360도) 시야(보스 골렘용) — 시야각/인지각 제한을 해제한다. isImmobile 유닛이 자리를 못 옮겨 등 뒤 적을 영영 인지 못하는 문제를 이걸로 우회한다.
 	public bool hasOmnidirectionalVision = false;
 
 	public Vector3Int? playerInteractTarget = null;
@@ -227,8 +215,6 @@ public abstract class Unit : ScriptableObject {
 	// 코어/문 자동 파괴 접근 중 "인접도 못 하고 대체 자리도 없는" 상태가 몇 틱째 이어지는지 — 단 1틱
 	// 실패만으로 경계로 전환하면 파괴↔경계가 매 틱 뒤집히므로, 연속 일정 틱 이상 막혀야 포기한다.
 	public int tacticalObjectAttackStuckTurns = 0;
-
-	// Encapsulated command setters (2026-08-22 refactoring)
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
 		MovementAlgorithm?.ClearCache();
@@ -252,8 +238,8 @@ public abstract class Unit : ScriptableObject {
 		ClearAttackObjectTarget();
 		isHalted = false;
 		isStandGroundAttack = false;
-		// RoomConfinedMovement.IsTileWalkable의 "플레이어 명령 중이면 방 경계·문 타일 제한을 우회"
-		// 예외가 오직 이 플래그만 본다 — 빠지면 우클릭 공격 명령해도 자기 진영 문 타일조차 못 밟는다.
+		// RoomConfinedMovement의 "플레이어 명령 중이면 방 경계·문 타일 제한을 우회" 예외가 오직 이
+		// 플래그만 본다 — 빠지면 우클릭 공격 명령해도 자기 진영 문 타일조차 못 밟는다.
 		isManualMoveCommand = true;
 	}
 
@@ -334,48 +320,40 @@ public abstract class Unit : ScriptableObject {
 
 
 
-	// ─── 인지·정보판정·실패처리 시스템 관련 (02_인지·정보판정·실패처리_시스템_v0.2) ───
-	// 4장: 대상별 지속 인지 상태. 트리거 시점에만 갱신되며, personalSpottedEnemies와 달리
-	// UpdateFOV 호출마다 Clear하지 않는다.
+	// ─── 인지·정보판정·실패처리 시스템 관련 ───
+	// 대상별 지속 인지 상태는 트리거 시점에만 갱신되며, personalSpottedEnemies와 달리 UpdateFOV 호출마다 Clear하지 않는다.
 
+	// 수상한 타일 확인 대기 중인 인류가 하나라도 있으면 경계 상태 시 감지 보정과 시야 방향 전환 우선순위의 Alert 사유가 이 값을 참조한다.
 
-	// 20장: 수상한 타일 확인 대기 중인 인류가 하나라도 있으면 경계 상태 시 10% 감지 보정(+20)과
-	// 01-A 10장/11장 시야 방향 전환 우선순위의 Alert 사유가 이 값을 참조한다.
-
-	// 9장: 정신력 보정(인류 전용, 몬스터는 항상 0) — PerceptionMath.MentalCorrectionForHuman 참고.
+	// 정신력 보정(인류 전용, 몬스터는 항상 0) — PerceptionMath.MentalCorrectionForHuman 참고.
 	public bool CanPerceive => StatusEffects.State.stunDuration <= 0f;
 	public float GetMentalVisibilityCorrection() => (this is Human) ? PerceptionMath.MentalCorrectionForHuman(BaseStat.mental, BaseStat.maxMental) : 0f;
 
-	// 01장/7장, 01-A 7장: 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록. 매 UpdateFOV마다
-	// 비우고 다시 채우는 임시 스냅샷 — 목표/경로 재설정 문서가 아직 없어 완전히 소비하는 곳은 없다.
+	// 시야 범위 안 + 인지 범위 밖 + 비어있지 않은 타일 목록. 매 UpdateFOV마다 비우고 다시 채우는 임시
+	// 스냅샷 — 목표/경로 재설정 문서가 아직 없어 완전히 소비하는 곳은 없다.
 
-
-	// 01-A 9장: 공격 시도 중인 유닛은 고정 시간(5초) 동안 가시성이 +10 상승한다. 재공격해도
-	// 지속시간만 초기화되고 상승치는 누적되지 않는다.
+	// 공격 시도 중인 유닛은 고정 시간 동안 가시성이 상승한다. 재공격해도 지속시간만 초기화되고 상승치는 누적되지 않는다.
 	public bool IsVisibilityBoosted => VisionStat.attackVisibilityBoostTimer > 0f;
 	public void TriggerAttackVisibilityBoost() => VisionStat.attackVisibilityBoostTimer = VisionMath.AttackVisibilityBoostDuration;
-	// 4-6장: 수상한 타일 추적 중 이동 1회당 +20씩(개별 5초 유지) 누적된 값을 그대로 더한다.
+	// 수상한 타일 추적 중 이동 1회당 누적된 값을 그대로 더한다.
 	public float GetFinalVisibility() => VisionMath.FinalVisibility(VisionStat.baseVisibility, VisionStat.stealth, IsVisibilityBoosted,
 		VisionStat.suspiciousMoveBoostTimers.Count * ExplorationMath.SuspiciousTargetVisibilityBoostPerMove);
 
-	// ─── 03_탐색반응·경계·조사·함정대응_시스템 관련 ────────────────────────────
-	// 함정 대응(9장)/경계(4장)는 13장 표에 따라 인류/몬스터 공통이라 base Unit에 둔다. 조사(5장)/
-	// 대기(10장)/보호 포메이션(6장)은 인류 전용이라 Human 쪽에 둔다.
+	// ─── 탐색반응·경계·조사·함정대응 시스템 관련 ────────────────────────────
+	// 함정 대응/경계는 인류/몬스터 공통이라 base Unit에 둔다. 조사/대기/보호 포메이션은 인류 전용이라 Human 쪽에 둔다.
 	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
 	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
 
 	// 코어/문 공격 채널링 공용 필드 — 자동(코어 전용, 인류만)/플레이어 명령(코어+문) 양쪽이 인접 도착
-	// 시 채우며, 값이 있는 동안 OnUpdate가 매 프레임 CoreHp/DoorHp를 깎는다. 직접 대입하지 말고 항상
+	// 시 채우며, 값이 있는 동안 OnUpdate가 매 프레임 깎는다. 직접 대입하지 말고 항상
 	// SetAttackObjectTarget/ClearAttackObjectTarget을 거칠 것 — 파괴 VFX 시작/종료가 물려 있다.
 	public Vector3Int? currentAttackObjectTarget;
 
-	// 파괴 채널링 VFX 인스턴스(VFX_BlockBreaking.prefab) — SetAttackObjectTarget/
-	// ClearAttackObjectTarget만 건드린다.
+	// 파괴 채널링 VFX 인스턴스 — SetAttackObjectTarget/ClearAttackObjectTarget만 건드린다.
 	private GameObject _attackObjectVfxInstance;
 
-	// currentAttackObjectTarget을 설정하는 유일한 진입점 — 채널링 중 매 틱 같은 값이 재대입될 수
-	// 있어, 값이 실제로 바뀔 때만 VFX를 새로 시작해 중복 재생을 막는다(looping이라 ClearAttackObjectTarget
-	// 호출 시에만 멈춘다).
+	// currentAttackObjectTarget을 설정하는 유일한 진입점 — 채널링 중 매 틱 같은 값이 재대입될 수 있어,
+	// 값이 실제로 바뀔 때만 VFX를 새로 시작해 중복 재생을 막는다(looping이라 Clear 호출 시에만 멈춘다).
 	public void SetAttackObjectTarget(Vector3Int pos)
 	{
 		if (currentAttackObjectTarget == pos) return;
@@ -384,8 +362,7 @@ public abstract class Unit : ScriptableObject {
 		_attackObjectVfxInstance = VFXManager.SpawnBlockBreakingVfx(this, pos);
 	}
 
-	// 코어/문 파괴 채널링 종료 — 파괴 VFX는 즉시 멈추지만 체력 진행 막대는 숨기지 않는다(회복 지연시간
-	// 동안 마지막 체력을 그대로 보여줘야 함). 막대 숨김은 회복이 실제로 시작되는 순간 처리된다.
+	// 코어/문 파괴 채널링 종료 — 파괴 VFX는 즉시 멈추지만 체력 진행 막대는 숨기지 않는다(회복이 실제로 시작되는 순간 처리된다).
 	public void ClearAttackObjectTarget()
 	{
 		StopAttackObjectVfx();
@@ -400,8 +377,7 @@ public abstract class Unit : ScriptableObject {
 	}
 
 	// 유닛이 죽거나 소환 해제될 때 반드시 호출 — 진행 중이던 "월드 오브젝트 쪽" 임시 시각 요소는 유닛이
-	// 살아서 매 프레임 OnUpdate를 돌아야만 정리되는 구조라 갑자기 사라지는 경로에서는 명시적으로
-	// 정리해야 한다. 새 "유닛 종속 임시 비주얼"을 추가하면 여기도 같이 정리할 것.
+	// 살아서 매 프레임 OnUpdate를 돌아야만 정리되는 구조라 갑자기 사라지는 경로에서는 명시적으로 정리해야 한다.
 	public void ClearTransientWorldVisuals()
 	{
 		ClearAttackObjectTarget();
@@ -418,14 +394,13 @@ public abstract class Unit : ScriptableObject {
 		}
 	}
 
-	// 5장/9-6장: 조사·함정 해제 중 시야/인지 범위 50% 페널티(각 문서 동일 비율) — UnitFunction.
-	// UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
+	// 조사·함정 해제 중 시야/인지 범위 50% 페널티 — UnitFunction.UpdateFOV가 시야·인지 거리/인지각 계산에 곱한다.
 	public bool ExplorationPenaltyActive =>
 		(currentTrapInteraction != null && currentTrapInteraction.PenaltyActive) ||
 		(this is Human human && human.currentInvestigation != null && human.currentInvestigation.PenaltyActive);
 
-	// 9-7장/5-6장 "위협 콜라이더를 인지함" 중단 조건 — 텔레그래프(currentThreat)는 경고 목적이라
-	// 02문서 확률표를 다시 거치지 않고 인지 범위 안의 적이 지금 공격 예고 중인지 raw로 확인한다.
+	// "위협 콜라이더를 인지함" 중단 조건 — 텔레그래프(currentThreat)는 경고 목적이라 확률표를 다시
+	// 거치지 않고 인지 범위 안의 적이 지금 공격 예고 중인지 raw로 확인한다.
 	public bool HasPerceivedThreatCollider()
 	{
 		float perceptionDistance = VisionMath.AwarenessDistance(spotting);
@@ -495,8 +470,8 @@ public abstract class Unit : ScriptableObject {
 		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
 	}
 
-	// 스탯 적용은 이제 UnitGenerate가 스폰될 프리팹의 UnitVisualDefinition.ApplyStatsTo(unit)이
-	// SetupStats() 호출 전에 담당한다. 여기서는 그 기본 스탯으로부터 파생 스탯만 계산한다.
+	// 스탯 적용은 UnitVisualDefinition.ApplyStatsTo(unit)이 SetupStats() 호출 전에 담당한다.
+	// 여기서는 그 기본 스탯으로부터 파생 스탯만 계산한다.
 	public void SetupStats()
 	{
 		CalculateDerivedStats();
@@ -541,8 +516,8 @@ public abstract class Unit : ScriptableObject {
 		Vector3Int oldKey = new Vector3Int(position.x, position.y, currentFloor);
 
 		// Dodge/Blink는 A*를 거치지 않고 이 메서드로 직접 위치를 옮겨 RoomConfinedMovement의 방 경계
-		// 검사를 우회하므로, 여기서 같은 규칙(플레이어 명령 중 아니면 방 밖 이동 취소)을 다시 적용한다.
-		// 문 타일은 한쪽 방 소속으로 잡혀 경계 검사만으로 안 걸러지므로 IsDoorTile로 추가 차단한다.
+		// 검사를 우회하므로, 여기서 같은 규칙을 다시 적용한다. 문 타일은 한쪽 방 소속으로 잡혀
+		// 경계 검사만으로 안 걸러지므로 IsDoorTile로 추가 차단한다.
 		if (MovementAlgorithm is RoomConfinedMovement && !isManualMoveCommand
 			&& _gameSession.roomGrid.TryGetValue(oldKey, out Room myRoom))
 		{
@@ -553,8 +528,8 @@ public abstract class Unit : ScriptableObject {
 				return;
 		}
 
-		// 최종 안전장치 — ForceMove는 A*/CanMove를 거치지 않는 예외 이동(회피/점멸)이라 점유 검사를
-		// RegisterUnitPos에서 다시 거치고, 실패하면 이동을 취소해 원래 자리에 남는다.
+		// ForceMove는 A*/CanMove를 거치지 않는 예외 이동(회피/점멸)이라 점유 검사를 RegisterUnitPos에서
+		// 다시 거치고, 실패하면 이동을 취소해 원래 자리에 남는다.
 		_gameSession.UnregisterUnitPos(this, position);
 		Vector2Int oldPos = position;
 		position = targetPos;
@@ -567,8 +542,8 @@ public abstract class Unit : ScriptableObject {
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
 
-	// 01-A 11장 시야 방향 전환 우선순위 결정 — 이번 틱 후보들 중 가장 급한 방향으로 currentDir를
-	// 갱신한다. ExecuteAction() 이후, UpdateFOV() 이전에 호출해야 이동 갱신값을 기본값으로 쓸 수 있다.
+	// 시야 방향 전환 우선순위 결정 — 이번 틱 후보들 중 가장 급한 방향으로 currentDir를 갱신한다.
+	// ExecuteAction() 이후, UpdateFOV() 이전에 호출해야 이동 갱신값을 기본값으로 쓸 수 있다.
 	public abstract void ResolveVisionDirection();
 
 	private UnitFSM _fsm;
@@ -613,45 +588,41 @@ public class Human : UnitFunction
         FactionBehavior = new HumanFactionBehavior();
     }
 
-	// 개인 지도(오브젝트/몬스터 목격/방 위험도·흥미도) — 지도 기록 정리 문서 기준 "지도는
-	// 인류만 갖고 있어야 한다"는 지침에 따라 Human에만 둔다(Monster/base Unit에는 없음).
+	// 개인 지도(오브젝트/몬스터 목격/방 위험도·흥미도) — "지도는 인류만 갖고 있어야 한다"는 지침에 따라 Human에만 둔다.
 	public PersonalMapKnowledge personalMap => Memory.personalMap;
 	public List<string> collectedObjects    => Memory.collectedObjects;
 
-	// 이 유닛에 한정된 파티(있다면) — GameSession.CreateParty()가 채워준다. 파티 없이 스폰된 인류는
-	// null로 남아 파티 관련 산정에서 자연히 제외된다.
+	// 이 유닛에 한정된 파티(있다면) — GameSession.CreateParty()가 채워준다. 파티 없이 스폰된 인류는 null로 남아 파티 관련 산정에서 자연히 제외된다.
 	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
-	// 03문서 5장(조사)/10장(대기)/6장(보호 포메이션) — 인류 전용(13장 표, 몬스터는 "컨셉에 따라"만
-	// 명시돼 있어 실제 컨셉 시스템이 생기기 전까지는 인류만 구현). null이면 각각 진행 중 아님.
+	// 조사/대기/보호 포메이션 — 인류 전용(몬스터는 "컨셉에 따라"만 명시돼 있어 컨셉 시스템이 생기기
+	// 전까지는 인류만 구현). null이면 각각 진행 중 아님.
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
 	public FormationState     currentFormation;
-	// 07문서 7장/07-A 9장(2026-07-31 신규): 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
+	// 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
 
-	// 던전 입구 구조 — DungeonEntranceSystem이 0층 숨은 스폰 청크→1x3 입구→계단까지 파티 진형을
-	// 직접(GOAP 우회) 제어하는 동안 켜진다. 켜진 동안 NavigationFSMState의 자유탐색이 끼어들지 않는다.
+	// 던전 입구 구조 — DungeonEntranceSystem이 0층 숨은 스폰 청크→1x3 입구→계단까지 파티 진형을 직접
+	// 제어하는 동안 켜진다. 켜진 동안 NavigationFSMState의 자유탐색이 끼어들지 않는다.
 	public bool isInDungeonEntranceSequence = false;
 
-	// 6-1장 두 번째 조건 + 8-2장 판정에 쓴다 — 함정 대응이나 조사 중이면(=호위할 만한 상황이면) true.
-	// 함정 쪽은 "함정 위치에 실제로 도달했을 때"만 true다 — 9-5장 순서상 이동 중(도착 전)에 보호
-	// 포메이션이 형성되면 안 되기 때문.
+	// 보호 포메이션 형성 판정에 쓴다 — 함정 대응이나 조사 중이면(=호위할 만한 상황이면) true.
+	// 함정 쪽은 "함정 위치에 실제로 도달했을 때"만 true다 — 이동 중(도착 전)엔 형성되면 안 되기 때문.
 	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
 
 	private bool IsActivelyHandlingTrap()
 	{
 		var trap = currentTrapInteraction;
 		if (trap == null) return false;
-		// 도달 판정 반경은 TacticalFSMState.MoveToTrap과 정확히 일치해야 한다(Chebyshev ≤ 1) —
-		// 어긋나면 "이동은 끝났는데 아직 상호작용 중이 아닌" 프레임이 생긴다.
+		// 도달 판정 반경은 TacticalFSMState.MoveToTrap과 정확히 일치해야 한다 — 어긋나면 "이동은
+		// 끝났는데 아직 상호작용 중이 아닌" 프레임이 생긴다.
 		Vector2Int trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		return Mathf.Max(Mathf.Abs(position.x - trapPos.x), Mathf.Abs(position.y - trapPos.y)) <= 1;
 	}
 
-	// 8-2장: "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계". 같은 파티에서
-	// 이 유닛을 호위 중인 멤버 중 이번 턴 피격당한 사람이 있는지 확인 — 호위하는 쪽만 참조를 들고
-	// 있어 역방향으로 순회한다(양방향 리스트 관리를 피하기 위함).
+	// "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계". 같은 파티에서 이 유닛을
+	// 호위 중인 멤버 중 이번 턴 피격당한 사람이 있는지 확인 — 호위하는 쪽만 참조를 들고 있어 역방향으로 순회한다.
 	public bool AnyEscortHitThisTurn()
 	{
 		if (party == null) return false;
@@ -663,10 +634,9 @@ public class Human : UnitFunction
 		return false;
 	}
 
-	// Goal_Investigate.GetPriority와 Action_MoveToInvestigateTarget이 공유하는 헬퍼 — 5-2장 대상(비전투
-	// 오브젝트) 중 함정이 아니고 이미 자동 확인 완료된 시체/전멸흔적도 아닌, 아직 조사되지 않은 이
-	// 유닛이 아는 가장 가까운 오브젝트를 찾는다. 여러 호출부가 각자 전체를 훑어 프레임 드랍의 원인이었
-	// 으므로 프레임 단위로 캐시한다.
+	// Goal_Investigate.GetPriority와 Action_MoveToInvestigateTarget이 공유하는 헬퍼 — 함정이 아니고
+	// 이미 자동 확인 완료된 시체/전멸흔적도 아닌, 아직 조사되지 않은 가장 가까운 오브젝트를 찾는다.
+	// 여러 호출부가 각자 전체를 훑어 프레임 드랍의 원인이었으므로 프레임 단위로 캐시한다.
 	private int _investigateTargetCacheFrame = -1;
 	private InteractableObject _investigateTargetCache;
 
@@ -706,12 +676,12 @@ public class Human : UnitFunction
 				if (tag == "Object/Passable/Core") isCore = true;
 				if (tag.Contains("Door")) isDoor = true;
 			}
-			// 03문서 5-2장: 파티원 시체는 조사 대상 유지, 몬스터 시체/전멸 흔적은 제외(CastRay가 인지
-			// 즉시 단일 단계로 확인 완료). 코어는 리더 전용 조사 대상이라 제외, 문은 통행용 배경 오브젝트라 제외.
+			// 파티원 시체는 조사 대상 유지, 몬스터 시체/전멸 흔적은 제외(CastRay가 인지 즉시 확인
+			// 완료). 코어는 리더 전용 조사 대상이라 제외, 문은 통행용 배경 오브젝트라 제외.
 			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
 			if (isTrap || isExcludedTrace || isCore || isDoor) continue;
-			// 07문서 10장: 재전파 수신자는 같은 대상에 중복 조사·해제 목표를 선택하지 않는다 — 다른
-			// 파티원이 이미 이 오브젝트를 currentInvestigation으로 잡고 있으면 후보에서 뺀다.
+			// 재전파 수신자는 같은 대상에 중복 조사·해제 목표를 선택하지 않는다 — 다른 파티원이 이미
+			// 이 오브젝트를 currentInvestigation으로 잡고 있으면 후보에서 뺀다.
 			if (IsInvestigationClaimedByPartyMember(obj.Id)) continue;
 
 			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
@@ -731,7 +701,7 @@ public class Human : UnitFunction
 		return false;
 	}
 
-	// 5-3장 5가지 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택/도달은 위
+	// 조사 개시 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택/도달은 위
 	// FindInvestigateTarget과 Action_MoveToInvestigateTarget.Execute의 이동 로직이 담당).
 	public bool HasReachableInvestigateTarget()
 	{
@@ -739,8 +709,8 @@ public class Human : UnitFunction
 		return FindInvestigateTarget() != null;
 	}
 
-	// 6-1장 두 번째 조건 — 상호작용 유닛을 시야에서 직접 확인한 것만으로는 참여하지 않고,
-	// PropagationSystem.NotifyInteractionStarted가 전파한 정보를 실제로 받은 파티원만 후보가 된다.
+	// 상호작용 유닛을 시야에서 직접 확인한 것만으로는 참여하지 않고, PropagationSystem.
+	// NotifyInteractionStarted가 전파한 정보를 실제로 받은 파티원만 후보가 된다.
 	public Human FindDirectlyVisibleInteractingAlly()
 	{
 		if (party == null || Session == null) return null;
@@ -753,8 +723,7 @@ public class Human : UnitFunction
 			if (m == null || m == this || m.hp <= 0 || m.currentFloor != currentFloor) continue;
 			if (!m.IsInteracting) continue;
 			if (!PropagationSystem.HasReceivedInteractionNotice(this, m)) continue;
-			// 이미 다른 유닛을 호위 중이면 그 대상이 아닌 새 상호작용 유닛으로는 갈아타지 않는다
-			// (6-2장 "기존 포메이션 유지").
+			// 이미 다른 유닛을 호위 중이면 그 대상이 아닌 새 상호작용 유닛으로는 갈아타지 않는다("기존 포메이션 유지").
 			if (currentFormation != null && currentFormation.EscortTarget != null && currentFormation.EscortTarget != m) continue;
 
 			float d = Vector2Int.Distance(position, m.position);
@@ -763,8 +732,7 @@ public class Human : UnitFunction
 		return best;
 	}
 
-	// 6-4/6-5장 근접·원거리 배치 분기 — Actions.cs의 Action_EngageEnemy.ExecuteSkillActionBased가
-	// 이미 쓰는 "최대 스킬 사거리" 판정(HitRange>=4 기준)을 그대로 재사용한다.
+	// 근접·원거리 배치 분기 — Action_EngageEnemy.ExecuteSkillActionBased가 이미 쓰는 "최대 스킬 사거리" 판정을 그대로 재사용한다.
 	public bool IsRangedFormationRole()
 	{
 		var skills = Generate != null ? Generate.GetSkills(unitType.typeName) : null;
@@ -777,8 +745,8 @@ public class Human : UnitFunction
 		return maxRange >= ExplorationMath.FormationRangedHitRangeThreshold;
 	}
 
-	// 6-2장 "기존 포메이션 유지" + 6-1장 "직접 시야 확인" 트리거 — Goal_ProtectiveFormation.GetPriority와
-	// GoapWorldState.Build가 같은 판정을 따로 구현하지 않도록 공유한다(0-1절 "공유 원칙").
+	// "기존 포메이션 유지" + "직접 시야 확인" 트리거 — Goal_ProtectiveFormation.GetPriority와
+	// GoapWorldState.Build가 같은 판정을 따로 구현하지 않도록 공유한다.
 	public bool HasProtectiveFormationNeed()
 	{
 		if (currentFormation != null && currentFormation.EscortTarget != null && currentFormation.EscortTarget.IsInteracting) return true;
@@ -786,17 +754,15 @@ public class Human : UnitFunction
 	}
 
 	// GoapAction.MoveToEscortSlot과 동일한 배치 공식 — atEscortSlot 판정이 실제 이동 목표와 어긋나지
-	// 않도록 공유한다. 03문서 6-4장(근접="전방")/6-5장(원거리="후방")이라 부호가 반대다.
-	// facing.x/y는 GetDirVector가 이미 -1/0/1로 정규화해서 주므로 그대로 캐스트한다 — Mathf.Sign(0)이
-	// 1을 반환하는 특성 때문에 Sign()을 쓰면 수직/수평 정면에서 옆으로 밀리는 버그가 있다.
+	// 않도록 공유한다. 근접="전방"/원거리="후방"이라 부호가 반대다. facing.x/y는 GetDirVector가 이미
+	// -1/0/1로 정규화해서 주므로 그대로 캐스트한다 — Mathf.Sign(0)이 1을 반환해 Sign()을 쓰면 수직/수평 정면에서 밀리는 버그가 있다.
 	public Vector2Int GetEscortSlotPosition(Human escortTarget, float backDistance)
 	{
 		Vector2 facing = GetDirVector(escortTarget.currentDir);
 		if (facing == Vector2.zero) facing = Vector2.down;
 
 		// 상호작용 유닛이 아직 이동 중일 때 근접 호위를 "전방"에 두면 좁은 통로에서 서로 길을 막는
-		// 교착이 생긴다 — 이동 중엔 후방(따라가기)으로 배치하고, 도착 후 실제 상호작용이 시작돼야
-		// 문서대로의 전방/후방 배치를 적용한다.
+		// 교착이 생긴다 — 이동 중엔 후방(따라가기)으로 배치하고, 도착 후 실제 상호작용이 시작돼야 전방/후방 배치를 적용한다.
 		bool activelyInteracting = IsEscortTargetActivelyInteracting(escortTarget);
 
 		Vector2Int offset;
@@ -816,7 +782,7 @@ public class Human : UnitFunction
 		Vector2Int slot = escortTarget.position + offset;
 
 		// "전방(근접 배치)" 슬롯이 상호작용 오브젝트 자신의 타일과 겹칠 수 있어(Passable이라 밟을 수
-		// 있음), 6-4장 폴백 순서(전방→좌우)대로 겹치면 한 칸 더 물러나고 그래도 겹치면 옆으로 민다.
+		// 있음), 폴백 순서(전방→좌우)대로 겹치면 한 칸 더 물러나고 그래도 겹치면 옆으로 민다.
 		Vector2Int? interactionPos = GetInteractionObjectPosition(escortTarget);
 		if (interactionPos.HasValue && slot == interactionPos.Value)
 		{
@@ -827,8 +793,8 @@ public class Human : UnitFunction
 		return slot;
 	}
 
-	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행)을 시작했는지 — 아직
-	// 목적지로 "이동 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
+	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행)을 시작했는지 — 아직 목적지로 "이동
+	// 중"인 단계와 구분한다(위 GetEscortSlotPosition 주석 참고).
 	private bool IsEscortTargetActivelyInteracting(Human escortTarget)
 	{
 		if (escortTarget.currentInvestigation != null) return escortTarget.currentInvestigation.PenaltyActive;
@@ -836,8 +802,7 @@ public class Human : UnitFunction
 		return false;
 	}
 
-	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치" —
-	// 조사/함정 중 진행 중인 것을 조회한다.
+	// 위 GetEscortSlotPosition이 겹침 판정에 쓰는 "이 유닛이 지금 상호작용 중인 오브젝트의 위치".
 	private Vector2Int? GetInteractionObjectPosition(Human escortTarget)
 	{
 		if (escortTarget.currentInvestigation != null)
@@ -861,8 +826,8 @@ public class Monster : UnitFunction
         FactionBehavior = new PlayerMonsterBehavior();
     }
 
-	// 몬스터용 개인 지도(2026-08-20, 사용자 요청) — Human.personalMap과 동일한 노출 패턴, 다만
-	// 담는 내용은 지형 밝히기 + 함정 위치뿐(가중치 없음). UnitFunction.CastRay가 채운다.
+	// 몬스터용 개인 지도 — Human.personalMap과 동일한 노출 패턴, 다만 담는 내용은 지형 밝히기 + 함정
+	// 위치뿐(가중치 없음). UnitFunction.CastRay가 채운다.
 	public MonsterMapKnowledge monsterMap => Memory.monsterMap;
 
 	public override void JudgeState()

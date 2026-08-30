@@ -3,12 +3,9 @@ using UnityEngine;
 using Cysharp.Threading.Tasks;
 
 // 파티클 프리팹에 직접 붙이는 독립 컴포넌트 — 그래픽 작업자가 프리팹 단위로 "유지 시간"을 직접
-// 조정할 수 있게 한다. Unit/UnitGenerate/VFXManager 등 유닛 파이프라인을 참조하지 않는 순수 컴포넌트라
-// 그쪽이 나중에 새로 설계돼도 그대로 재사용 가능(같은 원칙을 따르는 AnimationEventVfxSpawner 참고).
-//
-// 흐름: 재생 시작 → emissionDuration 경과 → 새 파티클 생성만 중단(Stop+StopEmitting, 이미 나온
-// 파티클은 수명대로 자연 소멸) → 전부 사라지면(IsAlive==false) 비활성화. 재생 시간을 추정해 통째로
-// SetActive(false)하는 방식은 진행 중이던 파티클이 화면에서 뚝 끊겨 보이는 문제가 있어 피한다.
+// 조정할 수 있게 한다(유닛 파이프라인 비참조, AnimationEventVfxSpawner와 같은 원칙). 흐름: 재생 시작 →
+// emissionDuration 경과 → 새 파티클 생성만 중단(이미 나온 파티클은 자연 소멸) → 전부 사라지면 비활성화
+// — 재생 시간을 추정해 통째로 SetActive(false)하면 진행 중이던 파티클이 뚝 끊겨 보이는 문제를 피한다.
 [RequireComponent(typeof(ParticleSystem))]
 public class ParticleLifetimeController : MonoBehaviour
 {
@@ -31,9 +28,8 @@ public class ParticleLifetimeController : MonoBehaviour
         _cts = null;
     }
 
-    // 파티클 재생 직후(Play() 호출 다음) 스폰한 쪽이 호출한다. onFinished를 주지 않으면 파티클이
-    // 완전히 사라진 뒤 스스로 SetActive(false)한다(독립 실행 시 기본 동작). 준다면 그 대신 호출자가
-    // 뒷정리(예: 오브젝트 풀 반납)를 책임진다 — VFXManager가 풀링된 인스턴스에 이 방식으로 연결한다.
+    // 파티클 재생 직후 스폰한 쪽이 호출한다. onFinished를 주지 않으면 완전히 사라진 뒤 스스로
+    // SetActive(false)하고, 준다면 호출자가 뒷정리(예: 풀 반납)를 책임진다 — VFXManager가 이렇게 연결한다.
     public void BeginLifecycle(System.Action onFinished = null)
     {
         _cts?.Cancel();

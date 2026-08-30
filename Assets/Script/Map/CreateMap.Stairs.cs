@@ -1,13 +1,6 @@
 // ============================================================================
-// CreateMap.Stairs.cs — 0층 생성 · 계단 · Footprint · 메타데이터
-// ----------------------------------------------------------------------------
-// 역할: 0층(로비) 생성(GenerateFloor0), 계단 배치(PlaceStairs),
-//       보스방 계단 배치(PlaceBossRoomStair),
-//       계단 후 Gate 폭 갱신(UpdateGateWidthsAfterStairs),
-//       Footprint 할당(AssignFootprint — Phase 2에서 호출),
-//       점령/위험도/시야/이해도/지형 초기화(InitOccupationAndDanger,
-//       InitWeightVisibilityLandform — Phase 3에서 호출).
-// 단계: Phase 2(AssignFootprint) + Phase 3(메타데이터) + Post(0층/계단)
+// CreateMap.Stairs.cs — 0층(로비) 생성, 계단 배치·Gate 폭 갱신, Footprint 할당(Phase 2),
+// 점령/위험도/시야/이해도/지형 초기화(Phase 3)를 담당.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -33,8 +26,8 @@ public partial class CreateMap
                 c.roomId = lobbyId;
                 c.roomName = lobbyName;
                 c.roomRole = RoomRole.StartRoom;
-                // 점령 관련 초기 수치(2026-07-27 신규): 0층은 전체가 인류 소유로 시작한다.
-                c.occupationState = OccupationState.HumanControlled;
+                c.occupationState = OccupationState.HumanControlled; // 0층은 전체가 인류 소유로 시작
+
                 floor.chunks[x, y] = c;
             }
         }
@@ -75,8 +68,7 @@ public partial class CreateMap
         int w0 = f0.config.width;
         int h0 = f0.config.height;
 
-        // "중앙 행 최우측의 던전 계단"(문서 명시) — 최좌측 1칸은 숨은 스폰 청크(FloorConfigFactory
-        // 참고)라 계단은 그 반대편 끝(가시 영역의 가장 오른쪽)에 둔다.
+        // 최좌측 1칸은 숨은 스폰 청크라 계단은 그 반대편(가시 영역 가장 오른쪽)에 둔다.
         int stairX = w0 - 1;
         int stairY = h0 / 2;
         if (stairX < w0 && stairY < h0)
@@ -123,8 +115,7 @@ public partial class CreateMap
         LogHelper.Log(LogHelper.GAME, "CreateMap: Stairs placed on all floors (sequential structure).");
     }
 
-    // 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭을 확장
-    // Close 없이 더 넓은 폭으로 Open만 수행 (기존 열린 타일은 유지, 추가분만 확장)
+    // 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭을 확장 — Close 없이 Open만 수행해 기존 열린 타일은 유지하고 추가분만 확장.
     void UpdateGateWidthsAfterStairs()
     {
         for (int f = 1; f < map.floors.Length; f++)
@@ -163,8 +154,7 @@ public partial class CreateMap
                 {
                     int newWidth = Mathf.Clamp(requiredWidth, 2, 6);
 
-                    // ClosePassage 없이 더 넓은 폭으로 Open만 수행 — OpenPassage는 해당 범위를 Floor
-                    // 타일로 덮으므로 기존 열린 타일은 그대로, 추가분만 확장된다.
+                    // ClosePassage 없이 Open만 수행 — OpenPassage는 범위를 Floor 타일로 덮으므로 기존 열린 타일은 그대로다.
                     int actualWidth;
                     if (g.isHorizontal)
                     {
@@ -287,7 +277,7 @@ public partial class CreateMap
 
         c.stairTargetFloor = targetFloor;
 
-        // 2x2 계단 블록을 청크 중앙에 배치 — chunkSize=8이면 half=4, lo=3으로 로컬(3,3)~(4,4)가 된다.
+        // 2x2 계단 블록을 청크 중앙에 배치
         int half = floor.config.chunkSize / 2;
         int lo = half - 1;
         for (int tx = lo; tx <= half; tx++)
@@ -314,8 +304,7 @@ public partial class CreateMap
                 Chunks c = floor.chunks[x, y];
                 switch (c.roomRole)
                 {
-                    // 1층 시작방만 처음부터 PlayerControlled로 시작하고, 2층 이상은 일반 방과 동일하게
-                    // Neutral(야생)로 시작해서 실제로 싸워서 점령해야 한다.
+                    // 1층 시작방만 PlayerControlled로 시작, 2층 이상은 Neutral(야생)로 시작해 실제로 점령해야 한다.
                     case RoomRole.StartRoom:      c.occupationState = currentFloorIndex == 1 ? OccupationState.PlayerControlled : OccupationState.Neutral; break;
                     case RoomRole.BossRoom:       c.occupationState = OccupationState.Neutral; break;
                     case RoomRole.SubPurposeRoom: c.occupationState = OccupationState.Neutral; break;

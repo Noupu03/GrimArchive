@@ -3,10 +3,10 @@ using UnityEngine;
 using Haare.Util.Logger;
 using GrimArchive.Wave;
 
-// 전술 상태 — 제자리·국소 반응 행동 담당 (공황/함정/경계/조사/대기/포메이션).
-// FSM은 "적 있으면 Combat, 전술 조건 있으면 Tactical, 나머지는 Navigation"만 결정.
-// 세부 우선순위는 BT가 결정 — TacticalBehaviorPriorityConfig의 순서·활성화 여부로 구성.
-// 비주얼 스크립팅 전환 시: BuildBTNodes()의 각 항목이 BTNodeSO 인스턴스로 대응된다.
+// 전술 상태 — 제자리·국소 반응 행동 담당(공황/함정/경계/조사/대기/포메이션). FSM은 "적 있으면 Combat,
+// 전술 조건 있으면 Tactical, 나머지는 Navigation"만 결정하고, 세부 우선순위는 BT가
+// TacticalBehaviorPriorityConfig의 순서·활성화 여부로 구성한다. 비주얼 스크립팅 전환 시 BuildBTNodes()의
+// 각 항목이 BTNodeSO 인스턴스로 대응된다.
 public class TacticalFSMState : IFSMState
 {
 	private readonly BTNode _bt;
@@ -218,8 +218,7 @@ public class TacticalFSMState : IFSMState
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
-		// 피격·위협 인지 시 이 틱에 한해 조사 중단(5-6장) — 진행도 50% 손실도 같이 처리(검증 발견
-		// 2026-07-25 gap 수정, 위 CanDisarm과 동일한 이유/패턴).
+		// 피격·위협 인지 시 이 틱에 한해 조사 중단(5-6장) — 진행도 50% 손실도 같이 처리한다(CanDisarm과 동일 패턴).
 		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider())
 		{
 			ApplyInvestigateInterruptPenalty(human);
@@ -392,7 +391,7 @@ public class TacticalFSMState : IFSMState
 			if (unit is Human h) TrapPartySystem.RestartSelection(h, trap);
 			return BTStatus.Success;
 		}
-		// 2026-08-23 버그 수정: MoveToTrap과 동일한 이유로 완전히 막히면 근처 빈 칸으로 우회 시도.
+		// MoveToTrap과 동일한 이유로 완전히 막히면 근처 빈 칸으로 우회 시도한다.
 		if (!AIMovementHelper.MoveTowardsPos(unit, target))
 		{
 			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
@@ -466,7 +465,7 @@ public class TacticalFSMState : IFSMState
 			// ID 체계가 아직 없어 오브젝트 고유 Id를 그대로 넘긴다.
 			Game.Encyclopedia.EncyclopediaManager.Instance?.UnlockEntry(trap.TrapObjectId);
 			human.currentTrapInteraction = null;
-			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+			human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
 		}
 		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
@@ -497,7 +496,7 @@ public class TacticalFSMState : IFSMState
 			System.Math.Sign(away.y));
 		AIMovementHelper.MoveTowardsPos(human, sidePos);
 		human.currentTrapInteraction = null;
-		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+		human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -532,7 +531,7 @@ public class TacticalFSMState : IFSMState
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
 		unit.currentTrapInteraction = null;
-		unit.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -556,7 +555,7 @@ public class TacticalFSMState : IFSMState
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 파괴했습니다.");
 		unit.Session.CollectObject(trap.TrapPosition);
 		unit.currentTrapInteraction = null;
-		unit.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -615,7 +614,7 @@ public class TacticalFSMState : IFSMState
 			}
 		}
 
-		// 5-2장(2026-07-27 신규): 파티원 시체 조사로 사망 원인(간접) 확인.
+		// 5-2장: 파티원 시체 조사로 사망 원인(간접) 확인.
 		if (obj.Tags.Contains("Human") && obj.Tags.Exists(t => t.Contains("Corpse")))
 			PartyDeathSystem.OnCorpseInvestigated(human, obj);
 
@@ -632,7 +631,7 @@ public class TacticalFSMState : IFSMState
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 		{
 			human.currentInvestigation = null;
-			human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+			human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
 		}
 
@@ -647,7 +646,7 @@ public class TacticalFSMState : IFSMState
 				human.pendingStairTargetFloor = human.currentFloor + 1;
 		}
 		human.currentInvestigation = null;
-		human.currentAlertSearch = null; // 03문서 4-5장(2026-08-06): 낡은 경계 상태 잔재 정리
+		human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -992,11 +991,10 @@ public class TacticalFSMState : IFSMState
 	}
 
 
-	// ── 코어 공격 — 모든 방이 항상 코어를 하나씩 갖고, 코어 체력이 0이 되면 막타친 유닛의 진영으로
-	// 방 소유권이 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
-	// ⚠️ 하드 룰: 자동 오브젝트 공격(코어/문)은 인류 전용이다. 플레이어 몬스터는 절대 스스로 코어나
-	// 문을 파괴하려 시도하지 않는다 — 항상 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭
-	// 명령)를 거쳐야 한다. DoorAttack도 동일.
+	// ── 코어 공격 — 모든 방이 항상 코어를 하나씩 갖고, 코어 체력이 0이 되면 막타친 유닛의 진영으로 방
+	// 소유권이 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
+	// ⚠️ 하드 룰: 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 절대 스스로 시도하지 않고
+	// 항상 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)를 거쳐야 한다. DoorAttack도 동일.
 	private static bool HasCoreAttackTarget(Unit unit)
 	{
 		return FindHostileRoomCore(unit, out _, out _);
@@ -1008,7 +1006,7 @@ public class TacticalFSMState : IFSMState
 	{
 		room = null;
 		core = null;
-		if (!(unit is Human)) return false; // 인류 전용(2026-08-22 재조정) — 플레이어 몬스터는 자동으로 코어를 공격하지 않는다.
+		if (!(unit is Human)) return false; // 인류 전용 — 플레이어 몬스터는 자동으로 코어를 공격하지 않는다.
 		if (unit.Session?.cmap == null) return false;
 
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
@@ -1145,18 +1143,17 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// ── 문 공격(인류 전용) — CoreAttack과 반대로, 이미 점령한 방에 서 있을 때 그 방 경계의 게이트 중
-	// 아직 다른 진영 소유인 문을 찾아 부순다. 대상이 없어지면 조건이 자연히 false가 되어 BT가 다음
-	// 우선순위(조사/탐험 등)로 넘어간다 — 별도의 "탐험 재개" 코드가 필요 없다.
+	// ── 문 공격(인류 전용) — CoreAttack과 반대로, 이미 점령한 방에서 그 방 경계 게이트 중 아직 다른
+	// 진영 소유인 문을 찾아 부순다. 대상이 없어지면 자연히 false가 되어 BT가 다음 우선순위(조사/탐험
+	// 등)로 넘어가므로 별도의 "탐험 재개" 코드가 필요 없다.
 	private static bool HasDoorAttackTarget(Unit unit)
 	{
 		return FindHostileExitDoor(unit, out _, out _);
 	}
 
-	// unit이 지금 서 있는 방이 이미 자기 진영(인류) 소유이고, 게이트 문턱 타일 중 아직 파괴되지
-	// 않았고 소유 진영이 인류가 아닌 문이 있으면 그 위치를 돌려준다(인류가 아닌 유닛엔 적용 안 됨).
-	// 가까운 문부터 공격 — GetGateDoorTiles의 배열 순서(청크 기준일 뿐 실제 거리와 무관)를 믿지 않고
-	// 후보를 전부 모아 체비셰프 거리가 가장 가까운 것 하나만 고른다.
+	// unit이 서 있는 방이 이미 인류 소유이고, 게이트 문턱 타일 중 파괴되지 않았고 인류 소유가 아닌
+	// 문이 있으면 그 위치를 돌려준다(인류가 아닌 유닛엔 적용 안 됨). 가까운 문부터 공격 — GetGateDoorTiles의
+	// 배열 순서(청크 기준일 뿐 실제 거리와 무관)를 믿지 않고 후보를 전부 모아 체비셰프 거리가 가장 가까운 것만 고른다.
 	private static bool FindHostileExitDoor(Unit unit, out Vector3Int doorPos, out InteractableObject door)
 	{
 		doorPos = default;

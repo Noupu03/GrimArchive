@@ -6,8 +6,8 @@ using Haare.Client.UI;
 using GrimArchive.Wave;
 
 // 웨이브 시각화 — 인류 파티의 던전 도착까지 남은 시간을 화면 상단 가로형 게이지로 보여준다.
-// DebugInfoPanel/StatusInfoPanel/BuildingControlPanel과 동일 관례 — [PanelAttribute]로 등록된 얇은
-// UGUI 프리팹 껍데기 + 실제 그리기는 OnGUI로 처리한다(이 프로젝트에서 이미 검증된 패턴).
+// DebugInfoPanel/StatusInfoPanel/BuildingControlPanel과 동일하게 [PanelAttribute]로 등록된 얇은 UGUI
+// 프리팹 껍데기 + 실제 그리기는 OnGUI로 처리한다.
 [PanelAttribute("Prefabs/WaveGaugePanel")]
 public class WaveGaugePanel : MonoRoutine, ICustomPanel
 {
@@ -46,9 +46,9 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     public void BindEvent() { }
 
     // ── 스프라이트 ────────────────────────────────────────────────
-    // Assets/Resources/UI/KtoDUI_1.png — 좌우 끝에 "왕국의 문"/"던전의 문"을 겸하는 장식 프레임
-    // (_0, 346x23)과 그 안에 들어가는 얇은 진행 트랙(_1, 304x9) 두 서브스프라이트로 이미 잘려있다.
-    // 별도의 문/게이지 이미지를 새로 만들지 않고 이 한 장을 그대로 재사용한다(사용자 지정 UI).
+    // Assets/Resources/UI/KtoDUI_1.png — 좌우 끝에 "왕국의 문"/"던전의 문"을 겸하는 장식 프레임(_0,
+    // 346x23)과 그 안에 들어가는 얇은 진행 트랙(_1, 304x9) 두 서브스프라이트로 이미 잘려있어, 별도
+    // 이미지를 새로 만들지 않고 이 한 장을 그대로 재사용한다.
     private const string GaugeSpriteResourcePath = "UI/KtoDUI_1";
     private const string FrameSpriteName = "KtoDUI_1_0";
     private const string TrackSpriteName = "KtoDUI_1_1";
@@ -93,8 +93,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         return BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);
     }
 
-    // NoticeCenter가 이 게이지 바로 아래에 자기 UI를 배치하려고 물어보는 공개 API. 스프라이트를 아직
-    // 못 불러왔으면 안전하게 BarTopMargin만 반환한다.
+    // NoticeCenter가 이 게이지 바로 아래에 자기 UI를 배치하려고 물어보는 공개 API(스프라이트를 아직
+    // 못 불러왔으면 안전하게 BarTopMargin만 반환).
     public float GetReservedTopHeight() => BarTopMargin + GetBarHeight();
 
     private void OnGUI()

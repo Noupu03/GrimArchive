@@ -1,24 +1,19 @@
 using UnityEngine;
 
 /// <summary>
-/// 인류 AI FSM+BT 행동 수치 파라미터. 에셋 경로: Resources/FSM+BT/AIBehaviorConfig
-///
-/// 각 항목의 문서 근거(03_탐색반응·경계·조사·함정대응_시스템_v0.6)를 Tooltip에 명시했다. 문서가
-/// 수치를 주지 않는 항목은 "내부 판단" 주석으로 구분한다.
-///
-/// 비주얼 스크립팅 전환 시: 이 파일의 각 [Header] 그룹 → 대응하는 BTNodeSO 인스펙터 필드로 분산되고,
-/// AIConfigLoader가 BTGraphAsset 로더로 교체되면 이 파일은 폐기된다.
+/// 인류 AI FSM+BT 행동 수치 파라미터. 각 항목의 문서 근거는 Tooltip에 명시하며, 문서가 수치를 안
+/// 주는 항목은 "내부 판단"으로 구분한다. 비주얼 스크립팅 전환 시 이 파일은 BTGraphAsset 로더로 대체될 예정.
 /// </summary>
 [CreateAssetMenu(menuName = "GrimArchive/AI/AIBehaviorConfig", fileName = "AIBehaviorConfig")]
 public class AIBehaviorConfig : ScriptableObject
 {
     // ── FSM 우선순위 ────────────────────────────────────────────────────────
     [Header("FSM 상태 진입 우선순위")]
-    [Tooltip("플레이어 수동 명령(공격/이동) 활성 시 우선순위 — 항상 최우선(기본 200, 사용자 요청 2026-07-24)")]
+    [Tooltip("플레이어 수동 명령(공격/이동) 활성 시 우선순위 — 항상 최우선(기본 200)")]
     public float playerCommandPriority = 200f;
     [Tooltip("이동 명령 혼잡 대기 최대 턴 수 — 이 턴을 초과하면 명령 포기 + 이동 불가 피드백 (내부 판단)")]
     public int playerCommandStuckTurnLimit = 8;
-    [Tooltip("코어/문 자동 파괴 접근 혼잡 대기 최대 턴 수 — 이 턴을 초과하면 파괴를 포기하고 경계 상태로 전환 (내부 판단, 2026-08-24 사용자 요청으로 4)")]
+    [Tooltip("코어/문 자동 파괴 접근 혼잡 대기 최대 턴 수 — 초과 시 파괴를 포기하고 경계 상태로 전환 (내부 판단)")]
     public int tacticalObjectAttackStuckTurnLimit = 4;
     [Tooltip("적 인지 시 전투 상태 우선순위 (기본 100)")]
     public float combatPriority     = 100f;
@@ -26,7 +21,7 @@ public class AIBehaviorConfig : ScriptableObject
     public float tacticalPriority   = 50f;
     [Tooltip("항상 활성, 기본 탐색 우선순위 (기본 10)")]
     public float navigationPriority = 10f;
-    [Tooltip("대기(IdleFSMState) 우선순위 — Tactical(50)과 Navigation(10) 사이. 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/야생 몬스터가 이 상태로 들어간다 (내부 판단, 2026-08-20 사용자 요청)")]
+    [Tooltip("대기(IdleFSMState) 우선순위 — Tactical(50)과 Navigation(10) 사이. 오펜스/디펜스 중이 아닌 방에서 명령 없는 플레이어 몬스터/야생 몬스터가 이 상태로 들어간다 (내부 판단)")]
     public float idlePriority = 20f;
 
     // ── 대기 (IdleFSMState) ────────────────────────────────────────────────
@@ -72,7 +67,7 @@ public class AIBehaviorConfig : ScriptableObject
 
     // ── 함정 대응 ───────────────────────────────────────────────────────────
     [Header("함정 대응 (03문서 9장)")]
-    [Tooltip("9-3장: 함정 정보 전파 후 발견 유닛 응답 대기 시간 (초) — 2026-07-27 개정 문서 공식값(2초)")]
+    [Tooltip("9-3장: 함정 정보 전파 후 발견 유닛 응답 대기 시간 (초) — 개정 문서 공식값")]
     public float trapJoinWaitSeconds            = 2f;
     [Tooltip("9-7장: 선정 유닛 예상 도착시간 이후 이 시간까지 미도착이면 발견 유닛이 직접 찾아 나선다 (초)")]
     public float trapSelectedUnitLateGraceSeconds = 3f;

@@ -3,9 +3,8 @@ using UnityEngine.Pool;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 
-// 이펙트 프리팹은 이제 전역 공유가 아니라 유닛 타입별 프리팹(UnitVisualDefinition)에서 온다.
-// 이 클래스는 순수 스폰 메커니즘(위치 계산/생명주기 관리)만 담당한다. Update/OnGUI/인스펙터 데이터가
-// 전혀 없어서 씬 GameObject일 필요가 없는 순수 C# 클래스.
+// 이펙트 프리팹은 전역 공유가 아니라 유닛 타입별 프리팹(UnitVisualDefinition)에서 온다 — 이
+// 클래스는 순수 스폰 메커니즘(위치 계산/생명주기 관리)만 담당하는 씬 불필요 순수 C# 클래스.
 public class VFXManager
 {
     private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
@@ -66,9 +65,8 @@ public class VFXManager
         if (parent != null)
         {
             go.transform.SetParent(parent);
-            // 캐릭터 스프라이트는 피벗이 바텀 센터(발밑)라 로컬 원점(0,0)에 그대로 붙이면 이펙트가
-            // 발밑에서 나오는 것처럼 보인다 — 몸통 높이에 가깝도록 0.5만큼 위로 띄운다. 히트 스파크/
-            // 가드/패리/사망 VFX 등 부모 지정 스폰 전부가 이 한 지점을 거치므로 한 번에 고쳐진다.
+            // 캐릭터 스프라이트는 피벗이 바텀 센터(발밑)라 로컬 원점에 그대로 붙이면 발밑에서 나오는 것처럼
+            // 보여 몸통 높이만큼(0.5) 띄운다 — 부모 지정 스폰 전부가 이 지점을 거치므로 한 번에 고쳐진다.
             go.transform.localPosition = ParentedSpawnPivotOffset;
             go.transform.localScale = ToLocalScale(authoredScale, parent);
             go.transform.rotation = rotation;
@@ -88,9 +86,8 @@ public class VFXManager
             ps.Play(); // 재사용 시 파티클 재생
         }
 
-        // 프리팹에 ParticleLifetimeController가 붙어있으면 정지 타이밍을 그 컴포넌트에 맡긴다 —
-        // "재생 길이만큼 지난 뒤 통째로 반납"하면 진행 중인 파티클도 화면에서 뚝 끊긴다. 컴포넌트가
-        // 없으면 자동 추정 방식으로 폴백한다.
+        // ParticleLifetimeController가 붙어있으면 정지 타이밍을 그 컴포넌트에 맡긴다("재생 길이만큼
+        // 지난 뒤 통째로 반납"하면 진행 중인 파티클이 뚝 끊기므로) — 없으면 자동 추정 방식으로 폴백한다.
         var lifetimeController = go.GetComponent<ParticleLifetimeController>();
         if (lifetimeController != null)
         {
@@ -111,9 +108,9 @@ public class VFXManager
         return go;
     }
 
-    // "이펙트의 최종 월드 스케일 == 프리팹에 저장된 스케일"이 되도록 부모의 누적 스케일(lossyScale)만
-    // 상쇄한다 — VFX 프리팹은 전부 Scaling Mode가 Hierarchy라 그대로 두면 유닛 footprint 배율까지
-    // 곱해져 대형 유닛의 이펙트만 커진다. 부호까지 상쇄하므로 부모가 좌우 반전돼 있어도 안전하다.
+    // 이펙트 최종 월드 스케일이 프리팹 저장 스케일과 같도록 부모 누적 스케일(lossyScale)만
+    // 상쇄한다 — VFX는 Scaling Mode가 Hierarchy라 안 하면 유닛 footprint 배율까지 곱해져 대형
+    // 유닛만 커진다(부호도 상쇄해 좌우 반전된 부모도 안전).
     private static Vector3 ToLocalScale(Vector3 authoredScale, Transform parent)
     {
         if (parent == null) return authoredScale;
@@ -136,10 +133,9 @@ public class VFXManager
         }
     }
 
-    // 코어/문 파괴 채널링 전용 VFX(VFX_BlockBreaking.prefab) — 파괴 행동이 끝날 때까지 계속 재생돼야
-    // 해서 위 Spawn()의 자동 반납 방식과 맞지 않는다(looping=1이라 호출부가 명시적으로 멈춰야 함).
-    // 채널링 시작/종료가 잦지 않아 순수 Instantiate/Destroy로 관리한다. Unit.SetAttackObjectTarget/
-    // ClearAttackObjectTarget이 각각 시작/종료를 담당한다.
+    // 코어/문 파괴 채널링 전용 VFX — 파괴 행동이 끝날 때까지 계속 재생돼야 해서 위 Spawn()의 자동
+    // 반납 방식과 안 맞는다(looping=1이라 명시적으로 멈춰야 함). 채널링이 잦지 않아 순수
+    // Instantiate/Destroy로 관리하며 Unit.SetAttackObjectTarget/ClearAttackObjectTarget이 시작/종료를 담당한다.
     private static GameObject _blockBreakingVfxPrefab;
     private static GameObject BlockBreakingVfxPrefab =>
         _blockBreakingVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_BlockBreaking");
