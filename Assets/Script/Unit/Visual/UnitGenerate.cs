@@ -23,10 +23,8 @@ public class UnitGenerate
 	// 여부와 무관하게 모든 유닛의 시야/인지 범위를 SyncVisuals가 표시한다(SetVisionRangesVisible 참고).
 	public bool ShowAllVisionRanges = false;
 
-	// debug 메뉴 "유닛 상태 표시" 토글(2026-08-24 신규, 2026-08-24 후속 사용자 요청으로 기본값 꺼짐으로
-	// 변경) — 꺼지면 유닛 머리 위 현재 FSM 상태 라벨(SyncVisual의 uv.UpdateStatusLabel 호출부 참고)을
-	// 전부 숨긴다. "시야 표시"(ShowAllVisionRanges)와 마찬가지로 기본은 꺼짐 — 필요할 때 debug
-	// 메뉴에서 켠다.
+	// debug 메뉴 "유닛 상태 표시" 토글 — 꺼지면 유닛 머리 위 FSM 상태 라벨(SyncVisual의
+	// uv.UpdateStatusLabel 호출부 참고)을 전부 숨긴다. 기본은 꺼짐 — 필요할 때 debug 메뉴에서 켠다.
 	public bool ShowUnitStatusLabels = false;
 
 	// 명령 경로 시각화(2026-08-24) — BuildCachedPathPreview가 따라갈 최대 waypoint 수. 정상적인 경로는
@@ -35,10 +33,6 @@ public class UnitGenerate
 
 	// 선택 표시용 발밑 링(SelectionMarker) 관련 상수. 캐릭터 스프라이트/애니메이션과 완전히
 	// 무관하게(풋프린트 크기만으로 계산) 발밑에 깔리는 납작한 타원 링을 스타크래프트식으로 그린다.
-	// (예전엔 사각 4바 프레임이었는데 캐릭터를 어색하게 감싸서 보기 안 좋다는 피드백으로 교체함.
-	//  그 이전엔 OutlineSpriteSync로 스프라이트를 검게 복제하는 방식이었는데, 실제 유닛 프리팹엔
-	//  그 동기화 컴포넌트가 애초에 안 붙어있어서 완전히 죽은 기능이었다 — 그래서 스프라이트 자체에
-	//  안 엮이는 이 방식으로 넘어옴.)
 	private const float SelectionRingDiameterRatio = 1.15f; // 풋프린트 대비 링 지름 배율
 	private const float SelectionRingFlatten       = 0.5f;  // 세로로 납작하게 누르는 비율(원→타원)
 	private const float SelectionRingFootOffset    = 0.06f; // 발밑에서 살짝 띄우는 정도(월드 유닛)
@@ -93,15 +87,13 @@ public class UnitGenerate
 		public UnitVisualDefinition UnitVisualDefinition;
 		public WeaponAttachment WeaponAttachment;
 		public SpriteRenderer SelectionMarker;
-		// 횃불 위 예외 처리(2026-08-24 사용자 요청, 아래 SyncVisual 참고)용 캐시.
+		// 횃불 위 예외 처리(아래 SyncVisual 참고)용 캐시.
 		public ShadowCaster2D ShadowCaster;
 #if UNITY_2022_2_OR_NEWER
 		public SpriteResolver SpriteResolver;
 #endif
-		// 시야/인지 범위 콘(LineRenderer) 다시 그리기 여부 판단용(2026-08-22, 프레임 드랍 대응) —
-		// DrawVisionAndPerceptionRange는 삼각함수 20+세그먼트 계산 + LineRenderer.SetPosition을
-		// 두 콘(시야/인지)에 매번 새로 돌리는 비용이 있어, "보이는 상태 + 방향이 실제로 바뀌었을 때"
-		// 에만 다시 그린다 — RefreshSelectionVisual 자체는 매 프레임 호출되지만 이 필드로 걸러낸다.
+		// 시야/인지 범위 콘 다시 그리기 여부 판단용 — DrawVisionAndPerceptionRange가 매번 삼각함수
+		// 계산+LineRenderer 갱신을 도는 비용이 커서, "보이는 상태 + 방향이 바뀌었을 때"에만 다시 그린다.
 		public bool VisionRangeShown;
 		public Vector2 LastVisionForward;
 	}
@@ -187,9 +179,8 @@ public class UnitGenerate
 
 		Transform tilemapTransform = GetFloorTilemapTransform(unit.currentFloor);
 		if (tilemapTransform != null) go.transform.SetParent(tilemapTransform);
-		// 스프라이트 아트가 이미 footprint 배율로 그려진 유닛(2026-08-24, 보스 골렘 대응 — 사용자 신고
-		// "이미지 자체가 3배 스케일링, 3배해서 9배가 되어버림")은 footprint를 시각적 확대에 다시 곱하지
-		// 않는다 — footprint 값 자체는 UnitStatsData/인구수/충돌 판정 등 다른 곳에서 여전히 그대로 쓰인다.
+		// 스프라이트 아트가 이미 footprint 배율로 그려진 유닛(보스 골렘 등)은 footprint를 시각적
+		// 확대에 다시 곱하지 않는다 — footprint 값 자체는 다른 곳(스탯/인구수/충돌 판정)에는 그대로 쓰인다.
 		float scaleX = visualDef != null && visualDef.visualScaleIgnoresFootprint ? visualScale : unit.unitType.footprint.x * visualScale;
 		float scaleY = visualDef != null && visualDef.visualScaleIgnoresFootprint ? visualScale : unit.unitType.footprint.y * visualScale;
 		go.transform.localScale = new Vector3(scaleX, scaleY, 1f);
@@ -212,12 +203,9 @@ public class UnitGenerate
 
 		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
 
-		// 발밑 선택 링을 스폰 시점에 미리 만들어둔다(2026-08-22 사용자 신고 "프레임 드랍이 심해짐" —
-		// RefreshSelectionVisual을 모든 유닛에 매 프레임 무조건 호출하게 되면서, 마커가 아직 없는
-		// 유닛들(특히 웨이브 스폰으로 한 번에 여러 명이 등장한 직후)이 전부 같은 프레임에 몰려
-		// EnsureSelectionMarker의 GameObject/SpriteRenderer 생성 비용이 한꺼번에 터졌다 — "괜찮다가
-		// 순간적으로 프레임이 9까지 떨어졌다가 다시 올라감" 증상과 일치. 스폰은 원래 한 유닛씩
-		// 처리되므로 여기서 만들면 그 비용이 자연히 분산된다.
+		// 발밑 선택 링을 스폰 시점에 미리 만들어둔다 — 웨이브 스폰 직후 여러 유닛이 같은 프레임에
+		// EnsureSelectionMarker 생성 비용을 몰아서 쓰면 프레임 드랍이 생기므로, 한 유닛씩 처리되는
+		// 스폰 시점에 만들어 비용을 분산시킨다.
 		EnsureSelectionMarker(cache, go, unit);
 
 		go.transform.position = new Vector3(
@@ -359,10 +347,8 @@ public class UnitGenerate
 
 	#region 유닛 생성 보조 기능성
 
-	// 계층 정리(2026-07-28, 사용자 요청 "각 층에 자식으로 할당된 오브젝트들을... 유닛이면 유닛...
-	// 묶어서 나타나게 해줘") — 예전엔 F{n}_Tilemap 바로 아래에 유닛을 매달았는데, 이제 그 층의
-	// "Units" 하위 그룹(GameSession.GetFloorCategoryGroup)으로 통일한다. 실패(GameSession 아직 준비
-	// 안 됨 등) 시 예전처럼 타일맵 자체로 폴백.
+	// 계층 정리 — 유닛은 해당 층의 "Units" 하위 그룹(GameSession.GetFloorCategoryGroup)에 묶는다.
+	// 실패(GameSession 아직 준비 안 됨 등) 시 타일맵 자체로 폴백.
 	private Transform GetFloorTilemapTransform(int floorIdx)
 	{
 		Transform unitsGroup = Session?.GetFloorCategoryGroup(floorIdx, "Units");
@@ -399,12 +385,8 @@ public class UnitGenerate
 		return Vector3.zero;
 	}
 
-	// 사망 연출 도입(2026-08-24)으로 "hp<=0인 다른 유닛도 한꺼번에 정리"하던 예전 안전망 스윕을
-	// 제거했다 — 사망한 유닛은 GameSession.RemoveDeadUnit이 units 리스트에서 뺀 그 자리에서 곧장 이
-	// 메서드까지 호출해 visualMap에서도 함께 제거된다(2026-08-24 후속: 사망 스프라이트를 잠깐 붙들고
-	// 있던 지연 단계 자체를 없애면서, "일정 시간 동안 hp<=0 상태로 남아있는" 중간 상태가 사라졌다 —
-	// 아래 PlayDeathVisual 참고). 모든 사망은 RemoveDeadUnit이 명시적으로 RemoveVisual(u)를 호출하므로
-	// 별도 안전망 스윕이 필요 없다는 결론 자체는 그대로 유지된다.
+	// GameSession.RemoveDeadUnit이 units 리스트에서 뺀 그 자리에서 곧장 이 메서드를 호출해 visualMap
+	// 에서도 함께 제거한다 — 모든 사망이 명시적으로 호출하므로 별도 안전망 스윕은 필요 없다.
 	public void RemoveVisual(Unit u)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
@@ -413,13 +395,9 @@ public class UnitGenerate
 		targetPosMap.Remove(u);
 	}
 
-	// 사망 VFX(2026-08-24 신규, 2026-08-24 후속 수정 — 사용자 요청 "Death 스프라이트 단계 자체를
-	// 삭제하고 싶어... 사망 판정 즉시 Corpse 스프라이트로 전환 및 Death VFX Prefab이 발동되게") —
-	// GameSession.RemoveDeadUnit이 사망 판정 직후, 시체 오브젝트를 스폰하고 이 유닛의 비주얼을 파괴하기
-	// 직전에 호출한다. VFX만 1회 재생하고 끝 — 예전엔 스프라이트를 UnitVisualDefinition.deathSprite로
-	// 고정한 채 DeathVisualDurationSeconds(0.8초)만큼 붙들고 있다가 시체로 교체했는데, 이제 그 중간
-	// 단계 없이 시체 오브젝트가 즉시 나타나므로 스프라이트를 잠깐이라도 바꿔둘 이유가 없다(교체 자체가
-	// 그 즉시 일어난다). deathSprite 필드는 그래서 함께 제거했다.
+	// 사망 VFX — GameSession.RemoveDeadUnit이 사망 판정 직후, 시체 오브젝트를 스폰하고 이 유닛의
+	// 비주얼을 파괴하기 직전에 호출한다. 사망 판정 즉시 시체 오브젝트로 전환되므로 별도 Death
+	// 스프라이트 단계 없이 VFX만 1회 재생하고 끝난다.
 	public void PlayDeathVisual(Unit u)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return;
@@ -428,20 +406,15 @@ public class UnitGenerate
 		var def = cache.UnitVisualDefinition;
 		if (def == null || def.deathVfxPrefab == null) return;
 
-		// u.VFX?.Spawn(prefab, u)(2-인자, 유닛에 부모로 붙는 오버로드)를 쓰면 안 된다 — GameSession.
-		// RemoveDeadUnit이 이 메서드를 호출한 직후 같은 프레임에 RemoveVisual(u)로 이 유닛의 비주얼
-		// GameObject(go)를 Destroy하는데, 그 자식으로 붙은 VFX 인스턴스도 함께 파괴되어 렌더링될
-		// 기회조차 없이 사라진다(2026-08-24 사용자 신고 "Death VFX가 발생 안 함(적어도 시각적으로는)"
-		// — 지연 단계를 없애면서 생긴 회귀). 고정 월드 좌표에 부모 없이 스폰해서 유닛 비주얼의
-		// 생명주기와 완전히 분리한다 — 죽는 자리에서 한 번 재생되면 그만이라 유닛을 따라다닐 필요도
-		// 없다.
+		// 유닛에 부모로 붙는 2-인자 Spawn 오버로드를 쓰면 안 된다 — RemoveDeadUnit이 이 메서드 호출
+		// 직후 RemoveVisual(u)로 비주얼 GameObject를 Destroy해 자식 VFX도 함께 파괴된다. 고정 월드
+		// 좌표에 부모 없이 스폰해 유닛 비주얼 생명주기와 분리한다.
 		VFXManager.Spawn(def.deathVfxPrefab, VFXManager.GetWorldPos(u), Quaternion.identity);
 	}
 
-	// go.transform.DOKill()만으로는 TriggerHitEffect()가 Visual 자식의 SpriteRenderer를 타겟으로
-	// 만든 DOTween 시퀀스(sr.DOColor(...))가 안 죽는다 — 타겟이 transform이 아니라 sr이라서 별개
-	// 트윈으로 취급됨. 피격 직후 곧바로 죽는 경우(킬샷) 그 시퀀스가 파괴된 SpriteRenderer를 계속
-	// 건드리려다 DOTween Safe Mode의 "missing target" 에러로 잡히는 원인이었다.
+	// go.transform.DOKill()만으로는 TriggerHitEffect()가 sr을 타겟으로 만든 DOTween 시퀀스가 안
+	// 죽는다(타겟이 transform이 아니라 sr이라 별개 트윈) — 킬샷 시 파괴된 SpriteRenderer를 계속
+	// 건드리려다 DOTween "missing target" 에러가 나는 원인이었다.
 	private void KillVisualTweens(GameObject go)
 	{
 		go.transform.DOKill();
@@ -480,11 +453,8 @@ public class UnitGenerate
 
 			var cache = GetCache(go);
 
-			// 횃불 위 유닛 빛 투과 예외(2026-08-24 사용자 요청 "모든 유닛에 [ShadowCaster2D] 넣고,
-			// 횃불 바로 위에 있으면 빛 그냥 투과로 예외처리") — 유닛 스프라이트의 ShadowCaster2D가
-			// 평소엔 빛을 정상적으로 가리지만(그림자), 유닛이 서 있는 타일(발자국 전체) 중 하나라도
-			// 횃불 타일과 겹치면 그 순간만 컴포넌트를 꺼서 빛이 그대로 통과하게 한다 — 안 그러면
-			// 유닛이 광원 위치를 그대로 덮어 횃불 빛 전체가 가려져 보였다.
+			// 횃불 위 유닛 빛 투과 예외 — 유닛이 서 있는 타일 중 하나라도 횃불과 겹치면 ShadowCaster2D를
+			// 꺼서 빛이 통과하게 한다(안 그러면 유닛이 광원 위치를 덮어 빛이 가려진다).
 			if (cache.ShadowCaster != null && Session != null)
 			{
 				bool onTorch = false;
@@ -498,23 +468,14 @@ public class UnitGenerate
 				cache.ShadowCaster.enabled = !onTorch;
 			}
 
-			// 시야/인지 범위 표시 — 유닛을 단일 선택했을 때, 또는 우측 상단 "시야 표시" 토글
-			// (ShowAllVisionRanges)이 켜져 있을 때 그린다. 여러 유닛을 동시에 선택했을 때는 "이
-			// 유닛의" 범위라고 특정할 수 없으므로(전역 토글이 꺼져 있는 한) 표시하지 않는다.
+			// 시야/인지 범위 표시 — 우측 상단 "시야 표시" 토글(ShowAllVisionRanges)이 켜져 있을 때만
+			// 그린다. 다중 선택 시엔 "이 유닛의" 범위를 특정할 수 없어 표시하지 않는다.
 			UnitVisual uv = cache.UnitVisual;
 			if (uv != null)
 			{
-				// 선택 여부와 무관하게 항상 표시 — GOAP이 앞으로 실행할 계획을 카메라 위치/배율과
-				// 무관하게 유닛 머리 위에 계속 보여준다(UnitVisual.UpdateStatusLabel). 다만 안개에
-				// 가려진 방 안에 있으면 숨긴다(사용자 요청, 2026-07-28 "안개 속의 유닛은 머리 위의
-				// 상태도 보이지 않게 해줘") — 라벨은 유닛 머리 위로 오프셋(0.35 유닛)이 붙어 안개
-				// 스프라이트 sortingOrder만으로는 항상 완전히 덮인다고 보장할 수 없어 명시적으로 끈다.
-				// 후속 신고(2026-07-28, "안개가 덮여있는 방 유닛 머리 위의 상태 표시가 미약하게 보여")
-				// — u.currentRoom(SyncRoomAffiliation 기반)은 야생 몬스터 A(WildMonsterBehavior)가
-				// 동기화 대상에서 제외돼 있어 항상 null로 남는다 — 그래서 야생 몬스터는 이 조건이 절대
-				// true가 안 돼 라벨이 안개 sortingOrder에만 기대는 채로 살짝 비쳐 보였다. currentRoom
-				// 대신 실시간 위치 기준 roomGrid 조회로 바꿔 진영/동기화 여부와 무관하게 모든 유닛에
-				// 똑같이 적용한다.
+				// FSM 상태 라벨은 선택 여부와 무관하게 항상 갱신한다. 안개 가려진 방은 숨긴다(라벨
+				// 오프셋 때문에 안개 sortingOrder만으로 항상 덮인다고 보장할 수 없음). u.currentRoom은
+				// 야생 몬스터가 제외돼 항상 null이라, 실시간 위치 기준 roomGrid 조회로 통일한다.
 				bool hiddenByFog = false;
 				if (Session != null && Session.roomGrid != null &&
 					Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room liveRoom))
@@ -535,15 +496,9 @@ public class UnitGenerate
 			RefreshSelectionVisual(u, cache, go);
 	}
 
-	// 선택 표시(발밑 링)/단일 선택 시 시야 범위 시각화(2026-08-22 사용자 신고 "선택 담당 시각화들이
-	// 꼬임 — 유닛 발밑의 동그라미가 몇개는 생기고 몇개는 안생김. 단일 선택시 나타나는 시야 표현
-	// 시각화가 계속 남아있음. 유닛 발밑의 동그라미가 다른 유닛 선택해도 사라지지 않음") — 원인은 이
-	// 두 표시를 SyncVisual 안에서만 갱신했는데, SyncVisual 자체가 GameSession.ProcessUnitAction의
-	// stateChanged 게이트(그 유닛의 position/label/currentDir이 "이번 틱에 실제로 바뀐 경우"에만
-	// 호출됨) 뒤에 있었다는 것 — 가만히 서 있는 유닛은 선택 상태가 바뀌어도 그 사실이 전혀 반영되지
-	// 않았다(발밑 링이 안 생기거나/안 사라짐, 시야 범위가 계속 남음). SyncVisual에서 분리해 별도
-	// 공개 메서드로 빼고, GameSession.UpdateProcess의 매 프레임 무조건 도는 유닛 순회 루프에서
-	// 상태 변화 여부와 무관하게 매 프레임 호출한다(가벼운 SetActive/불리언 비교뿐이라 비용 낮음).
+	// 선택 표시(발밑 링)/시야 범위 시각화를 SyncVisual 안에서만 갱신하면 SyncVisual이 stateChanged
+	// 게이트 뒤에 있어 가만히 서 있는 유닛은 선택 상태가 바뀌어도 반영되지 않는다(잔류 버그) —
+	// 별도 공개 메서드로 빼서 GameSession.UpdateProcess가 상태 변화와 무관하게 매 프레임 호출한다.
 	public void RefreshSelectionVisual(Unit u)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
@@ -555,19 +510,14 @@ public class UnitGenerate
 		UnitVisual uv = cache.UnitVisual;
 		if (uv != null)
 		{
-			// 체력바(2026-08-24 사용자 요청 "유닛의 머리 위에 체력바 항상 뜨도록") — SyncVisual의
-			// UpdateStatusLabel과 달리 여기(상태 변화 여부와 무관하게 모든 살아있는 유닛에 대해 매
-			// 프레임 갱신되는 지점, 위 RefreshSelectionVisual(Unit) 호출부 주석 참고)에 둔다 — 가만히
-			// 서서 원거리/함정 피해만 입는 경우처럼 위치·라벨·방향이 전혀 안 바뀌어도 체력은 계속
-			// 바뀌므로 stateChanged 게이팅에 묶이면 갱신이 누락된다. 안개에 가려진 유닛은 상태 라벨과
-			// 동일하게 숨긴다.
+			// 체력바는 상태 변화 여부와 무관하게 매 프레임 갱신되는 여기에 둔다 — stateChanged
+			// 게이팅에 묶이면 원거리/함정 피해만 입는 경우 갱신이 누락된다.
 			bool hpBarHiddenByFog = Session != null && Session.roomGrid != null &&
 				Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room hpBarRoom) &&
 				!hpBarRoom.FogRevealed;
 			uv.UpdateHealthBar(!hpBarHiddenByFog, u.hp, u.maxHp);
 
-			// 단일 선택 시 자동 표시 제거(2026-08-24 사용자 요청 "유닛을 단일 선택했을때, 시야
-			// 시각화가 보이는데, 안보이게 해줘") — 이제 우측 하단 "시야 표시" 전역 토글
+			// 단일 선택으로는 자동 표시하지 않는다 — 우측 하단 "시야 표시" 전역 토글
 			// (ShowAllVisionRanges)로만 켜고 끈다. 선택 여부와는 완전히 무관.
 			bool showRanges = ShowAllVisionRanges;
 			uv.SetVisionRangesVisible(showRanges); // 켜고 끄는 것 자체는 저렴 — 매 프레임 갱신해도 무관.
@@ -577,11 +527,8 @@ public class UnitGenerate
 				Vector2 forward = u.GetDirVector(u.currentDir);
 				if (forward == Vector2.zero) forward = Vector2.down;
 
-				// DrawVisionAndPerceptionRange는 콘 2개(시야/인지)마다 20+ 세그먼트 삼각함수 계산 +
-				// LineRenderer.SetPosition을 돌리는 무거운 작업이다 — 매 프레임 무조건 다시 그리면
-				// (특히 "시야 표시" 전역 토글로 여러 유닛이 동시에 켜져 있을 때) 프레임 드랍이
-				// 심해진다(사용자 신고, 2026-08-22). 실제로 "막 보이게 된 순간" 또는 "바라보는 방향이
-				// 바뀐 순간"에만 다시 그리고, 그 외엔 이전에 그려둔 모양을 그대로 둔다.
+				// DrawVisionAndPerceptionRange는 무거운 작업이라 "막 보이게 된 순간" 또는 "방향이
+				// 바뀐 순간"에만 다시 그린다.
 				if (!cache.VisionRangeShown || cache.LastVisionForward != forward)
 				{
 					uv.DrawVisionAndPerceptionRange(
@@ -598,11 +545,8 @@ public class UnitGenerate
 				cache.VisionRangeShown = false;
 			}
 
-			// 명령 경로 시각화(2026-08-24 사용자 요청 "유닛에게 명령 실행시, 유닛이 명령받은 지점과,
-			// 명령 경로가 뜨도록... 이 시각화는 유닛 선택 중일때만 보임(다중 선택했을때도)") — 시야
-			// 표시와 달리 다중 선택된 유닛 각각에 대해 독립적으로 보여준다(단일 선택 제한 없음).
-			// MovementAlgorithm이 실제 이동 판단에 쓰던 경로 캐시를 그대로 읽어 새로 계산하지 않는다 —
-			// 길찾기가 다시 도는 순간 자동으로 최신 경로가 반영된다.
+			// 명령 경로 시각화는 다중 선택된 유닛 각각에 독립적으로 보여준다. MovementAlgorithm의
+			// 기존 경로 캐시를 그대로 읽어 새로 계산하지 않는다.
 			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u);
 			List<Vector2Int> commandPath = null;
 			Vector2Int? hoverTile = null;
@@ -686,12 +630,9 @@ public class UnitGenerate
 		// 생성 시점에 한 번만 정해도 된다.
 		sr.color = unit is Human ? SelectionRingColorHuman : SelectionRingColorMonster;
 
-		// go의 로컬 X=0은 이미 풋프린트 가로 중앙, 로컬 Y=0은 풋프린트 바닥(발밑)에 해당한다
-		// (SyncVisuals의 newPos = position + footprint.x/2, position.y + 0.05f 참고).
-		// go의 실제 localScale을 역산한다(2026-08-24 수정) — footprint를 그대로 나누면
-		// UnitVisualDefinition.visualScaleIgnoresFootprint가 켜진 유닛(보스 골렘 등, 루트 localScale이
-		// footprint가 아니라 1로 고정됨)에서 발밑 링이 실제 부모 스케일과 어긋나 잘못된 크기로 그려진다
-		// — UnitVisual.EnsureStatusLabel과 동일한 이유/패턴.
+		// go의 로컬 X=0은 풋프린트 가로 중앙, Y=0은 발밑에 해당한다(SyncVisuals의 newPos 계산 참고).
+		// go의 실제 localScale을 역산한다 — footprint를 그대로 나누면 visualScaleIgnoresFootprint가
+		// 켜진 유닛(루트 localScale=1 고정)에서 링이 부모 스케일과 어긋나 잘못된 크기로 그려진다.
 		Vector3 parentScale = go.transform.localScale;
 		float invX = parentScale.x != 0f ? 1f / parentScale.x : 1f;
 		float invY = parentScale.y != 0f ? 1f / parentScale.y : 1f;
@@ -722,10 +663,8 @@ public class UnitGenerate
 			if (visualDef != null)
 			{
 				u.VFX?.Spawn(visualDef.hitSparkPrefab, u);
-				// 피격 추가 이펙트(2026-08-24 사용자 요청 "hitspark는 유지하고 추가로 BloodDrip이
-				// 출력되게") — hitSparkPrefab을 대체하지 않고 같은 피격에 함께 스폰한다. 두 프리팹이
-				// 서로 다른 VFXManager 풀 슬롯을 쓰므로(Dictionary 키가 프리팹 자체) 동시 재생이
-				// 자연스럽게 처리된다.
+				// hitSparkPrefab을 대체하지 않고 같은 피격에 함께 스폰 — 두 프리팹이 서로 다른
+				// VFXManager 풀 슬롯을 쓰므로(Dictionary 키가 프리팹 자체) 동시 재생이 자연스럽게 처리된다.
 				u.VFX?.Spawn(visualDef.bloodEffectPrefab, u);
 			}
 		}
@@ -813,20 +752,14 @@ public class UnitGenerate
 				int x = pos.x + dx;
 				int y = pos.y + dy;
 
-				// 버그 수정(2026-08-20, 사용자 신고 "계단 인접 유닛생산 건물에서 유닛 생산시, 계단
-				// 위로 스폰되는 경우가 있어") — 예전엔 여기서 c.chunk[tx,ty].name=="Wall"만 확인해서,
-				// 이름은 "Wall"이 아니지만 isStructureExist=true인 타일(계단 2x2 블록, TileFactory.
-				// Stair() 참고 — name="Stair", isStructureExist=true)은 걸러지지 않고 스폰 가능한
-				// 자리로 취급됐다. CreateMap.IsStaticTileWalkable(UnitFunction.CanMove와 동일 기준,
-				// name!="Wall" && !isStructureExist)로 교체해 청크 인덱싱 중복도 함께 없앤다 — 문
-				// 타일(아래 IsDoorTile 검사)은 열린 상태일 때 isStructureExist가 꺼져 있어도 여전히
-				// 별도로 막아야 하므로 그 검사는 그대로 둔다.
+				// name=="Wall"만 확인하면 이름은 "Wall"이 아니지만 isStructureExist=true인 타일(계단
+				// 2x2 블록 등)이 걸러지지 않고 스폰 가능한 자리로 취급된다 — CreateMap.
+				// IsStaticTileWalkable(UnitFunction.CanMove와 동일 기준)로 통일한다.
 				if (x < 0 || y < 0) return false;
 				if (!cmap.IsStaticTileWalkable(floorIdx, new Vector2Int(x, y))) return false;
 				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
-				// 사용자 정정(2026-07-28, "문이 있는 자리에는... 몬스터 배치도 불가능(이동만 가능)")
-				// — 문은 통행은 가능해야 하므로(DoorSystem.DoorTag 주석 참고) 여기서는 스폰 위치
-				// 판정만 막고, AStarMovement 등 이동 판정 쪽은 건드리지 않는다.
+				// 문은 통행은 가능해야 하므로(DoorSystem.DoorTag 참고) 스폰 위치 판정만 막고,
+				// AStarMovement 등 이동 판정 쪽은 건드리지 않는다.
 				if (Session != null && Session.IsDoorTile(new Vector3Int(x, y, floorIdx))) return false;
 			}
 		}
@@ -867,8 +800,7 @@ public class UnitGenerate
 		Floor floor = cmap.map.floors[floorIdx];
 		if (floor.chunks == null) return Vector2Int.zero;
 
-		// 청크 바깥쪽 벽을 피해 안쪽 절반만 후보로 삼는다 — 청크 크기 8 기준 [2,6)이었던 걸 비율
-		// 그대로 일반화했다(2026-08-23, 맵 1.5배 확장). chunkSize=8이면 margin=2로 원래 값과 동일.
+		// 청크 바깥쪽 벽을 피해 안쪽 절반만 후보로 삼는다 — chunkSize=8이면 margin=2로 원래 값과 동일.
 		int csStart = floor.config.chunkSize;
 		int marginStart = csStart / 4;
 		for (int cx = 0; cx < floor.config.width; cx++)

@@ -19,9 +19,8 @@ public class ResourceManager : NativeRoutine
     // UI(StatusInfoPanel의 자원 사용 안내)가 같은 값을 참조하도록 여기 한 곳에만 정의한다.
     public const int TrapPlaceStoneCost = 100;
 
-    // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — 문 재설치 1회당 소모 자원. 자리표시자
-    // (플레이 테스트 후 조정) — 함정과 동일한 급으로 우선 맞춰뒀다. 2026-08-22 사용자 요청
-    // "debug에 있던 문 설치를 '설치'란에 넣고, 자원을 소모해서 설치하게 다시 바꿔줘" — 원래는 무료였다.
+    // 문 재설치 1회당 소모 자원(자리표시자, 플레이 테스트 후 조정 — 함정과 동일한 급으로 우선 맞춤).
+    // 원래는 debug 메뉴의 무료 설치였다가 "설치" 메뉴의 유료 설치로 바뀌었다.
     public const int DoorRepairStoneCost = 100;
 
     // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 확정 수치) — B/V키 건물 설치비와 유닛 생산비.
@@ -29,9 +28,8 @@ public class ResourceManager : NativeRoutine
     public const int ResourceBuildingStoneCost = 300;
     public const int UnitBuildingStoneCost = 200;
 
-    // 처치 보상(2026-07-27, 문서에 수치 미명시 — "시간기반 자동증가보다 훨씬 커야 한다"는 사용자
-    // 기준만 있어 판단 근거를 남기고 상수로 뺌) — BuildingManager의 자원 건물 틱(5초당 +5, 2026-08-24
-    // 사용자 요청으로 2배 = 5초당 +10)의 3배.
+    // 처치 보상(문서에 수치 미명시 — "시간기반 자동증가보다 훨씬 커야 한다"는 기준만 있어 상수로
+    // 뺌) — BuildingManager의 자원 건물 틱(5초당 +10)의 3배.
     public const int KillRewardWood = 30;
     public const int KillRewardStone = 30;
 
@@ -43,12 +41,9 @@ public class ResourceManager : NativeRoutine
         Instance = this;
 
         resources.Clear();
-        // 초기 보유량(2026-07-27, 사용자 확정 수치 200 → 2026-07-28 사용자 요청 "초기 자원값 200씩
-        // 더 늘려줘"로 Wood/Stone 각 400으로 조정. Gold는 소모처가 없는 미사용 자원이라 2026-07-28
-        // 사용자 요청으로 완전히 제거(enum 자체에서 삭제, 아래 ShowKillRewardText/OffenseDebugWindow/
-        // StatusInfoPanel의 관련 참조도 함께 정리). 시간 경과 자동 증가는 더 이상 "고정값" 원칙이
-        // 아니라 V키 자원 생산 건물이 있을 때만 발생한다(BuildingManager 참고) — 문서 5장의 "건축물을
-        // 통한 임시 자원 확보" 요구사항을 그 건물에 연결한 것.
+        // 초기 보유량 Wood/Stone 각 400. Gold는 소모처가 없는 미사용 자원이라 enum 자체에서 제거됐다.
+        // 시간 경과 자동 증가는 "고정값"이 아니라 V키 자원 생산 건물이 있을 때만 발생한다
+        // (BuildingManager 참고) — 문서 5장의 "건축물을 통한 임시 자원 확보" 요구사항을 연결한 것.
         resources[ResourceType.Wood] = 400;
         resources[ResourceType.Stone] = 400;
 
@@ -88,8 +83,7 @@ public class ResourceManager : NativeRoutine
 
         LogHelper.Warning(LogHelper.GAME, $"Not enough {type} to consume {amount}. Current: {(resources.ContainsKey(type) ? resources[type] : 0)}");
         // 자원 부족은 플레이어 행동(건물/함정 설치, 유닛 생산 등)이 실패하는 원인이라 단일 지점에서
-        // notice로도 알린다(2026-08-20, 사용자 요청 "게임에 영향을 주는 실패로그들 notice로 뜨게") —
-        // 호출부마다 따로 notice를 띄우면 중복되므로 여기 한 곳으로 모은다.
+        // notice로도 알린다 — 호출부마다 따로 notice를 띄우면 중복되므로 여기 한 곳으로 모은다.
         NoticeCenter.Instance?.PushMomentary($"{type} 자원이 부족합니다. (필요: {amount})", NoticeCenter.WarningColor);
         return false;
     }
@@ -126,10 +120,9 @@ public class ResourceManager : NativeRoutine
         return resources.TryGetValue(type, out int current) ? current : 0;
     }
 
-    // 처치 보상 MVP(2026-07-27, 사용자 요청) — 킬로 자원을 얻을 때 "돌 30개 획득!" 형태의 floating text를
-    // 띄운다. UIManager.ShowFloatingTextAt(기존 함정 해제 성공/실패 문구가 쓰는 것과 동일한 메서드)을
-    // 재사용한다 — 그 메서드는 floor offset을 계산하지 않으므로(unit.position 기준 화면 좌표만 반환하는
-    // ShowFloatingText(Unit)와 달리 임의 월드좌표를 받음) 여기서 직접 GetFloorOffset을 더해 1층 이외의
+    // 킬로 자원을 얻을 때 "돌 30개 획득!" 형태의 floating text를 띄운다. UIManager.
+    // ShowFloatingTextAt(함정 해제 성공/실패 문구와 동일한 메서드)을 재사용한다 — 그 메서드는 임의
+    // 월드좌표를 받고 floor offset을 계산하지 않으므로 여기서 직접 GetFloorOffset을 더해 1층 이외의
     // 층에서도 정확한 위치에 뜨도록 한다.
     public static void ShowKillRewardText(Unit killer, ResourceType type, int amount)
     {

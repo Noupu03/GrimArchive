@@ -16,21 +16,19 @@ public class AlertSearchState
 	// ExplorationMath.PostCombatAlertSeconds(10초)를 쓴다.
 	public float ElapsedSeconds;
 
-	// 4-15장(2026-07-27 신규): 원인미상 파티원 사망 수색인지 — true면 ElapsedSeconds 제한을
-	// ExplorationMath.DeathSearchSeconds(10초)로 쓰고, TargetPosition으로 수렴하는 대신
-	// DeathSearchOrigin에서 AssignedSearchDir 방향으로 퍼져나가며 수색한다(TacticalFSMState.
-	// DeathSearchMove).
+	// 4-15장: 원인미상 파티원 사망 수색인지 — true면 ElapsedSeconds 제한을 ExplorationMath.
+	// DeathSearchSeconds(10초)로 쓰고, TargetPosition으로 수렴하는 대신 DeathSearchOrigin에서
+	// AssignedSearchDir 방향으로 퍼져나가며 수색한다(TacticalFSMState.DeathSearchMove).
 	public bool IsDeathSearch;
 	public Vector2Int? DeathSearchOrigin;
 	public Dir AssignedSearchDir;
 	// PartyDeathRecord 조회용 — Party.DeathRecords의 키(시체 오브젝트 Id)를 그대로 들고 있는다.
 	public string DeathRecordCorpseId;
 
-	// 07문서 16장(2026-07-31 신규): 소리 반응으로 만들어진 경계인지 — true면 TargetPosition은 이동음의
-	// 발생 위치(방향만) 또는 추정 지역형 소리의 중심(SoundHasEstimatedArea)이다. DeathSearch와
-	// 마찬가지로 "경계"의 한 갈래로 재사용한다(같은 currentAlertSearch 슬롯 — 8-1/8-2장 접근·시야유지
-	// 흐름이 기존 AlertApproach/AlertPerimeterSearch와 사실상 동일한 모양이라 별도 상태를 새로 만들지
-	// 않았다).
+	// 07문서 16장: 소리 반응으로 만들어진 경계인지 — true면 TargetPosition은 이동음의 발생 위치(방향만)
+	// 또는 추정 지역형 소리의 중심(SoundHasEstimatedArea)이다. DeathSearch와 마찬가지로 "경계"의 한
+	// 갈래로 재사용한다(8-1/8-2장 접근·시야유지 흐름이 기존 AlertApproach/AlertPerimeterSearch와
+	// 사실상 동일한 모양이라 별도 상태를 새로 만들지 않았다).
 	public bool IsSoundResponse;
 	public SoundType SoundKind;
 	public bool SoundHasEstimatedArea;

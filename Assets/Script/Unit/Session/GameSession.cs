@@ -11,9 +11,8 @@ using GrimArchive.Wave;
 using Haare.Scripts.Client.Data;
 using R3;
 
-// Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김: 평범한 Unity Update() 대신
-// NativeRoutine.UpdateProcess()가 Processor의 등록된 Routine 순회를 통해 매 프레임 호출된다.
-// 인스펙터 데이터가 전혀 없어서(디버그 텍스처 뷰 제거 후) 씬 GameObject일 필요가 없는 순수 C# 클래스.
+// Haare의 Processer/Routine 시스템으로 턴 처리 루프를 옮김 — NativeRoutine.UpdateProcess()가 매
+// 프레임 호출된다. 인스펙터 데이터가 없어 씬 GameObject일 필요가 없는 순수 C# 클래스.
 
 public class GameSession : NativeRoutine, IOffenseQuery
 {
@@ -69,16 +68,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         OnThreatCreated.Subscribe(data =>
         {
-            // 시전이 있는 공격(castTimer > 0)은 "예고"다 — 범위가 뜬 시점부터 피해가 들어가는 순간까지
-            // 옅어지지 않고 그대로 남아있어야 한다(holdUntilImpact). 시전 없는 즉발 공격은 표시 시점에
-            // 이미 피해가 끝나 있으므로 종전대로 0.5초짜리 잔상으로 그린다.
+            // 시전이 있는 공격(castTimer > 0)은 피해가 들어가는 순간까지 옅어지지 않는 "예고"로,
+            // 시전 없는 즉발 공격은 0.5초짜리 잔상으로 그린다.
             bool isTelegraph = data.attacker != null && data.attacker.CombatState.State.castTimer > 0f;
             float duration = isTelegraph ? data.attacker.CombatState.State.castTimer : 0.5f;
             _threatTileRenderer?.ShowThreatZone(data.attacker, data.threat, duration, isTelegraph);
 
-            // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 내부 콜체인이
-            // 다시 GetEnemiesInHitbox를 호출해 리스트를 초기화하기 전에 복사본을 만들어 iterate한다.
-            // 2026-07-31 GC 최적화 — 공격마다 new List<Unit>()를 할당하던 것을 재사용 버퍼로 교체.
+            // GetEnemiesInHitbox는 static 공유 리스트를 반환하므로, OnReactToThreat 콜체인이 다시
+            // 호출해 리스트를 초기화하기 전에 재사용 버퍼로 복사본을 만들어 순회한다.
             _threatSnapshotBuffer.Clear();
             _threatSnapshotBuffer.AddRange(SkillAction.GetEnemiesInHitbox(data.attacker, data.threat.hitbox));
             foreach (var u in _threatSnapshotBuffer)
@@ -92,12 +89,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Dictionary<Vector3Int, Room> roomGrid { get; private set; } = new Dictionary<Vector3Int, Room>();
     public List<Room> allRooms { get; private set; } = new List<Room>();
 
-    // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). 예전엔 독립 최상위
-    // GameObject("RoomPopulationLabels")를 필드 초기화 시점에 만들어 썼는데, 사용자 요청(2026-07-28
-    // "RoomPopulationLabels가 계층상, MapRoot_Grid 아래에 들어가야 할거 같아. 따로 오브젝트로 존재할
-    // 이유가 없음")으로 층별 라벨 그룹(GetFloorCategoryGroup(floor, "Labels"))에 흡수됐다. 개별 라벨
-    // 이름("RoomPopLabel_")은 그대로라 Assets/Editor/RoomPopulationLabelCleanup.cs의 재귀 탐색
-    // (부모가 뭐든 이름만 보고 청소)에는 영향 없음.
+    // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). 개별 라벨 이름
+    // ("RoomPopLabel_")은 Assets/Editor/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
     private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();
@@ -105,8 +98,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
     private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
 
-    // 2026-07-31 GC 최적화 — OnThreatCreated 핸들러(생성자 참고)가 공격마다 new List<Unit>()로
-    // GetEnemiesInHitbox 결과를 복사하던 것을 재사용 버퍼로 교체.
+    // OnThreatCreated 핸들러(생성자 참고)가 공격마다 new List<Unit>()로 복사하던 것을 재사용 버퍼로 교체.
     private static readonly List<Unit> _threatSnapshotBuffer = new List<Unit>();
     public IReadOnlyList<Unit> GetUnitsInRoom(RectInt bounds)
     {
@@ -123,14 +115,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // ①: isCastingAttack=true인 유닛만 모아두는 집합 — DetectThreats가 전체 units 대신 이걸 순회.
     public readonly HashSet<Unit> castingUnits = new HashSet<Unit>();
 
-    // 뭉침 완화(2026-07-31 프로파일러 분석): actionCooldown 소진 판정에 쓰는 Time.deltaTime이 Unity
-    // 기본 클램프(TimeManager Maximum Allowed Timestep=0.333초)의 영향을 받는데, 유닛 행동 주기
-    // (1/walkSpeed)도 대략 0.28~0.4초로 같은 자릿수다. 그래서 로딩 직후 등 단 한 프레임만 느려져도
-    // 거의 모든 유닛의 쿨다운이 그 한 프레임에 동시에 0 이하로 떨어져 한꺼번에 처리된다 — 특히
-    // NavigationFSMState.FindNearestUnexploredTarget(배회 유닛의 미탐사 타겟 탐색)처럼 콜당 비용이
-    // 있는 경로가 몰리면 그 프레임이 또 느려져 다음 프레임에도 뭉침이 재생산된다.
-    // 전투/전술/플레이어 명령 중인 유닛은 반응성이 중요하므로 즉시 처리하고, 그 외(주로 배회/탐색)
-    // 유닛만 프레임당 처리 상한을 둔 큐로 미뤄 스파이크를 여러 프레임에 걸쳐 분산시킨다.
+    // 뭉침 완화 — 프레임 드랍 시 대부분의 actionCooldown이 동시에 0 이하로 떨어져 몰아서 처리되면
+    // (특히 비용 큰 FindNearestUnexploredTarget) 다음 프레임에도 뭉침이 재생산된다. 전투/전술/
+    // 플레이어 명령 중인 유닛은 즉시 처리하고, 그 외(배회/탐색) 유닛만 프레임당 상한을 둔 큐로 분산시킨다.
     private readonly Queue<Unit> _throttledActionQueue = new Queue<Unit>();
     private readonly HashSet<Unit> _queuedForThrottledAction = new HashSet<Unit>();
     // 튜닝값 — 값이 클수록 뭉침 분산 효과가 줄고, 작을수록 배회 유닛의 반응(다음 목적지 결정 등)이
@@ -141,22 +128,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public float currentGameSpeed = 1f;
     public bool isPaused = false;
 
-    // 2026-08-22 사용자 신고 "난전중 겹침... 어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — 반환값
-    // (bool)으로 등록 성공 여부를 알려준다(UnitRegistry.RegisterUnitPos 참고, 이미 다른 유닛이
-    // 점유 중이면 false). 실패 시엔 그 유닛의 실제 위치가 바뀌지 않은 것이므로 소리 감지 인덱스도
-    // 건드리지 않는다 — 호출부(ProcessUnitAction/Unit.ForceMove)가 이 반환값으로 위치 변경 자체를
-    // 되돌린다.
+    // 등록 성공 여부를 bool로 알려준다(이미 점유 중이면 false) — 호출부(ProcessUnitAction/
+    // Unit.ForceMove)가 실패 시 위치 변경을 되돌린다.
     public bool RegisterUnitPos(Unit u, Vector2Int pos)
     {
         bool ok = _unitRegistry.RegisterUnitPos(u, pos);
         if (ok)
         {
-            // 07문서 소리 스캔 최적화(2026-08-05) — PropagationSystem이 "방별 소리 감지자"만 훑을 수
-            // 있도록, 유닛 그리드와 동일한 지점(스폰/이동)에서 방 인덱스도 함께 갱신한다. 2026-08-06:
-            // 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 몬스터가 이 인덱스에서 빠져 있던
-            // 갭을 발견해 Human 전용에서 모든 Unit으로 확장했다(전파는 여전히 인류 전용 — 이 인덱스는
-            // "소리를 들을 수 있는지"만 판단하고, 전파 가능 여부는 PropagationSystem의 별도 함수가
-            // 여전히 Human으로 게이팅한다).
+            // PropagationSystem의 방별 소리 감지 인덱스도 함께 갱신한다 — 소리 감지는 전 Unit
+            // 대상이지만 전파(정보 확산) 자체는 인류 전용 게이팅이 따로 있다.
             PropagationSystem.UpdateListenerRoomIndex(u, u.currentFloor, cmap != null ? cmap.GetRoomIdAt(u.currentFloor, pos) : -1);
         }
         return ok;
@@ -180,38 +160,31 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize START");
         try {
-            // UI 리팩토링(2026-08-20) — UIManager가 Haare ICustomPanel로 편입되면서 VContainer에
-            // 더는 등록되지 않는다(GameUIPresenter.BootSequence가 로드를 담당). 여기서 강제로
-            // Resolve<UIManager>()하던 코드는 이제 미등록 타입이라 예외만 던지므로 제거.
+            // UIManager는 Haare ICustomPanel로 편입되어 VContainer에 등록되지 않는다
+            // (GameUIPresenter.BootSequence가 로드) — 여기서 Resolve<UIManager>()하면 예외가 난다.
 
             TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
             if (mapTextAsset != null && !string.IsNullOrEmpty(mapTextAsset.text))
             {
                 cmap.DeserializeMap(mapTextAsset.text);
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
-                // 기존 맵 데이터 보정(2026-07-28, 사용자 요청 "초기 점령 방 중 2층, 3층은 시작방...
-                // 야생으로 남겨주고") — CreateMap.Stairs.cs의 InitOccupationAndDanger는 "새로 생성할
-                // 때"만 2층 이상 시작방을 Neutral로 만든다. 이미 저장된 Resources/Data/map.json(맵을
-                // 다시 생성하지 않고 그대로 불러 쓰는 기존 스냅샷)에는 예전 로직(전 층 시작방=
-                // PlayerControlled)이 그대로 박혀있을 수 있어, 시각화/방 그리드 구성 전에 여기서 다시
-                // 한번 강제로 바로잡는다 — 맵을 재생성하지 않아도 항상 올바른 상태가 되도록.
+                // 기존 저장된 map.json엔 예전 로직("2층 이상 시작방=PlayerControlled")이 남아있을 수
+                // 있어(신규 생성만 Neutral로 만듦) 여기서 강제로 바로잡는다.
                 EnforceFloor2And3StartRoomsAreWild();
                 _mapManager.SetupAndVisualizeMap(cmap);
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
                 BuildRoomGrid();
-                // 문 시스템(2026-07-27, 사용자 요청): 모든 방과 방 사이 통로에 문을 깔아둔다. 다른
-                // 오브젝트보다 먼저 실행해야 "문이 있는 곳엔 다른 오브젝트가 안 생기게"가 성립한다
-                // (SpawnObject가 objectGrid에 이미 오브젝트가 있으면 조용히 스킵하는 걸 그대로 이용).
+                // 모든 방과 방 사이 통로에 문을 깔아둔다 — 다른 오브젝트보다 먼저 실행해야 SpawnObject의
+                // "이미 오브젝트 있으면 스킵" 동작을 이용해 문 자리에 다른 오브젝트가 안 생기게 된다.
                 _doorSystem.SpawnDoors();
-                // 점령 관련(2026-07-27 신규): 모든 야생 방에 야생 몬스터 A 2마리씩 필수 배치.
+                // 모든 야생 방에 야생 몬스터를 필수 배치.
                 SpawnWildRoomGuards();
-                // 보스 골렘(2026-08-24 기획 확정): 1층 보스방에 고정 소환, 야생 소속.
+                // 1층 보스방에 보스 골렘 고정 소환, 야생 소속.
                 SpawnBossGolem();
-                // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 모든 방에 코어를 하나씩 자동
-                // 생성한다(이전엔 보스방 1개 한정). HumanWaveManager는 WaveData.targetRoomRole/
-                // targetRoomId로 지정된 방의 Room.CorePosition을 직접 목표로 삼는다.
-                // 안개 시스템 초기화 (2026-08-22 코어/건물이 횃불 자리 뺏지 않게 먼저 스폰)
+                // 모든 방에 코어를 하나씩 자동 생성한다. HumanWaveManager는 WaveData.targetRoomRole/
+                // targetRoomId로 지정된 방의 Room.CorePosition을 목표로 삼는다.
+                // 안개 시스템 초기화 — 코어/건물이 횃불 자리를 뺏지 않도록 먼저 스폰.
                 _fogOfWarSystem.Initialize();
                 _fogOfWarSystem.SpawnTorches();
 
@@ -234,19 +207,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Initialize END");
     }
 
-    // 종료 시퀀스 안전장치(2026-08-20, 사용자 신고 "게임 실행 종료시 안전 destroy 검사... roomlabel
-    // 파괴가 꼬이는것 같이 보임") — Finalize()/OnApplicationQuit() 중 하나가 먼저 라벨을 Destroy해서
-    // _roomPopulationLabels를 비워도, UpdateProcess()는 Processor 등록 해제 타이밍과 별개로 그 뒤에도
-    // 한두 프레임 더 돌 수 있다(Dispose 순서가 엄격히 보장되지 않음). 그러면 RefreshRoomPopulationLabels
-    // 가 "라벨이 없네" 하고 CreateRoomPopulationLabel로 새로 만들어버리는데, 그 시점엔 부모로 쓸 층별
-    // 타일맵/그룹(GetFloorCategoryGroup)이 이미 같이 파괴되고 있는 중일 수 있어 고아 GameObject가
-    // 생기거나 파괴 순서가 뒤엉킨 것처럼 보인다. 종료가 시작되면 이 플래그로 UpdateProcess() 전체를
-    // 끊어서 더 이상 아무것도 새로 만들지 않게 한다.
+    // 종료 시퀀스 안전장치 — Dispose 순서가 엄격히 보장되지 않아 라벨 Destroy 후에도 UpdateProcess()가
+    // 한두 프레임 더 돌 수 있어, 파괴 중인 그룹에 새 라벨을 만들다 고아 GameObject가 생길 수 있다.
+    // 이 플래그로 종료 시작 시 UpdateProcess() 전체를 끊는다.
     private bool _isShuttingDown;
 
-    // NativeRoutine 생명주기: Processor에서 UnRegister될 때(Dispose()→Finalize(), VContainer 컨테이너
-    // 파괴 시) 한 번 호출됨 — ResourceManager/BuildingManager와 동일 관례. NativeRoutine은 OnDestroy가
-    // 없어서 런타임에 만든 GameObject는 여기서 직접 정리해야 한다.
+    // NativeRoutine은 OnDestroy가 없어서 Dispose()→Finalize() 시점(ResourceManager/BuildingManager와
+    // 동일 관례)에 런타임 생성 GameObject를 직접 정리해야 한다.
     public override async UniTask Finalize()
     {
         _isShuttingDown = true;
@@ -254,12 +221,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         await base.Finalize();
     }
 
-    // 기존 맵 데이터 보정(2026-07-28, 사용자 요청 "초기 점령 방 중 2층, 3층은 시작방 플레이어 몬스터
-    // 진영에게 점령되는게 아닌, 야생으로 남겨주고") — CreateMap.Stairs.cs.InitOccupationAndDanger는
-    // "새로 생성할 때"만 2층 이상 시작방을 Neutral로 만든다. 이미 저장된 Resources/Data/map.json(맵을
-    // 다시 생성하지 않고 그대로 불러 쓰는 기존 스냅샷)에는 예전 로직(전 층 시작방=PlayerControlled)이
-    // 그대로 박혀있을 수 있어, GameSession.Initialize()가 역직렬화 직후·시각화/방 그리드 구성 전에
-    // 호출해 다시 한번 강제로 바로잡는다 — 맵을 재생성하지 않아도 항상 올바른 상태가 되도록.
+    // 2층 이상 시작방은 항상 야생(Neutral)이어야 한다 — 신규 생성은 InitOccupationAndDanger가
+    // 처리하지만, 기존 저장 맵엔 옛 로직이 남아있을 수 있어 역직렬화 직후 다시 강제 보정한다.
     private void EnforceFloor2And3StartRoomsAreWild()
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -285,15 +248,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // 계층 정리(2026-07-28, 사용자 요청 "RoomPopulationLabels가 계층상, MapRoot_Grid 아래에 들어가야
-    // 할거 같아. 따로 오브젝트로 존재할 이유가 없음. 그리고 각 층에 자식으로 할당된 오브젝트들을 좀
-    // 유닛이면 유닛, 라벨이면 라벨, 문이면 문, 안개면 안개끼리 묶어서 나타나게 해줘") — 그동안 문/
-    // 트랩·시체·루팅·코어/안개/횃불/건물/유닛이 전부 F{n}_Tilemap 바로 아래 뒤섞여 flat하게 매달려
-    // 있었다. 층별·종류별 하위 그룹 GameObject(Units/Labels/Doors/Objects/Fog/Torches/Buildings)를
-    // 만들어 그 아래로 모은다. (floorIdx, category) 조합마다 한 번만 만들고 캐시해서 재사용 —
-    // GameObject.Find/Transform.Find 반복 호출을 피한다.
-    // ══════════════════════════════════════════════════════════════════════
+    // 층별·종류별 하위 그룹 GameObject(Units/Labels/Doors/Objects/Fog/Torches/Buildings)를
+    // F{n}_Tilemap 아래에 모은다. (floorIdx, category) 조합마다 한 번만 만들고 캐시해 GameObject.Find
+    // 반복 호출을 피한다.
     private readonly Dictionary<(int floor, string category), Transform> _floorCategoryGroups = new Dictionary<(int, string), Transform>();
 
     public Transform GetFloorCategoryGroup(int floorIdx, string category)
@@ -322,8 +279,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return groupGo.transform;
     }
 
-    // 유닛 배치 시스템(2026-07-27 신규) 5.1장 — 방 최대 인구수 = 청크 수 × 이 값(문서에 수치가 없어
-    // 사용자 확인대로 "방 크기 비례" 공식 채택, 2026-07-27 사용자 요청으로 6→4 조정).
+    // 5.1장 — 방 최대 인구수 = 청크 수 × 이 값(문서에 수치가 없어 "방 크기 비례" 공식으로 채택).
     private const int PopulationPerChunk = 4;
 
     public void BuildRoomGrid()
@@ -339,10 +295,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Dictionary<int, Vector2Int> roomMax = new Dictionary<int, Vector2Int>();
         Dictionary<int, int> roomChunkCount = new Dictionary<int, int>();
 
-        // 2026-07-27 확장 — 기존엔 "int currentFloor = 1" 고정이라 오펜스/야생몬스터 관련 Room이
-        // 1층에서만 만들어졌다. 야생 몬스터 A를 모든 층의 야생 방에 배치해야 해서 전체 층을 순회하도록
-        // 확장한다. RoomIdGenerator.GetNextId()가 전역 카운터라(층마다 리셋 안 됨) roomId는 항상
-        // 층을 넘나들어도 고유하므로 이 딕셔너리들을 층 사이에 공유해도 충돌하지 않는다.
+        // 모든 층을 순회해 야생 몬스터를 모든 층의 야생 방에 배치할 수 있게 한다. RoomIdGenerator가
+        // 전역 카운터라 roomId는 층을 넘나들어도 고유하므로 이 딕셔너리들을 층 사이에 공유해도 안전하다.
         for (int currentFloor = 0; currentFloor < cmap.map.floors.Length; currentFloor++)
         {
             Floor floor = cmap.map.floors[currentFloor];
@@ -365,11 +319,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
                                 RoomName = string.IsNullOrEmpty(c.roomName) ? $"Room {c.roomId}" : c.roomName,
                                 RoomId = c.roomId,
                                 Floor = currentFloor,
-                                // 구조적 이슈 수정(2026-07-28, 사용자 요청 — 데모_구현현황_검증_2026-07-28.txt
-                                // "발견된 사항 2") — 예전엔 Room.RoomFaction이 항상 클래스 기본값(Wild)으로
-                                // 시작해서, 0층(HumanControlled)/1층 시작방(PlayerControlled)도 Room 객체
-                                // 기준으로는 생성 직후 "야생"으로 취급됐다. CreateMap.Chunks.occupationState
-                                // (맵 데이터 원본, 방 하나는 항상 단일 값)를 그대로 반영해 초기값부터 일치시킨다.
+                                // 기본값(Wild)으로 두면 0층/1층 시작방도 생성 직후엔 야생으로
+                                // 취급되므로, 맵 원본 occupationState를 그대로 반영해 초기값부터
+                                // 일치시킨다.
                                 RoomFaction = MapOccupationStateToFaction(c.occupationState),
                             };
                             generatedRooms[c.roomId] = room;
@@ -421,10 +373,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         LogHelper.Log(LogHelper.GAME, $"BuildRoomGrid: 전체 {cmap.map.floors.Length}개 층에서 방 {generatedRooms.Count}개 생성됨.");
     }
 
-    // BuildRoomGrid 전용(2026-07-28) — CreateMap.Chunks.occupationState → Room.RoomFaction 매핑.
-    // Outpost/Occupied는 OffenseProcessor.MapToRoomFaction 쪽 FactionType 값과 1:1 대응이 없어(Outpost는
-    // "PlayerControlled 이후 인류가 거점화한 상태"이므로 Player로, 실사용 안 되는 Occupied는 Wild로 폴백)
-    // 안전한 값으로 근사한다.
+    // BuildRoomGrid 전용 — CreateMap.Chunks.occupationState → Room.RoomFaction 매핑. Outpost는
+    // "PlayerControlled 이후 거점화한 상태"라 Player로, 실사용 안 되는 Occupied는 Wild로 근사한다.
     private static FactionType MapOccupationStateToFaction(OccupationState state) => state switch
     {
         OccupationState.PlayerControlled => FactionType.Player,
@@ -433,45 +383,25 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _ => FactionType.Wild,
     };
 
-    // 안개 시스템(2026-07-28 구현, 2026-08-20 분리) — 안개 스폰/해제/문 통합 셰도우 재계산 전체를
-    // DoorSystem과 동일한 이유·같은 패턴으로 FogOfWarSystem(Assets/Script/Unit/Session/)으로 뺐다
-    // (횃불도 안개 해제 타이밍에 강하게 결합돼 있어 같은 클래스로 함께 옮김 — 아래 SpawnTorches 위치
-    // 참고). 아래는 외부에서 GameSession.Instance.X() 형태로 호출하던 기존 진입점을 유지하기 위한
-    // 얇은 위임이다.
+    // 안개 스폰/해제/문 통합 셰도우 재계산은 FogOfWarSystem(횃불도 안개 해제 타이밍과 강하게 결합돼
+    // 같이 있음)에 있다 — 아래는 GameSession.Instance.X() 형태의 기존 진입점을 유지하는 얇은 위임.
     public void RevealRoomFog(Room room) => _fogOfWarSystem.RevealRoomFog(room);
     public void RevealFogAroundCapturedRoom(Room room) => _fogOfWarSystem.RevealFogAroundCapturedRoom(room);
 
-    // 횃불 위 유닛 빛 투과 예외(2026-08-24 사용자 요청 "횃불 바로 위에 있으면 빛 그냥 투과로 예외처리")
-    // — UnitGenerate.SyncVisual이 매 위치 갱신 시 이 자리에 횃불이 있는지 확인해 그 유닛의
-    // ShadowCaster2D를 임시로 끈다.
+    // 횃불 바로 위의 유닛은 빛을 그대로 투과시킨다 — UnitGenerate.SyncVisual이 매 위치 갱신 시 이 자리에
+    // 횃불이 있는지 확인해 그 유닛의 ShadowCaster2D를 임시로 끈다.
     public bool IsTorchAt(Vector3Int pos) => _fogOfWarSystem != null && _fogOfWarSystem.ActiveTorchPositions.Contains(pos);
 
 
-    // 2026-07-27 신규 — "모든 야생 진영 방에 야생 몬스터 A 2마리씩 필수 배치(위치는 랜덤), 방 밖으로
-    // 나갈 수 없음" 요구사항. BuildRoomGrid() 직후(Initialize 참고) 한 번 호출한다. 야생 여부는
-    // CreateMap.Chunks.occupationState(Neutral=야생)로 판정한다 — Room.RoomFaction(오펜스 시스템)과는
-    // 별개의 개념이라 건드리지 않는다. WildBaseSpawnerComponent.SpawnMonster와 동일한 스폰 패턴
-    // (랜덤 위치 + IsAreaClear 재시도 + WildMonsterBehavior/RoomConfinedMovement 부여)을 재사용한다.
-    // 2026-08-24: 배치되는 종류가 야생 몬스터 A 고정에서 4종 랜덤으로 확장됐고(아래 참고), 마리 수도
-    // 2마리 고정에서 방마다 3~5마리 랜덤으로 바뀌었다(사용자 요청 "방당 3~5명 소환으로 정의해줘").
-    // 범위는 양 끝 포함(3/4/5 균등) — 방이 좁아 자리를 못 찾은 개체는 아래 루프에서 자연히 빠지므로
-    // 실제 배치 수가 뽑힌 값보다 적을 수는 있다.
+    // 모든 야생 방에 몬스터 3~5마리를 랜덤 배치하고 방 밖으로 못 나가게 한다. 야생 여부는
+    // CreateMap.Chunks.occupationState(Neutral)로 판정 — Room.RoomFaction(오펜스 시스템)과는 별개
+    // 개념. 자리를 못 찾은 개체는 자연히 빠지므로 실제 배치 수가 뽑힌 값보다 적을 수 있다.
     private const int WildRoomGuardCountMin = 3;
     private const int WildRoomGuardCountMax = 5;
 
-    // 야생 방 가드 후보 — 한 마리씩 독립적으로 균등 추첨한다(한 방에 배치되는 3~5마리가 서로 다른
-    // 종류일 수 있고, 같은 종류가 겹쳐 나올 수도 있다). 2026-08-24 사용자 요청으로 두 번 바뀌었다:
-    // 야생 몬스터 A 단독("야생 몬스터 A만 야생유닛으로 설정해뒀는데 재미없어 보여서") → +주술사/
-    // 도적/전사 → 도적·전사를 빼고 고블린 후드·놀을 넣은 지금 구성("야생 몬스터 랜덤에 고블린
-    // 후드와 놀 추가해주고 도적, 전사는 빼줘").
-    //
-    // 주술사만 인류 직업이지만 생성 클래스는 나머지와 똑같이 Monster다 — Human으로 만들면
-    // 파티/자유탐색/코어·문 자동 공격 같은 인류 전용 AI가 통째로 붙어 "자기 방 안에만 머무는 야생
-    // 가드"가 아니게 된다(CLAUDE.md의 "자동 오브젝트 공격은 인류 전용" 하드 룰과도 충돌한다).
-    // 스탯/스킬/스프라이트는 전부 프리팹(Assets/Resources/Units/{typeName}.prefab의
-    // UnitVisualDefinition)에서 오므로 unitType만 바꿔주면 그 유닛 그대로 나오고, 방 제한 이동/전투
-    // 유지 판정도 unitType이 아니라 MovementAlgorithm(AIMovementHelper.IsRoomConfined)을 보므로
-    // 아래 스폰 루프가 부여하는 RoomConfinedMovement 그대로 야생 몬스터 A와 동일하게 동작한다.
+    // 한 마리씩 독립적으로 균등 추첨한다. 주술사만 인류 직업이지만 생성 클래스는 Monster로 통일한다
+    // — Human으로 만들면 파티/코어·문 자동 공격 등 인류 전용 AI가 붙어 "방 안에만 머무는 야생 가드"가
+    // 아니게 된다(CLAUDE.md 하드 룰과 충돌).
     private static readonly System.Func<UnitType>[] WildRoomGuardTypeFactories =
     {
         () => new WildMonsterA(),
@@ -490,7 +420,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         foreach (var room in allRooms)
         {
             if (room.RoomId < 0 || room.Floor < 0) continue;
-            if (room.Floor == 0) continue; // 사용자 요청(2026-07-27): 0층(인류 소유 로비)에는 생성 금지.
+            if (room.Floor == 0) continue; // 0층(인류 소유 로비)에는 생성 금지.
             if (cmap.GetRoomOccupationState(room.Floor, room.RoomId) != OccupationState.Neutral) continue;
 
             int guardCount = UnityEngine.Random.Range(WildRoomGuardCountMin, WildRoomGuardCountMax + 1);
@@ -524,8 +454,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         LogHelper.Log(LogHelper.GAME, "SpawnWildRoomGuards: 야생 방 배치 완료.");
     }
 
-    // 보스 골렘(2026-08-24, 기획 확정: "1층 보스방에 고정 소환, 야생 소속") — SpawnWildRoomGuards처럼
-    // 야생 방마다 반복 배치되는 게 아니라, 게임 전체에 1층 보스방 안 고정된 한 마리만 배치한다.
+    // 보스 골렘 — SpawnWildRoomGuards처럼 방마다 반복 배치되는 게 아니라, 게임 전체에 1층 보스방 안
+    // 고정된 한 마리(야생 소속)만 배치한다.
     private const int BossGolemFloor = 1;
 
     public void SpawnBossGolem()
@@ -552,12 +482,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         golem.FactionBehavior = new WildMonsterBehavior();
         golem.MovementAlgorithm = new RoomConfinedMovement(); // 실제로는 isImmobile이 모든 이동을 막지만 다른 몬스터와 동일 관례 유지
         golem.summonPosition = spawnPos;
-        // 기획 확정(2026-08-24): "본체가 고정" — 사용자 신고 "보스가 움직임"으로 확인된 대로
-        // units.json의 walkSpeed=0만으로는 이동이 막히지 않는다(walkSpeed는 행동 주기만 결정).
-        // 실제 고정은 이 플래그가 담당한다(Unit.isImmobile 주석 참고).
+        // units.json의 walkSpeed=0만으로는 이동이 막히지 않으므로(행동 주기만 결정) 고정은 이 플래그가 담당.
         golem.isImmobile = true;
-        // 사용자 요청(2026-08-24) "보스 시야 360도로 해줄래? 제자리에 있는데 시야각때문에 공격범위가
-        // 이상하게 됨" — 고정 유닛이라 등 뒤 적을 영영 못 보는 문제를 각도 제한 해제로 푼다.
+        // 고정 유닛이라 시야각 제한이 있으면 등 뒤 적을 영영 못 보므로 전방위 시야로 예외 처리한다.
         golem.hasOmnidirectionalVision = true;
 
         units.Add(golem);
@@ -591,10 +518,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return null;
     }
 
-    // 방 중앙에서 시작해 바깥쪽 링으로 넓혀가며 footprint가 들어갈 첫 빈자리를 찾는다(2026-08-24
-    // 사용자 요청 "보스방 중앙에서 스폰하게 해줘"). UnitGenerate.GetBossRoomPos는 청크 로컬 tx/ty
-    // 2~5를 순서대로 훑어 "첫 번째" 빈칸을 잡기 때문에 방이 여러 청크면 중앙이 아니라 구석에 가까웠고,
-    // 자리를 못 찾으면 조용히 층 전체 랜덤 위치로 폴백해 3x3 덩치가 복도를 막을 위험이 있었다.
+    // 방 중앙에서 바깥쪽 링으로 넓혀가며 footprint가 들어갈 첫 빈자리를 찾는다 — 기존 방식(청크
+    // 로컬 좌표 순차 탐색)은 여러 청크로 이뤄진 방에서 중앙이 아닌 구석을 잡고, 실패 시 층 전체
+    // 랜덤 폴백이 복도를 막을 위험이 있었다.
     private bool TryFindRoomCenterSpawnPos(Room room, Vector2 footprint, out Vector2Int result)
     {
         int fw = Mathf.Max(1, (int)footprint.x);
@@ -631,9 +557,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return false;
     }
 
-    // 빌드에서는 Application.Quit() 시 OnDestroy 호출이 보장되지 않아 Finalize()만으로는 부족할 수
-    // 있다 — Processor.OnApplicationQuit()(실제 Unity 콜백)로 한 번 더 정리한다. ClearRoomPopulationLabels()는
-    // 중복 호출해도 안전(Unity 파괴된 오브젝트 == null 오버로드).
+    // 빌드에서는 Application.Quit() 시 OnDestroy가 보장되지 않아 Finalize()만으로 부족할 수 있어,
+    // 실제 Unity 콜백으로 한 번 더 정리한다(ClearRoomPopulationLabels는 중복 호출해도 안전).
     public override void OnApplicationQuit()
     {
         base.OnApplicationQuit();
@@ -649,7 +574,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         _offenseProcessor?.UpdateProcess();
         _defenseProcessor?.UpdateProcess();
-        // 문 개폐(기초문서.md 피드백, 2026-08-22) — 기본 닫힘 + 보유 진영 근접 시에만 시각적으로 열림.
+        // 문 개폐 — 기본 닫힘 + 보유 진영 근접 시에만 시각적으로 열림.
         _doorSystem?.UpdateProcess();
 
         // 턴 액션 처리 후, 씬 상주 시각적 요소들 위치 일괄 동기화
@@ -664,17 +589,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             u.OnUpdate(Time.deltaTime);
 
-            // 선택 표시(발밑 링)/단일 선택 시야 범위(2026-08-22 사용자 신고 "선택 담당 시각화들이
-            // 꼬임" — 발밑 링이 몇 개는 생기고 몇 개는 안 생기거나, 시야 범위 표시가 계속 남거나,
-            // 다른 유닛을 선택해도 안 사라지는 문제) — 아래 ProcessUnitAction 경유 SyncVisual은
-            // "이번 틱에 위치/라벨/방향이 실제로 바뀐 유닛"에게만 호출되므로, 가만히 서 있는 유닛은
-            // 선택 상태가 바뀌어도 시각이 갱신되지 않았다. 상태 변화 여부와 무관하게 모든 살아있는
-            // 유닛에 대해 매 프레임 무조건 갱신한다(SetActive/불리언 비교뿐이라 비용이 낮다).
-            // 2026-08-25 프레임 드랍 대응 — 카메라는 지금 보고 있는 층 범위 밖으로 못 나가게 강제
-            // 제한되어 있어(CameraController.ClampToCurrentFloorBounds) 다른 층 유닛은 설계상 항상
-            // 화면 밖이다. 위 u.OnUpdate(시뮬레이션 본체)는 그대로 두고, 화면에 보이지도 않는 층의
-            // 시각 갱신만 건너뛴다 — 웨이브/야생 스폰이 여러 층에서 동시에 진행되는 구조라 유닛 수가
-            // 늘어날수록 이득이 커진다.
+            // ProcessUnitAction 경유 SyncVisual은 상태가 바뀐 유닛에게만 호출되므로, 선택 표시(발밑
+            // 링)는 상태 변화와 무관하게 모든 살아있는 유닛에 매 프레임 갱신한다(비용은 낮음). 카메라가
+            // 현재 층 밖을 못 비추므로 다른 층 시각 갱신은 건너뛴다.
             if (CameraController.Instance == null || u.currentFloor == CameraController.Instance.CurrentFloor)
             {
                 _unitGenerate?.RefreshSelectionVisual(u);
@@ -728,10 +645,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         TickCoreRegen();
     }
 
-    // 코어 자동 회복(2026-08-24 신규, DoorSystem.UpdateProcess의 문 회복 로직과 대칭) — RefreshRoomPopulationLabels와
-    // 동일하게 allRooms를 매 프레임 순회해 room.CorePosition의 코어를 직접 찾는다(전용 위치 목록이
-    // 없어도 되도록 기존 순회를 재사용). 공격 중인 코어는 UnitFunction.OnUpdate가 매 프레임
-    // TimeSinceLastDamaged를 0으로 리셋하므로 회복 지연시간(CoreRegenDelaySeconds)을 넘기지 못한다.
+    // 코어 자동 회복(DoorSystem.UpdateProcess의 문 회복 로직과 대칭). 공격 중인 코어는
+    // UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 리셋하므로 회복 지연시간을 넘기지 못한다.
     private void TickCoreRegen()
     {
         if (allRooms == null) return;
@@ -754,12 +669,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    // 유닛 배치 시스템(2026-07-27 신규) — "방의 최대 인원수를 맵에 표시, 카메라를 따라다니지 않게,
-    // N/M 형식"(사용자 요청). 인구수는 몬스터 전용이라(Room.CurrentPopulation이 이미 인류/야생 제외)
-    // 값 자체가 자동으로 플레이어 몬스터 기준으로 나온다. 0층은 인구수 개념이 적용 안 되는 인류 로비라
-    // 표시하지 않는다(사용자 요청). 방 개수가 많지 않아 매 프레임 확인해도 비용이 낮지만, 실제로 값이
-    // 바뀔 때만 TextMesh.text를 갱신한다(text setter가 매번 메시를 재생성하므로 불필요한 대입을
-    // 피하는 게 프레임드랍 방지에 중요 — 사용자 요청으로 점검·수정).
+    // 방의 현재/최대 인구수를 N/M 형식으로 표시(world-space 고정). Room.CurrentPopulation은 이미
+    // 인류/야생을 제외해 플레이어 몬스터 기준이 되고, 0층(인류 로비)은 표시하지 않는다. TextMesh.text는
+    // 재할당마다 메시를 재생성하므로 값이 바뀔 때만 갱신한다.
     private void RefreshRoomPopulationLabels()
     {
         if (allRooms == null) return;
@@ -781,9 +693,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation);
             label.text = $"{room.CurrentPopulation}/{room.MaxPopulation}";
 
-            // 인구수 초과 시각 피드백(2026-07-28, 사용자 요청 "방 인원수가 꽉차면 방 라벨 빨간색으로
-            // 바꾸고, 아니면 다시 원래대로 돌려") — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
-            // 같이 재계산하면 충분하다(CurrentPopulation이 바뀌지 않으면 가득 참 여부도 안 바뀜).
+            // 인구수가 꽉 차면 라벨을 빨간색으로 표시 — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
+            // 같이 재계산하면 충분하다(CurrentPopulation이 안 바뀌면 가득 참 여부도 안 바뀜).
             label.color = room.CurrentPopulation >= room.MaxPopulation ? Color.red : DefaultRoomPopulationLabelColor;
         }
     }
@@ -811,7 +722,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Vector2 center = room.Bounds.center;
         go.transform.position = new Vector3(center.x, center.y, 0f) + floorOffset;
 
-        // 세련되게(사용자 요청) — 굵고 큰 기본값 대신 은은한 반투명 회백색 + 적당한 크기로 톤을 낮춘다.
         TextMesh tm = go.AddComponent<TextMesh>();
         tm.fontSize = 48;
         tm.characterSize = 0.11f;
@@ -831,16 +741,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         
         if (u != null && u.Health.hp <= 0)
         {
-            // 세력별 사망 이벤트(예: 처치 보상) 처리 — lastAttacker가 아니라 lastDamageDealer를
-            // 넘긴다(2026-07-27, 점령 전환/처치 보상 MVP): lastAttacker는 인류-몬스터 교차 히트에서만
-            // 갱신되는 가중치 시스템 전용 필드라 몬스터끼리(예: 플레이어 몬스터의 야생 몬스터 처치) 킬은
-            // 항상 null이 된다 — Unit.lastDamageDealer 필드 주석 참고.
+            // lastAttacker가 아니라 lastDamageDealer를 넘긴다 — lastAttacker는 인류-몬스터 교차 히트
+            // 에서만 갱신되는 가중치 시스템 전용 필드라 몬스터끼리 킬은 항상 null이 된다.
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
 
-            // 방 소유권 전환은 이제 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다
-            // (기초문서.md 피드백, 2026-08-22) — 유닛 사망 자체는 더 이상 점령 전환을 트리거하지 않는다.
-            // 문 개폐도 이제 방 유닛 구성이 아니라 매 프레임 진영·근접 여부로 직접 판정하므로
-            // (DoorSystem.UpdateProcess) 사망 시점에 따로 재확인할 필요가 없다.
+            // 방 소유권 전환은 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다 — 유닛
+            // 사망 자체는 점령 전환을 트리거하지 않고, 문 개폐도 매 프레임 판정이라 사망 시점 재확인이
+            // 불필요하다.
 
             // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
             // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
@@ -856,10 +763,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 causerStage = u.Knowledge.GetDangerStage(u.lastAttacker.unitType.typeName, u.lastAttacker.isSpecialUnit ? u.lastAttacker.name : null, u.lastAttacker.BaseStat.baseDanger);
             }
             
-            // SpawnObject는 objectGrid에 이미 오브젝트가 있는 타일이면 조용히 아무것도 안 하고
-            // 리턴한다 — 함정에 맞아 죽으면 사망 위치가 곧 그 함정 타일이라 항상 이 케이스에 걸려서
-            // 시체가 전혀 안 생기고 있었다(사용자 신고 "시체 생성이 안 되는데 확인해줘", 2026-07-23).
-            // 죽은 자리가 이미 차있으면 바로 옆 빈 타일을 찾아 대신 놓는다.
+            // SpawnObject는 이미 오브젝트가 있는 타일이면 무시한다 — 함정에 맞아 죽으면 사망 위치가
+            // 함정 타일이라 시체가 안 생기므로, 자리가 차있으면 옆 빈 타일을 찾아 대신 놓는다.
             if (objectGrid.ContainsKey(gridPos))
                 gridPos = FindNearbyFreeObjectTile(gridPos);
 
@@ -868,24 +773,19 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             bool isMonsterCorpse = u is Monster;
             List<string> tags = new List<string> { "Object/Passable/Corpse", isMonsterCorpse ? "Monster" : "Human" };
-            // InteractableObject.BaseVisibility 기본값 자체가 0(사용자 요청) — 여기서 따로 넘길 필요 없음.
+            // InteractableObject.BaseVisibility 기본값이 0이라 여기서 따로 넘길 필요 없음.
             InteractableObject corpse = new InteractableObject(objId, gridPos, WeightMath.CorpseTraceBaseInterest, 0f, tags, causerStage);
             // 인간 시체(짙은 붉은색)와 몬스터 시체(붉은 갈색)를 미묘하게 다른 색으로 구분.
             Color corpseColor = isMonsterCorpse ? new Color(0.45f, 0.2f, 0.05f) : new Color(0.5f, 0f, 0f);
-            // 캐릭터별 시체 스프라이트(2026-08-24 사용자 요청) — u가 아직 Destroy되기 전인 지금 시점에
-            // UnitVisualDefinition.corpseSprite를 스냅샷해 둔다(MonsterSpeciesKey 등과 동일한 이유).
-            // 없으면 null 그대로 두고 SpawnObject가 기존 공용 스프라이트로 폴백한다.
+            // u가 아직 Destroy되기 전인 지금 UnitVisualDefinition.corpseSprite를 스냅샷한다 — 없으면
+            // null로 두고 SpawnObject가 공용 스프라이트로 폴백.
             corpse.CorpseSpriteOverride = u.Generate?.GetVisualDefinition(u)?.corpseSprite;
-            // 웨이브 카운트 소멸용 스냅샷(2026-08-24 사용자 요청, 아래 SpawnObject 직후 주석 참고).
-            // GameSession의 humanWaveManager 필드는 아무도 채워주지 않는 죽은 필드라(2026-08-24 확인)
-            // HumanWaveManager.Instance 정적 싱글턴을 직접 참조한다 — WaveSpawner/HumanWaveManager
-            // 자신도 이미 이 관례(GameSession.Instance 등)로 서로를 참조한다.
+            // GameSession.humanWaveManager 필드는 아무도 채워주지 않으므로 HumanWaveManager.Instance
+            // 정적 싱글턴을 직접 참조한다(WaveSpawner도 동일 관례).
             corpse.SpawnWaveNumber = HumanWaveManager.Instance != null ? HumanWaveManager.Instance.WaveNumber : 0;
 
-            // 03문서 4-12~4-15장(2026-07-27 신규): 인류 시체는 사망 사건 추적(정신력 감소/사망 원인
-            // 확인/원인미상 수색)의 시작점이다 — Destroy 전인 지금(u는 Human) 위치/방향/lastAttacker를
-            // 스냅샷으로 남겨야 한다. corpse.OwnerPartyId는 실제 오브젝트가 나중에(사망 연출이 끝난
-            // 뒤) 스폰돼도 미리 채워둔 값 그대로 붙어 나간다 — SpawnObject 호출 자체만 아래에서 지연.
+            // 인류 시체는 사망 사건 추적의 시작점이라 Destroy 전인 지금 위치/방향/lastAttacker를
+            // 스냅샷해야 한다. corpse.OwnerPartyId는 나중에 스폰돼도 미리 채운 값 그대로 붙는다.
             if (!isMonsterCorpse && u is Human deadHuman && deadHuman.party != null)
             {
                 corpse.OwnerPartyId = deadHuman.party.Id;
@@ -893,37 +793,28 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
             else if (isMonsterCorpse && u.lastAttacker is Human)
             {
-                // E_MONSTER_KILL_INDIRECT 연결용(2026-08-05) — 인류에게 죽은 몬스터만 스냅샷한다(u는
-                // 아직 Destroy 전이라 unitType/name 접근이 안전한 지금 시점). PropagationSystem.
-                // OnMonsterCorpseDiscovered가 나중에 이 값으로 RecordEventByKey를 호출한다.
+                // E_MONSTER_KILL_INDIRECT 연결용 — 인류에게 죽은 몬스터만 Destroy 전(unitType/name
+                // 접근이 안전한 지금)에 스냅샷해두면, PropagationSystem.OnMonsterCorpseDiscovered가
+                // 나중에 RecordEventByKey를 호출한다.
                 corpse.MonsterKilledByHuman = true;
                 corpse.MonsterIsSpecialUnit = u.isSpecialUnit;
                 corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
                 corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
             }
 
-            // 사망 연출(2026-08-24 사용자 요청 "죽자마자 사망 vfx 터지고, 스프라이트만 사망 스프라이트
-            // 재생 후 시체 생성" → 같은 날 후속 요청 "Death 스프라이트 단계 자체를 삭제하고 싶어...
-            // 사망 판정 즉시 Corpse 스프라이트로 전환 및 Death VFX Prefab이 발동되게") — 킬 이벤트/
-            // 파티 사망 기록/컴포넌트 정리(OnDespawn) 등 게임플레이 판정은 전부 위에서 이미 끝났다.
-            // 사망 VFX 재생(PlayDeathVisual)과 시체 스폰, 유닛 비주얼/ScriptableObject 파괴까지 전부
-            // 지연 없이 이 자리에서 즉시 처리한다 — 예전엔 사망 스프라이트를 DeathVisualDurationSeconds
-            // (0.8초)만큼 붙들고 있다가 시체로 교체했지만, 그 중간 단계 자체가 요청으로 사라졌다.
+            // 사망 판정 즉시 Corpse 스프라이트로 전환하고 Death VFX를 발동한다 — 킬 이벤트/파티 사망
+            // 기록/컴포넌트 정리는 위에서 이미 끝났으므로 지연 없이 처리한다.
             _unitGenerate?.PlayDeathVisual(u);
             SpawnObject(corpse, corpseColor);
-            // 시체 소멸은 더 이상 시간(초) 단위가 아니라 웨이브 카운트 단위다(2026-08-24 사용자 요청
-            // "시체는 2웨이브 동안 존재하게 해줘. 시간 단위로 측정하지 말고(현재 웨이브 포함)") — 스폰
-            // 웨이브를 방금 스냅샷해뒀으니(corpse.SpawnWaveNumber), HumanWaveManager.StartWave가 새
-            // 웨이브를 시작할 때마다 GameSession.DespawnCorpsesForNewWave가 정리를 담당한다. 여기서는
-            // 더 할 일이 없다(예전 DespawnCorpseAfterDelay 타이머 방식 폐기).
+            // 시체 소멸은 시간이 아니라 웨이브 카운트 단위다(corpse.SpawnWaveNumber로 스냅샷) —
+            // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
             if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
             UnityEngine.Object.Destroy(u);
         }
 
         if (u != null) CheckPartyWaveState(u);
-        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리(2026-08-24
-        // 사용자 신고) — 사망 연출 대기와 무관하게 지금 즉시 처리한다(죽은 유닛이 더 채널링할 일은
-        // 없으므로 미룰 이유가 없다).
+        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리 — 죽은 유닛이
+        // 더 채널링할 일은 없으므로 즉시 처리한다.
         if (u != null) u.ClearTransientWorldVisuals();
         if (_threatTileRenderer != null && u != null)
         {
@@ -933,19 +824,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (u != null) ClearPerceptionRecordsFor(u);
         if (u != null) castingUnits.Remove(u);
         units.RemoveAt(index);
-        // u가 실제로 사망 처리된 경우(hp<=0)의 시체 스폰/비주얼 정리는 전부 위에서 이미 즉시 처리됐다
-        // (2026-08-24 후속 수정으로 "사망 스프라이트를 붙들고 있다가 지연 처리" 단계 자체를 없앴다) —
-        // u가 애초에 null이었던 경우(이미 다른 경로로 정리된 참조)는 그 분기 자체를 안 타므로 여기서
-        // 더 할 일이 없다.
     }
 
-    // RemoveDeadUnit의 시체 배치용 — 죽은 자리에 이미 오브젝트가 있으면(대표적으로 함정 위에서 죽은
-    // 경우, objectGrid에 함정 자신이 이미 그 타일을 차지하고 있음) 바로 옆부터 정사각형 링 모양으로
-    // 넓혀가며 비어있는 첫 타일을 찾는다. objectGrid 점유 여부만 보고 벽인지는 확인하지 않아서, 좁은
-    // 통로에서 죽으면 시체가 벽 타일에 놓이는 경우가 있었다(사용자 신고, 2026-07-23 "시체 벽에
-    // 생기는거 막아줘") — CreateMap.IsStaticTileWalkable로 벽/구조물 타일도 함께 걸러낸다. 반경 안에
-    // 빈 자리가 전혀 없으면(사실상 거의 없음) 원래 위치를 그대로 반환한다 — 그러면 SpawnObject가
-    // 조용히 무시하고 넘어간다.
+    // 죽은 자리에 이미 오브젝트가 있으면 바로 옆부터 링 모양으로 넓혀가며 빈 타일을 찾는다. 벽/구조물
+    // 타일도 걸러내고(안 그러면 시체가 벽에 놓일 수 있다), 못 찾으면 원래 위치를 반환한다(SpawnObject가 무시).
     private Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
     {
         const int maxRadius = 5;
@@ -969,12 +851,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return center;
     }
 
-    // 2026-07-20: 02문서(인지·정보판정) 구현으로 생긴 Unit.perceptionRecords는 "누가 이 유닛을 봤는지"를
-    // 그 관찰자 쪽에 Unit 참조를 키로 들고 있는 구조라, 유닛이 죽어도 다른 유닛들의 딕셔너리에는 destroyed
-    // 참조가 그대로 남는다 — 웨이브가 반복될수록 죽은 몬스터 참조가 계속 쌓여 UpdateFOV 끝의 sweep(전체
-    // perceptionRecords 순회) 비용이 웨이브를 거듭할수록 계속 커지는 게 실제 프레임 드롭의 원인이었다.
-    // 유닛이 죽는 시점에 전 유닛을 한 번 순회해 그 유닛에 대한 기록을 지운다(사망은 매 프레임 일어나는
-    // 일이 아니므로 O(units) 비용을 여기서 감당하는 게 맞다).
+    // Unit.perceptionRecords는 관찰자 쪽에 Unit 참조를 키로 들고 있어, 유닛이 죽어도 destroyed
+    // 참조가 남아 웨이브를 거듭할수록 UpdateFOV 비용이 커진다 — 사망 시점에 전 유닛을 순회해 지운다
+    // (드문 이벤트라 O(units) 비용 감당 가능).
     private void ClearPerceptionRecordsFor(Unit dead)
     {
         foreach (var other in units)
@@ -988,8 +867,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void DespawnUnit(Unit u)
     {
         if (u == null) return;
-        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리(2026-08-24
-        // 사용자 신고 — RemoveDeadUnit과 동일한 이유, 이 유닛도 갑자기 사라지는 경로이므로 동일하게 필요).
+        // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리 — RemoveDeadUnit과
+        // 동일한 이유(이 유닛도 갑자기 사라지는 경로).
         u.ClearTransientWorldVisuals();
         if (_unitGenerate != null)
         {
@@ -1011,10 +890,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
             party.Members.Add(m);
             m.party = party;
 
-            // 5-1장: "신규 유닛 개인 지도 정보 = 최신 전역 지도 정보" — 파티에 합류하는(=웨이브에
-            // 입장하는) 시점이 정확히 문서가 말하는 "신규 진입" 순간이다. 이미 개인 기억
-            // (personalWeights)이 있는 유닛은 InitializeNewUnitPersonalInfo 내부에서 덮어쓰지
-            // 않으므로(5-2장) 재사용 유닛을 넣어도 안전하다.
+            // 5-1장: 파티 합류(=웨이브 입장) 시점이 "신규 유닛 개인 지도 정보 = 최신 전역 지도 정보"가
+            // 적용되는 순간이다. 이미 개인 기억이 있는 유닛은 InitializeNewUnitPersonalInfo가 덮어쓰지
+            // 않으므로(5-2장) 재사용해도 안전하다.
             m.Knowledge?.InitializeNewUnitPersonalInfo(m);
         }
         party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
@@ -1036,11 +914,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
             party.WaveEnded = true;
             knowledge.OnPartyWipeout();
 
-            // 13-2장: 전멸 흔적 — 원인 대상(이 파티원을 마지막으로 공격한 대상)의 위험도 단계로
-            // 보정치를 계산해 등록한다. RegisterWipeoutTrace가 발급한 traceId를 흔적 오브젝트에
-            // 실어 스폰하면, 생환한 다른 파티가 CastRay로 이 오브젝트를 발견하는 시점에
-            // UnitFunction.CastRay가 OnWipeoutTraceReflected(traceId)를 호출해 동일 ID당 1회만
-            // 던전 위험도에 반영한다(2026-07-09: 시체/흔적 엔티티가 생기면서 실제로 연결됨).
+            // 13-2장: 전멸 흔적 — RegisterWipeoutTrace가 발급한 traceId를 흔적 오브젝트에 실어두면,
+            // 생환한 다른 파티가 CastRay로 발견하는 시점에 OnWipeoutTraceReflected가 동일 ID당 1회만
+            // 던전 위험도에 반영한다.
             Unit causer = deadHuman.lastAttacker;
             DangerStage causerStage = DangerStage.Stage0;
             if (causer != null)
@@ -1056,10 +932,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         else if (deadUnit is Monster deadMonster)
         {
-            // break하지 않고 끝까지 순회한다 — WaveSpawner가 같은 웨이브에 여러 파티를 스폰하면
-            // 여러 Party가 동일한 WaveMonsters 리스트(참조)를 공유하므로, 몬스터 한 마리의 죽음이
-            // 동시에 여러 파티의 웨이브 클리어를 트리거할 수 있다(2026-07-08: 다중 파티 지원 추가
-            // 당시 이 break를 지우지 않아서 첫 번째로 매칭된 파티만 OnWaveEnd를 받던 버그 수정).
+            // break하지 않고 끝까지 순회한다 — 같은 웨이브의 여러 Party가 동일한 WaveMonsters 리스트를
+            // 공유할 수 있어, 몬스터 한 마리의 죽음이 여러 파티의 웨이브 클리어를 동시에 트리거할 수 있다.
             foreach (var party in parties)
             {
                 if (party.WaveEnded || !party.WaveMonsters.Contains(deadMonster) || !party.IsWaveCleared) continue;
@@ -1073,11 +947,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
 
 
-    // 전투/전술/플레이어 명령 상태는 즉시 처리 대상(위 뭉침 완화 큐를 건너뜀) — 반응성이 중요한
-    // 상태만 골라낸다. 판정 기준은 "이번 프레임 JudgeState 이전, 마지막으로 확정된 상태"라 최대
-    // 1행동주기(≈0.3초)만큼 지연될 수 있지만(예: 지금 막 적을 발견해 이번 프레임에 Combat으로
-    // 전환될 유닛), 그 경우도 공격을 받는 쪽 반응(OnReactToThreat/DefenseSystem)은 이 유닛의 턴과
-    // 무관하게 별도 경로로 처리되므로 안전하다.
+    // 전투/전술/플레이어 명령 상태는 즉시 처리(뭉침 완화 큐를 건너뜀) — 판정 기준이 "이번 프레임
+    // JudgeState 이전의 마지막 확정 상태"라 최대 1행동주기 지연될 수 있지만, 공격받는 쪽 반응
+    // (OnReactToThreat/DefenseSystem)은 이 유닛의 턴과 무관한 별도 경로라 안전하다.
     private static bool IsHighPriorityFsmState(Unit unit)
     {
         IFSMState state = unit.fsm.CurrentState;
@@ -1086,9 +958,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private void ProcessUnitAction(Unit u)
     {
-        // 4-3장: 경계 상태에서 위치/방향을 확인하며 이동할 때는 이동속도가 75%로 줄어든다.
-        // 07문서 16-3장: 단, 피격 발생 공격음/피격 비명/사망음 확인 접근은 긴급 소리라 감속 없이 정상
-        // 이동속도를 유지한다(AlertSearchState.IsUrgentSoundApproach).
+        // 4-3장: 경계 상태 이동은 75% 감속. 07문서 16-3장: 단, 피격/사망음 확인 접근은 긴급 소리라
+        // 감속 없이 정상 속도를 유지한다(AlertSearchState.IsUrgentSoundApproach).
         bool alertMoveSlowdown = u.currentAlertSearch != null && !u.currentAlertSearch.IsUrgentSoundApproach;
         float speed = u.BaseStat.walkSpeed * (alertMoveSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
         u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
@@ -1097,13 +968,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
         TrapInteractionState trapInteractionBefore = u.currentTrapInteraction;
 
-        // 라벨 스냅샷은 JudgeState()보다 먼저 찍어야 한다(2026-08-20 버그 수정, 사용자 신고 "머리 위에
-        // (정지)라는 상태가 안 떠") — JudgeState()가 FSM _current를 실제로 전환시키는 지점인데, 예전엔
-        // 이 스냅샷을 JudgeState() 다음에 찍어서 "전환 직후"의 라벨을 old/new 둘 다로 잡아버렸다(그
-        // 틱엔 위치·방향도 안 바뀌는 전환이면 stateChanged가 전혀 감지되지 않음 — HaltFSMState처럼
-        // 진입 즉시 아무것도 안 하는 상태에서 특히 두드러진다). 소집("소집" 라벨)은 UnitFSM.GetLabel이
-        // isMustered를 매번 새로 확인하는 별도 오버라이드라 이 문제를 우연히 피해갔을 뿐, 근본적으로는
-        // 모든 FSM 상태 전환 라벨에 해당하는 일반적인 결함이었다.
+        // 라벨 스냅샷은 반드시 JudgeState() 이전에 찍어야 한다 — 이후에 찍으면 전환 직후 라벨이
+        // old/new 둘 다로 잡혀, 위치·방향이 안 바뀌는 전환(예: HaltFSMState 진입)의 stateChanged가
+        // 감지되지 않는다.
         string oldLabel = u.fsm.GetLabel(u);
         u.JudgeState();
         Vector2Int oldPos = u.position;
@@ -1142,18 +1009,17 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
             else
             {
-                // 목적지가 이미 다른 유닛에 점유돼 있다(2026-08-22 사용자 신고 "난전중 겹침... 어떤
-                // 상황에서도 유닛끼리는 겹쳐지면 안돼") — 이 프레임의 이동 자체를 되돌린다. Move()/
-                // ForceMove가 이동 시점엔 이미 자체적으로 점유를 확인하지만, 그 확인과 이 grid 동기화
-                // 사이에 다른 경로(스폰/텔레포트 등)가 같은 칸을 먼저 차지했을 수 있는 최종 안전망이다.
+                // 목적지가 이미 점유돼 있다 — 이 프레임 이동을 되돌린다. Move()가 이동 시점에 점유를
+                // 확인하지만, 그 확인과 이 grid 동기화 사이 다른 경로가 먼저 차지했을 수 있는 최종
+                // 안전망이다.
                 u.position = oldPos;
                 RegisterUnitPos(u, oldPos);
             }
         }
 
-        // 01-A 11장: 이동/전투 등으로 이번 턴에 활성화된 후보 중 우선순위가 가장 높은 시야 방향을
-        // 확정한다. ExecuteAction() 이후에 호출해야 Move()가 갱신한 currentDir를 "이동 중" 후보의
-        // 기본값으로 넘겨줄 수 있고, UpdateFOV() 이전에 호출해야 그 방향 기준으로 시야/인지 범위를 계산한다.
+        // 01-A 11장: 이번 턴 후보 중 우선순위가 가장 높은 시야 방향을 확정한다. ExecuteAction() 이후
+        // (Move()가 갱신한 currentDir를 폴백으로 쓰기 위해) + UpdateFOV() 이전(그 방향으로 시야를
+        // 계산하기 위해) 호출해야 한다.
         u.ResolveVisionDirection();
         u.UpdateFOV(units);
 
@@ -1178,19 +1044,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _defenseProcessor?.TryStartDefense(room, unit);
     }
 
-    // 9-9/9-10장의 "의도적으로 통과/파괴를 선택했을 때"와 별개로, 함정을 인지하지 못했거나(또는 다른
-    // 함정에 정신 팔려) 그냥 밟고 지나가면 GOAP의 선택과 무관하게 자동으로 피해를 입는다 — 해제/우회가
-    // 거의 항상 먼저 성공해서 Action_TrapPass가 실전에서 거의 발동하지 않는다는 사용자 피드백
-    // (2026-07-22)에 따라 추가. trapInteractionBefore로 "이번 틱 시작 시점에 이미 이 함정을 알고
-    // 대응 중이었는지"를 확인해서, 그런 경우(해제 접근/통과/파괴가 이미 진행 중이던 것)엔 제외한다 —
-    // 안 그러면 의도적 대응(Action_TrapPass 등)과 중복으로 두 번 맞는다. 함정은 일회성이 아니다
-    // (사용자 요청, 2026-07-22) — 해제/파괴로 실제 없앴을 때만 사라지고, 그냥 밟은 것만으로는
-    // 소모되지 않는다 — 같은 자리를 다시 밟으면(이 유닛이든 다른 유닛이든) 또 맞는다.
-    // 전 유닛 대상(2026-08-24 사용자 요청 "함정에 모든 유닛이 데미지를 입게, 인류 유닛에게 있던 함정
-    // 피해 로직을 모든 유닛에게 부여") — 원래 인류 전용이었으나(Goal_TrapResponse가 여전히 인류 전용인
-    // 해제/우회/의도적 통과 GOAP과는 별개로) 이 "우연히 밟은 자동 피해"는 야생/플레이어 몬스터에도 동일
-    // 적용한다. 몬스터는 currentTrapInteraction이 애초에 세팅되지 않으므로 alreadyHandling은 항상
-    // false — 매번 밟을 때마다 그대로 피해를 입는다.
+    // 9-9/9-10장의 의도적 통과/파괴 선택과 별개로, 함정을 인지 못 하고 밟으면 자동으로 피해를
+    // 입는다. trapInteractionBefore로 이미 대응 중이었는지 확인해 의도적 대응(Action_TrapPass 등)과의
+    // 중복 피해를 막는다. 함정은 해제/파괴 전까지 소모되지 않아 다시 밟으면 또 맞고, 몬스터는
+    // currentTrapInteraction이 세팅되지 않아 매번 그대로 맞는다.
     private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
     {
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
@@ -1257,24 +1114,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
         GameObject visual = new GameObject(obj.Id);
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
 
-        // 태그별 실제 아트 스프라이트 배정(사용자 요청, 2026-07-23) — 시체는 colapse.png, 함정은
-        // trap.png, 코어는 core.png, 그 외 일반 루팅 오브젝트(O키로 수동 생성)는 obj1.png.
-        // Resources.Load 실패(아직 없는 태그 등) 시에만 기존 도형 폴백(함정=삼각형, 그 외=단색
-        // 사각형)으로 되돌아간다.
+        // 태그별 아트 스프라이트 배정(시체=colapse, 함정=trap, 코어=core, 그 외=obj1) —
+        // Resources.Load 실패 시에만 도형 폴백(함정=삼각형, 그 외=단색 사각형).
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
-        // 문 시스템(2026-07-27, 2026-08-22 기본 닫힘으로 전면 개편) — 여기서는 기본 열림(door_open)
-        // 스프라이트로 그리지만, DoorSystem.SpawnDoorAt/RebuildDoorAt이 바로 이어서 기본 닫힘
-        // (door_closed)으로 교체한다. 이후 개폐는 DoorSystem.UpdateProcess가 매 프레임 진영·근접
-        // 여부로 직접 관리한다.
+        // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem.SpawnDoorAt/RebuildDoorAt이
+        // 곧바로 닫힘으로 교체한다 — 이후 개폐는 DoorSystem.UpdateProcess가 매 프레임 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
         Sprite sprite = null;
         if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
-        // 캐릭터별 시체 스프라이트(2026-08-24 사용자 요청) — RemoveDeadUnit이 스냅샷해둔
-        // CorpseSpriteOverride가 있으면 그걸 쓰고, 없으면 기존 공용 시체 스프라이트로 폴백한다.
+        // 캐릭터별 시체 스프라이트 — RemoveDeadUnit이 스냅샷한 CorpseSpriteOverride가 있으면 쓰고,
+        // 없으면 공용 시체 스프라이트로 폴백한다.
         else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : Resources.Load<Sprite>("obj/colapse");
         else if (isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
         else if (isDoor) sprite = Resources.Load<Sprite>("obj/door_open");
@@ -1299,31 +1152,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
         sr.sprite = sprite;
         sr.sortingOrder = 5;
 
-        // 9-7/9-8장/7-3장(2026-07-27 추가) — 함정 해제·코어 조사 진행 막대를 붙일 자리. 그 외
-        // 오브젝트에는 붙이지 않는다(불필요한 컴포넌트/자식 GameObject 낭비 방지). 문도 코어와 동일하게
-        // 파괴 채널링 대상이라(기초문서.md 피드백, 2026-08-22) 2026-08-24 사용자 요청("문과 코어 파괴
-        // 행동 중... 함정 해제할때 쓰는 로직처럼 스프라이트 하단에 표시")로 추가.
+        // 함정 해제·코어/문 파괴 진행 막대를 붙일 자리 — 그 외 오브젝트는 불필요한 컴포넌트 낭비를 막기 위해 생략.
         if (isTrap || isCoreOnly || isDoor) visual.AddComponent<ObjectProgressBarVisual>();
 
-        // 빛(Light2D)이 문도 막게(사용자 요청, 2026-07-28) — MapRandering의 벽 셰도우 캐스터와 동일한
-        // 기법(유닛 프리팹과 같은 SpriteRenderer 실루엣 기반 ShadowCaster2D). 문은 열림/닫힘에 따라
-        // sr.sprite가 바뀌는데(DoorSystem.UpdateProcess), ShadowCaster2D의 SpriteRenderer 프로바이더가
-        // 스프라이트 변경 콜백을 등록해두므로 별도 갱신 코드 없이 셰이프가 따라 바뀐다.
+        // 빛이 문도 막도록 벽과 동일한 ShadowCaster2D 기법을 쓴다 — 문 열림/닫힘으로 sr.sprite가
+        // 바뀌면 SpriteRenderer 프로바이더가 콜백으로 셰이프를 자동으로 따라 바꾼다.
         if (isDoor) visual.AddComponent<ShadowCaster2D>();
 
         Vector3 offset = Vector3.zero;
         if (mapRandering != null)
         {
-            // mapRandering의 mapRoot와 같은 계층 접근 특성이 없으므로 임시로 오프셋(offset)을 사용하고,
-            // floorTilemaps[obj.Position.z]를 참조해주는 유도도 해야 합니다.
-            // 여기서는 floorOffsets 배열을 참조하여 오프셋만 가져옵니다.
+            // mapRandering이 mapRoot 계층 접근을 제공하지 않아 floorOffsets 배열에서 오프셋만 가져온다.
             if (mapRandering.floorOffsets != null && obj.Position.z >= 0 && obj.Position.z < mapRandering.floorOffsets.Length)
             {
                 offset = mapRandering.floorOffsets[obj.Position.z];
             }
 
-            // 계층 정리(2026-07-28, 사용자 요청) — 문은 "Doors", 그 외(트랩/시체/코어/루팅)는
-            // "Objects" 하위 그룹으로 나눠 담는다.
+            // 문은 "Doors", 그 외(트랩/시체/코어/루팅)는 "Objects" 하위 그룹으로 나눠 담는다.
             Transform group = GetFloorCategoryGroup(obj.Position.z, isDoor ? "Doors" : "Objects");
             if (group != null)
             {
@@ -1332,75 +1177,51 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         
         visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
-        // 문 시스템(2026-07-27, 사용자 요청 "닫혀있는 문은 위치 고려해서 배치") — 통로 방향(수평/수직)에
-        // 맞춰 스프라이트를 돌린다. 회전이 필요 없는 기존 오브젝트(트랩/시체/코어/루팅)는 기본값 0도라
-        // 영향 없음.
+        // 문은 통로 방향(수평/수직)에 맞춰 스프라이트를 돌린다. 회전이 필요 없는 오브젝트는 기본값
+        // 0도라 영향 없음.
         if (rotationZDegrees != 0f) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
 
-        // 사용자 요청(2026-07-28) "오브젝트를 타일 크기에 맞춰 스폰하지 말고 원본 스프라이트 크기에
-        // 맞춰 스폰" — 2026-07-24에 도입했던 "sprite.bounds 역산해서 타일 1칸에 꽉 차도록" 스케일
-        // 보정을 되돌린다. 이제 스케일 1(원본 픽셀 크기/PPU 그대로)로 스폰 — 스프라이트마다 실제
-        // 렌더 크기가 제각각이어도 그대로 둔다.
+        // 오브젝트는 타일 크기에 맞추지 않고 원본 스프라이트 크기(스케일 1)로 스폰한다 — 스프라이트마다
+        // 실제 렌더 크기가 제각각이어도 그대로 둔다.
         visual.transform.localScale = Vector3.one;
 
         objectVisuals[obj] = visual;
     }
 
-    // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — "Object/Passable/Core" 태그가 붙으면:
-    // (1) Human.ComputeInvestigateTarget이 이 오브젝트를 일반 조사 후보에서 제외하고, (2)
+    // "Object/Passable/Core" 태그: Human.ComputeInvestigateTarget이 일반 조사 후보에서 제외하고,
     // UnitFunction.CastRay가 PerceptionTargetKind.Core로 분류해 개인 지도에 등록한다. 방 소유권
-    // 판정 자체는 태그가 아니라 Room.CoreObjectId/CorePosition을 직접 참조한다(TacticalFSMState.
-    // FindHostileRoomCore). 이제 모든 방이 항상 코어를 하나씩 갖는다 — 보스방 1개 한정이던 예전
-    // 던전 코어(DungeonCoreTag)는 폐기.
+    // 판정은 태그가 아니라 Room.CoreObjectId/CorePosition을 직접 참조한다.
     public const string CoreTag = "Object/Passable/Core";
-    // 모든 방에 공통 적용하는 자리표시자 값(플레이 테스트 후 조정) — 물리공격력 40 기준 코어 파괴
-    // 배율(TrapDestroyDamagePerSecondPerAttack=0.5)을 그대로 적용하면 약 10초 만에 파괴된다.
-    // 2026-08-22 사용자 요청 "코어의 체력을 5배로 늘려줘" — 200 → 1000(약 50초).
+    // 자리표시자 — 물리공격력 40 기준 파괴 배율을 그대로 쓰면 너무 빨리 파괴돼 5배로 올렸다(약 50초).
     private const float RoomCoreMaxHp = 1000f;
-    // 코어 공격 데미지 고정 초당 비율(2026-08-22 사용자 요청 "코어 공격을, 공격 시도 중일때만 체력이
-    // 초당으로 다는 형식으로 바꿔줘. 공격 시도중인 유닛 마리 수 당 추가") — 예전엔 각 유닛의
-    // physicalAttack 스탯(물리공격력 40 기준 0.5배 = 초당 20)에 비례해서 깎였는데, 이제는 유닛 스탯과
-    // 무관하게 채널링 중인 유닛 1명당 항상 이 고정값만큼만 초당 깎인다. UnitFunction.OnUpdate가 채널링
-    // 중인 유닛마다 독립적으로 이 값을 적용하므로, 같은 코어를 여러 명이 동시에 공격하면 그 인원수만큼
-    // 자연히 합산된다(별도의 "공격 인원 수 세기" 로직 없이 인원수 비례가 성립). 자리표시자 20은 기존
-    // 물리공격력 40 기준 수치와 동일하게 맞춰 1명이 공격할 때의 파괴 시간(약 50초)이 그대로 유지되게
-    // 했다 — 플레이 테스트 후 조정.
+    // 코어 공격 데미지는 유닛 스탯과 무관한 고정 초당 비율이다 — UnitFunction.OnUpdate가 채널링
+    // 유닛마다 독립 적용하므로 별도 인원 수 세기 없이 동시 공격 인원수만큼 자연히 합산된다.
     public const float CoreAttackDamagePerSecond = 20f;
-    // 코어 자동 회복(2026-08-24 사용자 요청 "파괴가 진행된지 5초가 지난 시점부터 서서히 회복") — 마지막
-    // 피해로부터 이 시간(초)이 지나면 회복이 시작된다. DoorSystem.DoorRegenDelaySeconds와 동일한 값
-    // (사용자가 코어/문 공통으로 5초를 지정) — 자리표시자 회복 속도는 파괴 속도의 절반으로 잡았다
-    // (CoreAttackDamagePerSecond=20의 절반, 플레이 테스트 후 조정).
+    // 마지막 피해로부터 이 시간(초)이 지나면 코어 회복이 시작된다(DoorSystem.DoorRegenDelaySeconds와
+    // 동일 값). 회복 속도는 파괴 속도의 절반으로 잡았다.
     public const float CoreRegenDelaySeconds = 5f;
     public const float CoreRegenPerSecond = 10f;
-    // 문/게이트 시스템(2026-07-27~28 구현, 2026-08-20 분리) — 문 배치/웨이브 시작 시 전체 잠금/단일
-    // 진영만 남으면 재개방/문 타일 이동·시야 차단 판정을 UnitRegistry와 동일한 지연 조회 패턴을 쓰는
-    // DoorSystem(Assets/Script/Unit/Session/)으로 뺐다. GameSession이 지나치게 커지는 것을 막기
-    // 위함(MonsterDefensePlacementSystem 분리와 동일한 이유). 아래는 외부에서 GameSession.Instance.X()
-    // 형태로 호출하던 기존 진입점을 유지하기 위한 얇은 위임이다 — 실제 구현은 전부 DoorSystem에 있다.
+    // 문 배치/개폐/시야 차단 판정은 DoorSystem으로 뺐다(GameSession 비대화 방지) — 아래는 기존
+    // 진입점을 유지하는 얇은 위임일 뿐 실제 구현은 DoorSystem에 있다.
     public bool IsDoorTile(Vector3Int pos) => _doorSystem.IsDoorTile(pos);
     public static List<Vector2Int>[] GetGateDoorTiles(Gate gate, int chunkSize) => DoorSystem.GetGateDoorTiles(gate, chunkSize);
-    // 문 진영 판정(기초문서.md 피드백, 2026-08-22 "문은 보유 진영의 유닛만 지나갈 수 있고... 그게
-    // 아니라면 공격해서 파괴해야 해") — UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에
-    // 직접 사용(GameSession.Instance 없이도 static으로 호출 가능하도록 DoorSystem에 그대로 위임).
+    // 문은 보유 진영의 유닛만 지나갈 수 있고, 아니면 공격해서 파괴해야 한다 — UnitFunction.CanMove/
+    // AStarMovement.IsTileWalkable이 이동 판정에 직접 사용.
     public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit) => _doorSystem.IsBlockedByClosedDoor(pos, unit);
-    // 문 개폐 시각 트리거(2026-08-22 재조정, 사용자 요청 "문 인접 칸에서 문에 접근 시도시 열리는
-    // 방식으로") — UnitFunction.Move가 인접 칸에서 문 타일로 넘어가려는 시도가 있을 때마다 호출한다.
-    // 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
+    // 문 개폐 시각 트리거 — UnitFunction.Move가 인접 칸에서 문 타일로 넘어가려는 시도가 있을 때마다
+    // 호출한다. 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
     public void NotifyDoorApproachAttempt(Vector3Int pos, Unit unit) => _doorSystem.NotifyApproachAttempt(pos, unit);
-    // 문도 방어건물화(기초문서.md 피드백, 2026-08-22) — DoorSystem에 얇게 위임(위 세 메서드와 동일 관례).
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
-    // 이동 명령 도달성(2026-08-24 신규) — 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영
-    // 소유)만 거쳐 도달 가능한 방인지 판정한다(InputManager.IssueMoveCommand가 사용). DoorSystem에
-    // 그대로 위임(위 메서드들과 동일 관례).
+    // 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영 소유)만 거쳐 도달 가능한 방인지 판정
+    // (InputManager.IssueMoveCommand가 사용).
     public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)
         => _doorSystem.CanFactionReachRoom(faction, floorIndex, fromRoomId, targetRoomId);
 
-    // 코어 전면 개편(기초문서.md 피드백, 2026-08-22) — 게임 시작 시 모든 방(야생 포함, 0층 제외)에
-    // 코어를 하나씩 자동 생성한다. 이전엔 보스방 1개뿐이었다(SpawnInitialDungeonCore, 폐기).
-    // SpawnWildRoomGuards와 동일한 "방 안 랜덤 위치 + IsAreaClear 재시도" 패턴을 재사용한다.
-    // 2026-08-22 초기 생성 시 문이나 횃불 바로 앞을 막지 않도록 판별하는 메서드
+    // 게임 시작 시 모든 방(야생 포함, 0층 제외)에 코어를 하나씩 자동 생성 — SpawnWildRoomGuards와
+    // 동일한 재시도 패턴을 재사용한다.
+    // 초기 생성 시 문이나 횃불 바로 앞을 막지 않도록 판별하는 메서드
     private bool IsGoodForInitialSpawn(Vector3Int gridPos, Vector2 footprint)
     {
         int fw = (int)footprint.x;
@@ -1460,9 +1281,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         LogHelper.Log(LogHelper.GAME, "SpawnAllRoomCores: 모든 방에 코어 배치 완료.");
     }
 
-    // 코어도 건물처럼 벽과 동일한 판정으로 취급되게 해달라는 요청(2026-08-22) — BuildingManager.
-    // UpdateMapDataObstacle과 동일한 패턴(맵 타일 데이터 + 양 진영 discoveredMap 동기화). 코어는
-    // 건물과 달리 철거(Uninstall)되지 않고 파괴 시 방 소유권만 바뀐 채 반피로 회복되므로, 여기엔
+    // 코어도 벽과 동일하게 통행 불가로 판정한다(BuildingManager.UpdateMapDataObstacle과 동일 패턴 —
+    // 맵 타일 + 양 진영 discoveredMap 동기화). 코어는 파괴 시 반피로 회복될 뿐 철거되지 않으므로
     // 해제(false) 경로가 없다.
     private void MarkTileObstacle(Vector3Int pos, bool isObstacle)
     {
@@ -1501,23 +1321,19 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 요청) — 게임 시작 시 던전 1층 시작방(RoomRole.
-    // StartRoom, 플레이어=몬스터 진영 거점)에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 각각 무상으로
-    // 1개씩, 서로 다른 랜덤 위치에 배치한다. B/V키로 직접 짓는 것과 동일한 Install*Building 경로를
-    // 그대로 재사용 — 자원 소모만 건너뛴다.
+    // 던전 1층 시작방에 자원 생산 건물(V키)과 유닛 생산 건물(B키)을 각각 무상으로 1개씩 배치 —
+    // 동일한 Install*Building 경로를 재사용하되 자원 소모만 건너뛴다.
     private void SpawnInitialBuildings()
     {
         if (_buildingManager == null || _unitGenerate == null) return;
 
         int floorIdx = 1;
-        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — 자원 생산 건물은 GothicClocktower(2x2),
-        // 유닛 생산 건물은 GothicDollhouse(3x3). 예전 스프라이트(obj/building, obj/resource_building)는
-        // 디버그 더미 건물용으로 남겨뒀다(BuildDebugPrimaryItems 참고).
+        // 자원 생산 건물은 GothicClocktower(2x2), 유닛 생산 건물은 GothicDollhouse(3x3). 예전
+        // 스프라이트(obj/building, obj/resource_building)는 디버그 더미 건물용으로 남겨뒀다.
         Sprite resourceBuildingSprite = Resources.Load<Sprite>("obj/GothicClocktower");
         Sprite productionBuildingSprite = Resources.Load<Sprite>("obj/GothicDollhouse");
 
-        // 2026-08-25 건물 스프라이트/크기 개편 — 자원 생산 건물 2x2 / 유닛 생산 건물 3x3, 각자 실제
-        // footprint로 자리를 찾아야 설치 시 CanInstallAt(footprint)이 다시 실패하지 않는다.
+        // 각자 실제 footprint로 자리를 찾아야 설치 시 CanInstallAt(footprint)이 다시 실패하지 않는다.
         Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.ResourceBuildingFootprint);
         if (resourcePos.HasValue)
         {
@@ -1540,11 +1356,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
 
-    // 시작방 안에서 건물을 놓을 수 있는 랜덤 위치를 찾는다 — 자원/유닛 생산 건물 두 개가 같은 자리를
-    // 뽑아 겹치지 않도록(CanInstallAt이 이미 건물이 있는 타일은 거부) 여러 번 재시도한다
-    // (SpawnWildRoomGuards의 자리 재시도 패턴과 동일). footprint는 실제로 설치될 건물 크기와 일치해야
-    // 한다(2026-08-25 다중 타일 건물 지원 — 1x1로 찾은 자리에 3x3/2x2를 설치하면 CanInstallAt이
-    // 다시 실패할 수 있다).
+    // 시작방 안에서 건물을 놓을 랜덤 위치를 찾는다(SpawnWildRoomGuards와 동일한 재시도 패턴).
+    // footprint는 실제 설치될 건물 크기와 일치해야 한다 — 안 그러면 CanInstallAt이 다시 실패할 수 있다.
     private Vector3Int? FindInstallableStartRoomPos(int floorIdx, Vector2 footprint)
     {
         const int maxAttempts = 20;
@@ -1556,9 +1369,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (!_buildingManager.CanInstallAt(gridPos, footprintInt)) continue;
             if (!IsGoodForInitialSpawn(gridPos, footprint)) continue;
 
-            // 건물이 3x3/2x2로 커지면서(2026-08-25) 좁은 시작방에서는 건물 하나가 방을 완전히
-            // 갈라놓을(길을 막을) 가능성이 생겼다 — 후보 자리를 확정하기 전에 방의 나머지 통행 가능
-            // 영역이 여전히 하나로 연결돼 있는지 검사해서, 갈라놓는 자리는 거르고 재시도한다.
+            // 좁은 시작방에서는 건물 하나가 방을 완전히 갈라놓을(길을 막을) 수 있으므로, 후보 자리를
+            // 확정하기 전에 방의 나머지 통행 가능 영역이 하나로 연결돼 있는지 검사해 걸러낸다.
             if (roomGrid.TryGetValue(gridPos, out Room room) && WouldFootprintBlockRoomPath(room, gridPos, footprintInt))
                 continue;
 
@@ -1567,12 +1379,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return null;
     }
 
-    // footprint가 room의 나머지 통행 가능 타일들을 서로 갈라놓는지(고립시키는지) 검사한다(2026-08-25,
-    // 사용자 요청 "시작방 생성시 길이 완전히 가로막히는 경우가 있는지"). footprint가 차지할 칸은 막힌
-    // 것으로 치고, room에 속한 나머지 통행 가능 타일 전부가 floodfill로 서로 도달 가능한지 확인한다 —
-    // 하나라도 고립되면(문 쪽이든 반대쪽이든) true를 반환해 그 자리를 거부하게 한다. CreateMap.
-    // RepairGateConnectivity(맵 생성 단계 방-방 연결 보수)와 같은 floodfill 원리를 방 내부 타일
-    // 단위로 재사용한 것 — 여긴 이미 만들어진 방 하나 안에서 건물 배치가 통로를 끊는지만 본다.
+    // footprint가 room의 나머지 통행 가능 타일들을 서로 갈라놓는지 floodfill로 검사한다
+    // (CreateMap.RepairGateConnectivity와 같은 원리를 방 내부 타일 단위로 재사용) — 하나라도
+    // 고립되면 true.
     private bool WouldFootprintBlockRoomPath(Room room, Vector3Int footprintOrigin, Vector2Int footprint)
     {
         if (room == null || cmap == null) return false;
@@ -1618,9 +1427,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return visited.Count < floorTiles.Count;
     }
 
-    // O키(루팅 오브젝트)/P키(함정) — 예전엔 눌렀을 때 즉시 무작위 위치에 스폰했지만, B키(빌드 모드)
-    // 처럼 원하는 위치를 직접 골라서 놓을 수 있게 해달라는 요청(2026-07-22)에 따라 InputManager가
-    // 고스트 배치 모드를 관리하고 실제 위치가 정해지면 이 메서드들을 호출하는 방식으로 바뀌었다.
+    // O키(루팅 오브젝트)/P키(함정) — B키(빌드 모드)처럼 InputManager가 고스트 배치 모드로 위치를
+    // 직접 고르게 하고, 위치가 정해지면 이 메서드들을 호출한다.
     public void SpawnLootObjectAt(Vector3Int gridPos)
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -1631,9 +1439,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         SpawnObject(obj, Color.magenta);
     }
 
-    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 루팅 오브젝트와 동일한
-    // 관례로 수동 스폰 훅만 만들어둔다. BaseDanger>0으로 스폰해야 Goal_TrapResponse가 실제로 반응한다
-    // (기존 오브젝트들은 전부 BaseDanger=0 — InteractableObject.cs 주석 참고).
+    // 03문서 9장 함정 대응 테스트용 — 정식 배치 시스템(레벨 구조 문서 부재) 대신 수동 스폰 훅만
+    // 둔다. BaseDanger>0으로 스폰해야 Goal_TrapResponse가 반응한다(다른 오브젝트는 BaseDanger=0).
     public void SpawnTrapAt(Vector3Int gridPos)
     {
         if (cmap == null || cmap.map.floors == null) return;
@@ -1641,25 +1448,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
         string objId = "Trap_" + System.Guid.NewGuid().ToString().Substring(0, 4);
         InteractableObject obj = new InteractableObject(
-            // 오브젝트→건축물→지나갈 수 있는 건축물 계층(2026-07-22, 사용자 지정) — Loot/Corpse/
-            // WipeoutTrace 같은 단순 오브젝트와 달리 함정은 "지나갈 수 있는 건축물"로 취급한다.
+            // 오브젝트→건축물→지나갈 수 있는 건축물 계층 — Loot/Corpse/WipeoutTrace 같은 단순
+            // 오브젝트와 달리 함정은 "지나갈 수 있는 건축물"로 취급한다.
             objId, gridPos, baseInterest: 0f, baseDanger: 30f,
             tags: new List<string> { "Object/Building/Passable/Trap" },
-            // 데미지 상향(2026-07-22, 사용자 요청 "실제로 데미지 들어가게, 꽤 크게") — 기존 10~25에서
-            // 30~60으로. 자동 트리거(GameSession.TriggerTrapIfStepped)까지 추가돼 실제로 자주
-            // 발동하니 체감 위협도를 맞추려고 크게 올렸다.
-            // 체력 상향(2026-08-23, 사용자 요청) — 기존 20은 물리공격력 비례 파괴 데미지(0.5×physicalAttack
-            // /초) 앞에서 실제 유닛 스탯(26~55)이면 1초 안팎에 파괴돼 사실상 "툭 치면 끝"이었다.
-            // DoorSystem.DoorMaxHp(300)와 동일한 값으로 맞춤 — 코어/문처럼 실제 저지력을 갖도록.
+            // 자동 트리거(TriggerTrapIfStepped)로 자주 발동하므로 데미지를 30~60으로 크게 잡았다.
+            // 체력도 DoorSystem.DoorMaxHp(300)와 맞춰 실제 저지력을 갖도록 했다 — 낮으면 1초 안에 파괴된다.
             baseVisibility: 40f, trapHp: 300f, trapDamageMin: 30f, trapDamageMax: 60f);
         SpawnObject(obj, Color.red);
     }
 
-    // 2026-08-24 debug 전용(사용자 요청 "바닥 타일을 벽으로 바꾸는 기능을 debug에 넣어줘") — 맵 생성이
-    // 만든 정적 벽 배치와 별개로 즉석에서 벽 타일을 추가한다. BuildingManager.UpdateMapDataObstacle과
-    // 같은 방식으로 MapData/discoveredMap을 갱신하지만, isStructureExist가 아니라 tile.name 자체를
-    // "Wall"로 바꾼다 — 실제 맵 생성이 만든 벽과 완전히 동일하게 취급되도록 한다(이동 차단은 물론
-    // BuildWallMask 기반 빛 차단까지, isStructureExist만으로는 빛을 막지 못한다).
+    // debug 전용 — 즉석에서 벽 타일을 추가한다. isStructureExist가 아니라 tile.name을 "Wall"로
+    // 바꿔야 BuildWallMask 기반 빛 차단이 실제 벽과 동일하게 적용된다.
     public bool IsFloorTileConvertibleToWall(Vector3Int gridPos)
     {
         return TryGetFloorTile(gridPos, out _, out _, out _, out _, out Tile tile) && tile.name != "Wall";
@@ -1711,8 +1511,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return true;
     }
 
-    // 9-7/9-8장(2026-07-27 추가) — 함정 해제 진행 막대/결과 문구가 함정 위치의 실제 비주얼
-    // GameObject(트랜스폼 위치·자식 컴포넌트 포함)를 찾아야 해서 추가한 조회용 공개 메서드.
+    // 9-7/9-8장: 함정 해제 진행 막대/결과 문구가 함정 위치의 실제 비주얼 GameObject를 찾아야 해서
+    // 추가한 조회용 공개 메서드.
     public GameObject GetObjectVisual(Vector3Int pos)
     {
         if (objectGrid.TryGetValue(pos, out var obj) && objectVisuals.TryGetValue(obj, out var visual))
@@ -1732,11 +1532,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         _objectSpawner.CollectObject(pos);
     }
 
-    // 시체 자동 소멸 — 웨이브 카운트 기준(2026-08-23 1분 → 2026-08-24 45초 타이머 → 같은 날 후속 요청
-    // "시체는 2웨이브 동안 존재하게 해줘. 시간 단위로 측정하지 말고(현재 웨이브 포함)"로 최종 교체).
-    // 시체는 스폰된 웨이브를 포함해 2웨이브 동안 존재한다 — 예를 들어 웨이브 3에 생긴 시체는 웨이브
-    // 3·4에는 남아있고, 웨이브 5가 시작되는 순간 정리된다. HumanWaveManager.StartWave가 새 웨이브를
-    // 시작할 때마다(WaveNumber 증가 직후) 호출한다.
+    // 시체 자동 소멸은 시간이 아니라 웨이브 카운트 기준 — 스폰된 웨이브 포함 2웨이브 동안
+    // 존재한다(웨이브 3에 생긴 시체는 3·4에 남고 5 시작 시 정리). HumanWaveManager.StartWave가
+    // 새 웨이브 시작마다 호출한다.
     public const int CorpseDespawnAfterWaves = 2;
 
     public void DespawnCorpsesForNewWave(int currentWaveNumber)

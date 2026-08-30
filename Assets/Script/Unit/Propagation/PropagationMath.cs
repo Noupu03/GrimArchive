@@ -3,23 +3,20 @@ using UnityEngine;
 
 // 07_A_전파·소리·간접입력_연산공식의 순수 계산 함수 모음. VisionMath/PerceptionMath/WeightMath/
 // ExplorationMath와 동일 컨벤션(부수효과 없음, 테스트 용이) — 저장/조회/게임 루프 연결은
-// PropagationSystem(부수효과 있는 호출부)이 담당한다.
+// PropagationSystem이 담당한다.
 //
-// 08/09/06 문서, 함정 시스템, 파티 타입 문서가 아직 없어 그 문서들에 위임된 부분(발견자가 리더에게
-// 실제로 이동해 전파하는 물리적 단계, 실제 합류 최대 대기 5초 초과 후 처리, 함정 피해 위험도 수치 등)은
-// CLAUDE.md 관례대로 스텁 처리한다 — 각 지점에 근거를 남긴다(PropagationSystem.cs 참고).
+// 08/09/06 문서, 함정 시스템, 파티 타입 문서가 아직 없어 위임된 부분(물리적 전파 이동, 합류 5초
+// 초과 후 처리, 함정 피해 위험도 수치 등)은 CLAUDE.md 관례대로 스텁 처리한다.
 public static class PropagationMath
 {
 	// ─────────────────────────── 1장. 전파·소리 공통 공간 판정 ───────────────────────────
-	// 동일 방 또는 동일 통로 공간 = 거리 판정 진행. 방↔통로, 방↔다른 방, 통로↔다른 통로는 거리와
-	// 무관하게 도달 실패 — 이 코드베이스에서는 방/통로 모두 CreateMap.GetRoomIdAt이 반환하는 roomId로
-	// 구분되므로(복도도 "복도 방"으로 변환돼 고유 roomId를 받는다), roomId 일치 여부가 곧 "동일 공간"이다.
+	// 동일 방 또는 동일 통로 공간 = 거리 판정 진행, 그 외는 거리와 무관하게 도달 실패 — 이 코드베이스는
+	// 방/통로 모두 CreateMap.GetRoomIdAt의 roomId로 구분되므로(복도도 고유 roomId를 받음) 일치 여부가
+	// 곧 "동일 공간"이다.
 	public static bool SameSpace(int roomIdA, int roomIdB) => roomIdA >= 0 && roomIdA == roomIdB;
 
-	// 1-2장: 장애물이 없으면 원형 N칸, 벽·이동 불가 지형으로 직선 접근이 불가능하면 같은 공간 안에서
-	// 이동 가능한 최단 경로 거리. 도달 가능한 경로가 없으면 실패. 8방향 그리드 BFS로 두 규칙을 하나로
-	// 표현한다 — 장애물이 없으면 BFS 거리가 자연히 체비셰프 원형 반경과 같아지고, 있으면 우회 경로를
-	// 찾는다. maxRange 밖으로는 더 탐색하지 않는다(호출부가 이미 범위 밖이면 실패로 처리할 값).
+	// 1-2장: 장애물이 없으면 원형 N칸, 있으면 같은 공간 안에서 이동 가능한 최단 경로 거리. 8방향
+	// BFS로 두 규칙을 하나로 표현한다 — 장애물이 없으면 BFS 거리가 체비셰프 원형 반경과 같아진다.
 	public static bool TryGetSpaceDistance(Vector2Int from, Vector2Int to, int maxRange, System.Func<Vector2Int, bool> isWalkable, out int distance)
 	{
 		distance = 0;
@@ -41,10 +38,9 @@ public static class PropagationMath
 					for (int dy = -1; dy <= 1; dy++)
 					{
 						if (dx == 0 && dy == 0) continue;
-						// 코너 커팅(벽 뚫기) 방지 — 대각선 이동 시 양옆 직교 타일 중 하나라도 이동
-						// 불가면 블록(UnitFunction.Move()의 기존 규칙과 동일). 목표 타일(to) 자체에
-						// 대각선으로 도달하는 경우도 예외 없이 이 규칙을 적용해야 한다 — 그렇지 않으면
-						// 2칸짜리 벽도 대각선으로 그냥 통과해버려 "우회 경로"라는 문서 규칙이 무의미해진다.
+						// 코너 커팅 방지 — 대각선 이동 시 양옆 직교 타일 중 하나라도 이동 불가면 블록
+						// (UnitFunction.Move()와 동일 규칙). 목표 타일(to)에 대각선으로 도달하는 경우도
+						// 예외 없이 적용해야 벽을 대각선으로 통과하는 버그가 안 생긴다.
 						if (dx != 0 && dy != 0)
 						{
 							bool cornerBlocked = !isWalkable(new Vector2Int(cur.x + dx, cur.y)) || !isWalkable(new Vector2Int(cur.x, cur.y + dy));
@@ -152,8 +148,8 @@ public static class PropagationMath
 	};
 
 	// true면 candidate가 현재 확인 중인 소리를 대체해야 함(우선순위가 더 높거나, 같은 순위면서 더
-	// 가깝거나, 순위·거리가 모두 같으면서 현재 시야 방향에 더 가까울 때) — 7-2장. 방향 인자는 기본값
-	// 0으로 두면 마지막 타이브레이크가 비활성화된다(호출부가 방향 정보를 안 줄 수도 있는 기존 테스트 호환).
+	// 가깝거나, 순위·거리가 모두 같으면서 시야 방향에 더 가까울 때) — 7-2장. 방향 인자 기본값 0은
+	// 타이브레이크 비활성화용(호출부가 방향 정보를 안 줄 수도 있음).
 	public static bool ShouldReplaceSound(int candidateRank, float candidateDist, int currentRank, float currentDist,
 		int candidateDirStepDist = 0, int currentDirStepDist = 0)
 	{
@@ -164,8 +160,7 @@ public static class PropagationMath
 
 	public const float SoundValidSeconds = 5f;           // 7-3장: 일반 소리 유효시간(확인 행동 시작 기한)
 	// 7-3장 "유닛당 보류 소리 1건"은 PendingSound가 컬렉션이 아니라 단일 필드라 데이터 구조 자체로
-	// 이미 강제된다 — 별도 상수로 값을 비교하는 코드가 없어 죽은 상수였던 MaxPendingSoundsPerUnit은
-	// 삭제(2026-08-06, 07-A 검증 중 발견).
+	// 이미 강제된다 — 별도 상수로 값을 비교하는 코드가 없어 죽은 상수였던 MaxPendingSoundsPerUnit은 삭제.
 
 	// ─────────────────────────── 8장. 소리 확인 판정·연출 시간 ───────────────────────────
 	public const float MoveSoundHoldSeconds = 2f;         // 8-1장: 이동음 반응 후 시야 유지

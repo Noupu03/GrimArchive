@@ -5,30 +5,24 @@ using VContainer;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 
-// UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널.
-// 프리팹은 Assets/Editor/HaareUISetup.cs("Tools/GrimArchive/Haare UI 셋업 생성")로 생성/배선된다.
-// UI 리뉴얼(2026-08-20) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 하단 메뉴 "debug" 서브탭
-// (BottomMenuBar)으로 옮겨졌다. 이 패널은 이제 선택 유닛 정보 표시만 담당한다. 마우스 휠 줌은
-// CameraController가 유일하게 담당한다(2026-08-21, 사용자 신고 "입력 시스템 개선 여지 체크" —
-// 이 패널이 별도로 Camera.main.orthographicSize를 매 프레임 건드려 CameraController의 줌과 이중으로
-// 겹쳐 적용되던 버그를 여기서 제거해 해결했다).
+// UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널 — 프리팹은
+// Assets/Editor/HaareUISetup.cs("Haare UI 셋업 생성")로 생성/배선된다. 시야/전파 시각화 토글과 맵
+// 저장/불러오기 버튼은 BottomMenuBar debug 서브탭으로 옮겨져 이 패널은 선택 유닛 정보만 담당한다.
+// 마우스 휠 줌은 CameraController 전담 — 이 패널이 orthographicSize를 같이 건드리면 이중 적용된다.
 [PanelAttribute("Prefabs/DebugInfoPanel")]
 public class DebugInfoPanel : MonoRoutine, ICustomPanel
 {
     public SceneUIManager uiManager { get; set; }
     public GameObject panel { get; set; }
 
-    // BuildingControlPanel.Instance/BottomMenuBar.Instance와 동일 관례 — InputManager가 "지금
-    // 마우스가 이 정보창(박스+탭 버튼) 위에 있는가"를 물어볼 때 쓴다(2026-08-20, 사용자 신고 "세부
-    // 스탯에서 장비 클릭하면 화면이 사라져버려" — 이 정보창 위 클릭이 InputManager의 월드 클릭으로도
-    // 처리돼 선택이 풀리면서 정보 텍스트가 빈 문자열이 돼 버렸던 문제).
+    // BuildingControlPanel.Instance와 동일 관례 — InputManager가 마우스가 이 정보창 위에 있는지
+    // 물어볼 때 쓴다(안 그러면 정보창 클릭이 월드 클릭으로도 처리돼 선택이 풀린다).
     public static DebugInfoPanel Instance { get; private set; }
 
     [SerializeField] private CustomText selectedUnitInfoText;
-    // UI 리뉴얼(2026-08-20, 사용자 요청 "정보 UI랑 다른 UI 겹치지 않게, 메뉴로 생성된 UI 위에 쌓이는
-    // 방식으로") — 이 박스(InfoBox)의 RectTransform을 직접 들고 있다가, 하단 메뉴 바가 지금 차지하고
-    // 있는 높이(BottomMenuBar.GetReservedBottomLeftHeight, 서브메뉴 열림에 따라 매 프레임 바뀜)만큼
-    // 매 프레임 위로 밀어 올려서 겹치지 않게 한다.
+    // 이 박스(InfoBox)의 RectTransform을 들고 있다가, 하단 메뉴 바가 차지하는 높이
+    // (BottomMenuBar.GetReservedBottomLeftHeight, 서브메뉴 열림에 따라 매 프레임 바뀜)만큼 매 프레임
+    // 위로 밀어 올려서 겹치지 않게 한다.
     [SerializeField] private RectTransform infoBoxRect;
 
     private InputManager _inputManager;
@@ -36,12 +30,9 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     // 좌하단 패널 스택(2026-08-21) 등록용 ID — BottomLeftPanelStack.Report 참고.
     private const string StackId = "DebugInfo";
 
-    // "기본 정보"/"세부 스탯"/"장비"/"스킬" 탭(2026-08-20, 사용자 요청, 림월드 캐릭터창 참고) — 장비는
-    // 아직 시스템 자체가 없어 자리만 만들고 "구현 예정" 문구만 보여준다. 각 탭은 사용자가 명시한 필드만
-    // 보여준다(기본 정보: 이름/진영/LV/EXP/킬카운트, 세부 스탯: 근력/내구/민첩/집중/마력/저항/감각/
-    // 통솔 — 그 외 HP/MP/정신력/파티/전투스탯/이동속도/위치/상태이상 등은 전부 표시 안 함). 스킬 탭은
-    // 2026-08-23 사용자 요청으로 추가 — 진실의 원천인 프리팹(UnitGenerate.GetSkills → CLAUDE.md
-    // "스킬/공격 시스템" 섹션 참고)에서 실제 장착된 스킬 목록을 그대로 읽어 보여준다.
+    // "기본 정보"/"세부 스탯"/"장비"/"스킬" 탭(림월드 캐릭터창 참고) — 장비는 시스템 자체가 없어
+    // "구현 예정" 문구만 보여준다. 스킬 탭은 진실의 원천인 프리팹(UnitGenerate.GetSkills)에서
+    // 실제 장착된 스킬 목록을 그대로 읽는다.
     private enum InfoTab { Basic, Stats, Equipment, Skills }
     private InfoTab _currentTab = InfoTab.Basic;
 
@@ -58,19 +49,16 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     }
 
     // InputManager가 월드 클릭 처리 전에 확인하는 공개 API(BuildingControlPanel.IsMouseOverPanel과
-    // 동일 관례) — 정보 박스 + 탭 버튼(있으면)을 모두 포함한다. 우상단 "Unit Status Test" 창은
-    // debug 메뉴로 옮겨져(BottomMenuBar) 여기서 더는 확인하지 않는다.
+    // 동일 관례) — 정보 박스 + 탭 버튼(있으면)을 모두 포함한다.
     public bool IsMouseOverUI()
     {
         if (!TryGetVisibleInfoBoxRect(out Rect rect)) return false;
         return GUIMouseUtil.IsMouseOverRect(rect);
     }
 
-    // 다른 OnGUI 패널이 "지금 이 정보창과 실제로 겹치는지" 판정할 때 쓴다(2026-08-24 사용자 신고
-    // "층 변경 UI가 다른 UI를 가려버림" — BottomMenuBar.DrawFloorPanel 참고). 이 박스는 배경/텍스트가
-    // uGUI Canvas라 OnGUI 스크립트 실행 순서로는 겹침 순서를 못 바꾼다(Canvas는 항상 OnGUI보다 먼저
-    // 그려지는 별개 렌더 패스) — 그래서 겹치는 다른 OnGUI 패널 쪽에서 아예 자기 자신을 안 그리는
-    // 방식으로 우선순위를 준다. IsMouseOverUI와 동일한 사각형 계산을 재사용.
+    // 다른 OnGUI 패널이 이 정보창과 실제로 겹치는지 판정할 때 쓴다. 이 박스는 uGUI Canvas라 OnGUI
+    // 실행 순서로 겹침을 못 바꾸므로(Canvas가 항상 먼저 그려짐), 겹치는 OnGUI 패널 쪽이 자기 자신을
+    // 안 그리는 방식으로 우선순위를 준다. IsMouseOverUI와 동일한 사각형 계산을 재사용.
     public bool TryGetVisibleInfoBoxRect(out Rect rect)
     {
         rect = default;
@@ -133,9 +121,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         RepositionInfoBoxAboveBottomMenu();
     }
 
-    // 좌하단 패널 스택(2026-08-21) — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다.
-    // 등록 순서 기반이라(BottomLeftPanelStack 주석 참고) 다른 패널이 새로 나타나도 이 박스가 이미
-    // 떠 있었다면 위치가 절대 바뀌지 않는다.
+    // 좌하단 패널 스택 — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다. 등록 순서
+    // 기반이라 다른 패널이 새로 나타나도 이 박스가 이미 떠 있었다면 위치가 바뀌지 않는다.
     private void RepositionInfoBoxAboveBottomMenu()
     {
         if (infoBoxRect == null) return;
@@ -151,10 +138,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         DrawInfoTabs();
     }
 
-    // 사용자 요청(2026-08-20 "세부 정보창 전체에 하얀색 테두리도 그려주고") — infoBoxRect는 uGUI Image라
-    // 다른 메뉴 UI들처럼 GUIMenuStyleUtil을 직접 못 쓰지만, IsMouseOverUI가 이미 하듯 anchoredPosition/
-    // sizeDelta를 OnGUI 화면 좌표로 변환해서 그 위에 테두리만 겹쳐 그린다 — 하단 메뉴 바/탭과 같은
-    // 흰 테두리 스타일로 통일.
+    // infoBoxRect는 uGUI Image라 GUIMenuStyleUtil을 직접 못 쓰지만, anchoredPosition/sizeDelta를
+    // OnGUI 화면 좌표로 변환해 그 위에 테두리만 겹쳐 그려 하단 메뉴 바와 같은 스타일로 통일한다.
     private void DrawInfoBoxBorder()
     {
         if (infoBoxRect == null || !infoBoxRect.gameObject.activeInHierarchy) return;
@@ -167,11 +152,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         GUIMenuStyleUtil.DrawButtonBorder(new Rect(left, top, width, height));
     }
 
-    // 정보 박스(InfoBox) 바로 위에 "기본 정보"/"세부 스탯"/"장비"/"스킬" 탭 버튼 4개를 그린다. 유닛을
-    // 정확히 1기 선택했을 때만 의미가 있다(다중 선택/미선택 시엔 탭 없이 기존 목록/빈 텍스트 그대로).
+    // 정보 박스 바로 위에 탭 버튼 4개를 그린다. 유닛을 정확히 1기 선택했을 때만 의미가 있다.
     // TabCount에 맞춰 박스 폭 기준으로 버튼 폭을 동적으로 계산한다(고정폭이면 박스 밖으로 넘침).
-    // 크기/폰트/테두리는 GUIMenuStyleUtil로 하단 메뉴 바와 동일한 스타일을 쓴다(2026-08-20, 사용자
-    // 요청 "정보 UI도 메뉴와 동일한 스타일로").
     private const float TabHeight = 40f;
     private const float TabGap = 6f;
     private const int TabCount = 4;
@@ -263,9 +245,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         return sb.ToString();
     }
 
-    // "스킬" 탭(2026-08-23 사용자 요청) — CLAUDE.md "스킬/공격 시스템" 섹션대로 진실의 원천은
-    // skills.json이 아니라 프리팹이므로, UnitGenerate.GetSkills(런타임에 프리팹에서 조립된 실제
-    // SkillAction 목록)를 그대로 읽는다. 이름/사거리/쿨다운만 보여준다(다른 탭들과 동일하게 최소 정보).
+    // "스킬" 탭 — 진실의 원천은 skills.json이 아니라 프리팹이므로 UnitGenerate.GetSkills(런타임에
+    // 프리팹에서 조립된 실제 SkillAction 목록)를 그대로 읽는다. 이름/사거리/쿨다운만 표시.
     private string BuildSkillsTabText(Unit u)
     {
         var sb = new StringBuilder();

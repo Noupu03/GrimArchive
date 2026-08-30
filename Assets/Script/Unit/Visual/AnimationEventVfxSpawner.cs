@@ -28,8 +28,7 @@ public class AnimationEventVfxSpawner : MonoBehaviour
         Vector3 pos = reference.TransformPoint(def.positionOffset);
         Quaternion rot = reference.rotation * Quaternion.Euler(def.rotationOffset);
 
-        // 스케일은 프리팹 원본 그대로 유지된다 — 예전엔 VFXManager.Spawn이 (1,1,1)로 덮어써서 여기서
-        // 되돌려놔야 했지만, 2026-08-24부터 Spawn 자신이 프리팹 스케일을 그대로 적용한다.
+        // 스케일은 프리팹 원본 그대로 유지된다 — VFXManager.Spawn 자신이 프리팹 스케일을 적용한다.
         VFXManager.Spawn(def.effectPrefab, pos, rot);
     }
 }

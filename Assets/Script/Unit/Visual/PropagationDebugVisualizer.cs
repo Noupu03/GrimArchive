@@ -3,32 +3,17 @@ using R3;
 using UnityEngine;
 using VContainer;
 
-// 임시 디버그 시각화 — 07_전파·소리·간접입력 시스템이 실제로 어떻게 동작하는지(구현현황 문서 "검증
-// 상태"의 실제 플레이 검증 항목들) 눈으로 확인하기 위한 용도. ThreatTileRenderer와 동일한 컨벤션
-// (Update/인스펙터가 없는 순수 C# 클래스, GameSession이 매 프레임 Render(units) 호출)을 따른다.
-// 검증이 끝나면 이 파일 + GameCompositionRoot 등록 + GameSession 호출부 세 곳만 지우면 깔끔히
-// 제거된다 — 다른 로직은 이 클래스를 참조하지 않는다.
-//
-// 2026-08-05: 처음엔 LineRenderer + Shader.Find("Sprites/Default")로 원을 그렸는데, 실제로 켜봐도
-// 아무것도 안 보인다는 신고를 받았다 — 이 프로젝트가 URP를 쓰고 있어 그렇게 즉석으로 만든 머티리얼이
-// 제대로 렌더링된다는 보장이 없었다(검증된 적 없는 경로). 대신 ThreatTileRenderer가 이미 증명된
-// 방식(SpriteRenderer + 스프라이트, 머티리얼을 직접 손대지 않고 SpriteRenderer 기본 머티리얼에
-// 맡김)을 그대로 따라, 원형 링 텍스처를 코드로 한 번 생성해 SpriteRenderer로 그리는 방식으로 교체했다.
-//
-// 그려주는 것 2가지:
-//   1. 살아있는 인류마다 현재 전파 범위(카리스마 기반, 6장)를 옅은 하늘색 원 테두리로.
-//   2. PropagationSystem.OnSoundEmitted를 구독해, 소리가 발생할 때마다 그 위치에 소리 종류별 색
-//      원으로 "그 소리가 도달하는 기본 범위"를 표시했다가 지운다(아래 DebugFlashSeconds — 07-A
-//      7-3장의 "확인 행동 5초 유예"와는 무관한, 순수 시각화용 임의의 짧은 표시 시간). OnSoundPerceived
-//      (누군가 실제로 감지 성공했을 때만 발동)가 아니라 OnSoundEmitted(감지 성공 여부와 무관하게
-//      소리가 난 사건 자체)를 구독한다 — "몬스터가 소리 내는 범위 자체를 보고 싶다"는 사용자 요청
-//      (2026-08-05)에 맞춘 선택. 즉 아무도 못 들었어도(범위 밖/이미 다른 걸 보고 있어서 등) 원은 뜬다
-//      — 감지 성공 여부(누가 실제로 반응했는지)는 이 시각화로는 알 수 없다는 한계가 있다.
+// 임시 디버그 시각화 — 07_전파·소리·간접입력 시스템 동작을 눈으로 확인하기 위한 용도. 검증이 끝나면
+// 이 파일 + GameCompositionRoot 등록 + GameSession 호출부 세 곳만 지우면 제거된다.
+// ThreatTileRenderer와 동일한 컨벤션(Update/인스펙터 없는 순수 C# 클래스, GameSession이 매 프레임
+// Render(units) 호출, LineRenderer 대신 SpriteRenderer+기본 머티리얼 — 즉석 머티리얼은 이 URP
+// 프로젝트에서 안 보임)을 따른다. 그려주는 것 2가지: (1) 살아있는 인류마다 현재 전파 범위를 옅은
+// 하늘색 원 테두리로. (2) OnSoundEmitted(감지 성공 여부와 무관한 발생 사건 자체)를 구독해 소리 발생
+// 위치에 종류별 색 원으로 도달 범위를 표시했다가 지운다 — 아무도 못 들었어도 원은 뜬다.
 public class PropagationDebugVisualizer
 {
 	// DebugInfoPanel의 "시야 표시" 토글(UnitGenerate.ShowAllVisionRanges)과 동일 컨벤션 — 기본은 꺼짐,
-	// 우측 상단 패널(DrawPropagationToggle)에서 항목별로 켠다. 2026-08-05: 사용자 요청으로 단일
-	// Enabled 스위치를 색 표 기준별(전파 범위 + 소리 6종) 개별 토글로 분리했다.
+	// 우측 상단 패널(DrawPropagationToggle)에서 항목별(전파 범위 + 소리 6종)로 켠다.
 	public bool ShowPropagationRange = false;
 	public bool ShowMovement = false;
 	public bool ShowAttackExecution = false;
@@ -69,10 +54,9 @@ public class PropagationDebugVisualizer
 
 	private class CircleVisual { public SpriteRenderer Renderer; }
 
-	// 2026-08-05 수정: 예전엔 "리스트 인덱스 위치"로 풀에서 원을 배정받았는데, 프레임마다 _recentSounds의
-	// 구성(어떤 플래시가 만료됐는지/새로 추가됐는지)이 바뀌면서 같은 GameObject가 순간적으로 다른
-	// 플래시로 재배정되는 버그가 있었다(사용자가 "한 프레임만에 사라지는 거 아니냐"고 지적) — 이제
-	// 각 플래시가 발생 즉시 자기 전용 GameObject를 만들어 그 목숨이 다할 때까지 그대로 들고 있는다.
+	// 리스트 인덱스로 풀에서 원을 배정받으면, 프레임마다 _recentSounds 구성이 바뀌면서 같은
+	// GameObject가 다른 플래시로 순간 재배정되는 버그가 생긴다 — 각 플래시가 발생 즉시 자기 전용
+	// GameObject를 만들어 목숨이 다할 때까지 그대로 들고 있는다.
 	private class SoundFlash
 	{
 		public SoundType Type;
@@ -94,12 +78,8 @@ public class PropagationDebugVisualizer
 	public void Construct(UnitGenerate unitGenerate)
 	{
 		_unitGenerate = unitGenerate;
-		// OnSoundPerceived(누군가 감지 성공)가 아니라 OnSoundEmitted(소리가 발생한 사건 자체)를
-		// 구독한다 — "몬스터가 소리를 내는 범위 자체를 보고 싶다"는 사용자 요청(2026-08-05)에 맞춰,
-		// 실제로 아무도 감지 못 했어도(범위 밖/이미 다른 걸 보고 있어서 등) 소리가 날 때마다 무조건
-		// 원이 뜬다 — 감지 성공 여부와 무관하게 "이 소리가 어디까지 들리는 범위였는지"를 보여준다.
-		// 해당 소리 종류 토글이 꺼져 있을 땐 만들어봐야 그릴 일이 없으니 구독 콜백에서 바로 걸러낸다
-		// (이동음처럼 잦은 소리까지 꺼진 상태에서 GameObject가 무한정 생기는 걸 방지).
+		// OnSoundPerceived(감지 성공)가 아니라 OnSoundEmitted(발생 사건 자체)를 구독한다. 소리 종류
+		// 토글이 꺼져 있으면 콜백에서 바로 걸러내 GameObject가 무한정 생기는 것을 방지한다.
 		PropagationSystem.OnSoundEmitted.Subscribe(e =>
 		{
 			if (!IsSoundTypeEnabled(e.Type)) return;
@@ -158,9 +138,8 @@ public class PropagationDebugVisualizer
 
 	private void RenderActiveSounds()
 	{
-		// 반경은 실제로 줄어드는 게 아니라(14장 소리별 기본 범위는 고정값) 표시 시간이 다 되면 그냥
-		// 사라지는 것뿐이므로, 위치·반경은 발생 시점(구독 콜백)에 이미 고정해뒀고 여기서는 매 프레임
-		// 남은 시간에 따라 투명도만 갱신한다 — 만료되면 그 플래시 전용 GameObject를 destroy한다.
+		// 반경은 고정값이라 표시 시간이 다 되면 그냥 사라진다 — 위치·반경은 발생 시점에 이미 고정해뒀고
+		// 여기서는 매 프레임 남은 시간에 따라 투명도만 갱신한다.
 		for (int i = _recentSounds.Count - 1; i >= 0; i--)
 		{
 			var s = _recentSounds[i];
@@ -194,12 +173,8 @@ public class PropagationDebugVisualizer
 		sr.transform.localScale = new Vector3(radius, radius, 1f);
 	}
 
-	// ThreatTileRenderer는 프로젝트에 이미 있는 스프라이트 라이브러리를 쓰지만, 이 임시 시각화는 별도
-	// 에셋을 만들기 싫어서 코드로 원형 링 텍스처를 한 번만 절차적으로 생성해 재사용한다. 머티리얼은
-	// SpriteRenderer가 스프라이트를 배정받으면 자동으로 붙는 기본 스프라이트 머티리얼을 그대로 쓴다
-	// (LineRenderer용으로 즉석에서 Shader.Find("Sprites/Default")를 만들어 붙였던 예전 방식은 이
-	// URP 프로젝트에서 실제로 안 보이는 문제가 있어 폐기 — SpriteRenderer 기본 경로는 ThreatTileRenderer가
-	// 이미 검증해 준 방식이라 안전하다).
+	// 별도 에셋 없이 코드로 원형 링 텍스처를 한 번만 생성해 재사용한다. 머티리얼은 SpriteRenderer의
+	// 기본 머티리얼을 그대로 쓴다 — 즉석 Shader.Find 머티리얼은 이 URP 프로젝트에서 안 보인다.
 	private static Sprite GetOrCreateRingSprite()
 	{
 		if (_ringSprite != null) return _ringSprite;

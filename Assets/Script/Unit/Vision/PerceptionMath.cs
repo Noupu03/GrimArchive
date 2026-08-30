@@ -1,12 +1,9 @@
 using UnityEngine;
 
-// 인지·정보판정·실패처리 시스템(02_인지·정보판정·실패처리_시스템_v0.2)의 순수 계산 함수 모음.
-// VisionMath(01/01-A)와 동일 컨벤션 — 부수효과 없음, 저장/조회는 Unit(PerceptionRecord)과
-// UnitFunction(호출부)이 담당한다.
-//
-// 이 문서가 위임한 부분(정확한 정신력 단계 임계값=9장, 경계 상태의 실제 이동 행동=04_탐색반응·경계
-// 문서 부재, 간접 인지의 실제 발생 지점=08_전파·소리 문서 부재)은 CLAUDE.md 관례대로 스텁 처리하거나
-// 사용자 확인을 거쳐 판단 근거를 아래 주석/구현현황 문서에 남긴다.
+// 인지·정보판정·실패처리 시스템(02_인지·정보판정·실패처리_시스템_v0.2)의 순수 계산 함수 모음 —
+// VisionMath(01/01-A)와 동일 컨벤션(부수효과 없음, 저장/조회는 Unit/UnitFunction 담당). 문서가
+// 위임한 부분(정신력 단계 임계값, 경계 상태 실제 이동 행동, 간접 인지 발생 지점 등)은 CLAUDE.md
+// 관례대로 스텁 처리한다.
 public static class PerceptionMath
 {
 	// ─────────────────────────── 10장. 경계 상태 보정 ───────────────────────────
@@ -17,13 +14,9 @@ public static class PerceptionMath
 		=> observerSpotting + (isAlert ? AlertDetectionBonus : 0f);
 
 	// ─────────────────────────── 9장. 정신력 보정 (인류 전용) ───────────────────────────
-	// 문서는 6단계(흥분+10/냉정+5/안정0/긴장-5/공포-15/공황-30)의 보정값만 명시하고, 어떤
-	// mental/maxMental 비율 구간이 각 단계에 해당하는지는 밝히지 않는다. 사용자 확인(2026-07-20):
-	// 기존 가중치 시스템의 MentalErrorState(공포<50%/공황<25%, 9-2장·23장 전용 2단계 판정)와는
-	// 완전히 별개로, 이 문서 내용만으로 새로 정한다 — 0~100% 구간을 6등분(약 16.7%씩, 경계값은
-	// 보기 좋은 정수로 반올림: 17/33/50/67/83)해서 매핑한다. ratio가 높을수록(정신력이 가득 찰수록)
-	// "정신력이 높으면 인지 판정에 유리해진다"(9장 본문) 규칙에 따라 상위 단계(흥분 쪽)로 간다.
-	// 밸런스 조정이 필요하면 이 상수들만 바꾸면 된다 — 판단 근거는 구현현황 문서에도 기재.
+	// 문서는 6단계 보정값만 명시하고 mental/maxMental 비율 구간 경계는 밝히지 않는다 — 기존 가중치
+	// 시스템의 MentalErrorState(공포<50%/공황<25%)와는 별개로, 0~100%를 6등분(17/33/50/67/83)해서
+	// 매핑한다. ratio가 높을수록(정신력이 가득 찰수록) 상위 단계(흥분 쪽)로 간다.
 	public const float MentalTierBoundary1 = 17f; // 공황 | 공포
 	public const float MentalTierBoundary2 = 33f; // 공포 | 긴장
 	public const float MentalTierBoundary3 = 50f; // 긴장 | 안정
@@ -60,10 +53,8 @@ public static class PerceptionMath
 		_ => 0f,
 	};
 
-	// 인류 전용(9장 "정신력 보정은 인류 유닛에게만 적용한다. 몬스터는 사용하지 않는다"). maxMental이
-	// 0 이하(스탯 미설정)면 "정신력 저하 없음"이 아니라 "이 유닛은 정신력 보정 대상 데이터가 없음"
-	// 으로 보고 안정(0) 취급한다 — maxMental=0을 비율로 나누면 항상 100%가 되어 매 판정마다 최고
-	// 단계(흥분 +10) 보너스가 공짜로 붙는 부작용을 막기 위한 안전장치(판단 근거: 구현현황 문서).
+	// 인류 전용(9장 — 몬스터는 사용하지 않음). maxMental이 0 이하면 "정신력 보정 대상 데이터 없음"으로
+	// 보고 안정(0) 취급한다 — 안 그러면 0으로 나눠 항상 100%가 되어 최고 단계 보너스가 공짜로 붙는다.
 	public static float MentalCorrectionForHuman(float mental, float maxMental)
 	{
 		if (maxMental <= 0f) return MentalCorrectionStable;
@@ -78,10 +69,8 @@ public static class PerceptionMath
 		=> targetVisibility + detectionCorrection + mentalCorrection;
 
 	// ─────────────────────────── 12장. 인지 결과 확률표 ───────────────────────────
-	// 현재 확률표는 문서가 명시한 임시 기준 그대로다("차후 밸런스에 따라 수정 가능성이 높다").
-	// 2026-07-20 문서 갱신: "100 이상" 구간(100%/0%/0%)이 "80 이상" 구간과 분리된 별도 행으로
-	// 새로 추가됐다 — 7장도 동일하게 "100 이상이라면 실제 확률 적용 시 100 이상 구간으로 처리한다"는
-	// 문장이 추가되어 하한(0 이하)과 대칭되는 상한 처리가 명시적으로 생겼다.
+	// 현재 확률표는 문서가 명시한 임시 기준 그대로다. "100 이상" 구간(100%/0%/0%)은 "80 이상" 구간과
+	// 분리된 별도 행 — 하한(0 이하)과 대칭되는 상한 처리가 명시적으로 존재한다.
 	public static (float accurate, float suspicious, float unrecognized) OutcomeProbabilities(float totalVisibility)
 	{
 		if (totalVisibility <= 0f)  return (0.00f, 0.05f, 0.95f);
@@ -111,8 +100,8 @@ public static class PerceptionMath
 	public const int SuspiciousTileReapproachDistanceTiles = 2;
 
 	// ─────────────────────────── 25장. 간접 인지 임시 위험도/흥미도 ───────────────────────────
-	// 08_전파·소리·간접입력 문서/시스템이 아직 없어 실제 발생 지점(전파/전투음 등)이 없다 — 값만
-	// 미리 계산해 둔다(VisionMath.NonEmptyTileTempWeight와 동일한 "소비자 없는 스텁" 전례).
+	// 08_전파·소리·간접입력 문서/시스템이 아직 없어 실제 발생 지점이 없다 — 값만 미리 계산해 둔다
+	// (VisionMath.NonEmptyTileTempWeight와 동일한 "소비자 없는 스텁" 전례).
 	public const float IndirectCombatPositionTempDanger = 10f;   // 전투 위치 간접 인지
 	public const float IndirectNonHostileTempInterest = 3f;      // 시체/전멸흔적/건물 전파 간접 인지
 

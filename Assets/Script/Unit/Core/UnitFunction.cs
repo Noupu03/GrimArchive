@@ -46,15 +46,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		}
 	}
 
-	// 대표 가중치 3종 연산공식 문서 3장/10장: 피격 이벤트를 이해도/위험도에 즉시 반영한다.
-	// "직접 경험(SELF)"은 여기서 바로 연결하고, "직접 목격(SEEN)"은 GameSession.RecordKillWeightEvent의
-	// 처치 목격과 동일한 근사(그 순간 생존한 다른 인류 전원이 목격한 것으로 처리)로 함께 연결한다.
-	// 간접 파악(INDIRECT, 소리/전파)은 그 시스템 자체가 없어 여전히 미연결(구현현황 문서에 사유 기재).
-	// public: DefenseSystem(정적 클래스, UnitFunction 밖)의 Block 판정도 hp를 직접 깎는 별도
-	// 데미지 경로라 이 메서드를 그대로 재사용해서 연결한다.
-	// rawDamage: 방어/저항 적용 전 원래 피해량(11-2장 "타격 1회별 기준 피해량" 판정에 필요 — 공격자가
-	// 인류일 때는 안 쓰이므로 그 경우 호출부에서 아무 값이나 넘겨도 무방하다, 실제로는 appliedDamage와
-	// 동일값을 넘긴다).
+	// 피격 이벤트를 이해도/위험도에 즉시 반영한다. DefenseSystem(정적 클래스, UnitFunction 밖)의 Block
+	// 판정도 hp를 직접 깎는 별도 데미지 경로라 이 메서드를 그대로 재사용해서 연결한다.
+	// rawDamage: 방어/저항 적용 전 원래 피해량("타격 1회별 기준 피해량" 판정용) — 공격자가 인류일 땐 안 쓰인다.
 	public void RecordHitWeightEvent(float appliedDamage, Unit attacker, float rawDamage)
 	{
 		if (attacker == null || this.Knowledge == null) return;
@@ -67,77 +61,61 @@ public abstract class UnitFunction : Unit, IVisionContext
 		lastAttacker = attacker;
 		lastTrapAttacker = null; // 4-14장: 몬스터 피격이 더 최근이면 함정 원인 기록을 덮어써 무효화한다.
 
-		// E_HIT_HEAVY_INDIRECT 연결용(2026-08-05) — "인류가 몬스터에게 heavyHitThreshold 이상 맞았다"는
-		// SELF/SEEN과 동일한 판정 조건을 소리 메타데이터에도 실어 보낸다. 공격자 정체 인지 게이팅
-		// (IsAttackerIdentified, 아래)은 이 피격 당사자 기준 판정이라 간접 확인 쪽에는 적용하지 않는다 —
-		// 간접 확인은 별도 관찰자가 나중에 스스로 공격자를 인지해야 하므로(TryConfirmIndirectHit).
+		// E_HIT_HEAVY_INDIRECT 연결용 — 공격자 정체 인지 게이팅은 피격 당사자 기준이라 여기엔 적용하지
+		// 않는다(간접 확인은 별도 관찰자가 나중에 스스로 인지, TryConfirmIndirectHit).
 		bool isHeavyHitOnHuman = defenderIsHuman && !attackerIsHuman && appliedDamage >= BaseStat.heavyHitThreshold;
 
-		// 07문서 14장/4-1장: 피격 발생 공격음은 피격 위치에서 항상 발생하고, 최종 HP 감소량이 최대
-		// HP의 10% 이상이면 별도로 피격 비명도 함께 발생한다(appliedDamage가 곧 TakeDamage로 이미
-		// 적용된 최종 HP 감소량이다 — TakePhysicalDamage/TakeMagicalDamage 호출 순서 참고).
+		// 피격 발생 공격음은 항상 발생하고, 최종 HP 감소량이 최대 HP의 10% 이상이면 피격 비명도 함께 발생한다.
 		PropagationSystem.EmitSound(Session, SoundType.HitImpact, position, currentFloor, this, attacker, isHeavyHitOnHuman, incidentId);
 		if (PropagationMath.IsHitScreamTriggered(appliedDamage, Health.maxHp))
 			PropagationSystem.EmitSound(Session, SoundType.HitScream, position, currentFloor, this, attacker, isHeavyHitOnHuman, incidentId);
 
 		if (defenderIsHuman)
 		{
-			// 02문서 17장: "피격 사실/피해량은 확정되지만 공격자 정체는 별도 인지 판정이 필요하다."
-			// Health.hp 차감(TakeDamage)은 이미 위에서 확정됐고, 여기서는 공격자를 "누구"로 특정해 기록할
-			// 이벤트만 인지 판정으로 게이팅한다 — IsAttackerIdentified가 4장 조건5(피격 시 공격 후
-			// 가시성 증가를 반영한 즉시 재판정)를 강제로 수행한다.
+			// 피격 사실/피해량은 이미 확정됐고, 공격자를 "누구"로 특정해 기록할 이벤트만 인지 판정으로
+			// 게이팅한다 — IsAttackerIdentified가 피격 후 가시성 증가를 반영한 즉시 재판정을 강제 수행한다.
 			bool attackerIdentified = IsAttackerIdentified(attacker);
 			if (attackerIdentified)
 			{
-				// "일정 피해량 이상"만 위험도/이해도 증가 (3장 공통 규칙)
 				if (appliedDamage >= BaseStat.heavyHitThreshold)
 				{
 					this.Knowledge.RecordEvent(EventId.E_HIT_HEAVY_SELF, this, attacker, InfoType.DirectExperience, incidentId);
 					BroadcastWitnessEvent(EventId.E_HIT_HEAVY_SEEN, this, attacker, incidentId);
 				}
 
-				// 11-2장: 실제 적용 피해량이 공격자의 기준(방어 적용 전) 피해량보다 1 이상 낮으면
-				// "인류의 방어력/저항 때문에 예상보다 약하게 들어간 타격"으로 보고 몬스터 종 위험도를
-				// 소폭(-0.01, 전투당 최대 -1) 감소시킨다.
+				// 실제 적용 피해량이 방어 적용 전 피해량보다 1 이상 낮으면 "예상보다 약하게 들어간 타격"으로
+				// 보고 몬스터 종 위험도를 소폭 감소시킨다.
 				this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
 			}
 			else
 			{
-				// 03문서 4-1/4-10/4-11/4-12장 + 07문서 17장(2026-07-31): 공격자 정체를 인지하지 못한
-				// 피격 — 경계 상태로 전환해 수색을 시작한다. 방향 정보는 이제 두 조건을 모두 만족해야
-				// "안다"로 취급한다 — 인지 범위 안(기존 근사) + 공격 형태가 방향을 특정할 수 있는 형태
-				// (17장: 근접=공격원 방향/투사체=진행 방향 O, 광역·지면 영역 공격은 방향 정보 없음).
+				// 공격자 정체를 인지하지 못한 피격 — 경계 상태로 전환해 수색을 시작한다. 방향 정보는
+				// 인지 범위 안 + 공격 형태가 방향을 특정 가능(근접/투사체 O, 광역·지면 영역 공격 X)할 때만 "안다"로 취급한다.
 				bool inAwarenessRange = Vector2.Distance(position, attacker.position) <= VisionMath.AwarenessDistance(spotting);
 				bool shapeProvidesDirection = PropagationMath.AttackShapeProvidesDirection(attacker.CombatState.State.lastAttackShape);
 				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
 				Vector2Int? attackerPos = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null;
 				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos };
 
-				// 07문서 7-2장(2026-08-06): "적을 정확 인지하기 전에 공격받은 경우" 발신자의 비전투 상태
-				// 조건을 예외 처리하고 이 사실(+ 방향)을 파티원에게 1회 전파한다.
+				// "적을 정확 인지하기 전에 공격받은 경우" 이 사실(+ 방향)을 파티원에게 1회 전파한다.
 				if (this is Human victimHuman)
 					PropagationSystem.PropagateAttackedFact(victimHuman, attackerPos);
 			}
 		}
 		else
 		{
-			// 인류(attacker)가 몬스터(this)를 때림 — 이해도만 오르고 위험도 변화는 없음(표 값 자체가 danger=0)
-			// 02문서 4장 조건5/26장("인지 판정: 인류/몬스터 공통 사용"): 이 RecordEvent 자체는 게이팅
-			// 대상이 아니다(attacker=인류가 이미 자기 공격 대상을 스스로 알고 있음) — 다만 몬스터(this)
-			// 쪽 인지 판정도 인류와 동일하게 "피격 시 재판정" 트리거를 받아야 하므로, 게이팅 없이
-			// 재판정만 수행해 둔다(이후 UpdateFOV/GOAP의 Perception.State.personalSpottedEnemies 등에 반영될 수 있게).
+			// 인류(attacker)가 몬스터(this)를 때림 — 이해도만 오르고 위험도 변화는 없음(표 값 자체가 danger=0).
+			// 이 RecordEvent 자체는 게이팅 대상이 아니지만(attacker=인류가 이미 자기 대상을 앎), 몬스터(this)
+			// 쪽 인지 판정도 "피격 시 재판정" 트리거를 받아야 하므로 게이팅 없이 재판정만 수행한다.
 			ForceReidentifyAttacker(attacker);
 			this.Knowledge.RecordEvent(EventId.E_MONSTER_HIT_SELF, attacker, this, InfoType.DirectExperience, incidentId);
 			BroadcastWitnessEvent(EventId.E_MONSTER_HIT_SEEN, attacker, this, incidentId);
 		}
 	}
 
-	// 02문서 4장 조건5: "인지 범위 안에 있으나 미인식/수상한 타일인 대상이 공격하면, 공격 후 가시성
-	// 증가를 반영해 즉시 재판정한다." 이 규칙 자체는 26장 표(인지 판정: 인류/몬스터 공통 사용)에 따라
-	// 관찰자가 인류든 몬스터든 동일하게 적용된다 — attacker에 대한 perceptionRecords가 여기서 갱신된다.
-	// 벽/차단 오브젝트에 의한 시야 차단(LOS)까지는 재확인하지 않는다 — 근접 공격자는 인접 타일에서만
-	// 발생해 사실상 항상 차단이 없고, 원거리/마법 공격자를 위해 UpdateFOV와 동일한 쉐도우 캐스팅을 매 피격마다
-	// 다시 도는 것은 이번 범위에 비해 과한 비용이라 거리+인지각만으로 판정한다(판단 근거: 구현현황 문서).
+	// 인지 범위 안에 있으나 미인식/수상한 타일인 대상이 공격하면, 공격 후 가시성 증가를 반영해 즉시
+	// 재판정한다(관찰자가 인류든 몬스터든 동일 적용). LOS 재확인은 하지 않는다 — 근접 공격자는 인접
+	// 타일이라 사실상 항상 차단이 없고, 원거리 공격마다 전체 쉐도우 캐스팅을 다시 도는 비용을 피한다.
 	private void ForceReidentifyAttacker(Unit attacker)
 	{
 		if (attacker == null) return;
@@ -194,10 +172,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 			if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
 			Vector3Int tilePos = new Vector3Int(x, y, currentFloor);
-			// 문 닫힘 시스템(2026-07-28 재정정, 사용자 요청 "문이 닫혀버리면, 벽과 같은 가시성을 가지게
-			// 하고, 벽처럼 아예 이동 불가하게 해줘") — 인류가 문(isStructureExist)에 안 막히던 예외를
-			// 없앤다. 닫힌 문은 이제 어느 진영이든 예외 없이 벽과 동일하게 취급한다.
-			// 2026-08-20 — 청크 인덱싱+벽 판정 중복을 CreateMap.IsStaticTileWalkable 호출로 통합.
+			// 닫힌 문은 벽과 동일하게 가시성 차단(예외 없이 모든 진영). 청크 인덱싱+벽 판정은
+			// CreateMap.IsStaticTileWalkable로 통합.
 			if (!cmap.IsStaticTileWalkable(currentFloor, new Vector2Int(x, y))) return true;
 
 			if (Session != null && Session.objectGrid.TryGetValue(tilePos, out InteractableObject blocker) &&
@@ -209,9 +185,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return false;
 	}
 
-	// 02문서 17장: 피격 대상(this)이 attacker의 정체를 "가중치 이벤트에 쓸 만큼" 확인했는지. 가중치
-	// 시스템의 정체 기반 이벤트 자체가 인류 전용(26장)이라 이 게이팅 판정은 인류 관찰자 전용이다 —
-	// 재판정 자체(ForceReidentifyAttacker)는 인류/몬스터 공통으로 이미 수행됐다.
+	// 피격 대상(this)이 attacker의 정체를 "가중치 이벤트에 쓸 만큼" 확인했는지 — 가중치 시스템의 정체
+	// 기반 이벤트가 인류 전용이라 이 게이팅 판정도 인류 관찰자 전용이다.
 	private bool IsAttackerIdentified(Unit attacker)
 	{
 		ForceReidentifyAttacker(attacker);
@@ -219,16 +194,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return IsCurrentlyIdentified(attacker);
 	}
 
-	// 방금 IsAttackerIdentified/ResolveReachedTarget으로 판정된 기록을 다시 굴리지 않고 그대로 조회만
-	// 한다 — RecordStatusWeightEvent는 RecordHitWeightEvent와 같은 피격 시퀀스 안에서 호출되므로(4장:
-	// 같은 트리거를 또 재판정하지 않는다) 새 판정이 아니라 조회여야 한다.
+	// 방금 판정된 기록을 다시 굴리지 않고 조회만 한다 — 같은 피격 시퀀스 안에서 같은 트리거를 또 재판정하지 않기 위함.
 	private bool IsCurrentlyIdentified(Unit target)
 		=> target != null && Perception.State.perceptionRecords.TryGetValue(target, out var record) && record.Outcome == PerceptionOutcome.AccuratePerception;
 
-	// 3장 "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정(그 순간 그 자리를 보고
-	// 있었는지)은 아직 없어서, GameSession.RecordKillWeightEvent와 동일하게 "그 순간 생존해 있는
-	// 다른 인류 전원이 목격한 것"으로 근사한다. participant는 이미 SELF 이벤트로 기록된 당사자라
-	// 중복 집계를 막기 위해 목격자 명단에서 제외한다.
+	// "직접 목격(SEEN)" 계층 근사 구현 — 실제 FOV 기반 목격 판정이 없어 "그 순간 생존해 있는 다른 인류
+	// 전원이 목격한 것"으로 근사한다. participant는 이미 SELF 이벤트로 기록된 당사자라 목격자 명단에서 제외.
 	private void BroadcastWitnessEvent(EventId id, Unit participant, Unit target, string incidentId)
 	{
 		if (Session == null || this.Knowledge == null) return;
@@ -255,16 +226,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public override void ApplyPoison(float duration) { StatusEffects.State.poisonDuration = Mathf.Max(StatusEffects.State.poisonDuration, duration); RecordStatusWeightEvent(); }
 	public override void ApplyBurn(float duration)   { StatusEffects.State.burnDuration   = Mathf.Max(StatusEffects.State.burnDuration,   duration); RecordStatusWeightEvent(); }
 
-	// 3장 E_STATUS_SELF/SEEN: 상태이상 직접 경험/목격. 실제 게임에서 걸리는 상태이상은 현재 스턴뿐이라
-	// (SkillAction/Projectile이 ApplyStun만 호출) 사실상 스턴 적용 시점에서만 발동하지만, 나중에
-	// 슬로우/독/화상도 실제로 걸리기 시작하면 이 헬퍼를 그대로 타므로 별도 연결이 필요 없다.
-	// lastAttacker는 SkillAction/Projectile이 항상 TakeDamage 계열을 먼저 호출한 뒤 Apply*를
-	// 호출하는 순서 덕분에(RecordHitWeightEvent에서 세팅됨) 이 시점에 이미 정확한 가해자를 가리킨다.
+	// 상태이상 직접 경험/목격. 현재 실제로 걸리는 상태이상은 스턴뿐이지만 슬로우/독/화상도 걸리기
+	// 시작하면 이 헬퍼를 그대로 타므로 별도 연결이 필요 없다. lastAttacker는 SkillAction/Projectile이
+	// 항상 TakeDamage 계열을 먼저 호출한 뒤 Apply*를 호출하므로 이 시점에 이미 정확한 가해자를 가리킨다.
 	private void RecordStatusWeightEvent()
 	{
 		if (!(this is Human) || !(lastAttacker is Monster) || this.Knowledge == null) return;
-		// 02문서 17장: 상태이상을 건 공격자의 정체도 동일하게 게이팅한다 — RecordHitWeightEvent가 같은
-		// 피격 시퀀스에서 이미 판정을 굴려놨으므로 여기서는 그 결과만 조회한다(재판정 아님).
+		// 상태이상을 건 공격자의 정체도 동일하게 게이팅한다 — RecordHitWeightEvent가 이미 판정을 굴려놨으므로 조회만.
 		if (!IsCurrentlyIdentified(lastAttacker)) return;
 
 		string incidentId = (++_incidentIdCounter).ToString();
@@ -330,11 +298,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 호출로 통합(이 유닛 자신의 currentFloor 기준이라 결과는 기존과 완전히 동일하다).
 				if (!cmap.IsStaticTileWalkable(currentFloor, new Vector2Int(targetX, targetY))) return false;
 
-				// 문 진영 통행 판정(기초문서.md 피드백, 2026-08-22 전면 개편 — "보유 진영의 유닛만
-				// 지나갈 수 있고... 그게 아니라면 공격해서 파괴해야 해") — 벽 판정과 별개로, 문 타일은
-				// Tile.isStructureExist를 더 이상 건드리지 않는다(DoorSystem 참고) — 대신 여기서 진영
-				// 일치 여부를 직접 확인한다. 예외·진영 구분 없이 벽과 동일하게 막던 예전 규칙을
-				// "보유 진영만 예외" 규칙으로 교체.
+				// 문 진영 통행 판정 — 문 타일은 Tile.isStructureExist를 건드리지 않는다(DoorSystem
+				// 참고) — 대신 여기서 보유 진영 일치 여부를 직접 확인한다(보유 진영만 통과 예외).
 				if (Session != null && Session.IsBlockedByClosedDoor(new Vector3Int(targetX, targetY, currentFloor), this)) return false;
 
 				if (!ignoreUnits && Session != null &&
@@ -351,18 +316,15 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void Move(Dir dir)
 	{
-		// 고정 유닛(2026-08-24, 보스 골렘) 최종 안전망 — FSM/명령/배회 등 어느 경로로 이동 요청이
-		// 들어와도 여기서 전부 무시한다. UnitFSM이 이미 StandGroundAttackFSMState로 묶어두지만,
-		// 이동 호출부가 FSM 바깥에도 여럿 있어(UnitFSM.RunCurrentState의 _current==null 폴백 랜덤
-		// 이동 등) 단일 관문에서 한 번 더 막는 편이 확실하다.
+		// 고정 유닛 최종 안전망 — FSM/명령/배회 등 어느 경로로 이동 요청이 들어와도 여기서 전부
+		// 무시한다. 이동 호출부가 FSM 바깥에도 여럿 있어 단일 관문에서 한 번 더 막는 편이 확실하다.
 		if (isImmobile) return;
 
 		Vector2Int dirVec = GetDirVector(dir);
 		Vector2Int nextPos = position + dirVec;
 
-		// 문 개폐 시각 트리거(2026-08-22 재조정, 사용자 요청 "문 인접 칸에서 문에 접근 시도시 열리는
-		// 방식으로") — 실제 이동 성공 여부와 무관하게, 인접 칸에서 이 칸으로 넘어가려는 시도 자체가
-		// 열림 신호다(통행 가능 여부 판정과는 완전히 별개, 순수 시각 연출).
+		// 문 개폐 시각 트리거 — 실제 이동 성공 여부와 무관하게, 인접 칸에서 이 칸으로 넘어가려는 시도
+		// 자체가 열림 신호다(통행 가능 여부 판정과는 완전히 별개, 순수 시각 연출).
 		Session?.NotifyDoorApproachAttempt(new Vector3Int(nextPos.x, nextPos.y, currentFloor), this);
 
 		bool canMove = CanMove(nextPos);
@@ -377,23 +339,18 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 		}
 
-		// 실제로 이동에 성공했을 때만 시야 방향을 갱신한다 — 다른 유닛이 길을 막아 매 틱 CanMove가
-		// 실패하는 동안에도 예전엔 시도한 방향으로 currentDir이 계속 바뀌어서(웨이브 파티가 몰리는
-		// 구간에서 서로 자리를 다투며 시도 방향이 틱마다 흔들림), 제자리에서 캐릭터만 계속 홱홱 도는
-		// 것처럼 보였다(사용자 신고, 2026-07-23 "얘내 자꾸 움찔움찔 거리는데, 유닛으로 인한 길 막힘
-		// 때문인듯"). 막혀서 못 움직인 틱엔 기존 방향을 그대로 유지해 제자리에 가만히 서 있게 한다.
+		// 실제로 이동에 성공했을 때만 시야 방향을 갱신한다 — 막혀서 못 움직인 틱까지 방향을 바꾸면
+		// 유닛이 몰리는 구간에서 제자리에서 계속 홱홱 도는 것처럼 보인다.
 		if (canMove)
 		{
 			currentDir = dir;
 			position = nextPos;
 
-			// 4-6장: 이 유닛을 "수상한 타일" 대상으로 추적 중인 적(관찰자)이 하나라도 있으면, 이동
-			// 1회마다 이 유닛 자신의 가시성을 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는
-			// 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
+			// 이 유닛을 "수상한 타일" 대상으로 추적 중인 적이 하나라도 있으면, 이동 1회마다 가시성을
+			// 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
 			if (IsTrackedAsSuspiciousByAnyEnemy())
 				VisionStat.suspiciousMoveBoostTimers.Enqueue(UnityEngine.Time.time + VisionMath.SuspiciousMoveBoostDurationSeconds);
 
-			// 07문서 14장: 이동 시 이동음 발생.
 			PropagationSystem.EmitSound(Session, SoundType.Movement, position, currentFloor, this);
 		}
 
@@ -401,20 +358,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 			this.Generate.UpdateUnitSpriteForDirection(this);
 	}
 
-	// 4-6장 트리거 판정 — Session 전체를 순회해 "나를 적으로 보는 유닛 중 지금 나를 수상한 타일로
-	// 추적 중인 관찰자가 있는가"를 확인한다. 관찰자별로 다른 값을 주는 대신(07 전파 문서 부재로 이번
-	// 구현에서도 단순화) 이 유닛 자신의 가시성 하나에 반영해 모든 관찰자에게 동일하게 적용한다.
-	// J: ForceRollPerception이 PendingSuspiciousInvestigation 변경 시마다 _suspiciousObserverCount를
-	// 증감하므로 O(N) 순회 없이 O(1)로 판정한다.
+	// "나를 적으로 보는 유닛 중 지금 나를 수상한 타일로 추적 중인 관찰자가 있는가" — 관찰자별로 다른
+	// 값을 주는 대신 이 유닛 자신의 가시성 하나에 반영해 모든 관찰자에게 동일하게 적용한다.
+	// ForceRollPerception이 PendingSuspiciousInvestigation 변경 시마다 _suspiciousObserverCount를 증감하므로 O(1) 판정.
 	private bool IsTrackedAsSuspiciousByAnyEnemy() => _suspiciousObserverCount > 0;
 
-	// ─────────────────────── 02문서 4장: 트리거 기반 지속 인지 상태 ───────────────────────
-	// 이번 UpdateFOV 패스에서 인지 범위 안으로 실제 도달한 대상(적 유닛=Unit 참조, 오브젝트=Id)의
-	// 집합 — UpdateFOV 시작 시 비우고, 쉐도우 캐스팅의 ProcessTile이 채운다. 이 패스가 끝난 뒤(메인
-	// 쉐도우 캐스팅 + 특수 원형 스윕 완료 후) 이 집합에 없는 기존 perceptionRecords는 "이번엔 못 봤다"로 판정해
-	// PerceptionRecord.WasInRange를 false로 내린다 — 그래야 나중에 다시 보였을 때(재진입/완전 차단
-	// 후 재등장 모두 포함) 새 트리거로 인식돼 재판정이 걸린다(4장 조건1~3이 전부 "지금 안 보이다가
-	// 다시 보임"이라는 동일 신호라 이 하나의 메커니즘으로 셋 다 커버된다).
+	// 트리거 기반 지속 인지 상태 — 이번 UpdateFOV 패스에서 인지 범위 안으로 실제 도달한 대상(적
+	// 유닛=Unit 참조, 오브젝트=Id)의 집합. 패스가 끝난 뒤 이 집합에 없는 기존 perceptionRecords는
+	// WasInRange를 false로 내려, 나중에 다시 보였을 때(재진입/완전 차단 후 재등장) 새 트리거로 인식돼 재판정이 걸리게 한다.
 	private readonly Dictionary<object, (float dist, Vector3Int tile)> _reachedPerceptionThisPass = new Dictionary<object, (float, Vector3Int)>();
 	// 쉐도우 캐스팅 결과 버퍼 — UpdateFOV가 패스마다 Clear() 후 재사용한다.
 	private readonly HashSet<Vector2Int> _shadowCastResult = new HashSet<Vector2Int>();
@@ -427,10 +378,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 	private readonly List<Vector3Int> _dangerTilesCopy = new List<Vector3Int>();
 	private readonly List<Vector3Int> _interestTilesCopy = new List<Vector3Int>();
 
-	// ⑪(2026-08-25, 프레임 드랍 대응): UpdateFOV의 isOpaque가 mapWidth/mapHeight/csVision/floorData/
-	// roomRestrictedObserver/myRoomId 6개 지역변수를 캡처하는 람다라 호출마다(=A항목 ScanOctant와
-	// 동일 빈도) 델리게이트+캡처 객체가 새로 할당됐다. 캡처값을 인스턴스 필드로 옮기고 람다 대신
-	// 인스턴스 메서드(IsOpaqueAt)를 가리키는 델리게이트를 캐시해 유닛 생애 첫 호출에만 할당되게 한다.
+	// ⑪ 프레임 드랍 대응: UpdateFOV의 isOpaque 판정용 캡처값을 람다 대신 인스턴스 필드+캐시된 델리게이트로
+	// 옮겨, ScanOctant와 동일 빈도로 반복 호출돼도 유닛 생애 첫 호출에만 할당되게 한다.
 	private int _fovMapWidth, _fovMapHeight, _fovChunkSize;
 	private Floor _fovFloorData;
 	private bool _fovRoomRestrictedObserver;
@@ -454,9 +403,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 	}
 
 	// 이번 패스에 처음 도달한 대상이면 트리거 조건(최초 진입/재진입/수상한 타일 2칸 재접근)을 검사해
-	// 필요하면 재판정하고, 이미 이번 패스에 다른 레이로 처리된 대상이면 그 결과를 그대로 반환한다
-	// (여러 레이가 같은 타일에 도달해도 판정은 패스당 한 번만 — firstTouchThisPass로 호출부가 후속
-	// 처리(등록 등)를 중복 실행하지 않도록 알려준다).
+	// 필요하면 재판정하고, 이미 처리된 대상이면 그 결과를 그대로 반환한다(여러 레이가 같은 타일에
+	// 도달해도 판정은 패스당 한 번만 — firstTouchThisPass로 호출부의 중복 후속 처리를 막는다).
 	private PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float dist, PerceptionTargetKind kind, out bool firstTouchThisPass)
 	{
 		firstTouchThisPass = !_reachedPerceptionThisPass.ContainsKey(key);
@@ -466,15 +414,14 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		Perception.State.perceptionRecords.TryGetValue(key, out var existing);
 
-		// 4장 조건1/2/3: 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
+		// 기록이 없거나(최초 진입) 직전 패스엔 도달하지 못했던(재진입/차단 후 재등장) 대상.
 		bool isNewOrReentering = existing == null || !existing.WasInRange;
-		// 4장 조건4/22장: 수상한 타일 확인 대기 중 + 2칸 이내로 접근.
+		// 수상한 타일 확인 대기 중 + 2칸 이내로 접근.
 		bool suspiciousReapproach = existing != null && existing.PendingSuspiciousInvestigation
 			&& dist <= PerceptionMath.SuspiciousTileReapproachDistanceTiles;
 
-		// 5장(인지 판정 불가 상태)은 ForceRollPerception 내부에서 일괄 가드한다 — 트리거가 걸려도
-		// 실제로 굴리지 않고 기존 기록을 동결한 채 반환한다(existing==null이어도 새 레코드만 만들고
-		// 굴리지 않음).
+		// 인지 판정 불가 상태는 ForceRollPerception 내부에서 일괄 가드한다 — 트리거가 걸려도 실제로
+		// 굴리지 않고 기존 기록을 동결한 채 반환한다.
 		if (isNewOrReentering || suspiciousReapproach)
 			return ForceRollPerception(key, targetVisibility, tile, kind);
 
@@ -483,14 +430,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return existing.Outcome;
 	}
 
-	// 8장/12장: 감지 보정(경계 반영) + 정신력 보정을 더한 최종 계산 가시성으로 확률표를 굴려 즉시
-	// 판정을 갱신한다. 트리거 조건과 무관하게 "지금 당장 다시 판정"이 필요한 지점(4장 조건5: 피격
-	// 후 가시성 증가 반영 재판정, ResolveReachedTarget의 트리거 발생 시)에서 공통으로 쓴다.
+	// 감지 보정(경계 반영) + 정신력 보정을 더한 최종 계산 가시성으로 확률표를 굴려 즉시 판정을 갱신한다.
+	// 트리거 조건과 무관하게 "지금 당장 다시 판정"이 필요한 지점(피격 후 가시성 증가 반영 재판정,
+	// ResolveReachedTarget의 트리거 발생 시)에서 공통으로 쓴다.
 	private PerceptionOutcome ForceRollPerception(object key, float targetVisibility, Vector3Int tile, PerceptionTargetKind kind)
 	{
-		// 5장: 인지 판정 자체가 불가한 상태(기절 등)면 트리거가 걸려도 굴리지 않고 기존 기록을 그대로
-		// 동결한다 — ForceReidentifyAttacker(피격 시 강제 재판정, 4장 조건5)도 이 지점을 거치므로 여기
-		// 한 곳에서 가드하면 모든 호출 경로에 일괄 적용된다.
+		// 인지 판정 자체가 불가한 상태(기절 등)면 트리거가 걸려도 굴리지 않고 기존 기록을 그대로
+		// 동결한다 — ForceReidentifyAttacker도 이 지점을 거치므로 한 곳에서 가드하면 모든 경로에 일괄 적용된다.
 		if (!CanPerceive)
 		{
 			if (!Perception.State.perceptionRecords.TryGetValue(key, out var frozen))
@@ -529,9 +475,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		record.TargetKind = kind;
 		record.PendingSuspiciousInvestigation = nowSuspicious;
 
-		// 03문서 4-1/4-4장: 수상한 타일이 새로 발생하면 경계 상태를 만든다(이미 경계 중이면 다른
-		// 수상한 타일로 갈아타지 않는다 — Goal_Alert는 고착이 아니라 매 틱 재평가되지만, 정확히 어느
-		// 타일을 보고 있었는지는 유지해야 4-5장 "2칸 이내 재인지"가 의미를 가진다).
+		// 수상한 타일이 새로 발생하면 경계 상태를 만든다(이미 경계 중이면 다른 타일로 갈아타지 않는다 —
+		// 어느 타일을 보고 있었는지 유지해야 "2칸 이내 재인지"가 의미를 가진다).
 		if (nowSuspicious && currentAlertSearch == null)
 		{
 			currentAlertSearch = new AlertSearchState { TargetPosition = new Vector2Int(tile.x, tile.y) };
@@ -539,9 +484,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return outcome;
 	}
 
-	// rayInPerceptionAngle: 이 레이가 인지각(01-A 4장) 범위 안인지 여부(레이별로 UpdateFOV가 미리 계산해 전달).
-	// perceptionDistance: 인지 거리(01-A 3장) — 이 거리 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다.
-	// 특수 원형 인지 범위(01-A 12장) 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
+	// perceptionDistance 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다. 특수 원형 인지 범위
+	// 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
 	// IVisionContext methods
 	public PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float currentDist, out bool firstTouch)
 	{
@@ -577,9 +521,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		float perceptionAngle    = VisionMath.AwarenessAngle(effectiveSpotting);
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 
-		// 03문서 5-4장(조사)/9-6장(함정 해제): 진행 중에는 시야 범위/인지 범위 전부 기본값의 50%.
-		// ExplorationPenaltyActive는 Unit.cs에 정의(Investigate/TrapInteraction 둘 중 하나라도 페널티
-		// 활성 상태면 true) — 두 문서가 같은 50% 비율이라 별도 분기 없이 하나의 배수로 처리한다.
+		// 조사/함정 해제 진행 중에는 시야 범위/인지 범위 전부 기본값의 50%(ExplorationPenaltyActive, Unit.cs).
 		if (ExplorationPenaltyActive)
 		{
 			viewDistance       *= ExplorationMath.InvestigatePenaltyRatio;
@@ -587,9 +529,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			perceptionDistance *= ExplorationMath.InvestigatePenaltyRatio;
 		}
 
-		// 전방위 시야(2026-08-24, 보스 골렘) — 각도 제한만 없앤다. 거리(viewDistance/perceptionDistance)와
-		// 차폐(isOpaque의 벽·방 경계 판정)는 그대로 적용되므로 "벽을 뚫어 본다"가 되지는 않는다.
-		// 위 조사 페널티(50%)보다 뒤에 둬서 페널티가 각도를 다시 깎지 않도록 한다.
+		// 전방위 시야 — 각도 제한만 없앤다. 거리/차폐는 그대로 적용되므로 벽을 뚫어 보진 않는다.
+		// 위 조사 페널티보다 뒤에 둬서 페널티가 각도를 다시 깎지 않게 한다.
 		if (hasOmnidirectionalVision)
 		{
 			viewAngle       = 360f;
@@ -610,15 +551,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 		int mapHeight = floorData.config.height * csVision;
 
 		Human terrainObserver = this as Human;
-		// 몬스터 개인 지도(2026-08-20, 사용자 요청 "몬스터들도 개인 지도는 있어야 한다") — 인류와
-		// 동일한 시야 파이프라인에 편승하되, 아래 ProcessTile에서 지형/함정만 기록하고 위험도·흥미도·
-		// 방·오브젝트 등록 등 인류 전용 로직(RegisterObject/ObserveRoomTileRevealed 등)은 타지 않는다.
+		// 몬스터는 인류와 동일한 시야 파이프라인에 편승하되, ProcessTile에서 지형/함정만 기록한다.
 		Monster terrainObserverMonster = this as Monster;
 		var visionNonEmpty = Perception.State.visionOnlyNonEmptyTiles;
 
-		// 불투명 판정 함수: 벽/구조물/방 밖(방제한유닛)/완전차단오브젝트 → true. 매 호출 람다 할당
-		// 대신 인스턴스 필드+캐시된 델리게이트를 쓴다(위 ⑪ 필드 선언부 주석 참고) — 판정 로직은
-		// IsOpaqueAt에 그대로, 여기서는 이번 패스의 캡처값만 필드에 채운다.
+		// 불투명 판정(벽/구조물/방 밖/완전차단오브젝트 → true) — 매 호출 람다 할당 대신 캐시된 델리게이트를 쓴다(⑪ 참고).
 		_fovMapWidth = mapWidth;
 		_fovMapHeight = mapHeight;
 		_fovChunkSize = csVision;
@@ -680,9 +617,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Monster"))
 									PropagationSystem.OnMonsterCorpseDiscovered(terrainObserver, obj);
-								// 코어 발견 시 파티 전파(CorePartySystem)는 기초문서.md 피드백(2026-08-22)으로
-								// 제거됨 — 이제 코어는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접
-								// 확인하므로 발견 이벤트가 따로 필요 없다.
+								// 코어는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접 확인하므로 발견 이벤트 전파가 따로 필요 없다.
 							}
 						}
 						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionNonEmpty.Contains(revealedTile))
@@ -692,8 +627,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			}
 			else if (terrainObserverMonster != null)
 			{
-				// 인류(PersonalMapKnowledge)와 달리 위험도·흥미도·방·오브젝트 등록은 전혀 하지 않는다
-				// (사용자 요청 "가중치 X") — 지형 기록 + 함정 위치만 단순히 남긴다.
+				// 인류(PersonalMapKnowledge)와 달리 위험도·흥미도·방·오브젝트 등록은 하지 않는다 —
+				// 지형 기록 + 함정 위치만 남긴다.
 				terrainObserverMonster.monsterMap.RevealTile(revealedTile, tileIsWall);
 				if (!tileIsWall && Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject monsterSeenObj)
 					&& !monsterSeenObj.IsCollected && TagsContain(monsterSeenObj.Tags, "Trap"))
@@ -756,10 +691,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				ProcessTile(tp.x, tp.y, true);
 		}
 
-		// 02문서 4장: 이번 패스(메인 쉐도우 캐스팅 + 특수 원형 스윕)에서 한 번도 도달하지 못한 기존 기록은
-		// "지금 안 보인다"로 내려둔다 — Outcome(정확 인지/수상한 타일/미인식) 자체는 건드리지 않고
-		// WasInRange만 false로 바꿔서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입/완전 차단
-		// 후 재등장 트리거로 인식하게 한다.
+		// 이번 패스에서 한 번도 도달하지 못한 기존 기록은 Outcome은 건드리지 않고 WasInRange만 false로
+		// 내려서, 다음에 다시 도달할 때 ResolveReachedTarget이 재진입 트리거로 인식하게 한다.
 		foreach (var kv in Perception.State.perceptionRecords)
 		{
 			if (!_reachedPerceptionThisPass.ContainsKey(kv.Key))
@@ -767,12 +700,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		}
 	}
 
-	// 01-A 11장: 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를
-	// 갱신한다. 리더 명령(5)/기습(2,6)/소리(7) 후보는 대응 게임 시스템(09_명령·리더, 06_전투반응·기습,
-	// 08_전파·소리 문서)이 이 폴더에 아직 없어 후보 자체를 만들 수 없다 — 11장의 "적용할 수 없는
-	// 후보는 비교에서 제외한다"는 규칙과 동일하게 취급(자연히 제외됨). 미확인 타일(8, 01-A 7장 값
-	// 소비 겸용)과 경계(9, 02문서 20장) 후보는 실제로 연결됐다(아래 참고) — "경로 재설정"까지는 여전히
-	// 10_목표설정 문서(부재) 몫이라 방향 전환만 담당한다. 실제로 활성화 가능한 후보만 아래에서 구성한다.
+	// 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를 갱신한다.
+	// 리더 명령/기습 후보는 대응 시스템이 없어 후보 자체를 만들 수 없다("적용할 수 없는 후보는 제외"
+	// 규칙으로 자연히 제외). "경로 재설정"은 별도 목표설정 시스템 몫이라 여기선 방향 전환만 담당한다.
 	public override void ResolveVisionDirection()
 	{
 		_visionDirectionCandidates.Clear();
@@ -791,15 +721,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (adjacentEnemy != null)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.AdjacentMeleeTarget, DirectionToward(adjacentEnemy.position)));
 
-		// 0순위(표 밖 특례): playerAttackTarget은 플레이어가 UI에서 직접 지정한 수동 공격 명령
-		// (InputManager.cs 세터, Goals.cs 주석 "수동 공격 명령은 최우선" 참고)이라 10장 "플레이어의
-		// 명령에 대한 시야 전환은 항상 최우선 순위가 된다"는 특례를 그대로 적용한다(사용자 확인,
-		// 2026-07-22 — 이전엔 4순위 CurrentAttackTarget으로 분류돼 있었음).
+		// 0순위(표 밖 특례): playerAttackTarget은 플레이어가 직접 지정한 수동 공격 명령(InputManager.cs
+		// 세터)이라 10장 "플레이어 명령에 대한 시야 전환은 항상 최우선"이라는 특례를 적용한다.
 		if (playerAttackTarget != null && playerAttackTarget.Health.hp > 0)
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.PlayerCommand, DirectionToward(playerAttackTarget.position)));
 
-		// 7순위: 소리 감지 — 07문서(00/02문서 표기로는 "08_전파·소리") 구현(2026-07-31)으로 연결됨.
-		// 아직 확인 행동을 시작하지 않은(또는 이미 시작된) 유효한 소리 반응 대상이 있으면 그 방향으로.
+		// 7순위: 소리 감지 — 아직 확인 행동을 시작하지 않은(또는 이미 시작된) 유효한 소리 반응 대상이 있으면 그 방향으로.
 		if (this is Human soundHuman)
 		{
 			var pendingSound = soundHuman.Propagation.PendingSound;
@@ -811,13 +738,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 				candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SoundDetected, DirectionToward(soundDir.Value)));
 		}
 
-		// 8순위: 확인이 필요한 비어있지 않은 타일 — 01-A 7장(시야 범위 안 + 인지 범위 밖 + 비어있지
-		// 않은 타일 → 임시 위험도/흥미도 +5, "처리: 경로와 탐색 방향 판단에만 사용") + 10장 8순위 표.
-		// 2026-07-20까지는 VisionMath.TempWeightForVisionOnlyTile()가 값만 계산하고 아무도 안 읽는
-		// 죽은 값이었다(소비자 부재) — "경로 판단" 절반은 여전히 10_목표설정·이동경로·재설정 문서
-		// (부재)의 몫이지만, "탐색 방향 판단" 절반은 이 시야 방향 전환 후보로 지금 바로 충족 가능해
-		// 연결한다. Perception.State.visionOnlyNonEmptyTiles는 UpdateFOV의 ProcessTile이 매 패스 채우는, 아직
-		// 인지 범위엔 안 들어온 "비어있지 않은 타일" 목록 그대로다.
+		// 8순위: 확인이 필요한 비어있지 않은 타일(시야 범위 안 + 인지 범위 밖). "경로 판단" 절반은
+		// 별도 이동경로 시스템 몫이라 여기선 "탐색 방향 판단" 절반만 연결한다. visionOnlyNonEmptyTiles는
+		// UpdateFOV의 ProcessTile이 매 패스 채우는, 아직 인지 범위엔 안 들어온 타일 목록이다.
 		var nearestUnconfirmedTile = NearestTile(Perception.State.visionOnlyNonEmptyTiles);
 		if (nearestUnconfirmedTile.HasValue)
 		{
@@ -825,10 +748,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.UnconfirmedTile, DirectionToward(new Vector2Int(t.x, t.y))));
 		}
 
-		// 9순위: 경계 상태 — 02문서 20장 "시야 방향 전환 후보 O". 수상한 타일 확인 대기 중인 기록이
-		// 있으면 그중 가장 가까운 타일 방향으로 전환한다. 04_탐색반응·경계 문서가 없어 실제로 그
-		// 타일까지 "이동해서 접근"하는 행동은 만들지 않는다(사용자 확인: 판정 로직만 구현) — 방향
-		// 전환만 이 판정 결과에서 직접 나온다.
+		// 9순위: 경계 상태 — 수상한 타일 확인 대기 중인 기록이 있으면 가장 가까운 타일 방향으로 전환한다.
+		// 실제 이동 접근 행동은 만들지 않고 방향 전환만 담당한다.
 		// I: .Where().Select() LINQ 체인이 IEnumerable 할당 2개를 만들던 것을 수동 루프로 교체한다.
 		{
 			Vector3Int? nearestSuspiciousTile = null;
@@ -854,13 +775,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 		currentDir = VisionMath.ResolveVisionDirection(candidates, currentDir);
 
-		// 2026-07-27 신규 — 방 제한 유닛(RoomConfinedMovement, 야생 몬스터 A/플레이어 몬스터)은 자기
-		// 방 밖을 바라볼 수 없다(사용자 요청: "해당 방 바깥쪽을 쳐다볼 수 없어" / "몬스터는 방과 방
-		// 사이 못봄"). 위 우선순위로 고른 방향이 방 경계 밖 타일을 향하면, 방 안쪽을 보는 방향 중 원래
-		// 의도(가장 가까운 각도)에 제일 가까운 방향으로 대체한다. 다만 이것만으로는 넓은 시야각(120도)
-		// 콘이 인접 방까지 걸치는 경우를 못 막아서(사용자 신고 "시야각 차단이 잘 안되는거 같아") 실제
-		// 차단은 isOpaque 클로저가 방 밖 타일을 불투명 처리해 쉐도우 캐스팅이 방 경계에서 전파를 멈추는
-		// 걸로 대체했다 — 여기 방향 클램프는 그 위에 얹는 보조 근사(자연스러운 실루엣)로 남겨둔다.
+		// 방 제한 유닛은 자기 방 밖을 바라볼 수 없다 — 고른 방향이 방 경계 밖이면 방 안쪽 방향 중
+		// 가장 가까운 방향으로 대체한다. 실제 시야 차단은 isOpaque가 쉐도우 캐스팅 단계에서 이미
+		// 막으므로, 여기 방향 클램프는 보조적인 실루엣 보정일 뿐이다.
 		if (MovementAlgorithm is RoomConfinedMovement)
 			currentDir = ClampDirectionToOwnRoom(currentDir);
 	}
@@ -889,15 +806,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 		return Session.cmap.GetRoomIdAt(currentFloor, lookPos) == myRoomId;
 	}
 
-	// 유닛 배치 시스템(2026-07-27 신규) — 실제 위치가 속한 Room(GameSession.roomGrid, 타일 단위 정확
-	// 조회)과 currentRoom이 다르면 옛 방에서 빼고 새 방에 등록한다. 매 프레임 호출되지만 비교 자체는
-	// 가벼워서(Dictionary 조회 1회) 부담이 적다.
+	// 실제 위치가 속한 Room(타일 단위 정확 조회)과 currentRoom이 다르면 옛 방에서 빼고 새 방에 등록한다.
 	private Vector2Int _lastRoomSyncPos = new Vector2Int(int.MinValue, int.MinValue);
 	private int _lastRoomSyncFloor = int.MinValue;
 
-	// 최적화(2026-07-27, 프레임드랍 점검 요청) — 위치/층이 지난 틱과 같으면 Dictionary 조회 자체를
-	// 건너뛴다. 대기 중인 유닛(수색/보호 포메이션/조사 등 제자리 상태)이 많을 때 매 프레임 불필요한
-	// roomGrid 조회를 없애준다.
+	// 위치/층이 지난 틱과 같으면 Dictionary 조회 자체를 건너뛴다 — 제자리 상태 유닛이 많을 때 불필요한 roomGrid 조회를 없앤다.
 	private void SyncRoomAffiliation()
 	{
 		if (position == _lastRoomSyncPos && currentFloor == _lastRoomSyncFloor) return;
@@ -908,17 +821,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
 		if (actualRoom == currentRoom) return;
 
-		// 방 소유권 전환은 이제 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다(기초문서.md
-		// 피드백, 2026-08-22) — 방을 그냥 떠나는 것만으로는 더 이상 점령이 바뀌지 않는다. 문 개폐도
-		// 이제 방 유닛 구성이 아니라 매 프레임 진영·근접 여부로 직접 판정하므로(DoorSystem.
-		// UpdateProcess) 방 이탈 시점에 따로 재확인할 필요가 없다.
+		// 방 소유권 전환은 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다 — 방을 떠나는
+		// 것만으로는 점령이 바뀌지 않는다.
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
 
-		// 안개 시스템(2026-07-28, 사용자 요청 "인접 방으로 플레이어 진영 몬스터가 진입한 경험이
-		// 있어야지만 사라져") — 플레이어 진영 몬스터가 아직 안개가 걷히지 않은 방에 처음 들어오는
-		// 순간을 감지해 GameSession.RevealRoomFog로 넘긴다(영구 해제 + 페이드아웃).
+		// 플레이어 진영 몬스터가 아직 안개가 걷히지 않은 방에 처음 들어오는 순간을 감지해 영구 해제한다.
 		if (actualRoom != null && !actualRoom.FogRevealed && IsPlayerMonsterFaction)
 			Session.RevealRoomFog(actualRoom);
 	}
@@ -968,17 +877,12 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnUpdate(float deltaTime)
 	{
-		// 기본 스탯(CombatStat.physicalAttack/VisionStat.spotting 등)이 버프/장비 등으로 실시간으로 바뀔 수 있으므로,
-		// 그로부터 파생되는 스탯(BaseStat.sterngth/BaseStat.agility/BaseStat.sense 등, CalculateDerivedStats 참고)도 매 프레임
-		// 다시 계산해서 항상 최신 기본 스탯을 반영하게 한다. 순수 사칙연산이라 유닛 수가 많아도
-		// 부담이 거의 없다(할당 없음, Mathf.Clamp 수십 번 수준) — 별도의 "변경 감지"용 캐시/이벤트
-		// 없이 매번 새로 계산하는 쪽이 오히려 더 단순하고 저렴하다.
+		// 기본 스탯이 버프/장비로 실시간 변할 수 있으므로 파생 스탯도 매 프레임 다시 계산한다 — 순수
+		// 사칙연산이라 부담이 적어 별도 변경 감지 캐시 없이 매번 재계산하는 쪽이 더 단순하다.
 		CalculateDerivedStats();
 
-		// 유닛 배치 시스템(2026-07-27 신규) 3장/4.3장 — 실제 위치 기준으로 소속 방을 매 프레임
-		// 동기화한다("방에 도착하면 소속 방으로 변경"을 명령 완료 이벤트 대신 위치 기반으로 구현 —
-		// 스폰 직후 배치처럼 이 시스템이 다루지 않는 경로에도 자연히 적용됨). 배회 몬스터
-		// (WildMonsterBehavior)는 9장 보류 항목이라 대상에서 제외한다.
+		// 실제 위치 기준으로 소속 방을 매 프레임 동기화한다("방에 도착하면 소속 방으로 변경"을 명령
+		// 완료 이벤트 대신 위치 기반으로 구현). 배회 몬스터는 제외한다.
 		if (!(FactionBehavior is WildMonsterBehavior))
 			SyncRoomAffiliation();
 
@@ -995,17 +899,9 @@ public abstract class UnitFunction : Unit, IVisionContext
 		while (VisionStat.suspiciousMoveBoostTimers.Count > 0 && VisionStat.suspiciousMoveBoostTimers.Peek() <= UnityEngine.Time.time)
 			VisionStat.suspiciousMoveBoostTimers.Dequeue();
 
-		// 15장: 안전 확인 시간 진행 — 이 유닛(개인 지도 소유자)이 위험도를 기록해 둔 타일마다,
-		// 지금 그 타일에 몬스터가 "정확 인지된 상태로" 있는지 확인해서 있으면 타이머를 리셋하고
-		// 없으면 흘려보낸다. 매 프레임 도는 OnUpdate에 걸어서 real deltaTime을 쓴다(ProcessUnitAction의
-		// actionCooldown 주기와 달리 여긴 걸음 속도와 무관하게 매 프레임 호출됨).
-		// 2026-07-20(02문서 23장 반영): 예전엔 raw 점유(Session.unitGrid)만 봤는데, 그러면 실제로는
-		// 미인식/수상한 타일로 판정된(=인지 실패) 몬스터도 "물리적으로 있으니 위험"으로 취급돼 23장
-		// "인지 판정 결과가 미인식이면 실제로 유닛이 존재해도 안전타일로 인지된다"는 규칙과 어긋났다.
-		// personalSpottedEnemies는 이제 정확 인지(AccuratePerception)된 대상만 담으므로(4장 구현),
-		// "물리적으로 있다" + "정확 인지 중이다" 둘 다 확인해야 진짜 위협으로 친다.
-		// 02문서 5장 조건3: 인지 판정을 수행할 수 있는 상태(기절 등 아님)여야 안전/흥미 확인 타이머도
-		// 진행한다 — 2장이 "미확인 일반 타일"도 인지 판정 대상에 포함시키므로 이 게이팅도 동일하게 적용.
+		// 안전 확인 시간 진행 — 위험도를 기록해 둔 타일마다 몬스터가 "정확 인지된 상태로" 있는지 확인해
+		// 타이머를 리셋/진행한다. "물리적으로 점유" + "정확 인지 중" 둘 다 확인해야 위협으로 친다
+		// (미인식/수상한 타일 판정이면 실제 존재해도 안전타일로 취급). 인지 판정 불가 상태면 타이머도 진행하지 않는다.
 		_safetyTickTimer += deltaTime;
 		if (_safetyTickTimer >= 0.1f)
 		{
@@ -1029,35 +925,22 @@ public abstract class UnitFunction : Unit, IVisionContext
 					human.Memory.personalMap.TickTileInterestConfirm(tile, _safetyTickTimer);
 				}
 
-				// 07문서 16장: 2026-08-05 재설계로 소리 감지는 더 이상 이 틱에서 폴링하지 않는다 —
-				// PropagationSystem.EmitSound가 발생 즉시 범위 스캔+R3 통지까지 끝내므로(사용자 피드백:
-				// "소리가 5초 동안 남아있다가 나중에 감지되는" 게 아니라 "발생 순간에만 감지되는" 게
-				// 의도였음), 여기서 반복 재평가할 대상 자체가 없다.
-				// 07문서 6장/03문서 4-13장: 사망 정보의 지속적 재전파(스냅샷이 아니라 매 틱 재확인) —
-				// 파티 규모×활성 사망기록 수만큼 비용이 늘지만 현재 게임 규모에선 무시할 만하다.
+				// 소리 감지는 발생 즉시(EmitSound) 범위 스캔+통지가 끝나므로 여기서 재평가할 대상이 없다.
+				// 사망 정보는 스냅샷이 아니라 매 틱 재확인해 지속 재전파한다.
 				PartyDeathSystem.TickOngoingPropagation(human);
-				// 07문서 9장(2026-08-06 검증 중 발견): 함정 정보도 최초 발견 시점 1회 전파뿐이었다 —
-				// 사망/코어와 동일하게 미보유 파티원의 지속 재전파를 추가한다.
+				// 함정 정보도 사망/코어와 동일하게 미보유 파티원에게 지속 재전파한다.
 				TrapPartySystem.TickOngoingPropagation(human);
 			}
 			_safetyTickTimer = 0f;
 		}
 
-		// 03문서 4/9장: 경계·함정 대응 타이머 — actionCooldown 주기(GOAP 판단)와 무관하게 실제 경과
-		// 시간으로 흘러야 해서 매 프레임 OnUpdate에서 진행시킨다. GOAP Action은 이 값을 읽고 완료
-		// 시점에 결과를 확정할 뿐, 시간 자체는 여기서만 흐른다.
+		// 경계·함정 대응 타이머 — actionCooldown 주기(GOAP 판단)와 무관하게 실제 경과 시간으로 흘러야
+		// 해서 매 프레임 OnUpdate에서 진행시킨다.
 		if (currentAlertSearch != null)
 		{
 			currentAlertSearch.ElapsedSeconds += deltaTime;
-			// 07-A 7-3장: "확인 행동 시작 기한은 5초 안이지만, 시작 후 5초를 넘겨도 확인 행동은 계속
-			// 수행한다" — 즉 소리 반응 접근 자체엔 시간 제한이 없다(문서에 명시). 아직 인지 판정을
-			// 안 굴린(SoundPerceptionRolled=false) 소리 반응 접근 중엔 아래 4-11장 "미식별 공격 수색
-			// 15초" 워치독을 적용하지 않는다 — 그 15초는 03문서 4-11장이 "미식별 공격 수색"(공격은
-			// 당했는데 공격자를 모르는 경우) 전용으로 정의한 값이라 소리를 듣고 접근하는 시나리오와는
-			// 무관하다(2026-08-05, 사용자 신고로 발견: 감지 범위가 멀면 도착 전에 이 워치독에 걸려
-			// 소리 반응이 조용히 취소되던 버그). 롤 이후엔 손댈 필요 없음 — SoundAreaApproach/
-			// SoundMoveReact가 롤 시점에 ElapsedSeconds를 0으로 리셋하고 2초(EstimatedAreaHoldSeconds/
-			// MoveSoundHoldSeconds) 안에 스스로 정리하므로 이 15초 워치독과 절대 겹치지 않는다.
+			// 소리 반응 접근 자체엔 시간 제한이 없다 — 아직 인지 판정을 안 굴린 소리 반응 접근 중엔
+			// 아래 "미식별 공격 수색" 워치독을 적용하지 않는다.
 			bool isSoundResponseStillApproaching = currentAlertSearch.IsSoundResponse && !currentAlertSearch.SoundPerceptionRolled;
 			if (!isSoundResponseStillApproaching)
 			{
@@ -1067,9 +950,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				if (currentAlertSearch.ElapsedSeconds >= limit)
 				{
 					bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
-					currentAlertSearch = null; // 4-8/4-12/4-15장: 시간 종료 → 경계 해제
-					// 11장: 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작(Party.TryStartRally
-					// 자체가 다른 파티원이 아직 스윕/전투 중이면 조용히 아무 것도 안 하고 반환한다).
+					currentAlertSearch = null; // 시간 종료 → 경계 해제
+					// 전투 종료 후 스윕이 끝난 시점 — 파티 전체가 끝났으면 집결 시작.
 					if (wasPostCombatSweep && this is Human human && human.party != null)
 						human.party.TryStartRally();
 				}
@@ -1094,9 +976,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 					trap.JoinWaitTimer += deltaTime;
 					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) { trap.JoinWaitElapsed = true; becameElapsed = true; }
 				}
-				// 9-2~9-5장(2026-07-27 개편): 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제
-				// 담당을 선정한다. AutoConfirmed(웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미
-				// 확정돼 있어 다시 선정할 필요가 없다.
+				// 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제 담당을 선정한다. AutoConfirmed
+				// (웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미 확정돼 있어 다시 선정할 필요가 없다.
 				if (becameElapsed && !trap.AutoConfirmed && this is Human discovererHuman)
 					TrapPartySystem.ResolveSelection(discovererHuman, trap);
 			}
@@ -1130,11 +1011,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
 		}
 
-		// 오브젝트(코어/문) 공격 채널링(기초문서.md 피드백, 2026-08-22, "코어와 문을 명령으로 인한
-		// 파괴 대상으로 지정할 수 있게 해줘") — TrapPhase.Destroying과 동일한 패턴. 자동(TacticalFSMState.
-		// MoveToCoreAttack/MoveToDoorAttack)과 플레이어 명령(PlayerCommandFSMState.
-		// ExecutePlayerAttackObject) 양쪽이 인접 도착 시 이 필드를 채운다. 대상이 파괴/전환될 때까지
-		// (또는 사라질 때까지) 매 프레임 데미지를 적용한다.
+		// 오브젝트(코어/문) 공격 채널링 — TrapPhase.Destroying과 동일한 패턴. 자동 AI와 플레이어 명령
+		// 양쪽이 인접 도착 시 이 필드를 채우고, 대상이 파괴/전환/소멸될 때까지 매 프레임 데미지를 적용한다.
 		if (currentAttackObjectTarget.HasValue && Session != null)
 		{
 			Vector3Int targetPos = currentAttackObjectTarget.Value;
@@ -1142,46 +1020,26 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				bool isCore = targetObj.Tags != null && targetObj.Tags.Contains(GameSession.CoreTag);
 				bool isDoor = targetObj.Tags != null && targetObj.Tags.Contains(DoorSystem.DoorTag);
-				// 함정 공격 명령(2026-08-24 사용자 요청 "플레이어 몬스터도 함정으로 이동(기본) 명령
-				// 내리면 함정 파괴 가능하게") — 코어/문과 동일한 채널링 필드(currentAttackObjectTarget)를
-				// 공유한다. 자동 AI가 스스로 판단해 트리거하는 경로는 없다 — PlayerCommandFSMState.
-				// ExecutePlayerAttackObject(플레이어 우클릭 명령)만 이 필드를 채운다(코어/문의 "자동
-				// 공격은 인류 전용" 하드 룰과 별개로, 함정은 애초에 자동 트리거 자체가 없다).
+				// 함정 공격 — 코어/문과 동일한 채널링 필드를 공유하지만, 자동 AI가 스스로 트리거하는
+				// 경로는 없다(플레이어 우클릭 명령만 채운다).
 				bool isTrap = targetObj.Tags != null && targetObj.Tags.Exists(t => t.Contains("Trap"));
 				Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
 
-				// 채널링 중에는 항상 공격 대상을 바라본다(2026-08-22 사용자 요청 "코어 공격 중일때는
-				// 코어를 바라보면서 하게 해줘" + "문도 동일", 실제 전투(CombatFSMState.ExecuteCombat)와
-				// 동일하게 매 프레임 갱신). 후속 사용자 신고("여전히 부자연스러워") 원인 — currentDir만
-				// 세팅하고 Generate.UpdateUnitSpriteForDirection을 호출하지 않아서 내부 값은 바뀌어도
-				// 실제 스프라이트가 그 방향으로 갱신되지 않았다. Move()/CombatFSMState 둘 다 currentDir
-				// 세팅 직후 이 호출을 짝지어 하므로 여기서도 동일하게 맞춘다.
+				// 채널링 중에는 항상 공격 대상을 바라본다 — currentDir만 세팅하고 UpdateUnitSpriteForDirection을
+				// 빠뜨리면 실제 스프라이트는 갱신되지 않으므로 반드시 짝지어 호출한다.
 				if ((isCore || isDoor || isTrap) && targetPos2D != position)
 				{
 					currentDir = SkillAction.GetDirection8(targetPos2D - position);
 					Generate?.UpdateUnitSpriteForDirection(this);
 				}
 
-				// 코어/문 파괴는 반드시 인접 1칸에서만 이뤄져야 한다(2026-08-24 사용자 신고 "원거리에서
-				// 문이나 코어 파괴 안되도록... 반드시 인접 1칸. 지금 내가 원거리 공격하는거 보고왔어") —
-				// MoveToCoreAttack/MoveToDoorAttack/ExecutePlayerAttackObject는 채널링을 "시작"하는
-				// 순간에만 인접을 확인하고, CoreAttackPerform/DoorAttackPerform은 대상 유효성만 재검증할
-				// 뿐 거리는 전혀 보지 않았다 — 그래서 채널링 도중 위협 회피/점멸(OnReactToThreat, 이
-				// 채널링 상태를 확인하지 않음) 등으로 유닛이 밀려나도 데미지는 멈추지 않고 계속 적용돼
-				// 실질적인 "원거리 파괴"가 됐다. 데미지 적용 직전 이 한 곳에서 매 프레임 인접을 다시
-				// 확인하면 자동 AI/플레이어 명령 두 경로 모두 자동으로 막힌다.
+				// 코어/문 파괴는 반드시 인접 1칸에서만 이뤄져야 한다 — 채널링 시작 시점에만 확인하면
+				// 도중 회피/점멸로 밀려나도 데미지가 계속 적용돼 원거리 파괴가 되므로 매 프레임 재확인한다.
 				bool isAdjacent = AIMovementHelper.IsAdjacent(position, targetPos2D);
 
-				// 같은 프레임 안에서 다른 유닛이 먼저 이 코어를 파괴시켜 방 소유권이 이미 전환된
-				// 경우(OffenseProcessor.OnCoreDestroyed가 즉시 반피로 회복시킴) — CoreHp는 다시 0
-				// 초과라 아래 CoreHp > 0f 조건만으로는 이 유닛이 계속 깎아먹는 걸 막지 못한다(2026-08-24
-				// 사용자 신고 "반피로 수복이 되었는데도 이전의 감소처리가 남아서 체력이 조금 깎여있어").
-				// IsRoomCoreStillHostile로 "지금도 여전히 이 유닛 진영에게 적대적인 코어인지"(방금
-				// 뒤바뀐 소유권 포함)를 데미지 적용 직전에 다시 확인한다 — CoreAttackPerform의 매 틱
-				// 재검증과 같은 목적이지만, 그건 다음 BT 틱에야 실행되어 이번 프레임의 과다 감소를
-				// 막지 못한다. FindHostileRoomCore(인류 전용 자동 결정 진입점)가 아니라 이 종족 무관
-				// 헬퍼를 써야 한다 — 안 그러면 플레이어 몬스터의 수동 코어 공격이 매 프레임 스스로
-				// 취소된다(2026-08-24 버그, 아래 stillHostile 참고).
+				// 같은 프레임에 다른 유닛이 먼저 코어를 파괴시켜 소유권이 전환된 경우(즉시 반피 회복)
+				// CoreHp>0f만으로는 못 막으므로 IsRoomCoreStillHostile로 다시 확인한다. 종족 무관 헬퍼를
+				// 써야 플레이어 몬스터의 수동 공격이 매 프레임 스스로 취소되지 않는다.
 				bool stillHostile = isCore && TacticalFSMState.IsRoomCoreStillHostile(this, targetPos);
 				if (isCore && (!isAdjacent || !stillHostile))
 				{
@@ -1197,16 +1055,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				else if (isCore && targetObj.CoreHp > 0f)
 				{
-					// 고정 초당 데미지(2026-08-22 사용자 요청 "코어 공격을... 공격 시도중인 유닛 마리
-					// 수 당 추가") — physicalAttack 스탯과 무관하게 채널링 유닛 1명당 항상 이 값만큼만
-					// 깎는다. 여러 명이 같은 코어를 동시에 공격하면 각자 이 블록을 독립적으로 실행하므로
-					// 인원수만큼 자연히 합산된다.
+					// 고정 초당 데미지 — physicalAttack 스탯과 무관하게 채널링 유닛 1명당 이 값만큼만
+					// 깎는다. 여러 명이 동시 공격하면 각자 블록을 독립 실행하므로 인원수만큼 자연히 합산된다.
 					targetObj.CoreHp = Mathf.Max(0f, targetObj.CoreHp - GameSession.CoreAttackDamagePerSecond * deltaTime);
 					targetObj.TimeSinceLastDamaged = 0f; // 자동 회복 지연 타이머 리셋(InteractableObject.TimeSinceLastDamaged 참고)
 
-					// 체력 표시(2026-08-24 사용자 요청 "문과 코어 파괴는 체력이 닳는 형식이니, 진행바가
-					// 반대로 달게 해줘") — 함정 해제(0→1 완료도)와 달리 코어/문은 체력이 깎이는 대상이라
-					// 남은 체력 비율을 그대로 채움비로 쓴다. 가득 찬 채로 시작해서 맞을수록 줄어든다.
+					// 체력 표시 — 함정 해제(0→1 완료도)와 달리 코어/문은 체력이 깎이는 대상이라
+					// 남은 체력 비율을 그대로 채움비로 쓴다(가득 찬 채로 시작해 맞을수록 줄어듦).
 					float coreProgress = targetObj.CoreMaxHp > 0f ? targetObj.CoreHp / targetObj.CoreMaxHp : 0f;
 					Session.GetObjectVisual(targetPos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(coreProgress, true);
 
@@ -1221,8 +1076,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				else if (isDoor && targetObj.DoorHp > 0f)
 				{
-					// 고정 초당 데미지(코어와 동일한 설계, 2026-08-22 "문도 동일") — DoorSystem.
-					// DoorAttackDamagePerSecond 참고.
+					// 고정 초당 데미지(코어와 동일한 설계) — DoorSystem.DoorAttackDamagePerSecond 참고.
 					targetObj.DoorHp = Mathf.Max(0f, targetObj.DoorHp - DoorSystem.DoorAttackDamagePerSecond * deltaTime);
 					targetObj.TimeSinceLastDamaged = 0f; // 자동 회복 지연 타이머 리셋(InteractableObject.TimeSinceLastDamaged 참고)
 
@@ -1238,10 +1092,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				else if (isTrap && targetObj.TrapHp > 0f)
 				{
-					// 함정 파괴 데미지 — 코어/문의 고정 초당 비율과 달리, 인류 GOAP TrapDestroy
-					// (TrapPhase.Destroying, 위 OnUpdate 앞부분 참고)가 이미 쓰던 physicalAttack 비례
-					// 배율을 그대로 재사용한다. 함정을 부수는 난이도는 누가(자동 인류 GOAP든 플레이어
-					// 몬스터 명령이든) 하든 동일해야 하므로 별도 상수를 새로 만들지 않는다.
+					// 함정 파괴 데미지 — 코어/문의 고정 초당 비율과 달리 인류 GOAP TrapDestroy가 쓰던
+					// physicalAttack 비례 배율을 그대로 재사용한다(누가 부수든 난이도는 동일해야 함).
 					targetObj.TrapHp = Mathf.Max(0f, targetObj.TrapHp - physicalAttack * ExplorationMath.TrapDestroyDamagePerSecondPerAttack * deltaTime);
 
 					float trapProgress = targetObj.TrapMaxHp > 0f ? targetObj.TrapHp / targetObj.TrapMaxHp : 0f;
@@ -1338,13 +1190,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
-		// "정지"(동상) 상태(2026-08-20, 사용자 확인) — 완전 무반응이라 회피/블링크(DefenseSystem.
-		// EvaluateEarlyReaction)도 발동하지 않는다. 이 경로는 UnitFSM.RunCurrentState/HaltFSMState.Tick
-		// 바깥(GameSession의 위협 감지 루프)에서 직접 호출되므로 여기서 별도로 막아야 한다.
-		// "제자리 공격" 상태도 동일하게 막는다(2026-08-22 사용자 신고 "제자리 공격중 회피및 점멸
-		// 여전히 존재함" — "제자리에서 절대 이동하지 않는다"는 명시된 조건이므로 회피/점멸로 인한
-		// 위치 이동도 예외 없이 차단해야 한다는 뜻으로 확정).
-		// 고정 유닛(2026-08-24, 보스 골렘)도 동일 — 회피/점멸로도 절대 자리를 뜨지 않는다.
+		// "정지"/"제자리 공격"/고정 유닛은 완전 무반응이라 회피/블링크도 발동하지 않는다 — 이 경로는
+		// UnitFSM 바깥(GameSession 위협 감지 루프)에서 직접 호출되므로 여기서 별도로 막아야 한다.
 		if (isHalted || isStandGroundAttack || isImmobile) return;
 
 		if (attacker != null)

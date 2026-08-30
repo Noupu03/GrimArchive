@@ -11,7 +11,7 @@ public class VFXManager
     private static Dictionary<GameObject, ObjectPool<GameObject>> _pools = new Dictionary<GameObject, ObjectPool<GameObject>>();
 
     // 캐릭터 스프라이트 피벗(바텀 센터) 기준 로컬 오프셋 — 부모 지정 스폰 시 이펙트를 몸통 높이로
-    // 띄운다(2026-08-24 사용자 요청, 아래 Spawn 참고).
+    // 띄운다(아래 Spawn 참고).
     private static readonly Vector3 ParentedSpawnPivotOffset = new Vector3(0f, 0.5f, 0f);
 
     public void Spawn(GameObject prefab, Unit unit)
@@ -59,21 +59,16 @@ public class VFXManager
             go = pool.Get();
         }
         
-        // 이펙트 크기는 항상 "프리팹에 저장된 스케일" 그대로다(2026-08-24 사용자 요청 "파티클 생성시
-        // 게임 프리팹의 Scale이 아닌 임의로 (1,1,1) 데이터를 사용하는 듯 함 — 불러오려는 VFX 파티클의
-        // Scale을 그대로 적용되게"). 예전엔 부모 지정 스폰이 부모 lossyScale의 역수를, 무부모 스폰이
-        // Vector3.one을 통째로 덮어써서 프리팹 루트에서 조정한 크기(Assets/VFX/Prefab/*.prefab의 루트
-        // 스케일 0.01 등)가 전부 무시되고 항상 1배로 나왔다.
+        // 이펙트 크기는 항상 "프리팹에 저장된 스케일" 그대로다 — 부모/무부모 스폰 둘 다 이 값을
+        // 기준으로 계산해야 프리팹 루트에서 조정한 크기가 무시되지 않는다.
         Vector3 authoredScale = prefab.transform.localScale;
 
         if (parent != null)
         {
             go.transform.SetParent(parent);
             // 캐릭터 스프라이트는 피벗이 바텀 센터(발밑)라 로컬 원점(0,0)에 그대로 붙이면 이펙트가
-            // 발밑에서 나오는 것처럼 보인다(사용자 신고, 2026-08-24 "파티클 피벗 0.5 위로 올려서
-            // 나오게 해주세요 — 스프라이트는 피벗이 바텀 센터 중심이라 기준점 이상해짐"). 몸통
-            // 높이에 가깝도록 0.5만큼 위로 띄운다 — 히트 스파크/가드/패리/사망 VFX 등 부모 지정
-            // 스폰 전부가 이 한 지점을 거치므로 한 번에 고쳐진다.
+            // 발밑에서 나오는 것처럼 보인다 — 몸통 높이에 가깝도록 0.5만큼 위로 띄운다. 히트 스파크/
+            // 가드/패리/사망 VFX 등 부모 지정 스폰 전부가 이 한 지점을 거치므로 한 번에 고쳐진다.
             go.transform.localPosition = ParentedSpawnPivotOffset;
             go.transform.localScale = ToLocalScale(authoredScale, parent);
             go.transform.rotation = rotation;
@@ -93,11 +88,9 @@ public class VFXManager
             ps.Play(); // 재사용 시 파티클 재생
         }
 
-        // 프리팹에 ParticleLifetimeController가 붙어있으면 정지 타이밍을 그 컴포넌트에 맡긴다(2026-08-24
-        // 사용자 요청 "파티클 프리팹 비활성화로 처리하면 중간에 짤려버림... 생성 중단 → 남은 파티클이
-        // 없으면 프리팹 비활성화") — 아래 "재생 길이만큼 지난 뒤 통째로 반납"하던 기존 방식은 진행 중인
-        // 파티클까지 그 순간 화면에서 뚝 끊겼다. 컴포넌트가 없는 기존 프리팹은 기존 자동 추정 방식으로
-        // 그대로 폴백한다(하위 호환).
+        // 프리팹에 ParticleLifetimeController가 붙어있으면 정지 타이밍을 그 컴포넌트에 맡긴다 —
+        // "재생 길이만큼 지난 뒤 통째로 반납"하면 진행 중인 파티클도 화면에서 뚝 끊긴다. 컴포넌트가
+        // 없으면 자동 추정 방식으로 폴백한다.
         var lifetimeController = go.GetComponent<ParticleLifetimeController>();
         if (lifetimeController != null)
         {
@@ -119,12 +112,8 @@ public class VFXManager
     }
 
     // "이펙트의 최종 월드 스케일 == 프리팹에 저장된 스케일"이 되도록 부모의 누적 스케일(lossyScale)만
-    // 상쇄한 로컬 스케일을 계산한다(2026-08-24). 이 프로젝트의 VFX 프리팹은 전부 ParticleSystem의
-    // Scaling Mode가 Hierarchy(scalingMode: 0)라 파티클 크기가 계층 전체 스케일을 따라간다 — 프리팹
-    // 루트 스케일 하나로 자식 파티클까지 통째로 조절할 수 있는 대신, 그대로 두면 유닛 비주얼 루트의
-    // footprint 배율(2x2 유닛이면 (2,2,1) — UnitGenerate.SetupUnitVisual)까지 곱해져 대형 유닛의
-    // 이펙트만 커진다. 이펙트 크기는 유닛 크기와 무관하게 프리팹이 정한 값으로 통일한다.
-    // 부호까지 그대로 나눠 상쇄하므로 부모가 좌우 반전(스케일 x 음수)돼 있어도 이펙트는 반전되지 않는다.
+    // 상쇄한다 — VFX 프리팹은 전부 Scaling Mode가 Hierarchy라 그대로 두면 유닛 footprint 배율까지
+    // 곱해져 대형 유닛의 이펙트만 커진다. 부호까지 상쇄하므로 부모가 좌우 반전돼 있어도 안전하다.
     private static Vector3 ToLocalScale(Vector3 authoredScale, Transform parent)
     {
         if (parent == null) return authoredScale;
@@ -147,12 +136,10 @@ public class VFXManager
         }
     }
 
-    // 코어/문 파괴 채널링 전용 VFX(2026-08-24 사용자 요청, VFX_BlockBreaking.prefab) — "재생 시간이
-    // 끝나도 파괴 행동이 끝날 때까지 계속, 파괴가 끝나면 즉시 종료"라는 요구라 위 Spawn()의 "재생
-    // 시간만큼 지난 뒤 자동으로 풀에 반납" 방식과는 맞지 않는다(프리팹 자체도 looping=1이라 자동으로
-    // 안 끝남 — 호출부가 명시적으로 멈춰야 한다). 채널링 시작/종료가 잦은 이벤트가 아니라 풀링 이득이
-    // 적어 순수 Instantiate/Destroy로 관리한다. Unit.SetAttackObjectTarget/ClearAttackObjectTarget이
-    // 각각 시작/종료를 담당한다.
+    // 코어/문 파괴 채널링 전용 VFX(VFX_BlockBreaking.prefab) — 파괴 행동이 끝날 때까지 계속 재생돼야
+    // 해서 위 Spawn()의 자동 반납 방식과 맞지 않는다(looping=1이라 호출부가 명시적으로 멈춰야 함).
+    // 채널링 시작/종료가 잦지 않아 순수 Instantiate/Destroy로 관리한다. Unit.SetAttackObjectTarget/
+    // ClearAttackObjectTarget이 각각 시작/종료를 담당한다.
     private static GameObject _blockBreakingVfxPrefab;
     private static GameObject BlockBreakingVfxPrefab =>
         _blockBreakingVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_BlockBreaking");
@@ -176,10 +163,8 @@ public class VFXManager
             instance.transform.localScale = ToLocalScale(BlockBreakingVfxPrefab.transform.localScale, parent);
         }
 
-        // 정렬 순서(2026-08-24 사용자 신고 "이펙트 여전히 안 나옴" 원인) — 프리팹의 ParticleSystemRenderer가
-        // 기본값(Sorting Layer "Default"/Order 0)이라, 같은 자리의 문/코어 스프라이트(GameSession.
-        // SpawnObject가 sortingOrder=5로 그림)에 완전히 가려져 재생은 되지만 안 보였다. 대상 스프라이트와
-        // 같은 정렬 레이어에, 그보다 확실히 위인 순서로 맞춘다.
+        // 정렬 순서 — 프리팹 기본값(Sorting Layer "Default"/Order 0)이면 같은 자리의 문/코어
+        // 스프라이트(sortingOrder=5)에 가려 안 보이므로, 대상과 같은 정렬 레이어에 그보다 위로 맞춘다.
         var psr = instance.GetComponent<ParticleSystemRenderer>();
         if (psr != null)
         {
@@ -201,10 +186,8 @@ public class VFXManager
         if (instance != null) Object.Destroy(instance);
     }
 
-    // 방 점령(코어 파괴로 소유권 전환) 축하 폭발 VFX(2026-08-24 사용자 요청 "인간 점령시 VFX_CoreBoomHuman,
-    // 플레이어 몬스터 점령시 VFX_CoreBoomMonster") — 단발성이라 위 SpawnBlockBreakingVfx와 달리 기존
-    // 풀링 Spawn()을 그대로 쓴다(재생 시간 지나면 자동으로 풀에 반납). OffenseProcessor.OnCoreDestroyed가
-    // 소유권이 실제로 바뀐 순간에만 호출한다.
+    // 방 점령(코어 파괴로 소유권 전환) 축하 폭발 VFX — 단발성이라 SpawnBlockBreakingVfx와 달리 기존
+    // 풀링 Spawn()을 그대로 쓴다. OffenseProcessor.OnCoreDestroyed가 소유권 전환 순간에만 호출한다.
     private static GameObject _coreBoomHumanVfxPrefab;
     private static GameObject _coreBoomMonsterVfxPrefab;
     private static GameObject CoreBoomHumanVfxPrefab =>

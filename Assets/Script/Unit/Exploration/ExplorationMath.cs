@@ -21,17 +21,14 @@ public static class ExplorationMath
 	// ─────────────────────────── 5장/14장. 조사 ───────────────────────────
 	public const float InvestigatePenaltyRatio = 0.5f;   // 5-4장: 조사 중 시야/인지/반응속도 50%
 	public const float InvestigateInterruptLossRatio = 0.5f; // 5-6장: 중단 시 진행량의 50% 손실
-	// 문서가 "조사에 총 몇 초가 걸리는지"는 안 주고 페널티 비율만 준다 — 진행도 게이지가 실제로
-	// 움직이는 걸 보여주려면 기준 소요시간이 필요해 자체 판단으로 채운 자리표시자(밸런스 미확정).
-	// 원래 3초였는데 너무 빨리 끝난다는 사용자 피드백(2026-07-22)에 따라 8초로 늘림.
+	// 문서가 조사 소요시간은 안 주고 페널티 비율만 명시해, 진행도 게이지를 보여주기 위해 자체 판단으로
+	// 채운 자리표시자다(밸런스 미확정).
 	public const float InvestigateDurationSeconds = 8f;
 
 	// ─────────────────────────── 9장/14장. 함정 대응 ───────────────────────────
 	public const float TrapPenaltyRatio = 0.5f;          // 9-6장: 해제 중 시야/인지/반응속도 50%
 	public const float TrapDisarmInterruptLossRatio = 0.5f; // 9-7장: 중단 시 해제량의 50% 손실
-	// 9-3장/14장: 함정 정보 전파 후 발견 유닛 응답 대기시간. 이전엔 문서가 5초를 명시했고 사용자
-	// 요청(2026-07-22)으로 3초로 단축했었으나, 새 문서(v0.6 개정판, 2026-07-27)가 공식값을 2초로
-	// 바꿔서 사용자 확인 후 문서값 그대로 적용했다(더 이상 의도적 이탈이 아님).
+	// 9-3장/14장: 함정 정보 전파 후 발견 유닛 응답 대기시간 — 문서(v0.6 개정판) 공식값 그대로 적용.
 	public const float TrapJoinWaitSeconds = 2f;
 	// 9-7장(신규): 선정 유닛의 예상 도착시간(EstimateEta) 이후 이 시간까지 미도착이면 발견 유닛이
 	// 마지막 전파 위치로 직접 찾아간다.
@@ -42,14 +39,10 @@ public static class ExplorationMath
 	public const float TrapAllyRescueUnrecordedMinCurrentHpRatio = 0.6f; // 9-11장: 미기록 함정, 이동 유닛 현재 HP 60% 이상
 	public const float AllyRescueTargetHpRatio = 0.3f;   // 9-11장: 즉시 보호 대상 아군 HP 30% 이하
 
-	// 9-2장은 "클래스별 기본 함정 해제 성공률 + 유닛 레벨 + 해당 함정 이해도에 따른 보정"이라고만
-	// 서술하고 실제 공식/기본값을 주지 않는다 — "클래스"(역할군) 개념 자체도 코드에 없어(UnitType은
-	// Archer 등 스폰 타입일 뿐 함정 해제 숙련도와 연결된 값이 아님) 대체 지표가 필요했다. 기존
-	// 파생스탯 중 "집중(concentration, 치명타60%+쿨감40%)"이 가장 "정교한 손기술" 성격에 가깝다고
-	// 판단해 기본 성공률의 대체 지표로 썼다 — 밸런스 확정값이 아니라 구조를 채우기 위한 자리표시자다
-	// (구현현황 문서에도 동일하게 표시). 이해도 보정은 WeightMath.AppliedValue(0~100 정수)를 그대로
-	// 0~100% 스케일에 얹는다(9-2장 "이해도가 증가하면... 실제 해제 성공률이 증가한다"만 만족하면
-	// 충분하다고 보고 별도 곡선은 만들지 않음).
+	// 9-2장은 "클래스별 기본 성공률+레벨+이해도 보정"이라고만 서술할 뿐, 이 코드베이스엔 "클래스"
+	// 개념 자체가 없어(UnitType은 스폰 타입일 뿐) 대체 지표가 필요했다 — 파생스탯 "집중(concentration)"을
+	// "정교한 손기술" 성격의 대체 지표로 쓴 밸런스 미확정 자리표시자다. 이해도 보정은
+	// WeightMath.AppliedValue(0~100 정수)를 그대로 0~100% 스케일에 얹는다.
 	public const float TrapDisarmBaseRateFloor = 20f;    // 최소 기본 성공률(%) — concentration=0이어도 완전히 0%는 아니게
 	public const float TrapDisarmConcentrationWeight = 0.4f; // concentration(0~200 정규화값) 반영 비율
 	public const float TrapDisarmLevelBonusPerLevel = 1.5f;  // 레벨 1당 보너스(%)
@@ -70,10 +63,8 @@ public static class ExplorationMath
 	public static float TrapExpectedRateErrorMargin(int understandingApplied)
 		=> TrapExpectedRateMaxErrorMargin * (1f - Mathf.Clamp(understandingApplied, 0, 100) / 100f);
 
-	// 조사와 같은 이유의 자리표시자 — 해제 자체의 기준 소요시간(문서 미명시, §14 파라미터표에도 없음
-	// — 문서는 "함정 합류 의사 대기시간"(TrapJoinWaitSeconds)만 명시하고 해제 진행 자체의 소요시간은
-	// 안 준다). 4초→10초→15초로 늘려오다 10초로 확정했었는데(2026-07-22), 사용자가 다시 5초로
-	// 단축 요청(2026-07-23 "함정 해제 시간은 5초로 줄이자").
+	// 조사와 같은 이유의 자리표시자 — 문서가 해제 자체의 기준 소요시간은 안 주고(§14 파라미터표에도
+	// 없음, TrapJoinWaitSeconds만 명시) 밸런스 미확정 값이다.
 	public const float TrapDisarmDurationSeconds = 5f;
 	// 9-9장: 파괴 중 매초 함정 Hp를 얼마나 깎는지(정식 Hitbox 경유가 아닌 간이 구현, physicalAttack에
 	// 비례 — 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 8-7절에 이미 명시된 한계).

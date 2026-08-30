@@ -12,10 +12,8 @@ public enum Dir
 	UP_LEFT
 }
 
-// Dir(8방향) 회전 유틸(2026-08-20) — PartyDeathSystem.cs와 TacticalFSMState.cs가 각자 거의 동일한
-// private static Opposite/RotateCW를 중복 구현하고 있던 것을 통합했다(둘의 RotateCW 모듈러 안전
-// 마진이 +8 vs +80으로 서로 달랐음 — 실제 호출값(steps -3~3) 범위에서는 둘 다 안전하지만 복붙 과정의
-// drift였다).
+// Dir(8방향) 회전 유틸 — PartyDeathSystem.cs와 TacticalFSMState.cs가 각자 거의 동일한 private static
+// Opposite/RotateCW를 중복 구현하고 있던 것을 통합했다.
 public static class DirUtil
 {
 	public static Dir Opposite(Dir d) => (Dir)(((int)d + 4) % 8);

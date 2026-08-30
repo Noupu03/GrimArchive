@@ -4,12 +4,10 @@ using VContainer.Unity;
 using Haare.Client.Core.DI;
 using GrimArchive.Wave;
 
-// GameSession.Awake()가 예전엔 직접 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션 루트.
-// ssh.unity 씬 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
-//
-// CoreLifetimeScope를 상속한다 — DataManager/SceneService/CoreUIManager(+ SceneUIManager)/GamePresenter는
-// 부모(CoreLifetimeScope.Configure)가 등록해주므로 여기서 다시 등록하지 않는다. CoreUIManager 프리팹도
-// 부모의 protected _coreUIManagerPrefab 필드에 그대로 배선됨(Assets/Editor/HaareUISetup.cs가 배선).
+// GameSession.Awake()가 예전엔 직접 하던 AddComponent/FindObjectOfType 배선을 대체하는 DI 컴포지션
+// 루트 — ssh.unity 씬에 이 컴포넌트가 붙은 GameObject(예: "CompositionRoot")가 하나 있어야 한다.
+// CoreLifetimeScope를 상속하므로 DataManager/SceneService/CoreUIManager(+ SceneUIManager)/GamePresenter는
+// 부모(CoreLifetimeScope.Configure)가 등록해줘 여기서 다시 등록하지 않는다.
 public class GameCompositionRoot : CoreLifetimeScope
 {
     protected override void Awake()
@@ -21,17 +19,14 @@ public class GameCompositionRoot : CoreLifetimeScope
     {
         base.Configure(builder);
 
-        // 일반 Log는 다른 로그와 달리 콜스택이 5~7줄씩 따라붙어서 콘솔이 지저분해지므로
-        // (LogHelper.Log(...) 호출부 스택까지는 필요 없음). Warning/Error는 원인 추적에 필요하니
-        // 그대로 두고, Log만 스택 트레이스를 끈다.
+        // 일반 Log는 콜스택이 5~7줄씩 따라붙어 콘솔이 지저분해지므로 Log만 스택 트레이스를 끈다
+        // (Warning/Error는 원인 추적에 필요해 그대로 둠).
         Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
 
         // 이제는 GameSession.Awake()/Start()가 런타임에 직접 생성하던 것을 DI가 대체
         builder.RegisterComponentOnNewGameObject<InputManager>(Lifetime.Singleton, "InputManager");
-        // UIManager/NoticeCenter (2026-08-20 UI 리팩토링, "모든 UI Haare 프레임워크에 편입") — 예전엔
-        // 여기서 RegisterComponentOnNewGameObject로 직접 배선했는데, 다른 UI 패널들과 동일하게
-        // [PanelAttribute] Haare ICustomPanel로 옮겨서 GameUIPresenter.BootSequence가 생성을 담당한다
-        // (Assets/Script/Unit/Session/UIManager.cs, Assets/Script/UI/NoticeCenter.cs 참고).
+        // UIManager/NoticeCenter — 다른 UI 패널들과 동일하게 [PanelAttribute] Haare ICustomPanel로
+        // 옮겨서 GameUIPresenter.BootSequence가 생성을 담당한다(더 이상 여기서 직접 배선하지 않음).
 
         // UnitGenerate: Update/OnGUI/인스펙터 데이터가 전혀 없는 순수 C# 클래스로 전환됨.
         builder.Register<UnitGenerate>(Lifetime.Singleton).AsSelf();
@@ -69,12 +64,12 @@ public class GameCompositionRoot : CoreLifetimeScope
         // 전투 이벤트 서비스 (분리됨)
         builder.Register<CombatEventService>(Lifetime.Singleton).AsSelf();
 
-        // DoorSystem (2026-08-20, split out of GameSession to keep it from growing further) - lazily
-        // resolves GameSession via IObjectResolver, same pattern as UnitRegistry.
+        // DoorSystem - split out of GameSession to keep it from growing further; lazily resolves
+        // GameSession via IObjectResolver, same pattern as UnitRegistry.
         builder.Register<DoorSystem>(Lifetime.Singleton).AsSelf();
 
-        // FogOfWarSystem (2026-08-20, same reason/pattern as DoorSystem - fog of war + torches, torches
-        // are bundled in because they're timing-coupled to fog reveal).
+        // FogOfWarSystem - same reason/pattern as DoorSystem (fog of war + torches, bundled together
+        // since torches are timing-coupled to fog reveal).
         builder.Register<FogOfWarSystem>(Lifetime.Singleton).AsSelf();
 
         // 맵 렌더링 담당 - MonoBehaviour에서 NativeRoutine으로 전환됨

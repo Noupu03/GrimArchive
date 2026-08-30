@@ -75,9 +75,8 @@ public partial class CreateMap
         int w0 = f0.config.width;
         int h0 = f0.config.height;
 
-        // 던전 입구 구조(2026-08-20) — "중앙 행 최우측의 던전 계단"(문서 명시). 예전엔 최좌측
-        // 고정이었으나, 이제 최좌측 1칸은 숨은 스폰 청크(FloorConfigFactory 참고)라 그 반대편
-        // 끝(가시 영역의 가장 오른쪽)에 둔다.
+        // "중앙 행 최우측의 던전 계단"(문서 명시) — 최좌측 1칸은 숨은 스폰 청크(FloorConfigFactory
+        // 참고)라 계단은 그 반대편 끝(가시 영역의 가장 오른쪽)에 둔다.
         int stairX = w0 - 1;
         int stairY = h0 / 2;
         if (stairX < w0 && stairY < h0)
@@ -164,9 +163,8 @@ public partial class CreateMap
                 {
                     int newWidth = Mathf.Clamp(requiredWidth, 2, 6);
 
-                    // ClosePassage 없이 더 넓은 폭으로 Open만 수행
-                    // OpenPassage는 해당 범위를 Floor 타일로 덮으므로
-                    // 기존 열린 타일은 그대로, 추가분만 확장됨
+                    // ClosePassage 없이 더 넓은 폭으로 Open만 수행 — OpenPassage는 해당 범위를 Floor
+                    // 타일로 덮으므로 기존 열린 타일은 그대로, 추가분만 확장된다.
                     int actualWidth;
                     if (g.isHorizontal)
                     {
@@ -289,8 +287,7 @@ public partial class CreateMap
 
         c.stairTargetFloor = targetFloor;
 
-        // 2x2 계단 블록을 청크 중앙에 배치 — 청크 크기 8 기준 로컬(3,3)~(4,4)였던 걸 일반화했다
-        // (2026-08-23, 맵 1.5배 확장). chunkSize=8이면 half=4, lo=3이라 원래 값과 정확히 같다.
+        // 2x2 계단 블록을 청크 중앙에 배치 — chunkSize=8이면 half=4, lo=3으로 로컬(3,3)~(4,4)가 된다.
         int half = floor.config.chunkSize / 2;
         int lo = half - 1;
         for (int tx = lo; tx <= half; tx++)
@@ -317,11 +314,8 @@ public partial class CreateMap
                 Chunks c = floor.chunks[x, y];
                 switch (c.roomRole)
                 {
-                    // 사용자 요청(2026-07-28) "2층과 3층 시작방은 초기 플레이어 몬스터 진영 점령
-                    // 대상에서 제외" — 1층 시작방(플레이어=몬스터 진영 거점)만 처음부터 PlayerControlled
-                    // 로 시작하고, 2층 이상은 다른 일반 방과 동일하게 Neutral(야생)로 시작해서 실제로
-                    // 싸워서 점령해야 한다. currentFloorIndex는 이 메서드를 호출하는 CreateMap.cs의
-                    // Phase 3 루프(`for f in 1..floors.Length`)가 매 층마다 미리 세팅해준다.
+                    // 1층 시작방만 처음부터 PlayerControlled로 시작하고, 2층 이상은 일반 방과 동일하게
+                    // Neutral(야생)로 시작해서 실제로 싸워서 점령해야 한다.
                     case RoomRole.StartRoom:      c.occupationState = currentFloorIndex == 1 ? OccupationState.PlayerControlled : OccupationState.Neutral; break;
                     case RoomRole.BossRoom:       c.occupationState = OccupationState.Neutral; break;
                     case RoomRole.SubPurposeRoom: c.occupationState = OccupationState.Neutral; break;

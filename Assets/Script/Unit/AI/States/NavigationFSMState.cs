@@ -1,8 +1,7 @@
 using UnityEngine;
 
 // 탐색 상태 — 전투·전술·플레이어 명령 조건이 없을 때 활성화. 항상 Priority > 0 이므로 기본 상태로
-// 동작. BT: 계단이동 → 자유탐색. 플레이어 공격/이동 명령은 PlayerCommandFSMState로 분리됐다(사용자
-// 요청, 2026-07-24 "플레이어 지정 명령이라는 상태를 따로 만들어서 최우선 순위로 둬").
+// 동작. BT: 계단이동 → 자유탐색. 플레이어 공격/이동 명령은 PlayerCommandFSMState로 분리됐다.
 public class NavigationFSMState : IFSMState
 {
 	private readonly BTNode _bt;
@@ -16,9 +15,9 @@ public class NavigationFSMState : IFSMState
 				new BTLeaf(MoveToStairs),
 				new BTLeaf(CrossStairs)
 			),
-			// 2. 던전 입구 시퀀스 대기 — 던전 입구 구조(2026-08-20): DungeonEntranceSystem이 0층
-			// 스폰~계단 도달까지 파티 진형을 직접 제어하는 동안 자유탐색이 끼어들지 않게 막는다.
-			// pendingStairTargetFloor는 시퀀스가 끝나야 세팅되므로 위 1번 계단 이동 분기와 겹치지 않는다.
+			// 2. 던전 입구 시퀀스 대기 — DungeonEntranceSystem이 0층 스폰~계단 도달까지 파티 진형을
+			// 직접 제어하는 동안 자유탐색이 끼어들지 않게 막는다. pendingStairTargetFloor는 시퀀스가
+			// 끝나야 세팅되므로 위 1번 계단 이동 분기와 겹치지 않는다.
 			new BTSequence(
 				new BTCondition(IsInDungeonEntranceSequence),
 				new BTLeaf(HoldPosition)
@@ -47,11 +46,9 @@ public class NavigationFSMState : IFSMState
 		if (h.pendingStairTargetFloor.HasValue && h.pendingStairTargetFloor.Value != h.currentFloor)
 			return true;
 
-		// 0층(로비)은 웨이브가 시작될 때만 1층으로 넘어가야 한다(HumanWaveManager.StartWave 참고,
-		// 사용자 요청 2026-07-24 "웨이브 시작할때에만 1층으로 이동시켜줘, 0->1층으로 전이를") — 사전
-		// 스폰돼 대기 중 배회하던 유닛이 계단을 눈으로 발견했다고 여기서 자동으로 건너가 버리면 안
-		// 된다. 아래 "계단을 직접 발견하면 즉시 향한다" 자동화는 이미 던전에 진입한 뒤(1층 이상)의
-		// 층간 이동에만 적용한다.
+		// 0층(로비)은 웨이브가 시작될 때만 1층으로 넘어가야 한다(HumanWaveManager.StartWave 참고) —
+		// 사전 스폰돼 대기 중 배회하던 유닛이 계단을 발견했다고 자동으로 건너가면 안 된다. 아래
+		// "계단을 직접 발견하면 즉시 향한다" 자동화는 이미 던전에 진입한 뒤(1층 이상)에만 적용한다.
 		if (h.currentFloor == 0) return false;
 
 		// 유저 피드백 반영: 계단을 직접 눈으로 찾았다면(personalMap에 계단 위치가 밝혀졌다면),
@@ -123,10 +120,8 @@ public class NavigationFSMState : IFSMState
 		if (DistanceToStairBlock(human.position, stairPos) > (AIConfigLoader.Behavior?.stairArrivalRadius ?? 1))
 			return BTStatus.Running;
 
-		// 2026-08-05 사용자 신고 "유닛끼리 겹친다" 수정 — 힌트 없는 TryGetStairApproachPosition(항상
-		// 같은 대표 좌표 1칸)로 점유 확인 없이 텔레포트하던 걸, MoveToStairs(접근 측)와 동일하게
-		// 여러 후보 중 점유 안 된 칸을 고르는 방식으로 교체했다. 후보가 전부 점유돼 있으면(극단적
-		// 혼잡) 실패로 보고 다음 틱에 재시도한다 — 절대 겹치는 칸으로는 텔레포트하지 않는다.
+		// 유닛끼리 겹치는 걸 막기 위해 MoveToStairs(접근 측)와 동일하게 여러 후보 중 점유 안 된 칸을
+		// 고른다. 후보가 전부 점유돼 있으면 실패로 보고 다음 틱에 재시도한다.
 		if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(human.Session, toFloor, fromFloor, out Vector2Int arrivePos))
 			return BTStatus.Running;
 
@@ -135,8 +130,8 @@ public class NavigationFSMState : IFSMState
 		human.Session.UnregisterUnitPos(human, oldPos);
 		human.currentFloor = toFloor;
 		human.position     = arrivePos;
-		// 2026-08-22 사용자 신고 "어떤 상황에서도 유닛끼리는 겹쳐지면 안돼" — TryResolveUnoccupiedStairArrival
-		// 이 확인한 시점과 이 등록 시점 사이에 다른 경로가 같은 칸을 먼저 차지했을 수 있는 최종 안전망.
+		// TryResolveUnoccupiedStairArrival이 확인한 시점과 이 등록 시점 사이에 다른 경로가 같은 칸을
+		// 먼저 차지했을 수 있는 최종 안전망 — 유닛끼리는 어떤 상황에서도 겹치면 안 된다.
 		if (!human.Session.RegisterUnitPos(human, human.position))
 		{
 			human.currentFloor = oldFloor;
@@ -151,8 +146,8 @@ public class NavigationFSMState : IFSMState
 
 
 
-	// 몬스터 소집 배치(MusterFSMState)는 기초문서.md 피드백(2026-08-22)으로 R키 배치모드 전체와 함께
-	// 폐기됐다 — HoldPosition은 아래 던전 입구 시퀀스 대기 분기만 남아서 계속 재사용한다.
+	// 몬스터 소집 배치(MusterFSMState)는 R키 배치모드 전체와 함께 폐기됐다 — HoldPosition은 아래
+	// 던전 입구 시퀀스 대기 분기만 남아서 계속 재사용한다.
 	private static BTStatus HoldPosition(Unit unit) => BTStatus.Running;
 
 	// ── 던전 입구 시퀀스 대기 ──────────────────────────────────────
@@ -242,19 +237,16 @@ public class NavigationFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// E: 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서 다음 틱에 진짜
-	// 탐색 A*가 반드시 캐시 미스를 낸다. CanMove로 직접 검사해서 A*를 완전히 우회한다 — 실제 방 제한/
-	// 대각선 코너 커팅 검사는 AIMovementHelper.TryMoveRandomlyWithinRadius로 통합됐다(IdleFSMState와
-	// 공유, 2026-08-20).
+	// 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서 다음 틱 탐색 A*가
+	// 캐시 미스를 낸다. CanMove로 직접 검사해 A*를 우회한다 — 방 제한/대각선 코너 커팅 검사는
+	// AIMovementHelper.TryMoveRandomlyWithinRadius로 통합됐다(IdleFSMState와 공유).
 	private static void MoveRandomlyValid(Unit unit) => AIMovementHelper.TryMoveRandomlyWithinRadius(unit);
 
 	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
 	{
-		// 2026-07-31 최적화 — 인류 유닛(방 제한 없이 던전 전체를 탐사)은 personalMap이 RevealTile마다
-		// 유지하는 프론티어(미탐사 경계) 집합에서 바로 최근접 후보를 찾는다. 예전 BFS는 이미 탐색된
-		// 영역 전체를 매번 다시 훑어야 해서 탐사가 진행될수록 호출 1번의 비용이 계속 늘어났다
-		// (프로파일러 확인: 84회 호출에 134ms). 방 제한 유닛(몬스터, RoomConfinedMovement)은 애초에
-		// 탐색 범위가 자기 방으로 좁아 BFS 비용이 낮으므로 아래 기존 방식을 그대로 둔다.
+		// 인류 유닛(방 제한 없이 던전 전체를 탐사)은 personalMap이 RevealTile마다 유지하는 프론티어
+		// (미탐사 경계) 집합에서 바로 최근접 후보를 찾는다 — BFS로 탐색 영역 전체를 매번 훑으면 탐사가
+		// 진행될수록 비용이 계속 늘어난다. 방 제한 유닛(몬스터)은 탐색 범위가 좁아 BFS를 그대로 둔다.
 		if (unit is Human explorer)
 		{
 			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget)

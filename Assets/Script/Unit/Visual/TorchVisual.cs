@@ -3,11 +3,9 @@ using UnityEngine;
 using UnityEngine.U2D.Animation;
 #endif
 
-// 횃불 방향별 스프라이트 적용(2026-08-21) — 원래 FogOfWarSystem(Session 계층, "순수 시각 오버레이라
-// 이동/시야/AI 판정 등 어떤 게임플레이 로직도 건드리지 않는다"고 스스로 선언한 클래스)이 직접
-// SpriteResolver를 조작하고 있었다. 유닛의 방향별 스프라이트 전환(UnitGenerate.UpdateSpriteResolver)이
-// 이미 Visual 계층에 있는 것과 같은 이유로, 횃불도 스프라이트 적용 책임을 이 Visual 계층으로 옮겼다 —
-// FogOfWarSystem.SpawnTorchAt은 이제 ApplyTorchVisual 한 번만 호출한다.
+// 횃불 방향별 스프라이트 적용 — 순수 시각 오버레이인 FogOfWarSystem이 SpriteResolver를 직접 조작하면
+// 안 되므로, 유닛의 방향별 스프라이트 전환(UnitGenerate.UpdateSpriteResolver)과 동일하게 스프라이트
+// 적용 책임을 이 Visual 계층으로 옮겼다 — FogOfWarSystem.SpawnTorchAt은 ApplyTorchVisual만 호출한다.
 public static class TorchVisual
 {
     // 벽 방향 → 스프라이트 라벨/반전. new_torch.png에는 Up/Right/Down 3종만 있고, Left는 Right를
@@ -36,10 +34,8 @@ public static class TorchVisual
         GetSpriteLabel(side, out string label, out bool flipX);
         UnitSpriteManager.ApplySpriteResolverLabel(resolver, "A", label, flipX);
 
-        // 방향별 위치 보정(2026-08-21, 사용자 요청 "torch 프리팹에서 상하 좌우 별 위치 pivot 조정할
-        // 수 있게 해줘. (타일 초과 가능)" → "스프라이트 오프셋만 조절되고, 생성 위치 자체는 그대로인거로
-        // 처리해줘.(빛 때문에 그럼)") — resolver가 붙은 "Visual" 자식의 로컬 위치만 옮긴다. 루트(빛의
-        // 부모)는 절대 건드리지 않는다.
+        // 방향별 위치 보정 — 스프라이트 오프셋만 조절되고 생성 위치(빛의 기준점) 자체는 그대로여야
+        // 하므로, resolver가 붙은 "Visual" 자식의 로컬 위치만 옮긴다. 루트(빛의 부모)는 건드리지 않는다.
         var directionOffsets = go.GetComponent<TorchDirectionOffsets>();
         if (directionOffsets != null)
         {

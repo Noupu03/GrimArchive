@@ -21,8 +21,7 @@ public class UnitSpriteManager
     }
 
     // 유닛 타입의 대표 아이콘(프리팹의 "Visual" 자식 SpriteRenderer.sprite) — 웨이브 게이지 파티
-    // 아이콘(WaveGaugePanel)/몬스터 배치 실루엣(InputManager)이 공유한다(2026-08-20, 두 곳에서
-    // 각자 동일한 로직을 중복 구현했던 것을 여기로 통합).
+    // 아이콘(WaveGaugePanel)/몬스터 배치 실루엣(InputManager)이 공유한다(중복 구현 통합).
     public Sprite GetIcon(string unitTypeName)
     {
         if (string.IsNullOrEmpty(unitTypeName)) return null;
@@ -76,10 +75,9 @@ public class UnitSpriteManager
     }
 
 #if UNITY_2022_2_OR_NEWER
-    // SpriteResolver에 category/label을 적용하고 flipX까지 같이 세팅하는 공통 절차(2026-08-21 추출) —
-    // 원래 UnitGenerate.UpdateSpriteResolver 안에 있던 걸, FogOfWarSystem의 횃불 방향별 스프라이트
-    // 적용(TorchVisual.ApplyTorchVisual)이 완전히 동일한 절차를 별도로 다시 구현하고 있어서 이 한
-    // 곳으로 합쳤다. resolver가 붙은 GameObject에 SpriteRenderer가 없으면 flipX는 조용히 건너뛴다.
+    // SpriteResolver에 category/label과 flipX를 적용하는 공통 절차 — UnitGenerate.UpdateSpriteResolver와
+    // TorchVisual.ApplyTorchVisual이 동일한 로직을 중복 구현하던 것을 이 한 곳으로 합쳤다. resolver의
+    // GameObject에 SpriteRenderer가 없으면 flipX는 조용히 건너뛴다.
     public static void ApplySpriteResolverLabel(SpriteResolver resolver, string category, string label, bool flipX)
     {
         if (resolver == null) return;

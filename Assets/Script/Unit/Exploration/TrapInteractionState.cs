@@ -7,12 +7,9 @@ public enum TrapPhase
 	Destroying,   // Action_TrapDestroy가 함정 Hp를 깎는 중
 }
 
-// 9장: 이 유닛이 지금 진행 중인 함정 대응의 하위 상태. Goal_TrapResponse가 고착(IsSticky) 상태를
-// 유지하는 동안 Action_TrapJoinWait/MoveToTrap/TrapDisarmPerform/Bypass/Pass/Destroy가 이 레코드를
-// 읽고 갱신한다. 9-5장 통합
-// 흐름("함정 정확 인지 → 정보 전파 → 5초 합류 대기 또는 즉시 판단 → 위치 도달 → 처리 → 결과")을
-// 전부 이 하나의 상태로 표현한다 — 별도 Goal_Wait로 쪼개지 않은 이유는
-// 시야인지반응_03_GOAP목표우선순위표_2026-07-22.txt 1절 참고.
+// 이 유닛이 지금 진행 중인 함정 대응의 하위 상태. Goal_TrapResponse가 고착(IsSticky) 상태를 유지하는
+// 동안 Action_TrapJoinWait/MoveToTrap/TrapDisarmPerform/Bypass/Pass/Destroy가 이 레코드를 읽고
+// 갱신한다 — "인지 → 전파 → 합류 대기 → 도달 → 처리 → 결과" 흐름 전체를 하나의 상태로 표현한다.
 public class TrapInteractionState
 {
 	public TrapPhase Phase = TrapPhase.AwaitingJoin;
@@ -40,11 +37,8 @@ public class TrapInteractionState
 	public float MissingUnitTimer;
 	public bool SearchingForSelectedUnit;
 	public Vector2Int? SelectedUnitLastKnownPos;
-	// 선정 확정 시점에 한 번만 계산해 고정하는 ETA(2026-08-23 버그 수정) — TickWaitingForSelectedUnit이
-	// 매 틱 선정 유닛의 "현재" 위치 기준으로 ETA를 다시 계산해 MissingUnitTimer(실제 경과시간)와
-	// 비교하면, 유닛이 정상적으로 접근할수록 남은 ETA도 함께 줄어들어 두 값이 원래 의도(최초 ETA+3초)
-	// 보다 훨씬 이르게(대략 절반 지점에) 만나버린다 — 정상적으로 이동 중인 유닛까지 "실종"으로
-	// 오판정되는 버그였다. 선정 시점의 ETA를 여기 고정해두고 그 값과 비교한다.
+	// 선정 확정 시점에 한 번만 계산해 고정하는 ETA — 매 틱 "현재" 위치 기준으로 다시 계산하면 정상
+	// 접근 중인 유닛도 실제 경과시간과 만나는 지점이 앞당겨져 "실종"으로 오판정되므로 고정값과 비교한다.
 	public float SelectedUnitInitialEta = -1f;
 
 	// 9-9장: 파괴 진행 중 함정에 누적한 피해.
@@ -56,10 +50,8 @@ public class TrapInteractionState
 	// 9-7장: 중단됐다가 재개될 때 남은 진행도(50% 손실 후 유지분, 0~1).
 	public float DisarmProgress01;
 
-	// 사용자 요청(2026-07-22): "길이 막혀있는 경우만 해제, 안 막혀있으면 그냥 피해간다" — 이 함정이
-	// 유닛의 실제 목적지(playerMoveTarget/조사 대상)로 가는 유일한 통로인지(대체 경로 있으면 false)를
-	// A* 대체경로 탐색(Action_TrapJoinWait.IsBlockingPath)으로 한 번만 계산해서 캐시해둔다 — 매 틱
-	// 다시 계산하면 비용이 크다.
+	// 이 함정이 유닛의 실제 목적지로 가는 유일한 통로인지(대체 경로 있으면 false)를 A* 대체경로
+	// 탐색으로 한 번만 계산해서 캐시해둔다 — 매 틱 다시 계산하면 비용이 크다.
 	public bool? IsBlockingPath;
 
 	// ⑫: GetComponent<ObjectProgressBarVisual> 호출 비용을 Disarming 첫 틱에만 내고 이후엔 재사용.

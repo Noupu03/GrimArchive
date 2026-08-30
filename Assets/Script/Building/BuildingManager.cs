@@ -12,14 +12,13 @@ public class BuildingData
     // 관례(position=최소 좌표, +x/+y 방향으로 확장)와 동일하게 맞췄다.
     public Vector3Int Position;
 
-    // 건물이 차지하는 타일 크기(2026-08-25, 사용자 요청 "건물의 스프라이트와 크기를 바꿀거야" —
-    // 유닛 생산 건물 3x3 / 자원 생산 건물 2x2). 더미 건물(디버그용)은 항상 (1,1).
+    // 건물이 차지하는 타일 크기 — 유닛 생산 건물 3x3 / 자원 생산 건물 2x2. 더미 건물(디버그용)은
+    // 항상 (1,1).
     public Vector2Int Footprint = Vector2Int.one;
 
-    // 렌더링용 GameObject(2026-07-27, 사용자 신고 "건물 스프라이트 바깥쪽이 파란색" 대응) — 예전엔
-    // Tilemap.SetTile로 바닥 타일 자체를 건물 타일로 갈아치웠는데, 그러면 스프라이트의 투명 영역이
-    // 원래 바닥이 아니라 타일맵 뒤(카메라 배경색, 파란색)를 그대로 보여줬다. 바닥은 그대로 두고 이
-    // 오브젝트를 그 위에 별도로 얹어서(GameSession.SpawnObject와 동일 관례) 자연스럽게 겹치게 한다.
+    // 렌더링용 GameObject — 바닥 타일 자체를 Tilemap.SetTile로 갈아치우면 스프라이트 투명 영역이
+    // 타일맵 뒤(카메라 배경색)를 드러낸다. 바닥은 그대로 두고 이 오브젝트를 그 위에 얹는다
+    // (GameSession.SpawnObject와 동일 관례).
     public GameObject VisualObject;
 
     // true면 자원 생산 건물(V키) — 유닛 생산 큐와 무관하게 시간기반으로 Wood/Stone만 증가시킨다.
@@ -27,8 +26,7 @@ public class BuildingData
     public bool IsResourceBuilding;
     public float ResourceTickTimer;
 
-    // 디버그용 더미 건물(2026-08-25, 사용자 요청 "아무런 기능도 하지 않는, 건물 판정만 있는 더미
-    // 건물") — 생산/자원 로직 전부 건너뛰고 타일 점유(건물 판정)만 한다.
+    // 디버그용 더미 건물 — 생산/자원 로직 전부 건너뛰고 타일 점유(건물 판정)만 한다.
     public bool IsDummy;
 
     // 유닛 생산 건물이 생산 가능한 규칙 목록(문서 6장 "건축물마다 서로 다른 생산 규칙을 지정할 수
@@ -38,32 +36,23 @@ public class BuildingData
     public float ProductionProgress;
     public bool IsProducing;
 
-    // 방 인구수 초과로 배출을 보류 중인지(2026-07-28, 사용자 요청 "건물에서 유닛이 나오는거도, 방
-    // 인원수 제한에 걸리게") — 대기 진입/해제 시 한 번씩만 로그를 남기기 위한 상태 플래그.
+    // 방 인구수 초과로 배출을 보류 중인지 — 대기 진입/해제 시 한 번씩만 로그를 남기기 위한 상태 플래그.
     public bool WaitingForRoomSpace;
 }
 
 public class BuildingManager : NativeRoutine
 {
-    // 건축물·자원·유닛 생산 MVP(2026-07-27) — 자원 생산 건물 1개당 틱 주기/증가량. 문서와 사용자 모두
-    // 정확한 수치를 정하지 않아(문서는 "최종 수치는 범위 밖"이라 명시) 처치 보상(ResourceManager.
-    // KillRewardWood/Stone = 30, 훨씬 커야 한다는 사용자 기준)의 1/6로 잡았다 — 플레이테스트 후 조정
-    // 요청이 오면 이 두 상수만 바꾸면 된다.
+    // 자원 생산 건물 1개당 틱 주기/증가량 — 처치 보상(KillRewardWood/Stone=30)의 1/6로 잡은 자리표시자.
     public const float ResourceTickInterval = 5f;
-    // 사용자 요청(2026-08-24 "자원 건물의 자원 생산량 늘려줘. 3배로" → 같은 날 "3배 -> 2배로 줄여줘") —
-    // 5 → 10으로 2배.
     private const int ResourceTickAmount = 10;
 
-    // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — 유닛 생산 건물은 GothicDollhouse(3x3),
-    // 자원 생산 건물은 GothicClocktower(2x2). 더미 건물(디버그용)은 항상 1x1.
+    // 유닛 생산 건물은 3x3, 자원 생산 건물은 2x2, 더미 건물(디버그용)은 항상 1x1.
     public static readonly Vector2Int UnitBuildingFootprint = new Vector2Int(3, 3);
     public static readonly Vector2Int ResourceBuildingFootprint = new Vector2Int(2, 2);
     private static readonly Vector2Int DummyBuildingFootprint = Vector2Int.one;
 
-    // footprint가 차지하는 모든 타일 좌표를 나열한다(2026-08-25 리팩토링 — CanInstallAt/
-    // InstallBuildingInternal/UpdateMapDataObstacle 3곳이 각자 같은 dx/dy 이중 루프로 좌표만 계산하던
-    // 것을 통합). 순회 대상 좌표만 공유하고, 타일마다 실제로 무엇을 하는지(판정/등록/장애물 갱신)는
-    // 호출부 책임으로 남긴다.
+    // footprint가 차지하는 모든 타일 좌표를 나열한다 — CanInstallAt/InstallBuildingInternal/
+    // UpdateMapDataObstacle 3곳이 각자 쓰던 같은 dx/dy 이중 루프를 통합한 것.
     private static IEnumerable<Vector3Int> FootprintTiles(Vector3Int origin, Vector2Int footprint)
     {
         for (int dx = 0; dx < footprint.x; dx++)
@@ -100,10 +89,8 @@ public class BuildingManager : NativeRoutine
     private CreateMap createMap;
     private UnitGenerate unitGenerate;
 
-    // 순환 의존성 방지(2026-07-27) — GameSession도 초기 자원 건물 배치를 위해 BuildingManager를
-    // 주입받으면서 VContainer가 "Circular dependency detected" 예외를 던졌다(GameSession↔BuildingManager
-    // 상호 [Inject] 메서드 순환). OffenseProcessor.UpdateProcess와 동일한 관례를 따라 DI 주입 대신
-    // GameSession.Instance를 직접 참조해 순환을 끊는다.
+    // GameSession도 초기 자원 건물 배치를 위해 BuildingManager를 주입받아 VContainer 순환 의존성이
+    // 발생하므로, OffenseProcessor.UpdateProcess와 동일하게 DI 대신 GameSession.Instance를 직접 참조한다.
     [Inject]
     public void Construct(MapManager mapManager, ResourceManager resourceManager, CreateMap createMap, UnitGenerate unitGenerate)
     {
@@ -116,12 +103,9 @@ public class BuildingManager : NativeRoutine
     public override async UniTask Initialize(CancellationToken cts)
     {
         await base.Initialize(cts);
-        // 사용자 신고(2026-07-27) "시작방에 자동 생성된 V키 건물이 상호작용도 안 되고 자원도 안 늘어남"
-        // — 원인: 서로 다른 NativeRoutine의 Initialize()는 실행 순서가 보장되지 않는데,
-        // GameSession.Initialize()가 SpawnInitialBuildings()로 이 buildingGrid에 항목을 넣은
-        // *뒤에* 이 메서드가 나중에 실행되면 여기 있던 buildingGrid.Clear()가 그 항목을 지워버렸다
-        // (시각 오브젝트는 이미 만들어져 남아있으니 눈엔 보이지만 클릭도, 생산 틱도 안 먹는 상태가 됨).
-        // buildingGrid는 필드 초기화 시점에 이미 빈 Dictionary라 여기서 다시 비울 필요가 없다 — 그냥 제거.
+        // NativeRoutine들의 Initialize() 실행 순서는 보장되지 않는다 — GameSession.SpawnInitialBuildings()가
+        // buildingGrid에 항목을 넣은 뒤 여기서 다시 Clear()하면 지워지므로, 필드 초기화로 이미 빈
+        // Dictionary인 buildingGrid를 여기서 비우지 않는다.
         LogHelper.Log(LogHelper.GAME, "BuildingManager Initialized");
     }
 
@@ -132,10 +116,9 @@ public class BuildingManager : NativeRoutine
         await base.Finalize();
     }
 
-    // 5단계: 1타일 1오브젝트 규칙 (캡슐화된 쿼리). footprint가 차지할 모든 타일이 각각 설치 가능해야
-    // 전체 설치가 가능하다(2026-08-25, 다중 타일 건물 지원). requireOwnership=false면 방 점령(소유)
-    // 여부를 무시한다(2026-08-25, 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나 설치 가능하게
-    // 해줘. (점령 여부 무관)") — 디버그용 더미 건물 전용, 실제 생산 건물은 항상 true.
+    // 1타일 1오브젝트 규칙 — footprint가 차지할 모든 타일이 각각 설치 가능해야 전체 설치가 가능하다.
+    // requireOwnership=false면 방 점령(소유) 여부를 무시한다(디버그용 더미 건물 전용, 실제 생산
+    // 건물은 항상 true).
     public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
     {
         foreach (Vector3Int tile in FootprintTiles(pos, footprint))
@@ -154,20 +137,11 @@ public class BuildingManager : NativeRoutine
         // 1. 이미 건물이 있는지 확인 (1타일 1오브젝트)
         if (buildingGrid.ContainsKey(pos)) return false;
 
-        // 1-1. 문 타일은 최우선 예약 — 건물이 문 위에 겹쳐 설치될 수 없다(사용자 신고 2026-07-28,
-        // "시작방에 있는 건물이 문 위치와 겹쳐서"). GameSession.SpawnDoors()가 다른 오브젝트/건물보다
-        // 먼저 실행돼 objectGrid를 선점하지만, 이 클래스의 buildingGrid/타일 장애물 검사만으로는 문을
-        // 걸러내지 못했다(문은 Tile.isStructureExist를 세우지 않는 "통행 가능" 오브젝트라서). 순환
-        // 의존성 회피를 위해 GameSession도 DI 대신 Instance를 직접 참조한다(위 Construct 주석 참고).
+        // 1-1. 문 타일은 최우선 예약 — 문은 Tile.isStructureExist를 세우지 않는 통행 가능 오브젝트라
+        // buildingGrid/타일 장애물 검사만으로는 걸러지지 않으므로 별도로 확인한다.
         if (GameSession.Instance != null && GameSession.Instance.IsDoorTile(pos)) return false;
 
-        // 1-2. 구조적 이슈 수정(2026-07-28, 사용자 요청 "구조적 이슈는 고쳐보자" — 데모_구현현황_검증_
-        // 2026-07-28.txt "발견된 사항 4") — CreateMap.IsPositionPlayerOwned가 "플레이어는 자신 소유의
-        // 방에만 몬스터를 스폰할 수 있음" 주석과 함께 2026-07-27에 만들어졌지만 실제로는 아무 데도
-        // 연결돼 있지 않았다. 이 프로토타입에서 몬스터 유닛 생산은 전부 이 건물(B/V키)을 거치므로
-        // 여기서 연결한다 — 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. 게임 시작 시
-        // 자동 배치되는 시작 건물(SpawnInitialBuildings)도 시작방이 처음부터 PlayerControlled라
-        // 그대로 통과한다. requireOwnership=false(더미 건물)면 이 검사를 건너뛴다.
+        // 1-2. 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
         if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
 
         // 2. 맵의 타일 장애물 정보 확인
@@ -208,9 +182,7 @@ public class BuildingManager : NativeRoutine
         return data;
     }
 
-    // 건물 조작 UI(2026-07-27, 사용자 요청 "V키 건물 클릭 시 현재 초당 생산량 표시")용 조회 — 자원
-    // 생산 건물 개수와 그로 인한 초당 생산량(건물마다 독립적으로 ResourceTickAmount/ResourceTickInterval
-    // 비율로 틱)을 계산한다.
+    // 건물 조작 UI용 조회 — 자원 생산 건물 개수와 그로 인한 초당 생산량을 계산한다.
     public int ResourceBuildingCount
     {
         get
@@ -234,9 +206,8 @@ public class BuildingManager : NativeRoutine
         {
             BuildingData b = kvp.Value;
 
-            // 다중 타일 건물(2026-08-25)은 footprint 칸 수만큼 같은 BuildingData가 buildingGrid에
-            // 여러 키로 등록되므로, 앵커 타일에서만 한 번 처리해 생산/자원 틱이 칸 수만큼 중복 실행되는
-            // 것을 막는다.
+            // 다중 타일 건물은 footprint 칸 수만큼 같은 BuildingData가 여러 키로 등록되므로, 앵커
+            // 타일에서만 처리해 생산/자원 틱 중복 실행을 막는다.
             if (kvp.Key != b.Position) continue;
 
             if (b.IsDummy) continue;
@@ -262,11 +233,8 @@ public class BuildingManager : NativeRoutine
 
             if (b.IsProducing)
             {
-                // 방 인구수 제한(2026-07-28, 사용자 요청 "인원 초과로 인해 몬스터 생산 불가시... 시간
-                // 안흐르게") — 생산 완료 시점이 아니라 진행 자체를 인구수로 게이팅한다. 방이 꽉 차 있는
-                // 동안은 진행도를 아예 증가시키지 않아(0/1.0s 등 현재 값에서 그대로 정지) 자리가 나기
-                // 전까지 타이머가 흐르지 않는다 — UI(BuildingControlPanel)는 WaitingForRoomSpace를 보고
-                // "중지됨"을 표시한다.
+                // 방 인구수 제한 — 생산 완료 시점이 아니라 진행 자체를 게이팅한다. 방이 꽉 차 있는
+                // 동안은 진행도를 그대로 정지시켜 자리가 나기 전까지 타이머가 흐르지 않는다.
                 if (!HasRoomForProduction(b))
                 {
                     if (!b.WaitingForRoomSpace)
@@ -292,10 +260,8 @@ public class BuildingManager : NativeRoutine
         }
     }
 
-    // 건물이 속한 방에 생산된 유닛 하나가 더 들어갈 자리가 있는지 확인한다. 현재 플레이어 진영
-    // 몬스터로 생산 가능한 유닛은 MeleeTank뿐이고 그 populationCost가 1로 고정돼 있어(units.json/
-    // 프리팹, 2026-07-28 확정) 여기서도 1로 단순화했다 — 생산 가능한 유닛 종류가 늘어나면 실제
-    // UnitType의 populationCost를 조회하도록 바꿔야 한다. 방을 못 찾으면(예: 건물이 방 밖) 막지 않는다.
+    // 건물이 속한 방에 생산된 유닛 하나가 더 들어갈 자리가 있는지 확인한다. 현재 생산 가능한 유닛은
+    // MeleeTank뿐이라 populationCost=1로 단순화했다 — 종류가 늘어나면 실제 UnitType 조회로 바꿔야 한다.
     private bool HasRoomForProduction(BuildingData b)
     {
         GameSession gameSession = GameSession.Instance;
@@ -314,11 +280,8 @@ public class BuildingManager : NativeRoutine
         GameSession gameSession = GameSession.Instance;
         if (unitGenerate == null || gameSession == null) return;
 
-        // 플레이어(몬스터 진영) 생산 건물이라 실제로 안전하게 쓸 수 있는 건 PlayerMonsterBehavior가
-        // 기본값인 Monster 계열뿐이다(Unit.cs — Human 기본값은 HumanFactionBehavior=적 진영이라
-        // Knight/Archer를 여기서 뽑으면 적 유닛이 나오는 셈이 된다). 현재 코드베이스에 있는 플레이어용
-        // Monster UnitType은 MeleeTank 하나뿐이라 우선 이것만 등록해 둔다 — AvailableRules/Queue 구조
-        // 자체는 리스트/큐라 나중에 플레이어용 UnitType이 추가되면 바로 확장 가능하다.
+        // 플레이어(몬스터 진영) 생산 건물이라 안전하게 쓸 수 있는 건 Monster 계열뿐이다(Human 기본값은
+        // 적 진영이라 여기서 뽑으면 적 유닛이 나온다). 현재 플레이어용 Monster UnitType은 MeleeTank뿐이다.
         UnitType t = null;
         if (rule.targetUnitTypeName == "MeleeTank") t = new MeleeTank();
 
@@ -331,22 +294,15 @@ public class BuildingManager : NativeRoutine
         Vector2Int pos = GetSpawnPosAroundBuilding(b, t.footprint);
 
         Monster m = unitGenerate.GenerateUnitAtPos<Monster>(t, pos, b.Position.z);
-        // 플레이어 진영 몬스터 방 제한 MVP(2026-07-27, 사용자 요청) — "해당 방 안에서만 돌아다님,
-        // 오직 플레이어의 명령에 의해서만 다른 방으로 이동 가능". 야생 몬스터(SpawnWildRoomGuards)와
-        // 동일한 MovementAlgorithm을 재사용 — 플레이어 명령 시 우회하는 예외는 RoomConfinedMovement
-        // 쪽에 넣었다(isManualMoveCommand 체크).
+        // 플레이어 진영 몬스터는 해당 방 안에서만 돌아다니고 플레이어 명령으로만 다른 방으로 이동 가능하다.
         m.MovementAlgorithm = new RoomConfinedMovement();
         gameSession.units.Add(m);
         gameSession.RegisterUnitPos(m, m.position);
     }
 
-    // 건물 테두리(상/하/좌/우변) 칸들을 랜덤 순서로 섞어서 첫 번째로 비어있는 칸을 반환한다(사용자
-    // 요청 — 2026-08-25 다중 타일 건물 지원으로, 건물 footprint 크기와 무관하게 항상 건물 바로
-    // 바깥쪽 테두리 한 칸에서 스폰되도록 일반화했다: footprint(1,1)이면 예전과 동일하게 상하좌우
-    // 4칸이 된다). 테두리가 다 막혀 있으면 건물이 속한 방 안에서 재시도한다(사용자 요청, 2026-07-27:
-    // "플레이어 진영 몬스터는 해당 방 안에서만 스폰" — 층 전체에서 뽑으면 다른 방에 떨어질 수 있어
-    // 더 이상 그 폴백을 쓰지 않는다). 방을 못 찾거나 방 안에도 자리가 없는 극단적인 경우에만 최후
-    // 수단으로 층 전체에서 찾되, 그 경우엔 경고 로그를 남긴다.
+    // 건물 테두리 칸들을 랜덤 순서로 섞어서 첫 번째로 비어있는 칸을 반환한다. 테두리가 다 막혀
+    // 있으면 방 안에서 재시도한다(플레이어 진영 몬스터는 해당 방 안에서만 스폰돼야 하므로 층 전체
+    // 폴백은 최후 수단으로만 쓴다).
     private Vector2Int GetSpawnPosAroundBuilding(BuildingData b, Vector2 footprint)
     {
         Vector3Int buildingPos = b.Position;
@@ -380,10 +336,8 @@ public class BuildingManager : NativeRoutine
         return unitGenerate.GetRandomFloorPos(footprint, buildingPos.z);
     }
 
-    // 6단계: 설치 (Install) 로직 — 자원 생산 건물(V키)과 유닛 생산 건물(B키)은 얇은 래퍼로 분리해서
-    // 호출부에서 헷갈리지 않게 한다(공통 로직은 InstallBuildingInternal). 2026-08-25 건물 스프라이트/
-    // 크기 개편으로 각 건물이 자신의 footprint 상수(UnitBuildingFootprint/ResourceBuildingFootprint)를
-    // 고정으로 사용하고, 디버그용 더미 건물(기능 없음, 건물 판정만)이 1x1로 추가됐다.
+    // 설치(Install) 로직 — 자원 생산 건물(V키)과 유닛 생산 건물(B키)은 얇은 래퍼로 분리한다(공통
+    // 로직은 InstallBuildingInternal).
     public bool InstallResourceBuilding(Vector3Int pos, Sprite buildingSprite)
     {
         return InstallBuildingInternal(pos, ResourceBuildingFootprint, isResourceBuilding: true, isDummy: false, availableRules: null, buildingSprite, "자원 생산 시설");
@@ -394,11 +348,7 @@ public class BuildingManager : NativeRoutine
         return InstallBuildingInternal(pos, UnitBuildingFootprint, isResourceBuilding: false, isDummy: false, availableRules, buildingSprite, "유닛 생산 시설");
     }
 
-    // 디버그용 더미 건물(2026-08-25, 사용자 요청 "기존에 쓰던 두 스프라이트는 디버그용 툴에다가
-    // 배치할건데... 아무런 기능도 하지 않는, 건물 판정만 있는 더미 건물") — 생산/자원 로직 전부 없이
-    // 1타일 점유(CanInstallAt 판정 대상이 됨)만 한다. displayName은 시각화 오브젝트 이름과 로그에만
-    // 쓰임. requireOwnership: false(2026-08-25 사용자 요청 "더미건물은, 바닥 타일이라면, 아무데나
-    // 설치 가능하게 해줘. (점령 여부 무관)") — 방 소유/점령 여부와 무관하게 바닥 타일이면 설치 가능.
+    // 디버그용 더미 건물 — 생산/자원 로직 없이 1타일 점유만 한다. requireOwnership: false — 방 소유/점령 여부와 무관하게 설치 가능하다.
     public bool InstallDummyBuilding(Vector3Int pos, Sprite buildingSprite, string displayName)
     {
         return InstallBuildingInternal(pos, DummyBuildingFootprint, isResourceBuilding: false, isDummy: true, availableRules: null, buildingSprite, displayName, requireOwnership: false);
@@ -435,21 +385,14 @@ public class BuildingManager : NativeRoutine
         return true;
     }
 
-    // 사용자 신고(2026-07-27) "건물 스프라이트 바깥쪽이 파란색이라 부자연스러움" 대응 — Tilemap.SetTile로
-    // 바닥 타일을 통째로 갈아치우면 스프라이트의 투명 영역이 원래 바닥이 아니라 타일맵 뒤(카메라
-    // 배경색)를 그대로 드러냈다. GameSession.SpawnObject(루팅/함정/시체/코어)와 동일한 관례로, 바닥은
-    // 그대로 두고 이 GameObject를 그 위에 얹는 방식으로 바꿨다 — 스프라이트 크기도 sprite.bounds
-    // 기준으로 역산해 항상 footprint 칸 수(가로 x 세로)에 꽉 차도록 스케일한다(2026-08-25, 다중 타일
-    // 건물 지원 — SpawnObject의 1칸 고정 스케일 원리를 footprint만큼 일반화).
+    // Tilemap.SetTile로 바닥 타일을 통째로 갈아치우면 스프라이트 투명 영역이 타일맵 뒤(카메라 배경색)를
+    // 드러내므로, 바닥은 그대로 두고 이 GameObject를 그 위에 얹는다(GameSession.SpawnObject와 동일 관례).
     private GameObject CreateBuildingVisual(Vector3Int pos, Vector2Int footprint, Sprite buildingSprite, string objectName)
     {
         GameObject visual = new GameObject($"Building_{objectName}_{pos.x}_{pos.y}_{pos.z}");
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = buildingSprite;
-        // 2026-08-25 사용자 요청 "계단보다 건물의 레이어가 더 높게" — 계단 오버레이(MapRandering.
-        // StairOverlaySortingOrder)와 GameSession.SpawnObject의 루팅/함정/코어/문 오브젝트가 모두
-        // 5를 쓰던 것과 같은 값을 공유해 겹칠 때 렌더 순서가 정해져 있지 않았다. 건물만 6으로 올려서
-        // 항상 그 위에 그려지게 한다(6은 다른 sortingOrder 상수와 충돌하지 않는 빈 값).
+        // 건물이 계단/오브젝트(다른 sortingOrder들이 모두 5)보다 항상 위에 그려지도록 6으로 올린다.
         sr.sortingOrder = 6;
 
         Vector3 floorOffset = unitGenerate != null ? unitGenerate.GetFloorOffset(pos.z) : Vector3.zero;
@@ -460,8 +403,7 @@ public class BuildingManager : NativeRoutine
         float scaleY = spriteWorldSize.y > 0f ? footprint.y / spriteWorldSize.y : footprint.y;
         visual.transform.localScale = new Vector3(scaleX, scaleY, 1f);
 
-        // 계층 정리(2026-07-28, 사용자 요청 "각 층에 자식으로 할당된 오브젝트들을... 종류별로 묶어서")
-        // — 건물은 "Buildings" 하위 그룹으로.
+        // 건물은 "Buildings" 하위 그룹으로 계층 정리.
         Transform buildingGroup = GameSession.Instance?.GetFloorCategoryGroup(pos.z, "Buildings");
         if (buildingGroup != null) visual.transform.SetParent(buildingGroup, true);
 

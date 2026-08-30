@@ -1,11 +1,9 @@
 using UnityEngine;
 
-// 유닛 프리팹의 Visual 자식(예: Visual/WeaponSocket)에 붙여서, 유닛의 8방향(Dir)에 맞춰
-// 무기 스프라이트의 위치/회전/정렬순서를 조정하는 범용 컴포넌트. 유닛 타입이나 무기 종류에
-// 상관없이 재사용 가능 — 프리팹마다 poses/nativeSpriteAngle 값만 인스펙터에서 따로 튜닝하면 된다.
-//
-// UnitSpriteManager.GetSpriteLabelForDirection()과 동일한 컨벤션: UP/UP_LEFT/LEFT/DOWN_LEFT/DOWN
-// 5개 기준 방향만 데이터로 갖고, RIGHT 계열(RIGHT/UP_RIGHT/DOWN_RIGHT)은 좌우 미러링으로 재사용한다.
+// 유닛 프리팹의 Visual 자식(예: Visual/WeaponSocket)에 붙여 8방향(Dir)에 맞춰 무기 스프라이트의
+// 위치/회전/정렬순서를 조정하는 범용 컴포넌트 — 유닛/무기 종류 무관하게 재사용 가능하며 프리팹마다
+// poses/nativeSpriteAngle만 튜닝하면 된다. UnitSpriteManager.GetSpriteLabelForDirection()과 동일하게
+// UP/UP_LEFT/LEFT/DOWN_LEFT/DOWN 5개 기준 방향만 데이터로 갖고 RIGHT 계열은 좌우 미러링으로 재사용한다.
 [RequireComponent(typeof(SpriteRenderer))]
 public class WeaponAttachment : MonoBehaviour
 {

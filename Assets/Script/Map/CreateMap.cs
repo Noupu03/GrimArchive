@@ -122,12 +122,9 @@ public partial class CreateMap
                 PlaceStairs();
 
                 // ⑧-b 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭 갱신
-                // 사용자 요청(2026-07-28, "통로 폭 고정 안되었어. 맵 새로 생성했는데도 안되어있네") —
-                // ConnectRooms/AddLoops/RepairGateConnectivity 쪽 gateWidth는 이미 2로 고정했지만
-                // (CreateMap.Connection.cs), 이 호출이 그 뒤에 실행되면서 계단 방 등 allowMaxFootprint가
-                // 큰(5 등) 방으로 이어지는 Gate를 다시 그 값까지 넓혀버려 "통로 항상 2*2" 규칙이 깨지고
-                // 있었다. 원인이 여기라 호출 자체를 막는다. 롤백 가능성 있어 함수 정의(UpdateGateWidthsAfterStairs
-                // 본문, CreateMap.Stairs.cs)는 그대로 두고 호출만 주석 처리.
+                // 이 호출은 계단 방 등 allowMaxFootprint가 큰 방으로 이어지는 Gate를 다시 넓혀
+                // "통로 항상 2*2" 규칙을 깨뜨려서 막아뒀다. 롤백 가능성 있어 함수 정의
+                // (UpdateGateWidthsAfterStairs 본문, CreateMap.Stairs.cs)는 남기고 호출만 주석 처리.
                 // UpdateGateWidthsAfterStairs();
 
                 // ⑨ 검증: 모든 Floor 무결성 확인

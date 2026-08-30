@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 03문서 4-12~4-15장(2026-07-27 신규): 파티원 시체 발견 → 정신력 감소 → 사망 원인 확인 → 위험도 반영
-// → 원인미상 수색까지 이어지는 한 건의 "사망 사건" 진행 상태. 시체 오브젝트 Id를 키로 Party.DeathRecords에
-// 저장된다(Party가 "같은 웨이브에 진입한 인류는 하나의 파티로 취급"이라는 4-12장 전제를 그대로 구현).
+// 03문서 4-12~4-15장: 파티원 시체 발견 → 정신력 감소 → 사망 원인 확인 → 위험도 반영 → 원인미상
+// 수색까지 이어지는 한 건의 "사망 사건" 진행 상태. 시체 오브젝트 Id를 키로 Party.DeathRecords에
+// 저장된다(Party가 "같은 웨이브에 진입한 인류는 하나의 파티로 취급"이라는 4-12장 전제를 구현).
 public class PartyDeathRecord
 {
 	public string DeadUnitName;
@@ -17,9 +17,9 @@ public class PartyDeathRecord
 	// 이벤트에 실제로 사용한다. 4-14장 "정확히 확인된 경우로 한정" 요구사항을 지키기 위한 장치).
 	public Unit CauseMonster;
 	// 4-14장: 사망 원인이 몬스터가 아니라 함정일 수도 있다 — CauseMonster와 상호 배타적으로 채워진다
-	// (Unit.lastAttacker/lastTrapAttacker가 죽는 순간 어느 쪽이 더 최근이었는지로 하나만 남긴다).
-	// 함정이 원인으로 확인되면 CauseConfirmed는 true가 되지만, 대표 가중치 이벤트는 몬스터 원인에만
-	// 적용되므로(4-14장 "사망 원인이 몬스터로 확인되면") 이 경우 DangerApplied는 계속 false로 남는다.
+	// (Unit.lastAttacker/lastTrapAttacker 중 죽는 순간 더 최근인 쪽만 남긴다). 함정이 원인으로
+	// 확인되면 CauseConfirmed는 true가 되지만, 대표 가중치 이벤트는 몬스터 원인에만 적용되므로
+	// (4-14장) 이 경우 DangerApplied는 계속 false로 남는다.
 	public InteractableObject CauseTrap;
 	public bool CauseConfirmed;
 	public bool DangerApplied; // 이 사망 사건으로 위험도 이벤트를 이미 적용했는지(중복 방지)

@@ -3,12 +3,11 @@ using UnityEngine;
 /// <summary>
 /// 인류 AI FSM+BT 행동 수치 파라미터. 에셋 경로: Resources/FSM+BT/AIBehaviorConfig
 ///
-/// 각 항목의 문서 근거(03_탐색반응·경계·조사·함정대응_시스템_v0.6)를 Tooltip에 명시했다.
-/// 문서가 수치를 주지 않는 항목은 "내부 판단" 주석을 달아 구분한다.
+/// 각 항목의 문서 근거(03_탐색반응·경계·조사·함정대응_시스템_v0.6)를 Tooltip에 명시했다. 문서가
+/// 수치를 주지 않는 항목은 "내부 판단" 주석으로 구분한다.
 ///
-/// 비주얼 스크립팅 전환 시:
-///   이 파일의 각 [Header] 그룹 → 대응하는 BTNodeSO 인스펙터 필드로 분산된다.
-///   AIConfigLoader가 BTGraphAsset 로더로 교체되고 이 파일은 폐기된다.
+/// 비주얼 스크립팅 전환 시: 이 파일의 각 [Header] 그룹 → 대응하는 BTNodeSO 인스펙터 필드로 분산되고,
+/// AIConfigLoader가 BTGraphAsset 로더로 교체되면 이 파일은 폐기된다.
 /// </summary>
 [CreateAssetMenu(menuName = "GrimArchive/AI/AIBehaviorConfig", fileName = "AIBehaviorConfig")]
 public class AIBehaviorConfig : ScriptableObject

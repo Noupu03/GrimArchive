@@ -330,10 +330,8 @@ public partial class CreateMap
         int total = horizontal.Count + vertical.Count;
         if (total == 0) return;
 
-        // 사용자 요청(2026-07-28, "통로 생성 규칙 너무 부자연스러우니... 통로는 반드시 2*2여야 해")
-        // — 방 footprint 기준으로 통로 폭이 방마다 2~6칸으로 들쭉날쭉했던 게 부자연스럽다는 지적. 폭을
-        // 항상 2로 고정한다(문 배치는 이미 통로 양쪽 문턱 2줄을 심으므로 2폭×2줄 = 2*2). 롤백 가능성
-        // 있어 기존 계산 로직은 지우지 않고 주석 처리만 해둔다.
+        // 통로 폭은 항상 2로 고정한다(가변 폭은 들쭉날쭉해 부자연스러움 — 문 배치가 통로 양쪽 문턱
+        // 2줄을 심으므로 2폭×2줄). 롤백 가능성 있어 기존 계산 로직은 주석 처리만 해둔다.
         // int gateWidth = ComputeGateWidth(ref floor, roomA, roomB);
         int gateWidth = 2;
 
@@ -496,8 +494,7 @@ public partial class CreateMap
     // 인접 청크 (ax,ay)↔(bx,by) 사이에 방향 판별 후 통로 개방 + Gate 등록
     void OpenPassageBetweenChunks(ref Floor floor, int ax, int ay, int bx, int by, int ridA, int ridB)
     {
-        // 사용자 요청(2026-07-28) — OpenPassage와 동일하게 통로 폭을 2로 고정. 롤백 가능성 있어
-        // 기존 계산 로직은 주석 처리만.
+        // OpenPassage와 동일하게 통로 폭을 2로 고정. 롤백 가능성 있어 기존 계산 로직은 주석 처리만.
         // int gateWidth = ComputeGateWidth(ref floor, ridA, ridB);
         int gateWidth = 2;
 

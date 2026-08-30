@@ -2,20 +2,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 건축물·자원·유닛 생산 MVP(2026-07-27) — 빌드 모드(고스트 프리팹) 컨트롤러. B키=유닛 생산 건물,
-// V키=자원 생산 건물. 같은 고스트/스프라이트를 공유하고 플래그로만 구분한다.
-//
-// InputManager 비대화를 막기 위해 InputManager.cs에서 분리했다(2026-08-20) — 몬스터 배치 모드
-// (MonsterPlacementController)를 먼저 분리하면서 발견한 것과 같은 문제(기존 빌드/오브젝트 배치
-// 모드도 전부 InputManager 안에 그대로 있었음)를 같은 방식으로 정리한 것. 모드 간 배타 진입(예:
-// 빌드 모드 진입 시 오브젝트 배치 모드 종료)은 이 클래스가 직접 하지 않고 InputManager.Update()가
-// 조율한다 — ObjectPlacementController와 서로를 직접 참조하지 않게(순환 참조 방지) 하기 위함.
+// 건축물·자원·유닛 생산 빌드 모드(고스트 프리팹) 컨트롤러 — B키=유닛 생산 건물, V키=자원 생산 건물,
+// 같은 고스트/스프라이트를 공유하고 플래그로만 구분한다. InputManager 비대화를 막기 위해 분리됐고,
+// 모드 간 배타 진입은 이 클래스가 직접 하지 않고 InputManager.Update()가 조율한다
+// (ObjectPlacementController와 순환 참조를 피하기 위함).
 public class BuildPlacementController
 {
     public bool IsActive => _isBuildMode || _isResourceBuildMode;
     // BottomMenuBar가 "유닛 생산 건물"/"자원 생산 건물" 서브버튼을 각각 따로 하이라이트/토글하는 데
-    // 쓴다(2026-08-20, 사용자 신고 "자원 생산 건물과 유닛 생산 건물이 다중 선택되어버리는 UI 버그" —
-    // 이전엔 합쳐진 IsActive만 있어서 둘 다 항상 같이 켜진 것처럼 보였다).
+    // 쓴다(합쳐진 IsActive만 있으면 둘 다 항상 같이 켜진 것처럼 보이는 UI 버그가 있었다).
     public bool IsUnitBuildModeActive => _isBuildMode;
     public bool IsResourceBuildModeActive => _isResourceBuildMode;
 
@@ -81,11 +76,9 @@ public class BuildPlacementController
 
         _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos, footprint), footprint);
 
-        // 우클릭 취소는 없앴다(2026-08-20, 사용자 요청 "우클릭 취소 없애고, 오직 메뉴 바꾸기 혹은 메뉴
-        // 다시 클릭으로 바꿀 수 있게") — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브
-        // 버튼을 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유). 설치 확정 입력은
-        // 2026-08-22(사용자 요청 "좌클릭은 선택, 우클릭은 실행으로 두자. 설치나 명령 전반 모두 포함")로
-        // 좌클릭에서 우클릭으로 옮겼다.
+        // 우클릭 취소는 없앴다 — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을
+        // 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유). 설치 확정 입력은
+        // "좌클릭은 선택, 우클릭은 실행" 클릭 관례 통일로 좌클릭에서 우클릭으로 옮겼다.
         if (GameInputScheme.SecondaryDown)
         {
             if (!GUIMouseUtil.IsPointerOverAnyPanel())

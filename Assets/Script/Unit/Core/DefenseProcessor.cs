@@ -1,13 +1,9 @@
 using System.Collections.Generic;
 using Haare.Util.Logger;
 
-// OffenseProcessor의 대칭 개념(2026-08-20, 사용자 요청 "대기 상태를 새로 만들어줘... 오펜스, 디펜스
-// 중이 아닌 방의 경우 유닛은... 1칸 이동 후 정지를 반복") — 플레이어 소유 방에 적대 진영(야생/인류)
-// 유닛이 침입한 "디펜스 중" 상태를 추적한다. OffenseProcessor와 달리 방 소유권 전환 책임은 없다(그건
-// 이미 OffenseProcessor.TryResolveRoomOwnership/GameSession.RemoveDeadUnit 경로가 담당) — 여기서는
-// 오직 "지금 이 방이 침입받고 있는가"만 들고 있는다. IdleFSMState가 "이 방이 지금 전투 중이라 평시
-// 배회를 하면 안 된다"는 판단에 이 값을 쓴다(사용자 확인, 2026-08-20 — OffenseProcessor와 동일하게
-// 전용 추적 시스템으로 신설).
+// OffenseProcessor의 대칭 개념 — 플레이어 소유 방에 적대 진영(야생/인류) 유닛이 침입한 "디펜스 중"
+// 상태만 추적한다(방 소유권 전환은 OffenseProcessor.TryResolveRoomOwnership/GameSession.RemoveDeadUnit
+// 소관). IdleFSMState가 "전투 중인 방에서 평시 배회를 막는" 판단에 이 값을 쓴다.
 public class DefenseProcessor
 {
     private readonly HashSet<Room> _activeDefenseRooms = new HashSet<Room>();

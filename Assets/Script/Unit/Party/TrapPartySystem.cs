@@ -1,12 +1,10 @@
 using UnityEngine;
 
-// 03문서 9장 개편(2026-07-27) 구현부 — 함정 발견 시 "발견자 혼자 처리"가 아니라 파티 전체 성공률을
-// 비교해 실제 해제 담당(선정 유닛)을 뽑고, 나머지는 정보만 기록한 채 기존 행동을 유지하게 한다.
-// 호출 지점:
-//   - UnitFunction.CastRay(오브젝트 인지 블록): OnTrapDiscovered(최초 발견)
-//   - UnitFunction.OnUpdate(함정 타이머 블록): ResolveSelection(2초 응답/기록함정 즉시 확정 시점),
-//     TickWaitingForSelectedUnit(비선정 발견자가 선정 유닛 도착을 기다리는 동안 매 프레임)
-//   - TacticalFSMState.TrapSearchForMissingUnit: 선정 유닛 사망/미도착 확인 후 재전파 재시작
+// 03문서 9장 구현부 — 함정 발견 시 "발견자 혼자 처리"가 아니라 파티 전체 성공률을 비교해 실제 해제
+// 담당(선정 유닛)을 뽑고, 나머지는 정보만 기록한 채 기존 행동을 유지한다. 호출 지점: UnitFunction.
+// CastRay(OnTrapDiscovered, 최초 발견) / UnitFunction.OnUpdate(ResolveSelection: 2초 응답·기록함정
+// 즉시 확정 / TickWaitingForSelectedUnit: 비선정 발견자가 선정 유닛 도착을 기다리는 매 프레임) /
+// TacticalFSMState.TrapSearchForMissingUnit(선정 유닛 사망·미도착 확인 후 재전파 재시작).
 public static class TrapPartySystem
 {
 	// ─────────────────────────── 9-1~9-3장: 함정 최초 발견 ───────────────────────────
@@ -77,8 +75,7 @@ public static class TrapPartySystem
 
 	// 07문서 9장: "미보유 유닛이 있으면 재전파" — 최초 발견 시점 전파 범위 밖이었던 파티원도 나중에
 	// 범위 안으로 들어오면 함정 정보를 받는다(PartyDeathSystem.TickOngoingPropagation/CorePartySystem.
-	// TickLeaderPropagation과 동일 패턴, 2026-08-06 검증 중 발견 — 기존엔 OnTrapDiscovered 시점 1회
-	// 전파뿐이었다). UnitFunction.OnUpdate가 매 인류 0.1초 틱에서 호출.
+	// TickLeaderPropagation과 동일 패턴). UnitFunction.OnUpdate가 매 인류 0.1초 틱에서 호출.
 	public static void TickOngoingPropagation(Human human)
 	{
 		var party = human.party;
@@ -215,10 +212,10 @@ public static class TrapPartySystem
 		Vector2Int trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		if (Vector2Int.Distance(selected.position, trapPos2D) <= 1f) return; // 이미 도착 — 대기 계속
 
-		// 2026-08-23 버그 수정: 여기서 매 틱 EstimateEta를 새로 구해 MissingUnitTimer(누적 경과시간)와
-		// 비교하면, 선정 유닛이 정상적으로 접근할수록 "남은" ETA도 함께 줄어들어 두 값이 원래 의도
-		// (최초 ETA + 3초)보다 훨씬 이르게(대략 절반 지점에) 만나 정상 이동 중인 유닛까지 "실종"으로
-		// 오판정됐다. ResolveSelection이 선정 확정 시점에 고정해둔 SelectedUnitInitialEta를 그대로 쓴다.
+		// 매 틱 EstimateEta를 새로 구해 MissingUnitTimer(누적 경과시간)와 비교하면, 선정 유닛이 정상
+		// 접근할수록 "남은" ETA도 함께 줄어들어 원래 의도(최초 ETA + 3초)보다 훨씬 이르게 만나 정상
+		// 이동 중인 유닛까지 "실종"으로 오판정된다 — ResolveSelection이 선정 확정 시점에 고정해둔
+		// SelectedUnitInitialEta를 그대로 쓴다.
 		float eta = trap.SelectedUnitInitialEta >= 0f ? trap.SelectedUnitInitialEta : EstimateEta(selected, trap.TrapPosition);
 		trap.MissingUnitTimer += deltaTime;
 		if (trap.MissingUnitTimer >= eta + ExplorationMath.TrapSelectedUnitLateGraceSeconds)

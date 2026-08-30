@@ -91,11 +91,9 @@ public class Projectile : MonoBehaviour
     {
         if (!_isInitialized || _skillData == null) return;
 
-        // 투사체를 쏜 공격자가 비행 중에 죽으면(UnityEngine.Object.Destroy) _attacker는 "파괴된 참조"가
-        // 되어 Unity의 == null 오버라이드로 이 시점부터 항상 true를 반환한다. 예전에는 이 조건에서 그냥
-        // return만 하고 끝내서 투사체가 이동/충돌/소멸 어느 것도 하지 못한 채 허공에 영원히 멈춰
-        // 있었다(재발한 버그) — 공격자가 사라지면 추가 피해 계산 자체가 불가능하므로 투사체도 즉시
-        // 소멸시킨다.
+        // 투사체를 쏜 공격자가 비행 중에 죽으면(Destroy) _attacker는 Unity의 == null 오버라이드로 항상
+        // true를 반환하는 "파괴된 참조"가 된다 — 이 경우 그냥 return하면 투사체가 허공에 영원히 멈춰서는
+        // 버그가 재발하므로, 공격자가 사라지면 추가 피해 계산이 불가능하다고 보고 투사체도 즉시 소멸시킨다.
         if (_attacker == null)
         {
             DestroyProjectile();

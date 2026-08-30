@@ -4,15 +4,10 @@ using Haare.Client.Routine;
 using Haare.Client.UI;
 using VContainer;
 
-// 건축물·자원·유닛 생산 MVP(2026-07-27) — B/V키로 지은 건물을 클릭하면 뜨는 조작 UI(스타크래프트 참고,
-// 사용자 요청). DebugInfoPanel/StatusInfoPanel과 동일한 관례 — [PanelAttribute]로 등록된 얇은 UGUI
-// 프리팹 껍데기 + 실제 인터랙션은 OnGUI로 그린다(이 프로젝트에서 이미 검증된 패턴).
-//
-// 오브젝트 정보 조회 겸용(2026-08-22 후속 피드백, 사용자 요청 "모든 오브젝트는 이제 클릭을 통해
-// 정보를 볼 수 있어(건물처럼)") — 코어/문/함정/전리품/시체/전멸흔적 등 InteractableObject 전반의
-// 클릭 정보 표시도 이 클래스가 겸한다. 새 프리팹을 만들려면 Unity 에디터에서 GUID를 새로 발급받아야
-// 하는데 이 환경에서는 에디터 실행이 불가능해 안전하게 만들 수 없다 — 이미 있는 이 패널(내용은 전부
-// OnGUI라 프리팹 자체는 빈 껍데기, DebugInfoPanel의 "시야 표시" 토글 재사용 전례와 동일한 이유)의
+// B/V키로 지은 건물을 클릭하면 뜨는 조작 UI. DebugInfoPanel/StatusInfoPanel과 동일한 관례 —
+// [PanelAttribute]로 등록된 얇은 UGUI 프리팹 껍데기 + 실제 인터랙션은 OnGUI로 그린다.
+// 코어/문/함정/전리품/시체/전멸흔적 등 InteractableObject 전반의 클릭 정보 표시도 이 클래스가 겸한다 —
+// 에디터 실행이 불가능한 환경이라 새 프리팹 GUID를 발급받을 수 없어, 내용이 전부 OnGUI인 이 패널의
 // _current(건물)/_currentObject(오브젝트) 두 상태를 상호 배타로 관리해 확장했다.
 [PanelAttribute("Prefabs/BuildingControlPanel")]
 public class BuildingControlPanel : MonoRoutine, ICustomPanel
@@ -41,13 +36,9 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         Instance = this;
     }
 
-    // 좌하단 패널 스택 구조 개선(2026-08-21, 사용자 요청 "빈틈이 안 당겨져" 재확인 + "구조 개선 필요한
-    // 부분 있는지 체크") — 예전엔 OnGUI/IsMouseOverPanel이 `if (_current == null) return;`으로 먼저
-    // 걸러진 뒤에야 GetPanelRect()(=Report 호출부)를 불러서, 패널이 닫히는 순간 "안 보인다"는 보고
-    // 자체가 실행되지 않았다(BottomLeftPanelStack의 프레임 스윕이 안전망으로 뒤늦게 정리해주긴
-    // 했지만 최대 1~2프레임 지연). UpdateProcess는 _current 상태와 무관하게 매 프레임 무조건
-    // 실행되므로, 여기서 직접 보고하면 패널이 닫히는 바로 그 프레임에 즉시 정리된다 — 스윕은 이제
-    // 이 보고를 놓치는 다른 소비자를 위한 이중 안전망일 뿐, 이 패널은 더 이상 거기 의존하지 않는다.
+    // OnGUI/IsMouseOverPanel의 null 체크 뒤에서만 Report를 부르면 패널이 닫히는 순간의 보고가
+    // 누락돼 BottomLeftPanelStack의 프레임 스윕에 최대 1~2프레임 지연이 생긴다 — UpdateProcess는
+    // 상태와 무관하게 매 프레임 도므로 여기서 직접 보고해 닫히는 프레임에 즉시 정리한다.
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
@@ -88,11 +79,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private const int PanelWidth = 260;
     private const int PanelHeight = 260;
 
-    // 좌하단 패널 스택(2026-08-21, 사용자 요청 "유닛 정보 UI와 같은 방식으로... 스택형태로 좌우로
-    // 쌓이게" → "새 창이 왼쪽으로 오는 형태가 아니라 오른쪽으로 늘어나는 형태로") — 지금 보이는 동안
-    // 매 프레임 자기 폭을 보고하고 시작 X를 받아온다. 등록 순서 기반이라(BottomLeftPanelStack 주석
-    // 참고) 이 패널이 먼저 떠 있었다면(예: 유닛을 아직 하나도 선택 안 한 채 건물부터 클릭) 나중에
-    // 유닛 정보 UI가 나타나도 이 패널 위치는 그대로고, 유닛 정보 UI가 오른쪽에 새로 붙는다.
+    // 좌하단 패널 스택 — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다. 등록 순서
+    // 기반이라 이 패널이 먼저 떠 있었다면 나중에 뜨는 유닛 정보 UI가 오른쪽에 새로 붙는다.
     private const string StackId = "BuildingControl";
 
     private Rect GetPanelRect()
@@ -102,18 +90,16 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return new Rect(x, y, PanelWidth, PanelHeight);
     }
 
-    // 사용자 신고(2026-07-27) "유닛 생산 시설 버튼 클릭 시 UI가 닫혀버림" — OnGUI(IMGUI)는 UGUI의
-    // EventSystem.IsPointerOverGameObject()로 감지가 안 돼서, 패널 안 버튼을 클릭해도 그 클릭이 그대로
-    // InputManager의 월드 클릭으로도 처리돼 "건물이 아닌 곳 클릭 → 패널 닫기" 분기를 타 버렸다.
-    // InputManager가 좌클릭을 월드 입력으로 처리하기 전에 이 패널 영역 위인지 먼저 확인하도록 노출한다.
+    // OnGUI(IMGUI)는 UGUI의 EventSystem.IsPointerOverGameObject()로 감지가 안 돼서, 패널 안 버튼
+    // 클릭이 InputManager의 월드 클릭(패널 닫기 분기)으로도 처리되던 문제 — 좌클릭 처리 전에
+    // 이 패널 영역 위인지 먼저 확인하도록 노출한다.
     public bool IsMouseOverPanel()
     {
         if (_current == null && _currentObject == null) return false;
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
-    // 다른 OnGUI 패널이 "지금 이 패널과 실제로 겹치는지" 판정할 때 쓴다(2026-08-24 사용자 신고
-    // "층 변경 UI가 다른 UI(메뉴 정보 포함)를 가려버림" — BottomMenuBar.DrawFloorPanel 참고,
+    // 다른 OnGUI 패널이 이 패널과 실제로 겹치는지 판정할 때 쓴다(BottomMenuBar.DrawFloorPanel,
     // DebugInfoPanel.TryGetVisibleInfoBoxRect와 동일 관례).
     public bool TryGetVisibleRect(out Rect rect)
     {
@@ -123,11 +109,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         return true;
     }
 
-    // UI 스타일 통일(2026-08-21, 사용자 요청 "건물 선택시 정보 UI... 다른 메뉴들과 동일한 스타일로") —
-    // 기본 Unity GUI 스킨(GUI.skin.box/Button/Label) 대신 BottomMenuBar/StatusInfoPanel과 같은
-    // GUIMenuStyleUtil(어두운 패널 박스 + 흰 테두리 + 굵은 흰 글씨 + 채우기형 버튼)을 쓴다. 항목 개수가
-    // 가변적인 목록(생산 가능 목록/대기열)이라 BottomMenuBar처럼 손으로 Rect를 계산하는 대신
-    // GUIMenuStyleUtil.DrawFlatButtonLayout(GUILayout 흐름 안에서 같은 버튼 스타일을 그리는 래퍼)을 쓴다.
+    // 기본 Unity GUI 스킨 대신 BottomMenuBar/StatusInfoPanel과 같은 GUIMenuStyleUtil을 쓴다. 항목
+    // 개수가 가변적인 목록이라 손으로 Rect를 계산하는 대신 DrawFlatButtonLayout(GUILayout 래퍼)을 쓴다.
     private void OnGUI()
     {
         if (_current == null && _currentObject == null) return;
@@ -189,9 +172,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 string progressText = "";
                 if (index == 0 && _current.IsProducing)
                 {
-                    // 인구수 초과로 진행이 멈춰있으면(2026-07-28, 사용자 요청) 진행중 대신 중지됨을
-                    // 표시한다 — BuildingManager.UpdateProcess가 이 동안 진행도를 안 늘려서 실제로도
-                    // 값이 정지해 있다(예: 0.0/1.0s에서 그대로).
+                    // 인구수 초과로 진행이 멈춰있으면 진행중 대신 중지됨을 표시한다 — BuildingManager.
+                    // UpdateProcess가 이 동안 진행도를 안 늘려서 실제로도 값이 정지해 있다.
                     progressText = _current.WaitingForRoomSpace
                         ? $" - 중지됨(방 인원 초과) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
                         : $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s";
@@ -223,10 +205,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         GUILayout.EndArea();
     }
 
-    // 오브젝트 정보 표시(2026-08-22 후속 피드백, 사용자 요청 "그 정보에는 만약 체력이 있는 오브젝트면
-    // 체력 표기, 만약 진영 소유 가능한 오브젝트면 오브젝트 어디 진영 소유인지 표기, 해당 오브젝트의
-    // 기본적인 정보 표기 등") — 코어/문/함정/전리품/시체/전멸흔적 등 모든 InteractableObject 공통.
-    // 순수 조회용이라 버튼은 아래 공용 "닫기"뿐이다.
+    // 코어/문/함정/전리품/시체/전멸흔적 등 모든 InteractableObject 공통 정보 표시 — 체력이 있으면
+    // 체력, 진영 소유 가능하면 소유 진영을 표기한다. 순수 조회용이라 버튼은 공용 "닫기"뿐이다.
     private void DrawObjectInfo(InteractableObject obj)
     {
         GUILayout.Label($"[ {GetObjectDisplayName(obj)} ]", GUIMenuStyleUtil.LabelStyle);
@@ -282,9 +262,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         hp = 0f; maxHp = 0f; return false;
     }
 
-    // 진영 소유 가능한 오브젝트(코어/문)만 값을 반환한다. 코어는 자신이 물리적으로 속한 방의
-    // Room.RoomFaction을 그대로 따르지만, 문은 2026-08-22부터 방 소유권과 분리된 고정값
-    // (InteractableObject.DoorOwnerFaction — 점령으로 안 바뀌고 파괴+재설치로만 바뀜)을 쓴다.
+    // 진영 소유 가능한 오브젝트(코어/문)만 값을 반환한다. 코어는 물리적으로 속한 방의 Room.RoomFaction을
+    // 따르지만, 문은 방 소유권과 분리된 고정값(InteractableObject.DoorOwnerFaction, 파괴+재설치로만 변경)을 쓴다.
     private static FactionType? GetObjectOwnerFaction(InteractableObject obj)
     {
         if (obj.Tags == null) return null;

@@ -2,15 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Tactical FSM 상태 안에서 BT Selector 자식 순서를 결정하는 설정.
-/// 에셋 경로: Resources/FSM+BT/TacticalPriority
+/// Tactical FSM 상태 안에서 BT Selector 자식 순서를 결정하는 설정. 에셋 경로: Resources/FSM+BT/TacticalPriority
 ///
-/// 03문서 2-1장 기본 우선순위: 함정 대응 > 경계 > 조사 > 대기 (공황은 항상 최우선)
-/// 포메이션은 파티 보호 목적이라 문서 우선순위 외 별도 판단으로 최하위 배치.
+/// 03문서 2-1장 기본 우선순위: 함정 대응 > 경계 > 조사 > 대기(공황은 항상 최우선). 포메이션은 파티
+/// 보호 목적이라 문서 우선순위 외 별도 판단으로 최하위 배치.
 ///
-/// 비주얼 스크립팅 전환 시:
-///   이 리스트의 각 Entry → BT 그래프의 노드(TacticalBehaviorType이 노드 타입 식별자로 사용).
-///   순서는 Selector 자식 연결 순서, enabled 는 노드 활성화 여부로 대응된다.
+/// 비주얼 스크립팅 전환 시: 이 리스트의 각 Entry → BT 그래프의 노드(TacticalBehaviorType이 타입
+/// 식별자), 순서는 Selector 자식 연결 순서, enabled는 노드 활성화 여부로 대응된다.
 /// </summary>
 [CreateAssetMenu(menuName = "GrimArchive/AI/TacticalBehaviorPriority", fileName = "TacticalPriority")]
 public class TacticalBehaviorPriorityConfig : ScriptableObject
@@ -62,14 +60,11 @@ public enum TacticalBehaviorType
     Investigate,   // 조사 오브젝트 상호작용
     Wait,          // 지정 위치/목적 대기
     Formation,     // 보호 포메이션 유지
-    // 기초문서.md 피드백(2026-08-22 전면 개편): 자기 진영 소유가 아닌 방의 코어 공격 — 최후순위.
-    // 2026-08-22 재조정(사용자 확정 "플레이어 측 몬스터는 절대 스스로 문이나 코어를 파괴하려
-    // 시도해서는 안 된다. 반드시 플레이어의 명령으로만 시도해야 한다. 자동 오브젝트 공격은 오직
-    // 인류만의 로직이다") — 인류 전용으로 축소. 플레이어 몬스터는 PlayerCommandFSMState.
-    // ExecutePlayerAttackObject(명령)로만 코어/문을 공격할 수 있다.
+    // 자기 진영 소유가 아닌 방의 코어 공격 — 최후순위, 인류 전용. ⚠️ 플레이어 몬스터는 절대 스스로
+    // 코어/문을 공격하지 않는다 — 반드시 PlayerCommandFSMState.ExecutePlayerAttackObject(플레이어
+    // 명령)로만 가능하다.
     CoreAttack,
-    // 2026-08-22 신규(사용자 요청 "인간쪽에만 적용되는 fsm... 방을 점령하고 난 다음, 다른 방으로
-    // 향하는 다른 진영 문이 발견되었으면 공격하고, 탐험을 이어나가는 로직") — 인류 전용. 이미 점령한
-    // 방의 경계 문 중 아직 다른 진영 소유인 문을 부순다. CoreAttack과 동급 최후순위(자리표시자).
+    // 인류 전용 — 이미 점령한 방의 경계 문 중 아직 다른 진영 소유인 문을 부순다. CoreAttack과
+    // 동급 최후순위(자리표시자).
     DoorAttack,
 }

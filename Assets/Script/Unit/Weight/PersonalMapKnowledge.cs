@@ -4,12 +4,8 @@ using System.Text;
 using UnityEngine;
 
 // 인류(Human) 유닛 개인이 들고 있는 "지도" — 연산공식 문서 15~21장(타일/오브젝트/방 위험도·흥미도)의
-// 실체. 예전에는 이 데이터가 HumanKnowledgeBase(전역 싱글턴)에 있었지만, 지도관련_정리 문서가
-// 명시하듯 "인류 유닛별로 획득"되는 개인 인지 정보이므로 유닛 개인 소유로 옮겼다 — Human.Memory.personalMap
-// (Unit.cs)로만 보유하고, Monster/base Unit에는 두지 않는다("지도는 인류만" 요구사항).
-//
-// 이번 라운드는 개인 지도 데이터 자체의 완성이 스코프다. 진영(전체) 지도는 만들지 않는다 —
-// HumanKnowledgeBase의 13장(전멸 위험도) 관련 전역 누적값은 그대로 두고 건드리지 않았다.
+// 실체. 개인 인지 정보라 유닛 개인 소유다 — Human.Memory.personalMap(Unit.cs)로만 보유한다.
+// 개인 지도 데이터만 스코프 — 진영(전체) 지도나 HumanKnowledgeBase 13장 전역 누적값은 다루지 않는다.
 public class PersonalMapKnowledge
 {
 	// ─────────────────────────── 15장. 타일 위험도 ───────────────────────────
@@ -17,18 +13,15 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<Vector3Int, float> _tileSafetyElapsed = new();
 
 	// ─────────────────────────── 16장. 타일 흥미도 확인 시간 (v0.7 (1) 개정판 신설) ───────────────────────────
-	// "미탐사 기본 흥미도 5"도 15장 위험도와 똑같이 시야 확인 후 흥미도 단계별 확인 시간을 거쳐야
-	// 0(탐사완료)이 된다 — _tileDanger/_tileSafetyElapsed와 완전히 대칭 구조.
+	// 미탐사 기본 흥미도도 15장 위험도처럼 확인 시간을 거쳐야 0이 된다 — _tileDanger와 대칭 구조.
 	private readonly Dictionary<Vector3Int, float> _tileInterest = new();
 	private readonly Dictionary<Vector3Int, float> _tileInterestConfirmElapsed = new();
 
 	// 이 유닛이 확인 시간을 흘려보내야 할 타일 목록 — KnownDangerTiles와 동일한 용도(매 프레임 순회 대상).
 	public IEnumerable<Vector3Int> KnownInterestTiles => _tileInterest.Keys;
 
-	// 매 프레임 호출 — 이 타일에 지금 흥미도>0인 오브젝트가 있으면(=새 흥미 요소 발견) 타이머를
-	// 리셋하고, 없으면 단계별 확인 시간이 지난 뒤 0(제거)으로 감소시킨다. threatPresent를 외부
-	// (GameSession)에서 받아야 하는 TickTileSafety와 달리, "이 타일에 흥미도 있는 오브젝트가
-	// 있는가"는 이미 이 클래스가 들고 있는 _objectTile/_objectInterest만으로 판단 가능해 자기완결적이다.
+	// 매 프레임 호출 — 새 흥미 요소가 있으면 타이머를 리셋하고, 없으면 단계별 확인 시간 후 제거한다.
+	// TickTileSafety와 달리 threatPresent를 외부에서 받을 필요 없이 자기완결적으로 판단 가능하다.
 	public void TickTileInterestConfirm(Vector3Int pos, float deltaTime)
 	{
 		if (!_tileInterest.TryGetValue(pos, out var interest) || interest <= 0f) return;
@@ -87,10 +80,8 @@ public class PersonalMapKnowledge
 		var stage = WeightMath.GetDangerStage(Mathf.FloorToInt(danger));
 		if (elapsed >= WeightMath.TileSafetyCheckSeconds(stage))
 		{
-			// 안전 확정 — 값을 0으로 남겨두지 않고 기록 자체를 지운다. 0으로만 남기면
-			// GetTileDanger(pos, explored:true) 결과는 똑같지만(둘 다 0), 안전 확인이 끝난
-			// 타일이 KnownDangerTiles/디버그 목록에 죽은 항목으로 계속 쌓이고 매 프레임
-			// TickTileSafety를 도는 대상에서도 안 빠진다.
+			// 값을 0으로 남기지 않고 기록 자체를 지운다 — 안 지우면 죽은 항목이 KnownDangerTiles/
+			// 디버그 목록과 매 프레임 순회 대상에 계속 쌓인다.
 			_tileDanger.Remove(pos);
 			_tileSafetyElapsed.Remove(pos);
 		}
@@ -101,33 +92,18 @@ public class PersonalMapKnowledge
 	}
 
 	// ─────────────────────────── 지형 밝히기 (벽/바닥) ───────────────────────────
-	// GameSession의 FactionData.discoveredMap(0=미탐색/1=바닥/2=벽, 진영 전체 공유)과 같은 정보를
-	// 인류 개인 기준으로도 들고 있는다 — UnitFunction.CastRay가 시야가 지나가는 모든 타일마다
-	// (몬스터 발견 여부와 무관하게) 호출해서 채운다. 값 표기는 discoveredMap과 동일한 관례를 쓴다:
-	// 딕셔너리에 없으면 미탐색(0), 있으면 1(바닥) 또는 2(벽).
+	// GameSession의 FactionData.discoveredMap과 같은 정보를 인류 개인 기준으로도 들고 있는다 —
+	// UnitFunction.CastRay가 시야가 지나가는 모든 타일마다 호출해서 채운다. 값 표기는 discoveredMap과
+	// 동일한 관례: 딕셔너리에 없으면 미탐색(0), 있으면 1(바닥) 또는 2(벽).
 	private readonly Dictionary<Vector3Int, int> _tileTerrain = new();
-	// 층별 텍스처 캐시 — RevealTile()이 호출될 때마다 매번 새 Texture2D를 만들면 인스펙터가
-	// 매 프레임 다시 그리는 동안 텍스처가 계속 새로 할당돼 낭비/누수가 생긴다. GameSession.
-	// UpdateFactionTextures()와 동일하게 층이 더러워졌을 때만 다시 그리고, 크기가 그대로면
-	// 기존 Texture2D를 재사용한다.
+	// 층별 텍스처 캐시 — 매번 새 Texture2D를 만들면 낭비/누수가 생기므로, 층이 더러워졌을 때만
+	// 다시 그리고 크기가 그대로면 기존 텍스처를 재사용한다.
 	private readonly Dictionary<int, Texture2D> _terrainTextures = new();
 	private readonly HashSet<int> _dirtyTerrainFloors = new();
 
-	// 2026-07-31 — "가장 가까운 미탐사 타일 찾기"(NavigationFSMState.FindNearestUnexploredTarget)가
-	// 매번 이미 탐색된 영역 전체를 BFS로 훑어야 해서, 탐사가 진행될수록(explored 면적이 커질수록)
-	// 호출 1번의 비용이 계속 늘어나는 문제가 있었다(프로파일러 확인, 84회 호출에 134ms). 원래도
-	// "인류 유닛별 개인 지도"를 이 목적(탐사 경계 추적)까지 염두에 두고 설계한 것이었다(사용자 확인).
-	// _frontierTilesByFloor는 "아직 미탐사(_tileTerrain에 없음)지만 이미 밝혀진 바닥 타일과 인접한"
-	// 타일 집합을 층별로 나눠 들고 있는다 — RevealTile이 매번 갱신하므로, 목표를 고를 때는 이 집합
-	// (탐사 경계 길이에 비례 = 면적보다 훨씬 작음)에서만 최근접 탐색을 하면 된다.
-	//
-	// 최초 구현(단일 HashSet<Vector3Int>, 층 구분 없이 전부 순회 후 z로 필터)이 오히려 프레임을
-	// 더 깎아먹는 역효과를 낸 걸 프로파일러로 확인(단 1회 호출인데 self 20.80ms) — 두 가지 원인:
-	// 1) 층을 옮겨도 이전 층의 미해결 항목이 안 비워져서 조회할 때마다 그것까지 전부 순회했다 →
-	//    층별로 분리해 해당 층 집합만 순회하도록 해결(아래 GetOrCreateFrontierSet).
-	// 2) 대각선 인접 칸까지 후보로 넣었더니, 이 코드베이스 전반의 "코너 커팅 방지" 규칙 때문에
-	//    실제로는 결코 직접 RevealTile이 안 불리는(영원히 안 풀리는) 대각선 좀비 후보가 계속
-	//    쌓였다 → 아래에서 직교 4방향만 후보로 추가하도록 축소해 해결.
+	// "가장 가까운 미탐사 타일 찾기"가 매번 전체 BFS를 돌지 않도록 _frontierTilesByFloor("미탐사지만
+	// 밝혀진 바닥과 인접한" 타일)만 층별로 유지해 그 안에서만 탐색한다. 대각선 인접은 제외한다 — 코너
+	// 커팅 방지 규칙상 대각선 후보는 RevealTile이 결코 호출되지 않는 좀비로 남기 때문(직교 4방향만 사용).
 	private readonly Dictionary<int, HashSet<Vector2Int>> _frontierTilesByFloor = new();
 
 	private HashSet<Vector2Int> GetOrCreateFrontierSet(int floor)
@@ -149,10 +125,8 @@ public class PersonalMapKnowledge
 		_tileTerrain[pos] = isWall ? 2 : 1;
 		_dirtyTerrainFloors.Add(pos.z);
 
-		// 프론티어 갱신은 "처음 밝히는 타일"에서만 의미가 있다(이미 밝혀진 타일을 다시 보는 건 매
-		// UpdateFOV 패스마다 일어나는데, 그때마다 다시 스캔하면 오히려 새 핫패스가 된다) — 이 타일
-		// 자체는 이제 탐사됐으니 프론티어 후보에서 빠지고, 바닥이면 직교 인접 4칸 중 아직 미탐사인
-		// 칸들이 새 프론티어 후보로 추가된다(대각선 제외 — 위 필드 주석 참고).
+		// 프론티어 갱신은 "처음 밝히는 타일"에서만 한다(매 UpdateFOV마다 재스캔하면 새 핫패스가 됨) —
+		// 이 타일은 프론티어 후보에서 빠지고, 바닥이면 직교 인접 4칸 중 미탐사 칸이 새 후보로 추가된다.
 		if (isFirstReveal)
 		{
 			if (_frontierTilesByFloor.TryGetValue(pos.z, out var existingFrontier))
@@ -168,11 +142,9 @@ public class PersonalMapKnowledge
 			}
 		}
 
-		// 15장: "미탐사 타일 기본 위험도 2"도 다른 기록 위험도와 동일하게 안전 확인 절차를 거쳐야
-		// 한다 — 처음 시야에 들어오는 순간 바로 0(탐사완료+안전확인)이 되는 게 아니라, 위험도
-		// 2는 단계0(0~99)이므로 1초 동안 새 위험 요소가 없어야 비로소 0으로 내려간다. 이미 몬스터
-		// 관측 등으로 더 높은 값이 기록돼 있다면 그 값을 덮어쓰지 않는다. 벽은 유닛이 서 있을 수
-		// 없는 타일이라 대상에서 제외(그 결과는 그대로 GetTileDanger의 explored 분기가 담당).
+		// 미탐사 타일 기본 위험도도 다른 기록 위험도와 동일하게 안전 확인 절차를 거쳐야 한다 —
+		// 처음 시야에 들어와도 바로 0이 아니라 확인 시간이 지나야 내려간다. 이미 더 높은 값이
+		// 기록돼 있으면 덮어쓰지 않는다. 벽은 유닛이 서 있을 수 없어 대상에서 제외.
 		if (isFirstReveal && !isWall && !_tileDanger.ContainsKey(pos))
 		{
 			_tileDanger[pos] = WeightMath.UnexploredTileBaseDanger;
@@ -201,11 +173,9 @@ public class PersonalMapKnowledge
 
 	public bool IsTileRevealed(Vector3Int pos) => _tileTerrain.ContainsKey(pos);
 
-	// NavigationFSMState.RandomExplore 전용 — 지정한 층에서 from과 가장 가까운 프론티어(미탐사 경계)
-	// 타일을 반환한다. 층별로 분리된 집합(_frontierTilesByFloor)에서 해당 층 것만 선형 탐색하므로,
-	// 예전 BFS처럼 explored 영역 전체를 다시 훑거나 다른 층의 누적 항목까지 훑을 필요가 없다.
-	// 직선거리 기준 최근접이라 실제 이동 경로상 최단은 아닐 수 있지만(방/벽에 막힌 프론티어를 고를
-	// 가능성), 그 경우는 호출부의 기존 A* 실패 처리(대상을 벽으로 표시하고 재시도)가 그대로 흡수한다.
+	// NavigationFSMState.RandomExplore 전용 — 지정한 층에서 from과 가장 가까운 프론티어 타일을
+	// 반환한다. 직선거리 기준이라 실제 경로상 최단이 아닐 수 있지만, 그 경우는 호출부의 기존 A* 실패
+	// 처리(대상을 벽으로 표시하고 재시도)가 흡수한다.
 	public bool TryGetNearestFrontierTile(int floor, Vector2Int from, out Vector2Int nearest)
 	{
 		nearest = default;
@@ -235,10 +205,9 @@ public class PersonalMapKnowledge
 	// 밝혀진 타일이 하나라도 있는 층 번호 목록 — 인스펙터가 층별로 텍스처를 그릴 때 순회용.
 	public IEnumerable<int> KnownTerrainFloors => _tileTerrain.Keys.Select(k => k.z).Distinct().OrderBy(f => f);
 
-	// GameSession.UpdateFactionTextures()와 같은 방식(흰색=바닥, 회색=벽, 검정=미탐색)으로
-	// 이 유닛이 개인적으로 밝힌 지형만 그려서 반환한다 — 텍스트로 칸마다 나열하는 대신 인스펙터에서
-	// 그림 한 장으로 보기 위함. 밝혀진 타일들의 경계 상자만큼만 그리므로(진영 지도처럼 맵 전체
-	// 크기를 미리 알 필요 없음), 그 상자 안에서 아직 안 밝힌 칸은 검정으로 남는다.
+	// GameSession.UpdateFactionTextures()와 같은 방식(흰색=바닥, 회색=벽, 검정=미탐색)으로 이 유닛이
+	// 개인적으로 밝힌 지형만 그려서 반환한다. 밝혀진 타일들의 경계 상자만큼만 그리며, 그 안의 아직
+	// 안 밝힌 칸은 검정으로 남는다.
 	public Texture2D GetTerrainTexture(int floor)
 	{
 		var tilesOnFloor = _tileTerrain.Where(kv => kv.Key.z == floor).ToList();
@@ -276,8 +245,7 @@ public class PersonalMapKnowledge
 	}
 
 	// ─────────────────────────── 15장/16장/17장. 오브젝트 위치·위험도·흥미도 ───────────────────────────
-	// 2026-07-08: InteractableObject(Assets/Script/Map/InteractableObject.cs, 팀원 구현)가 실제
-	// 오브젝트 엔티티로 게임에 들어왔다 — objectId(=InteractableObject.Id)를 그대로 키로 쓴다.
+	// InteractableObject(Assets/Script/Map/InteractableObject.cs)의 objectId(=Id)를 그대로 키로 쓴다.
 	private readonly Dictionary<string, float> _objectBaseInterest = new();
 	private readonly Dictionary<string, float> _objectInterest = new();
 	private readonly Dictionary<string, float> _objectBaseDanger = new();
@@ -294,13 +262,10 @@ public class PersonalMapKnowledge
 
 		if (tags != null)
 		{
-			// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 정확 일치가 아니라 부분 일치로
-			// 검사해야 한다(2026-07-20 수정 — 기존 정확 일치 Contains("WipeoutTrace")/Contains("Corpse")는
-			// 항상 false를 반환하는 잠재 버그였다).
+			// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 정확 일치가 아니라 부분 일치로 검사한다.
 			if (tags.Any(t => t.Contains("WipeoutTrace")))
 			{
-				// 2026-07-20: 19장도 13-2장과 동일하게 원인 대상 위험도 단계 보정을 받는다(사용자 확인,
-				// 가중치_수정예정_2026-07-20.txt 항목 1 — 고정값 25만 쓰던 걸 교체).
+				// 19장도 13-2장과 동일하게 원인 대상 위험도 단계 보정을 받는다.
 				_objectInterest[objectId] = WeightMath.WipeoutTraceInterest(causerStage);
 			}
 			else if (tags.Any(t => t.Contains("Corpse")))
@@ -311,11 +276,8 @@ public class PersonalMapKnowledge
 		}
 	}
 
-	// 이 관찰자가 이 오브젝트를 이미 등록(발견)한 적 있는지 — 호출부(CastRay)가 "처음 발견"
-	// 여부를 판정할 때 흥미도 수치로 추측하지 않고 이 메서드로 직접 확인해야 한다. 수치 기반 추측
-	// (예: 현재 흥미도<=5)은 base흥미도가 원래 낮은 오브젝트나, 조사로 흥미도가 낮게 감쇠된
-	// 오브젝트를 "아직 못 본 것"으로 오판해 RegisterObject를 다시 불러 감쇠된 값을 기본값으로
-	// 되돌려버리는 버그가 있었다(2026-07-08 발견 및 수정).
+	// 이 관찰자가 이 오브젝트를 이미 등록(발견)했는지 — "처음 발견" 판정은 흥미도 수치로 추측하면
+	// 안 된다(감쇠된 오브젝트를 오판해 RegisterObject로 값을 기본값 되돌리는 버그가 생김).
 	public bool IsObjectKnown(string objectId) => _objectTile.ContainsKey(objectId);
 
 	// _objectTile은 objectId→tile로만 색인돼 있어(오브젝트 수가 적어 역방향 색인을 따로 안 둠),
@@ -331,16 +293,13 @@ public class PersonalMapKnowledge
 			? recorded
 			: (explored ? WeightMath.ExploredTileBaseInterest : WeightMath.UnexploredTileBaseInterest);
 		float objectInterest = (objectIdAtTile != null && _objectInterest.TryGetValue(objectIdAtTile, out var oi)) ? oi : 0f;
-		// 16장(v0.7 (1) 개정판): "기본 탐사 흥미도 + 오브젝트, 유닛 흥미도" — 유닛 흥미도 항.
-		// ComposeTileInterest는 2항 합산 함수라 오브젝트+유닛을 미리 더해서 넘긴다(문서 예시
-		// 5+120=125가 그대로 성립하도록 함수 시그니처/기존 테스트는 안 건드림).
+		// ComposeTileInterest는 2항 합산 함수라 오브젝트+유닛 흥미도를 미리 더해서 넘긴다.
 		float unitInterest = GetUnitInterestAtTile(pos);
 		return WeightMath.ComposeTileInterest(baseTileInterest, objectInterest + unitInterest);
 	}
 
-	// 16장 "유닛 흥미도" 항 — 이 관찰자가 그 타일에서 마지막으로 목격한 몬스터(들)의 흥미도
-	// 스냅샷 합. _monsterSightings도 오브젝트(_objectTile)와 마찬가지로 타일→키 역방향 색인이
-	// 없어 선형 탐색으로 처리한다(목격 몬스터 수가 적어 호출 빈도 낮은 조회 쪽에서 감당).
+	// 16장 "유닛 흥미도" 항 — 이 관찰자가 그 타일에서 마지막으로 목격한 몬스터(들)의 흥미도 스냅샷 합.
+	// _objectTile과 마찬가지로 역방향 색인 없이 선형 탐색으로 처리한다.
 	private float GetUnitInterestAtTile(Vector3Int pos)
 	{
 		float sum = 0f;
@@ -386,10 +345,8 @@ public class PersonalMapKnowledge
 	}
 
 	// ─────────────────────────── 03문서 9-2/9-3장. 함정 개인 지식(기록 여부/예상 성공률) ───────────────────────────
-	// "기록 여부"와 "예상 해제 성공률"은 지도 기록 전반과 동일하게 관찰자(유닛) 개인 소유다(v3 문서
-	// "함정/방어건물 상태" 기록도 6장/24장 규칙을 따른다는 함정_관련_요약.txt 24절 확인 결과와 일치).
-	// 9-3장의 "함정 정보 전파"는 이 코드베이스에 07_전파 문서가 아직 없어, UnitFunction.
-	// BroadcastWitnessEvent와 동일한 근사(그 순간 생존한 파티원 전원에게 직접 기록)로 구현한다.
+	// 기록 여부/예상 해제 성공률은 지도 기록 전반과 동일하게 관찰자 개인 소유다. "함정 정보 전파"
+	// (9-3장)는 07_전파 문서가 없어 UnitFunction.BroadcastWitnessEvent와 동일한 근사로 구현한다.
 	private readonly HashSet<string> _trapRecorded = new();
 	private readonly Dictionary<string, float> _trapExpectedSuccessRate = new();
 
@@ -397,12 +354,8 @@ public class PersonalMapKnowledge
 
 	public float GetTrapExpectedSuccessRate(string trapObjectId) => _trapExpectedSuccessRate.GetValueOrDefault(trapObjectId, 0f);
 
-	// 9-2장: "최초 해제 시도 이후 오차 범위를 포함한 예상 해제 성공률을 기록하며, 이해도가 증가하면
-	// 오차 범위가 감소하고 실제 해제 성공률이 증가한다" — 시도 결과(성공/실패)로 관측된 성공률을
-	// 기록해 이후 판단(9-4장 50% 기준)에 쓴다. observedRate는 ExplorationMath.TrapDisarmSuccessRate로
-	// 계산한 "이 유닛 기준 예상값"을 그대로 넘기면 된다(실제 굴림 결과와 무관하게, "시도해봤다"는
-	// 사실 자체가 그 순간의 예상치를 기록값으로 확정시킨다는 해석 — 9-2장이 오차 범위의 정확한
-	// 축소 공식을 안 줘서, "시도 = 기록 확정"으로 단순화했다).
+	// 9-2장: 시도 결과로 관측된 예상 해제 성공률을 기록해 이후 판단(9-4장 50% 기준)에 쓴다 —
+	// 오차 범위 축소의 정확한 공식이 없어 "시도 = 기록 확정"으로 단순화했다.
 	public void RecordTrapAttempt(string trapObjectId, float observedRate)
 	{
 		_trapRecorded.Add(trapObjectId);
@@ -410,37 +363,28 @@ public class PersonalMapKnowledge
 	}
 
 	// ─────────────────────────── 신규. "지금 보고 있는 몬스터" 위치 기록 ───────────────────────────
-	// 15장/18장 수치(위험도/흥미도)를 목격 시점 스냅샷으로 저장한다 — 실시간 조회가 아니라
-	// "마지막으로 확인한 기록"이라는 지도의 성격(지도관련_정리 문서 3-2장, 6-5장 실제값-기록값 차이)에
-	// 맞춘 것이다. UnitFunction.CastRay가 적을 발견할 때마다 호출한다(유일하게 자동 연동되는 부분).
-	//
-	// 24장(위치 및 상태 기록 충돌 처리)이 명시하는 "유닛 마지막 확인 위치"의 실체가 바로 이 기록이다
-	// — RecordedInfoType으로 어떤 정보 유형으로 들어온 기록인지 남겨서, PriorityRank/ShouldReplace로
-	// 우선순위가 더 낮은 정보가 더 높은 정보를 덮어쓰지 못하게 막는다.
+	// 15장/18장 수치를 목격 시점 스냅샷으로 저장한다("마지막 확인 기록"이라는 지도의 성격, 실시간 조회
+	// 아님) — UnitFunction.CastRay가 적 발견 시마다 호출하며, 24장의 "유닛 마지막 확인 위치"가 이 기록이다.
+	// RecordedInfoType으로 정보 유형을 남겨 PriorityRank/ShouldReplace가 낮은 우선순위 정보로 안 덮이게 막는다.
 	private class MonsterSighting
 	{
 		public Vector3Int Tile;
 		public float DangerSnapshot;
 		public float InterestSnapshot;
 		public InfoType RecordedInfoType;
-		// 07문서 13장 "정보의 최신성과 갱신" — 전파 정보(PropagatedInfoRecord.LastKnownTimestamp)와
-		// 동일 대상을 놓고 어느 쪽이 더 최신인지 비교할 때 쓴다(PropagationSystem.GetLatestKnownPosition).
+		// 전파 정보(PropagatedInfoRecord.LastKnownTimestamp)와 어느 쪽이 최신인지 비교할 때 쓴다
+		// (PropagationSystem.GetLatestKnownPosition).
 		public float Timestamp;
 	}
 	private readonly Dictionary<string, MonsterSighting> _monsterSightings = new();
 
-	// monsterKey: target.name (인스턴스 식별자 — 위치는 종별이 아니라 그 개체 하나에 대한 정보이므로
-	// HumanKnowledgeBase의 종/개체 누적 키(ResolveTargetKey)와는 별개로 항상 인스턴스명을 쓴다).
-	// infoType 기본값 DirectWitness — 지금 유일한 호출부(UnitFunction.CastRay)가 시야로 직접
-	// 목격하는 경로라 항상 이 값. 나중에 소리/전파(간접 파악) 등 다른 정보 유형이 이 기록을 갱신
-	// 하려 들 때 아래 우선순위 게이트가 그대로 작동한다.
+	// monsterKey: target.name (인스턴스 식별자 — 위치는 개체별 정보라 HumanKnowledgeBase의 종/개체
+	// 누적 키와 별개로 항상 인스턴스명을 쓴다). infoType 기본값 DirectWitness는 지금 유일한 호출부
+	// (CastRay)가 시야 직접 목격이기 때문 — 다른 정보 유형이 갱신하려 들 때 아래 우선순위 게이트가 작동.
 	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness)
 	{
-		// 24장 1~6번 규칙: 방금 들어온 정보(candidate)는 자기 정보 유형 안에서 항상 "최신"이고
-		// (지금 이 순간 발생했으므로), 기존 기록(existing)도 저장될 당시엔 "최신"이었다 — 두 값을
-		// 같은 기준(isLatest:true)으로 랭크를 매겨 비교하면 "직접 경험은 직접 목격보다 우선"(1번),
-		// "직접 목격은 간접 파악보다 우선"(2번), "같은 유형끼리는 더 최근 것"(3번, candidateIsNewer
-		// 는 항상 true — 지금 쓰는 값이 곧 가장 최근 값이므로)이 그대로 성립한다.
+		// 24장 1~6번 규칙: 같은 기준(isLatest:true)으로 랭크를 매겨 비교하면 "직접 경험 > 직접 목격 >
+		// 간접 파악", "같은 유형끼리는 더 최근 것"이 그대로 성립한다.
 		if (_monsterSightings.TryGetValue(monsterKey, out var existing))
 		{
 			int candidateRank = WeightMath.PriorityRank(infoType, isLatest: true);
@@ -476,19 +420,16 @@ public class PersonalMapKnowledge
 	}
 
 	// ─────────────────────────── 20장/21장/7-1장. 방 위험도·흥미도 ───────────────────────────
-	// "인류가 방에 들어가면 시야로 확인한 정보를 통해 방 위험도/흥미도 추정값이 실시간으로 반영된다"
-	// (v3 문서 7-1장) — 원래도 개인 인지 개념이었다.
-	// 2026-07-08: CastRay 자동 연동 완료(UnitFunction.CastRay) — 아래 클래스/메서드가 그 실체.
+	// "인류가 방에 들어가면 시야로 확인한 정보로 방 위험도/흥미도 추정값이 실시간 반영된다"(v3 문서
+	// 7-1장). UnitFunction.CastRay가 자동 연동하고, 아래 클래스/메서드가 그 실체다.
 	public enum RoomExploreState { Unexplored, Exploring, Complete }
 
 	private class RoomKnowledge
 	{
 		public RoomExploreState State = RoomExploreState.Unexplored;
 		public bool IsBossRoom;
-		// 유닛/오브젝트 키(인스턴스명)별 마지막 확인값으로 저장 — 단순 += 누적이 아니다. 시야 안에
-		// 계속 있는 몬스터는 CastRay가 매 프레임 같은 키로 다시 부르므로(ObserveMonster와 동일
-		// 패턴), 누적형으로 두면 프레임마다 값이 폭증한다. "그 방에서 확인된 대상들의 최신 스냅샷
-		// 합"이 되도록 키로 덮어쓰기만 한다.
+		// 유닛/오브젝트 키별 마지막 확인값으로 저장 — 누적(+=)이 아니라 키로 덮어쓰기만 한다(CastRay가
+		// 매 프레임 같은 키로 다시 부르므로 누적형이면 값이 폭증한다).
 		public readonly Dictionary<string, (float danger, float interest)> ConfirmedUnits = new();
 		public readonly Dictionary<string, (float danger, float interest)> ConfirmedObjects = new();
 		// 이 방에서 이 유닛(관찰자)이 지금까지 처음 밝힌 바닥 타일 수 — Exploring→Complete 판정용.
@@ -517,12 +458,9 @@ public class PersonalMapKnowledge
 	public void ObserveObjectInRoom(int roomId, bool isBossRoom, string objectKey, float objectDanger, float objectInterest)
 		=> GetOrCreateRoom(roomId, isBossRoom).ConfirmedObjects[objectKey] = (objectDanger, objectInterest);
 
-	// 20장: "인류 유닛은 방 전체 크기를 모른다"는 문서 지시는 플레이어에게 진행률(%)을 노출하지
-	// 않는다는 뜻으로 해석했다 — 완료 판정 자체는 게임 내부적으로(맵 생성 데이터 기준) 계산해야
-	// Exploring→Complete 전환이 가능하므로, totalFloorTilesInRoom(그 방의 실제 바닥 타일 총수,
-	// CreateMap.GetRoomFloorTileCount 등 맵 쪽 ground-truth)을 호출부가 넘겨준다.
-	// Unexplored였다면 Exploring으로 전환하고, 처음 밝히는 바닥 타일마다 호출해 누적 카운트가
-	// 총 타일 수에 도달하면 Complete로 전환한다(한 번 Complete가 되면 되돌리지 않음).
+	// 20장 "인류 유닛은 방 전체 크기를 모른다"는 플레이어에게 진행률(%)을 노출하지 않는다는 뜻으로
+	// 해석했다 — 완료 판정 자체는 내부적으로 totalFloorTilesInRoom(맵 쪽 ground-truth)을 넘겨받아
+	// 계산한다. 처음 밝히는 바닥 타일마다 누적하다 총 타일 수에 도달하면 Complete로 전환(비가역).
 	public void ObserveRoomTileRevealed(int roomId, bool isBossRoom, int totalFloorTilesInRoom)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);
@@ -575,9 +513,8 @@ public class PersonalMapKnowledge
 	{
 		var sb = new StringBuilder();
 
-		// 지형 밝히기는 칸 수가 금방 수백 단위로 늘어나 텍스트로 나열하면 인스펙터가 못 봐줄
-		// 정도가 되므로, 여기서는 개수/층만 요약하고 실제 모양은 GetTerrainTexture()로 그린
-		// 그림(인스펙터의 텍스처 영역)에서 확인한다.
+		// 지형 밝히기는 칸 수가 금방 늘어나 텍스트 나열이 어려우므로 개수/층만 요약하고, 실제 모양은
+		// GetTerrainTexture()로 그린 그림에서 확인한다.
 		sb.AppendLine($"[지형 밝히기] {_tileTerrain.Count}칸 밝혀짐 (층: {string.Join(", ", KnownTerrainFloors)}) — 아래 텍스처 참고");
 
 		sb.AppendLine($"[타일 위험도] {_tileDanger.Count}개");

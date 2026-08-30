@@ -23,13 +23,9 @@ public class StatusInfoPanel : MonoRoutine, ICustomPanel
     {
     }
 
-    // UI 리뉴얼(2026-08-20, 사용자 요청 "우측 상단의 오펜스 현황, 자원 사용 안내 전부 지우고, 그냥
-    // 보유 자원만 표시") — 오펜스 현황(다음 웨이브 타이머/오펜스 진행 상태)과 자원 사용 안내(B/V/P
-    // 키 비용 설명)를 제거하고 보유 자원 표시만 남긴다.
-    // 이후 사용자 요청(2026-08-20 "우상단의 자원 보유량도 글자 크기 좀 키워주고, 메뉴 스타일로") —
-    // GUIMenuStyleUtil의 어두운 배경 박스 + 흰 테두리 + 굵은 큰 글씨로 통일, 그만큼 패널도 키웠다.
-    // 합산 초당 증가량은 여기 안 넣는다(2026-08-24 사용자 요청 "우상단 UI에는 없애고, 건물 정보에서만
-    // 보게 두자") — BuildingControlPanel이 건물 클릭 시 이미 표시한다.
+    // 우측 상단은 보유 자원 표시만 남긴다 — 오펜스 현황(다음 웨이브 타이머/진행 상태)과 자원 사용
+    // 안내(B/V/P 키 비용 설명)는 제거. GUIMenuStyleUtil의 어두운 배경 박스 + 흰 테두리 + 굵은 큰
+    // 글씨로 통일. 합산 초당 증가량은 여기 안 넣는다 — BuildingControlPanel이 건물 클릭 시 표시한다.
     private const int PanelWidth = 300;
     private const int PanelY = 50;
     private const int PanelHeight = 90;

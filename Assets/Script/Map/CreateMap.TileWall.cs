@@ -69,14 +69,9 @@ public partial class CreateMap
 
         var roomBounds = ComputeRoomBounds(ref floor);
 
-        // 같은 방이 여러 청크에 걸쳐 이어지는 변(가장자리)에서 각 청크가 매번 기준 두께로
-        // 리셋되면 청크 경계마다 눈에 띄는 턱("±2로 채워지는 부분", 2026-08-24 사용자 신고)이
-        // 생긴다. 직전 청크의 마지막 두께 값을 이어받아 다음 청크가 그 값에서부터 랜덤워크를
-        // 계속하게 해서 청크 경계를 가로질러도 두께가 매끄럽게 이어지게 한다. cx가 outer
-        // 루프라 bottom/top(가로 변, cy 고정)은 (roomId, cy) 키로 lastCx 인접 여부를 확인하고,
-        // left/right(세로 변, cx 고정)는 cy가 inner 루프에서 항상 오름차순이라 (roomId, cx)
-        // 키로 lastCy 인접 여부를 확인한다. 같은 roomId라도 청크가 실제로 붙어있지 않으면(다른
-        // 덩어리 사이 빈틈) 이어붙이지 않도록 인접성을 검사한 뒤에만 이어받는다.
+        // 같은 방이 여러 청크에 걸쳐 이어지는 변에서 매번 기준 두께로 리셋되면 청크 경계마다 눈에
+        // 띄는 턱이 생긴다. 직전 청크의 마지막 두께 값을 이어받아 다음 청크가 그 값부터 랜덤워크를
+        // 이어가게 한다(같은 roomId라도 실제로 붙어있지 않으면 이어붙이지 않음).
         var bottomContinuity = new Dictionary<(int roomId, int cy), (int lastCx, int value)>();
         var topContinuity = new Dictionary<(int roomId, int cy), (int lastCx, int value)>();
         var leftContinuity = new Dictionary<(int roomId, int cx), (int lastCy, int value)>();
@@ -128,9 +123,8 @@ public partial class CreateMap
                 int thicknessX = cached.thicknessX;
                 int thicknessY = cached.thicknessY;
 
-                // 양쪽이 모두 외곽인 축(방이 딱 청크 하나 폭인 좁은 통로)은 벽 두께 합이 청크
-                // 크기 이상이면 내부 Floor가 완전히 사라지므로 최소 2칸 확보하도록 제한
-                // (SampleThicknessForSpan과 동일한 비율 상한).
+                // 양쪽이 모두 외곽인 축(좁은 통로)은 벽 두께 합이 청크 크기 이상이면 내부 Floor가
+                // 완전히 사라지므로 최소 2칸 확보하도록 제한(SampleThicknessForSpan과 동일한 비율 상한).
                 int bothSidesCap = cs * 3 / 8;
                 bool bothX = isLeft && isRight;
                 bool bothY = isBottom && isTop;
@@ -138,14 +132,9 @@ public partial class CreateMap
                 if (bothY) thicknessY = Mathf.Min(thicknessY, bothSidesCap);
 
                 // ── 가장자리를 따라 두께가 굵게 출렁이는 랜덤워크 프로파일 ──────────────────
-                // 사용자 피드백(2026-08-24, "전혀 개선 안되었어. 랜덤성을 짙게, 최소 채움은
-                // 보장, 더 과감하게 채워도 된다 — 어차피 맵 크기는 커졌다") — 고정 두께 직선
-                // 밴드 하나로는 코너/가장자리가 늘 반듯한 인공적인 선으로 보인다. 방 하나에
-                // 값 하나가 아니라, 가장자리 칸(ty 또는 tx)마다 독립적으로 값이 출렁이는
-                // 랜덤워크를 써서 두툼하고 들쭉날쭉한 자연 지형처럼 만든다. 이 값은 순수 시각적
-                // 외곽 채움(같은 방의 내부 청크 간 통로를 여는 OpenInternalWalls, 방-방 게이트를
-                // 뚫는 ConnectRooms와는 완전히 분리된 야생/맵경계 접촉면에만 적용)이라 아무리
-                // 두껍게 먹어도 통행 경로에는 영향이 없다.
+                // 방 하나에 값 하나가 아니라 가장자리 칸마다 독립적으로 값이 출렁이게 해 자연 지형처럼
+                // 만든다. 순수 시각적 외곽 채움(통로·게이트와는 분리된 야생/맵경계 접촉면 전용)이라
+                // 통행 경로에는 영향이 없다.
                 int minGuaranteed = Mathf.Max(thkMin, 2); // 최소 채움 보장 — 1칸짜리 약한 벽 방지
                 // 한쪽만 외곽인 경우(통로 폭 제한 없음): 청크 절반까지 과감하게 허용.
                 int singleSideMax = Mathf.Max(minGuaranteed, cs / 2);
@@ -196,13 +185,9 @@ public partial class CreateMap
         }
     }
 
-    // 길이 length의 가장자리를 따라 두께가 startValue에서 시작해, 칸마다 30% 확률로만 ±1씩
-    // 랜덤워크로 흔들리는(나머지 70%는 직전 값 유지) 프로파일을 만든다. 이웃 청크에서 이어받은
-    // startValue가 이 청크의 [minThickness, maxThickness] 범위를 벗어나 있어도(청크마다 통로
-    // 폭 제한 등으로 상한이 달라질 수 있음) 그 자리에서 즉시 스냅하지 않고, 아래 루프에서 한
-    // 칸에 1칸씩만 계단식으로 범위 안으로 되돌아온다 — 청크 경계에서 두께가 뚝 끊기지 않고
-    // 항상 계단형으로 자연스럽게 이어지도록 보장하는 핵심 불변식(2026-08-24 사용자 피드백:
-    // "여전히 이어붙는 지점 끊김. 자연스럽게 계단형으로 스텝 이어지도록").
+    // 길이 length의 가장자리를 따라 두께가 startValue에서 시작해, 칸마다 30% 확률로만 ±1씩 흔들리는
+    // 프로파일을 만든다. startValue가 범위를 벗어나 있어도 즉시 스냅하지 않고 한 칸에 1칸씩만
+    // 계단식으로 복귀시켜, 청크 경계에서 두께가 뚝 끊기지 않게 한다.
     int[] BuildEdgeThicknessProfile(int length, int startValue, int minThickness, int maxThickness)
     {
         int lo = Mathf.Min(minThickness, maxThickness);
@@ -218,9 +203,8 @@ public partial class CreateMap
                 current--;                          // 과감한 최대치 쪽으로 한 칸씩 계단 복귀
             else if (UnityEngine.Random.value < 0.3f)
             {
-                // 매 칸마다 흔들리면 전체가 구불구불해 보여서(2026-08-24 피드백: "너무 굴곡이고
-                // 어느정도 평평하게") 낮은 확률로만 ±1 스텝을 밟고 나머지 칸은 직전 값을 그대로
-                // 유지한다 — 평평한 구간 사이사이에 완만한 턱이 생기는 정도로 절제.
+                // 매 칸마다 흔들리면 전체가 구불구불해 보이므로 낮은 확률로만 ±1 스텝을 밟고
+                // 나머지 칸은 직전 값을 유지한다 — 평평한 구간 사이사이에 완만한 턱만 생기게 절제.
                 int step = UnityEngine.Random.Range(-1, 2);
                 current = Mathf.Clamp(current + step, lo, hi);
             }
@@ -279,15 +263,11 @@ public partial class CreateMap
 
     int SampleThicknessForSpan(int span, int thkMin, int thkMax, int chunkSize)
     {
-        // 양쪽이 동시에 외곽일 때 내부 Floor가 사라지지 않도록 한쪽 최대 두께를 제한한다. 원래
-        // 청크 크기 8 기준 "3으로 제한(3+3=6 < 8 → 최소 2칸 Floor 확보)"이었던 걸 청크 크기가
-        // 층별로 달라질 수 있게 되면서(2026-08-23, 맵 1.5배 확장) 같은 비율로 일반화했다 —
-        // chunkSize=8이면 upperLimit이 정확히 원래 값(2/3)과 같아 회귀 걱정 없다.
+        // 양쪽이 동시에 외곽일 때 내부 Floor가 사라지지 않도록 한쪽 최대 두께를 제한한다. 청크
+        // 크기가 층별로 달라질 수 있어 비율로 일반화했다.
         int upperLimit = (span <= 1) ? chunkSize / 4 : chunkSize * 3 / 8;
 
-        // 최소 채움 보장(2026-08-24 사용자 피드백) — 기본 두께 시드 자체도 1칸까지 내려가지
-        // 않게 해서, 랜덤워크 프로파일(BuildEdgeThicknessProfile)이 항상 든든한 값에서
-        // 출발하게 한다.
+        // 기본 두께 시드 자체도 1칸까지 내려가지 않게 해서 랜덤워크가 항상 든든한 값에서 출발하게 한다.
         int effectiveMin = Mathf.Max(thkMin, 2);
         int effectiveMax = Mathf.Min(thkMax, upperLimit);
         if (effectiveMax < effectiveMin) effectiveMax = effectiveMin;
@@ -421,20 +401,10 @@ public partial class CreateMap
         floor.chunks[x, y + 1] = cB;
     }
 
-    // ── 횃불 벽걸이 배치(2026-08-21) 전용 청크 경계 질의 ──────────────────────────────
-    // FogOfWarSystem(순수 시각 오버레이)이 직접 타일을 스캔하던 걸 여기로 옮겼다 — "청크 경계 한
-    // 면이 벽인지/게이트로 뚫렸는지" 판정은 이 파일이 이미 담당하는 청크 벽 도메인 지식이라, 그
-    // 판정 로직 자체는 지도 생성 계층에 속해야 시각 오버레이 계층이 타일 이름 문자열까지 직접
-    // 알 필요가 없다(레이어 경계 유지).
-    //
-    // side 하나당 "어느 축을 따라 훑는지(isYAxis) + 그 축에서 벽 쪽 끝 좌표(edgeValue) + 안쪽으로
-    // 전진하는 방향(inward)"만 정의하면 IsSolidWallEdge(경계 8칸 전부 스캔)와
-    // TryFindFloorTileInFrontOfWall(중앙 기준선을 따라 안쪽으로 전진) 둘 다 이 하나의 축 정의에서
-    // 파생된다 — 예전엔 두 메서드가 Top/Right/Bottom/Left 4갈래 switch를 각자 따로 들고 있어 벽면
-    // 정의가 바뀌면 손으로 둘 다 맞춰야 했다.
-    // chunkSize 자체 층별 설정화(2026-08-23, 맵 1.5배 확장)로 edgeValue(Top/Right 쪽 끝 좌표)도
-    // "그 청크의 실제 크기 - 1"을 받아야 정확하다 — Chunks 하나만으로는 크기를 모르므로 호출부가
-    // c.chunk.GetLength(0)으로 구해서 넘긴다.
+    // ── 횃불 벽걸이 배치 전용 청크 경계 질의 ──────────────────────────────
+    // "청크 경계 한 면이 벽인지/게이트로 뚫렸는지" 판정은 이 파일이 담당해 시각 오버레이 계층이
+    // 타일 이름 문자열을 직접 알 필요가 없게 한다. side 하나당 축 정의(isYAxis/edgeValue/inward)만
+    // 있으면 IsSolidWallEdge와 TryFindFloorTileInFrontOfWall 둘 다 여기서 파생된다.
     private static void GetWallAxis(TorchWallSide side, int chunkSize, out bool isYAxis, out int edgeValue, out int inward)
     {
         switch (side)
@@ -446,10 +416,8 @@ public partial class CreateMap
         }
     }
 
-    // 청크 로컬 경계 한 줄이 전부 Wall이면 "복도 없이 완전히 막힌 벽"(횃불 후보), 일부만
-    // Wall이면 게이트(복도)가 뚫려 있다는 뜻(제외), 전부 Wall이 아니면 애초에 벽이 아니다(같은 방
-    // 인접 청크와 통짜로 붙어있음, 제외) — OpenInternalWalls/OpenHorizontalPassage·
-    // OpenVerticalPassage(게이트 폭 2~6칸 부분 개방)가 만드는 세 경우를 타일 값만으로 구분한다.
+    // 청크 로컬 경계 한 줄이 전부 Wall이면 "완전히 막힌 벽"(횃불 후보), 일부만 Wall이면 게이트(복도)가
+    // 뚫려 있다는 뜻(제외), 전부 Wall이 아니면 애초에 벽이 아니다(제외).
     public static bool IsSolidWallEdge(Chunks c, TorchWallSide side)
     {
         int cs = c.chunk.GetLength(0);
@@ -463,10 +431,8 @@ public partial class CreateMap
         return true;
     }
 
-    // 벽 중앙 기준선(가로 벽은 로컬 x=중앙 열, 세로 벽은 로컬 y=중앙 행)을 따라 벽 안쪽으로 걸어
-    // 들어가 처음 만나는 Floor 타일을 반환한다 — 벽 두께가 얼마든 항상 "벽에 맞닿은 바닥 칸"을
-    // 정확히 찾아 벽과 스프라이트가 겹치지 않게 한다. 도중에 Floor가 아닌 타일(Stair 등)을 만나면
-    // 실패 처리한다.
+    // 벽 중앙 기준선을 따라 안쪽으로 걸어 들어가 처음 만나는 Floor 타일을 반환한다 — 벽 두께가
+    // 얼마든 "벽에 맞닿은 바닥 칸"을 정확히 찾는다. 도중 Floor가 아닌 타일(Stair 등)을 만나면 실패 처리.
     public static bool TryFindFloorTileInFrontOfWall(Chunks c, TorchWallSide side, out Vector2Int local)
     {
         int cs = c.chunk.GetLength(0);

@@ -188,8 +188,7 @@ public static class DefenseSystem
 		{
 			case DefenseType.Dodge:
 			{
-				// 2026-08-24 계수 하향(0.007/0.003 → 0.003/0.001). 민첩 100이면 예전엔 0.7이라
-				// 상한에 붙어 거의 모든 공격을 피했다.
+				// 계수가 크면 상한에 쉽게 붙어 스탯 차이가 무의미해지므로 낮게 유지한다.
 				float success = Mathf.Clamp(
 					defender.BaseStat.agility * 0.003f + defender.BaseStat.sense * 0.001f,
 					CombatConstants.MIN_DEFENSE_SUCCESS_RATE,
@@ -217,12 +216,9 @@ public static class DefenseSystem
 				List<Vector2Int> validTiles = new List<Vector2Int>();
 				foreach (var tile in safeTiles)
 				{
-					// 착지 지점 자체는 유닛 점유 여부를 다시 확인한다(2026-08-22 사용자 신고 "난전 중
-					// 유닛끼리 겹쳐진다" — 어떤 상황에서도 유닛끼리는 겹쳐지면 안 됨). 위
-					// FindSafeTiles(ignoreUnits:true)는 "점멸 경로 중간에 유닛이 서 있어도 지나갈 수
-					// 있다"는 의도로 점유 검사를 건너뛰지만, 그 결과 최종 착지 후보 칸 자체까지 다른
-					// 유닛이 서 있어도 통과해버렸다 — CanMove(ignoreUnits:false)로 착지 칸만 별도
-					// 재검증한다(벽/문 판정은 위에서 이미 확인했으므로 여기서는 점유 여부만 추가된다).
+					// FindSafeTiles(ignoreUnits:true)는 점멸 경로 중간의 유닛은 무시하지만, 착지
+					// 지점 자체는 유닛이 겹치면 안 되므로 CanMove(ignoreUnits:false)로 점유 여부만
+					// 별도 재검증한다(벽/문 판정은 이미 통과했으므로 여기선 점유만 확인).
 					if (!defender.CanMove(tile, ignoreUnits: false)) continue;
 
 					if (HasPathWithoutWalls(defender, defender.position, tile, 4))
@@ -246,10 +242,8 @@ public static class DefenseSystem
 		{
 			case DefenseType.Block:
 			{
-				// 2026-08-24 계수 하향(0.0075/0.0025 → 0.0025/0.001). 예전 계수는 내구 130/저항 105
-				// 정도의 평범한 유닛도 합계가 1.26이 나와 상한에 그대로 붙었다 — 모두가 항상 최대
-				// 감소를 받아 방어력 차이가 의미를 잃었다. 지금은 같은 유닛이 약 0.43으로 상한(0.50)
-				// 아래에 들어와 스탯에 따라 실제로 갈린다.
+				// 계수가 크면 평범한 스탯값도 상한에 붙어 방어력 차이가 무의미해진다 — 상한
+				// (0.50) 아래에서 스탯에 따라 실제로 갈리도록 낮은 계수를 사용한다.
 				float reduction = Mathf.Clamp(
 					defender.BaseStat.Durability * 0.0025f + defender.resistance * 0.001f,
 					CombatConstants.MIN_BLOCK_DAMAGE_REDUCTION,
@@ -264,9 +258,8 @@ public static class DefenseSystem
 
 			case DefenseType.Parry:
 			{
-				// 2026-08-24 하향(계수 0.006/0.002/0.002 → 0.002/0.001/0.001, 상한 0.85 → 0.35).
-				// 패링은 성공하면 피해 0 + 반격이라 가장 강한 방어인데, 예전 계수로는 집중 126짜리
-				// 유닛이 상한 0.85에 붙어 공격 대부분이 반격으로 되돌아왔다.
+				// 패링은 성공 시 피해 0 + 반격이라 가장 강한 방어이므로 상한을 낮게(0.35) 잡아
+				// 남발되지 않게 한다.
 				float success = Mathf.Clamp(
 					defender.concentration * 0.002f + defender.BaseStat.sense * 0.001f + defender.BaseStat.agility * 0.001f,
 					0.05f,

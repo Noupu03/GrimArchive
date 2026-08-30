@@ -1,12 +1,9 @@
 // ============================================================================
 // CreateMap.Validation.cs — 맵 무결성 검증
 // ----------------------------------------------------------------------------
-// 역할: 생성된 맵의 유효성을 검사하여 오류 목록을 반환.
-//       ValidateMap → ValidateFloor0 + ValidateFloor(F1~F3) + ValidateStairs.
-//       검증 항목: 시작방/보스방 존재, 방 개수, 고아 청크, 연결성(FloodFill),
-//       Gate 정합성, Footprint 범위, 서브목적방 1×1 및 단일 입구,
-//       계단 양방향 정합성, 시작방 위치/인접 역할 등 13개 항목.
-// 단계: GenerateMap 최종 — 맵 완성 후 품질 보증
+// ValidateMap → ValidateFloor0 + ValidateFloor(F1~F3) + ValidateStairs. 시작방/보스방/방 개수,
+// 고아 청크, 연결성(FloodFill), Gate 정합성, Footprint 범위, 계단 양방향 정합성 등 13개 항목 검증.
+// GenerateMap 최종 단계 — 맵 완성 후 품질 보증.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -239,14 +236,8 @@ public partial class CreateMap
             }
         }
 
-        // ⑩ Gate 폭 vs allowMaxFootprint 일관성 검증
-        // 사용자 요청(2026-07-28, "통로는 반드시 2*2여야 해") — CreateMap.Connection.cs가 이제
-        // gateWidth를 항상 2로 고정하고(UpdateGateWidthsAfterStairs 호출도 CreateMap.cs에서 막음),
-        // 방 footprint(보스방 3~5, 층2/3 일반방도 랜덤 3~4까지) 요구치를 더 이상 따라가지 않는다.
-        // 이 규칙을 그대로 두면 그런 방을 낀 Gate에서 매번 검증 실패 → GenerateMap이 불필요하게
-        // maxRetryCount까지 재시도하다 결국 실패 로그만 남기고 마지막 결과를 그대로 쓰게 된다(통로
-        // 폭 자체는 이미 2로 고정돼 있어 기능적으로는 문제 없었지만 재시도/오류 로그가 낭비됨). 롤백
-        // 가능성 있어 지우지 않고 주석 처리만.
+        // ⑩ Gate 폭 vs allowMaxFootprint 일관성 검증 — 통로가 항상 2*2로 고정돼 방 footprint를 더 이상
+        // 따라가지 않으므로 비활성화(살리면 매번 실패해 재시도만 낭비). 롤백 가능성 있어 주석 처리만.
         // if (floor.gates != null)
         // {
         //     foreach (Gate g in floor.gates)

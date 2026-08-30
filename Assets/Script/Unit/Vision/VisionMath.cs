@@ -6,12 +6,9 @@ using UnityEngine;
 // WeightMath와 동일한 컨벤션. 저장/조회는 Unit(런타임 상태)과 UnitFunction(호출부)이 담당하고
 // 이 클래스는 숫자만 계산한다.
 //
-// 이 폴더(Assets/문서/공식문서/시야인지반응)에는 현재 00(상위구조)/01(개념)/01-A(연산공식)/
-// 02(인지·정보판정·실패처리, 2026-07-20 추가 — 실제 구현은 PerceptionMath.cs)까지 있다.
-// 03~10번 문서(가중치판단 연동, 탐색 반응, 은신 세부산식, 전투 반응, 소리 등)는 아직 작성되지
-// 않았으므로, 그 문서들에 위임된 세부 공식(예: 은신/거리/가림 보정의 정확한 감쇠식)은 CLAUDE.md에
-// 명시된 기존 관례대로 "가장 단순하고 합리적인 기본값"으로만 스텁 처리한다. 각 스텁 지점에 주석으로
-// 근거를 남긴다.
+// 03~10번 문서(가중치판단 연동, 탐색 반응, 은신 세부산식, 전투 반응, 소리 등)가 아직 없어, 그
+// 문서들에 위임된 세부 공식은 "가장 단순하고 합리적인 기본값"으로만 스텁 처리한다. 각 스텁 지점에
+// 주석으로 근거를 남긴다.
 public static class VisionMath
 {
 	// ─────────────────────────── 1장. 기본 변수 ───────────────────────────
@@ -36,10 +33,8 @@ public static class VisionMath
 	public const float AttackVisibilityBoostAmount = 10f;
 	public const float AttackVisibilityBoostDuration = 5f; // 초
 
-	// 03문서 4-6장(2026-07-27 개정): 수상한 타일 대상이 1칸 이동할 때마다 가시성이 임시로 +20 증가하며,
-	// 이 증가분은 "누적된 하나의 값"이 아니라 증가 시점부터 각각 개별 5초 유지된다(예: 3초 간격으로
-	// 두 번 이동하면 3초 뒤엔 +40, 8초 뒤엔 첫 증가분만 사라져 +20, 이후 다시 사라져 0). Unit.cs의
-	// suspiciousMoveBoostTimers(VisionStatComponent)가 증가분별 잔여시간을 리스트로 들고 있다.
+	// 03문서 4-6장: 수상한 타일 대상 이동 1회당 가시성 +20이 "하나의 누적값"이 아니라 증가분별로
+	// 개별 5초씩 유지된다 — Unit.cs의 suspiciousMoveBoostTimers가 증가분별 잔여시간을 리스트로 관리.
 	public const float SuspiciousMoveBoostDurationSeconds = 5f;
 
 	public const float SurpriseHighThreatMultiplier = 2f; // 기습 방향 전환 기준: 근접 공격 기대값의 2배 이상
@@ -47,14 +42,9 @@ public static class VisionMath
 	public const int SpecialCircularBaseRadius = 1;
 	public const int SpecialCircularMaxRadius = 3;
 
-	// 시야 범위 내 "비어있지 않은 타일"에 부여되는 임시 위험도/흥미도(7장). 저장값이 아니라 경로/탐색
-	// 방향 판단에만 쓰는 일회성 조회값. "탐색 방향 판단" 절반은 2026-07-20에 실제로 연결됐다 —
-	// UnitFunction.ResolveVisionDirection()이 Unit.visionOnlyNonEmptyTiles(이 값이 +5 붙는 대상 자체)
-	// 존재 여부로 UnconfirmedTile(8순위) 시야 방향 후보를 만든다. 다만 그 연결은 리스트의 "존재
-	// 여부"만 쓰지 이 숫자(TempWeightForVisionOnlyTile 반환값)를 직접 소비하지는 않는다 — 우선순위
-	// 랭크 기반 시야 방향 시스템엔 크기 비교가 없어 방향 후보 자체는 불리언 신호만으로 충분하기
-	// 때문이다. "경로 판단"(크기 비교가 실제로 필요한 절반)은 여전히 10_목표설정·이동경로·재설정
-	// 문서(소비자) 부재로 미연결 — 그 문서가 생기면 이 숫자를 그대로 쓸 수 있게 남겨둔다.
+	// 시야 범위 내 "비어있지 않은 타일"에 부여되는 임시 위험도/흥미도(7장) — 저장값이 아닌 일회성
+	// 조회값. "탐색 방향 판단" 쪽은 존재 여부(불리언)만으로 이미 연결됐고, "경로 판단"(크기 비교
+	// 필요) 쪽은 10_목표설정 문서 부재로 아직 미연결이라 숫자만 미리 채워둔다.
 	public const float NonEmptyTileTempWeight = 5f;
 
 	// ─────────────────────────── 2장/3장. 시야/인지 거리 공식 ───────────────────────────
@@ -93,26 +83,10 @@ public static class VisionMath
 		return isWall ? WallVisibility : NormalTileVisibility;
 	}
 
-	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분(진행 중일 때만), 상한만 100으로 클램프.
-	// 거리 감쇠의 정확한 산식은 05-A_은신·가시성_스테이터스연동_연산공식 문서가 다루는데 이 폴더에는
-	// 아직 없어(01/01-A만 존재) "은신만 단순 차감"하는 가장 단순한 기본값으로 스텁 구현한다.
-	//
-	// 하한(0)은 클램프하지 않는다 — 02문서 7장이 "은신 스탯에는 최대치 제한이 없어 은신 기반 가시성은
-	// 0 미만으로 내려갈 수 있다"면서 "계산식 안에서는 음수 값을 유지한다"고 명시적으로 요구한다(예시:
-	// 은신 기반 가시성 -50 + 감지 보정 +40 + 공격 후 가시성 증가 +10 = 최종 계산 가시성 0). 여기서
-	// 하한을 0으로 미리 클램프해버리면(2026-07-20 이전 버그) 이 함수가 반환한 값에 나중에 02문서 8장의
-	// 감지/정신력 보정을 더할 때 음수 "여유분"이 이미 사라진 뒤라 문서 예시와 다른(더 높은) 값이
-	// 나온다 — 최종 판정용 확률표 조회(PerceptionMath.OutcomeProbabilities)는 이미 "0 이하"를 별도
-	// 구간으로 처리하므로, 하한 클램프는 이 함수가 아니라 그쪽에서만 의미상 일어나면 된다.
-	//
-	// 01장 11절(2026-07-13 개정 "시야 판정 불가 오브젝트")은 두 갈래로 나뉜다 — 이 함수(가시성 수치)는
-	// 그중 "시야 판정 불가 오브젝트"(=미인식) 쪽에만 쓰인다:
-	//   1. 완전 차단 오브젝트 — 벽처럼 시야를 물리적으로 막는다(쉐도우 캐스팅 isOpaque). 이 함수의
-	//      가시성 수치와 무관한 별개 속성(InteractableObject.IsFullyBlocking)이 결정하며, 판정 지점은
-	//      UnitFunction.UpdateFOV의 isOpaque 클로저다.
-	//   2. 시야 판정 불가(=미인식) 오브젝트/유닛 — 구조물이 아닌 일반 대상. 시야는 막지 않되, 이 함수가
-	//      계산한 값에 02문서 8장 보정을 더한 최종 계산 가시성으로 12장 확률표를 굴려 인지 결과(정확
-	//      인지/수상한 타일/미인식)를 정한다(UnitFunction.ForceRollPerception). 판정 지점은 ProcessTile.
+	// 최종 가시성 = 기본 가시성 - 은신 + 공격 후 상승분(진행 중일 때만), 상한 100만 클램프한다(거리
+	// 감쇠는 미작성 05-A 문서 몫이라 은신 차감만 반영한 스텁). 하한은 클램프하지 않는데, 8장 감지/
+	// 정신력 보정에서 음수 여유분을 그대로 써야 하기 때문이다(하한 클램프는 PerceptionMath 확률표
+	// 조회 쪽 몫) — 01장 11절 "미인식" 판정에만 쓰인다.
 	public static float FinalVisibility(float baseVisibility, float stealth, bool attackBoosted, float suspiciousMoveBoost = 0f)
 	{
 		float value = baseVisibility - stealth;
@@ -122,12 +96,8 @@ public static class VisionMath
 	}
 
 	// ─────────────────────────── 02문서 6장. 오브젝트 유형별 가시성 ───────────────────────────
-	// 시체/전멸 흔적은 가시성 100 고정(오브젝트 자신의 BaseVisibility와 무관 — 팀 기존 관례상
-	// InteractableObject.BaseVisibility 기본값이 0이라 그대로 두면 시체/전멸흔적이 영원히 미인식
-	// 처리되는데, 02문서 6장이 명시적으로 이 둘을 100 고정으로 지정하므로 그 규칙을 그대로 따른다).
-	// 함정/특정 건물/일반 루팅은 기존과 동일하게 오브젝트 자신의 BaseVisibility(기본 가시성)를 쓴다.
-	// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 부분 일치로 검사한다(PersonalMapKnowledge.
-	// RegisterObject와 동일한 2026-07-20 수정 — 기존 정확 일치는 항상 false였다).
+	// 시체/전멸 흔적은 가시성 100 고정(기본값 0이면 영원히 미인식 처리되는 문제 방지). 나머지는
+	// 오브젝트 자신의 BaseVisibility를 쓴다. Tags는 계층형 문자열이라 부분 일치로 검사한다.
 	public static float ResolveObjectVisibility(float baseVisibility, List<string> tags)
 	{
 		if (tags != null && (tags.Any(t => t.Contains("Corpse")) || tags.Any(t => t.Contains("WipeoutTrace"))))
@@ -186,15 +156,9 @@ public static class VisionMath
 		}
 	}
 
-	// candidates: 이번 판정 시점에 "적용 가능한" 후보만 호출부가 미리 걸러서 넘긴다 — "방향 정보가
-	// 없거나, 대상이 사라졌거나, 현재 행동 때문에 적용할 수 없는 후보는 우선순위 비교에서 제외한다"
-	// (11장)는 규칙은 이 함수가 아니라 후보 목록을 구성하는 호출부의 책임이다.
-	// currentDir: 동일 우선순위 후보가 여럿일 때 더 가까운 쪽을 고르기 위한 기존 시야 방향.
-	// 2026-07-31 GC 최적화 — 매 유닛 액션 틱(UnitFunction.ResolveVisionDirection)마다 호출되는
-	// 핫패스인데, candidates가 IReadOnlyList<T> 인터페이스 타입이라 LINQ(Min/Where/OrderBy)를 쓰면
-	// 내부적으로 열거자가 박싱되고 Where/OrderBy가 각각 추가 할당을 만든다. 결과는 동일하게 유지한 채
-	// (최소 우선순위 랭크 → 동률이면 currentDir에 가장 가까운 방향, 동률 중에는 먼저 나온 후보 우선 —
-	// OrderBy가 안정 정렬이라 기존 동작과 동일) 수동 2-패스 루프로 대체한다.
+	// candidates: 적용 가능한 후보만 호출부가 걸러서 넘긴다. currentDir: 동일 우선순위 후보가 여럿일
+	// 때 더 가까운 쪽을 고르는 기준. 매 틱 호출되는 핫패스라 LINQ 대신 GC 할당 없는 수동 2-패스
+	// 루프를 쓴다(결과는 최소 랭크 → 동률이면 currentDir에 가장 가까운 방향 순).
 	public static Dir ResolveVisionDirection(IReadOnlyList<VisionDirectionCandidate> candidates, Dir currentDir)
 	{
 		if (candidates == null || candidates.Count == 0) return currentDir;
@@ -254,11 +218,8 @@ public static class VisionMath
 		return new Vector2Int(o.x + depth * dr + col * cr, o.y + depth * dc + col * cc);
 	}
 
-	// 옥탄트 스캔용 스크래치 스택(2026-08-25 리팩토링, 프레임 드랍 대응) — SymmetricShadowCast가
-	// 옥탄트 8개마다 이 메서드를 호출하므로(UpdateFOV 1회당 최대 16회) 매 호출 new Stack<>()이었던
-	// 것을 스레드별 재사용 버퍼로 바꿨다. VisionMath는 "순수 계산 함수, 부수효과 없음"이 설계
-	// 원칙(파일 상단 주석)이라 일반 static 필드 대신 [ThreadStatic]을 써서 스레드 경계를 넘는 관측
-	// 가능한 부수효과가 없게 한다(테스트 병렬 실행과도 안전).
+	// 옥탄트 스캔용 스크래치 스택 — 매번 new Stack<>() 대신 재사용 버퍼를 쓴다. "순수 계산, 부수효과
+	// 없음" 원칙을 지키기 위해 일반 static 대신 [ThreadStatic]으로 스레드 경계를 넘는 부수효과를 막는다.
 	[System.ThreadStatic]
 	private static Stack<(int depth, float start, float end)> _octantScanStack;
 

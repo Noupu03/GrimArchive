@@ -1,11 +1,9 @@
 using UnityEngine;
 
-// 보스 골렘 공격2(2026-08-24, 기본 구조): 대상 A부터 대상 B인 적까지 손을 쭉 이동하며 스치는 적들에게
-// 피해를 입힌다. A는 CombatFSMState가 넘겨주는 "가장 가까운 적"을 그대로 쓰고, B는 그 A를 기준으로
-// 사거리(HitRange) 내에서 가장 먼 적을 자동으로 고른다 — 기획 문서가 A/B 선정 기준을 명시하지 않아
-// 잡은 "합리적 기본값" 자리표시자다(적이 하나뿐이면 그 적을 지나 캐스터 반대 방향으로 더 뻗은 지점을
-// B로 삼아 한 명만 스친다). 실제 플레이 검증 후 선정 기준을 바꾸려면 FindFarthestEnemyFrom만 고치면
-// 된다.
+// 보스 골렘 공격2: 대상 A부터 대상 B인 적까지 손을 쭉 이동하며 스치는 적들에게 피해를 입힌다. A는
+// CombatFSMState가 넘겨주는 "가장 가까운 적"을 그대로 쓰고, B는 A를 기준으로 사거리(HitRange) 내에서
+// 가장 먼 적을 자동으로 고른다 — 기획 문서가 선정 기준을 명시하지 않아 잡은 자리표시자 기본값이다
+// (적이 하나뿐이면 그 적을 지나 반대 방향으로 더 뻗은 지점을 B로 삼는다). 바꾸려면 FindFarthestEnemyFrom만 고치면 된다.
 public class SkillAction_GolemSweep : SkillAction
 {
     private readonly SkillData _d;
@@ -53,9 +51,7 @@ public class SkillAction_GolemSweep : SkillAction
 
         float multiplier = _d.damageMultiplier > 0 ? _d.damageMultiplier : 1.2f;
 
-        // hitEffectPrefab을 실제로 스친 대상 각각의 위치에 스폰한다(2026-08-24 사용자 신고
-        // "HitEffectPrefab에 있는 VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — 손쓸기는 이
-        // 필드를 전혀 쓰지 않고 있었다).
+        // hitEffectPrefab을 실제로 스친 대상 각각의 위치에 스폰한다.
         GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
         BeginAttackCast(unit, _d.baseDelayMs, threat,
             attackAction: () => DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, multiplier, _d.hasStun, _d.stunDuration,

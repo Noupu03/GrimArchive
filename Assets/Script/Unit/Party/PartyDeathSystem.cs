@@ -1,21 +1,15 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 03문서 4-12~4-15장(2026-07-27 신규) 구현부 — 순수 계산이 아니라 Human/Party/Knowledge를 직접
-// 건드리는 호출부라 WeightMath/ExplorationMath 같은 순수함수 모음과 달리 부수효과가 있다. 호출 지점:
-//   - GameSession.RemoveDeadUnit: 인류 사망 시 OnPartyMemberDied(사망 순간 직접 목격 처리)
-//   - UnitFunction.CastRay(오브젝트 인지 블록): OnCorpseDiscovered(나중에 시체를 발견한 경우)
-//   - TacticalFSMState.InvestigatePerform: OnCorpseInvestigated(시체 조사로 사망 원인 확인)
-//   - UnitFunction.CastRay(유닛 인지 블록): OnDeathSearchSpotted(원인미상 수색 중 몬스터 정확 인지)
-// 2026-07-31: 07_전파·소리·간접입력 구현으로 전파(PropagateFrom)는 실제 전파 조건(같은 공간+카리스마
-// 기반 전파 범위)을 쓴다. "사망 순간 직접 목격" 판정(TryConfirmCauseByWitness 등)은 전파가 아니라
-// 시야 기반 목격이라 VisionMath.ViewDistance(spotting)를 그대로 유지한다(성격이 다름 — 혼동 주의).
-// 2026-08-06(검증 중 발견): 07문서 8장 "사망 정보는 일반적인 비전투 전파 조건보다 사망 정보 규칙을
-// 우선한다" + 03문서 4-12장 "현재 상태와 탐색 반응 우선순위에 관계없이 즉시 처리한다" — 그래서
-// PropagateFrom/TickOngoingPropagation은 CanPropagate(비전투 조건 포함)가 아니라
-// PropagationSystem.InPropagationRange(공간+범위만, 7-1/7-2와 동일 패턴)를 쓴다. 전투 중인 대표
-// 발견자나 수신자도 사망 정보 자체는 즉시 주고받는다 — 막히는 건 "경계 수색으로 전환"뿐(그건 현재
-// 행동 우선순위를 그대로 따름, TriggerUnknownCauseSearch의 CanJoinDeathSearch가 담당).
+// Human/Party/Knowledge를 직접 건드리는 부수효과 호출부. 호출 지점:
+//   - GameSession.RemoveDeadUnit: OnPartyMemberDied(사망 순간 직접 목격)
+//   - UnitFunction.CastRay(오브젝트 인지): OnCorpseDiscovered(나중에 시체 발견)
+//   - TacticalFSMState.InvestigatePerform: OnCorpseInvestigated(시체 조사로 원인 확인)
+//   - UnitFunction.CastRay(유닛 인지): OnDeathSearchSpotted(원인미상 수색 중 정확 인지)
+// 전파(PropagateFrom)는 실제 전파 범위 조건을 쓰지만, "사망 순간 직접 목격" 판정은 전파가 아니라
+// 시야 기반 목격이라 VisionMath.ViewDistance를 그대로 쓴다(성격이 다름 — 혼동 주의). 사망 정보는
+// 일반 비전투 전파 조건보다 우선해 현재 행동 우선순위와 무관하게 즉시 처리된다 — 전투 중이라도
+// 정보 자체는 즉시 주고받고, 막히는 건 "경계 수색으로 전환"뿐(CanJoinDeathSearch가 담당).
 public static class PartyDeathSystem
 {
 	// ─────────────────────────── 4-12/4-14장: 사망 순간 직접 목격 ───────────────────────────
@@ -121,9 +115,7 @@ public static class PartyDeathSystem
 
 	// ─────────────────────────── 내부 헬퍼 ───────────────────────────
 
-	// 시체의 OwnerPartyId로 원본 파티를 찾는다(발견자가 그 파티 소속이 아닌 경우까지 대비 —
-	// 지금 게임엔 웨이브당 인류 파티가 보통 하나뿐이라 discoverer.party와 같은 경우가 대부분이지만,
-	// 다른 파티가 발견하는 미래 시나리오에도 안전하도록 GameSession.parties에서 직접 찾는다).
+	// 시체의 OwnerPartyId로 원본 파티를 찾는다 — 발견자가 그 파티 소속이 아닌 경우까지 대비해 GameSession.parties에서 직접 찾는다.
 	private static Party ResolveOwnerParty(Human discoverer, InteractableObject corpse)
 	{
 		if (string.IsNullOrEmpty(corpse.OwnerPartyId)) return discoverer.party;
@@ -150,11 +142,8 @@ public static class PartyDeathSystem
 		ApplyDangerOnce(record, witness, EventId.E_HUMAN_KILL_SEEN, InfoType.DirectWitness);
 	}
 
-	// 4-14장: 함정이 원인으로 확인되면(직접 목격/전파/조사 — 호출부가 이미 "확인 가능한 상황"임을
-	// 보장) 원인 확인만 처리한다. 이 이벤트 테이블(E_HUMAN_KILL_SEEN/INDIRECT)은 "사망 원인이
-	// 몬스터로 확인되면"에만 적용되므로 함정 원인은 DangerApplied를 건드리지 않는다 — 확인됐으니
-	// 4-15장 원인미상 수색만 더 이상 트리거되지 않게 막는 역할이다. 반환값은 "이 호출로 확정됐는지"라
-	// 호출부가 몬스터 확인 로직으로 이어갈지 판단하는 데 쓴다.
+	// 함정이 원인으로 확인되면 원인 확인만 처리한다 — E_HUMAN_KILL_SEEN/INDIRECT는 "사망 원인이
+	// 몬스터로 확인되면"에만 적용되므로 함정 원인은 DangerApplied를 건드리지 않고 원인미상 수색만 막는다.
 	private static bool TryConfirmTrapCause(PartyDeathRecord record)
 	{
 		if (record.CauseConfirmed || record.CauseTrap == null) return false;
@@ -183,10 +172,8 @@ public static class PartyDeathSystem
 		}
 	}
 
-	// 07문서 9장(정보 동기화)/03문서 4-13장(2026-07-31 신규): 최초 전파 시점의 스냅샷 범위 체크뿐이던
-	// 것을 실제 지속 재전파로 교체 — UnitFunction.OnUpdate의 기존 0.1초 틱에서 인류마다 호출한다. 아직
-	// 정보를 모르는 파티원이, 이미 아는 파티원("정보 보유자")의 전파 범위 안으로 나중에 들어오면 그
-	// 시점에 정보를 받는다.
+	// 최초 전파 시점 스냅샷 체크가 아니라 지속 재전파 — UnitFunction.OnUpdate의 0.1초 틱에서 인류마다
+	// 호출한다. 아직 모르는 파티원이 이미 아는 파티원의 전파 범위 안으로 나중에 들어오면 그때 정보를 받는다.
 	public static void TickOngoingPropagation(Human human)
 	{
 		var party = human.party;
@@ -233,9 +220,7 @@ public static class PartyDeathSystem
 		}
 	}
 
-	// 4-15장 표: 일반 탐색/대기/집결 이동 중인 유닛만 참여, 전투/도주후퇴/조사/함정해제/다른 포메이션은
-	// 현재 행동 유지(정보·정신력만 적용, 위에서 이미 처리됨). 도주·후퇴는 06문서 부재로 해당 상태 자체가
-	// 없어 자동으로 충족된다(기존 관례).
+	// 일반 탐색/대기/집결 이동 중인 유닛만 참여, 전투/조사/함정해제/다른 포메이션은 현재 행동을 유지한다.
 	private static bool CanJoinDeathSearch(Human h)
 	{
 		if (h.currentTrapInteraction != null) return false;

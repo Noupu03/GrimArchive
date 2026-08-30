@@ -5,10 +5,9 @@ using Haare.Client.Routine;
 using Haare.Client.UI;
 using GrimArchive.Wave;
 
-// 웨이브 시각화(2026-08-19 신규) — 인류 파티의 던전 도착까지 남은 시간을 화면 상단 가로형 게이지로
-// 보여준다("웨이브 시각화 프로그래머 지시서" 구현 대상). DebugInfoPanel/StatusInfoPanel/
-// BuildingControlPanel과 동일 관례 — [PanelAttribute]로 등록된 얇은 UGUI 프리팹 껍데기 + 실제
-// 그리기는 OnGUI로 처리한다(이 프로젝트에서 이미 검증된 패턴).
+// 웨이브 시각화 — 인류 파티의 던전 도착까지 남은 시간을 화면 상단 가로형 게이지로 보여준다.
+// DebugInfoPanel/StatusInfoPanel/BuildingControlPanel과 동일 관례 — [PanelAttribute]로 등록된 얇은
+// UGUI 프리팹 껍데기 + 실제 그리기는 OnGUI로 처리한다(이 프로젝트에서 이미 검증된 패턴).
 [PanelAttribute("Prefabs/WaveGaugePanel")]
 public class WaveGaugePanel : MonoRoutine, ICustomPanel
 {
@@ -16,8 +15,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     public GameObject panel { get; set; }
 
     // DebugInfoPanel.Instance/BuildingControlPanel.Instance와 동일 관례 — NoticeCenter가 "지금 이
-    // 게이지가 화면 위쪽을 얼마나 차지하고 있는지" 물어볼 때 쓴다(2026-08-21, 사용자 요청 "인류 웨이브
-    // 시각화 UI 크기를 50% 늘려줘. 그에 따라 notice UI 생성 위치도 같이 내려줘").
+    // 게이지가 화면 위쪽을 얼마나 차지하고 있는지" 물어볼 때 쓴다.
     public static WaveGaugePanel Instance { get; private set; }
 
     private UnitSpriteManager _unitSpriteManager;
@@ -60,20 +58,14 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     private bool _spritesLoadAttempted;
 
     // ── 레이아웃 ──────────────────────────────────────────────────
-    // 2026-08-21, 사용자 요청 "인류 웨이브 시각화 UI 크기를 50% 늘려줘" — BarWidth/PartyIconSize를
-    // 1.5배(480→720/26→39). barHeight는 BarWidth에서 스프라이트 비율로 계산되므로(아래 OnGUI) 같이
-    // 커진다 — NoticeCenter의 TopMargin 프로퍼티가 이 클래스의 GetReservedTopHeight()를 통해 그
-    // 커진 높이를 실시간으로 반영한다(하드코딩 상수로 따로 안 둠 — 방 점령색 alpha 드리프트 버그와
-    // 같은 종류의 실수를 막기 위함).
+    // barHeight는 BarWidth에서 스프라이트 비율로 계산되므로(아래 OnGUI) 같이 커진다 — NoticeCenter의
+    // TopMargin 프로퍼티가 GetReservedTopHeight()를 통해 그 높이를 실시간으로 반영한다.
     private const float BarWidth = 720f;
     private const float BarTopMargin = 10f;
     private const float PartyIconSize = 39f;
 
-    // 도착 임박 점멸 속도 — 문서가 "정확한 점멸 속도는 구현 후 플레이 테스트를 통해 조정한다"고
-    // 명시 위임했으므로 우선 자리표시자 값을 쓴다. 점멸 시작 시점 자체는 진행도 임계값이 아니라
-    // HumanWaveManager.IsMonstersSummonedThisCycle(2026-08-20 수정, 사용자 요청 "잠시후 웨이브가
-    // 시작됩니다 문구 및 관련 표시들 등장하는 시점을 0층 몬스터 소환 시점으로 바꿔줘") — 실제로
-    // 플레이어 몬스터들이 배치 위치로 소집되는 순간과 항상 같이 켜진다.
+    // 점멸 시작 시점은 진행도 임계값이 아니라 IsMonstersSummonedThisCycle 기준이라, 플레이어
+    // 몬스터가 배치 위치로 소집되는 순간과 항상 같이 켜진다.
     private const float BlinkSpeed = 6f;
 
     private void EnsureSprites()
@@ -92,9 +84,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         }
     }
 
-    // 게이지 프레임 스프라이트의 실제 가로세로비로 계산한 세로 크기(스프라이트가 아직 안 불려왔으면
-    // 0). OnGUI와 GetReservedTopHeight()가 공유해서, 이 UI가 커질 때(BarWidth 변경) 두 값이 항상
-    // 같이 맞아떨어진다.
+    // 게이지 프레임 스프라이트의 실제 가로세로비로 계산한 세로 크기 — OnGUI와 GetReservedTopHeight()가
+    // 공유해서 BarWidth가 바뀌어도 두 값이 항상 맞아떨어진다.
     private float GetBarHeight()
     {
         EnsureSprites();
@@ -102,10 +93,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         return BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);
     }
 
-    // NoticeCenter가 이 게이지 바로 아래에 자기 UI를 배치하려고 물어보는 공개 API(2026-08-21,
-    // 사용자 요청 "그에 따라 notice UI 생성 위치도 같이 내려줘") — BottomMenuBar.
-    // GetReservedBottomLeftHeight와 동일한 관례. 스프라이트를 아직 못 불러왔으면(초기 프레임 등)
-    // 안전하게 BarTopMargin만 반환한다.
+    // NoticeCenter가 이 게이지 바로 아래에 자기 UI를 배치하려고 물어보는 공개 API. 스프라이트를 아직
+    // 못 불러왔으면 안전하게 BarTopMargin만 반환한다.
     public float GetReservedTopHeight() => BarTopMargin + GetBarHeight();
 
     private void OnGUI()
@@ -116,10 +105,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         EnsureSprites();
         if (_frameSprite == null || _trackSprite == null) return;
 
-        // 2026-08-20, 사용자 요청 — waveData에 설정된 시간(waveCooldown) 그대로가 진행 바 시간이
-        // 되도록 HumanWaveManager.WaveProgress01(cooldownTimer/waveCooldown 비율)을 그대로 쓴다.
-        // HumanWaveManager가 스폰 시점을 waveCooldown 예산에 맞춰 미리 계산해두므로, 바가 100%에
-        // 도달하는 순간(cooldownTimer==0)이 곧 인간 파티의 "1층 진입 시작" 순간과 일치한다.
+        // WaveProgress01(cooldownTimer/waveCooldown 비율)을 그대로 써서, 바가 100%에 도달하는 순간이
+        // 곧 인간 파티의 "1층 진입 시작" 순간과 일치하게 한다.
         float progress = Mathf.Clamp01(wm.WaveProgress01);
         bool waveApproaching = progress < 1f; // 1층 진입 시작 전까지는 계속 "다가오는 중" 취급.
 
@@ -130,8 +117,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         Rect barRect = new Rect((Screen.width - BarWidth) * 0.5f, BarTopMargin, BarWidth, barHeight);
 
         // "왕국의 문 ─ 던전의 문" 장식 캡 폭만큼 좌우로 인셋하고, 프레임 안쪽 세로 중앙에 맞춰
-        // 트랙(회색 바)을 프레임 그래픽 내부에 통합한다(사용자 피드백 2026-08-19 "별도 말고 통합.
-        // 프레임 안에") — 별도 바로 분리하지 않고 프레임 위에 겹쳐 그린다.
+        // 트랙(회색 바)을 프레임 위에 겹쳐 그려 그래픽 내부에 통합한다(별도 바로 분리하지 않음).
         float insetXRatio = Mathf.Clamp01((_frameSprite.rect.width - _trackSprite.rect.width) / (2f * _frameSprite.rect.width));
         float trackHRatio = Mathf.Clamp01(_trackSprite.rect.height / _frameSprite.rect.height);
 
@@ -148,9 +134,8 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         GUI.color = Color.white;
         GUISpriteUtil.Draw(_frameSprite, barRect);
 
-        // 2) 프레임 안쪽 회색 트랙 — 진행도만큼만 그려서 그 자체가 차오르는 것처럼 보이게 한다
-        // (사용자 피드백 2026-08-19 "백그라운드는 기존으로 두고, 회색 바가 차오르는 방식으로").
-        // 별도 빈 상태 배경 레이어 없이 트랙 자체를 폭만 진행도에 맞춰 그린다.
+        // 2) 프레임 안쪽 회색 트랙 — 별도 빈 상태 배경 레이어 없이 트랙 자체를 폭만 진행도에 맞춰
+        // 그려서 그 자체가 차오르는 것처럼 보이게 한다.
         GUI.color = imminent ? new Color(1f, 0.82f, 0.25f, blinkAlpha) : Color.white;
         DrawSpritePartialWidth(_trackSprite, trackRect, progress);
 

@@ -48,11 +48,8 @@ public enum TileEffect
 	// 효과 종류는 필요에 따라 확장하세요.
 }
 
-// ── 청크 경계 벽면 방향 ── (2026-08-21, 횃불 벽걸이 배치 신규) — 원래 FogOfWarSystem.cs에 있었으나
-// CreateMap.TileWall.cs(청크 경계 판정)와 Assets/Script/Unit/Visual/TorchVisual.cs(스프라이트 라벨)가
-// 둘 다 참조해야 해서, 유닛의 Dir(Assets/Script/Unit/Core/UnitTypes.cs)과 동일한 이유로 어느 한쪽
-// 레이어에 속하지 않는 이 파일로 옮겼다. new_torch.png의 스프라이트 라벨(Up/Right/Down)과 1:1
-// 대응한다 — Left는 별도 스프라이트가 없어 Right 라벨을 좌우 반전(flipX)해서 재사용한다.
+// ── 청크 경계 벽면 방향 ── CreateMap.TileWall.cs와 TorchVisual.cs 양쪽이 참조하므로 이 파일에 둔다.
+// new_torch.png 라벨(Up/Right/Down)과 1:1 대응, Left는 전용 스프라이트가 없어 Right를 좌우 반전해 재사용.
 public enum TorchWallSide { Top, Right, Bottom, Left }
 
 // ── Footprint 크기 (정사각형 전용, 1~5) ──
@@ -83,9 +80,8 @@ public struct Gate
 	// 방향: true=수평(좌우 인접), false=수직(상하 인접)
 	public bool isHorizontal;
 
-	// 문 닫힘 시스템(2026-07-28 최초 도입, 2026-08-22 DoorSystem 진영 기반 개폐로 대체되며 미사용
-	// 필드가 됨 — 기존 맵 저장 파일과의 직렬화 호환을 위해 필드 자체는 남겨둔다). 개폐 상태는 이제
-	// InteractableObject.DoorIsOpenVisual(매 프레임 진영·근접 여부로 재계산)이 대신 담당한다.
+	// 미사용 필드(DoorSystem 진영 기반 개폐로 대체됨) — 기존 맵 저장 파일 직렬화 호환을 위해 남겨둔다.
+	// 실제 개폐 상태는 InteractableObject.DoorIsOpenVisual이 매 프레임 재계산한다.
 	public bool isDoorClosed;
 }
 
@@ -186,9 +182,8 @@ public struct FloorConfig
 	public int maxNormalRoomChunks;
 	// 총 방 수 (시작방 + 일반방 + 보스방). 서브 목적방은 별도 카운트.
 	public int totalRoomCount;
-	// 청크 1개의 타일 한 변 크기(정사각형, 기존엔 전 층 공용 상수 8이었음). 맵 크기 1.5배 확장
-	// (2026-08-23 사용자 요청)으로 층별 설정값이 됐다 — CreateMap의 모든 청크 배열 할당/타일 좌표
-	// 변환과 MapRandering/DoorSystem/FogOfWarSystem의 렌더링·문·안개 계산이 전부 이 값을 참조한다.
+	// 청크 1개의 타일 한 변 크기(정사각형) — CreateMap/MapRandering/DoorSystem/FogOfWarSystem이
+	// 모두 참조하므로 변경 시 영향 범위가 넓다.
 	public int chunkSize;
 }
 
@@ -286,17 +281,10 @@ public static class FloorConfigFactory
 	{
 		return new FloorConfig[]
 		{
-			// Floor 0: 던전 입구(2026-08-20, "던전 입구 구조 프로그래머 지시서") — 1×3 청크 고정
-			// 프리셋(가시 영역) + 최좌측에 플레이어에게 안 보이는 1×1 스폰 청크 1개, 합쳐서
-			// width=4, height=1. GenerateFloor0은 이 4청크 전체를 여전히 단일 StartRoom으로 균일하게
-			// 채운다(기존 로직 그대로) — 숨김 스폰 청크가 "안 보임"은 별도 렌더링 분리 없이
-			// CameraController의 층별 카메라 관찰 범위 제한(Floor0HiddenChunksX)만으로 구현한다.
-			// 맵 크기 1.5배 확장(2026-08-23 사용자 요청 "0층은 청크 크기만 늘려") — 청크 개수
-			// (width/height)는 그대로 두고 청크 자체의 타일 크기만 8→12로 다른 층과 통일했다.
-			// CameraController.Floor0ChunkSizeTiles/FogOfWarSystem의 0층 안개 스폰은 이 값을 그대로
-			// 읽어가므로 자동으로 맞는다 — 다만 HumanWaveManager의 DungeonEntranceHiddenChunkCenterX/
-			// DungeonEntranceRoomEntryX(0층 던전 입구 대기 위치)는 손으로 미리 계산해둔 상수라 이
-			// chunkSize를 다시 바꾸면 그 두 값도 반드시 같이(비율 그대로) 맞춰야 한다.
+			// Floor 0: 던전 입구 — 1×3 가시 프리셋 + 최좌측 숨김 스폰 청크 1개로 width=4, height=1.
+			// 숨김 청크는 별도 렌더링 분리 없이 CameraController의 관찰 범위 제한만으로 "안 보임"을
+			// 구현한다. HumanWaveManager의 DungeonEntranceHiddenChunkCenterX 등은 손계산 상수라
+			// chunkSize를 바꾸면 비율 유지하며 같이 맞춰야 한다.
 			new FloorConfig
 			{
 				floorId = FloorId.Floor_0,

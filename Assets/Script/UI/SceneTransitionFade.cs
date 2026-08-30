@@ -3,10 +3,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Title -> ssh 전환. Additive 로드(씬 스왑 자체의 카메라 끊김 방지, 2026-07-23 1차 수정)만으로는
-// 그 뒤 ssh 씬 자체의 초기화(맵 생성 등)가 진행되는 동안에도 화면이 잠깐 끊겨 보인다는 후속 신고
-// ("씬 시작할때 검은색 점등 후에 시작해. 부자연스러워. 이 사이 로딩 중에를 검은 오버레이로
-// 덮어버리자", 2026-07-23)를 받아, 그 구간 전체를 의도적인 검은 오버레이로 덮는 방식으로 바꿨다.
+// Title -> ssh 전환. Additive 로드만으로는 그 뒤 ssh 씬 자체의 초기화(맵 생성 등)가 진행되는 동안
+// 화면이 잠깐 끊겨 보이는 문제가 있어, 그 구간 전체를 의도적인 검은 오버레이로 덮는 방식으로 처리한다.
 // 로딩 시작과 동시에 애니메이션 없이 즉시 화면을 덮어서 끊기는 순간 자체가 안 보이게 하고, 전환이
 // 완전히 끝난 뒤에만 부드럽게 페이드인해서 자연스럽게 드러낸다. 씬에 미리 배치할 필요 없이 코드에서
 // 자기 자신을 만들고 DontDestroyOnLoad로 전환 내내 살아남는다.
@@ -19,8 +17,7 @@ public class SceneTransitionFade : MonoBehaviour
     private const float RevealSeconds = 0.4f;
     // ssh 씬의 Awake/Start/Initialize(맵 생성 등)가 충분히 끝날 때까지 여유를 준 뒤에 페이드인을
     // 시작한다 — 씬 로드가 isDone이 된 시점과 화면에 실제로 그릴 게 준비된 시점 사이에 간극이 있어서,
-    // 곧바로 페이드인하면 여전히 빈 화면이 잠깐 보일 수 있다. 몇 프레임으로는 부족해서(사용자 신고,
-    // 2026-07-23 "프레임 여유를 더 줘. 2초쯤") 시간 기반으로 늘렸다.
+    // 곧바로 페이드인하면 여전히 빈 화면이 잠깐 보일 수 있다. 몇 프레임으로는 부족해 시간 기반으로 뒀다.
     private const float PostLoadSettleSeconds = 2f;
 
     public static SceneTransitionFade EnsureInstance()

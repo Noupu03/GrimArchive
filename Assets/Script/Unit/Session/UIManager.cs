@@ -4,17 +4,11 @@ using DG.Tweening;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 
-// 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter(Haare UIPresenter/RegisterEntryPoint
-// 경로)로 옮겨졌다 — 이 클래스는 이제 OnGUI() 오버레이(게임 속도/일시정지 표시)와 플로팅 텍스트만 담당한다.
-//
-// UI 리팩토링(2026-08-20, 사용자 요청 "모든 UI Haare 프레임워크에 편입") — 예전엔 GameCompositionRoot가
-// RegisterComponentOnNewGameObject로 직접 배선하는 "느슨한" MonoBehaviour였는데(NoticeCenter와 동일
-// 사유), 다른 UI 패널들(BuildingControlPanel/BottomMenuBar 등)과 동일하게 [PanelAttribute] Haare
-// ICustomPanel로 편입했다. 그 대신 Unit.cs의 모든 유닛이 쓰던 [Inject] private UIManager _uiManager
-// 생성자 주입은(Haare 패널은 VContainer 컨테이너에 등록되지 않아 더는 주입받을 수 없다) BuildingControlPanel.
-// Instance와 동일한 정적 Instance 접근으로 교체했다(사용자 확인) — GameSession.Initialize의
-// _resolver.Resolve<UIManager>() 강제 인스턴스화 호출도 더는 필요 없어 제거됐다(GameUIPresenter.
-// BootSequence가 그 역할을 대신함).
+// 부팅 시 DebugInfoPanel/도감 패널을 띄우던 역할은 GameUIPresenter로 옮겨졌다 — 이 클래스는 이제
+// OnGUI() 오버레이(게임 속도/일시정지 표시)와 플로팅 텍스트만 담당한다.
+// 다른 UI 패널들과 동일하게 [PanelAttribute] Haare ICustomPanel로 편입돼 있다 — Haare 패널은
+// VContainer 컨테이너에 등록되지 않아 더는 생성자 주입을 받을 수 없으므로, Unit.cs 등 소비처는
+// BuildingControlPanel.Instance와 동일한 정적 Instance 접근을 쓴다.
 [PanelAttribute("Prefabs/UIManager")]
 public class UIManager : MonoRoutine, ICustomPanel
 {
@@ -58,12 +52,9 @@ public class UIManager : MonoRoutine, ICustomPanel
         DrawTopLeftUI();
 	}
 
-	// 사용자 요청(2026-08-20 "좌상단의 배속... 글자 크기 좀 키워주고, 메뉴 스타일로 바꿔줘" → "배속표시는
-	// 크기 좀 줄이자" → "배속 표시 다시 큰 상태로 만들어주고, 텍스트 잘리지 않게만 해줘. 가로 길이 너무
-	// 길어서 빈 공간이 많이 보임") — 주 문구(게임 속도)는 메뉴 스타일 큰 굵은 글씨로 키우고, 보조 안내문
-	// (조작키 힌트)은 작은 글씨로 남겨 두 줄의 실제 렌더 크기를 각각 측정한 뒤 박스를 그 최대 폭에 맞춰
-	// 동적으로 그린다 — 고정폭(300)을 쓰면 큰 글씨일 때 잘리거나 작은 글씨일 때 빈 공간이 남는 문제를
-	// 동시에 해결.
+	// 주 문구(게임 속도)는 큰 굵은 글씨, 보조 안내문(조작키 힌트)은 작은 글씨로 두고 두 줄의 실제
+	// 렌더 크기를 각각 측정해 박스를 그 최대 폭에 맞춰 동적으로 그린다 — 고정폭을 쓰면 큰 글씨일 때
+	// 잘리거나 작은 글씨일 때 빈 공간이 남는 문제를 피한다.
 	private const int SpeedIndicatorFontSize = GUIMenuStyleUtil.LabelFontSize;
 	private const int SpeedIndicatorHintFontSize = 13;
 	private static GUIStyle _speedIndicatorStyle;

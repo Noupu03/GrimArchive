@@ -261,8 +261,7 @@ public class AStarMovement : IMovementAlgorithm
         return false;
     }
 
-    // 명령 경로 시각화용(2026-08-24 사용자 요청, IMovementAlgorithm 인터페이스 주석 참고) — TryGetNextStep이
-    // 채워둔 _cacheTarget/_pathMap을 그대로 읽기만 한다. _cacheTarget은 필드 초기값이 (-9999,-9999)라
+    // 명령 경로 시각화용 — TryGetNextStep이 채워둔 _cacheTarget/_pathMap을 그대로 읽기만 한다.
     // 아직 한 번도 경로를 계산한 적 없으면 _pathMap.Count == 0이라 false를 반환한다.
     public bool TryGetCachedDestination(out Vector2Int destination)
     {
@@ -270,9 +269,8 @@ public class AStarMovement : IMovementAlgorithm
         return _pathMap.Count > 0;
     }
 
-    // unit.position에서 시작해 _pathMap을 따라 _cacheTarget까지 좌표를 나열한다. _pathMap은 마지막
-    // TryGetNextStep 호출 시점의 경로 백본이라 유닛이 그 사이 이동했으면 앞쪽 일부 좌표가 이미 없을 수
-    // 있다(자연스럽게 그 지점에서 경로가 끊겨 보인다 — 다음 TryGetNextStep 호출에서 다시 채워진다).
+    // unit.position에서 시작해 _pathMap을 따라 _cacheTarget까지 좌표를 나열한다. 유닛이 마지막 계산
+    // 이후 이동했으면 앞쪽 일부 좌표가 없을 수 있다(다음 TryGetNextStep 호출에서 다시 채워진다).
     public List<Vector2Int> BuildCachedPathPreview(Unit unit, int maxSteps)
     {
         var result = new List<Vector2Int> { unit.position };
@@ -295,13 +293,9 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTime = 0f;
     }
 
-    // 유닛 점유 타일을 "비용만 추가되는 통행 가능 칸"으로 취급했었는데, 실제 이동을 실행하는
-    // UnitFunction.CanMove/Move()는 점유된 칸을 예외 없이 완전히 막는다(2026-07-22 발견) — A*가
-    // "이 길로 가면 조금 더 걸리지만 갈 수는 있다"고 추천한 칸이 실제로는 Move() 단계에서 조용히
-    // 실패해서, GOAP은 "이동했다"고 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈춰버리는
-    // 버그였다(파티가 밀집한 웨이브 대형에서 서로 자리를 막아 자주 재현 — 사용자 신고 스크린샷 참고).
-    // 이제 CanMove와 똑같이 점유된 칸은 완전히 막아서(원래 예외였던 targetPos 자체도 포함) 이 둘이
-    // 항상 같은 판단을 하도록 맞춘다.
+    // 점유된 칸은 CanMove와 동일하게 예외 없이 완전히 막는다(원래 예외였던 targetPos 자체도 포함) —
+    // 그렇지 않으면 A*가 "갈 수 있다"고 추천한 칸에서 실제 Move()가 조용히 실패해, GOAP은 "이동했다"고
+    // 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈추는 불일치가 생긴다.
     protected virtual bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         isOccupied = false;
@@ -319,9 +313,7 @@ public class AStarMovement : IMovementAlgorithm
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
                 if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
 
-                // 문 진영 통행 판정(기초문서.md 피드백, 2026-08-22) — UnitFunction.CanMove와 반드시
-                // 같은 결론을 내야 한다(위 "코너 커팅 방지" 주석과 동일한 이유 — 둘이 어긋나면 A*가
-                // 실제로는 막힌 경로를 갈 수 있다고 오판한다).
+                // UnitFunction.CanMove와 반드시 같은 결론을 내야 한다 — 어긋나면 A*가 막힌 경로를 갈 수 있다고 오판한다.
                 if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
                 {
                     isWall = true;
@@ -336,12 +328,9 @@ public class AStarMovement : IMovementAlgorithm
             }
         }
 
-        // 코너 커팅 방지 — Move()의 실제 판정(CanMove, 벽+유닛 점유 둘 다 봄)과 반드시 일치해야
-        // 한다. 여기서 벽만 보고 점유는 빼먹으면, A*는 이 대각선이 통과 가능하다고 판단하는데 실제
-        // Move()는 대각선 양옆 한 칸을 다른 유닛이 차지하고 있어서 거부하는 불일치가 생긴다 — 좁은
-        // 곳에 유닛이 몰렸을 때 서로 대각선으로 길을 막아서 몇몇이 영영 못 움직이는 원인이었다(사용자
-        // 제보 콘솔 로그, 2026-07-23 — "이동 시도했지만 실제로는 못 움직임. 점유=False"가 목표 칸이
-        // 아니라 대각선 코너 쪽 점유 때문이었다).
+        // 코너 커팅 방지 — Move()의 실제 판정(CanMove, 벽+유닛 점유 둘 다 봄)과 반드시 일치해야 한다.
+        // 벽만 보고 점유를 빼먹으면 A*는 대각선이 통과 가능하다고 판단하는데 실제 Move()는 대각선
+        // 양옆 한 칸을 다른 유닛이 차지해 거부하는 불일치가 생긴다.
         if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
         {
             int ortho1X = currentPos.x + dirVec.x, ortho1Y = currentPos.y;
@@ -380,17 +369,14 @@ public class AStarMovement : IMovementAlgorithm
     }
 
     // 좌표 하나가 벽이거나(범위 밖 포함) 다른 살아있는 유닛이 점유 중이면 true — UnitFunction.CanMove의
-    // 단일 타일 판정과 같은 기준(벽+점유)을 discoveredMap 기반으로 재현한다. 코너 커팅 방지 체크가
-    // Move()의 실제 판정과 어긋나지 않도록 이 헬퍼 하나로 통일해서 쓴다.
+    // 단일 타일 판정과 같은 기준을 discoveredMap 기반으로 재현해 코너 커팅 체크와 Move()가 어긋나지 않게 한다.
     private bool IsCoordBlocked(Unit unit, FactionData myData, int mapW, int mapH, int floorIdx, int x, int y)
     {
         if (x < 0 || x >= mapW || y < 0 || y >= mapH) return true;
         if (myData.discoveredMap[floorIdx][x, y] == 2) return true;
 
-        // 닫힌 문 판정(2026-08-22, 사용자 신고 "2*2문에서 1개 문만 남겨두고 이동할때 중간에 멈춤") —
-        // Move()의 코너 커팅 검사는 CanMove를 쓰므로 문(다른 진영 소유)까지 막힌 것으로 보는데, 여기가
-        // 벽+점유만 확인하면 A*는 "남은 적 문 옆 뚫린 칸으로의 대각선"을 통과 가능이라 판단하고 Move()는
-        // 거부하는 불일치가 생긴다 — 유닛이 아무 피드백 없이 문턱 앞에서 영영 멈추는 원인.
+        // Move()의 코너 커팅 검사는 CanMove를 쓰므로 다른 진영 소유 문도 막힌 것으로 본다 — 여기서
+        // 빠뜨리면 A*가 "닫힌 문 옆 대각선"을 통과 가능이라 오판해 문턱 앞에서 영영 멈추게 된다.
         if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(x, y, floorIdx), unit)) return true;
 
         if (unit.Session != null &&

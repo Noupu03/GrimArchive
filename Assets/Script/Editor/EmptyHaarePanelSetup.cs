@@ -3,14 +3,9 @@ using UnityEngine;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
 
-// SetupStatusInfoPanel/SetupBottomMenuBar/SetupNoticeCenter/SetupUIManager/SetupWaveGaugePanel이
-// 전부 토씨 하나 안 틀리고 반복하던 "빈 프리팹 생성 + Addressable 등록" 로직을 한 곳으로 모았다
-// (2026-08-20, 사용자 요청 "tools의 셋업들 좀 종류별로 통일시켜봐"). 이 프로젝트의 [PanelAttribute]
-// 패널은 프리팹 껍데기(빈 GameObject + 해당 MonoRoutine 컴포넌트)만 필요하고 실제 그리기는 OnGUI가
-// 담당한다는 확립된 관례를 그대로 반영한다 — 새 Haare 패널이 생기면 Setup*.cs 파일 하나에 이 헬퍼를
-// 호출하는 [MenuItem] 한 줄만 추가하면 된다. HaareUISetup.cs("Tools/GrimArchive/Haare UI 셋업 생성")는
-// uGUI 계층(텍스트/이미지 등)이 실제로 필요한 별개 종류의 패널들을 한 번에 배선하는 다른 흐름이라
-// 이 헬퍼 대상이 아니다.
+// 여러 Setup*.cs가 반복하던 "빈 프리팹 생성 + Addressable 등록" 로직을 한 곳으로 모았다 — [PanelAttribute]
+// 패널은 프리팹 껍데기(빈 GameObject + MonoRoutine, 실제 그리기는 OnGUI)만 필요하므로 새 Haare 패널은
+// 이 헬퍼를 호출하는 [MenuItem] 한 줄만 추가하면 된다. uGUI 계층이 필요한 HaareUISetup.cs는 별개 흐름.
 public static class EmptyHaarePanelSetup
 {
     private const string FolderPath = "Assets/Resources/Prefabs";

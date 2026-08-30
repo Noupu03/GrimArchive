@@ -2,9 +2,7 @@ using UnityEngine;
 
 public static class AIMovementHelper
 {
-	// 체비셰프(8방향 격자) 거리 — CombatFSMState/PlayerCommandFSMState/TacticalFSMState(함정 접근/조사
-	// 목표/코어 접근)가 각자 Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) 형태로 동일하게 중복 구현하고
-	// 있던 것을 통합했다(2026-08-20).
+	// 체비셰프(8방향 격자) 거리 — 여러 FSM 상태가 각자 중복 구현하던 것을 통합.
 	public static int ChebyshevDistance(Vector2Int a, Vector2Int b)
 		=> Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
 
@@ -12,24 +10,15 @@ public static class AIMovementHelper
 	public static bool IsAdjacent(Vector2Int a, Vector2Int b, int radius = 1)
 		=> ChebyshevDistance(a, b) <= radius;
 
-	// 플레이어 진영 몬스터 방 제한 MVP(2026-07-27) — FactionBehavior 타입을 나열하는 대신 실제 방 제한
-	// 여부를 결정하는 MovementAlgorithm(RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
-	// CombatFSMState/NavigationFSMState가 각자 동일한 `is RoomConfinedMovement` 검사를 중복하고
-	// 있던 것을 통합했다(2026-08-20).
+	// FactionBehavior 타입을 나열하는 대신, 실제 방 제한 여부를 결정하는 MovementAlgorithm
+	// (RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
 	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
 
-	// 방 제한 유닛의 무작위 인접 이동 — 8방향 중 유효한 칸(문/방 경계/벽/유닛 점유/대각선 코너 커팅 확인)을
-	// 찾아 1칸 이동한다. NavigationFSMState.MoveRandomlyValid(자유탐색 폴백)와 IdleFSMState(대기 상태
-	// 배회, 2026-08-20 신규)가 공유한다 — anchor/radius를 주면(체비쇼프 거리) 그 범위를 벗어나는 칸은
-	// 후보에서 제외해 "배회 기준점 주변 N칸"으로 반경을 제한할 수 있다(기본값은 무제한이라 기존
-	// MoveRandomlyValid 동작과 동일).
-	// forceRoomConfine(2026-08-20, 사용자 요청 "대기로 인한 이동 중일때는, 방 밖으로 나가면 안됨(문이
-	// 있는 타일도 안됨)") — 기본값(false)은 지금까지처럼 유닛의 MovementAlgorithm이 RoomConfinedMovement
-	// 일 때만 방/문 제한을 건다(NavigationFSMState의 자유탐색은 인류처럼 방 제한이 없는 유닛도 호출하므로
-	// 이 동작을 유지해야 한다). true면 MovementAlgorithm 종류와 무관하게 무조건 "현재 방 밖 금지 + 문
-	// 타일 금지"를 강제한다 — IdleFSMState가 이 값으로 호출해서, 스폰 경로에 따라 우연히
-	// RoomConfinedMovement가 안 붙은 플레이어 몬스터가 있더라도 대기 배회만큼은 절대 방을 벗어나지
-	// 않도록 보장한다.
+	// 방 제한 유닛의 무작위 인접 이동 — 8방향 중 유효한 칸을 찾아 1칸 이동하며, NavigationFSMState.
+	// MoveRandomlyValid와 IdleFSMState가 공유한다. anchor/radius로 배회 반경을 제한할 수 있다(기본
+	// 무제한). forceRoomConfine=true면 MovementAlgorithm 종류와 무관하게 방/문 제한을 강제한다 —
+	// RoomConfinedMovement가 안 붙은 유닛도 대기 배회만큼은 방을 벗어나지 않게 하려는 용도로
+	// IdleFSMState가 사용한다.
 	public static bool TryMoveRandomlyWithinRadius(Unit unit, Vector2Int? anchor = null, int radius = int.MaxValue, bool forceRoomConfine = false)
 	{
 		bool roomConfined = forceRoomConfine || IsRoomConfined(unit);
@@ -72,15 +61,10 @@ public static class AIMovementHelper
 	}
 
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
-	// (NavigationFSMState.CrossStairs, HumanWaveManager의 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야
-	// 한다 — 2026-08-05 사용자 신고 "유닛끼리 겹친다"의 원인이 바로 이 지점들이었다: 전부
-	// CreateMap.TryGetStairApproachPosition의 힌트 없는 오버로드(항상 같은 대표 좌표 1칸만 반환)를
-	// 점유 확인 없이 그대로 썼다. 계단 "접근" 측(NavigationFSMState.MoveToStairs)은 이미
-	// TryGetStairApproachCandidates + unitGrid 점유 확인으로 여러 후보 중 빈 칸을 고르고 있었는데
-	// (2026-07-23 병목 수정), "도착" 측만 그 수정이 안 돼 있었다 — 여러 인류가 같은 계단으로 동시에
-	// 넘어가면 전부 같은 한 칸에 텔레포트돼 겹쳤다.
-	// 반환값: 빈 후보를 찾았으면 true(pos에 담김) / 후보 전부 점유(극단적 혼잡) 또는 계단 정보 자체를
-	// 못 찾으면 false — 호출부가 "이번엔 실패, 나중에 재시도"로 처리할지 판단한다.
+	// (NavigationFSMState.CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 한다 —
+	// 대표 좌표 1칸만 쓰면 여러 유닛이 같은 계단으로 동시에 텔레포트돼 겹친다("접근" 측 MoveToStairs와
+	// 동일하게 여러 후보 중 빈 칸을 고른다). 반환값 false는 후보 전부 점유(혼잡) 또는 계단 정보 없음 —
+	// 호출부가 재시도 여부를 판단한다.
 	public static bool TryResolveUnoccupiedStairArrival(GameSession session, int arrivalFloor, int fromFloor, out Vector2Int pos)
 	{
 		pos = Vector2Int.zero;
@@ -97,20 +81,15 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 반환값: 실제로 한 칸이라도 다가갈 수 있었는지(true) / 더 다가갈 방법이 전혀 없어 제자리에
-	// 머물렀는지(false, 목표 칸이 다른 유닛/벽으로 완전히 막혀 있고 이미 갈 수 있는 가장 가까운
-	// 지점까지 도달한 상태). 호출부(PlayerCommandFSMState)가 이 신호로 "길이 막혔다"를 판단해
-	// 목표를 재지정한다.
+	// 반환값: 실제로 한 칸이라도 다가갔으면 true, 목표 칸이 완전히 막혀 제자리에 머물렀으면 false —
+	// 호출부(PlayerCommandFSMState)가 이 신호로 "길이 막혔다"를 판단해 목표를 재지정한다.
 	public static bool MoveTowardsPos(Unit unit, Vector2Int targetPos)
 	{
 		if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
 		{
-			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다(2026-08-22, 사용자 신고 "2*2문에서
-			// 1개 문만 남겨두고 이동할때 중간에 멈춤, 명령해도 안먹음") — A*와 Move()의 판정이 어긋나면
-			// (코너 커팅/같은 프레임 내 점유 변화 등) Move()가 조용히 실패하는데, 예전엔 그래도 true를
-			// 반환해 호출부(PlayerCommandFSMState 등)가 stuckTurns를 리셋하며 "정상 이동 중"으로 오판해
-			// 아무 피드백 없이 영원히 얼어붙었다. 실패를 false로 드러내면 기존 혼잡 인내/포기 로직이
-			// 그대로 안전망이 된다.
+			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다 — A*와 Move()의 판정이 어긋나면
+			// (코너 커팅 등) Move()가 조용히 실패할 수 있는데, true를 그대로 반환하면 호출부가
+			// stuckTurns를 리셋해 영원히 얼어붙는 오판을 한다.
 			Vector2Int before = unit.position;
 			unit.Move(nextDir);
 			return unit.position != before;
@@ -122,9 +101,8 @@ public static class AIMovementHelper
 		=> MoveTowardsPos(unit, target.position);
 
 	// 목표 칸이 막혀 더 다가갈 수 없을 때, 바로 옆 8칸 중 실제로 갈 수 있는 가장 가까운(유닛 현재
-	// 위치 기준) 빈 칸을 대신 반환한다(사용자 요청, 2026-07-24 "길이 막혀서 플레이어의 이동, 공격
-	// 명령을 수행하지 못하면, 근처 바로 옆의 빈칸으로 목표 재지정"). 갈 수 있는 칸이 하나도 없으면
-	// center를 그대로 돌려준다 — 호출부가 "재지정도 불가능"으로 판단해 처리한다.
+	// 위치 기준) 빈 칸을 대신 반환한다. 갈 수 있는 칸이 하나도 없으면 center를 그대로 돌려준다 —
+	// 호출부가 "재지정도 불가능"으로 판단해 처리한다.
 	public static Vector2Int FindNearbyOpenTile(Unit unit, Vector2Int center)
 	{
 		Vector2Int best = center;
@@ -141,12 +119,9 @@ public static class AIMovementHelper
 		return best;
 	}
 
-	// 명령 포기 오판 방지(2026-07-28, 사용자 신고 "자꾸 전투중에 한번씩 플레이어 명령 무시해") —
-	// FindNearbyOpenTile이 "갈 수 있는 칸이 하나도 없다"고 판단해도, 그게 진짜 벽/닫힌 문 때문인지
-	// 아니면 전투 중 다른 유닛들이 그 순간 잠깐 몰려서(점유) 막힌 것뿐인지를 구분하지 못했다.
-	// PlayerCommandFSMState.ExecutePlayerMove가 후자까지 "완전히 막힘"으로 오판해 명령을 그 자리에서
-	// 영구히 취소해 버렸다 — 혼잡한 전투에서 한 틱만 지나면 풀릴 상황인데도 명령이 사라지는 원인.
-	// 여기서는 CanMove(ignoreUnits: true)로 유닛 점유를 무시하고 "지형만" 기준으로 재확인한다.
+	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지, 다른 유닛이 잠깐 몰려(점유) 막힌 것뿐인지 구분해야
+	// 한다. 후자를 완전히 막힘으로 오판하면 곧 풀릴 상황에서도 명령이 영구히 취소되므로, CanMove
+	// (ignoreUnits: true)로 점유를 무시하고 지형만 기준으로 재확인한다.
 	public static bool HasAnyStructurallyOpenNeighbor(Unit unit, Vector2Int center)
 	{
 		if (unit.CanMove(center, ignoreUnits: true)) return true;
@@ -159,13 +134,10 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 유닛 "자기 자신의 현재 위치" 기준 혼잡 판정 전용(2026-08-23, PlayerCommandFSMState 좁은 병목
-	// 간헐적 정지 수정) — 위 HasAnyStructurallyOpenNeighbor(unit, center)를 center=unit.position으로
-	// 그대로 호출하면 안 된다: 그 함수의 첫 줄이 "center 자신이 열려있는지"부터 확인하는데, center가
-	// 유닛이 이미 서 있는 칸이면 당연히 항상 열려있어(트루) 검사 자체가 무의미해진다. 여기서는 자기
-	// 자신은 제외하고 인접 8칸만(점유 무시) 확인 — 그중 하나라도 갈 수 있으면 "지금은 다른 유닛이
-	// 막고 있을 뿐 구조적으로는 갈 곳이 있다"(혼잡, 인내 대기), 8칸 전부 벽/닫힌 문이면 "진짜 완전히
-	// 막힘"(포기)으로 판정한다.
+	// 유닛 자기 위치 기준 혼잡 판정 전용 — HasAnyStructurallyOpenNeighbor(unit, unit.position)를 그대로
+	// 쓰면 안 된다(center 자신이 항상 열려있어 검사가 무의미해짐). 여기서는 자기 자신은 제외하고 인접
+	// 8칸만(점유 무시) 확인해 하나라도 갈 수 있으면 혼잡(인내), 전부 막히면 완전히 막힘(포기)으로
+	// 판정한다.
 	public static bool HasAnyStructurallyOpenAdjacentTile(Unit unit)
 	{
 		Vector2Int center = unit.position;

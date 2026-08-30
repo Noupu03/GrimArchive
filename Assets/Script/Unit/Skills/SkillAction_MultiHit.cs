@@ -55,10 +55,8 @@ public class SkillAction_MultiHit : SkillAction
         BeginAttackCast(unit, _d.baseDelayMs, threat,
             () =>
             {
-                // hitEffectPrefab을 실제로 맞은 대상 각각의 위치에 스폰한다(2026-08-24 사용자 신고
-                // "HitEffectPrefab에 있는 VFX가 투사체가 아닌 스킬에는 실행되지 않는 문제" — MultiHit은
-                // 이 필드를 전혀 쓰지 않고 있었다). SkillAction_Generic과 동일하게 유닛 공용 피격
-                // 스파크와 같은 프리팹이면 중복 렌더링을 피해 건너뛴다.
+                // hitEffectPrefab을 실제로 맞은 대상 각각의 위치에 스폰한다 — SkillAction_Generic과
+                // 동일하게 유닛 공용 피격 스파크와 같은 프리팹이면 중복 렌더링을 피해 건너뛴다.
                 GameObject sharedHitSpark = unit.Generate?.GetVisualDefinition(unit)?.hitSparkPrefab;
                 DamageEnemiesInHitboxWithAreaRatio(unit, threat.hitbox, multiplier, _d.hasStun, _d.stunDuration,
                     onHit: t =>
@@ -88,10 +86,9 @@ public class SkillAction_MultiHit : SkillAction
             {
                 target.TakePhysicalDamage(attacker.CombatStat.physicalAttack * multiplier, attacker);
                 if (_d.hasStun) target.ApplyStun(_d.stunDuration);
-                // attacker.Generate.TriggerHitEffect(target) 명시 호출 제거(2026-08-24 발견) —
                 // TakePhysicalDamage → TakeDamage가 내부적으로 이미 TriggerHitEffect(공용 히트
-                // 스파크)를 호출하므로 매 후속 타격마다 히트 스파크가 두 번씩 뜨고 있었다. 대신
-                // 위 첫 타격과 동일하게 스킬 전용 hitEffectPrefab을 대상 위치에 스폰한다.
+                // 스파크)를 호출하므로 별도로 다시 호출하면 중복 재생된다 — 대신 위 첫 타격과
+                // 동일하게 스킬 전용 hitEffectPrefab만 대상 위치에 스폰한다.
                 GameObject sharedHitSpark = attacker.Generate?.GetVisualDefinition(attacker)?.hitSparkPrefab;
                 if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
                     attacker.VFX?.Spawn(_d.hitEffectPrefab, target);

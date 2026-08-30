@@ -17,17 +17,13 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private Sprite floorSprite;
     private Sprite stairSprite;
 
-    // 아래층(더 깊은 층)으로 내려가는 계단/위층(입구 쪽)으로 올라가는 계단 표시용 — 기존 바닥·계단
-    // 타일 위에 겹쳐서 그리는 오버레이 스프라이트(사용자 요청, 2026-07-23). 타일 자체를 바꾸는 게
-    // 아니라 그 위에 별도 SpriteRenderer로 얹는다.
+    // 아래층으로 내려가는/위층으로 올라가는 계단 표시용 오버레이 스프라이트 — 타일 자체를 바꾸지 않고
+    // 그 위에 별도 SpriteRenderer로 얹는다.
     private Sprite stairDownSprite;
     private Sprite stairUpSprite;
 
-    // 방 점령 표현(2026-08-24 전면 개편, 사용자 요청 "방 전체 타일 색을 바꾸는 방식 대신, 방의 바닥
-    // 부분 모서리 선을 따고 그 선에 색 차이를 두는 방식으로") — 방 전체를 채우던 SpriteRenderer 오버레이
-    // 쿼드를 걷어내고, TraceContours(벽 셰도우캐스팅에 이미 쓰이던 격자 윤곽선 추적 알고리즘)를 재사용해
-    // "이 방에 속하고 벽이 아닌" 타일들의 실제 윤곽선을 그대로 뽑아 LineRenderer로 그린다 — 방 모양이
-    // 사각형이 아니어도(L/T/ㄷ/S자 등) 근사 없이 실제 바닥 모양 그대로 나온다.
+    // 방 점령 표현 — 방 전체를 채우는 오버레이 대신 TraceContours(벽 셰도우캐스팅용 윤곽선 추적)를
+    // 재사용해 방의 실제 바닥 윤곽선을 LineRenderer로 그린다(비정형 방 모양도 근사 없이 그대로).
     private readonly Dictionary<(int floor, int roomId), List<LineRenderer>> _roomOutlines
         = new Dictionary<(int, int), List<LineRenderer>>();
     // 방 하나의 윤곽선 조각(_0, _1, ...)들을 한데 묶어두는 부모 오브젝트. 방이 벽으로 갈라져 폐곡선이
@@ -42,10 +38,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private UnityEngine.Tilemaps.Tile floorTile;
     private UnityEngine.Tilemaps.Tile stairTile;
 
-    // 바닥/벽 TilemapRenderer가 머티리얼을 지정하지 않으면 Unity가 기본값으로 Sprites-Default
-    // (Sprites/Default, Unlit)를 배정한다 — Light2D의 거리 감쇠·그림자가 반응할 셰이더가 아니라서
-    // 던전 전체가 광원과 무관하게 항상 같은 밝기로 보이는 원인이었다(2026-08-26, "거리에 의한 빛
-    // 밝기 감소와 그림자가 전혀 적용이 안됨" 신고). URP 2D Lit 셰이더를 명시적으로 물려 고친다.
+    // TilemapRenderer 기본 머티리얼(Sprites/Default, Unlit)은 Light2D에 반응하지 않아 URP 2D Lit
+    // 셰이더를 명시적으로 물려준다.
     private Material _floorLitMaterial;
 
     // 맵 1.5배 확장(2026-08-23 사용자 요청)으로 청크 크기가 층별 설정값(FloorConfig.chunkSize)이 됐다
@@ -87,11 +81,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
             }
         }
 
-        // 계단 스프라이트 교체(2026-07-28, 사용자 요청) — stair_down2/stair_up2로 변경.
-        // 2026-07-28 추가 정정(사용자 요청 "올라가는 계단과 내려가는 계단 스프라이트를 스왑해줘.
-        // 기획자가 의도와 다르대") — 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어
-        // 로드 시점에 바꿔 배정한다(RenderStairOverlays의 goesDown 판정 로직 자체는 정상이라 그쪽은
-        // 안 건드림).
+        // 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어 로드 시점에 바꿔 배정한다
+        // (RenderStairOverlays의 goesDown 판정 로직 자체는 정상).
         SpriteCache.GetOrLoad(ref stairDownSprite, "obj/stair_up2");
         SpriteCache.GetOrLoad(ref stairUpSprite, "obj/stair_down2");
         if (stairDownSprite == null || stairUpSprite == null)
@@ -221,10 +212,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
     }
 
-    // PlaceStairTiles(CreateMap.Stairs.cs)가 청크 내부 (3,4)x(3,4) 2x2 블록에 계단 타일을 찍으므로,
-    // 그 블록 전체를 덮도록 방향 아이콘(stairDown/stairUp)을 기존 타일 위에 겹쳐 그린다(사용자 요청,
-    // 2026-07-23). stairTargetFloor가 현재 층보다 크면(더 깊은 층) 내려가는 계단, 작으면(입구 쪽)
-    // 올라가는 계단으로 판단한다.
+    // PlaceStairTiles(CreateMap.Stairs.cs)가 찍은 2x2 계단 블록 전체를 덮도록 방향 아이콘을 기존
+    // 타일 위에 겹쳐 그린다. stairTargetFloor가 현재 층보다 크면 내려가는 계단, 작으면 올라가는 계단.
     private const int StairBlockSize = 2; // PlaceStairTiles와 동일한 블록 크기
     private const float StairOverlayWorldSize = 2f; // 2x2 타일 블록 전체를 덮는 크기(비율 유지, 큰 쪽 기준)
     private const int StairOverlaySortingOrder = 5; // GameSession.SpawnObject의 오브젝트 오버레이와 동일한 관례
@@ -273,18 +262,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
     }
 
-    // 층 사이에 두는 간격(타일 단위, 고정값) — 사용자 요청(2026-07-23) "계단 위치끼리 맞물리지 말고
-    // 층별로 스프라이트 간격 떨어트려줘". 모든 층 Tilemap이 항상 동시에 활성화된 채로 렌더링되므로
-    // (ShowFloor로 한 층만 보이게 하는 기능은 아직 어디서도 안 쓰임 — RenderAllFloors 참고), 예전의
-    // "계단 위치를 맞춰서 겹쳐 쌓기" 오프셋은 층들이 화면에서 서로 거의 같은 자리에 겹쳐 보이는
-    // 문제가 있었다. 계단 정렬 대신 층마다 가로로 나란히 떨어뜨려 배치한다.
-    //
-    // 2026-08-20, 사용자 요청 "층별 간격 더 띄워줘. 아직 한번에 다 보여. 많이 띄워야 해" — 10칸으로는
-    // CameraController의 층별 클램프(ClampToCurrentFloorBounds)가 카메라 "중심"만 그 층 경계 안으로
-    // 묶어줄 뿐 줌아웃 시 보이는 폭 자체는 못 줄이기 때문에, 최대 줌아웃(CameraController.maxZoom=50,
-    // 16:9 기준 화면 절반 폭 ≈ 50*1.778 ≈ 89타일)에서는 중심이 층 경계에 붙었을 때 그 절반 폭만큼
-    // 옆 층 쪽으로 화면이 넘어가 버렸다 — 그 케이스까지 포함해 절대 겹쳐 보이지 않도록 여유를 크게
-    // 두고 120으로 올린다.
+    // 층 사이 간격(타일 단위) — 모든 층 Tilemap이 항상 동시에 활성화돼 렌더링되므로 층마다 가로로
+    // 나란히 배치한다. CameraController 클램프가 카메라 중심만 묶고 줌아웃 시 보이는 폭은 못 줄이므로
+    // 최대 줌아웃에서도 옆 층이 겹쳐 보이지 않도록 여유를 크게 뒀다.
     private const int FloorGapTiles = 120;
 
     Vector3Int[] ComputeSpacedOffsets()
@@ -304,11 +284,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return offsets;
     }
 
-    // floorIndex 층이 월드 좌표에서 차지하는 전체 사각 범위(floorOffsets 원점 + 그 층의 청크
-    // 개수×chunkSize) — 2026-08-20, CameraController의 층별 클램프(TryGetFloorViewBounds)가 필요로
-    // 해서 추가. floorOffsets/floor.config.chunkSize 둘 다 이 클래스가 이미 접근 가능한 값이라, 카메라
-    // 쪽에서 청크 크기를 별도 상수로 중복 정의하는 대신 여기서 한 번만 계산해 공개한다(다른 시스템도
-    // "이 층이 화면에서 어디부터 어디까지인지"가 필요하면 재사용 가능).
+    // floorIndex 층이 월드 좌표에서 차지하는 전체 사각 범위 — CameraController의 층별 클램프가
+    // 필요로 해서 추가. 카메라 쪽에서 청크 크기를 중복 정의하지 않도록 여기서 한 번만 계산해 공개한다.
     public bool TryGetFloorWorldBounds(int floorIndex, out Rect bounds)
     {
         bounds = default;
@@ -322,25 +299,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return true;
     }
 
-    // 빛(Light2D)이 벽을 통과하지 않게(사용자 요청). 시행착오 요약(2026-07-28):
-    // 1) Collider2D 기반(TilemapCollider2D+CompositeCollider2D) — ShadowCaster2D의 자동 소스 판정이
-    //    같은 오브젝트의 두 Collider2D 중 어느 쪽을 잡을지 불확실해서 실패(빛이 벽을 그냥 통과).
-    // 2) SpriteRenderer 기반 사각형(1개 또는 여러 개로 병합) 캐스터 — 세로 벽은 세로로 조각이 쌓여
-    //    이음새가 생기고, 벽 전체 두께를 다 쓰면 방마다 두께가 달라 안쪽 경계가 들쭉날쭉, 표면 한
-    //    겹만 쓰면 이번엔 대각선 꼭짓점이 옆 직선 사각형과 합쳐지며 실제 타일 모양과 다른 사각형이
-    //    되어 그 이음새에서 계속 빛이 샜다. 근본 원인은 "여러 개의 독립된 사각형 오브젝트"로 실제
-    //    타일 모양(방마다 두께가 다르고 L/T/ㄷ/S자 등 비정형이라 절대 사각형이 아님, CreateMap.
-    //    RoomPlacement.cs의 shapeTemplates + 방마다 랜덤인 벽 두께)을 흉내 내려 한 것 자체였다.
-    // 3) 그래서 흉내 내지 않고 실제 벽 타일 격자를 그대로 외곽선으로 추적(TraceContours)해 그
-    //    윤곽선 그대로를 PolygonCollider2D 경로(외곽/구멍)로 넣어봤으나, Unity 문서대로 방향(외곽=
-    //    반시계, 구멍=시계)을 맞춰도 안/밖 차단이 계속 거꾸로 나왔다(사용자 확인, 2026-07-28
-    //    "래이캐스팅 부여가 반대로 됐다" → 방향을 뒤집어도 "아직 반대로 됨"). PolygonCollider2D는
-    //    "채워진 도형"이라 안/밖(구멍) 판정이 꼭 필요한데 그 판정 자체가 우리 기대와 다르게 동작한
-    //    것으로 보여 폐기.
-    // 4) 그래서 도형을 "채우지" 않고 그냥 "선"으로만 준다 — 폐곡선마다 EdgeCollider2D(닫힌 선) +
-    //    ShadowCaster2D를 하나씩 만든다(CreateEdgeShadowCasters). 선은 안/밖 개념이 없어 방향과
-    //    무관하게 항상 올바르게 막는다. 콜라이더 하나당 경로 하나뿐이라 폐곡선(=대략 방 개수)만큼
-    //    오브젝트가 생기지만 타일 개수보다 훨씬 적어 성능 문제는 없다.
+    // 빛(Light2D)이 벽을 통과하지 않게 한다. Collider2D 자동 소스/사각형 캐스터 근사/PolygonCollider2D
+    // 안팎 판정 등 여러 방식이 문제가 있어 전부 폐기하고, 벽 타일 격자를 TraceContours로 외곽선만
+    // 추적해 폐곡선마다 EdgeCollider2D+ShadowCaster2D를 만든다 — 방향 무관하게 항상 올바르고 콜라이더
+    // 개수도 방 개수 수준이라 가볍다.
     void SetupWallShadowCasters(Transform parent, ref Floor floor)
     {
         bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
@@ -349,8 +311,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     }
 
     // 벽 타일 격자(bool[worldW,worldH], true=Wall) 생성 — SetupWallShadowCasters 및 GameSession의
-    // 통합 벽+안개 셰도우 재계산(RebuildFloorFogShadowCasters, 사용자 요청 "문+벽 섀도우캐스팅과
-    // 겹치는 안개 모두 한번에 해서 구워줘")이 공용으로 쓴다.
+    // 통합 벽+안개 셰도우 재계산(RebuildFloorFogShadowCasters)이 공용으로 쓴다.
     public static bool[,] BuildWallMask(ref Floor floor, out int worldW, out int worldH)
     {
         int chunkCountX = floor.config.width;
@@ -387,12 +348,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         tilemap.SetTile(localPos, wallTile);
     }
 
-    // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 벽/방
-    // 뭉치가 사각형이 아니라 방마다 두께가 다르고 L/T/ㄷ/S자 등 비정형이어도(CreateMap.
-    // RoomPlacement.cs shapeTemplates) 근사 없이 실제 타일 모양 그대로 나온다. solid 뭉치 하나가
-    // 구멍(방)을 여러 개 가지면 바깥 윤곽선 1개 + 구멍마다 안쪽 윤곽선 1개, 총 여러 개의 폐곡선이
-    // 나올 수 있다 — 전부 반환해서 호출부가 EdgeCollider2D 하나씩으로 만든다(CreateEdgeShadowCasters
-    // 참고 — 폴리곤 채우기(구멍/외곽 판정)를 아예 안 쓰므로 각 변의 진행 방향은 결과에 영향 없음).
+    // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 비정형
+    // 모양이어도 근사 없이 실제 타일 모양 그대로 나온다. solid 뭉치가 구멍을 여러 개 가지면 바깥
+    // 윤곽선 1개 + 구멍마다 안쪽 윤곽선 1개가 나올 수 있어 전부 반환한다(폴리곤 채우기를 안 쓰므로
+    // 각 변의 진행 방향은 결과에 영향 없음).
     public static List<List<Vector2>> TraceContours(bool[,] mask, int w, int h)
     {
         bool Solid(int x, int y) => x >= 0 && x < w && y >= 0 && y < h && mask[x, y];
@@ -455,11 +414,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return loops;
     }
 
-    // TraceContours가 뽑아낸 폐곡선마다 ShadowCaster2D 오브젝트를 하나씩 만든다.
-    // 원래 EdgeCollider2D를 매개체로 썼으나(ShapeProvider 경로), TryGetDefaultShadowShapeProviderSource가
-    // #if UNITY_EDITOR 전용이라 빌드에서는 EdgeCollider2D 형태가 무시되고 1×1 기본 박스로 대체되는
-    // 버그가 있었다. m_ShapePath(ShapeEditor 경로)에 직접 쓰면 에디터/빌드 모두 동일하게 동작하고
-    // Physics2D 브로드페이즈 등록 부하도 사라진다(URP 17.3.0 ShadowCaster2D 소스 확인).
+    // TraceContours가 뽑아낸 폐곡선마다 ShadowCaster2D 오브젝트를 하나씩 만든다. EdgeCollider2D 매개
+    // 경로는 에디터 전용 API 의존으로 빌드에서 1x1 기본 박스로 대체되는 버그가 있어, m_ShapePath에
+    // 직접 써서 에디터/빌드 동일 동작 + 브로드페이즈 부하도 없앤다.
     private static readonly FieldInfo s_FieldShapePath =
         typeof(ShadowCaster2D).GetField("m_ShapePath", BindingFlags.NonPublic | BindingFlags.Instance);
     private static readonly FieldInfo s_FieldShapePathHash =
@@ -525,10 +482,8 @@ public class MapRandering : NativeRoutine, IMapColorizer
             if (floorTilemaps[f] != null) floorTilemaps[f].gameObject.SetActive(true);
     }
 
-    // 점령 표현(2026-07-27 신규 → 2026-08-24 윤곽선 방식으로 전면 개편, 위 필드 주석 참고). 이제
-    // 야생(Wild)도 검은 윤곽선으로 표시한다(예전엔 "착색 없음"이었다 — 사용자 요청: "야생은 검은색,
-    // 인류는 파란색, 플레이어 몬스터는 빨간색"). 윤곽선은 얇은 선이라 반투명일 필요가 없어 전부
-    // 완전 불투명. public으로 열어서 OffenseProcessor.GetRoomOwnerColor가 이 값을 직접 참조한다.
+    // 점령 표현 — 야생(Wild)/인류/몬스터 진영별로 검은색/파란색/빨간색 윤곽선을 그린다. 윤곽선은
+    // 얇은 선이라 완전 불투명. public으로 열어서 OffenseProcessor.GetRoomOwnerColor가 직접 참조한다.
     public static readonly Color WildRoomOutlineColor     = Color.black;
     public static readonly Color HumanRoomOutlineColor    = new Color(0.25f, 0.55f, 1f,   1f); // 인류 소유 — 파랑
     public static readonly Color MonsterRoomOutlineColor  = new Color(1f,    0.25f, 0.25f, 1f); // 몬스터 점령 — 빨강
@@ -571,13 +526,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         SetRoomOutline(room.Floor, room.RoomId, ref floor, color, floorTilemaps[room.Floor].transform);
     }
 
-    // roomId 소속이면서 벽이 아닌("Wall" 타일이 아닌, BuildWallMask와 동일한 판정) 타일들의 격자
-    // 마스크를 만든다 — BuildWallMask와 동일한 월드 크기(worldW×worldH)라 TraceContours가 뽑아내는
-    // 윤곽선 좌표가 그대로 이 층 타일맵의 로컬 좌표와 일치한다(별도 오프셋 계산 불필요).
-    // 문이 있는 경계(Gate)의 이 방 쪽 문턱 타일은 마스크에서 제외한다(2026-08-24 사용자 요청 "문이
-    // 있는 복도쪽에는 선을 그리지 말아줘") — TraceContours가 이 제외된 자리를 돌아가며 윤곽선을 그려
-    // 문/복도 폭만큼 자연스러운 빈틈이 생긴다. 인접 방도 자기 쪽 문턱을 똑같이 제외하므로 두 틈이
-    // 합쳐져 복도 전체가 선 없이 뚫려 보인다.
+    // roomId 소속이면서 벽이 아닌 타일들의 격자 마스크를 만든다 — BuildWallMask와 동일한 월드 크기라
+    // TraceContours 윤곽선 좌표가 이 층 타일맵의 로컬 좌표와 그대로 일치한다. 문이 있는 경계의 이 방
+    // 쪽 문턱 타일은 마스크에서 제외해 윤곽선이 그 자리를 돌아가며 문/복도 폭만큼 빈틈을 만든다 —
+    // 인접 방도 자기 쪽 문턱을 똑같이 제외하므로 두 틈이 합쳐져 복도가 선 없이 뚫려 보인다.
     private static bool[,] BuildRoomFloorMask(ref Floor floor, int roomId, out int worldW, out int worldH)
     {
         int chunkCountX = floor.config.width;
@@ -605,11 +557,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return isFloor;
     }
 
-    // floor.gates 중 이 방과 접한 게이트마다, "이 방 쪽" 문턱 타일 행을 마스크에서 false로 되돌린다.
-    // DoorSystem.GetGateDoorTiles가 반환하는 [tilesA, tilesB] 순서는 "왼쪽/아래 청크가 A"라는 순전히
-    // 기하학적 규칙일 뿐 gate.roomA/roomB와는 무관하다(TacticalFSMState.FindHostileExitDoor가 이걸
-    // 그대로 믿었다가 겪었던 것과 동일한 함정) — 각 행의 대표 타일이 실제로 속한 청크의 roomId를
-    // 직접 조회해서 "이 방 쪽" 행을 정확히 골라낸다.
+    // floor.gates 중 이 방과 접한 게이트마다 "이 방 쪽" 문턱 타일 행을 마스크에서 false로 되돌린다.
+    // DoorSystem.GetGateDoorTiles의 [tilesA, tilesB] 순서는 순전히 기하학적 규칙일 뿐 gate.roomA/
+    // roomB와 무관하므로(FindHostileExitDoor가 겪었던 것과 동일한 함정), 각 행의 대표 타일이 실제로
+    // 속한 청크의 roomId를 직접 조회해서 골라낸다.
     private static void ExcludeOwnGateDoorTiles(ref Floor floor, int roomId, bool[,] isFloor, int worldW, int worldH)
     {
         if (floor.gates == null) return;
@@ -636,10 +587,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
     }
 
-    // 방 하나의 바닥 윤곽선을 LineRenderer(들)로 그리거나 갱신한다. 폐곡선이 여러 개면(방이 벽으로
-    // 갈라진 두 덩어리 등, 드묾) LineRenderer도 그만큼 여러 개 쓴다 — 같은 (층, roomId) 키에 이미
-    // 만든 게 있으면 재사용하고, 이번엔 필요 없어진 나머지는 비활성화만 한다(파괴하지 않음 — 다음
-    // 소유권 전환 때 다시 켜서 재사용).
+    // 방 하나의 바닥 윤곽선을 LineRenderer(들)로 그리거나 갱신한다. 폐곡선이 여러 개면 그만큼 여러 개
+    // 쓰고, 같은 (층, roomId) 키에 이미 만든 게 있으면 재사용, 이번에 불필요한 나머지는 비활성화만
+    // 한다(다음 소유권 전환 때 재사용).
     private const int RoomOutlineSortingOrder = 1; // 타일맵(0) 위, 계단 아이콘(5) 아래
     private const float RoomOutlineWidth = 0.12f;
 

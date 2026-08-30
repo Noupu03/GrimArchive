@@ -47,10 +47,9 @@ public class MapManager : NativeRoutine
             _mapRandering.DoRandering(cmap);
         }
 
-        // 웨이브 스폰 초기화 지시 (요청에 따라 비활성화 — 웨이브 스폰은 HumanWaveManager의
-        // 타이머 흐름(0층 사전 스폰 → 계단 이동으로 목표 층 진입)이 전담한다. 여기서 즉시
-        // SpawnWave()를 호출하면 맵이 세팅되자마자 목표 층에 몬스터/파티가 중복으로 미리
-        // 생성된다 — 2026-07-23 실수로 재활성화됐던 것을 원복(사용자 신고, 2026-07-24).)
+        // 웨이브 스폰은 HumanWaveManager의 타이머 흐름(0층 사전 스폰 → 계단 이동으로 목표 층 진입)이
+        // 전담한다 — 여기서 즉시 SpawnWave()를 호출하면 맵 세팅 직후 목표 층에 몬스터/파티가 중복
+        // 생성되므로 비활성화 상태를 유지할 것.
         // if (_waveSpawner != null) { _waveSpawner.SpawnWave(); }
         
         // 맵이 세팅되었음을 이벤트로 브로드캐스트 (MapView에서 구독)

@@ -146,10 +146,8 @@ public static class MapSerializer
                         c.stairIsOpen = cDto.stairIsOpen;
                         c.stairHumanOnly = cDto.stairHumanOnly;
 
-                        // 청크 크기가 층별 설정값이 된 뒤(2026-08-23, 맵 1.5배 확장)로는 64 고정 대신
-                        // 배열 길이의 정수 제곱근으로 실제 청크 크기를 역산한다 — floor.config는 바로
-                        // 위에서 이미 복원됐으므로 floorDto.config.chunkSize를 그대로 믿어도 되지만,
-                        // 저장 당시의 실제 배열 길이와 항상 정확히 일치시키기 위해 배열 자체에서 구한다.
+                        // floorDto.config.chunkSize 대신 배열 길이의 정수 제곱근으로 청크 크기를
+                        // 역산한다 — 저장 당시 실제 배열 길이와 항상 정확히 일치시키기 위함(64 고정 폐기).
                         if (cDto.tiles != null && cDto.tiles.Length > 0)
                         {
                             int cs = Mathf.RoundToInt(Mathf.Sqrt(cDto.tiles.Length));
