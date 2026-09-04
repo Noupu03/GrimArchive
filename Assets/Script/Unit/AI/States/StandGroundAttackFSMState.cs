@@ -10,7 +10,10 @@ public class StandGroundAttackFSMState : IFSMState
 	private readonly BTNode _bt = new BTLeaf(ExecuteStandGroundAttack);
 
 	public float GetPriority(Unit unit)    => 0f; // SelectState가 직접 강제 배정 — 배열 비교 대상 아님.
-	public bool  IsSticky(Unit unit)       => true;
+	// unit.isStandGroundAttack || isImmobile을 그대로 반환한다 — 하드코딩된 true였을 때는 HaltFSMState와
+	// 동일한 버그가 있었다(명령 취소 후에도 _current가 영원히 여기 고정, 배열 재판정 불가). isImmobile은
+	// 애초에 명령 취소로 안 꺼지는 영구 플래그라 그 경우엔 의도대로 계속 고착된다. 2026-09-04 수정.
+	public bool  IsSticky(Unit unit)       => unit.isStandGroundAttack || unit.isImmobile;
 	public bool  ShouldInterrupt(Unit unit)=> false;
 	public void  OnEnter(Unit unit)        { }
 	public void  OnExit(Unit unit)         { }
