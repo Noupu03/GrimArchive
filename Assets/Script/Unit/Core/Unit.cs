@@ -602,6 +602,11 @@ public class Human : UnitFunction
 	public FormationState     currentFormation;
 	// 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
+	// 9-3장: 합류 의사 응답을 못 받고 2초 타임아웃된 적 — 이후로는 같은 적 인스턴스에 한해 합류 대기를
+	// 다시 시도하지 않고 곧장 전투로 들어간다(PropagationSystem.ShouldDeferForJoinWait 참고). 이게 없으면
+	// 거리·위험도 조건이 그대로인 한 타임아웃 직후 같은 조건으로 StartJoinCombatWait이 재호출돼 2초 대기가
+	// 무한 반복된다(적이 실제로 접근하기 전까지 전투가 시작되지 않음).
+	public Unit joinWaitGiveUpTarget;
 
 	// 던전 입구 구조 — DungeonEntranceSystem이 0층 숨은 스폰 청크→1x3 입구→계단까지 파티 진형을 직접
 	// 제어하는 동안 켜진다. 켜진 동안 NavigationFSMState의 자유탐색이 끼어들지 않는다.

@@ -377,6 +377,8 @@ public static class PropagationSystem
 	public static bool ShouldDeferForJoinWait(Human human, Unit enemy)
 	{
 		if (human.Knowledge == null || enemy == null || enemy.unitType == null) return false;
+		// 9-3장: 이 적은 이미 한 번 응답 대기 타임아웃으로 포기한 적 — 다시 대기하지 않고 곧장 전투.
+		if (enemy == human.joinWaitGiveUpTarget) return false;
 		// 16-3장: 긴급 소리(피격/사망음) 확인 중 적을 정확 인지하면 거리·위험도와 무관하게 합류 대기를 건너뛴다.
 		if (human.currentAlertSearch != null && human.currentAlertSearch.IsUrgentSoundApproach) return false;
 		int dist = Mathf.RoundToInt(Vector2Int.Distance(human.position, enemy.position));
@@ -466,8 +468,9 @@ public static class PropagationSystem
 
 		if (wait.TargetEnemy == null || wait.TargetEnemy.hp <= 0) { human.currentJoinCombatWait = null; return; }
 
-		// 9-3장: 대기 중 적이 먼저 공격하면 위험도·합류 조건을 무시하고 즉시 전투로 전환한다.
-		if (human.isHitThisTurn) { human.currentJoinCombatWait = null; return; }
+		// 9-3장: 대기 중 적이 먼저 공격하면 위험도·합류 조건을 무시하고 즉시 전투로 전환한다. 이 적에
+		// 대해서는 다시 대기하지 않도록 표시해둬야 다음 틱에 같은 조건으로 대기가 재시작되지 않는다.
+		if (human.isHitThisTurn) { human.joinWaitGiveUpTarget = wait.TargetEnemy; human.currentJoinCombatWait = null; return; }
 
 		if (wait.IsDiscoverer)
 		{
@@ -475,16 +478,23 @@ public static class PropagationSystem
 			{
 				wait.ResponseWaitTimer += deltaTime;
 				if (wait.ResponseWaitTimer >= PropagationMath.JoinResponseWaitSeconds)
-					human.currentJoinCombatWait = null; // 응답 시간 초과 — 발견자 단독 전투 시작
+				{
+					// 응답 시간 초과 — 발견자 단독 전투 시작. 이 적에 한해 재대기를 막아둬야
+					// 다음 틱 CombatFSMState.GetPriority가 같은 조건으로 대기를 재시작하지 않는다.
+					human.joinWaitGiveUpTarget = wait.TargetEnemy;
+					human.currentJoinCombatWait = null;
+				}
 				return;
 			}
 
 			wait.ActualJoinWaitTimer += deltaTime;
 			bool arrived = human.party != null && HasResponderArrived(human, wait.TargetEnemy);
 			// 07-A 11장: 대기 초과 후 처리는 09_목표·이동경로 문서 몫이라 미정 — 스텁으로 대기를 끝내고 단독 전투 시작.
+			// 도착 성공이든 타임아웃이든 이 적에 대해서는 재대기를 막아 곧장 전투로 넘어가게 한다.
 			if (arrived || wait.ActualJoinWaitTimer >= PropagationMath.ActualJoinMaxWaitSeconds)
 			{
 				ReleaseResponders(human, wait.TargetEnemy);
+				human.joinWaitGiveUpTarget = wait.TargetEnemy;
 				human.currentJoinCombatWait = null;
 			}
 		}
