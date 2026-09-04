@@ -19,6 +19,9 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
         public bool enabled = true;
     }
 
+    // 2026-09-04(사용자 요청): 보호 포메이션은 인류측 전부 비활성화. 되돌릴 때는 아래 enabled를
+    // true로(TacticalFSMState.cs 폴백/GetPriority도 같이). 함정 대응은 그대로 자동 판정 유지 —
+    // 대신 해제 시도자 선정을 "가장 가까운 1명"으로 단순화(TrapPartySystem.cs 참고).
     [Tooltip("위에서 아래 순서로 우선순위 높음. 03문서 2-1장 기준 기본값 적용.")]
     public List<Entry> order = new List<Entry>
     {
@@ -28,7 +31,7 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
         new Entry { behavior = TacticalBehaviorType.Alert,        enabled = true },
         new Entry { behavior = TacticalBehaviorType.Investigate,  enabled = true },
         new Entry { behavior = TacticalBehaviorType.Wait,         enabled = true },
-        new Entry { behavior = TacticalBehaviorType.Formation,    enabled = true },
+        new Entry { behavior = TacticalBehaviorType.Formation,    enabled = false },
         new Entry { behavior = TacticalBehaviorType.CoreAttack,   enabled = true },
         new Entry { behavior = TacticalBehaviorType.DoorAttack,   enabled = true },
     };

@@ -36,7 +36,10 @@ public class TacticalFSMState : IFSMState
 		}
 		else
 		{
-			// 설정 에셋 없음 — 03문서 2-1장 기본 순서로 폴백
+			// 설정 에셋 없음 — 03문서 2-1장 기본 순서로 폴백.
+			// 2026-09-04(사용자 요청): 보호 포메이션은 인류측 전부 비활성화 — 되돌릴 때는 아래 줄 주석을
+			// 해제한다(TacticalBehaviorPriorityConfig.cs 기본값도 같이). 함정 대응은 그대로 유지하되
+			// 해제 시도자 선정을 "가장 가까운 1명"으로 단순화했다(TrapPartySystem.cs 참고).
 			_bt = new BTSelector(
 				nodes[TacticalBehaviorType.Panic],
 				nodes[TacticalBehaviorType.JoinCombatWait],
@@ -44,7 +47,7 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.Alert],
 				nodes[TacticalBehaviorType.Investigate],
 				nodes[TacticalBehaviorType.Wait],
-				nodes[TacticalBehaviorType.Formation],
+				// nodes[TacticalBehaviorType.Formation],
 				nodes[TacticalBehaviorType.CoreAttack],
 				nodes[TacticalBehaviorType.DoorAttack],
 				_fallbackRunning
@@ -143,7 +146,9 @@ public class TacticalFSMState : IFSMState
 		Human hu = unit as Human;
 		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
 		if (hu != null && hu.currentWait != null) return p;
-		if (hu != null && hu.HasProtectiveFormationNeed()) return p;
+		// 2026-09-04(사용자 요청): 인류측 보호 포메이션 전부 비활성화 — GetPriority도 같이 꺼야
+		// Tick()의 BT에 그 행동이 없는데도 Tactical에 붙잡혀 Idle/Navigation을 못 하는 걸 막는다.
+		// if (hu != null && hu.HasProtectiveFormationNeed()) return p;
 		if (HasCoreAttackTarget(unit)) return p;
 		if (HasDoorAttackTarget(unit)) return p;
 		return 0f;

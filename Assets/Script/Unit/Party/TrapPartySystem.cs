@@ -1,7 +1,8 @@
 using UnityEngine;
 
-// 03문서 9장 구현부 — 함정 발견 시 발견자 혼자 처리하지 않고, 파티 전체 해제 성공률을 비교해 실제
-// 담당(선정 유닛)을 뽑는다. 나머지 파티원은 정보만 기록한 채 기존 행동을 유지한다.
+// 03문서 9장 구현부 — 함정 발견 시 발견자 혼자 처리하지 않고, 파티 중 함정과 가장 가까운 1명을 실제
+// 담당(선정 유닛)으로 뽑는다(2026-09-04: 해제 성공률 비교 대신 거리 단일 기준으로 단순화).
+// 나머지 파티원은 정보만 기록한 채 기존 행동을 유지한다.
 public static class TrapPartySystem
 {
 	// ─────────────────────────── 9-1~9-3장: 함정 최초 발견 ───────────────────────────
@@ -46,9 +47,9 @@ public static class TrapPartySystem
 			}
 		}
 
-		// 9-3장: 발견 유닛이 파티 내 최고 함정 해제 성공률 유닛이면 2초 응답 없이 즉시 해제 담당으로
-		// 확정한다(웨이브 진입 전 확정 개념이 없어 발견 시점 스냅샷 비교로 근사).
-		if (IsHighestPartySuccessRate(discoverer, party))
+		// 9-3장: 발견 유닛이 파티 내에서 함정과 가장 가까우면 2초 응답 없이 즉시 해제 담당으로 확정한다.
+		// 2026-09-04(사용자 요청): 선정 기준을 해제 성공률 비교에서 "가장 가까운 1명"으로 단순화.
+		if (IsClosestPartyMember(discoverer, party, trapObj.Position))
 		{
 			coord.SelectedUnitName = discoverer.name;
 			coord.SelectionLocked = true;
@@ -100,14 +101,16 @@ public static class TrapPartySystem
 		AIMovementHelper.MoveTowardsPos(unit, stepTarget);
 	}
 
-	// ─────────────────────────── 9-2장: 웨이브 진입 전 최고 성공률 유닛 판정 ───────────────────────────
-	private static bool IsHighestPartySuccessRate(Human discoverer, Party party)
+	// ─────────────────────────── 9-2장: 최근접 유닛 판정 ───────────────────────────
+	// 2026-09-04(사용자 요청): 해제 시도자 선정을 성공률 비교 대신 "가장 가까운 1명"으로 단순화.
+	private static bool IsClosestPartyMember(Human discoverer, Party party, Vector3Int trapPos)
 	{
-		float discovererRate = ExplorationMath.TrapDisarmSuccessRate(discoverer.concentration, discoverer.level, 0);
+		Vector2Int trapPos2D = new Vector2Int(trapPos.x, trapPos.y);
+		float discovererDist = Vector2Int.Distance(discoverer.position, trapPos2D);
 		foreach (var m in party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
-			if (ExplorationMath.TrapDisarmSuccessRate(m.concentration, m.level, 0) > discovererRate) return false;
+			if (Vector2Int.Distance(m.position, trapPos2D) < discovererDist) return false;
 		}
 		return true;
 	}
@@ -128,9 +131,9 @@ public static class TrapPartySystem
 		}
 
 		// 9-2장: 전파 범위(07문서 6장, PropagationSystem.CanPropagate) 안의 모든 유닛 중 함정 대응으로
-		// 전환 가능한 유닛만 대상으로 최고 성공률 유닛을 선정한다.
+		// 전환 가능한 유닛만 대상으로 가장 가까운 1명을 선정한다.
+		// 2026-09-04(사용자 요청): 성공률 비교 대신 거리(EstimateEta) 단일 기준으로 단순화.
 		Human best = discoverer;
-		float bestRate = ExplorationMath.TrapDisarmSuccessRate(discoverer.concentration, discoverer.level, 0);
 		float bestEta = EstimateEta(discoverer, trap.TrapPosition);
 
 		foreach (var m in party.Members)
@@ -139,11 +142,10 @@ public static class TrapPartySystem
 			if (!PropagationSystem.CanPropagate(discoverer, m)) continue;
 			if (!CanSwitchToTrapResponse(m)) continue;
 
-			float rate = ExplorationMath.TrapDisarmSuccessRate(m.concentration, m.level, 0);
 			float eta = EstimateEta(m, trap.TrapPosition);
-			if (rate > bestRate || (Mathf.Approximately(rate, bestRate) && eta < bestEta))
+			if (eta < bestEta)
 			{
-				best = m; bestRate = rate; bestEta = eta;
+				best = m; bestEta = eta;
 			}
 		}
 
