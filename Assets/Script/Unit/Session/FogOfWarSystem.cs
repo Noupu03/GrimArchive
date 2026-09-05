@@ -300,9 +300,7 @@ public class FogOfWarSystem
     }
 
     // 0층 최좌측 숨은 스폰 청크 전용 상시 안개 — 방 기반 Reveal 트리거 대상이 아니라 스폰만 하고
-    // 등록하지 않는다. 상/하/좌 1칸 여유는 청크 경계에 정확히 맞추면 렌더링 오차로 틈이 보일 수 있어서다.
-    private const int Floor0HiddenFogPadding = 1;
-
+    // 등록하지 않는다.
     private void SpawnPermanentFogForFloor0HiddenChunk()
     {
         CreateMap cmap = Session.cmap;
@@ -311,14 +309,9 @@ public class FogOfWarSystem
         Transform fogGroup = Session.GetFloorCategoryGroup(0, "Fog");
         int chunkTiles = cmap.map.floors[0].config.chunkSize;
 
-        int xStart = -Floor0HiddenFogPadding;
-        int xEnd = chunkTiles; // 우측 경계는 확장하지 않음.
-        int yStart = -Floor0HiddenFogPadding;
-        int yEnd = chunkTiles + Floor0HiddenFogPadding;
-
         var cells = new List<Vector3Int>();
-        for (int tx = xStart; tx < xEnd; tx++)
-            for (int ty = yStart; ty < yEnd; ty++)
+        for (int tx = 0; tx < chunkTiles; tx++)
+            for (int ty = 0; ty < chunkTiles; ty++)
                 cells.Add(new Vector3Int(tx, ty, 0));
 
         SpawnFogBlock(cells, fogGroup, "Floor0Hidden");
