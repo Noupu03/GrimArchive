@@ -137,9 +137,8 @@ public class BuildingManager : NativeRoutine
         // 1. 이미 건물이 있는지 확인 (1타일 1오브젝트)
         if (buildingGrid.ContainsKey(pos)) return false;
 
-        // 1-1. 문 타일은 최우선 예약 — 문은 Tile.isStructureExist를 세우지 않는 통행 가능 오브젝트라
-        // buildingGrid/타일 장애물 검사만으로는 걸러지지 않으므로 별도로 확인한다.
-        if (GameSession.Instance != null && GameSession.Instance.IsDoorTile(pos)) return false;
+        // 1-1. 게이트(문) 타일 최우선 예약 — 문이 파괴된 뒤에도 재설치 가능성을 지형으로 영구 보장하려고 IsDoorTile 대신 IsRepairableDoorTile로 확인한다.
+        if (GameSession.Instance != null && GameSession.Instance.IsRepairableDoorTile(pos)) return false;
 
         // 1-2. 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
         if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;

@@ -720,8 +720,8 @@ public class UnitGenerate
 				if (x < 0 || y < 0) return false;
 				if (!cmap.IsStaticTileWalkable(floorIdx, new Vector2Int(x, y))) return false;
 				if (IsOccupied(new Vector2Int(x, y), floorIdx)) return false;
-				// 문은 통행 가능해야 하므로 스폰 위치 판정만 막고 이동 판정 쪽은 건드리지 않는다.
-				if (Session != null && Session.IsDoorTile(new Vector3Int(x, y, floorIdx))) return false;
+				// 게이트 타일은 스폰 판정만 막는다(이동 판정과 무관) — 문 파괴 후에도 재설치 가능성을 지형으로 보장하려고 IsDoorTile 대신 IsRepairableDoorTile을 쓴다.
+				if (Session != null && Session.IsRepairableDoorTile(new Vector3Int(x, y, floorIdx))) return false;
 			}
 		}
 		return true;

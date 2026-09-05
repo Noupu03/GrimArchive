@@ -14,11 +14,15 @@
 2. **HumanWaveManager의 웨이브 목표 방** — targetFloor의 보스방(_unitGenerate.GetBossRoomPos)으로
    고정했다(옛 던전 코어와 동일 위치 관례 재사용). WaveData에 별도 목표 방 필드를 추가하는 대신 이
    방식을 택함 — 여러 웨이브가 서로 다른 방을 노리게 하려면 WaveData 확장이 필요하다.
-3. **문 진영 개폐가 소리 전파(PropagationSystem)/공격자 정체 인지(UnitFunction.
-   IsFullyBlockedTowards)/A* 코너 판정(CreateMap.IsStaticTileWalkable 기반 discoveredMap) 등 문
-   타일을 참조하던 기존 로직에 준 부수 영향은 검토하지 않았다** — 이 세 곳은 여전히 "문=벽 취급"
-   가정을 일부 갖고 있는데, 새 설계는 Tile.isStructureExist를 더 이상 건드리지 않으므로(진영 판정은
-   별도 경로) 미세하게 달라질 수 있다. 실제 플레이에서 체감상 문제가 없는지 확인 필요.
+3. [완료, 2026-09-05] **문 진영 개폐가 기존 로직에 준 부수 영향 검토** — 공격자 정체 인지
+   (IsFullyBlockedTowards)는 IsFullyBlocking 플래그로 별도 처리돼 문제없음 확인. A* 코너 판정
+   (discoveredMap)은 실제 버그였다 — 상대 진영 문에 막힌 탐험 AI가 그 타일을 물리 벽과 구분 없이
+   discoveredMap/personalMap에 영구 벽(2)으로 낙인찍고, 문이 파괴돼도 지워지지 않아 뚫린 길을
+   영원히 피해다녔다(DoorSystem.RemoveDoor에 캐시 무효화 추가로 해결). 같은 조사 중 별도 버그도
+   발견 — BuildingManager.CanInstallSingleTile/UnitGenerate.IsAreaClear가 "문이 지금 서 있는지"
+   (IsDoorTile)만 확인해 파괴된 게이트 자리에 건물/오브젝트를 지을 수 있었다(재설치 영구 봉쇄
+   가능) — IsRepairableDoorTile(게이트 지형 자체 판정)로 교체해 해결. 소리 전파(PropagationSystem)
+   경로는 별도 문제 없음.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 1. 첫 웨이브 시간 넉넉하게
