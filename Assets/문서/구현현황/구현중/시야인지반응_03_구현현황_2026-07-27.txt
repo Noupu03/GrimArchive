@@ -415,11 +415,11 @@ GrimArchive 03_탐색반응·경계·조사·함정대응_시스템_v0.6 — 신
    도착 판정이 층(Z)을 안 봐서 리더가 코어와 다른 층에 있을 때 오작동한 것이었다(진단 경위와 수정
    내용은 위 7-3 본문 참고). 사용자 재테스트로 정상 동작 확인 완료, 진단용 [CoreDebug] 로그 3곳도
    제거 완료. 원래 보고됐던 코어 미회수/포메이션 겹침 수정도 재적용해 최종 반영됨.
-0-1. [작음] 6-4장 "완전히 막히면 우회" 방어책을 MoveToInvestigateTarget/MoveToTrap에도 확장 — 지금은
-   MoveToCore에만 추가돼 있다. GetEscortSlotPosition의 "이동 중엔 후방 배치" 근본 수정 덕분에 실제로
-   막힐 확률 자체는 낮아졌지만, 다른 이유(다른 파티원과의 우연한 경합 등)로 조사/함정 해제 유닛이
-   막히는 경우까지 대비하려면 PlayerCommandFSMState.ExecutePlayerMove와 동일한 관례를 그쪽에도
-   넣어주는 게 일관적이다.
+0-1. [완료, 2026-09-05] 6-4장 "완전히 막히면 우회" 방어책을 MoveToInvestigateTarget에도 확장 —
+   재확인해보니 MoveToTrap은 이미 이 문서 작성 이후 어느 시점에 추가돼 있었고(이 항목이 그 갱신을
+   놓쳐 낡아있었다), MoveToInvestigateTarget만 실제로 빠져 있었다. MoveToTrap과 동일한 패턴
+   (MoveTowardsPos 실패 시 FindNearbyOpenTile로 우회)을 TacticalFSMState.MoveToInvestigateTarget에
+   그대로 적용해 마저 채웠다.
 1. [완료, 2026-08-06 — 07문서 구현현황 세션에서 처리] 4-5장 AlertSearchState 정리 누락 버그 — 07문서
    재검증 도중 "Combat 진입 시 currentAlertSearch가 안 지워짐"으로 같은 버그를 독립적으로 재발견해
    함께 고쳤다(자세한 근거는 시야인지반응_구현현황_2026-08-05.txt "2026-08-06 1순위 작업" 참고).

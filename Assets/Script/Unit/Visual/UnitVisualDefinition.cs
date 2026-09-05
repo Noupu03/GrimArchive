@@ -148,9 +148,7 @@ public class UnitVisualDefinition : MonoBehaviour
         public List<string> skills;
         public UnitStatsData stats;
     }
-    // SkillData를 JSON DTO로 바로 쓰지 않는 이유: projectilePrefab/hitEffectPrefab이 GameObject
-    // 필드라 JsonUtility가 채우지 못하고 null로 남는다(JsonToUnitPrefabConverter와 동일한 이유로
-    // 동일한 해석 로직을 그대로 재사용).
+    // projectilePrefab/hitEffectPrefab이 GameObject라 JsonUtility가 못 채우므로(JsonToUnitPrefabConverter와 동일 이유) 이름 문자열로 받아 FindAssetByName으로 해석한다.
     [System.Serializable]
     private class JsonSkillData
     {

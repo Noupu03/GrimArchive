@@ -584,7 +584,12 @@ public class TacticalFSMState : IFSMState
 		var pos = new Vector2Int(inv.TargetPosition.x, inv.TargetPosition.y);
 		// 오브젝트는 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1로 도달 판정
 		if (AIMovementHelper.IsAdjacent(human.position, pos)) return BTStatus.Success;
-		AIMovementHelper.MoveTowardsPos(human, pos);
+		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — MoveToTrap과 동일한 관례.
+		if (!AIMovementHelper.MoveTowardsPos(human, pos))
+		{
+			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(human, pos);
+			if (fallback != pos) AIMovementHelper.MoveTowardsPos(human, fallback);
+		}
 		return BTStatus.Running;
 	}
 

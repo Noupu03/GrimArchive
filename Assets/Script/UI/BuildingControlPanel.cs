@@ -41,8 +41,16 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     protected override void UpdateProcess()
     {
         base.UpdateProcess();
+        // InteractableObject는 순수 C# 클래스라 파괴돼도 Unity null 체크에 안 걸려 매 프레임 objectGrid로 직접 생존 확인한다.
+        if (_currentObject != null && !IsObjectStillAlive(_currentObject))
+            ClosePanel();
         BottomLeftPanelStack.Report(StackId, _current != null || _currentObject != null, PanelWidth);
     }
+
+    private static bool IsObjectStillAlive(InteractableObject obj)
+        => GameSession.Instance != null
+        && GameSession.Instance.objectGrid.TryGetValue(obj.Position, out var found)
+        && found == obj;
 
     public void OpenPanel()
     {
