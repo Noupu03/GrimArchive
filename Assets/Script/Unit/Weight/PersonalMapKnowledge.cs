@@ -159,6 +159,16 @@ public class PersonalMapKnowledge
 		return isFirstReveal;
 	}
 
+	// pos가 벽(2)으로 기록돼 있으면 지워 미탐사(0) 상태로 되돌린다.
+	public void ClearWallCache(Vector3Int pos)
+	{
+		if (_tileTerrain.TryGetValue(pos, out var terrain) && terrain == 2)
+		{
+			_tileTerrain.Remove(pos);
+			_dirtyTerrainFloors.Add(pos.z);
+		}
+	}
+
 	// RevealTile 전용 헬퍼 — (x,y,z)가 아직 미탐사(_tileTerrain에 없음)면 층별 프론티어 집합에 추가.
 	private void AddFrontierCandidateIfUnexplored(HashSet<Vector2Int> frontier, int x, int y, int z)
 	{

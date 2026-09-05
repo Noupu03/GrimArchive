@@ -289,7 +289,27 @@ public class DoorSystem
         _doorPositions.Remove(pos);
         _doorVisuals.Remove(pos);
         Session.CollectObject(pos); // objectGrid 제거 + 비주얼 파괴
+        ClearStaleWallCache(pos);
         LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {pos} 위치의 문이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
+    }
+
+    // 두 진영 FactionData.discoveredMap과 모든 Human personalMap에 벽(2)으로 캐시된 pos 위치를 미탐사(0)로 되돌린다.
+    private void ClearStaleWallCache(Vector3Int pos)
+    {
+        ClearStaleWallCache(Unit.humanFactionData, pos);
+        ClearStaleWallCache(Unit.monsterFactionData, pos);
+
+        foreach (var unit in Session.units)
+            if (unit is Human human && human != null)
+                human.personalMap.ClearWallCache(pos);
+    }
+
+    private static void ClearStaleWallCache(FactionData data, Vector3Int pos)
+    {
+        if (data?.discoveredMap == null || pos.z < 0 || pos.z >= data.discoveredMap.Length) return;
+        int[,] floorMap = data.discoveredMap[pos.z];
+        if (floorMap == null || pos.x < 0 || pos.x >= floorMap.GetLength(0) || pos.y < 0 || pos.y >= floorMap.GetLength(1)) return;
+        if (floorMap[pos.x, pos.y] == 2) floorMap[pos.x, pos.y] = 0;
     }
 
     // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorAt과 동일하게 기본 닫힘으로 재생성하며
