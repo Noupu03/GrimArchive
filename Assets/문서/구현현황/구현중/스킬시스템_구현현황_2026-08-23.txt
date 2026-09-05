@@ -29,11 +29,11 @@
 5. **전투 밖에서는 Support 스킬을 못 쓴다**(5장 말미 참고) — 전투가 끝나면 사제가 다친 아군을 두고도
    치유하지 않는다. 스킬 선택이 CombatFSMState 안에서만 일어나기 때문으로, 별도 상태에서 Support
    스킬을 쓰는 경로를 만들어야 한다.
-5. **UnitVisualDefinition.LoadDataFromJson(프리팹 우클릭 컨텍스트 메뉴)은 쓰지 말 것** —
-   JsonUtility로 SkillData를 직접 파싱하는데 projectilePrefab/hitEffectPrefab이 GameObject 타입이라
-   JSON의 이름 문자열을 해석하지 못하고 참조가 날아간다. 프리팹을 다시 뽑을 때는 반드시
-   Tools/GrimArchive/JSON -> 유닛 프리팹 생성(JsonToUnitPrefabConverter, FindAssetByName로 해석)을
-   쓸 것. 컨텍스트 메뉴 쪽도 같은 해석 로직을 타게 고치는 게 바람직하다.
+
+✅ 2026-09-05 완료 — **UnitVisualDefinition.LoadDataFromJson(프리팹 우클릭 컨텍스트 메뉴)** 이 항목에
+  있던 "쓰지 말 것" 경고를 해소했다. JsonToUnitPrefabConverter와 동일한 JsonSkillData(이름 문자열
+  DTO) + FindAssetByName 해석 로직을 UnitVisualDefinition.cs 안에 그대로 옮겨와, 컨텍스트 메뉴로
+  불러와도 projectilePrefab/hitEffectPrefab 참조가 더 이상 null로 날아가지 않는다.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 1. 근본 원인 — 프리팹 스킬 아키타입 유실 (전 클래스 영향)

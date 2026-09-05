@@ -148,8 +148,94 @@ public class UnitVisualDefinition : MonoBehaviour
         public List<string> skills;
         public UnitStatsData stats;
     }
+    // SkillData를 JSON DTO로 바로 쓰지 않는 이유: projectilePrefab/hitEffectPrefab이 GameObject
+    // 필드라 JsonUtility가 채우지 못하고 null로 남는다(JsonToUnitPrefabConverter와 동일한 이유로
+    // 동일한 해석 로직을 그대로 재사용).
     [System.Serializable]
-    private class SkillsJsonWrapper { public List<SkillData> skills; }
+    private class JsonSkillData
+    {
+        public string skillName;
+        public float  baseDelayMs;
+        public float  baseCooldown;
+        public int    cooldownSlot;
+        public bool   isProjectile;
+        public string projectilePrefab;
+        public float  projectileSpeed;
+        public bool   isPiercing;
+        public string hitEffectPrefab;
+        public string hitShape;
+        public int    hitRange, hitWidth, hitDepth;
+        public int    threatRange, threatWidth, threatDepth;
+        public float  damageMultiplier;
+        public bool   hasStun;
+        public float  stunDuration;
+        public float  priorityBase;
+        public float  priorityKillMultiplier;
+        public float  priorityKillBonus;
+        public float  priorityRangeThreshold;
+        public float  priorityRangeBonus;
+        public string skillArchetype;
+        public int    multiHitCount;
+        public float  effectDuration;
+        public float  effectAmount;
+        public float  explosionRadius;
+
+        public SkillData ToSkillData() => new SkillData
+        {
+            skillName        = skillName,
+            baseDelayMs      = baseDelayMs,
+            baseCooldown     = baseCooldown,
+            cooldownSlot     = cooldownSlot,
+            isProjectile     = isProjectile,
+            projectilePrefab = FindAssetByName<GameObject>(projectilePrefab),
+            projectileSpeed  = projectileSpeed,
+            isPiercing       = isPiercing,
+            hitEffectPrefab  = FindAssetByName<GameObject>(hitEffectPrefab),
+            hitShape         = hitShape,
+            hitRange = hitRange, hitWidth = hitWidth, hitDepth = hitDepth,
+            threatRange = threatRange, threatWidth = threatWidth, threatDepth = threatDepth,
+            damageMultiplier = damageMultiplier,
+            hasStun          = hasStun,
+            stunDuration     = stunDuration,
+            priorityBase     = priorityBase,
+            priorityKillMultiplier = priorityKillMultiplier,
+            priorityKillBonus      = priorityKillBonus,
+            priorityRangeThreshold = priorityRangeThreshold,
+            priorityRangeBonus     = priorityRangeBonus,
+            skillArchetype   = skillArchetype,
+            multiHitCount    = multiHitCount,
+            effectDuration   = effectDuration,
+            effectAmount     = effectAmount,
+            explosionRadius  = explosionRadius,
+        };
+    }
+
+    // JsonToUnitPrefabConverter.FindAssetByName와 동일한 로직 — 서브 에셋(스프라이트시트 내부 등)까지 이름으로 찾는다.
+    private static T FindAssetByName<T>(string name) where T : UnityEngine.Object
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+
+        string typeFilter = typeof(T) == typeof(GameObject) ? "t:Prefab"
+                           : typeof(T) == typeof(RuntimeAnimatorController) ? "t:AnimatorController"
+                           : $"t:{typeof(T).Name}";
+
+        foreach (var guid in UnityEditor.AssetDatabase.FindAssets($"{typeFilter} {name}"))
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+
+            foreach (var obj in UnityEditor.AssetDatabase.LoadAllAssetRepresentationsAtPath(path))
+                if (obj is T typed && obj.name == name) return typed;
+
+            var main = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
+            if (main != null && main.name == name) return main;
+        }
+
+        LogHelper.Warning(LogHelper.GAME, $"[UnitVisualDefinition] 에셋을 찾을 수 없습니다: '{name}' ({typeof(T).Name})");
+        return null;
+    }
+
+    [System.Serializable]
+    private class SkillsJsonWrapper { public List<JsonSkillData> skills; }
 
     [ContextMenu("Load Data From JSON (units.json / skills.json)")]
     public void LoadDataFromJson()
@@ -209,7 +295,7 @@ public class UnitVisualDefinition : MonoBehaviour
                 {
                     if (sd.skillName == skillName)
                     {
-                        this.skills.Add(sd);
+                        this.skills.Add(sd.ToSkillData());
                         break;
                     }
                 }
