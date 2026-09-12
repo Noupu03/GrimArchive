@@ -32,36 +32,16 @@ public class PlayerCommandFSMState : IFSMState
 	}
 
 	public float GetPriority(Unit unit)
-	{
-		// 공황 중엔 플레이어 명령도 받지 않는다 — 사용자 확인(2026-07-28, "Panic이 명령을 차단").
-		// 공황은 정신력이 임계값 이하일 때 발동하며, 이 상태에선 TacticalFSMState.Panic BT가 대신 실행.
-		if (IsPanicMode(unit)) return 0f;
-		return HasActivePlayerCommand(unit) ? (AIConfigLoader.Behavior?.playerCommandPriority ?? 200f) : 0f;
-	}
+		=> HasActivePlayerCommand(unit) ? (AIConfigLoader.Behavior?.playerCommandPriority ?? 200f) : 0f;
 
 	// 명령 수행 중엔 고착 — UnitFSM.SelectState가 매 틱 다른 상태의 우선순위를 재검사하지 못하게
 	// 막는다. 명령이 끝나면(공격 대상 무효화/이동 목표 도착) 다음 틱부터 자동으로 고착이 풀린다.
-	// 공황이 발생해도 고착 해제 → TacticalFSMState.Panic으로 즉시 전환.
-	public bool  IsSticky(Unit unit)       => HasActivePlayerCommand(unit) && !IsPanicMode(unit);
-	public bool  ShouldInterrupt(Unit unit)=> !HasActivePlayerCommand(unit) || IsPanicMode(unit);
-	public void  OnEnter(Unit unit)        { unit.playerCommandStuckTurns = 0; }
+	public bool  IsSticky(Unit unit)       => HasActivePlayerCommand(unit);
+	public bool  ShouldInterrupt(Unit unit)=> !HasActivePlayerCommand(unit);
+	public void  OnEnter(Unit unit)        { }
 	public void  OnExit(Unit unit)         { }
 	public BTStatus Tick(Unit unit)        => _bt.Tick(unit);
 	public string   GetLabel(Unit unit)    => HasPlayerAttackTarget(unit) ? "명령(공격)" : "명령(이동)";
-
-	// ── 헬퍼 ─────────────────────────────────────────────────────
-
-	// 공황 판정 — 정신력이 panicMentalRatio 이하면 true. Human 전용(몬스터는 정신력 시스템 없음).
-	private static bool IsPanicMode(Unit unit)
-		=> unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
-
-	// 이동 명령 포기 시 UI 피드백
-	private static void ShowMoveFailFeedback(Unit unit)
-		=> unit.UI?.ShowFloatingTextAt(
-			new UnityEngine.Vector3(unit.position.x + 0.5f, unit.position.y + 0.5f),
-			"이동 불가",
-			UnityEngine.Color.yellow,
-			1.5f);
 
 	// ── 조건 ─────────────────────────────────────────────────────
 	// 2026-07-27 사용자 신고("플레이어 명령이 최우선순위 명령이어야 한다") 수정 — playerMoveTarget/
@@ -148,8 +128,7 @@ public class PlayerCommandFSMState : IFSMState
 			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
 			if (fallback != target)
 			{
-				unit.playerMoveTarget      = fallback;
-				unit.playerCommandStuckTurns = 0;
+				unit.playerMoveTarget = fallback;
 			}
 			else if (AIMovementHelper.HasAnyStructurallyOpenNeighbor(unit, target))
 			{
@@ -157,18 +136,6 @@ public class PlayerCommandFSMState : IFSMState
 				// 무시해") — 지금 당장 갈 수 있는 빈 칸이 없는 건 벽/닫힌 문 때문이 아니라 전투 중
 				// 다른 유닛들이 잠깐 몰려서(점유)일 수 있다. 그런 경우엔 명령을 포기하지 않고 다음
 				// 틱에 다시 시도한다 — 혼잡이 풀리면 자연히 이어서 이동한다.
-				// stuck 타임아웃(2026-07-28): 혼잡이 너무 오래 지속되면 명령을 포기하고 피드백을 준다.
-				unit.playerCommandStuckTurns++;
-				int limit = AIConfigLoader.Behavior?.playerCommandStuckTurnLimit ?? 8;
-				if (unit.playerCommandStuckTurns >= limit)
-				{
-					ShowMoveFailFeedback(unit);
-					unit.playerMoveTarget        = null;
-					unit.isManualMoveCommand     = false;
-					unit.oneTimeReactUsed        = false;
-					unit.playerCommandStuckTurns = 0;
-					return BTStatus.Success;
-				}
 				return BTStatus.Running;
 			}
 			else
@@ -178,26 +145,20 @@ public class PlayerCommandFSMState : IFSMState
 				// 진단 로그(2026-07-28, 임시) — 이 give-up이 실제로 얼마나 자주/왜 발동하는지 추적.
 				Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME,
 					$"[FSM진단] {unit.unitType?.typeName}({unit.name}) 이동 명령 포기 — target={target} pos={unit.position} (구조적으로 완전히 막힘)");
-				unit.playerMoveTarget        = null;
-				unit.isManualMoveCommand     = false;
-				unit.oneTimeReactUsed        = false;
-				unit.playerCommandStuckTurns = 0;
+				unit.playerMoveTarget    = null;
+				unit.isManualMoveCommand = false;
+				unit.oneTimeReactUsed    = false;
 				return BTStatus.Success;
 			}
-		}
-		else
-		{
-			unit.playerCommandStuckTurns = 0;
 		}
 		return BTStatus.Running;
 	}
 
 	private static BTStatus CompletePlayerCommand(Unit unit)
 	{
-		unit.playerMoveTarget        = null;
-		unit.isManualMoveCommand     = false;
-		unit.oneTimeReactUsed        = false;
-		unit.playerCommandStuckTurns = 0;
+		unit.playerMoveTarget      = null;
+		unit.isManualMoveCommand   = false;
+		unit.oneTimeReactUsed      = false;
 		return BTStatus.Success;
 	}
 }

@@ -35,15 +35,9 @@ public class CombatFSMState : IFSMState
 	public bool ShouldInterrupt(Unit unit) => true;
 	public void OnEnter(Unit unit)         { }
 
-	// 전투 종료 시 전투 후 경계 세팅 (03문서 4-8장).
-	// 단, 플레이어 명령이 활성화된 채 전투 상태를 벗어나는 경우엔 경계를 세팅하지 않는다 —
-	// 명령 실행 직후 alertSearch가 TacticalFSMState를 불필요하게 트리거해 명령이 중단되는 걸 방지.
+	// 전투 종료 시 전투 후 경계 세팅 (03문서 4-8장)
 	public void OnExit(Unit unit)
 	{
-		bool playerCommandActive = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
-			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0);
-		if (playerCommandActive) return;
-
 		if (unit.currentAlertSearch == null)
 			unit.currentAlertSearch = new AlertSearchState { IsPostCombatSweep = true };
 	}

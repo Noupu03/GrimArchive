@@ -247,7 +247,6 @@ public abstract class Unit : ScriptableObject {
 	public bool isManualMoveCommand        = false; // ?좎?媛€ 吏곸젒 ?대┃?섏뿬 ?대┛ ?대룞 紐낅졊?몄? ?щ?
 	public Unit        playerAttackTarget   = null;
 	public Vector3Int? playerInteractTarget = null;
-	public int         playerCommandStuckTurns = 0;
 	public Vector2Int position;
 	public int        currentFloor = 0;        // ?꾩옱 ?좊떅???꾩튂??痢??뺣낫
 	public Dir        currentDir   = Dir.DOWN;  // ?꾩옱 諛붾씪蹂대뒗 諛⑺뼢 (?쒖빞 湲곗?)

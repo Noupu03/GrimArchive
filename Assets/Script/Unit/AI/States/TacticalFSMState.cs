@@ -11,10 +11,6 @@ public class TacticalFSMState : IFSMState
 {
 	private readonly BTNode _bt;
 
-	// GetPriority 조건과 BT 내부 Condition이 엇갈려 전체 Selector가 Failure를 반환하는 극단적 상황
-	// 방지용 폴백 — 어떤 브랜치도 매치되지 않아도 Running을 반환해 Combat/Navigation으로 튀는 것을 막는다.
-	private static readonly BTNode _fallbackRunning = new BTLeaf(_ => BTStatus.Running);
-
 	public TacticalFSMState()
 	{
 		var nodes = BuildBTNodes();
@@ -26,7 +22,6 @@ public class TacticalFSMState : IFSMState
 			foreach (var entry in cfg.order)
 				if (entry.enabled && nodes.TryGetValue(entry.behavior, out var node))
 					children.Add(node);
-			children.Add(_fallbackRunning);
 			_bt = new BTSelector(children.ToArray());
 		}
 		else
@@ -39,8 +34,7 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.Investigate],
 				nodes[TacticalBehaviorType.Wait],
 				nodes[TacticalBehaviorType.Formation],
-				nodes[TacticalBehaviorType.Core],
-				_fallbackRunning
+				nodes[TacticalBehaviorType.Core]
 			);
 		}
 	}
@@ -128,10 +122,6 @@ public class TacticalFSMState : IFSMState
 			// (X/Y만 비교, 층 비교 없음)이 다른 층에서 좌표만 우연히 근접했을 때 오작동하는 걸 막는다.
 			if (hc.currentFloor != hc.party.PendingCorePosition.z)
 			{
-				// [의도적 부수효과 — GetPriority 내 유일 예외]
-				// 리더가 코어와 다른 층에 있을 때 계단 이동 파이프라인에 목적지 층 정보를 주입한다.
-				// NavigationFSMState.HasPendingStairs가 이 값을 읽어 즉시 계단 이동을 시작하게 하는 것이
-				// 목적이며, 이 조건 이외에서 GetPriority가 상태를 변경하는 부분은 없다.
 				if (!hc.pendingStairTargetFloor.HasValue) hc.pendingStairTargetFloor = hc.party.PendingCorePosition.z;
 				return 0f;
 			}
