@@ -17,8 +17,8 @@ MonoBehaviour:
     m_Hash: 1065679146
     m_CategoryList: []
     m_OverrideEntries:
-    - m_Name: Base
-      m_Hash: 0
+    - m_Name: New Label
+      m_Hash: 259326342
       m_Sprite: {fileID: 21300000, guid: e9272930caf06ee41a47d5ba70c66dbb, type: 3}
       m_FromMain: 0
       m_SpriteOverride: {fileID: 21300000, guid: e9272930caf06ee41a47d5ba70c66dbb, type: 3}
@@ -36,5 +36,5 @@ MonoBehaviour:
     m_FromMain: 0
     m_EntryOverrideCount: 1
   m_PrimaryLibraryGUID: 
-  m_ModificationHash: 639248463277353879
+  m_ModificationHash: 639248476487152920
   m_Version: 1
