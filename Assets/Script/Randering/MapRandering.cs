@@ -8,6 +8,9 @@ using Haare.Client.Routine;
 using VContainer;
 using Cysharp.Threading.Tasks;
 using System.Threading;
+#if UNITY_2022_2_OR_NEWER
+using UnityEngine.U2D.Animation;
+#endif
 
 public class MapRandering : NativeRoutine, IMapColorizer
 {
@@ -35,8 +38,16 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public Vector3Int[] floorOffsets { get; private set; }
 
     private UnityEngine.Tilemaps.Tile wallTile;
-    private UnityEngine.Tilemaps.Tile floorTile;
     private UnityEngine.Tilemaps.Tile stairTile;
+
+    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션. Resources/Tile/TileSpriteLibrary.spriteLib(Unity 2D
+    // Animation SpriteLibraryAsset — Char_Knight.spriteLib와 동일한 방식, Window > 2D > Sprite Library
+    // Editor로 편집)의 "Floor"/"Wall" 카테고리에 담긴 라벨별 스프라이트를 그대로 후보로 쓴다. 0번은
+    // 항상 기존 wallSprite/floorSprite와 같은 스프라이트라 라이브러리에 라벨을 안 채워도 기존 룩 그대로.
+    // 바리에이션을 "어떤 규칙으로" 배치할지(방 역할/바이옴/인접 타일 등)는 아직 기획이 없어서
+    // PickRandomVariant가 완전 랜덤으로 하나를 고르는 자리표시자다 — 규칙이 정해지면 교체할 것.
+    private UnityEngine.Tilemaps.Tile[] wallTileVariants;
+    private UnityEngine.Tilemaps.Tile[] floorTileVariants;
 
     // TilemapRenderer 기본 머티리얼(Sprites/Default, Unlit)은 Light2D에 반응하지 않아 URP 2D Lit
     // 셰이더를 명시적으로 물려준다.
@@ -90,16 +101,77 @@ public class MapRandering : NativeRoutine, IMapColorizer
             LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down2/stair_up2 이미지를 찾지 못했습니다.");
         }
 
-        wallTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        wallTile.sprite = wallSprite;
+        if (floorTileVariants == null || wallTileVariants == null)
+            BuildTileVariants();
 
-        floorTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        floorTile.sprite = floorSprite;
+        // 기존 필드 — SetTileToWall(디버그 단일 셀 갱신)이 계속 참조하므로 0번 변형(원본 스프라이트)으로 유지.
+        wallTile = wallTileVariants[0];
 
         // 계단 타일은 현재 바닥 타일과 동일하게 렌더링 — 아이콘은 RenderStairOverlays가 오버레이로 처리
         // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
         stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         stairTile.sprite = floorSprite;
+    }
+
+    // ⚠ 임시 기능 — TileSpriteLibrary.spriteLib의 "Floor"/"Wall" 카테고리 라벨을 읽어 바리에이션
+    // Tile 배열을 만든다. 라이브러리가 없거나 카테고리가 비어있으면 원본 스프라이트 1개짜리 배열로
+    // 폴백(기존 룩 그대로).
+    void BuildTileVariants()
+    {
+        Sprite[] floorLabelSprites = null;
+        Sprite[] wallLabelSprites = null;
+
+#if UNITY_2022_2_OR_NEWER
+        var library = Resources.Load<SpriteLibraryAsset>("Tile/TileSpriteLibrary");
+        if (library != null)
+        {
+            floorLabelSprites = LoadCategorySprites(library, "Floor");
+            wallLabelSprites = LoadCategorySprites(library, "Wall");
+        }
+#endif
+
+        floorTileVariants = BuildVariantTiles(floorSprite, floorLabelSprites);
+        wallTileVariants = BuildVariantTiles(wallSprite, wallLabelSprites);
+    }
+
+#if UNITY_2022_2_OR_NEWER
+    static Sprite[] LoadCategorySprites(SpriteLibraryAsset library, string category)
+    {
+        var sprites = new List<Sprite>();
+        foreach (string label in library.GetCategoryLabelNames(category))
+        {
+            Sprite sprite = library.GetSprite(category, label);
+            if (sprite != null) sprites.Add(sprite);
+        }
+        return sprites.ToArray();
+    }
+#endif
+
+    // baseSprite(항상 0번)에 라이브러리 라벨 스프라이트를 이어붙인다 — 중복(라이브러리 라벨이 base와
+    // 같은 스프라이트를 가리키는 경우, 지금 기본 상태가 그렇다)은 제외한다.
+    UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants)
+    {
+        var sprites = new List<Sprite> { baseSprite };
+        if (extraVariants != null)
+            foreach (var s in extraVariants)
+                if (s != null && s != baseSprite) sprites.Add(s);
+
+        var tiles = new UnityEngine.Tilemaps.Tile[sprites.Count];
+        for (int i = 0; i < sprites.Count; i++)
+        {
+            var t = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+            t.sprite = sprites[i];
+            tiles[i] = t;
+        }
+        return tiles;
+    }
+
+    // ⚠ 임시 기능 — 배치 규칙 미정이라 완전 랜덤. 규칙이 정해지면 이 메서드를 그 규칙으로 교체할 것.
+    private static UnityEngine.Tilemaps.Tile PickRandomVariant(UnityEngine.Tilemaps.Tile[] variants)
+    {
+        if (variants == null || variants.Length == 0) return null;
+        if (variants.Length == 1) return variants[0];
+        return variants[UnityEngine.Random.Range(0, variants.Length)];
     }
 
     private Sprite CreateColorSprite(Color color)
@@ -184,9 +256,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
                     for (int ty = 0; ty < chunkSize; ty++)
                     {
                         string tileName = chunk.chunk[tx, ty].name;
-                        UnityEngine.Tilemaps.TileBase tileBase = floorTile;
-                        if (tileName == "Wall") tileBase = wallTile;
+                        UnityEngine.Tilemaps.TileBase tileBase;
+                        if (tileName == "Wall") tileBase = PickRandomVariant(wallTileVariants);
                         else if (tileName == "Stair") tileBase = stairTile;
+                        else tileBase = PickRandomVariant(floorTileVariants);
 
                         positions[idx] = new Vector3Int(cx * chunkSize + tx, cy * chunkSize + ty, 0);
                         tiles[idx] = tileBase;
