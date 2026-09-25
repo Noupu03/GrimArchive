@@ -344,6 +344,11 @@ public abstract class Unit : ScriptableObject {
 	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
 	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
 
+	// 02번 문서(전투 목표와 아군 보호 및 지원) 관련 지속 상태 — 인류/플레이어몬스터/야생 공통이라
+	// base Unit에 둔다. 필드 9개를 CombatTargetingState 하나로 묶어(캡슐화) 리셋도 그 안의
+	// ResetRetargetTracking/ResetOnCombatExit로 일관되게 처리한다.
+	public readonly CombatTargetingState CombatTargeting = new CombatTargetingState();
+
 	// 코어/문 공격 채널링 공용 필드 — 자동(코어 전용, 인류만)/플레이어 명령(코어+문) 양쪽이 인접 도착
 	// 시 채우며, 값이 있는 동안 OnUpdate가 매 프레임 깎는다. 직접 대입하지 말고 항상
 	// SetAttackObjectTarget/ClearAttackObjectTarget을 거칠 것 — 파괴 VFX 시작/종료가 물려 있다.

@@ -32,7 +32,9 @@ public static class VisionMath
 	// (Unit.suspiciousMoveBoostTimers가 증가분별 잔여시간을 리스트로 관리).
 	public const float SuspiciousMoveBoostDurationSeconds = 5f;
 
-	public const float SurpriseHighThreatMultiplier = 2f; // 기습 방향 전환 기준: 근접 공격 기대값의 2배 이상
+	// 02번 문서(전투 목표) 11장 개정: 기준을 "근접 공격 기대값"에서 "이번 피해 이전 직접 HP 손실
+	// 평균"으로 바꿨다(01-A 10장 연결 각주 — 고위험 방향 후보 생성 기준 자체가 이 문서로 옮겨졌다).
+	public const float SurpriseHighThreatMultiplier = 2f; // 큰 피해 시야전환 기준: 이전 평균의 2배 이상
 
 	public const int SpecialCircularBaseRadius = 1;
 	public const int SpecialCircularMaxRadius = 3;
@@ -126,9 +128,11 @@ public static class VisionMath
 		_ => int.MaxValue,
 	};
 
-	// 고위험 기습 판정: 기습 피해 기대값(또는 실제 피해)이 현재 근접 유닛 공격 기대값의 2배 이상인지.
-	public static bool IsHighThreatSurprise(float surpriseDamage, float currentMeleeExpectedDamage)
-		=> surpriseDamage >= currentMeleeExpectedDamage * SurpriseHighThreatMultiplier;
+	// 02번 11장: 이번 직접 HP 손실이 "이번 피해를 넣기 전" 평균의 2배 이상인지. previousAverage는
+	// 이전 표본이 없으면 호출부에서 이 판정 자체를 생략해야 한다(문서 "이전 표본이 없으면 배수 판정
+	// 생략, 일반 피격 반응 적용").
+	public static bool IsHighThreatSurprise(float thisLoss, float previousAverage)
+		=> thisLoss >= previousAverage * SurpriseHighThreatMultiplier;
 
 	// Dir 8방향 사이의 최소 회전 단계 수(0~4). 우선순위가 동률인 후보가 여럿일 때 "기존 시야 방향에
 	// 가장 가까운 후보"를 고르는 데 쓴다(11장 마지막 규칙).

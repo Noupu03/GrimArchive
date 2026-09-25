@@ -27,7 +27,34 @@ public abstract class UnitFunction : Unit, IVisionContext
 			float damage = Mathf.Max(1f, rawDamage - CombatStat.physicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
+			RecordDirectHitForViewSwitch(damage, attacker);
 		}
+	}
+
+	// 02번 11장: 진영과 무관하게(가중치 시스템과 달리 인류·몬스터·야생 전부 대상) 가까운 근접 교전
+	// 상대에게 받은 직접 HP 손실을 표본으로 모으고, 이번 손실이 이전 평균의 2배 이상이면 공격 방향
+	// 시야 전환 신호를 잠깐 세운다(ResolveVisionDirection의 HighThreatSurprise 후보가 소비).
+	private void RecordDirectHitForViewSwitch(float damage, Unit attacker)
+	{
+		if (attacker == null || damage <= 0f) return;
+		if (!AIMovementHelper.IsAdjacent(position, attacker.position)) return; // "가까운 근접" 상대만
+
+		var losses = CombatTargeting.RecentDirectHitLosses;
+		if (losses.Count > 0)
+		{
+			float average = 0f;
+			foreach (var loss in losses) average += loss;
+			average /= losses.Count;
+
+			if (VisionMath.IsHighThreatSurprise(damage, average))
+			{
+				CombatTargeting.PendingHighThreatDirection = attacker.position;
+				CombatTargeting.PendingHighThreatUntilTime = Time.time + 2f; // 소리 방향 유지(2초)와 동일한 값으로 통일.
+			}
+		}
+		// 이전 표본이 없으면 배수 판정 생략(문서 "일반 피격 반응 적용") — 표본만 추가한다.
+
+		losses.Add(damage);
 	}
 
 	public override void TakeMagicalDamage(float rawDamage, Unit attacker)
@@ -43,6 +70,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			float damage = Mathf.Max(1f, rawDamage - CombatStat.magicalDefense);
 			TakeDamage(damage);
 			RecordHitWeightEvent(damage, attacker, rawDamage);
+			RecordDirectHitForViewSwitch(damage, attacker);
 		}
 	}
 
@@ -716,6 +744,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.SkillUse, skillDir));
 		}
 
+		// 2순위(02번 11장): 큰 피해 시야전환 — 유효시간 안이면 공격자 방향으로.
+		if (CombatTargeting.PendingHighThreatDirection.HasValue && Time.time <= CombatTargeting.PendingHighThreatUntilTime)
+			candidates.Add(new VisionMath.VisionDirectionCandidate(VisionDirectionReason.HighThreatSurprise, DirectionToward(CombatTargeting.PendingHighThreatDirection.Value)));
+
 		// 3순위: 1칸 이내 근접 전투 대상 존재.
 		Unit adjacentEnemy = FindAdjacentEnemy();
 		if (adjacentEnemy != null)
@@ -957,6 +989,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 			}
 		}
+
+		// 01번 7-1장: 전투 없이도 방 활동이 끝나면 집결을 시작해야 하므로, 리더에 한해 주기적으로
+		// 확인한다(Party.TickRoomActivityCheck가 1초 자체 스로틀 — 매 프레임 전체 검사하지 않음).
+		if (this is Human leaderHuman && leaderHuman.party != null && leaderHuman.party.Leader == leaderHuman)
+			leaderHuman.party.TickRoomActivityCheck(Time.time);
 
 		// 07-A 9장(2026-07-31 신규): 전투 진입 합류 대기 타이머 — currentAlertSearch와 동일하게 실제
 		// 경과 시간으로 매 프레임 흐른다.

@@ -8,6 +8,10 @@ public enum WaitReason
 	AwaitingJoinBeforeApproach,
 	// 10장 3번째 상황 + 11장(집결): 집결 위치에 먼저 도착해 다른 파티원을 기다림 — Party.RallyPoint 사용.
 	AwaitingPartyAtRallyPoint,
+	// 05번 문서 1장: 집결 완료 후 진형을 유지해 다음 방(문)으로 이동 — HumanWaveManager.
+	// TryFindNextDoorTowardTargetRoom이 목적지를 정한다. "대기"가 아니라 "지정 목적지로 이동"이지만
+	// 전투·전술 우선순위에 자연히 밀려야 하므로(00번 4장 순서) WaitState/ExecuteWait 구조를 그대로 쓴다.
+	AdvancingToNextRoom,
 }
 
 public class WaitState

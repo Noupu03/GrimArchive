@@ -33,6 +33,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
     // 여러 개인 경우에도 하이어라키에서 낱개로 흩어지지 않고 "RoomOutline_F{f}_R{roomId}" 하나로 보인다.
     private readonly Dictionary<(int floor, int roomId), Transform> _roomOutlineGroups
         = new Dictionary<(int, int), Transform>();
+    // PulseRoomOutline 중복 호출 시 이전 펄스를 조용히 중단시키는 세대 카운터 — 값이 바뀌면 이전
+    // 루프는 스스로 종료한다(같은 LineRenderer를 두 루프가 동시에 써서 깜빡이는 것을 방지).
+    private readonly Dictionary<(int floor, int roomId), int> _outlinePulseGeneration
+        = new Dictionary<(int, int), int>();
 
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
@@ -599,6 +603,115 @@ public class MapRandering : NativeRoutine, IMapColorizer
         SetRoomOutline(room.Floor, room.RoomId, ref floor, color, floorTilemaps[room.Floor].transform);
     }
 
+    // ── 방 테두리 펄스("웅웅거리는" 점령 연출, 2026-09-25 + 후속 "퍼지는 느낌" 재요청) ──────────
+    // 테두리 전체가 같은 위상으로 균일하게 깜빡이던 1차안 대신, waveCount개의 봉우리가 테두리를 따라
+    // travelSpeed로 계속 돌면서(=위치별 위상이 다름 → "퍼지는" 느낌) decay로 서서히 잦아든다.
+    // LineRenderer.widthCurve/colorGradient(모두 라인 길이 0~1 정규화 위치 기준)를 매 프레임 다시
+    // 만들어 위치별로 다른 값을 준다 — Gradient는 색상 키가 최대 8개라는 Unity 제약이 있어 색은 8개,
+    // 폭은 AnimationCurve라 제약이 없어 24개로 더 곱게 샘플링한다.
+    private const float RoomOutlinePulseDurationSeconds = 1.5f;
+    private const float RoomOutlinePulseWaveCount = 3f;      // 테두리 한 바퀴에 동시에 보이는 파동 개수
+    private const float RoomOutlinePulseTravelSpeed = 1.5f;  // 파동이 테두리를 도는 속도(초당 바퀴 수)
+    private const float RoomOutlinePulseWidthAmplitude = 0.15f; // 기본 굵기(0.12) 대비 파동 정점 추가 굵기
+    private const float RoomOutlinePulseBrightenRatio = 0.6f;   // 파동 정점에서 흰색과 섞는 비율
+    private const int RoomOutlinePulseWidthKeyCount = 24;
+    private const int RoomOutlinePulseColorKeyCount = 8; // Unity Gradient 색상 키 최대치
+
+    public void PulseRoomOutline(Room room)
+    {
+        if (room == null) return;
+        var key = (room.Floor, room.RoomId);
+        if (!_roomOutlines.TryGetValue(key, out var renderers) || renderers.Count == 0) return;
+
+        int generation = (_outlinePulseGeneration.TryGetValue(key, out int g) ? g : 0) + 1;
+        _outlinePulseGeneration[key] = generation;
+
+        // 매 프레임 "이전 프레임 색"에서 다시 섞으면 하얗게 누적되므로, 지금(=ChangeRoomColor로 이미
+        // 소유 진영 색이 반영된 상태)의 색을 기준값으로 한 번만 캡처해 그 값에서 매번 다시 섞는다.
+        var baseColors = new List<Color>(renderers.Count);
+        foreach (var lr in renderers) baseColors.Add(lr != null ? lr.startColor : Color.white);
+
+        PulseRoomOutlineAsync(key, renderers, baseColors, generation).Forget();
+    }
+
+    // t(0~1, 테두리 위 정규화 위치)와 elapsed(경과시간)로 그 지점의 파동 세기를 계산한다.
+    private static float RoomOutlineWaveIntensity(float t, float elapsed, float decay)
+    {
+        float phase = (t * RoomOutlinePulseWaveCount - elapsed * RoomOutlinePulseTravelSpeed) * Mathf.PI * 2f;
+        return Mathf.Max(0f, Mathf.Sin(phase)) * decay;
+    }
+
+    private async UniTaskVoid PulseRoomOutlineAsync(
+        (int floor, int roomId) key, List<LineRenderer> renderers, List<Color> baseColors, int generation)
+    {
+        var widthKeys = new Keyframe[RoomOutlinePulseWidthKeyCount];
+        var alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) };
+
+        float elapsed = 0f;
+        while (elapsed < RoomOutlinePulseDurationSeconds)
+        {
+            // 같은 방이 다시 펄스되면(예: 짧은 시간 내 재점령) generation이 바뀌어 이전 루프는 조용히 멈춘다.
+            if (!_outlinePulseGeneration.TryGetValue(key, out int current) || current != generation) return;
+
+            float decay = 1f - elapsed / RoomOutlinePulseDurationSeconds;
+
+            for (int k = 0; k < RoomOutlinePulseWidthKeyCount; k++)
+            {
+                float t = k / (float)(RoomOutlinePulseWidthKeyCount - 1);
+                float wave = RoomOutlineWaveIntensity(t, elapsed, decay);
+                widthKeys[k] = new Keyframe(t, RoomOutlineWidth + RoomOutlinePulseWidthAmplitude * wave);
+            }
+            var widthCurve = new AnimationCurve(widthKeys);
+
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                LineRenderer lr = renderers[i];
+                if (lr == null || !lr.gameObject.activeSelf) continue;
+
+                lr.widthCurve = widthCurve;
+
+                var colorKeys = new GradientColorKey[RoomOutlinePulseColorKeyCount];
+                for (int k = 0; k < RoomOutlinePulseColorKeyCount; k++)
+                {
+                    float t = k / (float)(RoomOutlinePulseColorKeyCount - 1);
+                    float wave = RoomOutlineWaveIntensity(t, elapsed, decay);
+                    colorKeys[k] = new GradientColorKey(Color.Lerp(baseColors[i], Color.white, wave * RoomOutlinePulseBrightenRatio), t);
+                }
+                var gradient = new Gradient();
+                gradient.SetKeys(colorKeys, alphaKeys);
+                lr.colorGradient = gradient;
+            }
+
+            elapsed += Time.deltaTime;
+            await UniTask.Yield();
+        }
+
+        // 다른 펄스가 이미 이어받지 않았을 때만 기준값으로 되돌린다(이어받았으면 그쪽이 알아서 마무리).
+        if (_outlinePulseGeneration.TryGetValue(key, out int finalGen) && finalGen == generation)
+        {
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                LineRenderer lr = renderers[i];
+                if (lr == null) continue;
+                ResetOutlineRendererToFlat(lr, baseColors[i]);
+            }
+        }
+    }
+
+    // widthCurve/colorGradient를 균일한 값으로 되돌린다 — 펄스가 자연 종료될 때뿐 아니라
+    // SetRoomOutline이 소유권 갱신으로 다시 그릴 때도 항상 호출해, 중단된 펄스가 남긴 굴곡진
+    // widthCurve/colorGradient가 이후의 갱신을 계속 가리는 일이 없게 한다(둘 다 startWidth/
+    // startColor보다 우선 적용되는 값이라 이렇게 명시적으로 맞춰줘야 한다).
+    private static void ResetOutlineRendererToFlat(LineRenderer lr, Color color)
+    {
+        lr.widthCurve = AnimationCurve.Constant(0f, 1f, RoomOutlineWidth);
+        var gradient = new Gradient();
+        gradient.SetKeys(
+            new[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+        lr.colorGradient = gradient;
+    }
+
     // roomId 소속이면서 벽이 아닌 타일들의 격자 마스크를 만든다 — BuildWallMask와 동일한 월드 크기라
     // TraceContours 윤곽선 좌표가 이 층 타일맵의 로컬 좌표와 그대로 일치한다. 문이 있는 경계의 이 방
     // 쪽 문턱 타일은 마스크에서 제외해 윤곽선이 그 자리를 돌아가며 문/복도 폭만큼 빈틈을 만든다 —
@@ -716,6 +829,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
             lr.endWidth = RoomOutlineWidth;
             lr.startColor = color;
             lr.endColor = color;
+            // 진행 중이던 방 테두리 펄스(PulseRoomOutline)가 widthCurve/colorGradient를 굴곡지게
+            // 남겨뒀을 수 있다 — 소유권이 바뀌어 다시 그리는 지금은 항상 균일한 값으로 되돌린다.
+            ResetOutlineRendererToFlat(lr, color);
             lr.positionCount = loop.Count;
             for (int p = 0; p < loop.Count; p++)
                 lr.SetPosition(p, new Vector3(loop[p].x, loop[p].y, 0f));

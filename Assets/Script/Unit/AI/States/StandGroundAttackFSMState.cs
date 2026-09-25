@@ -24,7 +24,9 @@ public class StandGroundAttackFSMState : IFSMState
 	{
 		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
 
-		Unit target = CombatFSMState.GetClosestEnemy(unit, out float minDist);
+		CombatFSMState.ResolveEmergencyProtectTarget(unit);
+
+		Unit target = CombatFSMState.SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Running; // 대상 없음 — 제자리에서 계속 대기
 
 		var unitSkills = unit.Generate != null

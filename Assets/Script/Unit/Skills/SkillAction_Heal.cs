@@ -43,40 +43,65 @@ public class SkillAction_Heal : SkillAction
         return _cachedAlly;
     }
 
+    // 02번 7장: 낮은 HP 비율 → 짧은 도달시간(거리로 근사) → 현재 대상 유지 순으로 비교하고, 자기 파티
+    // 요구를 먼저 본다(자기 자신도 같은 순서의 후보). 이미 치료 중인 대상은 작은 체력 변화만으로
+    // 계속 교체하지 않는다 — 현재 대상이 여전히 유효하고 치료 기준(클래스별 문턱) 이상 회복되지
+    // 않았으면 그대로 유지한다. 결과는 unit.CombatTargeting.HealTarget에 반영된다.
     public Unit FindLowestHpAlly(Unit unit, int maxRange = -1)
     {
         if (unit == null || unit.Session == null || unit.Session.units == null) return unit;
 
-        Unit lowestAlly = null;
-        float lowestHpRatio = 1.0f;
         int range = maxRange >= 0 ? maxRange : (HitRange > 0 ? HitRange : 5);
+
+        // 02번 0장: 긴급 아군 보호가 일반 치료보다 먼저다 — CombatFSMState.ResolveEmergencyProtectTarget이
+        // 갱신해 둔 대상이 있고 아직 치료 여지가 있으면(만피가 아니면) 일반 치료 문턱과 무관하게 그 대상을 우선한다.
+        Unit protectTarget = unit.CombatTargeting.ProtectTarget;
+        if (protectTarget != null && protectTarget.Health != null && protectTarget.Health.hp > 0
+            && protectTarget.Health.hp < protectTarget.Health.maxHp
+            && Vector2.Distance(unit.position, protectTarget.position) <= range)
+        {
+            unit.CombatTargeting.HealTarget = protectTarget;
+            return protectTarget;
+        }
+
+        CombatRole selfRole = CombatScoreMath.ResolveCombatRole(unit.unitType);
+        float threshold = CombatScoreMath.GeneralHealThresholdRatio(selfRole);
+
+        // 현재 대상 유지 — 사망/사거리 이탈/회복 완료(문턱 이상)로 무효화되지 않았으면 그대로 쓴다.
+        Unit current = unit.CombatTargeting.HealTarget;
+        if (current != null && current.Health != null && current.Health.hp > 0
+            && current.currentFloor == unit.currentFloor
+            && Vector2.Distance(unit.position, current.position) <= range
+            && current.Health.hp / Mathf.Max(1f, current.Health.maxHp) < threshold)
+        {
+            return current;
+        }
+
+        Unit best = null;
+        float bestRatio = threshold;
+        float bestDist = float.MaxValue;
+
+        void Consider(Unit candidate, float dist)
+        {
+            if (candidate.Health == null || candidate.Health.hp <= 0) return;
+            float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
+            if (ratio >= threshold) return; // 치료 필요 없음(해당 문턱 이상은 일반 치료 대상 아님)
+            if (best == null || ratio < bestRatio || (ratio == bestRatio && dist < bestDist))
+            { best = candidate; bestRatio = ratio; bestDist = dist; }
+        }
 
         foreach (var u in unit.Session.units)
         {
-            if (u == null || u.Health == null || u.Health.hp <= 0 || u.currentFloor != unit.currentFloor) continue;
+            if (u == null || u == unit || u.currentFloor != unit.currentFloor) continue;
             if (unit.IsEnemy(u)) continue;
-
             float dist = Vector2.Distance(unit.position, u.position);
             if (dist > range) continue;
-
-            float hpRatio = u.Health.hp / Mathf.Max(1f, u.Health.maxHp);
-            if (hpRatio < lowestHpRatio)
-            {
-                lowestHpRatio = hpRatio;
-                lowestAlly = u;
-            }
+            Consider(u, dist);
         }
+        Consider(unit, 0f); // 자기 자신도 같은 순서의 후보
 
-        if (unit.Health != null)
-        {
-            float selfRatio = unit.Health.hp / Mathf.Max(1f, unit.Health.maxHp);
-            if (selfRatio < lowestHpRatio)
-            {
-                lowestAlly = unit;
-            }
-        }
-
-        return lowestAlly;
+        unit.CombatTargeting.HealTarget = best;
+        return best;
     }
 
     public override bool IsAvailable(Unit unit)
@@ -93,7 +118,9 @@ public class SkillAction_Heal : SkillAction
         if (ally == null || ally.Health == null || ally.Health.hp >= ally.Health.maxHp) return 0f;
 
         float hpRatio = ally.Health.hp / Mathf.Max(1f, ally.Health.maxHp);
-        return _d.priorityBase + (1f - hpRatio) * 80f;
+        // 02번 0/8장: 긴급 아군 보호 대상이면 일반 치료·공격 스킬을 모두 확실히 앞서도록 큰 값을 더한다.
+        float emergencyBonus = (unit.CombatTargeting.ProtectTarget != null && ally == unit.CombatTargeting.ProtectTarget) ? 1000f : 0f;
+        return emergencyBonus + _d.priorityBase + (1f - hpRatio) * 80f;
     }
 
     public override void Execute(Unit unit, Unit target, float minDist)

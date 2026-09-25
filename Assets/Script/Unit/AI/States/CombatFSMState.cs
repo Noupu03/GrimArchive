@@ -66,6 +66,9 @@ public class CombatFSMState : IFSMState
 
 		if (unit.currentAlertSearch == null)
 			unit.currentAlertSearch = new AlertSearchState { IsPostCombatSweep = true };
+
+		// 02번 11장 "이번 전투에서"의 범위 정리 — 다음 교전은 새 표본·새 대상 선택으로 시작한다.
+		unit.CombatTargeting.ResetOnCombatExit();
 	}
 
 	public BTStatus Tick(Unit unit)   => _bt.Tick(unit);
@@ -75,7 +78,11 @@ public class CombatFSMState : IFSMState
 	{
 		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
 
-		Unit target = GetClosestEnemy(unit, out float minDist);
+		// 02번 0장: 긴급 아군 보호를 공격 후보 판단보다 먼저 확인한다. 실행 여부는 스킬별 IsAvailable이
+		// 결정하므로(보호 가능한 스킬이 없으면 자연히 일반 공격으로 넘어감) 여기서는 상태만 갱신한다.
+		ResolveEmergencyProtectTarget(unit);
+
+		Unit target = SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Failure;
 
 		int rangedMin = AIConfigLoader.Behavior?.rangedSkillMinRange ?? 4;
@@ -124,12 +131,14 @@ public class CombatFSMState : IFSMState
 			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
 				bestSkill.Execute(unit, resolved, minDist);
+				// 02번 5장: 공격을 실제로 실행하면(회피·방어로 무효여도) 누적 이동 칸수를 초기화한다.
+				unit.CombatTargeting.ResetRetargetTracking();
 				unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 				unit.Generate?.UpdateUnitSpriteForDirection(unit);
 				return BTStatus.Running;
 			}
 
-			AIMovementHelper.MoveTowardsTarget(unit, target);
+			if (AIMovementHelper.MoveTowardsTarget(unit, target)) TrackRetargetMovement(unit);
 		}
 		else
 		{
@@ -138,7 +147,7 @@ public class CombatFSMState : IFSMState
 			if (chebDist != fallbackRange)
 			{
 				if (chebDist < fallbackRange) AIMovementHelper.MoveAwayFromTarget(unit, target, fallbackRange);
-				else                          AIMovementHelper.MoveTowardsTarget(unit, target);
+				else if (AIMovementHelper.MoveTowardsTarget(unit, target)) TrackRetargetMovement(unit);
 			}
 		}
 
@@ -147,10 +156,72 @@ public class CombatFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// internal — StandGroundAttackFSMState("제자리 공격")가 이동 없이 사거리 내 적만 공격할 때
-	// 동일한 타깃 선정 로직을 재사용한다.
-	internal static Unit GetClosestEnemy(Unit unit, out float minDist)
+	// 02번 8~9장: 자기 자신을 포함해 긴급 보호 후보를 찾고 unit.CombatTargeting.ProtectTarget에
+	// 반영한다. 실제로 어떤 스킬로 보호할지는 각 스킬(SkillAction_Heal 등)이 이 값을 우선 대상으로
+	// 인식해 스스로 판단한다(02번 문서 "보호는 치료만을 뜻하지 않는다" — 스킬별 수행 가능 여부는
+	// 각 스킬의 IsAvailable이 담당). internal — StandGroundAttackFSMState도 동일하게 호출한다.
+	internal static void ResolveEmergencyProtectTarget(Unit unit)
 	{
+		Unit current = unit.CombatTargeting.ProtectTarget;
+		bool currentStillValid = current != null && current.Health != null && current.Health.hp > 0
+			&& current.currentFloor == unit.currentFloor && IsEmergency(unit, current);
+
+		Unit best = currentStillValid ? current : null;
+		float bestRatio = 0f, bestDist = 0f; bool bestIncap = false;
+		if (best != null)
+		{
+			bestRatio = best.Health.hp / Mathf.Max(1f, best.Health.maxHp);
+			bestIncap = best.StatusEffects.State.stunDuration > 0f;
+			bestDist = Vector2Int.Distance(unit.position, best.position);
+		}
+
+		void Consider(Unit candidate)
+		{
+			if (!IsEmergency(unit, candidate)) return;
+			float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
+			bool incap = candidate.StatusEffects.State.stunDuration > 0f;
+			float dist = Vector2Int.Distance(unit.position, candidate.position);
+			if (best == null || CombatScoreMath.IsBetterProtectCandidate(ratio, incap, dist, bestRatio, bestIncap, bestDist))
+			{ best = candidate; bestRatio = ratio; bestIncap = incap; bestDist = dist; }
+		}
+
+		if (unit.Session?.units != null)
+		{
+			foreach (var u in unit.Session.units)
+			{
+				if (u == null || u == current || u == unit || u.currentFloor != unit.currentFloor) continue;
+				if (unit.IsEnemy(u)) continue;
+				Consider(u);
+			}
+		}
+		Consider(unit); // 자기 자신도 같은 순서의 후보 — 자동으로 우선하지 않는다(비교식이 동일하게 적용).
+
+		unit.CombatTargeting.ProtectTarget = best;
+	}
+
+	private static bool IsEmergency(Unit protector, Unit candidate)
+	{
+		if (candidate?.Health == null || candidate.Health.hp <= 0) return false;
+		float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
+		bool incapacitated = candidate.StatusEffects.State.stunDuration > 0f;
+		bool underThreat = candidate.HasPerceivedThreatCollider();
+		return CombatScoreMath.IsEmergencyProtectCandidate(ratio, underThreat, incapacitated, candidate.isHitThisTurn);
+	}
+
+	// 02번 5장: 대상을 "바꾸려는" 이동에만 누적한다 — 원래(안 바뀐) 대상을 계속 추격하는 이동은 제외.
+	private static void TrackRetargetMovement(Unit unit)
+	{
+		if (unit.CombatTargeting.IsChasingRetargetedEnemy) unit.CombatTargeting.MovedTilesSinceRetarget++;
+	}
+
+	// internal — StandGroundAttackFSMState("제자리 공격")가 이동 없이 사거리 내 적만 공격할 때
+	// 동일한 타깃 선정 로직을 재사용한다. 02번 3~5장: 개인위험도(인류)/종류설정(몬스터·야생) × 역할
+	// 배율 × 대상 종류 배율로 점수를 매기고, 유지 중인 대상은 인류 1.2배·몬스터/야생은 더 높을 때만
+	// 교체한다(교체 시 5장 이동 한도 확인). 4장 보스 집중은 임시 위협이 없는 한 그대로 유지한다.
+	internal static Unit SelectAttackTarget(Unit unit, out float minDist)
+	{
+		minDist = float.MaxValue;
+
 		// GetPriority와 동일한 방 제한(야생 몬스터) — 다른 이유로 전투가 켜져 있어도 타깃팅에서
 		// 방 밖 적을 고르지 않도록 일관되게 적용.
 		bool isRoomConfined = AIMovementHelper.IsRoomConfined(unit);
@@ -158,16 +229,104 @@ public class CombatFSMState : IFSMState
 			? unit.Session.cmap.GetRoomIdAt(unit.currentFloor, unit.position)
 			: -1;
 
-		Unit  best    = null;
-		minDist = float.MaxValue;
+		var allCandidates = new List<Unit>();
+		var threatCandidates = new List<Unit>();
 		foreach (var e in unit.Perception.State.personalSpottedEnemies)
 		{
 			if (e == null || e.Health.hp <= 0 || e.currentFloor != unit.currentFloor) continue;
 			if (isRoomConfined && myRoomId >= 0 && unit.Session.cmap.GetRoomIdAt(e.currentFloor, e.position) != myRoomId) continue;
-			float d = Vector2Int.Distance(unit.position, e.position);
-			if (d < minDist) { minDist = d; best = e; }
+			allCandidates.Add(e);
+			if (IsAttackingMeOrAlly(unit, e)) threatCandidates.Add(e);
 		}
-		return best;
+		if (allCandidates.Count == 0) return null;
+
+		var pool = threatCandidates.Count > 0 ? threatCandidates : allCandidates;
+
+		bool isHuman = unit is Human;
+		CombatRole selfRole = CombatScoreMath.ResolveCombatRole(unit.unitType);
+
+		// 4장: 보스 집중 유지 — 보스 외의 현재 위협(자신/아군을 공격 중인 다른 후보)이 없으면
+		// 20% 기준 없이 그대로 복귀한다.
+		Unit boss = unit.CombatTargeting.BossFocusTarget;
+		bool bossStillValid = boss != null && boss.Health.hp > 0 && boss.currentFloor == unit.currentFloor && allCandidates.Contains(boss);
+		if (!bossStillValid) unit.CombatTargeting.BossFocusTarget = null;
+		if (bossStillValid && !threatCandidates.Exists(t => t != boss))
+		{
+			unit.CombatTargeting.AttackTarget = boss;
+			minDist = Vector2Int.Distance(unit.position, boss.position);
+			return boss;
+		}
+
+		Unit best = null;
+		float bestScore = float.MinValue;
+		float bestDist = float.MaxValue;
+		foreach (var cand in pool)
+		{
+			float score = ComputeAttackScore(unit, isHuman, selfRole, cand);
+			float d = Vector2Int.Distance(unit.position, cand.position);
+			// 최초 선택(동점) 타이브레이크는 "첫 공격 효과까지 걸리는 시간"이 기준이나, 이동시간·선딜을
+			// 전부 반영한 정밀 계산은 범위 밖이라 현재 거리로 근사한다.
+			if (best == null || score > bestScore || (score == bestScore && d < bestDist))
+			{ best = cand; bestScore = score; bestDist = d; }
+		}
+
+		Unit current = unit.CombatTargeting.AttackTarget;
+		bool currentValid = current != null && current.Health.hp > 0 && current.currentFloor == unit.currentFloor && pool.Contains(current);
+
+		if (!currentValid)
+		{
+			unit.CombatTargeting.AttackTarget = best;
+			unit.CombatTargeting.ResetRetargetTracking();
+			if (CombatScoreMath.ResolveTargetCategory(best) == TargetCategory.Boss) unit.CombatTargeting.BossFocusTarget = best;
+			minDist = bestDist;
+			return best;
+		}
+
+		if (best != current)
+		{
+			float currentScore = ComputeAttackScore(unit, isHuman, selfRole, current);
+			if (CombatScoreMath.ShouldSwitchAttackTarget(isHuman, currentScore, bestScore))
+			{
+				int limit = CombatScoreMath.AttackRetargetMoveLimit(selfRole);
+				// 새 대상까지 남은 이동은 실제 선택 경로 대신 체비셰프 거리로 근사한다(04번 문서의 실제
+				// 경로 계산까지 연동하려면 경로탐색 결과가 필요해 범위 밖).
+				int estRemaining = AIMovementHelper.ChebyshevDistance(unit.position, best.position);
+				if (unit.CombatTargeting.MovedTilesSinceRetarget + estRemaining <= limit)
+				{
+					unit.CombatTargeting.AttackTarget = best;
+					unit.CombatTargeting.IsChasingRetargetedEnemy = true; // 누적 칸수는 유지(실행 시에만 초기화)
+					if (CombatScoreMath.ResolveTargetCategory(best) == TargetCategory.Boss) unit.CombatTargeting.BossFocusTarget = best;
+					minDist = bestDist;
+					return best;
+				}
+				// 한도 초과 — 이번 교체는 보류하고 기존 대상을 유지한다(출발 위치로 자동 복귀하지 않음).
+			}
+		}
+
+		minDist = Vector2Int.Distance(unit.position, current.position);
+		return current;
 	}
 
+	// 4장: "자신이나 아군을 공격 중인" 후보 — enemy의 현재 공격 대상이 나 자신이거나 나의 적이 아닌
+	// (=아군인) 살아있는 유닛이면 참이다. 모든 진영이 CombatTargeting.AttackTarget을 공유해 쓰므로
+	// 대칭적으로 성립한다.
+	private static bool IsAttackingMeOrAlly(Unit observer, Unit enemy)
+	{
+		Unit enemyTarget = enemy.CombatTargeting.AttackTarget;
+		return enemyTarget != null && enemyTarget.Health.hp > 0 && !observer.IsEnemy(enemyTarget);
+	}
+
+	// 3장: 인류는 개인위험도×역할배율×대상종류배율, 플레이어·야생은 역할배율×대상종류배율(종류별 개별
+	// 설정은 후속 콘텐츠 데이터 — 지금은 역할 배율을 그대로 초기 출발값으로 사용).
+	private static float ComputeAttackScore(Unit observer, bool isHuman, CombatRole selfRole, Unit target)
+	{
+		CombatRole targetRole = CombatScoreMath.ResolveCombatRole(target.unitType);
+		TargetCategory category = CombatScoreMath.ResolveTargetCategory(target);
+		if (isHuman)
+		{
+			float danger = observer.Knowledge != null ? observer.Knowledge.GetPersonalDanger(observer, target) : 0f;
+			return CombatScoreMath.HumanAttackScore(danger, selfRole, targetRole, category);
+		}
+		return CombatScoreMath.MonsterAttackScore(selfRole, targetRole, category);
+	}
 }

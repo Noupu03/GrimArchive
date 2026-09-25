@@ -35,9 +35,9 @@ public class Room
     // GameSession.RevealRoomFog가 true로 바꾼다.
     public bool FogRevealed { get; set; } = false;
 
-    // 기초문서.md 피드백(2026-08-22) — 코어 전면 개편: 모든 방이 항상 코어를 하나씩 갖는다.
-    // GameSession.SpawnAllRoomCores가 방 생성 직후 채워준다. CoreObjectId가 null이면(발생하면 안
-    // 되지만) 코어 공격 행동(TacticalBehaviorType.CoreAttack)이 이 방을 목표로 삼지 않는다.
+    // 2026-09-25 회의록(코어·점령 재설계) — 코어는 각 층 보스방에만 존재한다(이전엔 모든 방).
+    // GameSession.SpawnBossCores가 보스방에만 채워준다. null이면 이 방이 보스방이 아니라는 뜻 —
+    // 코어 공격 행동(TacticalBehaviorType.CoreAttack)이 이 방을 목표로 삼지 않는다.
     public string CoreObjectId;
     public Vector3Int CorePosition;
 

@@ -182,13 +182,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 SpawnWildRoomGuards();
                 // 1층 보스방에 보스 골렘 고정 소환, 야생 소속.
                 SpawnBossGolem();
-                // 모든 방에 코어를 하나씩 자동 생성한다. HumanWaveManager는 WaveData.targetRoomRole/
-                // targetRoomId로 지정된 방의 Room.CorePosition을 목표로 삼는다.
+                // 보스방에 코어를 배치한다(2026-09-25 회의록). HumanWaveManager는 WaveData.
+                // targetRoomRole/targetRoomId로 지정된 방의 Room.CorePosition을 목표로 삼는다.
                 // 안개 시스템 초기화 — 코어/건물이 횃불 자리를 뺏지 않도록 먼저 스폰.
                 _fogOfWarSystem.Initialize();
                 _fogOfWarSystem.SpawnTorches();
 
-                SpawnAllRoomCores();
+                SpawnBossCores();
                 // 자원/유닛 생산 건물(MVP, 2026-07-27)
                 SpawnInitialBuildings();
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 성공.");
@@ -884,6 +884,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Party CreateParty(string name, List<Human> members)
     {
         var party = new Party(System.Guid.NewGuid().ToString(), name);
+        // 01번 문서 7-1장: 파티 종류별 현재 방 활동 종료 기준이 다르다. 편성 가능 유닛·선택 가중치는
+        // 아직 없는 03_파티 종류·목표·포메이션 문서 영역이라 PartyType(현재 4종) 중 무작위 배정으로
+        // 스텁한다 — Enum.GetValues 기반이라 종류가 늘어도 이 줄은 그대로 둬도 된다.
+        party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
         foreach (var m in members)
         {
             if (m == null) continue;
@@ -1219,8 +1223,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)
         => _doorSystem.CanFactionReachRoom(faction, floorIndex, fromRoomId, targetRoomId);
 
-    // 게임 시작 시 모든 방(야생 포함, 0층 제외)에 코어를 하나씩 자동 생성 — SpawnWildRoomGuards와
-    // 동일한 재시도 패턴을 재사용한다.
     // 초기 생성 시 문이나 횃불 바로 앞을 막지 않도록 판별하는 메서드
     private bool IsGoodForInitialSpawn(Vector3Int gridPos, Vector2 footprint)
     {
@@ -1232,11 +1234,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
             for (int dy = -1; dy <= fh; dy++)
             {
                 Vector3Int checkPos = new Vector3Int(gridPos.x + dx, gridPos.y + dy, gridPos.z);
-                
+
                 // 횃불이 있는 위치인지 확인
                 if (_fogOfWarSystem != null && _fogOfWarSystem.ActiveTorchPositions.Contains(checkPos))
                     return false;
-                
+
                 // 문/게이트 바로 앞인지 확인 (통로 차단 방지)
                 if (_doorSystem != null && _doorSystem.IsDoorTile(checkPos))
                     return false;
@@ -1245,40 +1247,59 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return true;
     }
 
-    private void SpawnAllRoomCores()
+    // 빈 오브젝트 자리를 찾는 재시도 루프(SpawnWildRoomGuards와 동일 패턴) — SpawnRoomCore가 쓴다.
+    // 별도 함수로 뺀 이유는 재사용이 아니라 관심사 분리(자리 찾기 vs 오브젝트 생성)다 — 다음 점령
+    // 조건이 오브젝트 스폰을 다시 필요로 하면 이걸 그대로 재사용하면 된다.
+    private bool TryFindObjectSpawnPos(Room room, out Vector3Int gridPos)
     {
-        if (_unitGenerate == null || allRooms == null) return;
-
-        foreach (var room in allRooms)
+        Vector2Int spawnPos = room.GetRandomPosInRoom();
+        int attempts = 0;
+        while ((objectGrid.ContainsKey(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor))
+                || !_unitGenerate.IsAreaClear(spawnPos, Vector2.one, room.Floor) || !IsGoodForInitialSpawn(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor), Vector2.one)) && attempts < 20)
         {
-            if (room.RoomId < 0 || room.Floor < 0) continue;
-            if (room.Floor == 0) continue; // 0층(인류 소유 로비)은 방 점령 개념이 없음
+            spawnPos = room.GetRandomPosInRoom();
+            attempts++;
+        }
+        gridPos = new Vector3Int(spawnPos.x, spawnPos.y, room.Floor);
+        return attempts < 20;
+    }
 
-            Vector2Int spawnPos = room.GetRandomPosInRoom();
-            int attempts = 0;
-            while ((objectGrid.ContainsKey(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor))
-                    || !_unitGenerate.IsAreaClear(spawnPos, Vector2.one, room.Floor) || !IsGoodForInitialSpawn(new Vector3Int(spawnPos.x, spawnPos.y, room.Floor), Vector2.one)) && attempts < 20)
-            {
-                spawnPos = room.GetRandomPosInRoom();
-                attempts++;
-            }
-            if (attempts >= 20)
-            {
-                LogHelper.Warning(LogHelper.GAME, $"SpawnAllRoomCores: {room.RoomName} 방(F{room.Floor})에 코어를 놓을 자리를 찾지 못했습니다.");
-                continue;
-            }
-
-            Vector3Int gridPos = new Vector3Int(spawnPos.x, spawnPos.y, room.Floor);
-            string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
-            InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { CoreTag }, coreHp: RoomCoreMaxHp);
-            SpawnObject(obj, Color.magenta);
-            MarkTileObstacle(gridPos, true);
-
-            room.CoreObjectId = objId;
-            room.CorePosition = gridPos;
+    private void SpawnRoomCore(Room room)
+    {
+        if (!TryFindObjectSpawnPos(room, out Vector3Int gridPos))
+        {
+            LogHelper.Warning(LogHelper.GAME, $"SpawnRoomCore: {room.RoomName} 방(F{room.Floor})에 코어를 놓을 자리를 찾지 못했습니다.");
+            return;
         }
 
-        LogHelper.Log(LogHelper.GAME, "SpawnAllRoomCores: 모든 방에 코어 배치 완료.");
+        string objId = "Core_" + System.Guid.NewGuid().ToString().Substring(0, 4);
+        InteractableObject obj = new InteractableObject(objId, gridPos, 120f, 0f, new List<string> { CoreTag }, coreHp: RoomCoreMaxHp);
+        SpawnObject(obj, Color.magenta);
+        MarkTileObstacle(gridPos, true);
+
+        room.CoreObjectId = objId;
+        room.CorePosition = gridPos;
+    }
+
+    // 2026-09-25 회의록(코어·점령 재설계): 코어는 각 층 보스방에만 배치한다 — 옛 SpawnAllRoomCores
+    // (모든 방에 코어)를 대체. 그 외 방의 점령 조건은 아직 미정(PartyEnums.cs 주석 참고) — 정해지면
+    // 그 트리거 지점에서 이 메서드 옆에 나란히 추가하면 된다.
+    private void SpawnBossCores()
+    {
+        if (_unitGenerate == null || allRooms == null || cmap?.map.floors == null) return;
+
+        for (int floorIdx = 1; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Room bossRoom = FindBossRoom(floorIdx);
+            if (bossRoom == null)
+            {
+                LogHelper.Warning(LogHelper.GAME, $"SpawnBossCores: {floorIdx}층에 보스방이 없어 코어를 배치하지 못했습니다.");
+                continue;
+            }
+            SpawnRoomCore(bossRoom);
+        }
+
+        LogHelper.Log(LogHelper.GAME, "SpawnBossCores: 보스방 코어 배치 완료.");
     }
 
     // 코어도 벽과 동일하게 통행 불가로 판정한다(BuildingManager.UpdateMapDataObstacle과 동일 패턴 —

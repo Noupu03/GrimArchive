@@ -677,6 +677,17 @@ public class TacticalFSMState : IFSMState
 			}
 			AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
 		}
+		else if (wait.Reason == WaitReason.AdvancingToNextRoom && wait.WaitPosition.HasValue)
+		{
+			// 05번 1장: 문에 도착(또는 더 다가갈 수 없음)하면 개인 행동으로 넘긴다 — 적대 문 파괴는
+			// TacticalBehaviorType.DoorAttack(인류 전용) 등 기존 전술이 이어받는다.
+			if (AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value)
+				|| !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
+			{
+				human.currentWait = null;
+				return BTStatus.Success;
+			}
+		}
 		return BTStatus.Running;
 	}
 
@@ -1000,7 +1011,6 @@ public class TacticalFSMState : IFSMState
 		return blocked >= tiles * 0.5f;
 	}
 
-
 	// ── 코어 공격 — 모든 방이 항상 코어를 하나씩 갖고, 코어 체력이 0이 되면 막타친 유닛의 진영으로 방
 	// 소유권이 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
 	// ⚠️ 하드 룰: 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 절대 스스로 시도하지 않고
@@ -1314,9 +1324,9 @@ public class TacticalFSMState : IFSMState
 		if (unit is Human hf && hf.HasProtectiveFormationNeed()) return "전술(포메이션)";
 		if (unit.currentAttackObjectTarget.HasValue)
 		{
-			bool isDoor = unit.Session != null
-				&& unit.Session.objectGrid.TryGetValue(unit.currentAttackObjectTarget.Value, out var attackObj)
-				&& attackObj.Tags != null && attackObj.Tags.Contains(DoorSystem.DoorTag);
+			InteractableObject attackObj = null;
+			unit.Session?.objectGrid.TryGetValue(unit.currentAttackObjectTarget.Value, out attackObj);
+			bool isDoor = attackObj?.Tags != null && attackObj.Tags.Contains(DoorSystem.DoorTag);
 			return isDoor ? "전술(문 공격)" : "전술(코어 공격)";
 		}
 		return "전술";

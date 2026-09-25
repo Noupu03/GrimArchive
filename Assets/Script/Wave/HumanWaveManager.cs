@@ -579,26 +579,82 @@ namespace GrimArchive.Wave
             }
         }
 
+        // 2026-09-25 개편(행동경로목표결정 구현현황 문서 "핵심 설계 결정" 1번): 코어 파괴 전에는 더 이상
+        // 매 틱 전원을 코어 좌표로 강제 이동시키지 않는다 — 개인 탐색/조사(01번 문서)와 리더의 집결
+        // 판단(05번 문서, Party.TickRoomActivityCheck)에 맡기고, 여기서는 "집결이 막 끝나 다음 문으로
+        // 함께 이동해야 하는 순간"(Party.ReadyToAdvance)에만 목적지를 한 번 지정한다. 코어 파괴 후
+        // 퇴각(_retreating)은 기존 그대로 매 틱 강제 이동을 유지한다 — 05번 10항은 "귀환 중 개인의 적
+        // 대응"만 다루고 퇴각 목적지 지정 방식 자체는 바꾸지 않는다.
         private void UpdatePartyDestination()
         {
-            if (!_retreating && _targetRoom == null) return; // 목표 없음 — 자유 배회에 맡김(에러 상황)
+            if (_retreating)
+            {
+                Vector2Int exitDest = exitAreaPos;
+                int exitFloor = targetSpawner.waveData.targetFloor;
+                foreach (var member in activeParty.Members)
+                {
+                    if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
+                    if (member.currentFloor != exitFloor) continue;
+                    if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
+                    if (member.playerAttackTarget != null) continue;
+                    member.playerMoveTarget = exitDest;
+                    member.isManualMoveCommand = false;
+                }
+                return;
+            }
 
-            Vector2Int dest = _retreating ? exitAreaPos : new Vector2Int(_targetRoom.CorePosition.x, _targetRoom.CorePosition.y);
-            int destFloor = _retreating ? targetSpawner.waveData.targetFloor : _targetRoom.CorePosition.z;
+            if (_targetRoom == null || !activeParty.ReadyToAdvance) return;
 
-            // 목표와 다른 층에 있는 파티원(계단 이동 중인 사전 스폰 파티원 등)은 건드리지 않는다
-            // (그쪽은 pendingStairTargetFloor 기반으로 별도 관리된다).
+            if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)) return;
+
+            // playerMoveTarget이 아니라 currentWait(WaitReason.AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
+            // isManualMoveCommand=true일 때만 PlayerCommandFSMState가 소비하는데, 그 상태는 전투보다도
+            // 우선순위가 높아(UnitFSM 200 vs 100) 이동 중 적과 마주쳐도 무시하고 걸어간다. currentWait
+            // 기반 TacticalFSMState.ExecuteWait 경로는 Combat(100) > Tactical(50) 순서를 그대로 따라
+            // 자연히 전투에 밀린다(00번 4장 우선순위와 일치).
             foreach (var member in activeParty.Members)
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
-                if (member.currentFloor != destFloor) continue;
-                // 플레이어 수동 명령 진행 중이면 자동 목표 재할당이 덮어쓰지 않는다 — 명령이 끝나면
-                // (PlayerCommandFSMState가 플래그 정리) 다음 틱부터 다시 챙긴다.
+                if (member.currentFloor != doorFloor) continue;
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
-                member.playerMoveTarget = dest;
-                member.isManualMoveCommand = false;
+                if (member.currentWait != null) continue; // 이미 다른 대기 사유(집결 등) 진행 중이면 덮어쓰지 않음.
+                member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = doorPos };
             }
+            activeParty.ReadyToAdvance = false; // 명령은 1회만 발행 — 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다.
+        }
+
+        // 05번 1장: "알려진 문"으로만 진행한다. 리더가 아는(개인 지도에 반영된) 현재 방의 문 중 목표
+        // 방에 가장 가까운 것을 고른다 — 진짜 방 그래프 최단경로 대신 좌표 거리로 근사한다(리더·명령
+        // 문서가 생기면 교체 대상, 행동경로목표결정 구현현황 문서 "큰 줄기 FSM 재설계" 참고).
+        private bool TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)
+        {
+            doorPos = default; doorFloor = 0;
+            var leader = activeParty.Leader;
+            if (leader == null || leader.currentRoom == null || GameSession.Instance == null) return false;
+
+            Vector2 targetCenter = _targetRoom.Bounds.center;
+            float bestDistSq = float.MaxValue;
+            bool found = false;
+
+            foreach (var obj in GameSession.Instance.objectGrid.Values)
+            {
+                if (obj == null || obj.Position.z != leader.currentFloor) continue;
+                if (!leader.currentRoom.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
+                if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
+                if (!leader.personalMap.IsTileRevealed(obj.Position)) continue;
+
+                Vector2 p = new Vector2(obj.Position.x, obj.Position.y);
+                float distSq = (p - targetCenter).sqrMagnitude;
+                if (distSq < bestDistSq)
+                {
+                    bestDistSq = distSq;
+                    doorPos = new Vector2Int(obj.Position.x, obj.Position.y);
+                    doorFloor = obj.Position.z;
+                    found = true;
+                }
+            }
+            return found;
         }
 
         private void EndWave(bool isSuccess)

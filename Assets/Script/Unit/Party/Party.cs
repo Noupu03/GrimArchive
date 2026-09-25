@@ -7,6 +7,10 @@ public class Party
 {
 	public string Id;
 	public string Name;
+	// 01번 문서 7-1장: 파티 종류별 방 활동 종료·집결 기준에 쓰인다. GameSession.CreateParty가 생성
+	// 시점에 4종(PartyEnums.cs 참고, 2026-09-25 회의록 반영: 점령 파티 추가) 중 하나를 무작위로
+	// 배정한다(편성 가능 유닛·선택 가중치는 미작성 문서 영역이라 스텁).
+	public PartyType Type;
 	public readonly List<Human> Members = new List<Human>();
 
 	// 리더·명령 체계 문서가 아직 없어 임시로 추가한 최소 리더 개념 — "전투 종료 후 경계 10초 → 리더가
@@ -18,6 +22,61 @@ public class Party
 	// 명령 전파 체계가 없어 "즉시 전 파티원이 아는" 것으로 근사). Goal_Wait이 이 값을 읽는다.
 	public Vector2Int? RallyPoint;
 	public bool IsRallyActive;
+	// 05번 1장: 집결이 막 완료돼 "다음 방으로 함께 이동"을 시작해도 되는 상태 — HumanWaveManager가
+	// 이 값을 보고 다음 문으로의 공동 이동 명령을 1회 발행한 뒤 false로 되돌린다(리더·명령 문서가
+	// 아직 없어 웨이브 전용 단일 목표 방 전제 하의 최소 구현).
+	public bool ReadyToAdvance;
+
+	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 리더 개인 지도·인지만으로 근사한다 —
+	// 진짜 "파티원 전체 시야 범위 합산"(01번 7-2장 시스템 집계)은 리더·명령 문서가 아직 없어 이
+	// 단순화로 대체한다. 2026-09-25 회의록 반영: 점령 파티는 방 점령 완료를 기준으로 추가했다 —
+	// 보스공략은 여전히 범위 밖(구현현황 문서 참고).
+	public bool IsRoomActivityComplete()
+	{
+		if (Leader == null || Leader.hp <= 0 || Leader.currentRoom == null) return false;
+		Room room = Leader.currentRoom;
+		switch (Type)
+		{
+			case PartyType.Explore:
+				return !Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds);
+			case PartyType.Recover:
+				return !HasKnownRecoverableInRoom(room);
+			case PartyType.Occupy:
+				// 점령을 실제로 트리거하는 조건은 아직 미정(PartyEnums.cs 주석 참고) — 판정 기준
+				// 자체("방이 인류 소유가 되면 완료")만 세팅으로 남겨둔다.
+				return room.RoomFaction == FactionType.Human;
+			case PartyType.MopUp:
+			default:
+				return Leader.personalSpottedEnemies.Count == 0;
+		}
+	}
+
+	private bool HasKnownRecoverableInRoom(Room room)
+	{
+		if (Leader?.Session == null) return false;
+		foreach (var obj in Leader.Session.objectGrid.Values)
+		{
+			if (obj == null || obj.IsCollected || obj.Position.z != Leader.currentFloor) continue;
+			if (!room.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
+			if (!Leader.personalMap.IsObjectKnown(obj.Id)) continue;
+			foreach (var tag in obj.Tags)
+			{
+				if (tag.Contains("Loot")) return true;
+			}
+		}
+		return false;
+	}
+
+	// 리더 전용 주기 체크 — 전투 없이도(스윕 트리거 없이도) 방 활동이 끝나면 집결을 시작할 수 있어야
+	// 하므로(01번 7-1장 "전투가 없었던 방에도 같은 기준 사용"), UnitFunction.OnUpdate가 매 프레임 대신
+	// 이 타이머로 던진다.
+	private float _nextRoomActivityCheckTime;
+	public void TickRoomActivityCheck(float currentTime)
+	{
+		if (currentTime < _nextRoomActivityCheckTime) return;
+		_nextRoomActivityCheckTime = currentTime + 1f;
+		TryStartRally();
+	}
 
 	// 생존 파티원 중 leadership 최댓값을 리더로 재선정한다 — 리더가 없거나 죽었을 때 GameSession이 호출한다.
 	public void AssignLeaderIfNeeded()
@@ -106,6 +165,8 @@ public class Party
 
 		AssignLeaderIfNeeded();
 		if (Leader == null) return;
+		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지 않는다.
+		if (!IsRoomActivityComplete()) return;
 
 		RallyPoint = Leader.position;
 		IsRallyActive = true;
@@ -130,5 +191,6 @@ public class Party
 		}
 		IsRallyActive = false;
 		RallyPoint = null;
+		ReadyToAdvance = true; // 05번 1장: 집결 완료 → 진형 유지해 다음 방으로 이동할 차례.
 	}
 }

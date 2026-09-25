@@ -204,6 +204,19 @@ public class PersonalMapKnowledge
 		return found;
 	}
 
+	// 01번 문서 7-1장: 탐색 파티의 "현재 방 지형 전체 확인" 판정에 쓴다 — 주어진 방 경계(bounds) 안에
+	// 아직 이 유닛이 못 본 프론티어 타일이 하나라도 남아 있는지만 확인한다(리더 개인 지도 기준 근사 —
+	// 파티원 전체 시야 합산은 아직 안 함, Party.IsRoomActivityComplete 주석 참고).
+	public bool HasFrontierTileInBounds(int floor, RectInt bounds)
+	{
+		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier)) return false;
+		foreach (var t in frontier)
+		{
+			if (bounds.Contains(t)) return true;
+		}
+		return false;
+	}
+
 	// 지형이 밝혀졌으면 explored를 직접 넘길 필요 없이 이 오버로드로 자동 판단한다(기존 오버로드는
 	// 호환 위해 유지).
 	public float GetTileDanger(Vector3Int pos) => GetTileDanger(pos, IsTileRevealed(pos));

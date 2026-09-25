@@ -1,0 +1,451 @@
+GrimArchive 행동경로·목표설정 시스템 구현 현황 — 2026-09-25 (신규 착수)
+기준 문서: Assets/문서/공식문서/행동경로_목표결정 09.25/
+  GrimArchive_00_공통판단_정보_행동우선순위_v0.12_본문정리_수정본.docx.md
+  GrimArchive_01_파티목표_비전투목표선택_v0.12_본문정리_수정본.docx.md
+  GrimArchive_02_전투목표_아군보호_지원_v0.12_본문정리_수정본.docx.md
+  GrimArchive_03_행동전환_중단_재개_v0.12_본문정리_수정본.docx.md
+  GrimArchive_04_이동경로_속도_점유충돌_v0.12_본문정리_수정본.docx.md
+  GrimArchive_05_파티이동_집결_보고_v0.12_본문정리_수정본.docx.md
+  GrimArchive_06_설정값_관련문서_상황별판단예시_v0.11_초안.docx.md          (설정값 색인 — 구현 대상 아님, 참고용)
+  GrimArchive_07_검증항목_설계의도_판정기준_v0.6_초안.md                    (검증 체크리스트 — 구현 대상 아님, 테스트 작성 시 참고)
+  GrimArchive_행동경로_목표설정_순서도_원본.drawio                          (순서도 원본 — 문서 안 이미지 대신 이 파일의 노드/엣지를 참고)
+작성일: 2026-09-25
+
+■ 문서 읽는 법 (다음에 이 시스템을 다시 손댈 때)
+════════════════════════════════════════════════════════════════════════
+1. 이 문서 맨 위 "핵심 설계 결정"부터 읽는다 — 사용자가 이미 확정한 범위/방향이라 다시 묻지 않는다.
+2. "새로 필요한 변수·데이터" — 아직 없는데 새로 만들어야 하는 필드/클래스/enum 전체 목록. 실제로
+   만들어지면 항목 앞에 ✅를 붙인다.
+3. "큰 줄기 FSM 재설계" — UnitFSM/TacticalFSMState의 새 우선순위 구조. 실제 구현 전 확정판.
+4. "문서별 장 구현 현황" — 00~05 각 장의 ✅/🔶/❌ 태그. 다시 손댈 때 여기서 이어할 위치를 찾는다.
+5. 맨 아래 "다음 우선순위 구현 후보".
+태그: ✅구현(공식/수치가 코드에 있고 실제 게임 루프에서 발동) / 🔶부분·근사 / ❌미구현.
+
+════════════════════════════════════════════════════════════════════════
+■ 핵심 설계 결정 (사용자 확인 완료, 2026-09-25) — 다시 묻지 않음
+════════════════════════════════════════════════════════════════════════
+1. **웨이브 강제이동 교체(예)** — 지금 HumanWaveManager.UpdatePartyDestination이 매 틱 파티원 전원의
+   playerMoveTarget을 목표 방 코어 좌표로 강제 설정하는 방식("전원 코어 직행")을 실제로 제거하고,
+   01/05번 문서의 개인별 비전투 목표 선택(탐색/회수/조사) + 리더 집결 판단 체계로 대체한다. 웨이브가
+   느리고 탐험적으로 바뀌는 것이 의도된 결과.
+2. **파티 종류 — 4종(탐색/회수/소탕/점령), 편성/가중치는 스텁.** PartyType은 탐색(Explore)/
+   회수(Recover)/소탕(MopUp)/점령(Occupy) 4종. 파티 생성 시 이 4종 중 하나를 무작위로 배정한다.
+   종류별 "편성 가능 유닛"·"선택 가중치" 자체는 01번 문서도 (미작성)03_파티 종류·목표·포메이션_
+   시스템 문서로 명시적으로 미룬 영역이라 스텁(무작위 배정으로 대체, 유닛 구성 자체는 지금처럼
+   WaveData 그대로).
+   **UI 요구사항**: 각 인류 유닛의 정보 UI(DebugInfoPanel.BuildBasicInfoTabText)에 "파티: {이름}
+   ({유형})" 줄을 추가한다.
+   **[정정, 2026-09-25 회의록]** 처음엔 "점령/보스공략은 현재 웨이브 구조에서 다른 종류와 구별되지
+   않는다"는 판단으로 3종(탐색/회수/소탕)만 구현했었다 — 이는 틀린 판단이었다. 사용자가 회의록
+   (팀원 최형준과의 대화, 회의록 09.25.txt)을 근거로 직접 정정: "점령 파티 외에는 점령 안 함"이
+   명시적 설계 의도이고, 점령 파티는 "방어 건물을 세우고 그 방에 머무르며 점령 판정"이라는, 다른
+   파티들과 뚜렷이 구별되는 행동을 한다. 아래 결정 5번(코어·점령 재설계)에서 점령 파티 전용
+   상호작용을 구현해 되돌렸다. 보스공략은 여전히 별도 파티 종류로 구별할 근거가 문서에 없어 제외
+   상태 유지.
+3. **보호 포메이션 — 로직은 재정리하되 계속 비활성.** 05번 9장 규칙(최초 직접 수신자만 참가, 집결
+   시 자동 해제 등)대로 로직 자체는 최신화하지만 TacticalBehaviorPriorityConfig의 Formation
+   enabled=false는 그대로 유지한다(2026-09-04 사용자의 명시적 비활성화 결정 존중).
+4. **02번 문서(전투 목표) 이번 범위 포함.** CombatFSMState를 "가장 가까운 적" 방식에서 개인위험도
+   ×역할배율×대상종류배율 점수 체계로 바꾸는 작업을 00~05와 같은 패스에서 설계+가능한 만큼 구현한다.
+5. **코어·점령 재설계(회의록 09.25 반영, 사용자 최종 확정 지시) — 최종적으로 코어는 보스방 전용화,
+   점령 오브젝트는 시도 후 삭제.** 새데모 코어 전면 개편(2026-08-22, "모든 방이 항상 코어 보유")을
+   이 회의록이 뒤집었다 — 최형준(팀원): "코어 보스방 하나만 둬", "애초에 점령 파티 외에는 점령 안
+   할 거니까 바뀌어야 하는 게 맞음, 점령이 일반 파티는 없음".
+   **최종 확정 상태(코드가 지금 이렇게 돼 있다)**:
+   - **코어는 보스방에만.** `GameSession.SpawnBossCores`(옛 SpawnAllRoomCores 대체, `FindBossRoom`
+     재사용)가 각 층 보스방에만 코어를 배치한다. `Room.CoreObjectId`가 null이면 보스방이 아니라는 뜻.
+   - **"임시 점령 오브젝트"는 시도 끝에 완전히 삭제됐다.** 순서: (1) 진행도 기반 상호작용(0~1
+     누적, 완료 시 IsOccupyCompleted) → (2) 사용자 재요청("거의 코어와 유사하게: 벽판정/코어처럼
+     파괴/명령으로 파괴 가능/방단위 연출/단 인류는 점령 파티만")으로 InteractableObject.OccupyHp
+     + MarkTileObstacle + 코어와 동일한 HP 채널링 파괴 메커니즘으로 전면 재작성 → (3) 그 상태에서
+     사용자가 "이제 임시 점령 오브젝트는 관련 코드 포함 전부 지워줘. 대신 추후에 다른 점령 조건을
+     추가할 수 있으니 세팅만 해주고"라고 최종 지시 → **관련 코드 전부 삭제**(InteractableObject.
+     OccupyHp/OccupyMaxHp, GameSession의 OccupyTag/RoomOccupyMaxHp/OccupyAttackDamagePerSecond/
+     OccupyRegenDelaySeconds/OccupyRegenPerSecond 상수 + SpawnRoomOccupyObject/TickOccupyRegen,
+     Room.OccupyObjectId/OccupyPosition, TacticalBehaviorType.Occupy 전체(BT 노드/우선순위 설정
+     항목/HasOccupyTarget 계열 5개 메서드), UnitFunction.OnUpdate의 isOccupy 채널링 분기,
+     PlayerCommandFSMState/BuildingControlPanel의 Occupy 분기 — grep으로 전수 확인, 잔재 없음).
+   - **"세팅"으로 의도적으로 남겨둔 것**: `PartyType.Occupy`(4번째 파티 종류)와
+     `Party.IsRoomActivityComplete`의 `case PartyType.Occupy: return room.RoomFaction ==
+     FactionType.Human;`(트리거 조건과 무관하게, "방이 인류 소유가 되면 완료"라는 판정 기준 자체는
+     유지). 다음 점령 조건을 만들 때 참고할 패턴: `OffenseProcessor.OnCoreDestroyed`가 "체력 0 →
+     ApplyRoomOwnership + 방어적 재확인(이미 같은 진영이면 조용히 처리)" 구조의 예시. `IMapColorizer.
+     PulseRoomOutline`(방 테두리를 진행파로 웅웅거리게 하는 연출, 아래 참고)은 이미 완성돼 있고
+     점령 조건과 무관하게 재사용 가능 — 다음 트리거가 뭐든 방 소유권이 바뀌는 순간 이걸 호출하면 됨.
+   - **점령 연출(방 테두리 펄스)은 삭제되지 않고 남았다** — 임시 오브젝트와는 독립적인, "방 소유권
+     변경 시 재생할 공용 연출" 인프라라 사용자가 명시적으로 "마음에 드네"라고 승인한 뒤 삭제
+     대상에서 제외했다. `IMapColorizer.PulseRoomOutline` + `MapRandering` 구현 — 방 테두리
+     LineRenderer(들)의 굵기/밝기를 waveCount=3개 봉우리가 travelSpeed=초당1.5바퀴로 도는 감쇠
+     사인파로 1.5초간 흔든다(위치별 위상 차이로 "퍼지는" 느낌, 사용자 2차 피드백 반영). 현재는
+     호출부가 없다(OnRoomOccupied가 삭제됐으므로) — 다음 점령 조건의 트리거 지점에서 호출하면 됨.
+   - **의도적으로 범위 밖에 둔 것(회의록이 스스로 미확정이라고 밝힌 부분 — 임의 판단 아님)**:
+     (a) 층 통제권 상실 — 최형준: "통제권 역할 뭐로 할지 명확히는 미설정"; (b) 인류 유닛의 거점
+     잔류 — 최형준: "이는 고민 좀 더"; (c) 점령 파티의 "방어 건물 설치"(목책 등) — 건설 시스템
+     확장 필요; (d) 방 클리어(적대 유닛 전멸 시 건설/배치모드 권한 부여) — 점령과는 별개 개념,
+     기존 OffenseProcessor._activeOffenseRooms(플레이어 몬스터의 야생 침공 추적, 다른 목적)와
+     혼동하지 말 것. 최형준이 시사한 "진짜" 점령 방식(오브젝트가 아니라 점령 파티가 방어 건물을
+     실제로 건설하는 연출)도 여전히 미착수 — 건설 시스템이 생기면 그쪽으로 갈 가능성이 높다.
+
+■ 핵심 설계 결정 (Claude 판단, 사용자 미확인 — 이상하면 바로 정정 요청)
+════════════════════════════════════════════════════════════════════════
+6. **"코어 발견과 리더 조사"(03번 3장) 재해석.** 이 절차는 2026-07-27에 구현했다가 2026-08-22
+   새데모 개편(코어 전면 개편 — "모든 방이 코어를 항상 보유, HP 파괴=즉시 점령")때 삭제된
+   CorePartySystem(리더가 코어에 도착해 8초 "조사"를 수행해야 완료되는 구식 회수형 목표물 처리)과
+   이름이 겹치지만, 새 03번 문서 자체가 "코어 조사 완료는 코어 파괴나 층 개방 완료와 별개의 사건"
+   이라고 명시한다 — 즉 "조사"가 "어떻게 점령하는가"를 대체하지 않는다. 그래서 이번 구현에서
+   "코어 발견→리더 조사"는 **파괴 매커니즘(HP/CoreAttack 채널링)을 되돌리지 않고, "코어를 발견하면
+   그 정보를 리더에게 보고하고 파티 우선순위를 그 코어로 모으는" 리포트·집결 트리거로만** 재구현한다
+   (리더가 도착하면 "확인됨" 처리하고 코어 우선순위 잠금을 걸어 파티원들이 몰려들게 하는 정도 —
+   실제 파괴는 그 뒤로도 계속 CoreAttack/플레이어 명령 채널링이 담당). 8초 조사 타이머 같은 구식
+   디테일은 가져오지 않는다.
+7. **전투 역할(CombatRole) — 인류 8클래스 매핑.** 02번 문서는 "근접탱커/근접공격/원거리공격/
+   근접지원(몽크)/원거리지원(사제)" 5역할만 예시로 들 뿐 인류 8클래스(units.json) 전체 매핑표는
+   안 준다. 실제 보유 스킬(units.json의 skills 필드)에 맞춰 이렇게 매핑한다:
+     전사(강타)→근접공격, 도적(기습)→근접공격, 마법사(파이어볼)→원거리공격, 사제(치유)→원거리지원,
+     성기사(성스러운 방패)→근접탱커, 주술사(저주)→원거리지원, 무도가(연격)→근접지원,
+     음유시인(전투의 노래)→원거리지원.
+   몬스터/야생(근접 탱커·인형기사·놀·고블린후드·야생몬스터A·보스골렘·기사형)은 전부 육중한 내리찍기류
+   근접 공용 스킷이라 근접탱커로 통일(타입명 자체가 "근접 탱커"인 것과 일치). 아처형은 원거리공격.
+   **주의**: 무도가(몽크)는 실제로는 "연격"(공격 스킬)만 가졌고 치료 스킬이 없다 — 02번 문서가
+   기대하는 "몽크의 일반 치료"는 지금 데이터로는 발동하지 않는다(스킬이 없으니 자동으로 근접공격
+   폴백). 치료 스킬을 무도가에게 추가할지는 콘텐츠 데이터 문제라 이번 범위 밖(사용자 판단 필요시
+   추가 확인).
+
+════════════════════════════════════════════════════════════════════════
+■ 새로 필요한 변수·데이터 (아직 없는 것만, 실제로 만들어지면 항목 앞에 ✅)
+════════════════════════════════════════════════════════════════════════
+[Party / 파티 종류]
+- ✅ PartyType enum (Explore/Recover/MopUp/Occupy, 2026-09-25 회의록 반영으로 Occupy 복원) —
+  Assets/Script/Unit/Party/PartyEnums.cs
+- ✅ Party.Type 필드 — GameSession.CreateParty가 무작위 배정
+- Party 이름 생성(유형 기반, "PreSpawnParty" 하드코딩 대체) — 보류: 사용자 요청은 "이름·유형 UI 표시"
+  뿐이라 기존 이름 생성 로직(config.partyName/"PreSpawnParty")은 손대지 않음(스코프 밖 변경 방지)
+- ✅ DebugInfoPanel.BuildBasicInfoTabText에 파티 줄 추가 — "파티: {이름} ({유형})"
+
+[코어·점령 재설계 / 회의록 09.25 + 같은 날 세 차례 후속 수정] — 위 결정 5번 참고. 아래는 최종
+(전부 삭제 후) 상태 — 중간 단계(진행도 방식, HP 채널링 방식)의 필드/메서드는 전부 코드에서
+삭제됐고, 이 문서에서도 지난 기록은 남기지 않는다(어차피 코드에 없다 — grep으로 확인).
+- ✅ 코어 보스방 전용화 — GameSession.SpawnBossCores(옛 SpawnAllRoomCores 대체), Room.
+  CoreObjectId가 null이면 보스방 아님. (안 바뀜, 계속 유지)
+- ✅ PartyType.Occupy(4종) + Party.IsRoomActivityComplete의 case Occupy(판정만, 트리거 없음) —
+  "세팅"으로 의도적으로 남긴 부분(위 결정 5번 참고)
+- ✅ IMapColorizer.PulseRoomOutline + MapRandering 구현 — 점령 연출(방 테두리를 waveCount=3개
+  봉우리가 travelSpeed=초당1.5바퀴로 도는 감쇠 사인파로 1.5초간 흔듦, LineRenderer.widthCurve/
+  colorGradient를 매 프레임 재생성). 사용자가 "마음에 드네"라고 승인해 삭제 대상에서 제외됨 —
+  현재 호출부 없음(다음 점령 조건이 트리거 지점에서 호출).
+  **구현 중 발견한 실제 버그(수정 완료)**: widthCurve/colorGradient는 항상 startWidth/startColor
+  보다 우선 적용되는 값이라, 펄스가 끝난 뒤 이를 안 되돌리면 이후 SetRoomOutline(방 재점령 등으로
+  다시 그릴 때)의 색 갱신이 화면에 안 보이는 문제가 생긴다 — 펄스 종료 시점과 SetRoomOutline 양쪽에
+  ResetOutlineRendererToFlat 호출을 추가해 방어.
+- ❌(의도적 삭제) 임시 점령 오브젝트 관련 전부 — InteractableObject.OccupyHp/OccupyMaxHp,
+  GameSession의 OccupyTag/RoomOccupyMaxHp/OccupyAttackDamagePerSecond/OccupyRegenDelaySeconds/
+  OccupyRegenPerSecond/SpawnRoomOccupyObject/TickOccupyRegen, Room.OccupyObjectId/OccupyPosition,
+  TacticalBehaviorType.Occupy(BT 노드/우선순위 설정 항목/HasOccupyTarget 계열 5개 메서드),
+  UnitFunction.OnUpdate의 isOccupy 채널링 분기, PlayerCommandFSMState.IsPendingObjectAttackValid/
+  BuildingControlPanel의 Occupy 분기, OffenseProcessor.OnRoomOccupied, VFXManager.
+  SpawnRoomCaptureVfx(방단위 연출 1차 시도, PulseRoomOutline으로 대체돼 폐기). 삭제 후
+  `grep -rn Occupy Assets/Script`로 전수 확인 — PartyType.Occupy/Party.cs case 문 2곳만 남고 나머지
+  0건.
+
+[2026-09-25 리팩토링 패스 — 사용자 요청("많은 시간 투자해도 되니 꼼꼼히"), 오늘 세션 전체 diff를
+git diff로 한 줄씩 검토] 발견/수정한 것:
+- CombatScoreMath.ResolveCombatRole의 default 케이스 주석이 "몬스터/야생 전부 근접탱커"라고만 썼는데
+  실제로는 Archer(아처형 몬스터)가 그 위에서 이미 RangedDps로 예외 처리돼 있어 부정확 — "나머지"로
+  명확화.
+- GameSession.TryFindObjectSpawnPos 주석이 "코어/점령 오브젝트 스폰이 공유" — 점령 오브젝트 삭제로
+  이제 SpawnRoomCore 단독 호출인데 주석이 안 갱신돼 있었음 — 수정.
+- GameSession.CreateParty의 주석이 "3종 중 무작위"라고 남아있었음(Occupy 재추가로 4종) — 수정.
+- 그 외 논리 검증(버그 아님, 확인만): HumanWaveManager의 rally→advance 핸드오프에서 ReadyToAdvance
+  리셋이 일부 멤버의 currentWait!=null로 명령이 누락될 수 있는지 확인 — TacticalFSMState.
+  ExecuteWait이 도착 즉시(CheckRallyComplete 호출 전에) currentWait=null로 비우므로 안전함을
+  확인. CombatFSMState.SelectAttackTarget/currentAttackTarget 등 신규 필드가 StandGroundAttackFSMState
+  와 공유되면서 상태가 어긋나는지 확인 — 두 상태 모두 Unit 레벨 필드를 그대로 읽고 쓰므로 전환 시
+  자연히 연속성이 유지됨을 확인. PartyGoalMath.cs가 어디서도 호출되지 않는 것을 발견했으나, 이는
+  사고가 아니라 01번 5-6장(개인 비전투 목표 점수·20% 교체)을 다음 세션에 연결할 예정으로 미리
+  준비해 둔 것(위 항목 6 참고)이라 그대로 둠 — "쓰이지 않으면 지운다" 원칙은 우발적 죽은 코드에만
+  적용, 계획된 연결 대기 코드에는 적용하지 않음.
+
+[2026-09-25 구조적 리팩토링 — 사용자 요청("구조적 리팩토링도 실행해줘. 캡슐화나 불필요한 코드
+등"), 오늘 작업분에 한정] 발견/수정한 것:
+- **Unit.cs에 흩어져 있던 02번(전투 목표) 관련 필드 9개를 CombatTargetingState 하나로 캡슐화.**
+  currentAttackTarget/currentBossFocusTarget/attackTargetMovedTiles/isChasingRetargetedEnemy/
+  recentDirectHitLossesThisCombat/pendingHighThreatDirection/pendingHighThreatUntilTime/
+  currentHealTarget/currentProtectTarget를 `Unit.CombatTargeting`(새 CombatTargetingState.cs,
+  Assets/Script/Unit/Combat/) 하나로 묶었다. 계기: Unit.cs를 보다가 이미 CombatStateComponent
+  (`unit.CombatState.State.X`)/PerceptionComponent/StatusEffectsComponent라는 "컴포넌트 + .State"
+  구조가 있는데, 내가 오늘 추가한 9개는 그 패턴을 안 따르고 Unit에 바로 흩어놓은 것을 발견 — 다만
+  UnitCombatState는 [Serializable] **구조체**라 Unit 참조/List<float>를 넣기엔 성격이 안 맞아
+  (그 구조체는 지금 전부 primitive/배열뿐) 거기 편입하진 않고, WaitState/InvestigationState 같은
+  기존 "간단한 클래스 + Unit의 필드 하나" 패턴으로 새로 캡슐화했다. 부수 효과: CombatFSMState.OnExit/
+  스킬실행성공/재대상불가 3곳에서 반복되던 "movedTiles=0; isChasing=false;" 두 줄이
+  CombatTargeting.ResetRetargetTracking() 한 줄로, OnExit의 5줄이 ResetOnCombatExit() 한 줄로 줄었다
+  (불필요한 코드 중복 제거). CombatFSMState.cs/UnitFunction.cs/SkillAction_Heal.cs의 호출부 전부
+  갱신, dotnet build 오류 0 확인.
+- 그 외 검토했으나 안 바꾼 것: Party.Type/ReadyToAdvance 등도 bare public 필드지만 Party.cs 자체가
+  Id/Name/Leader/RallyPoint 등 전부 그 스타일이라 일관성 유지 목적으로 그대로 둠. TargetCategory.
+  AttackBuilding처럼 "지금은 아무도 안 만드는 카테고리"도 문서(02번) 스스로 정의한 3분류 중 하나라
+  죽은 코드가 아니라 그대로 둠.
+
+[전투 역할 / 02번] — 전부 구현 완료(청사진 대비 실제 반영)
+- ✅ CombatRole enum(MeleeTank/MeleeDps/RangedDps/MeleeSupport/RangedSupport) — CombatEnums.cs
+- ✅ UnitType→CombatRole 매핑 — CombatScoreMath.ResolveCombatRole (판단 근거는 위 결정 7번)
+- ✅ 역할×역할 4x5 배율표 — CombatScoreMath.RoleMultiplierTable(static 2차원 배열, 조정값 원문 그대로)
+- ✅ 대상종류배율(일반1.00/방어건물1.15— 대응 유닛 타입 없어 항상 미해당/보스1.50) —
+  CombatScoreMath.ResolveTargetCategory(BossGolem 체크)
+- ✅ 공격점수 계산 + 1.2배(인류)/더높음(몬스터·야생) 교체기준 — CombatFSMState.SelectAttackTarget
+- ✅ 공격 대상 변경 이동 한도 4종 + 누적 칸수 — Unit.CombatTargeting.MovedTilesSinceRetarget/
+  IsChasingRetargetedEnemy(2026-09-25 리팩토링으로 CombatTargetingState에 캡슐화 — 아래 "구조적
+  리팩토링" 항목 참고), CombatFSMState.TrackRetargetMovement(실행 시에만 초기화, 재교체해도 유지 —
+  C22 예시와 일치)
+- ✅ 보스 집중 유지 — Unit.CombatTargeting.BossFocusTarget, SelectAttackTarget 안에서 처리(임시위협
+  있을 때만 이탈)
+- ✅ 일반 치료 대상(HP비율→도달시간(거리 근사)→현재유지, 클래스별 문턱 60%/80%) —
+  SkillAction_Heal.FindLowestHpAlly 재작성, Unit.CombatTargeting.HealTarget으로 지속
+- ✅ 긴급 아군 보호(저체력+위협 / 행동불능+피격, 자기자신 포함, HP비율→행동불능→도달시간 순) —
+  CombatFSMState.ResolveEmergencyProtectTarget, SkillAction_Heal이 CombatTargeting.ProtectTarget
+  우선 인식
+  🔶 근사: "치명적 공격 예상" 조건(1~2번째 비교 기준)은 신뢰할 피해 추정치 연결이 없어 생략(구현현황
+  본문 참고) — 저체력·행동불능 두 조건만으로 판정
+- ❌ 피해 감수 보호 경로 판정(9장, 첫 보호효과 시점 예상 HP≥30%) — 미구현. 경로별 피해 추정·노출
+  시간 비교 인프라가 없어 범위 밖으로 남김(다음 우선순위 참고)
+- ✅ 큰 피해 시야전환(이전 평균×2) — Unit.CombatTargeting.RecentDirectHitLosses, UnitFunction.
+  RecordDirectHitForViewSwitch, VisionMath.IsHighThreatSurprise(기존 미사용 함수를 이 공식으로 재활용),
+  VisionDirectionReason.HighThreatSurprise를 ResolveVisionDirection 후보에 추가(기존에 정의만 되고
+  안 쓰이던 슬롯 — 03-A 10장 원래 자리)
+
+[비전투 목표 / 01번]
+- 개인 비전투 목표 상태 클래스(신규 또는 InvestigationState 확장) — 대상(타일/오브젝트), 점수,
+  목적지, 경로 확인 여부를 담음. 기존 current___State 패턴(TrapInteractionState/InvestigationState/
+  WaitState/FormationState/JoinCombatWaitState)과 동일한 자리에 추가.
+- 비전투 목표 점수 계산 함수(흥미도×가중치÷max(1,거리)) — ExplorationMath.cs에 추가
+  (PersonalMapKnowledge.GetTileInterest/GetTileDanger 재사용, 새 산출 로직 불필요)
+- 20% 교체 기준 로직(01번 6장) — 목표 변경 전용, 공유 가능한 정적 헬퍼로
+- 파티종류별 "현재 방 활동 종료" 판정 함수 3종(탐색/회수/소탕 각각 다른 기준, 01번 7-1장)
+- "방 지형 확인 완료"(파티원 시야 합산) 판정 — PersonalMapKnowledge 프론티어 집합을 방 경계와
+  교차 비교하는 신규 함수
+
+[집결 / 05번]
+- Party.RallyPoint/IsRallyActive 기존 필드 재사용, 트리거 확장(파티임무 완료·코어발견·명령 등)
+- 집결 명령 방 전체 전달(같은 방+같은 파티 즉시) — PropagationSystem._humansByRoom 인덱스 재사용
+- 문 주변 대기 위치 계산(문 타일 반경 2칸 비움) — 신규 함수
+- 집결 대상 판정(생존/도주/사망 구분, 도주·사망 확인 없으면 계속 대기) — Party.cs 확장
+- 상호작용 보호 포메이션 — 로직 재정리, enabled=false 유지(위 결정 3)
+
+[이동 / 04번]
+- CombatRole 기반 좁은 통로 통과 순서(전방근접→근접지원→원거리공격→원거리지원, 동순위 HP비율)
+- 대기 vs 우회 예상시간 비교(AIMovementHelper에 추가) — 상호작용 잔여시간 전파 일반화
+- 공동 이동속도(파티원 중 최저 적용속도) 계산 헬퍼
+
+[전환 / 03번]
+- 대부분 기존 IsSticky/ShouldInterrupt/OnExit 패턴으로 커버됨 — 01/05번 신규 상태(비전투목표/집결)에
+  대한 이벤트 처리표 케이스만 추가 필요, 새 데이터 구조는 거의 불필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 큰 줄기 FSM 재설계
+════════════════════════════════════════════════════════════════════════
+00번 문서 4장의 8단계 우선순위를 기존 UnitFSM(PlayerCommand 200 > Combat 100 > Tactical 50 >
+Idle 20 > Navigation 10)에 매핑한다. 최상위 3계층(PlayerCommand/Combat/Tactical)은 그대로 두고,
+Tactical 내부 BT Selector 순서를 재편해 8단계 표의 4~8단계를 반영한다 — 완전히 새 FSM 계층을
+만들지 않고 기존 구조(IFSMState 3종 + TacticalBehaviorPriorityConfig 순서 목록)를 확장하는 것으로
+충분하다(Haare 프레임워크의 기존 VContainer/Processor 패턴, FSM의 IFSMState/BTNode 패턴 모두 유지).
+
+8단계 표 ↔ 기존 구조 매핑:
+  1. 사망·불능·강제이동·도주후퇴·직접명령
+       → 사망(외부 처리) / 직접명령(PlayerCommandFSMState, 그대로) / 도주·후퇴(정신력·도주·후퇴
+         문서 부재로 스텁 — 지금처럼 미구현 유지)
+  2. 직접피격·회피·긴급아군보호·유효한전투
+       → CombatFSMState (02번 스코어링으로 내부 교체, 최상위 우선순위 그대로)
+  3. 중단조건 없는 현재 행동 계속
+       → IsSticky/ShouldInterrupt 패턴(기존 구조 그대로, 03번 이벤트표 케이스만 보강)
+  4. 코어 발견 보고·상호작용
+       → TacticalBehaviorPriorityConfig 맨 앞에 신규 "CoreReport" 항목 추가(Panic 다음,
+         JoinCombatWait보다 위 — 기존 CoreAttack은 그대로 최후순위 유지, CoreReport는 별개의
+         "발견 즉시 보고 + 리더 우선순위 고정" 이벤트라 자리가 다르다)
+  5. 수신한 집결·방이동 명령
+       → 신규 "Rally" TacticalBehaviorType, CoreReport 다음 순위
+  6. 미완료 파티임무 또는 다음 방 활동
+       → 신규 "PartyGoal"(01번 개인 비전투 목표), Rally 다음 순위 — 기존 Investigate가 이 산하로
+         흡수됨(오브젝트 조사는 그대로, 다만 파티종류별 점수 비교 레이어가 위에 씌워짐)
+  7. 일반탐색·함정대응·경계·조사·소리확인
+       → 기존 TrapResponse > Alert > Investigate > Wait 순서 그대로 유지(이미 문서 2-1장 순서와
+         일치 — 새 PartyGoal이 "Investigate가 무엇을 조사할지"를 결정하는 것으로 통합)
+  8. 후보 없음 — 인류 진형합류/문대기, 몬스터 대기위치
+       → 기존 Wait(ExecuteWait)/IdleFSMState 그대로, 05번 문 대기 위치 계산만 보강
+
+[2026-09-25 실제 구현은 아래처럼 더 단순하게 끝났다 — 새 TacticalBehaviorType(CoreReport/Rally/
+PartyGoal)을 실제로는 추가하지 않았다. 기존 WaitState/currentWait(TacticalBehaviorType.Wait은 이미
+있음) 메커니즘이 "특정 위치로 이동, 도착하면 해제"를 이미 정확히 구현하고 있어서 그대로 재사용하는
+쪽이 새 BT 분기를 만드는 것보다 훨씬 적은 변경으로 동일한 효과를 냈다:]
+  - "집결"(8단계표 5번) = 기존 Party.TryStartRally + WaitState{Reason=AwaitingPartyAtRallyPoint} 그대로,
+    다만 트리거를 "전투 후 스윕 종료"뿐 아니라 "파티종류별 방 활동 완료"(Party.
+    TickRoomActivityCheck, 리더 한정 1초 주기)로 확장.
+  - "다음 방 이동"(8단계표 5번 후반) = 새 WaitReason.AdvancingToNextRoom + WaitState 재사용.
+    HumanWaveManager가 목적지(다음 문)만 지정하고 실제 이동/중단/재개는 TacticalFSMState.ExecuteWait이
+    담당 — Wait은 Tactical(50) 안에 있어 Combat(100)에 자연히 밀린다(아래 "중요 발견" 참고).
+  - "코어 발견 보고"(8단계표 4번)·"파티 임무"(8단계표 6번, 01번 개인 비전투 목표)는 아직 미착수 —
+    기존 Investigate/Navigation 조합이 최소한의 대체 역할을 한다(오브젝트 조사 + 타일 프론티어 탐색).
+  - CoreAttack/DoorAttack(기존, 인류 전용)은 변경 없음 — 방 활동 완료 판정이 코어 파괴 자체를 요구하지
+    않으므로, 아직 안 뚫린 적대 문에 막히면 개인이 자연히 이 기존 전술로 빠진다(막힘→Wait 해제→
+    CoreAttack/DoorAttack으로 자동 위임, 별도 연결 코드 불필요 — TacticalBehaviorPriorityConfig 순서가
+    이미 그렇게 짜여 있었다).
+
+**중요 발견(2026-09-25, 구현 중 확인)**: `HumanWaveManager`가 기존에 쓰던 "playerMoveTarget=대상 +
+isManualMoveCommand=false" 패턴은 실제로 어떤 이동도 발생시키지 않는 것으로 보인다 —
+PlayerCommandFSMState/UnitFSM 양쪽 다 이동 판정에 `playerMoveTarget.HasValue && isManualMoveCommand`
+(AND)를 요구하는데 HumanWaveManager는 항상 뒤엣것을 false로 남겨뒀다. 코드 전체를 grep해도 이
+조합을 소비하는 경로가 없다(UnitGenerate.cs/InputManager.cs의 사용처는 전부 UI 표시·인구수 계산용).
+즉 예전 "코어로 강제 직행"도, 지금 남아있는 퇴각(_retreating) 분기의 "탈출지점으로 강제 이동"도
+FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨이브가 진행되고 퇴각이 완료되는 것처럼
+보였다면 자유탐색(NavigationFSMState)과 자동 CoreAttack(인지만으로 발동, 이동 명령 불필요)만으로
+설명 가능하다. **이번 신규 기능(집결 후 다음 방 이동)은 이 함정을 피해 WaitState 기반으로 새로
+구현**했으므로 실제로 작동한다. 다만 **퇴각(_retreating) 분기는 기존 동작 그대로(수정 안 함, 범위
+밖) 남겨뒀다** — 똑같이 무효할 가능성이 있다. 사용자 확인 후 원하면 같은 WaitState 패턴으로
+고칠 수 있다(사용자 피드백 메모리 규칙 — 발견한 버그는 확인 후 수정).
+
+════════════════════════════════════════════════════════════════════════
+■ 문서별 장 구현 현황
+════════════════════════════════════════════════════════════════════════
+(구현 진행에 따라 아래를 갱신. 시작 시점은 전부 ❌.)
+
+── 00 공통 판단 구조와 정보 및 행동 우선순위 ──
+❌ 1. 목표와 행동의 구분
+❌ 2. 행동 상태와 행동 가능 조건
+❌ 3. 개인이 사용할 수 있는 정보
+🔶 4. 행동 종류별 우선순위 (8단계 표 중 5번 집결·방이동만 실제 배선 — 위 "큰 줄기 FSM 재설계"의
+   "실제 구현은 더 단순" 항목 참고. 4번 코어보고/6번 파티임무는 미착수)
+❌ 5. 목표 후보를 고르는 공통 조건
+❌ 6. 목표와 경로를 다시 판단하는 조건
+❌ 7. 진영별 공통점과 차이
+❌ 8. 문 상태와 통과 권한
+❌ 9. 구현 시 판정 결과
+
+── 01 파티 목표와 비전투 목표 선택 ──
+❌ 0~1. 파티 목표의 의미 / 웨이브 입장 목표 결정 절차 (임무 종류 선택 자체는 침입·웨이브 문서
+   부재로 범위 밖 — 지금처럼 "목표 방 코어 파괴" 단일 목표 유지)
+❌ 2. 임무 종류와 집계 기준 (범위 밖 — 위와 동일 사유)
+❌ 3. 파티 임무에서 개인 행동으로 연결
+❌ 4. 개인 지도에서 탐색 후보 만들기
+❌ 5. 흥미도와 이동 경로를 비교하는 공식
+❌ 6. 목표 유지와 변경 기준
+❌ 7. 다른 탐색 방향과 방 확인 완료 (개인별 흥미도 스코어링 자체는 미착수 — 기존 Navigation의
+   프론티어 탐색이 근사 대체)
+✅ 7-1. 파티 종류별 탐색 종료와 집결 판단 — Party.IsRoomActivityComplete(리더 개인 지도 기준 근사,
+   파티원 전체 시야 합산 아님) + Party.TickRoomActivityCheck(1초 주기) + Party.TryStartRally
+❌ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (시스템 집계 없이 리더 개인 지도로 직접 판정 — 위
+   7-1 근사와 동일 사유)
+❌ 8. 임무 수량 달성 후 행동 (범위 밖 — 수량 집계 시스템 없음)
+❌ 9. 보스방과 후속 임무
+❌ 10. 목표 완료와 취소 및 이동 불가 처리
+
+── 02 전투 목표와 아군 보호 및 지원 ── (2026-09-25 구현 완료분)
+✅ 0. 전투 판단 순서 (긴급보호 → 공격 순서, ExecuteCombat 맨 앞에서 ResolveEmergencyProtectTarget 호출)
+🔶 1. 적 역할과 위험도 확보 (개인위험도는 기존 HumanKnowledgeBase.GetPersonalDanger 재사용 — 최초
+   정확 인지/입장기록/직접경험 세분화는 기존 가중치·인지 시스템에 이미 있음, 이 패스에서 신규 작업 없음)
+✅ 2. 공격 대상으로 선택할 수 있는 조건 (기존 personalSpottedEnemies+방 제한 필터 그대로)
+✅ 3. 공격 목표 점수와 배율
+✅ 4. 현재 위협과 보스 집중
+✅ 5. 공격 대상 변경 시 이동 한도
+🔶 6. 역할별 전투 행동 (긴급보호→일반치료→공격 순서는 스킬 우선순위 값으로 자연 성립 — "몽크는
+   전사보다 뒤에서 진입" 등 포지셔닝 세부는 미구현)
+✅ 7. 일반 치료 목표의 선택과 유지
+✅ 8. 긴급 아군 보호의 시작과 대상 순서 (치명타 예상 조건 생략, 위 참고)
+❌ 9. 보호 경로와 피해 추정의 한계 (피해 감수 경로 판정 자체가 미구현)
+🔶 10. 긴급 조건의 해소와 실패 (currentProtectTarget이 매 틱 재계산되며 자연히 재비교되지만, "피해량
+   몰라 판단 불가" 세부 구분·"보호 수행 불가 즉시 재판단" 등 세밀한 사유 구분은 없음)
+✅ 11. 큰 피해에 따른 시야 전환
+
+── 03 행동 전환과 중단 및 재개 ──
+🔶 0. 전환 결과의 용어 (IsSticky/ShouldInterrupt/OnExit 패턴이 이미 개념적으로 대응)
+❌ 1. 주요 행동 중 사건 처리표 (01/05번 신규 상태 케이스 보강 필요)
+🔶 2. 일반 조사 시작과 진행도 (TacticalFSMState.Investigate 계열 이미 구현, PartyGoal 연동만 추가)
+❌ 3. 파티 목표 상호작용과 코어 (신규 CoreReport/Rally로 구현)
+🔶 4~7. 소리 반응 / 적 발견 즉시 전투 (07문서 기반으로 상당 부분 이미 구현 — TacticalFSMState.Alert
+   계열, 03번 신규 언어에 맞춰 재검증만 필요)
+❌ 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 이미 구현 — 새 집결 연동만 확인)
+❌ 10. 보고 중 사건과 전달 완료 (신규 — 05번 발견정보 전파와 함께 구현)
+🔶 11. 대상 상실과 공통 3초 대기 (기존 수색 로직 있음, 3초 표준화만 확인)
+🔶 12. 스킬 실행 중 목표 변화 (isCastingAttack 가드로 대부분 커버)
+❌ 13. 전투 종료와 휴식 연결 (휴식 시스템 자체가 후속 문서 — 범위 밖, 탐색·집결 재개 연결만 구현)
+
+── 04 이동 경로와 속도 및 점유 충돌 ──
+❌ 0~1. 경로 입력과 목적지 / 방 경로와 개인 경로
+🔶 2. 점유 크기 1×1~5×5 (Footprint 시스템 기존 구현 — 이 문서가 새로 요구하는 것 없음)
+❌ 3. 이동속도 적용 (공동 이동속도 계산 헬퍼 신규)
+❌ 4. 역할별 이동 경로와 우회 (CombatRole 필요)
+❌ 5~6. 다음 타일 점유 / 대기와 우회 예상시간
+❌ 7. 상호작용 종료 후 이동과 비켜주기
+❌ 8. 좁은 통로의 통과 순서 (CombatRole 순서 신규)
+🔶 9. 경로 재탐색과 길을 찾지 못한 뒤의 행동 (AIMovementHelper 상당 부분 이미 구현)
+🔶 10. 문과 공격 위치 (DoorSystem 이미 구현 — 소리 전파 연동만 확인)
+🔶 11. 특수 이동과 방어 위치 점유 (기존 디펜스 복귀 로직 있음)
+
+── 05 파티 이동과 집결 및 보고 ── (2026-09-25: 0~2 핵심 흐름 실제 구현)
+✅ 0~1. 리더와 개인의 책임 / 공동 이동과 방 진입 — HumanWaveManager.UpdatePartyDestination의 강제이동
+   제거 + Party.ReadyToAdvance + WaitReason.AdvancingToNextRoom + TryFindNextDoorTowardTargetRoom(좌표
+   거리 근사, 진짜 방 그래프 최短경로 아님). 방 진입 후 개별 탐색 전환은 기존 FSM 구조가 그대로 담당.
+✅ 2. 집결 시점과 진행 — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
+   종류별 기준으로 집결" 충족. 문 앞 집결(진형 위치)은 미구현(아래 3번 참고, 지금은 문 타일 좌표
+   자체로 직행).
+❌ 3. 진형과 문 주변 자리 (2칸 확보 등 진형 위치 계산 미구현 — 문 타일로 바로 이동)
+🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 (기존 TryStartRally가 파티 전체에 무조건 즉시
+   배정 — "같은 방" 조건 없이 전 파티원에게 적용되는 더 넓은 근사, 다른 방 인원에게도 즉시 적용되는
+   차이가 있음. 실제 전파 기반 구분은 미구현)
+❌ 5. 집결 대상과 완료 (생존/도주/사망 구분 — 지금은 hp>0만 확인, 도주 개념 없음)
+❌ 6. 미집결자와 도주 사실 (도주·후퇴 문서 부재 — 최소 스텁만)
+❌ 7. 발견 보고와 리더 합류 (일반 전파는 기존 PropagationSystem이 처리하지만 이 문서가 요구하는
+   "리더 판단 연결"은 미구현)
+❌ 8. 개인이 할 일이 없을 때 (05번 8항 특유의 "진형→집결위치→문 순" 합류 로직 미구현 — 지금은 기존
+   Wait/Navigation 폴백)
+🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
+🔶 10. 귀환과 상태 악화 후퇴 (기존 _retreating 플래그 있음 — 단, 위 "중요 발견" 참고: 실제 이동
+   수단이 무효할 가능성)
+❌ 11. 휴식 및 후속 책임 (휴식 문서 부재 — 범위 밖)
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 구현 후보 (작업 순서)
+════════════════════════════════════════════════════════════════════════
+1. [완료, 2026-09-25] PartyType enum + Party.Type + DebugInfoPanel UI 줄 추가.
+2. [완료, 2026-09-25] CombatRole enum + UnitType 매핑 + 4x5 역할배율표 데이터.
+3. [완료, 2026-09-25] 02번 공격점수·1.2배 교체·이동한도·보스집중 — CombatFSMState.SelectAttackTarget.
+4. [완료, 2026-09-25] 02번 치료·긴급보호·큰피해시야전환 — SkillAction_Heal/ResolveEmergencyProtectTarget/
+   RecordDirectHitForViewSwitch. dotnet build 오류 0 확인(매 단계). 실제 플레이/Unity Test Runner
+   검증은 아직 안 함 — 특히 CombatSimulationTests.cs의 기존 힐 관련 테스트가 여전히 통과하는지 확인 필요.
+5. [계획 변경, 완료] TacticalBehaviorPriorityConfig에 새 타입을 추가하는 대신 기존 WaitState를
+   확장하는 쪽으로 더 단순하게 구현됨 — 위 "큰 줄기 FSM 재설계"의 "실제 구현은 더 단순" 항목 참고.
+6. [부분 완료, 2026-09-25] 01번 7-1장(파티종류별 방 활동 종료) — Party.IsRoomActivityComplete.
+   5~6장(개인 비전투 목표 점수·20% 교체)은 PartyGoalMath.cs에 공식만 만들어두고 실제 후보 비교에는
+   아직 연결 안 함(현재는 기존 Investigate/Navigation 그대로) — 다음 세션 후보 1순위.
+7. [완료, 2026-09-25] HumanWaveManager.UpdatePartyDestination 강제이동 제거 + 리더 방향 결정 최소
+   구현 — TryFindNextDoorTowardTargetRoom(좌표 거리 근사). **구현 중 playerMoveTarget+
+   isManualMoveCommand=false 조합이 이동을 전혀 발생시키지 않는다는 것을 발견**(위 "중요 발견" 참고)
+   — 그래서 이동 수단을 WaitState(currentWait) 기반으로 바꿔 실제로 작동하게 만들었다.
+8. 05번 집결 시스템 나머지(3장 문 앞 진형 위치 2칸 확보, 4장 진짜 방 전체 전달, 5장 생존/도주 구분,
+   7장 발견 보고 리더 연결, 8장 "할 일 없을 때" 합류 순서) — 지금은 전부 근사/미구현.
+9. 04번 이동 보강(좁은 통로 순서·대기우회비교·공동속도) — CombatRole은 이미 있어 8장(좁은 통로
+   역할 순서)부터 시작하기 좋음.
+10. 03번 이벤트표 신규 케이스 보강 + 07번 검증 예시 기반 단위 테스트 — 특히 이번에 바뀐
+    CombatFSMState/SkillAction_Heal/HumanWaveManager 쪽 실제 플레이 검증(Unity Test Runner +
+    직접 플레이)이 아직 전혀 안 됨. **다음 세션 최우선**: (a) CombatSimulationTests.cs 기존 테스트
+    통과 확인, (b) 웨이브 하나를 실제로 돌려서 인류 파티가 방을 탐색하다 집결해서 다음 방으로
+    넘어가는지 육안 확인, (c) 위 "중요 발견"의 퇴각(_retreating) 분기를 고칠지 사용자에게 확인.
+11. [착수 전 메모] 02번 9장(피해 감수 보호 경로) — 경로별 노출시간·예상피해 비교 인프라가 없어 범위
+    밖으로 미룸. 04번 이동 시스템(대기/우회 비교) 작업 때 관련 인프라가 일부 생기면 재검토.
+12. [완료, 2026-09-25 — 최종] 코어·점령 재설계(회의록 09.25 + 같은 날 세 차례 후속 수정) — 코어
+    보스방 전용화(유지), 임시 점령 오브젝트는 진행도 방식 → HP 채널링 방식(코어와 거의 동일) →
+    **전부 삭제**(사용자 지시, "대신 추후에 다른 점령 조건을 추가할 수 있으니 세팅만 해주고")까지
+    갔다. 최종 상태·"세팅"으로 남긴 것은 위 "핵심 설계 결정 5번" 참고. 점령 연출(IMapColorizer.
+    PulseRoomOutline, 방 테두리 진행파)은 사용자가 승인해 삭제되지 않고 남아 다음 트리거를 기다린다.
+    dotnet build 오류 0 확인. 세션 마지막에 오늘 전체 diff를 리팩토링 검토했다(위 "리팩토링 패스"
+    항목 참고, 발견한 진짜 이슈는 전부 그 자리에서 수정).
+    **Unity 실제 플레이 검증은 여전히 안 함** — 다음 세션 최우선: (a) 보스방엔 코어만, 다른 방엔
+    아무 점령 오브젝트도 없는지, (b) 점령 파티(PartyType.Occupy)로 배정된 인류가 실제로 이상하게
+    행동하지 않는지(현재는 트리거가 없어 그냥 다른 파티처럼 행동해야 정상), (c) 02번 전투 시스템
+    (SelectAttackTarget/보스집중/일반치료/긴급보호)과 01/05번 집결·다음방이동 흐름을 웨이브 하나
+    끝까지 실제로 돌려서 확인 — 이 부분은 지금까지 전혀 실제 플레이 검증이 없었다.
+13. [다음 세션에 점령을 다시 다룰 때 시작점] 실제 점령 조건을 정할 때 검토할 후보 두 가지:
+    (a) 회의록에서 최형준이 시사한 "점령 파티가 방어 건물을 실제로 건설하는 연출" — 건설 시스템
+    확장 필요. (b) 그 외 사용자가 새로 지정하는 조건. 어느 쪽이든 트리거 지점에서
+    OffenseProcessor.OnCoreDestroyed 구조를 본떠 방 소유권 전환 메서드를 만들고, 그 안에서
+    IMapColorizer.PulseRoomOutline을 호출하면 연출까지 바로 연결된다(이미 완성돼 있음).
+14. [메모, 착수 전] 층 통제권 상실 / 인류 거점 잔류 — 회의록 자체가 "고민 좀 더"라며 미확정이라고
+    밝힌 영역. 관련 문서(도주·후퇴 문서 등)가 나오거나 팀 논의가 정리되면 재검토.
