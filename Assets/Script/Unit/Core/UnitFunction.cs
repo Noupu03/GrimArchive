@@ -645,7 +645,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Monster"))
 									PropagationSystem.OnMonsterCorpseDiscovered(terrainObserver, obj);
-								// 코어는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접 확인하므로 발견 이벤트 전파가 따로 필요 없다.
+								// 코어 공격 자체는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접 확인해 발견
+								// 이벤트가 필요 없었지만, 03번 문서 3번 항목(리더 보고)은 별도 전파가 필요하다.
+								if (objKind == PerceptionTargetKind.Core)
+									PartyCoreReportSystem.OnCoreDiscovered(terrainObserver, obj);
 							}
 						}
 						else if (!_reachedPerceptionThisPass.ContainsKey(obj.Id) && !visionNonEmpty.Contains(revealedTile))

@@ -12,10 +12,16 @@ public enum WaitReason
 	// TryFindNextDoorTowardTargetRoom이 목적지를 정한다. "대기"가 아니라 "지정 목적지로 이동"이지만
 	// 전투·전술 우선순위에 자연히 밀려야 하므로(00번 4장 순서) WaitState/ExecuteWait 구조를 그대로 쓴다.
 	AdvancingToNextRoom,
+	// 03번 문서 3번 항목: 리더가 전파 범위 밖일 때 코어 발견자가 리더에게 다가가 보고한다. 집결 명령을
+	// 받아도 중단하지 않는다(PartyCoreReportSystem.OnCoreDiscovered가 기존 대기를 덮어써 시작한다).
+	ReportingCoreToLeader,
 }
 
 public class WaitState
 {
 	public WaitReason Reason;
 	public Vector2Int? WaitPosition;
+	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 대신 "리더 위치"를 매 틱
+	// 실시간으로 다시 읽어야 해서 여기 스냅샷하지 않는다, TacticalFSMState.ExecuteWait 참고).
+	public Vector3Int? CorePosition;
 }

@@ -393,8 +393,13 @@ GrimArchive 03_탐색반응·경계·조사·함정대응_시스템_v0.6 — 신
   원인미상 사망 수색시간 — ExplorationMath.DeathSearchSeconds = 10f 적용 ✅
   파티원 시체 직접발견/전파 정신력 감소 — DeathDirectDiscoveryMentalLoss(-10)/DeathPropagationMentalLoss(-5) 적용 ✅
   이동대상 임시가시성 개별 유지시간 — VisionMath.SuspiciousMoveBoostDurationSeconds = 5f 적용 ✅
-  파티목표 최초합류/재전파 전파시간 — ExplorationMath.PartyGoalInitialPropagationSeconds(1f)는 실제
-    적용(HumanWaveManager) ✅, PartyGoalRePropagationSeconds(1f)는 선언만(위 7-2장 근사 사유로 미사용) ❌
+  파티목표 최초합류/재전파 전파시간 — [2026-09-25 갱신] 이 두 상수를 실제로 읽던 HumanWaveManager
+    dummyTarget 로직이 2026-08-22 새 데모 개편(코어·점령 재설계, CLAUDE.md 참고)에서 이미 삭제돼
+    PartyGoalInitialPropagationSeconds(1f)의 "실제 적용 ✅" 기재는 그 시점부터 이미 stale이었다(뒤늦게
+    발견). 같은 날 행동경로_목표결정 문서 리뉴얼(09.25 → 09.25_2)이 "1초 지연"을 "즉시 전파"로
+    바꾸면서 지연시간 개념 자체가 사라졌으므로, ExplorationMath.PartyGoalInitialPropagationSeconds/
+    PartyGoalRePropagationSeconds 두 상수를 코드에서 삭제했다 — 파티 목표 합류 전파를 다시 구현할
+    때는 "즉시"(지연 없음) 기준으로 새로 만들 것, 이 옛 상수들을 되살리지 말 것.
   코어 조사 소요시간 — ExplorationMath.CoreInvestigateDurationSeconds = 8f(문서 미명시, 5-4장과 동일
     내부 판단값 재사용) 적용 ✅
   경계 이동속도/반응속도, 조사·함정 반응속도 — 2026-07-27 같은 날 추가 세션에서 실제 적용 ✅(위 4-2/

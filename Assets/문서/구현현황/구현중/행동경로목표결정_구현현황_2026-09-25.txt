@@ -392,8 +392,24 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    차이가 있음. 실제 전파 기반 구분은 미구현)
 ❌ 5. 집결 대상과 완료 (생존/도주/사망 구분 — 지금은 hp>0만 확인, 도주 개념 없음)
 ❌ 6. 미집결자와 도주 사실 (도주·후퇴 문서 부재 — 최소 스텁만)
-❌ 7. 발견 보고와 리더 합류 (일반 전파는 기존 PropagationSystem이 처리하지만 이 문서가 요구하는
-   "리더 판단 연결"은 미구현)
+✅ 7. 발견 보고와 리더 합류 — 코어 한정 구현(2026-09-26). 03번 문서(행동전환_중단_재개) 3번 항목
+   "코어 발견과 리더 보고"를 배선했다: 신규 PartyCoreReportSystem.cs + Party.LeaderKnownCorePosition/
+   OnLeaderLearnsCore + WaitReason.ReportingCoreToLeader(WaitState.cs). UnitFunction.CastRay가 코어를
+   AccuratePerception+firstTouch로 처음 보는 시점에 OnCoreDiscovered를 호출 — 발견자==리더거나
+   PropagationSystem.CanPropagate(일반 전파 조건)로 리더가 범위 안이면 즉시 전달, 아니면 발견자가
+   ReportingCoreToLeader 대기로 전환해 매 틱 리더 위치로 접근하며 재시도한다(TacticalFSMState.
+   ExecuteWait 신규 분기, PartyCoreReportSystem.TryDeliverToLeader). 리더가 알게 되면 Party.
+   TryStartRally가 스스로 새 집결을 막고, OnLeaderLearnsCore가 진행/완료된 집결(AwaitingPartyAtRallyPoint)
+   과 다음 방 이동(AdvancingToNextRoom) 대기를 즉시 해제한다. 코어 처리 완료(더 이상 적대적이지 않음)는
+   TryStartRally가 매번 IsRoomCoreStillHostile로 재확인해 LeaderKnownCorePosition을 스스로 지우는
+   방식으로 자연히 복귀한다. dotnet build 오류 0 확인(Assembly-CSharp.csproj에 새 파일 수동 추가 —
+   gitignore 대상이라 Unity가 다음 스캔 때 정상적으로 재생성함).
+   [알려진 한계] 리더/발견자가 코어 위치로 명시적으로 "직행"하는 새 내비게이션은 만들지 않았다 —
+   OnLeaderLearnsCore는 집결·다음방이동 대기를 해제만 할 뿐이고, 실제로 코어가 있는 방(항상 보스방)
+   으로 접근하는 건 기존 TacticalBehaviorType.CoreAttack(그 방에 서 있어야 자동 발동)과 기존
+   HumanWaveManager의 보스방 라우팅(웨이브 목표 자체가 보스방이라 대부분 이미 그 방향으로 가는
+   중)에 맡긴다 — 파티가 코어 발견 시점에 이미 보스방 근처가 아니라면 체감상 느리게 반응할 수 있다.
+   실제 플레이 검증 필요(다음 세션 우선순위).
 ❌ 8. 개인이 할 일이 없을 때 (05번 8항 특유의 "진형→집결위치→문 순" 합류 로직 미구현 — 지금은 기존
    Wait/Navigation 폴백)
 🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
@@ -420,7 +436,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    isManualMoveCommand=false 조합이 이동을 전혀 발생시키지 않는다는 것을 발견**(위 "중요 발견" 참고)
    — 그래서 이동 수단을 WaitState(currentWait) 기반으로 바꿔 실제로 작동하게 만들었다.
 8. 05번 집결 시스템 나머지(3장 문 앞 진형 위치 2칸 확보, 4장 진짜 방 전체 전달, 5장 생존/도주 구분,
-   7장 발견 보고 리더 연결, 8장 "할 일 없을 때" 합류 순서) — 지금은 전부 근사/미구현.
+   8장 "할 일 없을 때" 합류 순서) — 지금은 전부 근사/미구현. [2026-09-26: 7장(발견 보고 리더 연결)은
+   코어 한정으로 완료 — 위 "05 파티 이동과 집결 및 보고" 7번 항목 참고. 일반 파티 목표 오브젝트
+   (03번 문서 3번 항목 앞부분 "일반 파티 목표에 도달한 유닛")는 여전히 미구현 — 코어와 별개로 남음.]
 9. 04번 이동 보강(좁은 통로 순서·대기우회비교·공동속도) — CombatRole은 이미 있어 8장(좁은 통로
    역할 순서)부터 시작하기 좋음.
 10. 03번 이벤트표 신규 케이스 보강 + 07번 검증 예시 기반 단위 테스트 — 특히 이번에 바뀐

@@ -223,6 +223,16 @@ public class TacticalFSMState : IFSMState
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
+		// 03번 문서(행동전환_중단_재개) 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도
+		// 손실이 적용된다 — IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. 이 체크가
+		// HasAlert보다 먼저(BT에서 Investigate 자체가 실행될 때) 걸려야, Alert 분기가 대신 가로채면서
+		// 페널티 없이 조사가 조용히 밀려나는 걸 막는다(2026-09-26 수정 — 이전엔 이 체크가 없어 소리로
+		// 중단돼도 진행도가 전혀 안 깎였다).
+		if (PropagationSystem.HasPendingInterruptingSound(human))
+		{
+			ApplyInvestigateInterruptPenalty(human);
+			return false;
+		}
 		// 피격·위협 인지 시 이 틱에 한해 조사 중단(5-6장) — 진행도 50% 손실도 같이 처리한다(CanDisarm과 동일 패턴).
 		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider())
 		{
@@ -576,14 +586,29 @@ public class TacticalFSMState : IFSMState
 			human.currentInvestigation = new InvestigationState { TargetObjectId = t.Id, TargetPosition = t.Position };
 		}
 		var inv = human.currentInvestigation;
-		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
+
+		// 00-07(정보 격리): 아직 도착하지 않은 동안은 전역 objectGrid를 직접 읽지 않는다 — 다른 유닛이
+		// 방금 수거한 사실을 이 유닛이 직접 확인하거나(도착) 허용된 전파로 전달받기 전까지는 원거리에서
+		// 즉시 알지 못하게 막는다(2026-09-26 수정 — 이전엔 매 틱 전역 상태를 읽어 멀리서도 즉시 알았음).
+		if (human.personalMap.IsKnownCollected(inv.TargetObjectId))
 		{
 			human.currentInvestigation = null;
 			return BTStatus.Failure;
 		}
+
 		var pos = new Vector2Int(inv.TargetPosition.x, inv.TargetPosition.y);
 		// 오브젝트는 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1로 도달 판정
-		if (AIMovementHelper.IsAdjacent(human.position, pos)) return BTStatus.Success;
+		if (AIMovementHelper.IsAdjacent(human.position, pos))
+		{
+			// 도착 — 이제부터는 실제 objectGrid 조회가 "직접 확인"이므로 그대로 신뢰한다.
+			if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
+			{
+				human.personalMap.OnObjectCollected(inv.TargetObjectId); // 직접 확인한 결과를 스스로도 기록
+				human.currentInvestigation = null;
+				return BTStatus.Failure;
+			}
+			return BTStatus.Success;
+		}
 		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — MoveToTrap과 동일한 관례.
 		if (!AIMovementHelper.MoveTowardsPos(human, pos))
 		{
@@ -598,8 +623,11 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var inv   = human.currentInvestigation;
 		if (inv == null) return BTStatus.Failure;
+		// MoveToInvestigateTarget이 도착(인접)을 보장한 뒤에만 이 분기가 실행되므로 여기 objectGrid
+		// 조회는 "직접 확인"이다 — 원거리 조회 문제는 위 MoveToInvestigateTarget 쪽만 해당.
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 		{
+			human.personalMap.OnObjectCollected(inv.TargetObjectId);
 			human.currentInvestigation = null;
 			return BTStatus.Success;
 		}
@@ -613,11 +641,16 @@ public class TacticalFSMState : IFSMState
 
 		obj.IsInvestigated = true;
 		human.personalMap.OnObjectInvestigated(obj.Id);
+		// 00-03/00-07(정보 격리): 조사 완료 정보도 위 NotifyInteractionStarted와 동일하게 일반 전파
+		// 조건(CanPropagate)을 거쳐야 한다 — 2026-09-26 이전엔 이 게이트가 빠져 있어 파티 전체가
+		// 거리·전투 상태와 무관하게 즉시 알게 됐다(TrapPartySystem.OnTrapDiscovered는 처음부터
+		// CanPropagate로 걸러왔던 것과 대조적인 누락이었다).
 		if (human.party != null)
 		{
 			foreach (var m in human.party.Members)
 			{
 				if (m == null || m == human || m.hp <= 0) continue;
+				if (!PropagationSystem.CanPropagate(human, m)) continue;
 				if (!m.personalMap.IsObjectKnown(obj.Id))
 					m.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 				m.personalMap.OnObjectInvestigated(obj.Id);
@@ -638,8 +671,11 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var inv   = human.currentInvestigation;
 		if (inv == null) return BTStatus.Failure;
+		// MoveToInvestigateTarget이 도착(인접)을 보장한 뒤에만 실행되므로 여기 objectGrid 조회도
+		// "직접 확인"이다.
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 		{
+			human.personalMap.OnObjectCollected(inv.TargetObjectId);
 			human.currentInvestigation = null;
 			human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
@@ -650,6 +686,18 @@ public class TacticalFSMState : IFSMState
 		{
 			human.Session.CollectObject(inv.TargetPosition);
 			human.collectedObjects.Add(obj.Id);
+			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록
+			// 00-07(정보 격리): 수거 사실도 조사 완료 전파(위 InvestigatePerform)와 동일하게 일반 전파
+			// 조건을 거쳐야 다른 파티원이 안다 — 범위 밖 파티원은 이 순간 모른다(2026-09-26 신설).
+			if (human.party != null)
+			{
+				foreach (var m in human.party.Members)
+				{
+					if (m == null || m == human || m.hp <= 0) continue;
+					if (!PropagationSystem.CanPropagate(human, m)) continue;
+					m.personalMap.OnObjectCollected(obj.Id);
+				}
+			}
 			// 루팅 완료 → 탈출 시도. 06 문서(도주·후퇴) 미작성이므로 스텁:
 			// pendingStairTargetFloor를 위 층으로 세팅해 기존 Stairs 브랜치가 계단 이동을 처리한다.
 			if (!human.pendingStairTargetFloor.HasValue)
@@ -687,6 +735,26 @@ public class TacticalFSMState : IFSMState
 				human.currentWait = null;
 				return BTStatus.Success;
 			}
+		}
+		else if (wait.Reason == WaitReason.ReportingCoreToLeader && wait.CorePosition.HasValue)
+		{
+			// 03번 문서 3번 항목: 리더 위치는 매 틱 실시간으로 다시 읽는다(리더도 움직이므로 스냅샷
+			// 불가) — 전파 범위 안에 들어오는 순간 전달하고 종료, 다른 파티원이 먼저 보고했거나 코어가
+			// 처리됐으면 조용히 종료.
+			if (!TacticalFSMState.IsRoomCoreStillHostile(human, wait.CorePosition.Value)
+				|| PartyCoreReportSystem.TryDeliverToLeader(human, wait.CorePosition.Value))
+			{
+				human.currentWait = null;
+				return BTStatus.Success;
+			}
+
+			Human leader = human.party?.Leader;
+			if (leader == null || leader.hp <= 0)
+			{
+				human.currentWait = null; // 리더 부재(승계 전) — 보고 이동 종료, 다음 틱 재판단
+				return BTStatus.Success;
+			}
+			AIMovementHelper.MoveTowardsPos(human, leader.position);
 		}
 		return BTStatus.Running;
 	}

@@ -337,12 +337,21 @@ public class PersonalMapKnowledge
 
 	// 회수/파괴된 오브젝트는 흥미도/위험도가 0이 되고 20/21장 방 확인목록에서도 제거한다 — 안 지우면
 	// 사라진 오브젝트의 옛 목격값이 방 위험도/흥미도에 계속 잡힌다.
+	// 00-07(정보 격리): _knownCollectedObjects는 "이 관찰자가 직접 확인했거나 허용된 전파로 전달받은
+	// 수거 사실"만 담는다 — TacticalFSMState.MoveToInvestigateTarget이 목표에 도달하기 전까지는 이
+	// 기록만 보고(전역 objectGrid를 원거리에서 직접 읽지 않음), 도착한 뒤에만 실제 objectGrid 조회를
+	// "직접 확인"으로 인정한다(2026-09-26 신설).
+	private readonly HashSet<string> _knownCollectedObjects = new();
+
 	public void OnObjectCollected(string objectId)
 	{
 		_objectInterest[objectId] = 0f;
 		_objectDanger[objectId] = 0f;
+		_knownCollectedObjects.Add(objectId);
 		ClearObjectFromRooms(objectId);
 	}
+
+	public bool IsKnownCollected(string objectId) => _knownCollectedObjects.Contains(objectId);
 
 	public void OnObjectDestroyed(string objectId)
 	{
@@ -399,15 +408,23 @@ public class PersonalMapKnowledge
 	// monsterKey: target.name(인스턴스 식별자 — 위치는 개체별 정보라 HumanKnowledgeBase의 종/개체 누적
 	// 키와 별개로 항상 인스턴스명 사용). infoType 기본값 DirectWitness는 유일한 호출부(CastRay)가 시야
 	// 직접 목격이기 때문 — 다른 정보 유형이 갱신하려 들 때 아래 우선순위 게이트가 작동한다.
-	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness)
+	// timestamp 생략 시 지금 이 순간(Time.time)으로 채운다 — 직접 목격은 항상 "지금 확인한" 사건이라
+	// 이걸로 충분하지만, 나중에 간접(Indirect) 정보가 이 메서드로도 들어오면 그 정보가 가리키는 실제
+	// 사건 발생 시각을 넘겨야 한다(예: 5초 전 전파를 지금 막 전달받은 경우 "지금"이 아니라 "5초 전"이
+	// 진짜 기준 시각). 2026-09-25 수정 전에는 candidateIsNewer가 true로 고정돼 있어 호출부가 하나뿐인
+	// 지금은 우연히 항상 맞았지만, 두 번째 호출부(간접 정보)가 생기는 순간 진짜 시간 역전을 걸러내지
+	// 못하는 잠재 버그였다.
+	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness, float? timestamp = null)
 	{
+		float ts = timestamp ?? Time.time;
+
 		// 24장 1~6번 규칙: 같은 기준(isLatest:true)으로 랭크를 매겨 비교하면 "직접 경험 > 직접 목격 >
 		// 간접 파악", "같은 유형끼리는 더 최근 것"이 그대로 성립한다.
 		if (_monsterSightings.TryGetValue(monsterKey, out var existing))
 		{
 			int candidateRank = WeightMath.PriorityRank(infoType, isLatest: true);
 			int existingRank  = WeightMath.PriorityRank(existing.RecordedInfoType, isLatest: true);
-			if (!WeightMath.ShouldReplace(candidateRank, existingRank, candidateIsNewer: true)) return;
+			if (!WeightMath.ShouldReplace(candidateRank, existingRank, candidateIsNewer: ts >= existing.Timestamp)) return;
 		}
 
 		_monsterSightings[monsterKey] = new MonsterSighting
@@ -416,7 +433,7 @@ public class PersonalMapKnowledge
 			DangerSnapshot = dangerSnapshot,
 			InterestSnapshot = interestSnapshot,
 			RecordedInfoType = infoType,
-			Timestamp = Time.time,
+			Timestamp = ts,
 		};
 		SetTileDangerFromUnit(tile, dangerSnapshot); // 15장: "적이 있거나 있었던 타일은 그 적의 기록 위험도를 가짐"
 		// 시야에서 벗어나도 이 항목을 지우지 않는다 — 15장 "유닛 사라짐 → 기록 위험도 유지 →

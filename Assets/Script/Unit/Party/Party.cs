@@ -27,6 +27,11 @@ public class Party
 	// 아직 없어 웨이브 전용 단일 목표 방 전제 하의 최소 구현).
 	public bool ReadyToAdvance;
 
+	// 03번 문서 3번 항목: 리더가 아는 아직 처리 안 된(적대적인) 코어 위치. 이게 있으면 집결·다음 방
+	// 이동보다 코어 처리가 우선한다 — PartyCoreReportSystem.OnCoreDiscovered가 발견 시점에 채우고,
+	// TryStartRally가 매번 IsRoomCoreStillHostile로 재확인해 처리 완료를 스스로 감지·해제한다.
+	public Vector3Int? LeaderKnownCorePosition;
+
 	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 리더 개인 지도·인지만으로 근사한다 —
 	// 진짜 "파티원 전체 시야 범위 합산"(01번 7-2장 시스템 집계)은 리더·명령 문서가 아직 없어 이
 	// 단순화로 대체한다. 2026-09-25 회의록 반영: 점령 파티는 방 점령 완료를 기준으로 추가했다 —
@@ -165,6 +170,15 @@ public class Party
 
 		AssignLeaderIfNeeded();
 		if (Leader == null) return;
+
+		// 03번 문서 3번 항목: 리더가 미처리 코어를 이미 알고 있으면 그걸 두고 집결을 명령하지 않는다.
+		// 코어가 처리(파괴→점령)돼 더 이상 적대적이지 않으면 여기서 스스로 감지해 지운다.
+		if (LeaderKnownCorePosition.HasValue)
+		{
+			if (TacticalFSMState.IsRoomCoreStillHostile(Leader, LeaderKnownCorePosition.Value)) return;
+			LeaderKnownCorePosition = null;
+		}
+
 		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지 않는다.
 		if (!IsRoomActivityComplete()) return;
 
@@ -187,10 +201,37 @@ public class Party
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;
-			if (m.currentWait != null && m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint) return;
+			// ReportingCoreToLeader도 "아직 집결 미완료"로 취급 — 코어 보고 중인 유닛이
+			// PartyCoreReportSystem에 의해 AwaitingPartyAtRallyPoint에서 이쪽으로 전환됐을 때, 그
+			// 유닛이 보고를 마치기(→ OnLeaderLearnsCore가 이 집결 자체를 해제) 전에 나머지 인원만으로
+			// 집결이 먼저 "완료" 처리돼 ReadyToAdvance가 앞서 발생하는 것을 막는다(2026-09-26 발견).
+			if (m.currentWait != null &&
+				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint || m.currentWait.Reason == WaitReason.ReportingCoreToLeader))
+				return;
 		}
 		IsRallyActive = false;
 		RallyPoint = null;
 		ReadyToAdvance = true; // 05번 1장: 집결 완료 → 진형 유지해 다음 방으로 이동할 차례.
+	}
+
+	// 03번 문서 3번 항목: 리더가 코어를 직접 확인했거나(discoverer == Leader) 보고받았을 때
+	// PartyCoreReportSystem이 호출한다. 진행 중이거나 막 완료된 집결·다음 방 이동을 즉시 해제하고
+	// 코어 처리로 전환한다 — 해제는 기존 TryStartRally와 동일하게 "파티 전체 즉시"로 근사한다(같은
+	// 방 조건 없음, 09-25 구현현황 문서 05번 4장 근사 사유와 동일).
+	public void OnLeaderLearnsCore(Vector3Int corePos)
+	{
+		if (LeaderKnownCorePosition == corePos) return; // 이미 알고 있음 — 중복 처리 방지
+		LeaderKnownCorePosition = corePos;
+
+		IsRallyActive = false;
+		RallyPoint = null;
+		ReadyToAdvance = false;
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0) continue;
+			if (m.currentWait != null &&
+				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint || m.currentWait.Reason == WaitReason.AdvancingToNextRoom))
+				m.currentWait = null;
+		}
 	}
 }

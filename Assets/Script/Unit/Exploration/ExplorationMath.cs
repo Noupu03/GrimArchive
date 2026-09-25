@@ -77,7 +77,7 @@ public static class ExplorationMath
 	// ─────────────────────────── 8장. 공격 방향 경계 포메이션 ───────────────────────────
 	public const float FormationAttackDirectionSearchSeconds = 15f; // 8-3장: 공격 방향 확인 후 15초 수색
 
-	// ─────────────────────────── 7장/14장. 파티 목표·코어 (2026-07-27 신규) ───────────────────────────
-	public const float PartyGoalInitialPropagationSeconds = 1f; // 7-2장: 파티 목표 도달 시 최초 합류 전파
-	public const float PartyGoalRePropagationSeconds = 1f;      // 7-2장: 합류 정보 수신 유닛의 재전파
+	// 2026-09-25: 파티 목표 합류 최초/재전파 지연(옛 7-2장 "1초") 상수는 삭제했다 — 문서 리뉴얼로 규칙
+	// 자체가 "즉시 전파"로 바뀌어 지연시간 개념이 없어졌고, 이 상수를 실제로 읽던 HumanWaveManager
+	// dummyTarget 로직도 2026-08-22 새 데모 개편(코어·점령 재설계)에서 이미 삭제돼 어차피 미사용이었다.
 }
