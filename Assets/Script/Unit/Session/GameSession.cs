@@ -623,6 +623,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             throttledProcessed++;
         }
 
+        // 임시 진단(2026-09-27, 플레이테스트 버그 2 "전투 중 유닛 겹침" 가설 검증용 —
+        // 원인 확인되면 제거). 이번 프레임의 모든 이동 처리가 끝난 시점 기준으로 확인한다.
+        DebugCheckUnitOverlap();
+
         if (Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
         {
             if (_unitGenerate != null)
@@ -1034,6 +1038,48 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (stateChanged && _unitGenerate != null)
         {
             _unitGenerate.SyncVisual(u);
+        }
+    }
+
+    // 임시 진단 코드(2026-09-27, 플레이테스트 발견 "전투 중 유닛 겹침" 원인 확인용 — 원인이 확인되면
+    // 지운다). 매 프레임 끝에서 (a) 살아있는 두 유닛의 논리적 position이 같은 타일인지, (b) 발자국
+    // 전체 칸이 unitGrid에서 자기 자신을 정확히 가리키는지 확인한다. 여기서 아무 로그도 안 뜨면
+    // unitGrid/CanMove 기반 점유 로직 자체는 정상이라는 뜻 — "겹쳐 보임"은 UnitGenerate.SyncVisual의
+    // DOTween 이동 애니메이션이 유닛마다 독립적으로 돌아가서 생기는 화면상의 교차일 뿐, 논리적으로는
+    // 두 유닛이 같은 타일에 있던 적이 없다는 뜻이 된다.
+    private readonly Dictionary<Vector3Int, Unit> _overlapDebugSeen = new Dictionary<Vector3Int, Unit>();
+    private void DebugCheckUnitOverlap()
+    {
+        _overlapDebugSeen.Clear();
+        foreach (var u in units)
+        {
+            if (u == null || u.Health.hp <= 0) continue;
+
+            Vector3Int key = new Vector3Int(u.position.x, u.position.y, u.currentFloor);
+            if (_overlapDebugSeen.TryGetValue(key, out Unit other))
+            {
+                LogHelper.Warning(LogHelper.GAME,
+                    $"[겹침진단] {u.name}({u.fsm.GetLabel(u)})와 {other.name}({other.fsm.GetLabel(other)})의 " +
+                    $"논리적 position이 같은 타일 {key}에서 충돌함!");
+            }
+            else
+            {
+                _overlapDebugSeen[key] = u;
+            }
+
+            int fw = u.unitType != null ? (int)u.unitType.footprint.x : 1;
+            int fh = u.unitType != null ? (int)u.unitType.footprint.y : 1;
+            for (int dx = 0; dx < fw; dx++)
+            for (int dy = 0; dy < fh; dy++)
+            {
+                Vector3Int fKey = new Vector3Int(u.position.x + dx, u.position.y + dy, u.currentFloor);
+                if (!unitGrid.TryGetValue(fKey, out Unit reg) || reg != u)
+                {
+                    LogHelper.Warning(LogHelper.GAME,
+                        $"[겹침진단] {u.name}의 발자국 칸 {fKey}이 unitGrid에서 자신을 안 가리킴 " +
+                        $"(등록된 유닛={(reg != null ? reg.name : "없음")})");
+                }
+            }
         }
     }
 

@@ -804,10 +804,27 @@ public class TacticalFSMState : IFSMState
 			if (Vector2Int.Distance(human.position, wait.WaitPosition.Value) <= 1.5f)
 			{
 				human.currentWait = null;
+				human.waitStuckTurns = 0;
 				if (human.party != null) human.party.CheckRallyComplete();
 				return BTStatus.Success;
 			}
+
+			// 플레이테스트 발견(2026-09-27): 집결지가 아군에게 막혀 MoveTowardsPos가 계속 실패해도
+			// 포기 로직이 없어 영원히 멈췄다(인간만 있는 방에서 재현) — 몇 틱을 기다려도 안 풀리면
+			// "집결 완료"와 동일하게 처리해 파티 전체가 계속 진행하게 한다.
+			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value);
 			AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
+			if (AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value) < distBefore)
+			{
+				human.waitStuckTurns = 0;
+			}
+			else if (++human.waitStuckTurns >= (AIConfigLoader.Behavior?.waitStuckTurnLimit ?? 4))
+			{
+				human.waitStuckTurns = 0;
+				human.currentWait = null;
+				if (human.party != null) human.party.CheckRallyComplete();
+				return BTStatus.Success;
+			}
 		}
 		else if (wait.Reason == WaitReason.AdvancingToNextRoom && wait.WaitPosition.HasValue)
 		{
@@ -829,6 +846,7 @@ public class TacticalFSMState : IFSMState
 				|| PartyCoreReportSystem.TryDeliverToLeader(human, wait.CorePosition.Value))
 			{
 				human.currentWait = null;
+				human.waitStuckTurns = 0;
 				return BTStatus.Success;
 			}
 
@@ -836,9 +854,25 @@ public class TacticalFSMState : IFSMState
 			if (leader == null || leader.hp <= 0)
 			{
 				human.currentWait = null; // 리더 부재(승계 전) — 보고 이동 종료, 다음 틱 재판단
+				human.waitStuckTurns = 0;
 				return BTStatus.Success;
 			}
+
+			// 플레이테스트 발견(2026-09-27): 위 AwaitingPartyAtRallyPoint와 동일한 이유로, 리더에게
+			// 가는 길이 아군에게 막히면 포기 로직 없이 영원히 멈췄다 — 몇 틱 기다려도 안 풀리면 보고를
+			// 포기한다(발견한 코어 정보 자체는 개인 지도에 이미 남아있어 사라지지 않는다).
+			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, leader.position);
 			AIMovementHelper.MoveTowardsPos(human, leader.position);
+			if (AIMovementHelper.ChebyshevDistance(human.position, leader.position) < distBefore)
+			{
+				human.waitStuckTurns = 0;
+			}
+			else if (++human.waitStuckTurns >= (AIConfigLoader.Behavior?.waitStuckTurnLimit ?? 4))
+			{
+				human.waitStuckTurns = 0;
+				human.currentWait = null;
+				return BTStatus.Success;
+			}
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
 		{

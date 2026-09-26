@@ -207,15 +207,36 @@ public class NavigationFSMState : IFSMState
 						if (h != null) h.personalMap.RevealTile(new Vector3Int(nextPos.x, nextPos.y, fi), true);
 					}
 					unit.currentExplorationTarget = null; // 타겟 초기화
+					unit.exploreStuckTurns = 0;
 				}
 				else
 				{
 					Vector2Int oldPos = unit.position;
 					unit.Move(nextDir);
-					
+
 					if (unit.position == oldPos)
 					{
 						MoveRandomlyValid(unit);
+					}
+
+					// 플레이테스트 발견: 다음 걸음이 벽이 아니라 "아군"에게 막힌 경우, 위 두 이동
+					// 시도(A* 스텝 + 랜덤 대체)가 전부 실패해도 target을 놓아주지 않아 좁은 통로
+					// 코너에서 여러 유닛이 서로를 영구히 막을 수 있었다 — 몇 틱 연속 제자리면
+					// 포기하고 다른 목표로 넘어간다(CoreAttack/Investigate와 동일한 stuck 패턴).
+					if (unit.position == oldPos)
+					{
+						unit.exploreStuckTurns++;
+						int limit = AIConfigLoader.Behavior?.exploreStuckTurnLimit ?? 4;
+						if (unit.exploreStuckTurns >= limit)
+						{
+							unit.exploreStuckTurns = 0;
+							unit.currentExplorationTarget = null;
+							unit.currentAlertSearch = new AlertSearchState();
+						}
+					}
+					else
+					{
+						unit.exploreStuckTurns = 0;
 					}
 				}
 			}
@@ -227,11 +248,13 @@ public class NavigationFSMState : IFSMState
 				if (h != null) h.personalMap.RevealTile(new Vector3Int(target.Value.x, target.Value.y, fi), true);
 				
 				unit.currentExplorationTarget = null; // 영원히 A* 5만번 도는 것을 방지
+				unit.exploreStuckTurns = 0;
 				MoveRandomlyValid(unit);
 			}
 		}
 		else
 		{
+			unit.exploreStuckTurns = 0;
 			MoveRandomlyValid(unit);
 		}
 		return BTStatus.Running;

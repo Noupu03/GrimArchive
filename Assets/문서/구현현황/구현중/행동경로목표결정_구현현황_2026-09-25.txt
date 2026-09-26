@@ -442,7 +442,42 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 5~6. 다음 타일 점유 / 대기와 우회 예상시간
 ❌ 7. 상호작용 종료 후 이동과 비켜주기
 ❌ 8. 좁은 통로의 통과 순서 (CombatRole 순서 신규)
-🔶 9. 경로 재탐색과 길을 찾지 못한 뒤의 행동 (AIMovementHelper 상당 부분 이미 구현)
+🔶 9. 경로 재탐색과 길을 찾지 못한 뒤의 행동 (AIMovementHelper 상당 부분 이미 구현) — [버그 수정,
+   2026-09-27] 사용자 플레이테스트 발견: NavigationFSMState.RandomExplore(자유탐색)만 "다음 걸음이
+   벽이 아니라 아군에게 막혔을 때" 포기 로직이 없었다 — CoreAttack/DoorAttack/Investigate는 전부
+   tacticalObjectAttackStuckTurns/investigateStuckTurns로 몇 틱 막히면 포기하고 경계로 전환하는데,
+   가장 흔히 쓰이는 배회·탐색 상태에만 이 안전장치가 빠져 있었다. 좁은 통로 코너에서 유닛 여럿이
+   서로의 유일한 탈출 경로를 막으면(사용자 재현: "ㄴ자 모양"으로 3명이 막힘) 전원이 영구 정지했다.
+   `Unit.exploreStuckTurns`(신규) + `AIBehaviorConfig.exploreStuckTurnLimit`(신규, 기본 4)로 동일
+   패턴을 추가 — 연속 4틱 제자리면 `currentExplorationTarget`을 놓아주고 `currentAlertSearch`로
+   전환한다. dotnet build 오류 0 확인, Unity 실제 재현 검증은 사용자 확인 필요.
+   [추가 재현+수정, 2026-09-27] 같은 종류의 정지가 다른 모습으로도 재현됐다 — 인간만 있는 방에서
+   유닛 1명이 "전술(대기)" 상태로 완전히 멈춤. `TacticalFSMState.ExecuteWait`의
+   `AwaitingPartyAtRallyPoint`(집결 대기)/`ReportingCoreToLeader`(코어 보고 이동) 두 분기는
+   `AdvancingToNextRoom`/`Retreating`과 달리 `MoveTowardsPos` 실패에 대한 처리가 아예 없었다(포기도,
+   재시도 제한도 없이 그냥 다음 틱에 똑같이 시도) — 집결지·리더가 아군에게 막혀 있으면 영구 정지.
+   `Unit.waitStuckTurns`(신규, currentWait은 한 번에 Reason 하나뿐이라 두 분기가 공유) +
+   `AIBehaviorConfig.waitStuckTurnLimit`(신규, 기본 4)로 동일 패턴 추가 — 단,
+   `Party.CheckRallyComplete()`가 각 파티원의 `currentWait`이 null인지만 확인하므로(실제 도착
+   여부는 안 봄) 포기 시 "집결 완료"와 동일하게 처리해도 안전함을 확인하고 그대로 반영했다(리더
+   보고 포기도 마찬가지로 안전 — 발견한 코어 정보는 개인 지도에 이미 남아있어 안 사라짐). 나머지 두
+   분기(AdvancingToNextRoom/Retreating)는 이미 "MoveTowardsPos 한 번 실패하면 즉시 포기"라 이
+   버그가 없어 손대지 않았다. dotnet build 오류 0 확인.
+   **[Unity 실제 플레이 검증 완료, 2026-09-27]** 사용자가 스크린샷으로 재현 사례(유닛 3명이 "전술
+   (대기)" 상태로 뭉쳐 멈춤 — 겹침 아니라 순수 정지)를 공유한 뒤 같은 상황을 다시 플레이해 확인 —
+   "수정한건 효과가 있네. 다시해보니 문제는 없었어." 이 세션에서 나온 코드 수정 중 처음으로 Unity
+   실제 플레이로 검증된 항목이다(그 전까진 전부 dotnet build만 확인).
+   [별건, 임시 진단 코드 추가] 같은 플레이테스트에서 "전투 중 1자 통로에서 유닛 겹침" 신고도 받았다.
+   UnitRegistry/Move/ForceMove(회피·블링크)/CrossStairs를 전부 추적했지만 논리적 점유(unitGrid) 경로
+   자체에서는 결함을 못 찾았다 — 대신 `UnitGenerate.SyncVisual`이 DOTween(`duration=1/walkSpeed`)으로
+   유닛마다 독립적으로 화면 이동을 보간한다는 걸 확인했다: 논리적 position은 이동 성공 즉시 갱신되지만
+   화면 표시는 지연되므로, 좁은 통로에서 두 유닛이 스쳐 지나갈 때 각자의 애니메이션이 같은 화면
+   구간을 동시에 지나가며 순간적으로 겹쳐 보일 수 있다(실제 타일 점유는 정상). 사용자 요청으로 가설
+   검증용 임시 로그를 추가했다 — `GameSession.DebugCheckUnitOverlap()`(매 프레임 호출, 살아있는 두
+   유닛의 position이 같은 타일인지 + unitGrid 발자국 등록이 자기 자신을 정확히 가리키는지 확인,
+   `[겹침진단]` 태그로 LogHelper.Warning). **원인이 확인되면(로그가 안 뜨면 시각 애니메이션 문제로
+   확정, 뜨면 실제 로직 버그로 재조사) 이 진단 코드는 지운다** — PropagationDebugVisualizer와 동일한
+   "검증 후 삭제" 성격의 임시 코드.
 🔶 10. 문과 공격 위치 (DoorSystem 이미 구현 — 소리 전파 연동만 확인)
 🔶 11. 특수 이동과 방어 위치 점유 (기존 디펜스 복귀 로직 있음)
 

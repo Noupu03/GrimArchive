@@ -218,6 +218,10 @@ public abstract class Unit : ScriptableObject {
 	// 검증문서 01-11 6행: 일반 조사 대상 접근이 몇 틱째 막혀 있는지 — 위와 동일한 이유로 도입,
 	// 대상이 진짜 도달 불가능하면(고립 구역/상대 진영 문 뒤 등) 포기하고 다른 후보로 넘어간다.
 	public int investigateStuckTurns = 0;
+	// 사용자 플레이테스트 발견(2026-09-27): 자유탐색(NavigationFSMState.RandomExplore) 중 다음 걸음이
+	// 아군에게 막혔을 때 포기 로직이 없어, 좁은 통로 코너에서 여러 유닛이 서로의 유일한 탈출 경로를
+	// 막으면 전원이 영구히 정지하는 버그가 있었다 — 위 두 필드와 동일한 패턴으로 도입.
+	public int exploreStuckTurns = 0;
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
 		MovementAlgorithm?.ClearCache();
@@ -607,6 +611,11 @@ public class Human : UnitFunction
 	// 전까지는 인류만 구현). null이면 각각 진행 중 아님.
 	public InvestigationState currentInvestigation;
 	public WaitState          currentWait;
+	// 사용자 플레이테스트 발견(2026-09-27): 인간만 있는 방에서 유닛이 전술(대기) 상태로 완전히
+	// 정지하는 버그 — TacticalFSMState.ExecuteWait의 AwaitingPartyAtRallyPoint/ReportingCoreToLeader
+	// 분기가 MoveTowardsPos 실패에 대한 포기 로직이 아예 없어서(다른 WaitReason은 이미 있음) 생겼다.
+	// exploreStuckTurns 등과 동일한 패턴 — currentWait의 Reason이 매번 하나뿐이라 필드 하나로 공유한다.
+	public int waitStuckTurns = 0;
 	public FormationState     currentFormation;
 	// 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
