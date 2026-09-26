@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // 탐색 상태 — 전투·전술·플레이어 명령 조건이 없을 때 활성화. 항상 Priority > 0 이므로 기본 상태로
@@ -86,7 +87,19 @@ public class NavigationFSMState : IFSMState
 		if (human.Session?.cmap == null) return BTStatus.Failure;
 		int toFloor = human.pendingStairTargetFloor.Value;
 
-		if (!human.Session.cmap.TryGetStairApproachCandidates(human.currentFloor, toFloor, out var candidates) || candidates.Count == 0)
+		// 계단 블록 바로 옆 반경 1칸이 건물 등으로 전부 막혀 있을 수 있다 — 반경을 넓혀가며 걸을 수
+		// 있는 타일이 있는 첫 반경을 쓴다(AIMovementHelper.TryResolveUnoccupiedStairArrival과 동일
+		// 이디엄, 2026-09-27). 그 반경 안에서의 점유 판정·거리 점수 계산은 기존 그대로.
+		List<Vector2Int> candidates = null;
+		for (int radius = 1; radius <= AIMovementHelper.MaxStairSearchRadius; radius++)
+		{
+			if (human.Session.cmap.TryGetStairApproachCandidatesAtRadius(human.currentFloor, toFloor, radius, out var ring))
+			{
+				candidates = ring;
+				break;
+			}
+		}
+		if (candidates == null)
 		{
 			return RandomExplore(human);
 		}
@@ -141,6 +154,10 @@ public class NavigationFSMState : IFSMState
 		}
 		human.pendingStairTargetFloor  = null;
 		human.currentExplorationTarget = null; // 층 이동 후 이전 층 BFS 타깃을 초기화 — 새 층에서 처음부터 탐색
+		// 던전 입구 시퀀스 중이었다면 실제로 층을 건너는 바로 이 순간 개인별로 즉시 해제한다 — 파티
+		// 전체가 다 건널 때까지 기다리지 않는다(DungeonEntranceSystem.Finish() 참고, 2026-09-27
+		// 확정 설계). 평소 계단 이동(입구 시퀀스와 무관)에는 항상 false였던 값이라 무해한 재대입이다.
+		human.isInDungeonEntranceSequence = false;
 		return BTStatus.Success;
 	}
 

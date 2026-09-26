@@ -3,6 +3,11 @@ using UnityEngine;
 
 public static class AIMovementHelper
 {
+	// 계단 접근·착지 후보 탐색의 반경 상한 — 어떤 방 배치(건물이 계단 바로 옆을 막는 등)에서도 이
+	// 반경 안엔 걸을 수 있는 열린 타일이 있다고 본다(TryResolveUnoccupiedStairArrival/
+	// NavigationFSMState.MoveToStairs 공유, 2026-09-27).
+	public const int MaxStairSearchRadius = 10;
+
 	// 체비셰프(8방향 격자) 거리 — 여러 FSM 상태가 각자 중복 구현하던 것을 통합.
 	public static int ChebyshevDistance(Vector2Int a, Vector2Int b)
 		=> Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
@@ -61,19 +66,26 @@ public static class AIMovementHelper
 
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
 	// (CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 대표 좌표 1칸에 여러
-	// 유닛이 겹쳐 텔레포트되는 걸 막는다. false는 후보 전부 점유(혼잡) 또는 계단 정보 없음 — 재시도는 호출부 판단.
+	// 유닛이 겹쳐 텔레포트되는 걸 막는다. 반경 1(계단 블록 바로 옆)이 건물 등으로 전부 막혀 있거나
+	// 여러 유닛이 몰려 전부 점유돼 있으면, 포기하지 않고 반경을 넓혀가며 계속 찾는다(FindDoorWaitSlot과
+	// 동일 이디엄, 2026-09-27 — "착지 지점이 없어서 못 넘어오는" 상황 자체를 없앤다). false는
+	// MaxStairSearchRadius 안 전체가 못 걷거나 꽉 찬, 사실상 불가능한 경우에만 반환 — 재시도는 호출부 판단.
 	public static bool TryResolveUnoccupiedStairArrival(GameSession session, int arrivalFloor, int fromFloor, out Vector2Int pos)
 	{
 		pos = Vector2Int.zero;
 		if (session?.cmap == null) return false;
-		if (!session.cmap.TryGetStairApproachCandidates(arrivalFloor, fromFloor, out var candidates) || candidates.Count == 0)
-			return false;
 
-		foreach (var c in candidates)
+		for (int radius = 1; radius <= MaxStairSearchRadius; radius++)
 		{
-			bool occupied = session.unitGrid.TryGetValue(new Vector3Int(c.x, c.y, arrivalFloor), out Unit occupant)
-				&& occupant != null && occupant.hp > 0;
-			if (!occupied) { pos = c; return true; }
+			if (!session.cmap.TryGetStairApproachCandidatesAtRadius(arrivalFloor, fromFloor, radius, out var candidates))
+				continue; // 이 반경엔 걸을 수 있는 타일 자체가 없음(전부 벽/구조물) — 다음 반경 시도
+
+			foreach (var c in candidates)
+			{
+				bool occupied = session.unitGrid.TryGetValue(new Vector3Int(c.x, c.y, arrivalFloor), out Unit occupant)
+					&& occupant != null && occupant.hp > 0;
+				if (!occupied) { pos = c; return true; }
+			}
 		}
 		return false;
 	}

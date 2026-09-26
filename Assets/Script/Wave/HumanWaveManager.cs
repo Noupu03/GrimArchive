@@ -299,8 +299,9 @@ namespace GrimArchive.Wave
             return center;
         }
 
-        // DungeonEntranceSystem이 파티 진형을 계단까지 이끌고 도착했을 때 호출하는 콜백 — 여기서
-        // pendingStairTargetFloor를 세팅해 Goal_UseStairs(140)가 정상 GOAP 계단 통과를 맡는다.
+        // DungeonEntranceSystem이 전원에게 계단 접근 이동 명령을 내린 그 순간 호출하는 콜백 — 여기서
+        // pendingStairTargetFloor를 세팅해 개인 FSM+BT 계단이동(NavigationFSMState.MoveToStairs/
+        // CrossStairs)이 이어받는다.
         private void OnDungeonEntranceArrivedAtStairs(List<Human> members)
         {
             if (targetSpawner?.waveData == null) return;
@@ -313,6 +314,15 @@ namespace GrimArchive.Wave
                 member.pendingStairTargetFloor = targetFloor;
                 stagingUnits.Add(member);
             }
+
+            // 버그 수정(2026-09-27, 사용자 로그로 확인): 이 콜백이 activeParty를 세팅한 적이 없어서,
+            // 입구 시퀀스가 cooldownTimer보다 먼저 끝나 preSpawnedParty가 여기서 null로 비워진 뒤에야
+            // StartWave()가 실행되면 activeParty가 끝내 null로 남아 그다음 MonitorWave()가 "파티
+            // 전멸"로 오판해 웨이브가 즉시 실패 처리됐다. StartWave()의 대응 분기(preSpawnedParty
+            // 기반 할당)와 동일하게 여기서도 확정적으로 세팅해둔다 — StartWave()가 먼저 실행돼
+            // activeParty가 이미 세팅된 경우엔 같은 값 재할당이라 무해하다.
+            activeParty = preSpawnedParty;
+            exitAreaPos = floor1StairPos;
 
             preSpawnedParty = null;
         }
@@ -492,16 +502,18 @@ namespace GrimArchive.Wave
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
             {
-                // 0층에 미리 대기시켜둔 파티를 그대로 쓴다. activeParty/exitAreaPos만 세팅하고 stagingUnits는
-                // 비워둔다 — pendingStairTargetFloor는 OnDungeonEntranceArrivedAtStairs가 세팅해야
-                // Goal_UseStairs가 그 전에 끼어들지 않는다.
+                // 0층에 미리 대기시켜둔 파티를 그대로 쓴다. pendingStairTargetFloor는
+                // OnDungeonEntranceArrivedAtStairs가 세팅해야 개인 FSM+BT 계단이동이 그 전에
+                // 끼어들지 않는다.
                 activeParty = preSpawnedParty;
                 exitAreaPos = floor1StairPos; // 목표 층 진입 지점을 그대로 탈출 지점으로도 사용
             }
             else if (monstersSummonedThisCycle)
             {
-                // 던전 입구 시퀀스가 빨리 끝나 이미 OnDungeonEntranceArrivedAtStairs로 완료 처리된
-                // 경우 — activeParty는 이미 세팅돼 있으므로 새 파티를 중복 생성하지 않는다.
+                // 던전 입구 시퀀스가 cooldownTimer보다 먼저 끝나 이미 OnDungeonEntranceArrivedAtStairs
+                // 에서 activeParty/exitAreaPos를 세팅해둔 경우 — 새 파티를 중복 생성하지 않는다.
+                // (2026-09-27 버그 수정: 예전엔 그 콜백이 activeParty를 세팅한 적이 없어 이 분기에서
+                // activeParty가 null로 남아 웨이브가 즉시 "전멸" 오판으로 끝나는 버그가 있었다.)
             }
             else
             {

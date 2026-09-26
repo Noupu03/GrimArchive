@@ -138,6 +138,13 @@ public class TacticalFSMState : IFSMState
 		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
 		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로(패닉/함정/경계
 		// 포함해) 여기서 따로 예외 처리할 필요가 없다.
+		// 던전 입구 시퀀스(DungeonEntranceSystem) 동안은 이 상태를 비활성화한다 — 입구 이동·대기
+		// 단계는 그 시스템이 유닛 위치를 직접 강제로 다루고, 계단 접근 단계는 이동 명령(우선순위 200)이
+		// 이미 이 상태보다 우선하지만 그 명령이 끝난 뒤 실제로 계단을 건너기(NavigationFSMState.
+		// CrossStairs) 전까지의 틈도 보호해야 한다 — 안 그러면 조사 대상 발견 등으로 이 상태가
+		// 끼어들어 계단 진입 직전에 다른 곳으로 새치기한다(2026-09-27, 플레이테스트로 확인).
+		// isInDungeonEntranceSequence는 CrossStairs가 실제로 층을 건너는 순간 개인별로 해제한다.
+		if (unit is Human entranceHu && entranceHu.isInDungeonEntranceSequence) return 0f;
 		float p = AIConfigLoader.Behavior?.tacticalPriority ?? 50f;
 		if (IsPanic(unit)) return p;
 		if (unit is Human joinWaitHu && joinWaitHu.currentJoinCombatWait != null) return p;

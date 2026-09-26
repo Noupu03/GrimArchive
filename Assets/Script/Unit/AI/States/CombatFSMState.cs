@@ -11,6 +11,9 @@ public class CombatFSMState : IFSMState
 	{
 		// 플레이어 수동 명령은 PlayerCommandFSMState(배열 맨 앞, 최우선)가 전담한다 — 명령이 활성
 		// 상태면 이 GetPriority는 호출되지도 않으므로 따로 예외 처리할 필요가 없다.
+		// TacticalFSMState와 동일한 이유로, 던전 입구 시퀀스 동안은 이 상태도 비활성화한다 — 숨은
+		// 스폰 청크·입구 방은 원래 몬스터가 없는 안전 구역이라 실제로 거의 안 걸리는 방어적 조치다.
+		if (unit is Human entranceHu && entranceHu.isInDungeonEntranceSequence) return 0f;
 		bool isRoomConfined = AIMovementHelper.IsRoomConfined(unit);
 		int myRoomId = isRoomConfined && unit.Session?.cmap != null
 			? unit.Session.cmap.GetRoomIdAt(unit.currentFloor, unit.position)

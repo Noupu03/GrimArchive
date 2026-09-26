@@ -315,18 +315,25 @@ public partial class CreateMap
         return false;
     }
 
-    // 계단 블록을 둘러싼 반경 1칸 중 정적으로 밟을 수 있는 타일을 전부 반환 — 실제 점유 여부는
-    // 모르므로 호출부(Action_MoveToStairs)가 매 틱 골라 쓴다.
-    public bool TryGetStairApproachCandidates(int floorIndex, int targetFloor, out List<Vector2Int> candidates)
+    // 계단(2x2 블록) 바깥쪽 정확히 radius칸째 테두리 한 겹만 반환한다(정적으로 밟을 수 있는 타일만) —
+    // 호출부가 radius=1부터 늘려가며 반복 호출해 "가장 가까운 반경에서 후보를 찾으면 멈춘다" 패턴에
+    // 쓴다(AIMovementHelper.TryResolveUnoccupiedStairArrival/NavigationFSMState.MoveToStairs, 건물 등이
+    // 계단 바로 옆을 막아도 착지·접근 지점이 항상 존재하도록 2026-09-27 도입). radius=1의 결과는 아래
+    // TryGetStairApproachCandidates(기존 시그니처)와 완전히 동일하다 — 2x2 내부를 제외한 4x4 전체가
+    // 반경 1의 테두리이므로 더 안쪽 반경이 없어 겹칠 일이 없다.
+    public bool TryGetStairApproachCandidatesAtRadius(int floorIndex, int targetFloor, int radius, out List<Vector2Int> candidates)
     {
         candidates = new List<Vector2Int>();
         if (!TryGetStairPosition(floorIndex, targetFloor, out Vector2Int stairPos)) return false;
 
-        for (int dx = -1; dx <= 2; dx++)
+        int min = -radius, max = 1 + radius;
+        for (int dx = min; dx <= max; dx++)
         {
-            for (int dy = -1; dy <= 2; dy++)
+            for (int dy = min; dy <= max; dy++)
             {
-                if (dx >= 0 && dx <= 1 && dy >= 0 && dy <= 1) continue; // 블록 내부(실제 계단 타일)는 제외
+                bool isBlockInterior = dx >= 0 && dx <= 1 && dy >= 0 && dy <= 1; // 실제 계단 타일
+                bool isOutermostRing = dx == min || dx == max || dy == min || dy == max;
+                if (isBlockInterior || !isOutermostRing) continue; // 내부이거나, 이미 이전 반경에서 확인한 안쪽
 
                 Vector2Int cand = new Vector2Int(stairPos.x + dx, stairPos.y + dy);
                 if (IsStaticTileWalkable(floorIndex, cand)) candidates.Add(cand);
@@ -335,6 +342,12 @@ public partial class CreateMap
 
         return candidates.Count > 0;
     }
+
+    // 계단 블록을 둘러싼 반경 1칸 중 정적으로 밟을 수 있는 타일을 전부 반환 — 실제 점유 여부는
+    // 모르므로 호출부(NavigationFSMState.MoveToStairs 등)가 매 틱 골라 쓴다. 반경 1이 부족하면
+    // 호출부가 TryGetStairApproachCandidatesAtRadius로 직접 반경을 넓혀간다.
+    public bool TryGetStairApproachCandidates(int floorIndex, int targetFloor, out List<Vector2Int> candidates)
+        => TryGetStairApproachCandidatesAtRadius(floorIndex, targetFloor, 1, out candidates);
 
     // 안개와 무관하게 실제 지형만으로 통행 가능 여부를 판정하는 정적 버전 — 특정 유닛에 묶이지 않아 GameSession.FindNearbyFreeObjectTile도 재사용한다.
     public bool IsStaticTileWalkable(int floorIndex, Vector2Int p)
