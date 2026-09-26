@@ -10,6 +10,17 @@ public static class PartyGoalMath
 	// (밸런스 미확정). 작게 잡아 짧은 플레이로도 "방금 달성" 전환을 확인할 수 있게 했다.
 	public const int RequiredRoomExploreCount = 2;
 
+	// 2장: 몬스터 처치 임무 요구 수량. 정확한 값은 미작성 "침입·웨이브" 문서 대기 — 자리표시자
+	// (밸런스 미확정).
+	public const int RequiredMonsterKillCount = 5;
+
+	// 2장: 몬스터 종류별 처치 수 반영 배율 — "목표 종류 1.0, 다른 종류 0.5"는 문서의 설정 예시일 뿐
+	// 모든 임무의 확정값이 아니고, 애초에 "이번 임무의 목표 종류가 무엇인지" 지정할 임무 데이터 자체가
+	// 없다(01번 문서 1장 임무 선택 절차 미구현 — 검증문서 01-01 참고). 그 데이터가 나오기 전까지는
+	// 종류 구분 없이 균일 1.0을 적용한다(위 UniformPartyTypeWeightPlaceholder와 동일한 "임의 배율
+	// 금지" 원칙). speciesTypeName은 실제 배율표가 생기면 바로 꽂을 수 있도록 미리 받아만 둔다.
+	public static float MonsterKillWeight(string speciesTypeName) => 1f;
+
 	// 5장: 선택 점수 = 개인에게 알려진 유효 흥미도 × 적용 가중치 ÷ max(1, 목표까지의 이동 칸수).
 	public static float NonCombatGoalScore(float interest, float partyTypeWeight, int distanceTiles)
 		=> interest * partyTypeWeight / UnityEngine.Mathf.Max(1, distanceTiles);

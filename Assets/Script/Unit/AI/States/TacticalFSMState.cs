@@ -222,6 +222,18 @@ public class TacticalFSMState : IFSMState
 	{
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
+		// 00-04/01-06/01-07/01-08: 아직 조사를 시작하지 않았다면 집결 대기·다음 방 공동 이동·코어 보고
+		// 이동·귀환 중에는 새 조사를 시작하지 않는다(01번 3장 "집결 명령을 받으면... 새 회수·조사 등
+		// 임무 상호작용을 시작하지 않는다", 01-06 "비전투 목표의 점수 상승 때문에 집결·공동 이동에서
+		// 이탈하지 않는다", 01-07 "코어 보고는 리더에게 전달할 때까지 계속한다", 05번 10장 "귀환 중
+		// 새 비전투 대상을 알게 되면 기록·전파하고 귀환을 계속한다"). 이미 시작한 조사
+		// (currentInvestigation != null)는 이 게이트에 안 걸려 기존 유지·중단 조건 그대로 계속된다.
+		if (human.currentInvestigation == null && human.currentWait != null &&
+			(human.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint ||
+			 human.currentWait.Reason == WaitReason.AdvancingToNextRoom ||
+			 human.currentWait.Reason == WaitReason.ReportingCoreToLeader ||
+			 human.currentWait.Reason == WaitReason.Retreating))
+			return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
 		// 03번 문서(행동전환_중단_재개) 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도
 		// 손실이 적용된다 — IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. 이 체크가
@@ -270,8 +282,16 @@ public class TacticalFSMState : IFSMState
 
 	// 07문서 16장: currentAlertSearch가 비어있어도 시작 안 한 유효한 소리 반응이 있으면 여기서 지연
 	// 승격한다. 인류/몬스터 구분 없이 호출 — Human 전용 게이팅을 걸면 몬스터 쪽이 영영 승격 못 한다.
+	// 05번 문서 10장: "귀환 중 소리만 들리면 방향 확인만 하고 추적·정지 대기로 바꾸지 않는다" — 이미
+	// 시작한 경계(currentAlertSearch)는 그대로 유지하되, 귀환 중 새로 소리로 경계를 승격하는 것만
+	// 막는다("방향 확인"은 UnitFunction.ResolveVisionDirection의 소리 후보가 이 승격과 무관하게 이미
+	// 독립적으로 처리하므로 별도 코드 불필요).
 	private static bool HasAlert(Unit unit)
-		=> unit.currentAlertSearch != null || PropagationSystem.TryPromotePendingSoundToAlert(unit);
+	{
+		if (unit.currentAlertSearch != null) return true;
+		if (unit is Human retreatingHuman && retreatingHuman.currentWait?.Reason == WaitReason.Retreating) return false;
+		return PropagationSystem.TryPromotePendingSoundToAlert(unit);
+	}
 	private static bool HasFormationNeed(Unit unit)
 		=> unit is Human human && human.HasProtectiveFormationNeed();
 	private static bool HasJoinCombatWait(Unit unit) => unit is Human human && human.currentJoinCombatWait != null;
@@ -600,6 +620,7 @@ public class TacticalFSMState : IFSMState
 		// 오브젝트는 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1로 도달 판정
 		if (AIMovementHelper.IsAdjacent(human.position, pos))
 		{
+			human.investigateStuckTurns = 0;
 			// 01번 문서 4장: 맨 타일 후보는 별도 "조사·줍기" 단계가 없다 — 인지·안전 확인은
 			// PersonalMapKnowledge의 기존 시간 경과 감쇠가 도착 여부와 무관하게 담당하므로, 도착한
 			// 순간 그대로 완료 처리한다(정리는 PickUpObject 쪽에서 한 곳으로 통일).
@@ -613,13 +634,56 @@ public class TacticalFSMState : IFSMState
 			}
 			return BTStatus.Success;
 		}
-		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — MoveToTrap과 동일한 관례.
-		if (!AIMovementHelper.MoveTowardsPos(human, pos))
+
+		// 검증문서 01-11 6행: 대상이 진짜 도달 불가능하면(우회도 실패) 포기하고 경계로 전환한다 —
+		// 그대로 두면 영원히 같은 목표를 붙잡는다(04번 문서 9번 항목). MoveToCoreAttack과 동일 관례:
+		// 리셋 기준은 "이동 성공 여부"가 아니라 "체비셰프 거리가 실제로 줄었는지"다 — 혼잡 구역의
+		// 제자리 셔플도 Move() 관점에선 성공이라 그것만 보면 stuckTurns가 절대 쌓이지 않는다.
+		int distBefore = AIMovementHelper.ChebyshevDistance(human.position, pos);
+		AIMovementHelper.MoveTowardsPos(human, pos);
+		if (AIMovementHelper.ChebyshevDistance(human.position, pos) < distBefore)
 		{
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(human, pos);
-			if (fallback != pos) AIMovementHelper.MoveTowardsPos(human, fallback);
+			human.investigateStuckTurns = 0;
+			return BTStatus.Running;
 		}
-		return BTStatus.Running;
+
+		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — MoveToTrap과 동일한 관례.
+		// FindNearbyOpenTile은 목표가 멀면 도달 가능성과 무관하게 뭔가를 찾아버려 stuckTurns가 계속
+		// 리셋될 수 있다 — 이미 근접(반경 2)했을 때만 쓴다(MoveToCoreAttack과 동일 관례).
+		Vector2Int fallback = AIMovementHelper.IsAdjacent(human.position, pos, radius: 2)
+			? AIMovementHelper.FindNearbyOpenTile(human, pos)
+			: pos;
+		if (fallback != pos)
+		{
+			AIMovementHelper.MoveTowardsPos(human, fallback);
+			if (AIMovementHelper.ChebyshevDistance(human.position, pos) < distBefore)
+			{
+				human.investigateStuckTurns = 0;
+				return BTStatus.Running;
+			}
+		}
+
+		// 다른 유닛이 잠깐 몰려 막힌 것뿐이면 몇 틱 인내하며 재시도하고, 벽/닫힌 문으로 사방이 진짜
+		// 막혀 있으면 즉시 포기한다 — 포기 시 이 목표를 놓아줘야 다음 틱 FindInvestigateTarget이
+		// 다른 후보를 고르거나(후보가 없으면 NavigationFSMState 프론티어 탐색으로 자연히 폴백).
+		if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(human))
+		{
+			human.investigateStuckTurns++;
+			int limit = AIConfigLoader.Behavior?.investigateStuckTurnLimit ?? 4;
+			if (human.investigateStuckTurns >= limit)
+			{
+				human.investigateStuckTurns = 0;
+				human.currentInvestigation = null;
+				human.currentAlertSearch = new AlertSearchState();
+				return BTStatus.Failure;
+			}
+			return BTStatus.Running;
+		}
+
+		human.investigateStuckTurns = 0;
+		human.currentInvestigation = null;
+		human.currentAlertSearch = new AlertSearchState();
+		return BTStatus.Failure;
 	}
 
 	private static BTStatus InvestigatePerform(Unit unit)
@@ -653,6 +717,9 @@ public class TacticalFSMState : IFSMState
 		// CanPropagate로 걸러왔던 것과 대조적인 누락이었다).
 		if (human.party != null)
 		{
+			// 01-09 2번: 이 순간 범위 밖(CanPropagate 실패)이었던 파티원도 나중에
+			// PropagationSystem.TickOngoingObjectPropagation이 채워줄 수 있도록 등록.
+			human.party.KnownInvestigatedObjects[obj.Id] = obj.Position;
 			foreach (var m in human.party.Members)
 			{
 				if (m == null || m == human || m.hp <= 0) continue;
@@ -705,6 +772,9 @@ public class TacticalFSMState : IFSMState
 			// 조건을 거쳐야 다른 파티원이 안다 — 범위 밖 파티원은 이 순간 모른다(2026-09-26 신설).
 			if (human.party != null)
 			{
+				// 01-09 2번: 위 InvestigatePerform과 동일하게, 이 순간 놓친 파티원도
+				// TickOngoingObjectPropagation이 나중에 채워줄 수 있도록 등록.
+				human.party.KnownCollectedObjectIds.Add(obj.Id);
 				foreach (var m in human.party.Members)
 				{
 					if (m == null || m == human || m.hp <= 0) continue;
@@ -769,6 +839,18 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 			AIMovementHelper.MoveTowardsPos(human, leader.position);
+		}
+		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
+		{
+			// 05번 문서 10장: 탈출 지점 도착(또는 더 다가갈 수 없음)하면 대기를 해제한다. 도착 이후
+			// "탈출 완료로 웨이브 생존자 집계에 반영"하는 처리는 아직 없다(구현현황 문서 참고) — 이번
+			// 수정은 "실제로 걸어서 탈출 지점에 도착한다"는 이동 자체의 복구까지만 범위로 잡았다.
+			if (AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value)
+				|| !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
+			{
+				human.currentWait = null;
+				return BTStatus.Success;
+			}
 		}
 		return BTStatus.Running;
 	}

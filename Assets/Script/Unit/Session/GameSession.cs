@@ -800,6 +800,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 corpse.MonsterIsSpecialUnit = u.isSpecialUnit;
                 corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
                 corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
+
+                // 01번 문서 2장: 인류에게 죽은 몬스터만 "몬스터 처치" 공통 임무 수량에 반영한다
+                // (검증문서 01-04) — 파티별이 아니라 웨이브 전체 공통 집계(HumanWaveManager).
+                HumanWaveManager.Instance?.OnMonsterKilled(objId, corpse.MonsterSpeciesKey);
             }
 
             // 사망 판정 즉시 Corpse 스프라이트로 전환하고 Death VFX를 발동한다 — 킬 이벤트/파티 사망

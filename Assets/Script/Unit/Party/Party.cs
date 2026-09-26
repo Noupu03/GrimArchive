@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using GrimArchive.Wave;
 
 // 파티 — 인류 유닛들이 함께 웨이브(던전)에 입장하는 단위. 생존자 전역 반영/파티 전멸/정보 오차
 // 공유 등 "파티"를 전제로 하는 가중치 로직의 실체. GameSession.CreateParty()로 생성·등록된다.
@@ -55,10 +56,38 @@ public class Party
 			JustReachedRoomExploreQuota = true;
 	}
 
-	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 리더 개인 지도·인지만으로 근사한다 —
-	// 진짜 "파티원 전체 시야 범위 합산"(01번 7-2장 시스템 집계)은 리더·명령 문서가 아직 없어 이
-	// 단순화로 대체한다. 2026-09-25 회의록 반영: 점령 파티는 방 점령 완료를 기준으로 추가했다 —
-	// 보스공략은 여전히 범위 밖(구현현황 문서 참고).
+	// 01번 문서 7-2장: "여러 유닛이 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단"하는 실제 집계 —
+	// 방(roomId)별로 파티원 누구든 새로 밝힌 바닥 타일 좌표를 한 집합에 모아, 합친 개수가 그 방의
+	// 전체 바닥 타일 수에 도달하면 "파티 기준 완료"로 표시한다(검증문서 01-06-4 1번 참고). 개인별
+	// RevealedFloorTiles(PersonalMapKnowledge)와는 별개 집계 — 리더가 직접 안 본 타일도 다른
+	// 파티원이 봤다면 여기엔 반영된다.
+	private readonly Dictionary<int, HashSet<Vector2Int>> _partyRevealedTilesByRoom = new();
+	private readonly HashSet<int> _partyCompletedRoomIds = new();
+
+	public bool IsRoomFullyRevealedByParty(int roomId) => _partyCompletedRoomIds.Contains(roomId);
+
+	// UnitFunction.cs/TerrainRevealHandler.cs가 개인 시야로 새 바닥 타일을 밝힐 때마다(ObserveRoomTileRevealed와
+	// 같은 시점) 호출한다.
+	public void OnTileRevealedInRoom(int roomId, Vector2Int tilePos, int totalFloorTilesInRoom)
+	{
+		if (_partyCompletedRoomIds.Contains(roomId)) return; // 이미 완료 — 더 쌓을 필요 없음
+
+		if (!_partyRevealedTilesByRoom.TryGetValue(roomId, out var tiles))
+		{
+			tiles = new HashSet<Vector2Int>();
+			_partyRevealedTilesByRoom[roomId] = tiles;
+		}
+		tiles.Add(tilePos);
+
+		if (totalFloorTilesInRoom > 0 && tiles.Count >= totalFloorTilesInRoom)
+			_partyCompletedRoomIds.Add(roomId);
+	}
+
+	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 2026-09-27부터 Explore 분기는 위
+	// 파티 전체 시야 합산(IsRoomFullyRevealedByParty)을 우선 확인하고, 그래도 안 되면 기존 리더 개인
+	// 지도 근사로 보조한다(둘 중 하나만 참이어도 완료 — 어느 쪽도 기존 동작을 깎아먹지 않는 추가).
+	// 2026-09-25 회의록 반영: 점령 파티는 방 점령 완료를 기준으로 추가했다 — 보스공략은 여전히 범위
+	// 밖(구현현황 문서 참고).
 	public bool IsRoomActivityComplete()
 	{
 		if (Leader == null || Leader.hp <= 0 || Leader.currentRoom == null) return false;
@@ -66,7 +95,8 @@ public class Party
 		switch (Type)
 		{
 			case PartyType.Explore:
-				return !Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds);
+				return IsRoomFullyRevealedByParty(room.RoomId) ||
+					!Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds);
 			case PartyType.Recover:
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
@@ -140,6 +170,15 @@ public class Party
 	// 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태. TrapPartySystem이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
 
+	// 01번 문서 9장/검증문서 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보의 지속 재전파 —
+	// DeathRecords/TrapCoordinations와 동일한 "파티 단위로 추적해 매 틱 재확인" 패턴. 완료 시점
+	// 일회성 전파(TacticalFSMState.InvestigatePerform/PickUpObject)가 그 순간 범위 밖이었던 파티원을
+	// 놓쳐도, 여기 등록해두면 PropagationSystem.TickOngoingObjectPropagation이 나중에 채워준다.
+	// 조사 완료(위치까지 필요, objectGrid 재조회용)와 회수 완료(위치 불필요, 사실 자체만)는 파티원에게
+	// 적용할 정보가 달라 따로 추적한다.
+	public readonly Dictionary<string, Vector3Int> KnownInvestigatedObjects = new Dictionary<string, Vector3Int>();
+	public readonly HashSet<string> KnownCollectedObjectIds = new HashSet<string>();
+
 	public Party(string id, string name)
 	{
 		Id = id;
@@ -205,8 +244,21 @@ public class Party
 			LeaderKnownCorePosition = null;
 		}
 
-		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지 않는다.
-		if (!IsRoomActivityComplete()) return;
+		// 01번 8장: 임무 요구 수량이 막 달성됐다는 결과 자체도 유효한 집결 판단 근거다 — 파티종류별
+		// "현재 방" 기준(IsRoomActivityComplete)과는 별개 사유라, 어느 한쪽만 참이어도 집결을 시작한다
+		// (검증문서 01-08 참고). 소비 즉시 리셋해 이후 다른 방에서 다시 트리거되지 않게 한다.
+		bool questJustAchieved = JustReachedRoomExploreQuota ||
+			(HumanWaveManager.Instance != null && HumanWaveManager.Instance.JustReachedMonsterKillQuota);
+
+		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지
+		// 않는다. 다만 위 임무 수량 달성 결과가 있다면 그것만으로도 집결 판단으로 넘어간다.
+		if (!questJustAchieved && !IsRoomActivityComplete()) return;
+
+		if (questJustAchieved)
+		{
+			JustReachedRoomExploreQuota = false;
+			if (HumanWaveManager.Instance != null) HumanWaveManager.Instance.JustReachedMonsterKillQuota = false;
+		}
 
 		RallyPoint = Leader.position;
 		IsRallyActive = true;

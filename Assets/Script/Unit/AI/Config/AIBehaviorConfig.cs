@@ -15,6 +15,8 @@ public class AIBehaviorConfig : ScriptableObject
     public int playerCommandStuckTurnLimit = 8;
     [Tooltip("코어/문 자동 파괴 접근 혼잡 대기 최대 턴 수 — 초과 시 파괴를 포기하고 경계 상태로 전환 (내부 판단)")]
     public int tacticalObjectAttackStuckTurnLimit = 4;
+    [Tooltip("일반 조사 대상 접근 혼잡 대기 최대 턴 수 — 초과 시 그 대상을 포기하고 경계 상태로 전환 (검증문서 01-11 6행, 내부 판단)")]
+    public int investigateStuckTurnLimit = 4;
     [Tooltip("적 인지 시 전투 상태 우선순위 (기본 100)")]
     public float combatPriority     = 100f;
     [Tooltip("전술 조건 충족 시 우선순위 (기본 50)")]

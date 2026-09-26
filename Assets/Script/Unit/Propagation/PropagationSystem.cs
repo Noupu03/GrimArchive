@@ -319,6 +319,54 @@ public static class PropagationSystem
 		return InPropagationRange(sender, receiver);
 	}
 
+	// 01번 문서 9장/검증문서 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보의 지속 재전파 —
+	// PartyDeathSystem/TrapPartySystem.TickOngoingPropagation과 동일 패턴(최초 전파 시점 스냅샷이
+	// 아니라 매 틱 재확인해, 그 순간 놓친 파티원도 나중에 전파 범위 안으로 들어오면 받게 한다).
+	public static void TickOngoingObjectPropagation(Human human)
+	{
+		var party = human.party;
+		if (party == null || human.Session == null) return;
+
+		if (party.KnownInvestigatedObjects.Count > 0)
+		{
+			foreach (var kv in party.KnownInvestigatedObjects)
+			{
+				string objectId = kv.Key;
+				if (human.personalMap.IsObjectKnown(objectId)) continue;
+
+				foreach (var carrier in party.Members)
+				{
+					if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+					if (!carrier.personalMap.IsObjectKnown(objectId)) continue;
+					if (!CanPropagate(carrier, human)) continue;
+					if (!human.Session.objectGrid.TryGetValue(kv.Value, out var obj)) break;
+
+					human.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+					human.personalMap.OnObjectInvestigated(obj.Id);
+					break;
+				}
+			}
+		}
+
+		if (party.KnownCollectedObjectIds.Count > 0)
+		{
+			foreach (var objectId in party.KnownCollectedObjectIds)
+			{
+				if (human.personalMap.IsKnownCollected(objectId)) continue;
+
+				foreach (var carrier in party.Members)
+				{
+					if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+					if (!carrier.personalMap.IsKnownCollected(objectId)) continue;
+					if (!CanPropagate(carrier, human)) continue;
+
+					human.personalMap.OnObjectCollected(objectId);
+					break;
+				}
+			}
+		}
+	}
+
 	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
 
 	// 7-2장: 적을 정확 인지하기 전에 공격받으면 상태 조건 예외로 "공격받은 사실"+"공격 방향"을 1회

@@ -25,8 +25,9 @@ public class UnitPerceptionHandler : IVisionTileHandler
                                 float interest = observer.Knowledge.GetPersonalInterest(human, unit);
                                 human.Memory.personalMap.ObserveMonster(unit.name, tile, danger, interest);
 
-                                bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
-                                human.Memory.personalMap.ObserveUnitInRoom(chunk.roomId, isBossRoom, unit.name, danger, interest);
+                                human.Memory.personalMap.ObserveUnitInRoom(chunk.roomId, false, unit.name, danger, interest);
+                                if (unit.unitType != null && unit.unitType.isBoss)
+                                    human.Memory.personalMap.ConfirmBossRoom(chunk.roomId);
                             }
                         }
                     }

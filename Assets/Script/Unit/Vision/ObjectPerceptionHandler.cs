@@ -20,8 +20,8 @@ public class ObjectPerceptionHandler : IVisionTileHandler
                         {
                             terrainObserver.Memory.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 
-                            bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
-                            terrainObserver.Memory.personalMap.ObserveObjectInRoom(chunk.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+                            // 01-10: 오브젝트 관찰만으로는 보스방으로 기록하지 않는다(ConfirmBossRoom만이 승격시킴).
+                            terrainObserver.Memory.personalMap.ObserveObjectInRoom(chunk.roomId, false, obj.Id, obj.BaseDanger, obj.BaseInterest);
 
                             if (obj.Tags.Any(t => t.Contains("WipeoutTrace")) && !string.IsNullOrEmpty(obj.TraceId))
                             {

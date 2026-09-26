@@ -313,6 +313,11 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 3. 개인이 사용할 수 있는 정보
 🔶 4. 행동 종류별 우선순위 (8단계 표 중 5번 집결·방이동만 실제 배선 — 위 "큰 줄기 FSM 재설계"의
    "실제 구현은 더 단순" 항목 참고. 4번 코어보고/6번 파티임무는 미착수)
+   [수정, 2026-09-27] 집결 대기(AwaitingPartyAtRallyPoint)/다음 방 공동 이동(AdvancingToNextRoom)/
+   코어 보고(ReportingCoreToLeader) 중에도 Investigate가 새 조사를 가로채던 실제 버그를 검증문서
+   00-04/01-06(앞 두 WaitReason)과 01-07(코어 보고 WaitReason 추가 발견)에서 찾아 전부 수정 —
+   TacticalFSMState.CanInvestigate에 "이미 시작한 조사가 아니면 이 세 WaitReason 중엔 새로 시작
+   안 함" 게이트 추가. dotnet build 오류 0 확인.
 ❌ 5. 목표 후보를 고르는 공통 조건
 ❌ 6. 목표와 경로를 다시 판단하는 조건
 ❌ 7. 진영별 공통점과 차이
@@ -323,10 +328,16 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 0~1. 파티 목표의 의미 / 웨이브 입장 목표 결정 절차 (임무 종류 선택 자체는 침입·웨이브 문서
    부재로 범위 밖 — 지금처럼 "목표 방 코어 파괴" 단일 목표 유지)
 🔶 2. 임무 종류와 집계 기준 (2026-09-27) — "임무" 선택 절차(기록확인→조건확인→가중치선택, 침입·웨이브
-   문서 부재로 여전히 범위 밖)는 안 됐지만, 방 탐색 요구 수량(B+E) 자체는
-   PartyGoalMath.RequiredRoomExploreCount(자리표시자) + Party.CompletedRoomExploreCount/
-   OnRoomExploreCompleted(개인 RoomExploreState→Complete 시 파티 단위 dedup 집계, PersonalMapKnowledge.
-   ObserveRoomTileRevealed 훅)로 실제로 센다. 리더 판단 연결(8번 항목)은 여전히 범위 밖.
+   문서 부재로 여전히 범위 밖)는 안 됐지만, 방 탐색 요구 수량(B+E)과 몬스터 처치 요구 수량은 실제로
+   센다:
+   - 방 탐색: PartyGoalMath.RequiredRoomExploreCount(자리표시자) + Party.CompletedRoomExploreCount/
+     OnRoomExploreCompleted(개인 RoomExploreState→Complete 시 **파티 단위** dedup 집계,
+     PersonalMapKnowledge.ObserveRoomTileRevealed 훅).
+   - 몬스터 처치: PartyGoalMath.RequiredMonsterKillCount/MonsterKillWeight(자리표시자, 종류별 배율은
+     균일 1.0) + HumanWaveManager.CommonMonsterKillCount/OnMonsterKilled(**웨이브 단위** 공통 집계 —
+     검증문서 01-04가 "여러 파티가 있어도 시스템이 함께 집계한다"를 명시해 방 탐색과 달리 Party가
+     아니라 HumanWaveManager에 둠, GameSession.RemoveDeadUnit의 기존 인류-킬 몬스터 분기에서 호출).
+   - 둘 다 리더 판단 연결(8번 항목)은 여전히 범위 밖 — Just Reached*Quota 신호만 존재.
 ✅ 3. 파티 임무에서 개인 행동으로 연결 (2026-09-27) — 회수/소탕/탐색 등 파티종류별 "우선 행동
    카테고리" 차등은 가중치 표 부재로 여전히 불가(균일 1.0), 다만 "부여된 임무 → 개인 비전투 행동"
    연결 배관 자체(아래 4·5번)는 이제 실제로 있다.
@@ -349,15 +360,49 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    없을 때 프론티어로 걸어가 시야를 넓히는" 동작 자체는 여전히 별개 FSM(NavigationFSMState, 조사와
    무관한 기존 폴백)이 담당 — Investigate가 "후보 없음"으로 실패하면 FSM 우선순위가 자연히
    내려가는 것에 기댈 뿐, 이 장이 말하는 통합된 "탐색 방향 결정"은 아니다)
-✅ 7-1. 파티 종류별 탐색 종료와 집결 판단 — Party.IsRoomActivityComplete(리더 개인 지도 기준 근사,
-   파티원 전체 시야 합산 아님) + Party.TickRoomActivityCheck(1초 주기) + Party.TryStartRally
-❌ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (시스템 집계 없이 리더 개인 지도로 직접 판정 — 위
-   7-1 근사와 동일 사유)
+✅ 7-1. 파티 종류별 탐색 종료와 집결 판단 — Party.IsRoomActivityComplete + Party.TickRoomActivityCheck
+   (1초 주기) + Party.TryStartRally. Explore 분기는 2026-09-27부터 파티원 전체 시야 합산
+   (IsRoomFullyRevealedByParty, 아래 7-2 참고)을 우선 확인하고 리더 개인 지도 근사는 안전망으로 유지
+   — Recover/MopUp/Occupy는 각자 문서 요구대로 여전히 리더 개인 판정(각각 회수 대상·인지된 적·방
+   소유권 기준이라 "시야 합산"이 애초에 해당 사항 아님).
+✅ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (2026-09-27) — Party._partyRevealedTilesByRoom/
+   OnTileRevealedInRoom이 파티원 전체가 나눠 본 타일을 방 단위로 합산해 IsRoomFullyRevealedByParty로
+   노출, IsRoomActivityComplete의 Explore 분기가 이걸 우선 확인(기존 리더 개인 판정은 안전망으로
+   유지). 검증문서 01-06-4 참고.
 🔶 8. 임무 수량 달성 후 행동 (2026-09-27) — 수량 집계 자체는 이제 있다(위 2번). "달성 후 리더가
    무엇을 하는가"(집결 판단 연결 등)는 여전히 범위 밖 — JustReachedRoomExploreQuota는 아직 아무도
    안 읽는 신호로만 존재.
-❌ 9. 보스방과 후속 임무
-❌ 10. 목표 완료와 취소 및 이동 불가 처리
+🔶 (검증문서 01-09) 미처리 대상 기록의 전파와 귀환 후 활용 — 1·4번 트리비얼, 2번(합류 시 일반
+   전파조건 충족分만 반영, "그 순간 실패하면 끝"이 아니라 지속 재시도) [구현 완료, 2026-09-27]:
+   Party.KnownInvestigatedObjects(Dictionary<string,Vector3Int>)/KnownCollectedObjectIds
+   (HashSet<string>)에 조사·회수 완료 사실을 파티 단위로 등록, PropagationSystem.
+   TickOngoingObjectPropagation(Human)이 PartyDeathSystem/TrapPartySystem과 동일하게 매 틱
+   (UnitFunction.OnUpdate) 미보유 파티원에게 재시도 전파. TacticalFSMState.InvestigatePerform/
+   PickUpObject의 기존 1회성 전파(00-07 검증 완료)는 그대로 두고 등록 한 줄만 추가. dotnet build
+   오류 0 확인. 3·5번("인류 지도" — 귀환자 기록이 웨이브를 넘어 다음 파티에 전해지는 공유 저장소)은
+   HumanKnowledgeBase에 대응 필드 자체가 없어 여전히 시스템 전체가 부재 — 사용자 지시로 이번 패스는
+   보류(새 데이터 설계 필요, Feature A급 규모로 추정).
+🔶 9. 보스방과 후속 임무 (검증문서 01-10) — [구현, 2026-09-27] "보스를 정확 인지 + 방 확인" 게이트를
+   실제로 걸었다: `UnitType.isBoss`(신규, `BossGolem`에만 true — GameSession.SpawnBossGolem이 1층
+   보스방에 고정 스폰하는 그 유닛), `PersonalMapKnowledge.ConfirmBossRoom(roomId)`(신규, IsBossRoom을
+   true로 승격시키는 유일한 경로), `UnitPerceptionHandler.Handle`이 AccuratePerception으로 그 유닛을
+   인지했을 때만 호출. 기존에 타일 공개·오브젝트 관찰만으로 즉시 ground-truth(chunk.roomRole)를
+   반영하던 4개 호출부는 전부 게이트 없는 세팅을 제거(false 고정). "일반 탐색 후보/B에서 제외"는
+   실제 도달 가능한 시나리오(같은 웨이브 내 재배정 자체가 Party._countedRoomIds로 이미 안 생김, 웨이브
+   간 사전지식은 "인류 지도" 부재로 아직 존재 자체가 불가능)에서 이미 만족 확인 — 추가 구현 불요.
+   "보스 처치·코어 파괴·층 개방 미혼동"은 코드에 실존하는 게 코어 파괴뿐이라 사실상 N/A. 부수 효과:
+   GetRoomDanger/GetRoomInterest(가중치 20~21장)의 보스방 전용 상수 적용 시점이 "타일 하나 공개"에서
+   "보스 골렘 정확 인지"로 늦춰짐(사용자 공지 완료). dotnet build 오류 0 확인.
+🔶 10. 목표 완료와 취소 및 이동 불가 처리 (검증문서 01-11, 표 7행 기준) — 1~5행은 기존 구현으로 이미
+   충족(즉시 확인 완료·집결 자연 합류, 방/몬스터/오브젝트 3종 dedup, 수거불명 오브젝트=위치기록무효
+   단일처리, 04번 9번 항목 우회 폴백, 미확인 전체경로 프론티어 추정 유지). 6행 [구현, 2026-09-27]:
+   `Unit.investigateStuckTurns`(신규) + `AIBehaviorConfig.investigateStuckTurnLimit`(신규, 기본 4) —
+   `TacticalFSMState.MoveToInvestigateTarget`이 이동해도 체비셰프 거리가 줄지 않는 상태가 연속 4틱
+   이상이면(단, 구조적으로 갈 곳이 아예 없으면 즉시) `currentInvestigation`을 놓아주고
+   `currentAlertSearch`로 전환한다 — `MoveToCoreAttack`(코어/문 자동공격 stuck 처리)과 완전히 동일한
+   패턴 재사용. 7행(임무 수량만 채우고 보스방은 안 건드린 채 자진 귀환)은 2026-08-22 재설계("보스방
+   코어 파괴"가 유일 승리조건)로 원래 전제된 종료 경로 자체가 대체된 것으로 판단 — 사용자 확인 후
+   N/A 확정, 구현 안 함. dotnet build 오류 0 확인.
 
 ── 02 전투 목표와 아군 보호 및 지원 ── (2026-09-25 구현 완료분)
 ✅ 0. 전투 판단 순서 (긴급보호 → 공격 순서, ExecuteCombat 맨 앞에서 ResolveEmergencyProtectTarget 호출)
@@ -408,7 +453,10 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ✅ 2. 집결 시점과 진행 — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
    종류별 기준으로 집결" 충족. 문 앞 집결(진형 위치)은 미구현(아래 3번 참고, 지금은 문 타일 좌표
    자체로 직행).
-❌ 3. 진형과 문 주변 자리 (2칸 확보 등 진형 위치 계산 미구현 — 문 타일로 바로 이동)
+🔶 3. 진형과 문 주변 자리 — [구현, 2026-09-27] "문 주변 대기 위치"(2칸 확보)만 구현:
+   AIMovementHelper.FindDoorWaitSlot(문 기준 체비셰프 거리 2 이상 미점유 타일을 반경을 넓혀가며
+   탐색) + HumanWaveManager.UpdatePartyDestination이 파티원마다 겹치지 않는 슬롯을 배정. "역할별
+   진형 자리·간격"은 여전히 미구현("파티·진형 문서 차후 작성" — 진짜 기획 부재, 검증문서 01-08 참고).
 🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 (기존 TryStartRally가 파티 전체에 무조건 즉시
    배정 — "같은 방" 조건 없이 전 파티원에게 적용되는 더 넓은 근사, 다른 방 인원에게도 즉시 적용되는
    차이가 있음. 실제 전파 기반 구분은 미구현)
@@ -435,8 +483,15 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 8. 개인이 할 일이 없을 때 (05번 8항 특유의 "진형→집결위치→문 순" 합류 로직 미구현 — 지금은 기존
    Wait/Navigation 폴백)
 🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
-🔶 10. 귀환과 상태 악화 후퇴 (기존 _retreating 플래그 있음 — 단, 위 "중요 발견" 참고: 실제 이동
-   수단이 무효할 가능성)
+🔶 10. 귀환과 상태 악화 후퇴 — [수정+구현, 2026-09-27] 위 "중요 발견"이 우려한 대로
+   `playerMoveTarget`+`isManualMoveCommand=false`가 실제로 무효였음을 확인, `WaitReason.Retreating`+
+   `ExecuteWait` 신규 분기로 교체해 실제로 걸어서 탈출 지점까지 이동한다. "건강한 임무 완료 귀환" 표
+   3행도 구현: 적 확인은 기존 Combat 우선순위로 자동, 소리만 들림은 HasAlert에 Retreating 게이트
+   추가(새 경계 승격만 차단, 이미 시작한 경계·방향 확인은 그대로), 새 비전투 대상 발견은
+   CanInvestigate에 Retreating 추가(00-04/01-06/01-07과 동일 패턴). "상태 악화 후퇴"의 정확한 수치
+   (우회 칸수·비율 등)는 여전히 "후퇴·도주 문서 차후 작성" — 진짜 기획 부재라 범위 밖. 탈출 지점
+   도착 후 "탈출 성공→생존자 집계 반영" 처리도 없음(Party.GetSurvivors 의미 변경이 필요해 범위 밖,
+   검증문서 01-08 참고).
 ❌ 11. 휴식 및 후속 책임 (휴식 문서 부재 — 범위 밖)
 
 ════════════════════════════════════════════════════════════════════════

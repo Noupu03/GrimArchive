@@ -614,11 +614,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (terrainObserver != null)
 			{
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
-				bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
 				if (isFirstReveal && !tileIsWall)
 				{
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, chunk.roomId);
-					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles, terrainObserver);
+					// 01-10: 타일 공개만으로는 보스방으로 기록하지 않는다(ConfirmBossRoom만이 승격시킴).
+					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, false, totalFloorTiles, terrainObserver);
+					// 01번 문서 7-2장: 파티 전체 시야 합산(검증문서 01-06-4 1번).
+					terrainObserver.party?.OnTileRevealedInRoom(chunk.roomId, new Vector2Int(x, y), totalFloorTiles);
 				}
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{
@@ -636,7 +638,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 							if (firstTouch && outcome == PerceptionOutcome.AccuratePerception)
 							{
 								terrainObserver.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
-								terrainObserver.personalMap.ObserveObjectInRoom(chunk.roomId, isBossRoom, obj.Id, obj.BaseDanger, obj.BaseInterest);
+								terrainObserver.personalMap.ObserveObjectInRoom(chunk.roomId, false, obj.Id, obj.BaseDanger, obj.BaseInterest);
 								if (objKind == PerceptionTargetKind.WipeoutTrace && !string.IsNullOrEmpty(obj.TraceId))
 									terrainObserver.Knowledge?.OnWipeoutTraceReflected(obj.TraceId);
 								if (objKind == PerceptionTargetKind.Trap)
@@ -965,6 +967,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				PartyDeathSystem.TickOngoingPropagation(human);
 				// 함정 정보도 사망/코어와 동일하게 미보유 파티원에게 지속 재전파한다.
 				TrapPartySystem.TickOngoingPropagation(human);
+				// 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보도 동일 패턴으로 지속 재전파한다.
+				PropagationSystem.TickOngoingObjectPropagation(human);
 			}
 			_safetyTickTimer = 0f;
 		}

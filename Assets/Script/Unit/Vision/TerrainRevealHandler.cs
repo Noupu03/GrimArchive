@@ -9,12 +9,14 @@ public class TerrainRevealHandler : IVisionTileHandler
         if (observer is Human terrainObserver)
         {
             bool isFirstReveal = terrainObserver.Memory.personalMap.RevealTile(tile, tileIsWall);
-            bool isBossRoom = chunk.roomRole == RoomRole.BossRoom;
 
             if (isFirstReveal && !tileIsWall)
             {
                 int totalFloorTiles = context.Session.cmap.GetRoomFloorTileCount(tile.z, chunk.roomId);
-                terrainObserver.Memory.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles, terrainObserver);
+                // 01-10: 타일 공개만으로는 보스방으로 기록하지 않는다(ConfirmBossRoom만이 승격시킴).
+                terrainObserver.Memory.personalMap.ObserveRoomTileRevealed(chunk.roomId, false, totalFloorTiles, terrainObserver);
+                // 01번 문서 7-2장: 파티 전체 시야 합산(검증문서 01-06-4 1번).
+                terrainObserver.party?.OnTileRevealedInRoom(chunk.roomId, new Vector2Int(tile.x, tile.y), totalFloorTiles);
             }
         }
     }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class AIMovementHelper
@@ -111,6 +112,37 @@ public static class AIMovementHelper
 			if (dist < bestDist) { bestDist = dist; best = cand; }
 		}
 		return best;
+	}
+
+	// 05번 문서 3장: 문 대기는 문 바로 앞 통과 구간(체비셰프 거리 1 이내)을 비우고 그 밖에서 기다린다.
+	// claimedSlots에 이미 배정된 자리는 다른 파티원 몫이라 겹치지 않게 제외한다 — 호출부(같은 파티
+	// 순회)가 한 파티에 대해 하나의 집합을 계속 넘겨야 서로 겹치지 않는다. 문 주변이 좁아 반경 5
+	// 안에서도 못 찾으면(극히 좁은 통로 등) 문 위치 그대로 반환한다(기존 동작과 동일한 폴백 — 여러
+	// 명이 겹치더라도 완전히 못 오는 것보다 낫다).
+	public static Vector2Int FindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots)
+	{
+		for (int radius = 2; radius <= 5; radius++)
+		{
+			Vector2Int best = default;
+			int bestDist = int.MaxValue;
+			bool found = false;
+			for (int dx = -radius; dx <= radius; dx++)
+			for (int dy = -radius; dy <= radius; dy++)
+			{
+				if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue; // 이번 반경의 테두리만
+				Vector2Int cand = doorPos + new Vector2Int(dx, dy);
+				if (claimedSlots.Contains(cand)) continue;
+				if (!unit.CanMove(cand)) continue;
+				int dist = ChebyshevDistance(cand, unit.position);
+				if (dist < bestDist) { bestDist = dist; best = cand; found = true; }
+			}
+			if (found)
+			{
+				claimedSlots.Add(best);
+				return best;
+			}
+		}
+		return doorPos;
 	}
 
 	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지 다른 유닛이 잠깐 몰려 막힌 것뿐인지 구분하려고

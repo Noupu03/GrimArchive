@@ -36,6 +36,25 @@ namespace GrimArchive.Wave
         // (InteractableObject.SpawnWaveNumber), "스폰 웨이브+2 <= 지금 웨이브"면 정리한다(GameSession.DespawnCorpsesForNewWave).
         public int WaveNumber { get; private set; } = 0;
 
+        // 01번 문서 2장: 몬스터 처치 임무의 공통 집계 — 여러 인류 파티가 있어도 파티별로 나누지 않고
+        // 시스템이 하나로 합산한다(검증문서 01-04). 웨이브마다 새로 시작(StartWave에서 리셋).
+        public float CommonMonsterKillCount { get; private set; }
+        private readonly HashSet<string> _countedKillIds = new HashSet<string>();
+        public bool JustReachedMonsterKillQuota;
+
+        // GameSession.RemoveDeadUnit이 인류에게 죽은 몬스터의 사망 시점(Destroy 전)에 호출한다.
+        // deathEventId는 그 순간 생성되는 시체 오브젝트 Id를 그대로 재사용 — 사망마다 고유해 "사망
+        // 사건 식별자로 중복 집계를 막는다"는 요구를 그대로 만족한다.
+        public void OnMonsterKilled(string deathEventId, string speciesTypeName)
+        {
+            if (string.IsNullOrEmpty(deathEventId) || !_countedKillIds.Add(deathEventId)) return;
+
+            bool wasBelow = CommonMonsterKillCount < PartyGoalMath.RequiredMonsterKillCount;
+            CommonMonsterKillCount += PartyGoalMath.MonsterKillWeight(speciesTypeName);
+            if (wasBelow && CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount)
+                JustReachedMonsterKillQuota = true;
+        }
+
         // 추적 중인 웨이브 데이터
         public Party activeParty;
 
@@ -462,6 +481,11 @@ namespace GrimArchive.Wave
             WaveNumber++;
             GameSession.Instance?.DespawnCorpsesForNewWave(WaveNumber);
 
+            // 01번 문서 2장: 몬스터 처치 임무 수량은 웨이브 발급 시 고정·초기화한다.
+            CommonMonsterKillCount = 0f;
+            _countedKillIds.Clear();
+            JustReachedMonsterKillQuota = false;
+
             // 문은 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐하므로(DoorSystem.
             // UpdateProcess) 웨이브 시작 시점에 별도로 잠글 필요가 없다.
             runningStateTimer = 0f;
@@ -589,6 +613,9 @@ namespace GrimArchive.Wave
         {
             if (_retreating)
             {
+                // 2026-09-27 수정: playerMoveTarget+isManualMoveCommand=false 조합은 실제로 아무 이동도
+                // 발생시키지 않는 죽은 경로였다(WaitReason.Retreating 주석 참고) — AdvancingToNextRoom과
+                // 동일한 WaitState 기반으로 교체해 실제로 작동하게 했다.
                 Vector2Int exitDest = exitAreaPos;
                 int exitFloor = targetSpawner.waveData.targetFloor;
                 foreach (var member in activeParty.Members)
@@ -597,8 +624,8 @@ namespace GrimArchive.Wave
                     if (member.currentFloor != exitFloor) continue;
                     if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                     if (member.playerAttackTarget != null) continue;
-                    member.playerMoveTarget = exitDest;
-                    member.isManualMoveCommand = false;
+                    if (member.currentWait != null) continue; // 이미 다른 대기 사유 진행 중이면 덮어쓰지 않음.
+                    member.currentWait = new WaitState { Reason = WaitReason.Retreating, WaitPosition = exitDest };
                 }
                 return;
             }
@@ -612,6 +639,9 @@ namespace GrimArchive.Wave
             // 우선순위가 높아(UnitFSM 200 vs 100) 이동 중 적과 마주쳐도 무시하고 걸어간다. currentWait
             // 기반 TacticalFSMState.ExecuteWait 경로는 Combat(100) > Tactical(50) 순서를 그대로 따라
             // 자연히 전투에 밀린다(00번 4장 우선순위와 일치).
+            // 05번 문서 3장: 전원이 문 타일 자체로 몰리면 통과 구간을 막으므로, 파티원마다 문 주변의
+            // 서로 다른 대기 자리(체비셰프 거리 2 이상)를 배정한다(AIMovementHelper.FindDoorWaitSlot).
+            var claimedDoorSlots = new HashSet<Vector2Int>();
             foreach (var member in activeParty.Members)
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
@@ -619,7 +649,8 @@ namespace GrimArchive.Wave
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
                 if (member.currentWait != null) continue; // 이미 다른 대기 사유(집결 등) 진행 중이면 덮어쓰지 않음.
-                member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = doorPos };
+                Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
+                member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot };
             }
             activeParty.ReadyToAdvance = false; // 명령은 1회만 발행 — 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다.
         }

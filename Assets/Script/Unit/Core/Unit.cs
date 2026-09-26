@@ -215,6 +215,9 @@ public abstract class Unit : ScriptableObject {
 	// 코어/문 자동 파괴 접근 중 "인접도 못 하고 대체 자리도 없는" 상태가 몇 틱째 이어지는지 — 단 1틱
 	// 실패만으로 경계로 전환하면 파괴↔경계가 매 틱 뒤집히므로, 연속 일정 틱 이상 막혀야 포기한다.
 	public int tacticalObjectAttackStuckTurns = 0;
+	// 검증문서 01-11 6행: 일반 조사 대상 접근이 몇 틱째 막혀 있는지 — 위와 동일한 이유로 도입,
+	// 대상이 진짜 도달 불가능하면(고립 구역/상대 진영 문 뒤 등) 포기하고 다른 후보로 넘어간다.
+	public int investigateStuckTurns = 0;
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
 		MovementAlgorithm?.ClearCache();

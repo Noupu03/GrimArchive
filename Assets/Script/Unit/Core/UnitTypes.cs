@@ -24,6 +24,9 @@ public abstract class UnitType
 {
 	public string typeName;
 	public Vector2 footprint;
+	// 01번 문서 9장: "보스를 정확 인지"의 대상을 특정하는 종류 단위 플래그 — 개별 인스턴스 상태인
+	// Unit.isSpecialUnit(종별+개별 이해도 누적 여부, 가중치 3종 시스템 7-1장)과는 다른 축이다.
+	public bool isBoss = false;
 }
 
 // 인류 클래스
@@ -75,7 +78,7 @@ public class WildMonsterA : UnitType
 // 반복 배치되는 게 아니라 게임 전체에 한 마리).
 public class BossGolem : UnitType
 {
-	public BossGolem() { typeName = "보스 골렘"; footprint = new Vector2(3, 3); }
+	public BossGolem() { typeName = "보스 골렘"; footprint = new Vector2(3, 3); isBoss = true; }
 }
 
 // ----------------------------------------------------

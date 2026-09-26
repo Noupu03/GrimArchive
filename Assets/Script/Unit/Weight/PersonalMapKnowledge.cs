@@ -485,6 +485,13 @@ public class PersonalMapKnowledge
 	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
 		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
 
+	// 01번 문서 9장(검증문서 01-10): "보스를 정확 인지 + 방 확인"을 모두 충족해야 보스방으로 기록한다.
+	// 다른 Observe* 메서드는 전부 isBossRoom=false로만 호출돼(타일 공개·오브젝트 관찰은 보스 인지와
+	// 무관) 이 메서드만이 IsBossRoom을 true로 승격시키는 유일한 경로다 — UnitPerceptionHandler가
+	// AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
+	public void ConfirmBossRoom(int roomId)
+		=> GetOrCreateRoom(roomId, false).IsBossRoom = true;
+
 	// unitKey: 대상 유닛의 인스턴스 식별자(Unit.name) — 같은 유닛을 매 프레임 다시 불러도 최신값으로
 	// 덮어쓸 뿐 중복 가산되지 않는다.
 	public void ObserveUnitInRoom(int roomId, bool isBossRoom, string unitKey, float unitFinalDanger, float unitInterest)
