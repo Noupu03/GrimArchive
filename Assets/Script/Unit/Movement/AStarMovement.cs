@@ -176,7 +176,42 @@ public class AStarMovement : IMovementAlgorithm
         // -------------------------------------------------------------
 
         Vector2Int startPos = unit.position;
+        AStarNode closestNode = RunSearch(unit, startPos, targetPos, myData, mapW, mapH, floorIdx, out bool _);
 
+        if (closestNode.Pos == startPos) return false;
+
+        AStarNode stepNode = closestNode;
+        while (stepNode.Parent != null)
+        {
+            Vector2Int diff = stepNode.Pos - stepNode.Parent.Pos;
+            foreach (Dir d in _allDirs)
+            {
+                if (unit.GetDirVector(d) == diff)
+                {
+                    _pathMap[stepNode.Parent.Pos] = d;
+                    break;
+                }
+            }
+            stepNode = stepNode.Parent;
+        }
+
+        if (_pathMap.TryGetValue(startPos, out Dir startDir))
+        {
+            nextDir = startDir;
+            return true;
+        }
+
+        return false;
+    }
+
+    // TryGetNextStep의 A* 탐색 루프를 그대로 추출한 순수 검색 — 프레임 간 이동 캐시(_cacheTarget/
+    // _pathMap/_cacheTime)는 절대 건드리지 않는다(호출부가 각자 알아서 처리). TryGetPathLength도
+    // 이 검색을 그대로 재사용해 "실제로 걷는 목적지"와 무관한 거리 조회에 이동 캐시가 오염되지 않게 한다.
+    // reachedTarget=true면 closestNode가 targetPos에 정확히 도달, false면 도달 실패 시 발견한 가장
+    // 가까운 노드(휴리스틱 기준)다. 반환값이 시작 위치 그대로면(closestNode.Pos == startPos) 한 걸음도
+    // 못 나간 완전 실패다.
+    private AStarNode RunSearch(Unit unit, Vector2Int startPos, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget)
+    {
         _openList.Clear();
         _closedSet.Clear();
         ReturnAllNodes(); // 이전 실행 노드를 풀에 반납한 뒤 컨테이너를 비운다.
@@ -228,37 +263,59 @@ public class AStarMovement : IMovementAlgorithm
                 {
                     neighborNode.GCost = newGCost;
                     neighborNode.Parent = current;
-                    
+
                     if (!inOpen) openList.Push(neighborNode);
                     else openList.UpdateItem(neighborNode);
                 }
             }
         }
 
-        if (closestNode == startNode) return false;
+        reachedTarget = closestNode.Pos == targetPos;
+        return closestNode;
+    }
 
-        AStarNode stepNode = closestNode;
-        while (stepNode.Parent != null)
-        {
-            Vector2Int diff = stepNode.Pos - stepNode.Parent.Pos;
-            foreach (Dir d in _allDirs)
-            {
-                if (unit.GetDirVector(d) == diff)
-                {
-                    _pathMap[stepNode.Parent.Pos] = d;
-                    break;
-                }
-            }
-            stepNode = stepNode.Parent;
-        }
+    // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시
+    // (_cacheTarget/_pathMap/_cacheTime)는 전혀 건드리지 않는다("실제로 걷는 목적지"가 아니라 여러
+    // 후보의 순위를 매기기 위한 일회성 조회이기 때문). fullyRevealed는 도착한 경로의 모든 칸이 이
+    // 유닛의 개인 지도에 이미 드러나 있는지(=완전히 아는 길)를 뜻한다 — 인류가 아니면(개인 지도 없음)
+    // 항상 false.
+    public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed)
+    {
+        pathLength = 0;
+        fullyRevealed = false;
 
-        if (_pathMap.TryGetValue(startPos, out Dir startDir))
+        if (unit.position == targetPos)
         {
-            nextDir = startDir;
+            fullyRevealed = unit is Human;
             return true;
         }
 
-        return false;
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+
+        if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+            return false;
+
+        int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+        int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+        AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        if (!reachedTarget) return false;
+
+        Human human = unit as Human;
+        fullyRevealed = human != null;
+        int length = 0;
+        AStarNode stepNode = closestNode;
+        while (stepNode.Parent != null)
+        {
+            length++;
+            if (fullyRevealed && !human.personalMap.IsTileRevealed(new Vector3Int(stepNode.Pos.x, stepNode.Pos.y, floorIdx)))
+                fullyRevealed = false;
+            stepNode = stepNode.Parent;
+        }
+
+        pathLength = length;
+        return true;
     }
 
     // 명령 경로 시각화용 — TryGetNextStep이 채워둔 _cacheTarget/_pathMap을 그대로 읽기만 한다.

@@ -496,7 +496,7 @@ public class PersonalMapKnowledge
 	// 20장 "인류는 방 전체 크기를 모른다"는 플레이어에게 진행률(%)을 노출하지 않는다는 뜻으로 해석 —
 	// 완료 판정 자체는 내부적으로 totalFloorTilesInRoom(ground-truth)을 받아 누적, 도달 시 Complete로
 	// 전환한다(비가역).
-	public void ObserveRoomTileRevealed(int roomId, bool isBossRoom, int totalFloorTilesInRoom)
+	public void ObserveRoomTileRevealed(int roomId, bool isBossRoom, int totalFloorTilesInRoom, Human owner)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);
 		if (r.State == RoomExploreState.Complete) return;
@@ -506,7 +506,10 @@ public class PersonalMapKnowledge
 
 		r.RevealedFloorTiles++;
 		if (totalFloorTilesInRoom > 0 && r.RevealedFloorTiles >= totalFloorTilesInRoom)
+		{
 			r.State = RoomExploreState.Complete;
+			owner?.party?.OnRoomExploreCompleted(roomId); // 01번 문서 2장: 파티 단위 B+E 집계
+		}
 	}
 
 	public float GetRoomDanger(int roomId, bool isBossRoom)

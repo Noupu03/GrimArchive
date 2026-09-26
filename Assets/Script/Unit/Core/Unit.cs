@@ -644,13 +644,19 @@ public class Human : UnitFunction
 		return false;
 	}
 
-	// Goal_Investigate.GetPriority와 Action_MoveToInvestigateTarget이 공유하는 헬퍼 — 함정이 아니고
-	// 이미 자동 확인 완료된 시체/전멸흔적도 아닌, 아직 조사되지 않은 가장 가까운 오브젝트를 찾는다.
+	// Goal_Investigate.GetPriority와 Action_MoveToInvestigateTarget이 공유하는 헬퍼 — 01번 문서 4~5장:
+	// 알려진 오브젝트(회수물/시체/함정 등)와 시야로만 존재를 확인한 미확인 타일을 한데 모아
+	// 흥미도×가중치÷거리 점수(PartyGoalMath.NonCombatGoalScore)로 가장 좋은 후보를 고른다.
 	// 여러 호출부가 각자 전체를 훑어 프레임 드랍의 원인이었으므로 프레임 단위로 캐시한다.
 	private int _investigateTargetCacheFrame = -1;
-	private InteractableObject _investigateTargetCache;
+	private InvestigationState _investigateTargetCache;
 
-	public InteractableObject FindInvestigateTarget()
+	// 성능 튜닝값(밸런스 아님) — 후보가 많을 때 직선거리로 1차 정렬한 뒤 상위 이만큼만 실제 거리
+	// (EstimateDistanceTilesTo, A* 최대 2회)로 정밀 채점한다.
+	private const int InvestigateShortlistSize = 5;
+	private readonly List<(InteractableObject obj, Vector3Int tilePos, bool isTile)> _investigateCandidateBuffer = new();
+
+	public InvestigationState FindInvestigateTarget()
 	{
 		if (_investigateTargetCacheFrame == Time.frameCount) return _investigateTargetCache;
 		_investigateTargetCacheFrame = Time.frameCount;
@@ -658,12 +664,11 @@ public class Human : UnitFunction
 		return _investigateTargetCache;
 	}
 
-	private InteractableObject ComputeInvestigateTarget()
+	private InvestigationState ComputeInvestigateTarget()
 	{
 		if (Session == null) return null;
 
-		InteractableObject best = null;
-		float bestDist = float.MaxValue;
+		_investigateCandidateBuffer.Clear();
 
 		foreach (var obj in Session.objectGrid.Values)
 		{
@@ -694,10 +699,77 @@ public class Human : UnitFunction
 			// 이 오브젝트를 currentInvestigation으로 잡고 있으면 후보에서 뺀다.
 			if (IsInvestigationClaimedByPartyMember(obj.Id)) continue;
 
-			float d = Vector2Int.Distance(position, new Vector2Int(obj.Position.x, obj.Position.y));
-			if (d < bestDist) { bestDist = d; best = obj; }
+			_investigateCandidateBuffer.Add((obj, obj.Position, false));
 		}
+
+		// 01번 문서 4장: 시야로 존재만 확인했고 아직 안전 확인이 안 끝난 타일도 후보다. 그 위치에
+		// 이미 오브젝트가 있으면 위 루프가 이미 대표하므로 중복 후보로 넣지 않는다(4장 "중복 가산
+		// 방지").
+		foreach (var tilePos in personalMap.KnownInterestTiles)
+		{
+			if (tilePos.z != currentFloor) continue;
+			if (personalMap.GetObjectIdAtTile(tilePos) != null) continue;
+			if (IsTileInvestigationClaimedByPartyMember(tilePos)) continue;
+
+			_investigateCandidateBuffer.Add((null, tilePos, true));
+		}
+
+		if (_investigateCandidateBuffer.Count == 0) return null;
+
+		// 1차: 직선거리 기준 정렬(비용 0) 후 상위 InvestigateShortlistSize만 정밀 계산 — 후보마다 A*를
+		// 최대 2회(EstimateDistanceTilesTo) 돌리는 비용을 매 틱 전체 후보로 확대하지 않기 위함.
+		Vector2Int selfPos = position;
+		_investigateCandidateBuffer.Sort((a, b) =>
+			Vector2Int.Distance(selfPos, new Vector2Int(a.tilePos.x, a.tilePos.y))
+				.CompareTo(Vector2Int.Distance(selfPos, new Vector2Int(b.tilePos.x, b.tilePos.y))));
+
+		InvestigationState best = null;
+		float bestScore = 0f;
+		int shortlistCount = Mathf.Min(InvestigateShortlistSize, _investigateCandidateBuffer.Count);
+		for (int i = 0; i < shortlistCount; i++)
+		{
+			var candidate = _investigateCandidateBuffer[i];
+			string objId = candidate.obj?.Id;
+			float interest = personalMap.GetTileInterest(candidate.tilePos, objId);
+			int distance = EstimateDistanceTilesTo(candidate.tilePos);
+			float score = PartyGoalMath.NonCombatGoalScore(interest, PartyGoalMath.UniformPartyTypeWeightPlaceholder, distance);
+
+			if (best == null || score > bestScore)
+			{
+				bestScore = score;
+				best = new InvestigationState
+				{
+					TargetObjectId = objId,
+					TargetPosition = candidate.tilePos,
+					IsTileOnly = candidate.isTile,
+				};
+			}
+		}
+
+		// ShouldSwitchNonCombatGoal의 "0→양수" 분기를 실제로 통과시켜 배선을 완료해 둔다(1.2배 실시간
+		// 재비교는 이번 범위 밖 — 이미 커밋된 목표가 있으면 이 함수 자체가 재호출되지 않는다).
+		if (best != null && !PartyGoalMath.ShouldSwitchNonCombatGoal(0f, bestScore)) return null;
 		return best;
+	}
+
+	// 01번 문서 4장/04번 문서 9번 항목: 목표까지 전체 길을 알면 실제 경로 길이, 모르면 "아는 구간까지
+	// 실제 경로 + 그 지점에서 목표까지 직선 잔여"를 더한 추정 거리. 둘 다 실패하면(고립된 구역 등)
+	// 체비셰프 직선거리로 최종 폴백한다.
+	private int EstimateDistanceTilesTo(Vector3Int targetTile)
+	{
+		Vector2Int targetPos2D = new Vector2Int(targetTile.x, targetTile.y);
+		var astar = MovementAlgorithm as AStarMovement;
+		if (astar != null && astar.TryGetPathLength(this, targetPos2D, out int real, out bool fullyRevealed) && fullyRevealed)
+			return real;
+
+		if (personalMap.TryGetNearestFrontierTile(currentFloor, targetPos2D, out Vector2Int frontier))
+		{
+			int knownSegment = (astar != null && astar.TryGetPathLength(this, frontier, out int seg, out _)) ? seg : 0;
+			int remainder = Mathf.Max(Mathf.Abs(targetPos2D.x - frontier.x), Mathf.Abs(targetPos2D.y - frontier.y));
+			return knownSegment + remainder;
+		}
+
+		return Mathf.Max(Mathf.Abs(targetPos2D.x - position.x), Mathf.Abs(targetPos2D.y - position.y));
 	}
 
 	private bool IsInvestigationClaimedByPartyMember(string objectId)
@@ -707,6 +779,18 @@ public class Human : UnitFunction
 		{
 			if (m == null || m == this || m.hp <= 0) continue;
 			if (m.currentInvestigation != null && m.currentInvestigation.TargetObjectId == objectId) return true;
+		}
+		return false;
+	}
+
+	// IsInvestigationClaimedByPartyMember와 대칭 — 파티원이 이미 같은 맨 타일을 목표로 잡고 있으면 제외.
+	private bool IsTileInvestigationClaimedByPartyMember(Vector3Int tilePos)
+	{
+		if (party == null) return false;
+		foreach (var m in party.Members)
+		{
+			if (m == null || m == this || m.hp <= 0) continue;
+			if (m.currentInvestigation != null && m.currentInvestigation.IsTileOnly && m.currentInvestigation.TargetPosition == tilePos) return true;
 		}
 		return false;
 	}

@@ -581,16 +581,16 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		if (human.currentInvestigation == null)
 		{
-			var t = human.FindInvestigateTarget();
-			if (t == null) return BTStatus.Failure;
-			human.currentInvestigation = new InvestigationState { TargetObjectId = t.Id, TargetPosition = t.Position };
+			human.currentInvestigation = human.FindInvestigateTarget();
+			if (human.currentInvestigation == null) return BTStatus.Failure;
 		}
 		var inv = human.currentInvestigation;
 
 		// 00-07(정보 격리): 아직 도착하지 않은 동안은 전역 objectGrid를 직접 읽지 않는다 — 다른 유닛이
 		// 방금 수거한 사실을 이 유닛이 직접 확인하거나(도착) 허용된 전파로 전달받기 전까지는 원거리에서
 		// 즉시 알지 못하게 막는다(2026-09-26 수정 — 이전엔 매 틱 전역 상태를 읽어 멀리서도 즉시 알았음).
-		if (human.personalMap.IsKnownCollected(inv.TargetObjectId))
+		// 타일 전용 후보는 "수거"라는 개념이 없어 이 확인 자체가 성립하지 않는다.
+		if (!inv.IsTileOnly && human.personalMap.IsKnownCollected(inv.TargetObjectId))
 		{
 			human.currentInvestigation = null;
 			return BTStatus.Failure;
@@ -600,6 +600,10 @@ public class TacticalFSMState : IFSMState
 		// 오브젝트는 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1로 도달 판정
 		if (AIMovementHelper.IsAdjacent(human.position, pos))
 		{
+			// 01번 문서 4장: 맨 타일 후보는 별도 "조사·줍기" 단계가 없다 — 인지·안전 확인은
+			// PersonalMapKnowledge의 기존 시간 경과 감쇠가 도착 여부와 무관하게 담당하므로, 도착한
+			// 순간 그대로 완료 처리한다(정리는 PickUpObject 쪽에서 한 곳으로 통일).
+			if (inv.IsTileOnly) return BTStatus.Success;
 			// 도착 — 이제부터는 실제 objectGrid 조회가 "직접 확인"이므로 그대로 신뢰한다.
 			if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 			{
@@ -623,6 +627,8 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var inv   = human.currentInvestigation;
 		if (inv == null) return BTStatus.Failure;
+		// 타일 전용 후보는 여기서 할 일이 없다 — MoveToInvestigateTarget이 이미 도착 시점에 처리한다.
+		if (inv.IsTileOnly) return BTStatus.Success;
 		// MoveToInvestigateTarget이 도착(인접)을 보장한 뒤에만 이 분기가 실행되므로 여기 objectGrid
 		// 조회는 "직접 확인"이다 — 원거리 조회 문제는 위 MoveToInvestigateTarget 쪽만 해당.
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
@@ -671,6 +677,14 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var inv   = human.currentInvestigation;
 		if (inv == null) return BTStatus.Failure;
+		// 타일 전용 후보는 여기서 정리하고 끝낸다 — 안전 확인은 시간 경과로 자연히 처리되므로 "줍기"
+		// 단계 자체가 없다.
+		if (inv.IsTileOnly)
+		{
+			human.currentInvestigation = null;
+			human.currentAlertSearch = null;
+			return BTStatus.Success;
+		}
 		// MoveToInvestigateTarget이 도착(인접)을 보장한 뒤에만 실행되므로 여기 objectGrid 조회도
 		// "직접 확인"이다.
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)

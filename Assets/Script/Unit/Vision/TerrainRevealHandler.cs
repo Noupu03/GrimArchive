@@ -14,7 +14,7 @@ public class TerrainRevealHandler : IVisionTileHandler
             if (isFirstReveal && !tileIsWall)
             {
                 int totalFloorTiles = context.Session.cmap.GetRoomFloorTileCount(tile.z, chunk.roomId);
-                terrainObserver.Memory.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles);
+                terrainObserver.Memory.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles, terrainObserver);
             }
         }
     }

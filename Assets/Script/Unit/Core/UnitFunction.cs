@@ -618,7 +618,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				if (isFirstReveal && !tileIsWall)
 				{
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, chunk.roomId);
-					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles);
+					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, isBossRoom, totalFloorTiles, terrainObserver);
 				}
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{

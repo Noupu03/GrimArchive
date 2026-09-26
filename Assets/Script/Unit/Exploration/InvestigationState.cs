@@ -7,6 +7,10 @@ public class InvestigationState
 	public string TargetObjectId;
 	public Vector3Int TargetPosition;
 
+	// 01번 문서 4장: 대상이 알려진 오브젝트가 아니라 "시야로 존재는 확인했지만 인지·안전 확인이
+	// 끝나지 않은" 맨 타일일 때 true — TargetObjectId는 null로 남는다.
+	public bool IsTileOnly;
+
 	// 5-6/5-7장: 0~1 진행도. 중단되면 50% 손실 후 남은 값을 유지하다가 재개 시 이어서 진행한다.
 	public float Progress01;
 

@@ -306,6 +306,7 @@ public static class PropagationSystem
 		CreateMap cmap = sender.Session.cmap;
 		int floor = sender.currentFloor;
 		// 07-A 1-2장: 우회 경로는 같은 공간 안에서만 유효 — senderRoom과 같은 방의 타일만 후보로 남겨 게이트 너머로 새는 것을 막는다.
+		// (문이 열려 있거나 파괴됐어도 예외 없음 — 알려진 한계, PropagationMath.SameSpace 주석/검증문서 00-08 참고)
 		return PropagationMath.TryGetSpaceDistance(sender.position, receiver.position, range,
 			p => cmap.IsStaticTileWalkable(floor, p) && cmap.GetRoomIdAt(floor, p) == senderRoom, out _);
 	}

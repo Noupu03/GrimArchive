@@ -18,8 +18,9 @@ public class Party
 	// 리더로 삼고, 리더가 죽으면 GameSession이 재선정한다.
 	public Human Leader;
 
-	// 집결의 최소 버전 — 전투 종료 후 경계 10초가 끝나면 리더가 자기 위치를 집결지로 지정한다(리더
-	// 명령 전파 체계가 없어 "즉시 전 파티원이 아는" 것으로 근사). Goal_Wait이 이 값을 읽는다.
+	// 집결의 최소 버전 — 전투 종료 후 경계 10초가 끝나면 리더가 자기 위치를 집결지로 지정한다. 05번
+	// 문서 4장: 같은 방 파티원은 무조건, 다른 방 파티원은 일반 전파 조건(CanPropagate)을 만족해야
+	// 전달된다(TryStartRally 참고). Goal_Wait이 이 값을 읽는다.
 	public Vector2Int? RallyPoint;
 	public bool IsRallyActive;
 	// 05번 1장: 집결이 막 완료돼 "다음 방으로 함께 이동"을 시작해도 되는 상태 — HumanWaveManager가
@@ -31,6 +32,28 @@ public class Party
 	// 이동보다 코어 처리가 우선한다 — PartyCoreReportSystem.OnCoreDiscovered가 발견 시점에 채우고,
 	// TryStartRally가 매번 IsRoomCoreStillHostile로 재확인해 처리 완료를 스스로 감지·해제한다.
 	public Vector3Int? LeaderKnownCorePosition;
+
+	// 01번 문서 2장: 방 탐색 임무 요구 수량(B+E, PartyGoalMath.RequiredRoomExploreCount) 집계 — 여러
+	// 유닛이 각자 다른 방을 끝내도 중복 없이 한 번만 세기 위한 dedup. 진짜 "여러 관찰자가 나눠 본
+	// 시야를 합쳐 완료 판정"은 안 함 — 누구든 먼저 그 방을 개인적으로 끝내면 그걸로 집계하는 근사
+	// (IsRoomActivityComplete의 "리더 개인 지도 기준 근사"와 같은 성격).
+	public int CompletedRoomExploreCount { get; private set; }
+	private readonly HashSet<int> _countedRoomIds = new HashSet<int>();
+	// 미달성→달성으로 막 바뀐 순간에만 true — Party.ReadyToAdvance와 동일한 관례로, 소비자(01-07/
+	// 01-11의 리더 판단, 아직 미착수)가 읽고 스스로 false로 되돌린다.
+	public bool JustReachedRoomExploreQuota;
+
+	// 개인의 RoomExploreState가 Complete로 바뀌는 순간 PersonalMapKnowledge.ObserveRoomTileRevealed가
+	// 호출한다.
+	public void OnRoomExploreCompleted(int roomId)
+	{
+		if (!_countedRoomIds.Add(roomId)) return; // 이미 집계된 방 — 중복 방지
+
+		bool wasBelow = CompletedRoomExploreCount < PartyGoalMath.RequiredRoomExploreCount;
+		CompletedRoomExploreCount++;
+		if (wasBelow && CompletedRoomExploreCount >= PartyGoalMath.RequiredRoomExploreCount)
+			JustReachedRoomExploreQuota = true;
+	}
 
 	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 리더 개인 지도·인지만으로 근사한다 —
 	// 진짜 "파티원 전체 시야 범위 합산"(01번 7-2장 시스템 집계)은 리더·명령 문서가 아직 없어 이
@@ -48,7 +71,10 @@ public class Party
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
 				// 점령을 실제로 트리거하는 조건은 아직 미정(PartyEnums.cs 주석 참고) — 판정 기준
-				// 자체("방이 인류 소유가 되면 완료")만 세팅으로 남겨둔다.
+				// 자체("방이 인류 소유가 되면 완료")만 세팅으로 남겨둔다. 주의: RoomFaction은 파티
+				// 종류와 무관한 보스방 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌므로 지금은
+				// 점령 파티 전용 신호가 아니라 그 신호를 임시로 빌려 쓰는 것뿐 — 실제 점령 트리거가
+				// 생기면 교체할 것(검증문서 01-01 3번 참고).
 				return room.RoomFaction == FactionType.Human;
 			case PartyType.MopUp:
 			default:
@@ -156,7 +182,7 @@ public class Party
 
 	// 전투 종료 후 10초 경계 스윕이 끝난 유닛이(UnitFunction.OnUpdate) 호출한다. 파티 전체가 전투/
 	// 전투직후 스윕에서 완전히 벗어났을 때만 실제로 집결을 시작하고, 아직 남은 파티원이 있으면 그
-	// 유닛이 끝날 때 재시도된다. 리더 명령 전파 체계가 없어 "즉시 전 파티원이 리더 위치를 안다"로 근사한다.
+	// 유닛이 끝날 때 재시도된다.
 	public void TryStartRally()
 	{
 		if (IsRallyActive) return;
@@ -185,9 +211,13 @@ public class Party
 		RallyPoint = Leader.position;
 		IsRallyActive = true;
 
+		// 05번 문서 4장: 같은 방 파티원에게는 전파 거리와 무관하게 무조건 전달(방 전체 전달 예외), 다른
+		// 방 파티원에게는 일반 전파 조건(07문서 6장 — 비전투+같은 공간+전파 범위, PropagationSystem.
+		// CanPropagate가 그 구현)을 만족해야만 전달된다(검증문서 01-02 6번).
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0 || m.currentWait != null) continue;
+			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
 			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = RallyPoint };
 		}
 	}
@@ -216,8 +246,8 @@ public class Party
 
 	// 03번 문서 3번 항목: 리더가 코어를 직접 확인했거나(discoverer == Leader) 보고받았을 때
 	// PartyCoreReportSystem이 호출한다. 진행 중이거나 막 완료된 집결·다음 방 이동을 즉시 해제하고
-	// 코어 처리로 전환한다 — 해제는 기존 TryStartRally와 동일하게 "파티 전체 즉시"로 근사한다(같은
-	// 방 조건 없음, 09-25 구현현황 문서 05번 4장 근사 사유와 동일).
+	// 코어 처리로 전환한다 — 전달 범위는 TryStartRally와 동일하게 05번 문서 4장을 따른다(같은 방은
+	// 무조건, 다른 방은 CanPropagate 게이트, 검증문서 01-02 6번).
 	public void OnLeaderLearnsCore(Vector3Int corePos)
 	{
 		if (LeaderKnownCorePosition == corePos) return; // 이미 알고 있음 — 중복 처리 방지
@@ -229,9 +259,11 @@ public class Party
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;
-			if (m.currentWait != null &&
-				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint || m.currentWait.Reason == WaitReason.AdvancingToNextRoom))
-				m.currentWait = null;
+			if (m.currentWait == null ||
+				(m.currentWait.Reason != WaitReason.AwaitingPartyAtRallyPoint && m.currentWait.Reason != WaitReason.AdvancingToNextRoom))
+				continue;
+			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
+			m.currentWait = null;
 		}
 	}
 }
