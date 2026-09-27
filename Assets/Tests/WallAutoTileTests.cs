@@ -196,15 +196,35 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.HorizontalTop, variant); // 방이 남쪽에 있고 북쪽은 벽 두께 — 그래도 "위쪽(북측)" 경계
 	}
 
-	// ── 예외 상태(고립 타일, 인접 벽 없음, Floor 판정도 없음) — 문서의 "예외 상태 처리"는
-	// HorizontalTop(정림 기준 원화와 같은 방향)으로 폴백한다 ──
+	// ── 예외 상태(고립 타일, 인접 벽 없음, Floor 판정도 없음) — **2026-09-27 밤 재수정**: 예전엔
+	// 문서의 "예외 상태 처리"에 따라 HorizontalTop으로 폴백했는데, Floor 인접 증거가 전혀 없는 자리를
+	// 방향성 있는 스프라이트로 그리는 게 오히려 부자연스러워 Solid로 바꿨다(아래 두 테스트와 동일
+	// 원칙) ──
 	[Test]
-	public void Isolated_FallsBackToHorizontalTop()
+	public void Isolated_FallsBackToSolid()
 	{
 		var variant = WallAutoTileMath.SelectVariant(
 			n: false, s: false, e: false, w: false,
 			ne: false, nw: false, se: false, sw: false);
-		Assert.AreEqual(WallVariant.HorizontalTop, variant);
+		Assert.AreEqual(WallVariant.FullySurrounded, variant);
+	}
+
+	// ── "층 모서리 톱니" 재현 케이스 — 2026-09-27 밤, 사용자가 "방의 꼭짓점 부분까지 solid 처리됐다"며
+	// Floor-인접 기반 코너 판정을 되돌리라고 확정한 뒤의 최종 형태. 코너(1·2번 우선순위)는 원래
+	// 벽-인접 기반 그대로 두고, 이 4번 자리(코너도 FullySurrounded도 아닌 나머지)만 Floor 증거가
+	// 전혀 없으면 Solid로 처리한다 — 실제 원인은 두꺼운 벽이 방 Floor가 아니라 미개척 공간/층 경계와
+	// 맞닿을 때, 옛 FullySurrounded 조건(4방향 전부 "벽")을 만족 못 해(한쪽이 미개척이라 "벽"이
+	// 아님) Horizontal로 잘못 폴백하며 방향성 있는 무늬가 반복돼 톱니처럼 보였던 것. ──
+	[Test]
+	public void ThickWallBorderingUnclaimedSpace_NoFloorEvidence_IsSolid()
+	{
+		// n/s/e 세 방향은 벽(두께 방향으로 계속 이어짐), w 방향은 "벽도 Floor도 아닌" 미개척
+		// 공간(층 경계 바깥 등) — 코너 조건에도 FullySurrounded 조건에도 안 걸리는 경우.
+		var variant = WallAutoTileMath.SelectVariant(
+			n: true, s: true, e: true, w: false,
+			ne: true, nw: false, se: true, sw: false,
+			isFloorN: false, isFloorS: false, isFloorE: false, isFloorW: false);
+		Assert.AreEqual(WallVariant.FullySurrounded, variant);
 	}
 
 	// ── 형태 분류(GetShape) — 12개 방향이 4개 형태로 정확히 묶이는지 ──

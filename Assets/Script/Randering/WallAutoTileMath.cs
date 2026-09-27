@@ -50,24 +50,30 @@ public static class WallAutoTileMath
         // 타일... 자리 한 칸") — 방향성이 없는 채움용 스프라이트를 쓴다.
         if (n && s && e && w) return WallVariant.FullySurrounded;
 
-        // 4) 직선 — 코너/완전폐쇄가 아닌 나머지. **2026-09-27 밤 재수정**: 예전엔 "세로축(n|s) 연결 +
-        // 가로축(e|w) 비연결"이라는 순수 벽-인접 조건으로 Vertical을 골랐는데, CreateMap.TileWall.cs의
-        // ApplyOuterWallThickness가 StartRoom/BossRoom을 뺀 모든 방 벽에 `minGuaranteed =
-        // Mathf.Max(thkMin, 2)`로 최소 2칸 두께를 보장한다 — 즉 방 경계에 맞닿은 벽 타일도 반대쪽엔
-        // "두께 방향으로 이어지는 또 다른 벽 타일"이 있어 e/w(또는 n/s)가 거의 항상 true라, 이 조건이
-        // 사실상 거의 만족되지 않아 거의 모든 세로/가로 직선 벽이 Horizontal로 잘못 폴백하고 있었다
-        // (회전(GetRotationDegrees)이 아니라 애초에 Vertical 자체가 거의 선택되지 않는 게 진짜 원인 —
-        // VerticalRight의 회전각만 고쳤을 때 화면에 아무 변화가 없었던 이유). 대신 Floor 인접 여부로
-        // "정확히 한쪽에만 Floor가 있는 축"을 찾아 그 축의 방향을 쓴다 — 반대쪽이 벽(두께)이든
-        // 미개척 공간이든 무관하게 판정 가능하다. 두 축 모두 판정 불가(양쪽 다 Floor거나 둘 다
-        // 아니면)면 기존과 동일하게 Horizontal/Top 기본 폴백.
+        // 4) 직선(또는 Solid) — 코너/완전폐쇄가 아닌 나머지. 코너(1·2번)와 FullySurrounded(3번)는
+        // 원래 벽-인접 기반 판정 그대로 둔다 — 실제로는 문제없이 잘 동작하고 있었다(2026-09-27 밤,
+        // 사용자 확인: "방의 꼭짓점 부분까지 solid 처리했더라" — Floor 인접 기반으로 코너까지 다시
+        // 판정하려던 시도를 되돌림. 두꺼운 벽에서는 방의 진짜 꼭짓점 타일도 카디널 방향엔 Floor가 없고
+        // 대각선에만 있어서, "카디널에 Floor 없으면 Solid"로 코너까지 덮어버리면 꼭짓점이 전부 Solid가
+        // 되는 부작용이 있었다).
+        // 이 4번 자리(코너도 FullySurrounded도 아닌 나머지)만 Floor 인접 기반으로 판정한다. 예전엔
+        // "세로축(n|s) 연결 + 가로축(e|w) 비연결"이라는 순수 벽-인접 조건으로 Vertical을 골랐는데,
+        // CreateMap.TileWall.cs의 ApplyOuterWallThickness가 StartRoom/BossRoom을 뺀 모든 방 벽에
+        // `minGuaranteed = Mathf.Max(thkMin, 2)`로 최소 2칸 두께를 보장해서 e/w(또는 n/s)가 거의 항상
+        // true라, 이 조건이 사실상 거의 만족되지 않아 거의 모든 직선 벽이 Horizontal로 잘못
+        // 폴백하고 있었다. 대신 "정확히 한쪽에만 Floor가 있는 축"으로 방향을 정한다 — 반대쪽이 벽
+        // 두께든 미개척 공간(층 경계 바깥 등)이든 무관하게 판정 가능하다. **어느 축에도 명확한 Floor
+        // 분기가 없으면(둘 다 Floor거나 둘 다 아니면) Horizontal 기본 폴백이 아니라 Solid로 처리한다**
+        // (2026-09-27 밤 — 여기가 실제 "층 모서리 톱니"의 원인이었다: 두꺼운 벽이 방 Floor가 아니라
+        // 미개척 공간/층 경계와 맞닿을 때 옛 FullySurrounded 조건(4방향 전부 벽)을 못 만족해 Horizontal로
+        // 폴백하며 방향성 있는 무늬가 반복돼 톱니처럼 보였다 — 진짜 방 코너와는 다른 자리).
         bool verticalFloorSplit = isFloorE != isFloorW;
         bool horizontalFloorSplit = isFloorN != isFloorS;
         if (verticalFloorSplit && !horizontalFloorSplit)
             return isFloorW ? WallVariant.VerticalRight : WallVariant.VerticalLeft;
         if (horizontalFloorSplit)
             return isFloorN ? WallVariant.HorizontalBottom : WallVariant.HorizontalTop;
-        return WallVariant.HorizontalTop;
+        return WallVariant.FullySurrounded;
     }
 
     public static WallShape GetShape(WallVariant variant) => variant switch
