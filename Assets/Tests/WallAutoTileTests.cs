@@ -159,6 +159,43 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.VerticalRight, variant); // 방이 서쪽에 있으면 "오른쪽(동측)" 경계
 	}
 
+	// ── 2026-09-27 밤 재수정: 2칸 이상 두꺼운 벽(CreateMap.TileWall.cs의 ApplyOuterWallThickness가
+	// StartRoom/BossRoom을 뺀 모든 방에 minGuaranteed=2를 강제)의 안쪽 레이어는 반대편(두께 방향)도
+	// 벽이라 e/n/s가 전부 true인데, 방쪽(w)엔 Floor가 있다 — 순수 벽-인접 조건(e/w 둘 다 벽 아님)으로는
+	// 이 타일이 Vertical로 인식되지 않아 예전엔 HorizontalTop으로 잘못 폴백했다. 실제 게임에서 거의
+	// 모든 방이 이 두께 조건에 해당하므로, 이 케이스를 못 잡으면 Vertical이 사실상 전혀 선택되지 않는다
+	// (VerticalRight의 회전각만 고쳤을 때 화면에 변화가 없었던 진짜 원인 — 회전이 아니라 애초에
+	// Vertical 자체가 선택되지 않았다). ──
+	[Test]
+	public void Straight_Vertical_ThickWallInnerLayer_FloorWest_StillDetectsRight()
+	{
+		var variant = WallAutoTileMath.SelectVariant(
+			n: true, s: true, e: true, w: false,
+			ne: true, nw: false, se: true, sw: false,
+			isFloorN: false, isFloorS: false, isFloorE: false, isFloorW: true);
+		Assert.AreEqual(WallVariant.VerticalRight, variant); // 방이 서쪽에 있고 동쪽은 벽 두께 — 그래도 "오른쪽(동측)" 경계
+	}
+
+	[Test]
+	public void Straight_Vertical_ThickWallInnerLayer_FloorEast_StillDetectsLeft()
+	{
+		var variant = WallAutoTileMath.SelectVariant(
+			n: true, s: true, e: false, w: true,
+			ne: false, nw: true, se: false, sw: true,
+			isFloorN: false, isFloorS: false, isFloorE: true, isFloorW: false);
+		Assert.AreEqual(WallVariant.VerticalLeft, variant); // 방이 동쪽에 있고 서쪽은 벽 두께 — 그래도 "왼쪽(서측)" 경계
+	}
+
+	[Test]
+	public void Straight_Horizontal_ThickWallInnerLayer_StillDetectsTop()
+	{
+		var variant = WallAutoTileMath.SelectVariant(
+			n: true, s: false, e: true, w: true,
+			ne: true, nw: true, se: false, sw: false,
+			isFloorN: false, isFloorS: true, isFloorE: false, isFloorW: false);
+		Assert.AreEqual(WallVariant.HorizontalTop, variant); // 방이 남쪽에 있고 북쪽은 벽 두께 — 그래도 "위쪽(북측)" 경계
+	}
+
 	// ── 예외 상태(고립 타일, 인접 벽 없음, Floor 판정도 없음) — 문서의 "예외 상태 처리"는
 	// HorizontalTop(정림 기준 원화와 같은 방향)으로 폴백한다 ──
 	[Test]

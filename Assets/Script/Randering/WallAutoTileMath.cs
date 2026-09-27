@@ -50,12 +50,24 @@ public static class WallAutoTileMath
         // 타일... 자리 한 칸") — 방향성이 없는 채움용 스프라이트를 쓴다.
         if (n && s && e && w) return WallVariant.FullySurrounded;
 
-        // 4) 직선 — 세로축 연결이 있고 가로축 연결이 없을 때만 Vertical, 그 외(순수 가로/양쪽 모두/고립 타일
-        // 등 13종 밖의 예외 상태)는 전부 Horizontal로 폴백한다(회의록 "예외 상태 처리"). 방향은 Floor
-        // 판정으로 가른다 — 둘 다/둘 다 아님이면 정림 기준 원화와 같은 Top/Left로 기본 폴백.
-        if ((n || s) && !(e || w))
-            return (isFloorW && !isFloorE) ? WallVariant.VerticalRight : WallVariant.VerticalLeft;
-        return (isFloorN && !isFloorS) ? WallVariant.HorizontalBottom : WallVariant.HorizontalTop;
+        // 4) 직선 — 코너/완전폐쇄가 아닌 나머지. **2026-09-27 밤 재수정**: 예전엔 "세로축(n|s) 연결 +
+        // 가로축(e|w) 비연결"이라는 순수 벽-인접 조건으로 Vertical을 골랐는데, CreateMap.TileWall.cs의
+        // ApplyOuterWallThickness가 StartRoom/BossRoom을 뺀 모든 방 벽에 `minGuaranteed =
+        // Mathf.Max(thkMin, 2)`로 최소 2칸 두께를 보장한다 — 즉 방 경계에 맞닿은 벽 타일도 반대쪽엔
+        // "두께 방향으로 이어지는 또 다른 벽 타일"이 있어 e/w(또는 n/s)가 거의 항상 true라, 이 조건이
+        // 사실상 거의 만족되지 않아 거의 모든 세로/가로 직선 벽이 Horizontal로 잘못 폴백하고 있었다
+        // (회전(GetRotationDegrees)이 아니라 애초에 Vertical 자체가 거의 선택되지 않는 게 진짜 원인 —
+        // VerticalRight의 회전각만 고쳤을 때 화면에 아무 변화가 없었던 이유). 대신 Floor 인접 여부로
+        // "정확히 한쪽에만 Floor가 있는 축"을 찾아 그 축의 방향을 쓴다 — 반대쪽이 벽(두께)이든
+        // 미개척 공간이든 무관하게 판정 가능하다. 두 축 모두 판정 불가(양쪽 다 Floor거나 둘 다
+        // 아니면)면 기존과 동일하게 Horizontal/Top 기본 폴백.
+        bool verticalFloorSplit = isFloorE != isFloorW;
+        bool horizontalFloorSplit = isFloorN != isFloorS;
+        if (verticalFloorSplit && !horizontalFloorSplit)
+            return isFloorW ? WallVariant.VerticalRight : WallVariant.VerticalLeft;
+        if (horizontalFloorSplit)
+            return isFloorN ? WallVariant.HorizontalBottom : WallVariant.HorizontalTop;
+        return WallVariant.HorizontalTop;
     }
 
     public static WallShape GetShape(WallVariant variant) => variant switch
