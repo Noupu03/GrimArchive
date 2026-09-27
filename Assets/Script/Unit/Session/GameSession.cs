@@ -903,7 +903,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 5-1장: 파티 합류(=웨이브 입장) 시점이 "신규 유닛 개인 지도 정보 = 최신 전역 지도 정보"가
             // 적용되는 순간이다. 이미 개인 기억이 있는 유닛은 InitializeNewUnitPersonalInfo가 덮어쓰지
             // 않으므로(5-2장) 재사용해도 안전하다.
-            m.Knowledge?.InitializeNewUnitPersonalInfo(m);
+            m.Knowledge?.InitializeNewUnitPersonalInfo(m, party);
         }
         party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
         parties.Add(party);

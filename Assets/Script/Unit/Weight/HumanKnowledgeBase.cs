@@ -78,6 +78,9 @@ public class HumanKnowledgeBase
 		record.StoredValue = WeightMath.ApplyPersonalChange(record.StoredValue, changeValue, type);
 		record.LastInfoType = infoType;
 		record.MentalStateAtRecord = mentalState;
+		// 23장: 실제값이나 정보 상태가 바뀐 지금 이 순간에만 오차를 다시 굴려 고정한다(조회 시점에
+		// 매번 새로 굴리면 "값이 안 바뀐다"는 요구를 어기게 된다).
+		record.PerceivedValue = ApplyInfoValueNoise(record.AppliedValue, infoType, mentalState);
 
 		// 전역 반영 큐잉 (6장/10-2장 — 웨이브 종료 후 생존자 정보만 반영)
 		_pendingIncidents.Add(new IncidentEntry(incidentId, id, targetId, type, infoType, changeValue, mentalState, observer.name, isIndividualTarget));
@@ -96,25 +99,35 @@ public class HumanKnowledgeBase
 
 	// ─────────────────────────── 5장. 신규 진입 유닛 정보 ───────────────────────────
 	// 개인 기억이 없는 신규 유닛 스폰 시, 알려진 모든 종/개체의 최신 전역값을 개인 초기값으로 복사한다.
-	public void InitializeNewUnitPersonalInfo(Unit unit)
+	// party: 23장 "전역 정보에서 발생한 수치 오차는 파티 입장 시 한 번만 산출, 같은 파티 전원이 공유"
+	// 요구사항의 공유 캐시 키로 쓰인다.
+	public void InitializeNewUnitPersonalInfo(Unit unit, Party party)
 	{
 		foreach (var kv in _species)
 		{
-			SetPersonalInitial(unit, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
-			SetPersonalInitial(unit, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
+			SetPersonalInitial(unit, party, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
+			SetPersonalInitial(unit, party, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
 		}
 		foreach (var kv in _individuals)
 		{
-			SetPersonalInitial(unit, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
-			SetPersonalInitial(unit, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
+			SetPersonalInitial(unit, party, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
+			SetPersonalInitial(unit, party, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
 		}
 	}
 
-	private void SetPersonalInitial(Unit unit, string targetId, WeightType type, float value)
+	private void SetPersonalInitial(Unit unit, Party party, string targetId, WeightType type, float value)
 	{
 		string key = PersonalWeightRecord.MakeKey(targetId, type);
 		if (unit.personalWeights.ContainsKey(key)) return; // 이미 개인 기억이 있으면 덮어쓰지 않음(5-2장)
-		unit.personalWeights[key] = new PersonalWeightRecord(targetId, type) { StoredValue = value };
+		var record = new PersonalWeightRecord(targetId, type)
+		{
+			StoredValue = value,
+			// 전역 지식을 직접 경험 없이 물려받는 것 자체가 23장 "간접 파악"에 해당.
+			LastInfoType = InfoType.Indirect,
+			MentalStateAtRecord = GetMentalState(unit),
+		};
+		record.PerceivedValue = ApplyInfoValueNoiseForParty(party, key, record.AppliedValue, record.LastInfoType, record.MentalStateAtRecord);
+		unit.personalWeights[key] = record;
 	}
 
 	// ─────────────────────────── 6장/8장/10-2장. 웨이브 종료 — 생존자 전역 반영 ───────────────────────────
@@ -274,7 +287,9 @@ public class HumanKnowledgeBase
 	{
 		string targetId = ResolveTargetKey(target);
 		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Danger);
-		float personalAccum = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
+		// 23장: 실제 누적값(StoredValue)이 아니라 정보 오차가 낀 PerceivedValue를 판단에 쓴다 —
+		// baseDanger(종 고유 기초값)는 오차 대상이 아니라 그대로 둔다.
+		float personalAccum = observer.personalWeights.TryGetValue(key, out var record) ? record.PerceivedValue : 0f;
 		return WeightMath.ComposeFinalDanger(target.BaseStat.baseDanger, personalAccum, 0f);
 	}
 
@@ -286,7 +301,8 @@ public class HumanKnowledgeBase
 
 		string targetId = ResolveTargetKey(target);
 		string key = PersonalWeightRecord.MakeKey(targetId, WeightType.Understanding);
-		float personalUnderstanding = observer.personalWeights.TryGetValue(key, out var record) ? record.StoredValue : 0f;
+		// 23장: PerceivedValue(오차 적용값) 사용 — GetPersonalDanger와 동일 근거.
+		float personalUnderstanding = observer.personalWeights.TryGetValue(key, out var record) ? record.PerceivedValue : 0f;
 		int understandingApplied = Mathf.FloorToInt(WeightMath.Clamp(personalUnderstanding, WeightType.Understanding));
 		return WeightMath.UnitInterestFromUnderstanding(target.BaseStat.baseInterest, understandingApplied);
 	}

@@ -17,6 +17,11 @@ public class PersonalWeightRecord
 	// 오차 재현을 위해, 기록 당시(혹은 최신 갱신 시점) 유닛의 정신 상태를 같이 들고 있는다 (9-2장/23장).
 	public MentalErrorState MentalStateAtRecord;
 
+	// 23장: 정보 오차가 적용된 "관찰자가 실제로 믿는" 값 — StoredValue/LastInfoType/MentalStateAtRecord가
+	// 갱신될 때만 재계산해 그 사이엔 고정한다(조회마다 다시 굴리면 "매번 바뀌는" 문제가 생김). 판단·조회는
+	// 전부 이 값을 쓰고 StoredValue(오차 없는 실제값)는 다음 갱신의 델타 계산 기준으로만 남긴다.
+	public int PerceivedValue;
+
 	public PersonalWeightRecord(string targetId, WeightType type)
 	{
 		TargetId = targetId;

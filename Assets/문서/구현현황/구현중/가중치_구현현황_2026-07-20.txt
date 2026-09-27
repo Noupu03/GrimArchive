@@ -7,6 +7,16 @@ GrimArchive 대표 가중치 3종(이해도/위험도/흥미도) 구현 현황 �
 3-1장의 E_HIT_HEAVY_INDIRECT/E_MONSTER_KILL_INDIRECT가 이제 ✅발동으로 바뀌었다 — 해당 항목과
 자세한 구현 내용은 시야인지반응_구현현황_2026-08-05.txt 참고(이 문서는 큰 개편이 아니라 그 두 줄만
 직접 갱신했다).
+2026-09-27 추가 반영: 행동경로목표결정 07번 문서(02-01) 검증 중 23장이 여전히 🔶(캐싱 API는 있으나
+원본 노이즈 함수 호출부 0곳) 상태임을 재확인하고 실제로 연결했다 — PersonalWeightRecord에
+PerceivedValue(오차 적용값) 필드 신설, HumanKnowledgeBase.RecordEventForWeight/SetPersonalInitial이
+값 갱신 시점마다 재계산해 저장, GetPersonalDanger/GetPersonalInterest는 이제 StoredValue(실제값)
+대신 PerceivedValue를 반환한다. InitializeNewUnitPersonalInfo(Unit)은 파티 공유 캐시를 쓰도록
+InitializeNewUnitPersonalInfo(Unit, Party)로 시그니처 변경(호출부 GameSession.CreateParty만 존재,
+갱신 완료). 9장은 이번에 다시 확인한 결과도 동일 — 적용 대상(약점/장비/스킬 태그류) 자체가 이
+코드베이스에 없어 그대로 둔다(아래 9장 항목 참고, 이미 정확히 기재돼 있었음). 상세 근거는
+행동경로목표결정_검증_2026-09-25.txt 02-01 항목 참고. Unity 실제 플레이 검증은 아직 안 함(.sln
+부재로 dotnet build도 미확인 — 다음 에디터 실행 시 컴파일 확인 필요).
 
 이 버전은 새 구현 라운드가 아니라 **전면 재검증**이다 — 07-09 이후 11일 동안 이 시스템의 코드
 (WeightMath.cs/HumanKnowledgeBase.cs/PersonalWeightRecord.cs/IncidentLog.cs/SpeciesWeightState.cs/
@@ -139,6 +149,8 @@ partyName/partyUnits 필드 추가, WaveSpawner.SpawnWave()가 몬스터 웨이�
 23장 파티 입장 시 정보 오차 공유는 캐싱 API(HumanKnowledgeBase.ApplyHiddenInfoNoiseForParty/
 ApplyInfoValueNoiseForParty)로 구현했지만 원본 노이즈 함수 자체에 아직 실제 호출부가 없어(9장/
 CastRay 미노이즈 기록) 대기 상태. (2026-07-20 재검증: grep으로 재확인, 여전히 호출부 0곳.)
+[해결, 2026-09-27] InitializeNewUnitPersonalInfo(파티 입장 시 전역지식 상속)가
+ApplyInfoValueNoiseForParty를 실제로 호출하도록 연결 — 아래 23장 항목 참고.
 
 의도적으로 안 한 것: 5-2장(같은 Party 인스턴스가 여러 웨이브에 걸쳐 재입장하며 기억을 유지하는
 흐름), 13-3장(전멸 전투 스킬 기록 시스템 없음) — 이번 샘플 범위 밖으로 명시적으로 뒀다. 자세한
@@ -563,14 +575,24 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ✅ 공포단계 ±1타일/±15% — mentalErr(Fear) = (1,0.15), "더 큰 쪽 채택" 규칙으로 병합
 ✅ 공황단계 ±2타일/±25% — mentalErr(Panic) = (2,0.25)
 ✅ 예시(실제100,간접파악,±10%,90~110) — WeightMath.ApplyValueNoise(), 테스트 고정
-🔶 "전역 정보 오차는 파티 입장 시 1회 산출, 같은 파티 공유" — 캐싱 API는 있다.
-   HumanKnowledgeBase.ApplyHiddenInfoNoiseForParty(party, cacheKey, ...)/
-   ApplyInfoValueNoiseForParty(party, cacheKey, ...)가 (party.Id + cacheKey) 키로 최초 1회만
-   계산하고 이후 같은 파티의 호출은 캐시된 값을 그대로 반환한다(ClearPartyInfoNoiseCache로 재입장
-   시 초기화 가능). 다만 원래 노이즈 함수(ApplyHiddenInfoNoise/ApplyInfoValueNoise) 자체를 실제로
-   부르는 게임 지점이 아직 없어서(9장 내부정보 필드 없음, CastRay의 목격 기록은 노이즈 없이
-   정확한 값을 그대로 저장) 이 파티 캐싱 API도 당장은 호출부가 없다. (2026-07-20 재검증: grep으로
-   재확인, 4개 메서드 전부 외부 호출부 0곳.)
+✅ "전역 정보 오차는 파티 입장 시 1회 산출, 같은 파티 공유" [해결, 2026-09-27] — 행동경로목표결정
+   07번 문서 02-01 검증 중 발견해 실제로 연결했다. PersonalWeightRecord.PerceivedValue(신규 필드)가
+   "관찰자가 실제로 믿는" 오차 적용값을 들고 있고, GetPersonalDanger/GetPersonalInterest는 이제
+   StoredValue(실제값) 대신 이 값을 읽는다 — 즉 이 오차가 표시뿐 아니라 AI의 실제 전투 판단
+   (CombatFSMState.SelectAttackTarget 등)에도 반영된다.
+   - 파티 입장(5장, InitializeNewUnitPersonalInfo)이 전역지식을 상속하는 순간은 "간접 파악"으로
+     간주해 ApplyInfoValueNoiseForParty(party, key, ...)를 호출 — party.Id+key 캐시라 같은 파티
+     전원이 동일한 값을 공유한다(요구사항 그대로).
+   - 던전 내부에서 RecordEvent가 개인 기록을 갱신할 때마다(HumanKnowledgeBase.RecordEventForWeight)
+     그 시점의 InfoType/MentalErrorState로 ApplyInfoValueNoise를 다시 굴려 PerceivedValue를
+     갱신한다 — "실제값이나 정보 상태가 달라질 때만 변한다"는 예시 문구와 일치(조회 시점엔 재계산
+     안 하고 캐시된 값만 반환하므로 "매번 바뀌는" 문제 없음).
+   - InitializeNewUnitPersonalInfo(Unit) → InitializeNewUnitPersonalInfo(Unit, Party)로 시그니처
+     변경(유일한 호출부 GameSession.CreateParty 갱신 완료).
+   - 9장(위 항목)은 여전히 적용 대상 시스템(약점/장비/스킬 태그) 자체가 없어 미연결 그대로 — 이건
+     이번에도 정확한 판정이었음을 재확인, 손대지 않음.
+   - Unity 실제 플레이 검증은 아직 안 함(.sln 부재로 dotnet build도 미확인 — 다음 에디터 실행 시
+     컴파일 확인 필요). 상세 근거는 행동경로목표결정_검증_2026-09-25.txt 02-01 항목 참고.
 
 ════════════════════════════════════════════════════════════════════════
 24장. 위치 및 상태 기록 충돌 처리 (🆕(1) 개정 — 원본은 "정보 우선순위와 갱신")
