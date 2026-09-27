@@ -43,7 +43,7 @@ public class FXMaterialDesignerWindow : EditorWindow
 
         EditorGUILayout.HelpBox(
             "FX Material Designer\n" +
-            "All-in-One ½ÇÇè¿ë ¼ÎÀÌ´õ¸¦ ±â¹ÝÀ¸·Î ÆÄÆ¼Å¬/¶óÀÎ/Æ®·¹ÀÏ¿ë ¸ÓÆ¼¸®¾óÀ» ºü¸£°Ô »ý¼ºÇÕ´Ï´Ù.",
+            "All-in-One ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ì´ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Å¬/ï¿½ï¿½ï¿½ï¿½/Æ®ï¿½ï¿½ï¿½Ï¿ï¿½ ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Õ´Ï´ï¿½.",
             MessageType.Info
         );
 
@@ -107,8 +107,8 @@ public class FXMaterialDesignerWindow : EditorWindow
         EditorGUILayout.Space();
 
         EditorGUILayout.HelpBox(
-            "»ý¼º ÈÄ ¸ÓÆ¼¸®¾óÀ» Particle System / Line Renderer / Trail RendererÀÇ Material ½½·Ô¿¡ ³ÖÀ¸¸é µË´Ï´Ù.\n\n" +
-            "ÀÌ ÅøÀº ÃÖÁ¾ ÃÖÀûÈ­¿ëÀÌ ¾Æ´Ï¶ó, ºü¸£°Ô ¸ÓÆ¼¸®¾ó ÇÁ¸®¼ÂÀ» Âï¾î³»´Â ½ÇÇè¿ëÀÔ´Ï´Ù.",
+            "ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Particle System / Line Renderer / Trail Rendererï¿½ï¿½ Material ï¿½ï¿½ï¿½Ô¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ë´Ï´ï¿½.\n\n" +
+            "ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½È­ï¿½ï¿½ï¿½ï¿½ ï¿½Æ´Ï¶ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½î³»ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô´Ï´ï¿½.",
             MessageType.Warning
         );
     }
@@ -219,7 +219,7 @@ public class FXMaterialDesignerWindow : EditorWindow
         {
             EditorUtility.DisplayDialog(
                 "Shader Not Found",
-                $"¼ÎÀÌ´õ¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.\n\nÇÊ¿äÇÑ ¼ÎÀÌ´õ ÀÌ¸§:\n{ShaderName}",
+                $"ï¿½ï¿½ï¿½Ì´ï¿½ï¿½ï¿½ Ã£ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½.\n\nï¿½Ê¿ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ì´ï¿½ ï¿½Ì¸ï¿½:\n{ShaderName}",
                 "OK"
             );
             return;
@@ -251,7 +251,7 @@ public class FXMaterialDesignerWindow : EditorWindow
 
         EditorUtility.DisplayDialog(
             "Material Created",
-            $"¸ÓÆ¼¸®¾ó »ý¼º ¿Ï·á:\n{path}",
+            $"ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ï·ï¿½:\n{path}",
             "OK"
         );
     }

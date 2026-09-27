@@ -41,17 +41,31 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
-    private UnityEngine.Tilemaps.Tile wallTile;
-    private UnityEngine.Tilemaps.Tile stairTile;
+    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션 소스. Resources/Tile/TileSpriteLibrary.spriteLib
+    // (Unity 2D Animation SpriteLibraryAsset — Char_Knight.spriteLib와 동일한 방식, Window > 2D >
+    // Sprite Library Editor로 편집)의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시해둔다. 라이브러리가
+    // 없거나 카테고리가 비어있으면 null 그대로(BuildVariantTiles가 원본 스프라이트로 폴백).
+    private SpriteLibraryAsset _spriteLibrary;
+    private Sprite[] _floorLabelSprites;
+    private Sprite[] _wallLabelSprites;
+    private bool _tileLibraryLoaded;
 
-    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션. Resources/Tile/TileSpriteLibrary.spriteLib(Unity 2D
-    // Animation SpriteLibraryAsset — Char_Knight.spriteLib와 동일한 방식, Window > 2D > Sprite Library
-    // Editor로 편집)의 "Floor"/"Wall" 카테고리에 담긴 라벨별 스프라이트를 그대로 후보로 쓴다. 0번은
-    // 항상 기존 wallSprite/floorSprite와 같은 스프라이트라 라이브러리에 라벨을 안 채워도 기존 룩 그대로.
-    // 바리에이션을 "어떤 규칙으로" 배치할지(방 역할/바이옴/인접 타일 등)는 아직 기획이 없어서
-    // PickRandomVariant가 완전 랜덤으로 하나를 고르는 자리표시자다 — 규칙이 정해지면 교체할 것.
-    private UnityEngine.Tilemaps.Tile[] wallTileVariants;
-    private UnityEngine.Tilemaps.Tile[] floorTileVariants;
+    // 층별 색상 테마 배정표(2026-09-27, 단일 활성 테마에서 층별 배정으로 확장 — 사용자 요청). 배정
+    // 내용 자체는 Tools(new)의 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
+    private const string FloorColorThemesResourcePath = "MapColorTheme_FloorAssignments";
+    private MapFloorColorThemes _floorColorThemes;
+
+    // 벽 자동 타일 연결(회의록 2026-09-27) — 층마다 색 테마가 다를 수 있어(위 배정표) Wall/Floor Tile을
+    // 층별로 따로 굽는다. WallVariant 10종 라벨(WallAutoTileMath.GetSpriteLibraryLabel)이 비어있으면
+    // (=정림이 아직 실제 아트를 안 채운 상태) wallSprite로 폴백해 형태는 지금 룩 그대로 유지된다.
+    private class FloorTileSet
+    {
+        public UnityEngine.Tilemaps.Tile[] wallVariants;
+        public UnityEngine.Tilemaps.Tile[] floorVariants;
+        public UnityEngine.Tilemaps.Tile[] wallShapeTiles;
+        public UnityEngine.Tilemaps.Tile stairTile;
+    }
+    private readonly Dictionary<int, FloorTileSet> _floorTileSets = new Dictionary<int, FloorTileSet>();
 
     // TilemapRenderer 기본 머티리얼(Sprites/Default, Unlit)은 Light2D에 반응하지 않아 URP 2D Lit
     // 셰이더를 명시적으로 물려준다.
@@ -105,37 +119,30 @@ public class MapRandering : NativeRoutine, IMapColorizer
             LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down2/stair_up2 이미지를 찾지 못했습니다.");
         }
 
-        if (floorTileVariants == null || wallTileVariants == null)
-            BuildTileVariants();
+        if (!_tileLibraryLoaded)
+            LoadTileLibrary();
 
-        // 기존 필드 — SetTileToWall(디버그 단일 셀 갱신)이 계속 참조하므로 0번 변형(원본 스프라이트)으로 유지.
-        wallTile = wallTileVariants[0];
+        if (_floorColorThemes == null)
+            _floorColorThemes = Resources.Load<MapFloorColorThemes>(FloorColorThemesResourcePath);
 
-        // 계단 타일은 현재 바닥 타일과 동일하게 렌더링 — 아이콘은 RenderStairOverlays가 오버레이로 처리
-        // 별도 계단 스프라이트가 필요해지면 stairSprite를 Resources.Load로 로드하고 여기서 할당할 것
-        stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-        stairTile.sprite = floorSprite;
+        // 맵을 다시 생성할 때마다 배정표를 새로 반영하도록 층별 캐시를 비운다 — 이전 세션 값이 아니라
+        // 지금 배정표 내용 그대로 다시 굽는다(2026-09-27, 재생성 시 테마가 안 바뀌어 보이는 문제 방지).
+        _floorTileSets.Clear();
     }
 
-    // ⚠ 임시 기능 — TileSpriteLibrary.spriteLib의 "Floor"/"Wall" 카테고리 라벨을 읽어 바리에이션
-    // Tile 배열을 만든다. 라이브러리가 없거나 카테고리가 비어있으면 원본 스프라이트 1개짜리 배열로
-    // 폴백(기존 룩 그대로).
-    void BuildTileVariants()
+    // TileSpriteLibrary.spriteLib의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시한다(테마별로
+    // 다시 읽을 필요 없음 — 라벨/스프라이트 자체는 테마와 무관, 색만 GetOrBuildFloorTileSet에서 입힌다).
+    void LoadTileLibrary()
     {
-        Sprite[] floorLabelSprites = null;
-        Sprite[] wallLabelSprites = null;
-
+        _tileLibraryLoaded = true;
 #if UNITY_2022_2_OR_NEWER
-        var library = Resources.Load<SpriteLibraryAsset>("Tile/TileSpriteLibrary");
-        if (library != null)
+        _spriteLibrary = Resources.Load<SpriteLibraryAsset>("Tile/TileSpriteLibrary");
+        if (_spriteLibrary != null)
         {
-            floorLabelSprites = LoadCategorySprites(library, "Floor");
-            wallLabelSprites = LoadCategorySprites(library, "Wall");
+            _floorLabelSprites = LoadCategorySprites(_spriteLibrary, "Floor");
+            _wallLabelSprites = LoadCategorySprites(_spriteLibrary, "Wall");
         }
 #endif
-
-        floorTileVariants = BuildVariantTiles(floorSprite, floorLabelSprites);
-        wallTileVariants = BuildVariantTiles(wallSprite, wallLabelSprites);
     }
 
 #if UNITY_2022_2_OR_NEWER
@@ -151,9 +158,60 @@ public class MapRandering : NativeRoutine, IMapColorizer
     }
 #endif
 
+    // 층 하나의 벽/바닥 Tile 세트를 그 층에 배정된 테마 색으로 구워 캐시한다(2026-09-27, 층별 배정
+    // 지원 — 층마다 색이 다를 수 있어 더 이상 전 층 공유 배열을 쓸 수 없다).
+    FloorTileSet GetOrBuildFloorTileSet(int floorIndex)
+    {
+        if (_floorTileSets.TryGetValue(floorIndex, out var cached)) return cached;
+
+        MapColorTheme theme = _floorColorThemes != null ? _floorColorThemes.GetThemeForFloor(floorIndex) : null;
+        Color wallTint = theme != null ? theme.wallColor : Color.white;
+        Color floorTint = theme != null ? theme.floorColor : Color.white;
+
+        // 계단 타일은 바닥 타일과 같은 스프라이트를 쓴다(아이콘은 RenderStairOverlays가 오버레이로
+        // 처리) — floorTint를 똑같이 입혀야 아이콘이 못 덮는 가장자리가 주변 바닥과 이어져 보인다
+        // (2026-09-27 사용자 신고 "계단 스프라이트 뒤쪽부분 바닥 색 안바뀌는 문제" 수정).
+        var stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+        stairTile.sprite = floorSprite;
+        stairTile.color = floorTint;
+
+        var set = new FloorTileSet
+        {
+            wallVariants = BuildVariantTiles(wallSprite, _wallLabelSprites, wallTint),
+            floorVariants = BuildVariantTiles(floorSprite, _floorLabelSprites, floorTint),
+            wallShapeTiles = BuildWallShapeTiles(wallTint),
+            stairTile = stairTile,
+        };
+        _floorTileSets[floorIndex] = set;
+        return set;
+    }
+
+    // WallVariant 10종 각각의 Tile을 만든다 — TileSpriteLibrary "Wall" 카테고리에서 GetSpriteLibraryLabel
+    // 라벨로 스프라이트를 찾고, 없으면(라이브러리 자체가 없거나 그 라벨만 비어있어도) wallSprite로 폴백한다.
+    UnityEngine.Tilemaps.Tile[] BuildWallShapeTiles(Color wallTint)
+    {
+        var variantValues = (WallVariant[])System.Enum.GetValues(typeof(WallVariant));
+        var tiles = new UnityEngine.Tilemaps.Tile[variantValues.Length];
+        foreach (WallVariant variant in variantValues)
+        {
+            Sprite sprite = null;
+#if UNITY_2022_2_OR_NEWER
+            if (_spriteLibrary != null)
+                sprite = _spriteLibrary.GetSprite("Wall", WallAutoTileMath.GetSpriteLibraryLabel(variant));
+#endif
+            if (sprite == null) sprite = wallSprite;
+
+            var tile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+            tile.sprite = sprite;
+            tile.color = wallTint;
+            tiles[(int)variant] = tile;
+        }
+        return tiles;
+    }
+
     // baseSprite(항상 0번)에 라이브러리 라벨 스프라이트를 이어붙인다 — 중복(라이브러리 라벨이 base와
     // 같은 스프라이트를 가리키는 경우, 지금 기본 상태가 그렇다)은 제외한다.
-    UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants)
+    UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants, Color tint)
     {
         var sprites = new List<Sprite> { baseSprite };
         if (extraVariants != null)
@@ -165,18 +223,39 @@ public class MapRandering : NativeRoutine, IMapColorizer
         {
             var t = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
             t.sprite = sprites[i];
+            t.color = tint;
             tiles[i] = t;
         }
         return tiles;
     }
 
-    // ⚠ 임시 기능 — 배치 규칙 미정이라 완전 랜덤. 규칙이 정해지면 이 메서드를 그 규칙으로 교체할 것.
+    // ⚠ 임시 기능 — 배치 규칙 미정이라 완전 랜덤. 바닥 타일 전용(벽은 아래 GetWallShapeTile이 대체).
     private static UnityEngine.Tilemaps.Tile PickRandomVariant(UnityEngine.Tilemaps.Tile[] variants)
     {
         if (variants == null || variants.Length == 0) return null;
         if (variants.Length == 1) return variants[0];
         return variants[UnityEngine.Random.Range(0, variants.Length)];
     }
+
+    // 벽 자동 타일 연결(회의록 2026-09-27) — (wx,wy) 벽 타일의 8방향 인접 상태를 isWall 격자에서 읽어
+    // WallAutoTileMath로 10종 중 하나를 판정하고, 그 WallVariant에 해당하는 Tile을 반환한다.
+    private static UnityEngine.Tilemaps.TileBase GetWallShapeTile(bool[,] isWall, int worldW, int worldH, int wx, int wy, UnityEngine.Tilemaps.Tile[] wallShapeTiles)
+    {
+        bool n = IsWallAt(isWall, worldW, worldH, wx, wy + 1);
+        bool s = IsWallAt(isWall, worldW, worldH, wx, wy - 1);
+        bool e = IsWallAt(isWall, worldW, worldH, wx + 1, wy);
+        bool w = IsWallAt(isWall, worldW, worldH, wx - 1, wy);
+        bool ne = IsWallAt(isWall, worldW, worldH, wx + 1, wy + 1);
+        bool nw = IsWallAt(isWall, worldW, worldH, wx - 1, wy + 1);
+        bool se = IsWallAt(isWall, worldW, worldH, wx + 1, wy - 1);
+        bool sw = IsWallAt(isWall, worldW, worldH, wx - 1, wy - 1);
+
+        WallVariant variant = WallAutoTileMath.SelectVariant(n, s, e, w, ne, nw, se, sw);
+        return wallShapeTiles[(int)variant];
+    }
+
+    private static bool IsWallAt(bool[,] isWall, int worldW, int worldH, int x, int y)
+        => x >= 0 && x < worldW && y >= 0 && y < worldH && isWall[x, y];
 
     private Sprite CreateColorSprite(Color color)
     {
@@ -248,6 +327,11 @@ public class MapRandering : NativeRoutine, IMapColorizer
         var tiles = new UnityEngine.Tilemaps.TileBase[totalTiles];
         int idx = 0;
 
+        // 벽 자동 타일 연결용 — 청크 경계를 넘나드는 8방향 인접 판정을 위해 층 전체를 미리 평탄화한다
+        // (BuildWallMask와 동일한 산출물, 셰도우캐스터 쪽과 별개로 렌더링 시점에 한 번 더 계산).
+        bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
+        FloorTileSet tileSet = GetOrBuildFloorTileSet(floorIdx);
+
         for (int cx = 0; cx < chunkCountX; cx++)
         {
             for (int cy = 0; cy < chunkCountY; cy++)
@@ -260,12 +344,15 @@ public class MapRandering : NativeRoutine, IMapColorizer
                     for (int ty = 0; ty < chunkSize; ty++)
                     {
                         string tileName = chunk.chunk[tx, ty].name;
-                        UnityEngine.Tilemaps.TileBase tileBase;
-                        if (tileName == "Wall") tileBase = PickRandomVariant(wallTileVariants);
-                        else if (tileName == "Stair") tileBase = stairTile;
-                        else tileBase = PickRandomVariant(floorTileVariants);
+                        int wx = cx * chunkSize + tx;
+                        int wy = cy * chunkSize + ty;
 
-                        positions[idx] = new Vector3Int(cx * chunkSize + tx, cy * chunkSize + ty, 0);
+                        UnityEngine.Tilemaps.TileBase tileBase;
+                        if (tileName == "Wall") tileBase = GetWallShapeTile(isWall, worldW, worldH, wx, wy, tileSet.wallShapeTiles);
+                        else if (tileName == "Stair") tileBase = tileSet.stairTile;
+                        else tileBase = PickRandomVariant(tileSet.floorVariants);
+
+                        positions[idx] = new Vector3Int(wx, wy, 0);
                         tiles[idx] = tileBase;
                         idx++;
                     }
@@ -421,8 +508,11 @@ public class MapRandering : NativeRoutine, IMapColorizer
     {
         if (floorTilemaps == null || floorIndex < 0 || floorIndex >= floorTilemaps.Length) return;
         Tilemap tilemap = floorTilemaps[floorIndex];
-        if (tilemap == null || wallTile == null) return;
-        tilemap.SetTile(localPos, wallTile);
+        if (tilemap == null) return;
+
+        var tileSet = GetOrBuildFloorTileSet(floorIndex);
+        if (tileSet.wallVariants == null || tileSet.wallVariants.Length == 0) return;
+        tilemap.SetTile(localPos, tileSet.wallVariants[0]);
     }
 
     // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 비정형

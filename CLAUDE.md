@@ -456,3 +456,84 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
    확인 — 파이어볼 착탄 지연(1500ms 자리표시자) 튜닝, 낙하 오브젝트 연출, 광역기 데미지 재튜닝,
    `SkillData.damageType` 필드 신설(지금은 물리/마법이 아키타입별 하드코딩) 순서로 정리돼 있다.
 2. 새로 구현/연결한 게 있으면 그 문서를 직접 갱신한다(다른 구현현황 문서와 동일 관례).
+
+## 유니티 상단 Tools 메뉴 구조 (Tools / Tools(new), 2026-09-27)
+
+**핵심 사실 — "Tools"는 이름을 바꿀 수 있는 별도 객체가 아니다.** Unity는 `[MenuItem("Tools/...")]`
+처럼 문자열이 "Tools/"로 시작하는 게 하나라도 있으면 그 이름의 최상위 메뉴를 자동으로 만든다.
+"Tools를 다른 이름으로 바꾼다"는 건 결국 그 문자열들을 전부 바꾸는 것과 동일하다.
+
+같은 날 안에서 두 번 뒤집힌 결정이라 순서를 남겨둔다:
+1. 처음엔 기존 `Tools/*`·`GrimArchive/*` 항목 전부(24개 파일, 29개 `[MenuItem]`)를
+   `Tools(old)/...`로 옮겨 `Tools`와 분리했다.
+2. `Assets/Plugins/Demigiant/DOTween/Editor/DOTweenEditor.dll`에 미리 컴파일된
+   `Tools/Demigiant/DOTween Utility Panel`은 소스가 아니라 바이너리 안의 문자열이라 옮길 방법이
+   없다(`Menu.RemoveMenuItem` 비공개 API + 리플렉션 우회안은 있지만, DOTween 업데이트 시 깨질 수
+   있어 사용자가 기각) — 즉 `Tools`라는 최상위 메뉴 자체는 DOTween 때문에 절대 완전히 없어지지
+   않는다.
+3. 그럴 거면 굳이 `Tools(old)`로 나눠둘 이유가 없다고 판단해(사용자: "으악. 그럼 tools old에
+   있는 내용들을 전부 tools에 넣자") **다시 전부 `Tools/...`로 되돌렸다** — 최종 상태는 기존
+   그대로: GrimArchive 관련 항목은 `Tools/GrimArchive/...`, 나머지는 `Tools/...` 그대로이고
+   `Tools/Demigiant/...`(DOTween)와 그냥 공존한다.
+
+**새 에디터 툴의 `[MenuItem]`은 여전히 `Tools(new)/...` 아래에 만들 것** — 이 관례만 유지된다.
+다만 "실행 한 번으로 끝나는 일회성 에셋 준비" 성격이 강해 사용자가 굳이 메뉴가 필요 없다고 판단한
+경우(예: 벽 자동 타일 스프라이트 라벨 슬롯 — 아래 섹션 참고)는 GUI 없이 코드만 추가하고 끝내기도
+한다. 다시 "old/new로 나누자"는 제안이 나오면 위 1~3번 히스토리부터 공유할 것(같은 시행착오를
+반복하지 말 것).
+
+## 벽 자동 타일 연결 + 색상 테마 (회의록 2026-09-27)
+
+### 배경
+
+정림(아트)·송성현(사용자) 회의록(`Assets/문서/공식문서/회의록 09.27.md`) 기반 2가지 작업.
+구현현황은 `Assets/문서/구현현황/구현중/벽자동타일_색상테마_구현현황_2026-09-27.txt`(또는 그 이후
+최신본) — 이 시스템을 다시 손댈 때는 그 문서부터 확인할 것(다른 구현현황 문서와 동일 관례).
+
+1. **벽 자동 타일 연결**: 벽 타일을 배치하면 주변 8방향 연결 상태를 보고 10종(직선 2 + 외곽 모서리
+   4 + 안쪽 모서리 4) 중 적절한 스프라이트를 자동 선택한다. 순수 판정 함수는
+   `Assets/Script/Randering/WallAutoTileMath.cs`(`WallVariant` enum + `SelectVariant`, 우선순위:
+   안쪽 모서리 > 바깥쪽 모서리 > 직선 > 예외 Horizontal 폴백), 단위테스트는
+   `Assets/Tests/WallAutoTileTests.cs`. `MapRandering.RenderFloor`가 Wall 타일마다 `BuildWallMask`
+   (기존 셰도우캐스터용 헬퍼 재사용)로 만든 층 전체 bool 격자에서 8방향을 샘플링해 판정하고,
+   `wallShapeTiles[10]`(각 변형의 실제 Tile)에서 골라 배치한다 — 기존 `PickRandomVariant`(완전
+   랜덤)를 대체했다(바닥 타일은 그대로 랜덤 유지, 이번 변경과 무관). 실제 스프라이트는
+   `Assets/Resources/Tile/TileSpriteLibrary.spriteLib`의 "Wall" 카테고리에서
+   `WallAutoTileMath.GetSpriteLibraryLabel`이 반환하는 라벨(`Wall_Horizontal`/`Wall_Outer_TL` 등
+   회의록에 명시된 이름 그대로)로 조회한다. 사용자가 명시적으로 "tools에 넣지 말고"라고 확정해서
+   별도 EditorWindow/메뉴 없이 코드+슬롯 준비까지만 했다 — **10개 라벨 자체는 2026-09-27에 이미
+   `TileSpriteLibrary.spriteLib`를 직접 편집해 만들어뒀다**(기존 "Base" 라벨 1개를 10개로 교체,
+   전부 당장은 기존 wallSprite(Tile_StoneWall)를 임시로 가리킴 — 라벨을 새로 만들 필요는 없고, 이제
+   정림이 Sprite Library Editor(Window > 2D > Sprite Library Editor)에서 그 10개 라벨 각각의
+   스프라이트만 실제 아트로 교체하면 코드 변경 없이 바로 반영된다). `.spriteLib`는 YAML이지만
+   `SpriteLibrarySourceAssetImporter.OnImportAsset`이 라벨 `m_Hash`를 신뢰하지 않고 `m_Name`에서
+   항상 새로 계산하므로(`Library/PackageCache/com.unity.2d.animation@.../Editor/SpriteLib/
+   SpriteLibrarySourceAsset/SpriteLibrarySourceAssetImporter.cs` 확인) 손으로 편집해도 해시를 맞출
+   필요가 없다 — 다만 이건 이 자산의 구조를 직접 확인하고 내린 예외적 판단이고, 일반적으로는 여전히
+   "Unity Editor 환경" 메모의 원칙(프리팹 등은 손으로 YAML 편집 금지, 메뉴 툴을 거칠 것)을 따른다.
+2. **색상 초기값 테마**: 런타임 조정이 아니라 "같은 스프라이트로 다른 테마 표현"용 생성 시점 틴트
+   (정림 확정: "RGB 초기값만... 런타임 변경이 당장 필수가 아녀서"). `MapColorTheme`
+   (`Assets/Script/Randering/MapColorTheme.cs`, `[CreateAssetMenu]` ScriptableObject —
+   themeName/wallColor/floorColor)를 여러 개 만들어 보관한다. **층별로 다른 프리셋을 배정할 수
+   있다**(2026-09-27 같은 날 후속 요청 "층별 색깔 프리셋 지정 가능하게 바꾸자" — 처음엔 "활성 테마"
+   1개만 전 층 공통 적용이었다가 교체) — `MapFloorColorThemes`
+   (`Assets/Script/Randering/MapFloorColorThemes.cs`, defaultTheme + 층별 리스트)가
+   `Assets/Resources/MapColorTheme_FloorAssignments.asset` 단일 인스턴스로 저장되고,
+   `Tools(new)/맵 타일 색상 테마`(`Assets/Editor/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
+   (이 프로젝트는 `FloorId` 0~3 고정 4개 층이라 "기본값"+"0~3층" 5개 `ObjectField`)이 이 에셋을
+   편집한다. `MapRandering`은 이제 벽/바닥 Tile을 전 층 공유가 아니라 층마다
+   `GetOrBuildFloorTileSet(floorIndex)`로 따로 구워 캐시한다 — 그 층에 명시 배정이 없으면
+   `defaultTheme`, 그것도 없으면 흰색(원본 그대로) — 다음 맵 생성부터 반영, 실시간 반영 아님. 이
+   층별 캐시(`_floorTileSets`)는 `BuildTileCache`가 매 맵 생성(재생성 포함)마다 비우므로, 배정을
+   바꾼 뒤 맵을 다시 생성하면 바로 반영된다(세션을 새로 시작할 필요 없음 — 처음엔 세션당 한 번만
+   굽고 재사용해 재생성해도 안 바뀌는 문제가 있었는데, 이 확장 작업 중 같이 고쳤다).
+
+### 다음에 이 시스템을 확장할 때
+
+1. `벽자동타일_색상테마_구현현황_2026-09-27.txt`(또는 그 이후 최신본) 맨 위 "다음 우선순위 구현
+   후보" 확인 — 실제 벽 아트 10종은 아직 없고, 색상 테마도 층별 배정을 다시 해줘야 하는 상태다
+   (기존 "테스트" 프리셋 자체는 안 사라짐, 재연결만 필요)라고 적혀 있다.
+2. T자/십자/벽 끝부분(`Wall_End_*`/`Wall_T_*`/`Wall_Cross`)이 필요해지면
+   `WallAutoTileMath.SelectVariant`의 예외 폴백 분기부터 확장할 것 — 지금은 전부 Horizontal로
+   뭉뚱그려진다.
+3. 새로 구현/연결한 게 있으면 구현현황 문서를 직접 갱신한다(다른 구현현황 문서와 동일 관례).

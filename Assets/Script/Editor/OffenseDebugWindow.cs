@@ -21,7 +21,7 @@ public class OffenseDebugWindow : EditorWindow
     private int _addResourceAmount = 100;
     private static Room _dummyRoom;
 
-    [MenuItem("GrimArchive/오펜스 시스템 디버그 툴")]
+    [MenuItem("Tools/GrimArchive/오펜스 시스템 디버그 툴")]
     public static void ShowWindow()
     {
         GetWindow<OffenseDebugWindow>("오펜스 디버그");

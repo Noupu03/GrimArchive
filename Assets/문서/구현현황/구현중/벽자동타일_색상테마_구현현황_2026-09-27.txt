@@ -1,0 +1,122 @@
+벽 자동 타일 연결 + 색상 테마 구현현황 (2026-09-27)
+════════════════════════════════════════════════════════════════════════
+작성 목적: Assets/문서/공식문서/회의록 09.27.md(정림·송성현 대화, 총 2가지 할 일)를 반영한 작업을
+정리한다. 가중치/시야인지반응 구현현황 문서와 동일한 관례(✅구현/🔶부분/❌미구현 태그 + "다음
+우선순위" 섹션)를 따른다.
+
+■ 다음 우선순위 구현 후보 (사용자 확인 필요)
+────────────────────────────────────────────────────────────────────────
+1. **라벨은 만들어짐, 실제 벽 아트 10종은 아직 없음** — 2026-09-27에
+   `Assets/Resources/Tile/TileSpriteLibrary.spriteLib`를 직접 편집해 "Wall" 카테고리의 기존
+   "Base" 라벨 1개를 `Wall_Horizontal`/`Wall_Vertical`/`Wall_Outer_TL·TR·BL·BR`/
+   `Wall_Inner_TL·TR·BL·BR` 10개로 교체했다(전부 당장은 기존 wallSprite(Tile_StoneWall) guid를
+   임시로 가리킴 — 지금 상태로도 게임은 정상 동작, 시각적 변화 없음). 정림은 이제 라벨을 새로
+   만들 필요 없이 Sprite Library Editor(Window > 2D > Sprite Library Editor)에서 그 10개 라벨
+   각각의 스프라이트만 실제 아트로 교체하면 된다. (.spriteLib는 YAML이지만
+   `SpriteLibrarySourceAssetImporter`가 라벨 `m_Hash`를 신뢰하지 않고 `m_Name`에서 항상 재계산하는
+   걸 소스 확인 후 직접 편집 — 일반 프리팹 편집 금지 원칙의 의도적 예외.)
+2. **기본값만 재연결됨, 층별 개별 배정은 아직 없음** — 단일 "활성 테마" 구조에서 층별 배정(아래
+   "■ 2." 참고)으로 바뀌면서 옛 `MapColorTheme_Active.asset`은 삭제했지만, 사용자가 실제로 Unity
+   에디터에서 새 창을 열어 "테스트" 프리셋(`Assets/Resources/Themes/MapColorTheme_New.asset`,
+   벽=빨강/바닥=보라)을 "기본값"에 다시 배정해 정상 동작 확인함(2026-09-27 17:02, 파일 타임스탬프로
+   확인). 0~3층 개별 배정(`floorThemes`)은 아직 비어있음(`[]`) — 층마다 다른 색을 실제로 쓰려면
+   그것도 채워야 한다.
+3. **T자/십자/끝부분 벽은 범위 밖** — 회의록이 명시적으로 10종만 우선 구현하기로 했다
+   (Wall_End_*/Wall_T_*/Wall_Cross는 필요해지면 추가). 지금 WallAutoTileMath는 이 케이스들을
+   전부 Horizontal로 폴백한다(정확한 모양 아님, 의도된 단순화).
+4. **KakaoTalk 참고 이미지(Assets/KakaoTalk_20260927_144913940.png) 미사용** — 실제 10종 스프라이트
+   슬라이싱/생성에는 안 썼다(참고용 프리뷰 1장일 뿐, 분리된 원본 아님). 사용자가 "로직+슬롯만"
+   범위로 확정.
+
+════════════════════════════════════════════════════════════════════════
+■ 1. 벽 자동 타일 연결 (회의록 "벽 타일 자동 연결 구현안")
+════════════════════════════════════════════════════════════════════════
+배경: 벽 타일을 배치하면 주변 8방향 연결 상태를 보고 10종(직선 2 + 외곽 모서리 4 + 안쪽 모서리 4)
+중 적절한 스프라이트를 자동 선택. 우선순위: 안쪽 모서리 > 바깥쪽 모서리 > 직선 > 예외(Horizontal
+폴백). 기존 `MapRandering.RenderFloor`가 Wall 타일에 `PickRandomVariant`(완전 랜덤)를 쓰던 자리를
+대체 — 그 자리 주석이 "배치 규칙이 정해지면 교체할 것"이라고 이미 예고해뒀던 지점.
+
+✅ 구현 — `Assets/Script/Randering/WallAutoTileMath.cs`(신규): 순수 함수
+  `SelectVariant(n,s,e,w,ne,nw,se,sw) -> WallVariant`(10종 enum) + `GetSpriteLibraryLabel(변형)`로
+  회의록이 명시한 라벨 이름(`Wall_Horizontal` 등)을 고정. 안쪽 모서리는 "직교 두 방향이 막혀 있어도
+  그 사이 대각선이 비어있으면" 판정(회의록 예시 그대로), 다른 조건보다 항상 먼저 검사(우선순위 반영).
+  단위테스트: `Assets/Tests/WallAutoTileTests.cs`(10종 전부 + 우선순위 역전 케이스 + 라벨 문자열 고정).
+
+✅ 구현 — `MapRandering.cs` 통합: `RenderFloor`가 `BuildWallMask`(기존 셰도우캐스터용 헬퍼 재사용)로
+  층 전체를 평탄화한 bool 격자를 만들고, Wall 타일마다 8방향을 샘플링해 `GetWallShapeTile`이
+  `wallShapeTiles[10]` 중 하나를 반환한다. `wallShapeTiles`는 `BuildWallShapeTiles`가
+  `TileSpriteLibrary.spriteLib`의 "Wall" 카테고리에서 정확한 라벨로 조회하고, 없으면(라이브러리
+  자체가 없거나 그 라벨만 비어있어도) 기존 wallSprite로 폴백한다 — 정림이 라벨만 채우면 코드 변경
+  없이 바로 반영됨. 바닥 타일(`floorTileVariants`/`PickRandomVariant`)은 이번 변경과 무관, 그대로
+  랜덤 유지.
+
+✅ 구현 — `TileSpriteLibrary.spriteLib`의 "Wall" 카테고리 라벨 슬롯 10개를 직접 준비(2026-09-27,
+  사용자 요청 "스프라이트 렌더러의 라벨들을 회의록에 명시한대로 바꿔줘"). 기존 "Base" 라벨 1개를
+  10개로 교체, 전부 당장은 Tile_StoneWall guid를 가리켜 시각적 변화 없음 — 정림이 각 라벨의
+  스프라이트만 Sprite Library Editor에서 교체하면 끝. 위 "다음 우선순위" 1번 참고.
+
+❌ 미구현 — GUI 툴: 사용자가 명시적으로 "tools에 넣지 말고" 요청(2026-09-27) — 라벨 채우기는 Unity
+  기본 Sprite Library Editor로 충분하다고 판단, 별도 검증/미리보기 EditorWindow 없음.
+
+════════════════════════════════════════════════════════════════════════
+■ 2. 벽/바닥 색상 초기값 테마 (회의록 "RGB 초기값" 대화)
+════════════════════════════════════════════════════════════════════════
+배경: "같은 스프라이트로 다른 테마 표현" 용도, 런타임 조정 아님(정림 확정: "RGB 초기값만 해도
+될듯... 런타임 변경이 당장 필수가 아녀서"). 사용자가 "다중 프리셋" 범위로 확정. **2026-09-27
+후속(같은 날) — 단일 "활성 테마" 1개짜리 구조에서 층별 배정 구조로 확장**(사용자 요청: "층별 색깔
+프리셋 지정 가능하게 바꾸자"). 이 프로젝트는 `FloorId`(MapData.cs)가 0~3 고정 4개 층이라(로비+1~3),
+UI도 그 4개를 고정 슬롯으로 보여준다.
+
+✅ 구현 — `Assets/Script/Randering/MapColorTheme.cs`: `[CreateAssetMenu]` ScriptableObject,
+  `themeName`/`wallColor`/`floorColor` 3필드. 프리셋 하나당 하나, 여러 개 만들어 보관.
+  "이름" 필드를 바꾸면 `AssetDatabase.RenameAsset`으로 에셋 파일명도 같이 바뀐다(2026-09-27 추가,
+  사용자 요청 — 파일 시스템 직접 rename 대신 API를 거쳐 .meta/GUID 안전하게 유지).
+✅ 구현 — `Assets/Script/Randering/MapFloorColorThemes.cs`(신규, 2026-09-27 층별 배정으로 교체하며
+  추가): `defaultTheme`(미지정 층 폴백) + `floorThemes`(층 인덱스→MapColorTheme 리스트) 2필드,
+  `GetThemeForFloor`/`GetExplicitThemeForFloor` 조회 메서드. 단일 인스턴스로
+  `Assets/Resources/MapColorTheme_FloorAssignments.asset`에 저장(Resources 로드 가능해야 하므로).
+✅ 구현 — `Assets/Editor/MapColorThemeWindow.cs`: 프리셋 목록(AssetDatabase.FindAssets 기반)
+  조회/생성/편집/삭제(`MoveAssetToTrash`라 휴지통으로 이동—영구삭제 아님, 삭제 전 확인 다이얼로그,
+  현재 층 배정에 쓰이는 프리셋을 지우면 경고 문구 추가) + **"층별 테마 배정" 섹션**(2026-09-27
+  교체 — 기존 "활성 테마로 지정" 버튼 제거): "기본값" 1개 + "0층/1층/2층/3층" 4개, 전부
+  `ObjectField`로 원하는 `MapColorTheme` 프리셋을 직접 드래그해서 배정(프로젝트 아무 폴더의
+  `MapColorTheme` 에셋이나 가능, `_presets` 목록에 안 잡혀도 무방). 값이 바뀌면 그 자리에서
+  `MapFloorColorThemes.asset`에 즉시 저장.
+✅ 구현 — `MapRandering`: 이제 벽/바닥 Tile을 전 층 공유가 아니라 **층마다 따로** 굽는다
+  (`GetOrBuildFloorTileSet(floorIndex)`, `FloorTileSet{wallVariants,floorVariants,wallShapeTiles}`
+  캐시). `BuildTileCache`가 `Resources.Load<MapFloorColorThemes>("MapColorTheme_FloorAssignments")`
+  를 읽고, 층별 캐시(`_floorTileSets`)를 매 맵 생성마다 비워서(2026-09-27 추가) 재생성할 때마다
+  배정표를 다시 반영한다(이전엔 세션 중 첫 생성 값에 고정돼 있었음 — 사용자 질문에 답하며 발견한
+  캐시 정체 문제를 이 참에 같이 고침). 층에 명시 배정이 없으면 `defaultTheme`, 그것도 없으면
+  흰색(원본 그대로). 계단(stairTile)도 이제 floorTint 적용(2026-09-27 수정 — 처음엔 "회의록 언급
+  없음"이라 미적용으로 남겨뒀는데, 계단 아이콘(RenderStairOverlays 오버레이)이 타일 전체를 못 덮어
+  가장자리에 미적용 바닥색이 비치는 게 사용자 테스트로 확인돼(신고: "계단 스프라이트 뒤쪽부분 바닥
+  색 안바뀌는 문제") floorVariants와 동일하게 맞춤. FloorTileSet.stairTile로 층별로도 분리됨.
+✅ 완료 — 사용자가 테스트로 만들었던 "테스트" 프리셋(`Assets/Resources/Themes/
+  MapColorTheme_New.asset`, 벽=빨강/바닥=보라)은 그대로 두고, 그걸 활성화해뒀던
+  `MapColorTheme_Active.asset`만 삭제(구조 자체가 대체됨). 위 "다음 우선순위" 2번 참고 —
+  재배정 필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 3. 유니티 상단 메뉴 정리 (Tools/Tools(new), 같은 날 두 번 뒤집힘)
+════════════════════════════════════════════════════════════════════════
+배경: 기존 "Tools"/"GrimArchive" 두 최상위 메뉴가 번잡해져 사용자가 통합 요청. 자세한 판단 근거는
+CLAUDE.md "유니티 상단 Tools 메뉴 구조" 섹션 참고 — 여기는 타임라인만 요약.
+
+✅ 1차(같은 날 오전) — 기존 항목(Tools/* + GrimArchive/*, 24개 파일/29개 MenuItem)을 전부
+  `Tools(old)/...`로 병합(AutoAssignCompositionRoot/BossGolemVisualScaleFix/AIConfigAutoSetup/
+  BossGolemHandSetupTool/EncyclopediaSetup×2/HaareUIAddressableSetupWindow/HaareDemoSetup×2/
+  HaareUISetup/HitSparkPrefabUpdater/JsonToUnitPrefabConverter/KeyGuidePanelSetup/MapGeneratorTool/
+  MapViewTool/ProjectileSetupTool/SettingsPanelSetup/TitleSceneSetup/UnitShadowCasterSync/
+  VfxParticleLifetimeAttacher/WeaponSocketSetup/FXMaterialDesignerWindow/SetupWaveGaugePanel/
+  SetupUIManager/SetupStatusInfoPanel/SetupNoticeCenter/SetupBottomMenuBar/OffenseDebugWindow/
+  AddressablesPlayModeSetup). 부수 발견: `AutoAssignCompositionRoot.cs`만 유일하게 BOM 있는
+  UTF-16LE로 저장돼 있던 것을 다른 파일들과 동일한 UTF-8로 함께 교정(내용은 그대로, 인코딩만 —
+  이 인코딩 교정은 2차에서도 유지, 되돌리지 않음).
+🔁 2차(같은 날 오후) — DOTween(`Tools/Demigiant/DOTween Utility Panel`, 컴파일된 DLL이라 이동 불가)
+  때문에 "Tools" 최상위 메뉴 자체는 어차피 없앨 수 없다는 게 확인되자, 사용자가 "tools old에 있는
+  내용들을 전부 tools에 넣자"로 1차를 전부 되돌리라고 요청 — 위 24개 파일을 다시 `Tools/...`로
+  복원(CLAUDE.md의 JsonToUnitPrefabConverter 메뉴 경로 언급도 같이 되돌림). **최종 상태는 사실상
+  기존 그대로**(GrimArchive 하위 항목은 `Tools/GrimArchive/...`), 바뀐 건 인코딩 교정 하나뿐이고
+  `Tools(new)/...`(새 기능 전용, 색상 테마 창이 첫 항목) 관례만 새로 생겼다.
+❌ 해당 없음 — `GameObject/HaareFramework UI/*`(HaareUI.cs)는 Tools 메뉴가 아니라 손대지 않음.
