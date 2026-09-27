@@ -106,6 +106,17 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.OuterBR, variant);
 	}
 
+	// ── 완전히 막힘: 4방향+대각선 전부 벽(두꺼운 벽 안쪽 깊숙한 타일) — 2026-09-27 밤 추가 요청
+	// (정림: "모든 면이 막혀있는 타일... 자리 한 칸"). 코너 조건에 안 걸려야 하므로 대각선도 전부 채움. ──
+	[Test]
+	public void FullySurrounded_AllEightNeighborsWalled()
+	{
+		var variant = WallAutoTileMath.SelectVariant(
+			n: true, s: true, e: true, w: true,
+			ne: true, nw: true, se: true, sw: true);
+		Assert.AreEqual(WallVariant.FullySurrounded, variant);
+	}
+
 	// ── 직선: 한쪽 축만 연결됐을 때, 방향(상/하, 좌/우)은 반대편이 Floor인지로 갈린다
 	// (2026-09-27 회의록 후속 — 벽 스프라이트가 상하/좌우 비대칭이라 방향 구분이 추가됨) ──
 	[Test]
@@ -175,6 +186,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallShape.Inner, WallAutoTileMath.GetShape(WallVariant.InnerTR));
 		Assert.AreEqual(WallShape.Inner, WallAutoTileMath.GetShape(WallVariant.InnerBL));
 		Assert.AreEqual(WallShape.Inner, WallAutoTileMath.GetShape(WallVariant.InnerBR));
+		Assert.AreEqual(WallShape.Solid, WallAutoTileMath.GetShape(WallVariant.FullySurrounded));
 	}
 
 	// ── 회전각(GetRotationDegrees) — TL/Top/Left 기준(0°)에서 반시계 90°씩(TL→BL→BR→TR) ──
@@ -193,6 +205,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(90f, WallAutoTileMath.GetRotationDegrees(WallVariant.InnerBL));
 		Assert.AreEqual(180f, WallAutoTileMath.GetRotationDegrees(WallVariant.InnerBR));
 		Assert.AreEqual(270f, WallAutoTileMath.GetRotationDegrees(WallVariant.InnerTR));
+		Assert.AreEqual(0f, WallAutoTileMath.GetRotationDegrees(WallVariant.FullySurrounded));
 	}
 
 	// ── 스프라이트 라이브러리 라벨 문자열 고정 — 2026-09-27 후속 요청으로 10라벨(방향별)에서
@@ -212,6 +225,7 @@ public class WallAutoTileTests
 		Assert.AreEqual("Wall_Inner_TL", WallAutoTileMath.GetSpriteLibraryLabel(WallVariant.InnerTR));
 		Assert.AreEqual("Wall_Inner_TL", WallAutoTileMath.GetSpriteLibraryLabel(WallVariant.InnerBL));
 		Assert.AreEqual("Wall_Inner_TL", WallAutoTileMath.GetSpriteLibraryLabel(WallVariant.InnerBR));
+		Assert.AreEqual("Wall_Solid", WallAutoTileMath.GetSpriteLibraryLabel(WallVariant.FullySurrounded));
 	}
 }
 #endif

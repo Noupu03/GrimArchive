@@ -48,8 +48,13 @@ MonoBehaviour:
       m_Sprite: {fileID: 21300000, guid: eacabd3f1ccee7046a183750372a02cb, type: 3}
       m_FromMain: 0
       m_SpriteOverride: {fileID: 21300000, guid: eacabd3f1ccee7046a183750372a02cb, type: 3}
+    - m_Name: Wall_Solid
+      m_Hash: 0
+      m_Sprite: {fileID: 21300000, guid: eacabd3f1ccee7046a183750372a02cb, type: 3}
+      m_FromMain: 0
+      m_SpriteOverride: {fileID: 21300000, guid: eacabd3f1ccee7046a183750372a02cb, type: 3}
     m_FromMain: 0
-    m_EntryOverrideCount: 4
+    m_EntryOverrideCount: 5
   m_PrimaryLibraryGUID: 
   m_ModificationHash: 639248476487152920
   m_Version: 1
