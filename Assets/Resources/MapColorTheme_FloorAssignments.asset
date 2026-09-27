@@ -16,3 +16,5 @@ MonoBehaviour:
   floorThemes:
   - floorIndex: 0
     theme: {fileID: 11400000, guid: 216f3215866ed704697725ad20d50c5f, type: 2}
+  - floorIndex: 1
+    theme: {fileID: 11400000, guid: 4c3b19fd149454c41a2fde963c8b5b8f, type: 2}
