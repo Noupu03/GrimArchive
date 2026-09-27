@@ -408,12 +408,8 @@ public class PersonalMapKnowledge
 	// monsterKey: target.name(인스턴스 식별자 — 위치는 개체별 정보라 HumanKnowledgeBase의 종/개체 누적
 	// 키와 별개로 항상 인스턴스명 사용). infoType 기본값 DirectWitness는 유일한 호출부(CastRay)가 시야
 	// 직접 목격이기 때문 — 다른 정보 유형이 갱신하려 들 때 아래 우선순위 게이트가 작동한다.
-	// timestamp 생략 시 지금 이 순간(Time.time)으로 채운다 — 직접 목격은 항상 "지금 확인한" 사건이라
-	// 이걸로 충분하지만, 나중에 간접(Indirect) 정보가 이 메서드로도 들어오면 그 정보가 가리키는 실제
-	// 사건 발생 시각을 넘겨야 한다(예: 5초 전 전파를 지금 막 전달받은 경우 "지금"이 아니라 "5초 전"이
-	// 진짜 기준 시각). 2026-09-25 수정 전에는 candidateIsNewer가 true로 고정돼 있어 호출부가 하나뿐인
-	// 지금은 우연히 항상 맞았지만, 두 번째 호출부(간접 정보)가 생기는 순간 진짜 시간 역전을 걸러내지
-	// 못하는 잠재 버그였다.
+	// timestamp 생략 시 Time.time으로 채운다 — 간접(Indirect) 정보가 이 메서드를 호출하게 되면 그
+	// 정보가 가리키는 실제 사건 발생 시각을 넘겨야 한다(candidateIsNewer 비교의 기준 시각이 되므로).
 	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness, float? timestamp = null)
 	{
 		float ts = timestamp ?? Time.time;

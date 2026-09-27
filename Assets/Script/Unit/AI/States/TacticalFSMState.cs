@@ -138,11 +138,9 @@ public class TacticalFSMState : IFSMState
 		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
 		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로(패닉/함정/경계
 		// 포함해) 여기서 따로 예외 처리할 필요가 없다.
-		// 던전 입구 시퀀스(DungeonEntranceSystem) 동안은 이 상태를 비활성화한다 — 입구 이동·대기
-		// 단계는 그 시스템이 유닛 위치를 직접 강제로 다루고, 계단 접근 단계는 이동 명령(우선순위 200)이
-		// 이미 이 상태보다 우선하지만 그 명령이 끝난 뒤 실제로 계단을 건너기(NavigationFSMState.
-		// CrossStairs) 전까지의 틈도 보호해야 한다 — 안 그러면 조사 대상 발견 등으로 이 상태가
-		// 끼어들어 계단 진입 직전에 다른 곳으로 새치기한다(2026-09-27, 플레이테스트로 확인).
+		// 던전 입구 시퀀스 동안은 이 상태를 비활성화한다 — 입구 이동·대기 단계는 그 시스템이 위치를
+		// 직접 다루고, 계단 접근 이동 명령(우선순위 200)이 끝난 뒤 실제로 계단을 건너기 전까지의 틈도
+		// 보호해야 한다(안 그러면 조사 대상 발견 등으로 이 상태가 끼어들어 새치기한다).
 		// isInDungeonEntranceSequence는 CrossStairs가 실제로 층을 건너는 순간 개인별로 해제한다.
 		if (unit is Human entranceHu && entranceHu.isInDungeonEntranceSequence) return 0f;
 		float p = AIConfigLoader.Behavior?.tacticalPriority ?? 50f;
@@ -230,11 +228,8 @@ public class TacticalFSMState : IFSMState
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
 		// 00-04/01-06/01-07/01-08: 아직 조사를 시작하지 않았다면 집결 대기·다음 방 공동 이동·코어 보고
-		// 이동·귀환 중에는 새 조사를 시작하지 않는다(01번 3장 "집결 명령을 받으면... 새 회수·조사 등
-		// 임무 상호작용을 시작하지 않는다", 01-06 "비전투 목표의 점수 상승 때문에 집결·공동 이동에서
-		// 이탈하지 않는다", 01-07 "코어 보고는 리더에게 전달할 때까지 계속한다", 05번 10장 "귀환 중
-		// 새 비전투 대상을 알게 되면 기록·전파하고 귀환을 계속한다"). 이미 시작한 조사
-		// (currentInvestigation != null)는 이 게이트에 안 걸려 기존 유지·중단 조건 그대로 계속된다.
+		// 이동·귀환 중에는 새 조사를 시작하지 않는다. 이미 시작한 조사(currentInvestigation != null)는
+		// 이 게이트에 안 걸려 기존 유지·중단 조건 그대로 계속된다.
 		if (human.currentInvestigation == null && human.currentWait != null &&
 			(human.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint ||
 			 human.currentWait.Reason == WaitReason.AdvancingToNextRoom ||
@@ -242,11 +237,9 @@ public class TacticalFSMState : IFSMState
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
-		// 03번 문서(행동전환_중단_재개) 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도
-		// 손실이 적용된다 — IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. 이 체크가
-		// HasAlert보다 먼저(BT에서 Investigate 자체가 실행될 때) 걸려야, Alert 분기가 대신 가로채면서
-		// 페널티 없이 조사가 조용히 밀려나는 걸 막는다(2026-09-26 수정 — 이전엔 이 체크가 없어 소리로
-		// 중단돼도 진행도가 전혀 안 깎였다).
+		// 03번 문서 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도 손실이 적용된다 —
+		// IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. HasAlert보다 먼저 걸려야 Alert
+		// 분기가 대신 가로채면서 페널티 없이 조사가 조용히 밀려나는 걸 막는다.
 		if (PropagationSystem.HasPendingInterruptingSound(human))
 		{
 			ApplyInvestigateInterruptPenalty(human);
@@ -289,10 +282,8 @@ public class TacticalFSMState : IFSMState
 
 	// 07문서 16장: currentAlertSearch가 비어있어도 시작 안 한 유효한 소리 반응이 있으면 여기서 지연
 	// 승격한다. 인류/몬스터 구분 없이 호출 — Human 전용 게이팅을 걸면 몬스터 쪽이 영영 승격 못 한다.
-	// 05번 문서 10장: "귀환 중 소리만 들리면 방향 확인만 하고 추적·정지 대기로 바꾸지 않는다" — 이미
-	// 시작한 경계(currentAlertSearch)는 그대로 유지하되, 귀환 중 새로 소리로 경계를 승격하는 것만
-	// 막는다("방향 확인"은 UnitFunction.ResolveVisionDirection의 소리 후보가 이 승격과 무관하게 이미
-	// 독립적으로 처리하므로 별도 코드 불필요).
+	// 05번 문서 10장: 귀환 중엔 이미 시작한 경계(currentAlertSearch)는 유지하되, 새로 소리로 경계를
+	// 승격하는 것만 막는다(방향 확인 자체는 ResolveVisionDirection이 독립적으로 처리).
 	private static bool HasAlert(Unit unit)
 	{
 		if (unit.currentAlertSearch != null) return true;
@@ -614,9 +605,8 @@ public class TacticalFSMState : IFSMState
 		var inv = human.currentInvestigation;
 
 		// 00-07(정보 격리): 아직 도착하지 않은 동안은 전역 objectGrid를 직접 읽지 않는다 — 다른 유닛이
-		// 방금 수거한 사실을 이 유닛이 직접 확인하거나(도착) 허용된 전파로 전달받기 전까지는 원거리에서
-		// 즉시 알지 못하게 막는다(2026-09-26 수정 — 이전엔 매 틱 전역 상태를 읽어 멀리서도 즉시 알았음).
-		// 타일 전용 후보는 "수거"라는 개념이 없어 이 확인 자체가 성립하지 않는다.
+		// 수거한 사실을 직접 확인(도착)하거나 전파로 전달받기 전엔 원거리에서 알지 못한다(타일 전용
+		// 후보는 "수거" 개념이 없어 해당 없음).
 		if (!inv.IsTileOnly && human.personalMap.IsKnownCollected(inv.TargetObjectId))
 		{
 			human.currentInvestigation = null;
@@ -719,9 +709,7 @@ public class TacticalFSMState : IFSMState
 		obj.IsInvestigated = true;
 		human.personalMap.OnObjectInvestigated(obj.Id);
 		// 00-03/00-07(정보 격리): 조사 완료 정보도 위 NotifyInteractionStarted와 동일하게 일반 전파
-		// 조건(CanPropagate)을 거쳐야 한다 — 2026-09-26 이전엔 이 게이트가 빠져 있어 파티 전체가
-		// 거리·전투 상태와 무관하게 즉시 알게 됐다(TrapPartySystem.OnTrapDiscovered는 처음부터
-		// CanPropagate로 걸러왔던 것과 대조적인 누락이었다).
+		// 조건(CanPropagate)을 거쳐야 한다(TrapPartySystem.OnTrapDiscovered와 동일한 게이트).
 		if (human.party != null)
 		{
 			// 01-09 2번: 이 순간 범위 밖(CanPropagate 실패)이었던 파티원도 나중에
@@ -776,7 +764,7 @@ public class TacticalFSMState : IFSMState
 			human.collectedObjects.Add(obj.Id);
 			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록
 			// 00-07(정보 격리): 수거 사실도 조사 완료 전파(위 InvestigatePerform)와 동일하게 일반 전파
-			// 조건을 거쳐야 다른 파티원이 안다 — 범위 밖 파티원은 이 순간 모른다(2026-09-26 신설).
+			// 조건을 거쳐야 다른 파티원이 안다 — 범위 밖 파티원은 이 순간 모른다.
 			if (human.party != null)
 			{
 				// 01-09 2번: 위 InvestigatePerform과 동일하게, 이 순간 놓친 파티원도
@@ -816,8 +804,7 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 
-			// 플레이테스트 발견(2026-09-27): 집결지가 아군에게 막혀 MoveTowardsPos가 계속 실패해도
-			// 포기 로직이 없어 영원히 멈췄다(인간만 있는 방에서 재현) — 몇 틱을 기다려도 안 풀리면
+			// 집결지가 아군에게 막혀 MoveTowardsPos가 계속 실패하는 경우 — 몇 틱을 기다려도 안 풀리면
 			// "집결 완료"와 동일하게 처리해 파티 전체가 계속 진행하게 한다.
 			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value);
 			AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
@@ -865,9 +852,8 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 
-			// 플레이테스트 발견(2026-09-27): 위 AwaitingPartyAtRallyPoint와 동일한 이유로, 리더에게
-			// 가는 길이 아군에게 막히면 포기 로직 없이 영원히 멈췄다 — 몇 틱 기다려도 안 풀리면 보고를
-			// 포기한다(발견한 코어 정보 자체는 개인 지도에 이미 남아있어 사라지지 않는다).
+			// 위 AwaitingPartyAtRallyPoint와 동일한 패턴 — 리더에게 가는 길이 막히면 몇 틱 기다린 뒤
+			// 보고를 포기한다(발견한 코어 정보는 개인 지도에 이미 남아있어 사라지지 않는다).
 			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, leader.position);
 			AIMovementHelper.MoveTowardsPos(human, leader.position);
 			if (AIMovementHelper.ChebyshevDistance(human.position, leader.position) < distBefore)
@@ -883,9 +869,8 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
 		{
-			// 05번 문서 10장: 탈출 지점 도착(또는 더 다가갈 수 없음)하면 대기를 해제한다. 도착 이후
-			// "탈출 완료로 웨이브 생존자 집계에 반영"하는 처리는 아직 없다(구현현황 문서 참고) — 이번
-			// 수정은 "실제로 걸어서 탈출 지점에 도착한다"는 이동 자체의 복구까지만 범위로 잡았다.
+			// 05번 문서 10장: 탈출 지점 도착(또는 더 다가갈 수 없음)하면 대기를 해제한다. "탈출 완료로
+			// 웨이브 생존자 집계에 반영"하는 처리는 아직 없다(구현현황 문서 참고 — 범위 밖).
 			if (AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value)
 				|| !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
 			{
@@ -1216,8 +1201,8 @@ public class TacticalFSMState : IFSMState
 		return blocked >= tiles * 0.5f;
 	}
 
-	// ── 코어 공격 — 모든 방이 항상 코어를 하나씩 갖고, 코어 체력이 0이 되면 막타친 유닛의 진영으로 방
-	// 소유권이 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
+	// ── 코어 공격 — 코어는 각 층 보스방에만 있고, 체력이 0이 되면 막타친 유닛의 진영으로 방 소유권이
+	// 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
 	// ⚠️ 하드 룰: 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 절대 스스로 시도하지 않고
 	// 항상 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)를 거쳐야 한다. DoorAttack도 동일.
 	private static bool HasCoreAttackTarget(Unit unit)

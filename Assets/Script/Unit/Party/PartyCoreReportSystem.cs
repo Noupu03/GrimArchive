@@ -29,6 +29,10 @@ public static class PartyCoreReportSystem
 		// (currentInvestigation)은 건드리지 않는다. BT에서 Investigate가 Wait보다 우선순위가 높아
 		// 자연히 먼저 끝난 뒤에 이 보고 이동으로 넘어간다.
 		discoverer.currentWait = new WaitState { Reason = WaitReason.ReportingCoreToLeader, CorePosition = core.Position };
+		// 기존 대기(집결 등)를 덮어쓰므로, 그 대기에서 쌓인 스턱카운트가 이어지지 않도록 같이 리셋한다
+		// (Party.OnLeaderLearnsCore와 동일한 이유로 동일하게 처리 — 리셋을 빠뜨리면 얼마 안 가 스턱 한도에
+		// 도달해 보고를 너무 일찍 포기할 수 있다).
+		discoverer.waitStuckTurns = 0;
 	}
 
 	// TacticalFSMState.ExecuteWait의 ReportingCoreToLeader 분기가 매 틱 호출한다 — 리더가 지금

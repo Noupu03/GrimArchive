@@ -317,10 +317,8 @@ public partial class CreateMap
 
     // 계단(2x2 블록) 바깥쪽 정확히 radius칸째 테두리 한 겹만 반환한다(정적으로 밟을 수 있는 타일만) —
     // 호출부가 radius=1부터 늘려가며 반복 호출해 "가장 가까운 반경에서 후보를 찾으면 멈춘다" 패턴에
-    // 쓴다(AIMovementHelper.TryResolveUnoccupiedStairArrival/NavigationFSMState.MoveToStairs, 건물 등이
-    // 계단 바로 옆을 막아도 착지·접근 지점이 항상 존재하도록 2026-09-27 도입). radius=1의 결과는 아래
-    // TryGetStairApproachCandidates(기존 시그니처)와 완전히 동일하다 — 2x2 내부를 제외한 4x4 전체가
-    // 반경 1의 테두리이므로 더 안쪽 반경이 없어 겹칠 일이 없다.
+    // 쓴다(건물 등이 계단 바로 옆을 막아도 착지·접근 지점이 항상 존재하게 함). radius=1의 결과는 아래
+    // TryGetStairApproachCandidates(기존 시그니처)와 완전히 동일하다.
     public bool TryGetStairApproachCandidatesAtRadius(int floorIndex, int targetFloor, int radius, out List<Vector2Int> candidates)
     {
         candidates = new List<Vector2Int>();

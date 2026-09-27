@@ -973,7 +973,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 			_safetyTickTimer = 0f;
 		}
 
-		// 경계·함정 대응 타이머 — actionCooldown 주기(GOAP 판단)와 무관하게 실제 경과 시간으로 흘러야
+		// 경계·함정 대응 타이머 — FSM 판단 주기(actionCooldown)와 무관하게 실제 경과 시간으로 흘러야
 		// 해서 매 프레임 OnUpdate에서 진행시킨다.
 		if (currentAlertSearch != null)
 		{
@@ -1002,8 +1002,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (this is Human leaderHuman && leaderHuman.party != null && leaderHuman.party.Leader == leaderHuman)
 			leaderHuman.party.TickRoomActivityCheck(Time.time);
 
-		// 07-A 9장(2026-07-31 신규): 전투 진입 합류 대기 타이머 — currentAlertSearch와 동일하게 실제
-		// 경과 시간으로 매 프레임 흐른다.
+		// 07-A 9장: 전투 진입 합류 대기 타이머 — currentAlertSearch와 동일하게 실제 경과 시간으로
+		// 매 프레임 흐른다.
 		if (this is Human joinWaitHuman && joinWaitHuman.currentJoinCombatWait != null)
 			PropagationSystem.TickJoinCombatWait(joinWaitHuman, deltaTime);
 

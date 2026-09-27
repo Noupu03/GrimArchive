@@ -1,12 +1,8 @@
 // 01번 문서 7-1장: 파티 종류별로 "현재 방 활동 종료·집결 기준"이 다르다. 편성 가능 유닛·선택
-// 가중치는 (미작성)03_파티 종류·목표·포메이션_시스템 문서로 미뤄진 영역이라 스텁이다.
-// 2026-09-25 회의록(코어·점령 재설계) 반영: "점령은 오직 점령 파티만" — Occupy를 다시 추가했다
-// (보스공략은 여전히 제외 — 별도 파티 종류로 구별할 근거가 아직 없음). 점령을 실제로 트리거하던
-// "임시 점령 오브젝트" 메커니즘은 같은 날 삭제됐다(연출이 마음에 안 든다는 피드백이 아니라, 더
-// 나은 다른 점령 조건으로 대체하기로 함) — PartyType.Occupy 자체와 Party.IsRoomActivityComplete의
-// 판정 기준(방이 인류 소유가 되면 완료)만 세팅으로 남겨뒀다. 다음 점령 조건을 붙일 때 참고:
-// OffenseProcessor.OnCoreDestroyed가 "체력 0 → ApplyRoomOwnership + 방어적 재확인" 패턴의 예시고,
-// IMapColorizer.PulseRoomOutline은 이미 구현된 점령 완료 시 재생할 공용 연출이다.
+// 가중치는 미작성 03_파티 종류·목표·포메이션 문서 영역이라 스텁. 점령은 오직 점령 파티만 하며
+// (보스공략은 별도 구별 근거 없어 제외), 실제 트리거 조건은 미정이라 Occupy/IsRoomActivityComplete는
+// 판정 기준만 세팅으로 남겨뒀다 — 붙일 때는 OffenseProcessor.OnCoreDestroyed(소유권 전환 패턴) +
+// IMapColorizer.PulseRoomOutline(완료 연출)을 참고.
 public enum PartyType
 {
 	Explore, // 탐색 파티 — 방 지형 전체를 시야로 확인해야 활동 종료

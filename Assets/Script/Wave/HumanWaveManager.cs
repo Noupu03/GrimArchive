@@ -36,12 +36,10 @@ namespace GrimArchive.Wave
         // (InteractableObject.SpawnWaveNumber), "스폰 웨이브+2 <= 지금 웨이브"면 정리한다(GameSession.DespawnCorpsesForNewWave).
         public int WaveNumber { get; private set; } = 0;
 
-        // 01번 문서 2장: 몬스터 처치 임무의 공통 집계 — 여러 인류 파티가 있어도 파티별로 나누지 않고
-        // 시스템이 하나로 합산한다(검증문서 01-04). 웨이브마다 새로 시작(StartWave에서 리셋). 달성
-        // 여부는 레벨 조건(CommonMonsterKillCount >= RequiredMonsterKillCount)으로만 판정한다 — 한
-        // 웨이브에 파티가 여러 개일 수 있어(WaveSpawner.SpawnWave), "막 달성된 순간"을 여기 공유
-        // bool 하나로 표시하면 먼저 확인한 파티가 그 신호를 소비해버려 나머지 파티는 영영 못 본다.
-        // 파티별 1회 소비 여부는 Party._monsterKillQuotaConsumed가 각자 따로 들고 있다.
+        // 01번 문서 2장: 몬스터 처치 임무의 공통 집계 — 여러 인류 파티가 있어도 시스템이 하나로
+        // 합산한다(웨이브마다 StartWave에서 리셋). "막 달성됨" 신호를 공유 bool로 두면 먼저 본
+        // 파티가 소비해버려 나머지가 못 보므로, 파티별 소비 여부는 Party._monsterKillQuotaConsumed가
+        // 각자 따로 든다.
         public float CommonMonsterKillCount { get; private set; }
         private readonly HashSet<string> _countedKillIds = new HashSet<string>();
 
@@ -66,8 +64,8 @@ namespace GrimArchive.Wave
         public Vector2Int exitAreaPos;
 
         // ── 0층 사전 스폰(웨이브 시작 전 대기 연출) ── 웨이브 타이머가 돌면 0층에 미리 스폰해 대기시키고
-        // 계단으로 이동해 목표 층으로 넘어간다(목표 없는 사전 스폰 유닛은 Goal_Explore로 배회하다
-        // pendingStairTargetFloor 세팅 시 Goal_UseStairs가 가로챔). 이 상수는 DungeonEntranceSystem.
+        // 계단으로 이동해 목표 층으로 넘어간다(목표 없는 사전 스폰 유닛은 NavigationFSMState로 배회하다
+        // pendingStairTargetFloor 세팅 시 계단이동으로 전환됨). 이 상수는 DungeonEntranceSystem.
         // PrepareNoticeLeadSeconds와 같은 값(6초)이어야 하므로 두 클래스를 바꿀 땐 반드시 같이 바꿔야 한다.
         private const float PreSpawnLeadSeconds = 6f;
         private bool preSpawnTriggered = false;
@@ -170,7 +168,7 @@ namespace GrimArchive.Wave
         }
 
         // ComputePreSpawnTriggerSeconds()가 계산한 시점에 이번 웨이브 인류 파티를 0층에 미리 스폰한다 —
-        // 목표를 안 심어 GOAP이 Goal_Explore로 배회하게 두고, 숨은 스폰 청크에 등장시킨 뒤 나머지 진입
+        // 목표를 안 심어 NavigationFSMState가 배회하게 두고, 숨은 스폰 청크에 등장시킨 뒤 나머지 진입
         // 시퀀스(입구 이동→대기→계단 이동)는 DungeonEntranceSystem에 넘긴다.
         private void PreSpawnWaveUnits()
         {
@@ -314,19 +312,16 @@ namespace GrimArchive.Wave
                 stagingUnits.Add(member);
             }
 
-            // 버그 수정(2026-09-27, 사용자 로그로 확인): 이 콜백이 activeParty를 세팅한 적이 없어서,
-            // 입구 시퀀스가 cooldownTimer보다 먼저 끝나 preSpawnedParty가 여기서 null로 비워진 뒤에야
-            // StartWave()가 실행되면 activeParty가 끝내 null로 남아 그다음 MonitorWave()가 "파티
-            // 전멸"로 오판해 웨이브가 즉시 실패 처리됐다. StartWave()의 대응 분기(preSpawnedParty
-            // 기반 할당)와 동일하게 여기서도 확정적으로 세팅해둔다 — StartWave()가 먼저 실행돼
-            // activeParty가 이미 세팅된 경우엔 같은 값 재할당이라 무해하다.
+            // 입구 시퀀스가 cooldownTimer보다 먼저 끝나면 preSpawnedParty가 StartWave() 실행 전에
+            // null로 비워져 activeParty가 세팅되지 않고 MonitorWave()가 "전멸"로 오판할 수 있다 —
+            // StartWave()와 동일하게 여기서도 확정적으로 세팅한다(이미 세팅돼 있으면 무해한 재대입).
             activeParty = preSpawnedParty;
             exitAreaPos = floor1StairPos;
 
             preSpawnedParty = null;
         }
 
-        // WaveState.Running 동안 매 프레임 호출 — 계단 이동/통과 자체는 정상 GOAP(Goal_UseStairs 계열)이
+        // WaveState.Running 동안 매 프레임 호출 — 계단 이동/통과 자체는 개인 FSM+BT(NavigationFSMState)가
         // 전담하고, 여기서는 목표 층 도착 파티원을 stagingUnits에서 빼는 것과 시간 초과 강제 이동만 담당한다.
         private void UpdateStagingStairWalk()
         {
@@ -356,7 +351,7 @@ namespace GrimArchive.Wave
             foreach (var member in arrived) stagingUnits.Remove(member);
         }
 
-        // 정상 GOAP 경로가 시간 안에 처리하지 못한 파티원을 강제로 목표 층 계단 지점으로 옮긴다 — 위치/
+        // 정상 이동 경로가 시간 안에 처리하지 못한 파티원을 강제로 목표 층 계단 지점으로 옮긴다 — 위치/
         // 그리드만 갱신하고 나머지는 다음 틱 UpdatePartyDestination이 이어받는다. 점유 안 된 후보 칸을
         // 찾아 보내며, 전부 점유면 false를 반환해 호출부가 재시도하게 한다.
         private bool ForceCrossToTargetFloor(Human member, int targetFloor)
@@ -386,7 +381,7 @@ namespace GrimArchive.Wave
             return true;
         }
 
-        // 탈출 지점에 도착한 파티원을 게임에서 지우는 대신 0층으로 돌려보내 Goal_Explore로 배회하게
+        // 탈출 지점에 도착한 파티원을 게임에서 지우는 대신 0층으로 돌려보내 자유탐색으로 배회하게
         // 하고 retreatedSurvivors에 등록해 다음 웨이브에 합류시킨다. 계단 위치를 못 구하면 제거한다.
         private void RetreatMemberToFloor0(Human member)
         {
@@ -540,7 +535,7 @@ namespace GrimArchive.Wave
             }
 
             // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아둔다(실제 코어 위치는 GameSession.
-            // SpawnAllRoomCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 사용).
+            // SpawnBossCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 사용).
             _retreating = false;
             _targetRoom = null;
             int targetFloor = targetSpawner.waveData.targetFloor;
@@ -613,19 +608,16 @@ namespace GrimArchive.Wave
             }
         }
 
-        // 2026-09-25 개편(행동경로목표결정 구현현황 문서 "핵심 설계 결정" 1번): 코어 파괴 전에는 더 이상
-        // 매 틱 전원을 코어 좌표로 강제 이동시키지 않는다 — 개인 탐색/조사(01번 문서)와 리더의 집결
-        // 판단(05번 문서, Party.TickRoomActivityCheck)에 맡기고, 여기서는 "집결이 막 끝나 다음 문으로
-        // 함께 이동해야 하는 순간"(Party.ReadyToAdvance)에만 목적지를 한 번 지정한다. 코어 파괴 후
-        // 퇴각(_retreating)은 기존 그대로 매 틱 강제 이동을 유지한다 — 05번 10항은 "귀환 중 개인의 적
-        // 대응"만 다루고 퇴각 목적지 지정 방식 자체는 바꾸지 않는다.
+        // 코어 파괴 전에는 매 틱 전원을 코어 좌표로 강제 이동시키지 않는다 — 개인 탐색/조사(01번
+        // 문서)와 리더의 집결 판단(05번 문서, Party.TickRoomActivityCheck)에 맡기고, 여기서는 집결이
+        // 막 끝나 다음 문으로 이동해야 하는 순간(Party.ReadyToAdvance)에만 목적지를 한 번 지정한다.
+        // 코어 파괴 후 퇴각(_retreating)은 기존대로 매 틱 강제 이동을 유지한다(05번 10항 범위 밖).
         private void UpdatePartyDestination()
         {
             if (_retreating)
             {
-                // 2026-09-27 수정: playerMoveTarget+isManualMoveCommand=false 조합은 실제로 아무 이동도
-                // 발생시키지 않는 죽은 경로였다(WaitReason.Retreating 주석 참고) — AdvancingToNextRoom과
-                // 동일한 WaitState 기반으로 교체해 실제로 작동하게 했다.
+                // WaitState 기반으로 이동한다(WaitReason.Retreating 참고 — playerMoveTarget 경로는
+                // 실제로 이동을 발생시키지 않는 죽은 경로였음).
                 Vector2Int exitDest = exitAreaPos;
                 int exitFloor = targetSpawner.waveData.targetFloor;
                 foreach (var member in activeParty.Members)
@@ -644,11 +636,9 @@ namespace GrimArchive.Wave
 
             if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)) return;
 
-            // playerMoveTarget이 아니라 currentWait(WaitReason.AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
-            // isManualMoveCommand=true일 때만 PlayerCommandFSMState가 소비하는데, 그 상태는 전투보다도
-            // 우선순위가 높아(UnitFSM 200 vs 100) 이동 중 적과 마주쳐도 무시하고 걸어간다. currentWait
-            // 기반 TacticalFSMState.ExecuteWait 경로는 Combat(100) > Tactical(50) 순서를 그대로 따라
-            // 자연히 전투에 밀린다(00번 4장 우선순위와 일치).
+            // playerMoveTarget 대신 currentWait(AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
+            // PlayerCommandFSMState 전용(우선순위 200)이라 전투 중에도 무시하고 걸어가지만, currentWait
+            // 기반 ExecuteWait은 Tactical(50)이라 Combat(100)에 자연히 밀린다(00번 4장 우선순위와 일치).
             // 05번 문서 3장: 전원이 문 타일 자체로 몰리면 통과 구간을 막으므로, 파티원마다 문 주변의
             // 서로 다른 대기 자리(체비셰프 거리 2 이상)를 배정한다(AIMovementHelper.FindDoorWaitSlot).
             var claimedDoorSlots = new HashSet<Vector2Int>();

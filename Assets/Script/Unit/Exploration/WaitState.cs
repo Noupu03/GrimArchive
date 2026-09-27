@@ -15,10 +15,9 @@ public enum WaitReason
 	// 03번 문서 3번 항목: 리더가 전파 범위 밖일 때 코어 발견자가 리더에게 다가가 보고한다. 집결 명령을
 	// 받아도 중단하지 않는다(PartyCoreReportSystem.OnCoreDiscovered가 기존 대기를 덮어써 시작한다).
 	ReportingCoreToLeader,
-	// 05번 문서 10장: 코어 파괴(웨이브 승리) 후 생존자 전원이 탈출 지점으로 귀환. 예전엔
-	// playerMoveTarget+isManualMoveCommand=false 조합으로 이동시켰는데, 이 조합을 실제로 소비하는
-	// 코드가 어디에도 없어(전부 "&& isManualMoveCommand" AND 조건) 사실상 이동이 발생하지 않는
-	// 죽은 경로였다 — AdvancingToNextRoom과 동일하게 WaitState 기반으로 교체.
+	// 05번 문서 10장: 코어 파괴(웨이브 승리) 후 생존자 전원이 탈출 지점으로 귀환 — AdvancingToNextRoom과
+	// 동일하게 WaitState 기반으로 이동한다. playerMoveTarget+isManualMoveCommand=false 조합은 실제로
+	// 아무 코드도 소비하지 않는 죽은 경로이니 되돌리지 말 것.
 	Retreating,
 }
 

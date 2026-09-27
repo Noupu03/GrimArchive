@@ -9,8 +9,7 @@ public class Party
 	public string Id;
 	public string Name;
 	// 01번 문서 7-1장: 파티 종류별 방 활동 종료·집결 기준에 쓰인다. GameSession.CreateParty가 생성
-	// 시점에 4종(PartyEnums.cs 참고, 2026-09-25 회의록 반영: 점령 파티 추가) 중 하나를 무작위로
-	// 배정한다(편성 가능 유닛·선택 가중치는 미작성 문서 영역이라 스텁).
+	// 시점에 4종(PartyEnums.cs 참고) 중 하나를 무작위 배정한다(편성 가능 유닛·선택 가중치는 스텁).
 	public PartyType Type;
 	public readonly List<Human> Members = new List<Human>();
 
@@ -21,7 +20,7 @@ public class Party
 
 	// 집결의 최소 버전 — 전투 종료 후 경계 10초가 끝나면 리더가 자기 위치를 집결지로 지정한다. 05번
 	// 문서 4장: 같은 방 파티원은 무조건, 다른 방 파티원은 일반 전파 조건(CanPropagate)을 만족해야
-	// 전달된다(TryStartRally 참고). Goal_Wait이 이 값을 읽는다.
+	// 전달된다(TryStartRally 참고). TacticalFSMState.ExecuteWait이 이 값을 읽는다.
 	public Vector2Int? RallyPoint;
 	public bool IsRallyActive;
 	// 05번 1장: 집결이 막 완료돼 "다음 방으로 함께 이동"을 시작해도 되는 상태 — HumanWaveManager가
@@ -56,11 +55,9 @@ public class Party
 			JustReachedRoomExploreQuota = true;
 	}
 
-	// 01번 문서 7-2장: "여러 유닛이 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단"하는 실제 집계 —
-	// 방(roomId)별로 파티원 누구든 새로 밝힌 바닥 타일 좌표를 한 집합에 모아, 합친 개수가 그 방의
-	// 전체 바닥 타일 수에 도달하면 "파티 기준 완료"로 표시한다(검증문서 01-06-4 1번 참고). 개인별
-	// RevealedFloorTiles(PersonalMapKnowledge)와는 별개 집계 — 리더가 직접 안 본 타일도 다른
-	// 파티원이 봤다면 여기엔 반영된다.
+	// 01번 문서 7-2장: 파티원 전체가 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단하는 집계 —
+	// 방(roomId)별로 새로 밝힌 바닥 타일을 모아 그 방의 전체 바닥 타일 수에 도달하면 "파티 기준
+	// 완료"로 표시한다. 개인별 RevealedFloorTiles와는 별개 집계(리더가 못 본 타일도 반영됨).
 	private readonly Dictionary<int, HashSet<Vector2Int>> _partyRevealedTilesByRoom = new();
 	private readonly HashSet<int> _partyCompletedRoomIds = new();
 
@@ -83,11 +80,9 @@ public class Party
 			_partyCompletedRoomIds.Add(roomId);
 	}
 
-	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. 2026-09-27부터 Explore 분기는 위
-	// 파티 전체 시야 합산(IsRoomFullyRevealedByParty)을 우선 확인하고, 그래도 안 되면 기존 리더 개인
-	// 지도 근사로 보조한다(둘 중 하나만 참이어도 완료 — 어느 쪽도 기존 동작을 깎아먹지 않는 추가).
-	// 2026-09-25 회의록 반영: 점령 파티는 방 점령 완료를 기준으로 추가했다 — 보스공략은 여전히 범위
-	// 밖(구현현황 문서 참고).
+	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. Explore 분기는 파티 전체 시야 합산
+	// (IsRoomFullyRevealedByParty)을 우선 확인하고 안 되면 리더 개인 지도 근사로 보조한다(둘 중
+	// 하나만 참이어도 완료). 점령 파티는 방 점령 완료 기준 — 보스공략은 범위 밖(구현현황 문서 참고).
 	public bool IsRoomActivityComplete()
 	{
 		if (Leader == null || Leader.hp <= 0 || Leader.currentRoom == null) return false;
@@ -100,11 +95,9 @@ public class Party
 			case PartyType.Recover:
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
-				// 점령을 실제로 트리거하는 조건은 아직 미정(PartyEnums.cs 주석 참고) — 판정 기준
-				// 자체("방이 인류 소유가 되면 완료")만 세팅으로 남겨둔다. 주의: RoomFaction은 파티
-				// 종류와 무관한 보스방 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌므로 지금은
-				// 점령 파티 전용 신호가 아니라 그 신호를 임시로 빌려 쓰는 것뿐 — 실제 점령 트리거가
-				// 생기면 교체할 것(검증문서 01-01 3번 참고).
+				// 트리거 조건은 미정(PartyEnums.cs 참고) — 판정 기준만 세팅으로 남겨둔다. RoomFaction은
+				// 파티 종류와 무관한 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌는 신호라,
+				// 실제 점령 트리거가 생기면 교체할 것(검증문서 01-01 3번 참고).
 				return room.RoomFaction == FactionType.Human;
 			case PartyType.MopUp:
 			default:
@@ -175,12 +168,9 @@ public class Party
 	// 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태. TrapPartySystem이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
 
-	// 01번 문서 9장/검증문서 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보의 지속 재전파 —
-	// DeathRecords/TrapCoordinations와 동일한 "파티 단위로 추적해 매 틱 재확인" 패턴. 완료 시점
-	// 일회성 전파(TacticalFSMState.InvestigatePerform/PickUpObject)가 그 순간 범위 밖이었던 파티원을
-	// 놓쳐도, 여기 등록해두면 PropagationSystem.TickOngoingObjectPropagation이 나중에 채워준다.
-	// 조사 완료(위치까지 필요, objectGrid 재조회용)와 회수 완료(위치 불필요, 사실 자체만)는 파티원에게
-	// 적용할 정보가 달라 따로 추적한다.
+	// 01번 문서 9장: 조사·회수 발견 정보의 지속 재전파 — DeathRecords/TrapCoordinations와 동일한
+	// "파티 단위 추적, 매 틱 재확인" 패턴(PropagationSystem.TickOngoingObjectPropagation이 소비).
+	// 조사 완료는 위치까지, 회수 완료는 사실만 필요해 따로 추적한다.
 	public readonly Dictionary<string, Vector3Int> KnownInvestigatedObjects = new Dictionary<string, Vector3Int>();
 	public readonly HashSet<string> KnownCollectedObjectIds = new HashSet<string>();
 
@@ -249,12 +239,10 @@ public class Party
 			LeaderKnownCorePosition = null;
 		}
 
-		// 01번 8장: 임무 요구 수량이 막 달성됐다는 결과 자체도 유효한 집결 판단 근거다 — 파티종류별
-		// "현재 방" 기준(IsRoomActivityComplete)과는 별개 사유라, 어느 한쪽만 참이어도 집결을 시작한다
-		// (검증문서 01-08 참고). 몬스터 처치 수량은 웨이브 공통 집계라 파티가 여러 개면 이 판단도
-		// 여러 번 일어날 수 있다 — _monsterKillQuotaConsumed로 "이 파티가 이미 한 번 썼는지"만 따로
-		// 추적한다(HumanWaveManager 쪽에 공유 소비 플래그를 두면 먼저 확인한 파티가 나머지 파티 몫까지
-		// 꺼버리는 문제가 있었다).
+		// 01번 8장: 임무 수량 달성도 유효한 집결 사유다 — IsRoomActivityComplete와는 별개라 둘 중
+		// 하나만 참이어도 집결을 시작한다(검증문서 01-08). 몬스터 처치는 웨이브 공통 집계라, 파티별
+		// 소비 여부를 _monsterKillQuotaConsumed로 따로 추적한다(공유 플래그면 먼저 확인한 파티가
+		// 나머지 몫까지 꺼버림).
 		bool monsterKillQuotaAvailable = !_monsterKillQuotaConsumed && HumanWaveManager.Instance != null &&
 			HumanWaveManager.Instance.CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount;
 		bool questJustAchieved = JustReachedRoomExploreQuota || monsterKillQuotaAvailable;
@@ -292,10 +280,8 @@ public class Party
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;
-			// ReportingCoreToLeader도 "아직 집결 미완료"로 취급 — 코어 보고 중인 유닛이
-			// PartyCoreReportSystem에 의해 AwaitingPartyAtRallyPoint에서 이쪽으로 전환됐을 때, 그
-			// 유닛이 보고를 마치기(→ OnLeaderLearnsCore가 이 집결 자체를 해제) 전에 나머지 인원만으로
-			// 집결이 먼저 "완료" 처리돼 ReadyToAdvance가 앞서 발생하는 것을 막는다(2026-09-26 발견).
+			// ReportingCoreToLeader도 "집결 미완료"로 취급 — 코어 보고 중인 유닛이 보고를 마치기 전에
+			// 나머지 인원만으로 집결이 먼저 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다.
 			if (m.currentWait != null &&
 				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint || m.currentWait.Reason == WaitReason.ReportingCoreToLeader))
 				return;
@@ -325,9 +311,8 @@ public class Party
 				continue;
 			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
 			m.currentWait = null;
-			// TacticalFSMState.ExecuteWait의 AwaitingPartyAtRallyPoint 분기가 currentWait을 지우는
-			// 다른 모든 지점(도착/스턱 한도 포기)에서 항상 같이 하는 리셋 — 여기서 빠뜨리면 다음 대기에
-			// 잔여 스턱 카운트가 이어져 유예 턴 수가 줄어든다.
+			// currentWait을 지우는 다른 모든 지점과 동일하게 waitStuckTurns도 항상 같이 리셋한다 —
+			// 빠뜨리면 다음 대기의 잔여 스턱 카운트가 유예 턴 수를 줄인다.
 			m.waitStuckTurns = 0;
 		}
 	}

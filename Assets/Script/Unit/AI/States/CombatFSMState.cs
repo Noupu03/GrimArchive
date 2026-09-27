@@ -159,10 +159,8 @@ public class CombatFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 02번 8~9장: 자기 자신을 포함해 긴급 보호 후보를 찾고 unit.CombatTargeting.ProtectTarget에
-	// 반영한다. 실제로 어떤 스킬로 보호할지는 각 스킬(SkillAction_Heal 등)이 이 값을 우선 대상으로
-	// 인식해 스스로 판단한다(02번 문서 "보호는 치료만을 뜻하지 않는다" — 스킬별 수행 가능 여부는
-	// 각 스킬의 IsAvailable이 담당). internal — StandGroundAttackFSMState도 동일하게 호출한다.
+	// 02번 8~9장: 자기 자신을 포함해 긴급 보호 후보를 찾아 unit.CombatTargeting.ProtectTarget에
+	// 반영한다 — 실제 보호 스킬 선택은 각 스킬의 IsAvailable이 담당. internal, StandGroundAttackFSMState도 호출.
 	internal static void ResolveEmergencyProtectTarget(Unit unit)
 	{
 		Unit current = unit.CombatTargeting.ProtectTarget;
@@ -217,10 +215,9 @@ public class CombatFSMState : IFSMState
 		if (unit.CombatTargeting.IsChasingRetargetedEnemy) unit.CombatTargeting.MovedTilesSinceRetarget++;
 	}
 
-	// internal — StandGroundAttackFSMState("제자리 공격")가 이동 없이 사거리 내 적만 공격할 때
-	// 동일한 타깃 선정 로직을 재사용한다. 02번 3~5장: 개인위험도(인류)/종류설정(몬스터·야생) × 역할
-	// 배율 × 대상 종류 배율로 점수를 매기고, 유지 중인 대상은 인류 1.2배·몬스터/야생은 더 높을 때만
-	// 교체한다(교체 시 5장 이동 한도 확인). 4장 보스 집중은 임시 위협이 없는 한 그대로 유지한다.
+	// internal — StandGroundAttackFSMState("제자리 공격")도 동일한 타깃 선정 로직을 재사용한다.
+	// 02번 3~5장: 개인위험도(인류)/종류설정(몬스터·야생) × 역할배율 × 대상종류배율로 점수를 매기고,
+	// 인류는 1.2배·몬스터/야생은 더 높을 때만 교체(5장 이동한도 확인). 보스 집중은 위협 없는 한 유지.
 	internal static Unit SelectAttackTarget(Unit unit, out float minDist)
 	{
 		minDist = float.MaxValue;
@@ -273,8 +270,12 @@ public class CombatFSMState : IFSMState
 			{ best = cand; bestScore = score; bestDist = d; }
 		}
 
+		// pool이 아니라 allCandidates로 유효성을 확인한다 — pool(위협 우선)로 확인하면 현재 대상이
+		// 위협 후보가 아닐 때 다른 위협이 나타나는 것만으로 "대상 없음"과 동일 취급돼 아래 20%/이동한도
+		// 게이트를 건너뛰고 즉시 교체되는 버그가 있었다(02번 5장 "이동 한도를 적용하지 않는 행동" 목록에
+		// 이 경우는 없음). 후보 자체를 좁히는 것(pool)과 유지 중인 대상의 유효성(currentValid)은 별개 축.
 		Unit current = unit.CombatTargeting.AttackTarget;
-		bool currentValid = current != null && current.Health.hp > 0 && current.currentFloor == unit.currentFloor && pool.Contains(current);
+		bool currentValid = current != null && current.Health.hp > 0 && current.currentFloor == unit.currentFloor && allCandidates.Contains(current);
 
 		if (!currentValid)
 		{

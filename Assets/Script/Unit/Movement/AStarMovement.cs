@@ -205,11 +205,9 @@ public class AStarMovement : IMovementAlgorithm
     }
 
     // TryGetNextStep의 A* 탐색 루프를 그대로 추출한 순수 검색 — 프레임 간 이동 캐시(_cacheTarget/
-    // _pathMap/_cacheTime)는 절대 건드리지 않는다(호출부가 각자 알아서 처리). TryGetPathLength도
-    // 이 검색을 그대로 재사용해 "실제로 걷는 목적지"와 무관한 거리 조회에 이동 캐시가 오염되지 않게 한다.
-    // reachedTarget=true면 closestNode가 targetPos에 정확히 도달, false면 도달 실패 시 발견한 가장
-    // 가까운 노드(휴리스틱 기준)다. 반환값이 시작 위치 그대로면(closestNode.Pos == startPos) 한 걸음도
-    // 못 나간 완전 실패다.
+    // _pathMap/_cacheTime)는 건드리지 않는다(TryGetPathLength도 재사용해 거리 조회로 캐시가 오염되지
+    // 않게 한다). reachedTarget=true면 closestNode가 targetPos에 정확히 도달, false면 도달 실패 시
+    // 발견한 가장 가까운 노드(휴리스틱 기준) — 시작 위치 그대로면 한 걸음도 못 나간 완전 실패다.
     private AStarNode RunSearch(Unit unit, Vector2Int startPos, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget)
     {
         _openList.Clear();
@@ -274,11 +272,9 @@ public class AStarMovement : IMovementAlgorithm
         return closestNode;
     }
 
-    // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시
-    // (_cacheTarget/_pathMap/_cacheTime)는 전혀 건드리지 않는다("실제로 걷는 목적지"가 아니라 여러
-    // 후보의 순위를 매기기 위한 일회성 조회이기 때문). fullyRevealed는 도착한 경로의 모든 칸이 이
-    // 유닛의 개인 지도에 이미 드러나 있는지(=완전히 아는 길)를 뜻한다 — 인류가 아니면(개인 지도 없음)
-    // 항상 false.
+    // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시는
+    // 건드리지 않는다(일회성 순위 매기기용 조회라서). fullyRevealed는 경로의 모든 칸이 이 유닛의
+    // 개인 지도에 이미 드러나 있는지를 뜻한다(인류가 아니면 항상 false).
     public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed)
     {
         pathLength = 0;

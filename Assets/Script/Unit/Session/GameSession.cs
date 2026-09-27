@@ -623,8 +623,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             throttledProcessed++;
         }
 
-        // 임시 진단(2026-09-27, 플레이테스트 버그 2 "전투 중 유닛 겹침" 가설 검증용 —
-        // 원인 확인되면 제거). 이번 프레임의 모든 이동 처리가 끝난 시점 기준으로 확인한다.
+        // 임시 진단("전투 중 겹침" 가설 검증용 — 원인 확인되면 제거). 이번 프레임 이동 처리가 끝난 시점 기준.
         DebugCheckUnitOverlap();
 
         if (Time.timeScale < 0.01f) // 일시정지 상태여도 외부 조작(InputManager 등)에 의한 선택 렌더링 피드백이 즉시 반영되도록 매 프레임 Sync
@@ -893,8 +892,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         var party = new Party(System.Guid.NewGuid().ToString(), name);
         // 01번 문서 7-1장: 파티 종류별 현재 방 활동 종료 기준이 다르다. 편성 가능 유닛·선택 가중치는
-        // 아직 없는 03_파티 종류·목표·포메이션 문서 영역이라 PartyType(현재 4종) 중 무작위 배정으로
-        // 스텁한다 — Enum.GetValues 기반이라 종류가 늘어도 이 줄은 그대로 둬도 된다.
+        // 미작성 문서 영역이라 PartyType 중 무작위 배정으로 스텁한다(Enum.GetValues 기반).
         party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
         foreach (var m in members)
         {
@@ -1041,12 +1039,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
     }
 
-    // 임시 진단 코드(2026-09-27, 플레이테스트 발견 "전투 중 유닛 겹침" 원인 확인용 — 원인이 확인되면
-    // 지운다). 매 프레임 끝에서 (a) 살아있는 두 유닛의 논리적 position이 같은 타일인지, (b) 발자국
-    // 전체 칸이 unitGrid에서 자기 자신을 정확히 가리키는지 확인한다. 여기서 아무 로그도 안 뜨면
-    // unitGrid/CanMove 기반 점유 로직 자체는 정상이라는 뜻 — "겹쳐 보임"은 UnitGenerate.SyncVisual의
-    // DOTween 이동 애니메이션이 유닛마다 독립적으로 돌아가서 생기는 화면상의 교차일 뿐, 논리적으로는
-    // 두 유닛이 같은 타일에 있던 적이 없다는 뜻이 된다.
+    // 임시 진단("전투 중 유닛 겹침" 원인 확인용 — 확인되면 지운다). 매 프레임 끝에서 (a) 살아있는
+    // 두 유닛의 논리적 position이 같은 타일인지, (b) 발자국 전체 칸이 unitGrid에서 자신을 정확히
+    // 가리키는지 확인한다. 로그가 안 뜨면 점유 로직은 정상이고 "겹쳐 보임"은 UnitGenerate.SyncVisual의
+    // DOTween 이동 애니메이션이 유닛마다 독립적으로 돌아가 생기는 화면상의 교차일 뿐이다.
     private readonly Dictionary<Vector3Int, Unit> _overlapDebugSeen = new Dictionary<Vector3Int, Unit>();
     private void DebugCheckUnitOverlap()
     {
@@ -1331,9 +1327,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         room.CorePosition = gridPos;
     }
 
-    // 2026-09-25 회의록(코어·점령 재설계): 코어는 각 층 보스방에만 배치한다 — 옛 SpawnAllRoomCores
-    // (모든 방에 코어)를 대체. 그 외 방의 점령 조건은 아직 미정(PartyEnums.cs 주석 참고) — 정해지면
-    // 그 트리거 지점에서 이 메서드 옆에 나란히 추가하면 된다.
+    // 코어는 각 층 보스방에만 배치한다 — 옛 SpawnAllRoomCores(모든 방에 코어)를 대체. 그 외 방의
+    // 점령 조건은 미정(PartyEnums.cs 참고) — 정해지면 이 메서드 옆에 나란히 추가하면 된다.
     private void SpawnBossCores()
     {
         if (_unitGenerate == null || allRooms == null || cmap?.map.floors == null) return;

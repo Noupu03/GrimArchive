@@ -109,10 +109,8 @@ public class OffenseProcessor
         LogHelper.Log($"[코어 파괴] {room.RoomName} 방(F{room.Floor}): {killer.unitType?.typeName}({claimant.Value})이 코어를 파괴해 점령 — 코어 체력 절반 회복.");
     }
 
-    // 2026-09-25: "임시 점령 오브젝트"(보스방 외 방의 HP 채널링 파괴 트리거) 메커니즘은 더 나은
-    // 점령 조건으로 대체하기로 하고 삭제했다 — 이 메서드가 하던 일(OnCoreDestroyed와 동일 구조로
-    // killer 진영에 방 소유권을 넘기고 IMapColorizer.PulseRoomOutline으로 테두리를 펄스)은 다음
-    // 점령 조건이 정해지면 그 트리거 지점에서 이 위의 OnCoreDestroyed를 본떠 다시 만들면 된다.
+    // "임시 점령 오브젝트"(보스방 외 방의 HP 채널링 파괴 트리거)는 삭제됐다 — 다음 점령 조건이
+    // 정해지면 위 OnCoreDestroyed(소유권 전환 + PulseRoomOutline 펄스)를 본떠 다시 만들면 된다.
 
     // FactionType(RoomFaction 쪽) → OccupationState(맵 데이터 쪽) 역매핑. GetRoomOwnerColor와
     // 나란히 두되 색이 아니라 CreateMap.Chunks.occupationState 갱신용.
