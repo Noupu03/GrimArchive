@@ -37,10 +37,13 @@ namespace GrimArchive.Wave
         public int WaveNumber { get; private set; } = 0;
 
         // 01번 문서 2장: 몬스터 처치 임무의 공통 집계 — 여러 인류 파티가 있어도 파티별로 나누지 않고
-        // 시스템이 하나로 합산한다(검증문서 01-04). 웨이브마다 새로 시작(StartWave에서 리셋).
+        // 시스템이 하나로 합산한다(검증문서 01-04). 웨이브마다 새로 시작(StartWave에서 리셋). 달성
+        // 여부는 레벨 조건(CommonMonsterKillCount >= RequiredMonsterKillCount)으로만 판정한다 — 한
+        // 웨이브에 파티가 여러 개일 수 있어(WaveSpawner.SpawnWave), "막 달성된 순간"을 여기 공유
+        // bool 하나로 표시하면 먼저 확인한 파티가 그 신호를 소비해버려 나머지 파티는 영영 못 본다.
+        // 파티별 1회 소비 여부는 Party._monsterKillQuotaConsumed가 각자 따로 들고 있다.
         public float CommonMonsterKillCount { get; private set; }
         private readonly HashSet<string> _countedKillIds = new HashSet<string>();
-        public bool JustReachedMonsterKillQuota;
 
         // GameSession.RemoveDeadUnit이 인류에게 죽은 몬스터의 사망 시점(Destroy 전)에 호출한다.
         // deathEventId는 그 순간 생성되는 시체 오브젝트 Id를 그대로 재사용 — 사망마다 고유해 "사망
@@ -48,11 +51,7 @@ namespace GrimArchive.Wave
         public void OnMonsterKilled(string deathEventId, string speciesTypeName)
         {
             if (string.IsNullOrEmpty(deathEventId) || !_countedKillIds.Add(deathEventId)) return;
-
-            bool wasBelow = CommonMonsterKillCount < PartyGoalMath.RequiredMonsterKillCount;
             CommonMonsterKillCount += PartyGoalMath.MonsterKillWeight(speciesTypeName);
-            if (wasBelow && CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount)
-                JustReachedMonsterKillQuota = true;
         }
 
         // 추적 중인 웨이브 데이터
@@ -494,7 +493,6 @@ namespace GrimArchive.Wave
             // 01번 문서 2장: 몬스터 처치 임무 수량은 웨이브 발급 시 고정·초기화한다.
             CommonMonsterKillCount = 0f;
             _countedKillIds.Clear();
-            JustReachedMonsterKillQuota = false;
 
             // 문은 항상 기본적으로 닫혀있고 진영·근접 여부로 매 프레임 스스로 개폐하므로(DoorSystem.
             // UpdateProcess) 웨이브 시작 시점에 별도로 잠글 필요가 없다.

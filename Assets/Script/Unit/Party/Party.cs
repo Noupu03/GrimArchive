@@ -128,6 +128,11 @@ public class Party
 		return false;
 	}
 
+	// TryStartRally 전용 — 웨이브 공통 몬스터 처치 수량(HumanWaveManager.CommonMonsterKillCount) 달성을
+	// 이 파티가 이미 집결 트리거로 한 번 썼는지. 파티마다 각자 들고 있어야 여러 파티가 있어도 서로
+	// 간섭하지 않는다(위 TryStartRally 주석 참고).
+	private bool _monsterKillQuotaConsumed;
+
 	// 리더 전용 주기 체크 — 전투 없이도(스윕 트리거 없이도) 방 활동이 끝나면 집결을 시작할 수 있어야
 	// 하므로(01번 7-1장 "전투가 없었던 방에도 같은 기준 사용"), UnitFunction.OnUpdate가 매 프레임 대신
 	// 이 타이머로 던진다.
@@ -246,9 +251,13 @@ public class Party
 
 		// 01번 8장: 임무 요구 수량이 막 달성됐다는 결과 자체도 유효한 집결 판단 근거다 — 파티종류별
 		// "현재 방" 기준(IsRoomActivityComplete)과는 별개 사유라, 어느 한쪽만 참이어도 집결을 시작한다
-		// (검증문서 01-08 참고). 소비 즉시 리셋해 이후 다른 방에서 다시 트리거되지 않게 한다.
-		bool questJustAchieved = JustReachedRoomExploreQuota ||
-			(HumanWaveManager.Instance != null && HumanWaveManager.Instance.JustReachedMonsterKillQuota);
+		// (검증문서 01-08 참고). 몬스터 처치 수량은 웨이브 공통 집계라 파티가 여러 개면 이 판단도
+		// 여러 번 일어날 수 있다 — _monsterKillQuotaConsumed로 "이 파티가 이미 한 번 썼는지"만 따로
+		// 추적한다(HumanWaveManager 쪽에 공유 소비 플래그를 두면 먼저 확인한 파티가 나머지 파티 몫까지
+		// 꺼버리는 문제가 있었다).
+		bool monsterKillQuotaAvailable = !_monsterKillQuotaConsumed && HumanWaveManager.Instance != null &&
+			HumanWaveManager.Instance.CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount;
+		bool questJustAchieved = JustReachedRoomExploreQuota || monsterKillQuotaAvailable;
 
 		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지
 		// 않는다. 다만 위 임무 수량 달성 결과가 있다면 그것만으로도 집결 판단으로 넘어간다.
@@ -257,7 +266,7 @@ public class Party
 		if (questJustAchieved)
 		{
 			JustReachedRoomExploreQuota = false;
-			if (HumanWaveManager.Instance != null) HumanWaveManager.Instance.JustReachedMonsterKillQuota = false;
+			if (monsterKillQuotaAvailable) _monsterKillQuotaConsumed = true;
 		}
 
 		RallyPoint = Leader.position;
@@ -316,6 +325,10 @@ public class Party
 				continue;
 			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
 			m.currentWait = null;
+			// TacticalFSMState.ExecuteWait의 AwaitingPartyAtRallyPoint 분기가 currentWait을 지우는
+			// 다른 모든 지점(도착/스턱 한도 포기)에서 항상 같이 하는 리셋 — 여기서 빠뜨리면 다음 대기에
+			// 잔여 스턱 카운트가 이어져 유예 턴 수가 줄어든다.
+			m.waitStuckTurns = 0;
 		}
 	}
 }

@@ -186,6 +186,14 @@ git diff로 한 줄씩 검토] 발견/수정한 것:
   AttackBuilding처럼 "지금은 아무도 안 만드는 카테고리"도 문서(02번) 스스로 정의한 3분류 중 하나라
   죽은 코드가 아니라 그대로 둠.
 
+[2026-09-27 리팩토링 리뷰 — 5개 커밋(0장 검증 중간저장~0층->1층 로직 개선) 대상] 발견/수정한 것:
+- HumanWaveManager.JustReachedMonsterKillQuota(공유 단발 bool)를 제거 — 파티가 여러 개면 먼저 확인한
+  파티가 신호를 소비해 나머지 파티는 못 보는 문제가 있었다. Party._monsterKillQuotaConsumed(파티별
+  전용)가 레벨 조건(CommonMonsterKillCount >= RequiredMonsterKillCount)을 각자 확인하는 방식으로 교체.
+- Party.OnLeaderLearnsCore가 currentWait을 지우면서 waitStuckTurns를 안 지우던 누락 수정(다른 모든
+  해제 지점과 동일하게 리셋).
+dotnet build 오류 0개(경고 71개, 기존과 동일) 확인.
+
 [전투 역할 / 02번] — 전부 구현 완료(청사진 대비 실제 반영)
 - ✅ CombatRole enum(MeleeTank/MeleeDps/RangedDps/MeleeSupport/RangedSupport) — CombatEnums.cs
 - ✅ UnitType→CombatRole 매핑 — CombatScoreMath.ResolveCombatRole (판단 근거는 위 결정 7번)
