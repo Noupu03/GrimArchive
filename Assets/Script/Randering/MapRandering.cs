@@ -178,7 +178,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         var set = new FloorTileSet
         {
             wallVariants = BuildVariantTiles(wallSprite, _wallLabelSprites, wallTint),
-            floorVariants = BuildVariantTiles(floorSprite, _floorLabelSprites, floorTint),
+            floorVariants = BuildVariantTiles(floorSprite, _floorLabelSprites, floorTint, preferLibraryOnly: true),
             wallShapeTiles = BuildWallShapeTiles(wallTint),
             stairTile = stairTile,
         };
@@ -186,8 +186,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return set;
     }
 
-    // WallVariant 10종 각각의 Tile을 만든다 — TileSpriteLibrary "Wall" 카테고리에서 GetSpriteLibraryLabel
-    // 라벨로 스프라이트를 찾고, 없으면(라이브러리 자체가 없거나 그 라벨만 비어있어도) wallSprite로 폴백한다.
+    // WallVariant 12종 각각의 Tile을 만든다 — TileSpriteLibrary "Wall" 카테고리에서 GetSpriteLibraryLabel
+    // 라벨(형태별 4개만 존재, 2026-09-27 축소)로 스프라이트를 찾고, 없으면(라이브러리 자체가 없거나
+    // 그 라벨만 비어있어도) wallSprite로 폴백한다. 같은 형태를 공유하는 variant끼리는 스프라이트가
+    // 같고 회전(tile.transform)만 다르다.
     UnityEngine.Tilemaps.Tile[] BuildWallShapeTiles(Color wallTint)
     {
         var variantValues = (WallVariant[])System.Enum.GetValues(typeof(WallVariant));
@@ -204,6 +206,12 @@ public class MapRandering : NativeRoutine, IMapColorizer
             var tile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
             tile.sprite = sprite;
             tile.color = wallTint;
+            // 2026-09-27 회의록 후속: 형태별 기준 스프라이트 1장(GetSpriteLibraryLabel이 이제 12종을
+            // 4라벨로 묶어 반환)을 방향마다 회전시켜 재사용한다 — 정확한 회전각은
+            // WallAutoTileMath.GetRotationDegrees 참고(실물 아트로 아직 시각 검증 안 됨, 틀렸으면 그
+            // 표만 뒤집으면 됨). RuleTile 자체 관례를 따라 LockTransform도 같이 설정.
+            tile.transform = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, WallAutoTileMath.GetRotationDegrees(variant)));
+            tile.flags = UnityEngine.Tilemaps.TileFlags.LockTransform;
             tiles[(int)variant] = tile;
         }
         return tiles;
@@ -211,12 +219,28 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
     // baseSprite(항상 0번)에 라이브러리 라벨 스프라이트를 이어붙인다 — 중복(라이브러리 라벨이 base와
     // 같은 스프라이트를 가리키는 경우, 지금 기본 상태가 그렇다)은 제외한다.
-    UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants, Color tint)
+    // preferLibraryOnly=true면 라이브러리에 실제로 채워진 변형이 있는 한 baseSprite를 완전히 배제한다
+    // (라이브러리가 비어있을 때만 baseSprite로 폴백). 바닥 전용 — 회의록 2026-09-27 버그 신고("라이브러리
+    // 바닥 스프라이트를 바꿨는데 기존에 쓰던 잔디 스프라이트가 섞여서 배치됨") 수정: 예전엔 라이브러리
+    // 유무와 무관하게 항상 baseSprite를 포함해서, 라이브러리를 완전히 다른 스프라이트로 바꿔도 옛
+    // 하드코딩 스프라이트가 무작위 풀에 계속 섞여 있었다. 벽 쪽 호출(wallVariants, SetTileToWall 디버그
+    // 전용이 [0]만 읽음)은 기존 동작 그대로 유지해야 하므로 기본값은 false로 둔다.
+    UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants, Color tint, bool preferLibraryOnly = false)
     {
-        var sprites = new List<Sprite> { baseSprite };
-        if (extraVariants != null)
-            foreach (var s in extraVariants)
-                if (s != null && s != baseSprite) sprites.Add(s);
+        var sprites = new List<Sprite>();
+        if (preferLibraryOnly)
+        {
+            if (extraVariants != null)
+                foreach (var s in extraVariants) if (s != null) sprites.Add(s);
+            if (sprites.Count == 0) sprites.Add(baseSprite);
+        }
+        else
+        {
+            sprites.Add(baseSprite);
+            if (extraVariants != null)
+                foreach (var s in extraVariants)
+                    if (s != null && s != baseSprite) sprites.Add(s);
+        }
 
         var tiles = new UnityEngine.Tilemaps.Tile[sprites.Count];
         for (int i = 0; i < sprites.Count; i++)
@@ -239,23 +263,28 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
     // 벽 자동 타일 연결(회의록 2026-09-27) — (wx,wy) 벽 타일의 8방향 인접 상태를 isWall 격자에서 읽어
     // WallAutoTileMath로 10종 중 하나를 판정하고, 그 WallVariant에 해당하는 Tile을 반환한다.
-    private static UnityEngine.Tilemaps.TileBase GetWallShapeTile(bool[,] isWall, int worldW, int worldH, int wx, int wy, UnityEngine.Tilemaps.Tile[] wallShapeTiles)
+    private static UnityEngine.Tilemaps.TileBase GetWallShapeTile(bool[,] isWall, bool[,] isFloor, int worldW, int worldH, int wx, int wy, UnityEngine.Tilemaps.Tile[] wallShapeTiles)
     {
-        bool n = IsWallAt(isWall, worldW, worldH, wx, wy + 1);
-        bool s = IsWallAt(isWall, worldW, worldH, wx, wy - 1);
-        bool e = IsWallAt(isWall, worldW, worldH, wx + 1, wy);
-        bool w = IsWallAt(isWall, worldW, worldH, wx - 1, wy);
-        bool ne = IsWallAt(isWall, worldW, worldH, wx + 1, wy + 1);
-        bool nw = IsWallAt(isWall, worldW, worldH, wx - 1, wy + 1);
-        bool se = IsWallAt(isWall, worldW, worldH, wx + 1, wy - 1);
-        bool sw = IsWallAt(isWall, worldW, worldH, wx - 1, wy - 1);
+        bool n = IsSetAt(isWall, worldW, worldH, wx, wy + 1);
+        bool s = IsSetAt(isWall, worldW, worldH, wx, wy - 1);
+        bool e = IsSetAt(isWall, worldW, worldH, wx + 1, wy);
+        bool w = IsSetAt(isWall, worldW, worldH, wx - 1, wy);
+        bool ne = IsSetAt(isWall, worldW, worldH, wx + 1, wy + 1);
+        bool nw = IsSetAt(isWall, worldW, worldH, wx - 1, wy + 1);
+        bool se = IsSetAt(isWall, worldW, worldH, wx + 1, wy - 1);
+        bool sw = IsSetAt(isWall, worldW, worldH, wx - 1, wy - 1);
 
-        WallVariant variant = WallAutoTileMath.SelectVariant(n, s, e, w, ne, nw, se, sw);
+        bool isFloorN = IsSetAt(isFloor, worldW, worldH, wx, wy + 1);
+        bool isFloorS = IsSetAt(isFloor, worldW, worldH, wx, wy - 1);
+        bool isFloorE = IsSetAt(isFloor, worldW, worldH, wx + 1, wy);
+        bool isFloorW = IsSetAt(isFloor, worldW, worldH, wx - 1, wy);
+
+        WallVariant variant = WallAutoTileMath.SelectVariant(n, s, e, w, ne, nw, se, sw, isFloorN, isFloorS, isFloorE, isFloorW);
         return wallShapeTiles[(int)variant];
     }
 
-    private static bool IsWallAt(bool[,] isWall, int worldW, int worldH, int x, int y)
-        => x >= 0 && x < worldW && y >= 0 && y < worldH && isWall[x, y];
+    private static bool IsSetAt(bool[,] grid, int worldW, int worldH, int x, int y)
+        => x >= 0 && x < worldW && y >= 0 && y < worldH && grid[x, y];
 
     private Sprite CreateColorSprite(Color color)
     {
@@ -330,6 +359,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 벽 자동 타일 연결용 — 청크 경계를 넘나드는 8방향 인접 판정을 위해 층 전체를 미리 평탄화한다
         // (BuildWallMask와 동일한 산출물, 셰도우캐스터 쪽과 별개로 렌더링 시점에 한 번 더 계산).
         bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
+        bool[,] isFloor = BuildFloorMask(ref floor, worldW, worldH);
         FloorTileSet tileSet = GetOrBuildFloorTileSet(floorIdx);
 
         for (int cx = 0; cx < chunkCountX; cx++)
@@ -348,7 +378,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
                         int wy = cy * chunkSize + ty;
 
                         UnityEngine.Tilemaps.TileBase tileBase;
-                        if (tileName == "Wall") tileBase = GetWallShapeTile(isWall, worldW, worldH, wx, wy, tileSet.wallShapeTiles);
+                        if (tileName == "Wall") tileBase = GetWallShapeTile(isWall, isFloor, worldW, worldH, wx, wy, tileSet.wallShapeTiles);
                         else if (tileName == "Stair") tileBase = tileSet.stairTile;
                         else tileBase = PickRandomVariant(tileSet.floorVariants);
 
@@ -500,6 +530,34 @@ public class MapRandering : NativeRoutine, IMapColorizer
         }
 
         return isWall;
+    }
+
+    // 벽 방향(상/하, 좌/우) 판정 전용 — BuildWallMask의 "Wall" 격자와 대칭되는 "Floor" 전용 격자
+    // (2026-09-27 회의록 후속 요청 — Vertical/Horizontal이 선택되는 조건 자체가 "동서(또는 남북) 둘
+    // 다 벽 아님"이라, 벽 아님 여부만으로는 어느 쪽이 방 내부인지 못 가른다. Stair/미개척 영역은
+    // 둘 다 false로 나와 애매하면 WallAutoTileMath가 기본값(Top/Left)으로 폴백한다.
+    static bool[,] BuildFloorMask(ref Floor floor, int worldW, int worldH)
+    {
+        bool[,] isFloor = new bool[worldW, worldH];
+        int chunkCountX = floor.config.width;
+        int chunkCountY = floor.config.height;
+        int chunkSize = floor.config.chunkSize;
+
+        for (int cx = 0; cx < chunkCountX; cx++)
+        {
+            for (int cy = 0; cy < chunkCountY; cy++)
+            {
+                Chunks chunk = floor.chunks[cx, cy];
+                if (chunk.chunk == null) continue;
+
+                for (int tx = 0; tx < chunkSize; tx++)
+                    for (int ty = 0; ty < chunkSize; ty++)
+                        if (chunk.chunk[tx, ty].name == "Floor")
+                            isFloor[cx * chunkSize + tx, cy * chunkSize + ty] = true;
+            }
+        }
+
+        return isFloor;
     }
 
     // 2026-08-24 debug 전용(GameSession.DebugConvertFloorTileToWall) — 이미 렌더링된 타일맵의 셀 하나만

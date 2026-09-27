@@ -27,6 +27,12 @@
 4. **KakaoTalk 참고 이미지(Assets/KakaoTalk_20260927_144913940.png) 미사용** — 실제 10종 스프라이트
    슬라이싱/생성에는 안 썼다(참고용 프리뷰 1장일 뿐, 분리된 원본 아님). 사용자가 "로직+슬롯만"
    범위로 확정.
+5. **[완료, 2026-09-27] 벽 10라벨 → 4형태+회전 전환** — 아래 "■ 4. 회의록 후속" 섹션 참고. 코드는
+   끝났지만 **Unity 실제 플레이 검증 전혀 안 됨** — 다음 세션 최우선: (a) .sln 없어 dotnet build도
+   못 함, 다음 에디터 실행 시 컴파일 확인부터, (b) 회전이 실제로 적용되는지(지금은 4라벨 전부
+   placeholder Tile_StoneWall이라 육안 차이가 거의 없을 수 있음, Tile_StoneWall이 대칭 텍스처면 회전
+   버그가 있어도 안 보일 수 있다는 뜻이라 검증 방법 고민 필요), (c) 정림이 실제 4장을 채운 뒤
+   회전 방향(시계/반시계)이 맞는지 최종 확인.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 1. 벽 자동 타일 연결 (회의록 "벽 타일 자동 연결 구현안")
@@ -96,6 +102,45 @@ UI도 그 4개를 고정 슬롯으로 보여준다.
   MapColorTheme_New.asset`, 벽=빨강/바닥=보라)은 그대로 두고, 그걸 활성화해뒀던
   `MapColorTheme_Active.asset`만 삭제(구조 자체가 대체됨). 위 "다음 우선순위" 2번 참고 —
   재배정 필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 4. 회의록 후속(같은 날 오후 5:29~) — 반영 대상
+════════════════════════════════════════════════════════════════════════
+배경: 정림이 완성된 10라벨 벽 시스템을 실제로 확인한 뒤(5:29 "다른거 다 확인") 두 가지를 추가로 요청.
+
+✅ 구현 완료 — **바닥 스프라이트 라이브러리 버그**: 정림 신고 "라이브러리에서 바닥 스프라이트
+  변경시켰는데 기존에 쓰던 잔디 스프라이트가 섞여서 배치되더라". 원인: `BuildVariantTiles`가
+  라이브러리 유무와 무관하게 항상 하드코딩 `floorSprite`("FloorTexture" 리소스, 잔디)를 무작위 풀
+  0번에 포함시켜서, 라이브러리를 완전히 다른 스프라이트로 바꿔도 옛 잔디가 계속 무작위 후보로 섞여
+  나왔다(벽 쪽은 `wallVariants[0]`만 읽는 디버그 전용이라 이 문제가 없었음 — `wallShapeTiles`가
+  실제 벽 렌더링을 담당). `BuildVariantTiles`에 `preferLibraryOnly` 매개변수 추가(기본 false=벽
+  기존 동작 그대로 유지) — floorVariants 호출만 true로 넘겨, 라이브러리에 실제 채워진 변형이 있으면
+  그것만 쓰고(baseSprite 완전 배제) 라이브러리가 비어있을 때만 baseSprite로 폴백하도록 수정.
+
+✅ 구현 완료(2026-09-27, EnterPlanMode로 설계 후 구현) — **벽 스프라이트 10라벨 → 4형태+회전 구조
+  전환**: 정림 요청(5:33) "각 형태의 기준 스프라이트 1개를 등록한 뒤 Transform 회전으로 방향을 처리".
+  참고 이미지 `Assets/KakaoTalk_20260927_144913940.png`(외곽 코너 원본) 확인 후 설계.
+  - `WallAutoTileMath.cs`: `WallVariant` 10종→12종(Horizontal/Vertical이 Top/Bottom, Left/Right로
+    분화) + `WallShape`(형태 4종) enum 신설. `SelectVariant`가 새 `isFloorN/S/E/W`(선택 인자, 기존
+    코너 호출부는 안 건드려도 됨) 조합으로 직선 구간의 상하/좌우를 판정 — **설계 중 발견한 중요
+    사실**: Vertical가 선택되는 조건 자체가 "동/서 둘 다 벽 아님"이라 벽-아님 여부만으론 방향을 못
+    가른다, `Chunks.chunk[].name=="Floor"` 여부를 보는 별도 판정이 필요했다. `GetShape`/
+    `GetRotationDegrees`(TL=0°→BL=90°→BR=180°→TR=270°, 반시계 가정)/`GetSpriteLibraryLabel`(4라벨로
+    축소) 신설.
+  - `MapRandering.cs`: `BuildFloorMask`(`BuildWallMask`와 대칭되는 Floor 전용 격자) 신설,
+    `RenderFloor`가 벽 격자와 나란히 만들어 `GetWallShapeTile`에 전달(`IsWallAt`→범용 `IsSetAt`으로
+    개명). `BuildWallShapeTiles`가 이제 4라벨만 조회하고, 같은 형태를 공유하는 variant끼리는 스프라이트는
+    같되 `tile.transform = Matrix4x4.Rotate(...)` + `tile.flags = TileFlags.LockTransform`(RuleTile
+    자체 관례 따름)로 회전만 다르게 적용.
+  - `TileSpriteLibrary.spriteLib`: Wall 카테고리 10라벨→4라벨(`Wall_Horizontal`/`Wall_Vertical`/
+    `Wall_Outer_TL`/`Wall_Inner_TL`만 남김, 나머지 6개 엔트리 삭제) — 정림이 이 4개만 채우면 됨.
+  - `WallAutoTileTests.cs`: 기존 코너 테스트 10개는 그대로(코너 판정 로직 안 바뀜), Horizontal/
+    Vertical 테스트를 Floor 판정 조합별 4개로 재작성 + `GetShape`/`GetRotationDegrees`/축소된
+    `GetSpriteLibraryLabel` 신규 테스트 추가. **테스트 작성 중 실제 버그 발견**: Horizontal 방향 판정
+    조건이 처음엔 거꾸로 구현됨("바닥이 남쪽"일 때 Bottom을 반환 — 반대여야 함, 바닥이 북쪽일 때
+    Bottom이 맞음). 테스트로 직접 검산하다 발견해 즉시 수정.
+  - **알려진 한계**: 회전 방향(시계/반시계)은 실물 아트 없이 기하학적으로 추론한 값이라 정림이 실제
+    4장을 채운 뒤 화면으로 봐야 확정된다 — 틀렸으면 `GetRotationDegrees` 표 하나만 뒤집으면 됨.
 
 ════════════════════════════════════════════════════════════════════════
 ■ 3. 유니티 상단 메뉴 정리 (Tools/Tools(new), 같은 날 두 번 뒤집힘)
