@@ -72,7 +72,8 @@ public class SkillAction_GolemSlam : SkillAction
                 }
             },
             cooldownAction: () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
-            shape: AttackShape.AreaGround
+            shape: AttackShape.AreaGround,
+            skillName: SkillName
         );
 
         Vector3 handTargetWorld = new Vector3(targetCenter.x, targetCenter.y, 0f)

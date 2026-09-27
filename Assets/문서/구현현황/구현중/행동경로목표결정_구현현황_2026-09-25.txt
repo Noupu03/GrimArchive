@@ -441,7 +441,10 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    전사보다 뒤에서 진입" 등 포지셔닝 세부는 미구현)
 ✅ 7. 일반 치료 목표의 선택과 유지
 ✅ 8. 긴급 아군 보호의 시작과 대상 순서 (치명타 예상 조건 생략, 위 참고)
-❌ 9. 보호 경로와 피해 추정의 한계 (피해 감수 경로 판정 자체가 미구현)
+✅ 9. 보호 경로와 피해 추정의 한계 (2026-09-27 구현) — 상세는 아래 "다음 우선순위 구현 후보" 16번 참고.
+   PersonalSkillDamageRecord(예상 피해량 데이터) + AttackRangeAvoidingMovement(공격범위 회피 경로) +
+   TryEmergencyProtectApproach/MoveTowardsProtectTargetWithRiskCheck(피해감수 긴급보호 판정) 3단계로
+   구현. Unity 실제 플레이 검증은 아직 안 함(dotnet build도 .sln 부재로 미확인).
 🔶 10. 긴급 조건의 해소와 실패 (currentProtectTarget이 매 틱 재계산되며 자연히 재비교되지만, "피해량
    몰라 판단 불가" 세부 구분·"보호 수행 불가 즉시 재판단" 등 세밀한 사유 구분은 없음)
 ✅ 11. 큰 피해에 따른 시야 전환
@@ -463,7 +466,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 0~1. 경로 입력과 목적지 / 방 경로와 개인 경로
 🔶 2. 점유 크기 1×1~5×5 (Footprint 시스템 기존 구현 — 이 문서가 새로 요구하는 것 없음)
 ❌ 3. 이동속도 적용 (공동 이동속도 계산 헬퍼 신규)
-❌ 4. 역할별 이동 경로와 우회 (CombatRole 필요)
+✅ 4. 역할별 이동 경로와 우회 (2026-09-27 구현) — AStarMovement.GetExtraTileCost 훅 + AttackRangeAvoidingMovement
+   (RangedDps/RangedSupport/MeleeSupport만 승급, RoomConfinedMovement 몬스터는 이 표의 "몬스터" 행으로
+   별도 관리돼 제외). 상세는 "다음 우선순위 구현 후보" 16번 참고. Unity 실제 플레이 검증 아직 안 함.
 ❌ 5~6. 다음 타일 점유 / 대기와 우회 예상시간
 ❌ 7. 상호작용 종료 후 이동과 비켜주기
 ❌ 8. 좁은 통로의 통과 순서 (CombatRole 순서 신규)
@@ -672,3 +677,76 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     **다음 세션 착수 시**: 규모가 있고(AStarMovement 변경이 기존 경로탐색 전반에 영향, 가중치/인지/
     이동/전투 4개 문서 교차) EnterPlanMode로 순서 설계부터 하고 착수할 것 — 사용자 지시
     (2026-09-27). 지금 당장은 다른 작업 우선으로 보류.
+16. [완료, 2026-09-27] 위 15번 계획을 EnterPlanMode로 순서를 짠 뒤 그대로 구현했다. 세부 조사에서
+    사용자와 함께 확정한 것: 예상 피해량은 종 기본(비버프) 스탯×배율 근사(버프/디버프가 CombatStat을
+    실제로 변경하는 시스템이 있어 이 구분이 실제로 의미 있음을 재확인 —
+    SkillAction_PartyBuff.cs/SkillAction_Curse.cs), 직접경험 확정은 스킬 이름 단위(공격형태 3종 단위
+    아님), 범위는 C+A+B 전부(피해감수 판정이 전제하는 "보호 대상 접근 이동" 자체가 없었던 것도 이번에
+    같이 신설).
+    - **C(예상 피해량)**: `PersonalSkillDamageRecord.cs`(신규, PersonalWeightRecord와 동일 구조) +
+      `Unit.personalSkillDamage`. `UnitSpriteManager.TryGetBaseCombatStats`/`GetSkillDataList`(신규,
+      인스턴스 없이 프리팹에서 조회) + `UnitGenerate` 위임 2개. `HumanKnowledgeBase.
+      SeedSkillDamageEstimates`가 `InitializeNewUnitPersonalInfo`(파티 입장) 시점에 종별 비공격형 제외
+      스킬마다 기본공격력×배율을 시딩(23장 파티공유 오차 재사용). `SkillAction.BeginAttackCast`에
+      `skillName` 파라미터 추가(12개 서브클래스 호출부 전부 갱신) + `UnitCombatState.lastSkillName`.
+      `HumanKnowledgeBase.RecordSkillDamageObserved`가 `UnitFunction.RecordHitWeightEvent`의 공격자
+      정체 확인 분기에서 실측치로 덮어씀(직접경험=0% 오차). 조회는 `TryGetExpectedSkillDamage`(bool+out,
+      미상은 반환 실패로 표현).
+    - **A(공격범위 회피 이동)**: `AStarMovement`에 `protected virtual int GetExtraTileCost` 훅 추가(기존
+      하드코딩 이동비용에 가산) + `TryGetPathTiles`(TryGetPathLength와 동일 구조, 좌표 리스트 반환)
+      신설. `MovementMath.AttackRangeAvoidExtraCost`(회피 우선순위를 가중치 합 하나로 성립시키는 상수)
+      + `AttackRangeAvoidingMovement : AStarMovement`(RoomConfinedMovement와 동일한 서브클래싱 전례,
+      프레임당 1회 캐시). `PersonalMapKnowledge.ConfirmAttackRange`/`TryGetKnownAttackRange`(
+      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitPerceptionHandler`가 AccuratePerception
+      시점에 그 종 보유 스킬 최대 HitRange로 확인. `AIMovementHelper.ComputeKnownAttackRangeAvoidTiles`
+      (체비셰프 사각형 근사) + `EnsureAvoidanceMovementForRole`(RangedDps/RangedSupport/MeleeSupport만
+      승급, `CombatFSMState.ExecuteCombat`에서 호출) — 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은
+      전혀 안 건드려도 MovementAlgorithm 교체만으로 회피 경로를 탄다.
+    - **B(피해감수 긴급보호)**: `CombatFSMState.TryEmergencyProtectApproach`(신규 — 보호 대상이 사거리
+      밖일 때 "접근 이동" 자체를 새로 담당, 이전엔 존재 자체가 없었음) + `AIMovementHelper.
+      MoveTowardsProtectTargetWithRiskCheck`/`EstimateExposureDamage`(안전경로 vs 노출경로 도달시점
+      비교, 노출 경로가 지나는 알려진 위험구간의 종별 최댓값 피해량 1회분만 합산). 새 상수
+      `CombatScoreMath.ProtectApproachDamageRiskHpFloor`(기존 EmergencyProtectHpRatio와 값은 같지만
+      의미가 다른 별개 상수로 분리).
+    - **테스트**: `WeightSystemTests.cs`에 4개(직접경험 덮어쓰기, 미기록 스킬 조회 실패, 공격범위 최초
+      확인 고정, 미확인 종 조회 실패) + 신규 `MovementSystemTests.cs`에 2개(회피비용 상수 마진, 두 30%
+      상수 독립성) 추가. **범위 축소 — 사용자에게 보고 필요**: 원 계획의 "기본스탯×배율 시딩"/
+      "마법아키타입 판정"/`CombatSimulationTests.cs` 회귀 테스트는 전부 `unit.Generate`(Resources.Load
+      프리팹 조회) 의존이라, 이 코드베이스의 기존 순수 NUnit 테스트 관례(DI 없이 bare
+      ScriptableObject.CreateInstance만 쓰는 CombatSimulationTests.cs의 CreateClassUnit조차 Generate를
+      안 씀)로는 못 쓴다 — 스킵하고 Unity 실제 플레이 검증으로 대체해야 한다.
+    - dotnet build 확인 불가(.sln 부재, 세션 내내 동일) — 다음 에디터 실행 시 컴파일 확인 필요.
+    **Unity 실제 플레이 검증 전혀 안 함 — 다음 세션 최우선**: (a) 원거리/지원 유닛이 실제로 적 공격범위를
+    피해 우회하는지, (b) 보호 대상이 사거리 밖일 때 실제로 접근 이동하는지, (c) 접근 중 위험 판정이
+    자연스럽게 작동하는지(안전경로 유지 vs 위험 감수 진행) 육안 확인 필요.
+    [Unity 플레이 1차 확인, 2026-09-27] 컴파일 에러 없음 확인 후 실제 웨이브 플레이 — 사용자: "괜찮은거
+    같아. 전투 양상 보니." 컴파일 통과 + 일반 전투 진행에 이상 없음(크래시·회귀 없음)까지는 확인됨.
+    다만 이건 일반적인 전투 양상 관찰이라 (a)(b)(c) 세 가지 신규 행동 각각을 개별적으로 짚어 확인한
+    건 아니다 — 특히 (b)(c)는 "아군이 사거리 밖에서 위협받는" 특정 상황이 있어야 관찰 가능해 일반
+    전투에서 우연히 나타났을 수도, 안 나타났을 수도 있다. 각 행동을 의도적으로 재현해 확인하는 건
+    여전히 다음 우선순위.
+
+    **[수정 완료, 2026-09-27] 방어력 미반영 버그**: 사용자가 "지금 구현한 게 문서에 실제로 있는 내용이
+    맞냐"고 재확인하는 과정에서 발견 — 9번 항목 원문이 "자신의 알려진 방어·감소 효과를 사용한다"고
+    명시했는데, `EstimateExposureDamage`가 처음엔 raw 예상피해량을 방어력 차감 없이 그대로 HP에서 뺐다
+    (실제 데미지 파이프라인 UnitFunction.TakePhysicalDamage/TakeMagicalDamage는 방어력을 빼는데 이
+    추정 코드만 누락). 스킬이 물리/마법인지(GroundAoE·Curse만 마법, HumanKnowledgeBase.
+    SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일 분류를 SkillAction 타입 검사로 재현)를
+    가려 해당 방어력을 뺀 뒤 1 이하로 안 내려가게 수정(AIMovementHelper.cs). 이전엔 위험 추정이 실제보다
+    항상 더 비관적이었다(보호자가 실제로는 버틸 수 있는데도 안전 경로만 고집했을 수 있음).
+
+    **알려진 한계 (의도된 근사 — 버그 아님)**:
+    - 공격범위 회피는 체비셰프 사각형 근사(실제 회전 히트박스 아님) — IsRangedFormationRole과 동일한
+      정밀도 수준으로 맞춤, 더 정밀한 판정은 이번 범위 밖.
+    - 회피 이동은 인류만 대상(RangedDps/RangedSupport/MeleeSupport) — 몬스터는 04번 문서 표의 별도
+      "몬스터" 행(RoomConfinedMovement로 이미 관리)이라는 해석으로 제외. 이 해석 자체가 확정 아니면
+      재검토 필요.
+    - "적의 숨은 공격력·스킬 계수를 읽지 않는다"를 "실시간/버프된 값이 아니라 이미 공개된 기본 스탯은
+      써도 된다"로 해석 — 사용자 확인 거쳤지만 문서가 이 구분을 명시적으로 하진 않는다.
+    - `EstimateExposureDamage`는 노출 경로가 겹치는 종마다 "최댓값 스킬 1회분"만 합산 — 같은 구간에
+      여러 마리가 동시에 위협하거나 한 마리가 여러 번 때릴 가능성은 반영 안 됨(문서의 "확정 피해처럼
+      더하지 않는다"는 원칙과 일치하는 보수적 선택이지만, 실제로는 더 위험할 수 있는 상황을 낙관적으로
+      볼 수 있다).
+    - 테스트 커버리지: `unit.Generate`(프리팹 Resources.Load) 의존인 3개(시딩 공식 실측, 마법아키타입
+      판정, 접근이동 회귀)는 이 코드베이스의 기존 순수 NUnit 테스트 관례로 재현 불가라 스킵 —
+      Unity 실제 플레이 검증으로 대체해야 함(아직 개별 재현 검증 안 됨, 위 "일반 전투 관찰"만 있음).

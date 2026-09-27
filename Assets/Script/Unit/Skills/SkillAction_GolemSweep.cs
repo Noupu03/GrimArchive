@@ -60,7 +60,8 @@ public class SkillAction_GolemSweep : SkillAction
                     if (_d.hitEffectPrefab != null && _d.hitEffectPrefab != sharedHitSpark)
                         unit.VFX?.Spawn(_d.hitEffectPrefab, t);
                 }),
-            cooldownAction: () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            cooldownAction: () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
 
         Vector3 floorOffset = unit.Generate != null ? unit.Generate.GetFloorOffset(unit.currentFloor) : Vector3.zero;

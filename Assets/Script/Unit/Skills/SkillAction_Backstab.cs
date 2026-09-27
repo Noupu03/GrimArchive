@@ -107,7 +107,8 @@ public class SkillAction_Backstab : SkillAction
                     }
                 }
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 }

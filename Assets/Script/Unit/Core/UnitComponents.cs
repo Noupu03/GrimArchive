@@ -32,6 +32,9 @@ public struct UnitCombatState
     // 07문서 17장(2026-07-31 신규): 이번 공격의 형태 — 피격 대상이 공격자를 정확 인지하지 못했을 때
     // 방향 정보를 얻을 수 있는지 판정하는 데 쓰인다(SkillAction.BeginAttackCast가 세팅).
     public AttackShape lastAttackShape;
+    // 02번 문서 9번 항목: 이번 공격의 스킬 이름 — 피격자가 공격자 정체를 인지했을 때 그 스킬의 예상
+    // 피해량을 직접 경험으로 확정하는 데 쓰인다(SkillAction.BeginAttackCast가 세팅).
+    public string lastSkillName;
 }
 
 [Serializable]

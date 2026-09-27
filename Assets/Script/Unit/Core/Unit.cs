@@ -121,6 +121,9 @@ public abstract class Unit : ScriptableObject {
 	// 4장: 각 유닛(인류 관측자)이 대상별로 갖고 있는 개인 가중치 기록.
 	public readonly Dictionary<string, PersonalWeightRecord> personalWeights = new Dictionary<string, PersonalWeightRecord>();
 
+	// 02번 문서 9번 항목: 종·스킬별 예상 공격 피해량(입장 기록 근사치 또는 직접 경험 확정치).
+	public readonly Dictionary<string, PersonalSkillDamageRecord> personalSkillDamage = new Dictionary<string, PersonalSkillDamageRecord>();
+
 	// 가장 최근에 나에게 피해를 입힌 유닛 — 사망 시점에 "누가 처치했는지"를 파악해 위험도/이해도 처치 이벤트를 기록할 수 있게 해준다.
 	public Unit lastAttacker;
 

@@ -149,7 +149,8 @@ public class SkillAction_Heal : SkillAction
                         unit.VFX?.Spawn(_d.hitEffectPrefab, targetAlly);
                 }
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 }

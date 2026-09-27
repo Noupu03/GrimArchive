@@ -305,6 +305,16 @@ public class UnitGenerate
 	public int GetEngageDistance(string unitTypeName, int defaultDist) =>
 		_unitSpriteManager != null ? _unitSpriteManager.GetEngageDistance(unitTypeName, defaultDist) : defaultDist;
 
+	public bool TryGetBaseCombatStats(string unitTypeName, out float physicalAttack, out float magicalAttack)
+	{
+		if (_unitSpriteManager != null) return _unitSpriteManager.TryGetBaseCombatStats(unitTypeName, out physicalAttack, out magicalAttack);
+		physicalAttack = 0f; magicalAttack = 0f;
+		return false;
+	}
+
+	public List<SkillData> GetSkillDataList(string unitTypeName) =>
+		_unitSpriteManager != null ? _unitSpriteManager.GetSkillDataList(unitTypeName) : new List<SkillData>();
+
 	public void UpdateUnitSpriteForDirection(Unit unit)
 	{
 		if (!visualMap.TryGetValue(unit, out GameObject go)) return;

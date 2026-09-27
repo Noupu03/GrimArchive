@@ -55,6 +55,27 @@ public class UnitSpriteManager
         return visualDef != null ? visualDef.engageDistance : defaultDist;
     }
 
+    // 02번 문서 9번 항목: 예상 피해량 근사 계산용 — 살아있는 실시간 인스턴스가 아니라 "그 종의 기본
+    // (버프 없는) 스탯"이 필요할 때 쓴다(버프/디버프가 Unit.CombatStat을 직접 변경하는 시스템이 실제로
+    // 있어 CombatStat을 그대로 읽으면 안 됨 — SkillAction_PartyBuff.cs/SkillAction_Curse.cs 참고).
+    public bool TryGetBaseCombatStats(string unitTypeName, out float physicalAttack, out float magicalAttack)
+    {
+        var prefab = GetPrefab(unitTypeName);
+        var visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
+        physicalAttack = visualDef != null ? visualDef.stats.physicalAttack : 0f;
+        magicalAttack = visualDef != null ? visualDef.stats.magicalAttack : 0f;
+        return visualDef != null;
+    }
+
+    // GetSkills(SkillAction 리스트)와 별개 — damageMultiplier 등 raw 수치가 필요한 예상 피해량 계산은
+    // SkillAction이 캡슐화해 감추고 있는 SkillData 자체를 봐야 한다.
+    public List<SkillData> GetSkillDataList(string unitTypeName)
+    {
+        var prefab = GetPrefab(unitTypeName);
+        var visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
+        return visualDef != null ? visualDef.skills : new List<SkillData>();
+    }
+
     // direction → label / flipX 반환. category(바리에이션)는 호출부에서 결정
     public static void GetSpriteLabelForDirection(Dir direction, out string label, out bool flipX)
     {

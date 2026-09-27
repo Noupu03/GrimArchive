@@ -77,6 +77,11 @@ public static class CombatScoreMath
 	// 추정 한계 참고) 이번 구현에서는 사용하지 않는다 — 저체력+위협, 행동불능+피격 두 조건만 확인한다.
 	public const float EmergencyProtectHpRatio = 0.30f;
 
+	// 9장: 노출 경로로 접근할 때 "첫 보호효과 시점 이동자 자기 HP" 잔여율 허용 하한. 위
+	// EmergencyProtectHpRatio(누구를 보호할지 시작 조건)와 우연히 같은 수치지만 의미가 다른 별개
+	// 값이다 — 원문이 "조정 가능한 별도 값"이라고 명시.
+	public const float ProtectApproachDamageRiskHpFloor = 0.30f;
+
 	public static bool IsEmergencyProtectCandidate(float hpRatio, bool underAttackThreat, bool isIncapacitated, bool isHitThisTurn)
 	{
 		if (hpRatio <= EmergencyProtectHpRatio && underAttackThreat) return true;

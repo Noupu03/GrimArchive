@@ -247,6 +247,7 @@ public class AStarMovement : IMovementAlgorithm
                 if (!IsTileWalkable(unit, current.Pos, neighborPos, dirVec, myData, mapW, mapH, floorIdx, targetPos, out bool isOccupied)) continue;
 
                 int moveCost = (dirVec.x != 0 && dirVec.y != 0) ? 14 : 10;
+                moveCost += GetExtraTileCost(unit, neighborPos);
                 int newGCost = current.GCost + moveCost;
 
                 if (!allNodes.TryGetValue(neighborPos, out AStarNode neighborNode))
@@ -344,6 +345,38 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTarget = new Vector2Int(-9999, -9999);
         _pathMap.Clear();
         _cacheTime = 0f;
+    }
+
+    // 04번 문서 4장: 타일별 추가 이동비용 훅. 기본 0(기존 동작 그대로) — 항상 0 이상만 반환해야 한다,
+    // 음수면 GetHeuristic의 admissibility가 깨져 A*가 최적해를 못 찾을 수 있다.
+    protected virtual int GetExtraTileCost(Unit unit, Vector2Int tilePos) => 0;
+
+    // TryGetPathLength(칸 수만)와 달리 실제 경로 타일 좌표가 필요한 호출부(예: 노출 경로가 어느 위험
+    // 지역과 겹치는지 판정)용 — 같은 RunSearch를 재사용하고 이동 캐시는 건드리지 않는다(일회성 조회).
+    public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles)
+    {
+        tiles = new List<Vector2Int>();
+        if (unit.position == targetPos) return true;
+
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+        if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+            return false;
+
+        int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+        int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+        AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        if (!reachedTarget) return false;
+
+        AStarNode stepNode = closestNode;
+        while (stepNode.Parent != null)
+        {
+            tiles.Add(stepNode.Pos);
+            stepNode = stepNode.Parent;
+        }
+        tiles.Reverse();
+        return true;
     }
 
     // 점유된 칸은 CanMove와 동일하게 예외 없이 완전히 막는다(원래 예외였던 targetPos 자체도 포함) —

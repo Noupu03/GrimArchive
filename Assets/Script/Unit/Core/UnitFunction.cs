@@ -114,6 +114,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 실제 적용 피해량이 방어 적용 전 피해량보다 1 이상 낮으면 "예상보다 약하게 들어간 타격"으로
 				// 보고 몬스터 종 위험도를 소폭 감소시킨다.
 				this.Knowledge.ApplyPerHitDangerDecreaseCheck(attacker, rawDamage, appliedDamage);
+
+				// 02번 9번 항목: 공격자 정체 + 스킬을 확인했으니 그 스킬의 예상 피해량을 실측치로 확정한다.
+				string skillName = attacker.CombatState.State.lastSkillName;
+				if (!string.IsNullOrEmpty(skillName))
+					this.Knowledge.RecordSkillDamageObserved(this, attacker.unitType.typeName, skillName, rawDamage);
 			}
 			else
 			{

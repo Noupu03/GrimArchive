@@ -95,7 +95,8 @@ public class SkillAction_GroundAoE : SkillAction
                 }
             },
             () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
-            shape: AttackShape.AreaGround
+            shape: AttackShape.AreaGround,
+            skillName: SkillName
         );
     }
 }

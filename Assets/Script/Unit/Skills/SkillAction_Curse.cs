@@ -88,7 +88,8 @@ public class SkillAction_Curse : SkillAction
                     RollbackCurseAsync(enemy, debuffAtk, debuffDef, duration).Forget();
                 }
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 

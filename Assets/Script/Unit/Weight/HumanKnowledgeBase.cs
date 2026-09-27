@@ -107,11 +107,43 @@ public class HumanKnowledgeBase
 		{
 			SetPersonalInitial(unit, party, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
 			SetPersonalInitial(unit, party, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
+			SeedSkillDamageEstimates(unit, party, kv.Key);
 		}
 		foreach (var kv in _individuals)
 		{
 			SetPersonalInitial(unit, party, kv.Key, WeightType.Understanding, kv.Value.UnderstandingStored);
 			SetPersonalInitial(unit, party, kv.Key, WeightType.Danger, kv.Value.DangerAccumulatedStored);
+		}
+	}
+
+	// 02번 문서 9번 항목: 이 종의 공격 스킬마다 "기본 스탯 × 배율" 근사치를 예상 피해량으로 시딩한다.
+	// 비공격형(치유/보호막/버프) 스킬은 대상이 아니다. 개인 기억이 이미 있으면 덮어쓰지 않는다(5-2장).
+	private static readonly HashSet<string> _nonDamageSkillArchetypes = new HashSet<string> { "Heal", "Shield", "PartyBuff" };
+	private static readonly HashSet<string> _magicalSkillArchetypes = new HashSet<string> { "GroundAoE", "Curse" };
+
+	private void SeedSkillDamageEstimates(Unit unit, Party party, string speciesKey)
+	{
+		if (unit.Generate == null || !unit.Generate.TryGetBaseCombatStats(speciesKey, out float baseP, out float baseM)) return;
+
+		var skillDataList = unit.Generate.GetSkillDataList(speciesKey);
+		foreach (var sd in skillDataList)
+		{
+			if (sd == null || string.IsNullOrEmpty(sd.skillName) || _nonDamageSkillArchetypes.Contains(sd.skillArchetype)) continue;
+
+			string key = PersonalSkillDamageRecord.MakeKey(speciesKey, sd.skillName);
+			if (unit.personalSkillDamage.ContainsKey(key)) continue;
+
+			float baseAtk = _magicalSkillArchetypes.Contains(sd.skillArchetype) ? baseM : baseP;
+			float multiplier = sd.damageMultiplier > 0f ? sd.damageMultiplier : 1f;
+
+			var record = new PersonalSkillDamageRecord(speciesKey, sd.skillName)
+			{
+				StoredValue = baseAtk * multiplier,
+				LastInfoType = InfoType.Indirect, // 전역지식 상속 = 23장 "간접 파악"
+				MentalStateAtRecord = GetMentalState(unit),
+			};
+			record.PerceivedValue = ApplyInfoValueNoiseForParty(party, key, record.AppliedValue, record.LastInfoType, record.MentalStateAtRecord);
+			unit.personalSkillDamage[key] = record;
 		}
 	}
 
@@ -291,6 +323,40 @@ public class HumanKnowledgeBase
 		// baseDanger(종 고유 기초값)는 오차 대상이 아니라 그대로 둔다.
 		float personalAccum = observer.personalWeights.TryGetValue(key, out var record) ? record.PerceivedValue : 0f;
 		return WeightMath.ComposeFinalDanger(target.BaseStat.baseDanger, personalAccum, 0f);
+	}
+
+	// 02번 문서 9번 항목: 공격 원인까지 확인된 피격 시점에 실측 피해량으로 예상치를 통째 교체한다
+	// (직접 경험 = 0% 오차, 23장). actualRawDamage는 방어 적용 전 값 — 시딩 공식(기본공격력×배율)과
+	// 같은 기준(공격자 출력값)이라 이 값을 써야 비교가 성립한다.
+	public void RecordSkillDamageObserved(Unit observer, string speciesKey, string skillName, float actualRawDamage)
+	{
+		if (string.IsNullOrEmpty(skillName)) return;
+
+		string key = PersonalSkillDamageRecord.MakeKey(speciesKey, skillName);
+		MentalErrorState mental = GetMentalState(observer);
+		if (!observer.personalSkillDamage.TryGetValue(key, out var record))
+		{
+			record = new PersonalSkillDamageRecord(speciesKey, skillName);
+			observer.personalSkillDamage[key] = record;
+		}
+		record.StoredValue = actualRawDamage;
+		record.LastInfoType = InfoType.DirectExperience;
+		record.MentalStateAtRecord = mental;
+		record.PerceivedValue = ApplyInfoValueNoise(record.AppliedValue, record.LastInfoType, mental);
+	}
+
+	// 조회 API — "미상"은 값이 아니라 반환 실패로 표현한다(미확인 피해량을 0으로 대체하지 않는다는
+	// 문서 요구와 일치, TryGetPathLength와 동일한 관례).
+	public bool TryGetExpectedSkillDamage(Unit observer, string speciesKey, string skillName, out int expectedDamage)
+	{
+		string key = PersonalSkillDamageRecord.MakeKey(speciesKey, skillName);
+		if (observer.personalSkillDamage.TryGetValue(key, out var record))
+		{
+			expectedDamage = record.PerceivedValue;
+			return true;
+		}
+		expectedDamage = 0;
+		return false;
 	}
 
 	// 18장 공식(흥미도 = 기본흥미도 × (100-이해도)%)을 그대로 쓰되 이해도는 전역 종별이 아닌 관찰자

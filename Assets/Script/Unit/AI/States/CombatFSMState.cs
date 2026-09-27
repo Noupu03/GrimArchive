@@ -85,6 +85,15 @@ public class CombatFSMState : IFSMState
 		// 결정하므로(보호 가능한 스킬이 없으면 자연히 일반 공격으로 넘어감) 여기서는 상태만 갱신한다.
 		ResolveEmergencyProtectTarget(unit);
 
+		// 04번 문서 4장: 원거리공격/근접·원거리지원 역할은 이 시점부터 회피형 이동으로 승급한다 —
+		// 이후 이 메서드의 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은 그대로 두어도 자동으로
+		// 회피 경로를 탄다(MovementAlgorithm 교체만으로 성립).
+		AIMovementHelper.EnsureAvoidanceMovementForRole(unit, CombatScoreMath.ResolveCombatRole(unit.unitType));
+
+		// 02번 9번 항목: 보호 대상이 있고 보호 스킬 사거리 밖이면 접근 이동부터 처리한다 — 사거리 안이면
+		// 기존 흐름(SkillAction_Heal의 emergencyBonus=1000 우선순위)이 이미 담당하므로 여기서 건드리지 않는다.
+		if (TryEmergencyProtectApproach(unit)) return BTStatus.Running;
+
 		Unit target = SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Failure;
 
@@ -198,6 +207,27 @@ public class CombatFSMState : IFSMState
 		Consider(unit); // 자기 자신도 같은 순서의 후보 — 자동으로 우선하지 않는다(비교식이 동일하게 적용).
 
 		unit.CombatTargeting.ProtectTarget = best;
+	}
+
+	// 02번 9번 항목: ResolveEmergencyProtectTarget이 보호 대상은 정했지만 그 대상에게 다가가는 이동
+	// 자체가 이전엔 없었다(사거리 밖이면 그냥 무시되고 SelectAttackTarget이 고른 적을 쫓아갔음). 이
+	// 메서드가 그 "접근 이동"을 새로 담당한다 — 사거리 안이면 개입하지 않고 false를 반환한다.
+	private static bool TryEmergencyProtectApproach(Unit unit)
+	{
+		Unit protect = unit.CombatTargeting.ProtectTarget;
+		if (protect == null || protect == unit) return false;
+
+		var skills = unit.Generate != null ? unit.Generate.GetSkills(unit.unitType.typeName) : null;
+		int protectRange = 0;
+		if (skills != null)
+			foreach (var s in skills)
+				if (s != null && s.Affinity == SkillAffinity.Ally && s.HitRange > protectRange) protectRange = s.HitRange;
+
+		if (protectRange <= 0) return false; // 보호 수단 자체가 없음 — 개입하지 않는다.
+		if (AIMovementHelper.ChebyshevDistance(unit.position, protect.position) <= protectRange) return false;
+
+		AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect.position);
+		return true;
 	}
 
 	private static bool IsEmergency(Unit protector, Unit candidate)

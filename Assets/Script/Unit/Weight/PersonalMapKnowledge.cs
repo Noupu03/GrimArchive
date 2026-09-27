@@ -488,6 +488,19 @@ public class PersonalMapKnowledge
 	public void ConfirmBossRoom(int roomId)
 		=> GetOrCreateRoom(roomId, false).IsBossRoom = true;
 
+	// 04번 문서 4장: "알려진 적 공격 범위"를 회피 이동에 쓰려면 먼저 그 종의 공격범위를 "안다"는 게이트가
+	// 필요하다 — ConfirmBossRoom과 동일한 성격(단순 setter, 게이팅은 호출부 UnitPerceptionHandler가
+	// AccuratePerception 시점에 담당). 스킬 구성은 고정값이라 최초 확인이 곧 정답 — 이후 재확인 불필요.
+	private readonly Dictionary<string, int> _knownAttackRange = new Dictionary<string, int>();
+
+	public void ConfirmAttackRange(string speciesKey, int hitRange)
+	{
+		if (!_knownAttackRange.ContainsKey(speciesKey)) _knownAttackRange[speciesKey] = hitRange;
+	}
+
+	public bool TryGetKnownAttackRange(string speciesKey, out int hitRange)
+		=> _knownAttackRange.TryGetValue(speciesKey, out hitRange);
+
 	// unitKey: 대상 유닛의 인스턴스 식별자(Unit.name) — 같은 유닛을 매 프레임 다시 불러도 최신값으로
 	// 덮어쓸 뿐 중복 가산되지 않는다.
 	public void ObserveUnitInRoom(int roomId, bool isBossRoom, string unitKey, float unitFinalDanger, float unitInterest)

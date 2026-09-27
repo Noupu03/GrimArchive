@@ -343,6 +343,55 @@ public class WeightSystemTests
 		Assert.AreEqual(0.25f, observer.personalWeights[understandingKey].StoredValue, 0.0001f);
 	}
 
+	// ── 02번 문서 9번 항목: 공격 원인까지 확인된 피격은 예상 피해량을 실측치로 통째 교체(직접경험=0%
+	// 오차)한다 — 시딩값이 있든 없든 결과는 동일해야 한다.
+	[Test]
+	public void RecordSkillDamageObserved_OverwritesWithDirectExperience()
+	{
+		var kb = new HumanKnowledgeBase();
+		var observer = ScriptableObject.CreateInstance<Human>();
+
+		kb.RecordSkillDamageObserved(observer, "놀", "할퀴기", 42f);
+
+		string key = PersonalSkillDamageRecord.MakeKey("놀", "할퀴기");
+		var record = observer.personalSkillDamage[key];
+		Assert.AreEqual(42f, record.StoredValue, 0.0001f);
+		Assert.AreEqual(InfoType.DirectExperience, record.LastInfoType);
+		Assert.AreEqual(42, record.PerceivedValue); // 직접경험 = 0% 오차이므로 실측값과 정확히 일치
+	}
+
+	[Test]
+	public void TryGetExpectedSkillDamage_UnknownSkill_ReturnsFalse()
+	{
+		var kb = new HumanKnowledgeBase();
+		var observer = ScriptableObject.CreateInstance<Human>();
+
+		bool found = kb.TryGetExpectedSkillDamage(observer, "놀", "미기록스킬", out int dmg);
+
+		Assert.IsFalse(found); // 미확인 피해량은 0으로 대체하지 않고 반환 실패로 표현한다
+		Assert.AreEqual(0, dmg);
+	}
+
+	// ── 04번 문서 4장: "공격범위를 아는가" 게이트 — ConfirmBossRoom과 동일하게 최초 확인이 곧 정답,
+	// 재확인해도 안 바뀐다.
+	[Test]
+	public void AttackRange_ConfirmedOnce_FirstValueSticks()
+	{
+		var map = new PersonalMapKnowledge();
+		map.ConfirmAttackRange("놀", 3);
+		map.ConfirmAttackRange("놀", 7); // 재확인 — 최초값 유지돼야 함
+
+		Assert.IsTrue(map.TryGetKnownAttackRange("놀", out int range));
+		Assert.AreEqual(3, range);
+	}
+
+	[Test]
+	public void AttackRange_UnknownSpecies_ReturnsFalse()
+	{
+		var map = new PersonalMapKnowledge();
+		Assert.IsFalse(map.TryGetKnownAttackRange("미확인종", out _));
+	}
+
 	// ── 24장. 위치 및 상태 기록 충돌 처리 규칙 1: 직접 경험은 나중에 들어온 직접 목격보다 우선한다 ──
 	[Test]
 	public void MonsterSighting_DirectExperienceBeatsLaterDirectWitness()

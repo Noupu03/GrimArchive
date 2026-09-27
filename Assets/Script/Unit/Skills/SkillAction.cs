@@ -77,9 +77,11 @@ public abstract class SkillAction
 		System.Action cooldownAction = null,
 		System.Action effectAction   = null,
 		System.Action castUpdateAction = null,
-		AttackShape  shape = AttackShape.Melee)
+		AttackShape  shape = AttackShape.Melee,
+		string       skillName = null)
 	{
 		unit.CombatState.State.lastAttackShape = shape; // 방향 간접입력 판정용
+		unit.CombatState.State.lastSkillName   = skillName; // 02번 9번 항목: 예상 피해량 직접경험 확정용
 
 		// hitbox 생성 - 공격 시 자유로운 각도를 사용하여 생성
 		if (threat.hitbox.size == Vector2.zero)

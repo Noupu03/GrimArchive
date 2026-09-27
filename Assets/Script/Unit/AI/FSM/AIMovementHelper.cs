@@ -19,6 +19,114 @@ public static class AIMovementHelper
 	// (RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
 	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
 
+	// 04번 문서 4장: "알려진 적 공격 범위"에 해당하는 타일 전부를 회피 대상으로 모은다. 체비셰프
+	// 사각형(회전 히트박스 아님)으로 근사 — IsRangedFormationRole이 이미 스칼라 HitRange만으로
+	// 원거리/근접을 가르는 것과 동일한 정밀도 수준. 미확인 종은 자연히 빠진다(회피 안 함 ≠ 안전 확정,
+	// 문서가 "모르는 부분을 안전하다고 단정하지 않는다"고 명시).
+	public static void ComputeKnownAttackRangeAvoidTiles(Unit self, HashSet<Vector2Int> result)
+	{
+		if (!(self is Human human) || human.Knowledge == null) return;
+
+		foreach (var e in self.personalSpottedEnemies)
+		{
+			if (e == null || e.Health == null || e.Health.hp <= 0 || e.currentFloor != self.currentFloor) continue;
+			if (e.unitType == null || !human.Memory.personalMap.TryGetKnownAttackRange(e.unitType.typeName, out int range)) continue;
+
+			for (int dx = -range; dx <= range; dx++)
+				for (int dy = -range; dy <= range; dy++)
+					result.Add(new Vector2Int(e.position.x + dx, e.position.y + dy));
+		}
+	}
+
+	// 04번 문서 4장: 원거리공격/근접·원거리지원 역할만 회피형 이동으로 승급한다(근접탱커/DPS는 교전
+	// 자체가 목적이라 제외). RoomConfinedMovement(몬스터 전용, 04장 표의 "몬스터" 행으로 별도 관리)는
+	// 건드리지 않는다 — 이미 회피형이면 중복 교체하지 않는다.
+	public static void EnsureAvoidanceMovementForRole(Unit unit, CombatRole role)
+	{
+		bool needsAvoidance = role == CombatRole.RangedDps || role == CombatRole.RangedSupport || role == CombatRole.MeleeSupport;
+		if (!needsAvoidance) return;
+		if (unit.MovementAlgorithm is AttackRangeAvoidingMovement || unit.MovementAlgorithm is RoomConfinedMovement) return;
+		if (unit.MovementAlgorithm is AStarMovement)
+			unit.MovementAlgorithm = new AttackRangeAvoidingMovement();
+	}
+
+	// "노출/직행" 기준선 조회 전용 스크래치 인스턴스 — 유닛 자신의 MovementAlgorithm(회피형일 수 있음)과
+	// 별개로, 이동 캐시를 오염시키지 않는 1회성 비교 질의에만 쓴다.
+	private static readonly AStarMovement _exposedPathScratch = new AStarMovement();
+
+	// 02번 9번 항목: 안전 경로(회피형)가 이미 더 빠르면 그냥 그걸 쓰고, 안전 경로가 느리면 노출(직행)
+	// 경로가 지나는 "알려진 공격범위" 구간의 예상 피해를 계산해 자기 HP 잔여율로 감수 여부를 판정한다.
+	public static bool MoveTowardsProtectTargetWithRiskCheck(Unit unit, Vector2Int destination)
+	{
+		if (!(unit.MovementAlgorithm is AttackRangeAvoidingMovement safeAlgo))
+			return MoveTowardsPos(unit, destination); // 회피형이 아니면 안전/노출 구분 자체가 무의미
+
+		if (!_exposedPathScratch.TryGetPathTiles(unit, destination, out List<Vector2Int> exposedTiles))
+			return MoveTowardsPos(unit, destination);
+
+		if (safeAlgo.TryGetPathLength(unit, destination, out int safeSteps, out _) && safeSteps <= exposedTiles.Count)
+			return MoveTowardsPos(unit, destination); // 안전 경로가 이미 더 빠르거나 같음 — 위험 감수 불필요
+
+		float exposureDamage = EstimateExposureDamage(unit, exposedTiles);
+		float projectedRatio = (unit.hp - exposureDamage) / Mathf.Max(1f, unit.maxHp);
+
+		if (projectedRatio >= CombatScoreMath.ProtectApproachDamageRiskHpFloor)
+		{
+			if (!_exposedPathScratch.TryGetNextStep(unit, destination, out Dir dir)) return false;
+			Vector2Int before = unit.position;
+			unit.Move(dir);
+			return unit.position != before;
+		}
+		return MoveTowardsPos(unit, destination); // 위험 과함 — 안전(회피) 경로 유지
+	}
+
+	// 노출 경로가 지나는 타일 중 "알려진 적 공격범위"와 겹치는 종마다, 그 종의 예상 스킬피해량(02번 9번
+	// 항목) 중 최댓값 1회분만 더한다 — "공격 횟수·도달시점 불확실한 건 확정피해처럼 안 더한다"(원문).
+	// 피해를 추정할 수 없는 스킬(TryGetExpectedSkillDamage 실패)은 자연히 합산에서 빠진다. 원문이 명시한
+	// "자신의 알려진 방어·감소 효과"도 반영한다 — 실제 데미지 파이프라인(UnitFunction.
+	// TakePhysicalDamage/TakeMagicalDamage)과 동일하게 방어력을 뺀 뒤 1 이하로 안 내려가게 한다.
+	// (2026-09-27 수정: 처음엔 방어력을 안 빼고 raw 값을 그대로 썼음 — 사용자 지적으로 발견.)
+	private static float EstimateExposureDamage(Unit unit, List<Vector2Int> exposedTiles)
+	{
+		if (!(unit is Human human) || human.Knowledge == null) return 0f;
+
+		float total = 0f;
+		var countedSpecies = new HashSet<string>();
+		foreach (var e in unit.personalSpottedEnemies)
+		{
+			if (e == null || e.Health == null || e.Health.hp <= 0 || e.currentFloor != unit.currentFloor || e.unitType == null) continue;
+			string species = e.unitType.typeName;
+			if (countedSpecies.Contains(species)) continue;
+			if (!human.Memory.personalMap.TryGetKnownAttackRange(species, out int range)) continue;
+
+			bool crosses = false;
+			foreach (var t in exposedTiles) { if (ChebyshevDistance(t, e.position) <= range) { crosses = true; break; } }
+			if (!crosses) continue;
+
+			float speciesMax = 0f;
+			var skills = unit.Generate?.GetSkills(species);
+			if (skills != null)
+			{
+				foreach (var s in skills)
+				{
+					if (s == null || s.Affinity != SkillAffinity.Enemy) continue;
+					if (!human.Knowledge.TryGetExpectedSkillDamage(human, species, s.SkillName, out int rawDmg)) continue;
+
+					// HumanKnowledgeBase.SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일한
+					// 물리/마법 분류(GroundAoE/Curse만 마법) — 여긴 SkillAction 인스턴스라 타입으로 판정.
+					bool isMagical = s is SkillAction_GroundAoE || s is SkillAction_Curse;
+					float defense = isMagical ? unit.CombatStat.magicalDefense : unit.CombatStat.physicalDefense;
+					float afterDefense = Mathf.Max(1f, rawDmg - defense);
+
+					if (afterDefense > speciesMax) speciesMax = afterDefense;
+				}
+			}
+			total += speciesMax;
+			countedSpecies.Add(species);
+		}
+		return total;
+	}
+
 	// 방 제한 유닛의 무작위 인접 이동 — NavigationFSMState.MoveRandomlyValid와 IdleFSMState가
 	// 공유한다. anchor/radius로 배회 반경을 제한할 수 있고, forceRoomConfine=true면 MovementAlgorithm
 	// 종류와 무관하게 방/문 제한을 강제한다(RoomConfinedMovement가 안 붙은 유닛도 대기 배회는 방 안에 묶기 위함).

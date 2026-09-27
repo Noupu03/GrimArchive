@@ -58,7 +58,8 @@ public class SkillAction_Generic : SkillAction
                             unit.VFX?.Spawn(_d.hitEffectPrefab, t);
                     });
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 }

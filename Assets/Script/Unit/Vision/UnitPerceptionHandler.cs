@@ -28,6 +28,18 @@ public class UnitPerceptionHandler : IVisionTileHandler
                                 human.Memory.personalMap.ObserveUnitInRoom(chunk.roomId, false, unit.name, danger, interest);
                                 if (unit.unitType != null && unit.unitType.isBoss)
                                     human.Memory.personalMap.ConfirmBossRoom(chunk.roomId);
+
+                                // 04번 문서 4장: 이 종을 정확 인지한 시점에 공격범위(보유 스킬 중 최대
+                                // HitRange)를 확인한다 — 회피 이동이 참조할 "아는 범위" 게이트.
+                                var enemySkills = unit.Generate?.GetSkills(unit.unitType.typeName);
+                                if (enemySkills != null)
+                                {
+                                    int maxRange = 0;
+                                    foreach (var s in enemySkills)
+                                        if (s != null && s.HitRange > maxRange) maxRange = s.HitRange;
+                                    if (maxRange > 0)
+                                        human.Memory.personalMap.ConfirmAttackRange(unit.unitType.typeName, maxRange);
+                                }
                             }
                         }
                     }

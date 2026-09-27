@@ -93,7 +93,8 @@ public class SkillAction_Shield : SkillAction
                     ApplyShieldRollbackAsync(targetAlly, boost, duration).Forget();
                 }
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 

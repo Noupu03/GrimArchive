@@ -70,7 +70,8 @@ public class SkillAction_MultiHit : SkillAction
                     ExecuteSubsequentHitsAsync(unit, target, count, multiplier, threat).Forget();
                 }
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 

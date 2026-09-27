@@ -86,7 +86,8 @@ public class SkillAction_PartyBuff : SkillAction
 
                 RollbackPartyBuffAsync(applied, duration).Forget();
             },
-            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown)
+            () => unit.CombatState.State.skillCooldowns[_d.cooldownSlot] = ApplyCooldown(unit, _d.baseCooldown),
+            skillName: SkillName
         );
     }
 
