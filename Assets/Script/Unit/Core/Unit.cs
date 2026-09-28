@@ -436,6 +436,26 @@ public abstract class Unit : ScriptableObject {
 		return false;
 	}
 
+	// 검증문서 02-08 4번: 긴급 아군 보호 전용 — 이 유닛 "자신"의 인지 여부와 무관하게, 실제로 활성
+	// 위협(공격 예고 중인 적의 히트박스)이 이 유닛과 겹치는지 ground truth로 확인한다. 위
+	// HasPerceivedThreatCollider(자기 자신의 인지 기반 중단 조건, TacticalFSMState.CanDisarm 등)와는
+	// 의도적으로 분리 — "내가 느끼는 위협"과 "보호가 필요한 아군이 실제로 처한 위협"은 다른 질문이다
+	// (사각지대·기습 공격도 후자는 놓치면 안 된다). GameSession의 전역 위협 반응 판정(캐스터 히트박스
+	// vs 대상 히트박스 Overlaps, GameSession.cs:1013-1016)과 동일한 기준 — 그쪽은 회피 등 반응
+	// 트리거용, 이쪽은 부수효과 없는 순수 조회용이라 따로 둔다.
+	public bool HasActiveThreatGroundTruth()
+	{
+		if (Session?.units == null) return false;
+		Hitbox myHitbox = GetUnitHitbox(this);
+		foreach (var u in Session.units)
+		{
+			if (u == null || u == this || u.hp <= 0 || u.currentFloor != currentFloor) continue;
+			if (!IsEnemy(u) || u.currentThreat == null) continue;
+			if (u.currentThreat.hitbox.Overlaps(myHitbox)) return true;
+		}
+		return false;
+	}
+
 	// ─── 정규화 함수 ───
 	// 0%~200% 범위로 클램프. 100%가 기준값과 일치하도록
 	private float Normalize(float value, float baseValue)

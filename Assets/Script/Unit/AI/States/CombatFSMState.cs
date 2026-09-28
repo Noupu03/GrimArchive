@@ -194,6 +194,11 @@ public class CombatFSMState : IFSMState
 			bestDist = Vector2Int.Distance(unit.position, best.position);
 		}
 
+		// 검증문서 02-09 3번: 그래도 동률이면 무작위 선택 — 다만 "현재 유효 대상 유지"가 이미 더
+		// 높은 우선순위(6번째 기준)라, current가 유효한 동안은 새 후보가 완전히 동률이어도 무작위
+		// 후보에 끼우지 않는다(그대로 current 유지) — current가 없을 때(최초 선택)만 추적한다.
+		var tiedBest = currentStillValid ? null : new List<Unit>();
+
 		void Consider(Unit candidate)
 		{
 			if (!IsEmergency(unit, candidate)) return;
@@ -201,7 +206,15 @@ public class CombatFSMState : IFSMState
 			bool incap = candidate.StatusEffects.State.stunDuration > 0f;
 			float dist = Vector2Int.Distance(unit.position, candidate.position);
 			if (best == null || CombatScoreMath.IsBetterProtectCandidate(ratio, incap, dist, bestRatio, bestIncap, bestDist))
-			{ best = candidate; bestRatio = ratio; bestIncap = incap; bestDist = dist; }
+			{
+				best = candidate; bestRatio = ratio; bestIncap = incap; bestDist = dist;
+				tiedBest?.Clear();
+				tiedBest?.Add(candidate);
+			}
+			else if (tiedBest != null && ratio == bestRatio && incap == bestIncap && dist == bestDist)
+			{
+				tiedBest.Add(candidate);
+			}
 		}
 
 		if (unit.Session?.units != null)
@@ -214,6 +227,8 @@ public class CombatFSMState : IFSMState
 			}
 		}
 		Consider(unit); // 자기 자신도 같은 순서의 후보 — 자동으로 우선하지 않는다(비교식이 동일하게 적용).
+
+		if (tiedBest != null && tiedBest.Count > 1) best = tiedBest[UnityEngine.Random.Range(0, tiedBest.Count)];
 
 		unit.CombatTargeting.ProtectTarget = best;
 	}
@@ -268,7 +283,9 @@ public class CombatFSMState : IFSMState
 		if (candidate?.Health == null || candidate.Health.hp <= 0) return false;
 		float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
 		bool incapacitated = candidate.StatusEffects.State.stunDuration > 0f;
-		bool underThreat = candidate.HasPerceivedThreatCollider();
+		// 검증문서 02-08 4번: candidate 자신의 인지(HasPerceivedThreatCollider) 대신 ground truth를
+		// 쓴다 — 사각지대·기습으로 candidate 본인이 공격자를 못 봐도 실제 위협이면 보호 후보가 된다.
+		bool underThreat = candidate.HasActiveThreatGroundTruth();
 		return CombatScoreMath.IsEmergencyProtectCandidate(ratio, underThreat, incapacitated, candidate.isHitThisTurn);
 	}
 
