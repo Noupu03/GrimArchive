@@ -14,7 +14,31 @@ GrimArchive 행동경로·목표설정 시스템 — 07번 검증항목 문서 �
 ■ 세션 재개용 요약 (2026-09-29, 세션 중단 시점)
 ════════════════════════════════════════════════════════════════════════
 진행 상황: 0장(문서 리뉴얼 대조) + 00-01~00-08 + 01-01~01-11 + 02-01~02-11(02번 문서 전체 종료)
-+ 03-01~03-03 완료. **다음 재개 지점은 03-04(여러 소리의 선택과 현재 행동 중단).**
++ 03-01~03-05 완료. **다음 재개 지점은 03-06(디펜스·오펜스·야생의 전투 후 행동).**
+(03-05, 2026-09-29) ✅완전 통과, 코드 수정 없음 — 이번엔 새 버그를 못 찾았다. SoundMoveReact(이동
+없이 시야만 2초 유지)+ResolveVisionDirection의 SoundDetected 7순위 후보가 이중으로 시야 전환을
+보장하고, TargetPosition이 최초 감지 시 고정돼 발신자를 따라가지 않으며, personalMap 자동등록도
+없다. 적 정확 인지 후 전투 전환은 별도 코드 없이 기존 FSM 우선순위(Combat>Tactical)가 자동 처리.
+유일한 미비점은 원문의 '?'/'!' 시야 연출인데, 코드 전체에 이 연출 자체가 없다(이동음 국한이 아니라
+프로토타입 전체가 아직 손 안 댄 순수 시각 피드백) — 사용자 확인("기록만 하고 넘어감") 후 이번엔
+새로 안 만듦.
+(03-04, 2026-09-29) 이번 세션 두 번째 구조적 발견 — "현재 행동에 따라 소리 반응을 허용/차단"하는
+03번 문서 4장 표가 실제로는 안 지켜지고 있었다. 원인: PropagationSystem.TryPromotePendingSoundToAlert
+가 소리 종류·현재 행동과 무관하게 무조건 Alert로 승격시킴 → BT 우선순위(Alert가 Investigate/Wait/
+CoreAttack/DoorAttack보다 먼저, TrapResponse만 예외)상 Alert가 먼저 가로채 버려 그 아래 카테고리들의
+자체 소리 판정이 무력화됨. 코드 추적으로 실제 위반 2건 확인: "일반 조사는 함정작동음에 안 끊김"이
+SoundAreaApproach 실행으로 깨짐(조사 유닛이 함정 소리 쪽으로 실제 이동), "파티목표·코어 상호작용
+당사자는 소리 반응 없음"이 예외 자체가 없어 깨짐(코어 공격 채널링이 소리로 인한 이동 때문에 인접
+이탈→자동 취소될 위험). 사용자 확인("포괄적으로 한 번에 수정") 후 3곳 수정: (1)
+IsSoundReactionSuppressed 신설(코어/문 채널링·파티목표조사·코어보고이동 중엔 전부 무시, 일반조사는
+함정음만 무시) — TryPromotePendingSoundToAlert에서 Alert 승격 자체를 차단. (2) CanInvestigate의
+HasPendingInterruptingSound 체크에도 별도로 IsPartyGoalTarget 예외 추가 — (1)만으론 부족했다(Alert
+승격과 무관한 독립 체크라 따로 새고 있었음, 코드 추적으로 확인한 별개 버그). (3) IsSoundUnresponsive
+(EmitSound 리스너 필터)에 SoundType 파라미터 추가 — "공격 목표 있으면 완전무시, 없으면 교전음·
+이동음 허용(함정음 제외)"으로 세분화(기존엔 personalSpottedEnemies>0이면 목표 유무 무관 무조건
+차단). 나머지(소리 우선순위·동순위·반응중교체·유효시간·비명음만으로 긴급보호전환안함)는 전부
+기존 코드로 이미 ✅ — 비명음/긴급보호는 02-08의 ground truth 수정이 이미 충족. 보호포메이션 분기만
+Formation.enabled=false라 N/A. 9개 항목 전부 ✅.
 (03-03, 2026-09-29) 이번 세션 최대 발견 — "리더가 코어 정보를 확보해도 실제로 코어를 향해
 이동하는 코드가 없었다." Party.OnLeaderLearnsCore가 집결 해제하며 ReadyToAdvance까지 false로
 되돌리는데, HumanWaveManager.UpdatePartyDestination(파티를 실제로 이동시키는 유일한 경로)의 가드가
@@ -3317,6 +3341,183 @@ TryFindNextDoorTowardTargetRoom이 실패(알려진 문 없음)하는 경우엔 
 
 ────────────────────────────────────────────────────────────────────────
 
+## 03-04  여러 소리의 선택과 현재 행동 중단 — ✅완전 통과(구조적 핵심 갭 발견+수정 완료,
+   2026-09-29) — .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 대기
+
+[검증할 내용] 여러 소리의 선택 순위와 현재 행동의 소리 반응 허용 여부를 구분하는가. 같은 소리라도
+현재 조사·해제·보호·임무 상호작용 상태에 맞게 유지·중단하는가.
+
+[핵심 발견 — Alert 승격이 소리 종류·현재 행동과 무관하게 무조건 일어남]
+PropagationSystem.TryPromotePendingSoundToAlert(구 :224-245)가 유닛의 현재 행동을 전혀 확인하지
+않고 유효한 PendingSound가 있으면 항상 Alert로 승격시켰다. TacticalFSMState의 BT 우선순위
+(Panic > JoinCombatWait > TrapResponse > **Alert** > Investigate > Wait > CoreAttack > DoorAttack)
+에서 TrapResponse만 Alert보다 앞이라 안전하고(그래서 함정 해제·대응은 실제로 03번 4장 표대로
+동작 — IsTrapResponseBlockedBySound가 함정작동음을 제외하는 자체 판정을 갖고 있고, TrapResponse가
+먼저 실행되므로 Alert가 끼어들 틈이 없다), 그 뒤에 오는 Investigate/Wait/CoreAttack/DoorAttack은
+Alert가 먼저 가로채 버려서 이들이 각자 가진 "이 소리는 무시해야 함" 판정이 실행될 기회조차 없었다.
+직접 코드 추적으로 두 가지 구체적 위반을 확인했다:
+  · "일반 조사는 함정작동음에 안 끊긴다"(표 명시) → 실제로는 SoundAreaApproach(TrapActivation도
+    EstimatedAreaRadius=1>0이라 SoundHasEstimatedArea=true라서 이 분기를 탐)가 실행돼 조사 유닛이
+    함정 소리 방향으로 실제 이동해버림.
+  · "파티 목표·코어 상호작용 당사자는 소리 반응 자체가 없다"(표 명시) → 예외가 전혀 없어 Alert로
+    전환됨. 코어/문 공격 채널링은 인접(1칸) 이탈 시 자동 취소되는 구조라(UnitFunction.OnUpdate),
+    Alert로 인한 이동이 실제로 채널링을 깨뜨릴 수 있는 잠재 버그.
+**[수정 완료]** 사용자 확인("포괄적으로 한 번에 수정")으로 세 곳을 고쳤다:
+  1. PropagationSystem에 IsSoundReactionSuppressed(Unit, SoundType) 신설 — 코어/문 공격 채널링 중
+     (currentAttackObjectTarget.HasValue, 인류·플레이어 몬스터 공통), 파티 목표 조사 중
+     (currentInvestigation?.IsPartyGoalTarget==true), 코어 보고 이동 중(currentWait.Reason==
+     ReportingCoreToLeader)이면 모든 소리 무시, 일반 조사(파티목표 아님) 중엔 함정작동음만 무시.
+     TryPromotePendingSoundToAlert 시작부에서 호출해 Alert 승격 자체를 막는다 — PendingSound는
+     폐기되지 않고 남아 있다가 그 행동이 끝나면(또는 5초 유효시간이 지나면 ExpireAfterDelay가 자동
+     소멸) 정상적으로 재평가된다.
+  2. TacticalFSMState.CanInvestigate의 HasPendingInterruptingSound 체크에도 별도로
+     `IsPartyGoalTarget != true &&` 예외를 추가 — 1번(Alert 승격 차단)만으로는 부족했다. 이
+     체크는 Alert 승격과 무관하게 CanInvestigate가 매 틱 독립적으로 재확인하는 별개 경로라, 1번을
+     고쳐도 파티목표 조사가 여전히 함정음 아닌 소리에는 진행도 손실과 함께 중단되고 있었다(실제
+     재현 가능한 별개 버그, 코드 추적으로 확인). CoreAttack/DoorAttack/Wait 쪽엔 애초에 이런 독립된
+     소리 체크 경로가 없어서(오직 Alert 가로채기 문제뿐이었음) 1번 수정만으로 충분했다.
+  3. PropagationSystem.IsSoundUnresponsive(구 :211-220, EmitSound의 리스너 필터)에 SoundType 파라미터
+     추가 — "공격 목표가 있으면 완전 무시, 없으면 교전음·이동음은 듣되 함정음은 계속 제외"(원문
+     "전투 중 소리 반응" 표)를 반영. 기존엔 personalSpottedEnemies.Count>0(전투 상태 근사)만 보고
+     공격 목표 유무와 무관하게 무조건 차단했다 — Unit.CombatTargeting.AttackTarget을 새로 확인해
+     구분했다. 호출부 2곳(EmitSound, PropagateAttackedFact) 모두 시그니처 갱신.
+
+[근거 — 항목별]
+1. "소리 순위는 07_A 7번을 따른다" → ✅ (기존)
+   PropagationMath.SoundPriorityRank — Death/HitScream=1, HitImpact=2, TrapActivation=3,
+   AttackExecution=4, Movement=5. 원문 7-1장 표와 정확히 일치.
+
+2. "동순위는 가까운 소리, 시야 방향에 가까운 소리 순이다" → ✅ (기존)
+   PropagationMath.ShouldReplaceSound — 순위 다르면 순위, 같으면 거리, 거리도 같으면
+   VisionMath.DirStepDistance(시야 방향 스텝 거리) 순으로 비교. HandleSoundPerceived가 대기 중
+   PendingSound와 신규 후보를 정확히 이 순서로 비교.
+
+3. "반응 중에는 더 높은 순위로만 교체한다" → ✅ (기존)
+   HandleSoundPerceived의 pending.ResponseStarted==true 분기 — `if (rank >= curRank) return;`(숫자가
+   작을수록 높은 순위이므로 candidate가 더 높을 때만 통과). 교체 시 currentAlertSearch를 지워 이전
+   확인 대상을 폐기하고 새 PendingSoundReaction으로 완전히 덮어써 "이후 다시 돌아가지 않는다"도 충족.
+
+4. "실제 중단은 03 4번의 행동별 표를 적용한다" → ✅ (일반조사·함정해제/함정대응대기는 기존 ✅,
+   파티목표·코어상호작용 당사자는 위 [핵심 발견]에서 신규 수정, 보호포메이션참여는 N/A)
+   일반조사(전투소리·이동음=중단): CanInvestigate의 HasPendingInterruptingSound 체크. 함정해제·
+   함정대응대기(함정음 제외 중단): IsTrapResponseBlockedBySound, TrapResponse가 BT상 Alert보다
+   우선이라 구조적으로 안전. 파티목표·코어상호작용 당사자(반응 없음): 신규 IsSoundReactionSuppressed.
+   보호포메이션참여(들은 유닛만 이탈)는 Formation.enabled=false(2026-09-04 결정, 이번 세션에도
+   재확인)로 여전히 관측 불가능한 휴면 코드라 N/A — 손대지 않음.
+
+5. "유효한 공격 목표를 유지하는 교전 중에는 새 소리로 시야 전환·이동·보류를 하지 않는다" → ✅
+   (기존, 이번에 로직 자체는 유지하고 판정 기준만 정교화)
+   IsSoundUnresponsive가 CombatTargeting.AttackTarget != null이면 여전히 완전 무시.
+
+6. "비명음만 듣고 현재 전투를 중단해 긴급 보호로 전환하지 않으며, 긴급 보호는 직접 확인·실제
+   전파로 확보한 조건에 따라 판단한다" → ✅ (02-08에서 이미 수정된 기존 코드로 충족, 이번엔
+   재확인만)
+   CombatFSMState.IsEmergency의 underThreat 판정이 02-08에서 HasPerceivedThreatCollider(자기
+   인지 기반)에서 HasActiveThreatGroundTruth(히트박스 오버랩 ground truth)로 이미 교체됐다 — "비명
+   소리를 들었다"는 사실 자체는 이 판정에 전혀 관여하지 않는다. 새 지적 없음.
+
+7. "공격 대상이 없는 전투 상태에서는 소리로 다음 대응 대상을 확인할 수 있다" → ✅ (신규 수정,
+   위 [핵심 발견] 3번)
+   IsSoundUnresponsive가 AttackTarget==null이면 TrapActivation을 제외한 소리(교전음·이동음)를
+   통과시킨다.
+
+8. "소리의 순위·동률·유효시간·보류 개수는 원본 소리 문서 기준을 사용한다" → ✅ (기존)
+   1·2번에서 이미 확인한 순위·동률 외에, 7-3장 유효시간(SoundValidSeconds=5f)·보류 개수(PendingSound
+   가 컬렉션이 아닌 단일 필드라 "유닛당 1건"이 구조적으로 보장)까지 전부 일치. "이동음은 저장하지
+   않고 즉시 반응 여부만 판정"이라는 표현은 코드상 이동음도 PendingSound에 동일하게 저장되지만,
+   SoundMoveReact가 이동 없이 2초 시야 유지 후 즉시 ClearSoundAlert로 종료하는 것으로 "확인 행동
+   자체가 이동을 동반하지 않고 짧게 끝난다"는 실질을 충족한다고 판단 — 데이터 구조상 "저장 안 함"을
+   문자 그대로 구현하진 않았지만 행동 결과는 원문 의도(이동음으로 먼 거리를 추적하지 않음)와 일치해
+   새 지적으로 보지 않았다.
+
+[내용 요약] "복수 소리 선택"(1~3, 8번) 자체는 이미 정확히 구현돼 있었다. 이 항목의 진짜 핵심이었던
+"현재 행동에 따른 소리 반응 허용 여부"(4·7번)가 구조적으로 두 가지 지점에서 새고 있었다 —
+TryPromotePendingSoundToAlert가 모든 소리를 무조건 Alert로 승격시켜 BT 우선순위상 Alert보다 낮은
+모든 카테고리(Investigate/Wait/CoreAttack/DoorAttack)의 자체 소리 판정을 무력화했고, IsSoundUnresponsive
+가 "공격 목표 유무"를 구분하지 못해 "목표 없는 전투 상태에서도 소리로 다음 대상 확인 가능"이 막혀
+있었다. 둘 다 사용자 확인 후 수정 완료 — 새 상태나 강제 이동 없이 기존 게이트 지점에 조건을
+추가하는 방식으로 최소 침습적으로 해결했다.
+
+[Claude 의견] 이번 수정으로 IsSoundReactionSuppressed가 "파티목표·코어" 두 케이스만 다루고
+"보호 포메이션 참여"는 비워뒀다 — Formation이 다시 논의될 때 03번 문서 4장 표의 마지막 행("들은
+유닛만 이탈")도 같이 반영해야 완전해진다(지금은 관측 불가라 급하지 않음). 또한 이번 수정으로
+"코어/문 공격 채널링 중"이 인류·플레이어 몬스터 공통으로 소리 무시 대상이 됐는데, 이게 야생
+몬스터의 자동 행동에도 영향을 주는지는 재확인이 필요할 수 있다 — 다만 currentAttackObjectTarget
+자체가 코어/문 채널링 전용 필드라 야생 몬스터가 이 값을 가질 일이 거의 없어(코어/문 공격은
+인류 전용 자동 로직 + 플레이어 몬스터 수동 명령뿐, CLAUDE.md "자동 오브젝트 공격은 인류 전용"
+하드룰 참고) 실질적 영향은 없다고 판단한다.
+
+────────────────────────────────────────────────────────────────────────
+
+## 03-05  이동음은 발생 타일로 시야 전환 — ✅완전 통과(연출만 N/A) — 코드 수정 없음
+
+[검증할 내용] 반응 가능한 상태에서 이동음을 들었을 때 발생 당시 타일로 시야를 돌리는가. 시야 전환
+후 실제 적 인지 여부에 따라 행동이 달라지는가.
+
+[근거 — 항목별]
+1. "이동음이 발생한 타일을 향해 시야를 돌린다" → ✅ (이중 경로로 보장)
+   TacticalFSMState.SoundMoveReact(:927-945)가 매 틱 `unit.currentDir = SkillAction.GetDirection8
+   (alert.TargetPosition.Value - unit.position)`로 직접 세팅. 독립적으로
+   UnitFunction.ResolveVisionDirection(:744-819)도 "SoundDetected"를 7순위 후보로 이미 처리(:771-781,
+   alert.TargetPosition 또는 pendingSound.SourcePosition 참조) — 두 경로가 같은 위치를 가리켜
+   충돌 없이 서로 보강한다.
+
+2. "인류·플레이어 몬스터·야생에 같은 이동음 구분을 적용한다" → ✅
+   SoundMoveReact가 Unit(base) 레벨 함수라 종족 분기가 전혀 없다 — Human 캐스팅 없이 모든 유닛에
+   동일 적용.
+
+3. "이동음만으로 발생 타일까지 이동하거나 몇 칸 이동해 조사하는 행동을 만들지 않는다" → ✅
+   SoundMoveReact 전체에 AIMovementHelper.MoveTowardsPos 등 이동 호출이 전혀 없다 — currentDir 갱신과
+   2초(PropagationMath.MoveSoundHoldSeconds) 타이머뿐.
+
+4. "이후 발신자가 이동하더라도 새로 확인하지 않은 현재 위치를 따라 시야를 돌리지 않는다" → ✅
+   PropagationSystem.HandleSoundPerceived가 소리 감지 시 1회만 호출돼 AlertSearchState.TargetPosition
+   (=최초 감지 시점의 SourcePosition)을 고정 스냅샷한다 — 이후 발신자가 움직여도 이 값은 안 바뀐다.
+
+5. "이 입력만으로 발신자의 정체, 정확 인지 상태, 타일 안전, 주변 지형을 확정하거나 개인 지도에
+   자동 등록하지 않는다" → ✅
+   SoundMoveReact에 personalMap 관련 호출이 전혀 없다.
+
+6. "시야 전환 뒤 실제로 보이거나 인지된 정보만 해당 규칙에 따라 갱신한다" → ✅
+   SoundMoveReact는 방향만 돌릴 뿐 인지 판정에 관여하지 않는다 — 그 방향에서 실제로 뭔가 보이는지는
+   일반 UpdateFOV/CastRay 패스가 매 프레임 독립적으로 처리(주석 :925-926에 이미 명시된 설계 의도).
+
+7. "적을 정확히 인지해 전투로 전환할 때는 연출을 사용한다. 인류는 기존 이동음 반응의 즉시 전투
+   규칙, 몬스터는 자신의 역할·행동 규칙" → ✅ (전투 전환 로직 자체는 기존 파이프라인)
+   SoundMoveReact가 시야만 돌려주면, 그 방향에서 실제 인지가 성립하는 순간 personalSpottedEnemies에
+   반영되고 FSM 우선순위(Combat(100) > Tactical(50))가 다음 틱에 자동으로 Combat으로 전환한다 —
+   별도의 "이동음 전용 전투 진입 로직"이 필요 없는 구조(00번 문서 4장 우선순위 재사용).
+
+8. "인류의 소리 확인 방향을 2초 유지하는 것만으로 새 인지 판정을 강제로 발생시키지 않는다" → ✅
+   SoundMoveReact가 ElapsedSeconds만 증가시키고 별도 인지 판정 호출이 없다 — 2초 경과 시
+   ClearSoundAlert로 조용히 종료할 뿐.
+
+9. "확인 이후의 판정" 표(적을 찾음/새 비전투 임무 대상/남은 근거 없음) → ✅ (전부 기존 메커니즘으로 자동 커버)
+   "적을 찾음"은 7번과 동일 경로. "새 비전투 임무 대상"은 일반 CastRay 발견 파이프라인이 personalMap
+   에 등록하고, 집결·귀환 중이면 TacticalFSMState.CanInvestigate의 기존 게이트(:233-238, 00-04에서
+   이미 검증)가 "기록만, 새 상호작용 시작 안 함"을 그대로 보장한다. "남은 근거 없음"은
+   ClearSoundAlert 후 BTStatus.Success로 종료돼 다음 틱 BT Selector가 처음부터 재평가하는 구조
+   자체가 "기존 명령·목표 재판단"을 자연히 재현한다 — 별도 코드 불필요.
+
+10. "'?' 연출과 함께... 시야를 전환한다" / "'!' 연출을 사용한다" → N/A(연출 자체가 코드에 없음)
+    코드 전체를 검색해도 이 시각 연출을 트리거하는 지점이 전혀 없다(느낌표·물음표 텍스트/아이콘
+    관련 호출 0건) — '?'뿐 아니라 인지 성공 시의 '!'도 마찬가지로 없어서, 이동음에 국한된 누락이
+    아니라 이 프로토타입 전체가 아직 손대지 않은 순수 시각 피드백 영역으로 판단. 사용자 확인
+    후("기록만 하고 넘어감") 이번엔 새로 만들지 않음 — 게임 로직에는 영향이 없는 순수 UX 요소.
+
+[내용 요약] 이 항목이 요구하는 로직(시야 전환·이동 없음·위치 스냅샷 고정·정체 미확정·인지 후 전투
+전환·확인 이후 3분기 판정)은 전부 이미 정확히 구현돼 있었다 — 새로운 버그를 찾지 못했다. 유일한
+미비점은 원문이 명시한 '?'/'!' 시각 연출인데, 이건 로직이 아니라 아직 만들어지지 않은 시각
+피드백이라 이번엔 기록만 남기고 넘어간다.
+
+[Claude 의견] SoundMoveReact의 직접 currentDir 대입과 ResolveVisionDirection의 SoundDetected
+후보가 같은 정보(TargetPosition/SourcePosition)를 서로 다른 두 경로로 반영하는 게 코드 중복처럼
+보일 수 있지만, 실제로 문제를 일으키지 않고(둘 다 같은 방향을 가리킴) 오히려 BT 틱 주기와
+OnUpdate 매 프레임 주기가 다를 수 있는 상황에서 이중 안전장치로 기능한다고 판단 — 리팩토링 제안
+없이 그대로 둔다.
+
+────────────────────────────────────────────────────────────────────────
+
 ════════════════════════════════════════════════════════════════════════
-■ 다음 검증 대기 중 — 03-04부터는 사용자 지시 후 진행
+■ 다음 검증 대기 중 — 03-06부터는 사용자 지시 후 진행
 ════════════════════════════════════════════════════════════════════════

@@ -131,7 +131,7 @@ public static class PropagationSystem
 			bool listenerIsHuman = listener is Human;
 			if (type == SoundType.Movement && sourceIsHuman == listenerIsHuman) continue;
 			if (!listener.CanPerceive) continue; // 기절 등 인지 판정 불가 상태 — 못 듣는다고 근사
-			if (IsSoundUnresponsive(listener)) continue;
+			if (IsSoundUnresponsive(listener, type)) continue;
 
 			bool isAlert = listener.Perception.IsAlert;
 			int detectRange = PropagationMath.SoundDetectionRange(type, listener.spotting, isAlert, isMonster: !listenerIsHuman);
@@ -208,13 +208,20 @@ public static class PropagationSystem
 			listener.Propagation.PendingSound = null;
 	}
 
-	// 16-4/16-5/10장: 소리에 반응하지 않는 상태 — 이미 전투 목표가 있거나(공통) 전투 합류 대기 중(인류 전용)이면 무시한다.
-	private static bool IsSoundUnresponsive(Unit unit)
+	// 16-4/16-5/10장: 소리에 반응하지 않는 상태 — 전투 합류 대기 중(인류 전용)이면 완전 무시. 검증문서
+	// 03-04(03번 문서 4장 "전투 중 소리 반응"): 전투 상태(personalSpottedEnemies 있음)라도 공격 목표
+	// (CombatTargeting.AttackTarget)가 없으면 다음 대상을 확인할 수 있게 교전음·이동음은 듣게 한다 —
+	// 함정음은 공격 목표 유무와 무관하게 전투 중엔 계속 제외.
+	private static bool IsSoundUnresponsive(Unit unit, SoundType type)
 	{
-		if (unit.personalSpottedEnemies.Count > 0) return true;
 		if (unit is Human human)
 		{
 			if (human.currentJoinCombatWait != null) return true;
+		}
+		if (unit.personalSpottedEnemies.Count > 0)
+		{
+			if (unit.CombatTargeting.AttackTarget != null) return true;
+			if (type == SoundType.TrapActivation) return true;
 		}
 		return false;
 	}
@@ -227,6 +234,11 @@ public static class PropagationSystem
 		var pending = unit.Propagation.PendingSound;
 		if (pending == null || pending.ResponseStarted) return false;
 		if (Time.time > pending.ValidUntilTime) { unit.Propagation.PendingSound = null; return false; }
+		// 검증문서 03-04: 여기서 승격을 막지 않으면, BT 우선순위상 Alert가 Investigate/Wait/CoreAttack/
+		// DoorAttack보다 먼저라 그 아래 카테고리들의 자체 "이 소리 무시" 판정(CanInvestigate의
+		// HasPendingInterruptingSound 등)이 실행될 기회조차 없이 Alert가 먼저 가로챈다 — TrapResponse만
+		// Alert보다 앞이라 이 문제에서 자유롭다(IsTrapResponseBlockedBySound가 별도로 담당).
+		if (IsSoundReactionSuppressed(unit, pending.Type)) return false;
 
 		unit.currentAlertSearch = new AlertSearchState
 		{
@@ -242,6 +254,29 @@ public static class PropagationSystem
 		};
 		pending.ResponseStarted = true;
 		return true;
+	}
+
+	// 검증문서 03-04(03번 문서 4장 표): "파티 목표·코어 상호작용 당사자"는 전투관련소리·이동음·
+	// 함정작동음 구분 없이 전부 반응하지 않는다(둘 다 "현재 행동 유지"). "일반 조사"는 함정작동음만
+	// 무시하고 그 외 소리엔 정상적으로 중단된다 — 함정 해제·대응(TrapResponse)은 BT 우선순위 자체가
+	// Alert보다 높아 여기서 다룰 필요가 없다(IsTrapResponseBlockedBySound가 전담). 보호 포메이션 참여
+	// 분기는 Formation.enabled=false(2026-09-04 사용자 결정)로 여전히 비활성이라 포함하지 않았다 —
+	// 재활성화 논의 시 함께 추가할 것.
+	private static bool IsSoundReactionSuppressed(Unit unit, SoundType type)
+	{
+		// 코어/문 공격 채널링 중(인류·플레이어 몬스터 공통 필드) — 모든 소리 무시.
+		if (unit.currentAttackObjectTarget.HasValue) return true;
+
+		if (unit is Human human)
+		{
+			// 파티 목표 상호작용(회수 파티+Loot, 검증문서 03-01의 IsPartyGoalTarget) 당사자 — 모든 소리 무시.
+			if (human.currentInvestigation?.IsPartyGoalTarget == true) return true;
+			// 코어 발견 보고 이동 중(검증문서 03-03) — "코어 상호작용"의 일부로 취급, 모든 소리 무시.
+			if (human.currentWait?.Reason == WaitReason.ReportingCoreToLeader) return true;
+			// 일반 조사(파티 목표 아님) 중엔 함정작동음만 무시한다.
+			if (type == SoundType.TrapActivation && human.currentInvestigation != null) return true;
+		}
+		return false;
 	}
 
 	// 16-4장: 함정 대응을 중단시킬 수 있는 소리가 대기 중인지 — TacticalFSMState가 함정 분기 전체를
@@ -418,7 +453,9 @@ public static class PropagationSystem
 		foreach (var m in victim.party.Members)
 		{
 			if (m == null || m == victim || m.hp <= 0) continue;
-			if (IsSoundUnresponsive(m)) continue;
+			// 소리 타입 자체는 없는 직접 정보라 함정음 특수 취급과 무관한 임의의 non-trap 타입(피격
+			// 관련이라 HitImpact)을 넘긴다 — "공격 목표 있으면 무시, 없으면 허용" 규칙만 적용된다.
+			if (IsSoundUnresponsive(m, SoundType.HitImpact)) continue;
 			if (!InPropagationRange(victim, m)) continue;
 			if (m.currentAlertSearch != null) continue; // 더 급한 상태(이미 반응 중)는 덮어쓰지 않는다.
 

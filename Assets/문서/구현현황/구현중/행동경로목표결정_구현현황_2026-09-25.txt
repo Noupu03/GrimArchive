@@ -1009,3 +1009,45 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     오브젝트가 이미 공통으로 personalMap에 등록되므로 별도 처리가 필요 없었다(확인만 하고 손 안
     댐). 이걸로 03-03 항목 9개 전부 ✅ 완료. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이
     검증 아직.
+
+28. [발견+수정 완료, 2026-09-29 — 검증문서 03-04, 사용자 확인 "포괄적으로 한 번에 수정 (추천)"]
+    03번 문서 4장 "현재 행동에 따라 소리 반응을 허용/차단"하는 표가 실제로는 지켜지지 않고 있었다
+    — 이번 세션 두 번째 구조적 발견. 원인은 PropagationSystem.TryPromotePendingSoundToAlert가
+    소리 종류·유닛의 현재 행동과 완전히 무관하게 유효한 PendingSound가 있으면 무조건 Alert로
+    승격시킨다는 것. TacticalFSMState의 BT 우선순위(Panic > JoinCombatWait > TrapResponse > Alert >
+    Investigate > Wait > CoreAttack > DoorAttack)에서 TrapResponse만 Alert보다 앞이라 안전하고
+    (그래서 함정 해제·대응은 IsTrapResponseBlockedBySound의 자체 판정이 실제로 작동), 그 뒤에 오는
+    Investigate/Wait/CoreAttack/DoorAttack은 Alert가 먼저 가로채 버려서 이들이 각자 가진 "이 소리는
+    무시해야 함" 판정이 실행될 기회조차 없었다. 코드 추적으로 실제 위반 2건 확인: (a) "일반 조사는
+    함정작동음에 안 끊긴다"(표 명시)인데 SoundAreaApproach가 실행돼(TrapActivation도
+    EstimatedAreaRadius=1>0이라 SoundHasEstimatedArea=true) 조사 유닛이 함정 소리 방향으로 실제
+    이동해버림. (b) "파티 목표·코어 상호작용 당사자는 소리 반응 자체가 없다"(표 명시)인데 예외가
+    전혀 없어 Alert 전환됨 — 코어/문 공격 채널링은 인접(1칸) 이탈 시 자동 취소되는 구조라 Alert로
+    인한 이동이 실제로 채널링을 깨뜨릴 수 있는 잠재 버그.
+    수정 3곳:
+    (1) PropagationSystem.IsSoundReactionSuppressed(Unit, SoundType) 신설 — 코어/문 공격 채널링 중
+    (currentAttackObjectTarget.HasValue, 인류·플레이어 몬스터 공통 필드), 파티 목표 조사 중
+    (currentInvestigation?.IsPartyGoalTarget==true, 27번의 그 플래그), 코어 보고 이동 중
+    (currentWait.Reason==ReportingCoreToLeader, "코어 상호작용"의 일부로 취급)이면 모든 소리 무시,
+    일반 조사(파티목표 아님) 중엔 함정작동음만 무시. TryPromotePendingSoundToAlert 시작부에서 호출해
+    Alert 승격 자체를 막는다 — PendingSound는 폐기되지 않고 남아 있다가 그 행동이 끝나면(또는 5초
+    유효시간이 지나면 기존 ExpireAfterDelay가 자동 소멸) 정상 재평가된다. 보호 포메이션 참여
+    분기(표의 마지막 행)는 Formation.enabled=false로 여전히 비활성이라 포함하지 않음 — 재활성화
+    논의 시 함께 추가.
+    (2) TacticalFSMState.CanInvestigate의 HasPendingInterruptingSound 체크에도 별도로
+    `IsPartyGoalTarget != true &&` 예외 추가 — (1)만으론 부족했다. 이 체크는 Alert 승격과 무관하게
+    CanInvestigate가 매 틱 독립적으로 재확인하는 별개 경로라, (1)을 고쳐도 파티목표 조사가 여전히
+    함정음 아닌 소리엔 진행도 손실과 함께 중단되고 있었다(재현 가능한 별개 버그, 코드 추적으로
+    확인). CoreAttack/DoorAttack/Wait 쪽은 애초에 이런 독립 소리 체크 경로가 없어(Alert 가로채기
+    문제뿐이었음) (1)만으로 충분했다.
+    (3) PropagationSystem.IsSoundUnresponsive(EmitSound의 리스너 필터)에 SoundType 파라미터 추가 —
+    "공격 목표가 있으면 완전 무시, 없으면 교전음·이동음은 듣되 함정음은 계속 제외"(원문 "전투 중
+    소리 반응" 표)를 반영. 기존엔 personalSpottedEnemies.Count>0(전투 상태 근사)만 보고 공격 목표
+    유무와 무관하게 무조건 차단했다 — 신규로 Unit.CombatTargeting.AttackTarget을 확인해 구분.
+    호출부 2곳(EmitSound, PropagateAttackedFact — 후자는 SoundType 개념이 없는 직접 정보라 함정음
+    특수취급과 무관한 SoundType.HitImpact를 임의로 넘김) 시그니처 갱신.
+    나머지 항목(소리 우선순위 7-1/동순위/반응중교체/유효시간·보류개수 7-3/비명음만으로 긴급보호
+    전환안함)은 전부 기존 코드로 이미 ✅ — 비명음/긴급보호는 02-08(24번)의 ground truth 수정이 이미
+    충족하고 있었다. 이걸로 03-04 항목 8개(표 4행 포함) 전부 ✅. .sln 부재로 dotnet build 미확인,
+    Unity 컴파일·플레이 검증 아직 — 다음 세션에서 errors.txt로 확인 필요. 상세는 검증문서 "03-04"
+    항목 참고.

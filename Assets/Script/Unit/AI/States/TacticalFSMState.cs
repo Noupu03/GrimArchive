@@ -239,8 +239,11 @@ public class TacticalFSMState : IFSMState
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
 		// 03번 문서 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도 손실이 적용된다 —
 		// IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. HasAlert보다 먼저 걸려야 Alert
-		// 분기가 대신 가로채면서 페널티 없이 조사가 조용히 밀려나는 걸 막는다.
-		if (PropagationSystem.HasPendingInterruptingSound(human))
+		// 분기가 대신 가로채면서 페널티 없이 조사가 조용히 밀려나는 걸 막는다. 검증문서 03-04: 같은
+		// 표가 "파티 목표·코어 상호작용 당사자는 소리 반응 없음"도 명시하므로, IsPartyGoalTarget이면
+		// 이 체크 자체를 건너뛴다(PropagationSystem.IsSoundReactionSuppressed가 Alert 승격 자체를
+		// 막는 것과 짝 — 그쪽만으로는 이 독립된 체크까지 막지 못해 따로 게이팅이 필요했다).
+		if (human.currentInvestigation?.IsPartyGoalTarget != true && PropagationSystem.HasPendingInterruptingSound(human))
 		{
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
