@@ -365,6 +365,29 @@ public static class PropagationSystem
 				}
 			}
 		}
+
+		// 검증문서 03-02: 파티 목표 합류 정보 지속 재전파 — 위 KnownInvestigatedObjects 블록과 동일
+		// 패턴이지만 OnObjectInvestigated는 호출하지 않는다(아직 완료가 아니라 "존재와 위치를 앎"만
+		// 필요 — 등록되는 순간 FindInvestigateTarget이 자유로운 이 유닛에게 자연히 합류 후보로 제시한다).
+		if (party.PartyGoalJoinTargets.Count > 0)
+		{
+			foreach (var kv in party.PartyGoalJoinTargets)
+			{
+				string objectId = kv.Key;
+				if (human.personalMap.IsObjectKnown(objectId)) continue;
+
+				foreach (var carrier in party.Members)
+				{
+					if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+					if (!carrier.personalMap.IsObjectKnown(objectId)) continue;
+					if (!CanPropagate(carrier, human)) continue;
+					if (!human.Session.objectGrid.TryGetValue(kv.Value, out var obj)) break;
+
+					human.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+					break;
+				}
+			}
+		}
 	}
 
 	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
@@ -410,6 +433,26 @@ public static class PropagationSystem
 			if (m == null || m == interactingUnit || m.hp <= 0) continue;
 			if (!CanPropagate(interactingUnit, m)) continue;
 			m.Propagation.NotifiedInteractionTokens[interactingUnit] = token;
+		}
+	}
+
+	// 검증문서 03-02(03번 문서 3번 항목): 파티 목표 오브젝트 상호작용이 시작되는 순간 "합류 정보"를
+	// 전파한다 — 위 NotifyInteractionStarted(포메이션 참여 토큰)와는 별개 목적이라 나란히 둔다. 같은
+	// 틱에 전파 범위 안인 파티원은 즉시 personalMap에 등록되고(다음 틱부터 FindInvestigateTarget이
+	// 자연히 후보로 인식해 합류 이동을 시작한다), 범위 밖이었던 파티원은 party.PartyGoalJoinTargets에
+	// 남겨 TickOngoingObjectPropagation이 나중에 채워준다. "유닛당 1회만 재전파"는 IsObjectKnown 체크로,
+	// "재전파"(수신자가 다시 전파)는 아래 TickOngoingObjectPropagation의 carrier 루프가 등록 여부만
+	// 보고 원발견자와 수신자를 구분하지 않는 것으로 자연히 만족된다.
+	public static void NotifyPartyGoalInteractionStarted(Human interactingUnit, InteractableObject obj)
+	{
+		if (interactingUnit.party == null) return;
+		interactingUnit.party.PartyGoalJoinTargets[obj.Id] = obj.Position;
+		foreach (var m in interactingUnit.party.Members)
+		{
+			if (m == null || m == interactingUnit || m.hp <= 0) continue;
+			if (m.personalMap.IsObjectKnown(obj.Id)) continue; // 유닛당 1회만
+			if (!CanPropagate(interactingUnit, m)) continue;
+			m.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
 		}
 	}
 

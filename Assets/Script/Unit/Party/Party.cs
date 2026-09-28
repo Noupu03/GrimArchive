@@ -174,6 +174,14 @@ public class Party
 	public readonly Dictionary<string, Vector3Int> KnownInvestigatedObjects = new Dictionary<string, Vector3Int>();
 	public readonly HashSet<string> KnownCollectedObjectIds = new HashSet<string>();
 
+	// 검증문서 03-02: 파티 목표 상호작용이 "시작"되는 순간(완료 아님)의 합류 정보 — 위
+	// KnownInvestigatedObjects와 동일한 지속 재전파 패턴(PropagationSystem.TickOngoingObjectPropagation)
+	// 이지만 소비 방식이 다르다. 등록만 해주면 자유로운 파티원은 기존 FindInvestigateTarget이 자연히
+	// 그 대상을 후보로 찾아 합류 이동을 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은
+	// CanInvestigate의 기존 우선순위 게이트에 막혀 그대로 현재 행동을 유지한다(03번 문서 3번 항목의
+	// "유지해야 하는 수신자" 처리를 새 강제 상태 없이 기존 FSM 우선순위만으로 재현).
+	public readonly Dictionary<string, Vector3Int> PartyGoalJoinTargets = new Dictionary<string, Vector3Int>();
+
 	public Party(string id, string name)
 	{
 		Id = id;

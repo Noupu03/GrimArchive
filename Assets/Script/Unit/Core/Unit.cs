@@ -738,8 +738,10 @@ public class Human : UnitFunction
 			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
 			if (isTrap || isExcludedTrace || isCore || isDoor) continue;
 			// 재전파 수신자는 같은 대상에 중복 조사·해제 목표를 선택하지 않는다 — 다른 파티원이 이미
-			// 이 오브젝트를 currentInvestigation으로 잡고 있으면 후보에서 뺀다.
-			if (IsInvestigationClaimedByPartyMember(obj.Id)) continue;
+			// 이 오브젝트를 currentInvestigation으로 잡고 있으면 후보에서 뺀다. 검증문서 03-02: 파티
+			// 목표 오브젝트(IsPartyGoalObject)는 이 규칙의 예외다 — 03번 문서 3번 항목이 "합류"(여러
+			// 파티원이 같은 대상으로 모이는 것)를 명시적으로 요구하므로, 일반 조사 대상에만 중복 방지를 적용한다.
+			if (!IsPartyGoalObject(obj) && IsInvestigationClaimedByPartyMember(obj.Id)) continue;
 
 			_investigateCandidateBuffer.Add((obj, obj.Position, false));
 		}
@@ -779,18 +781,12 @@ public class Human : UnitFunction
 			if (best == null || score > bestScore)
 			{
 				bestScore = score;
-				// 검증문서 03-01 4번: 지금 유일하게 명확한 "파티종류-오브젝트" 매칭인 회수 파티+Loot
-				// 태그만 "유지 우선 파티 목표"로 표시한다(Party.HasKnownRecoverableInRoom과 동일 판정
-				// 기준) — 다른 파티종류는 01번 문서 3장이 이미 스텁으로 남긴 영역이라 여기서 임의로
-				// 확장하지 않는다.
-				bool isPartyGoal = party != null && party.Type == PartyType.Recover && candidate.obj != null
-					&& candidate.obj.Tags != null && candidate.obj.Tags.Exists(t => t.Contains("Loot"));
 				best = new InvestigationState
 				{
 					TargetObjectId = objId,
 					TargetPosition = candidate.tilePos,
 					IsTileOnly = candidate.isTile,
-					IsPartyGoalTarget = isPartyGoal,
+					IsPartyGoalTarget = IsPartyGoalObject(candidate.obj),
 				};
 			}
 		}
@@ -820,6 +816,14 @@ public class Human : UnitFunction
 
 		return Mathf.Max(Mathf.Abs(targetPos2D.x - position.x), Mathf.Abs(targetPos2D.y - position.y));
 	}
+
+	// 검증문서 03-01 4번/03-02: 지금 유일하게 명확한 "파티종류-오브젝트" 매칭인 회수 파티+Loot 태그만
+	// "파티 목표 오브젝트"로 판정한다(Party.HasKnownRecoverableInRoom과 동일 기준) — 다른 파티종류는
+	// 01번 문서 3장이 이미 스텁으로 남긴 영역이라 여기서 임의로 확장하지 않는다. 후보 필터링(중복
+	// 클레임 예외)과 최종 IsPartyGoalTarget 플래그가 같은 기준을 쓰도록 한 곳으로 모은다.
+	private bool IsPartyGoalObject(InteractableObject obj)
+		=> party != null && party.Type == PartyType.Recover && obj != null
+			&& obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
 
 	private bool IsInvestigationClaimedByPartyMember(string objectId)
 	{

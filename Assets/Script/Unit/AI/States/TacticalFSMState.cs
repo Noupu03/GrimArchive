@@ -706,6 +706,11 @@ public class TacticalFSMState : IFSMState
 
 		// 07문서 10장: 조사가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!inv.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
+		// 검증문서 03-02(03번 문서 3번 항목): 파티 목표 오브젝트면 같은 시점에 "합류 정보"도 전파한다.
+		// 자유로운 파티원은 personalMap 등록만으로 기존 FindInvestigateTarget이 자연히 합류 이동을
+		// 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은 CanInvestigate의 기존 우선순위 게이트에
+		// 막혀 그대로 현재 행동을 유지한다 — "유지해야 하는 수신자" 처리를 새 강제 상태 없이 재현한다.
+		if (!inv.PenaltyActive && inv.IsPartyGoalTarget) PropagationSystem.NotifyPartyGoalInteractionStarted(human, obj);
 		inv.PenaltyActive = true;
 		if (inv.Progress01 < 1f) return BTStatus.Running;
 
