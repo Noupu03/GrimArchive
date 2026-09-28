@@ -308,6 +308,11 @@ public class Party
 		if (LeaderKnownCorePosition == corePos) return; // 이미 알고 있음 — 중복 처리 방지
 		LeaderKnownCorePosition = corePos;
 
+		// 검증문서 03-03(03번 문서 3장 138줄): 위 집결 해제(같은 방은 무조건)와 달리, 코어 위치·발견
+		// 내용 자체는 일반 전파 조건(CanPropagate)만으로 공유한다 — 별도 예외 없음.
+		if (Leader?.Session != null && Leader.Session.objectGrid.TryGetValue(corePos, out var core))
+			PropagationSystem.NotifyCoreLocationKnown(Leader, core);
+
 		IsRallyActive = false;
 		RallyPoint = null;
 		ReadyToAdvance = false;

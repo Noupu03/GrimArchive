@@ -11,10 +11,26 @@ GrimArchive 행동경로·목표설정 시스템 — 07번 검증항목 문서 �
 　　　　　　N/A해당없음(그 기능 자체가 아직 코드에 없어 검증 대상이 성립 안 함, 스텁 허용 영역)
 
 ════════════════════════════════════════════════════════════════════════
-■ 세션 재개용 요약 (2026-09-28, 세션 중단 시점)
+■ 세션 재개용 요약 (2026-09-29, 세션 중단 시점)
 ════════════════════════════════════════════════════════════════════════
 진행 상황: 0장(문서 리뉴얼 대조) + 00-01~00-08 + 01-01~01-11 + 02-01~02-11(02번 문서 전체 종료)
-+ 03-01~03-02 완료. **다음 재개 지점은 03-03(코어 발견 보고와 리더 조사).**
++ 03-01~03-03 완료. **다음 재개 지점은 03-04(여러 소리의 선택과 현재 행동 중단).**
+(03-03, 2026-09-29) 이번 세션 최대 발견 — "리더가 코어 정보를 확보해도 실제로 코어를 향해
+이동하는 코드가 없었다." Party.OnLeaderLearnsCore가 집결 해제하며 ReadyToAdvance까지 false로
+되돌리는데, HumanWaveManager.UpdatePartyDestination(파티를 실제로 이동시키는 유일한 경로)의 가드가
+ReadyToAdvance만 봐서 코어를 알게 된 순간부터 처리될 때까지 이동 자체가 완전히 멈춰 있었다.
+TacticalBehaviorType.CoreAttack(FindHostileRoomCore)은 "이미 그 방에 서 있을 때만" 발동하는
+제자리 판정이라 이동을 대신 못 해준다 — personalMap도 전혀 안 봄. 사용자 확인("HumanWaveManager
+확장으로 수정 (추천)") 후 UpdatePartyDestination 가드를 `ReadyToAdvance ||
+LeaderKnownCorePosition.HasValue`로 확장해 기존 "다음 문 찾기" 경로를 재사용하도록 수정 —
+_targetRoom(웨이브 목표 방)이 이미 코어가 있는 방과 항상 동일해 별도 목적지 계산 불필요. 결과적으로
+원문 "리더와 발견자"보다 넓게 파티 전체가 함께 이동(집결 경로 재사용이라 자연스러운 확장, 사용자
+확인됨). 나머지 항목(발견→보고/집결 차단·해제/리더 승계/조사완료≠파괴)은 전부 ✅ — 4번(코어 위치
+personalMap 등록)만 최초엔 게임플레이 영향 없어 🔶로 보류했다가, 사용자 지시("이거도 처리해")로
+같은 세션에 마저 구현해 03-03 전 항목 ✅ 완료. 변경 파일: HumanWaveManager.cs(:611-644, 이동 경로
+확장), Party.cs(OnLeaderLearnsCore에 NotifyCoreLocationKnown 호출 추가), PropagationSystem.cs
+(NotifyCoreLocationKnown 신설 + TickOngoingObjectPropagation 네 번째 블록 — 새 Party 필드 없이
+기존 LeaderKnownCorePosition 재사용).
 (03-02 재검증, 2026-09-28) 사용자 지시("할수있는만큼 해봐")로 이전에 N/A 처리했던 핵심 메커니즘
 ("일반/비코어 파티 목표 상호작용의 실시간 합류 전파")을 실제로 신규 구현 — 03-01의
 IsPartyGoalTarget이 "무엇이 파티 목표인가"를 이미 정의해 둔 덕에 더 이상 범위 밖이 아니라고 판단.
@@ -3187,6 +3203,120 @@ CanDisarm(함정 해제)은 원본 표 47줄이 "해제자·보호자 피격" �
 
 ────────────────────────────────────────────────────────────────────────
 
+## 03-03  코어 발견 보고와 리더 조사 — ✅완전 통과(핵심 갭 2건 발견+전부 수정 완료, 2026-09-29
+   기준) — .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 대기
+
+[검증할 내용] 상호작용할 코어의 발견을 리더 보고·조사로 연결하고, 리더가 정보를 확보한 뒤 일반
+임무·집결·다음 방 이동보다 코어를 우선하는가. 코어 때문에 집결을 해제한 경우와 탐색 중 발견한
+경우의 처리 후 행동을 구분하는가.
+
+[핵심 발견 — 리더가 코어 소식을 확보해도 실제로 코어를 향해 이동하지 않음]
+검증 도중 PartyCoreReportSystem/Party.OnLeaderLearnsCore만으론 이 항목을 온전히 판정할 수 없다고
+판단해 HumanWaveManager.UpdatePartyDestination(파티를 목표 방으로 실제 이동시키는 유일한 경로)까지
+추적했다. Party.OnLeaderLearnsCore(:298-318)는 집결을 해제하며 IsRallyActive=false·RallyPoint=
+null과 함께 ReadyToAdvance=false로도 되돌린다. 그런데 HumanWaveManager.UpdatePartyDestination의
+원래 가드는 `if (_targetRoom == null || !activeParty.ReadyToAdvance) return;` 하나뿐이었다 —
+즉 코어를 알게 된 순간부터 처리(파괴→점령)될 때까지 이 함수가 다음 문을 찾아 파티를 이동시키는
+경로 자체가 완전히 막혀 있었다. TacticalBehaviorType.CoreAttack(TacticalFSMState.
+FindHostileRoomCore, :1223-1236)은 "지금 서 있는 방에 코어가 있을 때만" 발동하는 제자리 판정이라
+이동을 대신해주지 못한다 — personalMap도 전혀 참조하지 않는다(그 방에 물리적으로 있어야만 발동,
+개인이 "코어 위치를 아는지"와 무관). 결과적으로 리더(및 보고를 마친 발견자)는 우연히 그 방에
+걸어 들어가기 전까지 그냥 하던 일(개인 탐색·조사 등)을 계속했다 — 원문 "리더와 코어 발견자는...
+합류해 코어 위치로 이동한다"(03번 문서 3장 144줄)가 실제로는 지켜지지 않는 실제 갭.
+**[수정 완료]** 사용자 확인 후 HumanWaveManager 확장 방식으로 해결(:611-644 수정) —
+UpdatePartyDestination의 가드를 `_targetRoom == null || !(activeParty.ReadyToAdvance ||
+activeParty.LeaderKnownCorePosition.HasValue)`로 확장해, 코어 소식을 아는 동안에도 기존 "다음 문
+찾기"(TryFindNextDoorTowardTargetRoom) 경로를 그대로 재사용하게 했다. _targetRoom(웨이브 목표
+방)이 이번 세션 초반 "핵심 설계 결정 5번"(코어 보스방 전용화) 이후로는 코어가 있는 방과 항상
+동일하므로 별도 목적지 계산이 필요 없었다. 원문은 "리더와 발견자"로 좁게 표현했지만 기존 파티
+공동 이동(AdvancingToNextRoom) 경로를 그대로 썼기 때문에 실제로는 파티 전체가 함께 향한다 —
+집결·공동 이동 자체가 원래 파티 단위 개념이라 자연스러운 확장으로 판단(사용자에게 이 선택지를
+포함해 확인받음). 새 WaitReason 없이 기존 AdvancingToNextRoom을 그대로 재사용 — 이미 있던
+"이미 다른 대기 사유 진행 중이면 덮어쓰지 않음" 가드가 ReportingCoreToLeader 등과의 충돌도
+그대로 막아준다.
+
+[근거 — 항목별]
+1. "코어 발견자는 일반 전파 조건으로 리더에게 알리고, 전파할 수 없으면 리더를 찾아 보고하러
+   이동한다" → ✅
+   PartyCoreReportSystem.OnCoreDiscovered(:11-36) — CanPropagate 성공 시 즉시 OnLeaderLearnsCore,
+   실패 시 WaitReason.ReportingCoreToLeader로 리더 위치를 향해 이동.
+
+2. "코어 보고 이동은 집결 명령 때문에 끝내지 않는다" → ✅
+   두 방향 모두 확인됨. (a) 이미 보고 중인 유닛에게 새 집결 명령이 오지 않는다 —
+   Party.TryStartRally(:266-271)의 `if (m.currentWait != null) continue;`가 ReportingCoreToLeader
+   유닛을 집결 대상에서 제외. (b) TacticalFSMState.CanInvestigate(:233-238)의 기존 게이트에도
+   ReportingCoreToLeader가 포함돼 있어 조사가 끼어들어 중단시키지 못한다.
+
+3. "리더가 코어 정보를 직접 확인하거나 실제 보고받으면 일반 임무·집결·다음 방 이동보다 코어
+   처리를 우선하며, 집결 중이거나 집결을 마친 상태라면 같은 방·같은 파티 전체에 집결 해제를
+   전달한다" → ✅ (집결 차단·해제는 기존 ✅, "실제 코어 처리 이동"은 위 [핵심 발견]에서 신규 수정)
+   Party.OnLeaderLearnsCore(:298-318) — 같은 방은 무조건, 다른 방은 CanPropagate 게이트로 정확히
+   원문(138줄) 기준과 일치. TryStartRally(:244-247)가 미처리 코어를 알고 있으면 새 집결 자체를
+   막아 "우선"을 보장. 실제 이동은 위 [핵심 발견]의 수정으로 보강.
+
+4. "코어 정보 자체는 일반 전파 조건으로 공유한다" → ✅ (2026-09-29 추가 구현, 사용자 지시 "이거도
+   처리해")
+   최초 판정 시엔 OnLeaderLearnsCore가 Wait 해제만 할 뿐 코어 위치를 개인 personalMap에 등록하는
+   코드가 없어 🔶로 남겼었다(FindHostileRoomCore가 personalMap을 안 봐서 실질 영향은 없었지만,
+   원문이 명시한 요구라 사용자가 마저 구현하라고 지시). PropagationSystem.
+   NotifyCoreLocationKnown(Human, InteractableObject) 신설 — 03-02의
+   NotifyPartyGoalInteractionStarted와 동일한 즉시 전파 패턴: 리더(보고로 알게 된 경우 아직 자기
+   personalMap엔 없을 수 있어 우선 등록) + 그 순간 CanPropagate 범위 안인 나머지 파티원에게 즉시
+   등록. Party.OnLeaderLearnsCore가 LeaderKnownCorePosition 세팅 직후 이 함수를 호출한다 — 위
+   "집결 해제"(foreach, 같은 방 무조건 예외 있음)와 완전히 분리된 게이트(CanPropagate만)로,
+   원문(138줄)의 "집결 해제"와 "코어 위치·발견 내용"이 서로 다른 전달 규칙이라는 요구를 정확히
+   반영한다. 지속 재전파는 새 Party 필드를 추가하지 않고 기존 LeaderKnownCorePosition을 그대로
+   재사용 — TickOngoingObjectPropagation에 세 번째 블록 추가, 그 순간 놓친 파티원도 나중에 이미
+   아는 캐리어(리더·발견자·이미 전파받은 다른 파티원 누구든)가 범위 안에 들어오면 등록된다. 코어가
+   처리되면 Party.TryStartRally가 LeaderKnownCorePosition을 스스로 null로 지우므로 전파도 자동으로
+   멈춘다(이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절한 부수 효과). 발견자 쪽은 이미
+   UnitFunction.CastRay의 AccuratePerception 시점(:645)에 전원 공통으로 personalMap 등록이 되므로
+   별도 처리가 필요 없었다(확인만 하고 손 안 댐).
+
+5. "이미 진행 중인 상호작용과 전투·후퇴·도주에는 기존 규칙을 적용한다" → ✅
+   리더·발견자 모두 FSM 우선순위(Combat > Tactical 내부 TrapResponse > Alert > Investigate >
+   Wait) 구조가 그대로 유지되므로 LeaderKnownCorePosition 세팅 여부와 무관하게 자동 충족.
+
+6. "리더가 조사하러 이동할 때 발견자는 리더와 합류해 코어로 이동한다" → ✅ (위 [핵심 발견] 수정으로 충족)
+   수정 전에는 애초에 리더도 코어로 이동하지 않아 "합류할 대상"이 없었다. 수정 후엔 파티 공동
+   이동 경로에 발견자도 포함되므로(파티원이면 누구나) 결과적으로 충족 — 원문의 "리더와 발견자"
+   단둘보다 넓은 "파티 전체"가 됐지만, 이건 위 사용자 확인을 거친 의도적 선택.
+
+7. "코어 때문에 집결을 해제했다면 처리 후 다시 집결하고, 탐색 중 발견했다면 기존 파티 종류별
+   탐색·임무 수행으로 돌아간다" → ✅
+   TryStartRally(:244-247)가 IsRoomCoreStillHostile로 처리 완료를 스스로 감지해
+   LeaderKnownCorePosition을 지우고 그 아래 일반 집결 판단으로 계속 진행 — "처리 후 다시 집결".
+   탐색 중 발견은 애초에 코어가 FindInvestigateTarget 후보 풀에서 제외돼(Unit.cs:739 isCore) 개인
+   탐색·임무 흐름을 중단시킨 적이 없으므로 "복귀"가 아니라 애초에 끊기지 않는다.
+
+8. "조사 완료를 코어 파괴·층 개방 완료로 처리하지 않는다" → ✅
+   코드 구조상 "정보 확보"(OnLeaderLearnsCore)와 "파괴"(OffenseProcessor.OnCoreDestroyed)가 서로
+   다른 완전히 분리된 함수/트리거라 애초에 섞일 여지가 없다. "층 개방"을 코어 조사 완료가 직접
+   트리거하는 코드도 없음(검증 대상 자체가 코드에 없어 위반도 불가능).
+
+9. "리더 사망 또는 이탈 시 승계는 후속 리더 규칙을 따른다" → ✅
+   LeaderKnownCorePosition은 Human이 아닌 Party 소유 필드라 리더가 바뀌어도 정보 자체는 유지된다.
+   Party.AssignLeaderIfNeeded가 새 리더를 뽑으면 TryStartRally/OnLeaderLearnsCore 모두 그 시점의
+   Leader를 다시 읽으므로 자동으로 새 리더 기준으로 이어진다.
+
+[내용 요약] 발견→보고(1·2번)와 집결 차단·해제(3번 전반)는 이미 정확히 구현돼 있었다. 검증 중
+가장 중요했던 발견은, "리더가 코어를 우선한다"는 게 "집결을 막는다"는 소극적 의미로만 구현돼
+있었고 "실제로 코어를 향해 이동한다"는 적극적 의미(3번 후반·6번)가 빠져 있었다는 것 —
+HumanWaveManager.UpdatePartyDestination이 ReadyToAdvance만 보고 LeaderKnownCorePosition을 전혀
+참조하지 않아, 코어 소식을 들은 순간부터 처리될 때까지 파티 이동이 완전히 멈춰 있었다. 사용자
+확인 후 기존 "다음 문 찾기" 경로를 재사용하는 방식으로 수정 완료. 4번(코어 정보 개인 지도 등록)도
+최초엔 게임플레이 영향이 없어 보류했으나, 사용자 지시("이거도 처리해")로 2026-09-29에 마저
+구현 — PropagationSystem.NotifyCoreLocationKnown(즉시 전파) + TickOngoingObjectPropagation
+세 번째 블록(지속 재전파, 새 Party 필드 없이 기존 LeaderKnownCorePosition 재사용)으로 "집결
+해제"(같은 방 무조건)와 "코어 정보"(CanPropagate만)의 서로 다른 전달 규칙을 정확히 분리했다.
+
+[Claude 의견] 이번 세션에서 가장 규모 있는 발견이었던 "리더 이동 부재"는 해결됐지만,
+TryFindNextDoorTowardTargetRoom이 실패(알려진 문 없음)하는 경우엔 여전히 그냥 아무 동작도 안 하고
+대기한다 — 이건 기존 "일반 집결→다음방이동" 흐름도 똑같이 겪는 한계라 이번 수정의 책임 범위
+밖으로 본다. 9개 항목 전부 ✅로 이 항목은 완전히 마무리됐다고 판단.
+
+────────────────────────────────────────────────────────────────────────
+
 ════════════════════════════════════════════════════════════════════════
-■ 다음 검증 대기 중 — 03-03부터는 사용자 지시 후 진행
+■ 다음 검증 대기 중 — 03-04부터는 사용자 지시 후 진행
 ════════════════════════════════════════════════════════════════════════

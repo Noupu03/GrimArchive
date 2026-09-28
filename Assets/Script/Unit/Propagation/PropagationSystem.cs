@@ -388,6 +388,24 @@ public static class PropagationSystem
 				}
 			}
 		}
+
+		// 검증문서 03-03: 코어 위치·발견 내용의 지속 재전파 — 새 Party 필드 없이 기존
+		// LeaderKnownCorePosition을 그대로 재사용한다(코어가 처리되면 Party.TryStartRally가 스스로
+		// null로 지워 전파도 자연히 멈춘다 — 이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절하다).
+		if (party.LeaderKnownCorePosition.HasValue
+			&& human.Session.objectGrid.TryGetValue(party.LeaderKnownCorePosition.Value, out var core)
+			&& !human.personalMap.IsObjectKnown(core.Id))
+		{
+			foreach (var carrier in party.Members)
+			{
+				if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+				if (!carrier.personalMap.IsObjectKnown(core.Id)) continue;
+				if (!CanPropagate(carrier, human)) continue;
+
+				human.personalMap.RegisterObject(core.Id, core.Position, core.BaseDanger, core.BaseInterest, core.Tags, core.CauserStage);
+				break;
+			}
+		}
 	}
 
 	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
@@ -453,6 +471,26 @@ public static class PropagationSystem
 			if (m.personalMap.IsObjectKnown(obj.Id)) continue; // 유닛당 1회만
 			if (!CanPropagate(interactingUnit, m)) continue;
 			m.personalMap.RegisterObject(obj.Id, obj.Position, obj.BaseDanger, obj.BaseInterest, obj.Tags, obj.CauserStage);
+		}
+	}
+
+	// 검증문서 03-03(03번 문서 3장 138줄): "집결 해제는 같은 방·같은 파티 전체에 전달하지만 코어
+	// 위치와 발견 내용은 일반 전파 조건으로 전달한다" — Party.OnLeaderLearnsCore의 집결 해제(같은
+	// 방 무조건 예외 있음)와 별도로, 코어 "정보" 자체는 CanPropagate만으로 게이트한다. 발견자는
+	// UnitFunction.CastRay의 AccuratePerception 시점(:645)에 이미 personalMap에 등록돼 있으므로,
+	// 여기선 리더(보고로 알게 된 경우 아직 모를 수 있음)와 그 순간 범위 안인 나머지 파티원만 새로
+	// 등록한다 — 위 NotifyPartyGoalInteractionStarted와 동일한 즉시 전파 패턴.
+	public static void NotifyCoreLocationKnown(Human leader, InteractableObject core)
+	{
+		if (leader.party == null || core == null) return;
+		if (!leader.personalMap.IsObjectKnown(core.Id))
+			leader.personalMap.RegisterObject(core.Id, core.Position, core.BaseDanger, core.BaseInterest, core.Tags, core.CauserStage);
+		foreach (var m in leader.party.Members)
+		{
+			if (m == null || m == leader || m.hp <= 0) continue;
+			if (m.personalMap.IsObjectKnown(core.Id)) continue;
+			if (!CanPropagate(leader, m)) continue;
+			m.personalMap.RegisterObject(core.Id, core.Position, core.BaseDanger, core.BaseInterest, core.Tags, core.CauserStage);
 		}
 	}
 

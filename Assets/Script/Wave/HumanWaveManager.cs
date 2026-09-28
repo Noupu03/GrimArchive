@@ -610,8 +610,9 @@ namespace GrimArchive.Wave
 
         // 코어 파괴 전에는 매 틱 전원을 코어 좌표로 강제 이동시키지 않는다 — 개인 탐색/조사(01번
         // 문서)와 리더의 집결 판단(05번 문서, Party.TickRoomActivityCheck)에 맡기고, 여기서는 집결이
-        // 막 끝나 다음 문으로 이동해야 하는 순간(Party.ReadyToAdvance)에만 목적지를 한 번 지정한다.
-        // 코어 파괴 후 퇴각(_retreating)은 기존대로 매 틱 강제 이동을 유지한다(05번 10항 범위 밖).
+        // 막 끝나 다음 문으로 이동해야 하는 순간(Party.ReadyToAdvance)이나 리더가 미처리 코어를 확인한
+        // 순간(Party.LeaderKnownCorePosition, 검증문서 03-03)에만 목적지를 지정한다. 코어 파괴 후
+        // 퇴각(_retreating)은 기존대로 매 틱 강제 이동을 유지한다(05번 10항 범위 밖).
         private void UpdatePartyDestination()
         {
             if (_retreating)
@@ -632,7 +633,19 @@ namespace GrimArchive.Wave
                 return;
             }
 
-            if (_targetRoom == null || !activeParty.ReadyToAdvance) return;
+            // 검증문서 03-03: "리더가 코어 정보를 확보하면 일반 임무·집결·다음 방 이동보다 코어
+            // 처리를 우선한다"가 원래 의미하는 건 "가만히 있는다"가 아니라 "코어(=이미 _targetRoom과
+            // 동일한 웨이브 목표 방)를 향해 실제로 이동한다"다. 그런데 Party.OnLeaderLearnsCore는
+            // 집결을 해제하며 ReadyToAdvance까지 false로 되돌리므로, 원래 가드(ReadyToAdvance만 확인)
+            // 그대로면 코어를 알게 된 순간부터 처리될 때까지 이 함수가 아무 이동도 발행하지 않는
+            // 공백이 생겼다(발견 당시 TacticalBehaviorType.CoreAttack은 "이미 그 방에 서 있을 때만"
+            // 발동하는 제자리 판정이라 이동을 대신해주지 못함). LeaderKnownCorePosition이 있을 때도
+            // 같은 "다음 문 찾기" 경로를 타게 해 해결 — _targetRoom이 항상 코어가 있는 방과 동일하므로
+            // 별도 목적지 계산이 필요 없다. 원문은 "리더와 발견자"로 좁게 표현했지만, 실제로는 이미
+            // 있던 파티 공동 이동(AdvancingToNextRoom, 아래 foreach) 경로를 그대로 재사용해 파티
+            // 전체가 함께 향하게 했다 — 집결·공동 이동 자체가 원래 파티 단위 개념이라 자연스러운 확장.
+            bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
+            if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore)) return;
 
             if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)) return;
 
@@ -648,11 +661,13 @@ namespace GrimArchive.Wave
                 if (member.currentFloor != doorFloor) continue;
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
-                if (member.currentWait != null) continue; // 이미 다른 대기 사유(집결 등) 진행 중이면 덮어쓰지 않음.
+                if (member.currentWait != null) continue; // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않음.
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
                 member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot };
             }
             activeParty.ReadyToAdvance = false; // 명령은 1회만 발행 — 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다.
+            // hasPendingCore 경로는 ReadyToAdvance가 이미 false였으므로 위 대입은 무해(false→false) —
+            // LeaderKnownCorePosition 자체는 Party.TryStartRally가 코어 처리 완료를 감지해 스스로 지운다.
         }
 
         // 05번 1장: "알려진 문"으로만 진행한다. 리더가 아는(개인 지도에 반영된) 현재 방의 문 중 목표

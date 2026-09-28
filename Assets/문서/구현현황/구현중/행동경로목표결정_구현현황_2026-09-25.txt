@@ -959,3 +959,53 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     나머지는 도착 후 obj.IsCollected로 자연 포기) — 스펙에 "협동 가속" 요구가 없어 의도적으로
     안 만듦. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 아직 — 다음 세션에서
     errors.txt로 확인 필요. 상세는 검증문서 "03-02" 항목의 2026-09-28 재검증 참고.
+
+27. [발견+수정 완료, 2026-09-29 — 검증문서 03-03, 사용자 확인 "HumanWaveManager 확장으로 수정
+    (추천)"] "리더가 코어 정보를 확보해도 실제로 코어(=웨이브 목표 방)를 향해 이동하는 코드가
+    없었다" — 이번 세션 가장 큰 발견. Party.OnLeaderLearnsCore(코어 발견/보고 시 리더가 정보를
+    얻는 지점)가 집결을 해제하며 ReadyToAdvance까지 false로 되돌리는데, 파티를 실제로 이동시키는
+    유일한 경로인 HumanWaveManager.UpdatePartyDestination의 가드가 `!activeParty.ReadyToAdvance`
+    하나뿐이었다 — 즉 코어를 알게 된 순간부터 처리(파괴→점령)될 때까지 파티 이동이 완전히
+    멈춰 있었다. TacticalBehaviorType.CoreAttack(TacticalFSMState.FindHostileRoomCore)은 "지금
+    서 있는 방에 코어가 있을 때만" 발동하는 제자리 판정이라 이동을 대신 못 해준다 — personalMap도
+    전혀 참조하지 않아 "코어 위치를 아는지"가 판정에 영향을 주지 않는다. 결과적으로 리더(와 보고를
+    마친 발견자)는 우연히 그 방에 걸어 들어가기 전까지 그냥 하던 일을 계속했다 — 03번 문서 3장
+    144줄 "리더와 코어 발견자는... 합류해 코어 위치로 이동한다"가 실제로는 지켜지지 않았다.
+    수정: HumanWaveManager.UpdatePartyDestination(:611-644)의 가드를 `_targetRoom == null ||
+    !(activeParty.ReadyToAdvance || activeParty.LeaderKnownCorePosition.HasValue)`로 확장 — 코어
+    소식을 아는 동안에도 기존 "다음 문 찾기"(TryFindNextDoorTowardTargetRoom) 경로를 그대로
+    재사용한다. _targetRoom(웨이브 목표 방)이 이번 세션 초반 "핵심 설계 결정 5번"(코어 보스방
+    전용화) 이후로는 코어가 있는 방과 항상 동일하므로 별도 목적지 계산이 필요 없었다. 원문은
+    "리더와 발견자" 둘로 좁게 표현했지만 기존 파티 공동 이동(AdvancingToNextRoom) 경로를 그대로
+    재사용했기 때문에 실제로는 파티 전체가 함께 향한다 — 사용자에게 이 선택지를 포함해 미리
+    확인받은 의도적 확장(집결·공동 이동 자체가 원래 파티 단위 개념이라 자연스럽다고 판단). 새
+    WaitReason은 추가하지 않았다 — 기존 AdvancingToNextRoom의 "이미 다른 대기 사유 진행 중이면
+    덮어쓰지 않음" 가드가 ReportingCoreToLeader 등과의 충돌도 그대로 막아준다.
+    **함께 확인한 나머지 항목**: 발견자→리더 보고(일반 전파 조건, 실패 시 이동)·보고 이동이 집결
+    명령에 안 끝남·집결 중/완료 시 같은 방 무조건+다른 방 CanPropagate로 집결 해제 전달·처리 완료
+    후 재집결(TryStartRally의 IsRoomCoreStillHostile 재확인)·조사 완료가 코어 파괴·층 개방과 섞이지
+    않음(코드 구조상 완전히 분리된 함수)·리더 사망 시 승계(LeaderKnownCorePosition이 Party 소유
+    필드라 리더 교체와 무관하게 유지)는 전부 기존 코드로 이미 ✅. "코어 위치·발견 내용을 일반
+    전파 조건으로 공유"(개인 personalMap 등록)만 처음엔 FindHostileRoomCore가 personalMap을 안
+    봐서 게임플레이 영향이 없다는 이유로 🔶 보류했으나, 사용자 지시("이거도 처리해")로 같은 세션에
+    마저 구현했다(아래 27-1번). .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 아직 —
+    다음 세션에서 errors.txt로 확인 필요. 상세는 검증문서 "03-03" 항목 참고.
+
+27-1. [추가 구현, 2026-09-29 — 검증문서 03-03 4번, 사용자 지시 "이거도 처리해"] 27번에서 보류했던
+    "코어 위치·발견 내용을 일반 전파 조건으로 공유"를 마저 구현. 03번 문서 3장 138줄이 "집결
+    해제는 같은 방·같은 파티 전체에 전달하지만 코어 위치와 발견 내용은 일반 전파 조건으로
+    전달한다"고 두 전달 규칙을 명시적으로 구분했는데, 기존 Party.OnLeaderLearnsCore는 전자(집결
+    해제, 같은 방 무조건 예외)만 구현하고 후자(코어 정보 자체, CanPropagate만)는 빠져 있었다.
+    PropagationSystem.NotifyCoreLocationKnown(Human leader, InteractableObject core) 신설 — 03-02의
+    NotifyPartyGoalInteractionStarted와 동일한 즉시 전파 패턴: 리더(보고로 알게 된 경우 자기
+    personalMap엔 아직 없을 수 있어 먼저 등록) + 그 순간 CanPropagate 범위 안인 나머지 파티원에게
+    즉시 등록. Party.OnLeaderLearnsCore가 LeaderKnownCorePosition 세팅 직후 이 함수를 호출한다 —
+    "집결 해제" foreach와는 완전히 분리된 별도 게이트. 지속 재전파는 새 Party 필드를 추가하지 않고
+    기존 LeaderKnownCorePosition(Vector3Int?)을 그대로 재사용 — TickOngoingObjectPropagation에
+    네 번째 블록 추가, 그 순간 놓친 파티원도 나중에 이미 아는 캐리어가 범위 안에 들어오면 등록되고,
+    코어가 처리되면 Party.TryStartRally가 LeaderKnownCorePosition을 스스로 null로 지워 전파도
+    자동으로 멈춘다(이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절한 부수 효과 — 새 정리 코드
+    불필요). 발견자 쪽은 UnitFunction.CastRay의 AccuratePerception 시점(:645)에 코어를 포함한 모든
+    오브젝트가 이미 공통으로 personalMap에 등록되므로 별도 처리가 필요 없었다(확인만 하고 손 안
+    댐). 이걸로 03-03 항목 9개 전부 ✅ 완료. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이
+    검증 아직.
