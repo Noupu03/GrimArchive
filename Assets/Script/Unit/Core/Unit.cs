@@ -224,6 +224,16 @@ public abstract class Unit : ScriptableObject {
 	// 자유탐색(NavigationFSMState.RandomExplore) 중 다음 걸음이 아군에게 막히는 경우를 위 두 필드와
 	// 동일한 패턴으로 처리 — 안 하면 좁은 통로 코너에서 여러 유닛이 서로를 영구히 막을 수 있다.
 	public int exploreStuckTurns = 0;
+	// 검증문서 02-02: 전투 추격(SelectAttackTarget이 고른 AttackTarget으로 접근) 중 체비셰프 거리가
+	// 줄지 않는 턴 수 — 위 세 필드와 동일한 패턴. 상대 진영 문 뒤의 적처럼 실제 도달 불가능한 대상을
+	// 무한정 추격하는 걸 막는다.
+	public int combatChaseStuckTurns = 0;
+	// 위 카운터가 한도를 넘으면 이 대상을 combatUnreachableUntil까지 공격 후보에서 제외한다
+	// (CombatFSMState.GetPriority/SelectAttackTarget 둘 다 확인) — Combat은 Tactical보다 우선순위가
+	// 높아 대상을 그냥 놓아주기만 하면 다음 틱에 똑같이 재선택되므로, 이 배제가 있어야 Tactical
+	// (DoorAttack 등)로 실제로 넘어간다.
+	public Unit  combatUnreachableTarget;
+	public float combatUnreachableUntil;
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
 		MovementAlgorithm?.ClearCache();

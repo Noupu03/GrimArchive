@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class SkillAction_Heal : SkillAction
@@ -67,11 +68,13 @@ public class SkillAction_Heal : SkillAction
         CombatRole selfRole = CombatScoreMath.ResolveCombatRole(unit.unitType);
         float threshold = CombatScoreMath.GeneralHealThresholdRatio(selfRole);
 
-        // 현재 대상 유지 — 사망/사거리 이탈/회복 완료(문턱 이상)로 무효화되지 않았으면 그대로 쓴다.
+        // 현재 대상 유지 — 사망/층 이동/회복 완료(문턱 이상)로 무효화되지 않았으면 그대로 쓴다.
+        // [정정, 검증문서 02-07 4·5번] 사거리 이탈은 "위치 무효"에 포함하지 않는다 — 사거리 밖이라도
+        // 계속 같은 대상으로 접근할 수 있어야 하므로, 여기서 범위 조건을 빼서 "지금 실행 가능한가"
+        // (IsAvailable이 별도로 확인)와 "누구를 치료하려는 중인가"(이 필드)를 분리했다.
         Unit current = unit.CombatTargeting.HealTarget;
         if (current != null && current.Health != null && current.Health.hp > 0
             && current.currentFloor == unit.currentFloor
-            && Vector2.Distance(unit.position, current.position) <= range
             && current.Health.hp / Mathf.Max(1f, current.Health.maxHp) < threshold)
         {
             return current;
@@ -80,6 +83,9 @@ public class SkillAction_Heal : SkillAction
         Unit best = null;
         float bestRatio = threshold;
         float bestDist = float.MaxValue;
+        // 검증문서 02-07 3번: 점수(HP비율)·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다.
+        // 02-03에서 CombatFSMState.SelectAttackTarget에 적용한 것과 동일한 패턴.
+        var tiedBest = new List<Unit>();
 
         void Consider(Unit candidate, float dist)
         {
@@ -87,18 +93,47 @@ public class SkillAction_Heal : SkillAction
             float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
             if (ratio >= threshold) return; // 치료 필요 없음(해당 문턱 이상은 일반 치료 대상 아님)
             if (best == null || ratio < bestRatio || (ratio == bestRatio && dist < bestDist))
-            { best = candidate; bestRatio = ratio; bestDist = dist; }
+            {
+                best = candidate; bestRatio = ratio; bestDist = dist;
+                tiedBest.Clear();
+                tiedBest.Add(candidate);
+            }
+            else if (ratio == bestRatio && dist == bestDist)
+            {
+                tiedBest.Add(candidate);
+            }
         }
 
-        foreach (var u in unit.Session.units)
+        // 검증문서 02-07 1번: 자기 파티 요구를 먼저 본다 — 자기 자신+파티원 안에서 후보를 찾고,
+        // 아무도 없을 때만 파티 밖(다른 파티·무소속 아군)까지 넓힌다. 파티는 인류 전용 개념이라
+        // (party 프로퍼티가 Unit이 아니라 Human에 있음, Unit.cs:608 Human 클래스 참고) 몬스터는
+        // 이 분기를 건너뛰고, 무소속 인류(party==null)도 곧장 전체 탐색으로 넘어간다.
+        if (unit is Human human && human.party != null)
         {
-            if (u == null || u == unit || u.currentFloor != unit.currentFloor) continue;
-            if (unit.IsEnemy(u)) continue;
-            float dist = Vector2.Distance(unit.position, u.position);
-            if (dist > range) continue;
-            Consider(u, dist);
+            Consider(unit, 0f);
+            foreach (var m in human.party.Members)
+            {
+                if (m == null || m == unit || m.currentFloor != unit.currentFloor) continue;
+                float dist = Vector2.Distance(unit.position, m.position);
+                if (dist > range) continue;
+                Consider(m, dist);
+            }
         }
-        Consider(unit, 0f); // 자기 자신도 같은 순서의 후보
+
+        if (best == null)
+        {
+            foreach (var u in unit.Session.units)
+            {
+                if (u == null || u == unit || u.currentFloor != unit.currentFloor) continue;
+                if (unit.IsEnemy(u)) continue;
+                float dist = Vector2.Distance(unit.position, u.position);
+                if (dist > range) continue;
+                Consider(u, dist);
+            }
+            Consider(unit, 0f); // 자기 자신도 같은 순서의 후보
+        }
+
+        if (tiedBest.Count > 1) best = tiedBest[Random.Range(0, tiedBest.Count)];
 
         unit.CombatTargeting.HealTarget = best;
         return best;
@@ -109,7 +144,11 @@ public class SkillAction_Heal : SkillAction
         if (!IsCooldownReady(unit, _d.cooldownSlot)) return false;
 
         Unit lowest = GetHealTarget(unit);
-        return lowest != null && lowest.Health != null && lowest.Health.hp < lowest.Health.maxHp;
+        if (lowest == null || lowest.Health == null || lowest.Health.hp >= lowest.Health.maxHp) return false;
+        // 검증문서 02-07 4번: 지금 실행 가능한 스킬 후보는 사거리 안일 때만이다 — 사거리 밖이면
+        // HealTarget은 그대로 유지한 채(위 FindLowestHpAlly 참고) 여기서만 이번 틱 후보에서 빠지고,
+        // CombatFSMState.TryGeneralHealApproach가 별도로 접근 이동을 담당한다.
+        return Vector2.Distance(unit.position, lowest.position) <= HitRange;
     }
 
     public override float GetPriority(Unit unit, Unit target, float minDist)

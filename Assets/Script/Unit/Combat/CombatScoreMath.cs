@@ -41,7 +41,11 @@ public static class CombatScoreMath
 	};
 
 	// 3장 4x5 표(초기 조정값). 근접 지원 행은 "공격 행동을 선택했을 때만" 쓴다(문서 표 아래 설명).
-	// 원거리 지원은 공격 점수표 적용 대상이 아니라 행 자체가 없다(호출 안 함).
+	// 원거리 지원 행은 검증문서 02-03에서 추가(2026-09-28) — 원래 "공격 점수표 적용 대상 아님(공격
+	// 기능 없음)"으로 행 자체가 없었으나, 같은 RangedSupport로 매핑된 주술사가 실제로는 적 대상
+	// 스킬(Curse, Affinity=Enemy)을 갖고 있어 MeleeTank 행으로 조용히 폴백되는 문제가 있었다. 튜닝된
+	// 배율값이 없어 다른 역할 행을 빌려 쓰는 대신 전부 중립(1.00)으로 채웠다 — 사제·음유시인처럼
+	// 실제로 공격을 안 하는 RangedSupport 유닛에는 이 행 자체가 호출되지 않으므로 영향이 없다.
 	private static readonly float[,] RoleMultiplierTable =
 	{
 		//                    적MeleeTank  적MeleeDps  적RangedDps  적MeleeSupport  적RangedSupport
@@ -49,12 +53,13 @@ public static class CombatScoreMath
 		/* MeleeDps     */  { 0.90f,      1.10f,      1.15f,       1.10f,          1.20f },
 		/* RangedDps    */  { 0.90f,      1.00f,      1.20f,       1.15f,          1.30f },
 		/* MeleeSupport */  { 1.00f,      1.15f,      1.00f,       1.05f,          1.10f },
+		/* RangedSupport*/  { 1.00f,      1.00f,      1.00f,       1.00f,          1.00f },
 	};
 
 	public static float RoleMultiplier(CombatRole attackerRole, CombatRole defenderRole)
 	{
 		int row = (int)attackerRole;
-		if (row < 0 || row >= RoleMultiplierTable.GetLength(0)) row = (int)CombatRole.MeleeTank; // RangedSupport 폴백
+		if (row < 0 || row >= RoleMultiplierTable.GetLength(0)) row = (int)CombatRole.MeleeTank; // 정의되지 않은 값 방어적 폴백(현재 CombatRole 5종은 전부 행이 있어 도달 안 함).
 		int col = (int)defenderRole;
 		return RoleMultiplierTable[row, col];
 	}
@@ -108,8 +113,10 @@ public static class CombatScoreMath
 		=> healerRole == CombatRole.MeleeSupport ? 0.60f : 0.80f;
 
 	// ── 5장: 공격 대상 변경 시 이동 한도(칸) ────────────────────────────
-	// 원거리 지원(공격 기능 없음)은 이 한도 자체가 적용 대상이 아니다 — 호출부가 애초에 공격 후보로
-	// 삼지 않으므로 여기서는 그 경우를 별도로 처리하지 않는다.
+	// [정정, 2026-09-28] 원거리 지원도 다른 역할과 동일하게 SelectAttackTarget/GetPriority를 그대로
+	// 거친다 — "공격 후보로 안 삼는다"는 예전 서술은 검증문서 02-03에서 확인 결과 부정확했다(RangedSupport
+	// 클래스 대부분이 실제로 공격을 안 해서 관측되지 않았을 뿐). 그래서 default 케이스로 나머지 역할과
+	// 동일한 4를 받는다 — 별도 분기가 필요 없어 명시 케이스를 추가하지 않았다.
 	public static int AttackRetargetMoveLimit(CombatRole role) => role switch
 	{
 		CombatRole.MeleeTank    => 4,

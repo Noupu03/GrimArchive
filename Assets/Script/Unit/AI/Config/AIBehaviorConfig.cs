@@ -21,6 +21,10 @@ public class AIBehaviorConfig : ScriptableObject
     public int exploreStuckTurnLimit = 4;
     [Tooltip("집결 대기·코어 보고 이동 중 혼잡 대기 최대 턴 수 — 초과 시 대기를 포기(집결은 '도착'과 동일하게 처리) (플레이테스트 발견, 내부 판단)")]
     public int waitStuckTurnLimit = 4;
+    [Tooltip("전투 추격 중 대상까지 거리가 줄지 않는 혼잡 대기 최대 턴 수 — 초과 시 그 대상을 일시 배제 (검증문서 02-02, 내부 판단)")]
+    public int combatChaseStuckTurnLimit = 4;
+    [Tooltip("전투 추격 포기 후 같은 대상을 다시 후보로 고려하기까지의 최소 대기 시간(초) — 문 파괴 등으로 상황이 바뀔 시간을 준다 (검증문서 02-02, 내부 판단)")]
+    public float combatChaseUnreachableCooldownSeconds = 6f;
     [Tooltip("적 인지 시 전투 상태 우선순위 (기본 100)")]
     public float combatPriority     = 100f;
     [Tooltip("전술 조건 충족 시 우선순위 (기본 50)")]

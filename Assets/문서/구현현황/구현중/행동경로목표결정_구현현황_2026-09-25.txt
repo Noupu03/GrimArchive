@@ -750,3 +750,128 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     - 테스트 커버리지: `unit.Generate`(프리팹 Resources.Load) 의존인 3개(시딩 공식 실측, 마법아키타입
       판정, 접근이동 회귀)는 이 코드베이스의 기존 순수 NUnit 테스트 관례로 재현 불가라 스킵 —
       Unity 실제 플레이 검증으로 대체해야 함(아직 개별 재현 검증 안 됨, 위 "일반 전투 관찰"만 있음).
+17. [발견+수정 완료, 2026-09-28 — 검증문서 02-02] `CombatFSMState.SelectAttackTarget`에 "방 진입
+    조건"(실제로 도달 불가능한 대상은 선택하지 않음) 게이트와 stuck-turn 안전장치가 둘 다 없었다 —
+    04번 챕터에서 Investigate/CoreAttack·DoorAttack/Wait/Explore 5개 BT 리프에 이미 적용된 동일
+    패턴(2026-09-27, 위 04번 챕터 9번 항목)이 Combat의 추격 이동에만 빠져 있었다. 인류는
+    `IsRoomConfined`가 항상 false라 다른 방(문으로 막힌 방 포함)의 적도 시야만 닿으면 공격 후보가
+    되는데, 닫힌 문은 평소엔 시야를 막고(`InteractableObject.IsFullyBlocking`, DoorSystem.cs:185),
+    **문을 소유한 진영 자신이 그 문을 쓰는 동안만**(`NotifyApproachAttempt`/`unitOnDoor`가 둘 다 소유
+    진영 일치를 확인, DoorSystem.cs:179-180,210-212 — 정정: 최초엔 "누구의 접근 시도든 연다"고
+    잘못 썼다가 00-08 재검토로 바로잡음, 검증문서 00-08 항목 "[재검토, 2026-09-28]" 참고) 코스메틱하게
+    열린다. 즉 인류 자신이 상대 문에 부딪히는 것만으로는 절대 안 열리지만, 적이 자기 문을 실제로 쓰는
+    동안은 정상적으로 시야가 뚫려 인류가 그 뒤의 적을 최고점 후보로 고를 수 있다 — 그 창이 닫히기
+    전에 인류가 도달 불가능한 대상에 들러붙으면 전투 상태에서 못 빠져나오는 소프트락 가능성(원래
+    서술보다 발생 조건은 좁지만 — "적이 자기 문 근처에 머물러야 함" — 핵심 결함은 동일). 실제 통행
+    판정(`DoorSystem.IsBlockedByClosedDoor`)은 별개로 항상 진영 불일치면 막는다.
+    사용자 지시("지금 바로 수정")로 즉시 구현 — `Unit.combatChaseStuckTurns`(신규,
+    investigateStuckTurns 등과 동일 패턴) + `Unit.combatUnreachableTarget`/`combatUnreachableUntil`
+    (신규, 특정 대상만 일정 시간 배제) + `AIBehaviorConfig.combatChaseStuckTurnLimit`(기본 4)/
+    `combatChaseUnreachableCooldownSeconds`(기본 6초). `CombatFSMState.GetPriority`와
+    `SelectAttackTarget` 양쪽의 후보 루프에 동일한 배제 조건을 짝지어 넣은 게 핵심 — Combat이
+    Tactical보다 우선순위가 높아서 SelectAttackTarget 안에서만 포기하면 GetPriority가 여전히 그
+    적을 "싸울 수 있음"으로 보고해 다음 틱에 똑같이 재선택되기 때문에, 두 메서드가 항상 같은 후보
+    집합을 보도록 맞춰야 실제로 Tactical(DoorAttack 등)로 우선순위가 넘어간다. 신규
+    `CombatFSMState.ChaseTarget` 헬퍼가 기존 `ExecuteCombat`의 두 `MoveTowardsTarget` 호출 지점을
+    대체한다. `StandGroundAttackFSMState`는 이동을 안 해 이 헬퍼를 안 쓰지만 `SelectAttackTarget`을
+    공유해 배제 필터 효과는 자동으로 받는다. 상세 근거·구현 내역은 검증문서
+    행동경로목표결정_검증_2026-09-25.txt "02-02" 항목 끝의 "[수정 완료, 2026-09-28]" 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증도 아직 안 함 — 다음 세션 우선순위.
+18. [발견, 2026-09-28 — 검증문서 02-03] `CombatRole.RangedSupport`("공격 기능 없음")
+    배제가 CombatScoreMath.RoleMultiplierTable에 대응 행이 없는 방식(역할 매핑 단위 블랭킷 배제)으로
+    구현돼 있는데, RangedSupport로 매핑된 인류 3클래스(사제/주술사/음유시인) 중 **주술사만 실제로
+    적 대상 스킬(Curse, SkillAction_Curse.cs, Affinity=Enemy)을 갖고 있어** 전제("공격 기능 없음")가
+    깨진다 — 사제(Heal)/음유시인(PartyBuff)은 둘 다 Affinity=Ally라 문제 없음. 결과: 주술사가 전투
+    중 CombatScoreMath.RoleMultiplier가 범위 밖 role을 MeleeTank 행으로 폴백시켜, 대상 우선순위
+    계산에 MeleeTank용 배율이 조용히 쓰인다(Curse 실행 자체는 스킬 GetPriority/IsAvailable 기준이라
+    영향 없음 — 어떤 적을 최우선으로 저주할지의 우선순위만 왜곡됨). CLAUDE.md가 이미 기록한 "무도가는
+    치료 스킬이 없어 자동으로 근접공격 폴백"과 같은 계열의 "클래스→역할 매핑이 실제 스킬 구성과
+    어긋남" 사례 — 반복 패턴이라 구조적으로 짚어둘 가치가 있음.
+    [수정 완료, 2026-09-28 — 사용자 확인 후("RangedSupport 행을 중립(1.00)으로 추가")] 다른 역할값을
+    빌려 쓰지 않는 가장 보수적인 방향으로 결정 — CombatScoreMath.RoleMultiplierTable에 RangedSupport
+    공격자 행을 신설(전부 1.00f, 배율 없음). 사제·음유시인은 애초에 공격 스킬이 없어 이 표를 실질적
+    으로 안 써서 영향 없고, 주술사만 이제 MeleeTank 행 대신 자기 행(중립)을 쓴다. CombatEnums.cs/
+    AttackRetargetMoveLimit 주석의 "RangedSupport는 공격 후보로 안 삼는다"는 부정확한 전제도 같이
+    정정. 상세는 검증문서 "02-03" 항목 7번 참고.
+    [수정 완료, 2026-09-28] 같은 검증에서 발견한 02번 문서 3장 동점 처리 3단계("그래도 같으면 무작위
+    순서를 반복 비교 동안 유지")는 수치 판단이 필요 없는 기계적 수정이라 바로 구현 — CombatFSMState.
+    SelectAttackTarget의 최고점 후보 리스트(`tiedBest`)를 추적해 점수·거리가 완전히 같은 후보가
+    2개 이상이면 UnityEngine.Random.Range로 하나를 무작위 선택한다. "유지"는 기존
+    ShouldSwitchAttackTarget의 동점 시 교체 차단(currentValid 고정)에 자연히 얹혀가므로 별도 기억
+    상태 불필요. 상세는 검증문서 "02-03" 항목 6번 참고. .sln 부재로 dotnet build 미확인.
+19. [발견+수정 완료, 2026-09-28 — 검증문서 02-04, 사용자 지시 "고쳐버려"] "보스에게 가는 길을
+    실제로 막는(아직 공격은 안 하는) 적도 임시 대응 사유다"가 구현 안 돼 있었다 — CombatFSMState.
+    SelectAttackTarget의 threatCandidates는 오직 IsAttackingMeOrAlly(그 적이 지금 나/아군을 실제로
+    공격 중인가)만 기준으로 삼고, "그 적이 내 이동 경로를 물리적으로 막고 서 있는가"는 전혀 확인하지
+    않았다(직접 위협은 이미 IsAttackingMeOrAlly로 잡혀서 문제없었음 — 공격 의사 없이 그냥 길목에
+    서 있는 적만 빠짐). 02-02가 찾은 "SelectAttackTarget이 도달 가능성을 사전에 안 본다"는 구조적
+    공백의 다른 표현.
+    신규 `CombatFSMState.FindPathBlockingEnemy`(IsAttackingMeOrAlly 근처)가 `unit.MovementAlgorithm
+    as AStarMovement`의 `TryGetPathTiles`(보스까지 실제 경로 타일, 이동 캐시 안 건드리는 일회성
+    조회)로 경로상 가장 먼저 만나는 살아있는 적을 찾아 threatCandidates에 합류시킨다 — 호출 시점을
+    "보스 유효 + 다른 위협 없음"(원래 그냥 보스 집중을 유지했을 순간)으로만 한정해 불필요한 경로탐색
+    호출을 줄였다. pool 계산 시점도 이 합류 이후로 옮겨야 실제 점수 비교에 반영된다(수정 전엔 pool이
+    보스 집중 확인보다 먼저 계산돼 있었음). 찾은 차단 적은 별도 특수 처리 없이 기존 점수·1.2배/한도
+    게이트를 그대로 탄다. 캐싱/스로틀은 추가하지 않음(매 틱 유닛마다 도는 FOV 섀도우캐스팅 대비
+    부담이 크지 않다고 판단 — 실측 필요하면 나중에). 상세는 검증문서 "02-04" 항목 4번 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증(+성능 체감)도 아직 — 다음 세션 우선순위.
+20. [발견+수정 완료, 2026-09-28 — 검증문서 02-05] CombatFSMState.SelectAttackTarget의 대상 교체
+    게이트가 "새 대상까지 남은 이동"을 체비셰프 거리로 근사하던 것(코드 자신의 옛 주석이 "실제 경로
+    계산까지 연동하려면 경로탐색 결과가 필요해 범위 밖"이라고 자백한 의도적 스텁)을 실제
+    AStarMovement.TryGetPathLength로 교체 — 인류는 fullyRevealed(경로 전체가 자기 personalMap에
+    드러남)까지 요구하고, 몬스터·야생은 이 함수가 그 개념 자체가 없어(fullyRevealed가 항상 false)
+    경로를 실제로 찾았는지만 확인한다(같은 함수 안에 이미 있는 isHuman 분기 패턴 재사용). 부수
+    효과로 "직선상 가까워 보이지만 실제론 완전히 막혀 도달 불가능한 대상"으로의 전환도 막힌다. 기존
+    TryGetPathLength가 이미 필요한 출력을 다 제공해 새 숫자·설계 결정이 필요 없는 함수 연결 수준
+    수정이라 판단해 질문 없이 바로 구현했다.
+    [8번 재조사 및 확정, 2026-09-28 — 사용자 지시 "문서 읽어서 의도 임의 판단 해보실?"] 원본 02번
+    문서 5장 전문과 drawio 순서도("02-04 공격 대상 변경의 이동 한도")를 직접 대조했다 — 플로우차트에
+    "다른 교전 합류"용 별도 분기가 없고, 원문 목록에서 이 항목이 "기존 적 추격" 바로 뒤에 위치하며,
+    01번 문서(파티목표)의 "소탕" 파티 행에서도 "교전 합류"가 "직접 위협·방어건물·이동차단"과 별도
+    컬럼(=전투 진입의 한 형태)로 쓰이는 것까지 확인해 "첫 전투 진입의 변형"으로 결론지었다 — 이미
+    `!currentValid` 분기가 한도 없이 처리하는 경우라 코드 수정 불필요. 상세는 검증문서 "02-05" 항목
+    8번 참고. .sln 부재로 dotnet build 미확인, Unity 실제 플레이 검증(+성능 체감 — 스위치 시도가
+    04번보다 잦을 수 있어 더 지켜볼 필요)도 아직.
+21. [발견+수정 완료, 2026-09-28 — 검증문서 02-07, 사용자 지시 "4건 다 지금 바로 진행"]
+    SkillAction_Heal.FindLowestHpAlly에서 4건 발견 후 전부 수정 — (a) 파티 소속 확인 없이 층 전체
+    비적아 유닛을 동일하게 후보로 삼던 것을 2단계 탐색(자기 파티 먼저, 없을 때만 파티 밖으로 확장)
+    으로 교체 — 정확한 공식이 문서에 없어 "파티원 중 한 명이라도 있으면 그쪽만" 방식으로 판단해
+    구현. (b) 점수·거리 완전 동률 시 무작위 선택 없던 것 — 02-03의 tiedBest 패턴 재사용. (c)+(d)
+    **가장 영향 컸던 조합** — "사거리 밖이라도 치료 위치로 갈 수 있으면 선택 가능"이 전혀 없어서
+    사거리 밖 후보는 IsAvailable 자체를 false로 만들어 Heal이 스킬 후보에서 완전히 빠지고(접근
+    이동도 발동 안 함), "위치 무효" 판정에도 사거리 이탈이 섞여 있던 문제 — "지금 실행 가능한가"
+    (IsAvailable에 사거리 체크 신설)와 "누구를 치료하는 중인가"(HealTarget, 이제 사거리와 무관하게
+    사망·문턱회복·층이동에만 무효화)를 분리해서 해결. 신규 CombatFSMState.TryGeneralHealApproach
+    (+FindHealSkill 헬퍼)가 TryEmergencyProtectApproach와 동일한 자리·패턴으로 "Heal 대상이 사거리
+    밖이면 접근 이동"을 담당 — 탐색 범위는 FindLowestHpAlly(unit, 9999)로 사실상 층 전체
+    (ResolveEmergencyProtectTarget과 동일하게 거리 제한 없음).
+    **알려진 한계(의도된 범위 밖)**: TryGeneralHealApproach도 TryEmergencyProtectApproach와
+    마찬가지로 "사거리 밖 치료 대상이 있으면 무조건 접근"이라 우선순위가 무조건적이다 — 지금은
+    사제류가 공격 스킬 자체가 없어 의미 있는 트레이드오프가 안 생기지만, 나중에 공격+치료 겸용
+    클래스가 생기면 재검토 필요. 상세는 검증문서 "02-07" 항목 끝의 "[수정 완료]" 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증도 아직 — 다음 세션 우선순위.
+22. [Unity 에디터 최초 컴파일 확인 + 버그 수정, 2026-09-28] 사용자가 Unity 에디터를 열어 컴파일한
+    결과(Assets/문서/에러및 로그/errors.txt)를 처음으로 확인했다 — 이 문서가 쌓아온 02-01~02-07
+    전체 세션 동안 .sln 부재로 dotnet build를 한 번도 못 돌렸는데, 그 사이 실제 컴파일 오류가 1건
+    있었다. `CombatFSMState.SelectAttackTarget`(02-05 수정분)에서 `out int pathRemaining`을 `&&`
+    체인으로 선언한 뒤 그 결과를 `pathConfirmed`라는 별도 bool에 담고, 그 bool을 나중에 다른 `if`에서
+    다시 확인하면서 `pathRemaining`을 썼다 — C#의 definite-assignment 분석은 "이 bool이 true면 out
+    변수도 항상 할당돼 있다"는 걸 별도 변수를 거치면 추적하지 못해 `CS0165(사용되지 않은 지역 변수
+    사용)`로 막혔다. 수정: `pathRemaining`/`fullyRevealed`를 `&&` 체인 밖에서 미리 선언·초기화(0/false)
+    한 뒤 `out` 재할당으로 바꿔 확정 할당을 보장했다.
+    같은 로그에 `SkillAction_Heal.cs`의 `unit.party`(02-07 1번 수정분) 2곳도 "`Unit`에 `party`
+    정의가 없다"는 오류로 함께 떴다. 처음엔 캐스케이드(위 pathRemaining 오류가 다른 파일 심볼
+    해석까지 흔든 것)로 추정했으나, pathRemaining만 고치고 재컴파일해도 `party` 오류가 그대로
+    재현돼 그 가설은 틀렸음을 확인 — **[재조사, 2026-09-28] 진짜 원인: `Unit.cs` 한 파일 안에
+    클래스가 3개(`Unit`:6줄, `Human : UnitFunction`:608줄, `Monster : UnitFunction`:938줄) 있는데,
+    `party` 프로퍼티(620줄)는 `Unit`이 아니라 `Human` 클래스 안에 있다** — grep이 파일 안에서 줄
+    번호만 찾아줬을 뿐 "그 줄이 어느 class 블록 안인지"는 확인하지 않았는데, 그 중간 검증 없이
+    "Unit.cs에 있으니 Unit 클래스 멤버"라고 잘못 단정한 게 오독의 원인이었다(파티는 인류 전용
+    개념이라 애초에 Human에만 있는 게 설계상 당연한 것 — `SkillAction_Heal.FindLowestHpAlly(Unit
+    unit, ...)`의 매개변수 `unit`은 기반 클래스 `Unit` 타입이라 `party`에 직접 접근할 수 없었다).
+    수정: `unit.party` 두 곳을 `unit is Human human && human.party != null`로 먼저 타입 확인 후
+    `human.party`로 접근하도록 교체(SkillAction_Heal.cs:107-121) — 몬스터는 이 분기 자체를
+    건너뛰고 곧장 전체 탐색(기존 동작)으로 넘어간다.
+    **[컴파일 확인 완료, 2026-09-28]** 사용자 재컴파일 후 "컴파일 잘되네" — 이 세션(02-01~02-07)
+    전체의 첫 실제 컴파일 통과. 이 문서 곳곳의 ".sln 부재로 dotnet build 미확인"은 이 시점 기준
+    전부 해소(개별 항목은 재수정 안 함). Unity 실제 플레이 검증(런타임 동작)은 여전히 남아있음.
