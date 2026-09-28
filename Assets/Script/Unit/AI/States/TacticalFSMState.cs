@@ -251,9 +251,12 @@ public class TacticalFSMState : IFSMState
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
 		}
-		// 8-2장: 보호 유닛이 피격당했을 때 일반 조사는 중단한다. 웨이브 목표가 코어 공격(별도 상태)
-		// 으로 바뀌면서 이 Investigate 분기가 다루는 대상은 전부 "일반 조사"뿐이라 예외가 없다.
-		if (human.AnyEscortHitThisTurn())
+		// 검증문서 03-01 4번: 원본 표 41줄(일반 조사: 보호자 피격도 중단)과 46줄(유지 우선 파티
+		// 목표 상호작용: 보호자 피격은 유지, 보호자가 대응)은 서로 다른 행이다 — currentInvestigation.
+		// IsPartyGoalTarget이 그 구분을 담당한다. 본인 피격(위)은 41·46줄 공통이라 이 플래그와 무관하게
+		// 항상 중단된다. 아직 조사를 시작 전(currentInvestigation==null)이면 "유지" 예외를 적용할
+		// 대상 자체가 없으므로 `?.` 로 안전하게 기본값(41줄 규칙)으로 처리한다.
+		if (human.currentInvestigation?.IsPartyGoalTarget != true && human.AnyEscortHitThisTurn())
 		{
 			ApplyInvestigateInterruptPenalty(human);
 			return false;

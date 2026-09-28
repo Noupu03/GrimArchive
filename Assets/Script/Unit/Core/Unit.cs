@@ -779,11 +779,18 @@ public class Human : UnitFunction
 			if (best == null || score > bestScore)
 			{
 				bestScore = score;
+				// 검증문서 03-01 4번: 지금 유일하게 명확한 "파티종류-오브젝트" 매칭인 회수 파티+Loot
+				// 태그만 "유지 우선 파티 목표"로 표시한다(Party.HasKnownRecoverableInRoom과 동일 판정
+				// 기준) — 다른 파티종류는 01번 문서 3장이 이미 스텁으로 남긴 영역이라 여기서 임의로
+				// 확장하지 않는다.
+				bool isPartyGoal = party != null && party.Type == PartyType.Recover && candidate.obj != null
+					&& candidate.obj.Tags != null && candidate.obj.Tags.Exists(t => t.Contains("Loot"));
 				best = new InvestigationState
 				{
 					TargetObjectId = objId,
 					TargetPosition = candidate.tilePos,
 					IsTileOnly = candidate.isTile,
+					IsPartyGoalTarget = isPartyGoal,
 				};
 			}
 		}

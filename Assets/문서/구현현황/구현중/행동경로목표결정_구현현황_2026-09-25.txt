@@ -900,3 +900,27 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     치명 공격 예상(우선순위 1~2단계)은 02-08과 동일한 PersonalSkillDamageRecord 미연결 갭 — 새
     지적 아님. (b) "차단·공격방해·적제압" 3종은 대응 스킬 아키타입 자체가 없어 N/A. 상세는 검증문서
     "02-09" 항목 참고.
+
+02번 문서(전투 목표와 아군 보호 및 지원) 전체 검증 완료(02-01~02-11) — 이후 항목은 03번 문서
+(행동 전환과 중단 및 재개).
+
+25. [발견+수정 완료, 2026-09-28 — 검증문서 03-01, 사용자 지시 "시스템 켜지 말고 갭 개선해. 보호
+    포메이션은 아직 더 자세히 논의해야해"] 원본 03번 문서 1장 "주요 행동 중 사건 처리표"를 표
+    전체로 재확인하는 과정에서(07번 검증문서의 압축 요약만 봤으면 "코드가 거꾸로"라고 오판할
+    뻔했음 — 아래 참고), "일반 조사"(41줄: 자신·보호자 피격 둘 다 중단)와 "유지 우선 파티 목표
+    상호작용"(46줄: 보호자 피격은 유지, 보호자가 대응)이 서로 다른 카테고리라는 걸 확인했다.
+    TacticalFSMState.CanInvestigate/CanDisarm은 이 구분 없이 모든 상호작용에 41줄 규칙만 적용하고
+    있었다 — 실제 갭.
+    수정: InvestigationState에 `IsPartyGoalTarget`(bool) 신설 — Unit.ComputeInvestigateTarget이
+    후보를 커밋하는 시점에 `party.Type == PartyType.Recover && candidate.obj가 "Loot" 태그 보유`
+    (Party.HasKnownRecoverableInRoom과 동일 판정 기준)일 때만 true로 세팅한다(지금 유일하게 명확한
+    "파티종류-오브젝트" 매칭이라 그것만 쓰고, 다른 파티종류는 01번 문서 3장이 이미 스텁으로 남긴
+    영역이라 확장 안 함). TacticalFSMState.CanInvestigate의 보호자-피격 분기를
+    `human.currentInvestigation?.IsPartyGoalTarget != true && human.AnyEscortHitThisTurn()`로
+    교체(`?.`로 조사 시작 전 null 케이스 안전 처리). CanDisarm(함정 해제)은 원본 표 47줄이 "해제자·
+    보호자 피격" 둘 다 예외 없이 중단이라 손대지 않았다.
+    **TacticalBehaviorPriorityConfig.Formation.enabled는 사용자 지시대로 false 그대로 유지** —
+    보호 포메이션 재활성화 자체는 별도 논의 예정이라 이번 수정과 분리했다. 그 결과 이 구분 메커니즘
+    자체는 지금도 여전히 관측 불가능한 휴면 코드지만(AnyEscortHitThisTurn이 항상 false), 나중에
+    보호 포메이션이 켜지면 즉시 정상 작동한다. 상세는 검증문서 "03-01" 항목 끝의 "[수정 완료]"
+    참고. .sln 부재로 dotnet build 미확인.

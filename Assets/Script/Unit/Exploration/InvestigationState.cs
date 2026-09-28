@@ -16,4 +16,12 @@ public class InvestigationState
 
 	// 5-4장: 조사 중 시야·인지·반응속도 50% 페널티가 적용 중인지 — UnitFunction.UpdateFOV가 읽는다.
 	public bool PenaltyActive;
+
+	// 검증문서 03-01 4번: 03번 문서 1장 표 46줄 "유지 우선 파티 목표 상호작용" — 이 대상이 자기
+	// 파티의 임무에 해당하면 true. true면 TacticalFSMState.CanInvestigate가 "보호자 피격" 중단
+	// 예외를 적용한다(41줄 일반 조사와 달리 보호자가 대응하는 동안 유지) — 본인 피격은 이 플래그와
+	// 무관하게 항상 중단(41·46줄 공통). 판정 기준은 Party.HasKnownRecoverableInRoom과 동일하게
+	// "Loot" 태그(현재 유일하게 파티종류-오브젝트 매칭이 명확한 조합, 다른 파티종류는 01번 문서
+	// 3장이 이미 스텁으로 남겨둔 영역이라 여기서도 확장하지 않는다).
+	public bool IsPartyGoalTarget;
 }
