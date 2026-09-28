@@ -553,6 +553,21 @@ public static class PropagationSystem
 		return PropagationMath.RequiresJoinWait(stage, dist);
 	}
 
+	// 검증문서 03-07(03번 문서 6장 "전파 가능한 적 정보는 이동·공격과 병행하여 전달한다"): 합류 대기
+	// 필요 여부와 무관하게 적을 정확 인지한 모든 경우에 적용되는 순수 전파 — StartJoinCombatWait(합류
+	// 대기가 필요한 경우 전용)와 CombatFSMState의 즉시전투 경로(합류 대기 불필요)가 공유한다.
+	// RecordEnemySighting은 "더 최신 정보만 갱신"하는 멱등 함수라 매 틱 반복 호출해도 안전하다.
+	public static void PropagateEnemySighting(Human discoverer, Unit enemy)
+	{
+		if (discoverer.party == null) return;
+		foreach (var m in discoverer.party.Members)
+		{
+			if (m == null || m == discoverer || m.hp <= 0) continue;
+			if (!InPropagationRange(discoverer, m)) continue;
+			RecordEnemySighting(m, enemy, discoverer.position);
+		}
+	}
+
 	// 7-1장: 적을 정확 인지 + 합류가 필요한 상황 — 전파 가능한 파티원에게 적 정보를 전달하고, 합류 가능한 아군이 있으면 그 아군을 합류자로 지정한다.
 	public static void StartJoinCombatWait(Human discoverer, Unit enemy)
 	{
@@ -561,16 +576,17 @@ public static class PropagationSystem
 
 		if (discoverer.party == null) return;
 
+		PropagateEnemySighting(discoverer, enemy);
+
 		Human responder = null;
 		foreach (var m in discoverer.party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
-			// 수신자만 비전투 조건을 확인한다 — 발견자는 방금 인지해 personalSpottedEnemies가 이미 채워져 있다.
+			// 합류자 지정은 순수 전파와 별개 조건 — 수신자가 비전투 상태여야 한다(발견자는 방금
+			// 인지해 personalSpottedEnemies가 이미 채워져 있어 이 조건을 확인할 필요가 없다).
 			if (m.personalSpottedEnemies.Count > 0) continue;
 			if (!InPropagationRange(discoverer, m)) continue;
-
-			RecordEnemySighting(m, enemy, discoverer.position);
-			if (responder == null && CanRespondToJoinRequest(m)) responder = m;
+			if (responder == null && CanRespondToJoinRequest(m)) { responder = m; break; }
 		}
 
 		if (responder == null) return;

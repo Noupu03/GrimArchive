@@ -47,6 +47,13 @@ public class CombatFSMState : IFSMState
 					PropagationSystem.StartJoinCombatWait(hu, e);
 					continue;
 				}
+				else
+				{
+					// 검증문서 03-07(03번 문서 6장): 합류 대기가 필요 없는 즉시 전투도 "전파는 이동·
+					// 공격과 병행한다" 예외가 아니다 — 발견자는 대기 없이 곧장 전투하되, 파티원에게는
+					// 병행해서 위치를 알린다.
+					PropagationSystem.PropagateEnemySighting(hu, e);
+				}
 			}
 
 			return AIConfigLoader.Behavior?.combatPriority ?? 100f;
