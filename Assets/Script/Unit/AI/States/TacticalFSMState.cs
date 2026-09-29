@@ -74,9 +74,7 @@ public class TacticalFSMState : IFSMState
 				// 함정작동음 자체는 이 조건에 애초에 걸리지 않아 표대로 "유지"된다.
 				new BTCondition(unit => !IsTrapResponseBlockedBySound(unit)),
 				new BTSelector(
-					// 9-7장(신규): 선정 유닛을 찾아 나서는 중이면 최우선으로 그 이동을 계속한다.
-					new BTSequence(new BTCondition(IsSearchingForMissingUnit), new BTLeaf(TrapSearchForMissingUnit)),
-					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 대기.
+					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 담당자 도착을 기다린다.
 					new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
 					// Disarm → Bypass → Pass → Destroy 내부 순서는 고정 (문서 9장 우선순위)
 					new BTSequence(
@@ -389,54 +387,20 @@ public class TacticalFSMState : IFSMState
 	private static bool IsAwaitingSelectedUnit(Unit unit)
 	{
 		var trap = unit.currentTrapInteraction;
-		return trap != null && trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && !trap.SearchingForSelectedUnit;
+		return trap != null && trap.SelectedUnitName != null && !trap.IsSelectedDisarmer;
 	}
 
-	private static bool IsSearchingForMissingUnit(Unit unit) => unit.currentTrapInteraction?.SearchingForSelectedUnit == true;
-
-	// 9-6장: 선정 유닛이 도착할 때까지 발견 유닛은 현재 위치에서 대기한다. 함정이 사라지거나
-	// 선정 유닛이 이미 이 함정과의 상호작용을 끝냈으면(우회/통과) 대기를 정리한다.
+	// 순서도 03-12-2: 담당자가 도착했다는(또는 도착 전에 대응을 마쳤다는) 통지를 받기 전까지 발견 유닛은 현재
+	// 위치에서 기다린다. 통지 수신과 기한 만료 판단은 TrapPartySystem.TickWaitingForSelectedUnit(OnUpdate)이
+	// 맡고, 도착 이후 해제 절차는 담당자의 몫이라 통지를 받으면 개인 행동으로 복귀한다.
 	private static BTStatus TrapAwaitSelectedUnit(Unit unit)
 	{
 		var trap = unit.currentTrapInteraction;
 		if (trap == null) return BTStatus.Failure;
+		if (!trap.AssigneeDone) return BTStatus.Running;
 
-		bool trapGone = unit.Session == null || !unit.Session.objectGrid.ContainsKey(trap.TrapPosition);
-		bool selectedUnitDone = false;
-		if (!trapGone && unit is Human h && h.party != null)
-		{
-			var selected = h.party.Members.Find(m => m != null && m.name == trap.SelectedUnitName);
-			if (selected != null && selected.hp > 0 && selected.currentTrapInteraction == null)
-				selectedUnitDone = true; // 선정 유닛이 우회/통과로 이 함정을 이미 벗어남
-		}
-
-		if (trapGone || selectedUnitDone)
-		{
-			unit.currentTrapInteraction = null;
-			return BTStatus.Success;
-		}
-		return BTStatus.Running;
-	}
-
-	// 9-7장: 선정 유닛이 예상 도착시간+3초를 넘겨도 안 오면 발견 유닛이 마지막 전파 위치로 직접
-	// 찾아간다(시체가 있으면 CastRay가 자연히 PartyDeathSystem 사망 처리로 이어진다).
-	private static BTStatus TrapSearchForMissingUnit(Unit unit)
-	{
-		var trap = unit.currentTrapInteraction;
-		if (trap == null || !trap.SearchingForSelectedUnit) return BTStatus.Failure;
-		var target = trap.SelectedUnitLastKnownPos ?? new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
-		if (Vector2Int.Distance(unit.position, target) <= 1.5f)
-		{
-			if (unit is Human h) TrapPartySystem.RestartSelection(h, trap);
-			return BTStatus.Success;
-		}
-		// MoveToTrap과 동일한 이유로 완전히 막히면 근처 빈 칸으로 우회 시도한다.
-		if (!AIMovementHelper.MoveTowardsPos(unit, target))
-		{
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, target);
-			if (fallback != target) AIMovementHelper.MoveTowardsPos(unit, fallback);
-		}
-		return BTStatus.Running;
+		TrapPartySystem.EndResponse(unit, TrapEndReason.WaitEnded);
+		return BTStatus.Success;
 	}
 
 	// ── 함정 해제 3단계 ───────────────────────────────────────────
@@ -453,11 +417,28 @@ public class TacticalFSMState : IFSMState
 		if (!IsDisarmWorthy(unit)) return BTStatus.Failure;
 		var trap = unit.currentTrapInteraction;
 		if (trap == null) return BTStatus.Failure;
+		var human = unit as Human;
 		Vector2Int trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		// 함정도 오브젝트처럼 자신의 타일을 점유하므로 정확 일치 대신 Chebyshev ≤ 1(바로 옆 1칸)로
 		// 도달 판정한다 — MoveToInvestigateTarget과 동일한 관례.
 		if (AIMovementHelper.IsAdjacent(unit.position, trapPos))
+		{
+			if (human != null)
+			{
+				// 재선정으로 담당이 바뀐 뒤 뒤늦게 도착한 이전 담당자는 해제를 시작하기 전에 양보한다(이중 담당 방지).
+				// 이미 시작한 해제(Phase != AwaitingJoin)는 기존 중단 조건으로 끝까지 간다.
+				if (trap.Phase == TrapPhase.AwaitingJoin && !TrapPartySystem.IsStillAssigned(human, trap))
+				{
+					LogHelper.Log(LogHelper.GAME, $"[함정] {human.name}: 재선정으로 담당이 바뀌어 해제를 양보합니다");
+					TrapPartySystem.EndResponse(unit, TrapEndReason.Yielded);
+					return BTStatus.Failure;
+				}
+				TrapPartySystem.ReportArrived(human, trap);
+			}
 			return BTStatus.Success;
+		}
+		// 순서도 03-12: 이동 중 예상 도착 시점이 달라졌으면 기다리는 발견 유닛에게 알린다.
+		if (human != null) TrapPartySystem.ReportProgress(human, trap);
 		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — 무시하면 다른 진영 문
 		// 등으로 경로가 막혔을 때 해제 담당 유닛이 영원히 멈춰 함정이 끝내 처리되지 않는다.
 		if (!AIMovementHelper.MoveTowardsPos(unit, trapPos))
@@ -475,7 +456,7 @@ public class TacticalFSMState : IFSMState
 		var trap  = human.currentTrapInteraction;
 		if (trap == null || !human.Session.objectGrid.TryGetValue(trap.TrapPosition, out var obj))
 		{
-			if (human.currentTrapInteraction != null) human.currentTrapInteraction = null;
+			TrapPartySystem.EndResponse(human, TrapEndReason.Resolved);
 			return BTStatus.Success;
 		}
 		trap.Phase = TrapPhase.Disarming;
@@ -503,7 +484,7 @@ public class TacticalFSMState : IFSMState
 			// 9-5장: 해제 성공 시에만 도감에 기록한다(우회·파괴·통과는 기록 안 함). 함정 종류별 도감
 			// ID 체계가 아직 없어 오브젝트 고유 Id를 그대로 넘긴다.
 			Game.Encyclopedia.EncyclopediaManager.Instance?.UnlockEntry(trap.TrapObjectId);
-			human.currentTrapInteraction = null;
+			TrapPartySystem.EndResponse(human, TrapEndReason.Resolved);
 			human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 			return BTStatus.Success;
 		}
@@ -534,7 +515,7 @@ public class TacticalFSMState : IFSMState
 			System.Math.Sign(away.x) != 0 ? System.Math.Sign(away.x) : 1,
 			System.Math.Sign(away.y));
 		AIMovementHelper.MoveTowardsPos(human, sidePos);
-		human.currentTrapInteraction = null;
+		TrapPartySystem.EndResponse(human, TrapEndReason.Bypassed);
 		human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
@@ -569,7 +550,7 @@ public class TacticalFSMState : IFSMState
 		PropagationSystem.EmitSound(unit.Session, SoundType.TrapActivation, trapPos2D, unit.currentFloor, null);
 		unit.TakeDamage(obj.TrapDamageMax);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
-		unit.currentTrapInteraction = null;
+		TrapPartySystem.EndResponse(unit, TrapEndReason.Passed);
 		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
@@ -580,7 +561,7 @@ public class TacticalFSMState : IFSMState
 		if (trap == null) return BTStatus.Failure;
 		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(trap.TrapPosition, out var obj))
 		{
-			if (unit.currentTrapInteraction != null) unit.currentTrapInteraction = null;
+			TrapPartySystem.EndResponse(unit, TrapEndReason.Resolved);
 			return BTStatus.Success;
 		}
 		var trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
@@ -593,7 +574,7 @@ public class TacticalFSMState : IFSMState
 		if (obj.TrapHp > 0f) return BTStatus.Running;
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 파괴했습니다.");
 		unit.Session.CollectObject(trap.TrapPosition);
-		unit.currentTrapInteraction = null;
+		TrapPartySystem.EndResponse(unit, TrapEndReason.Destroyed);
 		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}

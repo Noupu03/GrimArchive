@@ -30,9 +30,39 @@ public static class ExplorationMath
 	public const float TrapDisarmInterruptLossRatio = 0.5f; // 9-7장: 중단 시 해제량의 50% 손실
 	// 9-3장/14장: 함정 정보 전파 후 발견 유닛 응답 대기시간 — 문서(v0.6 개정판) 공식값 그대로 적용.
 	public const float TrapJoinWaitSeconds = 2f;
-	// 9-7장(신규): 선정 유닛의 예상 도착시간(EstimateEta) 이후 이 시간까지 미도착이면 발견 유닛이
-	// 마지막 전파 위치로 직접 찾아간다.
+	// 03번 v0.12 8장: 대기 기한 = 담당자가 계산한 도착 예정 시점 + 이 여유.
 	public const float TrapSelectedUnitLateGraceSeconds = 3f;
+	// 담당자가 "도착 예정 시점이 달라졌다"고 대기자에게 새로 알릴 최소 변화량. 문서에 수치가 없는 내부 판단값
+	// — 한 걸음(≈0.33초)보다 크고 여유 3초보다 훨씬 작다.
+	public const float TrapArrivalChangeToleranceSeconds = 0.5f;
+	public const float TrapArrivalEpsilon = 0.001f; // 부동소수 "같은 값" 판정용
+
+	// 함정 인접 1칸(해제 위치)에 닿을 때까지 남은 걸음 수 — 함정 타일까지의 경로 길이에서 마지막 한 걸음을 뺀다.
+	public static int StepsToDisarmPosition(int pathLengthToTrapTile) => Mathf.Max(0, pathLengthToTrapTile - 1);
+
+	// 남은 걸음 수 ÷ 개인 적용 이동속도(칸/초). 속도가 0 이하면 도착할 수 없으므로 무한대.
+	public static float RemainingTravelSeconds(int steps, float appliedWalkSpeed)
+		=> appliedWalkSpeed <= 0f ? float.PositiveInfinity : Mathf.Max(0, steps) / appliedWalkSpeed;
+
+	// 도착 예정 시점 = 계산 시점 + 남은 예상 이동시간, 대기 기한 = 도착 예정 시점 + 여유.
+	public static float TrapArrivalTime(float calcTime, float remainingSeconds) => calcTime + remainingSeconds;
+	public static float TrapWaitDeadline(float calcTime, float remainingSeconds, float graceSeconds)
+		=> calcTime + remainingSeconds + graceSeconds;
+
+	// 담당자 쪽(순서도 03-12): 마지막으로 알린 도착 예정 시점과 tolerance를 넘게 달라졌을 때만 새로 알린다.
+	public static bool HasArrivalEstimateChanged(float lastArrivalTime, float newArrivalTime, float tolerance)
+		=> Mathf.Abs(newArrivalTime - lastArrivalTime) > tolerance;
+
+	// 대기자 쪽(순서도 03-12-2): 현재 적용 중인 정보보다 더 최근에 계산됐고 도착 예정 시점이 실제로 바뀐
+	// 경우만 수락한다. 동일 정보 재수신·오래된 정보·같은 도착 예정의 재계산은 기한을 바꾸지 않는다.
+	// 수신 시점은 인자로 받지 않는다 — 늦게 받아도 기한은 원래 계산 시점 기준이다.
+	public static bool ShouldApplyArrivalEstimate(bool hasApplied, float appliedCalcTime, float appliedArrivalTime,
+		float incomingCalcTime, float incomingArrivalTime)
+	{
+		if (!hasApplied) return true;
+		if (incomingCalcTime <= appliedCalcTime + TrapArrivalEpsilon) return false;
+		return Mathf.Abs(incomingArrivalTime - appliedArrivalTime) > TrapArrivalEpsilon;
+	}
 	public const float TrapRecordedDirectDisarmThreshold = 0.5f; // 9-4장: 예상 성공률 50% 초과 기준
 	public const float TrapPassMinHpRatioAfterHit = 0.5f;        // 9-10장: 일반 통과 후 최소 HP 50%
 	public const float TrapAllyRescueMinHpRatioAfterHit = 0.3f;  // 9-11장: 아군 보호 시 기록 함정 통과 후 최소 HP 30%

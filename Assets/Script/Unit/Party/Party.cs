@@ -275,6 +275,8 @@ public class Party
 		{
 			if (m == null || m.hp <= 0 || m.currentWait != null) continue;
 			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
+			// 03번 0장·8장: 아직 시작하지 않은 함정 대응(응답 대기·담당자 도착 대기·해제하러 가는 이동)은 집결로 전환한다.
+			TrapPartySystem.ReleaseForRally(m);
 			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = RallyPoint };
 		}
 	}

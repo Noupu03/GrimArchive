@@ -363,6 +363,17 @@ public abstract class Unit : ScriptableObject {
 	public TrapInteractionState currentTrapInteraction; // null이면 함정 대응 중 아님
 	public AlertSearchState     currentAlertSearch;      // null이면 경계 중 아님
 
+	// 개인 적용 이동속도(칸/초) — 경계 이동은 75% 감속(4-3장), 피격·비명·사망음 확인 접근은 긴급이라 정상 속도
+	// (07문서 16-3장). 행동 주기(1/속도, GameSession.ProcessUnitAction)와 도착시간 추정이 같은 값을 쓴다.
+	public float AppliedWalkSpeed
+	{
+		get
+		{
+			bool alertSlowdown = currentAlertSearch != null && !currentAlertSearch.IsUrgentSoundApproach;
+			return BaseStat.walkSpeed * (alertSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
+		}
+	}
+
 	// 02번 문서(전투 목표와 아군 보호 및 지원) 관련 지속 상태 — 인류/플레이어몬스터/야생 공통이라
 	// base Unit에 둔다. 필드 9개를 CombatTargetingState 하나로 묶어(캡슐화) 리셋도 그 안의
 	// ResetRetargetTracking/ResetOnCombatExit로 일관되게 처리한다.
@@ -639,6 +650,10 @@ public class Human : UnitFunction
 	// 이 유닛에 한정된 파티(있다면) — GameSession.CreateParty()가 채워준다. 파티 없이 스폰된 인류는 null로 남아 파티 관련 산정에서 자연히 제외된다.
 	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
+	// 이번 시야 패스에서 직접 본 같은 파티 아군 — UnitFunction.UpdateFOV가 매 패스 비우고 다시 채운다. 함정
+	// 담당자의 도착처럼 "시야로 직접 확인한" 사실의 근거이며 전파 범위와 무관하다.
+	public readonly HashSet<Human> visiblePartyMembers = new HashSet<Human>();
+
 	// 조사/대기/보호 포메이션 — 인류 전용(몬스터는 "컨셉에 따라"만 명시돼 있어 컨셉 시스템이 생기기
 	// 전까지는 인류만 구현). null이면 각각 진행 중 아님.
 	public InvestigationState currentInvestigation;
@@ -800,7 +815,7 @@ public class Human : UnitFunction
 	// 01번 문서 4장/04번 문서 9번 항목: 목표까지 전체 길을 알면 실제 경로 길이, 모르면 "아는 구간까지
 	// 실제 경로 + 그 지점에서 목표까지 직선 잔여"를 더한 추정 거리. 둘 다 실패하면(고립된 구역 등)
 	// 체비셰프 직선거리로 최종 폴백한다.
-	private int EstimateDistanceTilesTo(Vector3Int targetTile)
+	public int EstimateDistanceTilesTo(Vector3Int targetTile)
 	{
 		Vector2Int targetPos2D = new Vector2Int(targetTile.x, targetTile.y);
 		var astar = MovementAlgorithm as AStarMovement;
@@ -816,6 +831,12 @@ public class Human : UnitFunction
 
 		return Mathf.Max(Mathf.Abs(targetPos2D.x - position.x), Mathf.Abs(targetPos2D.y - position.y));
 	}
+
+	// 03번 문서 8장: 목표 오브젝트(함정)에 상호작용할 수 있는 인접 1칸까지 남은 예상 이동시간(초) — 위
+	// 추정 거리(전체 길을 알면 실제 경로)를 개인 적용 이동속도로 나눈다.
+	public float EstimateRemainingSecondsToInteract(Vector3Int targetTile)
+		=> ExplorationMath.RemainingTravelSeconds(
+			ExplorationMath.StepsToDisarmPosition(EstimateDistanceTilesTo(targetTile)), AppliedWalkSpeed);
 
 	// 검증문서 03-01 4번/03-02: 지금 유일하게 명확한 "파티종류-오브젝트" 매칭인 회수 파티+Loot 태그만
 	// "파티 목표 오브젝트"로 판정한다(Party.HasKnownRecoverableInRoom과 동일 기준) — 다른 파티종류는

@@ -79,8 +79,10 @@ public class AIBehaviorConfig : ScriptableObject
     [Header("함정 대응 (03문서 9장)")]
     [Tooltip("9-3장: 함정 정보 전파 후 발견 유닛 응답 대기 시간 (초) — 개정 문서 공식값")]
     public float trapJoinWaitSeconds            = 2f;
-    [Tooltip("9-7장: 선정 유닛 예상 도착시간 이후 이 시간까지 미도착이면 발견 유닛이 직접 찾아 나선다 (초)")]
+    [Tooltip("03번 v0.12 8장: 담당자 도착 대기 기한 = 도착 예정 시점 + 이 여유 (초)")]
     public float trapSelectedUnitLateGraceSeconds = 3f;
+    [Tooltip("담당자가 도착 예정 시점이 달라졌다고 새로 알릴 최소 변화량 (초) — 문서 미명시, 내부 판단값")]
+    public float trapArrivalChangeToleranceSeconds = 0.5f;
     [Tooltip("9-4장: 기록된 함정의 예상 성공률이 이 값 초과면 직접 해제 시도")]
     [Range(0f, 1f)]
     public float trapRecordedDisarmThreshold   = 0.5f;

@@ -968,10 +968,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     private void ProcessUnitAction(Unit u)
     {
-        // 4-3장: 경계 상태 이동은 75% 감속. 07문서 16-3장: 단, 피격/사망음 확인 접근은 긴급 소리라
-        // 감속 없이 정상 속도를 유지한다(AlertSearchState.IsUrgentSoundApproach).
-        bool alertMoveSlowdown = u.currentAlertSearch != null && !u.currentAlertSearch.IsUrgentSoundApproach;
-        float speed = u.BaseStat.walkSpeed * (alertMoveSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
+        // 행동 주기 = 1/개인 적용 이동속도(경계 감속 등은 Unit.AppliedWalkSpeed 참고).
+        float speed = u.AppliedWalkSpeed;
         u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
         // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를

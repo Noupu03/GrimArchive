@@ -538,6 +538,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		Perception.State.personalSpottedEnemies.Clear();
 		Perception.State.visionOnlyNonEmptyTiles.Clear();
 		_reachedPerceptionThisPass.Clear();
+		if (this is Human sightRefresh) sightRefresh.visiblePartyMembers.Clear();
 
 		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
 		Vector2 forward = GetDirVector(currentDir);
@@ -692,6 +693,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionNonEmpty.Contains(revealedTile))
 					visionNonEmpty.Add(revealedTile);
 			}
+
+			// 같은 파티 아군은 타일이 시야에 들어오는 것만으로 직접 확인한 것이다(적과 달리 인지 판정 없음).
+			if (terrainObserver != null && terrainObserver.party != null && Session != null
+				&& Session.unitGrid.TryGetValue(revealedTile, out Unit sightedUnit)
+				&& sightedUnit is Human sightedAlly && sightedAlly != this
+				&& sightedAlly.party == terrainObserver.party && sightedAlly.Health.hp > 0)
+				terrainObserver.visiblePartyMembers.Add(sightedAlly);
 		}
 
 		// 메인 패스: 시야 반경 내 쉐도우 캐스팅 → FOV 120° 콘 필터 후 처리
@@ -1023,25 +1031,21 @@ public abstract class UnitFunction : Unit, IVisionContext
 				else
 				{
 					trap.JoinWaitTimer += deltaTime;
-					if (trap.JoinWaitTimer >= ExplorationMath.TrapJoinWaitSeconds) { trap.JoinWaitElapsed = true; becameElapsed = true; }
+					if (trap.JoinWaitTimer >= (AIConfigLoader.Behavior?.trapJoinWaitSeconds ?? ExplorationMath.TrapJoinWaitSeconds)) { trap.JoinWaitElapsed = true; becameElapsed = true; }
 				}
 				// 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제 담당을 선정한다. AutoConfirmed
 				// (웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미 확정돼 있어 다시 선정할 필요가 없다.
 				if (becameElapsed && !trap.AutoConfirmed && this is Human discovererHuman)
 					TrapPartySystem.ResolveSelection(discovererHuman, trap);
 			}
-			else if (trap.SearchingForSelectedUnit)
-			{
-				// TacticalFSMState.TrapSearchForMissingUnit(BT)가 실제 이동을 담당 — 여기서는 시간만 안 건드림.
-			}
 			else if (trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && this is Human waitingHuman)
 			{
-				// 9-7장: 선정되지 않은 발견 유닛 — ETA+3초 미도착이면 SearchingForSelectedUnit으로 전환.
-				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap, deltaTime);
+				// 순서도 03-12-2: 선정되지 않은 발견 유닛 — 담당자 보고 수신과 대기 기한 판정.
+				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap);
 			}
 			else if (trap.Phase == TrapPhase.Disarming)
 			{
-				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / ExplorationMath.TrapDisarmDurationSeconds);
+				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / (AIConfigLoader.Behavior?.trapDisarmDurationSeconds ?? ExplorationMath.TrapDisarmDurationSeconds));
 				// 9-7/9-8장(2026-07-27 추가): 함정 바로 아래 진행 막대 갱신 — 실제 해제 중일 때만.
 				// ⑫: GetComponent를 첫 틱에만 캐시하고 이후엔 재사용.
 				if (trap.CachedProgressBar == null && Session != null)

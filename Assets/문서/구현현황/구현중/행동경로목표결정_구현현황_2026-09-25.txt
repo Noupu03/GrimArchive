@@ -456,7 +456,20 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 3. 파티 목표 상호작용과 코어 (신규 CoreReport/Rally로 구현)
 🔶 4~7. 소리 반응 / 적 발견 즉시 전투 (07문서 기반으로 상당 부분 이미 구현 — TacticalFSMState.Alert
    계열, 03번 신규 언어에 맞춰 재검증만 필요)
-❌ 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 이미 구현 — 새 집결 연동만 확인)
+🔶 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 구현) — [2026-09-30, 검증문서 03-10 수정]
+   8장의 "도착 예정 시점 계산·전달·대기 기한·집결 전환"은 ✅ 구현(dotnet build 오류 0, Unity 테스트·플레이 검증 대기).
+   8장 담당 선정 기준(성공률 우선·동률 시 도착시간·저성공률 합류 의사 생략·집결 중 신규 담당 제외)은 03-12, 9장
+   중단·우회·통과·파괴와 일반 이동의 활성 함정 회피는 03-11/03-13 검증 대기라 🔶 유지.
+   설계 요약(03-10): 담당자가 MoveToTrap 행동 틱 시점에(0.5초 간격) 남은 이동시간 = max(0, 경로길이−1) ÷ 개인 적용 이동속도
+   (Human.EstimateRemainingSecondsToInteract = 04-9 추정 거리 + Unit.AppliedWalkSpeed)를 재계산해 도착 예정 시점이
+   0.5초(ExplorationMath.TrapArrivalChangeToleranceSeconds) 넘게 바뀌면 조율 기록(TrapPartyCoordination.Report)에 게시.
+   대기자(발견자)는 TrapPartySystem.TickWaitingForSelectedUnit이 CanPropagate 충족 시에만 읽어
+   ExplorationMath.ShouldApplyArrivalEstimate(더 최근 계산 && 도착 예정 실제 변경)이면 기한 = 계산 시점 + 남은 시간 + 3초로
+   갱신(늦은 수신도 원래 계산 시점 기준, 횟수 상한 없음). 담당자 도착·종료는 통지 또는 시야 직접 확인
+   (Human.visiblePartyMembers)으로 알고 개인 행동으로 복귀. 기한 만료는 미도착 담당자를 재선정 후보에서 제외하고
+   표준 선정 재개(옛 "찾으러 걷기" 삭제), 뒤늦게 도착한 이전 담당자는 양보. Party.TryStartRally는
+   TrapPartySystem.ReleaseForRally로 Phase==AwaitingJoin(응답 대기·도착 대기·해제하러 가는 이동)을 집결로 전환하고, 이미
+   시작한 해제는 완료 후 합류. currentTrapInteraction 종료는 TrapPartySystem.EndResponse 한 곳으로 일원화.
 ❌ 10. 보고 중 사건과 전달 완료 (신규 — 05번 발견정보 전파와 함께 구현)
 🔶 11. 대상 상실과 공통 3초 대기 (기존 수색 로직 있음, 3초 표준화만 확인)
 🔶 12. 스킬 실행 중 목표 변화 (isCastingAttack 가드로 대부분 커버)
