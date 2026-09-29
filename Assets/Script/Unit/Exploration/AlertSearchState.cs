@@ -12,6 +12,11 @@ public class AlertSearchState
 	// 4-8장: 전투 종료 후 10초 스윕인지(true) — 이 경우 TargetPosition 없이 그냥 10초만 채우면 된다.
 	public bool IsPostCombatSweep;
 
+	// 4-11장: "자기 자신이" 공격자를 인지하지 못한 채 피격당해 만들어진 미식별 공격 수색인지 —
+	// RecordHitWeightEvent만 켠다(PropagateAttackedFact로 전파받은 목격자의 경계에는 안 붙는다). 함정 해제·
+	// 대응은 이 경계가 진행되는 동안 양보하고 끝나면 재개한다(v0.6 12-2, TacticalFSMState.IsTrapResponseInterrupted).
+	public bool IsUnidentifiedAttackSearch;
+
 	// 4-12장: 미식별 공격 수색시간(15초) — 새 공격이 오면 15초로 재설정된다. 전투종료후 스윕은
 	// ExplorationMath.PostCombatAlertSeconds(10초)를 쓴다.
 	public float ElapsedSeconds;

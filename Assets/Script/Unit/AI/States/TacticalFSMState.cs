@@ -38,8 +38,8 @@ public class TacticalFSMState : IFSMState
 		{
 			// 설정 에셋 없음 — 03문서 2-1장 기본 순서로 폴백.
 			// 2026-09-04(사용자 요청): 보호 포메이션은 인류측 전부 비활성화 — 되돌릴 때는 아래 줄 주석을
-			// 해제한다(TacticalBehaviorPriorityConfig.cs 기본값도 같이). 함정 대응은 그대로 유지하되
-			// 해제 시도자 선정을 "가장 가까운 1명"으로 단순화했다(TrapPartySystem.cs 참고).
+			// 해제한다(TacticalBehaviorPriorityConfig.cs 기본값도 같이). 함정 대응은 그대로 유지한다(같은 날 해제
+			// 시도자 선정을 "가장 가까운 1명"으로 줄였던 단순화는 2026-09-30 검증 03-12에서 문서대로 복원했다).
 			_bt = new BTSelector(
 				nodes[TacticalBehaviorType.Panic],
 				nodes[TacticalBehaviorType.JoinCombatWait],
@@ -72,7 +72,9 @@ public class TacticalFSMState : IFSMState
 			[TacticalBehaviorType.TrapResponse] = new BTSequence(
 				// 07문서 16-4장: 함정 대응 대기·해제는 함정작동음을 제외한 소리에 중단된다.
 				// 함정작동음 자체는 이 조건에 애초에 걸리지 않아 표대로 "유지"된다.
-				new BTCondition(unit => !IsTrapResponseBlockedBySound(unit)),
+				// 검증문서 03-11(순서도 03-13): 해제자·보호자 피격·위협 인지·미식별 공격 수색 중에도 양보한다 — 소리와 달리
+				// 필요한 이동을 함정이 막을 때는 양보하지 않고 우회·통과·파괴로 이어진다(IsTrapResponseInterrupted).
+				new BTCondition(unit => !IsTrapResponseBlockedBySound(unit) && !IsTrapResponseInterrupted(unit)),
 				new BTSelector(
 					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 담당자 도착을 기다린다.
 					new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
@@ -171,11 +173,30 @@ public class TacticalFSMState : IFSMState
 		if (unit is Human human && human.currentInvestigation != null && human.currentInvestigation.PenaltyActive)
 			ApplyInvestigateInterruptPenalty(human);
 
-		if (unit.currentTrapInteraction != null && unit.currentTrapInteraction.PenaltyActive)
-			ApplyTrapDisarmInterruptPenalty(unit);
+		if (unit.currentTrapInteraction != null)
+		{
+			TrapPartySystem.ApplyDisarmInterruptPenalty(unit); // PenaltyActive 가드 내장 — 대응 상태·남은 진행도는 유지
+			unit.currentTrapInteraction.DestroyActive = false; // Tactical을 벗어나면 파괴 진행도 누적도 멈춘다
+		}
 	}
 
-	public BTStatus Tick(Unit unit)    => _bt.Tick(unit);
+	// 검증문서 03-11: 이번 틱에 해제/파괴를 실제로 수행하지 못했는데 진행 중이었다면(Panic·전투 합류 대기 등 BT 상위
+	// 분기가 가로챔) 그 자리에서 중단으로 처리한다 — 같은 상태 안에서 브랜치만 바뀌는 경로는 OnExit를 안 타고 각 분기의
+	// 조건도 이 사건을 모르기 때문이다. 수행 여부는 TrapDisarmPerform/TrapDestroy가 PerformedThisTick으로 알린다.
+	public BTStatus Tick(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap != null) trap.PerformedThisTick = false;
+
+		BTStatus status = _bt.Tick(unit);
+
+		if (trap != null && ReferenceEquals(trap, unit.currentTrapInteraction) && !trap.PerformedThisTick)
+		{
+			TrapPartySystem.ApplyDisarmInterruptPenalty(unit);
+			trap.DestroyActive = false;
+		}
+		return status;
+	}
 	public string   GetLabel(Unit unit) => GetSubLabel(unit);
 
 	// ── FSM 진입 조건 헬퍼 ─────────────────────────────────────────
@@ -190,35 +211,17 @@ public class TacticalFSMState : IFSMState
 		if (!IsDisarmWorthy(unit)) return false;
 		if (unit.isHitThisTurn || unit.HasPerceivedThreatCollider())
 		{
-			ApplyTrapDisarmInterruptPenalty(unit);
+			TrapPartySystem.ApplyDisarmInterruptPenalty(unit);
 			return false;
 		}
 		// 8-2장: 보호 유닛이 피격당하면 예외 없이 항상 중단(함정 해제는 7장의 "파티 목표 오브젝트"가
 		// 될 수 없음 — 대상은 회수/조사 오브젝트뿐).
 		if (unit is Human humanDisarmer && humanDisarmer.AnyEscortHitThisTurn())
 		{
-			ApplyTrapDisarmInterruptPenalty(unit);
+			TrapPartySystem.ApplyDisarmInterruptPenalty(unit);
 			return false;
 		}
 		return true;
-	}
-
-	// 9-7장: 함정 해제 진행도(DisarmProgress01)의 50% 손실 — PenaltyActive가 남아있을 때만 1회
-	// 적용하고 false로 내려 같은 중단이 이어지는 동안 중복 적용되지 않게 한다.
-	private static void ApplyTrapDisarmInterruptPenalty(Unit unit)
-	{
-		var trap = unit.currentTrapInteraction;
-		if (trap == null || !trap.PenaltyActive) return;
-		trap.DisarmProgress01 *= (AIConfigLoader.Behavior?.trapDisarmInterruptLossRatio ?? ExplorationMath.TrapDisarmInterruptLossRatio);
-		trap.PenaltyActive = false;
-		if (trap.CachedProgressBar != null)
-		{
-			trap.CachedProgressBar.SetProgress(0f, false);
-		}
-		else
-		{
-			unit.Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
-		}
 	}
 
 	private static bool CanInvestigate(Unit unit)
@@ -304,8 +307,23 @@ public class TacticalFSMState : IFSMState
 	{
 		if (!(unit is Human human)) return false;
 		if (!PropagationSystem.HasPendingInterruptingSound(human)) return false;
-		ApplyTrapDisarmInterruptPenalty(unit);
+		TrapPartySystem.ApplyDisarmInterruptPenalty(unit);
 		return true;
+	}
+
+	// 검증문서 03-11(순서도 03-13, v0.6 9-9·12-2): 해제자 피격·위협 콜라이더 인지·보호자 피격·자기 피격으로 시작된 미식별 공격
+	// 수색 중이면 해제를 중단(진행도 50% 손실)하고 우선 대응에 양보한다. 대응 상태와 남은 진행도는 유지하므로 원인이
+	// 사라지면(수색 15초 완료 등) 그대로 재개된다 — 이전엔 CanDisarm 실패 직후 TrapBypass가 상태를 지워 재개가 불가능했다.
+	// 필요한 이동을 함정이 막는 경우만 양보하지 않고 기존 체인(우회 실패 → 통과·파괴, 순서도 03-14)으로 넘긴다.
+	private static bool IsTrapResponseInterrupted(Unit unit)
+	{
+		if (!(unit is Human human) || human.currentTrapInteraction == null) return false;
+		bool interrupted = human.isHitThisTurn || human.HasPerceivedThreatCollider() || human.AnyEscortHitThisTurn()
+			|| human.currentAlertSearch?.IsUnidentifiedAttackSearch == true;
+		if (!interrupted) return false;
+
+		TrapPartySystem.ApplyDisarmInterruptPenalty(human);
+		return !IsBlockingPath(human);
 	}
 
 	// ── 공황 ───────────────────────────────────────────────────────
@@ -331,9 +349,7 @@ public class TacticalFSMState : IFSMState
 		if (!(unit is Human human) || human.currentTrapInteraction == null) return false;
 		var trap = human.currentTrapInteraction;
 		if (human.Session == null || !human.Session.objectGrid.ContainsKey(trap.TrapPosition)) return false;
-		if (!human.personalMap.IsTrapRecorded(trap.TrapObjectId)) return true;
-		return human.personalMap.GetTrapExpectedSuccessRate(trap.TrapObjectId)
-			> (AIConfigLoader.Behavior?.trapRecordedDisarmThreshold ?? ExplorationMath.TrapRecordedDirectDisarmThreshold) * 100f;
+		return TrapPartySystem.WouldAttemptDisarm(human, trap.TrapObjectId); // 50% 규칙의 단일 출처 — 선정 후보 판정과 공유
 	}
 
 	private static bool IsBlockingPath(Unit unit)
@@ -351,15 +367,22 @@ public class TacticalFSMState : IFSMState
 			: (unit is Human h && h.currentInvestigation != null
 				? new Vector2Int(h.currentInvestigation.TargetPosition.x, h.currentInvestigation.TargetPosition.y)
 				: (Vector2Int?)null);
-		if (!dest.HasValue) return false;
+		return dest.HasValue && IsRouteBlockedByTrap(unit, dest.Value, trapPos);
+	}
 
+	// 유닛 위치에서 dest까지 이 함정 타일을 밟지 않고는 갈 수 없는지(대체 경로 없음) — 이미 발견한 지형(discoveredMap) 기준 BFS이고
+	// 미탐색 타일은 통행 가능으로 본다. TrapPartySystem이 집결·이동 중인 유닛의 "경로를 막는 함정" 예외 판정에도 쓴다.
+	public static bool IsRouteBlockedByTrap(Unit unit, Vector2Int dest, Vector3Int trapPos)
+	{
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
 		int fi = unit.currentFloor;
-		if (myData.discoveredMap == null || fi >= myData.discoveredMap.Length || myData.discoveredMap[fi] == null)
+		if (myData == null || myData.discoveredMap == null || fi >= myData.discoveredMap.Length || myData.discoveredMap[fi] == null)
 			return false;
 
 		int mapW = myData.discoveredMap[fi].GetLength(0);
 		int mapH = myData.discoveredMap[fi].GetLength(1);
+		// 시작점이 지형 정보 밖이면 판단 근거가 없다 — 막지 않는 것으로 본다(실제 유닛은 항상 안이라 게임 동작은 그대로).
+		if (unit.position.x < 0 || unit.position.x >= mapW || unit.position.y < 0 || unit.position.y >= mapH) return false;
 		Vector2Int trap2D = new Vector2Int(trapPos.x, trapPos.y);
 
 		var visited = new HashSet<Vector2Int> { unit.position, trap2D };
@@ -369,7 +392,7 @@ public class TacticalFSMState : IFSMState
 		while (queue.Count > 0)
 		{
 			Vector2Int cur = queue.Dequeue();
-			if (cur == dest.Value) return false;
+			if (cur == dest) return false;
 			foreach (Dir d in _allDirs)
 			{
 				Vector2Int next = cur + unit.GetDirVector(d);
@@ -439,14 +462,46 @@ public class TacticalFSMState : IFSMState
 		}
 		// 순서도 03-12: 이동 중 예상 도착 시점이 달라졌으면 기다리는 발견 유닛에게 알린다.
 		if (human != null) TrapPartySystem.ReportProgress(human, trap);
-		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — 무시하면 다른 진영 문
-		// 등으로 경로가 막혔을 때 해제 담당 유닛이 영원히 멈춰 함정이 끝내 처리되지 않는다.
-		if (!AIMovementHelper.MoveTowardsPos(unit, trapPos))
+		return MoveTowardsTrapGuarded(unit, trapPos);
+	}
+
+	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapPass/TrapDestroy 공용) — 다른 BT 리프(MoveToInvestigateTarget 등)와 같은
+	// stuck 탈출 패턴이다. 리셋 기준은 "이동 성공 여부"가 아니라 "체비셰프 거리가 실제로 줄었는지"(혼잡 구역의 제자리
+	// 셔플도 Move() 관점에선 성공이라 그것만 보면 카운터가 안 쌓인다). 대체 자리 탐색은 이미 근접(반경 2)했을 때만 쓴다.
+	// 사방이 구조적으로 막혀 있으면 즉시, 그저 몰려 막힌 거면 한도까지 인내한 뒤 포기한다 — 포기하면 대응을 접고
+	// 경계로 전환한다(안 하면 도달 불가능한 함정 앞에서 영원히 멈춘다).
+	private static BTStatus MoveTowardsTrapGuarded(Unit unit, Vector2Int trapPos)
+	{
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, trapPos);
+		AIMovementHelper.MoveTowardsPos(unit, trapPos);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, trapPos) < distBefore)
 		{
-			Vector2Int fallback = AIMovementHelper.FindNearbyOpenTile(unit, trapPos);
-			if (fallback != trapPos) AIMovementHelper.MoveTowardsPos(unit, fallback);
+			unit.trapMoveStuckTurns = 0;
+			return BTStatus.Running;
 		}
-		return BTStatus.Running;
+
+		Vector2Int fallback = AIMovementHelper.IsAdjacent(unit.position, trapPos, radius: 2)
+			? AIMovementHelper.FindNearbyOpenTile(unit, trapPos)
+			: trapPos;
+		if (fallback != trapPos)
+		{
+			AIMovementHelper.MoveTowardsPos(unit, fallback);
+			if (AIMovementHelper.ChebyshevDistance(unit.position, trapPos) < distBefore)
+			{
+				unit.trapMoveStuckTurns = 0;
+				return BTStatus.Running;
+			}
+		}
+
+		if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(unit)
+			&& ++unit.trapMoveStuckTurns < (AIConfigLoader.Behavior?.trapMoveStuckTurnLimit ?? 4))
+			return BTStatus.Running;
+
+		LogHelper.Log(LogHelper.GAME, $"[함정] {unit.name}: 함정에 도달할 수 없어 대응을 포기합니다");
+		unit.trapMoveStuckTurns = 0;
+		TrapPartySystem.EndResponse(unit, TrapEndReason.Unreachable);
+		unit.currentAlertSearch = new AlertSearchState();
+		return BTStatus.Failure;
 	}
 
 	private static BTStatus TrapDisarmPerform(Unit unit)
@@ -463,6 +518,7 @@ public class TacticalFSMState : IFSMState
 		// 07문서 10장: 해제가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!trap.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
 		trap.PenaltyActive = true;
+		trap.PerformedThisTick = true; // 이번 틱에 해제를 수행했다 — Tick 래핑이 "수행 없이 끝난 틱"을 중단으로 잡는다
 		if (trap.DisarmProgress01 < 1f) return BTStatus.Running;
 
 		float rate    = ExplorationMath.TrapDisarmSuccessRate(human.concentration, human.level, understandingApplied: 0);
@@ -540,15 +596,11 @@ public class TacticalFSMState : IFSMState
 		if (!normalSafe && !rescueSafe) return BTStatus.Failure;
 
 		var trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
-		if (unit.position != trapPos2D) { AIMovementHelper.MoveTowardsPos(unit, trapPos2D); return BTStatus.Running; }
+		if (unit.position != trapPos2D) return MoveTowardsTrapGuarded(unit, trapPos2D);
 
-		// 4-14장: 이 피해가 사망으로 이어지면 PartyDeathSystem이 "함정이 원인"임을 알아야 하므로
-		// lastTrapAttacker에 남기고, 더 오래된 몬스터 공격 기록과 섞이지 않게 lastAttacker는 비운다.
-		unit.lastAttacker = null;
-		unit.lastTrapAttacker = obj;
-		// 07문서 14장: 함정 작동 시 작동 위치에서 함정 작동음 발생.
-		PropagationSystem.EmitSound(unit.Session, SoundType.TrapActivation, trapPos2D, unit.currentFloor, null);
-		unit.TakeDamage(obj.TrapDamageMax);
+		// 함정 발동의 단일 진입점 — 피해·작동음(07문서 14장)·사망 원인 기록(4-14장)·그 함정을 해제 중인 유닛의 중단(9-9장)이
+		// 한 곳에서 이뤄져 밟아서 발동하는 경우와 결과가 같다.
+		unit.Session.ActivateTrap(unit, obj);
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
 		TrapPartySystem.EndResponse(unit, TrapEndReason.Passed);
 		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
@@ -564,13 +616,19 @@ public class TacticalFSMState : IFSMState
 			TrapPartySystem.EndResponse(unit, TrapEndReason.Resolved);
 			return BTStatus.Success;
 		}
+		// 03번 v0.12 9장(584~586줄): 모든 오브젝트를 파괴 가능한 것으로 취급하지 않는다 — 함정은 체력이 있어야 하고 공격력이
+		// 없는 유닛은 깰 수 없다. 파괴할 수 없으면 다른 대응(순서도 03-11)으로 넘긴다.
+		if (obj.TrapMaxHp <= 0f || unit.physicalAttack <= 0f)
+		{
+			TrapPartySystem.EndResponse(unit, TrapEndReason.Bypassed);
+			return BTStatus.Success;
+		}
 		var trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
 		if (Vector2Int.Distance(unit.position, trapPos2D) > 1.5f)
-		{
-			AIMovementHelper.MoveTowardsPos(unit, trapPos2D);
-			return BTStatus.Running;
-		}
+			return MoveTowardsTrapGuarded(unit, trapPos2D);
 		trap.Phase = TrapPhase.Destroying;
+		trap.PerformedThisTick = true; // 파괴 진행도 누적 게이트(DestroyActive)는 이 틱에 파괴를 수행한 동안만 켜진다
+		trap.DestroyActive = true;
 		if (obj.TrapHp > 0f) return BTStatus.Running;
 		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 파괴했습니다.");
 		unit.Session.CollectObject(trap.TrapPosition);

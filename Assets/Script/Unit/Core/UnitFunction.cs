@@ -128,7 +128,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				bool shapeProvidesDirection = PropagationMath.AttackShapeProvidesDirection(attacker.CombatState.State.lastAttackShape);
 				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
 				Vector2Int? attackerPos = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null;
-				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos };
+				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos, IsUnidentifiedAttackSearch = true };
 
 				// "적을 정확 인지하기 전에 공격받은 경우" 이 사실(+ 방향)을 파티원에게 1회 전파한다.
 				if (this is Human victimHuman)
@@ -1023,27 +1023,29 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (currentTrapInteraction != null)
 		{
 			var trap = currentTrapInteraction;
+			// 기절 중엔 ExecuteAction이 통째로 막혀 Tick/OnExit 어느 쪽도 중단을 못 잡는다 — 진행도가 계속 쌓여 50% 손실이 무력화되지 않게 직접 막는다.
+			bool stunned = StatusEffects.State.stunDuration > 0f;
 			if (!trap.JoinWaitElapsed)
 			{
-				bool recorded = (this is Human trapHuman) && trapHuman.personalMap.IsTrapRecorded(trap.TrapObjectId);
-				bool becameElapsed = false;
-				if (recorded) { trap.JoinWaitElapsed = true; becameElapsed = true; } // 9-4장: 기록 함정은 대기 단계 자체가 없음
-				else
+				// 03번 v0.12 8장: 응답 대기는 기본 2초이고, 기록 여부와 무관하게 웨이브 진입 전 최고 성공률 유닛이 직접 발견한 경우(AutoConfirmed)만 생략한다.
+				trap.JoinWaitTimer += deltaTime;
+				if (trap.JoinWaitTimer >= (AIConfigLoader.Behavior?.trapJoinWaitSeconds ?? ExplorationMath.TrapJoinWaitSeconds))
 				{
-					trap.JoinWaitTimer += deltaTime;
-					if (trap.JoinWaitTimer >= (AIConfigLoader.Behavior?.trapJoinWaitSeconds ?? ExplorationMath.TrapJoinWaitSeconds)) { trap.JoinWaitElapsed = true; becameElapsed = true; }
+					trap.JoinWaitElapsed = true;
+					// 응답 대기가 막 끝난 시점에 파티의 예상 성공률 비교로 실제 해제 담당을 선정한다. AutoConfirmed는 발견 즉시 이미 확정돼 있어 다시 선정할 필요가 없다.
+					if (!trap.AutoConfirmed && this is Human discovererHuman)
+						TrapPartySystem.ResolveSelection(discovererHuman, trap);
 				}
-				// 대기가 막 끝난 시점에 파티 전체 성공률 비교로 실제 해제 담당을 선정한다. AutoConfirmed
-				// (웨이브 진입 전 최고 성공률 유닛)는 발견 즉시 이미 확정돼 있어 다시 선정할 필요가 없다.
-				if (becameElapsed && !trap.AutoConfirmed && this is Human discovererHuman)
-					TrapPartySystem.ResolveSelection(discovererHuman, trap);
 			}
 			else if (trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && this is Human waitingHuman)
 			{
 				// 순서도 03-12-2: 선정되지 않은 발견 유닛 — 담당자 보고 수신과 대기 기한 판정.
 				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap);
 			}
-			else if (trap.Phase == TrapPhase.Disarming)
+			// 검증문서 03-11: 진행도는 해제/파괴를 "실제로 수행 중인" 동안에만 쌓는다. Phase는 첫 수행 뒤 그대로 남으므로
+			// 조사 진행도(아래)처럼 수행 게이트(PenaltyActive/DestroyActive)가 있어야 전투·중단 중에 누적돼 50% 손실이
+			// 무력화되지 않는다(TacticalFSMState.Tick/OnExit가 수행이 끊기면 이 플래그를 내린다).
+			else if (trap.Phase == TrapPhase.Disarming && trap.PenaltyActive && !stunned)
 			{
 				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / (AIConfigLoader.Behavior?.trapDisarmDurationSeconds ?? ExplorationMath.TrapDisarmDurationSeconds));
 				// 9-7/9-8장(2026-07-27 추가): 함정 바로 아래 진행 막대 갱신 — 실제 해제 중일 때만.
@@ -1052,7 +1054,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 					trap.CachedProgressBar = Session.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>();
 				if (trap.CachedProgressBar != null) trap.CachedProgressBar.SetProgress(trap.DisarmProgress01, true);
 			}
-			else if (trap.Phase == TrapPhase.Destroying && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
+			else if (trap.Phase == TrapPhase.Destroying && trap.DestroyActive && !stunned && Session != null && Session.objectGrid.TryGetValue(trap.TrapPosition, out var trapObj))
 			{
 				trapObj.TrapHp = Mathf.Max(0f, trapObj.TrapHp - physicalAttack * ExplorationMath.TrapDestroyDamagePerSecondPerAttack * deltaTime);
 			}

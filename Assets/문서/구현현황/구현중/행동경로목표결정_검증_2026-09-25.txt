@@ -11,22 +11,37 @@ GrimArchive 행동경로·목표설정 시스템 — 07번 검증항목 문서 �
 　　　　　　N/A해당없음(그 기능 자체가 아직 코드에 없어 검증 대상이 성립 안 함, 스텁 허용 영역)
 
 ════════════════════════════════════════════════════════════════════════
-■ 세션 재개용 요약 (2026-09-29, 세션 중단 시점)
+■ 세션 재개용 요약 (2026-09-30, 세션 중단 시점)
 ════════════════════════════════════════════════════════════════════════
 진행 상황: 0장(문서 리뉴얼 대조) + 00-01~00-08 + 01-01~01-11 + 02-01~02-11(02번 문서 전체 종료)
-+ 03-01~03-11 조사 완료(03-10은 발견 사항 전부 수정 — Unity 테스트·플레이 검증 대기, 03-11은 발견 사항의 수정 여부를
-사용자 확인 대기 중 — 코드 미수정). **다음 재개 지점은 03-12(함정 해제 담당자 선정과 미기록 함정)이며, 03-11 수정 결정이
-먼저 나면 그것부터 처리.**
-(03-11, 2026-09-30) ❌불일치, 코드 수정 없음(사용자 확인 대기) — 50% 기준·중단 사건 대부분·도감 기록은 정확. 실제 버그 2건:
++ 03-01~03-12 조사 완료(03-10·03-11·03-12는 발견 사항 수정 완료 — Unity 테스트·플레이 검증 대기).
+**다음 재개 지점은 03-13(일반 함정 회피와 전투·긴급 보호 통과) — 03-12로 비차단 함정이 집결·이동 중 방치될 수 있게 됐으므로 일반 이동의 활성
+함정 회피 유무를 먼저 볼 것.**
+(03-12, 2026-09-30 발견 → 같은 날 수정 완료) ❌불일치 → ✅ — 사용자 선택("문서대로 복원 + ②③④ 수정")으로 ①~④ 전부 반영(성공률 우선 선정 +
+입장 전 최고 성공률 스냅샷 Party.EntryBestDisarmerNames + 집결·공동 이동·귀환 중 새 담당 금지(경로를 막는 함정만 예외, 보류한 함정은 Deferred 기록) +
+후보 필터 보강 + 문서 근거 없는 "기록 함정 대기 없음" 분기 삭제). dotnet build 오류 0(경고 71개, 기존과 동일). 상세는 03-12 항목 [수정 완료] 참고.
+발견 당시 내용 — 미기록 함정 최초 1회 시도·2초 응답 대기는 정확. 문서와 다른 곳:
+(a) 선정 기준이 성공률이 아니라 도착시간뿐(TrapPartySystem.ResolveSelection :150-168), (b) 2초 생략 조건이 "웨이브 진입 전 최고 성공률
+유닛"이 아니라 "파티에서 함정과 가장 가까운 발견자"(IsClosestPartyMember :121) — 문서가 금지한 "근처 기준"이라 사실상 발견자가 항상
+즉시 담당 — (a)(b)는 2026-09-04 사용자 요청 커밋 1ae4e00("단순화")이 07-27의 문서 근사 구현을 의도적으로 후퇴시킨 것이라 되돌릴지
+사용자에게 물었고 복원을 선택했다, (c) 집결·공동 이동·귀환 중 새 해제 담당 금지 미구현(실제 갭 — 조사 쪽 CanInvestigate :231-239에는 있고
+함정 쪽에만 없어 TrapResponse가 Wait보다 앞선 BT에서 집결이 함정에 끌려 이탈), (d) 후보 필터에 발견자·전투 합류자·귀환·정보 미보유 누락.
+제안·결과는 03-12 항목 참고(집결 경로를 막는 함정의 판정은 03-13/04-9의 IsBlockingPath 목적지 확대와 같은 뿌리 — 이번엔 별도 함수로만 판정).
+(03-11, 2026-09-30 발견 → 같은 날 수정 완료) ❌불일치 → ✅ — 50% 기준·중단 사건 대부분·도감 기록은 정확했고 실제 버그 2건:
 (F1) 해제·파괴 진행도가 UnitFunction.OnUpdate에서 FSM 상태와 무관하게 계속 누적(Phase가 Disarming으로 남고 조사 진행도와
 달리 PenaltyActive 게이트 없음) → 전투·중단 중에도 쌓여 50% 손실이 몇 초 만에 복구되고 함정 아래 진행 막대가 다시 켜짐,
 (F2) 웨이브 종료 시 진행도 제거 없음 — 이전 웨이브 생존자가 새로 스폰되지 않고 재합류(HumanWaveManager :202-225)하는데
 currentTrapInteraction을 정리하지 않아 대응 상태·진행도가 이월. 갭: 함정 발동 사건이 해제자에게 안 닿음(발동 지점이
 TriggerTrapIfStepped/TrapPass 두 곳), Panic/JoinCombatWait의 중단 처리 부재, 일시 중단(피격·위협)이 곧장 TrapBypass(포기)로
-이어져 잔여 진행도·재개 소멸, 함정 이동 리프의 stuck 탈출 부재, TrapDestroy의 파괴 가능 속성 미확인. 통과 조건(문맥
-없이 HP 50% 통과, 아군 보호 예외에 대상 HP 조건 없음)·전투 중 함정 처리(Combat에 함정 인지 없음)·IsBlockingPath 목적지
-범위는 03-13/04-9로 이월. v0.6 9-2~9-13 원문을 처음 대조했다("기록"=최초 시도 이후 예상 성공률 기록, 통과는 즉시 이동
-상황에서만, "함정이 작동함"도 중단 사건). 수정 제안 ①~⑦은 03-11 항목 [Claude 의견] 참고.
+이어져 잔여 진행도·재개 소멸, 함정 이동 리프의 stuck 탈출 부재, TrapDestroy의 파괴 가능 속성 미확인. v0.6 9-2~9-13 원문을
+처음 대조했다("기록"=최초 시도 이후 예상 성공률 기록, 통과는 즉시 이동 상황에서만, "함정이 작동함"도 중단 사건).
+사용자 위임("최대한 공식문서쪽 방향으로 네가 결정해서 해봐")으로 열린 질문 3개를 v0.6 원문 근거로 정하고 EnterPlanMode 설계·승인 후
+전부 수정: 진행도는 '수행 중' 게이트(PenaltyActive/DestroyActive, 기절 중 제외)로만 누적 + TacticalFSMState.Tick이 수행 없이 끝난
+틱을 중단으로 감지, 함정 발동 단일 진입점 GameSession.ActivateTrap(밟음에도 작동음·해제자 중단), 일시 중단은 양보 후 재개(대응
+상태·50% 진행도 유지), 웨이브 종료 시 Human.ClearInteractionProgress, 함정 이동 stuck 탈출, TrapDestroy 파괴 가능 속성 확인.
+dotnet build 오류 0(경고 71개, 기존과 동일). 통과 조건(문맥 없이 HP 50% 통과, 아군 보호 예외에 대상 HP 조건 없음)·전투 중 함정
+처리(Combat에 함정 인지 없음)·IsBlockingPath 목적지 범위·v0.6 12-6 "해제 실패 → 함정 결과 적용"(정의 없음)은 03-13/04-9로 이월.
+상세는 03-11 항목 [수정 완료] 참고.
 (03-10, 2026-09-29 발견 → 2026-09-30 수정 완료) ❌불일치 → ✅ — 현재 구현이 개정 전 03문서(v0.6) 9-7장
 방식("선정 순간 발견자가 직선거리÷기본속도로 ETA를 1회 계산해 고정 + 3초 초과 시 담당자 마지막 위치로
 찾아감")이라, 03번 v0.12 8장의 "담당자가 (예상시간, 계산 시점)을 재계산·전달 → 대기자는 더 최근이고 도착
@@ -4004,7 +4019,8 @@ Human 기반 8개(집결 전환 2개[미착수 해제·시작한 해제 유지 /
 ────────────────────────────────────────────────────────────────────────
 
 ## 03-11  함정 해제·우회와 진행도 중단 — ❌불일치(실제 버그 2건 + 갭 다수 발견, 통과 조건·전투 중 함정
-   처리는 03-13/04-9와 겹쳐 그쪽으로 분리) — 코드 수정 없음, 수정 여부·방향 사용자 확인 대기
+   처리는 03-13/04-9와 겹쳐 그쪽으로 분리) → ✅수정 완료(2026-09-30, 사용자 위임 "공식문서 방향으로 네가 결정") —
+   Unity 테스트·플레이 검증 대기
 
 [검증할 내용] 기록된 함정의 해제 선택 기준과 해제 중단 사건을 적용하는가. 전투 중 해제를 중단한 뒤
 필요한 이동에 따라 우회·통과·파괴로 이어지는가. 실제 중단 진행도는 기존 규칙을 적용하는가.
@@ -4089,7 +4105,7 @@ Human 기반 8개(집결 전환 2개[미착수 해제·시작한 해제 유지 /
 (TrapBypass)로 이어짐, 함정 이동 리프의 stuck 탈출 부재, TrapDestroy의 파괴 가능 속성 미확인. 통과 조건과 전투 중 함정
 처리는 03-13/04-9로 넘긴다.
 
-[Claude 의견 / 수정 제안 — 전부 사용자 확인 대기, 아직 아무것도 고치지 않았다]
+[Claude 의견 / 수정 제안 — 원본 기록. 2026-09-30 ①~⑥ 반영됨(아래 [수정 완료] 참고), ⑦은 03-13/04-9로 이월]
 ① (버그·중) F1(+2번 Panic/JoinCombatWait) — 진행도·파괴 누적을 "실제로 수행 중인 동안"에만: 조사 진행도와 같은
    PenaltyActive 게이트 + Panic/JoinCombatWait 등 TrapResponse를 건너뛰는 분기가 실행될 때도 중단 처리(페널티·진행도
    ×0.5)를 걸고, 파괴 누적은 인접 + 수행 중 게이트. FSM 타이밍이 얽혀 EnterPlanMode 권장.
@@ -4109,8 +4125,234 @@ Human 기반 8개(집결 전환 2개[미착수 해제·시작한 해제 유지 /
    우회의 실제 경로 회피 — 03-13/04-9에서 이어서 검증한다.
 권장: ②③⑤⑥은 작고 독립적이라 바로, ①④는 EnterPlanMode로 순서 설계 후(03-10과 같은 방식).
 
+[수정 완료, 2026-09-30] 사용자 지시("너가 최대한 공식문서쪽 방향으로 하는거로 결정해서 해봐") → EnterPlanMode로 설계·승인 후 ①~⑥ 전부
+반영했다(⑦은 03-13/04-9 이월). dotnet build Assembly-CSharp.csproj -t:Rebuild 오류 0(경고 71개, 기존과 동일). Unity 테스트 실행·
+플레이 검증은 아직 안 함.
+
+확정한 결정(열린 질문 — 전부 v0.6 원문 근거로 내가 정함):
+- 웨이브 종료 시 정리 범위: 조사·해제 진행도 둘 다 제거하고 그 외 일시 상태(currentWait/currentAlertSearch 등)는 손대지 않는다 —
+  v0.6 5-6(354줄)·9-9(685줄)·12-4/12-6 표·"조사·해제 진행도 제거 | 웨이브 종료 시 제거"(922줄)·06 문서 56줄이 진행도만 명시.
+- 밟아서 발동할 때의 작동음: 모든 발동에서 낸다 + 발동 지점을 하나로 통합 — 07-A "함정 작동음 | 함정 발동 위치 | 주위 5칸", 07 14장.
+- 중단된 해제: 재개한다(대응 상태·50% 진행도 유지) — v0.6 12-2 "미식별 공격 수색 15초 완료 → 상호작용 재개"·5-7 재개 조건·9-9
+  "유지 중인 해제 진행도", v0.12 9장 "전투 중에는 해제를 다시 시작하지 않는다", 순서도 03-13 "우선 대응 계속"·03-14.
+- v0.6 12-6 "해제 실패 → 함정 결과 적용 후 재판단": 이번엔 구현하지 않는다 — "함정 결과"(피해량·발동 여부)의 정의가 문서에 없어
+  따를 방향이 없다(신규 발견, 보고만).
+- 조사 진행도의 같은 구멍(Tactical 내부 분기 전환 시 OnExit 미호출 — FSMBehaviorTests의 KnownGap 테스트가 현행 동작을 고정)은
+  이번 범위(함정)가 아니라서 건드리지 않는다.
+
+설계:
+① 진행도 누적 게이트 + 중단 감지(F1, Panic/JoinCombatWait): UnitFunction.OnUpdate는 해제 Phase==Disarming && PenaltyActive,
+  파괴 Phase==Destroying && DestroyActive일 때만 누적한다(조사 진행도와 같은 게이트 방식, 기절 중엔 ExecuteAction이 막혀 Tick/OnExit이
+  중단을 못 잡으므로 stunDuration>0도 제외). TrapDisarmPerform/TrapDestroy가 수행 시 PerformedThisTick=true(+PenaltyActive/
+  DestroyActive)를 켜고, TacticalFSMState.Tick이 틱 전 PerformedThisTick=false → BT 실행 → 같은 상태 객체인데 수행 없이 끝났으면
+  TrapPartySystem.ApplyDisarmInterruptPenalty(PenaltyActive일 때만 진행도 ×0.5·막대 숨김, 1회 가드)와 DestroyActive=false를 건다 —
+  Panic·JoinCombatWait를 포함해 어떤 상위 분기가 가로채도 한 곳에서 잡힌다. OnExit도 같은 함수를 쓰고 DestroyActive를 내린다.
+④ 일시 중단 ≠ 포기(G2): 신규 AlertSearchState.IsUnidentifiedAttackSearch(RecordHitWeightEvent가 자기 피격으로 만든 미식별 공격
+  경계에만 켠다 — PropagateAttackedFact로 전파받은 목격자 경계엔 안 붙음, 문서상 타인 피격은 중단 사유가 아니다)와 신규
+  IsTrapResponseInterrupted(해제자 피격·HasPerceivedThreatCollider·AnyEscortHitThisTurn·미식별 공격 수색 중 → 페널티 적용 후
+  !IsBlockingPath)를 TrapResponse 헤더 조건(IsTrapResponseBlockedBySound와 같은 패턴)에 추가했다. 양보하면 TrapResponse 전체가
+  Failure라 같은 Tactical 안에서 Alert(미식별 공격 수색 15초)가 실행되고, 원인이 사라지면 대응 상태·남은 진행도 그대로 재개된다.
+  필요한 이동을 함정이 막는 경우(IsBlockingPath)만 양보하지 않고 기존 체인(우회→통과→파괴)으로 간다(순서도 03-13/03-14).
+③ 함정 발동 단일 진입점(F3): GameSession.ActivateTrap(피해자, 함정) — (a) 피해 TrapDamageMax(현행 값 유지), (b) 함정 작동음
+  EmitSound(TrapActivation, 함정 위치), (c) 인류 피해자면 lastAttacker=null·lastTrapAttacker=함정(4-14장 사망 원인 — 몬스터는 기존 킬
+  귀속을 안 건드리려고 제외), (d) TrapPartySystem.InterruptDisarmersOf(그 함정을 해제 중인 유닛 전원 페널티, 대응 상태 유지).
+  호출부: TriggerTrapIfStepped(밟음)와 TrapPass(의도적 통과, 기존 개별 코드 대체).
+② 웨이브 종료 정리(F2): Human.ClearInteractionProgress = ClearTransientWorldVisuals + TrapPartySystem.EndResponse(TrapEndReason.
+  WaveEnded — 신규 사유, 조율 기록은 남기고 담당 배정만 해제·Concluded 미게시. 개별 탈출 시 파티가 이어지므로 배정이 남지 않게) +
+  currentInvestigation=null. HumanWaveManager.RetreatMemberToFloor0(개별 탈출·성공 시 전원 퇴각)와 EndWave(생존자 전원, 성공/실패
+  모두)가 호출한다.
+⑤ 함정 이동 stuck 탈출(G5): 신규 Unit.trapMoveStuckTurns + AIBehaviorConfig.trapMoveStuckTurnLimit(4). 공용 헬퍼
+  MoveTowardsTrapGuarded(MoveToInvestigateTarget과 같은 패턴: 체비셰프 거리가 줄었을 때만 리셋, 반경 2 이내에서만
+  FindNearbyOpenTile, 사방이 구조적으로 막혔으면 즉시·아니면 한도 초과 시 포기)를 MoveToTrap/TrapPass/TrapDestroy의 이동이
+  쓴다. 포기 = EndResponse(TrapEndReason.Unreachable — 신규 사유, 담당자면 03-10 파이프라인이 Concluded 게시) +
+  currentAlertSearch 신규 경계 + Failure("[함정] … 함정에 도달할 수 없어 대응을 포기합니다" 로그).
+⑥ TrapDestroy 파괴 가능 속성(G6): TrapMaxHp<=0 또는 물리 공격력<=0이면 파괴하지 않고 EndResponse(Bypassed)+Success(v0.12 9장
+  584~586줄 "모든 오브젝트를 파괴 가능한 것으로 취급하지 않는다", 순서도 03-11 "다른 대응"). 이전엔 공격력 0 유닛이 영구 Running.
+  PlayerCommandFSMState :109(TrapHp>0 = 아직 살아있음)는 "이미 부서졌는가"를 묻는 다른 질문이라 그대로 뒀다.
+
+변경 파일: TrapInteractionState.cs(PerformedThisTick/DestroyActive·TrapEndReason.Unreachable/WaveEnded), AlertSearchState.cs
+(IsUnidentifiedAttackSearch), TrapPartySystem.cs(ApplyDisarmInterruptPenalty·InterruptDisarmersOf·EndResponse의 WaveEnded 처리),
+TacticalFSMState.cs(Tick 래핑·IsTrapResponseInterrupted·MoveTowardsTrapGuarded·TrapPass/TrapDestroy 수정·OnExit), UnitFunction.cs
+(OnUpdate 누적 게이트·미식별 공격 경계 플래그), Unit.cs(trapMoveStuckTurns·Human.ClearInteractionProgress), GameSession.cs
+(ActivateTrap·TriggerTrapIfStepped), HumanWaveManager.cs(호출 2곳), AIBehaviorConfig.cs(trapMoveStuckTurnLimit),
+ExplorationSystemTests.cs·FSMBehaviorTests.cs.
+
+테스트(미실행 — Unity Test Runner에서 EditMode로 실행 필요): ExplorationSystemTests 3개(ApplyDisarmInterruptPenalty가 1회만 ×0.5하고 대응
+상태 유지 / InterruptDisarmersOf가 그 함정 해제자만 페널티 / ClearInteractionProgress가 함정 대응·조사를 지우고 담당 배정만 해제) +
+FSMBehaviorTests 3개(진행도가 수행 중일 때만·기절 중엔 안 쌓임 / Tactical 안에서 피격 시 ×0.5 1회+대응 상태 유지 / 전투 합류 대기가
+틱을 가로채도 중단 처리+상태 유지). 코드 추적으로 세션 없이도 위 경로가 실행됨을 확인했다(Combat 우선순위 0, TrapResponse가 헤더에서
+양보 → 나머지 분기 Failure → fallbackRunning). Session이 필요한 경로(stuck 포기·파괴 확인·ActivateTrap·웨이브 종료 호출부)는 테스트 없이
+코드 추적으로만 점검했다.
+
+플레이 확인 시나리오: (1) 전투로 끊긴 해제의 함정 아래 진행 막대가 전투 중 다시 차오르지 않는다 / (2) 미식별 공격에 피격 뒤 15초 수색을
+마치면 해제가 50% 진행도에서 재개된다 / (3) 다른 유닛(몬스터 포함)이 함정을 밟으면 해제 진행도가 절반이 되고 작동음이 난다 /
+(4) 도달 불가능한 함정(막힌 통로 등) 앞에서 몇 틱 뒤 포기하고 경계로 전환한다 / (5) 웨이브를 넘긴 생존자에게 낡은 함정·조사 상태가 없다.
+
+알려진 한계·행동 변화: (1) 밟음에도 함정 작동음이 나므로 주변 인류(피해자 본인 포함)가 함정작동음 경계를 발동한다(이전엔 TrapPass만) —
+플레이 확인 필요. (2) 인류가 알지 못한 채 밟고 죽어도 이제 lastTrapAttacker가 기록돼 사망 원인이 함정으로 확정된다(4-14장 — 목격자가
+있으면 즉시, 없으면 시체 발견 시점. 이전엔 낡은 lastAttacker/null이 남아 엉뚱한 몬스터 원인이나 원인미상 수색으로 갈 수 있었다). (3) 일시 중단 양보의 "필요한 이동을 막는가"는 여전히 playerMoveTarget·currentInvestigation 목적지만 본다(03-13) — 그 외 상황은
+"막지 않음"으로 보고 양보·재개한다. (4) 도달 불가로 포기한 함정은 조율 기록이 남아 재선정되지 않는다(우회·통과와 같은 관례). (5) 전투(Combat
+FSM) 중 함정 인지·통과 문맥 게이팅·우회의 실제 경로 회피는 03-13/04-9, 전투 정보 수신 시 함정 대응자의 합류 여부(v0.6 9-10 vs 07-A
+CanRespondToJoinRequest 충돌)는 판단 유보 그대로다.
+
+────────────────────────────────────────────────────────────────────────
+
+## 03-12  함정 해제 담당자 선정과 미기록 함정 — ❌불일치(선정 기준·응답 생략 조건은 2026-09-04 사용자 요청
+   "단순화"로 문서와 달라진 상태, 집결·방 이동 중 새 담당 금지는 미구현, 후보 필터 보강 필요) → ✅수정 완료
+   (2026-09-30, 사용자 선택 "문서대로 복원 + ②③④ 수정") — Unity 테스트·플레이 검증 대기
+
+[검증할 내용] 전환 가능한 유닛 중 성공률·도착시간으로 해제 담당자를 정하고, 응답 대기 생략과 미기록 함정의
+예외를 구분하는가.
+
+[근거 문서] 03번 v0.12 8장(424~449줄 — 428~432 후보·선정, 436~441 응답 대기와 생략, 445~449 기록 여부)·0장 집결 표(28줄)·
+1장 사건표(50~51줄)·2장(65~66줄)·순서도 03-10/03-11(drawio 원본), 05번 v0.12 4장(247·287~288줄, 순서도 05-03 "새 상호작용을
+시작하지 않고 집결 위치로 이동 → 집결 경로·장애물 대응"), 04번 v0.12(452~456줄), v0.6 9-2~9-5(시야인지반응 폴더 562~611줄)·
+12-6(824~846줄). 순서도 03-10의 실제 흐름: 함정 정보 확보 → 후보 확인(유지해야 할 전투·조사·보호 등 제외) → "입장 전 최고
+성공률로 확인된 후보의 직접 발견인가?" 예: 응답 대기 없이 그 유닛 선정 / 아니요: 응답 2초 수신 → 후보 있음: 성공률 최고 1명
+(동률이면 해제 위치까지 짧은 도착시간), 없음: 우회·파괴·다른 행동 판단. 순서도 03-11: 기록 함정? 아니요: 최초 1회 시도 / 예:
+담당자 예상 성공률 > 50%? 예: 해제 의사·도착시간 전달, 아니요: "해제 합류 의사 없이" 우회·파괴 판단.
+
+[근거 — 항목별]
+1. "유지해야 하는 전투·조사·해제·보호 참가자는 후보에서 제외한다" → 🔶
+   ✅ CanSwitchToTrapResponse(TrapPartySystem :185-192)가 다른 함정 대응 중(:187)·조사 중(:188)·보호 포메이션(:189)·전투
+      (personalSpottedEnemies > 0 :190 — 명시적 전투 플래그가 없어 근사)를 제외하고, 선정 루프(:156-161)가 사망·재선정 제외
+      목록·전파 범위(CanPropagate — 전투 중이면 false, PropagationSystem :350-355)도 거른다.
+   ❌ 발견자는 이 필터를 거치지 않는다: ResolveSelection이 best = discoverer로 시작하고(:153) OnTrapDiscovered가 조건 없이
+      발견자에게 대응 상태를 준다(:71-84). TrapResponse가 BT에서 Investigate·Wait보다 앞이라(TacticalFSMState :46-49) 조사·집결
+      등 "유지해야 하는" 행동 중인 발견자도 대기자/담당이 되어 그 행동을 밀어낸다(조사 중이면 InvestigatePerform이 켜 둔
+      PenaltyActive가 그대로라 진행도가 계속 쌓이는 기존 구멍 — 03-11 이월 항목과 같은 뿌리). 문서가 발견자 자신의 필터링을
+      명시하진 않는다(v0.6 9-2는 발견 유닛을 성공률 "확인 대상"에 포함하고 담당만 "전환 가능한 유닛 중" 선정).
+   🔶 문서가 열거한 "도주·후퇴"(v0.6 9-2)와 전투 합류 대기 중인 합류자(currentJoinCombatWait)는 후보에서 안 빠진다 — 같은
+      성격의 합류 후보 필터 CanRespondToJoinRequest(PropagationSystem :602-609)는 currentJoinCombatWait를 제외하는 비대칭.
+      귀환(WaitReason.Retreating)도 마찬가지(6번 참고).
+   🔶 후보가 그 함정 정보를 실제로 받았는지는 보지 않는다 — 최초 전파(OnTrapDiscovered :46-53)는 발견 순간의 전파 범위였는데
+      선정은 2초 뒤의 범위를 다시 판정하므로(:160) 정보를 못 받은(personalMap.IsObjectKnown == false) 유닛도 선정될 수 있다.
+
+2. "예상 성공률이 가장 높은 한 명을 고르고 동률이면 해제 위치까지 예상 도착시간이 짧은 유닛" → ❌ (사용자 요청에 따른 의도된 이탈)
+   ResolveSelection(:150-168)은 도착 예상시간(EstimateRemainingSecondsToInteract, 03-10 검증분)만 비교하고 성공률은 어디서도
+   참조하지 않는다(ExplorationMath.TrapDisarmSuccessRate의 호출부는 실제 해제 시도 TacticalFSMState :519 하나뿐). TrapPartySystem
+   머리 주석(:5-6)·:66·:120이 밝히듯 2026-09-04 사용자 요청 커밋 1ae4e00("단순화")이 07-27 구현(rate > bestRate ||
+   (동률 && eta < bestEta))을 "가장 가까운 1명"으로 바꿨다 — 07-27 구현은 문서와 대체로 맞았고(입장 전 스냅샷만 발견 시점 비교로 근사)
+   이후 의도적으로 후퇴한 상태다. 09.25 문서는
+   성공률 우선을 다시 명시한다(v0.12 428~430줄, v0.6 9-2 579~582줄, 순서도 03-10). 부수: ETA가 같으면 발견자가 이긴다(엄격
+   부등호 :164) — 문서는 이 동률을 규정하지 않는다.
+
+3. "기본 응답 대기는 2초이며 입장 전 파티 최고 성공률로 확인된 유닛이 직접 발견한 경우만 생략한다. 근처 유닛 중 최고라는 이유만으로
+   생략하지 않는다" → ❌ (2초 자체는 ✅)
+   ✅ 기본 2초: ExplorationMath.TrapJoinWaitSeconds = 2f(:32, AIBehaviorConfig로 조정 가능), 발견자는 그 자리에서 대기(TrapJoinWait
+      :426-431, 타이머 UnitFunction :1033-1036 — FSM 판단 주기와 무관하게 실제 경과 시간).
+   ❌ 생략 조건: OnTrapDiscovered(:67)가 IsClosestPartyMember(:121-131) — "파티에서 함정과 가장 가까운 발견자"면 2초 없이 즉시
+      확정(AutoConfirmed)한다. 문서가 금지한 "근처 기준" 그 자체이고 성공률과 무관하다. 문서가 요구하는 "웨이브 시작 전에 확인된
+      파티 내 최고 성공률 유닛" 스냅샷은 Party 어디에도 없다(GameSession.CreateParty :891-911가 그 시점이지만 계산하지 않는다) —
+      옛 구현은 발견 시점의 성공률 비교(IsHighestPartySuccessRate)로 근사했었다(1ae4e00 이전). 결과: 발견자가 함정에 가장 가까운
+      게 보통이라 사실상 항상 즉시 확정 → 2초 응답·파티 선정 경로(ResolveSelection)는 더 가까운데 발견하지 못한 파티원이 있을
+      때만 실행된다(지금은 "발견자가 처리"에 가깝다). IsClosestPartyMember는 2D 거리만 보고 층·전파 범위는 무시한다.
+   🔶 UnitFunction :1032 "기록 함정은 대기 단계 자체가 없음" 분기는 옛 문서(07-27) 흔적(TrapInteractionState :34-36 주석 "기록된
+      함정이거나 … 즉시 true")으로 현행 v0.6 9-4/v0.12 8장엔 근거가 없다("기록된 함정도 해제 유닛을 먼저 선정한 뒤…"). 다만 발견
+      이벤트가 첫 인지 때만 발생하고(UnitFunction :633 !IsObjectKnown) 기록은 이후 시도로만 생기므로 발견자가 그 함정을 이미
+      기록한 상태는 거의 도달하지 않는다 — 실제 영향은 작다.
+
+4. "미기록 함정은 최초 해제를 한 번 시도하고 …" → ✅
+   IsDisarmWorthy(:347-355)가 미기록이면 true, TrapDisarmPerform(:519-520)이 시도 시점에 예상 성공률을 기록하고(PersonalMapKnowledge
+   :377-390 — 개인 소유) 이후엔 기록 기준(> 50% 엄격)으로 판정한다 — 03-11 1번과 같은 근거.
+
+5. "기록된 함정에서 성공률이 낮아 해제하지 않을 유닛은 불필요한 합류 의사를 보내지 않는다" → 🔶
+   "합류 의사"가 코드에 별도 개념으로 없다(선정 즉시 대응 상태를 부여). 해제 여부 판단(IsDisarmWorthy)은 이미 선정된 유닛 한 명에게만
+   적용된다 → 2번(선정이 성공률을 안 봄)과 결합하면 "기록·저성공률 유닛이 가장 가깝다는 이유로 선정 → 곧바로 우회·파괴로 빠지고,
+   해제할 수 있는 다른 후보는 기회를 못 얻는" 경로가 생긴다(문서 흐름은 해제하지 않을 유닛을 후보 단계에서 거른다 — 순서도
+   03-11). v0.6 9-3의 합류 의사 머리 위 대화 텍스트 연출도 없다(연출 — 문서의 필수 조건은 아님).
+
+6. "집결·방 이동 명령 중에는 다른 목표를 위한 새 해제 담당으로 합류하지 않으며, 집결·공동 이동 경로를 확보하는 함정 대응에만 기존
+   선정 조건을 적용한다" → ❌ [실제 갭]
+   후보 필터(:185-192)와 발견자 처리(:71-84) 어디에도 currentWait·Party.IsRallyActive 확인이 없다. TrapResponse(BT 3번째)가
+   Wait(6번째)보다 앞이라(TacticalFSMState :46-49) 집결(AwaitingPartyAtRallyPoint)·공동 이동(AdvancingToNextRoom, HumanWaveManager
+   :665-667)·귀환(Retreating :631-632) 중인 유닛이 (a) 발견자로서 응답 대기를 시작하거나 (b) 후보로서 선정되면 그 이동을 멈추고 함정
+   일을 한다 — 집결 경로를 막지 않는 함정이어도.
+   - 비교: 일반 조사는 같은 규칙이 이미 있다 — CanInvestigate(:231-239)가 currentWait 사유가 집결·공동 이동·코어 보고·귀환이면 새
+     조사를 시작하지 않는다(00-04/01-06~01-08 검증분). 함정 쪽에만 그 게이트가 없다.
+   - 집결지 도착 후에는 currentWait이 비워지므로(TacticalFSMState :846) 집결이 끝나길 기다리는 유닛은 currentWait만으로 구분되지
+     않는다 → Party.IsRallyActive(Party.cs :228-282)도 봐야 한다.
+   - 03-10의 ReleaseForRally(Party.TryStartRally :279)는 집결 명령 시점에 이미 있던 미착수 대응만 접는다 — 명령 이후 새로 생기는
+     대응은 안 막고, 공동 이동/귀환 명령엔 그 처리도 없다.
+   - "집결 경로를 막는 함정만 절차 적용"의 판정 재료인 IsBlockingPath(:357-401)는 목적지를 playerMoveTarget·currentInvestigation에서만
+     얻어 집결지·문 대기 자리를 모른다 → 03-13/04-9 이월 항목(IsBlockingPath 목적지 확대)과 같은 뿌리.
+
+7. (검증 의도) "복수 해제자가 불필요하게 몰리거나 잘못된 최고 성공률 기준으로 응답 대기를 생략하지 않도록" → 전반 ✅ / 후반 ❌
+   몰림은 조율 기록(TrapCoordinations.ContainsKey :34 — 첫 발견자만 처리 개시, SelectionLocked)으로 막힌다(재선정 뒤 이전 담당자가
+   이미 시작한 경우의 이중 담당은 03-10 알려진 한계). 잘못된 기준으로 생략하는 문제는 3번 그대로다.
+
+[내용 요약] 미기록 함정 최초 1회 시도와 2초 응답 대기 자체는 정확하다. 그러나 (a) 선정 기준이 성공률이 아니라 도착시간뿐이고, (b) 2초
+생략 조건이 "웨이브 진입 전 최고 성공률 유닛"이 아니라 문서가 금지한 "가장 가까운 유닛" 기준이라 사실상 발견자가 항상 즉시 담당이
+된다 — 둘 다 2026-09-04 사용자 요청 "단순화"(1ae4e00)로 07-27의 문서 근사 구현에서 의도적으로 후퇴한 것. (c) 집결·공동 이동·귀환 중 새
+해제 담당 금지가 함정 쪽에만 없어(조사 쪽엔 이미 있음) 집결이 함정에 끌려 이탈하고, (d) 후보 필터에 발견자·전투 합류자·귀환·정보 미보유가
+빠져 있다.
+
+[Claude 의견 / 수정 제안 — 원본 기록. 2026-09-30 ①~④ 전부 반영됨(아래 [수정 완료] 참고)]
+① (사용자 결정 필요 — 2026-09-04 사용자 요청과 충돌) 선정을 문서대로 복원: 후보 = 전환 가능(③) + 함정 정보 보유 + 해제할 유닛(미기록
+   또는 기록 예상 성공률 > 50% — 순서도 03-11 "해제 합류 의사 없이 다른 대응"), 순위 = TrapDisarmSuccessRate 최고 → 동률이면 ETA.
+   응답 생략 = GameSession.CreateParty(:891)에서 "입장 전 최고 성공률 유닛"을 스냅샷(Party 필드 신설)하고 그 유닛이 직접 발견한 경우만.
+   열린 질문: (a) 09-04 단순화를 되돌릴지, (b) 입장 전 최고 성공률이 동률일 때 — 자리표시자 공식이 concentration·레벨만 봐서 같은 종류·
+   레벨이면 흔하고 문서엔 동률 규칙이 없다. 동률 전원을 "최고"로 인정하는 것이 논리에 맞다(아무도 더 높지 않으니 응답을 기다릴 이유가
+   없다 — 옛 IsHighestPartySuccessRate의 엄격 > 비교와 같은 결과).
+② (버그·중) 집결·공동 이동·귀환 중 제외 — CanInvestigate :231-239와 같은 게이트(currentWait 사유 ∈ {AwaitingPartyAtRallyPoint,
+   AdvancingToNextRoom, Retreating}) + Party.IsRallyActive를 발견자·후보 양쪽에 적용, 예외는 그 이동 경로를 함정이 막을 때만
+   (IsBlockingPath 목적지에 집결지·문 대기 자리 추가 — 03-13/04-9와 같은 뿌리라 함께 처리 권장). 열린 질문: 코어 보고 이동
+   (ReportingCoreToLeader)은 문서가 이 규칙에서 언급하지 않는다(03번 3번 항목은 집결 명령도 무시하고 계속하는 예외).
+③ (소) 후보 필터 보강 — currentJoinCombatWait(CanRespondToJoinRequest와 대칭)·함정 정보 보유(personalMap.IsObjectKnown)·귀환.
+   발견자가 조사 중일 때는 문서가 침묵해 판단 유보 — 03-11 이월 항목(조사의 Tactical 내부 중단 구멍)과 함께 다룰 것.
+④ (소) "기록 함정은 대기 단계 없음" 분기(UnitFunction :1032) 제거 — 문서 근거 없음, 도달 가능성도 낮음. IsClosestPartyMember는 ①로
+   대체되며 함께 삭제.
+권장: ②③④는 작고 문서 근거가 분명해 바로 진행 가능(②는 FSM 우선순위·타이밍이 걸려 EnterPlanMode 권장), ①은 사용자의 09-04 결정을
+되돌리는 것이라 확인 후.
+
+[수정 완료, 2026-09-30] 사용자 선택("문서대로 복원 + ②③④ 수정") → EnterPlanMode로 설계·승인 후 ①~④ 전부 반영했다.
+dotnet build Assembly-CSharp.csproj -t:Rebuild 오류 0(경고 71개, 기존과 동일). Unity 테스트 실행·플레이 검증은 아직 안 함.
+
+확정한 결정(사용자 답변 1건 + 문서가 침묵해 내가 정한 3건 — 이상하면 정정 요청):
+- 사용자: 2026-09-04 "가장 가까운 1명" 단순화(1ae4e00)를 되돌리고 문서대로 복원한다.
+- 입장 전 최고 성공률이 동률이면 동률 전원을 "최고"로 인정한다 — 문서에 동률 규칙이 없고, 아무도 더 높지 않아 응답을 기다릴 이유가
+  없으며, 옛 IsHighestPartySuccessRate의 엄격 > 비교와 같은 결과다.
+- 코어 보고 이동(ReportingCoreToLeader)도 제외 대상에 넣는다 — 문서가 이 규칙에서 언급하지 않아 CanInvestigate와 같은 4종으로 통일.
+- 발견자가 조사 중일 때는 문서가 침묵해 건드리지 않는다(03-11 이월 항목 — 조사의 Tactical 내부 중단 구멍과 함께 다룰 것).
+
+설계:
+① 선정: 후보 = 전파 범위 안 + 전환 가능 + 함정 정보 보유 + 해제할 유닛(미기록 또는 기록 예상 성공률 > 50%), 순위 =
+  ExplorationMath.IsBetterTrapDisarmCandidate(성공률 우선, 동률이면 도착시간, 완전 동률은 발견자 유지) — TrapPartySystem.ChooseDisarmer
+  (세션 없이 테스트할 수 있게 전파 범위 조건을 주입). 해제할 후보가 없으면 발견자가 그대로 맡아 BT 체인으로 우회·파괴·다른 행동을 판단한다
+  (순서도 03-10 마지막 분기). 50% 규칙은 TrapPartySystem.WouldAttemptDisarm 한 곳(TacticalFSMState.IsDisarmWorthy가 호출). 성공률은
+  기록이 있으면 그 기록, 없으면 스탯 공식(TrapDisarmSuccessRate, 이해도 0 — 실제 해제 시도와 같은 호출).
+  응답 대기 생략: Party.EntryBestDisarmerNames(신규) — GameSession.CreateParty가 파티 생성 시점에 스탯 기반 성공률 최고 유닛(동률 전원)을
+  스냅샷하고, 그 유닛이 해제할 유닛일 때 직접 발견하면 즉시 확정한다(스폰 시 SetupStats가 파생 스탯을 이미 계산해 둠). IsClosestPartyMember와
+  UnitFunction의 "기록 함정은 대기 없음" 분기는 삭제(④).
+② 집결·이동 중 제외: TrapPartySystem.IsCommittedToPartyMovement — currentWait 사유 4종(집결/공동 이동/코어 보고/귀환, CanInvestigate와 동일)
+  또는 집결 진행 중이면서 집결지 반경 1.5 안(도착하면 currentWait이 비워지므로; 명령을 못 받은 먼 파티원은 제외). 예외는 그 이동 경로를 함정이
+  막을 때만: TacticalFSMState의 BFS를 IsRouteBlockedByTrap으로 분리(기존 IsBlockingPath 호출부 동작 불변)하고 목적지에 대기 위치·리더 위치·
+  집결지를 넣어 판정한다. OnTrapDiscovered: 발견자가 (committed && 경로를 안 막음)이면 정보 전파·인접 1칸 회피(9-6장)는 그대로 하고 대응
+  (응답 대기·선정)만 시작하지 않는다 — 조율 기록은 Deferred=true로 남겨 지속 재전파(TickOngoingPropagation)를 유지하고, 이후 집결·이동 중이
+  아닌 유닛이 처음 발견하면 그 기록을 이어받아 표준 절차를 시작한다.
+③ 후보 필터(TrapPartySystem.IsDisarmCandidate): 기존 4종(다른 함정 대응·조사·보호 포메이션·전투) + 전투 합류 대기(currentJoinCombatWait,
+  PropagationSystem.CanRespondToJoinRequest와 대칭) + 함정 정보 보유 + 집결·이동 중 제외 + 해제할 유닛 + 재선정 제외 목록.
+④ 정리: IsClosestPartyMember·recorded 분기 삭제, TrapPartySystem·TacticalFSMState·TrapInteractionState 주석 정정.
+부수: 콘솔 로그 "[함정] X: 담당 선정 Y (예상 성공률 N%)", "[함정] X: 집결·이동 중이라 함정 대응을 보류합니다(기록만)". IsRouteBlockedByTrap은
+시작점이 지형 정보 밖이면 "막지 않음"으로 본다(실제 유닛은 항상 안이라 게임 동작 그대로, 세션 없는 테스트 안전장치).
+
+변경 파일: ExplorationMath.cs, Party.cs, TrapPartyCoordination.cs, TrapPartySystem.cs, GameSession.cs(CreateParty 스냅샷 1줄), TacticalFSMState.cs
+(IsDisarmWorthy·BFS 분리·주석), UnitFunction.cs(recorded 분기), TrapInteractionState.cs(주석), ExplorationSystemTests.cs.
+
+테스트(미실행 — Unity Test Runner에서 EditMode로 실행 필요): ExplorationSystemTests 14개 — 순수 3(비교 함수 / WouldAttemptDisarm 50% 엄격 / 입장 전 최고
+스냅샷 단일·동률) + ChooseDisarmer 5(성공률 높은 먼 유닛이 이김 / 동률이면 가까운 쪽·완전 동률은 발견자 / 해제 안 할 기록 유닛 제외·아무도 없으면
+발견자 / 집결·공동 이동·귀환·코어 보고·전투 합류 대기·조사·다른 함정·재선정 제외 후보 제외 / 정보 미보유 제외) + IsCommittedToPartyMovement 1 +
+OnTrapDiscovered 4(입장 전 최고 즉시 확정·그 외 대기 / 최고지만 해제 안 함 → 대기 / 집결 중 발견자 보류 → 자유 발견자가 이어받음 / 이미 처리 중 무시)
++ ResolveSelection 1. 세션이 필요한 경로(CanPropagate 통과 후보·CreateParty 스냅샷·경로 차단 BFS의 실제 지형 판정)는 테스트 없이 코드 추적으로만 점검했다.
+
+알려진 한계·행동 변화: (1) 비차단 함정이 집결·공동 이동·귀환 중 방치될 수 있다(문서 규칙 그대로) — 방치된 함정을 일반 이동이 피하는 로직(03번 9장
+552줄)은 아직 코드에 없어(03-13 범위) 그 사이 파티원이 밟을 수 있다. (2) 2초 응답 대기가 이전(거의 항상 즉시 확정)보다 자주 발생하고, 성공률이 낮은
+발견자는 더 높은 유닛에게 넘긴다. (3) IsBlockingPath(BT용 — 목적지 = playerMoveTarget·조사)는 이번에 안 건드렸다 — 집결지 목적지 확대는 03-13/04-9.
+(4) 발견자가 기록 함정이고 해제하지 않을 유닛인 경우 BT가 2초 대기를 건너뛰는 잔여 경로는 발견 이벤트가 첫 인지 때만 발생해 실제로는 도달하지 않아 그대로
+뒀다. (5) 성공률 공식은 여전히 자리표시자(집중·레벨만 봄)라 같은 종류·레벨 유닛끼리는 동률이 흔하고, 그 경우 도착시간이 결정한다.
+
 ────────────────────────────────────────────────────────────────────────
 
 ════════════════════════════════════════════════════════════════════════
-■ 다음 검증 대기 중 — 03-12부터는 사용자 지시 후 진행 (03-11 수정 여부 결정 대기 포함)
+■ 다음 검증 대기 중 — 03-13부터는 사용자 지시 후 진행
 ════════════════════════════════════════════════════════════════════════

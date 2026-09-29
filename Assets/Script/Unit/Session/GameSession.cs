@@ -905,6 +905,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 않으므로(5-2장) 재사용해도 안전하다.
             m.Knowledge?.InitializeNewUnitPersonalInfo(m, party);
         }
+        // 03번 v0.12 8장: "웨이브 진입 전" 파티 내 해제 성공률이 가장 높은 유닛을 지금 확정해 둔다 — 그 유닛이 직접 함정을 발견하면 2초 응답 대기를 생략한다.
+        party.EntryBestDisarmerNames.UnionWith(TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
         party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
         parties.Add(party);
         return party;
@@ -1105,8 +1107,26 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool alreadyHandling = trapInteractionBefore != null && trapInteractionBefore.TrapPosition == gridPos;
         if (alreadyHandling) return;
 
-        unit.TakeDamage(obj.TrapDamageMax);
+        ActivateTrap(unit, obj);
         LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 인지하지 못한 채 밟아 {obj.TrapDamageMax} 피해를 입었습니다.");
+    }
+
+    // 함정 발동의 단일 진입점(밟음/의도적 통과 공통). 피해·함정 작동음(07문서 14장)·인류 사망 원인 기록(4-14장)과, 그 함정을
+    // 해제하던 유닛의 중단(v0.6 9-9장 "함정이 작동함")을 한 곳에서 처리해 발동 경로마다 결과가 갈라지지 않게 한다.
+    public void ActivateTrap(Unit victim, InteractableObject trap)
+    {
+        if (victim == null || trap == null) return;
+
+        // 이 피해가 사망으로 이어지면 PartyDeathSystem이 "함정이 원인"임을 알아야 하므로 lastTrapAttacker에 남기고, 더 오래된
+        // 몬스터 공격 기록과 섞이지 않게 lastAttacker는 비운다. 몬스터 피해자는 기존 킬 귀속을 건드리지 않으려고 제외.
+        if (victim is Human)
+        {
+            victim.lastAttacker = null;
+            victim.lastTrapAttacker = trap;
+        }
+        PropagationSystem.EmitSound(this, SoundType.TrapActivation, new Vector2Int(trap.Position.x, trap.Position.y), trap.Position.z, null);
+        victim.TakeDamage(trap.TrapDamageMax);
+        TrapPartySystem.InterruptDisarmersOf(trap.Id, units);
     }
 
     // 시작방 안의 랜덤 배치 가능 위치를 찾는다 — FindInstallableStartRoomPos(생산 건물 자동 배치)가 쓴다.

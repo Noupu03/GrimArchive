@@ -456,10 +456,11 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 3. 파티 목표 상호작용과 코어 (신규 CoreReport/Rally로 구현)
 🔶 4~7. 소리 반응 / 적 발견 즉시 전투 (07문서 기반으로 상당 부분 이미 구현 — TacticalFSMState.Alert
    계열, 03번 신규 언어에 맞춰 재검증만 필요)
-🔶 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 구현) — [2026-09-30, 검증문서 03-10 수정]
-   8장의 "도착 예정 시점 계산·전달·대기 기한·집결 전환"은 ✅ 구현(dotnet build 오류 0, Unity 테스트·플레이 검증 대기).
-   8장 담당 선정 기준(성공률 우선·동률 시 도착시간·저성공률 합류 의사 생략·집결 중 신규 담당 제외)은 03-12, 9장
-   중단·우회·통과·파괴와 일반 이동의 활성 함정 회피는 03-11/03-13 검증 대기라 🔶 유지.
+🔶 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 구현) — [2026-09-30, 검증문서 03-10·03-11·03-12 수정]
+   8장 전체(담당 선정 기준[성공률 우선·동률 시 도착시간]·입장 전 최고 성공률 유닛의 응답 생략·해제하지 않을 유닛 제외·집결/공동 이동/귀환 중
+   신규 담당 금지·도착 예정 시점 계산·전달·대기 기한·집결 전환)와 9장의 "해제 중단·재개·진행도(웨이브 종료 시 제거 포함)"는 ✅ 구현
+   (dotnet build 오류 0, Unity 테스트·플레이 검증 대기). 9장의 통과 조건·전투 중 함정 처리·일반 이동의 활성 함정 회피는 03-13 검증
+   대기라 🔶 유지.
    설계 요약(03-10): 담당자가 MoveToTrap 행동 틱 시점에(0.5초 간격) 남은 이동시간 = max(0, 경로길이−1) ÷ 개인 적용 이동속도
    (Human.EstimateRemainingSecondsToInteract = 04-9 추정 거리 + Unit.AppliedWalkSpeed)를 재계산해 도착 예정 시점이
    0.5초(ExplorationMath.TrapArrivalChangeToleranceSeconds) 넘게 바뀌면 조율 기록(TrapPartyCoordination.Report)에 게시.
@@ -470,6 +471,32 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    표준 선정 재개(옛 "찾으러 걷기" 삭제), 뒤늦게 도착한 이전 담당자는 양보. Party.TryStartRally는
    TrapPartySystem.ReleaseForRally로 Phase==AwaitingJoin(응답 대기·도착 대기·해제하러 가는 이동)을 집결로 전환하고, 이미
    시작한 해제는 완료 후 합류. currentTrapInteraction 종료는 TrapPartySystem.EndResponse 한 곳으로 일원화.
+   설계 요약(03-11): ① 해제·파괴 진행도(UnitFunction.OnUpdate)는 TrapDisarmPerform/TrapDestroy가 "이번 틱에 수행 중"임을 알리는
+   게이트(TrapInteractionState.PenaltyActive/DestroyActive)가 켜진 동안에만 쌓는다(기절 중 제외) — 예전엔 Phase만 보고
+   전투·중단 중에도 쌓여 50% 손실이 몇 초 만에 복구됐다. TacticalFSMState.Tick이 틱 전후로 PerformedThisTick을 감시해
+   Panic·JoinCombatWait 등 상위 분기가 가로채 수행 없이 끝난 틱을 중단으로 잡는다(TrapPartySystem.ApplyDisarmInterruptPenalty —
+   PenaltyActive 가드로 ×0.5 1회). ② 웨이브 종료: Human.ClearInteractionProgress(진행 막대 정리 + 함정 대응 EndResponse(WaveEnded,
+   조율 기록의 담당 배정만 해제) + 조사 해제)를 HumanWaveManager.RetreatMemberToFloor0/EndWave가 호출 — 재사용되는 생존자에게
+   낡은 진행도가 이월되지 않는다(v0.6 5-6·9-9·12-4). ③ 함정 발동 단일 진입점 GameSession.ActivateTrap(피해·함정 작동음·인류
+   사망 원인 기록·InterruptDisarmersOf) — 밟음(TriggerTrapIfStepped)과 의도적 통과(TrapPass)가 같은 경로를 쓴다(밟음에도 작동음
+   추가 — 07-A "함정 발동 위치 주위 5칸"). ④ 일시 중단 ≠ 포기: TrapResponse 헤더 조건에 IsTrapResponseInterrupted(해제자 피격·위협
+   인지·보호자 피격·자기 피격 미식별 공격 수색[AlertSearchState.IsUnidentifiedAttackSearch])를 추가해 양보(대응 상태·50% 진행도
+   유지, 수색 15초 뒤 재개 — v0.6 12-2). 함정이 필요한 이동을 막을 때(IsBlockingPath)만 양보하지 않고 우회→통과→파괴 체인으로
+   (순서도 03-13). ⑤ 함정 접근 이동 3종(MoveToTrap/TrapPass/TrapDestroy)에 stuck 탈출(MoveTowardsTrapGuarded, Unit.trapMoveStuckTurns,
+   AIBehaviorConfig.trapMoveStuckTurnLimit 기본 4) — 포기하면 EndResponse(Unreachable)+경계 전환. ⑥ TrapDestroy는 파괴 가능
+   속성(TrapMaxHp>0, 공격력>0)을 확인하고 불가면 EndResponse(Bypassed)(v0.12 9장 584~586줄).
+   설계 요약(03-12): ① 선정은 TrapPartySystem.ChooseDisarmer — 후보(전파 범위 안·전환 가능·함정 정보 보유·해제할 유닛[미기록 또는 기록 예상
+   성공률 > 50%, TrapPartySystem.WouldAttemptDisarm이 50% 규칙의 단일 출처])를 예상 성공률 우선, 동률이면 해제 위치까지 도착시간
+   (ExplorationMath.IsBetterTrapDisarmCandidate)으로 비교하고 완전 동률·해제할 후보 없음이면 발견자가 맡는다(BT 체인이 우회·파괴 판단).
+   2초 응답 대기는 Party.EntryBestDisarmerNames(GameSession.CreateParty가 파티 생성 시점에 스탯 기반 최고 성공률 유닛, 동률 전원을 스냅샷)가
+   직접 발견한 경우만 생략(옛 2026-09-04 "가장 가까운 1명" 단순화 복원 — 사용자 확인). ② 집결·공동 이동·코어 보고·귀환 중(currentWait 사유 4종,
+   또는 집결 진행 중이면서 집결지 반경 1.5)인 유닛은 발견자로도 후보로도 새 해제 담당을 맡지 않는다 — 그 이동 경로를 함정이 막을 때
+   (TacticalFSMState.IsRouteBlockedByTrap, 기존 BFS 분리)만 예외. 보류한 함정은 TrapPartyCoordination.Deferred로 남겨 재전파를 유지하고 이후
+   집결·이동 중이 아닌 유닛이 처음 발견하면 이어받는다. ③ 후보 필터에 전투 합류 대기·정보 보유 추가. 주의: 방치된 비차단 함정을 일반 이동이
+   피하는 로직(03번 9장 552줄)은 아직 없다(03-13).
+   미구현(03-13/04-9 이월): Combat FSM의 함정 인지, IsBlockingPath의 목적지 범위(집결·탐색 목표 등)·캐시 갱신, TrapPass 문맥 게이팅
+   (전투 합류·아군 보호·도주), 우회의 실제 경로 회피, v0.6 12-6 "해제 실패 → 함정 결과 적용 후 재판단"("함정 결과"의 정의가
+   문서에 없어 방향을 정할 수 없음), 조사 진행도의 Tactical 내부 중단 구멍(FSMBehaviorTests의 KnownGap 테스트가 현행 동작을 고정).
 ❌ 10. 보고 중 사건과 전달 완료 (신규 — 05번 발견정보 전파와 함께 구현)
 🔶 11. 대상 상실과 공통 3초 대기 (기존 수색 로직 있음, 3초 표준화만 확인)
 🔶 12. 스킬 실행 중 목표 변화 (isCastingAttack 가드로 대부분 커버)

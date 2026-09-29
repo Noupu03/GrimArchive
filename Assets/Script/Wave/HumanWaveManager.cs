@@ -386,6 +386,7 @@ namespace GrimArchive.Wave
         private void RetreatMemberToFloor0(Human member)
         {
             if (member == null) return;
+            member.ClearInteractionProgress(); // v0.6 9-9장: 웨이브를 떠나는 시점에 조사·해제 진행도 제거(생존자는 재사용된다)
             if (!ResolveStairPositions())
             {
                 GameSession.Instance.DespawnUnit(member);
@@ -708,6 +709,11 @@ namespace GrimArchive.Wave
             currentState = WaveState.Ended;
 
             var survivors = activeParty != null ? activeParty.GetSurvivors() : new List<Unit>();
+            // v0.6 5-6·9-9장: 웨이브 종료 시 유지 중이던 조사·해제 진행도 제거 — 성공/실패 모두 해당한다.
+            foreach (var survivor in survivors)
+            {
+                if (survivor is Human survivorHuman) survivorHuman.ClearInteractionProgress();
+            }
             if (activeParty != null && !activeParty.WaveEnded)
             {
                 activeParty.WaveEnded = true;

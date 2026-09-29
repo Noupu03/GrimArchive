@@ -1,9 +1,10 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 03문서 9장 구현부 — 함정 발견 시 발견자 혼자 처리하지 않고, 파티 중 함정과 가장 가까운 1명을 실제
-// 담당(선정 유닛)으로 뽑는다(2026-09-04: 해제 성공률 비교 대신 거리 단일 기준으로 단순화).
-// 나머지 파티원은 정보만 기록한 채 기존 행동을 유지한다.
+// 03문서 9장 구현부 — 함정 발견 시 발견자 혼자 처리하지 않고, 파티 중 예상 해제 성공률이 가장 높은 1명(동률이면 해제 위치까지
+// 도착시간이 짧은 유닛)을 실제 담당(선정 유닛)으로 뽑는다(03번 v0.12 8장). 나머지 파티원은 정보만 기록한 채 기존 행동을 유지한다.
+// (2026-09-04에 "가장 가까운 1명"으로 줄였던 선정은 2026-09-30 검증 03-12에서 사용자 확인 후 문서대로 복원했다.)
 // 03번 v0.12 8장(순서도 03-12/03-12-2): 담당자는 해제 위치까지의 도착 예정 시점을 계산해 조율 기록에 남기고,
 // 발견 유닛(대기자)은 전파 조건을 충족할 때만 그 정보를 받아 대기 기한(도착 예정 시점+3초)을 갱신한다.
 public static class TrapPartySystem
@@ -30,15 +31,29 @@ public static class TrapPartySystem
 				discoverer.currentTrapInteraction = new TrapInteractionState { TrapObjectId = trapObj.Id, TrapPosition = trapObj.Position };
 			return;
 		}
-		if (party.TrapCoordinations.ContainsKey(trapObj.Id)) return; // 이미 다른 파티원이 먼저 발견해 처리 중
+		// 03번 v0.12 8장: 집결·공동 이동·귀환 중에는 다른 임무 대상을 위한 해제 담당을 맡지 않는다 — 그 이동 경로를 함정이 막을 때만 절차를 적용한다.
+		// 보류해도 정보 전파·인접 1칸 회피(9-6장)는 일반 전파 조건대로 진행하고 대응(응답 대기·선정)만 시작하지 않는다.
+		bool defer = IsCommittedToPartyMovement(discoverer) && !DoesTrapBlockPartyMovement(discoverer, trapObj.Position);
 
-		var coord = new TrapPartyCoordination
+		if (party.TrapCoordinations.TryGetValue(trapObj.Id, out var coord))
 		{
-			TrapObjectId = trapObj.Id,
-			TrapPosition = trapObj.Position,
-			DiscovererName = discoverer.name,
-		};
-		party.TrapCoordinations[trapObj.Id] = coord;
+			// 이미 다른 파티원이 먼저 발견해 처리 중이거나, 보류된 함정을 또 집결·이동 중인 유닛이 본 경우는 할 일이 없다.
+			if (!coord.Deferred || defer) return;
+			// 보류돼 있던 함정 — 집결·이동 중이 아닌 유닛이 처음 발견했으니 이 유닛이 표준 절차를 시작한다.
+			coord.Deferred = false;
+			coord.DiscovererName = discoverer.name;
+		}
+		else
+		{
+			coord = new TrapPartyCoordination
+			{
+				TrapObjectId = trapObj.Id,
+				TrapPosition = trapObj.Position,
+				DiscovererName = discoverer.name,
+				Deferred = defer,
+			};
+			party.TrapCoordinations[trapObj.Id] = coord;
+		}
 
 		// 9-3장 전파는 07문서 6장 일반 전파 조건(비전투+같은 공간+전파 범위)을 따른다 — 발견자는 항상
 		// 알고, 조건을 만족하는 파티원만 함께 안다(비선정 유닛이 위치를 알아야 9-6장 "인접 1칸 회피"가 성립).
@@ -61,9 +76,15 @@ public static class TrapPartySystem
 			}
 		}
 
-		// 9-3장: 발견 유닛이 파티 내에서 함정과 가장 가까우면 2초 응답 없이 즉시 해제 담당으로 확정한다.
-		// 2026-09-04(사용자 요청): 선정 기준을 해제 성공률 비교에서 "가장 가까운 1명"으로 단순화.
-		if (IsClosestPartyMember(discoverer, party, trapObj.Position))
+		if (defer)
+		{
+			LogHelper.Log(LogHelper.GAME, $"[함정] {discoverer.name}: 집결·이동 중이라 함정 대응을 보류합니다(기록만)");
+			return;
+		}
+
+		// 9-3장: 웨이브 진입 전 파티 내 최고 성공률로 확인된 유닛이 직접 발견했으면 2초 응답 없이 즉시 해제 담당으로 확정한다 — 근처 유닛 중
+		// 최고라는 이유만으로 생략하지 않는다(v0.12 8장). 해제하지 않을 유닛(기록 함정·성공률 50% 이하)이면 확정하지 않는다.
+		if (party.EntryBestDisarmerNames.Contains(discoverer.name) && WouldAttemptDisarm(discoverer, trapObj.Id))
 		{
 			coord.SelectedUnitName = discoverer.name;
 			coord.SelectionLocked = true;
@@ -115,21 +136,86 @@ public static class TrapPartySystem
 		AIMovementHelper.MoveTowardsPos(unit, stepTarget);
 	}
 
-	// ─────────────────────────── 9-2장: 최근접 유닛 판정 ───────────────────────────
-	// 2026-09-04(사용자 요청): 해제 시도자 선정을 성공률 비교 대신 "가장 가까운 1명"으로 단순화.
-	private static bool IsClosestPartyMember(Human discoverer, Party party, Vector3Int trapPos)
+	// ─────────────────────────── 8장: 해제 시도 여부와 성공률 ───────────────────────────
+
+	// 순서도 03-11 — 미기록 함정은 최초 1회 시도하고, 기록된 함정은 이 유닛의 예상 성공률이 50%(trapRecordedDisarmThreshold)를 초과할 때만
+	// 해제한다(정확히 50%는 우회·파괴 판단). 실제 해제(TacticalFSMState.IsDisarmWorthy)와 담당 후보 판정이 같은 규칙을 쓰는 단일 출처다.
+	public static bool WouldAttemptDisarm(Human human, string trapObjectId)
 	{
-		Vector2Int trapPos2D = new Vector2Int(trapPos.x, trapPos.y);
-		float discovererDist = Vector2Int.Distance(discoverer.position, trapPos2D);
-		foreach (var m in party.Members)
-		{
-			if (m == null || m == discoverer || m.hp <= 0) continue;
-			if (Vector2Int.Distance(m.position, trapPos2D) < discovererDist) return false;
-		}
-		return true;
+		if (!human.personalMap.IsTrapRecorded(trapObjectId)) return true;
+		return human.personalMap.GetTrapExpectedSuccessRate(trapObjectId)
+			> (AIConfigLoader.Behavior?.trapRecordedDisarmThreshold ?? ExplorationMath.TrapRecordedDirectDisarmThreshold) * 100f;
 	}
 
-	// ─────────────────────────── 9-2~9-4장: 2초 경과/기록함정 확정 시점의 실제 선정 ───────────────────────────
+	// 담당 선정에 쓰는 예상 해제 성공률(%) — 기록이 있으면 그 기록, 없으면 스탯 기반 공식(이해도 보정 0, 실제 해제 시도와 같은 호출).
+	private static float ExpectedDisarmRate(Human human, string trapObjectId)
+		=> human.personalMap.IsTrapRecorded(trapObjectId)
+			? human.personalMap.GetTrapExpectedSuccessRate(trapObjectId)
+			: ExplorationMath.TrapDisarmSuccessRate(human.concentration, human.level, understandingApplied: 0);
+
+	// 웨이브 진입 전(파티 생성 시점) 스냅샷 — 스탯 기반 성공률이 가장 높은 유닛의 이름들, 동률이면 전원(아무도 더 높지 않아 응답을 기다릴
+	// 이유가 없다). 스폰 시 SetupStats가 이미 파생 스탯(concentration)을 계산해 둔다. GameSession.CreateParty가 호출한다.
+	public static HashSet<string> SnapshotEntryBestDisarmers(IEnumerable<Human> members)
+	{
+		var best = new HashSet<string>();
+		float bestRate = float.NegativeInfinity;
+		foreach (var m in members)
+		{
+			if (m == null) continue;
+			float rate = ExplorationMath.TrapDisarmSuccessRate(m.concentration, m.level, understandingApplied: 0);
+			if (Mathf.Approximately(rate, bestRate))
+			{
+				best.Add(m.name);
+			}
+			else if (rate > bestRate)
+			{
+				best.Clear();
+				best.Add(m.name);
+				bestRate = rate;
+			}
+		}
+		return best;
+	}
+
+	// ─────────────────────────── 8장: 집결·공동 이동·귀환 중에는 새 해제 담당을 맡지 않는다 ───────────────────────────
+	// 조사 쪽 CanInvestigate(TacticalFSMState)가 이미 쓰는 currentWait 사유 4종 + 집결지에 도착해 나머지를 기다리는 중. 도착하면 currentWait이
+	// 비워지므로 Party.IsRallyActive로 따로 보되, 명령을 못 받은 파티원까지 잡지 않게 집결지 반경 조건을 둔다.
+	private const float RallyArrivalRadius = 1.5f; // TacticalFSMState.ExecuteWait의 집결지 도착 판정과 같은 값
+
+	public static bool IsCommittedToPartyMovement(Human human)
+	{
+		var wait = human.currentWait;
+		if (wait != null && (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
+			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.Retreating))
+			return true;
+
+		var party = human.party;
+		return party != null && party.IsRallyActive && party.RallyPoint.HasValue
+			&& Vector2Int.Distance(human.position, party.RallyPoint.Value) <= RallyArrivalRadius;
+	}
+
+	// 집결·이동 중인 유닛이 가고 있는 목적지 — 함정이 그 경로를 막는지 판정하는 데 쓴다(코어 보고는 리더 위치, 그 외는 대기 위치·집결지).
+	private static Vector2Int? PartyMovementDestination(Human human)
+	{
+		var wait = human.currentWait;
+		var party = human.party;
+		if (wait != null)
+		{
+			if (wait.Reason == WaitReason.ReportingCoreToLeader)
+				return party?.Leader != null && party.Leader.hp > 0 ? party.Leader.position : (Vector2Int?)null;
+			if (wait.WaitPosition.HasValue) return wait.WaitPosition;
+		}
+		return party != null && party.IsRallyActive ? party.RallyPoint : null;
+	}
+
+	// 집결·이동 중인 유닛의 경로를 이 함정이 막는가(대체 경로 없음 — 예: 좁은 통로 한가운데의 함정). 목적지를 모르거나 지형이 없으면 "막지 않음".
+	public static bool DoesTrapBlockPartyMovement(Human human, Vector3Int trapPos)
+	{
+		var dest = PartyMovementDestination(human);
+		return dest.HasValue && TacticalFSMState.IsRouteBlockedByTrap(human, dest.Value, trapPos);
+	}
+
+	// ─────────────────────────── 9-2~9-3장: 2초 응답 대기가 끝난 시점의 실제 선정 ───────────────────────────
 	// UnitFunction.OnUpdate가 discoverer의 trap.JoinWaitElapsed가 false→true로 바뀌는 바로 그 프레임에
 	// (AutoConfirmed가 아닌 경우에만) 호출한다.
 	public static void ResolveSelection(Human discoverer, TrapInteractionState trap)
@@ -146,25 +232,11 @@ public static class TrapPartySystem
 			return;
 		}
 
-		// 9-2장: 전파 범위(07문서 6장, PropagationSystem.CanPropagate) 안의 모든 유닛 중 함정 대응으로
-		// 전환 가능한 유닛만 대상으로 가장 가까운(해제 위치까지 예상 도착시간이 짧은) 1명을 선정한다.
-		// 기한 안에 도착하지 못해 제외된 유닛은 후보가 아니다.
-		Human best = discoverer;
-		float bestEta = discoverer.EstimateRemainingSecondsToInteract(trap.TrapPosition);
-
-		foreach (var m in party.Members)
-		{
-			if (m == null || m == discoverer || m.hp <= 0) continue;
-			if (coord.ExcludedUnitNames.Contains(m.name)) continue;
-			if (!PropagationSystem.CanPropagate(discoverer, m)) continue;
-			if (!CanSwitchToTrapResponse(m)) continue;
-
-			float eta = m.EstimateRemainingSecondsToInteract(trap.TrapPosition);
-			if (eta < bestEta)
-			{
-				best = m; bestEta = eta;
-			}
-		}
+		// 9-2장: 전파 범위(07문서 6장, PropagationSystem.CanPropagate) 안에서 함정 대응으로 전환할 수 있고 실제로 해제할 유닛 중 예상 해제
+		// 성공률이 가장 높은 1명(동률이면 해제 위치까지 예상 도착시간이 짧은 유닛)을 선정한다.
+		Human best = ChooseDisarmer(discoverer, party.Members, coord, trap.TrapObjectId, trap.TrapPosition,
+			m => PropagationSystem.CanPropagate(discoverer, m));
+		LogHelper.Log(LogHelper.GAME, $"[함정] {discoverer.name}: 담당 선정 {best.name} (예상 성공률 {ExpectedDisarmRate(best, trap.TrapObjectId):F0}%)");
 
 		coord.SelectedUnitName = best.name;
 		coord.SelectionLocked = true;
@@ -181,13 +253,50 @@ public static class TrapPartySystem
 		BeginWaitingFor(discoverer, trap, coord, best);
 	}
 
-	private static bool CanSwitchToTrapResponse(Human m)
+	// 순서도 03-10: 후보 확인 → 예상 성공률이 가장 높은 1명, 동률이면 해제 위치까지 예상 도착시간이 짧은 유닛. 발견자도 해제할 유닛이면 후보 중
+	// 하나이고(동률·같은 도착시간이면 발견자 우선), 해제할 후보가 아무도 없으면 발견자가 그대로 맡아 BT 체인(해제 불필요 → 우회·통과·파괴)으로
+	// 다른 대응을 판단한다. inRange = 전파 범위 조건(운영에선 PropagationSystem.CanPropagate) — 세션 없이 테스트할 수 있게 주입한다.
+	public static Human ChooseDisarmer(Human discoverer, IEnumerable<Human> members, TrapPartyCoordination coord,
+		string trapObjectId, Vector3Int trapPos, System.Func<Human, bool> inRange)
 	{
+		Human best = null;
+		float bestRate = 0f, bestEta = 0f;
+		if (WouldAttemptDisarm(discoverer, trapObjectId))
+		{
+			best = discoverer;
+			bestRate = ExpectedDisarmRate(discoverer, trapObjectId);
+			bestEta = discoverer.EstimateRemainingSecondsToInteract(trapPos);
+		}
+
+		foreach (var m in members)
+		{
+			if (m == null || m == discoverer || m.hp <= 0) continue;
+			if (!inRange(m) || !IsDisarmCandidate(m, coord, trapObjectId, trapPos)) continue;
+
+			float rate = ExpectedDisarmRate(m, trapObjectId);
+			float eta = m.EstimateRemainingSecondsToInteract(trapPos);
+			if (best == null || ExplorationMath.IsBetterTrapDisarmCandidate(rate, eta, bestRate, bestEta))
+			{
+				best = m; bestRate = rate; bestEta = eta;
+			}
+		}
+		return best ?? discoverer;
+	}
+
+	// 순서도 03-10 "담당으로 전환 가능한 후보 확인(유지해야 할 전투·조사·보호 등 제외)" + 03-11 "해제 합류 의사 없이 다른 대응"(해제하지 않을
+	// 유닛은 후보가 아니다). 발견자는 이미 응답 상태를 갖고 있어 이 필터를 거치지 않는다.
+	private static bool IsDisarmCandidate(Human m, TrapPartyCoordination coord, string trapObjectId, Vector3Int trapPos)
+	{
+		if (coord.ExcludedUnitNames.Contains(m.name)) return false; // 기한 안에 도착하지 못해 재선정에서 제외
+		if (!m.personalMap.IsObjectKnown(trapObjectId)) return false; // 함정 정보를 받지 못한 유닛
 		if (m.currentTrapInteraction != null) return false; // 이미 다른 함정 대응 중
 		if (m.currentInvestigation != null) return false;
 		if (m.currentFormation != null) return false;
+		if (m.currentJoinCombatWait != null) return false; // 전투 합류 대기 중인 합류자(PropagationSystem.CanRespondToJoinRequest와 대칭)
 		if (m.personalSpottedEnemies.Count > 0) return false; // 전투 중 근사(명시적 전투 상태 플래그 부재)
-		return true;
+		// 집결·공동 이동·귀환 중에는 새 담당을 맡지 않는다 — 그 이동 경로를 함정이 막을 때만 예외.
+		if (IsCommittedToPartyMovement(m) && !DoesTrapBlockPartyMovement(m, trapPos)) return false;
+		return WouldAttemptDisarm(m, trapObjectId);
 	}
 
 	// ─────────────────────────── 03번 v0.12 8장: 도착 예정 시점의 계산·전달·기한 ───────────────────────────
@@ -379,7 +488,7 @@ public static class TrapPartySystem
 	// ─────────────────────────── 함정 대응 종료·집결 전환 ───────────────────────────
 
 	// currentTrapInteraction을 끝내는 유일한 지점. 현재 담당자가 대응을 마치면(따로 기다리는 발견 유닛이 있을 때)
-	// 그 사실을 조율 기록에 남기고, 집결로 접으면 담당 배정만 푼다. 양보·대기 종료는 조율 기록을 건드리지 않는다.
+	// 그 사실을 조율 기록에 남기고, 집결·웨이브 종료로 접으면 담당 배정만 푼다. 양보·대기 종료는 조율 기록을 건드리지 않는다.
 	public static void EndResponse(Unit unit, TrapEndReason reason)
 	{
 		var trap = unit.currentTrapInteraction;
@@ -389,7 +498,7 @@ public static class TrapPartySystem
 			&& human.party.TrapCoordinations.TryGetValue(trap.TrapObjectId, out var coord)
 			&& coord.SelectedUnitName == human.name)
 		{
-			if (reason == TrapEndReason.Rally)
+			if (reason == TrapEndReason.Rally || reason == TrapEndReason.WaveEnded)
 				ReleaseAssignment(coord);
 			else if (coord.DiscovererName != human.name)
 				PostReport(coord, human.name, TrapAssigneeStatus.Concluded, Time.time, 0f);
@@ -406,5 +515,37 @@ public static class TrapPartySystem
 
 		LogHelper.Log(LogHelper.GAME, $"[함정] {human.name}: 집결 명령으로 함정 대응을 접고 집결합니다");
 		EndResponse(human, TrapEndReason.Rally);
+	}
+
+	// ─────────────────────────── 해제 중단(9-9장) ───────────────────────────
+
+	// 해제 진행도의 50% 손실 — PenaltyActive가 남아있을 때만 1회 적용하고 false로 내려 같은 중단이 이어지는 동안
+	// 중복 적용되지 않게 한다. 대응 상태와 남은 진행도는 유지되어 원인이 사라지면 재개된다(v0.6 12-2).
+	public static void ApplyDisarmInterruptPenalty(Unit unit)
+	{
+		var trap = unit.currentTrapInteraction;
+		if (trap == null || !trap.PenaltyActive) return;
+		trap.DisarmProgress01 *= (AIConfigLoader.Behavior?.trapDisarmInterruptLossRatio ?? ExplorationMath.TrapDisarmInterruptLossRatio);
+		trap.PenaltyActive = false;
+		if (trap.CachedProgressBar != null)
+		{
+			trap.CachedProgressBar.SetProgress(0f, false);
+		}
+		else
+		{
+			unit.Session?.GetObjectVisual(trap.TrapPosition)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+		}
+	}
+
+	// 9-9장 "함정이 작동함": 그 함정을 해제 중인 유닛 전부의 해제를 중단한다(대응 상태는 유지).
+	public static void InterruptDisarmersOf(string trapObjectId, IEnumerable<Unit> units)
+	{
+		if (units == null) return;
+		foreach (var u in units)
+		{
+			if (u == null || u.currentTrapInteraction == null) continue;
+			if (u.currentTrapInteraction.TrapObjectId != trapObjectId) continue;
+			ApplyDisarmInterruptPenalty(u);
+		}
 	}
 }

@@ -29,6 +29,9 @@ public class TrapPartyCoordination
 	public string TrapObjectId;
 	public Vector3Int TrapPosition;
 	public string DiscovererName;
+	// 발견자가 집결·공동 이동·귀환 중이라 대응(응답 대기·선정)을 시작하지 않고 기록만 남긴 상태(03번 v0.12 8장). 이후 집결·이동 중이
+	// 아닌 유닛이 그 함정을 처음 발견하면 이 기록을 이어받아 표준 절차를 시작한다(TrapPartySystem.OnTrapDiscovered).
+	public bool Deferred;
 	public string SelectedUnitName;
 	public bool SelectionLocked;
 	// 기한 안에 도착하지 않아 재선정에서 제외된 유닛(미도착만으로 사망·도주를 확정하지 않는다).

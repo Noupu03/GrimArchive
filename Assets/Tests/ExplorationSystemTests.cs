@@ -337,5 +337,332 @@ public class ExplorationSystemTests
 		Assert.AreEqual(0, coord.ExcludedUnitNames.Count);
 		Assert.IsTrue(coord.SelectionLocked);
 	}
+
+	// ── 검증문서 03-11: 해제 중단(v0.6 9-9장)과 웨이브 종료 시 진행도 제거 ──
+	[Test]
+	public void ApplyDisarmInterruptPenalty_HalvesOnce_AndKeepsResponseForResume()
+	{
+		var human = MakeHuman("h", new Party("p", "p"));
+		var trap = new TrapInteractionState { TrapObjectId = "t", Phase = TrapPhase.Disarming, DisarmProgress01 = 0.6f, PenaltyActive = true };
+		human.currentTrapInteraction = trap;
+
+		TrapPartySystem.ApplyDisarmInterruptPenalty(human);
+		TrapPartySystem.ApplyDisarmInterruptPenalty(human); // 같은 중단이 이어지는 동안 다시 깎지 않는다(PenaltyActive 가드)
+
+		Assert.AreEqual(0.3f, trap.DisarmProgress01, 0.001f);
+		Assert.IsFalse(trap.PenaltyActive);
+		Assert.AreSame(trap, human.currentTrapInteraction); // 대응 상태·남은 진행도 유지 — 원인이 사라지면 재개
+	}
+
+	[Test]
+	public void InterruptDisarmersOf_PenalizesOnlyUnitsOnThatTrap()
+	{
+		var party = new Party("p", "p");
+		var onTrap = MakeHuman("on", party);
+		var alsoOnTrap = MakeHuman("also", party);
+		var otherTrap = MakeHuman("other", party);
+		var idle = MakeHuman("idle", party);
+		onTrap.currentTrapInteraction = new TrapInteractionState { TrapObjectId = "t", Phase = TrapPhase.Disarming, DisarmProgress01 = 0.8f, PenaltyActive = true };
+		alsoOnTrap.currentTrapInteraction = new TrapInteractionState { TrapObjectId = "t", Phase = TrapPhase.Disarming, DisarmProgress01 = 0.4f, PenaltyActive = true };
+		otherTrap.currentTrapInteraction = new TrapInteractionState { TrapObjectId = "t2", Phase = TrapPhase.Disarming, DisarmProgress01 = 0.8f, PenaltyActive = true };
+
+		// "함정이 작동함"(9-9장) — 그 함정을 해제 중인 유닛만 중단된다.
+		TrapPartySystem.InterruptDisarmersOf("t", new Unit[] { onTrap, alsoOnTrap, otherTrap, idle, null });
+
+		Assert.AreEqual(0.4f, onTrap.currentTrapInteraction.DisarmProgress01, 0.001f);
+		Assert.AreEqual(0.2f, alsoOnTrap.currentTrapInteraction.DisarmProgress01, 0.001f);
+		Assert.AreEqual(0.8f, otherTrap.currentTrapInteraction.DisarmProgress01, 0.001f);
+		Assert.IsTrue(otherTrap.currentTrapInteraction.PenaltyActive);
+	}
+
+	[Test]
+	public void ClearInteractionProgress_DropsTrapAndInvestigation_AndReleasesAssignment()
+	{
+		var party = new Party("p", "p");
+		MakeHuman("discoverer", party);
+		var assignee = MakeHuman("assignee", party);
+		var coord = new TrapPartyCoordination { TrapObjectId = "t", DiscovererName = "discoverer", SelectedUnitName = "assignee", SelectionLocked = true };
+		party.TrapCoordinations["t"] = coord;
+		assignee.currentTrapInteraction = new TrapInteractionState { TrapObjectId = "t", Phase = TrapPhase.Disarming, JoinWaitElapsed = true, IsSelectedDisarmer = true, SelectedUnitName = "assignee", DisarmProgress01 = 0.7f };
+		assignee.currentInvestigation = new InvestigationState { TargetObjectId = "o", Progress01 = 0.5f };
+
+		assignee.ClearInteractionProgress();
+
+		Assert.IsNull(assignee.currentTrapInteraction);
+		Assert.IsNull(assignee.currentInvestigation);
+		Assert.IsTrue(party.TrapCoordinations.ContainsKey("t")); // 함정 발견 기록은 파티가 이어지는 한 남는다
+		Assert.IsNull(coord.SelectedUnitName);                    // 담당 배정만 풀려 다른 파티원이 재선정할 수 있다
+		Assert.IsNull(coord.Report);                              // 정상 종료가 아니므로 Concluded 보고도 남기지 않는다
+	}
+
+	// ── 검증문서 03-12: 해제 담당 선정(성공률 우선·입장 전 최고 성공률·후보 필터·집결 중 제외) ──
+	// 함정은 (10,10)에 있고 유닛 기본 이동속도(3칸/초)라 도착시간은 체비셰프 거리로만 갈린다(세션이 없어 A*·프론티어 추정은 폴백).
+	// 성공률(TrapDisarmSuccessRate) = 20 + 집중×0.2 + (레벨−1)×1.5 — 집중 100/레벨 1이면 40, 집중 0/레벨 1이면 20.
+	private const string TrapId = "t";
+	private static readonly Vector3Int TrapPos = new Vector3Int(10, 10, 0);
+
+	private static Human MakeDisarmer(string unitName, Party party, float concentration, int x, int y, bool knowsTrap = true)
+	{
+		var human = MakeHuman(unitName, party);
+		human.concentration = concentration;
+		human.level = 1;
+		human.position = new Vector2Int(x, y);
+		if (knowsTrap) human.personalMap.RegisterObject(TrapId, TrapPos, 0f, 0f);
+		return human;
+	}
+
+	private static InteractableObject MakeTrapObject()
+		=> new InteractableObject(TrapId, TrapPos, 0f, tags: new System.Collections.Generic.List<string> { "Object/Building/Passable/Trap" },
+			trapHp: 300f, trapDamageMin: 30f, trapDamageMax: 60f);
+
+	private static TrapPartyCoordination MakeCoord(string discovererName)
+		=> new TrapPartyCoordination { TrapObjectId = TrapId, TrapPosition = TrapPos, DiscovererName = discovererName };
+
+	private static WaitState RallyWait() => new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = new Vector2Int(0, 0) };
+
+	[Test]
+	public void IsBetterTrapDisarmCandidate_RateFirst_ThenEta_ThenKeepsIncumbent()
+	{
+		Assert.IsTrue(ExplorationMath.IsBetterTrapDisarmCandidate(60f, 9f, 50f, 1f));  // 성공률이 높으면 도착이 늦어도 우선
+		Assert.IsFalse(ExplorationMath.IsBetterTrapDisarmCandidate(40f, 1f, 50f, 9f)); // 성공률이 낮으면 도착이 빨라도 아님
+		Assert.IsTrue(ExplorationMath.IsBetterTrapDisarmCandidate(50f, 2f, 50f, 3f));  // 동률이면 해제 위치에 더 빨리 도착하는 쪽
+		Assert.IsFalse(ExplorationMath.IsBetterTrapDisarmCandidate(50f, 3f, 50f, 3f)); // 완전 동률은 기존 승자(발견자) 유지
+	}
+
+	[Test]
+	public void WouldAttemptDisarm_UnrecordedAlways_RecordedOnlyAboveFiftyPercent()
+	{
+		var human = MakeHuman("h", new Party("p", "p"));
+		Assert.IsTrue(TrapPartySystem.WouldAttemptDisarm(human, TrapId)); // 미기록 함정은 최초 1회 시도
+
+		human.personalMap.RecordTrapAttempt(TrapId, 60f);
+		Assert.IsTrue(TrapPartySystem.WouldAttemptDisarm(human, TrapId));
+		human.personalMap.RecordTrapAttempt(TrapId, 50f);
+		Assert.IsFalse(TrapPartySystem.WouldAttemptDisarm(human, TrapId)); // 정확히 50%는 우회·파괴 판단
+		human.personalMap.RecordTrapAttempt(TrapId, 40f);
+		Assert.IsFalse(TrapPartySystem.WouldAttemptDisarm(human, TrapId));
+	}
+
+	[Test]
+	public void SnapshotEntryBestDisarmers_SingleBest_AndTiesAllIncluded()
+	{
+		var party = new Party("p", "p");
+		MakeDisarmer("rogue", party, 100f, 0, 0);
+		MakeDisarmer("mage", party, 0f, 0, 0);
+		CollectionAssert.AreEquivalent(new[] { "rogue" }, TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
+
+		MakeDisarmer("rogue2", party, 100f, 0, 0); // 동률 — 아무도 더 높지 않으므로 둘 다 "최고"
+		CollectionAssert.AreEquivalent(new[] { "rogue", "rogue2" }, TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
+	}
+
+	[Test]
+	public void ChooseDisarmer_HighestRateWins_EvenIfFarther()
+	{
+		var party = new Party("p", "p");
+		var discoverer = MakeDisarmer("d", party, 0f, 9, 10);  // 성공률 20, 함정 바로 옆
+		var expert = MakeDisarmer("far", party, 100f, 0, 10);  // 성공률 40, 멀리 있음
+		MakeDisarmer("near", party, 50f, 8, 10);               // 성공률 30, 가까움
+
+		var chosen = TrapPartySystem.ChooseDisarmer(discoverer, party.Members, MakeCoord("d"), TrapId, TrapPos, _ => true);
+
+		Assert.AreSame(expert, chosen); // 예전 "가장 가까운 1명" 선정이라면 discoverer/near가 뽑혔다
+	}
+
+	[Test]
+	public void ChooseDisarmer_EqualRate_NearestWins_AndDiscovererKeepsFullTies()
+	{
+		var party = new Party("p", "p");
+		var discoverer = MakeDisarmer("d", party, 0f, 0, 10);
+		MakeDisarmer("mid", party, 0f, 5, 10);
+		var nearest = MakeDisarmer("nearest", party, 0f, 9, 10);
+		Assert.AreSame(nearest, TrapPartySystem.ChooseDisarmer(discoverer, party.Members, MakeCoord("d"), TrapId, TrapPos, _ => true));
+
+		// 성공률·도착시간이 모두 같으면 발견자가 유지된다.
+		var party2 = new Party("p2", "p2");
+		var d2 = MakeDisarmer("d2", party2, 0f, 5, 10);
+		MakeDisarmer("same", party2, 0f, 5, 10);
+		Assert.AreSame(d2, TrapPartySystem.ChooseDisarmer(d2, party2.Members, MakeCoord("d2"), TrapId, TrapPos, _ => true));
+	}
+
+	[Test]
+	public void ChooseDisarmer_SkipsUnwillingRecordedUnits_AndFallsBackToDiscoverer()
+	{
+		var party = new Party("p", "p");
+		var discoverer = MakeDisarmer("d", party, 0f, 9, 10);
+		var other = MakeDisarmer("o", party, 0f, 8, 10);
+		discoverer.personalMap.RecordTrapAttempt(TrapId, 40f); // 기록·성공률 40% — 해제하지 않을 유닛
+		other.personalMap.RecordTrapAttempt(TrapId, 45f);
+
+		// 아무도 해제하지 않으면 발견자가 그대로 맡아 우회·파괴·다른 행동을 판단한다.
+		Assert.AreSame(discoverer, TrapPartySystem.ChooseDisarmer(discoverer, party.Members, MakeCoord("d"), TrapId, TrapPos, _ => true));
+
+		// 해제할 유닛(미기록)이 있으면, 성공률이 낮아도 그 유닛이 뽑힌다 — 발견자는 해제하지 않는다.
+		var willing = MakeDisarmer("w", party, 0f, 0, 10);
+		Assert.AreSame(willing, TrapPartySystem.ChooseDisarmer(discoverer, party.Members, MakeCoord("d"), TrapId, TrapPos, _ => true));
+	}
+
+	[Test]
+	public void ChooseDisarmer_ExcludesCandidatesThatMustKeepTheirCurrentAction()
+	{
+		// 각 경우마다 성공률이 더 높은 후보가 하나뿐이고, 그 후보가 제외되면 발견자가 남는다.
+		var spoilers = new System.Collections.Generic.Dictionary<string, System.Action<Human, TrapPartyCoordination>>
+		{
+			["집결 중"] = (h, c) => h.currentWait = RallyWait(),
+			["공동 이동 중"] = (h, c) => h.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = new Vector2Int(0, 0) },
+			["귀환 중"] = (h, c) => h.currentWait = new WaitState { Reason = WaitReason.Retreating, WaitPosition = new Vector2Int(0, 0) },
+			["코어 보고 중"] = (h, c) => h.currentWait = new WaitState { Reason = WaitReason.ReportingCoreToLeader, CorePosition = new Vector3Int(1, 1, 0) },
+			["전투 합류 대기"] = (h, c) => h.currentJoinCombatWait = new JoinCombatWaitState(),
+			["조사 중"] = (h, c) => h.currentInvestigation = new InvestigationState { TargetObjectId = "o" },
+			["다른 함정 대응 중"] = (h, c) => h.currentTrapInteraction = new TrapInteractionState { TrapObjectId = "other" },
+			["재선정 제외"] = (h, c) => c.ExcludedUnitNames.Add(h.name),
+		};
+
+		foreach (var spoiler in spoilers)
+		{
+			var party = new Party("p", "p");
+			var discoverer = MakeDisarmer("d", party, 0f, 9, 10);
+			var expert = MakeDisarmer("expert", party, 100f, 8, 10);
+			var coord = MakeCoord("d");
+			spoiler.Value(expert, coord);
+
+			Assert.AreSame(discoverer, TrapPartySystem.ChooseDisarmer(discoverer, party.Members, coord, TrapId, TrapPos, _ => true), spoiler.Key);
+		}
+	}
+
+	[Test]
+	public void ChooseDisarmer_ExcludesCandidateThatNeverReceivedTheTrapInfo()
+	{
+		var party = new Party("p", "p");
+		var discoverer = MakeDisarmer("d", party, 0f, 9, 10);
+		MakeDisarmer("uninformed", party, 100f, 8, 10, knowsTrap: false); // 선정 시점 범위 안이어도 함정 정보를 못 받았으면 후보가 아니다
+
+		Assert.AreSame(discoverer, TrapPartySystem.ChooseDisarmer(discoverer, party.Members, MakeCoord("d"), TrapId, TrapPos, _ => true));
+	}
+
+	[Test]
+	public void IsCommittedToPartyMovement_WaitReasons_AndRallyPointWaiters()
+	{
+		var party = new Party("p", "p");
+		var human = MakeDisarmer("h", party, 0f, 5, 5);
+		Assert.IsFalse(TrapPartySystem.IsCommittedToPartyMovement(human));
+
+		foreach (var reason in new[] { WaitReason.AwaitingPartyAtRallyPoint, WaitReason.AdvancingToNextRoom, WaitReason.ReportingCoreToLeader, WaitReason.Retreating })
+		{
+			human.currentWait = new WaitState { Reason = reason };
+			Assert.IsTrue(TrapPartySystem.IsCommittedToPartyMovement(human), reason.ToString());
+		}
+		human.currentWait = new WaitState { Reason = WaitReason.AwaitingJoinBeforeApproach }; // 전투 관련 대기라 이 규칙의 대상이 아님
+		Assert.IsFalse(TrapPartySystem.IsCommittedToPartyMovement(human));
+
+		// 집결지에 도착하면 currentWait이 비워지므로 집결 진행 중(IsRallyActive) + 집결지 반경으로 본다 — 명령을 못 받은 먼 파티원은 아님.
+		human.currentWait = null;
+		party.IsRallyActive = true;
+		party.RallyPoint = new Vector2Int(5, 5);
+		Assert.IsTrue(TrapPartySystem.IsCommittedToPartyMovement(human));
+		human.position = new Vector2Int(20, 20);
+		Assert.IsFalse(TrapPartySystem.IsCommittedToPartyMovement(human));
+	}
+
+	[Test]
+	public void OnTrapDiscovered_EntryBestDiscoverer_ConfirmsWithoutWaiting_OthersWait()
+	{
+		var party = new Party("p", "p");
+		var best = MakeDisarmer("best", party, 100f, 9, 10, knowsTrap: false);
+		var other = MakeDisarmer("other", party, 0f, 8, 10, knowsTrap: false);
+		party.EntryBestDisarmerNames.Add("best");
+
+		TrapPartySystem.OnTrapDiscovered(best, MakeTrapObject());
+		Assert.IsTrue(best.currentTrapInteraction.AutoConfirmed);
+		Assert.IsTrue(best.currentTrapInteraction.JoinWaitElapsed);
+		Assert.IsTrue(best.currentTrapInteraction.IsSelectedDisarmer);
+		Assert.AreEqual("best", party.TrapCoordinations[TrapId].SelectedUnitName);
+
+		// 입장 전 최고 유닛이 아닌 발견자는 (가장 가까워도) 2초 응답 대기부터 시작한다.
+		var party2 = new Party("p2", "p2");
+		var nearButNotBest = MakeDisarmer("near", party2, 0f, 9, 10, knowsTrap: false);
+		MakeDisarmer("expert", party2, 100f, 0, 10, knowsTrap: false);
+		party2.EntryBestDisarmerNames.Add("expert");
+		TrapPartySystem.OnTrapDiscovered(nearButNotBest, MakeTrapObject());
+		Assert.IsFalse(nearButNotBest.currentTrapInteraction.AutoConfirmed);
+		Assert.IsFalse(nearButNotBest.currentTrapInteraction.JoinWaitElapsed);
+		Assert.IsNull(party2.TrapCoordinations[TrapId].SelectedUnitName);
+		Assert.IsNull(other.currentTrapInteraction);
+	}
+
+	[Test]
+	public void OnTrapDiscovered_EntryBestButWouldNotDisarm_StillWaits()
+	{
+		var party = new Party("p", "p");
+		var best = MakeDisarmer("best", party, 100f, 9, 10, knowsTrap: false);
+		party.EntryBestDisarmerNames.Add("best");
+		best.personalMap.RecordTrapAttempt(TrapId, 40f); // 기록·성공률 40% — 해제하지 않을 유닛이라 즉시 확정하지 않는다
+
+		TrapPartySystem.OnTrapDiscovered(best, MakeTrapObject());
+
+		Assert.IsFalse(best.currentTrapInteraction.AutoConfirmed);
+		Assert.IsFalse(best.currentTrapInteraction.JoinWaitElapsed);
+	}
+
+	[Test]
+	public void OnTrapDiscovered_CommittedDiscoverer_Defers_AndLaterFreeDiscovererAdopts()
+	{
+		var party = new Party("p", "p");
+		var rallying = MakeDisarmer("rallying", party, 100f, 9, 10, knowsTrap: false);
+		var free = MakeDisarmer("free", party, 0f, 8, 10, knowsTrap: false);
+		var rallying2 = MakeDisarmer("rallying2", party, 0f, 7, 10, knowsTrap: false);
+		rallying.currentWait = RallyWait();
+		rallying2.currentWait = RallyWait();
+		party.EntryBestDisarmerNames.Add("rallying");
+
+		// 집결 중인 발견자는 정보만 남기고 대응(응답 대기·선정)을 시작하지 않는다.
+		TrapPartySystem.OnTrapDiscovered(rallying, MakeTrapObject());
+		Assert.IsNull(rallying.currentTrapInteraction);
+		Assert.IsTrue(party.TrapCoordinations[TrapId].Deferred);
+		Assert.IsTrue(rallying.personalMap.IsObjectKnown(TrapId)); // 정보 자체는 기록된다
+
+		// 보류된 함정을 또 집결 중인 유닛이 보면 여전히 보류다.
+		TrapPartySystem.OnTrapDiscovered(rallying2, MakeTrapObject());
+		Assert.IsNull(rallying2.currentTrapInteraction);
+		Assert.AreEqual("rallying", party.TrapCoordinations[TrapId].DiscovererName);
+
+		// 집결·이동 중이 아닌 유닛이 처음 발견하면 그 기록을 이어받아 표준 절차를 시작한다.
+		TrapPartySystem.OnTrapDiscovered(free, MakeTrapObject());
+		Assert.IsFalse(party.TrapCoordinations[TrapId].Deferred);
+		Assert.AreEqual("free", party.TrapCoordinations[TrapId].DiscovererName);
+		Assert.IsNotNull(free.currentTrapInteraction);
+	}
+
+	[Test]
+	public void OnTrapDiscovered_AlreadyHandledTrap_IsIgnoredForLaterDiscoverers()
+	{
+		var party = new Party("p", "p");
+		var first = MakeDisarmer("first", party, 0f, 9, 10, knowsTrap: false);
+		var later = MakeDisarmer("later", party, 0f, 8, 10, knowsTrap: false);
+
+		TrapPartySystem.OnTrapDiscovered(first, MakeTrapObject());
+		TrapPartySystem.OnTrapDiscovered(later, MakeTrapObject());
+
+		Assert.IsNotNull(first.currentTrapInteraction);
+		Assert.IsNull(later.currentTrapInteraction); // 이미 다른 파티원이 처리 중
+		Assert.AreEqual("first", party.TrapCoordinations[TrapId].DiscovererName);
+	}
+
+	[Test]
+	public void ResolveSelection_WithNobodyInRange_KeepsDiscovererAsAssignee()
+	{
+		var party = new Party("p", "p");
+		var discoverer = MakeDisarmer("d", party, 0f, 9, 10);
+		MakeDisarmer("far", party, 100f, 0, 10); // 세션이 없어 전파 범위 조건(CanPropagate)이 성립하지 않는다
+		var coord = MakeCoord("d");
+		party.TrapCoordinations[TrapId] = coord;
+		var trap = new TrapInteractionState { TrapObjectId = TrapId, TrapPosition = TrapPos, JoinWaitElapsed = true };
+		discoverer.currentTrapInteraction = trap;
+
+		TrapPartySystem.ResolveSelection(discoverer, trap);
+
+		Assert.AreEqual("d", coord.SelectedUnitName);
+		Assert.IsTrue(trap.IsSelectedDisarmer);
+		Assert.IsTrue(coord.SelectionLocked);
+	}
 }
 #endif

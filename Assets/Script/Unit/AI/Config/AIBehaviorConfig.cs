@@ -17,6 +17,8 @@ public class AIBehaviorConfig : ScriptableObject
     public int tacticalObjectAttackStuckTurnLimit = 4;
     [Tooltip("일반 조사 대상 접근 혼잡 대기 최대 턴 수 — 초과 시 그 대상을 포기하고 경계 상태로 전환 (검증문서 01-11 6행, 내부 판단)")]
     public int investigateStuckTurnLimit = 4;
+    [Tooltip("함정 접근 이동(해제·통과·파괴 공용) 혼잡 대기 최대 턴 수 — 초과 시 함정 대응을 포기하고 경계 상태로 전환 (검증문서 03-11, 내부 판단)")]
+    public int trapMoveStuckTurnLimit = 4;
     [Tooltip("자유탐색(배회) 중 다음 걸음이 아군에게 막힌 혼잡 대기 최대 턴 수 — 초과 시 탐색 목표를 포기하고 경계 상태로 전환 (플레이테스트 발견, 내부 판단)")]
     public int exploreStuckTurnLimit = 4;
     [Tooltip("집결 대기·코어 보고 이동 중 혼잡 대기 최대 턴 수 — 초과 시 대기를 포기(집결은 '도착'과 동일하게 처리) (플레이테스트 발견, 내부 판단)")]

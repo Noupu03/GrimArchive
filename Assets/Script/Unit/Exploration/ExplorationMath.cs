@@ -63,6 +63,11 @@ public static class ExplorationMath
 		if (incomingCalcTime <= appliedCalcTime + TrapArrivalEpsilon) return false;
 		return Mathf.Abs(incomingArrivalTime - appliedArrivalTime) > TrapArrivalEpsilon;
 	}
+
+	// 순서도 03-10 "예상 성공률이 가장 높은 1명, 동률이면 해제 위치까지 짧은 도착시간": 성공률이 더 높으면 교체, 같으면(부동소수 근사)
+	// 도착시간이 더 짧을 때만 교체한다. 둘 다 같으면 기존 승자를 유지한다(발견자 우선).
+	public static bool IsBetterTrapDisarmCandidate(float rate, float eta, float bestRate, float bestEta)
+		=> Mathf.Approximately(rate, bestRate) ? eta < bestEta : rate > bestRate;
 	public const float TrapRecordedDirectDisarmThreshold = 0.5f; // 9-4장: 예상 성공률 50% 초과 기준
 	public const float TrapPassMinHpRatioAfterHit = 0.5f;        // 9-10장: 일반 통과 후 최소 HP 50%
 	public const float TrapAllyRescueMinHpRatioAfterHit = 0.3f;  // 9-11장: 아군 보호 시 기록 함정 통과 후 최소 HP 30%

@@ -168,6 +168,10 @@ public class Party
 	// 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태. TrapPartySystem이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
 
+	// 03번 v0.12 8장·v0.6 9-3: 웨이브 진입 전(파티 생성 시점)에 파티 내 함정 해제 성공률이 가장 높은 것으로 확인된 유닛 — 이 유닛이 직접 발견하면
+	// 2초 응답 대기 없이 담당이 된다. 동률이면 전원 포함(아무도 더 높지 않아 응답을 기다릴 이유가 없다). GameSession.CreateParty가 채운다.
+	public readonly HashSet<string> EntryBestDisarmerNames = new HashSet<string>();
+
 	// 01번 문서 9장: 조사·회수 발견 정보의 지속 재전파 — DeathRecords/TrapCoordinations와 동일한
 	// "파티 단위 추적, 매 틱 재확인" 패턴(PropagationSystem.TickOngoingObjectPropagation이 소비).
 	// 조사 완료는 위치까지, 회수 완료는 사실만 필요해 따로 추적한다.

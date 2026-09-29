@@ -143,5 +143,77 @@ public class FSMBehaviorTests
 
 		Assert.IsNull(human.currentAlertSearch, "미식별 공격 수색은 4-11장 그대로 15초 후 종료돼야 한다.");
 	}
+
+	// ── 검증문서 03-11. 함정 해제 진행도는 "수행 중일 때만" 쌓이고, 중단은 진행도 50% 손실 + 대응 상태 유지(재개)다 ──
+
+	private static TrapInteractionState MakeDisarmingTrap(float progress, bool performing)
+		=> new TrapInteractionState
+		{
+			TrapObjectId = "t",
+			TrapPosition = new Vector3Int(5, 5, 0),
+			Phase = TrapPhase.Disarming,
+			JoinWaitElapsed = true,
+			IsSelectedDisarmer = true,
+			DisarmProgress01 = progress,
+			PenaltyActive = performing,
+		};
+
+	[Test]
+	public void TrapDisarmProgress_AccruesOnlyWhilePerforming()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		var trap = MakeDisarmingTrap(0.2f, performing: false);
+		human.currentTrapInteraction = trap;
+		float quarter = ExplorationMath.TrapDisarmDurationSeconds * 0.25f;
+
+		// Phase가 Disarming으로 남아있어도 해제를 실제로 수행하지 않는 동안(전투·중단 중)엔 쌓이면 안 된다 —
+		// 그렇지 않으면 중단 시 50% 손실이 몇 초 만에 복구돼 무력화된다.
+		human.OnUpdate(quarter);
+		Assert.AreEqual(0.2f, trap.DisarmProgress01, 0.001f);
+
+		trap.PenaltyActive = true; // TrapDisarmPerform이 수행 중임을 알린 상태
+		human.OnUpdate(quarter);
+		Assert.AreEqual(0.45f, trap.DisarmProgress01, 0.001f);
+
+		// 기절 중엔 ExecuteAction이 통째로 막혀 Tick/OnExit이 중단을 못 잡으므로 누적 쪽에서 직접 멈춘다.
+		human.StatusEffects.State.stunDuration = quarter * 10f;
+		human.OnUpdate(quarter);
+		Assert.AreEqual(0.45f, trap.DisarmProgress01, 0.001f);
+	}
+
+	[Test]
+	public void TrapDisarm_HitWithinTactical_HalvesProgressOnce_AndKeepsResponse()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		var trap = MakeDisarmingTrap(0.6f, performing: true);
+		human.currentTrapInteraction = trap;
+
+		human.isHitThisTurn = true; // 9-9장 중단 조건: 해제자 피격
+		human.JudgeState();
+		human.ExecuteAction();
+
+		Assert.AreEqual("TacticalFSMState", human.fsm.CurrentState.GetType().Name);
+		Assert.AreEqual(0.3f, trap.DisarmProgress01, 0.001f); // 50% 손실이 1회만 적용된다(CanDisarm/Tick 래핑이 겹쳐도 PenaltyActive 가드)
+		Assert.IsFalse(trap.PenaltyActive);
+		// 예전엔 CanDisarm 실패 직후 TrapBypass가 대응 상태를 지워 재개가 불가능했다 — 이제는 양보만 하고 상태를 유지한다.
+		Assert.AreSame(trap, human.currentTrapInteraction);
+	}
+
+	[Test]
+	public void TrapDisarm_InterceptedByHigherBranch_IsTreatedAsInterrupt_AndKeepsResponse()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		var trap = MakeDisarmingTrap(0.6f, performing: true);
+		human.currentTrapInteraction = trap;
+		// 함정 대응보다 앞선 BT 분기(전투 합류 대기)가 이 틱을 가로챈다 — 피격·위협 같은 기존 중단 조건에는 안 걸리는 경로.
+		human.currentJoinCombatWait = new JoinCombatWaitState { IsDiscoverer = true };
+
+		human.JudgeState();
+		human.ExecuteAction();
+
+		Assert.AreEqual(0.3f, trap.DisarmProgress01, 0.001f); // TacticalFSMState.Tick이 "수행 없이 끝난 틱"을 중단으로 잡는다
+		Assert.IsFalse(trap.PenaltyActive);
+		Assert.AreSame(trap, human.currentTrapInteraction);
+	}
 }
 #endif

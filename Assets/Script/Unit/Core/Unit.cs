@@ -221,6 +221,9 @@ public abstract class Unit : ScriptableObject {
 	// 검증문서 01-11 6행: 일반 조사 대상 접근이 몇 틱째 막혀 있는지 — 위와 동일한 이유로 도입,
 	// 대상이 진짜 도달 불가능하면(고립 구역/상대 진영 문 뒤 등) 포기하고 다른 후보로 넘어간다.
 	public int investigateStuckTurns = 0;
+	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapPass/TrapDestroy 공용)이 몇 틱째 막혀 있는지 — 위와 같은
+	// 패턴. 함정이 도달 불가능하면(상대 진영 문 뒤 등) 포기하고 대응을 접는다.
+	public int trapMoveStuckTurns = 0;
 	// 자유탐색(NavigationFSMState.RandomExplore) 중 다음 걸음이 아군에게 막히는 경우를 위 두 필드와
 	// 동일한 패턴으로 처리 — 안 하면 좁은 통로 코너에서 여러 유닛이 서로를 영구히 막을 수 있다.
 	public int exploreStuckTurns = 0;
@@ -677,6 +680,15 @@ public class Human : UnitFunction
 	// 보호 포메이션 형성 판정에 쓴다 — 함정 대응이나 조사 중이면(=호위할 만한 상황이면) true.
 	// 함정 쪽은 "함정 위치에 실제로 도달했을 때"만 true다 — 이동 중(도착 전)엔 형성되면 안 되기 때문.
 	public bool IsInteracting => IsActivelyHandlingTrap() || currentInvestigation != null;
+
+	// v0.6 5-6·9-9·12-4장: 웨이브가 끝나면 유지 중이던 조사·해제 진행도를 제거한다 — 생존자는 다음 웨이브에 재사용되므로
+	// 낡은 대응 상태(이미 없는 함정·조사 대상)를 들고 넘어가지 않게 한다. 진행 막대가 남지 않게 시각 요소를 먼저 정리한다.
+	public void ClearInteractionProgress()
+	{
+		ClearTransientWorldVisuals();
+		TrapPartySystem.EndResponse(this, TrapEndReason.WaveEnded); // 조율 기록의 담당 배정도 함께 풀린다(개별 탈출 시 파티가 이어지므로)
+		currentInvestigation = null;
+	}
 
 	private bool IsActivelyHandlingTrap()
 	{
