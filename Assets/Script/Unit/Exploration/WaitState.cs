@@ -28,4 +28,15 @@ public class WaitState
 	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 대신 "리더 위치"를 매 틱
 	// 실시간으로 다시 읽어야 해서 여기 스냅샷하지 않는다, TacticalFSMState.ExecuteWait 참고).
 	public Vector3Int? CorePosition;
+
+	// ReportingCoreToLeader 전용 — 03-15 보고 이동의 진행 상태(PartyCoreReportSystem.StepReportMovement가 관리).
+	public ReportDestinationKind ReportKind;
+	public Vector2Int ReportTarget;
+	// 갈 곳이 없거나 문 주변 대기 위치에 도착해 제자리에서 기다리는 중 — 집결 완료 판정을 붙잡지 않는다(Party.CheckRallyComplete).
+	public bool IsParked;
+	// 목적지(리더 마지막 위치/집결지)에 도착해 부재 확인 3초 대기를 시작한 시각. 음수면 대기 중 아님.
+	public float AbsenceStartTime = -1f;
+	public float NextDoorScanTime;
+	// 접근이 막혀 잠시 제외한 목적지 종류(ReportDestinationKind 값으로 색인) — 이 시각이 지나면 다시 후보가 된다.
+	public readonly float[] ReportBlockedUntil = new float[PartyReportMath.KindCount];
 }

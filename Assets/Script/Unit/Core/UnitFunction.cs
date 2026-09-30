@@ -128,7 +128,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 				bool shapeProvidesDirection = PropagationMath.AttackShapeProvidesDirection(attacker.CombatState.State.lastAttackShape);
 				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
 				Vector2Int? attackerPos = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null;
-				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos, IsUnidentifiedAttackSearch = true };
+				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos, IsUnidentifiedAttackSearch = true, IsAttackDirectionSearch = true };
 
 				// "적을 정확 인지하기 전에 공격받은 경우" 이 사실(+ 방향)을 파티원에게 1회 전파한다.
 				if (this is Human victimHuman)
@@ -744,6 +744,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			if (!_reachedPerceptionThisPass.ContainsKey(kv.Key))
 				kv.Value.WasInRange = false;
 		}
+
+		// 검증문서 03-15: 이번 패스에 리더가 시야에 들어왔다면 직접 확인한 리더 위치로 기록한다.
+		if (this is Human sightedBy && sightedBy.party != null)
+			PartyCoreReportSystem.RefreshKnownLeaderFromSight(sightedBy);
 	}
 
 	// 이번 턴 활성화된 시야 방향 전환 후보를 모아 우선순위가 가장 높은 방향으로 currentDir를 갱신한다.
@@ -982,6 +986,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				TrapPartySystem.TickOngoingPropagation(human);
 				// 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보도 동일 패턴으로 지속 재전파한다.
 				PropagationSystem.TickOngoingObjectPropagation(human);
+				// 검증문서 03-14 발견 2/03-15: 아직 리더에게 전하지 못한 코어 보고 의무를 이어 간다(전달·재무장·리더 위치 중계).
+				PartyCoreReportSystem.TickPendingReport(human);
 				// 검증문서 03-13: 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
 				TrapPartySystem.TickBlockedPathResponse(human);
 			}

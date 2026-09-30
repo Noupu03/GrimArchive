@@ -277,8 +277,13 @@ public class Party
 		// CanPropagate가 그 구현)을 만족해야만 전달된다(검증문서 01-02 6번).
 		foreach (var m in Members)
 		{
-			if (m == null || m.hp <= 0 || m.currentWait != null) continue;
+			if (m == null || m.hp <= 0) continue;
 			if (m.currentRoom != Leader.currentRoom && !PropagationSystem.CanPropagate(Leader, m)) continue;
+			// 명령이 실제로 전달된 파티원은 집결 위치와 그 시점의 리더 위치를 안다(검증문서 03-15). 이미 다른 대기(코어 보고
+			// 이동 등) 중이라 집결 이동은 하지 않는 파티원도 정보는 받는다 — 보고가 빈 리더 위치에 닿았을 때 갈 곳이 된다.
+			m.knownRallyPoint = RallyPoint;
+			m.knownLeader.Update(Leader, RallyPoint.Value, Time.time);
+			if (m.currentWait != null) continue;
 			// 03번 0장·8장: 아직 시작하지 않은 함정 대응(응답 대기·담당자 도착 대기·해제하러 가는 이동)은 집결로 전환한다.
 			TrapPartySystem.ReleaseForRally(m);
 			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = RallyPoint };
@@ -295,9 +300,11 @@ public class Party
 		{
 			if (m == null || m.hp <= 0) continue;
 			// ReportingCoreToLeader도 "집결 미완료"로 취급 — 코어 보고 중인 유닛이 보고를 마치기 전에
-			// 나머지 인원만으로 집결이 먼저 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다.
+			// 나머지 인원만으로 집결이 먼저 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어
+			// 정박한(IsParked) 보고자는 붙잡지 않는다 — 리더를 못 찾는 유닛 하나가 집결을 교착시키면 안 된다.
 			if (m.currentWait != null &&
-				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint || m.currentWait.Reason == WaitReason.ReportingCoreToLeader))
+				(m.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint
+				 || (m.currentWait.Reason == WaitReason.ReportingCoreToLeader && !m.currentWait.IsParked)))
 				return;
 		}
 		IsRallyActive = false;

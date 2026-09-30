@@ -664,5 +664,38 @@ public class ExplorationSystemTests
 		Assert.IsTrue(trap.IsSelectedDisarmer);
 		Assert.IsTrue(coord.SelectionLocked);
 	}
+
+	// ── 검증문서 03-16(03번 v0.12 11장): 마지막 위치 도착 후 부재 확인 3초 대기와 수색 시간의 관계 ──
+	[Test]
+	public void LastPositionAbsenceWait_IsThreeSecondsAndKeepsOtherSearchLimits()
+	{
+		Assert.AreEqual(3f, ExplorationMath.LastPositionAbsenceWaitSeconds, 0.001f);
+		// "다른 수색을 전부 15초로 통합하지 않는다" — 미식별 공격 15초·사망 수색 10초·전투 후 10초는 각자 유지.
+		Assert.AreEqual(15f, ExplorationMath.UnidentifiedAttackSearchSeconds, 0.001f);
+		Assert.AreEqual(10f, ExplorationMath.DeathSearchSeconds, 0.001f);
+		Assert.AreEqual(10f, ExplorationMath.PostCombatAlertSeconds, 0.001f);
+	}
+
+	[Test]
+	public void ResolveAlertArrival_WaitsThreeSecondsThenContinuesOrEnds()
+	{
+		// 3초가 지나기 전에는 공격 방향 수색이든 수상한 타일이든 제자리에서 기다린다.
+		Assert.AreEqual(ExplorationMath.AlertArrivalResult.Waiting, ExplorationMath.ResolveAlertArrival(10f, 12.9f, true));
+		Assert.AreEqual(ExplorationMath.AlertArrivalResult.Waiting, ExplorationMath.ResolveAlertArrival(10f, 12.9f, false));
+		// 도착 전(시작 시각 음수)은 대기가 시작된 적 없으므로 경과로 보지 않는다.
+		Assert.AreEqual(ExplorationMath.AlertArrivalResult.Waiting, ExplorationMath.ResolveAlertArrival(-1f, 100f, true));
+		// 3초 뒤: 공격 방향 수색은 남은 기한 동안 수색을 이어 가고, 수상한 타일 경계는 끝난다.
+		Assert.AreEqual(ExplorationMath.AlertArrivalResult.ContinueSearching, ExplorationMath.ResolveAlertArrival(10f, 13f, true));
+		Assert.AreEqual(ExplorationMath.AlertArrivalResult.End, ExplorationMath.ResolveAlertArrival(10f, 13f, false));
+	}
+
+	// 공격 방향으로 이동하는 두 경계(미식별 공격 피해자·공격 사실을 전파받은 목격자)만 대기 뒤 수색을 이어 간다는 표식.
+	[Test]
+	public void AlertSearchState_AbsenceWaitDefaults()
+	{
+		var alert = new AlertSearchState { TargetPosition = new Vector2Int(3, 3) };
+		Assert.IsFalse(alert.IsAttackDirectionSearch, "수상한 타일 경계는 공격 방향 수색이 아니다");
+		Assert.Less(alert.AbsenceWaitStartTime, 0f, "도착하기 전에는 대기가 시작되지 않은 상태");
+	}
 }
 #endif

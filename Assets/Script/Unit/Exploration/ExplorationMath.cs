@@ -18,6 +18,24 @@ public static class ExplorationMath
 	public const float DeathDirectDiscoveryMentalLoss = 10f; // 4-12/4-13장: 최초 발견/목격 정신력 감소
 	public const float DeathPropagationMentalLoss = 5f;      // 4-13장: 전파/재전파 수신 정신력 감소
 
+	// 03번 v0.12 11장: 마지막 확인 위치에 도착해 대상 부재를 확인한 뒤의 공통 대기시간 — 리더 마지막 위치 보고 이동
+	// (03-15)과 경계 수색의 마지막 위치 도착(03-16)이 함께 쓴다. 이 시간은 진행 중인 수색 시간 안에 포함된다.
+	public const float LastPositionAbsenceWaitSeconds = 3f;
+
+	// 부재 확인 대기(03번 11장 3초) 경과 여부. startTime이 음수면 아직 시작 전이다.
+	public static bool AbsenceWaitElapsed(float startTime, float now, float waitSeconds)
+		=> startTime >= 0f && now - startTime >= waitSeconds;
+
+	public enum AlertArrivalResult { Waiting, ContinueSearching, End }
+
+	// 검증문서 03-16(순서도 03-16): 경계 수색이 마지막 위치에 도착해 부재를 확인한 뒤의 처리. 3초가 안 지났으면 제자리에서
+	// 기다리고, 지났으면 공격 방향 수색은 남은 수색 기한 동안 정면 수색을 이어 가고 그 외(수상한 타일)는 경계를 끝낸다.
+	public static AlertArrivalResult ResolveAlertArrival(float absenceStartTime, float now, bool continueSearchAfterAbsence)
+	{
+		if (!AbsenceWaitElapsed(absenceStartTime, now, LastPositionAbsenceWaitSeconds)) return AlertArrivalResult.Waiting;
+		return continueSearchAfterAbsence ? AlertArrivalResult.ContinueSearching : AlertArrivalResult.End;
+	}
+
 	// ─────────────────────────── 5장/14장. 조사 ───────────────────────────
 	public const float InvestigatePenaltyRatio = 0.5f;   // 5-4장: 조사 중 시야/인지/반응속도 50%
 	public const float InvestigateInterruptLossRatio = 0.5f; // 5-6장: 중단 시 진행량의 50% 손실

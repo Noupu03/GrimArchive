@@ -675,34 +675,10 @@ namespace GrimArchive.Wave
         // 방에 가장 가까운 것을 고른다 — 진짜 방 그래프 최단경로 대신 좌표 거리로 근사한다(리더·명령
         // 문서가 생기면 교체 대상, 행동경로목표결정 구현현황 문서 "큰 줄기 FSM 재설계" 참고).
         private bool TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)
-        {
-            doorPos = default; doorFloor = 0;
-            var leader = activeParty.Leader;
-            if (leader == null || leader.currentRoom == null || GameSession.Instance == null) return false;
+            => AIMovementHelper.TryFindKnownDoorInCurrentRoom(activeParty.Leader, _targetRoom.Bounds.center, out doorPos, out doorFloor);
 
-            Vector2 targetCenter = _targetRoom.Bounds.center;
-            float bestDistSq = float.MaxValue;
-            bool found = false;
-
-            foreach (var obj in GameSession.Instance.objectGrid.Values)
-            {
-                if (obj == null || obj.Position.z != leader.currentFloor) continue;
-                if (!leader.currentRoom.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
-                if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
-                if (!leader.personalMap.IsTileRevealed(obj.Position)) continue;
-
-                Vector2 p = new Vector2(obj.Position.x, obj.Position.y);
-                float distSq = (p - targetCenter).sqrMagnitude;
-                if (distSq < bestDistSq)
-                {
-                    bestDistSq = distSq;
-                    doorPos = new Vector2Int(obj.Position.x, obj.Position.y);
-                    doorFloor = obj.Position.z;
-                    found = true;
-                }
-            }
-            return found;
-        }
+        // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다(검증문서 03-15). 웨이브가 없으면 null.
+        public Vector2? TargetRoomCenter => _targetRoom != null ? _targetRoom.Bounds.center : (Vector2?)null;
 
         private void EndWave(bool isSuccess)
         {

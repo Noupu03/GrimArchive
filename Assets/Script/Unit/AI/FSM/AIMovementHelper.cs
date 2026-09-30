@@ -290,6 +290,36 @@ public static class AIMovementHelper
 		return best;
 	}
 
+	// 05번 1장·8장: observer의 개인 지도로 "알고 있는"(IsTileRevealed) 현재 방의 문 중 하나를 고른다. targetCenter가 있으면
+	// 그 방향에 가장 가까운 문(알려진 다음 이동 문), 없으면 observer에게 가장 가까운 문. 진짜 방 그래프 최단경로 대신 좌표 거리 근사.
+	public static bool TryFindKnownDoorInCurrentRoom(Human observer, Vector2? targetCenter, out Vector2Int doorPos, out int doorFloor)
+	{
+		doorPos = default; doorFloor = 0;
+		if (observer == null || observer.currentRoom == null || GameSession.Instance == null) return false;
+
+		Vector2 reference = targetCenter ?? (Vector2)observer.position;
+		float bestDistSq = float.MaxValue;
+		bool found = false;
+
+		foreach (var obj in GameSession.Instance.objectGrid.Values)
+		{
+			if (obj == null || obj.Position.z != observer.currentFloor) continue;
+			if (!observer.currentRoom.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
+			if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
+			if (!observer.personalMap.IsTileRevealed(obj.Position)) continue;
+
+			float distSq = (new Vector2(obj.Position.x, obj.Position.y) - reference).sqrMagnitude;
+			if (distSq < bestDistSq)
+			{
+				bestDistSq = distSq;
+				doorPos = new Vector2Int(obj.Position.x, obj.Position.y);
+				doorFloor = obj.Position.z;
+				found = true;
+			}
+		}
+		return found;
+	}
+
 	// 05번 문서 3장: 문 대기는 문 바로 앞 통과 구간(체비셰프 거리 1 이내)을 비우고 그 밖에서 기다린다.
 	// claimedSlots는 호출부가 파티 전체에 걸쳐 공유해 자리가 안 겹치게 한다. 반경 5 안에서도 못
 	// 찾으면(좁은 통로 등) 문 위치 그대로 반환한다 — 겹치더라도 완전히 못 오는 것보다 낫다는 폴백.

@@ -259,15 +259,16 @@ public static class TrapPartySystem
 			&& Vector2Int.Distance(human.position, party.RallyPoint.Value) <= RallyArrivalRadius;
 	}
 
-	// 집결·이동 중인 유닛이 가고 있는 목적지 — 함정이 그 경로를 막는지 판정하는 데 쓴다(코어 보고는 리더 위치, 그 외는 대기 위치·집결지).
+	// 집결·이동 중인 유닛이 가고 있는 목적지 — 함정이 그 경로를 막는지 판정하는 데 쓴다(코어 보고는 보고자가 지금 향하는 목적지, 그 외는 대기 위치·집결지).
 	private static Vector2Int? PartyMovementDestination(Human human)
 	{
 		var wait = human.currentWait;
 		var party = human.party;
 		if (wait != null)
 		{
+			// 코어 보고는 실제 리더 위치가 아니라 보고자가 지금 향하는 목적지(아는 리더 위치·집결지·문·프론티어)를 쓴다 — 검증문서 03-15.
 			if (wait.Reason == WaitReason.ReportingCoreToLeader)
-				return party?.Leader != null && party.Leader.hp > 0 ? party.Leader.position : (Vector2Int?)null;
+				return wait.ReportKind != ReportDestinationKind.None ? wait.ReportTarget : (Vector2Int?)null;
 			if (wait.WaitPosition.HasValue) return wait.WaitPosition;
 		}
 		return party != null && party.IsRallyActive ? party.RallyPoint : null;

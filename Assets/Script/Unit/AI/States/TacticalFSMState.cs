@@ -883,39 +883,11 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.ReportingCoreToLeader && wait.CorePosition.HasValue)
 		{
-			// 03번 문서 3번 항목: 리더 위치는 매 틱 실시간으로 다시 읽는다(리더도 움직이므로 스냅샷
-			// 불가) — 전파 범위 안에 들어오는 순간 전달하고 종료, 다른 파티원이 먼저 보고했거나 코어가
-			// 처리됐으면 조용히 종료.
-			if (!TacticalFSMState.IsRoomCoreStillHostile(human, wait.CorePosition.Value)
-				|| PartyCoreReportSystem.TryDeliverToLeader(human, wait.CorePosition.Value))
-			{
-				human.currentWait = null;
-				human.waitStuckTurns = 0;
+			// 검증문서 03-15: 목적지는 이 유닛이 "아는" 리더 위치·집결 위치·발견한 문·미탐색 지형으로만 정한다(실제 리더
+			// 위치를 읽지 않는다). 전달·목적지 결정·부재 확인·접근 실패 처리는 전부 PartyCoreReportSystem이 담당하고,
+			// 종료 경로는 모두 집결 완료를 다시 확인한다(03-14). 보고 의무는 종료돼도 남을 수 있다(TickPendingReport).
+			if (PartyCoreReportSystem.StepReportMovement(human, wait) == ReportStep.Ended)
 				return BTStatus.Success;
-			}
-
-			Human leader = human.party?.Leader;
-			if (leader == null || leader.hp <= 0)
-			{
-				human.currentWait = null; // 리더 부재(승계 전) — 보고 이동 종료, 다음 틱 재판단
-				human.waitStuckTurns = 0;
-				return BTStatus.Success;
-			}
-
-			// 위 AwaitingPartyAtRallyPoint와 동일한 패턴 — 리더에게 가는 길이 막히면 몇 틱 기다린 뒤
-			// 보고를 포기한다(발견한 코어 정보는 개인 지도에 이미 남아있어 사라지지 않는다).
-			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, leader.position);
-			AIMovementHelper.MoveTowardsPos(human, leader.position);
-			if (AIMovementHelper.ChebyshevDistance(human.position, leader.position) < distBefore)
-			{
-				human.waitStuckTurns = 0;
-			}
-			else if (++human.waitStuckTurns >= (AIConfigLoader.Behavior?.waitStuckTurnLimit ?? 4))
-			{
-				human.waitStuckTurns = 0;
-				human.currentWait = null;
-				return BTStatus.Success;
-			}
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
 		{
@@ -941,9 +913,33 @@ public class TacticalFSMState : IFSMState
 		unit.currentDir = SkillAction.GetDirection8(target - unit.position);
 		if (Vector2Int.Distance(unit.position, target) <= 1.5f)
 		{
-			unit.currentAlertSearch = null;
-			return BTStatus.Success;
+			// 소리 반응은 이 분기가 아니라 자기 유지 시간(이동음 2초·추정 지역 2초)을 쓴다 — 3초를 덧붙이지 않는다(03번 332~334줄).
+			if (alert.IsSoundResponse)
+			{
+				unit.currentAlertSearch = null;
+				return BTStatus.Success;
+			}
+
+			// 검증문서 03-16: 마지막 위치에 도착했는데 대상이 없다(정확 인지했다면 Combat이 이 분기를 이미 선점했다) —
+			// 3초 부재 확인 대기. 이 대기는 경계의 수색 시간(ElapsedSeconds) 안에 포함되므로 그 값은 건드리지 않는다.
+			if (alert.AbsenceWaitStartTime < 0f) alert.AbsenceWaitStartTime = Time.time;
+			switch (ExplorationMath.ResolveAlertArrival(alert.AbsenceWaitStartTime, Time.time, alert.IsAttackDirectionSearch))
+			{
+				case ExplorationMath.AlertArrivalResult.Waiting:
+					return BTStatus.Running;
+				case ExplorationMath.AlertArrivalResult.ContinueSearching:
+					// 이 위치는 비어 있다 — 같은 위치를 다시 고르지 않고 남은 수색 기한 동안 정면 수색(AlertPerimeterSearch)을 이어 간다.
+					// 기한은 UnitFunction.OnUpdate의 15초 워치독이 종료한다.
+					alert.TargetPosition = null;
+					return BTStatus.Running;
+				default:
+					unit.currentAlertSearch = null;
+					return BTStatus.Success;
+			}
 		}
+
+		// 부재 확인 대기 중 밀려나 도착 위치를 벗어났다면 3초는 다시 도착한 시점부터 센다.
+		alert.AbsenceWaitStartTime = -1f;
 		AIMovementHelper.MoveTowardsPos(unit, target);
 		return BTStatus.Running;
 	}

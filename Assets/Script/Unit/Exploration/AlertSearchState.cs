@@ -17,6 +17,14 @@ public class AlertSearchState
 	// 대응은 이 경계가 진행되는 동안 양보하고 끝나면 재개한다(v0.6 12-2, TacticalFSMState.IsTrapResponseInterrupted).
 	public bool IsUnidentifiedAttackSearch;
 
+	// 검증문서 03-16: 공격 방향으로 이동하며 하는 수색(미식별 공격 피해자 + 공격 사실을 전파받은 목격자). 마지막 위치에
+	// 도착해 3초 부재 확인을 마친 뒤에도 남은 수색 기한(15초) 동안 정면 수색을 이어 간다 — 이 표식이 없는 경계(수상한
+	// 타일)는 3초 대기 뒤 끝난다. IsUnidentifiedAttackSearch와 달리 목격자 경계에도 붙는다.
+	public bool IsAttackDirectionSearch;
+	// 03번 11장: 마지막 위치에 도착해 부재 확인 3초 대기를 시작한 시각(음수 = 아직 도착 전). 대기는 이 경계의 수색 시간
+	// (ElapsedSeconds) 안에 포함되므로 ElapsedSeconds를 건드리지 않는다.
+	public float AbsenceWaitStartTime = -1f;
+
 	// 4-12장: 미식별 공격 수색시간(15초) — 새 공격이 오면 15초로 재설정된다. 전투종료후 스윕은
 	// ExplorationMath.PostCombatAlertSeconds(10초)를 쓴다.
 	public float ElapsedSeconds;

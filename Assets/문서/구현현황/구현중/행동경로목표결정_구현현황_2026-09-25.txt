@@ -634,6 +634,20 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    HumanWaveManager의 보스방 라우팅(웨이브 목표 자체가 보스방이라 대부분 이미 그 방향으로 가는
    중)에 맡긴다 — 파티가 코어 발견 시점에 이미 보스방 근처가 아니라면 체감상 느리게 반응할 수 있다.
    실제 플레이 검증 필요(다음 세션 우선순위).
+   [갱신, 2026-09-30 검증 03-14/03-15] 보고 이동을 다음과 같이 개편했다(상세는 검증문서 03-14·03-15 항목):
+   (1) 보고 의무를 대기 상태와 분리 — Human.pendingCoreReportPos(전달/코어 처리 시에만 해제) +
+   PartyCoreReportSystem.TickPendingReport(0.1초 틱, 어떤 행동 중이든 전파 조건 성립 시 전달·끊긴 대기 재무장).
+   (2) 실제 리더 위치를 읽던 이동을 폐기 — Human.knownLeader(KnownLeaderInfo: 직접 확인/집결 명령/파티원 중계로만
+   갱신)·knownRallyPoint 기반 목적지 결정(아는 리더 위치 → 유효 집결지 → 발견한 문 주변 → 시야 넓히기),
+   도착했는데 리더가 없으면 3초 부재 확인 후 그 위치를 "빈 위치"로 기록해 같은 위치를 반복 방문하지 않는다
+   (PartyReportMath 순수 함수 + PartyCoreReportSystem.StepReportMovement). 갈 곳이 없으면 정박(WaitState.IsParked)하고
+   정박한 보고자는 Party.CheckRallyComplete를 붙잡지 않는다. (3) 코어 보고 이동 중 소리 반응은 이동음·함정음만
+   무시하고 전투음은 대응한다(03번 1장 48~49행). 문·길·일반 임무 대상의 "일반 보고 이동"은 여전히 코드가 없다(N/A).
+   [갱신, 2026-09-30 검증 03-16] 마지막 위치 도착 후 3초 부재 확인 대기를 경계 수색까지 공용화했다 —
+   ExplorationMath.LastPositionAbsenceWaitSeconds/AbsenceWaitElapsed/ResolveAlertArrival, AlertSearchState.
+   IsAttackDirectionSearch/AbsenceWaitStartTime, TacticalFSMState.AlertApproach(공격 방향 수색은 3초 대기 뒤 남은
+   15초 동안 정면 수색을 잇고, 수상한 타일 경계는 3초 대기 뒤 종료 — 이전엔 도착 즉시 경계 종료). 소리 확인이
+   전투 등으로 중단돼도 남던 PendingSound가 새 소리를 막던 문제도 수정(PropagationSystem.DiscardInterruptedSoundReaction).
 ❌ 8. 개인이 할 일이 없을 때 (05번 8항 특유의 "진형→집결위치→문 순" 합류 로직 미구현 — 지금은 기존
    Wait/Navigation 폴백)
 🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
@@ -1089,9 +1103,11 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     수정 3곳:
     (1) PropagationSystem.IsSoundReactionSuppressed(Unit, SoundType) 신설 — 코어/문 공격 채널링 중
     (currentAttackObjectTarget.HasValue, 인류·플레이어 몬스터 공통 필드), 파티 목표 조사 중
-    (currentInvestigation?.IsPartyGoalTarget==true, 27번의 그 플래그), 코어 보고 이동 중
-    (currentWait.Reason==ReportingCoreToLeader, "코어 상호작용"의 일부로 취급)이면 모든 소리 무시,
-    일반 조사(파티목표 아님) 중엔 함정작동음만 무시. TryPromotePendingSoundToAlert 시작부에서 호출해
+    (currentInvestigation?.IsPartyGoalTarget==true, 27번의 그 플래그)이면 모든 소리 무시,
+    일반 조사(파티목표 아님) 중엔 함정작동음만 무시. [정정, 2026-09-30 검증 03-14] 코어 보고 이동 중
+    (currentWait.Reason==ReportingCoreToLeader)도 처음엔 "코어 상호작용"의 일부로 모든 소리를 무시했으나, 03번
+    1장 48~49행이 보고 이동에 별도 행(이동음·함정음만 무시, 전투음은 대응 후 보고 재개)을 두고 있어 지금은
+    이동음·함정음만 무시한다. TryPromotePendingSoundToAlert 시작부에서 호출해
     Alert 승격 자체를 막는다 — PendingSound는 폐기되지 않고 남아 있다가 그 행동이 끝나면(또는 5초
     유효시간이 지나면 기존 ExpireAfterDelay가 자동 소멸) 정상 재평가된다. 보호 포메이션 참여
     분기(표의 마지막 행)는 Formation.enabled=false로 여전히 비활성이라 포함하지 않음 — 재활성화

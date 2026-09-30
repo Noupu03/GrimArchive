@@ -229,6 +229,49 @@ public class PropagationSystemTests
 		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
 	}
 
+	// 검증문서 03-16: 확인 행동을 시작했다고 표시됐지만 소리 경계가 이미 지워진(전투 진입 등으로 중단된) 기록은
+	// 새 소리를 막지 못한다 — 예전엔 사망음·피격 비명(rank 1) 기록이 남으면 이후 모든 소리를 못 들었다.
+	[Test]
+	public void OnSoundPerceived_InterruptedResponseRecord_DoesNotBlockNewSound()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = Vector2Int.zero;
+		human.Propagation.PendingSound = new PendingSoundReaction
+		{
+			Type = SoundType.HitScream,
+			SourcePosition = new Vector2Int(2, 0),
+			ResponseStarted = true,
+			ValidUntilTime = 9999f,
+		};
+		human.currentAlertSearch = null; // 전투 진입이 경계만 지운 상태
+
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			human, SoundType.Movement, new Vector2Int(1, 0), 0, null, null, false, "INC_STALE"));
+
+		Assert.AreEqual(SoundType.Movement, human.Propagation.PendingSound.Type);
+	}
+
+	// 반대로 소리 경계가 실제로 진행 중이면 같은/낮은 순위의 새 소리는 여전히 무시된다(7-2장 "기존 유지").
+	[Test]
+	public void OnSoundPerceived_ActiveResponse_StillBlocksLowerPriority()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = Vector2Int.zero;
+		human.Propagation.PendingSound = new PendingSoundReaction
+		{
+			Type = SoundType.HitScream,
+			SourcePosition = new Vector2Int(2, 0),
+			ResponseStarted = true,
+			ValidUntilTime = 9999f,
+		};
+		human.currentAlertSearch = new AlertSearchState { IsSoundResponse = true, SoundKind = SoundType.HitScream };
+
+		PropagationSystem.OnSoundPerceived.OnNext(new PropagationSystem.SoundPerceivedEvent(
+			human, SoundType.Movement, new Vector2Int(1, 0), 0, null, null, false, "INC_ACTIVE"));
+
+		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
+	}
+
 	// ── 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 발견한 갭 수정(2026-08-06) — 몬스터도
 	// SoundPerceivedEvent의 Observer가 될 수 있고, PendingSound는 Propagation(base Unit 소유)이라
 	// 인류와 동일하게 채워져야 한다.
@@ -268,6 +311,34 @@ public class PropagationSystemTests
 		Assert.IsNotNull(monster.currentAlertSearch);
 		Assert.IsTrue(monster.currentAlertSearch.IsSoundResponse);
 		Assert.AreEqual(SoundType.Movement, monster.currentAlertSearch.SoundKind);
+	}
+
+	// 03번 1장 48~49행(검증문서 03-14): 코어 보고 이동 중엔 이동음·함정음만 무시하고, 전투음은 경계로 승격돼
+	// 대응한다(보고는 currentWait에 남아 전투 후 재개). 03-04에서 모든 소리를 무시하게 했던 것을 바로잡은 동작.
+	[TestCase(SoundType.Movement, false)]
+	[TestCase(SoundType.TrapActivation, false)]
+	[TestCase(SoundType.AttackExecution, true)]
+	[TestCase(SoundType.HitImpact, true)]
+	[TestCase(SoundType.HitScream, true)]
+	[TestCase(SoundType.Death, true)]
+	public void TryPromotePendingSoundToAlert_CoreReporter_OnlyCombatSoundsPromote(SoundType type, bool expectPromoted)
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = Vector2Int.zero;
+		human.currentWait = new WaitState { Reason = WaitReason.ReportingCoreToLeader, CorePosition = new Vector3Int(1, 1, 0) };
+		human.Propagation.PendingSound = new PendingSoundReaction
+		{
+			Type = type,
+			SourcePosition = new Vector2Int(2, 0),
+			HasEstimatedArea = false,
+			ValidUntilTime = 9999f,
+		};
+
+		bool promoted = PropagationSystem.TryPromotePendingSoundToAlert(human);
+
+		Assert.AreEqual(expectPromoted, promoted);
+		Assert.AreEqual(expectPromoted, human.currentAlertSearch != null);
+		Assert.IsNotNull(human.currentWait, "소리 대응 여부와 무관하게 보고 의무(currentWait)는 남아 있어야 한다");
 	}
 
 	// ── E_HIT_HEAVY_INDIRECT 연결(2026-08-05): 인지 판정 성공 시점(TryConfirmIndirectHit)에서만 기록되고,

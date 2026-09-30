@@ -682,6 +682,11 @@ public class Human : UnitFunction
 	// TacticalFSMState.ExecuteWait의 AwaitingPartyAtRallyPoint/ReportingCoreToLeader 분기에서
 	// exploreStuckTurns와 동일한 패턴으로 쓴다 — currentWait의 Reason은 매번 하나뿐이라 필드를 공유한다.
 	public int waitStuckTurns = 0;
+	// 03번 10장·05번 8장(검증문서 03-15): 이 유닛이 "유효하게 아는" 리더 위치·집결 위치와 아직 리더에게 전하지 못한
+	// 코어 발견 보고 의무 — 실제 리더 위치를 읽지 않고 보고 이동의 목적지를 정하는 근거다.
+	public readonly KnownLeaderInfo knownLeader = new KnownLeaderInfo();
+	public Vector2Int? knownRallyPoint;
+	public Vector3Int? pendingCoreReportPos;
 	public FormationState     currentFormation;
 	// 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;
@@ -706,6 +711,10 @@ public class Human : UnitFunction
 		ClearTransientWorldVisuals();
 		TrapPartySystem.EndResponse(this, TrapEndReason.WaveEnded); // 조율 기록의 담당 배정도 함께 풀린다(개별 탈출 시 파티가 이어지므로)
 		currentInvestigation = null;
+		// 웨이브를 넘어 재사용되는 생존자가 지난 파티의 리더·집결 정보나 미전달 보고를 들고 가지 않게 한다.
+		pendingCoreReportPos = null;
+		knownRallyPoint = null;
+		knownLeader.Clear();
 	}
 
 	private bool IsActivelyHandlingTrap()

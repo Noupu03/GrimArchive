@@ -151,6 +151,7 @@ public static class PropagationSystem
 	{
 		Unit listener = e.Observer;
 		if (listener == null || listener.hp <= 0) return;
+		DiscardInterruptedSoundReaction(listener);
 
 		int rank = PropagationMath.SoundPriorityRank(e.Type);
 		float dist = Vector2Int.Distance(listener.position, e.Position);
@@ -226,10 +227,22 @@ public static class PropagationSystem
 		return false;
 	}
 
+	// 검증문서 03-16: 확인 행동을 시작한(ResponseStarted) 소리 기록은 그 소리 경계(IsSoundResponse)가 실제로 진행 중일
+	// 때만 "반응 중"이다. 전투 진입(CombatFSMState.OnEnter)·조사·사망 수색 등이 경계만 지우고 덮어쓰면 기록이 남아,
+	// 같은/낮은 순위의 새 소리를 영구히 무시하게 된다(사망음·피격 비명이면 이후 모든 소리) — 그런 기록은 중단된 반응이므로 버린다.
+	private static void DiscardInterruptedSoundReaction(Unit unit)
+	{
+		var pending = unit.Propagation.PendingSound;
+		if (pending == null || !pending.ResponseStarted) return;
+		if (unit.currentAlertSearch != null && unit.currentAlertSearch.IsSoundResponse) return;
+		unit.Propagation.PendingSound = null;
+	}
+
 	// currentAlertSearch가 비어있고 유효한 PendingSound가 있으면 경계 상태로 승격시킨다. TacticalFSMState.
 	// HasAlert가 호출하며, 함정작동음처럼 현재 행동을 유지시키는 소리는 그 행동이 끝난 뒤에야 승격된다(16-4장).
 	public static bool TryPromotePendingSoundToAlert(Unit unit)
 	{
+		DiscardInterruptedSoundReaction(unit);
 		if (unit.currentAlertSearch != null) return unit.currentAlertSearch.IsSoundResponse;
 		var pending = unit.Propagation.PendingSound;
 		if (pending == null || pending.ResponseStarted) return false;
@@ -271,8 +284,11 @@ public static class PropagationSystem
 		{
 			// 파티 목표 상호작용(회수 파티+Loot, 검증문서 03-01의 IsPartyGoalTarget) 당사자 — 모든 소리 무시.
 			if (human.currentInvestigation?.IsPartyGoalTarget == true) return true;
-			// 코어 발견 보고 이동 중(검증문서 03-03) — "코어 상호작용"의 일부로 취급, 모든 소리 무시.
-			if (human.currentWait?.Reason == WaitReason.ReportingCoreToLeader) return true;
+			// 코어 보고 이동 중은 03번 1장 48~49행의 별도 행(보고 이동)을 따른다 — 이동음·함정음만 무시하고
+			// 전투음은 대응한 뒤 남은 보고를 재개한다(검증문서 03-14). 이동음까지 허용하면 SoundMoveReact가
+			// 2초간 보고 이동을 멈춰 세운다.
+			if (human.currentWait?.Reason == WaitReason.ReportingCoreToLeader)
+				return type == SoundType.Movement || type == SoundType.TrapActivation;
 			// 일반 조사(파티 목표 아님) 중엔 함정작동음만 무시한다.
 			if (type == SoundType.TrapActivation && human.currentInvestigation != null) return true;
 		}
@@ -459,7 +475,7 @@ public static class PropagationSystem
 			if (!InPropagationRange(victim, m)) continue;
 			if (m.currentAlertSearch != null) continue; // 더 급한 상태(이미 반응 중)는 덮어쓰지 않는다.
 
-			m.currentAlertSearch = new AlertSearchState { TargetPosition = attackerPosition };
+			m.currentAlertSearch = new AlertSearchState { TargetPosition = attackerPosition, IsAttackDirectionSearch = true };
 		}
 	}
 
