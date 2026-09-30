@@ -333,15 +333,9 @@ public class TacticalFSMState : IFSMState
 
 	private static BTStatus Panic(Unit unit)
 	{
+		// 공황은 매 틱 돌아 로그가 콘솔을 뒤덮는다 — 이동/정지 로그는 두지 않는다.
 		if (Random.value > 0.5f)
-		{
 			unit.Move((Dir)Random.Range(0, 8));
-			LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 공황에 빠져 무작위로 이동합니다.");
-		}
-		else
-		{
-			LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 공황에 빠져 멈춰있습니다.");
-		}
 		return BTStatus.Running;
 	}
 
@@ -909,16 +903,9 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.AdvancingToNextRoom && wait.WaitPosition.HasValue)
 		{
-			// 05번 1장: 문에 도착(또는 더 다가갈 수 없음)하면 개인 행동으로 넘긴다 — 적대 문 파괴는
-			// TacticalBehaviorType.DoorAttack(인류 전용) 등 기존 전술이 이어받는다.
-			bool arrivedAtDoorSlot = AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value);
-			if (arrivedAtDoorSlot || !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
-			{
-				// 방 이동 명령은 여기까지다 — 문 앞 자리에 닿으면(또는 더 다가갈 수 없으면) 대기를 풀고 개인 행동으로 돌아간다.
-				LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 방 이동 명령 종료 — {(arrivedAtDoorSlot ? "문 앞 자리 도착" : "더 다가갈 수 없음")}, 이후 개인 행동으로 복귀");
-				human.currentWait = null;
-				return BTStatus.Success;
-			}
+			// 05번 1장: 문 앞 자리에 도착하면 개인 행동으로 넘긴다 — 적대 문 파괴는 TacticalBehaviorType.DoorAttack(인류 전용) 등 기존 전술이 이어받는다.
+			// 길이 막힌 것만으로는 명령을 풀지 않는다(검증문서 04-02) — StepAdvanceToDoor가 인내·다른 자리·보류를 처리한다.
+			if (StepAdvanceToDoor(human, wait) == BTStatus.Success) return BTStatus.Success;
 		}
 		else if (wait.Reason == WaitReason.ReportingCoreToLeader && wait.CorePosition.HasValue)
 		{
@@ -945,6 +932,73 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 		}
+		return BTStatus.Running;
+	}
+
+	// 방 이동(AdvancingToNextRoom) 한 틱 — 검증문서 04-02(04번 1장 "개인 경로가 막힌 경우", 03번 13장): 집결·방 이동은 길이 막혔다는 이유만으로 풀어 개인 행동(다른 조사 목표 선택 포함)으로
+	// 이탈하지 않는다. 막히면 ① waitStuckTurnLimit 틱 인내 ② 같은 문의 다른 자리를 다시 고르고 ③ 한 걸음도 못 다가가면 풀지 않고 제자리에서 기다렸다 doorApproachHoldRetrySeconds마다 다시
+	// 시도한다. 닿을 수 없는 자리에 영구히 얼어붙지 않게 doorApproachMaxBlockedSeconds 넘게 막혀 있을 때만 안전장치로 푼다. Success = 명령 종료(도착·안전장치), Running = 계속.
+	private static BTStatus StepAdvanceToDoor(Human human, WaitState wait)
+	{
+		Vector2Int slot = wait.WaitPosition.Value;
+		var cfg = AIConfigLoader.Behavior;
+
+		if (AIMovementHelper.IsAdjacent(human.position, slot))
+		{
+			LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 방 이동 명령 종료 — 문 앞 자리 도착, 이후 개인 행동으로 복귀");
+			human.currentWait = null;
+			human.waitStuckTurns = 0;
+			return BTStatus.Success;
+		}
+
+		float now = Time.time;
+		if (now < wait.NextDoorScanTime) return BTStatus.Running; // 막혀 보류 중 — 다음 재시도까지 제자리에서 기다린다
+
+		int distBefore = AIMovementHelper.ChebyshevDistance(human.position, slot);
+		bool moved = AIMovementHelper.MoveTowardsPos(human, slot);
+		if (AIMovementHelper.ChebyshevDistance(human.position, slot) < distBefore)
+		{
+			human.waitStuckTurns = 0;
+			wait.BlockedSince = -1f;
+			return BTStatus.Running;
+		}
+
+		// 거리가 줄지 않았다 — 혼잡·우회 구간일 수 있어 한도까지는 인내한다(집결·조사 이동과 같은 기준).
+		if (++human.waitStuckTurns < (cfg?.waitStuckTurnLimit ?? 4)) return BTStatus.Running;
+		human.waitStuckTurns = 0;
+
+		bool newlyBlocked = wait.BlockedSince < 0f;
+		if (newlyBlocked) wait.BlockedSince = now;
+		else if (now - wait.BlockedSince >= (cfg?.doorApproachMaxBlockedSeconds ?? 30f))
+		{
+			LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 방 이동 명령 종료 — 오래 막혀 안전장치로 해제, 이후 개인 행동으로 복귀");
+			human.currentWait = null;
+			wait.BlockedSince = -1f;
+			return BTStatus.Success;
+		}
+
+		// 같은 문의 다른 자리를 다시 고른다 — 다른 파티원의 자리와 지금 막힌 자리는 제외한다. 고를 자리가 없으면(문 타일로 폴백) 그대로 둔다.
+		if (wait.DoorPosition.HasValue)
+		{
+			var claimed = new HashSet<Vector2Int> { slot };
+			if (human.party != null)
+				foreach (var m in human.party.Members)
+					if (m != null && m != human && m.hp > 0 && m.currentWait != null
+						&& m.currentWait.Reason == WaitReason.AdvancingToNextRoom && m.currentWait.WaitPosition.HasValue)
+						claimed.Add(m.currentWait.WaitPosition.Value);
+
+			Vector2Int alternate = AIMovementHelper.FindDoorWaitSlot(human, wait.DoorPosition.Value, claimed);
+			if (alternate != wait.DoorPosition.Value && alternate != slot)
+			{
+				// 로그는 막히기 시작한 첫 재선택에만 남긴다(같은 막힘에서 자리를 여러 번 바꿔도 콘솔을 뒤덮지 않게).
+				if (newlyBlocked)
+					LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 방 이동 자리 ({slot.x},{slot.y})가 막혀 다른 문 앞 자리 ({alternate.x},{alternate.y})로 바꿉니다");
+				wait.WaitPosition = alternate;
+			}
+		}
+
+		// 한 걸음도 못 움직였다면(완전히 막힘) 풀지 않고 잠시 기다렸다 다시 시도한다. 움직이고는 있었다면(우회·혼잡 셔플) 곧바로 이어 간다.
+		if (!moved) wait.NextDoorScanTime = now + (cfg?.doorApproachHoldRetrySeconds ?? 1f);
 		return BTStatus.Running;
 	}
 

@@ -544,13 +544,19 @@ public class AStarMovement : IMovementAlgorithm
         // 양옆 한 칸을 다른 유닛이 차지해 거부하는 불일치가 생긴다.
         if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
         {
-            int ortho1X = currentPos.x + dirVec.x, ortho1Y = currentPos.y;
-            int ortho2X = currentPos.x, ortho2Y = currentPos.y + dirVec.y;
-
-            if (IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho1X, ortho1Y) ||
-                IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, ortho2X, ortho2Y))
+            // 검증 04-03: Move()는 양옆 직교 이동(position+(dx,0), position+(0,dy))을 CanMove — 점유 타일 전체 — 로 검사하므로 여기서도 그 두 위치의 점유 영역 전체를 본다(앵커 한 점만
+            // 보면 2×2 이상에서 A*가 낸 대각선을 Move가 거부하고, 경로 캐시가 같은 판정을 재사용해 그 자리에서 얼어붙는다). 1×1은 예전과 같다. A* 핫패스라 델리게이트·클로저 없이 루프로 푼다.
+            for (int dx = 0; dx < fw && !isWall; dx++)
             {
-                isWall = true;
+                for (int dy = 0; dy < fh; dy++)
+                {
+                    if (IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, currentPos.x + dirVec.x + dx, currentPos.y + dy) ||
+                        IsCoordBlocked(unit, myData, mapW, mapH, floorIdx, currentPos.x + dx, currentPos.y + dirVec.y + dy))
+                    {
+                        isWall = true;
+                        break;
+                    }
+                }
             }
         }
 

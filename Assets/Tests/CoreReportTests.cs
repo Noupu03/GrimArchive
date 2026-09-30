@@ -379,6 +379,95 @@ public class CoreReportTests
 		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason);
 	}
 
+	// ── 검증 04-04: 공동 이동 속도(가장 느린 구성원) ──
+	private static Human SpeedHuman(float walkSpeed, Vector2Int pos)
+	{
+		var h = NewHuman();
+		h.BaseStat.walkSpeed = walkSpeed;
+		h.position = pos;
+		return h;
+	}
+
+	[Test]
+	public void ResolveMoveBaseSpeed_Pure_CommonSpeedOnlyWhenCoMovingAndJoined_NeverFasterThanIndividual()
+	{
+		Assert.AreEqual(4f, PartyReportMath.ResolveMoveBaseSpeed(false, true, 4f, 3f), "공동 이동이 아니면 개인 속도");
+		Assert.AreEqual(4f, PartyReportMath.ResolveMoveBaseSpeed(true, false, 4f, 3f), "합류 전(뒤처진 구성원)은 개인 속도");
+		Assert.AreEqual(3f, PartyReportMath.ResolveMoveBaseSpeed(true, true, 4f, 3f), "합류한 공동 이동은 가장 느린 구성원 속도");
+		Assert.AreEqual(3f, PartyReportMath.ResolveMoveBaseSpeed(true, true, 3f, 4f), "공동 속도가 개인 속도보다 빠르게 나오지 않는다");
+		Assert.IsTrue(PartyReportMath.IsJoinedToLeader(true, 3, 3));
+		Assert.IsFalse(PartyReportMath.IsJoinedToLeader(true, 4, 3));
+		Assert.IsFalse(PartyReportMath.IsJoinedToLeader(false, 0, 3), "리더가 없거나 다른 층이면 합류가 아니다");
+	}
+
+	[Test]
+	public void Party_ResolveMoveBaseSpeed_CoMovingJoinedMemberUsesSlowestMember_EvenIfThatMemberIsStopped()
+	{
+		var leader = SpeedHuman(4.0f, new Vector2Int(10, 10));
+		var fast = SpeedHuman(3.6f, new Vector2Int(11, 10));
+		var slowStopped = SpeedHuman(3.0f, new Vector2Int(9, 10)); // 상호작용으로 멈춰 있어도 공동 속도 계산에는 포함된다
+		slowStopped.currentWait = null;
+		var party = NewMopUpParty(leader, fast, slowStopped);
+		leader.party = fast.party = slowStopped.party = party;
+		fast.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom };
+		leader.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom };
+
+		Assert.AreEqual(3.0f, party.ResolveMoveBaseSpeed(fast), 0.001f);
+		Assert.AreEqual(3.0f, party.ResolveMoveBaseSpeed(leader), 0.001f, "리더도 공동 이동 중이면 같은 공동 속도");
+		Assert.AreEqual(3.0f, fast.AppliedWalkSpeed, 0.001f, "Human.AppliedWalkSpeed가 공동 속도를 쓴다");
+	}
+
+	[Test]
+	public void Party_ResolveMoveBaseSpeed_IndividualBehaviorsAndStragglersKeepIndividualSpeed()
+	{
+		var leader = SpeedHuman(3.0f, new Vector2Int(10, 10));
+		var fastNearby = SpeedHuman(4.0f, new Vector2Int(11, 10));
+		var fastStraggler = SpeedHuman(4.0f, new Vector2Int(30, 10)); // 리더에서 멀리 떨어진 뒤처진 구성원
+		var party = NewMopUpParty(leader, fastNearby, fastStraggler);
+		leader.party = fastNearby.party = fastStraggler.party = party;
+
+		Assert.AreEqual(4.0f, party.ResolveMoveBaseSpeed(fastNearby), 0.001f, "공동 이동이 아니면(대기 없음) 개인 속도");
+
+		fastNearby.currentWait = new WaitState { Reason = WaitReason.ReportingCoreToLeader };
+		Assert.AreEqual(4.0f, party.ResolveMoveBaseSpeed(fastNearby), 0.001f, "코어 보고 이동은 개인 속도");
+
+		fastNearby.currentWait = new WaitState { Reason = WaitReason.SearchingNextDoor };
+		fastStraggler.currentWait = new WaitState { Reason = WaitReason.SearchingNextDoor };
+		Assert.AreEqual(3.0f, party.ResolveMoveBaseSpeed(fastNearby), 0.001f, "합류한 추종은 공동 속도");
+		Assert.AreEqual(4.0f, party.ResolveMoveBaseSpeed(fastStraggler), 0.001f, "뒤처진 구성원은 합류 전까지 개인 속도로 복귀");
+	}
+
+	[Test]
+	public void Party_ResolveMoveBaseSpeed_ExcludesDeadOtherFloorImmobileAndZeroSpeedMembers()
+	{
+		var leader = SpeedHuman(4.0f, new Vector2Int(10, 10));
+		var dead = SpeedHuman(1.0f, new Vector2Int(10, 11));
+		dead.hp = 0f;
+		var otherFloor = SpeedHuman(1.0f, new Vector2Int(10, 12));
+		otherFloor.currentFloor = 1;
+		var immobile = SpeedHuman(1.0f, new Vector2Int(10, 13));
+		immobile.isImmobile = true;
+		var zeroSpeed = SpeedHuman(0f, new Vector2Int(10, 14));
+		var party = NewMopUpParty(leader, dead, otherFloor, immobile, zeroSpeed);
+		foreach (var m in party.Members) m.party = party;
+		leader.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom };
+
+		Assert.AreEqual(4.0f, party.ResolveMoveBaseSpeed(leader), 0.001f, "사망·다른 층·이동 불가·속도 0 구성원은 공동 속도를 끌어내리지 않는다");
+	}
+
+	[Test]
+	public void Human_AppliedWalkSpeed_AlertSlowdownIsAppliedOnTopOfTheCommonSpeed()
+	{
+		var leader = SpeedHuman(3.0f, new Vector2Int(10, 10));
+		var fast = SpeedHuman(4.0f, new Vector2Int(11, 10));
+		var party = NewMopUpParty(leader, fast);
+		leader.party = fast.party = party;
+		fast.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom };
+		fast.currentAlertSearch = new AlertSearchState(); // 경계 중인 개인은 공동 속도 위에 자기 감속을 곱한다
+
+		Assert.AreEqual(3.0f * ExplorationMath.AlertMoveSpeedRatio, fast.AppliedWalkSpeed, 0.001f);
+	}
+
 	// 집결지에는 층이 기록되고, 다른 층 파티원에게는 집결 대기가 배정되지 않는다.
 	[Test]
 	public void Party_TryStartRally_RecordsFloorAndSkipsMembersOnOtherFloors()

@@ -700,7 +700,7 @@ namespace GrimArchive.Wave
                 // 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
                 if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
-                member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot };
+                member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot, DoorPosition = doorPos };
                 assigned++;
             }
 

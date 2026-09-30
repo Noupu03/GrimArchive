@@ -346,6 +346,33 @@ public class Party
 
 	private string LogTag => $"[파티] {Name}({Type.ToKorean()})";
 
+	// 검증 04-04: 이 구성원의 이동 기본 속도(경계 감속을 곱하기 전, Human.MovementBaseSpeed가 호출한다). 공동 이동(방 이동·문 찾기 추종 대기) 중이고 리더 기준 합류 반경
+	// (doorSearchFollowRadius, 3칸) 안이면 "같은 층의 살아 있는 이동 가능한 구성원 중 가장 느린 이동 능력치"(상호작용으로 잠깐 멈춘 구성원도 포함)를 쓰고, 아니면 자기 능력치다 —
+	// 뒤처진 구성원은 자기 속도로 복귀하다 합류하면 공동 속도로 바뀐다. 이동 불가(isImmobile·속도 0)·사망·다른 층 구성원은 계산에서 뺀다. 모든 기준은 사용자 확정(2026-10-01)이며
+	// 진형 문서가 생기면 "합류"를 실제 진형 자리 도착으로 바꿀 자리다.
+	public float ResolveMoveBaseSpeed(Human member)
+	{
+		float individual = member.BaseStat.walkSpeed;
+		var wait = member.currentWait;
+		bool inCoMovement = wait != null && (wait.Reason == WaitReason.AdvancingToNextRoom || wait.Reason == WaitReason.SearchingNextDoor);
+		if (!inCoMovement) return individual; // 개인 탐색·보고·전투 등은 개인 속도 — 구성원 순회 없이 바로 반환
+
+		bool hasLeader = Leader != null && Leader.hp > 0 && Leader.currentFloor == member.currentFloor;
+		int distanceToLeader = hasLeader ? AIMovementHelper.ChebyshevDistance(member.position, Leader.position) : 0;
+		bool joined = PartyReportMath.IsJoinedToLeader(hasLeader, distanceToLeader, AIConfigLoader.Behavior?.doorSearchFollowRadius ?? 3);
+		if (!joined) return individual;
+
+		float slowest = individual;
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0 || m.currentFloor != member.currentFloor || m.isImmobile) continue;
+			float speed = m.BaseStat.walkSpeed;
+			if (speed <= 0f) continue; // 이동 능력이 없는 구성원은 공동 속도를 0으로 끌어내리지 않는다
+			if (speed < slowest) slowest = speed;
+		}
+		return PartyReportMath.ResolveMoveBaseSpeed(true, true, individual, slowest);
+	}
+
 	// TacticalFSMState.ExecuteWait이 유닛 하나가 집결지에 도착해 currentWait을 비울 때마다 호출한다.
 	// 아직 집결 대기 중인 파티원이 남아있으면 유지, 전원 도착했으면 집결을 종료한다(별도 마칭
 	// 포메이션 시스템이 없어 "다음 목표 수행"으로 자연히 넘어가는 것을 대체로 본다).

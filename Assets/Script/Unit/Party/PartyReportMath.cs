@@ -44,4 +44,13 @@ public static class PartyReportMath
 		if (!hasKnownLeader) return FollowStep.Lost;
 		return chebyshevDistance > followRadius ? FollowStep.Move : FollowStep.Hold;
 	}
+
+	// 검증 04-04(04번 3장·05번 "공동 이동과 개인 행동의 속도"): 진형 자리가 없는 지금은 "리더 기준 합류 반경 이내"를 실제 진형 합류의 근사로 쓴다(사용자 확정 2026-10-01).
+	public static bool IsJoinedToLeader(bool hasLeaderOnSameFloor, int chebyshevDistanceToLeader, int joinRadius)
+		=> hasLeaderOnSameFloor && chebyshevDistanceToLeader <= joinRadius;
+
+	// 공동 이동 중이고 합류했으면 그 구성원에게 적용할 기본 이동속도는 "함께 이동하는 적용 대상 생존 구성원 중 가장 느린 속도"(slowestMember), 아니면(개인 탐색·보고·전투,
+	// 뒤처져 복귀하는 구성원) 자기 속도다. 공동 속도가 자기 속도보다 빠르게 나오는 일은 없게 min으로 고정한다. 경계 감속 등 개인 보정은 이 값 위에 호출부가 곱한다.
+	public static float ResolveMoveBaseSpeed(bool inCoMovement, bool joined, float individualSpeed, float slowestMemberSpeed)
+		=> inCoMovement && joined ? Mathf.Min(individualSpeed, slowestMemberSpeed) : individualSpeed;
 }

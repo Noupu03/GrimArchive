@@ -258,10 +258,11 @@ public class CombatFSMState : IFSMState
 				if (s != null && s.Affinity == SkillAffinity.Ally && s.HitRange > protectRange) protectRange = s.HitRange;
 
 		if (protectRange <= 0) return false; // 보호 수단 자체가 없음 — 개입하지 않는다.
-		if (AIMovementHelper.ChebyshevDistance(unit.position, protect.position) <= protectRange) return false;
+		// 검증 04-01: 사거리 안이어도 벽·닫힌 문이 직선을 막으면(차폐) 아직 보호할 수 있는 위치가 아니다 — 접근을 이어간다.
+		if (AIMovementHelper.ChebyshevDistance(unit.position, protect.position) <= protectRange && SkillAction.HasClearLineTo(unit, protect)) return false;
 
-		AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect);
-		return true;
+		// 한 걸음도 못 다가가면(길이 완전히 막힘) 접근을 끝내고 일반 전투 판단으로 넘긴다 — 안 그러면 닿을 수 없는 아군 앞에서 전투 행동 없이 멈춘다.
+		return AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect);
 	}
 
 	// 검증문서 02-07 4번: SkillAction_Heal.IsAvailable은 사거리 밖 대상을 이번 틱 후보에서 뺄 뿐
@@ -274,10 +275,11 @@ public class CombatFSMState : IFSMState
 
 		Unit ally = heal.FindLowestHpAlly(unit, 9999);
 		if (ally == null || ally == unit) return false;
-		if (Vector2.Distance(unit.position, ally.position) <= heal.HitRange) return false;
+		// 검증 04-01: 직선 사거리 안이어도 차폐되면 아직 치료할 수 있는 위치가 아니다 — IsAvailable과 같은 기준(IsInSupportReach)으로 접근 종료를 판단한다.
+		if (heal.IsInSupportReach(unit, ally)) return false;
 
-		AIMovementHelper.MoveTowardsPos(unit, ally.position);
-		return true;
+		// 한 걸음도 못 다가가면 접근을 끝내고 일반 전투 판단으로 넘긴다(닿을 수 없는 아군 앞에서 전투 행동 없이 멈추지 않게).
+		return AIMovementHelper.MoveTowardsPos(unit, ally.position);
 	}
 
 	private static SkillAction_Heal FindHealSkill(Unit unit)

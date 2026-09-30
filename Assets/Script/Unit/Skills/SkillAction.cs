@@ -40,12 +40,42 @@ public abstract class SkillAction
 	{
 		if (unit == null || target == null) return false;
 
+		// 검증 04-01: 아군 대상 스킬(치료·보호막·버프)은 사거리뿐 아니라 차폐 조건도 만족해야 한다 — 벽 너머 아군은 사거리 안이어도 대상이 아니다.
+		if (Affinity == SkillAffinity.Ally && !HasClearLineTo(unit, target)) return false;
+
 		// 적을 시전자 기준 히트박스로 때리는 방식만 히트박스 검사를 거친다. 그 외는 대상까지의 거리로 판단한다.
 		if (Affinity == SkillAffinity.Enemy && Origin != SkillOrigin.TargetArea)
 			return GetEnemiesInHitboxContains(unit, BuildSkillHitbox(unit), target);
 
 		int range = HitRange > 0 ? HitRange : 1;
 		return AIMovementHelper.ChebyshevDistance(unit.position, target.position) <= range;
+	}
+
+	/// <summary>
+	/// 시전자에서 대상까지 직선이 차폐물(벽·구조물·닫힌 문)에 막히지 않는가 — 아군 대상 스킬의 "지원 범위·차폐" 조건(04번 0장). 차폐 기준은 시야 불투명 규칙
+	/// (UnitFunction.IsOpaqueAt)과 같다. 대상이 여러 타일을 차지하면 그중 한 타일로라도 직선이 열려 있으면 통과이고, 자기 자신이거나 판정 재료가 없으면 막지 않는다.
+	/// </summary>
+	public static bool HasClearLineTo(Unit unit, Unit target)
+	{
+		if (unit == null || target == null || unit == target) return true;
+		var session = unit.Session;
+		if (session == null || session.cmap == null || unit.currentFloor != target.currentFloor) return true;
+
+		int floor = unit.currentFloor;
+		Func<Vector2Int, bool> isBlocking = p => IsLineBlockingTile(session, floor, p);
+		Vector2Int size = target.FootprintSize;
+		for (int dx = 0; dx < size.x; dx++)
+			for (int dy = 0; dy < size.y; dy++)
+				if (MovementMath.IsLineClear(unit.position, target.position + new Vector2Int(dx, dy), isBlocking)) return true;
+		return false;
+	}
+
+	// 벽·구조물·방 밖(IsStaticTileWalkable이 못 걷는 타일)이거나 "완전 차폐" 오브젝트(닫힌 문 — InteractableObject.IsFullyBlocking)가 있는 타일.
+	private static bool IsLineBlockingTile(GameSession session, int floor, Vector2Int p)
+	{
+		if (!session.cmap.IsStaticTileWalkable(floor, p)) return true;
+		return session.objectGrid.TryGetValue(new Vector3Int(p.x, p.y, floor), out InteractableObject obj)
+			&& obj != null && !obj.IsCollected && obj.IsFullyBlocking;
 	}
 
 	public virtual Hitbox BuildSkillHitbox(Unit unit)

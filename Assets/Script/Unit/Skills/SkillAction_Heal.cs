@@ -148,8 +148,13 @@ public class SkillAction_Heal : SkillAction
         // 검증문서 02-07 4번: 지금 실행 가능한 스킬 후보는 사거리 안일 때만이다 — 사거리 밖이면
         // HealTarget은 그대로 유지한 채(위 FindLowestHpAlly 참고) 여기서만 이번 틱 후보에서 빠지고,
         // CombatFSMState.TryGeneralHealApproach가 별도로 접근 이동을 담당한다.
-        return Vector2.Distance(unit.position, lowest.position) <= HitRange;
+        // 검증 04-01: 지원 범위에 더해 차폐(벽·구조물·닫힌 문)도 없어야 지금 쓸 수 있다 — 막혀 있으면 접근 이동이 차폐가 풀리는 자리까지 이어간다.
+        return IsInSupportReach(unit, lowest);
     }
+
+    // 치료를 지금 실행할 수 있는 위치인가 — 직선 사거리(유클리드) 안이고 직선이 차폐물에 막히지 않는다. CombatFSMState.TryGeneralHealApproach도 같은 기준으로 접근 종료를 판단한다.
+    public bool IsInSupportReach(Unit unit, Unit ally)
+        => Vector2.Distance(unit.position, ally.position) <= HitRange && HasClearLineTo(unit, ally);
 
     public override float GetPriority(Unit unit, Unit target, float minDist)
     {

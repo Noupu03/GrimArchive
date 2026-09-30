@@ -430,7 +430,9 @@ public class UnitGenerate
 
 			if (!targetPosMap.TryGetValue(u, out Vector3 currentTarget) || currentTarget != newPos)
 			{
-				float duration  = u.BaseStat.walkSpeed > 0f ? (1f / u.BaseStat.walkSpeed) : 0.1f;
+				// 이동 애니메이션 길이는 행동 주기(1/AppliedWalkSpeed, GameSession.ProcessUnitAction)와 같은 값을 쓴다 — 기본 속도를 쓰면 경계 감속 중 한 걸음 애니메이션이 행동 주기보다 일찍 끝나 끊겨 보인다(검증 04-04).
+				float appliedSpeed = u.AppliedWalkSpeed;
+				float duration  = appliedSpeed > 0f ? (1f / appliedSpeed) : 0.1f;
 				targetPosMap[u] = newPos;
 
 				go.transform.DOKill();

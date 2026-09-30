@@ -29,6 +29,10 @@ public class AIBehaviorConfig : ScriptableObject
     public int doorSearchFollowRadius = 3;
     [Tooltip("공동 탐색 추종이 막히거나 리더 위치를 잃어 접은 뒤 다시 추종을 배정받기까지의 시간(초) — 배정·해제 반복 방지 (내부 판단)")]
     public float doorSearchFollowRetrySeconds = 5f;
+    [Tooltip("방 이동(문 앞 자리로 이동) 중 길이 막혀 더 못 다가갈 때 제자리에서 기다렸다 다시 시도하기까지의 시간(초) — 막혔다고 명령을 풀지 않는다 (검증문서 04-02, 내부 판단)")]
+    public float doorApproachHoldRetrySeconds = 1f;
+    [Tooltip("방 이동이 계속 막힌 채로 이 시간(초)을 넘기면 명령을 풀고 개인 행동으로 돌아간다 — 닿을 수 없는 자리에 영구히 얼어붙는 것을 막는 안전장치 (검증문서 04-02, 내부 판단)")]
+    public float doorApproachMaxBlockedSeconds = 30f;
     [Tooltip("전파받은 적 위치 정보가 이 시간(초)을 넘으면 낡은 정보로 보고 접근하지 않는다 (03번 v0.6 4-7은 유효 기간을 정하지 않음, 내부 판단)")]
     public float indirectEnemyInfoMaxAgeSeconds = 30f;
     [Tooltip("전파받은 적 위치로 접근하다 거리가 줄지 않는 혼잡 대기 최대 턴 수 — 초과 시 접근을 포기하고 그 정보를 버린다 (내부 판단)")]

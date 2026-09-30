@@ -42,6 +42,7 @@ public class SkillAction_Shield : SkillAction
 
             float dist = Vector2.Distance(unit.position, u.position);
             if (dist > range) continue;
+            if (!HasClearLineTo(unit, u)) continue; // 검증 04-01: 벽 너머 아군은 사거리 안이어도 대상이 아니다(지원 범위·차폐)
 
             float hpRatio = u.Health.hp / Mathf.Max(1f, u.Health.maxHp);
             if (hpRatio < lowestHpRatio)

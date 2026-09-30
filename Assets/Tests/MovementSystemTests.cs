@@ -141,5 +141,79 @@ public class MovementSystemTests
 		var detached = new List<Vector2Int> { new Vector2Int(0, 0), new Vector2Int(1, 0) };
 		Assert.AreEqual(2, CombatScoreMath.StepsToFirstTileWithinRange(detached, new Vector2Int(9, 9), 1));
 	}
+
+	// ── 검증 04-03: 플레이어 이동 명령이 막혔을 때의 처리 ──
+	[Test]
+	public void ResolveMoveFailure_FallbackRetargetsButNeverOutlivesTheLimit()
+	{
+		// 대체 칸이 있으면 재지정하되, 연속 실패가 한도에 닿으면 대체 칸이 있어도 포기한다(문 뒤처럼 닿을 수 없는 대체 칸이 계속 뽑히는 고리 방지).
+		Assert.AreEqual(MovementMath.MoveFailAction.Retarget, MovementMath.ResolveMoveFailure(1, 8, true, false));
+		Assert.AreEqual(MovementMath.MoveFailAction.Retarget, MovementMath.ResolveMoveFailure(7, 8, true, true));
+		Assert.AreEqual(MovementMath.MoveFailAction.Abort, MovementMath.ResolveMoveFailure(8, 8, true, true));
+		Assert.AreEqual(MovementMath.MoveFailAction.Abort, MovementMath.ResolveMoveFailure(9, 8, true, false));
+	}
+
+	[Test]
+	public void ResolveMoveFailure_NoFallback_RetriesWhileOpenNeighborsExist_ElseAbortsImmediately()
+	{
+		Assert.AreEqual(MovementMath.MoveFailAction.Retry, MovementMath.ResolveMoveFailure(1, 8, false, true), "잠깐 몰려 막힌 것으로 보고 재시도");
+		Assert.AreEqual(MovementMath.MoveFailAction.Abort, MovementMath.ResolveMoveFailure(8, 8, false, true), "한도에 닿으면 포기");
+		Assert.AreEqual(MovementMath.MoveFailAction.Abort, MovementMath.ResolveMoveFailure(1, 8, false, false), "주변이 지형으로 완전히 막혔으면 즉시 포기(표시는 호출부가 붙인다)");
+	}
+
+	// 연속 실패를 시뮬레이션해 재지정 고리가 정확히 한도 틱에서 끝나는지 확인한다(호출부 카운터 규칙: 실패마다 +1, 이동 성공 시에만 0).
+	[Test]
+	public void ResolveMoveFailure_RetargetLoopEndsAtLimit_AndSuccessResetsTheCount()
+	{
+		int stuck = 0, limit = 8, ticks = 0;
+		MovementMath.MoveFailAction action;
+		do
+		{
+			stuck++; ticks++;
+			action = MovementMath.ResolveMoveFailure(stuck, limit, true, false); // 대체 칸이 매번 뽑히지만 매번 이동 실패
+		} while (action == MovementMath.MoveFailAction.Retarget && ticks < 100);
+		Assert.AreEqual(MovementMath.MoveFailAction.Abort, action);
+		Assert.AreEqual(limit, ticks, "대체 칸이 계속 뽑혀도 한도 틱에서 포기한다");
+
+		// 정상 혼잡: 한 번 실패해 재지정한 뒤 다음 틱 이동이 성공하면 카운터가 리셋돼 포기에 가까워지지 않는다.
+		stuck = 0;
+		for (int round = 0; round < 50; round++)
+		{
+			stuck++; // 실패
+			Assert.AreEqual(MovementMath.MoveFailAction.Retarget, MovementMath.ResolveMoveFailure(stuck, limit, true, false));
+			stuck = 0; // 재지정한 칸으로 이동 성공
+		}
+	}
+
+	// ── 검증 04-01: 치료 등 아군 대상 스킬의 차폐(직선이 벽·닫힌 문에 막히는가) ──
+	[Test]
+	public void IsLineClear_OpenFloor_IsClear_AndEndpointsAreNotChecked()
+	{
+		var blocked = new HashSet<Vector2Int> { new Vector2Int(0, 0), new Vector2Int(5, 0) }; // 양 끝 타일이 막혀 있어도(문 위에 서 있는 경우 등) 직선 판정에는 영향 없다.
+		Assert.IsTrue(MovementMath.IsLineClear(new Vector2Int(0, 0), new Vector2Int(5, 0), p => blocked.Contains(p)));
+		Assert.IsTrue(MovementMath.IsLineClear(new Vector2Int(2, 2), new Vector2Int(2, 2), p => true), "같은 타일은 항상 열려 있다");
+		Assert.IsTrue(MovementMath.IsLineClear(new Vector2Int(0, 0), new Vector2Int(1, 0), p => true), "인접 타일은 사이에 검사할 타일이 없다");
+	}
+
+	[Test]
+	public void IsLineClear_WallBetween_Blocks_InBothDirections()
+	{
+		var wall = new HashSet<Vector2Int> { new Vector2Int(3, 0) };
+		Assert.IsFalse(MovementMath.IsLineClear(new Vector2Int(0, 0), new Vector2Int(6, 0), p => wall.Contains(p)));
+		Assert.IsFalse(MovementMath.IsLineClear(new Vector2Int(6, 0), new Vector2Int(0, 0), p => wall.Contains(p)));
+
+		// 벽이 직선 밖이면 통과한다.
+		Assert.IsTrue(MovementMath.IsLineClear(new Vector2Int(0, 1), new Vector2Int(6, 1), p => wall.Contains(p)));
+	}
+
+	[Test]
+	public void IsLineClear_DiagonalSqueezeBetweenTwoWallCorners_IsBlocked_ButOneCornerIsNot()
+	{
+		// (0,0)→(1,1) 대각선: 양옆 (1,0)·(0,1)이 둘 다 벽이면 틈으로 새지 못하고, 하나만 벽이면 통과한다.
+		var both = new HashSet<Vector2Int> { new Vector2Int(1, 0), new Vector2Int(0, 1) };
+		var one = new HashSet<Vector2Int> { new Vector2Int(1, 0) };
+		Assert.IsFalse(MovementMath.IsLineClear(new Vector2Int(0, 0), new Vector2Int(1, 1), p => both.Contains(p)));
+		Assert.IsTrue(MovementMath.IsLineClear(new Vector2Int(0, 0), new Vector2Int(1, 1), p => one.Contains(p)));
+	}
 }
 #endif

@@ -369,9 +369,15 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
   안 붐비는데 가는 길 중간의 상대 진영 문에 막히면, 기존 "혼잡 판정" 휴리스틱(`FindNearbyOpenTile`/
   `HasAnyStructurallyOpenNeighbor`, 목표 지점 주변만 확인)이 "곧 풀릴 혼잡"으로 오판해 8틱 동안 문
   앞에서 얼어붙어 보이다 뒤늦게 포기했다(사용자 신고 2026-08-22 "이동 명령중이고 앞에 막힌게
-  없는데도 문 앞에서 멈춤") — `PlayerCommandFSMState.IsBlockedByHostileDoorNearby`가 유닛 인접
-  8칸에 상대 진영 문이 있는지 먼저 확인해 있으면 즉시 포기하고 "문이 막혀 있음(파괴 필요)" 피드백을
-  준다. 이동 명령으로 상대 진영 문을 억지로 통과하는 기능 자체는 없다 — 지나가려면 오브젝트 공격
+  없는데도 문 앞에서 멈춤") — 이 증상에 대해 한때 이 절이 `PlayerCommandFSMState.
+  IsBlockedByHostileDoorNearby`(인접 8칸 문 즉시 포기)를 적어 뒀지만 그 함수는 코드에 들어간 적이 없었다
+  (검증 04-03, 2026-10-01 — git 이력상 CLAUDE.md 문구로만 존재). 실제 원인은 목표가 문 바로 뒤처럼
+  유닛에서 2칸 이내일 때 `FindNearbyOpenTile`(정적 통행 가능성만 봄)이 닿을 수 없는 대체 칸을 계속 뽑고
+  그때마다 막힘 카운터가 0으로 리셋돼 포기 조건에 영영 못 닿던 것이다. 지금은 `ExecutePlayerMove`가
+  이동이 실패한 틱마다 카운터를 올리고(대체 칸 재지정은 리셋하지 않고 다음 틱 이동이 성공해야 0),
+  `playerCommandStuckTurnLimit`(8틱)에 닿으면 대체 칸이 있어도 "이동 불가" 표시와 함께 포기한다
+  (판정은 순수 함수 `MovementMath.ResolveMoveFailure`). 구조적으로 완전히 막힌 경우의 종료에도 같은
+  표시가 붙는다. 이동 명령으로 상대 진영 문을 억지로 통과하는 기능 자체는 없다 — 지나가려면 오브젝트 공격
   명령으로 파괴해야 한다. **오브젝트 정보 조회**(2026-08-22
   추가, 사용자 요청 "모든 오브젝튼 이제 클릭을 통해 정보를 볼 수 있어(건물처럼)") — 코어/문/함정/
   전리품/시체/전멸흔적 등 모든 `InteractableObject`를 좌클릭하면 건물 클릭과 동일하게
