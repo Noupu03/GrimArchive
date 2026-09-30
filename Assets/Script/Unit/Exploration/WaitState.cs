@@ -19,12 +19,20 @@ public enum WaitReason
 	// 동일하게 WaitState 기반으로 이동한다. playerMoveTarget+isManualMoveCommand=false 조합은 실제로
 	// 아무 코드도 소비하지 않는 죽은 경로이니 되돌리지 말 것.
 	Retreating,
+	// 05번 문서 1장 73줄: 집결을 마쳤는데 다음 이동 문을 아직 모르면 진형을 유지하며 문을 찾는다. 리더 외 파티원이
+	// 자기가 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem.StepFollow). 리더는 대기 없이 기존 자유 탐색이 문을 찾는다.
+	SearchingNextDoor,
+	// 01번 문서 7-1장·04번 문서 소탕 파티: 리더가 다음 이동 문 앞 자리까지 현재 방 안에서 이동하며 실제 시야로 확인한다. 도착하면 집결 판단 자격이 생긴다
+	// (Party.MarkLeaderReachedNextDoor) — 집결 뒤 공동 이동(AdvancingToNextRoom)과 달리 이동 명령이 아니라 집결 전 단계다. 소탕 파티 리더 전용.
+	ApproachingNextDoor,
 }
 
 public class WaitState
 {
 	public WaitReason Reason;
 	public Vector2Int? WaitPosition;
+	// AwaitingPartyAtRallyPoint 전용 — WaitPosition이 속한 층(Vector2Int라 층 정보가 없다). 유닛이 다른 층에 있으면 그 좌표로 걷지 않고 대기를 접는다.
+	public int WaitFloor = -1;
 	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 대신 "리더 위치"를 매 틱
 	// 실시간으로 다시 읽어야 해서 여기 스냅샷하지 않는다, TacticalFSMState.ExecuteWait 참고).
 	public Vector3Int? CorePosition;
@@ -39,4 +47,7 @@ public class WaitState
 	public float NextDoorScanTime;
 	// 접근이 막혀 잠시 제외한 목적지 종류(ReportDestinationKind 값으로 색인) — 이 시각이 지나면 다시 후보가 된다.
 	public readonly float[] ReportBlockedUntil = new float[PartyReportMath.KindCount];
+
+	// SearchingNextDoor 전용 — 아는 리더 위치가 없어진 시각(음수 = 리더 위치를 알고 있음). 일정 시간 넘게 모르면 추종을 접는다.
+	public float FollowLeaderLostSince = -1f;
 }

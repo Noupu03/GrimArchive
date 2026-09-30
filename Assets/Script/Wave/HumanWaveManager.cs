@@ -59,6 +59,10 @@ namespace GrimArchive.Wave
         // true가 되면(코어 파괴 성공) UpdatePartyDestination이 목적지를 exitAreaPos로 바꿔 퇴각 로직을 재사용한다.
         private Room _targetRoom;
         private bool _retreating;
+        // 방 이동 결정 로그 폭주 방지 — "다음 문을 모름"은 상태가 바뀔 때 한 번만, 코어 경로의 반복 발행은 일정 간격으로만 남긴다.
+        private bool _doorSearchLogged;
+        private float _nextCoreAdvanceLogTime;
+        private float _nextDoorApproachCheckTime;
 
         // 탈출 지점 영역 (임시: 던전 입구/StartRoom 기준 위치)
         public Vector2Int exitAreaPos;
@@ -645,10 +649,37 @@ namespace GrimArchive.Wave
             // 별도 목적지 계산이 필요 없다. 원문은 "리더와 발견자"로 좁게 표현했지만, 실제로는 이미
             // 있던 파티 공동 이동(AdvancingToNextRoom, 아래 foreach) 경로를 그대로 재사용해 파티
             // 전체가 함께 향하게 했다 — 집결·공동 이동 자체가 원래 파티 단위 개념이라 자연스러운 확장.
-            bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
-            if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore)) return;
+            // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)는 소멸시킨다 — 안 그러면 새 방의
+            // 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다(검증 갭 정리, Party.TickAdvanceState).
+            activeParty.TickAdvanceState();
+            TryAssignLeaderDoorApproach();
 
-            if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)) return;
+            bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
+            if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore))
+            {
+                _doorSearchLogged = false;
+                return;
+            }
+
+            // 방 이동을 결정한 사유 — 집결 완료(ReadyToAdvance)가 실제 "결정"이고, 코어 경로는 코어 처리가 끝날 때까지 반복 발행된다.
+            bool decidedByRally = activeParty.ReadyToAdvance;
+            string partyTag = $"[파티] {activeParty.Name}({activeParty.Type.ToKorean()})";
+            string reason = decidedByRally ? "집결 완료" : "코어 처리";
+
+            if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor))
+            {
+                if (!_doorSearchLogged)
+                {
+                    _doorSearchLogged = true;
+                    LogHelper.Log(LogHelper.GAME, $"{partyTag} 방 이동 결정({reason})했으나 다음 문을 아직 모름 — 리더 {activeParty.Leader?.name}은(는) 탐색, 파티원은 리더 주변 유지");
+                }
+                // 05번 1장 73줄: 다음 문을 아직 모르면 진형을 유지하며 문을 찾는다 — 리더는 대기 없이 기존 자유 탐색이 문을
+                // 찾고, 나머지 파티원은 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem). ReadyToAdvance는 그대로
+                // 두어 문이 알려지는 순간 아래 공동 이동 명령이 바로 발행되게 한다.
+                AssignDoorSearchFollowers();
+                return;
+            }
+            _doorSearchLogged = false;
 
             // playerMoveTarget 대신 currentWait(AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
             // PlayerCommandFSMState 전용(우선순위 200)이라 전투 중에도 무시하고 걸어가지만, currentWait
@@ -656,19 +687,84 @@ namespace GrimArchive.Wave
             // 05번 문서 3장: 전원이 문 타일 자체로 몰리면 통과 구간을 막으므로, 파티원마다 문 주변의
             // 서로 다른 대기 자리(체비셰프 거리 2 이상)를 배정한다(AIMovementHelper.FindDoorWaitSlot).
             var claimedDoorSlots = new HashSet<Vector2Int>();
+            int assigned = 0;
             foreach (var member in activeParty.Members)
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != doorFloor) continue;
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
-                if (member.currentWait != null) continue; // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않음.
+                // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않는다. 다음 문을 찾으며 리더를 따라다니던
+                // 공동 탐색 추종(SearchingNextDoor)만 문이 알려진 지금 공동 이동으로 바꿔 덮어쓴다.
+                if (member.currentWait != null && member.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
+                // 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
+                if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
                 member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot };
+                assigned++;
+            }
+
+            // 방 이동 명령 발행 로그 — 집결 완료로 결정된 경우는 매번, 코어 경로의 반복 발행은 2초 간격으로만 남긴다.
+            if (decidedByRally || (assigned > 0 && Time.time >= _nextCoreAdvanceLogTime))
+            {
+                if (!decidedByRally) _nextCoreAdvanceLogTime = Time.time + 2f;
+                LogHelper.Log(LogHelper.GAME, $"{partyTag} 방 이동 명령 발행 — 사유: {reason}, 목표 문 ({doorPos.x},{doorPos.y}) [{DescribeDoor(doorPos, doorFloor)}], 이동 대상 {assigned}명"
+                    + (assigned == 0 ? " ⚠ 명령을 받을 파티원이 없음(이미 다른 대기 중)" : ""));
             }
             activeParty.ReadyToAdvance = false; // 명령은 1회만 발행 — 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다.
             // hasPendingCore 경로는 ReadyToAdvance가 이미 false였으므로 위 대입은 무해(false→false) —
             // LeaderKnownCorePosition 자체는 Party.TryStartRally가 코어 처리 완료를 감지해 스스로 지운다.
+        }
+
+        // 01번 7-1장·04번 소탕 파티: 집결 전에 리더가 현재 방의 다음 이동 문 앞까지 이동하며 확인한다 — 도착하면 Party.MarkLeaderReachedNextDoor가 집결 판단 자격을
+        // 만든다(Party.IsRoomActivityComplete MopUp 분기). 문을 아직 모르면 아무것도 하지 않는다 — 리더의 기존 자유 탐색이 시야를 넓혀 문을 찾는다.
+        // 리더 외 파티원은 이동시키지 않는다(집결 때 리더 위치로 모임, 진형 합류는 05번 8장 미작성). objectGrid 순회가 있어 0.5초 간격으로만 확인한다.
+        private void TryAssignLeaderDoorApproach()
+        {
+            var party = activeParty;
+            if (party.Type != PartyType.MopUp || _targetRoom == null) return;
+            if (party.ReadyToAdvance || party.IsRallyActive || party.AdvanceFromRoom != null || party.LeaderKnownCorePosition.HasValue) return;
+            var leader = party.Leader;
+            if (leader == null || leader.hp <= 0 || leader.currentRoom == null) return;
+            if (party.DoorApproachRoom == leader.currentRoom) return;
+            if (leader.currentWait != null || stagingUnits.Contains(leader)) return;
+            if (leader.isInDungeonEntranceSequence || leader.pendingStairTargetFloor.HasValue) return;
+            if (leader.isManualMoveCommand && leader.playerMoveTarget.HasValue) return;
+            if (leader.playerAttackTarget != null) return;
+            if (Time.time < _nextDoorApproachCheckTime) return;
+            _nextDoorApproachCheckTime = Time.time + 0.5f;
+
+            if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor) || doorFloor != leader.currentFloor) return;
+            Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(leader, doorPos, new HashSet<Vector2Int>());
+            leader.currentWait = new WaitState { Reason = WaitReason.ApproachingNextDoor, WaitPosition = slot };
+            LogHelper.Log(LogHelper.GAME, $"[파티] {party.Name}({party.Type.ToKorean()}) 리더 {leader.name}: 다음 이동 문 ({doorPos.x},{doorPos.y}) 앞으로 이동하며 확인 시작");
+        }
+
+        // 방 이동 명령 로그용 — 목표 문의 소유 진영과 인류 통행 가능 여부(닫힌 적 진영 문은 파괴해야 통과, 04번 10장).
+        private static string DescribeDoor(Vector2Int doorPos, int doorFloor)
+        {
+            var session = GameSession.Instance;
+            if (session == null || !session.objectGrid.TryGetValue(new Vector3Int(doorPos.x, doorPos.y, doorFloor), out InteractableObject door))
+                return "문 정보 없음";
+            bool humanCanPass = door.DoorHp <= 0f || door.DoorOwnerFaction == FactionType.Human;
+            return $"문 소유 {door.DoorOwnerFaction}, 인류 통행 {(humanCanPass ? "가능" : "불가 — 파괴 필요")}";
+        }
+
+        // 리더 외 적격 파티원에게 공동 탐색 추종을 배정한다(이동 명령과 같은 자격 조건 + 이미 다른 대기가 없고 쿨다운이 지남).
+        private void AssignDoorSearchFollowers()
+        {
+            var leader = activeParty.Leader;
+            if (leader == null) return;
+            float now = Time.time;
+            foreach (var member in activeParty.Members)
+            {
+                if (member == null || member == leader || member.hp <= 0 || stagingUnits.Contains(member)) continue;
+                if (member.currentFloor != leader.currentFloor) continue;
+                if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
+                if (member.playerAttackTarget != null) continue;
+                if (!PartyDoorSearchSystem.CanAssign(member, now)) continue;
+                PartyDoorSearchSystem.Assign(member);
+            }
         }
 
         // 05번 1장: "알려진 문"으로만 진행한다. 리더가 아는(개인 지도에 반영된) 현재 방의 문 중 목표
@@ -716,6 +812,7 @@ namespace GrimArchive.Wave
             activeParty = null;
             _targetRoom = null;
             _retreating = false;
+            _doorSearchLogged = false;
             cooldownTimer = waveCooldown;
             currentState = WaveState.Idle;
 

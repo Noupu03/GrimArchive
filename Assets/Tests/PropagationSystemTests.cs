@@ -272,6 +272,122 @@ public class PropagationSystemTests
 		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
 	}
 
+	// ── 갭 정리: 전파받은 적 위치 접근(03번 v0.6 4-7) — TickIndirectEnemyApproach ──
+	private static Monster MakeEnemyAt(Vector2Int pos, float hp = 10f)
+	{
+		var enemy = ScriptableObject.CreateInstance<Monster>();
+		enemy.unitType = new MeleeTank();
+		enemy.position = pos;
+		enemy.hp = hp;
+		return enemy;
+	}
+
+	private static Human MakeIdlePartyHuman()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.position = Vector2Int.zero;
+		human.party = new Party("P", "테스트");
+		return human;
+	}
+
+	private static void GiveInfo(Human human, Unit enemy, Vector2Int tile, float timestamp, int floor = 0)
+	{
+		human.Propagation.PropagatedInfo[enemy] = new PropagatedInfoRecord
+		{
+			LastKnownTile = new Vector3Int(tile.x, tile.y, floor),
+			LastKnownTimestamp = timestamp,
+		};
+	}
+
+	[Test]
+	public void TickIndirectEnemyApproach_StartsApproachToPropagatedPosition()
+	{
+		var human = MakeIdlePartyHuman();
+		var enemy = MakeEnemyAt(new Vector2Int(9, 9));
+		GiveInfo(human, enemy, new Vector2Int(6, 4), Time.time);
+
+		PropagationSystem.TickIndirectEnemyApproach(human);
+
+		Assert.IsNotNull(human.currentAlertSearch);
+		Assert.IsTrue(human.currentAlertSearch.IsIndirectEnemyApproach);
+		Assert.AreEqual(new Vector2Int(6, 4), human.currentAlertSearch.TargetPosition);
+		Assert.AreSame(enemy, human.currentAlertSearch.IndirectEnemy);
+	}
+
+	[Test]
+	public void TickIndirectEnemyApproach_PicksMostRecentRecord()
+	{
+		var human = MakeIdlePartyHuman();
+		var older = MakeEnemyAt(Vector2Int.zero);
+		var newer = MakeEnemyAt(Vector2Int.zero);
+		GiveInfo(human, older, new Vector2Int(1, 1), Time.time - 5f);
+		GiveInfo(human, newer, new Vector2Int(2, 2), Time.time - 1f);
+
+		PropagationSystem.TickIndirectEnemyApproach(human);
+
+		Assert.AreSame(newer, human.currentAlertSearch.IndirectEnemy);
+	}
+
+	// 다른 우선 행동(집결·공동 이동·보고·귀환 대기, 조사, 전투, 기존 경계)이 있으면 접근을 시작하지 않고 기록도 그대로 둔다.
+	[Test]
+	public void TickIndirectEnemyApproach_DoesNotStartWhileHigherPriorityActivityExists()
+	{
+		var enemy = MakeEnemyAt(Vector2Int.zero);
+
+		var waiting = MakeIdlePartyHuman();
+		GiveInfo(waiting, enemy, new Vector2Int(3, 3), Time.time);
+		waiting.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint };
+		PropagationSystem.TickIndirectEnemyApproach(waiting);
+		Assert.IsNull(waiting.currentAlertSearch);
+		Assert.IsTrue(waiting.Propagation.PropagatedInfo.ContainsKey(enemy));
+
+		var alerted = MakeIdlePartyHuman();
+		GiveInfo(alerted, enemy, new Vector2Int(3, 3), Time.time);
+		var existing = new AlertSearchState { IsPostCombatSweep = true };
+		alerted.currentAlertSearch = existing;
+		PropagationSystem.TickIndirectEnemyApproach(alerted);
+		Assert.AreSame(existing, alerted.currentAlertSearch);
+
+		var reporting = MakeIdlePartyHuman();
+		GiveInfo(reporting, enemy, new Vector2Int(3, 3), Time.time);
+		reporting.pendingCoreReportPos = new Vector3Int(1, 1, 0);
+		PropagationSystem.TickIndirectEnemyApproach(reporting);
+		Assert.IsNull(reporting.currentAlertSearch, "미전달 코어 보고 의무가 우선한다");
+	}
+
+	// 죽었거나 낡은 기록은 접근하지 않고 폐기하며, 다른 층 기록은 접근하지 않고 남겨 둔다.
+	[Test]
+	public void TickIndirectEnemyApproach_DiscardsDeadAndStaleRecords_KeepsOtherFloor()
+	{
+		var human = MakeIdlePartyHuman();
+		var dead = MakeEnemyAt(Vector2Int.zero, hp: 0f);
+		var stale = MakeEnemyAt(Vector2Int.zero);
+		var otherFloor = MakeEnemyAt(Vector2Int.zero);
+		GiveInfo(human, dead, new Vector2Int(1, 1), Time.time);
+		GiveInfo(human, stale, new Vector2Int(2, 2), Time.time - 100f);
+		GiveInfo(human, otherFloor, new Vector2Int(3, 3), Time.time, floor: 1);
+
+		PropagationSystem.TickIndirectEnemyApproach(human);
+
+		Assert.IsNull(human.currentAlertSearch);
+		Assert.IsFalse(human.Propagation.PropagatedInfo.ContainsKey(dead));
+		Assert.IsFalse(human.Propagation.PropagatedInfo.ContainsKey(stale));
+		Assert.IsTrue(human.Propagation.PropagatedInfo.ContainsKey(otherFloor));
+	}
+
+	// 직접 정확 인지한 적은 전파받은 위치 기록보다 우선한다 — 낡은 전파 기록으로 다시 접근하지 않게 지운다.
+	[Test]
+	public void AddPersonalSpottedEnemy_RemovesPropagatedRecordOfThatEnemy()
+	{
+		var human = MakeIdlePartyHuman();
+		var enemy = MakeEnemyAt(Vector2Int.zero);
+		GiveInfo(human, enemy, new Vector2Int(4, 4), Time.time);
+
+		human.AddPersonalSpottedEnemy(enemy);
+
+		Assert.IsFalse(human.Propagation.PropagatedInfo.ContainsKey(enemy));
+	}
+
 	// ── 07문서 1장 "소리 감지: 인류/몬스터 모두 적용" 검증 중 발견한 갭 수정(2026-08-06) — 몬스터도
 	// SoundPerceivedEvent의 Observer가 될 수 있고, PendingSound는 Propagation(base Unit 소유)이라
 	// 인류와 동일하게 채워져야 한다.

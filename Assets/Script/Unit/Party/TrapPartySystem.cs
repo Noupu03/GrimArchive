@@ -251,11 +251,11 @@ public static class TrapPartySystem
 	{
 		var wait = human.currentWait;
 		if (wait != null && (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
-			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.Retreating))
+			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.SearchingNextDoor || wait.Reason == WaitReason.Retreating))
 			return true;
 
 		var party = human.party;
-		return party != null && party.IsRallyActive && party.RallyPoint.HasValue
+		return party != null && party.IsRallyPointOnFloor(human.currentFloor)
 			&& Vector2Int.Distance(human.position, party.RallyPoint.Value) <= RallyArrivalRadius;
 	}
 
@@ -269,9 +269,9 @@ public static class TrapPartySystem
 			// 코어 보고는 실제 리더 위치가 아니라 보고자가 지금 향하는 목적지(아는 리더 위치·집결지·문·프론티어)를 쓴다 — 검증문서 03-15.
 			if (wait.Reason == WaitReason.ReportingCoreToLeader)
 				return wait.ReportKind != ReportDestinationKind.None ? wait.ReportTarget : (Vector2Int?)null;
-			if (wait.WaitPosition.HasValue) return wait.WaitPosition;
+			if (wait.WaitPosition.HasValue) return wait.WaitFloor >= 0 && wait.WaitFloor != human.currentFloor ? null : wait.WaitPosition;
 		}
-		return party != null && party.IsRallyActive ? party.RallyPoint : null;
+		return party != null && party.IsRallyPointOnFloor(human.currentFloor) ? party.RallyPoint : null;
 	}
 
 	// 집결·이동 중인 유닛의 경로를 이 함정이 막는가(대체 경로 없음 — 예: 좁은 통로 한가운데의 함정). 목적지를 모르거나 지형이 없으면 "막지 않음".

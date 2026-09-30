@@ -237,6 +237,7 @@ public class TacticalFSMState : IFSMState
 			(human.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint ||
 			 human.currentWait.Reason == WaitReason.AdvancingToNextRoom ||
 			 human.currentWait.Reason == WaitReason.ReportingCoreToLeader ||
+			 human.currentWait.Reason == WaitReason.SearchingNextDoor ||
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
@@ -846,6 +847,15 @@ public class TacticalFSMState : IFSMState
 		if (wait == null) return BTStatus.Success;
 		if (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint && wait.WaitPosition.HasValue)
 		{
+			// 집결지는 좌표뿐이라 층을 건넌 유닛이 다른 층의 같은 좌표로 걸어가지 않게 한다 — 대기를 접고 집결 완료 판정에서 빠진다.
+			if (wait.WaitFloor >= 0 && human.currentFloor != wait.WaitFloor)
+			{
+				human.currentWait = null;
+				human.waitStuckTurns = 0;
+				if (human.party != null) human.party.CheckRallyComplete();
+				return BTStatus.Success;
+			}
+
 			if (Vector2Int.Distance(human.position, wait.WaitPosition.Value) <= 1.5f)
 			{
 				human.currentWait = null;
@@ -870,13 +880,42 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 		}
+		else if (wait.Reason == WaitReason.ApproachingNextDoor && wait.WaitPosition.HasValue)
+		{
+			// 01번 7-1장 소탕 파티: 다음 이동 문 앞 자리까지 이동하며 확인한다. 도착하면 집결 판단 자격이 생긴다(Party.MarkLeaderReachedNextDoor).
+			// 자리가 막혀 더 다가갈 수 없어도(정체 한도 초과) 도착으로 처리한다 — 못 가는 자리 때문에 집결 판단이 영영 막히면 안 된다.
+			bool arrivedAtDoorSlot = AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value);
+			bool gaveUp = false;
+			if (!arrivedAtDoorSlot)
+			{
+				int distBefore = AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value);
+				AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
+				if (AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value) < distBefore)
+					human.waitStuckTurns = 0;
+				else if (++human.waitStuckTurns >= (AIConfigLoader.Behavior?.waitStuckTurnLimit ?? 4))
+					gaveUp = true;
+			}
+			if (arrivedAtDoorSlot || gaveUp)
+			{
+				human.waitStuckTurns = 0;
+				human.currentWait = null;
+				if (human.party != null && human.party.Leader == human) // 접근 도중 리더가 바뀌었다면 표식은 새 리더가 스스로 만든다
+				{
+					human.party.MarkLeaderReachedNextDoor();
+					LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 다음 이동 문 앞 {(arrivedAtDoorSlot ? "도착" : "접근 한계")} — 문까지 이동하며 확인을 마쳐 집결 판단 가능");
+				}
+				return BTStatus.Success;
+			}
+		}
 		else if (wait.Reason == WaitReason.AdvancingToNextRoom && wait.WaitPosition.HasValue)
 		{
 			// 05번 1장: 문에 도착(또는 더 다가갈 수 없음)하면 개인 행동으로 넘긴다 — 적대 문 파괴는
 			// TacticalBehaviorType.DoorAttack(인류 전용) 등 기존 전술이 이어받는다.
-			if (AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value)
-				|| !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
+			bool arrivedAtDoorSlot = AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value);
+			if (arrivedAtDoorSlot || !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
 			{
+				// 방 이동 명령은 여기까지다 — 문 앞 자리에 닿으면(또는 더 다가갈 수 없으면) 대기를 풀고 개인 행동으로 돌아간다.
+				LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 방 이동 명령 종료 — {(arrivedAtDoorSlot ? "문 앞 자리 도착" : "더 다가갈 수 없음")}, 이후 개인 행동으로 복귀");
 				human.currentWait = null;
 				return BTStatus.Success;
 			}
@@ -887,6 +926,12 @@ public class TacticalFSMState : IFSMState
 			// 위치를 읽지 않는다). 전달·목적지 결정·부재 확인·접근 실패 처리는 전부 PartyCoreReportSystem이 담당하고,
 			// 종료 경로는 모두 집결 완료를 다시 확인한다(03-14). 보고 의무는 종료돼도 남을 수 있다(TickPendingReport).
 			if (PartyCoreReportSystem.StepReportMovement(human, wait) == ReportStep.Ended)
+				return BTStatus.Success;
+		}
+		else if (wait.Reason == WaitReason.SearchingNextDoor)
+		{
+			// 05번 1장 73줄: 다음 문을 아직 모르면 진형을 유지하며 문을 찾는다 — 아는 리더 위치 주변을 따라다닌다.
+			if (PartyDoorSearchSystem.StepFollow(human, wait) == ReportStep.Ended)
 				return BTStatus.Success;
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
@@ -909,6 +954,7 @@ public class TacticalFSMState : IFSMState
 	{
 		var alert = unit.currentAlertSearch;
 		if (alert == null || !alert.TargetPosition.HasValue) return BTStatus.Failure;
+		if (alert.IsIndirectEnemyApproach) return IndirectEnemyApproach(unit, alert);
 		Vector2Int target = alert.TargetPosition.Value;
 		unit.currentDir = SkillAction.GetDirection8(target - unit.position);
 		if (Vector2Int.Distance(unit.position, target) <= 1.5f)
@@ -942,6 +988,46 @@ public class TacticalFSMState : IFSMState
 		alert.AbsenceWaitStartTime = -1f;
 		AIMovementHelper.MoveTowardsPos(unit, target);
 		return BTStatus.Running;
+	}
+
+	// 03번 v0.6 4-7(간접 인지 후 접근): 전파받은 적 위치로 일반 이동속도로 접근한다. 적을 정확 인지하면 Combat이 이 분기를 선점하고
+	// (OnEnter가 경계를 비움), 기록 위치 주위 3칸까지 들어왔는데 적이 없으면 그 정보를 갱신(폐기)하고 일반 탐색으로 복귀한다.
+	// 공격 방향 수색·수상한 타일의 3초 부재 대기·15초 수색 기한은 적용하지 않는다.
+	private static BTStatus IndirectEnemyApproach(Unit unit, AlertSearchState alert)
+	{
+		Unit enemy = alert.IndirectEnemy;
+		if (enemy == null || enemy.hp <= 0 || !alert.TargetPosition.HasValue)
+		{
+			EndIndirectEnemyApproach(unit, alert);
+			return BTStatus.Success;
+		}
+
+		Vector2Int target = alert.TargetPosition.Value;
+		unit.currentDir = SkillAction.GetDirection8(target - unit.position);
+		if (ExplorationMath.IsWithinIndirectCheckRadius(Vector2Int.Distance(unit.position, target)))
+		{
+			EndIndirectEnemyApproach(unit, alert);
+			return BTStatus.Success;
+		}
+
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, target);
+		AIMovementHelper.MoveTowardsPos(unit, target);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, target) < distBefore)
+		{
+			alert.ApproachStuckTurns = 0;
+		}
+		else if (++alert.ApproachStuckTurns >= (AIConfigLoader.Behavior?.indirectEnemyApproachStuckTurns ?? 4))
+		{
+			EndIndirectEnemyApproach(unit, alert); // 길이 막혀 접근할 수 없다 — 이 정보로 다시 접근하지 않는다.
+			return BTStatus.Success;
+		}
+		return BTStatus.Running;
+	}
+
+	private static void EndIndirectEnemyApproach(Unit unit, AlertSearchState alert)
+	{
+		if (alert.IndirectEnemy != null) unit.Propagation.PropagatedInfo.Remove(alert.IndirectEnemy);
+		unit.currentAlertSearch = null;
 	}
 
 	// 4-15장: 원인미상 파티원 사망 수색 — 시체 위치(DeathSearchOrigin)를 기준으로 배정된 방향

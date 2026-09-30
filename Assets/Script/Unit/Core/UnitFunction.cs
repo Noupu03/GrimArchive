@@ -531,6 +531,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 	public void AddPersonalSpottedEnemy(Unit unit)
 	{
 		Perception.State.personalSpottedEnemies.Add(unit); // HashSet이므로 Contains 검사 불필요
+		// 직접 정확 인지한 적은 전파받은 위치 기록보다 우선한다 — 낡은 전파 기록으로 다시 접근하지 않게 지운다(03번 v0.6 4-7).
+		Propagation.PropagatedInfo.Remove(unit);
 	}
 
 	public override void UpdateFOV(List<Unit> allUnits)
@@ -988,6 +990,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				PropagationSystem.TickOngoingObjectPropagation(human);
 				// 검증문서 03-14 발견 2/03-15: 아직 리더에게 전하지 못한 코어 보고 의무를 이어 간다(전달·재무장·리더 위치 중계).
 				PartyCoreReportSystem.TickPendingReport(human);
+				// 03번 v0.6 4-7: 다른 파티원에게 전파받은 적 위치가 있고 다른 우선 행동이 없으면 그 위치로 접근한다.
+				PropagationSystem.TickIndirectEnemyApproach(human);
 				// 검증문서 03-13: 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
 				TrapPartySystem.TickBlockedPathResponse(human);
 			}
@@ -1002,7 +1006,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 소리 반응 접근 자체엔 시간 제한이 없다 — 아직 인지 판정을 안 굴린 소리 반응 접근 중엔
 			// 아래 "미식별 공격 수색" 워치독을 적용하지 않는다.
 			bool isSoundResponseStillApproaching = currentAlertSearch.IsSoundResponse && !currentAlertSearch.SoundPerceptionRolled;
-			if (!isSoundResponseStillApproaching)
+			// 전파받은 적 위치 접근도 기한 워치독이 아니라 자체 정체 한도(AlertApproach)로만 끝난다 — 먼 곳까지 걷는 시간을 15초로 자르지 않는다.
+			if (!isSoundResponseStillApproaching && !currentAlertSearch.IsIndirectEnemyApproach)
 			{
 				float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
 					: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds

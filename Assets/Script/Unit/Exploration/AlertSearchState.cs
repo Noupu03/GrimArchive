@@ -25,6 +25,16 @@ public class AlertSearchState
 	// (ElapsedSeconds) 안에 포함되므로 ElapsedSeconds를 건드리지 않는다.
 	public float AbsenceWaitStartTime = -1f;
 
+	// 03번 v0.6 4-7(간접 인지 후 접근): 다른 파티원에게 전파받은 적 위치로 일반 탐색 상태·일반 이동속도로 접근하는 경계.
+	// TargetPosition은 전파받은 적 위치이고, 위 공격 방향 수색·수상한 타일과 달리 3초 부재 대기·15초 기한을 쓰지 않는다 —
+	// 기록 위치 주위 3칸(ExplorationMath.IndirectEnemyCheckRadius)에서 적을 못 찾으면 정보를 버리고 일반 탐색으로 복귀한다.
+	public bool IsIndirectEnemyApproach;
+	public Unit IndirectEnemy;
+	public int ApproachStuckTurns;
+
+	// 경계 이동의 75% 감속(4-3장)을 적용하지 않는 경계 — 피격·비명·사망음 확인 접근(16-3장)과 전파받은 적 위치 접근(일반 이동속도).
+	public bool IsExemptFromAlertSlowdown => IsUrgentSoundApproach || IsIndirectEnemyApproach;
+
 	// 4-12장: 미식별 공격 수색시간(15초) — 새 공격이 오면 15초로 재설정된다. 전투종료후 스윕은
 	// ExplorationMath.PostCombatAlertSeconds(10초)를 쓴다.
 	public float ElapsedSeconds;

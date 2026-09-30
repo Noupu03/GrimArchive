@@ -65,7 +65,6 @@ public class ResourceManager : NativeRoutine
             resources[type] = 0;
             
         resources[type] += amount;
-        LogHelper.Log(LogHelper.GAME, $"Added {amount} {type}. Total: {resources[type]}");
     }
 
     // 8단계: 검사와 차감을 원자적으로 처리 (동시성 방지)

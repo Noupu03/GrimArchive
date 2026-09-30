@@ -689,6 +689,98 @@ public class ExplorationSystemTests
 		Assert.AreEqual(ExplorationMath.AlertArrivalResult.End, ExplorationMath.ResolveAlertArrival(10f, 13f, false));
 	}
 
+	// ── 검증문서 03-18: 집결을 마친 방을 리더가 떠나기 전까지 같은 방에서 다시 집결하지 않는다 ──
+	private static Human MakePartyHumanIn(Room room)
+	{
+		var h = ScriptableObject.CreateInstance<Human>();
+		h.hp = 10f;
+		h.currentRoom = room;
+		return h;
+	}
+
+	[Test]
+	public void Party_AfterRallyCompletes_DoesNotRestartRallyUntilLeaderLeavesRoom()
+	{
+		var roomA = new Room();
+		var roomB = new Room();
+		var leader = MakePartyHumanIn(roomA);
+		var member = MakePartyHumanIn(roomA);
+		var party = new Party("P", "테스트") { Type = PartyType.MopUp };
+		party.Members.Add(leader);
+		party.Members.Add(member);
+		party.Leader = leader;
+
+		party.IsRallyActive = true;
+		party.CheckRallyComplete();
+		Assert.IsTrue(party.ReadyToAdvance);
+		Assert.AreSame(roomA, party.AdvanceFromRoom);
+
+		// 리더의 1초 주기 판정이 이동 중에 다시 집결을 시작하면 안 된다(IsRallyActive가 영구히 남거나 문 앞 집결이 반복됨).
+		party.TryStartRally();
+		Assert.IsFalse(party.IsRallyActive, "집결을 마친 방을 아직 떠나지 않았으면 다시 집결하지 않는다");
+		Assert.AreSame(roomA, party.AdvanceFromRoom);
+
+		// 리더가 다른 방에 들어서면 억제가 풀리고 그 방의 활동 기준(소탕: 인지된 적 없음)으로 다시 판단한다.
+		leader.currentRoom = roomB;
+		party.MarkLeaderReachedNextDoor(); // 소탕 파티는 새 방에서도 다음 문 앞 접근을 마쳐야 집결을 판단한다
+		party.TryStartRally();
+		Assert.IsNull(party.AdvanceFromRoom);
+		Assert.IsTrue(party.IsRallyActive, "새 방에서는 종류별 활동 종료 기준으로 다시 집결을 판단한다");
+	}
+
+	[Test]
+	public void Party_OnLeaderLearnsCore_ClearsAdvanceFromRoom()
+	{
+		var roomA = new Room();
+		var leader = MakePartyHumanIn(roomA);
+		var party = new Party("P", "테스트") { Type = PartyType.MopUp };
+		party.Members.Add(leader);
+		party.Leader = leader;
+		party.IsRallyActive = true;
+		party.CheckRallyComplete();
+		Assert.AreSame(roomA, party.AdvanceFromRoom);
+
+		party.OnLeaderLearnsCore(new Vector3Int(1, 1, 1));
+
+		// 코어 때문에 집결을 해제했다면 코어 처리 뒤 같은 방에서도 다시 집결해야 한다(05번 2장).
+		Assert.IsNull(party.AdvanceFromRoom);
+		Assert.IsFalse(party.ReadyToAdvance);
+	}
+
+	// ── 갭 정리: 전파받은 적 위치 접근(03번 v0.6 4-7) ──
+	[Test]
+	public void IndirectEnemyApproach_RadiusAndFreshness()
+	{
+		Assert.AreEqual(3, ExplorationMath.IndirectEnemyCheckRadius); // 4-7 "주위 3칸"
+		Assert.IsTrue(ExplorationMath.IsWithinIndirectCheckRadius(3f));
+		Assert.IsFalse(ExplorationMath.IsWithinIndirectCheckRadius(3.1f));
+		Assert.IsTrue(ExplorationMath.IsIndirectInfoFresh(100f, 70f, 30f));
+		Assert.IsFalse(ExplorationMath.IsIndirectInfoFresh(100f, 69f, 30f));
+	}
+
+	// 전파받은 적 위치 접근은 "일반 탐색 상태와 일반 이동속도" — 경계 75% 감속을 받지 않는다(긴급 소리 확인 접근과 같은 예외).
+	[Test]
+	public void AlertSearchState_IndirectApproach_IsExemptFromAlertSlowdown()
+	{
+		Assert.IsFalse(new AlertSearchState().IsExemptFromAlertSlowdown);
+		Assert.IsTrue(new AlertSearchState { IsUrgentSoundApproach = true }.IsExemptFromAlertSlowdown);
+		Assert.IsTrue(new AlertSearchState { IsIndirectEnemyApproach = true }.IsExemptFromAlertSlowdown);
+	}
+
+	[Test]
+	public void AppliedWalkSpeed_IndirectApproachKeepsNormalSpeed_OtherAlertsSlowDown()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		human.BaseStat.walkSpeed = 2f;
+
+		human.currentAlertSearch = null;
+		Assert.AreEqual(2f, human.AppliedWalkSpeed, 0.001f);
+		human.currentAlertSearch = new AlertSearchState();
+		Assert.AreEqual(2f * ExplorationMath.AlertMoveSpeedRatio, human.AppliedWalkSpeed, 0.001f);
+		human.currentAlertSearch = new AlertSearchState { IsIndirectEnemyApproach = true };
+		Assert.AreEqual(2f, human.AppliedWalkSpeed, 0.001f);
+	}
+
 	// 공격 방향으로 이동하는 두 경계(미식별 공격 피해자·공격 사실을 전파받은 목격자)만 대기 뒤 수색을 이어 간다는 표식.
 	[Test]
 	public void AlertSearchState_AbsenceWaitDefaults()

@@ -34,4 +34,14 @@ public static class PartyReportMath
 
 	public static bool HasArrived(Vector2Int position, Vector2Int target)
 		=> Vector2Int.Distance(position, target) <= ArrivalRadius;
+
+	public enum FollowStep { Lost, Hold, Move }
+
+	// 검증 갭 정리(05번 1장 73줄): 다음 문을 모를 때 파티원이 아는 리더 위치 주변을 유지한다. 리더 위치를 모르면 Lost,
+	// 추종 반경(체비셰프 거리) 이내면 Hold, 벗어났으면 Move.
+	public static FollowStep ResolveFollowStep(bool hasKnownLeader, int chebyshevDistance, int followRadius)
+	{
+		if (!hasKnownLeader) return FollowStep.Lost;
+		return chebyshevDistance > followRadius ? FollowStep.Move : FollowStep.Hold;
+	}
 }

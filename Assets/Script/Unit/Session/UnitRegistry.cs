@@ -52,7 +52,6 @@ public class UnitRegistry
         {
             if (u.FactionBehavior is PlayerMonsterBehavior && _offenseProcessor != null && currentRoom.RoomFaction == FactionType.Wild)
             {
-                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, $"[오펜스 트리거] 플레이어가 야생 방({currentRoom.RoomName})에 물리적으로 진입했습니다.");
                 _offenseProcessor.TryStartOffense(currentRoom, u);
             }
             // 디펜스 자동 트리거(위 오펜스 트리거의 대칭) — 야생/인류 유닛이 플레이어 소유 방에
@@ -60,7 +59,6 @@ public class UnitRegistry
             // roomGrid 기반(ProcessUnitAction)은 이동만 커버하므로 둘 다 이중 안전망으로 둔다.
             else if ((u.FactionBehavior is WildMonsterBehavior || u.FactionBehavior is HumanFactionBehavior) && _defenseProcessor != null && currentRoom.RoomFaction == FactionType.Player)
             {
-                Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, $"[디펜스 트리거] 적대 유닛이 플레이어 방({currentRoom.RoomName})에 물리적으로 진입했습니다.");
                 _defenseProcessor.TryStartDefense(currentRoom, u);
             }
         }

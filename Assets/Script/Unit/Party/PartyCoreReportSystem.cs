@@ -226,7 +226,7 @@ public static class PartyCoreReportSystem
 		bool leaderUsable = !IsBlocked(wait, ReportDestinationKind.ToLeader, now)
 			&& PartyReportMath.LeaderPositionUsable(known.IsFor(party.Leader), known.Position, known.EmptyConfirmedPosition);
 		bool rallyValid = !IsBlocked(wait, ReportDestinationKind.ToRally, now)
-			&& party.IsRallyActive && party.RallyPoint.HasValue && human.knownRallyPoint == party.RallyPoint;
+			&& party.IsRallyPointOnFloor(human.currentFloor) && human.knownRallyPoint == party.RallyPoint;
 
 		kind = PartyReportMath.ResolveDestinationKind(leaderUsable, rallyValid, false, false);
 		if (kind == ReportDestinationKind.ToLeader) { target = known.Position; return; }

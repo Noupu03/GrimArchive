@@ -390,6 +390,13 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    (IsRoomFullyRevealedByParty, 아래 7-2 참고)을 우선 확인하고 리더 개인 지도 근사는 안전망으로 유지
    — Recover/MopUp/Occupy는 각자 문서 요구대로 여전히 리더 개인 판정(각각 회수 대상·인지된 적·방
    소유권 기준이라 "시야 합산"이 애초에 해당 사항 아님).
+   [소탕 정정, 2026-10-01] MopUp 기준은 처음에 "인지된 적 없음"만이라 스폰 직후부터 참이었다(도착 즉시 집결).
+   문서(437줄·04번 소탕 파티 절)대로 "다음 이동 문 앞까지 이동하며 확인한 뒤" 적이 없을 때만 참이 되도록
+   고쳤다 — 리더가 아는 다음 이동 문 앞 자리로 걷는 WaitReason.ApproachingNextDoor(HumanWaveManager.
+   TryAssignLeaderDoorApproach가 배정, TacticalFSMState.ExecuteWait가 실행)와 도착 표식(Party.DoorApproachRoom,
+   MarkLeaderReachedNextDoor)으로 구현. 문을 모르면 리더의 기존 프론티어 탐색이 문을 찾는다. 리더 외 파티원은
+   문으로 이동시키지 않는다(집결 때 모임 — 05번 8장 진형 합류 미작성). 목표 방이 없으면 소탕 파티는 집결하지
+   않는다(임무 수량 달성 경로는 그대로).
 ✅ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (2026-09-27) — Party._partyRevealedTilesByRoom/
    OnTileRevealedInRoom이 파티원 전체가 나눠 본 타일을 방 단위로 합산해 IsRoomFullyRevealedByParty로
    노출, IsRoomActivityComplete의 Explore 분기가 이걸 우선 확인(기존 리더 개인 판정은 안전망으로
@@ -607,6 +614,15 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ✅ 2. 집결 시점과 진행 — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
    종류별 기준으로 집결" 충족. 문 앞 집결(진형 위치)은 미구현(아래 3번 참고, 지금은 문 타일 좌표
    자체로 직행).
+   [수정, 2026-09-30 검증 03-18] 집결 완료 뒤 공동 이동 중 리더의 1초 주기 TryStartRally가 아직 그 방에 있는 리더
+   기준으로 같은 방에서 집결을 다시 시작하던 버그(이동 대기 중인 파티원만 있으면 IsRallyActive가 영구히 남아 이후 방의
+   집결이 막힘, 다음 문을 모르면 집결 반복)를 Party.AdvanceFromRoom(집결을 마친 방)으로 막았다 — 리더가 그 방을 떠나기
+   전까지 재집결 금지, 코어 해제(OnLeaderLearnsCore) 시 해제. 후퇴 확인·휴식 판단은 문서 미작성이라 자리만 비어 있다.
+   [구현, 2026-10-01 검증 갭 정리] "다음 문을 아직 모르면 진형을 유지하며 문을 찾는다"(05번 1장 73줄) — 리더는 기존 자유 탐색이
+   문을 찾고, 나머지 파티원은 WaitReason.SearchingNextDoor(PartyDoorSearchSystem.StepFollow)로 자기가 아는 리더 위치 주변
+   (AIBehaviorConfig.doorSearchFollowRadius=3칸, 진형 자리·간격은 문서가 미뤄 근사)을 따라다니고, 문이 알려지면
+   HumanWaveManager가 AdvancingToNextRoom으로 덮어쓴다. 집결을 마친 방을 리더가 떠나면 Party.TickAdvanceState가 소비되지
+   않은 ReadyToAdvance를 지워, 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동이 발행되던 잠재 버그도 없앴다.
 🔶 3. 진형과 문 주변 자리 — [구현, 2026-09-27] "문 주변 대기 위치"(2칸 확보)만 구현:
    AIMovementHelper.FindDoorWaitSlot(문 기준 체비셰프 거리 2 이상 미점유 타일을 반경을 넓혀가며
    탐색) + HumanWaveManager.UpdatePartyDestination이 파티원마다 겹치지 않는 슬롯을 배정. "역할별

@@ -25,6 +25,14 @@ public class AIBehaviorConfig : ScriptableObject
     public int waitStuckTurnLimit = 4;
     [Tooltip("코어 보고 이동 목적지에 접근하지 못해 그 종류를 일시 제외한 뒤 다시 후보로 고려하기까지의 시간(초) — 다른 후보로 넘어가고 이 시간 뒤 재시도 (검증문서 03-15, 내부 판단)")]
     public float coreReportBlockedRetrySeconds = 5f;
+    [Tooltip("다음 문을 모를 때 파티원이 아는 리더 위치로부터 유지하는 거리(체비셰프 칸) — 05번 1장 '진형을 유지하며 문을 찾는다'의 근사, 진형 자리·간격은 문서가 차후로 미룸 (내부 판단)")]
+    public int doorSearchFollowRadius = 3;
+    [Tooltip("공동 탐색 추종이 막히거나 리더 위치를 잃어 접은 뒤 다시 추종을 배정받기까지의 시간(초) — 배정·해제 반복 방지 (내부 판단)")]
+    public float doorSearchFollowRetrySeconds = 5f;
+    [Tooltip("전파받은 적 위치 정보가 이 시간(초)을 넘으면 낡은 정보로 보고 접근하지 않는다 (03번 v0.6 4-7은 유효 기간을 정하지 않음, 내부 판단)")]
+    public float indirectEnemyInfoMaxAgeSeconds = 30f;
+    [Tooltip("전파받은 적 위치로 접근하다 거리가 줄지 않는 혼잡 대기 최대 턴 수 — 초과 시 접근을 포기하고 그 정보를 버린다 (내부 판단)")]
+    public int indirectEnemyApproachStuckTurns = 4;
     [Tooltip("전투 추격 중 대상까지 거리가 줄지 않는 혼잡 대기 최대 턴 수 — 초과 시 그 대상을 일시 배제 (검증문서 02-02, 내부 판단)")]
     public int combatChaseStuckTurnLimit = 4;
     [Tooltip("전투 추격 포기 후 같은 대상을 다시 후보로 고려하기까지의 최소 대기 시간(초) — 문 파괴 등으로 상황이 바뀔 시간을 준다 (검증문서 02-02, 내부 판단)")]

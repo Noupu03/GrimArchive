@@ -388,7 +388,7 @@ public abstract class Unit : ScriptableObject {
 	{
 		get
 		{
-			bool alertSlowdown = currentAlertSearch != null && !currentAlertSearch.IsUrgentSoundApproach;
+			bool alertSlowdown = currentAlertSearch != null && !currentAlertSearch.IsExemptFromAlertSlowdown;
 			return BaseStat.walkSpeed * (alertSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
 		}
 	}
@@ -687,6 +687,8 @@ public class Human : UnitFunction
 	public readonly KnownLeaderInfo knownLeader = new KnownLeaderInfo();
 	public Vector2Int? knownRallyPoint;
 	public Vector3Int? pendingCoreReportPos;
+	// 다음 문을 모를 때 공동 탐색 추종(WaitReason.SearchingNextDoor)을 접은 뒤 다시 배정받을 수 있는 시각 — 배정·해제 반복 방지.
+	public float nextSearchFollowAllowedTime;
 	public FormationState     currentFormation;
 	// 전투 진입 시 합류 대기 — null이면 대기 중 아님(즉시 전투).
 	public JoinCombatWaitState currentJoinCombatWait;

@@ -222,7 +222,12 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine($"<b>이름:</b> {u.unitType.typeName}");
         sb.AppendLine($"<b>진영:</b> {(u.IsHumanFaction ? "인류" : (u.IsPlayerMonsterFaction ? "플레이어 몬스터" : "야생 몬스터"))}");
         if (u is Human human && human.party != null)
+        {
             sb.AppendLine($"<b>파티:</b> {human.party.Name} ({human.party.Type.ToKorean()})");
+            // 다수 선택 목록(BuildMultiSelectListText)의 ★와 같은 기준 — 이 유닛 자신이 파티 리더일 때만 표시한다.
+            if (human.party.Leader == human)
+                sb.AppendLine("<b>리더:</b> ★ 본인");
+        }
         sb.AppendLine($"<b>LV:</b> {u.level}");
         sb.AppendLine($"<b>EXP:</b> {u.BaseStat.exp:F1}");
         sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");

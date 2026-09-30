@@ -26,6 +26,17 @@ public static class ExplorationMath
 	public static bool AbsenceWaitElapsed(float startTime, float now, float waitSeconds)
 		=> startTime >= 0f && now - startTime >= waitSeconds;
 
+	// 03번 v0.6 4-7: 전파받은 적 위치에 접근해 그 "주위 3칸"에서도 적을 못 찾으면 확인을 마친 것으로 본다.
+	public const int IndirectEnemyCheckRadius = 3;
+
+	// 전파받은 적 정보가 아직 접근할 만큼 최신인가(내부 판단 유효 시간 안인가).
+	public static bool IsIndirectInfoFresh(float now, float timestamp, float maxAgeSeconds)
+		=> now - timestamp <= maxAgeSeconds;
+
+	// 기록된 적 위치에서 이 거리 이내에 들어왔으면 그 주위 확인을 마친 것이다(적을 인지했다면 Combat이 이미 선점했다).
+	public static bool IsWithinIndirectCheckRadius(float distance)
+		=> distance <= IndirectEnemyCheckRadius;
+
 	public enum AlertArrivalResult { Waiting, ContinueSearching, End }
 
 	// 검증문서 03-16(순서도 03-16): 경계 수색이 마지막 위치에 도착해 부재를 확인한 뒤의 처리. 3초가 안 지났으면 제자리에서

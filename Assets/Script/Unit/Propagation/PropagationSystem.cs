@@ -563,7 +563,8 @@ public static class PropagationSystem
 		// 9-3장: 이 적은 이미 한 번 응답 대기 타임아웃으로 포기한 적 — 다시 대기하지 않고 곧장 전투.
 		if (enemy == human.joinWaitGiveUpTarget) return false;
 		// 16-3장: 긴급 소리(피격/사망음) 확인 중 적을 정확 인지하면 거리·위험도와 무관하게 합류 대기를 건너뛴다.
-		if (human.currentAlertSearch != null && human.currentAlertSearch.IsUrgentSoundApproach) return false;
+		// 03번 v0.6 4-7: 전파받은 적 위치로 접근하는 유닛도 다른 유닛을 기다리지 않고 기록 위치로 직접 접근한다.
+		if (human.currentAlertSearch != null && (human.currentAlertSearch.IsUrgentSoundApproach || human.currentAlertSearch.IsIndirectEnemyApproach)) return false;
 		int dist = Mathf.RoundToInt(Vector2Int.Distance(human.position, enemy.position));
 		DangerStage? stage = human.Knowledge.GetDangerStage(enemy.unitType.typeName, enemy.isSpecialUnit ? enemy.name : null, enemy.BaseStat.baseDanger);
 		return PropagationMath.RequiresJoinWait(stage, dist);
@@ -580,7 +581,9 @@ public static class PropagationSystem
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
 			if (!InPropagationRange(discoverer, m)) continue;
-			RecordEnemySighting(m, enemy, discoverer.position);
+			// 발견자가 정확 인지한 "적의" 마지막 확인 위치를 전한다(예전엔 발견자 자신의 위치를 넘겨, 전파받은 적 위치로 접근하면
+			// 엉뚱한 곳으로 갔다 — 03번 v0.6 4-7).
+			RecordEnemySighting(m, enemy, enemy.position);
 		}
 	}
 
@@ -621,6 +624,60 @@ public static class PropagationSystem
 		if (m.currentTrapInteraction != null) return false;
 		if (m.currentInvestigation != null) return false;
 		if (m.personalSpottedEnemies.Count > 0) return false;
+		return true;
+	}
+
+	// 03번 v0.6 4-7(간접 인지 후 접근, 검증 갭 정리): 다른 파티원에게 전파받은 적 위치(PropagatedInfo)가 있고 이 유닛에게 다른
+	// 우선 행동이 없으면 그 위치로 일반 탐색 상태·일반 이동속도로 접근한다. "어떤 상황에서 이 접근을 목표로 고르는가"는 새 문서
+	// 세트에 없어(목표설정·파티 문서로 미뤄짐) 사용자 승인 하에 "비전투이고 다른 우선 행동이 없는 파티원이 가장 최근 전파 정보로
+	// 접근"으로 근사했다. UnitFunction.OnUpdate 0.1초 틱이 호출한다.
+	private static readonly List<object> _staleInfoKeys = new List<object>();
+
+	public static void TickIndirectEnemyApproach(Human human)
+	{
+		var infos = human.Propagation.PropagatedInfo;
+		if (infos.Count == 0) return;
+
+		float now = Time.time;
+		float maxAge = AIConfigLoader.Behavior?.indirectEnemyInfoMaxAgeSeconds ?? 30f;
+
+		// 대상이 죽었거나 사라졌거나 낡은 기록은 정리하고, 접근할 가장 최근 기록을 고른다.
+		Unit bestEnemy = null;
+		PropagatedInfoRecord best = null;
+		_staleInfoKeys.Clear();
+		foreach (var kv in infos)
+		{
+			var enemy = kv.Key as Unit;
+			var rec = kv.Value;
+			if (enemy == null || enemy.hp <= 0 || !ExplorationMath.IsIndirectInfoFresh(now, rec.LastKnownTimestamp, maxAge))
+			{
+				_staleInfoKeys.Add(kv.Key);
+				continue;
+			}
+			if (rec.LastKnownTile.z != human.currentFloor) continue;
+			if (best == null || rec.LastKnownTimestamp > best.LastKnownTimestamp) { best = rec; bestEnemy = enemy; }
+		}
+		foreach (var key in _staleInfoKeys) infos.Remove(key);
+		if (best == null || !CanStartIndirectEnemyApproach(human)) return;
+
+		human.currentAlertSearch = new AlertSearchState
+		{
+			TargetPosition = new Vector2Int(best.LastKnownTile.x, best.LastKnownTile.y),
+			IsIndirectEnemyApproach = true,
+			IndirectEnemy = bestEnemy,
+		};
+	}
+
+	// 접근을 시작해도 되는 상태 — 전투·이미 시작한 상호작용·집결/공동 이동/보고/귀환 대기·직접 명령·던전 입구 시퀀스가 우선한다
+	// (03번 1장 50줄: 집결·공동 이동 중의 적 발견은 전투에만 대응하고 개인 탐색으로 흩어지지 않는다).
+	private static bool CanStartIndirectEnemyApproach(Human human)
+	{
+		if (human.party == null || human.personalSpottedEnemies.Count > 0) return false;
+		if (human.currentAlertSearch != null || human.currentWait != null || human.currentInvestigation != null) return false;
+		if (human.currentTrapInteraction != null || human.currentJoinCombatWait != null) return false;
+		if (human.pendingCoreReportPos.HasValue) return false; // 코어 보고 의무가 우선
+		if (human.isInDungeonEntranceSequence || human.pendingStairTargetFloor.HasValue) return false;
+		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
 		return true;
 	}
 
