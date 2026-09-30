@@ -74,6 +74,37 @@ public static class ExplorationMath
 	public const float TrapAllyRescueUnrecordedMinCurrentHpRatio = 0.6f; // 9-11장: 미기록 함정, 이동 유닛 현재 HP 60% 이상
 	public const float AllyRescueTargetHpRatio = 0.3f;   // 9-11장: 즉시 보호 대상 아군 HP 30% 이하
 
+	// ─────────────────────────── 03번 v0.12 9장·v0.6 9-6/9-12/9-13: 활성 함정 회피 구역과 통과 판정 (검증 03-13) ───────────────────────────
+	// 회피 구역 = 함정 타일 + 체비셰프 1(v0.6 9-6 "인접 1칸"). 해제 위치(9-7)도 이 구역 안이다.
+	public const int TrapAvoidZoneRadius = 1;
+
+	public static bool IsInTrapZone(Vector2Int tile, Vector2Int trapTile)
+		=> Mathf.Max(Mathf.Abs(tile.x - trapTile.x), Mathf.Abs(tile.y - trapTile.y)) <= TrapAvoidZoneRadius;
+
+	// 비율 경계("정확히 30%·60%")가 문서대로 포함되도록 float 곱셈 오차(0.3f×100 = 30.000002 등)를 흡수한다.
+	private const float RatioEpsilon = 0.0001f;
+
+	private static bool RatioAtLeast(float value, float max, float ratio) => max > 0f && value / max >= ratio - RatioEpsilon;
+
+	// 전투 합류(v0.6 9-12): 피해를 아는(=기록된) 함정만 판단할 수 있다 — 미기록 함정은 통과 후보가 아니다(긴급 보호의 별도 예외만 가능).
+	// 통과 후 예상 HP(현재 HP − 알려진 최대 예상 피해)가 최대 HP의 minHpRatio 이상이어야 한다.
+	public static bool CanPassTrapInCombat(bool trapRecorded, float hp, float maxHp, float knownDamageMax, float minHpRatio = TrapPassMinHpRatioAfterHit)
+		=> trapRecorded && RatioAtLeast(hp - knownDamageMax, maxHp, minHpRatio);
+
+	// 긴급 아군 보호(v0.6 9-13, 02번 v0.12 9장): 공통 = 보호 대상 HP 30% 이하 + 함정 경로가 우회보다 빠름(우회가 없으면 int.MaxValue).
+	// 기록된 함정 = 함정 최대 예상 피해 적용 후 이동자 HP가 recordedMinHpRatio(30%) 이상, 미기록 함정 = 피해를 모르므로 이동자 현재 HP가
+	// unrecordedMinCurrentHpRatio(60%) 이상(별도 예외 — 일반 적 공격 노출에 확대하지 않는다).
+	public static bool CanPassTrapForProtect(bool trapRecorded, float allyHp, float allyMaxHp, float moverHp, float moverMaxHp, float knownDamageMax,
+		int trapPathSteps, int detourSteps,
+		float recordedMinHpRatio = TrapAllyRescueMinHpRatioAfterHit, float unrecordedMinCurrentHpRatio = TrapAllyRescueUnrecordedMinCurrentHpRatio)
+	{
+		if (allyMaxHp <= 0f || allyHp / allyMaxHp > AllyRescueTargetHpRatio + RatioEpsilon) return false;
+		if (trapPathSteps >= detourSteps) return false;
+		return trapRecorded
+			? RatioAtLeast(moverHp - knownDamageMax, moverMaxHp, recordedMinHpRatio)
+			: RatioAtLeast(moverHp, moverMaxHp, unrecordedMinCurrentHpRatio);
+	}
+
 	// 9-2장은 "클래스별 기본 성공률+레벨+이해도 보정"이라고만 서술하지만 이 코드베이스엔 "클래스" 개념이
 	// 없어(UnitType은 스폰 타입일 뿐) 파생스탯 "집중(concentration)"을 "정교한 손기술" 대체 지표로 쓴
 	// 밸런스 미확정 자리표시자다. 이해도 보정은 WeightMath.AppliedValue(0~100 정수)를 그대로 얹는다.

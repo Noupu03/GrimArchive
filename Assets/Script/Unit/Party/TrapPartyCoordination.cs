@@ -32,6 +32,8 @@ public class TrapPartyCoordination
 	// 발견자가 집결·공동 이동·귀환 중이라 대응(응답 대기·선정)을 시작하지 않고 기록만 남긴 상태(03번 v0.12 8장). 이후 집결·이동 중이
 	// 아닌 유닛이 그 함정을 처음 발견하면 이 기록을 이어받아 표준 절차를 시작한다(TrapPartySystem.OnTrapDiscovered).
 	public bool Deferred;
+	// 검증문서 03-13: 알던 함정이 이동 경로를 막아 대응을 다시 연 시각 + 재시작 쿨다운 — 파괴·해제가 모두 불가능한 함정에서 대응이 끝나자마자 다시 열리는 반복을 막는다.
+	public float NextBlockedRetryTime;
 	public string SelectedUnitName;
 	public bool SelectionLocked;
 	// 기한 안에 도착하지 않아 재선정에서 제외된 유닛(미도착만으로 사망·도주를 확정하지 않는다).

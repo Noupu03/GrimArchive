@@ -1,5 +1,7 @@
 #if UNITY_INCLUDE_TESTS
+using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine;
 
 // ========================================================================
 // 04번 문서(이동경로_속도_점유충돌) 4장 "역할별 이동 경로와 우회" 순수 계산 검증.
@@ -28,6 +30,35 @@ public class MovementSystemTests
 	{
 		Assert.AreEqual(0.30f, CombatScoreMath.ProtectApproachDamageRiskHpFloor, 0.0001f);
 		Assert.AreEqual(0.30f, CombatScoreMath.EmergencyProtectHpRatio, 0.0001f);
+	}
+
+	// 02번 5장 "새 대상을 공격할 수 있는 위치까지의 경로 길이": 경로(시작 제외, 마지막 = 대상 타일)를 따라 처음 공격 거리 안에 드는 지점까지의 걸음 수.
+	private static List<Vector2Int> StraightPathTo(int targetX)
+	{
+		var path = new List<Vector2Int>();
+		for (int x = 1; x <= targetX; x++) path.Add(new Vector2Int(x, 0));
+		return path;
+	}
+
+	[Test]
+	public void StepsToFirstTileWithinRange_StopsAtFirstTileInAttackReach()
+	{
+		var target = new Vector2Int(10, 0);
+		var path = StraightPathTo(10);
+
+		Assert.AreEqual(9, CombatScoreMath.StepsToFirstTileWithinRange(path, target, 1));  // 근접: 인접 타일(9,0)까지 9걸음
+		Assert.AreEqual(6, CombatScoreMath.StepsToFirstTileWithinRange(path, target, 4));  // 원거리 4칸: (6,0)에서 이미 공격 가능
+		Assert.AreEqual(1, CombatScoreMath.StepsToFirstTileWithinRange(path, target, 20)); // 첫 걸음부터 사거리 안 — 호출부가 시작 위치 사거리를 먼저 0칸으로 처리한다
+	}
+
+	[Test]
+	public void StepsToFirstTileWithinRange_EmptyPath_IsZero_AndNeverExceedsPathLength()
+	{
+		Assert.AreEqual(0, CombatScoreMath.StepsToFirstTileWithinRange(new List<Vector2Int>(), new Vector2Int(3, 3), 1));
+
+		// 경로 어느 타일도 공격 거리 안이 아니면(정상 경로는 마지막 타일이 대상 타일이라 없는 경우) 전체 길이를 돌려준다.
+		var detached = new List<Vector2Int> { new Vector2Int(0, 0), new Vector2Int(1, 0) };
+		Assert.AreEqual(2, CombatScoreMath.StepsToFirstTileWithinRange(detached, new Vector2Int(9, 9), 1));
 	}
 }
 #endif

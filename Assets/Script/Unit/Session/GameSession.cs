@@ -974,10 +974,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         float speed = u.AppliedWalkSpeed;
         u.CombatState.State.actionCooldown = speed > 0f ? (1f / speed) : 1f;
 
-        // 아래 TriggerTrapIfStepped가 "이번 틱 시작 시점에 이미 이 함정을 알고 대응 중이었는지"를
-        // 판단할 때 쓸 스냅샷 — ExecuteAction()이 currentTrapInteraction을 바꾸기 전 상태를 기억해둔다.
-        TrapInteractionState trapInteractionBefore = u.currentTrapInteraction;
-
         // 라벨 스냅샷은 반드시 JudgeState() 이전에 찍어야 한다 — 이후에 찍으면 전환 직후 라벨이
         // old/new 둘 다로 잡혀, 위치·방향이 안 바뀌는 전환(예: HaltFSMState 진입)의 stateChanged가
         // 감지되지 않는다.
@@ -995,7 +991,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             UnregisterUnitPos(u, oldPos);
             if (RegisterUnitPos(u, u.position))
             {
-                TriggerTrapIfStepped(u, trapInteractionBefore);
+                TriggerTrapIfStepped(u);
 
                 // 오펜스 자동 트리거: PlayerMonster가 야생 방에 진입하면 즉시 오펜스 시작
                 if (u.IsPlayerMonsterFaction)
@@ -1094,21 +1090,20 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _defenseProcessor?.TryStartDefense(room, unit);
     }
 
-    // 9-9/9-10장의 의도적 통과/파괴 선택과 별개로, 함정을 인지 못 하고 밟으면 자동으로 피해를
-    // 입는다. trapInteractionBefore로 이미 대응 중이었는지 확인해 의도적 대응(Action_TrapPass 등)과의
-    // 중복 피해를 막는다. 함정은 해제/파괴 전까지 소모되지 않아 다시 밟으면 또 맞고, 몬스터는
-    // currentTrapInteraction이 세팅되지 않아 매번 그대로 맞는다.
-    private void TriggerTrapIfStepped(Unit unit, TrapInteractionState trapInteractionBefore)
+    // 함정 타일을 밟으면 인지 여부·대응 여부와 무관하게 발동해 피해를 입는다(알고도 밟는 전투 합류·긴급 보호 통과 포함 — 그 판단은 이동 계층이 한다). 함정은
+    // 해제/파괴 전까지 소모되지 않아 다시 밟으면 또 맞고, 몬스터는 currentTrapInteraction이 없어 매번 그대로 맞는다. 밟은 함정이 이 유닛의 대응 대상이었다면
+    // 대응은 "통과"로 끝난다(검증문서 03-13: 예전엔 대응 중인 함정은 밟아도 피해가 면제됐다 — 의도적 통과 리프가 직접 발동하던 시절의 중복 방지 잔재).
+    private void TriggerTrapIfStepped(Unit unit)
     {
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
         if (!objectGrid.TryGetValue(gridPos, out InteractableObject obj)) return;
         if (obj.Tags == null || !obj.Tags.Exists(t => t.Contains("Trap"))) return;
 
-        bool alreadyHandling = trapInteractionBefore != null && trapInteractionBefore.TrapPosition == gridPos;
-        if (alreadyHandling) return;
-
         ActivateTrap(unit, obj);
-        LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 인지하지 못한 채 밟아 {obj.TrapDamageMax} 피해를 입었습니다.");
+        LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 밟아 {obj.TrapDamageMax} 피해를 입었습니다.");
+
+        if (unit.currentTrapInteraction != null && unit.currentTrapInteraction.TrapObjectId == obj.Id)
+            TrapPartySystem.EndResponse(unit, TrapEndReason.Passed);
     }
 
     // 함정 발동의 단일 진입점(밟음/의도적 통과 공통). 피해·함정 작동음(07문서 14장)·인류 사망 원인 기록(4-14장)과, 그 함정을

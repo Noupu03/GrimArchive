@@ -73,6 +73,8 @@ public class CombatFSMState : IFSMState
 	// 명령 실행 직후 alertSearch가 TacticalFSMState를 불필요하게 트리거해 명령이 중단되는 걸 방지.
 	public void OnExit(Unit unit)
 	{
+		ClearBlockingTrap(unit); // 전투 중 함정 파괴는 전투와 함께 끝난다(채널링이 남아 계속 깎이지 않게)
+
 		bool playerCommandActive = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
 			|| unit.playerAttackObjectTarget.HasValue; // 코어/문 공격 명령도 동일 취급.
@@ -158,6 +160,7 @@ public class CombatFSMState : IFSMState
 			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
 				bestSkill.Execute(unit, resolved, minDist);
+				ClearBlockingTrap(unit); // 적과 교전이 시작되면 함정 파괴는 접는다(검증문서 03-13)
 				// 02번 5장: 공격을 실제로 실행하면(회피·방어로 무효여도) 누적 이동 칸수를 초기화한다.
 				unit.CombatTargeting.ResetRetargetTracking();
 				unit.combatChaseStuckTurns = 0; // 검증문서 02-02: 공격이 실행됐다는 건 추격 정체가 아니라는 뜻.
@@ -257,7 +260,7 @@ public class CombatFSMState : IFSMState
 		if (protectRange <= 0) return false; // 보호 수단 자체가 없음 — 개입하지 않는다.
 		if (AIMovementHelper.ChebyshevDistance(unit.position, protect.position) <= protectRange) return false;
 
-		AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect.position);
+		AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect);
 		return true;
 	}
 
@@ -309,10 +312,18 @@ public class CombatFSMState : IFSMState
 	// 배제까지 함께 걸어야 실제로 Tactical(DoorAttack 등)로 넘어간다.
 	private static void ChaseTarget(Unit unit, Unit target)
 	{
+		// 검증문서 03-13: 이미 파괴하기로 한 막힌 함정이 있으면 추격보다 그 파괴를 이어간다(교전이 시작되면 ExecuteCombat이 비운다).
+		if (TryContinueTrapDestroy(unit)) return;
+
 		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, target.position);
 		bool moved = AIMovementHelper.MoveTowardsTarget(unit, target);
 		if (AIMovementHelper.ChebyshevDistance(unit.position, target.position) < distBefore)
 		{
+			unit.combatChaseStuckTurns = 0;
+		}
+		else if (TryBeginTrapDestroy(unit))
+		{
+			// 함정이 유일한 통로를 막고 파괴할 수 있다 — 대상을 포기하지 않고 함정부터 부순다(03번 v0.12 9장 566줄).
 			unit.combatChaseStuckTurns = 0;
 		}
 		else if (++unit.combatChaseStuckTurns >= (AIConfigLoader.Behavior?.combatChaseStuckTurnLimit ?? 4))
@@ -323,6 +334,72 @@ public class CombatFSMState : IFSMState
 			unit.CombatTargeting.AttackTarget = null;
 		}
 		if (moved) TrackRetargetMovement(unit);
+	}
+
+	// ── 전투 중 막힌 경로의 함정 파괴 (검증문서 03-13, 03번 v0.12 9장 566줄) ──
+	// "전투 중 이동 경로를 막고 대체 경로가 없는 함정은 해당 함정이 파괴 가능한 경우 파괴 대상으로 판단한다." 이동 계층(전투 모드)이 통과 조건을 못 채운 함정 타일을
+	// 막으므로, 추격이 진전 없이 끝나고 A*의 진단(AStarMovement.DiagnoseTrapBlock)이 "함정 때문"이라고 남긴 신호가 있으면 그 함정이 파괴 후보다. 실제 데미지는 기존
+	// 오브젝트 채널링(UnitFunction.OnUpdate의 isTrap 분기 — 인접 1칸 매 프레임 재확인)이 적용한다.
+	private static bool TryBeginTrapDestroy(Unit unit)
+	{
+		if (!(unit is Human human) || string.IsNullOrEmpty(human.trapBlockTrapId)) return false;
+		string trapId = human.trapBlockTrapId;
+		human.trapBlockTrapId = null; // 신호는 한 번만 소비한다
+		if (Time.time - human.trapBlockSignalTime > 1f || human.Session == null) return false;
+
+		if (!human.personalMap.KnownTrapTiles.TryGetValue(trapId, out Vector3Int tile)) return false;
+		if (!human.Session.objectGrid.TryGetValue(tile, out InteractableObject trapObj) || trapObj.Id != trapId || trapObj.IsCollected) return false;
+		// 파괴 가능 여부는 함정 속성에 따른다 — 모든 오브젝트를 파괴 가능한 것으로 취급하지 않는다(03번 v0.12 9장 584~586줄).
+		if (trapObj.TrapMaxHp <= 0f || human.physicalAttack <= 0f) return false;
+
+		human.CombatTargeting.BlockingTrapTile = tile;
+		human.CombatTargeting.TrapDestroyStuckTurns = 0;
+		return true;
+	}
+
+	private static bool TryContinueTrapDestroy(Unit unit)
+	{
+		Vector3Int? tile = unit.CombatTargeting.BlockingTrapTile;
+		if (!tile.HasValue) return false;
+
+		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(tile.Value, out InteractableObject trapObj) || trapObj.IsCollected || trapObj.TrapHp <= 0f)
+		{
+			ClearBlockingTrap(unit); // 이미 부서졌거나 사라짐 — 추격을 이어간다
+			return false;
+		}
+
+		Vector2Int trapPos = new Vector2Int(tile.Value.x, tile.Value.y);
+		if (AIMovementHelper.IsAdjacent(unit.position, trapPos))
+		{
+			unit.CombatTargeting.TrapDestroyStuckTurns = 0;
+			unit.SetAttackObjectTarget(tile.Value); // 채널링 시작·유지 — 같은 값 재대입은 무해하다
+			unit.currentDir = SkillAction.GetDirection8(trapPos - unit.position);
+			unit.Generate?.UpdateUnitSpriteForDirection(unit);
+			return true;
+		}
+
+		unit.ClearAttackObjectTarget();
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, trapPos);
+		AIMovementHelper.MoveTowardsPos(unit, trapPos);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, trapPos) < distBefore)
+		{
+			unit.CombatTargeting.TrapDestroyStuckTurns = 0;
+		}
+		else if (++unit.CombatTargeting.TrapDestroyStuckTurns >= (AIConfigLoader.Behavior?.combatChaseStuckTurnLimit ?? 4))
+		{
+			ClearBlockingTrap(unit); // 함정에 다가갈 수도 없다 — 포기하고 기존 도달 불가 처리로 넘긴다
+			return false;
+		}
+		return true;
+	}
+
+	private static void ClearBlockingTrap(Unit unit)
+	{
+		var targeting = unit.CombatTargeting;
+		if (!targeting.BlockingTrapTile.HasValue) return;
+		if (unit.currentAttackObjectTarget == targeting.BlockingTrapTile) unit.ClearAttackObjectTarget();
+		targeting.BlockingTrapTile = null;
+		targeting.TrapDestroyStuckTurns = 0;
 	}
 
 	// internal — StandGroundAttackFSMState("제자리 공격")도 동일한 타깃 선정 로직을 재사용한다.
@@ -427,16 +504,21 @@ public class CombatFSMState : IFSMState
 			if (CombatScoreMath.ShouldSwitchAttackTarget(isHuman, currentScore, bestScore))
 			{
 				int limit = CombatScoreMath.AttackRetargetMoveLimit(selfRole);
-				// 검증문서 02-05 2·3·7번: 남은 이동은 실제 경로 길이로 판단한다. 인류는 자기 개인
-				// 지도로 그 경로 전체가 드러나 있을 때만(fullyRevealed) 한도 충족을 확정하고, 몬스터·
-				// 야생은 "개인 지도" 개념이 없어(fullyRevealed가 항상 false) 경로를 실제로 찾았는지
-				// (reachedTarget)만 확인한다 — 이 함수 안에서 이미 반복되는 isHuman 분기와 동일 패턴.
+				// 검증문서 02-05 2·3·7번: 남은 이동은 "새 대상을 공격할 수 있는 위치까지" 실제 경로 길이로
+				// 판단한다(이미 공격 거리 안이면 0칸). 인류는 자기 개인 지도로 그 경로가 드러나 있을 때만
+				// (fullyRevealed) 한도 충족을 확정하고, 몬스터·야생은 "개인 지도" 개념이 없어 경로를 실제로
+				// 찾았는지만 확인한다 — 이 함수 안에서 이미 반복되는 isHuman 분기와 동일 패턴.
 				// 경로 미확인/미발견이면 추정치로 대충 확정하지 않고 그냥 교체를 보류한다(아래 폴백).
-				var astar = unit.MovementAlgorithm as AStarMovement;
+				// (2026-09-30: 예전엔 유닛 위치를 목표로 준 경로 조회가 점유 때문에 항상 실패해 이 교체가 한 번도
+				// 성립하지 않았다 — AStarMovement.RunQuerySearch로 고침.)
+				// 한 걸음에 체비셰프 거리는 최대 1 줄어드니 (거리 − 공격 거리)는 필요한 걸음 수의 하한이다 — 이미 한도를 넘으면 경로 탐색 없이 보류한다(멀리 있는
+				// 후보에 매 틱 A*를 돌지 않게).
+				int reach = MaxAttackReach(unit);
+				int lowerBound = Mathf.Max(0, AIMovementHelper.ChebyshevDistance(unit.position, best.position) - reach);
 				int pathRemaining = 0;
 				bool fullyRevealed = false;
-				bool pathConfirmed = astar != null
-					&& astar.TryGetPathLength(unit, best.position, out pathRemaining, out fullyRevealed)
+				bool pathConfirmed = unit.CombatTargeting.MovedTilesSinceRetarget + lowerBound <= limit
+					&& TryEstimateStepsToAttackPosition(unit, best, reach, out pathRemaining, out fullyRevealed)
 					&& (!isHuman || fullyRevealed);
 				if (pathConfirmed && unit.CombatTargeting.MovedTilesSinceRetarget + pathRemaining <= limit)
 				{
@@ -463,9 +545,46 @@ public class CombatFSMState : IFSMState
 		return enemyTarget != null && enemyTarget.Health.hp > 0 && !observer.IsEnemy(enemyTarget);
 	}
 
+	// 이 유닛이 쓸 수 있는 적 대상 스킬 중 가장 먼 공격 거리(체비셰프, 최소 1) — "공격할 수 있는 위치"를 시야·각도·쿨다운 없이 거리만으로 근사한다.
+	internal static int MaxAttackReach(Unit unit)
+	{
+		int reach = 1;
+		var skills = unit.Generate?.GetSkills(unit.unitType.typeName);
+		if (skills != null)
+			foreach (var s in skills)
+				if (s != null && s.Affinity == SkillAffinity.Enemy && s.HitRange > reach) reach = s.HitRange;
+		return reach;
+	}
+
+	// 02번 5장: 현재 위치에서 새 대상을 "공격할 수 있는 위치"까지 실제로 선택한 경로의 걸음 수 — 이미 공격 거리 안이면 0칸이다. 경로는 대상 타일까지의 A* 조회(다른 유닛 점유는
+	// 장애물, 대상 타일 점유만 예외)를 따라가다 처음 공격 거리 안에 드는 지점에서 끊는다(CombatScoreMath.StepsToFirstTileWithinRange). fullyRevealed는 그 지점까지 경로의 모든 칸이
+	// 이 유닛의 개인 지도에 드러나 있는지(인류만 의미). 경로를 못 찾으면 false.
+	private static bool TryEstimateStepsToAttackPosition(Unit unit, Unit target, int reach, out int steps, out bool fullyRevealed)
+	{
+		steps = 0;
+		fullyRevealed = false;
+
+		if (AIMovementHelper.ChebyshevDistance(unit.position, target.position) <= reach)
+		{
+			fullyRevealed = true; // 이동이 필요 없으니 확인할 경로도 없다
+			return true;
+		}
+
+		if (!(unit.MovementAlgorithm is AStarMovement astar) || !astar.TryGetPathTiles(unit, target.position, out List<Vector2Int> tiles)) return false;
+
+		steps = CombatScoreMath.StepsToFirstTileWithinRange(tiles, target.position, reach);
+		var human = unit as Human;
+		fullyRevealed = human != null;
+		for (int i = 0; i < steps && fullyRevealed; i++)
+			if (!human.personalMap.IsTileRevealed(new Vector3Int(tiles[i].x, tiles[i].y, unit.currentFloor))) fullyRevealed = false;
+		return true;
+	}
+
 	// 검증문서 02-04 4번: dest(보스)로 가는 실제 경로 타일 위에 살아있는 후보가 서 있으면 그 후보를
 	// 반환한다(경로상 가장 먼저 만나는 하나) — AStarMovement.TryGetPathTiles는 이동 캐시를 건드리지
 	// 않는 일회성 조회라 매 틱 호출해도 실제 이동에 부작용이 없다.
+	// [2026-09-30 발견 — 휴면 코드] 이 경로 조회는 다른 유닛 타일을 장애물로 피해 가므로 경로 위에 적이 서 있는 일이 없다(예전엔 그 전에 보스 타일 점유 때문에 조회 자체가 항상
+	// 실패했다). 즉 지금은 blocker를 사실상 못 찾는다. 실제로 켜려면 유닛을 무시한 구조 경로와 "이동이 필요할 때만(보스가 공격 거리 밖)" 조건이 필요하다 — 검증 문서 03-13 참고.
 	private static Unit FindPathBlockingEnemy(Unit unit, Unit dest, List<Unit> allCandidates)
 	{
 		if (!(unit.MovementAlgorithm is AStarMovement astar)) return null;

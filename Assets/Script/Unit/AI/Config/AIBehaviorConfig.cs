@@ -101,6 +101,8 @@ public class AIBehaviorConfig : ScriptableObject
     [Tooltip("9-11장: 미기록 함정 보호 진입 조건 — 이동 유닛 현재 HP 비율 이상")]
     [Range(0f, 1f)]
     public float trapRescueMinHpRatioUnrecorded = 0.6f;
+    [Tooltip("검증 03-13: 알려진 활성 함정 회피(일반 이동 인접 1칸 진입 금지·전투 통과 판정·긴급 보호 통과)를 켠다. 끄면 예전처럼 함정을 무시하고 이동한다")]
+    public bool trapAvoidanceEnabled = true;
 
     // ── 포메이션 ────────────────────────────────────────────────────────────
     [Header("보호 포메이션 (03문서 6장)")]

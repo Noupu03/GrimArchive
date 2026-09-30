@@ -78,7 +78,7 @@ public class TacticalFSMState : IFSMState
 				new BTSelector(
 					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 담당자 도착을 기다린다.
 					new BTSequence(new BTCondition(IsAwaitingSelectedUnit), new BTLeaf(TrapAwaitSelectedUnit)),
-					// Disarm → Bypass → Pass → Destroy 내부 순서는 고정 (문서 9장 우선순위)
+					// Disarm → Bypass → Destroy 내부 순서는 고정 (문서 9장 우선순위, 통과는 비전투 체인에서 제외 — TrapBypass 주석 참고)
 					new BTSequence(
 						new BTCondition(CanDisarm),
 						new BTLeaf(TrapJoinWait),
@@ -86,8 +86,9 @@ public class TacticalFSMState : IFSMState
 						new BTLeaf(TrapDisarmPerform)
 					),
 					new BTLeaf(TrapBypass),
-					new BTLeaf(TrapPass),
-					new BTLeaf(TrapDestroy)
+					new BTLeaf(TrapDestroy),
+					// 검증문서 03-13(v0.6 9-6): 응답 상태 없이 알려진 활성 함정의 인접 1칸 안에 있는 유닛은 구역 밖으로 빠져나온다 — 응답자는 위 분기가 먼저 잡는다.
+					new BTLeaf(ZoneEscape)
 				)
 			),
 			[TacticalBehaviorType.Alert] = new BTSequence(
@@ -147,6 +148,7 @@ public class TacticalFSMState : IFSMState
 		if (IsPanic(unit)) return p;
 		if (unit is Human joinWaitHu && joinWaitHu.currentJoinCombatWait != null) return p;
 		if (unit.currentTrapInteraction != null) return p;
+		if (TrapAvoidance.NeedsZoneEscape(unit)) return p; // 검증문서 03-13: 응답 없이 함정 구역 안에 있으면 탈출(ZoneEscape)이 우선
 		if (unit.currentAlertSearch != null) return p;
 		Human hu = unit as Human;
 		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
@@ -361,17 +363,16 @@ public class TacticalFSMState : IFSMState
 		return trap.IsBlockingPath.Value;
 	}
 
+	// 검증문서 03-13: 목적지는 명령 이동·조사 목표뿐 아니라 파티 이동(대기 위치·리더 보고·집결지)과 자유 탐색 목표까지 본다(TrapPartySystem.GetCurrentDestination).
 	private static bool ComputeIsBlockingPath(Unit unit, Vector3Int trapPos)
 	{
-		Vector2Int? dest = unit.playerMoveTarget.HasValue ? unit.playerMoveTarget
-			: (unit is Human h && h.currentInvestigation != null
-				? new Vector2Int(h.currentInvestigation.TargetPosition.x, h.currentInvestigation.TargetPosition.y)
-				: (Vector2Int?)null);
+		Vector2Int? dest = unit is Human h ? TrapPartySystem.GetCurrentDestination(h) : unit.playerMoveTarget;
 		return dest.HasValue && IsRouteBlockedByTrap(unit, dest.Value, trapPos);
 	}
 
-	// 유닛 위치에서 dest까지 이 함정 타일을 밟지 않고는 갈 수 없는지(대체 경로 없음) — 이미 발견한 지형(discoveredMap) 기준 BFS이고
-	// 미탐색 타일은 통행 가능으로 본다. TrapPartySystem이 집결·이동 중인 유닛의 "경로를 막는 함정" 예외 판정에도 쓴다.
+	// 유닛 위치에서 dest까지 이 함정의 회피 구역(함정 타일 + 인접 1칸, 03번 v0.12 9장·v0.6 9-6)에 들어가지 않고는 갈 수 없는지(대체 경로 없음) — 이미 발견한
+	// 지형(discoveredMap) 기준 BFS이고 미탐색 타일은 통행 가능으로 본다. 출발 타일은 구역 안이어도 된다(이미 안에 있으면 빠져나온다). 목적지가 구역 안이면 막힌
+	// 것이다. TrapPartySystem이 집결·이동 중인 유닛의 "경로를 막는 함정" 예외 판정에도 쓴다.
 	public static bool IsRouteBlockedByTrap(Unit unit, Vector2Int dest, Vector3Int trapPos)
 	{
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
@@ -385,7 +386,7 @@ public class TacticalFSMState : IFSMState
 		if (unit.position.x < 0 || unit.position.x >= mapW || unit.position.y < 0 || unit.position.y >= mapH) return false;
 		Vector2Int trap2D = new Vector2Int(trapPos.x, trapPos.y);
 
-		var visited = new HashSet<Vector2Int> { unit.position, trap2D };
+		var visited = new HashSet<Vector2Int> { unit.position };
 		var queue   = new Queue<Vector2Int>();
 		queue.Enqueue(unit.position);
 
@@ -399,6 +400,7 @@ public class TacticalFSMState : IFSMState
 				if (visited.Contains(next)) continue;
 				if (next.x < 0 || next.x >= mapW || next.y < 0 || next.y >= mapH) continue;
 				if (myData.discoveredMap[fi][next.x, next.y] == 2) continue;
+				if (ExplorationMath.IsInTrapZone(next, trap2D)) continue;
 				visited.Add(next); queue.Enqueue(next);
 			}
 		}
@@ -465,7 +467,7 @@ public class TacticalFSMState : IFSMState
 		return MoveTowardsTrapGuarded(unit, trapPos);
 	}
 
-	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapPass/TrapDestroy 공용) — 다른 BT 리프(MoveToInvestigateTarget 등)와 같은
+	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapDestroy 공용) — 다른 BT 리프(MoveToInvestigateTarget 등)와 같은
 	// stuck 탈출 패턴이다. 리셋 기준은 "이동 성공 여부"가 아니라 "체비셰프 거리가 실제로 줄었는지"(혼잡 구역의 제자리
 	// 셔플도 Move() 관점에선 성공이라 그것만 보면 카운터가 안 쌓인다). 대체 자리 탐색은 이미 근접(반경 2)했을 때만 쓴다.
 	// 사방이 구조적으로 막혀 있으면 즉시, 그저 몰려 막힌 거면 한도까지 인내한 뒤 포기한다 — 포기하면 대응을 접고
@@ -557,53 +559,19 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// ── 함정 대안 3종 ─────────────────────────────────────────────
+	// ── 함정 대안 2종(우회·파괴) ───────────────────────────────────
+	// 검증문서 03-13: 함정 통과(피해를 맞고 지나감)는 이 비전투 체인에서 뺐다 — 03번 v0.12 9장 통과 판단표 1행("일반 탐색·이동: 우회·해제·파괴 중 가능한 대응,
+	// 미확인 피해를 감수한 임의 통과 금지")대로 통과는 전투 합류·긴급 아군 보호·도주 후퇴에서만 판단하며, 그 판단은 이동 계층(TrapAvoidance 전투 모드)과
+	// AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck가 맡는다.
 
+	// 우회 — 필요한 이동을 함정이 막지 않을 때만 성립한다. "이동 경로 변경"은 이동 계층이 담당한다(알려진 함정 구역을 피해 가는 A*) — 예전처럼 함정 곁으로
+	// 한 걸음 옮기고 대응만 끝내면 실제 경로는 그대로라 이후 이동이 함정을 밟을 수 있었다.
 	private static BTStatus TrapBypass(Unit unit)
 	{
 		if (!(unit is Human human) || human.currentTrapInteraction == null || IsBlockingPath(unit))
 			return BTStatus.Failure;
-		var    trap    = human.currentTrapInteraction;
-		var    trapPos = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
-		var    away    = human.position - trapPos;
-		if (away == Vector2Int.zero) away = new Vector2Int(1, 0);
-		var sidePos = trapPos + new Vector2Int(
-			System.Math.Sign(away.x) != 0 ? System.Math.Sign(away.x) : 1,
-			System.Math.Sign(away.y));
-		AIMovementHelper.MoveTowardsPos(human, sidePos);
 		TrapPartySystem.EndResponse(human, TrapEndReason.Bypassed);
 		human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
-		return BTStatus.Success;
-	}
-
-	private static BTStatus TrapPass(Unit unit)
-	{
-		var trap = unit.currentTrapInteraction;
-		if (trap == null || !IsBlockingPath(unit)) return BTStatus.Failure;
-		if (unit.Session == null || !unit.Session.objectGrid.TryGetValue(trap.TrapPosition, out var obj)) return BTStatus.Failure;
-
-		float hpAfter    = unit.hp - obj.TrapDamageMax;
-		var   bCfg       = AIConfigLoader.Behavior;
-		bool  normalSafe = hpAfter >= unit.maxHp * (bCfg?.trapPassMinHpRatioAfterHit    ?? ExplorationMath.TrapPassMinHpRatioAfterHit);
-		bool  rescueSafe = false;
-		if (unit is Human human)
-		{
-			bool rec = human.personalMap.IsTrapRecorded(trap.TrapObjectId);
-			rescueSafe = rec
-				? hpAfter >= unit.maxHp * (bCfg?.trapRescueMinHpRatioRecorded   ?? ExplorationMath.TrapAllyRescueMinHpRatioAfterHit)
-				: unit.hp  >= unit.maxHp * (bCfg?.trapRescueMinHpRatioUnrecorded ?? ExplorationMath.TrapAllyRescueUnrecordedMinCurrentHpRatio);
-		}
-		if (!normalSafe && !rescueSafe) return BTStatus.Failure;
-
-		var trapPos2D = new Vector2Int(trap.TrapPosition.x, trap.TrapPosition.y);
-		if (unit.position != trapPos2D) return MoveTowardsTrapGuarded(unit, trapPos2D);
-
-		// 함정 발동의 단일 진입점 — 피해·작동음(07문서 14장)·사망 원인 기록(4-14장)·그 함정을 해제 중인 유닛의 중단(9-9장)이
-		// 한 곳에서 이뤄져 밟아서 발동하는 경우와 결과가 같다.
-		unit.Session.ActivateTrap(unit, obj);
-		LogHelper.Log(LogHelper.GAME, $"{unit.unitType.typeName}가 함정을 맞고 통과했습니다({obj.TrapDamageMax} 피해).");
-		TrapPartySystem.EndResponse(unit, TrapEndReason.Passed);
-		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
 
@@ -635,6 +603,38 @@ public class TacticalFSMState : IFSMState
 		TrapPartySystem.EndResponse(unit, TrapEndReason.Destroyed);
 		unit.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
+	}
+
+	// 검증문서 03-13(v0.6 9-6): 함정 대응 상태가 없는 유닛이 알려진 활성 함정의 인접 1칸(3×3) 안에 있으면 구역 밖의 걸을 수 있는 비점유 타일로 나온다.
+	// 이동은 A*가 맡는다 — 구역 안에서 출발한 탐색은 구역 타일을 막지 않고 큰 비용만 물려 가장 적게 밟고 나오게 한다(TrapMoveContext). 구역 밖으로 나오면
+	// NeedsZoneEscape가 거짓이 돼 Failure로 다음 행동(경계·조사·대기 등)이 이어진다. 나갈 곳이 없거나 정체되면 잠시 탈출 시도를 꺼(trapZoneEscapeSuppressUntil)
+	// Tactical에 얼어붙지 않는다.
+	private static BTStatus ZoneEscape(Unit unit)
+	{
+		if (!(unit is Human human) || !TrapAvoidance.NeedsZoneEscape(human))
+		{
+			unit.trapEscapeStuckTurns = 0;
+			return BTStatus.Failure;
+		}
+
+		if (TrapAvoidance.TryFindEscapeTile(human, out Vector2Int exit))
+		{
+			Vector2Int before = human.position;
+			AIMovementHelper.MoveTowardsPos(human, exit);
+			if (human.position != before)
+			{
+				human.trapEscapeStuckTurns = 0;
+				return BTStatus.Running;
+			}
+		}
+
+		if (++human.trapEscapeStuckTurns >= (AIConfigLoader.Behavior?.trapMoveStuckTurnLimit ?? 4))
+		{
+			human.trapEscapeStuckTurns = 0;
+			human.trapZoneEscapeSuppressUntil = Time.time + TrapAvoidance.EscapeSuppressSeconds;
+			return BTStatus.Failure;
+		}
+		return BTStatus.Running;
 	}
 
 	// ── 조사 ──────────────────────────────────────────────────────
@@ -1363,8 +1363,7 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Failure;
 	}
 
-	// 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음 물러난다(9-6장
-	// TrapPartySystem.StepAwayFromTrap과 동일한 관례).
+	// 오브젝트 자신의 타일에 정확히 서 있을 때 인접한 이동 가능 타일로 한 걸음 물러난다.
 	private static void StepOffObjectTile(Unit unit, Vector2Int objectPos)
 	{
 		for (int i = 0; i < 8; i++)

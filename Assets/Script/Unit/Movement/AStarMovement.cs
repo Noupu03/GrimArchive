@@ -113,6 +113,15 @@ public class AStarMovement : IMovementAlgorithm
     private Dictionary<Vector2Int, Dir> _pathMap = new Dictionary<Vector2Int, Dir>();
     private float _cacheTime = 0f;
 
+    // 검증문서 03-13: 알려진 활성 함정 회피 컨텍스트 — 탐색 시작마다 Refresh한다(TrapAvoidance.cs). TrapModeOverride가 있으면 유닛 상태와 무관하게 그 모드로
+    // 고정한다(진단·긴급 보호용 스크래치 인스턴스). 이동 캐시는 컨텍스트 시그니처가 바뀌면(모드 전환·새 함정 인지·구역 출입) 무효화한다.
+    private readonly TrapMoveContext _trapCtx = new TrapMoveContext();
+    private int _cacheTrapSignature;
+    public TrapMoveMode? TrapModeOverride;
+
+    // "구역 때문에 못 간다"를 진단하는 데 쓰는 함정 무시 스크래치 — 유닛 자신의 탐색 결과(노드 풀)를 건드리지 않게 별도 인스턴스다.
+    private static readonly AStarMovement _trapDiagScratch = new AStarMovement { TrapModeOverride = TrapMoveMode.Off };
+
     // F: A* 실행마다 새로 생성하던 컨테이너를 인스턴스 필드로 올려 재사용한다.
     private readonly MinHeap _openList = new MinHeap();
     private readonly HashSet<Vector2Int> _closedSet = new HashSet<Vector2Int>();
@@ -144,6 +153,8 @@ public class AStarMovement : IMovementAlgorithm
 
         if (unit.position == targetPos) return false;
 
+        _trapCtx.Refresh(unit, TrapModeOverride, null);
+
         FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
         int floorIdx = unit.currentFloor;
 
@@ -157,7 +168,7 @@ public class AStarMovement : IMovementAlgorithm
 
         // --- 캐싱 로직: A* 연산 폭주를 막아 프레임 드랍(지랄나는 연산량) 방지 ---
         // 타겟이 약간(3칸 이내) 움직였더라도 기존 목적지 방향 캐시를 유지한다 (근시안적 길찾기 유지).
-        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f)
+        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f && _cacheTrapSignature == _trapCtx.Signature)
         {
             if (_pathMap.TryGetValue(unit.position, out Dir cachedDir))
             {
@@ -173,12 +184,17 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTarget = targetPos;
         _pathMap.Clear();
         _cacheTime = Time.time;
+        _cacheTrapSignature = _trapCtx.Signature;
         // -------------------------------------------------------------
 
         Vector2Int startPos = unit.position;
         AStarNode closestNode = RunSearch(unit, startPos, targetPos, myData, mapW, mapH, floorIdx, out bool _);
 
-        if (closestNode.Pos == startPos) return false;
+        if (closestNode.Pos == startPos)
+        {
+            DiagnoseTrapBlock(unit, targetPos, closestNode.HCost);
+            return false;
+        }
 
         AStarNode stepNode = closestNode;
         while (stepNode.Parent != null)
@@ -273,10 +289,24 @@ public class AStarMovement : IMovementAlgorithm
         return closestNode;
     }
 
+    // 거리·경로 "조회" 전용 탐색 — 목표 타일을 다른 유닛이 점유하고 있어도(유닛 위치를 목표로 준 조회: 추격 대상·보호 대상까지의 경로) 그 점유는 막지 않는다.
+    // IsTileWalkable은 실제 이동(Move)과 어긋나지 않게 점유 타일을 목표여도 막지만, 그 규칙을 조회에도 적용하면 유닛 위치를 향한 TryGetPathLength/TryGetPathTiles가 도달 판정에
+    // 항상 실패한다(검증 03-13 부수 발견 — 02-05 이동 한도·02-10 노출 경로 비교가 사실상 동작하지 않던 원인). 다른 칸의 점유는 그대로 장애물로 본다. 이동(TryGetNextStep)은
+    // 이 예외를 쓰지 않는다 — 목표 유닛의 타일로 실제로 들어갈 수는 없기 때문이다.
+    private bool _queryExemptTargetOccupancy;
+
+    private AStarNode RunQuerySearch(Unit unit, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget)
+    {
+        _queryExemptTargetOccupancy = true;
+        try { return RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out reachedTarget); }
+        finally { _queryExemptTargetOccupancy = false; }
+    }
+
     // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시는
     // 건드리지 않는다(일회성 순위 매기기용 조회라서). fullyRevealed는 경로의 모든 칸이 이 유닛의
-    // 개인 지도에 이미 드러나 있는지를 뜻한다(인류가 아니면 항상 false).
-    public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed)
+    // 개인 지도에 이미 드러나 있는지를 뜻한다(인류가 아니면 항상 false). 목표 타일 점유는 막지 않는다(RunQuerySearch).
+    // exemptTrapTile: 그 함정 자체가 목표인 조회(담당 후보의 도착시간 등, 03번 v0.12 8장)라 그 함정의 회피 구역을 면제하고 함정 타일 도달을 허용한다.
+    public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed, Vector2Int? exemptTrapTile = null)
     {
         pathLength = 0;
         fullyRevealed = false;
@@ -296,7 +326,8 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
-        AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        _trapCtx.Refresh(unit, TrapModeOverride, exemptTrapTile);
+        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
         if (!reachedTarget) return false;
 
         Human human = unit as Human;
@@ -347,13 +378,14 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTime = 0f;
     }
 
-    // 04번 문서 4장: 타일별 추가 이동비용 훅. 기본 0(기존 동작 그대로) — 항상 0 이상만 반환해야 한다,
+    // 04번 문서 4장: 타일별 추가 이동비용 훅. 기본은 함정 회피 비용뿐(알려진 함정이 없으면 0 — 기존 동작 그대로) — 항상 0 이상만 반환해야 한다,
     // 음수면 GetHeuristic의 admissibility가 깨져 A*가 최적해를 못 찾을 수 있다.
-    protected virtual int GetExtraTileCost(Unit unit, Vector2Int tilePos) => 0;
+    protected virtual int GetExtraTileCost(Unit unit, Vector2Int tilePos) => _trapCtx.Active ? _trapCtx.ExtraCost(tilePos) : 0;
 
     // TryGetPathLength(칸 수만)와 달리 실제 경로 타일 좌표가 필요한 호출부(예: 노출 경로가 어느 위험
     // 지역과 겹치는지 판정)용 — 같은 RunSearch를 재사용하고 이동 캐시는 건드리지 않는다(일회성 조회).
-    public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles)
+    // 목표 타일 점유는 막지 않는다(RunQuerySearch) — 경로 마지막 타일이 목표 타일이다.
+    public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles, Vector2Int? exemptTrapTile = null)
     {
         tiles = new List<Vector2Int>();
         if (unit.position == targetPos) return true;
@@ -366,7 +398,8 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
-        AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        _trapCtx.Refresh(unit, TrapModeOverride, exemptTrapTile);
+        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
         if (!reachedTarget) return false;
 
         AStarNode stepNode = closestNode;
@@ -379,9 +412,52 @@ public class AStarMovement : IMovementAlgorithm
         return true;
     }
 
+    // 도달 여부와 무관하게 "가장 가까이 갈 수 있는 곳"까지의 경로 타일과 그 지점의 휴리스틱 비용 — 함정 때문에 막혔는지 진단할 때 쓴다(이동 캐시는 안 건드림).
+    public bool TraceTowards(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles, out int closestHCost)
+    {
+        tiles = new List<Vector2Int>();
+        closestHCost = int.MaxValue;
+        if (unit.position == targetPos) return false;
+
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+        if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+            return false;
+
+        int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+        int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+        _trapCtx.Refresh(unit, TrapModeOverride, null);
+        AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool _);
+        closestHCost = closestNode.HCost;
+
+        for (AStarNode stepNode = closestNode; stepNode.Parent != null; stepNode = stepNode.Parent)
+            tiles.Add(stepNode.Pos);
+        tiles.Reverse();
+        return true;
+    }
+
+    // 한 걸음도 못 나가는 순간(closest == start), 함정을 무시하면 더 가까이 갈 수 있고 그 경로가 이 유닛의 회피 구역을 지난다면 그 함정을 "막힘 신호"로 남긴다
+    // (unit.trapBlock*). 소비자: TrapPartySystem.TickBlockedPathResponse(비전투 — 대응 재개), CombatFSMState.ChaseTarget(전투 — 파괴 판단). 유닛당 0.5초 스로틀.
+    // 이동 탐색과 이 진단은 점유된 목표 타일(추격 대상)에 도달로 안 잡히므로(조회 전용 예외는 RunQuerySearch만) "도달 여부"가 아니라 "가장 가까이 간 정도"(HCost)를 비교한다.
+    private void DiagnoseTrapBlock(Unit unit, Vector2Int targetPos, int blockedHCost)
+    {
+        if (TrapModeOverride.HasValue || !_trapCtx.HasHardBlocks) return;
+        if (Time.time < unit.nextTrapBlockDiagTime) return;
+        unit.nextTrapBlockDiagTime = Time.time + 0.5f;
+
+        if (!_trapDiagScratch.TraceTowards(unit, targetPos, out List<Vector2Int> offPath, out int offHCost) || offHCost >= blockedHCost) return;
+        if (_trapCtx.TryFindBlockingTrap(offPath, out TrapAvoidance.KnownTrap blocking))
+        {
+            unit.trapBlockTrapId = blocking.Id;
+            unit.trapBlockSignalTime = Time.time;
+        }
+    }
+
     // 점유된 칸은 CanMove와 동일하게 예외 없이 완전히 막는다(원래 예외였던 targetPos 자체도 포함) —
     // 그렇지 않으면 A*가 "갈 수 있다"고 추천한 칸에서 실제 Move()가 조용히 실패해, GOAP은 "이동했다"고
-    // 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈추는 불일치가 생긴다.
+    // 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈추는 불일치가 생긴다. 예외는 "조회"뿐이다 —
+    // 거리·경로 길이 조회(RunQuerySearch)는 목표 타일 점유만 무시해 유닛 위치까지의 경로를 잴 수 있게 한다.
     protected virtual bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         isOccupied = false;
@@ -409,8 +485,13 @@ public class AStarMovement : IMovementAlgorithm
                 if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
-                    if (u != null && u != unit && u.hp > 0) { isOccupied = true; isWall = true; break; }
+                    if (u != null && u != unit && u.hp > 0 && !(_queryExemptTargetOccupancy && nx == targetPos.x && ny == targetPos.y))
+                    { isOccupied = true; isWall = true; break; }
                 }
+
+                // 검증문서 03-13: 알려진 활성 함정 — 일반 모드는 인접 1칸 구역, 전투 모드는 통과 조건을 못 채운 함정 타일을 막는다.
+                // A*가 CanMove보다 엄격한 쪽이라(막힌 걸음을 안 고를 뿐) 두 판정이 어긋나도 유닛이 제자리에 얼어붙지 않는다.
+                if (_trapCtx.Active && _trapCtx.BlocksTile(new Vector2Int(nx, ny), targetPos)) { isWall = true; break; }
             }
         }
 

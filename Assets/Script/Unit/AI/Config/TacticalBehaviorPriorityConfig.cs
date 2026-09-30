@@ -54,7 +54,7 @@ public enum TacticalBehaviorType
     // 07문서 7장/07-A 9장: 위험도 2단계+비근거리 정확 인지 적일 때 전투 합류 대기 — 소리·함정 대응보다
     // 먼저 확인해야 16-4장 우선순위 표가 성립한다.
     JoinCombatWait,
-    TrapResponse,  // 함정 대응 (Disarm → Bypass → Pass → Destroy 내부 순서 고정)
+    TrapResponse,  // 함정 대응 (Disarm → Bypass → Destroy → ZoneEscape 내부 순서 고정 — 통과는 전투·긴급 보호 전용이라 여기 없다)
     Alert,         // 경계 (수상한 타일 접근 / 전투 후 주변 수색)
     Investigate,   // 조사 오브젝트 상호작용
     Wait,          // 지정 위치/목적 대기

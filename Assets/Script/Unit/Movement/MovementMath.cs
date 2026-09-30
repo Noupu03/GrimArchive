@@ -6,4 +6,11 @@ public static class MovementMath
 	// 나올 수 있는 기본 경로비용 차이(수백~수천 수준)보다 압도적으로 커야 사전식(lexicographic) 순서가
 	// 깨지지 않는다.
 	public const int AttackRangeAvoidExtraCost = 100000;
+
+	// 검증 03-13(활성 함정): 전투 모드에서 통과가 허용된 함정 타일 1칸에 더하는 비용 — 공격범위 회피 비용보다 커서
+	// "함정을 안 밟는 우회를 먼저 본다"(03번 v0.12 9장 통과 판단표)가 사전식으로 성립한다.
+	public const int TrapPassExtraCost = 200000;
+
+	// 일반 모드에서 이미 회피 구역 안에 서 있을 때 구역 타일 1칸당 비용 — 구역 타일을 가장 적게 밟고 밖으로 나오게 한다(v0.6 9-6 탈출).
+	public const int TrapZoneEscapeExtraCost = 100000;
 }

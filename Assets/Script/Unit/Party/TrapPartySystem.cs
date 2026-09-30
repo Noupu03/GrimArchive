@@ -63,17 +63,10 @@ public static class TrapPartySystem
 			bool receivesInfo = m == discoverer || PropagationSystem.CanPropagate(discoverer, m);
 			if (!receivesInfo) continue;
 
+			// 9-6장의 인접 1칸 회피는 여기서 1회성으로 물러나게 하지 않고 이동 계층이 맡는다 — 등록한 함정은 그 유닛의 알려진 활성 함정 구역이 돼
+			// (TrapAvoidance) 일반 이동이 구역에 들어가지 않고, 이미 구역 안이면 TacticalFSMState.ZoneEscape가 밖으로 내보낸다(늦게 정보를 받은 유닛 포함).
 			if (!m.personalMap.IsObjectKnown(trapObj.Id))
 				m.personalMap.RegisterObject(trapObj.Id, trapObj.Position, trapObj.BaseDanger, trapObj.BaseInterest, trapObj.Tags, trapObj.CauserStage);
-
-			// 9-6장: 인접 1칸에 있던 비발견 유닛은 즉시 안전 타일로 물러난다(발견자/해제 담당은 그
-			// 자리로 가야 하므로 제외).
-			if (m == discoverer) continue;
-			Vector2Int trapPos2D = new Vector2Int(trapObj.Position.x, trapObj.Position.y);
-			if (m.currentTrapInteraction == null && Mathf.Max(Mathf.Abs(m.position.x - trapPos2D.x), Mathf.Abs(m.position.y - trapPos2D.y)) <= 1)
-			{
-				StepAwayFromTrap(m, trapPos2D);
-			}
 		}
 
 		if (defer)
@@ -82,6 +75,12 @@ public static class TrapPartySystem
 			return;
 		}
 
+		BeginDiscovererResponse(discoverer, trapObj, party, coord);
+	}
+
+	// 발견자로서 표준 대응 절차를 시작한다 — 최초 발견(OnTrapDiscovered)과 "알던 함정이 이동 경로를 막음"(OnPathBlockedByKnownTrap)이 공유한다.
+	private static void BeginDiscovererResponse(Human discoverer, InteractableObject trapObj, Party party, TrapPartyCoordination coord)
+	{
 		// 9-3장: 웨이브 진입 전 파티 내 최고 성공률로 확인된 유닛이 직접 발견했으면 2초 응답 없이 즉시 해제 담당으로 확정한다 — 근처 유닛 중
 		// 최고라는 이유만으로 생략하지 않는다(v0.12 8장). 해제하지 않을 유닛(기록 함정·성공률 50% 이하)이면 확정하지 않는다.
 		if (party.EntryBestDisarmerNames.Contains(discoverer.name) && WouldAttemptDisarm(discoverer, trapObj.Id))
@@ -102,6 +101,80 @@ public static class TrapPartySystem
 		{
 			discoverer.currentTrapInteraction = new TrapInteractionState { TrapObjectId = trapObj.Id, TrapPosition = trapObj.Position };
 		}
+	}
+
+	// ─────────────────────────── 검증문서 03-13: 알던 함정이 필요한 이동을 막을 때 ───────────────────────────
+	// 이동 계층은 알려진 함정의 인접 1칸에 들어가지 않으므로, 그 구역이 유일한 통로면 이동이 막힌다. 이때 03번 v0.12 9장대로 "필요한 이동을 함정이 막으면 우회·해제·
+	// 통과·파괴 조건으로 이어진다" — 이미 아는 함정은 최초 발견 이벤트가 다시 없어 아무도 대응을 안 열 수 있으니, 막힌 유닛이 표준 절차를 다시 연다.
+	private const float BlockedSignalFreshSeconds = 1f;
+	// 조율 기록별 재시작 간격 — 해제·파괴가 모두 불가능한 함정에서 대응이 끝나자마자 다시 열리는 무한 반복을 막는다.
+	private const float BlockedRetryCooldownSeconds = 10f;
+
+	// UnitFunction.OnUpdate의 0.1초 틱이 호출한다. A*가 남긴 막힘 신호(Unit.trapBlockTrapId)를 소비한다 — 전투 중이면 CombatFSMState가 전투 중 파괴 판단으로 쓴다.
+	public static void TickBlockedPathResponse(Human human)
+	{
+		string trapId = human.trapBlockTrapId;
+		if (string.IsNullOrEmpty(trapId)) return;
+		human.trapBlockTrapId = null; // 신호는 한 번만 소비한다
+
+		if (Time.time - human.trapBlockSignalTime > BlockedSignalFreshSeconds) return;
+		if (Time.time < human.trapBlockResponseCooldownUntil) return; // 파티가 없는 단독 유닛도 무한 재시작하지 않게 유닛 단위 쿨다운도 둔다
+		if (human.currentTrapInteraction != null || human.Session == null) return;
+		if (human.CurrentFsmStateIfCreated is CombatFSMState) return;
+		if (!human.personalMap.KnownTrapTiles.TryGetValue(trapId, out Vector3Int tile)) return;
+		if (!human.Session.objectGrid.TryGetValue(tile, out InteractableObject trapObj) || trapObj.Id != trapId || trapObj.IsCollected) return;
+
+		OnPathBlockedByKnownTrap(human, trapObj);
+		if (human.currentTrapInteraction != null) human.trapBlockResponseCooldownUntil = Time.time + BlockedRetryCooldownSeconds;
+	}
+
+	public static void OnPathBlockedByKnownTrap(Human human, InteractableObject trapObj)
+	{
+		if (human.currentTrapInteraction != null) return;
+
+		var party = human.party;
+		if (party == null)
+		{
+			human.currentTrapInteraction = new TrapInteractionState { TrapObjectId = trapObj.Id, TrapPosition = trapObj.Position };
+			return;
+		}
+
+		if (party.TrapCoordinations.TryGetValue(trapObj.Id, out var coord))
+		{
+			if (IsBeingHandled(party, trapObj.Id)) return; // 다른 파티원이 이미 표준 절차를 진행 중 — 막힌 유닛은 기존 stuck 탈출로 기다린다
+			if (Time.time < coord.NextBlockedRetryTime) return;
+			ReleaseAssignment(coord);
+			coord.Deferred = false;
+			coord.DiscovererName = human.name;
+		}
+		else
+		{
+			coord = new TrapPartyCoordination { TrapObjectId = trapObj.Id, TrapPosition = trapObj.Position, DiscovererName = human.name };
+			party.TrapCoordinations[trapObj.Id] = coord;
+		}
+
+		coord.NextBlockedRetryTime = Time.time + BlockedRetryCooldownSeconds;
+		LogHelper.Log(LogHelper.GAME, $"[함정] {human.name}: 알던 함정이 이동 경로를 막아 대응을 다시 시작합니다");
+		BeginDiscovererResponse(human, trapObj, party, coord);
+	}
+
+	private static bool IsBeingHandled(Party party, string trapObjectId)
+	{
+		foreach (var m in party.Members)
+			if (m != null && m.hp > 0 && m.currentTrapInteraction != null && m.currentTrapInteraction.TrapObjectId == trapObjectId) return true;
+		return false;
+	}
+
+	// 이 유닛이 지금 가려는 곳 — "함정이 필요한 이동을 막는가"(TacticalFSMState.IsRouteBlockedByTrap)의 목적지. 명령 이동 → 조사 목표 → 파티 이동(대기 위치·
+	// 리더 보고·집결지) → 자유 탐색 목표 순이다. 없으면 null(막는지 판단할 근거 없음 = 막지 않음).
+	public static Vector2Int? GetCurrentDestination(Human human)
+	{
+		if (human.playerMoveTarget.HasValue) return human.playerMoveTarget;
+		if (human.currentInvestigation != null)
+			return new Vector2Int(human.currentInvestigation.TargetPosition.x, human.currentInvestigation.TargetPosition.y);
+		Vector2Int? partyDest = PartyMovementDestination(human);
+		if (partyDest.HasValue) return partyDest;
+		return human.currentExplorationTarget;
 	}
 
 	// 07문서 9장 재전파 — 최초 발견 시 전파 범위 밖이었던 파티원도 나중에 범위 안으로 들어오면 함정
@@ -126,14 +199,6 @@ public static class TrapPartySystem
 				break;
 			}
 		}
-	}
-
-	private static void StepAwayFromTrap(Human unit, Vector2Int trapPos2D)
-	{
-		Vector2Int away = unit.position - trapPos2D;
-		if (away == Vector2Int.zero) away = new Vector2Int(1, 0);
-		Vector2Int stepTarget = unit.position + new Vector2Int(System.Math.Sign(away.x), System.Math.Sign(away.y));
-		AIMovementHelper.MoveTowardsPos(unit, stepTarget);
 	}
 
 	// ─────────────────────────── 8장: 해제 시도 여부와 성공률 ───────────────────────────

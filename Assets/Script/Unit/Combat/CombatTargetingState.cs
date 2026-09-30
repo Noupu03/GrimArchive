@@ -29,6 +29,10 @@ public class CombatTargetingState
 	public Unit HealTarget;
 	// 8~10장 긴급 아군 보호 대상 — 자기 자신도 후보가 될 수 있다.
 	public Unit ProtectTarget;
+	// 검증문서 03-13(03번 v0.12 9장 566줄): 전투 중 이동 경로를 함정이 막고 대체 경로가 없어 파괴하기로 한 함정 — CombatFSMState.ChaseTarget이 접근·채널링을 이어간다.
+	// 스킬을 실제로 쓰거나(=적과 교전) 전투를 벗어나면 비운다. 정체 카운터는 접근이 계속 막힐 때 포기하는 데 쓴다.
+	public Vector3Int? BlockingTrapTile;
+	public int TrapDestroyStuckTurns;
 
 	// 공격을 실제로 실행했거나(회피·방어로 무효여도) 대상이 완전히 바뀌었을 때 호출한다 —
 	// 재교체 이동 예산만 초기화(CombatFSMState 3곳에서 반복되던 두 줄을 대체).

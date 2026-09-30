@@ -982,6 +982,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				TrapPartySystem.TickOngoingPropagation(human);
 				// 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보도 동일 패턴으로 지속 재전파한다.
 				PropagationSystem.TickOngoingObjectPropagation(human);
+				// 검증문서 03-13: 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
+				TrapPartySystem.TickBlockedPathResponse(human);
 			}
 			_safetyTickTimer = 0f;
 		}

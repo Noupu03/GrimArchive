@@ -270,6 +270,11 @@ public class PersonalMapKnowledge
 	private readonly Dictionary<string, float> _objectDanger = new();
 	private readonly Dictionary<string, Vector3Int> _objectTile = new();
 
+	// 검증문서 03-13: 이 관찰자가 아는 함정 오브젝트(id → 타일) — 이동 계층(TrapAvoidance)이 "개인이 아는 활성 함정 구역"을 만드는
+	// 근거다. RegisterObject가 "Trap" 태그를 보면 기록하고, 수거·파괴를 알게 되면 지운다. 태그는 위 색인에 저장되지 않아 여기서만 구분된다.
+	private readonly Dictionary<string, Vector3Int> _knownTrapTiles = new();
+	public IReadOnlyDictionary<string, Vector3Int> KnownTrapTiles => _knownTrapTiles;
+
 	public void RegisterObject(string objectId, Vector3Int tile, float baseDanger, float baseInterest, System.Collections.Generic.List<string> tags = null, DangerStage causerStage = DangerStage.Stage0)
 	{
 		_objectBaseDanger[objectId] = baseDanger;
@@ -281,6 +286,8 @@ public class PersonalMapKnowledge
 		if (tags != null)
 		{
 			// Tags는 "Object/Passable/Corpse"류 계층형 문자열이라 정확 일치가 아니라 부분 일치로 검사한다.
+			if (tags.Any(t => t.Contains("Trap"))) _knownTrapTiles[objectId] = tile;
+
 			if (tags.Any(t => t.Contains("WipeoutTrace")))
 			{
 				// 19장도 13-2장과 동일하게 원인 대상 위험도 단계 보정을 받는다.
@@ -348,6 +355,7 @@ public class PersonalMapKnowledge
 		_objectInterest[objectId] = 0f;
 		_objectDanger[objectId] = 0f;
 		_knownCollectedObjects.Add(objectId);
+		_knownTrapTiles.Remove(objectId);
 		ClearObjectFromRooms(objectId);
 	}
 
@@ -357,6 +365,7 @@ public class PersonalMapKnowledge
 	{
 		_objectInterest[objectId] = 0f;
 		_objectDanger[objectId] = 0f;
+		_knownTrapTiles.Remove(objectId);
 		ClearObjectFromRooms(objectId);
 	}
 

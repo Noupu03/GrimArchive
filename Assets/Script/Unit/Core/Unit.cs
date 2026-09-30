@@ -221,9 +221,20 @@ public abstract class Unit : ScriptableObject {
 	// 검증문서 01-11 6행: 일반 조사 대상 접근이 몇 틱째 막혀 있는지 — 위와 동일한 이유로 도입,
 	// 대상이 진짜 도달 불가능하면(고립 구역/상대 진영 문 뒤 등) 포기하고 다른 후보로 넘어간다.
 	public int investigateStuckTurns = 0;
-	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapPass/TrapDestroy 공용)이 몇 틱째 막혀 있는지 — 위와 같은
+	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapDestroy 공용)이 몇 틱째 막혀 있는지 — 위와 같은
 	// 패턴. 함정이 도달 불가능하면(상대 진영 문 뒤 등) 포기하고 대응을 접는다.
 	public int trapMoveStuckTurns = 0;
+	// 검증문서 03-13: 이동 계층(AStarMovement)이 "알려진 함정 구역 때문에만 도달하지 못한다"고 진단한 함정과 그 시각 — TrapPartySystem.
+	// TickBlockedPathResponse(비전투)와 CombatFSMState.ChaseTarget(전투)이 소비한다. nextTrapBlockDiagTime은 진단 탐색 스로틀.
+	public string trapBlockTrapId;
+	public float  trapBlockSignalTime = float.NegativeInfinity;
+	public float  nextTrapBlockDiagTime;
+	// 검증문서 03-13(v0.6 9-6): 구역 탈출(TacticalFSMState.ZoneEscape)이 막혀 못 나갈 때 잠시 시도를 끄는 시각과 정체 카운터 — 안 끄면
+	// TrapAvoidance.NeedsZoneEscape가 계속 참이라 Tactical을 붙든 채 얼어붙는다.
+	public float  trapZoneEscapeSuppressUntil;
+	public int    trapEscapeStuckTurns;
+	// 검증문서 03-13: 막힘 신호로 함정 대응을 다시 연 뒤 이 유닛이 또 열 수 있게 되는 시각(TrapPartySystem.TickBlockedPathResponse).
+	public float  trapBlockResponseCooldownUntil;
 	// 자유탐색(NavigationFSMState.RandomExplore) 중 다음 걸음이 아군에게 막히는 경우를 위 두 필드와
 	// 동일한 패턴으로 처리 — 안 하면 좁은 통로 코너에서 여러 유닛이 서로를 영구히 막을 수 있다.
 	public int exploreStuckTurns = 0;
@@ -606,6 +617,8 @@ public abstract class Unit : ScriptableObject {
 
 	private UnitFSM _fsm;
 	public UnitFSM fsm { get { if (_fsm == null) _fsm = new UnitFSM(); return _fsm; } }
+	// FSM을 아직 만들지 않았으면(스폰 직후·세션 없는 테스트) 새로 만들지 않고 null — 이동 모드 판정처럼 상태만 들여다보는 호출용.
+	public IFSMState CurrentFsmStateIfCreated => _fsm?.CurrentState;
 
 	public virtual void JudgeState()
 	{
@@ -769,6 +782,8 @@ public class Human : UnitFunction
 			// 목표 오브젝트(IsPartyGoalObject)는 이 규칙의 예외다 — 03번 문서 3번 항목이 "합류"(여러
 			// 파티원이 같은 대상으로 모이는 것)를 명시적으로 요구하므로, 일반 조사 대상에만 중복 방지를 적용한다.
 			if (!IsPartyGoalObject(obj) && IsInvestigationClaimedByPartyMember(obj.Id)) continue;
+			// 검증문서 03-13: 알려진 활성 함정의 인접 1칸 안에 있는 대상은 일반 이동으로 갈 수 없다 — 후보로 잡았다 접근 실패로 포기하기를 반복하지 않는다.
+			if (TrapAvoidance.IsInKnownZone(this, new Vector2Int(obj.Position.x, obj.Position.y))) continue;
 
 			_investigateCandidateBuffer.Add((obj, obj.Position, false));
 		}
@@ -781,6 +796,7 @@ public class Human : UnitFunction
 			if (tilePos.z != currentFloor) continue;
 			if (personalMap.GetObjectIdAtTile(tilePos) != null) continue;
 			if (IsTileInvestigationClaimedByPartyMember(tilePos)) continue;
+			if (TrapAvoidance.IsInKnownZone(this, new Vector2Int(tilePos.x, tilePos.y))) continue; // 위 오브젝트 후보와 같은 이유(03-13)
 
 			_investigateCandidateBuffer.Add((null, tilePos, true));
 		}
@@ -827,11 +843,13 @@ public class Human : UnitFunction
 	// 01번 문서 4장/04번 문서 9번 항목: 목표까지 전체 길을 알면 실제 경로 길이, 모르면 "아는 구간까지
 	// 실제 경로 + 그 지점에서 목표까지 직선 잔여"를 더한 추정 거리. 둘 다 실패하면(고립된 구역 등)
 	// 체비셰프 직선거리로 최종 폴백한다.
-	public int EstimateDistanceTilesTo(Vector3Int targetTile)
+	// targetIsTrap: 목표가 함정 자체(담당 후보의 도착시간 등)면 그 함정의 회피 구역을 면제하고 함정 타일까지의 길이를 잰다(검증 03-13).
+	public int EstimateDistanceTilesTo(Vector3Int targetTile, bool targetIsTrap = false)
 	{
 		Vector2Int targetPos2D = new Vector2Int(targetTile.x, targetTile.y);
+		Vector2Int? exemptTrap = targetIsTrap ? targetPos2D : (Vector2Int?)null;
 		var astar = MovementAlgorithm as AStarMovement;
-		if (astar != null && astar.TryGetPathLength(this, targetPos2D, out int real, out bool fullyRevealed) && fullyRevealed)
+		if (astar != null && astar.TryGetPathLength(this, targetPos2D, out int real, out bool fullyRevealed, exemptTrap) && fullyRevealed)
 			return real;
 
 		if (personalMap.TryGetNearestFrontierTile(currentFloor, targetPos2D, out Vector2Int frontier))
@@ -848,7 +866,7 @@ public class Human : UnitFunction
 	// 추정 거리(전체 길을 알면 실제 경로)를 개인 적용 이동속도로 나눈다.
 	public float EstimateRemainingSecondsToInteract(Vector3Int targetTile)
 		=> ExplorationMath.RemainingTravelSeconds(
-			ExplorationMath.StepsToDisarmPosition(EstimateDistanceTilesTo(targetTile)), AppliedWalkSpeed);
+			ExplorationMath.StepsToDisarmPosition(EstimateDistanceTilesTo(targetTile, targetIsTrap: true)), AppliedWalkSpeed);
 
 	// 검증문서 03-01 4번/03-02: 지금 유일하게 명확한 "파티종류-오브젝트" 매칭인 회수 파티+Loot 태그만
 	// "파티 목표 오브젝트"로 판정한다(Party.HasKnownRecoverableInRoom과 동일 기준) — 다른 파티종류는

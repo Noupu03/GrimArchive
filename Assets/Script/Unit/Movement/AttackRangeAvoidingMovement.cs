@@ -21,6 +21,7 @@ public class AttackRangeAvoidingMovement : AStarMovement
 			_cacheUnit = unit;
 			_cacheFrame = Time.frameCount;
 		}
-		return _avoidTiles.Contains(tilePos) ? MovementMath.AttackRangeAvoidExtraCost : 0;
+		// 검증 03-13: 알려진 함정 회피 비용(전투 모드 통과 허용 타일·구역 탈출)도 함께 더한다.
+		return (_avoidTiles.Contains(tilePos) ? MovementMath.AttackRangeAvoidExtraCost : 0) + base.GetExtraTileCost(unit, tilePos);
 	}
 }

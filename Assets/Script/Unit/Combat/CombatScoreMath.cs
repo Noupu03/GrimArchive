@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // 02번 문서(전투 목표와 아군 보호 및 지원) 순수 계산 함수 모음 — 부수효과 없음, 테스트 용이.
@@ -87,6 +88,11 @@ public static class CombatScoreMath
 	// 값이다 — 원문이 "조정 가능한 별도 값"이라고 명시.
 	public const float ProtectApproachDamageRiskHpFloor = 0.30f;
 
+	// 9장·순서도 02-07: 피해를 감수하는 노출 경로는 "확보한 피해 정보로 남을 HP를 추정할 수 있고" 그 예상 HP가 하한 이상일 때만 후보에 든다. 추정할 수 없으면
+	// 0 피해로 계산하지도, 계산에서 빼고 허용하지도 않고 해당 노출 경로를 제외한다(검증 02-10 재판정, 2026-09-30).
+	public static bool IsExposureRouteAllowed(bool damageEstimable, float projectedHpRatio)
+		=> damageEstimable && projectedHpRatio >= ProtectApproachDamageRiskHpFloor;
+
 	public static bool IsEmergencyProtectCandidate(float hpRatio, bool underAttackThreat, bool isIncapacitated, bool isHitThisTurn)
 	{
 		if (hpRatio <= EmergencyProtectHpRatio && underAttackThreat) return true;
@@ -125,4 +131,13 @@ public static class CombatScoreMath
 		CombatRole.MeleeSupport => 4, // "근접 지원이 공격 중인 경우" — 치료 이동에는 적용하지 않음(호출부 책임)
 		_                       => 4,
 	};
+
+	// 5장 "새 대상을 공격할 수 있는 위치까지의 경로 길이": 경로 타일(시작 제외, 마지막이 대상 타일)을 따라 처음으로 공격 거리(체비셰프) 안에 들어오는 지점까지의 걸음 수.
+	// 이미 공격 거리 안이면 0칸이라 호출부가 경로를 재기 전에 먼저 처리한다. 거리 안에 드는 타일이 없으면(정상 경로는 마지막 타일 = 대상 타일이라 항상 해당) 전체 길이.
+	public static int StepsToFirstTileWithinRange(IList<Vector2Int> pathTiles, Vector2Int target, int range)
+	{
+		for (int i = 0; i < pathTiles.Count; i++)
+			if (Mathf.Max(Mathf.Abs(pathTiles[i].x - target.x), Mathf.Abs(pathTiles[i].y - target.y)) <= range) return i + 1;
+		return pathTiles.Count;
+	}
 }

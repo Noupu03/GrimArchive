@@ -54,10 +54,62 @@ public static class AIMovementHelper
 	// 별개로, 이동 캐시를 오염시키지 않는 1회성 비교 질의에만 쓴다.
 	private static readonly AStarMovement _exposedPathScratch = new AStarMovement();
 
+	// 함정 통과 판단용 스크래치 — 함정을 무시(TrapMoveMode.Off)한 최단 경로를 잰다. 유닛 자신의 탐색(전투 모드: 통과 조건 미달 함정 타일 차단)과 비교해
+	// "함정 경로가 우회보다 빠른가"(v0.6 9-13)를 판정한다.
+	private static readonly AStarMovement _trapPassScratch = new AStarMovement { TrapModeOverride = TrapMoveMode.Off };
+
+	// 검증문서 03-13(03번 v0.12 9장 통과 판단표 3~4행, 02번 v0.12 9장): 긴급 아군 보호로 함정을 밟고 지나가는 경우만 허용하는 예외. 함정을 무시한 최단 경로가
+	// 알려진 함정을 지나고, 그 경로가 우회(자기 전투 모드 경로)보다 짧고, 보호 대상 HP ≤ 30%이며, 이동자 조건(기록 함정: 피해 후 HP ≥ 30% / 미기록 함정: 현재
+	// HP ≥ 60%)을 만족할 때 그 경로로 한 걸음 간다(밟으면 GameSession.TriggerTrapIfStepped가 피해). 개입하지 않으면 false.
+	private static bool TryMoveThroughTrapsToProtect(Unit unit, Unit protect, Vector2Int destination)
+	{
+		if (!(unit is Human human) || protect == null || !TrapAvoidance.IsEnabled(unit)) return false;
+		if (human.personalMap.KnownTrapTiles.Count == 0) return false;
+
+		var traps = new List<TrapAvoidance.KnownTrap>();
+		TrapAvoidance.CollectKnownTraps(human, traps);
+		if (traps.Count == 0) return false;
+
+		// 목적지는 보호 대상 유닛의 타일(점유됨)이다 — 경로 조회는 목표 타일 점유를 막지 않으므로(AStarMovement.RunQuerySearch) 그 타일까지의 길이를 잴 수 있다.
+		if (!_trapPassScratch.TryGetPathTiles(unit, destination, out List<Vector2Int> trapPath)) return false;
+
+		float recordedDamage = 0f;
+		int recordedCount = 0, unrecordedCount = 0;
+		foreach (var t in traps)
+		{
+			if (!trapPath.Contains(t.Tile)) continue;
+			if (t.Recorded) { recordedCount++; recordedDamage += t.DamageMax; }
+			else unrecordedCount++;
+		}
+		if (recordedCount + unrecordedCount == 0) return false; // 그 경로가 함정을 안 지난다 — 일반 로직
+
+		int detourSteps = int.MaxValue; // 우회가 없으면 함정 경로가 항상 빠르다
+		if (unit.MovementAlgorithm is AStarMovement own && own.TryGetPathLength(unit, destination, out int detourLength, out _)) detourSteps = detourLength;
+
+		var cfg = AIConfigLoader.Behavior;
+		float recordedRatio = cfg?.trapRescueMinHpRatioRecorded ?? ExplorationMath.TrapAllyRescueMinHpRatioAfterHit;
+		float unrecordedRatio = cfg?.trapRescueMinHpRatioUnrecorded ?? ExplorationMath.TrapAllyRescueUnrecordedMinCurrentHpRatio;
+		bool allowed = true;
+		if (recordedCount > 0)
+			allowed &= ExplorationMath.CanPassTrapForProtect(true, protect.hp, protect.maxHp, unit.hp, unit.maxHp, recordedDamage, trapPath.Count, detourSteps, recordedRatio, unrecordedRatio);
+		if (unrecordedCount > 0)
+			allowed &= ExplorationMath.CanPassTrapForProtect(false, protect.hp, protect.maxHp, unit.hp, unit.maxHp, 0f, trapPath.Count, detourSteps, recordedRatio, unrecordedRatio);
+		if (!allowed) return false;
+
+		_trapPassScratch.ClearCache(); // 여러 유닛이 공유하는 스크래치라 이전 유닛의 이동 캐시를 쓰지 않게 한다
+		if (!_trapPassScratch.TryGetNextStep(unit, destination, out Dir dir)) return false;
+		Vector2Int before = unit.position;
+		unit.Move(dir);
+		return unit.position != before;
+	}
+
 	// 02번 9번 항목: 안전 경로(회피형)가 이미 더 빠르면 그냥 그걸 쓰고, 안전 경로가 느리면 노출(직행)
 	// 경로가 지나는 "알려진 공격범위" 구간의 예상 피해를 계산해 자기 HP 잔여율로 감수 여부를 판정한다.
-	public static bool MoveTowardsProtectTargetWithRiskCheck(Unit unit, Vector2Int destination)
+	public static bool MoveTowardsProtectTargetWithRiskCheck(Unit unit, Unit protect)
 	{
+		Vector2Int destination = protect.position;
+		if (TryMoveThroughTrapsToProtect(unit, protect, destination)) return true;
+
 		if (!(unit.MovementAlgorithm is AttackRangeAvoidingMovement safeAlgo))
 			return MoveTowardsPos(unit, destination); // 회피형이 아니면 안전/노출 구분 자체가 무의미
 
@@ -67,11 +119,12 @@ public static class AIMovementHelper
 		if (safeAlgo.TryGetPathLength(unit, destination, out int safeSteps, out _) && safeSteps <= exposedTiles.Count)
 			return MoveTowardsPos(unit, destination); // 안전 경로가 이미 더 빠르거나 같음 — 위험 감수 불필요
 
-		float exposureDamage = EstimateExposureDamage(unit, exposedTiles);
+		bool estimable = TryEstimateExposureDamage(unit, exposedTiles, out float exposureDamage);
 		float projectedRatio = (unit.hp - exposureDamage) / Mathf.Max(1f, unit.maxHp);
 
-		if (projectedRatio >= CombatScoreMath.ProtectApproachDamageRiskHpFloor)
+		if (CombatScoreMath.IsExposureRouteAllowed(estimable, projectedRatio))
 		{
+			_exposedPathScratch.ClearCache(); // 여러 유닛이 공유하는 스크래치라 이전 유닛의 이동 캐시를 쓰지 않게 한다
 			if (!_exposedPathScratch.TryGetNextStep(unit, destination, out Dir dir)) return false;
 			Vector2Int before = unit.position;
 			unit.Move(dir);
@@ -82,15 +135,16 @@ public static class AIMovementHelper
 
 	// 노출 경로가 지나는 타일 중 "알려진 적 공격범위"와 겹치는 종마다, 그 종의 예상 스킬피해량(02번 9번
 	// 항목) 중 최댓값 1회분만 더한다 — "공격 횟수·도달시점 불확실한 건 확정피해처럼 안 더한다"(원문).
-	// 피해를 추정할 수 없는 스킬(TryGetExpectedSkillDamage 실패)은 자연히 합산에서 빠진다. 원문이 명시한
-	// "자신의 알려진 방어·감소 효과"도 반영한다 — 실제 데미지 파이프라인(UnitFunction.
+	// 원문이 명시한 "자신의 알려진 방어·감소 효과"도 반영한다 — 실제 데미지 파이프라인(UnitFunction.
 	// TakePhysicalDamage/TakeMagicalDamage)과 동일하게 방어력을 뺀 뒤 1 이하로 안 내려가게 한다.
 	// (2026-09-27 수정: 처음엔 방어력을 안 빼고 raw 값을 그대로 썼음 — 사용자 지적으로 발견.)
-	private static float EstimateExposureDamage(Unit unit, List<Vector2Int> exposedTiles)
+	// 반환값 = 추정 가능 여부(02번 v0.12 9장 458줄·순서도 02-07, 검증 02-10 재판정 2026-09-30): 노출 경로가 지나는 종에게 공격 스킬이 있는데 그 피해를 하나도
+	// 추정할 수 없으면 false — 호출부는 0 피해로 계산하거나 계산에서 빼고 허용하지 말고 그 노출 경로를 제외해야 한다.
+	private static bool TryEstimateExposureDamage(Unit unit, List<Vector2Int> exposedTiles, out float total)
 	{
-		if (!(unit is Human human) || human.Knowledge == null) return 0f;
+		total = 0f;
+		if (!(unit is Human human) || human.Knowledge == null) return true;
 
-		float total = 0f;
 		var countedSpecies = new HashSet<string>();
 		foreach (var e in unit.personalSpottedEnemies)
 		{
@@ -103,28 +157,31 @@ public static class AIMovementHelper
 			foreach (var t in exposedTiles) { if (ChebyshevDistance(t, e.position) <= range) { crosses = true; break; } }
 			if (!crosses) continue;
 
-			float speciesMax = 0f;
 			var skills = unit.Generate?.GetSkills(species);
-			if (skills != null)
+			if (skills == null) { total = 0f; return false; } // 이 종의 스킬 정보를 얻을 수 없다 — 추정 불가
+
+			float speciesMax = 0f;
+			bool hasEnemySkill = false, anyDamageKnown = false;
+			foreach (var s in skills)
 			{
-				foreach (var s in skills)
-				{
-					if (s == null || s.Affinity != SkillAffinity.Enemy) continue;
-					if (!human.Knowledge.TryGetExpectedSkillDamage(human, species, s.SkillName, out int rawDmg)) continue;
+				if (s == null || s.Affinity != SkillAffinity.Enemy) continue;
+				hasEnemySkill = true;
+				if (!human.Knowledge.TryGetExpectedSkillDamage(human, species, s.SkillName, out int rawDmg)) continue;
+				anyDamageKnown = true;
 
-					// HumanKnowledgeBase.SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일한
-					// 물리/마법 분류(GroundAoE/Curse만 마법) — 여긴 SkillAction 인스턴스라 타입으로 판정.
-					bool isMagical = s is SkillAction_GroundAoE || s is SkillAction_Curse;
-					float defense = isMagical ? unit.CombatStat.magicalDefense : unit.CombatStat.physicalDefense;
-					float afterDefense = Mathf.Max(1f, rawDmg - defense);
+				// HumanKnowledgeBase.SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일한
+				// 물리/마법 분류(GroundAoE/Curse만 마법) — 여긴 SkillAction 인스턴스라 타입으로 판정.
+				bool isMagical = s is SkillAction_GroundAoE || s is SkillAction_Curse;
+				float defense = isMagical ? unit.CombatStat.magicalDefense : unit.CombatStat.physicalDefense;
+				float afterDefense = Mathf.Max(1f, rawDmg - defense);
 
-					if (afterDefense > speciesMax) speciesMax = afterDefense;
-				}
+				if (afterDefense > speciesMax) speciesMax = afterDefense;
 			}
+			if (hasEnemySkill && !anyDamageKnown) { total = 0f; return false; } // 피해를 하나도 모른다 — 추정 불가(02-07: 노출 경로 제외)
 			total += speciesMax;
 			countedSpecies.Add(species);
 		}
-		return total;
+		return true;
 	}
 
 	// 방 제한 유닛의 무작위 인접 이동 — NavigationFSMState.MoveRandomlyValid와 IdleFSMState가
@@ -144,6 +201,8 @@ public static class AIMovementHelper
 			Vector2Int dirVec = unit.GetDirVector(tryDir);
 			Vector2Int nextPos = unit.position + dirVec;
 			if (!unit.CanMove(nextPos)) continue;
+			// 검증문서 03-13: A*를 안 타는 배회도 알려진 활성 함정의 인접 1칸 구역에 들어가지 않는다.
+			if (TrapAvoidance.BlocksGeneralStep(unit, nextPos)) continue;
 
 			if (anchor.HasValue && ChebyshevDistance(nextPos, anchor.Value) > radius) continue;
 
