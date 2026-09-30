@@ -242,6 +242,7 @@ public class AStarMovement : IMovementAlgorithm
         int maxIter = 50000; // 맵 횡단을 위해 A* 길찾기 최대 연산량도 대폭 상향 (MinHeap 덕분에 5만 번도 순식간에 처리됨)
         int iter = 0;
         AStarNode closestNode = startNode;
+        bool acceptedNearTarget = false;
 
         while (openList.Count > 0 && iter < maxIter)
         {
@@ -250,6 +251,13 @@ public class AStarMovement : IMovementAlgorithm
             closedSet.Add(current.Pos);
 
             if (current.Pos == targetPos) { closestNode = current; break; }
+            // 조회 전용: 목표(점유 영역)의 공격 거리 안 어느 타일에든 닿으면 도달로 본다(CanReachWithinRange).
+            if (_queryAcceptRange >= 0 && MovementMath.DistanceToFootprint(current.Pos, targetPos, _queryAcceptSize) <= _queryAcceptRange)
+            {
+                closestNode = current;
+                acceptedNearTarget = true;
+                break;
+            }
             if (current.HCost < closestNode.HCost) closestNode = current;
 
             foreach (Dir d in _allDirs)
@@ -285,7 +293,7 @@ public class AStarMovement : IMovementAlgorithm
             }
         }
 
-        reachedTarget = closestNode.Pos == targetPos;
+        reachedTarget = acceptedNearTarget || closestNode.Pos == targetPos;
         return closestNode;
     }
 
@@ -294,12 +302,26 @@ public class AStarMovement : IMovementAlgorithm
     // 항상 실패한다(검증 03-13 부수 발견 — 02-05 이동 한도·02-10 노출 경로 비교가 사실상 동작하지 않던 원인). 다른 칸의 점유는 그대로 장애물로 본다. 이동(TryGetNextStep)은
     // 이 예외를 쓰지 않는다 — 목표 유닛의 타일로 실제로 들어갈 수는 없기 때문이다.
     private bool _queryExemptTargetOccupancy;
+    // 조회 전용 추가 옵션(RunQuerySearch가 세팅·해제): 목표 점유 영역의 공격 거리 안 아무 타일이나 도달로 인정(-1 = 끔) / 적 진영 유닛의 점유를 장애물로 보지 않는 구조 경로
+    // (02-04 4번 "보스로 가는 길을 막는 적" 탐지 — 적이 서 있는 자리를 지나는 경로를 잰다. 아군·자기 진영 유닛은 여전히 장애물이다).
+    private int _queryAcceptRange = -1;
+    private Vector2Int _queryAcceptSize = Vector2Int.one;
+    private bool _queryIgnoreEnemyUnits;
 
-    private AStarNode RunQuerySearch(Unit unit, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget)
+    private AStarNode RunQuerySearch(Unit unit, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget,
+        int acceptRange = -1, Vector2Int? acceptSize = null, bool ignoreEnemyUnits = false)
     {
         _queryExemptTargetOccupancy = true;
+        _queryAcceptRange = acceptRange;
+        _queryAcceptSize = acceptSize ?? Vector2Int.one;
+        _queryIgnoreEnemyUnits = ignoreEnemyUnits;
         try { return RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out reachedTarget); }
-        finally { _queryExemptTargetOccupancy = false; }
+        finally
+        {
+            _queryExemptTargetOccupancy = false;
+            _queryAcceptRange = -1;
+            _queryIgnoreEnemyUnits = false;
+        }
     }
 
     // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시는
@@ -385,7 +407,8 @@ public class AStarMovement : IMovementAlgorithm
     // TryGetPathLength(칸 수만)와 달리 실제 경로 타일 좌표가 필요한 호출부(예: 노출 경로가 어느 위험
     // 지역과 겹치는지 판정)용 — 같은 RunSearch를 재사용하고 이동 캐시는 건드리지 않는다(일회성 조회).
     // 목표 타일 점유는 막지 않는다(RunQuerySearch) — 경로 마지막 타일이 목표 타일이다.
-    public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles, Vector2Int? exemptTrapTile = null)
+    // ignoreEnemyUnits: 적 진영 유닛의 점유도 장애물로 보지 않는 "구조 경로"(02-04 4번 — 적을 치우면 열리는 길이 어디인지 잰다). 아군·자기 진영 유닛은 여전히 장애물이다.
+    public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles, Vector2Int? exemptTrapTile = null, bool ignoreEnemyUnits = false)
     {
         tiles = new List<Vector2Int>();
         if (unit.position == targetPos) return true;
@@ -399,7 +422,7 @@ public class AStarMovement : IMovementAlgorithm
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
         _trapCtx.Refresh(unit, TrapModeOverride, exemptTrapTile);
-        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget, ignoreEnemyUnits: ignoreEnemyUnits);
         if (!reachedTarget) return false;
 
         AStarNode stepNode = closestNode;
@@ -410,6 +433,25 @@ public class AStarMovement : IMovementAlgorithm
         }
         tiles.Reverse();
         return true;
+    }
+
+    // 조회: 다른 유닛의 점유를 피해서 목표(점유 영역 = 좌하단 targetPos + 크기 targetSize)의 공격 거리(range, 체비셰프) 안 어느 타일에든 닿을 수 있는가 — 목표 자신의 점유는 무시하고,
+    // 이미 거리 안이면 true. "보스로 가는 길이 막혔는가"(02-04 4번)의 우회 가능 여부 판정에 쓴다. 이동 캐시는 안 건드린다.
+    public bool CanReachWithinRange(Unit unit, Vector2Int targetPos, Vector2Int targetSize, int range)
+    {
+        if (MovementMath.DistanceToFootprint(unit.position, targetPos, targetSize) <= range) return true;
+
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+        if (myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null)
+            return false;
+
+        int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+        int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+        _trapCtx.Refresh(unit, TrapModeOverride, null);
+        RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reached, acceptRange: range, acceptSize: targetSize);
+        return reached;
     }
 
     // 도달 여부와 무관하게 "가장 가까이 갈 수 있는 곳"까지의 경로 타일과 그 지점의 휴리스틱 비용 — 함정 때문에 막혔는지 진단할 때 쓴다(이동 캐시는 안 건드림).
@@ -485,7 +527,9 @@ public class AStarMovement : IMovementAlgorithm
                 if (unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
-                    if (u != null && u != unit && u.hp > 0 && !(_queryExemptTargetOccupancy && nx == targetPos.x && ny == targetPos.y))
+                    if (u != null && u != unit && u.hp > 0
+                        && !(_queryExemptTargetOccupancy && nx == targetPos.x && ny == targetPos.y)
+                        && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u)))
                     { isOccupied = true; isWall = true; break; }
                 }
 
@@ -549,7 +593,7 @@ public class AStarMovement : IMovementAlgorithm
         if (unit.Session != null &&
             unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))
         {
-            if (u != null && u != unit && u.hp > 0) return true;
+            if (u != null && u != unit && u.hp > 0 && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u))) return true;
         }
 
         return false;

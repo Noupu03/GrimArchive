@@ -27,7 +27,8 @@ HP 조건 없이 모든 통과에 적용됐다. 그래서 함정 위치를 아�
 비전투 체인의 TrapPass 삭제·TrapBypass 실제 우회화, 02-10 4번 수정(피해 추정 불가 → 노출 경로 제외). dotnet build 오류 0(경고 71개, 기존과 동일), 신규 테스트
 Assets/Tests/TrapAvoidanceTests.cs 18개는 미실행(Unity Test Runner 필요). 상세는 03-13 항목 [수정 완료] 참고. 부수 발견 — 점유된 목표 타일(유닛 위치)을 향한
 TryGetPathLength/TryGetPathTiles가 항상 실패해 02-05 이동한도 확인·02-10 노출 경로 비교가 사실상 동작하지 않았다 — 은 사용자 요청("아직 안 고친 거 고쳐볼래?")으로 같은 날
-수정했다(03-13 항목 [수정 완료] 6번). 그 과정에서 02-04 4번(FindPathBlockingEnemy)도 별개 원인으로 휴면 상태임을 확인했다(미수정, 사용자 확인 대기).
+수정했다(03-13 항목 [수정 완료] 6번). 그 과정에서 02-04 4번(FindPathBlockingEnemy)도 별개 원인(경로가 다른 유닛 타일을 피해 가서 막는 적이 경로 위에 없음)으로 휴면 상태임을 확인해
+사용자 확인("고쳐야 할듯") 후 같은 날 재설계했다(02-04 항목 4번 [재수정 완료] — BossPathBlockage.cs).
 (03-12, 2026-09-30 발견 → 같은 날 수정 완료) ❌불일치 → ✅ — 사용자 선택("문서대로 복원 + ②③④ 수정")으로 ①~④ 전부 반영(성공률 우선 선정 +
 입장 전 최고 성공률 스냅샷 Party.EntryBestDisarmerNames + 집결·공동 이동·귀환 중 새 담당 금지(경로를 막는 함정만 예외, 보류한 함정은 Deferred 기록) +
 후보 필터 보강 + 문서 근거 없는 "기록 함정 대기 없음" 분기 삭제). dotnet build 오류 0(경고 71개, 기존과 동일). 상세는 03-12 항목 [수정 완료] 참고.
@@ -2449,8 +2450,31 @@ RangedSupport 행(중립)을 쓴다 — 이전의 "MeleeTank 행을 조용히 �
 
      [재발견 — 이 수정은 휴면 코드였다, 2026-09-30] 위 FindPathBlockingEnemy는 지금까지 두 겹으로 동작하지 않았다. (1) 보스 타일이 점유돼 있어 TryGetPathTiles가 항상 실패했다 —
      2026-09-30에 조회 전용 점유 예외(AStarMovement.RunQuerySearch)로 고쳤다(검증 03-13 [수정 완료] 6번). (2) 그래도 남는 문제: 이 경로는 다른 유닛 타일을 장애물로 피해 가므로
-     경로 위에 적이 서 있는 일이 없어 blocker를 못 찾는다 — 실제로 켜려면 "유닛을 무시한 구조 경로"와 "이동이 필요할 때만(보스가 공격 거리 밖)" 조건이 필요하다(안 그러면 보스가
-     사거리 안인 원거리 유닛도 사이의 잡몹에 끌려간다). 이건 동작을 새로 켜는 설계 결정이라 미수정, 사용자 확인 대기. 코드 주석(CombatFSMState.FindPathBlockingEnemy)에도 표시했다.
+     경로 위에 적이 서 있는 일이 없어 blocker를 못 찾는다.
+
+     [재수정 완료, 2026-09-30 — 사용자 확인 "고쳐야 할듯"] 문서 근거: 02번 4장 220줄·순서도 02-03("보스 이동 경로 차단이 있는가? 예 → 확인된 임시 위협 대응"), 04번 9장 452~458줄("적·함정·
+     문·오브젝트가 길을 막음: 우회 가능 여부와 해당 대상의 대응 조건을 확인 — 적은 02번 문서 공격·역할별 행동"), 02번 2장 95줄("이동 경로는 적의 점유 타일을 피해 계산한다"). 여기서 "막는다"는
+     "우회할 수 없다"는 뜻이라 새 판정(신규 Assets/Script/Unit/Combat/BossPathBlockage.cs)은 (1) 이동이 필요하다 — 보스의 점유 영역까지 거리가 공격 거리(MaxAttackReach) 밖이다(안이면 사이의
+     잡몹에 끌려가지 않는다 — 원거리 유닛이 사거리 안의 보스를 두고 잡몹으로 갈아타는 오작동 방지), (2) 우회할 수 없다 — 다른 유닛의 점유를 피해서는 보스의 공격 거리 안 어느 타일에도 못 닿는다
+     (AStarMovement.CanReachWithinRange: 조회 전용, 목표 점유 무시, 공격 거리 안 아무 타일이나 도달로 인정), (3) 적을 치우면 열린다 — 적 진영 유닛만 무시한 구조 경로(TryGetPathTiles
+     ignoreEnemyUnits: true; 아군·벽·닫힌 문은 그대로 장애물이라 아군이 통로를 막은 경우는 제외)가 있고, 그 경로 위에서(공격 위치에 닿기 전 구간) 처음 만나는 확인된 적(후보 목록)이 blocker다.
+     보스 같은 다타일 유닛은 앵커 한 점이 아니라 점유 영역 기준으로 거리를 잰다(Unit.FootprintSize, MovementMath.DistanceToFootprint — 02-05 이동 한도 추정도 같은 기준으로 바꿈).
+     SelectAttackTarget은 blocker를 찾으면 threatCandidates에 섞지 않고 AttackTarget을 그 적으로 직접 바꾼다 — 임시 위협 대응이지 일반 대상 변경이 아니라 20% 점수·이동 한도 게이트를 거치지
+     않는다(거치면 보스 배율 1.5 때문에 사실상 교체가 안 돼 기능이 무의미해진다). BossFocusTarget은 유지되므로 blocker가 죽으면 다음 판단에서 20% 재요구 없이 보스로 복귀한다(문서 224~227줄).
+     판정이 A* 조회 2~3번이라 유닛당 0.5초마다만 다시 계산하고(CombatTargetingState.PathBlocker/NextPathBlockCheckTime) 그 사이엔 결과를 재사용한다.
+     검증: 실제 BossPathBlockage.cs·AStarMovement.cs를 스텁과 컴파일한 하니스 시나리오 통과 — 1칸 통로의 잡몹=blocker / 열린 방 우회 가능=null / 보스가 공격 거리 안=null / 원거리 사거리 6이면
+     잡몹 앞 (5,3)에서 사격 가능=null·사거리 2면 blocker / 아군이 통로를 막음=null / 잡몹 둘이면 먼저 만나는 하나 / 미확인(후보 아님) 잡몹=null / 3×3 보스의 점유 영역에 인접=이동 불필요 /
+     구조 경로 조회가 적 타일은 지나지만 아군은 못 지나고 다음 일반 조회에 플래그가 새지 않음. Unity 테스트는 MovementSystemTests에 DistanceToFootprint·StepsToFirstTileWithinRange(점유 영역) 추가(미실행).
+     [관찰 → 수정 완료, 2026-09-30 — 사용자 확인 "어 바꾸자"] 같은 SelectAttackTarget 흐름에서 "자신을 직접 위협하는 잡몹"(threatCandidates)도 현재 대상(보스)이 유효하면 20% 게이트를 타서, 보스
+     배율(1.5)·개인 위험도 때문에 잡몹 점수가 1.2배 이상이 아니면 대응하지 않았다 — 문서 4장은 직접 위협을 경로 차단·긴급 보호와 같은 임시 대응 사유로 적는다. 위 blocker와 같은 임시 대응 경로로
+     통합했다: CombatFSMState.SelectTemporaryResponseTarget이 보스 집중 중(bossStillValid)에만 ① 나를 직접 공격 중인 보스 외의 후보(IsAttackingMe — enemy.AttackTarget == 나)가 있으면 그중
+     점수가 가장 높은 것을(ThreatResponseMath.SelectWithHysteresis) ② 없으면 경로를 막는 적을 AttackTarget으로 직접 잡는다(20%·이동 한도 게이트 없음, BossFocusTarget 유지). 이미 그 직접 위협
+     집합 안의 대상을 상대 중이면 같은 우선순위 안의 교체 기준(인류 1.2배/몬스터 더 높을 때)으로 유지해 위협 사이를 매 틱 오가지 않는다. **아군을 공격 중인 적은 사유가 아니다** — 문서 213~216줄
+     ("다른 아군이 대응하고 있고 긴급 대응 사유가 없으면 보스 공격 유지")·222줄("멀리 있는 잡몹의 높은 점수만으로 해제하지 않는다")대로 threatCandidates 중 나를 향한 것만 쓰고, 아군만 공격받는
+     상황은 종전 흐름(보스가 현재 대상이면 20% 게이트라 사실상 유지)을 그대로 탄다. 긴급 보호는 종전대로 ExecuteCombat이 AttackTarget과 별개로 먼저 처리한다. 보스 집중이 아닌 일반 흐름
+     (2026-09-27 리뷰에서 사용자 확인 후 정한 "현재 대상이 위협 후보가 아니어도 20%/이동 한도 게이트를 거친다")은 건드리지 않았다. 부수: 일반 흐름의 "점수→거리→무작위" 후보 선택을
+     ThreatResponseMath.PickBest로 뽑아 두 경로가 같은 규칙을 쓰게 했다(동작 동일). 검증: 스크래치 하니스로 실제 ThreatResponseMath 실행 통과(점수·거리·완전 동점 선택, 인류 1.2배/몬스터 유지·교체,
+     집합 밖 현재 대상[보스]은 게이트 없음), Unity 테스트 3개 추가(MovementSystemTests, 미실행). 전투 양상이 달라진다 — 보스전에서 자신을 때리는 잡몹에게 대응하는지 Unity 플레이 확인 필요.
 
 5. "다른 아군의 지원 시작만으로 위협 해소를 확정하지 않는다" → ✅
    threatCandidates는 매 틱 personalSpottedEnemies+IsAttackingMeOrAlly로 그 자리에서 다시 계산되는
@@ -4530,8 +4554,8 @@ Unity 대신 스크래치패드 콘솔 하니스로 실제 코드를 실행해 �
    02-10 경로 비교가 실제로 켜졌으므로 공유 스크래치(_exposedPathScratch/_trapPassScratch)는 이동 캐시를 쓰기 전에 비운다. 검증: 실제 AStarMovement.cs를 스텁과 컴파일한 하니스로 조회가 점유된 목표
    타일에 8걸음으로 닿고·이동은 인접(8,3)에서 멈추며·다른 유닛은 여전히 장애물이고(우회)·1칸 통로가 다른 유닛에 막히면 조회가 실패하고·조회 뒤에도 같은 인스턴스의 이동 탐색에 예외가 새지 않음을
    확인(하니스 A* 33개 통과). 새 Unity 테스트: MovementSystemTests의 StepsToFirstTileWithinRange 2개(미실행).
-   남은 것: 02-04 4번 FindPathBlockingEnemy는 (조회가 성공해도) 경로가 다른 유닛 타일을 피해 가서 blocker를 못 찾는 휴면 코드다 — 켜려면 유닛을 무시한 구조 경로 + "이동이 필요할 때만(보스가 공격 거리
-   밖)" 조건이 필요하다(02-04 항목 4번 [재발견] 참고, 사용자 확인 대기).
+   02-04 4번 FindPathBlockingEnemy는 (조회가 성공해도) 경로가 다른 유닛 타일을 피해 가서 blocker를 못 찾는 별개 원인의 휴면 코드였고, 같은 날 사용자 확인 후 BossPathBlockage로 재설계했다
+   (02-04 항목 4번 [재수정 완료] 참고 — 구조 경로 조회 ignoreEnemyUnits·CanReachWithinRange 추가, 하니스 A* 시나리오 최종 48개 통과).
 
 ────────────────────────────────────────────────────────────────────────
 

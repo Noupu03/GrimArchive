@@ -33,6 +33,10 @@ public class CombatTargetingState
 	// 스킬을 실제로 쓰거나(=적과 교전) 전투를 벗어나면 비운다. 정체 카운터는 접근이 계속 막힐 때 포기하는 데 쓴다.
 	public Vector3Int? BlockingTrapTile;
 	public int TrapDestroyStuckTurns;
+	// 검증문서 02-04 4번: 보스로 가는 길을 막고 있어 임시 대응 중인 적과 다음 재확인 시각 — 경로 탐색이 무거워 0.5초마다만 다시 계산하고 그 사이엔 이 값을 재사용한다
+	// (CombatFSMState.FindPathBlockingEnemy). 전투를 벗어나면 비운다.
+	public Unit PathBlocker;
+	public float NextPathBlockCheckTime;
 
 	// 공격을 실제로 실행했거나(회피·방어로 무효여도) 대상이 완전히 바뀌었을 때 호출한다 —
 	// 재교체 이동 예산만 초기화(CombatFSMState 3곳에서 반복되던 두 줄을 대체).
@@ -50,6 +54,8 @@ public class CombatTargetingState
 		RecentDirectHitLosses.Clear();
 		AttackTarget = null;
 		BossFocusTarget = null;
+		PathBlocker = null;
+		NextPathBlockCheckTime = 0f;
 		ResetRetargetTracking();
 	}
 }

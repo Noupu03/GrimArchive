@@ -428,26 +428,30 @@ public class CombatFSMState : IFSMState
 		}
 		if (allCandidates.Count == 0) return null;
 
-		// 4장: 보스 집중 유지 — 보스 외의 현재 위협(자신/아군을 공격 중인 다른 후보)이 없으면
+		// 4장: 보스 집중 유지 — 임시 대응 사유(자신을 직접 위협하는 잡몹·보스로 가는 길을 막는 적)가 없고 보스 외의 현재 위협(자신/아군을 공격 중인 다른 후보)도 없으면
 		// 20% 기준 없이 그대로 복귀한다.
 		Unit boss = unit.CombatTargeting.BossFocusTarget;
 		bool bossStillValid = boss != null && boss.Health.hp > 0 && boss.currentFloor == unit.currentFloor && allCandidates.Contains(boss);
 		if (!bossStillValid) unit.CombatTargeting.BossFocusTarget = null;
 
-		bool hasOtherThreat = threatCandidates.Exists(t => t != boss);
-		if (bossStillValid && !hasOtherThreat)
-		{
-			// 검증문서 02-04 4번: 아직 공격은 안 해도 보스로 가는 길을 실제로 막고 서 있는 적은 직접
-			// 위협과 동급의 임시 대응 사유다 — 찾으면 threatCandidates에 합류시켜 이번엔 그 적부터
-			// 상대한다(pool도 이 합류 이후에 계산해야 아래 점수 비교에 반영된다).
-			Unit blocker = FindPathBlockingEnemy(unit, boss, allCandidates);
-			if (blocker != null) { threatCandidates.Add(blocker); hasOtherThreat = true; }
-		}
-
-		var pool = threatCandidates.Count > 0 ? threatCandidates : allCandidates;
-
 		bool isHuman = unit is Human;
 		CombatRole selfRole = CombatScoreMath.ResolveCombatRole(unit.unitType);
+
+		if (bossStillValid)
+		{
+			// 임시 대응(02번 4장 220줄·순서도 02-03): 보스 집중(BossFocusTarget)은 그대로 든 채 그 적부터 상대한다. 일반 대상 변경이 아니라 임시 대응이라 20% 점수·이동 한도 게이트를
+			// 거치지 않는다(거치면 보스 점수 배율 1.5·개인 위험도 때문에 사실상 교체가 안 돼 규칙이 무의미해진다). 사유가 사라지면 다음 판단에서 아래 보스 복귀 분기(20% 재요구 없음)로 돌아간다.
+			Unit temporary = SelectTemporaryResponseTarget(unit, boss, allCandidates, threatCandidates, isHuman, selfRole);
+			if (temporary != null)
+			{
+				unit.CombatTargeting.AttackTarget = temporary;
+				minDist = Vector2Int.Distance(unit.position, temporary.position);
+				return temporary;
+			}
+		}
+
+		bool hasOtherThreat = threatCandidates.Exists(t => t != boss);
+		var pool = threatCandidates.Count > 0 ? threatCandidates : allCandidates;
 
 		if (bossStillValid && !hasOtherThreat)
 		{
@@ -456,31 +460,16 @@ public class CombatFSMState : IFSMState
 			return boss;
 		}
 
-		Unit best = null;
-		float bestScore = float.MinValue;
-		float bestDist = float.MaxValue;
-		// 검증문서 02-03 6번: 점수·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다. 그 뒤엔
+		// 검증문서 02-03 6번: 점수·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다(ThreatResponseMath.PickBest). 그 뒤엔
 		// currentValid가 선택을 그대로 붙잡아두므로(동점은 교체 자체가 안 걸림) 같은 살아있는 후보
 		// 집합에 대해서는 이 무작위 선택이 자연히 "유지"된다 — 별도의 기억 상태가 필요 없다.
-		var tiedBest = new List<Unit>();
-		foreach (var cand in pool)
-		{
-			float score = ComputeAttackScore(unit, isHuman, selfRole, cand);
-			float d = Vector2Int.Distance(unit.position, cand.position);
-			// 최초 선택(동점) 타이브레이크는 "첫 공격 효과까지 걸리는 시간"이 기준이나, 이동시간·선딜을
-			// 전부 반영한 정밀 계산은 범위 밖이라 현재 거리로 근사한다.
-			if (best == null || score > bestScore || (score == bestScore && d < bestDist))
-			{
-				best = cand; bestScore = score; bestDist = d;
-				tiedBest.Clear();
-				tiedBest.Add(cand);
-			}
-			else if (score == bestScore && d == bestDist)
-			{
-				tiedBest.Add(cand);
-			}
-		}
-		if (tiedBest.Count > 1) best = tiedBest[UnityEngine.Random.Range(0, tiedBest.Count)];
+		// 최초 선택(동점) 타이브레이크는 "첫 공격 효과까지 걸리는 시간"이 기준이나, 이동시간·선딜을
+		// 전부 반영한 정밀 계산은 범위 밖이라 현재 거리로 근사한다.
+		Unit best = ThreatResponseMath.PickBest(pool,
+			cand => ComputeAttackScore(unit, isHuman, selfRole, cand),
+			cand => Vector2Int.Distance(unit.position, cand.position),
+			n => UnityEngine.Random.Range(0, n),
+			out float bestScore, out float bestDist);
 
 		// pool이 아니라 allCandidates로 유효성을 확인한다 — pool(위협 우선)로 확인하면 현재 대상이
 		// 위협 후보가 아닐 때 다른 위협이 나타나는 것만으로 "대상 없음"과 동일 취급돼 아래 20%/이동한도
@@ -514,7 +503,7 @@ public class CombatFSMState : IFSMState
 				// 한 걸음에 체비셰프 거리는 최대 1 줄어드니 (거리 − 공격 거리)는 필요한 걸음 수의 하한이다 — 이미 한도를 넘으면 경로 탐색 없이 보류한다(멀리 있는
 				// 후보에 매 틱 A*를 돌지 않게).
 				int reach = MaxAttackReach(unit);
-				int lowerBound = Mathf.Max(0, AIMovementHelper.ChebyshevDistance(unit.position, best.position) - reach);
+				int lowerBound = Mathf.Max(0, MovementMath.DistanceToFootprint(unit.position, best.position, best.FootprintSize) - reach);
 				int pathRemaining = 0;
 				bool fullyRevealed = false;
 				bool pathConfirmed = unit.CombatTargeting.MovedTilesSinceRetarget + lowerBound <= limit
@@ -545,6 +534,28 @@ public class CombatFSMState : IFSMState
 		return enemyTarget != null && enemyTarget.Health.hp > 0 && !observer.IsEnemy(enemyTarget);
 	}
 
+	// 4장 "자신을 직접 위협하는" — enemy의 현재 공격 대상이 바로 나다(아군을 공격 중인 적은 해당 안 됨: 문서는 다른 아군이 대응 중이면 보스 공격을 유지한다).
+	private static bool IsAttackingMe(Unit observer, Unit enemy) => enemy.CombatTargeting.AttackTarget == observer;
+
+	// 4장 "주변 적에게 임시 대응하는 경우"(02번 v0.12 220줄, 순서도 02-03) — 보스 집중 중에도 보스를 잠시 두고 상대할 적: ① 자신을 직접 위협하는 잡몹(나를 공격 중인 보스 외의 후보 — 있으면 그중 점수가
+	// 가장 높은 것, 이미 그 집합 안의 대상을 상대 중이면 같은 우선순위 안의 교체 기준으로 유지) ② 없으면 보스로 가는 길을 막는 적(BossPathBlockage). 긴급 보호(③)는 ExecuteCombat이 AttackTarget과
+	// 별개로 먼저 처리한다. 아군만 공격받는 상황, 단순 소환, 멀리 있는 잡몹의 높은 점수는 사유가 아니다 — null이면 호출부가 보스 집중을 유지한다.
+	private static Unit SelectTemporaryResponseTarget(Unit unit, Unit boss, List<Unit> allCandidates, List<Unit> threatCandidates, bool isHuman, CombatRole selfRole)
+	{
+		var directThreats = new List<Unit>();
+		foreach (var t in threatCandidates)
+			if (t != boss && IsAttackingMe(unit, t)) directThreats.Add(t);
+
+		if (directThreats.Count > 0)
+			return ThreatResponseMath.SelectWithHysteresis(directThreats, unit.CombatTargeting.AttackTarget, isHuman,
+				t => ComputeAttackScore(unit, isHuman, selfRole, t),
+				t => Vector2Int.Distance(unit.position, t.position),
+				n => UnityEngine.Random.Range(0, n),
+				CombatScoreMath.ShouldSwitchAttackTarget);
+
+		return FindPathBlockingEnemy(unit, boss, allCandidates);
+	}
+
 	// 이 유닛이 쓸 수 있는 적 대상 스킬 중 가장 먼 공격 거리(체비셰프, 최소 1) — "공격할 수 있는 위치"를 시야·각도·쿨다운 없이 거리만으로 근사한다.
 	internal static int MaxAttackReach(Unit unit)
 	{
@@ -564,7 +575,9 @@ public class CombatFSMState : IFSMState
 		steps = 0;
 		fullyRevealed = false;
 
-		if (AIMovementHelper.ChebyshevDistance(unit.position, target.position) <= reach)
+		// 공격 가능한 거리는 목표의 점유 영역 기준으로 잰다(보스 3×3 등 — 앵커 한 점 기준이면 영역 반대편에서 이미 공격 중인 유닛이 "이동 필요"로 오판된다).
+		Vector2Int targetSize = target.FootprintSize;
+		if (MovementMath.DistanceToFootprint(unit.position, target.position, targetSize) <= reach)
 		{
 			fullyRevealed = true; // 이동이 필요 없으니 확인할 경로도 없다
 			return true;
@@ -572,7 +585,7 @@ public class CombatFSMState : IFSMState
 
 		if (!(unit.MovementAlgorithm is AStarMovement astar) || !astar.TryGetPathTiles(unit, target.position, out List<Vector2Int> tiles)) return false;
 
-		steps = CombatScoreMath.StepsToFirstTileWithinRange(tiles, target.position, reach);
+		steps = CombatScoreMath.StepsToFirstTileWithinRange(tiles, target.position, targetSize, reach);
 		var human = unit as Human;
 		fullyRevealed = human != null;
 		for (int i = 0; i < steps && fullyRevealed; i++)
@@ -580,21 +593,23 @@ public class CombatFSMState : IFSMState
 		return true;
 	}
 
-	// 검증문서 02-04 4번: dest(보스)로 가는 실제 경로 타일 위에 살아있는 후보가 서 있으면 그 후보를
-	// 반환한다(경로상 가장 먼저 만나는 하나) — AStarMovement.TryGetPathTiles는 이동 캐시를 건드리지
-	// 않는 일회성 조회라 매 틱 호출해도 실제 이동에 부작용이 없다.
-	// [2026-09-30 발견 — 휴면 코드] 이 경로 조회는 다른 유닛 타일을 장애물로 피해 가므로 경로 위에 적이 서 있는 일이 없다(예전엔 그 전에 보스 타일 점유 때문에 조회 자체가 항상
-	// 실패했다). 즉 지금은 blocker를 사실상 못 찾는다. 실제로 켜려면 유닛을 무시한 구조 경로와 "이동이 필요할 때만(보스가 공격 거리 밖)" 조건이 필요하다 — 검증 문서 03-13 참고.
-	private static Unit FindPathBlockingEnemy(Unit unit, Unit dest, List<Unit> allCandidates)
+	// 경로 차단 재확인 간격(초) — 판정이 A* 조회 2~3번이라 매 틱 돌리지 않고 이 간격마다만 다시 계산한다.
+	private const float PathBlockCheckIntervalSeconds = 0.5f;
+
+	// 검증문서 02-04 4번(02번 4장·순서도 02-03): 보스로 가는 길을 막고 있어 임시 대응해야 하는 확인된 적 — 판정은 BossPathBlockage(이동이 필요하고 우회할 수 없을 때, 적을 무시한 구조
+	// 경로 위에서 처음 만나는 적). 재계산 사이에는 마지막 결과를 재사용하되 그 적이 죽었거나 후보에서 빠지면 버린다. 보스 집중 중이고 다른 위협이 없을 때만 호출된다.
+	private static Unit FindPathBlockingEnemy(Unit unit, Unit boss, List<Unit> allCandidates)
 	{
-		if (!(unit.MovementAlgorithm is AStarMovement astar)) return null;
-		if (!astar.TryGetPathTiles(unit, dest.position, out List<Vector2Int> tiles)) return null;
+		var targeting = unit.CombatTargeting;
+		if (Time.time < targeting.NextPathBlockCheckTime)
+		{
+			Unit cached = targeting.PathBlocker;
+			return cached != null && cached.hp > 0 && allCandidates.Contains(cached) ? cached : null;
+		}
 
-		foreach (var pos in tiles)
-			foreach (var cand in allCandidates)
-				if (cand != dest && cand.position == pos) return cand;
-
-		return null;
+		targeting.NextPathBlockCheckTime = Time.time + PathBlockCheckIntervalSeconds;
+		targeting.PathBlocker = BossPathBlockage.FindBlockingEnemy(unit, boss, allCandidates, MaxAttackReach(unit));
+		return targeting.PathBlocker;
 	}
 
 	// 3장: 인류는 개인위험도×역할배율×대상종류배율, 플레이어·야생은 역할배율×대상종류배율(종류별 개별

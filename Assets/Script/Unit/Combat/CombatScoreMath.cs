@@ -135,9 +135,13 @@ public static class CombatScoreMath
 	// 5장 "새 대상을 공격할 수 있는 위치까지의 경로 길이": 경로 타일(시작 제외, 마지막이 대상 타일)을 따라 처음으로 공격 거리(체비셰프) 안에 들어오는 지점까지의 걸음 수.
 	// 이미 공격 거리 안이면 0칸이라 호출부가 경로를 재기 전에 먼저 처리한다. 거리 안에 드는 타일이 없으면(정상 경로는 마지막 타일 = 대상 타일이라 항상 해당) 전체 길이.
 	public static int StepsToFirstTileWithinRange(IList<Vector2Int> pathTiles, Vector2Int target, int range)
+		=> StepsToFirstTileWithinRange(pathTiles, target, Vector2Int.one, range);
+
+	// 목표가 여러 타일을 차지하면(보스 3×3 등) 앵커 한 점이 아니라 점유 영역까지의 거리로 잰다(MovementMath.DistanceToFootprint).
+	public static int StepsToFirstTileWithinRange(IList<Vector2Int> pathTiles, Vector2Int targetAnchor, Vector2Int targetSize, int range)
 	{
 		for (int i = 0; i < pathTiles.Count; i++)
-			if (Mathf.Max(Mathf.Abs(pathTiles[i].x - target.x), Mathf.Abs(pathTiles[i].y - target.y)) <= range) return i + 1;
+			if (MovementMath.DistanceToFootprint(pathTiles[i], targetAnchor, targetSize) <= range) return i + 1;
 		return pathTiles.Count;
 	}
 }

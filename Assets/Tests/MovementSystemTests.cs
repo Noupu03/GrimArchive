@@ -51,6 +51,87 @@ public class MovementSystemTests
 		Assert.AreEqual(1, CombatScoreMath.StepsToFirstTileWithinRange(path, target, 20)); // 첫 걸음부터 사거리 안 — 호출부가 시작 위치 사거리를 먼저 0칸으로 처리한다
 	}
 
+	// 목표가 여러 타일을 차지하면(보스 3×3) 앵커 한 점이 아니라 점유 영역까지의 거리로 잰다.
+	[Test]
+	public void DistanceToFootprint_MeasuresToTheNearestOccupiedTile()
+	{
+		var anchor = new Vector2Int(10, 3);
+		var size = new Vector2Int(3, 3); // (10..12, 3..5)
+
+		Assert.AreEqual(0, MovementMath.DistanceToFootprint(new Vector2Int(11, 4), anchor, size)); // 영역 안
+		Assert.AreEqual(1, MovementMath.DistanceToFootprint(new Vector2Int(13, 3), anchor, size)); // 오른쪽 인접 — 앵커까지는 3이다
+		Assert.AreEqual(1, MovementMath.DistanceToFootprint(new Vector2Int(9, 2), anchor, size));  // 대각 인접
+		Assert.AreEqual(2, MovementMath.DistanceToFootprint(new Vector2Int(11, 7), anchor, size)); // 위쪽 2칸 (영역은 y 3~5)
+		Assert.AreEqual(3, MovementMath.DistanceToFootprint(new Vector2Int(7, 3), anchor, size));
+		Assert.AreEqual(2, MovementMath.DistanceToFootprint(new Vector2Int(8, 3), anchor, Vector2Int.one)); // 1×1이면 앵커까지의 체비셰프 거리
+	}
+
+	[Test]
+	public void StepsToFirstTileWithinRange_UsesTheFootprintOfALargeTarget()
+	{
+		var anchor = new Vector2Int(10, 0);
+		var size = new Vector2Int(3, 3); // (10..12, 0..2)
+		var path = StraightPathTo(10);   // (1,0)…(10,0) — 마지막 타일이 앵커
+
+		Assert.AreEqual(9, CombatScoreMath.StepsToFirstTileWithinRange(path, anchor, size, 1)); // (9,0)이 영역에 인접
+		Assert.AreEqual(9, CombatScoreMath.StepsToFirstTileWithinRange(path, anchor, Vector2Int.one, 1)); // 1×1도 같은 (9,0) — 영역이 3×3이라 다른 경로에선 달라질 수 있다
+	}
+
+	// ── 02번 3~4장: 후보 중 점수로 고르기 / 보스 집중 중 임시 위협 대응의 유지 기준(ThreatResponseMath) ──
+	private class Cand
+	{
+		public float Score;
+		public float Dist;
+	}
+
+	[Test]
+	public void PickBest_HighestScore_ThenNearest_ThenChosenAmongFullTies()
+	{
+		var low = new Cand { Score = 1f, Dist = 1f };
+		var farHigh = new Cand { Score = 2f, Dist = 9f };
+		var nearHigh1 = new Cand { Score = 2f, Dist = 3f };
+		var nearHigh2 = new Cand { Score = 2f, Dist = 3f }; // nearHigh1과 점수·거리까지 완전 동점
+		var pool = new List<Cand> { low, farHigh, nearHigh1, nearHigh2 };
+
+		var first = ThreatResponseMath.PickBest(pool, c => c.Score, c => c.Dist, n => 0, out float bestScore, out float bestDist);
+		Assert.AreSame(nearHigh1, first);       // 점수 높은 순 → 거리 가까운 순, 완전 동점은 pickIndex가 정한다
+		Assert.AreEqual(2f, bestScore, 0.0001f);
+		Assert.AreEqual(3f, bestDist, 0.0001f);
+
+		var second = ThreatResponseMath.PickBest(pool, c => c.Score, c => c.Dist, n => 1, out _, out _);
+		Assert.AreSame(nearHigh2, second);
+
+		Assert.IsNull(ThreatResponseMath.PickBest(new List<Cand>(), c => c.Score, c => c.Dist, n => 0, out _, out _));
+	}
+
+	[Test]
+	public void SelectWithHysteresis_CurrentInsideTheSet_IsKeptUnlessTheSwitchCriterionIsMet()
+	{
+		var current = new Cand { Score = 10f, Dist = 1f };
+		var rival = new Cand { Score = 11f, Dist = 1f };
+		var set = new List<Cand> { current, rival };
+
+		// 인류는 현재 점수의 1.2배 이상일 때만 교체 — 11 < 12라 유지한다. 몬스터는 더 높기만 하면 교체.
+		Assert.AreSame(current, ThreatResponseMath.SelectWithHysteresis(set, current, true, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+		Assert.AreSame(rival, ThreatResponseMath.SelectWithHysteresis(set, current, false, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+
+		rival.Score = 12.5f; // 1.2배 이상
+		Assert.AreSame(rival, ThreatResponseMath.SelectWithHysteresis(set, current, true, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+	}
+
+	// 보스 집중 중 임시 대응: 지금 공격하던 보스는 위협 집합 밖이라 20% 게이트 없이 가장 점수 높은 직접 위협으로 바로 갈아탄다(그래서 보스 점수가 훨씬 높아도 대응한다).
+	[Test]
+	public void SelectWithHysteresis_CurrentOutsideTheSet_HasNoGate()
+	{
+		var boss = new Cand { Score = 100f, Dist = 5f };
+		var mob = new Cand { Score = 1f, Dist = 1f };
+		var directThreats = new List<Cand> { mob };
+
+		Assert.AreSame(mob, ThreatResponseMath.SelectWithHysteresis(directThreats, boss, true, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+		Assert.AreSame(mob, ThreatResponseMath.SelectWithHysteresis(directThreats, null, true, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+		Assert.IsNull(ThreatResponseMath.SelectWithHysteresis(new List<Cand>(), boss, true, c => c.Score, c => c.Dist, n => 0, CombatScoreMath.ShouldSwitchAttackTarget));
+	}
+
 	[Test]
 	public void StepsToFirstTileWithinRange_EmptyPath_IsZero_AndNeverExceedsPathLength()
 	{

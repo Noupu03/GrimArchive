@@ -503,8 +503,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    긴급 보호는 TryMoveThroughTrapsToProtect(보호 대상 ≤30% + 경로 우위 + 기록 30%/미기록 60%). ⑤ 02-10 4번: 피해 추정 불가 노출 경로 제외(CombatScoreMath.IsExposureRouteAllowed).
    ⑥ GameSession.TriggerTrapIfStepped는 대응 중인 함정도 면제 없이 발동. 상세·한계·플레이 확인 체크리스트는 행동경로목표결정_검증_2026-09-25.txt 03-13 [수정 완료] 참고.
    미구현(이월): v0.6 12-6 "해제 실패 → 함정 결과 적용 후 재판단"("함정 결과"의 정의가 문서에 없어 방향을 정할 수 없음), 조사 진행도의 Tactical 내부 중단 구멍
-   (FSMBehaviorTests의 KnownGap 테스트가 현행 동작을 고정), 도주·후퇴의 함정 통과(06 문서), 02-04 4번 FindPathBlockingEnemy의 휴면(경로가 다른 유닛 타일을 피해 blocker를 못 찾음 — 검증 문서
-   03-13 [수정 완료] 6번, 사용자 확인 대기). [점유된 목표 타일을 향한 경로 조회 실패(02-05 이동 한도·02-10 노출 경로 비교)는 2026-09-30에 수정 — AStarMovement.RunQuerySearch.]
+   (FSMBehaviorTests의 KnownGap 테스트가 현행 동작을 고정), 도주·후퇴의 함정 통과(06 문서).
+   [점유된 목표 타일을 향한 경로 조회 실패(02-05 이동 한도·02-10 노출 경로 비교), 02-04 4번 FindPathBlockingEnemy의 휴면, 보스 집중 중 "자신을 직접 위협하는 잡몹"이 20% 점수 게이트에 막혀
+   임시 대응이 안 되던 문제는 모두 2026-09-30에 수정 — AStarMovement.RunQuerySearch·BossPathBlockage·CombatFSMState.SelectTemporaryResponseTarget/ThreatResponseMath.]
 ❌ 10. 보고 중 사건과 전달 완료 (신규 — 05번 발견정보 전파와 함께 구현)
 🔶 11. 대상 상실과 공통 3초 대기 (기존 수색 로직 있음, 3초 표준화만 확인)
 🔶 12. 스킬 실행 중 목표 변화 (isCastingAttack 가드로 대부분 커버)
@@ -864,8 +865,15 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
     부담이 크지 않다고 판단 — 실측 필요하면 나중에). 상세는 검증문서 "02-04" 항목 4번 참고. .sln
     부재로 dotnet build 미확인, Unity 실제 플레이 검증(+성능 체감)도 아직 — 다음 세션 우선순위.
     [2026-09-30 재발견 — 휴면 코드] 이 기능은 두 겹으로 동작한 적이 없다: (1) 보스 타일 점유 때문에 TryGetPathTiles가 항상 실패(2026-09-30에 조회 전용 점유 예외로 수정, 검증 03-13
-    [수정 완료] 6번), (2) 그래도 남는 문제 — 경로가 다른 유닛 타일을 피해 가므로 경로 위에 적이 서 있는 일이 없어 blocker를 못 찾는다. 켜려면 유닛을 무시한 구조 경로 + "이동이 필요할 때만"
-    (보스가 공격 거리 밖) 조건이 필요하다(안 그러면 사거리 안의 원거리 유닛도 사이의 잡몹에 끌려간다). 미수정, 사용자 확인 대기.
+    [수정 완료] 6번), (2) 그래도 남는 문제 — 경로가 다른 유닛 타일을 피해 가므로 경로 위에 적이 서 있는 일이 없어 blocker를 못 찾는다.
+    [2026-09-30 재수정 완료 — 사용자 확인 "고쳐야 할듯"] 신규 Assets/Script/Unit/Combat/BossPathBlockage.cs로 재설계: 이동이 필요하고(보스 점유 영역이 공격 거리 밖) 다른 유닛의 점유를
+    피해서는 공격 거리 안 어느 타일에도 못 닿을 때(AStarMovement.CanReachWithinRange), 적 진영만 무시한 구조 경로(TryGetPathTiles ignoreEnemyUnits)에서 공격 위치 전에 처음 만나는 확인된 적이
+    blocker다. SelectAttackTarget은 blocker를 찾으면 AttackTarget을 그 적으로 직접 바꾼다(20% 점수·이동 한도 게이트 없음 — 임시 대응) — BossFocusTarget은 유지돼 blocker가 죽으면 보스로 복귀한다.
+    0.5초 주기 재계산(CombatTargetingState.PathBlocker). 다타일 유닛은 점유 영역 기준 거리(Unit.FootprintSize·MovementMath.DistanceToFootprint). 상세는 검증문서 02-04 항목 4번.
+    [2026-09-30 통합 — 사용자 확인 "어 바꾸자"] "자신을 직접 위협하는 잡몹"도 같은 임시 대응 경로로 처리한다: CombatFSMState.SelectTemporaryResponseTarget이 보스 집중 중에만 ① 나를 직접
+    공격 중인 보스 외의 후보(IsAttackingMe)가 있으면 그중 점수가 가장 높은 것(ThreatResponseMath.SelectWithHysteresis — 이미 그 집합 안의 대상을 상대 중이면 같은 우선순위 안의 20% 기준으로
+    유지) ② 없으면 경로를 막는 적을 20%·이동 한도 게이트 없이 AttackTarget으로 잡는다(BossFocusTarget 유지 — 사유가 사라지면 20% 재요구 없이 보스 복귀). 아군만 공격받는 상황은 사유가 아니다
+    (문서 4장 213~216·222줄). 보스 집중이 아닌 일반 흐름은 그대로.
 20. [발견+수정 완료, 2026-09-28 — 검증문서 02-05] CombatFSMState.SelectAttackTarget의 대상 교체
     게이트가 "새 대상까지 남은 이동"을 체비셰프 거리로 근사하던 것(코드 자신의 옛 주석이 "실제 경로
     계산까지 연동하려면 경로탐색 결과가 필요해 범위 밖"이라고 자백한 의도적 스텁)을 실제

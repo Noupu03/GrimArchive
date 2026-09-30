@@ -108,6 +108,11 @@ public abstract class Unit : ScriptableObject {
 
 	public UnitType unitType;
 
+	// 점유 크기(정수 타일) — position이 좌하단이다(AStarMovement.IsTileWalkable의 풋프린트 순회와 같은 관례). unitType이 없으면 1×1.
+	public Vector2Int FootprintSize => unitType == null
+		? Vector2Int.one
+		: new Vector2Int(Mathf.Max(1, (int)unitType.footprint.x), Mathf.Max(1, (int)unitType.footprint.y));
+
 	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ───
 	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쌓는 특수 유닛 여부
 	public bool isInterestTarget = false;  // 6-2장/18장 IsInterestTarget 플래그(이해도 상승에 따른 흥미도 감소 미적용)
