@@ -16,6 +16,10 @@ public partial class Party
 	// 집결 시작 시각 / 집결 구역 반경(배정된 개별 자리 중 집결지에서 가장 먼 것) — 좁은 길에서 자리를 못 잡은 유닛을 "구역 안이면 그 자리에서 집결 처리"하는 기준이다.
 	public float RallyStartTime;
 	public int RallyZoneRadius = 1;
+	// 교전·경계 중 집결 시간 제한 정지(PartyEngagement) — 마지막 시계 갱신 시각과 이번 집결에서 멈춰 준 누적 시간, 정지 시작 로그를 남겼는지.
+	private float _lastRallyClockTime;
+	private float _rallyPausedSeconds;
+	private bool _rallyPauseLogged;
 
 	public bool IsRallyPointOnFloor(int floor) => IsRallyActive && RallyPoint.HasValue && RallyFloor == floor;
 	// 05번 1장: 집결이 막 완료돼 "다음 방으로 함께 이동"을 시작해도 되는 상태 — HumanWaveManager가
@@ -30,7 +34,7 @@ public partial class Party
 
 	// 집결 뒤 "문 앞 진형 → 문 파괴 → 순차 입장" 진행 계획 — PartyAdvanceSystem이 만들고 매 틱 전이시키며, 끝나면 null이다. 있는 동안은 새 집결을 시작하지 않는다.
 	public PartyAdvancePlan AdvancePlan;
-	// 지금 방에서 방 이동 계획을 시작한 횟수(PartyAdvanceSystem.Begin이 올린다) — 2회째부터는 진형 없이 직행 돌파한다. 리더가 이 방을 떠나면(TickAdvanceState) 0으로 돌아간다.
+	// 지금 방에서 방 이동 계획을 시작한 횟수(PartyAdvanceSystem.Begin이 올린다) — 비정상 중단의 무한 재시작을 막는 안전한도(PartyAdvanceSystem.MaxAttempts)에 쓴다. 리더가 이 방을 떠나면(TickAdvanceState) 0으로 돌아간다.
 	public int AdvanceAttempts;
 	// 방 이동 시도를 한도까지 소진해 포기한 뒤 재집결을 미루는 시각(Time.time 기준) — GiveUpAdvance가 정하고 TryStartRally가 읽는다.
 	public float RallyBlockedUntil;
@@ -158,6 +162,9 @@ public partial class Party
 		RallyFloor = Leader.currentFloor;
 		IsRallyActive = true;
 		RallyStartTime = Time.time;
+		_lastRallyClockTime = Time.time;
+		_rallyPausedSeconds = 0f;
+		_rallyPauseLogged = false;
 		RallyZoneRadius = 1;
 		LogHelper.Log(LogHelper.GAME, $"{LogTag} 집결 시작 — 리더 {Leader.name}, 사유: {(questJustAchieved ? "임무 수량 달성" : "방 활동 종료")}, 집결지 {RallyPoint.Value} ({RallyFloor}층)");
 
@@ -372,6 +379,7 @@ public partial class Party
 	// 개별 재선택·구역 내 정착으로도 풀리지 않는 정체(전투가 안 끝나는 유닛 등)가 파티 전체를 영구히 붙잡지 않게 하는 마지막 안전장치다.
 	private void ParkStragglersAfterTimeLimit()
 	{
+		ApplyRallyEngagementPause();
 		float limit = 2f * (AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f);
 		if (Time.time - RallyStartTime < limit) return;
 		System.Text.StringBuilder names = null;
@@ -385,6 +393,46 @@ public partial class Party
 			(names ??= new System.Text.StringBuilder()).Append(PartyDiagnostics.DescribeMember(m, wait.WaitPosition)).Append(' ');
 		}
 		if (names != null) LogRally($"집결 시작 {limit:F0}초 경과 — 자리에 못 선 [{names.ToString().TrimEnd()}]을(를) 현재 위치에서 집결 처리합니다");
+	}
+
+	// 집결 중 교전·경계가 있으면 그 경과 시간만큼 집결 시작 시각을 뒤로 밀어 60초 상한에 세지 않는다(03번 13항: 전투 후 10초 경계를 마친 뒤 기존 집결을 재개) — 집결 대기 중인 파티원 중 한 명이라도 교전·경계일 때.
+	// 상한은 PartyEngagement.PauseCap — 풀리지 않는 교전이 집결을 영구히 붙잡지 않게 한다. CheckRallyComplete가 1초 주기와 도착 시점에 불러 주므로 dt는 마지막 호출 이후의 경과다.
+	private void ApplyRallyEngagementPause()
+	{
+		float now = Time.time;
+		float dt = now - _lastRallyClockTime;
+		_lastRallyClockTime = now;
+		if (dt <= 0f) return;
+
+		bool engaged = false;
+		foreach (var m in Members)
+		{
+			var wait = m?.currentWait;
+			if (m == null || m.hp <= 0 || wait == null || wait.Reason != WaitReason.AwaitingPartyAtRallyPoint) continue;
+			if (PartyEngagement.IsEngaged(m)) { engaged = true; break; }
+		}
+		if (!engaged) return;
+
+		float cap = PartyEngagement.PauseCap;
+		float credit = PartyFormationMath.PauseCredit(dt, _rallyPausedSeconds, cap);
+		if (credit <= 0f)
+		{
+			if (_rallyPauseLogged)
+			{
+				_rallyPauseLogged = false;
+				LogRally($"교전·경계 정지 시간이 상한({cap:F0}초)에 닿아 집결 시간 제한을 다시 셉니다");
+			}
+			return;
+		}
+
+		bool first = _rallyPausedSeconds <= 0f;
+		_rallyPausedSeconds += credit;
+		RallyStartTime += credit;
+		if (first)
+		{
+			_rallyPauseLogged = true;
+			LogRally($"집결 중 교전·경계가 있어 시간 제한을 멈춥니다(상한 {cap:F0}초)");
+		}
 	}
 
 	// 03번 문서 3번 항목: 리더가 코어를 직접 확인했거나(discoverer == Leader) 보고받았을 때

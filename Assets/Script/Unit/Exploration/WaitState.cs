@@ -41,6 +41,8 @@ public class WaitState
 	public Vector2Int? DoorPosition;
 	// AdvancingToNextRoom 전용 — 길이 막히기 시작한 시각(음수 = 막히지 않음). 오래 막힌 채면 안전장치로 명령을 푼다.
 	public float BlockedSince = -1f;
+	// 집결·진형·돌파 이동(SlotSeek.Step)이 마지막으로 돈 시각 — 간격이 크게 벌어지면(교전·경계·함정 대응으로 대기 로직이 안 돈 시간) 막힘 시계를 다시 시작한다.
+	public float LastStepTime = -1f;
 	// AwaitingPartyAtRallyPoint 전용 — WaitPosition이 속한 층(Vector2Int라 층 정보가 없다). 유닛이 다른 층에 있으면 그 좌표로 걷지 않고 대기를 접는다.
 	public int WaitFloor = -1;
 	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 대신 "리더 위치"를 매 틱

@@ -17,11 +17,11 @@ public class PartyAdvancePlan
 	public Vector2Int[] FarTiles;
 	public Room FromRoom;
 	public Room ToRoom;
-	// 진형 대기를 건너뛰고 곧바로 돌파로 시작한 시도(재시도) — 진형 정체와 무관하게 전원이 공격 자리로 간다.
-	public bool Direct;
 
 	// ── 진형·입장 ──
 	public readonly Dictionary<Human, int> Ranks = new Dictionary<Human, int>();
+	// 입장 해제 순서(04번 8장 좁은 통로: 전방 근접 0 → 근접 지원 1 → 원거리 공격 2 → 원거리 지원 3, 리더도 자기 역할) — 자리 기하용 Ranks(3랭크)와 따로 둔다.
+	public readonly Dictionary<Human, int> EntryTiers = new Dictionary<Human, int>();
 	// 진형 자리(입장 전·돌파 중 자리가 없는 유닛의 대기 위치) — 입장 단계에서 아직 출발 허가가 없는 랭크도 여기서 기다린다.
 	public readonly Dictionary<Human, Vector2Int> FormSlots = new Dictionary<Human, Vector2Int>();
 	// 진형/입장 구역 — 자리 배정에 실제로 쓴 범위(중심 + 가장 먼 자리까지의 반경). 좁아서 자기 자리에 못 들어간 유닛이 구역 안이면 그 자리에서 준비 완료로 인정하는 기준이다.
@@ -46,10 +46,18 @@ public class PartyAdvancePlan
 	public int LastLoggedRow = -1;
 	public int LastLoggedCount = -1;
 
+	// 돌파 실패(30초 무진행) 뒤 진형으로 물러났다 다시 시도한 횟수, 그리고 다음 돌파를 시작할 수 있는 시각(진형 복귀 후 쿨다운).
+	public int BreachCycles;
+	public float RetryNotBefore;
+
 	// ── 시계 ──
 	public float PhaseStartTime;
 	public float NextTickTime;
 	public float NextDiagTime;
+	// 교전·경계 중 시간 제한 정지(PartyEngagement) — 마지막 시계 갱신 시각, 이번 단계에서 멈춰 준 누적 시간, 정지 시작 로그를 이미 남겼는지.
+	public float LastClockTime;
+	public float PausedSeconds;
+	public bool PauseLogged;
 
 	public Vector2Int[] RowTiles(int row) => row == 0 ? NearTiles : FarTiles;
 

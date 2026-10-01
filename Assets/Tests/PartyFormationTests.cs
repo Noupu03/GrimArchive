@@ -380,5 +380,49 @@ public class PartyFormationTests
 		// 근접이 없는 파티(0랭크 없음)는 리더(1랭크)가 바로 출발한다.
 		Assert.IsTrue(PartyFormationMath.CanReleaseRank(1, new[] { 1, 2 }, new[] { false, false }));
 	}
+
+	[Test]
+	public void CanReleaseRank_FourRoleTiers_LeaderFollowsOwnRole_NotAlwaysFront()
+	{
+		// 입장은 04번 8장 4단계(전방 근접 0 → 근접 지원 1 → 원거리 공격 2 → 원거리 지원 3)다. 사제인 리더(3단계)는 앞 단계가 모두 문을 지난 뒤에야 출발한다.
+		var tiers = new[] { 0, 1, 2, 3 };
+		var passed = new[] { true, true, false, false };
+		Assert.IsTrue(PartyFormationMath.CanReleaseRank(2, tiers, passed), "근접 전방·근접 지원이 지났으니 원거리 공격 단계는 출발");
+		Assert.IsFalse(PartyFormationMath.CanReleaseRank(3, tiers, passed), "원거리 공격(2단계)이 아직 지나지 않았으니 3단계는 대기");
+		passed[2] = true;
+		Assert.IsTrue(PartyFormationMath.CanReleaseRank(3, tiers, passed));
+	}
+
+	[Test]
+	public void CanReleaseRank_SameTierMembers_AreReleasedTogether()
+	{
+		// 같은 단계(근접 전사·탱커 여럿)는 서로를 기다리지 않는다 — 단계 안의 HP·무작위 순서는 실제 문턱 통과 중재(OccupancySystem)가 맡는다.
+		var tiers = new[] { 0, 0, 0, 2 };
+		var passed = new[] { false, false, false, false };
+		Assert.IsTrue(PartyFormationMath.CanReleaseRank(0, tiers, passed));
+		Assert.IsFalse(PartyFormationMath.CanReleaseRank(2, tiers, passed));
+	}
+
+	// ── 교전·경계 중 시간 제한 정지 ───────────────────────────────────────
+
+	[Test]
+	public void PauseCredit_CreditsElapsedTime_WhileUnderTheCap()
+	{
+		Assert.AreEqual(0.25f, PartyFormationMath.PauseCredit(0.25f, 10f, 120f), 0.0001f);
+	}
+
+	[Test]
+	public void PauseCredit_ClampsToTheRemainingCap()
+	{
+		// 상한 120초 중 119.9초를 이미 멈췄다면 이번 0.25초 중 0.1초만 인정한다.
+		Assert.AreEqual(0.1f, PartyFormationMath.PauseCredit(0.25f, 119.9f, 120f), 0.0001f);
+	}
+
+	[Test]
+	public void PauseCredit_IsZeroOnceTheCapIsUsedUp_SoTheTimerRunsAgain()
+	{
+		Assert.AreEqual(0f, PartyFormationMath.PauseCredit(0.25f, 120f, 120f), 0.0001f);
+		Assert.AreEqual(0f, PartyFormationMath.PauseCredit(0.25f, 130f, 120f), 0.0001f);
+	}
 }
 #endif

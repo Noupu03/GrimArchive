@@ -7,9 +7,18 @@ public enum SeekStatus { Arrived, Progressing, Waiting, Stuck, GaveUp }
 // "자리로 이동 → 진행 판정 → 정체 카운트 → 안전장치" 골격 — 집결 자리·진형/입장 자리·돌파 공격 자리 이동이 공유한다. 상태만 돌려주고 반응(재선택·포기·정착)은 호출부가 정한다.
 public static class SlotSeek
 {
+	// 막힘 시계를 새로 시작하는 Step 간격의 하한(초) — 느린 유닛은 행동 주기(1/이동속도)의 3배까지 늘어난다.
+	private const float StepGapResetSeconds = 3f;
+
 	// useHold: 한 걸음도 못 움직였을 때 doorApproachHoldRetrySeconds 동안 제자리에서 기다렸다 재시도(진형·돌파). arrivalRadius: 도착으로 보는 거리(진형 1칸, 공격 자리는 정확히 0).
 	public static SeekStatus Step(Human human, WaitState wait, Vector2Int slot, bool useHold, int arrivalRadius = PartyFormationMath.ArrivalRadius)
 	{
+		// 이전 Step과 간격이 크게 벌어졌다 = 그동안 교전·경계·함정 대응·점유 대기로 이 대기 로직이 안 돌았다 — 중단된 시간을 막힘 시계(30초 개별 포기)에 세지 않도록 새로 시작한다(03번 13항 재개 규칙).
+		float now = Time.time;
+		float resetGap = Mathf.Max(StepGapResetSeconds, 3f * OccupancyMath.StepSeconds(human.AppliedWalkSpeed));
+		if (wait.LastStepTime >= 0f && now - wait.LastStepTime > resetGap) ResetBlocked(human, wait);
+		wait.LastStepTime = now;
+
 		if (AIMovementHelper.ChebyshevDistance(human.position, slot) <= arrivalRadius)
 		{
 			wait.AtSlot = true;
@@ -19,7 +28,6 @@ public static class SlotSeek
 
 		wait.AtSlot = false;
 		var cfg = AIConfigLoader.Behavior;
-		float now = Time.time;
 		if (useHold && now < wait.NextDoorScanTime) return SeekStatus.Waiting; // 막혀 보류 중 — 다음 재시도까지 제자리
 
 		int distBefore = AIMovementHelper.ChebyshevDistance(human.position, slot);

@@ -10,7 +10,8 @@ using Haare.Util.Logger;
 public static class PartyAdvanceSystem
 {
 	private const float TickIntervalSeconds = 0.25f;
-	// 한 번의 방 이동에서 진형 계획을 시작할 수 있는 최대 횟수 — 1회째는 일반(진형 → 돌파 → 입장), 2회째는 진형 없이 곧바로 돌파(직행). 그래도 중단되면 Party.GiveUpAdvance가 잠금을 풀고 쿨다운 뒤 처음부터 다시 한다.
+	// 한 번의 방 이동에서 계획을 시작할 수 있는 최대 횟수(안전한도) — 돌파 실패는 계획 안에서 진형 복귀 후 재돌파(RegroupAfterStall)로 이어 가므로 이 횟수를 쓰지 않는다.
+	// "진행할 파티원이 없음" 같은 비정상 중단이 Begin ↔ Abort로 무한 재시작되지 않게 하는 용도이며, 한도에 닿으면 Party.GiveUpAdvance가 잠금을 풀고 쿨다운 뒤 처음부터 다시 한다.
 	public const int MaxAttempts = 2;
 	// 단계가 이 시간(초) 넘게 끝나지 않으면 미완료 파티원의 상태를 15초마다 로그로 남긴다(원인 진단용, 동작 불변).
 	private const float DiagnosticSeconds = 15f;
@@ -28,7 +29,7 @@ public static class PartyAdvanceSystem
 		if (leader == null || session?.cmap == null || session.roomGrid == null) return false;
 		if (!TryBuildGate(session, leader.currentRoom, doorPos, doorFloor, out var near, out var far, out var forward)) return false;
 
-		var members = CollectMembers(party, doorFloor, excluded);
+		var members = CollectMembers(party, leader, doorFloor, excluded);
 		if (members.Count == 0) return false;
 
 		var plan = new PartyAdvancePlan
@@ -42,27 +43,28 @@ public static class PartyAdvanceSystem
 			FromRoom = leader.currentRoom,
 			ToRoom = RoomAt(session, far[(far.Length - 1) / 2], doorFloor),
 			PhaseStartTime = Time.time,
-			Direct = party.AdvanceAttempts >= 1,
+			LastClockTime = Time.time,
 		};
 
-		if (plan.Direct) AssignDirect(party, plan, members, session);
-		else AssignFormation(party, plan, members, session);
+		AssignFormation(party, plan, members, session);
 		party.AdvancePlan = plan;
 		party.AdvanceAttempts++;
 
 		string state = PartyBreachCommand.BlockedRowCount(plan, session, leader) == 0 ? "문이 이미 열려 있음" : $"막힌 문 {PartyBreachCommand.BlockedRowCount(plan, session, leader)}/2";
-		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 방 이동 지시({party.AdvanceAttempts}/{MaxAttempts}회째{(plan.Direct ? ", 진형 없이 직행 돌파" : "")}) — 사유: 집결 완료, 목표 문 ({doorPos.x},{doorPos.y}), {state}, {PartyDiagnostics.RankSummary(plan)}");
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 방 이동 지시({party.AdvanceAttempts}/{MaxAttempts}회째) — 사유: 집결 완료, 목표 문 ({doorPos.x},{doorPos.y}), {state}, {PartyDiagnostics.RankSummary(plan)}");
 		return true;
 	}
 
 	// 계획에 참여할 파티원 — 같은 층의 생존자 중 수동 명령·다른 대기(코어 보고 등) 중이 아닌 유닛. 다음 문을 찾으며 리더를 따라다니던 추종(SearchingNextDoor)만 문이 알려진 지금 계획으로 바꾼다.
-	private static List<Human> CollectMembers(Party party, int doorFloor, ICollection<Human> excluded)
+	// 방 이동 지시도 집결 명령과 같은 전달 범위를 따른다(05번 4장 — 같은 방은 무조건, 다른 방은 일반 전파 조건). 못 받은 구성원은 개인 행동(진형 합류)으로 남는다.
+	private static List<Human> CollectMembers(Party party, Human leader, int doorFloor, ICollection<Human> excluded)
 	{
 		var members = new List<Human>();
 		foreach (var m in party.Members)
 		{
 			if (m == null || m.hp <= 0 || (excluded != null && excluded.Contains(m))) continue;
 			if (m.currentFloor != doorFloor) continue;
+			if (m != leader && m.currentRoom != leader.currentRoom && !PropagationSystem.CanPropagate(leader, m)) continue;
 			if (m.isManualMoveCommand && m.playerMoveTarget.HasValue) continue;
 			if (m.playerAttackTarget != null) continue;
 			if (m.currentWait != null && m.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
@@ -105,24 +107,10 @@ public static class PartyAdvanceSystem
 		plan.FormRadius = PartyFormationMath.ZoneRadius(plan.FormSlots.Values, frontAnchor);
 	}
 
-	// 직행 돌파(재시도) — 진형 대기 없이 전원이 제자리에서 곧바로 Breaching으로 시작하고, 리더의 공격 자리 지시를 받는다(PartyBreachCommand). 진형 정체와 무관하게 문에 달라붙게 하는 것이 목적이다.
-	private static void AssignDirect(Party party, PartyAdvancePlan plan, List<Human> members, GameSession session)
-	{
-		Vector2Int center = plan.NearTiles[(plan.NearTiles.Length - 1) / 2];
-		plan.FormCenter = center;
-		foreach (var m in members) EnrollMember(plan, m, RankOf(session, party, m), m.position, WaitReason.BreachingDoor);
-		plan.FormRadius = PartyFormationMath.ZoneRadius(plan.FormSlots.Values, center);
-
-		float now = Time.time;
-		plan.Phase = AdvancePhase.Breaching;
-		plan.PhaseStartTime = now;
-		plan.LastProgressTime = now;
-		plan.AssignDirty = true;
-	}
-
 	private static void EnrollMember(PartyAdvancePlan plan, Human member, int rank, Vector2Int slot, WaitReason reason)
 	{
 		plan.Ranks[member] = rank;
+		plan.EntryTiers[member] = OccupancyMath.EntryRank(CombatScoreMath.ResolveCombatRole(member.unitType));
 		plan.FormSlots[member] = slot;
 		member.currentWait = new WaitState { Reason = reason, WaitPosition = slot, WaitFloor = plan.Floor, DoorPosition = plan.DoorPos, Rank = rank };
 		member.waitStuckTurns = 0;
@@ -199,6 +187,7 @@ public static class PartyAdvanceSystem
 		PruneMembers(plan);
 		if (plan.Ranks.Count == 0) { Abort(party, "진행할 파티원이 없음"); return; }
 
+		ApplyEngagementPause(party, plan, now);
 		if (plan.Phase != AdvancePhase.Breaching) EnforcePhaseLimit(party, plan, now);
 
 		switch (plan.Phase)
@@ -206,6 +195,39 @@ public static class PartyAdvanceSystem
 			case AdvancePhase.FormingUp: TickFormingUp(party, plan, leader, session, now); break;
 			case AdvancePhase.Breaching: TickBreaching(party, plan, leader, session, now); break;
 			case AdvancePhase.Entering: TickEntering(party, plan); break;
+		}
+	}
+
+	// 교전·경계 중 시간 제한 정지(03번 13항·05번 2장: 전투 후 10초 경계를 마친 뒤 기존 집결·이동을 재개) — 계획 구성원 중 한 명이라도 교전·경계면 그 경과 시간만큼 단계·진행·재시도 시계를 뒤로 밀어
+	// 타이머가 흐르지 않은 것으로 만든다. 상한(PartyEngagement.PauseCap)에 닿으면 더 밀지 않아 풀리지 않는 교전이 계획을 영구히 얼리지 않는다. 단계가 바뀌거나 재돌파 사이클이 시작되면 누적을 비운다.
+	private static void ApplyEngagementPause(Party party, PartyAdvancePlan plan, float now)
+	{
+		float dt = now - plan.LastClockTime;
+		plan.LastClockTime = now;
+		if (dt <= 0f || !PartyEngagement.AnyEngaged(plan.Ranks.Keys)) return;
+
+		float cap = PartyEngagement.PauseCap;
+		float credit = PartyFormationMath.PauseCredit(dt, plan.PausedSeconds, cap);
+		if (credit <= 0f)
+		{
+			if (plan.PauseLogged)
+			{
+				plan.PauseLogged = false; // 상한 도달 로그는 한 번만 — PausedSeconds가 상한에 있어 단계 전환 전에는 다시 멈추지 않는다
+				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} {plan.Phase} 단계의 교전·경계 정지 시간이 상한({cap:F0}초)에 닿아 시간 제한을 다시 셉니다");
+			}
+			return;
+		}
+
+		bool first = plan.PausedSeconds <= 0f;
+		plan.PausedSeconds += credit;
+		plan.PhaseStartTime += credit;
+		plan.LastProgressTime += credit;
+		plan.RetryNotBefore += credit;
+		plan.NextDiagTime += credit;
+		if (first)
+		{
+			plan.PauseLogged = true;
+			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} {plan.Phase} 단계 중 교전·경계가 있어 시간 제한을 멈춥니다(상한 {cap:F0}초)");
 		}
 	}
 
@@ -235,6 +257,7 @@ public static class PartyAdvanceSystem
 		foreach (var m in gone)
 		{
 			plan.Ranks.Remove(m);
+			plan.EntryTiers.Remove(m);
 			plan.FormSlots.Remove(m);
 			plan.AttackSlots.Remove(m);
 		}
@@ -254,12 +277,16 @@ public static class PartyAdvanceSystem
 			return;
 		}
 
+		if (now < plan.RetryNotBefore) return; // 돌파 실패 뒤 진형으로 물러난 쿨다운 — 진형을 유지한 채 기다린다
+
 		plan.Phase = AdvancePhase.Breaching;
 		plan.PhaseStartTime = now;
 		plan.LastProgressTime = now;
+		plan.PausedSeconds = 0f;
+		plan.PauseLogged = false;
 		plan.AssignDirty = true;
 		foreach (var m in plan.Ranks.Keys) ChangeReason(m, WaitReason.BreachingDoor);
-		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 앞 진형 완료({plan.Ranks.Count}명) — 리더 {leader.name}의 지시로 문 파괴 시작");
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 앞 진형 완료({plan.Ranks.Count}명) — 리더 {leader.name}의 지시로 문 파괴 {(plan.BreachCycles > 0 ? $"재시도({plan.BreachCycles + 1}번째)" : "시작")}");
 	}
 
 	private static void TickBreaching(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
@@ -271,16 +298,42 @@ public static class PartyAdvanceSystem
 				BeginEntering(party, plan, leader, session, now);
 				break;
 			case PartyBreachCommand.Outcome.Stalled:
-				float limit = AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f;
-				Abort(party, $"문 파괴 진행이 {limit:F0}초 넘게 없음(접근 불가 추정)");
+				RegroupAfterStall(party, plan, now);
 				break;
 		}
+	}
+
+	// 문 파괴 진행이 30초 넘게 없을 때(접근 불가 추정) — 계획을 풀지 않고 전원이 문 앞 진형 자리로 물러나 쿨다운 뒤 같은 계획으로 다시 돌파한다(05번 1장 71·73줄: 집결 후에는 흩어지지 않고 진형을 유지).
+	// 못 나아갈 때의 계속/후퇴 판단은 후속 리더·후퇴 문서 몫이라, 그 전까지는 진형을 유지한 채 재시도를 반복한다. 매 사이클 로그가 남는다.
+	internal static void RegroupAfterStall(Party party, PartyAdvancePlan plan, float now)
+	{
+		float cooldown = AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f;
+		plan.BreachCycles++;
+		plan.Phase = AdvancePhase.FormingUp;
+		plan.PhaseStartTime = now;
+		plan.RetryNotBefore = now + cooldown;
+		plan.PausedSeconds = 0f;
+		plan.PauseLogged = false;
+		plan.BreachRow = -1;
+		plan.AssignDirty = false;
+		plan.LastLoggedRow = -1;
+		plan.LastLoggedCount = -1;
+		plan.AttackSlots.Clear();
+
+		foreach (var m in plan.Ranks.Keys)
+		{
+			if (m.currentAttackObjectTarget.HasValue && IsPlanDoorTile(plan, m.currentAttackObjectTarget.Value)) m.ClearAttackObjectTarget();
+			ChangeReason(m, WaitReason.FormingUpAtDoor);
+		}
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 파괴 {plan.BreachCycles}번째 시도 실패(진행 없음) — 진형으로 물러나 {cooldown:F0}초 뒤 다시 시도");
 	}
 
 	private static void BeginEntering(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
 	{
 		plan.Phase = AdvancePhase.Entering;
 		plan.PhaseStartTime = now;
+		plan.PausedSeconds = 0f;
+		plan.PauseLogged = false;
 		plan.AttackSlots.Clear();
 		foreach (var m in plan.Ranks.Keys)
 		{
@@ -321,7 +374,7 @@ public static class PartyAdvanceSystem
 			}
 		}
 		plan.EntryRadius = PartyFormationMath.ZoneRadius(entrySlots, farAnchor);
-		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 랭크 순(근접 → 리더 → 원거리) 입장을 지시");
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할) 입장을 지시");
 	}
 
 	// 진입 판정: 문 먼 쪽 줄을 지난 유닛은 그 즉시 개인 행동으로 푼다 — 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않는다(사용자 확정 2026-10-01 "다음 방 진입 판정 후 바로 개인 행동").
@@ -341,13 +394,14 @@ public static class PartyAdvanceSystem
 	{
 		foreach (var m in plan.Ranks.Keys) ReleaseIfEntered(m, plan);
 
-		var ranks = new List<int>(plan.Ranks.Count);
+		// 해제 순서는 04번 8장 4단계 역할(plan.EntryTiers)이다 — 리더도 자기 역할 단계를 따르며, 같은 단계 안의 HP 비율·무작위 순서는 실제 문턱 통과에서 OccupancySystem이 같은 키로 중재한다.
+		var tiers = new List<int>(plan.Ranks.Count);
 		var passed = new List<bool>(plan.Ranks.Count);
 		foreach (var kv in plan.Ranks)
 		{
 			var w = kv.Key.currentWait;
-			// 이미 진입해 풀렸거나, 입장에 참여하지 않는 유닛(다른 대기로 덮임·자리에 못 가 포기)은 뒤 랭크를 붙잡지 않는다.
-			ranks.Add(kv.Value);
+			// 이미 진입해 풀렸거나, 입장에 참여하지 않는 유닛(다른 대기로 덮임·자리에 못 가 포기)은 뒤 단계를 붙잡지 않는다.
+			tiers.Add(plan.EntryTiers[kv.Key]);
 			passed.Add(w == null || !IsPlanWait(w.Reason) || w.IsParked);
 		}
 
@@ -357,7 +411,7 @@ public static class PartyAdvanceSystem
 			var m = kv.Key;
 			var w = m.currentWait;
 			if (w == null || !IsPlanWait(w.Reason) || w.IsParked) continue;
-			if (!w.Released && PartyFormationMath.CanReleaseRank(kv.Value, ranks, passed))
+			if (!w.Released && PartyFormationMath.CanReleaseRank(plan.EntryTiers[m], tiers, passed))
 			{
 				w.Released = true;
 				w.AtSlot = false;
@@ -372,9 +426,10 @@ public static class PartyAdvanceSystem
 
 	// ── 종료 ─────────────────────────────────────────────────────────────────────────────
 
-	// 계획을 중단한다. retry=true(기본)면 파티가 멈추지 않게 이어 간다 — 시도가 남았으면 ReadyToAdvance를 되살려 HumanWaveManager가 다시 지시하게 하고(다음은 진형 없이 직행 돌파),
-	// 한도(MaxAttempts)에 닿았으면 잠금을 풀고 쿨다운 뒤 처음부터 다시 하게 한다(Party.GiveUpAdvance — 이동 지시는 한 번 소비되고 AdvanceFromRoom은 리더가 방을 떠나야만 풀려, 그냥 두면 영구 정지한다:
-	// 플레이 로그 2026-10-01 101~107줄). 리더 없음·퇴각 전환처럼 이동을 이어 갈 수 없는 중단은 retry=false.
+	// 계획을 비정상 중단한다(진행할 파티원 없음 등 — 돌파 실패는 RegroupAfterStall이 계획을 유지한 채 처리). retry=true(기본)면 파티가 멈추지 않게 이어 간다 —
+	// 시도가 남았으면 ReadyToAdvance를 되살려 HumanWaveManager가 다시 지시하게 하고, 한도(MaxAttempts)에 닿았으면 잠금을 풀고 쿨다운 뒤 처음부터 다시 하게 한다
+	// (Party.GiveUpAdvance — 이동 지시는 한 번 소비되고 AdvanceFromRoom은 리더가 방을 떠나야만 풀려, 그냥 두면 영구 정지한다: 플레이 로그 2026-10-01 101~107줄).
+	// 리더 없음·퇴각 전환처럼 이동을 이어 갈 수 없는 중단은 retry=false.
 	public static void Abort(Party party, string reason, bool retry = true)
 	{
 		var plan = party?.AdvancePlan;
@@ -386,7 +441,7 @@ public static class PartyAdvanceSystem
 			if (party.AdvanceAttempts < MaxAttempts)
 			{
 				party.ReadyToAdvance = true;
-				note = $" — 재시도({party.AdvanceAttempts}/{MaxAttempts}회 시도함, 다음은 진형 없이 직행 돌파)";
+				note = $" — 재시도({party.AdvanceAttempts}/{MaxAttempts}회 시도함)";
 			}
 			else
 			{

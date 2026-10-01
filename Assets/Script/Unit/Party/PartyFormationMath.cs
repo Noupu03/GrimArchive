@@ -174,7 +174,11 @@ public static class PartyFormationMath
 	public static bool HasPassedGate(Vector2Int position, Vector2Int farTile, Vector2Int forward)
 		=> (position.x - farTile.x) * forward.x + (position.y - farTile.y) * forward.y >= 1;
 
-	// 랭크 k는 더 앞선(작은) 랭크의 모든 구성원이 문을 지난 뒤에 출발한다.
+	// 교전·경계로 시간 제한을 멈춰 줄 때 이번에 인정할 시간 — 아직 쓰지 않은 상한(cap − 이미 멈춘 시간) 안에서 경과 dt만큼. 상한에 닿으면 0이라 시간이 다시 흐른다(풀리지 않는 교전이 계획을 영구히 얼리지 않게).
+	public static float PauseCredit(float dt, float alreadyPaused, float cap)
+		=> System.Math.Max(0f, System.Math.Min(dt, cap - alreadyPaused));
+
+	// 랭크 k는 더 앞선(작은) 랭크의 모든 구성원이 문을 지난 뒤에 출발한다. 입장에서는 4단계 역할 순서(OccupancyMath.EntryRank)를 이 "랭크"로 넘긴다.
 	public static bool CanReleaseRank(int rank, IList<int> memberRanks, IList<bool> passed)
 	{
 		for (int i = 0; i < memberRanks.Count; i++)
