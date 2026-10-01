@@ -858,7 +858,7 @@ public class TacticalFSMState : IFSMState
 
 			// 집결지 근처 개별 자리로 이동·대기 — 도착해도 대기를 유지하고 전원이 모이면 Party.CheckRallyComplete가 한꺼번에 푼다(rallyGatherNearbyEnabled).
 			if (AIConfigLoader.Behavior?.rallyGatherNearbyEnabled ?? true)
-				return PartyAdvanceSystem.StepRallyGather(human, wait);
+				return PartyAdvanceSteps.StepRallyGather(human, wait);
 
 			// 아래는 rallyGatherNearbyEnabled를 끈 예전 방식 — 전원이 집결지 하나로 향하고, 도착하거나 오래 막히면 스스로 대기를 푼다.
 			if (Vector2Int.Distance(human.position, wait.WaitPosition.Value) <= 1.5f)
@@ -921,7 +921,7 @@ public class TacticalFSMState : IFSMState
 		else if (PartyAdvanceSystem.IsPlanWait(wait.Reason))
 		{
 			// 집결 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem). 단계 전이는 파티 쪽 Tick이 하고, 여기서는 유닛 자기 몫(자리 이동·채널링·입장)만 수행한다.
-			if (PartyAdvanceSystem.StepMember(human, wait) == BTStatus.Success) return BTStatus.Success;
+			if (PartyAdvanceSteps.StepMember(human, wait) == BTStatus.Success) return BTStatus.Success;
 		}
 		else if (wait.Reason == WaitReason.ReportingCoreToLeader && wait.CorePosition.HasValue)
 		{

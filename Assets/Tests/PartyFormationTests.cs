@@ -4,7 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 집결 개선(2026-10-01 플레이 로그 분석): 집결 자리 점진 확장 / 문 앞 진형 기하 / 레인 배정 / 진입로 판정 / 입장 순서 — 전부 순수 함수(PartyFormationMath)라 세션 없이 EditMode에서 돈다.
+// 집결 개선(2026-10-01 플레이 로그 분석): 집결 자리 점진 확장 / 문 앞 진형 기하 / 레인 배정 / 문 파괴 행·공격 자리·배정 / 입장 순서 — 전부 순수 함수(PartyFormationMath)라 세션 없이 EditMode에서 돈다.
 // 0층 진형(DungeonEntranceSystem)이 쓰던 랭크·레인 규칙을 옮긴 것이므로 LaneOffset/SlotTarget은 0층 공식 그대로여야 한다.
 // ========================================================================
 
@@ -248,34 +248,7 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.IsAtSlot(new Vector2Int(5, 5), new Vector2Int(7, 5)));
 	}
 
-	// ── 게이트 레인·진입로 ────────────────────────────────────────────────
-
-	[Test]
-	public void TryFindOpenLane_NeedsBothRowsOpenInTheSameLane()
-	{
-		// 레인 0은 near만 열림, 레인 1은 far만 열림 → 한 레인이 통째로 열린 것이 아니므로 진입로 없음.
-		Assert.IsFalse(PartyFormationMath.TryFindOpenLane(new[] { false, true }, new[] { true, false }, out int none));
-		Assert.AreEqual(-1, none);
-		Assert.IsTrue(PartyFormationMath.TryFindOpenLane(new[] { true, false }, new[] { true, false }, out int lane));
-		Assert.AreEqual(1, lane);
-	}
-
-	[Test]
-	public void PickBreachLane_FewestBlockedFirst_ThenNearer_ThenLowerIndex()
-	{
-		// 레인 0: 막힘 2, 레인 1: 막힘 1(near만 열림) → 레인 1.
-		Assert.AreEqual(1, PartyFormationMath.PickBreachLane(new[] { true, false }, new[] { true, true }, new[] { 1, 5 }));
-		// 막힘 수 동률이면 가까운 레인.
-		Assert.AreEqual(1, PartyFormationMath.PickBreachLane(new[] { true, true }, new[] { true, true }, new[] { 4, 2 }));
-		// 거리도 같으면 작은 번호.
-		Assert.AreEqual(0, PartyFormationMath.PickBreachLane(new[] { true, true }, new[] { true, true }, new[] { 3, 3 }));
-	}
-
-	[Test]
-	public void PickBreachLane_ReturnsMinusOne_WhenAlreadyOpen()
-	{
-		Assert.AreEqual(-1, PartyFormationMath.PickBreachLane(new[] { false, true }, new[] { false, true }, new[] { 1, 1 }));
-	}
+	// ── 문 파괴: 행 선택·공격 자리·최근접 배정 ────────────────────────────
 
 	[Test]
 	public void NextBreachRow_NearFirst_ThenFar_ThenDone()
@@ -284,6 +257,91 @@ public class PartyFormationTests
 		Assert.AreEqual(0, PartyFormationMath.NextBreachRow(true, false));
 		Assert.AreEqual(1, PartyFormationMath.NextBreachRow(false, true)); // near는 이미 부서졌고 far만 남음
 		Assert.AreEqual(-1, PartyFormationMath.NextBreachRow(false, false));
+	}
+
+	// 수직 게이트: near 줄 y=47(x 6,7), far 줄 y=48. 방은 y<=46, 벽은 x<=5와 x>=8의 문 줄(y 47·48).
+	private static bool StandableInRoomFrontRow(Vector2Int t) => t.y <= 46 && t.x >= 3 && t.x <= 10;
+
+	[Test]
+	public void AttackSlotsAround_NearDoor_CollectsTheFrontRow_ExcludingDoorTilesAndWalls()
+	{
+		var near = new[] { new Vector2Int(6, 47), new Vector2Int(7, 47) };
+		// 문 줄 옆(5,47)·(8,47)은 벽이라 서 있을 수 없다.
+		bool Standable(Vector2Int t) => StandableInRoomFrontRow(t);
+
+		var slots = PartyFormationMath.AttackSlotsAround(near, Standable);
+
+		// 앞줄 y=46의 x=5..8 네 칸 — 문 칸·벽·문 너머는 빠진다.
+		Assert.AreEqual(new[] { new Vector2Int(5, 46), new Vector2Int(6, 46), new Vector2Int(7, 46), new Vector2Int(8, 46) }, slots.ToArray());
+	}
+
+	[Test]
+	public void AttackSlotsAround_FarDoorAfterNearIsOpen_OnlyTheTwoOpenedTiles()
+	{
+		var far = new[] { new Vector2Int(6, 48), new Vector2Int(7, 48) };
+		// near 줄 두 칸이 열렸다 — 그 줄의 양옆(5,47)·(8,47)은 벽. far 문 너머(y=49)는 아직 닿을 수 없다.
+		bool Standable(Vector2Int t) => (t.y == 47 && (t.x == 6 || t.x == 7));
+
+		var slots = PartyFormationMath.AttackSlotsAround(far, Standable);
+
+		Assert.AreEqual(new[] { new Vector2Int(6, 47), new Vector2Int(7, 47) }, slots.ToArray());
+	}
+
+	[Test]
+	public void AttackSlotsAround_NothingStandable_ReturnsEmpty_SoNobodyIsSentToTheDoor()
+	{
+		Assert.AreEqual(0, PartyFormationMath.AttackSlotsAround(new[] { new Vector2Int(6, 47) }, _ => false).Count);
+	}
+
+	[Test]
+	public void AssignNearest_EveryoneGetsAnAdjacentSlot_WhenSlotsRemain()
+	{
+		var slots = new[] { new Vector2Int(5, 46), new Vector2Int(6, 46), new Vector2Int(7, 46), new Vector2Int(8, 46) };
+		var positions = new[] { new Vector2Int(5, 40), new Vector2Int(8, 40), new Vector2Int(6, 41) };
+		var priorities = new[] { 0, 0, 0 };
+
+		int[] pick = PartyFormationMath.AssignNearest(positions, priorities, slots);
+
+		Assert.AreEqual(new[] { 0, 3, 1 }, pick);   // 각자 자기 바로 위 칸
+	}
+
+	[Test]
+	public void AssignNearest_MeleeFirst_RangedNext_LeaderLast_WhenSlotsAreScarce()
+	{
+		var slots = new[] { new Vector2Int(6, 46), new Vector2Int(7, 46) };
+		// 입력 순서: 리더(우선 2), 원거리(우선 1), 근접(우선 0), 근접(우선 0) — 자리는 둘뿐이라 근접 둘이 차지하고 나머지는 -1.
+		var positions = new[] { new Vector2Int(6, 45), new Vector2Int(6, 44), new Vector2Int(7, 43), new Vector2Int(6, 43) };
+		var priorities = new[] { 2, 1, 0, 0 };
+
+		int[] pick = PartyFormationMath.AssignNearest(positions, priorities, slots);
+
+		Assert.AreEqual(-1, pick[0]);
+		Assert.AreEqual(-1, pick[1]);
+		Assert.AreEqual(1, pick[2]);   // (7,43) → (7,46)
+		Assert.AreEqual(0, pick[3]);   // (6,43) → (6,46)
+	}
+
+	[Test]
+	public void AssignNearest_TiesGoToTheLowerSlotNumber_AndTheLowerMemberIndexGoesFirst()
+	{
+		var slots = new[] { new Vector2Int(5, 46), new Vector2Int(7, 46) };
+		var positions = new[] { new Vector2Int(6, 40), new Vector2Int(6, 40) };   // 두 슬롯까지 거리가 같다
+
+		int[] pick = PartyFormationMath.AssignNearest(positions, new[] { 0, 0 }, slots);
+
+		Assert.AreEqual(new[] { 0, 1 }, pick);
+	}
+
+	[Test]
+	public void AssignNearest_HonorsPerMemberExclusions_SoARejectedSlotGoesToSomeoneElse()
+	{
+		var slots = new[] { new Vector2Int(6, 46), new Vector2Int(7, 46) };
+		var positions = new[] { new Vector2Int(6, 44), new Vector2Int(7, 44) };
+
+		// 0번 멤버는 자리 0을 이미 막혀 포기했다 — 가장 가까운 자리를 못 쓰고 자리 1로 간다.
+		int[] pick = PartyFormationMath.AssignNearest(positions, new[] { 0, 0 }, slots, (m, s) => !(m == 0 && s == 0));
+
+		Assert.AreEqual(new[] { 1, 0 }, pick);
 	}
 
 	// ── 입장 순서 ─────────────────────────────────────────────────────────

@@ -109,38 +109,64 @@ public static class PartyFormationMath
 		return lanes;
 	}
 
-	// ── 게이트 레인: 레인 i는 near[i]·far[i] 두 문 타일을 차례로 지난다 ──────────────────────────────────
+	// ── 문 파괴 ────────────────────────────────────────────────────────────────────────────
 
-	// 두 타일이 모두 통행 가능한 레인이 하나라도 있으면 진입로 확보.
-	public static bool TryFindOpenLane(IList<bool> nearBlocked, IList<bool> farBlocked, out int lane)
-	{
-		for (int i = 0; i < nearBlocked.Count; i++)
-		{
-			if (!nearBlocked[i] && !farBlocked[i]) { lane = i; return true; }
-		}
-		lane = -1;
-		return false;
-	}
-
-	// 파괴할 레인: 막힌 타일이 가장 적은 레인, 동률은 laneDistance가 가까운 쪽, 그래도 같으면 작은 번호. 열린 레인이 있으면 -1(파괴할 필요 없음).
-	public static int PickBreachLane(IList<bool> nearBlocked, IList<bool> farBlocked, IList<int> laneDistance)
-	{
-		if (TryFindOpenLane(nearBlocked, farBlocked, out _)) return -1;
-		int best = -1, bestBlocked = int.MaxValue, bestDist = int.MaxValue;
-		for (int i = 0; i < nearBlocked.Count; i++)
-		{
-			int blocked = (nearBlocked[i] ? 1 : 0) + (farBlocked[i] ? 1 : 0);
-			if (blocked < bestBlocked || (blocked == bestBlocked && laneDistance[i] < bestDist))
-			{
-				best = i; bestBlocked = blocked; bestDist = laneDistance[i];
-			}
-		}
-		return best;
-	}
-
-	// 레인 안에서 다음에 부술 줄: 0 = near, 1 = far, -1 = 둘 다 열림. far는 near가 열린 뒤에만 닿으므로 near를 먼저 본다.
+	// 문은 방 쪽 줄(1×2 묶음)마다 오브젝트 하나라 파괴 대상은 두 행뿐이다. 다음에 부술 행: 0 = near(리더 방 쪽), 1 = far, -1 = 둘 다 열림(진입로 확보). far는 near가 열린 뒤에만 닿으므로 near를 먼저 본다.
 	public static int NextBreachRow(bool nearBlocked, bool farBlocked)
 		=> nearBlocked ? 0 : (farBlocked ? 1 : -1);
+
+	// 문 파괴 자리 — 목표 문 타일 중 하나에 체비셰프 거리 1이고, 문 타일이 아니며, isStandable인 칸을 전부 모은다(자리가 남는 만큼만 투입하기 위한 후보). (x, y) 오름차순이라 결정적이다.
+	public static List<Vector2Int> AttackSlotsAround(IList<Vector2Int> doorTiles, Func<Vector2Int, bool> isStandable)
+	{
+		var doorSet = new HashSet<Vector2Int>(doorTiles);
+		var seen = new HashSet<Vector2Int>();
+		var slots = new List<Vector2Int>();
+		foreach (var door in doorTiles)
+		{
+			for (int dx = -1; dx <= 1; dx++)
+			for (int dy = -1; dy <= 1; dy++)
+			{
+				if (dx == 0 && dy == 0) continue;
+				var t = new Vector2Int(door.x + dx, door.y + dy);
+				if (doorSet.Contains(t) || !seen.Add(t)) continue;
+				if (isStandable(t)) slots.Add(t);
+			}
+		}
+		slots.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+		return slots;
+	}
+
+	// 우선순위(작을수록 먼저, 동률은 입력 순서)대로 각자 "가장 가까운 빈 자리"를 차지하는 그리디 배정. 반환은 멤버별 자리 번호(자리가 모자라면 -1).
+	// isAllowed(멤버 번호, 자리 번호)가 있으면 그 멤버가 못 쓰는 자리(이미 막혀 포기한 자리 등)를 건너뛴다.
+	public static int[] AssignNearest(IList<Vector2Int> positions, IList<int> priorities, IList<Vector2Int> slots, Func<int, int, bool> isAllowed = null)
+	{
+		int n = positions.Count;
+		var result = new int[n];
+		for (int i = 0; i < n; i++) result[i] = -1;
+
+		var order = new int[n];
+		for (int i = 0; i < n; i++) order[i] = i;
+		Array.Sort(order, (a, b) => priorities[a] != priorities[b] ? priorities[a].CompareTo(priorities[b]) : a.CompareTo(b));
+
+		var used = new bool[slots.Count];
+		foreach (int i in order)
+		{
+			int best = -1;
+			long bestKey = long.MaxValue;
+			for (int s = 0; s < slots.Count; s++)
+			{
+				if (used[s] || (isAllowed != null && !isAllowed(i, s))) continue;
+				int dx = positions[i].x - slots[s].x, dy = positions[i].y - slots[s].y;
+				// 체비셰프 거리가 1순위, 같으면 직선 거리(제곱)가 짧은 쪽 — 격자에서 체비셰프 동률이 흔해 곧장 앞 칸을 고르게 한다. 그래도 같으면 작은 자리 번호(strict <).
+				long key = (long)Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) * 1000000L + (dx * dx + dy * dy);
+				if (key < bestKey) { bestKey = key; best = s; }
+			}
+			if (best < 0) continue;
+			used[best] = true;
+			result[i] = best;
+		}
+		return result;
+	}
 
 	// ── 입장 ────────────────────────────────────────────────────────────────────────────────
 
