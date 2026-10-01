@@ -98,6 +98,39 @@ public class PartyAdvanceFlowTests
 		Assert.AreEqual(0f, party.RallyBlockedUntil, "재집결 쿨다운을 걸지 않는다");
 	}
 
+	// ── 코어 때문에 집결을 해제한 경우(05번 2장 165~172줄 표, 검증 05-02 관찰 2) ──
+
+	[Test]
+	public void OnLeaderLearnsCore_WhileRallyActive_RemembersToRallyAgainAfterTheCore()
+	{
+		var party = new Party("p", "테스트 파티") { IsRallyActive = true };
+
+		party.OnLeaderLearnsCore(new UnityEngine.Vector3Int(3, 4, 1));
+
+		Assert.IsFalse(party.IsRallyActive, "집결은 즉시 해제된다");
+		Assert.IsTrue(party.ResumeRallyAfterCore, "코어 처리가 끝나면 방 활동 종료 기준 없이 다시 집결한다");
+	}
+
+	[Test]
+	public void OnLeaderLearnsCore_AfterRallyCompletedAndMoveOrdered_AlsoRemembers()
+	{
+		var party = new Party("p", "테스트 파티") { ReadyToAdvance = true };
+
+		party.OnLeaderLearnsCore(new UnityEngine.Vector3Int(3, 4, 1));
+
+		Assert.IsTrue(party.ResumeRallyAfterCore);
+	}
+
+	[Test]
+	public void OnLeaderLearnsCore_WithoutAnyRally_IsPlainCoreHandlingDuringExploration()
+	{
+		var party = new Party("p", "테스트 파티");
+
+		party.OnLeaderLearnsCore(new UnityEngine.Vector3Int(3, 4, 1));
+
+		Assert.IsFalse(party.ResumeRallyAfterCore, "탐색 중 발견해 처리하는 경우는 기존 파티 종류별 활동 종료 기준으로 돌아간다");
+	}
+
 	[Test]
 	public void Abort_WithoutRetry_LeavesReadyToAdvanceOff()
 	{

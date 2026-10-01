@@ -637,6 +637,8 @@ public abstract class UnitFunction : Unit, IVisionContext
 				}
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{
+					// 05번 7장·검증 05-06: 시야로 확인한 문은 파티가 전파할 수 있는 정보로 원장에 올린다(인지 판정과 무관 — "아는 문" 판정 PropagationSystem.KnowsDoor와 같은 기준).
+					if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag)) terrainObserver.party?.KnownDoorObjects.TryAdd(obj.Id, obj.Position);
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
 						if (inPerceptionRange)
@@ -890,6 +892,13 @@ public abstract class UnitFunction : Unit, IVisionContext
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
+
+		// 인류 개인 탐색의 방 범위(검증 05-01)와 리더 방 경로의 "방문한 방"(검증 05-06 관찰 2)을 갱신한다.
+		if (actualRoom != null && this is Human roomHuman)
+		{
+			roomHuman.lastKnownRoom = actualRoom;
+			roomHuman.party?.OnMemberEnteredRoom(currentFloor, actualRoom.RoomId);
+		}
 
 		// 플레이어 진영 몬스터가 아직 안개가 걷히지 않은 방에 처음 들어오는 순간을 감지해 영구 해제한다.
 		if (actualRoom != null && !actualRoom.FogRevealed && IsPlayerMonsterFaction)

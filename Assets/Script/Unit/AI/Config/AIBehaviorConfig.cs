@@ -41,6 +41,14 @@ public class AIBehaviorConfig : ScriptableObject
     public bool rallyGatherNearbyEnabled = true;
     [Tooltip("집결 완료 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장으로 다음 방에 들어간다. 끄면 예전처럼 문 앞 자리로 흩어져 이동한 뒤 개인 행동으로 풀린다 (내부 판단)")]
     public bool partyAdvanceFormationEnabled = true;
+    [Tooltip("집결 완료 판정이 명령을 받지 못한 생존 구성원과 리더가 모르는 사망까지 \"미집결자\"로 보고 기다린다(05번 5장 295~307줄, 검증 05-05). 시간 상한(집결 시작 후 doorApproachMaxBlockedSeconds×2)에 닿으면 포기하고 이후 집결에서 다시 기다리지 않는다. 끄면 예전처럼 대기가 있는 구성원만 확인한다")]
+    public bool rallyAbsenteeWaitEnabled = true;
+    [Tooltip("문 먼 쪽(다음 방) 입장 자리를 실제 지형이 아니라 리더·본인의 개인 지도로 바닥이 확인된 타일에서만 고른다(04번 0장 12~14줄, 검증 05-06 관찰 4). 끄면 예전처럼 실제 지형으로 고른다")]
+    public bool entrySlotKnowledgeEnabled = true;
+    [Tooltip("인류 개인의 탐색·조사 후보를 지금 있는 방 안으로 제한한다 — 개인이 임의로 다음 방에 들어가지 않는다(04번 10장 578줄·05번 1장 53줄·01번 585줄, 검증 05-01). 끄면 예전처럼 층 전체")]
+    public bool roomBoundExplorationEnabled = true;
+    [Tooltip("리더가 다음 이동 게이트를 알려진 방 그래프(미방문 방 우선·막다른 방 되돌이·파괴된 통로 포함)로 고른다(04번 1장, 검증 05-06 관찰 2). 끄면 예전처럼 남아 있는 문 중 목표 방에 가장 가까운 것")]
+    public bool leaderRoutePlannerEnabled = true;
     [Tooltip("길찾기(A*)가 진영 공용 지도 대신 유닛 개인 지도(직접 확인했거나 전달받아 아는 지형)로 경로를 계산한다 (검증문서 04-08, 04번 0장). 끄면 예전처럼 진영 공용 discoveredMap을 쓴다 (내부 판단)")]
     public bool personalMapPathingEnabled = true;
     [Tooltip("조사 후보를 고를 때 구조 경로(점유 무시)로도 닿을 수 없다고 확인된 대상을 후보에서 제외한다 (검증문서 04-08, 04번 9장 '통행 불가 확인'). 끄면 제외하지 않고 아주 먼 거리로만 계산한다 (내부 판단)")]
@@ -81,7 +89,9 @@ public class AIBehaviorConfig : ScriptableObject
 
     // ── 공황 ────────────────────────────────────────────────────────────────
     [Header("공황 (내부 판단 — 문서 미명시)")]
-    [Range(0f, 1f), Tooltip("정신력이 최대 정신력의 이 비율 이하면 공황 진입")]
+    [Tooltip("공황 행동 사용 여부. 2026-10-02부터 임시로 꺼 둠(기본 false) — 시작 정신력 40/100에 임계값 30%라 시체 두 번이면 영구 공황이고(회복 코드 없음) 무작위 걸음이 BT 최상위라 전 행동이 막혔다. 도주·후퇴 문서(06 위기반응) 이후 켠다. 정신력 감소·인지 보정·가중치 정보 오차는 이 값과 무관하게 그대로 동작")]
+    public bool panicBehaviorEnabled = false;
+    [Range(0f, 1f), Tooltip("정신력이 최대 정신력의 이 비율 미만이면 공황 진입(panicBehaviorEnabled가 켜져 있을 때만)")]
     public float panicMentalRatio = 0.3f;
 
     // ── 전투 ────────────────────────────────────────────────────────────────

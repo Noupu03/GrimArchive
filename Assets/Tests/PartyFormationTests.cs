@@ -288,6 +288,32 @@ public class PartyFormationTests
 	}
 
 	[Test]
+	public void AttackSlotsAround_WithForward_DropsTilesBeyondTheDoorRow_ThatCanMoveWouldStillAllow()
+	{
+		var far = new[] { new Vector2Int(6, 48), new Vector2Int(7, 48) };
+		// 실제 CanMove는 칸 하나만 봐서 닫힌 far 문 너머(y=49)도 "설 수 있다"고 답한다 — 열린 near 줄(y=47)과 문 너머 칸이 모두 후보로 나오는 상황.
+		bool Standable(Vector2Int t) => (t.y == 47 || t.y == 49) && t.x >= 5 && t.x <= 8;
+
+		var withoutForward = PartyFormationMath.AttackSlotsAround(far, Standable);
+		var withForward = PartyFormationMath.AttackSlotsAround(far, Standable, Vector2Int.up);
+
+		Assert.AreEqual(8, withoutForward.Count);   // 로그의 "공격 자리 6개" 중 4개가 문 너머였던 것과 같은 모양(여기선 4 + 4)
+		Assert.AreEqual(new[] { new Vector2Int(5, 47), new Vector2Int(6, 47), new Vector2Int(7, 47), new Vector2Int(8, 47) }, withForward.ToArray());
+	}
+
+	[Test]
+	public void AttackSlotsAround_WithForward_NearDoorKeepsItsOwnSideOnly_ForAnyForwardDirection()
+	{
+		var near = new[] { new Vector2Int(10, 20), new Vector2Int(10, 21) };   // 가로 방향(+x)으로 통과하는 게이트의 near 줄
+		bool Standable(Vector2Int t) => t.x == 9 || t.x == 11;
+
+		var slots = PartyFormationMath.AttackSlotsAround(near, Standable, Vector2Int.right);
+
+		Assert.AreEqual(4, slots.Count);   // (9,19)·(9,20)·(9,21)·(9,22)
+		Assert.IsTrue(slots.TrueForAll(t => t.x == 9));   // x=11은 문 너머
+	}
+
+	[Test]
 	public void AttackSlotsAround_NothingStandable_ReturnsEmpty_SoNobodyIsSentToTheDoor()
 	{
 		Assert.AreEqual(0, PartyFormationMath.AttackSlotsAround(new[] { new Vector2Int(6, 47) }, _ => false).Count);
@@ -319,6 +345,42 @@ public class PartyFormationTests
 		Assert.AreEqual(-1, pick[1]);
 		Assert.AreEqual(1, pick[2]);   // (7,43) → (7,46)
 		Assert.AreEqual(0, pick[3]);   // (6,43) → (6,46)
+	}
+
+	[Test]
+	public void AssignNearest_FacingMembersWinTheSlots_EvenWhenSideMembersComeFirstInTheInput()
+	{
+		// far 문 단계 — 문 앞 줄(y=59)의 두 칸이 자리이고, near 문을 치던 근접 4명이 y=58 줄에 x=16..19로 서 있다.
+		var slots = new[] { new Vector2Int(17, 59), new Vector2Int(18, 59) };
+		// 입력 순서는 가장자리(19, 16) 먼저 — 예전 입력 순서 배정이면 이 둘이 자리를 받고 대각선 진입이 막힌다.
+		var positions = new[] { new Vector2Int(19, 58), new Vector2Int(16, 58), new Vector2Int(17, 58), new Vector2Int(18, 58) };
+
+		int[] pick = PartyFormationMath.AssignNearest(positions, new[] { 0, 0, 0, 0 }, slots);
+
+		Assert.AreEqual(new[] { -1, -1, 0, 1 }, pick);   // 정면 (17,58)→(17,59), (18,58)→(18,59)
+	}
+
+	[Test]
+	public void AssignNearest_PriorityTiersStillBeatProximity()
+	{
+		var slots = new[] { new Vector2Int(6, 46) };
+		var positions = new[] { new Vector2Int(6, 45), new Vector2Int(6, 40) };   // 우선순위 1이 바로 앞에 서 있어도 우선순위 0이 자리를 받는다
+
+		int[] pick = PartyFormationMath.AssignNearest(positions, new[] { 1, 0 }, slots);
+
+		Assert.AreEqual(new[] { -1, 0 }, pick);
+	}
+
+	[Test]
+	public void AssignNearest_RespectsIsAllowed_WhenTheNearestPairIsRejected()
+	{
+		var slots = new[] { new Vector2Int(6, 46), new Vector2Int(7, 46) };
+		var positions = new[] { new Vector2Int(6, 45), new Vector2Int(7, 45) };
+
+		// 0번 멤버는 자리 0을 이미 포기했다 — 가장 가까운 쌍은 (1,1)이라 그리디만으로는 0번이 남은 자리 0을 거부해 자리를 못 받는다. 보강(증가 경로)이 1번을 자리 0으로 옮겨 둘 다 자리를 받는다.
+		int[] pick = PartyFormationMath.AssignNearest(positions, new[] { 0, 0 }, slots, (m, s) => !(m == 0 && s == 0));
+
+		Assert.AreEqual(new[] { 1, 0 }, pick);
 	}
 
 	[Test]
@@ -401,6 +463,80 @@ public class PartyFormationTests
 		var passed = new[] { false, false, false, false };
 		Assert.IsTrue(PartyFormationMath.CanReleaseRank(0, tiers, passed));
 		Assert.IsFalse(PartyFormationMath.CanReleaseRank(2, tiers, passed));
+	}
+
+	// ── 개인 탐색의 방 범위(검증 05-01) ─────────────────────────────────
+
+	[Test]
+	public void TryNearestInRect_PicksTheClosestTileInsideTheRoom_IgnoringCloserOnesOutside()
+	{
+		var frontier = new[] { new Vector2Int(5, 5), new Vector2Int(20, 20), new Vector2Int(12, 12) };
+		// 방 (10..19, 10..19) — (5,5)는 더 가깝지만 방 밖이다.
+		bool found = PartyFormationMath.TryNearestInRect(frontier, new Vector2Int(6, 6), 10, 10, 20, 20, out var nearest);
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(new Vector2Int(12, 12), nearest);
+	}
+
+	[Test]
+	public void TryNearestInRect_UsesAHalfOpenRectangleLikeRectIntContains()
+	{
+		var frontier = new[] { new Vector2Int(20, 15), new Vector2Int(15, 20) };
+		Assert.IsFalse(PartyFormationMath.TryNearestInRect(frontier, new Vector2Int(15, 15), 10, 10, 20, 20, out _), "xMax·yMax는 방 밖이다");
+	}
+
+	[Test]
+	public void TryNearestInRect_WithNoTileInsideTheRoom_ReportsNothingToExplore()
+	{
+		Assert.IsFalse(PartyFormationMath.TryNearestInRect(new Vector2Int[0], new Vector2Int(0, 0), 0, 0, 5, 5, out _));
+		Assert.IsFalse(PartyFormationMath.TryNearestInRect(new[] { new Vector2Int(50, 50) }, new Vector2Int(0, 0), 0, 0, 5, 5, out _));
+	}
+
+	// ── 조사 시작 여부(검증 05-04 발견 1) ───────────────────────────────
+
+	[Test]
+	public void IsInvestigationStarted_MovingToTargetOnly_IsNotStarted()
+	{
+		// 대상을 정해 걸어가는 중 — 상호작용 전이라 집결 명령이 오면 접는다.
+		Assert.IsFalse(PartyFormationMath.IsInvestigationStarted(penaltyActive: false, progress01: 0f));
+	}
+
+	[Test]
+	public void IsInvestigationStarted_InteractionRunning_IsStarted()
+	{
+		Assert.IsTrue(PartyFormationMath.IsInvestigationStarted(penaltyActive: true, progress01: 0f));
+		Assert.IsTrue(PartyFormationMath.IsInvestigationStarted(penaltyActive: true, progress01: 0.4f));
+	}
+
+	[Test]
+	public void IsInvestigationStarted_InterruptedWithRemainingProgress_IsStarted()
+	{
+		// 경계 등으로 중단돼 진행도가 절반으로 남은 조사 — 이미 시작한 상호작용이라 기존 유지·중단 조건대로 둔다.
+		Assert.IsTrue(PartyFormationMath.IsInvestigationStarted(penaltyActive: false, progress01: 0.25f));
+	}
+
+	// ── 리더 명령의 "같은 방" 판정(검증 05-03 관찰 4) ──────────────────────
+
+	[Test]
+	public void IsSameRoomForCommand_SameRoomReference_IsTrue()
+	{
+		var room = new object();
+		Assert.IsTrue(PartyFormationMath.IsSameRoomForCommand(room, room));
+	}
+
+	[Test]
+	public void IsSameRoomForCommand_DifferentRooms_IsFalse()
+	{
+		Assert.IsFalse(PartyFormationMath.IsSameRoomForCommand(new object(), new object()));
+	}
+
+	[Test]
+	public void IsSameRoomForCommand_BothWithoutRoom_IsNotTheSameRoom()
+	{
+		// 통로·문 위치처럼 방이 없는 두 유닛은 서로 다른 곳이어도 둘 다 null이다 — 같은 방 예외를 받으면 안 된다.
+		Assert.IsFalse(PartyFormationMath.IsSameRoomForCommand(null, null));
+		Assert.IsFalse(PartyFormationMath.IsSameRoomForCommand(null, new object()));
+		Assert.IsFalse(PartyFormationMath.IsSameRoomForCommand(new object(), null));
 	}
 
 	// ── 교전·경계 중 시간 제한 정지 ───────────────────────────────────────

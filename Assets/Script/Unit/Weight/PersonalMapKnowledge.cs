@@ -214,6 +214,14 @@ public class PersonalMapKnowledge : IKnownTerrain
 		return found;
 	}
 
+	// 검증 05-01: 개인 탐색을 지금 있는 방 안으로 제한할 때 쓴다 — bounds 안의 프론티어 중 from과 가장 가까운 타일(없으면 false).
+	public bool TryGetNearestFrontierTileInBounds(int floor, Vector2Int from, RectInt bounds, out Vector2Int nearest)
+	{
+		nearest = default;
+		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier) || frontier.Count == 0) return false;
+		return PartyFormationMath.TryNearestInRect(frontier, from, bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax, out nearest);
+	}
+
 	// 01번 문서 7-1장: 탐색 파티의 "현재 방 지형 전체 확인" 판정에 쓴다 — 주어진 방 경계(bounds) 안에
 	// 아직 이 유닛이 못 본 프론티어 타일이 하나라도 남아 있는지만 확인한다(리더 개인 지도 기준 근사 —
 	// 파티원 전체 시야 합산은 아직 안 함, Party.IsRoomActivityComplete 주석 참고).

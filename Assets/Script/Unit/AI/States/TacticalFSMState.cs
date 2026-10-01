@@ -203,8 +203,10 @@ public class TacticalFSMState : IFSMState
 
 	// ── FSM 진입 조건 헬퍼 ─────────────────────────────────────────
 
-	private static bool IsPanic(Unit unit)
-		=> unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
+	// 공황 판정의 단일 출처(PlayerCommandFSMState도 이걸 쓴다). 2026-10-02부터 AIBehaviorConfig.panicBehaviorEnabled(기본 false)로 임시 비활성 — 도주·후퇴 문서 이후 켠다.
+	internal static bool IsPanic(Unit unit)
+		=> (AIConfigLoader.Behavior?.panicBehaviorEnabled ?? false)
+			&& unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
 
 	// 함정 해제: 피격 또는 위협 인지 시 이 틱에 한해 Failure → Selector가 다음 분기로 넘어감. 9-7장
 	// 중단 조건이라 진행도 50% 손실도 여기서 같이 처리한다(브랜치만 바뀌는 경로는 OnExit을 안 탄다).

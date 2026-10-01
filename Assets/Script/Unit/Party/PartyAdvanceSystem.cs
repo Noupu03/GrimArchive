@@ -56,7 +56,7 @@ public static class PartyAdvanceSystem
 	}
 
 	// 계획에 참여할 파티원 — 같은 층의 생존자 중 수동 명령·다른 대기(코어 보고 등) 중이 아닌 유닛. 다음 문을 찾으며 리더를 따라다니던 추종(SearchingNextDoor)만 문이 알려진 지금 계획으로 바꾼다.
-	// 방 이동 지시도 집결 명령과 같은 전달 범위를 따른다(05번 4장 — 같은 방은 무조건, 다른 방은 일반 전파 조건). 못 받은 구성원은 개인 행동(진형 합류)으로 남는다.
+	// 방 이동 지시도 집결 명령과 같은 전달 범위를 따른다(Party.IsReachedByLeaderCommand — 같은 방은 무조건, 다른 방은 일반 전파 조건, 방 없는 유닛끼리는 같은 방이 아님). 못 받은 구성원은 개인 행동(진형 합류)으로 남는다.
 	private static List<Human> CollectMembers(Party party, Human leader, int doorFloor, ICollection<Human> excluded)
 	{
 		var members = new List<Human>();
@@ -64,7 +64,7 @@ public static class PartyAdvanceSystem
 		{
 			if (m == null || m.hp <= 0 || (excluded != null && excluded.Contains(m))) continue;
 			if (m.currentFloor != doorFloor) continue;
-			if (m != leader && m.currentRoom != leader.currentRoom && !PropagationSystem.CanPropagate(leader, m)) continue;
+			if (!Party.IsReachedByLeaderCommand(leader, m)) continue;
 			if (m.isManualMoveCommand && m.playerMoveTarget.HasValue) continue;
 			if (m.playerAttackTarget != null) continue;
 			if (m.currentWait != null && m.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
@@ -114,6 +114,7 @@ public static class PartyAdvanceSystem
 		plan.FormSlots[member] = slot;
 		member.currentWait = new WaitState { Reason = reason, WaitPosition = slot, WaitFloor = plan.Floor, DoorPosition = plan.DoorPos, Rank = rank };
 		member.waitStuckTurns = 0;
+		member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동으로 전환한다(05번 1장 31줄, 검증 05-04)
 		// 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
 		if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
 	}
@@ -121,11 +122,13 @@ public static class PartyAdvanceSystem
 	// 진형·입장 자리로 쓸 수 있는 타일: 그 유닛이 설 수 있고(점유는 무시 — 자리를 점유한 아군은 곧 비킨다), 문 타일·게이트 문턱이 아니며, 지정한 방 안.
 	// ignoreUnits=false는 막힌 뒤 재선택용 — 지금 다른 유닛이 실제로 서 있는 타일(먼저 도착해 남의 자리에 선 유닛 포함)은 뺀다.
 	// clearOf가 있으면 그 문 타일들의 통과 구간(PartyFormationMath.DoorClearance) 안은 대기 자리로 쓰지 않는다 — 진형 대기용이고, 입장 자리에는 넘기지 않는다.
-	internal static bool IsSlotFree(GameSession session, Human m, Vector2Int t, int floor, Room room, bool ignoreUnits = true, Vector2Int[] clearOf = null)
+	// knowledge가 있으면 그 유닛의 개인 지도로 바닥이 확인된 타일만 쓴다 — 입장 자리처럼 아직 보지 못한 다음 방 타일을 실제 지형으로 고르지 않는다(04번 0장 12~14줄, 검증 05-06 관찰 4).
+	internal static bool IsSlotFree(GameSession session, Human m, Vector2Int t, int floor, Room room, bool ignoreUnits = true, Vector2Int[] clearOf = null, Human knowledge = null)
 	{
 		if (clearOf != null && PartyFormationMath.IsInDoorClearance(t, clearOf)) return false;
 		if (!m.CanMove(t, ignoreUnits)) return false;
 		var pos3 = new Vector3Int(t.x, t.y, floor);
+		if (knowledge != null && knowledge.personalMap.GetTileTerrain(pos3) != 1) return false;
 		if (session.IsDoorTile(pos3) || session.TryGetGateKeyAt(pos3, out _)) return false;
 		if (room != null && !(session.roomGrid.TryGetValue(pos3, out var r) && r == room)) return false;
 		return true;
@@ -330,6 +333,7 @@ public static class PartyAdvanceSystem
 
 	private static void BeginEntering(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
 	{
+		Human entryKnowledge = (AIConfigLoader.Behavior?.entrySlotKnowledgeEnabled ?? true) ? leader : null; // 입장 자리는 리더가 아는 타일에서만 고른다(없으면 방향 목적지 ideal)
 		plan.Phase = AdvancePhase.Entering;
 		plan.PhaseStartTime = now;
 		plan.PausedSeconds = 0f;
@@ -363,7 +367,7 @@ public static class PartyAdvanceSystem
 			{
 				Human member = group[i];
 				Vector2Int ideal = PartyFormationMath.EntrySlotTarget(farAnchor, plan.Forward, rank, lanes[i]);
-				Vector2Int slot = PartyFormationMath.TryPickNearestFreeTile(ideal, t => IsSlotFree(session, member, t, plan.Floor, plan.ToRoom), claimed, PartyFormationMath.DefaultSearchRadius, out var picked)
+				Vector2Int slot = PartyFormationMath.TryPickNearestFreeTile(ideal, t => IsSlotFree(session, member, t, plan.Floor, plan.ToRoom, knowledge: entryKnowledge), claimed, PartyFormationMath.DefaultSearchRadius, out var picked)
 					? picked
 					: ideal;
 				var wait = member.currentWait;
@@ -421,7 +425,7 @@ public static class PartyAdvanceSystem
 			}
 			allDone = false; // 아직 문을 지나지 못한 유닛이 남았다
 		}
-		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {plan.Ranks.Count - plan.EnteredCount}명은 포기·다른 대기)");
+		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기)");
 	}
 
 	// ── 종료 ─────────────────────────────────────────────────────────────────────────────
@@ -491,7 +495,9 @@ public static class PartyAdvanceSystem
 	{
 		var w = m.currentWait;
 		if (w == null || !IsPlanWait(w.Reason) || w.IsParked || !w.WaitPosition.HasValue) return true;
-		if (plan.Phase == AdvancePhase.Entering && !w.Released) return false;
+		// 입장 단계에서 대기가 남아 있다는 것은 아직 문 먼 쪽 줄을 못 지났다는 뜻이다(지나면 ReleaseIfEntered가 대기를 비운다) — 자리 근처라도 끝낸 것이 아니다.
+		// 자리 반경만 보면 문 위에 선 유닛이 "끝낸 것"으로 보여 단계 상한(ParkStragglersAtLimit)도 진단 로그(DescribeNotDone)도 건너뛰어 입장이 영구히 멈춘다.
+		if (plan.Phase == AdvancePhase.Entering) return false;
 		return PartyFormationMath.IsAtSlot(m.position, w.WaitPosition.Value);
 	}
 

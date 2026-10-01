@@ -61,6 +61,9 @@ namespace GrimArchive.Wave
         private bool _retreating;
         // 방 이동 결정 로그 폭주 방지 — "다음 문을 모름"은 상태가 바뀔 때 한 번만, 코어 경로의 반복 발행은 일정 간격으로만 남긴다.
         private bool _doorSearchLogged;
+        // 리더가 방 안에서 다음 이동 문을 못 찾기 시작한 시각(음수 = 찾는 중 아님) — LeaderRoomExploreGiveUpSeconds가 지나면 리더의 개인 탐색 방 제한을 푼다(Party.LeaderMayExploreBeyondRoom).
+        private float _doorSearchSince = -1f;
+        private const float LeaderRoomExploreGiveUpSeconds = 10f;
         private float _nextCoreAdvanceLogTime;
         private float _nextDoorApproachCheckTime;
 
@@ -627,6 +630,7 @@ namespace GrimArchive.Wave
 
             // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)는 소멸시킨다 — 안 그러면 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다(검증 갭 정리).
             activeParty.TickAdvanceState();
+            activeParty.TickPendingRallyRelease(); // 코어 처리로 해제된 집결을 못 받은 구성원이 전파 범위에 들어오면 그때 해제를 전달한다(검증 05-03 관찰 2)
             PartyAdvanceSystem.Tick(activeParty); // 문 앞 진형 → 문 파괴 → 입장 단계 전이(계획이 없으면 즉시 반환)
             TryAssignLeaderDoorApproach();
 
@@ -636,6 +640,8 @@ namespace GrimArchive.Wave
             if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore))
             {
                 _doorSearchLogged = false;
+                _doorSearchSince = -1f;
+                activeParty.LeaderMayExploreBeyondRoom = false;
                 return;
             }
 
@@ -652,10 +658,15 @@ namespace GrimArchive.Wave
                 }
                 // 05번 1장 73줄: 다음 문을 아직 모르면 진형을 유지하며 문을 찾는다 — 리더는 기존 자유 탐색이 문을 찾고 나머지는 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem).
                 // ReadyToAdvance는 그대로 두어 문이 알려지는 순간 아래 이동 명령이 바로 발행되게 한다.
+                // 개인 탐색은 방 안으로 제한되므로(검증 05-01) 방 안에서 문을 오래 못 찾으면 리더에 한해 제한을 풀어 방 밖까지 탐색하게 한다(영구 정지 방지, 01번 583줄 "시야를 넓혀 문을 찾는다").
+                if (_doorSearchSince < 0f) _doorSearchSince = Time.time;
+                activeParty.LeaderMayExploreBeyondRoom = Time.time - _doorSearchSince >= LeaderRoomExploreGiveUpSeconds;
                 AssignDoorSearchFollowers();
                 return;
             }
             _doorSearchLogged = false;
+            _doorSearchSince = -1f;
+            activeParty.LeaderMayExploreBeyondRoom = false;
 
             // 집결 완료로 정한 방 이동은 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem)으로 진행한다. 코어 처리 경로는 공동 이동을 그대로 쓰고,
             // 계획을 만들 수 없을 때(게이트·파티원 없음)나 partyAdvanceFormationEnabled를 끄면 공동 이동으로 폴백한다. 계획 중단은 PartyAdvanceSystem.Abort가 재시도·잠금 해제로 처리한다.
@@ -703,6 +714,9 @@ namespace GrimArchive.Wave
                 if (member.playerAttackTarget != null) continue;
                 // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않는다. 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종(SearchingNextDoor)만 공동 이동으로 바꿔 덮어쓴다.
                 if (member.currentWait != null && member.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
+                // 방 이동 지시도 집결 명령과 같은 전달 범위(Party.IsReachedByLeaderCommand) — 못 받은 구성원은 개인 행동으로 남고, 이 경로는 매 틱 다시 발행되므로 범위에 들어오면 그때 받는다(검증 05-03 관찰 3).
+                if (!Party.IsReachedByLeaderCommand(activeParty.Leader, member)) continue;
+                member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동(코어 처리 포함)으로 전환한다(검증 05-04)
                 // 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
                 if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
@@ -776,8 +790,14 @@ namespace GrimArchive.Wave
         // 05번 1장: "알려진 문"으로만 진행한다. 리더가 아는(개인 지도에 반영된) 현재 방의 문 중 목표
         // 방에 가장 가까운 것을 고른다 — 진짜 방 그래프 최단경로 대신 좌표 거리로 근사한다(리더·명령
         // 문서가 생기면 교체 대상, 행동경로목표결정 구현현황 문서 "큰 줄기 FSM 재설계" 참고).
+        // 검증 05-06 관찰 2: 리더가 아는 방 그래프로 먼저 고르고(파괴된 통로·미방문 방 우선·막다른 방 되돌이 — LeaderRoutePlanner), 고를 게 없으면 예전 방식으로 폴백한다.
         private bool TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)
-            => AIMovementHelper.TryFindKnownDoorInCurrentRoom(activeParty.Leader, _targetRoom.Bounds.center, out doorPos, out doorFloor);
+        {
+            if ((AIConfigLoader.Behavior?.leaderRoutePlannerEnabled ?? true)
+                && LeaderRoutePlanner.TryPickNextGate(activeParty.Leader, _targetRoom, out doorPos, out doorFloor))
+                return true;
+            return AIMovementHelper.TryFindKnownDoorInCurrentRoom(activeParty.Leader, _targetRoom.Bounds.center, out doorPos, out doorFloor);
+        }
 
         // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다(검증문서 03-15). 웨이브가 없으면 null.
         public Vector2? TargetRoomCenter => _targetRoom != null ? _targetRoom.Bounds.center : (Vector2?)null;

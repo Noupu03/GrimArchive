@@ -47,9 +47,8 @@ public class PlayerCommandFSMState : IFSMState
 
 	// ── 헬퍼 ─────────────────────────────────────────────────────
 
-	// 공황 판정 — 정신력이 panicMentalRatio 이하면 true. Human 전용(몬스터는 정신력 시스템 없음).
-	private static bool IsPanicMode(Unit unit)
-		=> unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
+	// 공황 판정 — TacticalFSMState.IsPanic과 같은 단일 출처(임시 비활성 스위치 포함). Human 전용(몬스터는 정신력 시스템 없음).
+	private static bool IsPanicMode(Unit unit) => TacticalFSMState.IsPanic(unit);
 
 	// 이동 명령 포기 시 UI 피드백
 	private static void ShowMoveFailFeedback(Unit unit)

@@ -84,8 +84,8 @@ public static class PartyBreachCommand
 		plan.NextAssignTime = now + ReassignSeconds;
 
 		int row = plan.BreachRow;
-		// 서 있을 수 있는 인접 칸 전부 — 자리가 남는 만큼만 투입한다(닫힌 적 문 칸·벽·문 너머는 CanMove가 걸러낸다).
-		var slots = PartyFormationMath.AttackSlotsAround(plan.RowTiles(row), t => leader.CanMove(t, ignoreUnits: true));
+		// 서 있을 수 있는 인접 칸 전부 — 자리가 남는 만큼만 투입한다(닫힌 적 문 칸·벽은 CanMove가 걸러내고, 문 줄 너머 칸은 plan.Forward로 뺀다 — CanMove는 칸 하나만 봐서 닫힌 far 문 너머도 통과시킨다).
+		var slots = PartyFormationMath.AttackSlotsAround(plan.RowTiles(row), t => leader.CanMove(t, ignoreUnits: true), plan.Forward);
 
 		// 후보 — 돌파 중이고 자리 이동을 포기하지 않은 파티원 전부(근접이든 원거리든 리더든).
 		var candidates = new List<Human>();

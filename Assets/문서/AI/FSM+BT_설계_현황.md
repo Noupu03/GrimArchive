@@ -78,7 +78,7 @@ BT 자식 순서는 `Assets/Resources/FSM+BT/TacticalPriority.asset`에서 변�
 ```
 BTSelector  ← 03문서 기본 순서
 ├─ [Panic]         BTSequence
-│    ├─ Condition: mental < maxMental × panicMentalRatio(0.3)
+│    ├─ Condition: panicBehaviorEnabled(기본 false — 2026-10-02 임시 비활성) && mental < maxMental × panicMentalRatio(0.3)
 │    └─ Leaf: 50% 확률로 무작위 이동, 나머지는 정지
 │
 ├─ [TrapResponse]  BTSelector  ← 내부 순서 고정(9장 우선순위)

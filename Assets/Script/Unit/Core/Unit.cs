@@ -789,6 +789,37 @@ public class Human : UnitFunction
 		return Mathf.Max(Mathf.Abs(position.x - trapPos.x), Mathf.Abs(position.y - trapPos.y)) <= 1;
 	}
 
+	// 개인 탐색·조사가 머무를 방 — 지금 있는 방(통로·문 위치처럼 방이 없으면 직전 방). 개인이 임의로 다음 방에 들어가지 않는다(04번 10장 578줄·05번 1장 53줄·01번 585줄, 검증 05-01).
+	// UnitFunction.SyncRoomAffiliation이 방이 바뀔 때 갱신한다.
+	public Room lastKnownRoom;
+	// HumanIdleSystem(할 일 없는 개인의 합류)의 목적지 해석 상태 — currentWait이 아니라 따로 둬서 BT 우선순위(조사·경계·대기)에 끼어들지 않는다. Step이 3초 넘게 안 불리거나 방이 바뀌면 새로 만든다.
+	public WaitState idleWait;
+	public float idleLastStepTime;
+	public Room idleWaitRoom;
+
+	// 개인 탐색·조사 후보를 가둘 방 범위 — roomBoundExplorationEnabled가 켜져 있고 방을 알면 그 방의 사각형(true), 아니면 제한 없음(false). 리더가 방 안에서 문을 오래 못 찾으면 리더만 풀린다(Party.LeaderMayExploreBeyondRoom).
+	// 합류할 리더가 없는 인류(파티 없음·리더 없음·리더 사망)는 제한하지 않는다 — 문서 8장: 리더·집결 위치·문을 모두 모르면 시야를 넓혀 찾고, 이동할 곳이 남았는데 정지해 새 정보를 기다리지 않는다(검증 05-07).
+	public bool TryGetExplorationBounds(out RectInt bounds)
+	{
+		bounds = default;
+		if (!(AIConfigLoader.Behavior?.roomBoundExplorationEnabled ?? true) || lastKnownRoom == null) return false;
+		if (party == null || party.Leader == null || party.Leader.hp <= 0) return false;
+		if (party.Leader == this && party.LeaderMayExploreBeyondRoom) return false;
+		bounds = lastKnownRoom.Bounds;
+		return true;
+	}
+
+	// 집결 명령·방 이동 계획 편입·공동 이동 대기 배정 때 부른다 — 상호작용을 시작하기 전 대상으로 이동 중인 조사는 접는다(05번 4장 245줄·03번 1장 181줄: "아직 상호작용을 시작하지 않고 임무 대상으로 이동 중인 구성원은 집결로 전환").
+	// 대상은 이미 개인 지도에 기록돼 있어 나중에 다시 후보가 된다. 이미 시작한 조사(진행 중이거나 진행도가 남은 중단된 조사)는 기존 유지·중단 조건대로 두고 건드리지 않는다. 접었으면 true(검증 05-04).
+	public bool ReleaseUnstartedInvestigation()
+	{
+		var inv = currentInvestigation;
+		if (inv == null || PartyFormationMath.IsInvestigationStarted(inv.PenaltyActive, inv.Progress01)) return false;
+		currentInvestigation = null;
+		investigateStuckTurns = 0;
+		return true;
+	}
+
 	// "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계". 같은 파티에서 이 유닛을
 	// 호위 중인 멤버 중 이번 턴 피격당한 사람이 있는지 확인 — 호위하는 쪽만 참조를 들고 있어 역방향으로 순회한다.
 	public bool AnyEscortHitThisTurn()
@@ -830,10 +861,14 @@ public class Human : UnitFunction
 
 		_investigateCandidateBuffer.Clear();
 
+		// 개인이 임의로 다음 방에 들어가지 않는다(검증 05-01) — 조사 후보는 지금 있는 방 안의 오브젝트·타일뿐이다. 다른 방 대상은 리더의 방 이동 결정 뒤 그 방에 들어가서 후보가 된다.
+		bool roomBound = TryGetExplorationBounds(out RectInt roomBounds);
+
 		foreach (var obj in Session.objectGrid.Values)
 		{
 			if (obj == null || obj.IsCollected || obj.IsInvestigated) continue;
 			if (obj.Position.z != currentFloor) continue;
+			if (roomBound && !roomBounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
 			if (!personalMap.IsObjectKnown(obj.Id)) continue;
 
 			bool isTrap = false;
@@ -872,6 +907,7 @@ public class Human : UnitFunction
 		foreach (var tilePos in personalMap.KnownInterestTiles)
 		{
 			if (tilePos.z != currentFloor) continue;
+			if (roomBound && !roomBounds.Contains(new Vector2Int(tilePos.x, tilePos.y))) continue;
 			if (personalMap.GetObjectIdAtTile(tilePos) != null) continue;
 			if (IsTileInvestigationClaimedByPartyMember(tilePos)) continue;
 			if (TrapAvoidance.IsInKnownZone(this, new Vector2Int(tilePos.x, tilePos.y))) continue; // 위 오브젝트 후보와 같은 이유(03-13)

@@ -29,7 +29,7 @@ FSM+BT가 읽거나 쓰는 변수를 역할별로 분류.
 
 | 변수 | 위치 | 판정 내용 |
 |------|------|----------|
-| `BaseStat.mental` | Unit → BaseStatComponent | < maxMental × panicMentalRatio(기본 0.3) → Panic 활성 |
+| `BaseStat.mental` | Unit → BaseStatComponent | < maxMental × panicMentalRatio(기본 0.3) → Panic 활성 — **단 `panicBehaviorEnabled`(기본 false, 2026-10-02 임시 비활성)가 켜져 있을 때만** |
 | `BaseStat.maxMental` | Unit → BaseStatComponent | 위와 함께 사용 |
 | `currentTrapInteraction` | Unit | null 아니면 TrapResponse 활성 |
 | `currentAlertSearch` | Unit | null 아니면 Alert 활성 |

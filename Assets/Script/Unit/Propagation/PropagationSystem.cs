@@ -440,6 +440,9 @@ public static class PropagationSystem
 			}
 		}
 
+		// 검증문서 05-06(05번 7장 408·454~456줄): 발견한 문도 코어·함정과 같은 지속 재전파 대상이다 — 알게 된다는 것은 개인 지도 등록뿐이고 방 이동 명령은 여전히 리더 결정이다.
+		if (party.KnownDoorObjects.Count > 0) PropagateKnownDoors(human, party);
+
 		// 검증문서 03-03: 코어 위치·발견 내용의 지속 재전파 — 새 Party 필드 없이 기존
 		// LeaderKnownCorePosition을 그대로 재사용한다(코어가 처리되면 Party.TryStartRally가 스스로
 		// null로 지워 전파도 자연히 멈춘다 — 이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절하다).
@@ -458,6 +461,45 @@ public static class PropagationSystem
 			}
 		}
 	}
+
+	private static readonly List<Human> _doorCarrierScratch = new List<Human>();
+	private static readonly List<string> _staleDoorScratch = new List<string>();
+
+	// 파티가 확인한 문(Party.KnownDoorObjects) 중 human이 아직 모르는 문을, 그 문을 아는 파티원과 일반 전파 조건(CanPropagate)이 성립하면 human의 개인 지도에 등록한다.
+	// 전파 조건을 만족하는 파티원은 문마다가 아니라 한 번만 구한다(같은 공간 BFS라 문 수만큼 반복하면 비싸다). 파괴돼 사라진 문은 원장에서 정리한다.
+	private static void PropagateKnownDoors(Human human, Party party)
+	{
+		_doorCarrierScratch.Clear();
+		_staleDoorScratch.Clear();
+		bool carriersBuilt = false;
+
+		foreach (var kv in party.KnownDoorObjects)
+		{
+			if (!human.Session.objectGrid.TryGetValue(kv.Value, out var door) || door.IsCollected) { _staleDoorScratch.Add(kv.Key); continue; }
+			if (KnowsDoor(human, door)) continue;
+
+			if (!carriersBuilt)
+			{
+				carriersBuilt = true;
+				foreach (var carrier in party.Members)
+				{
+					if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+					if (CanPropagate(carrier, human)) _doorCarrierScratch.Add(carrier);
+				}
+			}
+			foreach (var carrier in _doorCarrierScratch)
+			{
+				if (!KnowsDoor(carrier, door)) continue;
+				human.personalMap.RegisterObject(door.Id, door.Position, door.BaseDanger, door.BaseInterest, door.Tags, door.CauserStage);
+				break;
+			}
+		}
+		foreach (var id in _staleDoorScratch) party.KnownDoorObjects.Remove(id);
+	}
+
+	// 문을 "아는가" — 오브젝트로 등록했거나(전파받은 경우 포함) 문 타일을 시야로 확인했다(인지 판정과 무관). AIMovementHelper.TryFindKnownDoorInCurrentRoom(리더의 다음 이동 문 후보)이 같은 기준을 쓴다.
+	public static bool KnowsDoor(Human h, InteractableObject door)
+		=> h.personalMap.IsObjectKnown(door.Id) || h.personalMap.IsTileRevealed(door.Position);
 
 	// ═══════════════════════════ 공격받은 사실의 전파 예외 (7-2장) ═══════════════════════════
 

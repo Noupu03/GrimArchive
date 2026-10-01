@@ -166,6 +166,18 @@ public partial class Party
 	public readonly Dictionary<string, Vector3Int> KnownInvestigatedObjects = new Dictionary<string, Vector3Int>();
 	public readonly HashSet<string> KnownCollectedObjectIds = new HashSet<string>();
 
+	// 05번 7장 408·454~456줄(검증 05-06): 발견한 문은 개인 지도 기록이자 "전달 가능한 정보"다 — 이 파티원 중 누군가 시야로 확인한 문 오브젝트 Id → 대표 위치.
+	// 같은 지속 재전파 패턴(PropagationSystem.TickOngoingObjectPropagation)이 아직 모르는 파티원에게 전파 조건이 성립할 때 전달한다. 문이 파괴되면 전파 순회 중 정리된다.
+	public readonly Dictionary<string, Vector3Int> KnownDoorObjects = new Dictionary<string, Vector3Int>();
+
+	// 리더가 방 경로를 정할 때 이미 지나온 방을 피하도록, 이 파티 구성원이 들어가 본 방 (층, 방 Id) — UnitFunction.SyncRoomAffiliation이 방이 바뀔 때 채운다(04번 1장, 검증 05-06 관찰 2).
+	private readonly HashSet<(int floor, int roomId)> _visitedRooms = new HashSet<(int floor, int roomId)>();
+	public void OnMemberEnteredRoom(int floor, int roomId) => _visitedRooms.Add((floor, roomId));
+	public bool HasVisitedRoom(int floor, int roomId) => _visitedRooms.Contains((floor, roomId));
+
+	// 리더가 방 안에서 다음 이동 문을 못 찾은 채 오래 지났다 — 개인 탐색의 방 제한을 리더에 한해 풀어 방 밖까지 탐색해 문을 찾게 하는 안전 해치(영구 정지 방지). HumanWaveManager가 켜고 끈다.
+	public bool LeaderMayExploreBeyondRoom;
+
 	// 검증문서 03-02: 파티 목표 상호작용이 "시작"되는 순간(완료 아님)의 합류 정보 — 위
 	// KnownInvestigatedObjects와 동일한 지속 재전파 패턴(PropagationSystem.TickOngoingObjectPropagation)
 	// 이지만 소비 방식이 다르다. 등록만 해주면 자유로운 파티원은 기존 FindInvestigateTarget이 자연히

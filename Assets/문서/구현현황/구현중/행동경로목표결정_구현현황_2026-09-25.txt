@@ -625,10 +625,10 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 🔶 11. 특수 이동과 방어 위치 점유 — 스킬·강제 이동은 해당 스킬 규칙 몫. "배치 모드 지정 방어 타일"은 N/A(2026-08-22 R키 배치 모드 삭제로 기능 없음, 근사 = IdleFSMState의 소환 위치 반경 2칸 배회 — 이 칸에 있던 "기존 디펜스 복귀 로직" 서술은 삭제 전 내용이라 정정). 방어 지정이 점유 비켜 주기·일반 이동 명령으로 바뀌지 않는 것은 ✅(summonPosition은 소환 시 1회만 기록). 경미: Idle 앵커가 오펜스에도 소환 위치(검증문서 04-09 발견 2). 문서가 삭제된 배치 모드를 전제하는 점은 사용자 결정 대기(04-09 발견 1)
 
 ── 05 파티 이동과 집결 및 보고 ── (2026-09-25: 0~2 핵심 흐름 실제 구현)
-✅ 0~1. 리더와 개인의 책임 / 공동 이동과 방 진입 — HumanWaveManager.UpdatePartyDestination의 강제이동
+🔶 0~1. 리더와 개인의 책임 / 공동 이동과 방 진입 [검증 05-01(2026-10-01): 진형 공동 이동·진입 후 개인 전환·개인 속도는 ✅, "개인이 임의로 다음 방에 들어가지 않는다"는 코드가 강제하지 않음 — 인류 개인 탐색이 층 단위라 방 진입은 문 소유 규칙이 실질 게이트 — 2026-10-02 개인 탐색·조사를 현재 방으로 제한해 수정(roomBoundExplorationEnabled)] — HumanWaveManager.UpdatePartyDestination의 강제이동
    제거 + Party.ReadyToAdvance + WaitReason.AdvancingToNextRoom + TryFindNextDoorTowardTargetRoom(좌표
    거리 근사, 진짜 방 그래프 최短경로 아님). 방 진입 후 개별 탐색 전환은 기존 FSM 구조가 그대로 담당.
-✅ 2. 집결 시점과 진행 — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
+✅ 2. 집결 시점과 진행 [검증 05-03(2026-10-02): 4장 집결 명령·해제 전달 범위 ✅ — 방 이동 지시·코어 경로 이동 지시의 전달 범위는 경미 관찰(검증문서 05-03 관찰 1·3)] [검증 05-02(2026-10-01): ✅ 통과 — 경미 관찰 2건: 집결 위치 리더 자리 고정(문 주변 연결은 소탕만)·코어 해제/탐색 중 코어 처리 미구분은 2026-10-02 수정(Party.ResumeRallyAfterCore)] — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
    종류별 기준으로 집결" 충족. 문 앞 집결(진형 위치)은 미구현(아래 3번 참고, 지금은 문 타일 좌표
    자체로 직행).
    [수정, 2026-09-30 검증 03-18] 집결 완료 뒤 공동 이동 중 리더의 1초 주기 TryStartRally가 아직 그 방에 있는 리더
@@ -651,12 +651,12 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    진형 자리·간격"은 여전히 미구현("파티·진형 문서 차후 작성" — 진짜 기획 부재, 검증문서 01-08 참고).
    [갱신, 2026-10-01] 집결 뒤 방 이동에 한해 진형 자리를 구현했다 — 0층 입구 진형 규칙(근접 0랭크·리더 1랭크·원거리 2랭크, 랭크 간격 2, 레인 좌우 대칭)을 PartyFormationMath로 추출해 방 문 앞 진형과 공유한다(위 2번 [개편] 참고). 문서의 확정 규칙이 아니라 사용자 요청("0층 포지션과 유사하게")에 따른 근사다.
    FindDoorWaitSlot은 문이 속한 방 안에서만 자리를 고르도록 고쳤다(문 반대편 자리 선택 버그).
-🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 (기존 TryStartRally가 파티 전체에 무조건 즉시
+🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 [검증 05-04(2026-10-02): 시작 전 이동 중인 조사가 집결로 전환되지 않던 ❌ 발견 1과 집결 자리의 문 앞 통과 구간 미제외를 수정 완료 — Human.ReleaseUnstartedInvestigation·AIMovementHelper.IsWithinDoorClearance] (기존 TryStartRally가 파티 전체에 무조건 즉시
    배정 — "같은 방" 조건 없이 전 파티원에게 적용되는 더 넓은 근사, 다른 방 인원에게도 즉시 적용되는
    차이가 있음. 실제 전파 기반 구분은 미구현)
-❌ 5. 집결 대상과 완료 (생존/도주/사망 구분 — 지금은 hp>0만 확인, 도주 개념 없음)
+🔶 5. 집결 대상과 완료 (생존/도주/사망 구분 — 지금은 hp>0만 확인, 도주 개념 없음) [검증 05-05(2026-10-02): 도주·수색·대사는 후속 문서 의존 N/A, 사망 지식 원장(PartyDeathRecord.InfoKnownUnits)은 있으나 집결 완료가 쓰지 않던 것을 2026-10-02 미집결자 대기로 구현(rallyAbsenteeWaitEnabled)]
 ❌ 6. 미집결자와 도주 사실 (도주·후퇴 문서 부재 — 최소 스텁만)
-✅ 7. 발견 보고와 리더 합류 — 코어 한정 구현(2026-09-26). 03번 문서(행동전환_중단_재개) 3번 항목
+🔶 7. 발견 보고와 리더 합류 [검증 05-06(2026-10-02): 문 발견 정보의 전파·보고가 없던 ❌ 발견 1을 수정 완료 — Party.KnownDoorObjects 원장·PropagationSystem.PropagateKnownDoors 지속 재전파·KnowsDoor 판정. 파괴된 통로 비후보는 후속 리더·명령 문서 의존] — 코어 한정 구현(2026-09-26). 03번 문서(행동전환_중단_재개) 3번 항목
    "코어 발견과 리더 보고"를 배선했다: 신규 PartyCoreReportSystem.cs + Party.LeaderKnownCorePosition/
    OnLeaderLearnsCore + WaitReason.ReportingCoreToLeader(WaitState.cs). UnitFunction.CastRay가 코어를
    AccuratePerception+firstTouch로 처음 보는 시점에 OnCoreDiscovered를 호출 — 발견자==리더거나
@@ -688,8 +688,7 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    IsAttackDirectionSearch/AbsenceWaitStartTime, TacticalFSMState.AlertApproach(공격 방향 수색은 3초 대기 뒤 남은
    15초 동안 정면 수색을 잇고, 수상한 타일 경계는 3초 대기 뒤 종료 — 이전엔 도착 즉시 경계 종료). 소리 확인이
    전투 등으로 중단돼도 남던 PendingSound가 새 소리를 막던 문제도 수정(PropagationSystem.DiscardInterruptedSoundReaction).
-❌ 8. 개인이 할 일이 없을 때 (05번 8항 특유의 "진형→집결위치→문 순" 합류 로직 미구현 — 지금은 기존
-   Wait/Navigation 폴백)
+🔶 8. 개인이 할 일이 없을 때 (2026-10-02 HumanIdleSystem — 목적지 해석·부재 확인·막힘 기억·시야 넓히기를 PartyCoreReportSystem.StepTowardDestination과 공용, 리더 곁이면 유지, 리더 없는 인류는 방 제한 해제, 문 대기 자리는 통과 구간 밖 우선. 검증 05-07 수정 완료, 컴파일만 확인·플레이 미확인. 남은 것: 대기 위치 일반 전파(받아 쓰는 곳 없음)·진형 자리 세부(문서가 후속 문서로 미룸))
 🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
 🔶 10. 귀환과 상태 악화 후퇴 — [수정+구현, 2026-09-27] 위 "중요 발견"이 우려한 대로
    `playerMoveTarget`+`isManualMoveCommand=false`가 실제로 무효였음을 확인, `WaitReason.Retreating`+

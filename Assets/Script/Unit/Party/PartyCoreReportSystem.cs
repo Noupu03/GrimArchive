@@ -140,7 +140,13 @@ public static class PartyCoreReportSystem
 		if (leader == null || leader.hp <= 0)
 			return EndReportWait(human); // 의무는 남는다 — 리더가 생기면 TickPendingReport가 이 대기를 다시 만든다
 
-		float now = Time.time;
+		return StepTowardDestination(human, wait, Time.time);
+	}
+
+	// 05번 8장 목적지 해석 한 틱(아는 리더 → 유효한 집결 위치 → 문 주변 → 시야 넓히기 → 허용 위치 대기) — 부재 확인·막힘 기억·도착 처리 포함.
+	// 코어 보고 이동(StepReportMovement)과 할 일 없는 개인의 합류(HumanIdleSystem)가 같은 구현을 쓴다. wait는 호출자가 유지하는 상태이고 currentWait일 필요는 없다.
+	internal static ReportStep StepTowardDestination(Human human, WaitState wait, float now)
+	{
 		ResolveDestination(human, wait, now, out var kind, out var target);
 		if (kind != wait.ReportKind || (kind != ReportDestinationKind.None && target != wait.ReportTarget))
 		{

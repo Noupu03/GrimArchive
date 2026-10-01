@@ -230,6 +230,23 @@ public static class AIMovementHelper
 		return false;
 	}
 
+	// 문 앞 통과 구간(05번 3장 197~199줄: 문 바로 앞 2칸) 안인가 — tile 자신이나 체비셰프 거리 PartyFormationMath.DoorClearance 미만 칸에 문 타일·게이트 문턱이 있으면 true(문이 파괴돼도 문턱은 남는다).
+	// 집결 자리처럼 통과 구간을 비워야 하는 자리 후보에서 제외하는 데 쓴다. 유닛 점유 크기 전체는 보지 않고 기준 타일만 본다(인류 전부 1×1).
+	public static bool IsWithinDoorClearance(GameSession session, int floor, Vector2Int tile)
+	{
+		if (session == null) return false;
+		int reach = PartyFormationMath.DoorClearance - 1;
+		for (int dx = -reach; dx <= reach; dx++)
+		{
+			for (int dy = -reach; dy <= reach; dy++)
+			{
+				var p = new Vector3Int(tile.x + dx, tile.y + dy, floor);
+				if (session.IsDoorTile(p) || session.TryGetGateKeyAt(p, out _)) return true;
+			}
+		}
+		return false;
+	}
+
 	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
 	// (CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 한 좌표에 여러 유닛이
 	// 겹쳐 텔레포트되는 걸 막는다. 반경 1이 막혀 있거나 꽉 찼으면 반경을 넓혀가며 계속 찾는다
@@ -293,7 +310,7 @@ public static class AIMovementHelper
 		return best;
 	}
 
-	// 05번 1장·8장: observer의 개인 지도로 "알고 있는"(IsTileRevealed) 현재 방의 문 중 하나를 고른다. targetCenter가 있으면
+	// 05번 1장·8장: observer의 개인 지도로 "알고 있는"(PropagationSystem.KnowsDoor — 문 타일을 직접 확인했거나 파티원에게 전파받아 등록한, 검증 05-06) 현재 방의 문 중 하나를 고른다. targetCenter가 있으면
 	// 그 방향에 가장 가까운 문(알려진 다음 이동 문), 없으면 observer에게 가장 가까운 문. 진짜 방 그래프 최단경로 대신 좌표 거리 근사.
 	public static bool TryFindKnownDoorInCurrentRoom(Human observer, Vector2? targetCenter, out Vector2Int doorPos, out int doorFloor)
 	{
@@ -309,7 +326,7 @@ public static class AIMovementHelper
 			if (obj == null || obj.Position.z != observer.currentFloor) continue;
 			if (!observer.currentRoom.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
 			if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
-			if (!observer.personalMap.IsTileRevealed(obj.Position)) continue;
+			if (!PropagationSystem.KnowsDoor(observer, obj)) continue;
 
 			float distSq = (new Vector2(obj.Position.x, obj.Position.y) - reference).sqrMagnitude;
 			if (distSq < bestDistSq)
@@ -331,11 +348,17 @@ public static class AIMovementHelper
 		// 문이 속한 쪽 방 안에서만 고른다 — 반경 안이라는 이유만으로 문 반대편(닫힌 적 문 너머)의 닿을 수 없는 타일을 자리로 뽑던 문제(플레이 로그 2026-10-01). 방을 못 구하거나 그 방 안에 자리가 없으면 예전처럼 제한 없이 고른다.
 		Room doorRoom = null;
 		unit.Session?.roomGrid?.TryGetValue(new Vector3Int(doorPos.x, doorPos.y, unit.currentFloor), out doorRoom);
-		if (doorRoom != null && TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, out Vector2Int inRoom)) return inRoom;
-		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, out Vector2Int anywhere) ? anywhere : doorPos;
+		// 문 앞 통과 구간(05번 3장 197~201줄)을 비운 자리가 우선이고, 문 주변이 좁아 없으면 통행 가능한 인접 지점으로 완화한다. 반경은 이 문 타일 하나 기준이라 1×2 묶음의 다른 칸·문턱은 구간 검사가 따로 본다(검증 05-07).
+		if (doorRoom != null)
+		{
+			if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, true, out Vector2Int inRoom)) return inRoom;
+			if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, false, out inRoom)) return inRoom;
+		}
+		if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, true, out Vector2Int anywhere)) return anywhere;
+		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, false, out anywhere) ? anywhere : doorPos;
 	}
 
-	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, out Vector2Int slot)
+	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, bool clearPassage, out Vector2Int slot)
 	{
 		slot = default;
 		for (int radius = 2; radius <= 5; radius++)
@@ -350,6 +373,7 @@ public static class AIMovementHelper
 				Vector2Int cand = doorPos + new Vector2Int(dx, dy);
 				if (claimedSlots.Contains(cand)) continue;
 				if (!unit.CanMove(cand)) continue;
+				if (clearPassage && IsWithinDoorClearance(unit.Session, unit.currentFloor, cand)) continue;
 				if (requiredRoom != null && !(unit.Session.roomGrid.TryGetValue(new Vector3Int(cand.x, cand.y, unit.currentFloor), out Room candRoom) && candRoom == requiredRoom)) continue;
 				int dist = ChebyshevDistance(cand, unit.position);
 				if (dist < bestDist) { bestDist = dist; best = cand; found = true; }

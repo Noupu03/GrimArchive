@@ -198,7 +198,9 @@ public static class PartyAdvanceSteps
 	{
 		if (wait.IsParked) return BTStatus.Running;
 
-		switch (SlotSeek.Step(human, wait, slot, useHold: true))
+		// 입장 이동은 자리에 정확히 서야 도착이다(반경 0) — 입장 자리는 문 먼 쪽 줄 바로 다음 칸일 수 있어(맨 뒤 랭크, 아는 타일이 문 근처뿐일 때) 반경 1이면 아직 문 위(통과 전)에서 "도착"으로 멈춰 뒤 단계를 막는다.
+		// 자리는 항상 먼 쪽 줄 너머라 자리에 서기 전에 줄을 넘는 순간 ReleaseIfEntered가 풀어 주므로 반경 0이어도 자리에 닿기를 기다리지 않는다(검증 05-08 직전 플레이 로그).
+		switch (SlotSeek.Step(human, wait, slot, useHold: true, arrivalRadius: entering ? 0 : PartyFormationMath.ArrivalRadius))
 		{
 			case SeekStatus.GaveUp:
 				wait.IsParked = true;
@@ -220,11 +222,12 @@ public static class PartyAdvanceSteps
 		Vector2Int zoneCenter = entering ? plan.EntryCenter : plan.FormCenter;
 		int zoneRadius = entering ? plan.EntryRadius : plan.FormRadius;
 		var session = human.Session;
+		bool useKnowledge = AIConfigLoader.Behavior?.entrySlotKnowledgeEnabled ?? true; // 입장 자리는 본인이 아는 타일에서만(04번 0장, 검증 05-06 관찰 4)
 		string label = entering ? "입장" : "진형";
 
 		if (PartyFormationMath.TryPickNearestFreeTile(human.position,
 				t => !rejected.Contains(t) && PartyFormationMath.IsWithinZone(t, zoneCenter, zoneRadius)
-					&& PartyAdvanceSystem.IsSlotFree(session, human, t, plan.Floor, room, ignoreUnits: false, clearOf: entering ? null : plan.NearTiles),
+					&& PartyAdvanceSystem.IsSlotFree(session, human, t, plan.Floor, room, ignoreUnits: false, clearOf: entering ? null : plan.NearTiles, knowledge: entering && useKnowledge ? human : null),
 				claimed, PartyFormationMath.DefaultSearchRadius, out var alt))
 		{
 			SlotSeek.LogRetarget(human, wait, label, slot, alt, "대기합니다");
@@ -234,6 +237,11 @@ public static class PartyAdvanceSteps
 				plan.FormSlots[human] = alt;
 				if (wait.Reason != WaitReason.EnteringNextRoom) wait.WaitPosition = alt;
 			}
+		}
+		else if (entering && useKnowledge && plan.FarTiles.Length > 0 && plan.FarTiles[(plan.FarTiles.Length - 1) / 2] + plan.Forward != slot)
+		{
+			// 아는 입장 자리가 아직 없다(문이 열린 직후라 다음 방을 못 봤다) — 통과 방향의 첫 칸으로 향해 문을 지나게 한다. 지나가면 ReleaseIfEntered가 개인 행동으로 푼다.
+			wait.WaitPosition = plan.FarTiles[(plan.FarTiles.Length - 1) / 2] + plan.Forward;
 		}
 		else if (PartyFormationMath.IsWithinZone(human.position, zoneCenter, zoneRadius))
 		{

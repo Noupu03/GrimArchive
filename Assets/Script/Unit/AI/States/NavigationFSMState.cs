@@ -193,7 +193,9 @@ public class NavigationFSMState : IFSMState
 		{
 			Vector2Int cTarget = unit.currentExplorationTarget.Value;
 			int targetTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cTarget.x, cTarget.y, fi)) : data.discoveredMap[fi][cTarget.x, cTarget.y];
-			if (targetTerrain == 0) // 아직 미탐색 상태라면 기존 타겟 유지
+			// 방 범위가 걸린 인류는 이전 방에서 잡아 둔 타겟을 새 방에 들어온 뒤에도 쫓지 않는다(검증 05-01) — 방 밖 타겟이면 다시 고른다.
+			bool outsideRoom = h != null && h.TryGetExplorationBounds(out RectInt boundCheck) && !boundCheck.Contains(cTarget);
+			if (targetTerrain == 0 && !outsideRoom) // 아직 미탐색 상태라면 기존 타겟 유지
 			{
 				needsNewTarget = false;
 			}
@@ -272,6 +274,8 @@ public class NavigationFSMState : IFSMState
 		else
 		{
 			unit.exploreStuckTurns = 0;
+			// 방 안에 확인할 곳이 더 없는 인류는 무작위로 배회하지 않고 진형 자리에 합류한다(05번 8장, HumanIdleSystem).
+			if (h != null && h.TryGetExplorationBounds(out _)) return HumanIdleSystem.Step(h);
 			MoveRandomlyValid(unit);
 		}
 		return BTStatus.Running;
@@ -280,7 +284,9 @@ public class NavigationFSMState : IFSMState
 	// 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서 다음 틱 탐색 A*가
 	// 캐시 미스를 낸다. CanMove로 직접 검사해 A*를 우회한다 — 방 제한/대각선 코너 커팅 검사는
 	// AIMovementHelper.TryMoveRandomlyWithinRadius로 통합됐다(IdleFSMState와 공유).
-	private static void MoveRandomlyValid(Unit unit) => AIMovementHelper.TryMoveRandomlyWithinRadius(unit);
+	// 방 범위가 걸린 인류는 폴백 배회도 방 안(문 타일 제외)에 묶는다 — 무작위 걸음으로 방 밖에 나가지 않는다(검증 05-01).
+	private static void MoveRandomlyValid(Unit unit)
+		=> AIMovementHelper.TryMoveRandomlyWithinRadius(unit, forceRoomConfine: unit is Human h && h.TryGetExplorationBounds(out _));
 
 	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
 	{
@@ -289,6 +295,9 @@ public class NavigationFSMState : IFSMState
 		// 진행될수록 비용이 계속 늘어난다. 방 제한 유닛(몬스터)은 탐색 범위가 좁아 BFS를 그대로 둔다.
 		if (unit is Human explorer)
 		{
+			// 개인이 임의로 다음 방에 들어가지 않는다(검증 05-01, 04번 10장 578줄·05번 1장 53줄·01번 585줄) — 프론티어도 지금 있는 방 안에서만 고른다. 없으면 null(할 일 없는 개인의 합류).
+			if (explorer.TryGetExplorationBounds(out RectInt roomBounds))
+				return explorer.personalMap.TryGetNearestFrontierTileInBounds(fi, unit.position, roomBounds, out Vector2Int inRoomTarget) ? inRoomTarget : (Vector2Int?)null;
 			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget)
 				? frontierTarget
 				: (Vector2Int?)null;
