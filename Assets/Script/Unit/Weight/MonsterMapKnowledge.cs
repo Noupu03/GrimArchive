@@ -6,7 +6,7 @@ using UnityEngine;
 // 몬스터(Monster) 유닛 개인이 들고 있는 "지도" — PersonalMapKnowledge의 몬스터용 축소판. 위험도/
 // 흥미도/방 추적은 빼고 지형 밝히기+함정 위치 기록(존재 확인만, 해제 안 함)만 담는다. 문서 없이 자체
 // 판단으로 채운 부분 — 플레이어/야생 구분 없이 Monster 전체에 적용되고 CastRay 시야 처리에서 자동 갱신된다.
-public class MonsterMapKnowledge
+public class MonsterMapKnowledge : IKnownTerrain
 {
 	// ─────────────────────────── 지형 밝히기 (벽/바닥) ───────────────────────────
 	// PersonalMapKnowledge와 동일한 값 관례: 0=미탐색, 1=바닥, 2=벽.
@@ -17,11 +17,16 @@ public class MonsterMapKnowledge
 	// 반환값: 이 타일을 처음 밝히는 것이면 true(PersonalMapKnowledge.RevealTile과 시그니처 통일, 확장 대비).
 	public bool RevealTile(Vector3Int pos, bool isWall)
 	{
-		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);
-		_tileTerrain[pos] = isWall ? 2 : 1;
+		bool isFirstReveal = !_tileTerrain.TryGetValue(pos, out int previousTerrain);
+		int terrain = isWall ? 2 : 1;
+		_tileTerrain[pos] = terrain;
+		if (isFirstReveal || previousTerrain != terrain) TerrainRevision++;
 		_dirtyTerrainFloors.Add(pos.z);
 		return isFirstReveal;
 	}
+
+	// 아는 지형이 실제로 바뀔 때마다 오른다 — IKnownTerrain(PersonalMapKnowledge와 동일 의미).
+	public int TerrainRevision { get; private set; }
 
 	public int GetTileTerrain(Vector3Int pos) => _tileTerrain.GetValueOrDefault(pos, 0);
 	public bool IsTileRevealed(Vector3Int pos) => _tileTerrain.ContainsKey(pos);

@@ -24,6 +24,9 @@ public class DoorSystem
     private readonly List<Vector3Int> _doorPositions = new List<Vector3Int>();
     private readonly System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer> _doorVisuals = new System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer>();
 
+    // 문이 생기거나(최초 배치·재설치) 파괴될 때마다 오른다 — 통행 가능 여부가 바뀌는 유일한 사건이라 경로 판정 메모(RouteAssessment, 검증 04-08)의 서명으로 쓴다.
+    public int StateVersion { get; private set; }
+
     // UnitFunction.Move가 인접 칸에서 이 문 타일로 넘어가려는 시도를 한 그 프레임에만 채워지는 집합 — UpdateProcess가 매 프레임 끝에 비운다.
     private readonly HashSet<Vector3Int> _approachedThisFrame = new HashSet<Vector3Int>();
 
@@ -49,6 +52,7 @@ public class DoorSystem
         CreateMap cmap = Session.cmap;
         if (cmap == null || cmap.map.floors == null) return;
 
+        _gateTileIndex = null; // 맵이 (재)생성됐다 — 게이트 타일 인덱스는 다음 조회 때 새 지도로 다시 만든다(OccupancySystem 통과 순서)
         int doorCount = 0;
 
         for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
@@ -92,6 +96,7 @@ public class DoorSystem
         door.DoorOwnerFaction = ownerFaction;
         Session.SpawnObject(door, Color.white, rotation);
         _doorPositions.Add(gridPos);
+        StateVersion++;
 
         // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — DoorIsOpenVisual
         // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다.
@@ -288,6 +293,7 @@ public class DoorSystem
     {
         _doorPositions.Remove(pos);
         _doorVisuals.Remove(pos);
+        StateVersion++;
         Session.CollectObject(pos); // objectGrid 제거 + 비주얼 파괴
         ClearStaleWallCache(pos);
         LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {pos} 위치의 문이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
@@ -326,6 +332,39 @@ public class DoorSystem
 
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.
     public bool IsRepairableDoorTile(Vector3Int pos) => TryFindGateAt(pos, out _);
+
+    // 검증 04-07(04번 8장 "좁은 통로의 통과 순서"): "좁은 통로" = 게이트 문턱 타일(폭 2 고정 통로). 문 오브젝트가 파괴돼도 성립해야 해서 objectGrid가 아니라 Floor.gates로 판정한다.
+    // 게이트는 런타임에 바뀌지 않으므로 첫 호출 때 타일 → 게이트 키(층·게이트 번호) 인덱스를 한 번 만들어 재사용한다(매 이동 판단마다 모든 게이트를 훑지 않게).
+    private Dictionary<Vector3Int, int> _gateTileIndex;
+
+    public bool TryGetGateKeyAt(Vector3Int pos, out int gateKey)
+    {
+        if (_gateTileIndex == null) BuildGateTileIndex();
+        return _gateTileIndex.TryGetValue(pos, out gateKey);
+    }
+
+    public bool IsGateTile(Vector3Int pos) => TryGetGateKeyAt(pos, out _);
+
+    private void BuildGateTileIndex()
+    {
+        _gateTileIndex = new Dictionary<Vector3Int, int>();
+        CreateMap cmap = Session.cmap;
+        if (cmap == null || cmap.map.floors == null) return;
+
+        for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
+        {
+            Floor floor = cmap.map.floors[floorIdx];
+            if (floor.gates == null) continue;
+
+            for (int gateIdx = 0; gateIdx < floor.gates.Count; gateIdx++)
+            {
+                int key = floorIdx * 100000 + gateIdx;
+                foreach (var row in GetGateDoorTiles(floor.gates[gateIdx], floor.config.chunkSize))
+                    foreach (var tile in row)
+                        _gateTileIndex[new Vector3Int(tile.x, tile.y, floorIdx)] = key;
+            }
+        }
+    }
 
     // IsRepairableDoorTile/RebuildDoorAt 공용 — pos가 어느 게이트의 문턱 타일인지 되짚는다.
     private bool TryFindGateAt(Vector3Int pos, out Gate gate)

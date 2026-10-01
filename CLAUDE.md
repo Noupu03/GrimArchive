@@ -463,6 +463,44 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
    `SkillData.damageType` 필드 신설(지금은 물리/마법이 아키타입별 하드코딩) 순서로 정리돼 있다.
 2. 새로 구현/연결한 게 있으면 그 문서를 직접 갱신한다(다른 구현현황 문서와 동일 관례).
 
+## 점유 충돌 시스템 — 대기 vs 우회 / 비켜 주기 / 좁은 통로 통과 순서 (검증 04-05~04-07, 2026-10-01)
+
+### 배경
+행동경로·목표결정 04번 문서 5~8장을 구현했다(검증 기록: `Assets/문서/구현현황/구현중/행동경로목표결정_검증_2026-09-25.txt`의 04-05~04-07, 계획 승인 후 구현). 예전엔 점유 타일이 A*에서 벽이라 다음 걸음이
+점유되면 우회가 아무리 길어도 곧바로 우회했고, 우회가 없으면 행동마다 따로 있는 정체 인내(4~8틱)가 포기로 끌고 갔다.
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+- **진입점은 두 곳뿐이다.** ① `AIMovementHelper.MoveTowardsPos` 맨 앞의 `OccupancySystem.TryHold(unit, dest)` — true면 "이번 주기는 대기(또는 비켜서기)로 썼다"(이동 안 함)로 true 반환, false면 기존 동작. ②
+  `GameSession.ProcessUnitAction`의 `JudgeState()` 뒤·`ExecuteAction()` 앞 `OccupancySystem.TryHonorYield(u)` → `ShouldHold(u)` — 대기 중이면 **이번 행동 주기의 ExecuteAction만 건너뛴다**(FSM 전환은 그대로). 새 이동 호출부를 만들 때
+  TryHold를 따로 부를 필요는 없다(MoveTowardsPos를 거치면 자동).
+- **대기 = 행동 틱 스킵.** 대기 중엔 각 행동의 리프가 호출되지 않아 정체 카운터가 돌지 않고, 대기 시작 때 `Unit.ResetNonCombatStuckCounters()`가 비전투 정체 카운터(조사·탐색·함정 접근·코어/문 공격 접근·플레이어 이동 명령·경계 접근·Human 대기)를 0으로
+  되돌린다 — **새 "정체 카운터"를 추가하면 이 메서드(Unit/Human override)에도 넣을 것**, 안 그러면 정당한 대기가 포기로 이어진다.
+- **판단 로직은 `OccupancyMath`(순수, 하니스로 실행 가능)에, 세션·유닛 상태를 읽는 부분은 `OccupancySystem`에 있다.** 점유자 분류(이동 중·상호작용 중(남은 시간)·교전/대기 중·제자리 대기) → 대기 예상시간 → 구조 경로(점유 무시, `AStarMovement.IgnoreAllUnits`
+  쌍둥이 — `CreateStructuralTwin`이 종류별로 복제, 방 제한/공격 범위 회피 알고리즘 포함) 길이와 실제 우회 길이 비교. **`IgnoreAllUnits`는 구조 경로 조회용 쌍둥이에만 켠다 — 실제 이동 인스턴스에 켜면 Move()가 점유 타일을 거부해 유닛이 얼어붙는다.**
+- **적용 범위는 비전투 이동뿐**(사용자 확정). 적 인지·피격·시전·Combat 상태·던전 입구 시퀀스 중에는 TryHold가 즉시 false라 예전 "점유=벽" 즉시 우회 그대로다. 전투 추격 쪽에 이 시스템을 넓히려면 `combatChaseStuckTurns` 등 자체 정체 처리와의 상호작용부터 검증할 것.
+- **kill-switch**: `AIBehaviorConfig.occupancyArbitrationEnabled`(false면 전체가 예전 동작), `gatePassOrderEnabled`(통과 순서·마주 막힘만). 이 시스템이 원인으로 의심되는 이동 이상은 먼저 이 스위치를 꺼서 확인한다.
+- **좁은 통로 = 게이트 문턱 타일**(`DoorSystem.TryGetGateKeyAt`, `Floor.gates` 기반이라 문이 파괴돼도 성립). 통과 우선순위는 역할(전방 근접 → 근접 지원 → 원거리 공격 → 원거리 지원) → HP 비율 → `Unit.PassTieBreak`(유닛당 한 번 뽑아 유지 — 매번 재추첨하면 순서가 흔들린다) → Id.
+- 6초(`occupancyWaitMaxSeconds`) 넘게 시간을 모르고 우회도 없는 대기는 포기하고 기존 정체 인내로 넘긴다(교착 방지) — 시간을 아는 대기(상호작용 남은 시간)는 끊지 않는다.
+
+### 알려진 한계 / 미검증
+Unity 실제 플레이 검증을 아직 하지 않았다(순수 판정만 하니스로 실행). `currentWait`가 있는 Human·플레이어 명령 중 유닛은 비켜 주기를 하지 않으며, 게이트 경쟁 판정은 상대의 캐시된 경로 앞 3~4칸에 의존하는 근사다. 플레이 확인 체크리스트는 검증문서 04-05 항목에 있다.
+
+## 경로 지식 = 개인 지도 / 경로 평가 — 전체 길 미확인·통행 불가 구분 (검증 04-08, 2026-10-01)
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+- **A*는 진영 공용 `discoveredMap`이 아니라 유닛이 아는 지형을 읽는다**(`IKnownTerrain` — 인류 `personalMap`, 몬스터 `monsterMap`; `AStarMovement.IsKnownWall`, 모든 탐색 진입점이 `BeginSearch`로 지식 소스를 정함). 공용 `discoveredMap`은 맵 크기·null 폴백과
+  kill-switch(`AIBehaviorConfig.personalMapPathingEnabled=false`) 폴백용으로만 남았고 **쓰기는 전부 그대로**다(건물/코어 동기화 포함). 미확인(0)은 **계획에서만 낙관적으로 통행 가능**으로 보고 지도에는 기록하지 않는다 — 실제 이동은 걸음마다 `CanMove`가 판정한다.
+- **조사 후보 선정은 `RouteAssessment.Assess`로 "닿을 수 있는가 + 거리"를 판정한다**(`RouteMath` 순수 + `RouteContext`): FullyKnown / PartlyUnknown(문서 9장 공식 = 프론티어까지 실제 걸음 수 + 프론티어→목적지 체비셰프의 최솟값, `AStarMovement.TryComputeFrontierSteps` BFS) /
+  TrapBlocked(**후보 유지** — 제외하면 접근 시도에서 03-13 막힘 신호가 안 나와 함정 대응 재개가 끊긴다) / Unreachable(점유 무시 구조 쌍둥이·함정 끈 쌍둥이로도 길 없음 → 후보 제외). 도달 기준은 목적지 **인접 1칸**(`acceptRange`, 조사의 실제 도착 조건 —
+  목표 타일이 서 있을 수 없는 칸이어도 닿는다). 함정 목표(`targetIsTrap`)는 정확한 타일까지이고, 통행 불가여도 직선거리로 근사한다(큰 값이면 `TrapPartySystem.BeginWaitingFor`의 대기 기한이 비정상적으로 길어짐).
+- **통행 불가 판정 메모**(`Unit.unreachableRouteMemo`)는 성능용 캐시일 뿐 행동 상태가 아니다 — 서명(층·`TerrainRevision`·아는 함정 수·`DoorSystem.StateVersion`)이 같으면 유효, 바뀌어도 판정 직후 `routeRecheckMinSeconds`(2초) 안엔 유효. **새 "길에 영향을 주는 정보"가 생기면 서명에 넣을 것.**
+- 새 벽을 알게 되면 `IMovementAlgorithm.OnTileBecameWall`(← `UnitFunction.ProcessTile`)이 그 타일이 캐시 경로 위일 때만 이동 캐시를 지운다 — 전역 지도 개정으로 무효화하면 탐험 중 매 프레임 지워져 A* 폭주 방지 캐시가 무의미해진다.
+- kill-switch: `personalMapPathingEnabled`, `unreachableCandidateExclusionEnabled`. 이동 이상이 의심되면 먼저 이 둘로 확인한다.
+
+### 알려진 한계 / 미검증
+Unity 실제 플레이 검증 안 함(실제 A*·RouteAssessment 코드를 스크래치패드 하니스로 44개 단정 실행, `Assets/Tests/RouteAssessmentTests.cs` 17건은 Test Runner 미실행). 문 상태·점유는 여전히 실시간 실제값을 읽는다(개인 지식화 미착수). "통행 불가 제외"는 **조사 후보 선정에만** 적용 —
+탐험·문/코어 접근·함정 접근의 포기 후 같은 대상 재선택과 `NavigationFSMState.RandomExplore`의 닿을 수 없는 프론티어 벽 날조(:260-269)는 그대로다. 몬스터도 개인 지도 기반이 돼서, 방 제한 몬스터가 플레이어 명령으로 안 가본 방을 지날 때 미확인을 낙관 가정으로 걷는다.
+
 ## 유니티 상단 Tools 메뉴 구조 (Tools / Tools(new), 2026-09-27)
 
 **핵심 사실 — "Tools"는 이름을 바꿀 수 있는 별도 객체가 아니다.** Unity는 `[MenuItem("Tools/...")]`

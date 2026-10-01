@@ -978,7 +978,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
         u.JudgeState();
         Vector2Int oldPos = u.position;
         Dir oldDir = u.currentDir;
-        u.ExecuteAction();
+        // 점유 충돌 판단(검증 04-05~04-07): 제자리 대기 중 받은 '비켜 달라' 요청을 먼저 처리하고, 아군을 기다리는 대기(OccupancySystem.TryHold가 정한 것) 중이면 이번 행동 주기는 쉰다.
+        // FSM 전환(JudgeState)은 이미 끝났고, 행동 리프가 호출되지 않아 대기 동안 각 행동의 정체 카운터가 돌지 않는다.
+        if (!OccupancySystem.TryHonorYield(u) && !OccupancySystem.ShouldHold(u))
+            u.ExecuteAction();
         string newLabel = u.fsm.GetLabel(u);
 
         bool stateChanged = oldPos != u.position || oldLabel != newLabel || oldDir != u.currentDir;
@@ -1228,12 +1231,16 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 문은 보유 진영의 유닛만 지나갈 수 있고, 아니면 공격해서 파괴해야 한다 — UnitFunction.CanMove/
     // AStarMovement.IsTileWalkable이 이동 판정에 직접 사용.
     public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit) => _doorSystem.IsBlockedByClosedDoor(pos, unit);
+    // 문이 생기거나 파괴될 때마다 오르는 개정 번호 — 경로 판정 메모(RouteAssessment)의 서명.
+    public int DoorStateVersion => _doorSystem.StateVersion;
     // 문 개폐 시각 트리거 — UnitFunction.Move가 인접 칸에서 문 타일로 넘어가려는 시도가 있을 때마다
     // 호출한다. 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
     public void NotifyDoorApproachAttempt(Vector3Int pos, Unit unit) => _doorSystem.NotifyApproachAttempt(pos, unit);
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
+    // 검증 04-07: 좁은 통로(게이트 문턱 타일) 판정 — 문이 파괴돼도 성립(OccupancySystem의 통과 순서가 사용).
+    public bool TryGetGateKeyAt(Vector3Int pos, out int gateKey) => _doorSystem.TryGetGateKeyAt(pos, out gateKey);
     // 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영 소유)만 거쳐 도달 가능한 방인지 판정
     // (InputManager.IssueMoveCommand가 사용).
     public bool CanFactionReachRoom(FactionType faction, int floorIndex, int fromRoomId, int targetRoomId)

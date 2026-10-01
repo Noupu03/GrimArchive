@@ -11,6 +11,8 @@ public class AttackRangeAvoidingMovement : AStarMovement
 	private int _cacheFrame = -1;
 	private readonly HashSet<Vector2Int> _avoidTiles = new HashSet<Vector2Int>();
 
+	public override AStarMovement CreateStructuralTwin() => new AttackRangeAvoidingMovement { IgnoreAllUnits = true };
+
 	protected override int GetExtraTileCost(Unit unit, Vector2Int tilePos)
 	{
 		// 회피 집합 계산은 프레임당 1회로 제한 — 캐시 없으면 탐색 1회 중 최대 수만 번 호출될 수 있다.

@@ -380,6 +380,8 @@ public class TacticalFSMState : IFSMState
 		// 시작점이 지형 정보 밖이면 판단 근거가 없다 — 막지 않는 것으로 본다(실제 유닛은 항상 안이라 게임 동작은 그대로).
 		if (unit.position.x < 0 || unit.position.x >= mapW || unit.position.y < 0 || unit.position.y >= mapH) return false;
 		Vector2Int trap2D = new Vector2Int(trapPos.x, trapPos.y);
+		// 검증 04-08: 길찾기와 같은 "개인이 아는 지형"으로 판정한다(끄면 진영 공용 지도) — 이 BFS만 공용 지도를 쓰면 A*와 막힘 판정이 어긋난다.
+		IKnownTerrain known = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
 
 		var visited = new HashSet<Vector2Int> { unit.position };
 		var queue   = new Queue<Vector2Int>();
@@ -394,7 +396,8 @@ public class TacticalFSMState : IFSMState
 				Vector2Int next = cur + unit.GetDirVector(d);
 				if (visited.Contains(next)) continue;
 				if (next.x < 0 || next.x >= mapW || next.y < 0 || next.y >= mapH) continue;
-				if (myData.discoveredMap[fi][next.x, next.y] == 2) continue;
+				int terrain = known != null ? known.GetTileTerrain(new Vector3Int(next.x, next.y, fi)) : myData.discoveredMap[fi][next.x, next.y];
+				if (terrain == 2) continue;
 				if (ExplorationMath.IsInTrapZone(next, trap2D)) continue;
 				visited.Add(next); queue.Enqueue(next);
 			}

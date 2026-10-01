@@ -12,4 +12,7 @@ public interface IMovementAlgorithm
     bool TryGetCachedDestination(out Vector2Int destination);
     List<Vector2Int> BuildCachedPathPreview(Unit unit, int maxSteps);
     void ClearCache();
+
+    // 검증 04-08: 유닛이 새 벽을 알게 됐을 때 호출 — 그 타일이 캐시한 경로 위면 캐시를 버린다(UnitFunction.ProcessTile).
+    void OnTileBecameWall(Unit unit, Vector2Int tile);
 }

@@ -6,7 +6,7 @@ using UnityEngine;
 // 인류(Human) 유닛 개인이 들고 있는 "지도" — 연산공식 문서 15~21장(타일/오브젝트/방 위험도·흥미도)의
 // 실체. 개인 인지 정보라 Human.Memory.personalMap(Unit.cs)로만 보유하며, 진영 전체 지도나
 // HumanKnowledgeBase 13장 전역 누적값은 다루지 않는다.
-public class PersonalMapKnowledge
+public class PersonalMapKnowledge : IKnownTerrain
 {
 	// ─────────────────────────── 15장. 타일 위험도 ───────────────────────────
 	private readonly Dictionary<Vector3Int, float> _tileDanger = new();
@@ -119,8 +119,10 @@ public class PersonalMapKnowledge
 	// 정확히 이 "처음 밝혀지는 시점"이라, 호출부(UnitFunction.CastRay)가 이 값으로 로그를 남긴다.
 	public bool RevealTile(Vector3Int pos, bool isWall)
 	{
-		bool isFirstReveal = !_tileTerrain.ContainsKey(pos);
-		_tileTerrain[pos] = isWall ? 2 : 1;
+		bool isFirstReveal = !_tileTerrain.TryGetValue(pos, out int previousTerrain);
+		int terrain = isWall ? 2 : 1;
+		_tileTerrain[pos] = terrain;
+		if (isFirstReveal || previousTerrain != terrain) TerrainRevision++;
 		_dirtyTerrainFloors.Add(pos.z);
 
 		// 프론티어 갱신은 "처음 밝히는 타일"에서만 한다(매번 재스캔하면 새 핫패스가 됨) — 이 타일은
@@ -165,6 +167,7 @@ public class PersonalMapKnowledge
 		if (_tileTerrain.TryGetValue(pos, out var terrain) && terrain == 2)
 		{
 			_tileTerrain.Remove(pos);
+			TerrainRevision++;
 			_dirtyTerrainFloors.Add(pos.z);
 		}
 	}
@@ -178,7 +181,14 @@ public class PersonalMapKnowledge
 	// 0=미탐색, 1=바닥, 2=벽 — discoveredMap과 동일한 값 관례.
 	public int GetTileTerrain(Vector3Int pos) => _tileTerrain.GetValueOrDefault(pos, 0);
 
+	// 아는 지형이 실제로 바뀔 때마다 오른다(처음 밝힘·바닥↔벽 변경·벽 캐시 삭제) — IKnownTerrain, 경로 판정 메모의 서명.
+	public int TerrainRevision { get; private set; }
+
 	public bool IsTileRevealed(Vector3Int pos) => _tileTerrain.ContainsKey(pos);
+
+	// 층별 프론티어(미탐사지만 밝혀진 바닥과 직교 인접한 타일) — 거리 추정(RouteAssessment)이 "시야를 넓힐 위치" 후보로 쓴다. 호출부가 순회만 해야 하며 수정하면 안 된다.
+	public IReadOnlyCollection<Vector2Int> GetFrontierTiles(int floor)
+		=> _frontierTilesByFloor.TryGetValue(floor, out var frontier) ? frontier : (IReadOnlyCollection<Vector2Int>)System.Array.Empty<Vector2Int>();
 
 	// NavigationFSMState.RandomExplore 전용 — from과 가장 가까운 프론티어 타일을 직선거리 기준으로
 	// 반환한다(실제 최단 경로는 아닐 수 있으나 호출부의 A* 실패 재시도가 흡수).

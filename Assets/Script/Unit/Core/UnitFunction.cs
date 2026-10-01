@@ -378,6 +378,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		{
 			currentDir = dir;
 			position = nextPos;
+			lastMoveTime = UnityEngine.Time.time; // 점유 충돌 판단: 이 유닛이 점유자일 때 "이동 중"인지 가르는 근거(OccupancySystem)
 
 			// 이 유닛을 "수상한 타일" 대상으로 추적 중인 적이 하나라도 있으면, 이동 1회마다 가시성을
 			// 임시로 +20 늘리는 타이머를 하나 push한다(각 타이머는 5초 뒤 개별 소멸 — OnUpdate에서 감쇠).
@@ -621,7 +622,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 			if (terrainObserver != null)
 			{
+				int terrainRevisionBefore = terrainObserver.personalMap.TerrainRevision;
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
+				// 검증 04-08: 새로 알게 된 벽이 캐시한 이동 경로 위면 다음 걸음에 경로를 다시 계산한다(매 패스 모든 타일을 조회하지 않도록 지형이 실제로 바뀐 벽에서만).
+				if (tileIsWall && terrainObserver.personalMap.TerrainRevision != terrainRevisionBefore)
+					MovementAlgorithm?.OnTileBecameWall(this, new Vector2Int(x, y));
 				if (isFirstReveal && !tileIsWall)
 				{
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, chunk.roomId);
@@ -670,7 +675,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			{
 				// 인류(PersonalMapKnowledge)와 달리 위험도·흥미도·방·오브젝트 등록은 하지 않는다 —
 				// 지형 기록 + 함정 위치만 남긴다.
+				int monsterTerrainRevisionBefore = terrainObserverMonster.monsterMap.TerrainRevision;
 				terrainObserverMonster.monsterMap.RevealTile(revealedTile, tileIsWall);
+				if (tileIsWall && terrainObserverMonster.monsterMap.TerrainRevision != monsterTerrainRevisionBefore)
+					MovementAlgorithm?.OnTileBecameWall(this, new Vector2Int(x, y));
 				if (!tileIsWall && Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject monsterSeenObj)
 					&& !monsterSeenObj.IsCollected && TagsContain(monsterSeenObj.Tags, "Trap"))
 				{

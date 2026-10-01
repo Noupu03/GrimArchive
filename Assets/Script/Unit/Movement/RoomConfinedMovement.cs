@@ -6,6 +6,8 @@ public class RoomConfinedMovement : AStarMovement
     private int _lastCheckFloor = -1;
     private Vector2Int _lastCheckPos;
 
+    public override AStarMovement CreateStructuralTwin() => new RoomConfinedMovement { IgnoreAllUnits = true };
+
     protected override bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         // 부모(AStarMovement)의 기본 벽/유닛 충돌 검사 수행

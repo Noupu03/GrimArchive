@@ -33,6 +33,22 @@ public class AIBehaviorConfig : ScriptableObject
     public float doorApproachHoldRetrySeconds = 1f;
     [Tooltip("방 이동이 계속 막힌 채로 이 시간(초)을 넘기면 명령을 풀고 개인 행동으로 돌아간다 — 닿을 수 없는 자리에 영구히 얼어붙는 것을 막는 안전장치 (검증문서 04-02, 내부 판단)")]
     public float doorApproachMaxBlockedSeconds = 30f;
+    [Tooltip("점유 충돌 판단(대기 vs 우회 예상시간 비교·비켜 주기, 검증문서 04-05/04-06) 전체 kill-switch — 끄면 예전처럼 점유 타일은 곧바로 벽으로 보고 우회한다 (내부 판단)")]
+    public bool occupancyArbitrationEnabled = true;
+    [Tooltip("좁은 통로(게이트 문 타일) 통과 순서·마주 막힘 양보(검증문서 04-07) kill-switch — 끄면 통과 순서 대기를 하지 않는다 (내부 판단)")]
+    public bool gatePassOrderEnabled = true;
+    [Tooltip("길찾기(A*)가 진영 공용 지도 대신 유닛 개인 지도(직접 확인했거나 전달받아 아는 지형)로 경로를 계산한다 (검증문서 04-08, 04번 0장). 끄면 예전처럼 진영 공용 discoveredMap을 쓴다 (내부 판단)")]
+    public bool personalMapPathingEnabled = true;
+    [Tooltip("조사 후보를 고를 때 구조 경로(점유 무시)로도 닿을 수 없다고 확인된 대상을 후보에서 제외한다 (검증문서 04-08, 04번 9장 '통행 불가 확인'). 끄면 제외하지 않고 아주 먼 거리로만 계산한다 (내부 판단)")]
+    public bool unreachableCandidateExclusionEnabled = true;
+    [Tooltip("통행 불가로 판정한 대상을, 아는 정보(지형·문·함정)가 바뀌었어도 판정 직후 이 시간(초) 동안은 다시 탐색하지 않는다 — 탐험 중 아는 지형이 매 틱 바뀌어 같은 대상을 반복 탐색하는 비용 폭주를 막는 성능 장치 (내부 판단)")]
+    public float routeRecheckMinSeconds = 2f;
+    [Tooltip("점유자가 비워질 시간을 모르고 우회도 없는 대기가 이 시간(초)을 넘으면 대기를 풀고 기존 경로(행동별 정체 인내 → 포기)로 넘긴다. 시간을 아는 대기(상호작용 남은 시간 등)는 끊지 않는다 (내부 판단)")]
+    public float occupancyWaitMaxSeconds = 6f;
+    [Tooltip("점유 대기 중 같은 충돌을 다시 판정하는 간격(초) — 점유자 상태가 바뀌었는지(상호작용 종료·이동 시작) 확인한다 (내부 판단)")]
+    public float occupancyRecheckSeconds = 0.5f;
+    [Tooltip("제자리 대기 중인 아군에게 남기는 '비켜 달라' 요청의 유효 시간(초) (내부 판단)")]
+    public float yieldRequestSeconds = 2f;
     [Tooltip("전파받은 적 위치 정보가 이 시간(초)을 넘으면 낡은 정보로 보고 접근하지 않는다 (03번 v0.6 4-7은 유효 기간을 정하지 않음, 내부 판단)")]
     public float indirectEnemyInfoMaxAgeSeconds = 30f;
     [Tooltip("전파받은 적 위치로 접근하다 거리가 줄지 않는 혼잡 대기 최대 턴 수 — 초과 시 접근을 포기하고 그 정보를 버린다 (내부 판단)")]

@@ -142,6 +142,99 @@ public class MovementSystemTests
 		Assert.AreEqual(2, CombatScoreMath.StepsToFirstTileWithinRange(detached, new Vector2Int(9, 9), 1));
 	}
 
+	// ── 검증 04-05/04-06: 점유자 상태별 대기 예상시간 + 대기 vs 우회 선택 ──
+	[Test]
+	public void OccupancyMath_EstimateWaitSeconds_ByOccupantKind()
+	{
+		Assert.AreEqual(0.4f, OccupancyMath.EstimateWaitSeconds(OccupantKind.Moving, 0.4f, null).Value, 0.0001f, "이동 중인 아군은 다음 걸음에 비킨다고 본다");
+		Assert.AreEqual(5.4f, OccupancyMath.EstimateWaitSeconds(OccupantKind.Interacting, 0.4f, 5f).Value, 0.0001f, "상호작용은 남은 시간 + 자리를 떠나는 한 걸음");
+		Assert.IsNull(OccupancyMath.EstimateWaitSeconds(OccupantKind.Interacting, 0.4f, null), "파괴 중처럼 남은 시간을 모르면 미확인");
+		Assert.IsNull(OccupancyMath.EstimateWaitSeconds(OccupantKind.Busy, 0.4f, null), "교전·시전·다른 것을 기다리는 중은 미확인");
+		Assert.IsNull(OccupancyMath.EstimateWaitSeconds(OccupantKind.IdleInPlace, 0.4f, null), "제자리 대기는 미확인(비켜 주기 대상)");
+	}
+
+	[Test]
+	public void OccupancyMath_InteractionRemainingSeconds_ClampsProgress()
+	{
+		Assert.AreEqual(8f, OccupancyMath.InteractionRemainingSeconds(0f, 8f), 0.0001f);
+		Assert.AreEqual(2f, OccupancyMath.InteractionRemainingSeconds(0.75f, 8f), 0.0001f);
+		Assert.AreEqual(0f, OccupancyMath.InteractionRemainingSeconds(1.5f, 8f), 0.0001f, "진행도는 1로 고정");
+		Assert.AreEqual(8f, OccupancyMath.InteractionRemainingSeconds(-1f, 8f), 0.0001f, "진행도는 0으로 고정");
+	}
+
+	[Test]
+	public void OccupancyMath_Decide_ShorterWins_TieKeepsCurrent_UnknownPrefersDetour()
+	{
+		// 대기 0.4+구조 3s=3.4 vs 우회 10s → 대기. 상호작용 8.4+3=11.4 vs 우회 4s → 우회.
+		Assert.AreEqual(OccupancyChoice.Wait, OccupancyMath.Decide(0.4f, 3f, 10f, OccupancyChoice.None));
+		Assert.AreEqual(OccupancyChoice.Detour, OccupancyMath.Decide(8.4f, 3f, 4f, OccupancyChoice.None));
+
+		// 동률이면 현재 선택 유지, 아직 선택 전이면 원래 경로에서 기다린다.
+		Assert.AreEqual(OccupancyChoice.Detour, OccupancyMath.Decide(2f, 3f, 5f, OccupancyChoice.Detour), "동률 + 우회를 고르던 중 → 우회 유지");
+		Assert.AreEqual(OccupancyChoice.Wait, OccupancyMath.Decide(2f, 3f, 5f, OccupancyChoice.Wait), "동률 + 대기를 고르던 중 → 대기 유지");
+		Assert.AreEqual(OccupancyChoice.Wait, OccupancyMath.Decide(2f, 3f, 5f, OccupancyChoice.None), "동률 + 선택 전 → 원래 경로에서 대기");
+
+		// 비워질 시간을 모르면 허용 우회가 있으면 우회, 없으면 대기.
+		Assert.AreEqual(OccupancyChoice.Detour, OccupancyMath.Decide(null, 3f, 6f, OccupancyChoice.Wait));
+		Assert.AreEqual(OccupancyChoice.Wait, OccupancyMath.Decide(null, 3f, null, OccupancyChoice.None));
+		// 시간을 알아도 우회가 없으면 기다린다.
+		Assert.AreEqual(OccupancyChoice.Wait, OccupancyMath.Decide(8.4f, 3f, null, OccupancyChoice.None));
+	}
+
+	[Test]
+	public void OccupancyMath_UnknownWaitExpired_OnlyForUnknownWaits()
+	{
+		Assert.IsFalse(OccupancyMath.UnknownWaitExpired(105f, 100f, 6f, false));
+		Assert.IsTrue(OccupancyMath.UnknownWaitExpired(106f, 100f, 6f, false));
+		Assert.IsFalse(OccupancyMath.UnknownWaitExpired(200f, 100f, 6f, true), "시간을 아는 대기(상호작용 등)는 끊지 않는다");
+	}
+
+	// ── 검증 04-07: 좁은 통로 통과 순서·마주 막힘 양보 ──
+	[Test]
+	public void OccupancyMath_EntryRank_FollowsDocumentOrder()
+	{
+		Assert.AreEqual(0, OccupancyMath.EntryRank(CombatRole.MeleeTank));
+		Assert.AreEqual(0, OccupancyMath.EntryRank(CombatRole.MeleeDps));
+		Assert.AreEqual(1, OccupancyMath.EntryRank(CombatRole.MeleeSupport));
+		Assert.AreEqual(2, OccupancyMath.EntryRank(CombatRole.RangedDps));
+		Assert.AreEqual(3, OccupancyMath.EntryRank(CombatRole.RangedSupport));
+	}
+
+	[Test]
+	public void OccupancyMath_ComparePassPriority_RoleThenHpThenKeptRandomThenId_NoLeaderException()
+	{
+		var tank = new PassKey(0, 0.2f, 50, 1);
+		var priest = new PassKey(3, 1.0f, 1, 2);
+		Assert.Less(OccupancyMath.ComparePassPriority(tank, priest), 0, "역할 순위가 HP 비율·무작위보다 먼저(리더가 사제여도 전방 근접이 먼저)");
+		Assert.Greater(OccupancyMath.ComparePassPriority(priest, tank), 0);
+
+		var healthy = new PassKey(2, 0.9f, 99, 3);
+		var hurt = new PassKey(2, 0.4f, 1, 4);
+		Assert.Less(OccupancyMath.ComparePassPriority(healthy, hurt), 0, "같은 순위는 HP 비율이 높은 쪽이 먼저");
+
+		var a = new PassKey(2, 0.5f, 10, 5);
+		var b = new PassKey(2, 0.5f, 20, 6);
+		Assert.Less(OccupancyMath.ComparePassPriority(a, b), 0, "HP도 같으면 한 번 정한 무작위 값(작은 쪽)이 먼저");
+		Assert.Greater(OccupancyMath.ComparePassPriority(b, a), 0, "같은 비교는 항상 같은 결과(재추첨 없음)");
+
+		var c = new PassKey(2, 0.5f, 10, 7);
+		Assert.Less(OccupancyMath.ComparePassPriority(a, c), 0, "무작위 값까지 같으면 Id로 고정해 양쪽이 같은 결론");
+		Assert.AreEqual(0, OccupancyMath.ComparePassPriority(a, a));
+	}
+
+	[Test]
+	public void OccupancyMath_ShouldIYield_RetreatAbilityThenPriority()
+	{
+		var high = new PassKey(0, 1f, 1, 1);
+		var low = new PassKey(3, 1f, 1, 2);
+		Assert.IsTrue(OccupancyMath.ShouldIYield(true, false, true, high, low), "상대가 통로를 빠져나오는 중이면 이탈이 먼저라 내가 양보");
+		Assert.IsTrue(OccupancyMath.ShouldIYield(false, true, false, high, low), "나만 물러날 수 있으면 우선순위가 높아도 내가 양보");
+		Assert.IsFalse(OccupancyMath.ShouldIYield(false, false, true, low, high), "상대만 물러날 수 있으면 내가 양보하지 않는다");
+		Assert.IsFalse(OccupancyMath.ShouldIYield(false, false, false, low, high), "둘 다 못 물러나면 아무도 물러나지 않는다(호출부가 대기·다른 경로 판단)");
+		Assert.IsTrue(OccupancyMath.ShouldIYield(false, true, true, low, high), "둘 다 가능하면 우선순위 낮은 쪽이 양보");
+		Assert.IsFalse(OccupancyMath.ShouldIYield(false, true, true, high, low), "둘 다 가능하면 우선순위 높은 쪽은 양보하지 않는다");
+	}
+
 	// ── 검증 04-03: 플레이어 이동 명령이 막혔을 때의 처리 ──
 	[Test]
 	public void ResolveMoveFailure_FallbackRetargetsButNeverOutlivesTheLimit()

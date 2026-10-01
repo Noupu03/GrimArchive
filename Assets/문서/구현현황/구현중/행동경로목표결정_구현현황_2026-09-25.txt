@@ -377,6 +377,8 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    탐색을 RunSearch로 추출해 공유 — 이동 캐시는 안 건드림)의 실제 경로 길이, 모르면
    personalMap.TryGetNearestFrontierTile(기존 함수, from에 목표 위치를 넣어 재사용)로 목표 쪽 최근접
    프론티어까지 실제 경로+직선 잔여. 후보 다수 시 직선거리 1차 정렬 후 상위 5개만 정밀 계산(성능).
+   [2026-10-01 갱신, 검증 04-08] 위 "목표 쪽 직선 최근접 프론티어" 폴백은 RouteAssessment로 교체됐다 — 프론티어는 (실제 걸음 수 + 체비셰프)의 최솟값으로 고르고, 통행 불가가 확인된 대상은
+   후보에서 제외하며 그 뒤 후보로 계속 내려간다(상세는 04번 9항 갱신 블록).
 🔶 6. 목표 유지와 변경 기준 (2026-09-27) — PartyGoalMath.ShouldSwitchNonCombatGoal을
    ComputeInvestigateTarget이 실제로 호출하지만 "0→양수" 분기만 도달(새 목표 커밋). 이미 커밋된 목표를
    이동 중 1.2배 기준으로 재비교하는 것은 CanInvestigate가 커밋된 목표가 있으면 재탐색 자체를 안 하는
@@ -519,15 +521,17 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 ❌ 13. 전투 종료와 휴식 연결 (휴식 시스템 자체가 후속 문서 — 범위 밖, 탐색·집결 재개 연결만 구현)
 
 ── 04 이동 경로와 속도 및 점유 충돌 ──
-❌ 0~1. 경로 입력과 목적지 / 방 경로와 개인 경로
+🔶 0~1. 경로 입력과 목적지 / 방 경로와 개인 경로 — [2026-10-01, 검증 04-08] 경로 계산의 지형 입력이 진영 공용 discoveredMap에서 "이 유닛이 아는 지형"(IKnownTerrain — 인류 personalMap, 몬스터 monsterMap)으로 바뀌었다
+   (AStarMovement.IsKnownWall, kill-switch AIBehaviorConfig.personalMapPathingEnabled). 문 상태(IsBlockedByClosedDoor)·점유(unitGrid)는 여전히 실시간 실제값을 읽는다(개인 지식화는 후속). 방 경로(리더)·공용 방 경로는 개념·문서 부재로 여전히 미구현.
 🔶 2. 점유 크기 1×1~5×5 (Footprint 시스템 기존 구현 — 이 문서가 새로 요구하는 것 없음)
 ❌ 3. 이동속도 적용 (공동 이동속도 계산 헬퍼 신규)
 ✅ 4. 역할별 이동 경로와 우회 (2026-09-27 구현) — AStarMovement.GetExtraTileCost 훅 + AttackRangeAvoidingMovement
    (RangedDps/RangedSupport/MeleeSupport만 승급, RoomConfinedMovement 몬스터는 이 표의 "몬스터" 행으로
    별도 관리돼 제외). 상세는 "다음 우선순위 구현 후보" 16번 참고. Unity 실제 플레이 검증 아직 안 함.
-❌ 5~6. 다음 타일 점유 / 대기와 우회 예상시간
-❌ 7. 상호작용 종료 후 이동과 비켜주기
-❌ 8. 좁은 통로의 통과 순서 (CombatRole 순서 신규)
+✅ 5~6. 다음 타일 점유 / 대기와 우회 예상시간 (2026-10-01 구현, 비전투 이동만) — AIMovementHelper.MoveTowardsPos → OccupancySystem.TryHold가 점유자 상태별 대기 예상시간과 우회 시간을 비교(OccupancyMath.Decide),
+   대기는 GameSession.ProcessUnitAction의 행동 틱 스킵(ShouldHold)으로 실행. 검증문서 04-05/04-06 참고. Unity 실제 플레이 검증 아직 안 함.
+✅ 7. 상호작용 종료 후 이동과 비켜주기 (2026-10-01 구현) — 제자리 대기 아군에게 '비켜 달라' 요청(Unit.yieldRequester) → OccupancySystem.TryHonorYield가 인접 빈 칸으로 한 걸음. currentWait가 있는 Human·플레이어 명령 중 유닛은 비켜 주지 않는 한계 있음.
+✅ 8. 좁은 통로의 통과 순서 (2026-10-01 구현) — 게이트 문턱 타일 기준 역할 순서(전방 근접 → 근접 지원 → 원거리 공격 → 원거리 지원)·HP·유지되는 무작위 값(OccupancyMath.ComparePassPriority), 통로 이탈 우선, 마주 막힘 양보(ShouldIYield).
 🔶 9. 경로 재탐색과 길을 찾지 못한 뒤의 행동 (AIMovementHelper 상당 부분 이미 구현) — [버그 수정,
    2026-09-27] 사용자 플레이테스트 발견: NavigationFSMState.RandomExplore(자유탐색)만 "다음 걸음이
    벽이 아니라 아군에게 막혔을 때" 포기 로직이 없었다 — CoreAttack/DoorAttack/Investigate는 전부
@@ -604,6 +608,16 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    **[Unity 실제 플레이 검증 완료, 2026-09-27]** 사용자가 재플레이 후 "오케이 잘됐네"로 확인 — 0층
    행진→계단 이동→1층 진입→즉시 개인 탐색 전환까지 전체 플로우가 이 설계로 정상 동작함을 실제
    플레이로 확인했다. 네 번째 시도 만에 확정된 최종 구조.
+   [2026-10-01, 검증 04-08 수정] 전체 길을 모르는 목적지 / 통행 불가 / 같은 막힘 반복 —
+   (1) 거리 추정과 조사 후보 판정을 RouteAssessment(신규, Movement/)로 교체: FullyKnown(실제 칸수) / PartlyUnknown(문서 9장 공식 = 프론티어까지 실제 걸음 수 + 프론티어→목적지 체비셰프의 최솟값,
+   AStarMovement.TryComputeFrontierSteps의 BFS 1회를 후보들이 공유) / TrapBlocked(후보 유지 — 접근 시도에서 03-13 막힘 신호가 나와야 함정 대응이 재개된다) / Unreachable(점유 무시 구조 쌍둥이·
+   함정 끈 쌍둥이로도 길 없음 → 조사 후보에서 제외, 거리 9999). 예전엔 닿을 수 없는 대상이 프론티어 폴백(knownSegment=0)으로 오히려 가깝게 계산돼 포기→경계→같은 대상 재선택이 반복됐다.
+   판정 메모(Unit.unreachableRouteMemo)는 성능용 — 아는 지형 개정·아는 함정 수·문 상태 개정이 같으면 재탐색하지 않고 바뀌면(판정 직후 routeRecheckMinSeconds=2초가 지난 뒤) 자동으로 다시 연다.
+   (2) A* 이동 캐시가 새 벽 발견에 무효화된다(IMovementAlgorithm.OnTileBecameWall ← UnitFunction.ProcessTile, 캐시 경로 위의 벽일 때만). (3) A*·TacticalFSMState.IsRouteBlockedByTrap BFS가 개인 지도 기반.
+   kill-switch: personalMapPathingEnabled / unreachableCandidateExclusionEnabled. "통행 불가 제외"의 적용 범위는 조사 후보 선정뿐이다 — 함정 해제 담당자 ETA(EstimateRemainingSecondsToInteract)는 일부 미확인 구간의
+   추정식만 새 공식을 쓰고 통행 불가는 예전처럼 직선거리로 근사한다(큰 값이면 TrapPartySystem.BeginWaitingFor의 대기 기한이 비정상적으로 길어져 재선정이 막힘). 탐험·문/코어 접근·함정 접근의
+   포기 후 재선택과 RandomExplore의 닿을 수 없는 프론티어 벽 날조(NavigationFSMState :260-269)도 이번 범위 밖(검증문서 04-08 발견 5). dotnet build 오류 0·경고 71(기존과 동일), 스크래치패드 하니스(실제
+   A*·RouteAssessment 코드) 44개 통과, 신규 Unity 테스트(Assets/Tests/RouteAssessmentTests.cs)는 미실행, 플레이 확인 미실시.
 🔶 10. 문과 공격 위치 (DoorSystem 이미 구현 — 소리 전파 연동만 확인)
 🔶 11. 특수 이동과 방어 위치 점유 (기존 디펜스 복귀 로직 있음)
 

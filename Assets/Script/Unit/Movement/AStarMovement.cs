@@ -119,6 +119,33 @@ public class AStarMovement : IMovementAlgorithm
     private int _cacheTrapSignature;
     public TrapMoveMode? TrapModeOverride;
 
+    // 검증 04-05~04-07(점유 충돌 판단): true면 다른 유닛의 점유를 장애물로 보지 않는 "구조 경로" 탐색이 된다(벽·닫힌 문·함정 구역은 그대로). OccupancySystem이 "점유만 없다면 이 유닛이
+    // 가려던 다음 걸음·경로 길이"를 얻는 데 쓰는 쌍둥이 인스턴스에만 켠다 — 실제 이동에 쓰는 인스턴스에는 절대 켜지 않는다(Move()가 점유 타일을 거부해 얼어붙는다).
+    public bool IgnoreAllUnits;
+
+    // 검증 04-08(04번 0장 "개인이 아는 지형으로만 계산"): 이번 탐색이 벽·미확인 판정에 읽는 "이 유닛이 아는 지형". null이면 예전처럼 진영 공용 discoveredMap을 읽는다
+    // (AIBehaviorConfig.personalMapPathingEnabled=false이거나 개인 지도가 없는 유닛). 모든 탐색 진입점이 맨 앞에서 BeginSearch로 정한다.
+    private IKnownTerrain _terrain;
+    // 프론티어 걸음 수 BFS(TryComputeFrontierSteps) 전용 — 미확인(0) 타일을 막되 _frontierAllow에 속한 것만 종단 노드로 허용한다. 평소엔 항상 꺼져 있다.
+    private bool _knownOnly;
+    private HashSet<Vector2Int> _frontierAllow;
+    private readonly HashSet<Vector2Int> _frontierAllowBuffer = new HashSet<Vector2Int>();
+
+    private void BeginSearch(Unit unit)
+        => _terrain = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
+
+    // 좌표 하나가 "아는 지형" 기준으로 막혔는가 — 벽(2)이면 true, 범위 안 좌표만 넘긴다. 미확인(0)은 낙관적으로 통행 가능으로 계획한다(실제 이동은 걸음마다 CanMove가 판정하고,
+    // 계획에서 가정할 뿐 지도에 통행 가능으로 기록하지 않는다 — 04번 9장). 프론티어 BFS 중에는 미확인도 막는다(허용된 프론티어 타일만 예외).
+    private bool IsKnownWall(FactionData myData, int floorIdx, int x, int y)
+    {
+        int t = _terrain != null ? _terrain.GetTileTerrain(new Vector3Int(x, y, floorIdx)) : myData.discoveredMap[floorIdx][x, y];
+        if (t == 2) return true;
+        return _knownOnly && t == 0 && !(_frontierAllow != null && _frontierAllow.Contains(new Vector2Int(x, y)));
+    }
+
+    // 이 알고리즘과 같은 종류(방 제한·공격 범위 회피 등)의 구조 경로 쌍둥이 — 서브클래스가 자기 타입으로 덮어쓴다.
+    public virtual AStarMovement CreateStructuralTwin() => new AStarMovement { IgnoreAllUnits = true };
+
     // "구역 때문에 못 간다"를 진단하는 데 쓰는 함정 무시 스크래치 — 유닛 자신의 탐색 결과(노드 풀)를 건드리지 않게 별도 인스턴스다.
     private static readonly AStarMovement _trapDiagScratch = new AStarMovement { TrapModeOverride = TrapMoveMode.Off };
 
@@ -153,6 +180,7 @@ public class AStarMovement : IMovementAlgorithm
 
         if (unit.position == targetPos) return false;
 
+        BeginSearch(unit);
         _trapCtx.Refresh(unit, TrapModeOverride, null);
 
         FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
@@ -328,7 +356,8 @@ public class AStarMovement : IMovementAlgorithm
     // 건드리지 않는다(일회성 순위 매기기용 조회라서). fullyRevealed는 경로의 모든 칸이 이 유닛의
     // 개인 지도에 이미 드러나 있는지를 뜻한다(인류가 아니면 항상 false). 목표 타일 점유는 막지 않는다(RunQuerySearch).
     // exemptTrapTile: 그 함정 자체가 목표인 조회(담당 후보의 도착시간 등, 03번 v0.12 8장)라 그 함정의 회피 구역을 면제하고 함정 타일 도달을 허용한다.
-    public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed, Vector2Int? exemptTrapTile = null)
+    // acceptRange >= 0이면 목표 타일 자체가 아니라 그 체비셰프 거리 안 아무 타일에 닿으면 도달로 본다(조사처럼 "인접 1칸"이 실제 도달 조건인 행동 — 목표 타일이 서 있을 수 없는 칸이어도 닿을 수 있다).
+    public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed, Vector2Int? exemptTrapTile = null, int acceptRange = -1)
     {
         pathLength = 0;
         fullyRevealed = false;
@@ -348,8 +377,9 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
+        BeginSearch(unit);
         _trapCtx.Refresh(unit, TrapModeOverride, exemptTrapTile);
-        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget);
+        AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget, acceptRange: acceptRange);
         if (!reachedTarget) return false;
 
         Human human = unit as Human;
@@ -400,6 +430,85 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTime = 0f;
     }
 
+    // 검증 04-08(04번 9장 "개인 지도 확장 → 경로를 다시 검증"): 유닛이 새 벽을 알게 됐을 때 그 타일이 지금 캐시한 경로(또는 목적지) 위면 캐시를 버려 다음 걸음에 다시 계산한다.
+    // 캐시 경로 밖의 벽은 경로에 영향이 없으므로 건드리지 않는다 — 탐험 중 매 프레임 무효화돼 캐시를 만든 이유(A* 폭주 방지)가 사라지지 않게. 점유 크기가 1보다 크면 그 타일을 덮는 모든 앵커 위치를 확인한다.
+    public void OnTileBecameWall(Unit unit, Vector2Int tile)
+    {
+        if (_pathMap.Count == 0) return;
+        int fw = Mathf.Max(1, (int)unit.unitType.footprint.x);
+        int fh = Mathf.Max(1, (int)unit.unitType.footprint.y);
+        for (int dx = 0; dx < fw; dx++)
+        {
+            for (int dy = 0; dy < fh; dy++)
+            {
+                Vector2Int anchor = new Vector2Int(tile.x - dx, tile.y - dy);
+                if (_pathMap.ContainsKey(anchor) || _cacheTarget == anchor)
+                {
+                    ClearCache();
+                    return;
+                }
+            }
+        }
+    }
+
+    // 검증 04-08(04번 9장 "미확인 경로의 추정 이동거리"): 이 유닛이 개인 지도로 통행을 확인한 타일만 밟아 갈 때 각 프론티어(미확인 경계 타일)까지의 실제 걸음 수.
+    // 미확인(0) 타일은 frontier에 속한 것만 종단 노드로 허용하고 거기서 더 확장하지 않는다(IsKnownWall의 _knownOnly). 점유 크기·문·함정 구역·유닛 점유는 IsTileWalkable을 그대로 쓴다.
+    // result에 도달한 프론티어마다 걸음 수를 담는다(없으면 false). 이동 캐시는 건드리지 않는 일회성 조회다.
+    public bool TryComputeFrontierSteps(Unit unit, IReadOnlyCollection<Vector2Int> frontier, Dictionary<Vector2Int, int> result)
+    {
+        result.Clear();
+        if (frontier == null || frontier.Count == 0) return false;
+
+        FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
+        int floorIdx = unit.currentFloor;
+        if (myData == null || myData.discoveredMap == null || floorIdx >= myData.discoveredMap.Length || myData.discoveredMap[floorIdx] == null) return false;
+
+        int mapW = myData.discoveredMap[floorIdx].GetLength(0);
+        int mapH = myData.discoveredMap[floorIdx].GetLength(1);
+
+        BeginSearch(unit);
+        _trapCtx.Refresh(unit, TrapModeOverride, null);
+
+        _frontierAllowBuffer.Clear();
+        foreach (var f in frontier) _frontierAllowBuffer.Add(f);
+        _knownOnly = true;
+        _frontierAllow = _frontierAllowBuffer;
+        try
+        {
+            var steps = new Dictionary<Vector2Int, int> { [unit.position] = 0 };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(unit.position);
+            Vector2Int noTarget = new Vector2Int(-9999, -9999);
+            int iter = 0;
+            const int maxIter = 50000;
+
+            while (queue.Count > 0 && iter++ < maxIter)
+            {
+                Vector2Int cur = queue.Dequeue();
+                int curSteps = steps[cur];
+                foreach (Dir d in _allDirs)
+                {
+                    Vector2Int dirVec = unit.GetDirVector(d);
+                    if (dirVec == Vector2Int.zero) continue;
+                    Vector2Int next = cur + dirVec;
+                    if (steps.ContainsKey(next)) continue;
+                    if (!IsTileWalkable(unit, cur, next, dirVec, myData, mapW, mapH, floorIdx, noTarget, out bool _)) continue;
+
+                    steps[next] = curSteps + 1;
+                    if (_frontierAllowBuffer.Contains(next)) result[next] = curSteps + 1; // 종단 — 미확인 타일 너머로는 확장하지 않는다
+                    else queue.Enqueue(next);
+                }
+            }
+        }
+        finally
+        {
+            _knownOnly = false;
+            _frontierAllow = null;
+        }
+
+        return result.Count > 0;
+    }
+
     // 04번 문서 4장: 타일별 추가 이동비용 훅. 기본은 함정 회피 비용뿐(알려진 함정이 없으면 0 — 기존 동작 그대로) — 항상 0 이상만 반환해야 한다,
     // 음수면 GetHeuristic의 admissibility가 깨져 A*가 최적해를 못 찾을 수 있다.
     protected virtual int GetExtraTileCost(Unit unit, Vector2Int tilePos) => _trapCtx.Active ? _trapCtx.ExtraCost(tilePos) : 0;
@@ -421,6 +530,7 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
+        BeginSearch(unit);
         _trapCtx.Refresh(unit, TrapModeOverride, exemptTrapTile);
         AStarNode closestNode = RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reachedTarget, ignoreEnemyUnits: ignoreEnemyUnits);
         if (!reachedTarget) return false;
@@ -449,6 +559,7 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
+        BeginSearch(unit);
         _trapCtx.Refresh(unit, TrapModeOverride, null);
         RunQuerySearch(unit, targetPos, myData, mapW, mapH, floorIdx, out bool reached, acceptRange: range, acceptSize: targetSize);
         return reached;
@@ -469,6 +580,7 @@ public class AStarMovement : IMovementAlgorithm
         int mapW = myData.discoveredMap[floorIdx].GetLength(0);
         int mapH = myData.discoveredMap[floorIdx].GetLength(1);
 
+        BeginSearch(unit);
         _trapCtx.Refresh(unit, TrapModeOverride, null);
         AStarNode closestNode = RunSearch(unit, unit.position, targetPos, myData, mapW, mapH, floorIdx, out bool _);
         closestHCost = closestNode.HCost;
@@ -515,7 +627,7 @@ public class AStarMovement : IMovementAlgorithm
                 int ny = neighborPos.y + dy;
 
                 if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { isWall = true; break; }
-                if (myData.discoveredMap[floorIdx][nx, ny] == 2) { isWall = true; break; }
+                if (IsKnownWall(myData, floorIdx, nx, ny)) { isWall = true; break; }
 
                 // UnitFunction.CanMove와 반드시 같은 결론을 내야 한다 — 어긋나면 A*가 막힌 경로를 갈 수 있다고 오판한다.
                 if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
@@ -524,7 +636,7 @@ public class AStarMovement : IMovementAlgorithm
                     break;
                 }
 
-                if (unit.Session != null &&
+                if (!IgnoreAllUnits && unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
                 {
                     if (u != null && u != unit && u.hp > 0
@@ -575,8 +687,8 @@ public class AStarMovement : IMovementAlgorithm
                     int cx2 = currentPos.x + dx;
                     int cy2 = currentPos.y + dy + dirVec.y;
 
-                    if (cx1 >= 0 && cx1 < mapW && cy1 >= 0 && cy1 < mapH && myData.discoveredMap[floorIdx][cx1, cy1] == 2) cornerWall1 = true;
-                    if (cx2 >= 0 && cx2 < mapW && cy2 >= 0 && cy2 < mapH && myData.discoveredMap[floorIdx][cx2, cy2] == 2) cornerWall2 = true;
+                    if (cx1 >= 0 && cx1 < mapW && cy1 >= 0 && cy1 < mapH && IsKnownWall(myData, floorIdx, cx1, cy1)) cornerWall1 = true;
+                    if (cx2 >= 0 && cx2 < mapW && cy2 >= 0 && cy2 < mapH && IsKnownWall(myData, floorIdx, cx2, cy2)) cornerWall2 = true;
                 }
             }
             if (cornerWall1 && cornerWall2) return false;
@@ -590,13 +702,13 @@ public class AStarMovement : IMovementAlgorithm
     private bool IsCoordBlocked(Unit unit, FactionData myData, int mapW, int mapH, int floorIdx, int x, int y)
     {
         if (x < 0 || x >= mapW || y < 0 || y >= mapH) return true;
-        if (myData.discoveredMap[floorIdx][x, y] == 2) return true;
+        if (IsKnownWall(myData, floorIdx, x, y)) return true;
 
         // Move()의 코너 커팅 검사는 CanMove를 쓰므로 다른 진영 소유 문도 막힌 것으로 본다 — 여기서
         // 빠뜨리면 A*가 "닫힌 문 옆 대각선"을 통과 가능이라 오판해 문턱 앞에서 영영 멈추게 된다.
         if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(x, y, floorIdx), unit)) return true;
 
-        if (unit.Session != null &&
+        if (!IgnoreAllUnits && unit.Session != null &&
             unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))
         {
             if (u != null && u != unit && u.hp > 0 && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u))) return true;

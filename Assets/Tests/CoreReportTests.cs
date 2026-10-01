@@ -379,6 +379,41 @@ public class CoreReportTests
 		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason);
 	}
 
+	// ── 검증 04-05~04-07: 점유 대기가 정체 인내로 포기되지 않게 하는 카운터 리셋 + 통과 순서 동률 값 유지 ──
+	[Test]
+	public void Unit_ResetNonCombatStuckCounters_ZerosEveryPatienceCounterIncludingHumanAndAlert()
+	{
+		var human = NewHuman();
+		human.tacticalObjectAttackStuckTurns = 3;
+		human.investigateStuckTurns = 3;
+		human.trapMoveStuckTurns = 3;
+		human.exploreStuckTurns = 3;
+		human.playerCommandStuckTurns = 7;
+		human.waitStuckTurns = 3;
+		human.currentAlertSearch = new AlertSearchState { ApproachStuckTurns = 3 };
+		human.combatChaseStuckTurns = 3; // 전투 추격 카운터는 비전투 이동 전용 리셋의 대상이 아니다
+
+		human.ResetNonCombatStuckCounters();
+
+		Assert.AreEqual(0, human.tacticalObjectAttackStuckTurns);
+		Assert.AreEqual(0, human.investigateStuckTurns);
+		Assert.AreEqual(0, human.trapMoveStuckTurns);
+		Assert.AreEqual(0, human.exploreStuckTurns);
+		Assert.AreEqual(0, human.playerCommandStuckTurns);
+		Assert.AreEqual(0, human.waitStuckTurns);
+		Assert.AreEqual(0, human.currentAlertSearch.ApproachStuckTurns);
+		Assert.AreEqual(3, human.combatChaseStuckTurns, "전투는 점유 충돌 판단 대상이 아니므로 그대로");
+	}
+
+	[Test]
+	public void Unit_PassTieBreak_IsDrawnOnceAndKept()
+	{
+		var human = NewHuman();
+		int first = human.PassTieBreak;
+		Assert.AreNotEqual(0, first, "0은 미추첨 표식이라 뽑힌 값은 0이 아니다");
+		for (int i = 0; i < 20; i++) Assert.AreEqual(first, human.PassTieBreak, "통과 순서 동률 값은 매 판단 재추첨하지 않는다(04번 8장)");
+	}
+
 	// ── 검증 04-04: 공동 이동 속도(가장 느린 구성원) ──
 	private static Human SpeedHuman(float walkSpeed, Vector2Int pos)
 	{

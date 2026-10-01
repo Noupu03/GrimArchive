@@ -258,6 +258,9 @@ public static class AIMovementHelper
 	// 호출부(PlayerCommandFSMState)가 이 신호로 "길이 막혔다"를 판단해 목표를 재지정한다.
 	public static bool MoveTowardsPos(Unit unit, Vector2Int targetPos)
 	{
+		// 점유 충돌 판단(검증 04-05~04-07): 가려던 자리를 같은 진영 유닛이 차지했다면 대기 vs 우회를 예상 도착시간으로 비교한다. true = 대기(또는 비켜서기)로 이번 주기를 썼다.
+		if (OccupancySystem.TryHold(unit, targetPos)) return true;
+
 		if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
 		{
 			// "방향을 받았다"가 아니라 "실제로 움직였다"를 반환한다 — A*와 Move()의 판정이 어긋나면(코너

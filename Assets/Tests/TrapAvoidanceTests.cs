@@ -295,7 +295,19 @@ public class TrapAvoidanceTests
 		human.unitType = new Knight();
 		human.currentFloor = 0;
 		human.position = position;
+		SeedPersonalMapFromSharedMap(human);
 		return human;
+	}
+
+	// 검증 04-08: A*가 진영 공용 지도가 아니라 유닛 개인 지도로 경로를 계산하므로, 이 파일의 지도 헬퍼(SetOpenMap/SetCorridorMap)가 세팅한 공용 지도 내용을 같은 값 그대로 개인 지도에도 알린다(0 미확인은 건너뜀).
+	private static void SeedPersonalMapFromSharedMap(Human human)
+	{
+		var data = Unit.humanFactionData;
+		if (data?.discoveredMap == null || data.discoveredMap.Length == 0 || data.discoveredMap[0] == null) return;
+		int[,] map = data.discoveredMap[0];
+		for (int x = 0; x < map.GetLength(0); x++)
+			for (int y = 0; y < map.GetLength(1); y++)
+				if (map[x, y] != 0) human.personalMap.RevealTile(new Vector3Int(x, y, 0), map[x, y] == 2);
 	}
 
 	private static Human MakePartyHuman(string unitName, Party party)

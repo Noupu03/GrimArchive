@@ -37,6 +37,9 @@ public abstract class Unit : ScriptableObject {
     public StatusEffectsComponent StatusEffects => _statusEffectsComp ??= GetComponent<StatusEffectsComponent>();
     public AIStateComponent       AIState       => _aiStateComp       ??= GetComponent<AIStateComponent>();
     public MemoryComponent        Memory        => _memoryComp        ??= GetComponent<MemoryComponent>();
+
+    // 길찾기(AStarMovement)가 읽는 "이 유닛이 직접 확인했거나 전달받아 아는 지형"(검증 04-08) — 인류는 개인 지도, 몬스터는 몬스터 지도. 그 밖이면 null(진영 공용 지도로 폴백).
+    public IKnownTerrain KnownTerrain => this is Human ? (IKnownTerrain)Memory?.personalMap : this is Monster ? Memory?.monsterMap : null;
     public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
     public PropagationComponent   Propagation   => _propagationComp   ??= GetComponent<PropagationComponent>();
 
@@ -253,6 +256,51 @@ public abstract class Unit : ScriptableObject {
 	// (DoorAttack 등)로 실제로 넘어간다.
 	public Unit  combatUnreachableTarget;
 	public float combatUnreachableUntil;
+
+	// ─── 점유 충돌 판단(검증문서 04-05~04-07, OccupancySystem) ───
+	// Move()가 마지막으로 성공한 시각 — 이 유닛이 점유자일 때 "이미 이동 중인 아군"인지 가르는 근거.
+	public float lastMoveTime = float.NegativeInfinity;
+	// 진행 중인 대기 결정(null = 대기 중 아님). GameSession.ProcessUnitAction이 OccupancySystem.ShouldHold로 읽어, 대기 중이면 이번 행동 주기의 ExecuteAction을 건너뛴다.
+	public OccupancyHold occupancyHold;
+	// 대기시간을 모르고 우회도 없는 채로 상한을 넘겨 대기를 포기한 점유자 — 그 점유자에 대해선 그 시각까지 다시 대기하지 않는다(기존 정체 인내로 넘어감).
+	public Unit  occupancyGiveUpBlocker;
+	public float occupancyGiveUpUntil;
+	// 제자리 대기 중인 이 유닛에게 온 "비켜 달라" 요청(요청자·만료 시각) — OccupancySystem.TryHonorYield가 소비한다.
+	public Unit  yieldRequester;
+	public float yieldRequestUntil;
+	// 좁은 통로 통과 순서의 동률용 무작위 값 — 유닛당 처음 필요할 때 한 번만 뽑아 계속 쓴다(매 판단 재추첨하면 순서가 흔들린다, 04번 8장).
+	private int _passTieBreak;
+	public int PassTieBreak
+	{
+		get
+		{
+			if (_passTieBreak == 0) _passTieBreak = UnityEngine.Random.Range(1, int.MaxValue);
+			return _passTieBreak;
+		}
+	}
+	// 다른 유닛 점유를 무시하는 "구조 경로" 전용 A*(이 유닛 이동 알고리즘의 쌍둥이) — OccupancySystem이 만들고 재사용한다.
+	public AStarMovement occupancyTwin;
+	public IMovementAlgorithm occupancyTwinSource;
+	// 검증 04-08(RouteAssessment): 함정 회피를 끈 구조 경로 쌍둥이(함정 구역 때문에만 막힌 대상을 가려낸다)와, 구조 경로로도 닿을 수 없다고 판정한 대상의 판정 메모.
+	// 메모 값은 판정 당시 서명(층, 아는 지형 개정, 아는 함정 수, 문 상태 개정)과 시각 — 서명이 같을 때만(또는 판정 직후 잠깐) 재탐색을 생략한다.
+	public AStarMovement routeTrapOffTwin;
+	public IMovementAlgorithm routeTrapOffTwinSource;
+	public readonly Dictionary<Vector3Int, RouteMemoEntry> unreachableRouteMemo = new();
+	// 이 프레임에 대기·비켜서기로 행동을 이미 썼는가 — 한 행동 주기에 이동 호출을 두 번 하는 리프가 방금의 물러나기를 되돌리지 않게 한다.
+	public int occupancyActedFrame = -1;
+
+	// 정당한 점유 대기가 행동별 정체 인내(조사·탐색·함정·코어 문 공격·플레이어 이동 명령·경계 접근)로 포기되지 않게, 대기를 시작·유지할 때 비전투 정체 카운터를 전부 0으로 되돌린다.
+	// 각 행동의 리프가 대기 동안은 호출되지 않지만(ProcessUnitAction이 ExecuteAction을 건너뜀) 대기 시작 틱에 이미 한 번 호출됐을 수 있어 그 1틱도 지운다.
+	public virtual void ResetNonCombatStuckCounters()
+	{
+		tacticalObjectAttackStuckTurns = 0;
+		investigateStuckTurns = 0;
+		trapMoveStuckTurns = 0;
+		exploreStuckTurns = 0;
+		playerCommandStuckTurns = 0;
+		if (currentAlertSearch != null) currentAlertSearch.ApproachStuckTurns = 0;
+	}
+
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
 		MovementAlgorithm?.ClearCache();
@@ -677,6 +725,12 @@ public class Human : UnitFunction
 	// 파티 공동 이동(방 이동·문 찾기 추종) 중에는 합류한 구성원이 "가장 느린 구성원" 속도를 쓴다 — 자세한 기준은 Party.ResolveMoveBaseSpeed.
 	protected override float MovementBaseSpeed => party != null ? party.ResolveMoveBaseSpeed(this) : base.MovementBaseSpeed;
 
+	public override void ResetNonCombatStuckCounters()
+	{
+		base.ResetNonCombatStuckCounters();
+		waitStuckTurns = 0;
+	}
+
 	// 이번 시야 패스에서 직접 본 같은 파티 아군 — UnitFunction.UpdateFOV가 매 패스 비우고 다시 채운다. 함정
 	// 담당자의 도착처럼 "시야로 직접 확인한" 사실의 근거이며 전파 범위와 무관하다.
 	public readonly HashSet<Human> visiblePartyMembers = new HashSet<Human>();
@@ -755,9 +809,11 @@ public class Human : UnitFunction
 	private int _investigateTargetCacheFrame = -1;
 	private InvestigationState _investigateTargetCache;
 
-	// 성능 튜닝값(밸런스 아님) — 후보가 많을 때 직선거리로 1차 정렬한 뒤 상위 이만큼만 실제 거리
-	// (EstimateDistanceTilesTo, A* 최대 2회)로 정밀 채점한다.
+	// 성능 튜닝값(밸런스 아님) — 후보가 많을 때 직선거리로 1차 정렬한 뒤, 통행 불가가 아닌 후보 이만큼만 실제 경로(RouteAssessment)로 정밀 채점한다.
+	// 한 번의 후보 선정에서 통행 불가 메모에 적중하지 않은 실제 경로 탐색은 InvestigateMaxNewEvaluations회로 제한한다.
 	private const int InvestigateShortlistSize = 5;
+	private const int InvestigateMaxNewEvaluations = 8;
+	private readonly RouteContext _routeContext = new RouteContext();
 	private readonly List<(InteractableObject obj, Vector3Int tilePos, bool isTile)> _investigateCandidateBuffer = new();
 
 	public InvestigationState FindInvestigateTarget()
@@ -825,22 +881,31 @@ public class Human : UnitFunction
 
 		if (_investigateCandidateBuffer.Count == 0) return null;
 
-		// 1차: 직선거리 기준 정렬(비용 0) 후 상위 InvestigateShortlistSize만 정밀 계산 — 후보마다 A*를
-		// 최대 2회(EstimateDistanceTilesTo) 돌리는 비용을 매 틱 전체 후보로 확대하지 않기 위함.
+		// 1차: 직선거리 기준 정렬(비용 0) 후 앞에서부터 경로를 평가한다. 검증 04-08(04번 9장): 현재 정보로 통행 불가가 확인된 대상은 후보에서 빼고(RouteAssessment) 그 뒤의
+		// 후보로 계속 내려가되, 평가가 끝난 후보가 InvestigateShortlistSize개가 되거나 이번 호출의 실제 탐색이 InvestigateMaxNewEvaluations회에 닿으면 멈춘다 — 매 틱 전체 후보로
+		// 비용이 확대되지 않게 한다. 통행 불가 판정은 아는 정보가 그대로인 동안 유닛 메모가 기억해 다시 탐색하지 않는다.
 		Vector2Int selfPos = position;
 		_investigateCandidateBuffer.Sort((a, b) =>
 			Vector2Int.Distance(selfPos, new Vector2Int(a.tilePos.x, a.tilePos.y))
 				.CompareTo(Vector2Int.Distance(selfPos, new Vector2Int(b.tilePos.x, b.tilePos.y))));
 
+		bool excludeUnreachable = AIConfigLoader.Behavior?.unreachableCandidateExclusionEnabled ?? true;
+		_routeContext.Reset();
 		InvestigationState best = null;
 		float bestScore = 0f;
-		int shortlistCount = Mathf.Min(InvestigateShortlistSize, _investigateCandidateBuffer.Count);
-		for (int i = 0; i < shortlistCount; i++)
+		int evaluated = 0;
+		for (int i = 0; i < _investigateCandidateBuffer.Count
+			&& evaluated < InvestigateShortlistSize
+			&& _routeContext.NewEvaluations < InvestigateMaxNewEvaluations; i++)
 		{
 			var candidate = _investigateCandidateBuffer[i];
+			RouteEstimate route = RouteAssessment.Assess(this, candidate.tilePos, false, _routeContext);
+			if (excludeUnreachable && RouteMath.ShouldExcludeFromCandidates(route.Status)) continue;
+			evaluated++;
+
 			string objId = candidate.obj?.Id;
 			float interest = personalMap.GetTileInterest(candidate.tilePos, objId);
-			int distance = EstimateDistanceTilesTo(candidate.tilePos);
+			int distance = route.Tiles;
 			float score = PartyGoalMath.NonCombatGoalScore(interest, PartyGoalMath.UniformPartyTypeWeightPlaceholder, distance);
 
 			if (best == null || score > bestScore)
@@ -862,26 +927,16 @@ public class Human : UnitFunction
 		return best;
 	}
 
-	// 01번 문서 4장/04번 문서 9번 항목: 목표까지 전체 길을 알면 실제 경로 길이, 모르면 "아는 구간까지
-	// 실제 경로 + 그 지점에서 목표까지 직선 잔여"를 더한 추정 거리. 둘 다 실패하면(고립된 구역 등)
-	// 체비셰프 직선거리로 최종 폴백한다.
-	// targetIsTrap: 목표가 함정 자체(담당 후보의 도착시간 등)면 그 함정의 회피 구역을 면제하고 함정 타일까지의 길이를 잰다(검증 03-13).
+	// 01번 문서 4장/04번 문서 9번 항목: 목표까지 전체 길을 알면 실제 경로 길이, 일부만 알면 "프론티어까지 실제 걸음 수 + 프론티어→목표 최소 칸수"의 최솟값, 현재 정보로
+	// 통행 불가가 확인되면 RouteMath.UnreachableDistanceTiles(아주 먼 거리 — 닿을 수 없는 대상이 가까운 것으로 계산되던 문제, 검증 04-08). 판정은 RouteAssessment.
+	// targetIsTrap: 목표가 함정 자체(담당 후보의 도착시간 등)면 그 함정의 회피 구역을 면제하고 함정 타일까지의 길이를 잰다(검증 03-13). 이 경로의 통행 불가는 큰 거리로 바꾸지 않고
+	// 직선거리로 근사한다 — 도착 예정시간이 대기 기한(TrapPartySystem.BeginWaitingFor)이 되므로 비정상적으로 길어지면 "기한 안에 못 오면 재선정"이 막힌다(함정 흐름은 04-08 수정 범위 밖).
 	public int EstimateDistanceTilesTo(Vector3Int targetTile, bool targetIsTrap = false)
 	{
-		Vector2Int targetPos2D = new Vector2Int(targetTile.x, targetTile.y);
-		Vector2Int? exemptTrap = targetIsTrap ? targetPos2D : (Vector2Int?)null;
-		var astar = MovementAlgorithm as AStarMovement;
-		if (astar != null && astar.TryGetPathLength(this, targetPos2D, out int real, out bool fullyRevealed, exemptTrap) && fullyRevealed)
-			return real;
-
-		if (personalMap.TryGetNearestFrontierTile(currentFloor, targetPos2D, out Vector2Int frontier))
-		{
-			int knownSegment = (astar != null && astar.TryGetPathLength(this, frontier, out int seg, out _)) ? seg : 0;
-			int remainder = Mathf.Max(Mathf.Abs(targetPos2D.x - frontier.x), Mathf.Abs(targetPos2D.y - frontier.y));
-			return knownSegment + remainder;
-		}
-
-		return Mathf.Max(Mathf.Abs(targetPos2D.x - position.x), Mathf.Abs(targetPos2D.y - position.y));
+		RouteEstimate route = RouteAssessment.Assess(this, targetTile, targetIsTrap);
+		if (targetIsTrap && route.Status == RouteStatus.Unreachable)
+			return RouteMath.ChebyshevDistance(position, new Vector2Int(targetTile.x, targetTile.y));
+		return route.Tiles;
 	}
 
 	// 03번 문서 8장: 목표 오브젝트(함정)에 상호작용할 수 있는 인접 1칸까지 남은 예상 이동시간(초) — 위
@@ -921,8 +976,8 @@ public class Human : UnitFunction
 		return false;
 	}
 
-	// 조사 개시 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택/도달은 위
-	// FindInvestigateTarget과 Action_MoveToInvestigateTarget.Execute의 이동 로직이 담당).
+	// 조사 개시 조건 중 "비전투/비도주"만 여기서 함께 확인한다(정확 인지/선택은 위 FindInvestigateTarget이, 이동은 MoveToInvestigateTarget이 담당).
+	// 검증 04-08: FindInvestigateTarget이 현재 정보로 통행 불가가 확인된 대상을 이미 후보에서 빼므로, 이 값이 true면 "닿을 수 있는(또는 닿을 수 있는지 아직 모르는) 후보가 있다"는 뜻이다.
 	public bool HasReachableInvestigateTarget()
 	{
 		if (personalSpottedEnemies.Count > 0) return false; // 비전투 — 적이 보이면 조사 시작 안 함(전투 우선)
