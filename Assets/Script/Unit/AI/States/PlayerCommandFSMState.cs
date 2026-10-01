@@ -183,6 +183,12 @@ public class PlayerCommandFSMState : IFSMState
 		}
 
 		Vector2Int pos2D = new Vector2Int(targetPos.x, targetPos.y);
+		// 문은 1×2 묶음이라 클릭한 칸이 아니라 이 유닛에서 가장 가까운 칸을 접근·채널링 대상으로 삼는다(어느 칸에 붙어도 같은 오브젝트).
+		if (unit.Session.objectGrid.TryGetValue(targetPos, out InteractableObject targetObj) && targetObj.OccupiedTiles != null)
+		{
+			pos2D = targetObj.NearestTileTo(unit.position);
+			targetPos = new Vector3Int(pos2D.x, pos2D.y, targetPos.z);
+		}
 
 		if (AIMovementHelper.IsAdjacent(unit.position, pos2D))
 		{

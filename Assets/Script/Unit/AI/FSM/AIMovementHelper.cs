@@ -328,6 +328,16 @@ public static class AIMovementHelper
 	// 찾으면(좁은 통로 등) 문 위치 그대로 반환한다 — 겹치더라도 완전히 못 오는 것보다 낫다는 폴백.
 	public static Vector2Int FindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots)
 	{
+		// 문이 속한 쪽 방 안에서만 고른다 — 반경 안이라는 이유만으로 문 반대편(닫힌 적 문 너머)의 닿을 수 없는 타일을 자리로 뽑던 문제(플레이 로그 2026-10-01). 방을 못 구하거나 그 방 안에 자리가 없으면 예전처럼 제한 없이 고른다.
+		Room doorRoom = null;
+		unit.Session?.roomGrid?.TryGetValue(new Vector3Int(doorPos.x, doorPos.y, unit.currentFloor), out doorRoom);
+		if (doorRoom != null && TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, out Vector2Int inRoom)) return inRoom;
+		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, out Vector2Int anywhere) ? anywhere : doorPos;
+	}
+
+	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, out Vector2Int slot)
+	{
+		slot = default;
 		for (int radius = 2; radius <= 5; radius++)
 		{
 			Vector2Int best = default;
@@ -340,16 +350,18 @@ public static class AIMovementHelper
 				Vector2Int cand = doorPos + new Vector2Int(dx, dy);
 				if (claimedSlots.Contains(cand)) continue;
 				if (!unit.CanMove(cand)) continue;
+				if (requiredRoom != null && !(unit.Session.roomGrid.TryGetValue(new Vector3Int(cand.x, cand.y, unit.currentFloor), out Room candRoom) && candRoom == requiredRoom)) continue;
 				int dist = ChebyshevDistance(cand, unit.position);
 				if (dist < bestDist) { bestDist = dist; best = cand; found = true; }
 			}
 			if (found)
 			{
 				claimedSlots.Add(best);
-				return best;
+				slot = best;
+				return true;
 			}
 		}
-		return doorPos;
+		return false;
 	}
 
 	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지 다른 유닛이 잠깐 몰려 막힌 것뿐인지 구분하려고

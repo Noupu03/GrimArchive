@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
@@ -26,6 +27,9 @@ public class ObjectPlacementController
     private readonly ResourceManager _resourceManager;
     private readonly BuildingManager _buildingManager;
     private readonly PlacementGhost _ghost = new PlacementGhost("PlacementGhost");
+    // 문 재설치 고스트가 매 프레임 쓰는 버퍼(할당 방지) — 묶음의 칸 목록과 그 월드 중심.
+    private readonly List<Vector3Int> _doorGhostTiles = new List<Vector3Int>();
+    private readonly List<Vector3> _doorGhostCenters = new List<Vector3>();
 
     private bool _isObjectPlaceMode;
     private bool _isTrapPlaceMode;
@@ -153,7 +157,15 @@ public class ObjectPlacementController
                 : _isDummyBuildingMode ? (_buildingManager != null && _buildingManager.CanInstallAt(gridPos, Vector2Int.one, requireOwnership: false))
                 : _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor));
 
-        _ghost.UpdatePosition(gridPos, floorOffset, canPlace);
+        // 문 재설치는 방 쪽 줄(1×2 묶음) 전체가 한 번에 생기므로 고스트도 칸마다 한 장씩, 실제 문과 같은 방향으로 보여 준다.
+        if (_isDoorRepairMode && _gameSession != null && _gameSession.TryGetDoorGroupTiles(gridPos, _doorGhostTiles, out float groupRotation))
+        {
+            _doorGhostCenters.Clear();
+            foreach (var t in _doorGhostTiles) _doorGhostCenters.Add(new Vector3(t.x + 0.5f, t.y + 0.5f, 0f) + floorOffset);
+            _ghost.UpdateTiles(_doorGhostCenters, groupRotation, canPlace);
+        }
+        else
+            _ghost.UpdatePosition(gridPos, floorOffset, canPlace);
 
         // 우클릭 취소는 없다 — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을
         // 다시 눌러야 한다. 설치 확정 입력은 "좌클릭=선택, 우클릭=실행" 관례에 따라 우클릭이다.

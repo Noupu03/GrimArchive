@@ -1100,18 +1100,20 @@ public abstract class UnitFunction : Unit, IVisionContext
 				// 경로는 없다(플레이어 우클릭 명령만 채운다).
 				bool isTrap = targetObj.Tags != null && targetObj.Tags.Exists(t => t.Contains("Trap"));
 				Vector2Int targetPos2D = new Vector2Int(targetPos.x, targetPos.y);
+				// 문은 1×2 묶음이라 어느 타일에든 인접하면 된다 — 바라보는 방향도 이 유닛에서 가장 가까운 타일 쪽이다.
+				Vector2Int faceTile = isDoor ? targetObj.NearestTileTo(position) : targetPos2D;
 
 				// 채널링 중에는 항상 공격 대상을 바라본다 — currentDir만 세팅하고 UpdateUnitSpriteForDirection을
 				// 빠뜨리면 실제 스프라이트는 갱신되지 않으므로 반드시 짝지어 호출한다.
-				if ((isCore || isDoor || isTrap) && targetPos2D != position)
+				if ((isCore || isDoor || isTrap) && faceTile != position)
 				{
-					currentDir = SkillAction.GetDirection8(targetPos2D - position);
+					currentDir = SkillAction.GetDirection8(faceTile - position);
 					Generate?.UpdateUnitSpriteForDirection(this);
 				}
 
 				// 코어/문 파괴는 반드시 인접 1칸에서만 이뤄져야 한다 — 채널링 시작 시점에만 확인하면
 				// 도중 회피/점멸로 밀려나도 데미지가 계속 적용돼 원거리 파괴가 되므로 매 프레임 재확인한다.
-				bool isAdjacent = AIMovementHelper.IsAdjacent(position, targetPos2D);
+				bool isAdjacent = isDoor ? targetObj.IsAdjacentTo(position) : AIMovementHelper.IsAdjacent(position, targetPos2D);
 
 				// 같은 프레임에 다른 유닛이 먼저 코어를 파괴시켜 소유권이 전환된 경우(즉시 반피 회복)
 				// CoreHp>0f만으로는 못 막으므로 IsRoomCoreStillHostile로 다시 확인한다. 종족 무관 헬퍼를

@@ -227,6 +227,21 @@ public class PersonalMapKnowledge : IKnownTerrain
 		return false;
 	}
 
+	// 진단용(Party.TryStartRally의 "집결 불가" 사유 로그): 방 경계 안에 남은 프론티어 타일 수와 그중 하나의 위치 — 어느 타일이 방 탐색 종료를 막는지 보여 준다. 읽기만 한다.
+	public int CountFrontierTilesInBounds(int floor, RectInt bounds, out Vector2Int sample)
+	{
+		sample = default;
+		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier)) return 0;
+		int count = 0;
+		foreach (var t in frontier)
+		{
+			if (!bounds.Contains(t)) continue;
+			if (count == 0) sample = t;
+			count++;
+		}
+		return count;
+	}
+
 	// 지형이 밝혀졌으면 explored를 직접 넘길 필요 없이 이 오버로드로 자동 판단한다(기존 오버로드는
 	// 호환 위해 유지).
 	public float GetTileDanger(Vector3Int pos) => GetTileDanger(pos, IsTileRevealed(pos));

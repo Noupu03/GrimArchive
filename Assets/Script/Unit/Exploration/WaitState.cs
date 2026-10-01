@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // 10장: 대기의 하위 정보. Goal_Wait가 고착 상태를 유지하는 동안 Action_Wait이 이 레코드를 읽고
@@ -25,6 +26,11 @@ public enum WaitReason
 	// 01번 문서 7-1장·04번 문서 소탕 파티: 리더가 다음 이동 문 앞 자리까지 현재 방 안에서 이동하며 실제 시야로 확인한다. 도착하면 집결 판단 자격이 생긴다
 	// (Party.MarkLeaderReachedNextDoor) — 집결 뒤 공동 이동(AdvancingToNextRoom)과 달리 이동 명령이 아니라 집결 전 단계다. 소탕 파티 리더 전용.
 	ApproachingNextDoor,
+	// 집결 뒤 "문 앞 진형 → 문 파괴 → 순차 입장"(PartyAdvanceSystem). 단계는 Party.AdvancePlan이 정하고, 각 유닛은 이 사유로 자기 몫(진형 자리 이동·문 채널링·입장)을 수행한다.
+	// 공동 이동이라 대기 중 Tactical 우선순위·조사 게이트·공동 이동 속도는 AdvancingToNextRoom과 동일하게 다룬다.
+	FormingUpAtDoor,
+	BreachingDoor,
+	EnteringNextRoom,
 }
 
 public class WaitState
@@ -54,4 +60,15 @@ public class WaitState
 
 	// SearchingNextDoor 전용 — 아는 리더 위치가 없어진 시각(음수 = 리더 위치를 알고 있음). 일정 시간 넘게 모르면 추종을 접는다.
 	public float FollowLeaderLostSince = -1f;
+
+	// 집결 자리/진형 자리/입장 자리 전용 — 지금 자기 자리(WaitPosition) 근처에 있는지. 매 틱 위치로 다시 계산한다(전투로 밀려났으면 false로 돌아간다).
+	public bool AtSlot;
+	// FormingUpAtDoor/BreachingDoor/EnteringNextRoom 전용 — 진형 랭크(0 근접, 1 리더, 2 원거리).
+	public int Rank;
+	// EnteringNextRoom 전용 — 리더가 이 랭크의 출발을 허가했는가(앞 랭크가 문을 지난 뒤).
+	public bool Released;
+	// 막혀서 자리를 바꾼 로그를 막힘 하나당 한 번만 남기기 위한 표식.
+	public bool BlockedLogged;
+	// 집결/진형/입장 자리 전용 — 이미 가 보려다 막혀 포기한 자리. 재선택이 같은 자리 사이를 오가지 않게 하는 기억이며, 단계가 바뀌면 비운다.
+	public HashSet<Vector2Int> RejectedSlots;
 }

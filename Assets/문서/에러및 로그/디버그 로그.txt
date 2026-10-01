@@ -1,51 +1,108 @@
 <b><color=#40C4FF>[GAME]</color></b> [HumanWaveManager] 0층에 웨이브 파티 10명 사전 스폰(배회 대기) — 신규 10명, 이전 웨이브 생존자 0명 합류.
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 시작 — 리더 기사형_6_5_0, 사유: 방 활동 종료, 집결지 (6, 5)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
 
 <b><color=#40C4FF>[GAME]</color></b> [HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)
 
-<b><color=#40C4FF>[GAME]</color></b> [디펜스 시작] room44 방에 적대 유닛(무도가) 진입 — 디펜스 개시
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
 
-<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (9.50, 41.50), 범위: 3x3, 착탄까지: 1500ms
+<b><color=#40C4FF>[GAME]</color></b> [디펜스 시작] room44 방에 적대 유닛(도적) 진입 — 디펜스 개시
 
-[UnitVisualDefinition] '전사'의 스킬 '강타': 알 수 없는 skillArchetype 'Generic' — Generic으로 폴백합니다.
-UnityEngine.Debug:LogWarning (object)
-UnitVisualDefinition:BuildSkillActions () (at Assets/Script/Unit/Visual/UnitVisualDefinition.cs:127)
-UnitSpriteManager:GetSkills (string) (at Assets/Script/Unit/Visual/UnitSpriteManager.cs:45)
-UnitGenerate:GetSkills (string) (at Assets/Script/Unit/Visual/UnitGenerate.cs:303)
-CombatFSMState:FindHealSkill (Unit) (at Assets/Script/Unit/AI/States/CombatFSMState.cs:286)
-CombatFSMState:TryGeneralHealApproach (Unit) (at Assets/Script/Unit/AI/States/CombatFSMState.cs:272)
-CombatFSMState:ExecuteCombat (Unit) (at Assets/Script/Unit/AI/States/CombatFSMState.cs:112)
-BTLeaf:Tick (Unit) (at Assets/Script/Unit/AI/FSM/BTNode.cs:56)
-CombatFSMState:Tick (Unit) (at Assets/Script/Unit/AI/States/CombatFSMState.cs:90)
-UnitFSM:RunCurrentState (Unit) (at Assets/Script/Unit/AI/FSM/UnitFSM.cs:106)
-Unit:ExecuteAction () (at Assets/Script/Unit/Core/Unit.cs:637)
-GameSession:ProcessUnitAction (Unit) (at Assets/Script/Unit/Session/GameSession.cs:981)
-GameSession:UpdateProcess () (at Assets/Script/Unit/Session/GameSession.cs:605)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__1 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:87)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Subject`1<R3.Unit>:OnNext (R3.Unit)
-Haare.Client.Routine.MonoRoutine:UpdateProcess () (at Assets/Haare/Scripts/Client/Routine/MonoRoutine.cs:98)
-Haare.Client.Core.Processor/<>c__DisplayClass11_0:<RegisterEvents>b__3 (R3.Unit) (at Assets/Haare/Scripts/Client/Core/Processor.cs:102)
-R3.AnonymousObserver`1<R3.Unit>:OnNextCore (R3.Unit)
-R3.Observer`1<R3.Unit>:OnNext (R3.Unit)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:PublishOnNext (R3.Unit)
-R3.EveryUpdate/EveryUpdateRunnerWorkItem:MoveNextCore (long)
-R3.Internal.CancellableFrameRunnerWorkItemBase`1<R3.Unit>:MoveNext (long)
-R3.UnityFrameProvider:Run () (at ./Library/PackageCache/com.cysharp.r3@b95751a30ad5/Runtime/UnityFrameProvider.cs:54)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 마법사_6_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
 
-<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_814b at Floor 1, (9, 41) with Tags: [Object/Passable/Corpse, Monster]
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 사제_4_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 완료 — 리더 기사형_6_5_0이(가) 다음 방 이동을 결정(ReadyToAdvance), 이동 명령 발행 대기
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 방 활동 미종료(탐색) — 방 44: 파티 시야 합산 77/104칸으로 미완이고, 리더 개인 지도에 방 안 프론티어 17개가 남음(예: (7, 43))
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 방 이동 명령 발행 — 사유: 집결 완료, 목표 문 (6,47) [문 소유 Player, 인류 통행 불가 — 파괴 필요], 이동 대상 10명
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 아처형_6_5_0이(가) 적 1명을 인지 중(전투 중 근사)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_6_5_0: 방 이동 명령 종료 — 문 앞 자리 도착, 이후 개인 행동으로 복귀
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 아처형_6_5_0이(가) 전투 후 경계 스윕 중(경계 0.1초)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 도적_7_5_0: 방 이동 명령 종료 — 문 앞 자리 도착, 이후 개인 행동으로 복귀
+<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 350
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 음유시인_6_5_0: 방 이동 명령 종료 — 더 다가갈 수 없음, 이후 개인 행동으로 복귀
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 도적_5_5_0이(가) 적 1명을 인지 중(전투 중 근사)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 아처형_6_5_0: 방 이동 명령 종료 — 문 앞 자리 도착, 이후 개인 행동으로 복귀
+<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (2, 38, 1)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (2.50, 41.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 도적_5_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 15.4
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_5db2 at Floor 1, (1, 38) with Tags: [Object/Passable/Corpse, Human]
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_7499 at Floor 1, (2, 37) with Tags: [Object/Passable/Corpse, Human]
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (1.50, 38.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 13.2
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (7.50, 37.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> 선택: 근접 탱커 (총 1기)
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (7.50, 38.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_ff83 at Floor 1, (7, 38) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 마법사_6_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (6.50, 40.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 근접 탱커에게 적중! 데미지: 13.0
+
+<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (6.50, 40.50), 범위: 3x3, 착탄까지: 1500ms
+
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_de68 at Floor 1, (6, 39) with Tags: [Object/Passable/Corpse, Monster]
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_8_5_0이(가) 전투 후 경계 스윕 중(경계 0.3초)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 방 활동 미종료(탐색) — 방 44: 파티 시야 합산 87/104칸으로 미완이고, 리더 개인 지도에 방 안 프론티어 4개가 남음(예: (10, 46))
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 방 활동 미종료(탐색) — 방 44: 파티 시야 합산 87/104칸으로 미완이고, 리더 개인 지도에 방 안 프론티어 1개가 남음(예: (9, 45))
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 시작 — 리더 기사형_8_5_0, 사유: 방 활동 종료, 집결지 (10, 43) (1층)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 43)(1층), 도착 대기 8명 [기사형_8_5_0[도착] 마법사_6_5_0[이동 중] 무도가_7_5_0[이동 중] 사제_4_5_0[이동 중] 성기사_6_5_0[이동 중] 아처형_6_5_0[이동 중] 주술사_6_5_0[이동 중] 전사_6_5_0[이동 중]], 그 밖 0명 []
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 43)(1층), 도착 대기 8명 [기사형_8_5_0[도착] 마법사_6_5_0[이동 중] 무도가_7_5_0[이동 중] 사제_4_5_0[이동 중] 성기사_6_5_0[이동 중] 아처형_6_5_0[이동 중] 주술사_6_5_0[이동 중] 전사_6_5_0[이동 중]], 그 밖 0명 []
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 43)(1층), 도착 대기 8명 [기사형_8_5_0[이동 중] 마법사_6_5_0[이동 중] 무도가_7_5_0[이동 중] 사제_4_5_0[이동 중] 성기사_6_5_0[이동 중] 아처형_6_5_0[도착] 주술사_6_5_0[이동 중] 전사_6_5_0[도착]], 그 밖 0명 []
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 43)(1층), 도착 대기 8명 [기사형_8_5_0[이동 중] 마법사_6_5_0[도착] 무도가_7_5_0[이동 중] 사제_4_5_0[이동 중] 성기사_6_5_0[이동 중] 아처형_6_5_0[도착] 주술사_6_5_0[이동 중] 전사_6_5_0[도착]], 그 밖 0명 []
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 시작 60초 경과 — 자리에 못 선 [기사형_8_5_0 마법사_6_5_0 무도가_7_5_0 사제_4_5_0 성기사_6_5_0 아처형_6_5_0 주술사_6_5_0 전사_6_5_0]을(를) 현재 위치에서 집결 처리합니다
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 완료 — 리더 기사형_8_5_0이(가) 다음 방 이동을 결정(ReadyToAdvance), 이동 명령 발행 대기
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 방 이동 지시 — 사유: 집결 완료, 목표 문 (6,47), 막힌 문 타일 4/4, 문 앞 진형 근접 3명·리더 1명·원거리 4명
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
+
+<b><color=#40C4FF>[GAME]</color></b> 드래그 선택: 8기
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 방 이동 중단 — FormingUp 단계가 60초 넘게 끝나지 않음, 전원 개인 행동으로 복귀
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 집결을 마친 방 44을(를) 리더 기사형_8_5_0이(가) 아직 떠나지 않음(다음 방 이동 중: ReadyToAdvance=False, 리더 현재 방 44)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 집결을 마친 방 44을(를) 리더 기사형_8_5_0이(가) 아직 떠나지 않음(다음 방 이동 중: ReadyToAdvance=False, 리더 현재 방 44)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 집결을 마친 방 44을(를) 리더 기사형_8_5_0이(가) 아직 떠나지 않음(다음 방 이동 중: ReadyToAdvance=False, 리더 현재 방 44)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 집결을 마친 방 44을(를) 리더 기사형_8_5_0이(가) 아직 떠나지 않음(다음 방 이동 중: ReadyToAdvance=False, 리더 현재 방 44)
 

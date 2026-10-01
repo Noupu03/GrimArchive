@@ -501,6 +501,36 @@ Unity 실제 플레이 검증을 아직 하지 않았다(순수 판정만 하니
 Unity 실제 플레이 검증 안 함(실제 A*·RouteAssessment 코드를 스크래치패드 하니스로 44개 단정 실행, `Assets/Tests/RouteAssessmentTests.cs` 17건은 Test Runner 미실행). 문 상태·점유는 여전히 실시간 실제값을 읽는다(개인 지식화 미착수). "통행 불가 제외"는 **조사 후보 선정에만** 적용 —
 탐험·문/코어 접근·함정 접근의 포기 후 같은 대상 재선택과 `NavigationFSMState.RandomExplore`의 닿을 수 없는 프론티어 벽 날조(:260-269)는 그대로다. 몬스터도 개인 지도 기반이 돼서, 방 제한 몬스터가 플레이어 명령으로 안 가본 방을 지날 때 미확인을 낙관 가정으로 걷는다.
 
+## 집결 → 문 앞 진형 → 문 파괴 → 순차 입장 (플레이 로그 분석, 2026-10-01)
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+- **집결은 "전원이 자기 자리에 설 때까지 대기"다.** 파티원마다 집결지(리더 자리) 근처 **개별 자리**(`Party.PickGatherSlot` — 같은 방·점진 확장)를 받고, 도착해도 대기를 유지한다. 완료는 도착한 유닛이 아니라 `Party.CheckRallyComplete`가 **위치로 전원 도착을 매번 재확인**해 일괄 해제한다(전투로 밀려난 유닛 대응). 예전의 "4틱 정체 = 도착 간주"는 폐기(kill-switch `rallyGatherNearbyEnabled`).
+- **집결 완료 뒤 방 이동은 `Party.AdvancePlan`(FormingUp → Breaching → Entering)이 소유한다**(`PartyAdvanceSystem`, 순수 계산은 `PartyFormationMath`). `HumanWaveManager.UpdatePartyDestination`이 `Begin`/`Tick`을 부르고 유닛은 `WaitReason.FormingUpAtDoor/BreachingDoor/EnteringNextRoom`으로 `TacticalFSMState.ExecuteWait`→`PartyAdvanceSystem.StepMember`를 탄다. 코어 처리 경로(`hasPendingCore`)와 `partyAdvanceFormationEnabled=false`는 예전 `AdvancingToNextRoom`.
+- **진형 규칙은 0층 입구 진형(`DungeonEntranceSystem`)과 한 정의를 공유한다**(`PartyFormationMath` — 근접 0랭크·리더 1랭크·원거리 2랭크, 랭크 간격 2). 한쪽만 바꾸지 말 것.
+- **문 파괴는 리더 지시로만 시작하며 기존 `DoorAttack`(인류가 점령한 방 안에서만 발동)과 별개다**(사용자 확정). 현재 방 소유 진영과 무관하게 0랭크가 인접 1칸에서 채널링한다. 단 진형 **대기** 자리는 문서(05번 3장)대로 문 앞 통과 구간(문 타일에서 체비셰프 거리 2 미만, `PartyFormationMath.DoorClearance`)을 비우고, 파괴 단계(`StepBreach`)에서만 문 인접 1칸으로 접근한다(2026-10-01 사용자 결정). 진입로 확보 = **한 레인의 near·far 두 줄 문이 모두 `DoorSystem.IsBlockedByClosedDoor`로 통행 가능**. 기존 `DoorAttack`/`FindHostileExitDoor`를 이 흐름에 맞춰 고치려는 제안이 나오면 사용자 확정 사항이니 먼저 확인할 것.
+- 안전장치(전부 기존 `doorApproachMaxBlockedSeconds` 기반, 내부 판단): 개별 30s 정체 → 그 유닛만 포기(`IsParked`), 문 파괴 외 단계 60s 초과 → 계획 중단, 문 레인 체력 30s 무진행 → 중단. 코어 확인·퇴각 전환 시 계획 폐기.
+- **자리를 못 잡는 유닛은 "구역 안이면 선 자리에서 인정"한다**(2026-10-01 좁은 길 정체 수정). 집결·진형·입장 자리 재선택은 ① 막혀 포기한 자리를 `WaitState.RejectedSlots`에 기억해 다시 고르지 않고 ② 집결지가 아니라 **이 유닛에서 가장 가까운** 구역 안 빈 타일(지금 다른 유닛이 서 있는 타일 제외)을 고르며 ③ 자기 타일이 뽑히면 그 자리에서 대기/집결 처리한다. 구역 = 자리 배정에 실제로 쓴 반경(`Party.RallyZoneRadius`, `PartyAdvancePlan.FormRadius/EntryRadius`, `PartyFormationMath.ZoneRadius/IsWithinZone`). 예전엔 "집결지에서 가까운 빈 자리"를 매번 새로 골라 좁은 길 양 끝을 무한히 오갔고, 자리 교체가 막힘 시계를 리셋해 안전장치도 못 걸렸다. 집결은 시작 60초(`doorApproachMaxBlockedSeconds`×2) 뒤 남은 파티원을 현재 위치에서 인정한다. **이 "구역 안이면 선 자리에서 인정"과 60초는 공식문서에 없는 근사다**(문서는 미집결자 → 대기·수색 → 포기 시 대기 대상 제외이고 시간은 후속 "정신력·도주·후퇴" 문서가 정한다 — 사용자가 2026-10-01에 현재 방식 유지를 확정). 문서 규정처럼 설명하지 말 것.
+- **입장은 "문을 지난 유닛부터 즉시 개인 행동"이다**(사용자 확정 2026-10-01 "다음 방 진입 판정 후 바로 개인 행동"). `Entering`에서 랭크 순(0→1→2)으로 출발하되 각 유닛은 문 먼 쪽 줄을 지난 순간(`PartyFormationMath.HasPassedGate`) `PartyAdvanceSystem.ReleaseIfEntered`가 그 유닛의 대기를 풀고, 전원이 풀리거나 포기하면 계획이 끝난다. 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않는다(입장 자리는 문을 지나는 방향을 정하는 목적지일 뿐).
+- **진형·입장 단계는 상한(60초)에서 계획을 중단하지 않고 못 선 인원을 현재 위치에서 인정해 진행한다**(집결과 같은 규칙, 2026-10-01 3차 로그). 계획이 중단되는 경우(문 파괴 30초 무진행·진행할 파티원 없음)는 `Abort(retry=true)`가 `ReadyToAdvance`를 되살려 재시도하고, `Party.AdvanceAttempts`가 `PartyAdvanceSystem.MaxAttempts`(2)에 닿으면 예전 `AdvancingToNextRoom`으로 폴백한다 — 중단 뒤 `ReadyToAdvance`가 소비된 채 `AdvanceFromRoom`만 남아 파티가 영구 정지하던 문제(로그 101~107줄)의 해법이다. 리더 없음·퇴각은 `retry=false`.
+- **대기·집결은 경계에 밀린다**(BT 순서 `Alert` → `Wait`, 문서 03 시스템 v0.6 4-15도 사망 수색이 대기·집결을 중단시킨다고 규정). 유닛이 자리를 못 지키면 먼저 `PartyAdvanceSystem.DescribeMember` 진단 로그(집결 진행 중 줄·진형 15초 로그)의 경계 종류·보이는 적을 본다 — `GetSubLabel`은 대기를 경계보다 먼저 판정해 경계 중에도 "전술(대기)"로 보인다.
+- `AIMovementHelper.FindDoorWaitSlot`은 문이 속한 방 안에서만 자리를 고른다 — 반경 안이라는 이유만으로 문 반대편(닫힌 적 문 너머)을 뽑던 버그(검증문서 "플레이 로그 분석 → 집결 개선" ④).
+
+### 알려진 한계 / 미검증
+Unity 플레이 검증을 하지 못했다(컴파일 + `PartyFormationMath` 순수 함수 하니스 29건까지). 전투 중인 유닛이 있으면 집결·FormingUp이 그 전투가 끝날 때까지 기다린다. 입구 문을 다음 문으로 잘못 고르는 문제(`TryFindKnownDoorInCurrentRoom`)는 그대로다. 플레이 확인 체크리스트는 검증문서 같은 항목에 있다.
+
+## 문 구조 — 방 쪽 줄(1×2) 묶음이 문 오브젝트 하나 (2026-10-01)
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+- **문 오브젝트 = 게이트의 한 줄(폭 2 → 1×2).** 게이트당 두 개(A방 쪽·B방 쪽)이고, 묶는 기준은 `GetGateDoorTiles`의 줄 순서가 아니라 **각 타일이 실제 속한 방**(`DoorGeometry.GroupByRoom` + `DoorSystem.GetGateDoorGroups`가 `roomGrid`를 연결 — `MapRandering.ExcludeOwnGateDoorTiles`와 같은 이유로 순서는 기하학적 규칙일 뿐 방과 무관). 한 방이 두 줄을 다 차지하는 비정상 데이터는 줄 단위로 분리한다.
+- **체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 한 번에 처리된다.** 체력은 묶음당 `DoorMaxHp`(300 — 한 레인을 뚫는 데 필요한 near+far 600은 예전과 같다), 재설치 비용 `DoorRepairStoneCost`(100)도 묶음당이다. 묶음의 어느 칸이든 접근 시도·보유 진영 유닛이 있으면 문 전체가 열린다. `RemoveDoor(pos)`는 pos가 어느 칸이든 묶음 전체를 제거한다. 소유 진영은 **그 묶음이 붙은 방**의 최초 방 소유 스냅샷(파괴+재설치로만 바뀜 — 기존 규칙 그대로).
+- **멀티 타일 오브젝트는 별칭으로 등록한다**: `InteractableObject.OccupiedTiles`의 모든 타일이 `objectGrid`에서 같은 오브젝트를 가리키고(`GameSession.SpawnObject`), 제거도 별칭 전부(`ObjectSpawner.CollectObject`). 그래서 타일 키로 조회하는 코드(`IsBlockedByClosedDoor`, 시야 차단, 클릭 선택, `GetObjectVisual`, `IsDoorTile`)는 수정 없이 어느 칸에서나 동작한다. `Position`은 대표 타일(가장 작은 좌표). **`objectGrid.Values`를 순회하는 코드는 문이 두 번 나온다**(현재 `TryFindKnownDoorInCurrentRoom`·`ComputeInvestigateTarget`(문 제외)·`HasKnownRecoverableInRoom`(전리품만)은 무해 — 새 순회를 추가할 때 확인).
+- **인접 판정은 "오브젝트의 어느 타일에든"이다**(`InteractableObject.IsAdjacentTo`/`NearestTileTo`): `UnitFunction.OnUpdate` 채널링 블록, 플레이어 우클릭 공격(`ExecutePlayerAttackObject`, 클릭한 칸이 아니라 가장 가까운 칸으로 접근), 진형 돌파(`StepBreach`). `FindHostileExitDoor`는 원래 가장 가까운 타일을 고르므로 그 칸 인접 = 문 전체 인접이라 그대로다. 코어/함정은 한 칸이라 기존과 같다.
+- **비주얼은 로직과 달리 두 장이다**(사용자 확정 2026-10-01 "기존처럼 양쪽으로 젖혀지는듯이, 2개의 스프라이트가 존재하게 — 2개를 묶어서 1개처럼 동작"): 문 오브젝트(체력·개폐·파괴·소유 진영·통행·채널링 판정)는 하나이고, 비주얼 루트 하나(중심, 회전 없음 — 진행 막대와 파괴 이펙트가 두 짝 중앙에 붙음) 아래에 **칸마다 자식 스프라이트 한 장 + `ShadowCaster2D`**(`GameSession.CreateDoorLeaves`, `DoorLeafVisual` 표식)를 둔다. 각 짝은 예전 한 칸 문과 똑같이 자기 타일 중심에서 수평 게이트 90도 회전으로 그려지고, `DoorSystem.UpdateProcess`가 열림/닫힘 스프라이트를 **짝 전부에 같이** 바꾼다. 늘려 그리는 방식(`StretchScale`)은 폐기. 재설치 고스트도 `PlacementGhost.UpdateTiles`로 칸마다 한 장씩 보여 준다. **뒤쪽 짝은 좌우 반전한다**(`DoorGeometry.IsMirroredLeaf` — 앞쪽 절반 그대로·뒤쪽 절반 반전): `door_open` 아트는 왼쪽 7열에만 문짝이 있어서 같은 스프라이트를 그대로 두면 두 짝이 같은 방향으로 젖혀진다. 반전하면 두 문짝이 바깥 양 끝으로 갈라지는 양쪽 여닫이가 된다(수직 게이트는 왼→오른쪽, 수평 게이트는 90도 회전이라 아래→위쪽 순서로 같은 규칙). 반전은 `flipX`가 아니라 로컬 스케일 x=-1로 해서 `ShadowCaster2D`도 같이 뒤집히게 한다. 재설치 고스트(`PlacementGhost.UpdateTiles`)도 같은 규칙을 쓴다.
+- **방 도달성(`IsGatePassableForFaction`)은 두 방 쪽 문이 모두 통행 가능해야 한다**(예전엔 한 줄의 첫 타일만 대표로 봐 반대쪽 문이 막혀 있어도 "도달 가능"으로 판정할 수 있었다).
+
+### 알려진 한계 / 미검증
+Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`InteractableObject` 헬퍼 하니스 14건 — 늘린 스프라이트·그림자·진행 막대 위치·재설치 고스트·한 칸만 접근해도 두 칸이 같이 열리는지는 플레이로만 확인). 한 줄이 한 번에 부서지므로 예전의 "2*2 통로에 한 칸만 뚫린 상태"는 더 이상 생기지 않는다.
+
 ## 유니티 상단 Tools 메뉴 구조 (Tools / Tools(new), 2026-09-27)
 
 **핵심 사실 — "Tools"는 이름을 바꿀 수 있는 별도 객체가 아니다.** Unity는 `[MenuItem("Tools/...")]`

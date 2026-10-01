@@ -37,6 +37,10 @@ public class AIBehaviorConfig : ScriptableObject
     public bool occupancyArbitrationEnabled = true;
     [Tooltip("좁은 통로(게이트 문 타일) 통과 순서·마주 막힘 양보(검증문서 04-07) kill-switch — 끄면 통과 순서 대기를 하지 않는다 (내부 판단)")]
     public bool gatePassOrderEnabled = true;
+    [Tooltip("집결 중 집결지(리더 자리)에 못 서면 근처 자리를 따로 배정하고, 도착한 파티원도 전원이 모일 때까지 자리에서 기다린다. 끄면 예전처럼 전원이 리더 자리로 몰리고 4틱 정체 시 도착으로 간주한다 (내부 판단)")]
+    public bool rallyGatherNearbyEnabled = true;
+    [Tooltip("집결 완료 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장으로 다음 방에 들어간다. 끄면 예전처럼 문 앞 자리로 흩어져 이동한 뒤 개인 행동으로 풀린다 (내부 판단)")]
+    public bool partyAdvanceFormationEnabled = true;
     [Tooltip("길찾기(A*)가 진영 공용 지도 대신 유닛 개인 지도(직접 확인했거나 전달받아 아는 지형)로 경로를 계산한다 (검증문서 04-08, 04번 0장). 끄면 예전처럼 진영 공용 discoveredMap을 쓴다 (내부 판단)")]
     public bool personalMapPathingEnabled = true;
     [Tooltip("조사 후보를 고를 때 구조 경로(점유 무시)로도 닿을 수 없다고 확인된 대상을 후보에서 제외한다 (검증문서 04-08, 04번 9장 '통행 불가 확인'). 끄면 제외하지 않고 아주 먼 거리로만 계산한다 (내부 판단)")]

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // 마우스를 따라다니며 배치 가능/불가능 여부를 색으로 보여주는 "고스트" 스프라이트 — 빌드 모드와
@@ -18,6 +19,9 @@ public class PlacementGhost
         _sortingOrder = sortingOrder;
     }
 
+    // 멀티 타일 오브젝트(문 1×2 묶음) 고스트의 두 번째 칸부터 쓰는 추가 스프라이트 — 필요할 때 만들고 안 쓰면 숨긴다.
+    private readonly List<GameObject> _extraGhosts = new List<GameObject>();
+
     public void Show(Sprite sprite)
     {
         if (_go == null)
@@ -27,17 +31,67 @@ public class PlacementGhost
             _renderer.sortingOrder = _sortingOrder;
         }
         _renderer.sprite = sprite;
+        // 다른 모드(footprint 스케일·문 고스트의 회전)가 남긴 변형이 새 모드로 새지 않게 초기화한다.
+        _go.transform.localScale = Vector3.one;
+        _go.transform.rotation = Quaternion.identity;
+        HideExtraGhosts();
         _go.SetActive(true);
+    }
+
+    // 멀티 타일 오브젝트(문 1×2 묶음) 전용 — 칸마다 스프라이트 한 장씩 같은 회전으로 보여 준다(실제 문과 같은 모양). 첫 칸은 기본 고스트, 나머지는 추가 고스트.
+    public void UpdateTiles(IReadOnlyList<Vector3> worldCenters, float rotationZDegrees, bool canPlace)
+    {
+        if (_go == null || worldCenters.Count == 0) return;
+        Quaternion rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
+        Color color = canPlace ? CanPlaceColor : CannotPlaceColor;
+
+        _go.transform.position = worldCenters[0];
+        _go.transform.rotation = rotation;
+        _go.transform.localScale = new Vector3(DoorGeometry.IsMirroredLeaf(0, worldCenters.Count) ? -1f : 1f, 1f, 1f);
+        _renderer.color = color;
+
+        for (int i = 1; i < worldCenters.Count; i++)
+        {
+            var extra = EnsureExtraGhost(i - 1);
+            extra.SetActive(true);
+            extra.transform.position = worldCenters[i];
+            extra.transform.rotation = rotation;
+            // 실제 문과 같은 반전 규칙(DoorGeometry.IsMirroredLeaf) — 고스트도 양쪽으로 갈라진 모양으로 보인다.
+            extra.transform.localScale = new Vector3(DoorGeometry.IsMirroredLeaf(i, worldCenters.Count) ? -1f : 1f, 1f, 1f);
+            extra.GetComponent<SpriteRenderer>().color = color;
+        }
+        for (int j = worldCenters.Count - 1; j < _extraGhosts.Count; j++) _extraGhosts[j].SetActive(false);
+    }
+
+    private GameObject EnsureExtraGhost(int index)
+    {
+        while (_extraGhosts.Count <= index)
+        {
+            var go = new GameObject(_name + "_Extra" + _extraGhosts.Count);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sortingOrder = _sortingOrder;
+            _extraGhosts.Add(go);
+        }
+        var extra = _extraGhosts[index];
+        extra.GetComponent<SpriteRenderer>().sprite = _renderer.sprite; // 모드가 바뀌어 스프라이트가 달라졌을 수 있다
+        return extra;
+    }
+
+    private void HideExtraGhosts()
+    {
+        foreach (var g in _extraGhosts) if (g != null) g.SetActive(false);
     }
 
     public void Hide()
     {
         if (_go != null) _go.SetActive(false);
+        HideExtraGhosts();
     }
 
     public void UpdatePosition(Vector3Int gridPos, Vector3 floorOffset, bool canPlace)
     {
         if (_go == null) return;
+        HideExtraGhosts(); // 문 고스트에서 일반 위치로 돌아왔을 때 두 번째 칸이 남지 않게
         _go.transform.position = new Vector3(gridPos.x + 0.5f, gridPos.y + 0.5f, 0f) + floorOffset;
         _renderer.color = canPlace ? CanPlaceColor : CannotPlaceColor;
     }

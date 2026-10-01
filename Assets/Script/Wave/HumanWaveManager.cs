@@ -622,6 +622,7 @@ namespace GrimArchive.Wave
         {
             if (_retreating)
             {
+                PartyAdvanceSystem.Abort(activeParty, "퇴각 전환", retry: false);
                 // WaitState 기반으로 이동한다(WaitReason.Retreating 참고 — playerMoveTarget 경로는
                 // 실제로 이동을 발생시키지 않는 죽은 경로였음).
                 Vector2Int exitDest = exitAreaPos;
@@ -652,6 +653,7 @@ namespace GrimArchive.Wave
             // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)는 소멸시킨다 — 안 그러면 새 방의
             // 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다(검증 갭 정리, Party.TickAdvanceState).
             activeParty.TickAdvanceState();
+            PartyAdvanceSystem.Tick(activeParty); // 문 앞 진형 → 문 파괴 → 입장 단계 전이(계획이 없으면 즉시 반환)
             TryAssignLeaderDoorApproach();
 
             bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
@@ -680,6 +682,19 @@ namespace GrimArchive.Wave
                 return;
             }
             _doorSearchLogged = false;
+
+            // 집결 완료로 정한 방 이동은 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장으로 진행한다(PartyAdvanceSystem). 코어 처리 경로는 예전 공동 이동을 그대로 쓰고,
+            // 진형을 만들 수 없을 때(게이트·파티원 없음)나 partyAdvanceFormationEnabled를 끄면 아래 예전 방식으로 폴백한다.
+            // 진형 계획이 중단돼 시도 한도(PartyAdvanceSystem.MaxAttempts)에 닿았으면 더 시도하지 않고 예전 방식으로 폴백한다 — 중단 뒤 파티가 영구히 멈추는 것을 막는다.
+            bool attemptsExhausted = activeParty.AdvanceAttempts >= PartyAdvanceSystem.MaxAttempts;
+            if (decidedByRally && (AIConfigLoader.Behavior?.partyAdvanceFormationEnabled ?? true) && !attemptsExhausted
+                && PartyAdvanceSystem.Begin(activeParty, doorPos, doorFloor, stagingUnits))
+            {
+                activeParty.ReadyToAdvance = false; // 명령은 1회만 발행 — 이후 진행은 AdvancePlan이 맡는다.
+                return;
+            }
+            if (decidedByRally && attemptsExhausted)
+                LogHelper.Log(LogHelper.GAME, $"{partyTag} 진형 방 이동이 {activeParty.AdvanceAttempts}회 중단돼 예전 방식(문 앞 자리로 이동한 뒤 개인 행동)으로 이동합니다");
 
             // playerMoveTarget 대신 currentWait(AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
             // PlayerCommandFSMState 전용(우선순위 200)이라 전투 중에도 무시하고 걸어가지만, currentWait

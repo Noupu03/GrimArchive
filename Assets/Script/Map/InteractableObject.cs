@@ -6,7 +6,11 @@ using System.Collections.Generic;
 public class InteractableObject
 {
     public string Id;
+    // 대표 타일(멀티 타일 오브젝트는 가장 작은 좌표) — 개인 지도 등록·정보 패널 생존 확인이 이 값을 쓴다.
     public Vector3Int Position;
+    // 멀티 타일 오브젝트(문 1×2 묶음)가 차지하는 모든 타일. null이면 Position 한 칸. GameSession이 이 타일 전부를 objectGrid에 같은 오브젝트로 등록하므로(별칭)
+    // 타일 키로 조회하는 코드는 어느 칸에서든 같은 오브젝트를 얻는다.
+    public List<Vector3Int> OccupiedTiles;
     public float BaseInterest;
     // 타일 최종 위험도 = 기본 탐사 위험도 + 오브젝트 위험도. 순수 루팅 대상은 기본값 0.
     public float BaseDanger;
@@ -81,6 +85,23 @@ public class InteractableObject
     // 유지된다. 최초 스폰 시엔 그 시점 방 소유 진영을 스냅샷(SpawnDoors), 파괴 후 재설치 시엔
     // 재설치한 플레이어 진영으로 고정(RebuildDoorAt).
     public FactionType DoorOwnerFaction = FactionType.Wild;
+
+    public IEnumerable<Vector3Int> AllTiles()
+    {
+        if (OccupiedTiles == null) { yield return Position; yield break; }
+        foreach (var t in OccupiedTiles) yield return t;
+    }
+
+    // 코어/문/함정 파괴는 인접 1칸에서만 가능 — 문은 두 칸이라 어느 칸에든 인접하면 된다(DoorGeometry).
+    public bool IsAdjacentTo(Vector2Int pos, int radius = 1)
+    {
+        if (OccupiedTiles == null) return Mathf.Max(Mathf.Abs(pos.x - Position.x), Mathf.Abs(pos.y - Position.y)) <= radius;
+        return DoorGeometry.IsAdjacentToAny(pos, OccupiedTiles, radius);
+    }
+
+    // pos에서 가장 가까운 점유 타일 — 접근 목적지·채널링 대상 타일·바라볼 방향에 쓴다.
+    public Vector2Int NearestTileTo(Vector2Int pos)
+        => OccupiedTiles == null ? new Vector2Int(Position.x, Position.y) : DoorGeometry.NearestTile(pos, OccupiedTiles);
 
     public InteractableObject(string id, Vector3Int position, float baseInterest, float baseDanger = 0f, List<string> tags = null, DangerStage causerStage = DangerStage.Stage0, string traceId = null, float baseVisibility = 0f, bool isFullyBlocking = false, float trapHp = 0f, float trapDamageMin = 0f, float trapDamageMax = 0f, float coreHp = 0f, float doorHp = 0f)
     {

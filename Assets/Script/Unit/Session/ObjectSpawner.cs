@@ -16,6 +16,9 @@ public class ObjectSpawner
         {
             obj.IsCollected = true;
             objectGrid.Remove(pos);
+            // 멀티 타일 오브젝트(문 묶음)는 별칭 키를 전부 지운다 — 한 칸만 남으면 사라진 문이 통행·시야를 계속 막는다.
+            if (obj.OccupiedTiles != null)
+                foreach (var t in obj.OccupiedTiles) objectGrid.Remove(t);
         }
     }
 }

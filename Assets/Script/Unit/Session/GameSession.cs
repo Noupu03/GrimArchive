@@ -1130,12 +1130,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void SpawnObject(InteractableObject obj, Color color, float rotationZDegrees = 0f)
     {
         if (objectGrid.ContainsKey(obj.Position)) return;
+        if (obj.OccupiedTiles != null)
+        {
+            // 멀티 타일 오브젝트(문 묶음)는 모든 타일이 비어 있어야 놓는다 — 일부만 차 있으면 별칭 등록이 어긋난다.
+            foreach (var t in obj.OccupiedTiles)
+                if (objectGrid.ContainsKey(t)) return;
+        }
 
         objectGrid[obj.Position] = obj;
+        if (obj.OccupiedTiles != null)
+            foreach (var t in obj.OccupiedTiles) objectGrid[t] = obj; // 모든 타일이 같은 오브젝트를 가리키게 한다(별칭)
         LogHelper.Log(LogHelper.GAME, $"Generated {obj.Id} at Floor {obj.Position.z}, {new Vector2Int(obj.Position.x, obj.Position.y)} with Tags: [{string.Join(", ", obj.Tags)}]");
 
         GameObject visual = new GameObject(obj.Id);
-        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+        // 문 묶음(1×2)은 루트에 스프라이트를 두지 않고 칸마다 자식 스프라이트 한 장씩(CreateDoorLeaves)을 둔다 — 로직은 한 오브젝트, 비주얼은 두 짝.
+        bool splitLeaves = obj.OccupiedTiles != null && obj.OccupiedTiles.Count > 1
+            && obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
+        SpriteRenderer sr = splitLeaves ? null : visual.AddComponent<SpriteRenderer>();
 
         // 태그별 아트 스프라이트 배정(시체=colapse, 함정=trap, 코어=core, 그 외=obj1) —
         // Resources.Load 실패 시에만 도형 폴백(함정=삼각형, 그 외=단색 사각형).
@@ -1143,7 +1154,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
-        // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem.SpawnDoorAt/RebuildDoorAt이
+        // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem.SpawnDoorGroup/RebuildDoorAt이
         // 곧바로 닫힘으로 교체한다 — 이후 개폐는 DoorSystem.UpdateProcess가 매 프레임 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
@@ -1172,15 +1183,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 sprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
             }
         }
-        sr.sprite = sprite;
-        sr.sortingOrder = 5;
+        if (sr != null)
+        {
+            sr.sprite = sprite;
+            sr.sortingOrder = 5;
+        }
 
         // 함정 해제·코어/문 파괴 진행 막대를 붙일 자리 — 그 외 오브젝트는 불필요한 컴포넌트 낭비를 막기 위해 생략.
         if (isTrap || isCoreOnly || isDoor) visual.AddComponent<ObjectProgressBarVisual>();
 
         // 빛이 문도 막도록 벽과 동일한 ShadowCaster2D 기법을 쓴다 — 문 열림/닫힘으로 sr.sprite가
-        // 바뀌면 SpriteRenderer 프로바이더가 콜백으로 셰이프를 자동으로 따라 바꾼다.
-        if (isDoor) visual.AddComponent<ShadowCaster2D>();
+        // 바뀌면 SpriteRenderer 프로바이더가 콜백으로 셰이프를 자동으로 따라 바꾼다. 문 묶음은 짝마다 자식 스프라이트에 붙는다(CreateDoorLeaves).
+        if (isDoor && !splitLeaves) visual.AddComponent<ShadowCaster2D>();
 
         Vector3 offset = Vector3.zero;
         if (mapRandering != null)
@@ -1199,16 +1213,43 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
         }
         
-        visual.transform.position = new Vector3(obj.Position.x + 0.5f, obj.Position.y + 0.5f, 0f) + offset;
+        // 멀티 타일 오브젝트는 점유 타일들의 중심에 둔다(문 1×2 묶음 = 두 칸 사이).
+        Vector2 visualCenter = obj.OccupiedTiles != null
+            ? DoorGeometry.CenterOf(obj.OccupiedTiles)
+            : new Vector2(obj.Position.x + 0.5f, obj.Position.y + 0.5f);
+        visual.transform.position = new Vector3(visualCenter.x, visualCenter.y, 0f) + offset;
         // 문은 통로 방향(수평/수직)에 맞춰 스프라이트를 돌린다. 회전이 필요 없는 오브젝트는 기본값
-        // 0도라 영향 없음.
-        if (rotationZDegrees != 0f) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
+        // 0도라 영향 없음. 문 묶음은 루트가 아니라 짝마다 돌린다(루트를 돌리면 진행 막대까지 같이 돈다).
+        if (rotationZDegrees != 0f && !splitLeaves) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
 
         // 오브젝트는 타일 크기에 맞추지 않고 원본 스프라이트 크기(스케일 1)로 스폰한다 — 스프라이트마다
         // 실제 렌더 크기가 제각각이어도 그대로 둔다.
         visual.transform.localScale = Vector3.one;
 
+        if (splitLeaves) CreateDoorLeaves(obj, visual, sprite, offset, rotationZDegrees);
+
         objectVisuals[obj] = visual;
+    }
+
+    // 문 묶음의 짝(칸)마다 스프라이트 한 장 + 그림자를 자식으로 만든다 — 각 짝은 자기 타일 중심에서 예전 한 칸 문과 똑같이 그려지고, 개폐는 DoorSystem이 짝 전부에 같이 적용한다.
+    private void CreateDoorLeaves(InteractableObject obj, GameObject root, Sprite sprite, Vector3 floorOffset, float rotationZDegrees)
+    {
+        for (int i = 0; i < obj.OccupiedTiles.Count; i++)
+        {
+            Vector3Int tile = obj.OccupiedTiles[i];
+            var leaf = new GameObject($"{obj.Id}_Leaf{i}");
+            leaf.transform.SetParent(root.transform, true);
+            leaf.transform.position = new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
+            leaf.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
+            // 뒤쪽 짝은 좌우 반전 — 열렸을 때 두 짝이 바깥 양 끝으로 갈라진다(양쪽 여닫이). 스프라이트 flipX가 아니라 스케일로 뒤집어야 그림자(ShadowCaster2D)도 같이 뒤집힌다.
+            leaf.transform.localScale = new Vector3(DoorGeometry.IsMirroredLeaf(i, obj.OccupiedTiles.Count) ? -1f : 1f, 1f, 1f);
+
+            var leafSr = leaf.AddComponent<SpriteRenderer>();
+            leafSr.sprite = sprite;
+            leafSr.sortingOrder = 5;
+            leaf.AddComponent<ShadowCaster2D>(); // 짝마다 빛을 막는다 — sprite가 바뀌면 SpriteRenderer 프로바이더가 셰이프를 따라 바꾼다
+            leaf.AddComponent<DoorLeafVisual>().Renderer = leafSr;
+        }
     }
 
     // "Object/Passable/Core" 태그: Human.ComputeInvestigateTarget이 일반 조사 후보에서 제외하고,
@@ -1239,6 +1280,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
+    // 문 재설치 고스트가 쓰는 묶음 정보(모든 칸·회전) — pos가 속한 방 쪽 줄(1×2) 하나. tilesOut은 호출부가 재사용하는 버퍼다.
+    public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
+        => _doorSystem.TryGetDoorGroupTiles(pos, tilesOut, out rotationZ);
     // 검증 04-07: 좁은 통로(게이트 문턱 타일) 판정 — 문이 파괴돼도 성립(OccupancySystem의 통과 순서가 사용).
     public bool TryGetGateKeyAt(Vector3Int pos, out int gateKey) => _doorSystem.TryGetGateKeyAt(pos, out gateKey);
     // 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영 소유)만 거쳐 도달 가능한 방인지 판정

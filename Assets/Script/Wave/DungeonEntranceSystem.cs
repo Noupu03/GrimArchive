@@ -44,8 +44,8 @@ namespace GrimArchive.Wave
         private int _pendingStairApproachX;
         private bool _prepareNoticeShown;
 
-        // 선(랭크) 간 간격(이동 방향 축, 타일) — 이 값만큼씩 뒤로 갈수록 밀린다.
-        private const int RankSpacingX = 2;
+        // 선(랭크) 간 간격(이동 방향 축, 타일) — 이 값만큼씩 뒤로 갈수록 밀린다. 방 문 앞 진형(PartyAdvanceSystem)과 같은 정의를 쓴다.
+        private const int RankSpacingX = PartyFormationMath.RankSpacing;
 
         public bool IsActive => _phase != Phase.Idle && _phase != Phase.Done;
 
@@ -217,27 +217,18 @@ namespace GrimArchive.Wave
             int n = members.Count;
             for (int i = 0; i < n; i++)
             {
-                int lane = LaneOffset(i, n);
+                int lane = PartyFormationMath.LaneOffset(i, n);
                 outFormation.Add(new FormationSlot { Unit = members[i], Rank = rank, Lane = lane });
             }
         }
 
-        private static int LaneOffset(int i, int n)
-        {
-            if (n % 2 == 1) return i - n / 2; // 홀수: 중앙 포함 대칭.
-
-            int half = n / 2;
-            return i < half ? i - half : i - half + 1; // 짝수: 중앙 비우고 좌우 대칭.
-        }
-
-        private const int MeleeEngageDistanceThreshold = 3; // 기사형(2)=근접, 아처형(7)=원거리 기준 중간값.
-
-        private static bool IsMelee(GameSession session, Human h)
+        // 근접/원거리 판정 — 방 문 앞 진형(PartyAdvanceSystem)도 이 메서드를 쓴다.
+        public static bool IsMelee(GameSession session, Human h)
         {
             int engageDistance = session?.unitGenerate != null && h.unitType != null
                 ? session.unitGenerate.GetEngageDistance(h.unitType.typeName, 2)
                 : 2;
-            return engageDistance <= MeleeEngageDistanceThreshold;
+            return PartyFormationMath.IsMeleeEngage(engageDistance);
         }
 
         // 스폰 시점의 "무더기" 중 가장 앞선(방향 기준 가장 오른쪽) 유닛의 x좌표를 대형 전체의 시작

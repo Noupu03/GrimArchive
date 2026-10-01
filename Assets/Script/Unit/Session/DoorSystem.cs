@@ -3,7 +3,8 @@ using UnityEngine;
 using VContainer;
 using Haare.Util.Logger;
 
-// 문 시스템(진영 기반 개폐, GameSession 비대화 방지 목적 분리). DoorOwnerFaction(보유 진영)은
+// 문 시스템(진영 기반 개폐, GameSession 비대화 방지 목적 분리). 문은 "어느 방에 붙어 있는가"로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라, 게이트당 두 개이고
+// 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 한 번에 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트를 얻는다). DoorOwnerFaction(보유 진영)은
 // Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다. 기본은 항상 닫힘, 접근 시도
 // (NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 가능 여부는 항상 진영 일치로만
 // 판정한다(IsBlockedByClosedDoor). GameSession을 직접 [Inject]하지 않고 IObjectResolver로 지연
@@ -20,9 +21,10 @@ public class DoorSystem
     public const float DoorRegenDelaySeconds = 5f;
     public const float DoorRegenPerSecond = 10f;
 
-    // 매 프레임 개폐 판정을 돌 대상 캐시(objectGrid 전체 스캔 방지) — SpawnDoors/RebuildDoorAt에서 추가, RemoveDoor에서 제거.
-    private readonly List<Vector3Int> _doorPositions = new List<Vector3Int>();
-    private readonly System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer> _doorVisuals = new System.Collections.Generic.Dictionary<Vector3Int, SpriteRenderer>();
+    // 매 프레임 개폐 판정을 돌 대상 캐시(objectGrid 전체 스캔 방지) — 문은 방 쪽 줄(1×2) 묶음당 오브젝트 하나다. SpawnDoors/RebuildDoorAt에서 추가, RemoveDoor에서 제거.
+    private readonly List<InteractableObject> _doors = new List<InteractableObject>();
+    // 문 하나의 스프라이트 전부(짝마다 한 장) — 개폐는 이 배열 전체에 같이 적용한다.
+    private readonly System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]> _doorVisuals = new System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]>();
 
     // 문이 생기거나(최초 배치·재설치) 파괴될 때마다 오른다 — 통행 가능 여부가 바뀌는 유일한 사건이라 경로 판정 메모(RouteAssessment, 검증 04-08)의 서명으로 쓴다.
     public int StateVersion { get; private set; }
@@ -65,47 +67,87 @@ public class DoorSystem
                 // 기본(회전 0도) 그림은 수직 통로 기준이라 수평 통로는 90도 돌려야 벽 방향이 맞는다.
                 float rotation = gate.isHorizontal ? 90f : 0f;
 
-                foreach (List<Vector2Int> gateTiles in GetGateDoorTiles(gate, floor.config.chunkSize))
+                // 문은 "어느 방에 붙어 있는가"로 묶은 한 줄(1×2)이 오브젝트 하나다 — 게이트당 두 방 쪽에 하나씩.
+                foreach (var group in GetGateDoorGroups(gate, floorIdx))
                 {
-                    foreach (var tilePos in gateTiles)
-                    {
-                        Vector3Int gridPos = new Vector3Int(tilePos.x, tilePos.y, floorIdx);
-                        if (Session.objectGrid.ContainsKey(gridPos)) continue;
+                    var tiles = ToGridTiles(group, floorIdx);
+                    if (AnyTileOccupied(tiles)) continue;
 
-                        // 최초 배치 시점의 방 소유 진영을 스냅샷해 고정(이후 방 점령이 바뀌어도 문 소유권은 파괴+재설치로만 변경).
-                        FactionType initialOwner = Session.roomGrid.TryGetValue(gridPos, out Room initialRoom) && initialRoom != null
-                            ? initialRoom.RoomFaction
-                            : FactionType.Wild;
-                        SpawnDoorAt(gridPos, rotation, initialOwner);
-                        doorCount++;
-                    }
+                    // 최초 배치 시점의 방 소유 진영을 스냅샷해 고정(이후 방 점령이 바뀌어도 문 소유권은 파괴+재설치로만 변경). 묶음이 붙은 방이 곧 그 문의 방이다.
+                    FactionType initialOwner = Session.roomGrid.TryGetValue(tiles[0], out Room initialRoom) && initialRoom != null
+                        ? initialRoom.RoomFaction
+                        : FactionType.Wild;
+                    SpawnDoorGroup(tiles, rotation, initialOwner);
+                    doorCount++;
                 }
             }
         }
 
-        LogHelper.Log(LogHelper.GAME, $"SpawnDoors: 전체 {cmap.map.floors.Length}개 층에 문 {doorCount}개 배치 완료(기본 닫힘).");
+        LogHelper.Log(LogHelper.GAME, $"SpawnDoors: 전체 {cmap.map.floors.Length}개 층에 문 {doorCount}개 배치 완료(방 쪽 줄 단위 묶음, 기본 닫힘).");
     }
 
-    // SpawnDoors/RebuildDoorAt 공용, 항상 기본 닫힘으로 생성. ownerFaction은 호출부가 정하며 이 함수는 방 소유권을 조회하지 않는다.
-    private void SpawnDoorAt(Vector3Int gridPos, float rotation, FactionType ownerFaction)
+    // 게이트의 문 타일을 "그 타일이 실제 속한 방"으로 묶는다(DoorGeometry.GroupByRoom). GetGateDoorTiles의 줄 배열 순서는 기하학적 규칙일 뿐 방과 무관해서 roomGrid로 판정한다.
+    public List<DoorGeometry.Group> GetGateDoorGroups(Gate gate, int floorIdx)
     {
-        string objId = $"Door_{gridPos.z}_{gridPos.x}_{gridPos.y}";
+        Floor floor = Session.cmap.map.floors[floorIdx];
+        return DoorGeometry.GroupByRoom(GetGateDoorTiles(gate, floor.config.chunkSize),
+            t => Session.roomGrid.TryGetValue(new Vector3Int(t.x, t.y, floorIdx), out Room room) && room != null ? room.RoomId : -1);
+    }
+
+    private static List<Vector3Int> ToGridTiles(DoorGeometry.Group group, int floorIdx)
+    {
+        var tiles = new List<Vector3Int>(group.Tiles.Count);
+        foreach (var t in group.Tiles) tiles.Add(new Vector3Int(t.x, t.y, floorIdx));
+        return tiles;
+    }
+
+    private bool AnyTileOccupied(List<Vector3Int> tiles)
+    {
+        foreach (var t in tiles)
+            if (Session.objectGrid.ContainsKey(t)) return true;
+        return false;
+    }
+
+    // SpawnDoors/RebuildDoorAt 공용, 항상 기본 닫힘으로 생성. 묶음의 모든 타일을 한 오브젝트로 등록한다. ownerFaction은 호출부가 정하며 이 함수는 방 소유권을 조회하지 않는다.
+    private void SpawnDoorGroup(List<Vector3Int> tiles, float rotation, FactionType ownerFaction)
+    {
+        Vector3Int primary = tiles[0];
+        string objId = $"Door_{primary.z}_{primary.x}_{primary.y}";
         InteractableObject door = new InteractableObject(
-            objId, gridPos, baseInterest: 0f, baseDanger: 0f,
+            objId, primary, baseInterest: 0f, baseDanger: 0f,
             tags: new List<string> { DoorTag }, isFullyBlocking: true, doorHp: DoorMaxHp);
         door.DoorOwnerFaction = ownerFaction;
+        door.OccupiedTiles = tiles;
         Session.SpawnObject(door, Color.white, rotation);
-        _doorPositions.Add(gridPos);
+        if (!Session.objectGrid.TryGetValue(primary, out var placed) || placed != door) return; // 자리가 차 있어 놓지 못했다
+        _doors.Add(door);
         StateVersion++;
 
         // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — DoorIsOpenVisual
-        // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다.
-        GameObject visual = Session.GetObjectVisual(gridPos);
-        SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
-        if (sr != null && DoorClosedSprite != null)
+        // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다. 짝(칸)마다 스프라이트가 한 장씩이라 전부에 같이 적용한다.
+        var renderers = GetDoorRenderers(door);
+        if (renderers != null && DoorClosedSprite != null)
         {
-            sr.sprite = DoorClosedSprite;
+            foreach (var r in renderers) r.sprite = DoorClosedSprite;
+            _doorVisuals[door] = renderers;
         }
+    }
+
+    // 문 묶음의 스프라이트 전부 — 짝마다 자식(DoorLeafVisual) 한 장씩. 한 칸짜리 문(루트에 스프라이트)이면 그것 하나. 비주얼이 아직 없으면 null.
+    private SpriteRenderer[] GetDoorRenderers(InteractableObject door)
+    {
+        GameObject visual = Session.GetObjectVisual(door.Position);
+        if (visual == null) return null;
+
+        var leaves = visual.GetComponentsInChildren<DoorLeafVisual>();
+        if (leaves.Length > 0)
+        {
+            var result = new SpriteRenderer[leaves.Length];
+            for (int i = 0; i < leaves.Length; i++) result[i] = leaves[i].Renderer;
+            return result;
+        }
+        SpriteRenderer single = visual.GetComponent<SpriteRenderer>();
+        return single != null ? new[] { single } : null;
     }
 
     // Gate(청크 경계+폭+방향)로부터 문이 놓일 타일 좌표를 계산한다 — CreateMap.Connection.cs의
@@ -150,11 +192,13 @@ public class DoorSystem
     // 그 순간 진영 일치로 판정하는 순수 코스메틱이다(방 바닥과 같은 진영 틴트를 쓰면 안 보여 기본 색 유지).
     public void UpdateProcess()
     {
-        if (GameSession.Instance == null || _doorPositions.Count == 0) return;
+        if (GameSession.Instance == null || _doors.Count == 0) return;
 
-        foreach (var pos in _doorPositions)
+        foreach (var door in _doors)
         {
-            if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door)) continue;
+            // 파괴돼 별칭 키가 사라진 문은 RemoveDoor가 목록에서 빼지만, 같은 프레임 순서 차이에 대비해 한 번 더 확인한다.
+            if (door.IsCollected || !Session.objectGrid.TryGetValue(door.Position, out InteractableObject current) || current != door) continue;
+            Vector3Int pos = door.Position;
 
             // 공격 중이면 UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 0으로 리셋하므로 여기 도달하지 않는다.
             if (door.DoorHp < door.DoorMaxHp)
@@ -169,28 +213,34 @@ public class DoorSystem
                 }
             }
 
-            if (!_doorVisuals.TryGetValue(pos, out SpriteRenderer sr) || sr == null)
+            if (!_doorVisuals.TryGetValue(door, out SpriteRenderer[] renderers) || renderers == null || renderers.Length == 0 || renderers[0] == null)
             {
-                GameObject visual = Session.GetObjectVisual(pos);
-                sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
-                if (sr != null) _doorVisuals[pos] = sr;
+                renderers = GetDoorRenderers(door);
+                if (renderers != null) _doorVisuals[door] = renderers;
             }
-            if (sr == null) continue;
+            if (renderers == null || renderers.Length == 0) continue;
 
             FactionType ownerFaction = door.DoorOwnerFaction;
 
-            // 접근 시도(이번 프레임 NotifyApproachAttempt) 또는 문 타일 위에 이미 보유 진영 유닛이
-            // 서 있으면(통과 중 정지 등) 열림으로 본다.
-            bool unitOnDoor = Session.unitGrid.TryGetValue(pos, out Unit occupant) && occupant != null
-                && occupant.Health.hp > 0 && OffenseProcessor.MapToRoomFaction(occupant.FactionBehavior) == ownerFaction;
-            bool shouldBeOpen = _approachedThisFrame.Contains(pos) || unitOnDoor;
+            // 묶음의 어느 타일이든 접근 시도(이번 프레임 NotifyApproachAttempt)가 있거나 보유 진영 유닛이 서 있으면(통과 중 정지 등) 문 전체가 열림이다.
+            // (매 프레임 모든 문을 도는 경로라 AllTiles() 이터레이터 대신 목록을 직접 순회해 할당을 피한다.)
+            bool shouldBeOpen = false;
+            var doorTiles = door.OccupiedTiles;
+            int tileCount = doorTiles != null ? doorTiles.Count : 1;
+            for (int ti = 0; ti < tileCount && !shouldBeOpen; ti++)
+            {
+                Vector3Int tile = doorTiles != null ? doorTiles[ti] : door.Position;
+                shouldBeOpen = _approachedThisFrame.Contains(tile)
+                    || (Session.unitGrid.TryGetValue(tile, out Unit occupant) && occupant != null
+                        && occupant.Health.hp > 0 && OffenseProcessor.MapToRoomFaction(occupant.FactionBehavior) == ownerFaction);
+            }
             if (shouldBeOpen != door.DoorIsOpenVisual)
             {
                 door.DoorIsOpenVisual = shouldBeOpen;
                 door.IsFullyBlocking = !shouldBeOpen; // "문이 닫혀버리면 벽과 같은 가시성" — 열림/닫힘 공통 규칙, 진영 무관.
 
                 Sprite sprite = shouldBeOpen ? DoorOpenSprite : DoorClosedSprite;
-                if (sprite != null) sr.sprite = sprite;
+                if (sprite != null) { foreach (var r in renderers) if (r != null) r.sprite = sprite; } // 두 짝이 한 문처럼 같이 열리고 닫힌다
                 else LogHelper.Warning(LogHelper.GAME, $"DoorSystem.UpdateProcess: 문 스프라이트가 null입니다 (shouldBeOpen={shouldBeOpen}).");
             }
         }
@@ -256,7 +306,7 @@ public class DoorSystem
             {
                 if (g.roomA != room && g.roomB != room) continue;
                 int neighbor = g.roomA == room ? g.roomB : g.roomA;
-                if (visited.Contains(neighbor) || !IsGatePassableForFaction(g, floor.config.chunkSize, floorIndex, faction))
+                if (visited.Contains(neighbor) || !IsGatePassableForFaction(g, floorIndex, faction))
                     continue;
 
                 if (neighbor == targetRoomId) return true;
@@ -268,15 +318,20 @@ public class DoorSystem
         return false;
     }
 
-    // 게이트 폭 전체가 같은 시점에 함께 스폰/파괴되므로 대표 타일 하나만 확인해도 충분하다.
-    private bool IsGatePassableForFaction(Gate gate, int chunkSize, int floorIndex, FactionType faction)
+    // 문은 방 쪽 줄(1×2 묶음)마다 독립 오브젝트(소유 진영·파괴 상태가 각자)라 게이트를 지나려면 두 방 쪽 문이 모두 통행 가능해야 한다.
+    // (예전엔 한 줄의 첫 타일만 대표로 봐서 반대쪽 문이 막혀 있어도 "도달 가능"으로 판정할 수 있었다.)
+    private bool IsGatePassableForFaction(Gate gate, int floorIndex, FactionType faction)
     {
-        var tileRows = GetGateDoorTiles(gate, chunkSize);
-        if (tileRows.Length == 0 || tileRows[0].Count == 0) return true; // 문 타일 정보가 없으면 막을 이유 없음
+        var groups = GetGateDoorGroups(gate, floorIndex);
+        if (groups.Count == 0) return true; // 문 타일 정보가 없으면 막을 이유 없음
 
-        Vector2Int tile = tileRows[0][0];
-        FactionType? owner = GetDoorOwnerFaction(new Vector3Int(tile.x, tile.y, floorIndex));
-        return owner == null || owner.Value == faction; // null = 문이 없음(파괴됨) = 통과 가능
+        foreach (var group in groups)
+        {
+            Vector2Int tile = group.Tiles[0];
+            FactionType? owner = GetDoorOwnerFaction(new Vector3Int(tile.x, tile.y, floorIndex));
+            if (owner != null && owner.Value != faction) return false; // null = 문이 없음(파괴됨) = 이 쪽은 통과 가능
+        }
+        return true;
     }
 
     // 문이 있는 자리는 오브젝트/몬스터 배치 모두 불가능(이동만 가능) — BuildingManager.CanInstallAt/
@@ -289,14 +344,18 @@ public class DoorSystem
 
     // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 동일한 채널링 패턴) —
     // 재설치 전까지는 진영 판정 대상 자체가 없어 아무나 통과 가능해진다.
+    // 문은 1×2 묶음이 오브젝트 하나라 pos가 어느 칸이든 묶음 전체가 한 번에 사라진다(별칭 키·비주얼·캐시를 모두 정리).
     public void RemoveDoor(Vector3Int pos)
     {
-        _doorPositions.Remove(pos);
-        _doorVisuals.Remove(pos);
+        if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door) || door.Tags == null || !door.Tags.Contains(DoorTag)) return;
+
+        var tiles = new List<Vector3Int>(door.AllTiles());
+        _doors.Remove(door);
+        _doorVisuals.Remove(door);
         StateVersion++;
-        Session.CollectObject(pos); // objectGrid 제거 + 비주얼 파괴
-        ClearStaleWallCache(pos);
-        LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {pos} 위치의 문이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
+        Session.CollectObject(pos); // objectGrid의 별칭 키 전부 제거 + 비주얼 파괴
+        foreach (var tile in tiles) ClearStaleWallCache(tile);
+        LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {door.Id}({tiles.Count}칸)이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
     }
 
     // 두 진영 FactionData.discoveredMap과 모든 Human personalMap에 벽(2)으로 캐시된 pos 위치를 미탐사(0)로 되돌린다.
@@ -318,16 +377,40 @@ public class DoorSystem
         if (floorMap[pos.x, pos.y] == 2) floorMap[pos.x, pos.y] = 0;
     }
 
-    // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorAt과 동일하게 기본 닫힘으로 재생성하며
-    // 재설치는 오직 플레이어만 실행하므로 소유 진영은 항상 Player로 고정된다.
+    // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorGroup과 동일하게 기본 닫힘으로 재생성하며
+    // 재설치는 오직 플레이어만 실행하므로 소유 진영은 항상 Player로 고정된다. pos가 속한 방 쪽 줄(1×2 묶음) 전체를 한 번에 설치한다.
     public void RebuildDoorAt(Vector3Int pos)
     {
-        if (Session.objectGrid.ContainsKey(pos)) return;
-        if (!TryFindGateAt(pos, out Gate gate)) return;
+        if (!TryGetDoorGroupAt(pos, out DoorGeometry.Group group, out Gate gate)) return;
+        var tiles = ToGridTiles(group, pos.z);
+        if (AnyTileOccupied(tiles)) return;
 
-        float rotation = gate.isHorizontal ? 90f : 0f;
-        SpawnDoorAt(pos, rotation, FactionType.Player);
-        LogHelper.Log(LogHelper.GAME, $"RebuildDoorAt: {pos}에 문을 재설치했습니다(기본 닫힘, 소유 진영: Player).");
+        SpawnDoorGroup(tiles, gate.isHorizontal ? 90f : 0f, FactionType.Player);
+        LogHelper.Log(LogHelper.GAME, $"RebuildDoorAt: {tiles[0]} 쪽 문 묶음({tiles.Count}칸)을 재설치했습니다(기본 닫힘, 소유 진영: Player).");
+    }
+
+    // pos가 속한 방 쪽 줄 묶음과 그 게이트.
+    private bool TryGetDoorGroupAt(Vector3Int pos, out DoorGeometry.Group group, out Gate gate)
+    {
+        group = default;
+        if (!TryFindGateAt(pos, out gate)) return false;
+        var tile = new Vector2Int(pos.x, pos.y);
+        foreach (var g in GetGateDoorGroups(gate, pos.z))
+        {
+            if (g.Tiles.Contains(tile)) { group = g; return true; }
+        }
+        return false;
+    }
+
+    // 재설치 고스트가 묶음의 모든 칸과 회전을 알아야 한다(PlacementGhost.UpdateTiles — 칸마다 스프라이트 한 장).
+    public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
+    {
+        rotationZ = 0f;
+        tilesOut.Clear();
+        if (!TryGetDoorGroupAt(pos, out DoorGeometry.Group group, out Gate gate)) return false;
+        foreach (var t in group.Tiles) tilesOut.Add(new Vector3Int(t.x, t.y, pos.z));
+        rotationZ = gate.isHorizontal ? 90f : 0f;
+        return true;
     }
 
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.

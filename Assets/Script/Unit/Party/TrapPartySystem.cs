@@ -251,7 +251,8 @@ public static class TrapPartySystem
 	{
 		var wait = human.currentWait;
 		if (wait != null && (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
-			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.SearchingNextDoor || wait.Reason == WaitReason.Retreating))
+			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.SearchingNextDoor || wait.Reason == WaitReason.Retreating
+			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.BreachingDoor || wait.Reason == WaitReason.EnteringNextRoom))
 			return true;
 
 		var party = human.party;

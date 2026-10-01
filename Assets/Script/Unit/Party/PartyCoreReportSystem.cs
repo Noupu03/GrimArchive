@@ -118,7 +118,8 @@ public static class PartyCoreReportSystem
 
 		// 재무장 — 보고 이동이 끊겼거나 집결·다음 방 이동으로 덮인 상태에서도 코어 보고는 우선한다.
 		var wait = human.currentWait;
-		if (wait == null || wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom)
+		if (wait == null || wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
+			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.BreachingDoor || wait.Reason == WaitReason.EnteringNextRoom)
 			StartReportWait(human, corePos);
 	}
 

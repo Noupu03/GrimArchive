@@ -165,6 +165,12 @@ public class VFXManager
         if (psr != null)
         {
             SpriteRenderer targetSr = targetVisual != null ? targetVisual.GetComponent<SpriteRenderer>() : null;
+            // 문 묶음은 루트에 스프라이트가 없고 짝(DoorLeafVisual)마다 자식으로 있다 — 첫 짝을 정렬 기준으로 쓴다.
+            if (targetSr == null && targetVisual != null)
+            {
+                var leaf = targetVisual.GetComponentInChildren<DoorLeafVisual>();
+                if (leaf != null) targetSr = leaf.Renderer;
+            }
             if (targetSr != null) psr.sortingLayerID = targetSr.sortingLayerID;
             psr.sortingOrder = (targetSr != null ? targetSr.sortingOrder : 5) + 10;
         }

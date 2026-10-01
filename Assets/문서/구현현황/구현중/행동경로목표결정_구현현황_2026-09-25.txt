@@ -399,6 +399,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    MarkLeaderReachedNextDoor)으로 구현. 문을 모르면 리더의 기존 프론티어 탐색이 문을 찾는다. 리더 외 파티원은
    문으로 이동시키지 않는다(집결 때 모임 — 05번 8장 진형 합류 미작성). 목표 방이 없으면 소탕 파티는 집결하지
    않는다(임무 수량 달성 경로는 그대로).
+   [진단 로그, 2026-10-01] Party.TryStartRally가 조용히 return하던 모든 지점에 "집결 불가 — 사유" 로그를 추가했다(동작 불변). 사유(종류+구분값)가 바뀔 때, 같은 사유는 15초마다 상태를 갱신해 한 줄만 남긴다: 던전 입구 시퀀스 중/적 인지 중/전투 후 스윕 중(파티원 이름)/
+   리더 없음/리더 층 이동 중/집결을 마친 방을 리더가 아직 안 떠남/미처리 코어/방 활동 미종료(탐색: 파티 시야 합산 N/M칸 + 리더 개인 지도 방 안 프론티어 개수·예시 좌표, 회수·점령·소탕·기타 각자 기준). 진행 중인 집결은 "집결 진행 중 — 도착 대기 N명 [이름[도착]/[이동 중]], 그 밖 M명 [이름[대기 사유]]"로
+   남는다. Unity Console에서 "[파티]" 또는 "집결 불가"/"집결 진행 중"으로 검색한다.
 ✅ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (2026-09-27) — Party._partyRevealedTilesByRoom/
    OnTileRevealedInRoom이 파티원 전체가 나눠 본 타일을 방 단위로 합산해 IsRoomFullyRevealedByParty로
    노출, IsRoomActivityComplete의 Explore 분기가 이걸 우선 확인(기존 리더 개인 판정은 안전망으로
@@ -637,10 +640,17 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    (AIBehaviorConfig.doorSearchFollowRadius=3칸, 진형 자리·간격은 문서가 미뤄 근사)을 따라다니고, 문이 알려지면
    HumanWaveManager가 AdvancingToNextRoom으로 덮어쓴다. 집결을 마친 방을 리더가 떠나면 Party.TickAdvanceState가 소비되지
    않은 ReadyToAdvance를 지워, 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동이 발행되던 잠재 버그도 없앴다.
+   [개편, 2026-10-01 플레이 로그 분석 — 검증문서 "플레이 로그 분석 → 집결 개선" 참고] (A) 집결: 전원이 리더 타일 하나로 몰려 4틱 정체되면 "도착"으로 간주하던 것을 폐기 — 파티원마다 집결지 근처 개별 자리(같은 방·점진 확장,
+   Party.PickGatherSlot)를 배정하고, 막히면 다른 근처 자리로 재선택하며, 도착한 유닛도 전원이 모일 때까지 자리에서 대기한다(PartyAdvanceSystem.StepRallyGather + Party.CheckRallyComplete가 위치로 전원 도착 재확인 후 일괄 해제).
+   (B) 집결 완료 뒤: 문 앞 진형(0층 진형 규칙 공유) → 리더 지시 문 파괴(0랭크 근접, 인접 1칸 채널링 — 기존 DoorAttack과 별개, 현재 방 소유 진영 무관) → 진입로(한 레인의 near·far 문이 모두 통행 가능) 확보 시 랭크 순 입장 → 다음 방 안쪽 자리에서 개인 행동 복귀.
+   Party.AdvancePlan이 단계를 들고 PartyAdvanceSystem.Tick(HumanWaveManager.UpdatePartyDestination이 호출)이 전이시키며, 신규 WaitReason FormingUpAtDoor/BreachingDoor/EnteringNextRoom을 쓴다. kill-switch: AIBehaviorConfig.rallyGatherNearbyEnabled / partyAdvanceFormationEnabled.
+   코어 처리 경로(hasPendingCore)는 예전 AdvancingToNextRoom 그대로. Unity 플레이 미확인(컴파일·순수 함수 하니스까지).
 🔶 3. 진형과 문 주변 자리 — [구현, 2026-09-27] "문 주변 대기 위치"(2칸 확보)만 구현:
    AIMovementHelper.FindDoorWaitSlot(문 기준 체비셰프 거리 2 이상 미점유 타일을 반경을 넓혀가며
    탐색) + HumanWaveManager.UpdatePartyDestination이 파티원마다 겹치지 않는 슬롯을 배정. "역할별
    진형 자리·간격"은 여전히 미구현("파티·진형 문서 차후 작성" — 진짜 기획 부재, 검증문서 01-08 참고).
+   [갱신, 2026-10-01] 집결 뒤 방 이동에 한해 진형 자리를 구현했다 — 0층 입구 진형 규칙(근접 0랭크·리더 1랭크·원거리 2랭크, 랭크 간격 2, 레인 좌우 대칭)을 PartyFormationMath로 추출해 방 문 앞 진형과 공유한다(위 2번 [개편] 참고). 문서의 확정 규칙이 아니라 사용자 요청("0층 포지션과 유사하게")에 따른 근사다.
+   FindDoorWaitSlot은 문이 속한 방 안에서만 자리를 고르도록 고쳤다(문 반대편 자리 선택 버그).
 🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 (기존 TryStartRally가 파티 전체에 무조건 즉시
    배정 — "같은 방" 조건 없이 전 파티원에게 적용되는 더 넓은 근사, 다른 방 인원에게도 즉시 적용되는
    차이가 있음. 실제 전파 기반 구분은 미구현)
