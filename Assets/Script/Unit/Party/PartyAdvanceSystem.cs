@@ -115,6 +115,7 @@ public static class PartyAdvanceSystem
 		member.currentWait = new WaitState { Reason = reason, WaitPosition = slot, WaitFloor = plan.Floor, DoorPosition = plan.DoorPos, Rank = rank };
 		member.waitStuckTurns = 0;
 		member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동으로 전환한다(05번 1장 31줄, 검증 05-04)
+		member.currentFormation = null; // 공동 이동(방 이동 계획)에 편입되면 비전투 보호 포메이션은 끝난다(05번 9장, 검증 05-08 관찰 1)
 		// 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
 		if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
 	}

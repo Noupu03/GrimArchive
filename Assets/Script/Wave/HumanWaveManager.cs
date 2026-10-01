@@ -717,6 +717,7 @@ namespace GrimArchive.Wave
                 // 방 이동 지시도 집결 명령과 같은 전달 범위(Party.IsReachedByLeaderCommand) — 못 받은 구성원은 개인 행동으로 남고, 이 경로는 매 틱 다시 발행되므로 범위에 들어오면 그때 받는다(검증 05-03 관찰 3).
                 if (!Party.IsReachedByLeaderCommand(activeParty.Leader, member)) continue;
                 member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동(코어 처리 포함)으로 전환한다(검증 05-04)
+                member.currentFormation = null; // 공동 이동을 받으면 비전투 보호 포메이션은 끝난다(05번 9장, 검증 05-08 관찰 1)
                 // 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
                 if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);

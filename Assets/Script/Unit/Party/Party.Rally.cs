@@ -237,6 +237,7 @@ public partial class Party
 			if (!IsReachedByLeaderCommand(Leader, m)) continue;
 			_rallyRecipients.Add(m); // 명령을 받았다 — 다른 대기(코어 보고 등) 중이라 집결 이동은 안 해도 미집결자가 아니다
 			_givenUpAbsent.Remove(m.name);
+			m.currentFormation = null; // 05번 9장 526·572줄: 보호 포메이션 중 집결 명령을 받으면 종료하고 집결로 전환(안 지우면 대기가 풀린 뒤 새 모집 확인 없이 호위를 재개한다, 검증 05-08 관찰 1)
 			// 명령이 실제로 전달된 파티원은 집결 위치와 그 시점의 리더 위치를 안다(검증문서 03-15). 이미 다른 대기(코어 보고
 			// 이동 등) 중이라 집결 이동은 하지 않는 파티원도 정보는 받는다 — 보고가 빈 리더 위치에 닿았을 때 갈 곳이 된다.
 			m.knownRallyPoint = RallyPoint;

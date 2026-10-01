@@ -689,7 +689,7 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
    15초 동안 정면 수색을 잇고, 수상한 타일 경계는 3초 대기 뒤 종료 — 이전엔 도착 즉시 경계 종료). 소리 확인이
    전투 등으로 중단돼도 남던 PendingSound가 새 소리를 막던 문제도 수정(PropagationSystem.DiscardInterruptedSoundReaction).
 🔶 8. 개인이 할 일이 없을 때 (2026-10-02 HumanIdleSystem — 목적지 해석·부재 확인·막힘 기억·시야 넓히기를 PartyCoreReportSystem.StepTowardDestination과 공용, 리더 곁이면 유지, 리더 없는 인류는 방 제한 해제, 문 대기 자리는 통과 구간 밖 우선. 검증 05-07 수정 완료, 컴파일만 확인·플레이 미확인. 남은 것: 대기 위치 일반 전파(받아 쓰는 곳 없음)·진형 자리 세부(문서가 후속 문서로 미룸))
-🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인)
+🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인) [검증 05-08(2026-10-02): 꺼진 채 남은 로직 감사 — 최초 직접 수신자만 후보·남은 시간 정보와 분리·한 호위만·BT 순서(Wait가 앞)는 ✅(휴면), 🔶 관찰 2건(집결 명령 시 currentFormation 미해제·역할별 자리에 좌우/빈자리 조정 없음)은 같은 날 수정 — 휴면·플레이 미확인, EscortSlotMath]
 🔶 10. 귀환과 상태 악화 후퇴 — [수정+구현, 2026-09-27] 위 "중요 발견"이 우려한 대로
    `playerMoveTarget`+`isManualMoveCommand=false`가 실제로 무효였음을 확인, `WaitReason.Retreating`+
    `ExecuteWait` 신규 분기로 교체해 실제로 걸어서 탈출 지점까지 이동한다. "건강한 임무 완료 귀환" 표

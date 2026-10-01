@@ -14,6 +14,7 @@ public static class PartyDoorSearchSystem
 	{
 		// 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄 — 개인 탐색으로 흩어지지 않음).
 		if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
+		member.currentFormation = null; // 리더를 따라 문을 찾는 공동 이동에 들어가면 비전투 보호 포메이션은 끝난다(05번 9장, 검증 05-08 관찰 1)
 		member.currentWait = new WaitState { Reason = WaitReason.SearchingNextDoor };
 		member.waitStuckTurns = 0;
 	}

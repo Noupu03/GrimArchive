@@ -1064,44 +1064,63 @@ public class Human : UnitFunction
 		return FindDirectlyVisibleInteractingAlly() != null;
 	}
 
-	// AIMovementHelper.MoveToEscortSlot과 동일한 배치 공식 — 실제 이동 목표와 어긋나지 않도록 공유한다.
-	// 근접="전방"/원거리="후방"이라 부호가 반대다. facing.x/y는 GetDirVector가 이미 -1/0/1로 정규화해서
-	// 주므로 그대로 캐스트한다 — Mathf.Sign(0)이 1을 반환해 Sign()을 쓰면 수직/수평 정면에서 밀리는 버그가 있다.
+	// 보호 포메이션 호위 자리 계산 버퍼 — GetEscortSlotPosition이 매 틱 호출되므로 재사용한다(메인 스레드 전용).
+	private static readonly List<Human> _escortBuffer = new List<Human>();
+	private static readonly List<bool> _escortRangedBuffer = new List<bool>();
+
+	// AIMovementHelper.MoveToEscortSlot과 같은 배치 공식 — 실제 이동 목표와 어긋나지 않도록 공유한다. backDistance <= 1이면 근접, 더 크면 원거리(후방 최소 거리).
+	// 03번 6-4·6-5장(05번 9장 534~536줄, 검증 05-08 관찰 2): 근접은 전방 → 좌우 → 가장 가까운 이동 가능 타일, 원거리는 후방 2칸 이상 → 좌우 후방 → 가장 가까운 비점유 타일이며
+	// 같은 대상을 호위하는 유닛 전원의 자리를 근접 먼저·같은 역할은 InstanceID 순으로 차례로 배정해 한 자리로 몰리지 않는다(EscortSlotMath — 순수). 점유 크기는 CanMove가 반영한다.
+	// facing.x/y는 GetDirVector가 이미 -1/0/1로 정규화해서 주므로 그대로 캐스트한다 — Mathf.Sign(0)이 1을 반환해 Sign()을 쓰면 수직/수평 정면에서 밀리는 버그가 있다.
 	public Vector2Int GetEscortSlotPosition(Human escortTarget, float backDistance)
 	{
 		Vector2 facing = GetDirVector(escortTarget.currentDir);
 		if (facing == Vector2.zero) facing = Vector2.down;
+		var facingI = new Vector2Int((int)facing.x, (int)facing.y);
 
-		// 상호작용 유닛이 아직 이동 중일 때 근접 호위를 "전방"에 두면 좁은 통로에서 서로 길을 막는
-		// 교착이 생긴다 — 이동 중엔 후방(따라가기)으로 배치하고, 도착 후 실제 상호작용이 시작돼야 전방/후방 배치를 적용한다.
-		bool activelyInteracting = IsEscortTargetActivelyInteracting(escortTarget);
+		// 상호작용 유닛이 아직 이동 중일 때 근접 호위를 "전방"에 두면 좁은 통로에서 서로 길을 막는 교착이 생긴다 — 이동 중엔 후방(따라가기)으로 배치하고,
+		// 도착 후 실제 상호작용이 시작돼야 전방/후방 배치를 적용한다.
+		if (!IsEscortTargetActivelyInteracting(escortTarget)) return escortTarget.position - facingI;
 
-		Vector2Int offset;
-		if (!activelyInteracting)
+		// 같은 대상을 호위하는 유닛 전원(자신 포함) — 근접 먼저, 같은 역할은 고정 번호순.
+		_escortBuffer.Clear();
+		bool selfListed = false;
+		if (party != null)
 		{
-			offset = new Vector2Int(Mathf.RoundToInt(-facing.x), Mathf.RoundToInt(-facing.y)); // 이동 중 — 후방에서 뒤따름
+			foreach (var m in party.Members)
+			{
+				if (m == null || m.hp <= 0 || m == escortTarget || m.currentFormation == null || m.currentFormation.EscortTarget != escortTarget) continue;
+				_escortBuffer.Add(m);
+				if (m == this) selfListed = true;
+			}
 		}
-		else
+		if (!selfListed) _escortBuffer.Add((Human)this);
+		_escortBuffer.Sort((a, b) =>
 		{
-			offset = backDistance <= 1f
-				? new Vector2Int((int)facing.x, (int)facing.y)
-				: new Vector2Int(
-					Mathf.RoundToInt(-facing.x * backDistance),
-					Mathf.RoundToInt(-facing.y * backDistance));
+			bool ra = a.IsRangedFormationRole(), rb = b.IsRangedFormationRole();
+			return ra != rb ? ra.CompareTo(rb) : a.GetInstanceID().CompareTo(b.GetInstanceID());
+		});
+		_escortRangedBuffer.Clear();
+		int selfIndex = 0;
+		for (int i = 0; i < _escortBuffer.Count; i++)
+		{
+			_escortRangedBuffer.Add(_escortBuffer[i].IsRangedFormationRole());
+			if (_escortBuffer[i] == this) selfIndex = i;
 		}
 
-		Vector2Int slot = escortTarget.position + offset;
-
-		// "전방(근접 배치)" 슬롯이 상호작용 오브젝트 자신의 타일과 겹칠 수 있어(Passable이라 밟을 수
-		// 있음), 폴백 순서(전방→좌우)대로 겹치면 한 칸 더 물러나고 그래도 겹치면 옆으로 민다.
+		// 서 있을 수 있는 타일 — 그 유닛의 점유 크기·벽·문, 상호작용 유닛 자신과 상호작용 오브젝트 타일(함정이면 밟으면 안 된다) 제외, 이 대상의 호위가 아닌 다른 유닛이 서 있는 타일 제외.
 		Vector2Int? interactionPos = GetInteractionObjectPosition(escortTarget);
-		if (interactionPos.HasValue && slot == interactionPos.Value)
+		Vector2Int targetPos = escortTarget.position;
+		int floor = currentFloor;
+		int minBack = Mathf.Max(2, Mathf.RoundToInt(backDistance));
+		var slots = EscortSlotMath.AssignSlots(targetPos, facingI, _escortRangedBuffer, minBack, (index, tile) =>
 		{
-			Vector2Int farther = escortTarget.position + new Vector2Int((int)facing.x * 2, (int)facing.y * 2);
-			slot = farther != interactionPos.Value ? farther : slot + new Vector2Int(-(int)facing.y, (int)facing.x);
-		}
-
-		return slot;
+			if (tile == targetPos || (interactionPos.HasValue && tile == interactionPos.Value)) return false;
+			if (!_escortBuffer[index].CanMove(tile, ignoreUnits: true)) return false;
+			return !(Session != null && Session.unitGrid.TryGetValue(new Vector3Int(tile.x, tile.y, floor), out Unit u)
+				&& u != null && u.hp > 0 && u != escortTarget && !_escortBuffer.Contains(u as Human));
+		});
+		return slots[selfIndex] ?? position; // 자리가 전혀 없으면 제자리
 	}
 
 	// escortTarget이 실제로 상호작용(조사 진행/함정 해제 진행)을 시작했는지 — 아직 목적지로 "이동
