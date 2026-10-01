@@ -50,6 +50,9 @@ public static class OccupancySystem
 		// 이번 프레임에 이미 대기·비켜서기로 행동을 썼다 — 한 행동 주기에 이동 호출을 두 번 하는 행동(대체 칸 재시도 등)이 방금의 물러나기를 곧바로 되돌리지 않게 한다.
 		if (unit.occupancyActedFrame == Time.frameCount) return true;
 
+		// 입장 중인 유닛은 앞 유닛에 막혀도 길 전체를 돌아가지 않는다 — 구조 경로 그대로 걷다가 문 통로 안·다음 방 쪽 앞 유닛이 막으면 지나갈 때까지 기다린다(사용자 확정 2026-10-02).
+		if ((cfg?.entryWaitForUnitAheadEnabled ?? true) && TryEntryStep(unit, dest, astar, cfg)) return true;
+
 		// 성능 가드: 다음 걸음이 점유되려면 인접 칸에 다른 유닛이 있어야 하고, 통과 순서는 게이트 근처에서만 의미가 있다. 둘 다 아니면 구조 경로(A*) 조회 없이 곧바로 기존 동작이다.
 		bool gateOrderEnabled = cfg?.gatePassOrderEnabled ?? true;
 		if (!HasAdjacentOccupant(unit) && !(gateOrderEnabled && IsNearGate(unit)))
@@ -139,6 +142,42 @@ public static class OccupancySystem
 
 		float holdSeconds = waitSeconds.HasValue ? Mathf.Min(waitSeconds.Value, recheck) : recheck;
 		BeginHold(unit, OccupancyHoldKind.Occupancy, blocker, blockedAnchor, OccupancyChoice.Wait, startedAt, now + Mathf.Max(0.05f, holdSeconds), waitSeconds.HasValue);
+		return true;
+	}
+
+	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 실제 A*는 앞 유닛이 문 통로를 막으면 "길이 막혔다"며 다른 문·방을 거치는 긴 우회를 고른다.
+	// 그 대신 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고, 그 걸음이 같은 진영 유닛에 막혔을 때 막은 유닛이 문 가까운 줄 이후(통로 안·다음 방 쪽)에 있으면 우회 없이 기다린다.
+	// 막은 유닛이 진형 쪽(문 앞)에 있으면 짧은 비켜 가기로 충분하므로 기존 판단(대기 vs 우회)에 맡긴다(false). 기다림은 점유 대기와 같은 hold라 행동 틱을 건너뛰고(정체 카운터 불변), 영구 대기는 입장 단계 상한이 끊는다.
+	// 문턱 통과 순서(TryGateOrderHold)는 기존과 같이 먼저 확인한다. true = 이번 주기는 걸었거나 기다렸다.
+	private static bool TryEntryStep(Unit unit, Vector2Int dest, AStarMovement astar, AIBehaviorConfig cfg)
+	{
+		PartyAdvancePlan plan = PartyAdvanceSystem.EnteringPlanOf(unit);
+		if (plan == null) return false;
+
+		AStarMovement twin = GetTwin(unit, astar);
+		if (!twin.TryGetNextStep(unit, dest, out Dir dir)) return false; // 점유를 무시해도 길이 없다 — 기존 동작
+
+		Vector2Int cur = unit.position;
+		Vector2Int dirVec = unit.GetDirVector(dir);
+		float now = Time.time;
+		Unit blocker = FindBlocker(unit, cur, dirVec, out Vector2Int blockedAnchor);
+
+		if (blocker == null)
+		{
+			if ((cfg?.gatePassOrderEnabled ?? true) && TryGateOrderHold(unit, cur, cur + dirVec, now, out Unit deferTo) && StartDeferredHold(unit, deferTo, now, cfg)) return true;
+			unit.Move(dir);
+			if (unit.position == cur) return false; // 점유 외 이유(코너 등)로 못 걸었다 — 기존 동작이 이어받는다
+			ClearHold(unit);
+			return true;
+		}
+
+		if (unit.IsEnemy(blocker) || !PartyFormationMath.IsAtOrBeyondRow(blocker.position, plan.NearTiles[0], plan.Forward)) return false;
+
+		OccupancyHold existing = unit.occupancyHold;
+		bool same = existing != null && existing.Kind == OccupancyHoldKind.Occupancy && existing.Blocker == blocker;
+		// 제자리에서 기다리는 아군이 막고 있으면 비켜 달라고 요청한다(04번 5장) — 입장을 마치고 개인 행동으로 돌아간 유닛이 문 출구에 서 있는 경우.
+		if (Classify(blocker, out _) == OccupantKind.IdleInPlace) RequestYield(unit, blocker, now, cfg?.yieldRequestSeconds ?? 2f);
+		BeginHold(unit, OccupancyHoldKind.Occupancy, blocker, blockedAnchor, OccupancyChoice.Wait, same ? existing.StartedAt : now, now + Mathf.Max(0.05f, cfg?.occupancyRecheckSeconds ?? 0.5f), false);
 		return true;
 	}
 

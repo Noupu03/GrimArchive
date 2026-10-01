@@ -5655,6 +5655,13 @@ Alert → Investigate → Wait라(HasAlert가 기존 경계는 항상 true) 10�
 수정: ReleaseNextInOrder — 아직 출발하지 않은 유닛 중 OccupancySystem.PassKeyOf(역할 → HP → 무작위 → Id, 문턱 중재와 같은 키) 최상위 한 명을 AIBehaviorConfig.entryReleaseIntervalSeconds(기본 0.5초, 내부 판단 수치)마다 출발시킨다(BeginEntering이 첫 출발 시각을 단계 시작으로 초기화). 단계 장벽이 없어 앞뒤가 겹쳐 흐르고 앞 유닛이 막혀도 시계가 흘러 뒤 유닛이 영구히 붙들리지 않는다. 간격 ≤ 0이면 예전 단계 장벽(ReleaseByRoleTier, CanReleaseRank)으로 되돌린다. OccupancySystem.PassKeyOf는 internal로 열었다. 입장 완료 판정·상한 60초 포기·입장 반경 0은 그대로.
 검증: dotnet build 오류 0·경고 71, partyharness 62건 통과(변경 부분은 Human·세션 상태를 쓰는 오케스트레이션이라 새 단위 테스트는 만들지 못함 — 순서 키 비교는 기존 OccupancyMath 테스트가 다룸). NUnit·플레이 미실행.
 확인 포인트: 진입로 확보 → 입장 완료 소요 시간(이전 대비), 역할 순서가 문턱에서 지켜지는지(근접 → 근접 지원 → 원거리 순), 문 앞 정체·"입장 자리가 막혀" 재선택 빈도. 너무 느리거나 엉키면 entryReleaseIntervalSeconds(예: 0.3~0.8)를 조정하고 이상하면 0으로 예전 방식과 비교한다. 소요 시간 실측을 위해 로그에 입장 시작·완료 시각 차(초)를 넣는 것이 다음 후보.
+(후속: 위 소요 시간 실측용으로 "입장 완료" 로그에 "입장 단계 N.N초 소요(교전·경계 정지 시간 제외)"를 같은 날 추가했다.)
+
+[입장 중 앞 유닛에 막혀 돌아가는 현상 수정 (2026-10-02, 사용자 요청 "그 대기하다가 입장할 때 유닛에 막혀서 뱅 돌아가는 현상 막아줘. 이런 경우에는 앞 유닛이 완전히 들어간 후 들어가도록")]
+원인(코드 기반, 로그 없음): 실제 이동 A*(AStarMovement.IsTileWalkable)는 경로 전체에서 다른 유닛의 점유를 벽으로 본다. 입장 유닛 앞의 문 통로(폭 2 × 깊이 2)를 앞 유닛들이 메우면 A*가 통로 직진 경로가 없다고 보고 다른 게이트·방을 거치는 긴 우회를 고른다. OccupancySystem.TryHold는 구조 경로의 "바로 다음 걸음"이 점유됐을 때만 대기 vs 우회를 비교하고(인접 유닛이 없으면 성능 가드로 즉시 기존 A*), 막은 유닛이 전투 등으로 Busy라 대기 시간을 모르면 Decide가 우회가 있는 한 우회를 고른다 — 앞 유닛이 아직 멀리 있을 때는 TryHold가 개입하지도 못해 우회가 시작된다.
+수정: OccupancySystem.TryEntryStep(TryHold 맨 앞) — PartyAdvanceSystem.EnteringPlanOf로 입장 중(출발 허가를 받았고 문 먼 쪽 줄을 못 지남) 유닛을 가려 ① 구조 경로(점유 무시) 다음 걸음이 비었으면 직접 내딛고(문턱 통과 순서 TryGateOrderHold는 먼저 확인) ② 같은 진영 유닛이 막았고 그 유닛이 문 가까운 줄 이후(PartyFormationMath.IsAtOrBeyondRow — 통로 안·다음 방 쪽)에 있으면 우회 없이 점유 대기 hold로 기다린다(제자리 아군이면 비켜 달라고 요청) ③ 막은 유닛이 진형 쪽이면 기존 판단에 맡긴다. 6초 미확인 대기 포기는 적용하지 않고 입장 단계 상한(60초 ParkStragglersAtLimit)이 영구 대기를 끊는다. 04번 6장의 시간 비교 선택을 입장 중에는 "항상 대기"로 바꾼 사용자 결정. kill-switch AIBehaviorConfig.entryWaitForUnitAheadEnabled.
+검증: dotnet build 오류 0·경고 71, partyharness 64건 통과(IsAtOrBeyondRow 2건 추가). 이동·점유 대기는 Human·세션 상태를 쓰는 부분이라 단위 테스트 못 만듦. NUnit·플레이 미실행.
+확인 포인트: 입장 중 문 앞에서 앞 유닛이 지나가길 기다렸다 들어가고 다른 방으로 긴 우회를 하지 않는지, 입장 완료 소요 시간이 늘지 않는지(대기가 길어지면 entryReleaseIntervalSeconds를 키우거나 앞 유닛이 입구에 서 있는지 확인), 이상하면 entryWaitForUnitAheadEnabled=false로 예전 판단과 비교.
 
 ────────────────────────────────────────────────────────────────────────
 

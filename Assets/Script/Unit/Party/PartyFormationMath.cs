@@ -206,6 +206,10 @@ public static class PartyFormationMath
 
 	// ── 입장 ────────────────────────────────────────────────────────────────────────────────
 
+	// 문 가까운 쪽 줄(rowTile)에 닿았거나 전진 방향으로 그 너머에 있는가 — 문 통로 안·다음 방 쪽(near 줄 포함). 입장 중 유닛이 "앞 유닛"으로 기다릴 대상을 가리는 데 쓴다.
+	public static bool IsAtOrBeyondRow(Vector2Int position, Vector2Int rowTile, Vector2Int forward)
+		=> (position.x - rowTile.x) * forward.x + (position.y - rowTile.y) * forward.y >= 0;
+
 	// 문 먼 쪽 줄(farTile)을 전진 방향으로 완전히 지났는가(far 줄 다음 칸부터).
 	public static bool HasPassedGate(Vector2Int position, Vector2Int farTile, Vector2Int forward)
 		=> (position.x - farTile.x) * forward.x + (position.y - farTile.y) * forward.y >= 1;

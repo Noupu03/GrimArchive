@@ -409,6 +409,26 @@ public class PartyFormationTests
 	// ── 입장 순서 ─────────────────────────────────────────────────────────
 
 	[Test]
+	public void IsAtOrBeyondRow_IncludesTheNearRowAndEverythingPastIt_ButNotTheFormationAreaBehindIt()
+	{
+		var near = new Vector2Int(6, 47);
+		Assert.IsFalse(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(6, 46), near, Vector2Int.up)); // 문 앞 진형 쪽
+		Assert.IsTrue(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(6, 47), near, Vector2Int.up));  // near 줄
+		Assert.IsTrue(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(7, 48), near, Vector2Int.up));  // far 줄(옆 칸)
+		Assert.IsTrue(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(3, 52), near, Vector2Int.up));  // 다음 방 안쪽
+	}
+
+	[Test]
+	public void IsAtOrBeyondRow_WorksForEveryForwardDirection()
+	{
+		var near = new Vector2Int(10, 20);
+		Assert.IsTrue(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(11, 21), near, Vector2Int.right));
+		Assert.IsFalse(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(9, 21), near, Vector2Int.right));
+		Assert.IsTrue(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(9, 20), near, Vector2Int.left));
+		Assert.IsFalse(PartyFormationMath.IsAtOrBeyondRow(new Vector2Int(10, 21), near, Vector2Int.down));
+	}
+
+	[Test]
 	public void HasPassedGate_RequiresBeingBeyondFarRow()
 	{
 		var far = new Vector2Int(6, 48);

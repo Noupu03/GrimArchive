@@ -415,6 +415,16 @@ public static class PartyAdvanceSystem
 		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기), 입장 단계 {now - plan.PhaseStartTime:F1}초 소요(교전·경계 정지 시간 제외)");
 	}
 
+	// 이 유닛이 지금 입장 중(출발 허가를 받았고 문 먼 쪽 줄을 아직 못 지남)이면 그 계획, 아니면 null — OccupancySystem이 "앞 유닛 대기" 규칙을 걸 대상을 가리는 데 쓴다.
+	internal static PartyAdvancePlan EnteringPlanOf(Unit unit)
+	{
+		if (!(unit is Human h)) return null;
+		var w = h.currentWait;
+		if (w == null || w.Reason != WaitReason.EnteringNextRoom || !w.Released || w.IsParked) return null;
+		var plan = h.party?.AdvancePlan;
+		return plan != null && plan.Phase == AdvancePhase.Entering && plan.Ranks.ContainsKey(h) ? plan : null;
+	}
+
 	private static void MarkReleased(Human m, WaitState w)
 	{
 		w.Released = true;
