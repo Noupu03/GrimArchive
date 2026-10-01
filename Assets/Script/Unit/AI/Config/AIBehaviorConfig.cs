@@ -47,6 +47,8 @@ public class AIBehaviorConfig : ScriptableObject
     public bool entrySlotKnowledgeEnabled = true;
     [Tooltip("인류 개인의 탐색·조사 후보를 지금 있는 방 안으로 제한한다 — 개인이 임의로 다음 방에 들어가지 않는다(04번 10장 578줄·05번 1장 53줄·01번 585줄, 검증 05-01). 끄면 예전처럼 층 전체")]
     public bool roomBoundExplorationEnabled = true;
+    [Tooltip("방 입장(문 파괴 뒤 Entering 단계)에서 유닛을 역할 → HP → 무작위 순(좁은 통로 통과 순서, 04번 8장)으로 이 간격(초)마다 한 명씩 출발시킨다. 앞 단계가 문을 완전히 지날 때까지 기다리는 단계 장벽이 없어 앞뒤가 겹쳐 흐른다(사용자 확정 2026-10-02 — 입장 템포가 너무 느려서). 0 이하면 예전 단계 장벽(앞 역할 단계가 전원 문을 지나야 다음 단계 출발) — 내부 판단 수치")]
+    public float entryReleaseIntervalSeconds = 0.5f;
     [Tooltip("리더가 다음 이동 게이트를 알려진 방 그래프(미방문 방 우선·막다른 방 되돌이·파괴된 통로 포함)로 고른다(04번 1장, 검증 05-06 관찰 2). 끄면 예전처럼 남아 있는 문 중 목표 방에 가장 가까운 것")]
     public bool leaderRoutePlannerEnabled = true;
     [Tooltip("길찾기(A*)가 진영 공용 지도 대신 유닛 개인 지도(직접 확인했거나 전달받아 아는 지형)로 경로를 계산한다 (검증문서 04-08, 04번 0장). 끄면 예전처럼 진영 공용 discoveredMap을 쓴다 (내부 판단)")]

@@ -452,7 +452,7 @@ public static class OccupancySystem
 
 	// ═══════════════════════════ 좁은 통로 통과 순서·마주 막힘(04번 8장) ═══════════════════════════
 
-	private static PassKey PassKeyOf(Unit unit)
+	internal static PassKey PassKeyOf(Unit unit)
 		=> new PassKey(OccupancyMath.EntryRank(CombatScoreMath.ResolveCombatRole(unit.unitType)),
 			unit.hp / Mathf.Max(1f, unit.maxHp), unit.PassTieBreak, unit.GetInstanceID());
 

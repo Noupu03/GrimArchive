@@ -197,7 +197,7 @@ public static class PartyAdvanceSystem
 		{
 			case AdvancePhase.FormingUp: TickFormingUp(party, plan, leader, session, now); break;
 			case AdvancePhase.Breaching: TickBreaching(party, plan, leader, session, now); break;
-			case AdvancePhase.Entering: TickEntering(party, plan); break;
+			case AdvancePhase.Entering: TickEntering(party, plan, now); break;
 		}
 	}
 
@@ -336,6 +336,7 @@ public static class PartyAdvanceSystem
 		Human entryKnowledge = (AIConfigLoader.Behavior?.entrySlotKnowledgeEnabled ?? true) ? leader : null; // 입장 자리는 리더가 아는 타일에서만 고른다(없으면 방향 목적지 ideal)
 		plan.Phase = AdvancePhase.Entering;
 		plan.PhaseStartTime = now;
+		plan.NextEntryReleaseTime = now; // 첫 유닛은 바로 출발
 		plan.PausedSeconds = 0f;
 		plan.PauseLogged = false;
 		plan.AttackSlots.Clear();
@@ -378,7 +379,7 @@ public static class PartyAdvanceSystem
 			}
 		}
 		plan.EntryRadius = PartyFormationMath.ZoneRadius(entrySlots, farAnchor);
-		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할) 입장을 지시");
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할)으로 한 명씩 입장을 지시");
 	}
 
 	// 진입 판정: 문 먼 쪽 줄을 지난 유닛은 그 즉시 개인 행동으로 푼다 — 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않는다(사용자 확정 2026-10-01 "다음 방 진입 판정 후 바로 개인 행동").
@@ -394,11 +395,59 @@ public static class PartyAdvanceSystem
 		return true;
 	}
 
-	private static void TickEntering(Party party, PartyAdvancePlan plan)
+	private static void TickEntering(Party party, PartyAdvancePlan plan, float now)
 	{
 		foreach (var m in plan.Ranks.Keys) ReleaseIfEntered(m, plan);
 
-		// 해제 순서는 04번 8장 4단계 역할(plan.EntryTiers)이다 — 리더도 자기 역할 단계를 따르며, 같은 단계 안의 HP 비율·무작위 순서는 실제 문턱 통과에서 OccupancySystem이 같은 키로 중재한다.
+		float interval = AIConfigLoader.Behavior?.entryReleaseIntervalSeconds ?? 0.5f;
+		if (interval > 0f) ReleaseNextInOrder(plan, now, interval);
+		else ReleaseByRoleTier(plan);
+
+		// 아직 문을 지나지 못한 유닛이 남았으면 계속(이미 진입해 풀렸거나 입장에 참여하지 않는 유닛 — 다른 대기로 덮임·자리에 못 가 포기 — 은 세지 않는다).
+		bool allDone = true;
+		foreach (var kv in plan.Ranks)
+		{
+			var w = kv.Key.currentWait;
+			if (w == null || !IsPlanWait(w.Reason) || w.IsParked) continue;
+			allDone = false;
+			break;
+		}
+		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기), 입장 단계 {now - plan.PhaseStartTime:F1}초 소요(교전·경계 정지 시간 제외)");
+	}
+
+	private static void MarkReleased(Human m, WaitState w)
+	{
+		w.Released = true;
+		w.AtSlot = false;
+		w.BlockedSince = -1f;
+		w.BlockedLogged = false;
+		m.waitStuckTurns = 0;
+	}
+
+	// 유닛별 간격 출발 — 아직 출발하지 않은 유닛 중 통과 우선순위(역할 → HP 비율 → 유지되는 무작위 → Id, OccupancySystem이 문턱에서 쓰는 같은 키)가 가장 높은 한 명을 interval초마다 출발시킨다.
+	// 앞 단계가 문을 완전히 지나야 다음 단계가 출발하던 장벽이 없어 앞뒤 유닛이 겹쳐 흐르고, 앞 유닛이 막혀도 시계가 흘러 뒤 유닛이 영구히 붙들리지 않는다. 실제 문턱 통과 순서는 OccupancySystem이 같은 키로 중재한다.
+	private static void ReleaseNextInOrder(PartyAdvancePlan plan, float now, float interval)
+	{
+		if (now < plan.NextEntryReleaseTime) return;
+
+		Human next = null;
+		PassKey bestKey = default;
+		foreach (var m in plan.Ranks.Keys)
+		{
+			var w = m.currentWait;
+			if (w == null || !IsPlanWait(w.Reason) || w.IsParked || w.Released) continue;
+			PassKey key = OccupancySystem.PassKeyOf(m);
+			if (next == null || OccupancyMath.ComparePassPriority(key, bestKey) < 0) { next = m; bestKey = key; }
+		}
+		if (next == null) return;
+
+		MarkReleased(next, next.currentWait);
+		plan.NextEntryReleaseTime = now + interval;
+	}
+
+	// 예전 단계 장벽(entryReleaseIntervalSeconds ≤ 0) — 04번 8장 4단계 역할(plan.EntryTiers)이 앞 단계 전원이 문을 지나야 출발한다. 리더도 자기 역할 단계를 따르며, 같은 단계 안의 HP 비율·무작위 순서는 실제 문턱 통과에서 OccupancySystem이 같은 키로 중재한다.
+	private static void ReleaseByRoleTier(PartyAdvancePlan plan)
+	{
 		var tiers = new List<int>(plan.Ranks.Count);
 		var passed = new List<bool>(plan.Ranks.Count);
 		foreach (var kv in plan.Ranks)
@@ -409,23 +458,13 @@ public static class PartyAdvanceSystem
 			passed.Add(w == null || !IsPlanWait(w.Reason) || w.IsParked);
 		}
 
-		bool allDone = true;
 		foreach (var kv in plan.Ranks)
 		{
 			var m = kv.Key;
 			var w = m.currentWait;
 			if (w == null || !IsPlanWait(w.Reason) || w.IsParked) continue;
-			if (!w.Released && PartyFormationMath.CanReleaseRank(plan.EntryTiers[m], tiers, passed))
-			{
-				w.Released = true;
-				w.AtSlot = false;
-				w.BlockedSince = -1f;
-				w.BlockedLogged = false;
-				m.waitStuckTurns = 0;
-			}
-			allDone = false; // 아직 문을 지나지 못한 유닛이 남았다
+			if (!w.Released && PartyFormationMath.CanReleaseRank(plan.EntryTiers[m], tiers, passed)) MarkReleased(m, w);
 		}
-		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기)");
 	}
 
 	// ── 종료 ─────────────────────────────────────────────────────────────────────────────
