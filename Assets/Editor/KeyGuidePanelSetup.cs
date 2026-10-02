@@ -13,7 +13,7 @@ using Haare.Client.UI;
 // 버튼 스타일을 그대로 재사용한다. 실제 키 목록은 이 게임의 유일한 입력 표면인
 // Assets/Script/Unit/Session/GameInputScheme.cs를 그대로 옮겨적은 것이다 — 입력이 바뀌면 아래
 // KeyGuideBodyText도 같이 갱신하고 이 메뉴를 다시 실행해야 한다. 사용자가 Unity 에디터에서
-// "Tools/GrimArchive/키 가이드 패널 생성"을 직접 실행해야 한다.
+// "Disposable/UI/키 가이드 패널 생성"을 직접 실행해야 한다.
 public static class KeyGuidePanelSetup
 {
     private const string PrefabFolder = "Assets/Resources/Prefabs";
@@ -41,7 +41,7 @@ public static class KeyGuidePanelSetup
         "<b>1 / 2 / 3 / 4</b>  —  게임 속도 0.5x / 1.0x / 1.5x / 2.0x\n" +
         "<b>Esc</b>  —  설정 패널 열기 / 닫기";
 
-    [MenuItem("Tools/GrimArchive/키 가이드 패널 생성")]
+    [MenuItem("Disposable/UI/키 가이드 패널 생성")]
     public static void SetupKeyGuidePanel()
     {
         if (!Directory.Exists(PrefabFolder))

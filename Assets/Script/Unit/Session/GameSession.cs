@@ -195,7 +195,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
             else
             {
-                Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools -> Map Generator에서 먼저 맵을 생성해주세요.");
+                Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools(new) > 맵 > Map Generator에서 먼저 맵을 생성해주세요.");
             }
         }
         catch (System.Exception e)

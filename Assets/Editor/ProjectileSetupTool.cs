@@ -5,7 +5,7 @@ public class ProjectileSetupTool : EditorWindow
 {
     private GameObject selectedPrefab;
 
-    [MenuItem("Tools/GrimArchive/투사체 프리팹 자동 세팅기")]
+    [MenuItem("Disposable/VFX/투사체 프리팹 자동 세팅기")]
     public static void ShowWindow()
     {
         GetWindow<ProjectileSetupTool>("투사체 세팅기");

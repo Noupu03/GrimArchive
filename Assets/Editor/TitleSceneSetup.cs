@@ -16,7 +16,7 @@ using Haare.Client.UI;
 // RealBioSearch(외부 참고 프로젝트)의 타이틀 씬 구조(배경+제목+시작/설정/종료 버튼+버전 표기)를
 // 이 프로젝트용으로 이식하는 1회성 에디터 도구. HaareUISetup.cs/SetupStatusInfoPanel.cs와 동일한
 // 관례로, 프리팹/씬을 코드로 생성해서 저장한다 — 몇 번을 다시 실행해도 안전하다(항상 같은 경로에
-// 덮어씀). 사용자가 Unity 에디터에서 "Tools/GrimArchive/타이틀 씬 생성"을 직접 실행해야 한다.
+// 덮어씀). 사용자가 Unity 에디터에서 "Disposable/UI/타이틀 씬 생성"을 직접 실행해야 한다.
 //
 // 현재 열려있는 씬(작업 중인 씬)은 절대 건드리지 않는다 — Additive로 빈 씬을 하나 더 열어서 그
 // 안에서만 Title.unity 내용을 만들고 저장한 뒤 닫는다.
@@ -47,7 +47,7 @@ public static class TitleSceneSetup
     private static readonly Color TextOutlineColor = new Color(0.02f, 0.02f, 0.03f, 1f);
     private const float TextOutlineWidth = 0.25f;
 
-    [MenuItem("Tools/GrimArchive/타이틀 씬 생성")]
+    [MenuItem("Disposable/UI/타이틀 씬 생성")]
     public static void SetupTitleScene()
     {
         if (!Directory.Exists(PrefabFolder))

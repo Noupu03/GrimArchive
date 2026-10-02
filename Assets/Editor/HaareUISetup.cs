@@ -27,7 +27,7 @@ public static class HaareUISetup
     // 이미 프로젝트에 있는 한글 지원 폰트(Dynamic 아틀라스라 런타임에 필요한 글자만 채워짐)를 대신 쓴다.
     private const string KoreanFontPath = "Assets/Haare/Fonts/NEXONLv1GothicRegular SDF.asset";
 
-    [MenuItem("Tools/GrimArchive/Haare UI 셋업 생성")]
+    [MenuItem("Disposable/UI/Haare UI 셋업 생성")]
     public static void SetupHaareUI()
     {
         if (!Directory.Exists(OutputFolder))
@@ -121,7 +121,7 @@ public static class HaareUISetup
         infoBoxRt.anchoredPosition = new Vector2(10, 10);
         // 사용자 요청(2026-08-20 "정보 UI 너무 길어. 반 크기로 줄이자")로 240x240까지 줄었다가,
         // 이후 "1.5배로 키워달라"는 요청이 있었다 — 그 조정이 이 생성 스크립트가 아니라 에디터에서
-        // 프리팹을 직접 만진 걸로 남아있었던 탓에, 이 스크립트("Tools/GrimArchive/Haare UI 셋업
+        // 프리팹을 직접 만진 걸로 남아있었던 탓에, 이 스크립트("Disposable/UI/Haare UI 셋업
         // 생성")를 다시 돌리면 매번 240으로 되돌아갔다(2026-08-24 사용자 신고 "haare UI 셋업 했더니
         // 상세정보 패널이 작아졌어" — UI 작업 방식이 통일 안 된 사례). 이제 이 스크립트 자체에
         // 1.5배(360x360)를 박아둬서, 몇 번을 다시 실행해도 이 크기가 유지된다.

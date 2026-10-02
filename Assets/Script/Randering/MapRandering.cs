@@ -51,7 +51,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private bool _tileLibraryLoaded;
 
     // 층별 색상 테마 배정표(2026-09-27, 단일 활성 테마에서 층별 배정으로 확장 — 사용자 요청). 배정
-    // 내용 자체는 Tools(new)의 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
+    // 내용 자체는 Tools(new)/맵/타일 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
     private const string FloorColorThemesResourcePath = "MapColorTheme_FloorAssignments";
     private MapFloorColorThemes _floorColorThemes;
 

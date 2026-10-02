@@ -25,7 +25,7 @@ public class MapColorThemeWindow : EditorWindow
     private Vector2 _scroll;
     private MapFloorColorThemes _floorAssignments;
 
-    [MenuItem("Tools(new)/맵 타일 색상 테마")]
+    [MenuItem("Tools(new)/맵/타일 색상 테마")]
     public static void ShowWindow()
     {
         var window = GetWindow<MapColorThemeWindow>("맵 타일 색상 테마");

@@ -412,11 +412,13 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 - **런타임 스킬의 진실의 원천은 skills.json이 아니라 프리팹이다**
   (`UnitSpriteManager.GetSkills` → `UnitVisualDefinition.BuildSkillActions`). JSON만 고치면 게임에
   전혀 반영되지 않는다 — 반드시 `Assets/Resources/Units/*.prefab`의 `skills` 블록까지 같이 고칠 것.
-- **프리팹을 다시 뽑을 때는 `Tools/GrimArchive/JSON -> 유닛 프리팹 생성`
+- **프리팹을 다시 뽑을 때는 `Tools(new)/유닛/JSON -> 유닛 프리팹 생성`
   (`JsonToUnitPrefabConverter`)만 쓴다.** 프리팹 컨텍스트 메뉴의
-  `UnitVisualDefinition.LoadDataFromJson`은 `JsonUtility`로 `SkillData`를 직접 파싱하는데
-  `projectilePrefab`/`hitEffectPrefab`이 `GameObject` 타입이라 JSON의 이름 문자열을 해석하지 못하고
-  참조가 날아간다(컨버터 쪽은 `FindAssetByName`으로 정상 해석).
+  `UnitVisualDefinition.LoadDataFromJson`은 한때 `projectilePrefab`/`hitEffectPrefab` 참조를 날렸지만
+  2026-09-05부터 컨버터와 같은 `FindAssetByName`으로 이름을 해석한다 — 다만 footprint/engageDistance/
+  stats/skills만 덮어쓰고 무기·이펙트·가중치·인구수는 건드리지 않는 부분 갱신이다. 컨버터는 프리팹을
+  루트부터 새로 만들므로, 다시 뽑으면 보스 골렘의 손 오브젝트·`visualScaleIgnoresFootprint`가 사라진다
+  — `Disposable/유닛/`의 보스 골렘 도구 2종을 다시 실행하고 손 스프라이트 2장을 직접 재지정할 것.
 - `skillArchetype`이 비어있으면 `SkillAction_Generic`으로 폴백한다 — 몬스터 기본 스킬은 이게
   정상이지만, 값이 있는데 `switch`의 case에 없으면 `Debug.LogWarning`이 뜬다. 2026-08-23에 클래스
   프리팹 8종 전부가 이 필드를 잃어버린 채 전원 Generic으로 돌던 사고가 있었다.
@@ -534,7 +536,25 @@ Unity 플레이 검증을 하지 못했다(컴파일 + `PartyFormationMath` 순�
 ### 알려진 한계 / 미검증
 Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`InteractableObject` 헬퍼 하니스 14건 — 늘린 스프라이트·그림자·진행 막대 위치·재설치 고스트·한 칸만 접근해도 두 칸이 같이 열리는지는 플레이로만 확인). 한 줄이 한 번에 부서지므로 예전의 "2*2 통로에 한 칸만 뚫린 상태"는 더 이상 생기지 않는다.
 
-## 유니티 상단 Tools 메뉴 구조 (Tools / Tools(new), 2026-09-27)
+## 유니티 상단 메뉴 구조 (Tools(new) / Disposable / Tools, 2026-10-02)
+
+**에디터 툴은 세 최상위 메뉴로 나눈다**(2026-10-02 사용자 확정 — 분류 근거와 툴별 판정은
+`Assets/문서/요약및 재정리/에디터툴_정리_2026-10-02.md`):
+
+| 메뉴 | 넣는 것 | 현재 항목 |
+|---|---|---|
+| `Tools(new)/` | 게임이 읽는 데이터를 **만들거나 조회**하는, 계속 쓰는 도구 | `유닛/`(JSON → 유닛 프리팹 생성, FSM+BT 설정 에셋 생성), `맵/`(Map Generator, 타일 색상 테마), `맵 뷰` |
+| `Disposable/` | 한 번 돌리고 끝나는 일회용 도구(기존 에셋 패치, 프리팹·씬 1회 생성) | `유닛/`(보스 골렘 2종), `VFX/`(ParticleLifetimeController 부착, 투사체 세팅기), `UI/`(타이틀·설정·키 가이드·Haare UI 생성, 빈 패널 프리팹 5종, UI 어드레서블 연결, Fix GameCompositionRoot) |
+| `Tools/` | 그 외 | `GrimArchive/오펜스 시스템 디버그 툴`, `Haare/Addressables: Use Asset Database`, `Demigiant/`(DOTween, 옮길 수 없음 — 아래 2번) |
+
+- **새 툴을 만들 때 먼저 어느 쪽인지 정할 것.** 계속 쓰는 생성·조회 도구면 `Tools(new)/<그룹>/`,
+  일회성이면 `Disposable/<그룹>/`. `Tools(new)`의 유닛 그룹은 하위에 몬스터/인간을 두기로 했다
+  (`units.json`의 `unitClass` 기준 — Monster·Wild는 몬스터, Human은 인간). 지금은 몬스터/인간
+  전용 메뉴 툴이 없어 하위 메뉴를 만들지 않았다.
+- 메뉴 경로를 옮기면 그 경로를 안내하는 주석·로그 문구도 같이 고칠 것(예: `GameSession`의 맵 로드
+  실패 로그가 Map Generator 위치를 안내한다).
+
+### 이전 이력 (2026-09-27, Tools / Tools(new))
 
 **핵심 사실 — "Tools"는 이름을 바꿀 수 있는 별도 객체가 아니다.** Unity는 `[MenuItem("Tools/...")]`
 처럼 문자열이 "Tools/"로 시작하는 게 하나라도 있으면 그 이름의 최상위 메뉴를 자동으로 만든다.
@@ -553,8 +573,8 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    그대로: GrimArchive 관련 항목은 `Tools/GrimArchive/...`, 나머지는 `Tools/...` 그대로이고
    `Tools/Demigiant/...`(DOTween)와 그냥 공존한다.
 
-**새 에디터 툴의 `[MenuItem]`은 여전히 `Tools(new)/...` 아래에 만들 것** — 이 관례만 유지된다.
-다만 "실행 한 번으로 끝나는 일회성 에셋 준비" 성격이 강해 사용자가 굳이 메뉴가 필요 없다고 판단한
+당시 관례는 "새 에디터 툴의 `[MenuItem]`은 `Tools(new)/...` 아래에 만든다"였고, 2026-10-02에 위
+3분류로 확장됐다. 다만 "실행 한 번으로 끝나는 일회성 에셋 준비" 성격이 강해 사용자가 굳이 메뉴가 필요 없다고 판단한
 경우(예: 벽 자동 타일 스프라이트 라벨 슬롯 — 아래 섹션 참고)는 GUI 없이 코드만 추가하고 끝내기도
 한다. 다시 "old/new로 나누자"는 제안이 나오면 위 1~3번 히스토리부터 공유할 것(같은 시행착오를
 반복하지 말 것).
@@ -596,7 +616,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    1개만 전 층 공통 적용이었다가 교체) — `MapFloorColorThemes`
    (`Assets/Script/Randering/MapFloorColorThemes.cs`, defaultTheme + 층별 리스트)가
    `Assets/Resources/MapColorTheme_FloorAssignments.asset` 단일 인스턴스로 저장되고,
-   `Tools(new)/맵 타일 색상 테마`(`Assets/Editor/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
+   `Tools(new)/맵/타일 색상 테마`(`Assets/Editor/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
    (이 프로젝트는 `FloorId` 0~3 고정 4개 층이라 "기본값"+"0~3층" 5개 `ObjectField`)이 이 에셋을
    편집한다. `MapRandering`은 이제 벽/바닥 Tile을 전 층 공유가 아니라 층마다
    `GetOrBuildFloorTileSet(floorIndex)`로 따로 구워 캐시한다 — 그 층에 명시 배정이 없으면

@@ -20,7 +20,7 @@ public class AutoAssignCompositionRoot
         }
     }
 
-    [MenuItem("Tools/Fix GameCompositionRoot Prefab")]
+    [MenuItem("Disposable/UI/Fix GameCompositionRoot Prefab")]
     public static void FixMissingPrefab()
     {
         GameCompositionRoot root = Object.FindFirstObjectByType<GameCompositionRoot>();

@@ -4,8 +4,8 @@ using UnityEditor;
 using UnityEngine;
 
 // 모든 VFX 프리팹에 ParticleLifetimeController를 일괄 부착하는 에디터 도구(2026-08-24 사용자 요청
-// "모든 VFX 프리팹에 자동부착해줘. 파티클에"). JsonToUnitPrefabConverter와 동일한 관례(Tools/GrimArchive
-// 메뉴, 원클릭, 재실행 가능) — 이미 붙어있으면 건너뛰므로 새 VFX 프리팹이 추가된 뒤 다시 실행해도
+// "모든 VFX 프리팹에 자동부착해줘. 파티클에"). JsonToUnitPrefabConverter와 동일한 관례(메뉴
+// 원클릭, 재실행 가능) — 이미 붙어있으면 건너뛰므로 새 VFX 프리팹이 추가된 뒤 다시 실행해도
 // 안전하다.
 //
 // 대상 폴더: TargetFolders에 있는 프리팹 전체. 루트 GameObject에 ParticleSystem이 있는 것만 부착
@@ -30,7 +30,7 @@ public static class VfxParticleLifetimeAttacher
         "VFX_BlockBreaking",
     };
 
-    [MenuItem("Tools/GrimArchive/VFX -> ParticleLifetimeController 자동 부착")]
+    [MenuItem("Disposable/VFX/ParticleLifetimeController 자동 부착")]
     public static void AttachToAllVfxPrefabs()
     {
         var guids = TargetFolders

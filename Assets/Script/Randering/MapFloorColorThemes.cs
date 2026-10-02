@@ -5,7 +5,7 @@ using UnityEngine;
 // ============================================================================
 // MapFloorColorThemes.cs — 층별 색상 테마 배정표 (2026-09-27, 사용자 요청으로 단일 활성 테마에서
 // 층별 배정으로 확장). Resources/MapColorTheme_FloorAssignments 경로에 단일 인스턴스로 저장되고,
-// Tools(new)/맵 타일 색상 테마 창(MapColorThemeWindow)이 편집한다. MapRandering이 층마다
+// Tools(new)/맵/타일 색상 테마 창(MapColorThemeWindow)이 편집한다. MapRandering이 층마다
 // GetThemeForFloor(floorIndex)로 조회해 그 층의 Tile.color에 적용한다(런타임 조정 아님, 맵 생성
 // 시점에만 적용 — MapColorTheme.cs 참고).
 // ============================================================================

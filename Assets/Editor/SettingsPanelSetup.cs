@@ -13,7 +13,7 @@ using Haare.Client.UI;
 // 통일해"). TitleSceneSetup.cs와 동일한 관례 — 배경색/글자색/버튼 스타일을 그대로 재사용해 Title.unity와
 // 시각적으로 통일된 설정 패널을 만든다. 실제로 동작하는 버튼은 "게임으로 돌아가기"(재개)/"타이틀
 // 화면으로 나가기" 둘뿐이고, 그 외 설정 항목은 아직 없어 자리표시 문구만 둔다. 몇 번을 다시 실행해도
-// 안전하다(항상 같은 경로에 덮어씀). 사용자가 Unity 에디터에서 "Tools/GrimArchive/설정 패널 생성"을
+// 안전하다(항상 같은 경로에 덮어씀). 사용자가 Unity 에디터에서 "Disposable/UI/설정 패널 생성"을
 // 직접 실행해야 한다.
 public static class SettingsPanelSetup
 {
@@ -37,7 +37,7 @@ public static class SettingsPanelSetup
     private static readonly Color TextOutlineColor = new Color(0.02f, 0.02f, 0.03f, 1f);
     private const float TextOutlineWidth = 0.25f;
 
-    [MenuItem("Tools/GrimArchive/설정 패널 생성")]
+    [MenuItem("Disposable/UI/설정 패널 생성")]
     public static void SetupSettingsPanel()
     {
         if (!Directory.Exists(PrefabFolder))

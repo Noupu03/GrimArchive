@@ -13,7 +13,7 @@ public static class AIConfigAutoSetup
 {
     private const string Dir = "Assets/Resources/FSM+BT";
 
-    [MenuItem("Tools/GrimArchive/AI/FSM+BT 설정 에셋 생성")]
+    [MenuItem("Tools(new)/유닛/FSM+BT 설정 에셋 생성")]
     public static void CreateAllConfigs()
     {
         if (!Directory.Exists(Dir))

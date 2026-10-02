@@ -8,7 +8,6 @@ public class ResourceCost
     public int amount;
 }
 
-[CreateAssetMenu(fileName = "NewProductionRule", menuName = "GrimArchive/Production Rule")]
 public class ProductionRule : ScriptableObject
 {
     [Header("Rule Info")]

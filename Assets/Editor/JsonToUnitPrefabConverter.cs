@@ -153,7 +153,7 @@ public static class JsonToUnitPrefabConverter
     [System.Serializable]
     private class JsonSkillDatabase { public JsonSkillData[] skills; }
 
-    [MenuItem("Tools/GrimArchive/JSON -> 유닛 프리팹 생성 (원클릭)")]
+    [MenuItem("Tools(new)/유닛/JSON -> 유닛 프리팹 생성 (원클릭)")]
     public static void ConvertJsonToPrefabs()
     {
         if (!File.Exists(UnitsJsonPath))

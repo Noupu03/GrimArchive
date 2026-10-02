@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-// "보스 골렘" 프리팹(먼저 Tools/GrimArchive/JSON -> 유닛 프리팹 생성으로 만들어야 함)에 왼손/오른손
+// "보스 골렘" 프리팹(먼저 Tools(new)/유닛/JSON -> 유닛 프리팹 생성으로 만들어야 함)에 왼손/오른손
 // 자식 오브젝트와 BossGolemHandController를 자동으로 붙여주는 후처리 도구(2026-08-24).
 // JsonToUnitPrefabConverter는 범용 유닛 생성기라 보스 전용 손 오브젝트까지는 모른다 — 이 도구가 그
 // 마지막 수동 배선(자식 오브젝트 생성 + 컴포넌트 연결)을 대신한다.
@@ -14,14 +14,14 @@ public static class BossGolemHandSetupTool
 {
     private const string PrefabPath = "Assets/Resources/Units/보스 골렘.prefab";
 
-    [MenuItem("Tools/GrimArchive/보스 골렘 손 오브젝트 배선")]
+    [MenuItem("Disposable/유닛/보스 골렘 손 오브젝트 배선")]
     public static void SetupHands()
     {
         var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
         if (prefabAsset == null)
         {
             Debug.LogError($"[BossGolemHandSetupTool] {PrefabPath}를 찾을 수 없습니다. 먼저 " +
-                            "Tools/GrimArchive/JSON -> 유닛 프리팹 생성 (원클릭)으로 '보스 골렘' 프리팹을 만드세요.");
+                            "Tools(new)/유닛/JSON -> 유닛 프리팹 생성 (원클릭)으로 '보스 골렘' 프리팹을 만드세요.");
             return;
         }
 

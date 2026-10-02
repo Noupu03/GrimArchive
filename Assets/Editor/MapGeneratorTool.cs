@@ -8,7 +8,12 @@ public class MapGeneratorTool : EditorWindow
 {
     private CreateMap cm;
 
-    [MenuItem("Tools/GrimArchive/Map Generator")]
+    // Map View가 플레이 전에도 생성/로드 결과를 바로 보여 줄 수 있도록 알린다
+    public static event System.Action<CreateMap> OnEditorMapChanged;
+    // 가장 최근에 생성/로드한 맵 (Map View의 'Map Generator 결과' 버튼용)
+    public static CreateMap LatestMap { get; private set; }
+
+    [MenuItem("Tools(new)/맵/Map Generator")]
     public static void ShowWindow()
     {
         GetWindow<MapGeneratorTool>("Map Generator");
@@ -89,6 +94,7 @@ public class MapGeneratorTool : EditorWindow
         if (GUILayout.Button("▶ 맵 생성", GUILayout.Height(32)))
         {
             cm.GenerateMap();
+            NotifyMapChanged();
             Repaint();
         }
         GUI.backgroundColor = Color.white;
@@ -151,12 +157,19 @@ public class MapGeneratorTool : EditorWindow
             if (!string.IsNullOrEmpty(path))
             {
                 cm.LoadMapFromFile(path);
+                NotifyMapChanged();
                 Repaint();
             }
         }
         GUI.backgroundColor = Color.white;
 
         EditorGUILayout.EndHorizontal();
+    }
+
+    void NotifyMapChanged()
+    {
+        LatestMap = cm;
+        OnEditorMapChanged?.Invoke(cm);
     }
 
     void DrawGizmoSettings(CreateMap cm)

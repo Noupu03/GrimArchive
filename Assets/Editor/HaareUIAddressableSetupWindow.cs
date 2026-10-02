@@ -8,7 +8,7 @@ public class HaareUIAddressableSetupWindow : EditorWindow
 {
     private string _prefabName = "";
 
-    [MenuItem("Tools/GrimArchive/UI 어드레서블 범용 연결 도구")]
+    [MenuItem("Disposable/UI/UI 어드레서블 범용 연결 도구")]
     public static void ShowWindow()
     {
         var window = GetWindow<HaareUIAddressableSetupWindow>("UI 어드레서블 세팅");

@@ -11,7 +11,7 @@ public static class BossGolemVisualScaleFix
 {
     private const string TargetPath = "Assets/Resources/Units/보스 골렘.prefab";
 
-    [MenuItem("Tools/GrimArchive/보스 골렘 시각 스케일 9배 버그 수정")]
+    [MenuItem("Disposable/유닛/보스 골렘 시각 스케일 9배 버그 수정")]
     public static void FixVisualScale()
     {
         if (!System.IO.File.Exists(TargetPath))

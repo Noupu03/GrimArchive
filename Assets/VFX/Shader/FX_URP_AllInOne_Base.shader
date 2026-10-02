@@ -377,5 +377,4 @@ Shader "Custom/FX/URP_FlatFX_Lab_v03"
     }
 
     FallBack Off
-    CustomEditor "FXFlatLabGUI"
 }
