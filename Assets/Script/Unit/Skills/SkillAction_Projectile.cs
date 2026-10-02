@@ -18,7 +18,6 @@ public class SkillAction_Projectile : SkillAction
         _projectilePrefab = projectilePrefab;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     // 문서 내용: 투사체의 위험 범위는 이동 경로 전체로 정의한다 (너비: 투사체 Collider, 길이: 이동 거리)

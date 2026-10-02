@@ -68,8 +68,6 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	// BottomMenuBar가 호출하는 공개 API — 예전 키보드 단축키는 제거되고 이 버튼 호출만 남았다.
 	// =====================================================
-	public bool IsBuildPlacementActive => _buildPlacement != null && _buildPlacement.IsActive;
-	public bool IsObjectPlacementActive => _objectPlacement != null && _objectPlacement.IsActive;
 
 	// 개별 서브모드 단위 상태 — BottomMenuBar가 서브메뉴 버튼을 각각 따로 하이라이트하고 재클릭 토글을 판단하는 데 쓴다.
 	public bool IsUnitBuildModeActive => _buildPlacement != null && _buildPlacement.IsUnitBuildModeActive;

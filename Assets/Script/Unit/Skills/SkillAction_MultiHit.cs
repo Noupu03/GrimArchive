@@ -13,7 +13,6 @@ public class SkillAction_MultiHit : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "연격" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => _d.hitShape == "RECT" ? ThreatShape.RECT : ThreatShape.LINE;

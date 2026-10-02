@@ -20,5 +20,4 @@ public class HumanFactionBehavior : IFactionBehavior
         }
     }
 
-    public void OnEnterRoom(Unit unit, Room room) {}
 }

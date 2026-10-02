@@ -426,8 +426,6 @@ public class DoorSystem
         return _gateTileIndex.TryGetValue(pos, out gateKey);
     }
 
-    public bool IsGateTile(Vector3Int pos) => TryGetGateKeyAt(pos, out _);
-
     private void BuildGateTileIndex()
     {
         _gateTileIndex = new Dictionary<Vector3Int, int>();

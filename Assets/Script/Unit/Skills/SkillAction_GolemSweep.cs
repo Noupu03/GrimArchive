@@ -14,7 +14,6 @@ public class SkillAction_GolemSweep : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "골렘 손쓸기" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => ThreatShape.LINE;

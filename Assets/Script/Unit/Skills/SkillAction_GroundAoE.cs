@@ -11,7 +11,6 @@ public class SkillAction_GroundAoE : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "GroundAoE" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => ThreatShape.RECT;

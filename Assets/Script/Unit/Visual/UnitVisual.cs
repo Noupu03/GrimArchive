@@ -307,7 +307,6 @@ public class UnitVisual : MonoBehaviour
 	private static readonly Color CommandDestColor = new Color(0.2f, 0.9f, 0.2f, 0.95f); // 확정된 목적지: 녹색
 	private static readonly Color HoverMarkerColor = new Color(0.3f, 0.8f, 1f, 0.8f); // 포인터 호버 타일: 하늘색
 	private const float CommandPathLineWidth = 0.06f;
-	private const float CommandDestMarkerRadius = 0.28f;
 	private const int CommandPathSortingOrder = 12;
 	private const int CommandDestMarkerSortingOrder = 13;
 	private const int HoverMarkerSortingOrder = 14;

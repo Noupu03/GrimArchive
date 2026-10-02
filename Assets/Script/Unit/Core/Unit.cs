@@ -604,23 +604,6 @@ public abstract class Unit : ScriptableObject {
 		CalculateDerivedStats();
 	}
 
-	public Quaternion GetDirRotation(Dir dir)
-	{
-		float angle = dir switch
-		{
-			Dir.UP        => 90f,
-			Dir.UP_RIGHT  => 45f,
-			Dir.RIGHT     => 0f,
-			Dir.DOWN_RIGHT => -45f,
-			Dir.DOWN      => -90f,
-			Dir.DOWN_LEFT => -135f,
-			Dir.LEFT      => 180f,
-			Dir.UP_LEFT   => 135f,
-			_             => 0f
-		};
-		return Quaternion.Euler(0f, 0f, angle);
-	}
-
 	// ─── 추상 메서드 ───
 	public abstract void TakeDamage(float damage);
 	public abstract void TakePhysicalDamage(float rawDamage, Unit attacker);
@@ -701,11 +684,9 @@ public abstract class Unit : ScriptableObject {
 	}
 
 	public abstract void OnUpdate(float deltaTime);
-	public abstract void OnThreatDetected(List<ThreatTileData> threats);
 	public abstract void OnReactToThreat(Unit attacker, ThreatTileData threat);
 	public abstract void ApplyDirectDamage(Unit attacker, float multiplier = 1f);
 	public abstract List<ThreatTileData> DetectThreats();
-	public abstract bool IsInThreat(Vector2Int pos, ThreatTileData threat);
 	public abstract bool RollCritical(bool canCritical);
 	public abstract float ApplyCriticalDamage(float rawDamage);
 }

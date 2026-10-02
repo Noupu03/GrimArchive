@@ -20,8 +20,4 @@ public class WildMonsterBehavior : IFactionBehavior
         }
     }
 
-    public void OnEnterRoom(Unit unit, Room room)
-    {
-        // 야생 유닛은 자동 방어 유닛으로 배치됨
-    }
 }

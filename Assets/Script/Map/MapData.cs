@@ -152,8 +152,6 @@ public struct Map
 	// 층별 독립 데이터 (Floor_0 ~ Floor_3)
 	public Floor[] floors;
 
-	// 편의 접근: floorIndex(0~3)로 Floor 참조
-	public Floor GetFloor(int floorIndex) => floors[floorIndex];
 }
 
 // ── 층별 생성 설정 ──
@@ -179,12 +177,6 @@ public struct FloorConfig
 	// 청크 1개의 타일 한 변 크기(정사각형) — CreateMap/MapRandering/DoorSystem/FogOfWarSystem이 모두
 	// 참조해 변경 시 영향 범위가 넓다.
 	public int chunkSize;
-}
-
-public struct MapData
-{
-	// Map 데이터 (Floor별 독립 배열 포함)
-	public Map map;
 }
 
 // 타일 팩토리: 타일 종류별 기본값을 한 곳에서 관리합니다.

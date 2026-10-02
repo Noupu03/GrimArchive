@@ -139,21 +139,6 @@ public class Bard : UnitType
 // 공통 전투 상수 정의
 public static class CombatConstants
 {
-	// =======반응 시간 (ms)=======
-	// AI 기본 반응 시간
-	public const float BASE_REACTION_TIME_MS = 250f;
-	// 최소 / 최대 반응 시간
-	public const float MIN_REACTION_TIME_MS  = 100f;
-	public const float MAX_REACTION_TIME_MS  = 500f;
-	// =======방어 행동 준비 시간 (ms)=======
-	// 막기 준비 시간
-	public const float BLOCK_PREPARE_TIME_MS = 80f;
-	// 회피 준비 시간
-	public const float DODGE_PREPARE_TIME_MS = 120f;
-	// 점멸 준비 시간
-	public const float BLINK_PREPARE_TIME_MS = 180f;
-	// 패링 준비 시간
-	public const float PARRY_PREPARE_TIME_MS = 100f;
 	// =======방어 성공률=======
 	// 최소 방어 성공률
 	public const float MIN_DEFENSE_SUCCESS_RATE = 0.05f;

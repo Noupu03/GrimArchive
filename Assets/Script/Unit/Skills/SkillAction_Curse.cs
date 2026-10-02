@@ -13,7 +13,6 @@ public class SkillAction_Curse : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "저주" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => _d.hitShape == "RECT" ? ThreatShape.RECT : ThreatShape.LINE;

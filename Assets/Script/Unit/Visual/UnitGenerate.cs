@@ -141,21 +141,6 @@ public class UnitGenerate
 		monsterSprite = CreateTriangleSprite(Color.white);
 	}
 
-	public T GenerateUnitAtRandomFloor<T>(UnitType unitType, int floorIdx = 1) where T : Unit
-	{
-		Vector2Int pos = GetRandomFloorPos(unitType.footprint, floorIdx);
-
-		T unit = ScriptableObject.CreateInstance<T>();
-		_resolver.Inject(unit);
-		unit.name        = $"{unitType.typeName}_{pos.x}_{pos.y}_{floorIdx}";
-		unit.unitType    = unitType;
-		unit.position    = pos;
-		unit.currentFloor = floorIdx;
-
-		SetupUnitVisual(unit, 1.0f);
-		return unit;
-	}
-
 	// ─────────────────────────────────────────────────────────────────
 	//  유닛 비주얼 생성 — 등록된 프리팹이 있으면 Instantiate하고 없으면 원/삼각형 폴백 도형을 생성한다.
 	//  프리팹의 UnitVisualDefinition이 스탯/스킬/이펙트를, 자식 Visual 계층이 스프라이트/애니메이션을 담당한다.
@@ -763,32 +748,6 @@ public class UnitGenerate
 			}
 		}
 		return Vector2Int.zero;
-	}
-
-	public Vector2Int GetStartRoomPos(Vector2 footprint, int floorIdx = 1)
-	{
-		CreateMap cmap = (Session != null && Session.cmap != null) ? Session.cmap : null;
-		if (cmap == null || cmap.map.floors == null || floorIdx < 0 || floorIdx >= cmap.map.floors.Length) return Vector2Int.zero;
-
-		Floor floor = cmap.map.floors[floorIdx];
-		if (floor.chunks == null) return Vector2Int.zero;
-
-		// 청크 바깥쪽 벽을 피해 안쪽 절반만 후보로 삼는다 — chunkSize=8이면 margin=2로 원래 값과 동일.
-		int csStart = floor.config.chunkSize;
-		int marginStart = csStart / 4;
-		for (int cx = 0; cx < floor.config.width; cx++)
-			for (int cy = 0; cy < floor.config.height; cy++)
-			{
-				Chunks c = floor.chunks[cx, cy];
-				if (c.roomRole == RoomRole.StartRoom && c.chunk != null)
-					for (int tx = marginStart; tx < csStart - marginStart; tx++)
-						for (int ty = marginStart; ty < csStart - marginStart; ty++)
-						{
-							Vector2Int cand = new Vector2Int(cx * csStart + tx, cy * csStart + ty);
-							if (IsAreaClear(cand, footprint, floorIdx)) return cand;
-						}
-			}
-		return GetRandomFloorPos(footprint, floorIdx);
 	}
 
 	public Vector2Int GetBossRoomPos(Vector2 footprint, int floorIdx = 1)

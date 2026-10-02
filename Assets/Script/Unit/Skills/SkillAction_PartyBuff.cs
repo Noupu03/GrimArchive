@@ -13,7 +13,6 @@ public class SkillAction_PartyBuff : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "전투의 노래" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => ThreatShape.LINE;

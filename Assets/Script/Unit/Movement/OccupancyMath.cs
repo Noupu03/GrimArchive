@@ -69,9 +69,6 @@ public static class OccupancyMath
 		return waitPath < detourPath ? OccupancyChoice.Wait : OccupancyChoice.Detour;
 	}
 
-	// 같은 점유자·같은 충돌이 이어지는 동안은 마지막 선택을 재판정 시각까지 유지한다(매 틱 뒤집히지 않게).
-	public static bool ShouldReevaluate(float now, float reevaluateAt) => now >= reevaluateAt;
-
 	// 해결되지 않는 미확인 대기의 상한 — 대기 시간을 모르고 우회도 없는 채로 maxSeconds를 넘기면 대기를 풀어 기존 경로(행동별 정체 인내 → 9번 후속 행동)로 넘긴다.
 	// 대기시간을 아는 경우(상호작용 남은 시간 등)는 끊지 않는다.
 	public static bool UnknownWaitExpired(float now, float startedAt, float maxSeconds, bool waitKnown)

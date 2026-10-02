@@ -115,67 +115,6 @@ public partial class CreateMap
         LogHelper.Log(LogHelper.GAME, "CreateMap: Stairs placed on all floors (sequential structure).");
     }
 
-    // 계단 배치 후 allowMaxFootprint가 변경된 방의 Gate 폭을 확장 — Close 없이 Open만 수행해 기존 열린 타일은 유지하고 추가분만 확장.
-    void UpdateGateWidthsAfterStairs()
-    {
-        for (int f = 1; f < map.floors.Length; f++)
-        {
-            ref Floor floor = ref map.floors[f];
-            if (floor.gates == null || floor.gates.Count == 0) continue;
-
-            // Floor별 저장된 wallThicknessCache 복원
-            if (perFloorWallThicknessCache.ContainsKey(f))
-                wallThicknessCache = new Dictionary<int, (int, int)>(perFloorWallThicknessCache[f]);
-            else
-                wallThicknessCache.Clear();
-
-            int w = floor.config.width;
-            int h = floor.config.height;
-
-            var roomMaxFp = new Dictionary<int, int>();
-            for (int x = 0; x < w; x++)
-                for (int y = 0; y < h; y++)
-                {
-                    int rid = floor.chunks[x, y].roomId;
-                    if (rid < 0) continue;
-                    int fp = floor.chunks[x, y].allowMaxFootprint;
-                    if (!roomMaxFp.ContainsKey(rid) || fp > roomMaxFp[rid])
-                        roomMaxFp[rid] = fp;
-                }
-
-            for (int i = 0; i < floor.gates.Count; i++)
-            {
-                Gate g = floor.gates[i];
-                int maxFpA = roomMaxFp.ContainsKey(g.roomA) ? roomMaxFp[g.roomA] : 1;
-                int maxFpB = roomMaxFp.ContainsKey(g.roomB) ? roomMaxFp[g.roomB] : 1;
-                int requiredWidth = Mathf.Max(maxFpA, maxFpB);
-
-                if (g.width < requiredWidth)
-                {
-                    int newWidth = Mathf.Clamp(requiredWidth, 2, 6);
-
-                    // ClosePassage 없이 Open만 수행 — OpenPassage는 범위를 Floor 타일로 덮으므로 기존 열린 타일은 그대로다.
-                    int actualWidth;
-                    if (g.isHorizontal)
-                    {
-                        int leftX = Mathf.Min(g.chunkAX, g.chunkBX);
-                        int leftY = g.chunkAY;
-                        actualWidth = OpenHorizontalPassage(ref floor, leftX, leftY, newWidth);
-                    }
-                    else
-                    {
-                        int bottomX = g.chunkAX;
-                        int bottomY = Mathf.Min(g.chunkAY, g.chunkBY);
-                        actualWidth = OpenVerticalPassage(ref floor, bottomX, bottomY, newWidth);
-                    }
-
-                    g.width = actualWidth;
-                    floor.gates[i] = g;
-                }
-            }
-        }
-    }
-
     void PlaceBossRoomStair(ref Floor floor, int targetFloor)
     {
         int w = floor.config.width;

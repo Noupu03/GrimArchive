@@ -383,20 +383,6 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 명령 포기 오판 방지 — 벽/닫힌 문 때문인지 다른 유닛이 잠깐 몰려 막힌 것뿐인지 구분하려고
-	// CanMove(ignoreUnits: true)로 점유 무시하고 지형만 재확인한다(후자를 오판하면 명령이 영구히 취소됨).
-	public static bool HasAnyStructurallyOpenNeighbor(Unit unit, Vector2Int center)
-	{
-		if (unit.CanMove(center, ignoreUnits: true)) return true;
-		for (int dx = -1; dx <= 1; dx++)
-		for (int dy = -1; dy <= 1; dy++)
-		{
-			if (dx == 0 && dy == 0) continue;
-			if (unit.CanMove(center + new Vector2Int(dx, dy), ignoreUnits: true)) return true;
-		}
-		return false;
-	}
-
 	// 유닛 자기 위치 기준 혼잡 판정 전용 — HasAnyStructurallyOpenNeighbor(unit, unit.position)는
 	// center 자신이 항상 열려있어 무의미하므로 안 쓴다. 인접 8칸만(점유 무시) 확인해 판정한다.
 	public static bool HasAnyStructurallyOpenAdjacentTile(Unit unit)

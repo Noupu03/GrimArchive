@@ -7,8 +7,6 @@ public abstract class SkillAction
 {
 	public string SkillName { get; protected set; }
 
-	// 에디터 / SkillTuner에서 읽는 기본값 (각 스킬에서 override)
-	public virtual float DefaultBaseDelayMs  => 500f;
 	public virtual float DefaultBaseCooldown => 3f;
 
 	// 사정거리 정보 (Actions.cs의 canHit 사전 검사에 사용)
@@ -266,15 +264,6 @@ public abstract class SkillAction
 		};
 	}
 
-	public static void DamageEnemiesInHitbox(Unit attacker, Hitbox box, float multiplier, bool stun = false, float stunDuration = 0f)
-	{
-		foreach (var t in GetEnemiesInHitbox(attacker, box))
-		{
-			t.TakePhysicalDamage(attacker.CombatStat.physicalAttack * multiplier, attacker);
-			if (stun) t.ApplyStun(stunDuration);
-		}
-	}
-
 	/// <summary>
 	/// 히트박스와의 교차 면적 비율에 따라 데미지를 적용합니다.
 	/// 면적이 많이 겹칠수록 더 많은 데미지를 입습니다.
@@ -369,16 +358,6 @@ public abstract class SkillAction
 		if (x < 0) return Dir.LEFT;
 		if (y > 0) return Dir.UP;
 		return Dir.DOWN;
-	}
-
-	public static float GetCompression(Unit unit)
-	{
-		bool isDiagonal =
-			unit.currentDir == Dir.UP_RIGHT  ||
-			unit.currentDir == Dir.UP_LEFT    ||
-			unit.currentDir == Dir.DOWN_RIGHT ||
-			unit.currentDir == Dir.DOWN_LEFT;
-		return isDiagonal ? 0.75f : 1f;
 	}
 
 	// 쿨감 상한 — units.json의 cooltimeReduction이 거의 모든 유닛에서 90~95라, 상한이 없으면 전원이

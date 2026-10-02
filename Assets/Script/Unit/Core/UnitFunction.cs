@@ -1281,24 +1281,6 @@ public abstract class UnitFunction : Unit
 		}
 	}
 
-	public override void OnThreatDetected(List<ThreatTileData> threats)
-	{
-		if (StatusEffects.State.stunDuration > 0f) return;
-
-		foreach (var threat in threats)
-		{
-			Unit attacker = FindAttackerFromThreat(threat);
-			if (attacker == null) continue;
-			if (AIState.reactedAttackers.Contains(attacker)) continue;
-
-			AIState.reactedAttackers.Add(attacker);
-			AIState.reactingThreat        = threat;
-			AIState.reactingAttacker      = attacker;
-			attacker.AIState.unitsReactingToMe.Add(this);
-			OnReactToThreat(attacker, threat);
-		}
-	}
-
 	public override void OnReactToThreat(Unit attacker, ThreatTileData threat)
 	{
 		// "정지"/"제자리 공격"/고정 유닛은 완전 무반응이라 회피/블링크도 발동하지 않는다 — 이 경로는
@@ -1325,29 +1307,6 @@ public abstract class UnitFunction : Unit
 			this.Generate.TriggerHitEffect(this);
 
 		RecordHitWeightEvent(damage, attacker, raw);
-	}
-
-	private Unit FindAttackerFromThreat(ThreatTileData threat)
-	{
-		// B: castingUnits는 isCastingAttack=true 유닛만 포함 → Session.units 전체 순회 불필요
-		foreach (Unit u in Session.castingUnits)
-		{
-			if (u == null) continue;
-			if (u.AIState.currentThreat == threat) return u;
-		}
-		return null;
-	}
-
-	public override bool IsInThreat(Vector2Int pos, ThreatTileData threat)
-	{
-		if (threat.hitbox.size == Vector2.zero) return false;
-
-		Hitbox posHitbox = new Hitbox
-		{
-			center = (Vector2)pos + Vector2.one * 0.5f,
-			size   = Vector2.one
-		};
-		return threat.hitbox.Overlaps(posHitbox);
 	}
 
 	private List<ThreatTileData> _cachedThreats = new List<ThreatTileData>();
@@ -1382,34 +1341,6 @@ public abstract class UnitFunction : Unit
 
 	public override float ApplyCriticalDamage(float rawDamage) => Mathf.Floor(rawDamage * 1.5f);
 
-	public virtual void DrawThreatTiles()
-	{
-		if (!CombatState.State.isCastingAttack || AIState.currentThreat == null) return;
-
-		Color color = this is Human ? Color.cyan : Color.red;
-		color.a = 0.8f;
-
-		Vector3 floorOffset = this.Generate != null
-			? this.Generate.GetFloorOffset(currentFloor)
-			: Vector3.zero;
-
-		ThreatTileData threat = AIState.currentThreat;
-		if (threat == null || threat.hitbox.size == Vector2.zero) return;
-
-		Hitbox  box      = threat.hitbox;
-		Vector2 center   = box.center;
-		Vector2 halfSize = box.size * 0.5f;
-
-		Vector3 p1 = new Vector3(center.x - halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
-		Vector3 p2 = new Vector3(center.x + halfSize.x, center.y - halfSize.y, 0f) + floorOffset;
-		Vector3 p3 = new Vector3(center.x + halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
-		Vector3 p4 = new Vector3(center.x - halfSize.x, center.y + halfSize.y, 0f) + floorOffset;
-
-		Debug.DrawLine(p1, p2, color);
-		Debug.DrawLine(p2, p3, color);
-		Debug.DrawLine(p3, p4, color);
-		Debug.DrawLine(p4, p1, color);
-	}
 }
 
 

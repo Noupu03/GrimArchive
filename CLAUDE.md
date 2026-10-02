@@ -374,7 +374,7 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
   이동 순으로 판정한다. `BuildPlacementController`/`ObjectPlacementController`의 설치 확정 입력도
   `GameInputScheme.PrimaryDown`에서 `SecondaryDown`으로 옮겼다. 일반 이동 명령이 목표 지점 자체는
   안 붐비는데 가는 길 중간의 상대 진영 문에 막히면, 기존 "혼잡 판정" 휴리스틱(`FindNearbyOpenTile`/
-  `HasAnyStructurallyOpenNeighbor`, 목표 지점 주변만 확인)이 "곧 풀릴 혼잡"으로 오판해 8틱 동안 문
+  `HasAnyStructurallyOpenNeighbor`(2026-10-02 호출처 없어 삭제), 목표 지점 주변만 확인)이 "곧 풀릴 혼잡"으로 오판해 8틱 동안 문
   앞에서 얼어붙어 보이다 뒤늦게 포기했다(사용자 신고 2026-08-22 "이동 명령중이고 앞에 막힌게
   없는데도 문 앞에서 멈춤") — 이 증상에 대해 한때 이 절이 `PlayerCommandFSMState.
   IsBlockedByHostileDoorNearby`(인접 8칸 문 즉시 포기)를 적어 뒀지만 그 함수는 코드에 들어간 적이 없었다

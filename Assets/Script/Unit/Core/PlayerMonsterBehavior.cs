@@ -9,5 +9,4 @@ public class PlayerMonsterBehavior : IFactionBehavior
 
     public void OnUpdate(Unit unit) {}
     public void OnDeath(Unit unit, Unit killer) {}
-    public void OnEnterRoom(Unit unit, Room room) {}
 }

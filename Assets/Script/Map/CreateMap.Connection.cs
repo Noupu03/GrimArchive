@@ -352,23 +352,6 @@ public partial class CreateMap
         }
     }
 
-    int ComputeGateWidth(ref Floor floor, int roomA, int roomB)
-    {
-        int w = floor.config.width;
-        int h = floor.config.height;
-        int maxA = 1, maxB = 1;
-
-        for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                int id = floor.chunks[x, y].roomId;
-                if (id == roomA) maxA = Mathf.Max(maxA, floor.chunks[x, y].allowMaxFootprint);
-                if (id == roomB) maxB = Mathf.Max(maxB, floor.chunks[x, y].allowMaxFootprint);
-            }
-
-        return Mathf.Max(maxA, maxB);
-    }
-
     void RegisterGate(ref Floor floor, int roomA, int roomB, int cxA, int cyA, int cxB, int cyB, int width, bool isHorizontal)
     {
         Gate gate = new Gate();

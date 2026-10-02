@@ -87,11 +87,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // DoRandering() 호출은 MapManager가 맵 데이터를 준비한 뒤 명시적으로 호출하도록 제거됨
     }
 
-    public void DoRandering(CreateMap targetMap = null) { if (targetMap != null) { this.createMap = targetMap; } BuildTileCache(); RenderAllFloors(); } private void _OldDoRanderingUnused()
-    {
-        BuildTileCache();
-        RenderAllFloors();
-    }
+    public void DoRandering(CreateMap targetMap = null) { if (targetMap != null) { this.createMap = targetMap; } BuildTileCache(); RenderAllFloors(); }
 
     void BuildTileCache()
     {

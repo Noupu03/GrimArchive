@@ -513,45 +513,6 @@ public partial class CreateMap
         return floor.chunks[cx, cy].roomId;
     }
 
-    // 플레이어는 자신 소유 및 인접 방까지만 이동 명령을 내릴 수 있다. CanCommandEnemyRoom(방 하나만
-    // 확인)과 달리 점령 중인 모든 방을 스캔해 targetRoomId 자신이거나 Gate로 연결돼 있으면 허용한다.
-    public bool CanPlayerCommandRoom(int floorIndex, int targetRoomId)
-    {
-        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
-        if (targetRoomId < 0) return false;
-        Floor floor = map.floors[floorIndex];
-        if (floor.chunks == null) return false;
-
-        int w = floor.config.width;
-        int h = floor.config.height;
-
-        var ownedRoomIds = new HashSet<int>();
-        bool targetIsOwned = false;
-        for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                Chunks c = floor.chunks[x, y];
-                if (c.occupationState != OccupationState.PlayerControlled) continue;
-                ownedRoomIds.Add(c.roomId);
-                if (c.roomId == targetRoomId) targetIsOwned = true;
-            }
-
-        if (targetIsOwned) return true;
-        if (floor.gates == null) return false;
-
-        foreach (Gate g in floor.gates)
-        {
-            if ((ownedRoomIds.Contains(g.roomA) && g.roomB == targetRoomId) ||
-                (ownedRoomIds.Contains(g.roomB) && g.roomA == targetRoomId))
-                return true;
-        }
-        return false;
-    }
-
-    // 위 둘을 합친 편의 메서드 — InputManager가 클릭 좌표 하나로 바로 판정할 때 사용.
-    public bool CanPlayerCommandPosition(int floorIndex, Vector2Int tilePos)
-        => CanPlayerCommandRoom(floorIndex, GetRoomIdAt(floorIndex, tilePos));
-
     // 방 하나는 항상 단일 점령상태를 가지므로(방 전체에 같은 값을 씀) 첫 매치만 반환해도 충분하다.
     public OccupationState GetRoomOccupationState(int floorIndex, int roomId)
     {

@@ -101,18 +101,6 @@ public class UIManager : MonoRoutine, ICustomPanel
         GUI.Label(new Rect(rect.x + paddingX, rect.y + paddingY + size1.y + lineGap, size2.x, size2.y), line2, line2Style);
     }
 
-	// ShowFloatingText(Unit)는 위치/기본색만 유닛 기준으로 채워 ShowFloatingTextAt로 위임한다.
-	public void ShowFloatingText(Unit unit, string message)
-	{
-		if (unit == null) return;
-
-		Vector3 pos = GetWorldTextPosition(unit);
-		pos.y -= 16.7f;
-		Color color = (unit is Human) ? Color.green : Color.red;
-
-		ShowFloatingTextAt(pos, message, color);
-	}
-
 	// 함정 해제 성공/실패 결과 문구용. 유닛이 아니라 임의의 월드 좌표(함정 위치 등)에 띄워야 해서 별도 오버로드로 뒀다.
 	public void ShowFloatingTextAt(Vector3 worldPos, string message, Color color, float duration = 0.5f)
 	{
@@ -135,12 +123,4 @@ public class UIManager : MonoRoutine, ICustomPanel
 		DOVirtual.DelayedCall(duration, () => { if (go != null) Destroy(go); });
 	}
 
-	Vector3 GetWorldTextPosition(Unit unit)
-	{
-		return new Vector3(
-			unit.position.x + unit.unitType.footprint.x * 0.5f,
-			unit.position.y + unit.unitType.footprint.y + 1f,
-			0
-		);
-	}
 }

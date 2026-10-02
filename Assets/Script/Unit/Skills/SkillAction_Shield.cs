@@ -12,7 +12,6 @@ public class SkillAction_Shield : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "성스러운 방패" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => ThreatShape.LINE;

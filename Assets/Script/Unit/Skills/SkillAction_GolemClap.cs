@@ -12,7 +12,6 @@ public class SkillAction_GolemClap : SkillAction
         SkillName = string.IsNullOrEmpty(data.skillName) ? "골렘 박수" : data.skillName;
     }
 
-    public override float DefaultBaseDelayMs  => _d.baseDelayMs;
     public override float DefaultBaseCooldown => _d.baseCooldown;
 
     public override ThreatShape HitShape => ThreatShape.RECT;
