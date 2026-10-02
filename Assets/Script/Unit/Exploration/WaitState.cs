@@ -13,21 +13,15 @@ public enum WaitReason
 	// TryFindNextDoorTowardTargetRoom이 목적지를 정한다. "대기"가 아니라 "지정 목적지로 이동"이지만
 	// 전투·전술 우선순위에 자연히 밀려야 하므로(00번 4장 순서) WaitState/ExecuteWait 구조를 그대로 쓴다.
 	AdvancingToNextRoom,
-	// 03번 문서 3번 항목: 리더가 전파 범위 밖일 때 코어 발견자가 리더에게 다가가 보고한다. 집결 명령을
-	// 받아도 중단하지 않는다(PartyCoreReportSystem.OnCoreDiscovered가 기존 대기를 덮어써 시작한다).
+	// 리더가 전파 범위 밖일 때 코어 발견자가 리더에게 다가가 보고한다(03번 3항) — 집결 명령을 받아도 중단하지 않는다(PartyCoreReportSystem.OnCoreDiscovered가 기존 대기를 덮어써 시작).
 	ReportingCoreToLeader,
-	// 05번 문서 10장: 코어 파괴(웨이브 승리) 후 생존자 전원이 탈출 지점으로 귀환 — AdvancingToNextRoom과
-	// 동일하게 WaitState 기반으로 이동한다. playerMoveTarget+isManualMoveCommand=false 조합은 실제로
-	// 아무 코드도 소비하지 않는 죽은 경로이니 되돌리지 말 것.
+	// 코어 파괴(웨이브 승리) 후 생존자 전원의 탈출 지점 귀환(05번 10장) — AdvancingToNextRoom처럼 WaitState 기반으로 이동한다. playerMoveTarget+isManualMoveCommand=false 조합은 아무 코드도 소비하지 않는 죽은 경로이니 되돌리지 말 것.
 	Retreating,
-	// 05번 문서 1장 73줄: 집결을 마쳤는데 다음 이동 문을 아직 모르면 진형을 유지하며 문을 찾는다. 리더 외 파티원이
-	// 자기가 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem.StepFollow). 리더는 대기 없이 기존 자유 탐색이 문을 찾는다.
+	// 집결을 마쳤는데 다음 이동 문을 모르면 진형을 유지하며 문을 찾는다(05번 1장) — 리더 외 파티원이 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem.StepFollow). 리더는 대기 없이 자유 탐색이 문을 찾는다.
 	SearchingNextDoor,
-	// 01번 문서 7-1장·04번 문서 소탕 파티: 리더가 다음 이동 문 앞 자리까지 현재 방 안에서 이동하며 실제 시야로 확인한다. 도착하면 집결 판단 자격이 생긴다
-	// (Party.MarkLeaderReachedNextDoor) — 집결 뒤 공동 이동(AdvancingToNextRoom)과 달리 이동 명령이 아니라 집결 전 단계다. 소탕 파티 리더 전용.
+	// 소탕 파티 리더가 집결 전에 다음 이동 문 앞 자리까지 현재 방 안에서 이동하며 시야로 확인한다(01번 7-1장·04번). 도착하면 집결 판단 자격이 생기며(Party.MarkLeaderReachedNextDoor), 집결 뒤 공동 이동(AdvancingToNextRoom)과 달리 집결 전 단계다.
 	ApproachingNextDoor,
-	// 집결 뒤 "문 앞 진형 → 문 파괴 → 순차 입장"(PartyAdvanceSystem). 단계는 Party.AdvancePlan이 정하고, 각 유닛은 이 사유로 자기 몫(진형 자리 이동·문 채널링·입장)을 수행한다.
-	// 공동 이동이라 대기 중 Tactical 우선순위·조사 게이트·공동 이동 속도는 AdvancingToNextRoom과 동일하게 다룬다.
+	// 집결 뒤 '문 앞 진형 → 문 파괴 → 순차 입장'(PartyAdvanceSystem) — 단계는 Party.AdvancePlan이 정하고 각 유닛은 이 사유로 자기 몫(진형 자리 이동·문 채널링·입장)을 수행한다. 공동 이동이라 Tactical 우선순위·조사 게이트·공동 이동 속도는 AdvancingToNextRoom과 같다.
 	FormingUpAtDoor,
 	BreachingDoor,
 	EnteringNextRoom,
@@ -37,7 +31,7 @@ public class WaitState
 {
 	public WaitReason Reason;
 	public Vector2Int? WaitPosition;
-	// AdvancingToNextRoom 전용 — 이동 목표인 문 타일(WaitPosition은 그 문 주변의 이 유닛 대기 자리). 자리가 막히면 같은 문의 다른 자리를 다시 고르는 데 쓴다(검증 04-02).
+	// AdvancingToNextRoom 전용 — 이동 목표인 문 타일(WaitPosition은 그 문 주변의 이 유닛 대기 자리). 자리가 막히면 같은 문의 다른 자리를 다시 고르는 데 쓴다.
 	public Vector2Int? DoorPosition;
 	// AdvancingToNextRoom 전용 — 길이 막히기 시작한 시각(음수 = 막히지 않음). 오래 막힌 채면 안전장치로 명령을 푼다.
 	public float BlockedSince = -1f;
@@ -45,8 +39,7 @@ public class WaitState
 	public float LastStepTime = -1f;
 	// AwaitingPartyAtRallyPoint 전용 — WaitPosition이 속한 층(Vector2Int라 층 정보가 없다). 유닛이 다른 층에 있으면 그 좌표로 걷지 않고 대기를 접는다.
 	public int WaitFloor = -1;
-	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 대신 "리더 위치"를 매 틱
-	// 실시간으로 다시 읽어야 해서 여기 스냅샷하지 않는다, TacticalFSMState.ExecuteWait 참고).
+	// ReportingCoreToLeader 전용 — 보고 대상 코어 위치(WaitPosition은 '리더 위치'를 매 틱 다시 읽어야 해 스냅샷하지 않는다, TacticalFSMState.ExecuteWait 참고).
 	public Vector3Int? CorePosition;
 
 	// ReportingCoreToLeader 전용 — 03-15 보고 이동의 진행 상태(PartyCoreReportSystem.StepReportMovement가 관리).

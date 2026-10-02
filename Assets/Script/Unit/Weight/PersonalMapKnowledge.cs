@@ -186,13 +186,11 @@ public class PersonalMapKnowledge : IKnownTerrain
 
 	public bool IsTileRevealed(Vector3Int pos) => _tileTerrain.ContainsKey(pos);
 
-	// 층별 프론티어(미탐사지만 밝혀진 바닥과 직교 인접한 타일) — 거리 추정(RouteAssessment)이 "시야를 넓힐 위치" 후보로 쓴다. 호출부가 순회만 해야 하며 수정하면 안 된다.
+	// 층별 프론티어(미탐사지만 밝혀진 바닥과 직교 인접한 타일) — 거리 추정(RouteAssessment)이 '시야를 넓힐 위치' 후보로 쓴다. 호출부는 순회만 하고 수정하면 안 된다.
 	public IReadOnlyCollection<Vector2Int> GetFrontierTiles(int floor)
 		=> _frontierTilesByFloor.TryGetValue(floor, out var frontier) ? frontier : (IReadOnlyCollection<Vector2Int>)System.Array.Empty<Vector2Int>();
 
-	// NavigationFSMState.RandomExplore 전용 — from과 가장 가까운 프론티어 타일을 직선거리 기준으로
-	// 반환한다(실제 최단 경로는 아닐 수 있으나 호출부의 A* 실패 재시도가 흡수).
-	// exclude: 호출부가 제외할 타일(닿지 못해 막힘 기록된 프론티어, 검증 04-08 발견 5).
+	// NavigationFSMState.RandomExplore 전용 — from과 가장 가까운 프론티어 타일을 직선거리로 반환한다(최단 경로가 아닐 수 있으나 호출부의 A* 실패 재시도가 흡수). exclude: 호출부가 제외할 타일(닿지 못해 막힘 기록된 프론티어).
 	public bool TryGetNearestFrontierTile(int floor, Vector2Int from, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
@@ -216,7 +214,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 		return found;
 	}
 
-	// 검증 05-01: 개인 탐색을 지금 있는 방 안으로 제한할 때 쓴다 — bounds 안의 프론티어 중 from과 가장 가까운 타일(없으면 false).
+	// 개인 탐색을 지금 있는 방 안으로 제한할 때 쓴다 — bounds 안의 프론티어 중 from과 가장 가까운 타일(없으면 false).
 	public bool TryGetNearestFrontierTileInBounds(int floor, Vector2Int from, RectInt bounds, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
@@ -224,10 +222,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 		return PartyFormationMath.TryNearestInRect(frontier, from, bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax, out nearest, exclude);
 	}
 
-	// 01번 문서 7-1장: 탐색 파티의 "현재 방 지형 전체 확인" 판정에 쓴다 — 주어진 방 경계(bounds) 안에
-	// 아직 이 유닛이 못 본 프론티어 타일이 하나라도 남아 있는지만 확인한다(리더 개인 지도 기준 근사 —
-	// 파티원 전체 시야 합산은 아직 안 함, Party.IsRoomActivityComplete 주석 참고).
-	// exclude: 이 판정에서 뺄 타일(리더가 닿지 못해 막힘 기록한 프론티어는 방 탐색 완료를 붙들지 않는다 — 검증 04-08 발견 5).
+	// 탐색 파티의 '현재 방 지형 전체 확인' 판정용(01번 7-1장) — 방 경계(bounds) 안에 이 유닛이 못 본 프론티어 타일이 남았는지만 본다(리더 개인 지도 기준 근사, 파티 시야 합산은 Party.IsRoomActivityComplete 참고). exclude: 리더가 닿지 못해 막힘 기록한 프론티어는 탐색 완료를 붙들지 않는다.
 	public bool HasFrontierTileInBounds(int floor, RectInt bounds, System.Predicate<Vector2Int> exclude = null)
 	{
 		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier)) return false;
@@ -238,7 +233,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 		return false;
 	}
 
-	// 진단용(Party.TryStartRally의 "집결 불가" 사유 로그): 방 경계 안에 남은 프론티어 타일 수와 그중 하나의 위치 — 어느 타일이 방 탐색 종료를 막는지 보여 준다. 읽기만 한다.
+	// 진단용(Party.TryStartRally의 '집결 불가' 사유 로그): 방 경계 안에 남은 프론티어 수와 그중 하나의 위치 — 어느 타일이 방 탐색 종료를 막는지 보여 주며 읽기만 한다.
 	public int CountFrontierTilesInBounds(int floor, RectInt bounds, out Vector2Int sample, System.Predicate<Vector2Int> exclude = null)
 	{
 		sample = default;
@@ -306,8 +301,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 	private readonly Dictionary<string, float> _objectDanger = new();
 	private readonly Dictionary<string, Vector3Int> _objectTile = new();
 
-	// 검증문서 03-13: 이 관찰자가 아는 함정 오브젝트(id → 타일) — 이동 계층(TrapAvoidance)이 "개인이 아는 활성 함정 구역"을 만드는
-	// 근거다. RegisterObject가 "Trap" 태그를 보면 기록하고, 수거·파괴를 알게 되면 지운다. 태그는 위 색인에 저장되지 않아 여기서만 구분된다.
+	// 이 관찰자가 아는 함정 오브젝트(id → 타일) — 이동 계층(TrapAvoidance)이 '개인이 아는 활성 함정 구역'을 만드는 근거다. RegisterObject가 'Trap' 태그를 보면 기록하고 수거·파괴를 알게 되면 지운다(태그는 위 색인에 저장되지 않아 여기서만 구분된다).
 	private readonly Dictionary<string, Vector3Int> _knownTrapTiles = new();
 	public IReadOnlyDictionary<string, Vector3Int> KnownTrapTiles => _knownTrapTiles;
 
@@ -378,12 +372,8 @@ public class PersonalMapKnowledge : IKnownTerrain
 			_objectInterest[objectId] = WeightMath.ObjectInterestAfterInvestigate(v);
 	}
 
-	// 회수/파괴된 오브젝트는 흥미도/위험도가 0이 되고 20/21장 방 확인목록에서도 제거한다 — 안 지우면
-	// 사라진 오브젝트의 옛 목격값이 방 위험도/흥미도에 계속 잡힌다.
-	// 00-07(정보 격리): _knownCollectedObjects는 "이 관찰자가 직접 확인했거나 허용된 전파로 전달받은
-	// 수거 사실"만 담는다 — TacticalFSMState.MoveToInvestigateTarget이 목표에 도달하기 전까지는 이
-	// 기록만 보고(전역 objectGrid를 원거리에서 직접 읽지 않음), 도착한 뒤에만 실제 objectGrid 조회를
-	// "직접 확인"으로 인정한다(2026-09-26 신설).
+	// 회수/파괴된 오브젝트는 흥미도/위험도가 0이 되고 20/21장 방 확인목록에서도 제거한다 — 안 지우면 사라진 오브젝트의 옛 목격값이 방 위험도/흥미도에 계속 잡힌다.
+	// _knownCollectedObjects는 '직접 확인했거나 허용된 전파로 전달받은 수거 사실'만 담는다(00-07 정보 격리) — MoveToInvestigateTarget은 도달 전까지 이 기록만 보고 전역 objectGrid를 원거리에서 읽지 않으며, 도착한 뒤의 objectGrid 조회만 직접 확인으로 인정한다.
 	private readonly HashSet<string> _knownCollectedObjects = new();
 
 	public void OnObjectCollected(string objectId)
@@ -450,11 +440,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 	}
 	private readonly Dictionary<string, MonsterSighting> _monsterSightings = new();
 
-	// monsterKey: target.name(인스턴스 식별자 — 위치는 개체별 정보라 HumanKnowledgeBase의 종/개체 누적
-	// 키와 별개로 항상 인스턴스명 사용). infoType 기본값 DirectWitness는 유일한 호출부(CastRay)가 시야
-	// 직접 목격이기 때문 — 다른 정보 유형이 갱신하려 들 때 아래 우선순위 게이트가 작동한다.
-	// timestamp 생략 시 Time.time으로 채운다 — 간접(Indirect) 정보가 이 메서드를 호출하게 되면 그
-	// 정보가 가리키는 실제 사건 발생 시각을 넘겨야 한다(candidateIsNewer 비교의 기준 시각이 되므로).
+	// monsterKey: target.name(인스턴스 식별자 — 위치는 개체별 정보라 HumanKnowledgeBase의 종/개체 누적 키와 별개). infoType 기본값 DirectWitness는 유일한 호출부(CastRay)가 시야 직접 목격이기 때문이며, 다른 정보 유형이 갱신하려 들면 아래 우선순위 게이트가 작동한다. timestamp 생략 시 Time.time이며, 간접(Indirect) 정보가 호출하면 실제 사건 시각을 넘겨야 한다(candidateIsNewer 기준).
 	public void ObserveMonster(string monsterKey, Vector3Int tile, float dangerSnapshot, float interestSnapshot, InfoType infoType = InfoType.DirectWitness, float? timestamp = null)
 	{
 		float ts = timestamp ?? Time.time;
@@ -526,16 +512,11 @@ public class PersonalMapKnowledge : IKnownTerrain
 	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
 		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
 
-	// 01번 문서 9장(검증문서 01-10): "보스를 정확 인지 + 방 확인"을 모두 충족해야 보스방으로 기록한다.
-	// 다른 Observe* 메서드는 전부 isBossRoom=false로만 호출돼(타일 공개·오브젝트 관찰은 보스 인지와
-	// 무관) 이 메서드만이 IsBossRoom을 true로 승격시키는 유일한 경로다 — UnitFunction.
-	// RecordSpottedEnemyKnowledge가 AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
+	// '보스를 정확 인지 + 방 확인'을 모두 충족해야 보스방으로 기록한다(01번 9장). 다른 Observe*는 전부 isBossRoom=false로만 호출되므로 이 메서드가 IsBossRoom을 true로 승격시키는 유일한 경로이며, UnitFunction.RecordSpottedEnemyKnowledge가 AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
 	public void ConfirmBossRoom(int roomId)
 		=> GetOrCreateRoom(roomId, false).IsBossRoom = true;
 
-	// 04번 문서 4장: "알려진 적 공격 범위"를 회피 이동에 쓰려면 먼저 그 종의 공격범위를 "안다"는 게이트가
-	// 필요하다 — ConfirmBossRoom과 동일한 성격(단순 setter, 게이팅은 호출부 UnitFunction.
-	// RecordSpottedEnemyKnowledge가 AccuratePerception 시점에 담당). 스킬 구성은 고정값이라 최초 확인이 곧 정답 — 이후 재확인 불필요.
+	// '알려진 적 공격 범위'를 회피 이동에 쓰려면 그 종의 공격범위를 '안다'는 게이트가 필요하다(04번 4장) — ConfirmBossRoom처럼 단순 setter이고 게이팅은 호출부(RecordSpottedEnemyKnowledge)가 맡는다. 스킬 구성은 고정이라 최초 확인이 곧 정답이다.
 	private readonly Dictionary<string, int> _knownAttackRange = new Dictionary<string, int>();
 
 	public void ConfirmAttackRange(string speciesKey, int hitRange)

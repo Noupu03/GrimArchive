@@ -98,9 +98,7 @@ public class HumanKnowledgeBase
 	}
 
 	// ─────────────────────────── 5장. 신규 진입 유닛 정보 ───────────────────────────
-	// 개인 기억이 없는 신규 유닛 스폰 시, 알려진 모든 종/개체의 최신 전역값을 개인 초기값으로 복사한다.
-	// party: 23장 "전역 정보에서 발생한 수치 오차는 파티 입장 시 한 번만 산출, 같은 파티 전원이 공유"
-	// 요구사항의 공유 캐시 키로 쓰인다.
+	// 개인 기억이 없는 신규 유닛 스폰 시 알려진 모든 종/개체의 최신 전역값을 개인 초기값으로 복사한다. party는 23장 '정보 오차는 파티 입장 시 한 번만 산출, 같은 파티 전원 공유'를 위한 공유 캐시 키다.
 	public void InitializeNewUnitPersonalInfo(Unit unit, Party party)
 	{
 		foreach (var kv in _species)
@@ -325,9 +323,7 @@ public class HumanKnowledgeBase
 		return WeightMath.ComposeFinalDanger(target.BaseStat.baseDanger, personalAccum, 0f);
 	}
 
-	// 02번 문서 9번 항목: 공격 원인까지 확인된 피격 시점에 실측 피해량으로 예상치를 통째 교체한다
-	// (직접 경험 = 0% 오차, 23장). actualRawDamage는 방어 적용 전 값 — 시딩 공식(기본공격력×배율)과
-	// 같은 기준(공격자 출력값)이라 이 값을 써야 비교가 성립한다.
+	// 공격 원인까지 확인된 피격 시점에 실측 피해량으로 예상치를 통째 교체한다(02번 9항, 직접 경험 = 0% 오차 — 23장). actualRawDamage는 방어 적용 전 값이어야 시딩 공식(기본공격력×배율)과 같은 기준이라 비교가 성립한다.
 	public void RecordSkillDamageObserved(Unit observer, string speciesKey, string skillName, float actualRawDamage)
 	{
 		if (string.IsNullOrEmpty(skillName)) return;

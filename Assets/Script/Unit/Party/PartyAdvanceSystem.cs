@@ -3,15 +3,13 @@ using UnityEngine;
 using GrimArchive.Wave;
 using Haare.Util.Logger;
 
-// 집결 이후 한 번의 방 이동(PartyAdvancePlan)의 수명주기와 단계 전이 — 문 앞 진형(FormingUp) → 문 파괴(Breaching) → 랭크 순 입장(Entering).
-// 순수 계산은 PartyFormationMath, 리더의 문 파괴 지시는 PartyBreachCommand, 유닛 한 틱은 PartyAdvanceSteps, 로그 문자열은 PartyDiagnostics.
-//  Begin(HumanWaveManager가 집결 완료 직후 1회) → Tick(매 프레임, 내부 0.25초 간격으로 단계 전이) → Finish/Abort.
-// 문 파괴는 리더 지시로만 시작하며 기존 DoorAttack(인류가 점령한 방 안에서만 발동)과 별개다.
+// 집결 이후 한 번의 방 이동(PartyAdvancePlan)의 수명주기와 단계 전이 — 문 앞 진형(FormingUp) → 문 파괴(Breaching) → 랭크 순 입장(Entering). 순수 계산은 PartyFormationMath, 문 파괴 지시는 PartyBreachCommand, 유닛 한 틱은 PartyAdvanceSteps, 로그는 PartyDiagnostics.
+//  Begin(집결 완료 직후 1회) → Tick(매 프레임, 내부 0.25초 간격 전이) → Finish/Abort.
+// 문 파괴는 리더 지시로만 시작하며 DoorAttack(인류가 점령한 방 안에서만 발동)과 별개다.
 public static class PartyAdvanceSystem
 {
 	private const float TickIntervalSeconds = 0.25f;
-	// 한 번의 방 이동에서 계획을 시작할 수 있는 최대 횟수(안전한도) — 돌파 실패는 계획 안에서 진형 복귀 후 재돌파(RegroupAfterStall)로 이어 가므로 이 횟수를 쓰지 않는다.
-	// "진행할 파티원이 없음" 같은 비정상 중단이 Begin ↔ Abort로 무한 재시작되지 않게 하는 용도이며, 한도에 닿으면 Party.GiveUpAdvance가 잠금을 풀고 쿨다운 뒤 처음부터 다시 한다.
+	// 한 번의 방 이동에서 계획을 시작할 수 있는 최대 횟수(안전한도) — '진행할 파티원이 없음' 같은 비정상 중단이 Begin ↔ Abort로 무한 재시작되지 않게 하며, 한도에 닿으면 Party.GiveUpAdvance가 잠금을 풀고 쿨다운 뒤 처음부터 다시 한다. 돌파 실패는 RegroupAfterStall로 이어 가므로 이 횟수를 쓰지 않는다.
 	public const int MaxAttempts = 2;
 	// 단계가 이 시간(초) 넘게 끝나지 않으면 미완료 파티원의 상태를 15초마다 로그로 남긴다(원인 진단용, 동작 불변).
 	private const float DiagnosticSeconds = 15f;
@@ -55,8 +53,7 @@ public static class PartyAdvanceSystem
 		return true;
 	}
 
-	// 계획에 참여할 파티원 — 같은 층의 생존자 중 수동 명령·다른 대기(코어 보고 등) 중이 아닌 유닛. 다음 문을 찾으며 리더를 따라다니던 추종(SearchingNextDoor)만 문이 알려진 지금 계획으로 바꾼다.
-	// 방 이동 지시도 집결 명령과 같은 전달 범위를 따른다(Party.IsReachedByLeaderCommand — 같은 방은 무조건, 다른 방은 일반 전파 조건, 방 없는 유닛끼리는 같은 방이 아님). 못 받은 구성원은 개인 행동(진형 합류)으로 남는다.
+	// 계획 참여 파티원 — 같은 층 생존자 중 수동 명령·다른 대기(코어 보고 등) 중이 아닌 유닛. 문을 찾으며 따라다니던 추종(SearchingNextDoor)만 계획으로 바꾼다. 전달 범위는 집결 명령과 같고(Party.IsReachedByLeaderCommand), 못 받은 구성원은 개인 행동으로 남는다.
 	private static List<Human> CollectMembers(Party party, Human leader, int doorFloor, ICollection<Human> excluded)
 	{
 		var members = new List<Human>();
@@ -80,7 +77,7 @@ public static class PartyAdvanceSystem
 	private static void AssignFormation(Party party, PartyAdvancePlan plan, List<Human> members, GameSession session)
 	{
 		Vector2Int lateral = PartyFormationMath.LateralAxis(plan.Forward);
-		// 0랭크는 문 앞 통과 구간(DoorClearance) 바로 밖 — 문서 규정(05번 3장)대로 대기 중에는 구간을 비우고, 문 파괴는 돌파 단계에서 리더 지시를 받은 유닛이 문 인접 칸으로 접근한다.
+		// 0랭크는 문 앞 통과 구간(DoorClearance) 바로 밖 — 대기 중엔 구간을 비우고(05번 3장), 문 파괴는 돌파 단계에서 리더 지시를 받은 유닛이 문 인접 칸으로 접근한다.
 		Vector2Int frontAnchor = plan.NearAnchor - plan.Forward * PartyFormationMath.DoorClearance;
 		plan.FormCenter = frontAnchor;
 		var claimed = new HashSet<Vector2Int>();
@@ -117,10 +114,8 @@ public static class PartyAdvanceSystem
 		member.BeginPartyMovement();
 	}
 
-	// 진형·입장 자리로 쓸 수 있는 타일: 그 유닛이 설 수 있고(점유는 무시 — 자리를 점유한 아군은 곧 비킨다), 문 타일·게이트 문턱이 아니며, 지정한 방 안.
-	// ignoreUnits=false는 막힌 뒤 재선택용 — 지금 다른 유닛이 실제로 서 있는 타일(먼저 도착해 남의 자리에 선 유닛 포함)은 뺀다.
-	// clearOf가 있으면 그 문 타일들의 통과 구간(PartyFormationMath.DoorClearance) 안은 대기 자리로 쓰지 않는다 — 진형 대기용이고, 입장 자리에는 넘기지 않는다.
-	// knowledge가 있으면 그 유닛의 개인 지도로 바닥이 확인된 타일만 쓴다 — 입장 자리처럼 아직 보지 못한 다음 방 타일을 실제 지형으로 고르지 않는다(04번 0장 12~14줄, 검증 05-06 관찰 4).
+	// 진형·입장 자리로 쓸 수 있는 타일: 그 유닛이 설 수 있고(점유는 무시 — 점유한 아군은 곧 비킨다), 문 타일·게이트 문턱이 아니며, 지정한 방 안. ignoreUnits=false는 막힌 뒤 재선택용으로 지금 다른 유닛이 서 있는 타일도 뺀다.
+	// clearOf가 있으면 그 문 타일들의 통과 구간 안은 대기 자리로 쓰지 않는다(진형 대기용, 입장 자리에는 넘기지 않음). knowledge가 있으면 그 유닛의 개인 지도로 바닥이 확인된 타일만 쓴다 — 아직 못 본 다음 방 타일을 실제 지형으로 고르지 않는다(04번 0장).
 	internal static bool IsSlotFree(GameSession session, Human m, Vector2Int t, int floor, Room room, bool ignoreUnits = true, Vector2Int[] clearOf = null, Human knowledge = null)
 	{
 		if (clearOf != null && PartyFormationMath.IsInDoorClearance(t, clearOf)) return false;
@@ -199,8 +194,7 @@ public static class PartyAdvanceSystem
 		}
 	}
 
-	// 교전·경계 중 시간 제한 정지(03번 13항·05번 2장: 전투 후 10초 경계를 마친 뒤 기존 집결·이동을 재개) — 계획 구성원 중 한 명이라도 교전·경계면 그 경과 시간만큼 단계·진행·재시도 시계를 뒤로 밀어
-	// 타이머가 흐르지 않은 것으로 만든다. 상한(PartyEngagement.PauseCap)에 닿으면 더 밀지 않아 풀리지 않는 교전이 계획을 영구히 얼리지 않는다. 단계가 바뀌거나 재돌파 사이클이 시작되면 누적을 비운다.
+	// 교전·경계 중 시간 제한 정지(03번 13항·05번 2장) — 계획 구성원 중 한 명이라도 교전·경계면 그 경과 시간만큼 단계·진행·재시도 시계를 뒤로 민다. 상한(PartyEngagement.PauseCap)에 닿으면 더 밀지 않아 풀리지 않는 교전이 계획을 영구히 얼리지 않으며, 단계가 바뀌거나 재돌파 사이클이 시작되면 누적을 비운다.
 	private static void ApplyEngagementPause(Party party, PartyAdvancePlan plan, float now)
 	{
 		float dt = now - plan.LastClockTime;
@@ -232,9 +226,7 @@ public static class PartyAdvanceSystem
 		}
 	}
 
-	// 안전장치 — 개별 이동 포기(IsParked)가 못 푸는 정체(전투·경계가 끝나지 않는 유닛 등)로 단계가 영구히 멈추지 않게 한다. 돌파 단계는 자체 진행 감시(PartyBreachCommand.Tick)를 쓴다.
-	// 기준은 기존 doorApproachMaxBlockedSeconds의 2배(내부 판단). 상한에 닿으면 계획을 중단하지 않고 집결과 같은 규칙으로 못 선 인원을 현재 위치에서 인정해 다음 단계로 진행한다
-	// (사용자 확정 2026-10-01 "공간 부족·못 서는 유닛은 현재 위치 인정"). 그 전에는 15초마다 미완료 파티원의 상태를 로그로 남긴다.
+	// 안전장치 — 개별 이동 포기(IsParked)가 못 푸는 정체로 단계가 영구히 멈추지 않게 한다(돌파 단계는 PartyBreachCommand.Tick 자체 감시). 기준은 doorApproachMaxBlockedSeconds의 2배이며, 상한에 닿으면 계획을 중단하지 않고 못 선 인원을 현재 위치에서 인정해 다음 단계로 진행한다. 그 전에는 15초마다 미완료 파티원 상태를 로그로 남긴다.
 	private static void EnforcePhaseLimit(Party party, PartyAdvancePlan plan, float now)
 	{
 		float phaseLimit = 2f * (AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f);
@@ -304,8 +296,7 @@ public static class PartyAdvanceSystem
 		}
 	}
 
-	// 문 파괴 진행이 30초 넘게 없을 때(접근 불가 추정) — 계획을 풀지 않고 전원이 문 앞 진형 자리로 물러나 쿨다운 뒤 같은 계획으로 다시 돌파한다(05번 1장 71·73줄: 집결 후에는 흩어지지 않고 진형을 유지).
-	// 못 나아갈 때의 계속/후퇴 판단은 후속 리더·후퇴 문서 몫이라, 그 전까지는 진형을 유지한 채 재시도를 반복한다. 매 사이클 로그가 남는다.
+	// 문 파괴 진행이 30초 넘게 없으면 계획을 풀지 않고 전원이 진형 자리로 물러나 쿨다운 뒤 같은 계획으로 다시 돌파한다(05번 1장: 집결 후에는 흩어지지 않고 진형 유지). 못 나아갈 때의 계속/후퇴 판단은 후속 문서 몫이라 그 전까지는 재시도를 반복하며, 매 사이클 로그가 남는다.
 	internal static void RegroupAfterStall(Party party, PartyAdvancePlan plan, float now)
 	{
 		float cooldown = AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f;
@@ -380,8 +371,7 @@ public static class PartyAdvanceSystem
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할)으로 한 명씩 입장을 지시");
 	}
 
-	// 진입 판정: 문 먼 쪽 줄을 지난 유닛은 그 즉시 개인 행동으로 푼다 — 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않는다(사용자 확정 2026-10-01 "다음 방 진입 판정 후 바로 개인 행동").
-	// 05번 1장·04번 "다음 방 진입 후에는 개인 탐색·임무 행동을 판단"과 같은 방향이다. 입장 자리는 문을 지나는 방향을 정하는 목적지일 뿐이다.
+	// 진입 판정: 문 먼 쪽 줄을 지난 유닛은 즉시 개인 행동으로 푼다(05번 1장·04번) — 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않으며, 입장 자리는 문을 지나는 방향을 정하는 목적지일 뿐이다.
 	internal static bool ReleaseIfEntered(Human m, PartyAdvancePlan plan)
 	{
 		var w = m.currentWait;
@@ -432,8 +422,7 @@ public static class PartyAdvanceSystem
 		m.waitStuckTurns = 0;
 	}
 
-	// 유닛별 간격 출발 — 아직 출발하지 않은 유닛 중 통과 우선순위(OccupancySystem이 문턱에서 쓰는 같은 키: 역할 → HP 비율 → 유지되는 무작위 → Id)가 가장 높은 한 명을 interval초마다 출발시킨다.
-	// 단계 장벽이 없어 앞뒤가 겹쳐 흐르고 앞 유닛이 막혀도 시계가 흘러 뒤 유닛이 붙들리지 않는다. 실제 문턱 통과 순서는 OccupancySystem이 같은 키로 중재한다.
+	// 유닛별 간격 출발 — 아직 출발 안 한 유닛 중 통과 우선순위(OccupancySystem이 문턱에서 쓰는 같은 키: 역할 → HP 비율 → 유지되는 무작위 → Id)가 가장 높은 한 명을 interval초마다 출발시킨다. 단계 장벽이 없어 앞뒤가 겹쳐 흐르고 앞 유닛이 막혀도 뒤 유닛이 붙들리지 않으며, 문턱 통과 순서는 OccupancySystem이 같은 키로 중재한다.
 	private static void ReleaseNextInOrder(PartyAdvancePlan plan, float now, float interval)
 	{
 		if (now < plan.NextEntryReleaseTime) return;
@@ -477,9 +466,7 @@ public static class PartyAdvanceSystem
 
 	// ── 종료 ─────────────────────────────────────────────────────────────────────────────
 
-	// 계획을 비정상 중단한다(진행할 파티원 없음 등 — 돌파 실패는 RegroupAfterStall이 계획을 유지한 채 처리). retry=true(기본)면 파티가 멈추지 않게 이어 간다 —
-	// 시도가 남았으면 ReadyToAdvance를 되살려 HumanWaveManager가 다시 지시하게 하고, 한도(MaxAttempts)에 닿았으면 잠금을 풀고 쿨다운 뒤 처음부터 다시 하게 한다
-	// (Party.GiveUpAdvance — 이동 지시는 한 번 소비되고 AdvanceFromRoom은 리더가 방을 떠나야만 풀려, 그냥 두면 영구 정지한다: 플레이 로그 2026-10-01 101~107줄).
+	// 계획을 비정상 중단한다(진행할 파티원 없음 등 — 돌파 실패는 RegroupAfterStall이 처리). retry=true(기본)면 시도가 남았을 때 ReadyToAdvance를 되살려 HumanWaveManager가 다시 지시하게 하고, 한도(MaxAttempts)에 닿으면 잠금을 풀고 쿨다운 뒤 처음부터 다시 한다(Party.GiveUpAdvance — 안 하면 이동 지시가 소비된 채 AdvanceFromRoom만 남아 영구 정지한다).
 	// 리더 없음·퇴각 전환처럼 이동을 이어 갈 수 없는 중단은 retry=false.
 	public static void Abort(Party party, string reason, bool retry = true)
 	{
@@ -542,8 +529,7 @@ public static class PartyAdvanceSystem
 	{
 		var w = m.currentWait;
 		if (w == null || !IsPlanWait(w.Reason) || w.IsParked || !w.WaitPosition.HasValue) return true;
-		// 입장 단계에서 대기가 남아 있다는 것은 아직 문 먼 쪽 줄을 못 지났다는 뜻이다(지나면 ReleaseIfEntered가 대기를 비운다) — 자리 근처라도 끝낸 것이 아니다.
-		// 자리 반경만 보면 문 위에 선 유닛이 "끝낸 것"으로 보여 단계 상한(ParkStragglersAtLimit)도 진단 로그(DescribeNotDone)도 건너뛰어 입장이 영구히 멈춘다.
+		// 입장 단계에서 대기가 남아 있다는 건 아직 문 먼 쪽 줄을 못 지났다는 뜻이다(지나면 ReleaseIfEntered가 비운다). 자리 반경만 보면 문 위에 선 유닛이 '끝낸 것'으로 보여 단계 상한(ParkStragglersAtLimit)·진단 로그(DescribeNotDone)를 건너뛰고 입장이 영구히 멈춘다.
 		if (plan.Phase == AdvancePhase.Entering) return false;
 		return PartyFormationMath.IsAtSlot(m.position, w.WaitPosition.Value);
 	}

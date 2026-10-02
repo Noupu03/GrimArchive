@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 문 묶음 순수 계산(부수효과 없음). 게이트의 문 타일을 "어느 방에 붙어 있는가"로 묶어 한 줄(폭 2 → 1×2)을 문 오브젝트 하나로 다루기 위한 기하 — DoorSystem이 방 조회(roomGrid)만 연결한다.
+// 문 묶음 순수 계산(부수효과 없음) — 게이트의 문 타일을 '어느 방에 붙어 있는가'로 묶어 한 줄(폭 2 → 1×2)을 문 오브젝트 하나로 다루는 기하이며 DoorSystem이 방 조회(roomGrid)만 연결한다.
 public static class DoorGeometry
 {
 	public struct Group
@@ -15,8 +15,7 @@ public static class DoorGeometry
 		public int Length => Tiles.Count;
 	}
 
-	// rows: 게이트의 두 줄(DoorSystem.GetGateDoorTiles). roomOf: 타일이 실제 속한 방 id(모르면 -1) — 줄 배열 순서는 기하학적 규칙일 뿐 방과 무관해서 방 조회로 묶는다.
-	// 같은 방이어도 줄이 다르면 분리(한 방이 두 줄을 다 차지하는 비정상 데이터 방어), 한 줄이 여러 방에 걸치면 방별로 분리한다.
+	// rows: 게이트의 두 줄(DoorSystem.GetGateDoorTiles). roomOf: 타일이 실제 속한 방 id(모르면 -1) — 줄 배열 순서는 방과 무관해 방 조회로 묶는다. 같은 방이어도 줄이 다르면 분리(한 방이 두 줄을 다 차지하는 비정상 데이터 방어), 한 줄이 여러 방에 걸치면 방별로 분리한다.
 	public static List<Group> GroupByRoom(IList<List<Vector2Int>> rows, Func<Vector2Int, int> roomOf)
 	{
 		var groups = new List<Group>();
@@ -68,8 +67,7 @@ public static class DoorGeometry
 		return new Vector2((minX + maxX) / 2f + 0.5f, (minY + maxY) / 2f + 0.5f);
 	}
 
-	// 문 묶음의 짝(칸) 중 좌우 반전해 그릴 것 — 열림 스프라이트는 한쪽 가장자리(왼쪽 7열)에만 문짝이 있어서, 앞쪽 절반은 그대로 뒤쪽 절반은 반전해야 두 짝이 바깥쪽 양 끝으로 갈라져 젖혀진다(양쪽 여닫이).
-	// 타일은 (x, y) 오름차순이라 수직 게이트는 왼→오른쪽, 수평 게이트(90도 회전)는 아래→위쪽 순서로 같은 규칙이 성립한다. 한 칸짜리 문은 반전하지 않는다.
+	// 문 묶음의 짝(칸) 중 좌우 반전해 그릴 것 — 열림 스프라이트는 왼쪽 7열에만 문짝이 있어 앞쪽 절반은 그대로, 뒤쪽 절반은 반전해야 두 짝이 바깥 양 끝으로 갈라진다(양쪽 여닫이). 타일이 (x, y) 오름차순이라 수직 게이트는 왼→오른쪽, 수평 게이트(90도 회전)는 아래→위쪽 순서로 같은 규칙이며 한 칸짜리 문은 반전하지 않는다.
 	public static bool IsMirroredLeaf(int index, int count)
 		=> count > 1 && index >= (count + 1) / 2;
 

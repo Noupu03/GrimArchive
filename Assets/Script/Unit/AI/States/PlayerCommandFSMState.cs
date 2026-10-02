@@ -213,14 +213,10 @@ public class PlayerCommandFSMState : IFSMState
 
 		if (!AIMovementHelper.MoveTowardsPos(unit, target))
 		{
-			// 검증문서 04-03: 이동이 한 걸음도 못 다가간 틱마다 연속 실패 카운터를 올린다 — 대체 칸 재지정은 카운터를 리셋하지 않고, 다음 틱 이동이 실제로 성공해야(아래 else) 0으로 돌아간다.
-			// (예전엔 재지정이 카운터를 0으로 되돌려, 문 바로 뒤처럼 닿을 수 없는 칸이 계속 대체 칸으로 뽑히면 포기 조건에 영영 못 닿고 명령에 붙잡힌 채 문 앞에 서 있었다.)
+			// 이동이 한 걸음도 못 다가간 틱마다 연속 실패 카운터를 올린다 — 대체 칸 재지정은 리셋하지 않고 다음 틱 이동이 성공해야(아래 else) 0이 된다(재지정이 리셋하면 닿을 수 없는 칸이 계속 뽑혀 포기 조건에 못 닿고 문 앞에 붙잡힌다).
 			unit.playerCommandStuckTurns++;
 
-			// 목표 칸이 다른 유닛/벽으로 막혀 더 다가갈 수 없다 — 바로 옆 빈 칸으로 목표를 재지정한다
-			// (여러 유닛이 같은 지점으로 명령받아 한 명만 도착하는 문제의 대응). FindNearbyOpenTile은
-			// 실제 도달 가능성을 확인하지 않아 target이 멀면 fallback이 매번 성립해 재지정만 반복되므로,
-			// 유닛이 이미 목표에 인접해 있을 때만 적용하고 멀면 아래 혼잡 판정으로 넘어간다.
+			// 목표 칸이 다른 유닛/벽으로 막혀 더 다가갈 수 없으면 바로 옆 빈 칸으로 재지정한다(같은 지점으로 명령받은 여럿 중 한 명만 도착하는 문제 대응). FindNearbyOpenTile은 도달 가능성을 확인하지 않아 target이 멀면 재지정만 반복되므로 이미 목표에 인접했을 때만 적용하고 멀면 아래 혼잡 판정으로 넘어간다.
 			Vector2Int fallback = AIMovementHelper.IsAdjacent(unit.position, target, radius: 2)
 				? AIMovementHelper.FindNearbyOpenTile(unit, target)
 				: target;
@@ -238,8 +234,7 @@ public class PlayerCommandFSMState : IFSMState
 					// 벽이 아니라 전투 중 유닛들이 잠깐 몰려 점유된 경우일 수 있으므로 명령을 포기하지 않고 재시도한다(한도에 닿으면 Abort).
 					return BTStatus.Running;
 				default:
-					// 한도까지 계속 막혔거나 목표 주변이 지형(벽/닫힌 문)으로 진짜 완전히 막혀 있다 — 더 이상 수행 불가능하므로 "이동 불가"를 표시하고 명령을 포기해
-					// 다음 틱부터 정상 판단(디펜스 복귀·오펜스 대기 등)으로 돌아간다(무한 고착 방지).
+					// 한도까지 막혔거나 목표 주변이 벽/닫힌 문으로 완전히 막혀 수행 불가능하다 — '이동 불가'를 표시하고 명령을 포기해 다음 틱부터 정상 판단으로 돌아간다(무한 고착 방지).
 					ShowMoveFailFeedback(unit);
 					unit.AbortMoveCommand();
 					return BTStatus.Success;

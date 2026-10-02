@@ -87,9 +87,7 @@ public class NavigationFSMState : IFSMState
 		if (human.Session?.cmap == null) return BTStatus.Failure;
 		int toFloor = human.pendingStairTargetFloor.Value;
 
-		// 계단 블록 바로 옆 반경 1칸이 건물 등으로 전부 막혀 있을 수 있다 — 반경을 넓혀가며 걸을 수
-		// 있는 타일이 있는 첫 반경을 쓴다(AIMovementHelper.TryResolveUnoccupiedStairArrival과 동일
-		// 이디엄, 2026-09-27). 그 반경 안에서의 점유 판정·거리 점수 계산은 기존 그대로.
+		// 계단 블록 바로 옆 반경 1칸이 건물 등으로 막혀 있을 수 있어 반경을 넓혀 걸을 수 있는 타일이 있는 첫 반경을 쓴다(TryResolveUnoccupiedStairArrival과 같은 방식). 그 안의 점유 판정·거리 점수는 기존 그대로.
 		List<Vector2Int> candidates = null;
 		for (int radius = 1; radius <= AIMovementHelper.MaxStairSearchRadius; radius++)
 		{
@@ -154,9 +152,7 @@ public class NavigationFSMState : IFSMState
 		}
 		human.pendingStairTargetFloor  = null;
 		human.currentExplorationTarget = null; // 층 이동 후 이전 층 BFS 타깃을 초기화 — 새 층에서 처음부터 탐색
-		// 던전 입구 시퀀스 중이었다면 실제로 층을 건너는 바로 이 순간 개인별로 즉시 해제한다 — 파티
-		// 전체가 다 건널 때까지 기다리지 않는다(DungeonEntranceSystem.Finish() 참고, 2026-09-27
-		// 확정 설계). 평소 계단 이동(입구 시퀀스와 무관)에는 항상 false였던 값이라 무해한 재대입이다.
+		// 던전 입구 시퀀스 중이었다면 실제로 층을 건너는 이 순간 개인별로 해제한다 — 파티 전체가 건널 때까지 기다리지 않는다(DungeonEntranceSystem.Finish() 참고). 평소 계단 이동엔 항상 false였던 값이라 무해한 재대입이다.
 		human.isInDungeonEntranceSequence = false;
 		return BTStatus.Success;
 	}
@@ -193,7 +189,7 @@ public class NavigationFSMState : IFSMState
 		{
 			Vector2Int cTarget = unit.currentExplorationTarget.Value;
 			int targetTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cTarget.x, cTarget.y, fi)) : data.discoveredMap[fi][cTarget.x, cTarget.y];
-			// 방 범위가 걸린 인류는 이전 방에서 잡아 둔 타겟을 새 방에 들어온 뒤에도 쫓지 않는다(검증 05-01) — 방 밖 타겟이면 다시 고른다.
+			// 방 범위가 걸린 인류는 이전 방에서 잡아 둔 타겟을 새 방에 들어온 뒤에도 쫓지 않는다 — 방 밖 타겟이면 다시 고른다.
 			bool outsideRoom = h != null && h.TryGetExplorationBounds(out RectInt boundCheck) && !boundCheck.Contains(cTarget);
 			if (targetTerrain == 0 && !outsideRoom) // 아직 미탐색 상태라면 기존 타겟 유지
 			{
@@ -238,10 +234,7 @@ public class NavigationFSMState : IFSMState
 						MoveRandomlyValid(unit);
 					}
 
-					// 플레이테스트 발견: 다음 걸음이 벽이 아니라 "아군"에게 막힌 경우, 위 두 이동
-					// 시도(A* 스텝 + 랜덤 대체)가 전부 실패해도 target을 놓아주지 않아 좁은 통로
-					// 코너에서 여러 유닛이 서로를 영구히 막을 수 있었다 — 몇 틱 연속 제자리면
-					// 포기하고 다른 목표로 넘어간다(CoreAttack/Investigate와 동일한 stuck 패턴).
+					// 다음 걸음이 벽이 아니라 아군에게 막혔는데 A* 스텝·랜덤 대체가 모두 실패해도 target을 놓지 않으면 좁은 통로 코너에서 서로를 영구히 막는다 — 몇 틱 연속 제자리면 포기하고 다른 목표로 넘어간다(CoreAttack/Investigate와 같은 stuck 패턴).
 					if (unit.position == oldPos)
 					{
 						unit.exploreStuckTurns++;
@@ -261,8 +254,7 @@ public class NavigationFSMState : IFSMState
 			}
 			else
 			{
-				// A* 경로 탐색 실패 — 닿을 수 없는 미탐색 목표(적 소유 닫힌 문·점유·함정 구역·가려진 코너 등). 지형을 벽으로 위조하지 않고 '막힘 기록'만 남겨
-				// 아는 정보(지형·문·함정)가 바뀔 때까지 다시 고르지 않는다(04번 9장 막힘 기록과 재시도 조건, 검증 04-08 발견 5). 끄면 예전처럼 그 타일을 벽으로 기록한다.
+				// A* 탐색 실패 — 닿을 수 없는 미탐색 목표(적 소유 닫힌 문·점유·함정 구역·가려진 코너 등)다. 지형을 벽으로 위조하지 않고 '막힘 기록'만 남겨 아는 정보가 바뀔 때까지 다시 고르지 않는다(04번 9장). 끄면 예전처럼 그 타일을 벽으로 기록한다.
 				if (AIConfigLoader.Behavior?.exploreBlockedRecordEnabled ?? true)
 				{
 					RouteAssessment.MarkExploreBlocked(unit, target.Value);
@@ -288,23 +280,17 @@ public class NavigationFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써서 다음 틱 탐색 A*가
-	// 캐시 미스를 낸다. CanMove로 직접 검사해 A*를 우회한다 — 방 제한/대각선 코너 커팅 검사는
-	// AIMovementHelper.TryMoveRandomlyWithinRadius로 통합됐다(IdleFSMState와 공유).
-	// 방 범위가 걸린 인류는 폴백 배회도 방 안(문 타일 제외)에 묶는다 — 무작위 걸음으로 방 밖에 나가지 않는다(검증 05-01).
+	// 1칸 인접 이동에 A*(TryGetNextStep)를 쓰면 _cacheTarget을 인접 좌표로 덮어써 다음 틱 탐색 A*가 캐시 미스를 낸다 — CanMove로 직접 검사해 우회한다(방 제한/코너 커팅 검사는 AIMovementHelper.TryMoveRandomlyWithinRadius, IdleFSMState와 공유). 방 범위가 걸린 인류는 폴백 배회도 방 안(문 타일 제외)에 묶는다.
 	private static void MoveRandomlyValid(Unit unit)
 		=> AIMovementHelper.TryMoveRandomlyWithinRadius(unit, forceRoomConfine: unit is Human h && h.TryGetExplorationBounds(out _));
 
 	private static Vector2Int? FindNearestUnexploredTarget(Unit unit, FactionData data, int fi, int mapW, int mapH)
 	{
-		// 인류 유닛(방 제한 없이 던전 전체를 탐사)은 personalMap이 RevealTile마다 유지하는 프론티어
-		// (미탐사 경계) 집합에서 바로 최근접 후보를 찾는다 — BFS로 탐색 영역 전체를 매번 훑으면 탐사가
-		// 진행될수록 비용이 계속 늘어난다. 방 제한 유닛(몬스터)은 탐색 범위가 좁아 BFS를 그대로 둔다.
-		// 닿지 못해 막힘 기록된 미탐색 타일은 목표로 다시 고르지 않는다(검증 04-08 발견 5) — 기록이 없으면 null.
+		// 인류(방 제한 없이 던전 전체를 탐사)는 personalMap이 RevealTile마다 유지하는 프론티어 집합에서 바로 최근접 후보를 찾는다 — BFS로 매번 전체를 훑으면 탐사가 진행될수록 비용이 늘기 때문이다. 방 제한 유닛(몬스터)은 범위가 좁아 BFS를 둔다. 막힘 기록된 미탐색 타일은 다시 고르지 않으며 기록이 없으면 null이다.
 		var blocked = RouteAssessment.CreateExploreBlockFilter(unit);
 		if (unit is Human explorer)
 		{
-			// 개인이 임의로 다음 방에 들어가지 않는다(검증 05-01, 04번 10장 578줄·05번 1장 53줄·01번 585줄) — 프론티어도 지금 있는 방 안에서만 고른다. 없으면 null(할 일 없는 개인의 합류).
+			// 개인이 임의로 다음 방에 들어가지 않는다(04번 10장·05번 1장) — 프론티어도 지금 방 안에서만 고르며, 없으면 null(할 일 없는 개인의 합류).
 			if (explorer.TryGetExplorationBounds(out RectInt roomBounds))
 				return explorer.personalMap.TryGetNearestFrontierTileInBounds(fi, unit.position, roomBounds, out Vector2Int inRoomTarget, blocked) ? inRoomTarget : (Vector2Int?)null;
 			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget, blocked)

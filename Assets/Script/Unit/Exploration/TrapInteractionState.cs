@@ -32,22 +32,17 @@ public class TrapInteractionState
 	// 발견 시점 위치를 그대로 들고 다닌다(GameSession.GetObjectAt(Vector3Int) 조회에 사용).
 	public Vector3Int TrapPosition;
 
-	// 9-3장(2026-07-27 개정: 5초→2초): 함정 정보 전파 후 2초 동안 발견 유닛이 응답 대기한다. 발견 유닛이
-	// 웨이브 진입 전 파티 내 최고 성공률 유닛(Party.EntryBestDisarmerNames)이면 즉시 true.
+	// 함정 정보 전파 후 2초(9-3장) 동안 발견 유닛이 응답 대기한다 — 웨이브 진입 전 파티 내 최고 성공률 유닛(Party.EntryBestDisarmerNames)이면 즉시 true.
 	public bool JoinWaitElapsed;
 	public float JoinWaitTimer;
 
-	// 9-2~9-5장(2026-07-27 개편, 2026-09-30 03-12에서 복원): 예상 성공률 최고 + 동률이면 ETA 우선으로 뽑힌 "해제 담당 유닛"
-	// 이름 — TrapPartySystem.ResolveSelection이 JoinWaitElapsed 전환 시점에 채운다. 발견자 자신이
-	// 선정되면 IsSelectedDisarmer=true로 계속 해제를 진행하고, 아니면 TrapAwaitSelectedUnit으로 빠진다.
+	// 예상 성공률 최고(동률이면 ETA 우선)로 뽑힌 '해제 담당 유닛' 이름(9-2~9-5장) — TrapPartySystem.ResolveSelection이 JoinWaitElapsed 전환 시점에 채운다. 발견자 자신이면 IsSelectedDisarmer=true로 계속 해제하고, 아니면 TrapAwaitSelectedUnit으로 빠진다.
 	public string SelectedUnitName;
 	public bool IsSelectedDisarmer;
 	// 웨이브 진입 전 파티 내 최고 성공률 유닛이 스스로 발견해 2초 응답을 생략한 경우(9-3장).
 	public bool AutoConfirmed;
 
-	// 03번 v0.12 8장(대기자 = 담당자의 도착을 기다리는 발견 유닛): 담당자가 알려온 도착 예정 시점 중 현재
-	// 적용 중인 것과 그로 정해진 대기 기한. 순서도 03-12-2 — 더 최근에 계산됐고 도착 예정이 실제로 바뀐
-	// 정보만 받아 기한을 갱신한다.
+	// 대기자(담당자 도착을 기다리는 발견 유닛)가 적용 중인 담당자의 도착 예정 시점과 그로 정해진 대기 기한(03번 8장) — 더 최근에 계산됐고 도착 예정이 실제로 바뀐 정보만 받아 갱신한다.
 	public bool HasAppliedEstimate;
 	public float AppliedCalcTime;
 	public float AppliedArrivalTime;                    // 계산 시점 + 남은 예상 이동시간
@@ -63,13 +58,10 @@ public class TrapInteractionState
 	// 9-9장: 파괴 진행 중 함정에 누적한 피해.
 	public float DestroyProgressDamage;
 
-	// 9-6장: 해제/파괴 중 시야·인지·반응속도 50% 페널티가 적용 중인지 — UnitFunction.UpdateFOV가 읽는다.
-	// 해제 진행도 누적의 게이트이기도 하다(UnitFunction.OnUpdate): 해제를 실제로 수행 중일 때만 true.
+	// 해제/파괴 중 시야·인지·반응속도 50% 페널티가 적용 중인지(9-6장, UpdateFOV가 읽음) — 해제 진행도 누적의 게이트이기도 하다(해제를 실제로 수행 중일 때만 true).
 	public bool PenaltyActive;
 
-	// 03번 v0.12 9장·검증문서 03-11: 이번 Tactical 틱에 해제/파괴를 실제로 수행했는지(TacticalFSMState.Tick이 틱
-	// 전에 비우고 TrapDisarmPerform/TrapDestroy가 채운다). 수행 없이 틱이 끝나면 다른 분기(Panic·합류 대기 등)가
-	// 가로챈 중단으로 본다. DestroyActive는 파괴 진행 누적의 게이트(해제의 PenaltyActive에 대응).
+	// 이번 Tactical 틱에 해제/파괴를 실제로 수행했는지(03번 9장) — TacticalFSMState.Tick이 틱 전에 비우고 TrapDisarmPerform/TrapDestroy가 채운다. 수행 없이 끝나면 다른 분기(Panic·합류 대기 등)가 가로챈 중단으로 본다. DestroyActive는 파괴 진행 누적의 게이트다.
 	public bool PerformedThisTick;
 	public bool DestroyActive;
 

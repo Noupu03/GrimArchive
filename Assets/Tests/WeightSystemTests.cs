@@ -433,9 +433,7 @@ public class WeightSystemTests
 	}
 
 	// ── UnitFunction.RecordSpottedEnemyKnowledge: 적을 AccuratePerception으로 인지한 시점의 개인 지식 기록 ──
-	// 이 4개 기능(목격 위치·방 확인 유닛·보스방 승격·공격범위)은 호출이 끊긴 UnitPerceptionHandler에만 있어
-	// 2026-07-24부터 실제 게임에서 한 번도 실행되지 않았다. 위 테스트들은 PersonalMapKnowledge 메서드를 직접
-	// 불러 통과했기 때문에 이를 못 잡았다 — 여기서는 실제 인지 경로가 부르는 진입점을 고정한다.
+	// PersonalMapKnowledge 메서드를 직접 부르는 테스트로는 게임이 그 메서드를 부르는지 알 수 없어, 실제 인지 경로가 부르는 진입점(목격 위치·방 확인 유닛·보스방 승격·공격범위)을 고정한다.
 	private static void InjectKnowledge(Unit u, HumanKnowledgeBase kb)
 	{
 		typeof(Unit).GetField("_knowledgeBase", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)

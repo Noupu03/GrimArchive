@@ -3,8 +3,7 @@ using UnityEngine;
 
 public static class AIMovementHelper
 {
-	// 계단 접근·착지 후보 탐색의 반경 상한 — 어떤 방 배치에서도 이 반경 안엔 걸을 수 있는 열린
-	// 타일이 있다고 본다(TryResolveUnoccupiedStairArrival/NavigationFSMState.MoveToStairs 공유).
+	// 계단 접근·착지 후보 탐색의 반경 상한 — 어떤 배치에서도 이 반경 안엔 걸을 수 있는 열린 타일이 있다고 본다(TryResolveUnoccupiedStairArrival/MoveToStairs 공유).
 	public const int MaxStairSearchRadius = 10;
 
 	// 체비셰프(8방향 격자) 거리 — 여러 FSM 상태가 각자 중복 구현하던 것을 통합.
@@ -19,10 +18,7 @@ public static class AIMovementHelper
 	// (RoomConfinedMovement)을 직접 확인해 단일 기준으로 통일한다.
 	public static bool IsRoomConfined(Unit unit) => unit.MovementAlgorithm is RoomConfinedMovement;
 
-	// 04번 문서 4장: "알려진 적 공격 범위"에 해당하는 타일 전부를 회피 대상으로 모은다. 체비셰프
-	// 사각형(회전 히트박스 아님)으로 근사 — IsRangedFormationRole이 이미 스칼라 HitRange만으로
-	// 원거리/근접을 가르는 것과 동일한 정밀도 수준. 미확인 종은 자연히 빠진다(회피 안 함 ≠ 안전 확정,
-	// 문서가 "모르는 부분을 안전하다고 단정하지 않는다"고 명시).
+	// '알려진 적 공격 범위' 타일 전부를 회피 대상으로 모은다(04번 4장). 체비셰프 사각형 근사(IsRangedFormationRole의 정밀도와 동일)이며, 미확인 종은 빠진다(회피 안 함 ≠ 안전 확정).
 	public static void ComputeKnownAttackRangeAvoidTiles(Unit self, HashSet<Vector2Int> result)
 	{
 		if (!(self is Human human) || human.Knowledge == null) return;
@@ -38,9 +34,7 @@ public static class AIMovementHelper
 		}
 	}
 
-	// 04번 문서 4장: 원거리공격/근접·원거리지원 역할만 회피형 이동으로 승급한다(근접탱커/DPS는 교전
-	// 자체가 목적이라 제외). RoomConfinedMovement(몬스터 전용, 04장 표의 "몬스터" 행으로 별도 관리)는
-	// 건드리지 않는다 — 이미 회피형이면 중복 교체하지 않는다.
+	// 원거리공격/근접·원거리지원 역할만 회피형 이동으로 승급한다(04번 4장; 근접탱커/DPS는 교전이 목적). 몬스터 전용 RoomConfinedMovement는 건드리지 않고, 이미 회피형이면 교체하지 않는다.
 	public static void EnsureAvoidanceMovementForRole(Unit unit, CombatRole role)
 	{
 		bool needsAvoidance = role == CombatRole.RangedDps || role == CombatRole.RangedSupport || role == CombatRole.MeleeSupport;
@@ -50,17 +44,13 @@ public static class AIMovementHelper
 			unit.MovementAlgorithm = new AttackRangeAvoidingMovement();
 	}
 
-	// "노출/직행" 기준선 조회 전용 스크래치 인스턴스 — 유닛 자신의 MovementAlgorithm(회피형일 수 있음)과
-	// 별개로, 이동 캐시를 오염시키지 않는 1회성 비교 질의에만 쓴다.
+	// '노출/직행' 기준선 조회 전용 스크래치 인스턴스 — 유닛의 MovementAlgorithm과 별개로 이동 캐시를 오염시키지 않는 1회성 비교 질의에만 쓴다.
 	private static readonly AStarMovement _exposedPathScratch = new AStarMovement();
 
-	// 함정 통과 판단용 스크래치 — 함정을 무시(TrapMoveMode.Off)한 최단 경로를 잰다. 유닛 자신의 탐색(전투 모드: 통과 조건 미달 함정 타일 차단)과 비교해
-	// "함정 경로가 우회보다 빠른가"(v0.6 9-13)를 판정한다.
+	// 함정 통과 판단용 스크래치 — 함정을 무시(TrapMoveMode.Off)한 최단 경로를 재 유닛 자신의 전투 모드 탐색과 비교해 '함정 경로가 우회보다 빠른가'(v0.6 9-13)를 판정한다.
 	private static readonly AStarMovement _trapPassScratch = new AStarMovement { TrapModeOverride = TrapMoveMode.Off };
 
-	// 검증문서 03-13(03번 v0.12 9장 통과 판단표 3~4행, 02번 v0.12 9장): 긴급 아군 보호로 함정을 밟고 지나가는 경우만 허용하는 예외. 함정을 무시한 최단 경로가
-	// 알려진 함정을 지나고, 그 경로가 우회(자기 전투 모드 경로)보다 짧고, 보호 대상 HP ≤ 30%이며, 이동자 조건(기록 함정: 피해 후 HP ≥ 30% / 미기록 함정: 현재
-	// HP ≥ 60%)을 만족할 때 그 경로로 한 걸음 간다(밟으면 GameSession.TriggerTrapIfStepped가 피해). 개입하지 않으면 false.
+	// 긴급 아군 보호로 함정을 밟고 지나가는 경우만 허용하는 예외(03번 9장 통과 판단표, 02번 9장): 함정 무시 최단 경로가 알려진 함정을 지나고, 우회보다 짧고, 보호 대상 HP ≤ 30%이며, 이동자 조건(기록 함정: 피해 후 HP ≥ 30% / 미기록: 현재 HP ≥ 60%)을 만족하면 한 걸음 간다(밟으면 TriggerTrapIfStepped가 피해). 개입하지 않으면 false.
 	private static bool TryMoveThroughTrapsToProtect(Unit unit, Unit protect, Vector2Int destination)
 	{
 		if (!(unit is Human human) || protect == null || !TrapAvoidance.IsEnabled(unit)) return false;
@@ -70,7 +60,7 @@ public static class AIMovementHelper
 		TrapAvoidance.CollectKnownTraps(human, traps);
 		if (traps.Count == 0) return false;
 
-		// 목적지는 보호 대상 유닛의 타일(점유됨)이다 — 경로 조회는 목표 타일 점유를 막지 않으므로(AStarMovement.RunQuerySearch) 그 타일까지의 길이를 잴 수 있다.
+		// 목적지는 보호 대상의 타일(점유됨)이다 — 경로 조회는 목표 점유를 막지 않아(RunQuerySearch) 그 타일까지 길이를 잴 수 있다.
 		if (!_trapPassScratch.TryGetPathTiles(unit, destination, out List<Vector2Int> trapPath)) return false;
 
 		float recordedDamage = 0f;
@@ -103,8 +93,7 @@ public static class AIMovementHelper
 		return unit.position != before;
 	}
 
-	// 02번 9번 항목: 안전 경로(회피형)가 이미 더 빠르면 그냥 그걸 쓰고, 안전 경로가 느리면 노출(직행)
-	// 경로가 지나는 "알려진 공격범위" 구간의 예상 피해를 계산해 자기 HP 잔여율로 감수 여부를 판정한다.
+	// 안전 경로(회피형)가 더 빠르면 그걸 쓰고, 느리면 노출(직행) 경로가 지나는 '알려진 공격범위' 구간의 예상 피해를 계산해 자기 HP 잔여율로 감수 여부를 정한다(02번 9항).
 	public static bool MoveTowardsProtectTargetWithRiskCheck(Unit unit, Unit protect)
 	{
 		Vector2Int destination = protect.position;
@@ -133,13 +122,8 @@ public static class AIMovementHelper
 		return MoveTowardsPos(unit, destination); // 위험 과함 — 안전(회피) 경로 유지
 	}
 
-	// 노출 경로가 지나는 타일 중 "알려진 적 공격범위"와 겹치는 종마다, 그 종의 예상 스킬피해량(02번 9번
-	// 항목) 중 최댓값 1회분만 더한다 — "공격 횟수·도달시점 불확실한 건 확정피해처럼 안 더한다"(원문).
-	// 원문이 명시한 "자신의 알려진 방어·감소 효과"도 반영한다 — 실제 데미지 파이프라인(UnitFunction.
-	// TakePhysicalDamage/TakeMagicalDamage)과 동일하게 방어력을 뺀 뒤 1 이하로 안 내려가게 한다.
-	// (2026-09-27 수정: 처음엔 방어력을 안 빼고 raw 값을 그대로 썼음 — 사용자 지적으로 발견.)
-	// 반환값 = 추정 가능 여부(02번 v0.12 9장 458줄·순서도 02-07, 검증 02-10 재판정 2026-09-30): 노출 경로가 지나는 종에게 공격 스킬이 있는데 그 피해를 하나도
-	// 추정할 수 없으면 false — 호출부는 0 피해로 계산하거나 계산에서 빼고 허용하지 말고 그 노출 경로를 제외해야 한다.
+	// 노출 경로가 지나는 타일 중 '알려진 적 공격범위'와 겹치는 종마다 예상 스킬피해량(02번 9항)의 최댓값 1회분만 더한다(공격 횟수·도달시점이 불확실한 건 확정 피해처럼 안 더함). 자신의 방어력도 실제 데미지 파이프라인과 같이 반영해 1 이하로 안 내려가게 한다.
+	// 반환값 = 추정 가능 여부(02번 9장): 노출 경로의 종에게 공격 스킬이 있는데 피해를 하나도 추정할 수 없으면 false — 호출부는 0 피해로 계산하지 말고 그 노출 경로를 제외해야 한다.
 	private static bool TryEstimateExposureDamage(Unit unit, List<Vector2Int> exposedTiles, out float total)
 	{
 		total = 0f;
@@ -198,7 +182,7 @@ public static class AIMovementHelper
 			Vector2Int dirVec = unit.GetDirVector(tryDir);
 			Vector2Int nextPos = unit.position + dirVec;
 			if (!unit.CanMove(nextPos)) continue;
-			// 검증문서 03-13: A*를 안 타는 배회도 알려진 활성 함정의 인접 1칸 구역에 들어가지 않는다.
+			// A*를 안 타는 배회도 알려진 활성 함정의 인접 1칸 구역에 들어가지 않는다.
 			if (TrapAvoidance.BlocksGeneralStep(unit, nextPos)) continue;
 
 			if (anchor.HasValue && ChebyshevDistance(nextPos, anchor.Value) > radius) continue;
@@ -227,8 +211,7 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 문 앞 통과 구간(05번 3장 197~199줄: 문 바로 앞 2칸) 안인가 — tile 자신이나 체비셰프 거리 PartyFormationMath.DoorClearance 미만 칸에 문 타일·게이트 문턱이 있으면 true(문이 파괴돼도 문턱은 남는다).
-	// 집결 자리처럼 통과 구간을 비워야 하는 자리 후보에서 제외하는 데 쓴다. 유닛 점유 크기 전체는 보지 않고 기준 타일만 본다(인류 전부 1×1).
+	// 문 앞 통과 구간(05번 3장: 문 앞 2칸) 안인가 — tile 자신이나 체비셰프 거리 DoorClearance 미만 칸에 문 타일·게이트 문턱이 있으면 true(문이 파괴돼도 문턱은 남는다). 집결 자리 후보 제외에 쓰며 기준 타일만 본다(인류 전부 1×1).
 	public static bool IsWithinDoorClearance(GameSession session, int floor, Vector2Int tile)
 	{
 		if (session == null) return false;
@@ -244,10 +227,7 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다. CanMove를 거치지 않는 순간이동성 이동
-	// (CrossStairs, HumanWaveManager 강제 이동/퇴각)이 전부 이 헬퍼를 거쳐야 한 좌표에 여러 유닛이
-	// 겹쳐 텔레포트되는 걸 막는다. 반경 1이 막혀 있거나 꽉 찼으면 반경을 넓혀가며 계속 찾는다
-	// (FindDoorWaitSlot과 동일 이디엄) — false는 MaxStairSearchRadius 안 전체가 불가능할 때뿐.
+	// 계단 도착(순간이동) 지점을 점유 없는 칸으로 고른다 — CanMove를 거치지 않는 순간이동(CrossStairs, HumanWaveManager 강제 이동/퇴각)이 모두 이 헬퍼를 거쳐야 한 좌표에 여러 유닛이 겹치지 않는다. 반경 1이 막히면 반경을 넓혀 찾고(FindDoorWaitSlot과 같은 방식), false는 MaxStairSearchRadius 안이 전부 불가능할 때뿐이다.
 	public static bool TryResolveUnoccupiedStairArrival(GameSession session, int arrivalFloor, int fromFloor, out Vector2Int pos)
 	{
 		pos = Vector2Int.zero;
@@ -272,7 +252,7 @@ public static class AIMovementHelper
 	// 호출부(PlayerCommandFSMState)가 이 신호로 "길이 막혔다"를 판단해 목표를 재지정한다.
 	public static bool MoveTowardsPos(Unit unit, Vector2Int targetPos)
 	{
-		// 점유 충돌 판단(검증 04-05~04-07): 가려던 자리를 같은 진영 유닛이 차지했다면 대기 vs 우회를 예상 도착시간으로 비교한다. true = 대기(또는 비켜서기)로 이번 주기를 썼다.
+		// 가려던 자리를 같은 진영 유닛이 차지했다면 대기 vs 우회를 예상 도착시간으로 비교한다(점유 충돌 판단). true = 이번 주기는 대기(또는 비켜서기)로 썼다.
 		if (OccupancySystem.TryHold(unit, targetPos)) return true;
 
 		if (unit.MovementAlgorithm != null && unit.MovementAlgorithm.TryGetNextStep(unit, targetPos, out Dir nextDir))
@@ -307,8 +287,7 @@ public static class AIMovementHelper
 		return best;
 	}
 
-	// 05번 1장·8장: observer의 개인 지도로 "알고 있는"(PropagationSystem.KnowsDoor — 문 타일을 직접 확인했거나 파티원에게 전파받아 등록한, 검증 05-06) 현재 방의 문 중 하나를 고른다. targetCenter가 있으면
-	// 그 방향에 가장 가까운 문(알려진 다음 이동 문), 없으면 observer에게 가장 가까운 문. 진짜 방 그래프 최단경로 대신 좌표 거리 근사.
+	// observer의 개인 지도로 '아는'(PropagationSystem.KnowsDoor) 현재 방의 문 중 하나를 고른다(05번 1·8장). targetCenter가 있으면 그 방향에 가장 가까운 문(알려진 다음 이동 문), 없으면 observer에게 가장 가까운 문 — 방 그래프 최단경로 대신 좌표 거리 근사.
 	public static bool TryFindKnownDoorInCurrentRoom(Human observer, Vector2? targetCenter, out Vector2Int doorPos, out int doorFloor)
 	{
 		doorPos = default; doorFloor = 0;
@@ -337,15 +316,13 @@ public static class AIMovementHelper
 		return found;
 	}
 
-	// 05번 문서 3장: 문 대기는 문 바로 앞 통과 구간(체비셰프 거리 1 이내)을 비우고 그 밖에서 기다린다.
-	// claimedSlots는 호출부가 파티 전체에 걸쳐 공유해 자리가 안 겹치게 한다. 반경 5 안에서도 못
-	// 찾으면(좁은 통로 등) 문 위치 그대로 반환한다 — 겹치더라도 완전히 못 오는 것보다 낫다는 폴백.
+	// 문 대기는 문 바로 앞 통과 구간(체비셰프 1 이내)을 비우고 그 밖에서 기다린다(05번 3장). claimedSlots는 호출부가 파티 전체에서 공유해 자리가 안 겹치게 하고, 반경 5 안에서 못 찾으면 문 위치를 그대로 반환한다(겹치더라도 못 오는 것보다 낫다).
 	public static Vector2Int FindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots)
 	{
-		// 문이 속한 쪽 방 안에서만 고른다 — 반경 안이라는 이유만으로 문 반대편(닫힌 적 문 너머)의 닿을 수 없는 타일을 자리로 뽑던 문제(플레이 로그 2026-10-01). 방을 못 구하거나 그 방 안에 자리가 없으면 예전처럼 제한 없이 고른다.
+		// 문이 속한 쪽 방 안에서만 고른다 — 반경 안이라는 이유만으로 닫힌 적 문 너머의 닿을 수 없는 타일을 뽑지 않게. 방을 못 구하거나 자리가 없으면 제한 없이 고른다.
 		Room doorRoom = null;
 		unit.Session?.roomGrid?.TryGetValue(new Vector3Int(doorPos.x, doorPos.y, unit.currentFloor), out doorRoom);
-		// 문 앞 통과 구간(05번 3장 197~201줄)을 비운 자리가 우선이고, 문 주변이 좁아 없으면 통행 가능한 인접 지점으로 완화한다. 반경은 이 문 타일 하나 기준이라 1×2 묶음의 다른 칸·문턱은 구간 검사가 따로 본다(검증 05-07).
+		// 문 앞 통과 구간을 비운 자리가 우선이고 문 주변이 좁아 없으면 통행 가능한 인접 지점으로 완화한다(05번 3장). 반경은 이 문 타일 하나 기준이라 1×2 묶음의 다른 칸·문턱은 구간 검사가 따로 본다.
 		Vector2Int slot;
 		if (doorRoom != null
 			&& (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, true, out slot) || TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, false, out slot)))

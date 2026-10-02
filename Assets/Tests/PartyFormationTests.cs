@@ -4,8 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 집결 개선(2026-10-01 플레이 로그 분석): 집결 자리 점진 확장 / 문 앞 진형 기하 / 레인 배정 / 문 파괴 행·공격 자리·배정 / 입장 순서 — 전부 순수 함수(PartyFormationMath)라 세션 없이 EditMode에서 돈다.
-// 0층 진형(DungeonEntranceSystem)이 쓰던 랭크·레인 규칙을 옮긴 것이므로 LaneOffset/SlotTarget은 0층 공식 그대로여야 한다.
+// 집결 자리 점진 확장 / 문 앞 진형 기하 / 레인 배정 / 문 파괴 행·공격 자리·배정 / 입장 순서 — 전부 순수 함수(PartyFormationMath)라 세션 없이 EditMode에서 돈다. 0층 진형(DungeonEntranceSystem)의 랭크·레인 규칙을 옮긴 것이므로 LaneOffset/SlotTarget은 0층 공식 그대로여야 한다.
 // ========================================================================
 
 public class PartyFormationTests
@@ -154,7 +153,7 @@ public class PartyFormationTests
 		}
 	}
 
-	// ── 좁은 길: 구역·재선택 기억(2026-10-01 플레이 로그 2차 — 아처형이 (7,46)↔(3,46)을 오가며 집결이 끝나지 않음) ──
+	// ── 좁은 길: 구역·재선택 기억(양 끝을 오가며 집결이 끝나지 않던 문제) ──
 
 	[Test]
 	public void ZoneRadius_IsFarthestAssignedSlot_MinOne()
@@ -177,8 +176,7 @@ public class PartyFormationTests
 	[Test]
 	public void RepickNearestToSelf_WithRejectedMemory_NeverRevisitsASlot_InOneWideCorridor()
 	{
-		// 폭 1칸 복도(x 0~10, y 46)에서 막힐 때마다 "나에게 가까운 구역 안 빈 타일"을 다시 고른다. 막혀 포기한 자리를 기억하면 같은 자리를 두 번 고르지 않고
-		// 구역 안 후보(x 1~9, 9칸)가 정확히 한 번씩 소진된다 — 예전엔 집결지에서 가까운 자리를 매번 새로 골라 양 끝을 무한히 오갔다.
+		// 폭 1칸 복도(x 0~10, y 46)에서 막힐 때마다 '나에게 가까운 구역 안 빈 타일'을 다시 고른다 — 막혀 포기한 자리를 기억하면 같은 자리를 두 번 고르지 않고 구역 안 후보(x 1~9, 9칸)가 정확히 한 번씩 소진된다.
 		var self = new Vector2Int(9, 46);
 		var center = new Vector2Int(5, 46);
 		var rejected = new HashSet<Vector2Int>();
@@ -297,7 +295,7 @@ public class PartyFormationTests
 		var withoutForward = PartyFormationMath.AttackSlotsAround(far, Standable);
 		var withForward = PartyFormationMath.AttackSlotsAround(far, Standable, Vector2Int.up);
 
-		Assert.AreEqual(8, withoutForward.Count);   // 로그의 "공격 자리 6개" 중 4개가 문 너머였던 것과 같은 모양(여기선 4 + 4)
+		Assert.AreEqual(8, withoutForward.Count); // 공격 자리 6개 중 4개가 문 너머였던 것과 같은 모양(여기선 4 + 4)
 		Assert.AreEqual(new[] { new Vector2Int(5, 47), new Vector2Int(6, 47), new Vector2Int(7, 47), new Vector2Int(8, 47) }, withForward.ToArray());
 	}
 
@@ -485,7 +483,7 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.CanReleaseRank(2, tiers, passed));
 	}
 
-	// ── 개인 탐색의 방 범위(검증 05-01) ─────────────────────────────────
+	// ── 개인 탐색의 방 범위 ─────────────────────────────────
 
 	[Test]
 	public void TryNearestInRect_PicksTheClosestTileInsideTheRoom_IgnoringCloserOnesOutside()
@@ -512,7 +510,7 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.TryNearestInRect(new[] { new Vector2Int(50, 50) }, new Vector2Int(0, 0), 0, 0, 5, 5, out _));
 	}
 
-	// ── 탐험 막힘 기록(검증 04-08 발견 5) ───────────────────────────────
+	// ── 탐험 막힘 기록 ───────────────────────────────
 
 	[Test]
 	public void TryNearestInRect_SkipsExcludedTiles_AndFallsBackToTheNextClosest()
@@ -531,7 +529,7 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.TryNearestInRect(frontier, new Vector2Int(10, 10), 10, 10, 20, 20, out _, t => true));
 	}
 
-	// ── 조사 시작 여부(검증 05-04 발견 1) ───────────────────────────────
+	// ── 조사 시작 여부 ───────────────────────────────
 
 	[Test]
 	public void IsInvestigationStarted_MovingToTargetOnly_IsNotStarted()
@@ -554,7 +552,7 @@ public class PartyFormationTests
 		Assert.IsTrue(PartyFormationMath.IsInvestigationStarted(penaltyActive: false, progress01: 0.25f));
 	}
 
-	// ── 리더 명령의 "같은 방" 판정(검증 05-03 관찰 4) ──────────────────────
+	// ── 리더 명령의 "같은 방" 판정 ──────────────────────
 
 	[Test]
 	public void IsSameRoomForCommand_SameRoomReference_IsTrue()

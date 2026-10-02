@@ -38,7 +38,7 @@ public abstract class SkillAction
 	{
 		if (unit == null || target == null) return false;
 
-		// 검증 04-01: 아군 대상 스킬(치료·보호막·버프)은 사거리뿐 아니라 차폐 조건도 만족해야 한다 — 벽 너머 아군은 사거리 안이어도 대상이 아니다.
+		// 아군 대상 스킬(치료·보호막·버프)은 사거리뿐 아니라 차폐 조건도 만족해야 한다 — 벽 너머 아군은 사거리 안이어도 대상이 아니다.
 		if (Affinity == SkillAffinity.Ally && !HasClearLineTo(unit, target)) return false;
 
 		// 적을 시전자 기준 히트박스로 때리는 방식만 히트박스 검사를 거친다. 그 외는 대상까지의 거리로 판단한다.
@@ -251,7 +251,7 @@ public abstract class SkillAction
 		return _hitboxQueryResultSet.Contains(target);
 	}
 
-	// 예상 피해량 계산용 물리/마법 분류 — HumanKnowledgeBase._magicalSkillArchetypes(GroundAoE/Curse만 마법)와 같은 기준. 스킬에 damageType 필드가 생기면 이 한 곳만 바꾼다.
+	// 예상 피해량 계산용 물리/마법 분류 — HumanKnowledgeBase._magicalSkillArchetypes(GroundAoE/Curse만 마법)와 같은 기준이며, 스킬에 damageType 필드가 생기면 이 한 곳만 바꾼다.
 	public static bool IsMagicalDamage(SkillAction skill) => skill is SkillAction_GroundAoE || skill is SkillAction_Curse;
 
 	public static Hitbox GetUnitHitbox(Unit u)

@@ -532,9 +532,7 @@ public abstract class UnitFunction : Unit
 		Propagation.PropagatedInfo.Remove(unit);
 	}
 
-	// 적을 AccuratePerception으로 인지한 시점의 개인 지식 기록(인류 전용): 목격 위치(24장), 방 확인 유닛(20·21장 방
-	// 위험도·흥미도), 보스방 승격(01번 9장), "아는 공격범위" 게이트(04번 4장)가 여기서만 채워진다. 예전엔
-	// UnitPerceptionHandler에 있었지만 2026-07-24부터 호출이 끊겨 한 번도 실행되지 않았다.
+	// 적을 AccuratePerception으로 인지한 시점의 개인 지식 기록(인류 전용): 목격 위치(24장), 방 확인 유닛(20·21장), 보스방 승격(01번 9장), '아는 공격범위' 게이트(04번 4장)가 여기서만 채워진다.
 	public void RecordSpottedEnemyKnowledge(Unit enemy, Vector3Int tile, int roomId)
 	{
 		if (!(this is Human human) || human.Knowledge == null || enemy == null) return;
@@ -646,7 +644,7 @@ public abstract class UnitFunction : Unit
 			{
 				int terrainRevisionBefore = terrainObserver.personalMap.TerrainRevision;
 				bool isFirstReveal = terrainObserver.personalMap.RevealTile(revealedTile, tileIsWall);
-				// 검증 04-08: 새로 알게 된 벽이 캐시한 이동 경로 위면 다음 걸음에 경로를 다시 계산한다(매 패스 모든 타일을 조회하지 않도록 지형이 실제로 바뀐 벽에서만).
+				// 새로 알게 된 벽이 캐시한 이동 경로 위면 다음 걸음에 경로를 다시 계산한다(매 패스 모든 타일을 조회하지 않도록 지형이 실제로 바뀐 벽에서만).
 				if (tileIsWall && terrainObserver.personalMap.TerrainRevision != terrainRevisionBefore)
 					MovementAlgorithm?.OnTileBecameWall(this, new Vector2Int(x, y));
 				if (isFirstReveal && !tileIsWall)
@@ -654,12 +652,12 @@ public abstract class UnitFunction : Unit
 					int totalFloorTiles = cmap.GetRoomFloorTileCount(currentFloor, chunk.roomId);
 					// 01-10: 타일 공개만으로는 보스방으로 기록하지 않는다(ConfirmBossRoom만이 승격시킴).
 					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, false, totalFloorTiles, terrainObserver);
-					// 01번 문서 7-2장: 파티 전체 시야 합산(검증문서 01-06-4 1번).
+					// 01번 문서 7-2장: 파티 전체 시야 합산.
 					terrainObserver.party?.OnTileRevealedInRoom(chunk.roomId, new Vector2Int(x, y), totalFloorTiles);
 				}
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{
-					// 05번 7장·검증 05-06: 시야로 확인한 문은 파티가 전파할 수 있는 정보로 원장에 올린다(인지 판정과 무관 — "아는 문" 판정 PropagationSystem.KnowsDoor와 같은 기준).
+					// 시야로 확인한 문은 파티가 전파할 수 있는 정보로 원장에 올린다(05번 7장) — 인지 판정과 무관하며 '아는 문' 판정(PropagationSystem.KnowsDoor)과 같은 기준이다.
 					if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag)) terrainObserver.party?.KnownDoorObjects.TryAdd(obj.Id, obj.Position);
 					if (!obj.IsCollected && !terrainObserver.personalMap.IsObjectKnown(obj.Id))
 					{
@@ -684,8 +682,7 @@ public abstract class UnitFunction : Unit
 									PartyDeathSystem.OnCorpseDiscovered(terrainObserver, obj);
 								if (objKind == PerceptionTargetKind.Corpse && obj.Tags.Contains("Monster"))
 									PropagationSystem.OnMonsterCorpseDiscovered(terrainObserver, obj);
-								// 코어 공격 자체는 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접 확인해 발견
-								// 이벤트가 필요 없었지만, 03번 문서 3번 항목(리더 보고)은 별도 전파가 필요하다.
+								// 코어 공격은 TacticalFSMState.HasCoreAttackTarget이 방 단위로 직접 확인해 발견 이벤트가 필요 없지만, 리더 보고(03번 3항)는 별도 전파가 필요하다.
 								if (objKind == PerceptionTargetKind.Core)
 									PartyCoreReportSystem.OnCoreDiscovered(terrainObserver, obj);
 							}
@@ -780,7 +777,7 @@ public abstract class UnitFunction : Unit
 				kv.Value.WasInRange = false;
 		}
 
-		// 검증문서 03-15: 이번 패스에 리더가 시야에 들어왔다면 직접 확인한 리더 위치로 기록한다.
+		// 이번 패스에 리더가 시야에 들어왔다면 직접 확인한 리더 위치로 기록한다.
 		if (this is Human sightedBy && sightedBy.party != null)
 			PartyCoreReportSystem.RefreshKnownLeaderFromSight(sightedBy);
 	}
@@ -916,7 +913,7 @@ public abstract class UnitFunction : Unit
 		actualRoom?.AddUnit(this);
 		currentRoom = actualRoom;
 
-		// 인류 개인 탐색의 방 범위(검증 05-01)와 리더 방 경로의 "방문한 방"(검증 05-06 관찰 2)을 갱신한다.
+		// 인류 개인 탐색의 방 범위와 리더 방 경로의 "방문한 방"을 갱신한다.
 		if (actualRoom != null && this is Human roomHuman)
 		{
 			roomHuman.lastKnownRoom = actualRoom;
@@ -1028,11 +1025,11 @@ public abstract class UnitFunction : Unit
 				TrapPartySystem.TickOngoingPropagation(human);
 				// 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보도 동일 패턴으로 지속 재전파한다.
 				PropagationSystem.TickOngoingObjectPropagation(human);
-				// 검증문서 03-14 발견 2/03-15: 아직 리더에게 전하지 못한 코어 보고 의무를 이어 간다(전달·재무장·리더 위치 중계).
+				// 아직 리더에게 전하지 못한 코어 보고 의무를 이어 간다(전달·재무장·리더 위치 중계).
 				PartyCoreReportSystem.TickPendingReport(human);
 				// 03번 v0.6 4-7: 다른 파티원에게 전파받은 적 위치가 있고 다른 우선 행동이 없으면 그 위치로 접근한다.
 				PropagationSystem.TickIndirectEnemyApproach(human);
-				// 검증문서 03-13: 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
+				// 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
 				TrapPartySystem.TickBlockedPathResponse(human);
 			}
 			_safetyTickTimer = 0f;
@@ -1093,12 +1090,10 @@ public abstract class UnitFunction : Unit
 			}
 			else if (trap.SelectedUnitName != null && !trap.IsSelectedDisarmer && this is Human waitingHuman)
 			{
-				// 순서도 03-12-2: 선정되지 않은 발견 유닛 — 담당자 보고 수신과 대기 기한 판정.
+				// 선정되지 않은 발견 유닛 — 담당자 보고 수신과 대기 기한 판정.
 				TrapPartySystem.TickWaitingForSelectedUnit(waitingHuman, trap);
 			}
-			// 검증문서 03-11: 진행도는 해제/파괴를 "실제로 수행 중인" 동안에만 쌓는다. Phase는 첫 수행 뒤 그대로 남으므로
-			// 조사 진행도(아래)처럼 수행 게이트(PenaltyActive/DestroyActive)가 있어야 전투·중단 중에 누적돼 50% 손실이
-			// 무력화되지 않는다(TacticalFSMState.Tick/OnExit가 수행이 끊기면 이 플래그를 내린다).
+			// 진행도는 해제/파괴를 '실제로 수행 중인' 동안에만 쌓는다 — Phase는 첫 수행 뒤 그대로 남으므로 수행 게이트(PenaltyActive/DestroyActive)가 없으면 전투·중단 중에도 누적돼 50% 손실이 무력화된다(TacticalFSMState.Tick/OnExit가 수행이 끊기면 내린다).
 			else if (trap.Phase == TrapPhase.Disarming && trap.PenaltyActive && !stunned)
 			{
 				trap.DisarmProgress01 = Mathf.Min(1f, trap.DisarmProgress01 + deltaTime / (AIConfigLoader.Behavior?.trapDisarmDurationSeconds ?? ExplorationMath.TrapDisarmDurationSeconds));

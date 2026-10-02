@@ -1,8 +1,4 @@
-// 01번 문서 7-1장: 파티 종류별로 "현재 방 활동 종료·집결 기준"이 다르다. 편성 가능 유닛·선택
-// 가중치는 미작성 03_파티 종류·목표·포메이션 문서 영역이라 스텁. 점령은 오직 점령 파티만 하며
-// (보스공략은 별도 구별 근거 없어 제외), 실제 트리거 조건은 미정이라 Occupy/IsRoomActivityComplete는
-// 판정 기준만 세팅으로 남겨뒀다 — 붙일 때는 OffenseProcessor.OnCoreDestroyed(소유권 전환 패턴) +
-// IMapColorizer.PulseRoomOutline(완료 연출)을 참고.
+// 파티 종류별로 현재 방 활동 종료·집결 기준이 다르다(01번 7-1장). 편성 가능 유닛·가중치는 미작성 문서 영역이라 스텁이고, 점령은 점령 파티만 한다(보스공략은 제외). 점령의 실제 트리거 조건은 미정이라 Occupy/IsRoomActivityComplete는 판정 기준만 세팅으로 남겼다 — 붙일 때는 OffenseProcessor.OnCoreDestroyed(소유권 전환 패턴)와 IMapColorizer.PulseRoomOutline(완료 연출)을 참고.
 public enum PartyType
 {
 	Explore, // 탐색 파티 — 방 지형 전체를 시야로 확인해야 활동 종료

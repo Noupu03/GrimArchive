@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 파티 진형·집결 자리·진입로 판정 순수 계산(부수효과 없음, Vector2Int만 다룬다). 0층 입구 진형(DungeonEntranceSystem)과 방 문 앞 진형(PartyAdvanceSystem)이
-// 같은 랭크/레인 정의를 공유한다 — 근접 0랭크 → 리더 1랭크 → 원거리 2랭크, 랭크 간격 2, 레인은 전진축 직각 방향 좌우 대칭.
+// 파티 진형·집결 자리·진입로 판정 순수 계산(부수효과 없음). 0층 입구 진형(DungeonEntranceSystem)과 방 문 앞 진형(PartyAdvanceSystem)이 같은 랭크/레인 정의를 공유한다 — 근접 0랭크 → 리더 1랭크 → 원거리 2랭크, 랭크 간격 2, 레인은 전진축 직각 방향 좌우 대칭.
 public static class PartyFormationMath
 {
 	public const int RankSpacing = 2;
@@ -13,8 +12,7 @@ public static class PartyFormationMath
 	public const int MeleeEngageDistanceThreshold = 3;
 	public const int ArrivalRadius = 1;
 	public const int DefaultSearchRadius = 12;
-	// 문 앞 통과 구간 — 문 타일에서 이 체비셰프 거리 미만에는 진형 대기 자리를 두지 않는다(05번 3장 "문 바로 앞 통과 구간 2칸을 비워 두고 점유 타일 전체가 그 밖에서 기다린다").
-	// AIMovementHelper.FindDoorWaitSlot의 최소 반경(2)과 같은 해석이다. 문을 부수는 유닛만 파괴 단계에서 잠시 이 구간(문 인접 1칸)으로 들어간다.
+	// 문 앞 통과 구간 — 문 타일에서 이 체비셰프 거리 미만에는 진형 대기 자리를 두지 않는다(05번 3장, FindDoorWaitSlot의 최소 반경 2와 같은 해석). 문을 부수는 유닛만 파괴 단계에서 잠시 이 구간(문 인접 1칸)에 들어간다.
 	public const int DoorClearance = 2;
 
 	public static bool IsMeleeEngage(int engageDistance) => engageDistance <= MeleeEngageDistanceThreshold;
@@ -65,8 +63,7 @@ public static class PartyFormationMath
 	public static bool IsWithinZone(Vector2Int position, Vector2Int center, int radius)
 		=> Mathf.Max(Mathf.Abs(position.x - center.x), Mathf.Abs(position.y - center.y)) <= radius + 1;
 
-	// ideal(반경 0)부터 maxRadius까지 링을 넓혀 가며 isFree를 만족하는 가장 가까운 타일 — 고정 반경이 아니라 점진 확장이다. 같은 링에서는 ideal과 거리가 가까운 쪽,
-	// 동률은 순회 순서(결정적)로 고른다. 고른 타일은 claimed에 넣는다.
+	// ideal(반경 0)부터 maxRadius까지 링을 넓혀 가며 isFree를 만족하는 가장 가까운 타일(점진 확장). 같은 링에선 ideal에 가까운 쪽, 동률은 순회 순서로 고르며 고른 타일은 claimed에 넣는다.
 	public static bool TryPickNearestFreeTile(Vector2Int ideal, Func<Vector2Int, bool> isFree, ISet<Vector2Int> claimed, int maxRadius, out Vector2Int picked)
 	{
 		picked = default;
@@ -111,12 +108,11 @@ public static class PartyFormationMath
 
 	// ── 문 파괴 ────────────────────────────────────────────────────────────────────────────
 
-	// 문은 방 쪽 줄(1×2 묶음)마다 오브젝트 하나라 파괴 대상은 두 행뿐이다. 다음에 부술 행: 0 = near(리더 방 쪽), 1 = far, -1 = 둘 다 열림(진입로 확보). far는 near가 열린 뒤에만 닿으므로 near를 먼저 본다.
+	// 문은 방 쪽 줄(1×2 묶음)마다 오브젝트 하나라 파괴 대상은 두 행뿐이다. 다음에 부술 행: 0 = near(리더 방 쪽), 1 = far, -1 = 둘 다 열림. far는 near가 열린 뒤에만 닿으므로 near를 먼저 본다.
 	public static int NextBreachRow(bool nearBlocked, bool farBlocked)
 		=> nearBlocked ? 0 : (farBlocked ? 1 : -1);
 
-	// 문 파괴 자리 — 목표 문 타일 중 하나에 체비셰프 거리 1이고, 문 타일이 아니며, isStandable인 칸을 전부 모은다(자리가 남는 만큼만 투입하기 위한 후보). (x, y) 오름차순이라 결정적이다.
-	// forward(near → far 통과 방향)를 주면 문 줄 너머(통과 방향 쪽) 칸은 뺀다 — isStandable은 그 칸 하나만 보므로 아직 닫힌 far 문 너머 칸도 "설 수 있는 칸"으로 나오는데, 닿을 수 없는 자리를 받은 인원이 돌아가는 길로 헤매기 때문이다.
+	// 문 파괴 자리 — 목표 문 타일에 체비셰프 거리 1이고 문 타일이 아니며 isStandable인 칸 전부(자리가 남는 만큼만 투입하기 위한 후보, (x, y) 오름차순). forward(near → far 통과 방향)를 주면 문 줄 너머 칸은 뺀다 — isStandable은 그 칸만 봐서 닫힌 far 문 너머도 '설 수 있는 칸'으로 나오고, 닿을 수 없는 자리를 받은 인원이 돌아가는 길로 헤맨다.
 	public static List<Vector2Int> AttackSlotsAround(IList<Vector2Int> doorTiles, Func<Vector2Int, bool> isStandable, Vector2Int? forward = null)
 	{
 		var doorSet = new HashSet<Vector2Int>(doorTiles);
@@ -138,9 +134,8 @@ public static class PartyFormationMath
 		return slots;
 	}
 
-	// 우선순위 단계(작을수록 먼저)별로, 같은 단계 안에서는 "전체에서 가장 가까운 (멤버, 자리) 쌍"부터 차지하는 그리디 배정 + 자리를 못 받은 멤버를 늘리는 증가 경로 보강. 반환은 멤버별 자리 번호(모자라면 -1).
-	// 멤버를 입력 순서로 하나씩 처리하면 정면 멤버가 아니라 옆·대각선 멤버가 자리를 받아 좁은 문 앞에서 대각선 진입이 막히고 정체한다(플레이 로그 2026-10-02 far 문).
-	// 보강은 isAllowed가 막은 자리 때문에 "모두 받을 수 있는데 한 명이 남는" 배정을 막는다(이미 배정된 멤버는 자리를 잃지 않고 앞 단계 자리는 불변). 동률은 앞선 멤버·작은 자리 번호 먼저.
+	// 우선순위 단계별로, 같은 단계 안에서는 '전체에서 가장 가까운 (멤버, 자리) 쌍'부터 차지하는 그리디 배정 + 자리를 못 받은 멤버를 늘리는 증가 경로 보강. 반환은 멤버별 자리 번호(모자라면 -1).
+	// 멤버를 입력 순서로 처리하면 정면이 아닌 옆·대각선 멤버가 자리를 받아 좁은 문 앞에서 대각선 진입이 막혀 정체한다. 보강은 isAllowed가 막은 자리 때문에 '모두 받을 수 있는데 한 명이 남는' 배정을 막으며 앞 단계 자리는 불변이다. 동률은 앞선 멤버·작은 자리 번호 먼저.
 	public static int[] AssignNearest(IList<Vector2Int> positions, IList<int> priorities, IList<Vector2Int> slots, Func<int, int, bool> isAllowed = null)
 	{
 		int n = positions.Count;
@@ -205,7 +200,7 @@ public static class PartyFormationMath
 
 	// ── 입장 ────────────────────────────────────────────────────────────────────────────────
 
-	// 문 가까운 쪽 줄(rowTile)에 닿았거나 전진 방향으로 그 너머에 있는가 — 문 통로 안·다음 방 쪽(near 줄 포함). 입장 중 유닛이 "앞 유닛"으로 기다릴 대상을 가리는 데 쓴다.
+	// 문 가까운 쪽 줄(rowTile)에 닿았거나 전진 방향으로 그 너머에 있는가 — 통로 안·다음 방 쪽(near 줄 포함). 입장 중 유닛이 '앞 유닛'으로 기다릴 대상을 가리는 데 쓴다.
 	public static bool IsAtOrBeyondRow(Vector2Int position, Vector2Int rowTile, Vector2Int forward)
 		=> (position.x - rowTile.x) * forward.x + (position.y - rowTile.y) * forward.y >= 0;
 
@@ -213,17 +208,15 @@ public static class PartyFormationMath
 	public static bool HasPassedGate(Vector2Int position, Vector2Int farTile, Vector2Int forward)
 		=> (position.x - farTile.x) * forward.x + (position.y - farTile.y) * forward.y >= 1;
 
-	// 조사가 "상호작용을 시작했는가" — 진행 중(PenaltyActive)이거나 진행도가 남아 있으면 시작한 것이다(중단돼 진행도가 절반으로 남은 조사 포함). 둘 다 아니면 대상을 정해 이동 중인 미착수 상태라
-	// 집결 명령·공동 이동 배정 때 접는다(05번 4장 245줄, 03번 1장 181줄). currentInvestigation은 대상 "선택" 순간부터 채워지므로 그 유무만으로는 시작 여부를 알 수 없다(검증 05-04).
+	// 조사가 '상호작용을 시작했는가' — 진행 중(PenaltyActive)이거나 진행도가 남아 있으면(중단돼 절반 남은 조사 포함) 시작한 것이다. 둘 다 아니면 대상을 정해 이동 중인 미착수 상태라 집결 명령·공동 이동 배정 때 접는다(05번 4장). currentInvestigation은 대상 '선택' 순간부터 채워지므로 그 유무만으론 알 수 없다.
 	public static bool IsInvestigationStarted(bool penaltyActive, float progress01)
 		=> penaltyActive || progress01 > 0f;
 
-	// 리더의 명령(집결 명령·집결 해제·방 이동 지시)이 "같은 방 전체" 예외를 받는 같은 방인가 — 방이 있고 같은 방이어야 한다. 방이 없는(통로·문 위치 등) 두 유닛은 서로 다른 곳이어도 둘 다 null이라
-	// 참조 비교만으로는 같은 방으로 잘못 보이므로 따로 거른다(검증 05-03 관찰 4).
+	// 리더 명령(집결·해제·방 이동 지시)의 '같은 방 전체' 예외를 받는 같은 방인가 — 방이 있고 같은 방이어야 한다. 방이 없는(통로·문 위치) 두 유닛은 둘 다 null이라 참조 비교로는 같은 방으로 잘못 보여 따로 거른다.
 	public static bool IsSameRoomForCommand(object leaderRoom, object memberRoom)
 		=> leaderRoom != null && ReferenceEquals(leaderRoom, memberRoom);
 
-	// tiles 중 사각형(xMin ≤ x < xMax, yMin ≤ y < yMax — RectInt.Contains와 같은 반열린 구간) 안에서 from과 직선거리가 가장 가까운 타일. 개인 탐색을 현재 방 안으로 제한할 때 프론티어 후보를 고르는 데 쓴다(검증 05-01). exclude가 true를 돌려주는 타일(닿지 못해 막힘 기록된 것, 검증 04-08 발견 5)은 후보에서 뺀다.
+	// tiles 중 사각형(xMin ≤ x < xMax, yMin ≤ y < yMax — 반열린 구간) 안에서 from과 직선거리가 가장 가까운 타일. 개인 탐색을 현재 방 안으로 제한할 때 프론티어 후보를 고르는 데 쓰며, exclude가 true인 타일(닿지 못해 막힘 기록)은 뺀다.
 	public static bool TryNearestInRect(IEnumerable<Vector2Int> tiles, Vector2Int from, int xMin, int yMin, int xMax, int yMax, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
@@ -240,7 +233,7 @@ public static class PartyFormationMath
 		return found;
 	}
 
-	// 교전·경계로 시간 제한을 멈춰 줄 때 이번에 인정할 시간 — 아직 쓰지 않은 상한(cap − 이미 멈춘 시간) 안에서 경과 dt만큼. 상한에 닿으면 0이라 시간이 다시 흐른다(풀리지 않는 교전이 계획을 영구히 얼리지 않게).
+	// 교전·경계로 시간 제한을 멈춰 줄 때 이번에 인정할 시간 — 아직 안 쓴 상한(cap − 이미 멈춘 시간) 안에서 경과 dt만큼이며, 상한에 닿으면 0이라 시간이 다시 흐른다(풀리지 않는 교전이 계획을 영구히 얼리지 않게).
 	public static float PauseCredit(float dt, float alreadyPaused, float cap)
 		=> System.Math.Max(0f, System.Math.Min(dt, cap - alreadyPaused));
 

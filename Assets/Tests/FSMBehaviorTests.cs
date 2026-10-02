@@ -144,7 +144,7 @@ public class FSMBehaviorTests
 		Assert.IsNull(human.currentAlertSearch, "미식별 공격 수색은 4-11장 그대로 15초 후 종료돼야 한다.");
 	}
 
-	// ── 검증문서 03-11. 함정 해제 진행도는 "수행 중일 때만" 쌓이고, 중단은 진행도 50% 손실 + 대응 상태 유지(재개)다 ──
+	// ── 함정 해제 진행도는 '수행 중일 때만' 쌓이고, 중단은 진행도 50% 손실 + 대응 상태 유지(재개)다 ──
 
 	private static TrapInteractionState MakeDisarmingTrap(float progress, bool performing)
 		=> new TrapInteractionState
@@ -195,7 +195,7 @@ public class FSMBehaviorTests
 		Assert.AreEqual("TacticalFSMState", human.fsm.CurrentState.GetType().Name);
 		Assert.AreEqual(0.3f, trap.DisarmProgress01, 0.001f); // 50% 손실이 1회만 적용된다(CanDisarm/Tick 래핑이 겹쳐도 PenaltyActive 가드)
 		Assert.IsFalse(trap.PenaltyActive);
-		// 예전엔 CanDisarm 실패 직후 TrapBypass가 대응 상태를 지워 재개가 불가능했다 — 이제는 양보만 하고 상태를 유지한다.
+		// CanDisarm 실패 직후에도 TrapBypass가 대응 상태를 지우지 않고 양보만 한다 — 상태가 유지돼 재개할 수 있다.
 		Assert.AreSame(trap, human.currentTrapInteraction);
 	}
 

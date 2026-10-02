@@ -13,7 +13,7 @@ public static class SlotSeek
 	// useHold: 한 걸음도 못 움직였을 때 doorApproachHoldRetrySeconds 동안 제자리에서 기다렸다 재시도(진형·돌파). arrivalRadius: 도착으로 보는 거리(진형 1칸, 공격 자리는 정확히 0).
 	public static SeekStatus Step(Human human, WaitState wait, Vector2Int slot, bool useHold, int arrivalRadius = PartyFormationMath.ArrivalRadius)
 	{
-		// 이전 Step과 간격이 크게 벌어졌다 = 그동안 교전·경계·함정 대응·점유 대기로 이 대기 로직이 안 돌았다 — 중단된 시간을 막힘 시계(30초 개별 포기)에 세지 않도록 새로 시작한다(03번 13항 재개 규칙).
+		// 이전 Step과 간격이 크게 벌어졌다 = 그동안 교전·경계·함정 대응·점유 대기로 이 로직이 안 돌았다 — 중단된 시간을 막힘 시계(30초 개별 포기)에 세지 않도록 새로 시작한다(03번 13항).
 		float now = Time.time;
 		float resetGap = Mathf.Max(StepGapResetSeconds, 3f * OccupancyMath.StepSeconds(human.AppliedWalkSpeed));
 		if (wait.LastStepTime >= 0f && now - wait.LastStepTime > resetGap) ResetBlocked(human, wait);
@@ -57,7 +57,7 @@ public static class SlotSeek
 		human.waitStuckTurns = 0;
 	}
 
-	// 막힌 자리를 다시 고르지 않도록 기억하고 기억 집합을 돌려준다 — 좁은 길에서 같은 두 자리를 오가던 문제(플레이 로그 2026-10-01)의 해법.
+	// 막힌 자리를 다시 고르지 않도록 기억하고 기억 집합을 돌려준다 — 좁은 길에서 같은 두 자리를 오가던 문제의 해법.
 	public static HashSet<Vector2Int> Reject(WaitState wait, Vector2Int slot)
 	{
 		(wait.RejectedSlots ??= new HashSet<Vector2Int>()).Add(slot);
@@ -75,13 +75,12 @@ public static class SlotSeek
 	}
 }
 
-// 집결·진형·돌파·입장에서 유닛 한 명이 한 틱에 하는 일 — TacticalFSMState.ExecuteWait가 대기 사유에 따라 호출한다. 단계 전이·지시는 PartyAdvanceSystem/PartyBreachCommand가 정한다.
+// 집결·진형·돌파·입장에서 유닛 한 명이 한 틱에 하는 일(TacticalFSMState.ExecuteWait가 호출) — 단계 전이·지시는 PartyAdvanceSystem/PartyBreachCommand가 정한다.
 public static class PartyAdvanceSteps
 {
 	// ── 집결 ─────────────────────────────────────────────────────────────────────────────
 
-	// rallyGatherNearbyEnabled — 배정받은 집결 자리로 가서 도착해도 대기를 유지하고, 완료는 Party.CheckRallyComplete가 전원 도착 시 일괄 처리한다.
-	// 자리가 막히면 막힌 자리를 기억하고 이 유닛에서 가장 가까운 구역 안 빈 칸으로 옮기며, 구역 안에서 더 못 가면 선 자리에서 집결 처리한다. 오래(doorApproachMaxBlockedSeconds) 막힌 채면 그 유닛을 집결에서 뺀다.
+	// rallyGatherNearbyEnabled — 배정받은 집결 자리로 가서 도착해도 대기를 유지하고, 완료는 Party.CheckRallyComplete가 전원 도착 시 일괄 처리한다. 자리가 막히면 막힌 자리를 기억하고 가장 가까운 구역 안 빈 칸으로 옮기며, 더 못 가면 선 자리에서 집결 처리하고, doorApproachMaxBlockedSeconds 넘게 막히면 그 유닛을 집결에서 뺀다.
 	public static BTStatus StepRallyGather(Human human, WaitState wait)
 	{
 		var party = human.party;
@@ -162,8 +161,7 @@ public static class PartyAdvanceSteps
 		return StepGoToSlot(human, wait, plan, slot, entering);
 	}
 
-	// 문 채널링 — 문의 어느 칸에든 인접 1칸이면 SetAttackObjectTarget만 건다(데미지는 UnitFunction.OnUpdate, 인원 × 고정 초당 데미지라 모일수록 빨리 부서진다).
-	// 아직 인접하지 않으면 지시받은 공격 자리로 이동하고, 그 자리에 오래 못 가면 포기해 재지시를 요청한다(PartyBreachCommand.ReleaseSlot).
+	// 문 채널링 — 문의 어느 칸에든 인접 1칸이면 SetAttackObjectTarget만 건다(데미지는 UnitFunction.OnUpdate, 인원 × 고정 초당 데미지라 모일수록 빨리 부서진다). 아직 인접하지 않으면 지시받은 공격 자리로 이동하고, 오래 못 가면 포기해 재지시를 요청한다(PartyBreachCommand.ReleaseSlot).
 	private static BTStatus StepBreach(Human human, WaitState wait, PartyAdvancePlan plan, Vector2Int slot)
 	{
 		Vector3Int? target = plan.BreachTile;
@@ -192,13 +190,12 @@ public static class PartyAdvanceSteps
 		return BTStatus.Running;
 	}
 
-	// 진형 자리(또는 입장 자리)로 이동·대기. 도착하면 움직이지 않고, 막히면 같은 방 안에서 다른 자리를 점진 확장으로 다시 고른다.
-	// doorApproachMaxBlockedSeconds 넘게 막힌 채면 이 유닛만 자리 이동을 포기(IsParked)해 파티 전체가 교착되지 않게 한다.
+	// 진형 자리(또는 입장 자리)로 이동·대기 — 도착하면 움직이지 않고, 막히면 같은 방 안에서 다른 자리를 점진 확장으로 다시 고른다. doorApproachMaxBlockedSeconds 넘게 막히면 이 유닛만 자리 이동을 포기(IsParked)해 파티 전체가 교착되지 않게 한다.
 	private static BTStatus StepGoToSlot(Human human, WaitState wait, PartyAdvancePlan plan, Vector2Int slot, bool entering)
 	{
 		if (wait.IsParked) return BTStatus.Running;
 
-		// 입장 이동은 자리에 정확히 서야 도착이다(반경 0) — 입장 자리가 문 먼 쪽 줄 바로 다음 칸일 수 있어 반경 1이면 아직 문 위(통과 전)에서 "도착"으로 멈춘다. 줄을 넘는 순간 ReleaseIfEntered가 풀어 주므로 자리까지 갈 필요는 없다.
+		// 입장 이동은 자리에 정확히 서야 도착이다(반경 0) — 입장 자리가 문 먼 쪽 줄 바로 다음 칸일 수 있어 반경 1이면 문 위(통과 전)에서 '도착'으로 멈춘다. 줄을 넘는 순간 ReleaseIfEntered가 풀어 주므로 자리까지 갈 필요는 없다.
 		switch (SlotSeek.Step(human, wait, slot, useHold: true, arrivalRadius: entering ? 0 : PartyFormationMath.ArrivalRadius))
 		{
 			case SeekStatus.GaveUp:
@@ -212,7 +209,7 @@ public static class PartyAdvanceSteps
 		return BTStatus.Running;
 	}
 
-	// 막힌 자리는 다시 고르지 않고(RejectedSlots), 이 유닛에서 가장 가까운 구역 안 "지금 아무도 서 있지 않은" 타일로 옮긴다 — 자기 타일이 뽑히면(구역 안이고 더 갈 곳이 없음) 그 자리에서 준비 완료로 인정된다.
+	// 막힌 자리는 다시 고르지 않고(RejectedSlots) 이 유닛에서 가장 가까운 구역 안 '지금 아무도 서 있지 않은' 타일로 옮긴다 — 자기 타일이 뽑히면(구역 안이고 더 갈 곳이 없음) 그 자리에서 준비 완료로 인정된다.
 	private static void RetargetPlanSlot(Human human, WaitState wait, PartyAdvancePlan plan, Vector2Int slot, bool entering)
 	{
 		var rejected = SlotSeek.Reject(wait, slot);
@@ -221,7 +218,7 @@ public static class PartyAdvanceSteps
 		Vector2Int zoneCenter = entering ? plan.EntryCenter : plan.FormCenter;
 		int zoneRadius = entering ? plan.EntryRadius : plan.FormRadius;
 		var session = human.Session;
-		bool useKnowledge = AIConfigLoader.Behavior?.entrySlotKnowledgeEnabled ?? true; // 입장 자리는 본인이 아는 타일에서만(04번 0장, 검증 05-06 관찰 4)
+		bool useKnowledge = AIConfigLoader.Behavior?.entrySlotKnowledgeEnabled ?? true; // 입장 자리는 본인이 아는 타일에서만(04번 0장)
 		string label = entering ? "입장" : "진형";
 
 		if (PartyFormationMath.TryPickNearestFreeTile(human.position,
@@ -239,7 +236,7 @@ public static class PartyAdvanceSteps
 		}
 		else if (entering && useKnowledge && plan.FarAnchor + plan.Forward != slot)
 		{
-			// 아는 입장 자리가 아직 없다(문이 열린 직후라 다음 방을 못 봤다) — 통과 방향의 첫 칸으로 향해 문을 지나게 한다. 지나가면 ReleaseIfEntered가 개인 행동으로 푼다.
+			// 아는 입장 자리가 아직 없으면(문이 열린 직후라 다음 방을 못 봄) 통과 방향의 첫 칸으로 향해 문을 지나게 한다 — 지나가면 ReleaseIfEntered가 개인 행동으로 푼다.
 			wait.WaitPosition = plan.FarAnchor + plan.Forward;
 		}
 		else if (PartyFormationMath.IsWithinZone(human.position, zoneCenter, zoneRadius))

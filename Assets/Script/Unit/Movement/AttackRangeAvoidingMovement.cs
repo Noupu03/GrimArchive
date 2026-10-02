@@ -1,10 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 04번 문서 4장: 원거리공격/근접·원거리지원 역할이 "알려진 적 공격 범위"를 회피하며 이동하게 만드는
-// AStarMovement 변형 — RoomConfinedMovement가 IsTileWalkable만 오버라이드하는 것과 동일한 서브클래싱
-// 전례를 GetExtraTileCost에 적용한 것. 몬스터(RoomConfinedMovement 전용, 04번 4장 표의 "몬스터" 행 —
-// 종류·역할 설정과 방·활동 범위로 별도 관리됨)에는 이 클래스를 배정하지 않는다.
+// 원거리공격/근접·원거리지원 역할이 '알려진 적 공격 범위'를 회피하며 이동하게 하는 AStarMovement 변형(04번 4장) — RoomConfinedMovement가 IsTileWalkable을 오버라이드하는 전례를 GetExtraTileCost에 적용했다. 몬스터(RoomConfinedMovement 전용)에는 배정하지 않는다.
 public class AttackRangeAvoidingMovement : AStarMovement
 {
 	private Unit _cacheUnit;
@@ -23,7 +20,7 @@ public class AttackRangeAvoidingMovement : AStarMovement
 			_cacheUnit = unit;
 			_cacheFrame = Time.frameCount;
 		}
-		// 검증 03-13: 알려진 함정 회피 비용(전투 모드 통과 허용 타일·구역 탈출)도 함께 더한다.
+		// 알려진 함정 회피 비용(전투 모드 통과 허용 타일·구역 탈출)도 함께 더한다.
 		return (_avoidTiles.Contains(tilePos) ? MovementMath.AttackRangeAvoidExtraCost : 0) + base.GetExtraTileCost(unit, tilePos);
 	}
 }

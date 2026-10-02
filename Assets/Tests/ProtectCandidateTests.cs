@@ -1,7 +1,7 @@
 #if UNITY_INCLUDE_TESTS
 using NUnit.Framework;
 
-// 02번 8·9장 긴급 보호 — 치명적 공격 예상 조건과 후보 비교 순서(순수 함수, 검증 02-08·02-09).
+// 02번 8·9장 긴급 보호 — 치명적 공격 예상 조건과 후보 비교 순서(순수 함수).
 public class ProtectCandidateTests
 {
 	private static CombatScoreMath.ProtectCandidateKey Key(bool lethal, float eta, float hp, bool incap, float dist)

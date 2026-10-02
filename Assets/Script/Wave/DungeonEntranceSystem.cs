@@ -4,13 +4,7 @@ using UnityEngine;
 
 namespace GrimArchive.Wave
 {
-    // 던전 입구 구조 — 인간 파티가 0층 숨은 스폰 청크에서 등장해 1x3 던전 입구로 걸어들어오고, 고정
-    // 시간 대기한 뒤 파티 진형(1선 근접 → 2선 리더 → 3선 원거리)을 유지한다. 대기가 끝나면 전원에게
-    // 계단 접근 좌표로 이동 명령(우선순위 200이라 Tactical/Combat이 못 가로챔)을 내리고 손을 뗀다 —
-    // 실제 계단 접근·통과는 개인 FSM+BT(NavigationFSMState.MoveToStairs/CrossStairs)가 전담하고,
-    // isInDungeonEntranceSequence 게이트도 CrossStairs가 각자 층을 건너는 순간 개인별로 해제한다
-    // (파티 전체를 기다리지 않음). 직선 복도인 입구 이동(WalkingIn)만 이 클래스가 직접 격자 위치를
-    // 조작해 전원 동일 속도·고정 간격 대형을 보장한다.
+    // 던전 입구 구조 — 인간 파티가 0층 숨은 스폰 청크에서 등장해 1x3 입구로 걸어들어오고, 고정 시간 대기한 뒤 파티 진형(1선 근접 → 2선 리더 → 3선 원거리)을 유지한다. 대기가 끝나면 전원에게 계단 접근 이동 명령(우선순위 200이라 Tactical/Combat이 못 가로챔)을 내리고 손을 뗀다 — 계단 통과는 개인 FSM+BT(MoveToStairs/CrossStairs)가 전담하고 isInDungeonEntranceSequence도 CrossStairs가 개인별로 푼다. 직선 복도 입구 이동(WalkingIn)만 이 클래스가 격자 위치를 직접 조작해 전원 동일 속도·고정 간격 대형을 보장한다.
     public class DungeonEntranceSystem
     {
         private enum Phase { Idle, WalkingIn, Waiting, Done }
@@ -49,10 +43,7 @@ namespace GrimArchive.Wave
 
         public bool IsActive => _phase != Phase.Idle && _phase != Phase.Done;
 
-        // PreSpawnWaveUnits가 숨은 스폰 청크에 인간들을 스폰한 직후 호출한다. roomEntryX는 대형 강제
-        // 행진(WalkingIn)의 목적지, stairApproachX는 대기 후 전원에게 내릴 계단 접근 이동 명령의
-        // 목적지다(같은 행 rowY 기준). 스폰 직후 "무더기" 상태는 WalkingIn이 매 스텝 각 유닛을 자기
-        // 대형 슬롯으로 이동시키며 자연스럽게 정렬된다.
+        // PreSpawnWaveUnits가 숨은 스폰 청크에 인간들을 스폰한 직후 호출한다. roomEntryX는 대형 행진(WalkingIn)의 목적지, stairApproachX는 대기 후 내릴 계단 접근 명령의 목적지(같은 행 rowY 기준)이며, 스폰 직후 '무더기' 상태는 WalkingIn이 매 스텝 각 유닛을 대형 슬롯으로 옮기며 정렬된다.
         public void Begin(GameSession session, Party party, int rowY, int roomEntryX, int stairApproachX)
         {
             _formation.Clear();
@@ -75,10 +66,7 @@ namespace GrimArchive.Wave
             _pendingStairApproachX = stairApproachX;
         }
 
-        // 매 프레임 호출. 대기가 끝나 전원에게 계단 접근 이동 명령을 내린 그 순간 onArrivedAtStairs를
-        // 1회 호출한다(HumanWaveManager가 activeParty/exitAreaPos/stagingUnits/pendingStairTargetFloor를
-        // 세팅 — 실제 계단 통과는 이 이동 명령 이후 개인 FSM+BT가 이어받으므로 미리 세팅해도 안전).
-        // cooldownTimerRemaining은 "진입 준비" 문구 표시 기준으로 HumanWaveManager.cooldownTimer를 받는다.
+        // 매 프레임 호출. 대기가 끝나 전원에게 계단 접근 명령을 내린 순간 onArrivedAtStairs를 1회 호출한다(HumanWaveManager가 activeParty/exitAreaPos/stagingUnits/pendingStairTargetFloor를 세팅 — 실제 계단 통과는 이후 개인 FSM+BT가 이어받아 미리 세팅해도 안전). cooldownTimerRemaining은 '진입 준비' 문구 표시 기준이다.
         public void Update(GameSession session, float deltaTime, float cooldownTimerRemaining, Action<List<Human>> onArrivedAtStairs)
         {
             if (!IsActive || session == null) return;
@@ -108,8 +96,7 @@ namespace GrimArchive.Wave
                     {
                         NoticeCenter.Instance?.PushFixed(EntranceNoticeKey, "인간 파티가 던전으로 진입합니다!", NoticeCenter.WarningColor);
 
-                        // 여기서부터는 대형을 붙들지 않는다 — 전원에게 같은 계단 접근 좌표로 이동
-                        // 명령을 내리고 즉시 시퀀스를 끝낸다(isInDungeonEntranceSequence는 CrossStairs가 각자 끈다).
+                        // 여기서부터는 대형을 붙들지 않는다 — 전원에게 같은 계단 접근 좌표로 이동 명령을 내리고 즉시 시퀀스를 끝낸다(isInDungeonEntranceSequence는 CrossStairs가 각자 끈다).
                         var arrivedMembers = new List<Human>(_formation.Count);
                         foreach (var slot in _formation)
                         {
@@ -125,8 +112,7 @@ namespace GrimArchive.Wave
             }
         }
 
-        // isInDungeonEntranceSequence는 여기서 끄지 않는다 — NavigationFSMState.CrossStairs가 각
-        // 유닛이 실제로 층을 건너는 순간 개별로 끈다. 이 메서드는 이 클래스 자신의 진행 상태만 정리한다.
+        // isInDungeonEntranceSequence는 여기서 끄지 않는다 — NavigationFSMState.CrossStairs가 각 유닛이 층을 건너는 순간 개별로 끈다. 이 메서드는 이 클래스 자신의 진행 상태만 정리한다.
         private void Finish()
         {
             NoticeCenter.Instance?.ClearFixed(EntranceNoticeKey);

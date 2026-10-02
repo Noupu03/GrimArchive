@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 대기 결정 하나의 상태 — Unit.occupancyHold에 들어간다. Kind 두 가지:
-//  · Occupancy: 다음 걸음 자리를 같은 진영 유닛(Blocker)이 차지했다 — 그 유닛이 자리를 지키는 동안만 유효하다.
-//  · Deferred : 자리가 비어 있어도 Blocker(더 먼저 지나가야 할 유닛·마주 막혀 물러난 상대)에게 길을 내주는 중 — 기간(Until)만 본다.
+// 대기 결정 하나의 상태(Unit.occupancyHold). Kind:
+//  · Occupancy: 다음 걸음 자리를 같은 진영 유닛(Blocker)이 차지 — 그 유닛이 자리를 지키는 동안만 유효.
+//  · Deferred : 자리가 비어도 Blocker(먼저 지나갈 유닛·마주 막혀 물러난 상대)에게 길을 내주는 중 — 기간(Until)만 본다.
 public enum OccupancyHoldKind { Occupancy, Deferred }
 
 public class OccupancyHold
@@ -22,9 +22,8 @@ public class OccupancyHold
 	public Vector3Int? AttackObject;
 }
 
-// 점유 충돌 판단(검증 04-05~04-07, 04번 문서 5~8장): 비전투 이동이 다른 유닛에게 막혔을 때 "대기 vs 우회"를 예상 도착시간으로 비교하고, 제자리 대기 아군에게 비켜 달라 요청하고,
-// 좁은 통로(게이트 문턱)에서는 역할 순서·마주 막힘 양보를 적용한다. 진입점은 AIMovementHelper.MoveTowardsPos(TryHold)와 GameSession.ProcessUnitAction(ShouldHold·TryHonorYield).
-// 계산 부분은 OccupancyMath(순수)에 있다. 전투 중 이동(적 인지·피격·시전·Combat 상태)은 사용자 확정(2026-10-01)대로 적용하지 않고 기존 "점유=벽" 즉시 우회를 그대로 둔다.
+// 점유 충돌 판단(04번 5~8장): 비전투 이동이 다른 유닛에게 막히면 '대기 vs 우회'를 예상 도착시간으로 비교하고, 제자리 대기 아군에게 비켜 달라 요청하며, 좁은 통로(게이트 문턱)에서는 역할 순서·마주 막힘 양보를 적용한다. 진입점은 AIMovementHelper.MoveTowardsPos(TryHold)와 GameSession.ProcessUnitAction(ShouldHold·TryHonorYield), 계산은 OccupancyMath(순수)에 있다.
+// 전투 중 이동(적 인지·피격·시전·Combat 상태)에는 적용하지 않고 기존 '점유=벽' 즉시 우회를 둔다.
 public static class OccupancySystem
 {
 	private static readonly Dir[] AllDirs = (Dir[])System.Enum.GetValues(typeof(Dir));
@@ -50,7 +49,7 @@ public static class OccupancySystem
 		// 이번 프레임에 이미 대기·비켜서기로 행동을 썼다 — 한 행동 주기에 이동 호출을 두 번 하는 행동(대체 칸 재시도 등)이 방금의 물러나기를 곧바로 되돌리지 않게 한다.
 		if (unit.occupancyActedFrame == Time.frameCount) return true;
 
-		// 입장 중인 유닛은 앞 유닛에 막혀도 길 전체를 돌아가지 않는다 — 구조 경로 그대로 걷다가 문 통로 안·다음 방 쪽 앞 유닛이 막으면 지나갈 때까지 기다린다(사용자 확정 2026-10-02).
+		// 입장 중인 유닛은 앞 유닛에 막혀도 길 전체를 돌아가지 않는다 — 구조 경로 그대로 걷다가 문 통로 안·다음 방 쪽 앞 유닛이 막으면 지나갈 때까지 기다린다(사용자 확정).
 		if ((cfg?.entryWaitForUnitAheadEnabled ?? true) && TryEntryStep(unit, dest, astar, cfg)) return true;
 
 		// 성능 가드: 다음 걸음이 점유되려면 인접 칸에 다른 유닛이 있어야 하고, 통과 순서는 게이트 근처에서만 의미가 있다. 둘 다 아니면 구조 경로(A*) 조회 없이 곧바로 기존 동작이다.
@@ -145,9 +144,8 @@ public static class OccupancySystem
 		return true;
 	}
 
-	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 A*는 앞 유닛이 문 통로를 막으면 다른 문·방을 거치는 긴 우회를 고른다. 그 대신 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고,
-	// 같은 진영 유닛이 막았는데 그 유닛이 문 가까운 줄 이후(통로 안·다음 방 쪽)에 있으면 우회 없이 기다린다(문턱 통과 순서 TryGateOrderHold는 먼저 확인). 진형 쪽(문 앞)에서 막으면 기존 판단(false)에 맡긴다.
-	// 기다림은 점유 대기와 같은 hold라 행동 틱을 건너뛰며, 영구 대기는 입장 단계 상한이 끊는다. true = 이번 주기는 걸었거나 기다렸다.
+	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 A*는 앞 유닛이 문 통로를 막으면 다른 문·방을 도는 긴 우회를 고르므로, 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고 같은 진영 유닛이 막았는데 그 유닛이 문 가까운 줄 이후(통로·다음 방 쪽)에 있으면 우회 없이 기다린다(문턱 통과 순서 TryGateOrderHold를 먼저 확인).
+	// 진형 쪽(문 앞)에서 막으면 기존 판단(false)에 맡긴다. 기다림은 점유 대기와 같은 hold이고 영구 대기는 입장 단계 상한이 끊는다. true = 걸었거나 기다렸다.
 	private static bool TryEntryStep(Unit unit, Vector2Int dest, AStarMovement astar, AIBehaviorConfig cfg)
 	{
 		PartyAdvancePlan plan = PartyAdvanceSystem.EnteringPlanOf(unit);
@@ -180,7 +178,7 @@ public static class OccupancySystem
 		return true;
 	}
 
-	// GameSession.ProcessUnitAction이 JudgeState 뒤·ExecuteAction 앞에서 부른다. true면 이번 행동 주기는 대기로 쓴다(FSM 전환은 이미 끝난 뒤라 그대로 진행).
+	// GameSession.ProcessUnitAction이 JudgeState 뒤·ExecuteAction 앞에서 부른다. true면 이번 행동 주기는 대기로 쓴다(FSM 전환은 이미 끝난 뒤).
 	public static bool ShouldHold(Unit unit)
 	{
 		OccupancyHold hold = unit.occupancyHold;
@@ -208,8 +206,7 @@ public static class OccupancySystem
 		return true;
 	}
 
-	// GameSession.ProcessUnitAction이 부른다. 제자리에서 대기 중인 이 유닛에게 온 '비켜 달라' 요청을 받아 인접 빈 칸으로 한 걸음 비켜 준다(04번 5장·7장).
-	// true면 이번 행동 주기는 비켜 주는 데 썼다.
+	// 제자리 대기 중인 이 유닛에게 온 '비켜 달라' 요청을 받아 인접 빈 칸으로 한 걸음 비켜 준다(04번 5·7장, GameSession.ProcessUnitAction이 호출). true면 이번 주기는 비켜 주는 데 썼다.
 	public static bool TryHonorYield(Unit unit)
 	{
 		if (unit.yieldRequestUntil <= 0f) return false;
@@ -292,7 +289,7 @@ public static class OccupancySystem
 	private static bool CommandChanged(Unit unit, OccupancyHold hold)
 		=> unit.playerMoveTarget != hold.MoveTarget || unit.playerAttackTarget != hold.AttackTarget || unit.playerAttackObjectTarget != hold.AttackObject;
 
-	// 구조 경로(점유 무시) 쌍둥이 — RouteAssessment(검증 04-08)도 "점유 때문인 일시 막힘인가"를 가리려고 재사용한다.
+	// 구조 경로(점유 무시) 쌍둥이 — RouteAssessment도 "점유 때문인 일시 막힘인가"를 가리려고 재사용한다.
 	internal static AStarMovement GetTwin(Unit unit, AStarMovement astar)
 	{
 		if (unit.occupancyTwin == null || !ReferenceEquals(unit.occupancyTwinSource, astar))
@@ -303,8 +300,7 @@ public static class OccupancySystem
 		return unit.occupancyTwin;
 	}
 
-	// 이 걸음(대각선이면 양옆 직교 이동 포함)의 점유 타일 전체를 차지한 다른 살아 있는 유닛 — UnitFunction.Move/CanMove가 거부하는 이유와 같은 점유다.
-	// blockedAnchor = 막힌 이유가 된 점유 영역의 앵커(다음 걸음 자체 또는 대각선의 양옆 직교 이동 자리) — 점유자가 계속 그 자리를 차지하는지 확인하는 기준이다.
+	// 이 걸음(대각선이면 양옆 직교 이동 포함)의 점유 타일 전체를 차지한 다른 살아 있는 유닛(Move/CanMove가 거부하는 이유와 같은 점유). blockedAnchor는 막힌 이유가 된 점유 영역의 앵커로, 점유자가 계속 그 자리를 차지하는지 확인하는 기준이다.
 	private static Unit FindBlocker(Unit unit, Vector2Int cur, Vector2Int dirVec, out Vector2Int blockedAnchor)
 	{
 		blockedAnchor = cur + dirVec;
@@ -412,7 +408,7 @@ public static class OccupancySystem
 		target.yieldRequestUntil = now + seconds;
 	}
 
-	// 지금 비켜 줄 수 있는 상태인가 — 전투·상호작용·이동 없이 제자리에서 대기 중인 유닛만. 플레이어 명령/정지/제자리 공격 중이거나 다른 것을 기다리는 대기·Human의 행동 대기 중이면 진형·임무·명령 위치를 보존한다.
+	// 지금 비켜 줄 수 있는 상태인가 — 전투·상호작용·이동 없이 제자리 대기 중인 유닛만. 플레이어 명령/정지/제자리 공격·다른 대기·Human 행동 대기 중이면 진형·임무·명령 위치를 보존한다.
 	private static bool CanHonorYield(Unit unit)
 	{
 		if (!IsEligibleMover(unit)) return false;
@@ -422,8 +418,7 @@ public static class OccupancySystem
 		return Classify(unit, out _) == OccupantKind.IdleInPlace;
 	}
 
-	// other의 경로를 막지 않는 인접 빈 칸을 찾는다(점유 크기 전체·함정 구역·문 타일·방 제한·배회 앵커 반경+1 준수). other의 경로 앞 3칸에 걸치는 자리는 비켜도 소용없어 제외하고,
-	// 통로(게이트) 타일은 더 막으므로 후순위다. 없으면 false.
+	// other의 경로를 막지 않는 인접 빈 칸을 찾는다(점유 크기·함정 구역·문 타일·방 제한·배회 앵커 반경+1 준수). other의 경로 앞 3칸에 걸치는 자리는 제외하고 통로(게이트) 타일은 후순위, 없으면 false.
 	private static bool FindSidestep(Unit unit, Unit other, out Dir bestDir)
 	{
 		bestDir = Dir.UP;
@@ -478,7 +473,7 @@ public static class OccupancySystem
 			for (int dy = 0; dy < size.y; dy++)
 				avoid.Add(new Vector2Int(other.position.x + dx, other.position.y + dy));
 
-		// other가 "점유가 없다면 가려던" 경로(구조 경로 쌍둥이의 캐시)를 우선 쓴다 — 실제 이동 경로는 지금 막힌 자리를 돌아가므로 피할 대상이 아니다. 쌍둥이가 아직 없으면 실제 경로 캐시로 대신한다.
+		// other가 '점유가 없다면 가려던' 경로(구조 경로 쌍둥이 캐시)를 우선 쓴다 — 실제 이동 경로는 막힌 자리를 돌아가므로 피할 대상이 아니다. 쌍둥이가 없으면 실제 경로 캐시로 대신한다.
 		AStarMovement source = other.occupancyTwin ?? other.MovementAlgorithm as AStarMovement;
 		if (source != null)
 		{
@@ -537,8 +532,7 @@ public static class OccupancySystem
 		return false;
 	}
 
-	// 내 다음 걸음이 게이트 진입이고(이미 통로 안이면 계속 진행) 주변에 (1) 통로 안에서 이쪽으로 빠져나오는 같은 진영 유닛 또는 (2) 같은 게이트로 진입하려는 더 우선순위 높은 같은 진영 유닛이 있으면
-	// 그 유닛에게 길을 내준다. 우선순위는 역할(전방 근접 → 근접 지원 → 원거리 공격 → 원거리 지원) → HP 비율 → 유지되는 무작위 값이며 리더도 예외가 없다.
+	// 내 다음 걸음이 게이트 진입이고(통로 안이면 계속 진행) 주변에 (1) 통로에서 이쪽으로 빠져나오는 같은 진영 유닛 (2) 같은 게이트로 진입하려는 더 우선순위 높은 같은 진영 유닛이 있으면 길을 내준다. 우선순위는 역할(전방 근접 → 근접 지원 → 원거리 공격 → 원거리 지원) → HP 비율 → 유지되는 무작위 값이며 리더도 예외 없다.
 	private static bool TryGateOrderHold(Unit unit, Vector2Int cur, Vector2Int nextPos, float now, out Unit deferTo)
 	{
 		deferTo = null;

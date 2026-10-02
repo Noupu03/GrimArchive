@@ -37,9 +37,7 @@ public class TacticalFSMState : IFSMState
 		else
 		{
 			// 설정 에셋 없음 — 03문서 2-1장 기본 순서로 폴백.
-			// 2026-09-04(사용자 요청): 보호 포메이션은 인류측 전부 비활성화 — 되돌릴 때는 아래 줄 주석을
-			// 해제한다(TacticalBehaviorPriorityConfig.cs 기본값도 같이). 함정 대응은 그대로 유지한다(같은 날 해제
-			// 시도자 선정을 "가장 가까운 1명"으로 줄였던 단순화는 2026-09-30 검증 03-12에서 문서대로 복원했다).
+			// 보호 포메이션은 비활성 — 되돌릴 때는 아래 줄 주석을 해제하고 TacticalBehaviorPriorityConfig 기본값도 같이 고친다.
 			_bt = new BTSelector(
 				nodes[TacticalBehaviorType.Panic],
 				nodes[TacticalBehaviorType.JoinCombatWait],
@@ -70,10 +68,8 @@ public class TacticalFSMState : IFSMState
 				new BTLeaf(JoinCombatWaitPerform)
 			),
 			[TacticalBehaviorType.TrapResponse] = new BTSequence(
-				// 07문서 16-4장: 함정 대응 대기·해제는 함정작동음을 제외한 소리에 중단된다.
-				// 함정작동음 자체는 이 조건에 애초에 걸리지 않아 표대로 "유지"된다.
-				// 검증문서 03-11(순서도 03-13): 해제자·보호자 피격·위협 인지·미식별 공격 수색 중에도 양보한다 — 소리와 달리
-				// 필요한 이동을 함정이 막을 때는 양보하지 않고 우회·통과·파괴로 이어진다(IsTrapResponseInterrupted).
+				// 함정 대응 대기·해제는 함정작동음 외 소리, 피격, 위협 인지, 미식별 공격 수색에 중단된다(07문서 16-4장).
+				// 단 필요한 이동을 함정이 막을 때는 양보 없이 우회·통과·파괴로 간다.
 				new BTCondition(unit => !IsTrapResponseBlockedBySound(unit) && !IsTrapResponseInterrupted(unit)),
 				new BTSelector(
 					// 9-2~9-6장(신규): 발견 유닛이지만 해제 담당으로 선정되지 않았으면 현 위치에서 담당자 도착을 기다린다.
@@ -87,7 +83,7 @@ public class TacticalFSMState : IFSMState
 					),
 					new BTLeaf(TrapBypass),
 					new BTLeaf(TrapDestroy),
-					// 검증문서 03-13(v0.6 9-6): 응답 상태 없이 알려진 활성 함정의 인접 1칸 안에 있는 유닛은 구역 밖으로 빠져나온다 — 응답자는 위 분기가 먼저 잡는다.
+					// 응답 상태 없이 알려진 활성 함정 인접 1칸 안에 있는 유닛은 구역 밖으로 빠져나온다(응답자는 위 분기가 먼저 처리).
 					new BTLeaf(ZoneEscape)
 				)
 			),
@@ -136,19 +132,14 @@ public class TacticalFSMState : IFSMState
 
 	public float GetPriority(Unit unit)
 	{
-		// 플레이어 수동 명령(공격/이동)은 PlayerCommandFSMState(UnitFSM._states 배열 맨 앞, 최우선)가
-		// 전담한다 — 명령이 활성 상태면 이 GetPriority는 아예 호출되지도 않으므로(패닉/함정/경계
-		// 포함해) 여기서 따로 예외 처리할 필요가 없다.
-		// 던전 입구 시퀀스 동안은 이 상태를 비활성화한다 — 입구 이동·대기 단계는 그 시스템이 위치를
-		// 직접 다루고, 계단 접근 이동 명령(우선순위 200)이 끝난 뒤 실제로 계단을 건너기 전까지의 틈도
-		// 보호해야 한다(안 그러면 조사 대상 발견 등으로 이 상태가 끼어들어 새치기한다).
-		// isInDungeonEntranceSequence는 CrossStairs가 실제로 층을 건너는 순간 개인별로 해제한다.
+		// 명령 중에는 PlayerCommandFSMState가 먼저 처리해 이 GetPriority가 호출되지 않는다.
+		// 던전 입구 시퀀스 중엔 비활성 — 계단 접근 후 층을 건너기 전의 틈에 조사가 새치기하지 못하게 한다(CrossStairs가 개인별로 해제).
 		if (unit is Human entranceHu && entranceHu.isInDungeonEntranceSequence) return 0f;
 		float p = AIConfigLoader.Behavior?.tacticalPriority ?? 50f;
 		if (IsPanic(unit)) return p;
 		if (unit is Human joinWaitHu && joinWaitHu.currentJoinCombatWait != null) return p;
 		if (unit.currentTrapInteraction != null) return p;
-		if (TrapAvoidance.NeedsZoneEscape(unit)) return p; // 검증문서 03-13: 응답 없이 함정 구역 안에 있으면 탈출(ZoneEscape)이 우선
+		if (TrapAvoidance.NeedsZoneEscape(unit)) return p; // 응답 없이 함정 구역 안에 있으면 탈출(ZoneEscape)이 우선
 		if (unit.currentAlertSearch != null) return p;
 		Human hu = unit as Human;
 		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
@@ -182,9 +173,7 @@ public class TacticalFSMState : IFSMState
 		}
 	}
 
-	// 검증문서 03-11: 이번 틱에 해제/파괴를 실제로 수행하지 못했는데 진행 중이었다면(Panic·전투 합류 대기 등 BT 상위
-	// 분기가 가로챔) 그 자리에서 중단으로 처리한다 — 같은 상태 안에서 브랜치만 바뀌는 경로는 OnExit를 안 타고 각 분기의
-	// 조건도 이 사건을 모르기 때문이다. 수행 여부는 TrapDisarmPerform/TrapDestroy가 PerformedThisTick으로 알린다.
+	// 이번 틱에 해제/파괴를 못 했는데 진행 중이었다면 중단 처리한다 — 상위 분기(Panic·합류 대기)가 가로채면 OnExit를 안 탄다(PerformedThisTick으로 판단).
 	public BTStatus Tick(Unit unit)
 	{
 		var trap = unit.currentTrapInteraction;
@@ -203,7 +192,7 @@ public class TacticalFSMState : IFSMState
 
 	// ── FSM 진입 조건 헬퍼 ─────────────────────────────────────────
 
-	// 공황 판정의 단일 출처(PlayerCommandFSMState도 이걸 쓴다). 2026-10-02부터 AIBehaviorConfig.panicBehaviorEnabled(기본 false)로 임시 비활성 — 도주·후퇴 문서 이후 켠다.
+	// 공황 판정의 단일 출처. panicBehaviorEnabled(기본 false)로 임시 비활성 — 도주·후퇴 문서 이후 켠다.
 	internal static bool IsPanic(Unit unit)
 		=> (AIConfigLoader.Behavior?.panicBehaviorEnabled ?? false)
 			&& unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
@@ -232,9 +221,7 @@ public class TacticalFSMState : IFSMState
 	{
 		if (!(unit is Human human)) return false;
 		if (human.playerAttackTarget != null || (human.playerMoveTarget.HasValue && human.isManualMoveCommand)) return false;
-		// 00-04/01-06/01-07/01-08: 아직 조사를 시작하지 않았다면 집결 대기·다음 방 공동 이동·코어 보고
-		// 이동·귀환 중에는 새 조사를 시작하지 않는다. 이미 시작한 조사(currentInvestigation != null)는
-		// 이 게이트에 안 걸려 기존 유지·중단 조건 그대로 계속된다.
+		// 시작 전 조사는 집결 대기·공동 이동·코어 보고·귀환 중엔 시작하지 않는다(진행 중 조사는 영향 없음).
 		if (human.currentInvestigation == null && human.currentWait != null &&
 			(human.currentWait.Reason == WaitReason.AwaitingPartyAtRallyPoint ||
 			 human.currentWait.Reason == WaitReason.AdvancingToNextRoom ||
@@ -246,12 +233,7 @@ public class TacticalFSMState : IFSMState
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
-		// 03번 문서 4장: 전투 관련 소리·이동음도 일반 조사를 중단시키며 진행도 손실이 적용된다 —
-		// IsTrapResponseBlockedBySound(함정 해제 쪽)와 동일 패턴. HasAlert보다 먼저 걸려야 Alert
-		// 분기가 대신 가로채면서 페널티 없이 조사가 조용히 밀려나는 걸 막는다. 검증문서 03-04: 같은
-		// 표가 "파티 목표·코어 상호작용 당사자는 소리 반응 없음"도 명시하므로, IsPartyGoalTarget이면
-		// 이 체크 자체를 건너뛴다(PropagationSystem.IsSoundReactionSuppressed가 Alert 승격 자체를
-		// 막는 것과 짝 — 그쪽만으로는 이 독립된 체크까지 막지 못해 따로 게이팅이 필요했다).
+		// 전투 소리·이동음은 일반 조사를 중단시킨다(03번 4장) — HasAlert보다 먼저 걸려야 페널티 없이 밀려나지 않으며, 파티 목표 당사자는 소리 반응이 없어 건너뛴다.
 		if (human.currentInvestigation?.IsPartyGoalTarget != true && PropagationSystem.HasPendingInterruptingSound(human))
 		{
 			ApplyInvestigateInterruptPenalty(human);
@@ -263,11 +245,7 @@ public class TacticalFSMState : IFSMState
 			ApplyInvestigateInterruptPenalty(human);
 			return false;
 		}
-		// 검증문서 03-01 4번: 원본 표 41줄(일반 조사: 보호자 피격도 중단)과 46줄(유지 우선 파티
-		// 목표 상호작용: 보호자 피격은 유지, 보호자가 대응)은 서로 다른 행이다 — currentInvestigation.
-		// IsPartyGoalTarget이 그 구분을 담당한다. 본인 피격(위)은 41·46줄 공통이라 이 플래그와 무관하게
-		// 항상 중단된다. 아직 조사를 시작 전(currentInvestigation==null)이면 "유지" 예외를 적용할
-		// 대상 자체가 없으므로 `?.` 로 안전하게 기본값(41줄 규칙)으로 처리한다.
+		// 보호자 피격에 일반 조사는 중단, 파티 목표 상호작용은 유지한다(IsPartyGoalTarget). 본인 피격은 항상 중단.
 		if (human.currentInvestigation?.IsPartyGoalTarget != true && human.AnyEscortHitThisTurn())
 		{
 			ApplyInvestigateInterruptPenalty(human);
@@ -295,10 +273,8 @@ public class TacticalFSMState : IFSMState
 		return true;
 	}
 
-	// 07문서 16장: currentAlertSearch가 비어있어도 시작 안 한 유효한 소리 반응이 있으면 여기서 지연
-	// 승격한다. 인류/몬스터 구분 없이 호출 — Human 전용 게이팅을 걸면 몬스터 쪽이 영영 승격 못 한다.
-	// 05번 문서 10장: 귀환 중엔 이미 시작한 경계(currentAlertSearch)는 유지하되, 새로 소리로 경계를
-	// 승격하는 것만 막는다(방향 확인 자체는 ResolveVisionDirection이 독립적으로 처리).
+	// 시작 안 한 유효한 소리 반응이 있으면 지연 승격한다(07문서 16장) — 몬스터도 승격돼야 해 Human 전용 게이팅을 걸지 않는다.
+	// 귀환 중엔 새 소리 경계 승격만 막고 진행 중 경계는 유지한다(05번 10장).
 	private static bool HasAlert(Unit unit)
 	{
 		if (unit.currentAlertSearch != null) return true;
@@ -319,10 +295,8 @@ public class TacticalFSMState : IFSMState
 		return true;
 	}
 
-	// 검증문서 03-11(순서도 03-13, v0.6 9-9·12-2): 해제자 피격·위협 콜라이더 인지·보호자 피격·자기 피격으로 시작된 미식별 공격
-	// 수색 중이면 해제를 중단(진행도 50% 손실)하고 우선 대응에 양보한다. 대응 상태와 남은 진행도는 유지하므로 원인이
-	// 사라지면(수색 15초 완료 등) 그대로 재개된다 — 이전엔 CanDisarm 실패 직후 TrapBypass가 상태를 지워 재개가 불가능했다.
-	// 필요한 이동을 함정이 막는 경우만 양보하지 않고 기존 체인(우회 실패 → 통과·파괴, 순서도 03-14)으로 넘긴다.
+	// 미식별 공격 수색 중이면 해제를 중단(진행도 50% 손실)하고 양보하되 대응 상태·남은 진행도는 유지해 원인이 사라지면 재개한다.
+	// 필요한 이동을 함정이 막는 경우는 양보하지 않고 우회 → 통과·파괴로 넘긴다.
 	private static bool IsTrapResponseInterrupted(Unit unit)
 	{
 		if (!(unit is Human human) || human.currentTrapInteraction == null) return false;
@@ -363,16 +337,15 @@ public class TacticalFSMState : IFSMState
 		return trap.IsBlockingPath.Value;
 	}
 
-	// 검증문서 03-13: 목적지는 명령 이동·조사 목표뿐 아니라 파티 이동(대기 위치·리더 보고·집결지)과 자유 탐색 목표까지 본다(TrapPartySystem.GetCurrentDestination).
+	// 목적지는 명령 이동·조사 목표뿐 아니라 파티 이동(대기 위치·리더 보고·집결지)과 자유 탐색 목표도 본다(TrapPartySystem.GetCurrentDestination).
 	private static bool ComputeIsBlockingPath(Unit unit, Vector3Int trapPos)
 	{
 		Vector2Int? dest = unit is Human h ? TrapPartySystem.GetCurrentDestination(h) : unit.playerMoveTarget;
 		return dest.HasValue && IsRouteBlockedByTrap(unit, dest.Value, trapPos);
 	}
 
-	// 유닛 위치에서 dest까지 이 함정의 회피 구역(함정 타일 + 인접 1칸, 03번 v0.12 9장·v0.6 9-6)에 들어가지 않고는 갈 수 없는지(대체 경로 없음) — 이미 발견한
-	// 지형(discoveredMap) 기준 BFS이고 미탐색 타일은 통행 가능으로 본다. 출발 타일은 구역 안이어도 된다(이미 안에 있으면 빠져나온다). 목적지가 구역 안이면 막힌
-	// 것이다. TrapPartySystem이 집결·이동 중인 유닛의 "경로를 막는 함정" 예외 판정에도 쓴다.
+	// 이 함정의 회피 구역(함정 타일 + 인접 1칸)을 거치지 않고는 dest에 갈 수 없는지 — 발견 지형 기준 BFS, 미탐색 타일은 통행 가능, 출발 타일은 구역 안이어도 된다.
+	// TrapPartySystem의 '경로를 막는 함정' 예외 판정에도 쓴다.
 	public static bool IsRouteBlockedByTrap(Unit unit, Vector2Int dest, Vector3Int trapPos)
 	{
 		FactionData myData = unit is Human ? Unit.humanFactionData : Unit.monsterFactionData;
@@ -385,7 +358,7 @@ public class TacticalFSMState : IFSMState
 		// 시작점이 지형 정보 밖이면 판단 근거가 없다 — 막지 않는 것으로 본다(실제 유닛은 항상 안이라 게임 동작은 그대로).
 		if (unit.position.x < 0 || unit.position.x >= mapW || unit.position.y < 0 || unit.position.y >= mapH) return false;
 		Vector2Int trap2D = new Vector2Int(trapPos.x, trapPos.y);
-		// 검증 04-08: 길찾기와 같은 "개인이 아는 지형"으로 판정한다(끄면 진영 공용 지도) — 이 BFS만 공용 지도를 쓰면 A*와 막힘 판정이 어긋난다.
+		// 길찾기와 같은 "개인이 아는 지형"으로 판정한다(끄면 진영 공용 지도) — 이 BFS만 공용 지도를 쓰면 A*와 막힘 판정이 어긋난다.
 		IKnownTerrain known = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
 
 		var visited = new HashSet<Vector2Int> { unit.position };
@@ -418,9 +391,7 @@ public class TacticalFSMState : IFSMState
 		return trap != null && trap.SelectedUnitName != null && !trap.IsSelectedDisarmer;
 	}
 
-	// 순서도 03-12-2: 담당자가 도착했다는(또는 도착 전에 대응을 마쳤다는) 통지를 받기 전까지 발견 유닛은 현재
-	// 위치에서 기다린다. 통지 수신과 기한 만료 판단은 TrapPartySystem.TickWaitingForSelectedUnit(OnUpdate)이
-	// 맡고, 도착 이후 해제 절차는 담당자의 몫이라 통지를 받으면 개인 행동으로 복귀한다.
+	// 담당자 도착(또는 대응 완료) 통지 전까지 제자리 대기 — 통지·기한 만료는 TrapPartySystem.TickWaitingForSelectedUnit이 맡는다.
 	private static BTStatus TrapAwaitSelectedUnit(Unit unit)
 	{
 		var trap = unit.currentTrapInteraction;
@@ -453,8 +424,7 @@ public class TacticalFSMState : IFSMState
 		{
 			if (human != null)
 			{
-				// 재선정으로 담당이 바뀐 뒤 뒤늦게 도착한 이전 담당자는 해제를 시작하기 전에 양보한다(이중 담당 방지).
-				// 이미 시작한 해제(Phase != AwaitingJoin)는 기존 중단 조건으로 끝까지 간다.
+				// 재선정으로 담당이 바뀐 뒤 늦게 도착한 이전 담당자는 해제 시작 전에 양보한다(이중 담당 방지). 이미 시작한 해제(Phase != AwaitingJoin)는 끝까지 간다.
 				if (trap.Phase == TrapPhase.AwaitingJoin && !TrapPartySystem.IsStillAssigned(human, trap))
 				{
 					LogHelper.Log(LogHelper.GAME, $"[함정] {human.name}: 재선정으로 담당이 바뀌어 해제를 양보합니다");
@@ -465,16 +435,13 @@ public class TacticalFSMState : IFSMState
 			}
 			return BTStatus.Success;
 		}
-		// 순서도 03-12: 이동 중 예상 도착 시점이 달라졌으면 기다리는 발견 유닛에게 알린다.
+		// 이동 중 예상 도착 시점이 달라졌으면 기다리는 발견 유닛에게 알린다.
 		if (human != null) TrapPartySystem.ReportProgress(human, trap);
 		return MoveTowardsTrapGuarded(unit, trapPos);
 	}
 
-	// 검증문서 03-11: 함정 접근 이동(MoveToTrap/TrapDestroy 공용) — 다른 BT 리프(MoveToInvestigateTarget 등)와 같은
-	// stuck 탈출 패턴이다. 리셋 기준은 "이동 성공 여부"가 아니라 "체비셰프 거리가 실제로 줄었는지"(혼잡 구역의 제자리
-	// 셔플도 Move() 관점에선 성공이라 그것만 보면 카운터가 안 쌓인다). 대체 자리 탐색은 이미 근접(반경 2)했을 때만 쓴다.
-	// 사방이 구조적으로 막혀 있으면 즉시, 그저 몰려 막힌 거면 한도까지 인내한 뒤 포기한다 — 포기하면 대응을 접고
-	// 경계로 전환한다(안 하면 도달 불가능한 함정 앞에서 영원히 멈춘다).
+	// 함정 접근 이동 stuck 카운터는 이동 성공이 아니라 체비셰프 거리가 줄었을 때 리셋한다(혼잡 구역 제자리 셔플도 Move()는 성공).
+	// 대체 자리는 이미 근접(반경 2)했을 때만 찾고, 사방이 막히면 즉시·몰려 막힌 거면 한도까지 인내한 뒤 대응을 접고 경계로 전환한다.
 	private static BTStatus MoveTowardsTrapGuarded(Unit unit, Vector2Int trapPos)
 	{
 		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, trapPos);
@@ -563,12 +530,9 @@ public class TacticalFSMState : IFSMState
 	}
 
 	// ── 함정 대안 2종(우회·파괴) ───────────────────────────────────
-	// 검증문서 03-13: 함정 통과(피해를 맞고 지나감)는 이 비전투 체인에서 뺐다 — 03번 v0.12 9장 통과 판단표 1행("일반 탐색·이동: 우회·해제·파괴 중 가능한 대응,
-	// 미확인 피해를 감수한 임의 통과 금지")대로 통과는 전투 합류·긴급 아군 보호·도주 후퇴에서만 판단하며, 그 판단은 이동 계층(TrapAvoidance 전투 모드)과
-	// AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck가 맡는다.
+	// 통과(피해 감수)는 비전투 체인에 없다 — 전투 합류·긴급 보호·도주 후퇴에서만 판단하며 이동 계층이 맡는다(03번 9장).
 
-	// 우회 — 필요한 이동을 함정이 막지 않을 때만 성립한다. "이동 경로 변경"은 이동 계층이 담당한다(알려진 함정 구역을 피해 가는 A*) — 예전처럼 함정 곁으로
-	// 한 걸음 옮기고 대응만 끝내면 실제 경로는 그대로라 이후 이동이 함정을 밟을 수 있었다.
+	// 우회 — 필요한 이동을 함정이 막지 않을 때만 성립하며, 경로 변경 자체는 이동 계층(알려진 함정 구역을 피하는 A*)이 맡는다.
 	private static BTStatus TrapBypass(Unit unit)
 	{
 		if (!(unit is Human human) || human.currentTrapInteraction == null || IsBlockingPath(unit))
@@ -587,8 +551,7 @@ public class TacticalFSMState : IFSMState
 			TrapPartySystem.EndResponse(unit, TrapEndReason.Resolved);
 			return BTStatus.Success;
 		}
-		// 03번 v0.12 9장(584~586줄): 모든 오브젝트를 파괴 가능한 것으로 취급하지 않는다 — 함정은 체력이 있어야 하고 공격력이
-		// 없는 유닛은 깰 수 없다. 파괴할 수 없으면 다른 대응(순서도 03-11)으로 넘긴다.
+		// 함정은 체력이 있고 공격력 있는 유닛만 파괴할 수 있다(03번 9장). 못 깨면 다른 대응으로 넘긴다.
 		if (obj.TrapMaxHp <= 0f || unit.physicalAttack <= 0f)
 		{
 			TrapPartySystem.EndResponse(unit, TrapEndReason.Bypassed);
@@ -608,10 +571,8 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Success;
 	}
 
-	// 검증문서 03-13(v0.6 9-6): 함정 대응 상태가 없는 유닛이 알려진 활성 함정의 인접 1칸(3×3) 안에 있으면 구역 밖의 걸을 수 있는 비점유 타일로 나온다.
-	// 이동은 A*가 맡는다 — 구역 안에서 출발한 탐색은 구역 타일을 막지 않고 큰 비용만 물려 가장 적게 밟고 나오게 한다(TrapMoveContext). 구역 밖으로 나오면
-	// NeedsZoneEscape가 거짓이 돼 Failure로 다음 행동(경계·조사·대기 등)이 이어진다. 나갈 곳이 없거나 정체되면 잠시 탈출 시도를 꺼(trapZoneEscapeSuppressUntil)
-	// Tactical에 얼어붙지 않는다.
+	// 함정 대응 상태가 없는 유닛이 알려진 활성 함정 인접 1칸 안에 있으면 구역 밖으로 나온다(이동은 A* TrapMoveContext).
+	// 나갈 곳이 없거나 정체되면 trapZoneEscapeSuppressUntil로 잠시 꺼 얼어붙지 않게 한다.
 	private static BTStatus ZoneEscape(Unit unit)
 	{
 		if (!(unit is Human human) || !TrapAvoidance.NeedsZoneEscape(human))
@@ -652,9 +613,7 @@ public class TacticalFSMState : IFSMState
 		}
 		var inv = human.currentInvestigation;
 
-		// 00-07(정보 격리): 아직 도착하지 않은 동안은 전역 objectGrid를 직접 읽지 않는다 — 다른 유닛이
-		// 수거한 사실을 직접 확인(도착)하거나 전파로 전달받기 전엔 원거리에서 알지 못한다(타일 전용
-		// 후보는 "수거" 개념이 없어 해당 없음).
+		// 도착 전에는 전역 objectGrid를 직접 읽지 않는다 — 도착해 직접 확인하거나 전파받기 전엔 원거리에서 모른다(00-07 정보 격리, 타일 후보는 해당 없음).
 		if (!inv.IsTileOnly && human.personalMap.IsKnownCollected(inv.TargetObjectId))
 		{
 			human.currentInvestigation = null;
@@ -666,9 +625,7 @@ public class TacticalFSMState : IFSMState
 		if (AIMovementHelper.IsAdjacent(human.position, pos))
 		{
 			human.investigateStuckTurns = 0;
-			// 01번 문서 4장: 맨 타일 후보는 별도 "조사·줍기" 단계가 없다 — 인지·안전 확인은
-			// PersonalMapKnowledge의 기존 시간 경과 감쇠가 도착 여부와 무관하게 담당하므로, 도착한
-			// 순간 그대로 완료 처리한다(정리는 PickUpObject 쪽에서 한 곳으로 통일).
+			// 맨 타일 후보는 조사·줍기 단계가 없다 — 인지·안전 확인은 PersonalMapKnowledge의 시간 경과 감쇠가 담당하므로 도착 즉시 완료 처리한다(01번 4장).
 			if (inv.IsTileOnly) return BTStatus.Success;
 			// 도착 — 이제부터는 실제 objectGrid 조회가 "직접 확인"이므로 그대로 신뢰한다.
 			if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
@@ -680,10 +637,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 
-		// 검증문서 01-11 6행: 대상이 진짜 도달 불가능하면(우회도 실패) 포기하고 경계로 전환한다 —
-		// 그대로 두면 영원히 같은 목표를 붙잡는다(04번 문서 9번 항목). MoveToCoreAttack과 동일 관례:
-		// 리셋 기준은 "이동 성공 여부"가 아니라 "체비셰프 거리가 실제로 줄었는지"다 — 혼잡 구역의
-		// 제자리 셔플도 Move() 관점에선 성공이라 그것만 보면 stuckTurns가 절대 쌓이지 않는다.
+		// 진짜 도달 불가능하면(우회도 실패) 포기하고 경계로 전환한다(04번 9항). 카운터는 MoveToCoreAttack처럼 체비셰프 거리가 줄었을 때만 리셋한다.
 		int distBefore = AIMovementHelper.ChebyshevDistance(human.position, pos);
 		AIMovementHelper.MoveTowardsPos(human, pos);
 		if (AIMovementHelper.ChebyshevDistance(human.position, pos) < distBefore)
@@ -692,9 +646,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Running;
 		}
 
-		// 완전히 막히면(A*가 한 걸음도 못 감) 근처 빈 칸으로 우회 시도한다 — MoveToTrap과 동일한 관례.
-		// FindNearbyOpenTile은 목표가 멀면 도달 가능성과 무관하게 뭔가를 찾아버려 stuckTurns가 계속
-		// 리셋될 수 있다 — 이미 근접(반경 2)했을 때만 쓴다(MoveToCoreAttack과 동일 관례).
+		// A*가 한 걸음도 못 가면 근처 빈 칸으로 우회하되, FindNearbyOpenTile이 stuckTurns를 계속 리셋하지 않도록 이미 근접(반경 2)했을 때만 쓴다.
 		Vector2Int fallback = AIMovementHelper.IsAdjacent(human.position, pos, radius: 2)
 			? AIMovementHelper.FindNearbyOpenTile(human, pos)
 			: pos;
@@ -708,9 +660,7 @@ public class TacticalFSMState : IFSMState
 			}
 		}
 
-		// 다른 유닛이 잠깐 몰려 막힌 것뿐이면 몇 틱 인내하며 재시도하고, 벽/닫힌 문으로 사방이 진짜
-		// 막혀 있으면 즉시 포기한다 — 포기 시 이 목표를 놓아줘야 다음 틱 FindInvestigateTarget이
-		// 다른 후보를 고르거나(후보가 없으면 NavigationFSMState 프론티어 탐색으로 자연히 폴백).
+		// 잠깐 몰려 막힌 거면 몇 틱 인내, 벽/닫힌 문으로 사방이 막혔으면 즉시 포기해 다음 틱 다른 후보·프론티어 탐색으로 폴백한다.
 		if (AIMovementHelper.HasAnyStructurallyOpenAdjacentTile(human))
 		{
 			human.investigateStuckTurns++;
@@ -738,8 +688,7 @@ public class TacticalFSMState : IFSMState
 		if (inv == null) return BTStatus.Failure;
 		// 타일 전용 후보는 여기서 할 일이 없다 — MoveToInvestigateTarget이 이미 도착 시점에 처리한다.
 		if (inv.IsTileOnly) return BTStatus.Success;
-		// MoveToInvestigateTarget이 도착(인접)을 보장한 뒤에만 이 분기가 실행되므로 여기 objectGrid
-		// 조회는 "직접 확인"이다 — 원거리 조회 문제는 위 MoveToInvestigateTarget 쪽만 해당.
+		// MoveToInvestigateTarget이 인접 도착을 보장한 뒤에만 실행되므로 이 objectGrid 조회는 직접 확인이다.
 		if (!human.Session.objectGrid.TryGetValue(inv.TargetPosition, out var obj) || obj.IsCollected)
 		{
 			human.personalMap.OnObjectCollected(inv.TargetObjectId);
@@ -751,22 +700,17 @@ public class TacticalFSMState : IFSMState
 
 		// 07문서 10장: 조사가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!inv.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
-		// 검증문서 03-02(03번 문서 3번 항목): 파티 목표 오브젝트면 같은 시점에 "합류 정보"도 전파한다.
-		// 자유로운 파티원은 personalMap 등록만으로 기존 FindInvestigateTarget이 자연히 합류 이동을
-		// 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은 CanInvestigate의 기존 우선순위 게이트에
-		// 막혀 그대로 현재 행동을 유지한다 — "유지해야 하는 수신자" 처리를 새 강제 상태 없이 재현한다.
+		// 파티 목표 오브젝트면 합류 정보도 전파한다(03번 3항) — 자유로운 파티원은 personalMap 등록만으로 합류 이동을 시작하고, 전투·집결 중인 파티원은 CanInvestigate 게이트에 막혀 유지한다.
 		if (!inv.PenaltyActive && inv.IsPartyGoalTarget) PropagationSystem.NotifyPartyGoalInteractionStarted(human, obj);
 		inv.PenaltyActive = true;
 		if (inv.Progress01 < 1f) return BTStatus.Running;
 
 		obj.IsInvestigated = true;
 		human.personalMap.OnObjectInvestigated(obj.Id);
-		// 00-03/00-07(정보 격리): 조사 완료 정보도 위 NotifyInteractionStarted와 동일하게 일반 전파
-		// 조건(CanPropagate)을 거쳐야 한다(TrapPartySystem.OnTrapDiscovered와 동일한 게이트).
+		// 조사 완료 정보도 NotifyInteractionStarted와 같이 일반 전파 조건(CanPropagate)을 거친다(00-07 정보 격리).
 		if (human.party != null)
 		{
-			// 01-09 2번: 이 순간 범위 밖(CanPropagate 실패)이었던 파티원도 나중에
-			// PropagationSystem.TickOngoingObjectPropagation이 채워줄 수 있도록 등록.
+			// 범위 밖(CanPropagate 실패)이던 파티원도 나중에 TickOngoingObjectPropagation이 채우도록 등록한다.
 			human.party.KnownInvestigatedObjects[obj.Id] = obj.Position;
 			foreach (var m in human.party.Members)
 			{
@@ -816,12 +760,10 @@ public class TacticalFSMState : IFSMState
 			human.Session.CollectObject(inv.TargetPosition);
 			human.collectedObjects.Add(obj.Id);
 			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록
-			// 00-07(정보 격리): 수거 사실도 조사 완료 전파(위 InvestigatePerform)와 동일하게 일반 전파
-			// 조건을 거쳐야 다른 파티원이 안다 — 범위 밖 파티원은 이 순간 모른다.
+			// 수거 사실도 조사 완료 전파와 같이 일반 전파 조건을 거쳐야 다른 파티원이 안다(범위 밖은 모름).
 			if (human.party != null)
 			{
-				// 01-09 2번: 위 InvestigatePerform과 동일하게, 이 순간 놓친 파티원도
-				// TickOngoingObjectPropagation이 나중에 채워줄 수 있도록 등록.
+				// 범위 밖 파티원은 TickOngoingObjectPropagation이 나중에 채우도록 등록한다.
 				human.party.KnownCollectedObjectIds.Add(obj.Id);
 				foreach (var m in human.party.Members)
 				{
@@ -858,7 +800,7 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 
-			// 집결지 근처 개별 자리로 이동·대기 — 도착해도 대기를 유지하고 전원이 모이면 Party.CheckRallyComplete가 한꺼번에 푼다(rallyGatherNearbyEnabled).
+			// 집결지 근처 개별 자리로 이동해 대기하며, 전원이 모이면 Party.CheckRallyComplete가 한꺼번에 푼다(rallyGatherNearbyEnabled).
 			if (AIConfigLoader.Behavior?.rallyGatherNearbyEnabled ?? true)
 				return PartyAdvanceSteps.StepRallyGather(human, wait);
 
@@ -871,8 +813,7 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 
-			// 집결지가 아군에게 막혀 MoveTowardsPos가 계속 실패하는 경우 — 몇 틱을 기다려도 안 풀리면
-			// "집결 완료"와 동일하게 처리해 파티 전체가 계속 진행하게 한다.
+			// 집결지가 아군에게 막혀 MoveTowardsPos가 계속 실패하면 몇 틱 뒤 '집결 완료'로 처리해 파티가 계속 진행하게 한다.
 			int distBefore = AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value);
 			AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value);
 			if (AIMovementHelper.ChebyshevDistance(human.position, wait.WaitPosition.Value) < distBefore)
@@ -889,8 +830,8 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.ApproachingNextDoor && wait.WaitPosition.HasValue)
 		{
-			// 01번 7-1장 소탕 파티: 다음 이동 문 앞 자리까지 이동하며 확인한다. 도착하면 집결 판단 자격이 생긴다(Party.MarkLeaderReachedNextDoor).
-			// 자리가 막혀 더 다가갈 수 없어도(정체 한도 초과) 도착으로 처리한다 — 못 가는 자리 때문에 집결 판단이 영영 막히면 안 된다.
+			// 소탕 파티: 다음 이동 문 앞 자리에 도착하면 집결 판단 자격이 생긴다(Party.MarkLeaderReachedNextDoor, 01번 7-1장).
+			// 자리가 막혀 정체 한도를 넘어도 도착으로 처리해 판단이 영영 막히지 않게 한다.
 			bool arrivedAtDoorSlot = AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value);
 			bool gaveUp = false;
 			if (!arrivedAtDoorSlot)
@@ -916,20 +857,19 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.AdvancingToNextRoom && wait.WaitPosition.HasValue)
 		{
-			// 05번 1장: 문 앞 자리에 도착하면 개인 행동으로 넘긴다 — 적대 문 파괴는 TacticalBehaviorType.DoorAttack(인류 전용) 등 기존 전술이 이어받는다.
-			// 길이 막힌 것만으로는 명령을 풀지 않는다(검증문서 04-02) — StepAdvanceToDoor가 인내·다른 자리·보류를 처리한다.
+			// 문 앞 자리에 도착하면 개인 행동으로 넘긴다 — 적대 문 파괴는 DoorAttack 등 기존 전술이 이어받는다(05번 1장).
+			// 길이 막혔다는 이유만으로 명령을 풀지 않는다(StepAdvanceToDoor가 인내·다른 자리·보류 처리).
 			if (StepAdvanceToDoor(human, wait) == BTStatus.Success) return BTStatus.Success;
 		}
 		else if (PartyAdvanceSystem.IsPlanWait(wait.Reason))
 		{
-			// 집결 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem). 단계 전이는 파티 쪽 Tick이 하고, 여기서는 유닛 자기 몫(자리 이동·채널링·입장)만 수행한다.
+			// 집결 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem) — 단계 전이는 파티 Tick, 여기서는 유닛 몫만 수행한다.
 			if (PartyAdvanceSteps.StepMember(human, wait) == BTStatus.Success) return BTStatus.Success;
 		}
 		else if (wait.Reason == WaitReason.ReportingCoreToLeader && wait.CorePosition.HasValue)
 		{
-			// 검증문서 03-15: 목적지는 이 유닛이 "아는" 리더 위치·집결 위치·발견한 문·미탐색 지형으로만 정한다(실제 리더
-			// 위치를 읽지 않는다). 전달·목적지 결정·부재 확인·접근 실패 처리는 전부 PartyCoreReportSystem이 담당하고,
-			// 종료 경로는 모두 집결 완료를 다시 확인한다(03-14). 보고 의무는 종료돼도 남을 수 있다(TickPendingReport).
+			// 목적지는 유닛이 아는 정보(리더 위치·집결 위치·발견한 문·미탐색 지형)로만 정한다 — 실제 리더 위치는 읽지 않는다.
+			// 전달·부재 확인·접근 실패는 PartyCoreReportSystem이 맡고, 보고 의무는 종료돼도 남을 수 있다(TickPendingReport).
 			if (PartyCoreReportSystem.StepReportMovement(human, wait) == ReportStep.Ended)
 				return BTStatus.Success;
 		}
@@ -941,8 +881,7 @@ public class TacticalFSMState : IFSMState
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
 		{
-			// 05번 문서 10장: 탈출 지점 도착(또는 더 다가갈 수 없음)하면 대기를 해제한다. "탈출 완료로
-			// 웨이브 생존자 집계에 반영"하는 처리는 아직 없다(구현현황 문서 참고 — 범위 밖).
+			// 탈출 지점 도착(또는 더 못 다가감)하면 대기를 해제한다(05번 10장). 탈출 완료를 웨이브 생존자 집계에 반영하는 처리는 아직 없다.
 			if (AIMovementHelper.IsAdjacent(human.position, wait.WaitPosition.Value)
 				|| !AIMovementHelper.MoveTowardsPos(human, wait.WaitPosition.Value))
 			{
@@ -953,9 +892,8 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 방 이동(AdvancingToNextRoom) 한 틱 — 검증문서 04-02(04번 1장 "개인 경로가 막힌 경우", 03번 13장): 집결·방 이동은 길이 막혔다는 이유만으로 풀어 개인 행동(다른 조사 목표 선택 포함)으로
-	// 이탈하지 않는다. 막히면 ① waitStuckTurnLimit 틱 인내 ② 같은 문의 다른 자리를 다시 고르고 ③ 한 걸음도 못 다가가면 풀지 않고 제자리에서 기다렸다 doorApproachHoldRetrySeconds마다 다시
-	// 시도한다. 닿을 수 없는 자리에 영구히 얼어붙지 않게 doorApproachMaxBlockedSeconds 넘게 막혀 있을 때만 안전장치로 푼다. Success = 명령 종료(도착·안전장치), Running = 계속.
+	// 방 이동 한 틱 — 길이 막혔다는 이유만으로 풀어 개인 행동으로 이탈하지 않는다(04번 1장, 03번 13장).
+	// 막히면 waitStuckTurnLimit 틱 인내 → 같은 문의 다른 자리 → 제자리 대기 후 doorApproachHoldRetrySeconds마다 재시도, doorApproachMaxBlockedSeconds 초과 시에만 안전장치로 푼다. Success = 종료, Running = 계속.
 	private static BTStatus StepAdvanceToDoor(Human human, WaitState wait)
 	{
 		Vector2Int slot = wait.WaitPosition.Value;
@@ -1038,16 +976,14 @@ public class TacticalFSMState : IFSMState
 				return BTStatus.Success;
 			}
 
-			// 검증문서 03-16: 마지막 위치에 도착했는데 대상이 없다(정확 인지했다면 Combat이 이 분기를 이미 선점했다) —
-			// 3초 부재 확인 대기. 이 대기는 경계의 수색 시간(ElapsedSeconds) 안에 포함되므로 그 값은 건드리지 않는다.
+			// 도착했는데 대상이 없다(정확 인지했다면 Combat이 선점) — 3초 부재 확인 대기, 경계 수색 시간(ElapsedSeconds) 안에 포함돼 그 값은 건드리지 않는다.
 			if (alert.AbsenceWaitStartTime < 0f) alert.AbsenceWaitStartTime = Time.time;
 			switch (ExplorationMath.ResolveAlertArrival(alert.AbsenceWaitStartTime, Time.time, alert.IsAttackDirectionSearch))
 			{
 				case ExplorationMath.AlertArrivalResult.Waiting:
 					return BTStatus.Running;
 				case ExplorationMath.AlertArrivalResult.ContinueSearching:
-					// 이 위치는 비어 있다 — 같은 위치를 다시 고르지 않고 남은 수색 기한 동안 정면 수색(AlertPerimeterSearch)을 이어 간다.
-					// 기한은 UnitFunction.OnUpdate의 15초 워치독이 종료한다.
+					// 빈 위치는 다시 고르지 않고 남은 수색 기한 동안 정면 수색(AlertPerimeterSearch)을 이어 간다(기한은 OnUpdate의 15초 워치독이 종료).
 					alert.TargetPosition = null;
 					return BTStatus.Running;
 				default:
@@ -1062,9 +998,8 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 03번 v0.6 4-7(간접 인지 후 접근): 전파받은 적 위치로 일반 이동속도로 접근한다. 적을 정확 인지하면 Combat이 이 분기를 선점하고
-	// (OnEnter가 경계를 비움), 기록 위치 주위 3칸까지 들어왔는데 적이 없으면 그 정보를 갱신(폐기)하고 일반 탐색으로 복귀한다.
-	// 공격 방향 수색·수상한 타일의 3초 부재 대기·15초 수색 기한은 적용하지 않는다.
+	// 전파받은 적 위치로 일반 속도로 접근한다(03번 v0.6 4-7). 정확 인지하면 Combat이 선점하고, 기록 위치 3칸 안에 적이 없으면 정보를 폐기해 일반 탐색으로 복귀한다.
+	// 공격 방향 수색·3초 부재 대기·15초 기한은 적용하지 않는다.
 	private static BTStatus IndirectEnemyApproach(Unit unit, AlertSearchState alert)
 	{
 		Unit enemy = alert.IndirectEnemy;
@@ -1405,10 +1340,8 @@ public class TacticalFSMState : IFSMState
 		return blocked >= tiles * 0.5f;
 	}
 
-	// ── 코어 공격 — 코어는 각 층 보스방에만 있고, 체력이 0이 되면 막타친 유닛의 진영으로 방 소유권이
-	// 즉시 전환된다(코어 자체는 반피로 회복돼 사라지지 않음).
-	// ⚠️ 하드 룰: 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 절대 스스로 시도하지 않고
-	// 항상 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)를 거쳐야 한다. DoorAttack도 동일.
+	// ── 코어 공격 — 체력 0이 되면 막타친 진영으로 방 소유권이 즉시 전환된다(코어는 반피로 회복).
+	// ⚠️ 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 반드시 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)로만 한다. DoorAttack도 동일.
 	private static bool HasCoreAttackTarget(Unit unit)
 	{
 		return FindHostileRoomCore(unit, out _, out _);

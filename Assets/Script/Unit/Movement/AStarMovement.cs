@@ -113,20 +113,17 @@ public class AStarMovement : IMovementAlgorithm
     private Dictionary<Vector2Int, Dir> _pathMap = new Dictionary<Vector2Int, Dir>();
     private float _cacheTime = 0f;
 
-    // 검증문서 03-13: 알려진 활성 함정 회피 컨텍스트 — 탐색 시작마다 Refresh한다(TrapAvoidance.cs). TrapModeOverride가 있으면 유닛 상태와 무관하게 그 모드로
-    // 고정한다(진단·긴급 보호용 스크래치 인스턴스). 이동 캐시는 컨텍스트 시그니처가 바뀌면(모드 전환·새 함정 인지·구역 출입) 무효화한다.
+    // 알려진 활성 함정 회피 컨텍스트 — 탐색 시작마다 Refresh한다(TrapAvoidance). TrapModeOverride가 있으면 유닛 상태와 무관하게 그 모드로 고정하며(진단·긴급 보호용), 이동 캐시는 컨텍스트 시그니처가 바뀌면 무효화한다.
     private readonly TrapMoveContext _trapCtx = new TrapMoveContext();
     private int _cacheTrapSignature;
     public TrapMoveMode? TrapModeOverride;
 
-    // 검증 04-05~04-07(점유 충돌 판단): true면 다른 유닛의 점유를 장애물로 보지 않는 "구조 경로" 탐색이 된다(벽·닫힌 문·함정 구역은 그대로). OccupancySystem이 "점유만 없다면 이 유닛이
-    // 가려던 다음 걸음·경로 길이"를 얻는 데 쓰는 쌍둥이 인스턴스에만 켠다 — 실제 이동에 쓰는 인스턴스에는 절대 켜지 않는다(Move()가 점유 타일을 거부해 얼어붙는다).
+    // true면 다른 유닛의 점유를 장애물로 보지 않는 '구조 경로' 탐색이다(벽·닫힌 문·함정 구역은 그대로). OccupancySystem이 '점유만 없다면 가려던 걸음'을 얻는 쌍둥이 인스턴스에만 켜고, 실제 이동 인스턴스에 켜면 Move()가 점유 타일을 거부해 얼어붙는다.
     public bool IgnoreAllUnits;
 
-    // 검증 04-08(04번 0장 "개인이 아는 지형으로만 계산"): 이번 탐색이 벽·미확인 판정에 읽는 "이 유닛이 아는 지형". null이면 예전처럼 진영 공용 discoveredMap을 읽는다
-    // (AIBehaviorConfig.personalMapPathingEnabled=false이거나 개인 지도가 없는 유닛). 모든 탐색 진입점이 맨 앞에서 BeginSearch로 정한다.
+    // 이번 탐색이 벽·미확인 판정에 읽는 '이 유닛이 아는 지형'(04번 0장). null이면 진영 공용 discoveredMap을 읽는다(personalMapPathingEnabled=false이거나 개인 지도 없음). 진입점이 BeginSearch로 정한다.
     private IKnownTerrain _terrain;
-    // 프론티어 걸음 수 BFS(TryComputeFrontierSteps) 전용 — 미확인(0) 타일을 막되 _frontierAllow에 속한 것만 종단 노드로 허용한다. 평소엔 항상 꺼져 있다.
+    // 프론티어 걸음 수 BFS(TryComputeFrontierSteps) 전용 — 미확인(0) 타일을 막되 _frontierAllow에 속한 것만 종단 노드로 허용한다. 평소엔 꺼져 있다.
     private bool _knownOnly;
     private HashSet<Vector2Int> _frontierAllow;
     private readonly HashSet<Vector2Int> _frontierAllowBuffer = new HashSet<Vector2Int>();
@@ -134,8 +131,7 @@ public class AStarMovement : IMovementAlgorithm
     private void BeginSearch(Unit unit)
         => _terrain = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
 
-    // 좌표 하나가 "아는 지형" 기준으로 막혔는가 — 벽(2)이면 true, 범위 안 좌표만 넘긴다. 미확인(0)은 낙관적으로 통행 가능으로 계획한다(실제 이동은 걸음마다 CanMove가 판정하고,
-    // 계획에서 가정할 뿐 지도에 통행 가능으로 기록하지 않는다 — 04번 9장). 프론티어 BFS 중에는 미확인도 막는다(허용된 프론티어 타일만 예외).
+    // 좌표가 '아는 지형' 기준으로 막혔는가 — 벽(2)이면 true. 미확인(0)은 계획에서만 통행 가능으로 가정하고(실제 이동은 걸음마다 CanMove가 판정, 지도에 기록하지 않음 — 04번 9장) 프론티어 BFS에선 미확인도 막는다.
     private bool IsKnownWall(FactionData myData, int floorIdx, int x, int y)
     {
         int t = _terrain != null ? _terrain.GetTileTerrain(new Vector3Int(x, y, floorIdx)) : myData.discoveredMap[floorIdx][x, y];
@@ -248,10 +244,7 @@ public class AStarMovement : IMovementAlgorithm
         return false;
     }
 
-    // TryGetNextStep의 A* 탐색 루프를 그대로 추출한 순수 검색 — 프레임 간 이동 캐시(_cacheTarget/
-    // _pathMap/_cacheTime)는 건드리지 않는다(TryGetPathLength도 재사용해 거리 조회로 캐시가 오염되지
-    // 않게 한다). reachedTarget=true면 closestNode가 targetPos에 정확히 도달, false면 도달 실패 시
-    // 발견한 가장 가까운 노드(휴리스틱 기준) — 시작 위치 그대로면 한 걸음도 못 나간 완전 실패다.
+    // TryGetNextStep의 A* 루프를 추출한 순수 검색 — 이동 캐시를 건드리지 않아 TryGetPathLength가 재사용해도 오염이 없다. reachedTarget=false면 closestNode는 휴리스틱상 가장 가까운 노드이고, 시작 위치 그대로면 완전 실패다.
     private AStarNode RunSearch(Unit unit, Vector2Int startPos, Vector2Int targetPos, FactionData myData, int mapW, int mapH, int floorIdx, out bool reachedTarget)
     {
         _openList.Clear();
@@ -325,13 +318,9 @@ public class AStarMovement : IMovementAlgorithm
         return closestNode;
     }
 
-    // 거리·경로 "조회" 전용 탐색 — 목표 타일을 다른 유닛이 점유하고 있어도(유닛 위치를 목표로 준 조회: 추격 대상·보호 대상까지의 경로) 그 점유는 막지 않는다.
-    // IsTileWalkable은 실제 이동(Move)과 어긋나지 않게 점유 타일을 목표여도 막지만, 그 규칙을 조회에도 적용하면 유닛 위치를 향한 TryGetPathLength/TryGetPathTiles가 도달 판정에
-    // 항상 실패한다(검증 03-13 부수 발견 — 02-05 이동 한도·02-10 노출 경로 비교가 사실상 동작하지 않던 원인). 다른 칸의 점유는 그대로 장애물로 본다. 이동(TryGetNextStep)은
-    // 이 예외를 쓰지 않는다 — 목표 유닛의 타일로 실제로 들어갈 수는 없기 때문이다.
+    // 거리·경로 '조회' 전용 탐색 — 목표 타일의 점유는 막지 않는다(IsTileWalkable은 이동과 맞추려 목표 점유도 막아 유닛 위치를 향한 조회가 항상 실패한다). 다른 칸의 점유는 장애물이며 실제 이동(TryGetNextStep)은 이 예외를 쓰지 않는다.
     private bool _queryExemptTargetOccupancy;
-    // 조회 전용 추가 옵션(RunQuerySearch가 세팅·해제): 목표 점유 영역의 공격 거리 안 아무 타일이나 도달로 인정(-1 = 끔) / 적 진영 유닛의 점유를 장애물로 보지 않는 구조 경로
-    // (02-04 4번 "보스로 가는 길을 막는 적" 탐지 — 적이 서 있는 자리를 지나는 경로를 잰다. 아군·자기 진영 유닛은 여전히 장애물이다).
+    // 조회 전용 추가 옵션(RunQuerySearch가 세팅·해제): 목표 점유 영역의 공격 거리 안 아무 타일이나 도달로 인정(-1 = 끔) / 적 진영 유닛의 점유를 장애물로 보지 않는 구조 경로(보스로 가는 길을 막는 적 탐지용).
     private int _queryAcceptRange = -1;
     private Vector2Int _queryAcceptSize = Vector2Int.one;
     private bool _queryIgnoreEnemyUnits;
@@ -352,11 +341,8 @@ public class AStarMovement : IMovementAlgorithm
         }
     }
 
-    // 04번 문서 9번 항목: 후보 스코어링용 실제 경로 길이 조회 — TryGetNextStep과 달리 이동 캐시는
-    // 건드리지 않는다(일회성 순위 매기기용 조회라서). fullyRevealed는 경로의 모든 칸이 이 유닛의
-    // 개인 지도에 이미 드러나 있는지를 뜻한다(인류가 아니면 항상 false). 목표 타일 점유는 막지 않는다(RunQuerySearch).
-    // exemptTrapTile: 그 함정 자체가 목표인 조회(담당 후보의 도착시간 등, 03번 v0.12 8장)라 그 함정의 회피 구역을 면제하고 함정 타일 도달을 허용한다.
-    // acceptRange >= 0이면 목표 타일 자체가 아니라 그 체비셰프 거리 안 아무 타일에 닿으면 도달로 본다(조사처럼 "인접 1칸"이 실제 도달 조건인 행동 — 목표 타일이 서 있을 수 없는 칸이어도 닿을 수 있다).
+    // 후보 스코어링용 실제 경로 길이 조회(04번 9항, 이동 캐시 불변). fullyRevealed는 경로 전체가 개인 지도에 드러났는지(인류 외엔 false)이고 목표 점유는 막지 않는다.
+    // exemptTrapTile: 그 함정이 목표인 조회(담당 후보 도착시간 등)라 회피 구역을 면제한다. acceptRange >= 0이면 목표 타일 대신 그 체비셰프 거리 안 아무 타일이면 도달이다(조사의 '인접 1칸').
     public bool TryGetPathLength(Unit unit, Vector2Int targetPos, out int pathLength, out bool fullyRevealed, Vector2Int? exemptTrapTile = null, int acceptRange = -1)
     {
         pathLength = 0;
@@ -430,8 +416,7 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTime = 0f;
     }
 
-    // 검증 04-08(04번 9장 "개인 지도 확장 → 경로를 다시 검증"): 유닛이 새 벽을 알게 됐을 때 그 타일이 지금 캐시한 경로(또는 목적지) 위면 캐시를 버려 다음 걸음에 다시 계산한다.
-    // 캐시 경로 밖의 벽은 경로에 영향이 없으므로 건드리지 않는다 — 탐험 중 매 프레임 무효화돼 캐시를 만든 이유(A* 폭주 방지)가 사라지지 않게. 점유 크기가 1보다 크면 그 타일을 덮는 모든 앵커 위치를 확인한다.
+    // 새 벽을 알게 됐을 때 그 타일이 캐시한 경로(또는 목적지) 위일 때만 캐시를 버려 다음 걸음에 다시 계산한다(04번 9장) — 경로 밖 벽까지 무효화하면 탐험 중 매 프레임 지워져 캐시가 무의미해진다. 점유 크기가 1보다 크면 그 타일을 덮는 모든 앵커를 확인한다.
     public void OnTileBecameWall(Unit unit, Vector2Int tile)
     {
         if (_pathMap.Count == 0) return;
@@ -451,9 +436,7 @@ public class AStarMovement : IMovementAlgorithm
         }
     }
 
-    // 검증 04-08(04번 9장 "미확인 경로의 추정 이동거리"): 이 유닛이 개인 지도로 통행을 확인한 타일만 밟아 갈 때 각 프론티어(미확인 경계 타일)까지의 실제 걸음 수.
-    // 미확인(0) 타일은 frontier에 속한 것만 종단 노드로 허용하고 거기서 더 확장하지 않는다(IsKnownWall의 _knownOnly). 점유 크기·문·함정 구역·유닛 점유는 IsTileWalkable을 그대로 쓴다.
-    // result에 도달한 프론티어마다 걸음 수를 담는다(없으면 false). 이동 캐시는 건드리지 않는 일회성 조회다.
+    // 개인 지도로 통행을 확인한 타일만 밟아 갈 때 각 프론티어까지의 실제 걸음 수(04번 9장). 미확인(0) 타일은 frontier에 속한 것만 종단 노드로 허용하고 확장하지 않으며(_knownOnly), 점유·문·함정 구역은 IsTileWalkable 그대로다. 이동 캐시는 불변.
     public bool TryComputeFrontierSteps(Unit unit, IReadOnlyCollection<Vector2Int> frontier, Dictionary<Vector2Int, int> result)
     {
         result.Clear();
@@ -509,14 +492,10 @@ public class AStarMovement : IMovementAlgorithm
         return result.Count > 0;
     }
 
-    // 04번 문서 4장: 타일별 추가 이동비용 훅. 기본은 함정 회피 비용뿐(알려진 함정이 없으면 0 — 기존 동작 그대로) — 항상 0 이상만 반환해야 한다,
-    // 음수면 GetHeuristic의 admissibility가 깨져 A*가 최적해를 못 찾을 수 있다.
+    // 타일별 추가 이동비용 훅(04번 4장) — 기본은 함정 회피 비용뿐이며 항상 0 이상이어야 한다(음수면 GetHeuristic의 admissibility가 깨져 A*가 최적해를 못 찾는다).
     protected virtual int GetExtraTileCost(Unit unit, Vector2Int tilePos) => _trapCtx.Active ? _trapCtx.ExtraCost(tilePos) : 0;
 
-    // TryGetPathLength(칸 수만)와 달리 실제 경로 타일 좌표가 필요한 호출부(예: 노출 경로가 어느 위험
-    // 지역과 겹치는지 판정)용 — 같은 RunSearch를 재사용하고 이동 캐시는 건드리지 않는다(일회성 조회).
-    // 목표 타일 점유는 막지 않는다(RunQuerySearch) — 경로 마지막 타일이 목표 타일이다.
-    // ignoreEnemyUnits: 적 진영 유닛의 점유도 장애물로 보지 않는 "구조 경로"(02-04 4번 — 적을 치우면 열리는 길이 어디인지 잰다). 아군·자기 진영 유닛은 여전히 장애물이다.
+    // TryGetPathLength와 달리 경로 타일 좌표가 필요한 호출부용(노출 경로가 위험 지역과 겹치는지 등) — 같은 RunSearch를 쓰고 이동 캐시·목표 점유는 건드리지 않는다. ignoreEnemyUnits: 적 진영 점유도 장애물로 보지 않는 구조 경로(적을 치우면 열리는 길 측정용).
     public bool TryGetPathTiles(Unit unit, Vector2Int targetPos, out List<Vector2Int> tiles, Vector2Int? exemptTrapTile = null, bool ignoreEnemyUnits = false)
     {
         tiles = new List<Vector2Int>();
@@ -545,8 +524,7 @@ public class AStarMovement : IMovementAlgorithm
         return true;
     }
 
-    // 조회: 다른 유닛의 점유를 피해서 목표(점유 영역 = 좌하단 targetPos + 크기 targetSize)의 공격 거리(range, 체비셰프) 안 어느 타일에든 닿을 수 있는가 — 목표 자신의 점유는 무시하고,
-    // 이미 거리 안이면 true. "보스로 가는 길이 막혔는가"(02-04 4번)의 우회 가능 여부 판정에 쓴다. 이동 캐시는 안 건드린다.
+    // 다른 유닛의 점유를 피해 목표(좌하단 targetPos + 크기 targetSize)의 공격 거리(체비셰프) 안 어느 타일에든 닿을 수 있는가 — 목표 자신의 점유는 무시하고 이미 거리 안이면 true('보스로 가는 길이 막혔는가'의 우회 가능 판정용).
     public bool CanReachWithinRange(Unit unit, Vector2Int targetPos, Vector2Int targetSize, int range)
     {
         if (MovementMath.DistanceToFootprint(unit.position, targetPos, targetSize) <= range) return true;
@@ -591,9 +569,7 @@ public class AStarMovement : IMovementAlgorithm
         return true;
     }
 
-    // 한 걸음도 못 나가는 순간(closest == start), 함정을 무시하면 더 가까이 갈 수 있고 그 경로가 이 유닛의 회피 구역을 지난다면 그 함정을 "막힘 신호"로 남긴다
-    // (unit.trapBlock*). 소비자: TrapPartySystem.TickBlockedPathResponse(비전투 — 대응 재개), CombatFSMState.ChaseTarget(전투 — 파괴 판단). 유닛당 0.5초 스로틀.
-    // 이동 탐색과 이 진단은 점유된 목표 타일(추격 대상)에 도달로 안 잡히므로(조회 전용 예외는 RunQuerySearch만) "도달 여부"가 아니라 "가장 가까이 간 정도"(HCost)를 비교한다.
+    // 한 걸음도 못 나가는 순간 함정을 무시하면 더 가까이 가고 그 경로가 회피 구역을 지나면 그 함정을 막힘 신호(unit.trapBlock*)로 남긴다(소비자: TickBlockedPathResponse·ChaseTarget, 유닛당 0.5초 스로틀). 점유된 목표 타일은 도달로 안 잡히므로 '가장 가까이 간 정도'(HCost)를 비교한다.
     private void DiagnoseTrapBlock(Unit unit, Vector2Int targetPos, int blockedHCost)
     {
         if (TrapModeOverride.HasValue || !_trapCtx.HasHardBlocks) return;
@@ -608,10 +584,7 @@ public class AStarMovement : IMovementAlgorithm
         }
     }
 
-    // 점유된 칸은 CanMove와 동일하게 예외 없이 완전히 막는다(원래 예외였던 targetPos 자체도 포함) —
-    // 그렇지 않으면 A*가 "갈 수 있다"고 추천한 칸에서 실제 Move()가 조용히 실패해, GOAP은 "이동했다"고
-    // 착각한 채 다음 계획으로 넘어가지만 유닛은 제자리에 멈추는 불일치가 생긴다. 예외는 "조회"뿐이다 —
-    // 거리·경로 길이 조회(RunQuerySearch)는 목표 타일 점유만 무시해 유닛 위치까지의 경로를 잴 수 있게 한다.
+    // 점유된 칸은 CanMove와 같이 예외 없이 막는다(targetPos 포함) — 아니면 A*가 '갈 수 있다'고 한 칸에서 Move()가 조용히 실패해 유닛이 제자리에 멈춘다. 예외는 조회(RunQuerySearch)뿐이다.
     protected virtual bool IsTileWalkable(Unit unit, Vector2Int currentPos, Vector2Int neighborPos, Vector2Int dirVec, FactionData myData, int mapW, int mapH, int floorIdx, Vector2Int targetPos, out bool isOccupied)
     {
         isOccupied = false;
@@ -645,8 +618,7 @@ public class AStarMovement : IMovementAlgorithm
                     { isOccupied = true; isWall = true; break; }
                 }
 
-                // 검증문서 03-13: 알려진 활성 함정 — 일반 모드는 인접 1칸 구역, 전투 모드는 통과 조건을 못 채운 함정 타일을 막는다.
-                // A*가 CanMove보다 엄격한 쪽이라(막힌 걸음을 안 고를 뿐) 두 판정이 어긋나도 유닛이 제자리에 얼어붙지 않는다.
+                // 알려진 활성 함정 — 일반 모드는 인접 1칸 구역, 전투 모드는 통과 조건을 못 채운 함정 타일을 막는다. A*가 CanMove보다 엄격한 쪽이라(막힌 걸음을 안 고를 뿐) 두 판정이 어긋나도 유닛이 얼어붙지 않는다.
                 if (_trapCtx.Active && _trapCtx.BlocksTile(new Vector2Int(nx, ny), targetPos)) { isWall = true; break; }
             }
         }
@@ -656,8 +628,7 @@ public class AStarMovement : IMovementAlgorithm
         // 양옆 한 칸을 다른 유닛이 차지해 거부하는 불일치가 생긴다.
         if (!isWall && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
         {
-            // 검증 04-03: Move()는 양옆 직교 이동(position+(dx,0), position+(0,dy))을 CanMove — 점유 타일 전체 — 로 검사하므로 여기서도 그 두 위치의 점유 영역 전체를 본다(앵커 한 점만
-            // 보면 2×2 이상에서 A*가 낸 대각선을 Move가 거부하고, 경로 캐시가 같은 판정을 재사용해 그 자리에서 얼어붙는다). 1×1은 예전과 같다. A* 핫패스라 델리게이트·클로저 없이 루프로 푼다.
+            // Move()는 양옆 직교 이동(position+(dx,0), position+(0,dy))을 점유 타일 전체로 검사하므로 여기서도 두 위치의 점유 영역 전체를 본다(앵커 한 점만 보면 2×2 이상에서 A*의 대각선을 Move가 거부해 얼어붙는다). 핫패스라 델리게이트 없이 루프로 푼다.
             for (int dx = 0; dx < fw && !isWall; dx++)
             {
                 for (int dy = 0; dy < fh; dy++)

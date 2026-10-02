@@ -2,11 +2,8 @@
 using NUnit.Framework;
 
 // ========================================================================
-// 2026-10-01 플레이 로그(101~107줄): 진형 계획이 중단되면 ReadyToAdvance가 이미 소비돼 있고 AdvanceFromRoom은 리더가 방을 떠나야 풀려 파티가 영구히 멈췄다.
-// 비정상 중단 정책(진행할 파티원 없음 등) — 시도 한도(PartyAdvanceSystem.MaxAttempts) 안에서는 ReadyToAdvance를 되살려 재시도하고,
-// 한도에 닿으면 Party.GiveUpAdvance로 재집결 잠금(AdvanceFromRoom)·시도 횟수를 풀고 쿨다운(RallyBlockedUntil) 뒤 처음부터 다시 집결한다(안전밸브).
-// 돌파 실패(30초 무진행)는 중단이 아니라 RegroupAfterStall — 계획을 유지한 채 진형으로 물러나 쿨다운 뒤 재돌파한다(05번 1장: 집결 후 흩어지지 않고 진형 유지).
-// 세션·유닛 없이 Party와 빈 계획 객체만으로 확인한다(Ranks가 비어 있어 Finish·RegroupAfterStall이 유닛을 건드리지 않는다).
+// 비정상 중단 정책(진행할 파티원 없음 등) — 시도 한도(PartyAdvanceSystem.MaxAttempts) 안에서는 ReadyToAdvance를 되살려 재시도하고, 한도에 닿으면 Party.GiveUpAdvance로 재집결 잠금(AdvanceFromRoom)·시도 횟수를 풀고 쿨다운(RallyBlockedUntil) 뒤 처음부터 다시 집결한다(안 하면 소비된 ReadyToAdvance와 리더가 떠나야 풀리는 잠금 때문에 파티가 영구히 멈춘다).
+// 돌파 실패(30초 무진행)는 중단이 아니라 RegroupAfterStall — 계획을 유지한 채 진형으로 물러나 쿨다운 뒤 재돌파한다(05번 1장). 세션·유닛 없이 Party와 빈 계획 객체만으로 확인한다(Ranks가 비어 Finish·RegroupAfterStall이 유닛을 건드리지 않는다).
 // ========================================================================
 
 public class PartyAdvanceFlowTests
@@ -98,7 +95,7 @@ public class PartyAdvanceFlowTests
 		Assert.AreEqual(0f, party.RallyBlockedUntil, "재집결 쿨다운을 걸지 않는다");
 	}
 
-	// ── 코어 때문에 집결을 해제한 경우(05번 2장 165~172줄 표, 검증 05-02 관찰 2) ──
+	// ── 코어 때문에 집결을 해제한 경우(05번 2장 165~172줄 표) ──
 
 	[Test]
 	public void OnLeaderLearnsCore_WhileRallyActive_RemembersToRallyAgainAfterTheCore()

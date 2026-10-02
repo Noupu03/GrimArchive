@@ -3,12 +3,10 @@ using UnityEngine;
 using GrimArchive.Wave;
 using Haare.Util.Logger;
 
-// 파티의 집결·방 이동 상태 — 집결 시작/완료(TryStartRally·CheckRallyComplete), 집결 뒤 진형 계획(PartyAdvancePlan)과의 접점, 막힘 진단 로그. 방 활동 종료 판정·리더·집계는 Party.cs.
+// 파티의 집결·방 이동 상태 — 집결 시작/완료, 진형 계획(PartyAdvancePlan)과의 접점, 막힘 진단 로그. 방 활동 종료 판정·리더·집계는 Party.cs.
 public partial class Party
 {
-	// 집결의 최소 버전 — 전투 종료 후 경계 10초가 끝나면 리더가 자기 위치를 집결지로 지정한다. 05번
-	// 문서 4장: 같은 방 파티원은 무조건, 다른 방 파티원은 일반 전파 조건(CanPropagate)을 만족해야
-	// 전달된다(TryStartRally 참고). TacticalFSMState.ExecuteWait이 이 값을 읽는다.
+	// 집결의 최소 버전 — 전투 종료 후 경계 10초가 끝나면 리더가 자기 위치를 집결지로 지정한다. 전달 범위는 05번 4장(TryStartRally 참고), TacticalFSMState.ExecuteWait이 읽는다.
 	public Vector2Int? RallyPoint;
 	// RallyPoint가 속한 층 — 좌표만으로는 층을 알 수 없어, 계단을 건넌 파티원이 다른 층의 같은 좌표로 걸어가지 않게 한다.
 	public int RallyFloor;
@@ -22,35 +20,27 @@ public partial class Party
 	private bool _rallyPauseLogged;
 
 	public bool IsRallyPointOnFloor(int floor) => IsRallyActive && RallyPoint.HasValue && RallyFloor == floor;
-	// 05번 1장: 집결이 막 완료돼 "다음 방으로 함께 이동"을 시작해도 되는 상태 — HumanWaveManager가
-	// 이 값을 보고 다음 문으로의 공동 이동 명령을 1회 발행한 뒤 false로 되돌린다(리더·명령 문서가
-	// 아직 없어 웨이브 전용 단일 목표 방 전제 하의 최소 구현).
+	// 집결이 막 완료돼 다음 방으로 함께 이동해도 되는 상태 — HumanWaveManager가 보고 공동 이동 명령을 1회 발행한 뒤 false로 되돌린다(05번 1장).
 	public bool ReadyToAdvance;
-	// 검증문서 03-18: 마지막으로 집결을 마친 방. 리더가 이 방을 떠나기 전까지는 "집결을 마치고 다음 방으로 이동 중"이라
-	// TryStartRally가 같은 방에서 집결을 다시 시작하지 않는다 — 리더의 1초 주기 판정이 이동 중에 다시 집결을 시작하면
-	// 이동 명령을 받은 파티원이 집결 대기를 못 받아 IsRallyActive가 영구히 남거나(이후 방의 집결이 막힘) 문 앞에서
-	// 집결이 반복된다. 리더가 다른 방으로 나가거나 코어 처리로 집결이 해제되면 비운다.
+	// 마지막으로 집결을 마친 방 — 리더가 이 방을 떠나기 전엔 TryStartRally가 같은 방에서 다시 집결하지 않는다(이동 중 재집결하면 IsRallyActive가 남거나 문 앞 집결이 반복된다). 리더가 나가거나 코어 처리로 해제되면 비운다.
 	public Room AdvanceFromRoom { get; private set; }
 
-	// 집결 뒤 "문 앞 진형 → 문 파괴 → 순차 입장" 진행 계획 — PartyAdvanceSystem이 만들고 매 틱 전이시키며, 끝나면 null이다. 있는 동안은 새 집결을 시작하지 않는다.
+	// 집결 뒤 진형 → 문 파괴 → 순차 입장 계획 — PartyAdvanceSystem이 만들고 전이시키며 끝나면 null. 있는 동안은 새 집결을 시작하지 않는다.
 	public PartyAdvancePlan AdvancePlan;
-	// 지금 방에서 방 이동 계획을 시작한 횟수(PartyAdvanceSystem.Begin이 올린다) — 비정상 중단의 무한 재시작을 막는 안전한도(PartyAdvanceSystem.MaxAttempts)에 쓴다. 리더가 이 방을 떠나면(TickAdvanceState) 0으로 돌아간다.
+	// 지금 방에서 방 이동 계획을 시작한 횟수(PartyAdvanceSystem.Begin) — 비정상 중단의 무한 재시작을 막는 안전한도(MaxAttempts)에 쓰며 리더가 방을 떠나면 0으로 돌아간다.
 	public int AdvanceAttempts;
 	// 방 이동 시도를 한도까지 소진해 포기한 뒤 재집결을 미루는 시각(Time.time 기준) — GiveUpAdvance가 정하고 TryStartRally가 읽는다.
 	public float RallyBlockedUntil;
 
-	// TryStartRally 전용 — 웨이브 공통 몬스터 처치 수량(HumanWaveManager.CommonMonsterKillCount) 달성을
-	// 이 파티가 이미 집결 트리거로 한 번 썼는지. 파티마다 각자 들고 있어야 여러 파티가 있어도 서로
-	// 간섭하지 않는다(위 TryStartRally 주석 참고).
+	// 이 파티가 웨이브 공통 몬스터 처치 수량 달성을 집결 트리거로 이미 썼는지 — 파티별로 들고 있어야 서로 간섭하지 않는다.
 	private bool _monsterKillQuotaConsumed;
 
-	// 코어 때문에 진행 중이던 집결·방 이동을 해제했다 — 05번 2장 165~172줄 표: "코어 때문에 집결을 해제했다면 코어 처리가 끝난 뒤 다시 집결한다"(탐색 중 코어를 발견해 처리한 경우와 달리
-	// 방 활동 종료 기준을 다시 거치지 않는다). OnLeaderLearnsCore가 켜고 TryStartRally가 재집결을 시작하며 끈다(검증 05-02 관찰 2).
+	// 코어 때문에 진행 중이던 집결·방 이동을 해제했다 — 코어 처리 뒤 활동 종료 기준 없이 다시 집결한다(05번 2장). OnLeaderLearnsCore가 켜고 TryStartRally가 끈다.
 	private bool _resumeRallyAfterCore;
 	public bool ResumeRallyAfterCore => _resumeRallyAfterCore;
 
-	// 05번 5장 295~307줄(검증 05-05): 집결 대상은 생존 파티원 전원 — 명령을 받은 구성원(_rallyRecipients) 외에 못 받은 생존자와 리더가 모르는 사망(PartyDeathRecord.InfoKnownUnits)은 "미집결자"로 기다린다(단순 부재만으로 제외 금지).
-	// 수색·포기 뒤 판정은 문서가 후속 문서로 미뤄 기다림의 상한은 기존 집결 60초 근사(ParkStragglersAfterTimeLimit)를 쓰고, 포기한 미집결자(_givenUpAbsent)는 명령을 받게 될 때까지 다시 기다리지 않는다.
+	// 집결 대상은 생존 파티원 전원 — 명령을 못 받은 생존자와 리더가 모르는 사망(PartyDeathRecord.InfoKnownUnits)은 미집결자로 기다린다(05번 5장).
+	// 수색·포기 뒤 판정은 후속 문서 몫이라 상한은 기존 집결 60초 근사(ParkStragglersAfterTimeLimit)이고, 포기한 미집결자(_givenUpAbsent)는 다시 기다리지 않는다.
 	private readonly HashSet<Human> _rallyRecipients = new HashSet<Human>();
 	private readonly HashSet<string> _givenUpAbsent = new HashSet<string>();
 
@@ -93,16 +83,13 @@ public partial class Party
 		LogRally($"집결 시작 {limit:F0}초 경과 — 미집결자 [{FormatAbsentees(alive, dead)}]를 더는 기다리지 않습니다(명령을 받게 되거나 사망을 알게 되기 전까지 다음 집결에서도 제외)");
 	}
 
-	// 리더 전용 주기 체크 — 전투 없이도(스윕 트리거 없이도) 방 활동이 끝나면 집결을 시작할 수 있어야
-	// 하므로(01번 7-1장 "전투가 없었던 방에도 같은 기준 사용"), UnitFunction.OnUpdate가 매 프레임 대신
-	// 이 타이머로 던진다.
+	// 리더 전용 주기 체크 — 전투 없이도 방 활동이 끝나면 집결할 수 있어야 하므로(01번 7-1장) 매 프레임 대신 이 타이머로 던진다.
 	private float _nextRoomActivityCheckTime;
 	public void TickRoomActivityCheck(float currentTime)
 	{
 		if (currentTime < _nextRoomActivityCheckTime) return;
 		_nextRoomActivityCheckTime = currentTime + 1f;
-		// 던전 입구 시퀀스(0층 → 계단 도착 전)·리더의 층 이동 중에는 방 활동이라는 개념이 없어 어차피 TryStartRally가 첫 게이트에서 거절한다 — 호출 자체를 건너뛴다(사전 스폰 단계부터 1초마다 "집결 불가" 로그가 반복되던 것, 2026-10-02).
-		// 진행 중인 집결의 완료 확인(IsRallyActive)은 막지 않는다. 전투 후 경계 스윕이 끝난 유닛이 TryStartRally를 직접 부르는 경로는 그대로다.
+		// 입구 시퀀스·리더의 층 이동 중엔 방 활동이 없어 TryStartRally가 어차피 거절하므로 호출을 건너뛴다. 진행 중 집결의 완료 확인은 막지 않는다.
 		if (!IsRallyActive && (AnyMemberInEntranceSequence() || (Leader != null && Leader.pendingStairTargetFloor.HasValue))) return;
 		TryStartRally();
 	}
@@ -117,9 +104,7 @@ public partial class Party
 		return false;
 	}
 
-	// 전투 종료 후 10초 경계 스윕이 끝난 유닛이(UnitFunction.OnUpdate) 호출한다. 파티 전체가 전투/
-	// 전투직후 스윕에서 완전히 벗어났을 때만 실제로 집결을 시작하고, 아직 남은 파티원이 있으면 그
-	// 유닛이 끝날 때 재시도된다.
+	// 전투 후 경계 스윕이 끝난 유닛이 호출한다 — 파티 전체가 전투에서 벗어났을 때만 집결을 시작하고, 남은 파티원이 있으면 그 유닛이 끝날 때 재시도된다.
 	public void TryStartRally()
 	{
 		if (IsRallyActive)
@@ -144,7 +129,7 @@ public partial class Party
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;
-			if (m.isInDungeonEntranceSequence) // 아직 던전(계단)에 다 들어오지 못한 파티원 — 웨이브 시작 전 대기 중에는 집결하지 않는다(리더 주기 확인은 TickRoomActivityCheck가 먼저 걸러 직접 호출 경로에서만 닿는다)
+			if (m.isInDungeonEntranceSequence) // 아직 던전(계단)에 다 못 들어온 파티원은 집결하지 않는다.
 			{
 				if (ShouldReportRally(RallyReport.EntranceSequence, m.GetInstanceID())) LogRally($"집결 불가 — {m.name}이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)");
 				return;
@@ -173,8 +158,7 @@ public partial class Party
 			return;
 		}
 
-		// 집결을 마친 방을 리더가 아직 떠나지 않았다 — 공동 이동 중이므로 같은 방에서 다시 집결하지 않는다(05번 1장·2장).
-		// 임무 수량 달성 신호(JustReached…)는 아래에서 소비하므로 여기서 막혀도 사라지지 않고 다음 판정으로 이어진다.
+		// 집결을 마친 방을 리더가 아직 안 떠났다 — 공동 이동 중이라 같은 방에서 다시 집결하지 않는다(05번 1·2장). 임무 수량 달성 신호는 아래에서 소비하므로 여기서 막혀도 이어진다.
 		TickAdvanceState();
 		if (AdvanceFromRoom != null)
 		{
@@ -183,8 +167,7 @@ public partial class Party
 			return;
 		}
 
-		// 03번 문서 3번 항목: 리더가 미처리 코어를 이미 알고 있으면 그걸 두고 집결을 명령하지 않는다.
-		// 코어가 처리(파괴→점령)돼 더 이상 적대적이지 않으면 여기서 스스로 감지해 지운다.
+		// 리더가 미처리 코어를 알면 집결을 명령하지 않는다(03번 3항). 코어가 처리돼 더는 적대적이지 않으면 여기서 감지해 지운다.
 		if (LeaderKnownCorePosition.HasValue)
 		{
 			if (TacticalFSMState.IsRoomCoreStillHostile(Leader, LeaderKnownCorePosition.Value))
@@ -195,17 +178,13 @@ public partial class Party
 			LeaderKnownCorePosition = null;
 		}
 
-		// 01번 8장: 임무 수량 달성도 유효한 집결 사유다 — IsRoomActivityComplete와는 별개라 둘 중
-		// 하나만 참이어도 집결을 시작한다(검증문서 01-08). 몬스터 처치는 웨이브 공통 집계라, 파티별
-		// 소비 여부를 _monsterKillQuotaConsumed로 따로 추적한다(공유 플래그면 먼저 확인한 파티가
-		// 나머지 몫까지 꺼버림).
+		// 임무 수량 달성도 유효한 집결 사유다(01번 8장) — IsRoomActivityComplete와 별개라 둘 중 하나만 참이어도 집결한다. 몬스터 처치는 웨이브 공통 집계라 파티별 소비 여부를 _monsterKillQuotaConsumed로 따로 추적한다.
 		bool monsterKillQuotaAvailable = !_monsterKillQuotaConsumed && HumanWaveManager.Instance != null &&
 			HumanWaveManager.Instance.CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount;
 		bool questJustAchieved = JustReachedRoomExploreQuota || monsterKillQuotaAvailable;
 		bool resumeAfterCore = _resumeRallyAfterCore; // 코어 때문에 해제했던 집결 — 코어 처리가 끝났으니 방 활동 종료 기준 없이 다시 집결한다
 
-		// 01번 7-1장: 전투/스윕이 끝났어도 파티 종류 기준으로 아직 이 방에서 할 일이 남았으면 집결하지
-		// 않는다. 다만 위 임무 수량 달성 결과가 있다면 그것만으로도 집결 판단으로 넘어간다.
+		// 전투/스윕이 끝나도 파티 종류 기준으로 이 방에서 할 일이 남았으면 집결하지 않는다(01번 7-1장). 임무 수량 달성 결과가 있으면 그것만으로 집결 판단으로 넘어간다.
 		if (!questJustAchieved && !resumeAfterCore && !IsRoomActivityComplete())
 		{
 			if (ShouldReportRally(RallyReport.RoomActivityIncomplete, Leader.currentRoom != null ? Leader.currentRoom.RoomId : -1))
@@ -232,9 +211,7 @@ public partial class Party
 		RallyZoneRadius = 1;
 		LogHelper.Log(LogHelper.GAME, $"{LogTag} 집결 시작 — 리더 {Leader.name}, 사유: {(questJustAchieved ? "임무 수량 달성" : resumeAfterCore ? "코어 처리 후 재집결" : "방 활동 종료")}, 집결지 {RallyPoint.Value} ({RallyFloor}층)");
 
-		// 05번 문서 4장: 같은 방 파티원에게는 전파 거리와 무관하게 무조건 전달(방 전체 전달 예외), 다른
-		// 방 파티원에게는 일반 전파 조건(07문서 6장 — 비전투+같은 공간+전파 범위, PropagationSystem.
-		// CanPropagate가 그 구현)을 만족해야만 전달된다(검증문서 01-02 6번).
+		// 전달 범위: 같은 방은 거리와 무관하게, 다른 방은 일반 전파 조건(PropagationSystem.CanPropagate)을 만족해야 한다(05번 4장).
 		TickPendingRallyRelease(force: true); // 옛 집결의 해제를 못 받아 대기가 남은 유닛 중 지금 닿는 유닛은 먼저 푼다(아래 순회는 대기가 있는 유닛을 건너뛴다)
 		var recipients = new List<Human>();
 		_rallyRecipients.Clear();
@@ -245,9 +222,8 @@ public partial class Party
 			if (!IsReachedByLeaderCommand(Leader, m)) continue;
 			_rallyRecipients.Add(m); // 명령을 받았다 — 다른 대기(코어 보고 등) 중이라 집결 이동은 안 해도 미집결자가 아니다
 			_givenUpAbsent.Remove(m.name);
-			m.currentFormation = null; // 05번 9장 526·572줄: 보호 포메이션 중 집결 명령을 받으면 종료하고 집결로 전환(안 지우면 대기가 풀린 뒤 새 모집 확인 없이 호위를 재개한다, 검증 05-08 관찰 1)
-			// 명령이 실제로 전달된 파티원은 집결 위치와 그 시점의 리더 위치를 안다(검증문서 03-15). 이미 다른 대기(코어 보고
-			// 이동 등) 중이라 집결 이동은 하지 않는 파티원도 정보는 받는다 — 보고가 빈 리더 위치에 닿았을 때 갈 곳이 된다.
+			m.currentFormation = null; // 보호 포메이션 중 집결 명령을 받으면 종료하고 집결로 전환한다(안 지우면 대기가 풀린 뒤 호위가 재개된다, 05번 9장).
+			// 명령이 전달된 파티원은 집결 위치와 리더 위치를 안다 — 다른 대기(코어 보고 이동 등) 중이라 집결 이동을 안 해도 정보는 받아 보고가 빈 리더 위치에 닿을 때 갈 곳이 된다.
 			m.knownRallyPoint = RallyPoint;
 			m.knownLeader.Update(Leader, RallyPoint.Value, Time.time);
 			// 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종과, 임무 수량 달성으로 문 앞 도착 전에 집결이 시작된 리더의 문 접근은 집결로 전환한다.
@@ -256,7 +232,7 @@ public partial class Party
 			if (m.currentAlertSearch != null && m.currentAlertSearch.IsIndirectEnemyApproach) m.currentAlertSearch = null;
 			// 03번 0장·8장: 아직 시작하지 않은 함정 대응(응답 대기·담당자 도착 대기·해제하러 가는 이동)은 집결로 전환한다.
 			TrapPartySystem.ReleaseForRally(m);
-			// 05번 4장 245줄·03번 1장 181줄: 상호작용을 시작하기 전 임무 대상으로 이동 중이던 조사도 집결로 전환한다(대상은 개인 지도에 남는다). 이미 시작한 조사는 기존 중단 조건으로 마친 뒤 합류한다.
+			// 시작 전 임무 대상으로 이동 중이던 조사도 집결로 전환한다(대상은 개인 지도에 남음). 이미 시작한 조사는 기존 조건으로 마친 뒤 합류한다(05번 4장).
 			if (m.ReleaseUnstartedInvestigation()) LogRally($"{m.name}이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)");
 			recipients.Add(m);
 		}
@@ -282,7 +258,7 @@ public partial class Party
 	public bool IsInRallyZone(Vector2Int position)
 		=> RallyPoint.HasValue && PartyFormationMath.IsWithinZone(position, RallyPoint.Value, RallyZoneRadius);
 
-	// 집결 자리로 쓸 수 있는 구역인가 — 문 타일·문 앞 통과 구간 2칸(05번 3장, 검증 05-04 관찰 2)과 리더와 다른 방(문 반대편)은 제외한다.
+	// 집결 자리로 쓸 수 있는 구역인가 — 문 타일·문 앞 통과 구간 2칸(05번 3장)과 리더와 다른 방(문 반대편)은 제외한다.
 	private static bool IsGatherArea(GameSession session, Room room, int floor, Vector2Int t)
 	{
 		if (session == null) return true;
@@ -291,8 +267,7 @@ public partial class Party
 		return session.roomGrid.TryGetValue(new Vector3Int(t.x, t.y, floor), out var r) && r == room;
 	}
 
-	// 자리가 막혔을 때의 재선택 — 집결지가 아니라 "이 유닛에서 가장 가까운" 구역 안 빈 타일을 고른다(좁은 길에서 양 끝을 오가지 않게). 후보는 지금 다른 유닛이 실제로 서 있지 않고
-	// (CanMove 점유 포함 — 먼저 도착해 남의 자리에 선 유닛 포함), 같은 방이며, 이미 막혀 포기한 자리(rejected)·다른 파티원이 노리는 자리(claimed)가 아닌 타일이다. 없으면 false.
+	// 자리가 막혔을 때 재선택 — 집결지가 아니라 이 유닛에서 가장 가까운 구역 안 빈 타일을 고른다(좁은 길에서 양 끝을 오가지 않게). 후보: 다른 유닛이 서 있지 않고, 같은 방이며, 막혀 포기한 자리(rejected)·다른 파티원이 노리는 자리(claimed)가 아닌 타일. 없으면 false.
 	public bool TryPickGatherFallback(Human member, HashSet<Vector2Int> claimed, ISet<Vector2Int> rejected, out Vector2Int slot)
 	{
 		var session = Leader?.Session;
@@ -308,8 +283,7 @@ public partial class Party
 		return PartyFormationMath.TryPickNearestFreeTile(member.position, IsFree, claimed, PartyFormationMath.DefaultSearchRadius, out slot);
 	}
 
-	// 집결지(리더 자리) 주변에서 반경을 넓혀 가며 리더와 같은 방 안의 빈 통행 가능 타일을 고른다 — 문 타일·문 앞 통과 구간·다른 방(문 반대편)은 제외. 못 찾으면 집결지 그대로.
-	// 재선택(TacticalFSMState의 집결 이동)도 같은 함수를 쓴다.
+	// 집결지 주변에서 반경을 넓혀 가며 리더와 같은 방의 빈 통행 가능 타일을 고른다 — 문 타일·문 앞 통과 구간·다른 방은 제외, 못 찾으면 집결지 그대로. 재선택도 같은 함수를 쓴다.
 	public Vector2Int PickGatherSlot(Human member, HashSet<Vector2Int> claimed)
 	{
 		var session = Leader?.Session;
@@ -322,8 +296,7 @@ public partial class Party
 		return PartyFormationMath.TryPickNearestFreeTile(RallyPoint.Value, IsFree, claimed, PartyFormationMath.DefaultSearchRadius, out var slot) ? slot : RallyPoint.Value;
 	}
 
-	// 리더의 집결 명령·집결 해제·방 이동 지시를 받는 범위(05번 4장) — 같은 방이면 거리와 무관하게(방 전체 전달 예외), 다른 방이면 일반 전파 조건(CanPropagate). 방이 없는(통로·문 위치) 유닛끼리는 같은 방이 아니다.
-	// 방 이동 지시는 4장 표가 범위를 명시하지 않아 집결 명령의 연장으로 같은 규칙을 쓴다(검증 05-03).
+	// 리더 명령(집결·해제·방 이동 지시)의 전달 범위(05번 4장) — 같은 방이면 거리와 무관하게, 다른 방이면 CanPropagate. 방 없는 유닛끼리는 같은 방이 아니다. 방 이동 지시는 규정이 없어 집결 명령과 같은 규칙을 쓴다.
 	public static bool IsReachedByLeaderCommand(Human leader, Human m)
 	{
 		if (leader == null || m == leader) return true;
@@ -331,12 +304,11 @@ public partial class Party
 		return PropagationSystem.CanPropagate(leader, m);
 	}
 
-	// 집결 해제를 받지 못한 구성원 — 해제 순간 다른 방이고 전파도 닿지 않던 유닛은 05번 430줄대로 "해제를 전달받기 전까지 기존 집결을 따른다". 나중에 같은 방이 되거나 전파 범위에 들어오면 그때 해제를 전달한다
-	// (검증 05-03 관찰 2 — 예전엔 다음 집결이 완료될 때까지 옛 집결 자리에 붙들렸다). 대기 객체까지 기억해, 그 사이 스스로 대기를 접고 새 집결의 대기를 받은 유닛은 건드리지 않는다.
+	// 집결 해제를 못 받은 구성원 — 해제 순간 다른 방이고 전파가 안 닿았으면 전달받기 전까지 기존 집결을 따르고(05번), 나중에 같은 방이 되거나 범위에 들어오면 전달한다. 그 사이 스스로 대기를 접고 새 집결 대기를 받은 유닛은 건드리지 않도록 대기 객체까지 기억한다.
 	private readonly List<(Human member, WaitState wait)> _pendingRallyRelease = new List<(Human member, WaitState wait)>();
 	private float _nextPendingReleaseCheck;
 
-	// HumanWaveManager가 매 프레임 부른다(1초 자체 스로틀, 대기 목록이 비면 즉시 반환). 새 집결을 시작할 때는 force로 먼저 불러 도달 가능해진 유닛을 풀어 준다.
+	// HumanWaveManager가 매 프레임 부른다(1초 자체 스로틀). 새 집결을 시작할 때는 force로 먼저 불러 도달 가능해진 유닛을 풀어 준다.
 	public void TickPendingRallyRelease(bool force = false)
 	{
 		if (_pendingRallyRelease.Count == 0) return;
@@ -363,17 +335,14 @@ public partial class Party
 			|| w.Reason == WaitReason.ApproachingNextDoor || w.Reason == WaitReason.FormingUpAtDoor
 			|| w.Reason == WaitReason.BreachingDoor || w.Reason == WaitReason.EnteringNextRoom);
 
-	// 집결을 마친 방을 리더가 떠났으면 그 방에서 시작한 "다음 방으로 이동" 의도와 재집결 억제를 함께 푼다. 안 풀면 다음 문을 못 찾아
-	// 소비되지 않은 ReadyToAdvance가 남아, 리더가 스스로 다른 방으로 나간 뒤 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고
-	// 이동 명령이 발행된다. HumanWaveManager가 매 프레임, TryStartRally가 판정 때 호출한다.
+	// 집결을 마친 방을 리더가 떠나면 그 방의 '다음 방 이동' 의도와 재집결 억제를 함께 푼다 — 안 풀면 소비되지 않은 ReadyToAdvance가 남아 새 방의 문이 알려지는 즉시 활동을 건너뛰고 이동 명령이 나간다.
 	public void TickAdvanceState()
 	{
 		// 문 앞 접근 표식은 그 방을 떠나면 의미가 없다 — 나중에 돌아왔을 때 옛 표식으로 곧바로 집결하지 않게 한다.
 		if (DoorApproachRoom != null && Leader != null && Leader.currentRoom != DoorApproachRoom) DoorApproachRoom = null;
 		if (AdvanceFromRoom == null || Leader == null) return;
 		if (Leader.currentRoom == AdvanceFromRoom) return;
-		// 이동 명령이 이미 발행돼 소비된 뒤라면(정상) 리더가 집결한 방을 떠났다는 사실만, 아직 안 발행됐다면(문을 못 찾은 채 리더가
-		// 스스로 나감) 이동 의도가 소멸했다는 사실을 남긴다.
+		// 이동 명령이 이미 소비됐으면 리더가 집결한 방을 떠났다는 사실만, 아직 안 발행됐으면 이동 의도가 소멸했다는 사실을 남긴다.
 		LogHelper.Log(LogHelper.GAME, ReadyToAdvance
 			? $"{LogTag} 리더 {Leader.name}이(가) 이동 명령 발행 전에 집결한 방을 떠남 — 방 이동 의도 해제"
 			: $"{LogTag} 리더 {Leader.name}이(가) 집결한 방을 떠남 — 재집결 억제 해제");
@@ -382,8 +351,7 @@ public partial class Party
 		AdvanceAttempts = 0;
 	}
 
-	// 방 이동을 시도 한도(PartyAdvanceSystem.MaxAttempts)까지 해도 문을 못 뚫어 포기한다 — 집결을 마친 방의 재집결 잠금(AdvanceFromRoom)은 리더가 방을 떠나야만 풀려
-	// 그냥 두면 영구 정지하므로 잠금·시도 횟수를 풀고, 쿨다운 뒤 집결부터 처음부터 다시 시도하게 한다(PartyAdvanceSystem.Abort가 호출).
+	// 방 이동이 시도 한도(MaxAttempts)까지 문을 못 뚫어 포기한다 — 재집결 잠금(AdvanceFromRoom)은 리더가 방을 떠나야 풀려 영구 정지하므로 잠금·시도 횟수를 풀고 쿨다운 뒤 집결부터 다시 시도한다.
 	public void GiveUpAdvance(float cooldownSeconds)
 	{
 		AdvanceFromRoom = null;
@@ -393,8 +361,7 @@ public partial class Party
 	}
 
 	// ── 진단 로그: 집결이 시작되지 못하는 사유 / 진행 중인 집결의 도착 상황 ──────────────────────────────────────────
-	// TryStartRally는 1초 주기로 불리고 막히면 조용히 return하므로 "왜 집결을 안 하는지"가 로그에 안 남았다. 사유(종류+구분값)가 바뀔 때, 그리고 같은 사유가 이어질 때는
-	// RallyReportRepeatSeconds마다 상태를 갱신해 한 줄만 남긴다. 동작에는 영향이 없고, 문구는 사유를 만들 때만 조립한다(막힘 없는 경로엔 할당 없음).
+	// TryStartRally는 막히면 조용히 return하므로 사유가 바뀔 때와 같은 사유가 이어질 때 RallyReportRepeatSeconds마다 한 줄만 남긴다(동작 무관, 문구는 사유를 만들 때만 조립).
 	private enum RallyReport
 	{
 		None, Active, EntranceSequence, InCombat, PostCombatSweep, NoLeader, LeaderOnStairs, AdvanceFromRoom, HostileCore, RoomActivityIncomplete, AdvancePlanActive, AdvanceCooldown,
@@ -414,7 +381,7 @@ public partial class Party
 
 	private void LogRally(string message) => LogHelper.Log(LogHelper.GAME, $"{LogTag} {message}");
 
-	// 진행 중인 집결: 집결지로 가는 중인(AwaitingPartyAtRallyPoint) 파티원과 그 밖의 상태를 나눠 보여 준다 — "집결이 시작은 됐는데 아무도 안 모인다"를 가려내는 용도.
+	// 진행 중인 집결: 집결지로 가는 중인(AwaitingPartyAtRallyPoint) 파티원과 그 밖을 나눠 보여 준다 — '시작은 됐는데 아무도 안 모인다'를 가리는 용도.
 	private string DescribeActiveRally()
 	{
 		var heading = new System.Text.StringBuilder();
@@ -428,7 +395,7 @@ public partial class Party
 			{
 				headingCount++;
 				bool atSlot = wait.WaitPosition.HasValue && PartyFormationMath.IsAtSlot(m.position, wait.WaitPosition.Value);
-				// 도착하지 못한 파티원은 FSM 상태·경계 종류·보이는 적·자리까지 거리를 함께 남긴다(PartyDiagnostics.DescribeMember) — 왜 못 서는지 가리기 위한 진단.
+				// 도착하지 못한 파티원은 FSM 상태·경계 종류·보이는 적·자리까지 거리를 함께 남긴다(PartyDiagnostics.DescribeMember).
 				if (atSlot) heading.Append(m.name).Append("[도착] ");
 				else heading.Append(PartyDiagnostics.DescribeMember(m, wait.WaitPosition)).Append(' ');
 			}
@@ -447,9 +414,7 @@ public partial class Party
 		return $"집결지 {(RallyPoint.HasValue ? RallyPoint.Value.ToString() : "없음")}({RallyFloor}층), 도착 대기 {headingCount}명 [{heading.ToString().TrimEnd()}], 그 밖 {otherCount}명 [{other.ToString().TrimEnd()}]{absent}";
 	}
 
-	// 집결 대기 유닛이 자리에 도착할 때, 그리고 리더의 1초 주기(TryStartRally)마다 호출한다.
-	// 아직 자리에 못 선 파티원이 있으면 유지, 전원 도착했으면 집결을 종료한다. rallyGatherNearbyEnabled가 켜져 있으면 도착한 파티원도 대기를 유지하므로(전원이 모일 때까지 기다림)
-	// 여기서 도착 여부를 위치로 매번 다시 확인하고, 완료 시점에 대기를 일괄 해제한다. 꺼져 있으면 도착한 유닛이 스스로 대기를 비우는 예전 방식이다.
+	// 집결 대기 유닛이 자리에 도착할 때와 리더의 1초 주기마다 호출한다 — 전원 도착이면 집결을 종료한다. rallyGatherNearbyEnabled가 켜져 있으면 도착해도 대기를 유지하므로 위치로 매번 도착을 확인하고 완료 시 대기를 일괄 해제한다(꺼져 있으면 도착한 유닛이 스스로 비우는 예전 방식).
 	public void CheckRallyComplete()
 	{
 		if (!IsRallyActive) return;
@@ -468,9 +433,7 @@ public partial class Party
 				if (wait.IsParked) continue;
 				if (!wait.WaitPosition.HasValue || !PartyFormationMath.IsAtSlot(m.position, wait.WaitPosition.Value)) return;
 			}
-			// ReportingCoreToLeader도 "집결 미완료"로 취급 — 코어 보고 중인 유닛이 보고를 마치기 전에
-			// 나머지 인원만으로 집결이 먼저 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어
-			// 정박한(IsParked) 보고자는 붙잡지 않는다 — 리더를 못 찾는 유닛 하나가 집결을 교착시키면 안 된다.
+			// ReportingCoreToLeader도 집결 미완료로 본다 — 코어 보고 중인 유닛을 두고 집결이 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어 정박한(IsParked) 보고자는 붙잡지 않는다.
 			else if (wait.Reason == WaitReason.ReportingCoreToLeader && !wait.IsParked)
 				return;
 		}
@@ -493,8 +456,7 @@ public partial class Party
 		LogHelper.Log(LogHelper.GAME, $"{LogTag} 집결 완료 — 리더 {Leader?.name}이(가) 다음 방 이동을 결정(ReadyToAdvance), 이동 명령 발행 대기");
 	}
 
-	// 집결이 시작된 지 오래(doorApproachMaxBlockedSeconds × 2, 내부 판단 — 방 이동 단계 상한과 같은 기준)인데도 자리에 못 선 파티원은 그 위치에서 집결 처리한다 —
-	// 개별 재선택·구역 내 정착으로도 풀리지 않는 정체(전투가 안 끝나는 유닛 등)가 파티 전체를 영구히 붙잡지 않게 하는 마지막 안전장치다.
+	// 집결 시작 후 오래(doorApproachMaxBlockedSeconds × 2) 자리에 못 선 파티원은 그 위치에서 집결 처리한다 — 개별 재선택으로도 안 풀리는 정체가 파티 전체를 영구히 붙잡지 않게 하는 마지막 안전장치.
 	private void ParkStragglersAfterTimeLimit()
 	{
 		ApplyRallyEngagementPause();
@@ -514,8 +476,7 @@ public partial class Party
 		GiveUpAbsentees(limit);
 	}
 
-	// 집결 중 교전·경계가 있으면 그 경과 시간만큼 집결 시작 시각을 뒤로 밀어 60초 상한에 세지 않는다(03번 13항: 전투 후 10초 경계를 마친 뒤 기존 집결을 재개) — 집결 대기 중인 파티원 중 한 명이라도 교전·경계일 때.
-	// 상한은 PartyEngagement.PauseCap — 풀리지 않는 교전이 집결을 영구히 붙잡지 않게 한다. CheckRallyComplete가 1초 주기와 도착 시점에 불러 주므로 dt는 마지막 호출 이후의 경과다.
+	// 집결 중 교전·경계가 있으면 그 경과만큼 시작 시각을 뒤로 밀어 60초 상한에 세지 않는다(03번 13항) — 대기 중 파티원 한 명이라도 교전·경계일 때. 상한은 PartyEngagement.PauseCap이며 dt는 마지막 호출 이후 경과다.
 	private void ApplyRallyEngagementPause()
 	{
 		float now = Time.time;
@@ -554,28 +515,24 @@ public partial class Party
 		}
 	}
 
-	// 03번 문서 3번 항목: 리더가 코어를 직접 확인했거나(discoverer == Leader) 보고받았을 때
-	// PartyCoreReportSystem이 호출한다. 진행 중이거나 막 완료된 집결·다음 방 이동을 즉시 해제하고
-	// 코어 처리로 전환한다 — 전달 범위는 TryStartRally와 동일하게 05번 문서 4장을 따른다(같은 방은
-	// 무조건, 다른 방은 CanPropagate 게이트, 검증문서 01-02 6번).
+	// 리더가 코어를 직접 확인했거나 보고받으면 PartyCoreReportSystem이 호출한다 — 진행 중이거나 막 완료된 집결·다음 방 이동을 즉시 해제하고 코어 처리로 전환한다(03번 3항). 전달 범위는 TryStartRally와 같다(05번 4장).
 	public void OnLeaderLearnsCore(Vector3Int corePos)
 	{
 		if (LeaderKnownCorePosition == corePos) return; // 이미 알고 있음 — 중복 처리 방지
 		LeaderKnownCorePosition = corePos;
 
-		// 검증문서 03-03(03번 문서 3장 138줄): 위 집결 해제(같은 방은 무조건)와 달리, 코어 위치·발견
-		// 내용 자체는 일반 전파 조건(CanPropagate)만으로 공유한다 — 별도 예외 없음.
+		// 코어 위치·발견 내용은 위 집결 해제(같은 방은 무조건)와 달리 일반 전파 조건(CanPropagate)만으로 공유한다(03번 3장).
 		if (Leader?.Session != null && Leader.Session.objectGrid.TryGetValue(corePos, out var core))
 			PropagationSystem.NotifyCoreLocationKnown(Leader, core);
 
-		// 진행 중이던(집결 중·집결 완료 뒤 이동 대기·문 앞 진형·돌파·입장) 집결을 코어 때문에 해제하는 것이면 처리 뒤 다시 집결하도록 기억한다. 아직 집결이 없었다면 탐색 중 코어 처리라 기존 활동 종료 기준을 따른다.
+		// 진행 중이던(집결·이동 대기·진형·돌파·입장) 집결을 코어 때문에 해제하면 처리 뒤 다시 집결하도록 기억한다. 집결이 없었다면 탐색 중 코어 처리라 기존 활동 종료 기준을 따른다.
 		if (IsRallyActive || ReadyToAdvance || AdvanceFromRoom != null || AdvancePlan != null) _resumeRallyAfterCore = true;
 		IsRallyActive = false;
 		RallyPoint = null;
 		ReadyToAdvance = false;
 		AdvanceFromRoom = null; // 코어 처리가 끝나면 같은 방에서도 다시 집결할 수 있어야 한다(05번 2장 "코어 처리 후 집결 판단")
 		AdvanceAttempts = 0;
-		AdvancePlan = null; // 문 앞 진형·돌파·입장 중이었다면 폐기 — 전파가 안 닿은 파티원의 대기는 각자 계획이 없음을 보고 스스로 푼다(PartyAdvanceSteps.StepMember)
+		AdvancePlan = null; // 진행 중이던 진형·돌파·입장 계획 폐기 — 전파가 안 닿은 파티원은 각자 계획이 없음을 보고 스스로 푼다(PartyAdvanceSteps.StepMember)
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;

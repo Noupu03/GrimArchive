@@ -209,10 +209,7 @@ public static class PropagationSystem
 			listener.Propagation.PendingSound = null;
 	}
 
-	// 16-4/16-5/10장: 소리에 반응하지 않는 상태 — 전투 합류 대기 중(인류 전용)이면 완전 무시. 검증문서
-	// 03-04(03번 문서 4장 "전투 중 소리 반응"): 전투 상태(personalSpottedEnemies 있음)라도 공격 목표
-	// (CombatTargeting.AttackTarget)가 없으면 다음 대상을 확인할 수 있게 교전음·이동음은 듣게 한다 —
-	// 함정음은 공격 목표 유무와 무관하게 전투 중엔 계속 제외.
+	// 소리 무시 상태 — 합류 대기 중(인류)이면 완전 무시, 전투 상태라도 공격 목표(AttackTarget)가 없으면 다음 대상 확인을 위해 교전음·이동음은 듣는다(03번 4장). 함정음은 전투 중 항상 제외.
 	private static bool IsSoundUnresponsive(Unit unit, SoundType type)
 	{
 		if (unit is Human human)
@@ -227,9 +224,7 @@ public static class PropagationSystem
 		return false;
 	}
 
-	// 검증문서 03-16: 확인 행동을 시작한(ResponseStarted) 소리 기록은 그 소리 경계(IsSoundResponse)가 실제로 진행 중일
-	// 때만 "반응 중"이다. 전투 진입(CombatFSMState.OnEnter)·조사·사망 수색 등이 경계만 지우고 덮어쓰면 기록이 남아,
-	// 같은/낮은 순위의 새 소리를 영구히 무시하게 된다(사망음·피격 비명이면 이후 모든 소리) — 그런 기록은 중단된 반응이므로 버린다.
+	// 확인 행동을 시작한 소리 기록은 그 소리 경계(IsSoundResponse)가 실제로 진행 중일 때만 '반응 중'이다 — 전투 진입·조사 등이 경계만 지우면 기록이 남아 같은/낮은 순위 소리를 영구히 무시하므로 중단된 반응은 버린다.
 	private static void DiscardInterruptedSoundReaction(Unit unit)
 	{
 		var pending = unit.Propagation.PendingSound;
@@ -247,10 +242,7 @@ public static class PropagationSystem
 		var pending = unit.Propagation.PendingSound;
 		if (pending == null || pending.ResponseStarted) return false;
 		if (Time.time > pending.ValidUntilTime) { unit.Propagation.PendingSound = null; return false; }
-		// 검증문서 03-04: 여기서 승격을 막지 않으면, BT 우선순위상 Alert가 Investigate/Wait/CoreAttack/
-		// DoorAttack보다 먼저라 그 아래 카테고리들의 자체 "이 소리 무시" 판정(CanInvestigate의
-		// HasPendingInterruptingSound 등)이 실행될 기회조차 없이 Alert가 먼저 가로챈다 — TrapResponse만
-		// Alert보다 앞이라 이 문제에서 자유롭다(IsTrapResponseBlockedBySound가 별도로 담당).
+		// 여기서 승격을 막지 않으면 BT에서 Alert가 Investigate/Wait/CoreAttack/DoorAttack보다 앞이라 그 카테고리의 자체 '소리 무시' 판정이 실행되기 전에 Alert가 가로챈다(TrapResponse는 Alert보다 앞이라 해당 없음).
 		if (IsSoundReactionSuppressed(unit, pending.Type)) return false;
 
 		unit.currentAlertSearch = new AlertSearchState
@@ -269,12 +261,7 @@ public static class PropagationSystem
 		return true;
 	}
 
-	// 검증문서 03-04(03번 문서 4장 표): "파티 목표·코어 상호작용 당사자"는 전투관련소리·이동음·
-	// 함정작동음 구분 없이 전부 반응하지 않는다(둘 다 "현재 행동 유지"). "일반 조사"는 함정작동음만
-	// 무시하고 그 외 소리엔 정상적으로 중단된다 — 함정 해제·대응(TrapResponse)은 BT 우선순위 자체가
-	// Alert보다 높아 여기서 다룰 필요가 없다(IsTrapResponseBlockedBySound가 전담). 보호 포메이션 참여
-	// 분기는 Formation.enabled=false(2026-09-04 사용자 결정)로 여전히 비활성이라 포함하지 않았다 —
-	// 재활성화 논의 시 함께 추가할 것.
+	// 03번 4장 표: 파티 목표·코어 상호작용 당사자는 소리 종류와 무관하게 반응하지 않고, 일반 조사는 함정작동음만 무시한다. 함정 대응은 BT 우선순위가 Alert보다 높아 여기서 다루지 않으며, 보호 포메이션 분기는 비활성(Formation.enabled=false)이라 뺐다 — 재활성화 시 추가한다.
 	private static bool IsSoundReactionSuppressed(Unit unit, SoundType type)
 	{
 		// 코어/문 공격 채널링 중(인류·플레이어 몬스터 공통 필드) — 모든 소리 무시.
@@ -282,11 +269,9 @@ public static class PropagationSystem
 
 		if (unit is Human human)
 		{
-			// 파티 목표 상호작용(회수 파티+Loot, 검증문서 03-01의 IsPartyGoalTarget) 당사자 — 모든 소리 무시.
+			// 파티 목표 상호작용(회수 파티+Loot) 당사자 — 모든 소리 무시.
 			if (human.currentInvestigation?.IsPartyGoalTarget == true) return true;
-			// 코어 보고 이동 중은 03번 1장 48~49행의 별도 행(보고 이동)을 따른다 — 이동음·함정음만 무시하고
-			// 전투음은 대응한 뒤 남은 보고를 재개한다(검증문서 03-14). 이동음까지 허용하면 SoundMoveReact가
-			// 2초간 보고 이동을 멈춰 세운다.
+			// 코어 보고 이동 중엔 이동음·함정음만 무시하고 전투음은 대응한 뒤 보고를 재개한다(03번 1장) — 이동음을 허용하면 SoundMoveReact가 2초간 보고 이동을 멈춘다.
 			if (human.currentWait?.Reason == WaitReason.ReportingCoreToLeader)
 				return type == SoundType.Movement || type == SoundType.TrapActivation;
 			// 일반 조사(파티 목표 아님) 중엔 함정작동음만 무시한다.
@@ -356,8 +341,7 @@ public static class PropagationSystem
 		int range = GetPropagationRange(sender);
 		CreateMap cmap = sender.Session.cmap;
 		int floor = sender.currentFloor;
-		// 07-A 1-2장: 우회 경로는 같은 공간 안에서만 유효 — senderRoom과 같은 방의 타일만 후보로 남겨 게이트 너머로 새는 것을 막는다.
-		// (문이 열려 있거나 파괴됐어도 예외 없음 — 알려진 한계, PropagationMath.SameSpace 주석/검증문서 00-08 참고)
+		// 우회 경로는 같은 공간 안에서만 유효하다(07-A 1-2장) — senderRoom 타일만 후보로 남겨 게이트 너머로 새지 않게 한다(열린/파괴된 문도 예외 없음, 알려진 한계).
 		return PropagationMath.TryGetSpaceDistance(sender.position, receiver.position, range,
 			p => cmap.IsStaticTileWalkable(floor, p) && cmap.GetRoomIdAt(floor, p) == senderRoom, out _);
 	}
@@ -370,9 +354,7 @@ public static class PropagationSystem
 		return InPropagationRange(sender, receiver);
 	}
 
-	// 01번 문서 9장/검증문서 01-09 2번: 일반 오브젝트(조사·회수) 발견 정보의 지속 재전파 —
-	// PartyDeathSystem/TrapPartySystem.TickOngoingPropagation과 동일 패턴(최초 전파 시점 스냅샷이
-	// 아니라 매 틱 재확인해, 그 순간 놓친 파티원도 나중에 전파 범위 안으로 들어오면 받게 한다).
+	// 일반 오브젝트(조사·회수) 발견 정보의 지속 재전파(01번 9장) — 최초 전파 스냅샷이 아니라 매 틱 재확인해 놓친 파티원도 나중에 범위에 들어오면 받게 한다(PartyDeathSystem/TrapPartySystem과 같은 패턴).
 	public static void TickOngoingObjectPropagation(Human human)
 	{
 		var party = human.party;
@@ -417,9 +399,7 @@ public static class PropagationSystem
 			}
 		}
 
-		// 검증문서 03-02: 파티 목표 합류 정보 지속 재전파 — 위 KnownInvestigatedObjects 블록과 동일
-		// 패턴이지만 OnObjectInvestigated는 호출하지 않는다(아직 완료가 아니라 "존재와 위치를 앎"만
-		// 필요 — 등록되는 순간 FindInvestigateTarget이 자유로운 이 유닛에게 자연히 합류 후보로 제시한다).
+		// 파티 목표 합류 정보 지속 재전파 — 위 블록과 같은 패턴이지만 OnObjectInvestigated는 부르지 않는다(완료가 아니라 존재·위치만 알리면 되며, 등록되면 FindInvestigateTarget이 합류 후보로 제시한다).
 		if (party.PartyGoalJoinTargets.Count > 0)
 		{
 			foreach (var kv in party.PartyGoalJoinTargets)
@@ -440,12 +420,10 @@ public static class PropagationSystem
 			}
 		}
 
-		// 검증문서 05-06(05번 7장 408·454~456줄): 발견한 문도 코어·함정과 같은 지속 재전파 대상이다 — 알게 된다는 것은 개인 지도 등록뿐이고 방 이동 명령은 여전히 리더 결정이다.
+		// 발견한 문도 코어·함정과 같은 지속 재전파 대상이다(05번 7장) — 알게 되는 것은 개인 지도 등록뿐이고 방 이동 명령은 리더 결정이다.
 		if (party.KnownDoorObjects.Count > 0) PropagateKnownDoors(human, party);
 
-		// 검증문서 03-03: 코어 위치·발견 내용의 지속 재전파 — 새 Party 필드 없이 기존
-		// LeaderKnownCorePosition을 그대로 재사용한다(코어가 처리되면 Party.TryStartRally가 스스로
-		// null로 지워 전파도 자연히 멈춘다 — 이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절하다).
+		// 코어 위치·발견 내용의 지속 재전파(03번 3장) — 기존 LeaderKnownCorePosition을 재사용하며, 코어가 처리되면 Party.TryStartRally가 지워 전파도 멈춘다.
 		if (party.LeaderKnownCorePosition.HasValue
 			&& human.Session.objectGrid.TryGetValue(party.LeaderKnownCorePosition.Value, out var core)
 			&& !human.personalMap.IsObjectKnown(core.Id))
@@ -465,8 +443,7 @@ public static class PropagationSystem
 	private static readonly List<Human> _doorCarrierScratch = new List<Human>();
 	private static readonly List<string> _staleDoorScratch = new List<string>();
 
-	// 파티가 확인한 문(Party.KnownDoorObjects) 중 human이 아직 모르는 문을, 그 문을 아는 파티원과 일반 전파 조건(CanPropagate)이 성립하면 human의 개인 지도에 등록한다.
-	// 전파 조건을 만족하는 파티원은 문마다가 아니라 한 번만 구한다(같은 공간 BFS라 문 수만큼 반복하면 비싸다). 파괴돼 사라진 문은 원장에서 정리한다.
+	// 파티가 확인한 문(Party.KnownDoorObjects) 중 human이 모르는 문을 일반 전파 조건이 성립하는 파티원이 알면 개인 지도에 등록한다. 전파 가능 파티원은 문마다가 아니라 한 번만 구하고(BFS 비용), 파괴돼 사라진 문은 원장에서 정리한다.
 	private static void PropagateKnownDoors(Human human, Party party)
 	{
 		_doorCarrierScratch.Clear();
@@ -497,7 +474,7 @@ public static class PropagationSystem
 		foreach (var id in _staleDoorScratch) party.KnownDoorObjects.Remove(id);
 	}
 
-	// 문을 "아는가" — 오브젝트로 등록했거나(전파받은 경우 포함) 문 타일을 시야로 확인했다(인지 판정과 무관). AIMovementHelper.TryFindKnownDoorInCurrentRoom(리더의 다음 이동 문 후보)이 같은 기준을 쓴다.
+	// 문을 '아는가' — 오브젝트로 등록했거나(전파 포함) 문 타일을 시야로 확인했다(인지 판정 무관). TryFindKnownDoorInCurrentRoom이 같은 기준을 쓴다.
 	public static bool KnowsDoor(Human h, InteractableObject door)
 		=> h.personalMap.IsObjectKnown(door.Id) || h.personalMap.IsTileRevealed(door.Position);
 
@@ -511,8 +488,7 @@ public static class PropagationSystem
 		foreach (var m in victim.party.Members)
 		{
 			if (m == null || m == victim || m.hp <= 0) continue;
-			// 소리 타입 자체는 없는 직접 정보라 함정음 특수 취급과 무관한 임의의 non-trap 타입(피격
-			// 관련이라 HitImpact)을 넘긴다 — "공격 목표 있으면 무시, 없으면 허용" 규칙만 적용된다.
+			// 소리 타입이 없는 직접 정보라 함정음 특수 취급과 무관한 임의의 non-trap 타입(HitImpact)을 넘긴다 — '공격 목표 있으면 무시, 없으면 허용' 규칙만 적용된다.
 			if (IsSoundUnresponsive(m, SoundType.HitImpact)) continue;
 			if (!InPropagationRange(victim, m)) continue;
 			if (m.currentAlertSearch != null) continue; // 더 급한 상태(이미 반응 중)는 덮어쓰지 않는다.
@@ -549,13 +525,7 @@ public static class PropagationSystem
 		}
 	}
 
-	// 검증문서 03-02(03번 문서 3번 항목): 파티 목표 오브젝트 상호작용이 시작되는 순간 "합류 정보"를
-	// 전파한다 — 위 NotifyInteractionStarted(포메이션 참여 토큰)와는 별개 목적이라 나란히 둔다. 같은
-	// 틱에 전파 범위 안인 파티원은 즉시 personalMap에 등록되고(다음 틱부터 FindInvestigateTarget이
-	// 자연히 후보로 인식해 합류 이동을 시작한다), 범위 밖이었던 파티원은 party.PartyGoalJoinTargets에
-	// 남겨 TickOngoingObjectPropagation이 나중에 채워준다. "유닛당 1회만 재전파"는 IsObjectKnown 체크로,
-	// "재전파"(수신자가 다시 전파)는 아래 TickOngoingObjectPropagation의 carrier 루프가 등록 여부만
-	// 보고 원발견자와 수신자를 구분하지 않는 것으로 자연히 만족된다.
+	// 파티 목표 오브젝트 상호작용이 시작되는 순간 합류 정보를 전파한다(03번 3항) — NotifyInteractionStarted(포메이션 토큰)와는 별개 목적이다. 범위 안 파티원은 즉시 personalMap에 등록돼 FindInvestigateTarget이 합류 이동을 시작하고, 범위 밖은 party.PartyGoalJoinTargets에 남겨 TickOngoingObjectPropagation이 나중에 채운다. 재전파는 carrier 루프가 등록 여부만 보고 원발견자와 수신자를 구분하지 않아 자연히 성립한다.
 	public static void NotifyPartyGoalInteractionStarted(Human interactingUnit, InteractableObject obj)
 	{
 		if (interactingUnit.party == null) return;
@@ -569,12 +539,7 @@ public static class PropagationSystem
 		}
 	}
 
-	// 검증문서 03-03(03번 문서 3장 138줄): "집결 해제는 같은 방·같은 파티 전체에 전달하지만 코어
-	// 위치와 발견 내용은 일반 전파 조건으로 전달한다" — Party.OnLeaderLearnsCore의 집결 해제(같은
-	// 방 무조건 예외 있음)와 별도로, 코어 "정보" 자체는 CanPropagate만으로 게이트한다. 발견자는
-	// UnitFunction.CastRay의 AccuratePerception 시점(:645)에 이미 personalMap에 등록돼 있으므로,
-	// 여기선 리더(보고로 알게 된 경우 아직 모를 수 있음)와 그 순간 범위 안인 나머지 파티원만 새로
-	// 등록한다 — 위 NotifyPartyGoalInteractionStarted와 동일한 즉시 전파 패턴.
+	// 코어 '정보'는 집결 해제(같은 방 무조건)와 달리 CanPropagate만으로 게이트한다(03번 3장). 발견자는 인지 시점에 이미 등록돼 있으므로 여기선 리더(보고로 알게 된 경우 아직 모를 수 있음)와 그 순간 범위 안 파티원만 등록한다.
 	public static void NotifyCoreLocationKnown(Human leader, InteractableObject core)
 	{
 		if (leader.party == null || core == null) return;
@@ -601,23 +566,19 @@ public static class PropagationSystem
 
 	public static bool ShouldDeferForJoinWait(Human human, Unit enemy)
 	{
-		// 현재 문서 세트가 삭제한 합류 대기(검증 06-01) — AIBehaviorConfig.joinCombatWaitEnabled가 꺼져 있으면(기본) 적을 정확 인지하는 즉시 전투한다.
+		// 합류 대기는 현재 문서 세트가 삭제했다 — joinCombatWaitEnabled가 꺼져 있으면(기본) 적을 정확 인지하는 즉시 전투한다.
 		if (!(AIConfigLoader.Behavior?.joinCombatWaitEnabled ?? false)) return false;
 		if (human.Knowledge == null || enemy == null || enemy.unitType == null) return false;
 		// 9-3장: 이 적은 이미 한 번 응답 대기 타임아웃으로 포기한 적 — 다시 대기하지 않고 곧장 전투.
 		if (enemy == human.joinWaitGiveUpTarget) return false;
-		// 16-3장: 긴급 소리(피격/사망음) 확인 중 적을 정확 인지하면 거리·위험도와 무관하게 합류 대기를 건너뛴다.
-		// 03번 v0.6 4-7: 전파받은 적 위치로 접근하는 유닛도 다른 유닛을 기다리지 않고 기록 위치로 직접 접근한다.
+		// 긴급 소리(피격/사망음) 확인 중 적을 정확 인지하면 거리·위험도와 무관하게 합류 대기를 건너뛴다(16-3장). 전파받은 적 위치로 접근하는 유닛도 기다리지 않고 직접 접근한다(03번 v0.6 4-7).
 		if (human.currentAlertSearch != null && (human.currentAlertSearch.IsUrgentSoundApproach || human.currentAlertSearch.IsIndirectEnemyApproach)) return false;
 		int dist = Mathf.RoundToInt(Vector2Int.Distance(human.position, enemy.position));
 		DangerStage? stage = human.Knowledge.GetDangerStage(enemy.unitType.typeName, enemy.isSpecialUnit ? enemy.name : null, enemy.BaseStat.baseDanger);
 		return PropagationMath.RequiresJoinWait(stage, dist);
 	}
 
-	// 검증문서 03-07(03번 문서 6장 "전파 가능한 적 정보는 이동·공격과 병행하여 전달한다"): 합류 대기
-	// 필요 여부와 무관하게 적을 정확 인지한 모든 경우에 적용되는 순수 전파 — StartJoinCombatWait(합류
-	// 대기가 필요한 경우 전용)와 CombatFSMState의 즉시전투 경로(합류 대기 불필요)가 공유한다.
-	// RecordEnemySighting은 "더 최신 정보만 갱신"하는 멱등 함수라 매 틱 반복 호출해도 안전하다.
+	// 합류 대기 필요 여부와 무관하게 적을 정확 인지한 모든 경우에 적용되는 순수 전파(03번 6장) — StartJoinCombatWait와 CombatFSMState 즉시 전투 경로가 공유한다. RecordEnemySighting이 '더 최신 정보만 갱신'하는 멱등 함수라 매 틱 반복 호출해도 안전하다.
 	public static void PropagateEnemySighting(Human discoverer, Unit enemy)
 	{
 		if (discoverer.party == null) return;
@@ -625,8 +586,8 @@ public static class PropagationSystem
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
 			if (!InPropagationRange(discoverer, m)) continue;
-			// 발견자가 정확 인지한 "적의" 마지막 확인 위치를 전한다(예전엔 발견자 자신의 위치를 넘겨, 전파받은 적 위치로 접근하면
-			// 엉뚱한 곳으로 갔다 — 03번 v0.6 4-7).
+			// 발견자가 정확 인지한 '적의' 마지막 확인 위치를 전한다 — 발견자 자신의 위치를 넘기면 전파받은 적 위치로 접근할 때
+			// 엉뚱한 곳으로 간다(03번 v0.6 4-7).
 			RecordEnemySighting(m, enemy, enemy.position);
 		}
 	}
@@ -645,8 +606,7 @@ public static class PropagationSystem
 		foreach (var m in discoverer.party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
-			// 합류자 지정은 순수 전파와 별개 조건 — 수신자가 비전투 상태여야 한다(발견자는 방금
-			// 인지해 personalSpottedEnemies가 이미 채워져 있어 이 조건을 확인할 필요가 없다).
+			// 합류자 지정은 순수 전파와 별개로 수신자가 비전투여야 한다(발견자는 방금 인지해 이미 조건을 만족).
 			if (m.personalSpottedEnemies.Count > 0) continue;
 			if (!InPropagationRange(discoverer, m)) continue;
 			if (responder == null && CanRespondToJoinRequest(m)) { responder = m; break; }
@@ -671,10 +631,7 @@ public static class PropagationSystem
 		return true;
 	}
 
-	// 03번 v0.6 4-7(간접 인지 후 접근, 검증 갭 정리): 다른 파티원에게 전파받은 적 위치(PropagatedInfo)가 있고 이 유닛에게 다른
-	// 우선 행동이 없으면 그 위치로 일반 탐색 상태·일반 이동속도로 접근한다. "어떤 상황에서 이 접근을 목표로 고르는가"는 새 문서
-	// 세트에 없어(목표설정·파티 문서로 미뤄짐) 사용자 승인 하에 "비전투이고 다른 우선 행동이 없는 파티원이 가장 최근 전파 정보로
-	// 접근"으로 근사했다. UnitFunction.OnUpdate 0.1초 틱이 호출한다.
+	// 다른 파티원에게 전파받은 적 위치(PropagatedInfo)가 있고 다른 우선 행동이 없으면 그 위치로 일반 탐색 상태·일반 속도로 접근한다(03번 v0.6 4-7). 접근을 고르는 조건은 문서에 없어 '비전투이고 다른 우선 행동이 없는 파티원이 가장 최근 전파 정보로 접근'으로 근사했다. OnUpdate 0.1초 틱이 호출한다.
 	private static readonly List<object> _staleInfoKeys = new List<object>();
 
 	public static void TickIndirectEnemyApproach(Human human)
@@ -712,8 +669,7 @@ public static class PropagationSystem
 		};
 	}
 
-	// 접근을 시작해도 되는 상태 — 전투·이미 시작한 상호작용·집결/공동 이동/보고/귀환 대기·직접 명령·던전 입구 시퀀스가 우선한다
-	// (03번 1장 50줄: 집결·공동 이동 중의 적 발견은 전투에만 대응하고 개인 탐색으로 흩어지지 않는다).
+	// 접근 시작 가능 상태 — 전투·이미 시작한 상호작용·집결/공동 이동/보고/귀환 대기·직접 명령·입구 시퀀스가 우선한다(03번 1장: 집결·공동 이동 중엔 개인 탐색으로 흩어지지 않는다).
 	private static bool CanStartIndirectEnemyApproach(Human human)
 	{
 		if (human.party == null || human.personalSpottedEnemies.Count > 0) return false;

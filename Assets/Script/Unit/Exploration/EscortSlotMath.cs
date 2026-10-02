@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 03번 문서 6-4·6-5장(05번 9장 534~536줄) 보호 포메이션 자리 규칙 — 순수 함수. 보호 포메이션은 현재 꺼져 있어(TacticalBehaviorPriorityConfig Formation.enabled=false) 휴면 로직이다(검증 05-08).
-// 근접: 1 상호작용 유닛 전방 → 2 좌우 → 3 상호작용 유닛과 가장 가까운 이동 가능 타일.
-// 원거리: 1 후방 minBack칸 이상 → 2 좌우 후방 → 3 가장 가까운 비점유 타일(가능하면 minBack칸 거리 유지, 공간 부족이면 그보다 가까운 타일).
-// 같은 대상을 호위하는 유닛 여럿이 같은 자리로 몰리지 않게 호출부가 정한 순서대로 차례로 배정하고(앞 유닛이 차지한 자리는 뒤 유닛이 못 쓴다), 한 유닛의 자리는 다른 호위 유닛의 위치와 무관해 매 틱 다시 계산해도 흔들리지 않는다.
+// 보호 포메이션 자리 규칙(03번 6-4·6-5장) — 순수 함수. 보호 포메이션은 꺼져 있어(Formation.enabled=false) 휴면 로직이다.
+// 근접: 1 상호작용 유닛 전방 → 2 좌우 → 3 가장 가까운 이동 가능 타일. 원거리: 1 후방 minBack칸 이상 → 2 좌우 후방 → 3 가장 가까운 비점유 타일(가능하면 minBack칸 유지).
+// 호출부가 정한 순서대로 차례로 배정해(앞 유닛이 차지한 자리는 뒤 유닛이 못 씀) 여럿이 한 자리로 몰리지 않고, 한 유닛의 자리는 다른 호위 유닛 위치와 무관해 매 틱 다시 계산해도 흔들리지 않는다.
 public static class EscortSlotMath
 {
 	// 단계 3(가장 가까운 타일) 탐색 반경(체비셰프).
@@ -43,7 +42,7 @@ public static class EscortSlotMath
 		return new List<Vector2Int[]> { straight.ToArray(), diagonal.ToArray() };
 	}
 
-	// 단계 3 — 상호작용 유닛에서 가장 가까운(체비셰프 → 직선 거리 → x → y) free 타일. preferMinDistance가 0보다 크면 그 거리 이상을 먼저 찾고 없을 때만 더 가까운 타일을 쓴다(원거리의 "가능하면 최소 2칸").
+	// 단계 3 — 상호작용 유닛에서 가장 가까운(체비셰프 → 직선 거리 → x → y) free 타일. preferMinDistance > 0이면 그 거리 이상을 먼저 찾고 없을 때만 더 가까운 타일을 쓴다(원거리의 '가능하면 최소 2칸').
 	public static Vector2Int? PickNearest(Vector2Int escort, int preferMinDistance, Func<Vector2Int, bool> isFree, ICollection<Vector2Int> claimed)
 	{
 		if (preferMinDistance > 1)
@@ -98,7 +97,7 @@ public static class EscortSlotMath
 		return PickNearest(escort, ranged ? minBack : 0, isFree, claimed);
 	}
 
-	// 같은 대상을 호위하는 유닛 전원의 자리를 목록 순서대로 배정한다(호출부가 근접 먼저·같은 역할은 고정 번호순으로 정렬해 넘긴다). isFree(호위 번호, 타일)는 그 유닛이 설 수 있는지(점유 크기·벽·오브젝트·남의 점유 포함).
+	// 같은 대상을 호위하는 유닛 전원의 자리를 목록 순서대로 배정한다(호출부가 근접 먼저·같은 역할은 고정 번호순으로 정렬해 넘김). isFree(호위 번호, 타일)는 그 유닛이 설 수 있는지(점유 크기·벽·오브젝트·남의 점유 포함).
 	public static Vector2Int?[] AssignSlots(Vector2Int escort, Vector2Int facing, IList<bool> ranged, int minBack, Func<int, Vector2Int, bool> isFree)
 	{
 		var result = new Vector2Int?[ranged.Count];

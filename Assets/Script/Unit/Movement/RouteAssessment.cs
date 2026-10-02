@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 한 번의 후보 선정(ComputeInvestigateTarget 호출 하나)이 공유하는 평가 문맥 — 프론티어 걸음 수 BFS를 후보마다 다시 돌리지 않고 한 번만 계산하고,
-// 점유 판정 메모에 적중하지 않은 실제 탐색 횟수를 센다(후보 평가 상한).
+// 한 번의 후보 선정(ComputeInvestigateTarget 호출 하나)이 공유하는 평가 문맥 — 프론티어 걸음 수 BFS를 후보마다 다시 돌리지 않고 한 번만 계산하며, 점유 판정 메모에 적중하지 않은 실제 탐색 횟수를 센다(후보 평가 상한).
 public sealed class RouteContext
 {
 	public readonly Dictionary<Vector2Int, int> FrontierSteps = new Dictionary<Vector2Int, int>();
@@ -19,23 +18,22 @@ public sealed class RouteContext
 	}
 }
 
-// 검증 04-08(04번 문서 9장 "전체 길 미확인과 통행 불가의 구분 / 미확인 경로의 추정 이동거리"): 유닛이 지금 아는 정보로 목적지까지의 길을 평가한다.
-// OccupancySystem과 같은 성격의 부수효과 있는 호출부 — 유닛·세션 상태를 읽고, 순수 판단은 RouteMath에 있다.
+// 유닛이 지금 아는 정보로 목적지까지의 길을 평가한다(04번 9장). 순수 판단은 RouteMath, 여기는 유닛·세션 상태를 읽는 호출부다.
 //
 // 판정(RouteStatus):
-//  1) 낙관 A*(미확인은 통행 가능으로 계획)로 도달 + 길의 모든 칸이 개인 지도에 확인됨 → FullyKnown(실제 칸수)
-//  2) 도달하지만 미확인 구간이 있음 → PartlyUnknown(추정 = 프론티어까지 실제 걸음 수 + 프론티어→목적지 체비셰프의 최솟값)
-//  3) 도달 못함 → 점유를 무시한 구조 경로로는 도달 → 점유 때문인 일시 막힘(후보 유지, 04-05 대기·우회가 처리)
+//  1) 낙관 A*(미확인은 통행 가능으로 계획)로 도달 + 길 전체가 개인 지도에 확인됨 → FullyKnown(실제 칸수)
+//  2) 도달하지만 미확인 구간이 있음 → PartlyUnknown(추정 = 프론티어까지 걸음 수 + 프론티어→목적지 체비셰프의 최솟값)
+//  3) 도달 못함 → 점유 무시 구조 경로로는 도달 → 점유 때문인 일시 막힘(후보 유지, 대기·우회가 처리)
 //  4) 구조 경로도 못함 → 함정 회피를 끈 구조 경로로는 도달 → TrapBlocked(후보 유지, 함정 대응이 처리)
-//  5) 그래도 못함 → Unreachable("현재 정보로 통행 불가 확인") — 후보에서 제외한다.
-// 낙관 A*는 "길이 있을 수도 있음"이면 항상 경로를 내므로 실패 = 이미 아는 정보로는 도달할 수 없다는 뜻이다. 새 정보(지형·문·함정)가 생기면 다음 평가에서 자동으로 다시 열린다.
+//  5) 그래도 못함 → Unreachable('현재 정보로 통행 불가 확인') — 후보에서 제외
+// 낙관 A*는 길이 있을 수도 있으면 항상 경로를 내므로 실패 = 아는 정보로는 도달 불가이며, 새 정보(지형·문·함정)가 생기면 다음 평가에서 자동으로 다시 열린다.
 public static class RouteAssessment
 {
-	// 조사는 목적지 인접 1칸(체비셰프)에 닿으면 도착이다(TacticalFSMState.MoveToInvestigateTarget의 IsAdjacent) — 목표 타일이 서 있을 수 없는 칸이어도 닿을 수 있으므로 같은 기준으로 판정한다.
+	// 조사는 목적지 인접 1칸(체비셰프)에 닿으면 도착이다(MoveToInvestigateTarget의 IsAdjacent) — 목표 타일이 서 있을 수 없는 칸이어도 닿을 수 있으므로 같은 기준으로 판정한다.
 	public const int ApproachRange = 1;
 	private const int MemoCapacity = 64;
 
-	// targetIsTrap: 목표가 함정 자체(해제 담당자의 도착시간 등)면 그 함정의 회피 구역을 면제하고 함정 타일 자체까지의 길이를 잰다(검증 03-13). 이 경우 판정 메모는 쓰지 않는다.
+	// targetIsTrap: 목표가 함정 자체(해제 담당자 도착시간 등)면 그 함정의 회피 구역을 면제하고 함정 타일까지의 길이를 잰다. 이 경우 판정 메모는 쓰지 않는다.
 	public static RouteEstimate Assess(Unit unit, Vector3Int targetTile, bool targetIsTrap = false, RouteContext ctx = null)
 	{
 		Vector2Int target2D = new Vector2Int(targetTile.x, targetTile.y);
@@ -94,7 +92,7 @@ public static class RouteAssessment
 		return new RouteEstimate(RouteStatus.Unreachable, RouteMath.UnreachableDistanceTiles);
 	}
 
-	// 04번 9장 추정 이동거리: 프론티어까지 실제 걸음 수 + 프론티어→목적지 최소 칸수의 최솟값. 인류가 아니거나 도달 가능한 프론티어가 없으면 낙관 A* 길이(아는 구간 + 미확인을 가로지르는 구간)로 근사한다.
+	// 추정 이동거리(04번 9장): 프론티어까지 실제 걸음 수 + 프론티어→목적지 최소 칸수의 최솟값. 인류가 아니거나 도달 가능한 프론티어가 없으면 낙관 A* 길이로 근사한다.
 	private static int EstimateUnknownSegment(Unit unit, AStarMovement astar, Vector2Int target, int optimisticLength, RouteContext ctx)
 	{
 		if (unit is Human human)
@@ -121,16 +119,15 @@ public static class RouteAssessment
 		return new RouteSignature(unit.currentFloor, known != null ? known.TerrainRevision : 0, traps, doors);
 	}
 
-	// ── 탐험 목표 막힘 기록 (검증 04-08 발견 5, 04번 9장 '막힘 기록과 재시도 조건') ─────────────
-	// 탐험이 길찾기로 닿지 못한 미탐색 목표를 (서명, 시각)으로 기록해 두고, 같은 서명이면 다시 고르지 않는다 — 서명이 바뀌어도 기록 직후 routeRecheckMinSeconds 안에는 그대로다
-	// (조사 후보의 통행 불가 메모와 같은 규칙, RouteMath.IsUnreachableMemoValid). 점유는 서명에 없어 점유만 원인이면 아는 정보가 바뀔 때까지 건너뛸 수 있다 — 탐험 중엔 새 타일을 밝히며 곧 바뀐다.
+	// ── 탐험 목표 막힘 기록(04번 9장 '막힘 기록과 재시도 조건') ─────────────
+	// 탐험이 닿지 못한 미탐색 목표를 (서명, 시각)으로 기록해 같은 서명이면 다시 고르지 않는다 — 서명이 바뀌어도 기록 직후 routeRecheckMinSeconds 안에는 그대로이며(조사 후보 통행 불가 메모와 같은 규칙, IsUnreachableMemoValid), 점유는 서명에 없어 점유만 원인이면 아는 정보가 바뀔 때까지 건너뛸 수 있다(탐험 중엔 곧 바뀐다).
 	public static void MarkExploreBlocked(Unit unit, Vector2Int tile)
 	{
 		if (unit.exploreBlockedTargets.Count >= MemoCapacity) unit.exploreBlockedTargets.Clear();
 		unit.exploreBlockedTargets[new Vector3Int(tile.x, tile.y, unit.currentFloor)] = new RouteMemoEntry { Signature = SignatureOf(unit), Time = Time.time };
 	}
 
-	// 지금 유효한 막힘 기록으로 제외할 타일을 가려내는 필터(프론티어 선택·방 탐색 완료 판정용). 끄거나(exploreBlockedRecordEnabled) 기록이 없으면 null — 호출부는 null이면 필터 없이 훑는다.
+	// 지금 유효한 막힘 기록으로 제외할 타일을 가려내는 필터(프론티어 선택·방 탐색 완료 판정용) — 끄거나(exploreBlockedRecordEnabled) 기록이 없으면 null이고 호출부는 필터 없이 훑는다.
 	public static System.Predicate<Vector2Int> CreateExploreBlockFilter(Unit unit)
 	{
 		var cfg = AIConfigLoader.Behavior;

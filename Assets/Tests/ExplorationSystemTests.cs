@@ -70,7 +70,7 @@ public class ExplorationSystemTests
 		Assert.AreEqual(0.5f, ExplorationMath.FormationNarrowSpaceBlockRatio, 0.001f);
 	}
 
-	// ── 03번 v0.12 8장 / 순서도 03-12·03-12-2. 함정 해제 담당자 도착 예정과 대기 기한 ──
+	// ── 03번 8장: 함정 해제 담당자 도착 예정과 대기 기한 ──
 	[Test]
 	public void TrapWaitDeadline_IsCalcTimePlusRemainingPlusGrace()
 	{
@@ -100,8 +100,7 @@ public class ExplorationSystemTests
 	[Test]
 	public void TrapArrivalEstimate_ValidChange_UsesItsOwnCalcTime()
 	{
-		// 2초에 남은 9초(도착 예정 11초)로 바뀐 정보를 전달받으면 새 계산 시점 기준 기한 2+9+3=14초로 갱신한다.
-		// 수신 시점은 인자에 없으므로 몇 초에 받든 같다(늦게 받아도 원래 계산 시점 기준).
+		// 2초에 남은 9초(도착 예정 11초)로 바뀐 정보를 받으면 새 계산 시점 기준 기한 2+9+3=14초로 갱신하고, 수신 시점은 인자에 없어 몇 초에 받든 같다.
 		float appliedArrival = ExplorationMath.TrapArrivalTime(0f, 8f);
 		float incomingArrival = ExplorationMath.TrapArrivalTime(2f, 9f);
 		Assert.IsTrue(ExplorationMath.ShouldApplyArrivalEstimate(true, 0f, appliedArrival, 2f, incomingArrival));
@@ -160,9 +159,7 @@ public class ExplorationSystemTests
 		}
 	}
 
-	// ── 순서도 05-03: 집결 명령을 받으면 아직 시작하지 않은 함정 대응은 집결로 넘기고, 이미 시작한
-	// 해제는 완료 후 합류한다. 조율 기록은 남고 담당 배정만 풀린다(EditMode — ScriptableObject.CreateInstance<Human>()
-	// 관례). ──
+	// ── 집결 명령을 받으면 아직 시작하지 않은 함정 대응은 집결로 넘기고, 이미 시작한 해제는 완료 후 합류한다. 조율 기록은 남고 담당 배정만 풀린다. ──
 	private static Human MakeHuman(string unitName, Party party)
 	{
 		var human = ScriptableObject.CreateInstance<Human>();
@@ -338,7 +335,7 @@ public class ExplorationSystemTests
 		Assert.IsTrue(coord.SelectionLocked);
 	}
 
-	// ── 검증문서 03-11: 해제 중단(v0.6 9-9장)과 웨이브 종료 시 진행도 제거 ──
+	// ── 해제 중단(v0.6 9-9장)과 웨이브 종료 시 진행도 제거 ──
 	[Test]
 	public void ApplyDisarmInterruptPenalty_HalvesOnce_AndKeepsResponseForResume()
 	{
@@ -395,9 +392,8 @@ public class ExplorationSystemTests
 		Assert.IsNull(coord.Report);                              // 정상 종료가 아니므로 Concluded 보고도 남기지 않는다
 	}
 
-	// ── 검증문서 03-12: 해제 담당 선정(성공률 우선·입장 전 최고 성공률·후보 필터·집결 중 제외) ──
-	// 함정은 (10,10)에 있고 유닛 기본 이동속도(3칸/초)라 도착시간은 체비셰프 거리로만 갈린다(세션이 없어 A*·프론티어 추정은 폴백).
-	// 성공률(TrapDisarmSuccessRate) = 20 + 집중×0.2 + (레벨−1)×1.5 — 집중 100/레벨 1이면 40, 집중 0/레벨 1이면 20.
+	// ── 해제 담당 선정(성공률 우선·입장 전 최고 성공률·후보 필터·집결 중 제외) ──
+	// 함정은 (10,10)에 있고 기본 이동속도가 3칸/초라 도착시간은 체비셰프 거리로만 갈린다(세션이 없어 A*·프론티어 추정은 폴백). 성공률(TrapDisarmSuccessRate) = 20 + 집중×0.2 + (레벨−1)×1.5 — 집중 100/레벨 1이면 40, 집중 0/레벨 1이면 20.
 	private const string TrapId = "t";
 	private static readonly Vector3Int TrapPos = new Vector3Int(10, 10, 0);
 
@@ -665,7 +661,7 @@ public class ExplorationSystemTests
 		Assert.IsTrue(coord.SelectionLocked);
 	}
 
-	// ── 검증문서 03-16(03번 v0.12 11장): 마지막 위치 도착 후 부재 확인 3초 대기와 수색 시간의 관계 ──
+	// ── 마지막 위치 도착 후 부재 확인 3초 대기와 수색 시간의 관계(03번 11장) ──
 	[Test]
 	public void LastPositionAbsenceWait_IsThreeSecondsAndKeepsOtherSearchLimits()
 	{
@@ -689,7 +685,7 @@ public class ExplorationSystemTests
 		Assert.AreEqual(ExplorationMath.AlertArrivalResult.End, ExplorationMath.ResolveAlertArrival(10f, 13f, false));
 	}
 
-	// ── 검증문서 03-18: 집결을 마친 방을 리더가 떠나기 전까지 같은 방에서 다시 집결하지 않는다 ──
+	// ── 집결을 마친 방을 리더가 떠나기 전까지 같은 방에서 다시 집결하지 않는다 ──
 	private static Human MakePartyHumanIn(Room room)
 	{
 		var h = ScriptableObject.CreateInstance<Human>();

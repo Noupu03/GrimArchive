@@ -18,8 +18,7 @@ public static class ExplorationMath
 	public const float DeathDirectDiscoveryMentalLoss = 10f; // 4-12/4-13장: 최초 발견/목격 정신력 감소
 	public const float DeathPropagationMentalLoss = 5f;      // 4-13장: 전파/재전파 수신 정신력 감소
 
-	// 03번 v0.12 11장: 마지막 확인 위치에 도착해 대상 부재를 확인한 뒤의 공통 대기시간 — 리더 마지막 위치 보고 이동
-	// (03-15)과 경계 수색의 마지막 위치 도착(03-16)이 함께 쓴다. 이 시간은 진행 중인 수색 시간 안에 포함된다.
+	// 마지막 확인 위치에 도착해 대상 부재를 확인한 뒤의 공통 대기시간(03번 v0.12 11장) — 리더 마지막 위치 보고 이동과 경계 수색의 마지막 위치 도착이 함께 쓰며 진행 중인 수색 시간 안에 포함된다.
 	public const float LastPositionAbsenceWaitSeconds = 3f;
 
 	// 부재 확인 대기(03번 11장 3초) 경과 여부. startTime이 음수면 아직 시작 전이다.
@@ -39,8 +38,7 @@ public static class ExplorationMath
 
 	public enum AlertArrivalResult { Waiting, ContinueSearching, End }
 
-	// 검증문서 03-16(순서도 03-16): 경계 수색이 마지막 위치에 도착해 부재를 확인한 뒤의 처리. 3초가 안 지났으면 제자리에서
-	// 기다리고, 지났으면 공격 방향 수색은 남은 수색 기한 동안 정면 수색을 이어 가고 그 외(수상한 타일)는 경계를 끝낸다.
+	// 경계 수색이 마지막 위치에 도착해 부재를 확인한 뒤의 처리 — 3초가 안 지났으면 제자리 대기, 지났으면 공격 방향 수색은 남은 기한 동안 정면 수색을 이어 가고 그 외(수상한 타일)는 경계를 끝낸다.
 	public static AlertArrivalResult ResolveAlertArrival(float absenceStartTime, float now, bool continueSearchAfterAbsence)
 	{
 		if (!AbsenceWaitElapsed(absenceStartTime, now, LastPositionAbsenceWaitSeconds)) return AlertArrivalResult.Waiting;
@@ -78,13 +76,11 @@ public static class ExplorationMath
 	public static float TrapWaitDeadline(float calcTime, float remainingSeconds, float graceSeconds)
 		=> calcTime + remainingSeconds + graceSeconds;
 
-	// 담당자 쪽(순서도 03-12): 마지막으로 알린 도착 예정 시점과 tolerance를 넘게 달라졌을 때만 새로 알린다.
+	// 담당자 쪽: 마지막으로 알린 도착 예정 시점과 tolerance를 넘게 달라졌을 때만 새로 알린다.
 	public static bool HasArrivalEstimateChanged(float lastArrivalTime, float newArrivalTime, float tolerance)
 		=> Mathf.Abs(newArrivalTime - lastArrivalTime) > tolerance;
 
-	// 대기자 쪽(순서도 03-12-2): 현재 적용 중인 정보보다 더 최근에 계산됐고 도착 예정 시점이 실제로 바뀐
-	// 경우만 수락한다. 동일 정보 재수신·오래된 정보·같은 도착 예정의 재계산은 기한을 바꾸지 않는다.
-	// 수신 시점은 인자로 받지 않는다 — 늦게 받아도 기한은 원래 계산 시점 기준이다.
+	// 대기자 쪽: 현재 적용 중인 정보보다 더 최근에 계산됐고 도착 예정 시점이 실제로 바뀐 경우만 수락한다. 같은 정보 재수신·오래된 정보·같은 도착 예정의 재계산은 기한을 바꾸지 않으며, 수신 시점은 인자로 받지 않아 늦게 받아도 기한은 원래 계산 시점 기준이다.
 	public static bool ShouldApplyArrivalEstimate(bool hasApplied, float appliedCalcTime, float appliedArrivalTime,
 		float incomingCalcTime, float incomingArrivalTime)
 	{
@@ -93,8 +89,7 @@ public static class ExplorationMath
 		return Mathf.Abs(incomingArrivalTime - appliedArrivalTime) > TrapArrivalEpsilon;
 	}
 
-	// 순서도 03-10 "예상 성공률이 가장 높은 1명, 동률이면 해제 위치까지 짧은 도착시간": 성공률이 더 높으면 교체, 같으면(부동소수 근사)
-	// 도착시간이 더 짧을 때만 교체한다. 둘 다 같으면 기존 승자를 유지한다(발견자 우선).
+	// 예상 성공률이 가장 높은 1명, 동률이면 해제 위치까지 도착시간이 짧은 쪽: 성공률이 더 높으면 교체, 같으면(부동소수 근사) 도착시간이 더 짧을 때만 교체하고 둘 다 같으면 기존 승자(발견자 우선)를 유지한다.
 	public static bool IsBetterTrapDisarmCandidate(float rate, float eta, float bestRate, float bestEta)
 		=> Mathf.Approximately(rate, bestRate) ? eta < bestEta : rate > bestRate;
 	public const float TrapRecordedDirectDisarmThreshold = 0.5f; // 9-4장: 예상 성공률 50% 초과 기준
@@ -103,8 +98,8 @@ public static class ExplorationMath
 	public const float TrapAllyRescueUnrecordedMinCurrentHpRatio = 0.6f; // 9-11장: 미기록 함정, 이동 유닛 현재 HP 60% 이상
 	public const float AllyRescueTargetHpRatio = 0.3f;   // 9-11장: 즉시 보호 대상 아군 HP 30% 이하
 
-	// ─────────────────────────── 03번 v0.12 9장·v0.6 9-6/9-12/9-13: 활성 함정 회피 구역과 통과 판정 (검증 03-13) ───────────────────────────
-	// 회피 구역 = 함정 타일 + 체비셰프 1(v0.6 9-6 "인접 1칸"). 해제 위치(9-7)도 이 구역 안이다.
+	// ─────────────────────────── 03번 v0.12 9장·v0.6 9-6/9-12/9-13: 활성 함정 회피 구역과 통과 판정 ───────────────────────────
+	// 회피 구역 = 함정 타일 + 체비셰프 1(v0.6 9-6 '인접 1칸'). 해제 위치(9-7)도 이 구역 안이다.
 	public const int TrapAvoidZoneRadius = 1;
 
 	public static bool IsInTrapZone(Vector2Int tile, Vector2Int trapTile)
@@ -115,14 +110,11 @@ public static class ExplorationMath
 
 	private static bool RatioAtLeast(float value, float max, float ratio) => max > 0f && value / max >= ratio - RatioEpsilon;
 
-	// 전투 합류(v0.6 9-12): 피해를 아는(=기록된) 함정만 판단할 수 있다 — 미기록 함정은 통과 후보가 아니다(긴급 보호의 별도 예외만 가능).
-	// 통과 후 예상 HP(현재 HP − 알려진 최대 예상 피해)가 최대 HP의 minHpRatio 이상이어야 한다.
+	// 전투 합류(v0.6 9-12): 피해를 아는(기록된) 함정만 통과 후보다 — 미기록 함정은 후보가 아니다(긴급 보호의 별도 예외만 가능). 통과 후 예상 HP(현재 HP − 알려진 최대 예상 피해)가 최대 HP의 minHpRatio 이상이어야 한다.
 	public static bool CanPassTrapInCombat(bool trapRecorded, float hp, float maxHp, float knownDamageMax, float minHpRatio = TrapPassMinHpRatioAfterHit)
 		=> trapRecorded && RatioAtLeast(hp - knownDamageMax, maxHp, minHpRatio);
 
-	// 긴급 아군 보호(v0.6 9-13, 02번 v0.12 9장): 공통 = 보호 대상 HP 30% 이하 + 함정 경로가 우회보다 빠름(우회가 없으면 int.MaxValue).
-	// 기록된 함정 = 함정 최대 예상 피해 적용 후 이동자 HP가 recordedMinHpRatio(30%) 이상, 미기록 함정 = 피해를 모르므로 이동자 현재 HP가
-	// unrecordedMinCurrentHpRatio(60%) 이상(별도 예외 — 일반 적 공격 노출에 확대하지 않는다).
+	// 긴급 아군 보호(v0.6 9-13, 02번 9장): 공통 = 보호 대상 HP 30% 이하 + 함정 경로가 우회보다 빠름(우회가 없으면 int.MaxValue). 기록된 함정 = 최대 예상 피해 적용 후 이동자 HP가 recordedMinHpRatio(30%) 이상, 미기록 함정 = 피해를 모르므로 이동자 현재 HP가 unrecordedMinCurrentHpRatio(60%) 이상(별도 예외 — 일반 적 공격 노출에 확대하지 않는다).
 	public static bool CanPassTrapForProtect(bool trapRecorded, float allyHp, float allyMaxHp, float moverHp, float moverMaxHp, float knownDamageMax,
 		int trapPathSteps, int detourSteps,
 		float recordedMinHpRatio = TrapAllyRescueMinHpRatioAfterHit, float unrecordedMinCurrentHpRatio = TrapAllyRescueUnrecordedMinCurrentHpRatio)

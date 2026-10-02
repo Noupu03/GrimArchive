@@ -5,10 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 검증문서 04-08(04번 v0.12 0장·9장): 개인 지도 기반 길찾기 / 이동 캐시 무효화 / 경로 평가(통행 불가 판정 + 미확인 경로 추정거리).
-// 순수 함수(RouteMath) + 세션 없는 A*(Unit.humanFactionData.discoveredMap은 맵 크기용, 벽·미확인 판정은 유닛 개인 지도) + RouteAssessment.
-// EditMode — ScriptableObject.CreateInstance<Human>() 관례(TrapAvoidanceTests와 동일). 점유(다른 유닛) 때문인 막힘과 판정 메모의 시간 창 경과는 세션·Time이 필요해
-// 이 파일에서 다루지 않는다(스크래치패드 콘솔 하니스에서 실제 A* 코드로 확인했다).
+// 개인 지도 기반 길찾기 / 이동 캐시 무효화 / 경로 평가(통행 불가 판정 + 미확인 경로 추정거리). 순수 함수(RouteMath) + 세션 없는 A*(discoveredMap은 맵 크기용, 벽·미확인 판정은 유닛 개인 지도) + RouteAssessment를 EditMode에서 검증한다. 점유 때문인 막힘과 판정 메모의 시간 창은 세션·Time이 필요해 여기서 다루지 않는다.
 // ========================================================================
 
 public class RouteAssessmentTests
@@ -261,7 +258,7 @@ public class RouteAssessmentTests
 		Assert.AreEqual(0, human.unreachableRouteMemo.Count);
 	}
 
-	// ── 탐험 막힘 기록(검증 04-08 발견 5) ────────────────────────────────
+	// ── 탐험 막힘 기록 ────────────────────────────────
 
 	[Test]
 	public void ExploreBlocked_NoRecords_MeansNoFilter()

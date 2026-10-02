@@ -67,10 +67,7 @@ public class SkillAction_Heal : SkillAction
         CombatRole selfRole = CombatScoreMath.ResolveCombatRole(unit.unitType);
         float threshold = CombatScoreMath.GeneralHealThresholdRatio(selfRole);
 
-        // 현재 대상 유지 — 사망/층 이동/회복 완료(문턱 이상)로 무효화되지 않았으면 그대로 쓴다.
-        // [정정, 검증문서 02-07 4·5번] 사거리 이탈은 "위치 무효"에 포함하지 않는다 — 사거리 밖이라도
-        // 계속 같은 대상으로 접근할 수 있어야 하므로, 여기서 범위 조건을 빼서 "지금 실행 가능한가"
-        // (IsAvailable이 별도로 확인)와 "누구를 치료하려는 중인가"(이 필드)를 분리했다.
+        // 현재 대상 유지 — 사망/층 이동/회복 완료(문턱 이상)로 무효화되지 않았으면 그대로 쓴다. 사거리 이탈은 무효 사유가 아니다 — 사거리 밖이어도 같은 대상으로 접근해야 하므로 '지금 실행 가능한가'(IsAvailable)와 '누구를 치료 중인가'(이 필드)를 분리했다.
         Unit current = unit.CombatTargeting.HealTarget;
         if (current != null && current.Health != null && current.Health.hp > 0
             && current.currentFloor == unit.currentFloor
@@ -82,7 +79,7 @@ public class SkillAction_Heal : SkillAction
         Unit best = null;
         float bestRatio = threshold;
         float bestDist = float.MaxValue;
-        // 검증문서 02-07 3번: 점수(HP비율)·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다.
+        // 점수(HP비율)·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다.
         // 02-03에서 CombatFSMState.SelectAttackTarget에 적용한 것과 동일한 패턴.
         var tiedBest = new List<Unit>();
 
@@ -103,10 +100,7 @@ public class SkillAction_Heal : SkillAction
             }
         }
 
-        // 검증문서 02-07 1번: 자기 파티 요구를 먼저 본다 — 자기 자신+파티원 안에서 후보를 찾고,
-        // 아무도 없을 때만 파티 밖(다른 파티·무소속 아군)까지 넓힌다. 파티는 인류 전용 개념이라
-        // (party 프로퍼티가 Unit이 아니라 Human에 있음, Unit.cs:608 Human 클래스 참고) 몬스터는
-        // 이 분기를 건너뛰고, 무소속 인류(party==null)도 곧장 전체 탐색으로 넘어간다.
+        // 자기 파티 요구를 먼저 본다 — 자기 자신+파티원 안에서 후보를 찾고 아무도 없을 때만 파티 밖(다른 파티·무소속 아군)까지 넓힌다. 파티는 인류 전용이라 몬스터는 이 분기를 건너뛰고, 무소속 인류(party==null)도 곧장 전체 탐색으로 간다.
         if (unit is Human human && human.party != null)
         {
             Consider(unit, 0f);
@@ -144,10 +138,7 @@ public class SkillAction_Heal : SkillAction
 
         Unit lowest = GetHealTarget(unit);
         if (lowest == null || lowest.Health == null || lowest.Health.hp >= lowest.Health.maxHp) return false;
-        // 검증문서 02-07 4번: 지금 실행 가능한 스킬 후보는 사거리 안일 때만이다 — 사거리 밖이면
-        // HealTarget은 그대로 유지한 채(위 FindLowestHpAlly 참고) 여기서만 이번 틱 후보에서 빠지고,
-        // CombatFSMState.TryGeneralHealApproach가 별도로 접근 이동을 담당한다.
-        // 검증 04-01: 지원 범위에 더해 차폐(벽·구조물·닫힌 문)도 없어야 지금 쓸 수 있다 — 막혀 있으면 접근 이동이 차폐가 풀리는 자리까지 이어간다.
+        // 지금 실행 가능한 후보는 사거리 안이고 차폐(벽·구조물·닫힌 문)도 없을 때만이다. 사거리 밖이면 HealTarget은 유지한 채 이번 틱 후보에서만 빠지고, 접근 이동은 CombatFSMState.TryGeneralHealApproach가 차폐가 풀리는 자리까지 이어서 맡는다.
         return IsInSupportReach(unit, lowest);
     }
 

@@ -4,13 +4,7 @@ using UnityEditor;
 using UnityEngine;
 
 // ============================================================================
-// MapColorThemeWindow — 벽/바닥 스프라이트 색상 초기값 테마 관리 (회의록 2026-09-27, 정림 요청 +
-// 2026-09-27 후속 사용자 요청으로 단일 "활성 테마" 대신 층별 배정으로 확장).
-// 런타임 조정 기능이 아니다 — 여기서 만든 프리셋을 층마다(또는 기본값으로) 배정하면 그 배정 내용이
-// Assets/Resources/MapColorTheme_FloorAssignments.asset(MapFloorColorThemes)에 저장되고, 다음 맵
-// 생성부터 MapRandering이 층별로 그 값을 Tile.color로 적용한다(MapRandering.cs의
-// GetOrBuildFloorTileSet 참고). 프리셋은 여러 개 만들어 보관하고 층마다 원하는 것을 배정하는 방식 —
-// "같은 스프라이트로 다른 테마 표현"에 대응.
+// MapColorThemeWindow — 벽/바닥 스프라이트 색상 초기값 테마 관리. 런타임 조정이 아니라, 프리셋을 층마다(또는 기본값으로) 배정하면 Assets/Resources/MapColorTheme_FloorAssignments.asset(MapFloorColorThemes)에 저장되고 다음 맵 생성부터 MapRandering이 층별로 Tile.color에 적용한다(GetOrBuildFloorTileSet).
 // ============================================================================
 public class MapColorThemeWindow : EditorWindow
 {
@@ -153,8 +147,7 @@ public class MapColorThemeWindow : EditorWindow
         GUI.backgroundColor = Color.white;
     }
 
-    // 프리셋 이름(themeName 필드)을 바꾸면 에셋 파일 이름도 같이 맞춘다(2026-09-27 사용자 요청) —
-    // AssetDatabase.RenameAsset을 거쳐야 .meta/GUID가 안전하게 유지된다(파일 시스템 직접 rename 금지).
+    // 프리셋 이름(themeName)을 바꾸면 에셋 파일 이름도 맞춘다 — AssetDatabase.RenameAsset을 거쳐야 .meta/GUID가 유지된다(파일 시스템 직접 rename 금지).
     static void RenamePresetAsset(MapColorTheme preset, string newName)
     {
         string path = AssetDatabase.GetAssetPath(preset);

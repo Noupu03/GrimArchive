@@ -801,8 +801,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 corpse.MonsterSpeciesKey = u.unitType != null ? u.unitType.typeName : null;
                 corpse.MonsterIndividualKey = u.isSpecialUnit ? u.name : null;
 
-                // 01번 문서 2장: 인류에게 죽은 몬스터만 "몬스터 처치" 공통 임무 수량에 반영한다
-                // (검증문서 01-04) — 파티별이 아니라 웨이브 전체 공통 집계(HumanWaveManager).
+                // 인류에게 죽은 몬스터만 '몬스터 처치' 공통 임무 수량에 반영한다(01번 2장) — 파티별이 아니라 웨이브 전체 집계(HumanWaveManager).
                 HumanWaveManager.Instance?.OnMonsterKilled(objId, corpse.MonsterSpeciesKey);
             }
 
@@ -888,8 +887,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public Party CreateParty(string name, List<Human> members)
     {
         var party = new Party(System.Guid.NewGuid().ToString(), name);
-        // 01번 문서 7-1장: 파티 종류별 현재 방 활동 종료 기준이 다르다. 편성 가능 유닛·선택 가중치는
-        // 미작성 문서 영역이라 PartyType 중 무작위 배정으로 스텁한다(Enum.GetValues 기반).
+        // 파티 종류별 방 활동 종료 기준이 다르다(01번 7-1장). 편성 가능 유닛·가중치는 미작성이라 PartyType 중 무작위 배정으로 스텁한다.
         party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
         foreach (var m in members)
         {
@@ -978,8 +976,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         u.JudgeState();
         Vector2Int oldPos = u.position;
         Dir oldDir = u.currentDir;
-        // 점유 충돌 판단(검증 04-05~04-07): 제자리 대기 중 받은 '비켜 달라' 요청을 먼저 처리하고, 아군을 기다리는 대기(OccupancySystem.TryHold가 정한 것) 중이면 이번 행동 주기는 쉰다.
-        // FSM 전환(JudgeState)은 이미 끝났고, 행동 리프가 호출되지 않아 대기 동안 각 행동의 정체 카운터가 돌지 않는다.
+        // 점유 충돌 판단: 제자리 대기 중 받은 '비켜 달라' 요청을 먼저 처리하고, 아군을 기다리는 대기(OccupancySystem.TryHold가 정한 것) 중이면 이번 행동 주기는 쉰다. FSM 전환(JudgeState)은 이미 끝났고, 행동 리프가 안 불려 대기 동안 정체 카운터가 돌지 않는다.
         if (!OccupancySystem.TryHonorYield(u) && !OccupancySystem.ShouldHold(u))
             u.ExecuteAction();
         string newLabel = u.fsm.GetLabel(u);
@@ -1050,9 +1047,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             _defenseProcessor?.TryStartDefense(room, unit);
     }
 
-    // 함정 타일을 밟으면 인지 여부·대응 여부와 무관하게 발동해 피해를 입는다(알고도 밟는 전투 합류·긴급 보호 통과 포함 — 그 판단은 이동 계층이 한다). 함정은
-    // 해제/파괴 전까지 소모되지 않아 다시 밟으면 또 맞고, 몬스터는 currentTrapInteraction이 없어 매번 그대로 맞는다. 밟은 함정이 이 유닛의 대응 대상이었다면
-    // 대응은 "통과"로 끝난다(검증문서 03-13: 예전엔 대응 중인 함정은 밟아도 피해가 면제됐다 — 의도적 통과 리프가 직접 발동하던 시절의 중복 방지 잔재).
+    // 함정 타일을 밟으면 인지·대응 여부와 무관하게 발동해 피해를 입는다(알고도 밟는 전투 합류·긴급 보호 통과 포함 — 그 판단은 이동 계층 몫). 함정은 해제/파괴 전까지 소모되지 않아 다시 밟으면 또 맞는다. 밟은 함정이 대응 대상이었다면 대응은 '통과'로 끝난다.
     private void TriggerTrapIfStepped(Unit unit)
     {
         Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
@@ -1066,14 +1061,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
             TrapPartySystem.EndResponse(unit, TrapEndReason.Passed);
     }
 
-    // 함정 발동의 단일 진입점(밟음/의도적 통과 공통). 피해·함정 작동음(07문서 14장)·인류 사망 원인 기록(4-14장)과, 그 함정을
-    // 해제하던 유닛의 중단(v0.6 9-9장 "함정이 작동함")을 한 곳에서 처리해 발동 경로마다 결과가 갈라지지 않게 한다.
+    // 함정 발동의 단일 진입점(밟음/의도적 통과 공통) — 피해·함정 작동음(07문서 14장)·인류 사망 원인 기록(4-14장)·그 함정을 해제하던 유닛의 중단(v0.6 9-9장)을 한 곳에서 처리해 발동 경로마다 결과가 갈라지지 않게 한다.
     public void ActivateTrap(Unit victim, InteractableObject trap)
     {
         if (victim == null || trap == null) return;
 
-        // 이 피해가 사망으로 이어지면 PartyDeathSystem이 "함정이 원인"임을 알아야 하므로 lastTrapAttacker에 남기고, 더 오래된
-        // 몬스터 공격 기록과 섞이지 않게 lastAttacker는 비운다. 몬스터 피해자는 기존 킬 귀속을 건드리지 않으려고 제외.
+        // 이 피해가 사망으로 이어지면 PartyDeathSystem이 '함정이 원인'임을 알아야 하므로 lastTrapAttacker에 남기고, 더 오래된 몬스터 공격 기록과 섞이지 않게 lastAttacker는 비운다(몬스터 피해자는 킬 귀속을 건드리지 않으려 제외).
         if (victim is Human)
         {
             victim.lastAttacker = null;
@@ -1154,8 +1147,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
-        // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem.SpawnDoorGroup/RebuildDoorAt이
-        // 곧바로 닫힘으로 교체한다 — 이후 개폐는 DoorSystem.UpdateProcess가 매 프레임 관리한다.
+        // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem이 곧바로 닫힘으로 교체하고, 이후 개폐는 DoorSystem.UpdateProcess가 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
         Sprite sprite = null;
@@ -1192,8 +1184,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 함정 해제·코어/문 파괴 진행 막대를 붙일 자리 — 그 외 오브젝트는 불필요한 컴포넌트 낭비를 막기 위해 생략.
         if (isTrap || isCoreOnly || isDoor) visual.AddComponent<ObjectProgressBarVisual>();
 
-        // 빛이 문도 막도록 벽과 동일한 ShadowCaster2D 기법을 쓴다 — 문 열림/닫힘으로 sr.sprite가
-        // 바뀌면 SpriteRenderer 프로바이더가 콜백으로 셰이프를 자동으로 따라 바꾼다. 문 묶음은 짝마다 자식 스프라이트에 붙는다(CreateDoorLeaves).
+        // 빛이 문도 막도록 벽과 같은 ShadowCaster2D 기법을 쓴다 — sr.sprite가 바뀌면 SpriteRenderer 프로바이더가 셰이프를 자동으로 따라 바꾸며, 문 묶음은 짝마다 자식 스프라이트에 붙는다(CreateDoorLeaves).
         if (isDoor && !splitLeaves) visual.AddComponent<ShadowCaster2D>();
 
         Vector3 offset = Vector3.zero;
@@ -1218,8 +1209,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             ? DoorGeometry.CenterOf(obj.OccupiedTiles)
             : new Vector2(obj.Position.x + 0.5f, obj.Position.y + 0.5f);
         visual.transform.position = new Vector3(visualCenter.x, visualCenter.y, 0f) + offset;
-        // 문은 통로 방향(수평/수직)에 맞춰 스프라이트를 돌린다. 회전이 필요 없는 오브젝트는 기본값
-        // 0도라 영향 없음. 문 묶음은 루트가 아니라 짝마다 돌린다(루트를 돌리면 진행 막대까지 같이 돈다).
+        // 문은 통로 방향(수평/수직)에 맞춰 스프라이트를 돌린다(회전 불필요한 오브젝트는 0도). 문 묶음은 루트를 돌리면 진행 막대까지 돌아 짝마다 돌린다.
         if (rotationZDegrees != 0f && !splitLeaves) visual.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
 
         // 오브젝트는 타일 크기에 맞추지 않고 원본 스프라이트 크기(스케일 1)로 스폰한다 — 스프라이트마다
@@ -1231,7 +1221,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         objectVisuals[obj] = visual;
     }
 
-    // 문 묶음의 짝(칸)마다 스프라이트 한 장 + 그림자를 자식으로 만든다 — 각 짝은 자기 타일 중심에서 예전 한 칸 문과 똑같이 그려지고, 개폐는 DoorSystem이 짝 전부에 같이 적용한다.
+    // 문 묶음의 짝(칸)마다 스프라이트 한 장 + 그림자를 자식으로 만든다 — 각 짝은 자기 타일 중심에서 한 칸 문처럼 그려지고 개폐는 DoorSystem이 전부에 같이 적용한다.
     private void CreateDoorLeaves(InteractableObject obj, GameObject root, Sprite sprite, Vector3 floorOffset, float rotationZDegrees)
     {
         for (int i = 0; i < obj.OccupiedTiles.Count; i++)
@@ -1241,7 +1231,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             leaf.transform.SetParent(root.transform, true);
             leaf.transform.position = new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
             leaf.transform.rotation = Quaternion.Euler(0f, 0f, rotationZDegrees);
-            // 뒤쪽 짝은 좌우 반전 — 열렸을 때 두 짝이 바깥 양 끝으로 갈라진다(양쪽 여닫이). 스프라이트 flipX가 아니라 스케일로 뒤집어야 그림자(ShadowCaster2D)도 같이 뒤집힌다.
+            // 뒤쪽 짝은 좌우 반전 — 열렸을 때 두 짝이 바깥 양 끝으로 갈라진다(양쪽 여닫이). flipX가 아니라 스케일로 뒤집어야 ShadowCaster2D도 같이 뒤집힌다.
             leaf.transform.localScale = new Vector3(DoorGeometry.IsMirroredLeaf(i, obj.OccupiedTiles.Count) ? -1f : 1f, 1f, 1f);
 
             var leafSr = leaf.AddComponent<SpriteRenderer>();
@@ -1283,7 +1273,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 문 재설치 고스트가 쓰는 묶음 정보(모든 칸·회전) — pos가 속한 방 쪽 줄(1×2) 하나. tilesOut은 호출부가 재사용하는 버퍼다.
     public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
         => _doorSystem.TryGetDoorGroupTiles(pos, tilesOut, out rotationZ);
-    // 검증 04-07: 좁은 통로(게이트 문턱 타일) 판정 — 문이 파괴돼도 성립(OccupancySystem의 통과 순서가 사용).
+    // 좁은 통로(게이트 문턱 타일) 판정 — 문이 파괴돼도 성립(OccupancySystem의 통과 순서가 사용).
     public bool TryGetGateKeyAt(Vector3Int pos, out int gateKey) => _doorSystem.TryGetGateKeyAt(pos, out gateKey);
     // 점령 여부와 무관하게 통행 가능한 문(파괴됐거나 자기 진영 소유)만 거쳐 도달 가능한 방인지 판정
     // (InputManager.IssueMoveCommand가 사용).
@@ -1348,8 +1338,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         room.CorePosition = gridPos;
     }
 
-    // 코어는 각 층 보스방에만 배치한다 — 옛 SpawnAllRoomCores(모든 방에 코어)를 대체. 그 외 방의
-    // 점령 조건은 미정(PartyEnums.cs 참고) — 정해지면 이 메서드 옆에 나란히 추가하면 된다.
+    // 코어는 각 층 보스방에만 배치한다. 그 외 방의 점령 조건은 미정(PartyEnums.cs 참고) — 정해지면 이 메서드 옆에 추가한다.
     private void SpawnBossCores()
     {
         if (_unitGenerate == null || allRooms == null || cmap?.map.floors == null) return;

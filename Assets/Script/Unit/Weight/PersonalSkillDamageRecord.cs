@@ -1,11 +1,6 @@
 using UnityEngine;
 
-// 유닛 개인이 특정 종의 특정 스킬에 대해 들고 있는 "예상 피해량" 하나. (02번 문서 9번 항목/07번
-// 검증항목 02-01 — 입장 기록의 예상 공격 피해량 + 직접 경험 확정)
-// PersonalWeightRecord와 필드 구성·갱신 규칙은 동일하되, WeightType(이해도/위험도/흥미도) 파이프라인
-// (WeightMath.Clamp/WeightEventTable/웨이브종료 풀캡)과는 무관한 별도 값이라 분리된 클래스를 쓴다 —
-// 이쪽은 "공식값 시딩 → 1회 관측치로 통째 교체" 구조라 이벤트 델타 누적 파이프라인에 맞지 않는다.
-// Unit.personalSkillDamage에 (SpeciesKey, SkillName) 복합 키로 보관된다.
+// 유닛 개인이 특정 종의 특정 스킬에 대해 들고 있는 '예상 피해량' 하나(02번 9항: 입장 기록의 예상 피해 + 직접 경험 확정). PersonalWeightRecord와 갱신 규칙은 같지만 WeightType 파이프라인(Clamp/WeightEventTable/웨이브종료 풀캡)과 무관한 '공식값 시딩 → 1회 관측치로 통째 교체' 구조라 따로 둔다. Unit.personalSkillDamage에 (SpeciesKey, SkillName) 복합 키로 보관된다.
 public class PersonalSkillDamageRecord
 {
 	public string SpeciesKey;

@@ -315,10 +315,7 @@ public partial class CreateMap
         return false;
     }
 
-    // 계단(2x2 블록) 바깥쪽 정확히 radius칸째 테두리 한 겹만 반환한다(정적으로 밟을 수 있는 타일만) —
-    // 호출부가 radius=1부터 늘려가며 반복 호출해 "가장 가까운 반경에서 후보를 찾으면 멈춘다" 패턴에
-    // 쓴다(건물 등이 계단 바로 옆을 막아도 착지·접근 지점이 항상 존재하게 함). radius=1의 결과는 아래
-    // TryGetStairApproachCandidates(기존 시그니처)와 완전히 동일하다.
+    // 계단(2x2 블록) 바깥쪽 정확히 radius칸째 테두리 한 겹만 반환한다(정적으로 밟을 수 있는 타일만) — 호출부가 radius=1부터 늘려가며 가장 가까운 반경에서 후보를 찾으면 멈추는 패턴에 쓴다(건물이 계단 옆을 막아도 착지·접근 지점이 항상 존재하게). radius=1은 TryGetStairApproachCandidates와 동일하다.
     public bool TryGetStairApproachCandidatesAtRadius(int floorIndex, int targetFloor, int radius, out List<Vector2Int> candidates)
     {
         candidates = new List<Vector2Int>();
@@ -341,9 +338,7 @@ public partial class CreateMap
         return candidates.Count > 0;
     }
 
-    // 계단 블록을 둘러싼 반경 1칸 중 정적으로 밟을 수 있는 타일을 전부 반환 — 실제 점유 여부는
-    // 모르므로 호출부(NavigationFSMState.MoveToStairs 등)가 매 틱 골라 쓴다. 반경 1이 부족하면
-    // 호출부가 TryGetStairApproachCandidatesAtRadius로 직접 반경을 넓혀간다.
+    // 계단 블록을 둘러싼 반경 1칸 중 정적으로 밟을 수 있는 타일을 전부 반환한다 — 실제 점유는 모르므로 호출부(MoveToStairs 등)가 매 틱 골라 쓰고, 반경 1이 부족하면 TryGetStairApproachCandidatesAtRadius로 넓힌다.
     public bool TryGetStairApproachCandidates(int floorIndex, int targetFloor, out List<Vector2Int> candidates)
         => TryGetStairApproachCandidatesAtRadius(floorIndex, targetFloor, 1, out candidates);
 

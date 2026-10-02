@@ -4,9 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 문 구조 개편(2026-10-01): 게이트의 문 타일을 "어느 방에 붙어 있는가"로 묶어 한 줄(폭 2 → 1×2)을 문 오브젝트 하나로 다룬다.
-// DoorGeometry(순수) + InteractableObject의 멀티 타일 헬퍼(IsAdjacentTo/NearestTileTo/AllTiles)를 세션 없이 확인한다.
-// 비주얼 늘림·개폐·재설치·인접 판정 호출부 연동은 Unity 플레이로만 확인된다.
+// 문 묶음: 게이트의 문 타일을 '어느 방에 붙어 있는가'로 묶어 한 줄(폭 2 → 1×2)을 문 오브젝트 하나로 다룬다. DoorGeometry(순수)와 InteractableObject의 멀티 타일 헬퍼(IsAdjacentTo/NearestTileTo/AllTiles)를 세션 없이 확인하며, 비주얼·개폐·재설치·인접 판정 호출부 연동은 플레이로만 확인된다.
 // ========================================================================
 
 public class DoorGroupTests

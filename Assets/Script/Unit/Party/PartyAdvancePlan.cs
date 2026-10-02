@@ -3,8 +3,7 @@ using UnityEngine;
 
 public enum AdvancePhase { FormingUp, Breaching, Entering }
 
-// 집결을 마친 파티가 다음 방으로 가는 한 번의 진행 — 문 앞 진형(FormingUp) → 문 파괴(Breaching, 막힌 문이 있을 때만) → 랭크 순 입장(Entering).
-// Party.AdvancePlan이 들고 있고 끝나면(입장 완료·중단) null이 된다. 데이터만 담고, 전이는 PartyAdvanceSystem·파괴 지시는 PartyBreachCommand·유닛 한 틱은 PartyAdvanceSteps가 맡는다.
+// 집결을 마친 파티가 다음 방으로 가는 한 번의 진행 — 문 앞 진형(FormingUp) → 문 파괴(Breaching, 막힌 문이 있을 때만) → 랭크 순 입장(Entering). Party.AdvancePlan이 들고 있고 끝나면 null이며, 데이터만 담는다(전이는 PartyAdvanceSystem, 파괴 지시는 PartyBreachCommand, 유닛 한 틱은 PartyAdvanceSteps).
 public class PartyAdvancePlan
 {
 	public AdvancePhase Phase;

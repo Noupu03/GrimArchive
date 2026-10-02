@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
-// 03번 6-4·6-5장 보호 포메이션 자리 규칙(순수 함수) — 근접 전방 → 좌우 → 가장 가까운 이동 가능 타일, 원거리 후방 2칸 이상 → 좌우 후방 → 가장 가까운 비점유 타일, 여럿이 같은 자리로 몰리지 않는다(검증 05-08 관찰 2).
+// 03번 6-4·6-5장 보호 포메이션 자리 규칙(순수 함수) — 근접 전방 → 좌우 → 가장 가까운 이동 가능 타일, 원거리 후방 2칸 이상 → 좌우 후방 → 가장 가까운 비점유 타일, 여럿이 같은 자리로 몰리지 않는다.
 public class EscortSlotTests
 {
 	private static readonly Vector2Int Escort = new Vector2Int(10, 10);

@@ -3,12 +3,8 @@ using UnityEngine;
 using VContainer;
 using Haare.Util.Logger;
 
-// 문 시스템(진영 기반 개폐, GameSession 비대화 방지 목적 분리). 문은 "어느 방에 붙어 있는가"로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라, 게이트당 두 개이고
-// 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 한 번에 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트를 얻는다). DoorOwnerFaction(보유 진영)은
-// Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다. 기본은 항상 닫힘, 접근 시도
-// (NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 가능 여부는 항상 진영 일치로만
-// 판정한다(IsBlockedByClosedDoor). GameSession을 직접 [Inject]하지 않고 IObjectResolver로 지연
-// 조회하는 이유: GameSession.Construct() 시점엔 생성이 끝나지 않아 즉시 주입 시 순환 참조가 된다.
+// 문 시스템(진영 기반 개폐, GameSession 비대화 방지로 분리). 문은 '어느 방에 붙어 있는가'로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라 게이트당 두 개이고, 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트). DoorOwnerFaction은 Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다.
+// 기본은 항상 닫힘이고 접근 시도(NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 여부는 항상 진영 일치로만 판정한다(IsBlockedByClosedDoor). GameSession은 IObjectResolver로 지연 조회한다 — Construct() 시점엔 생성이 안 끝나 즉시 주입하면 순환 참조가 된다.
 public class DoorSystem
 {
     public const string DoorTag = "Object/Passable/Door";
@@ -21,12 +17,12 @@ public class DoorSystem
     public const float DoorRegenDelaySeconds = 5f;
     public const float DoorRegenPerSecond = 10f;
 
-    // 매 프레임 개폐 판정을 돌 대상 캐시(objectGrid 전체 스캔 방지) — 문은 방 쪽 줄(1×2) 묶음당 오브젝트 하나다. SpawnDoors/RebuildDoorAt에서 추가, RemoveDoor에서 제거.
+    // 매 프레임 개폐 판정을 돌 대상 캐시(objectGrid 전체 스캔 방지) — 방 쪽 줄(1×2) 묶음당 오브젝트 하나. SpawnDoors/RebuildDoorAt에서 추가, RemoveDoor에서 제거한다.
     private readonly List<InteractableObject> _doors = new List<InteractableObject>();
     // 문 하나의 스프라이트 전부(짝마다 한 장) — 개폐는 이 배열 전체에 같이 적용한다.
     private readonly System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]> _doorVisuals = new System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]>();
 
-    // 문이 생기거나(최초 배치·재설치) 파괴될 때마다 오른다 — 통행 가능 여부가 바뀌는 유일한 사건이라 경로 판정 메모(RouteAssessment, 검증 04-08)의 서명으로 쓴다.
+    // 문이 생기거나(최초 배치·재설치) 파괴될 때마다 오른다 — 통행 가능 여부가 바뀌는 유일한 사건이라 경로 판정 메모(RouteAssessment)의 서명으로 쓴다.
     public int StateVersion { get; private set; }
 
     // UnitFunction.Move가 인접 칸에서 이 문 타일로 넘어가려는 시도를 한 그 프레임에만 채워지는 집합 — UpdateProcess가 매 프레임 끝에 비운다.
@@ -86,7 +82,7 @@ public class DoorSystem
         LogHelper.Log(LogHelper.GAME, $"SpawnDoors: 전체 {cmap.map.floors.Length}개 층에 문 {doorCount}개 배치 완료(방 쪽 줄 단위 묶음, 기본 닫힘).");
     }
 
-    // 게이트의 문 타일을 "그 타일이 실제 속한 방"으로 묶는다(DoorGeometry.GroupByRoom). GetGateDoorTiles의 줄 배열 순서는 기하학적 규칙일 뿐 방과 무관해서 roomGrid로 판정한다.
+    // 게이트의 문 타일을 '그 타일이 실제 속한 방'으로 묶는다(DoorGeometry.GroupByRoom) — GetGateDoorTiles의 줄 순서는 기하학적 규칙일 뿐 방과 무관해 roomGrid로 판정한다.
     public List<DoorGeometry.Group> GetGateDoorGroups(Gate gate, int floorIdx)
     {
         Floor floor = Session.cmap.map.floors[floorIdx];
@@ -108,7 +104,7 @@ public class DoorSystem
         return false;
     }
 
-    // SpawnDoors/RebuildDoorAt 공용, 항상 기본 닫힘으로 생성. 묶음의 모든 타일을 한 오브젝트로 등록한다. ownerFaction은 호출부가 정하며 이 함수는 방 소유권을 조회하지 않는다.
+    // SpawnDoors/RebuildDoorAt 공용, 항상 기본 닫힘으로 생성하고 묶음의 모든 타일을 한 오브젝트로 등록한다. ownerFaction은 호출부가 정하며 이 함수는 방 소유권을 조회하지 않는다.
     private void SpawnDoorGroup(List<Vector3Int> tiles, float rotation, FactionType ownerFaction)
     {
         Vector3Int primary = tiles[0];
@@ -123,8 +119,7 @@ public class DoorSystem
         _doors.Add(door);
         StateVersion++;
 
-        // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — DoorIsOpenVisual
-        // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다. 짝(칸)마다 스프라이트가 한 장씩이라 전부에 같이 적용한다.
+        // 기본 닫힘 스프라이트를 즉시 적용한다(첫 UpdateProcess를 기다리지 않음) — DoorIsOpenVisual(false)/IsFullyBlocking(true) 기본값과 이미 일치하며, 칸마다 스프라이트 한 장이라 전부에 같이 적용한다.
         var renderers = GetDoorRenderers(door);
         if (renderers != null && DoorClosedSprite != null)
         {
@@ -222,8 +217,7 @@ public class DoorSystem
 
             FactionType ownerFaction = door.DoorOwnerFaction;
 
-            // 묶음의 어느 타일이든 접근 시도(이번 프레임 NotifyApproachAttempt)가 있거나 보유 진영 유닛이 서 있으면(통과 중 정지 등) 문 전체가 열림이다.
-            // (매 프레임 모든 문을 도는 경로라 AllTiles() 이터레이터 대신 목록을 직접 순회해 할당을 피한다.)
+            // 묶음의 어느 타일이든 이번 프레임 접근 시도가 있거나 보유 진영 유닛이 서 있으면(통과 중 정지 등) 문 전체가 열림이다. 매 프레임 모든 문을 도는 경로라 AllTiles() 이터레이터 대신 목록을 직접 순회해 할당을 피한다.
             bool shouldBeOpen = false;
             var doorTiles = door.OccupiedTiles;
             int tileCount = doorTiles != null ? doorTiles.Count : 1;
@@ -319,7 +313,6 @@ public class DoorSystem
     }
 
     // 문은 방 쪽 줄(1×2 묶음)마다 독립 오브젝트(소유 진영·파괴 상태가 각자)라 게이트를 지나려면 두 방 쪽 문이 모두 통행 가능해야 한다.
-    // (예전엔 한 줄의 첫 타일만 대표로 봐서 반대쪽 문이 막혀 있어도 "도달 가능"으로 판정할 수 있었다.)
     private bool IsGatePassableForFaction(Gate gate, int floorIndex, FactionType faction)
     {
         var groups = GetGateDoorGroups(gate, floorIndex);
@@ -342,9 +335,7 @@ public class DoorSystem
                obj.Tags != null && obj.Tags.Contains(DoorTag);
     }
 
-    // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 동일한 채널링 패턴) —
-    // 재설치 전까지는 진영 판정 대상 자체가 없어 아무나 통과 가능해진다.
-    // 문은 1×2 묶음이 오브젝트 하나라 pos가 어느 칸이든 묶음 전체가 한 번에 사라진다(별칭 키·비주얼·캐시를 모두 정리).
+    // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 같은 채널링 패턴) — 재설치 전까지는 진영 판정 대상이 없어 아무나 통과한다. 1×2 묶음이 오브젝트 하나라 pos가 어느 칸이든 묶음 전체가 사라지며 별칭 키·비주얼·캐시를 모두 정리한다.
     public void RemoveDoor(Vector3Int pos)
     {
         if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door) || door.Tags == null || !door.Tags.Contains(DoorTag)) return;
@@ -377,8 +368,7 @@ public class DoorSystem
         if (floorMap[pos.x, pos.y] == 2) floorMap[pos.x, pos.y] = 0;
     }
 
-    // ObjectPlacementController의 문 재설치 모드 전용, SpawnDoorGroup과 동일하게 기본 닫힘으로 재생성하며
-    // 재설치는 오직 플레이어만 실행하므로 소유 진영은 항상 Player로 고정된다. pos가 속한 방 쪽 줄(1×2 묶음) 전체를 한 번에 설치한다.
+    // ObjectPlacementController의 문 재설치 모드 전용 — SpawnDoorGroup처럼 기본 닫힘으로 재생성하며, 재설치는 플레이어만 실행하므로 소유 진영은 항상 Player다. pos가 속한 방 쪽 줄(1×2 묶음) 전체를 한 번에 설치한다.
     public void RebuildDoorAt(Vector3Int pos)
     {
         if (!TryGetDoorGroupAt(pos, out DoorGeometry.Group group, out Gate gate)) return;
@@ -416,8 +406,7 @@ public class DoorSystem
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.
     public bool IsRepairableDoorTile(Vector3Int pos) => TryFindGateAt(pos, out _);
 
-    // 검증 04-07(04번 8장 "좁은 통로의 통과 순서"): "좁은 통로" = 게이트 문턱 타일(폭 2 고정 통로). 문 오브젝트가 파괴돼도 성립해야 해서 objectGrid가 아니라 Floor.gates로 판정한다.
-    // 게이트는 런타임에 바뀌지 않으므로 첫 호출 때 타일 → 게이트 키(층·게이트 번호) 인덱스를 한 번 만들어 재사용한다(매 이동 판단마다 모든 게이트를 훑지 않게).
+    // '좁은 통로' = 게이트 문턱 타일(폭 2 고정 통로, 04번 8장). 문 오브젝트가 파괴돼도 성립해야 해서 objectGrid가 아니라 Floor.gates로 판정하고, 게이트는 런타임에 안 바뀌므로 첫 호출 때 타일 → 게이트 키 인덱스를 한 번 만들어 재사용한다.
     private Dictionary<Vector3Int, int> _gateTileIndex;
 
     public bool TryGetGateKeyAt(Vector3Int pos, out int gateKey)

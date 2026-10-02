@@ -41,12 +41,7 @@ public static class CombatScoreMath
 		_                              => 1.00f,
 	};
 
-	// 3장 4x5 표(초기 조정값). 근접 지원 행은 "공격 행동을 선택했을 때만" 쓴다(문서 표 아래 설명).
-	// 원거리 지원 행은 검증문서 02-03에서 추가(2026-09-28) — 원래 "공격 점수표 적용 대상 아님(공격
-	// 기능 없음)"으로 행 자체가 없었으나, 같은 RangedSupport로 매핑된 주술사가 실제로는 적 대상
-	// 스킬(Curse, Affinity=Enemy)을 갖고 있어 MeleeTank 행으로 조용히 폴백되는 문제가 있었다. 튜닝된
-	// 배율값이 없어 다른 역할 행을 빌려 쓰는 대신 전부 중립(1.00)으로 채웠다 — 사제·음유시인처럼
-	// 실제로 공격을 안 하는 RangedSupport 유닛에는 이 행 자체가 호출되지 않으므로 영향이 없다.
+	// 3장 4x5 표(초기 조정값). 근접 지원 행은 공격 행동을 선택했을 때만 쓴다. 원거리 지원 행은 적 대상 스킬(Curse)을 가진 주술사가 MeleeTank 행으로 조용히 폴백되던 문제 때문에 추가했고, 튜닝값이 없어 전부 중립(1.00)이다 — 공격을 안 하는 RangedSupport(사제·음유시인)는 이 행이 호출되지 않는다.
 	private static readonly float[,] RoleMultiplierTable =
 	{
 		//                    적MeleeTank  적MeleeDps  적RangedDps  적MeleeSupport  적RangedSupport
@@ -75,7 +70,7 @@ public static class CombatScoreMath
 		=> RoleMultiplier(selfRole, targetRole) * TargetCategoryMultiplier(targetCategory);
 
 	// ── 3장: 인류 20% 교체 기준 / 몬스터·야생은 더 높으면 교체 ──────────────
-	// 새 점수가 현재의 1.2배 "이상"인가 — 비전투 목표(PartyGoalMath)와 공격 대상 교체가 같은 규칙이다. 100 × 1.2f가 120.00001이 되는 부동소수 오차로 정확히 1.2배가 떨어지지 않게 허용 오차를 둔다.
+	// 새 점수가 현재의 1.2배 '이상'인가 — 비전투 목표(PartyGoalMath)와 공격 대상 교체가 같은 규칙이며, 100 × 1.2f = 120.00001 같은 부동소수 오차로 정확히 1.2배가 떨어지지 않게 허용 오차를 둔다.
 	public static bool MeetsSwitchRatio(float currentScore, float newScore) => newScore >= currentScore * 1.2f - 1e-3f;
 
 	// 인류는 1.2배 이상일 때만 교체한다(양쪽 0처럼 새 점수가 더 높지 않으면 유지 — 동점 유지), 몬스터·야생은 더 높기만 하면 교체.
@@ -83,17 +78,13 @@ public static class CombatScoreMath
 		=> isHuman ? (MeetsSwitchRatio(currentScore, newScore) && newScore > currentScore) : newScore > currentScore;
 
 	// ── 8장: 긴급 아군 보호 후보 조건 ───────────────────────────────────
-	// 둘째 조건(치명적 공격 예상)은 호출부가 보호자 개인의 예상 피해량과 진행 중인 공격으로 판정해 넘긴다
-	// (CombatFSMState.TryFindLethalThreat) — 피해량을 모르면 false라 문서대로 그 조건만 빠지고 나머지로 판단한다.
+	// 둘째 조건(치명적 공격 예상)은 호출부(CombatFSMState.TryFindLethalThreat)가 보호자 개인의 예상 피해량과 진행 중인 공격으로 판정해 넘긴다 — 피해량을 모르면 false라 그 조건만 빠지고 나머지로 판단한다.
 	public const float EmergencyProtectHpRatio = 0.30f;
 
-	// 9장: 노출 경로로 접근할 때 "첫 보호효과 시점 이동자 자기 HP" 잔여율 허용 하한. 위
-	// EmergencyProtectHpRatio(누구를 보호할지 시작 조건)와 우연히 같은 수치지만 의미가 다른 별개
-	// 값이다 — 원문이 "조정 가능한 별도 값"이라고 명시.
+	// 9장: 노출 경로 접근 시 '첫 보호효과 시점 이동자 자기 HP' 잔여율 허용 하한. EmergencyProtectHpRatio(보호 시작 조건)와 우연히 같은 수치지만 별개 값이다(원문: 조정 가능한 별도 값).
 	public const float ProtectApproachDamageRiskHpFloor = 0.30f;
 
-	// 9장·순서도 02-07: 피해를 감수하는 노출 경로는 "확보한 피해 정보로 남을 HP를 추정할 수 있고" 그 예상 HP가 하한 이상일 때만 후보에 든다. 추정할 수 없으면
-	// 0 피해로 계산하지도, 계산에서 빼고 허용하지도 않고 해당 노출 경로를 제외한다(검증 02-10 재판정, 2026-09-30).
+	// 피해를 감수하는 노출 경로는 확보한 피해 정보로 남을 HP를 추정할 수 있고 예상 HP가 하한 이상일 때만 후보에 든다(9장). 추정할 수 없으면 0 피해로 계산하지도 허용하지도 않고 그 노출 경로를 제외한다.
 	public static bool IsExposureRouteAllowed(bool damageEstimable, float projectedHpRatio)
 		=> damageEstimable && projectedHpRatio >= ProtectApproachDamageRiskHpFloor;
 
@@ -105,15 +96,14 @@ public static class CombatScoreMath
 		return false;
 	}
 
-	// 방어 적용 후 피해 — 실제 피해 파이프라인(UnitFunction.TakePhysicalDamage/TakeMagicalDamage)과 같은 규칙: 방어력을 빼고 1 아래로 내려가지 않는다.
+	// 방어 적용 후 피해 — 실제 피해 파이프라인(TakePhysicalDamage/TakeMagicalDamage)과 같은 규칙: 방어력을 빼고 1 아래로 내려가지 않는다.
 	public static float DamageAfterDefense(float rawDamage, float defense) => Mathf.Max(1f, rawDamage - defense);
 
 	// 8장 둘째 조건: 알려진 한 번의 공격 피해가 보호 대상의 남은 HP 이상이면 치명적이다(여러 공격을 합산하지 않는다 — 문서가 "해당 공격"으로 적는다).
 	public static bool IsLethalAttack(float rawDamage, float defense, float targetHp) => DamageAfterDefense(rawDamage, defense) >= targetHp;
 
 	// ── 9장: 여러 긴급 후보의 비교 ──────────────────────────────────────
-	// 비교 순서: 1 치명적 공격 예상 → 2 그 공격의 도달 시점이 빠름 → 3 HP 비율 낮음 → 4 행동불능 → 5 자신의 보호 효과 도달(거리로 근사).
-	// 6(현재 대상 유지·동률 무작위)은 호출부가 맡는다. LethalEtaSeconds는 치명적일 때만 의미가 있어 아니면 0으로 정규화한다.
+	// 비교 순서: 1 치명적 공격 예상 → 2 그 공격의 도달 시점이 빠름 → 3 HP 비율 낮음 → 4 행동불능 → 5 자신의 보호 효과 도달(거리로 근사). 6(현재 대상 유지·동률 무작위)은 호출부가 맡고, LethalEtaSeconds는 치명적일 때만 의미가 있어 아니면 0으로 정규화한다.
 	public readonly struct ProtectCandidateKey : System.IEquatable<ProtectCandidateKey>
 	{
 		public readonly bool Lethal;
@@ -154,10 +144,7 @@ public static class CombatScoreMath
 		=> healerRole == CombatRole.MeleeSupport ? 0.60f : 0.80f;
 
 	// ── 5장: 공격 대상 변경 시 이동 한도(칸) ────────────────────────────
-	// [정정, 2026-09-28] 원거리 지원도 다른 역할과 동일하게 SelectAttackTarget/GetPriority를 그대로
-	// 거친다 — "공격 후보로 안 삼는다"는 예전 서술은 검증문서 02-03에서 확인 결과 부정확했다(RangedSupport
-	// 클래스 대부분이 실제로 공격을 안 해서 관측되지 않았을 뿐). 그래서 default 케이스로 나머지 역할과
-	// 동일한 4를 받는다 — 별도 분기가 필요 없어 명시 케이스를 추가하지 않았다.
+	// 원거리 지원도 다른 역할과 같이 SelectAttackTarget/GetPriority를 그대로 거치므로 default 케이스가 나머지 역할과 동일하게 4를 받는다 — 별도 분기가 필요 없어 명시 케이스를 추가하지 않았다.
 	public static int AttackRetargetMoveLimit(CombatRole role) => role switch
 	{
 		CombatRole.MeleeTank    => 4,
@@ -167,8 +154,7 @@ public static class CombatScoreMath
 		_                       => 4,
 	};
 
-	// 5장 "새 대상을 공격할 수 있는 위치까지의 경로 길이": 경로 타일(시작 제외, 마지막이 대상 타일)을 따라 처음으로 공격 거리(체비셰프) 안에 들어오는 지점까지의 걸음 수.
-	// 이미 공격 거리 안이면 0칸이라 호출부가 경로를 재기 전에 먼저 처리한다. 거리 안에 드는 타일이 없으면(정상 경로는 마지막 타일 = 대상 타일이라 항상 해당) 전체 길이.
+	// 5장 '새 대상을 공격할 수 있는 위치까지의 경로 길이': 경로 타일(시작 제외, 마지막이 대상 타일)을 따라 처음 공격 거리(체비셰프) 안에 들어오는 지점까지의 걸음 수. 이미 거리 안이면 0칸이라 호출부가 먼저 처리하며, 거리 안에 드는 타일이 없으면 전체 길이다.
 	public static int StepsToFirstTileWithinRange(IList<Vector2Int> pathTiles, Vector2Int target, int range)
 		=> StepsToFirstTileWithinRange(pathTiles, target, Vector2Int.one, range);
 

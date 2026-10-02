@@ -8,7 +8,7 @@ public enum CombatRole
 	RangedDps,      // 원거리 공격
 	MeleeSupport,   // 근접 지원 (몽크류) — 공격 행동을 선택했을 때만 공격 관련 배율/이동한도 적용
 	RangedSupport,  // 원거리 지원 (사제/주술사/음유시인) — 대부분 공격 기능이 없어 점수표 행은
-	                // 중립(1.00) 고정이다(검증문서 02-03: 주술사만 예외적으로 적 대상 스킬을 보유,
+	                // 중립(1.00) 고정이다(주술사만 적 대상 스킬을 보유,
 	                // CombatScoreMath.RoleMultiplierTable 참고)
 }
 

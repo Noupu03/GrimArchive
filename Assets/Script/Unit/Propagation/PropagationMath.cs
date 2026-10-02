@@ -8,10 +8,7 @@ using UnityEngine;
 public static class PropagationMath
 {
 	// ─────────────────────────── 1장. 전파·소리 공통 공간 판정 ───────────────────────────
-	// 동일 방 또는 동일 통로 공간 = 거리 판정 진행, 그 외는 거리와 무관하게 도달 실패 — 방/통로 모두
-	// CreateMap.GetRoomIdAt의 roomId로 구분되므로(복도도 고유 roomId) 일치 여부가 곧 "동일 공간"이다.
-	// 알려진 한계(검증문서 00-08): 열린/파괴된 문으로 이어진 옆방도 roomId가 다르면 여전히 다른 공간
-	// 취급한다(시야 IsOpaqueAt과 달리 문 상태를 안 봄) — 범위가 공간판정 기초 공식 자체라 유지 결정됨.
+	// 동일 방 또는 동일 통로 공간 = 거리 판정 진행, 그 외는 거리와 무관하게 도달 실패 — 방/통로 모두 CreateMap.GetRoomIdAt의 roomId(복도도 고유)로 구분되므로 일치 여부가 곧 '동일 공간'이다. 알려진 한계: 열린/파괴된 문으로 이어진 옆방도 roomId가 다르면 다른 공간으로 취급한다(시야 IsOpaqueAt과 달리 문 상태를 안 봄).
 	public static bool SameSpace(int roomIdA, int roomIdB) => roomIdA >= 0 && roomIdA == roomIdB;
 
 	// 1-2장: 장애물이 없으면 원형 N칸, 있으면 같은 공간 안에서 이동 가능한 최단 경로 거리. 8방향

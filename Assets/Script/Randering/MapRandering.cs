@@ -41,23 +41,17 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
-    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션 소스. Resources/Tile/TileSpriteLibrary.spriteLib
-    // (Unity 2D Animation SpriteLibraryAsset — Char_Knight.spriteLib와 동일한 방식, Window > 2D >
-    // Sprite Library Editor로 편집)의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시해둔다. 라이브러리가
-    // 없거나 카테고리가 비어있으면 null 그대로(BuildVariantTiles가 원본 스프라이트로 폴백).
+    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션 소스. Resources/Tile/TileSpriteLibrary.spriteLib의 'Floor'/'Wall' 카테고리 라벨을 한 번만 읽어 캐시한다. 라이브러리가 없거나 카테고리가 비면 null이며 BuildVariantTiles가 원본 스프라이트로 폴백한다.
     private SpriteLibraryAsset _spriteLibrary;
     private Sprite[] _floorLabelSprites;
     private Sprite[] _wallLabelSprites;
     private bool _tileLibraryLoaded;
 
-    // 층별 색상 테마 배정표(2026-09-27, 단일 활성 테마에서 층별 배정으로 확장 — 사용자 요청). 배정
-    // 내용 자체는 Tools(new)의 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
+    // 층별 색상 테마 배정표 — 내용은 Tools(new)의 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
     private const string FloorColorThemesResourcePath = "MapColorTheme_FloorAssignments";
     private MapFloorColorThemes _floorColorThemes;
 
-    // 벽 자동 타일 연결(회의록 2026-09-27) — 층마다 색 테마가 다를 수 있어(위 배정표) Wall/Floor Tile을
-    // 층별로 따로 굽는다. WallVariant 10종 라벨(WallAutoTileMath.GetSpriteLibraryLabel)이 비어있으면
-    // (=정림이 아직 실제 아트를 안 채운 상태) wallSprite로 폴백해 형태는 지금 룩 그대로 유지된다.
+    // 벽 자동 타일 연결 — 층마다 색 테마가 다를 수 있어 Wall/Floor Tile을 층별로 따로 굽는다. WallVariant 라벨(WallAutoTileMath.GetSpriteLibraryLabel)이 비어 있으면(실제 아트 미반영) wallSprite로 폴백해 현재 룩을 유지한다.
     private class FloorTileSet
     {
         public UnityEngine.Tilemaps.Tile[] wallVariants;
@@ -121,13 +115,11 @@ public class MapRandering : NativeRoutine, IMapColorizer
         if (_floorColorThemes == null)
             _floorColorThemes = Resources.Load<MapFloorColorThemes>(FloorColorThemesResourcePath);
 
-        // 맵을 다시 생성할 때마다 배정표를 새로 반영하도록 층별 캐시를 비운다 — 이전 세션 값이 아니라
-        // 지금 배정표 내용 그대로 다시 굽는다(2026-09-27, 재생성 시 테마가 안 바뀌어 보이는 문제 방지).
+        // 맵을 다시 생성할 때마다 배정표를 새로 반영하도록 층별 캐시를 비운다(재생성 시 테마가 안 바뀌어 보이는 문제 방지).
         _floorTileSets.Clear();
     }
 
-    // TileSpriteLibrary.spriteLib의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시한다(테마별로
-    // 다시 읽을 필요 없음 — 라벨/스프라이트 자체는 테마와 무관, 색만 GetOrBuildFloorTileSet에서 입힌다).
+    // TileSpriteLibrary.spriteLib의 'Floor'/'Wall' 라벨을 한 번만 읽어 캐시한다 — 라벨/스프라이트는 테마와 무관하고 색만 GetOrBuildFloorTileSet에서 입힌다.
     void LoadTileLibrary()
     {
         _tileLibraryLoaded = true;
@@ -154,8 +146,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     }
 #endif
 
-    // 층 하나의 벽/바닥 Tile 세트를 그 층에 배정된 테마 색으로 구워 캐시한다(2026-09-27, 층별 배정
-    // 지원 — 층마다 색이 다를 수 있어 더 이상 전 층 공유 배열을 쓸 수 없다).
+    // 층 하나의 벽/바닥 Tile 세트를 그 층에 배정된 테마 색으로 구워 캐시한다(층마다 색이 달라 전 층 공유 배열을 못 쓴다).
     FloorTileSet GetOrBuildFloorTileSet(int floorIndex)
     {
         if (_floorTileSets.TryGetValue(floorIndex, out var cached)) return cached;
@@ -164,9 +155,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         Color wallTint = theme != null ? theme.wallColor : Color.white;
         Color floorTint = theme != null ? theme.floorColor : Color.white;
 
-        // 계단 타일은 바닥 타일과 같은 스프라이트를 쓴다(아이콘은 RenderStairOverlays가 오버레이로
-        // 처리) — floorTint를 똑같이 입혀야 아이콘이 못 덮는 가장자리가 주변 바닥과 이어져 보인다
-        // (2026-09-27 사용자 신고 "계단 스프라이트 뒤쪽부분 바닥 색 안바뀌는 문제" 수정).
+        // 계단 타일은 바닥과 같은 스프라이트를 쓰므로(아이콘은 RenderStairOverlays 오버레이) floorTint를 똑같이 입혀야 아이콘이 못 덮는 가장자리가 주변 바닥과 이어진다.
         var stairTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
         stairTile.sprite = floorSprite;
         stairTile.color = floorTint;
@@ -182,10 +171,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return set;
     }
 
-    // WallVariant 12종 각각의 Tile을 만든다 — TileSpriteLibrary "Wall" 카테고리에서 GetSpriteLibraryLabel
-    // 라벨(형태별 4개만 존재, 2026-09-27 축소)로 스프라이트를 찾고, 없으면(라이브러리 자체가 없거나
-    // 그 라벨만 비어있어도) wallSprite로 폴백한다. 같은 형태를 공유하는 variant끼리는 스프라이트가
-    // 같고 회전(tile.transform)만 다르다.
+    // WallVariant 12종 각각의 Tile을 만든다 — GetSpriteLibraryLabel 라벨(형태별 4개)로 스프라이트를 찾고, 없으면 wallSprite로 폴백한다. 같은 형태를 공유하는 variant는 스프라이트가 같고 회전(tile.transform)만 다르다.
     UnityEngine.Tilemaps.Tile[] BuildWallShapeTiles(Color wallTint)
     {
         var variantValues = (WallVariant[])System.Enum.GetValues(typeof(WallVariant));
@@ -202,10 +188,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
             var tile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
             tile.sprite = sprite;
             tile.color = wallTint;
-            // 2026-09-27 회의록 후속: 형태별 기준 스프라이트 1장(GetSpriteLibraryLabel이 이제 12종을
-            // 4라벨로 묶어 반환)을 방향마다 회전시켜 재사용한다 — 정확한 회전각은
-            // WallAutoTileMath.GetRotationDegrees 참고(실물 아트로 아직 시각 검증 안 됨, 틀렸으면 그
-            // 표만 뒤집으면 됨). RuleTile 자체 관례를 따라 LockTransform도 같이 설정.
+            // 형태별 기준 스프라이트 1장을 방향마다 회전시켜 재사용한다(회전각은 WallAutoTileMath.GetRotationDegrees, 실물 아트 검증 전). RuleTile 관례대로 LockTransform도 같이 설정한다.
             tile.transform = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, WallAutoTileMath.GetRotationDegrees(variant)));
             tile.flags = UnityEngine.Tilemaps.TileFlags.LockTransform;
             tiles[(int)variant] = tile;
@@ -213,14 +196,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return tiles;
     }
 
-    // baseSprite(항상 0번)에 라이브러리 라벨 스프라이트를 이어붙인다 — 중복(라이브러리 라벨이 base와
-    // 같은 스프라이트를 가리키는 경우, 지금 기본 상태가 그렇다)은 제외한다.
-    // preferLibraryOnly=true면 라이브러리에 실제로 채워진 변형이 있는 한 baseSprite를 완전히 배제한다
-    // (라이브러리가 비어있을 때만 baseSprite로 폴백). 바닥 전용 — 회의록 2026-09-27 버그 신고("라이브러리
-    // 바닥 스프라이트를 바꿨는데 기존에 쓰던 잔디 스프라이트가 섞여서 배치됨") 수정: 예전엔 라이브러리
-    // 유무와 무관하게 항상 baseSprite를 포함해서, 라이브러리를 완전히 다른 스프라이트로 바꿔도 옛
-    // 하드코딩 스프라이트가 무작위 풀에 계속 섞여 있었다. 벽 쪽 호출(wallVariants, SetTileToWall 디버그
-    // 전용이 [0]만 읽음)은 기존 동작 그대로 유지해야 하므로 기본값은 false로 둔다.
+    // baseSprite(항상 0번)에 라이브러리 라벨 스프라이트를 이어붙이되 baseSprite와 같은 스프라이트는 제외한다. preferLibraryOnly=true면 라이브러리에 채워진 변형이 있는 한 baseSprite를 완전히 배제한다(바닥 전용 — 안 그러면 라이브러리를 바꿔도 옛 하드코딩 스프라이트가 무작위 풀에 섞인다). 벽 쪽 호출은 기존 동작을 유지해야 해 기본값은 false다.
     UnityEngine.Tilemaps.Tile[] BuildVariantTiles(Sprite baseSprite, Sprite[] extraVariants, Color tint, bool preferLibraryOnly = false)
     {
         var sprites = new List<Sprite>();
@@ -257,8 +233,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return variants[UnityEngine.Random.Range(0, variants.Length)];
     }
 
-    // 벽 자동 타일 연결(회의록 2026-09-27) — (wx,wy) 벽 타일의 8방향 인접 상태를 isWall 격자에서 읽어
-    // WallAutoTileMath로 10종 중 하나를 판정하고, 그 WallVariant에 해당하는 Tile을 반환한다.
+    // (wx,wy) 벽 타일의 8방향 인접 상태를 isWall 격자에서 읽어 WallAutoTileMath로 WallVariant를 판정하고 해당 Tile을 반환한다.
     private static UnityEngine.Tilemaps.TileBase GetWallShapeTile(bool[,] isWall, bool[,] isFloor, int worldW, int worldH, int wx, int wy, UnityEngine.Tilemaps.Tile[] wallShapeTiles)
     {
         bool n = IsSetAt(isWall, worldW, worldH, wx, wy + 1);
@@ -352,8 +327,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         var tiles = new UnityEngine.Tilemaps.TileBase[totalTiles];
         int idx = 0;
 
-        // 벽 자동 타일 연결용 — 청크 경계를 넘나드는 8방향 인접 판정을 위해 층 전체를 미리 평탄화한다
-        // (BuildWallMask와 동일한 산출물, 셰도우캐스터 쪽과 별개로 렌더링 시점에 한 번 더 계산).
+        // 벽 자동 타일 연결용 — 청크 경계를 넘는 8방향 인접 판정을 위해 층 전체를 미리 평탄화한다(BuildWallMask와 같은 산출물이지만 렌더링 시점에 따로 계산).
         bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
         bool[,] isFloor = BuildFloorMask(ref floor, worldW, worldH);
         FloorTileSet tileSet = GetOrBuildFloorTileSet(floorIdx);
@@ -528,10 +502,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         return isWall;
     }
 
-    // 벽 방향(상/하, 좌/우) 판정 전용 — BuildWallMask의 "Wall" 격자와 대칭되는 "Floor" 전용 격자
-    // (2026-09-27 회의록 후속 요청 — Vertical/Horizontal이 선택되는 조건 자체가 "동서(또는 남북) 둘
-    // 다 벽 아님"이라, 벽 아님 여부만으로는 어느 쪽이 방 내부인지 못 가른다. Stair/미개척 영역은
-    // 둘 다 false로 나와 애매하면 WallAutoTileMath가 기본값(Top/Left)으로 폴백한다.
+    // 벽 방향(상/하, 좌/우) 판정 전용 — BuildWallMask의 'Wall' 격자와 대칭인 'Floor' 격자. Vertical/Horizontal 선택 조건이 '동서(남북) 둘 다 벽 아님'이라 벽 아님만으로는 어느 쪽이 방 내부인지 못 가르기 때문이며, Stair/미개척은 둘 다 false라 애매하면 WallAutoTileMath가 기본값(Top/Left)으로 폴백한다.
     static bool[,] BuildFloorMask(ref Floor floor, int worldW, int worldH)
     {
         bool[,] isFloor = new bool[worldW, worldH];

@@ -9,8 +9,7 @@ public partial class Party
 {
 	public string Id;
 	public string Name;
-	// 01번 문서 7-1장: 파티 종류별 방 활동 종료·집결 기준에 쓰인다. GameSession.CreateParty가 생성
-	// 시점에 4종(PartyEnums.cs 참고) 중 하나를 무작위 배정한다(편성 가능 유닛·선택 가중치는 스텁).
+	// 파티 종류별 방 활동 종료·집결 기준에 쓰인다(01번 7-1장). GameSession.CreateParty가 4종 중 무작위 배정한다(편성·가중치는 스텁).
 	public PartyType Type;
 	public readonly List<Human> Members = new List<Human>();
 
@@ -19,8 +18,7 @@ public partial class Party
 	// 리더로 삼고, 리더가 죽으면 GameSession이 재선정한다.
 	public Human Leader;
 
-	// 01번 7-1장: 소탕 파티는 "다음 이동 문까지 이동하며 확인한 범위에서" 적이 없을 때 문 주변 집결을 판단한다 — 리더가 그 문 앞 접근을 마친 방.
-	// IsRoomActivityComplete의 MopUp 분기가 이 표식을 요구하고, 집결 시작(소비)·리더가 방을 떠남(TickAdvanceState)에서 지운다.
+	// 소탕 파티는 다음 이동 문까지 이동하며 확인한 범위에 적이 없을 때 집결을 판단한다(01번 7-1장) — 리더가 그 문 앞 접근을 마친 방. IsRoomActivityComplete MopUp 분기가 요구하며, 집결 시작·리더가 방을 떠날 때 지운다.
 	public Room DoorApproachRoom { get; private set; }
 
 	public void MarkLeaderReachedNextDoor()
@@ -28,19 +26,13 @@ public partial class Party
 		if (Leader != null) DoorApproachRoom = Leader.currentRoom;
 	}
 
-	// 03번 문서 3번 항목: 리더가 아는 아직 처리 안 된(적대적인) 코어 위치. 이게 있으면 집결·다음 방
-	// 이동보다 코어 처리가 우선한다 — PartyCoreReportSystem.OnCoreDiscovered가 발견 시점에 채우고,
-	// TryStartRally가 매번 IsRoomCoreStillHostile로 재확인해 처리 완료를 스스로 감지·해제한다.
+	// 리더가 아는 미처리(적대적) 코어 위치(03번 3항) — 있으면 집결·다음 방 이동보다 코어 처리가 우선한다. PartyCoreReportSystem.OnCoreDiscovered가 채우고 TryStartRally가 IsRoomCoreStillHostile로 재확인해 처리 완료를 감지·해제한다.
 	public Vector3Int? LeaderKnownCorePosition;
 
-	// 01번 문서 2장: 방 탐색 임무 요구 수량(B+E, PartyGoalMath.RequiredRoomExploreCount) 집계 — 여러
-	// 유닛이 각자 다른 방을 끝내도 중복 없이 한 번만 세기 위한 dedup. 진짜 "여러 관찰자가 나눠 본
-	// 시야를 합쳐 완료 판정"은 안 함 — 누구든 먼저 그 방을 개인적으로 끝내면 그걸로 집계하는 근사
-	// (IsRoomActivityComplete의 "리더 개인 지도 기준 근사"와 같은 성격).
+	// 방 탐색 임무 요구 수량(B+E) 집계(01번 2장) — 여러 유닛이 각자 다른 방을 끝내도 중복 없이 한 번만 세는 dedup이다. 시야를 합쳐 완료를 판정하지는 않고 누구든 먼저 그 방을 개인적으로 끝내면 집계하는 근사다.
 	public int CompletedRoomExploreCount { get; private set; }
 	private readonly HashSet<int> _countedRoomIds = new HashSet<int>();
-	// 미달성→달성으로 막 바뀐 순간에만 true — Party.ReadyToAdvance와 동일한 관례로, 소비자(01-07/
-	// 01-11의 리더 판단, 아직 미착수)가 읽고 스스로 false로 되돌린다.
+	// 미달성→달성으로 막 바뀐 순간에만 true — ReadyToAdvance와 같은 관례로 소비자(리더 판단)가 읽고 false로 되돌린다.
 	public bool JustReachedRoomExploreQuota;
 
 	// 개인의 RoomExploreState가 Complete로 바뀌는 순간 PersonalMapKnowledge.ObserveRoomTileRevealed가
@@ -55,9 +47,7 @@ public partial class Party
 			JustReachedRoomExploreQuota = true;
 	}
 
-	// 01번 문서 7-2장: 파티원 전체가 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단하는 집계 —
-	// 방(roomId)별로 새로 밝힌 바닥 타일을 모아 그 방의 전체 바닥 타일 수에 도달하면 "파티 기준
-	// 완료"로 표시한다. 개인별 RevealedFloorTiles와는 별개 집계(리더가 못 본 타일도 반영됨).
+	// 파티원 전체가 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단하는 집계(01번 7-2장) — 방별로 새로 밝힌 바닥 타일을 모아 전체 바닥 타일 수에 닿으면 '파티 기준 완료'다. 개인별 RevealedFloorTiles와 별개 집계다.
 	private readonly Dictionary<int, HashSet<Vector2Int>> _partyRevealedTilesByRoom = new();
 	private readonly HashSet<int> _partyCompletedRoomIds = new();
 
@@ -80,9 +70,7 @@ public partial class Party
 			_partyCompletedRoomIds.Add(roomId);
 	}
 
-	// 01번 문서 7-1장: 파티 종류별 "현재 방 활동 종료" 기준. Explore 분기는 파티 전체 시야 합산
-	// (IsRoomFullyRevealedByParty)을 우선 확인하고 안 되면 리더 개인 지도 근사로 보조한다(둘 중
-	// 하나만 참이어도 완료). 점령 파티는 방 점령 완료 기준 — 보스공략은 범위 밖(구현현황 문서 참고).
+	// 파티 종류별 현재 방 활동 종료 기준(01번 7-1장). Explore는 파티 시야 합산(IsRoomFullyRevealedByParty)을 우선 보고 안 되면 리더 개인 지도 근사로 보조한다(하나만 참이어도 완료). 점령 파티는 방 점령 완료 기준이고 보스공략은 범위 밖이다.
 	public bool IsRoomActivityComplete()
 	{
 		if (Leader == null || Leader.hp <= 0 || Leader.currentRoom == null) return false;
@@ -90,19 +78,16 @@ public partial class Party
 		switch (Type)
 		{
 			case PartyType.Explore:
-				// 리더가 닿지 못해 막힘 기록한 프론티어는 방 탐색을 붙들지 않는다 — 예전엔 탐험이 그 타일을 벽으로 위조해 지워서 같은 효과였다(검증 04-08 발견 5, 지도 위조 없이 유지).
+				// 리더가 닿지 못해 막힘 기록한 프론티어는 방 탐색을 붙들지 않는다 — 지도를 위조하지 않고 닿을 수 없는 프론티어가 탐색 완료를 영구히 막는 것을 피하는 근사다.
 				return IsRoomFullyRevealedByParty(room.RoomId) ||
 					!Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds, RouteAssessment.CreateExploreBlockFilter(Leader));
 			case PartyType.Recover:
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
-				// 트리거 조건은 미정(PartyEnums.cs 참고) — 판정 기준만 세팅으로 남겨둔다. RoomFaction은
-				// 파티 종류와 무관한 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌는 신호라,
-				// 실제 점령 트리거가 생기면 교체할 것(검증문서 01-01 3번 참고).
+				// 트리거 조건은 미정(PartyEnums.cs 참고) — 판정 기준만 세팅으로 남긴다. RoomFaction은 파티 종류와 무관한 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌므로 실제 점령 트리거가 생기면 교체한다.
 				return room.RoomFaction == FactionType.Human;
 			case PartyType.MopUp:
-				// 01번 7-1장: 문까지 이동하며 확인한 뒤 현재 방에 대응할 적·교전 정보가 남지 않으면 — 이동 없이 "적을 모름"만으로는 부족하다
-				// (스폰 직후부터 참이 돼 도착 즉시 집결하던 문제). 방 전체 탐색·전멸 확인은 요구하지 않는다.
+				// 문까지 이동하며 확인한 뒤 현재 방에 대응할 적·교전 정보가 남지 않아야 한다(01번 7-1장) — 이동 없이 '적을 모름'만으론 부족하다(스폰 직후부터 참이라 도착 즉시 집결하던 문제). 방 전체 탐색·전멸 확인은 요구하지 않는다.
 				return Leader.personalSpottedEnemies.Count == 0 && DoorApproachRoom != null && DoorApproachRoom == room;
 			default:
 				return Leader.personalSpottedEnemies.Count == 0;
@@ -157,34 +142,25 @@ public partial class Party
 	// 함정 오브젝트 Id → 그 함정의 발견자/선정 해제 유닛 조율 상태. TrapPartySystem이 읽고 쓴다.
 	public readonly Dictionary<string, TrapPartyCoordination> TrapCoordinations = new Dictionary<string, TrapPartyCoordination>();
 
-	// 03번 v0.12 8장·v0.6 9-3: 웨이브 진입 전(파티 생성 시점)에 파티 내 함정 해제 성공률이 가장 높은 것으로 확인된 유닛 — 이 유닛이 직접 발견하면
-	// 2초 응답 대기 없이 담당이 된다. 동률이면 전원 포함(아무도 더 높지 않아 응답을 기다릴 이유가 없다). GameSession.CreateParty가 채운다.
+	// 웨이브 진입 전(파티 생성 시점) 파티 내 함정 해제 성공률이 가장 높은 것으로 확인된 유닛 — 직접 발견하면 2초 응답 대기 없이 담당이 된다(03번 8장·v0.6 9-3). 동률이면 전원 포함하며 GameSession.CreateParty가 채운다.
 	public readonly HashSet<string> EntryBestDisarmerNames = new HashSet<string>();
 
-	// 01번 문서 9장: 조사·회수 발견 정보의 지속 재전파 — DeathRecords/TrapCoordinations와 동일한
-	// "파티 단위 추적, 매 틱 재확인" 패턴(PropagationSystem.TickOngoingObjectPropagation이 소비).
-	// 조사 완료는 위치까지, 회수 완료는 사실만 필요해 따로 추적한다.
+	// 조사·회수 발견 정보의 지속 재전파(01번 9장) — DeathRecords/TrapCoordinations와 같은 '파티 단위 추적, 매 틱 재확인' 패턴(PropagationSystem.TickOngoingObjectPropagation이 소비). 조사 완료는 위치까지, 회수 완료는 사실만 필요해 따로 추적한다.
 	public readonly Dictionary<string, Vector3Int> KnownInvestigatedObjects = new Dictionary<string, Vector3Int>();
 	public readonly HashSet<string> KnownCollectedObjectIds = new HashSet<string>();
 
-	// 05번 7장 408·454~456줄(검증 05-06): 발견한 문은 개인 지도 기록이자 "전달 가능한 정보"다 — 이 파티원 중 누군가 시야로 확인한 문 오브젝트 Id → 대표 위치.
-	// 같은 지속 재전파 패턴(PropagationSystem.TickOngoingObjectPropagation)이 아직 모르는 파티원에게 전파 조건이 성립할 때 전달한다. 문이 파괴되면 전파 순회 중 정리된다.
+	// 발견한 문은 개인 지도 기록이자 전달 가능한 정보다(05번 7장) — 이 파티원 중 누군가 시야로 확인한 문 Id → 대표 위치. 같은 지속 재전파 패턴이 아직 모르는 파티원에게 전파 조건이 성립할 때 전달하며, 파괴된 문은 순회 중 정리된다.
 	public readonly Dictionary<string, Vector3Int> KnownDoorObjects = new Dictionary<string, Vector3Int>();
 
-	// 리더가 방 경로를 정할 때 이미 지나온 방을 피하도록, 이 파티 구성원이 들어가 본 방 (층, 방 Id) — UnitFunction.SyncRoomAffiliation이 방이 바뀔 때 채운다(04번 1장, 검증 05-06 관찰 2).
+	// 리더가 방 경로를 정할 때 이미 지나온 방을 피하도록 구성원이 들어가 본 방(층, 방 Id) — UnitFunction.SyncRoomAffiliation이 방이 바뀔 때 채운다(04번 1장).
 	private readonly HashSet<(int floor, int roomId)> _visitedRooms = new HashSet<(int floor, int roomId)>();
 	public void OnMemberEnteredRoom(int floor, int roomId) => _visitedRooms.Add((floor, roomId));
 	public bool HasVisitedRoom(int floor, int roomId) => _visitedRooms.Contains((floor, roomId));
 
-	// 리더가 방 안에서 다음 이동 문을 못 찾은 채 오래 지났다 — 개인 탐색의 방 제한을 리더에 한해 풀어 방 밖까지 탐색해 문을 찾게 하는 안전 해치(영구 정지 방지). HumanWaveManager가 켜고 끈다.
+	// 리더가 방 안에서 다음 이동 문을 오래 못 찾았다 — 개인 탐색의 방 제한을 리더에 한해 풀어 방 밖까지 탐색하게 하는 안전 해치(영구 정지 방지). HumanWaveManager가 켜고 끈다.
 	public bool LeaderMayExploreBeyondRoom;
 
-	// 검증문서 03-02: 파티 목표 상호작용이 "시작"되는 순간(완료 아님)의 합류 정보 — 위
-	// KnownInvestigatedObjects와 동일한 지속 재전파 패턴(PropagationSystem.TickOngoingObjectPropagation)
-	// 이지만 소비 방식이 다르다. 등록만 해주면 자유로운 파티원은 기존 FindInvestigateTarget이 자연히
-	// 그 대상을 후보로 찾아 합류 이동을 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은
-	// CanInvestigate의 기존 우선순위 게이트에 막혀 그대로 현재 행동을 유지한다(03번 문서 3번 항목의
-	// "유지해야 하는 수신자" 처리를 새 강제 상태 없이 기존 FSM 우선순위만으로 재현).
+	// 파티 목표 상호작용이 시작되는 순간(완료 아님)의 합류 정보 — KnownInvestigatedObjects와 같은 지속 재전파 패턴이지만 소비 방식이 다르다. 등록만 하면 자유로운 파티원은 FindInvestigateTarget이 합류 이동을 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은 CanInvestigate 게이트에 막혀 현재 행동을 유지한다(03번 3항).
 	public readonly Dictionary<string, Vector3Int> PartyGoalJoinTargets = new Dictionary<string, Vector3Int>();
 
 	public Party(string id, string name)
@@ -256,10 +232,7 @@ public partial class Party
 		}
 	}
 
-	// 검증 04-04: 이 구성원의 이동 기본 속도(경계 감속을 곱하기 전, Human.MovementBaseSpeed가 호출한다). 공동 이동(방 이동·문 찾기 추종 대기) 중이고 리더 기준 합류 반경
-	// (doorSearchFollowRadius, 3칸) 안이면 "같은 층의 살아 있는 이동 가능한 구성원 중 가장 느린 이동 능력치"(상호작용으로 잠깐 멈춘 구성원도 포함)를 쓰고, 아니면 자기 능력치다 —
-	// 뒤처진 구성원은 자기 속도로 복귀하다 합류하면 공동 속도로 바뀐다. 이동 불가(isImmobile·속도 0)·사망·다른 층 구성원은 계산에서 뺀다. 모든 기준은 사용자 확정(2026-10-01)이며
-	// 진형 문서가 생기면 "합류"를 실제 진형 자리 도착으로 바꿀 자리다.
+	// 이 구성원의 이동 기본 속도(경계 감속 전, Human.MovementBaseSpeed가 호출). 공동 이동 중이고 리더 합류 반경(doorSearchFollowRadius, 3칸) 안이면 같은 층 살아 있는 이동 가능 구성원 중 가장 느린 능력치(상호작용으로 멈춘 구성원 포함)를, 아니면 자기 능력치를 쓴다 — 뒤처진 구성원은 합류하면 공동 속도로 바뀐다. 이동 불가·사망·다른 층 구성원은 뺀다. 진형 문서가 생기면 '합류'를 실제 진형 자리 도착으로 바꿀 자리다.
 	public float ResolveMoveBaseSpeed(Human member)
 	{
 		float individual = member.BaseStat.walkSpeed;

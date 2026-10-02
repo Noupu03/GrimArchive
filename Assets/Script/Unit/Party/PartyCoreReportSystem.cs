@@ -3,17 +3,12 @@ using UnityEngine;
 
 public enum ReportStep { Continue, Ended }
 
-// 03번 문서(행동전환_중단_재개) 3번·10번 항목 "코어 발견과 리더 보고" 구현부. 코어는 일반 임무·집결·다음
-// 방 이동보다 우선한다 — 리더가 알면 Party.TryStartRally가 스스로 새 집결을 막고, 이미 진행/완료된
-// 집결·다음 방 이동은 Party.OnLeaderLearnsCore가 즉시 해제한다. TrapPartySystem/PartyDeathSystem과
-// 같은 "파티 단위 정적 시스템" 관례를 따른다.
+// 코어 발견과 리더 보고 구현부(03번 3·10항). 코어는 일반 임무·집결·다음 방 이동보다 우선한다 — 리더가 알면 Party.TryStartRally가 새 집결을 막고, 진행/완료된 집결·다음 방 이동은 Party.OnLeaderLearnsCore가 즉시 해제한다. TrapPartySystem/PartyDeathSystem과 같은 파티 단위 정적 시스템이다.
 //
-// 보고 의무(Human.pendingCoreReportPos)는 대기 상태(currentWait)와 분리돼 있어 이동이 끊겨도 남는다 —
-// 전달되거나 코어가 처리될 때만 사라진다(검증문서 03-14 발견 2).
+// 보고 의무(Human.pendingCoreReportPos)는 대기 상태(currentWait)와 분리돼 이동이 끊겨도 남고, 전달되거나 코어가 처리될 때만 사라진다.
 public static class PartyCoreReportSystem
 {
-	// UnitFunction.CastRay가 코어를 정확 인지(AccuratePerception)로 처음 발견하는 시점에 호출한다
-	// (TrapPartySystem.OnTrapDiscovered/PartyDeathSystem.OnCorpseDiscovered와 동일한 호출 관례).
+	// UnitFunction.CastRay가 코어를 정확 인지로 처음 발견하는 시점에 호출한다(TrapPartySystem.OnTrapDiscovered/PartyDeathSystem.OnCorpseDiscovered와 같은 관례).
 	public static void OnCoreDiscovered(Human discoverer, InteractableObject core)
 	{
 		if (discoverer.party == null) return; // 파티 없는 단독 유닛 — 보고 대상 없음
@@ -31,10 +26,7 @@ public static class PartyCoreReportSystem
 		discoverer.pendingCoreReportPos = core.Position;
 		if (leader == null) return;
 
-		// 리더가 전파 범위 밖 — 발견자는 보고 이동을 시작한다(03번 문서 3번 항목: "코어 보고 이동은 집결 명령을
-		// 받았다는 이유로 중단하지 않는다"). 코어는 일반 임무·집결·다음 방 이동보다 우선하므로 기존 대기(집결/
-		// 다음방이동)를 덮어써도 된다 — 단 이미 시작한 상호작용(currentInvestigation)은 건드리지 않는다. BT에서
-		// Investigate가 Wait보다 우선순위가 높아 자연히 먼저 끝난 뒤에 이 보고 이동으로 넘어간다.
+		// 리더가 전파 범위 밖이면 발견자는 보고 이동을 시작한다(03번 3항: 집결 명령을 받았다고 중단하지 않는다). 코어가 집결·다음 방 이동보다 우선하므로 기존 대기를 덮어써도 되지만, 이미 시작한 상호작용(currentInvestigation)은 건드리지 않는다 — Investigate가 BT에서 Wait보다 앞이라 먼저 끝난 뒤 이 보고 이동으로 넘어간다.
 		StartReportWait(discoverer, core.Position);
 	}
 
@@ -143,8 +135,7 @@ public static class PartyCoreReportSystem
 		return StepTowardDestination(human, wait, Time.time);
 	}
 
-	// 05번 8장 목적지 해석 한 틱(아는 리더 → 유효한 집결 위치 → 문 주변 → 시야 넓히기 → 허용 위치 대기) — 부재 확인·막힘 기억·도착 처리 포함.
-	// 코어 보고 이동(StepReportMovement)과 할 일 없는 개인의 합류(HumanIdleSystem)가 같은 구현을 쓴다. wait는 호출자가 유지하는 상태이고 currentWait일 필요는 없다.
+	// 목적지 해석 한 틱(05번 8장: 아는 리더 → 유효한 집결 위치 → 문 주변 → 시야 넓히기 → 허용 위치 대기) — 부재 확인·막힘 기억·도착 처리 포함. 코어 보고 이동(StepReportMovement)과 HumanIdleSystem이 같은 구현을 쓰며 wait는 호출자가 유지하는 상태라 currentWait일 필요는 없다.
 	internal static ReportStep StepTowardDestination(Human human, WaitState wait, float now)
 	{
 		ResolveDestination(human, wait, now, out var kind, out var target);
@@ -201,8 +192,7 @@ public static class PartyCoreReportSystem
 		return ReportStep.Continue;
 	}
 
-	// 03번 11장: 마지막 확인 위치에 도착해 대상 부재를 확인하면 3초 대기한다. 그 사이 리더를 직접 확인·전파받으면
-	// (ResolveDestination이 다른 목적지를 돌려주므로) 대기는 새로 시작되고 보고가 이어진다.
+	// 마지막 확인 위치에 도착해 대상 부재를 확인하면 3초 대기한다(03번 11장). 그 사이 리더를 직접 확인·전파받으면 목적지가 바뀌어 대기가 새로 시작되고 보고가 이어진다.
 	private static ReportStep ConfirmAbsence(Human human, WaitState wait, float now)
 	{
 		if (wait.AbsenceStartTime < 0f) wait.AbsenceStartTime = now;
@@ -223,8 +213,7 @@ public static class PartyCoreReportSystem
 	private static bool IsBlocked(WaitState wait, ReportDestinationKind kind, float now)
 		=> now < wait.ReportBlockedUntil[(int)kind];
 
-	// 목적지 우선순위(03번 10장 661~671줄/05번 8장): 아는 리더 위치 → 유효한 집결 위치 → 발견한 문 주변 → 시야 넓히기.
-	// 앞의 둘은 값싼 조회라 매 틱 확인해 새 정보가 생기면 즉시 갈아타고, 문·프론티어는 비싸서 진행 중이면 목적지를 재사용한다.
+	// 목적지 우선순위(03번 10장/05번 8장): 아는 리더 위치 → 유효한 집결 위치 → 발견한 문 주변 → 시야 넓히기. 앞의 둘은 값싼 조회라 매 틱 확인해 새 정보가 생기면 즉시 갈아타고, 문·프론티어는 비싸서 진행 중이면 목적지를 재사용한다.
 	private static void ResolveDestination(Human human, WaitState wait, float now, out ReportDestinationKind kind, out Vector2Int target)
 	{
 		var party = human.party;

@@ -9,10 +9,8 @@ public class CombatFSMState : IFSMState
 
 	public float GetPriority(Unit unit)
 	{
-		// 플레이어 수동 명령은 PlayerCommandFSMState(배열 맨 앞, 최우선)가 전담한다 — 명령이 활성
-		// 상태면 이 GetPriority는 호출되지도 않으므로 따로 예외 처리할 필요가 없다.
-		// TacticalFSMState와 동일한 이유로, 던전 입구 시퀀스 동안은 이 상태도 비활성화한다 — 숨은
-		// 스폰 청크·입구 방은 원래 몬스터가 없는 안전 구역이라 실제로 거의 안 걸리는 방어적 조치다.
+		// 플레이어 수동 명령은 PlayerCommandFSMState가 전담해 명령 중엔 이 GetPriority가 호출되지 않는다.
+		// 던전 입구 시퀀스 중에는 비활성화한다(TacticalFSMState와 동일 — 입구 방은 안전 구역이라 방어적 조치).
 		if (unit is Human entranceHu && entranceHu.isInDungeonEntranceSequence) return 0f;
 		bool isRoomConfined = AIMovementHelper.IsRoomConfined(unit);
 		int myRoomId = isRoomConfined && unit.Session?.cmap != null
@@ -30,8 +28,7 @@ public class CombatFSMState : IFSMState
 			if (isRoomConfined && myRoomId >= 0 && unit.Session.cmap.GetRoomIdAt(e.currentFloor, e.position) != myRoomId)
 				continue;
 
-			// 검증문서 02-02: 추격 정체로 일시 배제된 대상은 배제 기간 동안 후보에서 제외한다 —
-			// SelectAttackTarget의 동일 필터와 짝을 맞춰야 "후보 0인데 상태는 유지" 불일치가 안 생긴다.
+			// 추격 정체로 일시 배제된 대상은 후보에서 뺀다 — SelectAttackTarget의 같은 필터와 짝이 맞아야 '후보 0인데 상태 유지' 불일치가 없다.
 			if (unit.combatUnreachableTarget == e && Time.time < unit.combatUnreachableUntil) continue;
 
 			// 07문서 7장/07-A 9장: 위험도 2단계 이상 + 비근거리(>2칸)면 즉시 전투 대신 합류 대기로
@@ -49,9 +46,7 @@ public class CombatFSMState : IFSMState
 				}
 				else
 				{
-					// 검증문서 03-07(03번 문서 6장): 합류 대기가 필요 없는 즉시 전투도 "전파는 이동·
-					// 공격과 병행한다" 예외가 아니다 — 발견자는 대기 없이 곧장 전투하되, 파티원에게는
-					// 병행해서 위치를 알린다.
+					// 합류 대기가 필요 없는 즉시 전투도 전파를 병행한다(03번 6장) — 발견자는 대기 없이 전투하고 파티원에게 위치를 알린다.
 					PropagationSystem.PropagateEnemySighting(hu, e);
 				}
 			}
@@ -98,16 +93,13 @@ public class CombatFSMState : IFSMState
 		// 결정하므로(보호 가능한 스킬이 없으면 자연히 일반 공격으로 넘어감) 여기서는 상태만 갱신한다.
 		ResolveEmergencyProtectTarget(unit);
 
-		// 04번 문서 4장: 원거리공격/근접·원거리지원 역할은 이 시점부터 회피형 이동으로 승급한다 —
-		// 이후 이 메서드의 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은 그대로 두어도 자동으로
-		// 회피 경로를 탄다(MovementAlgorithm 교체만으로 성립).
+		// 원거리공격/근접·원거리지원 역할은 여기서 회피형 이동으로 승급한다(04번 4장) — 이후 MoveTowardsTarget/MoveAwayFromTarget 호출은 그대로 두어도 회피 경로를 탄다.
 		AIMovementHelper.EnsureAvoidanceMovementForRole(unit, CombatScoreMath.ResolveCombatRole(unit.unitType));
 
-		// 02번 9번 항목: 보호 대상이 있고 보호 스킬 사거리 밖이면 접근 이동부터 처리한다 — 사거리 안이면
-		// 기존 흐름(SkillAction_Heal의 emergencyBonus=1000 우선순위)이 이미 담당하므로 여기서 건드리지 않는다.
+		// 보호 대상이 보호 스킬 사거리 밖이면 접근 이동부터 처리한다(02번 9항) — 사거리 안이면 SkillAction_Heal(emergencyBonus=1000)이 담당한다.
 		if (TryEmergencyProtectApproach(unit)) return BTStatus.Running;
 
-		// 검증문서 02-07 4번: 일반 치료 대상이 사거리 밖이면 접근 이동부터 처리한다 — 위 긴급보호와
+		// 일반 치료 대상이 사거리 밖이면 접근 이동부터 처리한다 — 위 긴급보호와
 		// 동일한 패턴(사거리 안이면 개입하지 않고 false 반환, 이미 있는 일반 스킬 선택에 맡긴다).
 		if (TryGeneralHealApproach(unit)) return BTStatus.Running;
 
@@ -160,10 +152,10 @@ public class CombatFSMState : IFSMState
 			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
 				bestSkill.Execute(unit, resolved, minDist);
-				ClearBlockingTrap(unit); // 적과 교전이 시작되면 함정 파괴는 접는다(검증문서 03-13)
+				ClearBlockingTrap(unit); // 적과 교전이 시작되면 함정 파괴는 접는다
 				// 02번 5장: 공격을 실제로 실행하면(회피·방어로 무효여도) 누적 이동 칸수를 초기화한다.
 				unit.CombatTargeting.ResetRetargetTracking();
-				unit.combatChaseStuckTurns = 0; // 검증문서 02-02: 공격이 실행됐다는 건 추격 정체가 아니라는 뜻.
+				unit.combatChaseStuckTurns = 0; // 공격이 실행됐다는 건 추격 정체가 아니라는 뜻.
 				unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 				unit.Generate?.UpdateUnitSpriteForDirection(unit);
 				return BTStatus.Running;
@@ -187,8 +179,7 @@ public class CombatFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// 02번 8~9장: 자기 자신을 포함해 긴급 보호 후보를 찾아 unit.CombatTargeting.ProtectTarget에
-	// 반영한다 — 실제 보호 스킬 선택은 각 스킬의 IsAvailable이 담당. internal, StandGroundAttackFSMState도 호출.
+	// 자기 자신을 포함해 긴급 보호 후보를 찾아 ProtectTarget에 반영한다(02번 8~9장) — 실제 보호 스킬 선택은 각 스킬의 IsAvailable이 맡는다. internal, StandGroundAttackFSMState도 호출.
 	internal static void ResolveEmergencyProtectTarget(Unit unit)
 	{
 		Unit current = unit.CombatTargeting.ProtectTarget;
@@ -197,9 +188,7 @@ public class CombatFSMState : IFSMState
 
 		Unit best = currentStillValid ? current : null;
 
-		// 검증문서 02-09 3번: 그래도 동률이면 무작위 선택 — 다만 "현재 유효 대상 유지"가 이미 더
-		// 높은 우선순위(6번째 기준)라, current가 유효한 동안은 새 후보가 완전히 동률이어도 무작위
-		// 후보에 끼우지 않는다(그대로 current 유지) — current가 없을 때(최초 선택)만 추적한다.
+		// 그래도 동률이면 무작위 — 다만 '현재 유효 대상 유지'가 더 높은 기준이라 current가 유효하면 동률 후보를 무작위에 끼우지 않고 current를 유지한다(current가 없을 때만 추적).
 		var tiedBest = currentStillValid ? null : new List<Unit>();
 
 		void Consider(Unit candidate)
@@ -233,9 +222,7 @@ public class CombatFSMState : IFSMState
 		unit.CombatTargeting.ProtectTarget = best;
 	}
 
-	// 02번 9번 항목: ResolveEmergencyProtectTarget이 보호 대상은 정했지만 그 대상에게 다가가는 이동
-	// 자체가 이전엔 없었다(사거리 밖이면 그냥 무시되고 SelectAttackTarget이 고른 적을 쫓아갔음). 이
-	// 메서드가 그 "접근 이동"을 새로 담당한다 — 사거리 안이면 개입하지 않고 false를 반환한다.
+	// 보호 대상에게 다가가는 접근 이동을 담당한다(02번 9항) — 사거리 안이면 개입하지 않고 false를 반환한다.
 	private static bool TryEmergencyProtectApproach(Unit unit)
 	{
 		Unit protect = unit.CombatTargeting.ProtectTarget;
@@ -248,16 +235,14 @@ public class CombatFSMState : IFSMState
 				if (s != null && s.Affinity == SkillAffinity.Ally && s.HitRange > protectRange) protectRange = s.HitRange;
 
 		if (protectRange <= 0) return false; // 보호 수단 자체가 없음 — 개입하지 않는다.
-		// 검증 04-01: 사거리 안이어도 벽·닫힌 문이 직선을 막으면(차폐) 아직 보호할 수 있는 위치가 아니다 — 접근을 이어간다.
+		// 사거리 안이어도 벽·닫힌 문이 직선을 막으면(차폐) 아직 보호할 수 있는 위치가 아니다 — 접근을 이어간다.
 		if (AIMovementHelper.ChebyshevDistance(unit.position, protect.position) <= protectRange && SkillAction.HasClearLineTo(unit, protect)) return false;
 
 		// 한 걸음도 못 다가가면(길이 완전히 막힘) 접근을 끝내고 일반 전투 판단으로 넘긴다 — 안 그러면 닿을 수 없는 아군 앞에서 전투 행동 없이 멈춘다.
 		return AIMovementHelper.MoveTowardsProtectTargetWithRiskCheck(unit, protect);
 	}
 
-	// 검증문서 02-07 4번: SkillAction_Heal.IsAvailable은 사거리 밖 대상을 이번 틱 후보에서 뺄 뿐
-	// HealTarget 자체는 유지한다(FindLowestHpAlly 참고) — 여기서 그 유지된 대상을 다시 조회해 사거리
-	// 밖이면 접근 이동을 대신 실행한다. 이미 사거리 안이면(=IsAvailable이 곧 true) 개입하지 않는다.
+	// SkillAction_Heal.IsAvailable은 사거리 밖 대상을 이번 틱 후보에서만 빼고 HealTarget은 유지한다 — 여기서 유지된 대상을 다시 조회해 사거리 밖이면 접근 이동을 대신 실행한다.
 	private static bool TryGeneralHealApproach(Unit unit)
 	{
 		SkillAction_Heal heal = FindHealSkill(unit);
@@ -265,7 +250,7 @@ public class CombatFSMState : IFSMState
 
 		Unit ally = heal.FindLowestHpAlly(unit, 9999);
 		if (ally == null || ally == unit) return false;
-		// 검증 04-01: 직선 사거리 안이어도 차폐되면 아직 치료할 수 있는 위치가 아니다 — IsAvailable과 같은 기준(IsInSupportReach)으로 접근 종료를 판단한다.
+		// 직선 사거리 안이어도 차폐되면 아직 치료할 수 있는 위치가 아니다 — IsAvailable과 같은 기준(IsInSupportReach)으로 접근 종료를 판단한다.
 		if (heal.IsInSupportReach(unit, ally)) return false;
 
 		// 한 걸음도 못 다가가면 접근을 끝내고 일반 전투 판단으로 넘긴다(닿을 수 없는 아군 앞에서 전투 행동 없이 멈추지 않게).
@@ -287,8 +272,7 @@ public class CombatFSMState : IFSMState
 		if (candidate?.Health == null || candidate.Health.hp <= 0) return false;
 		float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
 		bool incapacitated = candidate.StatusEffects.State.stunDuration > 0f;
-		// 검증문서 02-08 4번: candidate 자신의 인지(HasPerceivedThreatCollider) 대신 ground truth를
-		// 쓴다 — 사각지대·기습으로 candidate 본인이 공격자를 못 봐도 실제 위협이면 보호 후보가 된다.
+		// candidate 자신의 인지(HasPerceivedThreatCollider) 대신 ground truth를 쓴다 — 사각지대·기습으로 본인이 공격자를 못 봐도 실제 위협이면 보호 후보다.
 		bool underThreat = candidate.HasActiveThreatGroundTruth();
 		bool lethal = TryFindLethalThreat(protector, candidate, out float lethalEta);
 		if (!CombatScoreMath.IsEmergencyProtectCandidate(ratio, underThreat, incapacitated, candidate.isHitThisTurn, lethal)) return false;
@@ -296,8 +280,7 @@ public class CombatFSMState : IFSMState
 		return true;
 	}
 
-	// 02번 8장 둘째 조건(검증 02-08·02-09): 보호자 개인의 예상 피해량(02번 9번 항목 기록)과 지금 진행 중인 공격(예고 중인 위협이 후보와 겹침 — 위 ground truth와 같은 기준)으로
-	// 한 번의 공격이 후보의 남은 HP 이상인지 본다. 피해량을 모르면(보호자가 인류가 아님·그 종/스킬 기록 없음) 그 공격은 판단에서 빼고 false — 문서대로 이 조건만 쓰지 않는다.
+	// 02번 8장 둘째 조건: 보호자 개인의 예상 피해량(02번 9항)과 후보와 겹치는 진행 중 공격(위 ground truth 기준)으로 한 번의 공격이 후보의 남은 HP 이상인지 본다. 피해량을 모르면(보호자가 인류가 아니거나 기록 없음) 그 공격은 빼고 false.
 	// 도달 시점 = 그 공격의 남은 시전 시간, 치명적인 공격이 여럿이면 가장 빠른 것.
 	private static bool TryFindLethalThreat(Unit protector, Unit candidate, out float etaSeconds)
 	{
@@ -337,14 +320,10 @@ public class CombatFSMState : IFSMState
 		if (unit.CombatTargeting.IsChasingRetargetedEnemy) unit.CombatTargeting.MovedTilesSinceRetarget++;
 	}
 
-	// 검증문서 02-02: "방 진입 조건" 게이트 보완 — 대상까지 거리가 줄지 않는 상태가 계속되면(닫힌
-	// 상대 진영 문 등으로 실제 도달 불가능) 이 대상을 일정 시간 배제해 GetPriority/SelectAttackTarget이
-	// 건너뛰게 한다. Investigate/CoreAttack의 stuck-turn 패턴과 동일하되, Combat은 Tactical보다
-	// 우선순위가 높아 대상을 그냥 놓아주기만 하면 다음 틱에 똑같이 재선택되므로 GetPriority 단계의
-	// 배제까지 함께 걸어야 실제로 Tactical(DoorAttack 등)로 넘어간다.
+	// 대상까지 거리가 줄지 않는 상태가 계속되면(닫힌 상대 진영 문 등 도달 불가) 이 대상을 일정 시간 배제해 GetPriority/SelectAttackTarget이 건너뛰게 한다. Combat이 Tactical보다 우선이라 GetPriority 단계 배제까지 걸어야 Tactical(DoorAttack 등)로 넘어간다.
 	private static void ChaseTarget(Unit unit, Unit target)
 	{
-		// 검증문서 03-13: 이미 파괴하기로 한 막힌 함정이 있으면 추격보다 그 파괴를 이어간다(교전이 시작되면 ExecuteCombat이 비운다).
+		// 이미 파괴하기로 한 막힌 함정이 있으면 추격보다 그 파괴를 이어간다(교전이 시작되면 ExecuteCombat이 비운다).
 		if (TryContinueTrapDestroy(unit)) return;
 
 		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, target.position);
@@ -368,10 +347,8 @@ public class CombatFSMState : IFSMState
 		if (moved) TrackRetargetMovement(unit);
 	}
 
-	// ── 전투 중 막힌 경로의 함정 파괴 (검증문서 03-13, 03번 v0.12 9장 566줄) ──
-	// "전투 중 이동 경로를 막고 대체 경로가 없는 함정은 해당 함정이 파괴 가능한 경우 파괴 대상으로 판단한다." 이동 계층(전투 모드)이 통과 조건을 못 채운 함정 타일을
-	// 막으므로, 추격이 진전 없이 끝나고 A*의 진단(AStarMovement.DiagnoseTrapBlock)이 "함정 때문"이라고 남긴 신호가 있으면 그 함정이 파괴 후보다. 실제 데미지는 기존
-	// 오브젝트 채널링(UnitFunction.OnUpdate의 isTrap 분기 — 인접 1칸 매 프레임 재확인)이 적용한다.
+	// ── 전투 중 막힌 경로의 함정 파괴 ──
+	// 전투 중 이동 경로를 막고 대체 경로가 없는 함정은 파괴 가능하면 파괴 대상이다(03번 9장). 추격이 진전 없이 끝났고 A*(DiagnoseTrapBlock)가 '함정 때문'이라고 남긴 신호가 있으면 그 함정이 후보이며, 실제 데미지는 UnitFunction.OnUpdate의 오브젝트 채널링이 적용한다.
 	private static bool TryBeginTrapDestroy(Unit unit)
 	{
 		if (!(unit is Human human) || string.IsNullOrEmpty(human.trapBlockTrapId)) return false;
@@ -434,9 +411,7 @@ public class CombatFSMState : IFSMState
 		targeting.TrapDestroyStuckTurns = 0;
 	}
 
-	// internal — StandGroundAttackFSMState("제자리 공격")도 동일한 타깃 선정 로직을 재사용한다.
-	// 02번 3~5장: 개인위험도(인류)/종류설정(몬스터·야생) × 역할배율 × 대상종류배율로 점수를 매기고,
-	// 인류는 1.2배·몬스터/야생은 더 높을 때만 교체(5장 이동한도 확인). 보스 집중은 위협 없는 한 유지.
+	// internal — StandGroundAttackFSMState도 같은 타깃 선정을 재사용한다. 02번 3~5장: 개인위험도(인류)/종류설정(몬스터·야생) × 역할배율 × 대상종류배율로 점수를 매기고, 인류는 1.2배·몬스터/야생은 더 높을 때만 교체한다. 보스 집중은 위협이 없는 한 유지.
 	internal static Unit SelectAttackTarget(Unit unit, out float minDist)
 	{
 		minDist = float.MaxValue;
@@ -460,8 +435,7 @@ public class CombatFSMState : IFSMState
 		}
 		if (allCandidates.Count == 0) return null;
 
-		// 4장: 보스 집중 유지 — 임시 대응 사유(자신을 직접 위협하는 잡몹·보스로 가는 길을 막는 적)가 없고 보스 외의 현재 위협(자신/아군을 공격 중인 다른 후보)도 없으면
-		// 20% 기준 없이 그대로 복귀한다.
+		// 보스 집중 유지(4장) — 임시 대응 사유가 없고 보스 외 현재 위협도 없으면 20% 기준 없이 그대로 복귀한다.
 		Unit boss = unit.CombatTargeting.BossFocusTarget;
 		bool bossStillValid = boss != null && boss.Health.hp > 0 && boss.currentFloor == unit.currentFloor && allCandidates.Contains(boss);
 		if (!bossStillValid) unit.CombatTargeting.BossFocusTarget = null;
@@ -471,8 +445,7 @@ public class CombatFSMState : IFSMState
 
 		if (bossStillValid)
 		{
-			// 임시 대응(02번 4장 220줄·순서도 02-03): 보스 집중(BossFocusTarget)은 그대로 든 채 그 적부터 상대한다. 일반 대상 변경이 아니라 임시 대응이라 20% 점수·이동 한도 게이트를
-			// 거치지 않는다(거치면 보스 점수 배율 1.5·개인 위험도 때문에 사실상 교체가 안 돼 규칙이 무의미해진다). 사유가 사라지면 다음 판단에서 아래 보스 복귀 분기(20% 재요구 없음)로 돌아간다.
+			// 임시 대응(02번 4장): 보스 집중(BossFocusTarget)은 든 채 그 적부터 상대한다. 일반 대상 변경이 아니라 20% 점수·이동 한도 게이트를 거치지 않는다(거치면 보스 점수 배율 1.5 때문에 교체가 안 된다). 사유가 사라지면 아래 보스 복귀 분기로 돌아간다.
 			Unit temporary = SelectTemporaryResponseTarget(unit, boss, allCandidates, threatCandidates, isHuman, selfRole);
 			if (temporary != null)
 			{
@@ -492,21 +465,14 @@ public class CombatFSMState : IFSMState
 			return boss;
 		}
 
-		// 검증문서 02-03 6번: 점수·거리까지 완전 동점인 후보들 — 하나만 무작위로 고른다(ThreatResponseMath.PickBest). 그 뒤엔
-		// currentValid가 선택을 그대로 붙잡아두므로(동점은 교체 자체가 안 걸림) 같은 살아있는 후보
-		// 집합에 대해서는 이 무작위 선택이 자연히 "유지"된다 — 별도의 기억 상태가 필요 없다.
-		// 최초 선택(동점) 타이브레이크는 "첫 공격 효과까지 걸리는 시간"이 기준이나, 이동시간·선딜을
-		// 전부 반영한 정밀 계산은 범위 밖이라 현재 거리로 근사한다.
+		// 점수·거리까지 완전 동점이면 하나만 무작위로 고른다(ThreatResponseMath.PickBest) — 이후 currentValid가 선택을 붙잡아 별도 기억 상태가 필요 없다. 최초 타이브레이크 기준인 '첫 공격 효과까지 시간'은 정밀 계산이 범위 밖이라 현재 거리로 근사한다.
 		Unit best = ThreatResponseMath.PickBest(pool,
 			cand => ComputeAttackScore(unit, isHuman, selfRole, cand),
 			cand => Vector2Int.Distance(unit.position, cand.position),
 			n => UnityEngine.Random.Range(0, n),
 			out float bestScore, out float bestDist);
 
-		// pool이 아니라 allCandidates로 유효성을 확인한다 — pool(위협 우선)로 확인하면 현재 대상이
-		// 위협 후보가 아닐 때 다른 위협이 나타나는 것만으로 "대상 없음"과 동일 취급돼 아래 20%/이동한도
-		// 게이트를 건너뛰고 즉시 교체되는 버그가 있었다(02번 5장 "이동 한도를 적용하지 않는 행동" 목록에
-		// 이 경우는 없음). 후보 자체를 좁히는 것(pool)과 유지 중인 대상의 유효성(currentValid)은 별개 축.
+		// 유효성은 pool이 아니라 allCandidates로 확인한다 — pool(위협 우선)로 확인하면 현재 대상이 위협 후보가 아닐 때 다른 위협이 생기는 것만으로 '대상 없음'이 돼 20%/이동한도 게이트를 건너뛰고 교체되는 버그가 난다.
 		Unit current = unit.CombatTargeting.AttackTarget;
 		bool currentValid = current != null && current.Health.hp > 0 && current.currentFloor == unit.currentFloor && allCandidates.Contains(current);
 
@@ -525,15 +491,8 @@ public class CombatFSMState : IFSMState
 			if (CombatScoreMath.ShouldSwitchAttackTarget(isHuman, currentScore, bestScore))
 			{
 				int limit = CombatScoreMath.AttackRetargetMoveLimit(selfRole);
-				// 검증문서 02-05 2·3·7번: 남은 이동은 "새 대상을 공격할 수 있는 위치까지" 실제 경로 길이로
-				// 판단한다(이미 공격 거리 안이면 0칸). 인류는 자기 개인 지도로 그 경로가 드러나 있을 때만
-				// (fullyRevealed) 한도 충족을 확정하고, 몬스터·야생은 "개인 지도" 개념이 없어 경로를 실제로
-				// 찾았는지만 확인한다 — 이 함수 안에서 이미 반복되는 isHuman 분기와 동일 패턴.
-				// 경로 미확인/미발견이면 추정치로 대충 확정하지 않고 그냥 교체를 보류한다(아래 폴백).
-				// (2026-09-30: 예전엔 유닛 위치를 목표로 준 경로 조회가 점유 때문에 항상 실패해 이 교체가 한 번도
-				// 성립하지 않았다 — AStarMovement.RunQuerySearch로 고침.)
-				// 한 걸음에 체비셰프 거리는 최대 1 줄어드니 (거리 − 공격 거리)는 필요한 걸음 수의 하한이다 — 이미 한도를 넘으면 경로 탐색 없이 보류한다(멀리 있는
-				// 후보에 매 틱 A*를 돌지 않게).
+				// 남은 이동은 '새 대상을 공격할 수 있는 위치까지' 실제 경로 길이로 판단한다(이미 사거리 안이면 0칸, 02번 5장). 인류는 개인 지도로 경로가 드러났을 때만(fullyRevealed) 한도 충족을 확정하고, 몬스터·야생은 경로를 찾았는지만 확인한다. 미확인이면 교체를 보류한다(아래 폴백).
+				// 한 걸음에 체비셰프 거리는 최대 1 줄어 (거리 − 공격 거리)가 필요한 걸음의 하한이므로, 이미 한도를 넘으면 A* 없이 보류한다(먼 후보에 매 틱 A*를 돌지 않게).
 				int reach = MaxAttackReach(unit);
 				int lowerBound = Mathf.Max(0, MovementMath.DistanceToFootprint(unit.position, best.position, best.FootprintSize) - reach);
 				int pathRemaining = 0;
@@ -569,9 +528,7 @@ public class CombatFSMState : IFSMState
 	// 4장 "자신을 직접 위협하는" — enemy의 현재 공격 대상이 바로 나다(아군을 공격 중인 적은 해당 안 됨: 문서는 다른 아군이 대응 중이면 보스 공격을 유지한다).
 	private static bool IsAttackingMe(Unit observer, Unit enemy) => enemy.CombatTargeting.AttackTarget == observer;
 
-	// 4장 "주변 적에게 임시 대응하는 경우"(02번 v0.12 220줄, 순서도 02-03) — 보스 집중 중에도 보스를 잠시 두고 상대할 적: ① 자신을 직접 위협하는 잡몹(나를 공격 중인 보스 외의 후보 — 있으면 그중 점수가
-	// 가장 높은 것, 이미 그 집합 안의 대상을 상대 중이면 같은 우선순위 안의 교체 기준으로 유지) ② 없으면 보스로 가는 길을 막는 적(BossPathBlockage). 긴급 보호(③)는 ExecuteCombat이 AttackTarget과
-	// 별개로 먼저 처리한다. 아군만 공격받는 상황, 단순 소환, 멀리 있는 잡몹의 높은 점수는 사유가 아니다 — null이면 호출부가 보스 집중을 유지한다.
+	// 4장 임시 대응 대상: ① 자신을 직접 위협하는 잡몹(나를 공격 중인 보스 외 후보 중 점수 최고, 이미 그 집합 안의 대상을 상대 중이면 유지) ② 없으면 보스로 가는 길을 막는 적(BossPathBlockage). 긴급 보호는 ExecuteCombat이 별도로 먼저 처리한다. 아군만 공격받는 상황·단순 소환·먼 잡몹의 높은 점수는 사유가 아니며, null이면 호출부가 보스 집중을 유지한다.
 	private static Unit SelectTemporaryResponseTarget(Unit unit, Unit boss, List<Unit> allCandidates, List<Unit> threatCandidates, bool isHuman, CombatRole selfRole)
 	{
 		var directThreats = new List<Unit>();
@@ -599,9 +556,7 @@ public class CombatFSMState : IFSMState
 		return reach;
 	}
 
-	// 02번 5장: 현재 위치에서 새 대상을 "공격할 수 있는 위치"까지 실제로 선택한 경로의 걸음 수 — 이미 공격 거리 안이면 0칸이다. 경로는 대상 타일까지의 A* 조회(다른 유닛 점유는
-	// 장애물, 대상 타일 점유만 예외)를 따라가다 처음 공격 거리 안에 드는 지점에서 끊는다(CombatScoreMath.StepsToFirstTileWithinRange). fullyRevealed는 그 지점까지 경로의 모든 칸이
-	// 이 유닛의 개인 지도에 드러나 있는지(인류만 의미). 경로를 못 찾으면 false.
+	// 현재 위치에서 새 대상을 공격할 수 있는 위치까지의 실제 경로 걸음 수(02번 5장) — 이미 사거리 안이면 0. 대상 타일까지 A* 경로(다른 유닛 점유는 장애물, 대상 타일만 예외)를 따라가다 처음 사거리 안에 드는 지점에서 끊는다(CombatScoreMath.StepsToFirstTileWithinRange). fullyRevealed는 그 경로가 개인 지도에 모두 드러났는지(인류만), 경로를 못 찾으면 false.
 	private static bool TryEstimateStepsToAttackPosition(Unit unit, Unit target, int reach, out int steps, out bool fullyRevealed)
 	{
 		steps = 0;
@@ -628,8 +583,7 @@ public class CombatFSMState : IFSMState
 	// 경로 차단 재확인 간격(초) — 판정이 A* 조회 2~3번이라 매 틱 돌리지 않고 이 간격마다만 다시 계산한다.
 	private const float PathBlockCheckIntervalSeconds = 0.5f;
 
-	// 검증문서 02-04 4번(02번 4장·순서도 02-03): 보스로 가는 길을 막고 있어 임시 대응해야 하는 확인된 적 — 판정은 BossPathBlockage(이동이 필요하고 우회할 수 없을 때, 적을 무시한 구조
-	// 경로 위에서 처음 만나는 적). 재계산 사이에는 마지막 결과를 재사용하되 그 적이 죽었거나 후보에서 빠지면 버린다. 보스 집중 중이고 다른 위협이 없을 때만 호출된다.
+	// 보스로 가는 길을 막아 임시 대응해야 하는 확인된 적(02번 4장) — 판정은 BossPathBlockage(이동이 필요하고 우회할 수 없을 때 구조 경로 위에서 처음 만나는 적). 재계산 사이엔 마지막 결과를 재사용하되 그 적이 죽거나 후보에서 빠지면 버린다. 보스 집중 중이고 다른 위협이 없을 때만 호출된다.
 	private static Unit FindPathBlockingEnemy(Unit unit, Unit boss, List<Unit> allCandidates)
 	{
 		var targeting = unit.CombatTargeting;

@@ -122,7 +122,7 @@ public class UnitVisualDefinition : MonoBehaviour
                 default:
                     // 아키타입이 비어있는 건 정상(몬스터 기본 스킬 등)이지만, 값이 있는데 여기로 떨어졌다면
                     // 오타이거나 위 case 목록에 빠진 것이다 — 조용히 Generic으로 폴백하면 스킬 하나가
-                    // 통째로 근접 평타처럼 동작하면서도 아무 흔적이 안 남는다(2026-08-23 파이어볼 사례).
+                    // 통째로 근접 평타처럼 동작하면서도 아무 흔적이 안 남는다(파이어볼 사례).
                     // "Generic"은 이 폴백의 정식 이름이라 경고 대상이 아니다(전사 '강타' 등 데이터에 명시된 경우).
                     if (!string.IsNullOrEmpty(sd.skillArchetype) && sd.skillArchetype != "Generic")
                         Debug.LogWarning($"[UnitVisualDefinition] '{unitTypeName}'의 스킬 '{sd.skillName}': " +

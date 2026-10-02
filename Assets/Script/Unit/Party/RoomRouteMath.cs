@@ -19,16 +19,14 @@ public struct RouteEdge
 	public int Other(int room) => room == RoomA ? RoomB : RoomA;
 }
 
-// 리더의 방 경로 결정(04번 1장 30~35·47줄: 인류 방 경로 = 리더가 "현재 방 이후 어느 알려진 문·방으로 이동할지" 정하고, 다른 방 경로가 필요하면 리더가 새로 결정한다) — 부수효과 없는 순수 계산.
-// 호출부(LeaderRoutePlanner)가 리더가 아는 게이트만 간선으로 넘기고 "방문한 방"은 구성원이 들어가 본 방이다. 방 선택의 세부 기준은 문서가 리더 문서에 맡겼으므로 여기서는 문서가 명시한 틀
-// (알려진 정보만 사용, 목표 방이 있으면 그쪽, 막히면 다른 방 경로로 새 결정)에 필요한 최소 규칙만 둔다.
+// 리더의 방 경로 결정(04번 1장) — 리더가 '현재 방 이후 어느 알려진 문·방으로 이동할지' 정하는 순수 계산. LeaderRoutePlanner가 리더가 아는 게이트만 간선으로 넘기고 '방문한 방'은 구성원이 들어가 본 방이다. 방 선택의 세부 기준은 리더 문서 몫이라 문서가 명시한 틀(아는 정보만, 목표 방 우선, 막히면 다른 방 경로로 새 결정)에 필요한 최소 규칙만 둔다.
 public static class RoomRouteMath
 {
 	// fromRoom에서 다음에 지날 게이트를 고른다. 우선순위:
-	//  1) fromRoom에 붙은 게이트 중 목표 방(targetRoom)으로 곧장 가는 것
-	//  2) 아직 방문하지 않은 방으로 가는 것
-	//  3) 둘 다 없으면(막다른 방·모두 방문) 방문한 방들을 거쳐 "목표 방이나 미방문 방으로 이어지는 가장 가까운 방"까지의 경로의 첫 게이트(되돌이)
-	// 같은 순위 안에서는 tieScore가 작은 쪽(예: 목표 방 중심에 가까운 게이트), 되돌이는 홉 수가 적은 쪽이 먼저다. 고를 게 없으면 false.
+	//  1) 목표 방(targetRoom)으로 곧장 가는 게이트
+	//  2) 아직 방문하지 않은 방으로 가는 게이트
+	//  3) 둘 다 없으면(막다른 방·모두 방문) 방문한 방들을 거쳐 '목표 방이나 미방문 방으로 이어지는 가장 가까운 방'으로 가는 경로의 첫 게이트(되돌이)
+	// 같은 순위 안에서는 tieScore가 작은 쪽(목표 방 중심에 가까운 게이트), 되돌이는 홉 수가 적은 쪽이 먼저다. 고를 게 없으면 false.
 	public static bool TryPickGate(int fromRoom, IList<RouteEdge> edges, ISet<int> visited, int targetRoom, Func<RouteEdge, float> tieScore, out RouteEdge picked)
 	{
 		picked = default;
@@ -60,8 +58,7 @@ public static class RoomRouteMath
 		return TryPickBacktrackGate(fromRoom, edges, visited, targetRoom, tieScore, out picked);
 	}
 
-	// 방문한 방들만 거쳐 BFS — "목표 방이나 미방문 방으로 이어지는 간선을 가진 방"(frontier 방) 중 홉 수가 가장 적은 곳으로 가는 경로의 첫 간선을 고른다.
-	// 미방문 방 안으로는 들어가 탐색하지 않는다(그곳으로 가는 결정은 frontier 방에 도착한 뒤 1)·2)가 한다).
+	// 방문한 방들만 거쳐 BFS해 '목표 방이나 미방문 방으로 이어지는 간선을 가진 방'(frontier 방) 중 홉 수가 가장 적은 곳으로 가는 경로의 첫 간선을 고른다. 미방문 방 안으로는 들어가 탐색하지 않는다(frontier 방에 도착한 뒤 1)·2)가 결정).
 	private static bool TryPickBacktrackGate(int fromRoom, IList<RouteEdge> edges, ISet<int> visited, int targetRoom, Func<RouteEdge, float> tieScore, out RouteEdge picked)
 	{
 		picked = default;

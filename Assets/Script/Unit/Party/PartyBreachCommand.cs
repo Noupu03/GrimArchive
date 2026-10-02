@@ -2,9 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 리더의 문 파괴 지시 — 돌파 단계(AdvancePhase.Breaching)에서 "공격 자리가 남는 만큼 최대한 많은 인원"이 문에 달라붙게 한다(사용자 확정 2026-10-01).
-// 문은 방 쪽 줄(1×2)마다 오브젝트 하나라 파괴 대상은 near → far 두 행뿐이고, 한 행의 문 타일 어느 칸에든 인접 1칸이면 채널링할 수 있다(UnitFunction.OnUpdate).
-// 이 클래스는 ① 지금 부술 행 판정 ② 공격 자리 계산·배정(안정적으로 유지하며 주기적으로 재지시) ③ 진행 감시를 맡고, 지시받은 유닛의 한 틱은 PartyAdvanceSteps.StepBreach가 수행한다.
+// 리더의 문 파괴 지시 — 돌파 단계에서 '공격 자리가 남는 만큼 최대한 많은 인원'이 문에 달라붙게 한다(사용자 확정). 문은 방 쪽 줄(1×2)마다 오브젝트 하나라 파괴 대상은 near → far 두 행뿐이고, 문 타일 어느 칸에든 인접 1칸이면 채널링한다.
+// 이 클래스는 ① 지금 부술 행 판정 ② 공격 자리 계산·배정(유지하며 주기적 재지시) ③ 진행 감시를 맡고, 유닛의 한 틱은 PartyAdvanceSteps.StepBreach가 수행한다.
 public static class PartyBreachCommand
 {
 	public enum Outcome { Continue, Opened, Stalled }
@@ -84,7 +83,7 @@ public static class PartyBreachCommand
 		plan.NextAssignTime = now + ReassignSeconds;
 
 		int row = plan.BreachRow;
-		// 서 있을 수 있는 인접 칸 전부 — 자리가 남는 만큼만 투입한다(닫힌 적 문 칸·벽은 CanMove가 걸러내고, 문 줄 너머 칸은 plan.Forward로 뺀다 — CanMove는 칸 하나만 봐서 닫힌 far 문 너머도 통과시킨다).
+		// 서 있을 수 있는 인접 칸 전부 — 자리가 남는 만큼만 투입한다(닫힌 적 문 칸·벽은 CanMove가 걸러내고, 문 줄 너머 칸은 CanMove가 못 걸러 plan.Forward로 뺀다).
 		var slots = PartyFormationMath.AttackSlotsAround(plan.RowTiles(row), t => leader.CanMove(t, ignoreUnits: true), plan.Forward);
 
 		// 후보 — 돌파 중이고 자리 이동을 포기하지 않은 파티원 전부(근접이든 원거리든 리더든).

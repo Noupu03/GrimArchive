@@ -36,16 +36,11 @@ namespace GrimArchive.Wave
         // (InteractableObject.SpawnWaveNumber), "스폰 웨이브+2 <= 지금 웨이브"면 정리한다(GameSession.DespawnCorpsesForNewWave).
         public int WaveNumber { get; private set; } = 0;
 
-        // 01번 문서 2장: 몬스터 처치 임무의 공통 집계 — 여러 인류 파티가 있어도 시스템이 하나로
-        // 합산한다(웨이브마다 StartWave에서 리셋). "막 달성됨" 신호를 공유 bool로 두면 먼저 본
-        // 파티가 소비해버려 나머지가 못 보므로, 파티별 소비 여부는 Party._monsterKillQuotaConsumed가
-        // 각자 따로 든다.
+        // 몬스터 처치 공통 집계(01번 2장) — 웨이브 전체로 합산하고 StartWave에서 리셋하며, 파티별 소비 여부는 Party._monsterKillQuotaConsumed가 따로 든다(공유 bool이면 먼저 본 파티가 소비해 버린다).
         public float CommonMonsterKillCount { get; private set; }
         private readonly HashSet<string> _countedKillIds = new HashSet<string>();
 
-        // GameSession.RemoveDeadUnit이 인류에게 죽은 몬스터의 사망 시점(Destroy 전)에 호출한다.
-        // deathEventId는 그 순간 생성되는 시체 오브젝트 Id를 그대로 재사용 — 사망마다 고유해 "사망
-        // 사건 식별자로 중복 집계를 막는다"는 요구를 그대로 만족한다.
+        // GameSession.RemoveDeadUnit이 인류에게 죽은 몬스터의 사망 시점(Destroy 전)에 호출한다. deathEventId는 그 순간 생성되는 시체 오브젝트 Id를 재사용해 사망마다 고유하게 중복 집계를 막는다.
         public void OnMonsterKilled(string deathEventId, string speciesTypeName)
         {
             if (string.IsNullOrEmpty(deathEventId) || !_countedKillIds.Add(deathEventId)) return;
@@ -70,10 +65,7 @@ namespace GrimArchive.Wave
         // 탈출 지점 영역 (임시: 던전 입구/StartRoom 기준 위치)
         public Vector2Int exitAreaPos;
 
-        // ── 0층 사전 스폰(웨이브 시작 전 대기 연출) ── 웨이브 타이머가 돌면 0층에 미리 스폰해 대기시키고
-        // 계단으로 이동해 목표 층으로 넘어간다(목표 없는 사전 스폰 유닛은 NavigationFSMState로 배회하다
-        // pendingStairTargetFloor 세팅 시 계단이동으로 전환됨). 이 상수는 DungeonEntranceSystem.
-        // PrepareNoticeLeadSeconds와 같은 값(6초)이어야 하므로 두 클래스를 바꿀 땐 반드시 같이 바꿔야 한다.
+        // ── 0층 사전 스폰(웨이브 시작 전 대기 연출) ── 이 상수는 DungeonEntranceSystem.PrepareNoticeLeadSeconds와 같은 값(6초)이어야 해 같이 바꿔야 한다.
         private const float PreSpawnLeadSeconds = 6f;
         private bool preSpawnTriggered = false;
         // "사전 스폰을 시도한 시점"과 실제 몬스터 소집 시점은 다를 수 있어(계단 미확보 시 사전 스폰이
@@ -174,9 +166,7 @@ namespace GrimArchive.Wave
             }
         }
 
-        // ComputePreSpawnTriggerSeconds()가 계산한 시점에 이번 웨이브 인류 파티를 0층에 미리 스폰한다 —
-        // 목표를 안 심어 NavigationFSMState가 배회하게 두고, 숨은 스폰 청크에 등장시킨 뒤 나머지 진입
-        // 시퀀스(입구 이동→대기→계단 이동)는 DungeonEntranceSystem에 넘긴다.
+        // 인류 파티를 0층 숨은 스폰 청크에 미리 스폰한다 — 목표는 안 심고(NavigationFSMState가 배회), 이후 진입 시퀀스는 DungeonEntranceSystem에 넘긴다.
         private void PreSpawnWaveUnits()
         {
             if (targetSpawner == null || targetSpawner.waveData == null || targetSpawner.waveData.parties == null) return;
@@ -303,9 +293,7 @@ namespace GrimArchive.Wave
             return center;
         }
 
-        // DungeonEntranceSystem이 전원에게 계단 접근 이동 명령을 내린 그 순간 호출하는 콜백 — 여기서
-        // pendingStairTargetFloor를 세팅해 개인 FSM+BT 계단이동(NavigationFSMState.MoveToStairs/
-        // CrossStairs)이 이어받는다.
+        // DungeonEntranceSystem이 전원에게 계단 접근 명령을 내린 순간 호출하는 콜백 — pendingStairTargetFloor를 세팅해 개인 FSM+BT 계단이동(MoveToStairs/CrossStairs)이 이어받게 한다.
         private void OnDungeonEntranceArrivedAtStairs(List<Human> members)
         {
             if (targetSpawner?.waveData == null) return;
@@ -319,17 +307,14 @@ namespace GrimArchive.Wave
                 stagingUnits.Add(member);
             }
 
-            // 입구 시퀀스가 cooldownTimer보다 먼저 끝나면 preSpawnedParty가 StartWave() 실행 전에
-            // null로 비워져 activeParty가 세팅되지 않고 MonitorWave()가 "전멸"로 오판할 수 있다 —
-            // StartWave()와 동일하게 여기서도 확정적으로 세팅한다(이미 세팅돼 있으면 무해한 재대입).
+            // 입구 시퀀스가 cooldownTimer보다 먼저 끝나면 activeParty가 비어 MonitorWave()가 '전멸'로 오판하므로 StartWave()와 같이 여기서도 세팅한다(재대입은 무해).
             activeParty = preSpawnedParty;
             exitAreaPos = floor1StairPos;
 
             preSpawnedParty = null;
         }
 
-        // WaveState.Running 동안 매 프레임 호출 — 계단 이동/통과 자체는 개인 FSM+BT(NavigationFSMState)가
-        // 전담하고, 여기서는 목표 층 도착 파티원을 stagingUnits에서 빼는 것과 시간 초과 강제 이동만 담당한다.
+        // WaveState.Running 동안 매 프레임 호출 — 계단 이동은 개인 FSM+BT가 전담하고, 여기서는 목표 층 도착 파티원을 stagingUnits에서 빼는 것과 시간 초과 강제 이동만 담당한다.
         private void UpdateStagingStairWalk()
         {
             if (stagingUnits.Count == 0) return;
@@ -358,9 +343,7 @@ namespace GrimArchive.Wave
             foreach (var member in arrived) stagingUnits.Remove(member);
         }
 
-        // 정상 이동 경로가 시간 안에 처리하지 못한 파티원을 강제로 목표 층 계단 지점으로 옮긴다 — 위치/
-        // 그리드만 갱신하고 나머지는 다음 틱 UpdatePartyDestination이 이어받는다. 점유 안 된 후보 칸을
-        // 찾아 보내며, 전부 점유면 false를 반환해 호출부가 재시도하게 한다.
+        // 정상 이동이 못 끝낸 파티원을 목표 층 계단 지점으로 강제로 옮긴다(위치/그리드만 갱신, 나머지는 다음 틱 UpdatePartyDestination). 빈 칸이 없으면 false로 호출부가 재시도한다.
         private bool ForceCrossToTargetFloor(Human member, int targetFloor)
         {
             if (!AIMovementHelper.TryResolveUnoccupiedStairArrival(GameSession.Instance, targetFloor, 0, out Vector2Int arrivePos))
@@ -503,18 +486,13 @@ namespace GrimArchive.Wave
 
             if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
             {
-                // 0층에 미리 대기시켜둔 파티를 그대로 쓴다. pendingStairTargetFloor는
-                // OnDungeonEntranceArrivedAtStairs가 세팅해야 개인 FSM+BT 계단이동이 그 전에
-                // 끼어들지 않는다.
+                // 0층에 대기시켜 둔 파티를 그대로 쓴다 — pendingStairTargetFloor는 OnDungeonEntranceArrivedAtStairs가 세팅해야 개인 계단이동이 그 전에 끼어들지 않는다.
                 activeParty = preSpawnedParty;
                 exitAreaPos = floor1StairPos; // 목표 층 진입 지점을 그대로 탈출 지점으로도 사용
             }
             else if (monstersSummonedThisCycle)
             {
-                // 던전 입구 시퀀스가 cooldownTimer보다 먼저 끝나 이미 OnDungeonEntranceArrivedAtStairs
-                // 에서 activeParty/exitAreaPos를 세팅해둔 경우 — 새 파티를 중복 생성하지 않는다.
-                // (2026-09-27 버그 수정: 예전엔 그 콜백이 activeParty를 세팅한 적이 없어 이 분기에서
-                // activeParty가 null로 남아 웨이브가 즉시 "전멸" 오판으로 끝나는 버그가 있었다.)
+                // 입구 시퀀스가 먼저 끝나 OnDungeonEntranceArrivedAtStairs가 activeParty를 이미 세팅했으면 새 파티를 만들지 않는다(안 하면 activeParty가 null이 돼 웨이브가 '전멸'로 즉시 끝난다).
             }
             else
             {
@@ -542,8 +520,7 @@ namespace GrimArchive.Wave
                 }
             }
 
-            // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아둔다(실제 코어 위치는 GameSession.
-            // SpawnBossCores가 게임 시작 시 채워둔 room.CorePosition을 그대로 사용).
+            // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아 둔다(코어 위치는 GameSession.SpawnBossCores가 채운 room.CorePosition 사용).
             _retreating = false;
             _targetRoom = null;
             int targetFloor = targetSpawner.waveData.targetFloor;
@@ -599,7 +576,7 @@ namespace GrimArchive.Wave
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != targetFloor) continue;
 
-                // 퇴각 이동(TacticalFSMState.ExecuteWait Retreating)은 탈출 지점 인접 1칸에서 대기를 풀고 멈추므로 정확한 타일이 아니라 인접(반경 1)이면 탈출로 본다 — 정확한 타일만 요구하면 아무도 탈출하지 못한다(검증 05-09 ❌ 2).
+                // 퇴각 이동(ExecuteWait Retreating)은 탈출 지점 인접 1칸에서 대기를 풀고 멈추므로 정확한 타일이 아니라 인접(반경 1)이면 탈출로 본다 — 정확한 타일만 요구하면 아무도 탈출하지 못한다.
                 if (AIMovementHelper.IsAdjacent(member.position, exitAreaPos))
                 {
                     LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
@@ -617,9 +594,7 @@ namespace GrimArchive.Wave
             }
         }
 
-        // 코어 파괴 전에는 매 틱 전원을 코어 좌표로 강제 이동시키지 않는다 — 개인 탐색/조사(01번 문서)와 리더의 집결 판단(05번 문서, Party.TickRoomActivityCheck)에 맡기고,
-        // 여기서는 집결이 막 끝나 다음 문으로 이동해야 하는 순간(Party.ReadyToAdvance)이나 리더가 미처리 코어를 확인한 순간(Party.LeaderKnownCorePosition, 검증문서 03-03)에만 목적지를 지정한다.
-        // 코어 파괴 후 퇴각(_retreating)은 기존대로 매 틱 강제 이동을 유지한다(05번 10항 범위 밖).
+        // 코어 파괴 전에는 전원을 코어 좌표로 강제 이동시키지 않고 개인 탐색/조사와 리더의 집결 판단에 맡긴다. 목적지는 집결이 막 끝난 순간(ReadyToAdvance)이나 리더가 미처리 코어를 확인한 순간(03번 3장)에만 지정하며, 코어 파괴 후 퇴각(_retreating)은 매 틱 강제 이동한다.
         private void UpdatePartyDestination()
         {
             if (_retreating)
@@ -629,14 +604,13 @@ namespace GrimArchive.Wave
                 return;
             }
 
-            // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)는 소멸시킨다 — 안 그러면 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다(검증 갭 정리).
+            // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)를 소멸시킨다 — 안 그러면 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다.
             activeParty.TickAdvanceState();
-            activeParty.TickPendingRallyRelease(); // 코어 처리로 해제된 집결을 못 받은 구성원이 전파 범위에 들어오면 그때 해제를 전달한다(검증 05-03 관찰 2)
+            activeParty.TickPendingRallyRelease(); // 코어 처리로 해제된 집결을 못 받은 구성원이 전파 범위에 들어오면 그때 해제를 전달한다
             PartyAdvanceSystem.Tick(activeParty); // 문 앞 진형 → 문 파괴 → 입장 단계 전이(계획이 없으면 즉시 반환)
             TryAssignLeaderDoorApproach();
 
-            // 검증문서 03-03: 코어 처리 우선은 "가만히 있는다"가 아니라 코어(=_targetRoom)를 향해 실제로 이동한다는 뜻이다. OnLeaderLearnsCore가 ReadyToAdvance를 꺼 버리므로
-            // LeaderKnownCorePosition이 있을 때도 같은 "다음 문 찾기" 경로를 타게 해 이동 공백을 막는다 — 기존 공동 이동(AdvancingToNextRoom)을 그대로 재사용한다.
+            // 코어 처리 우선은 '가만히 있기'가 아니라 코어를 향해 이동한다는 뜻이다(03번 3장) — OnLeaderLearnsCore가 ReadyToAdvance를 꺼 버리므로 LeaderKnownCorePosition이 있어도 같은 '다음 문 찾기' 경로를 타 이동 공백을 막는다.
             bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
             if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore))
             {
@@ -655,9 +629,8 @@ namespace GrimArchive.Wave
                     _doorSearchLogged = true;
                     LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(activeParty)} 방 이동 결정({reason})했으나 다음 문을 아직 모름 — 리더 {activeParty.Leader?.name}은(는) 탐색, 파티원은 리더 주변 유지");
                 }
-                // 05번 1장 73줄: 다음 문을 아직 모르면 진형을 유지하며 문을 찾는다 — 리더는 기존 자유 탐색이 문을 찾고 나머지는 아는 리더 위치 주변을 따라다닌다(PartyDoorSearchSystem).
-                // ReadyToAdvance는 그대로 두어 문이 알려지는 순간 아래 이동 명령이 바로 발행되게 한다.
-                // 개인 탐색은 방 안으로 제한되므로(검증 05-01) 방 안에서 문을 오래 못 찾으면 리더에 한해 제한을 풀어 방 밖까지 탐색하게 한다(영구 정지 방지, 01번 583줄 "시야를 넓혀 문을 찾는다").
+                // 다음 문을 모르면 진형을 유지하며 찾는다(05번 1장) — 리더는 자유 탐색, 나머지는 아는 리더 위치 주변을 따른다(PartyDoorSearchSystem). ReadyToAdvance는 유지해 문이 알려지면 곧바로 이동 명령이 나간다.
+                // 방 안에서 문을 오래 못 찾으면 리더에 한해 개인 탐색의 방 제한을 풀어 방 밖까지 찾게 한다(영구 정지 방지).
                 if (_doorSearchSince < 0f) _doorSearchSince = Time.time;
                 activeParty.LeaderMayExploreBeyondRoom = Time.time - _doorSearchSince >= LeaderRoomExploreGiveUpSeconds;
                 AssignDoorSearchFollowers();
@@ -665,8 +638,7 @@ namespace GrimArchive.Wave
             }
             ResetDoorSearch();
 
-            // 집결 완료로 정한 방 이동은 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem)으로 진행한다. 코어 처리 경로는 공동 이동을 그대로 쓰고,
-            // 계획을 만들 수 없을 때(게이트·파티원 없음)나 partyAdvanceFormationEnabled를 끄면 공동 이동으로 폴백한다. 계획 중단은 PartyAdvanceSystem.Abort가 재시도·잠금 해제로 처리한다.
+            // 집결 완료로 정한 방 이동은 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem)으로 진행한다. 코어 처리 경로·계획 불가·partyAdvanceFormationEnabled=false면 공동 이동으로 폴백한다.
             if (decidedByRally && TryBeginFormationAdvance(doorPos, doorFloor)) return;
             IssueCoMovementAdvance(doorPos, doorFloor, decidedByRally, reason);
         }
@@ -704,9 +676,8 @@ namespace GrimArchive.Wave
             return true;
         }
 
-        // 공동 이동 명령 발행(예전 방식) — 코어 처리 경로와 진형 계획을 못 쓰는 경우의 폴백. playerMoveTarget 대신 currentWait(AdvancingToNextRoom)을 쓴다 — playerMoveTarget은
-        // PlayerCommandFSMState 전용(우선순위 200)이라 전투 중에도 무시하고 걸어가지만, currentWait 기반 ExecuteWait은 Tactical(50)이라 Combat(100)에 자연히 밀린다(00번 4장 우선순위와 일치).
-        // 05번 문서 3장: 전원이 문 타일로 몰리면 통과 구간을 막으므로 파티원마다 문 주변의 서로 다른 대기 자리(체비셰프 거리 2 이상)를 배정한다(AIMovementHelper.FindDoorWaitSlot).
+        // 공동 이동 명령 발행(예전 방식) — 진형 계획을 못 쓸 때의 폴백. playerMoveTarget(PlayerCommandFSMState 전용, 전투 중에도 걷는다) 대신 currentWait(AdvancingToNextRoom)을 써서 Tactical(50)이 Combat(100)에 밀리게 한다(00번 4장).
+        // 전원이 문 타일로 몰리면 통과 구간을 막으므로 파티원마다 문 주변의 다른 대기 자리를 배정한다(05번 3장, FindDoorWaitSlot).
         private void IssueCoMovementAdvance(Vector2Int doorPos, int doorFloor, bool decidedByRally, string reason)
         {
             var claimedDoorSlots = new HashSet<Vector2Int>();
@@ -719,7 +690,7 @@ namespace GrimArchive.Wave
                 if (member.playerAttackTarget != null) continue;
                 // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않는다. 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종(SearchingNextDoor)만 공동 이동으로 바꿔 덮어쓴다.
                 if (member.currentWait != null && member.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
-                // 방 이동 지시도 집결 명령과 같은 전달 범위(Party.IsReachedByLeaderCommand) — 못 받은 구성원은 개인 행동으로 남고, 이 경로는 매 틱 다시 발행되므로 범위에 들어오면 그때 받는다(검증 05-03 관찰 3).
+                // 방 이동 지시도 집결 명령과 같은 전달 범위(Party.IsReachedByLeaderCommand)를 따른다 — 못 받은 구성원은 개인 행동으로 남고, 이 경로는 매 틱 다시 발행되므로 범위에 들어오면 그때 받는다.
                 if (!Party.IsReachedByLeaderCommand(activeParty.Leader, member)) continue;
                 member.BeginPartyMovement();
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
@@ -734,14 +705,11 @@ namespace GrimArchive.Wave
                 LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(activeParty)} 방 이동 명령 발행 — 사유: {reason}, 목표 문 ({doorPos.x},{doorPos.y}) [{DescribeDoor(doorPos, doorFloor)}], 이동 대상 {assigned}명"
                     + (assigned == 0 ? " ⚠ 명령을 받을 파티원이 없음(이미 다른 대기 중)" : ""));
             }
-            // 명령은 1회만 발행 — 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다. 코어 경로는 ReadyToAdvance가 이미 false라 무해하고,
-            // LeaderKnownCorePosition 자체는 Party.TryStartRally가 코어 처리 완료를 감지해 스스로 지운다.
+            // 명령은 1회만 발행하고 도착(또는 통행 불가) 후 개인 행동이 넘겨받는다. LeaderKnownCorePosition은 Party.TryStartRally가 코어 처리 완료를 감지해 지운다.
             activeParty.ReadyToAdvance = false;
         }
 
-        // 01번 7-1장·04번 소탕 파티: 집결 전에 리더가 현재 방의 다음 이동 문 앞까지 이동하며 확인한다 — 도착하면 Party.MarkLeaderReachedNextDoor가 집결 판단 자격을
-        // 만든다(Party.IsRoomActivityComplete MopUp 분기). 문을 아직 모르면 아무것도 하지 않는다 — 리더의 기존 자유 탐색이 시야를 넓혀 문을 찾는다.
-        // 리더 외 파티원은 이동시키지 않는다(집결 때 리더 위치로 모임, 진형 합류는 05번 8장 미작성). objectGrid 순회가 있어 0.5초 간격으로만 확인한다.
+        // 소탕 파티(01번 7-1장): 집결 전에 리더가 다음 이동 문 앞까지 이동하며 확인하고, 도착하면 Party.MarkLeaderReachedNextDoor가 집결 판단 자격을 만든다. 문을 모르면 리더의 자유 탐색이 찾고 다른 파티원은 이동시키지 않는다. objectGrid 순회가 있어 0.5초 간격으로만 확인한다.
         private void TryAssignLeaderDoorApproach()
         {
             var party = activeParty;
@@ -790,10 +758,7 @@ namespace GrimArchive.Wave
             }
         }
 
-        // 05번 1장: "알려진 문"으로만 진행한다. 리더가 아는(개인 지도에 반영된) 현재 방의 문 중 목표
-        // 방에 가장 가까운 것을 고른다 — 진짜 방 그래프 최단경로 대신 좌표 거리로 근사한다(리더·명령
-        // 문서가 생기면 교체 대상, 행동경로목표결정 구현현황 문서 "큰 줄기 FSM 재설계" 참고).
-        // 검증 05-06 관찰 2: 리더가 아는 방 그래프로 먼저 고르고(파괴된 통로·미방문 방 우선·막다른 방 되돌이 — LeaderRoutePlanner), 고를 게 없으면 예전 방식으로 폴백한다.
+        // '알려진 문'으로만 진행한다(05번 1장) — 리더가 아는 방 그래프로 먼저 고르고(LeaderRoutePlanner), 고를 게 없으면 현재 방의 아는 문 중 목표 방에 가장 가까운 것을 좌표 거리로 근사해 고른다(리더·명령 문서가 생기면 교체).
         private bool TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)
         {
             if ((AIConfigLoader.Behavior?.leaderRoutePlannerEnabled ?? true)
@@ -802,7 +767,7 @@ namespace GrimArchive.Wave
             return AIMovementHelper.TryFindKnownDoorInCurrentRoom(activeParty.Leader, _targetRoom.Bounds.center, out doorPos, out doorFloor);
         }
 
-        // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다(검증문서 03-15). 웨이브가 없으면 null.
+        // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다. 웨이브가 없으면 null.
         public Vector2? TargetRoomCenter => _targetRoom != null ? _targetRoom.Bounds.center : (Vector2?)null;
 
         private void EndWave(bool isSuccess)

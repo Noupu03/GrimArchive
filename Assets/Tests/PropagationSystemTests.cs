@@ -229,8 +229,8 @@ public class PropagationSystemTests
 		Assert.AreEqual(SoundType.HitScream, human.Propagation.PendingSound.Type);
 	}
 
-	// 검증문서 03-16: 확인 행동을 시작했다고 표시됐지만 소리 경계가 이미 지워진(전투 진입 등으로 중단된) 기록은
-	// 새 소리를 막지 못한다 — 예전엔 사망음·피격 비명(rank 1) 기록이 남으면 이후 모든 소리를 못 들었다.
+	// 확인 행동을 시작했다고 표시됐지만 소리 경계가 이미 지워진(전투 진입 등으로 중단된) 기록은
+	// 새 소리를 막지 못한다 — 남아 있으면 사망음·피격 비명(rank 1) 기록이 이후 모든 소리를 막는다.
 	[Test]
 	public void OnSoundPerceived_InterruptedResponseRecord_DoesNotBlockNewSound()
 	{
@@ -429,7 +429,7 @@ public class PropagationSystemTests
 		Assert.AreEqual(SoundType.Movement, monster.currentAlertSearch.SoundKind);
 	}
 
-	// 03번 1장 48~49행(검증문서 03-14): 코어 보고 이동 중엔 이동음·함정음만 무시하고, 전투음은 경계로 승격돼
+	// 03번 1장 48~49행: 코어 보고 이동 중엔 이동음·함정음만 무시하고, 전투음은 경계로 승격돼
 	// 대응한다(보고는 currentWait에 남아 전투 후 재개). 03-04에서 모든 소리를 무시하게 했던 것을 바로잡은 동작.
 	[TestCase(SoundType.Movement, false)]
 	[TestCase(SoundType.TrapActivation, false)]

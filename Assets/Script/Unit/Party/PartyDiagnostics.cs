@@ -1,7 +1,7 @@
 using System.Text;
 using UnityEngine;
 
-// 집결·진형·돌파 로그에 쓰는 설명 문자열 — 동작에는 영향이 없다. 대기 중인 유닛이 왜 자리에 못 서는지 가리는 것이 핵심이라(플레이 로그 2026-10-01 3차 분석),
+// 집결·진형·돌파 로그에 쓰는 설명 문자열 — 동작에는 영향이 없다. 대기 중인 유닛이 왜 자리에 못 서는지 가리는 것이 핵심이라,
 // FSM 상태 라벨(TacticalFSMState.GetSubLabel)이 대기를 경계보다 먼저 판정해 경계 중에도 "전술(대기)"로 보이는 한계를 경계 종류·보이는 적·합류 대기를 따로 적어 보완한다.
 public static class PartyDiagnostics
 {

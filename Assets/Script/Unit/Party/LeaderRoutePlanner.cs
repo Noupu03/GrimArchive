@@ -1,12 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 리더의 다음 이동 게이트 결정(04번 1장 30~35·47줄, 05번 7장 412줄, 검증 05-06 관찰 2) — 리더가 "아는" 게이트로 방 그래프를 만들어 RoomRouteMath(순수)가 고른 게이트의 문 타일을 돌려준다.
-// 예전 방식(AIMovementHelper.TryFindKnownDoorInCurrentRoom: 남아 있는 문 오브젝트 중 목표 방에 가장 가까운 것)과 달리 ① 파괴된 문(열린 통로)도 후보 ② 이미 지나온 방은 피하고 ③ 막다른 방에서는 되돌아갈 게이트를 고른다.
-// 방 선택의 세부 기준은 문서가 리더 문서에 맡겼으므로(04번 49줄) 목표 방 중심 거리 같은 같은 순위 안의 판단은 기존 휴리스틱을 그대로 쓴다.
+// 리더의 다음 이동 게이트 결정(04번 1장, 05번 7장) — 리더가 '아는' 게이트로 방 그래프를 만들어 RoomRouteMath(순수)가 고른 게이트의 문 타일을 돌려준다. 예전 TryFindKnownDoorInCurrentRoom과 달리 ① 파괴된 문(열린 통로)도 후보 ② 이미 지나온 방은 피하고 ③ 막다른 방에서는 되돌아갈 게이트를 고른다. 방 선택의 세부 기준은 리더 문서 몫이라 같은 순위 안의 판단은 목표 방 중심 거리 휴리스틱을 그대로 쓴다.
 public static class LeaderRoutePlanner
 {
-	// doorPos는 고른 게이트의 문 타일 하나(리더 방 쪽 줄의 가운데) — PartyAdvanceSystem.TryBuildGate가 이 타일로 게이트 두 줄을 찾는다. 이미 열린 게이트면 계획이 돌파 없이 입장한다.
+	// doorPos는 고른 게이트의 문 타일 하나(리더 방 쪽 줄의 가운데) — PartyAdvanceSystem.TryBuildGate가 이 타일로 두 줄을 찾으며, 이미 열린 게이트면 계획이 돌파 없이 입장한다.
 	public static bool TryPickNextGate(Human leader, Room targetRoom, out Vector2Int doorPos, out int doorFloor)
 	{
 		doorPos = default;

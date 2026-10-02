@@ -4,16 +4,12 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 04번 문서(이동경로_속도_점유충돌) 4장 "역할별 이동 경로와 우회" 순수 계산 검증.
-// WeightSystemTests.cs와 동일한 컨벤션(NUnit, #if UNITY_INCLUDE_TESTS).
+// 04번 4장 '역할별 이동 경로와 우회' 순수 계산 검증(NUnit, #if UNITY_INCLUDE_TESTS).
 // ========================================================================
 
 public class MovementSystemTests
 {
-	// "회피 가능 경로 우선 → 노출시간 최소 → 전체길이 최소"라는 3단계 우선순위가 가중치 하나로
-	// 성립하려면, 회피 비용 상수가 이 프로토타입 맵에서 나올 수 있는 임의의 기본 경로비용 차이보다
-	// 압도적으로 커야 한다(사전식 순서가 깨지지 않으려면). 맵 크기가 커져도 이 마진이 유지되는지
-	// 회귀 검증한다.
+	// '회피 가능 경로 우선 → 노출시간 최소 → 전체길이 최소' 3단계 우선순위가 가중치 하나로 성립하려면 회피 비용 상수가 기본 경로비용 차이보다 압도적으로 커야 한다 — 맵이 커져도 이 마진이 유지되는지 회귀 검증한다.
 	[Test]
 	public void AttackRangeAvoidExtraCost_DominatesTypicalPathCost()
 	{
@@ -22,9 +18,7 @@ public class MovementSystemTests
 		Assert.Greater(MovementMath.AttackRangeAvoidExtraCost, extremePathCostDifference);
 	}
 
-	// 02번 문서 9번 항목: "보호 시작 조건 HP"(EmergencyProtectHpRatio)와 "피해 감수 시 잔여 HP 허용
-	// 하한"(ProtectApproachDamageRiskHpFloor)은 우연히 같은 수치(0.30f)를 쓰지만 원문이 "조정 가능한
-	// 별도 값"이라 명시한 별개 상수다 — 하나로 통합되지 않았는지 회귀 검증한다.
+	// '보호 시작 조건 HP'(EmergencyProtectHpRatio)와 '피해 감수 시 잔여 HP 허용 하한'(ProtectApproachDamageRiskHpFloor)은 우연히 같은 수치(0.30f)지만 원문이 '조정 가능한 별도 값'이라 명시한 별개 상수다(02번 9항) — 하나로 통합되지 않았는지 검증한다.
 	[Test]
 	public void ProtectApproachDamageRiskHpFloor_IsIndependentConstant()
 	{
@@ -104,7 +98,7 @@ public class MovementSystemTests
 		Assert.IsNull(ThreatResponseMath.PickBest(new List<Cand>(), c => c.Score, c => c.Dist, n => 0, out _, out _));
 	}
 
-	// 02번 3장 "새 대상의 점수가 현재 대상의 1.2배 이상" — 경계(정확히 1.2배)는 교체, 동점·양쪽 0은 유지, 몬스터·야생은 더 높기만 하면 교체(검증 06-01).
+	// 02번 3장 "새 대상의 점수가 현재 대상의 1.2배 이상" — 경계(정확히 1.2배)는 교체, 동점·양쪽 0은 유지, 몬스터·야생은 더 높기만 하면 교체.
 	[Test]
 	public void ShouldSwitchAttackTarget_Human_SwitchesAtExactlyOnePointTwoTimes_AndKeepsOnTiesAndBothZero()
 	{
@@ -157,7 +151,7 @@ public class MovementSystemTests
 		Assert.AreEqual(2, CombatScoreMath.StepsToFirstTileWithinRange(detached, new Vector2Int(9, 9), 1));
 	}
 
-	// ── 검증 04-05/04-06: 점유자 상태별 대기 예상시간 + 대기 vs 우회 선택 ──
+	// ── 점유자 상태별 대기 예상시간 + 대기 vs 우회 선택 ──
 	[Test]
 	public void OccupancyMath_EstimateWaitSeconds_ByOccupantKind()
 	{
@@ -204,7 +198,7 @@ public class MovementSystemTests
 		Assert.IsFalse(OccupancyMath.UnknownWaitExpired(200f, 100f, 6f, true), "시간을 아는 대기(상호작용 등)는 끊지 않는다");
 	}
 
-	// ── 검증 04-07: 좁은 통로 통과 순서·마주 막힘 양보 ──
+	// ── 좁은 통로 통과 순서·마주 막힘 양보 ──
 	[Test]
 	public void OccupancyMath_EntryRank_FollowsDocumentOrder()
 	{
@@ -250,7 +244,7 @@ public class MovementSystemTests
 		Assert.IsFalse(OccupancyMath.ShouldIYield(false, true, true, high, low), "둘 다 가능하면 우선순위 높은 쪽은 양보하지 않는다");
 	}
 
-	// ── 검증 04-03: 플레이어 이동 명령이 막혔을 때의 처리 ──
+	// ── 플레이어 이동 명령이 막혔을 때의 처리 ──
 	[Test]
 	public void ResolveMoveFailure_FallbackRetargetsButNeverOutlivesTheLimit()
 	{
@@ -293,7 +287,7 @@ public class MovementSystemTests
 		}
 	}
 
-	// ── 검증 04-01: 치료 등 아군 대상 스킬의 차폐(직선이 벽·닫힌 문에 막히는가) ──
+	// ── 치료 등 아군 대상 스킬의 차폐(직선이 벽·닫힌 문에 막히는가) ──
 	[Test]
 	public void IsLineClear_OpenFloor_IsClear_AndEndpointsAreNotChecked()
 	{

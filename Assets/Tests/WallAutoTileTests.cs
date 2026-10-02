@@ -2,9 +2,7 @@
 using NUnit.Framework;
 
 // ========================================================================
-// 벽 자동 타일 연결(회의록 2026-09-27, 정림 전달안 + 같은 날 후속 회전 구조 요청)의 판정 예시를
-// 고정하는 테스트. PropagationSystemTests.cs와 동일한 컨벤션(NUnit, #if UNITY_INCLUDE_TESTS).
-// WallAutoTileMath는 순수 함수라 Unity 오브젝트 없이 직접 검증 가능하다.
+// 벽 자동 타일 연결 판정 예시를 고정하는 테스트(NUnit, #if UNITY_INCLUDE_TESTS). WallAutoTileMath는 순수 함수라 Unity 오브젝트 없이 검증한다.
 // ========================================================================
 
 public class WallAutoTileTests
@@ -106,8 +104,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.OuterBR, variant);
 	}
 
-	// ── 완전히 막힘: 4방향+대각선 전부 벽(두꺼운 벽 안쪽 깊숙한 타일) — 2026-09-27 밤 추가 요청
-	// (정림: "모든 면이 막혀있는 타일... 자리 한 칸"). 코너 조건에 안 걸려야 하므로 대각선도 전부 채움. ──
+	// ── 완전히 막힘: 4방향+대각선 전부 벽(두꺼운 벽 안쪽 깊숙한 타일) — 코너 조건에 안 걸리도록 대각선도 전부 채운다. ──
 	[Test]
 	public void FullySurrounded_AllEightNeighborsWalled()
 	{
@@ -118,7 +115,7 @@ public class WallAutoTileTests
 	}
 
 	// ── 직선: 한쪽 축만 연결됐을 때, 방향(상/하, 좌/우)은 반대편이 Floor인지로 갈린다
-	// (2026-09-27 회의록 후속 — 벽 스프라이트가 상하/좌우 비대칭이라 방향 구분이 추가됨) ──
+	// (벽 스프라이트가 상하/좌우 비대칭이라 방향을 구분한다) ──
 	[Test]
 	public void Straight_Horizontal_FloorBelow_IsTop()
 	{
@@ -159,13 +156,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.VerticalRight, variant); // 방이 서쪽에 있으면 "오른쪽(동측)" 경계
 	}
 
-	// ── 2026-09-27 밤 재수정: 2칸 이상 두꺼운 벽(CreateMap.TileWall.cs의 ApplyOuterWallThickness가
-	// StartRoom/BossRoom을 뺀 모든 방에 minGuaranteed=2를 강제)의 안쪽 레이어는 반대편(두께 방향)도
-	// 벽이라 e/n/s가 전부 true인데, 방쪽(w)엔 Floor가 있다 — 순수 벽-인접 조건(e/w 둘 다 벽 아님)으로는
-	// 이 타일이 Vertical로 인식되지 않아 예전엔 HorizontalTop으로 잘못 폴백했다. 실제 게임에서 거의
-	// 모든 방이 이 두께 조건에 해당하므로, 이 케이스를 못 잡으면 Vertical이 사실상 전혀 선택되지 않는다
-	// (VerticalRight의 회전각만 고쳤을 때 화면에 변화가 없었던 진짜 원인 — 회전이 아니라 애초에
-	// Vertical 자체가 선택되지 않았다). ──
+	// ── 2칸 이상 두꺼운 벽(ApplyOuterWallThickness가 최소 2칸 보장)의 안쪽 레이어는 e/n/s가 전부 벽이고 방쪽(w)에만 Floor가 있다 — 벽-인접 조건만으로는 Vertical로 안 잡혀 Horizontal로 폴백하므로 이 케이스를 고정한다. ──
 	[Test]
 	public void Straight_Vertical_ThickWallInnerLayer_FloorWest_StillDetectsRight()
 	{
@@ -196,10 +187,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.HorizontalTop, variant); // 방이 남쪽에 있고 북쪽은 벽 두께 — 그래도 "위쪽(북측)" 경계
 	}
 
-	// ── 예외 상태(고립 타일, 인접 벽 없음, Floor 판정도 없음) — **2026-09-27 밤 재수정**: 예전엔
-	// 문서의 "예외 상태 처리"에 따라 HorizontalTop으로 폴백했는데, Floor 인접 증거가 전혀 없는 자리를
-	// 방향성 있는 스프라이트로 그리는 게 오히려 부자연스러워 Solid로 바꿨다(아래 두 테스트와 동일
-	// 원칙) ──
+	// ── 예외 상태(고립 타일, 인접 벽 없음, Floor 판정도 없음): Floor 인접 증거가 없는 자리를 방향성 있는 스프라이트로 그리면 부자연스러워 Solid로 처리한다. ──
 	[Test]
 	public void Isolated_FallsBackToSolid()
 	{
@@ -209,12 +197,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(WallVariant.FullySurrounded, variant);
 	}
 
-	// ── "층 모서리 톱니" 재현 케이스 — 2026-09-27 밤, 사용자가 "방의 꼭짓점 부분까지 solid 처리됐다"며
-	// Floor-인접 기반 코너 판정을 되돌리라고 확정한 뒤의 최종 형태. 코너(1·2번 우선순위)는 원래
-	// 벽-인접 기반 그대로 두고, 이 4번 자리(코너도 FullySurrounded도 아닌 나머지)만 Floor 증거가
-	// 전혀 없으면 Solid로 처리한다 — 실제 원인은 두꺼운 벽이 방 Floor가 아니라 미개척 공간/층 경계와
-	// 맞닿을 때, 옛 FullySurrounded 조건(4방향 전부 "벽")을 만족 못 해(한쪽이 미개척이라 "벽"이
-	// 아님) Horizontal로 잘못 폴백하며 방향성 있는 무늬가 반복돼 톱니처럼 보였던 것. ──
+	// ── '층 모서리 톱니' 재현 케이스: 코너(1·2번)는 벽-인접 기반 그대로 두고, 코너도 FullySurrounded도 아닌 나머지만 Floor 증거가 없으면 Solid로 처리한다(두꺼운 벽이 미개척 공간/층 경계와 맞닿을 때 Horizontal로 폴백해 무늬가 톱니처럼 반복되던 문제). ──
 	[Test]
 	public void ThickWallBorderingUnclaimedSpace_NoFloorEvidence_IsSolid()
 	{
@@ -265,8 +248,7 @@ public class WallAutoTileTests
 		Assert.AreEqual(0f, WallAutoTileMath.GetRotationDegrees(WallVariant.FullySurrounded));
 	}
 
-	// ── 스프라이트 라이브러리 라벨 문자열 고정 — 2026-09-27 후속 요청으로 10라벨(방향별)에서
-	// 4라벨(형태별)로 축소됐다. 정림이 이 4개만 실제 아트로 채우면 된다.
+	// ── 스프라이트 라이브러리 라벨 문자열 고정 — 형태별 4라벨만 실제 아트로 채우면 된다. ──
 	[Test]
 	public void SpriteLibraryLabels_ReducedToFourShapeLabels()
 	{

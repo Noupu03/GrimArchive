@@ -12,22 +12,15 @@ public class AlertSearchState
 	// 4-8장: 전투 종료 후 10초 스윕인지(true) — 이 경우 TargetPosition 없이 그냥 10초만 채우면 된다.
 	public bool IsPostCombatSweep;
 
-	// 4-11장: "자기 자신이" 공격자를 인지하지 못한 채 피격당해 만들어진 미식별 공격 수색인지 —
-	// RecordHitWeightEvent만 켠다(PropagateAttackedFact로 전파받은 목격자의 경계에는 안 붙는다). 함정 해제·
-	// 대응은 이 경계가 진행되는 동안 양보하고 끝나면 재개한다(v0.6 12-2, TacticalFSMState.IsTrapResponseInterrupted).
+	// '자기 자신이' 공격자를 인지하지 못한 채 피격당해 만들어진 미식별 공격 수색인지(4-11장) — RecordHitWeightEvent만 켠다(전파받은 목격자 경계엔 안 붙음). 함정 해제·대응은 이 경계가 진행되는 동안 양보하고 끝나면 재개한다(v0.6 12-2).
 	public bool IsUnidentifiedAttackSearch;
 
-	// 검증문서 03-16: 공격 방향으로 이동하며 하는 수색(미식별 공격 피해자 + 공격 사실을 전파받은 목격자). 마지막 위치에
-	// 도착해 3초 부재 확인을 마친 뒤에도 남은 수색 기한(15초) 동안 정면 수색을 이어 간다 — 이 표식이 없는 경계(수상한
-	// 타일)는 3초 대기 뒤 끝난다. IsUnidentifiedAttackSearch와 달리 목격자 경계에도 붙는다.
+	// 공격 방향으로 이동하며 하는 수색(미식별 공격 피해자 + 전파받은 목격자) — 마지막 위치에서 3초 부재 확인을 마친 뒤에도 남은 수색 기한(15초) 동안 정면 수색을 이어 간다(이 표식이 없는 수상한 타일 경계는 3초 대기 뒤 끝난다).
 	public bool IsAttackDirectionSearch;
-	// 03번 11장: 마지막 위치에 도착해 부재 확인 3초 대기를 시작한 시각(음수 = 아직 도착 전). 대기는 이 경계의 수색 시간
-	// (ElapsedSeconds) 안에 포함되므로 ElapsedSeconds를 건드리지 않는다.
+	// 마지막 위치에 도착해 부재 확인 3초 대기를 시작한 시각(음수 = 도착 전, 03번 11장) — 대기는 수색 시간(ElapsedSeconds) 안에 포함되므로 그 값은 건드리지 않는다.
 	public float AbsenceWaitStartTime = -1f;
 
-	// 03번 v0.6 4-7(간접 인지 후 접근): 다른 파티원에게 전파받은 적 위치로 일반 탐색 상태·일반 이동속도로 접근하는 경계.
-	// TargetPosition은 전파받은 적 위치이고, 위 공격 방향 수색·수상한 타일과 달리 3초 부재 대기·15초 기한을 쓰지 않는다 —
-	// 기록 위치 주위 3칸(ExplorationMath.IndirectEnemyCheckRadius)에서 적을 못 찾으면 정보를 버리고 일반 탐색으로 복귀한다.
+	// 다른 파티원에게 전파받은 적 위치로 일반 탐색 상태·일반 속도로 접근하는 경계(03번 v0.6 4-7). 3초 부재 대기·15초 기한을 쓰지 않고, 기록 위치 3칸(IndirectEnemyCheckRadius) 안에서 적을 못 찾으면 정보를 버리고 일반 탐색으로 복귀한다.
 	public bool IsIndirectEnemyApproach;
 	public Unit IndirectEnemy;
 	public int ApproachStuckTurns;

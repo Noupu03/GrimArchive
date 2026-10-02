@@ -9,9 +9,7 @@ public enum TrapMoveMode
 	Combat,  // 전투 이동 — 안전한 우회를 먼저 보고, 알려진 피해 후 HP 50% 이상일 때만 함정 타일을 통과 후보로 삼는다
 }
 
-// 검증문서 03-13(03번 v0.12 9장·v0.6 9-6/9-10~9-13): "개인이 아는 활성 함정"을 이동 계층에 알리는 진입점. 이 파일 이전에는 이동 계층(AStarMovement/
-// UnitFunction.CanMove)과 CombatFSMState가 함정을 전혀 몰라 함정 위치를 아는 유닛도 그대로 밟았다. 구역 = 함정 타일 + 체비셰프 1(ExplorationMath.
-// TrapAvoidZoneRadius). 함정을 모르는 유닛에겐 구역이 없다(정보 격리) — 근거는 personalMap.KnownTrapTiles이고 "아직 존재하는가"만 실제 objectGrid로 확인한다.
+// '개인이 아는 활성 함정'을 이동 계층에 알리는 진입점 — 구역 = 함정 타일 + 체비셰프 1(ExplorationMath.TrapAvoidZoneRadius). 함정을 모르는 유닛엔 구역이 없고(정보 격리) 근거는 personalMap.KnownTrapTiles이며, '아직 존재하는가'만 실제 objectGrid로 확인한다.
 public static class TrapAvoidance
 {
 	// 개인이 아는 활성 함정 하나.
@@ -50,8 +48,7 @@ public static class TrapAvoidance
 	public static bool IsExemptResponder(Human human, string trapId)
 		=> human.currentTrapInteraction != null && human.currentTrapInteraction.TrapObjectId == trapId;
 
-	// 이 유닛이 아는 활성 함정을 into에 채운다(같은 층만). 세션이 있으면 실제로 아직 남아 있는 함정만 — 다른 유닛이 이미 해제·파괴한 함정에 계속 구역을
-	// 두르지 않게 한다. 세션이 없으면(테스트) 아는 그대로 활성으로 본다.
+	// 이 유닛이 아는 활성 함정을 into에 채운다(같은 층만). 세션이 있으면 아직 남아 있는 함정만(이미 해제·파괴된 함정에 구역을 두르지 않게), 없으면(테스트) 아는 그대로 활성으로 본다.
 	public static void CollectKnownTraps(Human human, List<KnownTrap> into)
 	{
 		into.Clear();
@@ -156,10 +153,8 @@ public static class TrapAvoidance
 	}
 }
 
-// 한 유닛의 한 번의 경로 탐색에 쓰는 함정 판정 상태 — AStarMovement가 인스턴스 하나를 들고 탐색 시작마다 Refresh한다(핫패스에서 할당하지 않는다).
-// General: 함정 타일은 항상 막고(탐색 목표일 때만 도달 허용), 인접 1칸 구역은 막는다. 이미 구역 안에서 출발하면 그 구역은 막지 않고 큰 비용만 물려
-// 가장 적게 밟고 나오게 한다. 자기 함정의 응답자는 그 함정의 구역(링)을 면제받는다. Combat: 링은 자유, 함정 타일은 통과 허용 조건을 만족하면 큰 비용,
-// 아니면 막는다. Off: 아무것도 하지 않는다.
+// 한 유닛의 한 번의 경로 탐색에 쓰는 함정 판정 상태 — AStarMovement가 인스턴스 하나를 들고 탐색마다 Refresh한다(핫패스 무할당).
+// General: 함정 타일은 항상 막고(목표일 때만 도달 허용) 인접 1칸 구역도 막되, 이미 구역 안에서 출발하면 큰 비용만 물려 가장 적게 밟고 나오게 한다(자기 함정 응답자는 링 면제). Combat: 링은 자유, 함정 타일은 통과 허용 조건을 만족하면 큰 비용·아니면 막는다. Off: 무시.
 public sealed class TrapMoveContext
 {
 	public TrapMoveMode Mode { get; private set; } = TrapMoveMode.Off;

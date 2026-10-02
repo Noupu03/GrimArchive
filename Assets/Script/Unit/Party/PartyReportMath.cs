@@ -10,7 +10,7 @@ public enum ReportDestinationKind
 	SearchFrontier = 4, // 개인 지도의 이동 가능한 지형에서 시야를 넓혀 리더·파티원·문을 찾는다
 }
 
-// 검증문서 03-15: 코어 보고 이동의 순수 판정 함수 모음(부수효과 없음, 테스트 용이).
+// 코어 보고 이동의 순수 판정 함수 모음(부수효과 없음, 테스트 용이).
 public static class PartyReportMath
 {
 	public const int KindCount = 5;
@@ -37,7 +37,7 @@ public static class PartyReportMath
 
 	public enum FollowStep { Lost, Hold, Move }
 
-	// 검증 갭 정리(05번 1장 73줄): 다음 문을 모를 때 파티원이 아는 리더 위치 주변을 유지한다. 리더 위치를 모르면 Lost,
+	// 다음 문을 모를 때 파티원이 아는 리더 위치 주변을 유지한다(05번 1장). 리더 위치를 모르면 Lost,
 	// 추종 반경(체비셰프 거리) 이내면 Hold, 벗어났으면 Move.
 	public static FollowStep ResolveFollowStep(bool hasKnownLeader, int chebyshevDistance, int followRadius)
 	{
@@ -45,12 +45,11 @@ public static class PartyReportMath
 		return chebyshevDistance > followRadius ? FollowStep.Move : FollowStep.Hold;
 	}
 
-	// 검증 04-04(04번 3장·05번 "공동 이동과 개인 행동의 속도"): 진형 자리가 없는 지금은 "리더 기준 합류 반경 이내"를 실제 진형 합류의 근사로 쓴다(사용자 확정 2026-10-01).
+	// 진형 자리가 없는 지금은 "리더 기준 합류 반경 이내"를 실제 진형 합류의 근사로 쓴다(사용자 확정).
 	public static bool IsJoinedToLeader(bool hasLeaderOnSameFloor, int chebyshevDistanceToLeader, int joinRadius)
 		=> hasLeaderOnSameFloor && chebyshevDistanceToLeader <= joinRadius;
 
-	// 공동 이동 중이고 합류했으면 그 구성원에게 적용할 기본 이동속도는 "함께 이동하는 적용 대상 생존 구성원 중 가장 느린 속도"(slowestMember), 아니면(개인 탐색·보고·전투,
-	// 뒤처져 복귀하는 구성원) 자기 속도다. 공동 속도가 자기 속도보다 빠르게 나오는 일은 없게 min으로 고정한다. 경계 감속 등 개인 보정은 이 값 위에 호출부가 곱한다.
+	// 공동 이동 중이고 합류했으면 기본 이동속도는 함께 이동하는 적용 대상 생존 구성원 중 가장 느린 속도(slowestMember), 아니면(개인 탐색·보고·전투, 뒤처져 복귀하는 구성원) 자기 속도다. 공동 속도가 자기 속도보다 빠르게 나오지 않도록 min으로 고정하며, 경계 감속 등 개인 보정은 호출부가 이 값 위에 곱한다.
 	public static float ResolveMoveBaseSpeed(bool inCoMovement, bool joined, float individualSpeed, float slowestMemberSpeed)
 		=> inCoMovement && joined ? Mathf.Min(individualSpeed, slowestMemberSpeed) : individualSpeed;
 }

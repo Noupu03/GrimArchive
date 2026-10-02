@@ -3,9 +3,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 검증문서 03-15(리더의 마지막 위치가 비었을 때 보고) + 03-14 발견 2(보고 의무 영속화) 테스트.
-// 순수 판정(PartyReportMath)과 개인 기록(KnownLeaderInfo)은 Unity 세션 없이 직접 검증하고, 집결 완료 판정은
-// Party/Human 인스턴스만으로 확인한다. 세션(CanPropagate·지도)이 필요한 이동·전달 경로는 코드 추적으로만 점검했다.
+// 리더의 마지막 위치가 비었을 때 보고(03번 10장)와 보고 의무 영속화 테스트. 순수 판정(PartyReportMath)과 개인 기록(KnownLeaderInfo)은 세션 없이, 집결 완료 판정은 Party/Human 인스턴스만으로 확인하며, 세션이 필요한 이동·전달 경로는 코드 추적으로만 점검했다.
 // ========================================================================
 
 public class CoreReportTests
@@ -259,8 +257,7 @@ public class CoreReportTests
 		return party;
 	}
 
-	// 웨이브 시작 전(던전 입구 시퀀스 중)에는 집결 판정을 하지 않는다 — 소탕 파티는 "인지한 적 없음"이 스폰 직후부터 참이라,
-	// 막지 않으면 0층 스폰 자리에서 집결이 시작돼 계단을 건너면 끝나지 않는다(디버그 로그 사고).
+	// 웨이브 시작 전(입구 시퀀스 중)에는 집결 판정을 하지 않는다 — 소탕 파티는 '인지한 적 없음'이 스폰 직후부터 참이라 막지 않으면 0층 스폰 자리에서 집결이 시작돼 계단을 건너면 끝나지 않는다.
 	[Test]
 	public void Party_TryStartRally_BlockedWhileAnyMemberInEntranceSequence()
 	{
@@ -295,8 +292,7 @@ public class CoreReportTests
 		Assert.IsTrue(party.IsRallyActive);
 	}
 
-	// 01번 7-1장: 소탕 파티는 "다음 문까지 이동하며 확인한 뒤"에야 문 주변 집결을 판단한다 — 적을 모른다는 것만으로는 스폰 직후에도 참이라
-	// 도착 즉시 집결하던 문제. 문 앞 접근 표식이 있어야 하고, 집결이 시작되면 소비되며, 리더가 방을 떠나면 사라진다.
+	// 소탕 파티는 '다음 문까지 이동하며 확인한 뒤'에야 문 주변 집결을 판단한다(01번 7-1장) — 적을 모른다는 것만으론 스폰 직후에도 참이라 도착 즉시 집결하던 문제. 문 앞 접근 표식이 있어야 하고, 집결이 시작되면 소비되며, 리더가 방을 떠나면 사라진다.
 	[Test]
 	public void Party_MopUp_RequiresDoorApproachBeforeRally()
 	{
@@ -379,7 +375,7 @@ public class CoreReportTests
 		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason);
 	}
 
-	// ── 검증 04-05~04-07: 점유 대기가 정체 인내로 포기되지 않게 하는 카운터 리셋 + 통과 순서 동률 값 유지 ──
+	// ── 점유 대기가 정체 인내로 포기되지 않게 하는 카운터 리셋 + 통과 순서 동률 값 유지 ──
 	[Test]
 	public void Unit_ResetNonCombatStuckCounters_ZerosEveryPatienceCounterIncludingHumanAndAlert()
 	{
@@ -414,7 +410,7 @@ public class CoreReportTests
 		for (int i = 0; i < 20; i++) Assert.AreEqual(first, human.PassTieBreak, "통과 순서 동률 값은 매 판단 재추첨하지 않는다(04번 8장)");
 	}
 
-	// ── 검증 04-04: 공동 이동 속도(가장 느린 구성원) ──
+	// ── 공동 이동 속도(가장 느린 구성원) ──
 	private static Human SpeedHuman(float walkSpeed, Vector2Int pos)
 	{
 		var h = NewHuman();

@@ -4,10 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 
 // ========================================================================
-// 검증문서 03-13(03번 v0.12 9장·v0.6 9-6/9-10~9-13): 알려진 활성 함정 회피·통과 판정.
-// 순수 함수(ExplorationMath/CombatScoreMath/MovementMath) + 세션 없는 A*(Unit.humanFactionData.discoveredMap만 세팅) + PersonalMapKnowledge/TrapPartySystem
-// 조율 기록. EditMode — ScriptableObject.CreateInstance<Human>() 관례(ExplorationSystemTests와 동일).
-// 세션이 없어 함정 피해량(DamageMax)은 0이고 "아직 존재하는가" 확인은 생략된다(TrapAvoidance.CollectKnownTraps 참고).
+// 알려진 활성 함정 회피·통과 판정. 순수 함수(ExplorationMath/CombatScoreMath/MovementMath) + 세션 없는 A*(humanFactionData.discoveredMap만 세팅) + PersonalMapKnowledge/TrapPartySystem 조율 기록을 EditMode에서 검증한다(ScriptableObject.CreateInstance<Human>() 관례). 세션이 없어 함정 피해량(DamageMax)은 0이고 '아직 존재하는가' 확인은 생략된다(TrapAvoidance.CollectKnownTraps).
 // ========================================================================
 
 public class TrapAvoidanceTests
@@ -46,8 +43,7 @@ public class TrapAvoidanceTests
 		Assert.IsFalse(ExplorationMath.CanPassTrapInCombat(false, 100f, 100f, 0f));  // 미기록 함정은 피해를 모르므로 통과 후보가 아니다
 	}
 
-	// 긴급 아군 보호(v0.6 9-13, 02번 v0.12 9장): 대상 HP ≤ 30% + 함정 경로가 우회보다 빠름 + 이동자 조건
-	// (기록: 피해 후 HP ≥ 30% / 미기록: 현재 HP ≥ 60% — 피해를 모르는 함정의 별도 예외).
+	// 긴급 아군 보호(v0.6 9-13, 02번 9장): 대상 HP ≤ 30% + 함정 경로가 우회보다 빠름 + 이동자 조건(기록: 피해 후 HP ≥ 30% / 미기록: 현재 HP ≥ 60% — 피해를 모르는 함정의 별도 예외).
 	[Test]
 	public void CanPassTrapForProtect_RecordedTrap_RequiresAllyLowHp_ShorterPath_AndMoverHpAfterHit()
 	{
@@ -67,7 +63,7 @@ public class TrapAvoidanceTests
 		Assert.IsFalse(ExplorationMath.CanPassTrapForProtect(false, 50f, 100f, 100f, 100f, 0f, 5, 9)); // 보호 대상 HP 조건은 이 예외에도 그대로
 	}
 
-	// 02번 v0.12 9장 458줄·순서도 02-07: 피해 정보로 남을 HP를 추정할 수 없으면 노출 경로를 제외한다(0으로 계산하거나 빼고 허용하지 않는다).
+	// 피해 정보로 남을 HP를 추정할 수 없으면 노출 경로를 제외한다(0으로 계산하거나 빼고 허용하지 않는다, 02번 9장).
 	[Test]
 	public void IsExposureRouteAllowed_NotEstimable_ExcludesRoute()
 	{
@@ -299,7 +295,7 @@ public class TrapAvoidanceTests
 		return human;
 	}
 
-	// 검증 04-08: A*가 진영 공용 지도가 아니라 유닛 개인 지도로 경로를 계산하므로, 이 파일의 지도 헬퍼(SetOpenMap/SetCorridorMap)가 세팅한 공용 지도 내용을 같은 값 그대로 개인 지도에도 알린다(0 미확인은 건너뜀).
+	// A*가 개인 지도로 경로를 계산하므로, 이 파일의 지도 헬퍼(SetOpenMap/SetCorridorMap)가 세팅한 공용 지도 내용을 개인 지도에도 같은 값으로 알린다(0 미확인은 건너뜀).
 	private static void SeedPersonalMapFromSharedMap(Human human)
 	{
 		var data = Unit.humanFactionData;
