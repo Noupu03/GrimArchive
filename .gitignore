@@ -98,3 +98,7 @@ InitTestScene*.unity*
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 Assets/Script/Unit/SkillAction.cs
+
+# 플레이어 빌드 결과물(예: 08.26.build/, 08.26.build.zip) — 저장소에 올리지 않는다
+/*.build/
+/*.build.zip
