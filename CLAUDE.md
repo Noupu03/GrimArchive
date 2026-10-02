@@ -563,11 +563,15 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 - **옛 경로 대응**(지난 구현현황 문서에 남아 있음): `Sprite/Char`·`Sprite/Mon` → `Art/Sprites/Units/Human`·`Monster`,
   `Sprite/{Death, Weapon, obj}` → `Art/Sprites/{Death, Weapons, Objects}`, `VFX/Sprite` → `Art/Sprites/VFX`,
   `VFX/Material` → `Art/Materials/VFX`, `VFX/Shader` → `Art/Shaders`, `VFX/Prefab` → `Prefabs/VFX`, `Asset/*` → 종류별,
-  `Resources/Prefabs/<UI 패널>` → `Prefabs/UI`, `Resources/Themes` → `Data/MapThemes`, `Script/Editor`·`Script/Wave/Editor`
+  `Resources/Prefabs/<UI 패널>` → `Prefabs/UI`, `Resources/Themes` → `Data/MapThemes`, `Resources/Atras.png` →
+  `Art/Sprites/Tiles`, `Script/Editor`·`Script/Wave/Editor`
   → `Editor/...`, `Script/Encyclopedia/*.asset` → `Data/Encyclopedia`.
 - **일부러 남긴 것**: 참조가 없지만 팀원이 만든 에셋(LJR·SampleScene 씬, `VFX_Bang`/`VFX_GuardBreak`, 미사용 머티리얼 2개,
   몬스터 아트 Dullahan/Warewolf/WindupKnight, `Haare/Demo`)은 사용자 결정으로 지우지 않았다. `문서/`도 Assets 안에
-  그대로 둔다(사용자 결정).
+  그대로 둔다(사용자 결정). 루트의 `DefaultVolumeProfile.asset`·`UniversalRenderPipelineGlobalSettings.asset`은 URP
+  패키지의 기본 위치(`UniversalRenderPipelineGlobalSettings.defaultPath = Assets/...`)라 `Settings/`로 옮기지 않는다.
+- 저장소 루트(Assets 밖)는 `.gitignore`가 빌드 결과물(`/*.build/`, `/*.build.zip`)과 IDE 솔루션(`*.slnx`)을 막는다 —
+  빌드·작업용 임시 파일은 루트에 커밋하지 말 것(2026-10-02에 08.26 빌드 212MB·에이전트 작업물 등을 걷어냈다).
 
 ## 유니티 상단 메뉴 구조 (Tools(new) / Disposable / Tools, 2026-10-02)
 
