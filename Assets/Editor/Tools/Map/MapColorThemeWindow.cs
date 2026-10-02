@@ -15,7 +15,9 @@ using UnityEngine;
 public class MapColorThemeWindow : EditorWindow
 {
     private const string FloorAssignmentsAssetPath = "Assets/Resources/MapColorTheme_FloorAssignments.asset";
-    private const string PresetFolder = "Assets/Resources/Themes";
+    // 프리셋은 배정 에셋이 GUID로 참조하므로 Resources 밖에 둔다(문자열로 로드하는 건 배정 에셋뿐).
+    private const string PresetParentFolder = "Assets/Data";
+    private const string PresetFolder = PresetParentFolder + "/MapThemes";
 
     // FloorId(MapData.cs) 0~3 그대로 — 이 프로젝트는 층 4개로 고정돼 있다(Floor_0=로비 ~ Floor_3).
     private static readonly string[] FloorLabels = { "0층 (로비)", "1층", "2층", "3층" };
@@ -97,10 +99,10 @@ public class MapColorThemeWindow : EditorWindow
 
     void CreateNewPreset()
     {
-        if (!AssetDatabase.IsValidFolder("Assets/Resources"))
-            AssetDatabase.CreateFolder("Assets", "Resources");
+        if (!AssetDatabase.IsValidFolder(PresetParentFolder))
+            AssetDatabase.CreateFolder("Assets", "Data");
         if (!AssetDatabase.IsValidFolder(PresetFolder))
-            AssetDatabase.CreateFolder("Assets/Resources", "Themes");
+            AssetDatabase.CreateFolder(PresetParentFolder, "MapThemes");
 
         string path = AssetDatabase.GenerateUniqueAssetPath($"{PresetFolder}/MapColorTheme_New.asset");
         var theme = ScriptableObject.CreateInstance<MapColorTheme>();

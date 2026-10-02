@@ -3,7 +3,7 @@ using Haare.Client.UI;
 using UnityEngine;
 
 // 타이틀 씬 패널(배경+제목+시작/설정/종료 버튼+버전 표기) — 이 프로젝트의 Haare DI 패턴으로 이식됐다.
-// 실제 배경/텍스트/버튼 배치는 Assets/Editor/TitleSceneSetup.cs가 코드로 생성한 프리팹에 있다.
+// 실제 배경/텍스트/버튼 배치는 Assets/Editor/Disposable/UI/TitleSceneSetup.cs가 코드로 생성한 프리팹에 있다.
 [PanelAttribute("Prefabs/GrimArchive_TitlePanel")]
 public class GameTitlePanel : MonoRoutine, ICustomPanel
 {

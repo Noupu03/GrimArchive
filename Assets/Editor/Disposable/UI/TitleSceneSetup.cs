@@ -22,12 +22,12 @@ using Haare.Client.UI;
 // 안에서만 Title.unity 내용을 만들고 저장한 뒤 닫는다.
 public static class TitleSceneSetup
 {
-    private const string PrefabFolder = "Assets/Resources/Prefabs";
+    private const string PrefabFolder = "Assets/Prefabs/UI";
     private const string TitlePanelPrefabPath = PrefabFolder + "/GrimArchive_TitlePanel.prefab";
     private const string TitlePanelAddress = "Prefabs/GrimArchive_TitlePanel";
     private const string TitleScenePath = "Assets/Scenes/Title.unity";
     private const string SshScenePath = "Assets/Scenes/ssh.unity";
-    private const string BackgroundImagePath = "Assets/Resources/Prefabs/그림2.png";
+    private const string BackgroundImagePath = "Assets/Art/Sprites/UI/그림2.png";
 
     // TMP 기본 폰트(LiberationSans SDF)엔 한글 글리프가 없어서 한글이 다 깨져 보인다.
     // 이미 프로젝트에 있는 한글 지원 폰트를 대신 쓴다(HaareUISetup.cs와 동일한 관례).

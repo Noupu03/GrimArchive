@@ -616,7 +616,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    1개만 전 층 공통 적용이었다가 교체) — `MapFloorColorThemes`
    (`Assets/Script/Randering/MapFloorColorThemes.cs`, defaultTheme + 층별 리스트)가
    `Assets/Resources/MapColorTheme_FloorAssignments.asset` 단일 인스턴스로 저장되고,
-   `Tools(new)/맵/타일 색상 테마`(`Assets/Editor/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
+   `Tools(new)/맵/타일 색상 테마`(`Assets/Editor/Tools/Map/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
    (이 프로젝트는 `FloorId` 0~3 고정 4개 층이라 "기본값"+"0~3층" 5개 `ObjectField`)이 이 에셋을
    편집한다. `MapRandering`은 이제 벽/바닥 Tile을 전 층 공유가 아니라 층마다
    `GetOrBuildFloorTileSet(floorIndex)`로 따로 구워 캐시한다 — 그 층에 명시 배정이 없으면

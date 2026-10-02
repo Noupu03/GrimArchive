@@ -8,7 +8,7 @@ using UnityEditor.AddressableAssets.Settings;
 // 이 헬퍼를 호출하는 [MenuItem] 한 줄만 추가하면 된다. uGUI 계층이 필요한 HaareUISetup.cs는 별개 흐름.
 public static class EmptyHaarePanelSetup
 {
-    private const string FolderPath = "Assets/Resources/Prefabs";
+    private const string FolderPath = "Assets/Prefabs/UI";
 
     public static void CreateAndRegister<T>(string panelName) where T : Component
     {

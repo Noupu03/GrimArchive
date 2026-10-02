@@ -16,7 +16,7 @@ using Haare.Client.UI;
 // "Disposable/UI/키 가이드 패널 생성"을 직접 실행해야 한다.
 public static class KeyGuidePanelSetup
 {
-    private const string PrefabFolder = "Assets/Resources/Prefabs";
+    private const string PrefabFolder = "Assets/Prefabs/UI";
     private const string PrefabPath = PrefabFolder + "/GrimArchive_KeyGuidePanel.prefab";
     private const string Address = "Prefabs/GrimArchive_KeyGuidePanel";
 

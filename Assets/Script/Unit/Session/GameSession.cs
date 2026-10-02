@@ -90,7 +90,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public List<Room> allRooms { get; private set; } = new List<Room>();
 
     // 방마다 "현재/최대 인구수" world-space 라벨(카메라 무관, 맵에 고정). 개별 라벨 이름
-    // ("RoomPopLabel_")은 Assets/Editor/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
+    // ("RoomPopLabel_")은 Assets/Editor/Auto/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
     private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();

@@ -17,7 +17,7 @@ using Haare.Client.UI;
 // 직접 실행해야 한다.
 public static class SettingsPanelSetup
 {
-    private const string PrefabFolder = "Assets/Resources/Prefabs";
+    private const string PrefabFolder = "Assets/Prefabs/UI";
     private const string PrefabPath = PrefabFolder + "/GrimArchive_SettingsPanel.prefab";
     private const string Address = "Prefabs/GrimArchive_SettingsPanel";
 
