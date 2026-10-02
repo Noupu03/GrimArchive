@@ -33,7 +33,7 @@ public class GameCompositionRoot : CoreLifetimeScope
         // GameSession: 인스펙터 디버그 텍스처 뷰가 없어 씬 배치가 불필요한 NativeRoutine(순수 C#).
         builder.Register<GameSession>(Lifetime.Singleton).AsSelf().As<IOffenseQuery>();
 
-        // UnitSpriteManager: 인스펙터 세팅 없이 항상 Resources.Load(Assets/Resources/Units/) 기반으로만
+        // UnitSpriteManager: 인스펙터 세팅 없이 Addressables "Units" 라벨(Assets/Prefabs/Units/)로만
         // 동작하는 순수 C# 클래스.
         builder.Register<UnitSpriteManager>(Lifetime.Singleton).AsSelf();
 

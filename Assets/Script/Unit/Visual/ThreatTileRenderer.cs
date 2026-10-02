@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using VContainer;
+using Cysharp.Threading.Tasks;
 using Haare.Util.Logger;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
@@ -10,9 +11,8 @@ using UnityEngine.U2D.Animation;
 // 순수 C# 클래스. 생성한 위협 타일 시각화들을 묶어둘 부모 Transform만 자체적으로 하나 만들어 든다.
 public class ThreatTileRenderer
 {
-	// Assets/Resources/attackZone.spriteLib — 라벨 "0"~"5".
-	// 씬 배치 없이 Resources.Load로 가져오므로 인스펙터 할당이 필요 없다.
-	private const string AttackZoneLibraryResourcePath = "attackZone";
+	// Assets/Art/Sprites/VFX/attackZone.spriteLib(Addressables 주소 "attackZone") — 라벨 "0"~"5".
+	// 씬 배치 없이 생성자에서 비동기로 불러오므로 인스펙터 할당이 필요 없다.
 
 	// 야생 몬스터 위협타일 색(핑크와 보라 사이) — 지난 논의에서 회색 대신 이 색으로 정하기로 했었음.
 	private static readonly Color WildThreatColor = new Color(0.85f, 0.35f, 0.95f, 1f);
@@ -66,23 +66,29 @@ public class ThreatTileRenderer
 	public ThreatTileRenderer()
 	{
 #if UNITY_2022_2_OR_NEWER
-		_attackZoneLibrary = Resources.Load<SpriteLibraryAsset>(AttackZoneLibraryResourcePath);
-		if (_attackZoneLibrary != null)
-		{
-			foreach (var cat in _attackZoneLibrary.GetCategoryNames())
-			{
-				_attackZoneCategory = cat;
-				break;
-			}
-		}
-		else
-		{
-			LogHelper.Warning(LogHelper.GAME, $"[ThreatTileRenderer] Resources/{AttackZoneLibraryResourcePath}.spriteLib를 찾을 수 없습니다.");
-		}
+		LoadAttackZoneLibraryAsync().Forget();
 #endif
 	}
 
 #if UNITY_2022_2_OR_NEWER
+	// 첫 공격(위협 타일 표시)은 게임 시작 한참 뒤라 그 전에 끝난다 — 끝나기 전에 그리는 위협 타일은
+	// 라이브러리가 없을 때와 같은 폴백(GetLabelSprite → null)을 탄다.
+	private async UniTaskVoid LoadAttackZoneLibraryAsync()
+	{
+		SpriteLibraryAsset library = await GameAssets.LoadAsync<SpriteLibraryAsset>(AssetKeys.AttackZoneLibrary);
+		if (library == null)
+		{
+			LogHelper.Warning(LogHelper.GAME, $"[ThreatTileRenderer] 위협 타일 라이브러리(Addressables 주소 \"{AssetKeys.AttackZoneLibrary}\")를 찾을 수 없습니다.");
+			return;
+		}
+		foreach (var cat in library.GetCategoryNames())
+		{
+			_attackZoneCategory = cat;
+			break;
+		}
+		_attackZoneLibrary = library;
+	}
+
 	private Sprite GetLabelSprite(int label)
 	{
 		if (_attackZoneLibrary == null) return null;

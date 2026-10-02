@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Tactical FSM 상태 안에서 BT Selector 자식 순서를 결정하는 설정(에셋: Resources/FSM+BT/TacticalPriority).
+/// Tactical FSM 상태 안에서 BT Selector 자식 순서를 결정하는 설정(에셋: Data/AI/TacticalPriority, Addressables 주소 "FSM+BT/TacticalPriority").
 /// 03문서 2-1장 기본 순서(함정 대응 > 경계 > 조사 > 대기, 공황 항상 최우선)를 따르되 포메이션은 파티
 /// 보호 목적이라 별도 판단으로 최하위에 둔다. 비주얼 스크립팅 전환 시 Entry는 BT 노드
 /// (TacticalBehaviorType이 타입 식별자), 순서는 Selector 자식 연결 순서, enabled는 노드 활성화 여부로 대응된다.

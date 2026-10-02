@@ -7,7 +7,7 @@ using System.Text;
 // ========================================================================
 // Map View 에디터 툴 (맵 데이터 읽기 전용)
 // 플레이 중: MapManager가 브로드캐스트한 런타임 맵만 보여 준다.
-// 플레이 전: GameSession이 시작할 때 읽는 Resources/Data/map(초기 상태)을 자동으로 읽고,
+// 플레이 전: GameSession이 시작할 때 읽는 Data/map.json(초기 상태)을 자동으로 읽고,
 //           Map Generator 결과나 임의의 JSON 파일로 바꿔 볼 수 있다.
 // ========================================================================
 public class MapViewTool : EditorWindow
@@ -15,8 +15,8 @@ public class MapViewTool : EditorWindow
     // 지금 보고 있는 맵 데이터의 출처
     private enum MapSource { None, Runtime, DefaultFile, Generator, CustomFile }
 
-    // GameSession.Initialize가 Resources.Load로 읽는 경로와 같아야 한다
-    private const string DefaultMapResourcePath = "Data/map";
+    // GameSession.Initialize가 Addressables 주소 "Data/map"(AssetKeys.Map)으로 읽는 파일과 같아야 한다
+    private const string DefaultMapAssetPath = "Assets/Data/map.json";
 
     private CreateMap cm;
     private MapSource source = MapSource.None;
@@ -89,10 +89,10 @@ public class MapViewTool : EditorWindow
 
     void LoadDefaultMap()
     {
-        TextAsset asset = Resources.Load<TextAsset>(DefaultMapResourcePath);
+        TextAsset asset = AssetDatabase.LoadAssetAtPath<TextAsset>(DefaultMapAssetPath);
         if (asset == null || string.IsNullOrEmpty(asset.text))
         {
-            loadError = $"Resources/{DefaultMapResourcePath}.json이 없습니다. Map Generator에서 '기본 맵 저장'을 먼저 하세요.";
+            loadError = $"{DefaultMapAssetPath}이 없습니다. Map Generator에서 '기본 맵 저장'을 먼저 하세요.";
             Repaint();
             return;
         }
@@ -101,7 +101,7 @@ public class MapViewTool : EditorWindow
 
     void OpenCustomFile()
     {
-        string dir = Application.dataPath + "/Resources/Data";
+        string dir = Application.dataPath + "/Data";
         string path = EditorUtility.OpenFilePanel("맵 JSON 열기", Directory.Exists(dir) ? dir : Application.dataPath, "json");
         if (string.IsNullOrEmpty(path)) return;
 
@@ -265,7 +265,7 @@ public class MapViewTool : EditorWindow
         // 플레이 중에는 런타임 데이터만 보여 준다
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button(new GUIContent("📄 기본 맵 (Resources/Data/map)", "플레이를 누르면 GameSession이 읽는 맵"), GUILayout.Height(22)))
+        if (GUILayout.Button(new GUIContent("📄 기본 맵 (Data/map)", "플레이를 누르면 GameSession이 읽는 맵"), GUILayout.Height(22)))
             LoadDefaultMap();
 
         CreateMap generated = MapGeneratorTool.LatestMap;

@@ -121,10 +121,11 @@ namespace GrimArchive.Wave
         public override async UniTask Initialize(System.Threading.CancellationToken cts)
         {
             await base.Initialize(cts);
-            Instance = this;
             // WaveSpawner.Initialize()와의 NativeRoutine 실행 순서 경합 방지 — WaveSpawner.cs의
-            // EnsureWaveDataLoaded() 주석 참고.
-            targetSpawner?.EnsureWaveDataLoaded();
+            // EnsureWaveDataLoadedAsync() 주석 참고. 로드가 끝나 cooldownTimer가 정해진 뒤에 Instance를
+            // 노출한다(그 전에 웨이브 게이지가 cooldownTimer=0을 읽어 꽉 찬 게이지를 그리지 않게).
+            if (targetSpawner != null) await targetSpawner.EnsureWaveDataLoadedAsync();
+            Instance = this;
             cooldownTimer = waveCooldown;
             currentState = WaveState.Idle;
 

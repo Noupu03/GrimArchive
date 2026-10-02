@@ -126,15 +126,17 @@ public class MapGeneratorTool : EditorWindow
 
         EditorGUI.BeginDisabledGroup(!hasMap);
         GUI.backgroundColor = new Color(0.4f, 0.7f, 0.95f);
-        if (GUILayout.Button("💾 기본 맵 저장 (Resources/Data)", GUILayout.Height(26)))
+        if (GUILayout.Button("💾 기본 맵 저장 (Data/map)", GUILayout.Height(26)))
         {
-            string dirPath = Application.dataPath + "/Resources/Data";
+            string dirPath = Application.dataPath + "/Data";
             if (!System.IO.Directory.Exists(dirPath))
                 System.IO.Directory.CreateDirectory(dirPath);
             
             string path = dirPath + "/map.json";
             cm.SaveMapToFile(path);
             AssetDatabase.Refresh();
+            // GameSession이 Addressables 주소 "Data/map"으로 읽는다 — 처음 만들었으면 여기서 등록된다.
+            AddressablesEntryUtil.EnsureEntry("Assets/Data/map.json", AssetKeys.Map);
         }
         
         if (GUILayout.Button("💾 다른 이름으로 저장 (JSON)", GUILayout.Height(26)))

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
+using Cysharp.Threading.Tasks;
 using Haare.Util.Logger;
 
 // 문 시스템(진영 기반 개폐, GameSession 비대화 방지 목적 분리). 문은 "어느 방에 붙어 있는가"로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라, 게이트당 두 개이고
@@ -35,8 +36,13 @@ public class DoorSystem
     private Sprite _doorOpenSprite;
     private Sprite _doorClosedSprite;
 
-    private Sprite DoorOpenSprite => SpriteCache.GetOrLoad(ref _doorOpenSprite, "obj/door_open");
-    private Sprite DoorClosedSprite => SpriteCache.GetOrLoad(ref _doorClosedSprite, "obj/door_closed");
+    // UpdateProcess가 매 프레임 개폐 스프라이트를 바꾸므로 GameSession.Initialize가 문을 깔기 전에 await한다.
+    public async UniTask LoadAssetsAsync()
+    {
+        (_doorOpenSprite, _doorClosedSprite) = await UniTask.WhenAll(
+            GameAssets.LoadSpriteAsync(AssetKeys.DoorOpenSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.DoorClosedSprite));
+    }
 
     private IObjectResolver _resolver;
     private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
@@ -126,9 +132,9 @@ public class DoorSystem
         // 기본 닫힘 스프라이트를 즉시 적용(첫 UpdateProcess 틱을 기다리지 않음) — DoorIsOpenVisual
         // 기본값(false)/IsFullyBlocking=true(생성자 인자)와 이미 일치한다. 짝(칸)마다 스프라이트가 한 장씩이라 전부에 같이 적용한다.
         var renderers = GetDoorRenderers(door);
-        if (renderers != null && DoorClosedSprite != null)
+        if (renderers != null && _doorClosedSprite != null)
         {
-            foreach (var r in renderers) r.sprite = DoorClosedSprite;
+            foreach (var r in renderers) r.sprite = _doorClosedSprite;
             _doorVisuals[door] = renderers;
         }
     }
@@ -239,7 +245,7 @@ public class DoorSystem
                 door.DoorIsOpenVisual = shouldBeOpen;
                 door.IsFullyBlocking = !shouldBeOpen; // "문이 닫혀버리면 벽과 같은 가시성" — 열림/닫힘 공통 규칙, 진영 무관.
 
-                Sprite sprite = shouldBeOpen ? DoorOpenSprite : DoorClosedSprite;
+                Sprite sprite = shouldBeOpen ? _doorOpenSprite : _doorClosedSprite;
                 if (sprite != null) { foreach (var r in renderers) if (r != null) r.sprite = sprite; } // 두 짝이 한 문처럼 같이 열리고 닫힌다
                 else LogHelper.Warning(LogHelper.GAME, $"DoorSystem.UpdateProcess: 문 스프라이트가 null입니다 (shouldBeOpen={shouldBeOpen}).");
             }

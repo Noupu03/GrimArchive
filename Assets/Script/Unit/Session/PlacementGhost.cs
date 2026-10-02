@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 // 마우스를 따라다니며 배치 가능/불가능 여부를 색으로 보여주는 "고스트" 스프라이트 — 빌드 모드와
@@ -36,6 +38,16 @@ public class PlacementGhost
         _go.transform.rotation = Quaternion.identity;
         HideExtraGhosts();
         _go.SetActive(true);
+    }
+
+    // 스프라이트를 Addressables로 불러온 뒤 보여 준다 — 로드가 끝났을 때 그 모드가 이미 끝났으면
+    // (stillWanted=false) 보여 주지 않고 null을 돌려준다. 이미 불러 둔 스프라이트면 같은 프레임에 끝난다.
+    public async UniTask<Sprite> ShowAsync(string spriteKey, Func<bool> stillWanted)
+    {
+        Sprite sprite = await GameAssets.LoadSpriteAsync(spriteKey);
+        if (!stillWanted()) return null;
+        Show(sprite);
+        return sprite;
     }
 
     // 멀티 타일 오브젝트(문 1×2 묶음) 전용 — 칸마다 스프라이트 한 장씩 같은 회전으로 보여 준다(실제 문과 같은 모양). 첫 칸은 기본 고스트, 나머지는 추가 고스트.

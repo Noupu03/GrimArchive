@@ -411,7 +411,7 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 
 - **런타임 스킬의 진실의 원천은 skills.json이 아니라 프리팹이다**
   (`UnitSpriteManager.GetSkills` → `UnitVisualDefinition.BuildSkillActions`). JSON만 고치면 게임에
-  전혀 반영되지 않는다 — 반드시 `Assets/Resources/Units/*.prefab`의 `skills` 블록까지 같이 고칠 것.
+  전혀 반영되지 않는다 — 반드시 `Assets/Prefabs/Units/*.prefab`의 `skills` 블록까지 같이 고칠 것.
 - **프리팹을 다시 뽑을 때는 `Tools(new)/유닛/JSON -> 유닛 프리팹 생성`
   (`JsonToUnitPrefabConverter`)만 쓴다.** 프리팹 컨텍스트 메뉴의
   `UnitVisualDefinition.LoadDataFromJson`은 한때 `projectilePrefab`/`hitEffectPrefab` 참조를 날렸지만
@@ -547,24 +547,28 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 | `Art/Sprites/{Units/Human, Units/Monster, Death, Weapons, Objects, Tiles, UI, VFX}` | 스프라이트, 스프라이트 라이브러리 |
 | `Art/Animations/`, `Art/Materials/`(VFX용은 `VFX/`), `Art/Shaders/` | 애니메이터·클립, 머티리얼, 셰이더 |
 | `Prefabs/UI/` | Haare UI 패널 전부(Addressables로 로드) |
-| `Prefabs/VFX/` | 씬·프리팹이 직접 참조하는 VFX, 투사체 |
-| `Data/` | `units`/`skills`/`weight_events.json`, `Encyclopedia/`, `MapThemes/` |
-| `Resources/` | **`Resources.Load("문자열")`로 불러오는 것만** — `Units/`, `Prefabs/VFX/`(코드가 로드하는 VFX), `obj/`, `Tile/`, `UI/`, `Data/map.json`, `WaveData`, `attackZone`, `FloorTexture`, `Tile_StoneWall`, `MapColorTheme_FloorAssignments`, `DOTweenSettings`(DOTween 요구) |
+| `Prefabs/Units/` | 유닛 타입 프리팹(Addressables 주소 `Units/{타입명}`, 라벨 `Units`) |
+| `Prefabs/VFX/` | VFX, 투사체, 횃불(코드가 로드하는 것은 Addressables 주소 `Prefabs/VFX/...`) |
+| `Data/` | `units`/`skills`/`weight_events.json`, `map.json`, `WaveData`, `AI/`(FSM+BT 설정), `Encyclopedia/`, `MapThemes/` |
+| `Resources/` | **`DOTweenSettings`만**(DOTween이 Resources에서 찾는다) — 새 에셋을 넣지 말 것(아래 "에셋 로딩 = Addressables" 참고) |
 | `Editor/{Tools, Disposable, Misc, Inspectors, Auto}` | 에디터 스크립트 — 앞 셋은 아래 메뉴 3분류와 1:1, 메뉴 없는 인스펙터·자동 실행 훅은 뒤 둘 |
 | `Script/`, `Tests/`, `Scenes/`(빌드: Title, ssh), `Settings/` | 그대로 |
 | `Haare/`, `Plugins/`, `Packages/`, `TextMesh Pro/`, `AddressableAssetsData/` | 외부 — 정리 대상 아님 |
 
 - **옮길 때는 파일과 `.meta`를 반드시 같이 옮긴다**(또는 Unity 안에서 옮긴다) — GUID가 유지돼야 씬·프리팹
   참조가 안 끊긴다. 에디터가 이 프로젝트를 열고 있을 때 밖에서 옮기지 말 것.
-- **위치에 묶여 있어 옮기면 코드도 고쳐야 하는 것**: `Resources` 아래 상대 경로(`Resources.Load` 문자열),
-  `Data/units.json`·`skills.json`·`weight_events.json`(`"Assets/Data/..."`·`Application.dataPath`로 직접 읽음 —
+- **위치에 묶여 있어 옮기면 코드도 고쳐야 하는 것**: `Data/units.json`·`skills.json`·`weight_events.json`(`"Assets/Data/..."`·`Application.dataPath`로 직접 읽음 —
   `JsonToUnitPrefabConverter`, `UnitVisualDefinition`, `WeightEventTable`), 씬 이름 `ssh`(`TitlePresenter`·
   `GameSettingsPanel` 상수), 에디터 툴의 `"Assets/..."` 경로 상수. Addressables는 주소가 경로와 무관해 자유롭게 옮겨도 된다.
 - **옛 경로 대응**(지난 구현현황 문서에 남아 있음): `Sprite/Char`·`Sprite/Mon` → `Art/Sprites/Units/Human`·`Monster`,
   `Sprite/{Death, Weapon, obj}` → `Art/Sprites/{Death, Weapons, Objects}`, `VFX/Sprite` → `Art/Sprites/VFX`,
   `VFX/Material` → `Art/Materials/VFX`, `VFX/Shader` → `Art/Shaders`, `VFX/Prefab` → `Prefabs/VFX`, `Asset/*` → 종류별,
   `Resources/Prefabs/<UI 패널>` → `Prefabs/UI`, `Resources/Themes` → `Data/MapThemes`, `Resources/Atras.png` →
-  `Art/Sprites/Tiles`, `Script/Editor`·`Script/Wave/Editor`
+  `Art/Sprites/Tiles`, (Addressables 전환) `Resources/Units` → `Prefabs/Units`, `Resources/Prefabs/VFX` → `Prefabs/VFX`,
+  `Resources/obj` → `Art/Sprites/Objects`, `Resources/{Tile_StoneWall, FloorTexture, Tile/TileSpriteLibrary}` →
+  `Art/Sprites/Tiles`, `Resources/attackZone` → `Art/Sprites/VFX`, `Resources/UI` → `Art/Sprites/UI`,
+  `Resources/{Data/map.json, WaveData}` → `Data`, `Resources/MapColorTheme_FloorAssignments` → `Data/MapThemes`,
+  `Resources/FSM+BT` → `Data/AI`, `Script/Editor`·`Script/Wave/Editor`
   → `Editor/...`, `Script/Encyclopedia/*.asset` → `Data/Encyclopedia`.
 - **일부러 남긴 것**: 참조가 없지만 팀원이 만든 에셋(LJR·SampleScene 씬, `VFX_Bang`/`VFX_GuardBreak`, 미사용 머티리얼 2개,
   몬스터 아트 Dullahan/Warewolf/WindupKnight, `Haare/Demo`)은 사용자 결정으로 지우지 않았다. `문서/`도 Assets 안에
@@ -572,6 +576,45 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
   패키지의 기본 위치(`UniversalRenderPipelineGlobalSettings.defaultPath = Assets/...`)라 `Settings/`로 옮기지 않는다.
 - 저장소 루트(Assets 밖)는 `.gitignore`가 빌드 결과물(`/*.build/`, `/*.build.zip`)과 IDE 솔루션(`*.slnx`)을 막는다 —
   빌드·작업용 임시 파일은 루트에 커밋하지 말 것(2026-10-02에 08.26 빌드 212MB·에이전트 작업물 등을 걷어냈다).
+
+## 에셋 로딩 = Addressables (Resources 금지, 2026-10-02)
+
+**코드가 에셋을 불러올 때는 항상 Addressables를 비동기로 쓴다**(2026-10-02 사용자 확정 — "앞으로의 모든 작업물도
+똑같이 적용"). `Resources.Load`/`Resources.LoadAll`, Addressables의 `WaitForCompletion` 같은 블로킹 로드는 쓰지 않는다.
+`Assets/Resources/`에는 `DOTweenSettings`(DOTween 요구)만 남았고 새 에셋을 넣지 않는다.
+
+### 새 에셋을 코드에서 불러오는 절차
+1. 에셋을 위 "Assets 폴더 구조"의 종류별 폴더에 둔다.
+2. Addressables 그룹(`Default Local Group`)에 주소를 등록한다 — Unity에서 Addressable 체크 후 주소 입력, 또는 에디터
+   툴이 만드는 에셋이면 저장 직후 `AddressablesEntryUtil.EnsureEntry(경로, 주소, 라벨)`(`Assets/Editor/Tools/`)을 부른다
+   (JsonToUnitPrefabConverter·FSM+BT 설정 생성·Map Generator·타일 색상 테마 창이 이미 그렇게 한다). 에디터가 닫혀
+   있을 때 직접 할 때는 `Default Local Group.asset`의 `m_SerializeEntries`에 GUID 오름차순, 비ASCII 주소는 `"\uXXXX"`
+   이스케이프로 넣는다(Unity가 저장하는 형식). 라벨을 새로 쓰면 `AddressableAssetSettings.asset`의 `m_LabelNames`에도 추가.
+3. 주소 문자열은 `AssetKeys`(`Assets/Script/AssetLoading/AssetKeys.cs`)에 상수로 추가한다 — 코드에 주소 리터럴을 흩뿌리지 말 것.
+4. `GameAssets`(같은 폴더)로 불러온다: `LoadAsync<T>(key)`, 스프라이트는 `LoadSpriteAsync(key[, 서브스프라이트 이름])`
+   (Sprite Mode가 Multiple인 텍스처도 동작하도록 `IList<Sprite>`로 받아 고른다 — `LoadAsync<Sprite>`를 직접 쓰지 말 것),
+   라벨 전체는 `LoadByLabelAsync<T>(label)`. 같은 주소는 한 번만 로드되고 게임 수명 동안 유지되며, 한 번 읽고 버릴
+   큰 에셋만 `Release<T>`한다(맵 json).
+
+### 언제 await하나 (사용자 확정: "소유 시스템 Initialize에서 await 적재")
+- **이벤트 시점에 한 번 쓰는 것**(VFX 재생, 설치 모드 고스트, UI 스프라이트)은 그 메서드를 async로 만들어 그 자리에서
+  await한다. 로드 중에 상황이 바뀌었을 수 있으니 await 뒤에 "아직 유효한가"를 확인할 것(예: `Unit.StartAttackObjectVfxAsync`,
+  `PlacementGhost.ShowAsync`의 `stillWanted`). 두 번째부터는 캐시돼 같은 프레임에 끝난다.
+- **매 틱·스폰 순간처럼 await할 수 없는 곳에서 읽는 것**(유닛 프리팹·AI 설정·오브젝트/문/안개 스프라이트 등)은 그
+  에셋을 쓰는 시스템이 async 초기화에서 미리 await해 필드에 들고 있는다. 지금은 `GameSession.Initialize` 맨 앞의
+  `UniTask.WhenAll(...)`이 그 지점이다(`AIConfigLoader.LoadAsync`, `UnitSpriteManager.LoadAsync`, `DoorSystem`/`FogOfWarSystem`의
+  `LoadAssetsAsync` 등) — 새 시스템이 스폰·틱 중에 동기로 읽을 에셋이 생기면 여기에 `LoadAssetsAsync`를 추가한다.
+  유닛 생성·오브젝트 스폰 흐름 자체를 async로 바꾸지 않는다(사용자 확정 — 스폰 직후 로직이 깨질 위험만 있고 이득이 없다).
+- `NativeRoutine.Initialize`에서 `await base.Initialize(cts)` 뒤에 로드를 await하면 `isInitialized`는 이미 true다 —
+  로드 완료를 다른 시스템이 기다려야 하면 그 시스템이 직접 같은 Load를 await하게 한다(GameAssets가 같은 로드를 공유).
+
+### 알려진 사항
+- 에디터 Play는 `AddressablesPlayModeSetup`이 "Use Asset Database"로 고정해 Addressables 빌드 없이 돈다. 플레이어 빌드는
+  Addressables 콘텐츠 빌드가 함께 돌아야 한다(설정 `m_BuildAddressablesWithPlayerBuild: 0` = 에디터 환경설정 기본값,
+  기본은 플레이어 빌드 때 같이 빌드).
+- 2026-10-02 전환 시점에 Unity 플레이 검증은 못 했다(Unity 없이 `dotnet build`로 Assembly-CSharp·Editor 컴파일만 확인).
+  `Assets/Tests`는 Assembly-CSharp 안에 있어 `UnityTest`(UnityEngine.TestRunner)를 못 쓴다 — 로드가 필요한 테스트는
+  `MapRandering.DoRandering`(동기 렌더링, 미적재 시 단색 폴백)처럼 로드와 처리를 나눠 동기 경로를 테스트한다.
 
 ## 유니티 상단 메뉴 구조 (Tools(new) / Disposable / Tools, 2026-10-02)
 
@@ -633,7 +676,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    (기존 셰도우캐스터용 헬퍼 재사용)로 만든 층 전체 bool 격자에서 8방향을 샘플링해 판정하고,
    `wallShapeTiles[10]`(각 변형의 실제 Tile)에서 골라 배치한다 — 기존 `PickRandomVariant`(완전
    랜덤)를 대체했다(바닥 타일은 그대로 랜덤 유지, 이번 변경과 무관). 실제 스프라이트는
-   `Assets/Resources/Tile/TileSpriteLibrary.spriteLib`의 "Wall" 카테고리에서
+   `Assets/Art/Sprites/Tiles/TileSpriteLibrary.spriteLib`의 "Wall" 카테고리에서
    `WallAutoTileMath.GetSpriteLibraryLabel`이 반환하는 라벨(`Wall_Horizontal`/`Wall_Outer_TL` 등
    회의록에 명시된 이름 그대로)로 조회한다. 사용자가 명시적으로 "tools에 넣지 말고"라고 확정해서
    별도 EditorWindow/메뉴 없이 코드+슬롯 준비까지만 했다 — **10개 라벨 자체는 2026-09-27에 이미
@@ -653,7 +696,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    있다**(2026-09-27 같은 날 후속 요청 "층별 색깔 프리셋 지정 가능하게 바꾸자" — 처음엔 "활성 테마"
    1개만 전 층 공통 적용이었다가 교체) — `MapFloorColorThemes`
    (`Assets/Script/Randering/MapFloorColorThemes.cs`, defaultTheme + 층별 리스트)가
-   `Assets/Resources/MapColorTheme_FloorAssignments.asset` 단일 인스턴스로 저장되고,
+   `Assets/Data/MapThemes/MapColorTheme_FloorAssignments.asset` 단일 인스턴스로 저장되고,
    `Tools(new)/맵/타일 색상 테마`(`Assets/Editor/Tools/Map/MapColorThemeWindow.cs`)의 "층별 테마 배정" 섹션
    (이 프로젝트는 `FloorId` 0~3 고정 4개 층이라 "기본값"+"0~3층" 5개 `ObjectField`)이 이 에셋을
    편집한다. `MapRandering`은 이제 벽/바닥 Tile을 전 층 공유가 아니라 층마다

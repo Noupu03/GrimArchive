@@ -9,7 +9,7 @@ using UnityEngine;
 // UnitVisualDefinition.cs에 새로 추가한 플래그를 이 프리팹에 켠다.
 public static class BossGolemVisualScaleFix
 {
-    private const string TargetPath = "Assets/Resources/Units/보스 골렘.prefab";
+    private const string TargetPath = "Assets/Prefabs/Units/보스 골렘.prefab";
 
     [MenuItem("Disposable/유닛/보스 골렘 시각 스케일 9배 버그 수정")]
     public static void FixVisualScale()

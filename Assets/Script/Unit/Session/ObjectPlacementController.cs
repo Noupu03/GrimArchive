@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using Haare.Util.Logger;
 
@@ -37,18 +38,9 @@ public class ObjectPlacementController
     private bool _isWallConvertMode;
     private bool _isDummyBuildingMode;
 
-    private Sprite _coreSprite;
-    private Sprite _trapSprite;
-    private Sprite _doorOpenSprite;
-    private Sprite _wallSprite;
+    // 고스트 스프라이트는 모드 진입 때 Addressables로 불러와 보여 준다(PlacementGhost.ShowAsync).
     private Sprite _dummyBuildingSprite;
     private string _dummyBuildingDisplayName;
-
-    private Sprite CoreSprite => SpriteCache.GetOrLoad(ref _coreSprite, "obj/core");
-    private Sprite TrapSprite => SpriteCache.GetOrLoad(ref _trapSprite, "obj/trap");
-    private Sprite DoorOpenSprite => SpriteCache.GetOrLoad(ref _doorOpenSprite, "obj/door_open");
-    // MapRandering.BuildTileCache와 동일한 리소스 경로 — 실제 벽 타일과 같은 아트로 미리보기.
-    private Sprite WallSprite => SpriteCache.GetOrLoad(ref _wallSprite, "Tile_StoneWall");
 
     public ObjectPlacementController(GameSession gameSession, UnitGenerate unitGenerate, ResourceManager resourceManager, BuildingManager buildingManager)
     {
@@ -67,7 +59,7 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isObjectPlaceMode = true;
 
-        _ghost.Show(CoreSprite);
+        _ghost.ShowAsync(AssetKeys.CoreSprite, () => _isObjectPlaceMode).Forget();
         LogHelper.Log(LogHelper.GAME, "오브젝트 배치 모드 진입 (우클릭: 생성)");
     }
 
@@ -80,7 +72,7 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isTrapPlaceMode = true;
 
-        _ghost.Show(TrapSprite);
+        _ghost.ShowAsync(AssetKeys.TrapSprite, () => _isTrapPlaceMode).Forget();
         string costNotice = DebugUnlimitedTrapPlacement ? "debug 무제한 설치 — 자원 소모 없음" : $"돌 {ResourceManager.TrapPlaceStoneCost}개 소모";
         LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 ({costNotice}, 우클릭: 생성)");
     }
@@ -95,7 +87,8 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isWallConvertMode = true;
 
-        _ghost.Show(WallSprite);
+        // MapRandering과 같은 벽 스프라이트 — 실제 벽 타일과 같은 아트로 미리보기.
+        _ghost.ShowAsync(AssetKeys.WallSprite, () => _isWallConvertMode).Forget();
         LogHelper.Log(LogHelper.GAME, "debug 벽 변환 모드 진입 (우클릭: 바닥 타일을 벽으로 전환)");
     }
 
@@ -109,14 +102,14 @@ public class ObjectPlacementController
         _isDummyBuildingMode = false;
         _isDoorRepairMode = true;
 
-        _ghost.Show(DoorOpenSprite);
+        _ghost.ShowAsync(AssetKeys.DoorOpenSprite, () => _isDoorRepairMode).Forget();
         LogHelper.Log(LogHelper.GAME, $"문 재설치 모드 진입 (돌 {ResourceManager.DoorRepairStoneCost}개 소모, 파괴된 문 자리만 선택 가능, 우클릭: 설치)");
     }
 
-    // 더미 건물 배치 모드(debug 전용) — resourcePath는 Resources.Load 경로, displayName은
+    // 더미 건물 배치 모드(debug 전용) — spriteKey는 Addressables 주소(AssetKeys), displayName은
     // BuildingControlPanel/로그에 쓰일 표시 이름이다. 같은 그룹의 다른 더미 스프라이트로 전환할
     // 때도(이미 이 모드여도) 다시 진입시켜 스프라이트/이름을 갱신한다.
-    public void EnterDummyBuildingMode(string resourcePath, string displayName)
+    public void EnterDummyBuildingMode(string spriteKey, string displayName)
     {
         _isObjectPlaceMode = false;
         _isTrapPlaceMode = false;
@@ -124,10 +117,16 @@ public class ObjectPlacementController
         _isWallConvertMode = false;
         _isDummyBuildingMode = true;
 
-        _dummyBuildingSprite = Resources.Load<Sprite>(resourcePath);
+        _dummyBuildingSprite = null; // 로드가 끝날 때까지는 설치하지 않는다
         _dummyBuildingDisplayName = displayName;
-        _ghost.Show(_dummyBuildingSprite);
+        ShowDummyBuildingGhostAsync(spriteKey, displayName).Forget();
         LogHelper.Log(LogHelper.GAME, $"더미 건물({displayName}) 배치 모드 진입 (기능 없음, 건물 판정만, 우클릭: 설치)");
+    }
+
+    private async UniTaskVoid ShowDummyBuildingGhostAsync(string spriteKey, string displayName)
+    {
+        Sprite sprite = await _ghost.ShowAsync(spriteKey, () => _isDummyBuildingMode && _dummyBuildingDisplayName == displayName);
+        if (sprite != null) _dummyBuildingSprite = sprite;
     }
 
     public void ExitMode()
@@ -207,7 +206,7 @@ public class ObjectPlacementController
                         () => { _gameSession.RebuildDoorAt(gridPos); ExitMode(); },
                         $"돌이 부족하여 문을 재설치할 수 없습니다. (필요: {ResourceManager.DoorRepairStoneCost})");
                 }
-                else if (_isDummyBuildingMode)
+                else if (_isDummyBuildingMode && _dummyBuildingSprite != null)
                 {
                     // debug 도구라 자원 소모 없이, 배치 후에도 모드를 유지해 연속으로 여러 개 설치할 수
                     // 있다(바닥 → 벽 변환 모드와 동일한 관례).

@@ -21,7 +21,6 @@ public static class VfxParticleLifetimeAttacher
     private static readonly string[] TargetFolders =
     {
         "Assets/Prefabs/VFX",
-        "Assets/Resources/Prefabs/VFX",
     };
 
     // 파일명(확장자 제외) 기준 제외 목록 — 위 설명 참고.

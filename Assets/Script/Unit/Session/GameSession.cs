@@ -48,6 +48,27 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private DoorSystem _doorSystem;
     private FogOfWarSystem _fogOfWarSystem;
 
+    // 오브젝트 스폰(SpawnObject)·시작 건물 배치가 동기로 쓰는 스프라이트 — Initialize가 LoadObjectSpritesAsync로 먼저 불러 둔다.
+    private Sprite _trapSprite;
+    private Sprite _corpseSprite;
+    private Sprite _coreSprite;
+    private Sprite _doorOpenSprite;
+    private Sprite _lootSprite;
+    private Sprite _resourceBuildingSprite;
+    private Sprite _unitBuildingSprite;
+
+    private async UniTask LoadObjectSpritesAsync()
+    {
+        (_trapSprite, _corpseSprite, _coreSprite, _doorOpenSprite, _lootSprite, _resourceBuildingSprite, _unitBuildingSprite) = await UniTask.WhenAll(
+            GameAssets.LoadSpriteAsync(AssetKeys.TrapSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.CorpseSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.CoreSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.DoorOpenSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.LootSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.ResourceBuildingSprite),
+            GameAssets.LoadSpriteAsync(AssetKeys.UnitBuildingSprite));
+    }
+
     [Inject]
     public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem)
     {
@@ -163,15 +184,29 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // UIManager는 Haare ICustomPanel로 편입되어 VContainer에 등록되지 않는다
             // (GameUIPresenter.BootSequence가 로드) — 여기서 Resolve<UIManager>()하면 예외가 난다.
 
-            TextAsset mapTextAsset = Resources.Load<TextAsset>("Data/map");
-            if (mapTextAsset != null && !string.IsNullOrEmpty(mapTextAsset.text))
+            // 이 아래(스폰·매 틱 처리)는 에셋을 동기로 읽으므로, 필요한 Addressables 에셋을 여기서 먼저 전부
+            // await로 불러 둔다(2026-10-02 Resources → Addressables 전환). 맵 타일은 SetupAndVisualizeMapAsync가,
+            // WaveData는 WaveSpawner/HumanWaveManager가 각자 불러온다.
+            await UniTask.WhenAll(
+                AIConfigLoader.LoadAsync(),
+                _unitGenerate.LoadUnitPrefabsAsync(),
+                LoadObjectSpritesAsync(),
+                _doorSystem.LoadAssetsAsync(),
+                _fogOfWarSystem.LoadAssetsAsync(),
+                VFXManager.PreloadAsync());
+
+            TextAsset mapTextAsset = await GameAssets.LoadAsync<TextAsset>(AssetKeys.Map);
+            string mapJson = mapTextAsset != null ? mapTextAsset.text : null;
+            // 12MB짜리 json이라 역직렬화 뒤에는 들고 있을 이유가 없다.
+            GameAssets.Release<TextAsset>(AssetKeys.Map);
+            if (!string.IsNullOrEmpty(mapJson))
             {
-                cmap.DeserializeMap(mapTextAsset.text);
+                cmap.DeserializeMap(mapJson);
                 Haare.Util.Logger.LogHelper.Log(Haare.Util.Logger.LogHelper.GAME, "GameSession: Map deserialized from Data/map.");
                 // 기존 저장된 map.json엔 예전 로직("2층 이상 시작방=PlayerControlled")이 남아있을 수
                 // 있어(신규 생성만 Neutral로 만듦) 여기서 강제로 바로잡는다.
                 EnforceFloor2And3StartRoomsAreWild();
-                _mapManager.SetupAndVisualizeMap(cmap);
+                await _mapManager.SetupAndVisualizeMapAsync(cmap);
                 Unit.humanFactionData.InitMap(cmap);
                 Unit.monsterFactionData.InitMap(cmap);
                 BuildRoomGrid();
@@ -195,7 +230,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
             else
             {
-                Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Resources/Data/map.json 파일이 없습니다). Tools(new) > 맵 > Map Generator에서 먼저 맵을 생성해주세요.");
+                Haare.Util.Logger.LogHelper.Error(Haare.Util.Logger.LogHelper.GAME, "GameSession: 맵 데이터 로드 실패 (Assets/Data/map.json, Addressables 주소 \"Data/map\"이 없습니다). Tools(new) > 맵 > Map Generator에서 먼저 맵을 생성해주세요.");
             }
         }
         catch (System.Exception e)
@@ -571,6 +606,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         // 종료 시퀀스 중엔 아무 것도 새로 만들거나 건드리지 않는다(위 _isShuttingDown 주석 참고).
         if (_isShuttingDown) return;
+        // Processor는 Initialize가 끝나기 전에도 매 프레임 UpdateProcess를 부른다 — Initialize가 에셋 로드를
+        // await하는 동안(맵·문·안개가 아직 없음)은 건너뛴다(2026-10-02 Addressables 전환 전엔 Initialize 본문이
+        // 한 프레임에 끝나 이 틈이 없었다).
+        if (!isInitialized) return;
 
         _offenseProcessor?.UpdateProcess();
         _defenseProcessor?.UpdateProcess();
@@ -1149,7 +1188,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         SpriteRenderer sr = splitLeaves ? null : visual.AddComponent<SpriteRenderer>();
 
         // 태그별 아트 스프라이트 배정(시체=colapse, 함정=trap, 코어=core, 그 외=obj1) —
-        // Resources.Load 실패 시에만 도형 폴백(함정=삼각형, 그 외=단색 사각형).
+        // Initialize에서 불러 둔 스프라이트가 없을 때만 도형 폴백(함정=삼각형, 그 외=단색 사각형).
         bool isTrap = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Trap"));
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
@@ -1159,13 +1198,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
         Sprite sprite = null;
-        if (isTrap) sprite = Resources.Load<Sprite>("obj/trap");
+        if (isTrap) sprite = _trapSprite;
         // 캐릭터별 시체 스프라이트 — RemoveDeadUnit이 스냅샷한 CorpseSpriteOverride가 있으면 쓰고,
         // 없으면 공용 시체 스프라이트로 폴백한다.
-        else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : Resources.Load<Sprite>("obj/colapse");
-        else if (isCoreOnly) sprite = Resources.Load<Sprite>("obj/core");
-        else if (isDoor) sprite = Resources.Load<Sprite>("obj/door_open");
-        else if (isLoot) sprite = Resources.Load<Sprite>("obj/obj1");
+        else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : _corpseSprite;
+        else if (isCoreOnly) sprite = _coreSprite;
+        else if (isDoor) sprite = _doorOpenSprite;
+        else if (isLoot) sprite = _lootSprite;
 
         if (sprite == null)
         {
@@ -1417,8 +1456,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         int floorIdx = 1;
         // 자원 생산 건물은 GothicClocktower(2x2), 유닛 생산 건물은 GothicDollhouse(3x3). 예전
         // 스프라이트(obj/building, obj/resource_building)는 디버그 더미 건물용으로 남겨뒀다.
-        Sprite resourceBuildingSprite = Resources.Load<Sprite>("obj/GothicClocktower");
-        Sprite productionBuildingSprite = Resources.Load<Sprite>("obj/GothicDollhouse");
+        Sprite resourceBuildingSprite = _resourceBuildingSprite;
+        Sprite productionBuildingSprite = _unitBuildingSprite;
 
         // 각자 실제 footprint로 자리를 찾아야 설치 시 CanInstallAt(footprint)이 다시 실패하지 않는다.
         Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.ResourceBuildingFootprint);

@@ -133,16 +133,25 @@ public class VFXManager
         }
     }
 
+    // 아래 두 VFX를 게임 도중 처음 재생할 때 프리팹 로드를 기다리느라 늦게 뜨지 않게 GameSession.Initialize가
+    // 미리 캐시에 올려 둔다 — 재생 경로는 그대로 await하므로 이게 없어도 동작은 한다.
+    public static async UniTask PreloadAsync()
+    {
+        await UniTask.WhenAll(
+            GameAssets.LoadAsync<GameObject>(AssetKeys.BlockBreakingVfx),
+            GameAssets.LoadAsync<GameObject>(AssetKeys.CoreBoomHumanVfx),
+            GameAssets.LoadAsync<GameObject>(AssetKeys.CoreBoomMonsterVfx));
+    }
+
     // 코어/문 파괴 채널링 전용 VFX — 파괴 행동이 끝날 때까지 계속 재생돼야 해서 위 Spawn()의 자동
     // 반납 방식과 안 맞는다(looping=1이라 명시적으로 멈춰야 함). 채널링이 잦지 않아 순수
     // Instantiate/Destroy로 관리하며 Unit.SetAttackObjectTarget/ClearAttackObjectTarget이 시작/종료를 담당한다.
-    private static GameObject _blockBreakingVfxPrefab;
-    private static GameObject BlockBreakingVfxPrefab =>
-        _blockBreakingVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_BlockBreaking");
-
-    public static GameObject SpawnBlockBreakingVfx(Unit unit, Vector3Int targetPos)
+    // 프리팹은 Addressables로 처음 쓸 때 불러온다(두 번째부터는 캐시돼 같은 프레임에 끝난다) — 로드 중에
+    // 채널링이 끝났는지는 호출부(Unit)가 결과를 받은 뒤 확인한다.
+    public static async UniTask<GameObject> SpawnBlockBreakingVfxAsync(Unit unit, Vector3Int targetPos)
     {
-        if (BlockBreakingVfxPrefab == null || unit == null || unit.Session == null) return null;
+        GameObject prefab = await GameAssets.LoadAsync<GameObject>(AssetKeys.BlockBreakingVfx);
+        if (prefab == null || unit == null || unit.Session == null) return null;
 
         // 대상(문/코어) 오브젝트의 실제 비주얼에 자식으로 붙인다 — 위치가 자동으로 맞고, 그 오브젝트의
         // 비주얼이 파괴되면(예: 문 파괴 시 Session.RemoveDoor) 이 이펙트도 함께 파괴되는 안전망이 된다.
@@ -150,13 +159,13 @@ public class VFXManager
         Transform parent = targetVisual != null ? targetVisual.transform : null;
         Vector3 worldPos = parent != null ? parent.position : Vector3.zero;
 
-        GameObject instance = Object.Instantiate(BlockBreakingVfxPrefab, worldPos, Quaternion.identity, parent);
+        GameObject instance = Object.Instantiate(prefab, worldPos, Quaternion.identity, parent);
         if (parent != null)
         {
             instance.transform.localPosition = Vector3.zero;
             // 위 Spawn()과 동일한 규칙 — 대상(문/코어) 비주얼의 스케일이 어떻든 이펙트는 프리팹이 정한
             // 크기 그대로 보이게 한다(Scaling Mode가 Hierarchy라 상쇄하지 않으면 부모 스케일이 곱해진다).
-            instance.transform.localScale = ToLocalScale(BlockBreakingVfxPrefab.transform.localScale, parent);
+            instance.transform.localScale = ToLocalScale(prefab.transform.localScale, parent);
         }
 
         // 정렬 순서 — 프리팹 기본값(Sorting Layer "Default"/Order 0)이면 같은 자리의 문/코어
@@ -190,21 +199,23 @@ public class VFXManager
 
     // 방 점령(코어 파괴로 소유권 전환) 축하 폭발 VFX — 단발성이라 SpawnBlockBreakingVfx와 달리 기존
     // 풀링 Spawn()을 그대로 쓴다. OffenseProcessor.OnCoreDestroyed가 소유권 전환 순간에만 호출한다.
-    private static GameObject _coreBoomHumanVfxPrefab;
-    private static GameObject _coreBoomMonsterVfxPrefab;
-    private static GameObject CoreBoomHumanVfxPrefab =>
-        _coreBoomHumanVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_CoreBoomHuman Variant");
-    private static GameObject CoreBoomMonsterVfxPrefab =>
-        _coreBoomMonsterVfxPrefab ??= Resources.Load<GameObject>("Prefabs/VFX/VFX_CoreBoomMonster Variant");
-
+    // 단발성이라 프리팹을 Addressables로 불러온 뒤 재생하고 끝낸다(호출부는 기다리지 않는다).
     public static void SpawnCoreCaptureVfx(FactionType claimant, Vector3 worldPos)
     {
-        GameObject prefab = claimant switch
+        string key = claimant switch
         {
-            FactionType.Human => CoreBoomHumanVfxPrefab,
-            FactionType.Player => CoreBoomMonsterVfxPrefab,
+            FactionType.Human => AssetKeys.CoreBoomHumanVfx,
+            FactionType.Player => AssetKeys.CoreBoomMonsterVfx,
             _ => null,
         };
+        if (key == null) return;
+
+        SpawnCoreCaptureVfxAsync(key, worldPos).Forget();
+    }
+
+    private static async UniTaskVoid SpawnCoreCaptureVfxAsync(string key, Vector3 worldPos)
+    {
+        GameObject prefab = await GameAssets.LoadAsync<GameObject>(key);
         if (prefab == null) return;
 
         Spawn(prefab, worldPos, Quaternion.identity);

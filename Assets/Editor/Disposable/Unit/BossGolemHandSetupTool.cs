@@ -12,7 +12,7 @@ using UnityEngine;
 // 부모의 3배 스케일을 자동 상쇄하므로).
 public static class BossGolemHandSetupTool
 {
-    private const string PrefabPath = "Assets/Resources/Units/보스 골렘.prefab";
+    private const string PrefabPath = "Assets/Prefabs/Units/보스 골렘.prefab";
 
     [MenuItem("Disposable/유닛/보스 골렘 손 오브젝트 배선")]
     public static void SetupHands()

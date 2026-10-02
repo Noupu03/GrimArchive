@@ -299,6 +299,10 @@ public class UnitGenerate
 		VFXManager.Spawn(prefab, defPos, rotation, parent);
 	}
 
+	// 유닛 프리팹 전부를 Addressables로 불러 둔다 — GameSession.Initialize가 첫 유닛을 스폰하기 전에 await한다.
+	public Cysharp.Threading.Tasks.UniTask LoadUnitPrefabsAsync() =>
+		_unitSpriteManager != null ? _unitSpriteManager.LoadAsync() : Cysharp.Threading.Tasks.UniTask.CompletedTask;
+
 	public List<SkillAction> GetSkills(string unitTypeName) =>
 		_unitSpriteManager != null ? _unitSpriteManager.GetSkills(unitTypeName) : new List<SkillAction>();
 

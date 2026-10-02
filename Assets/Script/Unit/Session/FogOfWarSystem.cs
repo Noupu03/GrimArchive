@@ -47,6 +47,14 @@ public class FogOfWarSystem
     // 횃불 지연 스폰 — 안개가 안 걷힌 방의 횃불 좌표는 방 단위로 모아 뒀다가 RevealRoomFog가 그 방을 걷는 순간 SpawnPendingTorchesForRoom이 꺼내 스폰한다.
     private readonly Dictionary<Room, List<(Vector2Int pos, TorchWallSide side)>> _pendingTorchTiles = new Dictionary<Room, List<(Vector2Int, TorchWallSide)>>();
 
+    // 안개 무늬·횃불 프리팹은 방이 걷힐 때마다(게임 도중) 동기로 쓰므로 GameSession.Initialize가 Initialize()보다 먼저 await한다.
+    public async UniTask LoadAssetsAsync()
+    {
+        (_fogSprite, _torchPrefab) = await UniTask.WhenAll(
+            GameAssets.LoadSpriteAsync(AssetKeys.FogSprite),
+            GameAssets.LoadAsync<GameObject>(AssetKeys.TorchPrefab));
+    }
+
     // GameSession.Initialize()가 맵 구성 직후 한 번 호출한다. 0층은 안개 개념이 없고, 1층 이상은
     // 시작방과 그 인접 방만 처음부터 안개 없이 시작한다. 문 타일은 개폐로 표현하므로 안개를 씌우지 않는다.
     public void Initialize()
@@ -163,10 +171,9 @@ public class FogOfWarSystem
     {
         if (_fogBackingTile != null && _fogPatternTile != null) return true;
 
-        SpriteCache.GetOrLoad(ref _fogSprite, "obj/fog");
         if (_fogSprite == null)
         {
-            LogHelper.Warning(LogHelper.GAME, "TryPrepareFogTiles: Resources.Load<Sprite>(\"obj/fog\")가 null입니다 — Import 설정(Sprite Mode) 확인 필요.");
+            LogHelper.Warning(LogHelper.GAME, $"TryPrepareFogTiles: 안개 스프라이트(Addressables 주소 \"{AssetKeys.FogSprite}\")가 null입니다 — LoadAssetsAsync가 먼저 끝났는지 확인 필요.");
             return false;
         }
         Sprite backingSprite = EnsureFogBackingSprite();
@@ -507,10 +514,9 @@ public class FogOfWarSystem
     {
         CreateMap cmap = Session.cmap;
         if (cmap == null || cmap.map.floors == null) return;
-        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/VFX/Torch");
         if (_torchPrefab == null)
         {
-            LogHelper.Warning(LogHelper.GAME, "SpawnTorches: Resources.Load<GameObject>(\"Prefabs/VFX/Torch\")가 null입니다.");
+            LogHelper.Warning(LogHelper.GAME, $"SpawnTorches: 횃불 프리팹(Addressables 주소 \"{AssetKeys.TorchPrefab}\")이 null입니다.");
             return;
         }
 
@@ -559,7 +565,6 @@ public class FogOfWarSystem
         if (!_pendingTorchTiles.TryGetValue(room, out var pending)) return;
         _pendingTorchTiles.Remove(room);
 
-        if (_torchPrefab == null) _torchPrefab = Resources.Load<GameObject>("Prefabs/VFX/Torch");
         if (_torchPrefab == null) return;
 
         foreach (var entry in pending)

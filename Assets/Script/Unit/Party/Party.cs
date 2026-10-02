@@ -63,7 +63,7 @@ public partial class Party
 
 	public bool IsRoomFullyRevealedByParty(int roomId) => _partyCompletedRoomIds.Contains(roomId);
 
-	// UnitFunction.cs/TerrainRevealHandler.cs가 개인 시야로 새 바닥 타일을 밝힐 때마다(ObserveRoomTileRevealed와
+	// UnitFunction.UpdateFOV가 개인 시야로 새 바닥 타일을 밝힐 때마다(ObserveRoomTileRevealed와
 	// 같은 시점) 호출한다.
 	public void OnTileRevealedInRoom(int roomId, Vector2Int tilePos, int totalFloorTilesInRoom)
 	{

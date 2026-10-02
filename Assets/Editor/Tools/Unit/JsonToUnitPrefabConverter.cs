@@ -12,8 +12,9 @@ using UnityEngine.U2D.Animation;
 // 프로젝트를 검색해 자동 연결한다 — 실행 후 인스펙터에서 수동으로 드래그할 값이 남지 않는 게 목표.
 // (스프라이트 애니메이션 클립에 개별로 찍는 AnimationEvent만은 이 도구의 범위 밖이라 여전히 수동이다.)
 //
-// UnitSpriteManager.GetPrefab()이 Resources.Load(Assets/Resources/Units/{typeName}.prefab) 경로
-// 컨벤션으로 조회하므로, 출력 폴더도 반드시 Resources 아래여야 한다 — 별도 등록 절차 불필요.
+// 프리팹은 Assets/Prefabs/Units/{typeName}.prefab에 저장하고 Addressables에 주소 "Units/{typeName}" +
+// "Units" 라벨로 자동 등록한다(AddressablesEntryUtil) — UnitSpriteManager.LoadAsync가 그 라벨로 전부
+// 불러와 파일명(=타입명)으로 조회하므로 따로 등록할 일은 없다.
 //
 // 재실행하면 같은 이름의 프리팹을 통째로 덮어쓴다 — JSON이 유일한 원본(source of truth)이라는 뜻.
 // 프리팹을 인스펙터에서 직접 손댄 값(예: WeaponAttachment의 방향별 poses 세부 튜닝)은 JSON에 없으므로
@@ -22,7 +23,7 @@ public static class JsonToUnitPrefabConverter
 {
     private const string UnitsJsonPath  = "Assets/Data/units.json";
     private const string SkillsJsonPath = "Assets/Data/skills.json";
-    private const string OutputFolder   = "Assets/Resources/Units";
+    private const string OutputFolder   = "Assets/Prefabs/Units";
 
     // ── JSON DTO ──────────────────────────────────────────────────────
     // 엔진 에셋(스프라이트/프리팹/애니메이터 컨트롤러) 참조는 전부 "이름" 문자열로만 받는다.
@@ -255,9 +256,11 @@ public static class JsonToUnitPrefabConverter
                 root.AddComponent<AnimationEventVfxSpawner>();
             }
 
-            string path = $"{OutputFolder}/{SanitizeFileName(u.typeName)}.prefab";
+            string fileName = SanitizeFileName(u.typeName);
+            string path = $"{OutputFolder}/{fileName}.prefab";
             PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
+            AddressablesEntryUtil.EnsureEntry(path, AssetKeys.Unit(fileName), AssetKeys.UnitsLabel);
             created++;
 
             Debug.Log($"[JsonToUnitPrefabConverter] 생성됨: {path} (스킬 {def.skills.Count}/{u.skills.Length}개 연결)");
@@ -267,7 +270,7 @@ public static class JsonToUnitPrefabConverter
         AssetDatabase.Refresh();
 
         Debug.Log($"[JsonToUnitPrefabConverter] 완료 — 프리팹 {created}개 생성됨 ({OutputFolder}). " +
-                  "UnitSpriteManager.GetPrefab()이 파일명(타입명) 기준으로 자동 조회하므로 별도 등록은 필요 없다. " +
+                  "Addressables 등록(주소 Units/{타입명}, 라벨 Units)까지 끝났으므로 별도 등록은 필요 없다. " +
                   "이름으로 못 찾은 에셋은 위 경고 로그를 확인해서 units.json/skills.json의 이름 표기를 맞춰라.");
     }
 

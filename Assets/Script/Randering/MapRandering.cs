@@ -41,7 +41,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
 
-    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션 소스. Resources/Tile/TileSpriteLibrary.spriteLib
+    // ⚠ 임시 기능 — 바닥/벽 스프라이트 바리에이션 소스. Art/Sprites/Tiles/TileSpriteLibrary.spriteLib(주소 "Tile/TileSpriteLibrary")
     // (Unity 2D Animation SpriteLibraryAsset — Char_Knight.spriteLib와 동일한 방식, Window > 2D >
     // Sprite Library Editor로 편집)의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시해둔다. 라이브러리가
     // 없거나 카테고리가 비어있으면 null 그대로(BuildVariantTiles가 원본 스프라이트로 폴백).
@@ -51,8 +51,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
     private bool _tileLibraryLoaded;
 
     // 층별 색상 테마 배정표(2026-09-27, 단일 활성 테마에서 층별 배정으로 확장 — 사용자 요청). 배정
-    // 내용 자체는 Tools(new)/맵/타일 색상 테마 창이 Resources/MapColorTheme_FloorAssignments 에셋에 써넣는다.
-    private const string FloorColorThemesResourcePath = "MapColorTheme_FloorAssignments";
+    // 내용 자체는 Tools(new)/맵/타일 색상 테마 창이 Data/MapThemes/MapColorTheme_FloorAssignments 에셋에 써넣는다.
     private MapFloorColorThemes _floorColorThemes;
 
     // 벽 자동 타일 연결(회의록 2026-09-27) — 층마다 색 테마가 다를 수 있어(위 배정표) Wall/Floor Tile을
@@ -84,46 +83,63 @@ public class MapRandering : NativeRoutine, IMapColorizer
     public override async UniTask Initialize(CancellationToken cts)
     {
         await base.Initialize(cts);
-        // DoRandering() 호출은 MapManager가 맵 데이터를 준비한 뒤 명시적으로 호출하도록 제거됨
+        // DoRanderingAsync() 호출은 MapManager가 맵 데이터를 준비한 뒤 명시적으로 호출하도록 제거됨
     }
 
-    public void DoRandering(CreateMap targetMap = null) { if (targetMap != null) { this.createMap = targetMap; } BuildTileCache(); RenderAllFloors(); } private void _OldDoRanderingUnused()
+    // 타일 에셋(Addressables)을 await로 불러 둔 뒤 그린다.
+    public async UniTask DoRanderingAsync(CreateMap targetMap = null)
     {
+        await LoadTileAssetsAsync();
+        DoRandering(targetMap);
+    }
+
+    // 이미 불러 둔 타일 에셋으로 동기 렌더링만 한다 — 안 불러 둔 벽/바닥은 단색 임시 이미지로 대신한다
+    // (게임은 DoRanderingAsync를 쓰고, 에셋 로드 없이 렌더링만 확인하는 테스트가 이 경로를 쓴다).
+    public void DoRandering(CreateMap targetMap = null)
+    {
+        if (targetMap != null) { this.createMap = targetMap; }
         BuildTileCache();
         RenderAllFloors();
+    }
+
+    async UniTask LoadTileAssetsAsync()
+    {
+        if (wallSprite == null || floorSprite == null)
+        {
+            (wallSprite, floorSprite) = await UniTask.WhenAll(
+                GameAssets.LoadSpriteAsync(AssetKeys.WallSprite),
+                GameAssets.LoadSpriteAsync(AssetKeys.FloorSprite));
+        }
+
+        // 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어 로드 시점에 바꿔 배정한다
+        // (RenderStairOverlays의 goesDown 판정 로직 자체는 정상).
+        if (stairDownSprite == null || stairUpSprite == null)
+        {
+            (stairDownSprite, stairUpSprite) = await UniTask.WhenAll(
+                GameAssets.LoadSpriteAsync(AssetKeys.StairUp2Sprite),
+                GameAssets.LoadSpriteAsync(AssetKeys.StairDown2Sprite));
+            if (stairDownSprite == null || stairUpSprite == null)
+            {
+                LogHelper.Warning(LogHelper.GAME, "MapRandering: stair_down2/stair_up2 이미지(Addressables)를 찾지 못했습니다.");
+            }
+        }
+
+        if (!_tileLibraryLoaded)
+            await LoadTileLibraryAsync();
+
+        if (_floorColorThemes == null)
+            _floorColorThemes = await GameAssets.LoadAsync<MapFloorColorThemes>(AssetKeys.FloorColorThemes);
     }
 
     void BuildTileCache()
     {
         if (wallSprite == null || floorSprite == null)
         {
-            // 사용자가 지정한 각각의 텍스처 로드 (Resources 폴더 기준)
-            wallSprite = Resources.Load<Sprite>("Tile_StoneWall");
-            floorSprite = Resources.Load<Sprite>("FloorTexture");
+            LogHelper.Warning(LogHelper.GAME, "MapRandering: 벽/바닥 타일 이미지(Addressables)가 없어 임시 단색 이미지를 생성합니다.");
 
-            if (wallSprite == null || floorSprite == null)
-            {
-                LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources 폴더에서 타일 이미지를 찾지 못해 임시 단색 이미지를 생성합니다.");
-                
-                if (wallSprite == null) wallSprite = CreateColorSprite(Color.gray);
-                if (floorSprite == null) floorSprite = CreateColorSprite(Color.white);
-            }
+            if (wallSprite == null) wallSprite = CreateColorSprite(Color.gray);
+            if (floorSprite == null) floorSprite = CreateColorSprite(Color.white);
         }
-
-        // 파일명(stair_down2/stair_up2)과 실제 그림이 반대로 그려져 있어 로드 시점에 바꿔 배정한다
-        // (RenderStairOverlays의 goesDown 판정 로직 자체는 정상).
-        SpriteCache.GetOrLoad(ref stairDownSprite, "obj/stair_up2");
-        SpriteCache.GetOrLoad(ref stairUpSprite, "obj/stair_down2");
-        if (stairDownSprite == null || stairUpSprite == null)
-        {
-            LogHelper.Warning(LogHelper.GAME, "MapRandering: Resources/obj 폴더에서 stair_down2/stair_up2 이미지를 찾지 못했습니다.");
-        }
-
-        if (!_tileLibraryLoaded)
-            LoadTileLibrary();
-
-        if (_floorColorThemes == null)
-            _floorColorThemes = Resources.Load<MapFloorColorThemes>(FloorColorThemesResourcePath);
 
         // 맵을 다시 생성할 때마다 배정표를 새로 반영하도록 층별 캐시를 비운다 — 이전 세션 값이 아니라
         // 지금 배정표 내용 그대로 다시 굽는다(2026-09-27, 재생성 시 테마가 안 바뀌어 보이는 문제 방지).
@@ -132,11 +148,11 @@ public class MapRandering : NativeRoutine, IMapColorizer
 
     // TileSpriteLibrary.spriteLib의 "Floor"/"Wall" 카테고리 라벨을 한 번만 읽어 캐시한다(테마별로
     // 다시 읽을 필요 없음 — 라벨/스프라이트 자체는 테마와 무관, 색만 GetOrBuildFloorTileSet에서 입힌다).
-    void LoadTileLibrary()
+    async UniTask LoadTileLibraryAsync()
     {
         _tileLibraryLoaded = true;
 #if UNITY_2022_2_OR_NEWER
-        _spriteLibrary = Resources.Load<SpriteLibraryAsset>("Tile/TileSpriteLibrary");
+        _spriteLibrary = await GameAssets.LoadAsync<SpriteLibraryAsset>(AssetKeys.TileSpriteLibrary);
         if (_spriteLibrary != null)
         {
             _floorLabelSprites = LoadCategorySprites(_spriteLibrary, "Floor");

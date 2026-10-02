@@ -33,7 +33,8 @@ public class MapManager : NativeRoutine
         LogHelper.Log(LogHelper.GAME, "MapManager: Initialize.");
     }
 
-    public void SetupAndVisualizeMap(CreateMap cmap)
+    // 타일 에셋 로드(Addressables)를 기다린 뒤 렌더링까지 끝내고 돌아온다.
+    public async UniTask SetupAndVisualizeMapAsync(CreateMap cmap)
     {
         if (cmap == null || cmap.map.floors == null)
         {
@@ -44,7 +45,7 @@ public class MapManager : NativeRoutine
         // 맵 시각화(렌더링) 지시
         if (_mapRandering != null)
         {
-            _mapRandering.DoRandering(cmap);
+            await _mapRandering.DoRanderingAsync(cmap);
         }
 
         // 웨이브 스폰은 HumanWaveManager의 타이머 흐름(0층 사전 스폰 → 계단 이동으로 목표 층 진입)이

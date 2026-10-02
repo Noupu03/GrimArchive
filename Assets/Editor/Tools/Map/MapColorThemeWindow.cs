@@ -7,17 +7,18 @@ using UnityEngine;
 // MapColorThemeWindow — 벽/바닥 스프라이트 색상 초기값 테마 관리 (회의록 2026-09-27, 정림 요청 +
 // 2026-09-27 후속 사용자 요청으로 단일 "활성 테마" 대신 층별 배정으로 확장).
 // 런타임 조정 기능이 아니다 — 여기서 만든 프리셋을 층마다(또는 기본값으로) 배정하면 그 배정 내용이
-// Assets/Resources/MapColorTheme_FloorAssignments.asset(MapFloorColorThemes)에 저장되고, 다음 맵
+// Assets/Data/MapThemes/MapColorTheme_FloorAssignments.asset(MapFloorColorThemes, Addressables 주소
+// "MapColorTheme_FloorAssignments")에 저장되고, 다음 맵
 // 생성부터 MapRandering이 층별로 그 값을 Tile.color로 적용한다(MapRandering.cs의
 // GetOrBuildFloorTileSet 참고). 프리셋은 여러 개 만들어 보관하고 층마다 원하는 것을 배정하는 방식 —
 // "같은 스프라이트로 다른 테마 표현"에 대응.
 // ============================================================================
 public class MapColorThemeWindow : EditorWindow
 {
-    private const string FloorAssignmentsAssetPath = "Assets/Resources/MapColorTheme_FloorAssignments.asset";
-    // 프리셋은 배정 에셋이 GUID로 참조하므로 Resources 밖에 둔다(문자열로 로드하는 건 배정 에셋뿐).
+    // 프리셋은 배정 에셋이 GUID로 참조하므로 주소가 필요 없다(런타임이 주소로 로드하는 건 배정 에셋뿐).
     private const string PresetParentFolder = "Assets/Data";
     private const string PresetFolder = PresetParentFolder + "/MapThemes";
+    private const string FloorAssignmentsAssetPath = PresetFolder + "/MapColorTheme_FloorAssignments.asset";
 
     // FloorId(MapData.cs) 0~3 그대로 — 이 프로젝트는 층 4개로 고정돼 있다(Floor_0=로비 ~ Floor_3).
     private static readonly string[] FloorLabels = { "0층 (로비)", "1층", "2층", "3층" };
@@ -229,13 +230,16 @@ public class MapColorThemeWindow : EditorWindow
 
     void SaveFloorAssignments(MapColorTheme defaultTheme, MapColorTheme[] perFloor)
     {
-        if (!AssetDatabase.IsValidFolder("Assets/Resources"))
-            AssetDatabase.CreateFolder("Assets", "Resources");
+        if (!AssetDatabase.IsValidFolder(PresetParentFolder))
+            AssetDatabase.CreateFolder("Assets", "Data");
+        if (!AssetDatabase.IsValidFolder(PresetFolder))
+            AssetDatabase.CreateFolder(PresetParentFolder, "MapThemes");
 
         if (_floorAssignments == null)
         {
             _floorAssignments = ScriptableObject.CreateInstance<MapFloorColorThemes>();
             AssetDatabase.CreateAsset(_floorAssignments, FloorAssignmentsAssetPath);
+            AddressablesEntryUtil.EnsureEntry(FloorAssignmentsAssetPath, AssetKeys.FloorColorThemes);
         }
 
         Undo.RecordObject(_floorAssignments, "Edit Map Floor Color Themes");

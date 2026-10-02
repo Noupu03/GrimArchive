@@ -505,12 +505,12 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
             const string dummy1Name = "더미 건물 (구 유닛 생산형)";
             bool dummy1Active = _inputManager.IsDummyBuildingModeActive(dummy1Name);
             items.Add(new SubmenuItem("더미 건물 (구 유닛 생산형)", dummy1Active, true,
-                () => ToggleBuildSubMode(dummy1Active, () => _inputManager?.EnterDummyBuildingPlacementMode("obj/building", dummy1Name), dummy1Name)));
+                () => ToggleBuildSubMode(dummy1Active, () => _inputManager?.EnterDummyBuildingPlacementMode(AssetKeys.DummyUnitBuildingSprite, dummy1Name), dummy1Name)));
 
             const string dummy2Name = "더미 건물 (구 자원 생산형)";
             bool dummy2Active = _inputManager.IsDummyBuildingModeActive(dummy2Name);
             items.Add(new SubmenuItem("더미 건물 (구 자원 생산형)", dummy2Active, true,
-                () => ToggleBuildSubMode(dummy2Active, () => _inputManager?.EnterDummyBuildingPlacementMode("obj/resource_building", dummy2Name), dummy2Name)));
+                () => ToggleBuildSubMode(dummy2Active, () => _inputManager?.EnterDummyBuildingPlacementMode(AssetKeys.DummyResourceBuildingSprite, dummy2Name), dummy2Name)));
         }
         items.Add(SubmenuItem.Header("더미 건물 (기능 없음, 건물 판정만)"));
 
