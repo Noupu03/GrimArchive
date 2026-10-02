@@ -75,7 +75,10 @@ public class UnitRegistry
         {
             for (int dy = 0; dy < h; dy++)
             {
-                unitGrid.Remove(new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor));
+                Vector3Int key = new Vector3Int(pos.x + dx, pos.y + dy, u.currentFloor);
+                // 자기 등록만 지운다 — 죽은 유닛(hp<=0)의 칸은 RegisterUnitPos가 덮어쓰는데, 그 뒤 사망 정리가 무조건 지우면 새로 들어온 유닛의 점유가 사라져 겹침이 생긴다.
+                if (unitGrid.TryGetValue(key, out Unit occupant) && occupant == u)
+                    unitGrid.Remove(key);
             }
         }
     }

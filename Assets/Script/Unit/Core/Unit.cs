@@ -628,7 +628,11 @@ public abstract class Unit : ScriptableObject {
 		{
 			position = oldPos;
 			_gameSession.RegisterUnitPos(this, oldPos);
+			return;
 		}
+
+		// 회피/점멸은 다른 유닛의 턴(위협 반응)에서 일어나 이 유닛의 ProcessUnitAction이 위치 변화를 못 본다(턴 시작 시점 위치와 비교하므로) — 여기서 화면 위치를 직접 맞추지 않으면 스프라이트가 옛 칸에 남아 그 칸에 들어온 상대와 겹쳐 보인다.
+		_gameSession.unitGenerate?.SyncVisual(this);
 	}
 
 	public abstract void UpdateFOV(List<Unit> allUnits);
