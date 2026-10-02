@@ -326,6 +326,7 @@ public static class PartyAdvanceSystem
 		plan.Phase = AdvancePhase.Entering;
 		plan.PhaseStartTime = now;
 		plan.NextEntryReleaseTime = now; // 첫 유닛은 바로 출발
+		plan.EntryCommandTime = now;
 		plan.PausedSeconds = 0f;
 		plan.PauseLogged = false;
 		plan.AttackSlots.Clear();
@@ -400,7 +401,30 @@ public static class PartyAdvanceSystem
 			allDone = false;
 			break;
 		}
+		if (allDone) InformStragglersOfGate(party, plan);
 		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기), 입장 단계 {now - plan.PhaseStartTime:F1}초 소요(교전·경계 정지 시간 제외)");
+	}
+
+	// 입장 단계가 끝났는데 문을 못 지난 구성원(포기·다른 대기로 덮임)은 옛 방에 개인으로 남고, 문이 파괴돼 '아는 문'도 없어 따라갈 곳이 없다 — 방 이동 명령으로 파티가 지나간 통과 지점(far 줄 바로 너머)을 알고 있으니 마지막 확인 리더 위치로 삼아 기존 합류(HumanIdleSystem·코어 보고 이동)가 문 너머로 가게 한다. 집결 명령이 집결 위치를 knownLeader로 알리는 것과 같은 방식이다.
+	private static void InformStragglersOfGate(Party party, PartyAdvancePlan plan)
+	{
+		if (!(AIConfigLoader.Behavior?.entryStragglerFollowEnabled ?? true)) return;
+		var leader = party.Leader;
+		if (leader == null || leader.hp <= 0) return;
+
+		Vector2Int gatePoint = plan.FarAnchor + plan.Forward;
+		System.Text.StringBuilder names = null;
+		foreach (var m in plan.Ranks.Keys)
+		{
+			if (m == null || m == leader || m.hp <= 0 || m.currentFloor != plan.Floor) continue;
+			var known = m.knownLeader;
+			bool passed = PartyFormationMath.HasPassedGate(m.position, plan.FarTiles[0], plan.Forward);
+			if (!PartyFormationMath.NeedsGateHint(passed, known.IsFor(leader), known.Timestamp, plan.EntryCommandTime)) continue;
+			known.Update(leader, gatePoint, plan.EntryCommandTime);
+			(names ??= new System.Text.StringBuilder()).Append(m.name).Append('(').Append(m.position.x).Append(',').Append(m.position.y).Append(") ");
+		}
+		if (names != null)
+			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문을 못 지난 [{names.ToString().TrimEnd()}]에게 파티가 지나간 통과 지점 ({gatePoint.x},{gatePoint.y})을(를) 마지막 확인 리더 위치로 알려 개인 행동으로 따라가게 합니다");
 	}
 
 	// 이 유닛이 지금 입장 중(출발 허가를 받았고 문 먼 쪽 줄을 아직 못 지남)이면 그 계획, 아니면 null — OccupancySystem이 "앞 유닛 대기" 규칙을 걸 대상을 가리는 데 쓴다.

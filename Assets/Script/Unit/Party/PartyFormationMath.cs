@@ -47,8 +47,9 @@ public static class PartyFormationMath
 		return false;
 	}
 
-	public static bool IsAtSlot(Vector2Int position, Vector2Int slot)
-		=> Mathf.Max(Mathf.Abs(position.x - slot.x), Mathf.Abs(position.y - slot.y)) <= ArrivalRadius;
+	// radius 기본값은 진형·입장 자리 도착 반경이고, 집결은 더 넓은 반경(Party.RallyArrivalRadius)을 넘긴다.
+	public static bool IsAtSlot(Vector2Int position, Vector2Int slot, int radius = ArrivalRadius)
+		=> Mathf.Max(Mathf.Abs(position.x - slot.x), Mathf.Abs(position.y - slot.y)) <= radius;
 
 	// 구역: 자리를 배정할 때 실제로 쓴 범위. 좁은 길에서는 자리가 멀리 퍼지므로 고정 반경이 아니라 "배정된 자리 중 가장 먼 것"으로 정한다(최소 1).
 	public static int ZoneRadius(IEnumerable<Vector2Int> slots, Vector2Int center)
@@ -207,6 +208,10 @@ public static class PartyFormationMath
 	// 문 먼 쪽 줄(farTile)을 전진 방향으로 완전히 지났는가(far 줄 다음 칸부터).
 	public static bool HasPassedGate(Vector2Int position, Vector2Int farTile, Vector2Int forward)
 		=> (position.x - farTile.x) * forward.x + (position.y - farTile.y) * forward.y >= 1;
+
+	// 입장 단계가 끝날 때 문을 못 지난 구성원에게 통과 지점을 마지막 확인 리더 위치로 알려야 하는가 — 입장 명령 이후 리더를 직접 보거나 전파받은 구성원(knownTimestamp ≥ entryCommandTime)은 더 최신 정보라 건드리지 않는다.
+	public static bool NeedsGateHint(bool passedGate, bool knowsCurrentLeader, float knownTimestamp, float entryCommandTime)
+		=> !passedGate && !(knowsCurrentLeader && knownTimestamp >= entryCommandTime);
 
 	// 조사가 '상호작용을 시작했는가' — 진행 중(PenaltyActive)이거나 진행도가 남아 있으면(중단돼 절반 남은 조사 포함) 시작한 것이다. 둘 다 아니면 대상을 정해 이동 중인 미착수 상태라 집결 명령·공동 이동 배정 때 접는다(05번 4장). currentInvestigation은 대상 '선택' 순간부터 채워지므로 그 유무만으론 알 수 없다.
 	public static bool IsInvestigationStarted(bool penaltyActive, float progress01)

@@ -13,6 +13,8 @@
 [ ] A7. "입장 완료 — … 입장 단계 N.N초 소요(교전·경계 정지 시간 제외)" 줄의 N을 기록해 이전(체감 느림)과 비교한다. 너무 길면 앞 유닛이 입구에 서 있는지 확인.
 [ ] A8. 입장 자리가 문 먼 쪽 줄 바로 안쪽으로 몰려 "입장 자리 (x,y)가 막혀 근처로 바꿉니다" 줄이 과하게 늘지 않는다. 이상 시: entrySlotKnowledgeEnabled=false.
 [ ] A9. 근접 리더가 제일 먼저 문을 지나 개인 행동으로 풀리는 것은 문서 규정(04번 8장 "리더도 자기 역할 순서")대로라 의도다 — 문서에 없는 "리더 마지막 입장"은 넣지 않았다.
+[ ] A10. (2026-10-03 추가) 집결이 널널해졌다 — 자리에서 2칸(rallyArrivalRadius, 같은 방 안일 때만) 안이면 도착, 막혀 못 가는데 집결 구역 안이면 자리를 안 바꾸고 "집결 구역 안이라 현재 위치에서 집결 처리합니다"로 바로 인정, 이미 자리에 선 같은 파티원이 막아도 6초 점유 대기("[점유] … 대기를 포기합니다")를 하지 않는다. 확인: 10명 집결에서 자리 재선택("가 막혀 근처로 바꿉니다")·점유 대기 포기 로그가 눈에 띄게 줄고 집결 완료까지 시간이 짧아졌는지, 유닛이 서로 너무 퍼져 서지 않는지(퍼지면 rallyArrivalRadius를 1~2로 조정). 이상 시: rallyLenientSlotEnabled=false(예전 반경 1·재선택 우선·점유 대기).
+[ ] A11. (2026-10-03 추가) 방 이동 낙오 수정 — 입장 단계가 끝난 뒤 옛 방에 유닛이 남지 않는다. 확인: ① "입장 구역 안에 빈 자리가 없어 현재 위치 … 대기합니다" 줄이 입장 중에 더는 나오지 않는다(진형 단계 줄은 그대로 나올 수 있음). ② 30초 포기·60초 상한으로 문을 못 지난 구성원이 있으면 "문을 못 지난 [이름(x,y)]에게 파티가 지나간 통과 지점 … 알려 개인 행동으로 따라가게 합니다" 줄이 나오고 그 유닛이 문 너머로 건너간다. ③ 따라온 뒤 다음 집결에서 같은 방이라 명령을 받는다. 한계: 이미 시작된 집결에는 뒤늦게 명령을 못 받아 최대 60초 "미집결자"로 기다린다. 이상 시: entryStragglerFollowEnabled=false.
 
 ■ B. 개인 행동 (방 제한·합류·리더 방 경로)
 [ ] B1. 방을 다 본 구성원이 다음 방으로 혼자 나가지 않고 리더 곁·문 앞 대기 자리에서 기다리며, 리더가 이동하면 따라간다. 이상 시: roomBoundExplorationEnabled=false.
@@ -42,4 +44,4 @@
 - 공황 행동(panicBehaviorEnabled=false), 적 발견 합류 대기(joinCombatWaitEnabled=false): 문서 세트 기준 확인 후 켠다.
 
 ■ F. 이상 시 한 번에 비교할 스위치(AIBehaviorConfig, 전부 코드 기본값 사용 — 에셋이 없으면 코드의 기본값을 바꾼다)
-rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · exploreBlockedRecordEnabled · entryReleaseIntervalSeconds(0=예전) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · joinCombatWaitEnabled · panicBehaviorEnabled
+rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · exploreBlockedRecordEnabled · entryReleaseIntervalSeconds(0=예전) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · rallyLenientSlotEnabled(+rallyArrivalRadius=2) · entryStragglerFollowEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · joinCombatWaitEnabled · panicBehaviorEnabled

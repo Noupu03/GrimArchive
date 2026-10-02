@@ -39,6 +39,10 @@ public class AIBehaviorConfig : ScriptableObject
     public bool gatePassOrderEnabled = true;
     [Tooltip("집결 중 집결지(리더 자리)에 못 서면 근처 자리를 따로 배정하고, 도착한 파티원도 전원이 모일 때까지 자리에서 기다린다. 끄면 예전처럼 전원이 리더 자리로 몰리고 4틱 정체 시 도착으로 간주한다 (내부 판단)")]
     public bool rallyGatherNearbyEnabled = true;
+    [Tooltip("집결 자리 배정·도착 판정을 널널하게 한다(2026-10-03 플레이 로그: 집결지 근처에서 자리 재선택과 6초 점유 대기가 반복돼 집결이 길어졌다). 켜면 ① 자리에서 rallyArrivalRadius칸 안이면 도착으로 보고 ② 막혀 못 가는데 이미 집결 구역 안이면 자리를 바꾸지 않고 선 자리에서 바로 인정하며 ③ 이미 자리에 서 있는 같은 파티원을 기다리지 않고 ④ 처음 자리는 지금 비어 있는 칸을 먼저 고른다. 끄면 예전(도착 반경 1·재선택 우선·점유 대기) (내부 판단)")]
+    public bool rallyLenientSlotEnabled = true;
+    [Range(1, 4), Tooltip("rallyLenientSlotEnabled가 켜졌을 때 집결 자리 도착으로 보는 체비셰프 반경(칸). 예전 값은 1 (내부 판단)")]
+    public int rallyArrivalRadius = 2;
     [Tooltip("집결 완료 뒤 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장으로 다음 방에 들어간다. 끄면 예전처럼 문 앞 자리로 흩어져 이동한 뒤 개인 행동으로 풀린다 (내부 판단)")]
     public bool partyAdvanceFormationEnabled = true;
     [Tooltip("집결 완료 판정이 명령을 받지 못한 생존 구성원과 리더가 모르는 사망까지 \"미집결자\"로 보고 기다린다(05번 5장 295~307줄, 검증 05-05). 시간 상한(집결 시작 후 doorApproachMaxBlockedSeconds×2)에 닿으면 포기하고 이후 집결에서 다시 기다리지 않는다. 끄면 예전처럼 대기가 있는 구성원만 확인한다")]
@@ -53,6 +57,8 @@ public class AIBehaviorConfig : ScriptableObject
     public bool joinCombatWaitEnabled = false;
     [Tooltip("방 입장 중인 유닛이 문 통로 안·다음 방 쪽의 앞 유닛에 막히면 점유를 벽으로 본 길찾기로 길 전체를 돌아가지 않고, 구조 경로(점유 무시) 그대로 그 유닛이 지나가길 기다렸다 들어간다(사용자 확정 2026-10-02 \"앞 유닛이 완전히 들어간 후 들어가도록\"). 입장 단계 상한(doorApproachMaxBlockedSeconds×2)이 영구 대기를 끊는다. 끄면 예전 점유 판단(대기 vs 우회)")]
     public bool entryWaitForUnitAheadEnabled = true;
+    [Tooltip("방 이동 때 문을 못 지난 구성원이 옛 방에 낙오되지 않게 한다(2026-10-03 플레이 로그: 주술사가 문 6칸 뒤 옛 방에서 '입장 구역 안'으로 정착하고 계획이 그대로 끝나 둘이 남았다). 켜면 ① 입장 중에는 문을 지나기 전 '구역 안' 정착을 하지 않고(30초 포기·60초 단계 상한은 유지) ② 입장 단계가 끝날 때 문을 못 지난 구성원에게 파티가 지나간 통과 지점을 마지막 확인 리더 위치로 알려 기존 합류가 문 너머로 따라가게 한다. 끄면 예전 동작 (내부 판단)")]
+    public bool entryStragglerFollowEnabled = true;
     [Tooltip("리더가 다음 이동 게이트를 알려진 방 그래프(미방문 방 우선·막다른 방 되돌이·파괴된 통로 포함)로 고른다(04번 1장, 검증 05-06 관찰 2). 끄면 예전처럼 남아 있는 문 중 목표 방에 가장 가까운 것")]
     public bool leaderRoutePlannerEnabled = true;
     [Tooltip("길찾기(A*)가 진영 공용 지도 대신 유닛 개인 지도(직접 확인했거나 전달받아 아는 지형)로 경로를 계산한다 (검증문서 04-08, 04번 0장). 끄면 예전처럼 진영 공용 discoveredMap을 쓴다 (내부 판단)")]

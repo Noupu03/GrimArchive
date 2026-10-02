@@ -1,156 +1,114 @@
-<b><color=#40C4FF>[GAME]</color></b> Consumed 100 Wood. Remaining: 310
-
-<b><color=#40C4FF>[GAME]</color></b> Production Complete! Spawning MeleeTank near (7, 43, 1)
-
 <b><color=#40C4FF>[GAME]</color></b> [HumanWaveManager] 0층에 웨이브 파티 10명 사전 스폰(배회 대기) — 신규 10명, 이전 웨이브 생존자 0명 합류.
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_4_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_4_5_0이(가) 아직 던전 입구 시퀀스 중(계단 도착 전)
 
 <b><color=#40C4FF>[GAME]</color></b> [HumanWaveManager] 인류 웨이브 발생! (목표물이 생성될 때까지 대기합니다)
 
 <b><color=#40C4FF>[GAME]</color></b> [디펜스 시작] room44 방에 적대 유닛(무도가) 진입 — 디펜스 개시
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_4_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 리더 기사형_4_5_0: 다음 이동 문 (6,36) 앞으로 이동하며 확인 시작
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 마법사_7_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 방 활동 미종료(소탕) — 방 44: 리더가 인지한 적 0명, 다음 문 앞 접근 미완료
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 도적_8_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_4_5_0: 다음 이동 문 앞 도착 — 문까지 이동하며 확인을 마쳐 집결 판단 가능
 
-<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (4.50, 43.50), 범위: 3x3, 착탄까지: 1500ms
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 시작 — 리더 기사형_4_5_0, 사유: 방 활동 종료, 집결지 (4, 38) (1층)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_4_5_0이(가) 적 1명을 인지 중(전투 중 근사)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 무도가_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
 
-<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_83ca at Floor 1, (5, 44) with Tags: [Object/Passable/Corpse, Monster]
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 전사_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 기사형_4_5_0이(가) 전투 후 경계 스윕 중(경계 0.1초)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 진행 중 — 집결지 (4, 38)(1층), 도착 대기 10명 [기사형_4_5_0[도착] 도적_7_5_0[도착] 마법사_8_5_0[도착] 무도가_6_5_0[도착] 사제_5_5_0[Tactical, 자리까지 5칸] 성기사_6_5_0[Tactical, 자리까지 8칸] 아처형_6_5_0[도착] 음유시인_6_5_0[도착] 주술사_6_5_0[Tactical, 자리까지 3칸] 전사_6_5_0[도착]], 그 밖 0명 []
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 방 활동 미종료(탐색) — 방 44: 파티 시야 합산 87/104칸으로 미완이고, 리더 개인 지도에 방 안 프론티어 12개가 남음(예: (10, 37))
+<b><color=#40C4FF>[GAME]</color></b> [파티] 성기사_6_5_0: 집결 자리 (2,37)가 막혀 근처 (1,41)로 바꿉니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 시작 — 리더 기사형_4_5_0, 사유: 방 활동 종료, 집결지 (10, 41) (1층)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 집결 자리 (3,37)에 못 닿지만 집결 구역 안이라 현재 위치 (4,40)에서 집결 처리합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 기사형_4_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_5_5_0: 집결 자리 (6,38)가 막혀 근처 (6,40)로 바꿉니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 마법사_7_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 집결 자리 (3,37)에 못 닿지만 집결 구역 안이라 현재 위치 (4,40)에서 집결 처리합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 사제_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_5_5_0: 집결 자리 (6,40)가 막혀 근처 (7,41)로 바꿉니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 주술사_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 집결 자리 (3,37)에 못 닿지만 집결 구역 안이라 현재 위치 (4,40)에서 집결 처리합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 전사_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 집결 자리 (3,37)에 못 닿지만 집결 구역 안이라 현재 위치 (4,40)에서 집결 처리합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 41)(1층), 도착 대기 10명 [기사형_4_5_0[도착] 도적_8_5_0[Tactical, 자리까지 4칸] 마법사_7_5_0[도착] 무도가_5_5_0[Tactical, 자리까지 5칸] 사제_6_5_0[Tactical, 자리까지 6칸] 성기사_6_5_0[Tactical, 자리까지 2칸] 아처형_6_5_0[Tactical, 자리까지 3칸] 음유시인_6_5_0[Tactical, 자리까지 2칸] 주술사_6_5_0[Tactical, 자리까지 6칸] 전사_6_5_0[Tactical, 자리까지 3칸]], 그 밖 0명 []
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 완료 — 리더 기사형_4_5_0이(가) 다음 방 이동을 결정(ReadyToAdvance), 이동 명령 발행 대기
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_6_5_0: 집결 자리 (9,42)가 막혀 근처 (7,42)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 방 이동 지시(1/2회째) — 사유: 집결 완료, 목표 문 (6,47), 막힌 문 2/2, 근접 4명·리더 1명·원거리 5명
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 무도가_5_5_0: 집결 자리 (9,40)가 막혀 근처 (10,44)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [점유] 무도가_6_5_0: 아처형_6_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
 
-<b><color=#40C4FF>[GAME]</color></b> [점유] 음유시인_6_5_0: 마법사_7_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 성기사_6_5_0: 집결 자리 (10,40)에 들어갈 공간이 없어 현재 위치 (8,39)에서 집결 처리합니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] 아처형_6_5_0: 진형 자리 (3,42)에 들어갈 공간이 없어 현재 위치 (8,41)에서 대기합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [점유] 주술사_6_5_0: 아처형_6_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_4_5_0: 진형 자리 (4,42)에 들어갈 공간이 없어 현재 위치 (9,40)에서 대기합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 음유시인_6_5_0: 집결 자리 (10,42)가 막혀 근처 (9,40)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] 전사_6_5_0: 진형 자리 (7,44)에 들어갈 공간이 없어 현재 위치 (10,39)에서 대기합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_6_5_0: 집결 자리 (7,42)가 막혀 근처 (7,41)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 문 앞 진형 완료(10명) — 리더 기사형_4_5_0의 지시로 문 파괴 시작
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_6_5_0: 집결 자리 (7,41)가 막혀 근처 (8,42)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 리더 기사형_4_5_0의 지시 — 4명이 가까운 쪽 문 (5,47)에 달라붙어 파괴(공격 자리 4개, 자리 없어 대기 6명)
 
-<b><color=#40C4FF>[GAME]</color></b> [점유] 주술사_6_5_0: 전사_6_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 41)(1층), 도착 대기 10명 [기사형_4_5_0[도착] 도적_8_5_0[도착] 마법사_7_5_0[도착] 무도가_5_5_0[도착] 사제_6_5_0[Tactical, 자리까지 2칸] 성기사_6_5_0[도착] 아처형_6_5_0[도착] 음유시인_6_5_0[도착] 주술사_6_5_0[Tactical, 자리까지 5칸] 전사_6_5_0[도착]], 그 밖 0명 []
-
-<b><color=#40C4FF>[GAME]</color></b> [점유] 사제_6_5_0: 아처형_6_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] 사제_6_5_0: 집결 자리 (8,42)가 막혀 근처 (8,38)로 바꿉니다
-
-<b><color=#40C4FF>[GAME]</color></b> [점유] 주술사_6_5_0: 성기사_6_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
-
-<b><color=#40C4FF>[GAME]</color></b> [점유] 주술사_6_5_0: 도적_8_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (10, 41)(1층), 도착 대기 10명 [기사형_4_5_0[도착] 도적_8_5_0[도착] 마법사_7_5_0[도착] 무도가_5_5_0[도착] 사제_6_5_0[도착] 성기사_6_5_0[도착] 아처형_6_5_0[도착] 음유시인_6_5_0[도착] 주술사_6_5_0[Tactical, 자리까지 3칸] 전사_6_5_0[도착]], 그 밖 0명 []
-
-<b><color=#40C4FF>[GAME]</color></b> [점유] 주술사_6_5_0: 기사형_4_5_0이(가) 비워질 시간을 모른 채 6초 넘게 막혀 대기를 포기합니다(이후는 행동별 정체 처리)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 집결 자리 (10,43)에 들어갈 공간이 없어 현재 위치 (10,40)에서 집결 처리합니다
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 완료 — 리더 기사형_4_5_0이(가) 다음 방 이동을 결정(ReadyToAdvance), 이동 명령 발행 대기
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 방 이동 지시(1/2회째) — 사유: 집결 완료, 목표 문 (6,47), 막힌 문 2/2, 근접 4명·리더 1명·원거리 5명
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(FormingUp)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] 음유시인_6_5_0: 진형 자리 (5,40)가 막혀 근처 (10,39)로 바꿉니다
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] 성기사_6_5_0: 진형 자리 (4,45)가 막혀 근처 (6,39)로 바꿉니다
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_4_5_0: 진형 자리 (5,43)에 들어갈 공간이 없어 현재 위치 (9,40)에서 대기합니다
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 앞 진형 완료(10명) — 리더 기사형_4_5_0의 지시로 문 파괴 시작
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 리더 기사형_4_5_0의 지시 — 4명이 가까운 쪽 문 (5,47)에 달라붙어 파괴(공격 자리 4개, 자리 없어 대기 6명)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 상태 — 가까운 쪽 (5,47), 공격 자리 4명 중 채널링 0명: 도적_8_5_0[자리 (5,46), 위치 (5,44) 자리까지 2칸, 접근 중] 무도가_5_5_0[자리 (6,46), 위치 (6,45) 자리까지 1칸, 접근 중] 성기사_6_5_0[자리 (7,46), 위치 (6,38) 자리까지 8칸, 접근 중] 전사_6_5_0[자리 (4,46), 위치 (3,44) 자리까지 2칸, 접근 중]
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(Breaching)
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 상태 — 가까운 쪽 (5,47), 공격 자리 4명 중 채널링 3명: 도적_8_5_0[자리 (5,46), 위치 (5,46) 자리까지 0칸, 채널링] 무도가_5_5_0[자리 (6,46), 위치 (6,46) 자리까지 0칸, 채널링] 성기사_6_5_0[자리 (7,46), 위치 (4,45) 자리까지 3칸, 접근 중] 전사_6_5_0[자리 (4,46), 위치 (4,46) 자리까지 0칸, 채널링]
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 다음 방 진입 진행 중(Breaching)
 
 <b><color=#40C4FF>[GAME]</color></b> RemoveDoor: Door_1_5_47(2칸)이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 리더 기사형_4_5_0의 지시 — 2명이 먼 쪽 문 (5,48)에 달라붙어 파괴(공격 자리 2개, 자리 없어 대기 8명)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 리더 기사형_4_5_0의 지시 — 2명이 먼 쪽 문 (5,48)에 달라붙어 파괴(공격 자리 2개, 자리 없어 대기 8명)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 상태 — 먼 쪽 (5,48), 공격 자리 2명 중 채널링 0명: 도적_8_5_0[자리 (5,47), 위치 (5,47) 자리까지 0칸, 접근 중] 무도가_5_5_0[자리 (6,47), 위치 (6,47) 자리까지 0칸, 접근 중]
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 상태 — 먼 쪽 (5,48), 공격 자리 2명 중 채널링 2명: 도적_8_5_0[자리 (5,47), 위치 (5,47) 자리까지 0칸, 채널링] 무도가_5_5_0[자리 (6,47), 위치 (6,47) 자리까지 0칸, 채널링]
-
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 상태 — 먼 쪽 (5,48), 공격 자리 2명 중 채널링 2명: 도적_8_5_0[자리 (5,47), 위치 (5,47) 자리까지 0칸, 채널링] 무도가_5_5_0[자리 (6,47), 위치 (6,47) 자리까지 0칸, 채널링]
+<b><color=#40C4FF>[GAME]</color></b> [파티] 무도가_6_5_0: 진형 자리 (3,44)에 들어갈 공간이 없어 현재 위치 (7,39)에서 대기합니다
 
 <b><color=#40C4FF>[GAME]</color></b> RemoveDoor: Door_1_5_48(2칸)이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 문 파괴 완료 — 진입로 확보(14.6초 소요)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 문 파괴 완료 — 진입로 확보(15.2초 소요)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 진입로 확보 — 리더 기사형_4_5_0이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할) 입장을 지시
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 진입로 확보 — 리더 기사형_4_5_0이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할)으로 한 명씩 입장을 지시
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(Entering)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 다음 방 진입 진행 중(Entering)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) Entering 단계 중 교전·경계가 있어 시간 제한을 멈춥니다(상한 120초)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 리더 기사형_4_5_0이(가) 집결한 방을 떠남 — 재집결 억제 해제
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_4_5_0: 입장 자리 (5,51)가 막혀 근처 (4,50)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 리더 기사형_4_5_0: 다음 이동 문 (6,48) 앞으로 이동하며 확인 시작
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 리더 기사형_4_5_0이(가) 집결한 방을 떠남 — 재집결 억제 해제
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) Entering 단계 중 교전·경계가 있어 시간 제한을 멈춥니다(상한 120초)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 다음 방 진입 진행 중(Entering)
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 놀에게 적중! 데미지: 50.5
 
-<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_f382 at Floor 1, (2, 58) with Tags: [Object/Passable/Corpse, Monster]
+<b><color=#40C4FF>[GAME]</color></b> [파티] 주술사_6_5_0: 입장 구역 안에 빈 자리가 없어 현재 위치 (4,42)에서 대기합니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] 음유시인_6_5_0: 입장 자리 (7,49)가 막혀 근처 (5,49)로 바꿉니다
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 놀에게 적중! 데미지: 44.2
 
-<b><color=#40C4FF>[GAME]</color></b> [GroundAoE/파이어볼] 시전 시작 — 시전자: 마법사, 착탄 좌표: (12.50, 56.50), 범위: 3x3, 착탄까지: 1500ms
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 다음 방 진입 진행 중(Entering)
 
-<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_28f1 at Floor 1, (13, 56) with Tags: [Object/Passable/Corpse, Monster]
+<b><color=#40C4FF>[GAME]</color></b> [Projectile Hit] 정밀 사격 투사체가 놀에게 적중! 데미지: 21.4
 
-<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_ced6 at Floor 1, (11, 55) with Tags: [Object/Passable/Corpse, Monster]
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_cee9 at Floor 1, (6, 55) with Tags: [Object/Passable/Corpse, Monster]
 
-<b><color=#40C4FF>[GAME]</color></b> [디펜스 종료] room44 방 — 침입 유닛 전멸/철수
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_4151 at Floor 1, (5, 55) with Tags: [Object/Passable/Corpse, Monster]
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 입장 완료 — 10명이 문을 지나 개인 행동으로 복귀(나머지 0명은 포기·다른 대기)
+<b><color=#40C4FF>[GAME]</color></b> Generated Corpse_d085 at Floor 1, (11, 53) with Tags: [Object/Passable/Corpse, Monster]
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 도적_8_5_0이(가) 전투 후 경계 스윕 중(경계 1.1초)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 다음 방 진입 진행 중(Entering)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 불가 — 마법사_7_5_0이(가) 전투 후 경계 스윕 중(경계 9.8초)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 마법사_8_5_0: 자리 (5,49)에 오래 못 가 안전장치로 입장 이동을 포기하고 제자리에서 기다립니다
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 시작 — 리더 기사형_4_5_0, 사유: 방 활동 종료, 집결지 (4, 49) (1층)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 입장 완료 — 8명이 문을 지나 개인 행동으로 복귀(나머지 2명은 포기·다른 대기), 입장 단계 4.6초 소요(교전·경계 정지 시간 제외)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 기사형_4_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 불가 — 도적_7_5_0이(가) 전투 후 경계 스윕 중(경계 4.2초)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 도적_8_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] 기사형_4_5_0: 다음 이동 문 앞 도착 — 문까지 이동하며 확인을 마쳐 집결 판단 가능
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 사제_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 시작 — 리더 기사형_4_5_0, 사유: 방 활동 종료, 집결지 (3, 52) (1층)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 중 교전·경계가 있어 시간 제한을 멈춥니다(상한 120초)
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 기사형_4_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
 
-<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(탐색) 집결 진행 중 — 집결지 (4, 49)(1층), 도착 대기 10명 [기사형_4_5_0[도착] 도적_8_5_0[Tactical, 자리까지 6칸] 마법사_7_5_0[Tactical, 자리까지 18칸] 무도가_5_5_0[Tactical, 자리까지 16칸] 사제_6_5_0[Tactical, 자리까지 14칸] 성기사_6_5_0[Tactical, 자리까지 17칸] 아처형_6_5_0[Tactical, 자리까지 7칸] 음유시인_6_5_0[Tactical, 자리까지 5칸] 주술사_6_5_0[Tactical, 자리까지 9칸] 전사_6_5_0[Tactical, 자리까지 13칸]], 그 밖 0명 []
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 도적_7_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 무도가_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 아처형_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 음유시인_6_5_0이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)
+
+<b><color=#40C4FF>[GAME]</color></b> [파티] PreSpawnParty(소탕) 집결 진행 중 — 집결지 (3, 52)(1층), 도착 대기 8명 [기사형_4_5_0[도착] 도적_7_5_0[Tactical, 자리까지 3칸] 무도가_6_5_0[Tactical, 자리까지 12칸] 사제_5_5_0[도착] 성기사_6_5_0[Tactical, 자리까지 16칸] 아처형_6_5_0[Tactical, 자리까지 11칸] 음유시인_6_5_0[Tactical, 자리까지 12칸] 전사_6_5_0[Navigation, 자리까지 15칸]], 그 밖 2명 [마법사_8_5_0[대기 없음] 주술사_6_5_0[대기 없음]], 미집결자 2명 [마법사_8_5_0, 주술사_6_5_0]
 

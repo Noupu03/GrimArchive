@@ -246,6 +246,41 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.IsAtSlot(new Vector2Int(5, 5), new Vector2Int(7, 5)));
 	}
 
+	// 2026-10-03 로그: 입장 구역은 문 바깥 입구 칸 중심이라 문 뒤 옛 방 쪽 6칸까지 '구역 안'이다 — 주술사 (4,42)가 이 때문에 정착해 낙오했다. 구역 판정 자체는 그대로(진형 구역 용도)이고 입장 중에는 정착 분기를 쓰지 않는다.
+	[Test]
+	public void EntryZone_ReachesBehindTheGate_WhichIsWhyEnteringMustNotSettleThere()
+	{
+		var farAnchor = new Vector2Int(5, 48);
+		var forward = Vector2Int.up;
+		var slots = new List<Vector2Int>();
+		for (int rank = 0; rank <= PartyFormationMath.MaxRank; rank++) slots.Add(PartyFormationMath.EntrySlotTarget(farAnchor, forward, rank, 0));
+		int radius = PartyFormationMath.ZoneRadius(slots, farAnchor);
+		var behindTheGate = new Vector2Int(4, 42);
+		Assert.IsTrue(PartyFormationMath.IsWithinZone(behindTheGate, farAnchor, radius));
+		Assert.IsFalse(PartyFormationMath.HasPassedGate(behindTheGate, new Vector2Int(5, 48), forward));
+	}
+
+	[Test]
+	public void NeedsGateHint_OnlyForUnitsBehindTheGateWithoutNewerLeaderInfo()
+	{
+		const float command = 100f;
+		Assert.IsTrue(PartyFormationMath.NeedsGateHint(false, false, 0f, command));   // 리더를 모름
+		Assert.IsTrue(PartyFormationMath.NeedsGateHint(false, true, 90f, command));   // 입장 명령 전의 낡은 정보
+		Assert.IsFalse(PartyFormationMath.NeedsGateHint(false, true, 101f, command)); // 명령 이후 직접 확인·전파 — 더 최신
+		Assert.IsFalse(PartyFormationMath.NeedsGateHint(true, false, 0f, command));   // 이미 문을 지남
+	}
+
+	// 집결은 널널한 도착 반경(기본 2)을 넘긴다 — 진형·입장 기본 반경(1)은 그대로.
+	[Test]
+	public void IsAtSlot_LenientRadius_AcceptsTwoTilesButNotThree()
+	{
+		var slot = new Vector2Int(5, 5);
+		Assert.IsTrue(PartyFormationMath.IsAtSlot(new Vector2Int(7, 5), slot, 2));
+		Assert.IsTrue(PartyFormationMath.IsAtSlot(new Vector2Int(7, 7), slot, 2)); // 체비셰프 — 대각선도 2칸
+		Assert.IsFalse(PartyFormationMath.IsAtSlot(new Vector2Int(8, 5), slot, 2));
+		Assert.IsFalse(PartyFormationMath.IsAtSlot(new Vector2Int(7, 5), slot)); // 기본 반경 1은 여전히 엄격
+	}
+
 	// ── 문 파괴: 행 선택·공격 자리·최근접 배정 ────────────────────────────
 
 	[Test]

@@ -87,7 +87,8 @@ public static class PartyAdvanceSteps
 		Vector2Int slot = wait.WaitPosition.Value;
 		bool wasAtSlot = wait.AtSlot;
 
-		switch (SlotSeek.Step(human, wait, slot, useHold: false))
+		int arrivalRadius = party != null ? party.RallyArrivalRadiusFor(human) : PartyFormationMath.ArrivalRadius;
+		switch (SlotSeek.Step(human, wait, slot, useHold: false, arrivalRadius: arrivalRadius))
 		{
 			case SeekStatus.Arrived:
 				if (!wasAtSlot) party?.CheckRallyComplete();
@@ -110,6 +111,15 @@ public static class PartyAdvanceSteps
 	private static BTStatus RetargetRally(Human human, WaitState wait, Party party, Vector2Int slot)
 	{
 		if (party == null || !party.RallyPoint.HasValue) return BTStatus.Running;
+
+		// 널널한 모드 — 이미 집결 구역 안이면 자리를 또 바꾸지 않고 선 자리에서 바로 인정한다(자리 재선택을 오가며 시간을 쓰던 문제).
+		if (Party.RallyLenient && party.IsInRallyZone(human.position))
+		{
+			wait.IsParked = true;
+			LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: 집결 자리 ({slot.x},{slot.y})에 못 닿지만 집결 구역 안이라 현재 위치 ({human.position.x},{human.position.y})에서 집결 처리합니다");
+			party.CheckRallyComplete();
+			return human.currentWait == null ? BTStatus.Success : BTStatus.Running;
+		}
 
 		var rejected = SlotSeek.Reject(wait, slot);
 		var claimed = new HashSet<Vector2Int> { party.RallyPoint.Value };
@@ -239,9 +249,10 @@ public static class PartyAdvanceSteps
 			// 아는 입장 자리가 아직 없으면(문이 열린 직후라 다음 방을 못 봄) 통과 방향의 첫 칸으로 향해 문을 지나게 한다 — 지나가면 ReleaseIfEntered가 개인 행동으로 푼다.
 			wait.WaitPosition = plan.FarAnchor + plan.Forward;
 		}
-		else if (PartyFormationMath.IsWithinZone(human.position, zoneCenter, zoneRadius))
+		else if (PartyFormationMath.IsWithinZone(human.position, zoneCenter, zoneRadius)
+			&& !(entering && (AIConfigLoader.Behavior?.entryStragglerFollowEnabled ?? true)))
 		{
-			// 구역 안에 빈 타일이 하나도 없다 — 이 유닛은 더 못 들어가므로 선 자리에서 준비 완료로 인정한다.
+			// 구역 안에 빈 타일이 하나도 없다 — 이 유닛은 더 못 들어가므로 선 자리에서 준비 완료로 인정한다. 입장 구역은 문 바깥 입구 칸 중심의 정사각형이라 문 뒤 옛 방 쪽 칸까지 '구역 안'이다 — 입장 중에는 문을 지나기 전에 정착하면 계획이 끝나며 옛 방에 낙오되므로(2026-10-03) 정착하지 않고 계속 문 쪽으로 시도한다(30초 포기·60초 단계 상한이 영구 정체를 끊는다).
 			wait.IsParked = true;
 			LogHelper.Log(LogHelper.GAME, $"[파티] {human.name}: {label} 구역 안에 빈 자리가 없어 현재 위치 ({human.position.x},{human.position.y})에서 대기합니다");
 		}

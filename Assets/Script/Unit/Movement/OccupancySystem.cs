@@ -79,6 +79,8 @@ public static class OccupancySystem
 		}
 
 		if (unit.IsEnemy(blocker)) { ClearHold(unit); return false; } // 적 유닛: 전투·우회 등 기존 대응
+		// 같은 집결의 파티원이 이미 자리에 서서 집결 완료를 기다리는 중이면 기다려도 비워지지 않는다(6초 허비) — 대기 없이 우회·정체 처리(자리 재선택·정착)에 맡긴다.
+		if ((cfg?.rallyLenientSlotEnabled ?? true) && IsSettledRallyMember(unit, blocker)) { ClearHold(unit); return false; }
 		if (unit.occupancyGiveUpBlocker == blocker && now < unit.occupancyGiveUpUntil) return false; // 이 점유자에 대한 대기는 포기한 상태 — 기존 정체 인내로
 
 		OccupancyHold existing = unit.occupancyHold;
@@ -363,6 +365,18 @@ public static class OccupancySystem
 			for (int dy = 0; dy < size.y; dy++)
 				if (other.ContainsPos(anchor.x + dx, anchor.y + dy)) return true;
 		return false;
+	}
+
+	// 집결 중인 유닛(unit)을 같은 파티의 집결 대기 파티원(blocker)이 막았고 그 파티원이 이미 자리에 섰거나 정착(IsParked)했는가 — 집결이 끝날 때까지 안 움직이는 점유자다.
+	private static bool IsSettledRallyMember(Unit unit, Unit blocker)
+	{
+		if (!(unit is Human mover) || !(blocker is Human other)) return false;
+		if (mover.party == null || mover.party != other.party) return false;
+		var moverWait = mover.currentWait;
+		var otherWait = other.currentWait;
+		if (moverWait == null || otherWait == null) return false;
+		if (moverWait.Reason != WaitReason.AwaitingPartyAtRallyPoint || otherWait.Reason != WaitReason.AwaitingPartyAtRallyPoint) return false;
+		return otherWait.IsParked || otherWait.AtSlot;
 	}
 
 	// 점유자 상태 분류(04번 5장 표). 인접해 막고 있는 점유자는 직접 확인한 것으로 본다.

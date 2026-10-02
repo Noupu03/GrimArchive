@@ -258,6 +258,21 @@ public partial class Party
 	public bool IsInRallyZone(Vector2Int position)
 		=> RallyPoint.HasValue && PartyFormationMath.IsWithinZone(position, RallyPoint.Value, RallyZoneRadius);
 
+	// rallyLenientSlotEnabled — 집결 자리 배정·도착을 널널하게 볼지(2026-10-03: 자리 재선택·점유 대기 반복으로 집결이 길어졌다).
+	public static bool RallyLenient => AIConfigLoader.Behavior?.rallyLenientSlotEnabled ?? true;
+
+	// 이 유닛의 집결 자리 도착 반경 — 널널한 모드면 rallyArrivalRadius, 단 자리가 있는 방(리더의 방) 안에 있을 때만(벽 너머 다른 방에서 '도착'으로 세지 않게). 아니면 진형과 같은 ArrivalRadius.
+	public int RallyArrivalRadiusFor(Human m)
+	{
+		if (!RallyLenient) return PartyFormationMath.ArrivalRadius;
+		int radius = Mathf.Max(PartyFormationMath.ArrivalRadius, AIConfigLoader.Behavior?.rallyArrivalRadius ?? 2);
+		Room room = Leader?.currentRoom;
+		return room == null || m.currentRoom == room ? radius : PartyFormationMath.ArrivalRadius;
+	}
+
+	public bool IsRallyArrived(Human m, Vector2Int slot)
+		=> PartyFormationMath.IsAtSlot(m.position, slot, RallyArrivalRadiusFor(m));
+
 	// 집결 자리로 쓸 수 있는 구역인가 — 문 타일·문 앞 통과 구간 2칸(05번 3장)과 리더와 다른 방(문 반대편)은 제외한다.
 	private static bool IsGatherArea(GameSession session, Room room, int floor, Vector2Int t)
 	{
@@ -284,6 +299,7 @@ public partial class Party
 	}
 
 	// 집결지 주변에서 반경을 넓혀 가며 리더와 같은 방의 빈 통행 가능 타일을 고른다 — 문 타일·문 앞 통과 구간·다른 방은 제외, 못 찾으면 집결지 그대로. 재선택도 같은 함수를 쓴다.
+	// 널널한 모드면 지금 다른 유닛이 서 있지 않은 칸을 먼저 고르고(처음부터 막힌 자리를 받아 재선택을 반복하지 않게), 없으면 예전처럼 점유를 무시하고 고른다.
 	public Vector2Int PickGatherSlot(Human member, HashSet<Vector2Int> claimed)
 	{
 		var session = Leader?.Session;
@@ -292,6 +308,11 @@ public partial class Party
 		bool IsFree(Vector2Int t)
 		{
 			return member.CanMove(t, ignoreUnits: true) && IsGatherArea(session, room, floor, t);
+		}
+		if (RallyLenient)
+		{
+			bool IsUnoccupied(Vector2Int t) => member.CanMove(t) && IsGatherArea(session, room, floor, t);
+			if (PartyFormationMath.TryPickNearestFreeTile(RallyPoint.Value, IsUnoccupied, claimed, PartyFormationMath.DefaultSearchRadius, out var open)) return open;
 		}
 		return PartyFormationMath.TryPickNearestFreeTile(RallyPoint.Value, IsFree, claimed, PartyFormationMath.DefaultSearchRadius, out var slot) ? slot : RallyPoint.Value;
 	}
@@ -394,7 +415,7 @@ public partial class Party
 			if (wait != null && wait.Reason == WaitReason.AwaitingPartyAtRallyPoint)
 			{
 				headingCount++;
-				bool atSlot = wait.WaitPosition.HasValue && PartyFormationMath.IsAtSlot(m.position, wait.WaitPosition.Value);
+				bool atSlot = wait.WaitPosition.HasValue && IsRallyArrived(m, wait.WaitPosition.Value);
 				// 도착하지 못한 파티원은 FSM 상태·경계 종류·보이는 적·자리까지 거리를 함께 남긴다(PartyDiagnostics.DescribeMember).
 				if (atSlot) heading.Append(m.name).Append("[도착] ");
 				else heading.Append(PartyDiagnostics.DescribeMember(m, wait.WaitPosition)).Append(' ');
@@ -431,7 +452,7 @@ public partial class Party
 				// 다른 층으로 건넌 유닛은 이 집결에서 빠진다(ExecuteWait과 같은 기준) — 전투 중이라 대기 처리가 못 돌아도 교착되지 않게 여기서도 제외한다.
 				if (wait.WaitFloor >= 0 && m.currentFloor != wait.WaitFloor) continue;
 				if (wait.IsParked) continue;
-				if (!wait.WaitPosition.HasValue || !PartyFormationMath.IsAtSlot(m.position, wait.WaitPosition.Value)) return;
+				if (!wait.WaitPosition.HasValue || !IsRallyArrived(m, wait.WaitPosition.Value)) return;
 			}
 			// ReportingCoreToLeader도 집결 미완료로 본다 — 코어 보고 중인 유닛을 두고 집결이 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어 정박한(IsParked) 보고자는 붙잡지 않는다.
 			else if (wait.Reason == WaitReason.ReportingCoreToLeader && !wait.IsParked)
@@ -468,7 +489,7 @@ public partial class Party
 			var wait = m?.currentWait;
 			if (m == null || m.hp <= 0 || wait == null || wait.Reason != WaitReason.AwaitingPartyAtRallyPoint || wait.IsParked) continue;
 			if (wait.WaitFloor >= 0 && m.currentFloor != wait.WaitFloor) continue;
-			if (wait.WaitPosition.HasValue && PartyFormationMath.IsAtSlot(m.position, wait.WaitPosition.Value)) continue;
+			if (wait.WaitPosition.HasValue && IsRallyArrived(m, wait.WaitPosition.Value)) continue;
 			wait.IsParked = true;
 			(names ??= new System.Text.StringBuilder()).Append(PartyDiagnostics.DescribeMember(m, wait.WaitPosition)).Append(' ');
 		}

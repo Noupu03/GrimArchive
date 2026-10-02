@@ -35,6 +35,8 @@ public class PartyAdvancePlan
 	public int EnteredCount;
 	// 입장 단계에서 다음 유닛을 출발시킬 수 있는 시각(entryReleaseIntervalSeconds 간격) — BeginEntering이 단계 시작 시각으로 초기화한다.
 	public float NextEntryReleaseTime;
+	// 입장 지시를 낸 시각(교전·경계 정지로 밀리지 않는다) — 이후에 얻은 리더 정보와 그 전의 낡은 정보를 가르는 기준(PartyAdvanceSystem.InformStragglersOfGate).
+	public float EntryCommandTime;
 
 	// ── 돌파(리더의 문 파괴 지시) ──
 	// 지금 부수는 행(0 near, 1 far, -1 아직 정해지지 않음)과 그 행에 달라붙도록 지시받은 파티원의 공격 자리.
