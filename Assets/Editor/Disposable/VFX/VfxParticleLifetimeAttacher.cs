@@ -20,7 +20,7 @@ public static class VfxParticleLifetimeAttacher
 {
     private static readonly string[] TargetFolders =
     {
-        "Assets/VFX/Prefab",
+        "Assets/Prefabs/VFX",
         "Assets/Resources/Prefabs/VFX",
     };
 

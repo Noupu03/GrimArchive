@@ -536,6 +536,38 @@ Unity 플레이 검증을 하지 못했다(컴파일 + `PartyFormationMath` 순�
 ### 알려진 한계 / 미검증
 Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`InteractableObject` 헬퍼 하니스 14건 — 늘린 스프라이트·그림자·진행 막대 위치·재설치 고스트·한 칸만 접근해도 두 칸이 같이 열리는지는 플레이로만 확인). 한 줄이 한 번에 부서지므로 예전의 "2*2 통로에 한 칸만 뚫린 상태"는 더 이상 생기지 않는다.
 
+## Assets 폴더 구조 (2026-10-02 정리)
+
+**에셋(그림·프리팹·데이터)은 종류별로, 스크립트는 기능별로 둔다**(2026-10-02 사용자 확정, 3단계 정리 —
+미사용 삭제 → Resources·Editor 정리 → 종류별 재배치). 새 에셋은 아래 자리에 둘 것.
+
+| 폴더 | 넣는 것 |
+|---|---|
+| `Art/Sprites/{Units/Human, Units/Monster, Death, Weapons, Objects, Tiles, UI, VFX}` | 스프라이트, 스프라이트 라이브러리 |
+| `Art/Animations/`, `Art/Materials/`(VFX용은 `VFX/`), `Art/Shaders/` | 애니메이터·클립, 머티리얼, 셰이더 |
+| `Prefabs/UI/` | Haare UI 패널 전부(Addressables로 로드) |
+| `Prefabs/VFX/` | 씬·프리팹이 직접 참조하는 VFX, 투사체 |
+| `Data/` | `units`/`skills`/`weight_events.json`, `Encyclopedia/`, `MapThemes/` |
+| `Resources/` | **`Resources.Load("문자열")`로 불러오는 것만** — `Units/`, `Prefabs/VFX/`(코드가 로드하는 VFX), `obj/`, `Tile/`, `UI/`, `Data/map.json`, `WaveData`, `attackZone`, `FloorTexture`, `Tile_StoneWall`, `MapColorTheme_FloorAssignments`, `DOTweenSettings`(DOTween 요구) |
+| `Editor/{Tools, Disposable, Misc, Inspectors, Auto}` | 에디터 스크립트 — 앞 셋은 아래 메뉴 3분류와 1:1, 메뉴 없는 인스펙터·자동 실행 훅은 뒤 둘 |
+| `Script/`, `Tests/`, `Scenes/`(빌드: Title, ssh), `Settings/` | 그대로 |
+| `Haare/`, `Plugins/`, `Packages/`, `TextMesh Pro/`, `AddressableAssetsData/` | 외부 — 정리 대상 아님 |
+
+- **옮길 때는 파일과 `.meta`를 반드시 같이 옮긴다**(또는 Unity 안에서 옮긴다) — GUID가 유지돼야 씬·프리팹
+  참조가 안 끊긴다. 에디터가 이 프로젝트를 열고 있을 때 밖에서 옮기지 말 것.
+- **위치에 묶여 있어 옮기면 코드도 고쳐야 하는 것**: `Resources` 아래 상대 경로(`Resources.Load` 문자열),
+  `Data/units.json`·`skills.json`·`weight_events.json`(`"Assets/Data/..."`·`Application.dataPath`로 직접 읽음 —
+  `JsonToUnitPrefabConverter`, `UnitVisualDefinition`, `WeightEventTable`), 씬 이름 `ssh`(`TitlePresenter`·
+  `GameSettingsPanel` 상수), 에디터 툴의 `"Assets/..."` 경로 상수. Addressables는 주소가 경로와 무관해 자유롭게 옮겨도 된다.
+- **옛 경로 대응**(지난 구현현황 문서에 남아 있음): `Sprite/Char`·`Sprite/Mon` → `Art/Sprites/Units/Human`·`Monster`,
+  `Sprite/{Death, Weapon, obj}` → `Art/Sprites/{Death, Weapons, Objects}`, `VFX/Sprite` → `Art/Sprites/VFX`,
+  `VFX/Material` → `Art/Materials/VFX`, `VFX/Shader` → `Art/Shaders`, `VFX/Prefab` → `Prefabs/VFX`, `Asset/*` → 종류별,
+  `Resources/Prefabs/<UI 패널>` → `Prefabs/UI`, `Resources/Themes` → `Data/MapThemes`, `Script/Editor`·`Script/Wave/Editor`
+  → `Editor/...`, `Script/Encyclopedia/*.asset` → `Data/Encyclopedia`.
+- **일부러 남긴 것**: 참조가 없지만 팀원이 만든 에셋(LJR·SampleScene 씬, `VFX_Bang`/`VFX_GuardBreak`, 미사용 머티리얼 2개,
+  몬스터 아트 Dullahan/Warewolf/WindupKnight, `Haare/Demo`)은 사용자 결정으로 지우지 않았다. `문서/`도 Assets 안에
+  그대로 둔다(사용자 결정).
+
 ## 유니티 상단 메뉴 구조 (Tools(new) / Disposable / Tools, 2026-10-02)
 
 **에디터 툴은 세 최상위 메뉴로 나눈다**(2026-10-02 사용자 확정 — 분류 근거와 툴별 판정은
@@ -548,7 +580,8 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 | `Tools/` | 그 외 | `GrimArchive/오펜스 시스템 디버그 툴`, `Haare/Addressables: Use Asset Database`, `Demigiant/`(DOTween, 옮길 수 없음 — 아래 2번) |
 
 - **새 툴을 만들 때 먼저 어느 쪽인지 정할 것.** 계속 쓰는 생성·조회 도구면 `Tools(new)/<그룹>/`,
-  일회성이면 `Disposable/<그룹>/`. `Tools(new)`의 유닛 그룹은 하위에 몬스터/인간을 두기로 했다
+  일회성이면 `Disposable/<그룹>/`. 파일도 같은 이름의 폴더(`Assets/Editor/Tools/<그룹>/`,
+  `Assets/Editor/Disposable/<그룹>/`, `Tools` 메뉴는 `Assets/Editor/Misc/`)에 둔다. `Tools(new)`의 유닛 그룹은 하위에 몬스터/인간을 두기로 했다
   (`units.json`의 `unitClass` 기준 — Monster·Wild는 몬스터, Human은 인간). 지금은 몬스터/인간
   전용 메뉴 툴이 없어 하위 메뉴를 만들지 않았다.
 - 메뉴 경로를 옮기면 그 경로를 안내하는 주석·로그 문구도 같이 고칠 것(예: `GameSession`의 맵 로드
