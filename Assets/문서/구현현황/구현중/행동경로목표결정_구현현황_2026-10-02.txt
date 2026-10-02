@@ -27,6 +27,7 @@ GrimArchive 행동경로·목표설정 시스템 구현 현황 — 2026-10-02 �
 이 문서의 "문서별 장 구현 현황" 태그는 2026-09-25~29에 쓰인 것이라 그 뒤의 검증·수정(2026-09-30 ~ 10-02)을 전부 담지 못한다. **장별 최신 판정은 아래 요약과 행동경로목표결정_검증_2026-09-25.txt(항목별 [근거]·[수정 완료] 블록)가 우선**하고, 아래 장별 태그는 이력으로 읽는다. 시스템별 구조 설명은 CLAUDE.md의 해당 절(점유 충돌·경로 지식·집결→진형→돌파→입장·문 구조·공황/합류 대기 비활성)이 최신이다.
 
 [검증 진행] 07번 검증항목 문서(행동경로_목표결정 09.25_2/…07_검증항목…) 본문 순서 00-01 ~ 06-02 전부 조사 완료. 남은 것: ① 후속-01~15(후속 문서가 생긴 뒤) ② 05-09(후퇴·도주 문서 뒤 — 귀환 중 소리가 새 경계를 만드는 ❌ 1·이미 향하던 조사를 접을지 문서 침묵) ③ 07 개념 v0.3·01 개념 v0.5(06번이 가리키는 판본이 저장소 v0.2·Current와 다름) 확인 뒤 07·01 구현 재대조 ④ Unity 플레이 확인 — 체크리스트는 플레이확인_체크리스트_2026-10-02.txt.
+[정정, 2026-10-02] 위 "문서별 장 구현 현황" 중 UnitPerceptionHandler를 호출 근거로 든 항목(01-10 보스방 승격, 04번 4장 공격범위 회피 게이트 등)은 그 핸들러가 2026-07-24부터 죽은 코드라 실제로는 동작하지 않았다. 같은 날 UnitFunction.RecordSpottedEnemyKnowledge로 실제 인지 경로에 연결했다(상세는 검증문서 상단 "죽은 핸들러 정정"). 컴파일·기록 진입점 테스트까지만 확인했고 플레이 미확인이다.
 
 [문서 세트별 상태 — 검증문서 기준]
 · 00번(공통 판단): 00-01~00-08 조사·수정 완료(2026-09-27~30).
@@ -447,7 +448,7 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 🔶 9. 보스방과 후속 임무 (검증문서 01-10) — [구현, 2026-09-27] "보스를 정확 인지 + 방 확인" 게이트를
    실제로 걸었다: `UnitType.isBoss`(신규, `BossGolem`에만 true — GameSession.SpawnBossGolem이 1층
    보스방에 고정 스폰하는 그 유닛), `PersonalMapKnowledge.ConfirmBossRoom(roomId)`(신규, IsBossRoom을
-   true로 승격시키는 유일한 경로), `UnitPerceptionHandler.Handle`이 AccuratePerception으로 그 유닛을
+   true로 승격시키는 유일한 경로), `UnitFunction.RecordSpottedEnemyKnowledge`(2026-10-02 정정 — 원래 UnitPerceptionHandler에 있었으나 호출이 끊겨 한 번도 실행되지 않았다)가 AccuratePerception으로 그 유닛을
    인지했을 때만 호출. 기존에 타일 공개·오브젝트 관찰만으로 즉시 ground-truth(chunk.roomRole)를
    반영하던 4개 호출부는 전부 게이트 없는 세팅을 제거(false 고정). "일반 탐색 후보/B에서 제외"는
    실제 도달 가능한 시나리오(같은 웨이브 내 재배정 자체가 Party._countedRoomIds로 이미 안 생김, 웨이브
@@ -824,7 +825,7 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
       신설. `MovementMath.AttackRangeAvoidExtraCost`(회피 우선순위를 가중치 합 하나로 성립시키는 상수)
       + `AttackRangeAvoidingMovement : AStarMovement`(RoomConfinedMovement와 동일한 서브클래싱 전례,
       프레임당 1회 캐시). `PersonalMapKnowledge.ConfirmAttackRange`/`TryGetKnownAttackRange`(
-      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitPerceptionHandler`가 AccuratePerception
+      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitFunction.RecordSpottedEnemyKnowledge`(2026-10-02 정정 — 원래 UnitPerceptionHandler에 있었으나 호출이 끊겨 한 번도 실행되지 않았다)가 AccuratePerception
       시점에 그 종 보유 스킬 최대 HitRange로 확인. `AIMovementHelper.ComputeKnownAttackRangeAvoidTiles`
       (체비셰프 사각형 근사) + `EnsureAvoidanceMovementForRole`(RangedDps/RangedSupport/MeleeSupport만
       승급, `CombatFSMState.ExecuteCombat`에서 호출) — 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은

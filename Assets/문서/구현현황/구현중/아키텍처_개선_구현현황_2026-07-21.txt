@@ -30,6 +30,7 @@ HAARE 프레임워크에 기반하여 Native Routine으로 구조를 변경하�
 ✅ Phase 5: CastRay 파이프라인 핸들러 분리
   - UnitFunction.CastRay 내부의 복잡한 로직을 IVisionTileHandler 인터페이스로 분리.
   - TerrainRevealHandler, ObjectPerceptionHandler, UnitPerceptionHandler 로 분할하여 OCP 준수.
+  - [정정, 2026-10-02] 이 핸들러 3종과 IVisionTileHandler는 2026-07-24부터 호출되지 않는 죽은 코드로 확인돼 삭제했다. 기능은 UnitFunction.ProcessTile/RecordSpottedEnemyKnowledge가 직접 처리한다.
 
 ✅ Phase 6: 마무리 검증 및 테스트
   - 전체 소스 코드 및 Editor 스크립트 컴파일 테스트 통과 (오류 0개).

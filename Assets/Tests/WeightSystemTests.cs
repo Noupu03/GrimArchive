@@ -431,5 +431,80 @@ public class WeightSystemTests
 		Assert.AreEqual(new Vector3Int(3, 3, 0), tile);
 		Assert.AreEqual(30f, danger, 0.001f);
 	}
+
+	// ── UnitFunction.RecordSpottedEnemyKnowledge: 적을 AccuratePerception으로 인지한 시점의 개인 지식 기록 ──
+	// 이 4개 기능(목격 위치·방 확인 유닛·보스방 승격·공격범위)은 호출이 끊긴 UnitPerceptionHandler에만 있어
+	// 2026-07-24부터 실제 게임에서 한 번도 실행되지 않았다. 위 테스트들은 PersonalMapKnowledge 메서드를 직접
+	// 불러 통과했기 때문에 이를 못 잡았다 — 여기서는 실제 인지 경로가 부르는 진입점을 고정한다.
+	private static void InjectKnowledge(Unit u, HumanKnowledgeBase kb)
+	{
+		typeof(Unit).GetField("_knowledgeBase", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+			.SetValue(u, kb);
+	}
+
+	private static Monster MakeEnemy(string name, UnitType type, float baseDanger)
+	{
+		var enemy = ScriptableObject.CreateInstance<Monster>();
+		enemy.name = name;
+		enemy.unitType = type;
+		enemy.BaseStat.baseDanger = baseDanger;
+		return enemy;
+	}
+
+	[Test]
+	public void SpottedEnemy_RecordsSightingAndRoomUnit()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		var kb = new HumanKnowledgeBase();
+		InjectKnowledge(human, kb);
+		var enemy = MakeEnemy("orc_a", new MeleeTank(), 20f);
+		var tile = new Vector3Int(4, 5, 0);
+
+		human.RecordSpottedEnemyKnowledge(enemy, tile, 7);
+
+		Assert.IsTrue(human.personalMap.TryGetMonsterSighting("orc_a", out var seenTile, out var seenDanger, out _));
+		Assert.AreEqual(tile, seenTile);
+		Assert.AreEqual(kb.GetPersonalDanger(human, enemy), seenDanger, 0.001f);
+		Assert.Greater(seenDanger, 0f);
+
+		// 방 위험도는 탐사 완료 상태에서만 확인 유닛 합산값이 그대로 나온다.
+		human.personalMap.SetRoomExploreState(7, false, PersonalMapKnowledge.RoomExploreState.Complete);
+		Assert.AreEqual(seenDanger, human.personalMap.GetRoomDanger(7, false), 0.001f);
+	}
+
+	[Test]
+	public void SpottedEnemy_OnlyBossPromotesRoomToBossRoom()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		InjectKnowledge(human, new HumanKnowledgeBase());
+
+		human.RecordSpottedEnemyKnowledge(MakeEnemy("orc_b", new MeleeTank(), 0f), new Vector3Int(1, 1, 0), 3);
+		Assert.AreEqual(WeightMath.UnexploredNormalRoomBaseDanger, human.personalMap.GetPersonalDungeonDanger(), 0.001f);
+
+		human.RecordSpottedEnemyKnowledge(MakeEnemy("golem_a", new BossGolem(), 0f), new Vector3Int(2, 2, 0), 3);
+		Assert.AreEqual(WeightMath.UnexploredBossRoomBaseDanger, human.personalMap.GetPersonalDungeonDanger(), 0.001f);
+	}
+
+	// 테스트 환경에는 스킬 출처(UnitGenerate)가 없다 — 예외 없이 "공격범위 모름"으로 남아야 한다
+	// (공격범위를 실제로 채우는 경로는 플레이로만 확인된다).
+	[Test]
+	public void SpottedEnemy_AttackRangeStaysUnknown_WhenSkillSourceMissing()
+	{
+		var human = ScriptableObject.CreateInstance<Human>();
+		InjectKnowledge(human, new HumanKnowledgeBase());
+		var enemy = MakeEnemy("orc_c", new MeleeTank(), 0f);
+
+		Assert.DoesNotThrow(() => human.RecordSpottedEnemyKnowledge(enemy, new Vector3Int(1, 1, 0), 1));
+		Assert.IsFalse(human.personalMap.TryGetKnownAttackRange(enemy.unitType.typeName, out _));
+	}
+
+	[Test]
+	public void SpottedEnemy_MonsterObserverRecordsNothing()
+	{
+		var observer = ScriptableObject.CreateInstance<Monster>();
+		var enemy = MakeEnemy("orc_d", new MeleeTank(), 20f);
+
+		Assert.DoesNotThrow(() => observer.RecordSpottedEnemyKnowledge(enemy, new Vector3Int(1, 1, 0), 1));
+	}
 }
 #endif

@@ -144,6 +144,13 @@ Assets/Tests/
 (`IsAttackerIdentified`/`ForceReidentifyAttacker`)은 피격 즉시 공격자를 알던 예전 동작을 대체해,
 인지 판정 성공 시에만 정체 기반 가중치 이벤트를 기록한다.
 
+**적을 AccuratePerception으로 인지한 시점의 개인 지식 기록(목격 위치·방 확인 유닛·보스방 승격·"아는 공격범위" 게이트)은
+`UnitFunction.RecordSpottedEnemyKnowledge`가 담당한다**(`ProcessTile`의 `AddPersonalSpottedEnemy` 바로 뒤에서 호출,
+2026-10-02). 예전엔 `IVisionTileHandler`/`UnitPerceptionHandler` 등 핸들러 3종에 있었지만 2026-07-24부터 호출이 끊긴 죽은
+코드였고 같은 날 삭제했다 — 인지 시점에 기록할 새 지식이 생기면 핸들러를 부활시키지 말고 이 메서드(또는 `ProcessTile`)에
+넣을 것. 기능이 "호출되는지"는 `PersonalMapKnowledge` 메서드를 직접 부르는 테스트로는 증명되지 않는다 — 진입점
+테스트(`WeightSystemTests`의 `SpottedEnemy_*`)로 확인한다.
+
 ### 다음에 이 시스템을 확장할 때
 
 1. `Assets/문서/구현현황/구현중/시야인지반응_구현현황_2026-08-05.txt`(또는 그 이후 최신본) 맨 위
