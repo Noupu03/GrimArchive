@@ -49,14 +49,13 @@ public partial class Party
 	private bool _resumeRallyAfterCore;
 	public bool ResumeRallyAfterCore => _resumeRallyAfterCore;
 
-	// 05번 5장 295~307줄(검증 05-05): 원칙적으로 생존 파티원 전원이 집결 대상이다 — 명령을 받은 구성원(_rallyRecipients)과 못 받은 구성원을 가르고, 못 받은 생존 구성원과 리더가 모르는 사망은
-	// "미집결자"로 기다린다(단순 부재·무응답만으로 제외하지 않는다. 사망은 직접 확인·허용된 전달로 알려져야 반영 — PartyDeathRecord.InfoKnownUnits). 수색 시간·주체·범위와 포기 뒤 진행/후퇴는 문서가 후속 문서로 미뤘으므로
-	// 기다림의 상한은 기존 집결 60초 근사(ParkStragglersAfterTimeLimit)를 그대로 쓰고, 상한에 닿아 포기한 미집결자(_givenUpAbsent)는 다음 집결에서 그 구성원이 명령을 받게 될 때까지 다시 기다리지 않는다.
+	// 05번 5장 295~307줄(검증 05-05): 집결 대상은 생존 파티원 전원 — 명령을 받은 구성원(_rallyRecipients) 외에 못 받은 생존자와 리더가 모르는 사망(PartyDeathRecord.InfoKnownUnits)은 "미집결자"로 기다린다(단순 부재만으로 제외 금지).
+	// 수색·포기 뒤 판정은 문서가 후속 문서로 미뤄 기다림의 상한은 기존 집결 60초 근사(ParkStragglersAfterTimeLimit)를 쓰고, 포기한 미집결자(_givenUpAbsent)는 명령을 받게 될 때까지 다시 기다리지 않는다.
 	private readonly HashSet<Human> _rallyRecipients = new HashSet<Human>();
 	private readonly HashSet<string> _givenUpAbsent = new HashSet<string>();
 
-	// 집결 완료를 막는 미집결자 수(names가 있으면 이름도 채운다) — 명령을 받지 못한 생존 구성원 + 리더가 아직 모르는 사망(포기한 것 제외).
-	private int CollectUnaccountedAbsentees(List<string> names)
+	// 집결 완료를 막는 미집결자 수(목록을 주면 이름도 채운다) — 명령을 받지 못한 생존 구성원(alive) + 리더가 아직 모르는 사망(dead), 포기한 것은 제외.
+	private int CollectUnaccountedAbsentees(List<string> alive = null, List<string> dead = null)
 	{
 		if (!(AIConfigLoader.Behavior?.rallyAbsenteeWaitEnabled ?? true) || Leader == null) return 0;
 		int count = 0;
@@ -65,24 +64,33 @@ public partial class Party
 			if (m == null || m.hp <= 0 || m == Leader) continue;
 			if (_rallyRecipients.Contains(m) || _givenUpAbsent.Contains(m.name)) continue;
 			count++;
-			names?.Add(m.name);
+			alive?.Add(m.name);
 		}
 		foreach (var record in DeathRecords.Values)
 		{
 			if (record.InfoKnownUnits.Contains(Leader.name) || _givenUpAbsent.Contains(record.DeadUnitName)) continue;
 			count++;
-			names?.Add(record.DeadUnitName + "(사망 미확인)");
+			dead?.Add(record.DeadUnitName);
 		}
 		return count;
+	}
+
+	private static string FormatAbsentees(List<string> alive, List<string> dead)
+	{
+		var names = new List<string>(alive);
+		foreach (var n in dead) names.Add(n + "(사망 미확인)");
+		return string.Join(", ", names);
 	}
 
 	// 기다림의 상한에 닿았다 — 남은 미집결자를 포기한다(수색은 후속 문서 몫이라 기다림만 끝내고, 진행·후퇴 판정은 하지 않는다).
 	private void GiveUpAbsentees(float limit)
 	{
-		var names = new List<string>();
-		if (CollectUnaccountedAbsentees(names) == 0) return;
-		foreach (var name in names) _givenUpAbsent.Add(name.Replace("(사망 미확인)", ""));
-		LogRally($"집결 시작 {limit:F0}초 경과 — 미집결자 [{string.Join(", ", names)}]를 더는 기다리지 않습니다(명령을 받게 되거나 사망을 알게 되기 전까지 다음 집결에서도 제외)");
+		var alive = new List<string>();
+		var dead = new List<string>();
+		if (CollectUnaccountedAbsentees(alive, dead) == 0) return;
+		_givenUpAbsent.UnionWith(alive);
+		_givenUpAbsent.UnionWith(dead);
+		LogRally($"집결 시작 {limit:F0}초 경과 — 미집결자 [{FormatAbsentees(alive, dead)}]를 더는 기다리지 않습니다(명령을 받게 되거나 사망을 알게 되기 전까지 다음 집결에서도 제외)");
 	}
 
 	// 리더 전용 주기 체크 — 전투 없이도(스윕 트리거 없이도) 방 활동이 끝나면 집결을 시작할 수 있어야
@@ -95,18 +103,18 @@ public partial class Party
 		_nextRoomActivityCheckTime = currentTime + 1f;
 		// 던전 입구 시퀀스(0층 → 계단 도착 전)·리더의 층 이동 중에는 방 활동이라는 개념이 없어 어차피 TryStartRally가 첫 게이트에서 거절한다 — 호출 자체를 건너뛴다(사전 스폰 단계부터 1초마다 "집결 불가" 로그가 반복되던 것, 2026-10-02).
 		// 진행 중인 집결의 완료 확인(IsRallyActive)은 막지 않는다. 전투 후 경계 스윕이 끝난 유닛이 TryStartRally를 직접 부르는 경로는 그대로다.
-		if (!IsRallyActive && (FindMemberInEntranceSequence() != null || (Leader != null && Leader.pendingStairTargetFloor.HasValue))) return;
+		if (!IsRallyActive && (AnyMemberInEntranceSequence() || (Leader != null && Leader.pendingStairTargetFloor.HasValue))) return;
 		TryStartRally();
 	}
 
-	// 아직 던전(계단)에 다 들어오지 못한 생존 파티원 — 웨이브 시작 전 대기 중에는 집결하지 않는다. 없으면 null.
-	private Human FindMemberInEntranceSequence()
+	// 아직 던전(계단)에 다 들어오지 못한 생존 파티원이 있는가 — 웨이브 시작 전 대기 중에는 집결하지 않는다.
+	private bool AnyMemberInEntranceSequence()
 	{
 		foreach (var m in Members)
 		{
-			if (m != null && m.hp > 0 && m.isInDungeonEntranceSequence) return m;
+			if (m != null && m.hp > 0 && m.isInDungeonEntranceSequence) return true;
 		}
-		return null;
+		return false;
 	}
 
 	// 전투 종료 후 10초 경계 스윕이 끝난 유닛이(UnitFunction.OnUpdate) 호출한다. 파티 전체가 전투/
@@ -274,6 +282,15 @@ public partial class Party
 	public bool IsInRallyZone(Vector2Int position)
 		=> RallyPoint.HasValue && PartyFormationMath.IsWithinZone(position, RallyPoint.Value, RallyZoneRadius);
 
+	// 집결 자리로 쓸 수 있는 구역인가 — 문 타일·문 앞 통과 구간 2칸(05번 3장, 검증 05-04 관찰 2)과 리더와 다른 방(문 반대편)은 제외한다.
+	private static bool IsGatherArea(GameSession session, Room room, int floor, Vector2Int t)
+	{
+		if (session == null) return true;
+		if (AIMovementHelper.IsWithinDoorClearance(session, floor, t)) return false;
+		if (room == null || session.roomGrid == null) return true;
+		return session.roomGrid.TryGetValue(new Vector3Int(t.x, t.y, floor), out var r) && r == room;
+	}
+
 	// 자리가 막혔을 때의 재선택 — 집결지가 아니라 "이 유닛에서 가장 가까운" 구역 안 빈 타일을 고른다(좁은 길에서 양 끝을 오가지 않게). 후보는 지금 다른 유닛이 실제로 서 있지 않고
 	// (CanMove 점유 포함 — 먼저 도착해 남의 자리에 선 유닛 포함), 같은 방이며, 이미 막혀 포기한 자리(rejected)·다른 파티원이 노리는 자리(claimed)가 아닌 타일이다. 없으면 false.
 	public bool TryPickGatherFallback(Human member, HashSet<Vector2Int> claimed, ISet<Vector2Int> rejected, out Vector2Int slot)
@@ -286,11 +303,7 @@ public partial class Party
 			if (rejected != null && rejected.Contains(t)) return false;
 			if (!PartyFormationMath.IsWithinZone(t, RallyPoint.Value, RallyZoneRadius)) return false;
 			if (!member.CanMove(t)) return false; // 점유 포함 — 지금 누가 서 있는 타일은 제외
-			if (session == null) return true;
-			if (AIMovementHelper.IsWithinDoorClearance(session, floor, t)) return false; // 문 타일·문 앞 통과 구간 2칸은 집결 자리로 쓰지 않는다(05번 3장, 검증 05-04 관찰 2)
-			var pos3 = new Vector3Int(t.x, t.y, floor);
-			if (room == null || session.roomGrid == null) return true;
-			return session.roomGrid.TryGetValue(pos3, out var r) && r == room;
+			return IsGatherArea(session, room, floor, t);
 		}
 		return PartyFormationMath.TryPickNearestFreeTile(member.position, IsFree, claimed, PartyFormationMath.DefaultSearchRadius, out slot);
 	}
@@ -304,19 +317,13 @@ public partial class Party
 		int floor = RallyFloor;
 		bool IsFree(Vector2Int t)
 		{
-			if (!member.CanMove(t, ignoreUnits: true)) return false;
-			if (session == null) return true;
-			if (AIMovementHelper.IsWithinDoorClearance(session, floor, t)) return false; // 문 타일·문 앞 통과 구간 2칸은 집결 자리로 쓰지 않는다(05번 3장, 검증 05-04 관찰 2)
-			var pos3 = new Vector3Int(t.x, t.y, floor);
-			if (room == null || session.roomGrid == null) return true;
-			return session.roomGrid.TryGetValue(pos3, out var r) && r == room;
+			return member.CanMove(t, ignoreUnits: true) && IsGatherArea(session, room, floor, t);
 		}
 		return PartyFormationMath.TryPickNearestFreeTile(RallyPoint.Value, IsFree, claimed, PartyFormationMath.DefaultSearchRadius, out var slot) ? slot : RallyPoint.Value;
 	}
 
-	// 리더의 집결 명령·집결 해제·방 이동 지시를 받는 범위(05번 4장) — 같은 방이면 거리와 무관하게(방 전체 전달 예외), 다른 방이면 일반 전파 조건(PropagationSystem.CanPropagate)을 통과해야 한다.
-	// 방 이동 지시는 4장 표가 전달 범위를 명시하지 않은 명령이라 집결 명령의 연장으로 보고 같은 규칙을 쓴다(검증 05-03 관찰 1·3 — PartyAdvanceSystem.Begin과 예전 공동 이동 IssueCoMovementAdvance가 같은 규칙을 공유).
-	// 방이 없는(통로·문 위치) 유닛끼리는 같은 방으로 보지 않는다(관찰 4).
+	// 리더의 집결 명령·집결 해제·방 이동 지시를 받는 범위(05번 4장) — 같은 방이면 거리와 무관하게(방 전체 전달 예외), 다른 방이면 일반 전파 조건(CanPropagate). 방이 없는(통로·문 위치) 유닛끼리는 같은 방이 아니다.
+	// 방 이동 지시는 4장 표가 범위를 명시하지 않아 집결 명령의 연장으로 같은 규칙을 쓴다(검증 05-03).
 	public static bool IsReachedByLeaderCommand(Human leader, Human m)
 	{
 		if (leader == null || m == leader) return true;
@@ -433,9 +440,10 @@ public partial class Party
 				other.Append("] ");
 			}
 		}
-		var absentees = new List<string>();
-		CollectUnaccountedAbsentees(absentees);
-		string absent = absentees.Count > 0 ? $", 미집결자 {absentees.Count}명 [{string.Join(", ", absentees)}]" : "";
+		var absentAlive = new List<string>();
+		var absentDead = new List<string>();
+		int absentCount = CollectUnaccountedAbsentees(absentAlive, absentDead);
+		string absent = absentCount > 0 ? $", 미집결자 {absentCount}명 [{FormatAbsentees(absentAlive, absentDead)}]" : "";
 		return $"집결지 {(RallyPoint.HasValue ? RallyPoint.Value.ToString() : "없음")}({RallyFloor}층), 도착 대기 {headingCount}명 [{heading.ToString().TrimEnd()}], 그 밖 {otherCount}명 [{other.ToString().TrimEnd()}]{absent}";
 	}
 
@@ -467,7 +475,7 @@ public partial class Party
 				return;
 		}
 
-		if (gatherNearby && CollectUnaccountedAbsentees(null) > 0) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(상한까지)
+		if (gatherNearby && CollectUnaccountedAbsentees() > 0) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(상한까지)
 
 		if (gatherNearby)
 		{

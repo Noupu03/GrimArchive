@@ -169,11 +169,8 @@ public static class AIMovementHelper
 				if (!human.Knowledge.TryGetExpectedSkillDamage(human, species, s.SkillName, out int rawDmg)) continue;
 				anyDamageKnown = true;
 
-				// HumanKnowledgeBase.SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일한
-				// 물리/마법 분류(GroundAoE/Curse만 마법) — 여긴 SkillAction 인스턴스라 타입으로 판정.
-				bool isMagical = s is SkillAction_GroundAoE || s is SkillAction_Curse;
-				float defense = isMagical ? unit.CombatStat.magicalDefense : unit.CombatStat.physicalDefense;
-				float afterDefense = Mathf.Max(1f, rawDmg - defense);
+				float defense = SkillAction.IsMagicalDamage(s) ? unit.CombatStat.magicalDefense : unit.CombatStat.physicalDefense;
+				float afterDefense = CombatScoreMath.DamageAfterDefense(rawDmg, defense);
 
 				if (afterDefense > speciesMax) speciesMax = afterDefense;
 			}
@@ -349,13 +346,11 @@ public static class AIMovementHelper
 		Room doorRoom = null;
 		unit.Session?.roomGrid?.TryGetValue(new Vector3Int(doorPos.x, doorPos.y, unit.currentFloor), out doorRoom);
 		// 문 앞 통과 구간(05번 3장 197~201줄)을 비운 자리가 우선이고, 문 주변이 좁아 없으면 통행 가능한 인접 지점으로 완화한다. 반경은 이 문 타일 하나 기준이라 1×2 묶음의 다른 칸·문턱은 구간 검사가 따로 본다(검증 05-07).
-		if (doorRoom != null)
-		{
-			if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, true, out Vector2Int inRoom)) return inRoom;
-			if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, false, out inRoom)) return inRoom;
-		}
-		if (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, true, out Vector2Int anywhere)) return anywhere;
-		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, false, out anywhere) ? anywhere : doorPos;
+		Vector2Int slot;
+		if (doorRoom != null
+			&& (TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, true, out slot) || TryFindDoorWaitSlot(unit, doorPos, claimedSlots, doorRoom, false, out slot)))
+			return slot;
+		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, true, out slot) || TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, false, out slot) ? slot : doorPos;
 	}
 
 	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, bool clearPassage, out Vector2Int slot)

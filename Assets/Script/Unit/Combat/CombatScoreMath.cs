@@ -75,12 +75,16 @@ public static class CombatScoreMath
 		=> RoleMultiplier(selfRole, targetRole) * TargetCategoryMultiplier(targetCategory);
 
 	// ── 3장: 인류 20% 교체 기준 / 몬스터·야생은 더 높으면 교체 ──────────────
+	// 새 점수가 현재의 1.2배 "이상"인가 — 비전투 목표(PartyGoalMath)와 공격 대상 교체가 같은 규칙이다. 100 × 1.2f가 120.00001이 되는 부동소수 오차로 정확히 1.2배가 떨어지지 않게 허용 오차를 둔다.
+	public static bool MeetsSwitchRatio(float currentScore, float newScore) => newScore >= currentScore * 1.2f - 1e-3f;
+
+	// 인류는 1.2배 이상일 때만 교체한다(양쪽 0처럼 새 점수가 더 높지 않으면 유지 — 동점 유지), 몬스터·야생은 더 높기만 하면 교체.
 	public static bool ShouldSwitchAttackTarget(bool isHuman, float currentScore, float newScore)
-		=> isHuman ? newScore > currentScore * 1.2f : newScore > currentScore;
+		=> isHuman ? (MeetsSwitchRatio(currentScore, newScore) && newScore > currentScore) : newScore > currentScore;
 
 	// ── 8장: 긴급 아군 보호 후보 조건 ───────────────────────────────────
-	// 치명적 공격 예상 조건(2번째 확인 항목)은 신뢰할 만한 피해 추정치 연결이 아직 없어(9장 피해
-	// 추정 한계 참고) 이번 구현에서는 사용하지 않는다 — 저체력+위협, 행동불능+피격 두 조건만 확인한다.
+	// 둘째 조건(치명적 공격 예상)은 호출부가 보호자 개인의 예상 피해량과 진행 중인 공격으로 판정해 넘긴다
+	// (CombatFSMState.TryFindLethalThreat) — 피해량을 모르면 false라 문서대로 그 조건만 빠지고 나머지로 판단한다.
 	public const float EmergencyProtectHpRatio = 0.30f;
 
 	// 9장: 노출 경로로 접근할 때 "첫 보호효과 시점 이동자 자기 HP" 잔여율 허용 하한. 위
@@ -93,23 +97,54 @@ public static class CombatScoreMath
 	public static bool IsExposureRouteAllowed(bool damageEstimable, float projectedHpRatio)
 		=> damageEstimable && projectedHpRatio >= ProtectApproachDamageRiskHpFloor;
 
-	public static bool IsEmergencyProtectCandidate(float hpRatio, bool underAttackThreat, bool isIncapacitated, bool isHitThisTurn)
+	public static bool IsEmergencyProtectCandidate(float hpRatio, bool underAttackThreat, bool isIncapacitated, bool isHitThisTurn, bool lethalAttackExpected)
 	{
 		if (hpRatio <= EmergencyProtectHpRatio && underAttackThreat) return true;
+		if (lethalAttackExpected) return true;
 		if (isIncapacitated && isHitThisTurn) return true;
 		return false;
 	}
 
-	// ── 9장: 여러 긴급 후보의 비교 (치명타 예상 조건 생략, 위 참고) ─────────
-	// true면 candidate가 incumbent보다 우선한다. 3번(HP비율 낮음) → 4번(행동불능) → 5번(자신의 보호
-	// 효과 도달시간, 거리로 근사) 순. 1~2번(치명타 예상)은 생략.
-	public static bool IsBetterProtectCandidate(
-		float candidateHpRatio, bool candidateIncapacitated, float candidateDist,
-		float incumbentHpRatio, bool incumbentIncapacitated, float incumbentDist)
+	// 방어 적용 후 피해 — 실제 피해 파이프라인(UnitFunction.TakePhysicalDamage/TakeMagicalDamage)과 같은 규칙: 방어력을 빼고 1 아래로 내려가지 않는다.
+	public static float DamageAfterDefense(float rawDamage, float defense) => Mathf.Max(1f, rawDamage - defense);
+
+	// 8장 둘째 조건: 알려진 한 번의 공격 피해가 보호 대상의 남은 HP 이상이면 치명적이다(여러 공격을 합산하지 않는다 — 문서가 "해당 공격"으로 적는다).
+	public static bool IsLethalAttack(float rawDamage, float defense, float targetHp) => DamageAfterDefense(rawDamage, defense) >= targetHp;
+
+	// ── 9장: 여러 긴급 후보의 비교 ──────────────────────────────────────
+	// 비교 순서: 1 치명적 공격 예상 → 2 그 공격의 도달 시점이 빠름 → 3 HP 비율 낮음 → 4 행동불능 → 5 자신의 보호 효과 도달(거리로 근사).
+	// 6(현재 대상 유지·동률 무작위)은 호출부가 맡는다. LethalEtaSeconds는 치명적일 때만 의미가 있어 아니면 0으로 정규화한다.
+	public readonly struct ProtectCandidateKey : System.IEquatable<ProtectCandidateKey>
 	{
-		if (candidateHpRatio != incumbentHpRatio) return candidateHpRatio < incumbentHpRatio;
-		if (candidateIncapacitated != incumbentIncapacitated) return candidateIncapacitated;
-		return candidateDist < incumbentDist;
+		public readonly bool Lethal;
+		public readonly float LethalEtaSeconds;
+		public readonly float HpRatio;
+		public readonly bool Incapacitated;
+		public readonly float Distance;
+
+		public ProtectCandidateKey(bool lethal, float lethalEtaSeconds, float hpRatio, bool incapacitated, float distance)
+		{
+			Lethal = lethal;
+			LethalEtaSeconds = lethal ? lethalEtaSeconds : 0f;
+			HpRatio = hpRatio;
+			Incapacitated = incapacitated;
+			Distance = distance;
+		}
+
+		public bool Equals(ProtectCandidateKey o)
+			=> Lethal == o.Lethal && LethalEtaSeconds == o.LethalEtaSeconds && HpRatio == o.HpRatio && Incapacitated == o.Incapacitated && Distance == o.Distance;
+		public override bool Equals(object obj) => obj is ProtectCandidateKey o && Equals(o);
+		public override int GetHashCode() => (Lethal, LethalEtaSeconds, HpRatio, Incapacitated, Distance).GetHashCode();
+	}
+
+	// true면 candidate가 incumbent보다 우선한다(완전 동률이면 false).
+	public static bool IsBetterProtectCandidate(in ProtectCandidateKey candidate, in ProtectCandidateKey incumbent)
+	{
+		if (candidate.Lethal != incumbent.Lethal) return candidate.Lethal;
+		if (candidate.Lethal && candidate.LethalEtaSeconds != incumbent.LethalEtaSeconds) return candidate.LethalEtaSeconds < incumbent.LethalEtaSeconds;
+		if (candidate.HpRatio != incumbent.HpRatio) return candidate.HpRatio < incumbent.HpRatio;
+		if (candidate.Incapacitated != incumbent.Incapacitated) return candidate.Incapacitated;
+		return candidate.Distance < incumbent.Distance;
 	}
 
 	// ── 7장: 일반 치료 시작 기준 (HP 비율 미만) ─────────────────────────

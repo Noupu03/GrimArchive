@@ -90,8 +90,9 @@ public partial class Party
 		switch (Type)
 		{
 			case PartyType.Explore:
+				// 리더가 닿지 못해 막힘 기록한 프론티어는 방 탐색을 붙들지 않는다 — 예전엔 탐험이 그 타일을 벽으로 위조해 지워서 같은 효과였다(검증 04-08 발견 5, 지도 위조 없이 유지).
 				return IsRoomFullyRevealedByParty(room.RoomId) ||
-					!Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds);
+					!Leader.personalMap.HasFrontierTileInBounds(Leader.currentFloor, room.Bounds, RouteAssessment.CreateExploreBlockFilter(Leader));
 			case PartyType.Recover:
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
@@ -241,7 +242,7 @@ public partial class Party
 			{
 				int revealed = _partyRevealedTilesByRoom.TryGetValue(room.RoomId, out var tiles) ? tiles.Count : 0;
 				int total = Leader.Session?.cmap != null ? Leader.Session.cmap.GetRoomFloorTileCount(Leader.currentFloor, room.RoomId) : -1;
-				int frontier = Leader.personalMap.CountFrontierTilesInBounds(Leader.currentFloor, room.Bounds, out Vector2Int sample);
+				int frontier = Leader.personalMap.CountFrontierTilesInBounds(Leader.currentFloor, room.Bounds, out Vector2Int sample, RouteAssessment.CreateExploreBlockFilter(Leader));
 				return $"{head}: 파티 시야 합산 {revealed}/{(total >= 0 ? total.ToString() : "?")}칸으로 미완이고, 리더 개인 지도에 방 안 프론티어 {frontier}개가 남음" + (frontier > 0 ? $"(예: {sample})" : "");
 			}
 			case PartyType.Recover:

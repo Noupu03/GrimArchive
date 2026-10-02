@@ -192,7 +192,8 @@ public class PersonalMapKnowledge : IKnownTerrain
 
 	// NavigationFSMState.RandomExplore 전용 — from과 가장 가까운 프론티어 타일을 직선거리 기준으로
 	// 반환한다(실제 최단 경로는 아닐 수 있으나 호출부의 A* 실패 재시도가 흡수).
-	public bool TryGetNearestFrontierTile(int floor, Vector2Int from, out Vector2Int nearest)
+	// exclude: 호출부가 제외할 타일(닿지 못해 막힘 기록된 프론티어, 검증 04-08 발견 5).
+	public bool TryGetNearestFrontierTile(int floor, Vector2Int from, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
 		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier) || frontier.Count == 0)
@@ -202,6 +203,7 @@ public class PersonalMapKnowledge : IKnownTerrain
 		bool found = false;
 		foreach (var t in frontier)
 		{
+			if (exclude != null && exclude(t)) continue;
 			float dx = t.x - from.x, dy = t.y - from.y;
 			float distSq = dx * dx + dy * dy;
 			if (distSq < bestDistSq)
@@ -215,35 +217,36 @@ public class PersonalMapKnowledge : IKnownTerrain
 	}
 
 	// 검증 05-01: 개인 탐색을 지금 있는 방 안으로 제한할 때 쓴다 — bounds 안의 프론티어 중 from과 가장 가까운 타일(없으면 false).
-	public bool TryGetNearestFrontierTileInBounds(int floor, Vector2Int from, RectInt bounds, out Vector2Int nearest)
+	public bool TryGetNearestFrontierTileInBounds(int floor, Vector2Int from, RectInt bounds, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
 		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier) || frontier.Count == 0) return false;
-		return PartyFormationMath.TryNearestInRect(frontier, from, bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax, out nearest);
+		return PartyFormationMath.TryNearestInRect(frontier, from, bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax, out nearest, exclude);
 	}
 
 	// 01번 문서 7-1장: 탐색 파티의 "현재 방 지형 전체 확인" 판정에 쓴다 — 주어진 방 경계(bounds) 안에
 	// 아직 이 유닛이 못 본 프론티어 타일이 하나라도 남아 있는지만 확인한다(리더 개인 지도 기준 근사 —
 	// 파티원 전체 시야 합산은 아직 안 함, Party.IsRoomActivityComplete 주석 참고).
-	public bool HasFrontierTileInBounds(int floor, RectInt bounds)
+	// exclude: 이 판정에서 뺄 타일(리더가 닿지 못해 막힘 기록한 프론티어는 방 탐색 완료를 붙들지 않는다 — 검증 04-08 발견 5).
+	public bool HasFrontierTileInBounds(int floor, RectInt bounds, System.Predicate<Vector2Int> exclude = null)
 	{
 		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier)) return false;
 		foreach (var t in frontier)
 		{
-			if (bounds.Contains(t)) return true;
+			if (bounds.Contains(t) && (exclude == null || !exclude(t))) return true;
 		}
 		return false;
 	}
 
 	// 진단용(Party.TryStartRally의 "집결 불가" 사유 로그): 방 경계 안에 남은 프론티어 타일 수와 그중 하나의 위치 — 어느 타일이 방 탐색 종료를 막는지 보여 준다. 읽기만 한다.
-	public int CountFrontierTilesInBounds(int floor, RectInt bounds, out Vector2Int sample)
+	public int CountFrontierTilesInBounds(int floor, RectInt bounds, out Vector2Int sample, System.Predicate<Vector2Int> exclude = null)
 	{
 		sample = default;
 		if (!_frontierTilesByFloor.TryGetValue(floor, out var frontier)) return 0;
 		int count = 0;
 		foreach (var t in frontier)
 		{
-			if (!bounds.Contains(t)) continue;
+			if (!bounds.Contains(t) || (exclude != null && exclude(t))) continue;
 			if (count == 0) sample = t;
 			count++;
 		}

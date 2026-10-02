@@ -599,7 +599,8 @@ namespace GrimArchive.Wave
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != targetFloor) continue;
 
-                if (member.position == exitAreaPos)
+                // 퇴각 이동(TacticalFSMState.ExecuteWait Retreating)은 탈출 지점 인접 1칸에서 대기를 풀고 멈추므로 정확한 타일이 아니라 인접(반경 1)이면 탈출로 본다 — 정확한 타일만 요구하면 아무도 탈출하지 못한다(검증 05-09 ❌ 2).
+                if (AIMovementHelper.IsAdjacent(member.position, exitAreaPos))
                 {
                     LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
 
@@ -639,9 +640,7 @@ namespace GrimArchive.Wave
             bool hasPendingCore = activeParty.LeaderKnownCorePosition.HasValue;
             if (_targetRoom == null || !(activeParty.ReadyToAdvance || hasPendingCore))
             {
-                _doorSearchLogged = false;
-                _doorSearchSince = -1f;
-                activeParty.LeaderMayExploreBeyondRoom = false;
+                ResetDoorSearch();
                 return;
             }
 
@@ -664,14 +663,20 @@ namespace GrimArchive.Wave
                 AssignDoorSearchFollowers();
                 return;
             }
-            _doorSearchLogged = false;
-            _doorSearchSince = -1f;
-            activeParty.LeaderMayExploreBeyondRoom = false;
+            ResetDoorSearch();
 
             // 집결 완료로 정한 방 이동은 문 앞 진형 → 리더 지시 문 파괴 → 랭크 순 입장(PartyAdvanceSystem)으로 진행한다. 코어 처리 경로는 공동 이동을 그대로 쓰고,
             // 계획을 만들 수 없을 때(게이트·파티원 없음)나 partyAdvanceFormationEnabled를 끄면 공동 이동으로 폴백한다. 계획 중단은 PartyAdvanceSystem.Abort가 재시도·잠금 해제로 처리한다.
             if (decidedByRally && TryBeginFormationAdvance(doorPos, doorFloor)) return;
             IssueCoMovementAdvance(doorPos, doorFloor, decidedByRally, reason);
+        }
+
+        // "다음 문 찾기" 추적 상태 초기화 — 로그 중복 방지 표식·찾기 시작 시각·리더의 방 제한 해제를 함께 되돌린다.
+        private void ResetDoorSearch()
+        {
+            _doorSearchLogged = false;
+            _doorSearchSince = -1f;
+            activeParty.LeaderMayExploreBeyondRoom = false;
         }
 
         // 코어 파괴 뒤 퇴각 — WaitState 기반으로 이동한다(WaitReason.Retreating 참고. playerMoveTarget 경로는 실제로 이동을 발생시키지 않는 죽은 경로였음).
@@ -716,10 +721,7 @@ namespace GrimArchive.Wave
                 if (member.currentWait != null && member.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
                 // 방 이동 지시도 집결 명령과 같은 전달 범위(Party.IsReachedByLeaderCommand) — 못 받은 구성원은 개인 행동으로 남고, 이 경로는 매 틱 다시 발행되므로 범위에 들어오면 그때 받는다(검증 05-03 관찰 3).
                 if (!Party.IsReachedByLeaderCommand(activeParty.Leader, member)) continue;
-                member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동(코어 처리 포함)으로 전환한다(검증 05-04)
-                member.currentFormation = null; // 공동 이동을 받으면 비전투 보호 포메이션은 끝난다(05번 9장, 검증 05-08 관찰 1)
-                // 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
-                if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
+                member.BeginPartyMovement();
                 Vector2Int slot = AIMovementHelper.FindDoorWaitSlot(member, doorPos, claimedDoorSlots);
                 member.currentWait = new WaitState { Reason = WaitReason.AdvancingToNextRoom, WaitPosition = slot, DoorPosition = doorPos };
                 assigned++;

@@ -15,6 +15,9 @@ public class PartyAdvancePlan
 	// 게이트의 문 타일 두 줄 — near가 리더 방 쪽, far가 다음 방 쪽. 문은 줄마다 오브젝트 하나(1×2)다.
 	public Vector2Int[] NearTiles;
 	public Vector2Int[] FarTiles;
+	// 각 줄의 가운데 타일 — 진형·입장 자리와 통과 판정의 기준점.
+	public Vector2Int NearAnchor => NearTiles[(NearTiles.Length - 1) / 2];
+	public Vector2Int FarAnchor => FarTiles[(FarTiles.Length - 1) / 2];
 	public Room FromRoom;
 	public Room ToRoom;
 

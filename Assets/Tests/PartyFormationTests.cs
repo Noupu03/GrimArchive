@@ -512,6 +512,25 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.TryNearestInRect(new[] { new Vector2Int(50, 50) }, new Vector2Int(0, 0), 0, 0, 5, 5, out _));
 	}
 
+	// ── 탐험 막힘 기록(검증 04-08 발견 5) ───────────────────────────────
+
+	[Test]
+	public void TryNearestInRect_SkipsExcludedTiles_AndFallsBackToTheNextClosest()
+	{
+		var frontier = new[] { new Vector2Int(11, 11), new Vector2Int(14, 14) };
+		bool found = PartyFormationMath.TryNearestInRect(frontier, new Vector2Int(10, 10), 10, 10, 20, 20, out var nearest, t => t == new Vector2Int(11, 11));
+
+		Assert.IsTrue(found);
+		Assert.AreEqual(new Vector2Int(14, 14), nearest); // 가장 가까운 (11,11)은 닿지 못해 막힘 기록돼 후보에서 빠진다
+	}
+
+	[Test]
+	public void TryNearestInRect_AllTilesExcluded_ReportsNothingToExplore()
+	{
+		var frontier = new[] { new Vector2Int(11, 11) };
+		Assert.IsFalse(PartyFormationMath.TryNearestInRect(frontier, new Vector2Int(10, 10), 10, 10, 20, 20, out _, t => true));
+	}
+
 	// ── 조사 시작 여부(검증 05-04 발견 1) ───────────────────────────────
 
 	[Test]

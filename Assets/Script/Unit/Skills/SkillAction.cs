@@ -253,6 +253,9 @@ public abstract class SkillAction
 		return _hitboxQueryResultSet.Contains(target);
 	}
 
+	// 예상 피해량 계산용 물리/마법 분류 — HumanKnowledgeBase._magicalSkillArchetypes(GroundAoE/Curse만 마법)와 같은 기준. 스킬에 damageType 필드가 생기면 이 한 곳만 바꾼다.
+	public static bool IsMagicalDamage(SkillAction skill) => skill is SkillAction_GroundAoE || skill is SkillAction_Curse;
+
 	public static Hitbox GetUnitHitbox(Unit u)
 	{
 		Vector2 size = u.unitType != null ? new Vector2(u.unitType.footprint.x, u.unitType.footprint.y) : new Vector2(1, 1);

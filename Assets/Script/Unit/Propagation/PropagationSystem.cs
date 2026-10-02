@@ -601,6 +601,8 @@ public static class PropagationSystem
 
 	public static bool ShouldDeferForJoinWait(Human human, Unit enemy)
 	{
+		// 현재 문서 세트가 삭제한 합류 대기(검증 06-01) — AIBehaviorConfig.joinCombatWaitEnabled가 꺼져 있으면(기본) 적을 정확 인지하는 즉시 전투한다.
+		if (!(AIConfigLoader.Behavior?.joinCombatWaitEnabled ?? false)) return false;
 		if (human.Knowledge == null || enemy == null || enemy.unitType == null) return false;
 		// 9-3장: 이 적은 이미 한 번 응답 대기 타임아웃으로 포기한 적 — 다시 대기하지 않고 곧장 전투.
 		if (enemy == human.joinWaitGiveUpTarget) return false;

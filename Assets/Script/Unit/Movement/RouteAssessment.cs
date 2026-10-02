@@ -121,6 +121,30 @@ public static class RouteAssessment
 		return new RouteSignature(unit.currentFloor, known != null ? known.TerrainRevision : 0, traps, doors);
 	}
 
+	// ── 탐험 목표 막힘 기록 (검증 04-08 발견 5, 04번 9장 '막힘 기록과 재시도 조건') ─────────────
+	// 탐험이 길찾기로 닿지 못한 미탐색 목표를 (서명, 시각)으로 기록해 두고, 같은 서명이면 다시 고르지 않는다 — 서명이 바뀌어도 기록 직후 routeRecheckMinSeconds 안에는 그대로다
+	// (조사 후보의 통행 불가 메모와 같은 규칙, RouteMath.IsUnreachableMemoValid). 점유는 서명에 없어 점유만 원인이면 아는 정보가 바뀔 때까지 건너뛸 수 있다 — 탐험 중엔 새 타일을 밝히며 곧 바뀐다.
+	public static void MarkExploreBlocked(Unit unit, Vector2Int tile)
+	{
+		if (unit.exploreBlockedTargets.Count >= MemoCapacity) unit.exploreBlockedTargets.Clear();
+		unit.exploreBlockedTargets[new Vector3Int(tile.x, tile.y, unit.currentFloor)] = new RouteMemoEntry { Signature = SignatureOf(unit), Time = Time.time };
+	}
+
+	// 지금 유효한 막힘 기록으로 제외할 타일을 가려내는 필터(프론티어 선택·방 탐색 완료 판정용). 끄거나(exploreBlockedRecordEnabled) 기록이 없으면 null — 호출부는 null이면 필터 없이 훑는다.
+	public static System.Predicate<Vector2Int> CreateExploreBlockFilter(Unit unit)
+	{
+		var cfg = AIConfigLoader.Behavior;
+		if (!(cfg?.exploreBlockedRecordEnabled ?? true) || unit == null || unit.exploreBlockedTargets.Count == 0) return null;
+
+		RouteSignature signature = SignatureOf(unit);
+		float now = Time.time;
+		float recheck = cfg?.routeRecheckMinSeconds ?? 2f;
+		int floor = unit.currentFloor;
+		var memos = unit.exploreBlockedTargets;
+		return tile => memos.TryGetValue(new Vector3Int(tile.x, tile.y, floor), out RouteMemoEntry memo)
+			&& RouteMath.IsUnreachableMemoValid(memo, signature, now, recheck);
+	}
+
 	// 구조 경로 쌍둥이(점유 무시)에서 함정 회피까지 끈 것 — 유닛마다 한 번 만들어 캐시한다(이동 알고리즘이 바뀌면 다시 만든다).
 	private static AStarMovement GetTrapOffTwin(Unit unit, AStarMovement astar)
 	{

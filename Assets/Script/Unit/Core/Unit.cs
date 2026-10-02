@@ -286,6 +286,8 @@ public abstract class Unit : ScriptableObject {
 	public AStarMovement routeTrapOffTwin;
 	public IMovementAlgorithm routeTrapOffTwinSource;
 	public readonly Dictionary<Vector3Int, RouteMemoEntry> unreachableRouteMemo = new();
+	// 검증 04-08 발견 5: 탐험(RandomExplore)이 길찾기로 닿지 못한 미탐색 목표의 막힘 기록 — 지형을 벽으로 위조하지 않고 같은 서명 규칙으로 다시 고르지 않는다(RouteAssessment.MarkExploreBlocked).
+	public readonly Dictionary<Vector3Int, RouteMemoEntry> exploreBlockedTargets = new();
 	// 이 프레임에 대기·비켜서기로 행동을 이미 썼는가 — 한 행동 주기에 이동 호출을 두 번 하는 리프가 방금의 물러나기를 되돌리지 않게 한다.
 	public int occupancyActedFrame = -1;
 
@@ -797,8 +799,7 @@ public class Human : UnitFunction
 	public float idleLastStepTime;
 	public Room idleWaitRoom;
 
-	// 개인 탐색·조사 후보를 가둘 방 범위 — roomBoundExplorationEnabled가 켜져 있고 방을 알면 그 방의 사각형(true), 아니면 제한 없음(false). 리더가 방 안에서 문을 오래 못 찾으면 리더만 풀린다(Party.LeaderMayExploreBeyondRoom).
-	// 합류할 리더가 없는 인류(파티 없음·리더 없음·리더 사망)는 제한하지 않는다 — 문서 8장: 리더·집결 위치·문을 모두 모르면 시야를 넓혀 찾고, 이동할 곳이 남았는데 정지해 새 정보를 기다리지 않는다(검증 05-07).
+	// 개인 탐색·조사 후보를 가둘 방 범위 — 켜져 있고 방을 알면 그 방의 사각형(true), 아니면 제한 없음(false). 합류할 리더가 없는 인류(파티·리더 없음·리더 사망)와 문을 오래 못 찾은 리더(Party.LeaderMayExploreBeyondRoom)는 제한하지 않는다(05번 8장, 검증 05-07).
 	public bool TryGetExplorationBounds(out RectInt bounds)
 	{
 		bounds = default;
@@ -809,8 +810,7 @@ public class Human : UnitFunction
 		return true;
 	}
 
-	// 집결 명령·방 이동 계획 편입·공동 이동 대기 배정 때 부른다 — 상호작용을 시작하기 전 대상으로 이동 중인 조사는 접는다(05번 4장 245줄·03번 1장 181줄: "아직 상호작용을 시작하지 않고 임무 대상으로 이동 중인 구성원은 집결로 전환").
-	// 대상은 이미 개인 지도에 기록돼 있어 나중에 다시 후보가 된다. 이미 시작한 조사(진행 중이거나 진행도가 남은 중단된 조사)는 기존 유지·중단 조건대로 두고 건드리지 않는다. 접었으면 true(검증 05-04).
+	// 집결 명령·공동 이동 배정 때 부른다 — 시작 전 대상으로 이동 중인 조사는 접는다(05번 4장 245줄, 03번 1장 181줄). 대상은 개인 지도에 남고, 이미 시작한 조사(진행 중이거나 진행도가 남은 것)는 기존 유지·중단 조건대로 둔다. 접었으면 true(검증 05-04).
 	public bool ReleaseUnstartedInvestigation()
 	{
 		var inv = currentInvestigation;
@@ -818,6 +818,14 @@ public class Human : UnitFunction
 		currentInvestigation = null;
 		investigateStuckTurns = 0;
 		return true;
+	}
+
+	// 공동 이동(방 이동 계획·예전 공동 이동)에 편입될 때 정리할 개인 상태 — 미착수 조사 접기(05번 1장 31줄, 검증 05-04), 비전투 보호 포메이션 종료(05번 9장, 검증 05-08), 전파받은 적 위치 접근 경계 접기(03번 1장 50줄).
+	public void BeginPartyMovement()
+	{
+		ReleaseUnstartedInvestigation();
+		currentFormation = null;
+		if (currentAlertSearch != null && currentAlertSearch.IsIndirectEnemyApproach) currentAlertSearch = null;
 	}
 
 	// "비목표 상호작용 중 보호 유닛 피격 → 포메이션 해제 후 전투 또는 경계". 같은 파티에서 이 유닛을
@@ -1065,7 +1073,7 @@ public class Human : UnitFunction
 	}
 
 	// 보호 포메이션 호위 자리 계산 버퍼 — GetEscortSlotPosition이 매 틱 호출되므로 재사용한다(메인 스레드 전용).
-	private static readonly List<Human> _escortBuffer = new List<Human>();
+	private static readonly List<(Human unit, bool ranged)> _escortBuffer = new List<(Human unit, bool ranged)>();
 	private static readonly List<bool> _escortRangedBuffer = new List<bool>();
 
 	// AIMovementHelper.MoveToEscortSlot과 같은 배치 공식 — 실제 이동 목표와 어긋나지 않도록 공유한다. backDistance <= 1이면 근접, 더 크면 원거리(후방 최소 거리).
@@ -1082,7 +1090,7 @@ public class Human : UnitFunction
 		// 도착 후 실제 상호작용이 시작돼야 전방/후방 배치를 적용한다.
 		if (!IsEscortTargetActivelyInteracting(escortTarget)) return escortTarget.position - facingI;
 
-		// 같은 대상을 호위하는 유닛 전원(자신 포함) — 근접 먼저, 같은 역할은 고정 번호순.
+		// 같은 대상을 호위하는 유닛 전원(자신 포함) — 근접 먼저, 같은 역할은 고정 번호순. 역할 판정(IsRangedFormationRole)은 스킬 목록을 훑으므로 유닛당 한 번만 한다.
 		_escortBuffer.Clear();
 		bool selfListed = false;
 		if (party != null)
@@ -1090,22 +1098,18 @@ public class Human : UnitFunction
 			foreach (var m in party.Members)
 			{
 				if (m == null || m.hp <= 0 || m == escortTarget || m.currentFormation == null || m.currentFormation.EscortTarget != escortTarget) continue;
-				_escortBuffer.Add(m);
+				_escortBuffer.Add((m, m.IsRangedFormationRole()));
 				if (m == this) selfListed = true;
 			}
 		}
-		if (!selfListed) _escortBuffer.Add((Human)this);
-		_escortBuffer.Sort((a, b) =>
-		{
-			bool ra = a.IsRangedFormationRole(), rb = b.IsRangedFormationRole();
-			return ra != rb ? ra.CompareTo(rb) : a.GetInstanceID().CompareTo(b.GetInstanceID());
-		});
+		if (!selfListed) _escortBuffer.Add((this, IsRangedFormationRole()));
+		_escortBuffer.Sort((a, b) => a.ranged != b.ranged ? a.ranged.CompareTo(b.ranged) : a.unit.GetInstanceID().CompareTo(b.unit.GetInstanceID()));
 		_escortRangedBuffer.Clear();
 		int selfIndex = 0;
 		for (int i = 0; i < _escortBuffer.Count; i++)
 		{
-			_escortRangedBuffer.Add(_escortBuffer[i].IsRangedFormationRole());
-			if (_escortBuffer[i] == this) selfIndex = i;
+			_escortRangedBuffer.Add(_escortBuffer[i].ranged);
+			if (_escortBuffer[i].unit == this) selfIndex = i;
 		}
 
 		// 서 있을 수 있는 타일 — 그 유닛의 점유 크기·벽·문, 상호작용 유닛 자신과 상호작용 오브젝트 타일(함정이면 밟으면 안 된다) 제외, 이 대상의 호위가 아닌 다른 유닛이 서 있는 타일 제외.
@@ -1116,9 +1120,9 @@ public class Human : UnitFunction
 		var slots = EscortSlotMath.AssignSlots(targetPos, facingI, _escortRangedBuffer, minBack, (index, tile) =>
 		{
 			if (tile == targetPos || (interactionPos.HasValue && tile == interactionPos.Value)) return false;
-			if (!_escortBuffer[index].CanMove(tile, ignoreUnits: true)) return false;
+			if (!_escortBuffer[index].unit.CanMove(tile, ignoreUnits: true)) return false;
 			return !(Session != null && Session.unitGrid.TryGetValue(new Vector3Int(tile.x, tile.y, floor), out Unit u)
-				&& u != null && u.hp > 0 && u != escortTarget && !_escortBuffer.Contains(u as Human));
+				&& u != null && u.hp > 0 && u != escortTarget && !_escortBuffer.Exists(e => e.unit == u));
 		});
 		return slots[selfIndex] ?? position; // 자리가 전혀 없으면 제자리
 	}

@@ -261,6 +261,52 @@ public class RouteAssessmentTests
 		Assert.AreEqual(0, human.unreachableRouteMemo.Count);
 	}
 
+	// ── 탐험 막힘 기록(검증 04-08 발견 5) ────────────────────────────────
+
+	[Test]
+	public void ExploreBlocked_NoRecords_MeansNoFilter()
+	{
+		SetSharedMap(13, 9, (x, y) => 1);
+		var human = MakeHuman(new Vector2Int(1, 3));
+		Assert.IsNull(RouteAssessment.CreateExploreBlockFilter(human)); // 호출부는 필터 없이 훑는다
+	}
+
+	[Test]
+	public void ExploreBlocked_MarkedTileIsExcluded_SameSignatureStaysBlocked_OtherTilesAndFloorsAreNot()
+	{
+		SetSharedMap(13, 9, (x, y) => 1);
+		var human = MakeHuman(new Vector2Int(1, 3));
+		Know(human, 13, 9, (x, y) => x <= 5 ? 1 : 0);
+
+		RouteAssessment.MarkExploreBlocked(human, new Vector2Int(6, 3));
+		var blocked = RouteAssessment.CreateExploreBlockFilter(human);
+
+		Assert.IsNotNull(blocked);
+		Assert.IsTrue(blocked(new Vector2Int(6, 3)));
+		Assert.IsFalse(blocked(new Vector2Int(6, 4)));
+		human.currentFloor = 1; // 기록은 층별이다
+		Assert.IsFalse(RouteAssessment.CreateExploreBlockFilter(human)(new Vector2Int(6, 3)));
+	}
+
+	[Test]
+	public void ExploreBlocked_FeedsFrontierSelection_WithoutWritingFakeWalls()
+	{
+		SetSharedMap(13, 9, (x, y) => 1);
+		var human = MakeHuman(new Vector2Int(1, 3));
+		Know(human, 13, 9, (x, y) => x <= 5 ? 1 : 0);
+		var nearest = new Vector2Int(6, 3);
+		RouteAssessment.MarkExploreBlocked(human, nearest);
+		var blocked = RouteAssessment.CreateExploreBlockFilter(human);
+
+		Assert.IsTrue(human.personalMap.TryGetNearestFrontierTile(0, new Vector2Int(5, 3), out var picked, blocked));
+		Assert.AreNotEqual(nearest, picked); // 막힘 기록된 프론티어는 건너뛰고 다음 후보를 고른다
+		Assert.AreEqual(0, human.personalMap.GetTileTerrain(new Vector3Int(nearest.x, nearest.y, 0))); // 지형을 벽으로 위조하지 않는다 — 그 타일은 여전히 미탐색
+
+		Assert.IsTrue(human.personalMap.HasFrontierTileInBounds(0, new RectInt(0, 0, 13, 9)));                  // 필터 없이는 프론티어가 남아 있다
+		Assert.AreEqual(human.personalMap.CountFrontierTilesInBounds(0, new RectInt(0, 0, 13, 9), out _) - 1,
+			human.personalMap.CountFrontierTilesInBounds(0, new RectInt(0, 0, 13, 9), out _, blocked));          // 방 탐색 완료 판정에서 막힌 것만 빠진다
+	}
+
 	// ── 헬퍼 ────────────────────────────────────────────────────────────
 
 	private static Human MakeHuman(Vector2Int position)

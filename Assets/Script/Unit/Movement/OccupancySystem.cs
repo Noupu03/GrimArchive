@@ -145,10 +145,9 @@ public static class OccupancySystem
 		return true;
 	}
 
-	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 실제 A*는 앞 유닛이 문 통로를 막으면 "길이 막혔다"며 다른 문·방을 거치는 긴 우회를 고른다.
-	// 그 대신 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고, 그 걸음이 같은 진영 유닛에 막혔을 때 막은 유닛이 문 가까운 줄 이후(통로 안·다음 방 쪽)에 있으면 우회 없이 기다린다.
-	// 막은 유닛이 진형 쪽(문 앞)에 있으면 짧은 비켜 가기로 충분하므로 기존 판단(대기 vs 우회)에 맡긴다(false). 기다림은 점유 대기와 같은 hold라 행동 틱을 건너뛰고(정체 카운터 불변), 영구 대기는 입장 단계 상한이 끊는다.
-	// 문턱 통과 순서(TryGateOrderHold)는 기존과 같이 먼저 확인한다. true = 이번 주기는 걸었거나 기다렸다.
+	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 A*는 앞 유닛이 문 통로를 막으면 다른 문·방을 거치는 긴 우회를 고른다. 그 대신 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고,
+	// 같은 진영 유닛이 막았는데 그 유닛이 문 가까운 줄 이후(통로 안·다음 방 쪽)에 있으면 우회 없이 기다린다(문턱 통과 순서 TryGateOrderHold는 먼저 확인). 진형 쪽(문 앞)에서 막으면 기존 판단(false)에 맡긴다.
+	// 기다림은 점유 대기와 같은 hold라 행동 틱을 건너뛰며, 영구 대기는 입장 단계 상한이 끊는다. true = 이번 주기는 걸었거나 기다렸다.
 	private static bool TryEntryStep(Unit unit, Vector2Int dest, AStarMovement astar, AIBehaviorConfig cfg)
 	{
 		PartyAdvancePlan plan = PartyAdvanceSystem.EnteringPlanOf(unit);
@@ -380,7 +379,7 @@ public static class OccupancySystem
 
 		if (blocker is Human human && human.currentInvestigation != null && human.currentInvestigation.PenaltyActive)
 		{
-			interactionRemainingSeconds = OccupancyMath.InteractionRemainingSeconds(human.currentInvestigation.Progress01, ExplorationMath.InvestigateDurationSeconds);
+			interactionRemainingSeconds = OccupancyMath.InteractionRemainingSeconds(human.currentInvestigation.Progress01, AIConfigLoader.Behavior?.investigateDurationSeconds ?? ExplorationMath.InvestigateDurationSeconds);
 			return OccupantKind.Interacting;
 		}
 		var trap = blocker.currentTrapInteraction;

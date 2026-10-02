@@ -192,17 +192,10 @@ public class CombatFSMState : IFSMState
 	internal static void ResolveEmergencyProtectTarget(Unit unit)
 	{
 		Unit current = unit.CombatTargeting.ProtectTarget;
-		bool currentStillValid = current != null && current.Health != null && current.Health.hp > 0
-			&& current.currentFloor == unit.currentFloor && IsEmergency(unit, current);
+		var bestKey = default(CombatScoreMath.ProtectCandidateKey);
+		bool currentStillValid = current != null && current.currentFloor == unit.currentFloor && TryEvaluateEmergency(unit, current, out bestKey);
 
 		Unit best = currentStillValid ? current : null;
-		float bestRatio = 0f, bestDist = 0f; bool bestIncap = false;
-		if (best != null)
-		{
-			bestRatio = best.Health.hp / Mathf.Max(1f, best.Health.maxHp);
-			bestIncap = best.StatusEffects.State.stunDuration > 0f;
-			bestDist = Vector2Int.Distance(unit.position, best.position);
-		}
 
 		// 검증문서 02-09 3번: 그래도 동률이면 무작위 선택 — 다만 "현재 유효 대상 유지"가 이미 더
 		// 높은 우선순위(6번째 기준)라, current가 유효한 동안은 새 후보가 완전히 동률이어도 무작위
@@ -211,17 +204,14 @@ public class CombatFSMState : IFSMState
 
 		void Consider(Unit candidate)
 		{
-			if (!IsEmergency(unit, candidate)) return;
-			float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
-			bool incap = candidate.StatusEffects.State.stunDuration > 0f;
-			float dist = Vector2Int.Distance(unit.position, candidate.position);
-			if (best == null || CombatScoreMath.IsBetterProtectCandidate(ratio, incap, dist, bestRatio, bestIncap, bestDist))
+			if (!TryEvaluateEmergency(unit, candidate, out var key)) return;
+			if (best == null || CombatScoreMath.IsBetterProtectCandidate(key, bestKey))
 			{
-				best = candidate; bestRatio = ratio; bestIncap = incap; bestDist = dist;
+				best = candidate; bestKey = key;
 				tiedBest?.Clear();
 				tiedBest?.Add(candidate);
 			}
-			else if (tiedBest != null && ratio == bestRatio && incap == bestIncap && dist == bestDist)
+			else if (tiedBest != null && key.Equals(bestKey))
 			{
 				tiedBest.Add(candidate);
 			}
@@ -290,15 +280,55 @@ public class CombatFSMState : IFSMState
 		return null;
 	}
 
-	private static bool IsEmergency(Unit protector, Unit candidate)
+	// 02번 8장: 후보가 긴급 보호 조건을 하나라도 만족하면 true와 9장 비교 키를 돌려준다.
+	private static bool TryEvaluateEmergency(Unit protector, Unit candidate, out CombatScoreMath.ProtectCandidateKey key)
 	{
+		key = default;
 		if (candidate?.Health == null || candidate.Health.hp <= 0) return false;
 		float ratio = candidate.Health.hp / Mathf.Max(1f, candidate.Health.maxHp);
 		bool incapacitated = candidate.StatusEffects.State.stunDuration > 0f;
 		// 검증문서 02-08 4번: candidate 자신의 인지(HasPerceivedThreatCollider) 대신 ground truth를
 		// 쓴다 — 사각지대·기습으로 candidate 본인이 공격자를 못 봐도 실제 위협이면 보호 후보가 된다.
 		bool underThreat = candidate.HasActiveThreatGroundTruth();
-		return CombatScoreMath.IsEmergencyProtectCandidate(ratio, underThreat, incapacitated, candidate.isHitThisTurn);
+		bool lethal = TryFindLethalThreat(protector, candidate, out float lethalEta);
+		if (!CombatScoreMath.IsEmergencyProtectCandidate(ratio, underThreat, incapacitated, candidate.isHitThisTurn, lethal)) return false;
+		key = new CombatScoreMath.ProtectCandidateKey(lethal, lethalEta, ratio, incapacitated, Vector2Int.Distance(protector.position, candidate.position));
+		return true;
+	}
+
+	// 02번 8장 둘째 조건(검증 02-08·02-09): 보호자 개인의 예상 피해량(02번 9번 항목 기록)과 지금 진행 중인 공격(예고 중인 위협이 후보와 겹침 — 위 ground truth와 같은 기준)으로
+	// 한 번의 공격이 후보의 남은 HP 이상인지 본다. 피해량을 모르면(보호자가 인류가 아님·그 종/스킬 기록 없음) 그 공격은 판단에서 빼고 false — 문서대로 이 조건만 쓰지 않는다.
+	// 도달 시점 = 그 공격의 남은 시전 시간, 치명적인 공격이 여럿이면 가장 빠른 것.
+	private static bool TryFindLethalThreat(Unit protector, Unit candidate, out float etaSeconds)
+	{
+		etaSeconds = 0f;
+		GameSession session = protector.Session;
+		if (!(protector is Human human) || human.Knowledge == null || session == null || session.castingUnits.Count == 0) return false;
+
+		Hitbox candidateBox = Unit.GetUnitHitbox(candidate);
+		bool found = false;
+		foreach (Unit caster in session.castingUnits)
+		{
+			if (caster == null || caster == candidate || caster.hp <= 0 || caster.currentFloor != candidate.currentFloor || caster.unitType == null) continue;
+			ThreatTileData threat = caster.AIState.currentThreat;
+			if (threat == null || !candidate.IsEnemy(caster) || !threat.hitbox.Overlaps(candidateBox)) continue;
+
+			string skillName = caster.CombatState.State.lastSkillName;
+			string species = caster.unitType.typeName;
+			if (string.IsNullOrEmpty(skillName) || !human.Knowledge.TryGetExpectedSkillDamage(human, species, skillName, out int rawDamage)) continue;
+
+			SkillAction skill = null;
+			var skills = protector.Generate?.GetSkills(species);
+			if (skills != null)
+				foreach (var s in skills) if (s != null && s.SkillName == skillName) { skill = s; break; }
+			float defense = SkillAction.IsMagicalDamage(skill) ? candidate.CombatStat.magicalDefense : candidate.CombatStat.physicalDefense;
+			if (!CombatScoreMath.IsLethalAttack(rawDamage, defense, candidate.Health.hp)) continue;
+
+			float eta = Mathf.Max(0f, caster.CombatState.State.castTimer);
+			if (!found || eta < etaSeconds) etaSeconds = eta;
+			found = true;
+		}
+		return found;
 	}
 
 	// 02번 5장: 대상을 "바꾸려는" 이동에만 누적한다 — 원래(안 바뀐) 대상을 계속 추격하는 이동은 제외.

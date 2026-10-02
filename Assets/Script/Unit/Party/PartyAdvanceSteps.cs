@@ -198,8 +198,7 @@ public static class PartyAdvanceSteps
 	{
 		if (wait.IsParked) return BTStatus.Running;
 
-		// 입장 이동은 자리에 정확히 서야 도착이다(반경 0) — 입장 자리는 문 먼 쪽 줄 바로 다음 칸일 수 있어(맨 뒤 랭크, 아는 타일이 문 근처뿐일 때) 반경 1이면 아직 문 위(통과 전)에서 "도착"으로 멈춰 뒤 단계를 막는다.
-		// 자리는 항상 먼 쪽 줄 너머라 자리에 서기 전에 줄을 넘는 순간 ReleaseIfEntered가 풀어 주므로 반경 0이어도 자리에 닿기를 기다리지 않는다(검증 05-08 직전 플레이 로그).
+		// 입장 이동은 자리에 정확히 서야 도착이다(반경 0) — 입장 자리가 문 먼 쪽 줄 바로 다음 칸일 수 있어 반경 1이면 아직 문 위(통과 전)에서 "도착"으로 멈춘다. 줄을 넘는 순간 ReleaseIfEntered가 풀어 주므로 자리까지 갈 필요는 없다.
 		switch (SlotSeek.Step(human, wait, slot, useHold: true, arrivalRadius: entering ? 0 : PartyFormationMath.ArrivalRadius))
 		{
 			case SeekStatus.GaveUp:
@@ -238,10 +237,10 @@ public static class PartyAdvanceSteps
 				if (wait.Reason != WaitReason.EnteringNextRoom) wait.WaitPosition = alt;
 			}
 		}
-		else if (entering && useKnowledge && plan.FarTiles.Length > 0 && plan.FarTiles[(plan.FarTiles.Length - 1) / 2] + plan.Forward != slot)
+		else if (entering && useKnowledge && plan.FarAnchor + plan.Forward != slot)
 		{
 			// 아는 입장 자리가 아직 없다(문이 열린 직후라 다음 방을 못 봤다) — 통과 방향의 첫 칸으로 향해 문을 지나게 한다. 지나가면 ReleaseIfEntered가 개인 행동으로 푼다.
-			wait.WaitPosition = plan.FarTiles[(plan.FarTiles.Length - 1) / 2] + plan.Forward;
+			wait.WaitPosition = plan.FarAnchor + plan.Forward;
 		}
 		else if (PartyFormationMath.IsWithinZone(human.position, zoneCenter, zoneRadius))
 		{

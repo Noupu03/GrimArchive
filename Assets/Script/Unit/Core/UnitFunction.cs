@@ -561,9 +561,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 		// 조사/함정 해제 진행 중에는 시야 범위/인지 범위 전부 기본값의 50%(ExplorationPenaltyActive, Unit.cs).
 		if (ExplorationPenaltyActive)
 		{
-			viewDistance       *= ExplorationMath.InvestigatePenaltyRatio;
-			perceptionAngle    *= ExplorationMath.InvestigatePenaltyRatio;
-			perceptionDistance *= ExplorationMath.InvestigatePenaltyRatio;
+			float penaltyRatio = AIConfigLoader.Behavior?.investigatePenaltyRatio ?? ExplorationMath.InvestigatePenaltyRatio; // 조사·함정 해제 공통(둘 다 50%)
+			viewDistance       *= penaltyRatio;
+			perceptionAngle    *= penaltyRatio;
+			perceptionDistance *= penaltyRatio;
 		}
 
 		// 전방위 시야 — 각도 제한만 없앤다. 거리/차폐는 그대로 적용되므로 벽을 뚫어 보진 않는다.
@@ -1026,9 +1027,10 @@ public abstract class UnitFunction : Unit, IVisionContext
 			// 전파받은 적 위치 접근도 기한 워치독이 아니라 자체 정체 한도(AlertApproach)로만 끝난다 — 먼 곳까지 걷는 시간을 15초로 자르지 않는다.
 			if (!isSoundResponseStillApproaching && !currentAlertSearch.IsIndirectEnemyApproach)
 			{
-				float limit = currentAlertSearch.IsPostCombatSweep ? ExplorationMath.PostCombatAlertSeconds
+				var alertCfg = AIConfigLoader.Behavior;
+				float limit = currentAlertSearch.IsPostCombatSweep ? (alertCfg?.postCombatAlertSeconds ?? ExplorationMath.PostCombatAlertSeconds)
 					: currentAlertSearch.IsDeathSearch ? ExplorationMath.DeathSearchSeconds
-					: ExplorationMath.UnidentifiedAttackSearchSeconds;
+					: (alertCfg?.unidentifiedAttackSearchSeconds ?? ExplorationMath.UnidentifiedAttackSearchSeconds);
 				if (currentAlertSearch.ElapsedSeconds >= limit)
 				{
 					bool wasPostCombatSweep = currentAlertSearch.IsPostCombatSweep;
@@ -1093,7 +1095,7 @@ public abstract class UnitFunction : Unit, IVisionContext
 		if (this is Human investigatorHuman && investigatorHuman.currentInvestigation != null && investigatorHuman.currentInvestigation.PenaltyActive)
 		{
 			var inv = investigatorHuman.currentInvestigation;
-			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / ExplorationMath.InvestigateDurationSeconds);
+			inv.Progress01 = Mathf.Min(1f, inv.Progress01 + deltaTime / (AIConfigLoader.Behavior?.investigateDurationSeconds ?? ExplorationMath.InvestigateDurationSeconds));
 		}
 
 		// 오브젝트(코어/문) 공격 채널링 — TrapPhase.Destroying과 동일한 패턴. 자동 AI와 플레이어 명령

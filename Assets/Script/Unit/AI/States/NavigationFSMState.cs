@@ -261,10 +261,17 @@ public class NavigationFSMState : IFSMState
 			}
 			else
 			{
-				// A* 경로 탐색 실패 (도달 불가능한 타겟)
-				// 타겟이 대각선 코너 등에 가려진 닿을 수 없는 0(미탐색)일 수 있으므로 벽으로 치부하고 무시합니다.
-				data.discoveredMap[fi][target.Value.x, target.Value.y] = 2;
-				if (h != null) h.personalMap.RevealTile(new Vector3Int(target.Value.x, target.Value.y, fi), true);
+				// A* 경로 탐색 실패 — 닿을 수 없는 미탐색 목표(적 소유 닫힌 문·점유·함정 구역·가려진 코너 등). 지형을 벽으로 위조하지 않고 '막힘 기록'만 남겨
+				// 아는 정보(지형·문·함정)가 바뀔 때까지 다시 고르지 않는다(04번 9장 막힘 기록과 재시도 조건, 검증 04-08 발견 5). 끄면 예전처럼 그 타일을 벽으로 기록한다.
+				if (AIConfigLoader.Behavior?.exploreBlockedRecordEnabled ?? true)
+				{
+					RouteAssessment.MarkExploreBlocked(unit, target.Value);
+				}
+				else
+				{
+					data.discoveredMap[fi][target.Value.x, target.Value.y] = 2;
+					if (h != null) h.personalMap.RevealTile(new Vector3Int(target.Value.x, target.Value.y, fi), true);
+				}
 				
 				unit.currentExplorationTarget = null; // 영원히 A* 5만번 도는 것을 방지
 				unit.exploreStuckTurns = 0;
@@ -293,12 +300,14 @@ public class NavigationFSMState : IFSMState
 		// 인류 유닛(방 제한 없이 던전 전체를 탐사)은 personalMap이 RevealTile마다 유지하는 프론티어
 		// (미탐사 경계) 집합에서 바로 최근접 후보를 찾는다 — BFS로 탐색 영역 전체를 매번 훑으면 탐사가
 		// 진행될수록 비용이 계속 늘어난다. 방 제한 유닛(몬스터)은 탐색 범위가 좁아 BFS를 그대로 둔다.
+		// 닿지 못해 막힘 기록된 미탐색 타일은 목표로 다시 고르지 않는다(검증 04-08 발견 5) — 기록이 없으면 null.
+		var blocked = RouteAssessment.CreateExploreBlockFilter(unit);
 		if (unit is Human explorer)
 		{
 			// 개인이 임의로 다음 방에 들어가지 않는다(검증 05-01, 04번 10장 578줄·05번 1장 53줄·01번 585줄) — 프론티어도 지금 있는 방 안에서만 고른다. 없으면 null(할 일 없는 개인의 합류).
 			if (explorer.TryGetExplorationBounds(out RectInt roomBounds))
-				return explorer.personalMap.TryGetNearestFrontierTileInBounds(fi, unit.position, roomBounds, out Vector2Int inRoomTarget) ? inRoomTarget : (Vector2Int?)null;
-			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget)
+				return explorer.personalMap.TryGetNearestFrontierTileInBounds(fi, unit.position, roomBounds, out Vector2Int inRoomTarget, blocked) ? inRoomTarget : (Vector2Int?)null;
+			return explorer.personalMap.TryGetNearestFrontierTile(fi, unit.position, out Vector2Int frontierTarget, blocked)
 				? frontierTarget
 				: (Vector2Int?)null;
 		}
@@ -338,6 +347,7 @@ public class NavigationFSMState : IFSMState
 			int currentTerrain = h != null ? h.personalMap.GetTileTerrain(new Vector3Int(cur.x, cur.y, fi)) : data.discoveredMap[fi][cur.x, cur.y];
 			if (currentTerrain == 0)
 			{
+				if (blocked != null && blocked(cur)) continue; // 막힘 기록된 미탐색 타일은 목표로 삼지 않고 그 너머로 확장하지도 않는다
 				return cur; // 어둠(미탐색) 발견 시 최종 목적지(Target) 좌표 반환
 			}
 

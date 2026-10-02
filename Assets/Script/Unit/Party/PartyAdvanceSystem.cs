@@ -81,7 +81,7 @@ public static class PartyAdvanceSystem
 	{
 		Vector2Int lateral = PartyFormationMath.LateralAxis(plan.Forward);
 		// 0랭크는 문 앞 통과 구간(DoorClearance) 바로 밖 — 문서 규정(05번 3장)대로 대기 중에는 구간을 비우고, 문 파괴는 돌파 단계에서 리더 지시를 받은 유닛이 문 인접 칸으로 접근한다.
-		Vector2Int frontAnchor = plan.NearTiles[(plan.NearTiles.Length - 1) / 2] - plan.Forward * PartyFormationMath.DoorClearance;
+		Vector2Int frontAnchor = plan.NearAnchor - plan.Forward * PartyFormationMath.DoorClearance;
 		plan.FormCenter = frontAnchor;
 		var claimed = new HashSet<Vector2Int>();
 
@@ -114,10 +114,7 @@ public static class PartyAdvanceSystem
 		plan.FormSlots[member] = slot;
 		member.currentWait = new WaitState { Reason = reason, WaitPosition = slot, WaitFloor = plan.Floor, DoorPosition = plan.DoorPos, Rank = rank };
 		member.waitStuckTurns = 0;
-		member.ReleaseUnstartedInvestigation(); // 시작 전 대상으로 이동 중이던 조사는 공동 이동으로 전환한다(05번 1장 31줄, 검증 05-04)
-		member.currentFormation = null; // 공동 이동(방 이동 계획)에 편입되면 비전투 보호 포메이션은 끝난다(05번 9장, 검증 05-08 관찰 1)
-		// 전파받은 적 위치로 접근하던 경계는 공동 이동이 시작되면 접는다(03번 1장 50줄).
-		if (member.currentAlertSearch != null && member.currentAlertSearch.IsIndirectEnemyApproach) member.currentAlertSearch = null;
+		member.BeginPartyMovement();
 	}
 
 	// 진형·입장 자리로 쓸 수 있는 타일: 그 유닛이 설 수 있고(점유는 무시 — 자리를 점유한 아군은 곧 비킨다), 문 타일·게이트 문턱이 아니며, 지정한 방 안.
@@ -347,7 +344,7 @@ public static class PartyAdvanceSystem
 		}
 
 		Vector2Int lateral = PartyFormationMath.LateralAxis(plan.Forward);
-		Vector2Int farAnchor = plan.FarTiles[(plan.FarTiles.Length - 1) / 2];
+		Vector2Int farAnchor = plan.FarAnchor;
 		plan.EntryCenter = farAnchor;
 		var entrySlots = new List<Vector2Int>();
 		var claimed = new HashSet<Vector2Int>();
@@ -435,8 +432,8 @@ public static class PartyAdvanceSystem
 		m.waitStuckTurns = 0;
 	}
 
-	// 유닛별 간격 출발 — 아직 출발하지 않은 유닛 중 통과 우선순위(역할 → HP 비율 → 유지되는 무작위 → Id, OccupancySystem이 문턱에서 쓰는 같은 키)가 가장 높은 한 명을 interval초마다 출발시킨다.
-	// 앞 단계가 문을 완전히 지나야 다음 단계가 출발하던 장벽이 없어 앞뒤 유닛이 겹쳐 흐르고, 앞 유닛이 막혀도 시계가 흘러 뒤 유닛이 영구히 붙들리지 않는다. 실제 문턱 통과 순서는 OccupancySystem이 같은 키로 중재한다.
+	// 유닛별 간격 출발 — 아직 출발하지 않은 유닛 중 통과 우선순위(OccupancySystem이 문턱에서 쓰는 같은 키: 역할 → HP 비율 → 유지되는 무작위 → Id)가 가장 높은 한 명을 interval초마다 출발시킨다.
+	// 단계 장벽이 없어 앞뒤가 겹쳐 흐르고 앞 유닛이 막혀도 시계가 흘러 뒤 유닛이 붙들리지 않는다. 실제 문턱 통과 순서는 OccupancySystem이 같은 키로 중재한다.
 	private static void ReleaseNextInOrder(PartyAdvancePlan plan, float now, float interval)
 	{
 		if (now < plan.NextEntryReleaseTime) return;
@@ -456,7 +453,7 @@ public static class PartyAdvanceSystem
 		plan.NextEntryReleaseTime = now + interval;
 	}
 
-	// 예전 단계 장벽(entryReleaseIntervalSeconds ≤ 0) — 04번 8장 4단계 역할(plan.EntryTiers)이 앞 단계 전원이 문을 지나야 출발한다. 리더도 자기 역할 단계를 따르며, 같은 단계 안의 HP 비율·무작위 순서는 실제 문턱 통과에서 OccupancySystem이 같은 키로 중재한다.
+	// 예전 단계 장벽(entryReleaseIntervalSeconds ≤ 0) — 04번 8장 4단계 역할(plan.EntryTiers)이 앞 단계 전원이 문을 지나야 출발한다(리더도 자기 역할 단계).
 	private static void ReleaseByRoleTier(PartyAdvancePlan plan)
 	{
 		var tiers = new List<int>(plan.Ranks.Count);

@@ -49,6 +49,8 @@ public class AIBehaviorConfig : ScriptableObject
     public bool roomBoundExplorationEnabled = true;
     [Tooltip("방 입장(문 파괴 뒤 Entering 단계)에서 유닛을 역할 → HP → 무작위 순(좁은 통로 통과 순서, 04번 8장)으로 이 간격(초)마다 한 명씩 출발시킨다. 앞 단계가 문을 완전히 지날 때까지 기다리는 단계 장벽이 없어 앞뒤가 겹쳐 흐른다(사용자 확정 2026-10-02 — 입장 템포가 너무 느려서). 0 이하면 예전 단계 장벽(앞 역할 단계가 전원 문을 지나야 다음 단계 출발) — 내부 판단 수치")]
     public float entryReleaseIntervalSeconds = 0.5f;
+    [Tooltip("적 발견 시 전투 합류 대기(위험도 2단계 이상 + 2칸 초과 거리에서 합류 의사 응답 2초·실제 합류 최대 5초, 07-A v0.2 9장)를 쓴다. 2026-10-02부터 임시로 꺼 둠(기본 false) — 현재 문서 세트(03번 v0.12 391·419줄, 06번 설정값 표, 07번 03-08)가 이 대기를 삭제해 \"아군 응답·도착을 기다리지 않고 즉시 전투 대응\"을 요구한다. 07-A가 개정되면 코드를 지운다. 끄면 적을 정확 인지하는 즉시 전투하고 적 정보 전파는 그대로 병행된다")]
+    public bool joinCombatWaitEnabled = false;
     [Tooltip("방 입장 중인 유닛이 문 통로 안·다음 방 쪽의 앞 유닛에 막히면 점유를 벽으로 본 길찾기로 길 전체를 돌아가지 않고, 구조 경로(점유 무시) 그대로 그 유닛이 지나가길 기다렸다 들어간다(사용자 확정 2026-10-02 \"앞 유닛이 완전히 들어간 후 들어가도록\"). 입장 단계 상한(doorApproachMaxBlockedSeconds×2)이 영구 대기를 끊는다. 끄면 예전 점유 판단(대기 vs 우회)")]
     public bool entryWaitForUnitAheadEnabled = true;
     [Tooltip("리더가 다음 이동 게이트를 알려진 방 그래프(미방문 방 우선·막다른 방 되돌이·파괴된 통로 포함)로 고른다(04번 1장, 검증 05-06 관찰 2). 끄면 예전처럼 남아 있는 문 중 목표 방에 가장 가까운 것")]
@@ -57,6 +59,8 @@ public class AIBehaviorConfig : ScriptableObject
     public bool personalMapPathingEnabled = true;
     [Tooltip("조사 후보를 고를 때 구조 경로(점유 무시)로도 닿을 수 없다고 확인된 대상을 후보에서 제외한다 (검증문서 04-08, 04번 9장 '통행 불가 확인'). 끄면 제외하지 않고 아주 먼 거리로만 계산한다 (내부 판단)")]
     public bool unreachableCandidateExclusionEnabled = true;
+    [Tooltip("탐험(RandomExplore)이 길찾기로 닿지 못한 미탐색 목표를 그 타일을 벽으로 위조해 지우는 대신 '막힘 기록'으로 남기고, 아는 정보(지형·문·함정)가 바뀔 때까지 다시 고르지 않는다 (검증문서 04-08 발견 5, 04번 9장 '막힘 기록과 재시도 조건'). 닿지 못해 막힌 프론티어는 리더의 방 탐색 완료 판정에서도 제외한다. 끄면 예전처럼 그 타일을 벽으로 기록한다 (내부 판단)")]
+    public bool exploreBlockedRecordEnabled = true;
     [Tooltip("통행 불가로 판정한 대상을, 아는 정보(지형·문·함정)가 바뀌었어도 판정 직후 이 시간(초) 동안은 다시 탐색하지 않는다 — 탐험 중 아는 지형이 매 틱 바뀌어 같은 대상을 반복 탐색하는 비용 폭주를 막는 성능 장치 (내부 판단)")]
     public float routeRecheckMinSeconds = 2f;
     [Tooltip("점유자가 비워질 시간을 모르고 우회도 없는 대기가 이 시간(초)을 넘으면 대기를 풀고 기존 경로(행동별 정체 인내 → 포기)로 넘긴다. 시간을 아는 대기(상호작용 남은 시간 등)는 끊지 않는다 (내부 판단)")]

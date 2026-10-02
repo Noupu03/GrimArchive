@@ -30,6 +30,6 @@ public static class PartyGoalMath
 	public static bool ShouldSwitchNonCombatGoal(float currentScore, float newScore)
 	{
 		if (currentScore <= 0f) return newScore > 0f;
-		return newScore >= currentScore * 1.2f;
+		return CombatScoreMath.MeetsSwitchRatio(currentScore, newScore);
 	}
 }

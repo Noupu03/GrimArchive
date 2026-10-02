@@ -104,6 +104,21 @@ public class MovementSystemTests
 		Assert.IsNull(ThreatResponseMath.PickBest(new List<Cand>(), c => c.Score, c => c.Dist, n => 0, out _, out _));
 	}
 
+	// 02번 3장 "새 대상의 점수가 현재 대상의 1.2배 이상" — 경계(정확히 1.2배)는 교체, 동점·양쪽 0은 유지, 몬스터·야생은 더 높기만 하면 교체(검증 06-01).
+	[Test]
+	public void ShouldSwitchAttackTarget_Human_SwitchesAtExactlyOnePointTwoTimes_AndKeepsOnTiesAndBothZero()
+	{
+		Assert.IsTrue(CombatScoreMath.ShouldSwitchAttackTarget(true, 10f, 12f));
+		Assert.IsTrue(CombatScoreMath.ShouldSwitchAttackTarget(true, 100f, 120f)); // 100 × 1.2f = 120.00001 — 허용 오차 없이는 정확히 1.2배인데도 유지돼 버린다
+		Assert.IsTrue(CombatScoreMath.ShouldSwitchAttackTarget(true, 50f, 60f));
+		Assert.IsFalse(CombatScoreMath.ShouldSwitchAttackTarget(true, 10f, 11.9f));
+		Assert.IsFalse(CombatScoreMath.ShouldSwitchAttackTarget(true, 10f, 10f));
+		Assert.IsFalse(CombatScoreMath.ShouldSwitchAttackTarget(true, 0f, 0f));
+		Assert.IsTrue(CombatScoreMath.ShouldSwitchAttackTarget(true, 0f, 1f));
+		Assert.IsTrue(CombatScoreMath.ShouldSwitchAttackTarget(false, 10f, 10.1f));
+		Assert.IsFalse(CombatScoreMath.ShouldSwitchAttackTarget(false, 10f, 10f));
+	}
+
 	[Test]
 	public void SelectWithHysteresis_CurrentInsideTheSet_IsKeptUnlessTheSwitchCriterionIsMet()
 	{

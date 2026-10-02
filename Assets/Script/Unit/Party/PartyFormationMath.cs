@@ -138,10 +138,9 @@ public static class PartyFormationMath
 		return slots;
 	}
 
-	// 우선순위 단계(작을수록 먼저)별로, 같은 단계 안에서는 "전체에서 가장 가까운 (멤버, 자리) 쌍"부터 차지하는 그리디 배정 + 자리를 못 받은 멤버를 늘리는 보강. 반환은 멤버별 자리 번호(자리가 모자라면 -1).
-	// 멤버를 입력 순서대로 하나씩 처리하면 자리 정면에 선 멤버가 아니라 순서가 앞선 옆·대각선 멤버가 그 자리를 받는다 — 좁은 문 앞은 모서리 규칙으로 대각선 진입이 막혀, 정면 칸에 남은 멤버가 길을 막고 둘 다 정체한다(플레이 로그 2026-10-02 far 문).
-	// 가까운 쌍부터 고르면 isAllowed가 막은 자리 때문에 "모두가 자리를 받을 수 있는데 한 명이 남는" 배정이 나올 수 있어, 그리디 뒤에 남은 멤버마다 이미 배정된 멤버를 다른 자리로 옮겨서라도 자리를 얻는 보강(증가 경로)을 한다 — 이미 자리를 받은 멤버는 보강으로 자리를 잃지 않는다.
-	// 거리가 같은 쌍은 앞선 멤버 번호·작은 자리 번호가 먼저다. isAllowed(멤버 번호, 자리 번호)가 있으면 그 멤버가 못 쓰는 자리(이미 막혀 포기한 자리 등)를 건너뛴다. 앞선 단계가 차지한 자리는 뒤 단계가 건드리지 않는다.
+	// 우선순위 단계(작을수록 먼저)별로, 같은 단계 안에서는 "전체에서 가장 가까운 (멤버, 자리) 쌍"부터 차지하는 그리디 배정 + 자리를 못 받은 멤버를 늘리는 증가 경로 보강. 반환은 멤버별 자리 번호(모자라면 -1).
+	// 멤버를 입력 순서로 하나씩 처리하면 정면 멤버가 아니라 옆·대각선 멤버가 자리를 받아 좁은 문 앞에서 대각선 진입이 막히고 정체한다(플레이 로그 2026-10-02 far 문).
+	// 보강은 isAllowed가 막은 자리 때문에 "모두 받을 수 있는데 한 명이 남는" 배정을 막는다(이미 배정된 멤버는 자리를 잃지 않고 앞 단계 자리는 불변). 동률은 앞선 멤버·작은 자리 번호 먼저.
 	public static int[] AssignNearest(IList<Vector2Int> positions, IList<int> priorities, IList<Vector2Int> slots, Func<int, int, bool> isAllowed = null)
 	{
 		int n = positions.Count;
@@ -224,8 +223,8 @@ public static class PartyFormationMath
 	public static bool IsSameRoomForCommand(object leaderRoom, object memberRoom)
 		=> leaderRoom != null && ReferenceEquals(leaderRoom, memberRoom);
 
-	// tiles 중 사각형(xMin ≤ x < xMax, yMin ≤ y < yMax — RectInt.Contains와 같은 반열린 구간) 안에서 from과 직선거리가 가장 가까운 타일. 개인 탐색을 현재 방 안으로 제한할 때 프론티어 후보를 고르는 데 쓴다(검증 05-01).
-	public static bool TryNearestInRect(IEnumerable<Vector2Int> tiles, Vector2Int from, int xMin, int yMin, int xMax, int yMax, out Vector2Int nearest)
+	// tiles 중 사각형(xMin ≤ x < xMax, yMin ≤ y < yMax — RectInt.Contains와 같은 반열린 구간) 안에서 from과 직선거리가 가장 가까운 타일. 개인 탐색을 현재 방 안으로 제한할 때 프론티어 후보를 고르는 데 쓴다(검증 05-01). exclude가 true를 돌려주는 타일(닿지 못해 막힘 기록된 것, 검증 04-08 발견 5)은 후보에서 뺀다.
+	public static bool TryNearestInRect(IEnumerable<Vector2Int> tiles, Vector2Int from, int xMin, int yMin, int xMax, int yMax, out Vector2Int nearest, System.Predicate<Vector2Int> exclude = null)
 	{
 		nearest = default;
 		bool found = false;
@@ -233,6 +232,7 @@ public static class PartyFormationMath
 		foreach (var tile in tiles)
 		{
 			if (tile.x < xMin || tile.x >= xMax || tile.y < yMin || tile.y >= yMax) continue;
+			if (exclude != null && exclude(tile)) continue;
 			float dx = tile.x - from.x, dy = tile.y - from.y;
 			float distSq = dx * dx + dy * dy;
 			if (distSq < bestDistSq) { bestDistSq = distSq; nearest = tile; found = true; }

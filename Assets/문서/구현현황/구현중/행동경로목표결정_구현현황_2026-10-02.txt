@@ -1,0 +1,1257 @@
+GrimArchive 행동경로·목표설정 시스템 구현 현황 — 2026-10-02 갱신판 (2026-09-25 신규 착수 문서를 이어받음, 이전판은 구현현황/지난거/)
+기준 문서: Assets/문서/공식문서/행동경로_목표결정 09.25/
+  GrimArchive_00_공통판단_정보_행동우선순위_v0.12_본문정리_수정본.docx.md
+  GrimArchive_01_파티목표_비전투목표선택_v0.12_본문정리_수정본.docx.md
+  GrimArchive_02_전투목표_아군보호_지원_v0.12_본문정리_수정본.docx.md
+  GrimArchive_03_행동전환_중단_재개_v0.12_본문정리_수정본.docx.md
+  GrimArchive_04_이동경로_속도_점유충돌_v0.12_본문정리_수정본.docx.md
+  GrimArchive_05_파티이동_집결_보고_v0.12_본문정리_수정본.docx.md
+  GrimArchive_06_설정값_관련문서_상황별판단예시_v0.11_초안.docx.md          (설정값 색인 — 구현 대상 아님, 참고용)
+  GrimArchive_07_검증항목_설계의도_판정기준_v0.6_초안.md                    (검증 체크리스트 — 구현 대상 아님, 테스트 작성 시 참고)
+  GrimArchive_행동경로_목표설정_순서도_원본.drawio                          (순서도 원본 — 문서 안 이미지 대신 이 파일의 노드/엣지를 참고)
+작성일: 2026-09-25 / 갱신: 2026-10-02 (07번 검증항목 문서 00-01 ~ 06-02 전부 조사 완료 시점)
+
+■ 문서 읽는 법 (다음에 이 시스템을 다시 손댈 때)
+════════════════════════════════════════════════════════════════════════
+1. 이 문서 맨 위 "핵심 설계 결정"부터 읽는다 — 사용자가 이미 확정한 범위/방향이라 다시 묻지 않는다.
+2. "새로 필요한 변수·데이터" — 아직 없는데 새로 만들어야 하는 필드/클래스/enum 전체 목록. 실제로
+   만들어지면 항목 앞에 ✅를 붙인다.
+3. "큰 줄기 FSM 재설계" — UnitFSM/TacticalFSMState의 새 우선순위 구조. 실제 구현 전 확정판.
+4. "문서별 장 구현 현황" — 00~05 각 장의 ✅/🔶/❌ 태그. 다시 손댈 때 여기서 이어할 위치를 찾는다.
+5. 맨 아래 "다음 우선순위 구현 후보".
+태그: ✅구현(공식/수치가 코드에 있고 실제 게임 루프에서 발동) / 🔶부분·근사 / ❌미구현.
+
+════════════════════════════════════════════════════════════════════════
+■ 2026-10-02 갱신 요약 — 먼저 읽을 것
+════════════════════════════════════════════════════════════════════════
+이 문서의 "문서별 장 구현 현황" 태그는 2026-09-25~29에 쓰인 것이라 그 뒤의 검증·수정(2026-09-30 ~ 10-02)을 전부 담지 못한다. **장별 최신 판정은 아래 요약과 행동경로목표결정_검증_2026-09-25.txt(항목별 [근거]·[수정 완료] 블록)가 우선**하고, 아래 장별 태그는 이력으로 읽는다. 시스템별 구조 설명은 CLAUDE.md의 해당 절(점유 충돌·경로 지식·집결→진형→돌파→입장·문 구조·공황/합류 대기 비활성)이 최신이다.
+
+[검증 진행] 07번 검증항목 문서(행동경로_목표결정 09.25_2/…07_검증항목…) 본문 순서 00-01 ~ 06-02 전부 조사 완료. 남은 것: ① 후속-01~15(후속 문서가 생긴 뒤) ② 05-09(후퇴·도주 문서 뒤 — 귀환 중 소리가 새 경계를 만드는 ❌ 1·이미 향하던 조사를 접을지 문서 침묵) ③ 07 개념 v0.3·01 개념 v0.5(06번이 가리키는 판본이 저장소 v0.2·Current와 다름) 확인 뒤 07·01 구현 재대조 ④ Unity 플레이 확인 — 체크리스트는 플레이확인_체크리스트_2026-10-02.txt.
+
+[문서 세트별 상태 — 검증문서 기준]
+· 00번(공통 판단): 00-01~00-08 조사·수정 완료(2026-09-27~30).
+· 01번(파티 목표): 01-01~01-11 조사·수정 완료. 05-01에서 개인 탐색·조사의 방 제한 추가(Human.TryGetExplorationBounds).
+· 02번(전투 목표): 02-01~02-11 조사·수정 완료. 06-01에서 인류 공격 교체를 "1.2배 이상"으로(CombatScoreMath.ShouldSwitchAttackTarget ≥ + MeetsSwitchRatio, 비전투 PartyGoalMath도 같은 허용 오차).
+· 03번(행동 전환): 03-01~03-18-1 조사·수정 완료. 06-01에서 적 발견 합류 대기(JoinCombatWait, 응답 2초·합류 5초)가 현재 문서 세트(03번 v0.12 391·419줄·06번·07번 03-08)와 충돌해 AIBehaviorConfig.joinCombatWaitEnabled=false로 꺼짐(03-07·03-08 ✅ 정정). 보호 포메이션은 사용자 결정으로 계속 꺼짐(05-08에서 휴면 로직의 집결 명령 해제·역할별 자리 EscortSlotMath 보강).
+· 04번(이동·점유): 04-01~04-09 조사·수정 완료 — 점유 충돌 시스템(OccupancySystem/OccupancyMath)·경로 지식(개인 지도 A*, RouteAssessment)·트랩 회피 구역. 04-09 배치 모드는 코드에 없음(사용자 확정 N/A).
+· 05번(파티 이동·집결): 05-01~05-08 조사·수정 완료, 05-09는 후퇴·도주 문서 이후로 보류(퇴각 개별 탈출 판정은 반경 1로 수정).
+· 06번(설정값·예시): 06-01 수정 완료(죽은 설정 필드 4개 연결 포함), 06-02 문서 대 문서 점검 ✅.
+
+[2026-10-01~02에 바뀐 구조 — 상세는 CLAUDE.md]
+· 집결 → 문 앞 진형 → 리더 지시 문 파괴 → 역할 순 입장(Party.AdvancePlan, PartyAdvanceSystem/PartyBreachCommand/PartyAdvanceSteps/PartyFormationMath): 집결 대상 확장(미집결자 대기·포기 기억), 입장 자리 지식화, 돌파 공격 자리에서 문 너머 칸 제외 + AssignNearest 전체 최근접 쌍·증가 경로, 입장 도착 반경 0 + IsMemberDone 입장 단계 미완료, 입장 유닛별 간격 출발(entryReleaseIntervalSeconds 0.5), 입장 중 앞 유닛에 막히면 우회 대신 대기(OccupancySystem.TryEntryStep).
+· 개인 행동: 방 제한(roomBoundExplorationEnabled) + HumanIdleSystem(할 일 없을 때 합류, PartyCoreReportSystem.StepTowardDestination 공용) + LeaderRoutePlanner/RoomRouteMath(리더 방 경로·막다른 방 되돌이·파괴된 통로 입장), 문 대기 자리는 통과 구간 밖 우선.
+· 리더 1초 집결 확인은 입구 시퀀스·층 이동 중 건너뜀. 리더 입장 순서는 04번 8장 "리더도 자기 역할 순서"대로(문서에 리더 마지막 규칙 없음 — 추가 안 함).
+· 임시 비활성(AIBehaviorConfig): panicBehaviorEnabled=false(공황, 06 도주·후퇴 문서 뒤), joinCombatWaitEnabled=false(합류 대기, 07-A 개정 확인 뒤), Formation.enabled=false(보호 포메이션).
+· kill-switch 일람: rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · entryReleaseIntervalSeconds(0=예전 단계 장벽) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · personalMapPathingEnabled · unreachableCandidateExclusionEnabled · exploreBlockedRecordEnabled · trapAvoidanceEnabled.
+[검증 수준] 대부분 dotnet build(오류 0·경고 71) + 순수 함수 하니스(partyharness 77건 등)까지. Unity NUnit·플레이는 사용자 실행 — 확인 항목은 플레이확인_체크리스트_2026-10-02.txt.
+
+
+════════════════════════════════════════════════════════════════════════
+■ 핵심 설계 결정 (사용자 확인 완료, 2026-09-25) — 다시 묻지 않음
+════════════════════════════════════════════════════════════════════════
+1. **웨이브 강제이동 교체(예)** — 지금 HumanWaveManager.UpdatePartyDestination이 매 틱 파티원 전원의
+   playerMoveTarget을 목표 방 코어 좌표로 강제 설정하는 방식("전원 코어 직행")을 실제로 제거하고,
+   01/05번 문서의 개인별 비전투 목표 선택(탐색/회수/조사) + 리더 집결 판단 체계로 대체한다. 웨이브가
+   느리고 탐험적으로 바뀌는 것이 의도된 결과.
+2. **파티 종류 — 4종(탐색/회수/소탕/점령), 편성/가중치는 스텁.** PartyType은 탐색(Explore)/
+   회수(Recover)/소탕(MopUp)/점령(Occupy) 4종. 파티 생성 시 이 4종 중 하나를 무작위로 배정한다.
+   종류별 "편성 가능 유닛"·"선택 가중치" 자체는 01번 문서도 (미작성)03_파티 종류·목표·포메이션_
+   시스템 문서로 명시적으로 미룬 영역이라 스텁(무작위 배정으로 대체, 유닛 구성 자체는 지금처럼
+   WaveData 그대로).
+   **UI 요구사항**: 각 인류 유닛의 정보 UI(DebugInfoPanel.BuildBasicInfoTabText)에 "파티: {이름}
+   ({유형})" 줄을 추가한다.
+   **[정정, 2026-09-25 회의록]** 처음엔 "점령/보스공략은 현재 웨이브 구조에서 다른 종류와 구별되지
+   않는다"는 판단으로 3종(탐색/회수/소탕)만 구현했었다 — 이는 틀린 판단이었다. 사용자가 회의록
+   (팀원 최형준과의 대화, 회의록 09.25.txt)을 근거로 직접 정정: "점령 파티 외에는 점령 안 함"이
+   명시적 설계 의도이고, 점령 파티는 "방어 건물을 세우고 그 방에 머무르며 점령 판정"이라는, 다른
+   파티들과 뚜렷이 구별되는 행동을 한다. 아래 결정 5번(코어·점령 재설계)에서 점령 파티 전용
+   상호작용을 구현해 되돌렸다. 보스공략은 여전히 별도 파티 종류로 구별할 근거가 문서에 없어 제외
+   상태 유지.
+3. **보호 포메이션 — 로직은 재정리하되 계속 비활성.** 05번 9장 규칙(최초 직접 수신자만 참가, 집결
+   시 자동 해제 등)대로 로직 자체는 최신화하지만 TacticalBehaviorPriorityConfig의 Formation
+   enabled=false는 그대로 유지한다(2026-09-04 사용자의 명시적 비활성화 결정 존중).
+4. **02번 문서(전투 목표) 이번 범위 포함.** CombatFSMState를 "가장 가까운 적" 방식에서 개인위험도
+   ×역할배율×대상종류배율 점수 체계로 바꾸는 작업을 00~05와 같은 패스에서 설계+가능한 만큼 구현한다.
+5. **코어·점령 재설계(회의록 09.25 반영, 사용자 최종 확정 지시) — 최종적으로 코어는 보스방 전용화,
+   점령 오브젝트는 시도 후 삭제.** 새데모 코어 전면 개편(2026-08-22, "모든 방이 항상 코어 보유")을
+   이 회의록이 뒤집었다 — 최형준(팀원): "코어 보스방 하나만 둬", "애초에 점령 파티 외에는 점령 안
+   할 거니까 바뀌어야 하는 게 맞음, 점령이 일반 파티는 없음".
+   **최종 확정 상태(코드가 지금 이렇게 돼 있다)**:
+   - **코어는 보스방에만.** `GameSession.SpawnBossCores`(옛 SpawnAllRoomCores 대체, `FindBossRoom`
+     재사용)가 각 층 보스방에만 코어를 배치한다. `Room.CoreObjectId`가 null이면 보스방이 아니라는 뜻.
+   - **"임시 점령 오브젝트"는 시도 끝에 완전히 삭제됐다.** 순서: (1) 진행도 기반 상호작용(0~1
+     누적, 완료 시 IsOccupyCompleted) → (2) 사용자 재요청("거의 코어와 유사하게: 벽판정/코어처럼
+     파괴/명령으로 파괴 가능/방단위 연출/단 인류는 점령 파티만")으로 InteractableObject.OccupyHp
+     + MarkTileObstacle + 코어와 동일한 HP 채널링 파괴 메커니즘으로 전면 재작성 → (3) 그 상태에서
+     사용자가 "이제 임시 점령 오브젝트는 관련 코드 포함 전부 지워줘. 대신 추후에 다른 점령 조건을
+     추가할 수 있으니 세팅만 해주고"라고 최종 지시 → **관련 코드 전부 삭제**(InteractableObject.
+     OccupyHp/OccupyMaxHp, GameSession의 OccupyTag/RoomOccupyMaxHp/OccupyAttackDamagePerSecond/
+     OccupyRegenDelaySeconds/OccupyRegenPerSecond 상수 + SpawnRoomOccupyObject/TickOccupyRegen,
+     Room.OccupyObjectId/OccupyPosition, TacticalBehaviorType.Occupy 전체(BT 노드/우선순위 설정
+     항목/HasOccupyTarget 계열 5개 메서드), UnitFunction.OnUpdate의 isOccupy 채널링 분기,
+     PlayerCommandFSMState/BuildingControlPanel의 Occupy 분기 — grep으로 전수 확인, 잔재 없음).
+   - **"세팅"으로 의도적으로 남겨둔 것**: `PartyType.Occupy`(4번째 파티 종류)와
+     `Party.IsRoomActivityComplete`의 `case PartyType.Occupy: return room.RoomFaction ==
+     FactionType.Human;`(트리거 조건과 무관하게, "방이 인류 소유가 되면 완료"라는 판정 기준 자체는
+     유지). 다음 점령 조건을 만들 때 참고할 패턴: `OffenseProcessor.OnCoreDestroyed`가 "체력 0 →
+     ApplyRoomOwnership + 방어적 재확인(이미 같은 진영이면 조용히 처리)" 구조의 예시. `IMapColorizer.
+     PulseRoomOutline`(방 테두리를 진행파로 웅웅거리게 하는 연출, 아래 참고)은 이미 완성돼 있고
+     점령 조건과 무관하게 재사용 가능 — 다음 트리거가 뭐든 방 소유권이 바뀌는 순간 이걸 호출하면 됨.
+   - **점령 연출(방 테두리 펄스)은 삭제되지 않고 남았다** — 임시 오브젝트와는 독립적인, "방 소유권
+     변경 시 재생할 공용 연출" 인프라라 사용자가 명시적으로 "마음에 드네"라고 승인한 뒤 삭제
+     대상에서 제외했다. `IMapColorizer.PulseRoomOutline` + `MapRandering` 구현 — 방 테두리
+     LineRenderer(들)의 굵기/밝기를 waveCount=3개 봉우리가 travelSpeed=초당1.5바퀴로 도는 감쇠
+     사인파로 1.5초간 흔든다(위치별 위상 차이로 "퍼지는" 느낌, 사용자 2차 피드백 반영). 현재는
+     호출부가 없다(OnRoomOccupied가 삭제됐으므로) — 다음 점령 조건의 트리거 지점에서 호출하면 됨.
+   - **의도적으로 범위 밖에 둔 것(회의록이 스스로 미확정이라고 밝힌 부분 — 임의 판단 아님)**:
+     (a) 층 통제권 상실 — 최형준: "통제권 역할 뭐로 할지 명확히는 미설정"; (b) 인류 유닛의 거점
+     잔류 — 최형준: "이는 고민 좀 더"; (c) 점령 파티의 "방어 건물 설치"(목책 등) — 건설 시스템
+     확장 필요; (d) 방 클리어(적대 유닛 전멸 시 건설/배치모드 권한 부여) — 점령과는 별개 개념,
+     기존 OffenseProcessor._activeOffenseRooms(플레이어 몬스터의 야생 침공 추적, 다른 목적)와
+     혼동하지 말 것. 최형준이 시사한 "진짜" 점령 방식(오브젝트가 아니라 점령 파티가 방어 건물을
+     실제로 건설하는 연출)도 여전히 미착수 — 건설 시스템이 생기면 그쪽으로 갈 가능성이 높다.
+
+■ 핵심 설계 결정 (Claude 판단, 사용자 미확인 — 이상하면 바로 정정 요청)
+════════════════════════════════════════════════════════════════════════
+6. **"코어 발견과 리더 조사"(03번 3장) 재해석.** 이 절차는 2026-07-27에 구현했다가 2026-08-22
+   새데모 개편(코어 전면 개편 — "모든 방이 코어를 항상 보유, HP 파괴=즉시 점령")때 삭제된
+   CorePartySystem(리더가 코어에 도착해 8초 "조사"를 수행해야 완료되는 구식 회수형 목표물 처리)과
+   이름이 겹치지만, 새 03번 문서 자체가 "코어 조사 완료는 코어 파괴나 층 개방 완료와 별개의 사건"
+   이라고 명시한다 — 즉 "조사"가 "어떻게 점령하는가"를 대체하지 않는다. 그래서 이번 구현에서
+   "코어 발견→리더 조사"는 **파괴 매커니즘(HP/CoreAttack 채널링)을 되돌리지 않고, "코어를 발견하면
+   그 정보를 리더에게 보고하고 파티 우선순위를 그 코어로 모으는" 리포트·집결 트리거로만** 재구현한다
+   (리더가 도착하면 "확인됨" 처리하고 코어 우선순위 잠금을 걸어 파티원들이 몰려들게 하는 정도 —
+   실제 파괴는 그 뒤로도 계속 CoreAttack/플레이어 명령 채널링이 담당). 8초 조사 타이머 같은 구식
+   디테일은 가져오지 않는다.
+7. **전투 역할(CombatRole) — 인류 8클래스 매핑.** 02번 문서는 "근접탱커/근접공격/원거리공격/
+   근접지원(몽크)/원거리지원(사제)" 5역할만 예시로 들 뿐 인류 8클래스(units.json) 전체 매핑표는
+   안 준다. 실제 보유 스킬(units.json의 skills 필드)에 맞춰 이렇게 매핑한다:
+     전사(강타)→근접공격, 도적(기습)→근접공격, 마법사(파이어볼)→원거리공격, 사제(치유)→원거리지원,
+     성기사(성스러운 방패)→근접탱커, 주술사(저주)→원거리지원, 무도가(연격)→근접지원,
+     음유시인(전투의 노래)→원거리지원.
+   몬스터/야생(근접 탱커·인형기사·놀·고블린후드·야생몬스터A·보스골렘·기사형)은 전부 육중한 내리찍기류
+   근접 공용 스킷이라 근접탱커로 통일(타입명 자체가 "근접 탱커"인 것과 일치). 아처형은 원거리공격.
+   **주의**: 무도가(몽크)는 실제로는 "연격"(공격 스킬)만 가졌고 치료 스킬이 없다 — 02번 문서가
+   기대하는 "몽크의 일반 치료"는 지금 데이터로는 발동하지 않는다(스킬이 없으니 자동으로 근접공격
+   폴백). 치료 스킬을 무도가에게 추가할지는 콘텐츠 데이터 문제라 이번 범위 밖(사용자 판단 필요시
+   추가 확인).
+
+════════════════════════════════════════════════════════════════════════
+■ 새로 필요한 변수·데이터 (아직 없는 것만, 실제로 만들어지면 항목 앞에 ✅)
+════════════════════════════════════════════════════════════════════════
+[Party / 파티 종류]
+- ✅ PartyType enum (Explore/Recover/MopUp/Occupy, 2026-09-25 회의록 반영으로 Occupy 복원) —
+  Assets/Script/Unit/Party/PartyEnums.cs
+- ✅ Party.Type 필드 — GameSession.CreateParty가 무작위 배정
+- Party 이름 생성(유형 기반, "PreSpawnParty" 하드코딩 대체) — 보류: 사용자 요청은 "이름·유형 UI 표시"
+  뿐이라 기존 이름 생성 로직(config.partyName/"PreSpawnParty")은 손대지 않음(스코프 밖 변경 방지)
+- ✅ DebugInfoPanel.BuildBasicInfoTabText에 파티 줄 추가 — "파티: {이름} ({유형})"
+
+[코어·점령 재설계 / 회의록 09.25 + 같은 날 세 차례 후속 수정] — 위 결정 5번 참고. 아래는 최종
+(전부 삭제 후) 상태 — 중간 단계(진행도 방식, HP 채널링 방식)의 필드/메서드는 전부 코드에서
+삭제됐고, 이 문서에서도 지난 기록은 남기지 않는다(어차피 코드에 없다 — grep으로 확인).
+- ✅ 코어 보스방 전용화 — GameSession.SpawnBossCores(옛 SpawnAllRoomCores 대체), Room.
+  CoreObjectId가 null이면 보스방 아님. (안 바뀜, 계속 유지)
+- ✅ PartyType.Occupy(4종) + Party.IsRoomActivityComplete의 case Occupy(판정만, 트리거 없음) —
+  "세팅"으로 의도적으로 남긴 부분(위 결정 5번 참고)
+- ✅ IMapColorizer.PulseRoomOutline + MapRandering 구현 — 점령 연출(방 테두리를 waveCount=3개
+  봉우리가 travelSpeed=초당1.5바퀴로 도는 감쇠 사인파로 1.5초간 흔듦, LineRenderer.widthCurve/
+  colorGradient를 매 프레임 재생성). 사용자가 "마음에 드네"라고 승인해 삭제 대상에서 제외됨 —
+  현재 호출부 없음(다음 점령 조건이 트리거 지점에서 호출).
+  **구현 중 발견한 실제 버그(수정 완료)**: widthCurve/colorGradient는 항상 startWidth/startColor
+  보다 우선 적용되는 값이라, 펄스가 끝난 뒤 이를 안 되돌리면 이후 SetRoomOutline(방 재점령 등으로
+  다시 그릴 때)의 색 갱신이 화면에 안 보이는 문제가 생긴다 — 펄스 종료 시점과 SetRoomOutline 양쪽에
+  ResetOutlineRendererToFlat 호출을 추가해 방어.
+- ❌(의도적 삭제) 임시 점령 오브젝트 관련 전부 — InteractableObject.OccupyHp/OccupyMaxHp,
+  GameSession의 OccupyTag/RoomOccupyMaxHp/OccupyAttackDamagePerSecond/OccupyRegenDelaySeconds/
+  OccupyRegenPerSecond/SpawnRoomOccupyObject/TickOccupyRegen, Room.OccupyObjectId/OccupyPosition,
+  TacticalBehaviorType.Occupy(BT 노드/우선순위 설정 항목/HasOccupyTarget 계열 5개 메서드),
+  UnitFunction.OnUpdate의 isOccupy 채널링 분기, PlayerCommandFSMState.IsPendingObjectAttackValid/
+  BuildingControlPanel의 Occupy 분기, OffenseProcessor.OnRoomOccupied, VFXManager.
+  SpawnRoomCaptureVfx(방단위 연출 1차 시도, PulseRoomOutline으로 대체돼 폐기). 삭제 후
+  `grep -rn Occupy Assets/Script`로 전수 확인 — PartyType.Occupy/Party.cs case 문 2곳만 남고 나머지
+  0건.
+
+[2026-09-25 리팩토링 패스 — 사용자 요청("많은 시간 투자해도 되니 꼼꼼히"), 오늘 세션 전체 diff를
+git diff로 한 줄씩 검토] 발견/수정한 것:
+- CombatScoreMath.ResolveCombatRole의 default 케이스 주석이 "몬스터/야생 전부 근접탱커"라고만 썼는데
+  실제로는 Archer(아처형 몬스터)가 그 위에서 이미 RangedDps로 예외 처리돼 있어 부정확 — "나머지"로
+  명확화.
+- GameSession.TryFindObjectSpawnPos 주석이 "코어/점령 오브젝트 스폰이 공유" — 점령 오브젝트 삭제로
+  이제 SpawnRoomCore 단독 호출인데 주석이 안 갱신돼 있었음 — 수정.
+- GameSession.CreateParty의 주석이 "3종 중 무작위"라고 남아있었음(Occupy 재추가로 4종) — 수정.
+- 그 외 논리 검증(버그 아님, 확인만): HumanWaveManager의 rally→advance 핸드오프에서 ReadyToAdvance
+  리셋이 일부 멤버의 currentWait!=null로 명령이 누락될 수 있는지 확인 — TacticalFSMState.
+  ExecuteWait이 도착 즉시(CheckRallyComplete 호출 전에) currentWait=null로 비우므로 안전함을
+  확인. CombatFSMState.SelectAttackTarget/currentAttackTarget 등 신규 필드가 StandGroundAttackFSMState
+  와 공유되면서 상태가 어긋나는지 확인 — 두 상태 모두 Unit 레벨 필드를 그대로 읽고 쓰므로 전환 시
+  자연히 연속성이 유지됨을 확인. PartyGoalMath.cs가 어디서도 호출되지 않는 것을 발견했으나, 이는
+  사고가 아니라 01번 5-6장(개인 비전투 목표 점수·20% 교체)을 다음 세션에 연결할 예정으로 미리
+  준비해 둔 것(위 항목 6 참고)이라 그대로 둠 — "쓰이지 않으면 지운다" 원칙은 우발적 죽은 코드에만
+  적용, 계획된 연결 대기 코드에는 적용하지 않음.
+
+[2026-09-25 구조적 리팩토링 — 사용자 요청("구조적 리팩토링도 실행해줘. 캡슐화나 불필요한 코드
+등"), 오늘 작업분에 한정] 발견/수정한 것:
+- **Unit.cs에 흩어져 있던 02번(전투 목표) 관련 필드 9개를 CombatTargetingState 하나로 캡슐화.**
+  currentAttackTarget/currentBossFocusTarget/attackTargetMovedTiles/isChasingRetargetedEnemy/
+  recentDirectHitLossesThisCombat/pendingHighThreatDirection/pendingHighThreatUntilTime/
+  currentHealTarget/currentProtectTarget를 `Unit.CombatTargeting`(새 CombatTargetingState.cs,
+  Assets/Script/Unit/Combat/) 하나로 묶었다. 계기: Unit.cs를 보다가 이미 CombatStateComponent
+  (`unit.CombatState.State.X`)/PerceptionComponent/StatusEffectsComponent라는 "컴포넌트 + .State"
+  구조가 있는데, 내가 오늘 추가한 9개는 그 패턴을 안 따르고 Unit에 바로 흩어놓은 것을 발견 — 다만
+  UnitCombatState는 [Serializable] **구조체**라 Unit 참조/List<float>를 넣기엔 성격이 안 맞아
+  (그 구조체는 지금 전부 primitive/배열뿐) 거기 편입하진 않고, WaitState/InvestigationState 같은
+  기존 "간단한 클래스 + Unit의 필드 하나" 패턴으로 새로 캡슐화했다. 부수 효과: CombatFSMState.OnExit/
+  스킬실행성공/재대상불가 3곳에서 반복되던 "movedTiles=0; isChasing=false;" 두 줄이
+  CombatTargeting.ResetRetargetTracking() 한 줄로, OnExit의 5줄이 ResetOnCombatExit() 한 줄로 줄었다
+  (불필요한 코드 중복 제거). CombatFSMState.cs/UnitFunction.cs/SkillAction_Heal.cs의 호출부 전부
+  갱신, dotnet build 오류 0 확인.
+- 그 외 검토했으나 안 바꾼 것: Party.Type/ReadyToAdvance 등도 bare public 필드지만 Party.cs 자체가
+  Id/Name/Leader/RallyPoint 등 전부 그 스타일이라 일관성 유지 목적으로 그대로 둠. TargetCategory.
+  AttackBuilding처럼 "지금은 아무도 안 만드는 카테고리"도 문서(02번) 스스로 정의한 3분류 중 하나라
+  죽은 코드가 아니라 그대로 둠.
+
+[2026-09-27 리팩토링 리뷰 — 5개 커밋(0장 검증 중간저장~0층->1층 로직 개선) 대상] 발견/수정한 것:
+- HumanWaveManager.JustReachedMonsterKillQuota(공유 단발 bool)를 제거 — 파티가 여러 개면 먼저 확인한
+  파티가 신호를 소비해 나머지 파티는 못 보는 문제가 있었다. Party._monsterKillQuotaConsumed(파티별
+  전용)가 레벨 조건(CommonMonsterKillCount >= RequiredMonsterKillCount)을 각자 확인하는 방식으로 교체.
+- Party.OnLeaderLearnsCore가 currentWait을 지우면서 waitStuckTurns를 안 지우던 누락 수정(다른 모든
+  해제 지점과 동일하게 리셋).
+dotnet build 오류 0개(경고 71개, 기존과 동일) 확인.
+
+[2026-09-27 주석 압축 + 리팩토링 재검토 2차 — 사용자 요청("주석 스타일 고치고 리팩토링 검수")] 이 문서가
+다루는 09-25~27 범위(git diff 637f217..HEAD, 37개 파일) 전체의 신규/변경 주석을 압축 기준(날짜·인용·
+히스토리 제거, 결론만 1~2문장)에 맞춰 18개 파일 정리(133줄 추가/214줄 삭제, 순감소 81줄). 압축 중 찾은
+사실 오류도 같이 수정: GameSession.SpawnAllRoomCores→SpawnBossCores 개명이 안 반영된 주석
+(HumanWaveManager.cs), IMapColorizer.PulseRoomOutline이 이미 삭제된 OffenseProcessor.OnRoomOccupied를
+호출한다던 주석, TacticalFSMState.cs "코어 공격" 헤더가 옛 "모든 방이 코어 보유" 전제를 그대로 갖고
+있던 것(보스방 전용으로 수정), GOAP 시대 잔재 주석([[project_fsm_bt_not_goap]] 참고) 5건.
+발견/수정한 실제 로직 버그 2건(둘 다 사용자 확인 후 수정):
+- CombatFSMState.SelectAttackTarget — currentValid를 pool(위협 우선 후보만)로 판정해, 유지 중인 대상이
+  위협 후보가 아닌 상태에서 다른 위협이 새로 나타나면 "대상 없음"과 동일 취급돼 02번 5장이 명시하는
+  이동 한도 예외 목록에 없는 경우인데도 20%/이동한도 게이트를 건너뛰고 즉시 교체되는 버그였다 —
+  allCandidates 기준으로 교체(CombatFSMState.cs 277번 줄 부근).
+- PartyCoreReportSystem.OnCoreDiscovered — 기존 대기(집결 등)를 currentWait에 덮어쓰면서 waitStuckTurns를
+  리셋 안 하던 누락(바로 위 Party.OnLeaderLearnsCore 항목과 동일 패턴이 이 자매 코드엔 남아있었음) —
+  리셋 추가.
+dotnet build 오류 0개(경고 71개, 기존과 동일) 확인. Unity 실제 플레이 검증은 안 함(다른 항목들과 동일).
+
+[전투 역할 / 02번] — 전부 구현 완료(청사진 대비 실제 반영)
+- ✅ CombatRole enum(MeleeTank/MeleeDps/RangedDps/MeleeSupport/RangedSupport) — CombatEnums.cs
+- ✅ UnitType→CombatRole 매핑 — CombatScoreMath.ResolveCombatRole (판단 근거는 위 결정 7번)
+- ✅ 역할×역할 4x5 배율표 — CombatScoreMath.RoleMultiplierTable(static 2차원 배열, 조정값 원문 그대로)
+- ✅ 대상종류배율(일반1.00/방어건물1.15— 대응 유닛 타입 없어 항상 미해당/보스1.50) —
+  CombatScoreMath.ResolveTargetCategory(BossGolem 체크)
+- ✅ 공격점수 계산 + 1.2배(인류)/더높음(몬스터·야생) 교체기준 — CombatFSMState.SelectAttackTarget
+- ✅ 공격 대상 변경 이동 한도 4종 + 누적 칸수 — Unit.CombatTargeting.MovedTilesSinceRetarget/
+  IsChasingRetargetedEnemy(2026-09-25 리팩토링으로 CombatTargetingState에 캡슐화 — 아래 "구조적
+  리팩토링" 항목 참고), CombatFSMState.TrackRetargetMovement(실행 시에만 초기화, 재교체해도 유지 —
+  C22 예시와 일치)
+- ✅ 보스 집중 유지 — Unit.CombatTargeting.BossFocusTarget, SelectAttackTarget 안에서 처리(임시위협
+  있을 때만 이탈)
+- ✅ 일반 치료 대상(HP비율→도달시간(거리 근사)→현재유지, 클래스별 문턱 60%/80%) —
+  SkillAction_Heal.FindLowestHpAlly 재작성, Unit.CombatTargeting.HealTarget으로 지속
+- ✅ 긴급 아군 보호(저체력+위협 / 행동불능+피격, 자기자신 포함, HP비율→행동불능→도달시간 순) —
+  CombatFSMState.ResolveEmergencyProtectTarget, SkillAction_Heal이 CombatTargeting.ProtectTarget
+  우선 인식
+  🔶 근사: "치명적 공격 예상" 조건(1~2번째 비교 기준)은 신뢰할 피해 추정치 연결이 없어 생략(구현현황
+  본문 참고) — 저체력·행동불능 두 조건만으로 판정
+- ❌ 피해 감수 보호 경로 판정(9장, 첫 보호효과 시점 예상 HP≥30%) — 미구현. 경로별 피해 추정·노출
+  시간 비교 인프라가 없어 범위 밖으로 남김(다음 우선순위 참고)
+- ✅ 큰 피해 시야전환(이전 평균×2) — Unit.CombatTargeting.RecentDirectHitLosses, UnitFunction.
+  RecordDirectHitForViewSwitch, VisionMath.IsHighThreatSurprise(기존 미사용 함수를 이 공식으로 재활용),
+  VisionDirectionReason.HighThreatSurprise를 ResolveVisionDirection 후보에 추가(기존에 정의만 되고
+  안 쓰이던 슬롯 — 03-A 10장 원래 자리)
+
+[비전투 목표 / 01번]
+- 개인 비전투 목표 상태 클래스(신규 또는 InvestigationState 확장) — 대상(타일/오브젝트), 점수,
+  목적지, 경로 확인 여부를 담음. 기존 current___State 패턴(TrapInteractionState/InvestigationState/
+  WaitState/FormationState/JoinCombatWaitState)과 동일한 자리에 추가.
+- 비전투 목표 점수 계산 함수(흥미도×가중치÷max(1,거리)) — ExplorationMath.cs에 추가
+  (PersonalMapKnowledge.GetTileInterest/GetTileDanger 재사용, 새 산출 로직 불필요)
+- 20% 교체 기준 로직(01번 6장) — 목표 변경 전용, 공유 가능한 정적 헬퍼로
+- 파티종류별 "현재 방 활동 종료" 판정 함수 3종(탐색/회수/소탕 각각 다른 기준, 01번 7-1장)
+- "방 지형 확인 완료"(파티원 시야 합산) 판정 — PersonalMapKnowledge 프론티어 집합을 방 경계와
+  교차 비교하는 신규 함수
+
+[집결 / 05번]
+- Party.RallyPoint/IsRallyActive 기존 필드 재사용, 트리거 확장(파티임무 완료·코어발견·명령 등)
+- 집결 명령 방 전체 전달(같은 방+같은 파티 즉시) — PropagationSystem._humansByRoom 인덱스 재사용
+- 문 주변 대기 위치 계산(문 타일 반경 2칸 비움) — 신규 함수
+- 집결 대상 판정(생존/도주/사망 구분, 도주·사망 확인 없으면 계속 대기) — Party.cs 확장
+- 상호작용 보호 포메이션 — 로직 재정리, enabled=false 유지(위 결정 3)
+
+[이동 / 04번]
+- CombatRole 기반 좁은 통로 통과 순서(전방근접→근접지원→원거리공격→원거리지원, 동순위 HP비율)
+- 대기 vs 우회 예상시간 비교(AIMovementHelper에 추가) — 상호작용 잔여시간 전파 일반화
+- 공동 이동속도(파티원 중 최저 적용속도) 계산 헬퍼
+
+[전환 / 03번]
+- 대부분 기존 IsSticky/ShouldInterrupt/OnExit 패턴으로 커버됨 — 01/05번 신규 상태(비전투목표/집결)에
+  대한 이벤트 처리표 케이스만 추가 필요, 새 데이터 구조는 거의 불필요.
+
+════════════════════════════════════════════════════════════════════════
+■ 큰 줄기 FSM 재설계
+════════════════════════════════════════════════════════════════════════
+00번 문서 4장의 8단계 우선순위를 기존 UnitFSM(PlayerCommand 200 > Combat 100 > Tactical 50 >
+Idle 20 > Navigation 10)에 매핑한다. 최상위 3계층(PlayerCommand/Combat/Tactical)은 그대로 두고,
+Tactical 내부 BT Selector 순서를 재편해 8단계 표의 4~8단계를 반영한다 — 완전히 새 FSM 계층을
+만들지 않고 기존 구조(IFSMState 3종 + TacticalBehaviorPriorityConfig 순서 목록)를 확장하는 것으로
+충분하다(Haare 프레임워크의 기존 VContainer/Processor 패턴, FSM의 IFSMState/BTNode 패턴 모두 유지).
+
+8단계 표 ↔ 기존 구조 매핑:
+  1. 사망·불능·강제이동·도주후퇴·직접명령
+       → 사망(외부 처리) / 직접명령(PlayerCommandFSMState, 그대로) / 도주·후퇴(정신력·도주·후퇴
+         문서 부재로 스텁 — 지금처럼 미구현 유지)
+  2. 직접피격·회피·긴급아군보호·유효한전투
+       → CombatFSMState (02번 스코어링으로 내부 교체, 최상위 우선순위 그대로)
+  3. 중단조건 없는 현재 행동 계속
+       → IsSticky/ShouldInterrupt 패턴(기존 구조 그대로, 03번 이벤트표 케이스만 보강)
+  4. 코어 발견 보고·상호작용
+       → TacticalBehaviorPriorityConfig 맨 앞에 신규 "CoreReport" 항목 추가(Panic 다음,
+         JoinCombatWait보다 위 — 기존 CoreAttack은 그대로 최후순위 유지, CoreReport는 별개의
+         "발견 즉시 보고 + 리더 우선순위 고정" 이벤트라 자리가 다르다)
+  5. 수신한 집결·방이동 명령
+       → 신규 "Rally" TacticalBehaviorType, CoreReport 다음 순위
+  6. 미완료 파티임무 또는 다음 방 활동
+       → 신규 "PartyGoal"(01번 개인 비전투 목표), Rally 다음 순위 — 기존 Investigate가 이 산하로
+         흡수됨(오브젝트 조사는 그대로, 다만 파티종류별 점수 비교 레이어가 위에 씌워짐)
+  7. 일반탐색·함정대응·경계·조사·소리확인
+       → 기존 TrapResponse > Alert > Investigate > Wait 순서 그대로 유지(이미 문서 2-1장 순서와
+         일치 — 새 PartyGoal이 "Investigate가 무엇을 조사할지"를 결정하는 것으로 통합)
+  8. 후보 없음 — 인류 진형합류/문대기, 몬스터 대기위치
+       → 기존 Wait(ExecuteWait)/IdleFSMState 그대로, 05번 문 대기 위치 계산만 보강
+
+[2026-09-25 실제 구현은 아래처럼 더 단순하게 끝났다 — 새 TacticalBehaviorType(CoreReport/Rally/
+PartyGoal)을 실제로는 추가하지 않았다. 기존 WaitState/currentWait(TacticalBehaviorType.Wait은 이미
+있음) 메커니즘이 "특정 위치로 이동, 도착하면 해제"를 이미 정확히 구현하고 있어서 그대로 재사용하는
+쪽이 새 BT 분기를 만드는 것보다 훨씬 적은 변경으로 동일한 효과를 냈다:]
+  - "집결"(8단계표 5번) = 기존 Party.TryStartRally + WaitState{Reason=AwaitingPartyAtRallyPoint} 그대로,
+    다만 트리거를 "전투 후 스윕 종료"뿐 아니라 "파티종류별 방 활동 완료"(Party.
+    TickRoomActivityCheck, 리더 한정 1초 주기)로 확장.
+  - "다음 방 이동"(8단계표 5번 후반) = 새 WaitReason.AdvancingToNextRoom + WaitState 재사용.
+    HumanWaveManager가 목적지(다음 문)만 지정하고 실제 이동/중단/재개는 TacticalFSMState.ExecuteWait이
+    담당 — Wait은 Tactical(50) 안에 있어 Combat(100)에 자연히 밀린다(아래 "중요 발견" 참고).
+  - "코어 발견 보고"(8단계표 4번)·"파티 임무"(8단계표 6번, 01번 개인 비전투 목표)는 아직 미착수 —
+    기존 Investigate/Navigation 조합이 최소한의 대체 역할을 한다(오브젝트 조사 + 타일 프론티어 탐색).
+  - CoreAttack/DoorAttack(기존, 인류 전용)은 변경 없음 — 방 활동 완료 판정이 코어 파괴 자체를 요구하지
+    않으므로, 아직 안 뚫린 적대 문에 막히면 개인이 자연히 이 기존 전술로 빠진다(막힘→Wait 해제→
+    CoreAttack/DoorAttack으로 자동 위임, 별도 연결 코드 불필요 — TacticalBehaviorPriorityConfig 순서가
+    이미 그렇게 짜여 있었다).
+
+**중요 발견(2026-09-25, 구현 중 확인)**: `HumanWaveManager`가 기존에 쓰던 "playerMoveTarget=대상 +
+isManualMoveCommand=false" 패턴은 실제로 어떤 이동도 발생시키지 않는 것으로 보인다 —
+PlayerCommandFSMState/UnitFSM 양쪽 다 이동 판정에 `playerMoveTarget.HasValue && isManualMoveCommand`
+(AND)를 요구하는데 HumanWaveManager는 항상 뒤엣것을 false로 남겨뒀다. 코드 전체를 grep해도 이
+조합을 소비하는 경로가 없다(UnitGenerate.cs/InputManager.cs의 사용처는 전부 UI 표시·인구수 계산용).
+즉 예전 "코어로 강제 직행"도, 지금 남아있는 퇴각(_retreating) 분기의 "탈출지점으로 강제 이동"도
+FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨이브가 진행되고 퇴각이 완료되는 것처럼
+보였다면 자유탐색(NavigationFSMState)과 자동 CoreAttack(인지만으로 발동, 이동 명령 불필요)만으로
+설명 가능하다. **이번 신규 기능(집결 후 다음 방 이동)은 이 함정을 피해 WaitState 기반으로 새로
+구현**했으므로 실제로 작동한다. 다만 **퇴각(_retreating) 분기는 기존 동작 그대로(수정 안 함, 범위
+밖) 남겨뒀다** — 똑같이 무효할 가능성이 있다. 사용자 확인 후 원하면 같은 WaitState 패턴으로
+고칠 수 있다(사용자 피드백 메모리 규칙 — 발견한 버그는 확인 후 수정).
+
+════════════════════════════════════════════════════════════════════════
+■ 문서별 장 구현 현황
+════════════════════════════════════════════════════════════════════════
+(구현 진행에 따라 아래를 갱신. 시작 시점은 전부 ❌.)
+
+── 00 공통 판단 구조와 정보 및 행동 우선순위 ──
+❌ 1. 목표와 행동의 구분
+❌ 2. 행동 상태와 행동 가능 조건
+❌ 3. 개인이 사용할 수 있는 정보
+🔶 4. 행동 종류별 우선순위 (8단계 표 중 5번 집결·방이동만 실제 배선 — 위 "큰 줄기 FSM 재설계"의
+   "실제 구현은 더 단순" 항목 참고. 4번 코어보고/6번 파티임무는 미착수)
+   [수정, 2026-09-27] 집결 대기(AwaitingPartyAtRallyPoint)/다음 방 공동 이동(AdvancingToNextRoom)/
+   코어 보고(ReportingCoreToLeader) 중에도 Investigate가 새 조사를 가로채던 실제 버그를 검증문서
+   00-04/01-06(앞 두 WaitReason)과 01-07(코어 보고 WaitReason 추가 발견)에서 찾아 전부 수정 —
+   TacticalFSMState.CanInvestigate에 "이미 시작한 조사가 아니면 이 세 WaitReason 중엔 새로 시작
+   안 함" 게이트 추가. dotnet build 오류 0 확인.
+❌ 5. 목표 후보를 고르는 공통 조건
+❌ 6. 목표와 경로를 다시 판단하는 조건
+❌ 7. 진영별 공통점과 차이
+❌ 8. 문 상태와 통과 권한
+❌ 9. 구현 시 판정 결과
+
+── 01 파티 목표와 비전투 목표 선택 ──
+❌ 0~1. 파티 목표의 의미 / 웨이브 입장 목표 결정 절차 (임무 종류 선택 자체는 침입·웨이브 문서
+   부재로 범위 밖 — 지금처럼 "목표 방 코어 파괴" 단일 목표 유지)
+🔶 2. 임무 종류와 집계 기준 (2026-09-27) — "임무" 선택 절차(기록확인→조건확인→가중치선택, 침입·웨이브
+   문서 부재로 여전히 범위 밖)는 안 됐지만, 방 탐색 요구 수량(B+E)과 몬스터 처치 요구 수량은 실제로
+   센다:
+   - 방 탐색: PartyGoalMath.RequiredRoomExploreCount(자리표시자) + Party.CompletedRoomExploreCount/
+     OnRoomExploreCompleted(개인 RoomExploreState→Complete 시 **파티 단위** dedup 집계,
+     PersonalMapKnowledge.ObserveRoomTileRevealed 훅).
+   - 몬스터 처치: PartyGoalMath.RequiredMonsterKillCount/MonsterKillWeight(자리표시자, 종류별 배율은
+     균일 1.0) + HumanWaveManager.CommonMonsterKillCount/OnMonsterKilled(**웨이브 단위** 공통 집계 —
+     검증문서 01-04가 "여러 파티가 있어도 시스템이 함께 집계한다"를 명시해 방 탐색과 달리 Party가
+     아니라 HumanWaveManager에 둠, GameSession.RemoveDeadUnit의 기존 인류-킬 몬스터 분기에서 호출).
+   - 둘 다 리더 판단 연결(8번 항목)은 여전히 범위 밖 — Just Reached*Quota 신호만 존재.
+✅ 3. 파티 임무에서 개인 행동으로 연결 (2026-09-27) — 회수/소탕/탐색 등 파티종류별 "우선 행동
+   카테고리" 차등은 가중치 표 부재로 여전히 불가(균일 1.0), 다만 "부여된 임무 → 개인 비전투 행동"
+   연결 배관 자체(아래 4·5번)는 이제 실제로 있다.
+✅ 4. 개인 지도에서 탐색 후보 만들기 (2026-09-27) — Unit.ComputeInvestigateTarget이 기존 오브젝트
+   후보(회수물/시체/함정)에 personalMap.KnownInterestTiles(시야로 존재만 확인, 안전확인 전 타일)를
+   더해 후보 풀을 통합. GetTileInterest의 기존 5/0 전환(암묵적, RevealTile 시딩→TickTileInterestConfirm
+   시간경과 감쇠)을 그대로 재사용 — 새 추적 로직 불필요했음. 오브젝트 위치에 겹치는 타일 후보는 제외
+   (중복 가산 방지).
+✅ 5. 흥미도와 이동 경로를 비교하는 공식 (2026-09-27) — PartyGoalMath.NonCombatGoalScore를
+   ComputeInvestigateTarget이 실제로 호출(그 전까진 호출부 0). 거리는 04번 9번 항목 정식 공식
+   (Unit.EstimateDistanceTilesTo): 전체 길 알면 AStarMovement.TryGetPathLength(신규, TryGetNextStep의
+   탐색을 RunSearch로 추출해 공유 — 이동 캐시는 안 건드림)의 실제 경로 길이, 모르면
+   personalMap.TryGetNearestFrontierTile(기존 함수, from에 목표 위치를 넣어 재사용)로 목표 쪽 최근접
+   프론티어까지 실제 경로+직선 잔여. 후보 다수 시 직선거리 1차 정렬 후 상위 5개만 정밀 계산(성능).
+   [2026-10-01 갱신, 검증 04-08] 위 "목표 쪽 직선 최근접 프론티어" 폴백은 RouteAssessment로 교체됐다 — 프론티어는 (실제 걸음 수 + 체비셰프)의 최솟값으로 고르고, 통행 불가가 확인된 대상은
+   후보에서 제외하며 그 뒤 후보로 계속 내려간다(상세는 04번 9항 갱신 블록).
+🔶 6. 목표 유지와 변경 기준 (2026-09-27) — PartyGoalMath.ShouldSwitchNonCombatGoal을
+   ComputeInvestigateTarget이 실제로 호출하지만 "0→양수" 분기만 도달(새 목표 커밋). 이미 커밋된 목표를
+   이동 중 1.2배 기준으로 재비교하는 것은 CanInvestigate가 커밋된 목표가 있으면 재탐색 자체를 안 하는
+   기존 성능 최적화 때문에 여전히 미도달 — 의도적 범위 밖(검증문서 00-06 참고).
+❌ 7. 다른 탐색 방향과 방 확인 완료 (개인별 흥미도 스코어링은 이제 4·5번으로 있지만, "후보가 아예
+   없을 때 프론티어로 걸어가 시야를 넓히는" 동작 자체는 여전히 별개 FSM(NavigationFSMState, 조사와
+   무관한 기존 폴백)이 담당 — Investigate가 "후보 없음"으로 실패하면 FSM 우선순위가 자연히
+   내려가는 것에 기댈 뿐, 이 장이 말하는 통합된 "탐색 방향 결정"은 아니다)
+✅ 7-1. 파티 종류별 탐색 종료와 집결 판단 — Party.IsRoomActivityComplete + Party.TickRoomActivityCheck
+   (1초 주기) + Party.TryStartRally. Explore 분기는 2026-09-27부터 파티원 전체 시야 합산
+   (IsRoomFullyRevealedByParty, 아래 7-2 참고)을 우선 확인하고 리더 개인 지도 근사는 안전망으로 유지
+   — Recover/MopUp/Occupy는 각자 문서 요구대로 여전히 리더 개인 판정(각각 회수 대상·인지된 적·방
+   소유권 기준이라 "시야 합산"이 애초에 해당 사항 아님).
+   [소탕 정정, 2026-10-01] MopUp 기준은 처음에 "인지된 적 없음"만이라 스폰 직후부터 참이었다(도착 즉시 집결).
+   문서(437줄·04번 소탕 파티 절)대로 "다음 이동 문 앞까지 이동하며 확인한 뒤" 적이 없을 때만 참이 되도록
+   고쳤다 — 리더가 아는 다음 이동 문 앞 자리로 걷는 WaitReason.ApproachingNextDoor(HumanWaveManager.
+   TryAssignLeaderDoorApproach가 배정, TacticalFSMState.ExecuteWait가 실행)와 도착 표식(Party.DoorApproachRoom,
+   MarkLeaderReachedNextDoor)으로 구현. 문을 모르면 리더의 기존 프론티어 탐색이 문을 찾는다. 리더 외 파티원은
+   문으로 이동시키지 않는다(집결 때 모임 — 05번 8장 진형 합류 미작성). 목표 방이 없으면 소탕 파티는 집결하지
+   않는다(임무 수량 달성 경로는 그대로).
+   [진단 로그, 2026-10-01] Party.TryStartRally가 조용히 return하던 모든 지점에 "집결 불가 — 사유" 로그를 추가했다(동작 불변). 사유(종류+구분값)가 바뀔 때, 같은 사유는 15초마다 상태를 갱신해 한 줄만 남긴다: 던전 입구 시퀀스 중/적 인지 중/전투 후 스윕 중(파티원 이름)/
+   리더 없음/리더 층 이동 중/집결을 마친 방을 리더가 아직 안 떠남/미처리 코어/방 활동 미종료(탐색: 파티 시야 합산 N/M칸 + 리더 개인 지도 방 안 프론티어 개수·예시 좌표, 회수·점령·소탕·기타 각자 기준). 진행 중인 집결은 "집결 진행 중 — 도착 대기 N명 [이름[도착]/[이동 중]], 그 밖 M명 [이름[대기 사유]]"로
+   남는다. Unity Console에서 "[파티]" 또는 "집결 불가"/"집결 진행 중"으로 검색한다.
+✅ 7-2. 방 지형 확인 완료를 리더에게 알리는 범위 (2026-09-27) — Party._partyRevealedTilesByRoom/
+   OnTileRevealedInRoom이 파티원 전체가 나눠 본 타일을 방 단위로 합산해 IsRoomFullyRevealedByParty로
+   노출, IsRoomActivityComplete의 Explore 분기가 이걸 우선 확인(기존 리더 개인 판정은 안전망으로
+   유지). 검증문서 01-06-4 참고.
+🔶 8. 임무 수량 달성 후 행동 (2026-09-27) — 수량 집계 자체는 이제 있다(위 2번). "달성 후 리더가
+   무엇을 하는가"(집결 판단 연결 등)는 여전히 범위 밖 — JustReachedRoomExploreQuota는 아직 아무도
+   안 읽는 신호로만 존재.
+🔶 (검증문서 01-09) 미처리 대상 기록의 전파와 귀환 후 활용 — 1·4번 트리비얼, 2번(합류 시 일반
+   전파조건 충족分만 반영, "그 순간 실패하면 끝"이 아니라 지속 재시도) [구현 완료, 2026-09-27]:
+   Party.KnownInvestigatedObjects(Dictionary<string,Vector3Int>)/KnownCollectedObjectIds
+   (HashSet<string>)에 조사·회수 완료 사실을 파티 단위로 등록, PropagationSystem.
+   TickOngoingObjectPropagation(Human)이 PartyDeathSystem/TrapPartySystem과 동일하게 매 틱
+   (UnitFunction.OnUpdate) 미보유 파티원에게 재시도 전파. TacticalFSMState.InvestigatePerform/
+   PickUpObject의 기존 1회성 전파(00-07 검증 완료)는 그대로 두고 등록 한 줄만 추가. dotnet build
+   오류 0 확인. 3·5번("인류 지도" — 귀환자 기록이 웨이브를 넘어 다음 파티에 전해지는 공유 저장소)은
+   HumanKnowledgeBase에 대응 필드 자체가 없어 여전히 시스템 전체가 부재 — 사용자 지시로 이번 패스는
+   보류(새 데이터 설계 필요, Feature A급 규모로 추정).
+🔶 9. 보스방과 후속 임무 (검증문서 01-10) — [구현, 2026-09-27] "보스를 정확 인지 + 방 확인" 게이트를
+   실제로 걸었다: `UnitType.isBoss`(신규, `BossGolem`에만 true — GameSession.SpawnBossGolem이 1층
+   보스방에 고정 스폰하는 그 유닛), `PersonalMapKnowledge.ConfirmBossRoom(roomId)`(신규, IsBossRoom을
+   true로 승격시키는 유일한 경로), `UnitPerceptionHandler.Handle`이 AccuratePerception으로 그 유닛을
+   인지했을 때만 호출. 기존에 타일 공개·오브젝트 관찰만으로 즉시 ground-truth(chunk.roomRole)를
+   반영하던 4개 호출부는 전부 게이트 없는 세팅을 제거(false 고정). "일반 탐색 후보/B에서 제외"는
+   실제 도달 가능한 시나리오(같은 웨이브 내 재배정 자체가 Party._countedRoomIds로 이미 안 생김, 웨이브
+   간 사전지식은 "인류 지도" 부재로 아직 존재 자체가 불가능)에서 이미 만족 확인 — 추가 구현 불요.
+   "보스 처치·코어 파괴·층 개방 미혼동"은 코드에 실존하는 게 코어 파괴뿐이라 사실상 N/A. 부수 효과:
+   GetRoomDanger/GetRoomInterest(가중치 20~21장)의 보스방 전용 상수 적용 시점이 "타일 하나 공개"에서
+   "보스 골렘 정확 인지"로 늦춰짐(사용자 공지 완료). dotnet build 오류 0 확인.
+🔶 10. 목표 완료와 취소 및 이동 불가 처리 (검증문서 01-11, 표 7행 기준) — 1~5행은 기존 구현으로 이미
+   충족(즉시 확인 완료·집결 자연 합류, 방/몬스터/오브젝트 3종 dedup, 수거불명 오브젝트=위치기록무효
+   단일처리, 04번 9번 항목 우회 폴백, 미확인 전체경로 프론티어 추정 유지). 6행 [구현, 2026-09-27]:
+   `Unit.investigateStuckTurns`(신규) + `AIBehaviorConfig.investigateStuckTurnLimit`(신규, 기본 4) —
+   `TacticalFSMState.MoveToInvestigateTarget`이 이동해도 체비셰프 거리가 줄지 않는 상태가 연속 4틱
+   이상이면(단, 구조적으로 갈 곳이 아예 없으면 즉시) `currentInvestigation`을 놓아주고
+   `currentAlertSearch`로 전환한다 — `MoveToCoreAttack`(코어/문 자동공격 stuck 처리)과 완전히 동일한
+   패턴 재사용. 7행(임무 수량만 채우고 보스방은 안 건드린 채 자진 귀환)은 2026-08-22 재설계("보스방
+   코어 파괴"가 유일 승리조건)로 원래 전제된 종료 경로 자체가 대체된 것으로 판단 — 사용자 확인 후
+   N/A 확정, 구현 안 함. dotnet build 오류 0 확인.
+
+── 02 전투 목표와 아군 보호 및 지원 ── (2026-09-25 구현 완료분)
+✅ 0. 전투 판단 순서 (긴급보호 → 공격 순서, ExecuteCombat 맨 앞에서 ResolveEmergencyProtectTarget 호출)
+🔶 1. 적 역할과 위험도 확보 (개인위험도는 기존 HumanKnowledgeBase.GetPersonalDanger 재사용 — 최초
+   정확 인지/입장기록/직접경험 세분화는 기존 가중치·인지 시스템에 이미 있음, 이 패스에서 신규 작업 없음)
+✅ 2. 공격 대상으로 선택할 수 있는 조건 (기존 personalSpottedEnemies+방 제한 필터 그대로)
+✅ 3. 공격 목표 점수와 배율
+✅ 4. 현재 위협과 보스 집중
+✅ 5. 공격 대상 변경 시 이동 한도
+🔶 6. 역할별 전투 행동 (긴급보호→일반치료→공격 순서는 스킬 우선순위 값으로 자연 성립 — "몽크는
+   전사보다 뒤에서 진입" 등 포지셔닝 세부는 미구현)
+✅ 7. 일반 치료 목표의 선택과 유지
+✅ 8. 긴급 아군 보호의 시작과 대상 순서 (치명타 예상 조건 생략, 위 참고)
+✅ 9. 보호 경로와 피해 추정의 한계 (2026-09-27 구현) — 상세는 아래 "다음 우선순위 구현 후보" 16번 참고.
+   PersonalSkillDamageRecord(예상 피해량 데이터) + AttackRangeAvoidingMovement(공격범위 회피 경로) +
+   TryEmergencyProtectApproach/MoveTowardsProtectTargetWithRiskCheck(피해감수 긴급보호 판정) 3단계로
+   구현. Unity 실제 플레이 검증은 아직 안 함(dotnet build도 .sln 부재로 미확인).
+🔶 10. 긴급 조건의 해소와 실패 (currentProtectTarget이 매 틱 재계산되며 자연히 재비교되지만, "피해량
+   몰라 판단 불가" 세부 구분·"보호 수행 불가 즉시 재판단" 등 세밀한 사유 구분은 없음)
+✅ 11. 큰 피해에 따른 시야 전환
+
+── 03 행동 전환과 중단 및 재개 ──
+🔶 0. 전환 결과의 용어 (IsSticky/ShouldInterrupt/OnExit 패턴이 이미 개념적으로 대응)
+❌ 1. 주요 행동 중 사건 처리표 (01/05번 신규 상태 케이스 보강 필요)
+🔶 2. 일반 조사 시작과 진행도 (TacticalFSMState.Investigate 계열 이미 구현, PartyGoal 연동만 추가)
+❌ 3. 파티 목표 상호작용과 코어 (신규 CoreReport/Rally로 구현)
+🔶 4~7. 소리 반응 / 적 발견 즉시 전투 (07문서 기반으로 상당 부분 이미 구현 — TacticalFSMState.Alert
+   계열, 03번 신규 언어에 맞춰 재검증만 필요)
+🔶 8~9. 함정 해제 담당자·대기 (TacticalFSMState.TrapResponse 계열 구현) — [2026-09-30, 검증문서 03-10·03-11·03-12 수정]
+   8장 전체(담당 선정 기준[성공률 우선·동률 시 도착시간]·입장 전 최고 성공률 유닛의 응답 생략·해제하지 않을 유닛 제외·집결/공동 이동/귀환 중
+   신규 담당 금지·도착 예정 시점 계산·전달·대기 기한·집결 전환)와 9장의 "해제 중단·재개·진행도(웨이브 종료 시 제거 포함)"는 ✅ 구현
+   (dotnet build 오류 0, Unity 테스트·플레이 검증 대기). 9장의 통과 조건·전투 중 함정 처리·일반 이동의 활성 함정 회피도
+   [2026-09-30, 검증문서 03-13 수정]으로 ✅ 구현(아래 "설계 요약(03-13)") — 도주·후퇴의 통과 조건만 06 위기반응 문서 부재로 🔶.
+   설계 요약(03-10): 담당자가 MoveToTrap 행동 틱 시점에(0.5초 간격) 남은 이동시간 = max(0, 경로길이−1) ÷ 개인 적용 이동속도
+   (Human.EstimateRemainingSecondsToInteract = 04-9 추정 거리 + Unit.AppliedWalkSpeed)를 재계산해 도착 예정 시점이
+   0.5초(ExplorationMath.TrapArrivalChangeToleranceSeconds) 넘게 바뀌면 조율 기록(TrapPartyCoordination.Report)에 게시.
+   대기자(발견자)는 TrapPartySystem.TickWaitingForSelectedUnit이 CanPropagate 충족 시에만 읽어
+   ExplorationMath.ShouldApplyArrivalEstimate(더 최근 계산 && 도착 예정 실제 변경)이면 기한 = 계산 시점 + 남은 시간 + 3초로
+   갱신(늦은 수신도 원래 계산 시점 기준, 횟수 상한 없음). 담당자 도착·종료는 통지 또는 시야 직접 확인
+   (Human.visiblePartyMembers)으로 알고 개인 행동으로 복귀. 기한 만료는 미도착 담당자를 재선정 후보에서 제외하고
+   표준 선정 재개(옛 "찾으러 걷기" 삭제), 뒤늦게 도착한 이전 담당자는 양보. Party.TryStartRally는
+   TrapPartySystem.ReleaseForRally로 Phase==AwaitingJoin(응답 대기·도착 대기·해제하러 가는 이동)을 집결로 전환하고, 이미
+   시작한 해제는 완료 후 합류. currentTrapInteraction 종료는 TrapPartySystem.EndResponse 한 곳으로 일원화.
+   설계 요약(03-11): ① 해제·파괴 진행도(UnitFunction.OnUpdate)는 TrapDisarmPerform/TrapDestroy가 "이번 틱에 수행 중"임을 알리는
+   게이트(TrapInteractionState.PenaltyActive/DestroyActive)가 켜진 동안에만 쌓는다(기절 중 제외) — 예전엔 Phase만 보고
+   전투·중단 중에도 쌓여 50% 손실이 몇 초 만에 복구됐다. TacticalFSMState.Tick이 틱 전후로 PerformedThisTick을 감시해
+   Panic·JoinCombatWait 등 상위 분기가 가로채 수행 없이 끝난 틱을 중단으로 잡는다(TrapPartySystem.ApplyDisarmInterruptPenalty —
+   PenaltyActive 가드로 ×0.5 1회). ② 웨이브 종료: Human.ClearInteractionProgress(진행 막대 정리 + 함정 대응 EndResponse(WaveEnded,
+   조율 기록의 담당 배정만 해제) + 조사 해제)를 HumanWaveManager.RetreatMemberToFloor0/EndWave가 호출 — 재사용되는 생존자에게
+   낡은 진행도가 이월되지 않는다(v0.6 5-6·9-9·12-4). ③ 함정 발동 단일 진입점 GameSession.ActivateTrap(피해·함정 작동음·인류
+   사망 원인 기록·InterruptDisarmersOf) — 밟음(TriggerTrapIfStepped)과 의도적 통과(TrapPass — 03-13에서 삭제, 지금은 전투·긴급 보호의
+   밟음)가 같은 경로를 쓴다(밟음에도 작동음 추가 — 07-A "함정 발동 위치 주위 5칸"). ④ 일시 중단 ≠ 포기: TrapResponse 헤더 조건에 IsTrapResponseInterrupted(해제자 피격·위협
+   인지·보호자 피격·자기 피격 미식별 공격 수색[AlertSearchState.IsUnidentifiedAttackSearch])를 추가해 양보(대응 상태·50% 진행도
+   유지, 수색 15초 뒤 재개 — v0.6 12-2). 함정이 필요한 이동을 막을 때(IsBlockingPath)만 양보하지 않고 우회→통과→파괴 체인으로
+   (순서도 03-13). ⑤ 함정 접근 이동(MoveToTrap/TrapDestroy — 03-13에서 TrapPass 삭제)에 stuck 탈출(MoveTowardsTrapGuarded, Unit.trapMoveStuckTurns,
+   AIBehaviorConfig.trapMoveStuckTurnLimit 기본 4) — 포기하면 EndResponse(Unreachable)+경계 전환. ⑥ TrapDestroy는 파괴 가능
+   속성(TrapMaxHp>0, 공격력>0)을 확인하고 불가면 EndResponse(Bypassed)(v0.12 9장 584~586줄).
+   설계 요약(03-12): ① 선정은 TrapPartySystem.ChooseDisarmer — 후보(전파 범위 안·전환 가능·함정 정보 보유·해제할 유닛[미기록 또는 기록 예상
+   성공률 > 50%, TrapPartySystem.WouldAttemptDisarm이 50% 규칙의 단일 출처])를 예상 성공률 우선, 동률이면 해제 위치까지 도착시간
+   (ExplorationMath.IsBetterTrapDisarmCandidate)으로 비교하고 완전 동률·해제할 후보 없음이면 발견자가 맡는다(BT 체인이 우회·파괴 판단).
+   2초 응답 대기는 Party.EntryBestDisarmerNames(GameSession.CreateParty가 파티 생성 시점에 스탯 기반 최고 성공률 유닛, 동률 전원을 스냅샷)가
+   직접 발견한 경우만 생략(옛 2026-09-04 "가장 가까운 1명" 단순화 복원 — 사용자 확인). ② 집결·공동 이동·코어 보고·귀환 중(currentWait 사유 4종,
+   또는 집결 진행 중이면서 집결지 반경 1.5)인 유닛은 발견자로도 후보로도 새 해제 담당을 맡지 않는다 — 그 이동 경로를 함정이 막을 때
+   (TacticalFSMState.IsRouteBlockedByTrap, 기존 BFS 분리)만 예외. 보류한 함정은 TrapPartyCoordination.Deferred로 남겨 재전파를 유지하고 이후
+   집결·이동 중이 아닌 유닛이 처음 발견하면 이어받는다. ③ 후보 필터에 전투 합류 대기·정보 보유 추가. 주의: 방치된 비차단 함정을 일반 이동이
+   피하는 로직(03번 9장 552줄)은 아직 없다(03-13).
+   설계 요약(03-13, 2026-09-30): ① "개인이 아는 활성 함정 구역"(Assets/Script/Unit/Movement/TrapAvoidance.cs — 함정 타일 + 체비셰프 1, 근거는
+   PersonalMapKnowledge.KnownTrapTiles, 존재 여부만 objectGrid 확인)을 A*가 안다: 일반 모드는 구역 진입 금지(응답자는 그 함정 구역 면제, 구역 안에서 출발하면 소프트 비용으로 탈출),
+   전투 모드는 링 자유 + 함정 타일은 기록 함정 && 피해 후 HP ≥ 50%일 때만 큰 비용으로 허용(우회 우선), 귀환·비인류·AIBehaviorConfig.trapAvoidanceEnabled 끔은 Off. ② 응답 체인:
+   TrapPass 삭제(통과는 전투·긴급 보호 전용), TrapBypass는 실제 우회(이동 계층이 경로 회피), IsRouteBlockedByTrap은 3×3 구역·확대된 목적지
+   (TrapPartySystem.GetCurrentDestination), 구역 탈출 분기 ZoneEscape. ③ 막힘 → 대응 재개: A*의 진단 신호(Unit.trapBlockTrapId) → TrapPartySystem.TickBlockedPathResponse →
+   OnPathBlockedByKnownTrap(표준 절차 재시작, 10초 쿨다운). ④ 전투: ChaseTarget 무진전 + 막힘 신호 + 파괴 가능이면 CombatTargeting.BlockingTrapTile로 접근·채널링 파괴,
+   긴급 보호는 TryMoveThroughTrapsToProtect(보호 대상 ≤30% + 경로 우위 + 기록 30%/미기록 60%). ⑤ 02-10 4번: 피해 추정 불가 노출 경로 제외(CombatScoreMath.IsExposureRouteAllowed).
+   ⑥ GameSession.TriggerTrapIfStepped는 대응 중인 함정도 면제 없이 발동. 상세·한계·플레이 확인 체크리스트는 행동경로목표결정_검증_2026-09-25.txt 03-13 [수정 완료] 참고.
+   미구현(이월): v0.6 12-6 "해제 실패 → 함정 결과 적용 후 재판단"("함정 결과"의 정의가 문서에 없어 방향을 정할 수 없음), 조사 진행도의 Tactical 내부 중단 구멍
+   (FSMBehaviorTests의 KnownGap 테스트가 현행 동작을 고정), 도주·후퇴의 함정 통과(06 문서).
+   [점유된 목표 타일을 향한 경로 조회 실패(02-05 이동 한도·02-10 노출 경로 비교), 02-04 4번 FindPathBlockingEnemy의 휴면, 보스 집중 중 "자신을 직접 위협하는 잡몹"이 20% 점수 게이트에 막혀
+   임시 대응이 안 되던 문제는 모두 2026-09-30에 수정 — AStarMovement.RunQuerySearch·BossPathBlockage·CombatFSMState.SelectTemporaryResponseTarget/ThreatResponseMath.]
+❌ 10. 보고 중 사건과 전달 완료 (신규 — 05번 발견정보 전파와 함께 구현)
+🔶 11. 대상 상실과 공통 3초 대기 (기존 수색 로직 있음, 3초 표준화만 확인)
+🔶 12. 스킬 실행 중 목표 변화 (isCastingAttack 가드로 대부분 커버)
+❌ 13. 전투 종료와 휴식 연결 (휴식 시스템 자체가 후속 문서 — 범위 밖, 탐색·집결 재개 연결만 구현)
+
+── 04 이동 경로와 속도 및 점유 충돌 ──
+🔶 0~1. 경로 입력과 목적지 / 방 경로와 개인 경로 — [2026-10-01, 검증 04-08] 경로 계산의 지형 입력이 진영 공용 discoveredMap에서 "이 유닛이 아는 지형"(IKnownTerrain — 인류 personalMap, 몬스터 monsterMap)으로 바뀌었다
+   (AStarMovement.IsKnownWall, kill-switch AIBehaviorConfig.personalMapPathingEnabled). 문 상태(IsBlockedByClosedDoor)·점유(unitGrid)는 여전히 실시간 실제값을 읽는다(개인 지식화는 후속). 방 경로(리더)·공용 방 경로는 개념·문서 부재로 여전히 미구현.
+🔶 2. 점유 크기 1×1~5×5 (Footprint 시스템 기존 구현 — 이 문서가 새로 요구하는 것 없음)
+❌ 3. 이동속도 적용 (공동 이동속도 계산 헬퍼 신규)
+✅ 4. 역할별 이동 경로와 우회 (2026-09-27 구현) — AStarMovement.GetExtraTileCost 훅 + AttackRangeAvoidingMovement
+   (RangedDps/RangedSupport/MeleeSupport만 승급, RoomConfinedMovement 몬스터는 이 표의 "몬스터" 행으로
+   별도 관리돼 제외). 상세는 "다음 우선순위 구현 후보" 16번 참고. Unity 실제 플레이 검증 아직 안 함.
+✅ 5~6. 다음 타일 점유 / 대기와 우회 예상시간 (2026-10-01 구현, 비전투 이동만) — AIMovementHelper.MoveTowardsPos → OccupancySystem.TryHold가 점유자 상태별 대기 예상시간과 우회 시간을 비교(OccupancyMath.Decide),
+   대기는 GameSession.ProcessUnitAction의 행동 틱 스킵(ShouldHold)으로 실행. 검증문서 04-05/04-06 참고. Unity 실제 플레이 검증 아직 안 함.
+✅ 7. 상호작용 종료 후 이동과 비켜주기 (2026-10-01 구현) — 제자리 대기 아군에게 '비켜 달라' 요청(Unit.yieldRequester) → OccupancySystem.TryHonorYield가 인접 빈 칸으로 한 걸음. currentWait가 있는 Human·플레이어 명령 중 유닛은 비켜 주지 않는 한계 있음.
+✅ 8. 좁은 통로의 통과 순서 (2026-10-01 구현) — 게이트 문턱 타일 기준 역할 순서(전방 근접 → 근접 지원 → 원거리 공격 → 원거리 지원)·HP·유지되는 무작위 값(OccupancyMath.ComparePassPriority), 통로 이탈 우선, 마주 막힘 양보(ShouldIYield).
+🔶 9. 경로 재탐색과 길을 찾지 못한 뒤의 행동 (AIMovementHelper 상당 부분 이미 구현) — [버그 수정,
+   2026-09-27] 사용자 플레이테스트 발견: NavigationFSMState.RandomExplore(자유탐색)만 "다음 걸음이
+   벽이 아니라 아군에게 막혔을 때" 포기 로직이 없었다 — CoreAttack/DoorAttack/Investigate는 전부
+   tacticalObjectAttackStuckTurns/investigateStuckTurns로 몇 틱 막히면 포기하고 경계로 전환하는데,
+   가장 흔히 쓰이는 배회·탐색 상태에만 이 안전장치가 빠져 있었다. 좁은 통로 코너에서 유닛 여럿이
+   서로의 유일한 탈출 경로를 막으면(사용자 재현: "ㄴ자 모양"으로 3명이 막힘) 전원이 영구 정지했다.
+   `Unit.exploreStuckTurns`(신규) + `AIBehaviorConfig.exploreStuckTurnLimit`(신규, 기본 4)로 동일
+   패턴을 추가 — 연속 4틱 제자리면 `currentExplorationTarget`을 놓아주고 `currentAlertSearch`로
+   전환한다. dotnet build 오류 0 확인, Unity 실제 재현 검증은 사용자 확인 필요.
+   [추가 재현+수정, 2026-09-27] 같은 종류의 정지가 다른 모습으로도 재현됐다 — 인간만 있는 방에서
+   유닛 1명이 "전술(대기)" 상태로 완전히 멈춤. `TacticalFSMState.ExecuteWait`의
+   `AwaitingPartyAtRallyPoint`(집결 대기)/`ReportingCoreToLeader`(코어 보고 이동) 두 분기는
+   `AdvancingToNextRoom`/`Retreating`과 달리 `MoveTowardsPos` 실패에 대한 처리가 아예 없었다(포기도,
+   재시도 제한도 없이 그냥 다음 틱에 똑같이 시도) — 집결지·리더가 아군에게 막혀 있으면 영구 정지.
+   `Unit.waitStuckTurns`(신규, currentWait은 한 번에 Reason 하나뿐이라 두 분기가 공유) +
+   `AIBehaviorConfig.waitStuckTurnLimit`(신규, 기본 4)로 동일 패턴 추가 — 단,
+   `Party.CheckRallyComplete()`가 각 파티원의 `currentWait`이 null인지만 확인하므로(실제 도착
+   여부는 안 봄) 포기 시 "집결 완료"와 동일하게 처리해도 안전함을 확인하고 그대로 반영했다(리더
+   보고 포기도 마찬가지로 안전 — 발견한 코어 정보는 개인 지도에 이미 남아있어 안 사라짐). 나머지 두
+   분기(AdvancingToNextRoom/Retreating)는 이미 "MoveTowardsPos 한 번 실패하면 즉시 포기"라 이
+   버그가 없어 손대지 않았다. dotnet build 오류 0 확인.
+   **[Unity 실제 플레이 검증 완료, 2026-09-27]** 사용자가 스크린샷으로 재현 사례(유닛 3명이 "전술
+   (대기)" 상태로 뭉쳐 멈춤 — 겹침 아니라 순수 정지)를 공유한 뒤 같은 상황을 다시 플레이해 확인 —
+   "수정한건 효과가 있네. 다시해보니 문제는 없었어." 이 세션에서 나온 코드 수정 중 처음으로 Unity
+   실제 플레이로 검증된 항목이다(그 전까진 전부 dotnet build만 확인).
+   [별건, 임시 진단 코드 추가] 같은 플레이테스트에서 "전투 중 1자 통로에서 유닛 겹침" 신고도 받았다.
+   UnitRegistry/Move/ForceMove(회피·블링크)/CrossStairs를 전부 추적했지만 논리적 점유(unitGrid) 경로
+   자체에서는 결함을 못 찾았다 — 대신 `UnitGenerate.SyncVisual`이 DOTween(`duration=1/walkSpeed`)으로
+   유닛마다 독립적으로 화면 이동을 보간한다는 걸 확인했다: 논리적 position은 이동 성공 즉시 갱신되지만
+   화면 표시는 지연되므로, 좁은 통로에서 두 유닛이 스쳐 지나갈 때 각자의 애니메이션이 같은 화면
+   구간을 동시에 지나가며 순간적으로 겹쳐 보일 수 있다(실제 타일 점유는 정상). 사용자 요청으로 가설
+   검증용 임시 로그를 추가했다 — `GameSession.DebugCheckUnitOverlap()`(매 프레임 호출, 살아있는 두
+   유닛의 position이 같은 타일인지 + unitGrid 발자국 등록이 자기 자신을 정확히 가리키는지 확인,
+   `[겹침진단]` 태그로 LogHelper.Warning). **원인이 확인되면(로그가 안 뜨면 시각 애니메이션 문제로
+   확정, 뜨면 실제 로직 버그로 재조사) 이 진단 코드는 지운다** — PropagationDebugVisualizer와 동일한
+   "검증 후 삭제" 성격의 임시 코드.
+   [0층 던전 입구→1층 진입 시퀀스 재구축, 2026-09-27 — 여러 차례 시행착오 끝에 확정] 사용자가
+   영상으로 "0층 대형 행진→계단 진입"이 부자연스럽다고 신고한 뒤, 세 번 고쳐서 세 번 다 문제가 남아
+   커밋 전 상태를 전부 되돌리고 처음부터 다시 설계했다(시행착오 요약: 게이트만 추가 → 계단 건너기
+   직전 Tactical 새치기 발견 → 파티 전체가 다 건널 때까지 감시하는 방식으로 수정 → 사용자가 "개인별
+   즉시 해제"를 원한다고 재확정 + 착지 후보 부족 버그 별도 발견). 최종 확정 구조:
+   - **`DungeonEntranceSystem`**: 입구 이동(`WalkingIn`, 대형 강제 행진)과 10초 대기(`Waiting`)만
+     전담 — 원본 그대로. 대기가 끝나면 전원에게 `Human.SetMoveCommand(계단접근좌표)`(플레이어 우클릭
+     이동 명령과 동일한 코드 경로, `PlayerCommandFSMState` 우선순위 200)를 내리고 **그 자리에서 즉시
+     시퀀스를 끝낸다**(`Phase.WalkingToStairs`/구버전 `CrossingStairs` 전부 제거, `Phase`는
+     `{Idle,WalkingIn,Waiting,Done}` 4개뿐). `Finish()`는 이제 `isInDungeonEntranceSequence`를 안
+     끈다 — 그 책임은 아래로 옮겼다.
+   - **`NavigationFSMState.CrossStairs`**: 실제로 층을 건너는 유일한 지점 — 성공 분기 맨 끝에
+     `human.isInDungeonEntranceSequence = false;` 한 줄 추가. **이게 이번 설계의 핵심**: "1층으로
+     이동하자마자 그 상태에서 풀리고 각자의 로직으로 탐색"이 파티 단위 감시 없이 이 한 줄로 개인별
+     즉시 성립한다(다른 파티원이 아직 0층/계단 근처여도 무관). 평소 계단 이동(입구 시퀀스 무관)엔
+     항상 false였던 값이라 무해한 재대입.
+   - **`TacticalFSMState`/`CombatFSMState.GetPriority`**: 맨 앞에
+     `if (unit is Human h && h.isInDungeonEntranceSequence) return 0f;` — 입구 이동·대기 중(대형
+     강제 행진 중 다른 이동 권한이 끼어들면 충돌) 및 이동 명령이 끝난 뒤 실제 계단을 건너기 전까지의
+     틈(명령 우선순위 200이 사라진 뒤 Tactical(50)이 Navigation(10)의 계단 건너기보다 먼저 새치기하던
+     구간)을 전부 보호한다.
+   - **착지 지점 반경 확장** (사용자 필수 요구사항 — "착지 지점이 없어서 이동 못할 일은 존재해선 안
+     됨"): `CreateMap.RuntimeAPI.cs`의 `TryGetStairApproachCandidates`(계단 블록 바로 옆 반경 1칸
+     고정, 최대 12칸)를 반경 매개변수화한 `TryGetStairApproachCandidatesAtRadius`로 일반화하고
+     (radius=1 결과가 기존과 완전히 동일함을 스크립트로 검산 완료), 기존 시그니처는 그 위의 얇은
+     래퍼로 남겨 기존 호출부 무변경. `AIMovementHelper.TryResolveUnoccupiedStairArrival`(착지 지점
+     선정)과 `NavigationFSMState.MoveToStairs`(계단 접근)가 반경 1에서 실패하면(건물 등으로 막힘)
+     포기하지 않고 `MaxStairSearchRadius`(신규 상수, 10)까지 넓혀가며 계속 찾는다(문 앞 대기 자리
+     배정 `AIMovementHelper.FindDoorWaitSlot`과 동일 이디엄). 이 함수는 `CrossStairs`/
+     `HumanWaveManager.ForceCrossToTargetFloor`/`RetreatMemberToFloor0` 세 경로가 공유해 한 번의
+     수정으로 셋 다 같이 고쳐졌다.
+   - **`HumanWaveManager.OnDungeonEntranceArrivedAtStairs`**: `activeParty = preSpawnedParty;
+     exitAreaPos = floor1StairPos;` 추가(별개로 콘솔 로그로 확정된 버그 — 이 콜백이 `activeParty`를
+     세팅한 적이 없어, 입구 시퀀스가 `cooldownTimer`보다 먼저 끝나면 `preSpawnedParty`가 먼저
+     `null`로 비워지고 `StartWave()`가 그 뒤에 실행돼 `activeParty`가 `null`로 남아 웨이브가 실제
+     전투 없이 즉시 "전멸" 오판으로 끝났다).
+   dotnet build 오류 0 확인(관련 파일 7개).
+   **[Unity 실제 플레이 검증 완료, 2026-09-27]** 사용자가 재플레이 후 "오케이 잘됐네"로 확인 — 0층
+   행진→계단 이동→1층 진입→즉시 개인 탐색 전환까지 전체 플로우가 이 설계로 정상 동작함을 실제
+   플레이로 확인했다. 네 번째 시도 만에 확정된 최종 구조.
+   [2026-10-01, 검증 04-08 수정] 전체 길을 모르는 목적지 / 통행 불가 / 같은 막힘 반복 —
+   (1) 거리 추정과 조사 후보 판정을 RouteAssessment(신규, Movement/)로 교체: FullyKnown(실제 칸수) / PartlyUnknown(문서 9장 공식 = 프론티어까지 실제 걸음 수 + 프론티어→목적지 체비셰프의 최솟값,
+   AStarMovement.TryComputeFrontierSteps의 BFS 1회를 후보들이 공유) / TrapBlocked(후보 유지 — 접근 시도에서 03-13 막힘 신호가 나와야 함정 대응이 재개된다) / Unreachable(점유 무시 구조 쌍둥이·
+   함정 끈 쌍둥이로도 길 없음 → 조사 후보에서 제외, 거리 9999). 예전엔 닿을 수 없는 대상이 프론티어 폴백(knownSegment=0)으로 오히려 가깝게 계산돼 포기→경계→같은 대상 재선택이 반복됐다.
+   판정 메모(Unit.unreachableRouteMemo)는 성능용 — 아는 지형 개정·아는 함정 수·문 상태 개정이 같으면 재탐색하지 않고 바뀌면(판정 직후 routeRecheckMinSeconds=2초가 지난 뒤) 자동으로 다시 연다.
+   (2) A* 이동 캐시가 새 벽 발견에 무효화된다(IMovementAlgorithm.OnTileBecameWall ← UnitFunction.ProcessTile, 캐시 경로 위의 벽일 때만). (3) A*·TacticalFSMState.IsRouteBlockedByTrap BFS가 개인 지도 기반.
+   kill-switch: personalMapPathingEnabled / unreachableCandidateExclusionEnabled. "통행 불가 제외"의 적용 범위는 조사 후보 선정뿐이다 — 함정 해제 담당자 ETA(EstimateRemainingSecondsToInteract)는 일부 미확인 구간의
+   추정식만 새 공식을 쓰고 통행 불가는 예전처럼 직선거리로 근사한다(큰 값이면 TrapPartySystem.BeginWaitingFor의 대기 기한이 비정상적으로 길어져 재선정이 막힘). 탐험·문/코어 접근·함정 접근의
+   포기 후 재선택과 RandomExplore의 닿을 수 없는 프론티어 벽 날조(NavigationFSMState :260-269)도 이번 범위 밖(검증문서 04-08 발견 5). dotnet build 오류 0·경고 71(기존과 동일), 스크래치패드 하니스(실제
+   A*·RouteAssessment 코드) 44개 통과, 신규 Unity 테스트(Assets/Tests/RouteAssessmentTests.cs)는 미실행, 플레이 확인 미실시.
+🔶 10. 문과 공격 위치 (DoorSystem 이미 구현 — 소리 전파 연동만 확인)
+🔶 11. 특수 이동과 방어 위치 점유 — 스킬·강제 이동은 해당 스킬 규칙 몫. "배치 모드 지정 방어 타일"은 N/A(2026-08-22 R키 배치 모드 삭제로 기능 없음, 근사 = IdleFSMState의 소환 위치 반경 2칸 배회 — 이 칸에 있던 "기존 디펜스 복귀 로직" 서술은 삭제 전 내용이라 정정). 방어 지정이 점유 비켜 주기·일반 이동 명령으로 바뀌지 않는 것은 ✅(summonPosition은 소환 시 1회만 기록). 경미: Idle 앵커가 오펜스에도 소환 위치(검증문서 04-09 발견 2). 문서가 삭제된 배치 모드를 전제하는 점은 사용자 결정 대기(04-09 발견 1)
+
+── 05 파티 이동과 집결 및 보고 ── (2026-09-25: 0~2 핵심 흐름 실제 구현)
+🔶 0~1. 리더와 개인의 책임 / 공동 이동과 방 진입 [검증 05-01(2026-10-01): 진형 공동 이동·진입 후 개인 전환·개인 속도는 ✅, "개인이 임의로 다음 방에 들어가지 않는다"는 코드가 강제하지 않음 — 인류 개인 탐색이 층 단위라 방 진입은 문 소유 규칙이 실질 게이트 — 2026-10-02 개인 탐색·조사를 현재 방으로 제한해 수정(roomBoundExplorationEnabled)] — HumanWaveManager.UpdatePartyDestination의 강제이동
+   제거 + Party.ReadyToAdvance + WaitReason.AdvancingToNextRoom + TryFindNextDoorTowardTargetRoom(좌표
+   거리 근사, 진짜 방 그래프 최短경로 아님). 방 진입 후 개별 탐색 전환은 기존 FSM 구조가 그대로 담당.
+✅ 2. 집결 시점과 진행 [검증 05-03(2026-10-02): 4장 집결 명령·해제 전달 범위 ✅ — 방 이동 지시·코어 경로 이동 지시의 전달 범위는 경미 관찰(검증문서 05-03 관찰 1·3)] [검증 05-02(2026-10-01): ✅ 통과 — 경미 관찰 2건: 집결 위치 리더 자리 고정(문 주변 연결은 소탕만)·코어 해제/탐색 중 코어 처리 미구분은 2026-10-02 수정(Party.ResumeRallyAfterCore)] — Party.IsRoomActivityComplete + TickRoomActivityCheck로 "전투 없어도 파티
+   종류별 기준으로 집결" 충족. 문 앞 집결(진형 위치)은 미구현(아래 3번 참고, 지금은 문 타일 좌표
+   자체로 직행).
+   [수정, 2026-09-30 검증 03-18] 집결 완료 뒤 공동 이동 중 리더의 1초 주기 TryStartRally가 아직 그 방에 있는 리더
+   기준으로 같은 방에서 집결을 다시 시작하던 버그(이동 대기 중인 파티원만 있으면 IsRallyActive가 영구히 남아 이후 방의
+   집결이 막힘, 다음 문을 모르면 집결 반복)를 Party.AdvanceFromRoom(집결을 마친 방)으로 막았다 — 리더가 그 방을 떠나기
+   전까지 재집결 금지, 코어 해제(OnLeaderLearnsCore) 시 해제. 후퇴 확인·휴식 판단은 문서 미작성이라 자리만 비어 있다.
+   [구현, 2026-10-01 검증 갭 정리] "다음 문을 아직 모르면 진형을 유지하며 문을 찾는다"(05번 1장 73줄) — 리더는 기존 자유 탐색이
+   문을 찾고, 나머지 파티원은 WaitReason.SearchingNextDoor(PartyDoorSearchSystem.StepFollow)로 자기가 아는 리더 위치 주변
+   (AIBehaviorConfig.doorSearchFollowRadius=3칸, 진형 자리·간격은 문서가 미뤄 근사)을 따라다니고, 문이 알려지면
+   HumanWaveManager가 AdvancingToNextRoom으로 덮어쓴다. 집결을 마친 방을 리더가 떠나면 Party.TickAdvanceState가 소비되지
+   않은 ReadyToAdvance를 지워, 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동이 발행되던 잠재 버그도 없앴다.
+   [개편, 2026-10-01 플레이 로그 분석 — 검증문서 "플레이 로그 분석 → 집결 개선" 참고] (A) 집결: 전원이 리더 타일 하나로 몰려 4틱 정체되면 "도착"으로 간주하던 것을 폐기 — 파티원마다 집결지 근처 개별 자리(같은 방·점진 확장,
+   Party.PickGatherSlot)를 배정하고, 막히면 다른 근처 자리로 재선택하며, 도착한 유닛도 전원이 모일 때까지 자리에서 대기한다(PartyAdvanceSystem.StepRallyGather + Party.CheckRallyComplete가 위치로 전원 도착 재확인 후 일괄 해제).
+   (B) 집결 완료 뒤: 문 앞 진형(0층 진형 규칙 공유) → 리더 지시 문 파괴(0랭크 근접, 인접 1칸 채널링 — 기존 DoorAttack과 별개, 현재 방 소유 진영 무관) → 진입로(한 레인의 near·far 문이 모두 통행 가능) 확보 시 랭크 순 입장 → 다음 방 안쪽 자리에서 개인 행동 복귀.
+   Party.AdvancePlan이 단계를 들고 PartyAdvanceSystem.Tick(HumanWaveManager.UpdatePartyDestination이 호출)이 전이시키며, 신규 WaitReason FormingUpAtDoor/BreachingDoor/EnteringNextRoom을 쓴다. kill-switch: AIBehaviorConfig.rallyGatherNearbyEnabled / partyAdvanceFormationEnabled.
+   코어 처리 경로(hasPendingCore)는 예전 AdvancingToNextRoom 그대로. Unity 플레이 미확인(컴파일·순수 함수 하니스까지).
+🔶 3. 진형과 문 주변 자리 — [구현, 2026-09-27] "문 주변 대기 위치"(2칸 확보)만 구현:
+   AIMovementHelper.FindDoorWaitSlot(문 기준 체비셰프 거리 2 이상 미점유 타일을 반경을 넓혀가며
+   탐색) + HumanWaveManager.UpdatePartyDestination이 파티원마다 겹치지 않는 슬롯을 배정. "역할별
+   진형 자리·간격"은 여전히 미구현("파티·진형 문서 차후 작성" — 진짜 기획 부재, 검증문서 01-08 참고).
+   [갱신, 2026-10-01] 집결 뒤 방 이동에 한해 진형 자리를 구현했다 — 0층 입구 진형 규칙(근접 0랭크·리더 1랭크·원거리 2랭크, 랭크 간격 2, 레인 좌우 대칭)을 PartyFormationMath로 추출해 방 문 앞 진형과 공유한다(위 2번 [개편] 참고). 문서의 확정 규칙이 아니라 사용자 요청("0층 포지션과 유사하게")에 따른 근사다.
+   FindDoorWaitSlot은 문이 속한 방 안에서만 자리를 고르도록 고쳤다(문 반대편 자리 선택 버그).
+🔶 4. 집결 명령과 집결 해제의 방 전체 전달 예외 [검증 05-04(2026-10-02): 시작 전 이동 중인 조사가 집결로 전환되지 않던 ❌ 발견 1과 집결 자리의 문 앞 통과 구간 미제외를 수정 완료 — Human.ReleaseUnstartedInvestigation·AIMovementHelper.IsWithinDoorClearance] (기존 TryStartRally가 파티 전체에 무조건 즉시
+   배정 — "같은 방" 조건 없이 전 파티원에게 적용되는 더 넓은 근사, 다른 방 인원에게도 즉시 적용되는
+   차이가 있음. 실제 전파 기반 구분은 미구현)
+🔶 5. 집결 대상과 완료 (생존/도주/사망 구분 — 지금은 hp>0만 확인, 도주 개념 없음) [검증 05-05(2026-10-02): 도주·수색·대사는 후속 문서 의존 N/A, 사망 지식 원장(PartyDeathRecord.InfoKnownUnits)은 있으나 집결 완료가 쓰지 않던 것을 2026-10-02 미집결자 대기로 구현(rallyAbsenteeWaitEnabled)]
+❌ 6. 미집결자와 도주 사실 (도주·후퇴 문서 부재 — 최소 스텁만)
+🔶 7. 발견 보고와 리더 합류 [검증 05-06(2026-10-02): 문 발견 정보의 전파·보고가 없던 ❌ 발견 1을 수정 완료 — Party.KnownDoorObjects 원장·PropagationSystem.PropagateKnownDoors 지속 재전파·KnowsDoor 판정. 파괴된 통로 비후보는 후속 리더·명령 문서 의존] — 코어 한정 구현(2026-09-26). 03번 문서(행동전환_중단_재개) 3번 항목
+   "코어 발견과 리더 보고"를 배선했다: 신규 PartyCoreReportSystem.cs + Party.LeaderKnownCorePosition/
+   OnLeaderLearnsCore + WaitReason.ReportingCoreToLeader(WaitState.cs). UnitFunction.CastRay가 코어를
+   AccuratePerception+firstTouch로 처음 보는 시점에 OnCoreDiscovered를 호출 — 발견자==리더거나
+   PropagationSystem.CanPropagate(일반 전파 조건)로 리더가 범위 안이면 즉시 전달, 아니면 발견자가
+   ReportingCoreToLeader 대기로 전환해 매 틱 리더 위치로 접근하며 재시도한다(TacticalFSMState.
+   ExecuteWait 신규 분기, PartyCoreReportSystem.TryDeliverToLeader). 리더가 알게 되면 Party.
+   TryStartRally가 스스로 새 집결을 막고, OnLeaderLearnsCore가 진행/완료된 집결(AwaitingPartyAtRallyPoint)
+   과 다음 방 이동(AdvancingToNextRoom) 대기를 즉시 해제한다. 코어 처리 완료(더 이상 적대적이지 않음)는
+   TryStartRally가 매번 IsRoomCoreStillHostile로 재확인해 LeaderKnownCorePosition을 스스로 지우는
+   방식으로 자연히 복귀한다. dotnet build 오류 0 확인(Assembly-CSharp.csproj에 새 파일 수동 추가 —
+   gitignore 대상이라 Unity가 다음 스캔 때 정상적으로 재생성함).
+   [알려진 한계] 리더/발견자가 코어 위치로 명시적으로 "직행"하는 새 내비게이션은 만들지 않았다 —
+   OnLeaderLearnsCore는 집결·다음방이동 대기를 해제만 할 뿐이고, 실제로 코어가 있는 방(항상 보스방)
+   으로 접근하는 건 기존 TacticalBehaviorType.CoreAttack(그 방에 서 있어야 자동 발동)과 기존
+   HumanWaveManager의 보스방 라우팅(웨이브 목표 자체가 보스방이라 대부분 이미 그 방향으로 가는
+   중)에 맡긴다 — 파티가 코어 발견 시점에 이미 보스방 근처가 아니라면 체감상 느리게 반응할 수 있다.
+   실제 플레이 검증 필요(다음 세션 우선순위).
+   [갱신, 2026-09-30 검증 03-14/03-15] 보고 이동을 다음과 같이 개편했다(상세는 검증문서 03-14·03-15 항목):
+   (1) 보고 의무를 대기 상태와 분리 — Human.pendingCoreReportPos(전달/코어 처리 시에만 해제) +
+   PartyCoreReportSystem.TickPendingReport(0.1초 틱, 어떤 행동 중이든 전파 조건 성립 시 전달·끊긴 대기 재무장).
+   (2) 실제 리더 위치를 읽던 이동을 폐기 — Human.knownLeader(KnownLeaderInfo: 직접 확인/집결 명령/파티원 중계로만
+   갱신)·knownRallyPoint 기반 목적지 결정(아는 리더 위치 → 유효 집결지 → 발견한 문 주변 → 시야 넓히기),
+   도착했는데 리더가 없으면 3초 부재 확인 후 그 위치를 "빈 위치"로 기록해 같은 위치를 반복 방문하지 않는다
+   (PartyReportMath 순수 함수 + PartyCoreReportSystem.StepReportMovement). 갈 곳이 없으면 정박(WaitState.IsParked)하고
+   정박한 보고자는 Party.CheckRallyComplete를 붙잡지 않는다. (3) 코어 보고 이동 중 소리 반응은 이동음·함정음만
+   무시하고 전투음은 대응한다(03번 1장 48~49행). 문·길·일반 임무 대상의 "일반 보고 이동"은 여전히 코드가 없다(N/A).
+   [갱신, 2026-09-30 검증 03-16] 마지막 위치 도착 후 3초 부재 확인 대기를 경계 수색까지 공용화했다 —
+   ExplorationMath.LastPositionAbsenceWaitSeconds/AbsenceWaitElapsed/ResolveAlertArrival, AlertSearchState.
+   IsAttackDirectionSearch/AbsenceWaitStartTime, TacticalFSMState.AlertApproach(공격 방향 수색은 3초 대기 뒤 남은
+   15초 동안 정면 수색을 잇고, 수상한 타일 경계는 3초 대기 뒤 종료 — 이전엔 도착 즉시 경계 종료). 소리 확인이
+   전투 등으로 중단돼도 남던 PendingSound가 새 소리를 막던 문제도 수정(PropagationSystem.DiscardInterruptedSoundReaction).
+🔶 8. 개인이 할 일이 없을 때 (2026-10-02 HumanIdleSystem — 목적지 해석·부재 확인·막힘 기억·시야 넓히기를 PartyCoreReportSystem.StepTowardDestination과 공용, 리더 곁이면 유지, 리더 없는 인류는 방 제한 해제, 문 대기 자리는 통과 구간 밖 우선. 검증 05-07 수정 완료, 컴파일만 확인·플레이 미확인. 남은 것: 대기 위치 일반 전파(받아 쓰는 곳 없음)·진형 자리 세부(문서가 후속 문서로 미룸))
+🔶 9. 상호작용 보호 포메이션 (로직 재정리 안 함, enabled=false 유지만 확인) [검증 05-08(2026-10-02): 꺼진 채 남은 로직 감사 — 최초 직접 수신자만 후보·남은 시간 정보와 분리·한 호위만·BT 순서(Wait가 앞)는 ✅(휴면), 🔶 관찰 2건(집결 명령 시 currentFormation 미해제·역할별 자리에 좌우/빈자리 조정 없음)은 같은 날 수정 — 휴면·플레이 미확인, EscortSlotMath]
+🔶 10. 귀환과 상태 악화 후퇴 — [수정+구현, 2026-09-27] 위 "중요 발견"이 우려한 대로
+   `playerMoveTarget`+`isManualMoveCommand=false`가 실제로 무효였음을 확인, `WaitReason.Retreating`+
+   `ExecuteWait` 신규 분기로 교체해 실제로 걸어서 탈출 지점까지 이동한다. "건강한 임무 완료 귀환" 표
+   3행도 구현: 적 확인은 기존 Combat 우선순위로 자동, 소리만 들림은 HasAlert에 Retreating 게이트
+   추가(새 경계 승격만 차단, 이미 시작한 경계·방향 확인은 그대로), 새 비전투 대상 발견은
+   CanInvestigate에 Retreating 추가(00-04/01-06/01-07과 동일 패턴). "상태 악화 후퇴"의 정확한 수치
+   (우회 칸수·비율 등)는 여전히 "후퇴·도주 문서 차후 작성" — 진짜 기획 부재라 범위 밖. 탈출 지점
+   도착 후 "탈출 성공→생존자 집계 반영" 처리도 없음(Party.GetSurvivors 의미 변경이 필요해 범위 밖,
+   검증문서 01-08 참고).
+❌ 11. 휴식 및 후속 책임 (휴식 문서 부재 — 범위 밖)
+
+════════════════════════════════════════════════════════════════════════
+■ 다음 우선순위 구현 후보 (작업 순서)
+════════════════════════════════════════════════════════════════════════
+1. [완료, 2026-09-25] PartyType enum + Party.Type + DebugInfoPanel UI 줄 추가.
+2. [완료, 2026-09-25] CombatRole enum + UnitType 매핑 + 4x5 역할배율표 데이터.
+3. [완료, 2026-09-25] 02번 공격점수·1.2배 교체·이동한도·보스집중 — CombatFSMState.SelectAttackTarget.
+4. [완료, 2026-09-25] 02번 치료·긴급보호·큰피해시야전환 — SkillAction_Heal/ResolveEmergencyProtectTarget/
+   RecordDirectHitForViewSwitch. dotnet build 오류 0 확인(매 단계). 실제 플레이/Unity Test Runner
+   검증은 아직 안 함 — 특히 CombatSimulationTests.cs의 기존 힐 관련 테스트가 여전히 통과하는지 확인 필요.
+5. [계획 변경, 완료] TacticalBehaviorPriorityConfig에 새 타입을 추가하는 대신 기존 WaitState를
+   확장하는 쪽으로 더 단순하게 구현됨 — 위 "큰 줄기 FSM 재설계"의 "실제 구현은 더 단순" 항목 참고.
+6. [완료, 2026-09-25 (7-1장) / 2026-09-27 (4~6장, 2장 B+E)] 01번 7-1장(파티종류별 방 활동 종료) —
+   Party.IsRoomActivityComplete. 4~6장(탐색 후보 통합·점수 공식·20% 교체)은 2026-09-27에
+   Unit.ComputeInvestigateTarget/EstimateDistanceTilesTo + AStarMovement.TryGetPathLength로 실제
+   연결 완료(가중치는 여전히 균일 1.0 자리표시자 — 검증문서 00-06 참고). 2장의 방 탐색 B+E 요구
+   수량도 같은 세션에 Party.CompletedRoomExploreCount/OnRoomExploreCompleted로 실제로 세기 시작.
+   **Unity 실제 플레이 검증은 아직 안 함** — dotnet build만 확인.
+7. [완료, 2026-09-25] HumanWaveManager.UpdatePartyDestination 강제이동 제거 + 리더 방향 결정 최소
+   구현 — TryFindNextDoorTowardTargetRoom(좌표 거리 근사). **구현 중 playerMoveTarget+
+   isManualMoveCommand=false 조합이 이동을 전혀 발생시키지 않는다는 것을 발견**(위 "중요 발견" 참고)
+   — 그래서 이동 수단을 WaitState(currentWait) 기반으로 바꿔 실제로 작동하게 만들었다.
+8. 05번 집결 시스템 나머지(3장 문 앞 진형 위치 2칸 확보, 4장 진짜 방 전체 전달, 5장 생존/도주 구분,
+   8장 "할 일 없을 때" 합류 순서) — 지금은 전부 근사/미구현. [2026-09-26: 7장(발견 보고 리더 연결)은
+   코어 한정으로 완료 — 위 "05 파티 이동과 집결 및 보고" 7번 항목 참고. 2026-09-28: 일반 파티 목표
+   오브젝트(03번 문서 3번 항목 앞부분 "일반 파티 목표에 도달한 유닛")도 구현 완료 — 26번 참고.]
+9. 04번 이동 보강(좁은 통로 순서·대기우회비교·공동속도) — CombatRole은 이미 있어 8장(좁은 통로
+   역할 순서)부터 시작하기 좋음.
+10. 03번 이벤트표 신규 케이스 보강 + 07번 검증 예시 기반 단위 테스트 — 특히 이번에 바뀐
+    CombatFSMState/SkillAction_Heal/HumanWaveManager 쪽 실제 플레이 검증(Unity Test Runner +
+    직접 플레이)이 아직 전혀 안 됨. **다음 세션 최우선**: (a) CombatSimulationTests.cs 기존 테스트
+    통과 확인, (b) 웨이브 하나를 실제로 돌려서 인류 파티가 방을 탐색하다 집결해서 다음 방으로
+    넘어가는지 육안 확인, (c) 위 "중요 발견"의 퇴각(_retreating) 분기를 고칠지 사용자에게 확인.
+11. [착수 전 메모] 02번 9장(피해 감수 보호 경로) — 경로별 노출시간·예상피해 비교 인프라가 없어 범위
+    밖으로 미룸. 04번 이동 시스템(대기/우회 비교) 작업 때 관련 인프라가 일부 생기면 재검토.
+12. [완료, 2026-09-25 — 최종] 코어·점령 재설계(회의록 09.25 + 같은 날 세 차례 후속 수정) — 코어
+    보스방 전용화(유지), 임시 점령 오브젝트는 진행도 방식 → HP 채널링 방식(코어와 거의 동일) →
+    **전부 삭제**(사용자 지시, "대신 추후에 다른 점령 조건을 추가할 수 있으니 세팅만 해주고")까지
+    갔다. 최종 상태·"세팅"으로 남긴 것은 위 "핵심 설계 결정 5번" 참고. 점령 연출(IMapColorizer.
+    PulseRoomOutline, 방 테두리 진행파)은 사용자가 승인해 삭제되지 않고 남아 다음 트리거를 기다린다.
+    dotnet build 오류 0 확인. 세션 마지막에 오늘 전체 diff를 리팩토링 검토했다(위 "리팩토링 패스"
+    항목 참고, 발견한 진짜 이슈는 전부 그 자리에서 수정).
+    **Unity 실제 플레이 검증은 여전히 안 함** — 다음 세션 최우선: (a) 보스방엔 코어만, 다른 방엔
+    아무 점령 오브젝트도 없는지, (b) 점령 파티(PartyType.Occupy)로 배정된 인류가 실제로 이상하게
+    행동하지 않는지(현재는 트리거가 없어 그냥 다른 파티처럼 행동해야 정상), (c) 02번 전투 시스템
+    (SelectAttackTarget/보스집중/일반치료/긴급보호)과 01/05번 집결·다음방이동 흐름을 웨이브 하나
+    끝까지 실제로 돌려서 확인 — 이 부분은 지금까지 전혀 실제 플레이 검증이 없었다.
+13. [다음 세션에 점령을 다시 다룰 때 시작점] 실제 점령 조건을 정할 때 검토할 후보 두 가지:
+    (a) 회의록에서 최형준이 시사한 "점령 파티가 방어 건물을 실제로 건설하는 연출" — 건설 시스템
+    확장 필요. (b) 그 외 사용자가 새로 지정하는 조건. 어느 쪽이든 트리거 지점에서
+    OffenseProcessor.OnCoreDestroyed 구조를 본떠 방 소유권 전환 메서드를 만들고, 그 안에서
+    IMapColorizer.PulseRoomOutline을 호출하면 연출까지 바로 연결된다(이미 완성돼 있음).
+14. [메모, 착수 전] 층 통제권 상실 / 인류 거점 잔류 — 회의록 자체가 "고민 좀 더"라며 미확정이라고
+    밝힌 영역. 관련 문서(도주·후퇴 문서 등)가 나오거나 팀 논의가 정리되면 재검토.
+15. [계획, 2026-09-27 — 다음 세션 시작 후보] 02번 문서 9번 항목(보호 경로와 피해 추정의 한계) +
+    04번 문서 4번 항목(역할별 이동 경로와 우회, 특히 "알려진 적 공격 범위의 회피") — 07번 검증항목
+    02-01(적 정보와 공격 피해량의 취득 경로) 검증 중 파생된 후속 작업, 아직 착수 전. 상세 근거는
+    행동경로목표결정_검증_2026-09-25.txt "다음 검증 대기 중" 위 메모 참고. 세 조각으로 나뉜다:
+    (C) 예상 공격 피해량 데이터 — buildable, 새 설계 불필요. 지난 세션(2026-09-27, 02-01 항목 7번)에
+        만든 23장 정보오차 패턴(PersonalWeightRecord.PerceivedValue + party 공유 캐시)을 그대로
+        재사용해 스킬의 실제 데미지값을 이해도 기반 오차로 노출하면 된다.
+    (A) 알려진 적 공격 범위 회피 이동 — 04번 문서 4장(132-169줄)이 이미 구체적 알고리즘을 명시한다
+        ("회피 가능 경로 우선 비교 → 없으면 노출시간 최소 → 그 다음 전체길이 최소", "공격범위·피해를
+        모르는 부분을 정밀한 예상 피해 숫자로 만들지 않는다") — 새 기획 문서는 불필요해 보인다. 다만
+        AStarMovement.cs가 타일별 코스트 커스터마이징 훅이 없는 단일 A*라(2026-09-27 grep 확인) 가중치
+        기반 회피 경로 탐색으로 확장하는 엔지니어링 설계가 필요하다.
+    (B) 피해 감수 긴급 보호 판정(02번 9번 항목 후반, "안전 경로로는 늦고 노출 경로는 제때 도착 +
+        잔여 HP 30% 이상"만 허용) — "안전 경로 vs 노출 경로 비교"가 전제라 A 없이는 문서 그대로
+        성립하지 않는다(2026-09-27에 이 둘을 분리 가능하다고 봤던 최초 판단은 정정됨) — A 완성 후
+        같이 붙인다.
+    **진짜 막힌 공백**: "적 공격 범위를 인류가 아는지 모르는지" 게이팅 자체가 코드에 없다 — 가중치
+    시스템 9장("스테이터스 내부 추정값" 등 5개 항목, 가중치_구현현황_2026-07-20.txt:369-370에 이미
+    "적용 대상 데이터 필드 없음"으로 확정된 것)과 동일 카테고리의 결핍이다. 이건 새 문서보다는
+    "가중치 9장을 이 범위만큼은 실제로 만들지" 결정 + 기존 인지(PerceptionOutcome.AccuratePerception)
+    게이트 재사용으로 풀릴 것으로 보인다(danger/understanding에 이미 쓴 "정확 인지 시점부터 안다"
+    패턴 그대로).
+    **다음 세션 착수 시**: 규모가 있고(AStarMovement 변경이 기존 경로탐색 전반에 영향, 가중치/인지/
+    이동/전투 4개 문서 교차) EnterPlanMode로 순서 설계부터 하고 착수할 것 — 사용자 지시
+    (2026-09-27). 지금 당장은 다른 작업 우선으로 보류.
+16. [완료, 2026-09-27] 위 15번 계획을 EnterPlanMode로 순서를 짠 뒤 그대로 구현했다. 세부 조사에서
+    사용자와 함께 확정한 것: 예상 피해량은 종 기본(비버프) 스탯×배율 근사(버프/디버프가 CombatStat을
+    실제로 변경하는 시스템이 있어 이 구분이 실제로 의미 있음을 재확인 —
+    SkillAction_PartyBuff.cs/SkillAction_Curse.cs), 직접경험 확정은 스킬 이름 단위(공격형태 3종 단위
+    아님), 범위는 C+A+B 전부(피해감수 판정이 전제하는 "보호 대상 접근 이동" 자체가 없었던 것도 이번에
+    같이 신설).
+    - **C(예상 피해량)**: `PersonalSkillDamageRecord.cs`(신규, PersonalWeightRecord와 동일 구조) +
+      `Unit.personalSkillDamage`. `UnitSpriteManager.TryGetBaseCombatStats`/`GetSkillDataList`(신규,
+      인스턴스 없이 프리팹에서 조회) + `UnitGenerate` 위임 2개. `HumanKnowledgeBase.
+      SeedSkillDamageEstimates`가 `InitializeNewUnitPersonalInfo`(파티 입장) 시점에 종별 비공격형 제외
+      스킬마다 기본공격력×배율을 시딩(23장 파티공유 오차 재사용). `SkillAction.BeginAttackCast`에
+      `skillName` 파라미터 추가(12개 서브클래스 호출부 전부 갱신) + `UnitCombatState.lastSkillName`.
+      `HumanKnowledgeBase.RecordSkillDamageObserved`가 `UnitFunction.RecordHitWeightEvent`의 공격자
+      정체 확인 분기에서 실측치로 덮어씀(직접경험=0% 오차). 조회는 `TryGetExpectedSkillDamage`(bool+out,
+      미상은 반환 실패로 표현).
+    - **A(공격범위 회피 이동)**: `AStarMovement`에 `protected virtual int GetExtraTileCost` 훅 추가(기존
+      하드코딩 이동비용에 가산) + `TryGetPathTiles`(TryGetPathLength와 동일 구조, 좌표 리스트 반환)
+      신설. `MovementMath.AttackRangeAvoidExtraCost`(회피 우선순위를 가중치 합 하나로 성립시키는 상수)
+      + `AttackRangeAvoidingMovement : AStarMovement`(RoomConfinedMovement와 동일한 서브클래싱 전례,
+      프레임당 1회 캐시). `PersonalMapKnowledge.ConfirmAttackRange`/`TryGetKnownAttackRange`(
+      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitPerceptionHandler`가 AccuratePerception
+      시점에 그 종 보유 스킬 최대 HitRange로 확인. `AIMovementHelper.ComputeKnownAttackRangeAvoidTiles`
+      (체비셰프 사각형 근사) + `EnsureAvoidanceMovementForRole`(RangedDps/RangedSupport/MeleeSupport만
+      승급, `CombatFSMState.ExecuteCombat`에서 호출) — 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은
+      전혀 안 건드려도 MovementAlgorithm 교체만으로 회피 경로를 탄다.
+    - **B(피해감수 긴급보호)**: `CombatFSMState.TryEmergencyProtectApproach`(신규 — 보호 대상이 사거리
+      밖일 때 "접근 이동" 자체를 새로 담당, 이전엔 존재 자체가 없었음) + `AIMovementHelper.
+      MoveTowardsProtectTargetWithRiskCheck`/`EstimateExposureDamage`(안전경로 vs 노출경로 도달시점
+      비교, 노출 경로가 지나는 알려진 위험구간의 종별 최댓값 피해량 1회분만 합산). 새 상수
+      `CombatScoreMath.ProtectApproachDamageRiskHpFloor`(기존 EmergencyProtectHpRatio와 값은 같지만
+      의미가 다른 별개 상수로 분리).
+    - **테스트**: `WeightSystemTests.cs`에 4개(직접경험 덮어쓰기, 미기록 스킬 조회 실패, 공격범위 최초
+      확인 고정, 미확인 종 조회 실패) + 신규 `MovementSystemTests.cs`에 2개(회피비용 상수 마진, 두 30%
+      상수 독립성) 추가. **범위 축소 — 사용자에게 보고 필요**: 원 계획의 "기본스탯×배율 시딩"/
+      "마법아키타입 판정"/`CombatSimulationTests.cs` 회귀 테스트는 전부 `unit.Generate`(Resources.Load
+      프리팹 조회) 의존이라, 이 코드베이스의 기존 순수 NUnit 테스트 관례(DI 없이 bare
+      ScriptableObject.CreateInstance만 쓰는 CombatSimulationTests.cs의 CreateClassUnit조차 Generate를
+      안 씀)로는 못 쓴다 — 스킵하고 Unity 실제 플레이 검증으로 대체해야 한다.
+    - dotnet build 확인 불가(.sln 부재, 세션 내내 동일) — 다음 에디터 실행 시 컴파일 확인 필요.
+    **Unity 실제 플레이 검증 전혀 안 함 — 다음 세션 최우선**: (a) 원거리/지원 유닛이 실제로 적 공격범위를
+    피해 우회하는지, (b) 보호 대상이 사거리 밖일 때 실제로 접근 이동하는지, (c) 접근 중 위험 판정이
+    자연스럽게 작동하는지(안전경로 유지 vs 위험 감수 진행) 육안 확인 필요.
+    [Unity 플레이 1차 확인, 2026-09-27] 컴파일 에러 없음 확인 후 실제 웨이브 플레이 — 사용자: "괜찮은거
+    같아. 전투 양상 보니." 컴파일 통과 + 일반 전투 진행에 이상 없음(크래시·회귀 없음)까지는 확인됨.
+    다만 이건 일반적인 전투 양상 관찰이라 (a)(b)(c) 세 가지 신규 행동 각각을 개별적으로 짚어 확인한
+    건 아니다 — 특히 (b)(c)는 "아군이 사거리 밖에서 위협받는" 특정 상황이 있어야 관찰 가능해 일반
+    전투에서 우연히 나타났을 수도, 안 나타났을 수도 있다. 각 행동을 의도적으로 재현해 확인하는 건
+    여전히 다음 우선순위.
+
+    **[수정 완료, 2026-09-27] 방어력 미반영 버그**: 사용자가 "지금 구현한 게 문서에 실제로 있는 내용이
+    맞냐"고 재확인하는 과정에서 발견 — 9번 항목 원문이 "자신의 알려진 방어·감소 효과를 사용한다"고
+    명시했는데, `EstimateExposureDamage`가 처음엔 raw 예상피해량을 방어력 차감 없이 그대로 HP에서 뺐다
+    (실제 데미지 파이프라인 UnitFunction.TakePhysicalDamage/TakeMagicalDamage는 방어력을 빼는데 이
+    추정 코드만 누락). 스킬이 물리/마법인지(GroundAoE·Curse만 마법, HumanKnowledgeBase.
+    SeedSkillDamageEstimates의 _magicalSkillArchetypes와 동일 분류를 SkillAction 타입 검사로 재현)를
+    가려 해당 방어력을 뺀 뒤 1 이하로 안 내려가게 수정(AIMovementHelper.cs). 이전엔 위험 추정이 실제보다
+    항상 더 비관적이었다(보호자가 실제로는 버틸 수 있는데도 안전 경로만 고집했을 수 있음).
+
+    **알려진 한계 (의도된 근사 — 버그 아님)**:
+    - 공격범위 회피는 체비셰프 사각형 근사(실제 회전 히트박스 아님) — IsRangedFormationRole과 동일한
+      정밀도 수준으로 맞춤, 더 정밀한 판정은 이번 범위 밖.
+    - 회피 이동은 인류만 대상(RangedDps/RangedSupport/MeleeSupport) — 몬스터는 04번 문서 표의 별도
+      "몬스터" 행(RoomConfinedMovement로 이미 관리)이라는 해석으로 제외. 이 해석 자체가 확정 아니면
+      재검토 필요.
+    - "적의 숨은 공격력·스킬 계수를 읽지 않는다"를 "실시간/버프된 값이 아니라 이미 공개된 기본 스탯은
+      써도 된다"로 해석 — 사용자 확인 거쳤지만 문서가 이 구분을 명시적으로 하진 않는다.
+    - `EstimateExposureDamage`는 노출 경로가 겹치는 종마다 "최댓값 스킬 1회분"만 합산 — 같은 구간에
+      여러 마리가 동시에 위협하거나 한 마리가 여러 번 때릴 가능성은 반영 안 됨(문서의 "확정 피해처럼
+      더하지 않는다"는 원칙과 일치하는 보수적 선택이지만, 실제로는 더 위험할 수 있는 상황을 낙관적으로
+      볼 수 있다).
+    - 테스트 커버리지: `unit.Generate`(프리팹 Resources.Load) 의존인 3개(시딩 공식 실측, 마법아키타입
+      판정, 접근이동 회귀)는 이 코드베이스의 기존 순수 NUnit 테스트 관례로 재현 불가라 스킵 —
+      Unity 실제 플레이 검증으로 대체해야 함(아직 개별 재현 검증 안 됨, 위 "일반 전투 관찰"만 있음).
+17. [발견+수정 완료, 2026-09-28 — 검증문서 02-02] `CombatFSMState.SelectAttackTarget`에 "방 진입
+    조건"(실제로 도달 불가능한 대상은 선택하지 않음) 게이트와 stuck-turn 안전장치가 둘 다 없었다 —
+    04번 챕터에서 Investigate/CoreAttack·DoorAttack/Wait/Explore 5개 BT 리프에 이미 적용된 동일
+    패턴(2026-09-27, 위 04번 챕터 9번 항목)이 Combat의 추격 이동에만 빠져 있었다. 인류는
+    `IsRoomConfined`가 항상 false라 다른 방(문으로 막힌 방 포함)의 적도 시야만 닿으면 공격 후보가
+    되는데, 닫힌 문은 평소엔 시야를 막고(`InteractableObject.IsFullyBlocking`, DoorSystem.cs:185),
+    **문을 소유한 진영 자신이 그 문을 쓰는 동안만**(`NotifyApproachAttempt`/`unitOnDoor`가 둘 다 소유
+    진영 일치를 확인, DoorSystem.cs:179-180,210-212 — 정정: 최초엔 "누구의 접근 시도든 연다"고
+    잘못 썼다가 00-08 재검토로 바로잡음, 검증문서 00-08 항목 "[재검토, 2026-09-28]" 참고) 코스메틱하게
+    열린다. 즉 인류 자신이 상대 문에 부딪히는 것만으로는 절대 안 열리지만, 적이 자기 문을 실제로 쓰는
+    동안은 정상적으로 시야가 뚫려 인류가 그 뒤의 적을 최고점 후보로 고를 수 있다 — 그 창이 닫히기
+    전에 인류가 도달 불가능한 대상에 들러붙으면 전투 상태에서 못 빠져나오는 소프트락 가능성(원래
+    서술보다 발생 조건은 좁지만 — "적이 자기 문 근처에 머물러야 함" — 핵심 결함은 동일). 실제 통행
+    판정(`DoorSystem.IsBlockedByClosedDoor`)은 별개로 항상 진영 불일치면 막는다.
+    사용자 지시("지금 바로 수정")로 즉시 구현 — `Unit.combatChaseStuckTurns`(신규,
+    investigateStuckTurns 등과 동일 패턴) + `Unit.combatUnreachableTarget`/`combatUnreachableUntil`
+    (신규, 특정 대상만 일정 시간 배제) + `AIBehaviorConfig.combatChaseStuckTurnLimit`(기본 4)/
+    `combatChaseUnreachableCooldownSeconds`(기본 6초). `CombatFSMState.GetPriority`와
+    `SelectAttackTarget` 양쪽의 후보 루프에 동일한 배제 조건을 짝지어 넣은 게 핵심 — Combat이
+    Tactical보다 우선순위가 높아서 SelectAttackTarget 안에서만 포기하면 GetPriority가 여전히 그
+    적을 "싸울 수 있음"으로 보고해 다음 틱에 똑같이 재선택되기 때문에, 두 메서드가 항상 같은 후보
+    집합을 보도록 맞춰야 실제로 Tactical(DoorAttack 등)로 우선순위가 넘어간다. 신규
+    `CombatFSMState.ChaseTarget` 헬퍼가 기존 `ExecuteCombat`의 두 `MoveTowardsTarget` 호출 지점을
+    대체한다. `StandGroundAttackFSMState`는 이동을 안 해 이 헬퍼를 안 쓰지만 `SelectAttackTarget`을
+    공유해 배제 필터 효과는 자동으로 받는다. 상세 근거·구현 내역은 검증문서
+    행동경로목표결정_검증_2026-09-25.txt "02-02" 항목 끝의 "[수정 완료, 2026-09-28]" 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증도 아직 안 함 — 다음 세션 우선순위.
+18. [발견, 2026-09-28 — 검증문서 02-03] `CombatRole.RangedSupport`("공격 기능 없음")
+    배제가 CombatScoreMath.RoleMultiplierTable에 대응 행이 없는 방식(역할 매핑 단위 블랭킷 배제)으로
+    구현돼 있는데, RangedSupport로 매핑된 인류 3클래스(사제/주술사/음유시인) 중 **주술사만 실제로
+    적 대상 스킬(Curse, SkillAction_Curse.cs, Affinity=Enemy)을 갖고 있어** 전제("공격 기능 없음")가
+    깨진다 — 사제(Heal)/음유시인(PartyBuff)은 둘 다 Affinity=Ally라 문제 없음. 결과: 주술사가 전투
+    중 CombatScoreMath.RoleMultiplier가 범위 밖 role을 MeleeTank 행으로 폴백시켜, 대상 우선순위
+    계산에 MeleeTank용 배율이 조용히 쓰인다(Curse 실행 자체는 스킬 GetPriority/IsAvailable 기준이라
+    영향 없음 — 어떤 적을 최우선으로 저주할지의 우선순위만 왜곡됨). CLAUDE.md가 이미 기록한 "무도가는
+    치료 스킬이 없어 자동으로 근접공격 폴백"과 같은 계열의 "클래스→역할 매핑이 실제 스킬 구성과
+    어긋남" 사례 — 반복 패턴이라 구조적으로 짚어둘 가치가 있음.
+    [수정 완료, 2026-09-28 — 사용자 확인 후("RangedSupport 행을 중립(1.00)으로 추가")] 다른 역할값을
+    빌려 쓰지 않는 가장 보수적인 방향으로 결정 — CombatScoreMath.RoleMultiplierTable에 RangedSupport
+    공격자 행을 신설(전부 1.00f, 배율 없음). 사제·음유시인은 애초에 공격 스킬이 없어 이 표를 실질적
+    으로 안 써서 영향 없고, 주술사만 이제 MeleeTank 행 대신 자기 행(중립)을 쓴다. CombatEnums.cs/
+    AttackRetargetMoveLimit 주석의 "RangedSupport는 공격 후보로 안 삼는다"는 부정확한 전제도 같이
+    정정. 상세는 검증문서 "02-03" 항목 7번 참고.
+    [수정 완료, 2026-09-28] 같은 검증에서 발견한 02번 문서 3장 동점 처리 3단계("그래도 같으면 무작위
+    순서를 반복 비교 동안 유지")는 수치 판단이 필요 없는 기계적 수정이라 바로 구현 — CombatFSMState.
+    SelectAttackTarget의 최고점 후보 리스트(`tiedBest`)를 추적해 점수·거리가 완전히 같은 후보가
+    2개 이상이면 UnityEngine.Random.Range로 하나를 무작위 선택한다. "유지"는 기존
+    ShouldSwitchAttackTarget의 동점 시 교체 차단(currentValid 고정)에 자연히 얹혀가므로 별도 기억
+    상태 불필요. 상세는 검증문서 "02-03" 항목 6번 참고. .sln 부재로 dotnet build 미확인.
+19. [발견+수정 완료, 2026-09-28 — 검증문서 02-04, 사용자 지시 "고쳐버려"] "보스에게 가는 길을
+    실제로 막는(아직 공격은 안 하는) 적도 임시 대응 사유다"가 구현 안 돼 있었다 — CombatFSMState.
+    SelectAttackTarget의 threatCandidates는 오직 IsAttackingMeOrAlly(그 적이 지금 나/아군을 실제로
+    공격 중인가)만 기준으로 삼고, "그 적이 내 이동 경로를 물리적으로 막고 서 있는가"는 전혀 확인하지
+    않았다(직접 위협은 이미 IsAttackingMeOrAlly로 잡혀서 문제없었음 — 공격 의사 없이 그냥 길목에
+    서 있는 적만 빠짐). 02-02가 찾은 "SelectAttackTarget이 도달 가능성을 사전에 안 본다"는 구조적
+    공백의 다른 표현.
+    신규 `CombatFSMState.FindPathBlockingEnemy`(IsAttackingMeOrAlly 근처)가 `unit.MovementAlgorithm
+    as AStarMovement`의 `TryGetPathTiles`(보스까지 실제 경로 타일, 이동 캐시 안 건드리는 일회성
+    조회)로 경로상 가장 먼저 만나는 살아있는 적을 찾아 threatCandidates에 합류시킨다 — 호출 시점을
+    "보스 유효 + 다른 위협 없음"(원래 그냥 보스 집중을 유지했을 순간)으로만 한정해 불필요한 경로탐색
+    호출을 줄였다. pool 계산 시점도 이 합류 이후로 옮겨야 실제 점수 비교에 반영된다(수정 전엔 pool이
+    보스 집중 확인보다 먼저 계산돼 있었음). 찾은 차단 적은 별도 특수 처리 없이 기존 점수·1.2배/한도
+    게이트를 그대로 탄다. 캐싱/스로틀은 추가하지 않음(매 틱 유닛마다 도는 FOV 섀도우캐스팅 대비
+    부담이 크지 않다고 판단 — 실측 필요하면 나중에). 상세는 검증문서 "02-04" 항목 4번 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증(+성능 체감)도 아직 — 다음 세션 우선순위.
+    [2026-09-30 재발견 — 휴면 코드] 이 기능은 두 겹으로 동작한 적이 없다: (1) 보스 타일 점유 때문에 TryGetPathTiles가 항상 실패(2026-09-30에 조회 전용 점유 예외로 수정, 검증 03-13
+    [수정 완료] 6번), (2) 그래도 남는 문제 — 경로가 다른 유닛 타일을 피해 가므로 경로 위에 적이 서 있는 일이 없어 blocker를 못 찾는다.
+    [2026-09-30 재수정 완료 — 사용자 확인 "고쳐야 할듯"] 신규 Assets/Script/Unit/Combat/BossPathBlockage.cs로 재설계: 이동이 필요하고(보스 점유 영역이 공격 거리 밖) 다른 유닛의 점유를
+    피해서는 공격 거리 안 어느 타일에도 못 닿을 때(AStarMovement.CanReachWithinRange), 적 진영만 무시한 구조 경로(TryGetPathTiles ignoreEnemyUnits)에서 공격 위치 전에 처음 만나는 확인된 적이
+    blocker다. SelectAttackTarget은 blocker를 찾으면 AttackTarget을 그 적으로 직접 바꾼다(20% 점수·이동 한도 게이트 없음 — 임시 대응) — BossFocusTarget은 유지돼 blocker가 죽으면 보스로 복귀한다.
+    0.5초 주기 재계산(CombatTargetingState.PathBlocker). 다타일 유닛은 점유 영역 기준 거리(Unit.FootprintSize·MovementMath.DistanceToFootprint). 상세는 검증문서 02-04 항목 4번.
+    [2026-09-30 통합 — 사용자 확인 "어 바꾸자"] "자신을 직접 위협하는 잡몹"도 같은 임시 대응 경로로 처리한다: CombatFSMState.SelectTemporaryResponseTarget이 보스 집중 중에만 ① 나를 직접
+    공격 중인 보스 외의 후보(IsAttackingMe)가 있으면 그중 점수가 가장 높은 것(ThreatResponseMath.SelectWithHysteresis — 이미 그 집합 안의 대상을 상대 중이면 같은 우선순위 안의 20% 기준으로
+    유지) ② 없으면 경로를 막는 적을 20%·이동 한도 게이트 없이 AttackTarget으로 잡는다(BossFocusTarget 유지 — 사유가 사라지면 20% 재요구 없이 보스 복귀). 아군만 공격받는 상황은 사유가 아니다
+    (문서 4장 213~216·222줄). 보스 집중이 아닌 일반 흐름은 그대로.
+20. [발견+수정 완료, 2026-09-28 — 검증문서 02-05] CombatFSMState.SelectAttackTarget의 대상 교체
+    게이트가 "새 대상까지 남은 이동"을 체비셰프 거리로 근사하던 것(코드 자신의 옛 주석이 "실제 경로
+    계산까지 연동하려면 경로탐색 결과가 필요해 범위 밖"이라고 자백한 의도적 스텁)을 실제
+    AStarMovement.TryGetPathLength로 교체 — 인류는 fullyRevealed(경로 전체가 자기 personalMap에
+    드러남)까지 요구하고, 몬스터·야생은 이 함수가 그 개념 자체가 없어(fullyRevealed가 항상 false)
+    경로를 실제로 찾았는지만 확인한다(같은 함수 안에 이미 있는 isHuman 분기 패턴 재사용). 부수
+    효과로 "직선상 가까워 보이지만 실제론 완전히 막혀 도달 불가능한 대상"으로의 전환도 막힌다. 기존
+    TryGetPathLength가 이미 필요한 출력을 다 제공해 새 숫자·설계 결정이 필요 없는 함수 연결 수준
+    수정이라 판단해 질문 없이 바로 구현했다.
+    [8번 재조사 및 확정, 2026-09-28 — 사용자 지시 "문서 읽어서 의도 임의 판단 해보실?"] 원본 02번
+    문서 5장 전문과 drawio 순서도("02-04 공격 대상 변경의 이동 한도")를 직접 대조했다 — 플로우차트에
+    "다른 교전 합류"용 별도 분기가 없고, 원문 목록에서 이 항목이 "기존 적 추격" 바로 뒤에 위치하며,
+    01번 문서(파티목표)의 "소탕" 파티 행에서도 "교전 합류"가 "직접 위협·방어건물·이동차단"과 별도
+    컬럼(=전투 진입의 한 형태)로 쓰이는 것까지 확인해 "첫 전투 진입의 변형"으로 결론지었다 — 이미
+    `!currentValid` 분기가 한도 없이 처리하는 경우라 코드 수정 불필요. 상세는 검증문서 "02-05" 항목
+    8번 참고. .sln 부재로 dotnet build 미확인, Unity 실제 플레이 검증(+성능 체감 — 스위치 시도가
+    04번보다 잦을 수 있어 더 지켜볼 필요)도 아직.
+    [2026-09-30 재수정 — 위 수정은 한 번도 동작하지 않았다] 적 유닛 타일을 목표로 준 TryGetPathLength가 점유 때문에 항상 실패해 교체가 항상 보류(대상 고정)였다. 조회 전용 점유 예외
+    (AStarMovement.RunQuerySearch)로 고치고, 문서 5장 원문대로 남은 이동을 "공격할 수 있는 위치까지"(CombatFSMState.TryEstimateStepsToAttackPosition — 적 대상 스킬 사거리 최댓값
+    MaxAttackReach 기준, CombatScoreMath.StepsToFirstTileWithinRange)로 재정의했다. 이제 교체가 실제로 성립해 전투 양상이 달라진다 — Unity 플레이 확인 필요.
+21. [발견+수정 완료, 2026-09-28 — 검증문서 02-07, 사용자 지시 "4건 다 지금 바로 진행"]
+    SkillAction_Heal.FindLowestHpAlly에서 4건 발견 후 전부 수정 — (a) 파티 소속 확인 없이 층 전체
+    비적아 유닛을 동일하게 후보로 삼던 것을 2단계 탐색(자기 파티 먼저, 없을 때만 파티 밖으로 확장)
+    으로 교체 — 정확한 공식이 문서에 없어 "파티원 중 한 명이라도 있으면 그쪽만" 방식으로 판단해
+    구현. (b) 점수·거리 완전 동률 시 무작위 선택 없던 것 — 02-03의 tiedBest 패턴 재사용. (c)+(d)
+    **가장 영향 컸던 조합** — "사거리 밖이라도 치료 위치로 갈 수 있으면 선택 가능"이 전혀 없어서
+    사거리 밖 후보는 IsAvailable 자체를 false로 만들어 Heal이 스킬 후보에서 완전히 빠지고(접근
+    이동도 발동 안 함), "위치 무효" 판정에도 사거리 이탈이 섞여 있던 문제 — "지금 실행 가능한가"
+    (IsAvailable에 사거리 체크 신설)와 "누구를 치료하는 중인가"(HealTarget, 이제 사거리와 무관하게
+    사망·문턱회복·층이동에만 무효화)를 분리해서 해결. 신규 CombatFSMState.TryGeneralHealApproach
+    (+FindHealSkill 헬퍼)가 TryEmergencyProtectApproach와 동일한 자리·패턴으로 "Heal 대상이 사거리
+    밖이면 접근 이동"을 담당 — 탐색 범위는 FindLowestHpAlly(unit, 9999)로 사실상 층 전체
+    (ResolveEmergencyProtectTarget과 동일하게 거리 제한 없음).
+    **알려진 한계(의도된 범위 밖)**: TryGeneralHealApproach도 TryEmergencyProtectApproach와
+    마찬가지로 "사거리 밖 치료 대상이 있으면 무조건 접근"이라 우선순위가 무조건적이다 — 지금은
+    사제류가 공격 스킬 자체가 없어 의미 있는 트레이드오프가 안 생기지만, 나중에 공격+치료 겸용
+    클래스가 생기면 재검토 필요. 상세는 검증문서 "02-07" 항목 끝의 "[수정 완료]" 참고. .sln
+    부재로 dotnet build 미확인, Unity 실제 플레이 검증도 아직 — 다음 세션 우선순위.
+22. [Unity 에디터 최초 컴파일 확인 + 버그 수정, 2026-09-28] 사용자가 Unity 에디터를 열어 컴파일한
+    결과(Assets/문서/에러및 로그/errors.txt)를 처음으로 확인했다 — 이 문서가 쌓아온 02-01~02-07
+    전체 세션 동안 .sln 부재로 dotnet build를 한 번도 못 돌렸는데, 그 사이 실제 컴파일 오류가 1건
+    있었다. `CombatFSMState.SelectAttackTarget`(02-05 수정분)에서 `out int pathRemaining`을 `&&`
+    체인으로 선언한 뒤 그 결과를 `pathConfirmed`라는 별도 bool에 담고, 그 bool을 나중에 다른 `if`에서
+    다시 확인하면서 `pathRemaining`을 썼다 — C#의 definite-assignment 분석은 "이 bool이 true면 out
+    변수도 항상 할당돼 있다"는 걸 별도 변수를 거치면 추적하지 못해 `CS0165(사용되지 않은 지역 변수
+    사용)`로 막혔다. 수정: `pathRemaining`/`fullyRevealed`를 `&&` 체인 밖에서 미리 선언·초기화(0/false)
+    한 뒤 `out` 재할당으로 바꿔 확정 할당을 보장했다.
+    같은 로그에 `SkillAction_Heal.cs`의 `unit.party`(02-07 1번 수정분) 2곳도 "`Unit`에 `party`
+    정의가 없다"는 오류로 함께 떴다. 처음엔 캐스케이드(위 pathRemaining 오류가 다른 파일 심볼
+    해석까지 흔든 것)로 추정했으나, pathRemaining만 고치고 재컴파일해도 `party` 오류가 그대로
+    재현돼 그 가설은 틀렸음을 확인 — **[재조사, 2026-09-28] 진짜 원인: `Unit.cs` 한 파일 안에
+    클래스가 3개(`Unit`:6줄, `Human : UnitFunction`:608줄, `Monster : UnitFunction`:938줄) 있는데,
+    `party` 프로퍼티(620줄)는 `Unit`이 아니라 `Human` 클래스 안에 있다** — grep이 파일 안에서 줄
+    번호만 찾아줬을 뿐 "그 줄이 어느 class 블록 안인지"는 확인하지 않았는데, 그 중간 검증 없이
+    "Unit.cs에 있으니 Unit 클래스 멤버"라고 잘못 단정한 게 오독의 원인이었다(파티는 인류 전용
+    개념이라 애초에 Human에만 있는 게 설계상 당연한 것 — `SkillAction_Heal.FindLowestHpAlly(Unit
+    unit, ...)`의 매개변수 `unit`은 기반 클래스 `Unit` 타입이라 `party`에 직접 접근할 수 없었다).
+    수정: `unit.party` 두 곳을 `unit is Human human && human.party != null`로 먼저 타입 확인 후
+    `human.party`로 접근하도록 교체(SkillAction_Heal.cs:107-121) — 몬스터는 이 분기 자체를
+    건너뛰고 곧장 전체 탐색(기존 동작)으로 넘어간다.
+    **[컴파일 확인 완료, 2026-09-28]** 사용자 재컴파일 후 "컴파일 잘되네" — 이 세션(02-01~02-07)
+    전체의 첫 실제 컴파일 통과. 이 문서 곳곳의 ".sln 부재로 dotnet build 미확인"은 이 시점 기준
+    전부 해소(개별 항목은 재수정 안 함). Unity 실제 플레이 검증(런타임 동작)은 여전히 남아있음.
+23. [발견+수정 완료, 2026-09-28 — 검증문서 02-08, 사용자 확인 "ground truth로 변경(추천)"] 긴급
+    아군 보호의 "위협" 판정(CombatFSMState.IsEmergency → Unit.HasPerceivedThreatCollider)이
+    **보호자가 아니라 보호 대상(candidate) 자신의** personalSpottedEnemies를 기준으로 "공격 중인
+    적이 인지 범위 안에 보이는가"를 판정하던 문제 — 사각지대·기습으로 candidate 본인이 공격자를
+    인지 못 한 채 맞으면(스턴도 안 걸렸다면) 저체력이어도 조건1(저체력+위협)이 안 걸리고, 조건2
+    (행동불능+피격)도 스턴을 추가로 요구해 구제하지 못했다.
+    수정: Unit.cs에 신규 `HasActiveThreatGroundTruth()`(HasPerceivedThreatCollider 바로 아래)를
+    추가 — candidate의 personalSpottedEnemies 대신 `Session.units` 전체를 훑어 "살아있는 적 중
+    currentThreat가 있고 그 히트박스가 candidate의 히트박스와 실제로 Overlaps하는가"만 확인한다
+    (GameSession.cs:1013-1016의 전역 위협 반응 판정과 동일 기준 재사용, 부수효과 없는 순수 조회로
+    분리). 기존 `HasPerceivedThreatCollider`는 그대로 남김 — TacticalFSMState.CanDisarm(:193,249)이
+    "자기 자신의 인지 기반 중단 조건"으로 여전히 쓰고 있고, 그건 정보 격리 원칙과 일치하는 올바른
+    용법이라 건드릴 이유가 없었다. IsEmergency(CombatFSMState.cs:266-274)의 `underThreat` 계산만
+    새 메서드로 교체. 상세는 검증문서 "02-08" 항목 4번 참고.
+24. [발견+수정 완료, 2026-09-28 — 검증문서 02-09] `CombatFSMState.ResolveEmergencyProtectTarget`
+    (긴급 아군 보호 후보 선정)에서 02-03/02-07과 동일한 "동률 시 무작위 선택 미구현" 패턴이 세
+    번째로 재발 — HP비율·행동불능·거리가 전부 같은 후보가 여럿이면 `IsBetterProtectCandidate`가
+    항상 false를 반환해 `unit.Session.units` 순회 순서상 먼저 나온 쪽이 그냥 유지됐다. tiedBest
+    리스트를 추가해 고쳤는데, 이 함수는 "현재 유효 대상 유지"가 이미 `best = currentStillValid ?
+    current : null`로 시작 시점부터 더 높은 우선순위로 박혀 있어서, `currentStillValid`일 때는
+    tiedBest 자체를 만들지 않도록(null) 설계해 두 규칙이 충돌하지 않게 했다 — current가 없는
+    최초 선택 상황에서만 진짜 동률 후보를 모아 무작위로 고른다. 같은 항목에서 재확인한 것: (a)
+    치명 공격 예상(우선순위 1~2단계)은 02-08과 동일한 PersonalSkillDamageRecord 미연결 갭 — 새
+    지적 아님. (b) "차단·공격방해·적제압" 3종은 대응 스킬 아키타입 자체가 없어 N/A. 상세는 검증문서
+    "02-09" 항목 참고.
+
+02번 문서(전투 목표와 아군 보호 및 지원) 전체 검증 완료(02-01~02-11) — 이후 항목은 03번 문서
+(행동 전환과 중단 및 재개).
+
+25. [발견+수정 완료, 2026-09-28 — 검증문서 03-01, 사용자 지시 "시스템 켜지 말고 갭 개선해. 보호
+    포메이션은 아직 더 자세히 논의해야해"] 원본 03번 문서 1장 "주요 행동 중 사건 처리표"를 표
+    전체로 재확인하는 과정에서(07번 검증문서의 압축 요약만 봤으면 "코드가 거꾸로"라고 오판할
+    뻔했음 — 아래 참고), "일반 조사"(41줄: 자신·보호자 피격 둘 다 중단)와 "유지 우선 파티 목표
+    상호작용"(46줄: 보호자 피격은 유지, 보호자가 대응)이 서로 다른 카테고리라는 걸 확인했다.
+    TacticalFSMState.CanInvestigate/CanDisarm은 이 구분 없이 모든 상호작용에 41줄 규칙만 적용하고
+    있었다 — 실제 갭.
+    수정: InvestigationState에 `IsPartyGoalTarget`(bool) 신설 — Unit.ComputeInvestigateTarget이
+    후보를 커밋하는 시점에 `party.Type == PartyType.Recover && candidate.obj가 "Loot" 태그 보유`
+    (Party.HasKnownRecoverableInRoom과 동일 판정 기준)일 때만 true로 세팅한다(지금 유일하게 명확한
+    "파티종류-오브젝트" 매칭이라 그것만 쓰고, 다른 파티종류는 01번 문서 3장이 이미 스텁으로 남긴
+    영역이라 확장 안 함). TacticalFSMState.CanInvestigate의 보호자-피격 분기를
+    `human.currentInvestigation?.IsPartyGoalTarget != true && human.AnyEscortHitThisTurn()`로
+    교체(`?.`로 조사 시작 전 null 케이스 안전 처리). CanDisarm(함정 해제)은 원본 표 47줄이 "해제자·
+    보호자 피격" 둘 다 예외 없이 중단이라 손대지 않았다.
+    **TacticalBehaviorPriorityConfig.Formation.enabled는 사용자 지시대로 false 그대로 유지** —
+    보호 포메이션 재활성화 자체는 별도 논의 예정이라 이번 수정과 분리했다. 그 결과 이 구분 메커니즘
+    자체는 지금도 여전히 관측 불가능한 휴면 코드지만(AnyEscortHitThisTurn이 항상 false), 나중에
+    보호 포메이션이 켜지면 즉시 정상 작동한다. 상세는 검증문서 "03-01" 항목 끝의 "[수정 완료]"
+    참고. .sln 부재로 dotnet build 미확인.
+
+26. [신규 구현, 2026-09-28 — 검증문서 03-02 재검증, 사용자 지시 "할수있는만큼 해봐"] "일반(비코어)
+    파티 목표 상호작용의 실시간 합류 전파" — 2026-09-26에 "코어 전용으로만 구현, 일반은 범위 밖"
+    으로 확정해 뒀던 기능을 이번에 실제로 구현했다. 25번(IsPartyGoalTarget 신설)이 "무엇이 파티
+    목표인가"를 이미 정의해 둔 덕에 더 이상 범위 밖일 이유가 없다고 판단.
+    설계: PartyCoreReportSystem(발견자→리더 보고, 강제 WaitReason 이동)을 그대로 본뜨지 않았다 —
+    코어는 "리더가 항상 최우선"이라는 강한 전제가 있어 강제 이동이 정당하지만, 일반 파티 목표는
+    스펙이 "전투·도주·후퇴·다른 상호작용·보호 포메이션엔 밀린다"고 명시해 그 정도로 강하게
+    우선하지 않는다. 대신 "합류 정보 전파"를 "그 오브젝트를 personalMap에 등록해주는 것"만으로
+    구현해, 기존 FSM 우선순위 게이트(TacticalFSMState.CanInvestigate의 집결/도주 차단,
+    MoveToInvestigateTarget의 "이미 조사 중이면 새로 안 찾음")가 스펙의 "유지해야 하는 수신자"
+    분기(전투/도주/후퇴/다른 상호작용/집결 중)를 전부 새 코드 없이 자동 재현하게 만들었다 — 새
+    WaitReason·강제 이동 로직 0줄 추가.
+    변경 파일: Party.cs(:183, `PartyGoalJoinTargets` Dictionary<string,Vector3Int> 신설 —
+    KnownInvestigatedObjects/KnownCollectedObjectIds와 동일한 "파티 단위 지속 재전파" 패턴).
+    Unit.cs(`IsPartyGoalObject(InteractableObject)` 헬퍼 신설 — 25번이 두 곳에 인라인 중복시켰던
+    "회수 파티+Loot 태그" 판정을 한 곳으로 통합). PropagationSystem.cs
+    (`NotifyPartyGoalInteractionStarted` 신설 — 상호작용 시작 시점 즉시 전파 + party.
+    PartyGoalJoinTargets 등록, TickOngoingObjectPropagation에 세 번째 블록 추가 — 지속 재전파 catch-up).
+    TacticalFSMState.cs InvestigatePerform(상호작용 최초 1틱+IsPartyGoalTarget일 때 위 함수 호출).
+    **구현 중 발견한 별개 버그(같이 수정)**: Unit.ComputeInvestigateTarget의 기존 후보 필터
+    "재전파 수신자는 같은 대상에 중복 조사 목표를 선택하지 않는다"(다른 파티원이 이미
+    currentInvestigation으로 잡은 오브젝트는 후보에서 제외)가 파티 목표 오브젝트의 "합류" 요구와
+    정면 충돌했다 — 이 필터를 그대로 두면 발견자가 investigate를 커밋하는 순간 다른 파티원 전원이
+    그 오브젝트를 후보에서 영구히 배제당해 합류 자체가 원천봉쇄된다. 파티 목표 오브젝트
+    (IsPartyGoalObject)에 한해 이 필터의 예외로 처리해 해결 — 일반 조사 대상은 기존 중복 방지
+    규칙 그대로 유지.
+    **알려진 한계**: (1) "보호 포메이션을 유지해야 하는 수신자" 분기는 검증만 하고 손대지 않음 —
+    TacticalFSMState 생성자 폴백 BT 순서(:43-54)가 Formation을 Investigate/Wait보다 뒤에 둬서,
+    Formation이 나중에 켜지면 우선순위가 스펙과 어긋날 잠재 문제가 있다(Formation.enabled=false라
+    지금은 무관 — 재활성화 논의 시 BT 순서 전체를 함께 재검토할 것). (2) 여러 파티원이 동시에 같은
+    오브젝트로 합류해도 조사 속도가 가속되진 않는다(각자 독립된 Progress01, 먼저 끝내는 쪽이 처리,
+    나머지는 도착 후 obj.IsCollected로 자연 포기) — 스펙에 "협동 가속" 요구가 없어 의도적으로
+    안 만듦. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 아직 — 다음 세션에서
+    errors.txt로 확인 필요. 상세는 검증문서 "03-02" 항목의 2026-09-28 재검증 참고.
+
+27. [발견+수정 완료, 2026-09-29 — 검증문서 03-03, 사용자 확인 "HumanWaveManager 확장으로 수정
+    (추천)"] "리더가 코어 정보를 확보해도 실제로 코어(=웨이브 목표 방)를 향해 이동하는 코드가
+    없었다" — 이번 세션 가장 큰 발견. Party.OnLeaderLearnsCore(코어 발견/보고 시 리더가 정보를
+    얻는 지점)가 집결을 해제하며 ReadyToAdvance까지 false로 되돌리는데, 파티를 실제로 이동시키는
+    유일한 경로인 HumanWaveManager.UpdatePartyDestination의 가드가 `!activeParty.ReadyToAdvance`
+    하나뿐이었다 — 즉 코어를 알게 된 순간부터 처리(파괴→점령)될 때까지 파티 이동이 완전히
+    멈춰 있었다. TacticalBehaviorType.CoreAttack(TacticalFSMState.FindHostileRoomCore)은 "지금
+    서 있는 방에 코어가 있을 때만" 발동하는 제자리 판정이라 이동을 대신 못 해준다 — personalMap도
+    전혀 참조하지 않아 "코어 위치를 아는지"가 판정에 영향을 주지 않는다. 결과적으로 리더(와 보고를
+    마친 발견자)는 우연히 그 방에 걸어 들어가기 전까지 그냥 하던 일을 계속했다 — 03번 문서 3장
+    144줄 "리더와 코어 발견자는... 합류해 코어 위치로 이동한다"가 실제로는 지켜지지 않았다.
+    수정: HumanWaveManager.UpdatePartyDestination(:611-644)의 가드를 `_targetRoom == null ||
+    !(activeParty.ReadyToAdvance || activeParty.LeaderKnownCorePosition.HasValue)`로 확장 — 코어
+    소식을 아는 동안에도 기존 "다음 문 찾기"(TryFindNextDoorTowardTargetRoom) 경로를 그대로
+    재사용한다. _targetRoom(웨이브 목표 방)이 이번 세션 초반 "핵심 설계 결정 5번"(코어 보스방
+    전용화) 이후로는 코어가 있는 방과 항상 동일하므로 별도 목적지 계산이 필요 없었다. 원문은
+    "리더와 발견자" 둘로 좁게 표현했지만 기존 파티 공동 이동(AdvancingToNextRoom) 경로를 그대로
+    재사용했기 때문에 실제로는 파티 전체가 함께 향한다 — 사용자에게 이 선택지를 포함해 미리
+    확인받은 의도적 확장(집결·공동 이동 자체가 원래 파티 단위 개념이라 자연스럽다고 판단). 새
+    WaitReason은 추가하지 않았다 — 기존 AdvancingToNextRoom의 "이미 다른 대기 사유 진행 중이면
+    덮어쓰지 않음" 가드가 ReportingCoreToLeader 등과의 충돌도 그대로 막아준다.
+    **함께 확인한 나머지 항목**: 발견자→리더 보고(일반 전파 조건, 실패 시 이동)·보고 이동이 집결
+    명령에 안 끝남·집결 중/완료 시 같은 방 무조건+다른 방 CanPropagate로 집결 해제 전달·처리 완료
+    후 재집결(TryStartRally의 IsRoomCoreStillHostile 재확인)·조사 완료가 코어 파괴·층 개방과 섞이지
+    않음(코드 구조상 완전히 분리된 함수)·리더 사망 시 승계(LeaderKnownCorePosition이 Party 소유
+    필드라 리더 교체와 무관하게 유지)는 전부 기존 코드로 이미 ✅. "코어 위치·발견 내용을 일반
+    전파 조건으로 공유"(개인 personalMap 등록)만 처음엔 FindHostileRoomCore가 personalMap을 안
+    봐서 게임플레이 영향이 없다는 이유로 🔶 보류했으나, 사용자 지시("이거도 처리해")로 같은 세션에
+    마저 구현했다(아래 27-1번). .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 아직 —
+    다음 세션에서 errors.txt로 확인 필요. 상세는 검증문서 "03-03" 항목 참고.
+
+27-1. [추가 구현, 2026-09-29 — 검증문서 03-03 4번, 사용자 지시 "이거도 처리해"] 27번에서 보류했던
+    "코어 위치·발견 내용을 일반 전파 조건으로 공유"를 마저 구현. 03번 문서 3장 138줄이 "집결
+    해제는 같은 방·같은 파티 전체에 전달하지만 코어 위치와 발견 내용은 일반 전파 조건으로
+    전달한다"고 두 전달 규칙을 명시적으로 구분했는데, 기존 Party.OnLeaderLearnsCore는 전자(집결
+    해제, 같은 방 무조건 예외)만 구현하고 후자(코어 정보 자체, CanPropagate만)는 빠져 있었다.
+    PropagationSystem.NotifyCoreLocationKnown(Human leader, InteractableObject core) 신설 — 03-02의
+    NotifyPartyGoalInteractionStarted와 동일한 즉시 전파 패턴: 리더(보고로 알게 된 경우 자기
+    personalMap엔 아직 없을 수 있어 먼저 등록) + 그 순간 CanPropagate 범위 안인 나머지 파티원에게
+    즉시 등록. Party.OnLeaderLearnsCore가 LeaderKnownCorePosition 세팅 직후 이 함수를 호출한다 —
+    "집결 해제" foreach와는 완전히 분리된 별도 게이트. 지속 재전파는 새 Party 필드를 추가하지 않고
+    기존 LeaderKnownCorePosition(Vector3Int?)을 그대로 재사용 — TickOngoingObjectPropagation에
+    네 번째 블록 추가, 그 순간 놓친 파티원도 나중에 이미 아는 캐리어가 범위 안에 들어오면 등록되고,
+    코어가 처리되면 Party.TryStartRally가 LeaderKnownCorePosition을 스스로 null로 지워 전파도
+    자동으로 멈춘다(이미 처리된 코어를 뒤늦게 알려줄 필요가 없어 적절한 부수 효과 — 새 정리 코드
+    불필요). 발견자 쪽은 UnitFunction.CastRay의 AccuratePerception 시점(:645)에 코어를 포함한 모든
+    오브젝트가 이미 공통으로 personalMap에 등록되므로 별도 처리가 필요 없었다(확인만 하고 손 안
+    댐). 이걸로 03-03 항목 9개 전부 ✅ 완료. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이
+    검증 아직.
+
+28. [발견+수정 완료, 2026-09-29 — 검증문서 03-04, 사용자 확인 "포괄적으로 한 번에 수정 (추천)"]
+    03번 문서 4장 "현재 행동에 따라 소리 반응을 허용/차단"하는 표가 실제로는 지켜지지 않고 있었다
+    — 이번 세션 두 번째 구조적 발견. 원인은 PropagationSystem.TryPromotePendingSoundToAlert가
+    소리 종류·유닛의 현재 행동과 완전히 무관하게 유효한 PendingSound가 있으면 무조건 Alert로
+    승격시킨다는 것. TacticalFSMState의 BT 우선순위(Panic > JoinCombatWait > TrapResponse > Alert >
+    Investigate > Wait > CoreAttack > DoorAttack)에서 TrapResponse만 Alert보다 앞이라 안전하고
+    (그래서 함정 해제·대응은 IsTrapResponseBlockedBySound의 자체 판정이 실제로 작동), 그 뒤에 오는
+    Investigate/Wait/CoreAttack/DoorAttack은 Alert가 먼저 가로채 버려서 이들이 각자 가진 "이 소리는
+    무시해야 함" 판정이 실행될 기회조차 없었다. 코드 추적으로 실제 위반 2건 확인: (a) "일반 조사는
+    함정작동음에 안 끊긴다"(표 명시)인데 SoundAreaApproach가 실행돼(TrapActivation도
+    EstimatedAreaRadius=1>0이라 SoundHasEstimatedArea=true) 조사 유닛이 함정 소리 방향으로 실제
+    이동해버림. (b) "파티 목표·코어 상호작용 당사자는 소리 반응 자체가 없다"(표 명시)인데 예외가
+    전혀 없어 Alert 전환됨 — 코어/문 공격 채널링은 인접(1칸) 이탈 시 자동 취소되는 구조라 Alert로
+    인한 이동이 실제로 채널링을 깨뜨릴 수 있는 잠재 버그.
+    수정 3곳:
+    (1) PropagationSystem.IsSoundReactionSuppressed(Unit, SoundType) 신설 — 코어/문 공격 채널링 중
+    (currentAttackObjectTarget.HasValue, 인류·플레이어 몬스터 공통 필드), 파티 목표 조사 중
+    (currentInvestigation?.IsPartyGoalTarget==true, 27번의 그 플래그)이면 모든 소리 무시,
+    일반 조사(파티목표 아님) 중엔 함정작동음만 무시. [정정, 2026-09-30 검증 03-14] 코어 보고 이동 중
+    (currentWait.Reason==ReportingCoreToLeader)도 처음엔 "코어 상호작용"의 일부로 모든 소리를 무시했으나, 03번
+    1장 48~49행이 보고 이동에 별도 행(이동음·함정음만 무시, 전투음은 대응 후 보고 재개)을 두고 있어 지금은
+    이동음·함정음만 무시한다. TryPromotePendingSoundToAlert 시작부에서 호출해
+    Alert 승격 자체를 막는다 — PendingSound는 폐기되지 않고 남아 있다가 그 행동이 끝나면(또는 5초
+    유효시간이 지나면 기존 ExpireAfterDelay가 자동 소멸) 정상 재평가된다. 보호 포메이션 참여
+    분기(표의 마지막 행)는 Formation.enabled=false로 여전히 비활성이라 포함하지 않음 — 재활성화
+    논의 시 함께 추가.
+    (2) TacticalFSMState.CanInvestigate의 HasPendingInterruptingSound 체크에도 별도로
+    `IsPartyGoalTarget != true &&` 예외 추가 — (1)만으론 부족했다. 이 체크는 Alert 승격과 무관하게
+    CanInvestigate가 매 틱 독립적으로 재확인하는 별개 경로라, (1)을 고쳐도 파티목표 조사가 여전히
+    함정음 아닌 소리엔 진행도 손실과 함께 중단되고 있었다(재현 가능한 별개 버그, 코드 추적으로
+    확인). CoreAttack/DoorAttack/Wait 쪽은 애초에 이런 독립 소리 체크 경로가 없어(Alert 가로채기
+    문제뿐이었음) (1)만으로 충분했다.
+    (3) PropagationSystem.IsSoundUnresponsive(EmitSound의 리스너 필터)에 SoundType 파라미터 추가 —
+    "공격 목표가 있으면 완전 무시, 없으면 교전음·이동음은 듣되 함정음은 계속 제외"(원문 "전투 중
+    소리 반응" 표)를 반영. 기존엔 personalSpottedEnemies.Count>0(전투 상태 근사)만 보고 공격 목표
+    유무와 무관하게 무조건 차단했다 — 신규로 Unit.CombatTargeting.AttackTarget을 확인해 구분.
+    호출부 2곳(EmitSound, PropagateAttackedFact — 후자는 SoundType 개념이 없는 직접 정보라 함정음
+    특수취급과 무관한 SoundType.HitImpact를 임의로 넘김) 시그니처 갱신.
+    나머지 항목(소리 우선순위 7-1/동순위/반응중교체/유효시간·보류개수 7-3/비명음만으로 긴급보호
+    전환안함)은 전부 기존 코드로 이미 ✅ — 비명음/긴급보호는 02-08(24번)의 ground truth 수정이 이미
+    충족하고 있었다. 이걸로 03-04 항목 8개(표 4행 포함) 전부 ✅. .sln 부재로 dotnet build 미확인,
+    Unity 컴파일·플레이 검증 아직 — 다음 세션에서 errors.txt로 확인 필요. 상세는 검증문서 "03-04"
+    항목 참고.
+
+29. [발견+수정 완료, 2026-09-29 — 검증문서 03-06, 사용자 확인 "실제 갭 — 수정해줘 (추천)"]
+    IdleFSMState.GetPriority가 OffenseProcessor.IsRoomInOffense(room)/DefenseProcessor.
+    IsRoomInDefense(room)가 true인 방에서는 0을 반환해 Idle(제자리 배회)을 꺼버리고, 대신
+    NavigationFSMState(자유탐색, 그 방 전체를 돌아다니며 미탐색 지역을 찾음)가 선택되게 만들고
+    있었다. 원문(03번 문서 5장 "상태·진영" 표, 309-317줄)은 정확히 반대다 — "플레이어 오펜스:
+    알려진 다른 교전·유효 소리에 자동 반응, 모두 없으면 현재 위치 대기"·"플레이어 디펜스: ...
+    모두 없으면 배치 모드 지정 방어 타일 복귀". 즉 오펜스·디펜스 중일수록 "대응할 게 없으면
+    제자리에 머문다"가 핵심인데, 코드는 평시엔 제자리에 가까운 Idle을 쓰고 오펜스·디펜스 중엔
+    오히려 적극적으로 방을 돌아다니는 Navigation으로 바꿔 정반대로 동작했다.
+    수정: IdleFSMState.GetPriority에서 OffenseProcessor/DefenseProcessor 게이트(원래 :23-24 두 줄)를
+    통째로 제거 — 오펜스·디펜스 여부와 무관하게 항상 평시와 동일하게 Idle을 유지하도록 단순화했다.
+    "디펜스는 지정 방어 타일로 복귀"의 "지정 방어 타일"이라는 정확한 좌표 개념은 R키 배치모드
+    (MonsterDefensePlacementSystem/Unit.defenseStartPosition)가 2026-08-22에 이미 완전히 삭제돼
+    있어(CLAUDE.md 기록을 grep으로 직접 재확인, 코드에 0건) 그대로 되살릴 수 없다 — 지금 근사할 수
+    있는 가장 가까운 대체는 Idle의 "제자리 근처 배회"뿐이라 오펜스·디펜스 둘 다 이 상태로 수렴시켰다.
+    "소리·적 자동 반응을 끄는 의미가 아니다"는 별도 코드 없이 자동 충족 — Idle의 우선순위(20)가
+    Combat(100)·Tactical(50)보다 낮아 그 조건들이 걸리면 항상 자동으로 밀려난다.
+    함께 확인한 나머지 항목: "적 한 명 처치 후에도 남은 교전에 계속 대응"(CombatFSMState.OnExit의
+    IsPostCombatSweep이 personalSpottedEnemies가 완전히 비어야만 발동, 하나 죽여도 다른 적이 있으면
+    자연히 Combat 유지)·"인류 탐색은 스윕 후 파티목표·명령 재평가"(기존 TryStartRally)·"야생에게
+    인류의 집결·일반조사·함정해제 규칙 미적용"(CanInvestigate/CanDisarm이 최상단에서 Human 전용
+    게이팅, Party.Members가 List<Human>이라 구조적으로 분리)은 전부 기존 코드로 이미 ✅. "야생의
+    종·무리 활동범위 세부 규칙"만 WildMonsterBehavior.OnUpdate가 사실상 비어 있는 기존 스텁 범위라
+    이번엔 손 안 댐(다른 세션들에서 이미 반복 확인된 패턴과 동일 성격). 변경 파일: IdleFSMState.cs.
+    .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이 검증 아직 — 다음 세션에서 errors.txt로
+    확인 필요. 상세는 검증문서 "03-06" 항목 참고.
+
+30. [발견+수정 완료, 2026-09-29 — 검증문서 03-07, 사용자 확인 "수정 — 즉시전투에도 전파 추가
+    (추천)"] "전파는 이동·공격과 병행한다"(03번 문서 6장, 373-379줄)는 원칙이 실제로는 합류 대기가
+    필요한(원거리+고위험, 07-A 9-2장 조건) 드문 경우에만 적용되고 있었다 — 가장 흔한 즉시전투
+    상황(거리 ≤2칸 등, ShouldDeferForJoinWait==false)에서는 파티원 전파가 전혀 일어나지 않았다.
+    CombatFSMState.GetPriority가 이 경우 StartJoinCombatWait 자체를 안 부르고 곧장
+    combatPriority(100)를 반환하는데, 파티원 전파(RecordEnemySighting 호출)가 StartJoinCombatWait
+    내부에만 있었던 게 원인.
+    수정: PropagationSystem.PropagateEnemySighting(Human, Unit) 신설 — StartJoinCombatWait의 전파
+    루프(RecordEnemySighting 호출 부분)를 합류 대기 필요 여부와 무관한 공용 함수로 분리했다.
+    RecordEnemySighting 자체가 "더 최신 정보만 갱신"하는 멱등 함수라 매 틱 반복 호출해도 안전해
+    별도 중복 방지 코드가 필요 없었다. StartJoinCombatWait는 이 함수를 재사용하도록 리팩토링(합류자
+    지정 로직은 그대로 유지 — 순수 전파와 분리됐으니 responder를 찾으면 곧장 break하도록 정리).
+    CombatFSMState.GetPriority의 즉시전투 분기(합류 대기 불필요 else 분기)에도 새로
+    PropagateEnemySighting 호출을 추가해 두 경로 모두 전파가 병행되게 했다.
+    함께 확인한 나머지 항목: 소리별 확인 이동·속도 구분(공격실행음·함정음=감속, 피격발생음·비명·
+    사망음=정상속도 — GameSession.cs의 alertMoveSlowdown이 AlertSearchState.IsUrgentSoundApproach로
+    이미 정확히 구분)·정확 인지 시 FSM 자동 전환(Tactical의 2초 타이머가 끝나기 전에 Combat으로
+    갈아타 "시야 유지시간을 소진하려고 정지"가 구조적으로 불가능)·물음표·느낌표 연출(03-05에서 이미
+    N/A 확정 — 연출 자체가 코드에 없어 위반도 불가능)은 전부 기존 코드로 이미 ✅.
+    **알려진 한계(이번엔 손 안 댐)**: 이미 다른 적 E1에 대해 합류 대기 중인 유닛이 또 다른 적 E2를
+    만나면(CombatFSMState :41-44, TargetEnemy != E2라 continue 없이 즉시 전투로 빠짐) 이 경로는
+    PropagateEnemySighting을 안 탄다 — 발생 빈도가 낮은 엣지 케이스라 이번 핵심 갭(가장 흔한 즉시
+    전투 케이스) 대비 우선순위가 낮다고 판단, 재발견되면 같은 패턴으로 추가하면 됨. 변경 파일:
+    PropagationSystem.cs, CombatFSMState.cs. .sln 부재로 dotnet build 미확인, Unity 컴파일·플레이
+    검증 아직 — 다음 세션에서 errors.txt로 확인 필요. 상세는 검증문서 "03-07" 항목 참고.
+
+31. [조사·수정 완료, 2026-09-29~30 — 검증문서 03-08~03-18-1] 03번 문서 후반(저체력 즉시 대응·전파·함정 담당자 선정·해제 중단·코어 보고·전투 후 경계) 검증과 수정. 대표 변경: 트랩 회피 구역(A*가 아는 함정 3×3 구역을 피함, TrapAvoidance — 메모리 project_trap_avoidance_zone), 점유된 목표 타일 경로 조회 실패 수정, 보스 집중 중 직접 위협 잡몹 임시 대응. 상세는 검증문서 각 항목.
+32. [조사·수정 완료, 2026-10-01 — 검증문서 04-01~04-09] 04번 문서 전체: 점유 충돌(대기 vs 우회·비켜 주기·좁은 통로 통과 순서, OccupancySystem/OccupancyMath, CLAUDE.md "점유 충돌 시스템"), 경로 지식(개인 지도 기반 A*·RouteAssessment·통행 불가 구분, CLAUDE.md "경로 지식"), 04-09 배치 모드는 코드에 없어 N/A.
+33. [구현·수정, 2026-10-01~02 — 플레이 로그 분석] 집결 → 문 앞 진형 → 문 파괴 → 입장 개편(CLAUDE.md "집결 → 문 앞 진형 → 문 파괴 → 순차 입장"), 문 구조 개편(방 쪽 줄 1×2 묶음, CLAUDE.md "문 구조"). 2026-10-02 후속: 입장 정체(문 위 정지) 수정·돌파 공격 자리·입장 템포·입장 중 우회 방지·0층 집결 폴링 정리.
+34. [조사·수정 완료, 2026-10-02 — 검증문서 05-01~05-08] 05번 문서: 개인 방 제한·HumanIdleSystem·LeaderRoutePlanner(05-01·05-06·05-07), 집결 대상 확장(05-05), 문 발견 정보 전파(05-06), 휴면 보호 포메이션 보강(05-08). 05-09는 후퇴·도주 문서 이후.
+35. [조사·수정 완료, 2026-10-02 — 검증문서 06-01~06-02] 06번 문서: 합류 대기 꺼짐·공격 교체 ≥·죽은 설정 필드 연결·문서 대 문서 점검.
+36. [다음 후보] ① Unity 플레이 확인(플레이확인_체크리스트_2026-10-02.txt) ② 07 개념 v0.3·01 개념 v0.5 입수 → 07 합류·전파·소리 구현과 01 시야 구현 재대조(합류 대기 코드는 07-A 개정 확인 뒤 삭제) ③ 후퇴·도주 문서 → 05-09 재검증·공황 재활성화(시작 정신력 40·영구 지속·무작위 걸음 교체 선행) ④ 후속-01~15 해당 문서 작성 뒤 검증 ⑤ 보호 포메이션 재활성화 논의 시 EscortSlotMath·집결 해제 플레이 확인.
+37. [수정 완료, 2026-10-02 — 검증문서 갭 정리 1번] 02번 8장 둘째 조건(치명적 공격 예상)과 9장 비교 1~2단계를 연결했다. 보호자(인류)의 개인 예상 피해량 + 진행 중인 공격(예고 중인 위협이 후보와 겹침)으로 한 번의 공격이 후보 남은 HP 이상인지 보고(CombatFSMState.TryFindLethalThreat), 비교는 치명 → 도달 시점(남은 시전 시간) → HP 비율 → 행동불능 → 거리(CombatScoreMath.ProtectCandidateKey). 피해량을 모르면 그 조건만 빠진다. 상세·한계는 검증문서 02-09 항목 끝. 컴파일·하니스(ProtectCandidateTests 8건)만 확인.
+38. [수정 완료, 2026-10-02 — 검증문서 갭 정리 2번] 탐험(RandomExplore)이 닿지 못한 미탐색 목표를 벽으로 위조하던 것을 막힘 기록으로 교체(04-08 발견 5). Unit.exploreBlockedTargets + RouteAssessment.MarkExploreBlocked/CreateExploreBlockFilter, 프론티어 선택·몬스터 BFS·리더 방 탐색 완료 판정이 필터를 쓴다(방 탐색 완료 연동은 예전 동작 보존용 근사). kill-switch exploreBlockedRecordEnabled. 상세는 검증문서 04-08 항목 끝. 컴파일·하니스(87건)만 확인, Unity EditMode 신규 3건 미실행.
