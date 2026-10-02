@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Haare.Util.Logger;
 
-public abstract class UnitFunction : Unit, IVisionContext
+public abstract class UnitFunction : Unit
 {
 	public new GameSession Session => base.Session;
 	public override void TakeDamage(float damage)
@@ -520,20 +520,41 @@ public abstract class UnitFunction : Unit, IVisionContext
 
 	// perceptionDistance 이내 + 인지각 안일 때만 "인지 범위 진입"으로 취급한다. 특수 원형 인지 범위
 	// 스윕 시에는 항상 true + circularRadius를 그대로 넘긴다(각도 무관 판정).
-	// IVisionContext methods
 	public PerceptionOutcome ResolveReachedTarget(object key, float targetVisibility, Vector3Int tile, float currentDist, out bool firstTouch)
 	{
 		return this.ResolveReachedTarget(key, targetVisibility, tile, currentDist, PerceptionTargetKind.None, out firstTouch);
 	}
-	
-	public bool HasReachedPerceptionThisPass(object key) => _reachedPerceptionThisPass.ContainsKey(key);
-	public bool HasVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Contains(tile);
-	public void AddVisionOnlyNonEmptyTile(Vector3Int tile) => Perception.State.visionOnlyNonEmptyTiles.Add(tile);
+
 	public void AddPersonalSpottedEnemy(Unit unit)
 	{
 		Perception.State.personalSpottedEnemies.Add(unit); // HashSet이므로 Contains 검사 불필요
 		// 직접 정확 인지한 적은 전파받은 위치 기록보다 우선한다 — 낡은 전파 기록으로 다시 접근하지 않게 지운다(03번 v0.6 4-7).
 		Propagation.PropagatedInfo.Remove(unit);
+	}
+
+	// 정확 인지한 적을 인류 개인 지도에 남긴다 — 마지막 확인 위치(15·24장), 방 위험도·흥미도(20·21장),
+	// 보스방 확정(01번 9장, 검증 01-10), 그 종의 공격범위(04번 4장 회피 게이트). 전부 키로 덮어쓰는
+	// 기록이라 매 시야 패스마다 불러도 누적되지 않는다. 예전엔 Vision/UnitPerceptionHandler에 있었는데
+	// 그 핸들러는 7월 시야 코드 인라인화 이후 생성되지 않아 이 기록이 하나도 남지 않았다(2026-10-02 수정).
+	private void RecordPerceivedEnemy(Human observer, Unit enemy, Vector3Int tile, int roomId)
+	{
+		if (Knowledge == null) return;
+		float danger = Knowledge.GetPersonalDanger(observer, enemy);
+		float interest = Knowledge.GetPersonalInterest(observer, enemy);
+		PersonalMapKnowledge map = observer.personalMap;
+		map.ObserveMonster(enemy.name, tile, danger, interest);
+		map.ObserveUnitInRoom(roomId, false, enemy.name, danger, interest);
+
+		if (enemy.unitType == null) return;
+		if (enemy.unitType.isBoss) map.ConfirmBossRoom(roomId);
+		// 스킬 구성은 고정이라 최초 확인값이 곧 정답 — 이미 아는 종이면 스킬 목록을 다시 훑지 않는다.
+		if (map.TryGetKnownAttackRange(enemy.unitType.typeName, out _)) return;
+		var enemySkills = enemy.Generate?.GetSkills(enemy.unitType.typeName);
+		if (enemySkills == null) return;
+		int maxRange = 0;
+		foreach (var s in enemySkills)
+			if (s != null && s.HitRange > maxRange) maxRange = s.HitRange;
+		if (maxRange > 0) map.ConfirmAttackRange(enemy.unitType.typeName, maxRange);
 	}
 
 	public override void UpdateFOV(List<Unit> allUnits)
@@ -696,8 +717,11 @@ public abstract class UnitFunction : Unit, IVisionContext
 					if (unitOutcome == PerceptionOutcome.AccuratePerception)
 					{
 						AddPersonalSpottedEnemy(unitAtTile);
-						if (this is Human deathSearchObserver)
-							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
+						if (terrainObserver != null)
+						{
+							RecordPerceivedEnemy(terrainObserver, unitAtTile, revealedTile, chunk.roomId);
+							PartyDeathSystem.OnDeathSearchSpotted(terrainObserver, unitAtTile);
+						}
 					}
 				}
 				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionNonEmpty.Contains(revealedTile))

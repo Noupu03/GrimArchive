@@ -517,13 +517,13 @@ public class PersonalMapKnowledge : IKnownTerrain
 
 	// 01번 문서 9장(검증문서 01-10): "보스를 정확 인지 + 방 확인"을 모두 충족해야 보스방으로 기록한다.
 	// 다른 Observe* 메서드는 전부 isBossRoom=false로만 호출돼(타일 공개·오브젝트 관찰은 보스 인지와
-	// 무관) 이 메서드만이 IsBossRoom을 true로 승격시키는 유일한 경로다 — UnitPerceptionHandler가
+	// 무관) 이 메서드만이 IsBossRoom을 true로 승격시키는 유일한 경로다 — UnitFunction.RecordPerceivedEnemy가
 	// AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
 	public void ConfirmBossRoom(int roomId)
 		=> GetOrCreateRoom(roomId, false).IsBossRoom = true;
 
 	// 04번 문서 4장: "알려진 적 공격 범위"를 회피 이동에 쓰려면 먼저 그 종의 공격범위를 "안다"는 게이트가
-	// 필요하다 — ConfirmBossRoom과 동일한 성격(단순 setter, 게이팅은 호출부 UnitPerceptionHandler가
+	// 필요하다 — ConfirmBossRoom과 동일한 성격(단순 setter, 게이팅은 호출부 UnitFunction.RecordPerceivedEnemy가
 	// AccuratePerception 시점에 담당). 스킬 구성은 고정값이라 최초 확인이 곧 정답 — 이후 재확인 불필요.
 	private readonly Dictionary<string, int> _knownAttackRange = new Dictionary<string, int>();
 
