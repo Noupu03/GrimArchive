@@ -456,7 +456,8 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 - `Hitbox.CalculateOverlapRatio`의 분모는 **두 히트박스 중 작은 쪽 면적**이다(2026-08-23 수정).
   예전처럼 공격 히트박스 면적으로 나누면 범위가 넓을수록 데미지가 깎이고(3x3이면 1/9), 대상 면적
   으로만 나누면 대형 유닛이 작은 공격에 덜 맞는 정반대 문제가 생긴다. 이 값을 다시 손대려면 두
-  경우를 모두 확인할 것.
+  경우를 모두 확인할 것 — 두 경우는 `Assets/Tests/HitboxOverlapTests.cs`가 고정한다(2026-10-02, 예전
+  로그 출력용 `AreaBasedDamageValidator`를 대체 — 그 도구는 예시 기대값이 틀려 있었다).
 
 ### 다음에 이 시스템을 확장할 때
 
