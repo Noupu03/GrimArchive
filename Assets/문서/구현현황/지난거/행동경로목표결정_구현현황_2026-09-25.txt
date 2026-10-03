@@ -422,8 +422,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
 🔶 9. 보스방과 후속 임무 (검증문서 01-10) — [구현, 2026-09-27] "보스를 정확 인지 + 방 확인" 게이트를
    실제로 걸었다: `UnitType.isBoss`(신규, `BossGolem`에만 true — GameSession.SpawnBossGolem이 1층
    보스방에 고정 스폰하는 그 유닛), `PersonalMapKnowledge.ConfirmBossRoom(roomId)`(신규, IsBossRoom을
-   true로 승격시키는 유일한 경로), `UnitPerceptionHandler.Handle`이 AccuratePerception으로 그 유닛을
-   인지했을 때만 호출. 기존에 타일 공개·오브젝트 관찰만으로 즉시 ground-truth(chunk.roomRole)를
+   true로 승격시키는 유일한 경로), `UnitFunction.RecordPerceivedEnemy`가 AccuratePerception으로 그 유닛을
+   인지했을 때만 호출(2026-10-02 정정: 처음엔 `UnitPerceptionHandler`에 넣었는데 생성되지 않는 죽은
+   코드라 실행되지 않았다 — 검증 문서 01-10 [정정] 참고). 기존에 타일 공개·오브젝트 관찰만으로 즉시 ground-truth(chunk.roomRole)를
    반영하던 4개 호출부는 전부 게이트 없는 세팅을 제거(false 고정). "일반 탐색 후보/B에서 제외"는
    실제 도달 가능한 시나리오(같은 웨이브 내 재배정 자체가 Party._countedRoomIds로 이미 안 생김, 웨이브
    간 사전지식은 "인류 지도" 부재로 아직 존재 자체가 불가능)에서 이미 만족 확인 — 추가 구현 불요.
@@ -799,8 +800,9 @@ FSM상으로는 무효한 대입이었을 가능성이 높다 — 실제로 웨�
       신설. `MovementMath.AttackRangeAvoidExtraCost`(회피 우선순위를 가중치 합 하나로 성립시키는 상수)
       + `AttackRangeAvoidingMovement : AStarMovement`(RoomConfinedMovement와 동일한 서브클래싱 전례,
       프레임당 1회 캐시). `PersonalMapKnowledge.ConfirmAttackRange`/`TryGetKnownAttackRange`(
-      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitPerceptionHandler`가 AccuratePerception
-      시점에 그 종 보유 스킬 최대 HitRange로 확인. `AIMovementHelper.ComputeKnownAttackRangeAvoidTiles`
+      ConfirmBossRoom과 동일한 단순 setter+게이팅은 호출부), `UnitFunction.RecordPerceivedEnemy`가
+      AccuratePerception 시점에 그 종 보유 스킬 최대 HitRange로 확인(2026-10-02 정정: 처음엔 실행되지
+      않는 `UnitPerceptionHandler`에 있어 이 회피 게이트가 한 번도 열리지 않았다). `AIMovementHelper.ComputeKnownAttackRangeAvoidTiles`
       (체비셰프 사각형 근사) + `EnsureAvoidanceMovementForRole`(RangedDps/RangedSupport/MeleeSupport만
       승급, `CombatFSMState.ExecuteCombat`에서 호출) — 기존 MoveTowardsTarget/MoveAwayFromTarget 호출은
       전혀 안 건드려도 MovementAlgorithm 교체만으로 회피 경로를 탄다.

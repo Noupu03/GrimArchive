@@ -183,8 +183,8 @@ Unit 공통 필드. NavigationFSMState와 TacticalFSMState의 조건에서 확�
 
 | 변수 | 세팅하는 쪽 | 클리어하는 쪽 |
 |------|------------|-------------|
-| `currentTrapInteraction` | UnitPerceptionHandler (인지 시) | TrapDisarmPerform / TrapBypass / TrapPass / TrapDestroy Leaf |
-| `currentAlertSearch` | CombatFSMState.OnExit (전투 후 스윕), UnitPerceptionHandler (수상한 타일·미식별 공격) | AlertApproach Leaf (목표 도달 시), OnUpdate (시간 초과 시) |
+| `currentTrapInteraction` | TrapPartySystem (UnitFunction.UpdateFOV가 함정 인지 시 호출) | TrapDisarmPerform / TrapBypass / TrapPass / TrapDestroy Leaf |
+| `currentAlertSearch` | CombatFSMState.OnExit (전투 후 스윕), UnitFunction (수상한 타일·미식별 공격) | AlertApproach Leaf (목표 도달 시), OnUpdate (시간 초과 시) |
 | `currentInvestigation` | MoveToInvestigateTarget Leaf | InvestigatePerform Leaf (완료/실패 시) |
 | `currentWait` | 외부 (파티 시스템 등) | ExecuteWait Leaf |
 | `currentFormation` | MoveToMeleeSlot / MoveToRangedSlot Leaf 내 암묵적 세팅 | 포메이션 조건이 false가 될 때 |

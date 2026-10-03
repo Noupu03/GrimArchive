@@ -24,21 +24,22 @@ namespace GrimArchive.Wave
         public override async Cysharp.Threading.Tasks.UniTask Initialize(System.Threading.CancellationToken cts)
         {
             await base.Initialize(cts);
-            EnsureWaveDataLoaded();
+            await EnsureWaveDataLoadedAsync();
         }
 
         // WaveSpawner는 씬 오브젝트/프리팹이 아니라 인스펙터로 waveData를 미리 꽂을 방법이 없고
-        // Resources.Load 폴백으로만 채워진다. HumanWaveManager.Initialize()도 별도 NativeRoutine이라
-        // 실행 순서가 보장 안 되므로, 로드 로직을 멱등 메서드로 빼서 양쪽 모두 직접 호출한다.
-        public void EnsureWaveDataLoaded()
+        // Addressables(주소 "WaveData", 파일 Data/WaveData.asset)로만 채워진다. HumanWaveManager.Initialize()도
+        // 별도 NativeRoutine이라 실행 순서가 보장 안 되므로, 로드 로직을 멱등 메서드로 빼서 양쪽 모두 await한다
+        // (동시에 불려도 GameAssets가 같은 로드를 공유한다).
+        public async Cysharp.Threading.Tasks.UniTask EnsureWaveDataLoadedAsync()
         {
+            if (waveData != null) return;
+
+            WaveData loaded = await GameAssets.LoadAsync<WaveData>(AssetKeys.WaveData);
+            if (waveData == null) waveData = loaded;
             if (waveData == null)
             {
-                waveData = Resources.Load<WaveData>("WaveData");
-                if (waveData == null)
-                {
-                    Haare.Util.Logger.LogHelper.Warning(Haare.Util.Logger.LogHelper.GAME, "WaveSpawner: Resources/WaveData 를 찾지 못했습니다. 에디터에서 할당해주시거나 위치를 확인해주세요.");
-                }
+                LogHelper.Warning(LogHelper.GAME, $"WaveSpawner: WaveData 에셋(Addressables 주소 \"{AssetKeys.WaveData}\")을 찾지 못했습니다.");
             }
         }
 

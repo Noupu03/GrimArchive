@@ -183,8 +183,8 @@ public class InputManager : MonoBehaviour
 	public void EnterDoorRepairPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterDoorRepairMode(); }
 	// 2026-08-24 debug 전용.
 	public void EnterWallConvertPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterWallConvertMode(); }
-	// 2026-08-25 debug 전용 — resourcePath는 Resources.Load 경로, displayName은 표시 이름.
-	public void EnterDummyBuildingPlacementMode(string resourcePath, string displayName) { _buildPlacement.ExitMode(); _objectPlacement.EnterDummyBuildingMode(resourcePath, displayName); }
+	// 2026-08-25 debug 전용 — spriteKey는 Addressables 주소(AssetKeys), displayName은 표시 이름.
+	public void EnterDummyBuildingPlacementMode(string spriteKey, string displayName) { _buildPlacement.ExitMode(); _objectPlacement.EnterDummyBuildingMode(spriteKey, displayName); }
 
 	private bool IsPointInFootprint(Vector3Int pos, Unit u)
 	{

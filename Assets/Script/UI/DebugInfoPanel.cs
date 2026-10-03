@@ -6,7 +6,7 @@ using Haare.Client.Routine;
 using Haare.Client.UI;
 
 // UIManager.OnGUI()의 DrawTopRightUI()/DrawSelectedUnitInfo()를 대체하는 Haare UGUI 패널(프리팹은
-// Assets/Editor/HaareUISetup.cs로 생성/배선) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 BottomMenuBar
+// Assets/Editor/Disposable/UI/HaareUISetup.cs로 생성/배선) — 시야/전파 시각화 토글과 맵 저장/불러오기 버튼은 BottomMenuBar
 // debug 서브탭으로 옮겨져 이 패널은 선택 유닛 정보만 담당한다. 마우스 휠 줌은 CameraController 전담이므로 건드리지 말 것.
 [PanelAttribute("Prefabs/DebugInfoPanel")]
 public class DebugInfoPanel : MonoRoutine, ICustomPanel

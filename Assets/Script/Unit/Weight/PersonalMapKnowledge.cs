@@ -512,11 +512,15 @@ public class PersonalMapKnowledge : IKnownTerrain
 	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
 		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
 
-	// '보스를 정확 인지 + 방 확인'을 모두 충족해야 보스방으로 기록한다(01번 9장). 다른 Observe*는 전부 isBossRoom=false로만 호출되므로 이 메서드가 IsBossRoom을 true로 승격시키는 유일한 경로이며, UnitFunction.RecordSpottedEnemyKnowledge가 AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
+	// 01번 문서 9장(검증문서 01-10): '보스를 정확 인지 + 방 확인'을 모두 충족해야 보스방으로 기록한다.
+	// 다른 Observe*는 전부 isBossRoom=false로만 호출되므로 이 메서드가 IsBossRoom을 true로 승격시키는
+	// 유일한 경로이며, UnitFunction.RecordSpottedEnemyKnowledge가 AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
 	public void ConfirmBossRoom(int roomId)
 		=> GetOrCreateRoom(roomId, false).IsBossRoom = true;
 
-	// '알려진 적 공격 범위'를 회피 이동에 쓰려면 그 종의 공격범위를 '안다'는 게이트가 필요하다(04번 4장) — ConfirmBossRoom처럼 단순 setter이고 게이팅은 호출부(RecordSpottedEnemyKnowledge)가 맡는다. 스킬 구성은 고정이라 최초 확인이 곧 정답이다.
+	// 04번 문서 4장: '알려진 적 공격 범위'를 회피 이동에 쓰려면 그 종의 공격범위를 '안다'는 게이트가 필요하다
+	// — ConfirmBossRoom처럼 단순 setter이고 게이팅은 호출부(UnitFunction.RecordSpottedEnemyKnowledge)가 맡는다.
+	// 스킬 구성은 고정이라 최초 확인이 곧 정답이다.
 	private readonly Dictionary<string, int> _knownAttackRange = new Dictionary<string, int>();
 
 	public void ConfirmAttackRange(string speciesKey, int hitRange)

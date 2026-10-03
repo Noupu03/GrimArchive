@@ -524,7 +524,6 @@ public abstract class UnitFunction : Unit
 	{
 		return this.ResolveReachedTarget(key, targetVisibility, tile, currentDist, PerceptionTargetKind.None, out firstTouch);
 	}
-	
 	public void AddPersonalSpottedEnemy(Unit unit)
 	{
 		Perception.State.personalSpottedEnemies.Add(unit); // HashSet이므로 Contains 검사 불필요
@@ -718,8 +717,8 @@ public abstract class UnitFunction : Unit
 					{
 						AddPersonalSpottedEnemy(unitAtTile);
 						RecordSpottedEnemyKnowledge(unitAtTile, revealedTile, chunk.roomId);
-						if (this is Human deathSearchObserver)
-							PartyDeathSystem.OnDeathSearchSpotted(deathSearchObserver, unitAtTile);
+						if (terrainObserver != null)
+							PartyDeathSystem.OnDeathSearchSpotted(terrainObserver, unitAtTile);
 					}
 				}
 				else if (!_reachedPerceptionThisPass.ContainsKey(unitAtTile) && !visionNonEmpty.Contains(revealedTile))

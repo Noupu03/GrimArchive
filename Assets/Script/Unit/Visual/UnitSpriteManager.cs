@@ -1,22 +1,38 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
 #endif
 
 // 유닛 타입 이름 → 프리팹 매핑 레지스트리. 스프라이트/스탯/스킬/이펙트는 전부 프리팹의
 // UnitVisualDefinition(+자식 계층)에서 오고 여기서는 그 프리팹을 찾아주는 역할만 한다 —
-// 인스펙터 매핑 대신 Assets/Resources/Units/{unitTypeName}.prefab 경로 컨벤션으로 조회한다.
+// 프리팹은 Assets/Prefabs/Units/{unitTypeName}.prefab, Addressables 주소 "Units/{unitTypeName}"
+// (전부 "Units" 라벨)이고 LoadAsync가 라벨로 한 번에 불러 둔다.
 public class UnitSpriteManager
 {
-    private const string UnitPrefabResourceFolder = "Units";
-
+    private readonly Dictionary<string, GameObject> _prefabs = new();
     private readonly Dictionary<string, List<SkillAction>> _skillsCache = new();
     private readonly Dictionary<string, Sprite> _iconCache = new();
+    private bool _loaded;
 
+    // 유닛 생성과 매 틱 AI 판단(GetSkills 등)이 프리팹을 동기로 읽으므로 GameSession.Initialize가 유닛을
+    // 스폰하기 전에 await한다. 여러 번 불려도 GameAssets가 같은 로드를 공유한다. 프리팹 루트 이름 = 파일
+    // 이름 = 유닛 타입 이름이다(JsonToUnitPrefabConverter가 그렇게 만든다).
+    public async UniTask LoadAsync()
+    {
+        IList<GameObject> prefabs = await GameAssets.LoadByLabelAsync<GameObject>(AssetKeys.UnitsLabel);
+        if (prefabs == null) return;
+        foreach (var prefab in prefabs)
+            if (prefab != null) _prefabs[prefab.name] = prefab;
+        _loaded = true;
+    }
+
+    // LoadAsync 전이거나 등록 안 된 타입이면 null — 호출부는 원래부터 null 폴백(도형 비주얼 등)을 갖고 있다.
     public GameObject GetPrefab(string unitTypeName)
     {
-        return Resources.Load<GameObject>($"{UnitPrefabResourceFolder}/{unitTypeName}");
+        if (string.IsNullOrEmpty(unitTypeName)) return null;
+        return _prefabs.TryGetValue(unitTypeName, out var prefab) ? prefab : null;
     }
 
     // 유닛 타입의 대표 아이콘(프리팹의 "Visual" 자식 SpriteRenderer.sprite) — 웨이브 게이지 파티
@@ -26,8 +42,11 @@ public class UnitSpriteManager
         if (string.IsNullOrEmpty(unitTypeName)) return null;
         if (_iconCache.TryGetValue(unitTypeName, out var cached)) return cached;
 
-        Sprite icon = null;
         GameObject prefab = GetPrefab(unitTypeName);
+        // 아직 LoadAsync 전이면 "아이콘 없음"을 캐시하지 않는다 — 로드가 끝난 뒤 다시 물으면 채워진다.
+        if (prefab == null && !_loaded) return null;
+
+        Sprite icon = null;
         Transform visual = prefab != null ? prefab.transform.Find("Visual") : null;
         SpriteRenderer sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
         if (sr != null) icon = sr.sprite;
@@ -41,6 +60,8 @@ public class UnitSpriteManager
         if (_skillsCache.TryGetValue(unitTypeName, out var cached)) return cached;
 
         var prefab = GetPrefab(unitTypeName);
+        // GetIcon과 같은 이유로 로드 전의 빈 결과는 캐시하지 않는다.
+        if (prefab == null && !_loaded) return new List<SkillAction>();
         var visualDef = prefab != null ? prefab.GetComponent<UnitVisualDefinition>() : null;
         var list = visualDef != null ? visualDef.BuildSkillActions() : new List<SkillAction>();
 

@@ -37,8 +37,9 @@
   시 특히 중요 — 블록 이동/추출 과정에서 브레이스가 어긋나기 쉽다).
 - **그렙 기반 죽은 참조 검증**: 심볼/클래스/메서드를 삭제·이름 변경할 때 반드시 프로젝트 전체를
   검색해서 참조가 남아있지 않은지 확인한다. **`Assets/Script`만 검색하고 끝내지 말 것** —
-  `Assets/Editor`(리플렉션으로 private static 메서드를 직접 테스트하는 `FSMVerificationRunner.cs`
-  같은 파일이 있다)와 `Assets/Tests`도 반드시 포함해야 한다. 이번 세션에서 실제로 `Assets/Script`
+  `Assets/Editor`(에디터 툴이 런타임 클래스의 private 필드·메서드를 리플렉션이나 `FindProperty("필드명")`
+  문자열로 직접 건드리는 경우가 있다 — 예전 `FSMVerificationRunner.cs`가 그랬고 2026-10-02에 삭제됨)와
+  `Assets/Tests`도 반드시 포함해야 한다. 이번 세션에서 실제로 `Assets/Script`
   만 스윕했다가 `Assets/Editor`의 컴파일 에러를 놓친 사고가 있었다.
 - **오타/인코딩 이슈 재확인**: 도구에 따라 UTF-8 파일의 `//`가 `\`로 잘못 렌더링되는 등의 표시
   오류가 있을 수 있다(이 환경에서 관찰된 현상 — 실제 파일 내용은 `Read`로 재확인하면 정상이었다).

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using Haare.Util.Logger;
 
@@ -37,8 +39,7 @@ public class BuildPlacementController
 
         EnsureProductionRules();
         // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicDollhouse(3x3).
-        _currentBuildSprite = Resources.Load<Sprite>("obj/GothicDollhouse");
-        _ghost.Show(_currentBuildSprite);
+        ShowBuildGhostAsync(AssetKeys.UnitBuildingSprite, () => _isBuildMode).Forget();
         LogHelper.Log(LogHelper.GAME, $"유닛 생산 건물 배치 모드 진입 (돌 {ResourceManager.UnitBuildingStoneCost} 소모)");
     }
 
@@ -49,9 +50,17 @@ public class BuildPlacementController
         _isResourceBuildMode = true;
 
         // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicClocktower(2x2).
-        _currentBuildSprite = Resources.Load<Sprite>("obj/GothicClocktower");
-        _ghost.Show(_currentBuildSprite);
+        ShowBuildGhostAsync(AssetKeys.ResourceBuildingSprite, () => _isResourceBuildMode).Forget();
         LogHelper.Log(LogHelper.GAME, $"자원 생산 건물 배치 모드 진입 (돌 {ResourceManager.ResourceBuildingStoneCost} 소모)");
+    }
+
+    // 스프라이트 로드가 끝나야 고스트가 보이고 설치할 수 있다(로드 중엔 _currentBuildSprite가 null이라
+    // TryInstallBuilding이 건너뛴다) — 그 사이 다른 모드로 바뀌었으면 아무것도 하지 않는다.
+    private async UniTaskVoid ShowBuildGhostAsync(string spriteKey, Func<bool> stillWanted)
+    {
+        _currentBuildSprite = null;
+        Sprite sprite = await _ghost.ShowAsync(spriteKey, stillWanted);
+        if (sprite != null) _currentBuildSprite = sprite;
     }
 
     public void ExitMode()
@@ -99,6 +108,8 @@ public class BuildPlacementController
 
     private void TryInstallBuilding(Vector3Int gridPos)
     {
+        if (_currentBuildSprite == null) return; // 건물 스프라이트 로드 중
+
         // footprint(2026-08-25) 전체가 비어있어야 설치 가능 — 단일 타일만 확인하면 3x3/2x2 건물의
         // 나머지 칸이 막혀 있어도 자원을 먼저 소모해버릴 수 있다.
         if (!_buildingManager.CanInstallAt(gridPos, CurrentFootprint))

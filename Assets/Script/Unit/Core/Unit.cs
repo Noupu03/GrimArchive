@@ -453,7 +453,21 @@ public abstract class Unit : ScriptableObject {
 		if (currentAttackObjectTarget == pos) return;
 		StopAttackObjectVfx();
 		currentAttackObjectTarget = pos;
-		_attackObjectVfxInstance = VFXManager.SpawnBlockBreakingVfx(this, pos);
+		StartAttackObjectVfxAsync(pos).Forget();
+	}
+
+	// VFX 프리팹 로드(Addressables)가 끝나는 사이에 채널링이 끝났거나 대상이 바뀌었으면 만든 인스턴스를 바로
+	// 치운다 — 같은 대상으로 다시 시작해 로드가 두 번 겹쳤으면 먼저 붙은 것만 남긴다.
+	private async UniTaskVoid StartAttackObjectVfxAsync(Vector3Int pos)
+	{
+		GameObject instance = await VFXManager.SpawnBlockBreakingVfxAsync(this, pos);
+		if (instance == null) return;
+		if (this == null || currentAttackObjectTarget != pos || _attackObjectVfxInstance != null)
+		{
+			VFXManager.StopBlockBreakingVfx(instance);
+			return;
+		}
+		_attackObjectVfxInstance = instance;
 	}
 
 	// 코어/문 파괴 채널링 종료 — 파괴 VFX는 즉시 멈추지만 체력 진행 막대는 숨기지 않는다(회복이 실제로 시작되는 순간 처리된다).

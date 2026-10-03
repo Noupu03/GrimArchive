@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
+using Cysharp.Threading.Tasks;
 using Haare.Client.Routine;
 using Haare.Client.UI;
 using GrimArchive.Wave;
@@ -30,6 +31,7 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     {
         base.Constructor();
         Instance = this;
+        LoadSpritesAsync().Forget();
     }
 
     public void OpenPanel()
@@ -46,16 +48,14 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     public void BindEvent() { }
 
     // ── 스프라이트 ────────────────────────────────────────────────
-    // Assets/Resources/UI/KtoDUI_1.png — 좌우 끝에 "왕국의 문"/"던전의 문"을 겸하는 장식 프레임(_0,
+    // Assets/Art/Sprites/UI/KtoDUI_1.png(Addressables 주소 "UI/KtoDUI_1") — 좌우 끝에 "왕국의 문"/"던전의 문"을 겸하는 장식 프레임(_0,
     // 346x23)과 그 안에 들어가는 얇은 진행 트랙(_1, 304x9) 두 서브스프라이트로 이미 잘려있어, 별도
     // 이미지를 새로 만들지 않고 이 한 장을 그대로 재사용한다.
-    private const string GaugeSpriteResourcePath = "UI/KtoDUI_1";
     private const string FrameSpriteName = "KtoDUI_1_0";
     private const string TrackSpriteName = "KtoDUI_1_1";
 
     private Sprite _frameSprite;
     private Sprite _trackSprite;
-    private bool _spritesLoadAttempted;
 
     // ── 레이아웃 ──────────────────────────────────────────────────
     // barHeight는 BarWidth에서 스프라이트 비율로 계산되므로(아래 OnGUI) 같이 커진다 — NoticeCenter의
@@ -68,27 +68,18 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
     // 몬스터가 배치 위치로 소집되는 순간과 항상 같이 켜진다.
     private const float BlinkSpeed = 6f;
 
-    private void EnsureSprites()
+    // 패널 생성 시 한 번 불러 둔다 — 끝나기 전에는 OnGUI가 그리지 않고 GetReservedTopHeight도 여백만 돌려준다.
+    private async UniTaskVoid LoadSpritesAsync()
     {
-        if (_spritesLoadAttempted) return;
-        _spritesLoadAttempted = true;
-
-        Sprite[] all = Resources.LoadAll<Sprite>(GaugeSpriteResourcePath);
-        if (all == null) return;
-
-        foreach (var s in all)
-        {
-            if (s == null) continue;
-            if (s.name == FrameSpriteName) _frameSprite = s;
-            else if (s.name == TrackSpriteName) _trackSprite = s;
-        }
+        (_frameSprite, _trackSprite) = await UniTask.WhenAll(
+            GameAssets.LoadSpriteAsync(AssetKeys.WaveGaugeSprite, FrameSpriteName),
+            GameAssets.LoadSpriteAsync(AssetKeys.WaveGaugeSprite, TrackSpriteName));
     }
 
     // 게이지 프레임 스프라이트의 실제 가로세로비로 계산한 세로 크기 — OnGUI와 GetReservedTopHeight()가
     // 공유해서 BarWidth가 바뀌어도 두 값이 항상 맞아떨어진다.
     private float GetBarHeight()
     {
-        EnsureSprites();
         if (_frameSprite == null) return 0f;
         return BarWidth * (_frameSprite.rect.height / _frameSprite.rect.width);
     }
@@ -102,7 +93,6 @@ public class WaveGaugePanel : MonoRoutine, ICustomPanel
         HumanWaveManager wm = HumanWaveManager.Instance;
         if (wm == null) return;
 
-        EnsureSprites();
         if (_frameSprite == null || _trackSprite == null) return;
 
         // WaveProgress01(cooldownTimer/waveCooldown 비율)을 그대로 써서, 바가 100%에 도달하는 순간이

@@ -444,6 +444,9 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
 ✅ 탐사완료+안전확인 기본위험도 0 — WeightMath.ExploredSafeTileBaseDanger
 ✅ 타일위험도 = 있었던 유닛의 기록위험도 — PersonalMapKnowledge.SetTileDangerFromUnit()
    (ObserveMonster 경유, CastRay에서 실제 발동)
+   [정정, 2026-10-02] 7월 시야 코드 인라인화 이후 ObserveMonster 호출은 생성되지 않는
+   Vision/UnitPerceptionHandler에만 남아 있어 10-02까지 실제로는 실행되지 않았다 — 지금은
+   UnitFunction.RecordPerceivedEnemy(UpdateFOV의 정확 인지 블록)가 호출한다.
 ✅(1) 개정 구현완료: "타일 최종 위험도 = 기본 탐사 위험도 + 오브젝트 위험도" 합성식 —
    WeightMath.ComposeTileDanger() 신설(ComposeTileInterest와 동일 구조), InteractableObject에
    BaseDanger 필드 추가(기본 0), PersonalMapKnowledge._objectDanger/_objectBaseDanger 추가,
@@ -548,6 +551,10 @@ InteractableObject에 Tags(List<string>)/CauserStage(DangerStage)/TraceId(string
      바닥 타일 총수, CreateMap.GetRoomFloorTileCount)에 도달하면 Complete로 전환한다.
    - 몬스터/오브젝트를 목격할 때 → ObserveUnitInRoom/ObserveObjectInRoom도 같은 곳에서 호출.
      대상 키(유닛/오브젝트 인스턴스명)별 최신 스냅샷 Dictionary라 매 프레임 재호출에도 안전.
+     [정정, 2026-10-02] 이 중 ObserveUnitInRoom은 위 15장 정정과 같은 이유로 10-02까지 실행되지
+     않아 방 위험도·흥미도에서 유닛 몫이 빠져 있었다(ObserveObjectInRoom은 정상 실행) — 지금은
+     UnitFunction.RecordPerceivedEnemy가 호출한다. isBossRoom도 지금은 roomRole이 아니라
+     ConfirmBossRoom(보스 정확 인지)으로만 true가 된다(행동경로 검증 01-10).
    - 오브젝트가 회수/파괴되면 OnObjectCollected/OnObjectDestroyed가 방의 확인목록에서도 그
      오브젝트를 제거해 방 위험도/흥미도가 옛 스냅샷으로 부풀지 않게 한다.
 

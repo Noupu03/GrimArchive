@@ -25,8 +25,30 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0d534677a4bc4a1bbeb0f94f4a2a59fd
+    m_Address: "Units/\uBB34\uB3C4\uAC00"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 11ddbe05fb42033419f826434f6c9193
     m_Address: Prefabs/GrimArchive_TitlePanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1f3a0d56b4df9b74fa550b6217d6e06e
+    m_Address: obj/obj1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 237d5067107ddb9418af0240346128d2
+    m_Address: "Units/\uC544\uCC98\uD615"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2a63fe46f93dfdf45ad9ec4a002e2a64
+    m_Address: obj/core
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -35,8 +57,62 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2eb8900d834796e4691cd5de4010c78b
+    m_Address: Prefabs/VFX/VFX_CoreBoomMonster Variant
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2f7a66b9b39f4d2494f57fda3c4cbc41
+    m_Address: "Units/\uB3C4\uC801"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3a0140a9306e7eb47bbba3c1fc7735e0
+    m_Address: MapColorTheme_FloorAssignments
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3c43944064aab2141ba692f37b955b20
+    m_Address: "Units/\uAE30\uC0AC\uD615"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 414094aff67056749b7f3ace7f632147
     m_Address: Prefabs/Demo_LoadingFadePanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4920bddfc381e7948b5e982c8365e244
+    m_Address: obj/trap
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 493e58d1bdab44ca85032dba6321b026
+    m_Address: "Units/\uC8FC\uC220\uC0AC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4a6c1493d5ba2ce41b113b5015e09b02
+    m_Address: attackZone
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4b58592abd8f29c49a5b72c09cac4052
+    m_Address: "Units/\uBCF4\uC2A4 \uACE8\uB818"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 516bbe21d7dcfbe4ea7a4738e9dbec3d
+    m_Address: obj/resource_building
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5fa84219f5e08214bbb11016ccd2ae8b
+    m_Address: obj/stair_down2
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -45,8 +121,23 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6bfeedec30e5f12409df525aa6f0a2f6
+    m_Address: obj/building
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6d551ba5e9758374bb785aae140079ba
+    m_Address: obj/door_closed
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6f7a621b93ba3eb4a88690acb8462ce7
     m_Address: Prefabs/UIManager
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 725e88043607efa43a2676b5e7c9dc98
+    m_Address: Data/map
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -55,13 +146,57 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 78964d7c75ecba54da91560a1aede702
+    m_Address: Prefabs/VFX/VFX_BlockBreaking
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 78fa07e9dd9bd4740b61f01fec5ce10a
     m_Address: Prefabs/GrimArchive_KeyGuidePanel
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7d91f10b02746764eb4afbac38144d61
+    m_Address: obj/door_open
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7f552b24c22d4e7592e7180ccccd7d26
+    m_Address: "Units/\uC778\uD615 \uAE30\uC0AC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 861cf060090cf524088da11a4dd138de
+    m_Address: "Units/\uC57C\uC0DD \uBAAC\uC2A4\uD130 A"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 873b33111ce500d46a908394309ed83d
+    m_Address: Prefabs/VFX/VFX_CoreBoomHuman Variant
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8a40ca39414f430b8d6f6a4e7b6b19e8
+    m_Address: "Units/\uC0AC\uC81C"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8a4cb7c256824079816cee73f25d0814
+    m_Address: "Units/\uC131\uAE30\uC0AC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 8dc95e65c9a76f7499ae72c2b44de42c
     m_Address: Prefabs/NoticeCenter
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 92fb58826d023964eac213b533d14682
+    m_Address: obj/fog
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -70,13 +205,93 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a84e422acdcc4a0b94f5384930f8b940
+    m_Address: Prefabs/VFX/Torch
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a9e03849d7590a046a5cc81c83aa5f87
+    m_Address: obj/GothicClocktower
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: acf59e573803413ba42ecd59c1783e65
+    m_Address: "Units/\uACE0\uBE14\uB9B0 \uD6C4\uB4DC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ad229368ef62a624fa8b357f8f640f1b
     m_Address: Prefabs/CoreCanvas
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ad9c38be829b4680a4258746a6b87975
+    m_Address: "Units/\uB180"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b17518852e76c064da0c3863baa91bab
+    m_Address: obj/GothicDollhouse
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b3e1a3fc193250f46960c02f31f05901
+    m_Address: obj/colapse
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: caf4c52e45f50a240b0307f9d560741f
+    m_Address: UI/KtoDUI_1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: cc51796408c3d4a4fad3eb9978e6d99a
     m_Address: Prefabs/GrimArchive_SettingsPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d694ae7994a46a049a89efc0629250ae
+    m_Address: WaveData
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d933d9e9c32f4252b17d5a5f2ffb220f
+    m_Address: "Units/\uC804\uC0AC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: de576d8547a34e0180872dd3b4c6a5f2
+    m_Address: Tile/TileSpriteLibrary
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: df0d50e6909ee72479db55b629b65075
+    m_Address: obj/stair_up2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e2204738a7444e2083c8d2f3a8ebe496
+    m_Address: "Units/\uC74C\uC720\uC2DC\uC778"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e80c4f8db74f0894997198ad9bc3d71e
+    m_Address: "Units/\uADFC\uC811 \uD0F1\uCEE4"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e9272930caf06ee41a47d5ba70c66dbb
+    m_Address: FloorTexture
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: eacabd3f1ccee7046a183750372a02cb
+    m_Address: Tile_StoneWall
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -89,6 +304,12 @@ MonoBehaviour:
     m_Address: Prefabs/BuildingControlPanel
     m_ReadOnly: 0
     m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fdf61b087b804b37973247b1978d3cba
+    m_Address: "Units/\uB9C8\uBC95\uC0AC"
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Units
     FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: fe4dd62ce2567c140b5deaefd8d0ea5a, type: 2}
