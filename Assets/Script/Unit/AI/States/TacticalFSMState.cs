@@ -433,6 +433,7 @@ public class TacticalFSMState : IFSMState
 				}
 				TrapPartySystem.ReportArrived(human, trap);
 			}
+			FaceTrap(unit, trap.TrapPosition);
 			return BTStatus.Success;
 		}
 		// 이동 중 예상 도착 시점이 달라졌으면 기다리는 발견 유닛에게 알린다.
@@ -487,6 +488,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 		trap.Phase = TrapPhase.Disarming;
+		FaceTrap(unit, trap.TrapPosition);
 		// 07문서 10장: 해제가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!trap.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
 		trap.PenaltyActive = true;
@@ -529,6 +531,17 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
+	// 해제·파괴하러 도착했거나 하는 동안에는 함정을 바라본다 — 이동 마지막 방향이 함정을 안 향한 채 해제하던 부자연스러움(코어·문 채널링과 같은 패턴, 방향과 스프라이트를 짝지어 갱신). ResolveVisionDirection의 최하위 폴백 후보(Moving: currentDir)가 이 방향을 유지한다.
+	private static void FaceTrap(Unit unit, Vector3Int trapPos)
+	{
+		Vector2Int diff = new Vector2Int(trapPos.x, trapPos.y) - unit.position;
+		if (diff == Vector2Int.zero) return;
+		Dir dir = SkillAction.GetDirection8(diff);
+		if (unit.currentDir == dir) return;
+		unit.currentDir = dir;
+		unit.Generate?.UpdateUnitSpriteForDirection(unit);
+	}
+
 	// ── 함정 대안 2종(우회·파괴) ───────────────────────────────────
 	// 통과(피해 감수)는 비전투 체인에 없다 — 전투 합류·긴급 보호·도주 후퇴에서만 판단하며 이동 계층이 맡는다(03번 9장).
 
@@ -561,6 +574,7 @@ public class TacticalFSMState : IFSMState
 		if (Vector2Int.Distance(unit.position, trapPos2D) > 1.5f)
 			return MoveTowardsTrapGuarded(unit, trapPos2D);
 		trap.Phase = TrapPhase.Destroying;
+		FaceTrap(unit, trap.TrapPosition);
 		trap.PerformedThisTick = true; // 파괴 진행도 누적 게이트(DestroyActive)는 이 틱에 파괴를 수행한 동안만 켜진다
 		trap.DestroyActive = true;
 		if (obj.TrapHp > 0f) return BTStatus.Running;
@@ -789,6 +803,8 @@ public class TacticalFSMState : IFSMState
 		var human = (Human)unit;
 		var wait  = human.currentWait;
 		if (wait == null) return BTStatus.Success;
+		// 리더 지시 이동(집결·방 이동·퇴각 등)을 이 틱에 실제로 수행하므로 방 이탈 금지를 이 틱만 푼다 — 전투·경계가 우선한 틱엔 이 리프가 안 돌아 대기 사유가 남아 있어도 풀리지 않는다(RoomConfinementMath).
+		if (RoomConfinementMath.IsLeaderOrderWait(wait.Reason)) human.GrantRoomLeave();
 		if (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint && wait.WaitPosition.HasValue)
 		{
 			// 집결지는 좌표뿐이라 층을 건넌 유닛이 다른 층의 같은 좌표로 걸어가지 않게 한다 — 대기를 접고 집결 완료 판정에서 빠진다.
@@ -994,8 +1010,29 @@ public class TacticalFSMState : IFSMState
 
 		// 부재 확인 대기 중 밀려나 도착 위치를 벗어났다면 3초는 다시 도착한 시점부터 센다.
 		alert.AbsenceWaitStartTime = -1f;
+		if (alert.IsSoundResponse)
+		{
+			if (!StepSoundApproach(unit, alert, target)) return BTStatus.Success;
+			return BTStatus.Running;
+		}
 		AIMovementHelper.MoveTowardsPos(unit, target);
 		return BTStatus.Running;
+	}
+
+	// 소리 반응 접근 한 걸음 — 접근 중엔 시간 제한이 없어(UnitFunction.OnUpdate 워치독 제외) 길이 막히면 영구히 선다. 인류 방 이탈 금지로 옆방 소리에 닿을 수 없을 때 같은 경계가 대기·집결보다 앞서므로, 거리가 줄지 않는 턴이 한도(indirectEnemyApproachStuckTurns)를 넘으면 소리 반응을 포기한다. 포기했으면 false. 몬스터는 기존 동작 그대로.
+	private static bool StepSoundApproach(Unit unit, AlertSearchState alert, Vector2Int target)
+	{
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, target);
+		AIMovementHelper.MoveTowardsPos(unit, target);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, target) < distBefore)
+		{
+			alert.ApproachStuckTurns = 0;
+			return true;
+		}
+		if (!(unit is Human)) return true;
+		if (++alert.ApproachStuckTurns < (AIConfigLoader.Behavior?.indirectEnemyApproachStuckTurns ?? 4)) return true;
+		ClearSoundAlert(unit);
+		return false;
 	}
 
 	// 전파받은 적 위치로 일반 속도로 접근한다(03번 v0.6 4-7). 정확 인지하면 Combat이 선점하고, 기록 위치 3칸 안에 적이 없으면 정보를 폐기해 일반 탐색으로 복귀한다.
@@ -1091,7 +1128,7 @@ public class TacticalFSMState : IFSMState
 		float perceptionDistance = VisionMath.AwarenessDistance(effectiveSpotting);
 		if (Vector2Int.Distance(unit.position, center) > perceptionDistance)
 		{
-			AIMovementHelper.MoveTowardsPos(unit, center);
+			if (!StepSoundApproach(unit, alert, center)) return BTStatus.Success;
 			return BTStatus.Running;
 		}
 

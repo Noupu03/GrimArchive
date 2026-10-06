@@ -14,6 +14,9 @@ public static class HumanIdleSystem
 		var leader = party?.Leader;
 		if (party == null || leader == null || leader.hp <= 0 || leader == human) return BTStatus.Running;
 
+		// 낙오자 합류(리더 곁으로 따라감)는 방 이탈 금지의 예외다(사용자 확정 2026-10-05) — 이 틱의 이동만 푼다.
+		human.GrantRoomLeave();
+
 		float now = Time.time;
 		if (human.idleWait == null || now - human.idleLastStepTime > StaleAfterSeconds || human.idleWaitRoom != human.lastKnownRoom)
 		{

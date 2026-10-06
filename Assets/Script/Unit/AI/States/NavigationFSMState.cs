@@ -85,6 +85,7 @@ public class NavigationFSMState : IFSMState
 	{
 		if (!(unit is Human human) || !human.pendingStairTargetFloor.HasValue) return BTStatus.Failure;
 		if (human.Session?.cmap == null) return BTStatus.Failure;
+		human.GrantRoomLeave(); // 계단 이동은 방 이탈 금지의 예외(사용자 확정 2026-10-05)
 		int toFloor = human.pendingStairTargetFloor.Value;
 
 		// 계단 블록 바로 옆 반경 1칸이 건물 등으로 막혀 있을 수 있어 반경을 넓혀 걸을 수 있는 타일이 있는 첫 반경을 쓴다(TryResolveUnoccupiedStairArrival과 같은 방식). 그 안의 점유 판정·거리 점수는 기존 그대로.

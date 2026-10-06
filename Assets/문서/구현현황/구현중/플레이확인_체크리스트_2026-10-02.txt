@@ -44,4 +44,24 @@
 - 공황 행동(panicBehaviorEnabled=false), 적 발견 합류 대기(joinCombatWaitEnabled=false): 문서 세트 기준 확인 후 켠다.
 
 ■ F. 이상 시 한 번에 비교할 스위치(AIBehaviorConfig, 전부 코드 기본값 사용 — 에셋이 없으면 코드의 기본값을 바꾼다)
-rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · exploreBlockedRecordEnabled · entryReleaseIntervalSeconds(0=예전) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · rallyLenientSlotEnabled(+rallyArrivalRadius=2) · entryStragglerFollowEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · joinCombatWaitEnabled · panicBehaviorEnabled
+rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · exploreBlockedRecordEnabled · entryReleaseIntervalSeconds(0=예전) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · rallyLenientSlotEnabled(+rallyArrivalRadius=2) · entryStragglerFollowEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · joinCombatWaitEnabled · panicBehaviorEnabled · humanRoomConfinementEnabled(2026-10-05) · rallyAbsenteeMaxSeconds(2026-10-05, 기본 60)
+
+■ H. (2026-10-05 추가) 집결 무한대기 수정 + 인류 방 이탈 금지 — 컴파일(오류 0·경고 71)·RoomConfinementMath 하니스 21건까지만 확인, 플레이 미확인
+[ ] H1. 낙오자가 있는 채로 집결이 시작돼도, 낙오자가 같은 방(또는 전파 범위)에 들어오면 "…에게 집결 명령을 뒤늦게 전달합니다" 로그와 함께 집결 자리를 받아 합류하고, 나머지 8명이 60초를 다 기다리지 않는다. 이상 시: 로그의 "집결 진행 중" 줄에서 미집결자 이름·방 위치 확인.
+[ ] H2. 끝내 못 오는 미집결자는 집결 시작 후 60초(rallyAbsenteeMaxSeconds)에 "…미집결자 […]를 더는 기다리지 않습니다"로 포기되고 집결이 완료된다 — 교전·경계가 있어도 이 60초는 늘어나지 않는다.
+[ ] H3. (극단) 어떤 이유로든 집결 시작 후 180초가 지나면 "집결을 강제로 완료합니다" 로그와 함께 끝난다. 이 줄이 나오면 원인(자리 미도착·코어 보고자·미집결자)을 알려 달라 — 정상 흐름에선 안 나와야 한다.
+[ ] H4. 방 이탈 금지: 인류가 전투 중 문 밖으로 도망가는 적을 쫓아 방을 나가지 않고 방 경계에서 멈춘다(그 적은 약 6초 배제 뒤 다시 후보). 옆방 적이 쏘면 인류 원거리는 반격할 수 있다(전투 대상 선정은 안 바꿨다).
+[ ] H5. 방 이탈 금지: 소리 반응·경계로 옆방 소리를 향해 가다 경계에서 영구히 서 있지 않는다(4턴 정체 후 소리 반응을 포기하고 집결·탐색으로 돌아감).
+[ ] H6. 방 이탈 금지: 회피·점멸이 문 밖 칸으로 인류를 데려가지 않는다(방 안 후보만).
+[ ] H7. 예외 정상 동작: ① 리더 지시 방 이동(집결 → 진형 → 돌파 → 입장)이 문을 통과한다 ② 방 활동이 끝난 낙오자가 리더·통과 지점으로 따라가 문 너머로 건넌다 ③ 계단 이동(0층→1층 입구 시퀀스, 계단 발견 후 이동)과 승리 후 퇴각이 정상 ④ 리더가 죽거나 파티가 없는 인류는 방 안에서 얼어붙지 않는다.
+[ ] H8. 알려진 결과: 코어 발견자가 리더와 다른 방(전파 범위 밖)에 있으면 보고하러 걷지 못하고 정박한다(보고 의무는 유지). 이게 문제로 보이면 예외 목록(RoomConfinementMath.IsLeaderOrderWait)에 ReportingCoreToLeader를 추가하면 된다.
+이상 시: humanRoomConfinementEnabled=false(예전 소프트 제한만) / rallyAbsenteeMaxSeconds 조정으로 예전 동작과 비교.
+
+■ I. (2026-10-05 추가) 아처 간격 유지 수정 + 진동 진단 + 함정 보완 — 컴파일(오류 0·경고 71)·실제 NUnit 테스트 파일 39건(콘솔 대용 실행)까지만 확인, 플레이 미확인
+[ ] I1. 아처가 적과 4~7칸 사이에서는 제자리에서 쏘고(쿨다운 중에도 앞뒤로 안 움직임), 3칸 이내로 붙으면 한 칸씩 물러나며 쏜다. 적이 한 칸 움직인다고 앞뒤로 왕복하지 않는다.
+[ ] I2. 벽 쪽으로 몰려 더 못 물러나면 옆으로 새며 떨지 않고 그 자리에서 쏜다.
+[ ] I3. 마법사·주술사 등 다른 원거리도 같은 방식으로 움직인다(HitRange 4 이상 스킬 보유 유닛 전체에 적용). 쿨다운 중 4칸까지 접근하지 않아 교전 거리가 예전보다 멀다 — 체감이 이상하면 알려 달라.
+[ ] I4. 비전투에서 떨림이 계속되면 로그(Assets/문서/에러및 로그/디버그 로그.txt)의 "[진동진단]" 줄을 알려 달라 — 라벨·대기 사유·경계·함정·조사·탐험 목표·전투 대상이 한 줄에 있어 원인을 바로 좁힐 수 있다(유닛당 10초에 한 줄). 끄기: oscillationDiagnosticsEnabled=false.
+[ ] I5. 함정 둘이 이어진 통로에서 한 유닛이 해제 중에 다음 함정을 발견해도 해제가 끊기지 않고(진행도 유지) 끝난 뒤 이어받는다 — "다른 함정 대응 중이라 이 함정은 기록만 합니다"→"보류돼 있던 함정을 이어받아 대응을 시작합니다" 로그. 그 함정을 기다리던 파티원이 기한 만료까지 멈춰 있지 않다.
+[ ] I6. 해제·파괴하는 동안 유닛이 함정 쪽을 바라본다(이동 마지막 방향으로 엉뚱한 곳을 보지 않는다).
+[ ] I7. (확정 사항, 바꾸지 않음) 0→1층에서 먼저 올라온 유닛이 파티원 도착 전에 함정을 바로 해제하는 것은 문서 규정이고 현행 유지다.

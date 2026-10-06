@@ -37,6 +37,7 @@ public static class TrapPartySystem
 			if (!coord.Deferred || defer) return;
 			// 보류돼 있던 함정 — 집결·이동 중이 아닌 유닛이 처음 발견했으니 이 유닛이 표준 절차를 시작한다.
 			coord.Deferred = false;
+			coord.DeferredBusy = false;
 			coord.DiscovererName = discoverer.name;
 		}
 		else
@@ -70,7 +71,47 @@ public static class TrapPartySystem
 			return;
 		}
 
+		// 이미 다른 함정을 처리·대기 중인 유닛은 그 상태를 덮어쓰지 않는다 — BeginDiscovererResponse는 currentTrapInteraction을 통째로 새로 만들어, 해제 진행도와 담당 상태를 잃고 그 함정을 기다리던 파티원들이 기한 만료까지 멈추게 된다(2026-10-05). 새 함정은 위에서 개인 지도 등록·전파(3×3 회피)까지만 하고, 끝난 유닛이 TickAdoptBusyDeferred로 이어받는다.
+		var busyWith = discoverer.currentTrapInteraction;
+		if (busyWith != null && busyWith.TrapObjectId != trapObj.Id)
+		{
+			coord.Deferred = true;
+			coord.DeferredBusy = true;
+			LogHelper.Log(LogHelper.GAME, $"[함정] {discoverer.name}: 다른 함정 대응 중이라 이 함정은 기록만 합니다(대응이 끝난 뒤 이어받음)");
+			return;
+		}
+
 		BeginDiscovererResponse(discoverer, trapObj, party, coord);
+	}
+
+	// 다른 함정 대응 중이라 보류된 함정(DeferredBusy)을, 지금 한가하고 그 함정을 알며 같은 방에 있는 유닛이 이어받아 표준 절차를 시작한다. UnitFunction.OnUpdate 0.1초 틱이 부른다. 집결·공동 이동·전투·경계·조사 중이면 이어받지 않는다(03번 8장: 집결 중엔 다른 임무 대상을 위한 해제 담당 금지, 전투·조사는 담당 후보에서 제외). 같은 방 제한은 인류 방 이탈 금지와 맞춘 것이다 — 다른 방 함정으로는 갈 수 없다.
+	public static void TickAdoptBusyDeferred(Human human)
+	{
+		var party = human.party;
+		if (party == null || party.TrapCoordinations.Count == 0 || human.Session == null) return;
+		if (human.currentTrapInteraction != null || human.currentInvestigation != null || human.currentAlertSearch != null || human.currentJoinCombatWait != null) return;
+		if (human.CurrentFsmStateIfCreated is CombatFSMState || human.personalSpottedEnemies.Count > 0) return;
+		if (IsCommittedToPartyMovement(human)) return;
+
+		foreach (var coord in party.TrapCoordinations.Values)
+		{
+			if (!coord.DeferredBusy) continue;
+			if (!human.Session.objectGrid.TryGetValue(coord.TrapPosition, out var trapObj) || trapObj.Id != coord.TrapObjectId || trapObj.IsCollected)
+			{
+				coord.DeferredBusy = false; // 함정이 이미 사라졌다 — 더는 이어받을 것이 없다
+				continue;
+			}
+			if (!human.personalMap.IsObjectKnown(coord.TrapObjectId)) continue;
+			if (!human.Session.roomGrid.TryGetValue(coord.TrapPosition, out Room trapRoom) || trapRoom != human.currentRoom) continue;
+			if (IsBeingHandled(party, coord.TrapObjectId)) continue;
+
+			coord.Deferred = false;
+			coord.DeferredBusy = false;
+			coord.DiscovererName = human.name;
+			LogHelper.Log(LogHelper.GAME, $"[함정] {human.name}: 보류돼 있던 함정을 이어받아 대응을 시작합니다");
+			BeginDiscovererResponse(human, trapObj, party, coord);
+			return;
+		}
 	}
 
 	// 발견자로서 표준 대응 절차를 시작한다 — 최초 발견(OnTrapDiscovered)과 "알던 함정이 이동 경로를 막음"(OnPathBlockedByKnownTrap)이 공유한다.

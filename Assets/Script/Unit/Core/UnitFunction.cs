@@ -362,6 +362,9 @@ public abstract class UnitFunction : Unit
 
 		bool canMove = CanMove(nextPos);
 
+		// 인류 방 이탈 금지(하드 스톱) — CanMove(그 칸에 설 수 있는가: 자리 선택·후보 평가도 씀)가 아니라 실제 걸음에서만 막는다. A*는 같은 판정(IsRoomLeaveBlocked)으로 경로를 방 안에 가둬 막힌 걸음을 고르지 않는다.
+		if (canMove && IsRoomLeaveBlocked(nextPos)) canMove = false;
+
 		// 코너 커팅(벽 뚫기) 방지: 대각선 이동 시 양옆 직교 타일 중 하나라도 이동 불가면 블록
 		if (canMove && Mathf.Abs(dirVec.x) == 1 && Mathf.Abs(dirVec.y) == 1)
 		{
@@ -1030,6 +1033,8 @@ public abstract class UnitFunction : Unit
 				PropagationSystem.TickIndirectEnemyApproach(human);
 				// 알던 함정이 필요한 이동을 막았다는 이동 계층의 신호를 소비해 대응을 다시 연다.
 				TrapPartySystem.TickBlockedPathResponse(human);
+				// 다른 함정 대응 중이라 보류된 함정을 한가해진 같은 방 유닛이 이어받는다.
+				TrapPartySystem.TickAdoptBusyDeferred(human);
 			}
 			_safetyTickTimer = 0f;
 		}

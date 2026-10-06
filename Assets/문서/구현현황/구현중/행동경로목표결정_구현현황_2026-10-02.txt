@@ -47,6 +47,17 @@ GrimArchive 행동경로·목표설정 시스템 구현 현황 — 2026-10-02 �
 · kill-switch 일람: rallyAbsenteeWaitEnabled · entrySlotKnowledgeEnabled · roomBoundExplorationEnabled · leaderRoutePlannerEnabled · entryReleaseIntervalSeconds(0=예전 단계 장벽) · entryWaitForUnitAheadEnabled · rallyGatherNearbyEnabled · partyAdvanceFormationEnabled · occupancyArbitrationEnabled · gatePassOrderEnabled · personalMapPathingEnabled · unreachableCandidateExclusionEnabled · exploreBlockedRecordEnabled · trapAvoidanceEnabled.
 [검증 수준] 대부분 dotnet build(오류 0·경고 71) + 순수 함수 하니스(partyharness 77건 등)까지. Unity NUnit·플레이는 사용자 실행 — 확인 항목은 플레이확인_체크리스트_2026-10-02.txt.
 
+[2026-10-05 갱신 — 집결 무한대기 수정 + 인류 방 이탈 금지] 사용자 신고 "집결 무한대기 버그 존재 … 리더의 명령, 플레이어의 명령 제외, 방을 이탈 불가하게"(공황·도주 활성 시 재고).
+· 집결 무한대기: 원인은 집결 명령 수신자가 시작 순간에 고정돼 낙오자가 나중에 같은 방에 와도 명령을 못 받고 미집결자로 남는 것(+상한이 교전 정지로 최악 180초, 코어 보고자는 상한 없음). 수정: Party.TickLateRallyDelivery(뒤늦은 명령 전달) + EnforceRallyAbsoluteLimits(미집결자 절대 상한 rallyAbsenteeMaxSeconds=60, 최종 강제 완료 60+120초). 05번 6장은 "미집결자 수색은 일정 시간 후 포기"만 규정하고 값은 후속 문서 몫이라 기존 60초 근사값을 재사용했다.
+· 인류 방 이탈 금지: RoomConfinementMath + Human.IsRoomLeaveBlocked를 UnitFunction.Move/AStarMovement.IsTileWalkable/DefenseSystem 회피·점멸 후보에 적용(CanMove에는 넣지 않음 — 자리 선택이 깨짐). 예외(사용자 확정): 리더 지시 이동(집결·방 이동·진형·돌파·입장·문 찾기 추종·퇴각)·낙오자 합류·계단/입구 시퀀스·플레이어 명령, 리더 없음/사망/파티 없음은 제한 해제. 예외가 아닌 것: 코어 보고 이동·전투 추격·소리/간접 인지 접근·경계 접근·회피/점멸. 상세는 CLAUDE.md "인류 방 이탈 금지 + 집결 무한대기 수정" 절.
+· 소리 반응 접근(TacticalFSMState.StepSoundApproach)에 인류 한정 정체 가드 추가 — 방 이탈 금지로 막히면 방 경계에서 영구히 서 있게 되는 것을 방지.
+· 검증: dotnet build 오류 0·경고 71, RoomConfinementMath 하니스 21건 통과, Assets/Tests/RoomConfinementTests.cs(Unity Test Runner 미실행). 집결 지연 전달·상한·방 이탈 금지의 실제 동작은 Unity 플레이 미확인 — 체크리스트 H 항목.
+
+[2026-10-05 추가 — 아처 떨림 + 함정 보완] 사용자 신고 "아처가 비전투에서도 앞뒤·좌우로 빠르게 왔다갔다" + "함정 관련해서도 좀더 다듬어줘(자연스럽되 문서대로)".
+· 원거리 간격 유지: CombatFSMState의 on/off 제어(적이 한 칸만 움직여도 쿨다운마다 접근·후퇴 왕복)를 RangedSpacingMath.Decide(후퇴/제자리/접근)로 교체, MoveAwayFromTarget은 A* 대신 반대 방향 한 걸음(TryChooseRetreatStep, 몰리면 false). 영향은 HitRange 4 이상 스킬 보유 유닛 전체. 전투 원인만 코드로 증명됐고 비전투 떨림은 원인 미확정 → OscillationDiagnostics 임시 진단([진동진단] 로그)로 다음 플레이에서 잡는다.
+· 함정: ① 다른 함정 대응 중인 발견자가 새 함정으로 덮어쓰던 것을 막고(DeferredBusy) 한가해진 같은 방 유닛이 이어받는다(TickAdoptBusyDeferred) ② 해제·파괴 중 함정을 바라본다(FaceTrap). 0→1층 입구 즉시 해제는 문서 규정대로 현행 유지(사용자 확정).
+· 검증: dotnet build 오류 0·경고 71, 실제 NUnit 테스트 파일 39건(RoomConfinementTests·RangedSpacingTests·OscillationTests)을 NUnit 대용 껍데기로 콘솔 실행해 통과. Unity 플레이 미확인 — 체크리스트 I 항목.
+
 
 ════════════════════════════════════════════════════════════════════════
 ■ 핵심 설계 결정 (사용자 확인 완료, 2026-09-25) — 다시 묻지 않음

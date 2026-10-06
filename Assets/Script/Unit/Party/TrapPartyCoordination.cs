@@ -27,6 +27,8 @@ public class TrapPartyCoordination
 	public string DiscovererName;
 	// 발견자가 집결·공동 이동·귀환 중이라 대응(응답 대기·선정)을 시작하지 않고 기록만 남긴 상태(03번 8장) — 이후 집결·이동 중이 아닌 유닛이 그 함정을 처음 발견하면 이 기록을 이어받아 표준 절차를 시작한다(TrapPartySystem.OnTrapDiscovered).
 	public bool Deferred;
+	// Deferred 중에서도 "발견자가 다른 함정을 처리·대기 중이라" 보류한 경우 — 그 유닛(또는 같은 방의 다른 한가한 유닛)이 끝난 뒤 TrapPartySystem.TickAdoptBusyDeferred로 이어받는다. 집결·이동 때문에 보류한 기존 Deferred는 이어받는 틱이 없다(기존 동작·문서 유지).
+	public bool DeferredBusy;
 	// 알던 함정이 이동 경로를 막아 대응을 다시 연 시각 + 재시작 쿨다운 — 파괴·해제가 모두 불가능한 함정에서 대응이 끝나자마자 다시 열리는 반복을 막는다.
 	public float NextBlockedRetryTime;
 	public string SelectedUnitName;

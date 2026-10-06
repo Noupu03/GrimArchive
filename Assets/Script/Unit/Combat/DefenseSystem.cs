@@ -301,6 +301,8 @@ public static class DefenseSystem
 	// TryDodgeMove가 각자 거의 동일한 검사 블록을 변수명만 다르게 중복 구현하고 있던 것을 통합했다.
 	static bool IsBlockedByRoomConfinement(Unit defender, bool roomConfined, Room myRoom, Vector2Int pos)
 	{
+		// 인류는 몬스터의 RoomConfinedMovement 대신 방 이탈 금지(Human.IsRoomLeaveBlocked)를 쓴다 — 회피·점멸(ForceMove라 Move의 하드 스톱을 안 거친다)도 방을 떠나지 못한다.
+		if (defender.IsRoomLeaveBlocked(pos)) return true;
 		if (!roomConfined || defender.Session == null) return false;
 		if (defender.Session.IsDoorTile(new Vector3Int(pos.x, pos.y, defender.currentFloor))) return true;
 		if (myRoom != null && (!defender.Session.roomGrid.TryGetValue(new Vector3Int(pos.x, pos.y, defender.currentFloor), out Room posRoom) || posRoom != myRoom)) return true;

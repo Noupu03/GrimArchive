@@ -544,6 +544,35 @@ Unity 실제 플레이 검증 안 함(실제 A*·RouteAssessment 코드를 스�
 ### 알려진 한계 / 미검증
 Unity 플레이 검증을 하지 못했다(컴파일 + `PartyFormationMath` 순수 함수 하니스 38건까지 — 리더 지시 배정·교전 중 시간 정지·진형 복귀 후 재돌파·4단계 입장 흐름은 플레이로만 확인된다). 전투 중인 유닛이 있으면 집결·FormingUp이 그 전투가 끝날 때까지 기다린다. 입구 문을 다음 문으로 잘못 고르는 문제(`TryFindKnownDoorInCurrentRoom`)는 그대로다. 플레이 확인 체크리스트는 검증문서 같은 항목에 있다.
 
+## 인류 방 이탈 금지 + 집결 무한대기 수정 (2026-10-05)
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+- **인류는 리더 지시 이동·낙오자 합류·계단/입구 시퀀스 외에는 지금 방을 떠나지 못한다**(사용자 확정 "리더의 명령, 플레이어의 명령 제외, 방을 이탈 불가하게" — 몬스터의 `RoomConfinedMovement`("플레이어 명령 외 방 이탈 불가")와 같은 규칙을 인류에 적용). 예전 `Human.TryGetExplorationBounds`는 탐색·조사 후보·무작위 배회만 방 안으로 가두는 계획 단계 제한이었고 이동 자체는 안 막았다 — 그건 그대로 두고 그 위에 **이동 자체를 막는 하드 제약**을 얹었다.
+- **판정은 한 곳**: `RoomConfinementMath`(순수 — 예외 묶음 `Exemptions`·`IsLeaderOrderWait`·`IsLeaveBlocked`) + `Human.IsRoomConfinedNow`/`IsRoomLeaveBlocked(tile)`(프레임 캐시). **적용은 세 곳, 셋이 같은 결론이어야 한다**: `UnitFunction.Move`(실제 걸음 하드 스톱), `AStarMovement.IsTileWalkable`(경로 계획 — 어긋나면 막힌 걸음을 반복하며 얼어붙는다), `DefenseSystem.IsBlockedByRoomConfinement`(회피·점멸은 `ForceMove`라 `Move`를 안 거친다). A* 이동 캐시 키에도 제한 여부가 들어 있다(`_cacheConfined`).
+- **`UnitFunction.CanMove`에는 넣지 말 것.** `CanMove`는 "그 칸에 설 수 있는가"를 묻는 자리 선택·후보 평가(집결·진형·입장 자리, 회피 후보 등)도 쓰는데, 명령받은 유닛이 다른 방 자리를 못 고르게 돼 자리 배정이 깨진다(처음 구현했다가 설계 중 되돌림).
+- **예외는 "그 틱에 명령을 수행하는 리프"가 연다**(`Human.GrantRoomLeave()` — 그 프레임만 유효): `TacticalFSMState.ExecuteWait`(대기 사유가 `IsLeaderOrderWait`일 때: 집결·방 이동·진형·돌파·입장·문 찾기 추종·문 앞 접근·퇴각), `NavigationFSMState.MoveToStairs`(계단), `HumanIdleSystem.Step`(낙오자 합류). 상태 기반 예외는 입구 시퀀스·플레이어 명령·kill-switch·"따라갈 리더 없음"(파티 없음/리더 없음·사망/리더 본인의 `LeaderMayExploreBeyondRoom`, 기존 영구 정지 방지 규칙)뿐이다. **대기 사유만 보고 풀지 않는 이유**: 집결 대기가 남은 채 전투·경계가 우선한 틱에도 풀리면 전투 추격·소리 접근이 방을 나간다.
+- **예외가 아닌 것(금지, 사용자 확정)**: 코어 보고 이동(`ReportingCoreToLeader` — 리더와 다른 방·전파 범위 밖이면 보고하러 걷지 못하고 정박, 보고 의무는 유지), 전투 추격(방 경계에서 멈추고 `combatChaseStuckTurns`로 그 대상을 6초 배제), 소리·간접 인지 접근, 경계 접근, 회피/점멸. 전투 *대상 선정*은 건드리지 않았다 — `AIMovementHelper.IsRoomConfined`(몬스터 전용, 방 밖 적 무시)를 인류까지 넓히면 옆방에서 쏘는 적에게 반격을 못 하므로 일부러 쓰지 않는다.
+- **소리 반응 접근에 정체 가드를 넣었다**(`TacticalFSMState.StepSoundApproach`, 인류 한정): 소리 반응 접근은 시간 제한이 없고(워치독 제외) 경계가 대기·집결보다 앞서므로, 방 이탈 금지로 옆방 소리에 닿을 수 없으면 방 경계에서 영구히 서 있게 된다. 거리가 줄지 않는 턴이 `indirectEnemyApproachStuckTurns`(4)를 넘으면 소리 반응을 포기한다.
+- 공황·도주 문서가 나오면 이 예외 목록을 재고한다(사용자 지시). kill-switch: `AIBehaviorConfig.humanRoomConfinementEnabled`(false면 예전 소프트 제한만).
+
+### 집결 무한대기 수정
+- **원인**: 집결 명령 수신자(`Party._rallyRecipients`)가 집결 시작 순간에 고정돼, 그때 다른 방·전파 범위 밖이던 낙오자는 나중에 같은 방에 와도 명령을 못 받고(`TickPendingRallyRelease`는 해제 전용) 끝까지 미집결자로 남아 파티 전체를 상한까지 붙잡았다. 상한(60초)은 교전·경계 정지로 밀려 최악 180초였고, 코어 보고자는 상한 자체가 없었다. 로그: `디버그 로그.txt` 마지막 "집결 진행 중 — 8명 도착, 미집결자 2명(마법사·주술사)".
+- **수정**: ① `Party.TickLateRallyDelivery`(리더 1초 틱) — 시작 뒤 같은 방·전파 범위에 들어온 낙오자에게 집결 명령을 뒤늦게 전달(수신자 처리를 `DeliverRallyCommand`/`GiveRallySlot`으로 뽑아 시작과 공유) ② `EnforceRallyAbsoluteLimits` — 미집결자 대기 절대 상한 `AIBehaviorConfig.rallyAbsenteeMaxSeconds`(60, 정지로 늘리지 않음 — 실제 경과 `_rallyRealStartTime` 기준), 최종 강제 완료(개별 상한 60 + `PartyEngagement.PauseCap` 120초: 자리 미도착·코어 보고자·미집결자 무관, 보고 의무는 유지). 자리 이동 중인 구성원의 개별 상한과 교전 정지는 기존 그대로다.
+- 컴파일(오류 0·경고 71)·`RoomConfinementMath` 하니스 21건까지 확인했고 **Unity 플레이는 미확인**이다(체크리스트는 `플레이확인_체크리스트_2026-10-02.txt`의 H 항목).
+
+## 원거리 간격 유지(아처 떨림) + 함정 대응 보완 (2026-10-05)
+
+### 원거리 간격 유지 — 후퇴/접근 사이에 '제자리' 구간
+- **증상/원인**: 사용자 신고 "아처가 거의 모든 상황에서 앞뒤·좌우로 빠르게 왔다갔다". `CombatFSMState.ExecuteCombat`의 원거리 이동이 완충 없는 on/off 제어였다 — 스킬 준비 중엔 적이 `HitRange/2`(아처 3칸) 이내면 후퇴, 쿨다운 중엔 거리가 정확히 `HitRange/2+1`(4칸)이 아니면 접근·후퇴해 적이 한 칸만 움직여도 매 행동 틱 앞뒤 왕복(정밀 사격은 지연 200ms·쿨다운 1초라 아처가 특히 심했다). 또 `MoveAwayFromTarget`이 "적 반대편 N칸" 좌표를 A*로 향해, 그 좌표가 벽이면 가장 가까운 도달 노드(옆쪽)로 새 좌우로 떨었다.
+- **수정**: `RangedSpacingMath.Decide(dist, 위험거리 HitRange/2, 사거리)` — 위험 거리 이내=후퇴, 사거리 안=**제자리**(쿨다운 중에도 기다렸다 쏜다), 밖=접근. 준비·쿨다운 두 분기가 같은 판정을 쓴다. `MoveAwayFromTarget`은 8방향 이웃 중 적 반대 방향에 가장 가깝고 거리가 실제로 늘며 갈 수 있는 칸을 고르는 한 걸음 후퇴(`RangedSpacingMath.TryChooseRetreatStep`)이고 bool을 돌려준다 — 반대 방향 성분이 없는 옆걸음은 안 고르고 몰리면 false(그 자리에서 싸움). **A*를 안 거치는 걸음이라 방 제한 몬스터(`RoomConfinedMovement`)가 방을 나가지 않게 `LeavesConfinedRoom`으로 같은 규칙을 직접 적용하고, 인류는 `IsRoomLeaveBlocked`를 쓴다.** 영향은 `HitRange ≥ rangedMin(4)` 스킬을 가진 모든 유닛(마법사·주술사 포함)이다. 쿨다운 중 원거리가 4칸까지 접근하지 않고 사거리 안에 머무르므로 교전 거리가 예전보다 멀다.
+- **비전투 떨림은 원인 미확정**이다(사용자도 상태·상황을 특정 못 함). 코드로 증명되는 위 전투 원인만 고쳤고, 나머지(점유 충돌 우회↔복귀, 집결·진형 자리 재선택, 합류 목적지 전환, 막힌 목표의 무작위 배회 폴백 등은 후보일 뿐)는 **`OscillationDiagnostics`(임시 진단, `AIBehaviorConfig.oscillationDiagnosticsEnabled`)가 `[진동진단]` 로그**로 잡는다 — 인류 유닛이 최근 6초에 8회 이상 이동하면서 서로 다른 타일이 3개 이하면 그때의 라벨·대기 사유·경계 종류·함정·조사·탐험 목표·전투 대상 거리를 유닛당 10초에 한 줄 남긴다(동작 불변). 원인이 확정돼 고쳐지면 지워도 되는 임시 코드다.
+
+### 함정 대응 보완
+- **다른 함정 대응 중인 발견자는 새 함정으로 덮어쓰지 않는다**(`TrapPartySystem.OnTrapDiscovered`): 예전엔 `BeginDiscovererResponse`가 `currentTrapInteraction`을 통째로 새로 만들어 해제 진행도·담당 상태를 잃고 그 함정을 기다리던 파티원이 기한 만료까지 멈췄다. 새 함정은 개인 지도 등록·전파(3×3 회피)까지만 하고 조율 기록에 `Deferred`+`DeferredBusy`로 남긴다. 한가해진 같은 방 유닛이 `TickAdoptBusyDeferred`(`UnitFunction.OnUpdate` 0.1초 틱)로 이어받는다 — 집결·공동 이동·전투·경계·조사 중이면 안 받고(03번 8장), 같은 방 제한은 인류 방 이탈 금지와 맞춘 것이다. **집결·이동 때문에 보류한 기존 `Deferred`에는 이어받는 틱이 없다**(기존 동작·문서 유지).
+- **해제·파괴 중 함정을 바라본다**(`TacticalFSMState.FaceTrap` — `MoveToTrap` 도착·`TrapDisarmPerform`·`TrapDestroy`): 이동 마지막 방향이 함정을 안 향한 채 해제하던 부자연스러움. 코어·문 채널링과 같은 패턴(방향+스프라이트 짝)이고 `ResolveVisionDirection`의 최하위 폴백 후보(Moving: currentDir)가 유지한다.
+- **0→1층 입구에서 먼저 올라온 유닛이 파티원 도착 전에 바로 해제하는 것은 문서 규정대로이며 사용자가 현행 유지로 확정했다**(03번 8장: 웨이브 시작 전 최고 성공률 유닛이 직접 발견하면 응답 대기 생략, 입구 구간 보류 규정 없음 — 집결·공동 이동 중 해제 담당 금지만 있다). 보류를 넣자는 제안이 다시 나오면 이 확정부터 확인할 것.
+- 컴파일(오류 0·경고 71)·실제 NUnit 테스트 파일 39건(`RoomConfinementTests`·`RangedSpacingTests`·`OscillationTests`를 NUnit 대용 껍데기로 콘솔 실행)까지 확인했고 **Unity 플레이는 미확인**이다(체크리스트 I 항목).
+
 ## 문 구조 — 방 쪽 줄(1×2) 묶음이 문 오브젝트 하나 (2026-10-01)
 
 ### 구조 (이걸 다시 손댈 때 먼저 볼 것)

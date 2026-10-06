@@ -1059,6 +1059,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
         }
 
+        // 임시 진단(2026-10-05): 좁은 타일 왕복을 감지해 로그로 남긴다 — 동작 불변.
+        if (oldPos != u.position) OscillationDiagnostics.OnMoved(u);
+
         // 01-A 11장: 이번 턴 후보 중 우선순위가 가장 높은 시야 방향을 확정한다. ExecuteAction() 이후
         // (Move()가 갱신한 currentDir를 폴백으로 쓰기 위해) + UpdateFOV() 이전(그 방향으로 시야를
         // 계산하기 위해) 호출해야 한다.

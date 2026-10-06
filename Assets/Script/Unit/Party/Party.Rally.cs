@@ -18,6 +18,9 @@ public partial class Party
 	private float _lastRallyClockTime;
 	private float _rallyPausedSeconds;
 	private bool _rallyPauseLogged;
+	// 정지로 밀리지 않는 실제 집결 시작 시각 — 미집결자 대기 상한과 최종 강제 완료 상한의 기준이다(2026-10-05: 교전·경계 정지로 늘어난 시계가 낙오자 하나 때문에 파티 전체를 최대 180초 붙잡았다).
+	private float _rallyRealStartTime;
+	private bool _rallyForcedLogged;
 
 	public bool IsRallyPointOnFloor(int floor) => IsRallyActive && RallyPoint.HasValue && RallyFloor == floor;
 	// 집결이 막 완료돼 다음 방으로 함께 이동해도 되는 상태 — HumanWaveManager가 보고 공동 이동 명령을 1회 발행한 뒤 false로 되돌린다(05번 1장).
@@ -40,7 +43,7 @@ public partial class Party
 	public bool ResumeRallyAfterCore => _resumeRallyAfterCore;
 
 	// 집결 대상은 생존 파티원 전원 — 명령을 못 받은 생존자와 리더가 모르는 사망(PartyDeathRecord.InfoKnownUnits)은 미집결자로 기다린다(05번 5장).
-	// 수색·포기 뒤 판정은 후속 문서 몫이라 상한은 기존 집결 60초 근사(ParkStragglersAfterTimeLimit)이고, 포기한 미집결자(_givenUpAbsent)는 다시 기다리지 않는다.
+	// 수색·포기 뒤 판정은 후속 문서 몫이라 상한은 기존 60초 근사(rallyAbsenteeMaxSeconds, EnforceRallyAbsoluteLimits — 교전 정지로 늘리지 않는다)이고, 포기한 미집결자(_givenUpAbsent)는 다시 기다리지 않는다. 시작 뒤 닿게 된 낙오자는 TickLateRallyDelivery가 명령을 전달해 미집결자에서 뺀다.
 	private readonly HashSet<Human> _rallyRecipients = new HashSet<Human>();
 	private readonly HashSet<string> _givenUpAbsent = new HashSet<string>();
 
@@ -109,6 +112,7 @@ public partial class Party
 	{
 		if (IsRallyActive)
 		{
+			TickLateRallyDelivery(); // 시작 뒤 같은 방·전파 범위에 들어온 낙오자에게 집결 명령을 뒤늦게 전달한다
 			CheckRallyComplete(); // 도착한 파티원도 자리에서 기다리므로, 전원 도착 여부를 리더의 1초 주기로도 확인한다
 			if (IsRallyActive && ShouldReportRally(RallyReport.Active, 0)) LogRally($"집결 진행 중 — {DescribeActiveRally()}");
 			return;
@@ -205,6 +209,8 @@ public partial class Party
 		RallyFloor = Leader.currentFloor;
 		IsRallyActive = true;
 		RallyStartTime = Time.time;
+		_rallyRealStartTime = Time.time;
+		_rallyForcedLogged = false;
 		_lastRallyClockTime = Time.time;
 		_rallyPausedSeconds = 0f;
 		_rallyPauseLogged = false;
@@ -220,21 +226,7 @@ public partial class Party
 			if (m == null || m.hp <= 0) continue;
 			if (m.currentFloor != RallyFloor) continue; // 다른 층 파티원에게는 이 집결이 닿지 않는다
 			if (!IsReachedByLeaderCommand(Leader, m)) continue;
-			_rallyRecipients.Add(m); // 명령을 받았다 — 다른 대기(코어 보고 등) 중이라 집결 이동은 안 해도 미집결자가 아니다
-			_givenUpAbsent.Remove(m.name);
-			m.currentFormation = null; // 보호 포메이션 중 집결 명령을 받으면 종료하고 집결로 전환한다(안 지우면 대기가 풀린 뒤 호위가 재개된다, 05번 9장).
-			// 명령이 전달된 파티원은 집결 위치와 리더 위치를 안다 — 다른 대기(코어 보고 이동 등) 중이라 집결 이동을 안 해도 정보는 받아 보고가 빈 리더 위치에 닿을 때 갈 곳이 된다.
-			m.knownRallyPoint = RallyPoint;
-			m.knownLeader.Update(Leader, RallyPoint.Value, Time.time);
-			// 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종과, 임무 수량 달성으로 문 앞 도착 전에 집결이 시작된 리더의 문 접근은 집결로 전환한다.
-			if (m.currentWait != null && m.currentWait.Reason != WaitReason.SearchingNextDoor && m.currentWait.Reason != WaitReason.ApproachingNextDoor) continue;
-			// 전파받은 적 위치로 접근하던 경계도 집결 명령이 오면 접는다(03번 1장 50줄 — 개인 탐색으로 흩어지지 않음).
-			if (m.currentAlertSearch != null && m.currentAlertSearch.IsIndirectEnemyApproach) m.currentAlertSearch = null;
-			// 03번 0장·8장: 아직 시작하지 않은 함정 대응(응답 대기·담당자 도착 대기·해제하러 가는 이동)은 집결로 전환한다.
-			TrapPartySystem.ReleaseForRally(m);
-			// 시작 전 임무 대상으로 이동 중이던 조사도 집결로 전환한다(대상은 개인 지도에 남음). 이미 시작한 조사는 기존 조건으로 마친 뒤 합류한다(05번 4장).
-			if (m.ReleaseUnstartedInvestigation()) LogRally($"{m.name}이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)");
-			recipients.Add(m);
+			if (DeliverRallyCommand(m)) recipients.Add(m);
 		}
 
 		// 집결지에 못 서면 근처에 서도록 파티원마다 자리를 따로 준다 — 리더 가까운 순으로 배정해 서로 길을 막지 않게 한다. 끄면 예전처럼 전원이 집결지 하나로 향한다.
@@ -243,15 +235,72 @@ public partial class Party
 		if (gatherNearby)
 			recipients.Sort((a, b) => AIMovementHelper.ChebyshevDistance(a.position, RallyPoint.Value).CompareTo(AIMovementHelper.ChebyshevDistance(b.position, RallyPoint.Value)));
 		var assignedSlots = new List<Vector2Int>(recipients.Count);
-		foreach (var m in recipients)
-		{
-			Vector2Int slot = RallyPoint.Value;
-			if (gatherNearby && m != Leader) slot = PickGatherSlot(m, claimed);
-			assignedSlots.Add(slot);
-			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = slot, WaitFloor = RallyFloor };
-			m.waitStuckTurns = 0;
-		}
+		foreach (var m in recipients) assignedSlots.Add(GiveRallySlot(m, claimed, gatherNearby));
 		RallyZoneRadius = PartyFormationMath.ZoneRadius(assignedSlots, RallyPoint.Value);
+	}
+
+	// 집결 명령을 받은 파티원 한 명의 공통 처리 — 집결 시작과 뒤늦은 전달(TickLateRallyDelivery)이 공유한다. 집결 자리(대기)를 줘야 하면 true, 이미 다른 대기(코어 보고 등) 중이라 이동은 그대로면 false(그래도 명령은 받아 미집결자가 아니다).
+	private bool DeliverRallyCommand(Human m)
+	{
+		_rallyRecipients.Add(m); // 명령을 받았다 — 다른 대기(코어 보고 등) 중이라 집결 이동은 안 해도 미집결자가 아니다
+		_givenUpAbsent.Remove(m.name);
+		m.currentFormation = null; // 보호 포메이션 중 집결 명령을 받으면 종료하고 집결로 전환한다(안 지우면 대기가 풀린 뒤 호위가 재개된다, 05번 9장).
+		// 명령이 전달된 파티원은 집결 위치와 리더 위치를 안다 — 다른 대기(코어 보고 이동 등) 중이라 집결 이동을 안 해도 정보는 받아 보고가 빈 리더 위치에 닿을 때 갈 곳이 된다.
+		m.knownRallyPoint = RallyPoint;
+		m.knownLeader.Update(Leader, RallyPoint.Value, Time.time);
+		// 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종과, 임무 수량 달성으로 문 앞 도착 전에 집결이 시작된 리더의 문 접근은 집결로 전환한다.
+		if (m.currentWait != null && m.currentWait.Reason != WaitReason.SearchingNextDoor && m.currentWait.Reason != WaitReason.ApproachingNextDoor) return false;
+		// 전파받은 적 위치로 접근하던 경계도 집결 명령이 오면 접는다(03번 1장 50줄 — 개인 탐색으로 흩어지지 않음).
+		if (m.currentAlertSearch != null && m.currentAlertSearch.IsIndirectEnemyApproach) m.currentAlertSearch = null;
+		// 03번 0장·8장: 아직 시작하지 않은 함정 대응(응답 대기·담당자 도착 대기·해제하러 가는 이동)은 집결로 전환한다.
+		TrapPartySystem.ReleaseForRally(m);
+		// 시작 전 임무 대상으로 이동 중이던 조사도 집결로 전환한다(대상은 개인 지도에 남음). 이미 시작한 조사는 기존 조건으로 마친 뒤 합류한다(05번 4장).
+		if (m.ReleaseUnstartedInvestigation()) LogRally($"{m.name}이(가) 집결 명령으로 대상을 향하던 조사를 접고 집결합니다(대상은 개인 지도에 남음)");
+		return true;
+	}
+
+	// 집결 자리 한 개를 정해 대기를 건다 — 배정된 자리를 돌려준다(RallyZoneRadius 계산용).
+	private Vector2Int GiveRallySlot(Human m, HashSet<Vector2Int> claimed, bool gatherNearby)
+	{
+		Vector2Int slot = RallyPoint.Value;
+		if (gatherNearby && m != Leader) slot = PickGatherSlot(m, claimed);
+		m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = slot, WaitFloor = RallyFloor };
+		m.waitStuckTurns = 0;
+		return slot;
+	}
+
+	// 집결 명령은 시작 순간 닿은 파티원에게만 가므로, 그때 다른 방이었던 낙오자가 나중에 같은 방(또는 전파 범위)에 들어오면 뒤늦게 전달한다(05번 4장 전달 범위 규칙 그대로).
+	// 안 하면 그 유닛이 끝까지 미집결자로 남아 파티 전체가 상한까지 기다린다(2026-10-05 로그: 낙오자 2명 때문에 8명이 도착한 채 대기). 리더의 1초 주기(TryStartRally)에서 부른다.
+	private void TickLateRallyDelivery()
+	{
+		if (Leader == null || Leader.hp <= 0 || !RallyPoint.HasValue) return;
+
+		List<Human> late = null;
+		foreach (var m in Members)
+		{
+			if (m == null || m.hp <= 0 || m == Leader || _rallyRecipients.Contains(m)) continue;
+			if (m.currentFloor != RallyFloor || !IsReachedByLeaderCommand(Leader, m)) continue;
+			if (DeliverRallyCommand(m)) (late ??= new List<Human>()).Add(m);
+			else LogRally($"{m.name}에게 집결 명령이 뒤늦게 닿았습니다(다른 대기 중이라 자리는 주지 않고 미집결자에서만 뺍니다)");
+		}
+		if (late == null) return;
+
+		bool gatherNearby = AIConfigLoader.Behavior?.rallyGatherNearbyEnabled ?? true;
+		var claimed = new HashSet<Vector2Int> { RallyPoint.Value };
+		foreach (var other in Members) // 이미 배정된 자리는 다시 고르지 않는다
+		{
+			var wait = other?.currentWait;
+			if (other == null || other.hp <= 0 || wait == null || wait.Reason != WaitReason.AwaitingPartyAtRallyPoint || !wait.WaitPosition.HasValue) continue;
+			claimed.Add(wait.WaitPosition.Value);
+		}
+
+		var newSlots = new List<Vector2Int>(late.Count);
+		foreach (var m in late)
+		{
+			newSlots.Add(GiveRallySlot(m, claimed, gatherNearby));
+			LogRally($"{m.name}에게 집결 명령을 뒤늦게 전달합니다(시작 뒤 같은 방·전파 범위에 들어옴)");
+		}
+		RallyZoneRadius = Mathf.Max(RallyZoneRadius, PartyFormationMath.ZoneRadius(newSlots, RallyPoint.Value)); // 낙오자 자리가 멀면 구역도 함께 넓힌다
 	}
 
 	// 집결 구역 안인가(PartyFormationMath.IsWithinZone) — 자리를 못 잡은 유닛이 그 자리에서 집결 처리될 수 있는 범위.
@@ -440,7 +489,12 @@ public partial class Party
 	{
 		if (!IsRallyActive) return;
 		bool gatherNearby = AIConfigLoader.Behavior?.rallyGatherNearbyEnabled ?? true;
-		if (gatherNearby) ParkStragglersAfterTimeLimit();
+		bool forced = false; // 최종 상한(EnforceRallyAbsoluteLimits)에 닿아 남은 사유와 무관하게 끝내는 중
+		if (gatherNearby)
+		{
+			ParkStragglersAfterTimeLimit();
+			forced = EnforceRallyAbsoluteLimits();
+		}
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0) continue;
@@ -451,15 +505,15 @@ public partial class Party
 				if (!gatherNearby) return;
 				// 다른 층으로 건넌 유닛은 이 집결에서 빠진다(ExecuteWait과 같은 기준) — 전투 중이라 대기 처리가 못 돌아도 교착되지 않게 여기서도 제외한다.
 				if (wait.WaitFloor >= 0 && m.currentFloor != wait.WaitFloor) continue;
-				if (wait.IsParked) continue;
+				if (wait.IsParked || forced) continue;
 				if (!wait.WaitPosition.HasValue || !IsRallyArrived(m, wait.WaitPosition.Value)) return;
 			}
-			// ReportingCoreToLeader도 집결 미완료로 본다 — 코어 보고 중인 유닛을 두고 집결이 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어 정박한(IsParked) 보고자는 붙잡지 않는다.
-			else if (wait.Reason == WaitReason.ReportingCoreToLeader && !wait.IsParked)
+			// ReportingCoreToLeader도 집결 미완료로 본다 — 코어 보고 중인 유닛을 두고 집결이 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어 정박한(IsParked) 보고자는 붙잡지 않고, 최종 상한을 넘기면 이 보고자도 집결 판정에서만 제외한다(보고 의무는 유지).
+			else if (wait.Reason == WaitReason.ReportingCoreToLeader && !wait.IsParked && !forced)
 				return;
 		}
 
-		if (gatherNearby && CollectUnaccountedAbsentees() > 0) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(상한까지)
+		if (gatherNearby && !forced && CollectUnaccountedAbsentees() > 0) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(rallyAbsenteeMaxSeconds 상한까지)
 
 		if (gatherNearby)
 		{
@@ -494,7 +548,25 @@ public partial class Party
 			(names ??= new System.Text.StringBuilder()).Append(PartyDiagnostics.DescribeMember(m, wait.WaitPosition)).Append(' ');
 		}
 		if (names != null) LogRally($"집결 시작 {limit:F0}초 경과 — 자리에 못 선 [{names.ToString().TrimEnd()}]을(를) 현재 위치에서 집결 처리합니다");
-		GiveUpAbsentees(limit);
+	}
+
+	// 교전·경계 정지로 늘어나지 않는 '실제 경과' 기준 상한 둘 — ① 미집결자 대기 상한(rallyAbsenteeMaxSeconds, 넘으면 그들을 포기) ② 어떤 사유로도 집결을 끝내는 최종 상한(개별 상한 + 정지 상한). 강제 완료 중이면 true.
+	// 예전엔 미집결자 포기가 정지로 밀리는 시계에 묶여 최악 180초까지 파티가 기다렸고, 코어 보고자·위치 미확인 대기는 상한 자체가 없었다(2026-10-05).
+	private bool EnforceRallyAbsoluteLimits()
+	{
+		float elapsed = Time.time - _rallyRealStartTime;
+		float absentLimit = AIConfigLoader.Behavior?.rallyAbsenteeMaxSeconds ?? 60f;
+		if (elapsed >= absentLimit) GiveUpAbsentees(absentLimit);
+
+		float hardLimit = 2f * (AIConfigLoader.Behavior?.doorApproachMaxBlockedSeconds ?? 30f) + PartyEngagement.PauseCap;
+		if (elapsed < hardLimit) return false;
+		if (!_rallyForcedLogged)
+		{
+			_rallyForcedLogged = true;
+			GiveUpAbsentees(hardLimit);
+			LogRally($"집결 시작 {hardLimit:F0}초 경과 — 자리 미도착·코어 보고·미집결자와 무관하게 집결을 강제로 완료합니다(교착 방지 최종 상한)");
+		}
+		return true;
 	}
 
 	// 집결 중 교전·경계가 있으면 그 경과만큼 시작 시각을 뒤로 밀어 60초 상한에 세지 않는다(03번 13항) — 대기 중 파티원 한 명이라도 교전·경계일 때. 상한은 PartyEngagement.PauseCap이며 dt는 마지막 호출 이후 경과다.

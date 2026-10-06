@@ -137,9 +137,9 @@ public class CombatFSMState : IFSMState
 			if (bestSkill.Affinity != SkillAffinity.Ally && bestSkill.HitRange >= rangedMin)
 			{
 				int dangerDist = bestSkill.HitRange / 2;
-				if (chebDist <= dangerDist && unit.CombatState.State.evadeCooldown <= 0f)
+				// 물러날 칸이 없으면(벽에 몰림) 후퇴를 포기하고 아래 공격 판단으로 이어진다 — 옆으로 새며 떠는 대신 그 자리에서 싸운다.
+				if (chebDist <= dangerDist && unit.CombatState.State.evadeCooldown <= 0f && AIMovementHelper.MoveAwayFromTarget(unit, target))
 				{
-					AIMovementHelper.MoveAwayFromTarget(unit, target, dangerDist + 1);
 					unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 					unit.Generate?.UpdateUnitSpriteForDirection(unit);
 					return BTStatus.Running;
@@ -165,13 +165,16 @@ public class CombatFSMState : IFSMState
 		}
 		else
 		{
-			// 모든 스킬 쿨다운 — 원거리 유닛은 안전거리 유지
-			int fallbackRange = maxSkillRange >= rangedMin ? maxSkillRange / 2 + 1 : 1;
-			if (chebDist != fallbackRange)
+			// 모든 스킬 쿨다운 — 원거리 유닛은 위험 거리(HitRange/2) 이내면 한 걸음 물러나고, 그 밖~사거리 안에서는 제자리에서 쿨다운을 기다린다(RangedSpacingMath). 예전엔 거리가 정확히 HitRange/2+1칸이 아니면 접근·후퇴해, 적이 한 칸만 움직여도 쿨다운마다 앞뒤로 왕복했다(2026-10-05 아처 떨림).
+			if (maxSkillRange >= rangedMin)
 			{
-				if (chebDist < fallbackRange) AIMovementHelper.MoveAwayFromTarget(unit, target, fallbackRange);
-				else ChaseTarget(unit, target);
+				switch (RangedSpacingMath.Decide(chebDist, maxSkillRange / 2, maxSkillRange))
+				{
+					case RangedSpacing.Retreat: AIMovementHelper.MoveAwayFromTarget(unit, target); break; // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
+					case RangedSpacing.Approach: ChaseTarget(unit, target); break;
+				}
 			}
+			else if (chebDist > 1) ChaseTarget(unit, target); // 근접 유닛 — 붙을 때까지 접근
 		}
 
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);

@@ -374,20 +374,32 @@ public static class AIMovementHelper
 		return false;
 	}
 
-	public static void MoveAwayFromTarget(Unit unit, Unit target, float desiredDist)
+	// 적에게서 한 걸음 물러난다 — 이웃 8칸 중 적 반대 방향에 가장 가깝고 실제로 거리가 늘며 갈 수 있는 칸(벽·점유·방 제한·코너 커팅 통과)으로 간다(RangedSpacingMath.TryChooseRetreatStep). 예전엔 "적 반대편 N칸" 좌표를 A*로 향해, 그 좌표가 벽이면 가장 가까운 도달 노드(옆쪽일 수 있음)로 새 좌우로 떨었다. 물러날 칸이 없으면(몰림) false — 호출부가 그 자리에서 싸운다.
+	public static bool MoveAwayFromTarget(Unit unit, Unit target)
 	{
-		Vector2 away = (Vector2)(unit.position - target.position);
-		if (away == Vector2.zero) away = Vector2.right;
+		Vector2Int pos = unit.position;
+		bool CanStep(int dx, int dy)
+		{
+			Vector2Int next = pos + new Vector2Int(dx, dy);
+			if (!unit.CanMove(next) || unit.IsRoomLeaveBlocked(next) || LeavesConfinedRoom(unit, next)) return false;
+			// Move()의 코너 커팅 검사와 같다 — 대각선은 양옆 직교 칸도 갈 수 있어야 한다.
+			if (dx != 0 && dy != 0 && (!unit.CanMove(pos + new Vector2Int(dx, 0)) || !unit.CanMove(pos + new Vector2Int(0, dy)))) return false;
+			return true;
+		}
 
-		float maxComp = Mathf.Max(Mathf.Abs(away.x), Mathf.Abs(away.y));
-		Vector2 scaled = away / maxComp;
+		if (!RangedSpacingMath.TryChooseRetreatStep(pos.x, pos.y, target.position.x, target.position.y, CanStep, out int stepX, out int stepY)) return false;
+		unit.Move(SkillAction.GetDirection8(new Vector2Int(stepX, stepY)));
+		return unit.position != pos;
+	}
 
-		int targetDist = Mathf.RoundToInt(desiredDist);
-		Vector2Int retreatPos = target.position + new Vector2Int(
-			Mathf.RoundToInt(scaled.x * targetDist),
-			Mathf.RoundToInt(scaled.y * targetDist)
-		);
-		MoveTowardsPos(unit, retreatPos);
+	// 방 제한 몬스터(RoomConfinedMovement)는 방 경계를 A*(IsTileWalkable)로만 지킨다 — A*를 거치지 않는 한 걸음 후퇴가 방 밖·문 타일로 나가지 않게 같은 규칙을 직접 적용한다(플레이어 명령 중은 예외, RoomConfinedMovement와 동일).
+	private static bool LeavesConfinedRoom(Unit unit, Vector2Int next)
+	{
+		if (!IsRoomConfined(unit) || unit.isManualMoveCommand || unit.Session?.roomGrid == null) return false;
+		int floor = unit.currentFloor;
+		if (unit.Session.IsDoorTile(new Vector3Int(next.x, next.y, floor))) return true;
+		if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, floor), out Room current)) return false;
+		return !unit.Session.roomGrid.TryGetValue(new Vector3Int(next.x, next.y, floor), out Room nextRoom) || nextRoom != current;
 	}
 
 	// 03문서 6장 보호 포메이션 이동 로직 — backDistance<=1이면 근접, 더 크면 원거리 배치.

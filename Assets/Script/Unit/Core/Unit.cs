@@ -688,6 +688,9 @@ public abstract class Unit : ScriptableObject {
 	public abstract List<ThreatTileData> DetectThreats();
 	public abstract bool RollCritical(bool canCritical);
 	public abstract float ApplyCriticalDamage(float rawDamage);
+
+	// 이 타일로 들어가면 "지금 방을 떠나는" 걸음이라 금지인가 — UnitFunction.Move(실제 걸음)·AStarMovement.IsTileWalkable(경로 계획)·DefenseSystem의 회피/점멸 후보가 같은 결론을 내도록 이 한 곳을 부른다. CanMove에는 넣지 않는다(자리 선택이 "그 칸에 설 수 있는가"로 CanMove를 써서, 명령받은 유닛이 다른 방 자리를 못 고르게 된다). 몬스터는 RoomConfinedMovement가 따로 처리해 기본 false, 인류가 재정의한다(RoomConfinementMath).
+	public virtual bool IsRoomLeaveBlocked(Vector2Int tile) => false;
 }
 
 public class Human : UnitFunction
@@ -783,6 +786,74 @@ public class Human : UnitFunction
 		if (party.Leader == this && party.LeaderMayExploreBeyondRoom) return false;
 		bounds = lastKnownRoom.Bounds;
 		return true;
+	}
+
+	// ── 방 이탈 금지(하드, 2026-10-05) ───────────────────────────────────────
+	// 인류는 리더 지시 이동·낙오자 합류·계단/입구 외에 지금 방을 떠나지 못한다 — 판정은 RoomConfinementMath, 적용은 UnitFunction.Move와 AStarMovement.IsTileWalkable(둘이 어긋나면 유닛이 얼어붙는다)·DefenseSystem 회피/점멸 후보. 탐색·조사 후보 제한(TryGetExplorationBounds)은 그대로 둔다.
+	private int _roomLeaveGrantFrame = -1;
+	private int _confinedCacheFrame = -1;
+	private bool _confinedCache;
+	private Vector2Int _confinedRoomPos = new Vector2Int(int.MinValue, int.MinValue);
+	private int _confinedRoomFloor = int.MinValue;
+	private int _confinedRoomId = -1;
+
+	// 이 틱에 리더 지시 이동·낙오자 합류·계단 이동 리프가 실제로 이동을 수행한다 — 그 틱의 이동만 방 이탈 금지를 푼다(전투·경계가 우선한 틱엔 대기 사유가 남아 있어도 풀지 않는다).
+	public void GrantRoomLeave()
+	{
+		_roomLeaveGrantFrame = Time.frameCount;
+		_confinedCacheFrame = -1;
+	}
+
+	public bool IsRoomConfinedNow
+	{
+		get
+		{
+			int frame = Time.frameCount;
+			if (_confinedCacheFrame != frame)
+			{
+				_confinedCacheFrame = frame;
+				_confinedCache = ComputeRoomConfinedNow(frame);
+			}
+			return _confinedCache;
+		}
+	}
+
+	private bool ComputeRoomConfinedNow(int frame)
+	{
+		var leader = party?.Leader;
+		var exemptions = new RoomConfinementMath.Exemptions
+		{
+			Disabled = !(AIConfigLoader.Behavior?.humanRoomConfinementEnabled ?? true),
+			NoLeaderToFollow = party == null || leader == null || leader.hp <= 0 || (leader == this && party.LeaderMayExploreBeyondRoom),
+			EntranceSequence = isInDungeonEntranceSequence,
+			PlayerCommand = isManualMoveCommand,
+			GrantedThisTick = _roomLeaveGrantFrame == frame,
+		};
+		return !RoomConfinementMath.IsExempt(exemptions);
+	}
+
+	public override bool IsRoomLeaveBlocked(Vector2Int tile)
+	{
+		if (!IsRoomConfinedNow) return false;
+		var session = Session;
+		if (session?.roomGrid == null) return false;
+
+		// 현재 방은 실제 위치 기준 — 한 위치에서 A*가 수천 번 묻기 때문에 위치·층이 같으면 다시 찾지 않는다.
+		if (_confinedRoomPos != position || _confinedRoomFloor != currentFloor)
+		{
+			session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room cur);
+			_confinedRoomId = cur != null ? cur.RoomId : -1;
+			_confinedRoomPos = position;
+			_confinedRoomFloor = currentFloor;
+		}
+		if (_confinedRoomId < 0) return false;
+
+		var key = new Vector3Int(tile.x, tile.y, currentFloor);
+		session.roomGrid.TryGetValue(key, out Room next);
+		int nextRoomId = next != null ? next.RoomId : -1;
+		// 다른 방·방 없음이면 문 여부와 무관하게 막히므로 문 타일 조회(objectGrid)는 같은 방일 때만 한다 — A*가 이웃마다 부르는 핫패스다.
+		bool nextIsDoor = nextRoomId == _confinedRoomId && session.IsDoorTile(key);
+		return RoomConfinementMath.IsLeaveBlocked(_confinedRoomId, nextRoomId, nextIsDoor);
 	}
 
 	// 집결 명령·공동 이동 배정 때 부른다 — 시작 전 대상으로 이동 중인 조사는 접고(대상은 개인 지도에 남음) 이미 시작한 조사는 기존 조건대로 둔다(05번 4장). 접었으면 true.

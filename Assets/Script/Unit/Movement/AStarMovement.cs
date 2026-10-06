@@ -116,6 +116,8 @@ public class AStarMovement : IMovementAlgorithm
     // 알려진 활성 함정 회피 컨텍스트 — 탐색 시작마다 Refresh한다(TrapAvoidance). TrapModeOverride가 있으면 유닛 상태와 무관하게 그 모드로 고정하며(진단·긴급 보호용), 이동 캐시는 컨텍스트 시그니처가 바뀌면 무효화한다.
     private readonly TrapMoveContext _trapCtx = new TrapMoveContext();
     private int _cacheTrapSignature;
+    // 캐시를 만든 시점의 인류 방 이탈 제한 여부 — 제한이 풀리거나 걸리면 그때 만든 경로(방 안에 갇힌 경로 포함)를 쓰지 않는다.
+    private bool _cacheConfined;
     public TrapMoveMode? TrapModeOverride;
 
     // true면 다른 유닛의 점유를 장애물로 보지 않는 '구조 경로' 탐색이다(벽·닫힌 문·함정 구역은 그대로). OccupancySystem이 '점유만 없다면 가려던 걸음'을 얻는 쌍둥이 인스턴스에만 켜고, 실제 이동 인스턴스에 켜면 Move()가 점유 타일을 거부해 얼어붙는다.
@@ -192,7 +194,8 @@ public class AStarMovement : IMovementAlgorithm
 
         // --- 캐싱 로직: A* 연산 폭주를 막아 프레임 드랍(지랄나는 연산량) 방지 ---
         // 타겟이 약간(3칸 이내) 움직였더라도 기존 목적지 방향 캐시를 유지한다 (근시안적 길찾기 유지).
-        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f && _cacheTrapSignature == _trapCtx.Signature)
+        bool confinedNow = unit is Human confinedHuman && confinedHuman.IsRoomConfinedNow;
+        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f && _cacheTrapSignature == _trapCtx.Signature && _cacheConfined == confinedNow)
         {
             if (_pathMap.TryGetValue(unit.position, out Dir cachedDir))
             {
@@ -209,6 +212,7 @@ public class AStarMovement : IMovementAlgorithm
         _pathMap.Clear();
         _cacheTime = Time.time;
         _cacheTrapSignature = _trapCtx.Signature;
+        _cacheConfined = confinedNow;
         // -------------------------------------------------------------
 
         Vector2Int startPos = unit.position;
@@ -608,6 +612,9 @@ public class AStarMovement : IMovementAlgorithm
                     isWall = true;
                     break;
                 }
+
+                // 인류 방 이탈 금지 — UnitFunction.Move의 걸음 차단과 같은 판정(RoomConfinedMovement가 몬스터에게 하던 것을 인류에게도). 경로가 방 밖으로 안 나가야 막힌 걸음을 반복하며 얼어붙지 않는다.
+                if (unit.IsRoomLeaveBlocked(new Vector2Int(nx, ny))) { isWall = true; break; }
 
                 if (!IgnoreAllUnits && unit.Session != null &&
                     unit.Session.unitGrid.TryGetValue(new Vector3Int(nx, ny, floorIdx), out Unit u))
