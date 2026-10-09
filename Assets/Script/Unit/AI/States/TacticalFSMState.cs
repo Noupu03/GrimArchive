@@ -771,6 +771,7 @@ public class TacticalFSMState : IFSMState
 		bool isLoot = obj.Tags.Exists(t => t.Contains("Loot"));
 		if (isLoot)
 		{
+			human.Generate?.TriggerAnim(human, AnimSlot.PickUp);
 			human.Session.CollectObject(inv.TargetPosition);
 			human.collectedObjects.Add(obj.Id);
 			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록

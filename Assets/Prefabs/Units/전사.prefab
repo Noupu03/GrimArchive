@@ -262,6 +262,7 @@ GameObject:
   - component: {fileID: 8468078980615661954}
   - component: {fileID: 6793138611128285246}
   - component: {fileID: 6217794122028465465}
+  - component: {fileID: 2771196174590205781}
   m_Layer: 0
   m_Name: "\uC804\uC0AC"
   m_TagString: Untagged
@@ -377,7 +378,7 @@ Animator:
   m_GameObject: {fileID: 7557316305232995494}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 9119aa0de6d8418498c44f84745ca850, type: 2}
+  m_Controller: {fileID: 0}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -402,3 +403,60 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AnimationEventVfxSpawner
   vfxEvents: []
+--- !u!114 &2771196174590205781
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7557316305232995494}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5caee5f0dc1b58b419da0454ca9aa8e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnitAnimationDriver
+  slots:
+  - slot: 0
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 1
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 3
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 4
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 5
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 6
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 7
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 8
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 11
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 9
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 10
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 12
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 13
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 2
+    skillName: "\uAC15\uD0C0"
+    clip: {fileID: 0}
+  fadeSeconds: 0.1
+  mirrorRoot: {fileID: 0}

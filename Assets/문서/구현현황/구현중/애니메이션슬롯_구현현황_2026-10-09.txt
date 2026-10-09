@@ -1,0 +1,151 @@
+애니메이션 슬롯 시스템 구현현황 (2026-10-09)
+════════════════════════════════════════════════════════════════════════
+작성 목적: 유닛 16종 각각의 프리팹에 "어떤 상황에 어떤 클립이 재생되는지" 자리(슬롯)를 코드로 전부
+만들어 두고, 나중에 다른 작업자가 프리팹 인스펙터에서 클립만 꽂으면 동작하게 한 작업을 기록한다.
+가중치/시야인지반응/스킬 구현현황 문서와 같은 관례(✅구현/🔶부분/❌미구현 + "다음 우선순위")를 따른다.
+
+배경
+- 옛 UnitAnimationController(Idle/Walk 2종)는 어떤 프리팹·씬에도 붙어 있지 않은 죽은 코드였고, 프리팹
+  Animator가 쓰던 Char.controller는 전이가 없어 Walk가 한 번도 재생되지 않았다(2026-10-09 확인).
+- 브랜치(e38797d, 팀원 Noupu03)에 본 리깅 샘플이 올라왔다: Assets/Asset/SampleCharacter.psb(본 10개,
+  경로 bone_1/...), Idle/Idle 1/Idle 2 클립. 사용자 설명: Idle=진짜 대기, Idle 1=걷기(임시),
+  Idle 2=공격(임시).
+- 사용자 확정: 슬롯은 컨트롤러 에셋이 아니라 "유닛 프리팹의 컴포넌트"에 둔다("프리팹에 그 자리를
+  만들어줬으면"). 사망은 클립이 채워진 유닛만 연출을 유지한다. 방향은 스프라이트 방향 처리와 같이 적용.
+
+■ 다음 우선순위 구현 후보
+────────────────────────────────────────────────────────────────────────
+1. **Unity에서 확인(미실행)** — 이 문서의 모든 항목은 컴파일 + 순수 함수 테스트까지만 확인했다.
+   PlayableGraph 재생, 프리팹 동기화 메뉴, 인스펙터 표시, 사망 연출, 방향 라벨은 플레이로만 확인된다
+   (아래 "플레이 확인 체크리스트").
+2. **옛 Idle/Walk 정리(확인 후)** — 새 구조가 플레이로 확인되면 한 번에 지운다: UnitAnimationController.cs,
+   Assets/Art/Animations/Char.controller / Char_Idle.anim / Char_Walk.anim(+meta), units.json의
+   "animatorController": "Char" 9곳, 컨버터 JsonVisualData.animatorController 필드.
+   (프리팹 Animator의 Char 컨트롤러 참조는 동기화 메뉴가 이미 끊는다.)
+3. **리깅 캐릭터 방향 처리 확정** — 스킨드 스프라이트에서 SpriteRenderer.flipX가 메쉬에 안 먹는다고 알고
+   있으나 미확인. 리그 프리팹은 UnitAnimationDriver.mirrorRoot(부위 스프라이트를 감싼 부모)를 지정하면
+   스케일 x 반전으로 좌우를 처리한다. 실제 리그로 확인 후 mirrorRoot 대상(라벨 TextMesh가 같이 뒤집히지
+   않는지)을 정한다.
+4. **걷기 속도 연동** — Walk 루프는 지금 1배속 고정이다. 경계 감속 등으로 이동 속도(AppliedWalkSpeed)가
+   달라질 때 걷는 속도를 맞출지 결정.
+5. **Assets/Asset/ 위치** — 팀원 샘플이 CLAUDE.md의 폴더 규칙(Art/Animations, Prefabs/Units)과 어긋난다.
+   임시 클립은 제자리 참조하므로 옮길 때는 .meta와 함께 옮겨야 참조가 유지된다.
+
+■ 작업자 안내 (클립을 꽂는 방법)
+────────────────────────────────────────────────────────────────────────
+1. Assets/Prefabs/Units/{유닛}.prefab을 연다. 루트의 Unit Animation Driver에 슬롯 목록이 있다.
+2. 슬롯마다 한글 이름·[반복/1회/1회·유지]·발동 조건이 표시된다. 클립을 끌어다 놓으면 끝이다.
+   비워 둔 슬롯은 아무 동작도 하지 않는다(그 상황에서 예전과 똑같이 보인다).
+3. 클립의 곡선 경로는 "이 프리팹 안 첫 Animator가 달린 GameObject" 기준이다. 리그 루트에 Animator를 두고
+   (컨트롤러는 비운다 — 드라이버가 런타임에 Animator 컨트롤러를 비우고 PlayableGraph로 재생한다) 본 경로를
+   그 루트 기준으로 만든다. Animator가 하나도 없으면 드라이버가 루트에 만든다.
+4. 클립의 Loop Time 플래그에 의존하지 않는다. 반복 여부는 슬롯 종류가 정한다(반복 슬롯은 드라이버가 감는다).
+5. 스킬 슬롯 타이밍 규칙:
+   · 시전 시간(castMs)이 있는 스킬: 클립 전체가 시전 시간에 맞춰 재생된다(0.5~3배속 범위). 타격 프레임은
+     클립의 "끝"에 두면 실제 피해 순간과 맞는다.
+   · 즉발 스킬(castMs=0, 예: 강타·정밀 사격): 1배속으로 재생되고 피해는 이미 적용된 상태다. 타격 프레임은
+     클립 "시작" 근처에 둔다.
+6. units.json에 스킬이 추가/삭제되면 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화를 실행한다(꽂은 클립은
+   보존, 없어진 스킬에 클립이 있으면 남기고 경고).
+
+■ 1. 슬롯 표 (AnimSlot, Script/Unit/Visual/Animation/AnimSlot.cs)
+────────────────────────────────────────────────────────────────────────
+우선순위가 클수록 강하다. 낮은 원샷은 높은 원샷을 끊지 못하고, 같은 우선순위는 재시작한다.
+
+ 우선 슬롯         종류      발동                                            대상
+ 100  Death        1회·유지  유닛이 죽는 순간(GameSession.RemoveDeadUnit)     전 유닛
+  90  Stunned      반복      StatusEffects.stunDuration > 0 (폴링)            전 유닛
+  80  Dodge        1회       회피 성공(DefenseSystem.ExecuteEarlyReaction)    전 유닛
+  80  Blink        1회       점멸 직전(같은 곳)                               전 유닛
+  70  Skill(이름)  1회       SkillAction.BeginAttackCast — 18개 스킬 전부 경유  스킬별
+  60  Hit          1회       UnitGenerate.TriggerHitEffect(피격 단일 지점)      전 유닛
+  50  Spawn        1회       UnitGenerate.SetupUnitVisual 끝                  전 유닛
+  50  UseStairs    1회       NavigationFSMState.CrossStairs 성공              인류
+  50  PickUp       1회       TacticalFSMState.PickUpObject(전리품 회수)        인류
+  40  Channel      반복      currentAttackObjectTarget 또는 함정 파괴 중       전 유닛
+  40  DisarmTrap   반복      TrapPhase.Disarming && PenaltyActive             인류
+  40  Investigate  반복      currentInvestigation.PenaltyActive               인류
+  20  Walk         반복      비주얼 루트 위치 변화(디바운스 4프레임)            전 유닛
+  10  Idle         반복      기본값                                           전 유닛
+
+- 선택 규칙: 기절이 보이는 동안(Stunned 클립이 있을 때)은 진행 중 원샷도 끊고 Stunned. 사망 후에는
+  아무 트리거도 받지 않는다. Hit는 Skill/Dodge/Blink를 끊지 못한다(로직상 시전은 피격으로 안 끊김).
+- 클립이 비어 있는 슬롯은 트리거를 무시하고, 폴링 슬롯은 다음 후보로 떨어진다(Channel이 비면 Walk/Idle).
+- 슬롯 개수: 인류 13 + 스킬 수, 몬스터/야생 9 + 스킬 수. 스킬 슬롯 키는 스킬명(lastSkillName과 동일)이라
+  같은 스킬을 쓰는 몬스터 5종(근접 탱커·인형 기사·놀·고블린 후드·야생 A)은 같은 이름의 슬롯을 갖는다.
+
+유닛별 스킬 슬롯 (units.json 기준 16종)
+  기사형: 집중 찌르기 / 방패 타격 / 전방 베기      아처형: 정밀 사격       전사: 강타      도적: 기습
+  마법사: 파이어볼   사제: 치유   성기사: 성스러운 방패   주술사: 저주   무도가: 연격   음유시인: 전투의 노래
+  몬스터 5종 + 야생 A: 육중한 내리찍기 / 급습 할퀴기 / 발톱 후려치기      보스 골렘: 골렘 내려찍기 / 손쓸기 / 박수
+
+■ 2. 구성 (✅)
+────────────────────────────────────────────────────────────────────────
+Script/Unit/Visual/Animation/
+  AnimSlot.cs            ✅ AnimSlot enum, AnimSlotKind, AnimSlotInfo(한글 이름·설명·종류·우선순위),
+                            AnimSlotCatalog.SlotsFor(isHuman, skills)(프리팹에 만들 슬롯 목록), KeyOf
+  UnitAnimMath.cs        ✅ 순수 계산: ResolveLoopSlot / AcceptsTrigger / FitSpeed / WrapTime / StepWeights,
+                            AnimMoveTracker(이동 디바운스)
+  UnitAnimationDriver.cs ✅ 프리팹에 붙는 MonoBehaviour. 직렬화된 slots(슬롯·스킬명·클립)로 PlayableGraph +
+                            AnimationMixerPlayable을 만들고, 매 프레임 폴링 슬롯 판정 → 원샷 만료 → 크로스페이드.
+                            API: Bind(Unit) / Trigger(slot) / PlaySkill(name, castMs) / BeginDeath() /
+                            HasClip / ApplyMirror / CurrentLabel
+Editor/Tools/Unit/AnimationSlotSync.cs       ✅ 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화 (임시 클립 연결 /
+                            임시 클립 없이 2종). units.json 기준으로 16개 프리팹에 드라이버와 슬롯을 만든다.
+                            새 프리팹을 만들지 않고 기존 프리팹을 열어 컴포넌트만 갱신(보스 골렘 손 등 보존).
+                            ApplyTo()는 컨버터(JsonToUnitPrefabConverter)도 호출한다.
+Editor/Inspectors/UnitAnimationDriverEditor.cs ✅ 슬롯별 한글 이름·종류·발동 조건 표시, 채움 개수 표시
+Tests/UnitAnimMathTests.cs                    ✅ 23건
+
+임시 클립(동기화 메뉴 기본): 새 슬롯에 한해 Idle←Assets/Asset/Idle.anim, Walk←Idle 1.anim, 모든 스킬 슬롯←
+Idle 2.anim. 이 클립들은 SampleCharacter 리그의 본 경로용이라 같은 본 이름의 리그에서만 실제로 움직인다.
+
+■ 3. 훅 연결 지점 (✅)
+────────────────────────────────────────────────────────────────────────
+UnitGenerate    VisualCache에 Anim/SpriteResolvers 추가, SetupUnitVisual에서 Bind + Spawn 트리거,
+                TriggerHitEffect 맨 앞에서 Hit 트리거, GetAnim/TriggerAnim/PlaySkillAnim/BeginDeathAnimation,
+                RemoveVisual(u, destroyDelaySeconds), SyncVisual 상태 라벨에 현재 슬롯 이름 병기(라벨 토글 시)
+SkillAction     BeginAttackCast 안에서 PlaySkillAnim(unit, skillName, castMs)
+DefenseSystem   회피 성공 시 Dodge, 점멸 직전 Blink
+TacticalFSMState.PickUpObject  전리품 회수 시 PickUp
+NavigationFSMState.CrossStairs 층 이동 성공 시 UseStairs
+GameSession.RemoveDeadUnit     사망 연출 유지(아래 4장)
+JsonToUnitPrefabConverter      Animator+컨트롤러 추가 분기를 AnimationSlotSync.ApplyTo 호출로 교체
+                               (AnimationEventVfxSpawner는 이제 16종 전부에 붙는다)
+
+■ 4. 사망 연출 유지 (✅, 클립이 있는 유닛만)
+────────────────────────────────────────────────────────────────────────
+Death 슬롯에 클립이 있는 유닛만: 로직(시체 오브젝트 생성·파티 사망 기록·사망음)은 예전처럼 즉시 처리하고,
+① 비주얼은 visualMap에서만 즉시 분리(SyncVisual 대상 제외), 체력바·상태 라벨·선택 링·시야선 숨김, 파괴를
+클립 길이만큼 미룬다(UniTask, 배속 따라감) ② 시체 비주얼은 SetActive(false)로 숨겼다가 같은 시간 뒤에 켠다
+(그 사이 회수되면 비주얼이 이미 없어 무시). 클립이 없으면 BeginDeathAnimation이 0을 돌려줘 예전 경로 그대로다.
+
+■ 5. 방향 (🔶 — 리그 확인 필요)
+────────────────────────────────────────────────────────────────────────
+UpdateUnitSpriteForDirection이 SpriteResolver를 1개만 쓰던 것을 자식 전체로 확장했다.
+- 리졸버 1개(기존 유닛 전부): 예전과 동일(카테고리=변형, 라벨=방향, flipX).
+- 리졸버 여러 개이거나 드라이버에 mirrorRoot가 있는 리그: 부위마다 카테고리가 다르므로 각 리졸버의 현재
+  카테고리를 유지한 채 라벨만 방향으로 바꾸고(방향이 바뀔 때만), 좌우 반전은 mirrorRoot의 localScale.x
+  부호로 처리한다. mirrorRoot가 비어 있으면 오른쪽 방향에서 경고를 한 번 남긴다.
+라벨은 기존과 같은 5종(Up/Down/Left/UpLeft/DownLeft) + 반전이다. 리그의 부위 스프라이트 라이브러리에 이 5개
+라벨을 부위마다 만들어야 한다.
+
+■ 6. 검증 상태
+────────────────────────────────────────────────────────────────────────
+- dotnet build Assembly-CSharp.csproj / Assembly-CSharp-Editor.csproj(-t:Rebuild): 오류 0 / 경고 71(기준선
+  동일, 새 경고 없음).
+- UnitAnimMathTests 23건: NUnit 실제 DLL을 참조한 콘솔 러너로 실행해 23 passed(Unity Test Runner 미실행).
+- PlayableGraph 재생·프리팹 동기화·인스펙터·사망 연출·방향은 Unity 밖에서 돌릴 수 없어 미실행.
+
+플레이 확인 체크리스트
+  A. 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화 실행 → Console에 "갱신 N" 로그, 16개 프리팹을 열어 슬롯
+     목록(인류 13+스킬 / 몬스터 9+스킬)과 임시 클립(Idle/Walk/스킬)이 보이는지. 재실행하면 "변경 없음"이어야 한다.
+  B. 프리팹 하나를 SampleCharacter 리그(Animator가 리그 루트)로 만들어 플레이: 정지=Idle, 이동=Walk,
+     교전=스킬 슬롯(임시 클립이 시전 시간에 맞춰 재생)이 되는지. 상태 라벨 토글을 켜면 "상태 / 슬롯명"이 보인다.
+  C. 비워 둔 슬롯(Hit·Stunned 등)이 동작을 바꾸지 않는지. 클립을 꽂은 슬롯만 재생되는지.
+  D. Death 클립을 꽂은 유닛: 죽은 뒤 클립 길이만큼 비주얼이 남고 UI(체력바 등)가 사라지며, 그 뒤 시체가
+     나타나는지. 클립이 없는 유닛은 예전처럼 즉시 시체로 바뀌는지.
+  E. 방향 전환: 5개 라벨 교체가 부위 전체에 적용되는지, 오른쪽 방향이 mirrorRoot로 뒤집히는지(라벨/체력바가
+     같이 뒤집히지 않는지).
+  F. 일시정지(Time.timeScale≈0)에서 모션이 멈추는 것이 괜찮은지(Playables는 게임 시간을 따르고 이동 트윈은
+     unscaled라 일시정지 중에도 위치만 움직인다).

@@ -201,6 +201,7 @@ public static class DefenseSystem
 					if (moved)
 					{
 						defender.CombatState.State.evadeCooldown = 1.2f;
+						defender.Generate?.TriggerAnim(defender, AnimSlot.Dodge);
 					}
 				}
 				break;
@@ -230,6 +231,7 @@ public static class DefenseSystem
 				if (validTiles.Count == 0) return;
 
 				defender.Health.mp -= cost;
+				defender.Generate?.TriggerAnim(defender, AnimSlot.Blink);
 				defender.ForceMove(validTiles[Random.Range(0, validTiles.Count)]);
 				break;
 			}

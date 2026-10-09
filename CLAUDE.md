@@ -765,6 +765,34 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
    뭉뚱그려진다.
 3. 새로 구현/연결한 게 있으면 구현현황 문서를 직접 갱신한다(다른 구현현황 문서와 동일 관례).
 
+## 유닛 애니메이션 슬롯 — 프리팹에 클립을 꽂는 자리 (2026-10-09)
+
+### 배경
+옛 `UnitAnimationController`(Idle/Walk)는 어떤 프리팹에도 붙어 있지 않던 죽은 코드였고 `Char.controller`는 전이가 없어 Walk가 재생된 적이 없다.
+팀원의 본 리깅 샘플(`Assets/Asset/SampleCharacter.psb`, 경로 `bone_1/...`)이 올라온 시점에, "유닛별로 각 상황의 애니메이션 자리를 코드로 다 만들어 두고 나중에 다른 작업자가 클립만 꽂는" 구조로 새로 만들었다.
+구현현황은 `Assets/문서/구현현황/구현중/애니메이션슬롯_구현현황_2026-10-09.txt`(슬롯 표·훅 위치·작업자 안내·플레이 확인 체크리스트) — 다시 손댈 때 그 문서부터 확인할 것.
+
+### 핵심 규칙
+- **슬롯은 컨트롤러 에셋이 아니라 프리팹의 `UnitAnimationDriver` 컴포넌트 필드다**(사용자 확정). 슬롯 목록(`AnimSlot` 14종 + 스킬명별 `Skill`)은
+  `AnimSlotCatalog.SlotsFor`가 정하고, 메뉴 `Tools(new)/유닛/애니메이션 슬롯 동기화`(`AnimationSlotSync`)가 units.json 기준으로 16개 프리팹에 만든다.
+  재실행해도 꽂은 클립은 보존한다 — **프리팹을 새로 뽑는 컨버터가 아니라 이 메뉴로 갱신할 것**(컨버터 재실행은 보스 골렘 손 오브젝트를 지운다).
+  컨버터도 같은 `AnimationSlotSync.ApplyTo`를 호출하므로 다시 뽑아도 슬롯 구성은 같다.
+- **클립이 비어 있는 슬롯은 아무것도 안 한다.** 원샷 트리거는 무시되고 폴링 슬롯은 다음 후보로 떨어진다(`UnitAnimMath.ResolveLoopSlot`). 그래서 슬롯만 만들어 둔 지금은 동작이 안 바뀐다.
+- **판정은 순수 함수에 있다**: `UnitAnimMath`(루프 슬롯 선택·트리거 우선순위·시전 시간에 클립 맞춤·크로스페이드 가중치) + `AnimMoveTracker`. 우선순위 표는 `AnimSlotCatalog`(한곳). 테스트 `Assets/Tests/UnitAnimMathTests.cs`.
+- **상태는 AI FSM(7종)과 1:1이 아니다.** 신체 상태에서 뽑는다: 이벤트(스킬·피격·회피·점멸·사망·등장·계단·줍기)는 훅이 `Trigger`하고, 기절·채널링·함정 해제·조사·걷기는 드라이버가 매 프레임 유닛 필드를 읽는다.
+  훅: `SkillAction.BeginAttackCast`(스킬 18종 전부 경유), `UnitGenerate.TriggerHitEffect`, `DefenseSystem`, `TacticalFSMState.PickUpObject`, `NavigationFSMState.CrossStairs`, `UnitGenerate.SetupUnitVisual`, `GameSession.RemoveDeadUnit`.
+  새 상황 슬롯을 추가하려면 enum + `AnimSlotCatalog` 표 + 훅(또는 `ReadInputs`)을 같이 고치고 동기화 메뉴를 실행한다.
+- **시전 시간이 있는 스킬은 클립 전체가 시전 시간(`castMs`)에 맞춰 재생된다**(0.5~3배속 클램프) — 타격 프레임은 클립 끝. 즉발 스킬(0ms)은 1배속이고 피해는 이미 적용된 상태.
+- **Animator는 드라이버가 전담한다.** Awake에서 프리팹 안 첫 Animator(없으면 루트에 생성)의 컨트롤러를 비우고 `PlayableGraph`로 재생한다. 클립 경로는 그 Animator의 GameObject 기준.
+  반복 슬롯은 클립의 Loop Time 플래그가 아니라 슬롯 종류로 감는다.
+- **사망 연출 유지는 Death 클립이 있는 유닛만**: 로직(시체 생성·파티 사망 기록)은 즉시, 비주얼 파괴와 시체 비주얼 표시만 클립 길이만큼 미룬다(`UnitGenerate.RemoveVisual(u, delay)`, `GameSession.RevealCorpseVisualAfter`). 클립이 없으면 예전과 같다.
+- **방향은 스프라이트와 같이 적용한다**: `UpdateUnitSpriteForDirection`이 자식의 모든 `SpriteResolver`에 방향 라벨을 건다. 리졸버 1개(기존 유닛)는 예전 그대로(카테고리=변형·flipX), 여러 개이거나 `mirrorRoot`가 있는 리그는 부위별 카테고리를 유지하고 라벨만 바꾸며 좌우 반전은 `mirrorRoot` 스케일 x로 한다.
+  **스킨드 스프라이트의 flipX 비호환은 미확인**이라 실제 리그로 확인할 것.
+
+### 알려진 한계 / 미검증
+Unity 플레이 검증을 하지 못했다(컴파일 + 순수 함수 테스트 23건을 NUnit DLL 콘솔 러너로 실행). PlayableGraph 재생·동기화 메뉴·사망 연출·방향은 체크리스트(구현현황 문서)로 확인한다.
+옛 `UnitAnimationController.cs`·`Char.controller`·`Char_Idle/Walk.anim`·units.json의 `animatorController`는 새 구조 확인 뒤 한 번에 지우기로 해서 아직 남아 있다(프리팹의 Char 참조는 동기화 메뉴가 끊는다).
+
 ## 공황(Panic) 행동 임시 비활성 (2026-10-02)
 
 **공황 행동은 지금 꺼져 있다** — `AIBehaviorConfig.panicBehaviorEnabled`(기본 `false`). 판정의 단일 출처는 `TacticalFSMState.IsPanic`이고 `PlayerCommandFSMState.IsPanicMode`가 그걸 부른다(스위치도 여기서만 본다). 플레이 테스트에서 공황이 너무 쉽게 걸려 대부분의 행동이 막혀서(사용자 요청 "공황 잠시 꺼줘... 나중에 도주·후퇴 관련 더 나오면 키자") 껐다.

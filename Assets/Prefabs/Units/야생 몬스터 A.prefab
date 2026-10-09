@@ -545,6 +545,7 @@ GameObject:
   m_Component:
   - component: {fileID: 162064714354409230}
   - component: {fileID: 7745775727787601311}
+  - component: {fileID: 7756030417456101793}
   m_Layer: 0
   m_Name: "\uC57C\uC0DD \uBAAC\uC2A4\uD130 A"
   m_TagString: Untagged
@@ -708,6 +709,57 @@ MonoBehaviour:
   heavyHitThreshold: 10
   stealth: 0
   baseVisibility: 100
+--- !u!114 &7756030417456101793
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7662899554326105023}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5caee5f0dc1b58b419da0454ca9aa8e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnitAnimationDriver
+  slots:
+  - slot: 0
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 1
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 3
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 4
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 5
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 6
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 7
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 8
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 11
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 2
+    skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
+    clip: {fileID: 0}
+  - slot: 2
+    skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
+    clip: {fileID: 0}
+  - slot: 2
+    skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
+    clip: {fileID: 0}
+  fadeSeconds: 0.1
+  mirrorRoot: {fileID: 0}
 --- !u!1 &7665429714044914598
 GameObject:
   m_ObjectHideFlags: 0

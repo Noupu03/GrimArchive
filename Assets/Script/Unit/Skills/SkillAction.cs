@@ -121,6 +121,7 @@ public abstract class SkillAction
 		}
 
 		unit.AIState.currentThreat = threat;
+		unit.Generate?.PlaySkillAnim(unit, skillName, castMs); // 애니메이션 슬롯(스킬명 키) — 클립이 없으면 무시
 
 		// 시전 상태를 통지보다 먼저 세팅해야 한다 — 위협 타일 표시 시간이 공격자의 castTimer를 읽어 결정되므로, 순서가 반대면 항상 0.5초 폴백이 쓰인다.
 		if (castMs > 0f)

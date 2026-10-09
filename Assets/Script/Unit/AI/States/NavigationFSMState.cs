@@ -155,6 +155,7 @@ public class NavigationFSMState : IFSMState
 		human.currentExplorationTarget = null; // 층 이동 후 이전 층 BFS 타깃을 초기화 — 새 층에서 처음부터 탐색
 		// 던전 입구 시퀀스 중이었다면 실제로 층을 건너는 이 순간 개인별로 해제한다 — 파티 전체가 건널 때까지 기다리지 않는다(DungeonEntranceSystem.Finish() 참고). 평소 계단 이동엔 항상 false였던 값이라 무해한 재대입이다.
 		human.isInDungeonEntranceSequence = false;
+		human.Generate?.TriggerAnim(human, AnimSlot.UseStairs);
 		return BTStatus.Success;
 	}
 

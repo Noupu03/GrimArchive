@@ -774,6 +774,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return tm;
     }
 
+    // 사망 클립이 재생되는 동안 숨겨 둔 시체 비주얼을 연출이 끝나면 보여 준다 — 그 사이 회수·파괴됐으면 비주얼이 이미 없어 아무 일도 하지 않는다.
+    private async UniTaskVoid RevealCorpseVisualAfter(GameObject corpseVisual, float seconds)
+    {
+        await UniTask.Delay(System.TimeSpan.FromSeconds(seconds), DelayType.DeltaTime);
+        if (corpseVisual != null) corpseVisual.SetActive(true);
+    }
+
     private void RemoveDeadUnit(int index, Unit u)
     {
         if (u != null) _combatEventService?.RecordKillWeightEvent(u, units);
@@ -846,11 +853,22 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
             // 사망 판정 즉시 Corpse 스프라이트로 전환하고 Death VFX를 발동한다 — 킬 이벤트/파티 사망
             // 기록/컴포넌트 정리는 위에서 이미 끝났으므로 지연 없이 처리한다.
+            // 단 Death 애니메이션 슬롯에 클립이 있는 유닛은 비주얼을 그 길이만큼 남기고 시체 비주얼은 연출이 끝난 뒤에 보여 준다(로직상 시체는 지금 생긴다). 클립이 없으면 0이라 예전과 같다.
+            float deathAnimSeconds = _unitGenerate != null ? _unitGenerate.BeginDeathAnimation(u) : 0f;
             _unitGenerate?.PlayDeathVisual(u);
             SpawnObject(corpse, corpseColor);
+            if (deathAnimSeconds > 0f)
+            {
+                GameObject corpseVisual = GetObjectVisual(corpse.Position);
+                if (corpseVisual != null)
+                {
+                    corpseVisual.SetActive(false);
+                    RevealCorpseVisualAfter(corpseVisual, deathAnimSeconds).Forget();
+                }
+            }
             // 시체 소멸은 시간이 아니라 웨이브 카운트 단위다(corpse.SpawnWaveNumber로 스냅샷) —
             // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
-            if (_unitGenerate != null) _unitGenerate.RemoveVisual(u);
+            if (_unitGenerate != null) _unitGenerate.RemoveVisual(u, deathAnimSeconds);
             UnityEngine.Object.Destroy(u);
         }
 

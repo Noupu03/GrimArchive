@@ -4,6 +4,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 using VContainer;
 using DG.Tweening;
+using Cysharp.Threading.Tasks;
 using Haare.Util.Logger;
 #if UNITY_2022_2_OR_NEWER
 using UnityEngine.U2D.Animation;
@@ -86,8 +87,13 @@ public class UnitGenerate
 		// 횃불 위 예외 처리(아래 SyncVisual 참고)용 캐시.
 		public ShadowCaster2D ShadowCaster;
 #if UNITY_2022_2_OR_NEWER
-		public SpriteResolver SpriteResolver;
+		// 단일 스프라이트 유닛은 1개, 리깅 캐릭터는 부위마다 1개씩 — 방향 라벨을 전부에 적용한다.
+		public SpriteResolver[] SpriteResolvers;
+		public bool WarnedMissingMirror;
 #endif
+		public UnitAnimationDriver Anim;
+		// 리깅 캐릭터는 방향이 바뀔 때만 라벨을 다시 건다(부위가 많아 비용이 크다).
+		public Dir? LastRigDir;
 		// 시야/인지 범위 콘 다시 그리기 여부 판단용 — 비용이 커서 "보이는 상태 + 방향이 바뀌었을 때"에만 다시 그린다.
 		public bool VisionRangeShown;
 		public Vector2 LastVisionForward;
@@ -106,8 +112,9 @@ public class UnitGenerate
 			cache.WeaponAttachment = go.GetComponentInChildren<WeaponAttachment>();
 			cache.ShadowCaster = go.GetComponentInChildren<ShadowCaster2D>();
 #if UNITY_2022_2_OR_NEWER
-			cache.SpriteResolver = go.GetComponentInChildren<SpriteResolver>();
+			cache.SpriteResolvers = go.GetComponentsInChildren<SpriteResolver>();
 #endif
+			cache.Anim = go.GetComponentInChildren<UnitAnimationDriver>(true);
 			_cacheMap[go] = cache;
 		}
 		return cache;
@@ -172,8 +179,7 @@ public class UnitGenerate
 		if (spriteLib != null && spriteLib.spriteLibraryAsset != null && string.IsNullOrEmpty(unit.spriteVariation))
 			unit.spriteVariation = _unitSpriteManager.PickRandomVariation(spriteLib.spriteLibraryAsset);
 
-		if (cache.SpriteResolver != null)
-			UpdateSpriteResolver(cache.SpriteResolver, unit.currentDir, unit.spriteVariation);
+		ApplyDirectionToResolvers(cache, unit.currentDir, unit.spriteVariation);
 #endif
 
 		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
@@ -188,6 +194,13 @@ public class UnitGenerate
 		) + GetFloorOffset(unit.currentFloor);
 
 		visualMap[unit] = go;
+
+		// 애니메이션 슬롯 구동기에 유닛을 묶고 등장 슬롯을 1회 재생한다(클립이 없으면 아무 일도 없다).
+		if (cache.Anim != null)
+		{
+			cache.Anim.Bind(unit);
+			cache.Anim.Trigger(AnimSlot.Spawn);
+		}
 
 		if (visualDef != null) visualDef.ApplyStatsTo(unit);
 		unit.SetupStats();
@@ -312,24 +325,47 @@ public class UnitGenerate
 		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
 
 #if UNITY_2022_2_OR_NEWER
-		if (cache.SpriteResolver != null)
+		if (cache.SpriteResolvers != null && cache.SpriteResolvers.Length > 0)
 		{
-			UpdateSpriteResolver(cache.SpriteResolver, unit.currentDir, unit.spriteVariation);
+			ApplyDirectionToResolvers(cache, unit.currentDir, unit.spriteVariation);
 			return;
 		}
 #endif
 		if (_unitSpriteManager == null) return;
 	}
 
-	private void UpdateSpriteResolver(SpriteResolver spriteResolver, Dir direction, string variation)
-	{
 #if UNITY_2022_2_OR_NEWER
+	// 방향 → 스프라이트 라벨. 리졸버가 1개인 기존 유닛은 예전 그대로(카테고리=변형, flipX).
+	// 리졸버가 여러 개이거나 드라이버에 mirrorRoot가 있는 리깅 캐릭터는 부위마다 카테고리가 다르므로 라벨만 바꾸고,
+	// 좌우 반전은 flipX 대신 mirrorRoot 스케일로 처리한다(부위 위치까지 같이 뒤집어야 하기 때문).
+	private void ApplyDirectionToResolvers(VisualCache cache, Dir direction, string variation)
+	{
+		SpriteResolver[] resolvers = cache.SpriteResolvers;
+		if (resolvers == null || resolvers.Length == 0) return;
+
 		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string label, out bool flipX);
-		UnitSpriteManager.ApplySpriteResolverLabel(spriteResolver, variation, label, flipX);
-#else
-		LogHelper.Error(LogHelper.GAME, "SpriteResolver는 Unity 2022.2 이상에서 지원됩니다.");
-#endif
+
+		bool rigged = resolvers.Length > 1 || (cache.Anim != null && cache.Anim.UsesMirrorRoot);
+		if (!rigged)
+		{
+			UnitSpriteManager.ApplySpriteResolverLabel(resolvers[0], variation, label, flipX);
+			return;
+		}
+
+		if (cache.LastRigDir.HasValue && cache.LastRigDir.Value == direction) return;
+		cache.LastRigDir = direction;
+
+		foreach (SpriteResolver r in resolvers)
+			if (r != null) r.SetCategoryAndLabel(r.GetCategory(), label);
+
+		if (cache.Anim != null && cache.Anim.UsesMirrorRoot) cache.Anim.ApplyMirror(flipX);
+		else if (flipX && !cache.WarnedMissingMirror)
+		{
+			cache.WarnedMissingMirror = true;
+			LogHelper.Warning(LogHelper.GAME, "[UnitGenerate] 부위 스프라이트가 여러 개인데 UnitAnimationDriver.mirrorRoot가 비어 있어 오른쪽 방향 좌우 반전이 적용되지 않습니다.");
+		}
 	}
+#endif
 
 	#region 유닛 생성 보조 기능성
 
@@ -371,12 +407,61 @@ public class UnitGenerate
 	}
 
 	// GameSession.RemoveDeadUnit이 units 리스트에서 뺀 자리에서 곧장 호출해 visualMap도 함께 제거한다.
-	public void RemoveVisual(Unit u)
+	// destroyDelaySeconds > 0이면(사망 클립이 재생되는 유닛) 비주얼은 맵에서만 즉시 분리하고 파괴는 그 시간 뒤로 미룬다.
+	public void RemoveVisual(Unit u, float destroyDelaySeconds = 0f)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
-		if (go != null) { KillVisualTweens(go); Object.Destroy(go); _cacheMap.Remove(go); }
+		if (go != null)
+		{
+			if (destroyDelaySeconds > 0f)
+			{
+				HideVisualUiForDeath(go);
+				DestroyVisualLater(go, destroyDelaySeconds).Forget();
+			}
+			else { KillVisualTweens(go); Object.Destroy(go); _cacheMap.Remove(go); }
+		}
 		visualMap.Remove(u);
 		targetPosMap.Remove(u);
+	}
+
+	// 사망 연출 중에는 체력바·상태 라벨·선택 링·시야선처럼 유닛에 붙은 UI를 숨긴다(SyncVisual 대상에서도 빠진 상태).
+	private void HideVisualUiForDeath(GameObject go)
+	{
+		VisualCache cache = GetCache(go);
+		UnitVisual uv = cache.UnitVisual;
+		if (uv != null)
+		{
+			uv.UpdateStatusLabel(null, false);
+			uv.UpdateBelowLabel(null);
+			uv.UpdateHealthBar(false, 0f, 1f);
+			uv.SetVisionRangesVisible(false);
+		}
+		if (cache.SelectionMarker != null) cache.SelectionMarker.enabled = false;
+	}
+
+	private async UniTaskVoid DestroyVisualLater(GameObject go, float seconds)
+	{
+		await UniTask.Delay(System.TimeSpan.FromSeconds(seconds), DelayType.DeltaTime);
+		if (go == null) return;
+		KillVisualTweens(go);
+		Object.Destroy(go);
+		_cacheMap.Remove(go);
+	}
+
+	// ── 애니메이션 슬롯 훅 ─────────────────────────────────────────
+	// 비주얼이 없거나 프리팹에 UnitAnimationDriver가 없으면 null — 호출부는 항상 ?. 로 부른다.
+	public UnitAnimationDriver GetAnim(Unit u)
+		=> u != null && visualMap.TryGetValue(u, out GameObject go) && go != null ? GetCache(go).Anim : null;
+
+	public void TriggerAnim(Unit u, AnimSlot slot) => GetAnim(u)?.Trigger(slot);
+
+	public void PlaySkillAnim(Unit u, string skillName, float castMs) => GetAnim(u)?.PlaySkill(skillName, castMs);
+
+	// Death 슬롯에 클립이 있으면 그 길이(초), 없으면 0 — GameSession.RemoveDeadUnit이 이 값으로 비주얼 파괴와 시체 표시를 미룬다.
+	public float BeginDeathAnimation(Unit u)
+	{
+		UnitAnimationDriver anim = GetAnim(u);
+		return anim != null ? anim.BeginDeath() : 0f;
 	}
 
 	// 사망 VFX — GameSession.RemoveDeadUnit이 비주얼을 파괴하기 직전에 호출한다. 사망 즉시 시체
@@ -460,7 +545,15 @@ public class UnitGenerate
 				{
 					hiddenByFog = !liveRoom.FogRevealed;
 				}
-				uv.UpdateStatusLabel(ShowUnitStatusLabels && !hiddenByFog ? u.fsm.GetLabel(u) : null, u is Human);
+				// 상태 라벨 토글이 켜져 있으면 FSM 상태 뒤에 지금 재생 중인 애니메이션 슬롯도 붙인다(슬롯 검증용 — 상태 변화 시점에 갱신).
+				string statusText = null;
+				if (ShowUnitStatusLabels && !hiddenByFog)
+				{
+					statusText = u.fsm.GetLabel(u);
+					string animLabel = cache.Anim != null ? cache.Anim.CurrentLabel : "";
+					if (!string.IsNullOrEmpty(animLabel)) statusText += " / " + animLabel;
+				}
+				uv.UpdateStatusLabel(statusText, u is Human);
 
 				// 함정 해제 시도 중임을 유닛 하단에 표시 — 머리 위 상태 라벨과 같은 방식, 위치만 하단으로 뒤집는다.
 				bool isDisarmingTrap = u is Human hDisarm
@@ -618,6 +711,8 @@ public class UnitGenerate
 	public void TriggerHitEffect(Unit u)
 	{
 		if (u == null) return;
+
+		GetAnim(u)?.Trigger(AnimSlot.Hit);
 
 		UnitVisualDefinition visualDef = GetVisualDef(u);
 

@@ -249,12 +249,10 @@ public static class JsonToUnitPrefabConverter
                 so.ApplyModifiedProperties();
             }
 
-            if (!string.IsNullOrEmpty(u.visual?.animatorController))
-            {
-                var animator = root.AddComponent<Animator>();
-                animator.runtimeAnimatorController = FindAssetByName<RuntimeAnimatorController>(u.visual.animatorController);
-                root.AddComponent<AnimationEventVfxSpawner>();
-            }
+            // 애니메이션: 컨트롤러 대신 프리팹의 UnitAnimationDriver 슬롯에 클립을 꽂는 방식이다(AnimationSlotSync 참고).
+            // Animator는 드라이버가 런타임에 필요하면 만든다. 임시 클립은 새 슬롯에만 꽂힌다.
+            AnimationSlotSync.ApplyTo(root, u.unitClass == "Human", u.skills, true, u.typeName);
+            root.AddComponent<AnimationEventVfxSpawner>();
 
             string fileName = SanitizeFileName(u.typeName);
             string path = $"{OutputFolder}/{fileName}.prefab";
