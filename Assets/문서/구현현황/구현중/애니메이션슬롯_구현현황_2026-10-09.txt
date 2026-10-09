@@ -20,7 +20,7 @@
    (아래 "플레이 확인 체크리스트").
 2. **옛 Idle/Walk 정리(확인 후)** — 새 구조가 플레이로 확인되면 한 번에 지운다: UnitAnimationController.cs,
    Assets/Art/Animations/Char.controller / Char_Idle.anim / Char_Walk.anim(+meta), units.json의
-   "animatorController": "Char" 9곳, 컨버터 JsonVisualData.animatorController 필드.
+   "animatorController": "Char" 9곳(유닛 데이터 편집기로 한 번 저장하면 자동으로 사라진다. 옛 컨버터는 2026-10-09 제거됨).
    (프리팹 Animator의 Char 컨트롤러 참조는 동기화 메뉴가 이미 끊는다.)
 3. **리깅 캐릭터 방향 처리 확정** — 스킨드 스프라이트에서 SpriteRenderer.flipX가 메쉬에 안 먹는다고 알고
    있으나 미확인. 리그 프리팹은 UnitAnimationDriver.mirrorRoot(부위 스프라이트를 감싼 부모)를 지정하면

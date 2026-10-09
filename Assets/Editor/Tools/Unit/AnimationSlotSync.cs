@@ -38,7 +38,7 @@ public static class AnimationSlotSync
 			string path = $"{PrefabFolder}/{SanitizeFileName(u.typeName)}.prefab";
 			if (!File.Exists(path))
 			{
-				Debug.LogWarning($"[AnimationSlotSync] '{u.typeName}' 프리팹이 없습니다({path}) — 'JSON -> 유닛 프리팹 생성'을 먼저 실행하세요.");
+				Debug.LogWarning($"[AnimationSlotSync] '{u.typeName}' 프리팹이 없습니다({path}) — '유닛 데이터 편집기'에서 [JSON → 프리팹 적용]으로 프리팹을 먼저 만드세요.");
 				missing++;
 				continue;
 			}

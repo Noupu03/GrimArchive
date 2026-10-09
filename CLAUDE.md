@@ -419,13 +419,11 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 - **런타임 스킬의 진실의 원천은 skills.json이 아니라 프리팹이다**
   (`UnitSpriteManager.GetSkills` → `UnitVisualDefinition.BuildSkillActions`). JSON만 고치면 게임에
   전혀 반영되지 않는다 — 반드시 `Assets/Prefabs/Units/*.prefab`의 `skills` 블록까지 같이 고칠 것.
-- **프리팹을 다시 뽑을 때는 `Tools(new)/유닛/JSON -> 유닛 프리팹 생성`
-  (`JsonToUnitPrefabConverter`)만 쓴다.** 프리팹 컨텍스트 메뉴의
-  `UnitVisualDefinition.LoadDataFromJson`은 한때 `projectilePrefab`/`hitEffectPrefab` 참조를 날렸지만
-  2026-09-05부터 컨버터와 같은 `FindAssetByName`으로 이름을 해석한다 — 다만 footprint/engageDistance/
-  stats/skills만 덮어쓰고 무기·이펙트·가중치·인구수는 건드리지 않는 부분 갱신이다. 컨버터는 프리팹을
-  루트부터 새로 만들므로, 다시 뽑으면 보스 골렘의 손 오브젝트·`visualScaleIgnoresFootprint`가 사라진다
-  — `Disposable/유닛/`의 보스 골렘 도구 2종을 다시 실행하고 손 스프라이트 2장을 직접 재지정할 것.
+- **유닛 프리팹은 `Tools(new)/유닛/유닛 데이터 편집기 (JSON ↔ 프리팹)`으로 만들고 갱신한다**(2026-10-09 — 아래 "유닛 데이터
+  편집기" 섹션). 옛 `JsonToUnitPrefabConverter`("JSON -> 유닛 프리팹 생성")는 프리팹을 루트부터 새로 만들어 덮어써서
+  사망 연출·보스 손·무기 소켓처럼 JSON에 없는 값이 사라졌기에 제거했다. 새 편집기는 기존 프리팹을 제자리 갱신하고 JSON
+  스키마에 없는 항목은 보존한다. 프리팹 컨텍스트 메뉴의 `UnitVisualDefinition.LoadDataFromJson`은 footprint/engageDistance/
+  stats/skills만 덮어쓰는 부분 갱신이라 편집기를 쓰는 편이 안전하다.
 - `skillArchetype`이 비어있으면 `SkillAction_Generic`으로 폴백한다 — 몬스터 기본 스킬은 이게
   정상이지만, 값이 있는데 `switch`의 case에 없으면 `Debug.LogWarning`이 뜬다. 2026-08-23에 클래스
   프리팹 8종 전부가 이 필드를 잃어버린 채 전원 Generic으로 돌던 사고가 있었다.
@@ -472,6 +470,49 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
    확인 — 파이어볼 착탄 지연(1500ms 자리표시자) 튜닝, 낙하 오브젝트 연출, 광역기 데미지 재튜닝,
    `SkillData.damageType` 필드 신설(지금은 물리/마법이 아키타입별 하드코딩) 순서로 정리돼 있다.
 2. 새로 구현/연결한 게 있으면 그 문서를 직접 갱신한다(다른 구현현황 문서와 동일 관례).
+
+## 유닛 데이터 편집기 — units.json / skills.json ↔ 유닛 프리팹 (2026-10-09)
+
+### 배경
+옛 `JsonToUnitPrefabConverter`는 프리팹을 새로 만들어 덮어썼고, 오래 안 쓰는 사이 JSON과 프리팹이 34곳 어긋나 있었다(스킬 목록·스탯·쿨다운 등).
+프리팹에만 있던 사망 연출(`deathVfxPrefab` 15개·`corpseSprite` 12개)·보스 골렘 손·기사형 무기 포즈 튜닝은 재실행 시 사라질 상황이었다. 사용자 결정으로
+옛 컨버터를 제거하고 아래 편집기로 대체했다("프리팹이 최신" 전제 → 프리팹 → JSON 가져오기가 1순위).
+
+### 구조 (이걸 다시 손댈 때 먼저 볼 것)
+```
+Assets/Editor/Tools/Unit/UnitData/
+  UnitDataDtos.cs      — JSON 스키마 DTO (순수 C#). 필드 선언 순서 = JSON 키 순서. [AssetRef]=에셋 이름 문자열, [OptionalBlock]=없을 수 있는 블록
+  UnitDataJson.cs      — 읽기/쓰기. 원본 서식 재현(2칸·CRLF·원시값 배열 한 줄·소수형 필드는 "7.0"·0은 "0"·선택 필드는 기본값이면 생략)
+  SkillTools.cs        — 전역 스킬 + 유닛별 skillOverrides ↔ 유효 스킬, 통합(Consolidate, 무손실)
+  UnitDiff.cs          — JSON ↔ 프리팹 필드 단위 비교 (유효 스킬끼리, 기본값=없음, 이름#GUID는 이름만 비교, unitClass 제외)
+  UnitAssetRefs.cs     — 에셋 이름/"이름#GUID" ↔ 에셋 (유일하면 이름만, 겹칠 때만 GUID. 모호하면 problem 반환)
+  PrefabUnitReader.cs  — 프리팹 → UnitDto (+ WeaponDefaults, 스키마 드리프트 점검)
+  PrefabUnitWriter.cs  — UnitDto → 프리팹 제자리 갱신 (ApplyToRoot / Apply / DryRun)
+  UnitDataWindow.cs, UnitDataWindow.Gui.cs — 창 (상태·동작 / 그리기)
+```
+메뉴: `Tools(new)/유닛/유닛 데이터 편집기 (JSON ↔ 프리팹)`. 런타임은 units.json/skills.json을 읽지 않는다(Addressables `Data/units`·`Data/skills` 주소는 있지만 읽는 코드가 없음) —
+**런타임의 진실은 프리팹, JSON은 작성·교환용**이다.
+
+### 핵심 규칙
+- **저장 게이트**: 모든 편집은 작업 사본에만 적용되고 [JSON 저장]을 눌러야 파일이 바뀐다(`hasUnsavedChanges`로 닫을 때 Unity가 묻는다). 프리팹→JSON 가져오기도 작업 사본만 바꾼다.
+  JSON→프리팹 적용은 저장된 JSON 기준이라 저장을 먼저 요구한다. 체크한 유닛만 적용하고, 이미 같은 유닛은 건드리지 않는다.
+- **소유권**: 스키마에 있는 값(스탯·가중치·스킬·효과 이펙트·사망 연출·스프라이트 라이브러리·무기·보스 손·`visualScaleIgnoresFootprint`)은 JSON이 주인이다.
+  스키마에 없는 것(애니메이션 클립·리그·인형 줄/십자가·Outline 등)은 프리팹 전용이라 적용해도 그대로 남는다. 안전 규칙: 참조를 못 찾으면 기존 프리팹 값을 유지하고 경고,
+  `spriteLibrary`/`bossHands` 블록이 JSON에 없어도 기존 컴포넌트·오브젝트를 지우지 않는다(적용 뒤에도 남는 차이는 결과 메시지가 알려 준다), 무기는 JSON에 없으면 스프라이트만 비운다(빈 소켓 유지).
+- **스킬 모델 = 전역 정의(skills.json) + 유닛별 `skillOverrides`**(사용자 확정): 프리팹은 유닛마다 스킬 사본을 들고 있어 같은 이름 스킬도 값이 갈라진다(몬스터 공용 3종의 `baseCooldown`·`hitEffectPrefab`).
+  전역 기준값은 "가장 많은 유닛이 쓰는 값"(동률이면 기존 전역 값 유지)이고 다른 유닛은 다른 필드만 오버라이드한다. 문자열 오버라이드 `""`는 "이 유닛은 비어 있음"이다.
+- **참조 표기**: 에셋 이름 문자열. 같은 이름의 에셋이 둘 이상일 때만 `이름#GUID`(GUID는 파일, 이름은 시트 안 스프라이트). 해석이 모호하거나 실패하면 창에 ⚠로 표시하고 저장 때 확인을 받는다.
+- **검증 버튼**: JSON 왕복 서식, 스킬 통합 무손실, 그리고 유닛마다 "JSON을 프리팹에 적용(저장 안 함) → 다시 읽기"가 JSON과 같은지 확인한다. Reader/Writer를 고쳤으면 반드시 돌릴 것.
+- **스키마 드리프트 점검**: `SkillData`·`UnitVisualDefinition`에 필드를 추가하면 `SkillDto`·`PrefabUnitReader`·`PrefabUnitWriter` 세 곳을 같이 고쳐야 한다 — 안 그러면 프리팹→JSON→프리팹에서
+  조용히 사라진다. 창이 열릴 때 `CheckSchemaParity`가 모르는 필드를 경고한다. 새 float 필드가 "정수값도 `N.0`으로 쓰는" 소수형이면 `UnitDataJson.DecimalStyle`에 이름을 추가한다.
+- 유닛 이름(`typeName`)은 프리팹 파일명·Addressables 주소(`Units/{이름}`)·`WaveData`의 `unitTypeName`이 모두 의존해서 **이름 변경은 지원하지 않는다**(추가/제거로). 제거 시 `WaveData` 참조를 검사해 경고하고,
+  프리팹 삭제는 저장 때 휴지통으로 보낸다.
+
+### 알려진 한계 / 미검증
+**Unity 에디터에서 실행해 보지 못했다.** 확인한 것은 ① 에디터 어셈블리 컴파일(오류 0) ② 순수 로직 하니스 41건 — `units.json`은 현재 파일을 읽고 다시 써서 원본과 바이트 단위로 같음(폐기된 `animatorController` 줄만 빠짐),
+`skills.json`은 값 손실 없음(키 순서가 다른 10개 항목이 정규 순서로 정리되고 `"isPiercing": false` 한 줄이 생략됨), 스킬 통합 무손실, diff 동작. 창 UI·`PrefabUtility`·`SerializedObject`·Addressables 등록은
+실제 실행으로만 확인된다(체크리스트: 구현현황 문서). 하니스(`dotnet run`)는 저장소 밖 스크래치패드에 있었고 저장소에는 없다.
+새 폴더의 `.meta` 파일은 Unity가 처음 열 때 생성한다(함께 커밋할 것).
 
 ## 점유 충돌 시스템 — 대기 vs 우회 / 비켜 주기 / 좁은 통로 통과 순서 (검증 04-05~04-07, 2026-10-01)
 
@@ -607,7 +648,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 - **옮길 때는 파일과 `.meta`를 반드시 같이 옮긴다**(또는 Unity 안에서 옮긴다) — GUID가 유지돼야 씬·프리팹
   참조가 안 끊긴다. 에디터가 이 프로젝트를 열고 있을 때 밖에서 옮기지 말 것.
 - **위치에 묶여 있어 옮기면 코드도 고쳐야 하는 것**: `Data/units.json`·`skills.json`·`weight_events.json`(`"Assets/Data/..."`·`Application.dataPath`로 직접 읽음 —
-  `JsonToUnitPrefabConverter`, `UnitVisualDefinition`, `WeightEventTable`), 씬 이름 `ssh`(`TitlePresenter`·
+  유닛 데이터 편집기(`UnitDataWindow`)·`AnimationSlotSync`, `UnitVisualDefinition`, `WeightEventTable`), 씬 이름 `ssh`(`TitlePresenter`·
   `GameSettingsPanel` 상수), 에디터 툴의 `"Assets/..."` 경로 상수. Addressables는 주소가 경로와 무관해 자유롭게 옮겨도 된다.
 - **옛 경로 대응**(지난 구현현황 문서에 남아 있음): `Sprite/Char`·`Sprite/Mon` → `Art/Sprites/Units/Human`·`Monster`,
   `Sprite/{Death, Weapon, obj}` → `Art/Sprites/{Death, Weapons, Objects}`, `VFX/Sprite` → `Art/Sprites/VFX`,
@@ -636,7 +677,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 1. 에셋을 위 "Assets 폴더 구조"의 종류별 폴더에 둔다.
 2. Addressables 그룹(`Default Local Group`)에 주소를 등록한다 — Unity에서 Addressable 체크 후 주소 입력, 또는 에디터
    툴이 만드는 에셋이면 저장 직후 `AddressablesEntryUtil.EnsureEntry(경로, 주소, 라벨)`(`Assets/Editor/Tools/`)을 부른다
-   (JsonToUnitPrefabConverter·FSM+BT 설정 생성·Map Generator·타일 색상 테마 창이 이미 그렇게 한다). 에디터가 닫혀
+   (유닛 데이터 편집기·FSM+BT 설정 생성·Map Generator·타일 색상 테마 창이 이미 그렇게 한다). 에디터가 닫혀
    있을 때 직접 할 때는 `Default Local Group.asset`의 `m_SerializeEntries`에 GUID 오름차순, 비ASCII 주소는 `"\uXXXX"`
    이스케이프로 넣는다(Unity가 저장하는 형식). 라벨을 새로 쓰면 `AddressableAssetSettings.asset`의 `m_LabelNames`에도 추가.
 3. 주소 문자열은 `AssetKeys`(`Assets/Script/AssetLoading/AssetKeys.cs`)에 상수로 추가한다 — 코드에 주소 리터럴을 흩뿌리지 말 것.
@@ -672,7 +713,7 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 
 | 메뉴 | 넣는 것 | 현재 항목 |
 |---|---|---|
-| `Tools(new)/` | 게임이 읽는 데이터를 **만들거나 조회**하는, 계속 쓰는 도구 | `유닛/`(JSON → 유닛 프리팹 생성, FSM+BT 설정 에셋 생성), `맵/`(Map Generator, 타일 색상 테마), `맵 뷰` |
+| `Tools(new)/` | 게임이 읽는 데이터를 **만들거나 조회**하는, 계속 쓰는 도구 | `유닛/`(유닛 데이터 편집기, 애니메이션 슬롯 동기화, FSM+BT 설정 에셋 생성), `맵/`(Map Generator, 타일 색상 테마), `맵 뷰` |
 | `Disposable/` | 한 번 돌리고 끝나는 일회용 도구(기존 에셋 패치, 프리팹·씬 1회 생성) | `유닛/`(보스 골렘 2종), `VFX/`(ParticleLifetimeController 부착, 투사체 세팅기), `UI/`(타이틀·설정·키 가이드·Haare UI 생성, 빈 패널 프리팹 5종, UI 어드레서블 연결, Fix GameCompositionRoot) |
 | `Tools/` | 그 외 | `GrimArchive/오펜스 시스템 디버그 툴`, `Haare/Addressables: Use Asset Database`, `Demigiant/`(DOTween, 옮길 수 없음 — 아래 2번) |
 
@@ -775,8 +816,8 @@ Unity 플레이로 눈 검증을 못 했다(컴파일 + `DoorGeometry`/`Interact
 ### 핵심 규칙
 - **슬롯은 컨트롤러 에셋이 아니라 프리팹의 `UnitAnimationDriver` 컴포넌트 필드다**(사용자 확정). 슬롯 목록(`AnimSlot` 14종 + 스킬명별 `Skill`)은
   `AnimSlotCatalog.SlotsFor`가 정하고, 메뉴 `Tools(new)/유닛/애니메이션 슬롯 동기화`(`AnimationSlotSync`)가 units.json 기준으로 16개 프리팹에 만든다.
-  재실행해도 꽂은 클립은 보존한다 — **프리팹을 새로 뽑는 컨버터가 아니라 이 메뉴로 갱신할 것**(컨버터 재실행은 보스 골렘 손 오브젝트를 지운다).
-  컨버터도 같은 `AnimationSlotSync.ApplyTo`를 호출하므로 다시 뽑아도 슬롯 구성은 같다.
+  재실행해도 꽂은 클립은 보존한다. 유닛 데이터 편집기의 프리팹 적용도 같은 `AnimationSlotSync.ApplyTo`를 호출하고 기존 프리팹을 제자리 갱신하므로
+  꽂은 클립이 유지된다(옛 컨버터는 프리팹을 새로 뽑아 클립·보스 손을 지웠고 2026-10-09 제거됨).
 - **클립이 비어 있는 슬롯은 아무것도 안 한다.** 원샷 트리거는 무시되고 폴링 슬롯은 다음 후보로 떨어진다(`UnitAnimMath.ResolveLoopSlot`). 그래서 슬롯만 만들어 둔 지금은 동작이 안 바뀐다.
 - **판정은 순수 함수에 있다**: `UnitAnimMath`(루프 슬롯 선택·트리거 우선순위·시전 시간에 클립 맞춤·크로스페이드 가중치) + `AnimMoveTracker`. 우선순위 표는 `AnimSlotCatalog`(한곳). 테스트 `Assets/Tests/UnitAnimMathTests.cs`.
 - **상태는 AI FSM(7종)과 1:1이 아니다.** 신체 상태에서 뽑는다: 이벤트(스킬·피격·회피·점멸·사망·등장·계단·줍기)는 훅이 `Trigger`하고, 기절·채널링·함정 해제·조사·걷기는 드라이버가 매 프레임 유닛 필드를 읽는다.
