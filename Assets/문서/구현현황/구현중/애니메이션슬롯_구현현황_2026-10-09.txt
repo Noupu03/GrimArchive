@@ -29,7 +29,7 @@
 4. **걷기 속도 연동** — Walk 루프는 지금 1배속 고정이다. 경계 감속 등으로 이동 속도(AppliedWalkSpeed)가
    달라질 때 걷는 속도를 맞출지 결정.
 5. **Assets/Asset/ 위치** — 팀원 샘플이 CLAUDE.md의 폴더 규칙(Art/Animations, Prefabs/Units)과 어긋난다.
-   임시 클립은 제자리 참조하므로 옮길 때는 .meta와 함께 옮겨야 참조가 유지된다.
+   옮길 때는 .meta와 함께 옮겨야 프리팹·씬 참조가 유지된다. (슬롯은 빈 채로 만들어서 이 샘플 클립을 참조하지 않는다.)
 
 ■ 작업자 안내 (클립을 꽂는 방법)
 ────────────────────────────────────────────────────────────────────────
@@ -90,15 +90,16 @@ Script/Unit/Visual/Animation/
                             AnimationMixerPlayable을 만들고, 매 프레임 폴링 슬롯 판정 → 원샷 만료 → 크로스페이드.
                             API: Bind(Unit) / Trigger(slot) / PlaySkill(name, castMs) / BeginDeath() /
                             HasClip / ApplyMirror / CurrentLabel
-Editor/Tools/Unit/AnimationSlotSync.cs       ✅ 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화 (임시 클립 연결 /
-                            임시 클립 없이 2종). units.json 기준으로 16개 프리팹에 드라이버와 슬롯을 만든다.
+Editor/Tools/Unit/AnimationSlotSync.cs       ✅ 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화 (메뉴 1개, 새 슬롯은 항상
+                            빈 채로). units.json 기준으로 16개 프리팹에 드라이버와 슬롯을 만든다.
                             새 프리팹을 만들지 않고 기존 프리팹을 열어 컴포넌트만 갱신(보스 골렘 손 등 보존).
                             ApplyTo()는 컨버터(JsonToUnitPrefabConverter)도 호출한다.
 Editor/Inspectors/UnitAnimationDriverEditor.cs ✅ 슬롯별 한글 이름·종류·발동 조건 표시, 채움 개수 표시
 Tests/UnitAnimMathTests.cs                    ✅ 23건
 
-임시 클립(동기화 메뉴 기본): 새 슬롯에 한해 Idle←Assets/Asset/Idle.anim, Walk←Idle 1.anim, 모든 스킬 슬롯←
-Idle 2.anim. 이 클립들은 SampleCharacter 리그의 본 경로용이라 같은 본 이름의 리그에서만 실제로 움직인다.
+임시 클립은 연결하지 않는다(2026-10-09 사용자 결정: 동기화 메뉴는 빈 슬롯만 만든다). 구동을 시험하려면 슬롯에
+팀원 샘플 클립(Assets/Asset/Idle.anim=대기, Idle 1.anim=걷기, Idle 2.anim=공격)을 직접 끌어다 놓는다. 이 클립들은
+SampleCharacter 리그의 본 경로(bone_1/...)용이라 같은 본 이름의 리그에서만 실제로 움직인다.
 
 ■ 3. 훅 연결 지점 (✅)
 ────────────────────────────────────────────────────────────────────────
@@ -139,9 +140,10 @@ UpdateUnitSpriteForDirection이 SpriteResolver를 1개만 쓰던 것을 자식 �
 
 플레이 확인 체크리스트
   A. 메뉴 Tools(new)/유닛/애니메이션 슬롯 동기화 실행 → Console에 "갱신 N" 로그, 16개 프리팹을 열어 슬롯
-     목록(인류 13+스킬 / 몬스터 9+스킬)과 임시 클립(Idle/Walk/스킬)이 보이는지. 재실행하면 "변경 없음"이어야 한다.
-  B. 프리팹 하나를 SampleCharacter 리그(Animator가 리그 루트)로 만들어 플레이: 정지=Idle, 이동=Walk,
-     교전=스킬 슬롯(임시 클립이 시전 시간에 맞춰 재생)이 되는지. 상태 라벨 토글을 켜면 "상태 / 슬롯명"이 보인다.
+     목록(인류 13+스킬 / 몬스터 9+스킬)이 보이는지(전부 비어 있어야 한다). 재실행하면 "변경 없음"이어야 한다.
+  B. 프리팹 하나를 SampleCharacter 리그(Animator가 리그 루트)로 만들고 Idle/Walk/스킬 슬롯에 샘플 클립
+     (Idle/Idle 1/Idle 2)을 꽂아 플레이: 정지=Idle, 이동=Walk, 교전=스킬 슬롯(시전 시간에 맞춰 재생)이 되는지.
+     상태 라벨 토글을 켜면 "상태 / 슬롯명"이 보인다.
   C. 비워 둔 슬롯(Hit·Stunned 등)이 동작을 바꾸지 않는지. 클립을 꽂은 슬롯만 재생되는지.
   D. Death 클립을 꽂은 유닛: 죽은 뒤 클립 길이만큼 비주얼이 남고 UI(체력바 등)가 사라지며, 그 뒤 시체가
      나타나는지. 클립이 없는 유닛은 예전처럼 즉시 시체로 바뀌는지.

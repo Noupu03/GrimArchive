@@ -9,17 +9,12 @@ using UnityEngine;
 //    (보스 골렘 손 오브젝트 등)은 건드리지 않는다.
 //  - 이미 꽂아 둔 클립은 보존한다. 새로 생긴 슬롯만 추가하고, units.json에서 사라진 스킬 슬롯은 클립이 비어 있으면
 //    지우고 클립이 있으면 남긴 채 경고한다(작업자의 작업물을 지우지 않는다).
-//  - 임시 클립(옵션): 새로 생긴 Idle/Walk/스킬 슬롯에 팀원 샘플의 Idle/Idle 1/Idle 2를 꽂아 구동을 확인할 수 있게 한다.
-//    샘플 클립은 SampleCharacter 리그의 본 경로(bone_1/...)용이라 같은 본 이름의 리그에서만 실제로 움직인다.
+//  - 새 슬롯은 항상 빈 채로 만든다(클립은 작업자가 꽂는다).
 public static class AnimationSlotSync
 {
 	private const string UnitsJsonPath   = "Assets/Data/units.json";
 	private const string PrefabFolder    = "Assets/Prefabs/Units";
 	private const string OldControllerPath = "Assets/Art/Animations/Char.controller";
-
-	private const string PlaceholderIdle  = "Assets/Asset/Idle.anim";
-	private const string PlaceholderWalk  = "Assets/Asset/Idle 1.anim";
-	private const string PlaceholderSkill = "Assets/Asset/Idle 2.anim";
 
 #pragma warning disable 0649
 	[Serializable] private class JsonUnit     { public string typeName; public string unitClass; public string[] skills; }
@@ -27,12 +22,7 @@ public static class AnimationSlotSync
 #pragma warning restore 0649
 
 	[MenuItem("Tools(new)/유닛/애니메이션 슬롯 동기화")]
-	public static void SyncWithPlaceholders() => SyncAll(true);
-
-	[MenuItem("Tools(new)/유닛/애니메이션 슬롯 동기화 (임시 클립 없이)")]
-	public static void SyncWithoutPlaceholders() => SyncAll(false);
-
-	private static void SyncAll(bool fillPlaceholders)
+	public static void SyncAll()
 	{
 		if (!File.Exists(UnitsJsonPath))
 		{
@@ -56,7 +46,7 @@ public static class AnimationSlotSync
 			GameObject root = PrefabUtility.LoadPrefabContents(path);
 			try
 			{
-				if (ApplyTo(root, u.unitClass == "Human", u.skills, fillPlaceholders, u.typeName))
+				if (ApplyTo(root, u.unitClass == "Human", u.skills, u.typeName))
 				{
 					PrefabUtility.SaveAsPrefabAsset(root, path);
 					changed++;
@@ -67,13 +57,12 @@ public static class AnimationSlotSync
 		}
 
 		AssetDatabase.SaveAssets();
-		Debug.Log($"[AnimationSlotSync] 완료 — 갱신 {changed}, 변경 없음 {unchanged}, 프리팹 없음 {missing}" +
-			(fillPlaceholders ? " (새 슬롯에 임시 클립 연결)" : ""));
+		Debug.Log($"[AnimationSlotSync] 완료 — 갱신 {changed}, 변경 없음 {unchanged}, 프리팹 없음 {missing}");
 	}
 
 	// 프리팹 루트에 UnitAnimationDriver를 보장하고 슬롯 목록을 맞춘다. 바뀐 게 있으면 true.
 	// 컨버터가 새로 만든 루트에도 같은 함수를 써서, 프리팹을 다시 뽑아도 슬롯 구성이 같게 나온다.
-	public static bool ApplyTo(GameObject root, bool isHuman, IEnumerable<string> skills, bool fillPlaceholders, string debugName = null)
+	public static bool ApplyTo(GameObject root, bool isHuman, IEnumerable<string> skills, string debugName = null)
 	{
 		bool changed = false;
 
@@ -107,11 +96,7 @@ public static class AnimationSlotSync
 		var existingByKey = new Dictionary<string, AnimationClip>();
 		foreach (var e in existing) existingByKey[e.key] = e.clip;
 
-		AnimationClip idleClip  = fillPlaceholders ? AssetDatabase.LoadAssetAtPath<AnimationClip>(PlaceholderIdle)  : null;
-		AnimationClip walkClip  = fillPlaceholders ? AssetDatabase.LoadAssetAtPath<AnimationClip>(PlaceholderWalk)  : null;
-		AnimationClip skillClip = fillPlaceholders ? AssetDatabase.LoadAssetAtPath<AnimationClip>(PlaceholderSkill) : null;
-
-		// 원하는 목록: 카탈로그 순서. 이미 있는 항목은 클립을 그대로, 새 항목만 임시 클립(옵션)을 꽂는다.
+		// 원하는 목록: 카탈로그 순서. 이미 있는 항목은 클립을 그대로 두고, 새 항목은 빈 채로 만든다.
 		var desired = AnimSlotCatalog.SlotsFor(isHuman, skills);
 		var next = new List<(AnimSlot slot, string skill, AnimationClip clip)>();
 		var desiredKeys = new HashSet<string>();
@@ -119,9 +104,7 @@ public static class AnimationSlotSync
 		{
 			string key = AnimSlotCatalog.KeyOf(d.slot, d.skillName);
 			desiredKeys.Add(key);
-			AnimationClip clip;
-			if (existingByKey.TryGetValue(key, out clip)) { /* 보존 */ }
-			else clip = d.slot == AnimSlot.Idle ? idleClip : d.slot == AnimSlot.Walk ? walkClip : d.slot == AnimSlot.Skill ? skillClip : null;
+			existingByKey.TryGetValue(key, out AnimationClip clip);
 			next.Add((d.slot, d.skillName, clip));
 		}
 
