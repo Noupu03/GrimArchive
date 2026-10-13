@@ -8,6 +8,7 @@ public class UnitStatsData
     public float physicalDefense, magicalDefense;
     public float HPRegen, attackspeed, walkSpeed, reaction;
     public float criticalChance, cooltimeReduction, statusResistance;
+    // maxMental/mental은 비율 저작 스케일(0~max, 인류 40/100 = 비율 40%)이다 — 런타임 저장은 −100~+100 원수치로 환산된다(MentalMath.FromAuthoringScale). maxMental ≤ 0은 정신력 시스템이 없는 유닛(몬스터).
     public float maxMental, mental, spotting, leadershipRange, charisma;
     public float physicalAttackSpeed, magicalCastSpeed;
 }

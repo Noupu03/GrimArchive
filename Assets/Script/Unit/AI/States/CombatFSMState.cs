@@ -69,6 +69,7 @@ public class CombatFSMState : IFSMState
 	public void OnExit(Unit unit)
 	{
 		ClearBlockingTrap(unit); // 전투 중 함정 파괴는 전투와 함께 끝난다(채널링이 남아 계속 깎이지 않게)
+		FleeSystem.EndEncounterBundle(unit as Human); // 전투·추적 종료 = 몬스터 조우 묶음 종료(후퇴도주 4-4장) — 개체별 처리 이력은 유지된다
 
 		bool playerCommandActive = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
@@ -105,7 +106,19 @@ public class CombatFSMState : IFSMState
 
 		Unit target = SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Failure;
+		return EngageTarget(unit, target, minDist, allowKiting: true);
+	}
 
+	// 후퇴·도주가 길을 막는 적 하나를 상대할 때(통과에 필요한 대응만, 후퇴도주 5-1장) 쓰는 교전 한 틱 — 대상 선택·긴급 보호·키팅 없이 그 적에게 가장 나은 스킬로 공격하고 사거리 밖이면 접근한다.
+	internal static BTStatus EngageBlocker(Unit unit, Unit target)
+	{
+		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
+		return EngageTarget(unit, target, Vector2Int.Distance(unit.position, target.position), allowKiting: false);
+	}
+
+	// 정해진 대상에게 스킬을 고르고 실행하거나 접근하는 교전 한 틱 — ExecuteCombat(대상 선택 뒤)과 EngageBlocker가 공유한다. allowKiting=false면 원거리 유닛도 물러서지 않는다.
+	private static BTStatus EngageTarget(Unit unit, Unit target, float minDist, bool allowKiting)
+	{
 		int rangedMin = AIConfigLoader.Behavior?.rangedSkillMinRange ?? 4;
 
 		var unitSkills = unit.Generate != null
@@ -134,7 +147,7 @@ public class CombatFSMState : IFSMState
 		{
 			// 키팅: 원거리 스킬이고 적이 위험거리 이하 — 단, 아군 대상 스킬(치유/보호막/파티버프)이
 			// 최우선으로 뽑혔다는 건 아군이 위독하다는 뜻이므로 물러나지 말고 그 자리에서 바로 쓴다.
-			if (bestSkill.Affinity != SkillAffinity.Ally && bestSkill.HitRange >= rangedMin)
+			if (allowKiting && bestSkill.Affinity != SkillAffinity.Ally && bestSkill.HitRange >= rangedMin)
 			{
 				int dangerDist = bestSkill.HitRange / 2;
 				// 물러날 칸이 없으면(벽에 몰림) 후퇴를 포기하고 아래 공격 판단으로 이어진다 — 옆으로 새며 떠는 대신 그 자리에서 싸운다.
@@ -170,7 +183,7 @@ public class CombatFSMState : IFSMState
 			{
 				switch (RangedSpacingMath.Decide(chebDist, maxSkillRange / 2, maxSkillRange))
 				{
-					case RangedSpacing.Retreat: AIMovementHelper.MoveAwayFromTarget(unit, target); break; // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
+					case RangedSpacing.Retreat: if (allowKiting) AIMovementHelper.MoveAwayFromTarget(unit, target); break; // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
 					case RangedSpacing.Approach: ChaseTarget(unit, target); break;
 				}
 			}

@@ -203,6 +203,8 @@ public static class TrapPartySystem
 	public static Vector2Int? GetCurrentDestination(Human human)
 	{
 		if (human.playerMoveTarget.HasValue) return human.playerMoveTarget;
+		if (RetreatSystem.GetActivity(human) == RetreatActivity.Move && human.Retreat.Move.DestinationFloor == human.currentFloor)
+			return human.Retreat.Move.Destination; // 후퇴·도주 이동의 목적지(거점 휴식 자리/출구 접근 타일)
 		if (human.currentInvestigation != null)
 			return new Vector2Int(human.currentInvestigation.TargetPosition.x, human.currentInvestigation.TargetPosition.y);
 		Vector2Int? partyDest = PartyMovementDestination(human);
@@ -279,6 +281,9 @@ public static class TrapPartySystem
 
 	public static bool IsCommittedToPartyMovement(Human human)
 	{
+		// 후퇴·도주 이동과 거점 휴식 중에는 새 해제 담당을 맡지 않는다(후퇴도주 문서 5장: 후퇴·도주 중 일반 함정 해제를 새로 시작하지 않음, 휴식 중 조사·해제로 흩어지지 않음).
+		if (RetreatSystem.GetActivity(human) != RetreatActivity.None) return true;
+
 		var wait = human.currentWait;
 		if (wait != null && (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
 			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.SearchingNextDoor || wait.Reason == WaitReason.Retreating
@@ -584,7 +589,7 @@ public static class TrapPartySystem
 			&& human.party.TrapCoordinations.TryGetValue(trap.TrapObjectId, out var coord)
 			&& coord.SelectedUnitName == human.name)
 		{
-			if (reason == TrapEndReason.Rally || reason == TrapEndReason.WaveEnded)
+			if (reason == TrapEndReason.Rally || reason == TrapEndReason.WaveEnded || reason == TrapEndReason.Retreat)
 				ReleaseAssignment(coord);
 			else if (coord.DiscovererName != human.name)
 				PostReport(coord, human.name, TrapAssigneeStatus.Concluded, Time.time, 0f);

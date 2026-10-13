@@ -108,6 +108,7 @@ public abstract class SkillAction
 		AttackShape  shape = AttackShape.Melee,
 		string       skillName = null)
 	{
+		castMs *= RetreatSystem.GetStageEffects(unit).PreDelayMultiplier; // 정신력 단계의 선딜 배율(흥분 ×0.95, 후퇴도주 3-2장) — 즉발(0ms)은 그대로 0
 		unit.CombatState.State.lastAttackShape = shape; // 방향 간접입력 판정용
 		unit.CombatState.State.lastSkillName   = skillName; // 02번 9번 항목: 예상 피해량 직접경험 확정용
 

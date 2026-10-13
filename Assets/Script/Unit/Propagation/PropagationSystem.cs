@@ -673,6 +673,7 @@ public static class PropagationSystem
 	private static bool CanStartIndirectEnemyApproach(Human human)
 	{
 		if (human.party == null || human.personalSpottedEnemies.Count > 0) return false;
+		if (RetreatSystem.GetActivity(human) != RetreatActivity.None) return false; // 후퇴·도주 이동·거점 휴식 중에는 소리·전파 정보를 쫓지 않는다(후퇴도주 5-1장·2-1장)
 		if (human.currentAlertSearch != null || human.currentWait != null || human.currentInvestigation != null) return false;
 		if (human.currentTrapInteraction != null || human.currentJoinCombatWait != null) return false;
 		if (human.pendingCoreReportPos.HasValue) return false; // 코어 보고 의무가 우선

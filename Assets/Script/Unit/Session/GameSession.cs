@@ -960,6 +960,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 03번 v0.12 8장: "웨이브 진입 전" 파티 내 해제 성공률이 가장 높은 유닛을 지금 확정해 둔다 — 그 유닛이 직접 함정을 발견하면 2초 응답 대기를 생략한다.
         party.EntryBestDisarmerNames.UnionWith(TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
         party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
+        party.Retreat.InitialSortieCount = party.Members.Count; // 후퇴도주 문서 2-3장: 최초 출격 인원 N0는 고정(점령 파티 재출격 80% 기준)
         parties.Add(party);
         return party;
     }
@@ -994,19 +995,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             InteractableObject wipeoutObj = new InteractableObject(objId, gridPos, WeightMath.WipeoutTraceBaseInterest, 0f, tags, causerStage, traceId);
             SpawnObject(wipeoutObj, Color.black);
         }
-        else if (deadUnit is Monster deadMonster)
-        {
-            // break하지 않고 끝까지 순회한다 — 같은 웨이브의 여러 Party가 동일한 WaveMonsters 리스트를
-            // 공유할 수 있어, 몬스터 한 마리의 죽음이 여러 파티의 웨이브 클리어를 동시에 트리거할 수 있다.
-            foreach (var party in parties)
-            {
-                if (party.WaveEnded || !party.WaveMonsters.Contains(deadMonster) || !party.IsWaveCleared) continue;
-
-                party.WaveEnded = true;
-                var survivors = party.GetSurvivors();
-                knowledge.OnWaveEnd(survivors);
-            }
-        }
+        // 예전엔 여기서 "파티가 데려온 몬스터 전멸 = 웨이브 클리어"로 보고 그 순간의 생존자를 곧바로 전역 기록에 반영했다(생존/후퇴/도주 성공의 근사). 후퇴도주 문서 10장에 따라 기록은 생존자가 던전 밖으로 나가는 순간 전달되므로(RetreatExit.Complete → HumanKnowledgeBase.DeliverRecords) 이 근사는 없앴다.
     }
 
 
@@ -1017,7 +1006,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private static bool IsHighPriorityFsmState(Unit unit)
     {
         IFSMState state = unit.fsm.CurrentState;
-        return state is CombatFSMState || state is TacticalFSMState || state is PlayerCommandFSMState;
+        return state is CombatFSMState || state is TacticalFSMState || state is PlayerCommandFSMState || state is RetreatFSMState;
     }
 
     private void ProcessUnitAction(Unit u)

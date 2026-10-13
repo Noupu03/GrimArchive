@@ -29,6 +29,7 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
         new Entry { behavior = TacticalBehaviorType.JoinCombatWait, enabled = true },
         new Entry { behavior = TacticalBehaviorType.TrapResponse, enabled = true },
         new Entry { behavior = TacticalBehaviorType.Alert,        enabled = true },
+        new Entry { behavior = TacticalBehaviorType.Rest,         enabled = true },
         new Entry { behavior = TacticalBehaviorType.Investigate,  enabled = true },
         new Entry { behavior = TacticalBehaviorType.Wait,         enabled = true },
         new Entry { behavior = TacticalBehaviorType.Formation,    enabled = false },
@@ -50,7 +51,7 @@ public class TacticalBehaviorPriorityConfig : ScriptableObject
 /// </summary>
 public enum TacticalBehaviorType
 {
-    Panic,         // 공황 — 정신력 panicMentalRatio 이하
+    Panic,         // [폐기 예정] 공황 무작위 걸음 — 후퇴도주 문서에서 공황은 전투 불이익 + 도주 판정이라 대체됨(panicBehaviorEnabled=false 유지). 직렬화된 enum 값이라 삭제하지 않고 남김
     // 07문서 7장/07-A 9장: 위험도 2단계+비근거리 정확 인지 적일 때 전투 합류 대기 — 소리·함정 대응보다
     // 먼저 확인해야 16-4장 우선순위 표가 성립한다.
     JoinCombatWait,
@@ -64,4 +65,6 @@ public enum TacticalBehaviorType
     CoreAttack,
     // 인류 전용 — 이미 점령한 방의 경계 문 중 아직 다른 진영 소유인 문을 부순다. CoreAttack과 동급 최후순위.
     DoorAttack,
+    // 인류 전용 — 후퇴 목적 거점에 도착해 휴식 모션으로 회복한다(후퇴도주 문서 2-1장). 경계(전투 후 수색 포함) 바로 아래, 조사·대기·코어/문 공격 위에 둔다. 설정 에셋에 항목이 없어도 TacticalFSMState가 이 자리에 자동 삽입한다(직렬화된 enum 값을 밀지 않으려 맨 뒤에 추가).
+    Rest,
 }

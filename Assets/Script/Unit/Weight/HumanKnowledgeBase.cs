@@ -86,12 +86,12 @@ public class HumanKnowledgeBase
 		_pendingIncidents.Add(new IncidentEntry(incidentId, id, targetId, type, infoType, changeValue, mentalState, observer.name, isIndividualTarget));
 	}
 
-	// 정신력 상태 → MentalErrorState 매핑. 문서가 임계값을 전투 연산 문서로 위임해 mental/maxMental
-	// 비율로 임의 기준을 잡았다(25% 미만=공황, 50% 미만=공포).
+	// 정신력 상태 → MentalErrorState 매핑. 문서가 임계값을 전투 연산 문서로 위임해 정신력 비율
+	// ((원수치+100)/2)로 임의 기준을 잡았다(25% 미만=공황, 50% 미만=공포). 후퇴도주 문서의 공황(원수치 −70 미만 = 비율 15% 미만)과는 경계가 다르다.
 	public static MentalErrorState GetMentalState(Unit u)
 	{
 		if (u == null || u.BaseStat.maxMental <= 0f) return MentalErrorState.Normal;
-		float ratio = u.BaseStat.mental / u.BaseStat.maxMental;
+		float ratio = MentalMath.ToRatioPercent(u.BaseStat.mental) / 100f;
 		if (ratio < 0.25f) return MentalErrorState.Panic;
 		if (ratio < 0.5f) return MentalErrorState.Fear;
 		return MentalErrorState.Normal;
@@ -161,30 +161,60 @@ public class HumanKnowledgeBase
 	}
 
 	// ─────────────────────────── 6장/8장/10-2장. 웨이브 종료 — 생존자 전역 반영 ───────────────────────────
+	// 웨이브 종료 — 아직 던전 안에 있는 생존자의 기록을 반영하고(웨이브 종료 시점에 이미 밖으로 나간 인원은 이탈 때 DeliverRecords로 전달했다), 아직 전달되지 않은 나머지 기록(사망자·전달 못 한 인원)은 버린 뒤 웨이브 번호를 올린다.
 	public void OnWaveEnd(List<Unit> survivors)
 	{
 		var survivorNames = new HashSet<string>(survivors.Select(u => u.name));
-		var survivorEntries = _pendingIncidents.Where(e => survivorNames.Contains(e.ObserverUnitName)).ToList();
+		ReflectDelivered(_pendingIncidents.Where(e => survivorNames.Contains(e.ObserverUnitName)).ToList());
 
-		var groups = survivorEntries.GroupBy(e => (e.IncidentId, e.TargetId, e.WeightType));
-		foreach (var group in groups)
+		_pendingIncidents.Clear();
+		_deliveredByKey.Clear();
+		_deliveredAmount.Clear();
+		CurrentWave++;
+		TickWipeoutTraces();
+	}
+
+	// ─────────────────────────── 후퇴도주 10장. 생환자의 기록 전달 ───────────────────────────
+	// 던전 안에서 목표를 달성했다는 사실만으로는 기록이 반영되지 않는다 — 기록을 가진 생존자가 던전 밖으로 나가 전달한 기록만 중복 제거 후 전역 기록에 반영한다. 미전달 기록의 생존 보유자가 모두 사라지면(전멸·웨이브 종료) 그 기록은 반영되지 않는다. 같은 사건을 여러 생존자가 각자 시점에 나가며 전달해도 사건 단위 중복 제거가 유지되도록, 전달된 기록을 사건별로 누적해 합산량의 증가분만 반영한다.
+	private readonly Dictionary<(string incidentId, string targetId, WeightType weightType), List<IncidentEntry>> _deliveredByKey = new();
+	private readonly Dictionary<(string incidentId, string targetId, WeightType weightType), float> _deliveredAmount = new();
+
+	public void DeliverRecords(Unit observer)
+	{
+		if (observer == null) return;
+		var mine = _pendingIncidents.Where(e => e.ObserverUnitName == observer.name).ToList();
+		if (mine.Count == 0) return;
+		_pendingIncidents.RemoveAll(e => e.ObserverUnitName == observer.name);
+		ReflectDelivered(mine);
+	}
+
+	private void ReflectDelivered(List<IncidentEntry> delivered)
+	{
+		foreach (var group in delivered.GroupBy(e => (e.IncidentId, e.TargetId, e.WeightType)))
 		{
-			float amount = WeightMath.ComputeGlobalReflectionAmount(group.ToList());
-			if (amount == 0f) continue;
+			if (!_deliveredByKey.TryGetValue(group.Key, out var all))
+			{
+				all = new List<IncidentEntry>();
+				_deliveredByKey[group.Key] = all;
+			}
+			all.AddRange(group);
+
+			float amount = WeightMath.ComputeGlobalReflectionAmount(all);
+			float previous = _deliveredAmount.TryGetValue(group.Key, out float p) ? p : 0f;
+			float delta = amount - previous;
+			// 합산량이 줄어드는 재계산(평균이 낮아짐)은 이미 반영한 양을 되돌리지 않고 무시한다 — 증가분만 반영한다.
+			if (delta == 0f || (previous != 0f && Mathf.Sign(delta) != Mathf.Sign(amount))) continue;
 
 			string targetId = group.Key.TargetId;
 			// 기록 당시 target.isSpecialUnit을 그대로 들고 온다 — _individuals.ContainsKey 추측은 호출 순서에 따라 틀릴 수 있다.
 			bool isIndividual = group.First().IsIndividualTarget;
 
 			if (group.Key.WeightType == WeightType.Understanding)
-				ApplyUnderstandingGlobal(targetId, isIndividual, amount);
+				ApplyUnderstandingGlobal(targetId, isIndividual, delta);
 			else if (group.Key.WeightType == WeightType.Danger)
-				ApplyDangerGlobal(targetId, isIndividual, amount);
+				ApplyDangerGlobal(targetId, isIndividual, delta);
+			_deliveredAmount[group.Key] = amount;
 		}
-
-		_pendingIncidents.Clear();
-		CurrentWave++;
-		TickWipeoutTraces();
 	}
 
 	// ─────────────────────────── 7장/7-1장/8장. 이해도 전역 반영 (총량 한도 포함) ───────────────────────────

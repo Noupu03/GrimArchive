@@ -19,6 +19,7 @@ public abstract class UnitFunction : Unit
 		if (attacker != null)
 		{
 			lastDamageDealer = attacker;
+			rawDamage *= RetreatSystem.GetStageEffects(attacker).AttackMultiplier; // 공격자 정신력 단계의 공격력 배율(후퇴도주 3-2장)
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
@@ -62,6 +63,7 @@ public abstract class UnitFunction : Unit
 		if (attacker != null)
 		{
 			lastDamageDealer = attacker;
+			rawDamage *= RetreatSystem.GetStageEffects(attacker).AttackMultiplier; // 공격자 정신력 단계의 공격력 배율(후퇴도주 3-2장)
 			rawDamage = DefenseSystem.EvaluateImpactDefense(this, attacker, rawDamage);
 		}
 
@@ -247,9 +249,7 @@ public abstract class UnitFunction : Unit
 	{
 		if (this is Human)
 		{
-			int prevStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
-			BaseStat.mental -= rawDamage; // 정신력만 감소
-			int currentStage = Mathf.FloorToInt(BaseStat.mental / (BaseStat.maxMental * 0.25f));
+			MentalSystem.ApplyChange(this, -rawDamage); // 정신력만 감소 — 모든 정신력 변경의 단일 진입점(범위 제한·감소 보정·도주 판정)
 			CombatState.State.isHitThisTurn = true;
 		}
 	}
@@ -544,6 +544,7 @@ public abstract class UnitFunction : Unit
 		var map = human.personalMap;
 		map.ObserveMonster(enemy.name, tile, danger, interest);
 		map.ObserveUnitInRoom(roomId, false, enemy.name, danger, interest);
+		FleeSystem.OnMonsterSpotted(human, enemy); // 직접 정확 인지한 몬스터의 조우 충격(후퇴도주 4장) — 소리·보고·함정 확인은 이 지점을 지나지 않아 발동하지 않는다
 		if (enemy.unitType == null) return;
 		if (enemy.unitType.isBoss) map.ConfirmBossRoom(roomId);
 
@@ -1070,6 +1071,9 @@ public abstract class UnitFunction : Unit
 		if (this is Human leaderHuman && leaderHuman.party != null && leaderHuman.party.Leader == leaderHuman)
 			leaderHuman.party.TickRoomActivityCheck(Time.time);
 
+		// 후퇴도주 문서: 후퇴 기준 관찰(상태·로그만) — retreatFleeSystemEnabled가 꺼져 있으면 즉시 반환, 켜져 있어도 자체 스로틀.
+		if (this is Human retreatHuman) RetreatSystem.Tick(retreatHuman, Time.time);
+
 		// 07-A 9장: 전투 진입 합류 대기 타이머 — currentAlertSearch와 동일하게 실제 경과 시간으로
 		// 매 프레임 흐른다.
 		if (this is Human joinWaitHuman && joinWaitHuman.currentJoinCombatWait != null)
@@ -1227,7 +1231,11 @@ public abstract class UnitFunction : Unit
 		}
 
 		if (hp > 0f)
-			hp = Mathf.Min(maxHp, hp + HPRegen * deltaTime);
+		{
+			// 거점 휴식 중(전투 아님)에는 재생력×2 — 탐험 중 회복에 중복 합산하지 않는다(후퇴도주 2-1장). 정신력은 휴식 중에만 +1/초(TickRecovery).
+			hp = PartyRetreatMath.NextHp(hp, maxHp, HPRegen, deltaTime, this is Human regenHuman && RetreatSystem.ShouldDoubleRegen(regenHuman));
+			if (this is Human recoveringHuman) RetreatSystem.TickRecovery(recoveringHuman, deltaTime);
+		}
 
 		if (CombatState.State.evadeCooldown > 0f)
 			CombatState.State.evadeCooldown -= Time.deltaTime;

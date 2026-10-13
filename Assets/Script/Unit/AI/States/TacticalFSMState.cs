@@ -28,9 +28,20 @@ public class TacticalFSMState : IFSMState
 		if (cfg != null && cfg.order.Count > 0)
 		{
 			var children = new List<BTNode>();
+			// Rest는 설정 에셋에 항목이 없어도(예전에 만든 에셋) 경계 바로 아래에 자동 삽입한다 — 항목이 있으면 그 순서·enabled를 따른다.
+			bool restConfigured = cfg.order.Exists(e => e.behavior == TacticalBehaviorType.Rest);
+			bool restInserted = restConfigured;
 			foreach (var entry in cfg.order)
-				if (entry.enabled && nodes.TryGetValue(entry.behavior, out var node))
-					children.Add(node);
+			{
+				if (!entry.enabled || !nodes.TryGetValue(entry.behavior, out var node)) continue;
+				if (!restInserted && IsBelowRest(entry.behavior))
+				{
+					children.Add(nodes[TacticalBehaviorType.Rest]);
+					restInserted = true;
+				}
+				children.Add(node);
+			}
+			if (!restInserted) children.Add(nodes[TacticalBehaviorType.Rest]);
 			children.Add(_fallbackRunning);
 			_bt = new BTSelector(children.ToArray());
 		}
@@ -43,6 +54,7 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.JoinCombatWait],
 				nodes[TacticalBehaviorType.TrapResponse],
 				nodes[TacticalBehaviorType.Alert],
+				nodes[TacticalBehaviorType.Rest],
 				nodes[TacticalBehaviorType.Investigate],
 				nodes[TacticalBehaviorType.Wait],
 				// nodes[TacticalBehaviorType.Formation],
@@ -97,6 +109,10 @@ public class TacticalFSMState : IFSMState
 					new BTLeaf(AlertPerimeterSearch)
 				)
 			),
+			[TacticalBehaviorType.Rest] = new BTSequence(
+				new BTCondition(IsResting),
+				new BTLeaf(RestPerform)
+			),
 			[TacticalBehaviorType.Investigate] = new BTSequence(
 				new BTCondition(CanInvestigate),
 				new BTLeaf(MoveToInvestigateTarget),
@@ -142,6 +158,7 @@ public class TacticalFSMState : IFSMState
 		if (TrapAvoidance.NeedsZoneEscape(unit)) return p; // 응답 없이 함정 구역 안에 있으면 탈출(ZoneEscape)이 우선
 		if (unit.currentAlertSearch != null) return p;
 		Human hu = unit as Human;
+		if (hu != null && RetreatSystem.IsResting(hu)) return p; // 거점 휴식(후퇴도주 2-1장)
 		if (hu != null && (hu.currentInvestigation != null || hu.HasReachableInvestigateTarget())) return p;
 		if (hu != null && hu.currentWait != null) return p;
 		// 2026-09-04(사용자 요청): 인류측 보호 포메이션 전부 비활성화 — GetPriority도 같이 꺼야
@@ -192,10 +209,10 @@ public class TacticalFSMState : IFSMState
 
 	// ── FSM 진입 조건 헬퍼 ─────────────────────────────────────────
 
-	// 공황 판정의 단일 출처. panicBehaviorEnabled(기본 false)로 임시 비활성 — 도주·후퇴 문서 이후 켠다.
+	// 예전 "공황 무작위 걸음" 행동의 게이트. 후퇴도주 문서(2026-10-13)에서 공황은 무작위 걸음이 아니라 전투 불이익 + 개인 도주 판정이라 이 행동은 폐기 대상이다 — panicBehaviorEnabled(기본 false)를 켜지 말 것. 공황 임계값은 MentalMath.IsPanic(원수치 −70 미만) 한 곳이 정한다.
 	internal static bool IsPanic(Unit unit)
 		=> (AIConfigLoader.Behavior?.panicBehaviorEnabled ?? false)
-			&& unit is Human && unit.BaseStat.mental < unit.BaseStat.maxMental * (AIConfigLoader.Behavior?.panicMentalRatio ?? 0.3f);
+			&& unit is Human && MentalMath.IsPanic(unit.BaseStat.mental);
 
 	// 함정 해제: 피격 또는 위협 인지 시 이 틱에 한해 Failure → Selector가 다음 분기로 넘어감. 9-7장
 	// 중단 조건이라 진행도 50% 손실도 여기서 같이 처리한다(브랜치만 바뀌는 경로는 OnExit을 안 탄다).
@@ -279,6 +296,8 @@ public class TacticalFSMState : IFSMState
 	{
 		if (unit.currentAlertSearch != null) return true;
 		if (unit is Human retreatingHuman && retreatingHuman.currentWait?.Reason == WaitReason.Retreating) return false;
+		// 거점 휴식 중에는 소리만으로 새 경계를 만들지 않는다 — 소리 방향으로 시야만 돌리고 조사 이동 없이 휴식·회복을 유지한다(후퇴도주 2-1장·R37). 전투는 Combat이 우선한다.
+		if (unit is Human restingHuman && RetreatSystem.IsResting(restingHuman)) return false;
 		return PropagationSystem.TryPromotePendingSoundToAlert(unit);
 	}
 	private static bool HasFormationNeed(Unit unit)
@@ -796,6 +815,18 @@ public class TacticalFSMState : IFSMState
 		human.currentAlertSearch = null; // 03문서 4-5장: 낡은 경계 상태 잔재 정리
 		return BTStatus.Success;
 	}
+
+	// ── 거점 휴식 ─────────────────────────────────────────────────
+
+	// Rest 분기가 설정 순서에서 아래에 놓이는 행동들 — 설정 에셋에 Rest 항목이 없을 때 자동 삽입 위치를 정한다.
+	private static bool IsBelowRest(TacticalBehaviorType type)
+		=> type == TacticalBehaviorType.Investigate || type == TacticalBehaviorType.Wait || type == TacticalBehaviorType.Formation
+			|| type == TacticalBehaviorType.CoreAttack || type == TacticalBehaviorType.DoorAttack;
+
+	private static bool IsResting(Unit unit) => unit is Human human && RetreatSystem.IsResting(human);
+
+	// 휴식 모션으로 그 자리에서 머문다 — 회복(HP 재생력×2, 정신력 +1/초)은 UnitFunction.OnUpdate가 IsRecovering일 때 처리하고, 완료 판정·전환은 PartyRetreatSystem이 한다. 전투가 나면 Combat이 우선해 이 리프는 호출되지 않는다.
+	private static BTStatus RestPerform(Unit unit) => BTStatus.Running;
 
 	// ── 대기 ──────────────────────────────────────────────────────
 
@@ -1681,6 +1712,7 @@ public class TacticalFSMState : IFSMState
 		if (unit.currentTrapInteraction != null) return "전술(함정)";
 		if (unit is Human h)
 		{
+			if (RetreatSystem.IsResting(h)) return "전술(휴식)";
 			if (h.currentInvestigation != null || h.HasReachableInvestigateTarget()) return "전술(조사)";
 			if (h.currentWait != null) return "전술(대기)";
 		}

@@ -54,9 +54,11 @@ public class PerceptionSystemTests
 	[Test]
 	public void MentalCorrectionForHuman_UnsetMaxMentalIsStable()
 	{
+		// mental은 −100~+100 원수치(후퇴도주 문서), 비율은 (원수치+100)/2 — 경계 17/33/50/67/83은 비율 기준 그대로다.
 		Assert.AreEqual(0f, PerceptionMath.MentalCorrectionForHuman(0f, 0f), 0.001f);
-		Assert.AreEqual(10f, PerceptionMath.MentalCorrectionForHuman(100f, 100f), 0.001f); // 100% → 흥분
-		Assert.AreEqual(-30f, PerceptionMath.MentalCorrectionForHuman(0f, 100f), 0.001f);  // 0% → 공황
+		Assert.AreEqual(10f, PerceptionMath.MentalCorrectionForHuman(100f, 100f), 0.001f);  // 비율 100% → 흥분
+		Assert.AreEqual(-30f, PerceptionMath.MentalCorrectionForHuman(-100f, 100f), 0.001f); // 비율 0% → 공황
+		Assert.AreEqual(-5f, PerceptionMath.MentalCorrectionForHuman(-20f, 100f), 0.001f);   // 비율 40%(예전 시작값 40/100) → 긴장
 	}
 
 	// ── 8장. 최종 계산 가시성 = 대상 가시성 + 감지 보정 + 정신력 보정 (예시 그대로 고정) ──

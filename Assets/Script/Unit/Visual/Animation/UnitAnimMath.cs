@@ -8,6 +8,8 @@ public struct AnimPollInputs
 	public bool Channeling;     // 코어/문 공격 채널링 또는 함정 파괴
 	public bool Disarming;
 	public bool Investigating;
+	public bool Resting;        // 후퇴 거점에서 휴식·회복 중
+	public bool Fleeing;        // 개인 도주 확정(이동 중이면 달리기)
 	public bool Moving;
 }
 
@@ -24,6 +26,8 @@ public static class UnitAnimMath
 		if (i.Channeling    && hasClip(AnimSlot.Channel))     return AnimSlot.Channel;
 		if (i.Disarming     && hasClip(AnimSlot.DisarmTrap))  return AnimSlot.DisarmTrap;
 		if (i.Investigating && hasClip(AnimSlot.Investigate)) return AnimSlot.Investigate;
+		if (i.Resting       && hasClip(AnimSlot.Rest))        return AnimSlot.Rest;
+		if (i.Fleeing && i.Moving && hasClip(AnimSlot.Flee))  return AnimSlot.Flee;
 		if (i.Moving        && hasClip(AnimSlot.Walk))        return AnimSlot.Walk;
 		return AnimSlot.Idle;
 	}

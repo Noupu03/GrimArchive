@@ -80,6 +80,30 @@ public class UnitAnimMathTests
 	}
 
 	[Test]
+	public void ResolveLoopSlot_Resting_IsRest_FleeingMovingIsFlee_FallbackToWalk()
+	{
+		var rest = new AnimPollInputs { Resting = true, Moving = true };
+		Assert.AreEqual(AnimSlot.Rest, UnitAnimMath.ResolveLoopSlot(rest, Has(AnimSlot.Idle, AnimSlot.Walk, AnimSlot.Rest)), "휴식은 걷기보다 우선");
+		Assert.AreEqual(AnimSlot.Walk, UnitAnimMath.ResolveLoopSlot(rest, Has(AnimSlot.Idle, AnimSlot.Walk)), "휴식 클립이 비어 있으면 다음 후보로");
+
+		var flee = new AnimPollInputs { Fleeing = true, Moving = true };
+		Assert.AreEqual(AnimSlot.Flee, UnitAnimMath.ResolveLoopSlot(flee, Has(AnimSlot.Idle, AnimSlot.Walk, AnimSlot.Flee)));
+		Assert.AreEqual(AnimSlot.Walk, UnitAnimMath.ResolveLoopSlot(flee, Has(AnimSlot.Idle, AnimSlot.Walk)), "달리기 클립이 없으면 걷기로 대신");
+		Assert.AreEqual(AnimSlot.Idle, UnitAnimMath.ResolveLoopSlot(new AnimPollInputs { Fleeing = true }, Has(AnimSlot.Idle, AnimSlot.Flee)), "도주 확정이어도 멈춰 있으면(이동 아님) 달리기가 아니다");
+	}
+
+	[Test]
+	public void RestAndFleeSlots_AreHumanOnly()
+	{
+		var human = AnimSlotCatalog.SlotsFor(true, new string[0]).Select(x => x.slot).ToList();
+		var monster = AnimSlotCatalog.SlotsFor(false, new string[0]).Select(x => x.slot).ToList();
+		CollectionAssert.Contains(human, AnimSlot.Rest);
+		CollectionAssert.Contains(human, AnimSlot.Flee);
+		CollectionAssert.DoesNotContain(monster, AnimSlot.Rest);
+		CollectionAssert.DoesNotContain(monster, AnimSlot.Flee);
+	}
+
+	[Test]
 	public void ResolveLoopSlot_Moving_IsWalk_OnlyWhenClipExists()
 	{
 		var i = new AnimPollInputs { Moving = true };

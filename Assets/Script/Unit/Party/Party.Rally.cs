@@ -92,6 +92,7 @@ public partial class Party
 	{
 		if (currentTime < _nextRoomActivityCheckTime) return;
 		_nextRoomActivityCheckTime = currentTime + 1f;
+		if (Retreat.IsRetreating) return; // 후퇴 중에는 새 집결(미집결자 수색 포함)을 시작하지 않는다(명세서 1-2장)
 		// 입구 시퀀스·리더의 층 이동 중엔 방 활동이 없어 TryStartRally가 어차피 거절하므로 호출을 건너뛴다. 진행 중 집결의 완료 확인은 막지 않는다.
 		if (!IsRallyActive && (AnyMemberInEntranceSequence() || (Leader != null && Leader.pendingStairTargetFloor.HasValue))) return;
 		TryStartRally();
@@ -110,6 +111,7 @@ public partial class Party
 	// 전투 후 경계 스윕이 끝난 유닛이 호출한다 — 파티 전체가 전투에서 벗어났을 때만 집결을 시작하고, 남은 파티원이 있으면 그 유닛이 끝날 때 재시도된다.
 	public void TryStartRally()
 	{
+		if (Retreat.IsRetreating) return; // 후퇴 중에는 집결하지 않는다 — 일반 집결 판단은 후퇴가 끝난 뒤(재탐험·재출격) 다시 돈다
 		if (IsRallyActive)
 		{
 			TickLateRallyDelivery(); // 시작 뒤 같은 방·전파 범위에 들어온 낙오자에게 집결 명령을 뒤늦게 전달한다

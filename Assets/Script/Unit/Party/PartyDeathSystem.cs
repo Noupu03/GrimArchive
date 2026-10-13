@@ -124,7 +124,7 @@ public static class PartyDeathSystem
 	{
 		if (record.InfoKnownUnits.Contains(unit.name)) return;
 		record.InfoKnownUnits.Add(unit.name);
-		unit.BaseStat.mental += mentalDelta; // mentalDelta는 음수
+		MentalSystem.ApplyChange(unit, mentalDelta); // mentalDelta는 음수 — 정신력 변경 단일 진입점
 	}
 
 	private static void TryConfirmCauseByWitness(PartyDeathRecord record, Human witness)

@@ -50,12 +50,11 @@ public static class PerceptionMath
 		_ => 0f,
 	};
 
-	// 인류 전용(몬스터는 사용하지 않음). maxMental이 0 이하면 안정(0) 취급한다 — 안 그러면 0으로 나눠 항상 100%가 되어 최고 단계 보너스가 공짜로 붙는다.
+	// 인류 전용(몬스터는 사용하지 않음). maxMental이 0 이하면(정신력 스탯 미설정) 안정(0) 취급한다 — 원수치 0은 비율 50%라 그대로 쓰면 안정이 아닌 단계 보정이 붙을 수 있다.
 	public static float MentalCorrectionForHuman(float mental, float maxMental)
 	{
 		if (maxMental <= 0f) return MentalCorrectionStable;
-		float ratioPercent = Mathf.Clamp01(mental / maxMental) * 100f;
-		return MentalVisibilityCorrection(GetMentalTier(ratioPercent));
+		return MentalVisibilityCorrection(GetMentalTier(MentalMath.ToRatioPercent(mental))); // mental은 −100~+100 원수치 → 비율 환산(경계 17/33/50/67/83은 그대로)
 	}
 
 	// ─────────────────────────── 8장. 최종 계산 가시성 ───────────────────────────

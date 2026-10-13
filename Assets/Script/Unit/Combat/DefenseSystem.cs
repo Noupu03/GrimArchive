@@ -190,7 +190,7 @@ public static class DefenseSystem
 			{
 				// 계수가 크면 상한에 쉽게 붙어 스탯 차이가 무의미해지므로 낮게 유지한다.
 				float success = Mathf.Clamp(
-					defender.BaseStat.agility * 0.003f + defender.BaseStat.sense * 0.001f,
+					defender.BaseStat.agility * 0.003f + defender.BaseStat.sense * 0.001f + RetreatSystem.DefenseSuccessDelta(defender), // 정신력 단계의 방어 성공률 증감(후퇴도주 3-2장)
 					CombatConstants.MIN_DEFENSE_SUCCESS_RATE,
 					CombatConstants.MAX_DEFENSE_SUCCESS_RATE
 				);
@@ -263,7 +263,7 @@ public static class DefenseSystem
 				// 패링은 성공 시 피해 0 + 반격이라 가장 강한 방어이므로 상한을 낮게(0.35) 잡아
 				// 남발되지 않게 한다.
 				float success = Mathf.Clamp(
-					defender.concentration * 0.002f + defender.BaseStat.sense * 0.001f + defender.BaseStat.agility * 0.001f,
+					defender.concentration * 0.002f + defender.BaseStat.sense * 0.001f + defender.BaseStat.agility * 0.001f + RetreatSystem.DefenseSuccessDelta(defender), // 정신력 단계의 방어 성공률 증감(후퇴도주 3-2장)
 					0.05f,
 					0.35f
 				);

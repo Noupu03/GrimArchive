@@ -8,6 +8,8 @@ public class UnitFSM
 	// _states 배열에는 넣지 않는다(HaltFSMState.cs 참고).
 	private readonly HaltFSMState _haltState = new HaltFSMState();
 	private readonly StandGroundAttackFSMState _standGroundState = new StandGroundAttackFSMState();
+	// 후퇴·도주 이동(후퇴도주 문서 5장) — 위 둘과 같이 SelectState가 직접 강제 배정한다. 전투·전술보다 우선하며 인류 전용이다(몬스터는 플레이어 명령 없이는 자율 후퇴가 없다).
+	private readonly RetreatFSMState _retreatState = new RetreatFSMState();
 
 	// 우선순위 내림차순: PlayerCommand(200) → Combat(100) → Tactical(50) → Idle(20, 오펜스/디펜스
 	// 아닌 방에서 명령 없는 몬스터/야생의 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나온
@@ -71,6 +73,18 @@ public class UnitFSM
 			{
 				_current?.OnExit(unit);
 				_current = _standGroundState;
+				_current.OnEnter(unit);
+			}
+			return;
+		}
+
+		// 후퇴·도주 이동 강제 — 개인 도주/개인 후퇴/파티 후퇴 이동 단계의 인류는 전투·전술을 건너뛰고 출구(또는 거점)로 간다. 켜져 있지 않으면 RetreatSystem이 항상 false라 이 분기는 없는 것과 같다.
+		if (RetreatSystem.WantsRetreatState(unit))
+		{
+			if (_current != _retreatState)
+			{
+				_current?.OnExit(unit);
+				_current = _retreatState;
 				_current.OnEnter(unit);
 			}
 			return;

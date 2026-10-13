@@ -500,8 +500,12 @@ public static class OccupancySystem
 	// ═══════════════════════════ 좁은 통로 통과 순서·마주 막힘(04번 8장) ═══════════════════════════
 
 	internal static PassKey PassKeyOf(Unit unit)
-		=> new PassKey(OccupancyMath.EntryRank(CombatScoreMath.ResolveCombatRole(unit.unitType)),
-			unit.hp / Mathf.Max(1f, unit.maxHp), unit.PassTieBreak, unit.GetInstanceID());
+	{
+		int entryRank = OccupancyMath.EntryRank(CombatScoreMath.ResolveCombatRole(unit.unitType));
+		// 후퇴·도주 이동 중에는 통과 순서가 평소와 다르다(후퇴도주 5-1장) — RetreatSystem이 켜져 있고 이동 중인 인류만 순위를 바꾼다.
+		int rank = unit is Human human ? RetreatSystem.ResolvePassRank(human, entryRank) : entryRank;
+		return new PassKey(rank, unit.hp / Mathf.Max(1f, unit.maxHp), unit.PassTieBreak, unit.GetInstanceID());
+	}
 
 	private static bool IsInGate(Unit unit, int gateKey)
 		=> unit.Session.TryGetGateKeyAt(new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor), out int k) && k == gateKey;

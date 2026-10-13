@@ -27,6 +27,7 @@ public abstract class Unit : ScriptableObject {
     private MemoryComponent       _memoryComp;
     private PartyComponent        _partyComp;
     private PropagationComponent  _propagationComp;
+    private RetreatComponent      _retreatComp;
 
     public HealthComponent        Health        => _healthComp        ??= GetComponent<HealthComponent>();
     public CombatStateComponent   CombatState   => _combatStateComp   ??= GetComponent<CombatStateComponent>();
@@ -42,6 +43,7 @@ public abstract class Unit : ScriptableObject {
     public IKnownTerrain KnownTerrain => this is Human ? (IKnownTerrain)Memory?.personalMap : this is Monster ? Memory?.monsterMap : null;
     public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
     public PropagationComponent   Propagation   => _propagationComp   ??= GetComponent<PropagationComponent>();
+    public RetreatComponent       Retreat       => _retreatComp       ??= GetComponent<RetreatComponent>();
 
     // 코드 전역에서 bare 이름으로 쓰이는 필드들. 실제 데이터는 컴포넌트에 있고 여기서 위임만 한다.
     public float hp               { get => Health.hp;                          set => Health.hp = value; }
@@ -64,7 +66,7 @@ public abstract class Unit : ScriptableObject {
         _healthComp = null; _combatStateComp = null; _combatStatComp = null;
         _perceptionComp = null; _visionStatComp = null; _baseStatComp = null;
         _statusEffectsComp = null; _aiStateComp = null; _memoryComp = null; _partyComp = null;
-        _propagationComp = null;
+        _propagationComp = null; _retreatComp = null;
 
         if (Components == null) Components = new List<IUnitComponent>();
         if (CombatStat == null) Components.Add(new CombatStatComponent(this));
@@ -78,6 +80,7 @@ public abstract class Unit : ScriptableObject {
         if (CombatState == null) Components.Add(new CombatStateComponent(this));
         if (StatusEffects == null) Components.Add(new StatusEffectsComponent(this));
         if (Propagation == null) Components.Add(new PropagationComponent(this));
+        if (Retreat == null) Components.Add(new RetreatComponent(this));
     }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
@@ -557,7 +560,7 @@ public abstract class Unit : ScriptableObject {
 		float nReact    = Normalize(BaseStat.reaction,          BASE_REACTION);
 		float nMove     = Normalize(BaseStat.walkSpeed,         BASE_WALK_SPEED);
 		float nSpot     = Normalize(VisionStat.spotting,          BASE_SPOTTING);
-		float nMental   = Normalize(BaseStat.mental,            BASE_MENTAL);
+		float nMental   = Normalize(MentalMath.ToRatioPercent(BaseStat.mental), BASE_MENTAL); // 원수치 −100~+100 → 비율(%) — 예전 0~100 저작 스케일과 같은 값
 		float nLeadRange = Normalize(BaseStat.leadershipRange,  BASE_LEAD_RANGE);
 		float nCharisma = Normalize(BaseStat.charisma,          BASE_CHARISMA);
 		float nCrit     = Normalize(CombatStat.criticalChance,    BASE_CRIT);
@@ -708,7 +711,8 @@ public class Human : UnitFunction
 	public Party party { get => UnitParty.party; set => UnitParty.party = value; }
 
 	// 파티 공동 이동(방 이동·문 찾기 추종) 중에는 합류한 구성원이 "가장 느린 구성원" 속도를 쓴다 — 자세한 기준은 Party.ResolveMoveBaseSpeed.
-	protected override float MovementBaseSpeed => party != null ? party.ResolveMoveBaseSpeed(this) : base.MovementBaseSpeed;
+	// 개인 도주는 달리기(SprintSpeed 대용 = 걷기 × 배율), 파티 후퇴는 공동 이동 속도(가장 느린 구성원)다 — RetreatSystem.ResolveMoveSpeed가 도주만 올린다.
+	protected override float MovementBaseSpeed => RetreatSystem.ResolveMoveSpeed(this, party != null ? party.ResolveMoveBaseSpeed(this) : base.MovementBaseSpeed);
 
 	public override void ResetNonCombatStuckCounters()
 	{
@@ -804,6 +808,11 @@ public class Human : UnitFunction
 		_confinedCacheFrame = -1;
 	}
 
+	// 경로 "조회"(실제 이동이 아님)가 방 이탈 금지에 막혀 다른 방의 거점·출구를 못 닿는 것으로 나오지 않게, 조회 동안만 제한을 푼다(후퇴도주 거점 후보 판정 등). 반드시 try/finally로 짝을 맞출 것 — 이 호출은 그 프레임의 다른 이동 판정에 영향을 주지 않도록 Resume에서 캐시를 다시 무효화한다.
+	private int _confinementSuspendDepth;
+	public void SuspendRoomConfinement() { _confinementSuspendDepth++; _confinedCacheFrame = -1; }
+	public void ResumeRoomConfinement() { if (_confinementSuspendDepth > 0) _confinementSuspendDepth--; _confinedCacheFrame = -1; }
+
 	public bool IsRoomConfinedNow
 	{
 		get
@@ -827,7 +836,7 @@ public class Human : UnitFunction
 			NoLeaderToFollow = party == null || leader == null || leader.hp <= 0 || (leader == this && party.LeaderMayExploreBeyondRoom),
 			EntranceSequence = isInDungeonEntranceSequence,
 			PlayerCommand = isManualMoveCommand,
-			GrantedThisTick = _roomLeaveGrantFrame == frame,
+			GrantedThisTick = _roomLeaveGrantFrame == frame || _confinementSuspendDepth > 0,
 		};
 		return !RoomConfinementMath.IsExempt(exemptions);
 	}

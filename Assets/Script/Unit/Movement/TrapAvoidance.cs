@@ -7,6 +7,7 @@ public enum TrapMoveMode
 	Off,     // 함정을 무시한다(현행 동작): 인류가 아님·귀환 중(06 위기반응 문서 전까지)·설정 끔
 	General, // 전투 아닌 자율 이동 — 알려진 활성 함정의 인접 1칸(3×3 구역) 진입 금지
 	Combat,  // 전투 이동 — 안전한 우회를 먼저 보고, 알려진 피해 후 HP 50% 이상일 때만 함정 타일을 통과 후보로 삼는다
+	Retreat, // 후퇴·도주 이동(후퇴도주 문서 5-3장) — 알려진 함정 타일만 막고(인접 구역은 자유) 우회를 먼저 본다. 우회가 한도를 넘으면 RetreatMovement가 파괴·조건부 강행(통과 후 HP > 0)을 따로 정한다
 }
 
 // '개인이 아는 활성 함정'을 이동 계층에 알리는 진입점 — 구역 = 함정 타일 + 체비셰프 1(ExplorationMath.TrapAvoidZoneRadius). 함정을 모르는 유닛엔 구역이 없고(정보 격리) 근거는 personalMap.KnownTrapTiles이며, '아직 존재하는가'만 실제 objectGrid로 확인한다.
@@ -33,7 +34,7 @@ public static class TrapAvoidance
 	{
 		if (!(unit is Human human) || human.hp <= 0f) return false;
 		if (!(AIConfigLoader.Behavior?.trapAvoidanceEnabled ?? true)) return false;
-		// 귀환·후퇴의 통과 조건은 06 위기반응 문서가 정한다 — 그 문서가 생기기 전까지는 현행(함정 무시) 동작을 유지한다.
+		// 웨이브 승리 뒤 퇴각(WaitReason.Retreating, 코어 파괴)은 함정을 무시하는 현행 동작을 유지한다. 상태 악화 후퇴·도주는 별도로 TrapMoveMode.Retreat(후퇴도주 문서 5-3장)를 쓴다.
 		if (human.currentWait != null && human.currentWait.Reason == WaitReason.Retreating) return false;
 		return true;
 	}
@@ -41,6 +42,7 @@ public static class TrapAvoidance
 	public static TrapMoveMode ResolveMode(Unit unit)
 	{
 		if (!IsEnabled(unit)) return TrapMoveMode.Off;
+		if (unit.CurrentFsmStateIfCreated is RetreatFSMState) return TrapMoveMode.Retreat;
 		return unit.CurrentFsmStateIfCreated is CombatFSMState ? TrapMoveMode.Combat : TrapMoveMode.General;
 	}
 
@@ -195,6 +197,10 @@ public sealed class TrapMoveContext
 				{
 					passable = ExplorationMath.CanPassTrapInCombat(t.Recorded, unit.hp, unit.maxHp, t.DamageMax, minRatio);
 					if (passable) _passCost.Add(t.Tile); else _blocked.Add(t.Tile);
+				}
+				else if (Mode == TrapMoveMode.Retreat)
+				{
+					_blocked.Add(t.Tile); // 함정 타일만 막는다 — 인접 구역은 위험하지 않다. 강행 통과는 경로 탐색이 아니라 RetreatMovement가 조건을 보고 결정한다
 				}
 				else
 				{

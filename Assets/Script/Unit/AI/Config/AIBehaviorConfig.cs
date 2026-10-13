@@ -109,10 +109,29 @@ public class AIBehaviorConfig : ScriptableObject
 
     // ── 공황 ────────────────────────────────────────────────────────────────
     [Header("공황 (내부 판단 — 문서 미명시)")]
-    [Tooltip("공황 행동 사용 여부. 2026-10-02부터 임시로 꺼 둠(기본 false) — 시작 정신력 40/100에 임계값 30%라 시체 두 번이면 영구 공황이고(회복 코드 없음) 무작위 걸음이 BT 최상위라 전 행동이 막혔다. 도주·후퇴 문서(06 위기반응) 이후 켠다. 정신력 감소·인지 보정·가중치 정보 오차는 이 값과 무관하게 그대로 동작")]
+    [Tooltip("[폐기 예정 — 켜지 말 것] 예전 공황 무작위 걸음 사용 여부(기본 false). 후퇴도주 문서(2026-10-13)에서 공황은 무작위 걸음이 아니라 전투 불이익 + 개인 도주 판정이다. 공황 임계값은 MentalMath.IsPanic(원수치 −70 미만). 정신력 감소·인지 보정·가중치 정보 오차는 이 값과 무관하게 그대로 동작")]
     public bool panicBehaviorEnabled = false;
-    [Range(0f, 1f), Tooltip("정신력이 최대 정신력의 이 비율 미만이면 공황 진입(panicBehaviorEnabled가 켜져 있을 때만)")]
-    public float panicMentalRatio = 0.3f;
+
+    // ── 후퇴·도주 ───────────────────────────────────────────────────────────
+    [Header("후퇴·도주 (후퇴도주 문서 2026-10-13)")]
+    [Tooltip("후퇴·도주 시스템 관찰 모드. 켜면 정신력 변경 시 개인 도주 판정과 안정 단계 감소 보정(×0.95)이 동작하고, 파티 평균(일반 20/15·점령 40/30)·리더 없는 개인 HP(20%) 후퇴 기준을 주기적으로 확인해 상태와 로그만 남긴다. 실제 출구 이동·거점 휴식·재출격은 아직 연결하지 않았다(상태 기록만). 끄면 정신력 변경은 범위(−100~+100) 제한만 적용한다")]
+    public bool retreatFleeSystemEnabled = false;
+    [Tooltip("개인 도주 달리기 배율 — SprintSpeed 전용 스탯이 없어 걷기 속도에 곱한다(자리표시자, 유닛 능력치 문서가 확정하면 교체)")]
+    public float fleeSprintSpeedMultiplier = 1.5f;
+    [Tooltip("5-2장: 후퇴·도주 중 허용하는 추가 우회 거리(칸) — 우회 경로 길이 − 기준 경로 길이 ≤ 이 값")]
+    public int retreatDetourExtraTiles = 6;
+    [Tooltip("6-1장: 집결 대기 기본 시간(초) — 유효한 도착 예정 정보가 없을 때 명령 발령부터")]
+    public float retreatRallyWaitSeconds = 8f;
+    [Tooltip("4-2장: 위험도 격차 +2 조우의 기본 정신력 감소량(일반 감소 보정 적용)")]
+    public float encounterGap2MentalDamage = 20f;
+    [Tooltip("후퇴·도주 이동이 기준 경로와 실제 경로를 비교해 막힘을 다시 판정하는 주기(초) — 경로 조회 2회(적·함정 무시 기준 + 실제)가 드는 판단이라 매 걸음 하지 않는다 (내부 판단)")]
+    public float retreatPathCheckSeconds = 0.5f;
+    [Tooltip("거점 도착 판정 반경(칸) — 휴식 자리에서 이 안이면 휴식 대상(도착·집결)이 된다 (내부 판단)")]
+    public int retreatBaseArrivalRadius = 2;
+    [Tooltip("2-1장 보완: 첫 도착자가 생긴 뒤 아직 걸어오는 파티원을 기다리는 최대 시간(초) — 살아 있는 비도주 파티원이 전부 도착하면 즉시 평가한다. 0 이하면 문서 그대로 도착한 인원만으로 평균을 낸다 (내부 판단, 문서 미명시)")]
+    public float retreatRestStragglerGraceSeconds = 10f;
+    [Tooltip("2-3장 ③ 점령 파티 재출격: 인류 지도상 \"안전한\" 진출 방의 위험도 상한 — 문서가 수치를 정하지 않았다 (자리표시자, 밸런스 미확정)")]
+    public float resortieSafeRoomMaxDanger = 100f;
 
     // ── 전투 ────────────────────────────────────────────────────────────────
     [Header("전투 (CombatFSMState)")]

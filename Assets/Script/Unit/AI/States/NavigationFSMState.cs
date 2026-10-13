@@ -74,21 +74,19 @@ public class NavigationFSMState : IFSMState
 	// ── 계단 ─────────────────────────────────────────────────────
 
 	// GoapWorldState.DistanceToStairBlock 이식 — 2x2 블록 자체까지의 체비쇼프 거리
-	private static int DistanceToStairBlock(Vector2Int pos, Vector2Int stairBlockTopLeft)
+	internal static int DistanceToStairBlock(Vector2Int pos, Vector2Int stairBlockTopLeft)
 	{
 		int dx = Mathf.Max(Mathf.Max(stairBlockTopLeft.x - pos.x, 0), pos.x - (stairBlockTopLeft.x + 1));
 		int dy = Mathf.Max(Mathf.Max(stairBlockTopLeft.y - pos.y, 0), pos.y - (stairBlockTopLeft.y + 1));
 		return Mathf.Max(dx, dy);
 	}
 
-	private static BTStatus MoveToStairs(Unit unit)
+	// toFloor로 가는 계단 블록 바로 옆에서 비어 있는 가장 가까운 접근 타일 — 계단 블록 바로 옆 반경 1칸이 건물 등으로 막혀 있을 수 있어 반경을 넓혀 걸을 수 있는 타일이 있는 첫 반경을 쓴다(TryResolveUnoccupiedStairArrival과 같은 방식). 접근 타일 후보가 없으면 false. MoveToStairs와 후퇴 출구 이동(RetreatExit)이 공유한다.
+	internal static bool TryResolveStairApproach(Human human, int toFloor, out Vector2Int best)
 	{
-		if (!(unit is Human human) || !human.pendingStairTargetFloor.HasValue) return BTStatus.Failure;
-		if (human.Session?.cmap == null) return BTStatus.Failure;
-		human.GrantRoomLeave(); // 계단 이동은 방 이탈 금지의 예외(사용자 확정 2026-10-05)
-		int toFloor = human.pendingStairTargetFloor.Value;
+		best = default;
+		if (human.Session?.cmap == null) return false;
 
-		// 계단 블록 바로 옆 반경 1칸이 건물 등으로 막혀 있을 수 있어 반경을 넓혀 걸을 수 있는 타일이 있는 첫 반경을 쓴다(TryResolveUnoccupiedStairArrival과 같은 방식). 그 안의 점유 판정·거리 점수는 기존 그대로.
 		List<Vector2Int> candidates = null;
 		for (int radius = 1; radius <= AIMovementHelper.MaxStairSearchRadius; radius++)
 		{
@@ -98,13 +96,10 @@ public class NavigationFSMState : IFSMState
 				break;
 			}
 		}
-		if (candidates == null)
-		{
-			return RandomExplore(human);
-		}
+		if (candidates == null) return false;
 
 		// 원본과 동일: 매 틱 비어있는 가장 가까운 후보 타일로 이동
-		Vector2Int best = candidates[0];
+		best = candidates[0];
 		int bestScore = int.MaxValue;
 		foreach (var c in candidates)
 		{
@@ -114,13 +109,28 @@ public class NavigationFSMState : IFSMState
 			int score = (occupied ? 1000 : 0) + Mathf.Max(Mathf.Abs(d.x), Mathf.Abs(d.y));
 			if (score < bestScore) { bestScore = score; best = c; }
 		}
+		return true;
+	}
+
+	private static BTStatus MoveToStairs(Unit unit)
+	{
+		if (!(unit is Human human) || !human.pendingStairTargetFloor.HasValue) return BTStatus.Failure;
+		if (human.Session?.cmap == null) return BTStatus.Failure;
+		human.GrantRoomLeave(); // 계단 이동은 방 이탈 금지의 예외(사용자 확정 2026-10-05)
+		int toFloor = human.pendingStairTargetFloor.Value;
+
+		if (!TryResolveStairApproach(human, toFloor, out Vector2Int best))
+		{
+			return RandomExplore(human);
+		}
 
 		if (human.position == best) return BTStatus.Success;
 		AIMovementHelper.MoveTowardsPos(human, best);
 		return BTStatus.Running;
 	}
 
-	private static BTStatus CrossStairs(Unit unit)
+	// 계단 블록 곁에 도착한 유닛이 pendingStairTargetFloor로 실제로 층을 건넌다(후퇴 출구 이동도 이 리프를 그대로 쓴다). 건넜으면 Success, 아직이면 Running.
+	internal static BTStatus CrossStairs(Unit unit)
 	{
 		if (!(unit is Human human) || !human.pendingStairTargetFloor.HasValue) return BTStatus.Failure;
 		if (human.Session?.cmap == null) return BTStatus.Failure;

@@ -17,6 +17,8 @@ public enum AnimSlot
 	Spawn       = 11,
 	UseStairs   = 12,
 	PickUp      = 13,
+	Rest        = 14,  // 후퇴 거점에서의 휴식 모션(후퇴도주 2-1장)
+	Flee        = 15,  // 개인 도주 달리기(후퇴도주 5-1장)
 }
 
 public enum AnimSlotKind
@@ -56,6 +58,8 @@ public static class AnimSlotCatalog
 		[AnimSlot.Channel]     = new AnimSlotInfo("부수기",     "코어·문·함정을 부수는 동안 반복(대상을 바라본 채).",                                                       AnimSlotKind.Loop,    40),
 		[AnimSlot.DisarmTrap]  = new AnimSlotInfo("함정 해제",  "함정을 해제하는 동안 반복.",                                                                                AnimSlotKind.Loop,    40, true),
 		[AnimSlot.Investigate] = new AnimSlotInfo("조사",       "오브젝트를 조사하는 동안(약 8초) 반복. 피격·소리로 중단될 수 있다.",                                       AnimSlotKind.Loop,    40, true),
+		[AnimSlot.Flee]        = new AnimSlotInfo("도주",       "개인 도주가 확정돼 출구로 달리는 동안 반복(이동 중일 때). 클립이 비어 있으면 걷기로 대신한다.",                  AnimSlotKind.Loop,    30, true),
+		[AnimSlot.Rest]        = new AnimSlotInfo("휴식",       "후퇴 목적 거점에서 휴식하며 회복하는 동안 반복(전투가 나면 중단되고 다시 쉴 수 있을 때 재개).",                  AnimSlotKind.Loop,    25, true),
 		[AnimSlot.Walk]        = new AnimSlotInfo("걷기",       "이동 중 반복(비주얼이 실제로 움직이는 동안).",                                                              AnimSlotKind.Loop,    20),
 		[AnimSlot.Idle]        = new AnimSlotInfo("대기",       "아무 조건도 없을 때의 기본 반복.",                                                                          AnimSlotKind.Loop,    10),
 	};
@@ -66,6 +70,7 @@ public static class AnimSlotCatalog
 		AnimSlot.Idle, AnimSlot.Walk, AnimSlot.Hit, AnimSlot.Stunned, AnimSlot.Death,
 		AnimSlot.Dodge, AnimSlot.Blink, AnimSlot.Channel, AnimSlot.Spawn,
 		AnimSlot.Investigate, AnimSlot.DisarmTrap, AnimSlot.UseStairs, AnimSlot.PickUp,
+		AnimSlot.Rest, AnimSlot.Flee,
 	};
 
 	public static AnimSlotInfo Get(AnimSlot slot) => Table[slot];

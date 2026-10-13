@@ -91,7 +91,7 @@ public class UnitVisualDefinition : MonoBehaviour
         unit.BaseStat.cooltimeReduction = stats.cooltimeReduction;
         unit.BaseStat.statusResistance = stats.statusResistance;
         unit.BaseStat.maxMental = stats.maxMental;
-        unit.BaseStat.mental = stats.mental;
+        unit.BaseStat.mental = MentalMath.FromAuthoringScale(stats.mental, stats.maxMental); // 데이터(units.json·프리팹)는 비율 저작 스케일 0~max(40/100=40%), 런타임 저장은 −100~+100 원수치(=−20)
         unit.VisionStat.spotting = stats.spotting;
         unit.BaseStat.leadershipRange = stats.leadershipRange;
         unit.BaseStat.charisma = stats.charisma;

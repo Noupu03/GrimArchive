@@ -169,12 +169,12 @@ public partial class Party
 		Name = name;
 	}
 
-	// 13-1장: 파티 전체가 사망하면 파티 전멸.
+	// 13-1장: 파티 전체가 사망하면 파티 전멸. 던전 밖으로 살아서 나간 파티원이 한 명이라도 있으면(ExitedCount) 남은 인원이 전부 죽어도 전멸이 아니다(후퇴도주 문서 10장).
 	public bool IsWiped
 	{
 		get
 		{
-			if (Members.Count == 0) return false;
+			if (Members.Count == 0 || ExitedCount > 0) return false;
 			foreach (var m in Members)
 				if (m != null && m.Health.hp > 0) return false;
 			return true;
@@ -193,8 +193,7 @@ public partial class Party
 		}
 	}
 
-	// 생존자 전역 반영(OnWaveEnd)에 넘길 생존자 목록. "생존/후퇴/도주 성공 유닛"을 이 샘플 구현에서는
-	// "웨이브 종료 시점에 살아있는 파티원"으로 근사한다 — 후퇴/도주 판정 시스템이 아직 없다.
+	// 던전 안에 남아 있는 생존 파티원(웨이브 종료 때 OnWaveEnd에 넘긴다). 던전 밖으로 나간 인원은 이탈 시점에 기록을 전달하고 Members에서 빠진다(후퇴도주 문서 10장, HumanWaveManager.OnMemberExitedDungeon).
 	public List<Unit> GetSurvivors()
 	{
 		var survivors = new List<Unit>();
@@ -237,8 +236,9 @@ public partial class Party
 	{
 		float individual = member.BaseStat.walkSpeed;
 		var wait = member.currentWait;
-		bool inCoMovement = wait != null && (wait.Reason == WaitReason.AdvancingToNextRoom || wait.Reason == WaitReason.SearchingNextDoor
-			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.EnteringNextRoom);
+		bool inCoMovement = (wait != null && (wait.Reason == WaitReason.AdvancingToNextRoom || wait.Reason == WaitReason.SearchingNextDoor
+			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.EnteringNextRoom))
+			|| RetreatSystem.IsPartyRetreatMover(member); // 파티 후퇴도 걷기·진형 유지 — 가장 느린 구성원 속도에 맞춘다(명세서 5-1장)
 		if (!inCoMovement) return individual; // 개인 탐색·보고·전투 등은 개인 속도 — 구성원 순회 없이 바로 반환
 
 		bool hasLeader = Leader != null && Leader.hp > 0 && Leader.currentFloor == member.currentFloor;

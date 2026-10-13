@@ -571,6 +571,15 @@ public class PersonalMapKnowledge : IKnownTerrain
 		};
 	}
 
+	// 이 인류가 "지도로 아는" 방의 위험도 — 한 번이라도 들어가 시야로 밝힌(Exploring 이상) 방만 안다고 본다. 미탐색 방은 기본 가정값뿐이라 알려진 정보가 아니다(재출격의 "인류 지도상 안전한 진출 방" 판정용, 후퇴도주 2-3장). 읽기 전용이라 방 기록을 새로 만들지 않는다.
+	public bool TryGetKnownRoomDanger(int roomId, out float danger)
+	{
+		danger = 0f;
+		if (!_rooms.TryGetValue(roomId, out var r) || r.State == RoomExploreState.Unexplored) return false;
+		danger = GetRoomDanger(roomId, r.IsBossRoom);
+		return true;
+	}
+
 	public float GetRoomInterest(int roomId, bool isBossRoom)
 	{
 		var r = GetOrCreateRoom(roomId, isBossRoom);

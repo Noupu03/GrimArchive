@@ -19,6 +19,7 @@ public enum TrapEndReason
 	WaitEnded, // 대기자의 도착 대기 종료
 	Unreachable, // 함정에 도달할 수 없어 포기(stuck 탈출)
 	WaveEnded, // 웨이브 종료로 진행도 제거(Human.ClearInteractionProgress) — 담당 배정만 푼다
+	Retreat,   // 파티 후퇴·개인 후퇴·도주 시작으로 접음(후퇴도주 문서 5장: 후퇴·도주 중 일반 함정 해제를 새로 시작하지 않음) — 담당 배정을 푼다
 }
 
 // 이 유닛이 지금 진행 중인 함정 대응의 하위 상태. Goal_TrapResponse가 고착(IsSticky) 상태를 유지하는

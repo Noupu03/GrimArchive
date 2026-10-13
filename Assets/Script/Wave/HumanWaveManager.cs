@@ -29,6 +29,9 @@ namespace GrimArchive.Wave
         [Inject]
         public WaveSpawner targetSpawner; // VContainer를 통해 자동 주입
 
+        // 웨이브 종료 때 웨이브 경계(번호·전멸 흔적 수명)를 처리하려고 쓴다 — 생존자가 한 명도 안 남아도 호출해야 해서 생존자의 Knowledge에 기대지 않는다.
+        [Inject] private HumanKnowledgeBase _knowledge = null; // VContainer가 주입한다(= null은 "할당 안 됨" 컴파일러 경고 방지용)
+
         public WaveState currentState = WaveState.Idle;
         public float cooldownTimer = 0f;
 
@@ -377,9 +380,11 @@ namespace GrimArchive.Wave
         private void RetreatMemberToFloor0(Human member)
         {
             if (member == null) return;
-            member.ClearInteractionProgress(); // v0.6 9-9장: 웨이브를 떠나는 시점에 조사·해제 진행도 제거(생존자는 재사용된다)
+            // 기록 전달·파티 제외·침공 단위 상태 초기화(후퇴도주 문서 10장) — 이탈 마무리는 걸어서 나간 인원과 같은 경로다. OnMemberLeftDungeon이 다음 웨이브 합류 목록에도 올린다.
+            RetreatExit.Complete(member);
             if (!ResolveStairPositions())
             {
+                retreatedSurvivors.Remove(member);
                 GameSession.Instance.DespawnUnit(member);
                 return;
             }
@@ -402,9 +407,15 @@ namespace GrimArchive.Wave
             member.playerMoveTarget = null;
             member.isManualMoveCommand = false;
 
-            retreatedSurvivors.Add(member);
-
             LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.unitType.typeName}가 퇴각하여 0층으로 돌아갔습니다.");
+        }
+
+        // 걸어서 던전 밖(0층)으로 나간 인류(후퇴·도주 출구 이동, RetreatExit.Complete가 기록 전달·파티 제외까지 끝낸 뒤 호출)를 다음 웨이브 파티에 합류시킬 대기 목록에 올린다. 0층에서는 이미 계단 도착 지점에 서 있으므로 위치는 건드리지 않는다.
+        public void OnMemberLeftDungeon(Human member)
+        {
+            if (member == null) return;
+            stagingUnits.Remove(member);
+            if (!retreatedSurvivors.Contains(member)) retreatedSurvivors.Add(member);
         }
 
         // 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입 이름을 최대 max개 반환한다(사전 스폰된
@@ -551,6 +562,16 @@ namespace GrimArchive.Wave
                 return;
             }
 
+            // 던전 안에 산 파티원이 더는 없는데 던전 밖으로 나간 인원이 있다 — 전원 귀환이거나, 일부 귀환 뒤 남은 인원이 죽은 경우다(죽은 유닛은 Members에 남고 IsWiped는 이탈자가 있으면 false라 위 전멸 분기를 지나친다). 코어를 못 부쉈다면 실패로 끝난다.
+            if (activeParty.ExitedCount > 0 && activeParty.GetSurvivors().Count == 0)
+            {
+                LogHelper.Log(LogHelper.GAME, _retreating
+                    ? "[HumanWaveManager] 코어 파괴 후 던전 안에 남은 파티원이 없어 웨이브가 성공적으로 종료됩니다."
+                    : "[HumanWaveManager] 일부는 던전 밖으로 후퇴·도주하고 나머지는 사망해 웨이브가 종료됩니다(목표 미달성).");
+                EndWave(_retreating);
+                return;
+            }
+
             int targetFloor = targetSpawner.waveData.targetFloor;
 
             // 목표 방의 코어를 파괴(=인류 소유로 전환, OffenseProcessor.OnCoreDestroyed)하면 그 순간 퇴각으로
@@ -582,8 +603,7 @@ namespace GrimArchive.Wave
                 {
                     LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] {member.name} 유닛 개별 탈출 성공.");
 
-                    RetreatMemberToFloor0(member);
-                    activeParty.Members.RemoveAt(i);
+                    RetreatMemberToFloor0(member); // 기록 전달과 함께 파티 Members에서도 빠진다(RetreatExit.Complete → Party.OnMemberExited)
                 }
             }
 
@@ -601,9 +621,13 @@ namespace GrimArchive.Wave
             if (_retreating)
             {
                 PartyAdvanceSystem.Abort(activeParty, "퇴각 전환", retry: false);
+                PartyRetreatSystem.ForceLeaving(activeParty); // 파티 후퇴 중이었다면(거점 이동·휴식) 승리 퇴각이 우선 — 곧바로 출구로 간다
                 OrderRetreat();
                 return;
             }
+
+            // 파티 후퇴 중에는 방 이동 결정·문 앞 진형을 만들지 않는다 — 이동은 후퇴 시스템(PartyRetreatSystem)이 맡는다(후퇴도주 문서 1-2장).
+            if (activeParty.Retreat.IsRetreating) return;
 
             // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)를 소멸시킨다 — 안 그러면 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다.
             activeParty.TickAdvanceState();
@@ -781,13 +805,12 @@ namespace GrimArchive.Wave
             {
                 if (survivor is Human survivorHuman) survivorHuman.ClearInteractionProgress();
             }
-            if (activeParty != null && !activeParty.WaveEnded)
+            if (activeParty != null)
             {
                 activeParty.WaveEnded = true;
-                if (survivors.Count > 0)
-                {
-                    survivors[0].Knowledge.OnWaveEnd(survivors);
-                }
+                // 던전 안에 남은 생존자의 기록을 반영하고 웨이브 경계를 처리한다 — 이미 밖으로 나간 인원은 이탈 때 전달했다(후퇴도주 문서 10장). 생존자가 없어도(전원 이탈·전멸) 웨이브 번호·전멸 흔적 수명은 올라가야 하므로 항상 부른다.
+                var knowledgeBase = _knowledge ?? (survivors.Count > 0 ? survivors[0].Knowledge : null);
+                knowledgeBase?.OnWaveEnd(survivors);
             }
 
             if (isSuccess && activeParty != null)

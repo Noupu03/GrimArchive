@@ -50,6 +50,18 @@ ExecuteAction() 호출
 
 ---
 
+## 강제 배정 상태 (UnitFSM.SelectState가 우선순위 배열과 무관하게 직접 배정)
+
+위 3개 외에 PlayerCommand/Halt/StandGround/**Retreat**가 있다. 앞의 셋은 몬스터 플레이어 명령용이고, `RetreatFSMState`(2026-10-13, 후퇴도주 문서)는 인류 전용이다.
+
+| 상태 | 배정 조건 | 하는 일 |
+|------|----------|--------|
+| `RetreatFSMState` | `RetreatSystem.WantsRetreatState` — 개인 도주 확정자·개인 후퇴자·파티 후퇴 이동 단계(명령을 받았고 거점 미도착 또는 출구 이동 단계)의 인류 | `RetreatMovement.Step` 한 리프: 목적지(거점 휴식 자리/던전 출구)로 걷거나(파티 후퇴·개인 후퇴) 달린다(개인 도주). 전투·전술보다 우선하고, 길을 막는 문(파괴)·적(통과에 필요한 만큼만 `CombatFSMState.EngageBlocker`)·함정(우회→파괴→조건부 강행)만 상대한다. 켜짐 스위치(`retreatFleeSystemEnabled`)가 꺼져 있으면 절대 배정되지 않는다 |
+
+거점에 도착해 쉬는 인원은 이 상태가 아니라 평소 상태로 돌아가 Tactical `Rest` 분기(아래)가 담당한다 — 그래서 전투가 나면 Combat이 우선한다.
+
+---
+
 ## CombatFSMState BT
 
 ```
@@ -78,7 +90,7 @@ BT 자식 순서는 `Assets/Resources/FSM+BT/TacticalPriority.asset`에서 변�
 ```
 BTSelector  ← 03문서 기본 순서
 ├─ [Panic]         BTSequence
-│    ├─ Condition: panicBehaviorEnabled(기본 false — 2026-10-02 임시 비활성) && mental < maxMental × panicMentalRatio(0.3)
+│    ├─ Condition: panicBehaviorEnabled(기본 false — 폐기 예정, 후퇴도주 문서가 공황을 전투 불이익 + 도주 판정으로 대체) && MentalMath.IsPanic(mental) (원수치 < −70)
 │    └─ Leaf: 50% 확률로 무작위 이동, 나머지는 정지
 │
 ├─ [TrapResponse]  BTSelector  ← 내부 순서 고정(9장 우선순위)
@@ -92,6 +104,10 @@ BTSelector  ← 03문서 기본 순서
 │    └─ BTSelector
 │         ├─ Leaf: AlertApproach      (목표 위치가 있으면 접근)
 │         └─ Leaf: AlertPerimeterSearch (주변 수색)
+│
+├─ [Rest]          BTSequence  ← 후퇴도주 2-1장(설정 에셋에 항목이 없어도 Alert 바로 아래에 자동 삽입)
+│    ├─ Condition: RetreatSystem.IsResting — 파티 후퇴 중 명령을 받고 거점에 도착한 인류
+│    └─ Leaf: RestPerform (제자리 유지, 회복은 UnitFunction.OnUpdate: HP 재생력×2·정신력 +1/초, 새 소리 경계는 만들지 않음)
 │
 ├─ [Investigate]   BTSequence
 │    ├─ Condition: 플레이어 명령 없고, 조사 가능한 오브젝트 있고, 피격·위협 없음

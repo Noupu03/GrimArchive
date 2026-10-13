@@ -267,6 +267,11 @@ public class UnitAnimationDriver : MonoBehaviour
 		}
 		if (u.currentAttackObjectTarget.HasValue) i.Channeling = true;
 		if (u is Human h && h.currentInvestigation != null && h.currentInvestigation.PenaltyActive) i.Investigating = true;
+		if (u is Human retreater)
+		{
+			i.Resting = RetreatSystem.IsRecovering(retreater);
+			i.Fleeing = retreater.Retreat != null && retreater.Retreat.IsFleeing && RetreatSystem.Enabled;
+		}
 		return i;
 	}
 }
