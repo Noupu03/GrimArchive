@@ -63,6 +63,16 @@ public static class RetreatSystem
 	public static bool WantsRetreatState(Unit unit)
 		=> unit is Human human && !human.isInDungeonEntranceSequence && GetActivity(human) == RetreatActivity.Move;
 
+	// 후퇴·도주 이동이나 거점 휴식 중이라 리더의 평소 명령(집결·방 이동·문 찾기 추종·코어 보고 이동)을 받을 수 없는 상태인가 — 이 상태의 인류는 Tactical 대기 리프를 안 타므로(후퇴 이동은 RetreatFSMState, 휴식은 Rest 분기가 대기보다 앞) 명령을 줘도 헛돌고, 집결·진형 완료 판정만 상한 시간까지 붙잡는다. 명령을 배정하는 곳이 이 값으로 건너뛴다. 꺼져 있으면 항상 false.
+	public static bool IsBoundToRetreat(Human human) => GetActivity(human) != RetreatActivity.None;
+
+	// 리더가 도주 확정을 직접 확인했는가(명세서 6-2장 "도주 사실 확인" — 직접 확인·유효한 보고로 알게 된 도주자는 집결 대기 대상에서 제외, 부재·무응답만으로는 도주로 확정하지 않는다). 확인 이력은 도주 목격 정신력 감소 이력(WitnessedFlees)과 같다. 보고 경로는 없다.
+	public static bool IsFleeKnownToLeader(Human member, Human leader)
+		=> member?.Retreat != null && member.Retreat.IsFleeing && leader?.Retreat != null && leader != member && leader.Retreat.WitnessedFlees.Contains(member.name);
+
+	// 후퇴·도주 이동 중이면 경계 상태의 이동 감속(75%)을 적용하지 않는다 — 전투에서 후퇴 상태로 강제 전환될 때 CombatFSMState.OnExit가 전투 후 경계 스윕을 새로 세팅하고, 후퇴 중에는 경계 리프(Tactical)가 안 돌아 그 경계가 해제되지 않아 도주자가 계속 느려진다.
+	public static bool SuppressesAlertSlowdown(Unit unit) => unit is Human human && GetActivity(human) == RetreatActivity.Move;
+
 	// 거점에서 쉬는 중인가 — 휴식 모션(애니메이션)·Tactical Rest 분기의 조건. 전투가 나면 Combat이 우선하지만 이 값은 유지된다.
 	public static bool IsResting(Human human) => GetActivity(human) == RetreatActivity.Rest;
 

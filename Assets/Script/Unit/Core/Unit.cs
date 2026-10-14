@@ -428,7 +428,7 @@ public abstract class Unit : ScriptableObject {
 	{
 		get
 		{
-			bool alertSlowdown = currentAlertSearch != null && !currentAlertSearch.IsExemptFromAlertSlowdown;
+			bool alertSlowdown = currentAlertSearch != null && !currentAlertSearch.IsExemptFromAlertSlowdown && !RetreatSystem.SuppressesAlertSlowdown(this); // 후퇴·도주 이동은 경계로 느려지지 않는다(후퇴도주 5-1장: 추가 경계를 위해 멈추지 않음, 도주는 달리기)
 			return MovementBaseSpeed * (alertSlowdown ? ExplorationMath.AlertMoveSpeedRatio : 1f);
 		}
 	}

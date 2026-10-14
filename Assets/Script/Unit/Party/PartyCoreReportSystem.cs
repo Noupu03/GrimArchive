@@ -32,6 +32,7 @@ public static class PartyCoreReportSystem
 
 	private static void StartReportWait(Human human, Vector3Int corePos)
 	{
+		if (RetreatSystem.IsBoundToRetreat(human)) return; // 도주·후퇴 중이면 보고 이동을 시작하지 않는다(보고 의무 pendingCoreReportPos는 그대로 남아 이탈·복귀 뒤 이어진다) — 대기를 줘도 못 걸어 집결 완료를 붙잡는다
 		human.currentWait = new WaitState { Reason = WaitReason.ReportingCoreToLeader, CorePosition = corePos };
 		// 기존 대기(집결 등)를 덮어쓰므로, 그 대기에서 쌓인 스턱카운트가 이어지지 않도록 같이 리셋한다.
 		human.waitStuckTurns = 0;

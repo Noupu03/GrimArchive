@@ -685,6 +685,7 @@ namespace GrimArchive.Wave
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != exitFloor) continue;
+                if (RetreatSystem.IsBoundToRetreat(member)) continue; // 이미 후퇴·도주 이동 중(자기 출구 이동)이면 대기를 따로 주지 않는다
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
                 if (member.currentWait != null) continue; // 이미 다른 대기 사유 진행 중이면 덮어쓰지 않음.
@@ -711,6 +712,7 @@ namespace GrimArchive.Wave
             {
                 if (member == null || member.hp <= 0 || stagingUnits.Contains(member)) continue;
                 if (member.currentFloor != doorFloor) continue;
+                if (RetreatSystem.IsBoundToRetreat(member)) continue; // 도주·후퇴 중인 인원은 방 이동 명령을 따르지 않는다
                 if (member.isManualMoveCommand && member.playerMoveTarget.HasValue) continue;
                 if (member.playerAttackTarget != null) continue;
                 // 이미 다른 대기 사유(집결·코어 보고 등) 진행 중이면 덮어쓰지 않는다. 다음 문을 찾으며 리더를 따라다니던 공동 탐색 추종(SearchingNextDoor)만 공동 이동으로 바꿔 덮어쓴다.
@@ -742,6 +744,7 @@ namespace GrimArchive.Wave
             if (party.ReadyToAdvance || party.IsRallyActive || party.AdvanceFromRoom != null || party.LeaderKnownCorePosition.HasValue) return;
             var leader = party.Leader;
             if (leader == null || leader.hp <= 0 || leader.currentRoom == null) return;
+            if (RetreatSystem.IsBoundToRetreat(leader)) return; // 도주 중인 리더는 문 앞 확인을 새로 시작하지 않는다
             if (party.DoorApproachRoom == leader.currentRoom) return;
             if (leader.currentWait != null || stagingUnits.Contains(leader)) return;
             if (leader.isInDungeonEntranceSequence || leader.pendingStairTargetFloor.HasValue) return;

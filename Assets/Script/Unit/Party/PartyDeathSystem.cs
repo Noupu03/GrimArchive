@@ -218,6 +218,7 @@ public static class PartyDeathSystem
 		if (h.currentTrapInteraction != null) return false;
 		if (h.currentInvestigation != null) return false;
 		if (h.currentFormation != null) return false;
+		if (RetreatSystem.IsBoundToRetreat(h)) return false; // 4-15장 표: 도주 유닛은 불참 — 후퇴·도주 이동 중에는 추가 경계를 위해 멈추지 않고(후퇴도주 5-1장) 거점 휴식 중에도 수색으로 흩어지지 않는다
 		if (h.personalSpottedEnemies.Count > 0) return false; // 전투 중 근사(명시적 전투 상태 플래그 부재)
 		return true;
 	}

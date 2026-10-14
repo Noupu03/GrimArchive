@@ -58,6 +58,7 @@ public partial class Party
 		foreach (var m in Members)
 		{
 			if (m == null || m.hp <= 0f) continue;
+			if (m.currentFloor < 1) continue; // 아직 던전에 들어오지 않은 인원(입구 시퀀스 중 0층 대기)은 "함께 행동 중"이 아니다 — 만피 인원이 평균을 끌어올려 후퇴를 늦추지 않게 한다
 			if (m.Retreat != null && m.Retreat.IsFleeing) continue;
 			if (IsUnaccountedForRetreatAverage(m)) continue;
 			into.Add(m);

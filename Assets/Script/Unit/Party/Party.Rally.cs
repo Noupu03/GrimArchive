@@ -56,6 +56,7 @@ public partial class Party
 		{
 			if (m == null || m.hp <= 0 || m == Leader) continue;
 			if (_rallyRecipients.Contains(m) || _givenUpAbsent.Contains(m.name)) continue;
+			if (RetreatSystem.IsFleeKnownToLeader(m, Leader)) continue; // 리더가 직접 확인한 도주 확정자는 집결 대기 대상에서 뺀다(후퇴도주 6-2장). 확인 못 한 부재·무응답은 그대로 미집결자
 			count++;
 			alive?.Add(m.name);
 		}
@@ -228,6 +229,7 @@ public partial class Party
 			if (m == null || m.hp <= 0) continue;
 			if (m.currentFloor != RallyFloor) continue; // 다른 층 파티원에게는 이 집결이 닿지 않는다
 			if (!IsReachedByLeaderCommand(Leader, m)) continue;
+			if (RetreatSystem.IsBoundToRetreat(m)) continue; // 개인 도주·개인 후퇴 중인 인원은 집결 명령을 따르지 않는다(후퇴도주 6-2장)
 			if (DeliverRallyCommand(m)) recipients.Add(m);
 		}
 
@@ -282,6 +284,7 @@ public partial class Party
 		{
 			if (m == null || m.hp <= 0 || m == Leader || _rallyRecipients.Contains(m)) continue;
 			if (m.currentFloor != RallyFloor || !IsReachedByLeaderCommand(Leader, m)) continue;
+			if (RetreatSystem.IsBoundToRetreat(m)) continue; // 도주·후퇴 중인 인원은 집결 명령을 따르지 않는다
 			if (DeliverRallyCommand(m)) (late ??= new List<Human>()).Add(m);
 			else LogRally($"{m.name}에게 집결 명령이 뒤늦게 닿았습니다(다른 대기 중이라 자리는 주지 않고 미집결자에서만 뺍니다)");
 		}

@@ -7,7 +7,11 @@ public class RetreatFSMState : IFSMState
 	public float GetPriority(Unit unit)    => 0f; // SelectState가 직접 강제 배정 — 배열 비교 대상 아님.
 	public bool  IsSticky(Unit unit)       => false; // 조건이 풀리면 다음 SelectState에서 평소 우선순위 판정으로 돌아간다
 	public bool  ShouldInterrupt(Unit unit)=> true;
-	public void  OnEnter(Unit unit)        { }
+	public void  OnEnter(Unit unit)
+	{
+		// 전투에서 넘어온 경우 CombatFSMState.OnExit가 방금 세팅한 "전투 후 경계 스윕"을 버린다 — 후퇴 중엔 경계를 위해 멈추지 않고(5-1장) 경계 리프도 안 돌아 그대로 두면 거점에 도착한 뒤 뒤늦게 스윕을 시작한다.
+		unit.currentAlertSearch = null;
+	}
 
 	public void OnExit(Unit unit)
 	{

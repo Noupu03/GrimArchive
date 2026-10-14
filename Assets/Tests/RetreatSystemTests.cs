@@ -425,6 +425,69 @@ public class RetreatSystemTests
 		Assert.AreEqual(RetreatActivity.Move, RetreatSystem.GetActivity(member), "출구 이동 단계에서는 도착자도 다시 이동");
 	}
 
+	// ── 다른 행동 시스템과의 연결(2026-10-13 재검증) ──
+
+	[Test]
+	public void IsBoundToRetreat_TrueForMoveAndRest_FalseOtherwise()
+	{
+		RetreatSystem.EnabledOverride = true;
+		var leader = NewDungeonHuman("L");
+		var member = NewDungeonHuman("M");
+		var party = NewParty(PartyType.Explore, leader, member);
+		Assert.IsFalse(RetreatSystem.IsBoundToRetreat(member), "후퇴 전에는 평소 명령을 받는다");
+
+		member.Retreat.Mode = RetreatMode.PersonalFlee;
+		Assert.IsTrue(RetreatSystem.IsBoundToRetreat(member), "도주 확정자는 집결·방 이동·문 찾기·코어 보고 명령을 받지 않는다");
+		RetreatSystem.EnabledOverride = false;
+		Assert.IsFalse(RetreatSystem.IsBoundToRetreat(member), "꺼져 있으면 예전 동작");
+
+		RetreatSystem.EnabledOverride = true;
+		var rester = NewDungeonHuman("R");
+		var p2 = NewParty(PartyType.Explore, NewDungeonHuman("L2"), rester);
+		p2.Retreat.Mode = RetreatMode.PartyRetreat;
+		p2.Retreat.Destination = RetreatDestination.Base;
+		p2.Retreat.Phase = PartyRetreatPhase.Resting;
+		rester.Retreat.Ordered = true;
+		rester.Retreat.AtBase = true;
+		Assert.IsTrue(RetreatSystem.IsBoundToRetreat(rester), "거점에서 쉬는 인원도 평소 명령으로 흩어지지 않는다");
+	}
+
+	[Test]
+	public void SuppressesAlertSlowdown_OnlyWhileMovingForRetreat()
+	{
+		RetreatSystem.EnabledOverride = true;
+		var h = NewDungeonHuman("A");
+		Assert.IsFalse(RetreatSystem.SuppressesAlertSlowdown(h));
+		h.Retreat.Mode = RetreatMode.PersonalFlee;
+		Assert.IsTrue(RetreatSystem.SuppressesAlertSlowdown(h), "도주 이동 중에는 경계 이동 감속(75%)을 받지 않는다 — 전투에서 넘어오며 세팅된 경계 스윕이 도주를 늦추면 안 된다");
+
+		var rester = NewDungeonHuman("R");
+		var party = NewParty(PartyType.Explore, NewDungeonHuman("L"), rester);
+		party.Retreat.Mode = RetreatMode.PartyRetreat;
+		party.Retreat.Destination = RetreatDestination.Base;
+		party.Retreat.Phase = PartyRetreatPhase.Resting;
+		rester.Retreat.Ordered = true;
+		rester.Retreat.AtBase = true;
+		Assert.IsFalse(RetreatSystem.SuppressesAlertSlowdown(rester), "휴식 중인 인원의 경계 스윕은 평소 규칙");
+	}
+
+	[Test]
+	public void FleeKnownToLeader_OnlyAfterLeaderWitnessedIt()
+	{
+		RetreatSystem.EnabledOverride = true;
+		var leader = NewDungeonHuman("L");
+		var fleeing = NewDungeonHuman("F");
+		NewParty(PartyType.Explore, leader, fleeing);
+		Assert.IsFalse(RetreatSystem.IsFleeKnownToLeader(fleeing, leader), "도주 확정 전에는 모른다");
+
+		fleeing.Retreat.Mode = RetreatMode.PersonalFlee;
+		Assert.IsFalse(RetreatSystem.IsFleeKnownToLeader(fleeing, leader), "부재·무응답만으로 도주로 확정하지 않는다(명세서 6장) — 리더가 직접 확인하기 전까지는 미집결자");
+
+		MentalSystem.OnFleeWitnessed(leader, fleeing);
+		Assert.IsTrue(RetreatSystem.IsFleeKnownToLeader(fleeing, leader), "리더가 도주를 직접 확인하면 집결 대기 대상에서 뺀다");
+		Assert.IsFalse(RetreatSystem.IsFleeKnownToLeader(leader, leader), "자기 자신은 해당 없음");
+	}
+
 	[Test]
 	public void Recovery_DoublesHpRegenAndRestoresMentalOnlyWhileRestingWithoutCombat()
 	{

@@ -5,7 +5,7 @@ public static class PartyDoorSearchSystem
 {
 	// HumanWaveManager.UpdatePartyDestination이 문을 못 찾았을 때 리더 외 적격 파티원에게 배정 가능한지 판정한다.
 	public static bool CanAssign(Human member, float now)
-		=> member.currentWait == null && now >= member.nextSearchFollowAllowedTime;
+		=> member.currentWait == null && now >= member.nextSearchFollowAllowedTime && !RetreatSystem.IsBoundToRetreat(member); // 도주·후퇴 중인 인원은 리더를 따라 문을 찾지 않는다
 
 	public static void Assign(Human member)
 	{

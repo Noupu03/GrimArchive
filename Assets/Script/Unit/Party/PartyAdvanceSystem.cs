@@ -62,6 +62,7 @@ public static class PartyAdvanceSystem
 			if (m == null || m.hp <= 0 || (excluded != null && excluded.Contains(m))) continue;
 			if (m.currentFloor != doorFloor) continue;
 			if (!Party.IsReachedByLeaderCommand(leader, m)) continue;
+			if (RetreatSystem.IsBoundToRetreat(m)) continue; // 도주·후퇴 중인 인원은 진형에 넣지 않는다 — 대기를 줘도 못 서서 단계가 상한까지 붙잡힌다
 			if (m.isManualMoveCommand && m.playerMoveTarget.HasValue) continue;
 			if (m.playerAttackTarget != null) continue;
 			if (m.currentWait != null && m.currentWait.Reason != WaitReason.SearchingNextDoor) continue;
