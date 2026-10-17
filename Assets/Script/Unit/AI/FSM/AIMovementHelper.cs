@@ -261,9 +261,32 @@ public static class AIMovementHelper
 			// 커팅 등) Move()가 조용히 실패할 수 있어, 그대로 true를 반환하면 stuckTurns가 리셋돼 영원히 얼어붙는다.
 			Vector2Int before = unit.position;
 			unit.Move(nextDir);
-			return unit.position != before;
+			if (unit.position != before) return true;
+			LearnBumpedWalls(unit, nextDir); // 막힌 걸음은 그 칸을 벽으로 학습해 다음 계획이 같은 칸을 다시 고르지 않게 한다(후퇴도주 검증 D1)
+			return false;
 		}
 		return false;
+	}
+
+	// 실패한 걸음이 부딪힌 정적 벽을 학습시킨다 — 목적지 칸(발자국 전체)과, 대각선이면 코너 커팅 검사가 보는 양옆 직교 칸. 벽이 아닌 칸(점유·문)은 UnitFunction.LearnBlockedWall이 걸러낸다.
+	public static void LearnBumpedWalls(Unit unit, Dir dir)
+	{
+		Vector2Int step = unit.GetDirVector(dir);
+		int fw = unit.unitType != null ? Mathf.Max(1, (int)unit.unitType.footprint.x) : 1;
+		int fh = unit.unitType != null ? Mathf.Max(1, (int)unit.unitType.footprint.y) : 1;
+		for (int dx = 0; dx < fw; dx++)
+		{
+			for (int dy = 0; dy < fh; dy++)
+			{
+				var offset = new Vector2Int(dx, dy);
+				unit.LearnBlockedWall(unit.position + step + offset);
+				if (step.x != 0 && step.y != 0)
+				{
+					unit.LearnBlockedWall(unit.position + new Vector2Int(step.x, 0) + offset);
+					unit.LearnBlockedWall(unit.position + new Vector2Int(0, step.y) + offset);
+				}
+			}
+		}
 	}
 
 	public static bool MoveTowardsTarget(Unit unit, Unit target)

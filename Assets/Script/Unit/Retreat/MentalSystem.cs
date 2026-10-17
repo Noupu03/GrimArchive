@@ -42,6 +42,18 @@ public static class MentalSystem
 		FleeSystem.OnMentalChanged(human, before, after);
 	}
 
+	// 던전 밖 회복으로 정신력을 올린다 — 이미 floor 이상이면 건드리지 않고, 올렸다면 휴식 회복과 같이 도주 판정 상태를 초기화한다(OnMentalChanged). 올린 양을 돌려준다.
+	public static float RecoverTo(Human human, float floor)
+	{
+		if (human == null || human.BaseStat.maxMental <= 0f) return 0f;
+		float before = human.BaseStat.mental;
+		float after = MentalMath.Clamp(Mathf.Max(before, floor));
+		if (after <= before) return 0f;
+		human.BaseStat.mental = after;
+		FleeSystem.OnMentalChanged(human, before, after);
+		return after - before;
+	}
+
 	// 같은 파티원의 도주를 처음 직접 확인하거나 유효한 보고를 받았을 때의 정신력 감소(기본 5, 일반 감소 보정 적용 — 안정 단계 4.75). 인류 유닛별·도주 사건별 1회이며 재확인·재보고·단순 부재·무응답·추정에는 감소가 없다. 감소를 적용했으면 true.
 	public static bool OnFleeWitnessed(Human witness, Human fleeing)
 	{

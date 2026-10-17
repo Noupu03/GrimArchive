@@ -10,6 +10,22 @@ public static class RetreatPathMath
 	public static bool IsDetourAllowed(int baselineLength, int totalDetourLength, int extraTileLimit = DefaultDetourExtraTiles)
 		=> totalDetourLength - baselineLength <= extraTileLimit;
 
+	// 길을 막은 상대 진영 문 후보 중 먼저 부술 문의 번호 — 유닛(기준 경로를 따라 갈 수 있는 마지막 칸 end)에 가장 가까운 문, 동률이면 목적지에 가까운 문. 게이트는 두 줄(방 쪽·바깥 쪽)이라 목적지에 가까운 먼 줄 문을 고르면 바로 앞 줄 문에 막혀 닿지 못하고 막힘 판정이 뒤집혔다(검증 D2). 후보가 없으면 -1.
+	public static int ChooseBlockingDoor(Vector2Int end, Vector2Int target, System.Collections.Generic.IList<Vector2Int> doorTiles)
+	{
+		int best = -1, bestFromEnd = int.MaxValue, bestToTarget = int.MaxValue;
+		for (int i = 0; i < doorTiles.Count; i++)
+		{
+			int fromEnd = Mathf.Max(Mathf.Abs(doorTiles[i].x - end.x), Mathf.Abs(doorTiles[i].y - end.y));
+			int toTarget = Mathf.Max(Mathf.Abs(doorTiles[i].x - target.x), Mathf.Abs(doorTiles[i].y - target.y));
+			if (fromEnd < bestFromEnd || (fromEnd == bestFromEnd && toTarget < bestToTarget))
+			{
+				best = i; bestFromEnd = fromEnd; bestToTarget = toTarget;
+			}
+		}
+		return best;
+	}
+
 	// 함정 강행 통과: 알고 있는 예상 피해를 반영한 HP가 0보다 클 때만 허용. 피해량을 모르거나(null) 예상 HP가 0 이하면 강행하지 않는다. 별도 수치 랜덤 오차·최댓값 추정은 쓰지 않는다.
 	public static bool CanForcePassTrap(float currentHp, float? expectedDamage)
 		=> expectedDamage.HasValue && currentHp - expectedDamage.Value > 0f;

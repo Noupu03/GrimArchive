@@ -123,6 +123,9 @@ public class AStarMovement : IMovementAlgorithm
     // true면 다른 유닛의 점유를 장애물로 보지 않는 '구조 경로' 탐색이다(벽·닫힌 문·함정 구역은 그대로). OccupancySystem이 '점유만 없다면 가려던 걸음'을 얻는 쌍둥이 인스턴스에만 켜고, 실제 이동 인스턴스에 켜면 Move()가 점유 타일을 거부해 얼어붙는다.
     public bool IgnoreAllUnits;
 
+    // true면 다른 진영 소유의 닫힌 문을 통과 가능으로 보는 '문 경로' 조회 전용 탐색이다 — 막는 문을 경로를 따라 처음 만나는 순서로 찾는 데 쓴다(후퇴도주 RetreatBlockResolver, 검증 D2). 이동 인스턴스에는 켜지 말 것(Move()가 문 타일을 거부해 얼어붙는다).
+    public bool IgnoreClosedDoors;
+
     // 이번 탐색이 벽·미확인 판정에 읽는 '이 유닛이 아는 지형'(04번 0장). null이면 진영 공용 discoveredMap을 읽는다(personalMapPathingEnabled=false이거나 개인 지도 없음). 진입점이 BeginSearch로 정한다.
     private IKnownTerrain _terrain;
     // 프론티어 걸음 수 BFS(TryComputeFrontierSteps) 전용 — 미확인(0) 타일을 막되 _frontierAllow에 속한 것만 종단 노드로 허용한다. 평소엔 꺼져 있다.
@@ -607,7 +610,7 @@ public class AStarMovement : IMovementAlgorithm
                 if (IsKnownWall(myData, floorIdx, nx, ny)) { isWall = true; break; }
 
                 // UnitFunction.CanMove와 반드시 같은 결론을 내야 한다 — 어긋나면 A*가 막힌 경로를 갈 수 있다고 오판한다.
-                if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
+                if (!IgnoreClosedDoors && unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(nx, ny, floorIdx), unit))
                 {
                     isWall = true;
                     break;
@@ -684,7 +687,7 @@ public class AStarMovement : IMovementAlgorithm
 
         // Move()의 코너 커팅 검사는 CanMove를 쓰므로 다른 진영 소유 문도 막힌 것으로 본다 — 여기서
         // 빠뜨리면 A*가 "닫힌 문 옆 대각선"을 통과 가능이라 오판해 문턱 앞에서 영영 멈추게 된다.
-        if (unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(x, y, floorIdx), unit)) return true;
+        if (!IgnoreClosedDoors && unit.Session != null && unit.Session.IsBlockedByClosedDoor(new Vector3Int(x, y, floorIdx), unit)) return true;
 
         if (!IgnoreAllUnits && unit.Session != null &&
             unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))

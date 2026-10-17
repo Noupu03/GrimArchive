@@ -35,6 +35,8 @@ public class PartyAdvancePlan
 	public int EnteredCount;
 	// 입장 단계에서 다음 유닛을 출발시킬 수 있는 시각(entryReleaseIntervalSeconds 간격) — BeginEntering이 단계 시작 시각으로 초기화한다.
 	public float NextEntryReleaseTime;
+	// 문을 지난 뒤 출구 구간(far 줄 문 타일 통과 구간)을 이미 벗어난 유닛 — 전투 중에도 한 번만 출구에서 비켜 뒤 유닛의 길을 열고, 이후 후퇴·전진 왕복이 생기지 않게 다시 적용하지 않는다(PartyAdvanceSteps.StepClearExit).
+	public readonly HashSet<Human> ExitCleared = new HashSet<Human>();
 	// 입장 지시를 낸 시각(교전·경계 정지로 밀리지 않는다) — 이후에 얻은 리더 정보와 그 전의 낡은 정보를 가르는 기준(PartyAdvanceSystem.InformStragglersOfGate).
 	public float EntryCommandTime;
 

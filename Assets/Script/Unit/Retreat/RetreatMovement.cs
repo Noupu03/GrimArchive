@@ -94,7 +94,12 @@ public static class RetreatMovement
 		{
 			_forcePass.ClearCache(); // 공유 스크래치라 이전 유닛의 이동 캐시를 쓰지 않게 한다
 			acted = _forcePass.TryGetNextStep(h, move.Destination, out Dir dir);
-			if (acted) { h.Move(dir); acted = h.position != before; } // 대기 개념이 없으니 걸음이 안 나가면 막힌 것이다
+			if (acted)
+			{
+				h.Move(dir);
+				acted = h.position != before; // 대기 개념이 없으니 걸음이 안 나가면 막힌 것이다
+				if (!acted) AIMovementHelper.LearnBumpedWalls(h, dir);
+			}
 		}
 		else
 		{
@@ -107,8 +112,26 @@ public static class RetreatMovement
 			move.StuckTurns = 0;
 			if (move.SegmentBaseline >= 0) move.SegmentWalked++; // 돌아가는 구간에서 이미 걸은 거리 — 한도 계산에 합산된다(R13)
 		}
-		else if (!acted) move.StuckTurns++; // 대기는 막힘이 아니다
+		else if (!acted) { move.StuckTurns++; RelocateOccupiedRestSlot(h, move); } // 대기는 막힘이 아니다
 		return BTStatus.Running;
+	}
+
+	// 거점 휴식 자리를 다른 유닛이 차지해 걸음이 계속 실패하면 비어 있는 자리로 바꾼다(후퇴도주 검증 D4) — 점유된 목적지 칸은 A*가 닿을 수 없고, 도착 반경 밖의 낙오자는 영영 휴식 대상(AtBase)이 되지 못한다.
+	const int OccupiedSlotStuckTurns = 3;
+
+	static void RelocateOccupiedRestSlot(Human h, RetreatMoveState move)
+	{
+		if (move.DestinationKind != RetreatDestination.Base || move.StuckTurns < OccupiedSlotStuckTurns) return;
+		var session = h.Session;
+		var room = h.party?.Retreat.BaseRoom;
+		if (session == null || room == null) return;
+
+		var key = new Vector3Int(move.Destination.x, move.Destination.y, h.currentFloor);
+		if (!session.unitGrid.TryGetValue(key, out Unit occupant) || occupant == null || occupant == h || occupant.hp <= 0f) return;
+		if (!RetreatBases.ReassignRestSlot(h, room, h.party.Retreat.ClaimedRestSlots)) return;
+
+		move.NextDestinationRefreshTime = 0f; // 다음 틱에 새 자리로 목적지를 갱신한다(TryResolveDestination)
+		move.StuckTurns = 0;
 	}
 
 	// ─────────────────────────── 차단 대응 ───────────────────────────

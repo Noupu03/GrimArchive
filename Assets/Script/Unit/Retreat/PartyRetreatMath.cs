@@ -128,4 +128,8 @@ public static class PartyRetreatMath
 	// 정신력 회복(2-1장): 휴식 중에만 원수치 +1/초(비율 +0.5%p/초), 상한 +100. 탐험 중 자연 회복은 없다.
 	public const float RestMentalPerSecond = 1f;
 	public static float NextMentalAtRest(float raw, float seconds) => MentalMath.Clamp(raw + RestMentalPerSecond * seconds);
+
+	// 던전 밖 회복 바닥값 — 문서가 던전 밖 회복을 정하지 않아(후속 성장·회복 문서 몫) 문서가 "충분히 회복됐다"고 정한 거점 휴식 완료 기준(HP 60%·정신력 40%)을 쓴다. 이미 그 이상이면 그대로 둔다(내림 없음).
+	public static float OutsideRecoveryHp(float hp, float maxHp) => maxHp <= 0f ? hp : Mathf.Max(hp, maxHp * RestCompleteHpPercent / 100f);
+	public static float OutsideRecoveryMental(float raw) => Mathf.Max(raw, MentalMath.FromRatioPercent(RestCompleteMentalPercent));
 }

@@ -44,13 +44,16 @@ public static class OccupancySystem
 	{
 		var cfg = AIConfigLoader.Behavior;
 		if (!(cfg?.occupancyArbitrationEnabled ?? true)) return false;
-		if (!IsEligibleMover(unit)) return false;
+		// 입장 중인 유닛은 열린 문 너머 적이 보여 전투 상태여도 앞 유닛 대기 규칙을 쓴다(PartyAdvanceSteps.StepInCombat이 전투 중 입장 이동을 맡는다) — 안 그러면 전투 중엔 점유를 벽으로 본 길찾기로 길 전체를 돌아간다.
+		bool entering = (cfg?.entryPassBeforeCombatEnabled ?? true) && PartyAdvanceSystem.EnteringPlanOf(unit) != null;
+		if (!IsEligibleMover(unit, allowCombat: entering)) return false;
 		if (!(unit.MovementAlgorithm is AStarMovement astar)) return false;
 		// 이번 프레임에 이미 대기·비켜서기로 행동을 썼다 — 한 행동 주기에 이동 호출을 두 번 하는 행동(대체 칸 재시도 등)이 방금의 물러나기를 곧바로 되돌리지 않게 한다.
 		if (unit.occupancyActedFrame == Time.frameCount) return true;
 
 		// 입장 중인 유닛은 앞 유닛에 막혀도 길 전체를 돌아가지 않는다 — 구조 경로 그대로 걷다가 문 통로 안·다음 방 쪽 앞 유닛이 막으면 지나갈 때까지 기다린다(사용자 확정).
 		if ((cfg?.entryWaitForUnitAheadEnabled ?? true) && TryEntryStep(unit, dest, astar, cfg)) return true;
+		if (entering && !IsEligibleMover(unit)) { ClearHold(unit); return false; } // 전투 중이면 이 아래 일반 대기 vs 우회 판단은 쓰지 않는다(전투 이동은 점유=벽 즉시 우회)
 
 		// 성능 가드: 다음 걸음이 점유되려면 인접 칸에 다른 유닛이 있어야 하고, 통과 순서는 게이트 근처에서만 의미가 있다. 둘 다 아니면 구조 경로(A*) 조회 없이 곧바로 기존 동작이다.
 		bool gateOrderEnabled = cfg?.gatePassOrderEnabled ?? true;
@@ -234,12 +237,12 @@ public static class OccupancySystem
 
 	// ═══════════════════════════ 대기 결정 보조 ═══════════════════════════
 
-	// 비전투 이동 중인 살아 있는 유닛만 대상이다 — 적 인지·피격·시전·전투 상태·던전 입구 시퀀스는 기존 이동 규칙을 그대로 둔다.
-	private static bool IsEligibleMover(Unit unit)
+	// 비전투 이동 중인 살아 있는 유닛만 대상이다 — 적 인지·피격·시전·전투 상태·던전 입구 시퀀스는 기존 이동 규칙을 그대로 둔다. allowCombat는 입장 중 유닛만 켠다: 적 인지·전투 상태는 허용하되 피격·시전 중이면 여전히 제외한다.
+	private static bool IsEligibleMover(Unit unit, bool allowCombat = false)
 	{
 		if (unit == null || unit.hp <= 0 || unit.isImmobile || unit.Session == null || unit.unitType == null) return false;
-		if (unit.personalSpottedEnemies.Count > 0 || unit.isHitThisTurn || unit.CombatState.State.isCastingAttack) return false;
-		if (unit.CurrentFsmStateIfCreated is CombatFSMState) return false;
+		if (unit.isHitThisTurn || unit.CombatState.State.isCastingAttack) return false;
+		if (!allowCombat && (unit.personalSpottedEnemies.Count > 0 || unit.CurrentFsmStateIfCreated is CombatFSMState)) return false;
 		if (unit is Human human && human.isInDungeonEntranceSequence) return false;
 		return true;
 	}

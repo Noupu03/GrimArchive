@@ -79,6 +79,20 @@ public static class RetreatBases
 		return true;
 	}
 
+	// 지금 다른 유닛이 서 있지 않은 자리로 휴식 자리를 다시 정한다(검증 D4) — 기존 자리는 반납한다. 새 자리를 못 구하면 false(기존 자리는 이미 반납됐으니 호출부가 EnsureRestSlot으로 다시 시도한다).
+	public static bool ReassignRestSlot(Human h, Room room, HashSet<Vector2Int> claimed)
+	{
+		var st = h.Retreat;
+		if (st.RestSlot.HasValue) claimed.Remove(st.RestSlot.Value);
+		st.RestSlot = null;
+		var session = h.Session;
+		bool Free(Vector2Int p) => session == null
+			|| !session.unitGrid.TryGetValue(new Vector3Int(p.x, p.y, room.Floor), out Unit u) || u == null || u == h || u.hp <= 0f;
+		if (!PartyRetreatMath.TryPickRestSlot(room.Bounds, p => IsValidRestTile(h, room, p) && Free(p), claimed, out Vector2Int slot)) return false;
+		st.RestSlot = slot;
+		return true;
+	}
+
 	// 거점에 도착했는가 — 거점 방 안이고 휴식 자리에서 arrivalRadius칸 안(자리가 없으면 방 안이면 도착).
 	public static bool HasArrived(Human h, Room room, int arrivalRadius)
 	{

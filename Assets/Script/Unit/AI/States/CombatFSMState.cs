@@ -90,6 +90,17 @@ public class CombatFSMState : IFSMState
 	{
 		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
 
+		// 방 입장 중인 파티원은 전투 이동(접근·후퇴·사거리 안 제자리 사격)보다 진형 유지와 문 통과가 먼저다 — 원거리가 문 앞·통로에서 서서 쏘며 뒤 유닛의 길을 막던 문제(PartyAdvanceSteps.StepInCombat). 이동으로 이번 틱을 썼으면 시전 없이 끝내고, 못 나아가는 원거리는 이동 없이 그 자리에서만 쏜다(근접은 앞이 적에게 막힌 경우를 위해 일반 전투 그대로).
+		bool holdInPlace = false;
+		if (unit is Human enteringMember)
+		{
+			switch (PartyAdvanceSteps.StepInCombat(enteringMember))
+			{
+				case EntryCombatStep.Moved: return BTStatus.Running;
+				case EntryCombatStep.HoldInPlace: holdInPlace = HasRangedSkill(unit); break;
+			}
+		}
+
 		// 02번 0장: 긴급 아군 보호를 공격 후보 판단보다 먼저 확인한다. 실행 여부는 스킬별 IsAvailable이
 		// 결정하므로(보호 가능한 스킬이 없으면 자연히 일반 공격으로 넘어감) 여기서는 상태만 갱신한다.
 		ResolveEmergencyProtectTarget(unit);
@@ -98,15 +109,25 @@ public class CombatFSMState : IFSMState
 		AIMovementHelper.EnsureAvoidanceMovementForRole(unit, CombatScoreMath.ResolveCombatRole(unit.unitType));
 
 		// 보호 대상이 보호 스킬 사거리 밖이면 접근 이동부터 처리한다(02번 9항) — 사거리 안이면 SkillAction_Heal(emergencyBonus=1000)이 담당한다.
-		if (TryEmergencyProtectApproach(unit)) return BTStatus.Running;
+		if (!holdInPlace && TryEmergencyProtectApproach(unit)) return BTStatus.Running;
 
 		// 일반 치료 대상이 사거리 밖이면 접근 이동부터 처리한다 — 위 긴급보호와
 		// 동일한 패턴(사거리 안이면 개입하지 않고 false 반환, 이미 있는 일반 스킬 선택에 맡긴다).
-		if (TryGeneralHealApproach(unit)) return BTStatus.Running;
+		if (!holdInPlace && TryGeneralHealApproach(unit)) return BTStatus.Running;
 
 		Unit target = SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Failure;
-		return EngageTarget(unit, target, minDist, allowKiting: true);
+		return EngageTarget(unit, target, minDist, allowKiting: !holdInPlace, allowMovement: !holdInPlace);
+	}
+
+	// 사거리 rangedSkillMinRange 이상인 스킬이 있는 원거리 유닛인가 — EngageTarget의 원거리 판정(maxSkillRange ≥ rangedMin)과 같은 기준.
+	private static bool HasRangedSkill(Unit unit)
+	{
+		if (unit.Generate == null || unit.unitType == null) return false;
+		int rangedMin = AIConfigLoader.Behavior?.rangedSkillMinRange ?? 4;
+		foreach (var s in unit.Generate.GetSkills(unit.unitType.typeName))
+			if (s != null && s.HitRange >= rangedMin) return true;
+		return false;
 	}
 
 	// 후퇴·도주가 길을 막는 적 하나를 상대할 때(통과에 필요한 대응만, 후퇴도주 5-1장) 쓰는 교전 한 틱 — 대상 선택·긴급 보호·키팅 없이 그 적에게 가장 나은 스킬로 공격하고 사거리 밖이면 접근한다.
@@ -116,8 +137,8 @@ public class CombatFSMState : IFSMState
 		return EngageTarget(unit, target, Vector2Int.Distance(unit.position, target.position), allowKiting: false);
 	}
 
-	// 정해진 대상에게 스킬을 고르고 실행하거나 접근하는 교전 한 틱 — ExecuteCombat(대상 선택 뒤)과 EngageBlocker가 공유한다. allowKiting=false면 원거리 유닛도 물러서지 않는다.
-	private static BTStatus EngageTarget(Unit unit, Unit target, float minDist, bool allowKiting)
+	// 정해진 대상에게 스킬을 고르고 실행하거나 접근하는 교전 한 틱 — ExecuteCombat(대상 선택 뒤)과 EngageBlocker가 공유한다. allowKiting=false면 원거리 유닛도 물러서지 않는다. allowMovement=false면 접근·추격도 하지 않아 사거리 안일 때 그 자리에서 쏘기만 한다(입장 중 원거리, ExecuteCombat 참고).
+	private static BTStatus EngageTarget(Unit unit, Unit target, float minDist, bool allowKiting, bool allowMovement = true)
 	{
 		int rangedMin = AIConfigLoader.Behavior?.rangedSkillMinRange ?? 4;
 
@@ -174,7 +195,7 @@ public class CombatFSMState : IFSMState
 				return BTStatus.Running;
 			}
 
-			ChaseTarget(unit, target);
+			if (allowMovement) ChaseTarget(unit, target);
 		}
 		else
 		{
@@ -184,10 +205,10 @@ public class CombatFSMState : IFSMState
 				switch (RangedSpacingMath.Decide(chebDist, maxSkillRange / 2, maxSkillRange))
 				{
 					case RangedSpacing.Retreat: if (allowKiting) AIMovementHelper.MoveAwayFromTarget(unit, target); break; // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
-					case RangedSpacing.Approach: ChaseTarget(unit, target); break;
+					case RangedSpacing.Approach: if (allowMovement) ChaseTarget(unit, target); break;
 				}
 			}
-			else if (chebDist > 1) ChaseTarget(unit, target); // 근접 유닛 — 붙을 때까지 접근
+			else if (chebDist > 1 && allowMovement) ChaseTarget(unit, target); // 근접 유닛 — 붙을 때까지 접근
 		}
 
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);

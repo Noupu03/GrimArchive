@@ -347,6 +347,32 @@ public abstract class UnitFunction : Unit
 		return true;
 	}
 
+	// 걸음이 막힌 칸이 정적 벽·구조물이면 벽으로 학습한다(접촉 학습, 후퇴도주 검증 D1). A*는 미확인(0) 칸을 계획에서 통행 가능으로 보는데 시야는 120° 콘 안만 밝히고 시선은 이동에 성공해야 바뀌어, 시선 밖 미확인 벽을 향한 걸음이 영원히 실패했다. 점유·닫힌 문처럼 지형이 아닌 이유로 막힌 칸은 기록하지 않는다. 시야가 타일을 밝히는 것(UpdateFOV.ProcessTile)과 같은 기록이다.
+	public override void LearnBlockedWall(Vector2Int tile)
+	{
+		if (!(AIConfigLoader.Behavior?.bumpLearnWallEnabled ?? true)) return;
+		CreateMap cmap = Session != null ? Session.cmap : null;
+		if (cmap == null || cmap.map.floors == null || currentFloor < 0 || currentFloor >= cmap.map.floors.Length) return;
+		if (cmap.IsStaticTileWalkable(currentFloor, tile)) return; // 지형이 벽이 아니다
+
+		var pos = new Vector3Int(tile.x, tile.y, currentFloor);
+		IKnownTerrain terrain = KnownTerrain;
+		if (terrain == null || terrain.GetTileTerrain(pos) == 2) return; // 이미 벽으로 안다
+
+		FactionData myData = this is Human ? humanFactionData : monsterFactionData;
+		if (myData.discoveredMap != null && currentFloor < myData.discoveredMap.Length && myData.discoveredMap[currentFloor] != null)
+		{
+			int[,] map = myData.discoveredMap[currentFloor];
+			if (tile.x < 0 || tile.y < 0 || tile.x >= map.GetLength(0) || tile.y >= map.GetLength(1)) return;
+			map[tile.x, tile.y] = 2;
+		}
+
+		int revisionBefore = terrain.TerrainRevision;
+		if (this is Human human) human.personalMap.RevealTile(pos, true);
+		else if (this is Monster monster) monster.monsterMap.RevealTile(pos, true);
+		if (terrain.TerrainRevision != revisionBefore) MovementAlgorithm?.OnTileBecameWall(this, tile);
+	}
+
 	public override void Move(Dir dir)
 	{
 		// 고정 유닛 최종 안전망 — FSM/명령/배회 등 어느 경로로 이동 요청이 들어와도 여기서 전부

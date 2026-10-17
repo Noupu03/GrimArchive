@@ -632,5 +632,28 @@ public class PartyFormationTests
 		Assert.AreEqual(0f, PartyFormationMath.PauseCredit(0.25f, 120f, 120f), 0.0001f);
 		Assert.AreEqual(0f, PartyFormationMath.PauseCredit(0.25f, 130f, 120f), 0.0001f);
 	}
+
+	// ── 입장 중 전투 틱 ───────────────────────────────────────────────────
+
+	[Test]
+	public void ResolveEntryCombatStep_EntryFinished_FallsBackToNormalCombat()
+	{
+		// 문 먼 쪽 줄을 지나 대기가 풀렸으면(이동 여부와 무관) 같은 틱부터 일반 전투다.
+		Assert.AreEqual(EntryCombatStep.None, PartyFormationMath.ResolveEntryCombatStep(waitCleared: true, moved: true));
+		Assert.AreEqual(EntryCombatStep.None, PartyFormationMath.ResolveEntryCombatStep(waitCleared: true, moved: false));
+	}
+
+	[Test]
+	public void ResolveEntryCombatStep_Moved_UsesTheTickForPassingTheGate()
+	{
+		Assert.AreEqual(EntryCombatStep.Moved, PartyFormationMath.ResolveEntryCombatStep(waitCleared: false, moved: true));
+	}
+
+	[Test]
+	public void ResolveEntryCombatStep_NoProgress_HoldsInPlace_ForFormationSlotOrBlockedPath()
+	{
+		// 진형 자리 도착(출발 허가 전) 또는 앞이 막혀 한 걸음도 못 나아간 틱 — 이동 없이 그 자리에서만 사격한다.
+		Assert.AreEqual(EntryCombatStep.HoldInPlace, PartyFormationMath.ResolveEntryCombatStep(waitCleared: false, moved: false));
+	}
 }
 #endif

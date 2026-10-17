@@ -171,6 +171,51 @@ public static class PartyAdvanceSteps
 		return StepGoToSlot(human, wait, plan, slot, entering);
 	}
 
+	// 전투 상태(CombatFSMState.ExecuteCombat)에서도 입장 계획 구성원이 진형을 지키고 순서대로 문을 먼저 지나게 한다(entryPassBeforeCombatEnabled). 열린 문 너머 적이 보이면 전투(우선순위 100)가 입장 대기(Tactical)를 덮는데, 원거리 유닛은 사거리 안이면 제자리 사격(RangedSpacingMath Hold)이라 문 앞·통로에 서서 쏘며 뒤 유닛의 길을 막았다(2026-10-17 플레이 로그).
+	// 출발 허가 전엔 진형 자리로 가거나 자리를 지키고(도착하면 이동 없음 → HoldInPlace), 허가 후엔 문 먼 쪽 줄을 지날 때까지 통과 이동을 하며(Moved, 앞 유닛이 막으면 OccupancySystem.TryEntryStep이 기다림), 지나서 대기가 풀리면 일반 전투(None)다. 호출부가 Moved면 시전 없이 그 틱을 끝내고, HoldInPlace면 이동 없이 사격만 한다.
+	public static EntryCombatStep StepInCombat(Human human)
+	{
+		if (!(AIConfigLoader.Behavior?.entryPassBeforeCombatEnabled ?? true)) return EntryCombatStep.None;
+		var wait = human.currentWait;
+		if (wait == null) return StepClearExit(human); // 문을 막 지난 유닛 — 출구에 서서 뒤 유닛을 막지 않게 먼저 비킨다
+		var plan = human.party?.AdvancePlan;
+		if (wait.Reason != WaitReason.EnteringNextRoom || wait.IsParked) return EntryCombatStep.None; // 포기한 유닛은 일반 전투(영구 정체 방지)
+		if (plan == null || plan.Phase != AdvancePhase.Entering || !plan.Ranks.ContainsKey(human) || human.currentFloor != plan.Floor) return EntryCombatStep.None;
+
+		human.GrantRoomLeave(); // 대기 리프(ExecuteWait)와 같이 입장 이동은 이 틱만 방 이탈 금지의 예외
+		Vector2Int before = human.position;
+		StepMember(human, wait);
+		return PartyFormationMath.ResolveEntryCombatStep(human.currentWait == null, human.position != before);
+	}
+
+	// 문 먼 쪽 줄을 지나 대기가 풀렸지만 아직 출구 구간(far 줄 문 타일에서 체비셰프 DoorClearance 미만) 안인 유닛을 구간 밖의 가장 가까운 빈 칸으로 보낸다 — 지난 즉시 일반 전투로 돌아가면 원거리가 출구 바로 앞에서 Hold해 통로 출구를 다시 막는다. 입장 계획이 진행 중일 때만, 유닛당 한 번만 적용한다(구간을 벗어나면 ExitCleared에 기록 — 이후 후퇴가 구간으로 되돌아와도 전진·후퇴 왕복이 생기지 않는다).
+	private static EntryCombatStep StepClearExit(Human human)
+	{
+		var plan = human.party?.AdvancePlan;
+		var session = human.Session;
+		if (plan == null || session == null || plan.Phase != AdvancePhase.Entering) return EntryCombatStep.None;
+		if (!plan.Ranks.ContainsKey(human) || human.currentFloor != plan.Floor || plan.ExitCleared.Contains(human)) return EntryCombatStep.None;
+
+		Vector2Int[] far = plan.FarTiles;
+		if (!PartyFormationMath.HasPassedGate(human.position, far[0], plan.Forward)) return EntryCombatStep.None; // 문을 못 지난 채 대기가 풀린 유닛(다른 대기로 덮임 등)은 해당 없음
+		if (!PartyFormationMath.IsInDoorClearance(human.position, far))
+		{
+			plan.ExitCleared.Add(human);
+			return EntryCombatStep.None;
+		}
+
+		Vector2Int ideal = plan.FarAnchor + plan.Forward * PartyFormationMath.DoorClearance;
+		bool found = PartyFormationMath.TryPickNearestFreeTile(ideal,
+			t => PartyFormationMath.HasPassedGate(t, far[0], plan.Forward) && !PartyFormationMath.IsInDoorClearance(t, far)
+				&& PartyAdvanceSystem.IsSlotFree(session, human, t, plan.Floor, plan.ToRoom, ignoreUnits: false, knowledge: human),
+			new HashSet<Vector2Int>(), PartyFormationMath.DoorClearance + 4, out Vector2Int spot);
+		if (!found) return EntryCombatStep.None;
+
+		Vector2Int before = human.position;
+		AIMovementHelper.MoveTowardsPos(human, spot);
+		return PartyFormationMath.ResolveEntryCombatStep(false, human.position != before);
+	}
+
 	// 문 채널링 — 문의 어느 칸에든 인접 1칸이면 SetAttackObjectTarget만 건다(데미지는 UnitFunction.OnUpdate, 인원 × 고정 초당 데미지라 모일수록 빨리 부서진다). 아직 인접하지 않으면 지시받은 공격 자리로 이동하고, 오래 못 가면 포기해 재지시를 요청한다(PartyBreachCommand.ReleaseSlot).
 	private static BTStatus StepBreach(Human human, WaitState wait, PartyAdvancePlan plan, Vector2Int slot)
 	{

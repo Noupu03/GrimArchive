@@ -26,6 +26,7 @@ public static class RetreatSystem
 	public static int BaseArrivalRadius => AIConfigLoader.Behavior?.retreatBaseArrivalRadius ?? 2;
 	public static float RestStragglerGraceSeconds => AIConfigLoader.Behavior?.retreatRestStragglerGraceSeconds ?? 10f;
 	public static float ResortieSafeRoomMaxDanger => AIConfigLoader.Behavior?.resortieSafeRoomMaxDanger ?? 100f;
+	public static bool OutsideRecoveryEnabled => AIConfigLoader.Behavior?.outsideRecoveryEnabled ?? true;
 
 	// ─────────────────────────── 상태 질의 ───────────────────────────
 
@@ -119,6 +120,17 @@ public static class RetreatSystem
 	}
 
 	public static bool ShouldDoubleRegen(Human human) => Enabled && IsRecovering(human);
+
+	// 던전 밖 회복 — 다음 침공에 합류하는 생환자를 거점 휴식 완료 기준(HP 60%·정신력 40%)까지 끌어올린다(문서 미정, 내부 판단). 회복하지 않으면 나간 그대로(HP 20% 이하·정신력 15% 이하) 합류해 평가 보류가 끝나자마자 같은 기준으로 다시 후퇴하는 순환이 된다. 이미 기준 이상이면 건드리지 않고, 올렸다면 로그를 남긴다.
+	public static void RecoverOutsideDungeon(Human human)
+	{
+		if (!Enabled || !OutsideRecoveryEnabled || human == null || human.hp <= 0f) return;
+		float hpBefore = human.hp;
+		human.hp = PartyRetreatMath.OutsideRecoveryHp(hpBefore, human.maxHp);
+		float mentalGain = MentalSystem.RecoverTo(human, PartyRetreatMath.OutsideRecoveryMental(human.BaseStat.mental));
+		if (human.hp > hpBefore || mentalGain > 0f)
+			LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 던전 밖 회복 — HP {hpBefore:F0}→{human.hp:F0}/{human.maxHp:F0}, 정신력 {MentalMath.ToRatioPercent(human.BaseStat.mental - mentalGain):F0}%→{MentalMath.ToRatioPercent(human.BaseStat.mental):F0}%");
+	}
 
 	// ─────────────────────────── 관찰·전이 틱 ───────────────────────────
 

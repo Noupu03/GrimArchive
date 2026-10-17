@@ -351,6 +351,24 @@ public class RetreatMathTests
 		Assert.AreEqual(100f, PartyRetreatMath.NextMentalAtRest(99f, 10f), 0.0001f, "상한 +100");
 	}
 
+	// ── 던전 밖 회복 바닥값 (문서 미정 — 거점 휴식 완료 기준 HP 60%·정신력 40%를 재사용) ──
+
+	[Test]
+	public void OutsideRecovery_RaisesLowHpAndMentalToRestCompleteFloor()
+	{
+		Assert.AreEqual(60f, PartyRetreatMath.OutsideRecoveryHp(15f, 100f), 0.0001f, "HP 15% → 60%");
+		Assert.AreEqual(-20f, PartyRetreatMath.OutsideRecoveryMental(-85f), 0.0001f, "정신력 비율 7.5% → 40%(원수치 −20)");
+		Assert.AreEqual(40f, MentalMath.ToRatioPercent(PartyRetreatMath.OutsideRecoveryMental(-100f)), 0.0001f);
+	}
+
+	[Test]
+	public void OutsideRecovery_AlreadyAboveFloor_IsUntouched()
+	{
+		Assert.AreEqual(90f, PartyRetreatMath.OutsideRecoveryHp(90f, 100f), 0.0001f, "내리지 않는다");
+		Assert.AreEqual(30f, PartyRetreatMath.OutsideRecoveryMental(30f), 0.0001f);
+		Assert.AreEqual(5f, PartyRetreatMath.OutsideRecoveryHp(5f, 0f), 0.0001f, "최대 HP를 모르면 그대로");
+	}
+
 	// ── 개인 후퇴 (1-4장, R49·R50·R52·R58) ──
 
 	[TestCase(20f, true)]
@@ -575,6 +593,33 @@ public class RetreatMathTests
 		Assert.AreEqual(4.5f, RetreatPathMath.RetreatSpeed(RetreatMode.PersonalFlee, 3f), 0.0001f);
 		Assert.AreEqual(3f, RetreatPathMath.RetreatSpeed(RetreatMode.PartyRetreat, 3f), 0.0001f);
 		Assert.AreEqual(3f, RetreatPathMath.RetreatSpeed(RetreatMode.PersonalRetreat, 3f), 0.0001f, "리더 없는 개인 후퇴는 걷기");
+	}
+
+	// ── 길을 막은 문 선택 (5-3장 닫힌 문, 검증 D2: 두 줄 게이트) ──
+
+	[Test]
+	public void ChooseBlockingDoor_PicksTheRowTheUnitReachesFirst_NotTheOneNearestToTheTarget()
+	{
+		var end = new Vector2Int(37, 65);
+		var target = new Vector2Int(7, 40);
+		// 게이트는 근접 줄(36)·먼 줄(35) 두 줄 — 먼 줄이 목적지에는 더 가깝지만 근접 줄을 부수기 전엔 닿을 수 없다.
+		var doors = new List<Vector2Int> { new Vector2Int(35, 65), new Vector2Int(36, 65) };
+		Assert.AreEqual(1, RetreatPathMath.ChooseBlockingDoor(end, target, doors), "유닛에 가장 가까운 줄 문이 먼저");
+	}
+
+	[Test]
+	public void ChooseBlockingDoor_TieOnDistanceFromUnit_PrefersTheOneNearerTheTarget()
+	{
+		var end = new Vector2Int(37, 65);
+		var target = new Vector2Int(7, 40);
+		var doors = new List<Vector2Int> { new Vector2Int(38, 65), new Vector2Int(36, 65) }; // 둘 다 유닛에서 체비셰프 1, 36쪽이 목적지(7,40)에 더 가깝다
+		Assert.AreEqual(1, RetreatPathMath.ChooseBlockingDoor(end, target, doors));
+	}
+
+	[Test]
+	public void ChooseBlockingDoor_NoCandidate_ReturnsMinusOne()
+	{
+		Assert.AreEqual(-1, RetreatPathMath.ChooseBlockingDoor(Vector2Int.zero, Vector2Int.one, new List<Vector2Int>()));
 	}
 
 	// ── 집결 기한 (6장, R28·R29) ──

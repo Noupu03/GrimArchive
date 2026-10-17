@@ -694,6 +694,9 @@ public abstract class Unit : ScriptableObject {
 
 	// 이 타일로 들어가면 "지금 방을 떠나는" 걸음이라 금지인가 — UnitFunction.Move(실제 걸음)·AStarMovement.IsTileWalkable(경로 계획)·DefenseSystem의 회피/점멸 후보가 같은 결론을 내도록 이 한 곳을 부른다. CanMove에는 넣지 않는다(자리 선택이 "그 칸에 설 수 있는가"로 CanMove를 써서, 명령받은 유닛이 다른 방 자리를 못 고르게 된다). 몬스터는 RoomConfinedMovement가 따로 처리해 기본 false, 인류가 재정의한다(RoomConfinementMath).
 	public virtual bool IsRoomLeaveBlocked(Vector2Int tile) => false;
+
+	// 걸음이 막힌 칸이 정적 벽·구조물이면 그 칸을 이 유닛의 지형 지식에 벽으로 올린다(접촉 학습) — UnitFunction이 구현한다.
+	public virtual void LearnBlockedWall(Vector2Int tile) { }
 }
 
 public class Human : UnitFunction

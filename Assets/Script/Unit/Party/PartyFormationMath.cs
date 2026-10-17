@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+// 입장 중 전투 틱의 결과(PartyAdvanceSteps.StepInCombat) — None: 입장 대상 아님/입장 끝남(일반 전투), Moved: 입장 이동으로 이번 틱을 썼다, HoldInPlace: 이동 없이 그 자리에서만 사격.
+public enum EntryCombatStep { None, Moved, HoldInPlace }
+
 // 파티 진형·집결 자리·진입로 판정 순수 계산(부수효과 없음). 0층 입구 진형(DungeonEntranceSystem)과 방 문 앞 진형(PartyAdvanceSystem)이 같은 랭크/레인 정의를 공유한다 — 근접 0랭크 → 리더 1랭크 → 원거리 2랭크, 랭크 간격 2, 레인은 전진축 직각 방향 좌우 대칭.
 public static class PartyFormationMath
 {
@@ -237,6 +240,10 @@ public static class PartyFormationMath
 		}
 		return found;
 	}
+
+	// 입장 중인 파티원이 전투 상태에서 한 틱 입장 이동을 시도한 결과 — 입장이 끝났으면(대기가 비워짐) 일반 전투, 이동했으면 이번 틱은 이동으로 쓴 것(시전 없음), 못 나아갔으면(진형 자리 도착·앞이 막힘) 그 자리에서 사격만 한다.
+	public static EntryCombatStep ResolveEntryCombatStep(bool waitCleared, bool moved)
+		=> waitCleared ? EntryCombatStep.None : (moved ? EntryCombatStep.Moved : EntryCombatStep.HoldInPlace);
 
 	// 교전·경계로 시간 제한을 멈춰 줄 때 이번에 인정할 시간 — 아직 안 쓴 상한(cap − 이미 멈춘 시간) 안에서 경과 dt만큼이며, 상한에 닿으면 0이라 시간이 다시 흐른다(풀리지 않는 교전이 계획을 영구히 얼리지 않게).
 	public static float PauseCredit(float dt, float alreadyPaused, float cap)

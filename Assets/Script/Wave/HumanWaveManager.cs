@@ -207,6 +207,7 @@ namespace GrimArchive.Wave
             {
                 if (survivor == null || survivor.hp <= 0) continue;
 
+                RetreatSystem.RecoverOutsideDungeon(survivor); // 던전 밖에서 쉰 만큼 회복(문서 미정 — 거점 휴식 완료 기준까지)
                 Vector2Int pos = FindSpawnPosInHiddenChunk(rowY);
                 Vector2Int survivorOldPos = survivor.position;
                 GameSession.Instance.UnregisterUnitPos(survivor, survivorOldPos);
@@ -565,9 +566,12 @@ namespace GrimArchive.Wave
             // 던전 안에 산 파티원이 더는 없는데 던전 밖으로 나간 인원이 있다 — 전원 귀환이거나, 일부 귀환 뒤 남은 인원이 죽은 경우다(죽은 유닛은 Members에 남고 IsWiped는 이탈자가 있으면 false라 위 전멸 분기를 지나친다). 코어를 못 부쉈다면 실패로 끝난다.
             if (activeParty.ExitedCount > 0 && activeParty.GetSurvivors().Count == 0)
             {
+                bool anyDead = activeParty.Members.Exists(m => m == null || m.hp <= 0f); // 이탈자는 Members에서 빠지므로 남은 죽은 유닛이 곧 사망자
                 LogHelper.Log(LogHelper.GAME, _retreating
                     ? "[HumanWaveManager] 코어 파괴 후 던전 안에 남은 파티원이 없어 웨이브가 성공적으로 종료됩니다."
-                    : "[HumanWaveManager] 일부는 던전 밖으로 후퇴·도주하고 나머지는 사망해 웨이브가 종료됩니다(목표 미달성).");
+                    : anyDead
+                        ? "[HumanWaveManager] 일부는 던전 밖으로 후퇴·도주하고 나머지는 사망해 웨이브가 종료됩니다(목표 미달성)."
+                        : "[HumanWaveManager] 전원이 던전 밖으로 후퇴·도주해 웨이브가 종료됩니다(목표 미달성).");
                 EndWave(_retreating);
                 return;
             }
