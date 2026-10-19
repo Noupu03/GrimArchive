@@ -76,23 +76,14 @@ public class PlayerCommandFSMState : IFSMState
 	private static bool HasActivePlayerCommand(Unit unit)
 		=> HasPlayerAttackTarget(unit) || HasPlayerAttackObjectTarget(unit) || HasPlayerMoveCommand(unit);
 
-	// pos에 있는 오브젝트가 unit이 명령으로 공격할 수 있는 대상인지 판정한다(코어: 파괴 전+내 진영
-	// 소유 아님 / 문: 파괴 전). InputManager가 명령 발행 전 검증에도 그대로 재사용한다(public).
+	// pos에 있는 오브젝트가 unit이 명령으로 공격할 수 있는 대상인지 판정한다(코어: 항상 불가 / 문: 파괴 전+자기 진영 문 아님). InputManager가 명령 발행 전 검증에도 그대로 재사용한다(public).
 	public static bool IsPendingObjectAttackValid(Unit unit, Vector3Int pos)
 	{
 		if (unit == null || unit.Session == null || !unit.Session.objectGrid.TryGetValue(pos, out var obj) || obj.Tags == null)
 			return false;
 
-		if (obj.Tags.Contains(GameSession.CoreTag))
-		{
-			if (obj.CoreHp <= 0f) return false;
-			// 코어는 파괴돼도 사라지지 않고 반피로 회복된다 — 이미 내 진영 소유가 됐으면(=파괴 성공)
-			// 더 공격할 이유가 없으므로 명령을 완료 처리한다.
-			FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
-			if (myFaction != null && unit.Session.roomGrid.TryGetValue(pos, out Room room) && room.RoomFaction == myFaction.Value)
-				return false;
-			return true;
-		}
+		// 코어는 플레이어의 공격 대상이 아니다 — 플레이어 몬스터는 코어를 공격하지 않고 완전 활성화·수복만 한다(코어 점령 v0.2 10장). 우클릭하면 호출부가 일반 이동 명령으로 넘어간다.
+		if (obj.Tags.Contains(GameSession.CoreTag)) return false;
 		if (obj.Tags.Contains(DoorSystem.DoorTag))
 		{
 			if (obj.DoorHp <= 0f) return false;

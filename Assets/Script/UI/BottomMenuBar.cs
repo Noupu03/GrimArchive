@@ -141,6 +141,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 var propagation = BuildDebugPropagationItems();
                 if (propagation.Count > 0) groups.Add(propagation);
                 groups.Add(BuildDebugRetreatItems());
+                groups.Add(BuildDebugCoreItems());
                 groups.Add(BuildDebugSpeechItems());
                 break;
         }
@@ -558,6 +559,30 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         items.Add(new SubmenuItem("정신력 -30 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 30f))));
         items.Add(new SubmenuItem("파티 HP 15%로 (선택 유닛의 파티)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.SetPartyHpPercent(u, 15f))));
         items.Add(SubmenuItem.Header("후퇴 · 도주 확인"));
+        return items;
+    }
+
+    // 코어·점령 확인용(임시) — 카메라가 보는 층의 코어 상태를 조건 없이 바꾼다(완전 활성화 → 인류의 코어 공격 가능, 파괴 → 건설·생산 정지, 수복 → 재개).
+    private List<SubmenuItem> BuildDebugCoreItems()
+    {
+        var items = new List<SubmenuItem>();
+        CoreSystem coreSystem = _gameSession?.Core;
+        int floor = CameraController.Instance != null ? CameraController.Instance.CurrentFloor : 1;
+        InteractableObject core = null;
+        bool has = coreSystem != null && coreSystem.TryGetFloorCore(floor, out _, out core);
+        items.Add(new SubmenuItem("코어 강제 활성화 (현재 층)", false, has && !core.CoreEverActivated, () => coreSystem.TryActivate(core.Position, ignoreConditions: true)));
+        items.Add(new SubmenuItem("코어 강제 파괴 (현재 층)", false, has && !core.CoreDestroyed, () => coreSystem.DebugDestroy(core.Position)));
+        items.Add(new SubmenuItem("코어 무료 수복 (현재 층)", false, has && core.CoreDestroyed, () => coreSystem.TryRestore(core.Position, free: true)));
+
+        // 점령 확인: 파티를 1층 입구에 바로 세우고, 선택 유닛이 서 있는 방을 곧바로 거점으로 만들어 후퇴 목적지·재출격을 확인한다.
+        OccupationSystem occupation = _gameSession?.Occupation;
+        bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human selectedHuman && selectedHuman.currentRoom != null;
+        items.Add(new SubmenuItem("점령 파티 스폰 (1층 입구)", false, occupation != null, () => GrimArchive.Wave.HumanWaveManager.Instance?.DebugSpawnOccupationParty()));
+        bool allowUnknown = OccupationSystem.AllowUnknownAdvance;
+        items.Add(new SubmenuItem(allowUnknown ? "■ 미확인 방도 진출 허용 (ON)" : "□ 미확인 방도 진출 허용 (OFF)", allowUnknown, true, () => OccupationSystem.AllowUnknownAdvance = !OccupationSystem.AllowUnknownAdvance));
+        items.Add(new SubmenuItem("선택 유닛의 방 → 인류 기초 거점", false, humanSelected && occupation != null, () => occupation.DebugMakeBase(((Human)_inputManager.selectedUnit).currentRoom, defense: false)));
+        items.Add(new SubmenuItem("선택 유닛의 방 → 인류 방어 거점", false, humanSelected && occupation != null, () => occupation.DebugMakeBase(((Human)_inputManager.selectedUnit).currentRoom, defense: true)));
+        items.Add(SubmenuItem.Header("코어 · 점령 확인"));
         return items;
     }
 

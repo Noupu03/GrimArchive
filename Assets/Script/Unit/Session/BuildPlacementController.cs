@@ -110,6 +110,12 @@ public class BuildPlacementController
     {
         if (_currentBuildSprite == null) return; // 건물 스프라이트 로드 중
 
+        if (!BuildingManager.AreCoreFunctionsActive(gridPos.z))
+        {
+            NoticeCenter.Instance?.PushMomentary("코어가 파괴되어 건설할 수 없습니다. 먼저 코어를 수복하세요.", NoticeCenter.WarningColor);
+            return;
+        }
+
         // footprint(2026-08-25) 전체가 비어있어야 설치 가능 — 단일 타일만 확인하면 3x3/2x2 건물의
         // 나머지 칸이 막혀 있어도 자원을 먼저 소모해버릴 수 있다.
         if (!_buildingManager.CanInstallAt(gridPos, CurrentFootprint))

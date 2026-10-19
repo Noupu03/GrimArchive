@@ -47,6 +47,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private BuildingManager _buildingManager;
     private DoorSystem _doorSystem;
     private FogOfWarSystem _fogOfWarSystem;
+    // 코어 점령(2026-10-19) — 코어 활성화·파괴·수복과 방 클리어 조회. 다른 시스템은 GameSession.Instance.Core / RoomClear로 접근한다.
+    private CoreSystem _coreSystem;
+    private RoomClearSystem _roomClearSystem;
+    private OccupationSystem _occupationSystem;
+    public CoreSystem Core => _coreSystem;
+    public RoomClearSystem RoomClear => _roomClearSystem;
+    public OccupationSystem Occupation => _occupationSystem;
 
     // 오브젝트 스폰(SpawnObject)·시작 건물 배치가 동기로 쓰는 스프라이트 — Initialize가 LoadObjectSpritesAsync로 먼저 불러 둔다.
     private Sprite _trapSprite;
@@ -70,8 +77,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem, CoreSystem coreSystem, RoomClearSystem roomClearSystem, OccupationSystem occupationSystem)
     {
+        _coreSystem = coreSystem;
+        _roomClearSystem = roomClearSystem;
+        _occupationSystem = occupationSystem;
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
         _propagationDebugVisualizer = propagationDebugVisualizer;
@@ -681,11 +691,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         RefreshRoomPopulationLabels();
+        _roomClearSystem?.Tick(Time.deltaTime); // 방 클리어 → 플레이어 확보
+        _occupationSystem?.Tick(Time.deltaTime); // 인류 점령 파티의 거점 건설·진출
         TickCoreRegen();
     }
 
-    // 코어 자동 회복(DoorSystem.UpdateProcess의 문 회복 로직과 대칭). 공격 중인 코어는
-    // UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 리셋하므로 회복 지연시간을 넘기지 못한다.
+    // 코어 자동 회복(DoorSystem.UpdateProcess의 문 회복 로직과 대칭). 공격 중인 코어는 UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 리셋하므로 회복 지연시간을 넘기지 못한다.
+    // 문서(코어 점령 v0.2)는 파괴 전 피해 회복을 정하지 않아 기존 동작을 유지한다. 파괴된 코어는 회복하지 않고 수복 명령(CoreSystem.TryRestore)으로만 돌아온다.
     private void TickCoreRegen()
     {
         if (allRooms == null) return;
@@ -694,7 +706,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             if (room == null || room.CoreObjectId == null) continue;
             if (!objectGrid.TryGetValue(room.CorePosition, out InteractableObject core)) continue;
-            if (core.CoreHp >= core.CoreMaxHp) continue;
+            if (core.CoreDestroyed || core.CoreHp >= core.CoreMaxHp) continue;
 
             bool wasBeforeDelay = core.TimeSinceLastDamaged < CoreRegenDelaySeconds;
             core.TimeSinceLastDamaged += Time.deltaTime;
@@ -792,9 +804,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
             if (u is Monster && u.lastDamageDealer is Human slayer) SpeechSystem.Say(slayer, SpeechId.KillEnemy); // 연출
 
-            // 방 소유권 전환은 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다 — 유닛
-            // 사망 자체는 점령 전환을 트리거하지 않고, 문 개폐도 매 프레임 판정이라 사망 시점 재확인이
-            // 불필요하다.
+            // 방 확보는 RoomClearSystem이 주기적으로 판정하므로 유닛 사망 시점에 따로 확인하지 않는다 — 문 개폐도
+            // 매 프레임 판정이라 사망 시점 재확인이 불필요하다.
 
             // 컴포넌트 정리 — WildBaseSpawnerComponent.OnDespawn이 HasActiveSpawner = false로
             // 바꿔야 거점형 오펜스 성공 판정이 작동한다. 유닛 사망 시점마다 호출.
@@ -870,6 +881,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 시체 소멸은 시간이 아니라 웨이브 카운트 단위다(corpse.SpawnWaveNumber로 스냅샷) —
             // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
             if (_unitGenerate != null) _unitGenerate.RemoveVisual(u, deathAnimSeconds);
+            // 코어 잔해를 들고 죽었다면 사망 위치 근처에 잔해를 다시 놓는다 — 파티의 다른 인류가 주울 수 있다(코어 점령 v0.2 8장).
+            if (u is Human carrier && carrier.carriesCoreSalvage) _coreSystem?.OnCarrierDied(carrier);
             UnityEngine.Object.Destroy(u);
         }
 
@@ -889,7 +902,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
 
     // 죽은 자리에 이미 오브젝트가 있으면 바로 옆부터 링 모양으로 넓혀가며 빈 타일을 찾는다. 벽/구조물
     // 타일도 걸러내고(안 그러면 시체가 벽에 놓일 수 있다), 못 찾으면 원래 위치를 반환한다(SpawnObject가 무시).
-    private Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
+    public Vector3Int FindNearbyFreeObjectTile(Vector3Int center)
     {
         const int maxRadius = 5;
         for (int radius = 1; radius <= maxRadius; radius++)
@@ -946,7 +959,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     {
         var party = new Party(System.Guid.NewGuid().ToString(), name);
         // 파티 종류별 방 활동 종료 기준이 다르다(01번 7-1장). 편성 가능 유닛·가중치는 미작성이라 PartyType 중 무작위 배정으로 스텁한다.
-        party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
+        // 점령 파티는 1층 코어 완전 활성화 이후부터 등장한다(코어 점령 v0.2 12장) — 그 전에는 무작위 배정에서 뺀다.
+        bool occupyAllowed = _coreSystem != null && _coreSystem.IsFloorCoreEverActivated(1);
+        do party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
+        while (party.Type == PartyType.Occupy && !occupyAllowed);
         foreach (var m in members)
         {
             if (m == null) continue;
@@ -1197,6 +1213,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
+        bool isSalvage = obj.Tags != null && obj.Tags.Contains(CoreSystem.SalvageTag);
+        bool isDefenseFacility = obj.Tags != null && obj.Tags.Contains(OccupationSystem.DefenseFacilityTag);
         // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem이 곧바로 닫힘으로 교체하고, 이후 개폐는 DoorSystem.UpdateProcess가 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
 
@@ -1207,7 +1225,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : _corpseSprite;
         else if (isCoreOnly) sprite = _coreSprite;
         else if (isDoor) sprite = _doorOpenSprite;
-        else if (isLoot) sprite = _lootSprite;
+        else if (isLoot || isSalvage || isDefenseFacility) sprite = _lootSprite; // 코어 잔해는 전용 아트가 없어 전리품 스프라이트를 청록색으로 칠해 구분한다
 
         if (sprite == null)
         {
@@ -1229,6 +1247,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             sr.sprite = sprite;
             sr.sortingOrder = 5;
+            if (isSalvage) sr.color = new Color(0.55f, 1f, 1f, 1f);
+            if (isDefenseFacility) sr.color = new Color(1f, 0.6f, 0.2f, 1f); // 방어 시설 자리표시자 — 전용 아트가 생기면 교체
         }
 
         // 함정 해제·코어/문 파괴 진행 막대를 붙일 자리 — 그 외 오브젝트는 불필요한 컴포넌트 낭비를 막기 위해 생략.
@@ -1320,6 +1340,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
+    // 점령 파티의 기초 시설(방 쪽 인류 문) — 방의 문 묶음 대표 타일 목록과 소유 진영 일괄 변경.
+    public List<Vector3Int> GetRoomDoorAnchors(Room room) => _doorSystem.GetRoomDoorAnchors(room);
+    public int SetRoomDoorsOwner(Room room, FactionType owner) => _doorSystem.SetRoomDoorsOwner(room, owner);
     // 문 재설치 고스트가 쓰는 묶음 정보(모든 칸·회전) — pos가 속한 방 쪽 줄(1×2) 하나. tilesOut은 호출부가 재사용하는 버퍼다.
     public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
         => _doorSystem.TryGetDoorGroupTiles(pos, tilesOut, out rotationZ);

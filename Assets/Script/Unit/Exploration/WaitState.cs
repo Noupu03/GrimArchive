@@ -25,6 +25,8 @@ public enum WaitReason
 	FormingUpAtDoor,
 	BreachingDoor,
 	EnteringNextRoom,
+	// 점령 파티가 현재 방에 기초(또는 방어) 시설을 짓는다(코어 점령 v0.2 12장) — WorkRoom의 방 쪽 문 곁 자리로 가서 일하고, 일하는 인원 수만큼 건설이 빨라진다(OccupationSystem.StepConstruct). 전투·경계가 우선한 틱엔 일이 멈추고 진행도는 남는다.
+	ConstructingBase,
 }
 
 public class WaitState
@@ -64,6 +66,10 @@ public class WaitState
 	public bool Released;
 	// 막혀서 자리를 바꾼 로그를 막힘 하나당 한 번만 남기기 위한 표식.
 	public bool BlockedLogged;
+	// ConstructingBase 전용 — 짓는 방과 방어 시설 공사인지(false면 기초 시설).
+	public Room WorkRoom;
+	public bool WorkIsDefense;
+
 	// 집결/진형/입장 자리 전용 — 이미 가 보려다 막혀 포기한 자리. 재선택이 같은 자리 사이를 오가지 않게 하는 기억이며, 단계가 바뀌면 비운다.
 	public HashSet<Vector2Int> RejectedSlots;
 }

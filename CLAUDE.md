@@ -243,6 +243,8 @@ TryConfirmIndirectHit`(`TacticalFSMState.SoundAreaApproach`의 인지 판정 시
 
 ### 핵심 변경 요약
 
+> **⚠️ 2026-10-19 갱신 — 아래 "코어" 항목(체력 0 → 방 소유권 전환·반피 회복, 모든 방이 코어 보유, 플레이어의 코어 공격 명령, 웨이브 승리 = 코어 점령)은 코어 점령 설계명세서 v0.2로 대체됐다. 최신 규칙은 이 문서 맨 아래 "코어 · 점령" 섹션을 따를 것. 문 규칙·채널링 데미지·클릭 관례는 그대로 유효하다.**
+
 - **코어**: 예전엔 1층 보스방에 1개, HP 없이 "인류 리더가 조사해서 회수"하는 웨이브 목표물
   (방 점령과 무관)이었다. 지금은 **모든 방(야생+점령된 방 전부, 0층 제외)이 항상 코어를 보유**하고
   체력제다 — `GameSession.SpawnAllRoomCores`가 시작 시 배치, `Room.CoreObjectId`/`CorePosition`으로
@@ -826,7 +828,7 @@ Unity 플레이 검증을 하지 못했다(컴파일 + 순수 함수 테스트 2
 - **던전 밖 이탈과 기록 전달(명세서 10장)**: 이탈의 공통 마무리는 `RetreatExit.Complete`(웨이브 승리 퇴각 `HumanWaveManager.RetreatMemberToFloor0`도 같은 경로) — 기록 전달(`HumanKnowledgeBase.DeliverRecords`, 같은 사건을 여러 생존자가 늦게 전달해도 사건 단위 중복 제거·증가분만 반영), 파티에서 제외(`Party.OnMemberExited`, 이탈자가 있으면 남은 인원이 전부 죽어도 전멸이 아님 `Party.ExitedCount`), 침공 초기화. 웨이브 종료는 "이탈자가 있고 던전 안에 산 파티원이 없으면"(전원 이탈, 또는 일부 이탈 뒤 나머지 사망) 처리된다(`HumanWaveManager.MonitorWave` — 죽은 유닛은 `Members`에 남고 `IsWiped`는 이탈자 때문에 false라, 이 조건이 없으면 코어 파괴 전엔 웨이브가 영영 안 끝난다). `OnWaveEnd`는 항상 불려 웨이브 번호·전멸 흔적 수명을 올린다. 예전 "몬스터 전멸 = 웨이브 클리어 → 생존자 즉시 반영" 근사는 없앴다(`GameSession.CheckPartyWaveState`).
 - **몬스터 조우 충격은 Lv→대응 단계 표가 확정되기 전엔 발동하지 않는다** — 명세서가 "표가 없으면 격차를 임의로 계산하지 말 것"이라 명시했고 `EncounterShockMath.LevelToResponseStage`가 비어 있다. 임의 표를 채우지 말고 사용자에게 먼저 확인할 것. 발동 지점은 `UnitFunction.RecordSpottedEnemyKnowledge`(직접 정확 인지)·`CombatFSMState.OnExit`(조우 묶음 종료)에 이미 연결돼 있다.
 - 위험도 단계는 두 벌이다: 가중치 시스템 `DangerStage`(5단계)와 명세서 4-1장 6단계(`EncounterShockMath.DangerOrdinal`). 정본이 정해지지 않았으니 한쪽을 조용히 합치지 말 것. 정신력 단계도 같다(인지 보정표 6단계 비율 경계 ≠ 명세서 7단계 원수치 경계).
-- 거점 = **인류 소유 방**(`Room.RoomFaction == Human`, 0층 제외, 같은 층만) — 기초/방어 시설 시스템이 생기기 전까지 단일 종류. "닿을 수 있는가·가까운 순"은 기준 경로(적 점유 제외) 길이로 판정한다(적이 잠깐 길을 막았다고 거점을 포기하지 않음).
+- 거점 = **인류 소유 방**(`Room.RoomFaction == Human`, 0층 제외, 같은 층만) — **2026-10-19부터 기초 거점/방어 거점 두 단계(`Room.BaseStage`)이고 후퇴 목적지는 방어 거점 > 기초 거점 > 던전 밖이다**("코어 · 점령" 섹션). "닿을 수 있는가·가까운 순"은 기준 경로(적 점유 제외) 길이로 판정한다(적이 잠깐 길을 막았다고 거점을 포기하지 않음).
 - SprintSpeed 전용 스탯이 없어 걷기 속도 × `fleeSprintSpeedMultiplier`(자리표시자 1.5). 통과 순서는 `OccupancySystem.PassKeyOf`가 `RetreatSystem.ResolvePassRank`로 바꾼다(파티 후퇴 = 평소 입장 순서의 역순, 개인 도주 = 예상 탈출 시간 순이며 항상 일반 순위보다 먼저).
 - 정신력 단계 전투 효과: 공격력 = `UnitFunction.TakePhysical/MagicalDamage`(공격자 기준), 선딜 = `SkillAction.BeginAttackCast`, 방어 성공률 = `DefenseSystem` 회피·패링(단위: 확률 포인트 −20 → −0.20). 반응시간은 연결할 단일 지점이 없어 미연결.
 - 애니메이션 슬롯 `AnimSlot.Rest`(휴식)/`Flee`(도주 달리기) 추가 — **프리팹에 슬롯을 만들려면 Unity에서 `Tools(new)/유닛/애니메이션 슬롯 동기화`를 한 번 실행해야 한다**(클립은 비워 두면 기존 연출 그대로).
@@ -842,10 +844,26 @@ Unity 플레이 검증을 하지 못했다(컴파일 + 순수 함수 테스트 2
 
 ## 머리 위 대사 연출 — 말풍선 (2026-10-19)
 
-유닛 행동을 캐릭터 대사처럼 설명하는 머리 위 텍스트 연출이다(사용자 요청 "캡슐화해서 유닛 객체 머리 위에 텍스트 연출을 띄우는 시스템"). 구현현황은 `Assets/문서/구현현황/구현중/대사연출_구현현황_2026-10-19.txt`(연결 지점 표·문구 출처·한계) — 다시 손댈 때 그 문서부터 확인한다. 대사 67종·호출 59곳이 후퇴·도주·공황, 파티 이동(집결→문 파괴→입장 명령), 전파·소리 반응, 적 발견·전투·스킬 시전, 조사·함정·계단·코어/문 공격에 연결돼 있고, 지금은 인류만 말한다.
+유닛 행동을 캐릭터 대사처럼 설명하는 머리 위 텍스트 연출이다(사용자 요청 "캡슐화해서 유닛 객체 머리 위에 텍스트 연출을 띄우는 시스템"). 구현현황은 `Assets/문서/구현현황/구현중/대사연출_구현현황_2026-10-19.txt`(연결 지점 표·문구 출처·한계) — 다시 손댈 때 그 문서부터 확인한다. 대사 71종·호출 59곳이 후퇴·도주·공황, 파티 이동(집결→문 파괴→입장 명령), 전파·소리 반응, 적 발견·전투·스킬 시전, 조사·함정·계단·코어/문 공격에 연결돼 있고, 지금은 인류만 말한다.
 
 - **진입점은 `SpeechSystem.Say(유닛, SpeechId[, 대상 이름])` 하나다.** 문구·표시 시간·순위·쿨다운은 `SpeechCatalog`, 순수 판정은 `SpeechMath`, 표시는 `UnitVisual` → `UnitSpeechBubble`(상태 라벨·체력바와 같은 월드 TextMesh 방식). 새 대사는 `SpeechId` + 카탈로그 항목을 추가하고 행동 시스템에서 `Say` 한 줄만 부른다.
 - **대사는 연출 전용이다 — 게임 상태를 바꾸지 말 것**(후퇴도주 명세서 4-3·7-3장: 전파·사망·도주 정보가 아님). 대사로 개인 지도·가중치·정신력·도주 확정을 만들면 안 되고, "OO가 없는데?"처럼 사실을 단정하지 않는 문구("죽었다/도망쳤다" 금지)를 쓴다. 명세서가 직접 적은 문구는 그대로 두고, 나머지는 새로 쓴 연출 문구라 기획이 `SpeechCatalog`에서 자유롭게 바꿔도 된다.
 - 합창 방지: 같은 대사는 유닛별 + 전체 쿨다운이 있고, 말풍선은 유닛당 하나이며 순위가 같거나 높은 대사만 덮어쓴다. 안개 방의 유닛은 숨긴다. debug 메뉴 "대사 연출" 블록(토글 + 차례로 띄우는 테스트 버튼)으로 끄고 확인한다.
 - 틱마다 불리는 호출부가 있으니(도주 중 숨소리·적 인지 갱신) 새 호출부도 `Say`의 쿨다운에 기대되, 쿨다운이 짧은 대사는 말이 잦아진다. **놓친 사건은 놓친 것이다** — 전체 쿨다운에 막혔거나 더 높은 순위 말풍선 때문에 못 띄운 유닛은 유닛 쿨다운을 소비해(`Suppress`) 나중에 뒤늦게 말하지 않는다(안 그러면 낡은 대사가 줄 서서 "밀려서" 뜬다). 대사는 사건이 일어난 시점(이동·명령 시작, 상태 전환)에 한 번 부르는 곳에 둘 것 — 계단 대사는 건넌 직후가 아니라 입구 시퀀스의 계단 접근 명령 시점(`HumanWaveManager.OnDungeonEntranceArrivedAtStairs`)에 둔다. 대상 이름이 필요한 문구는 `{S}`/`{S가}`/`{S이다}` 토큰을 쓰고 호출부가 대상을 넘겨야 한다(대상 전용 문구만 있는 항목은 `AbsentMember`뿐).
 - 컴파일 + 순수 로직 하니스 21건까지만 확인했고 **Unity 플레이로 위치·크기·겹침·말의 빈도는 미확인**이다.
+
+## 코어 · 점령 (2026-10-19)
+
+`Assets/문서/공식문서/코어, 점령/`(설계명세서 v0.2 = 구현 대상, 핵심본·순서도 = 참고, 회의록 10.19)의 구현이다. 구현현황·장별 태그·자리표시자 표·플레이 확인 체크리스트·다음 우선순위는 `Assets/문서/구현현황/구현중/코어점령_구현현황_2026-10-19.txt` — 다시 손댈 때 그 문서부터 확인한다(다른 구현현황 문서와 같은 관례). 이 섹션은 위 "새 데모 — 코어/문/명령 체계"의 코어 서술을 대체한다.
+
+### 규칙 (이걸 다시 손댈 때 먼저 볼 것)
+- **방 확보와 코어는 별개다.** 플레이어의 방 확보 = 방 클리어(적대 생존 0, 은신 포함, 플레이어 유닛이 서 있는 방) — `RoomClearSystem`이 0.5초마다 판정한다. **코어 파괴는 방 소유권을 바꾸지 않는다**(예전 `OnCoreDestroyed` 소유권 전환 삭제 — 되살리지 말 것). 방 소유권을 바꾸는 곳은 `OffenseProcessor.ApplyRoomOwnership` 하나이고 호출자는 `RoomClearSystem`(플레이어 확보)과 `OccupationSystem`(인류 거점)뿐이다. 인류 소유가 다른 진영으로 바뀌면 거점 자격(`Room.BaseStage`)을 잃는다(`OnBaseLost`) — 불변식: `RoomFaction == Human ⇔ BaseStage ≥ Basic`.
+- **코어 상태**: 불완전 활성화(초기) → 완전 활성화(보스 처치 + 코어 방 클리어 + 플레이어가 코어 정보 패널에서 실행) / 파괴 / 부산물 결합(구조만). 상태 값은 `InteractableObject.CoreEverActivated/CoreDestroyed`, 판정은 순수 `CoreMath`, 전이는 `CoreSystem`(`GameSession.Core`). **인류는 `완전 활성화 이력 && 파괴 아님`인 코어만 공격한다**(`CoreMath.IsAttackable`, `TacticalFSMState.IsRoomCoreStillHostile` 한 곳). 파괴된 코어는 그 자리에 남고 회복하지 않으며 수복 명령(돌 300 자리표시자)으로만 돌아온다. 활성화 이력은 수복 뒤에도 유지.
+- **⚠️ 플레이어 몬스터는 코어를 공격하지 않는다**(`PlayerCommandFSMState.IsPendingObjectAttackValid`의 코어 분기는 항상 false — 우클릭은 일반 이동). 플레이어의 코어 행동은 완전 활성화·수복뿐이다. 이 하드 룰을 되돌리려면 먼저 사용자에게 확인할 것.
+- **코어가 파괴된 층은 건설·생산·함정/문 재설치 명령이 막히고 진행 중 생산·자원 틱은 진행도를 유지한 채 정지한다**(수복하면 같은 자리에서 재개, 전투 기능은 유지). 게이트는 `BuildingManager.AreCoreFunctionsActive(floor)` 한 곳 — **새 건설·생산·업그레이드 같은 작업 기능을 만들면 이 게이트를 쓸 것.** 담당 범위는 층 전체(층당 단일 코어, 분할 코어는 `CoreSystem.TryGetFloorCore`/`AreFunctionsActive`의 조회 한 곳만 바꾸면 된다).
+- **웨이브 승리 = 코어 파괴 → 잔해 획득 → 던전 밖 반출.** 잔해(`CoreSystem.SalvageTag`)는 코어 파괴 시 곁에 생기고, 파괴한 인류 파티 중 한 명이 줍고(`TacticalFSMState`의 CoreAttack 항목이 공유하는 잔해 분기), 파티가 퇴각해(`HumanWaveManager.UpdateSalvageObjective`) 출구로 나가면 반출 기록(`CoreSystem.SalvageExportWaves`, `RetreatExit.Complete`). 운반자가 죽으면 잔해가 사망 위치 근처에 다시 놓이고 퇴각이 풀린다. **완전 활성화 전 웨이브는 코어를 공격할 수 없어 후퇴·도주·전멸로만 끝난다**(사용자 확정 — 새 귀환 규칙을 만들지 않음). 부산물 장치 연구·결합은 없다(반출 웨이브 번호만 기록).
+- **인류 점령**: 점령 파티(`PartyType.Occupy`, 1층 코어 활성화 전엔 무작위 배정 제외 — debug "점령 파티 스폰")는 웨이브와 따로 던전에 상주한다. 웨이브가 던전 도착을 확인하면 `OccupationSystem.Adopt`로 넘기고 그 웨이브는 끝낸다(`HumanWaveManager.TryHandOffToOccupation` — 생존자 기록 반영·0층 귀환 없음). `OccupationSystem.Tick`이 ① 현재 방에 기초 시설 건설(`WaitReason.ConstructingBase`: 방 쪽 문 곁 현장 자리에 선 인원 수만큼 진행, 전투·경계가 우선한 틱엔 일이 멈추고 진행도는 남음) → 완공하면 방 쪽 문 전부 인류 소유로 설치/전환(`DoorSystem.SetRoomDoorsOwner`, 통행은 문 소유 진영으로만 정해지므로 플레이어 몬스터는 파괴해야 지나감) + 방 인류 소유 + 기초 거점, ② 집결(`Party.IsRoomActivityComplete(Occupy)` = 기초 거점; 임무 수량으로는 집결하지 않음) → ③ 안전한 이웃 방 선정(`OccupationMath.PickAdvance`) → ④ `PartyMissionDriver`가 문 앞 진형·돌파·입장을 진행한다. **`PartyMissionDriver`는 `HumanWaveManager.UpdatePartyDestination`의 비퇴각 부분과 같은 로직의 복제다 — 한쪽을 고치면 다른 쪽도 확인할 것.**
+- **거점**: 기초 거점 후퇴·휴식 가능, 방어 거점(예정 방어 시설 완공 — 지금은 기능 없는 표식 오브젝트) 우선. 주둔 거점 상한 2, 출구에 가까운 쪽이 후방·먼 쪽이 전방(`OccupationMath.ClassifyRearFront`). 정원 가득 + 여유면 가장 가까운 기초 거점을 방어 거점으로 지정(`Room.DefenseDesignated`)하고, 후퇴·휴식을 마친 점령 파티가 그 방에서 방어 시설을 지은 뒤에야 재출격한다(`PartyRetreatSystem.TickRest` → `OccupationSystem.RequestDefenseBuild`). 후퇴 목적지 선택은 `RetreatBases.ChoosePreferred`(방어 > 기초). 후퇴도주 문서의 "점령 파티 쪽은 확장하지 않는다" 결정은 이 구현으로 해제됐다.
+- **자리표시자/해석(전부 구현현황 문서에 표로 있음)**: 코어 HP 1000·수복 돌 300·건설 150 인-초·정원 = 처음 출격 인원·진출 시 미확인 방 허용(`OccupationSystem.AllowUnknownAdvance`, 기본 ON). 인류 기초 시설 완공은 플레이어 확보 방(게임 시작 방 포함)도 인류 소유로 바꾼다.
+- **미구현**: 14장 충원·후방 이동(후속 파티 편입 규칙·정원 수치 확정 필요), 10장 리더 조사 단계, 8장 플레이어 잔해 회수, 7장 부산물 장치 연구·결합, 5·6장 감시 화면·문 닫기, 18장 외출자 성장, 16·17장 시체 회수·자율 탐색.
+- 컴파일(오류 0·경고 71) + 순수 판정 하니스 44건(`CoreSystemTests`·`OccupationTests`)까지만 확인했고 **Unity 플레이는 미확인**이다(건설 현장 자리·문 소유 전환 후 통행·웨이브 인수인계·잔해 줍기·반출·후퇴 목적지 선택).

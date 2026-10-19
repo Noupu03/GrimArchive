@@ -66,6 +66,11 @@ public class GameCompositionRoot : CoreLifetimeScope
         // lazily via IObjectResolver (same pattern as UnitRegistry).
         builder.Register<DoorSystem>(Lifetime.Singleton).AsSelf();
 
+        // 코어·점령(2026-10-19) — 코어 상태 전이와 방 클리어 조회. DoorSystem과 같은 패턴(GameSession을 IObjectResolver로 지연 조회).
+        builder.Register<RoomClearSystem>(Lifetime.Singleton).AsSelf();
+        builder.Register<CoreSystem>(Lifetime.Singleton).AsSelf();
+        builder.Register<OccupationSystem>(Lifetime.Singleton).AsSelf();
+
         // FogOfWarSystem - same pattern as DoorSystem (fog of war + torches bundled since torches
         // are timing-coupled to fog reveal).
         builder.Register<FogOfWarSystem>(Lifetime.Singleton).AsSelf();

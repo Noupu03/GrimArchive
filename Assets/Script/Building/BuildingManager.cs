@@ -143,6 +143,9 @@ public class BuildingManager : NativeRoutine
         // 1-2. 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
         if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
 
+        // 1-3. 담당 코어가 파괴되면 새 건설 명령을 낼 수 없다(코어 점령 v0.2 4-1장). 수복 명령은 가능하다. requireOwnership=false(디버그 더미 건물)는 건너뛴다.
+        if (requireOwnership && !AreCoreFunctionsActive(pos.z)) return false;
+
         // 2. 맵의 타일 장애물 정보 확인
         if (createMap != null && createMap.map.floors != null)
         {
@@ -173,6 +176,13 @@ public class BuildingManager : NativeRoutine
         }
 
         return true;
+    }
+
+    // 이 층의 건설·생산·자원 생산이 가능한 상태인가 — 담당 코어(층당 하나)가 파괴되지 않았을 때. 코어가 없는 층은 제한이 없다.
+    public static bool AreCoreFunctionsActive(int floor)
+    {
+        CoreSystem core = GameSession.Instance != null ? GameSession.Instance.Core : null;
+        return core == null || core.AreFunctionsActive(floor);
     }
 
     public BuildingData GetBuildingAt(Vector3Int pos)
@@ -210,6 +220,9 @@ public class BuildingManager : NativeRoutine
             if (kvp.Key != b.Position) continue;
 
             if (b.IsDummy) continue;
+
+            // 담당 코어가 파괴된 층의 작업은 현재 진행도에서 멈춘다 — 타이머·대기열·진행도는 그대로 두고 수복되면 같은 자리에서 자동 재개된다(코어 점령 v0.2 4-1장).
+            if (!AreCoreFunctionsActive(b.Position.z)) continue;
 
             if (b.IsResourceBuilding)
             {

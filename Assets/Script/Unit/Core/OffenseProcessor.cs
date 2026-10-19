@@ -42,7 +42,7 @@ public class OffenseProcessor
     // 하위 호환성 (디버그 창 호출용)
     public void StartOffense(Room room, Unit playerUnit) => TryStartOffense(room, playerUnit);
 
-    // 오펜스(교전 중) 추적 전용 — 방 소유권 전환은 OnCoreDestroyed가 전담한다. 여기서는
+    // 오펜스(교전 중) 추적 전용 — 방 소유권 전환은 ApplyRoomOwnership(플레이어 확보 = RoomClearSystem, 인류 거점 = OccupationSystem)이 맡는다. 여기서는
     // IdleFSMState가 "이 방이 지금 교전 중이라 평시 배회를 하면 안 된다"를 판단하는 상태만 유지한다
     // (DefenseProcessor.UpdateProcess와 동일한 "침입자 전멸 시 종료" 관례) — 야생이 전멸하면 교전 종료.
     public void UpdateProcess()
@@ -78,41 +78,6 @@ public class OffenseProcessor
         return false;
     }
 
-    // 방 소유권 전환의 유일한 진입점 — 코어 체력이 0이 된 순간(UnitFunction.OnUpdate의 채널링
-    // 데미지 적용 직후) 호출된다. 옛 "유닛 전멸/빈방 입성" 기반 경로를 완전히 대체 — 코어는 사라지지
-    // 않고 반피로 즉시 회복돼 계속 뺏고 뺏기는 대상으로 남는다.
-    public void OnCoreDestroyed(Room room, InteractableObject core, Unit killer)
-    {
-        if (room == null || core == null || killer == null) return;
-
-        FactionType? claimant = MapToRoomFaction(killer.FactionBehavior);
-        if (claimant == null) return; // 야생은 방 점령 개념이 없음(코어 공격 자체를 안 하지만 방어적으로 재확인)
-        if (room.RoomFaction == claimant.Value)
-        {
-            // 이미 같은 진영 소유인데 코어가 파괴된 극단적 경우(동시 다중 공격 등) — 소유권은 안
-            // 바꾸되 회복은 그대로 적용한다.
-            core.CoreHp = core.CoreMaxHp * 0.5f;
-            return;
-        }
-
-        _activeOffenseRooms.Remove(room);
-        ApplyRoomOwnership(room, claimant.Value);
-        SpeechSystem.Say(killer, SpeechId.CoreDestroyed);
-        core.CoreHp = core.CoreMaxHp * 0.5f;
-
-        // 점령 VFX — 점령한 진영에 따라 다른 폭발 이펙트(VFX_CoreBoomHuman/Monster)를 코어 위치에 1회 재생.
-        GameObject coreVisual = GameSession.Instance?.GetObjectVisual(core.Position);
-        Vector3 vfxWorldPos = coreVisual != null
-            ? coreVisual.transform.position
-            : new Vector3(core.Position.x + 0.5f, core.Position.y + 0.5f, 0f);
-        VFXManager.SpawnCoreCaptureVfx(claimant.Value, vfxWorldPos);
-
-        LogHelper.Log($"[코어 파괴] {room.RoomName} 방(F{room.Floor}): {killer.unitType?.typeName}({claimant.Value})이 코어를 파괴해 점령 — 코어 체력 절반 회복.");
-    }
-
-    // "임시 점령 오브젝트"(보스방 외 방의 HP 채널링 파괴 트리거)는 삭제됐다 — 다음 점령 조건이
-    // 정해지면 위 OnCoreDestroyed(소유권 전환 + PulseRoomOutline 펄스)를 본떠 다시 만들면 된다.
-
     // FactionType(RoomFaction 쪽) → OccupationState(맵 데이터 쪽) 역매핑. GetRoomOwnerColor와
     // 나란히 두되 색이 아니라 CreateMap.Chunks.occupationState 갱신용.
     private static OccupationState MapToOccupationState(FactionType faction) => faction switch
@@ -141,15 +106,21 @@ public class OffenseProcessor
         _ => MapRandering.WildRoomOutlineColor,
     };
 
-    // 방 소유권 전환 4줄(RoomFaction 대입 + 색칠 + CreateMap.Chunks.occupationState 동기화 + 플레이어
-    // 점령 시 안개 해금) — OnCoreDestroyed가 사용한다. room.RoomFaction 대입 자체는 호출부가 "이미
-    // 같은 소유면 return" 가드를 먼저 거치므로 여기서 다시 확인하지 않는다.
-    private void ApplyRoomOwnership(Room room, FactionType faction)
+    // 방 소유권 전환의 단일 진입점(RoomFaction 대입 + 색칠 + CreateMap.Chunks.occupationState 동기화 + 플레이어 확보 시 안개 해금 + 테두리 펄스 연출).
+    // 방 클리어로 플레이어가 확보할 때(RoomClearSystem)와 점령 파티가 기초 시설을 완공할 때(OccupationSystem)만 부른다 — 코어 파괴는 더 이상 방 소유권을 바꾸지 않는다(코어 점령 v0.2).
+    // 이미 같은 소유면 아무것도 하지 않고 false를 돌려준다.
+    public bool ApplyRoomOwnership(Room room, FactionType faction)
     {
+        if (room == null || room.RoomFaction == faction) return false;
+        _activeOffenseRooms.Remove(room);
         room.RoomFaction = faction;
+        // 인류 거점이던 방이 다른 진영 소유가 되면 거점 자격을 잃는다(인류가 지은 시설은 남는다).
+        if (faction != FactionType.Human && room.BaseStage != BaseStage.None) GameSession.Instance?.Occupation?.OnBaseLost(room);
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction));
         GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction));
         // 점령된 방과 인접 방의 안개를 함께 걷는다.
         if (faction == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
+        _colorizer?.PulseRoomOutline(room);
+        return true;
     }
 }

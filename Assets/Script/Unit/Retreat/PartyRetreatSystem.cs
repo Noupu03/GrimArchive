@@ -57,8 +57,8 @@ public static class PartyRetreatSystem
 
 		var bases = new List<Room>();
 		RetreatBases.Collect(leader.Session, leader.currentFloor, bases);
-		Room chosen = RetreatBases.ChooseNearest(leader, bases);
-		st.Destination = PartyRetreatMath.ChooseDestination(party.Type, st.NormalRestCompleted, hasDefenseBase: false, hasBasicBase: chosen != null, out st.PreferredBaseKind);
+		Room chosen = RetreatBases.ChoosePreferred(leader, bases, out bool defenseChosen);
+		st.Destination = PartyRetreatMath.ChooseDestination(party.Type, st.NormalRestCompleted, hasDefenseBase: defenseChosen, hasBasicBase: chosen != null, out st.PreferredBaseKind);
 		st.BaseRoom = st.Destination == RetreatDestination.Base ? chosen : null;
 		st.Phase = st.Destination == RetreatDestination.Base ? PartyRetreatPhase.Moving : PartyRetreatPhase.Leaving;
 
@@ -135,7 +135,7 @@ public static class PartyRetreatSystem
 		var driver = party.RetreatDriver;
 		var bases = new List<Room>();
 		if (driver != null) RetreatBases.Collect(driver.Session, driver.currentFloor, bases);
-		Room replacement = driver != null ? RetreatBases.ChooseNearest(driver, bases) : null;
+		Room replacement = driver != null ? RetreatBases.ChoosePreferred(driver, bases, out _) : null;
 
 		foreach (var m in party.Members)
 			if (m?.Retreat != null) { m.Retreat.AtBase = false; m.Retreat.RestSlot = null; m.Retreat.Move.Reset(); }
@@ -208,7 +208,14 @@ public static class PartyRetreatSystem
 		var avg = Party.AveragesOf(rested);
 		if (!PartyRetreatMath.IsRestComplete(avg)) return;
 
-		if (party.Type == PartyType.Occupy) { TryResortie(party, rested, avg, now); return; }
+		if (party.Type == PartyType.Occupy)
+		{
+			// 방어 거점으로 정한 방은 예정 방어 시설까지 완공해야 재출격한다(코어 점령 v0.2 13장) — 공사 중이면 휴식을 유지한 채 기다린다.
+			var occupation = rested[0].Session?.Occupation;
+			if (occupation != null && !occupation.RequestDefenseBuild(party, st.BaseRoom)) return;
+			TryResortie(party, rested, avg, now);
+			return;
+		}
 
 		st.NormalRestCompleted = true; // 같은 침공에서 거점 휴식은 완료 기준으로 1회 — 재탐험 뒤 다시 후퇴하면 재휴식 없이 출구
 		bool goal = party.IsMissionGoalAchieved;
@@ -231,7 +238,7 @@ public static class PartyRetreatSystem
 	{
 		var st = party.Retreat;
 		var leader = party.Leader != null && party.Leader.hp > 0f ? party.Leader : rested[0];
-		bool safeRoom = RetreatBases.HasSafeAdvanceRoom(leader, st.BaseRoom, RetreatSystem.ResortieSafeRoomMaxDanger);
+		bool safeRoom = RetreatBases.HasSafeAdvanceRoom(leader, st.BaseRoom, RetreatSystem.ResortieSafeRoomMaxDanger, OccupationSystem.AllowUnknownAdvance);
 		if (!PartyRetreatMath.CanResortie(avg, rested.Count, st.InitialSortieCount, safeRoom))
 		{
 			if (now >= st.NextResortieLogTime)

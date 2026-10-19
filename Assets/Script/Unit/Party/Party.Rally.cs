@@ -199,7 +199,7 @@ public partial class Party
 		// 임무 수량 달성도 유효한 집결 사유다(01번 8장) — IsRoomActivityComplete와 별개라 둘 중 하나만 참이어도 집결한다. 몬스터 처치는 웨이브 공통 집계라 파티별 소비 여부를 _monsterKillQuotaConsumed로 따로 추적한다.
 		bool monsterKillQuotaAvailable = !_monsterKillQuotaConsumed && HumanWaveManager.Instance != null &&
 			HumanWaveManager.Instance.CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount;
-		bool questJustAchieved = JustReachedRoomExploreQuota || monsterKillQuotaAvailable;
+		bool questJustAchieved = (JustReachedRoomExploreQuota || monsterKillQuotaAvailable) && Type != PartyType.Occupy; // 점령 파티는 임무 수량이 아니라 기초 시설 완공(IsRoomActivityComplete)으로만 집결한다 — 시설을 짓다 말고 떠나지 않게
 		bool resumeAfterCore = _resumeRallyAfterCore; // 코어 때문에 해제했던 집결 — 코어 처리가 끝났으니 방 활동 종료 기준 없이 다시 집결한다
 
 		// 전투/스윕이 끝나도 파티 종류 기준으로 이 방에서 할 일이 남았으면 집결하지 않는다(01번 7-1장). 임무 수량 달성 결과가 있으면 그것만으로 집결 판단으로 넘어간다.

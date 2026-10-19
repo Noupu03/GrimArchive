@@ -197,8 +197,8 @@ public class VFXManager
         if (instance != null) Object.Destroy(instance);
     }
 
-    // 방 점령(코어 파괴로 소유권 전환) 축하 폭발 VFX — 단발성이라 SpawnBlockBreakingVfx와 달리 기존
-    // 풀링 Spawn()을 그대로 쓴다. OffenseProcessor.OnCoreDestroyed가 소유권 전환 순간에만 호출한다.
+    // 코어 파괴 폭발 VFX(파괴한 진영별) — 단발성이라 SpawnBlockBreakingVfx와 달리 기존
+    // 풀링 Spawn()을 그대로 쓴다. CoreSystem.OnCoreDestroyed가 코어 파괴 순간에만 호출한다.
     // 단발성이라 프리팹을 Addressables로 불러온 뒤 재생하고 끝낸다(호출부는 기다리지 않는다).
     public static void SpawnCoreCaptureVfx(FactionType claimant, Vector3 worldPos)
     {

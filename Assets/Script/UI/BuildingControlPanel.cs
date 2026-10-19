@@ -83,7 +83,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     }
 
     private const int PanelWidth = 260;
-    private const int PanelHeight = 260;
+    private const int PanelHeight = 300;
 
     // 좌하단 패널 스택 — 보이는 동안 매 프레임 자기 폭을 보고하고 시작 X를 받아온다(등록 순서 기반 정렬).
     private const string StackId = "BuildingControl";
@@ -137,6 +137,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         {
             GUILayout.Label("[ 자원 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
             GUILayout.Label("5초마다 Wood/Stone이 자동으로 증가합니다.", GUIMenuStyleUtil.BodyLabelStyle);
+            if (!BuildingManager.AreCoreFunctionsActive(_current.Position.z))
+                GUILayout.Label("코어가 파괴되어 생산이 정지 중입니다.", GUIMenuStyleUtil.BodyLabelStyle);
             GUILayout.Label($"다음 증가까지: {BuildingManager.ResourceTickInterval - _current.ResourceTickTimer:F1}초", GUIMenuStyleUtil.BodyLabelStyle);
             if (_buildingManager != null)
             {
@@ -147,8 +149,14 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         {
             GUILayout.Label("[ 유닛 생산 시설 ]", GUIMenuStyleUtil.LabelStyle);
 
+            // 담당 코어가 파괴되면 새 생산 명령을 낼 수 없고 진행 중인 생산은 현재 진행도에서 멈춘다(코어 점령 v0.2 4-1장).
+            bool coreActive = BuildingManager.AreCoreFunctionsActive(_current.Position.z);
+            if (!coreActive) GUILayout.Label("코어가 파괴되어 생산이 정지 중입니다.", GUIMenuStyleUtil.BodyLabelStyle);
+
             if (_current.AvailableRules != null)
             {
+                bool prevEnabled = GUI.enabled;
+                GUI.enabled = prevEnabled && coreActive;
                 foreach (var rule in _current.AvailableRules)
                 {
                     string costText = BuildCostText(rule.costs);
@@ -160,6 +168,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                         }
                     }
                 }
+                GUI.enabled = prevEnabled;
             }
 
             GUILayout.Space(6);
@@ -173,9 +182,11 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 if (index == 0 && _current.IsProducing)
                 {
                     // 인구수 초과로 진행이 멈춰있으면 진행중 대신 중지됨을 표시한다.
-                    progressText = _current.WaitingForRoomSpace
-                        ? $" - 중지됨(방 인원 초과) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
-                        : $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s";
+                    progressText = !coreActive
+                        ? $" - 중지됨(코어 파괴) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
+                        : _current.WaitingForRoomSpace
+                            ? $" - 중지됨(방 인원 초과) {_current.ProductionProgress:F1}/{queued.productionTime:F1}s"
+                            : $" - 진행중 {_current.ProductionProgress:F1}/{queued.productionTime:F1}s";
                 }
 
                 GUILayout.BeginHorizontal();
@@ -225,6 +236,46 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         {
             string state = obj.IsCollected ? "회수됨" : obj.IsInvestigated ? "조사 완료(회수 대기)" : "미조사";
             GUILayout.Label($"상태: {state}", GUIMenuStyleUtil.BodyLabelStyle);
+        }
+
+        if (obj.Tags != null && obj.Tags.Contains(GameSession.CoreTag)) DrawCoreControls(obj);
+    }
+
+    // 코어 상태와 플레이어 명령(완전 활성화·수복) — 불가 사유를 각각 표시한다(코어 점령 v0.2 19장). 판정은 CoreSystem/CoreMath가 하고 여기서는 보여 주고 명령만 전달한다.
+    private void DrawCoreControls(InteractableObject obj)
+    {
+        CoreSystem coreSystem = GameSession.Instance?.Core;
+        if (coreSystem == null || !coreSystem.TryGetCoreAt(obj.Position, out Room room, out InteractableObject core)) return;
+
+        CoreStatus status = CoreMath.StatusOf(core.CoreEverActivated, core.CoreDestroyed, core.CoreDeviceAttached);
+        GUILayout.Label($"코어 상태: {CoreMath.Describe(status)}", GUIMenuStyleUtil.BodyLabelStyle);
+
+        if (!core.CoreDestroyed)
+        {
+            if (core.CoreEverActivated) return;
+            CoreActivateBlock block = coreSystem.CheckActivate(room, core);
+            if (block == CoreActivateBlock.None)
+            {
+                if (GUIMenuStyleUtil.DrawFlatButtonLayout("완전 활성화", options: new[] { GUILayout.Height(28f) }))
+                    coreSystem.TryActivate(core.Position);
+            }
+            else
+            {
+                GUILayout.Label($"활성화 불가: {CoreMath.Describe(block)}", GUIMenuStyleUtil.BodyLabelStyle);
+            }
+            return;
+        }
+
+        GUILayout.Label("이 층의 건설·생산·문 제어가 정지 중입니다.", GUIMenuStyleUtil.BodyLabelStyle);
+        CoreRestoreBlock restoreBlock = coreSystem.CheckRestore(room, core);
+        if (restoreBlock == CoreRestoreBlock.None)
+        {
+            if (GUIMenuStyleUtil.DrawFlatButtonLayout($"수복 (돌 {CoreSystem.RestoreStoneCost})", options: new[] { GUILayout.Height(28f) }))
+                coreSystem.TryRestore(core.Position);
+        }
+        else
+        {
+            GUILayout.Label($"수복 불가: {CoreMath.Describe(restoreBlock)}", GUIMenuStyleUtil.BodyLabelStyle);
         }
     }
 

@@ -41,6 +41,11 @@ public class Room
     public string CoreObjectId;
     public Vector3Int CorePosition;
 
+    // 인류 점령 파티가 만든 거점 단계(코어 점령 v0.2 12장) — RoomFaction == Human 인 방에서만 None이 아니다. 소유가 바뀌면 OffenseProcessor.ApplyRoomOwnership가 되돌린다.
+    public BaseStage BaseStage { get; set; } = BaseStage.None;
+    // 방어 거점으로 정한 방 — 후퇴·휴식 뒤 예정 방어 시설을 짓고 나서 재출격한다(13장). OccupationSystem.TryDesignateDefenseBase가 정한다.
+    public bool DefenseDesignated { get; set; }
+
     // 5.2장 "방의 현재 인구수는 소속된 모든 유닛의 인구수 합계" — ContainedUnits 기준으로 매번
     // 계산한다(별도 캐시 없이 항상 최신값 보장, 방 하나에 유닛 수가 많지 않아 비용 낮음). 인구수는
     // "플레이어 진영 몬스터"만 포함한다 — 단순 "인류가 아니면 전부 포함"(!(u is Human))은 야생

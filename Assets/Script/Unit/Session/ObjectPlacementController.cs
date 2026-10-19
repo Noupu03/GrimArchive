@@ -156,6 +156,11 @@ public class ObjectPlacementController
                 : _isDummyBuildingMode ? (_buildingManager != null && _buildingManager.CanInstallAt(gridPos, Vector2Int.one, requireOwnership: false))
                 : _unitGenerate.IsAreaClear(new Vector2Int(gridPos.x, gridPos.y), Vector2.one, currentFloor));
 
+        // 함정 설치·문 재설치도 건설이라 담당 코어가 파괴된 층에서는 할 수 없다(코어 점령 v0.2 4-1장 — debug 무제한 설치는 예외).
+        bool needsCoreFunctions = (_isTrapPlaceMode && !DebugUnlimitedTrapPlacement) || _isDoorRepairMode;
+        bool coreBlocked = needsCoreFunctions && !BuildingManager.AreCoreFunctionsActive(gridPos.z);
+        if (coreBlocked) canPlace = false;
+
         // 문 재설치는 방 쪽 줄(1×2 묶음) 전체가 한 번에 생기므로 고스트도 칸마다 한 장씩, 실제 문과 같은 방향으로 보여 준다.
         if (_isDoorRepairMode && _gameSession != null && _gameSession.TryGetDoorGroupTiles(gridPos, _doorGhostTiles, out float groupRotation))
         {
@@ -168,6 +173,9 @@ public class ObjectPlacementController
 
         // 우클릭 취소는 없다 — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을
         // 다시 눌러야 한다. 설치 확정 입력은 "좌클릭=선택, 우클릭=실행" 관례에 따라 우클릭이다.
+        if (GameInputScheme.SecondaryDown && coreBlocked && !GUIMouseUtil.IsPointerOverAnyPanel())
+            NoticeCenter.Instance?.PushMomentary("코어가 파괴되어 건설할 수 없습니다. 먼저 코어를 수복하세요.", NoticeCenter.WarningColor);
+
         if (GameInputScheme.SecondaryDown && canPlace)
         {
             if (!GUIMouseUtil.IsPointerOverAnyPanel())

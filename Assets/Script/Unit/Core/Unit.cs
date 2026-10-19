@@ -736,6 +736,10 @@ public class Human : UnitFunction
 	public readonly KnownLeaderInfo knownLeader = new KnownLeaderInfo();
 	public Vector2Int? knownRallyPoint;
 	public Vector3Int? pendingCoreReportPos;
+	// 파괴한 코어의 잔해를 들고 있는가(코어 점령 v0.2 8장) — 던전 밖으로 나가면 반출 성공(CoreSystem.OnSalvageExported), 죽으면 그 자리에 떨어진다(CoreSystem.OnCarrierDied).
+	public bool carriesCoreSalvage;
+	// 잔해로 가는 길이 막혀 포기한 뒤 다시 시도하기까지의 시각(Time.time) — 닿지 못하는 잔해를 틱마다 다시 고르지 않게 한다.
+	public float salvageIgnoreUntil;
 	// 다음 문을 모를 때 공동 탐색 추종(WaitReason.SearchingNextDoor)을 접은 뒤 다시 배정받을 수 있는 시각 — 배정·해제 반복 방지.
 	public float nextSearchFollowAllowedTime;
 	public FormationState     currentFormation;
@@ -932,6 +936,7 @@ public class Human : UnitFunction
 			if (obj.Position.z != currentFloor) continue;
 			if (roomBound && !roomBounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
 			if (!personalMap.IsObjectKnown(obj.Id)) continue;
+			if (obj.Tags.Contains(CoreSystem.SalvageTag)) continue; // 코어 잔해는 조사 대상이 아니라 코어를 파괴한 인류가 줍는 반출 대상이다(TacticalFSMState의 SalvagePickup)
 
 			bool isTrap = false;
 			bool isCorpse = false;

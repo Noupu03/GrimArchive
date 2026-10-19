@@ -14,11 +14,11 @@
 ■ 구조
 ────────────────────────────────────────────────────────────────────────
 Assets/Script/Unit/Speech/
-  SpeechCatalog.cs  — SpeechId(67종)·SpeechTone(Calm/Alert/Fear/Panic)·SpeechEntry(문구 후보·어조·표시 시간·순위·유닛/전체 쿨다운) + 상황별 문구 목록
+  SpeechCatalog.cs  — SpeechId(71종 — 2026-10-20 코어 점령으로 잔해 획득·기초/방어 시설 건설 4종 추가)·SpeechTone(Calm/Alert/Fear/Panic)·SpeechEntry(문구 후보·어조·표시 시간·순위·유닛/전체 쿨다운) + 상황별 문구 목록
   SpeechMath.cs     — 순수 함수: 유닛 이름→종류명("사제_7_5_0"→"사제")·한글 조사({S가}/{S이다})·문구 선택·긴 문구 2줄 나눔·덮어쓰기/쿨다운/페이드 판정
   SpeechSystem.cs   — 단일 진입점 Say(유닛, id, 대상 이름, ignoreCooldown). 유닛별 + 전체 쿨다운 기록(여러 명이 동시에 외치는 합창 방지), Enabled 토글, 테스트용 Random01/Now
 Assets/Script/Unit/Visual/UnitSpeechBubble.cs — 월드 공간 TextMesh + 배경 스프라이트. UnitVisual이 처음 필요할 때 만들어 들고 있고(StatusLabel·체력바와 같은 방식으로 부모 localScale 역산, 유닛 상단 +1.0), 순위가 같거나 높은 대사만 덮어쓴다. 끝나기 0.4초 전부터 페이드, 안개 방의 유닛이면 숨김(체력바와 같은 기준), 시간은 게임 시간(Time.deltaTime — 일시정지 중엔 멈춘다).
-연결부: UnitVisual.ShowSpeech/SetSpeechHiddenByFog/ClearSpeech, UnitGenerate.ShowSpeech(+ 매 프레임 안개 숨김 갱신, 사망 연출 시 지움), BottomMenuBar debug "대사 연출" 블록(ON/OFF 토글 + 선택 유닛에 67종을 차례로 띄워 보는 테스트 버튼 — 쿨다운·순위를 무시하고 덮어쓴다).
+연결부: UnitVisual.ShowSpeech/SetSpeechHiddenByFog/ClearSpeech, UnitGenerate.ShowSpeech(+ 매 프레임 안개 숨김 갱신, 사망 연출 시 지움), BottomMenuBar debug "대사 연출" 블록(ON/OFF 토글 + 선택 유닛에 71종을 차례로 띄워 보는 테스트 버튼 — 쿨다운·순위를 무시하고 덮어쓴다).
 Assets/Tests/SpeechSystemTests.cs — 21건(이름·조사·문구 선택·2줄 나눔·덮어쓰기·쿨다운·페이드·목록 완전성·명세서 문구·치환 자리 잔존 방지·세션 없는 유닛 안전성).
 
 ■ 연결 지점 (SpeechSystem.Say를 부르는 곳, 호출 59곳)

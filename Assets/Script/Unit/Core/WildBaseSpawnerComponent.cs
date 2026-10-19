@@ -62,6 +62,9 @@ public class WildBaseSpawnerComponent : IUnitComponent
     {
         if (_owner.Session == null || _targetRoom == null || _owner.Session.unitGenerate == null) return;
 
+        // 방이 야생 소유가 아니면(플레이어가 클리어해 확보했거나 인류가 거점을 세움) 자동 생성을 멈춘다(코어 점령 v0.2 11-1장).
+        if (_targetRoom.RoomFaction != FactionType.Wild) return;
+
         // MVP 4.2: 최대 개체 수 도달 시 생성 중단
         var roomUnits = _owner.Session.GetUnitsInRoom(_targetRoom.Bounds);
         int wildCount = 0;

@@ -950,7 +950,7 @@ public abstract class UnitFunction : Unit
 		Session.roomGrid.TryGetValue(new Vector3Int(position.x, position.y, currentFloor), out Room actualRoom);
 		if (actualRoom == currentRoom) return;
 
-		// 방 소유권 전환은 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다 — 방을 떠나는
+		// 방 소유권은 방 클리어(RoomClearSystem)와 인류 기초 시설 완공(OccupationSystem)으로만 바뀐다 — 방을 떠나는
 		// 것만으로는 점령이 바뀌지 않는다.
 		currentRoom?.RemoveUnit(this);
 		actualRoom?.AddUnit(this);
@@ -1191,9 +1191,7 @@ public abstract class UnitFunction : Unit
 				// 도중 회피/점멸로 밀려나도 데미지가 계속 적용돼 원거리 파괴가 되므로 매 프레임 재확인한다.
 				bool isAdjacent = isDoor ? targetObj.IsAdjacentTo(position) : AIMovementHelper.IsAdjacent(position, targetPos2D);
 
-				// 같은 프레임에 다른 유닛이 먼저 코어를 파괴시켜 소유권이 전환된 경우(즉시 반피 회복)
-				// CoreHp>0f만으로는 못 막으므로 IsRoomCoreStillHostile로 다시 확인한다. 종족 무관 헬퍼를
-				// 써야 플레이어 몬스터의 수동 공격이 매 프레임 스스로 취소되지 않는다.
+				// 같은 프레임에 다른 유닛이 먼저 코어를 파괴했거나 아직 활성화 전인 코어인지 IsRoomCoreStillHostile(CoreMath.IsAttackable)로 매 프레임 다시 확인한다.
 				bool stillHostile = isCore && TacticalFSMState.IsRoomCoreStillHostile(this, targetPos);
 				if (isCore && (!isAdjacent || !stillHostile))
 				{
@@ -1221,10 +1219,9 @@ public abstract class UnitFunction : Unit
 
 					if (targetObj.CoreHp <= 0f)
 					{
-						// 코어 파괴 순간 OffenseProcessor.OnCoreDestroyed로 방 소유권을 즉시 전환한다
-						// (코어 자체는 사라지지 않고 반피로 회복 — 소유권 전환이 곧 "파괴 완료").
+						// 코어 파괴 순간 CoreSystem.OnCoreDestroyed — 코어는 파괴 상태로 그 자리에 남고 방 소유권은 바뀌지 않는다(코어 점령 v0.2 2-2·4장).
 						if (Session.roomGrid.TryGetValue(targetPos, out Room coreRoom))
-							Session.OffenseProcessor?.OnCoreDestroyed(coreRoom, targetObj, this);
+							Session.Core?.OnCoreDestroyed(coreRoom, targetObj, this);
 						ClearAttackObjectTarget();
 					}
 				}

@@ -133,10 +133,18 @@ public class TacticalFSMState : IFSMState
 					new BTLeaf(HoldFormation)
 				)
 			),
-			[TacticalBehaviorType.CoreAttack] = new BTSequence(
-				new BTCondition(HasCoreAttackTarget),
-				new BTLeaf(MoveToCoreAttack),
-				new BTLeaf(CoreAttackPerform)
+			// 코어 공격과 그 뒤의 잔해 줍기는 한 설정 항목을 공유한다 — 파괴한 인류가 잔해를 챙겨 반출하는 흐름이라 우선순위를 따로 둘 이유가 없다(코어 점령 v0.2 8장).
+			[TacticalBehaviorType.CoreAttack] = new BTSelector(
+				new BTSequence(
+					new BTCondition(HasCoreAttackTarget),
+					new BTLeaf(MoveToCoreAttack),
+					new BTLeaf(CoreAttackPerform)
+				),
+				new BTSequence(
+					new BTCondition(HasSalvageTarget),
+					new BTLeaf(MoveToSalvage),
+					new BTLeaf(SalvagePickupPerform)
+				)
 			),
 			[TacticalBehaviorType.DoorAttack] = new BTSequence(
 				new BTCondition(HasDoorAttackTarget),
@@ -165,6 +173,7 @@ public class TacticalFSMState : IFSMState
 		// Tick()의 BT에 그 행동이 없는데도 Tactical에 붙잡혀 Idle/Navigation을 못 하는 걸 막는다.
 		// if (hu != null && hu.HasProtectiveFormationNeed()) return p;
 		if (HasCoreAttackTarget(unit)) return p;
+		if (HasSalvageTarget(unit)) return p;
 		if (HasDoorAttackTarget(unit)) return p;
 		return 0f;
 	}
@@ -247,6 +256,7 @@ public class TacticalFSMState : IFSMState
 			 human.currentWait.Reason == WaitReason.FormingUpAtDoor ||
 			 human.currentWait.Reason == WaitReason.BreachingDoor ||
 			 human.currentWait.Reason == WaitReason.EnteringNextRoom ||
+			 human.currentWait.Reason == WaitReason.ConstructingBase ||
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
@@ -831,7 +841,13 @@ public class TacticalFSMState : IFSMState
 	private static bool IsResting(Unit unit) => unit is Human human && RetreatSystem.IsResting(human);
 
 	// 휴식 모션으로 그 자리에서 머문다 — 회복(HP 재생력×2, 정신력 +1/초)은 UnitFunction.OnUpdate가 IsRecovering일 때 처리하고, 완료 판정·전환은 PartyRetreatSystem이 한다. 전투가 나면 Combat이 우선해 이 리프는 호출되지 않는다.
-	private static BTStatus RestPerform(Unit unit) => BTStatus.Running;
+	// 거점 휴식 중 방어 거점의 예정 방어 시설 공사가 배정됐으면(ConstructingBase) 휴식 자리 곁에서 일한다(13장 "방어 거점으로 정한 방에서만 회복 후 방어 시설을 추가").
+	private static BTStatus RestPerform(Unit unit)
+	{
+		if (unit is Human human && human.currentWait != null && human.currentWait.Reason == WaitReason.ConstructingBase && human.Session?.Occupation != null)
+			return human.Session.Occupation.StepConstruct(human, human.currentWait);
+		return BTStatus.Running;
+	}
 
 	// ── 대기 ──────────────────────────────────────────────────────
 
@@ -931,6 +947,11 @@ public class TacticalFSMState : IFSMState
 			// 05번 1장 73줄: 다음 문을 아직 모르면 진형을 유지하며 문을 찾는다 — 아는 리더 위치 주변을 따라다닌다.
 			if (PartyDoorSearchSystem.StepFollow(human, wait) == ReportStep.Ended)
 				return BTStatus.Success;
+		}
+		else if (wait.Reason == WaitReason.ConstructingBase)
+		{
+			// 점령 파티의 기초 시설 건설 — 현장 자리에서 일한다(코어 점령 v0.2 12장). 진행도·완료 판정은 OccupationSystem이 한다.
+			return human.Session?.Occupation != null ? human.Session.Occupation.StepConstruct(human, wait) : BTStatus.Success;
 		}
 		else if (wait.Reason == WaitReason.Retreating && wait.WaitPosition.HasValue)
 		{
@@ -1414,7 +1435,7 @@ public class TacticalFSMState : IFSMState
 		return blocked >= tiles * 0.5f;
 	}
 
-	// ── 코어 공격 — 체력 0이 되면 막타친 진영으로 방 소유권이 즉시 전환된다(코어는 반피로 회복).
+	// ── 코어 공격 — 최초 완전 활성화를 마친 코어만 대상이다(코어 점령 v0.2 10장). 체력이 0이 되면 코어는 파괴 상태로 남고 방 소유권은 바뀌지 않는다(CoreSystem.OnCoreDestroyed).
 	// ⚠️ 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 반드시 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)로만 한다. DoorAttack도 동일.
 	private static bool HasCoreAttackTarget(Unit unit)
 	{
@@ -1422,7 +1443,7 @@ public class TacticalFSMState : IFSMState
 	}
 
 	// unit이 지금 서 있는 방의 코어가 "공격 대상"인지 확인한다 — 인류가 아니면 항상 대상 아님.
-	// 그 외엔 방이 이미 내 진영 소유이거나 코어 정보가 없거나 HP가 0이면 대상이 아니다.
+	// 그 외엔 코어 정보가 없거나 아직 완전 활성화 전이거나 이미 파괴됐으면 대상이 아니다(IsRoomCoreStillHostile).
 	internal static bool FindHostileRoomCore(Unit unit, out Room room, out InteractableObject core)
 	{
 		room = null;
@@ -1438,17 +1459,12 @@ public class TacticalFSMState : IFSMState
 		return true;
 	}
 
-	// unit 진영 기준으로 corePos의 코어가 여전히 적대적인지 확인 — FindHostileRoomCore와 달리 종족
-	// 제한이 없다. 여기 인류 게이트를 걸면 플레이어 몬스터의 수동 코어 공격 명령까지 매 프레임 취소된다.
+	// corePos의 코어가 지금 이 유닛이 조사·공격할 수 있는 대상인지 확인 — 최초 완전 활성화를 마쳤고 현재 파괴되지 않은 코어이며 유닛이 인류일 때만 true다(코어 점령 v0.2 10장).
+	// 방 소유 진영은 보지 않는다: 코어 파괴는 더 이상 방 소유권을 바꾸지 않는다. 플레이어 몬스터·야생은 코어를 공격하지 않는다.
 	internal static bool IsRoomCoreStillHostile(Unit unit, Vector3Int corePos)
 	{
-		if (unit.Session?.cmap == null) return false;
-		FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
-		if (myFaction == null) return false; // 방 소유권 개념이 없는 진영(매핑 불가)
-		if (!unit.Session.roomGrid.TryGetValue(corePos, out Room room) || room == null) return false;
-		if (room.RoomFaction == myFaction.Value) return false; // 이미 내 진영 소유
-		if (!unit.Session.objectGrid.TryGetValue(corePos, out InteractableObject core) || core.CoreHp <= 0f) return false;
-		return true;
+		if (!(unit is Human) || unit.Session == null) return false;
+		return unit.Session.objectGrid.TryGetValue(corePos, out InteractableObject core) && CoreSystem.IsAttackable(core);
 	}
 
 	private static BTStatus MoveToCoreAttack(Unit unit)
@@ -1552,9 +1568,8 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 
-		// 코어는 문과 달리 파괴돼도 사라지지 않고 즉시 반피로 회복된다 — obj.CoreHp > 0f만 보면 동료가
-		// 이미 점령을 끝낸 뒤에도 나머지 공격자들이 채널링을 무한히 이어가므로, FindHostileRoomCore로
-		// "지금도 적대적인 코어인지"를 매 틱 재검증한다.
+		// 코어는 문과 달리 파괴돼도 사라지지 않고 파괴 상태로 남는다 — 동료가 이미 파괴한 뒤에도 나머지 공격자들이 채널링을 이어가지 않도록 FindHostileRoomCore로
+		// "지금도 공격할 수 있는 코어인지"를 매 틱 재검증한다.
 		if (!FindHostileRoomCore(unit, out _, out _))
 		{
 			unit.ClearAttackObjectTarget();
@@ -1562,6 +1577,66 @@ public class TacticalFSMState : IFSMState
 		}
 
 		return BTStatus.Running;
+	}
+
+	// ── 코어 잔해 줍기(인류 전용) — 코어를 파괴하면 생기는 잔해를 같은 방에서 한 명이 주워 들고 파티가 던전 밖으로 반출한다(코어 점령 v0.2 8장, 웨이브 성공 조건).
+	// 파티에 운반자가 이미 있거나 후퇴·도주 중이면 줍지 않고, 길이 막혀 포기하면 잠시 다시 고르지 않는다.
+	private static bool HasSalvageTarget(Unit unit) => FindSalvageTarget(unit, out _);
+
+	private static bool FindSalvageTarget(Unit unit, out InteractableObject salvage)
+	{
+		salvage = null;
+		if (!(unit is Human human) || human.carriesCoreSalvage || human.party == null) return false;
+		if (Time.time < human.salvageIgnoreUntil) return false;
+		CoreSystem core = human.Session?.Core;
+		if (core == null || !core.HasAnySalvage) return false;
+		if (RetreatSystem.IsBoundToRetreat(human)) return false;
+		if (CoreSystem.PartyHasCarrier(human.party)) return false;
+		if (!human.Session.roomGrid.TryGetValue(new Vector3Int(human.position.x, human.position.y, human.currentFloor), out Room room) || room == null) return false;
+		salvage = core.FindSalvageInRoom(room);
+		return salvage != null;
+	}
+
+	private static BTStatus MoveToSalvage(Unit unit)
+	{
+		if (!FindSalvageTarget(unit, out InteractableObject salvage))
+		{
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Failure;
+		}
+
+		Vector2Int pos = new Vector2Int(salvage.Position.x, salvage.Position.y);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, pos) <= 1)
+		{
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Success;
+		}
+
+		// 리셋 기준은 "이동 성공 여부"가 아니라 "거리가 실제로 줄었는지"다(MoveToCoreAttack과 같은 이유 — 혼잡 구역의 제자리 셔플은 Move() 관점에선 성공이다).
+		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, pos);
+		AIMovementHelper.MoveTowardsPos(unit, pos);
+		if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
+		{
+			unit.tacticalObjectAttackStuckTurns = 0;
+			return BTStatus.Running;
+		}
+
+		unit.tacticalObjectAttackStuckTurns++;
+		int limit = AIConfigLoader.Behavior?.tacticalObjectAttackStuckTurnLimit ?? 4;
+		if (unit.tacticalObjectAttackStuckTurns >= limit)
+		{
+			unit.tacticalObjectAttackStuckTurns = 0;
+			if (unit is Human human) human.salvageIgnoreUntil = Time.time + 10f; // 닿지 못하는 잔해를 틱마다 다시 고르지 않는다
+			return BTStatus.Failure;
+		}
+		return BTStatus.Running;
+	}
+
+	private static BTStatus SalvagePickupPerform(Unit unit)
+	{
+		if (FindSalvageTarget(unit, out InteractableObject salvage))
+			unit.Session.Core.OnSalvagePickedUp((Human)unit, salvage);
+		return BTStatus.Success;
 	}
 
 	// ── 문 공격(인류 전용) — CoreAttack과 반대로, 이미 점령한 방에서 그 방 경계 게이트 중 아직 다른

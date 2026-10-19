@@ -409,6 +409,50 @@ public class DoorSystem
         return true;
     }
 
+    // room의 방 쪽 문 묶음마다 대표 타일(묶음 가운데) 하나 — 점령 파티가 기초 시설로 짓는 인류 문의 자리이자 건설 현장 자리를 고르는 기준이다.
+    public List<Vector3Int> GetRoomDoorAnchors(Room room)
+    {
+        var anchors = new List<Vector3Int>();
+        var cmap = Session.cmap;
+        if (room == null || cmap == null || cmap.map.floors == null || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return anchors;
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return anchors;
+        foreach (var gate in floor.gates)
+        {
+            if (gate.roomA != room.RoomId && gate.roomB != room.RoomId) continue;
+            foreach (var group in GetGateDoorGroups(gate, room.Floor))
+            {
+                if (group.RoomId != room.RoomId || group.Tiles.Count == 0) continue;
+                var mid = group.Tiles[group.Tiles.Count / 2];
+                anchors.Add(new Vector3Int(mid.x, mid.y, room.Floor));
+            }
+        }
+        return anchors;
+    }
+
+    // room의 방 쪽 문 묶음을 전부 owner 소유로 만든다(점령 파티의 기초 시설 = 인류 문, 코어 점령 v0.2 12장) — 있는 문은 소유 진영을 바꾸고 체력을 채우며, 파괴된 문은 그 소유로 다시 세운다. 바뀐 문 수를 돌려준다.
+    // 통행 가능 여부는 문 소유 진영으로만 정해지므로(IsBlockedByClosedDoor) 바뀌면 경로 판정 메모의 서명(StateVersion)도 올린다.
+    public int SetRoomDoorsOwner(Room room, FactionType owner)
+    {
+        int changed = 0;
+        foreach (var pos in GetRoomDoorAnchors(room))
+        {
+            if (Session.objectGrid.TryGetValue(pos, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag))
+            {
+                if (door.DoorOwnerFaction != owner) { door.DoorOwnerFaction = owner; changed++; }
+                door.DoorHp = door.DoorMaxHp;
+                continue;
+            }
+            if (!TryGetDoorGroupAt(pos, out DoorGeometry.Group group, out Gate gate)) continue;
+            var tiles = ToGridTiles(group, pos.z);
+            if (AnyTileOccupied(tiles)) continue;
+            SpawnDoorGroup(tiles, gate.isHorizontal ? 90f : 0f, owner); // StateVersion은 SpawnDoorGroup이 올린다
+            changed++;
+        }
+        if (changed > 0) StateVersion++;
+        return changed;
+    }
+
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.
     public bool IsRepairableDoorTile(Vector3Int pos) => TryFindGateAt(pos, out _);
 

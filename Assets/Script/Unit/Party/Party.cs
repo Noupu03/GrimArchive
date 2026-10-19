@@ -84,8 +84,8 @@ public partial class Party
 			case PartyType.Recover:
 				return !HasKnownRecoverableInRoom(room);
 			case PartyType.Occupy:
-				// 트리거 조건은 미정(PartyEnums.cs 참고) — 판정 기준만 세팅으로 남긴다. RoomFaction은 파티 종류와 무관한 코어 파괴(OffenseProcessor.OnCoreDestroyed)로도 바뀌므로 실제 점령 트리거가 생기면 교체한다.
-				return room.RoomFaction == FactionType.Human;
+				// 점령 파티는 현재 방에 기초 시설을 완공해 기초 거점이 되면 방 활동이 끝난다(코어 점령 v0.2 12장 — OccupationSystem이 짓는다). 방어 시설은 방어 거점으로 정한 방에서 후퇴·휴식 뒤에 짓는 것이라 전진을 막지 않는다.
+				return OccupationMath.IsRoomActivityComplete(room.BaseStage);
 			case PartyType.MopUp:
 				// 문까지 이동하며 확인한 뒤 현재 방에 대응할 적·교전 정보가 남지 않아야 한다(01번 7-1장) — 이동 없이 '적을 모름'만으론 부족하다(스폰 직후부터 참이라 도착 즉시 집결하던 문제). 방 전체 탐색·전멸 확인은 요구하지 않는다.
 				return Leader.personalSpottedEnemies.Count == 0 && DoorApproachRoom != null && DoorApproachRoom == room;
@@ -223,7 +223,7 @@ public partial class Party
 			case PartyType.Recover:
 				return $"{head}: 리더가 아는 회수물이 방 안에 남음";
 			case PartyType.Occupy:
-				return $"{head}: 방 소유 진영이 인류가 아님(현재 {room.RoomFaction})";
+				return $"{head}: 기초 시설 미완공(거점 단계 {room.BaseStage}, 방 소유 {room.RoomFaction})";
 			case PartyType.MopUp:
 				return $"{head}: 리더가 인지한 적 {Leader.personalSpottedEnemies.Count}명, 다음 문 앞 접근 {(DoorApproachRoom != null && DoorApproachRoom == room ? "완료" : "미완료")}";
 			default:
