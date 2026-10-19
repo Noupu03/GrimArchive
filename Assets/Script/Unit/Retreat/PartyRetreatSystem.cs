@@ -68,6 +68,7 @@ public static class PartyRetreatSystem
 		DeliverOrders(party);
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 파티 후퇴 시작({st.StartReason}) — {party.Type.ToKorean()} 파티, 평균 HP {avg.HpPercent:F1}%(기준 ≤{thresholds.HpPercent:F0}) / 평균 정신력 {avg.MentalPercent:F1}%(기준 ≤{thresholds.MentalPercent:F0}), 대상 {avg.Count}명, 목적지 {DescribeDestination(st)}, 후퇴 {st.RetreatCount}회째");
+		SpeechSystem.Say(leader, st.StartReason == "평균 HP" ? SpeechId.PartyRetreatByHp : SpeechId.PartyRetreatByMental); // 연출 — 리더가 후퇴 이유를 말한다
 		OnPartyRetreatStarted?.Invoke(party);
 	}
 
@@ -180,6 +181,7 @@ public static class PartyRetreatSystem
 					st.RestStartedAt = now;
 					st.Phase = PartyRetreatPhase.Resting;
 					LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 거점에 첫 도착({m.name}) — 휴식 시작");
+					SpeechSystem.Say(m, SpeechId.ArriveBase);
 				}
 			}
 		}
@@ -210,8 +212,17 @@ public static class PartyRetreatSystem
 		st.NormalRestCompleted = true; // 같은 침공에서 거점 휴식은 완료 기준으로 1회 — 재탐험 뒤 다시 후퇴하면 재휴식 없이 출구
 		bool goal = party.IsMissionGoalAchieved;
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 거점 휴식 완료(평균 HP {avg.HpPercent:F1}% / 정신력 {avg.MentalPercent:F1}%, 대상 {avg.Count}명) — 목표 {(goal ? "달성" : "미달성")}");
-		if (PartyRetreatMath.DecidePostRest(goal) == PostRestAction.LeaveDungeon) ToLeaving(party, "목표 달성 후 휴식 완료");
-		else Resume(party, resortie: false);
+		var speaker = rested.Contains(party.Leader) ? party.Leader : rested[0];
+		if (PartyRetreatMath.DecidePostRest(goal) == PostRestAction.LeaveDungeon)
+		{
+			SpeechSystem.Say(speaker, SpeechId.RestCompleteLeave);
+			ToLeaving(party, "목표 달성 후 휴식 완료");
+		}
+		else
+		{
+			SpeechSystem.Say(speaker, SpeechId.RestCompleteResume);
+			Resume(party, resortie: false);
+		}
 	}
 
 	// 점령 파티: 휴식 완료 + 현장 생존 인원 80% 이상 + 인류 지도상 안전한 진출 방이 있어야 재출격한다(2-3장). 조건이 안 되면 거점 대기를 유지한다.

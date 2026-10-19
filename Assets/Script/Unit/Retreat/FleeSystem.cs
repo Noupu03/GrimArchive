@@ -43,6 +43,7 @@ public static class FleeSystem
 		state.Move.Reset();
 		PartyRetreatSystem.InterruptActivities(human);
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 개인 도주 확정 — {Describe(reason)}, 정신력 {human.BaseStat.mental:F1}, 판정 {state.FleeRoll.TotalRolls}회");
+		SpeechSystem.Say(human, reason == FleeReason.EncounterShock ? SpeechId.EncounterFleeMax : SpeechId.FleeConfirmed); // 연출 — 명세서 4-3·7-3장
 		NotifyWitnesses(human);
 		OnFleeConfirmed?.Invoke(human, reason);
 	}
@@ -115,6 +116,7 @@ public static class FleeSystem
 		{
 			case EncounterShockKind.MentalDamage:
 				MentalSystem.ApplyChange(human, -shock.MentalDamage);
+				SpeechSystem.Say(human, SpeechId.EncounterGap2);
 				break;
 			case EncounterShockKind.StunAndPanic:
 			case EncounterShockKind.StunAndMax:
@@ -122,6 +124,7 @@ public static class FleeSystem
 				human.StatusEffects.State.stunDuration = Mathf.Max(human.StatusEffects.State.stunDuration, shock.StunSeconds);
 				if (shock.Kind == EncounterShockKind.StunAndMax) ConfirmFlee(human, FleeReason.EncounterShock); // −100 설정이 낳는 MentalFloor 확정보다 먼저 — 원인을 조우 충격으로 남긴다
 				MentalSystem.SetForced(human, shock.SetMentalTo);
+				if (shock.Kind == EncounterShockKind.StunAndPanic) SpeechSystem.Say(human, SpeechId.EncounterPanic); // StunAndMax의 "도망쳐야 해!"는 ConfirmFlee가 말한다
 				break;
 		}
 	}

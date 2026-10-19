@@ -14,6 +14,7 @@ public static class PartyCoreReportSystem
 		if (discoverer.party == null) return; // 파티 없는 단독 유닛 — 보고 대상 없음
 		if (!TacticalFSMState.IsRoomCoreStillHostile(discoverer, core.Position)) return; // 이미 처리됨(내 진영 소유)
 		if (discoverer.party.LeaderKnownCorePosition == core.Position) return; // 리더가 이미 앎
+		SpeechSystem.Say(discoverer, SpeechId.CoreFound);
 
 		var leader = discoverer.party.Leader;
 		if (leader != null && (discoverer == leader || PropagationSystem.CanPropagate(discoverer, leader)))

@@ -225,6 +225,21 @@ public class UnitVisual : MonoBehaviour
 		go.transform.localPosition = new Vector3(0f, -BelowLabelWorldOffsetBelowBottom * invY, 0f);
 	}
 
+	// ─────────────────────────── 말풍선 (머리 위 대사 연출) ───────────────────────────
+	// SpeechSystem이 UnitGenerate.ShowSpeech를 거쳐 호출한다. 처음 필요할 때 만든다.
+	private UnitSpeechBubble _speech;
+
+	public bool ShowSpeech(string text, SpeechTone tone, float seconds, int priority)
+	{
+		if (boundUnit == null) return false;
+		if (_speech == null) _speech = UnitSpeechBubble.Create(transform, boundUnit.unitType.footprint);
+		return _speech.Show(text, tone, seconds, priority);
+	}
+
+	public void SetSpeechHiddenByFog(bool hidden) { if (_speech != null) _speech.SetHidden(hidden); }
+
+	public void ClearSpeech() { if (_speech != null) _speech.Clear(); }
+
 	private LineRenderer CreateRangeLine(string name, Color color, float width, int sortingOrder)
 	{
 		GameObject go = new GameObject(name);

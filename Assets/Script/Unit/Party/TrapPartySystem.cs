@@ -50,6 +50,7 @@ public static class TrapPartySystem
 				Deferred = defer,
 			};
 			party.TrapCoordinations[trapObj.Id] = coord;
+			SpeechSystem.Say(discoverer, SpeechId.TrapFound);
 		}
 
 		// 9-3장 전파는 07문서 6장 일반 전파 조건(비전투+같은 공간+전파 범위)을 따른다 — 발견자는 항상

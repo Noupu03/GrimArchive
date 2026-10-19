@@ -165,6 +165,7 @@ public static class RetreatSystem
 		state.Move.Reset();
 		PartyRetreatSystem.InterruptActivities(human);
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 개인 후퇴 시작 — 리더 없음, HP {hpPercent:F1}% ≤ {PartyRetreatMath.PersonalRetreatHpPercent:F0}% (출구로 이동, 거점 휴식 없음)");
+		SpeechSystem.Say(human, SpeechId.PersonalRetreat);
 		return true;
 	}
 }

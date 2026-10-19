@@ -125,6 +125,7 @@ public static class PartyDeathSystem
 		if (record.InfoKnownUnits.Contains(unit.name)) return;
 		record.InfoKnownUnits.Add(unit.name);
 		MentalSystem.ApplyChange(unit, mentalDelta); // mentalDelta는 음수 — 정신력 변경 단일 진입점
+		if (isDirectDiscovery) SpeechSystem.Say(unit, SpeechId.AllyDeathSeen); // 연출 — 직접 확인한 사람만 반응한다(전파 수신은 말하지 않음)
 	}
 
 	private static void TryConfirmCauseByWitness(PartyDeathRecord record, Human witness)

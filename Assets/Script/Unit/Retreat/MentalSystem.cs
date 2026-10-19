@@ -61,6 +61,7 @@ public static class MentalSystem
 		var state = witness.Retreat;
 		if (state == null || !state.WitnessedFlees.Add(fleeing.name)) return false;
 		ApplyChange(witness, -FleeWitnessBaseDecrease);
+		SpeechSystem.Say(witness, SpeechId.FleeWitnessed); // 연출 — 목격한 사람만 반응한다(7-3장)
 		return true;
 	}
 }

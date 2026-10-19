@@ -141,6 +141,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 var propagation = BuildDebugPropagationItems();
                 if (propagation.Count > 0) groups.Add(propagation);
                 groups.Add(BuildDebugRetreatItems());
+                groups.Add(BuildDebugSpeechItems());
                 break;
         }
         return groups;
@@ -557,6 +558,26 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         items.Add(new SubmenuItem("정신력 -30 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 30f))));
         items.Add(new SubmenuItem("파티 HP 15%로 (선택 유닛의 파티)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.SetPartyHpPercent(u, 15f))));
         items.Add(SubmenuItem.Header("후퇴 · 도주 확인"));
+        return items;
+    }
+
+    // 머리 위 대사 연출(SpeechSystem) — 표시 토글과, 선택한 유닛에 대사를 하나씩 차례로 띄워 보는 확인용 버튼.
+    private int _speechTestIndex;
+
+    private List<SubmenuItem> BuildDebugSpeechItems()
+    {
+        var items = new List<SubmenuItem>();
+        bool on = SpeechSystem.Enabled;
+        items.Add(new SubmenuItem(on ? "■ 대사 연출 (ON)" : "□ 대사 연출 (OFF)", on, true, () => SpeechSystem.Enabled = !SpeechSystem.Enabled));
+
+        bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human;
+        items.Add(new SubmenuItem("대사 테스트 (선택 유닛, 차례로)", false, humanSelected, () => AdjustSelectedUnit(u =>
+        {
+            var ids = (SpeechId[])Enum.GetValues(typeof(SpeechId));
+            SpeechId id = ids[_speechTestIndex++ % ids.Length];
+            SpeechSystem.Say(u, id, u.name, ignoreCooldown: true);
+        })));
+        items.Add(SubmenuItem.Header("대사 연출"));
         return items;
     }
 

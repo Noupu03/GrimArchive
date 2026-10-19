@@ -434,9 +434,18 @@ public class UnitGenerate
 			uv.UpdateStatusLabel(null, false);
 			uv.UpdateBelowLabel(null);
 			uv.UpdateHealthBar(false, 0f, 1f);
+			uv.ClearSpeech();
 			uv.SetVisionRangesVisible(false);
 		}
 		if (cache.SelectionMarker != null) cache.SelectionMarker.enabled = false;
+	}
+
+	// 유닛 머리 위 말풍선 — SpeechSystem.Say의 표시 단계. 비주얼이 없으면(사망·미생성) false.
+	public bool ShowSpeech(Unit u, string text, SpeechTone tone, float seconds, int priority)
+	{
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return false;
+		UnitVisual uv = GetCache(go).UnitVisual;
+		return uv != null && uv.ShowSpeech(text, tone, seconds, priority);
 	}
 
 	private async UniTaskVoid DestroyVisualLater(GameObject go, float seconds)
@@ -584,6 +593,7 @@ public class UnitGenerate
 				Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out Room hpBarRoom) &&
 				!hpBarRoom.FogRevealed;
 			uv.UpdateHealthBar(!hpBarHiddenByFog, u.hp, u.maxHp);
+			uv.SetSpeechHiddenByFog(hpBarHiddenByFog);
 
 			// 단일 선택으로는 자동 표시하지 않는다 — "시야 표시" 전역 토글로만 켜고 끈다.
 			bool showRanges = ShowAllVisionRanges;

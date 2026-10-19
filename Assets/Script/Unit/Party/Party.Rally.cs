@@ -69,6 +69,17 @@ public partial class Party
 		return count;
 	}
 
+	// 미집결자가 있으면 true — 집결 완료를 막는다. 리더가 그 이름을 입에 올린다(연출: "OO가 없는데?", 사망·도주 확정이 아니라 부재 사실만 표현, 후퇴도주 7-3장).
+	private bool AnnounceAbsentees()
+	{
+		var alive = new List<string>();
+		var dead = new List<string>();
+		if (CollectUnaccountedAbsentees(alive, dead) == 0) return false;
+		string who = alive.Count > 0 ? alive[0] : dead[0];
+		SpeechSystem.Say(Leader, SpeechId.AbsentMember, who);
+		return true;
+	}
+
 	private static string FormatAbsentees(List<string> alive, List<string> dead)
 	{
 		var names = new List<string>(alive);
@@ -219,6 +230,7 @@ public partial class Party
 		_rallyPauseLogged = false;
 		RallyZoneRadius = 1;
 		LogHelper.Log(LogHelper.GAME, $"{LogTag} 집결 시작 — 리더 {Leader.name}, 사유: {(questJustAchieved ? "임무 수량 달성" : resumeAfterCore ? "코어 처리 후 재집결" : "방 활동 종료")}, 집결지 {RallyPoint.Value} ({RallyFloor}층)");
+		SpeechSystem.Say(Leader, SpeechId.RallyStart);
 
 		// 전달 범위: 같은 방은 거리와 무관하게, 다른 방은 일반 전파 조건(PropagationSystem.CanPropagate)을 만족해야 한다(05번 4장).
 		TickPendingRallyRelease(force: true); // 옛 집결의 해제를 못 받아 대기가 남은 유닛 중 지금 닿는 유닛은 먼저 푼다(아래 순회는 대기가 있는 유닛을 건너뛴다)
@@ -518,7 +530,7 @@ public partial class Party
 				return;
 		}
 
-		if (gatherNearby && !forced && CollectUnaccountedAbsentees() > 0) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(rallyAbsenteeMaxSeconds 상한까지)
+		if (gatherNearby && !forced && AnnounceAbsentees()) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(rallyAbsenteeMaxSeconds 상한까지)
 
 		if (gatherNearby)
 		{
