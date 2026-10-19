@@ -19,6 +19,55 @@ public enum SpeechId
 	AllyDeathSeen,        // 파티원 사망을 직접 확인
 	CoreFound,            // 코어 발견
 	RallyStart,           // 집결 명령
+
+	// ── 파티 이동·돌파·진입 (리더 명령) ──
+	AdvanceOrder,         // 집결 완료 → 다음 방으로 이동 지시
+	BreachOrder,          // 문 파괴 지시
+	BreachFarDoor,        // 가까운 문을 뚫고 먼 쪽 문도 부수라는 지시
+	BreachRetry,          // 돌파 실패 → 대열로 물러나 재시도
+	DoorOpened,           // 문 파괴 완료, 진입로 확보
+	EntryOrder,           // 진입 지시(한 명씩 역할 순)
+	EntryGo,              // 출발 허가를 받은 파티원
+	EntryDone,            // 입장 완료
+	WaveStart,            // 침공 개시(파티가 던전으로 진입)
+	Resortie,             // 점령 파티 재출격
+	CoreReported,         // 리더가 코어 소식을 들음
+
+	// ── 전파·소리 반응 ──
+	EnemyWarned,          // 파티원에게 적 정보를 전해 들음
+	TrapWarned,           // 파티원에게 함정 정보를 전해 들음
+	SoundMove,            // 이동음 감지
+	SoundCombat,          // 공격 실행음·피격 발생 공격음 감지
+	SoundScream,          // 피격 비명 감지
+	SoundDeath,           // 사망음 감지
+	SoundTrap,            // 함정 작동음 감지
+
+	// ── 전투 ──
+	EnemySpotted,         // 적을 직접 정확 인지
+	AmbushHit,            // 누구인지 모르는 공격에 피격
+	CombatEngage,         // 전투 진입
+	HpHalf,               // HP 50% 아래로 하락
+	HpLow,                // HP 25% 아래로 하락
+	PanicHit,             // 공황 상태에서 피격
+	KillEnemy,            // 몬스터 처치
+	PostCombat,           // 전투 종료 → 주변 확인
+	CastHeal, CastShield, CastBuff, CastCurse, CastFireball, CastBackstab, // 스킬 시전
+
+	// ── 후퇴·도주·공황 ──
+	RetreatOrderHeard,    // 파티 후퇴 명령을 받음
+	RetreatBlockedDoor, RetreatBlockedEnemy, RetreatBlockedTrap, RetreatBlockedNoPath, // 후퇴 이동 중 길이 막힘
+	FleeRunning,          // 도주 중 숨이 찬 소리
+	FleeSurvived,         // 도주 판정을 버텨냄
+	MentalTension, MentalFear, MentalPanic, // 정신력 단계 악화
+
+	// ── 상황 판단 ──
+	Investigate,          // 조사 대상에 도착
+	LootPicked,           // 전리품 회수
+	TrapDisarmStart, TrapDisarmed, TrapDisarmFailed, // 함정 해제
+	TakeStairs,           // 계단 이동
+	CoreAttackStart,      // 코어 공격 시작
+	DoorAttackStart,      // 문 공격 시작
+	CoreDestroyed,        // 코어 파괴(점령)
 }
 
 // 색·글자 크기를 정하는 어조.
@@ -63,6 +112,67 @@ public static class SpeechCatalog
 		{ SpeechId.AllyDeathSeen,        new SpeechEntry(new[] { "이럴 수가…!", "안 돼… 이게 무슨…" }, SpeechTone.Fear, 2.4f, 55, 10f, 3f) },
 		{ SpeechId.CoreFound,            new SpeechEntry(new[] { "코어다! 여기가 목표야.", "찾았다, 코어야!" }, SpeechTone.Alert, 2.6f, 40, 20f, 4f) },
 		{ SpeechId.RallyStart,           new SpeechEntry(new[] { "모여! 정비한다.", "전원 집결! 대열을 갖춰라." }, SpeechTone.Calm, 2.4f, 20, 20f) },
+
+		// ── 파티 이동·돌파·진입: 리더가 명령하고 파티원이 따른다 ──
+		{ SpeechId.AdvanceOrder,  new SpeechEntry(new[] { "다음 방으로 간다. 문 앞에 대열을 갖춰라!", "이동한다! 전원 문 앞에 모여라!" }, SpeechTone.Alert, 3.0f, 45, 20f, 3f) },
+		{ SpeechId.BreachOrder,   new SpeechEntry(new[] { "문을 부숴라!", "돌파한다! 문부터 열어!", "막힌 문이다. 전원 공격!" }, SpeechTone.Alert, 2.6f, 50, 15f, 3f) },
+		{ SpeechId.BreachFarDoor, new SpeechEntry(new[] { "한 겹 더 남았다! 먼 쪽 문도 부숴라!" }, SpeechTone.Alert, 2.8f, 50, 15f) },
+		{ SpeechId.BreachRetry,   new SpeechEntry(new[] { "안 되겠다. 대열로 물러났다가 다시 친다!" }, SpeechTone.Alert, 3.0f, 50, 20f) },
+		{ SpeechId.DoorOpened,    new SpeechEntry(new[] { "길이 열렸다!", "좋아, 문이 뚫렸다!" }, SpeechTone.Calm, 2.2f, 50, 10f, 3f) },
+		{ SpeechId.EntryOrder,    new SpeechEntry(new[] { "한 명씩 들어간다! 대열을 유지해라!", "진입한다! 앞에서부터 차례로!" }, SpeechTone.Alert, 3.0f, 50, 15f, 3f) },
+		{ SpeechId.EntryGo,       new SpeechEntry(new[] { "간다!", "들어갑니다!", "먼저 가겠습니다!" }, SpeechTone.Calm, 1.8f, 25, 30f, 2.2f) },
+		{ SpeechId.EntryDone,     new SpeechEntry(new[] { "전원 들어왔다. 각자 방을 살펴라!", "진입 완료. 흩어져서 수색한다!" }, SpeechTone.Calm, 2.8f, 40, 20f) },
+		{ SpeechId.WaveStart,     new SpeechEntry(new[] { "침공을 개시한다! 던전으로 진입!", "가자! 이 던전을 정복한다!" }, SpeechTone.Alert, 3.2f, 45, 60f) },
+		{ SpeechId.Resortie,      new SpeechEntry(new[] { "정비는 끝났다. 다시 출격한다!" }, SpeechTone.Alert, 3.0f, 50, 20f) },
+		{ SpeechId.CoreReported,  new SpeechEntry(new[] { "코어를 찾았다고? 전원 집결해라!", "보고 받았다. 코어부터 처리한다!" }, SpeechTone.Alert, 3.0f, 45, 20f, 3f) },
+
+		// ── 전파·소리 반응: 직접 듣거나 전해 들은 사람만 반응한다 ──
+		{ SpeechId.EnemyWarned, new SpeechEntry(new[] { "적이 나타났다고?!", "적이 있다고? 전투 준비!" }, SpeechTone.Alert, 2.2f, 50, 12f, 3f) },
+		{ SpeechId.TrapWarned,  new SpeechEntry(new[] { "함정이 있다고? 조심하자.", "알았다, 함정 구역은 피해 가자." }, SpeechTone.Calm, 2.4f, 35, 12f, 3f) },
+		{ SpeechId.SoundMove,   new SpeechEntry(new[] { "…발소리가 들려.", "누군가 움직이고 있어." }, SpeechTone.Calm, 2.2f, 20, 15f, 3f) },
+		{ SpeechId.SoundCombat, new SpeechEntry(new[] { "싸우는 소리다!", "저쪽에서 전투가 벌어졌어!" }, SpeechTone.Alert, 2.2f, 35, 10f, 2f) },
+		{ SpeechId.SoundScream, new SpeechEntry(new[] { "방금 비명 소리 들었어?", "비명이다! 무슨 일이지?" }, SpeechTone.Fear, 2.4f, 40, 10f, 2f) },
+		{ SpeechId.SoundDeath,  new SpeechEntry(new[] { "…뭔가 쓰러지는 소리가 났어." }, SpeechTone.Fear, 2.4f, 40, 10f, 3f) },
+		{ SpeechId.SoundTrap,   new SpeechEntry(new[] { "함정이 작동했다!" }, SpeechTone.Alert, 2.2f, 40, 10f, 3f) },
+
+		// ── 전투 ──
+		{ SpeechId.EnemySpotted, new SpeechEntry(new[] { "적이다!!!", "적 발견! 전투 준비!", "{S이다}! 조심해!" }, SpeechTone.Alert, 2.2f, 50, 20f, 3f) },
+		{ SpeechId.AmbushHit,    new SpeechEntry(new[] { "윽! 어디서 공격이냐!", "누, 누구냐!" }, SpeechTone.Fear, 2.2f, 55, 15f) },
+		{ SpeechId.CombatEngage, new SpeechEntry(new[] { "간다!", "여기서 막는다!", "공격한다!" }, SpeechTone.Alert, 1.8f, 35, 25f, 1.5f) },
+		{ SpeechId.HpHalf,       new SpeechEntry(new[] { "큭… 꽤 아프군.", "아직 버틸 만해… 아직은." }, SpeechTone.Fear, 2.0f, 50, 20f) },
+		{ SpeechId.HpLow,        new SpeechEntry(new[] { "이대로는… 위험해!", "헉… 더는 못 버텨!" }, SpeechTone.Fear, 2.4f, 65, 20f) },
+		{ SpeechId.PanicHit,     new SpeechEntry(new[] { "으아아악!", "싫어, 아파!!", "살려줘!" }, SpeechTone.Panic, 1.8f, 70, 8f) },
+		{ SpeechId.KillEnemy,    new SpeechEntry(new[] { "해치웠다!", "하나 처치!", "다음은 누구냐!" }, SpeechTone.Alert, 1.8f, 30, 12f, 1.5f) },
+		{ SpeechId.PostCombat,   new SpeechEntry(new[] { "끝난 건가…? 주변을 살펴보자." }, SpeechTone.Calm, 2.4f, 20, 25f, 3f) },
+		{ SpeechId.CastHeal,     new SpeechEntry(new[] { "치료한다! 버텨!", "상처를 봐 줄게!" }, SpeechTone.Calm, 2.0f, 30, 12f, 1.5f) },
+		{ SpeechId.CastShield,   new SpeechEntry(new[] { "방어막이다! 내 뒤로!", "버텨라, 보호막을 건다!" }, SpeechTone.Calm, 2.0f, 30, 12f, 1.5f) },
+		{ SpeechId.CastBuff,     new SpeechEntry(new[] { "힘내라! 사기를 올려 주마!", "싸울 힘을 줄게!" }, SpeechTone.Calm, 2.2f, 30, 20f, 2f) },
+		{ SpeechId.CastCurse,    new SpeechEntry(new[] { "저주를 받아라!", "어둠이 너를 삼키리라…" }, SpeechTone.Alert, 1.8f, 30, 12f) },
+		{ SpeechId.CastFireball, new SpeechEntry(new[] { "불꽃이여, 타올라라!", "전부 태워 주마!" }, SpeechTone.Alert, 2.0f, 30, 10f, 1.5f) },
+		{ SpeechId.CastBackstab, new SpeechEntry(new[] { "등 뒤가 비었군…!" }, SpeechTone.Alert, 1.8f, 30, 12f) },
+
+		// ── 후퇴·도주·공황 ──
+		{ SpeechId.RetreatOrderHeard,    new SpeechEntry(new[] { "알겠습니다! 후퇴합니다!", "철수한다! 서둘러!", "물러서자!" }, SpeechTone.Fear, 2.2f, 60, 20f, 2.5f) },
+		{ SpeechId.RetreatBlockedDoor,   new SpeechEntry(new[] { "문이 막혔어! 부수고 나간다!" }, SpeechTone.Fear, 2.4f, 70, 10f, 2f) },
+		{ SpeechId.RetreatBlockedEnemy,  new SpeechEntry(new[] { "적이 길을 막았어! 뚫고 간다!" }, SpeechTone.Fear, 2.4f, 70, 10f, 2f) },
+		{ SpeechId.RetreatBlockedTrap,   new SpeechEntry(new[] { "함정이다! 돌아가야 해!" }, SpeechTone.Fear, 2.4f, 70, 10f, 2f) },
+		{ SpeechId.RetreatBlockedNoPath, new SpeechEntry(new[] { "길이 없어…! 어떡하지!" }, SpeechTone.Panic, 2.4f, 70, 10f, 2f) },
+		{ SpeechId.FleeRunning,          new SpeechEntry(new[] { "헉헉…", "살려줘…!", "제발… 제발…" }, SpeechTone.Panic, 1.8f, 40, 10f) },
+		{ SpeechId.FleeSurvived,         new SpeechEntry(new[] { "아직… 쓰러질 순 없어…!" }, SpeechTone.Fear, 2.2f, 65, 15f) },
+		{ SpeechId.MentalTension,        new SpeechEntry(new[] { "왠지 불안해…", "뭔가 불길한데…" }, SpeechTone.Fear, 2.0f, 45, 40f) },
+		{ SpeechId.MentalFear,           new SpeechEntry(new[] { "이건… 너무 위험해…", "손이 떨려…" }, SpeechTone.Fear, 2.4f, 60, 40f) },
+		{ SpeechId.MentalPanic,          new SpeechEntry(new[] { "으아아아악!", "더는 안 돼…!" }, SpeechTone.Panic, 2.6f, 85, 30f) },
+
+		// ── 상황 판단 ──
+		{ SpeechId.Investigate,      new SpeechEntry(new[] { "저건 뭐지? 조사해 보자.", "수상한 물건이 있다." }, SpeechTone.Calm, 2.2f, 25, 15f, 2f) },
+		{ SpeechId.LootPicked,       new SpeechEntry(new[] { "이건 챙겨가야지.", "쓸 만한 물건이군!" }, SpeechTone.Calm, 2.0f, 25, 12f, 2f) },
+		{ SpeechId.TrapDisarmStart,  new SpeechEntry(new[] { "내가 해제할게. 조용히 해.", "건드리지 마. 해제해 볼게." }, SpeechTone.Calm, 2.4f, 40, 15f) },
+		{ SpeechId.TrapDisarmed,     new SpeechEntry(new[] { "해제 완료!", "됐다. 함정은 처리했어." }, SpeechTone.Calm, 2.0f, 40, 8f) },
+		{ SpeechId.TrapDisarmFailed, new SpeechEntry(new[] { "젠장, 실패다!", "윽, 손이 미끄러졌다!" }, SpeechTone.Fear, 2.0f, 40, 5f) },
+		{ SpeechId.TakeStairs,       new SpeechEntry(new[] { "계단으로 간다.", "다음 층으로 이동한다." }, SpeechTone.Calm, 2.4f, 20, 30f, 6f) },
+		{ SpeechId.CoreAttackStart,  new SpeechEntry(new[] { "코어를 부숴라!", "코어를 노려! 전력으로 공격!" }, SpeechTone.Alert, 2.4f, 40, 20f, 3f) },
+		{ SpeechId.DoorAttackStart,  new SpeechEntry(new[] { "저 문을 부수고 나아간다!", "문이 막고 있군. 부숴라!" }, SpeechTone.Alert, 2.2f, 40, 20f, 3f) },
+		{ SpeechId.CoreDestroyed,    new SpeechEntry(new[] { "코어 파괴! 이 방은 우리가 접수했다!", "해냈다! 코어가 부서졌다!" }, SpeechTone.Alert, 3.0f, 55, 10f) },
 	};
 
 	public static bool TryGet(SpeechId id, out SpeechEntry entry) => Entries.TryGetValue(id, out entry);

@@ -38,6 +38,7 @@ public class SkillAction_Curse : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
+        SpeechSystem.Say(unit, SpeechId.CastCurse);
         var threat = ThreatTileData.Create();
         threat.shape = HitShape;
         if (HitShape == ThreatShape.RECT)

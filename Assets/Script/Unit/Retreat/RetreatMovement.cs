@@ -15,6 +15,7 @@ public static class RetreatMovement
 	{
 		h.GrantRoomLeave(); // 후퇴·도주 이동은 방 이탈 금지의 예외 — 리더 없는 개인 후퇴·도주는 방을 떠나야 한다(CLAUDE.md "공황·도주 문서가 나오면 예외를 재고")
 		var move = h.Retreat.Move;
+		if (h.Retreat.IsFleeing) SpeechSystem.Say(h, SpeechId.FleeRunning); // 연출 — 도주 중 숨이 찬 소리
 		if (!TryResolveDestination(h, move)) return BTStatus.Running; // 갈 곳을 아직 모른다(예: 이 층에 출구 계단 접근 타일이 없음) — 정보를 기다린다
 
 		if (move.DestinationKind == RetreatDestination.Exit && RetreatExit.IsAtStairs(h)) return RetreatExit.StepCross(h);
@@ -143,6 +144,18 @@ public static class RetreatMovement
 		move.ClearBlock();
 	}
 
+	// 연출 — 막힌 이유별 대사.
+	static SpeechId BlockSpeech(RetreatBlockKind kind)
+	{
+		switch (kind)
+		{
+			case RetreatBlockKind.Door: return SpeechId.RetreatBlockedDoor;
+			case RetreatBlockKind.Enemy: return SpeechId.RetreatBlockedEnemy;
+			case RetreatBlockKind.Trap: return SpeechId.RetreatBlockedTrap;
+			default: return SpeechId.RetreatBlockedNoPath;
+		}
+	}
+
 	// 같은 종류·같은 대상이면 진행 중인 대응을 유지하고, 바뀌었으면 새 대응으로 교체한다.
 	static void UpdateBlock(Human h, RetreatMoveState move, RetreatBlockResolver.Verdict v, float now)
 	{
@@ -156,6 +169,7 @@ public static class RetreatMovement
 		move.BlockObjectPos = v.ObjectPos;
 		move.BlockEnemy = v.Enemy;
 		move.BlockSince = now;
+		SpeechSystem.Say(h, BlockSpeech(v.Kind)); // 연출 — 길이 막힌 이유를 외친다
 	}
 
 	// 반환이 null이면 이 대응이 이번 틱의 행동을 정하지 못한 것(일반 이동으로 이어 간다).

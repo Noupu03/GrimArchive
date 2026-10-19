@@ -159,6 +159,7 @@ public class SkillAction_Heal : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
+        SpeechSystem.Say(unit, SpeechId.CastHeal);
         // AI 경로에서는 ResolveTarget이 찾아 넘겨준 아군이 그대로 들어오지만, 테스트처럼 직접 호출해
         // 적을 넘기는 경우가 있으므로 아군이 아니면 스스로 다시 찾는다.
         Unit targetAlly = (target != null && target.Health != null && target.Health.hp > 0 && !unit.IsEnemy(target))

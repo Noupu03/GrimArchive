@@ -45,6 +45,7 @@ public class SkillAction_GroundAoE : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
+        SpeechSystem.Say(unit, SpeechId.CastFireball);
         float radius = _d.explosionRadius > 0 ? _d.explosionRadius : 1.5f;
         int aoeSize = Mathf.Max(1, Mathf.RoundToInt(radius * 2));
 

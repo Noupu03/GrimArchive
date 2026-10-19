@@ -510,6 +510,7 @@ public class TacticalFSMState : IFSMState
 		FaceTrap(unit, trap.TrapPosition);
 		// 07문서 10장: 해제가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!trap.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
+		if (!trap.PenaltyActive) SpeechSystem.Say(human, SpeechId.TrapDisarmStart);
 		trap.PenaltyActive = true;
 		trap.PerformedThisTick = true; // 이번 틱에 해제를 수행했다 — Tick 래핑이 "수행 없이 끝난 틱"을 중단으로 잡는다
 		if (trap.DisarmProgress01 < 1f) return BTStatus.Running;
@@ -528,6 +529,7 @@ public class TacticalFSMState : IFSMState
 		{
 			LogHelper.Log(LogHelper.GAME, $"{human.unitType.typeName}가 함정을 해제했습니다.");
 			human.UI?.ShowFloatingTextAt(resultTextPos, "성공", Color.green, 1f);
+			SpeechSystem.Say(human, SpeechId.TrapDisarmed);
 			human.Session.CollectObject(trap.TrapPosition);
 			trap.PenaltyActive           = false;
 			// 9-5장: 해제 성공 시에만 도감에 기록한다(우회·파괴·통과는 기록 안 함). 함정 종류별 도감
@@ -538,6 +540,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
+		SpeechSystem.Say(human, SpeechId.TrapDisarmFailed);
 		if (trap.CachedProgressBar != null)
 		{
 			trap.CachedProgressBar.SetProgress(0f, false);
@@ -658,6 +661,7 @@ public class TacticalFSMState : IFSMState
 		if (AIMovementHelper.IsAdjacent(human.position, pos))
 		{
 			human.investigateStuckTurns = 0;
+			if (!inv.IsTileOnly) SpeechSystem.Say(human, SpeechId.Investigate); // 연출 — 조사 대상에 도착
 			// 맨 타일 후보는 조사·줍기 단계가 없다 — 인지·안전 확인은 PersonalMapKnowledge의 시간 경과 감쇠가 담당하므로 도착 즉시 완료 처리한다(01번 4장).
 			if (inv.IsTileOnly) return BTStatus.Success;
 			// 도착 — 이제부터는 실제 objectGrid 조회가 "직접 확인"이므로 그대로 신뢰한다.
@@ -791,6 +795,7 @@ public class TacticalFSMState : IFSMState
 		if (isLoot)
 		{
 			human.Generate?.TriggerAnim(human, AnimSlot.PickUp);
+			SpeechSystem.Say(human, SpeechId.LootPicked);
 			human.Session.CollectObject(inv.TargetPosition);
 			human.collectedObjects.Add(obj.Id);
 			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록
@@ -1468,6 +1473,7 @@ public class TacticalFSMState : IFSMState
 
 		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
+			if (!unit.currentAttackObjectTarget.HasValue) SpeechSystem.Say(unit, SpeechId.CoreAttackStart);
 			unit.SetAttackObjectTarget(room.CorePosition);
 			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Success;
@@ -1683,6 +1689,7 @@ public class TacticalFSMState : IFSMState
 
 	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
 	{
+		if (!unit.currentAttackObjectTarget.HasValue) SpeechSystem.Say(unit, SpeechId.DoorAttackStart);
 		unit.SetAttackObjectTarget(doorPos);
 	}
 

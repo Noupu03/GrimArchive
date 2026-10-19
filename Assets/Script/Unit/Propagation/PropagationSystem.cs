@@ -191,6 +191,7 @@ public static class PropagationSystem
 			IncidentId = e.IncidentId,
 		};
 		listener.Propagation.PendingSound = reaction;
+		SaySoundHeard(listener, e.Type);
 
 		// 함정 작동음이 아니면 현재 행동을 중단시킬 수 있다(16-4장) — 트랩 분기 게이팅에 막히면 그
 		// 분기가 끝난 뒤 HasAlert가 재시도한다(트랩 대응은 인류 전용이라 몬스터는 게이팅 없음).
@@ -198,6 +199,23 @@ public static class PropagationSystem
 
 		// 07-A 7-3장: 확인 행동을 5초 안에 시작하지 못하면 유예시간이 소멸한다 — 감지 순간 기준 명시적 타이머.
 		ExpireAfterDelay(listener, reaction).Forget();
+	}
+
+	// 연출 — 소리를 감지해 반응하기로 한 인류가 종류에 맞는 혼잣말을 한다(소리 종류는 들은 사람이 아는 정보다).
+	private static void SaySoundHeard(Unit listener, SoundType type)
+	{
+		SpeechId id;
+		switch (type)
+		{
+			case SoundType.Movement: id = SpeechId.SoundMove; break;
+			case SoundType.AttackExecution:
+			case SoundType.HitImpact: id = SpeechId.SoundCombat; break;
+			case SoundType.HitScream: id = SpeechId.SoundScream; break;
+			case SoundType.Death: id = SpeechId.SoundDeath; break;
+			case SoundType.TrapActivation: id = SpeechId.SoundTrap; break;
+			default: return;
+		}
+		SpeechSystem.Say(listener, id);
 	}
 
 	private static async UniTaskVoid ExpireAfterDelay(Unit listener, PendingSoundReaction reaction)
@@ -690,6 +708,7 @@ public static class PropagationSystem
 			int existRank = WeightMath.PriorityRank(existing.SourceInfoType, isLatest: true);
 			if (!WeightMath.ShouldReplace(candRank, existRank, candidateIsNewer: true)) return;
 		}
+		if (!receiver.Propagation.PropagatedInfo.ContainsKey(enemy)) SpeechSystem.Say(receiver, SpeechId.EnemyWarned); // 연출 — 새 적 정보를 전해 들은 사람만 반응한다
 		receiver.Propagation.PropagatedInfo[enemy] = new PropagatedInfoRecord
 		{
 			LastKnownTile = new Vector3Int(lastKnownPos.x, lastKnownPos.y, enemy.currentFloor),

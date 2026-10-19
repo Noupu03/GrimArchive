@@ -21,6 +21,7 @@ public static class FleeSystem
 			return;
 		}
 		if (after >= before || human.hp <= 0f || state.FleeRoll.Confirmed) return;
+		SayOnStageWorsened(human, before, after);
 
 		if (MentalMath.ReachedFloor(after))
 		{
@@ -28,7 +29,21 @@ public static class FleeSystem
 			return;
 		}
 		var outcome = FleeRollMath.Advance(state.FleeRoll, MentalMath.PanicZoneDecrease(before, after), RetreatSystem.Random01);
+		if (outcome.Rolls > 0 && !outcome.Fled) SpeechSystem.Say(human, SpeechId.FleeSurvived); // 연출 — 도주 판정을 버텨냈다
 		if (outcome.Fled) ConfirmFlee(human, FleeReason.RollSucceeded);
+	}
+
+	// 연출 — 정신력 단계가 악화되는 순간(긴장·공포·공황 진입)의 혼잣말. 같은 단계 안의 하락에는 말하지 않는다.
+	static void SayOnStageWorsened(Human human, float before, float after)
+	{
+		MentalStage stage = MentalMath.GetStage(after);
+		if (stage == MentalMath.GetStage(before)) return;
+		switch (stage)
+		{
+			case MentalStage.Tension: SpeechSystem.Say(human, SpeechId.MentalTension); break;
+			case MentalStage.Fear: SpeechSystem.Say(human, SpeechId.MentalFear); break;
+			case MentalStage.Panic: SpeechSystem.Say(human, SpeechId.MentalPanic); break;
+		}
 	}
 
 	// 개인 도주를 확정한다 — 한 번 확정되면 정신력 회복·리더 명령으로 취소하지 않고, 확정 즉시 파티 후퇴·휴식 평균에서 제외된다(Party.CollectRetreatAverageMembers). 리더에게 도주 사실을 자동 전달하지 않는다. 진행 중이던 조사·대기·함정 대응은 접는다(출구 이동이 집결·휴식·리더 명령보다 우선). 기절 중이면 이동은 기절이 끝난 뒤 시작한다(Unit.JudgeState가 stunDuration 동안 FSM을 막는다).

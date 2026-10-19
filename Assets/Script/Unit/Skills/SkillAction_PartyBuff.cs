@@ -38,6 +38,7 @@ public class SkillAction_PartyBuff : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
+        SpeechSystem.Say(unit, SpeechId.CastBuff);
         var threat = ThreatTileData.Create();
         threat.shape = ThreatShape.LINE;
         threat.range = 0;

@@ -61,7 +61,7 @@ public class CombatFSMState : IFSMState
 
 	// 03문서 4-5장: 경계/소리반응 중 정확 인지로 전투에 진입하면 Tactical의 Alert 리프가 자기 완료
 	// 코드를 못 거치고 버려진다 — 여기서 미리 비워두면 OnExit의 "전투 후 스윕 세팅" 분기가 정상 동작한다.
-	public void OnEnter(Unit unit)         { unit.currentAlertSearch = null; }
+	public void OnEnter(Unit unit)         { unit.currentAlertSearch = null; SpeechSystem.Say(unit, SpeechId.CombatEngage); }
 
 	// 전투 종료 시 전투 후 경계 세팅 (03문서 4-8장).
 	// 단, 플레이어 명령이 활성화된 채 전투 상태를 벗어나는 경우엔 경계를 세팅하지 않는다 —
@@ -81,6 +81,7 @@ public class CombatFSMState : IFSMState
 
 		// 02번 11장 "이번 전투에서"의 범위 정리 — 다음 교전은 새 표본·새 대상 선택으로 시작한다.
 		unit.CombatTargeting.ResetOnCombatExit();
+		SpeechSystem.Say(unit, SpeechId.PostCombat);
 	}
 
 	public BTStatus Tick(Unit unit)   => _bt.Tick(unit);

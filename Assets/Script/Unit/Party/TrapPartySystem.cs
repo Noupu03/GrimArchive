@@ -63,7 +63,10 @@ public static class TrapPartySystem
 
 			// 인접 1칸 회피(9-6장)는 이동 계층이 맡는다 — 등록한 함정이 알려진 활성 함정 구역(TrapAvoidance)이 돼 일반 이동이 들어가지 않고, 이미 구역 안이면 TacticalFSMState.ZoneEscape가 내보낸다(늦게 정보를 받은 유닛 포함).
 			if (!m.personalMap.IsObjectKnown(trapObj.Id))
+			{
 				m.personalMap.RegisterObject(trapObj.Id, trapObj.Position, trapObj.BaseDanger, trapObj.BaseInterest, trapObj.Tags, trapObj.CauserStage);
+				if (m != discoverer) SpeechSystem.Say(m, SpeechId.TrapWarned); // 연출 — 전해 들은 사람의 반응
+			}
 		}
 
 		if (defer)

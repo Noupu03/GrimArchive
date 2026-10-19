@@ -92,6 +92,7 @@ public static class PartyRetreatSystem
 			if (m != driver && !Party.IsReachedByLeaderCommand(driver, m)) continue;
 
 			rs.Ordered = true;
+			if (m != driver) SpeechSystem.Say(m, SpeechId.RetreatOrderHeard);
 			InterruptActivities(m);
 			if (st.Destination == RetreatDestination.Base && st.BaseRoom != null)
 				RetreatBases.EnsureRestSlot(m, st.BaseRoom, st.ClaimedRestSlots);
@@ -241,6 +242,7 @@ public static class PartyRetreatSystem
 			return;
 		}
 		st.ResortieCount++;
+		SpeechSystem.Say(leader, SpeechId.Resortie);
 		Resume(party, resortie: true);
 	}
 

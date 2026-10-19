@@ -97,6 +97,7 @@ public class OffenseProcessor
 
         _activeOffenseRooms.Remove(room);
         ApplyRoomOwnership(room, claimant.Value);
+        SpeechSystem.Say(killer, SpeechId.CoreDestroyed);
         core.CoreHp = core.CoreMaxHp * 0.5f;
 
         // 점령 VFX — 점령한 진영에 따라 다른 폭발 이펙트(VFX_CoreBoomHuman/Monster)를 코어 위치에 1회 재생.

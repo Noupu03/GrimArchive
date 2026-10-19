@@ -23,8 +23,11 @@ public static class SpeechMath
 	// 이름 + 주격 조사("사제가", "아처형이").
 	public static string WithGa(string name) => name + (HasBatchim(name) ? "이" : "가");
 
+	// 이름 + 서술격 조사("근접 탱커다", "아처형이다").
+	public static string WithIda(string name) => name + (HasBatchim(name) ? "이다" : "다");
+
 	public static string Format(string line, string subject)
-		=> line.Replace("{S가}", WithGa(subject ?? "")).Replace("{S}", subject ?? "");
+		=> line.Replace("{S가}", WithGa(subject ?? "")).Replace("{S이다}", WithIda(subject ?? "")).Replace("{S}", subject ?? "");
 
 	// 후보 문구 중 하나를 고른다. 대상 이름이 없으면 {S…} 자리가 있는 문구는 후보에서 뺀다. random01은 [0,1). 쓸 수 있는 문구가 없으면 null.
 	public static string PickLine(string[] lines, string subject, float random01)

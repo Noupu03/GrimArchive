@@ -82,6 +82,45 @@ public class SpeechSystemTests
 		}
 	}
 
+	[Test]
+	public void WithIda_FollowsBatchim()
+	{
+		Assert.AreEqual("근접 탱커다", SpeechMath.WithIda("근접 탱커"));
+		Assert.AreEqual("아처형이다", SpeechMath.WithIda("아처형"));
+		Assert.AreEqual("사제다", SpeechMath.WithIda("사제"));
+		Assert.AreEqual("적이다!!!", SpeechMath.Format("{S이다}!!!", "적"));
+	}
+
+	[Test]
+	public void Catalog_LinesFormatCleanlyAndSubjectLinesAreNeverTheOnlyChoice()
+	{
+		foreach (SpeechId id in System.Enum.GetValues(typeof(SpeechId)))
+		{
+			Assert.IsTrue(SpeechCatalog.TryGet(id, out var entry));
+			bool allNeedSubject = true;
+			foreach (var line in entry.Lines)
+			{
+				string formatted = SpeechMath.Format(line, "음유시인");
+				Assert.IsFalse(formatted.Contains("{") || formatted.Contains("}"), $"{id} \"{line}\"에 치환되지 않은 자리가 남는다");
+				if (!line.Contains("{S")) allNeedSubject = false;
+			}
+			// 대상 이름이 필수인 항목은 호출부가 대상을 넘기는 AbsentMember뿐이다 — 다른 항목이 대상 전용이면 대상 없이 불려 아무 말도 못 한다.
+			if (allNeedSubject) Assert.AreEqual(SpeechId.AbsentMember, id, $"{id}의 모든 문구가 대상 이름을 요구하는데 호출부가 대상을 넘기지 않으면 침묵한다");
+		}
+	}
+
+	[Test]
+	public void Catalog_SubjectlessPickNeverReturnsRawTokens()
+	{
+		Assert.IsTrue(SpeechCatalog.TryGet(SpeechId.EnemySpotted, out var entry));
+		for (float r = 0f; r < 1f; r += 0.1f)
+		{
+			string line = SpeechMath.PickLine(entry.Lines, null, r);
+			Assert.IsNotNull(line);
+			StringAssert.DoesNotContain("{", line);
+		}
+	}
+
 	// ── 덮어쓰기·쿨다운·페이드 ──
 
 	[Test]
@@ -124,9 +163,33 @@ public class SpeechSystemTests
 
 		Assert.IsFalse(SpeechSystem.TryClaim("사제_1", SpeechId.AllyDeathSeen, null, entry, 1f, false), "같은 유닛은 유닛 쿨다운 안에 다시 못 말한다");
 		Assert.IsFalse(SpeechSystem.TryClaim("전사_2", SpeechId.AllyDeathSeen, null, entry, 1f, false), "다른 유닛도 전체 쿨다운 안에는 못 말한다(합창 방지)");
-		Assert.IsTrue(SpeechSystem.TryClaim("전사_2", SpeechId.AllyDeathSeen, null, entry, entry.GlobalCooldown + 0.1f, false), "전체 쿨다운이 지나면 다른 유닛은 말할 수 있다");
-		Assert.IsFalse(SpeechSystem.TryClaim("사제_1", SpeechId.AllyDeathSeen, null, entry, entry.GlobalCooldown + 0.1f, false), "그래도 같은 유닛의 유닛 쿨다운은 남아 있다");
+		Assert.IsFalse(SpeechSystem.TryClaim("사제_1", SpeechId.AllyDeathSeen, null, entry, entry.GlobalCooldown + 0.1f, false), "같은 유닛의 유닛 쿨다운은 전체 쿨다운이 지나도 남아 있다");
 		Assert.IsTrue(SpeechSystem.TryClaim("사제_1", SpeechId.AllyDeathSeen, null, entry, 1f, true), "ignoreCooldown은 debug 확인용으로 항상 통과");
+	}
+
+	[Test]
+	public void TryClaim_UnitBlockedByGlobalCooldownLosesTheMomentInsteadOfQueueing()
+	{
+		// 전체 쿨다운에 막힌 유닛이 틱마다 재시도하다 쿨다운이 풀리는 순간 차례로 말하면 말풍선이 "밀려서" 뜬다 — 놓친 사건은 놓친 것으로 본다.
+		Assert.IsTrue(SpeechCatalog.TryGet(SpeechId.EnemySpotted, out var entry));
+		Assert.Greater(entry.GlobalCooldown, 0f);
+		Assert.IsTrue(SpeechSystem.TryClaim("사제_1", SpeechId.EnemySpotted, "고블린", entry, 0f, false));
+		SpeechSystem.Record("사제_1", SpeechId.EnemySpotted, "고블린", 0f);
+
+		Assert.IsFalse(SpeechSystem.TryClaim("전사_2", SpeechId.EnemySpotted, "고블린", entry, 0.1f, false), "전체 쿨다운에 막힌다");
+		float afterGlobal = entry.GlobalCooldown + 0.1f;
+		Assert.IsFalse(SpeechSystem.TryClaim("전사_2", SpeechId.EnemySpotted, "고블린", entry, afterGlobal, false), "막혔던 유닛은 전체 쿨다운이 풀려도 뒤늦게 말하지 않는다");
+		Assert.IsTrue(SpeechSystem.TryClaim("전사_2", SpeechId.EnemySpotted, "고블린", entry, 0.1f + entry.UnitCooldown + 0.1f, false), "자기 쿨다운이 지난 뒤의 새 사건에는 말할 수 있다");
+		Assert.IsTrue(SpeechSystem.TryClaim("전사_2", SpeechId.EnemySpotted, "오크", entry, afterGlobal, false), "다른 대상이면 다른 사건이다");
+	}
+
+	[Test]
+	public void Suppress_ConsumesOnlyTheUnitCooldown()
+	{
+		Assert.IsTrue(SpeechCatalog.TryGet(SpeechId.Investigate, out var entry));
+		SpeechSystem.Suppress("사제_1", SpeechId.Investigate, null, 0f);
+		Assert.IsFalse(SpeechSystem.TryClaim("사제_1", SpeechId.Investigate, null, entry, 1f, false), "놓친 유닛은 자기 쿨다운 동안 재시도해도 말하지 않는다");
+		Assert.IsTrue(SpeechSystem.TryClaim("전사_2", SpeechId.Investigate, null, entry, 1f, false), "전체 쿨다운은 건드리지 않아 다른 유닛은 말할 수 있다");
 	}
 
 	[Test]
@@ -136,7 +199,7 @@ public class SpeechSystemTests
 		SpeechSystem.Record("리더_1", SpeechId.AbsentMember, "사제", 0f);
 		// 다른 대상은 유닛 쿨다운이 따로지만 전체 쿨다운(4초)은 공유한다.
 		Assert.IsFalse(SpeechSystem.TryClaim("리더_1", SpeechId.AbsentMember, "전사", entry, 1f, false));
-		Assert.IsTrue(SpeechSystem.TryClaim("리더_1", SpeechId.AbsentMember, "전사", entry, entry.GlobalCooldown + 0.1f, false));
+		Assert.IsTrue(SpeechSystem.TryClaim("리더_1", SpeechId.AbsentMember, "마법사", entry, entry.GlobalCooldown + 0.1f, false), "전체 쿨다운이 지나면 새 대상은 말할 수 있다");
 		Assert.IsFalse(SpeechSystem.TryClaim("리더_1", SpeechId.AbsentMember, "사제", entry, entry.GlobalCooldown + 0.1f, false), "같은 대상은 유닛 쿨다운(30초) 안에는 반복하지 않는다");
 	}
 

@@ -790,6 +790,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // lastAttacker가 아니라 lastDamageDealer를 넘긴다 — lastAttacker는 인류-몬스터 교차 히트
             // 에서만 갱신되는 가중치 시스템 전용 필드라 몬스터끼리 킬은 항상 null이 된다.
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
+            if (u is Monster && u.lastDamageDealer is Human slayer) SpeechSystem.Say(slayer, SpeechId.KillEnemy); // 연출
 
             // 방 소유권 전환은 코어 체력제(OffenseProcessor.OnCoreDestroyed)로만 일어난다 — 유닛
             // 사망 자체는 점령 전환을 트리거하지 않고, 문 개폐도 매 프레임 판정이라 사망 시점 재확인이

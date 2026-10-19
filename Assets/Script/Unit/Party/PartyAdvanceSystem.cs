@@ -50,6 +50,7 @@ public static class PartyAdvanceSystem
 
 		string state = PartyBreachCommand.BlockedRowCount(plan, session, leader) == 0 ? "문이 이미 열려 있음" : $"막힌 문 {PartyBreachCommand.BlockedRowCount(plan, session, leader)}/2";
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 방 이동 지시({party.AdvanceAttempts}/{MaxAttempts}회째) — 사유: 집결 완료, 목표 문 ({doorPos.x},{doorPos.y}), {state}, {PartyDiagnostics.RankSummary(plan)}");
+		SpeechSystem.Say(leader, SpeechId.AdvanceOrder);
 		return true;
 	}
 
@@ -281,6 +282,7 @@ public static class PartyAdvanceSystem
 		plan.AssignDirty = true;
 		foreach (var m in plan.Ranks.Keys) ChangeReason(m, WaitReason.BreachingDoor);
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 앞 진형 완료({plan.Ranks.Count}명) — 리더 {leader.name}의 지시로 문 파괴 {(plan.BreachCycles > 0 ? $"재시도({plan.BreachCycles + 1}번째)" : "시작")}");
+		SpeechSystem.Say(leader, SpeechId.BreachOrder);
 	}
 
 	private static void TickBreaching(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
@@ -289,6 +291,7 @@ public static class PartyAdvanceSystem
 		{
 			case PartyBreachCommand.Outcome.Opened:
 				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 파괴 완료 — 진입로 확보({now - plan.PhaseStartTime:F1}초 소요)");
+				SpeechSystem.Say(leader, SpeechId.DoorOpened);
 				BeginEntering(party, plan, leader, session, now);
 				break;
 			case PartyBreachCommand.Outcome.Stalled:
@@ -319,6 +322,7 @@ public static class PartyAdvanceSystem
 			ChangeReason(m, WaitReason.FormingUpAtDoor);
 		}
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 파괴 {plan.BreachCycles}번째 시도 실패(진행 없음) — 진형으로 물러나 {cooldown:F0}초 뒤 다시 시도");
+		SpeechSystem.Say(party.Leader, SpeechId.BreachRetry);
 	}
 
 	private static void BeginEntering(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
@@ -371,6 +375,7 @@ public static class PartyAdvanceSystem
 		}
 		plan.EntryRadius = PartyFormationMath.ZoneRadius(entrySlots, farAnchor);
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 진입로 확보 — 리더 {leader.name}이(가) 진형을 유지한 채 역할 순(근접 전방 → 근접 지원 → 원거리 공격 → 원거리 지원, 리더도 자기 역할)으로 한 명씩 입장을 지시");
+		SpeechSystem.Say(leader, SpeechId.EntryOrder);
 	}
 
 	// 진입 판정: 문 먼 쪽 줄을 지난 유닛은 즉시 개인 행동으로 푼다(05번 1장·04번) — 다음 방 안쪽 자리에 전원이 모일 때까지 붙들지 않으며, 입장 자리는 문을 지나는 방향을 정하는 목적지일 뿐이다.
@@ -403,6 +408,7 @@ public static class PartyAdvanceSystem
 			break;
 		}
 		if (allDone) InformStragglersOfGate(party, plan);
+		if (allDone) SpeechSystem.Say(party.Leader, SpeechId.EntryDone);
 		if (allDone) Finish(party, plan, $"입장 완료 — {plan.EnteredCount}명이 문을 지나 개인 행동으로 복귀(나머지 {Mathf.Max(0, plan.Ranks.Count - plan.EnteredCount)}명은 포기·다른 대기), 입장 단계 {now - plan.PhaseStartTime:F1}초 소요(교전·경계 정지 시간 제외)");
 	}
 
@@ -464,6 +470,7 @@ public static class PartyAdvanceSystem
 		if (next == null) return;
 
 		MarkReleased(next, next.currentWait);
+		SpeechSystem.Say(next, SpeechId.EntryGo);
 		plan.NextEntryReleaseTime = now + interval;
 	}
 

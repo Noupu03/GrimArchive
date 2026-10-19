@@ -129,6 +129,7 @@ public static class PartyBreachCommand
 			plan.LastLoggedCount = count;
 			var door = plan.BreachTile.Value;
 			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 리더 {leader.name}의 지시 — {count}명이 {(row == 0 ? "가까운 쪽" : "먼 쪽")} 문 ({door.x},{door.y})에 달라붙어 파괴(공격 자리 {slots.Count}개, 자리 없어 대기 {candidates.Count - count}명)");
+			if (row == 1) SpeechSystem.Say(leader, SpeechId.BreachFarDoor);
 		}
 	}
 
