@@ -10,9 +10,9 @@ public static class RetreatSystem
 {
 	const float ObserveIntervalSeconds = 0.5f;
 
-	// 테스트용 — null이 아니면 설정 에셋 대신 이 값을 쓴다.
+	// 테스트·debug 메뉴용 — null이 아니면 설정 에셋 대신 이 값을 쓴다. 기본은 켜짐(설정 에셋이 없어도 켜지고, 에셋의 kill-switch로만 끈다).
 	public static bool? EnabledOverride;
-	public static bool Enabled => EnabledOverride ?? (AIConfigLoader.Behavior?.retreatFleeSystemEnabled ?? false);
+	public static bool Enabled => EnabledOverride ?? (AIConfigLoader.Behavior?.retreatFleeSystemEnabled ?? true);
 
 	// [0,1) 난수 — 테스트에서 교체한다.
 	public static Func<float> Random01 = () => UnityEngine.Random.value;

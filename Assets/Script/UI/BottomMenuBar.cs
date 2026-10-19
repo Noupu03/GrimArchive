@@ -140,6 +140,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 if (secondary.Count > 0) groups.Add(secondary);
                 var propagation = BuildDebugPropagationItems();
                 if (propagation.Count > 0) groups.Add(propagation);
+                groups.Add(BuildDebugRetreatItems());
                 break;
         }
         return groups;
@@ -541,6 +542,21 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         AddPropagationToggle(items, "사망음", () => v.ShowDeath, val => v.ShowDeath = val);
         AddPropagationToggle(items, "함정 작동음", () => v.ShowTrapActivation, val => v.ShowTrapActivation = val);
         items.Add(SubmenuItem.Header("소리 · 전파 시각화"));
+        return items;
+    }
+
+    // 후퇴·도주 플레이 확인용(임시, RetreatDebug) — 설정 에셋이 없어도 이 세션에서 시스템을 켜고, 정신력·파티 HP를 실제 판정 경로에 밀어 넣는다.
+    private List<SubmenuItem> BuildDebugRetreatItems()
+    {
+        var items = new List<SubmenuItem>();
+        bool on = RetreatSystem.Enabled;
+        items.Add(new SubmenuItem(on ? "■ 후퇴·도주 시스템 (ON)" : "□ 후퇴·도주 시스템 (OFF)", on, true, RetreatDebug.ToggleSystem));
+
+        bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human;
+        items.Add(new SubmenuItem("정신력 -10 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 10f))));
+        items.Add(new SubmenuItem("정신력 -30 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 30f))));
+        items.Add(new SubmenuItem("파티 HP 15%로 (선택 유닛의 파티)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.SetPartyHpPercent(u, 15f))));
+        items.Add(SubmenuItem.Header("후퇴 · 도주 확인"));
         return items;
     }
 
