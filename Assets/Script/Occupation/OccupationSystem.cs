@@ -11,8 +11,8 @@ public class OccupationSystem
 	// 방어 시설 자리표시자 — 방어건물 시스템이 없어 기능 없는 표식이다(함정은 진영 소유가 없어 인류도 해치므로 쓰지 않는다).
 	public const string DefenseFacilityTag = "Object/Passable/DefenseFacility";
 
-	// 위험도를 모르는 이웃 방도 진출 후보로 볼지. 핵심본 6장은 미확인 방을 안전하다고 보지 않지만, 정보 전달 체계가 없는 지금은 끄면 위험도 기록이 생길 때까지 점령 파티가 진출하지 못한다(사용자 결정: 기본 ON).
-	public static bool AllowUnknownAdvance = true;
+	// 위험도를 모르는 이웃 방도 진출 후보로 볼지. 핵심본 6장은 미확인 방을 안전하다고 보지 않으므로 기본은 꺼짐이다(사용자 결정 2026-10-21). 꺼두면 위험도 기록이 생길 때까지 점령 파티가 진출하지 못한다 — debug 메뉴 토글로 켠다.
+	public static bool AllowUnknownAdvance = false;
 
 	private const float ValidateIntervalSeconds = 1f;
 
@@ -141,12 +141,12 @@ public class OccupationSystem
 		return index >= 0 ? _neighborBuffer[index] : null;
 	}
 
-	// 집결·방 이동·후퇴 중이 아니고 리더가 적을 인지하지 않을 때 현재 방에 기초 시설을 짓는다. 적을 인지하면 건설하지 않고 전투한다(12장).
+	// 집결·방 이동·후퇴 중이 아니고 그 방의 파티원 누구도 교전 중이 아닐 때 현재 방에 기초 시설을 짓는다. 적 발견·피격 시 중단하고 전투한다(12장) — 진행도는 남고 교전이 끝나면(경계까지 마친 뒤) 이어 짓는다.
 	private void TickBasicConstruction(Party party, float deltaTime)
 	{
 		if (party.Retreat.IsRetreating) return;
 		Room room = party.Leader.currentRoom;
-		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party)) return;
+		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party) || IsEngagedIn(party, room)) return;
 
 		bool done = Construction.Tick(party, room, defense: false, deltaTime, out bool started);
 		if (started)
@@ -161,7 +161,15 @@ public class OccupationSystem
 	{
 		if (party.IsRallyActive || party.AdvancePlan != null || party.ReadyToAdvance) return false;
 		var leader = party.Leader;
-		return !leader.isInDungeonEntranceSequence && !leader.pendingStairTargetFloor.HasValue && leader.personalSpottedEnemies.Count == 0;
+		return !leader.isInDungeonEntranceSequence && !leader.pendingStairTargetFloor.HasValue;
+	}
+
+	// room에 있는 파티원 중 한 명이라도 전투·경계·합류 대기·적 인지 중이면 공사를 멈춘다(PartyEngagement.IsEngaged, 집결·진형의 시간 정지와 같은 판정). 리더만 보면 다른 파티원이 싸우는 동안에도 나머지 일꾼이 계속 지었다.
+	private static bool IsEngagedIn(Party party, Room room)
+	{
+		foreach (var m in party.Members)
+			if (m != null && m.currentRoom == room && PartyEngagement.IsEngaged(m)) return true;
+		return false;
 	}
 
 	private void CompleteBasic(Party party, Room room)
@@ -236,6 +244,7 @@ public class OccupationSystem
 		Room room = st.BaseRoom;
 		if (!st.IsRetreating || st.Phase != PartyRetreatPhase.Resting || room == null || !_defenseRequested.Contains(room)) return;
 		if (!OccupationMath.NeedsDefenseBuild(room.BaseStage, room.DefenseDesignated)) { _defenseRequested.Remove(room); return; }
+		if (IsEngagedIn(party, room)) return; // 건설 중 공격받으면 전투한다(13장) — 기초 공사와 같은 중단 규칙
 
 		bool done = Construction.Tick(party, room, defense: true, deltaTime, out bool started);
 		if (started) LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 방어 시설 건설 시작(작업량 {OccupationMath.DefenseWorkUnits:F0}) — 휴식을 마친 파티원이 짓는다");
