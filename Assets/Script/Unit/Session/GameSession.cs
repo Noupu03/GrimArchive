@@ -121,7 +121,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // ("RoomPopLabel_")은 Assets/Editor/Auto/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
-    private readonly Dictionary<Room, (int pop, int max, int status)> _roomPopulationLabelText = new Dictionary<Room, (int, int, int)>();
+    private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();
 
     // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
     private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
@@ -732,15 +732,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 label = CreateRoomPopulationLabel(room);
                 _roomPopulationLabels[room] = label;
-                _roomPopulationLabelText[room] = (-1, -1, -1);
+                _roomPopulationLabelText[room] = (-1, -1);
             }
 
-            // E: int 비교로 변화 감지 → 바뀐 경우에만 문자열 생성. 인구수 줄 아래에 인류 거점 단계·클리어 진행(남은 적 수)을 덧붙인다(RoomStatusText).
-            int status = RoomStatusText.Key(this, room);
+            // E: int 비교로 변화 감지 → 바뀐 경우에만 문자열 생성. 라벨에는 인원 제한만 두고 거점·클리어 진행 같은 방 상태는 라벨 클릭으로 여는 방 정보 패널에서 본다(RoomStatusText).
             if (_roomPopulationLabelText.TryGetValue(room, out var prev)
-                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation && prev.status == status) continue;
-            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation, status);
-            label.text = RoomStatusText.Compose(this, room);
+                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation) continue;
+            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation);
+            label.text = RoomStatusText.Population(room);
 
             // 인구수가 꽉 차면 라벨을 빨간색으로 표시 — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
             // 같이 재계산하면 충분하다(CurrentPopulation이 안 바뀌면 가득 참 여부도 안 바뀜).
@@ -749,6 +748,25 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     private static readonly Color DefaultRoomPopulationLabelColor = new Color(1f, 1f, 1f, 0.75f);
+
+    // 클릭 지점이 방 라벨(N/M) 위인지 — 글자 영역(MeshRenderer.bounds)에 여유를 더해 판정한다. 맞으면 InputManager가 방 정보 패널을 연다. worldPoint는 층 오프셋이 들어간 월드 좌표다.
+    public bool TryGetRoomLabelAt(Vector3 worldPoint, int floor, out Room room)
+    {
+        room = null;
+        foreach (var pair in _roomPopulationLabels)
+        {
+            if (pair.Key == null || pair.Key.Floor != floor || pair.Value == null) continue;
+            var meshRenderer = pair.Value.GetComponent<MeshRenderer>();
+            if (meshRenderer == null) continue;
+
+            Bounds bounds = meshRenderer.bounds;
+            bounds.Expand(new Vector3(0.6f, 0.6f, 100f));
+            if (!bounds.Contains(new Vector3(worldPoint.x, worldPoint.y, bounds.center.z))) continue;
+            room = pair.Key;
+            return true;
+        }
+        return false;
+    }
 
     // BuildRoomGrid가 다시 호출될 때(맵 재생성 등) 컨테이너는 그대로 두고 라벨만 갈아 끼운다.
     private void ClearRoomPopulationLabels()

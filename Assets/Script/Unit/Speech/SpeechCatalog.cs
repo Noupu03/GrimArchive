@@ -70,6 +70,7 @@ public enum SpeechId
 	CoreDestroyed,        // 코어 파괴
 	SalvagePicked,        // 코어 잔해 획득(반출 시작)
 	BaseBuildStart,       // 점령 파티 기초 시설 건설 시작
+	BaseBuildWork,        // 기초·방어 시설 공사 중 일꾼의 작업 소리(주기 반복)
 	BaseBuilt,            // 기초 시설 완공(기초 거점 형성)
 	DefenseBuilt,         // 예정 방어 시설 완공(방어 거점 형성)
 }
@@ -179,6 +180,7 @@ public static class SpeechCatalog
 		{ SpeechId.CoreDestroyed,    new SpeechEntry(new[] { "코어 파괴! 잔해를 챙겨라!", "해냈다! 코어가 부서졌다!" }, SpeechTone.Alert, 3.0f, 55, 10f) },
 		{ SpeechId.SalvagePicked,    new SpeechEntry(new[] { "잔해는 내가 챙긴다. 철수하자!", "이 잔해를 밖으로 가져가야 해." }, SpeechTone.Calm, 2.6f, 50, 20f, 4f) },
 		{ SpeechId.BaseBuildStart,   new SpeechEntry(new[] { "여기에 거점을 세운다. 서둘러라!", "시설을 세운다. 경계를 늦추지 마라." }, SpeechTone.Calm, 2.6f, 35, 30f, 8f) },
+		{ SpeechId.BaseBuildWork,    new SpeechEntry(new[] { "영차!", "여기 좀 잡아줘!", "조금만 더 버티자!", "단단히 고정해!", "망치 이리 줘!" }, SpeechTone.Calm, 1.8f, 15, 12f, 2.5f) },
 		{ SpeechId.BaseBuilt,        new SpeechEntry(new[] { "기초 시설 완공! 이곳이 우리 거점이다.", "문을 세웠다. 여기까지는 우리 땅이야." }, SpeechTone.Calm, 3.0f, 45, 20f, 4f) },
 		{ SpeechId.DefenseBuilt,     new SpeechEntry(new[] { "방어 시설 완공! 이제 버틸 수 있다.", "방어 거점이 완성됐다." }, SpeechTone.Calm, 3.0f, 45, 20f, 4f) },
 	};

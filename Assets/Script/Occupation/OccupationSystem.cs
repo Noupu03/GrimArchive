@@ -53,6 +53,7 @@ public class OccupationSystem
 	public void Tick(float deltaTime)
 	{
 		ValidateBases();
+		Construction.RefreshSiteVisibility();
 		if (_parties.Count == 0) return;
 
 		for (int i = _parties.Count - 1; i >= 0; i--)
@@ -148,11 +149,17 @@ public class OccupationSystem
 		Room room = party.Leader.currentRoom;
 		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party) || IsEngagedIn(party, room)) return;
 
-		bool done = Construction.Tick(party, room, defense: false, deltaTime, out bool started);
+		bool done = Construction.Tick(party, room, defense: false, deltaTime, out bool started, out bool halfway);
 		if (started)
 		{
 			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 건설 시작(작업량 {OccupationMath.BasicWorkUnits:F0})");
 			SpeechSystem.Say(party.Leader, SpeechId.BaseBuildStart);
+			NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}에서 거점 건설을 시작했습니다.", NoticeCenter.WarningColor);
+		}
+		if (halfway)
+		{
+			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 건설 절반 진행");
+			NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 {room.RoomName}의 인류 거점 건설이 절반 진행됐습니다.", NoticeCenter.WarningColor);
 		}
 		if (done) CompleteBasic(party, room);
 	}
@@ -246,7 +253,7 @@ public class OccupationSystem
 		if (!OccupationMath.NeedsDefenseBuild(room.BaseStage, room.DefenseDesignated)) { _defenseRequested.Remove(room); return; }
 		if (IsEngagedIn(party, room)) return; // 건설 중 공격받으면 전투한다(13장) — 기초 공사와 같은 중단 규칙
 
-		bool done = Construction.Tick(party, room, defense: true, deltaTime, out bool started);
+		bool done = Construction.Tick(party, room, defense: true, deltaTime, out bool started, out _);
 		if (started) LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 방어 시설 건설 시작(작업량 {OccupationMath.DefenseWorkUnits:F0}) — 휴식을 마친 파티원이 짓는다");
 		if (done) CompleteDefense(party, room);
 	}
@@ -300,7 +307,7 @@ public class OccupationSystem
 		Session.OffenseProcessor?.RefreshRoomOutline(room, pulse: false);
 	}
 
-	// 방 라벨에 덧붙일 거점 상태 문구(없으면 빈 문자열)와 변화 감지용 키 — 거점 단계·공사 진행(5% 단위)·방어 거점 지정을 구분한다(19장).
+	// 방 정보 패널(RoomStatusText.BaseText)에 보여 줄 거점 상태 문구(거점도 공사도 없으면 빈 문자열) — 거점 단계·공사 진행·방어 거점 지정을 구분한다(19장).
 	public string DescribeRoom(Room room)
 	{
 		switch (room.BaseStage)
@@ -315,12 +322,6 @@ public class OccupationSystem
 				float basic = Construction.Progress01(room, false);
 				return basic > 0f ? $"인류 거점 건설 {basic * 100f:F0}%" : string.Empty;
 		}
-	}
-
-	public int RoomStatusKey(Room room)
-	{
-		int progress = Mathf.RoundToInt(Mathf.Max(Construction.Progress01(room, false), Construction.Progress01(room, true)) * 20f);
-		return (int)room.BaseStage | (room.DefenseDesignated ? 4 : 0) | (progress << 3);
 	}
 
 	private string DescribeBases()

@@ -584,6 +584,13 @@ public class InputManager : MonoBehaviour
 			return;
 		}
 
+		// 방 라벨(N/M) 클릭 → 방 정보 패널 — 라벨 아래에 유닛·건물·오브젝트가 있으면 위에서 먼저 잡혀 그쪽이 우선한다. 오브젝트 클릭과 마찬가지로 현재 선택은 유지한다.
+		if (_gameSession.TryGetRoomLabelAt(ScreenGridUtil.ScreenToWorldPoint(screenPos), currentFloor, out Room labelRoom))
+		{
+			BuildingControlPanel.Instance?.ShowForRoom(labelRoom);
+			return;
+		}
+
 		// 허공 클릭 → 선택 해제 (Ctrl 중이면 기존 선택 유지)
 		if (!addHeld)
 			_selectedUnits.Clear();

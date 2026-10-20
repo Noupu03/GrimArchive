@@ -22,6 +22,10 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private BuildingManager _buildingManager;
     private BuildingData _current;
     private InteractableObject _currentObject;
+    private Room _currentRoom;
+
+    // 건물·오브젝트·방 중 하나라도 열려 있는가 — 셋은 상호 배타다.
+    private bool HasContent => _current != null || _currentObject != null || _currentRoom != null;
 
     [Inject]
     public void Construct(ResourceManager resourceManager, BuildingManager buildingManager)
@@ -44,7 +48,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         // InteractableObject는 순수 C# 클래스라 파괴돼도 Unity null 체크에 안 걸려 매 프레임 objectGrid로 직접 생존 확인한다.
         if (_currentObject != null && !IsObjectStillAlive(_currentObject))
             ClosePanel();
-        BottomLeftPanelStack.Report(StackId, _current != null || _currentObject != null, PanelWidth);
+        BottomLeftPanelStack.Report(StackId, HasContent, PanelWidth);
     }
 
     private static bool IsObjectStillAlive(InteractableObject obj)
@@ -63,6 +67,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         gameObject.SetActive(false);
         _current = null;
         _currentObject = null;
+        _currentRoom = null;
     }
 
     public void BindEvent() { }
@@ -71,6 +76,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     {
         _current = building;
         _currentObject = null;
+        _currentRoom = null;
         OpenPanel();
     }
 
@@ -79,6 +85,16 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     {
         _currentObject = obj;
         _current = null;
+        _currentRoom = null;
+        OpenPanel();
+    }
+
+    // InputManager가 방 라벨(N/M)을 클릭했을 때 호출한다 — 소유 진영·인원·클리어 진행·인류 거점·코어 상태를 조회한다.
+    public void ShowForRoom(Room room)
+    {
+        _currentRoom = room;
+        _current = null;
+        _currentObject = null;
         OpenPanel();
     }
 
@@ -90,7 +106,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     private Rect GetPanelRect()
     {
-        float x = BottomLeftPanelStack.Report(StackId, _current != null || _currentObject != null, PanelWidth);
+        float x = BottomLeftPanelStack.Report(StackId, HasContent, PanelWidth);
         float y = Screen.height - PanelHeight - BottomLeftPanelStack.GetReservedBottomHeight();
         return new Rect(x, y, PanelWidth, PanelHeight);
     }
@@ -99,7 +115,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // InputManager의 월드 클릭으로도 처리되던 문제 — 좌클릭 처리 전에 패널 영역 위인지 먼저 확인한다.
     public bool IsMouseOverPanel()
     {
-        if (_current == null && _currentObject == null) return false;
+        if (!HasContent) return false;
         return GUIMouseUtil.IsMouseOverRect(GetPanelRect());
     }
 
@@ -107,7 +123,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     public bool TryGetVisibleRect(out Rect rect)
     {
         rect = default;
-        if (_current == null && _currentObject == null) return false;
+        if (!HasContent) return false;
         rect = GetPanelRect();
         return true;
     }
@@ -115,7 +131,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // 기본 Unity GUI 스킨 대신 GUIMenuStyleUtil을 쓴다. 항목 개수가 가변적이라 DrawFlatButtonLayout(GUILayout 래퍼)을 쓴다.
     private void OnGUI()
     {
-        if (_current == null && _currentObject == null) return;
+        if (!HasContent) return;
 
         // StatusInfoPanel/DebugInfoPanel과 안 겹치도록 좌하단 유닛 정보 박스 오른쪽으로 옮겨 띄운다.
         Rect rect = GetPanelRect();
@@ -123,7 +139,11 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         GUILayout.BeginArea(new Rect(rect.x + 12, rect.y + 8, rect.width - 24, rect.height - 16));
 
-        if (_currentObject != null)
+        if (_currentRoom != null)
+        {
+            DrawRoomInfo(_currentRoom);
+        }
+        else if (_currentObject != null)
         {
             DrawObjectInfo(_currentObject);
         }
@@ -213,6 +233,23 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
 
         GUILayout.EndArea();
+    }
+
+    // 방 정보 — 방 라벨은 인원 제한만 보여 주므로 나머지 상태는 여기서 조회한다(코어 점령 v0.2 19장). 열려 있는 동안 매 프레임 최신 값을 읽는다.
+    private void DrawRoomInfo(Room room)
+    {
+        GameSession session = GameSession.Instance;
+        GUILayout.Label($"[ {room.RoomName} ]", GUIMenuStyleUtil.LabelStyle);
+        GUILayout.Label($"{room.Floor}층", GUIMenuStyleUtil.BodyLabelStyle);
+        if (session == null) return;
+
+        GUILayout.Label($"소유 진영: {RoomStatusText.FactionName(room.RoomFaction)}", GUIMenuStyleUtil.BodyLabelStyle);
+        GUILayout.Label($"인원: {RoomStatusText.Population(room)}", GUIMenuStyleUtil.BodyLabelStyle);
+        GUILayout.Label($"방 확보: {RoomStatusText.ClearText(session, room)}", GUIMenuStyleUtil.BodyLabelStyle);
+        GUILayout.Label($"인류 거점: {RoomStatusText.BaseText(session, room)}", GUIMenuStyleUtil.BodyLabelStyle);
+
+        string core = RoomStatusText.CoreText(session, room);
+        if (core.Length > 0) GUILayout.Label($"코어: {core}", GUIMenuStyleUtil.BodyLabelStyle);
     }
 
     // 모든 InteractableObject 공통 정보 표시 — 체력이 있으면 체력, 진영 소유 가능하면 소유 진영을 표기한다.
