@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 후퇴 목적지로서의 "거점"(후퇴도주 문서 2-1·2-3·5-1장). 거점 = 인류 소유 방(Room.RoomFaction == Human, 0층 제외, 사용자 확정) — 기초/방어 시설 시스템이 생기기 전까지 단일 종류(BaseKind.Basic)다.
+// 후퇴 목적지로서의 "거점"(후퇴도주 문서 2-1·2-3·5-1장). 거점 = 점령 파티가 기초 시설을 완공한 방(Room.BaseStage != None, 0층 제외)이고 방어 시설까지 완공하면 방어 거점이다(코어 점령 v0.2 12장).
 // 후보 수집·가장 가까운 곳 선택·휴식 자리 배정·도착 판정·재출격용 안전 방 조회를 한곳에 모은다.
 public static class RetreatBases
 {
-	public static bool IsUsable(Room room) => room != null && room.Floor >= 1 && room.RoomFaction == FactionType.Human;
+	public static bool IsUsable(Room room) => room != null && room.Floor >= 1 && room.BaseStage != BaseStage.None;
 
 	// 한 층의 후보 거점. 층을 건너는 후퇴(다른 층 거점)는 지금 지원하지 않아 같은 층만 모은다.
 	public static void Collect(GameSession session, int floor, List<Room> into)
@@ -135,7 +135,7 @@ public static class RetreatBases
 			else continue;
 
 			Room neighbor = FindRoom(session, baseRoom.Floor, neighborId);
-			if (neighbor == null || neighbor.RoomFaction == FactionType.Human) continue; // 이미 아군 방은 "진출"이 아니다
+			if (neighbor == null || neighbor.BaseStage != BaseStage.None) continue; // 이미 아군 거점은 "진출"이 아니다
 			bool known = leader.personalMap.TryGetKnownRoomDanger(neighborId, out float danger);
 			if (known ? PartyRetreatMath.IsSafeAdvanceRoom(true, danger, maxDanger) : allowUnknown) return true; // 위험도를 모르는 방은 점령 파티가 진출 후보로 허용할 때만 안전으로 본다(OccupationSystem.AllowUnknownAdvance)
 		}

@@ -62,23 +62,21 @@ public class CoreSystemTests
 		Assert.AreEqual(CoreActivateBlock.Destroyed, CoreMath.CheckActivate(false, true, false, true), "파괴된 코어는 먼저 수복해야 한다");
 	}
 
-	// ── 9장·20장: 수복 명령 = 부산물 장치 없음 + 코어 방 클리어 + 수복 자원 ──
+	// ── 9장: 수복 명령 = 코어 방 클리어 + 수복 자원 ──
 
 	[Test]
 	public void Restore_ChecksInDocumentOrder()
 	{
-		Assert.AreEqual(CoreRestoreBlock.NotDestroyed, CoreMath.CheckRestore(false, false, true, true));
-		Assert.AreEqual(CoreRestoreBlock.DeviceAttached, CoreMath.CheckRestore(true, true, true, true), "부산물 장치가 남아 있으면 수복 불가(20장 '수복된 코어에 장치' / 9장)");
-		Assert.AreEqual(CoreRestoreBlock.RoomNotCleared, CoreMath.CheckRestore(true, false, false, true));
-		Assert.AreEqual(CoreRestoreBlock.NotEnoughResources, CoreMath.CheckRestore(true, false, true, false));
-		Assert.AreEqual(CoreRestoreBlock.None, CoreMath.CheckRestore(true, false, true, true));
+		Assert.AreEqual(CoreRestoreBlock.NotDestroyed, CoreMath.CheckRestore(false, true, true));
+		Assert.AreEqual(CoreRestoreBlock.RoomNotCleared, CoreMath.CheckRestore(true, false, true));
+		Assert.AreEqual(CoreRestoreBlock.NotEnoughResources, CoreMath.CheckRestore(true, true, false));
+		Assert.AreEqual(CoreRestoreBlock.None, CoreMath.CheckRestore(true, true, true));
 	}
 
 	[Test]
-	public void Restore_DeviceDestroyedOnlyDoesNotRestoreByItself()
+	public void Functions_StopWhileDestroyed()
 	{
-		// 20장: 코어 부산물 장치 파괴만 완료 → 코어는 파괴 상태, 건설·생산·문 제어는 수복 전까지 불가.
-		Assert.IsFalse(CoreMath.FunctionsActive(destroyed: true));
+		Assert.IsFalse(CoreMath.FunctionsActive(destroyed: true), "코어 파괴 중에는 건설·생산·문 제어를 수복 전까지 쓸 수 없다");
 		Assert.IsTrue(CoreMath.FunctionsActive(destroyed: false));
 	}
 
@@ -87,10 +85,9 @@ public class CoreSystemTests
 	[Test]
 	public void Status_ReflectsFlags()
 	{
-		Assert.AreEqual(CoreStatus.Incomplete, CoreMath.StatusOf(false, false, false));
-		Assert.AreEqual(CoreStatus.FullyActivated, CoreMath.StatusOf(true, false, false));
-		Assert.AreEqual(CoreStatus.Destroyed, CoreMath.StatusOf(true, true, false));
-		Assert.AreEqual(CoreStatus.DeviceAttached, CoreMath.StatusOf(true, true, true));
+		Assert.AreEqual(CoreStatus.Incomplete, CoreMath.StatusOf(false, false));
+		Assert.AreEqual(CoreStatus.FullyActivated, CoreMath.StatusOf(true, false));
+		Assert.AreEqual(CoreStatus.Destroyed, CoreMath.StatusOf(true, true));
 	}
 
 	[Test]

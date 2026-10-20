@@ -40,6 +40,15 @@ public class BuildingData
     public bool WaitingForRoomSpace;
 }
 
+// 건물을 지을 수 없는 이유 — 플레이어에게 이유별 안내를 따로 보여 준다(코어 점령 v0.2 19장).
+public enum BuildBlock
+{
+    None,
+    CoreDestroyed,   // 담당 코어가 파괴돼 건설 명령이 정지됨
+    RoomNotSecured,  // 확보하지 않은 방(수복해도 확보 전에는 건설 불가)
+    Terrain,         // 벽·건물·문 자리 등
+}
+
 public class BuildingManager : NativeRoutine
 {
     // 자원 생산 건물 1개당 틱 주기/증가량 — 처치 보상(KillRewardWood/Stone=30)의 1/6로 잡은 자리표시자.
@@ -120,31 +129,43 @@ public class BuildingManager : NativeRoutine
     // requireOwnership=false면 방 점령(소유) 여부를 무시한다(디버그용 더미 건물 전용, 실제 생산
     // 건물은 항상 true).
     public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
+        => CheckInstallAt(pos, footprint, requireOwnership) == BuildBlock.None;
+
+    // 설치할 수 없는 첫 이유(없으면 None) — 안내 문구는 DescribeBlock.
+    public BuildBlock CheckInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
     {
         foreach (Vector3Int tile in FootprintTiles(pos, footprint))
         {
-            if (!CanInstallSingleTile(tile, requireOwnership))
-                return false;
+            BuildBlock block = CheckInstallSingleTile(tile, requireOwnership);
+            if (block != BuildBlock.None) return block;
         }
-        return true;
+        return BuildBlock.None;
     }
 
-    private bool CanInstallSingleTile(Vector3Int pos, bool requireOwnership = true)
+    public static string DescribeBlock(BuildBlock block) => block switch
     {
-        // 좌표가 음수면 맵 밖이므로 바로 false 반환 (IndexOutOfRangeException 방지)
-        if (pos.x < 0 || pos.y < 0 || pos.z < 0) return false;
+        BuildBlock.CoreDestroyed => "코어가 파괴되어 건설할 수 없습니다. 먼저 코어를 수복하세요.",
+        BuildBlock.RoomNotSecured => "확보하지 않은 방에서는 건설할 수 없습니다. 방의 적을 모두 처치해 확보하세요.",
+        BuildBlock.Terrain => "장애물이 있거나 설치할 수 없는 지형입니다.",
+        _ => string.Empty,
+    };
+
+    private BuildBlock CheckInstallSingleTile(Vector3Int pos, bool requireOwnership)
+    {
+        // 좌표가 음수면 맵 밖이므로 바로 막는다 (IndexOutOfRangeException 방지)
+        if (pos.x < 0 || pos.y < 0 || pos.z < 0) return BuildBlock.Terrain;
 
         // 1. 이미 건물이 있는지 확인 (1타일 1오브젝트)
-        if (buildingGrid.ContainsKey(pos)) return false;
+        if (buildingGrid.ContainsKey(pos)) return BuildBlock.Terrain;
 
         // 1-1. 게이트(문) 타일 최우선 예약 — 문이 파괴된 뒤에도 재설치 가능성을 지형으로 영구 보장하려고 IsDoorTile 대신 IsRepairableDoorTile로 확인한다.
-        if (GameSession.Instance != null && GameSession.Instance.IsRepairableDoorTile(pos)) return false;
+        if (GameSession.Instance != null && GameSession.Instance.IsRepairableDoorTile(pos)) return BuildBlock.Terrain;
 
-        // 1-2. 자기 소유(PlayerControlled) 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
-        if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return false;
+        // 1-2. 플레이어가 확보한 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
+        if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return BuildBlock.RoomNotSecured;
 
-        // 1-3. 담당 코어가 파괴되면 새 건설 명령을 낼 수 없다(코어 점령 v0.2 4-1장). 수복 명령은 가능하다. requireOwnership=false(디버그 더미 건물)는 건너뛴다.
-        if (requireOwnership && !AreCoreFunctionsActive(pos.z)) return false;
+        // 1-3. 담당 코어가 파괴되면 새 건설 명령을 낼 수 없다(코어 점령 v0.2 4-1장). 수복 명령은 가능하다.
+        if (requireOwnership && !AreCoreFunctionsActive(pos.z)) return BuildBlock.CoreDestroyed;
 
         // 2. 맵의 타일 장애물 정보 확인
         if (createMap != null && createMap.map.floors != null)
@@ -166,16 +187,16 @@ public class BuildingManager : NativeRoutine
                         {
                             var tile = chunk.chunk[tx, ty];
                             // 기본 타일맵 상 지나갈수 없는 곳인지 체크 (벽 등)
-                            if (tile.name == "Wall") return false;
+                            if (tile.name == "Wall") return BuildBlock.Terrain;
                             // 이미 다른 구조물이 있는지 체크
-                            if (tile.isStructureExist) return false;
+                            if (tile.isStructureExist) return BuildBlock.Terrain;
                         }
                     }
                 }
             }
         }
 
-        return true;
+        return BuildBlock.None;
     }
 
     // 이 층의 건설·생산·자원 생산이 가능한 상태인가 — 담당 코어(층당 하나)가 파괴되지 않았을 때. 코어가 없는 층은 제한이 없다.

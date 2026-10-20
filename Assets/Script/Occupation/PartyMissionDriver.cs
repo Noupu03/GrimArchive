@@ -2,9 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 파티 하나의 "다음 방 이동" 구동 — 집결이 끝나면(Party.ReadyToAdvance) 목표 방으로 가는 다음 문을 골라 문 앞 진형 → 문 파괴 → 순차 입장 계획(PartyAdvanceSystem)을 시작하고, 계획을 매 프레임 진행시킨다.
-// HumanWaveManager.UpdatePartyDestination의 비퇴각 부분과 같은 순서이지만 웨이브의 activeParty 하나에 묶여 있지 않아 점령 파티처럼 웨이브와 따로 상주하는 파티를 구동할 수 있다.
-// (웨이브 파티 쪽은 동작을 바꾸지 않으려고 그대로 두었다 — 같은 로직이 두 곳에 있으니 한쪽을 고치면 다른 쪽도 확인할 것.) 코어 처리 경로·소탕 파티 문 앞 접근·공동 이동 폴백은 점령 파티에 필요 없어 뺐다.
+// 파티 하나의 "다음 방 이동" 구동 — 집결이 끝나면(Party.ReadyToAdvance) 목표 방으로 가는 문을 골라 문 앞 진형 → 문 파괴 → 순차 입장 계획(PartyAdvanceSystem)을 시작하고 매 프레임 진행시킨다.
+// HumanWaveManager.UpdatePartyDestination의 비퇴각 부분과 같은 순서이지만 웨이브의 activeParty에 묶이지 않아 상주하는 점령 파티를 구동할 수 있다. 같은 로직이 두 곳에 있으니 한쪽을 고치면 다른 쪽도 확인할 것(코어 처리·소탕 문 앞 접근·공동 이동 폴백은 뺐다).
 public class PartyMissionDriver
 {
 	private const float LeaderRoomExploreGiveUpSeconds = 10f; // HumanWaveManager와 같은 값 — 방 안에서 문을 오래 못 찾으면 리더만 방 밖까지 탐색한다

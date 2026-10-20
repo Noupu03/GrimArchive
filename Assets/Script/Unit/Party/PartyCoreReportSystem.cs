@@ -12,6 +12,7 @@ public static class PartyCoreReportSystem
 	public static void OnCoreDiscovered(Human discoverer, InteractableObject core)
 	{
 		if (discoverer.party == null) return; // 파티 없는 단독 유닛 — 보고 대상 없음
+		if (discoverer.party.Type == PartyType.Occupy) return; // 점령 파티는 코어 처리 우선 규칙에서 빠진다 — 거점 건설과 진출이 임무라, 코어를 알게 돼도 집결·이동 계획을 버리고 멈추지 않는다
 		if (!TacticalFSMState.IsRoomCoreStillHostile(discoverer, core.Position)) return; // 이미 처리됨(내 진영 소유)
 		if (discoverer.party.LeaderKnownCorePosition == core.Position) return; // 리더가 이미 앎
 		SpeechSystem.Say(discoverer, SpeechId.CoreFound);

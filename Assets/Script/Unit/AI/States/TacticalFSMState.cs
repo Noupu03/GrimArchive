@@ -1579,21 +1579,20 @@ public class TacticalFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	// ── 코어 잔해 줍기(인류 전용) — 코어를 파괴하면 생기는 잔해를 같은 방에서 한 명이 주워 들고 파티가 던전 밖으로 반출한다(코어 점령 v0.2 8장, 웨이브 성공 조건).
-	// 파티에 운반자가 이미 있거나 후퇴·도주 중이면 줍지 않고, 길이 막혀 포기하면 잠시 다시 고르지 않는다.
+	// ── 코어 잔해 줍기(일반 파티 인류 전용) — 같은 방의 한 명이 주워 들고 파티가 반출한다. 점령 파티는 상주하며 반출하지 않으므로 줍지 않는다. 운반자가 이미 있거나 후퇴·도주 중이면 줍지 않고, 길이 막혀 포기하면 잠시 다시 고르지 않는다.
 	private static bool HasSalvageTarget(Unit unit) => FindSalvageTarget(unit, out _);
 
 	private static bool FindSalvageTarget(Unit unit, out InteractableObject salvage)
 	{
 		salvage = null;
-		if (!(unit is Human human) || human.carriesCoreSalvage || human.party == null) return false;
+		if (!(unit is Human human) || human.carriesCoreSalvage || human.party == null || human.party.Type == PartyType.Occupy) return false;
 		if (Time.time < human.salvageIgnoreUntil) return false;
-		CoreSystem core = human.Session?.Core;
-		if (core == null || !core.HasAnySalvage) return false;
+		CoreSalvage salvages = human.Session?.Core?.Salvage;
+		if (salvages == null || !salvages.HasAny) return false;
 		if (RetreatSystem.IsBoundToRetreat(human)) return false;
-		if (CoreSystem.PartyHasCarrier(human.party)) return false;
+		if (CoreSalvage.PartyHasCarrier(human.party)) return false;
 		if (!human.Session.roomGrid.TryGetValue(new Vector3Int(human.position.x, human.position.y, human.currentFloor), out Room room) || room == null) return false;
-		salvage = core.FindSalvageInRoom(room);
+		salvage = salvages.FindInRoom(room);
 		return salvage != null;
 	}
 
@@ -1612,7 +1611,7 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 
-		// 리셋 기준은 "이동 성공 여부"가 아니라 "거리가 실제로 줄었는지"다(MoveToCoreAttack과 같은 이유 — 혼잡 구역의 제자리 셔플은 Move() 관점에선 성공이다).
+		// 이동 성공이 아니라 거리가 실제로 줄었는지로 판단한다(MoveToCoreAttack과 같다 — 혼잡 구역의 제자리 셔플도 Move()는 성공이다).
 		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, pos);
 		AIMovementHelper.MoveTowardsPos(unit, pos);
 		if (AIMovementHelper.ChebyshevDistance(unit.position, pos) < distBefore)
@@ -1626,7 +1625,7 @@ public class TacticalFSMState : IFSMState
 		if (unit.tacticalObjectAttackStuckTurns >= limit)
 		{
 			unit.tacticalObjectAttackStuckTurns = 0;
-			if (unit is Human human) human.salvageIgnoreUntil = Time.time + 10f; // 닿지 못하는 잔해를 틱마다 다시 고르지 않는다
+			if (unit is Human human) human.salvageIgnoreUntil = Time.time + 10f;
 			return BTStatus.Failure;
 		}
 		return BTStatus.Running;
@@ -1635,7 +1634,7 @@ public class TacticalFSMState : IFSMState
 	private static BTStatus SalvagePickupPerform(Unit unit)
 	{
 		if (FindSalvageTarget(unit, out InteractableObject salvage))
-			unit.Session.Core.OnSalvagePickedUp((Human)unit, salvage);
+			unit.Session.Core.Salvage.PickUp((Human)unit, salvage);
 		return BTStatus.Success;
 	}
 
@@ -1659,7 +1658,7 @@ public class TacticalFSMState : IFSMState
 
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
 		if (!unit.Session.roomGrid.TryGetValue(gridPos, out Room room) || room == null) return false;
-		if (room.RoomFaction != FactionType.Human) return false; // "방을 점령하고 난 다음"
+		if (room.BaseStage == BaseStage.None) return false; // "방을 점령하고 난 다음"
 		if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= unit.Session.cmap.map.floors.Length) return false;
 
 		Floor floor = unit.Session.cmap.map.floors[room.Floor];

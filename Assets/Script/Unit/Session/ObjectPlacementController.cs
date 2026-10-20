@@ -174,7 +174,7 @@ public class ObjectPlacementController
         // 우클릭 취소는 없다 — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을
         // 다시 눌러야 한다. 설치 확정 입력은 "좌클릭=선택, 우클릭=실행" 관례에 따라 우클릭이다.
         if (GameInputScheme.SecondaryDown && coreBlocked && !GUIMouseUtil.IsPointerOverAnyPanel())
-            NoticeCenter.Instance?.PushMomentary("코어가 파괴되어 건설할 수 없습니다. 먼저 코어를 수복하세요.", NoticeCenter.WarningColor);
+            NoticeCenter.Instance?.PushMomentary(BuildingManager.DescribeBlock(BuildBlock.CoreDestroyed), NoticeCenter.WarningColor);
 
         if (GameInputScheme.SecondaryDown && canPlace)
         {

@@ -556,7 +556,7 @@ public class RetreatSystemTests
 		party.Retreat.Mode = RetreatMode.PartyRetreat;
 		party.Retreat.Phase = PartyRetreatPhase.Resting;
 		party.Retreat.Destination = RetreatDestination.Base;
-		party.Retreat.BaseRoom = new Room { Floor = 1, RoomFaction = FactionType.Human };
+		party.Retreat.BaseRoom = new Room { Floor = 1, BaseStage = BaseStage.Basic };
 		party.Retreat.RestStartedAt = 0f;
 		foreach (var m in new[] { a, b }) { m.Retreat.Ordered = true; m.Retreat.AtBase = true; }
 		return party;
@@ -646,7 +646,7 @@ public class RetreatSystemTests
 	{
 		RetreatSystem.EnabledOverride = true;
 		var party = RestingParty(PartyType.Explore, 30f, -20f, out var a, out _);
-		party.Retreat.BaseRoom.RoomFaction = FactionType.Wild; // 코어를 빼앗겨 더는 인류 거점이 아니다
+		party.Retreat.BaseRoom.BaseStage = BaseStage.None; // 인류 시설이 파괴돼 더는 이용할 수 없는 거점이다
 		PartyRetreatSystem.ValidateBase(party);
 		Assert.AreEqual(PartyRetreatPhase.Leaving, party.Retreat.Phase, "대체 거점이 없으면(세션 없음) 출구로");
 		Assert.IsFalse(a.Retreat.AtBase);

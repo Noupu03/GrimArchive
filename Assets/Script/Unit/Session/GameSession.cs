@@ -48,12 +48,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private DoorSystem _doorSystem;
     private FogOfWarSystem _fogOfWarSystem;
     // 코어 점령(2026-10-19) — 코어 활성화·파괴·수복과 방 클리어 조회. 다른 시스템은 GameSession.Instance.Core / RoomClear로 접근한다.
-    private CoreSystem _coreSystem;
-    private RoomClearSystem _roomClearSystem;
-    private OccupationSystem _occupationSystem;
-    public CoreSystem Core => _coreSystem;
-    public RoomClearSystem RoomClear => _roomClearSystem;
-    public OccupationSystem Occupation => _occupationSystem;
+    public CoreSystem Core { get; private set; }
+    public RoomClearSystem RoomClear { get; private set; }
+    public OccupationSystem Occupation { get; private set; }
 
     // 오브젝트 스폰(SpawnObject)·시작 건물 배치가 동기로 쓰는 스프라이트 — Initialize가 LoadObjectSpritesAsync로 먼저 불러 둔다.
     private Sprite _trapSprite;
@@ -79,9 +76,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     [Inject]
     public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem, CoreSystem coreSystem, RoomClearSystem roomClearSystem, OccupationSystem occupationSystem)
     {
-        _coreSystem = coreSystem;
-        _roomClearSystem = roomClearSystem;
-        _occupationSystem = occupationSystem;
+        Core = coreSystem;
+        RoomClear = roomClearSystem;
+        Occupation = occupationSystem;
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
         _propagationDebugVisualizer = propagationDebugVisualizer;
@@ -124,7 +121,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // ("RoomPopLabel_")은 Assets/Editor/Auto/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
-    private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();
+    private readonly Dictionary<Room, (int pop, int max, int status)> _roomPopulationLabelText = new Dictionary<Room, (int, int, int)>();
 
     // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
     private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
@@ -691,8 +688,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         RefreshRoomPopulationLabels();
-        _roomClearSystem?.Tick(Time.deltaTime); // 방 클리어 → 플레이어 확보
-        _occupationSystem?.Tick(Time.deltaTime); // 인류 점령 파티의 거점 건설·진출
+        RoomClear?.Tick(Time.deltaTime);
+        Occupation?.Tick(Time.deltaTime);
         TickCoreRegen();
     }
 
@@ -735,14 +732,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 label = CreateRoomPopulationLabel(room);
                 _roomPopulationLabels[room] = label;
-                _roomPopulationLabelText[room] = (-1, -1);
+                _roomPopulationLabelText[room] = (-1, -1, -1);
             }
 
-            // E: int 비교로 변화 감지 → 바뀐 경우에만 $"" 문자열 생성
+            // E: int 비교로 변화 감지 → 바뀐 경우에만 문자열 생성. 인구수 줄 아래에 인류 거점 단계·클리어 진행(남은 적 수)을 덧붙인다(RoomStatusText).
+            int status = RoomStatusText.Key(this, room);
             if (_roomPopulationLabelText.TryGetValue(room, out var prev)
-                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation) continue;
-            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation);
-            label.text = $"{room.CurrentPopulation}/{room.MaxPopulation}";
+                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation && prev.status == status) continue;
+            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation, status);
+            label.text = RoomStatusText.Compose(this, room);
 
             // 인구수가 꽉 차면 라벨을 빨간색으로 표시 — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
             // 같이 재계산하면 충분하다(CurrentPopulation이 안 바뀌면 가득 참 여부도 안 바뀜).
@@ -882,7 +880,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
             if (_unitGenerate != null) _unitGenerate.RemoveVisual(u, deathAnimSeconds);
             // 코어 잔해를 들고 죽었다면 사망 위치 근처에 잔해를 다시 놓는다 — 파티의 다른 인류가 주울 수 있다(코어 점령 v0.2 8장).
-            if (u is Human carrier && carrier.carriesCoreSalvage) _coreSystem?.OnCarrierDied(carrier);
+            if (u is Human carrier && carrier.carriesCoreSalvage) Core?.Salvage.OnCarrierDied(carrier);
             UnityEngine.Object.Destroy(u);
         }
 
@@ -960,7 +958,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         var party = new Party(System.Guid.NewGuid().ToString(), name);
         // 파티 종류별 방 활동 종료 기준이 다르다(01번 7-1장). 편성 가능 유닛·가중치는 미작성이라 PartyType 중 무작위 배정으로 스텁한다.
         // 점령 파티는 1층 코어 완전 활성화 이후부터 등장한다(코어 점령 v0.2 12장) — 그 전에는 무작위 배정에서 뺀다.
-        bool occupyAllowed = _coreSystem != null && _coreSystem.IsFloorCoreEverActivated(1);
+        bool occupyAllowed = Core != null && Core.IsFloorCoreEverActivated(1);
         do party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
         while (party.Type == PartyType.Occupy && !occupyAllowed);
         foreach (var m in members)
@@ -1213,7 +1211,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isCorpse = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Corpse"));
         bool isCoreOnly = obj.Tags != null && obj.Tags.Contains(CoreTag);
         bool isLoot = obj.Tags != null && obj.Tags.Exists(t => t.Contains("Loot"));
-        bool isSalvage = obj.Tags != null && obj.Tags.Contains(CoreSystem.SalvageTag);
+        bool isSalvage = obj.Tags != null && obj.Tags.Contains(CoreSalvage.Tag);
         bool isDefenseFacility = obj.Tags != null && obj.Tags.Contains(OccupationSystem.DefenseFacilityTag);
         // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem이 곧바로 닫힘으로 교체하고, 이후 개폐는 DoorSystem.UpdateProcess가 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
@@ -1343,6 +1341,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 점령 파티의 기초 시설(방 쪽 인류 문) — 방의 문 묶음 대표 타일 목록과 소유 진영 일괄 변경.
     public List<Vector3Int> GetRoomDoorAnchors(Room room) => _doorSystem.GetRoomDoorAnchors(room);
     public int SetRoomDoorsOwner(Room room, FactionType owner) => _doorSystem.SetRoomDoorsOwner(room, owner);
+    public int CountRoomDoors(Room room, FactionType owner) => _doorSystem.CountRoomDoors(room, owner);
     // 문 재설치 고스트가 쓰는 묶음 정보(모든 칸·회전) — pos가 속한 방 쪽 줄(1×2) 하나. tilesOut은 호출부가 재사용하는 버퍼다.
     public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
         => _doorSystem.TryGetDoorGroupTiles(pos, tilesOut, out rotationZ);

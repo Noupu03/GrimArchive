@@ -53,11 +53,10 @@ namespace GrimArchive.Wave
         // 추적 중인 웨이브 데이터
         public Party activeParty;
 
-        // 웨이브 승리 조건(코어 점령 v0.2 8장): 목표 방(waveData.targetFloor의 보스방) 코어를 파괴해 잔해를 파티가 던전 밖으로 반출한다. 파티에 잔해 운반자가 있는 동안(또는 이미 반출에 성공했으면)
-        // _retreating이 true가 되고, UpdatePartyDestination이 목적지를 exitAreaPos로 바꿔 퇴각 로직을 재사용한다. 운반자가 죽어 잔해를 잃으면 다시 false가 되어 파티가 잔해를 다시 줍는다.
+        // 웨이브 승리 조건: 목표 방(보스방) 코어를 파괴하고 잔해를 던전 밖으로 반출한다. 잔해 운반자가 있거나 반출에 성공했으면 _retreating이 true가 되어 퇴각 로직(출구 이동)이 돈다(UpdateSalvageObjective).
         private Room _targetRoom;
         private bool _retreating;
-        // 이번 웨이브 시작 시점까지 반출된 잔해 수 — 이보다 늘었으면 이번 웨이브에서 반출에 성공한 것이다(CoreSystem.SalvageExportWaves).
+        // 웨이브 시작 시점까지 반출된 잔해 수 — 이보다 늘었으면 이번 웨이브에서 반출에 성공한 것이다.
         private int _salvageExportsAtWaveStart;
         // 방 이동 결정 로그 폭주 방지 — "다음 문을 모름"은 상태가 바뀔 때 한 번만, 코어 경로의 반복 발행은 일정 간격으로만 남긴다.
         private bool _doorSearchLogged;
@@ -548,7 +547,7 @@ namespace GrimArchive.Wave
             // 목표 방(targetFloor의 보스방)의 Room을 미리 찾아 둔다(코어 위치는 GameSession.SpawnBossCores가 채운 room.CorePosition 사용).
             _retreating = false;
             _targetRoom = null;
-            _salvageExportsAtWaveStart = GameSession.Instance?.Core != null ? GameSession.Instance.Core.SalvageExportWaves.Count : 0;
+            _salvageExportsAtWaveStart = GameSession.Instance?.Core != null ? GameSession.Instance.Core.Salvage.ExportWaves.Count : 0;
             int targetFloor = targetSpawner.waveData.targetFloor;
             if (GameSession.Instance?.unitGenerate != null)
             {
@@ -627,7 +626,8 @@ namespace GrimArchive.Wave
             }
         }
 
-        // 점령 파티는 웨이브와 따로 던전에 상주한다(코어 점령 v0.2 13장 "점령 파티 전체는 던전에 남으며 목표 완료만으로 귀환하지 않는다") — 전원이 목표 층에 도착하면 OccupationSystem에 넘기고 이 웨이브는 끝낸다. 다음 웨이브는 일반 사이클대로 이어진다.
+        // 점령 파티는 웨이브와 따로 던전에 상주한다 — 전원이 목표 층에 도착하면 OccupationSystem에 넘기고 이 웨이브는 끝낸다(다음 웨이브는 일반 사이클대로).
+
         private bool TryHandOffToOccupation()
         {
             if (activeParty == null || activeParty.Type != PartyType.Occupy || stagingUnits.Count > 0) return false;
@@ -650,7 +650,7 @@ namespace GrimArchive.Wave
             return true;
         }
 
-        // 점령 파티를 1층 입구(계단 도착 지점)에 바로 스폰해 OccupationSystem에 넘긴다 — debug 확인용(점령 파티 자동 편성 로직이 아직 없다). 구성은 웨이브 데이터의 첫 인류 파티와 같다.
+        // debug 전용 — 점령 파티(구성은 웨이브 데이터의 첫 인류 파티)를 1층 입구에 바로 스폰해 OccupationSystem에 넘긴다. 자동 편성 로직이 아직 없다.
         public bool DebugSpawnOccupationParty()
         {
             var session = GameSession.Instance;
@@ -679,21 +679,19 @@ namespace GrimArchive.Wave
             }
             if (members.Count == 0) return false;
 
-            Party party = session.CreateParty("점령 파티", members);
-            party.Type = PartyType.Occupy;
-            session.Occupation.Adopt(party);
+            session.Occupation.Adopt(session.CreateParty("점령 파티", members));
             return true;
         }
 
-        // 웨이브 목표 진행 판정 — 파티에 코어 잔해 운반자가 있거나 이번 웨이브에서 이미 반출에 성공했으면 퇴각 단계다. 운반자가 죽어 잔해가 다시 떨어지면 퇴각을 풀고(퇴각 대기도 걷어) 파티가 잔해를 다시 줍게 한다.
+        // 웨이브 목표 진행 — 잔해 운반자가 있거나 이번 웨이브에서 이미 반출했으면 퇴각 단계다. 운반자가 죽어 잔해가 다시 떨어지면 퇴각을 풀고(퇴각 대기도 걷어) 파티가 다시 줍는다.
         private void UpdateSalvageObjective()
         {
             if (activeParty == null) return;
             CoreSystem core = GameSession.Instance?.Core;
             if (core == null) return;
 
-            bool exportedThisWave = core.SalvageExportWaves.Count > _salvageExportsAtWaveStart;
-            bool objectiveMet = exportedThisWave || CoreSystem.PartyHasCarrier(activeParty);
+            bool exportedThisWave = core.Salvage.ExportWaves.Count > _salvageExportsAtWaveStart;
+            bool objectiveMet = exportedThisWave || CoreSalvage.PartyHasCarrier(activeParty);
             if (objectiveMet == _retreating) return;
 
             _retreating = objectiveMet;

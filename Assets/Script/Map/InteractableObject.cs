@@ -60,15 +60,12 @@ public class InteractableObject
     public float TrapDamageMin;
     public float TrapDamageMax;
 
-    // 코어 점령 설계명세서 v0.2: CoreTag가 붙은 오브젝트에만 의미가 있다. 체력이 0이 되면 CoreDestroyed가 켜지고(CoreSystem.OnCoreDestroyed) 코어는 그 자리에 파괴 상태로 남는다 —
-    // 방 소유권은 바뀌지 않고 재생도 없으며, 플레이어가 수복 명령(CoreSystem.TryRestore)을 내려야 체력이 돌아온다.
+    // CoreTag가 붙은 오브젝트에만 의미가 있다(코어 점령 v0.2). 체력이 0이 되면 CoreDestroyed가 켜지고 코어는 파괴 상태로 남는다 — 수복 명령(CoreSystem.TryRestore)으로만 돌아온다.
     public float CoreHp;
     public float CoreMaxHp;
-    // 최초 완전 활성화 이력 — 한 번 켜지면 파괴·수복과 무관하게 유지된다. 켜지기 전에는 누구도 이 코어를 공격할 수 없다(CoreMath.IsAttackable).
+    // 최초 완전 활성화 이력 — 파괴·수복과 무관하게 유지되고, 켜지기 전에는 누구도 공격할 수 없다(CoreMath.IsAttackable).
     public bool CoreEverActivated;
     public bool CoreDestroyed;
-    // 코어 부산물 장치 결합 여부(7장) — 장치 연구·결합 경로가 아직 없어 항상 false인 구조만 열어 둔 필드다.
-    public bool CoreDeviceAttached;
 
     // 문도 방어건물화: DoorTag가 붙은 오브젝트에만 의미가 있다. 체력이 0이 되면 DoorSystem.RemoveDoor가
     // 오브젝트를 제거해 통로가 뚫리고, 이후 배치 모드로만(원래 게이트 타일 자리에 한해) 재설치할 수 있다.

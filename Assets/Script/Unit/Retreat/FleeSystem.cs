@@ -46,7 +46,7 @@ public static class FleeSystem
 		}
 	}
 
-	// 개인 도주를 확정한다 — 한 번 확정되면 정신력 회복·리더 명령으로 취소하지 않고, 확정 즉시 파티 후퇴·휴식 평균에서 제외된다(Party.CollectRetreatAverageMembers). 리더에게 도주 사실을 자동 전달하지 않는다. 진행 중이던 조사·대기·함정 대응은 접는다(출구 이동이 집결·휴식·리더 명령보다 우선). 기절 중이면 이동은 기절이 끝난 뒤 시작한다(Unit.JudgeState가 stunDuration 동안 FSM을 막는다).
+	// 개인 도주를 확정한다 — 한 번 확정되면 정신력 회복·리더 명령으로 취소하지 않고, 확정 즉시 파티 후퇴·휴식 평균에서 제외된다(Party.CollectRetreatAverageMembers). 리더에게 도주 사실을 자동 전달하지 않는다. 코어 잔해를 들고 있었다면 현재 타일에 내려놓는다(R41). 진행 중이던 조사·대기·함정 대응은 접는다(출구 이동이 집결·휴식·리더 명령보다 우선). 기절 중이면 이동은 기절이 끝난 뒤 시작한다(Unit.JudgeState가 stunDuration 동안 FSM을 막는다).
 	public static void ConfirmFlee(Human human, FleeReason reason)
 	{
 		var state = human?.Retreat;
@@ -57,6 +57,7 @@ public static class FleeSystem
 		state.FleeRoll.Confirmed = true;
 		state.Move.Reset();
 		PartyRetreatSystem.InterruptActivities(human);
+		human.Session?.Core?.Salvage.OnCarrierFled(human);
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 개인 도주 확정 — {Describe(reason)}, 정신력 {human.BaseStat.mental:F1}, 판정 {state.FleeRoll.TotalRolls}회");
 		SpeechSystem.Say(human, reason == FleeReason.EncounterShock ? SpeechId.EncounterFleeMax : SpeechId.FleeConfirmed); // 연출 — 명세서 4-3·7-3장
 		NotifyWitnesses(human);

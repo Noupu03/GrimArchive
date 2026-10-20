@@ -212,7 +212,7 @@ public static class PartyRetreatSystem
 		{
 			// 방어 거점으로 정한 방은 예정 방어 시설까지 완공해야 재출격한다(코어 점령 v0.2 13장) — 공사 중이면 휴식을 유지한 채 기다린다.
 			var occupation = rested[0].Session?.Occupation;
-			if (occupation != null && !occupation.RequestDefenseBuild(party, st.BaseRoom)) return;
+			if (occupation != null && !occupation.EnsureDefenseBuilt(st.BaseRoom)) return;
 			TryResortie(party, rested, avg, now);
 			return;
 		}

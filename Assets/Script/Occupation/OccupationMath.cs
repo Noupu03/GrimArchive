@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-// 인류 점령 파티의 거점·건설·진출 판정(순수, 부수효과 없음) — 코어 점령 설계명세서 v0.2 12~14장. 세션을 읽는 호출부는 OccupationSystem이다.
-// 거점 = 점령 파티가 기초 시설을 완공한 방(기초 거점), 예정 방어 시설까지 완공하면 방어 거점이다.
+// 인류 점령 파티의 거점·건설·진출 판정(순수) — 코어 점령 설계명세서 v0.2 12~14장. 거점 = 기초 시설을 완공한 방, 예정 방어 시설까지 완공하면 방어 거점이다.
 public enum BaseStage
 {
 	None,    // 거점 아님(기초 시설 미완공 — 점령 작업 진행 중이거나 손대지 않은 방)
@@ -34,8 +33,6 @@ public static class OccupationMath
 	public static float Progress01(float done, float total) => total <= 0f ? 1f : (done <= 0f ? 0f : done >= total ? 1f : done / total);
 
 	public static bool IsWorkComplete(float done, float total) => done >= total;
-
-	public static bool IsBaseUsable(BaseStage stage) => stage != BaseStage.None;
 
 	// 점령 파티의 방 활동 종료 기준(01번 7-1장 Occupy) — 현재 방이 기초 거점이면 끝이다. 방어 시설은 방어 거점으로 정한 방에서 후퇴·휴식 뒤에 짓는 것이라(13장) 전진을 막지 않는다.
 	public static bool IsRoomActivityComplete(BaseStage stage) => stage != BaseStage.None;

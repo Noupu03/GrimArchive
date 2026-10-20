@@ -247,7 +247,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         CoreSystem coreSystem = GameSession.Instance?.Core;
         if (coreSystem == null || !coreSystem.TryGetCoreAt(obj.Position, out Room room, out InteractableObject core)) return;
 
-        CoreStatus status = CoreMath.StatusOf(core.CoreEverActivated, core.CoreDestroyed, core.CoreDeviceAttached);
+        CoreStatus status = CoreMath.StatusOf(core.CoreEverActivated, core.CoreDestroyed);
         GUILayout.Label($"코어 상태: {CoreMath.Describe(status)}", GUIMenuStyleUtil.BodyLabelStyle);
 
         if (!core.CoreDestroyed)

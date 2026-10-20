@@ -41,7 +41,7 @@ public class Room
     public string CoreObjectId;
     public Vector3Int CorePosition;
 
-    // 인류 점령 파티가 만든 거점 단계(코어 점령 v0.2 12장) — RoomFaction == Human 인 방에서만 None이 아니다. 소유가 바뀌면 OffenseProcessor.ApplyRoomOwnership가 되돌린다.
+    // 인류 점령 파티가 만든 거점 단계(코어 점령 v0.2 12장) — 방 소유(RoomFaction, 플레이어 확보)와 별개 상태다. 인류 문이 모두 사라지면 OccupationSystem이 None으로 되돌린다.
     public BaseStage BaseStage { get; set; } = BaseStage.None;
     // 방어 거점으로 정한 방 — 후퇴·휴식 뒤 예정 방어 시설을 짓고 나서 재출격한다(13장). OccupationSystem.TryDesignateDefenseBase가 정한다.
     public bool DefenseDesignated { get; set; }

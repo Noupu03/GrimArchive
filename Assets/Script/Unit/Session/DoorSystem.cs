@@ -453,6 +453,16 @@ public class DoorSystem
         return changed;
     }
 
+    // room의 방 쪽 문 묶음 중 owner 소유로 남아 있는(파괴되지 않은) 것의 수 — 인류 기초 시설이 아직 남아 있는지 판단한다.
+    public int CountRoomDoors(Room room, FactionType owner)
+    {
+        int count = 0;
+        foreach (var pos in GetRoomDoorAnchors(room))
+            if (Session.objectGrid.TryGetValue(pos, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag)
+                && door.DoorHp > 0f && door.DoorOwnerFaction == owner) count++;
+        return count;
+    }
+
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.
     public bool IsRepairableDoorTile(Vector3Int pos) => TryFindGateAt(pos, out _);
 

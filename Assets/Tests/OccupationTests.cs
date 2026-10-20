@@ -38,13 +38,11 @@ public class OccupationTests
 	// ── 12장: 시설 상태 판정 ──
 
 	[Test]
-	public void BaseStage_UsabilityAndActivityComplete()
+	public void RoomActivity_CompleteOnceBaseIsBuilt()
 	{
-		Assert.IsFalse(OccupationMath.IsBaseUsable(BaseStage.None), "기초 시설 미완공은 점령 작업 진행 중 — 후퇴 목적지 아님");
-		Assert.IsTrue(OccupationMath.IsBaseUsable(BaseStage.Basic), "기초 거점도 후퇴·휴식 가능");
-		Assert.IsTrue(OccupationMath.IsBaseUsable(BaseStage.Defense));
-		Assert.IsFalse(OccupationMath.IsRoomActivityComplete(BaseStage.None));
+		Assert.IsFalse(OccupationMath.IsRoomActivityComplete(BaseStage.None), "기초 시설 미완공은 점령 작업 진행 중");
 		Assert.IsTrue(OccupationMath.IsRoomActivityComplete(BaseStage.Basic), "통과 방은 기초 설치만 하고 전진한다");
+		Assert.IsTrue(OccupationMath.IsRoomActivityComplete(BaseStage.Defense));
 	}
 
 	[Test]

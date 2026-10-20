@@ -35,7 +35,7 @@ public static class RetreatExit
 		if (member == null) return;
 		member.ClearInteractionProgress(); // v0.6 9-9장: 웨이브를 떠나는 시점에 조사·해제 진행도 제거(생존자는 재사용된다)
 		member.Knowledge?.DeliverRecords(member);
-		member.Session?.Core?.OnSalvageExported(member); // 코어 잔해를 들고 나갔다면 반출 성공(코어 점령 v0.2 7·8장) — 후퇴·도주로 나간 경우도 같다
+		member.Session?.Core?.Salvage.OnExported(member); // 코어 잔해를 들고 나갔다면 반출 성공(코어 점령 v0.2 7·8장) — 후퇴·도주로 나간 경우도 같다
 		member.party?.OnMemberExited(member);
 		FleeSystem.ResetForNewInvasion(member);
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {member.name}이(가) 던전 밖으로 나갔습니다(기록 전달 완료)");

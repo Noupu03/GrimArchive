@@ -1165,7 +1165,8 @@ public abstract class UnitFunction : Unit
 
 		// 오브젝트(코어/문) 공격 채널링 — TrapPhase.Destroying과 동일한 패턴. 자동 AI와 플레이어 명령
 		// 양쪽이 인접 도착 시 이 필드를 채우고, 대상이 파괴/전환/소멸될 때까지 매 프레임 데미지를 적용한다.
-		if (currentAttackObjectTarget.HasValue && Session != null)
+		// 기절 중에는 공격할 수 없다 — 대상은 유지하고 기절이 풀리면 이어서 공격한다(코어 점령 v0.2 10-1장).
+		if (currentAttackObjectTarget.HasValue && Session != null && StatusEffects.State.stunDuration <= 0f)
 		{
 			Vector3Int targetPos = currentAttackObjectTarget.Value;
 			if (Session.objectGrid.TryGetValue(targetPos, out var targetObj))
