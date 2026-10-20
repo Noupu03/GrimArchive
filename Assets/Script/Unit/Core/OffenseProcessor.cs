@@ -121,4 +121,22 @@ public class OffenseProcessor
         _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(room.BaseStage != BaseStage.None ? FactionType.Human : room.RoomFaction));
         if (pulse) _colorizer?.PulseRoomOutline(room);
     }
+
+    // 방어 시설을 짓는 동안 테두리를 채우는 색 — 기초 시설의 인류 색(파랑)과 구분되는 방어 시설 표식과 같은 주황.
+    public static readonly UnityEngine.Color DefenseBuildOutlineColor = new UnityEngine.Color(1f, 0.6f, 0.2f, 1f);
+
+    // 거점 공사 진행도를 방 테두리에 그린다 — 나머지 부분은 지금 소유 진영 색(인류 거점이 이미 있으면 인류 색)이다. 공사가 끝나면 ClearRoomBuildProgress로 걷는다.
+    public void SetRoomBuildProgress(Room room, float progress01, bool defense)
+    {
+        if (room == null) return;
+        var baseColor = GetRoomOwnerColor(room.BaseStage != BaseStage.None ? FactionType.Human : room.RoomFaction);
+        var fillColor = defense ? DefenseBuildOutlineColor : MapRandering.HumanRoomOutlineColor;
+        _colorizer?.SetRoomBuildProgress(room, progress01, baseColor, fillColor);
+    }
+
+    public void ClearRoomBuildProgress(Room room)
+    {
+        if (room == null) return;
+        _colorizer?.ClearRoomBuildProgress(room);
+    }
 }

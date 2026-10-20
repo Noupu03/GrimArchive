@@ -109,9 +109,22 @@ public class UnitVisual : MonoBehaviour
 	private static Sprite _sharedHealthBarCenterSprite;
 	private static Sprite _sharedHealthBarLeftSprite;
 
-	// 비율별 초록/노랑/빨강 3색은 초록이 바닥 타일 색과 안 겹쳐서, 잘 안 겹치는 마젠타 계열
-	// 단색으로 고정했다.
-	private static readonly Color HealthBarFillColor = new Color(1f, 0.15f, 0.6f, 1f);
+	// 비율별 초록/노랑/빨강 3색은 초록이 바닥 타일 색과 안 겹쳐서, 체력 비율로 색을 바꾸지 않고 진영마다 단색으로 고정했다(채움 길이가 비율을 보여 준다).
+	// 진영 색은 서로 색상(hue)이 확실히 멀고 초록을 피한다 — 인류 파랑(방 테두리 인류 색과 같은 계열), 플레이어 몬스터 주황, 야생 마젠타(야생 위협 타일의 분홍-보라 계열). 판정은 Unit.FactionBehavior 기준이라 진영이 바뀌면 다음 갱신에 색도 바뀐다.
+	private static readonly Color HumanHealthBarColor = new Color(0.25f, 0.6f, 1f, 1f);
+	private static readonly Color PlayerMonsterHealthBarColor = new Color(1f, 0.6f, 0.1f, 1f);
+	private static readonly Color WildHealthBarColor = new Color(1f, 0.15f, 0.6f, 1f);
+	private static readonly Color HealthBarFillColor = WildHealthBarColor; // 진영을 알 수 없을 때의 기본색(예전 단색)
+	private Color _healthBarColor;
+
+	private Color ResolveHealthBarColor()
+	{
+		if (boundUnit == null) return HealthBarFillColor;
+		if (boundUnit.IsHumanFaction) return HumanHealthBarColor;
+		if (boundUnit.IsPlayerMonsterFaction) return PlayerMonsterHealthBarColor;
+		if (boundUnit.IsWildMonsterFaction) return WildHealthBarColor;
+		return HealthBarFillColor;
+	}
 
 	public void UpdateHealthBar(bool visible, float hp, float maxHp)
 	{
@@ -121,6 +134,13 @@ public class UnitVisual : MonoBehaviour
 		_healthBarBg.enabled = visible;
 		_healthBarFill.enabled = visible;
 		if (!visible) return;
+
+		Color fillColor = ResolveHealthBarColor();
+		if (fillColor != _healthBarColor)
+		{
+			_healthBarColor = fillColor;
+			_healthBarFill.color = fillColor;
+		}
 
 		float ratio = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
 		_healthBarFill.transform.localScale = new Vector3(_healthBarFillBaseScaleX * ratio, _healthBarFill.transform.localScale.y, 1f);

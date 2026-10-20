@@ -30,6 +30,7 @@ public class OccupationSystem
 	private readonly Dictionary<Party, float> _nextPickTime = new Dictionary<Party, float>();
 	private readonly List<Room> _bases = new List<Room>();
 	private readonly HashSet<Room> _defenseRequested = new HashSet<Room>();
+	private readonly Dictionary<Room, Vector3Int> _facilities = new Dictionary<Room, Vector3Int>(); // 방마다 실제로 세운 방어 시설 오브젝트의 칸 — 거점을 잃으면 철거한다
 	private readonly List<Room> _neighborBuffer = new List<Room>();
 	private float _nextValidateTime;
 
@@ -53,7 +54,7 @@ public class OccupationSystem
 	public void Tick(float deltaTime)
 	{
 		ValidateBases();
-		Construction.RefreshSiteVisibility();
+		Construction.RefreshVisuals();
 		if (_parties.Count == 0) return;
 
 		for (int i = _parties.Count - 1; i >= 0; i--)
@@ -182,9 +183,10 @@ public class OccupationSystem
 	private void CompleteBasic(Party party, Room room)
 	{
 		int doors = Session.SetRoomDoorsOwner(room, FactionType.Human);
+		// 공사 연출을 먼저 마무리한다(건설물이 천막 상징물로 남는다) — MarkBase가 곧바로 테두리 펄스를 시작하므로, 그 뒤에 테두리 채움을 걷으면 펄스 첫 프레임을 균일한 선으로 덮어쓴다.
+		Construction.Complete(room, defense: false);
 		MarkBase(room, BaseStage.Basic);
 		_frontBase = room;
-		Construction.Reset(room);
 		BaseConstruction.ClearWaits(party);
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 완공 — 문 {doors}개를 인류 소유로 설치/전환, 기초 거점 형성. {DescribeBases()}");
@@ -260,9 +262,9 @@ public class OccupationSystem
 
 	private void CompleteDefense(Party party, Room room)
 	{
+		Construction.Complete(room, defense: true); // 테두리 펄스를 시작하는 MarkBase보다 먼저 — CompleteBasic과 같은 이유. 천막 상징물은 걷히고 아래 SpawnDefenseFacility가 같은 칸에 망루를 세운다
 		MarkBase(room, BaseStage.Defense);
 		_defenseRequested.Remove(room);
-		Construction.Reset(room);
 		BaseConstruction.ClearWaits(party);
 		SpawnDefenseFacility(room);
 
@@ -273,10 +275,31 @@ public class OccupationSystem
 
 	private void SpawnDefenseFacility(Room room)
 	{
-		var center = new Vector3Int(Mathf.RoundToInt(room.Bounds.center.x), Mathf.RoundToInt(room.Bounds.center.y), room.Floor);
-		Vector3Int pos = Session.objectGrid.ContainsKey(center) ? Session.FindNearbyFreeObjectTile(center) : center;
+		// 공사 현장 한가운데에 세운다 — 청사진이 이미 계단·건물·코어·오브젝트·문을 피해 고른 자리이고, 건설물이 완공 연출로 사라진 바로 그 자리다.
+		// 자리를 못 구했을 때만 방 중앙 근처에서 찾되, 중앙이 계단·건물 같은 구조물 칸이어도 비켜 간다(오브젝트 칸만 보면 계단 위에 서 버린다).
+		if (!Construction.TryGetFacilityTile(room, out Vector3Int pos))
+		{
+			var center = new Vector3Int(Mathf.RoundToInt(room.Bounds.center.x), Mathf.RoundToInt(room.Bounds.center.y), room.Floor);
+			bool blocked = Session.objectGrid.ContainsKey(center) || !Session.cmap.IsStaticTileWalkable(room.Floor, new Vector2Int(center.x, center.y));
+			pos = blocked ? Session.FindNearbyFreeObjectTile(center) : center;
+		}
 		var facility = new InteractableObject("DefenseFacility_" + System.Guid.NewGuid().ToString().Substring(0, 4), pos, 0f, 0f, new List<string> { DefenseFacilityTag });
 		Session.SpawnObject(facility, new Color(1f, 0.6f, 0.2f));
+		// 방어 거점의 상징물은 이 오브젝트 자신이다 — 주황 자리표시자 대신 공사 현장에서 올리던 망루로 보이게 한다. 칸이 이미 차 있어 SpawnObject가 무시됐다면 남의 비주얼을 건드리지 않는다.
+		if (Session.objectGrid.TryGetValue(pos, out InteractableObject placed) && placed == facility)
+		{
+			_facilities[room] = pos;
+			BaseSiteVisual.ApplyDefenseEmblem(Session.GetObjectVisual(pos));
+		}
+	}
+
+	// 거점을 잃으면 방어 시설도 함께 철거된다 — 상징물인 망루만 덩그러니 남지 않게(사용자 요청 2026-10-21). 다시 거점을 세우면 방어 시설도 처음부터 다시 짓는다.
+	private void RemoveDefenseFacility(Room room)
+	{
+		if (!_facilities.TryGetValue(room, out Vector3Int pos)) return;
+		_facilities.Remove(room);
+		if (Session.objectGrid.TryGetValue(pos, out InteractableObject obj) && obj.Tags != null && obj.Tags.Contains(DefenseFacilityTag))
+			Session.CollectObject(pos);
 	}
 
 	// TacticalFSMState.ExecuteWait(평소)와 RestPerform(거점 휴식 중 방어 시설 공사)이 부르는 건설 대기 유닛 한 틱.
@@ -303,6 +326,7 @@ public class OccupationSystem
 		_bases.Remove(room);
 		_defenseRequested.Remove(room);
 		Construction.Reset(room);
+		RemoveDefenseFacility(room);
 		if (_frontBase == room) _frontBase = _bases.Count > 0 ? _bases[_bases.Count - 1] : null;
 		Session.OffenseProcessor?.RefreshRoomOutline(room, pulse: false);
 	}
@@ -342,7 +366,8 @@ public class OccupationSystem
 		MarkBase(room, defense ? BaseStage.Defense : (room.BaseStage == BaseStage.None ? BaseStage.Basic : room.BaseStage));
 		if (defense) room.DefenseDesignated = true;
 		if (!defense || _frontBase == null) _frontBase = room;
-		Construction.Reset(room);
+		// 공사 연출 마무리 — 기초 거점이면 천막 상징물이 서고, 방어 거점이면 천막을 걷고 아래에서 망루를 세운다(이미 방어 거점인 방에 기초를 요청해도 천막은 세우지 않는다).
+		Construction.Complete(room, room.BaseStage == BaseStage.Defense);
 		if (newlyDefense) SpawnDefenseFacility(room);
 		LogHelper.Log(LogHelper.GAME, $"[점령] debug — F{room.Floor} 방 {room.RoomId}({room.RoomName})을(를) 인류 {(defense ? "방어" : "기초")} 거점으로 만듦");
 	}

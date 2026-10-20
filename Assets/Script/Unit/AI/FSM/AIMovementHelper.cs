@@ -353,10 +353,15 @@ public static class AIMovementHelper
 		return TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, true, out slot) || TryFindDoorWaitSlot(unit, doorPos, claimedSlots, null, false, out slot) ? slot : doorPos;
 	}
 
-	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, bool clearPassage, out Vector2Int slot)
+	// 거점 공사 현장(청사진) 둘레의 일꾼 자리 — 현장 가장자리 바로 바깥(minRadius)부터 최대 3칸 더 넓혀 가며 이 유닛에게 가장 가까운 빈 칸을 고른다. 문 앞 통과 구간을 비운 자리가 우선이고 없으면 완화한다. 자리가 없으면 false.
+	public static bool TryFindWorkSlot(Unit unit, Vector2Int siteCenter, int minRadius, Room room, HashSet<Vector2Int> claimedSlots, out Vector2Int slot)
+		=> TryFindDoorWaitSlot(unit, siteCenter, claimedSlots, room, true, out slot, minRadius, minRadius + 3)
+			|| TryFindDoorWaitSlot(unit, siteCenter, claimedSlots, room, false, out slot, minRadius, minRadius + 3);
+
+	private static bool TryFindDoorWaitSlot(Unit unit, Vector2Int doorPos, HashSet<Vector2Int> claimedSlots, Room requiredRoom, bool clearPassage, out Vector2Int slot, int minRadius = 2, int maxRadius = 5)
 	{
 		slot = default;
-		for (int radius = 2; radius <= 5; radius++)
+		for (int radius = minRadius; radius <= maxRadius; radius++)
 		{
 			Vector2Int best = default;
 			int bestDist = int.MaxValue;

@@ -6,10 +6,15 @@ using UnityEngine.InputSystem;
 // InputActionAsset 대신 매 프레임 device를 직접 읽는 정적 프로퍼티로 구성해 MonoBehaviour 생명주기 의존을 없앴다.
 public static class GameInputScheme
 {
-    private static Keyboard Kb => Keyboard.current;
+    // OnGUI 텍스트 입력창(debug 자원 조절 등)에 포커스가 있는 동안 true — 숫자를 치다가 1~4 배속·WASD 카메라·스페이스 일시정지 같은 게임 단축키가 같이 반응하지 않게 키보드만 막는다(마우스는 그대로).
+    // 모든 키보드 입력이 아래 Kb를 거치므로 이 한 곳에서 막으면 된다.
+    public static bool TextInputFocused { get; set; }
+
+    private static Keyboard Kb => TextInputFocused ? null : Keyboard.current;
     private static Mouse    Ms => Mouse.current;
 
-    public static bool IsReady => Kb != null && Ms != null;
+    // 텍스트 입력 중에도 입력 시스템 자체는 준비된 상태다(InputManager가 이걸로 마우스 처리까지 통째로 건너뛰지 않게).
+    public static bool IsReady => Keyboard.current != null && Ms != null;
     // GUIMouseUtil처럼 키보드 유무와 무관하게 "포인터 좌표를 읽을 수 있는가"만 필요한 순수 UI
     // 히트테스트 호출부용 — IsReady(둘 다 필요)와 분리해 마우스만 있어도 정상 동작한다.
     public static bool PointerAvailable => Ms != null;

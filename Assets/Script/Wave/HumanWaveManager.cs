@@ -286,17 +286,19 @@ namespace GrimArchive.Wave
         // 깊이(RankSpacingX(2)*랭크수(최대 2)=4)만큼 더 민 값 — 대기 포메이션이 안개에 가리지 않게.
         private const int DungeonEntranceRoomEntryX = 24;        // 청크1/2 경계 — 대형 전체가 안개에서 떨어짐.
 
+        private const int DungeonEntranceHiddenChunkSize = 12; // Floor_0.chunkSize — 숨은 청크는 x 0~11이다.
+
+        // 이전 웨이브 생존자까지 합류해 인원이 많아져도 한 행·한 칸에 겹쳐 서지 않도록, 중심에서 반경을 넓혀 가며 비어 있는 바닥 칸을 고른다(숨은 청크 안만 — 벽 칸·다른 유닛이 선 칸 제외). 이전엔 같은 행에서 무작위 5칸만 시도하고 실패하면 중앙 한 칸에 몰렸다.
         private Vector2Int FindSpawnPosInHiddenChunk(int rowY)
         {
             var generator = GameSession.Instance.unitGenerate;
+            var cmap = GameSession.Instance.cmap;
             Vector2Int center = new Vector2Int(DungeonEntranceHiddenChunkCenterX, rowY);
-            for (int i = 0; i < 10; i++)
-            {
-                int ox = UnityEngine.Random.Range(-2, 3);
-                Vector2Int cand = center + new Vector2Int(ox, 0);
-                if (generator != null && generator.IsAreaClear(cand, Vector2.one, 0)) return cand;
-            }
-            return center;
+            bool IsFree(Vector2Int t)
+                => t.x < DungeonEntranceHiddenChunkSize
+                   && (cmap == null || cmap.IsStaticTileWalkable(0, t))
+                   && (generator == null || generator.IsAreaClear(t, Vector2.one, 0));
+            return PartyFormationMath.TryPickNearestFreeTile(center, IsFree, null, DungeonEntranceHiddenChunkSize, out Vector2Int picked) ? picked : center;
         }
 
         // DungeonEntranceSystem이 전원에게 계단 접근 명령을 내린 순간 호출하는 콜백 — pendingStairTargetFloor를 세팅해 개인 FSM+BT 계단이동(MoveToStairs/CrossStairs)이 이어받게 한다.

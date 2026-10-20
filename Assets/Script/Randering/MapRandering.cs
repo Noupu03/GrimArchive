@@ -37,6 +37,10 @@ public class MapRandering : NativeRoutine, IMapColorizer
     // 루프는 스스로 종료한다(같은 LineRenderer를 두 루프가 동시에 써서 깜빡이는 것을 방지).
     private readonly Dictionary<(int floor, int roomId), int> _outlinePulseGeneration
         = new Dictionary<(int, int), int>();
+    // 인류 거점을 짓는 방의 테두리 채움 상태 — 소유 진영 색으로 다시 그려지거나 펄스가 끝나도 진행도가 사라지지 않게 여기 들고 있다가 매번 같은 경로(ApplyOutlineAppearance)로 입힌다.
+    private struct OutlineBuildState { public float Progress; public Color Base; public Color Fill; }
+    private readonly Dictionary<(int floor, int roomId), OutlineBuildState> _outlineBuildStates
+        = new Dictionary<(int, int), OutlineBuildState>();
 
     public Tilemap[] floorTilemaps { get; private set; }
     public Vector3Int[] floorOffsets { get; private set; }
@@ -675,6 +679,7 @@ public class MapRandering : NativeRoutine, IMapColorizer
         // 동일한 관례) 여기서는 딕셔너리만 비운다.
         _roomOutlines.Clear();
         _roomOutlineGroups.Clear();
+        _outlineBuildStates.Clear();
         if (mapRoot != null)
         {
             for (int i = mapRoot.transform.childCount - 1; i >= 0; i--)
@@ -834,9 +839,96 @@ public class MapRandering : NativeRoutine, IMapColorizer
             {
                 LineRenderer lr = renderers[i];
                 if (lr == null) continue;
-                ResetOutlineRendererToFlat(lr, baseColors[i]);
+                ApplyOutlineAppearance(key, lr, baseColors[i]);
             }
         }
+    }
+
+    // ── 거점 건설 진행 표시 ──
+    // 인류 점령 파티가 거점을 짓는 동안 방 테두리가 진행도만큼 한 바퀴를 따라 채워진다(채운 부분은 굵고 끝은 밝다). 소유 진영 색은 채워지지 않은 나머지 부분에 그대로 남는다.
+    private const float OutlineBuildFilledWidthRatio = 1.6f;  // 채운 부분의 굵기 배율
+    private const float OutlineBuildHeadLength = 0.03f;       // 채움 끝의 밝은 꼬리 길이(테두리 한 바퀴 대비)
+    private const float OutlineBuildEdgeEpsilon = 0.002f;     // 채운 부분과 나머지의 경계가 칼같이 갈라지도록 두 키를 붙이는 간격
+
+    public void SetRoomBuildProgress(Room room, float progress01, Color baseColor, Color fillColor)
+    {
+        if (room == null) return;
+        var key = (room.Floor, room.RoomId);
+        _outlineBuildStates[key] = new OutlineBuildState { Progress = Mathf.Clamp01(progress01), Base = baseColor, Fill = fillColor };
+        if (!_roomOutlines.TryGetValue(key, out var renderers)) return;
+        foreach (var lr in renderers)
+            if (lr != null && lr.gameObject.activeSelf) ApplyOutlineAppearance(key, lr, baseColor);
+    }
+
+    public void ClearRoomBuildProgress(Room room)
+    {
+        if (room == null) return;
+        var key = (room.Floor, room.RoomId);
+        if (!_outlineBuildStates.TryGetValue(key, out var state)) return;
+        _outlineBuildStates.Remove(key);
+        if (!_roomOutlines.TryGetValue(key, out var renderers)) return;
+        foreach (var lr in renderers)
+            if (lr != null) ResetOutlineRendererToFlat(lr, state.Base);
+    }
+
+    // 윤곽선 한 줄을 소유 진영 색으로 균일하게 되돌리거나, 거점을 짓는 방이면 진행도만큼 채운 모양으로 그린다 — SetRoomOutline·펄스 종료·진행도 갱신이 모두 이 한 곳을 거친다.
+    private void ApplyOutlineAppearance((int floor, int roomId) key, LineRenderer lr, Color baseColor)
+    {
+        if (_outlineBuildStates.TryGetValue(key, out var state))
+        {
+            state.Base = baseColor; // 소유 진영 색이 바뀌었을 수 있다
+            _outlineBuildStates[key] = state;
+            ApplyOutlineBuildFill(lr, baseColor, state.Fill, state.Progress);
+            return;
+        }
+        ResetOutlineRendererToFlat(lr, baseColor);
+    }
+
+    // Gradient 색상 키는 Blend 모드로 경계 양쪽에 아주 가깝게 두 키를 둬서 칼 같은 경계를 만든다(Fixed 모드의 키 방향 해석에 기대지 않기 위해).
+    private static void ApplyOutlineBuildFill(LineRenderer lr, Color baseColor, Color fillColor, float progress)
+    {
+        float p = Mathf.Clamp01(progress);
+        if (p <= 0f)
+        {
+            ResetOutlineRendererToFlat(lr, baseColor);
+            return;
+        }
+
+        float filledWidth = RoomOutlineWidth * OutlineBuildFilledWidthRatio;
+        var alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) };
+        var gradient = new Gradient();
+        AnimationCurve widthCurve;
+
+        if (p >= 0.999f)
+        {
+            gradient.SetKeys(new[] { new GradientColorKey(fillColor, 0f), new GradientColorKey(fillColor, 1f) }, alphaKeys);
+            widthCurve = AnimationCurve.Constant(0f, 1f, filledWidth);
+        }
+        else
+        {
+            float head = Mathf.Clamp(p, 0.02f, 0.99f);
+            float tailStart = Mathf.Max(0.001f, head - OutlineBuildHeadLength);
+            float edgeBefore = head - OutlineBuildEdgeEpsilon;
+            float edgeAfter = Mathf.Min(head + OutlineBuildEdgeEpsilon, 0.999f);
+            Color headColor = Color.Lerp(fillColor, Color.white, 0.7f);
+
+            gradient.SetKeys(new[]
+            {
+                new GradientColorKey(fillColor, 0f),
+                new GradientColorKey(fillColor, tailStart),
+                new GradientColorKey(headColor, edgeBefore),
+                new GradientColorKey(baseColor, edgeAfter),
+                new GradientColorKey(baseColor, 1f),
+            }, alphaKeys);
+            widthCurve = new AnimationCurve(
+                new Keyframe(0f, filledWidth),
+                new Keyframe(edgeBefore, filledWidth),
+                new Keyframe(edgeAfter, RoomOutlineWidth),
+                new Keyframe(1f, RoomOutlineWidth));
+        }
+
+        lr.widthCurve = widthCurve;
+        lr.colorGradient = gradient;
     }
 
     // widthCurve/colorGradient를 균일한 값으로 되돌린다 — 펄스가 자연 종료될 때뿐 아니라
@@ -971,8 +1063,9 @@ public class MapRandering : NativeRoutine, IMapColorizer
             lr.startColor = color;
             lr.endColor = color;
             // 진행 중이던 방 테두리 펄스(PulseRoomOutline)가 widthCurve/colorGradient를 굴곡지게
-            // 남겨뒀을 수 있다 — 소유권이 바뀌어 다시 그리는 지금은 항상 균일한 값으로 되돌린다.
-            ResetOutlineRendererToFlat(lr, color);
+            // 남겨뒀을 수 있다 — 소유권이 바뀌어 다시 그리는 지금은 항상 균일한 값으로 되돌린다
+            // (거점을 짓는 방이면 균일한 값 대신 진행도 채움을 새 소유 색 위에 다시 입힌다).
+            ApplyOutlineAppearance(key, lr, color);
             lr.positionCount = loop.Count;
             for (int p = 0; p < loop.Count; p++)
                 lr.SetPosition(p, new Vector3(loop[p].x, loop[p].y, 0f));

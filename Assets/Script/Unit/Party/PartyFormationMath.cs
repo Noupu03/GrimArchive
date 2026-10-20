@@ -94,6 +94,29 @@ public static class PartyFormationMath
 		return false;
 	}
 
+	// 0층 입구 진형 자리 배정 — 집결처럼 유닛마다 자기 자리를 따로 받는다. 이상 자리(랭크·레인)가 바닥이 아니거나(벽·로비 밖) 앞서 다른 유닛이 가져갔으면 그 자리에서 가장 가까운 빈 바닥 칸으로 밀려난다.
+	// 먼저 모든 유닛이 이상 자리를 받을 수 있는지 보고(그래야 뒤 랭크의 이상 자리를 앞 랭크의 넘친 인원이 가로채지 않는다) 남은 유닛만 가까운 빈 칸에 넣는다. 인원이 많아 한 줄이 로비 폭을 넘으면 넘친 인원이 옆·뒤 칸으로 들어가 벽에 닿지 않는다.
+	// frontAnchor = 0랭크 줄의 레인 0 타일, 진행 방향은 +x. maxX는 진형이 넘어서면 안 되는 앞쪽 끝(행진 목적지 바로 앞). 자리를 못 찾은 유닛은 null(제자리).
+	public static Vector2Int?[] AssignEntranceSlots(IList<(int rank, int lane)> entries, Vector2Int frontAnchor, Func<Vector2Int, bool> isWalkable, int maxX, int searchRadius = DefaultSearchRadius)
+	{
+		var slots = new Vector2Int?[entries.Count];
+		var claimed = new HashSet<Vector2Int>();
+		bool IsOpen(Vector2Int t) => t.x <= maxX && isWalkable(t);
+
+		for (int i = 0; i < entries.Count; i++)
+		{
+			Vector2Int ideal = SlotTarget(frontAnchor, Vector2Int.right, entries[i].rank, entries[i].lane);
+			if (IsOpen(ideal) && claimed.Add(ideal)) slots[i] = ideal;
+		}
+		for (int i = 0; i < entries.Count; i++)
+		{
+			if (slots[i].HasValue) continue;
+			Vector2Int ideal = SlotTarget(frontAnchor, Vector2Int.right, entries[i].rank, entries[i].lane);
+			if (TryPickNearestFreeTile(ideal, IsOpen, claimed, searchRadius, out Vector2Int picked)) slots[i] = picked;
+		}
+		return slots;
+	}
+
 	// 같은 랭크 안에서 현재 가로(lateral) 좌표 순으로 레인을 나눈다 — 서로 교차해 비비지 않는다. 반환은 입력과 같은 순서의 레인 오프셋.
 	public static int[] AssignLanes(IList<int> lateralPositions)
 	{

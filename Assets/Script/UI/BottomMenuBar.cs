@@ -44,7 +44,14 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         // 층 변경 패널을 다른 UI보다 뒤에 깔기 위한 별도 컴포넌트(FloorPanelOverlay) — 새 프리팹 없이 런타임으로 붙인다.
         if (gameObject.GetComponent<FloorPanelOverlay>() == null)
             gameObject.AddComponent<FloorPanelOverlay>();
+
+        // debug "자원 조절" 떠 있는 창 — 같은 방식으로 런타임에 붙인다(새 프리팹 없음).
+        _resourceWindow = gameObject.GetComponent<DebugResourceWindow>();
+        if (_resourceWindow == null)
+            _resourceWindow = gameObject.AddComponent<DebugResourceWindow>();
     }
+
+    private DebugResourceWindow _resourceWindow;
 
     public void OpenPanel()
     {
@@ -89,6 +96,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         if (GUIMouseUtil.IsMouseOverRect(GetBarRect())) return true;
         if (GUIMouseUtil.IsMouseOverRect(GetFloorPanelRect())) return true;
+        if (_resourceWindow != null && _resourceWindow.IsMouseOver()) return true;
         return _activeCategory != MenuCategory.None && GUIMouseUtil.IsMouseOverRect(GetSubmenuBoundingRect());
     }
 
@@ -140,9 +148,11 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 if (secondary.Count > 0) groups.Add(secondary);
                 var propagation = BuildDebugPropagationItems();
                 if (propagation.Count > 0) groups.Add(propagation);
-                groups.Add(BuildDebugRetreatItems());
+                // 열이 더 늘어 화면 폭을 넘지 않도록 항목이 적은 후퇴 열 위에 자원 항목을 이어 붙인다(블록마다 자기 헤더가 있다).
+                var retreat = BuildDebugRetreatItems();
+                retreat.AddRange(BuildDebugResourceItems());
+                groups.Add(retreat);
                 groups.Add(BuildDebugCoreItems());
-                groups.Add(BuildDebugSpeechItems());
                 break;
         }
         return groups;
@@ -547,13 +557,10 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return items;
     }
 
-    // 후퇴·도주 플레이 확인용(임시, RetreatDebug) — 설정 에셋이 없어도 이 세션에서 시스템을 켜고, 정신력·파티 HP를 실제 판정 경로에 밀어 넣는다.
+    // 후퇴·도주 플레이 확인용(임시, RetreatDebug) — 정신력·파티 HP를 실제 판정 경로에 밀어 넣는다. 시스템은 상시 켜져 있어 ON/OFF 토글은 뺐다.
     private List<SubmenuItem> BuildDebugRetreatItems()
     {
         var items = new List<SubmenuItem>();
-        bool on = RetreatSystem.Enabled;
-        items.Add(new SubmenuItem(on ? "■ 후퇴·도주 시스템 (ON)" : "□ 후퇴·도주 시스템 (OFF)", on, true, RetreatDebug.ToggleSystem));
-
         bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human;
         items.Add(new SubmenuItem("정신력 -10 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 10f))));
         items.Add(new SubmenuItem("정신력 -30 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 30f))));
@@ -586,23 +593,13 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return items;
     }
 
-    // 머리 위 대사 연출(SpeechSystem) — 표시 토글과, 선택한 유닛에 대사를 하나씩 차례로 띄워 보는 확인용 버튼.
-    private int _speechTestIndex;
-
-    private List<SubmenuItem> BuildDebugSpeechItems()
+    // 자원 보유량 조정(debug) — 슬라이더·숫자 입력·증감 칩이 있는 떠 있는 창(DebugResourceWindow)을 여닫는다. 건설·생산·함정 설치 비용을 확인할 때 자원을 채우거나 비워 부족 경우를 만든다.
+    private List<SubmenuItem> BuildDebugResourceItems()
     {
         var items = new List<SubmenuItem>();
-        bool on = SpeechSystem.Enabled;
-        items.Add(new SubmenuItem(on ? "■ 대사 연출 (ON)" : "□ 대사 연출 (OFF)", on, true, () => SpeechSystem.Enabled = !SpeechSystem.Enabled));
-
-        bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human;
-        items.Add(new SubmenuItem("대사 테스트 (선택 유닛, 차례로)", false, humanSelected, () => AdjustSelectedUnit(u =>
-        {
-            var ids = (SpeechId[])Enum.GetValues(typeof(SpeechId));
-            SpeechId id = ids[_speechTestIndex++ % ids.Length];
-            SpeechSystem.Say(u, id, u.name, ignoreCooldown: true);
-        })));
-        items.Add(SubmenuItem.Header("대사 연출"));
+        bool open = _resourceWindow != null && _resourceWindow.IsOpen;
+        items.Add(new SubmenuItem(open ? "■ 자원 조절 창 (열림)" : "□ 자원 조절 창 (닫힘)", open, _resourceWindow != null, () => _resourceWindow.Toggle()));
+        items.Add(SubmenuItem.Header("자원"));
         return items;
     }
 

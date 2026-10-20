@@ -39,6 +39,81 @@ public class PartyFormationTests
 		Assert.IsFalse(PartyFormationMath.IsMeleeEngage(7));  // 아처형
 	}
 
+	// ── 0층 입구 진형 자리 배정(집결식: 벽·바닥에 맞춰 가까운 빈 칸으로 밀려난다) ──────────────
+
+	// 0층 로비 — 외벽이 위아래(y=0, y=11)와 왼쪽(x=0)을 막는 12칸 높이의 열린 바닥. 계단 접근 행 rowY=5, 행진 목적지 x=24.
+	private static bool Lobby(Vector2Int t) => t.x >= 1 && t.x <= 47 && t.y >= 1 && t.y <= 10;
+
+	private static List<(int rank, int lane)> Party(int melee, int ranged)
+	{
+		var entries = new List<(int rank, int lane)>();
+		for (int i = 0; i < melee; i++) entries.Add((0, PartyFormationMath.LaneOffset(i, melee)));
+		entries.Add((1, 0)); // 리더
+		for (int i = 0; i < ranged; i++) entries.Add((2, PartyFormationMath.LaneOffset(i, ranged)));
+		return entries;
+	}
+
+	[Test]
+	public void EntranceSlots_SmallParty_KeepsTheIdealRankLaneShape()
+	{
+		var entries = Party(melee: 3, ranged: 2);
+		var slots = PartyFormationMath.AssignEntranceSlots(entries, new Vector2Int(24, 5), Lobby, maxX: 24);
+
+		for (int i = 0; i < entries.Count; i++)
+			Assert.AreEqual(PartyFormationMath.SlotTarget(new Vector2Int(24, 5), Vector2Int.right, entries[i].rank, entries[i].lane), slots[i], $"유닛 {i}");
+	}
+
+	[Test]
+	public void EntranceSlots_BigParty_NeverLandsInAWallOrBeyondTheFront()
+	{
+		// 근접 14 + 리더 + 원거리 13 — 한 줄이 로비 폭(10)을 훌쩍 넘는다.
+		var entries = Party(melee: 14, ranged: 13);
+		var slots = PartyFormationMath.AssignEntranceSlots(entries, new Vector2Int(24, 5), Lobby, maxX: 24);
+
+		var seen = new HashSet<Vector2Int>();
+		for (int i = 0; i < slots.Length; i++)
+		{
+			Assert.IsTrue(slots[i].HasValue, $"유닛 {i}가 자리를 못 받았다");
+			Assert.IsTrue(Lobby(slots[i].Value), $"유닛 {i}가 벽/로비 밖 {slots[i].Value}에 놓였다");
+			Assert.LessOrEqual(slots[i].Value.x, 24, $"유닛 {i}가 행진 목적지보다 앞에 놓였다");
+			Assert.IsTrue(seen.Add(slots[i].Value), $"자리 {slots[i].Value}가 겹친다");
+		}
+	}
+
+	[Test]
+	public void EntranceSlots_Overflow_StaysCloseToTheWidestIdealLane()
+	{
+		// 넘친 인원은 멀리 흩어지지 않고 이상 자리 가까이(옆 열·뒤 칸)에 선다.
+		var entries = Party(melee: 14, ranged: 0);
+		var slots = PartyFormationMath.AssignEntranceSlots(entries, new Vector2Int(24, 5), Lobby, maxX: 24);
+
+		for (int i = 0; i < entries.Count; i++)
+		{
+			Vector2Int ideal = PartyFormationMath.SlotTarget(new Vector2Int(24, 5), Vector2Int.right, entries[i].rank, entries[i].lane);
+			int distance = Mathf.Max(Mathf.Abs(slots[i].Value.x - ideal.x), Mathf.Abs(slots[i].Value.y - ideal.y));
+			Assert.LessOrEqual(distance, 5, $"유닛 {i}가 이상 자리 {ideal}에서 너무 멀다: {slots[i].Value}");
+		}
+	}
+
+	[Test]
+	public void EntranceSlots_NoOpenFloor_LeavesUnitsWithoutASlot()
+	{
+		var entries = Party(melee: 2, ranged: 1);
+		var slots = PartyFormationMath.AssignEntranceSlots(entries, new Vector2Int(24, 5), _ => false, maxX: 24);
+		foreach (var slot in slots) Assert.IsFalse(slot.HasValue);
+	}
+
+	[Test]
+	public void EntranceSlots_FrontRankKeepsItsIdealTilesEvenWhenBackRankOverflows()
+	{
+		// 뒤 랭크가 넘쳐 가까운 빈 칸을 찾아도 앞 랭크의 이상 자리를 빼앗지 않는다(이상 자리를 먼저 모두 확정한다).
+		var entries = Party(melee: 3, ranged: 14);
+		var slots = PartyFormationMath.AssignEntranceSlots(entries, new Vector2Int(24, 5), Lobby, maxX: 24);
+
+		for (int i = 0; i < 3; i++)
+			Assert.AreEqual(PartyFormationMath.SlotTarget(new Vector2Int(24, 5), Vector2Int.right, 0, entries[i].lane), slots[i]);
+	}
+
 	[Test]
 	public void SlotTarget_MatchesFloor0Formula_ForHorizontalMarch()
 	{

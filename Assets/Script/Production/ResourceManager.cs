@@ -33,6 +33,9 @@ public class ResourceManager : NativeRoutine
     public const int KillRewardWood = 30;
     public const int KillRewardStone = 30;
 
+    // 초기 보유량 — Wood/Stone 각각. debug 메뉴의 "초기값으로"도 이 값을 쓴다.
+    public const int InitialResourceAmount = 400;
+
     private Dictionary<ResourceType, int> resources = new Dictionary<ResourceType, int>();
 
     public override async UniTask Initialize(CancellationToken cts)
@@ -44,8 +47,8 @@ public class ResourceManager : NativeRoutine
         // 초기 보유량 Wood/Stone 각 400. Gold는 소모처가 없는 미사용 자원이라 enum 자체에서 제거됐다.
         // 시간 경과 자동 증가는 "고정값"이 아니라 V키 자원 생산 건물이 있을 때만 발생한다
         // (BuildingManager 참고) — 문서 5장의 "건축물을 통한 임시 자원 확보" 요구사항을 연결한 것.
-        resources[ResourceType.Wood] = 400;
-        resources[ResourceType.Stone] = 400;
+        resources[ResourceType.Wood] = InitialResourceAmount;
+        resources[ResourceType.Stone] = InitialResourceAmount;
 
         LogHelper.Log(LogHelper.GAME, "ResourceManager Initialized");
     }
@@ -117,6 +120,28 @@ public class ResourceManager : NativeRoutine
     public int GetResourceAmount(ResourceType type)
     {
         return resources.TryGetValue(type, out int current) ? current : 0;
+    }
+
+    // debug 전용 — 보유량을 직접 정한다(0~DebugMaxAmount로 자른다). 정상 플레이의 획득·소모는 AddResource/TryConsumeResource만 쓴다.
+    public const int DebugMaxAmount = 999999;
+
+    public void DebugSetResource(ResourceType type, int amount)
+    {
+        int next = Mathf.Clamp(amount, 0, DebugMaxAmount);
+        if (GetResourceAmount(type) == next) return;
+        resources[type] = next;
+        LogHelper.Log(LogHelper.GAME, $"[debug] {type} → {next}");
+    }
+
+    public void DebugAdjustResource(ResourceType type, int delta)
+        => DebugSetResource(type, (int)System.Math.Clamp((long)GetResourceAmount(type) + delta, 0L, DebugMaxAmount));
+
+    // debug 전용 — 모든 자원을 게임 시작값으로 되돌린다.
+    public void DebugResetResources()
+    {
+        foreach (ResourceType type in System.Enum.GetValues(typeof(ResourceType)))
+            resources[type] = InitialResourceAmount;
+        LogHelper.Log(LogHelper.GAME, $"[debug] 자원을 초기값({InitialResourceAmount})으로 되돌림");
     }
 
     // 킬로 자원을 얻을 때 "돌 30개 획득!" 형태의 floating text를 띄운다. UIManager.
