@@ -107,6 +107,7 @@ public class CoreSystem
 
 		core.CoreEverActivated = true;
 		ApplyTint(core);
+		PlayActivationVfx(room, core);
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 완전 활성화 — 인류가 이 코어를 공격할 수 있게 됨(진화·업그레이드 해금은 실행 시스템이 아직 없다)");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 완전 활성화되었습니다.", NoticeCenter.QuestCompleteColor);
 		NotifyHumansCoreAttackable(core);
@@ -170,6 +171,21 @@ public class CoreSystem
 			notified.Add(h.party);
 			PartyCoreReportSystem.OnCoreDiscovered(h, core);
 		}
+	}
+
+	// 완전 활성화 연출 — 코어에서 링이 코어 방 끝까지 퍼진다(CoreActivationVfx). 수복에는 쓰지 않는다.
+	private void PlayActivationVfx(Room room, InteractableObject core)
+	{
+		GameObject visual = Session.GetObjectVisual(core.Position);
+		Vector3 floorOffset = Session.unitGenerate != null ? Session.unitGenerate.GetFloorOffset(room.Floor) : Vector3.zero;
+		Vector3 center = visual != null ? visual.transform.position : new Vector3(core.Position.x + 0.5f, core.Position.y + 0.5f, 0f) + floorOffset;
+		RectInt bounds = room.Bounds;
+		var roomRect = new Rect(bounds.xMin + floorOffset.x, bounds.yMin + floorOffset.y, bounds.width, bounds.height);
+
+		// 코어 스프라이트와 같은 정렬 레이어에서 바로 위에 그려 코어 위로 퍼지게 한다.
+		var sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
+		CoreActivationVfx.Play(Session.GetFloorCategoryGroup(room.Floor, "Objects"), center, roomRect, ActivatedTint,
+			sr != null ? sr.sortingLayerID : 0, (sr != null ? sr.sortingOrder : 5) + 1);
 	}
 
 	private void ApplyTint(InteractableObject core)
