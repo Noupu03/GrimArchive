@@ -1221,7 +1221,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 문 묶음(1×2)은 루트에 스프라이트를 두지 않고 칸마다 자식 스프라이트 한 장씩(CreateDoorLeaves)을 둔다 — 로직은 한 오브젝트, 비주얼은 두 짝.
         bool splitLeaves = obj.OccupiedTiles != null && obj.OccupiedTiles.Count > 1
             && obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
-        SpriteRenderer sr = splitLeaves ? null : visual.AddComponent<SpriteRenderer>();
+        // 목책 묶음(1×2)도 같은 방식으로 칸마다 스프라이트 한 장씩(그림자·개폐 없음) — 로직은 한 오브젝트다.
+        bool splitFence = obj.OccupiedTiles != null && obj.OccupiedTiles.Count > 1 && DoorSystem.IsFence(obj);
+        SpriteRenderer sr = (splitLeaves || splitFence) ? null : visual.AddComponent<SpriteRenderer>();
 
         // 태그별 아트 스프라이트 배정(시체=colapse, 함정=trap, 코어=core, 그 외=obj1) —
         // Initialize에서 불러 둔 스프라이트가 없을 때만 도형 폴백(함정=삼각형, 그 외=단색 사각형).
@@ -1233,9 +1235,11 @@ public class GameSession : NativeRoutine, IOffenseQuery
         bool isDefenseFacility = obj.Tags != null && obj.Tags.Contains(OccupationSystem.DefenseFacilityTag);
         // 여기서는 기본 열림(door_open) 스프라이트로 그리지만 DoorSystem이 곧바로 닫힘으로 교체하고, 이후 개폐는 DoorSystem.UpdateProcess가 관리한다.
         bool isDoor = obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag);
+        bool isFence = DoorSystem.IsFence(obj);
 
         Sprite sprite = null;
-        if (isTrap) sprite = _trapSprite;
+        if (isFence) sprite = FenceVisual.GetSprite();
+        else if (isTrap) sprite = _trapSprite;
         // 캐릭터별 시체 스프라이트 — RemoveDeadUnit이 스냅샷한 CorpseSpriteOverride가 있으면 쓰고,
         // 없으면 공용 시체 스프라이트로 폴백한다.
         else if (isCorpse) sprite = obj.CorpseSpriteOverride != null ? obj.CorpseSpriteOverride : _corpseSprite;
@@ -1268,7 +1272,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         // 함정 해제·코어/문 파괴 진행 막대를 붙일 자리 — 그 외 오브젝트는 불필요한 컴포넌트 낭비를 막기 위해 생략.
-        if (isTrap || isCoreOnly || isDoor) visual.AddComponent<ObjectProgressBarVisual>();
+        if (isTrap || isCoreOnly || isDoor || isFence) visual.AddComponent<ObjectProgressBarVisual>();
 
         // 빛이 문도 막도록 벽과 같은 ShadowCaster2D 기법을 쓴다 — sr.sprite가 바뀌면 SpriteRenderer 프로바이더가 셰이프를 자동으로 따라 바꾸며, 문 묶음은 짝마다 자식 스프라이트에 붙는다(CreateDoorLeaves).
         if (isDoor && !splitLeaves) visual.AddComponent<ShadowCaster2D>();
@@ -1303,8 +1307,25 @@ public class GameSession : NativeRoutine, IOffenseQuery
         visual.transform.localScale = Vector3.one;
 
         if (splitLeaves) CreateDoorLeaves(obj, visual, sprite, offset, rotationZDegrees);
+        if (splitFence) CreateFenceSegments(obj, visual, sprite, offset);
 
         objectVisuals[obj] = visual;
+    }
+
+    // 목책 묶음의 칸마다 스프라이트 한 장을 자식으로 만든다 — 각 칸은 자기 타일 중심에 한 칸 목책으로 그려진다(개폐·그림자 없음).
+    private void CreateFenceSegments(InteractableObject obj, GameObject root, Sprite sprite, Vector3 floorOffset)
+    {
+        for (int i = 0; i < obj.OccupiedTiles.Count; i++)
+        {
+            Vector3Int tile = obj.OccupiedTiles[i];
+            var segment = new GameObject($"{obj.Id}_Segment{i}");
+            segment.transform.SetParent(root.transform, true);
+            segment.transform.position = new Vector3(tile.x + 0.5f, tile.y + 0.5f, 0f) + floorOffset;
+
+            var segmentSr = segment.AddComponent<SpriteRenderer>();
+            segmentSr.sprite = sprite;
+            segmentSr.sortingOrder = 5;
+        }
     }
 
     // 문 묶음의 짝(칸)마다 스프라이트 한 장 + 그림자를 자식으로 만든다 — 각 짝은 자기 타일 중심에서 한 칸 문처럼 그려지고 개폐는 DoorSystem이 전부에 같이 적용한다.
@@ -1356,10 +1377,14 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
-    // 점령 파티의 기초 시설(방 쪽 인류 문) — 방의 문 묶음 대표 타일 목록과 소유 진영 일괄 변경.
-    public List<Vector3Int> GetRoomDoorAnchors(Room room) => _doorSystem.GetRoomDoorAnchors(room);
-    public int SetRoomDoorsOwner(Room room, FactionType owner) => _doorSystem.SetRoomDoorsOwner(room, owner);
+    // 점령 파티의 기초 시설(방 쪽 인류 문 + 문 안쪽 목책) — 방의 문 묶음 대표 타일 목록, 시설 한 벌의 자리, 설치, 남은 시설 수.
+    public IReadOnlyList<Vector3Int> GetRoomDoorAnchors(Room room) => _doorSystem.GetRoomDoorAnchors(room);
+    public void CollectRoomGates(Room room, List<RoomGate> result) => _doorSystem.CollectRoomGates(room, result);
+    public (int doors, int fences) InstallHumanGates(Room room) => _doorSystem.InstallHumanGates(room);
     public int CountRoomDoors(Room room, FactionType owner) => _doorSystem.CountRoomDoors(room, owner);
+    public int CountRoomFences(Room room, FactionType owner) => _doorSystem.CountRoomFences(room, owner);
+    public void CollectHostileRoomDoors(Room room, List<InteractableObject> result) => _doorSystem.CollectHostileRoomDoors(room, result);
+    public bool IsFenceTile(Vector3Int pos) => _doorSystem.IsFenceTile(pos);
     // 문 재설치 고스트가 쓰는 묶음 정보(모든 칸·회전) — pos가 속한 방 쪽 줄(1×2) 하나. tilesOut은 호출부가 재사용하는 버퍼다.
     public bool TryGetDoorGroupTiles(Vector3Int pos, List<Vector3Int> tilesOut, out float rotationZ)
         => _doorSystem.TryGetDoorGroupTiles(pos, tilesOut, out rotationZ);

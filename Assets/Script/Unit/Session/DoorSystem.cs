@@ -4,11 +4,28 @@ using VContainer;
 using Cysharp.Threading.Tasks;
 using Haare.Util.Logger;
 
+// 점령 파티가 한 방에 세우는 기초 시설 한 벌의 자리 — 방 쪽 문 묶음 하나와 그 안쪽의 목책 자리(DoorSystem.CollectRoomGates).
+public struct RoomGate
+{
+    public Vector3Int Anchor;            // 문 묶음 대표 타일(GetRoomDoorAnchors와 같다) — 이 칸으로 문 오브젝트를 조회한다
+    public List<Vector3Int> DoorTiles;   // 문 묶음의 모든 칸 — (x, y) 오름차순
+    public float Rotation;               // 문 스프라이트 회전(수평 게이트 90도)
+    public List<Vector3Int> FenceTiles;  // 지금 목책을 세울 수 있는 칸(문 줄을 방 안쪽으로 한 칸 민 자리 중 바닥이고 비어 있는 것) — 비어 있으면 세울 목책이 없다
+    public List<Vector3Int> FenceSites;  // 목책이 서는 기하학적 자리 전부(문 줄을 방 안쪽으로 한 칸 민 칸 — 이미 목책이 섰든 막혔든 무관) — 방 안쪽을 정할 수 없으면 비어 있다. 문·목책 곁에 서는 일꾼의 자리 기준
+    public bool HasDoor;                // 이 자리에 문이 지금 서 있다
+    public bool HasFence;                // 이 자리에 목책이 지금 서 있다
+}
+
 // 문 시스템(진영 기반 개폐, GameSession 비대화 방지로 분리). 문은 '어느 방에 붙어 있는가'로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라 게이트당 두 개이고, 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트). DoorOwnerFaction은 Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다.
 // 기본은 항상 닫힘이고 접근 시도(NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 여부는 항상 진영 일치로만 판정한다(IsBlockedByClosedDoor). GameSession은 IObjectResolver로 지연 조회한다 — Construct() 시점엔 생성이 안 끝나 즉시 주입하면 순환 참조가 된다.
 public class DoorSystem
 {
     public const string DoorTag = "Object/Passable/Door";
+    // 목책 — 점령 파티가 문 안쪽에 함께 세우는 인류 기초 시설(코어 점령 v0.2 "인류 문·목책 등"). 문과 같은 방식으로 통행을 막고(보유 진영만 통과) 체력이 0이 되면 철거된다.
+    // 문 코드가 가정하는 것(게이트 문턱 타일·방 이탈 판정·진형 문 줄)을 오염시키지 않도록 별도 태그를 쓰고, 체력·소유 진영 필드와 채널링 파괴 경로만 문과 공유한다.
+    public const string FenceTag = "Object/Fence";
+    // 목책 체력(자리표시자 — 문서가 정하지 않음). 문(300)보다 약하다.
+    public const float FenceMaxHp = 200f;
 
     public const float DoorMaxHp = 300f;
     // 유닛 스탯과 무관한 고정 초당 데미지 — 채널링 중인 유닛 수만큼 자연히 합산된다.
@@ -20,6 +37,10 @@ public class DoorSystem
 
     // 매 프레임 개폐 판정을 돌 대상 캐시(objectGrid 전체 스캔 방지) — 방 쪽 줄(1×2) 묶음당 오브젝트 하나. SpawnDoors/RebuildDoorAt에서 추가, RemoveDoor에서 제거한다.
     private readonly List<InteractableObject> _doors = new List<InteractableObject>();
+    // 목책 캐시 — 개폐가 없어 체력 회복과 거점 상실 판정(방의 인류 목책 수)에만 쓴다. SpawnFenceGroup에서 추가, RemoveDoor에서 제거한다.
+    private readonly List<InteractableObject> _fences = new List<InteractableObject>();
+    // 방마다 방 쪽 문 묶음 대표 타일 — 게이트는 런타임에 안 바뀌어 처음 구한 목록을 재사용한다(철거 대상 탐색이 매 틱 불린다). 맵이 다시 생기면(SpawnDoors) 비운다.
+    private readonly Dictionary<Room, List<Vector3Int>> _roomAnchorCache = new Dictionary<Room, List<Vector3Int>>();
     // 문 하나의 스프라이트 전부(짝마다 한 장) — 개폐는 이 배열 전체에 같이 적용한다.
     private readonly System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]> _doorVisuals = new System.Collections.Generic.Dictionary<InteractableObject, SpriteRenderer[]>();
 
@@ -57,6 +78,8 @@ public class DoorSystem
         if (cmap == null || cmap.map.floors == null) return;
 
         _gateTileIndex = null; // 맵이 (재)생성됐다 — 게이트 타일 인덱스는 다음 조회 때 새 지도로 다시 만든다(OccupancySystem 통과 순서)
+        _roomAnchorCache.Clear();
+        _fences.Clear();
         int doorCount = 0;
 
         for (int floorIdx = 0; floorIdx < cmap.map.floors.Length; floorIdx++)
@@ -193,26 +216,20 @@ public class DoorSystem
     // 그 순간 진영 일치로 판정하는 순수 코스메틱이다(방 바닥과 같은 진영 틴트를 쓰면 안 보여 기본 색 유지).
     public void UpdateProcess()
     {
-        if (GameSession.Instance == null || _doors.Count == 0) return;
+        if (GameSession.Instance == null || (_doors.Count == 0 && _fences.Count == 0)) return;
+
+        foreach (var fence in _fences)
+        {
+            if (fence.IsCollected || !Session.objectGrid.TryGetValue(fence.Position, out InteractableObject liveFence) || liveFence != fence) continue;
+            RegenBarrier(fence);
+        }
 
         foreach (var door in _doors)
         {
             // 파괴돼 별칭 키가 사라진 문은 RemoveDoor가 목록에서 빼지만, 같은 프레임 순서 차이에 대비해 한 번 더 확인한다.
             if (door.IsCollected || !Session.objectGrid.TryGetValue(door.Position, out InteractableObject current) || current != door) continue;
-            Vector3Int pos = door.Position;
 
-            // 공격 중이면 UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 0으로 리셋하므로 여기 도달하지 않는다.
-            if (door.DoorHp < door.DoorMaxHp)
-            {
-                bool wasBeforeDelay = door.TimeSinceLastDamaged < DoorRegenDelaySeconds;
-                door.TimeSinceLastDamaged += Time.deltaTime;
-                if (door.TimeSinceLastDamaged >= DoorRegenDelaySeconds)
-                {
-                    door.DoorHp = Mathf.Min(door.DoorMaxHp, door.DoorHp + DoorRegenPerSecond * Time.deltaTime);
-                    if (wasBeforeDelay)
-                        Session.GetObjectVisual(pos)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
-                }
-            }
+            RegenBarrier(door);
 
             if (!_doorVisuals.TryGetValue(door, out SpriteRenderer[] renderers) || renderers == null || renderers.Length == 0 || renderers[0] == null)
             {
@@ -248,6 +265,20 @@ public class DoorSystem
         _approachedThisFrame.Clear();
     }
 
+    // 문·목책 체력 회복 — 공격 중이면 UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 0으로 리셋하므로 회복이 시작되지 않는다.
+    private void RegenBarrier(InteractableObject barrier)
+    {
+        if (barrier.DoorHp >= barrier.DoorMaxHp) return;
+
+        bool wasBeforeDelay = barrier.TimeSinceLastDamaged < DoorRegenDelaySeconds;
+        barrier.TimeSinceLastDamaged += Time.deltaTime;
+        if (barrier.TimeSinceLastDamaged < DoorRegenDelaySeconds) return;
+
+        barrier.DoorHp = Mathf.Min(barrier.DoorMaxHp, barrier.DoorHp + DoorRegenPerSecond * Time.deltaTime);
+        if (wasBeforeDelay)
+            Session.GetObjectVisual(barrier.Position)?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+    }
+
     // Room.RoomFaction을 실시간 조회하지 않고 문 자신의 DoorOwnerFaction(생성/재설치 시점 고정)을 그대로 읽는다.
     public FactionType? GetDoorOwnerFaction(Vector3Int pos)
     {
@@ -269,12 +300,19 @@ public class DoorSystem
         _approachedThisFrame.Add(pos);
     }
 
+    // 문과 목책 — 보유 진영만 지나갈 수 있고 아니면 체력을 깎아 철거해야 하는 통행 장벽이다(같은 체력·소유 진영 필드와 채널링 파괴 경로를 쓴다).
+    public static bool IsBarrier(InteractableObject obj)
+        => obj != null && obj.Tags != null && (obj.Tags.Contains(DoorTag) || obj.Tags.Contains(FenceTag));
+
+    public static bool IsFence(InteractableObject obj)
+        => obj != null && obj.Tags != null && obj.Tags.Contains(FenceTag);
+
     // UnitFunction.CanMove/AStarMovement.IsTileWalkable이 이동 판정에 직접 호출 — 시각적 개폐와
-    // 무관하게 항상 "문 보유 진영 == 유닛 진영"으로만 결정하며, 문이 없으면(파괴됨) 막지 않는다.
+    // 무관하게 항상 "문·목책 보유 진영 == 유닛 진영"으로만 결정하며, 없으면(파괴됨) 막지 않는다.
     public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit)
     {
         if (unit == null || !Session.objectGrid.TryGetValue(pos, out InteractableObject obj)) return false;
-        if (obj.Tags == null || !obj.Tags.Contains(DoorTag)) return false;
+        if (!IsBarrier(obj)) return false;
 
         FactionType? doorFaction = obj.DoorOwnerFaction;
         FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
@@ -324,11 +362,17 @@ public class DoorSystem
         var groups = GetGateDoorGroups(gate, floorIndex);
         if (groups.Count == 0) return true; // 문 타일 정보가 없으면 막을 이유 없음
 
+        var fenceTiles = new List<Vector3Int>(2);
         foreach (var group in groups)
         {
             Vector2Int tile = group.Tiles[0];
             FactionType? owner = GetDoorOwnerFaction(new Vector3Int(tile.x, tile.y, floorIndex));
             if (owner != null && owner.Value != faction) return false; // null = 문이 없음(파괴됨) = 이 쪽은 통과 가능
+
+            // 문 안쪽에 목책이 서 있으면 그것도 통과 조건이다(없거나 파괴됐으면 막지 않는다).
+            if (TryGetFenceTiles(gate, group, floorIndex, fenceTiles))
+                foreach (var fenceTile in fenceTiles)
+                    if (Session.objectGrid.TryGetValue(fenceTile, out InteractableObject fence) && IsFence(fence) && fence.DoorOwnerFaction != faction) return false;
         }
         return true;
     }
@@ -341,18 +385,27 @@ public class DoorSystem
                obj.Tags != null && obj.Tags.Contains(DoorTag);
     }
 
-    // 문 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 같은 채널링 패턴) — 재설치 전까지는 진영 판정 대상이 없어 아무나 통과한다. 1×2 묶음이 오브젝트 하나라 pos가 어느 칸이든 묶음 전체가 사라지며 별칭 키·비주얼·캐시를 모두 정리한다.
+    // 목책이 서 있는 칸 — 건물을 지을 수 없다(BuildingManager). 문 타일(IsDoorTile)과 달리 방 이탈·진형 문 줄 판정에는 들어가지 않는다.
+    public bool IsFenceTile(Vector3Int pos)
+        => Session.objectGrid.TryGetValue(pos, out InteractableObject obj) && IsFence(obj);
+
+    // 문·목책 체력이 0이 되면 UnitFunction.OnUpdate가 호출한다(TrapDestroy/코어 공격과 같은 채널링 패턴) — 문은 재설치 전까지 진영 판정 대상이 없어 아무나 통과하고, 목책은 철거되면 그만이다.
+    // 1×2 묶음이 오브젝트 하나라 pos가 어느 칸이든 묶음 전체가 사라지며 별칭 키·비주얼·캐시를 모두 정리한다.
     public void RemoveDoor(Vector3Int pos)
     {
-        if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door) || door.Tags == null || !door.Tags.Contains(DoorTag)) return;
+        if (!Session.objectGrid.TryGetValue(pos, out InteractableObject door) || !IsBarrier(door)) return;
 
+        bool fence = IsFence(door);
         var tiles = new List<Vector3Int>(door.AllTiles());
         _doors.Remove(door);
+        _fences.Remove(door);
         _doorVisuals.Remove(door);
         StateVersion++;
         Session.CollectObject(pos); // objectGrid의 별칭 키 전부 제거 + 비주얼 파괴
         foreach (var tile in tiles) ClearStaleWallCache(tile);
-        LogHelper.Log(LogHelper.GAME, $"RemoveDoor: {door.Id}({tiles.Count}칸)이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
+        LogHelper.Log(LogHelper.GAME, fence
+            ? $"RemoveDoor: 목책 {door.Id}({tiles.Count}칸)이 철거됐습니다."
+            : $"RemoveDoor: {door.Id}({tiles.Count}칸)이 파괴됐습니다 — 재설치 전까지 아무나 통과 가능.");
     }
 
     // 두 진영 FactionData.discoveredMap과 모든 Human personalMap에 벽(2)으로 캐시된 pos 위치를 미탐사(0)로 되돌린다.
@@ -410,11 +463,15 @@ public class DoorSystem
     }
 
     // room의 방 쪽 문 묶음마다 대표 타일(묶음 가운데) 하나 — 점령 파티가 기초 시설로 짓는 인류 문의 자리이자 건설 현장 자리를 고르는 기준이다.
-    public List<Vector3Int> GetRoomDoorAnchors(Room room)
+    // 게이트는 런타임에 안 바뀌어 방마다 한 번 구한 목록을 그대로 돌려준다(읽기 전용으로 쓸 것).
+    public IReadOnlyList<Vector3Int> GetRoomDoorAnchors(Room room)
     {
+        if (room == null) return System.Array.Empty<Vector3Int>();
+        if (_roomAnchorCache.TryGetValue(room, out List<Vector3Int> cached)) return cached;
+
         var anchors = new List<Vector3Int>();
         var cmap = Session.cmap;
-        if (room == null || cmap == null || cmap.map.floors == null || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return anchors;
+        if (cmap == null || cmap.map.floors == null || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return anchors;
         Floor floor = cmap.map.floors[room.Floor];
         if (floor.gates == null) return anchors;
         foreach (var gate in floor.gates)
@@ -427,30 +484,131 @@ public class DoorSystem
                 anchors.Add(new Vector3Int(mid.x, mid.y, room.Floor));
             }
         }
+        _roomAnchorCache[room] = anchors;
         return anchors;
     }
 
-    // room의 방 쪽 문 묶음을 전부 owner 소유로 만든다(점령 파티의 기초 시설 = 인류 문, 코어 점령 v0.2 12장) — 있는 문은 소유 진영을 바꾸고 체력을 채우며, 파괴된 문은 그 소유로 다시 세운다. 바뀐 문 수를 돌려준다.
-    // 통행 가능 여부는 문 소유 진영으로만 정해지므로(IsBlockedByClosedDoor) 바뀌면 경로 판정 메모의 서명(StateVersion)도 올린다.
-    public int SetRoomDoorsOwner(Room room, FactionType owner)
+    // 문 묶음 하나의 목책 후보 자리 — 문 타일을 방 안쪽으로 한 칸 민 칸들이다. 방 안쪽을 정할 수 없으면(양쪽이 같은 방이거나 어느 쪽도 아님) false.
+    private bool TryGetFenceTiles(Gate gate, DoorGeometry.Group group, int floorIdx, List<Vector3Int> tilesOut)
     {
-        int changed = 0;
-        foreach (var pos in GetRoomDoorAnchors(room))
+        tilesOut.Clear();
+        if (group.Tiles.Count == 0 || group.RoomId < 0) return false;
+
+        int roomId = group.RoomId;
+        bool InRoom(Vector2Int t) => Session.roomGrid.TryGetValue(new Vector3Int(t.x, t.y, floorIdx), out Room r) && r != null && r.RoomId == roomId;
+        if (!DoorGeometry.TryGetInward(gate.isHorizontal, group.Tiles[0], InRoom, out Vector2Int inward)) return false;
+
+        foreach (var t in DoorGeometry.Shifted(group.Tiles, inward)) tilesOut.Add(new Vector3Int(t.x, t.y, floorIdx));
+        return true;
+    }
+
+    // 목책을 세워도 되는 칸 — 이 방 안의 걸을 수 있는 바닥이고 게이트 문턱이 아니며 다른 오브젝트가 없다.
+    private bool IsFenceSiteFree(Room room, Vector3Int tile)
+    {
+        if (!Session.roomGrid.TryGetValue(tile, out Room owner) || owner != room) return false;
+        if (Session.cmap == null || !Session.cmap.IsStaticTileWalkable(tile.z, new Vector2Int(tile.x, tile.y))) return false;
+        if (TryGetGateKeyAt(tile, out _)) return false;
+        return !Session.objectGrid.ContainsKey(tile);
+    }
+
+    // room의 방 쪽 문 묶음마다 기초 시설 한 벌의 자리(문 + 문 안쪽 목책)를 모은다 — 철거 뒤 재설치 청사진과 설치가 같은 목록을 쓴다.
+    public void CollectRoomGates(Room room, List<RoomGate> result)
+    {
+        result.Clear();
+        var cmap = Session.cmap;
+        if (room == null || cmap == null || cmap.map.floors == null || room.Floor < 0 || room.Floor >= cmap.map.floors.Length) return;
+        Floor floor = cmap.map.floors[room.Floor];
+        if (floor.gates == null) return;
+
+        var fenceCandidates = new List<Vector3Int>(2);
+        foreach (var gate in floor.gates)
         {
-            if (Session.objectGrid.TryGetValue(pos, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag))
+            if (gate.roomA != room.RoomId && gate.roomB != room.RoomId) continue;
+            foreach (var group in GetGateDoorGroups(gate, room.Floor))
             {
-                if (door.DoorOwnerFaction != owner) { door.DoorOwnerFaction = owner; changed++; }
-                door.DoorHp = door.DoorMaxHp;
-                continue;
+                if (group.RoomId != room.RoomId || group.Tiles.Count == 0) continue;
+                var mid = group.Tiles[group.Tiles.Count / 2];
+                var anchor = new Vector3Int(mid.x, mid.y, room.Floor);
+
+                var fenceTiles = new List<Vector3Int>(2);
+                var fenceSites = new List<Vector3Int>(2);
+                bool hasFence = false;
+                if (TryGetFenceTiles(gate, group, room.Floor, fenceCandidates))
+                {
+                    fenceSites.AddRange(fenceCandidates);
+                    foreach (var tile in fenceCandidates)
+                    {
+                        if (Session.objectGrid.TryGetValue(tile, out InteractableObject there))
+                        {
+                            if (IsFence(there)) hasFence = true;
+                            continue;
+                        }
+                        if (IsFenceSiteFree(room, tile)) fenceTiles.Add(tile);
+                    }
+                }
+
+                result.Add(new RoomGate
+                {
+                    Anchor = anchor,
+                    DoorTiles = ToGridTiles(group, room.Floor),
+                    Rotation = gate.isHorizontal ? 90f : 0f,
+                    FenceTiles = fenceTiles,
+                    FenceSites = fenceSites,
+                    HasDoor = Session.objectGrid.TryGetValue(anchor, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag),
+                    HasFence = hasFence,
+                });
             }
-            if (!TryGetDoorGroupAt(pos, out DoorGeometry.Group group, out Gate gate)) continue;
-            var tiles = ToGridTiles(group, pos.z);
-            if (AnyTileOccupied(tiles)) continue;
-            SpawnDoorGroup(tiles, gate.isHorizontal ? 90f : 0f, owner); // StateVersion은 SpawnDoorGroup이 올린다
-            changed++;
         }
-        if (changed > 0) StateVersion++;
-        return changed;
+    }
+
+    // 인류가 새로 짓는 기초 시설을 한 번에 세운다(코어 점령 v0.2 12장 "기존 문 제어권이 없으면 문을 파괴하고 인류 문을 세운다") — 방 쪽 문 묶음마다 인류 문과 그 안쪽 목책이다.
+    // 정상 흐름에선 기존 문이 이미 철거돼 있어(OccupationSystem 철거 단계) 빈 자리에 세울 뿐이고, 인류 문이 남아 있으면 체력만 채우며, 인류가 아닌 문이 남아 있으면(debug 즉시 거점) 부수고 다시 세운다.
+    public (int doors, int fences) InstallHumanGates(Room room)
+    {
+        var gates = new List<RoomGate>();
+        CollectRoomGates(room, gates);
+
+        int doors = 0, fences = 0;
+        foreach (var g in gates)
+        {
+            if (g.HasDoor && Session.objectGrid.TryGetValue(g.Anchor, out InteractableObject existing))
+            {
+                if (existing.DoorOwnerFaction == FactionType.Human) existing.DoorHp = existing.DoorMaxHp;
+                else
+                {
+                    RemoveDoor(g.Anchor);
+                    if (!AnyTileOccupied(g.DoorTiles)) { SpawnDoorGroup(g.DoorTiles, g.Rotation, FactionType.Human); doors++; }
+                }
+            }
+            else if (!AnyTileOccupied(g.DoorTiles))
+            {
+                SpawnDoorGroup(g.DoorTiles, g.Rotation, FactionType.Human);
+                doors++;
+            }
+            else
+            {
+                LogHelper.Warning(LogHelper.GAME, $"InstallHumanGates: {g.Anchor} 문 자리에 다른 오브젝트가 있어 인류 문을 세우지 못했습니다.");
+            }
+
+            if (!g.HasFence && g.FenceTiles.Count > 0 && SpawnFenceGroup(g.FenceTiles, FactionType.Human)) fences++;
+        }
+        return (doors, fences);
+    }
+
+    // 목책 묶음(1×2)을 하나의 오브젝트로 세운다 — 문 묶음과 같은 방식으로 모든 칸을 같은 오브젝트의 별칭으로 등록한다. tiles는 (x, y) 오름차순이라 첫 칸이 대표 타일이다.
+    private bool SpawnFenceGroup(List<Vector3Int> tiles, FactionType owner)
+    {
+        Vector3Int primary = tiles[0];
+        InteractableObject fence = new InteractableObject(
+            $"Fence_{primary.z}_{primary.x}_{primary.y}", primary, baseInterest: 0f, baseDanger: 0f,
+            tags: new List<string> { FenceTag }, isFullyBlocking: false, doorHp: FenceMaxHp);
+        fence.DoorOwnerFaction = owner;
+        fence.OccupiedTiles = tiles;
+        Session.SpawnObject(fence, Color.white);
+        if (!Session.objectGrid.TryGetValue(primary, out var placed) || placed != fence) return false; // 자리가 차 있어 놓지 못했다
+        _fences.Add(fence);
+        StateVersion++;
+        return true;
     }
 
     // room의 방 쪽 문 묶음 중 owner 소유로 남아 있는(파괴되지 않은) 것의 수 — 인류 기초 시설이 아직 남아 있는지 판단한다.
@@ -461,6 +619,27 @@ public class DoorSystem
             if (Session.objectGrid.TryGetValue(pos, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag)
                 && door.DoorHp > 0f && door.DoorOwnerFaction == owner) count++;
         return count;
+    }
+
+    // room 안에 owner 소유로 남아 있는(철거되지 않은) 목책의 수 — 문과 함께 인류 기초 시설이 남아 있는지 판단한다(거점 상실 조건).
+    public int CountRoomFences(Room room, FactionType owner)
+    {
+        int count = 0;
+        foreach (var fence in _fences)
+        {
+            if (fence.IsCollected || fence.DoorHp <= 0f || fence.DoorOwnerFaction != owner) continue;
+            if (Session.roomGrid.TryGetValue(fence.Position, out Room fenceRoom) && fenceRoom == room) count++;
+        }
+        return count;
+    }
+
+    // room의 방 쪽 문 묶음 중 인류 소유가 아닌 채 서 있는 것 — 점령 파티가 기초 시설을 짓기 전에 실제로 부술 문이다(철거 단계). result는 호출부가 재사용하는 버퍼다.
+    public void CollectHostileRoomDoors(Room room, List<InteractableObject> result)
+    {
+        result.Clear();
+        foreach (var pos in GetRoomDoorAnchors(room))
+            if (Session.objectGrid.TryGetValue(pos, out InteractableObject door) && door.Tags != null && door.Tags.Contains(DoorTag)
+                && door.DoorHp > 0f && door.DoorOwnerFaction != FactionType.Human) result.Add(door);
     }
 
     // 원래 게이트(통로) 타일 좌표만 재설치를 허용한다.

@@ -34,6 +34,12 @@ public static class OccupationMath
 
 	public static bool IsWorkComplete(float done, float total) => done >= total;
 
+	// 피격 직후 공사를 멈춰 두는 시간(자리표시자 — 문서가 정하지 않음). 피격은 한 행동 틱만 켜지는 표식이라 공사 틱이 놓칠 수 있어, 맞은 시각을 기억해 이 시간 동안 멈춘다. 대개 그 사이 전투·경계 상태가 이어받는다.
+	public const float HitPauseSeconds = 2f;
+
+	// 거점 공사를 멈춰야 하는가 — 파티원 누구든 전투·경계·합류 대기·적 인지 중이거나(anyEngaged) 방금 맞았으면 멈춘다(진행도는 남는다). 한 번도 안 맞았으면 secondsSinceLastHit은 +무한대.
+	public static bool ShouldPauseConstruction(bool anyEngaged, float secondsSinceLastHit) => anyEngaged || secondsSinceLastHit < HitPauseSeconds;
+
 	// 점령 파티의 방 활동 종료 기준(01번 7-1장 Occupy) — 현재 방이 기초 거점이면 끝이다. 방어 시설은 방어 거점으로 정한 방에서 후퇴·휴식 뒤에 짓는 것이라(13장) 전진을 막지 않는다.
 	public static bool IsRoomActivityComplete(BaseStage stage) => stage != BaseStage.None;
 

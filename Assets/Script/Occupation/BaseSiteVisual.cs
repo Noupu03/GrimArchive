@@ -41,6 +41,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 
 	private SiteLayout _layout;
 	private bool _defense;
+	private float _structureScale = 1f;   // 건설물 크기 배율 — 청사진이 선 현장은 영역을 채우게 크고, 1×1 자리는 한 칸 크기다(BaseSiteMath.StructureScale)
 	private Color _accent;
 	private SpriteRenderer _blueprint;
 	private SpriteRenderer _fill;
@@ -72,6 +73,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 	{
 		_layout = layout;
 		_defense = defense;
+		_structureScale = BaseSiteMath.StructureScale(layout.Radius);
 		_accent = defense ? DefenseTint : BasicTint;
 
 		float size = layout.Size;
@@ -82,9 +84,13 @@ public sealed class BaseSiteVisual : MonoBehaviour
 		_fill.color = new Color(_accent.r, _accent.g, _accent.b, 0.28f);
 		_fill.transform.localScale = new Vector3(size, 0f, 1f);
 
-		_structure = CreateChild("Structure", StructureOrder, null, new Vector3(0f, -0.5f + GroundInset, 0f));
+		_structure = CreateChild("Structure", StructureOrder, null, new Vector3(0f, StructureBaseY(_structureScale), 0f));
+		_structure.transform.localScale = Vector3.one * _structureScale;
 		SetStage(0, pop: false);
 	}
+
+	// 건설물 밑변의 로컬 높이 — 크기 배율 1이면 중심 타일 아래 끝, 키우면 영역 한가운데에 서도록 배율의 절반만큼 내려간다.
+	private static float StructureBaseY(float scale) => -scale * 0.5f + GroundInset;
 
 	private SpriteRenderer CreateChild(string childName, int sortingOrder, Sprite sprite, Vector3 localPosition)
 	{
@@ -139,13 +145,14 @@ public sealed class BaseSiteVisual : MonoBehaviour
 
 	private void EmitSparks(int count, float speed, float spread)
 	{
-		Vector3 origin = transform.position + new Vector3(Random.Range(-0.3f, 0.3f), -0.1f + Random.Range(0f, 0.5f), 0f);
+		// 불꽃은 건설물 몸체 위에서 튄다 — 몸체가 커진 만큼 높이·폭·번지는 범위도 배율을 따른다.
+		Vector3 origin = transform.position + new Vector3(Random.Range(-0.3f, 0.3f) * _structureScale, StructureBaseY(_structureScale) + Random.Range(0.34f, 0.84f) * _structureScale, 0f);
 		Color spark = Color.Lerp(_accent, new Color(1f, 0.95f, 0.6f, 1f), 0.65f);
 		for (int i = 0; i < count; i++)
 		{
 			float angle = Random.Range(0f, Mathf.PI * 2f);
 			var velocity = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle) + 0.4f, 0f) * Random.Range(speed * 0.5f, speed);
-			Emit(origin + new Vector3(Random.Range(-spread, spread), Random.Range(-spread, spread), 0f), velocity, spark, Random.Range(0.25f, 0.45f), 0.16f, 0.03f, SparkOrder);
+			Emit(origin + new Vector3(Random.Range(-spread, spread), Random.Range(-spread, spread), 0f) * _structureScale, velocity, spark, Random.Range(0.25f, 0.45f), 0.16f, 0.03f, SparkOrder);
 		}
 	}
 
@@ -208,23 +215,31 @@ public sealed class BaseSiteVisual : MonoBehaviour
 		_phase = Phase.Emblem;
 		_blueprint.gameObject.SetActive(false);
 		_fill.gameObject.SetActive(false);
-		_structure.transform.localScale = Vector3.one;
+		_structure.transform.localScale = Vector3.one * _structureScale;
 		_structure.color = Color.white;
 	}
 
-	// 상징물을 다른 칸으로 옮긴다(원래 칸이 건물·오브젝트에 막혔을 때). tileCenterWorld = 새 칸의 월드 중심.
-	public void MoveTo(Vector3 tileCenterWorld) => transform.position = tileCenterWorld;
+	// 상징물을 다른 자리로 옮긴다(원래 자리가 건물·오브젝트에 막혔을 때). tileCenterWorld = 새 중심 칸의 월드 중심, radius = 새 자리의 영역 반경 — 3×3 자리면 크게, 1×1 자리면 한 칸 크기로 맞춘다.
+	public void MoveTo(Vector3 tileCenterWorld, int radius)
+	{
+		transform.position = tileCenterWorld;
+		_structureScale = BaseSiteMath.StructureScale(radius);
+		_structure.transform.localPosition = new Vector3(0f, StructureBaseY(_structureScale), 0f);
+		_structure.transform.localScale = Vector3.one * _structureScale;
+	}
 
 	// 방어 시설 오브젝트(GameSession.SpawnObject가 전리품 스프라이트를 주황으로 칠해 만든 자리표시자)의 비주얼을 망루로 바꾼다 — 기초 상징물이 천막이듯 방어 거점의 상징물은 오브젝트 자신이다.
-	// 건설물 스프라이트는 밑변 중앙이 기준점이라 오브젝트 루트(타일 중심)를 타일 아래쪽으로 내려 현장 건설물과 같은 자리에 앉힌다.
-	public static void ApplyDefenseEmblem(GameObject objectVisual)
+	// 건설물 스프라이트는 밑변 중앙이 기준점이라 오브젝트 루트(타일 중심)를 아래로 내려 현장 건설물과 같은 자리에 앉히고, 현장과 같은 배율로 키운다(radius = 현장 영역 반경, 폴백 칸은 0).
+	public static void ApplyDefenseEmblem(GameObject objectVisual, int radius)
 	{
 		if (objectVisual == null) return;
 		var sr = objectVisual.GetComponent<SpriteRenderer>();
 		if (sr == null) return;
+		float scale = BaseSiteMath.StructureScale(radius);
 		sr.sprite = GetStructureSprite(true, BaseSiteMath.StructureStages - 1);
 		sr.color = Color.white;
-		objectVisual.transform.position += new Vector3(0f, -0.5f + GroundInset, 0f);
+		objectVisual.transform.localScale = Vector3.one * scale;
+		objectVisual.transform.position += new Vector3(0f, StructureBaseY(scale), 0f);
 	}
 
 	private void Update()
@@ -244,7 +259,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 		_phaseT += dt;
 		float t = Mathf.Clamp01(_phaseT / SettleSeconds);
 		float eased = 1f - (1f - t) * (1f - t);
-		_structure.transform.localScale = Vector3.one * Mathf.Lerp(1.25f, 1f, eased);
+		_structure.transform.localScale = Vector3.one * (_structureScale * Mathf.Lerp(1.25f, 1f, eased));
 		_structure.color = Color.white;
 		_blueprint.color = new Color(_accent.r, _accent.g, _accent.b, (1f - t) * 0.9f);
 		_fill.color = new Color(_accent.r, _accent.g, _accent.b, (1f - t) * 0.28f);
@@ -254,7 +269,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 	private void UpdateIdle(float dt)
 	{
 		if (_popT < 1f) _popT = Mathf.Min(1f, _popT + dt / StagePopSeconds);
-		_structure.transform.localScale = Vector3.one * BaseSiteMath.PopScale(_popT);
+		_structure.transform.localScale = Vector3.one * (_structureScale * BaseSiteMath.PopScale(_popT));
 		var c = Color.white;
 		c.a = BaseSiteMath.StructureAlpha(_progress);
 		_structure.color = c;
@@ -268,7 +283,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 	{
 		_phaseT += dt;
 		float t = Mathf.Clamp01(_phaseT / CompletionSeconds);
-		_structure.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.3f, t);
+		_structure.transform.localScale = Vector3.one * (_structureScale * Mathf.Lerp(1f, 1.3f, t));
 		_structure.color = new Color(1f, 1f, 1f, 1f - t);
 		_blueprint.color = new Color(_accent.r, _accent.g, _accent.b, (1f - t) * 0.9f);
 		_fill.color = new Color(_accent.r, _accent.g, _accent.b, (1f - t) * 0.28f);
@@ -307,7 +322,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 	}
 
 	// 밑변 중앙이 기준점이고 가로 1·세로 1(월드 단위)인 흰 사각형 — 스케일로 크기를 조절하는 채움용.
-	private static Sprite GetFillSprite()
+	internal static Sprite GetFillSprite()
 	{
 		if (_fillSprite != null) return _fillSprite;
 		var pixels = new Color32[16];
@@ -331,7 +346,7 @@ public sealed class BaseSiteVisual : MonoBehaviour
 	}
 
 	// 청사진 — 가장자리 점선(모서리는 실선) + 타일 경계 격자 + 옅은 바탕. 색은 SpriteRenderer.color로 입힌다.
-	private static Sprite GetBlueprintSprite(int radius)
+	internal static Sprite GetBlueprintSprite(int radius)
 	{
 		if (BlueprintSprites.TryGetValue(radius, out var cached) && cached != null) return cached;
 
@@ -380,16 +395,38 @@ public sealed class BaseSiteVisual : MonoBehaviour
 				pixels[y * size + x] = px ?? new Color32(0, 0, 0, 0);
 			}
 		}
+		AddOutline(pixels, size, defense ? DefenseOutline : TentOutline);
 		return StructureSprites[kind, stage] = MakeSprite(size, size, pixels, new Vector2(0.5f, 0f), PixelsPerTile);
 	}
 
-	// 기초 시설 — 깃발을 단 천막.
+	// 바닥 타일 위에서 묻히지 않게 실루엣 바깥 한 겹을 어두운 색으로 두른다(캔버스 밖은 그릴 수 없어 가장자리 픽셀은 둘러지지 않는다).
+	private static readonly Color32 TentOutline = new Color32(14, 30, 78, 255);
+	private static readonly Color32 DefenseOutline = new Color32(40, 24, 8, 255);
+
+	private static void AddOutline(Color32[] pixels, int size, Color32 outline)
+	{
+		var source = (Color32[])pixels.Clone();
+		for (int y = 0; y < size; y++)
+		{
+			for (int x = 0; x < size; x++)
+			{
+				if (source[y * size + x].a != 0) continue;
+				bool touches = (x > 0 && source[y * size + x - 1].a != 0) || (x < size - 1 && source[y * size + x + 1].a != 0)
+					|| (y > 0 && source[(y - 1) * size + x].a != 0) || (y < size - 1 && source[(y + 1) * size + x].a != 0);
+				if (touches) pixels[y * size + x] = outline;
+			}
+		}
+	}
+
+	// 기초 시설 — 인류 파랑 줄무늬 천막에 금빛 깃발(인류 진영 파랑 = UnitVisual 인류 색 계열, 방 테두리를 쓰지 않는 대신 상징물이 거점을 알린다).
 	private static Color32? TentPixel(int x, int y)
 	{
-		var cloth = new Color32(222, 210, 178, 255);
-		var trim = new Color32(110, 88, 60, 255);
-		var dark = new Color32(52, 40, 30, 255);
-		var accent = new Color32(64, 140, 255, 255);
+		var blue = new Color32(56, 132, 255, 255);
+		var light = new Color32(228, 238, 255, 255);
+		var trim = new Color32(20, 52, 150, 255);
+		var dark = new Color32(12, 18, 48, 255);
+		var pole = new Color32(96, 72, 48, 255);
+		var gold = new Color32(255, 214, 64, 255);
 
 		if (y >= 1 && y <= 10)
 		{
@@ -398,33 +435,36 @@ public sealed class BaseSiteVisual : MonoBehaviour
 			if (dx <= half)
 			{
 				if (y <= 5 && dx <= 1.6f) return dark;
-				return dx > half - 1f ? trim : cloth;
+				if (dx > half - 1f || y == 10) return trim;
+				return (x / 2) % 2 == 0 ? blue : light;
 			}
 		}
-		if (x == 8 && y >= 11 && y <= 15) return trim;
-		if (y >= 12 && y <= 14 && x >= 9 && x <= 12 - (y == 13 ? 0 : 1)) return accent;
+		if (x == 8 && y >= 11 && y <= 15) return pole;
+		if (y >= 12 && y <= 14 && x >= 9 && x <= 12 - (y == 13 ? 0 : 1)) return gold;
 		return null;
 	}
 
-	// 방어 시설 — 깃발을 단 석조 망루.
+	// 방어 시설 — 주황 흉벽과 띠, 큰 주황 깃발을 단 석조 망루(방어 = 주황, 공사 중 청사진·불꽃 색과 같은 계열).
 	private static Color32? DefensePixel(int x, int y)
 	{
-		var stone = new Color32(158, 158, 166, 255);
-		var mortar = new Color32(118, 118, 128, 255);
-		var trim = new Color32(78, 78, 90, 255);
-		var dark = new Color32(40, 36, 36, 255);
-		var accent = new Color32(255, 160, 56, 255);
+		var stone = new Color32(176, 178, 194, 255);
+		var mortar = new Color32(130, 132, 150, 255);
+		var trim = new Color32(52, 54, 78, 255);
+		var dark = new Color32(26, 22, 28, 255);
+		var pole = new Color32(96, 72, 48, 255);
+		var orange = new Color32(255, 140, 24, 255);
 
 		if (y >= 1 && y <= 9 && x >= 3 && x <= 12)
 		{
 			if (y <= 5 && x >= 6 && x <= 9) return dark;
 			if (x == 3 || x == 12 || y == 1) return trim;
+			if (y == 7) return orange;
 			bool brick = y % 3 == 0 || (x + (y / 3) % 2 * 2) % 4 == 0;
 			return brick ? mortar : stone;
 		}
-		if (y >= 10 && y <= 11 && x >= 3 && x <= 12 && (x - 3) % 4 <= 1) return trim;
-		if (x == 8 && y >= 12 && y <= 15) return trim;
-		if (y >= 13 && y <= 15 && x >= 9 && x <= 12 - (y == 14 ? 0 : 1)) return accent;
+		if (y >= 10 && y <= 11 && x >= 3 && x <= 12 && (x - 3) % 4 <= 1) return orange;
+		if (x == 8 && y >= 12 && y <= 15) return pole;
+		if (y >= 12 && y <= 15 && x >= 9 && x <= 13 - (y == 12 || y == 15 ? 1 : 0)) return orange;
 		return null;
 	}
 }

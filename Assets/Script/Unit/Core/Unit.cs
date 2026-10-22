@@ -55,6 +55,7 @@ public abstract class Unit : ScriptableObject {
     public float maxMental        { get => BaseStat.maxMental;                 set => BaseStat.maxMental = value; }
     public float baseDanger       { get => BaseStat.baseDanger;                set => BaseStat.baseDanger = value; }
     public bool  isHitThisTurn    { get => CombatState.State.isHitThisTurn;    set => CombatState.State.isHitThisTurn = value; }
+    public float SecondsSinceLastHit => CombatState.State.lastHitTime > 0f ? Time.time - CombatState.State.lastHitTime : float.PositiveInfinity;
     public bool  oneTimeReactUsed { get => CombatState.State.oneTimeReactUsed; set => CombatState.State.oneTimeReactUsed = value; }
     public HashSet<Unit> personalSpottedEnemies => Perception.State.personalSpottedEnemies;
     public HashSet<Vector3Int> visionOnlyNonEmptyTiles => Perception.State.visionOnlyNonEmptyTiles;
@@ -951,10 +952,10 @@ public class Human : UnitFunction
 				if (tag == "Human") isHumanTag = true;
 				if (tag.Contains("WipeoutTrace")) isTrace = true;
 				if (tag == "Object/Passable/Core") isCore = true;
-				if (tag.Contains("Door")) isDoor = true;
+				if (tag.Contains("Door") || tag.Contains("Fence")) isDoor = true;
 			}
 			// 파티원 시체는 조사 대상 유지, 몬스터 시체/전멸 흔적은 제외(CastRay가 인지 즉시 확인
-			// 완료). 코어는 리더 전용 조사 대상이라 제외, 문은 통행용 배경 오브젝트라 제외.
+			// 완료). 코어는 리더 전용 조사 대상이라 제외, 문·목책은 통행용 배경 오브젝트라 제외.
 			bool isExcludedTrace = isTrace || (isCorpse && !isHumanTag);
 			if (isTrap || isExcludedTrace || isCore || isDoor) continue;
 			// 다른 파티원이 이미 currentInvestigation으로 잡은 오브젝트는 후보에서 뺀다(재전파 수신자의 중복 조사·해제 방지). 파티 목표 오브젝트(IsPartyGoalObject)는 '합류'를 요구하는 03번 3항 때문에 예외다.

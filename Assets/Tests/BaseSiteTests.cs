@@ -234,6 +234,112 @@ public class BaseSiteTests
 		Assert.AreEqual(1f, BaseSiteMath.PopScale(1f), 0.0001f);
 	}
 
+	[Test]
+	public void StructureScale_BlueprintSiteIsBigButStaysInsideItsArea()
+	{
+		float scale = BaseSiteMath.StructureScale(BaseSiteMath.BlueprintRadius);
+		Assert.Greater(scale, 1f, "청사진이 선 현장은 한 칸보다 크게 그린다");
+		// 밑변이 영역 한가운데(±scale/2)에 서므로 폭·높이 모두 영역 한 변(3칸)의 절반 이내여야 위·아래 이웃 칸을 덮지 않는다.
+		Assert.LessOrEqual(scale / 2f, BaseSiteMath.BlueprintRadius + 0.5f, "영역(±1.5칸) 밖으로 나가면 이웃 칸의 계단·건물을 덮는다");
+	}
+
+	[Test]
+	public void StructureScale_SingleTileSiteKeepsOneTile()
+	{
+		Assert.AreEqual(1f, BaseSiteMath.StructureScale(0), 0.0001f, "1×1 자리에서 키우면 이웃 칸을 덮는다");
+	}
+
+	// ── 일꾼 자리 배정: 근접은 문·목책 둘레 1칸, 그 밖은 천막 둘레 ──
+
+	[TestCase(CombatRole.MeleeTank, true)]
+	[TestCase(CombatRole.MeleeDps, true)]
+	[TestCase(CombatRole.MeleeSupport, true)]
+	[TestCase(CombatRole.RangedDps, false)]
+	[TestCase(CombatRole.RangedSupport, false)]
+	public void GuardRole_IsMeleeOnly(CombatRole role, bool expected)
+	{
+		Assert.AreEqual(expected, BaseSiteMath.IsGateGuardRole(role));
+	}
+
+	// 세로 게이트: 문 (10,5)(10,6), 목책 (11,5)(11,6). 방은 x ≥ 11 쪽이다(x ≤ 10은 문 줄과 바깥).
+	private static readonly Vector2Int[] VerticalGate =
+	{
+		new Vector2Int(10, 5), new Vector2Int(10, 6), new Vector2Int(11, 5), new Vector2Int(11, 6),
+	};
+
+	private static bool InsideRoom(Vector2Int p) => p.x >= 11;
+
+	private static int DistanceToGate(Vector2Int tile)
+	{
+		int best = int.MaxValue;
+		foreach (var g in VerticalGate) best = Mathf.Min(best, Mathf.Max(Mathf.Abs(tile.x - g.x), Mathf.Abs(tile.y - g.y)));
+		return best;
+	}
+
+	[Test]
+	public void GuardSlot_IsExactlyOneTileFromGateAndNotAGateTile()
+	{
+		Assert.IsTrue(BaseSiteMath.TryPickGuardSlot(VerticalGate, new Vector2Int(15, 5), InsideRoom, out Vector2Int slot));
+		Assert.AreEqual(1, DistanceToGate(slot), $"문·목책에서 정확히 1칸이어야 한다: {slot}");
+		CollectionAssert.DoesNotContain(VerticalGate, slot);
+	}
+
+	[Test]
+	public void GuardSlot_PicksNearestToUnit_TieBreaksByLowerY()
+	{
+		// 방 쪽(x=12) 네 칸은 (15,5)에서 모두 거리 3 — 동점이면 y가 작은 (12,4).
+		Assert.IsTrue(BaseSiteMath.TryPickGuardSlot(VerticalGate, new Vector2Int(15, 5), InsideRoom, out Vector2Int slot));
+		Assert.AreEqual(new Vector2Int(12, 4), slot);
+	}
+
+	[Test]
+	public void GuardSlot_SkipsTakenTiles_AndFailsWhenNoneFree()
+	{
+		var taken = new HashSet<Vector2Int>();
+		var picked = new List<Vector2Int>();
+		// 자리가 다 찰 때까지 하나씩 맡는다 — 같은 칸을 두 번 주지 않고, 끝나면 false.
+		for (int i = 0; i < 20; i++)
+		{
+			if (!BaseSiteMath.TryPickGuardSlot(VerticalGate, new Vector2Int(15, 5), p => InsideRoom(p) && !taken.Contains(p), out Vector2Int slot)) break;
+			Assert.IsTrue(taken.Add(slot), $"같은 자리를 두 번 줬다: {slot}");
+			picked.Add(slot);
+		}
+		Assert.AreEqual(6, picked.Count, "방 쪽 1칸 둘레: 정면 4칸 + 목책 옆 2칸");
+		Assert.IsFalse(BaseSiteMath.TryPickGuardSlot(VerticalGate, new Vector2Int(15, 5), p => InsideRoom(p) && !taken.Contains(p), out _));
+	}
+
+	[Test]
+	public void GuardSlot_NoGateTiles_ReturnsFalse()
+	{
+		Assert.IsFalse(BaseSiteMath.TryPickGuardSlot(new Vector2Int[0], Vector2Int.zero, _ => true, out _));
+	}
+
+	[Test]
+	public void GateOrder_FewestAssignedFirst_ThenNearest_ThenListOrder()
+	{
+		CollectionAssert.AreEqual(new[] { 1, 2, 0 }, BaseSiteMath.OrderGatesByLoad(new[] { 2, 0, 1 }, new[] { 1, 5, 1 }));
+		CollectionAssert.AreEqual(new[] { 1, 0 }, BaseSiteMath.OrderGatesByLoad(new[] { 1, 1 }, new[] { 4, 2 }));
+		CollectionAssert.AreEqual(new[] { 0, 1, 2 }, BaseSiteMath.OrderGatesByLoad(new[] { 0, 0, 0 }, new[] { 3, 3, 3 }));
+	}
+
+	[Test]
+	public void GateOrder_SpreadsMeleeAcrossGates()
+	{
+		// 게이트 둘, 근접 4명을 차례로 맡기면 2:2로 나뉜다.
+		var loads = new[] { 0, 0 };
+		var distances = new[] { 1, 9 };
+		for (int i = 0; i < 4; i++) loads[BaseSiteMath.OrderGatesByLoad(loads, distances)[0]]++;
+		CollectionAssert.AreEqual(new[] { 2, 2 }, loads);
+	}
+
+	[Test]
+	public void Footprint_ContainsTilesWithinRadius()
+	{
+		var layout = new SiteLayout { Center = new Vector2Int(5, 5), Radius = 1 };
+		Assert.IsTrue(BaseSiteMath.IsInFootprint(layout, new Vector2Int(6, 6)));
+		Assert.IsFalse(BaseSiteMath.IsInFootprint(layout, new Vector2Int(7, 5)), "천막 둘레(반경 2)는 영역 밖이다");
+	}
+
 	private static void AssertFootprintAvoids(SiteLayout layout, HashSet<Vector2Int> forbidden)
 	{
 		for (int dx = -layout.Radius; dx <= layout.Radius; dx++)

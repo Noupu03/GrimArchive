@@ -180,5 +180,48 @@ public class DoorGroupTests
 		var core = new InteractableObject("core", new Vector3Int(10, 10, 1), 0f);
 		Assert.AreEqual(new Vector2Int(10, 10), core.NearestTileTo(new Vector2Int(2, 2)));
 	}
+
+	// ── 목책 자리: 문 줄을 방 안쪽으로 한 칸 민 칸들 ──
+
+	[Test]
+	public void Inward_VerticalGate_PointsIntoTheRoomsOwnSide()
+	{
+		// 아래 방(44)은 y <= 47 쪽이다 — 아래 방 쪽 문 줄(y=47)의 안쪽은 아래(-y), 위 방(45) 쪽 줄(y=48)의 안쪽은 위(+y).
+		Assert.IsTrue(DoorGeometry.TryGetInward(false, new Vector2Int(6, 47), t => RoomByY(t) == 44, out Vector2Int lower));
+		Assert.AreEqual(new Vector2Int(0, -1), lower);
+
+		Assert.IsTrue(DoorGeometry.TryGetInward(false, new Vector2Int(6, 48), t => RoomByY(t) == 45, out Vector2Int upper));
+		Assert.AreEqual(new Vector2Int(0, 1), upper);
+	}
+
+	[Test]
+	public void Inward_HorizontalGate_UsesTheXAxis()
+	{
+		// 수평 게이트(왼쪽 방 x <= 9, 오른쪽 방 x >= 10): 왼쪽 방 쪽 줄(x=9)의 안쪽은 -x, 오른쪽 방 쪽 줄(x=10)의 안쪽은 +x.
+		Assert.IsTrue(DoorGeometry.TryGetInward(true, new Vector2Int(9, 5), t => t.x <= 9, out Vector2Int left));
+		Assert.AreEqual(new Vector2Int(-1, 0), left);
+
+		Assert.IsTrue(DoorGeometry.TryGetInward(true, new Vector2Int(10, 5), t => t.x >= 10, out Vector2Int right));
+		Assert.AreEqual(new Vector2Int(1, 0), right);
+	}
+
+	[Test]
+	public void Inward_AmbiguousOrUnknown_ReturnsFalse()
+	{
+		// 양쪽 이웃이 모두 같은 방이거나 어느 쪽도 아니면 안쪽을 정할 수 없다 — 그 문에는 목책을 세우지 않는다.
+		Assert.IsFalse(DoorGeometry.TryGetInward(false, new Vector2Int(6, 47), _ => true, out _));
+		Assert.IsFalse(DoorGeometry.TryGetInward(false, new Vector2Int(6, 47), _ => false, out _));
+	}
+
+	[Test]
+	public void Shifted_KeepsOrderAndMovesEveryTile()
+	{
+		var fence = DoorGeometry.Shifted(RowA(), new Vector2Int(0, -1));
+
+		Assert.AreEqual(2, fence.Count);
+		Assert.AreEqual(new Vector2Int(6, 46), fence[0]);
+		Assert.AreEqual(new Vector2Int(7, 46), fence[1]);
+		Assert.AreEqual(new Vector2Int(6, 47), RowA()[0], "원본 문 줄은 건드리지 않는다");
+	}
 }
 #endif

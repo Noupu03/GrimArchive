@@ -19,6 +19,8 @@ public struct UnitCombatState
     public float actionCooldown;
     public float[] skillCooldowns;
     public bool isHitThisTurn;
+    // 마지막으로 맞은 시각(Time.time, 0 이하 = 맞은 적 없음) — isHitThisTurn은 한 행동 틱만 켜져 프레임 단위로 도는 시스템(거점 공사 등)이 놓칠 수 있어 따로 기억한다.
+    public float lastHitTime;
     public bool oneTimeReactUsed;
     public float evadeCooldown;
     public bool isCastingAttack;

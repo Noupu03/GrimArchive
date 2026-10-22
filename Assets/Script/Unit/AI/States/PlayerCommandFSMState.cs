@@ -84,10 +84,10 @@ public class PlayerCommandFSMState : IFSMState
 
 		// 코어는 플레이어의 공격 대상이 아니다 — 플레이어 몬스터는 코어를 공격하지 않고 완전 활성화·수복만 한다(코어 점령 v0.2 10장). 우클릭하면 호출부가 일반 이동 명령으로 넘어간다.
 		if (obj.Tags.Contains(GameSession.CoreTag)) return false;
-		if (obj.Tags.Contains(DoorSystem.DoorTag))
+		if (DoorSystem.IsBarrier(obj)) // 문과 목책
 		{
 			if (obj.DoorHp <= 0f) return false;
-			// 자기 진영 문은 공격 대상이 아니다(항상 통과 가능) — 호출부가 대신 일반 이동으로 처리한다.
+			// 자기 진영 문·목책은 공격 대상이 아니다(항상 통과 가능) — 호출부가 대신 일반 이동으로 처리한다.
 			// 문 소유 진영은 방 소유권과 분리된 고정값(InteractableObject.DoorOwnerFaction)이라 방
 			// 조회 없이 바로 읽는다.
 			FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);

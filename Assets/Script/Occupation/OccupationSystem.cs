@@ -15,6 +15,8 @@ public class OccupationSystem
 	public static bool AllowUnknownAdvance = false;
 
 	private const float ValidateIntervalSeconds = 1f;
+	// 기존 문 철거가 이 시간(교전 중 제외) 안에 끝나지 않으면 남은 문을 같은 파괴 경로로 허문다 — 문에 닿지 못하는 교착 방지(문서에 수치 없음, 자리표시자).
+	private const float DemolitionForceSeconds = 90f;
 
 	private IObjectResolver _resolver;
 	private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
@@ -32,6 +34,11 @@ public class OccupationSystem
 	private readonly HashSet<Room> _defenseRequested = new HashSet<Room>();
 	private readonly Dictionary<Room, Vector3Int> _facilities = new Dictionary<Room, Vector3Int>(); // 방마다 실제로 세운 방어 시설 오브젝트의 칸 — 거점을 잃으면 철거한다
 	private readonly List<Room> _neighborBuffer = new List<Room>();
+	// 기초 시설을 짓기 전에 방 쪽 기존 문을 실제로 부수는 중(철거 단계)인 방과 그 단계에서 교전 없이 흐른 시간. 철거가 끝나면 청사진을 깔고 인류 문·목책을 새로 설치한다.
+	private readonly HashSet<Room> _demolishing = new HashSet<Room>();
+	private readonly Dictionary<Room, float> _demolishElapsed = new Dictionary<Room, float>();
+	private readonly List<InteractableObject> _doorBuffer = new List<InteractableObject>();
+	private readonly List<InteractableObject> _queryBuffer = new List<InteractableObject>();
 	private float _nextValidateTime;
 
 	// 점령 병력이 거점을 옮기며 전진하는 "전방" 거점과 집단의 거점 정원(처음 출격 인원, 자리표시자 — 문서가 정원 수치를 정하지 않음).
@@ -90,6 +97,8 @@ public class OccupationSystem
 			// 소속 병력이 모두 사라졌다 — 시설만 남은 이전 거점은 주둔 거점 수에서 제외한다(14-3장).
 			_frontBase = null;
 			_groupCapacity = 0;
+			_demolishing.Clear();
+			_demolishElapsed.Clear();
 		}
 	}
 
@@ -148,7 +157,8 @@ public class OccupationSystem
 	{
 		if (party.Retreat.IsRetreating) return;
 		Room room = party.Leader.currentRoom;
-		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party) || IsEngagedIn(party, room)) return;
+		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party) || IsConstructionDisturbed(party)) return;
+		if (!TickDemolition(party, room, deltaTime)) return;
 
 		bool done = Construction.Tick(party, room, defense: false, deltaTime, out bool started, out bool halfway);
 		if (started)
@@ -165,6 +175,68 @@ public class OccupationSystem
 		if (done) CompleteBasic(party, room);
 	}
 
+	// 기초 시설을 짓기 전에 방 쪽의 기존 문(인류 소유가 아닌 것)을 먼저 실제로 부순다 — 코어 점령 v0.2 12장 "기존 문 제어권이 없으면 문을 파괴하고 인류 문을 세운다"(2026-10-22 사용자 요청: 소유권을 바로 바꾸지 말고 실제 파괴 로직으로 부순 뒤 시간을 들여 다시 짓는다).
+	// 부수는 일은 점령 파티원 각자의 DoorAttack 행동(TacticalFSMState → TryFindDemolitionDoor)이 문 채널링 데미지로 하고, 이 함수는 철거 단계의 시작·끝만 관리한다. 철거할 문이 없으면 true(공사 시작).
+	private bool TickDemolition(Party party, Room room, float deltaTime)
+	{
+		Session.CollectHostileRoomDoors(room, _doorBuffer);
+		if (_doorBuffer.Count == 0)
+		{
+			if (_demolishing.Remove(room))
+			{
+				_demolishElapsed.Remove(room);
+				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기존 문 철거 완료 — 인류 문·목책 설치 시작");
+			}
+			return true;
+		}
+
+		if (_demolishing.Add(room))
+		{
+			_demolishElapsed[room] = 0f;
+			// 공사 대기와 다음 문을 찾으며 따라다니던 추종 대기를 풀어 파티원이 문을 부수러 갈 수 있게 한다 — BT에서 Wait이 DoorAttack보다 앞이라 대기가 남아 있으면 문을 공격하지 못한다.
+			BaseConstruction.ClearWaits(party);
+			foreach (var member in party.Members)
+				if (member != null && member.currentWait != null && member.currentWait.Reason == WaitReason.SearchingNextDoor)
+				{
+					member.currentWait = null;
+					member.waitStuckTurns = 0;
+				}
+			Construction.DismissGateBlueprint(room, celebrate: false); // 철거 중에는 설치 청사진이 없다
+			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기존 문 {_doorBuffer.Count}개를 부수며 거점 건설을 준비합니다");
+			NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}의 기존 문을 부수고 있습니다.", NoticeCenter.WarningColor);
+		}
+
+		float elapsed = (_demolishElapsed.TryGetValue(room, out float previous) ? previous : 0f) + deltaTime;
+		_demolishElapsed[room] = elapsed;
+		if (elapsed < DemolitionForceSeconds) return false;
+
+		// 문에 닿지 못해 철거가 끝나지 않는 교착 방지 — 남은 문을 같은 파괴 경로(RemoveDoor)로 허문다. 다음 틱에 남은 문이 없으면 공사가 시작된다.
+		LogHelper.Warning(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 기존 문 철거가 {DemolitionForceSeconds:F0}초 안에 끝나지 않아 남은 문 {_doorBuffer.Count}개를 허뭅니다");
+		foreach (var door in _doorBuffer) Session.RemoveDoor(door.Position);
+		return false;
+	}
+
+	// 철거 단계의 방에서 점령 파티원이 부술 문 — 이 방 쪽 문 중 인류 소유가 아닌 것 가운데 가장 가까운 것의 가장 가까운 칸. TacticalFSMState.FindHostileExitDoor(DoorAttack)가 부른다.
+	public bool TryFindDemolitionDoor(Human human, Room room, out Vector3Int doorPos, out InteractableObject door)
+	{
+		doorPos = default;
+		door = null;
+		if (human == null || human.party == null || human.party.Type != PartyType.Occupy || room == null || !_demolishing.Contains(room)) return false;
+
+		Session.CollectHostileRoomDoors(room, _queryBuffer);
+		int best = int.MaxValue;
+		foreach (var candidate in _queryBuffer)
+		{
+			Vector2Int tile = candidate.NearestTileTo(human.position);
+			int dist = AIMovementHelper.ChebyshevDistance(human.position, tile);
+			if (dist >= best) continue;
+			best = dist;
+			doorPos = new Vector3Int(tile.x, tile.y, room.Floor);
+			door = candidate;
+		}
+		return door != null;
+	}
+
 	private static bool CanConstructNow(Party party)
 	{
 		if (party.IsRallyActive || party.AdvancePlan != null || party.ReadyToAdvance) return false;
@@ -172,34 +244,43 @@ public class OccupationSystem
 		return !leader.isInDungeonEntranceSequence && !leader.pendingStairTargetFloor.HasValue;
 	}
 
-	// room에 있는 파티원 중 한 명이라도 전투·경계·합류 대기·적 인지 중이면 공사를 멈춘다(PartyEngagement.IsEngaged, 집결·진형의 시간 정지와 같은 판정). 리더만 보면 다른 파티원이 싸우는 동안에도 나머지 일꾼이 계속 지었다.
-	private static bool IsEngagedIn(Party party, Room room)
+	// 파티원 누구든(어느 방이든) 전투·경계·합류 대기·적 인지 중(PartyEngagement.IsEngaged, 집결·진형의 시간 정지와 같은 판정)이거나 방금 맞았으면 공사 전체를 멈춘다 — 진행도는 남고, 모두 가라앉으면 이어 짓는다.
+	// 리더만 보면 다른 파티원이 싸우는 동안에도 나머지 일꾼이 계속 지었다. 피격은 한 행동 틱짜리 표식이라 맞은 시각(SecondsSinceLastHit)을 따로 본다(2026-10-22 사용자 요청 "한 유닛이라도 피격당하거나 전투 상태가 되면 정지").
+	private static bool IsConstructionDisturbed(Party party)
 	{
+		bool anyEngaged = false;
+		float sinceHit = float.PositiveInfinity;
 		foreach (var m in party.Members)
-			if (m != null && m.currentRoom == room && PartyEngagement.IsEngaged(m)) return true;
-		return false;
+		{
+			if (m == null || m.hp <= 0f) continue;
+			anyEngaged |= PartyEngagement.IsEngaged(m);
+			sinceHit = Mathf.Min(sinceHit, m.SecondsSinceLastHit);
+		}
+		return OccupationMath.ShouldPauseConstruction(anyEngaged, sinceHit);
 	}
 
 	private void CompleteBasic(Party party, Room room)
 	{
-		int doors = Session.SetRoomDoorsOwner(room, FactionType.Human);
-		// 공사 연출을 먼저 마무리한다(건설물이 천막 상징물로 남는다) — MarkBase가 곧바로 테두리 펄스를 시작하므로, 그 뒤에 테두리 채움을 걷으면 펄스 첫 프레임을 균일한 선으로 덮어쓴다.
-		Construction.Complete(room, defense: false);
+		// 철거 단계에서 기존 문이 이미 부서져 있어(TickDemolition) 빈 자리에 인류 문과 목책을 세울 뿐이다 — 소유권만 바꿔치기하지 않는다.
+		var (doors, fences) = Session.InstallHumanGates(room);
+		Construction.Complete(room, defense: false); // 건설물이 천막 상징물로 남고, 문·목책 설치 청사진은 옅어진다
 		MarkBase(room, BaseStage.Basic);
 		_frontBase = room;
 		BaseConstruction.ClearWaits(party);
 
-		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 완공 — 문 {doors}개를 인류 소유로 설치/전환, 기초 거점 형성. {DescribeBases()}");
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 완공 — 인류 문 {doors}개·목책 {fences}개를 설치, 기초 거점 형성. {DescribeBases()}");
 		NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}에 거점을 세웠습니다.", NoticeCenter.WarningColor);
 		SpeechSystem.Say(party.Leader, SpeechId.BaseBuilt);
 		TryDesignateDefenseBase(party);
 	}
 
+	// 거점 단계는 방 소유(RoomFaction)와 따로라 방 테두리를 바꾸지 않는다 — 테두리는 플레이어 방 확보만 표현하고, 거점은 현장 상징물·방 정보 패널로 보인다.
 	private void MarkBase(Room room, BaseStage stage)
 	{
 		room.BaseStage = stage;
 		if (!_bases.Contains(room)) _bases.Add(room);
-		Session.OffenseProcessor?.RefreshRoomOutline(room, pulse: true);
+		_demolishing.Remove(room);
+		_demolishElapsed.Remove(room);
 	}
 
 	// 점령 병력이 정원을 채웠고 거점 상한에 여유가 있으면 가장 가까운 유효한 기초 거점을 다음 방어 거점으로 정한다(14장). 병력이 정원 미만이면 충원이 올 때까지 미룬다.
@@ -253,7 +334,7 @@ public class OccupationSystem
 		Room room = st.BaseRoom;
 		if (!st.IsRetreating || st.Phase != PartyRetreatPhase.Resting || room == null || !_defenseRequested.Contains(room)) return;
 		if (!OccupationMath.NeedsDefenseBuild(room.BaseStage, room.DefenseDesignated)) { _defenseRequested.Remove(room); return; }
-		if (IsEngagedIn(party, room)) return; // 건설 중 공격받으면 전투한다(13장) — 기초 공사와 같은 중단 규칙
+		if (IsConstructionDisturbed(party)) return; // 건설 중 공격받으면 전투한다(13장) — 기초 공사와 같은 중단 규칙
 
 		bool done = Construction.Tick(party, room, defense: true, deltaTime, out bool started, out _);
 		if (started) LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 방어 시설 건설 시작(작업량 {OccupationMath.DefenseWorkUnits:F0}) — 휴식을 마친 파티원이 짓는다");
@@ -262,7 +343,7 @@ public class OccupationSystem
 
 	private void CompleteDefense(Party party, Room room)
 	{
-		Construction.Complete(room, defense: true); // 테두리 펄스를 시작하는 MarkBase보다 먼저 — CompleteBasic과 같은 이유. 천막 상징물은 걷히고 아래 SpawnDefenseFacility가 같은 칸에 망루를 세운다
+		Construction.Complete(room, defense: true); // 천막 상징물은 걷히고 아래 SpawnDefenseFacility가 같은 칸에 망루를 세운다
 		MarkBase(room, BaseStage.Defense);
 		_defenseRequested.Remove(room);
 		BaseConstruction.ClearWaits(party);
@@ -277,8 +358,9 @@ public class OccupationSystem
 	{
 		// 공사 현장 한가운데에 세운다 — 청사진이 이미 계단·건물·코어·오브젝트·문을 피해 고른 자리이고, 건설물이 완공 연출로 사라진 바로 그 자리다.
 		// 자리를 못 구했을 때만 방 중앙 근처에서 찾되, 중앙이 계단·건물 같은 구조물 칸이어도 비켜 간다(오브젝트 칸만 보면 계단 위에 서 버린다).
-		if (!Construction.TryGetFacilityTile(room, out Vector3Int pos))
+		if (!Construction.TryGetFacilityTile(room, out Vector3Int pos, out int radius))
 		{
+			radius = 0; // 현장 자리를 못 구한 폴백 칸은 이웃을 덮지 않게 한 칸 크기로 둔다
 			var center = new Vector3Int(Mathf.RoundToInt(room.Bounds.center.x), Mathf.RoundToInt(room.Bounds.center.y), room.Floor);
 			bool blocked = Session.objectGrid.ContainsKey(center) || !Session.cmap.IsStaticTileWalkable(room.Floor, new Vector2Int(center.x, center.y));
 			pos = blocked ? Session.FindNearbyFreeObjectTile(center) : center;
@@ -289,7 +371,7 @@ public class OccupationSystem
 		if (Session.objectGrid.TryGetValue(pos, out InteractableObject placed) && placed == facility)
 		{
 			_facilities[room] = pos;
-			BaseSiteVisual.ApplyDefenseEmblem(Session.GetObjectVisual(pos));
+			BaseSiteVisual.ApplyDefenseEmblem(Session.GetObjectVisual(pos), radius);
 		}
 	}
 
@@ -305,7 +387,8 @@ public class OccupationSystem
 	// TacticalFSMState.ExecuteWait(평소)와 RestPerform(거점 휴식 중 방어 시설 공사)이 부르는 건설 대기 유닛 한 틱.
 	public BTStatus StepConstruct(Human h, WaitState wait) => Construction.Step(h, wait);
 
-	// 방 쪽 인류 문이 하나도 남지 않으면 인류 시설이 파괴돼 이용할 수 없는 거점이다(13-2장 "파괴되어 이용할 수 없으면") — 플레이어가 문을 파괴하거나 자기 문으로 다시 세운 경우.
+	// 방 쪽 인류 문과 목책이 하나도 남지 않으면 인류 시설이 파괴돼 이용할 수 없는 거점이다(13-2장 "파괴되어 이용할 수 없으면") — 플레이어가 문·목책을 모두 부수거나 문을 자기 문으로 다시 세운 경우.
+	// 사용자 결정(2026-10-22): 기초 시설 = 문 + 목책이라 둘 다 사라져야 상실이고, 상실하면 방어 시설 포함 거점 전체가 무너진다(방어 시설을 따로 철거하는 수단은 아직 없다).
 	private void ValidateBases()
 	{
 		if (_bases.Count == 0 || Time.time < _nextValidateTime) return;
@@ -314,13 +397,15 @@ public class OccupationSystem
 		for (int i = _bases.Count - 1; i >= 0; i--)
 		{
 			Room room = _bases[i];
-			if (Session.GetRoomDoorAnchors(room).Count > 0 && Session.CountRoomDoors(room, FactionType.Human) == 0) LoseBase(room);
+			if (Session.GetRoomDoorAnchors(room).Count > 0
+				&& Session.CountRoomDoors(room, FactionType.Human) == 0
+				&& Session.CountRoomFences(room, FactionType.Human) == 0) LoseBase(room);
 		}
 	}
 
 	private void LoseBase(Room room)
 	{
-		LogHelper.Log(LogHelper.GAME, $"[점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 거점 상실 — 인류 문이 모두 사라져 이용할 수 없음(거점 단계 {room.BaseStage})");
+		LogHelper.Log(LogHelper.GAME, $"[점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 거점 상실 — 인류 문과 목책이 모두 사라져 이용할 수 없음(거점 단계 {room.BaseStage})");
 		room.BaseStage = BaseStage.None;
 		room.DefenseDesignated = false;
 		_bases.Remove(room);
@@ -328,7 +413,6 @@ public class OccupationSystem
 		Construction.Reset(room);
 		RemoveDefenseFacility(room);
 		if (_frontBase == room) _frontBase = _bases.Count > 0 ? _bases[_bases.Count - 1] : null;
-		Session.OffenseProcessor?.RefreshRoomOutline(room, pulse: false);
 	}
 
 	// 방 정보 패널(RoomStatusText.BaseText)에 보여 줄 거점 상태 문구(거점도 공사도 없으면 빈 문자열) — 거점 단계·공사 진행·방어 거점 지정을 구분한다(19장).
@@ -343,6 +427,7 @@ public class OccupationSystem
 				if (defense > 0f) return $"방어 시설 공사 {defense * 100f:F0}%";
 				return room.DefenseDesignated ? "인류 기초 거점(방어 거점 지정)" : "인류 기초 거점";
 			default:
+				if (_demolishing.Contains(room)) return "인류 거점 건설 준비 — 기존 문 철거 중";
 				float basic = Construction.Progress01(room, false);
 				return basic > 0f ? $"인류 거점 건설 {basic * 100f:F0}%" : string.Empty;
 		}
@@ -362,7 +447,8 @@ public class OccupationSystem
 	{
 		if (room == null || room.Floor < 1) return;
 		bool newlyDefense = defense && room.BaseStage != BaseStage.Defense;
-		Session.SetRoomDoorsOwner(room, FactionType.Human);
+		// 즉시 거점 — 철거·설치 연출 없이 인류가 아닌 문은 부수고 인류 문과 목책을 곧바로 세운다(InstallHumanGates).
+		Session.InstallHumanGates(room);
 		MarkBase(room, defense ? BaseStage.Defense : (room.BaseStage == BaseStage.None ? BaseStage.Basic : room.BaseStage));
 		if (defense) room.DefenseDesignated = true;
 		if (!defense || _frontBase == null) _frontBase = room;

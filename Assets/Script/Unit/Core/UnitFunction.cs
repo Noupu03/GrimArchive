@@ -10,9 +10,16 @@ public abstract class UnitFunction : Unit
 	{
 		float prevHp = Health.hp;
 		Health.hp -= damage;
-		CombatState.State.isHitThisTurn = true;
+		MarkHit();
 		if (this.Generate != null) this.Generate.TriggerHitEffect(this);
 		if (this is Human) SpeakOnDamage(prevHp);
+	}
+
+	// 피격 표식 — 이번 행동 틱용 플래그와 마지막 피격 시각을 함께 남긴다(모든 피격 경로가 이 메서드를 거친다).
+	private void MarkHit()
+	{
+		CombatState.State.isHitThisTurn = true;
+		CombatState.State.lastHitTime = Time.time;
 	}
 
 	// 연출 — HP가 50%·25% 아래로 처음 내려갈 때와 공황 상태에서 맞을 때 비명·혼잣말(인류만, SpeechSystem이 순위·쿨다운을 관리한다).
@@ -263,7 +270,7 @@ public abstract class UnitFunction : Unit
 		if (this is Human)
 		{
 			MentalSystem.ApplyChange(this, -rawDamage); // 정신력만 감소 — 모든 정신력 변경의 단일 진입점(범위 제한·감소 보정·도주 판정)
-			CombatState.State.isHitThisTurn = true;
+			MarkHit();
 		}
 	}
 
@@ -1172,7 +1179,7 @@ public abstract class UnitFunction : Unit
 			if (Session.objectGrid.TryGetValue(targetPos, out var targetObj))
 			{
 				bool isCore = targetObj.Tags != null && targetObj.Tags.Contains(GameSession.CoreTag);
-				bool isDoor = targetObj.Tags != null && targetObj.Tags.Contains(DoorSystem.DoorTag);
+				bool isDoor = DoorSystem.IsBarrier(targetObj); // 문과 목책 — 같은 체력·소유 진영 필드와 파괴 경로를 쓴다
 				// 함정 공격 — 코어/문과 동일한 채널링 필드를 공유하지만, 자동 AI가 스스로 트리거하는
 				// 경로는 없다(플레이어 우클릭 명령만 채운다).
 				bool isTrap = targetObj.Tags != null && targetObj.Tags.Exists(t => t.Contains("Trap"));
@@ -1347,7 +1354,7 @@ public abstract class UnitFunction : Unit
 		float raw    = attacker.CombatStat.physicalAttack * multiplier;
 		float damage = Mathf.Max(1f, raw - CombatStat.physicalDefense);
 		Health.hp -= damage;
-		CombatState.State.isHitThisTurn = true;
+		MarkHit();
 		if (this.Generate != null)
 			this.Generate.TriggerHitEffect(this);
 

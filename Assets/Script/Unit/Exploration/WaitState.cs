@@ -69,6 +69,8 @@ public class WaitState
 	// ConstructingBase 전용 — 짓는 방과 방어 시설 공사인지(false면 기초 시설).
 	public Room WorkRoom;
 	public bool WorkIsDefense;
+	// ConstructingBase 전용 — 문·목책 곁에 서는 근접 일꾼이 맡은 게이트(RoomGate.Anchor). null이면 건설물 둘레에 서는 일꾼이다. 게이트별 인원 균형을 맞추는 데 쓴다.
+	public Vector3Int? WorkGateAnchor;
 
 	// 집결/진형/입장 자리 전용 — 이미 가 보려다 막혀 포기한 자리. 재선택이 같은 자리 사이를 오가지 않게 하는 기억이며, 단계가 바뀌면 비운다.
 	public HashSet<Vector2Int> RejectedSlots;

@@ -1658,7 +1658,13 @@ public class TacticalFSMState : IFSMState
 
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
 		if (!unit.Session.roomGrid.TryGetValue(gridPos, out Room room) || room == null) return false;
-		if (room.BaseStage == BaseStage.None) return false; // "방을 점령하고 난 다음"
+		if (room.BaseStage == BaseStage.None)
+		{
+			// 거점이 아닌 방 — 점령 파티가 기초 시설을 짓기 전에 방 쪽 기존 문을 실제로 부수는 철거 단계일 때만 문을 공격한다(OccupationSystem.TickDemolition, 이 방 쪽 문만 대상).
+			// 그 밖의 인류는 "방을 점령하고 난 다음"에만 문을 공격한다.
+			OccupationSystem occupation = unit.Session.Occupation;
+			return occupation != null && unit is Human occupier && occupation.TryFindDemolitionDoor(occupier, room, out doorPos, out door);
+		}
 		if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= unit.Session.cmap.map.floors.Length) return false;
 
 		Floor floor = unit.Session.cmap.map.floors[room.Floor];
@@ -1803,7 +1809,7 @@ public class TacticalFSMState : IFSMState
 		{
 			InteractableObject attackObj = null;
 			unit.Session?.objectGrid.TryGetValue(unit.currentAttackObjectTarget.Value, out attackObj);
-			bool isDoor = attackObj?.Tags != null && attackObj.Tags.Contains(DoorSystem.DoorTag);
+			bool isDoor = DoorSystem.IsBarrier(attackObj);
 			return isDoor ? "전술(문 공격)" : "전술(코어 공격)";
 		}
 		return "전술";

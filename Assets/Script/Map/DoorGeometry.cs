@@ -67,6 +67,28 @@ public static class DoorGeometry
 		return new Vector2((minX + maxX) / 2f + 0.5f, (minY + maxY) / 2f + 0.5f);
 	}
 
+	// 문 묶음의 "방 안쪽" 방향 — 수평 게이트(문 타일이 한 열에 늘어섬)는 ±x, 수직 게이트는 ±y 중 문 타일의 이웃이 같은 방인 쪽이다(반대쪽 이웃은 게이트 건너편 방의 문 줄).
+	// 양쪽이 모두 같은 방이거나 어느 쪽도 아니면 안쪽을 정할 수 없어 false다. 목책은 문 줄을 이 방향으로 한 칸 민 자리에 선다.
+	public static bool TryGetInward(bool horizontalGate, Vector2Int sample, Func<Vector2Int, bool> isInRoom, out Vector2Int inward)
+	{
+		Vector2Int a = horizontalGate ? Vector2Int.left : Vector2Int.down;
+		Vector2Int b = -a;
+		bool inA = isInRoom(sample + a);
+		bool inB = isInRoom(sample + b);
+		inward = default;
+		if (inA == inB) return false;
+		inward = inA ? a : b;
+		return true;
+	}
+
+	// 타일 목록을 offset만큼 민다(입력 순서 유지 — (x, y) 오름차순이면 결과도 오름차순이다).
+	public static List<Vector2Int> Shifted(IReadOnlyList<Vector2Int> tiles, Vector2Int offset)
+	{
+		var result = new List<Vector2Int>(tiles.Count);
+		for (int i = 0; i < tiles.Count; i++) result.Add(tiles[i] + offset);
+		return result;
+	}
+
 	// 문 묶음의 짝(칸) 중 좌우 반전해 그릴 것 — 열림 스프라이트는 왼쪽 7열에만 문짝이 있어 앞쪽 절반은 그대로, 뒤쪽 절반은 반전해야 두 짝이 바깥 양 끝으로 갈라진다(양쪽 여닫이). 타일이 (x, y) 오름차순이라 수직 게이트는 왼→오른쪽, 수평 게이트(90도 회전)는 아래→위쪽 순서로 같은 규칙이며 한 칸짜리 문은 반전하지 않는다.
 	public static bool IsMirroredLeaf(int index, int count)
 		=> count > 1 && index >= (count + 1) / 2;

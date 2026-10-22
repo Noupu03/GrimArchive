@@ -161,6 +161,9 @@ public class BuildingManager : NativeRoutine
         // 1-1. 게이트(문) 타일 최우선 예약 — 문이 파괴된 뒤에도 재설치 가능성을 지형으로 영구 보장하려고 IsDoorTile 대신 IsRepairableDoorTile로 확인한다.
         if (GameSession.Instance != null && GameSession.Instance.IsRepairableDoorTile(pos)) return BuildBlock.Terrain;
 
+        // 1-1b. 인류 목책이 선 칸에는 건물을 지을 수 없다 — 먼저 목책을 철거해야 한다.
+        if (GameSession.Instance != null && GameSession.Instance.IsFenceTile(pos)) return BuildBlock.Terrain;
+
         // 1-2. 플레이어가 확보한 방에만 건물을 지을 수 있다. requireOwnership=false(더미 건물)면 건너뛴다.
         if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return BuildBlock.RoomNotSecured;
 

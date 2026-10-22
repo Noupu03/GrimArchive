@@ -102,6 +102,7 @@ public class OffenseProcessor
     };
 
     // 플레이어 방 확보(RoomFaction)의 단일 진입점 — 방 클리어(RoomClearSystem)만 부른다. 코어 파괴도, 인류 거점 건설도 방 소유를 바꾸지 않는다(코어 점령 v0.2 1-1·12-2장: 인류 시설 완공이 플레이어의 확보를 제거하지 않는다).
+    // 방 테두리(색 + 펄스)는 이 소유 변경만 표현한다 — 인류 거점(BaseStage)은 테두리를 쓰지 않아 확보와 겹치지 않는다(2026-10-22).
     // 이미 같은 소유면 아무것도 하지 않고 false를 돌려준다.
     public bool ApplyRoomOwnership(Room room, FactionType faction)
     {
@@ -110,33 +111,8 @@ public class OffenseProcessor
         room.RoomFaction = faction;
         GameSession.Instance?.cmap?.SetRoomOccupationState(room.Floor, room.RoomId, MapToOccupationState(faction));
         if (faction == FactionType.Player) GameSession.Instance?.RevealFogAroundCapturedRoom(room);
-        RefreshRoomOutline(room, pulse: true);
+        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(faction));
+        _colorizer?.PulseRoomOutline(room);
         return true;
-    }
-
-    // 방 윤곽선 색 — 인류 거점이 있으면 인류 색, 아니면 소유 진영 색. 거점 완공·상실, 소유 변경 때 부른다.
-    public void RefreshRoomOutline(Room room, bool pulse)
-    {
-        if (room == null) return;
-        _colorizer?.ChangeRoomColor(room, GetRoomOwnerColor(room.BaseStage != BaseStage.None ? FactionType.Human : room.RoomFaction));
-        if (pulse) _colorizer?.PulseRoomOutline(room);
-    }
-
-    // 방어 시설을 짓는 동안 테두리를 채우는 색 — 기초 시설의 인류 색(파랑)과 구분되는 방어 시설 표식과 같은 주황.
-    public static readonly UnityEngine.Color DefenseBuildOutlineColor = new UnityEngine.Color(1f, 0.6f, 0.2f, 1f);
-
-    // 거점 공사 진행도를 방 테두리에 그린다 — 나머지 부분은 지금 소유 진영 색(인류 거점이 이미 있으면 인류 색)이다. 공사가 끝나면 ClearRoomBuildProgress로 걷는다.
-    public void SetRoomBuildProgress(Room room, float progress01, bool defense)
-    {
-        if (room == null) return;
-        var baseColor = GetRoomOwnerColor(room.BaseStage != BaseStage.None ? FactionType.Human : room.RoomFaction);
-        var fillColor = defense ? DefenseBuildOutlineColor : MapRandering.HumanRoomOutlineColor;
-        _colorizer?.SetRoomBuildProgress(room, progress01, baseColor, fillColor);
-    }
-
-    public void ClearRoomBuildProgress(Room room)
-    {
-        if (room == null) return;
-        _colorizer?.ClearRoomBuildProgress(room);
     }
 }

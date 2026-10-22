@@ -320,6 +320,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     {
         if (obj.Tags == null) return "오브젝트";
         if (obj.Tags.Contains(DoorSystem.DoorTag)) return "문";
+        if (obj.Tags.Contains(DoorSystem.FenceTag)) return "목책";
         if (obj.Tags.Contains(GameSession.CoreTag)) return "코어";
         if (obj.Tags.Contains("Object/Building/Passable/Trap")) return "함정";
         if (obj.Tags.Contains("Object/Passable/Corpse"))
@@ -332,7 +333,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     // 체력이 있는 오브젝트(코어/문/함정)만 true를 반환한다 — 그 외는 체력 개념이 없다.
     private static bool TryGetObjectHp(InteractableObject obj, out float hp, out float maxHp)
     {
-        if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag) && obj.DoorMaxHp > 0f)
+        if (DoorSystem.IsBarrier(obj) && obj.DoorMaxHp > 0f)
         {
             hp = obj.DoorHp; maxHp = obj.DoorMaxHp; return true;
         }
@@ -352,7 +353,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     private static FactionType? GetObjectOwnerFaction(InteractableObject obj)
     {
         if (obj.Tags == null) return null;
-        if (obj.Tags.Contains(DoorSystem.DoorTag)) return obj.DoorOwnerFaction;
+        if (DoorSystem.IsBarrier(obj)) return obj.DoorOwnerFaction;
         if (!obj.Tags.Contains(GameSession.CoreTag) || GameSession.Instance == null) return null;
         return GameSession.Instance.roomGrid.TryGetValue(obj.Position, out Room room) && room != null
             ? room.RoomFaction

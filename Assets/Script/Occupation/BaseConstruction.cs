@@ -3,8 +3,10 @@ using UnityEngine;
 using Haare.Util.Logger;
 
 // 점령 파티의 거점 시설 공사 — 방마다 기초/방어 공사 진행도를 들고, 현장 자리 배정·일하는 인원 집계·유닛 한 틱(WaitReason.ConstructingBase)을 맡는다(코어 점령 v0.2 12장).
-// 진행도는 현장 자리에 선 인원 수에 비례한다. 전투·경계가 우선한 틱엔 유닛이 일하는 리프를 못 돌아 인원에서 빠지고, 진행도는 남는다.
-// 공사 연출은 ① 방 테두리가 진행도만큼 채워지고 ② 방 안 빈자리에 바닥 청사진 + 건설물이 서서 단계별로 올라가며 ③ 일꾼 둘레에서 먼지·망치 불꽃이 튀고 ④ 완공하면 번쩍이며 사라진다. 현장 자리는 계단·건물·코어·오브젝트·문과 겹치지 않는 곳만 고른다.
+// 진행도는 현장 자리에 선 인원 수에 비례한다. 파티원 누구든 전투·경계 중이거나 방금 맞았으면 공사 자체가 멈추고(OccupationSystem.IsConstructionDisturbed) 진행도는 남는다.
+// 일꾼 자리는 리더의 건설 명령(AssignBuilders)으로 배정된다 — 근접 역할은 문·목책 둘레 1칸(게이트별로 고르게), 그 밖은 건설물 둘레 1칸에 서서 가만히 일한다(2026-10-22 사용자 요청).
+// 공사 연출은 ① 방 안 빈자리에 바닥 청사진 + 건설물이 서서 단계별로 올라가며 ② 일꾼 둘레에서 먼지·망치 불꽃이 튀고 ③ 완공하면 번쩍이며 사라진다. 현장 자리는 계단·건물·코어·오브젝트·문과 겹치지 않는 곳만 고른다.
+// 방 테두리는 플레이어 방 확보(RoomFaction)만 쓰는 채널이라 거점 공사는 건드리지 않는다(2026-10-22).
 internal sealed class BaseConstruction
 {
 	private const float WorkerFreshSeconds = 2.5f;
@@ -14,7 +16,6 @@ internal sealed class BaseConstruction
 	private const float RelocateAfterSeconds = 3f;   // 자리가 이만큼 계속 막혀 있어야 옮긴다 — 잠깐 놓인 시체 같은 일시적 겹침에 현장이 뛰어다니지 않게
 	private const float LayoutRetrySeconds = 2f;     // 자리를 못 찾았을 때 다시 찾는 주기
 	private const float EmblemCheckSeconds = 1f;     // 완공 상징물의 칸이 아직 비어 있는지 보는 주기
-	private const float OutlineStep = 0.005f;        // 테두리 채움을 다시 그리는 최소 진행도 변화(0.5%)
 
 	private sealed class Progress
 	{
@@ -22,7 +23,6 @@ internal sealed class BaseConstruction
 		public float NextLogTime = -1f;
 		public float NextTalkTime;   // 일꾼 작업 말풍선을 다시 띄울 수 있는 시각
 		public float NextFxTime;     // 일꾼 먼지·망치 불꽃을 다시 낼 수 있는 시각
-		public float OutlineShown = -1f; // 테두리에 마지막으로 그린 진행도(-1 = 아직 안 그림)
 		public bool HalfAnnounced;   // 절반 진행 알림을 이미 냈는지
 	}
 
@@ -47,8 +47,16 @@ internal sealed class BaseConstruction
 	{
 		public BaseSiteVisual Visual;
 		public Vector2Int Tile;
+		public int Radius;   // 상징물이 덮는 영역 반경 — 3×3 자리면 1(크게 그림), 1×1 자리면 0
 		public float NextCheck;
 		public float BlockedSince = -1f;
+	}
+
+	// 근접 일꾼이 곁에 서는 게이트 하나 — 문 칸과 목책이 서는 자리(목책이 아직 없어도 자리 기준). 게이트 지오메트리는 안 바뀌어 방마다 한 번만 구한다.
+	private sealed class GuardGate
+	{
+		public Vector3Int Anchor;
+		public List<Vector2Int> Tiles;
 	}
 
 	private readonly GameSession _session;
@@ -56,6 +64,10 @@ internal sealed class BaseConstruction
 	private readonly Dictionary<(Room room, bool defense), Site> _sites = new Dictionary<(Room, bool), Site>();
 	private readonly Dictionary<Room, LayoutState> _layouts = new Dictionary<Room, LayoutState>();
 	private readonly Dictionary<Room, Emblem> _emblems = new Dictionary<Room, Emblem>();
+	private readonly Dictionary<Room, List<GuardGate>> _guardGates = new Dictionary<Room, List<GuardGate>>();
+	// 기초 시설(문·목책)을 새로 설치하는 동안만 보이는 청사진 — 방 하나에 하나, 설치가 끝나거나 거점을 잃으면 걷는다.
+	private readonly Dictionary<Room, BaseGateBlueprint> _gateBlueprints = new Dictionary<Room, BaseGateBlueprint>();
+	private readonly List<RoomGate> _gateBuffer = new List<RoomGate>();
 	private readonly Dictionary<Party, float> _nextAssignTime = new Dictionary<Party, float>();
 	private readonly List<Human> _workerBuffer = new List<Human>();
 
@@ -73,9 +85,10 @@ internal sealed class BaseConstruction
 	{
 		ClearProgress(room);
 		RemoveEmblem(room);
+		DismissGateBlueprint(room, celebrate: false);
 	}
 
-	// 공사 한 단계를 완공했다 — 진행도·테두리 채움을 걷고 현장 연출을 마무리한다. 반드시 테두리 펄스를 시작하는 MarkBase보다 먼저 부른다(뒤에 걷으면 펄스 첫 프레임을 균일한 선이 덮어쓴다).
+	// 공사 한 단계를 완공했다 — 진행도를 걷고 현장 연출을 마무리한다.
 	// 기초 시설: 건설물이 그 자리에 천막 상징물로 남는다(순수 비주얼, 방 안 어디에도 영향 없음). 방어 시설: 현장이 번쩍이며 사라지고, 같은 칸에 서는 방어 시설 오브젝트가 망루 상징물이 된다
 	//   (OccupationSystem.SpawnDefenseFacility → BaseSiteVisual.ApplyDefenseEmblem) — 그래서 천막 상징물은 걷는다.
 	public void Complete(Room room, bool defense)
@@ -84,6 +97,7 @@ internal sealed class BaseConstruction
 		_sites.TryGetValue((room, defense), out Site finished);
 		_sites.Remove((room, defense));
 		ClearProgress(room);
+		if (!defense) DismissGateBlueprint(room, celebrate: visible); // 실제 문·목책이 선 자리의 청사진 — 채움이 가득 찬 채 옅어진다
 
 		if (defense)
 		{
@@ -100,16 +114,16 @@ internal sealed class BaseConstruction
 		_progress.Remove((room, true));
 		RemoveSite(room, false);
 		RemoveSite(room, true);
-		_session.OffenseProcessor?.ClearRoomBuildProgress(room);
 	}
 
 	public void Forget(Party party) => _nextAssignTime.Remove(party);
 
-	// 방어 시설을 세울 칸 — 현장 한가운데(청사진이 이미 계단·건물·코어·오브젝트를 피해 고른 자리)다. 자리를 못 구하면 false.
-	public bool TryGetFacilityTile(Room room, out Vector3Int pos)
+	// 방어 시설을 세울 칸 — 현장 한가운데(청사진이 이미 계단·건물·코어·오브젝트를 피해 고른 자리)다. 자리를 못 구하면 false. radius = 그 현장 영역의 반경(망루를 얼마나 크게 그릴지 정한다).
+	public bool TryGetFacilityTile(Room room, out Vector3Int pos, out int radius)
 	{
 		SiteLayout? layout = ResolveLayout(room, force: true, out _);
 		pos = layout.HasValue ? new Vector3Int(layout.Value.Center.x, layout.Value.Center.y, room.Floor) : default;
+		radius = layout.HasValue ? layout.Value.Radius : 0;
 		return layout.HasValue;
 	}
 
@@ -127,6 +141,7 @@ internal sealed class BaseConstruction
 
 		float progress01 = OccupationMath.Progress01(progress.Done, Total(defense));
 		UpdateSite(room, defense, progress, progress01, layout);
+		if (!defense) UpdateGateBlueprint(room, progress01);
 		halfway = !defense && !progress.HalfAnnounced && progress01 >= 0.5f;
 		if (halfway) progress.HalfAnnounced = true;
 
@@ -155,7 +170,7 @@ internal sealed class BaseConstruction
 			}
 	}
 
-	// 건설 대기의 유닛 한 틱 — 현장 자리로 가서 서 있으면 일하는 것으로 센다. 일이 필요 없어졌으면 대기를 풀고 Success.
+	// 건설 대기의 유닛 한 틱 — 배정받은 자리로 가서 정확히 그 칸에 서 있으면 일하는 것으로 센다(자리에서 벗어나 있으면 일하지 않고 돌아간다). 일이 필요 없어졌으면 대기를 풀고 Success.
 	public BTStatus Step(Human h, WaitState wait)
 	{
 		Room room = wait.WorkRoom;
@@ -169,7 +184,7 @@ internal sealed class BaseConstruction
 
 		Vector2Int slot = wait.WaitPosition.Value;
 		int distance = AIMovementHelper.ChebyshevDistance(h.position, slot);
-		if (distance <= 0 || (distance <= 1 && h.currentRoom == room))
+		if (distance <= 0)
 		{
 			wait.AtSlot = true;
 			wait.LastStepTime = Time.time;
@@ -186,7 +201,7 @@ internal sealed class BaseConstruction
 		}
 		if (++h.waitStuckTurns >= (AIConfigLoader.Behavior?.waitStuckTurnLimit ?? 4))
 		{
-			wait.WaitPosition = h.position; // 현장 자리를 못 잡으면 서 있는 곳에서 일한다 — 방 안이면 충분하다
+			wait.WaitPosition = h.position; // 자리가 다른 유닛에게 막혀 못 닿으면 서 있는 곳에서 일한다 — 자리 근처에서 멈췄을 테니 충분하다
 			h.waitStuckTurns = 0;
 		}
 		return BTStatus.Running;
@@ -194,17 +209,26 @@ internal sealed class BaseConstruction
 
 	private static float Total(bool defense) => defense ? OccupationMath.DefenseWorkUnits : OccupationMath.BasicWorkUnits;
 
-	// 같은 방 파티원에게 현장 자리를 나눠 준다 — 현장(청사진) 바로 바깥 둘레를 쓰고, 현장 자리를 못 구한 방은 방 쪽 문 묶음 곁을 번갈아 쓴다. 다른 대기(집결·보고 등)가 있는 유닛과 후퇴 이동 중인 유닛은 건드리지 않는다(거점에서 쉬는 인원은 방어 시설 공사에 참여한다).
+	// 리더의 건설 명령 — 같은 방 파티원에게 일꾼 자리를 나눠 준다(같은 방이면 거리와 무관하게 리더 명령이 닿는다, Party.IsReachedByLeaderCommand).
+	// 근접 역할(전방 근접·근접 지원)은 문·목책 둘레 1칸에 게이트별로 고르게 나눠 서고, 그 밖(원거리 공격·원거리 지원)은 현장(천막) 바로 바깥 둘레에 선다. 문·목책 곁 자리가 다 차면 근접도 건설물 둘레를 쓴다.
+	// 현장 자리를 못 구한 방은 방 쪽 문 묶음 곁을 번갈아 쓴다. 다른 대기(집결·보고 등)가 있는 유닛과 후퇴 이동 중인 유닛은 건드리지 않는다(거점에서 쉬는 인원은 방어 시설 공사에 참여한다).
 	private void AssignBuilders(Party party, Room room, bool defense, SiteLayout? layout)
 	{
 		if (Time.time < (_nextAssignTime.TryGetValue(party, out float next) ? next : 0f)) return;
 		_nextAssignTime[party] = Time.time + AssignIntervalSeconds;
 
 		var anchors = _session.GetRoomDoorAnchors(room);
+		var gates = GetGuardGates(room);
+		var gateLoads = new int[gates.Count];
 		var claimed = new HashSet<Vector2Int>();
 		foreach (var m in party.Members)
-			if (m?.currentWait != null && m.currentWait.Reason == WaitReason.ConstructingBase && m.currentWait.WaitPosition.HasValue)
-				claimed.Add(m.currentWait.WaitPosition.Value);
+		{
+			var held = m?.currentWait;
+			if (held == null || held.Reason != WaitReason.ConstructingBase || !held.WaitPosition.HasValue) continue;
+			claimed.Add(held.WaitPosition.Value);
+			int heldGate = IndexOfGate(gates, held.WorkGateAnchor);
+			if (heldGate >= 0) gateLoads[heldGate]++;
+		}
 
 		int index = 0;
 		foreach (var m in party.Members)
@@ -216,7 +240,14 @@ internal sealed class BaseConstruction
 			if (wait != null && wait.Reason == WaitReason.ConstructingBase) { index++; continue; }
 
 			Vector2Int slot = m.position;
-			if (layout.HasValue && AIMovementHelper.TryFindWorkSlot(m, layout.Value.Center, layout.Value.Radius + 1, room, claimed, out Vector2Int ringSlot))
+			Vector3Int? gateAnchor = null;
+			if (BaseSiteMath.IsGateGuardRole(CombatScoreMath.ResolveCombatRole(m.unitType)) && TryFindGuardSlot(m, room, gates, gateLoads, claimed, layout, out Vector2Int guardSlot, out int gateIndex))
+			{
+				slot = guardSlot;
+				gateAnchor = gates[gateIndex].Anchor;
+				gateLoads[gateIndex]++;
+			}
+			else if (layout.HasValue && AIMovementHelper.TryFindWorkSlot(m, layout.Value.Center, layout.Value.Radius + 1, room, claimed, out Vector2Int ringSlot))
 			{
 				slot = ringSlot;
 			}
@@ -227,9 +258,72 @@ internal sealed class BaseConstruction
 			}
 			claimed.Add(slot);
 			index++;
-			m.currentWait = new WaitState { Reason = WaitReason.ConstructingBase, WorkRoom = room, WorkIsDefense = defense, WaitPosition = slot, WaitFloor = room.Floor };
+			m.currentWait = new WaitState { Reason = WaitReason.ConstructingBase, WorkRoom = room, WorkIsDefense = defense, WaitPosition = slot, WaitFloor = room.Floor, WorkGateAnchor = gateAnchor };
 			m.waitStuckTurns = 0;
 		}
+	}
+
+	private List<GuardGate> GetGuardGates(Room room)
+	{
+		if (_guardGates.TryGetValue(room, out List<GuardGate> cached)) return cached;
+
+		_session.CollectRoomGates(room, _gateBuffer);
+		var gates = new List<GuardGate>(_gateBuffer.Count);
+		foreach (var gate in _gateBuffer)
+		{
+			var tiles = new List<Vector2Int>(gate.DoorTiles.Count + gate.FenceSites.Count);
+			foreach (var tile in gate.DoorTiles) tiles.Add(new Vector2Int(tile.x, tile.y));
+			foreach (var tile in gate.FenceSites) tiles.Add(new Vector2Int(tile.x, tile.y));
+			gates.Add(new GuardGate { Anchor = gate.Anchor, Tiles = tiles });
+		}
+		_guardGates[room] = gates;
+		return gates;
+	}
+
+	private static int IndexOfGate(List<GuardGate> gates, Vector3Int? anchor)
+	{
+		if (!anchor.HasValue) return -1;
+		for (int i = 0; i < gates.Count; i++)
+			if (gates[i].Anchor == anchor.Value) return i;
+		return -1;
+	}
+
+	// 문·목책 둘레 1칸 자리를 고른다 — 서 있는 인원이 적은 게이트부터(같으면 유닛에게 가까운 쪽), 한 게이트 안에서는 문 앞 통과 구간을 비운 자리가 먼저고 없으면 완화한다. 자리가 없으면 false.
+	private bool TryFindGuardSlot(Human unit, Room room, List<GuardGate> gates, int[] loads, HashSet<Vector2Int> claimed, SiteLayout? layout, out Vector2Int slot, out int gateIndex)
+	{
+		slot = default;
+		gateIndex = -1;
+		if (gates.Count == 0) return false;
+
+		var distances = new int[gates.Count];
+		for (int i = 0; i < gates.Count; i++)
+		{
+			int nearest = int.MaxValue;
+			foreach (var tile in gates[i].Tiles) nearest = Mathf.Min(nearest, AIMovementHelper.ChebyshevDistance(unit.position, tile));
+			distances[i] = nearest;
+		}
+
+		foreach (int i in BaseSiteMath.OrderGatesByLoad(loads, distances))
+		{
+			for (int pass = 0; pass < 2; pass++)
+			{
+				bool clearPassage = pass == 0;
+				if (!BaseSiteMath.TryPickGuardSlot(gates[i].Tiles, unit.position, p => IsGuardSlotFree(unit, room, p, claimed, layout, clearPassage), out slot)) continue;
+				gateIndex = i;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// 문·목책 곁에 설 수 있는 칸 — 이 방 안, 아무도 안 맡았고, 건설물 영역 밖이며, 서 있을 수 있다. clearPassage면 문 앞 통과 구간 밖일 때만.
+	private bool IsGuardSlotFree(Human unit, Room room, Vector2Int p, HashSet<Vector2Int> claimed, SiteLayout? layout, bool clearPassage)
+	{
+		if (claimed.Contains(p)) return false;
+		if (layout.HasValue && BaseSiteMath.IsInFootprint(layout.Value, p)) return false;
+		if (!_session.roomGrid.TryGetValue(new Vector3Int(p.x, p.y, room.Floor), out Room owner) || owner != room) return false;
+		if (!unit.CanMove(p)) return false;
+		return !clearPassage || !AIMovementHelper.IsWithinDoorClearance(_session, room.Floor, p);
 	}
 
 	// 현장이 다른 자리로 옮겨졌을 때 옛 자리에 배정된 일꾼의 대기를 풀고 곧바로 다시 배정받게 한다.
@@ -368,13 +462,6 @@ internal sealed class BaseConstruction
 	// 공사하는 방에 청사진 + 건설물을 세우고 진행도를 따라 올린다. 공사가 끝나거나 거점을 잃으면(Reset) 걷고, 파티가 사라져 중단된 공사는 진행도와 함께 현장도 남는다. 안개 속 방에서는 숨긴다.
 	private void UpdateSite(Room room, bool defense, Progress progress, float progress01, SiteLayout? layout)
 	{
-		// 방 테두리 채움 — 자리를 못 구한 방에서도 진행은 보인다.
-		if (progress.OutlineShown < 0f || Mathf.Abs(progress01 - progress.OutlineShown) >= OutlineStep)
-		{
-			progress.OutlineShown = progress01;
-			_session.OffenseProcessor?.SetRoomBuildProgress(room, progress01, defense);
-		}
-
 		_sites.TryGetValue((room, defense), out Site site);
 		if (!layout.HasValue)
 		{
@@ -421,7 +508,42 @@ internal sealed class BaseConstruction
 	{
 		foreach (var pair in _sites)
 			if (pair.Value.Visual != null) pair.Value.Visual.SetVisible(pair.Key.room.FogRevealed);
+		foreach (var pair in _gateBlueprints)
+			if (pair.Value != null) pair.Value.SetVisible(pair.Key.FogRevealed);
 		TickEmblems();
+	}
+
+	// ── 문·목책 설치 청사진 ──
+	// 기존 문을 모두 철거한 뒤 인류 문과 목책을 새로 설치하는 동안만 그 자리에 청사진을 보여 준다(2026-10-22 사용자 요청 "설치할 때 만"). 전체 공사 진행도를 따라 채워지고, 완공하면 실제 문·목책이 서며 사라진다.
+	private void UpdateGateBlueprint(Room room, float progress01)
+	{
+		if (!_gateBlueprints.TryGetValue(room, out BaseGateBlueprint blueprint) || blueprint == null)
+		{
+			_session.CollectRoomGates(room, _gateBuffer);
+			var doorCenters = new List<Vector3>();
+			var fenceCenters = new List<Vector3>();
+			foreach (var gate in _gateBuffer)
+			{
+				if (!gate.HasDoor)
+					foreach (var tile in gate.DoorTiles) doorCenters.Add(TileCenterWorld(room.Floor, new Vector2Int(tile.x, tile.y)));
+				foreach (var tile in gate.FenceTiles) fenceCenters.Add(TileCenterWorld(room.Floor, new Vector2Int(tile.x, tile.y)));
+			}
+			if (doorCenters.Count == 0 && fenceCenters.Count == 0) return;
+
+			Transform group = _session.GetFloorCategoryGroup(room.Floor, "Objects");
+			blueprint = BaseGateBlueprint.Create(group, doorCenters, fenceCenters);
+			blueprint.SetVisible(room.FogRevealed);
+			_gateBlueprints[room] = blueprint;
+		}
+		blueprint.SetProgress(progress01);
+	}
+
+	// 설치 청사진을 걷는다 — 철거 단계로 되돌아갈 때(설치 중 인류가 아닌 문이 다시 섰다)·거점을 잃을 때는 곧바로, 설치를 마칠 때는 옅어지며(celebrate).
+	public void DismissGateBlueprint(Room room, bool celebrate)
+	{
+		if (!_gateBlueprints.TryGetValue(room, out BaseGateBlueprint blueprint)) return;
+		_gateBlueprints.Remove(room);
+		if (blueprint != null) blueprint.Finish(celebrate);
 	}
 
 	private void RemoveSite(Room room, bool defense)
@@ -440,10 +562,12 @@ internal sealed class BaseConstruction
 
 		BaseSiteVisual visual;
 		Vector2Int tile;
+		int radius;
 		if (finished?.Visual != null)
 		{
 			visual = finished.Visual;
 			tile = finished.Layout.Center;
+			radius = finished.Layout.Radius;
 			visual.Settle(animate);
 		}
 		else
@@ -452,12 +576,13 @@ internal sealed class BaseConstruction
 			SiteLayout? layout = ResolveLayout(room, force: true, out _);
 			if (!layout.HasValue) return;
 			tile = layout.Value.Center;
+			radius = layout.Value.Radius;
 			Transform group = _session.GetFloorCategoryGroup(room.Floor, "Objects");
-			visual = BaseSiteVisual.Create(group, TileCenterWorld(room.Floor, tile), new SiteLayout { Center = tile, Radius = 0 }, defense: false);
+			visual = BaseSiteVisual.Create(group, TileCenterWorld(room.Floor, tile), layout.Value, defense: false);
 			visual.Settle(false);
 		}
 
-		_emblems[room] = new Emblem { Visual = visual, Tile = tile, BlockedSince = -1f };
+		_emblems[room] = new Emblem { Visual = visual, Tile = tile, Radius = radius, BlockedSince = -1f };
 	}
 
 	private void RemoveEmblem(Room room)
@@ -481,11 +606,20 @@ internal sealed class BaseConstruction
 			if (now < emblem.NextCheck) continue;
 			emblem.NextCheck = now + EmblemCheckSeconds;
 
-			if (!IsEmblemTileBlocked(room, emblem.Tile)) { emblem.BlockedSince = -1f; continue; }
+			if (!IsEmblemFootprintBlocked(room, emblem)) { emblem.BlockedSince = -1f; continue; }
 			if (emblem.BlockedSince < 0f) emblem.BlockedSince = now;
 			if (now - emblem.BlockedSince < RelocateAfterSeconds) continue;
 			RelocateEmblem(room, emblem);
 		}
+	}
+
+	// 상징물이 덮는 영역(크게 그린 3×3 자리면 둘레 한 겹까지)에 무언가 막고 섰는가 — 큰 천막이 새로 지은 건물·함정 위로 겹쳐 보이지 않게 한다.
+	private bool IsEmblemFootprintBlocked(Room room, Emblem emblem)
+	{
+		for (int dx = -emblem.Radius; dx <= emblem.Radius; dx++)
+			for (int dy = -emblem.Radius; dy <= emblem.Radius; dy++)
+				if (IsEmblemTileBlocked(room, emblem.Tile + new Vector2Int(dx, dy))) return true;
+		return false;
 	}
 
 	// 상징물 칸이 막혔는가 — 건물·계단·코어 같은 구조물이 서거나, 시체가 아닌 오브젝트(함정·전리품 등)가 놓였다.
@@ -499,10 +633,12 @@ internal sealed class BaseConstruction
 	private void RelocateEmblem(Room room, Emblem emblem)
 	{
 		var preferred = new Vector2(emblem.Tile.x + 0.5f, emblem.Tile.y + 0.5f);
-		if (BaseSiteMath.TryPickSite(room.Bounds, preferred, p => IsTileClear(room, p), p => IsTileCrowded(room, p), out SiteLayout picked, maxRadius: 0))
+		// 3×3 자리를 먼저 찾고 없으면 1×1로 줄여 옮긴다 — 1×1 자리에선 천막도 한 칸 크기로 줄어 이웃 칸을 덮지 않는다.
+		if (BaseSiteMath.TryPickSite(room.Bounds, preferred, p => IsTileClear(room, p), p => IsTileCrowded(room, p), out SiteLayout picked))
 		{
 			emblem.Tile = picked.Center;
-			emblem.Visual.MoveTo(TileCenterWorld(room.Floor, picked.Center));
+			emblem.Radius = picked.Radius;
+			emblem.Visual.MoveTo(TileCenterWorld(room.Floor, picked.Center), picked.Radius);
 		}
 		emblem.BlockedSince = -1f; // 옮겼든 자리를 못 찾았든 다음 확인부터 다시 센다
 	}

@@ -179,7 +179,7 @@ MonoBehaviour:
   populationCost: 0
   visualScaleIgnoresFootprint: 1
   stats:
-    maxHp: 1800
+    maxHp: 450
     maxMp: 0
     physicalAttack: 60
     magicalAttack: 0

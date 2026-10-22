@@ -35,6 +35,20 @@ public class OccupationTests
 		Assert.AreEqual(expected, OccupationMath.Progress01(done, total), 0.0001f);
 	}
 
+	// ── 공사 일시 정지 (파티원 누구든 전투·경계 중이거나 방금 맞았을 때) ──
+
+	[TestCase(false, float.PositiveInfinity, false)]
+	[TestCase(true, float.PositiveInfinity, true)]
+	[TestCase(false, 0f, true)]
+	[TestCase(false, 1.99f, true)]
+	[TestCase(false, 2f, false)]
+	[TestCase(false, 30f, false)]
+	[TestCase(true, 30f, true)]
+	public void Construction_PausesWhenAnyEngagedOrJustHit(bool anyEngaged, float secondsSinceHit, bool expected)
+	{
+		Assert.AreEqual(expected, OccupationMath.ShouldPauseConstruction(anyEngaged, secondsSinceHit));
+	}
+
 	// ── 12장: 시설 상태 판정 ──
 
 	[Test]
