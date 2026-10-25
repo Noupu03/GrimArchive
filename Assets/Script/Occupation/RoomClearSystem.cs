@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
 using Haare.Util.Logger;
+using GrimArchive.Wave;
 
 // 방 클리어 조회·플레이어 방 확보(세션 연결부) — 순수 판정은 RoomClearMath. 확보 = 방 클리어(적대 생존 0, 은신 포함) + 담당 범위의 부산물 장치 없음(장치 결합 경로는 아직 없다). 별도 점령 상호작용은 없고 이 시스템이 0.5초마다 판정한다(코어 점령 v0.2 1·11장).
 public class RoomClearSystem
@@ -11,8 +12,12 @@ public class RoomClearSystem
 	private IObjectResolver _resolver;
 	private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
 	private GameSession _cachedSession;
+	private BuildingManager Buildings => _cachedBuildings ??= _resolver.Resolve<BuildingManager>();
+	private BuildingManager _cachedBuildings;
 	private float _timer;
 	private bool _defeatAnnounced;
+	private bool _hadSecuredRoom;
+	private bool _hadAssets;
 	private readonly Dictionary<Room, (int hostile, int player)> _counts = new Dictionary<Room, (int, int)>();
 
 	[Inject]
@@ -70,16 +75,32 @@ public class RoomClearSystem
 		}
 	}
 
-	// 플레이어가 확보한 방이 0개면 패배한다(1장). 문서가 패배 시 처리(종료 화면·재시작)를 정하지 않아 알림과 로그만 남기고 게임은 멈추지 않는다 — 확보를 잃는 경로(부산물 장치)가 아직 없어 지금은 도달하지 않는다.
+	// 패배(1장): 플레이어가 확보한 방이 0개면 인류 거점에 은신 유닛이 남아 있어도 게임 종료, 방이 있어도 유닛·건물이 모두 사라졌으면 진행할 수 없어 마찬가지다(판정은 DefeatMath).
+	// 종료 화면은 DefeatScreen(rythoom 사망 화면 연출) — 확보를 잃는 경로(부산물 장치)가 아직 없어 지금 실제로 닿는 건 유닛·건물 전멸뿐이다.
 	private void CheckDefeat()
 	{
 		if (_defeatAnnounced) return;
+
+		int securedRooms = 0;
 		foreach (var room in Session.allRooms)
-			if (room != null && room.Floor >= 1 && room.RoomFaction == FactionType.Player) return;
+			if (room != null && room.Floor >= 1 && room.RoomFaction == FactionType.Player) securedRooms++;
+
+		int playerUnits = 0;
+		foreach (var u in Session.units)
+			if (u != null && u.hp > 0f && u.IsPlayerMonsterFaction) playerUnits++;
+		int buildings = Buildings != null ? Buildings.BuildingCount : 0;
+
+		// 잃을 것을 가졌던 적이 있어야 잃은 것으로 본다 — 시작 직후 동기화 전이나 초기 건물 자리를 못 찾은 경우에 곧바로 패배하지 않게.
+		if (securedRooms > 0) _hadSecuredRoom = true;
+		if (playerUnits > 0 || buildings > 0) _hadAssets = true;
+
+		DefeatReason reason = DefeatMath.Evaluate(_hadSecuredRoom, securedRooms, _hadAssets, playerUnits, buildings);
+		if (reason == DefeatReason.None) return;
 
 		_defeatAnnounced = true;
-		LogHelper.Warning(LogHelper.GAME, "[패배 조건] 플레이어가 확보한 방이 0개입니다.");
-		NoticeCenter.Instance?.PushMomentary("확보한 방이 없습니다 — 패배 조건에 도달했습니다.", NoticeCenter.WarningColor);
+		LogHelper.Warning(LogHelper.GAME, $"[패배] {reason} — 확보한 방 {securedRooms}, 플레이어 유닛 {playerUnits}, 건물 {buildings}");
+		int waves = HumanWaveManager.Instance != null ? HumanWaveManager.Instance.WaveNumber : 0;
+		DefeatScreen.Show(Session, new DefeatSummary(reason, Session.ElapsedGameSeconds, Session.PlayerKillCount, waves));
 	}
 
 	private bool TryClassify(Unit u, out Room room, out FactionType? faction)

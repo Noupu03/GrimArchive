@@ -156,6 +156,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public float currentGameSpeed = 1f;
     public bool isPaused = false;
 
+    // 패배 화면에 보여 주는 한 판의 기록 — 경과 시간은 게임 시간(Time.deltaTime 누적, 일시정지·배속 반영).
+    public float ElapsedGameSeconds { get; private set; }
+    public int PlayerKillCount { get; private set; }
+
+    // 각 층 보스방(SpawnBossCores가 채운다) — 인류 출입 제한(BossRoomAccess)이 이동 판정마다 읽는 짧은 목록이라 allRooms를 훑지 않게 따로 둔다.
+    public readonly List<Room> BossRooms = new List<Room>();
+
     // 등록 성공 여부를 bool로 알려준다(이미 점유 중이면 false) — 호출부(ProcessUnitAction/
     // Unit.ForceMove)가 실패 시 위치 변경을 되돌린다.
     public bool RegisterUnitPos(Unit u, Vector2Int pos)
@@ -688,6 +695,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
 
         RefreshRoomPopulationLabels();
+        ElapsedGameSeconds += Time.deltaTime;
         RoomClear?.Tick(Time.deltaTime);
         Occupation?.Tick(Time.deltaTime);
         TickCoreRegen();
@@ -819,6 +827,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 에서만 갱신되는 가중치 시스템 전용 필드라 몬스터끼리 킬은 항상 null이 된다.
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
             if (u is Monster && u.lastDamageDealer is Human slayer) SpeechSystem.Say(slayer, SpeechId.KillEnemy); // 연출
+            if (u.lastDamageDealer != null && u.lastDamageDealer.IsPlayerMonsterFaction && !u.IsPlayerMonsterFaction) PlayerKillCount++; // 패배 화면 기록용
 
             // 방 확보는 RoomClearSystem이 주기적으로 판정하므로 유닛 사망 시점에 따로 확인하지 않는다 — 문 개폐도
             // 매 프레임 판정이라 사망 시점 재확인이 불필요하다.
@@ -1469,6 +1478,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 LogHelper.Warning(LogHelper.GAME, $"SpawnBossCores: {floorIdx}층에 보스방이 없어 코어를 배치하지 못했습니다.");
                 continue;
             }
+            if (!BossRooms.Contains(bossRoom)) BossRooms.Add(bossRoom); // 코어 자리를 못 찾아도 보스방이다 — 출입 제한은 코어가 아니라 보스방 자체에 걸린다
             SpawnRoomCore(bossRoom);
         }
 

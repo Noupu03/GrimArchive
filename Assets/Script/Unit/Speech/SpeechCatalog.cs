@@ -14,6 +14,7 @@ public enum SpeechId
 	ArriveBase,           // 거점 첫 도착
 	RestCompleteResume,   // 휴식 완료, 목표 미달성 → 탐험 재개
 	RestCompleteLeave,    // 휴식 완료, 목표 달성 → 출구로
+	NormalReturn,         // 정상 귀환 결정(일반 방이 더는 없고 알려진 보스방만 남음)
 	AbsentMember,         // 집결 중 미집결자 언급
 	TrapFound,            // 함정 최초 발견
 	AllyDeathSeen,        // 파티원 사망을 직접 확인
@@ -113,6 +114,7 @@ public static class SpeechCatalog
 		{ SpeechId.ArriveBase,           new SpeechEntry(new[] { "여기서 숨 좀 돌리자.", "일단 여기라면 안전하겠지…" }, SpeechTone.Calm, 2.6f, 30, 20f, 3f) },
 		{ SpeechId.RestCompleteResume,   new SpeechEntry(new[] { "충분히 쉬었다. 다시 간다!", "정비 끝. 임무를 이어가자." }, SpeechTone.Calm, 2.8f, 30, 20f) },
 		{ SpeechId.RestCompleteLeave,    new SpeechEntry(new[] { "임무는 끝났다. 돌아가자.", "할 일은 다 했어. 철수한다." }, SpeechTone.Calm, 2.8f, 30, 20f) },
+		{ SpeechId.NormalReturn,         new SpeechEntry(new[] { "더 갈 곳이 없군. 일단 돌아간다.", "보스방 말고는 다 봤다. 철수하자." }, SpeechTone.Calm, 3.0f, 35, 20f) },
 		{ SpeechId.TrapFound,            new SpeechEntry(new[] { "함정이다! 조심해!", "잠깐, 저기 함정이 있어." }, SpeechTone.Alert, 2.4f, 40, 12f, 3f) },
 		{ SpeechId.AllyDeathSeen,        new SpeechEntry(new[] { "이럴 수가…!", "안 돼… 이게 무슨…" }, SpeechTone.Fear, 2.4f, 55, 10f, 3f) },
 		{ SpeechId.CoreFound,            new SpeechEntry(new[] { "코어다! 여기가 목표야.", "찾았다, 코어야!" }, SpeechTone.Alert, 2.6f, 40, 20f, 4f) },

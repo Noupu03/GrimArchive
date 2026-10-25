@@ -229,6 +229,18 @@ public class BuildingManager : NativeRoutine
         }
     }
 
+    // 설치된 건물 전체 수(디버그 더미 포함) — 패배 판정(코어 점령 v0.2 1장 "유닛·건물 중 하나라도 남아 있으면")이 읽는다. 다중 타일 건물은 앵커 타일만 센다.
+    public int BuildingCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var kvp in buildingGrid)
+                if (kvp.Key == kvp.Value.Position) count++;
+            return count;
+        }
+    }
+
     public float CurrentResourceProductionPerSecond => ResourceBuildingCount * (ResourceTickAmount / ResourceTickInterval);
 
     public override void UpdateProcess()

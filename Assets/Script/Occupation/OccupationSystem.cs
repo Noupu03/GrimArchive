@@ -138,9 +138,12 @@ public class OccupationSystem
 	{
 		Graph.CollectNeighbors(from, _neighborBuffer);
 		var candidates = new List<AdvanceCandidate>(_neighborBuffer.Count);
+		var eligible = new List<Room>(_neighborBuffer.Count);
 		foreach (var neighbor in _neighborBuffer)
 		{
+			if (BossRoomAccess.IsClosedToHumans(Session, neighbor)) continue; // 보스가 살아 있는 보스방에는 인류가 들어갈 수 없다 — 진출 후보가 아니다
 			bool known = party.Leader.personalMap.TryGetKnownRoomDanger(neighbor.RoomId, out float danger);
+			eligible.Add(neighbor);
 			candidates.Add(new AdvanceCandidate
 			{
 				RoomId = neighbor.RoomId,
@@ -151,7 +154,7 @@ public class OccupationSystem
 			});
 		}
 		int index = OccupationMath.PickAdvance(candidates, RetreatSystem.ResortieSafeRoomMaxDanger, AllowUnknownAdvance);
-		return index >= 0 ? _neighborBuffer[index] : null;
+		return index >= 0 ? eligible[index] : null;
 	}
 
 	// 집결·방 이동·후퇴 중이 아니고 그 방의 파티원 누구도 교전 중이 아닐 때 현재 방에 기초 시설을 짓는다. 적 발견·피격 시 중단하고 전투한다(12장) — 진행도는 남고 교전이 끝나면(경계까지 마친 뒤) 이어 짓는다.

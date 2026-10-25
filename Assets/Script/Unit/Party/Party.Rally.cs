@@ -104,7 +104,7 @@ public partial class Party
 	{
 		if (currentTime < _nextRoomActivityCheckTime) return;
 		_nextRoomActivityCheckTime = currentTime + 1f;
-		if (Retreat.IsRetreating) return; // 후퇴 중에는 새 집결(미집결자 수색 포함)을 시작하지 않는다(명세서 1-2장)
+		if (Retreat.IsRetreating || NormalReturning) return; // 후퇴·정상 귀환 중에는 새 집결(미집결자 수색 포함)을 시작하지 않는다(후퇴도주 명세서 1-2장, 행동경로 01번 8장)
 		// 입구 시퀀스·리더의 층 이동 중엔 방 활동이 없어 TryStartRally가 어차피 거절하므로 호출을 건너뛴다. 진행 중 집결의 완료 확인은 막지 않는다.
 		if (!IsRallyActive && (AnyMemberInEntranceSequence() || (Leader != null && Leader.pendingStairTargetFloor.HasValue))) return;
 		TryStartRally();
@@ -124,6 +124,7 @@ public partial class Party
 	public void TryStartRally()
 	{
 		if (Retreat.IsRetreating) return; // 후퇴 중에는 집결하지 않는다 — 일반 집결 판단은 후퇴가 끝난 뒤(재탐험·재출격) 다시 돈다
+		if (NormalReturning) return; // 정상 귀환은 한 번 정하면 집결을 해제한 채 출구로 간다 — 다시 집결하지 않는다(행동경로 01번 8장)
 		if (IsRallyActive)
 		{
 			TickLateRallyDelivery(); // 시작 뒤 같은 방·전파 범위에 들어온 낙오자에게 집결 명령을 뒤늦게 전달한다

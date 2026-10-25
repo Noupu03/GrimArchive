@@ -55,14 +55,9 @@ public class PartyMissionDriver
 		if (party != null) party.LeaderMayExploreBeyondRoom = false;
 	}
 
-	// 리더가 아는 방 그래프로 먼저 고르고(LeaderRoutePlanner), 고를 게 없으면 현재 방의 아는 문 중 목표 방에 가까운 것을 고른다 — HumanWaveManager.TryFindNextDoorTowardTargetRoom과 같다.
+	// 리더가 아는 방 그래프로 먼저 고르고, 고를 게 없으면 현재 방의 아는 문 중 목표 방에 가까운 것을 고른다 — HumanWaveManager와 같은 LeaderRoutePlanner.FindNextDoor다. 점령 파티는 정상 귀환을 하지 않으므로(상주) "보스방만 남음"도 문을 못 찾은 것으로 다룬다.
 	private static bool TryFindNextDoor(Party party, Room targetRoom, out Vector2Int doorPos, out int doorFloor)
-	{
-		if ((AIConfigLoader.Behavior?.leaderRoutePlannerEnabled ?? true)
-			&& LeaderRoutePlanner.TryPickNextGate(party.Leader, targetRoom, out doorPos, out doorFloor))
-			return true;
-		return AIMovementHelper.TryFindKnownDoorInCurrentRoom(party.Leader, targetRoom.Bounds.center, out doorPos, out doorFloor);
-	}
+		=> LeaderRoutePlanner.FindNextDoor(party.Leader, targetRoom, out doorPos, out doorFloor) == LeaderRoutePlanner.NextDoorResult.Found;
 
 	// 다음 문을 모를 때 리더 외 적격 파티원이 리더 곁을 따라다니며 함께 문을 찾는다(05번 1장) — HumanWaveManager.AssignDoorSearchFollowers와 같다.
 	private static void AssignDoorSearchFollowers(Party party)

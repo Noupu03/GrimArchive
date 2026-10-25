@@ -157,6 +157,18 @@ public partial class Party
 	public void OnMemberEnteredRoom(int floor, int roomId) => _visitedRooms.Add((floor, roomId));
 	public bool HasVisitedRoom(int floor, int roomId) => _visitedRooms.Contains((floor, roomId));
 
+	// 정상 귀환(행동경로 01번 8장·05번 10장) — 리더가 "다음으로 진행할 일반 방이 없고 알려진 보스방만 남았다"고 판단해 실제 달성한 수량으로 던전을 나서는 중이다. 한 번 시작하면 취소하지 않고, 집결을 새로 만들지 않으며, 현재 방에 기록해 둔 일반 비전투 대상을 다시 수행하러 가지 않는다. 이동은 HumanWaveManager가 퇴각과 같은 대기(WaitReason.Retreating)로 내리고, 전투에는 평소 우선순위가 적용된다(전투 → 10초 경계 → 귀환 재개). 후퇴·도주는 각자의 목적을 유지한다.
+	public bool NormalReturning { get; private set; }
+	public float NormalReturnStartedAt { get; private set; }
+
+	public void BeginNormalReturn(float now)
+	{
+		if (NormalReturning) return;
+		NormalReturning = true;
+		NormalReturnStartedAt = now;
+		AbortActivitiesForRetreat(); // 진행 중이던 집결·방 이동 계획 해제 — 구성원 개인의 대기는 호출부가 접는다
+	}
+
 	// 리더가 방 안에서 다음 이동 문을 오래 못 찾았다 — 개인 탐색의 방 제한을 리더에 한해 풀어 방 밖까지 탐색하게 하는 안전 해치(영구 정지 방지). HumanWaveManager가 켜고 끈다.
 	public bool LeaderMayExploreBeyondRoom;
 

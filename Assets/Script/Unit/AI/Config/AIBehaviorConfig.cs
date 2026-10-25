@@ -55,6 +55,8 @@ public class AIBehaviorConfig : ScriptableObject
     public bool roomBoundExplorationEnabled = true;
     [Tooltip("인류가 리더 지시 이동(집결·방 이동·퇴각)·낙오자 합류·계단·던전 입구 시퀀스 외에는 지금 있는 방을 떠나지 못하게 이동 자체를 막는다(2026-10-05, 몬스터 RoomConfinedMovement와 같은 규칙). 리더 없음·사망·파티 없음은 제한 없음. 공황·도주 문서가 나오면 재고. 끄면 예전처럼 탐색·조사 후보만 방 안으로 제한 (내부 판단)")]
     public bool humanRoomConfinementEnabled = true;
+    [Tooltip("보스가 아직 살아 있는 보스방에는 인류가 들어갈 수 없다(2026-10-26 사용자 확정) kill-switch — 이동 실행·A*·회피/점멸 후보가 같은 판정을 쓰고, 리더 경로(LeaderRoutePlanner)는 그 방을 제외하며 일반 방이 더는 없으면 정상 귀환을 고른다. 보스를 처치하면 풀린다. 끄면 예전처럼 웨이브가 보스방으로 직행")]
+    public bool bossRoomEntryBanEnabled = true;
     [Tooltip("걸음이 정적 벽·구조물에 막히면 그 칸을 벽으로 학습한다(접촉 학습, 2026-10-17 후퇴도주 검증 D1). A*는 미확인 칸을 계획에서 통행 가능으로 보는데 시선은 이동에 성공해야 바뀌어, 시선 밖 미확인 벽을 향한 걸음이 영원히 실패하던 문제를 막는다. 점유·닫힌 문처럼 지형이 아닌 이유로 막힌 칸은 기록하지 않는다. 끄면 예전 동작")]
     public bool bumpLearnWallEnabled = true;
     [Tooltip("집결 중 명령이 닿지 않은 미집결자를 기다리는 절대 상한(초) — 집결 시작 시각 기준이며 교전·경계 정지로 늘리지 않는다. 05번 6장은 '일정 시간 후 포기'만 규정해 기존 60초 근사값을 그대로 쓴다(2026-10-05 집결 무한대기 수정) (내부 판단)")]

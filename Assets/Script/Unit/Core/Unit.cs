@@ -851,6 +851,9 @@ public class Human : UnitFunction
 
 	public override bool IsRoomLeaveBlocked(Vector2Int tile)
 	{
+		// 보스가 살아 있는 보스방 진입 금지(2026-10-26) — 방 이탈 금지의 예외(리더 지시·계단·입구)와 무관하게 항상 막는다. 플레이어가 직접 내린 이동 명령만 방 이탈 금지와 마찬가지로 예외다(테스트 조작).
+		if (!isManualMoveCommand && BossRoomAccess.IsEntryBlocked(this, tile)) return true;
+
 		if (!IsRoomConfinedNow) return false;
 		var session = Session;
 		if (session?.roomGrid == null) return false;

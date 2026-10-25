@@ -227,6 +227,8 @@ public class InputManager : MonoBehaviour
 	{
 		if (_gameSession == null) return;
 		if (!GameInputScheme.IsReady) return;
+		// 패배 화면은 되돌릴 수 없는 종료 상태다 — 월드 입력·스페이스 일시정지 해제·속도 변경·ESC 패널을 모두 막는다.
+		if (DefeatScreen.IsShown) return;
 
 		// Unity는 실제 파괴를 프레임 끝에 처리하므로, 사망 후 Destroy된 유닛이 선택 목록에 남아 있으면
 		// 소비처가 MissingReferenceException을 던질 수 있어 매 프레임 시작 시점에 선제적으로 정리한다.

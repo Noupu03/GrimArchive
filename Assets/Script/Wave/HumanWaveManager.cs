@@ -586,6 +586,8 @@ namespace GrimArchive.Wave
                 bool anyDead = activeParty.Members.Exists(m => m == null || m.hp <= 0f); // 이탈자는 Members에서 빠지므로 남은 죽은 유닛이 곧 사망자
                 LogHelper.Log(LogHelper.GAME, _retreating
                     ? "[HumanWaveManager] 코어 파괴 후 던전 안에 남은 파티원이 없어 웨이브가 성공적으로 종료됩니다."
+                    : activeParty.NormalReturning
+                        ? "[HumanWaveManager] 정상 귀환으로 던전 안에 남은 파티원이 없어 웨이브가 종료됩니다(코어 미파괴 — 실제 달성한 수량까지만 기록)."
                     : anyDead
                         ? "[HumanWaveManager] 일부는 던전 밖으로 후퇴·도주하고 나머지는 사망해 웨이브가 종료됩니다(목표 미달성)."
                         : "[HumanWaveManager] 전원이 던전 밖으로 후퇴·도주해 웨이브가 종료됩니다(목표 미달성).");
@@ -600,9 +602,9 @@ namespace GrimArchive.Wave
             // 건너뛰어졌던 유닛도 자동으로 따라잡는다(같은 값 재적용이라 매 틱 불러도 무해).
             UpdatePartyDestination();
 
-            if (!_retreating) return; // 아직 코어를 파괴하지 못함 — 유닛은 자유롭게(GOAP) 방으로 접근·공격
+            if (!_retreating && !activeParty.NormalReturning) return; // 아직 코어를 파괴하지 못했고 귀환도 아님 — 유닛은 자유롭게(GOAP) 방으로 접근·공격
 
-            // 탈출 지점 체크 (퇴각 중)
+            // 탈출 지점 체크 (퇴각 중 또는 정상 귀환 중)
             // [TODO: 향후에는 주변 유닛이 부상병을 호위하는 편대 AI 시스템을 추가해야 함]
             // 현재는 단순히 코어 파괴 후 각자 탈출 지점으로 이동하며, 탈출 지점에 도착하는 개별 유닛부터 삭제(탈출) 처리합니다.
             for (int i = activeParty.Members.Count - 1; i >= 0; i--)
@@ -623,8 +625,10 @@ namespace GrimArchive.Wave
             // 모든 파티원이 탈출했거나 사망했다면 웨이브 종료
             if (activeParty.GetSurvivors().Count == 0)
             {
-                LogHelper.Log(LogHelper.GAME, "[HumanWaveManager] 코어 파괴 후 모든 파티원이 탈출(또는 사망)하여 웨이브가 성공적으로 종료됩니다.");
-                EndWave(true);
+                LogHelper.Log(LogHelper.GAME, _retreating
+                    ? "[HumanWaveManager] 코어 파괴 후 모든 파티원이 탈출(또는 사망)하여 웨이브가 성공적으로 종료됩니다."
+                    : "[HumanWaveManager] 정상 귀환으로 모든 파티원이 탈출(또는 사망)하여 웨이브가 종료됩니다(코어 미파괴).");
+                EndWave(_retreating);
             }
         }
 
@@ -722,6 +726,13 @@ namespace GrimArchive.Wave
             // 파티 후퇴 중에는 방 이동 결정·문 앞 진형을 만들지 않는다 — 이동은 후퇴 시스템(PartyRetreatSystem)이 맡는다(후퇴도주 문서 1-2장).
             if (activeParty.Retreat.IsRetreating) return;
 
+            // 정상 귀환(행동경로 01번 8장) — 한 번 정하면 취소하지 않고, 집결·방 이동 없이 퇴각과 같은 대기(WaitReason.Retreating)로 출구를 향한다. 전투가 나면 평소 우선순위로 싸우고 10초 경계 뒤 귀환을 이어 간다.
+            if (activeParty.NormalReturning)
+            {
+                OrderRetreat();
+                return;
+            }
+
             // 집결을 마친 방을 리더가 떠났다면 그 방에서 시작한 이동 의도(ReadyToAdvance)를 소멸시킨다 — 안 그러면 새 방의 문이 알려지는 즉시 그 방의 활동을 건너뛰고 이동 명령이 발행된다.
             activeParty.TickAdvanceState();
             activeParty.TickPendingRallyRelease(); // 코어 처리로 해제된 집결을 못 받은 구성원이 전파 범위에 들어오면 그때 해제를 전달한다
@@ -740,7 +751,16 @@ namespace GrimArchive.Wave
             bool decidedByRally = activeParty.ReadyToAdvance;
             string reason = decidedByRally ? "집결 완료" : "코어 처리";
 
-            if (!TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor))
+            var nextDoor = LeaderRoutePlanner.FindNextDoor(activeParty.Leader, _targetRoom, out Vector2Int doorPos, out int doorFloor);
+
+            // 다음으로 진행할 일반 방이 없고 알려진 보스방(보스가 살아 있어 인류가 못 들어가는 방)만 남았다 — 리더가 정상 귀환을 고른다(01번 8장). 집결이 끝나 방 이동을 정하는 시점에만 고르고, 미처리 코어가 있으면 코어 처리가 먼저다(03번 3항).
+            if (nextDoor == LeaderRoutePlanner.NextDoorResult.OnlyBossRoomLeft && decidedByRally && !hasPendingCore)
+            {
+                BeginNormalReturn();
+                return;
+            }
+
+            if (nextDoor != LeaderRoutePlanner.NextDoorResult.Found)
             {
                 if (!_doorSearchLogged)
                 {
@@ -881,15 +901,37 @@ namespace GrimArchive.Wave
 
         // '알려진 문'으로만 진행한다(05번 1장) — 리더가 아는 방 그래프로 먼저 고르고(LeaderRoutePlanner), 고를 게 없으면 현재 방의 아는 문 중 목표 방에 가장 가까운 것을 좌표 거리로 근사해 고른다(리더·명령 문서가 생기면 교체).
         private bool TryFindNextDoorTowardTargetRoom(out Vector2Int doorPos, out int doorFloor)
+            => LeaderRoutePlanner.FindNextDoor(activeParty.Leader, _targetRoom, out doorPos, out doorFloor) == LeaderRoutePlanner.NextDoorResult.Found;
+
+        // 정상 귀환을 시작한다(행동경로 01번 8장) — 집결·방 이동 계획을 해제하고, 집결로 남겨 둔 일반 비전투 대상은 다시 수행하러 가지 않는다. 이미 시작한 상호작용·전투·도주·후퇴는 기존 규칙대로 둔다. 실제 이동은 매 틱 OrderRetreat가 내린다.
+        private void BeginNormalReturn()
         {
-            if ((AIConfigLoader.Behavior?.leaderRoutePlannerEnabled ?? true)
-                && LeaderRoutePlanner.TryPickNextGate(activeParty.Leader, _targetRoom, out doorPos, out doorFloor))
-                return true;
-            return AIMovementHelper.TryFindKnownDoorInCurrentRoom(activeParty.Leader, _targetRoom.Bounds.center, out doorPos, out doorFloor);
+            var party = activeParty;
+            if (party == null || party.NormalReturning) return;
+
+            party.BeginNormalReturn(Time.time);
+            foreach (var member in party.Members)
+            {
+                if (member == null || member.hp <= 0f || stagingUnits.Contains(member)) continue;
+                if (RetreatSystem.IsBoundToRetreat(member)) continue;
+                member.currentFormation = null;
+                member.ReleaseUnstartedInvestigation(); // 시작 전 조사는 접는다 — 대상은 개인 지도에 남아 다음 웨이브 기록으로 전달된다
+                var wait = member.currentWait;
+                if (wait != null && wait.Reason != WaitReason.Retreating && RoomConfinementMath.IsLeaderOrderWait(wait.Reason))
+                {
+                    member.currentWait = null; // 집결·방 이동·진형·문 찾기 대기를 풀어야 OrderRetreat가 귀환 대기를 줄 수 있다
+                    member.waitStuckTurns = 0;
+                }
+            }
+
+            LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 정상 귀환 시작 — 리더 {party.Leader?.name}: 다음으로 진행할 일반 방이 없고 보스가 살아 있는 보스방만 남음. 실제 달성 수량으로 종료(방 탐색 {party.CompletedRoomExploreCount}/{PartyGoalMath.RequiredRoomExploreCount}, 몬스터 처치 {CommonMonsterKillCount:F1}/{PartyGoalMath.RequiredMonsterKillCount:F1})");
+            SpeechSystem.Say(party.Leader, SpeechId.NormalReturn);
+            RetreatSystem.NotifyPlayer(party.Leader, $"인류 {party.Type.ToKorean()} 파티가 정상 귀환을 시작했습니다");
+            OrderRetreat();
         }
 
-        // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다. 웨이브가 없으면 null.
-        public Vector2? TargetRoomCenter => _targetRoom != null ? _targetRoom.Bounds.center : (Vector2?)null;
+        // 웨이브 목표 방(보스방) 중심 — 보고 이동이 "알려진 다음 이동 문"을 고를 때 쓴다. 웨이브가 없거나 목표 방이 보스가 살아 있어 인류가 못 들어가는 방이면 null(그 방 쪽 문을 고르지 않게).
+        public Vector2? TargetRoomCenter => _targetRoom != null && !BossRoomAccess.IsClosedToHumans(GameSession.Instance, _targetRoom) ? _targetRoom.Bounds.center : (Vector2?)null;
 
         // handedOff: 점령 파티를 OccupationSystem에 넘기고 끝내는 경우 — 파티원은 던전에 그대로 남으므로 생존자 기록 반영·0층 귀환·전멸 종료 표시를 하지 않는다(웨이브 번호·흔적 수명만 올린다).
         private void EndWave(bool isSuccess, bool handedOff = false)

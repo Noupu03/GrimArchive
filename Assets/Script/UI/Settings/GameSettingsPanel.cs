@@ -21,9 +21,6 @@ public class GameSettingsPanel : MonoRoutine, ICustomPanel
     [SerializeField] public CustomButton KeyGuideButton;
     [SerializeField] public CustomButton QuitToTitleButton;
 
-    private const string TitleSceneName = "Title";
-    private const string GameSceneName = "ssh";
-
     private GameSession _gameSession;
 
     public bool IsOpen { get; private set; }
@@ -101,22 +98,10 @@ public class GameSettingsPanel : MonoRoutine, ICustomPanel
         }
     }
 
-    // TitlePresenter.StartGame과 동일한 SceneTransitionFade 경로. Time.timeScale은 씬 전환 후에도
-    // 유지되는 전역 값이라 명시적으로 1f로 되돌리지 않으면 일시정지 배속이 Title에 그대로 남는다.
     private void ExitToTitle()
     {
         IsOpen = false;
         ClosePanel();
-        if (_gameSession != null) _gameSession.isPaused = false;
-        Time.timeScale = 1f;
-
-        // CoreUIManager는 DontDestroyOnLoad로 등록돼 ssh 씬을 언로드해도 살아남고 게임 UI 패널들이
-        // 그 하위 계층이라 함께 Title 화면 위에 남으므로 GameObject 자체를 파괴해 정리한다
-        // (ssh.unity 재진입 시 GameCompositionRoot.Configure()가 새로 만들어준다).
-        var coreUIManagers = FindObjectsByType<CoreUIManager>(FindObjectsSortMode.None);
-        foreach (var coreUIManager in coreUIManagers)
-            Destroy(coreUIManager.gameObject);
-
-        SceneTransitionFade.EnsureInstance().LoadSceneWithCoverAsync(TitleSceneName, GameSceneName).Forget();
+        GameExitFlow.ReturnToTitle(_gameSession);
     }
 }

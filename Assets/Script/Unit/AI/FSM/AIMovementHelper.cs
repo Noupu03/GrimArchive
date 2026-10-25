@@ -326,6 +326,7 @@ public static class AIMovementHelper
 			if (!observer.currentRoom.Bounds.Contains(new Vector2Int(obj.Position.x, obj.Position.y))) continue;
 			if (obj.Tags == null || !obj.Tags.Contains(DoorSystem.DoorTag)) continue;
 			if (!PropagationSystem.KnowsDoor(observer, obj)) continue;
+			if (BossRoomAccess.LeadsToClosedBossRoom(GameSession.Instance, obj.Position)) continue; // 보스가 살아 있는 보스방으로는 인류가 들어갈 수 없어 다음 이동 문 후보가 아니다
 
 			float distSq = (new Vector2(obj.Position.x, obj.Position.y) - reference).sqrMagnitude;
 			if (distSq < bestDistSq)
