@@ -276,6 +276,33 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
 
         if (obj.Tags != null && obj.Tags.Contains(GameSession.CoreTag)) DrawCoreControls(obj);
+        if (obj.Tags != null && obj.Tags.Contains(DoorSystem.DoorTag)) DrawDoorControls(obj);
+    }
+
+    // 문 제어(코어 점령 v0.2 4·6·19장) — 플레이어 소유 문만 열어 두거나 닫을 수 있다. 닫기가 불가능하면 버튼을 비활성화하고 사유를 명령 아래에 작게 보여 준다. 판정은 DoorControlRules가 하고 여기서는 보여 주고 명령만 전달한다.
+    private void DrawDoorControls(InteractableObject door)
+    {
+        GameSession session = GameSession.Instance;
+        if (session == null) return;
+
+        GUILayout.Label($"상태: {(door.DoorManualOpen || door.DoorAutoOpen ? "열려 있음(누구나 통과)" : "닫힘(보유 진영만 통과)")}", GUIMenuStyleUtil.BodyLabelStyle);
+
+        bool wantOpen = !door.DoorManualOpen;
+        DoorControlBlock block = session.CheckDoorControl(door, wantOpen);
+        if (block == DoorControlBlock.NotPlayerDoor)
+        {
+            GUILayout.Label(DoorControlRules.Describe(block), GUIMenuStyleUtil.BodyLabelStyle);
+            return;
+        }
+
+        bool prevEnabled = GUI.enabled;
+        GUI.enabled = prevEnabled && block == DoorControlBlock.None;
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout(wantOpen ? "문 열기" : "문 닫기", options: new[] { GUILayout.Height(28f) }))
+            session.TrySetDoorOpen(door, wantOpen);
+        GUI.enabled = prevEnabled;
+
+        string reason = DoorControlRules.Describe(block);
+        if (reason.Length > 0) GUILayout.Label(reason, GUIMenuStyleUtil.BodyLabelStyle);
     }
 
     // 코어 상태와 플레이어 명령(완전 활성화·수복) — 불가 사유를 각각 표시한다(코어 점령 v0.2 19장). 판정은 CoreSystem/CoreMath가 하고 여기서는 보여 주고 명령만 전달한다.

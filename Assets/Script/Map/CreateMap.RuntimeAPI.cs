@@ -220,23 +220,27 @@ public partial class CreateMap
         LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} roomId={roomId} 전초기지 해제 → PlayerControlled.");
     }
 
-    public void OpenStair(int floorIndex, int targetFloor)
+    // 닫혀 있던 계단을 열었으면 true — 그런 계단이 없거나 이미 열려 있으면 false(로그도 남기지 않는다).
+    public bool OpenStair(int floorIndex, int targetFloor)
     {
-        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return;
+        if (map.floors == null || floorIndex < 0 || floorIndex >= map.floors.Length) return false;
         ref Floor floor = ref map.floors[floorIndex];
         int w = floor.config.width;
         int h = floor.config.height;
+        bool changed = false;
 
         for (int x = 0; x < w; x++)
             for (int y = 0; y < h; y++)
                 if (floor.chunks[x, y].stairTargetFloor == targetFloor)
                 {
                     Chunks c = floor.chunks[x, y];
+                    if (!c.stairIsOpen) changed = true;
                     c.stairIsOpen = true;
                     floor.chunks[x, y] = c;
                 }
 
-        LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
+        if (changed) LogHelper.Log(LogHelper.GAME, $"CreateMap: F{floorIndex} → F{targetFloor} 계단 개방.");
+        return changed;
     }
 
     // floorIndex 층에서 targetFloor로 연결되는 계단 타일의 대표 좌표를 찾는다(HumanWaveManager의 계단

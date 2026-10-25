@@ -595,8 +595,10 @@ public class UnitGenerate
 			uv.UpdateHealthBar(!hpBarHiddenByFog, u.hp, u.maxHp);
 			uv.SetSpeechHiddenByFog(hpBarHiddenByFog);
 
-			// 단일 선택으로는 자동 표시하지 않는다 — "시야 표시" 전역 토글로만 켜고 끈다.
-			bool showRanges = ShowAllVisionRanges;
+			// 시야 범위(코어 점령 v0.2 5-2장): "시야 표시" 전역 토글을 켜면 모든 유닛이, 몬스터를 하나만 클릭해 선택했으면 그 몬스터가 다른 클릭으로 선택이 바뀔 때까지 표시한다(2026-10-25 — 예전엔 전역 토글로만 켰다).
+			// 여러 마리를 선택(드래그·Ctrl+클릭)했을 땐 겹쳐 지저분해져 표시하지 않는다.
+			bool isSingleSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u) && u.InputMgr.selectedUnits.Count == 1;
+			bool showRanges = ShowAllVisionRanges || isSingleSelected;
 			uv.SetVisionRangesVisible(showRanges); // 켜고 끄는 것 자체는 저렴 — 매 프레임 갱신해도 무관.
 
 			if (showRanges)

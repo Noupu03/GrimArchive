@@ -1375,6 +1375,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 호출한다. 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
     public void NotifyDoorApproachAttempt(Vector3Int pos, Unit unit) => _doorSystem.NotifyApproachAttempt(pos, unit);
     public void RemoveDoor(Vector3Int pos) => _doorSystem.RemoveDoor(pos);
+    // 플레이어의 문 열기·닫기(코어 점령 v0.2 문 제어) — 문 정보 패널(BuildingControlPanel)이 부른다.
+    public DoorControlBlock CheckDoorControl(InteractableObject door, bool wantOpen) => _doorSystem.CheckControl(door, wantOpen);
+    public DoorControlBlock TrySetDoorOpen(InteractableObject door, bool open) => _doorSystem.TrySetManualOpen(door, open);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
     // 점령 파티의 기초 시설(방 쪽 인류 문 + 문 안쪽 목책) — 방의 문 묶음 대표 타일 목록, 시설 한 벌의 자리, 설치, 남은 시설 수.

@@ -25,9 +25,9 @@ public static class PartyBreachCommand
 		return false;
 	}
 
-	// 다음에 부술 행(0 near / 1 far / -1 둘 다 열림 = 진입로 확보).
+	// 다음에 부술 행(0 near / 1 far / -1 둘 다 열림 = 진입로 확보). 철거(점령 파티의 거점 건설 전)는 near 줄만 본다 — far는 이웃 방 문이라 부술 이유가 없다.
 	public static int ResolveRow(PartyAdvancePlan plan, GameSession session, Human representative)
-		=> PartyFormationMath.NextBreachRow(RowBlocked(plan, session, representative, 0), RowBlocked(plan, session, representative, 1));
+		=> PartyFormationMath.NextBreachRow(RowBlocked(plan, session, representative, 0), !plan.Demolition && RowBlocked(plan, session, representative, 1));
 
 	public static bool IsPassable(PartyAdvancePlan plan, GameSession session, Human representative)
 		=> ResolveRow(plan, session, representative) < 0;
@@ -128,7 +128,8 @@ public static class PartyBreachCommand
 			plan.LastLoggedRow = row;
 			plan.LastLoggedCount = count;
 			var door = plan.BreachTile.Value;
-			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 리더 {leader.name}의 지시 — {count}명이 {(row == 0 ? "가까운 쪽" : "먼 쪽")} 문 ({door.x},{door.y})에 달라붙어 파괴(공격 자리 {slots.Count}개, 자리 없어 대기 {candidates.Count - count}명)");
+			string rowLabel = plan.Demolition ? "점령할 방 쪽" : (row == 0 ? "가까운 쪽" : "먼 쪽");
+			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 리더 {leader.name}의 지시 — {count}명이 {rowLabel} 문 ({door.x},{door.y})에 달라붙어 파괴(공격 자리 {slots.Count}개, 자리 없어 대기 {candidates.Count - count}명)");
 			if (row == 1) SpeechSystem.Say(leader, SpeechId.BreachFarDoor);
 		}
 	}

@@ -110,8 +110,24 @@ public class CoreSystem
 		PlayActivationVfx(room, core);
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 완전 활성화 — 인류가 이 코어를 공격할 수 있게 됨(진화·업그레이드 해금은 실행 시스템이 아직 없다)");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 완전 활성화되었습니다.", NoticeCenter.QuestCompleteColor);
+		OpenNextFloorStair(room);
 		NotifyHumansCoreAttackable(core);
 		return CoreActivateBlock.None;
+	}
+
+	// 보스방 코어를 처음 활성화하면 그 방의 다음 층 계단이 열린다(3장). 한 번 열린 계단은 이후 코어 파괴·방 점령으로 닫히지 않으므로 닫는 코드는 없다. 같은 층의 다른 코어까지 활성화할 필요는 없다.
+	// 계단 개방 연출은 아직 없다(알림만) — 데이터(Chunks.stairIsOpen)만 바뀐다.
+	private void OpenNextFloorStair(Room room)
+	{
+		CreateMap cmap = Session.cmap;
+		int next = room.Floor + 1;
+		if (cmap?.map.floors == null || next >= cmap.map.floors.Length) return;
+		if (!cmap.TryGetStairPosition(room.Floor, next, out Vector2Int stairPos)) return;
+		// 계단이 이 코어의 방에 있을 때만(보스방 계단) — 방 조회가 안 되는 칸이면 보스방 계단으로 보고 연다.
+		if (Session.roomGrid.TryGetValue(new Vector3Int(stairPos.x, stairPos.y, room.Floor), out Room stairRoom) && stairRoom != null && stairRoom != room) return;
+
+		if (!cmap.OpenStair(room.Floor, next)) return;
+		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 계단이 열렸습니다 — {next}층으로 내려갈 수 있습니다.", NoticeCenter.QuestCompleteColor);
 	}
 
 	// 코어 체력이 0이 된 순간(UnitFunction.OnUpdate의 채널링 직후)의 단일 진입점. 방 소유권은 바꾸지 않고 코어는 파괴 상태로 남는다.

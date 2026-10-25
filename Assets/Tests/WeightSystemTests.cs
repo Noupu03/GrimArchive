@@ -272,12 +272,18 @@ public class WeightSystemTests
 	}
 
 	[Test]
-	public void InfoError_MentalStateOverridesWhenLarger()
+	public void InfoError_MentalStateAddsNoRandomError()
 	{
-		// 직접 목격(±5%)이라도 공황 단계(±25%)가 더 크면 공황 쪽을 채택
-		var (tileError, valueRatio) = WeightMath.InfoError(InfoType.DirectWitness, MentalErrorState.Panic);
-		Assert.AreEqual(2, tileError);
-		Assert.AreEqual(0.25f, valueRatio, 0.0001f);
+		// 후퇴도주 3-2·8-2장: 공포·공황은 판단용 수치에 랜덤 오차를 더하지 않는다 — 정보 유형 오차(직접 목격 ±5%)만 남는다.
+		foreach (var mental in new[] { MentalErrorState.Normal, MentalErrorState.Fear, MentalErrorState.Panic })
+		{
+			var (tileError, valueRatio) = WeightMath.InfoError(InfoType.DirectWitness, mental);
+			Assert.AreEqual(0, tileError, mental.ToString());
+			Assert.AreEqual(0.05f, valueRatio, 0.0001f, mental.ToString());
+		}
+		var (directTile, directRatio) = WeightMath.InfoError(InfoType.DirectExperience, MentalErrorState.Panic);
+		Assert.AreEqual(0, directTile);
+		Assert.AreEqual(0f, directRatio, 0.0001f, "직접 경험은 공황이어도 오차가 없다");
 	}
 
 	// ── 25장. 공황 단계 정보 평균 처리 예시: 140*0.3 + 100*0.7 = 112 ──
@@ -503,6 +509,94 @@ public class WeightSystemTests
 		var enemy = MakeEnemy("orc_d", new MeleeTank(), 20f);
 
 		Assert.DoesNotThrow(() => observer.RecordSpottedEnemyKnowledge(enemy, new Vector3Int(1, 1, 0), 1));
+	}
+
+	// ── 판단용 수치 랜덤 오차 제거(후퇴도주 8-2장, 사용자 결정 2026-10-25) — 기본은 꺼짐, 켜면 예전 표대로 동작 ──
+
+	[Test]
+	public void JudgementError_OffByDefault_ReturnsActualValues_AndCanBeSwitchedBackOn()
+	{
+		var kb = new HumanKnowledgeBase();
+		Assert.IsFalse(WeightMath.JudgementErrorEnabled, "판단용 수치 오차는 기본으로 꺼져 있다");
+		Assert.AreEqual(100, kb.ApplyInfoValueNoise(100, InfoType.Indirect, MentalErrorState.Panic), "간접 파악·공황이어도 실제 값 그대로");
+		Assert.AreEqual(100, kb.ApplyInfoValueNoise(100, InfoType.DirectWitness, MentalErrorState.Normal));
+		Assert.AreEqual(100, kb.ApplyHiddenInfoNoise(100, 35));
+
+		WeightMath.JudgementErrorEnabled = true;
+		try
+		{
+			for (int i = 0; i < 50; i++)
+			{
+				int noisy = kb.ApplyInfoValueNoise(100, InfoType.Indirect, MentalErrorState.Normal);
+				Assert.GreaterOrEqual(noisy, 90);
+				Assert.LessOrEqual(noisy, 110);
+			}
+		}
+		finally { WeightMath.JudgementErrorEnabled = false; }
+	}
+
+	// ── 거점 안 정보 전달: PersonalMapKnowledge.MergeSharedFrom (후퇴도주 7-2장·R45, 코어 점령 12-1장) ──
+
+	[Test]
+	public void MergeShared_CopiesUnknownTerrainObjectsMonstersAndRooms_KeepsOwnKnowledge()
+	{
+		var giver = new PersonalMapKnowledge();
+		var receiver = new PersonalMapKnowledge();
+		giver.RevealTile(new Vector3Int(1, 1, 1), isWall: false);
+		giver.RevealTile(new Vector3Int(2, 1, 1), isWall: true);
+		receiver.RevealTile(new Vector3Int(1, 1, 1), isWall: true); // 내가 이미 아는 칸은 덮어쓰지 않는다
+		giver.RegisterObject("Trap_A", new Vector3Int(1, 1, 1), 30f, 0f, new List<string> { "Object/Building/Passable/Trap" });
+		giver.ObserveMonster("orc_a", new Vector3Int(5, 5, 1), 40f, 8f, InfoType.DirectWitness, timestamp: 10f);
+		giver.SetRoomExploreState(7, false, PersonalMapKnowledge.RoomExploreState.Complete);
+		giver.ObserveUnitInRoom(7, false, "orc_a", 40f, 8f);
+
+		var summary = receiver.MergeSharedFrom(giver);
+
+		Assert.AreEqual(1, summary.Tiles, "모르는 타일 하나만 새로 밝힌다");
+		Assert.AreEqual(2, receiver.GetTileTerrain(new Vector3Int(1, 1, 1)), "내 기록(벽)은 유지");
+		Assert.AreEqual(2, receiver.GetTileTerrain(new Vector3Int(2, 1, 1)));
+		Assert.IsTrue(receiver.IsObjectKnown("Trap_A"));
+		Assert.IsTrue(receiver.KnownTrapTiles.ContainsKey("Trap_A"), "함정 위치도 전해진다 — 이동 계층이 피해 가는 근거");
+		Assert.IsTrue(receiver.TryGetMonsterSighting("orc_a", out var tile, out float danger, out _));
+		Assert.AreEqual(new Vector3Int(5, 5, 1), tile);
+		Assert.AreEqual(40f, danger, 0.001f);
+		Assert.AreEqual(PersonalMapKnowledge.RoomExploreState.Complete, receiver.GetRoomExploreState(7));
+		Assert.IsTrue(receiver.TryGetKnownRoomDanger(7, out float roomDanger), "전달받은 방은 '인류 지도상 아는 방'이 되어 재출격 안전 방 판정에 쓰인다");
+		Assert.AreEqual(40f, roomDanger, 0.001f);
+		Assert.IsTrue(summary.Any);
+	}
+
+	[Test]
+	public void MergeShared_MonsterSightingIsIndirect_OwnDirectWitnessIsKept()
+	{
+		var giver = new PersonalMapKnowledge();
+		var receiver = new PersonalMapKnowledge();
+		giver.ObserveMonster("orc_a", new Vector3Int(9, 9, 1), 99f, 1f, InfoType.DirectWitness, timestamp: 50f);
+		receiver.ObserveMonster("orc_a", new Vector3Int(2, 2, 1), 40f, 8f, InfoType.DirectWitness, timestamp: 10f);
+
+		receiver.MergeSharedFrom(giver);
+
+		receiver.TryGetMonsterSighting("orc_a", out var tile, out float danger, out _);
+		Assert.AreEqual(new Vector3Int(2, 2, 1), tile, "전해 들은 간접 정보(24장 4~5순위)가 내 직접 목격(3순위)을 덮지 않는다");
+		Assert.AreEqual(40f, danger, 0.001f);
+	}
+
+	[Test]
+	public void MergeShared_CollectedObjectFactAndSecondMergeIsNoop()
+	{
+		var giver = new PersonalMapKnowledge();
+		var receiver = new PersonalMapKnowledge();
+		giver.RegisterObject("Loot_1", new Vector3Int(3, 3, 1), 0f, 10f);
+		receiver.RegisterObject("Loot_1", new Vector3Int(3, 3, 1), 0f, 10f);
+		giver.OnObjectCollected("Loot_1");
+
+		var first = receiver.MergeSharedFrom(giver);
+		Assert.IsTrue(receiver.IsKnownCollected("Loot_1"), "수거된 사실도 전해진다");
+		Assert.AreEqual(1, first.Objects);
+
+		var second = receiver.MergeSharedFrom(giver);
+		Assert.IsFalse(second.Any, "이미 반영한 정보는 다시 세지 않는다");
+		Assert.IsFalse(receiver.MergeSharedFrom(receiver).Any, "자기 자신과는 교환하지 않는다");
 	}
 }
 #endif

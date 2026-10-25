@@ -144,6 +144,11 @@ public class TacticalFSMState : IFSMState
 					new BTCondition(HasSalvageTarget),
 					new BTLeaf(MoveToSalvage),
 					new BTLeaf(SalvagePickupPerform)
+				),
+				// 파티가 아직 이 코어를 조사하지 않았다 — 조사자(리더)는 Investigate 분기가 처리하고, 나머지는 조사가 끝날 때까지 제자리에서 기다린다(코어 점령 v0.2 10-1장).
+				new BTSequence(
+					new BTCondition(NeedsCoreInvestigation),
+					new BTLeaf(CoreInvestigationWait)
 				)
 			),
 			[TacticalBehaviorType.DoorAttack] = new BTSequence(
@@ -173,6 +178,7 @@ public class TacticalFSMState : IFSMState
 		// Tick()의 BT에 그 행동이 없는데도 Tactical에 붙잡혀 Idle/Navigation을 못 하는 걸 막는다.
 		// if (hu != null && hu.HasProtectiveFormationNeed()) return p;
 		if (HasCoreAttackTarget(unit)) return p;
+		if (NeedsCoreInvestigation(unit)) return p; // 코어 조사자는 조사를, 나머지는 조사가 끝날 때까지 기다림
 		if (HasSalvageTarget(unit)) return p;
 		if (HasDoorAttackTarget(unit)) return p;
 		return 0f;
@@ -259,6 +265,8 @@ public class TacticalFSMState : IFSMState
 			 human.currentWait.Reason == WaitReason.ConstructingBase ||
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
+		// 코어 방에서 파티가 아직 조사하지 않은 코어가 있으면 조사자가 그 코어를 조사 대상으로 삼는다 — 이하 이동·진행·중단 규칙은 일반 조사와 같다(코어 점령 v0.2 10-1장).
+		if (human.currentInvestigation == null) TryStartCoreInvestigation(human);
 		if (human.currentInvestigation == null && !human.HasReachableInvestigateTarget()) return false;
 		// 전투 소리·이동음은 일반 조사를 중단시킨다(03번 4장) — HasAlert보다 먼저 걸려야 페널티 없이 밀려나지 않으며, 파티 목표 당사자는 소리 반응이 없어 건너뛴다.
 		if (human.currentInvestigation?.IsPartyGoalTarget != true && PropagationSystem.HasPendingInterruptingSound(human))
@@ -742,6 +750,8 @@ public class TacticalFSMState : IFSMState
 			human.currentInvestigation = null;
 			return BTStatus.Success;
 		}
+		// 코어 조사는 파티 기록으로 따로 처리한다(코어 점령 v0.2 10-1장).
+		if (obj.Tags != null && obj.Tags.Contains(GameSession.CoreTag)) return CoreInvestigatePerform(human, inv, obj);
 		// 이미 조사 완료 → PickUpObject로 넘어간다
 		if (obj.IsInvestigated) return BTStatus.Success;
 
@@ -1437,9 +1447,82 @@ public class TacticalFSMState : IFSMState
 
 	// ── 코어 공격 — 최초 완전 활성화를 마친 코어만 대상이다(코어 점령 v0.2 10장). 체력이 0이 되면 코어는 파괴 상태로 남고 방 소유권은 바뀌지 않는다(CoreSystem.OnCoreDestroyed).
 	// ⚠️ 자동 오브젝트 공격(코어/문)은 인류 전용 — 플레이어 몬스터는 반드시 PlayerCommandFSMState.ExecutePlayerAttackObject(우클릭 명령)로만 한다. DoorAttack도 동일.
+	// 공격은 파티가 그 코어의 조사를 마친 뒤에야 시작한다 — 조사를 마치면 공격 가능한 파티원 전원이 코어를 공격한다(코어 점령 v0.2 10-1장). 파티 없는 인류는 조사 없이 예전처럼 곧바로 공격한다.
 	private static bool HasCoreAttackTarget(Unit unit)
 	{
-		return FindHostileRoomCore(unit, out _, out _);
+		if (!FindHostileRoomCore(unit, out _, out InteractableObject core) || core == null) return false;
+		return !(unit is Human human) || human.party == null || human.party.InvestigatedCoreIds.Contains(core.Id);
+	}
+
+	// ── 코어 조사(코어 점령 v0.2 10-1장) — 리더는 코어가 최초 완전 활성화를 마쳤고 현재 파괴되지 않았는지 확인한 뒤(FindHostileRoomCore가 곧 그 확인이다) 조사를 시작하고, 조사를 마치면 파티원 전원이 공격한다. 조사 완료와 파괴 완료는 따로 기록한다(Party.InvestigatedCoreIds는 조사만).
+	// 이동·진행(8초)·중단(피격 시 진행도 50% 손실, 보호자 피격·소리는 파티 목표 상호작용이라 유지)·재개는 일반 조사와 같은 경로(MoveToInvestigateTarget/InvestigatePerform)를 쓰고, 교전 뒤 5초 경계를 마치고 이어 간다. 조사를 마친 코어는 파괴·수복돼도 반복하지 않는다.
+
+	// 리더가 코어 방에 없을 때 파티원이 대신 조사를 맡기까지 기다리는 시간(초) — 자리표시자(문서가 정하지 않음, 내부 판단).
+	private const float CoreInvestigationLeaderWaitSeconds = 12f;
+
+	// 코어 방에 서 있고 코어가 공격 대상인데 파티가 아직 이 코어를 조사하지 않았다.
+	internal static bool NeedsCoreInvestigation(Unit unit)
+	{
+		if (!(unit is Human human) || human.party == null) return false;
+		if (!FindHostileRoomCore(unit, out _, out InteractableObject core) || core == null) return false;
+		return !human.party.InvestigatedCoreIds.Contains(core.Id);
+	}
+
+	// 이 방 코어를 지금 누가 조사할지 — 리더가 이 방에 있으면 리더, 없으면 일정 시간(리더 대기) 뒤 이 방에 있는 첫 파티원. 같은 방 파티원이 모두 같은 결과를 얻는다. 이미 다른 파티원이 이 코어를 조사하는 중이면 아무도 새로 시작하지 않는다.
+	internal static bool IsCoreInvestigator(Human human, Room room, InteractableObject core, float now)
+	{
+		var party = human.party;
+		if (party == null || RetreatSystem.IsBoundToRetreat(human)) return false;
+		foreach (var m in party.Members)
+			if (m != null && m != human && m.hp > 0f && m.currentInvestigation != null && m.currentInvestigation.TargetObjectId == core.Id) return false;
+
+		var leader = party.Leader;
+		bool leaderHere = leader != null && leader.hp > 0f && leader.currentRoom == room && !RetreatSystem.IsBoundToRetreat(leader);
+		if (leaderHere) return leader == human;
+
+		if (!party.CoreInvestigationWaitSince.TryGetValue(core.Id, out float since)) { party.CoreInvestigationWaitSince[core.Id] = now; return false; }
+		if (now - since < CoreInvestigationLeaderWaitSeconds) return false;
+		foreach (var m in party.Members)
+			if (m != null && m.hp > 0f && m.currentRoom == room && !RetreatSystem.IsBoundToRetreat(m)) return m == human;
+		return false;
+	}
+
+	private static void TryStartCoreInvestigation(Human human)
+	{
+		if (human.party == null || !FindHostileRoomCore(human, out Room room, out InteractableObject core) || core == null) return;
+		if (human.party.InvestigatedCoreIds.Contains(core.Id)) return;
+		if (!IsCoreInvestigator(human, room, core, Time.time)) return;
+
+		human.currentInvestigation = new InvestigationState
+		{
+			TargetObjectId = core.Id,
+			TargetPosition = core.Position,
+			IsPartyGoalTarget = true, // 코어 상호작용 당사자 — 소리에 반응하지 않고 보호자 피격으로는 중단하지 않는다(본인 피격은 항상 중단)
+		};
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(human.party)} [코어] {human.name}이(가) 코어 조사를 시작합니다(F{room.Floor} {room.RoomName})");
+	}
+
+	private static BTStatus CoreInvestigationWait(Unit unit) => BTStatus.Running; // 조사자가 코어를 조사하는 동안 제자리에서 기다린다
+
+	// 조사 진행·완료 — 일반 오브젝트와 달리 코어는 obj.IsInvestigated(전리품 전용, 전역)를 쓰지 않고 파티 기록만 남긴다: 다른 파티는 따로 조사해야 하고, 완료해도 코어는 파괴되지 않는다.
+	private static BTStatus CoreInvestigatePerform(Human human, InvestigationState inv, InteractableObject core)
+	{
+		var party = human.party;
+		if (party == null || party.InvestigatedCoreIds.Contains(core.Id) || !CoreSystem.IsAttackable(core))
+		{
+			inv.PenaltyActive = false; // 이미 끝났거나(동료가 먼저 마침) 조사할 수 없는 코어 — PickUpObject가 정리한다
+			return BTStatus.Success;
+		}
+
+		if (!inv.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
+		inv.PenaltyActive = true;
+		if (inv.Progress01 < 1f) return BTStatus.Running;
+
+		party.InvestigatedCoreIds.Add(core.Id);
+		party.CoreInvestigationWaitSince.Remove(core.Id);
+		inv.PenaltyActive = false;
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [코어] {human.name}이(가) 코어 조사를 마쳤습니다 — 파티원 전원이 코어를 공격합니다(조사 완료일 뿐 코어는 아직 파괴되지 않았다)");
+		return BTStatus.Success;
 	}
 
 	// unit이 지금 서 있는 방의 코어가 "공격 대상"인지 확인한다 — 인류가 아니면 항상 대상 아님.
@@ -1658,13 +1741,8 @@ public class TacticalFSMState : IFSMState
 
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);
 		if (!unit.Session.roomGrid.TryGetValue(gridPos, out Room room) || room == null) return false;
-		if (room.BaseStage == BaseStage.None)
-		{
-			// 거점이 아닌 방 — 점령 파티가 기초 시설을 짓기 전에 방 쪽 기존 문을 실제로 부수는 철거 단계일 때만 문을 공격한다(OccupationSystem.TickDemolition, 이 방 쪽 문만 대상).
-			// 그 밖의 인류는 "방을 점령하고 난 다음"에만 문을 공격한다.
-			OccupationSystem occupation = unit.Session.Occupation;
-			return occupation != null && unit is Human occupier && occupation.TryFindDemolitionDoor(occupier, room, out doorPos, out door);
-		}
+		// 거점이 아닌 방에서는 개인이 문을 찾아 공격하지 않는다 — 점령 파티의 거점 건설 전 철거는 리더 지시 돌파(PartyAdvanceSystem.BeginDemolition)가 맡는다.
+		if (room.BaseStage == BaseStage.None) return false;
 		if (room.RoomId < 0 || room.Floor < 0 || room.Floor >= unit.Session.cmap.map.floors.Length) return false;
 
 		Floor floor = unit.Session.cmap.map.floors[room.Floor];

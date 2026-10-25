@@ -17,7 +17,7 @@ public struct RoomGate
 }
 
 // 문 시스템(진영 기반 개폐, GameSession 비대화 방지로 분리). 문은 '어느 방에 붙어 있는가'로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라 게이트당 두 개이고, 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트). DoorOwnerFaction은 Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다.
-// 기본은 항상 닫힘이고 접근 시도(NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 여부는 항상 진영 일치로만 판정한다(IsBlockedByClosedDoor). GameSession은 IObjectResolver로 지연 조회한다 — Construct() 시점엔 생성이 안 끝나 즉시 주입하면 순환 참조가 된다.
+// 기본은 항상 닫힘이고 접근 시도(NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 여부는 진영 일치로만 판정한다(IsBlockedByClosedDoor) — 단 보유 진영(플레이어)이 문 정보 패널에서 "열어 둔"(DoorManualOpen) 문은 누구나 지나간다. GameSession은 IObjectResolver로 지연 조회한다 — Construct() 시점엔 생성이 안 끝나 즉시 주입하면 순환 참조가 된다.
 public class DoorSystem
 {
     public const string DoorTag = "Object/Passable/Door";
@@ -230,6 +230,7 @@ public class DoorSystem
             if (door.IsCollected || !Session.objectGrid.TryGetValue(door.Position, out InteractableObject current) || current != door) continue;
 
             RegenBarrier(door);
+            if (door.DoorAutoOpen) TickAutoClose(door);
 
             if (!_doorVisuals.TryGetValue(door, out SpriteRenderer[] renderers) || renderers == null || renderers.Length == 0 || renderers[0] == null)
             {
@@ -241,7 +242,7 @@ public class DoorSystem
             FactionType ownerFaction = door.DoorOwnerFaction;
 
             // 묶음의 어느 타일이든 이번 프레임 접근 시도가 있거나 보유 진영 유닛이 서 있으면(통과 중 정지 등) 문 전체가 열림이다. 매 프레임 모든 문을 도는 경로라 AllTiles() 이터레이터 대신 목록을 직접 순회해 할당을 피한다.
-            bool shouldBeOpen = false;
+            bool shouldBeOpen = door.DoorManualOpen || door.DoorAutoOpen; // 보유 진영이 열어 둔 문(문 제어)과 인류 문 자동 개방 상태는 계속 열림
             var doorTiles = door.OccupiedTiles;
             int tileCount = doorTiles != null ? doorTiles.Count : 1;
             for (int ti = 0; ti < tileCount && !shouldBeOpen; ti++)
@@ -298,6 +299,47 @@ public class DoorSystem
         if (doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value) return;
 
         _approachedThisFrame.Add(pos);
+        if (doorFaction.Value == FactionType.Human && HumanAutoControlEnabled) OpenAutomatically(obj);
+    }
+
+    // ── 인류 문 자동 개폐(코어 점령 v0.2 5-1·6장) — 인류 소유 문은 평소 닫혀 있고, 인류가 접근하면 실제로 열려 문 앞·뒤 2칸에 어느 진영이든 유닛이 있는 동안 누구나 지나갈 수 있다(후퇴 인류를 따라 몬스터가 들어올 수 있다).
+    // 구역이 모두 비면 인류가 문을 닫는다. 플레이어 소유 문은 자동으로 열리지 않는다(클릭 제어만) — 플레이어 문까지 따라 들어올 수 있게 하는 건 문서의 대상이 아니다.
+    public static bool HumanAutoControlEnabled => AIConfigLoader.Behavior?.humanDoorAutoControlEnabled ?? true;
+
+    // 열림 상태가 된 뒤 이 시간(초)이 지나기 전에는 닫기 검사를 하지 않는다 — 접근 직후 깜빡임 방지(내부 판단).
+    private const float AutoCloseMinOpenSeconds = 0.5f;
+    private const float AutoCloseCheckSeconds = 0.25f;
+    // 문마다 문 앞·뒤 비움 구역 타일(게이트 조회를 한 번만 하려고 캐시) — 문이 제거되면 비운다.
+    private readonly Dictionary<InteractableObject, List<Vector3Int>> _clearanceCache = new Dictionary<InteractableObject, List<Vector3Int>>();
+
+    private void OpenAutomatically(InteractableObject door)
+    {
+        if (door.DoorAutoOpen) return;
+        door.DoorAutoOpen = true;
+        door.DoorAutoOpenSince = Time.time;
+        door.DoorNextCloseCheck = Time.time + AutoCloseMinOpenSeconds;
+        StateVersion++;
+    }
+
+    // 구역에 유닛이 없으면 문을 닫는다 — 어느 진영의 유닛이든(은신 포함) 범위 안에 있으면 닫을 수 없다(6장).
+    private void TickAutoClose(InteractableObject door)
+    {
+        float now = Time.time;
+        if (now < door.DoorNextCloseCheck) return;
+        door.DoorNextCloseCheck = now + AutoCloseCheckSeconds;
+        if (now - door.DoorAutoOpenSince < AutoCloseMinOpenSeconds || AnyUnitInDoorClearance(door)) return;
+
+        door.DoorAutoOpen = false;
+        StateVersion++;
+    }
+
+    // 열어 둔(플레이어 클릭) 문, 자동으로 열린(인류) 문, 또는 그런 문에 연결된 목책 — 진영 판정 없이 누구나 통과한다.
+    public static bool IsHeldOpen(InteractableObject obj)
+    {
+        if (obj == null) return false;
+        if (obj.DoorManualOpen || obj.DoorAutoOpen) return true;
+        var linked = obj.LinkedGateDoor;
+        return linked != null && !linked.IsCollected && (linked.DoorManualOpen || linked.DoorAutoOpen);
     }
 
     // 문과 목책 — 보유 진영만 지나갈 수 있고 아니면 체력을 깎아 철거해야 하는 통행 장벽이다(같은 체력·소유 진영 필드와 채널링 파괴 경로를 쓴다).
@@ -314,9 +356,53 @@ public class DoorSystem
         if (unit == null || !Session.objectGrid.TryGetValue(pos, out InteractableObject obj)) return false;
         if (!IsBarrier(obj)) return false;
 
+        if (IsHeldOpen(obj)) return false; // 열어 둔(문 제어)·자동으로 열린(인류 문) 문과 그 문에 연결된 목책은 누구나 지나간다
+
         FactionType? doorFaction = obj.DoorOwnerFaction;
         FactionType? myFaction = OffenseProcessor.MapToRoomFaction(unit.FactionBehavior);
         return doorFaction == null || myFaction == null || doorFaction.Value != myFaction.Value;
+    }
+
+    // ── 문 제어(코어 점령 v0.2 4·6·19장) — 플레이어가 자기 진영 문을 클릭해 열어 두거나 닫는다. 판정은 DoorControlRules(순수), 여기서는 세션 상태(코어·유닛 위치)를 모아 넘기고 상태를 바꾼다.
+    // 이 수동 열림은 플레이어 문 전용이고, 인류 문의 자동 개폐는 위 OpenAutomatically/TickAutoClose가 맡는다.
+
+    // 이 문을 지금 열기/닫기 할 수 있는가. 닫기는 문 앞·뒤 2칸에 유닛이 없어야 한다(어느 진영이든·은신 포함·전투 중에도 가능).
+    public DoorControlBlock CheckControl(InteractableObject door, bool wantOpen, FactionType actor = FactionType.Player)
+    {
+        if (door == null || door.Tags == null || !door.Tags.Contains(DoorTag) || door.IsCollected) return DoorControlBlock.NotPlayerDoor;
+        bool coreActive = Session.Core == null || Session.Core.AreFunctionsActive(door.Position.z);
+        bool anyUnit = !wantOpen && AnyUnitInDoorClearance(door);
+        return DoorControlRules.Check(door.DoorOwnerFaction, actor, coreActive, wantOpen, door.DoorManualOpen, anyUnit);
+    }
+
+    // 문 앞·뒤 비움 구역(문 줄 + 통로 방향 앞뒤 2칸)에 살아 있는 유닛이 한 명이라도 있는가 — 아군·적군·야생·표시되지 않은 은신 유닛 모두 센다(unitGrid는 모든 유닛을 담는다).
+    public bool AnyUnitInDoorClearance(InteractableObject door)
+    {
+        if (door == null) return false;
+        if (!_clearanceCache.TryGetValue(door, out List<Vector3Int> area))
+        {
+            if (!TryFindGateAt(door.Position, out Gate gate)) return false;
+            var flat = new List<Vector2Int>();
+            DoorGeometry.ClearanceTiles(new List<Vector3Int>(door.AllTiles()), gate.isHorizontal, DoorControlRules.ClearanceDepth, flat);
+            area = new List<Vector3Int>(flat.Count);
+            foreach (var t in flat) area.Add(new Vector3Int(t.x, t.y, door.Position.z));
+            _clearanceCache[door] = area;
+        }
+        foreach (var key in area)
+            if (Session.unitGrid.TryGetValue(key, out Unit occupant) && occupant != null && occupant.Health.hp > 0) return true;
+        return false;
+    }
+
+    // 문을 열어 두거나 닫는다. 성공하면 상태를 바꾸고 경로 판정 메모가 새로 계산되도록 StateVersion을 올린다. 불가 사유를 돌려준다(None = 성공).
+    public DoorControlBlock TrySetManualOpen(InteractableObject door, bool open, FactionType actor = FactionType.Player)
+    {
+        DoorControlBlock block = CheckControl(door, open, actor);
+        if (block != DoorControlBlock.None) return block;
+
+        door.DoorManualOpen = open;
+        StateVersion++;
+        LogHelper.Log(LogHelper.GAME, $"[문 제어] {door.Id}({door.Position.x},{door.Position.y}) {(open ? "열어 둠 — 누구나 통과 가능" : "닫음 — 보유 진영만 통과")}");
+        return DoorControlBlock.None;
     }
 
     // 이동 명령 도달성 판정 — 점령 여부와 무관하게 "그 진영이 통행 가능한 문"(IsBlockedByClosedDoor와
@@ -366,13 +452,15 @@ public class DoorSystem
         foreach (var group in groups)
         {
             Vector2Int tile = group.Tiles[0];
-            FactionType? owner = GetDoorOwnerFaction(new Vector3Int(tile.x, tile.y, floorIndex));
-            if (owner != null && owner.Value != faction) return false; // null = 문이 없음(파괴됨) = 이 쪽은 통과 가능
+            var doorPos = new Vector3Int(tile.x, tile.y, floorIndex);
+            FactionType? owner = GetDoorOwnerFaction(doorPos);
+            bool heldOpen = Session.objectGrid.TryGetValue(doorPos, out InteractableObject doorObj) && IsHeldOpen(doorObj);
+            if (owner != null && owner.Value != faction && !heldOpen) return false; // null = 문이 없음(파괴됨) = 이 쪽은 통과 가능, 열어 둔·자동으로 열린 문도 누구나 통과
 
             // 문 안쪽에 목책이 서 있으면 그것도 통과 조건이다(없거나 파괴됐으면 막지 않는다).
             if (TryGetFenceTiles(gate, group, floorIndex, fenceTiles))
                 foreach (var fenceTile in fenceTiles)
-                    if (Session.objectGrid.TryGetValue(fenceTile, out InteractableObject fence) && IsFence(fence) && fence.DoorOwnerFaction != faction) return false;
+                    if (Session.objectGrid.TryGetValue(fenceTile, out InteractableObject fence) && IsFence(fence) && fence.DoorOwnerFaction != faction && !IsHeldOpen(fence)) return false;
         }
         return true;
     }
@@ -400,6 +488,7 @@ public class DoorSystem
         _doors.Remove(door);
         _fences.Remove(door);
         _doorVisuals.Remove(door);
+        _clearanceCache.Remove(door);
         StateVersion++;
         Session.CollectObject(pos); // objectGrid의 별칭 키 전부 제거 + 비주얼 파괴
         foreach (var tile in tiles) ClearStaleWallCache(tile);
@@ -590,13 +679,23 @@ public class DoorSystem
                 LogHelper.Warning(LogHelper.GAME, $"InstallHumanGates: {g.Anchor} 문 자리에 다른 오브젝트가 있어 인류 문을 세우지 못했습니다.");
             }
 
-            if (!g.HasFence && g.FenceTiles.Count > 0 && SpawnFenceGroup(g.FenceTiles, FactionType.Human)) fences++;
+            // 같은 기초 시설의 문 — 목책이 이 문이 열린 동안 함께 열리도록 연결한다(IsBlockedByClosedDoor).
+            InteractableObject gateDoor = Session.objectGrid.TryGetValue(g.Anchor, out InteractableObject d) && d.Tags != null && d.Tags.Contains(DoorTag) ? d : null;
+            if (!g.HasFence && g.FenceTiles.Count > 0 && SpawnFenceGroup(g.FenceTiles, FactionType.Human, gateDoor)) fences++;
+            else if (g.HasFence && gateDoor != null) LinkExistingFence(g, gateDoor);
         }
         return (doors, fences);
     }
 
+    // 이미 서 있는 목책을 새로(다시) 세운 문에 연결한다.
+    private void LinkExistingFence(RoomGate g, InteractableObject gateDoor)
+    {
+        foreach (var tile in g.FenceSites)
+            if (Session.objectGrid.TryGetValue(tile, out InteractableObject fence) && IsFence(fence)) fence.LinkedGateDoor = gateDoor;
+    }
+
     // 목책 묶음(1×2)을 하나의 오브젝트로 세운다 — 문 묶음과 같은 방식으로 모든 칸을 같은 오브젝트의 별칭으로 등록한다. tiles는 (x, y) 오름차순이라 첫 칸이 대표 타일이다.
-    private bool SpawnFenceGroup(List<Vector3Int> tiles, FactionType owner)
+    private bool SpawnFenceGroup(List<Vector3Int> tiles, FactionType owner, InteractableObject gateDoor = null)
     {
         Vector3Int primary = tiles[0];
         InteractableObject fence = new InteractableObject(
@@ -604,6 +703,7 @@ public class DoorSystem
             tags: new List<string> { FenceTag }, isFullyBlocking: false, doorHp: FenceMaxHp);
         fence.DoorOwnerFaction = owner;
         fence.OccupiedTiles = tiles;
+        fence.LinkedGateDoor = gateDoor;
         Session.SpawnObject(fence, Color.white);
         if (!Session.objectGrid.TryGetValue(primary, out var placed) || placed != fence) return false; // 자리가 차 있어 놓지 못했다
         _fences.Add(fence);

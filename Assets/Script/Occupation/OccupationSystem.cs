@@ -15,8 +15,8 @@ public class OccupationSystem
 	public static bool AllowUnknownAdvance = false;
 
 	private const float ValidateIntervalSeconds = 1f;
-	// 기존 문 철거가 이 시간(교전 중 제외) 안에 끝나지 않으면 남은 문을 같은 파괴 경로로 허문다 — 문에 닿지 못하는 교착 방지(문서에 수치 없음, 자리표시자).
-	private const float DemolitionForceSeconds = 90f;
+	// 철거 계획을 만들지 못했을 때(투입할 파티원·게이트 없음) 다시 시도하기까지의 간격 — 매 프레임 재시도·로그를 막는 용도(내부 판단).
+	private const float DemolitionRetrySeconds = 3f;
 
 	private IObjectResolver _resolver;
 	private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
@@ -34,11 +34,12 @@ public class OccupationSystem
 	private readonly HashSet<Room> _defenseRequested = new HashSet<Room>();
 	private readonly Dictionary<Room, Vector3Int> _facilities = new Dictionary<Room, Vector3Int>(); // 방마다 실제로 세운 방어 시설 오브젝트의 칸 — 거점을 잃으면 철거한다
 	private readonly List<Room> _neighborBuffer = new List<Room>();
-	// 기초 시설을 짓기 전에 방 쪽 기존 문을 실제로 부수는 중(철거 단계)인 방과 그 단계에서 교전 없이 흐른 시간. 철거가 끝나면 청사진을 깔고 인류 문·목책을 새로 설치한다.
+	// 기초 시설을 짓기 전에 방 쪽 기존 문을 실제로 부수는 중(철거 단계)인 방. 철거가 끝나면 청사진을 깔고 인류 문·목책을 새로 설치한다.
 	private readonly HashSet<Room> _demolishing = new HashSet<Room>();
-	private readonly Dictionary<Room, float> _demolishElapsed = new Dictionary<Room, float>();
+	// 철거 계획을 만들지 못한 방의 다음 시도 시각, 그리고 그 실패를 이미 경고로 남긴 방(실패가 이어지는 동안 한 번만 남긴다).
+	private readonly Dictionary<Room, float> _demolishRetryAt = new Dictionary<Room, float>();
+	private readonly HashSet<Room> _demolishWarned = new HashSet<Room>();
 	private readonly List<InteractableObject> _doorBuffer = new List<InteractableObject>();
-	private readonly List<InteractableObject> _queryBuffer = new List<InteractableObject>();
 	private float _nextValidateTime;
 
 	// 점령 병력이 거점을 옮기며 전진하는 "전방" 거점과 집단의 거점 정원(처음 출격 인원, 자리표시자 — 문서가 정원 수치를 정하지 않음).
@@ -98,7 +99,8 @@ public class OccupationSystem
 			_frontBase = null;
 			_groupCapacity = 0;
 			_demolishing.Clear();
-			_demolishElapsed.Clear();
+			_demolishRetryAt.Clear();
+			_demolishWarned.Clear();
 		}
 	}
 
@@ -158,7 +160,7 @@ public class OccupationSystem
 		if (party.Retreat.IsRetreating) return;
 		Room room = party.Leader.currentRoom;
 		if (room == null || room.Floor < 1 || OccupationMath.IsRoomActivityComplete(room.BaseStage) || !CanConstructNow(party) || IsConstructionDisturbed(party)) return;
-		if (!TickDemolition(party, room, deltaTime)) return;
+		if (!TickDemolition(party, room)) return;
 
 		bool done = Construction.Tick(party, room, defense: false, deltaTime, out bool started, out bool halfway);
 		if (started)
@@ -176,15 +178,18 @@ public class OccupationSystem
 	}
 
 	// 기초 시설을 짓기 전에 방 쪽의 기존 문(인류 소유가 아닌 것)을 먼저 실제로 부순다 — 코어 점령 v0.2 12장 "기존 문 제어권이 없으면 문을 파괴하고 인류 문을 세운다"(2026-10-22 사용자 요청: 소유권을 바로 바꾸지 말고 실제 파괴 로직으로 부순 뒤 시간을 들여 다시 짓는다).
-	// 부수는 일은 점령 파티원 각자의 DoorAttack 행동(TacticalFSMState → TryFindDemolitionDoor)이 문 채널링 데미지로 하고, 이 함수는 철거 단계의 시작·끝만 관리한다. 철거할 문이 없으면 true(공사 시작).
-	private bool TickDemolition(Party party, Room room, float deltaTime)
+	// 부수는 일은 집결 뒤 문 파괴와 같은 경로다 — 리더가 문 하나씩 철거 계획(PartyAdvanceSystem.BeginDemolition)을 세우면 파티원이 지시받은 공격 자리로 가서 문에 달라붙어 채널링하고(PartyBreachCommand + PartyAdvanceSteps.StepBreach), 그 문이 부서지면 계획이 끝난다.
+	// 이 함수는 철거 단계의 시작·끝과 "다음 문" 선택만 맡는다(계획이 진행 중인 동안은 CanConstructNow가 막아 불리지 않는다). 철거할 문이 없으면 true(공사 시작).
+	// 예전엔 파티원 각자의 DoorAttack이 따로 문을 찾아다니고 90초가 지나면 남은 문을 파괴 연출 없이 허물었다 — 둘 다 없앴다. 문에 닿지 못해도 문서의 돌파와 같이 지시를 다시 내며 재시도한다.
+	private bool TickDemolition(Party party, Room room)
 	{
 		Session.CollectHostileRoomDoors(room, _doorBuffer);
 		if (_doorBuffer.Count == 0)
 		{
 			if (_demolishing.Remove(room))
 			{
-				_demolishElapsed.Remove(room);
+				_demolishRetryAt.Remove(room);
+				_demolishWarned.Remove(room);
 				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기존 문 철거 완료 — 인류 문·목책 설치 시작");
 			}
 			return true;
@@ -192,49 +197,40 @@ public class OccupationSystem
 
 		if (_demolishing.Add(room))
 		{
-			_demolishElapsed[room] = 0f;
-			// 공사 대기와 다음 문을 찾으며 따라다니던 추종 대기를 풀어 파티원이 문을 부수러 갈 수 있게 한다 — BT에서 Wait이 DoorAttack보다 앞이라 대기가 남아 있으면 문을 공격하지 못한다.
-			BaseConstruction.ClearWaits(party);
-			foreach (var member in party.Members)
-				if (member != null && member.currentWait != null && member.currentWait.Reason == WaitReason.SearchingNextDoor)
-				{
-					member.currentWait = null;
-					member.waitStuckTurns = 0;
-				}
 			Construction.DismissGateBlueprint(room, celebrate: false); // 철거 중에는 설치 청사진이 없다
 			LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기존 문 {_doorBuffer.Count}개를 부수며 거점 건설을 준비합니다");
 			NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}의 기존 문을 부수고 있습니다.", NoticeCenter.WarningColor);
 		}
 
-		float elapsed = (_demolishElapsed.TryGetValue(room, out float previous) ? previous : 0f) + deltaTime;
-		_demolishElapsed[room] = elapsed;
-		if (elapsed < DemolitionForceSeconds) return false;
+		if (Time.time < (_demolishRetryAt.TryGetValue(room, out float retryAt) ? retryAt : 0f)) return false;
 
-		// 문에 닿지 못해 철거가 끝나지 않는 교착 방지 — 남은 문을 같은 파괴 경로(RemoveDoor)로 허문다. 다음 틱에 남은 문이 없으면 공사가 시작된다.
-		LogHelper.Warning(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 기존 문 철거가 {DemolitionForceSeconds:F0}초 안에 끝나지 않아 남은 문 {_doorBuffer.Count}개를 허뭅니다");
-		foreach (var door in _doorBuffer) Session.RemoveDoor(door.Position);
+		// 공사 대기(ConstructingBase)가 남아 있으면 계획에 참여할 수 없다 — 먼저 풀고, 가장 가까운 문부터 한 개씩 부순다.
+		BaseConstruction.ClearWaits(party);
+		if (PartyAdvanceSystem.BeginDemolition(party, room, NearestDoor(party.Leader, _doorBuffer)))
+		{
+			_demolishRetryAt.Remove(room);
+			_demolishWarned.Remove(room);
+			return false;
+		}
+
+		_demolishRetryAt[room] = Time.time + DemolitionRetrySeconds;
+		if (_demolishWarned.Add(room))
+			LogHelper.Warning(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId} 기존 문 철거 계획을 만들지 못했습니다(투입할 파티원이 없거나 게이트를 찾지 못함) — {DemolitionRetrySeconds:F0}초마다 다시 시도합니다");
 		return false;
 	}
 
-	// 철거 단계의 방에서 점령 파티원이 부술 문 — 이 방 쪽 문 중 인류 소유가 아닌 것 가운데 가장 가까운 것의 가장 가까운 칸. TacticalFSMState.FindHostileExitDoor(DoorAttack)가 부른다.
-	public bool TryFindDemolitionDoor(Human human, Room room, out Vector3Int doorPos, out InteractableObject door)
+	private static InteractableObject NearestDoor(Human from, List<InteractableObject> doors)
 	{
-		doorPos = default;
-		door = null;
-		if (human == null || human.party == null || human.party.Type != PartyType.Occupy || room == null || !_demolishing.Contains(room)) return false;
-
-		Session.CollectHostileRoomDoors(room, _queryBuffer);
-		int best = int.MaxValue;
-		foreach (var candidate in _queryBuffer)
+		InteractableObject best = null;
+		int bestDistance = int.MaxValue;
+		foreach (var door in doors)
 		{
-			Vector2Int tile = candidate.NearestTileTo(human.position);
-			int dist = AIMovementHelper.ChebyshevDistance(human.position, tile);
-			if (dist >= best) continue;
-			best = dist;
-			doorPos = new Vector3Int(tile.x, tile.y, room.Floor);
-			door = candidate;
+			int distance = AIMovementHelper.ChebyshevDistance(from.position, door.NearestTileTo(from.position));
+			if (distance >= bestDistance) continue;
+			bestDistance = distance;
+			best = door;
 		}
-		return door != null;
+		return best;
 	}
 
 	private static bool CanConstructNow(Party party)
@@ -280,7 +276,8 @@ public class OccupationSystem
 		room.BaseStage = stage;
 		if (!_bases.Contains(room)) _bases.Add(room);
 		_demolishing.Remove(room);
-		_demolishElapsed.Remove(room);
+		_demolishRetryAt.Remove(room);
+		_demolishWarned.Remove(room);
 	}
 
 	// 점령 병력이 정원을 채웠고 거점 상한에 여유가 있으면 가장 가까운 유효한 기초 거점을 다음 방어 거점으로 정한다(14장). 병력이 정원 미만이면 충원이 올 때까지 미룬다.
@@ -421,16 +418,33 @@ public class OccupationSystem
 		switch (room.BaseStage)
 		{
 			case BaseStage.Defense:
-				return "인류 방어 거점";
+				return "인류 방어 거점" + ResortieText(room);
 			case BaseStage.Basic:
 				float defense = Construction.Progress01(room, true);
-				if (defense > 0f) return $"방어 시설 공사 {defense * 100f:F0}%";
-				return room.DefenseDesignated ? "인류 기초 거점(방어 거점 지정)" : "인류 기초 거점";
+				if (defense > 0f) return $"방어 시설 공사 {defense * 100f:F0}%" + ResortieText(room);
+				return (room.DefenseDesignated ? "인류 기초 거점(방어 거점 지정)" : "인류 기초 거점") + ResortieText(room);
 			default:
 				if (_demolishing.Contains(room)) return "인류 거점 건설 준비 — 기존 문 철거 중";
 				float basic = Construction.Progress01(room, false);
 				return basic > 0f ? $"인류 거점 건설 {basic * 100f:F0}%" : string.Empty;
 		}
+	}
+
+	// 이 거점에서 쉬는 점령 파티의 재출격 현장 인원(19장 "주둔 사용·최대 인구수와 재출격 현장 인원 구분") — 현장 생존 인원 = 거점에 도착한 도주 미확정 생존 파티원이고, 필요 인원은 최초 출격 인원의 80%(올림)다.
+	// 거점 소속 정원 대비 주둔 사용 인구수는 14장 충원 규칙이 정해질 때 함께 보여 준다(정원 수치 보류).
+	private string ResortieText(Room room)
+	{
+		foreach (var party in _parties)
+		{
+			var st = party.Retreat;
+			if (!st.IsRetreating || st.BaseRoom != room || st.Phase != PartyRetreatPhase.Resting) continue;
+			int present = 0;
+			foreach (var m in party.Members)
+				if (m != null && m.hp > 0f && m.Retreat != null && !m.Retreat.IsFleeing && m.Retreat.AtBase) present++;
+			int need = PartyRetreatMath.RequiredResortieSurvivors(st.InitialSortieCount);
+			return $" — 재출격 현장 인원 {present}/{need}(최초 출격 {st.InitialSortieCount}명의 80%)";
+		}
+		return string.Empty;
 	}
 
 	private string DescribeBases()

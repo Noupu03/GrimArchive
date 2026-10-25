@@ -33,6 +33,8 @@ public class AIBehaviorConfig : ScriptableObject
     public float doorApproachHoldRetrySeconds = 1f;
     [Tooltip("방 이동이 계속 막힌 채로 이 시간(초)을 넘기면 명령을 풀고 개인 행동으로 돌아간다 — 닿을 수 없는 자리에 영구히 얼어붙는 것을 막는 안전장치 (검증문서 04-02, 내부 판단)")]
     public float doorApproachMaxBlockedSeconds = 30f;
+    [Tooltip("인류 문 자동 개폐(코어 점령 v0.2 5-1·6장) kill-switch — 켜면 인류가 자기 문에 접근할 때 문이 실제로 열려 문 앞·뒤 2칸에 어느 진영이든 유닛이 있는 동안 몬스터도 따라 지나갈 수 있고, 구역이 비면 닫힌다. 끄면 예전처럼 인류 문은 개폐가 연출일 뿐 보유 진영만 통과한다")]
+    public bool humanDoorAutoControlEnabled = true;
     [Tooltip("점유 충돌 판단(대기 vs 우회 예상시간 비교·비켜 주기, 검증문서 04-05/04-06) 전체 kill-switch — 끄면 예전처럼 점유 타일은 곧바로 벽으로 보고 우회한다 (내부 판단)")]
     public bool occupancyArbitrationEnabled = true;
     [Tooltip("좁은 통로(게이트 문 타일) 통과 순서·마주 막힘 양보(검증문서 04-07) kill-switch — 끄면 통과 순서 대기를 하지 않는다 (내부 판단)")]

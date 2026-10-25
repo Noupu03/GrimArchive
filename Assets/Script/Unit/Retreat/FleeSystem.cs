@@ -61,6 +61,7 @@ public static class FleeSystem
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 개인 도주 확정 — {Describe(reason)}, 정신력 {human.BaseStat.mental:F1}, 판정 {state.FleeRoll.TotalRolls}회");
 		SpeechSystem.Say(human, reason == FleeReason.EncounterShock ? SpeechId.EncounterFleeMax : SpeechId.FleeConfirmed); // 연출 — 명세서 4-3·7-3장
 		NotifyWitnesses(human);
+		RetreatSystem.NotifyPlayer(human, $"인류 {human.name}이(가) 공포에 질려 던전 밖으로 도주하기 시작했습니다");
 		OnFleeConfirmed?.Invoke(human, reason);
 	}
 
@@ -94,6 +95,30 @@ public static class FleeSystem
 			if (seen != null && seen != witness && seen.hp > 0f && seen.Retreat != null && seen.Retreat.IsFleeing)
 				MentalSystem.OnFleeWitnessed(witness, seen);
 	}
+
+	// 같은 파티원의 도주 사실 보고(후퇴도주 6-2장·7-1장 "직접 확인·유효한 보고", 행동경로 05 6장 "전파 규칙에 따라 전달받아 알았다면"): 도주를 아는 파티원이 일반 전파 조건(비전투 + 같은 공간 + 전파 범위, 07-A 6장)을 만족하는 파티원 곁에 있으면 그 파티원도 도주 사실을 알게 된다.
+	// 한 번의 전달이 아니라 관찰 틱마다 다시 확인한다(사망 정보 재전파와 같은 방식) — 놓친 파티원이 나중에 범위에 들어오면 그때 받는다. 수신자는 도주 확인 정신력 감소를 1회 받고(MentalSystem.OnFleeKnown) 리더가 알게 되면 집결 대기 대상에서 도주자를 뺀다.
+	// 도주자가 이미 던전 밖으로 나가 파티에서 빠졌어도 아는 사람의 기록(WitnessedFlees 이름)으로 계속 전달된다. 부재·무응답이나 대사 표시만으로는 전달되지 않는다.
+	public static void TickReports(Human human)
+	{
+		var party = human.party;
+		var mine = human.Retreat;
+		if (party == null || mine == null) return;
+
+		foreach (var carrier in party.Members)
+		{
+			if (carrier == null || carrier == human || carrier.hp <= 0f || carrier.Retreat == null || carrier.Retreat.WitnessedFlees.Count == 0) continue;
+			if (!PropagationSystem.CanPropagate(carrier, human)) continue;
+			// 정신력 감소가 수신자의 도주를 확정시키면 그 사건을 보던 전달자의 목록(WitnessedFlees)이 바뀔 수 있어 사본을 돈다.
+			_reportScratch.Clear();
+			foreach (var fleeingName in carrier.Retreat.WitnessedFlees)
+				if (!mine.WitnessedFlees.Contains(fleeingName)) _reportScratch.Add(fleeingName);
+			foreach (var fleeingName in _reportScratch)
+				MentalSystem.OnFleeKnown(human, fleeingName, direct: false);
+		}
+	}
+
+	private static readonly List<string> _reportScratch = new List<string>();
 
 	// ─────────────────────────── 몬스터 직접 조우 충격 ───────────────────────────
 

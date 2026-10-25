@@ -88,6 +88,7 @@ public class HumanKnowledgeBase
 
 	// 정신력 상태 → MentalErrorState 매핑. 문서가 임계값을 전투 연산 문서로 위임해 정신력 비율
 	// ((원수치+100)/2)로 임의 기준을 잡았다(25% 미만=공황, 50% 미만=공포). 후퇴도주 문서의 공황(원수치 −70 미만 = 비율 15% 미만)과는 경계가 다르다.
+	// 이 상태는 더 이상 판단용 수치에 랜덤 오차를 더하지 않는다(WeightMath.InfoError — 후퇴도주 3-2·8-2장). 전역 반영 때 공황 기록을 섞는 가중치 25장(ResolvePanicBlend)에만 쓰인다.
 	public static MentalErrorState GetMentalState(Unit u)
 	{
 		if (u == null || u.BaseStat.maxMental <= 0f) return MentalErrorState.Normal;
@@ -491,10 +492,13 @@ public class HumanKnowledgeBase
 	public float GetDungeonInterest(Human observer) => observer.Memory.personalMap.GetPersonalDungeonInterest();
 
 	// ─────────────────────────── 9장/23장. 정보 오차 ───────────────────────────
-	public int ApplyHiddenInfoNoise(int actualValue, int understandingApplied) => WeightMath.ApplyHiddenInfoNoise(actualValue, understandingApplied, _rng);
+	// 판단용 수치 랜덤 오차는 꺼져 있다(WeightMath.JudgementErrorEnabled) — 기본은 실제 값을 그대로 돌려준다.
+	public int ApplyHiddenInfoNoise(int actualValue, int understandingApplied)
+		=> WeightMath.JudgementErrorEnabled ? WeightMath.ApplyHiddenInfoNoise(actualValue, understandingApplied, _rng) : actualValue;
 
 	public int ApplyInfoValueNoise(int actualValue, InfoType info, MentalErrorState mental)
 	{
+		if (!WeightMath.JudgementErrorEnabled) return actualValue;
 		var (_, ratio) = WeightMath.InfoError(info, mental);
 		return WeightMath.ApplyValueNoise(actualValue, ratio, _rng);
 	}

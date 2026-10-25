@@ -69,6 +69,7 @@ public static class PartyRetreatSystem
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 파티 후퇴 시작({st.StartReason}) — {party.Type.ToKorean()} 파티, 평균 HP {avg.HpPercent:F1}%(기준 ≤{thresholds.HpPercent:F0}) / 평균 정신력 {avg.MentalPercent:F1}%(기준 ≤{thresholds.MentalPercent:F0}), 대상 {avg.Count}명, 목적지 {DescribeDestination(st)}, 후퇴 {st.RetreatCount}회째");
 		SpeechSystem.Say(leader, st.StartReason == "평균 HP" ? SpeechId.PartyRetreatByHp : SpeechId.PartyRetreatByMental); // 연출 — 리더가 후퇴 이유를 말한다
+		RetreatSystem.NotifyPlayer(leader, $"인류 {party.Type.ToKorean()} 파티가 후퇴를 시작했습니다(목적지: {DescribeDestination(st)})");
 		OnPartyRetreatStarted?.Invoke(party);
 	}
 
@@ -186,6 +187,9 @@ public static class PartyRetreatSystem
 				}
 			}
 		}
+
+		// 거점에 도착해 있는 파티원은 방 안의 다른 파티 인류와 지도 정보를 주고받는다(7-2장 거점 내 정보 전달).
+		BaseInfoSharing.Tick(party, st.BaseRoom);
 	}
 
 	// ─────────────────────────── 휴식 완료 판정 ───────────────────────────

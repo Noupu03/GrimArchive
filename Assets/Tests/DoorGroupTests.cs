@@ -223,5 +223,124 @@ public class DoorGroupTests
 		Assert.AreEqual(new Vector2Int(7, 46), fence[1]);
 		Assert.AreEqual(new Vector2Int(6, 47), RowA()[0], "원본 문 줄은 건드리지 않는다");
 	}
+
+	// ── 문 제어: 문 앞·뒤 비움 구역과 열기·닫기 판정(코어 점령 v0.2 6·19장) ──
+
+	private static List<Vector3Int> DoorTiles3D(params (int x, int y)[] tiles)
+	{
+		var list = new List<Vector3Int>();
+		foreach (var t in tiles) list.Add(new Vector3Int(t.x, t.y, 1));
+		return list;
+	}
+
+	[Test]
+	public void Clearance_VerticalGate_ExtendsTwoTilesAlongYWithTheDoorWidth()
+	{
+		var area = new List<Vector2Int>();
+		DoorGeometry.ClearanceTiles(DoorTiles3D((6, 47), (7, 47)), horizontalGate: false, depth: 2, area);
+
+		Assert.AreEqual(10, area.Count, "폭 2 × (앞 2 + 문 줄 1 + 뒤 2) = 10칸");
+		CollectionAssert.Contains(area, new Vector2Int(6, 45));
+		CollectionAssert.Contains(area, new Vector2Int(7, 49));
+		CollectionAssert.Contains(area, new Vector2Int(6, 47), "문 줄 자신도 비어 있어야 한다");
+		CollectionAssert.DoesNotContain(area, new Vector2Int(5, 47), "문 폭 밖 옆 칸은 구역이 아니다");
+		CollectionAssert.DoesNotContain(area, new Vector2Int(6, 50));
+	}
+
+	[Test]
+	public void Clearance_HorizontalGate_ExtendsTwoTilesAlongX()
+	{
+		var area = new List<Vector2Int>();
+		DoorGeometry.ClearanceTiles(DoorTiles3D((9, 5), (9, 6)), horizontalGate: true, depth: 2, area);
+
+		Assert.AreEqual(10, area.Count);
+		CollectionAssert.Contains(area, new Vector2Int(7, 5));
+		CollectionAssert.Contains(area, new Vector2Int(11, 6));
+		CollectionAssert.DoesNotContain(area, new Vector2Int(9, 4));
+		CollectionAssert.DoesNotContain(area, new Vector2Int(12, 5));
+	}
+
+	[Test]
+	public void DoorControl_OnlyPlayerOwnedDoorsAreControllable()
+	{
+		Assert.AreEqual(DoorControlBlock.NotPlayerDoor,
+			DoorControlRules.Check(FactionType.Human, FactionType.Player, coreFunctionsActive: true, wantOpen: true, currentlyOpen: false, anyUnitInClearance: false),
+			"인류 전용 문은 플레이어가 제어할 수 없다");
+		Assert.AreEqual(DoorControlBlock.NotPlayerDoor,
+			DoorControlRules.Check(FactionType.Wild, FactionType.Player, true, true, false, false));
+		Assert.AreEqual(DoorControlBlock.None,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, true, true, false, false));
+	}
+
+	[Test]
+	public void DoorControl_StoppedWhileCoreIsDestroyed()
+	{
+		Assert.AreEqual(DoorControlBlock.CoreDestroyed,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, coreFunctionsActive: false, wantOpen: true, currentlyOpen: false, anyUnitInClearance: false));
+		Assert.AreEqual(DoorControlBlock.CoreDestroyed,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, false, wantOpen: false, currentlyOpen: true, anyUnitInClearance: false));
+	}
+
+	[Test]
+	public void DoorControl_CloseNeedsAnEmptyClearanceButOpenNeverDoes()
+	{
+		Assert.AreEqual(DoorControlBlock.UnitsNearby,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, true, wantOpen: false, currentlyOpen: true, anyUnitInClearance: true),
+			"문 앞·뒤에 유닛이 있으면 닫을 수 없다");
+		Assert.AreEqual(DoorControlBlock.None,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, true, wantOpen: false, currentlyOpen: true, anyUnitInClearance: false));
+		Assert.AreEqual(DoorControlBlock.None,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, true, wantOpen: true, currentlyOpen: false, anyUnitInClearance: true),
+			"열기는 근처 유닛과 무관하다");
+		Assert.AreEqual(DoorControlBlock.AlreadyInState,
+			DoorControlRules.Check(FactionType.Player, FactionType.Player, true, wantOpen: true, currentlyOpen: true, anyUnitInClearance: false));
+		StringAssert.Contains("문 근처에 유닛이 있어", DoorControlRules.Describe(DoorControlBlock.UnitsNearby));
+	}
+
+	// ── 열려 있는 문·목책 판정(문 제어·인류 문 자동 개폐) ──
+
+	[Test]
+	public void HeldOpen_ManualOrAutoOpenDoorPassesEveryone_FenceFollowsItsLinkedDoor()
+	{
+		var door = new InteractableObject("Door_a", new Vector3Int(6, 47, 1), 0f, 0f, new List<string> { DoorSystem.DoorTag }, isFullyBlocking: true, doorHp: 300f);
+		var fence = new InteractableObject("Fence_a", new Vector3Int(6, 46, 1), 0f, 0f, new List<string> { DoorSystem.FenceTag }, doorHp: 200f);
+		fence.LinkedGateDoor = door;
+
+		Assert.IsFalse(DoorSystem.IsHeldOpen(door), "기본은 닫힘 — 보유 진영만 통과");
+		Assert.IsFalse(DoorSystem.IsHeldOpen(fence));
+
+		door.DoorAutoOpen = true; // 인류 문이 인류의 접근으로 열림
+		Assert.IsTrue(DoorSystem.IsHeldOpen(door));
+		Assert.IsTrue(DoorSystem.IsHeldOpen(fence), "연결된 목책도 문이 열린 동안 통과할 수 있다(열린 문을 따라 들어오는 흐름)");
+
+		door.DoorAutoOpen = false; // 구역이 비어 닫힘
+		Assert.IsFalse(DoorSystem.IsHeldOpen(fence));
+
+		door.DoorManualOpen = true; // 플레이어가 열어 둠
+		Assert.IsTrue(DoorSystem.IsHeldOpen(door));
+
+		door.DoorManualOpen = false;
+		door.DoorAutoOpen = true;
+		door.IsCollected = true; // 문이 파괴됨 — 목책 연결이 끊긴다
+		Assert.IsFalse(DoorSystem.IsHeldOpen(fence), "파괴된 문에 연결된 목책은 열림이 아니다");
+		Assert.IsFalse(DoorSystem.IsHeldOpen(null));
+	}
+
+	// ── 야생 생성 정원(코어 점령 v0.2 11-1장·20-2장) ──
+
+	[Test]
+	public void WildSpawn_RespectsRoomMaxPopulation()
+	{
+		Assert.IsTrue(WildSpawnMath.CanSpawn(livingPopulation: 9, newPopulation: 1, roomMaxPopulation: 10, fallbackCapacity: 6), "정원 10, 생존 9 → 인구수 1 생성 가능");
+		Assert.IsFalse(WildSpawnMath.CanSpawn(9, 2, 10, 6), "인구수 2는 상한 초과");
+		Assert.IsFalse(WildSpawnMath.CanSpawn(10, 1, 10, 6));
+	}
+
+	[Test]
+	public void WildSpawn_FallsBackToMvpCapWhenRoomHasNoMaxPopulation()
+	{
+		Assert.IsTrue(WildSpawnMath.CanSpawn(5, 1, 0, 6));
+		Assert.IsFalse(WildSpawnMath.CanSpawn(6, 1, 0, 6));
+	}
 }
 #endif

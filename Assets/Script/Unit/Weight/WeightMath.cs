@@ -335,6 +335,10 @@ public static class WeightMath
 	public const float ExploringNormalRoomFixedInterest = 15f;
 	public const float ExploringBossRoomFixedInterest = 25f;
 
+	// 판단용 수치(위험도·능력치·예상 피해)에 랜덤 오차를 적용할지 — 꺼짐이 기본이다(후퇴도주 명세서 8-2장 "판단용 수치 랜덤 오차 제거 연동", 사용자 결정 2026-10-25: 정보 유형 오차 직접 목격 ±5%·간접 ±10%도 제거).
+	// 아래 표(InfoError/HiddenInfoNoiseRatio)와 난수 함수는 23장·9장 기록으로 남기고 HumanKnowledgeBase의 ApplyInfoValueNoise/ApplyHiddenInfoNoise 래퍼만 이 값을 본다. 개인 도주의 50%→100% 확률 판정은 오차가 아니라 이 값과 무관하다.
+	public static bool JudgementErrorEnabled = false;
+
 	// ─────────────────────────── 23장. 정보 오차 (위치/수치) ───────────────────────────
 	public static (int tileError, float valueErrorRatio) InfoError(InfoType info, MentalErrorState mental)
 	{
@@ -346,16 +350,9 @@ public static class WeightMath
 			InfoType.Indirect         => (1, 0.10f),
 			_ => (0, 0f),
 		};
-		// 정신력 상태 오차 (더 큰 쪽 채택 — 문서 23장 마지막 규칙)
-		(int tile, float value) mentalErr = mental switch
-		{
-			MentalErrorState.Fear  => (1, 0.15f),
-			MentalErrorState.Panic => (2, 0.25f),
-			_ => (0, 0f),
-		};
-		int tileError = Mathf.Max(baseErr.tile, mentalErr.tile);
-		float valueErrorRatio = Mathf.Max(baseErr.value, mentalErr.value);
-		return (tileError, valueErrorRatio);
+		// 정신력 상태(공포·공황)는 판단용 수치에 랜덤 오차를 더하지 않는다 — 후퇴도주 명세서 3-2장 "공황에 따른 판단용 위험도·능력치·예상 피해의 수치 랜덤 오차 없음", 8-2장 "판단용 수치 랜덤 오차 제거 연동".
+		// 예전(가중치 23장)은 공포 ±1칸·±15%, 공황 ±2칸·±25% 중 정보 유형 오차보다 큰 쪽을 골랐다. mental 인자는 호출부 호환을 위해 남기되 값에 영향을 주지 않는다(공황 단계 효과는 MentalMath의 전투 불이익·도주 판정이 맡는다).
+		return (baseErr.tile, baseErr.value);
 	}
 
 	public static int ApplyValueNoise(int actualValue, float errorRatio, System.Random rng)

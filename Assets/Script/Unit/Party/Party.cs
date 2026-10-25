@@ -163,6 +163,11 @@ public partial class Party
 	// 파티 목표 상호작용이 시작되는 순간(완료 아님)의 합류 정보 — KnownInvestigatedObjects와 같은 지속 재전파 패턴이지만 소비 방식이 다르다. 등록만 하면 자유로운 파티원은 FindInvestigateTarget이 합류 이동을 시작하고, 전투·도주·다른 상호작용·집결 중인 파티원은 CanInvestigate 게이트에 막혀 현재 행동을 유지한다(03번 3항).
 	public readonly Dictionary<string, Vector3Int> PartyGoalJoinTargets = new Dictionary<string, Vector3Int>();
 
+	// 코어 조사(코어 점령 v0.2 10-1장): 이 파티가 조사를 마친 코어 Id — 조사 완료와 파괴 완료는 따로 기록하며(여기엔 조사만), 한 번 끝낸 조사는 코어가 파괴·수복돼도 반복하지 않는다. 조사가 끝나야 공격 가능한 파티원 전원이 코어를 공격한다.
+	public readonly HashSet<string> InvestigatedCoreIds = new HashSet<string>();
+	// 리더가 코어 방에 없어 파티원이 조사를 기다리기 시작한 시각(코어 Id별) — 리더가 오래 안 오면 이 방의 첫 파티원이 조사를 대신 맡는다.
+	public readonly Dictionary<string, float> CoreInvestigationWaitSince = new Dictionary<string, float>();
+
 	public Party(string id, string name)
 	{
 		Id = id;

@@ -601,6 +601,81 @@ public class PersonalMapKnowledge : IKnownTerrain
 	public float GetPersonalDungeonDanger() => _rooms.Keys.Sum(id => GetRoomDanger(id, _rooms[id].IsBossRoom));
 	public float GetPersonalDungeonInterest() => _rooms.Keys.Sum(id => GetRoomInterest(id, _rooms[id].IsBossRoom));
 
+	// ─────────────────────────── 거점 안 정보 전달 (후퇴도주 7-2장·R45, 코어 점령 6장·12-1장) ───────────────────────────
+	// 거점에서 만난 인류끼리 서로가 아는 정보를 현장 지도에 반영한다. "허용된 전달 정보"의 범위는 문서가 정하지 않아 지도가 담는 것 중 사실 정보만 옮긴다:
+	// 지형(벽·바닥), 오브젝트 위치와 위험도·흥미도(함정·문·코어 포함, 수거 사실), 몬스터 마지막 목격(간접 파악으로 — 24장 우선순위가 내 직접 정보를 지킨다), 방 탐사 상태·확인된 유닛/오브젝트·보스방 표시, 적 공격범위.
+	// 내가 이미 아는 항목은 덮어쓰지 않는다. 전달받은 쪽이 직접 보지 않은 정보이므로 개인 기억·전역 지식(HumanKnowledgeBase)은 건드리지 않고(외부 기록 전달·생환 경험치 정산이 아니다) 던전 안 지도만 갱신한다.
+	public struct SharedMapSummary
+	{
+		public int Tiles, Objects, Monsters, Rooms;
+		public bool Any => Tiles + Objects + Monsters + Rooms > 0;
+	}
+
+	public SharedMapSummary MergeSharedFrom(PersonalMapKnowledge other)
+	{
+		var summary = new SharedMapSummary();
+		if (other == null || ReferenceEquals(other, this)) return summary;
+
+		// 지형 — 모르는 타일만 밝힌다(프론티어·지형 개정 번호는 RevealTile이 갱신).
+		foreach (var kv in other._tileTerrain)
+		{
+			if (_tileTerrain.ContainsKey(kv.Key)) continue;
+			RevealTile(kv.Key, kv.Value == 2);
+			summary.Tiles++;
+		}
+
+		// 오브젝트 — 아직 모르는 것만 위치와 위험도·흥미도를 옮기고, 상대가 수거·파괴를 안 사실은 반영한다.
+		foreach (var kv in other._objectTile)
+		{
+			string id = kv.Key;
+			if (other._knownCollectedObjects.Contains(id))
+			{
+				if (_knownCollectedObjects.Contains(id)) continue;
+				if (!_objectTile.ContainsKey(id)) _objectTile[id] = kv.Value;
+				OnObjectCollected(id);
+				summary.Objects++;
+				continue;
+			}
+			if (_objectTile.ContainsKey(id)) continue;
+
+			_objectBaseDanger[id] = other._objectBaseDanger.GetValueOrDefault(id);
+			_objectDanger[id] = other._objectDanger.GetValueOrDefault(id);
+			_objectBaseInterest[id] = other._objectBaseInterest.GetValueOrDefault(id);
+			_objectInterest[id] = other._objectInterest.GetValueOrDefault(id);
+			_objectTile[id] = kv.Value;
+			if (other._knownTrapTiles.ContainsKey(id)) _knownTrapTiles[id] = kv.Value;
+			summary.Objects++;
+		}
+
+		// 몬스터 마지막 목격 — 간접 파악 정보로 전한다. 같은 몬스터에 대한 내 기록이 더 우선이거나 더 최신이면 ObserveMonster의 24장 게이트가 유지한다.
+		foreach (var kv in other._monsterSightings)
+		{
+			bool known = _monsterSightings.ContainsKey(kv.Key);
+			var s = kv.Value;
+			ObserveMonster(kv.Key, s.Tile, s.DangerSnapshot, s.InterestSnapshot, InfoType.Indirect, s.Timestamp);
+			if (!known && _monsterSightings.ContainsKey(kv.Key)) summary.Monsters++;
+		}
+
+		// 방 기록 — 탐사 상태는 높은 쪽(미탐사 < 탐사 중 < 완료), 확인된 유닛·오브젝트는 내가 모르는 키만 더한다. 이게 재출격 판정의 "인류 지도상 안전한 진출 방"(TryGetKnownRoomDanger)의 근거가 된다.
+		foreach (var kv in other._rooms)
+		{
+			var src = kv.Value;
+			if (src.State == RoomExploreState.Unexplored && !src.IsBossRoom) continue;
+			var dst = GetOrCreateRoom(kv.Key, src.IsBossRoom);
+			bool changed = false;
+			if (src.IsBossRoom && !dst.IsBossRoom) { dst.IsBossRoom = true; changed = true; }
+			if (src.State > dst.State) { dst.State = src.State; changed = true; }
+			foreach (var u in src.ConfirmedUnits)
+				if (!dst.ConfirmedUnits.ContainsKey(u.Key)) { dst.ConfirmedUnits[u.Key] = u.Value; changed = true; }
+			foreach (var o in src.ConfirmedObjects)
+				if (!dst.ConfirmedObjects.ContainsKey(o.Key) && !_knownCollectedObjects.Contains(o.Key)) { dst.ConfirmedObjects[o.Key] = o.Value; changed = true; }
+			if (changed) summary.Rooms++;
+		}
+
+		foreach (var kv in other._knownAttackRange) ConfirmAttackRange(kv.Key, kv.Value);
+		return summary;
+	}
+
 	// ─────────────────────────── 디버그 표시 (인스펙터/로그용) ───────────────────────────
 	public string BuildDebugSummary()
 	{

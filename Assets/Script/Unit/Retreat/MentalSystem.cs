@@ -56,12 +56,17 @@ public static class MentalSystem
 
 	// 같은 파티원의 도주를 처음 직접 확인하거나 유효한 보고를 받았을 때의 정신력 감소(기본 5, 일반 감소 보정 적용 — 안정 단계 4.75). 인류 유닛별·도주 사건별 1회이며 재확인·재보고·단순 부재·무응답·추정에는 감소가 없다. 감소를 적용했으면 true.
 	public static bool OnFleeWitnessed(Human witness, Human fleeing)
+		=> fleeing != null && OnFleeKnown(witness, fleeing.name, direct: true);
+
+	// 도주 사실을 처음 알게 된 인류의 공통 처리 — 직접 확인(direct)이든 같은 파티원의 유효한 보고(FleeSystem.TickReports)든 같은 사건이면 인류 유닛당 1회만 감소한다(R63·R66). 알게 된 이력(WitnessedFlees)은 리더의 집결 대기 제외 판정도 겸한다(RetreatSystem.IsFleeKnownToLeader).
+	// 대사("어디가!!!")는 직접 목격한 사람만 한다 — 보고로 전해 들은 사람은 대사 없이 정신력만 줄고, 대사가 보였다고 모두가 아는 것은 아니다(7-3장).
+	public static bool OnFleeKnown(Human receiver, string fleeingName, bool direct)
 	{
-		if (!RetreatSystem.Enabled || witness == null || fleeing == null || witness == fleeing || witness.hp <= 0f) return false;
-		var state = witness.Retreat;
-		if (state == null || !state.WitnessedFlees.Add(fleeing.name)) return false;
-		ApplyChange(witness, -FleeWitnessBaseDecrease);
-		SpeechSystem.Say(witness, SpeechId.FleeWitnessed); // 연출 — 목격한 사람만 반응한다(7-3장)
+		if (!RetreatSystem.Enabled || receiver == null || string.IsNullOrEmpty(fleeingName) || receiver.name == fleeingName || receiver.hp <= 0f) return false;
+		var state = receiver.Retreat;
+		if (state == null || !state.WitnessedFlees.Add(fleeingName)) return false;
+		ApplyChange(receiver, -FleeWitnessBaseDecrease);
+		if (direct) SpeechSystem.Say(receiver, SpeechId.FleeWitnessed);
 		return true;
 	}
 }

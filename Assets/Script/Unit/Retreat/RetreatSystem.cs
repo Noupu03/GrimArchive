@@ -67,7 +67,7 @@ public static class RetreatSystem
 	// 후퇴·도주 이동이나 거점 휴식 중이라 리더의 평소 명령(집결·방 이동·문 찾기 추종·코어 보고 이동)을 받을 수 없는 상태인가 — 이 상태의 인류는 Tactical 대기 리프를 안 타므로(후퇴 이동은 RetreatFSMState, 휴식은 Rest 분기가 대기보다 앞) 명령을 줘도 헛돌고, 집결·진형 완료 판정만 상한 시간까지 붙잡는다. 명령을 배정하는 곳이 이 값으로 건너뛴다. 꺼져 있으면 항상 false.
 	public static bool IsBoundToRetreat(Human human) => GetActivity(human) != RetreatActivity.None;
 
-	// 리더가 도주 확정을 직접 확인했는가(명세서 6-2장 "도주 사실 확인" — 직접 확인·유효한 보고로 알게 된 도주자는 집결 대기 대상에서 제외, 부재·무응답만으로는 도주로 확정하지 않는다). 확인 이력은 도주 목격 정신력 감소 이력(WitnessedFlees)과 같다. 보고 경로는 없다.
+	// 리더가 도주 확정을 직접 확인했는가(명세서 6-2장 "도주 사실 확인" — 직접 확인·유효한 보고로 알게 된 도주자는 집결 대기 대상에서 제외, 부재·무응답만으로는 도주로 확정하지 않는다). 확인 이력은 도주 목격 정신력 감소 이력(WitnessedFlees)과 같고, 직접 목격과 같은 파티원의 보고(FleeSystem.TickReports)가 모두 여기에 쌓인다.
 	public static bool IsFleeKnownToLeader(Human member, Human leader)
 		=> member?.Retreat != null && member.Retreat.IsFleeing && leader?.Retreat != null && leader != member && leader.Retreat.WitnessedFlees.Contains(member.name);
 
@@ -132,6 +132,17 @@ public static class RetreatSystem
 			LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 던전 밖 회복 — HP {hpBefore:F0}→{human.hp:F0}/{human.maxHp:F0}, 정신력 {MentalMath.ToRatioPercent(human.BaseStat.mental - mentalGain):F0}%→{MentalMath.ToRatioPercent(human.BaseStat.mental):F0}%");
 	}
 
+	// 플레이어에게 후퇴·도주 사건을 알린다 — 핵심본의 "물러나는 파티를 추격·저지" 의도에 필요한 최소 알림이다(문서가 알림 방식을 정하진 않았다). 안개로 가려진 방의 사건은 알리지 않는다(정보 누설 방지).
+	public static void NotifyPlayer(Human who, string text)
+	{
+		var session = who?.Session;
+		if (session == null || NoticeCenter.Instance == null) return;
+		if (session.roomGrid != null
+			&& session.roomGrid.TryGetValue(new Vector3Int(who.position.x, who.position.y, who.currentFloor), out Room room)
+			&& room != null && !room.FogRevealed) return;
+		NoticeCenter.Instance.PushMomentary(text, NoticeCenter.InfoColor);
+	}
+
 	// ─────────────────────────── 관찰·전이 틱 ───────────────────────────
 
 	// 유닛 OnUpdate가 매 프레임 부르는 틱 — 꺼져 있으면 즉시 반환, 켜져 있어도 0.5초 스로틀. 파티 구동 유닛이 파티 후퇴 시작·단계 전이를 맡는다.
@@ -144,6 +155,7 @@ public static class RetreatSystem
 
 		EvaluatePersonalRetreat(human, now);
 		FleeSystem.TickWitnessing(human);
+		FleeSystem.TickReports(human);
 		var party = human.party;
 		if (party != null && party.RetreatDriver == human) PartyRetreatSystem.Tick(party, now);
 	}

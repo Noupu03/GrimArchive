@@ -87,6 +87,7 @@ public class RoomClearSystem
 		room = null;
 		faction = null;
 		if (u == null || u.hp <= 0f || u.currentFloor < 1) return false;
+		if (u.unitType is WildBaseType) return false; // 야생 생성 거점은 방 클리어 조건에서 제외한다(코어 점령 v0.2 11장) — 클리어 뒤에도 남아 있을 수 있고 자동 생성만 멈춘다
 		if (!Session.roomGrid.TryGetValue(new Vector3Int(u.position.x, u.position.y, u.currentFloor), out room) || room == null) return false;
 		faction = OffenseProcessor.MapToRoomFaction(u.FactionBehavior);
 		return true;

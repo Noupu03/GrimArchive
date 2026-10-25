@@ -33,6 +33,8 @@ public static class RetreatExit
 	public static void Complete(Human member)
 	{
 		if (member == null) return;
+		if (RetreatSystem.GetEffectiveMode(member) != RetreatMode.None) // 후퇴·도주로 나가는 경우만 알린다(웨이브 승리 퇴각은 제외)
+			RetreatSystem.NotifyPlayer(member, $"인류 {member.name}이(가) 던전 밖으로 빠져나갔습니다 — 가진 기록이 전달됩니다");
 		member.ClearInteractionProgress(); // v0.6 9-9장: 웨이브를 떠나는 시점에 조사·해제 진행도 제거(생존자는 재사용된다)
 		member.Knowledge?.DeliverRecords(member);
 		member.Session?.Core?.Salvage.OnExported(member); // 코어 잔해를 들고 나갔다면 반출 성공(코어 점령 v0.2 7·8장) — 후퇴·도주로 나간 경우도 같다

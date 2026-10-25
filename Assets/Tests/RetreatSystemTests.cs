@@ -488,6 +488,29 @@ public class RetreatSystemTests
 		Assert.IsFalse(RetreatSystem.IsFleeKnownToLeader(leader, leader), "자기 자신은 해당 없음");
 	}
 
+	// 같은 파티원의 보고로 도주를 알게 되는 경로(FleeSystem.TickReports → MentalSystem.OnFleeKnown(direct: false)) — 전파 범위 판정은 세션이 필요해 여기서는 알게 된 뒤의 처리만 확인한다.
+	[Test]
+	public void FleeReport_ReceiverLosesOnceAndLeaderLearnsFlee()
+	{
+		RetreatSystem.EnabledOverride = true;
+		var leader = NewDungeonHuman("L", mental: 0f);
+		var witness = NewDungeonHuman("W", mental: 0f);
+		var fleeing = NewDungeonHuman("F");
+		NewParty(PartyType.Explore, leader, witness, fleeing);
+		fleeing.Retreat.Mode = RetreatMode.PersonalFlee;
+
+		MentalSystem.OnFleeWitnessed(witness, fleeing); // 직접 목격
+		Assert.IsFalse(RetreatSystem.IsFleeKnownToLeader(fleeing, leader), "리더는 아직 모른다 — 도주 사실이 자동 전달되지 않는다(R56)");
+
+		Assert.IsTrue(MentalSystem.OnFleeKnown(leader, fleeing.name, direct: false), "보고로 처음 알게 된 리더는 도주 확인 감소를 1회 받는다");
+		Assert.AreEqual(-5f, leader.BaseStat.mental, 0.0001f);
+		Assert.IsTrue(RetreatSystem.IsFleeKnownToLeader(fleeing, leader), "리더가 보고로 알게 되면 집결 대기 대상에서 뺀다(6-2장)");
+		Assert.IsFalse(MentalSystem.OnFleeKnown(leader, fleeing.name, direct: false), "R63: 같은 사건의 재보고는 추가 감소 없음");
+		Assert.IsFalse(MentalSystem.OnFleeWitnessed(leader, fleeing), "보고로 알게 된 뒤 직접 확인해도 추가 감소 없음");
+		Assert.AreEqual(-5f, leader.BaseStat.mental, 0.0001f);
+		Assert.IsFalse(MentalSystem.OnFleeKnown(fleeing, fleeing.name, direct: false), "도주자 본인은 해당 없음");
+	}
+
 	[Test]
 	public void Recovery_DoublesHpRegenAndRestoresMentalOnlyWhileRestingWithoutCombat()
 	{

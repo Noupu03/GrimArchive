@@ -87,6 +87,19 @@ public class InteractableObject
     // 재설치한 플레이어 진영으로 고정(RebuildDoorAt).
     public FactionType DoorOwnerFaction = FactionType.Wild;
 
+    // 보유 진영(지금은 플레이어)이 문을 클릭해 "열어 둔" 상태(코어 점령 v0.2 4·6장 문 제어). true면 닫힌 문의 진영 판정을 건너뛰어 누구나 통과하고(DoorSystem.IsBlockedByClosedDoor) 시야도 열린다.
+    // 기본(false)은 기존 동작 — 항상 닫힘이고 보유 진영만 통과. 문이 파괴되면 오브젝트와 함께 사라지고 재설치된 문은 다시 false로 시작한다.
+    public bool DoorManualOpen;
+
+    // 인류 문 자동 개폐(코어 점령 v0.2 5-1·6장): 인류 소유 문은 인류가 접근하면 실제로 열리고(DoorSystem.NotifyApproachAttempt) 문 앞·뒤 2칸에 어느 진영이든 유닛이 있는 동안 열려 있어 몬스터도 따라 지나갈 수 있다. 구역이 비면 닫힌다.
+    // 플레이어 문의 DoorManualOpen과 달리 AI가 정하는 상태다. DoorAutoOpenSince/DoorNextCloseCheck는 닫기 검사 스로틀용.
+    public bool DoorAutoOpen;
+    public float DoorAutoOpenSince;
+    public float DoorNextCloseCheck;
+
+    // 목책 전용 — 같은 기초 시설에 속한 문. 그 문이 열려 있는 동안 목책도 통과할 수 있다(문 안쪽 한 칸에 서는 목책이 열린 문을 따라 들어오는 흐름을 막지 않게). 파괴된 문(IsCollected)이면 연결이 끊긴 것이다.
+    public InteractableObject LinkedGateDoor;
+
     public IEnumerable<Vector3Int> AllTiles()
     {
         if (OccupiedTiles == null) { yield return Position; yield break; }

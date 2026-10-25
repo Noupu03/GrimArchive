@@ -68,6 +68,8 @@ public class RetreatComponent : IUnitComponent
 	public bool AtBase;
 	public Vector2Int? RestSlot;
 	public float AtBaseSince;
+	// 이번 거점 방문에서 지도 정보를 주고받은 다른 파티 인류(이름) — 같은 상대와 방문당 한 번만 교환한다(BaseInfoSharing). 거점을 떠나면 비운다.
+	public readonly HashSet<string> BaseSharedWith = new HashSet<string>();
 
 	// 이동 진행 상태(차단 대응·우회 누적).
 	public readonly RetreatMoveState Move = new RetreatMoveState();
@@ -92,6 +94,7 @@ public class RetreatComponent : IUnitComponent
 		AtBase = false;
 		RestSlot = null;
 		AtBaseSince = 0f;
+		BaseSharedWith.Clear();
 		Move.Reset();
 	}
 

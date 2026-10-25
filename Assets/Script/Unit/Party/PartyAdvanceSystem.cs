@@ -54,6 +54,47 @@ public static class PartyAdvanceSystem
 		return true;
 	}
 
+	// 점령 파티가 기초 시설을 짓기 전에 점령할 방 쪽의 기존 문 하나를 부수는 철거(OccupationSystem이 문마다 한 번씩 호출한다) — 집결 뒤 돌파와 같은 경로(리더 지시로 공격 자리 총동원 → PartyAdvanceSteps.StepBreach 채널링)를 쓰되, 진형 대기·입장 없이 바로 돌파하고 near 줄이 열리면 끝난다.
+	// 자리를 못 받은 인원은 돌파와 같은 문 앞 통과 구간 밖 진형 자리에서 기다린다. 계획을 만들 수 없으면(게이트·파티원 없음) false.
+	public static bool BeginDemolition(Party party, Room room, InteractableObject door)
+	{
+		var leader = party?.Leader;
+		var session = leader?.Session;
+		if (leader == null || room == null || door == null || session?.cmap == null || session.roomGrid == null) return false;
+
+		Vector2Int doorTile = door.NearestTileTo(leader.position);
+		if (!TryBuildGate(session, room, doorTile, room.Floor, out var near, out var far, out var forward)) return false;
+
+		var members = CollectMembers(party, leader, room.Floor, null);
+		if (members.Count == 0) return false;
+
+		float now = Time.time;
+		var plan = new PartyAdvancePlan
+		{
+			Phase = AdvancePhase.Breaching,
+			Demolition = true,
+			Floor = room.Floor,
+			DoorPos = doorTile,
+			Forward = forward,
+			NearTiles = near,
+			FarTiles = far,
+			FromRoom = room,
+			ToRoom = RoomAt(session, far[(far.Length - 1) / 2], room.Floor),
+			PhaseStartTime = now,
+			LastProgressTime = now,
+			LastClockTime = now,
+			AssignDirty = true,
+		};
+
+		AssignFormation(party, plan, members, session);
+		foreach (var m in members) ChangeReason(m, WaitReason.BreachingDoor);
+		party.AdvancePlan = plan;
+
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] 리더 {leader.name}의 지시 — 거점 건설 전 F{room.Floor} 방 {room.RoomId}({room.RoomName})의 기존 문 ({doorTile.x},{doorTile.y}) 철거, {members.Count}명 투입");
+		SpeechSystem.Say(leader, SpeechId.BreachOrder);
+		return true;
+	}
+
 	// 계획 참여 파티원 — 같은 층 생존자 중 수동 명령·다른 대기(코어 보고 등) 중이 아닌 유닛. 문을 찾으며 따라다니던 추종(SearchingNextDoor)만 계획으로 바꾼다. 전달 범위는 집결 명령과 같고(Party.IsReachedByLeaderCommand), 못 받은 구성원은 개인 행동으로 남는다.
 	private static List<Human> CollectMembers(Party party, Human leader, int doorFloor, ICollection<Human> excluded)
 	{
@@ -183,6 +224,7 @@ public static class PartyAdvanceSystem
 		if (leader == null || session == null) { Abort(party, "리더가 없음", retry: false); return; }
 
 		PruneMembers(plan);
+		if (plan.Demolition) EnrollLateDemolishers(party, plan, leader, session);
 		if (plan.Ranks.Count == 0) { Abort(party, "진행할 파티원이 없음"); return; }
 
 		ApplyEngagementPause(party, plan, now);
@@ -258,6 +300,19 @@ public static class PartyAdvanceSystem
 		}
 	}
 
+	// 철거는 집결을 거치지 않아 파티원이 방에 흩어져 있거나 뒤늦게 들어온다 — 계획을 시작한 뒤 합류한 인원도 같은 지시에 넣는다(집결 뒤 돌파는 계획 시작 시점의 구성원으로 고정이라 이 경로가 없다).
+	private static void EnrollLateDemolishers(Party party, PartyAdvancePlan plan, Human leader, GameSession session)
+	{
+		List<Human> late = null;
+		foreach (var m in CollectMembers(party, leader, plan.Floor, null))
+			if (!plan.Ranks.ContainsKey(m)) (late ??= new List<Human>()).Add(m);
+		if (late == null) return;
+
+		AssignFormation(party, plan, late, session);
+		foreach (var m in late) ChangeReason(m, WaitReason.BreachingDoor);
+		plan.AssignDirty = true;
+	}
+
 	private static void TickFormingUp(Party party, PartyAdvancePlan plan, Human leader, GameSession session, float now)
 	{
 		foreach (var m in plan.Ranks.Keys)
@@ -290,14 +345,34 @@ public static class PartyAdvanceSystem
 		switch (PartyBreachCommand.Tick(party, plan, session, leader, now))
 		{
 			case PartyBreachCommand.Outcome.Opened:
+				if (plan.Demolition)
+				{
+					Finish(party, plan, $"기존 문 철거 완료 — 문 ({plan.DoorPos.x},{plan.DoorPos.y}), {now - plan.PhaseStartTime:F1}초 소요");
+					break;
+				}
 				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 파괴 완료 — 진입로 확보({now - plan.PhaseStartTime:F1}초 소요)");
 				SpeechSystem.Say(leader, SpeechId.DoorOpened);
 				BeginEntering(party, plan, leader, session, now);
 				break;
 			case PartyBreachCommand.Outcome.Stalled:
-				RegroupAfterStall(party, plan, now);
+				if (plan.Demolition) RetryDemolition(party, plan, now);
+				else RegroupAfterStall(party, plan, now);
 				break;
 		}
+	}
+
+	// 철거 진행이 30초 넘게 없으면 — 철거엔 물러날 진형이 없으니 막혀 포기했던 자리 기억을 비우고 같은 문에 지시를 다시 낸다(돌파 실패 뒤 RegroupAfterStall의 철거 판). 매 사이클 로그가 남는다.
+	private static void RetryDemolition(Party party, PartyAdvancePlan plan, float now)
+	{
+		plan.BreachCycles++;
+		plan.LastProgressTime = now;
+		plan.AssignDirty = true;
+		plan.AttackSlots.Clear();
+		plan.LastLoggedRow = -1;
+		plan.LastLoggedCount = -1;
+		foreach (var m in plan.Ranks.Keys)
+			if (m.currentWait != null) m.currentWait.RejectedSlots = null;
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 철거 {plan.BreachCycles}번째 시도 — 진행이 없어 공격 자리를 새로 지시합니다");
 	}
 
 	// 문 파괴 진행이 30초 넘게 없으면 계획을 풀지 않고 전원이 진형 자리로 물러나 쿨다운 뒤 같은 계획으로 다시 돌파한다(05번 1장: 집결 후에는 흩어지지 않고 진형 유지). 못 나아갈 때의 계속/후퇴 판단은 후속 문서 몫이라 그 전까지는 재시도를 반복하며, 매 사이클 로그가 남는다.
@@ -504,6 +579,13 @@ public static class PartyAdvanceSystem
 	{
 		var plan = party?.AdvancePlan;
 		if (plan == null) return;
+
+		if (plan.Demolition)
+		{
+			// 철거는 방 이동 시도(ReadyToAdvance·AdvanceAttempts)와 무관하다 — 중단돼도 OccupationSystem이 남은 문이 있으면 새 계획을 만든다.
+			Finish(party, plan, $"문 철거 중단 — {reason}, 전원 개인 행동으로 복귀");
+			return;
+		}
 
 		string note = "";
 		if (retry)

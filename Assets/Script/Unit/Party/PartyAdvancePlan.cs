@@ -7,6 +7,8 @@ public enum AdvancePhase { FormingUp, Breaching, Entering }
 public class PartyAdvancePlan
 {
 	public AdvancePhase Phase;
+	// 점령 파티의 거점 건설 전 철거 — 진형·입장 없이 near 줄(점령할 방 쪽 문) 하나만 같은 리더 지시 돌파로 부수고 끝난다(PartyAdvanceSystem.BeginDemolition). 돌파 단계에서만 머문다.
+	public bool Demolition;
 	public int Floor;
 	public Vector2Int DoorPos;
 	// 리더 방에서 다음 방으로 향하는 축(near 줄 → far 줄 방향, 단위 벡터).

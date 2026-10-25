@@ -103,6 +103,25 @@ public static class DoorGeometry
 		return false;
 	}
 
+	// 문 앞·뒤 비움 구역(코어 점령 v0.2 6장 "문 앞·뒤 각각 2칸") — 문 줄과 같은 폭으로 통로 방향(수평 게이트는 x, 수직 게이트는 y) 앞뒤 depth칸씩과 문 줄 자신이다. 문 줄이 통로 방향 기준 한 좌표에 놓이므로 첫 타일로 그 좌표를 잡는다.
+	// 문 앞·뒤 타일 형태·대형 유닛 점유는 문서가 후속 확정으로 남겼다(21장) — 여기서는 문 폭 그대로 직선 구역으로 정했다.
+	public static void ClearanceTiles(IReadOnlyList<Vector3Int> doorTiles, bool horizontalGate, int depth, List<Vector2Int> result)
+	{
+		result.Clear();
+		if (doorTiles == null || doorTiles.Count == 0) return;
+
+		int axisCoord = horizontalGate ? doorTiles[0].x : doorTiles[0].y;
+		var lateral = new List<int>(doorTiles.Count);
+		for (int i = 0; i < doorTiles.Count; i++)
+		{
+			int l = horizontalGate ? doorTiles[i].y : doorTiles[i].x;
+			if (!lateral.Contains(l)) lateral.Add(l);
+		}
+		for (int a = axisCoord - depth; a <= axisCoord + depth; a++)
+			foreach (int l in lateral)
+				result.Add(horizontalGate ? new Vector2Int(a, l) : new Vector2Int(l, a));
+	}
+
 	// from에서 체비셰프 거리가 가장 가까운 타일(동률은 앞선 타일). tiles가 비어 있으면 from을 그대로 돌려준다.
 	public static Vector2Int NearestTile(Vector2Int from, IReadOnlyList<Vector3Int> tiles)
 	{
@@ -115,4 +134,37 @@ public static class DoorGeometry
 		}
 		return best;
 	}
+}
+
+// 플레이어의 문 열기·닫기 명령 판정(순수) — 코어 점령 v0.2 4·6·19장. 인류 전용 문은 플레이어가 제어할 수 없고, 담당 코어가 파괴되면 문 제어도 멈춘다. 닫기는 문 앞·뒤 비움 구역에 어느 진영의 유닛이든(은신 포함) 없을 때만 된다.
+public enum DoorControlBlock
+{
+	None,
+	NotPlayerDoor,   // 플레이어 소유 문이 아니다(인류 전용 문·야생 문)
+	CoreDestroyed,   // 담당 코어가 파괴돼 문 제어 불가
+	AlreadyInState,  // 이미 그 상태
+	UnitsNearby,     // 닫기 — 문 앞·뒤에 유닛이 있다
+}
+
+public static class DoorControlRules
+{
+	public const int ClearanceDepth = 2;
+
+	public static DoorControlBlock Check(FactionType owner, FactionType actor, bool coreFunctionsActive, bool wantOpen, bool currentlyOpen, bool anyUnitInClearance)
+	{
+		if (owner != actor) return DoorControlBlock.NotPlayerDoor;
+		if (!coreFunctionsActive) return DoorControlBlock.CoreDestroyed;
+		if (wantOpen == currentlyOpen) return DoorControlBlock.AlreadyInState;
+		if (!wantOpen && anyUnitInClearance) return DoorControlBlock.UnitsNearby;
+		return DoorControlBlock.None;
+	}
+
+	public static string Describe(DoorControlBlock block) => block switch
+	{
+		DoorControlBlock.None => "",
+		DoorControlBlock.NotPlayerDoor => "플레이어가 제어할 수 없는 문입니다.",
+		DoorControlBlock.CoreDestroyed => "코어가 파괴되어 문을 제어할 수 없습니다.",
+		DoorControlBlock.AlreadyInState => "",
+		_ => "문 근처에 유닛이 있어 현재 문을 닫을 수 없습니다.",
+	};
 }
