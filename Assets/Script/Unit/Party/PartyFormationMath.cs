@@ -20,7 +20,11 @@ public static class PartyFormationMath
 
 	public static bool IsMeleeEngage(int engageDistance) => engageDistance <= MeleeEngageDistanceThreshold;
 
+	// 예전(리더 명령 시스템 꺼짐) 규칙: 리더는 역할과 무관하게 1랭크.
 	public static int ResolveRank(bool isLeader, bool isMelee) => isLeader ? LeaderRank : (isMelee ? 0 : MaxRank);
+
+	// 리더 명령 1-3장·L08: 리더를 포함한 파티원은 공동 이동을 시작할 때부터 자신의 전투 역할에 맞는 진형 위치를 따른다 — 리더 전용 랭크를 두지 않는다(근접 0랭크, 원거리 2랭크).
+	public static int ResolveRoleRank(bool isMelee) => isMelee ? 0 : MaxRank;
 
 	// 홀수는 중앙 포함 대칭(-1,0,1), 짝수는 중앙을 비우고 좌우 동수 대칭(-2,-1,+1,+2) — 단순 i - n/2는 짝수에서 대형 중심이 처진다.
 	public static int LaneOffset(int i, int n)

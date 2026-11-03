@@ -284,7 +284,8 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine($"마력: {u.MagicPower:F1}");
         sb.AppendLine($"저항: {u.resistance:F1}");
         sb.AppendLine($"감각: {u.BaseStat.sense:F1}");
-        sb.AppendLine($"통솔: {u.leadership:F1}");
+        sb.AppendLine($"통솔: {u.leadership:F1} (기본 {u.BaseStat.leadership:F0})");
+        if (u is Human leaderInfoHuman) sb.Append(LeaderDebug.Describe(leaderInfoHuman)); // 리더 명령 상태(컨셉·쿨타임·받은 명령·버프·충격)
         return sb.ToString();
     }
 

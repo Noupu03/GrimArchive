@@ -167,7 +167,8 @@ public static class RetreatSystem
 		if (state == null || state.Mode != RetreatMode.None) return false; // 진행 중인 후퇴·확정된 도주는 유지
 		if (human.currentFloor < 1) return false;                           // 던전 밖
 		if (HasValidLeader(human)) return false;                           // 리더가 있으면 파티 평균 기준
-		if (human.party != null && human.party.Retreat.IsRetreating) return false; // 리더가 죽어도 이미 시작한 파티 후퇴는 목적지·절차를 유지
+		if (human.party != null && human.party.Retreat.IsRetreating) return false; // 진행 중인 파티 후퇴(리더가 있는 동안 시작한 것)는 목적지·절차를 유지 — 리더를 잃으면 PartyRetreatSystem.EndByLeaderLoss가 이미 끝낸다
+		if (human.party != null && human.party.Command.SuccessionPending) return false; // 지휘 상실 뒤 후임 결정(10초)을 기다리는 동안엔 개인 후퇴를 시작하지 않는다 — 후임이 서면 파티 기준이다. 후임이 없다고 정해진 뒤(NoSuccessor)에 HP 20% 이하 규칙이 적용된다(리더 명령 17장)
 
 		float hpPercent = PartyRetreatMath.PercentOf(human.hp, human.maxHp);
 		if (!PartyRetreatMath.ShouldStartPersonalRetreat(hpPercent)) return false;

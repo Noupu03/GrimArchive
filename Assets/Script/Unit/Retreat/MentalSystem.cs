@@ -14,6 +14,9 @@ public static class MentalSystem
 		bool enabled = RetreatSystem.Enabled;
 		float before = human.BaseStat.mental;
 		float applied = (delta < 0f && enabled) ? MentalMath.ApplyDecreaseModifier(delta, before) : delta;
+		// 지휘 중인 일반 리더·상위 지휘관 본인의 일반 감소는 기존 일반 보정 뒤에 현재 통솔력 × 0.5%만큼 완화한다(리더 명령 3-1장). 같은 사건에 한 번만, 소수점 유지, 일반 파티원에는 적용하지 않는다. 강제 설정(SetForced)과 이미 확정된 도주는 이 경로를 지나지 않아 영향이 없다.
+		if (applied < 0f && LeaderSuccessionSystem.IsCommanding(human))
+			applied = -LeaderMath.MitigatedDecrease(-applied, human.LeaderState.CurrentLeadership);
 		float after = MentalMath.Clamp(before + applied);
 		human.BaseStat.mental = after;
 
@@ -65,7 +68,10 @@ public static class MentalSystem
 		if (!RetreatSystem.Enabled || receiver == null || string.IsNullOrEmpty(fleeingName) || receiver.name == fleeingName || receiver.hp <= 0f) return false;
 		var state = receiver.Retreat;
 		if (state == null || !state.WitnessedFlees.Add(fleeingName)) return false;
-		ApplyChange(receiver, -FleeWitnessBaseDecrease);
+		// 도주한 쪽이 일반 리더면 기본 −10(일반 파티원 도주 −5를 추가하지 않고 대체), 기존 감소 보정은 ApplyChange가 적용한다(리더 명령 10·17-1장). 도주에는 사망 충격(능력치 −20%)을 적용하지 않는다.
+		bool leaderFlee = LeaderCommandSettings.Enabled && receiver.party != null && receiver.party.Command.FledLeaderNames.Contains(fleeingName);
+		ApplyChange(receiver, -(leaderFlee ? LeaderMath.LeaderFleeMentalLoss : FleeWitnessBaseDecrease));
+		LeaderSuccessionSystem.OnFleeFirstKnown(receiver, fleeingName); // 일반 리더 도주를 소속 생존 파티원이 처음 확인한 순간이면 파티 공통 승계 10초가 시작된다
 		if (direct) SpeechSystem.Say(receiver, SpeechId.FleeWitnessed);
 		return true;
 	}

@@ -93,8 +93,9 @@ public class UnitVisualDefinition : MonoBehaviour
         unit.BaseStat.maxMental = stats.maxMental;
         unit.BaseStat.mental = MentalMath.FromAuthoringScale(stats.mental, stats.maxMental); // 데이터(units.json·프리팹)는 비율 저작 스케일 0~max(40/100=40%), 런타임 저장은 −100~+100 원수치(=−20)
         unit.VisionStat.spotting = stats.spotting;
-        unit.BaseStat.leadershipRange = stats.leadershipRange;
+        unit.BaseStat.leadershipRange = stats.leadershipRange; // 통솔력 단일화(리더 명령 22-표1)로 더는 읽지 않는다 — 프리팹 직렬화 호환용
         unit.BaseStat.charisma = stats.charisma;
+        unit.BaseStat.leadership = LeaderCommandTable.BaseLeadership(unitTypeName); // 기본 통솔력은 프리팹이 아니라 leader_commands.json(자리표시자)에서 온다
         unit.CombatState.State.physicalAttackSpeed = stats.physicalAttackSpeed;
         unit.CombatState.State.magicalCastSpeed    = stats.magicalCastSpeed;
 

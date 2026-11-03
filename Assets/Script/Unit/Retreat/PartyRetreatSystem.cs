@@ -301,4 +301,23 @@ public static class PartyRetreatSystem
 			m?.Retreat?.ClearPartyRetreatState();
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] {(resortie ? $"재출격({st.ResortieCount}회째)" : "목표 미달성 — 탐험 재개")}");
 	}
+
+	// 지휘 상실(리더 사망·개인 도주 확정)로 파티 후퇴 명령이 끝난다(리더 명령 10·17장, 후퇴도주 R57의 '리더가 죽어도 유지'를 2026-11-01에 대체). 파티원은 개인 행동으로 돌아가고, 후임이 없으면 HP 20% 이하만 개인 후퇴(RetreatSystem.EvaluatePersonalRetreat)한다.
+	// 별도 조건으로 시작한 개인 후퇴·확정된 개인 도주는 유닛 상태(Human.Retreat.Mode)라 그대로 계속된다. 재탐험·정상 귀환 표식은 건드리지 않는다. 종료했으면 true.
+	public static bool EndByLeaderLoss(Party party, string leaderName)
+	{
+		var st = party?.Retreat;
+		if (st == null || !st.IsRetreating) return false;
+
+		st.Mode = RetreatMode.None;
+		st.Phase = PartyRetreatPhase.None;
+		st.Destination = RetreatDestination.None;
+		st.BaseRoom = null;
+		st.RestStartedAt = -1f;
+		st.ClaimedRestSlots.Clear();
+		foreach (var m in party.Members)
+			m?.Retreat?.ClearPartyRetreatState();
+		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 리더 {leaderName}이(가) 지휘를 잃어 파티 후퇴 명령이 끝났습니다 — 파티원은 개인 행동으로 전환");
+		return true;
+	}
 }

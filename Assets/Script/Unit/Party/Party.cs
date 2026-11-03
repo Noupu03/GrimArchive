@@ -111,19 +111,18 @@ public partial class Party
 	}
 
 
-	// 생존 파티원 중 leadership 최댓값을 리더로 재선정한다 — 리더가 없거나 죽었을 때 GameSession이 호출한다.
+	// 리더가 없을 때 선정한다(리더 명령 2-1장) — 파티 생성 시의 초기 선정, 리더가 던전 밖으로 정상 이탈한 뒤의 재선정, 집결·이동 판단 시의 안전망이다.
+	// 사망·개인 도주로 지휘를 잃었으면 후임은 즉시 고르지 않는다 — 파티 공통 10초 뒤 LeaderSuccessionSystem이 고르며, 그 전에는 리더 없이 개인 행동을 한다(17항).
 	public void AssignLeaderIfNeeded()
 	{
-		if (Leader != null && Leader.hp > 0) return;
-
-		Human best = null;
-		float bestLeadership = float.MinValue;
-		foreach (var m in Members)
+		if (Leader != null && Leader.hp > 0 && !(Leader.Retreat != null && Leader.Retreat.IsFleeing)) return; // 유효한 리더 유지(충원자의 높은 통솔력만으로 교체하지 않는다)
+		if (Leader != null) // 사망·도주 확정이 다른 경로로 들어온 경우의 안전망 — 지휘 상실 처리로 넘긴다
 		{
-			if (m == null || m.hp <= 0) continue;
-			if (m.leadership > bestLeadership) { bestLeadership = m.leadership; best = m; }
+			LeaderSuccessionSystem.OnLeaderLost(this, Leader, Leader.hp <= 0 ? LeaderLossReason.Death : LeaderLossReason.Flee);
+			if (LeaderCommandSettings.Enabled) return;
 		}
-		Leader = best;
+		if (LeaderCommandSettings.Enabled && Command.SuccessionPending) return;
+		Leader = LeaderSuccessionSystem.PickBest(this);
 	}
 
 	// 이번 웨이브에 이 파티와 함께 소환된 몬스터 목록 — 전부 죽으면 "웨이브 클리어"로 보고 생존자

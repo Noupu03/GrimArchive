@@ -123,6 +123,16 @@ public static class RetreatBlockResolver
 		return pick >= 0 ? new Verdict(true, RetreatBlockKind.Door, _doorKeys[pick]) : new Verdict(true, RetreatBlockKind.Unreachable);
 	}
 
+	// 리더 명령 12-3장: 유닛이 목적지(예: 집중 공격 대상)에 닿는 길을 막는 닫힌 상대 진영 문을 구조 경로로 찾는다. 후퇴 이동의 식별 로직을 그대로 재사용하는 조회 전용 래퍼다.
+	public static bool TryFindBlockingDoor(Human h, Vector2Int target, out Vector3Int doorPos)
+	{
+		doorPos = default;
+		var verdict = IdentifyStructural(h, target);
+		if (verdict.Kind != RetreatBlockKind.Door) return false;
+		doorPos = verdict.ObjectPos;
+		return true;
+	}
+
 	// 경로(앵커 좌표 순서)를 앞에서부터 훑어 발자국이 처음 닿는 닫힌 상대 진영 문 타일.
 	static bool TryFindFirstClosedDoor(Human h, List<Vector2Int> path, out Vector3Int doorKey)
 	{

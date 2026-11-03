@@ -114,7 +114,9 @@ public static class PartyAdvanceSystem
 	}
 
 	private static int RankOf(GameSession session, Party party, Human m)
-		=> PartyFormationMath.ResolveRank(m == party.Leader, DungeonEntranceSystem.IsMelee(session, m));
+		=> LeaderCommandSettings.Enabled
+			? PartyFormationMath.ResolveRoleRank(DungeonEntranceSystem.IsMelee(session, m)) // 리더도 자기 전투 역할의 진형 위치에서 이동한다(리더 명령 1-3장)
+			: PartyFormationMath.ResolveRank(m == party.Leader, DungeonEntranceSystem.IsMelee(session, m));
 
 	// 랭크별로 레인을 나누고 진형 자리를 고른다 — 앞랭크부터 자리를 먼저 차지해 뒷랭크가 앞자리를 빼앗지 않는다.
 	private static void AssignFormation(Party party, PartyAdvancePlan plan, List<Human> members, GameSession session)

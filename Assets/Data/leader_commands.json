@@ -1,0 +1,28 @@
+{
+  "_comment": "리더 명령 설계명세서 v0.15 — 클래스별 기본 통솔력·보유 명령·명령 연결 기술은 문서가 '후속 콘텐츠'로 미뤘다(21·22장). 이 파일의 모든 수치·연결은 기획이 확정하기 전까지의 [자리표시자]다. 값만 바꾸면 코드 변경 없이 반영된다. commands: FocusAttack(집중 공격) / Strike(강공격) / Suppress(제압) / Protect(보호) / SuperiorFocusAttack(상위 공동 공격). grade: 유닛 등급(리더 선정 동률 비교, 높을수록 우선) — 등급 체계가 아직 없어 전부 0.",
+  "units": [
+    { "typeName": "성기사",   "leadership": 60, "grade": 0, "commands": ["FocusAttack", "Strike", "Suppress", "Protect", "SuperiorFocusAttack"] },
+    { "typeName": "기사형",   "leadership": 50, "grade": 0, "commands": ["FocusAttack", "Strike", "Suppress"] },
+    { "typeName": "전사",     "leadership": 45, "grade": 0, "commands": ["FocusAttack", "Strike", "Suppress"] },
+    { "typeName": "사제",     "leadership": 40, "grade": 0, "commands": ["FocusAttack", "Protect", "Suppress"] },
+    { "typeName": "음유시인", "leadership": 35, "grade": 0, "commands": ["FocusAttack"] },
+    { "typeName": "도적",     "leadership": 30, "grade": 0, "commands": ["FocusAttack"] },
+    { "typeName": "마법사",   "leadership": 25, "grade": 0, "commands": ["FocusAttack"] },
+    { "typeName": "주술사",   "leadership": 25, "grade": 0, "commands": ["FocusAttack"] },
+    { "typeName": "무도가",   "leadership": 20, "grade": 0, "commands": ["FocusAttack"] },
+    { "typeName": "아처형",   "leadership": 15, "grade": 0, "commands": [] }
+  ],
+  "skills": [
+    { "skillName": "강타",           "links": [ { "command": "Strike", "rank": 1 } ] },
+    { "skillName": "파이어볼",       "links": [ { "command": "Strike", "rank": 1 } ] },
+    { "skillName": "정밀 사격",      "links": [ { "command": "Strike", "rank": 1 } ] },
+    { "skillName": "기습",           "links": [ { "command": "Strike", "rank": 2 } ] },
+    { "skillName": "연격",           "links": [ { "command": "Strike", "rank": 2 } ] },
+    { "skillName": "집중 찌르기",    "links": [ { "command": "Strike", "rank": 2 } ] },
+    { "skillName": "방패 타격",      "links": [ { "command": "Suppress", "rank": 1 }, { "command": "Protect", "rank": 3 } ] },
+    { "skillName": "저주",           "links": [ { "command": "Suppress", "rank": 2 } ] },
+    { "skillName": "전투의 노래",    "links": [ { "command": "Suppress", "rank": 3 } ] },
+    { "skillName": "치유",           "links": [ { "command": "Protect", "rank": 1 } ] },
+    { "skillName": "성스러운 방패",  "links": [ { "command": "Protect", "rank": 1 } ] }
+  ]
+}

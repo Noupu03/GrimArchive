@@ -737,6 +737,8 @@ namespace GrimArchive.Wave
             activeParty.TickAdvanceState();
             activeParty.TickPendingRallyRelease(); // 코어 처리로 해제된 집결을 못 받은 구성원이 전파 범위에 들어오면 그때 해제를 전달한다
             PartyAdvanceSystem.Tick(activeParty); // 문 앞 진형 → 문 파괴 → 입장 단계 전이(계획이 없으면 즉시 반환)
+            // 리더가 없으면(지휘 상실 뒤 후임 선정 전, 또는 후임 없음) 집결·공동 이동 지시를 새로 내리지 않는다 — 파티원은 소속·임무를 유지한 채 개인 행동을 한다(리더 명령 1-4·17장).
+            if (activeParty.Leader == null || activeParty.Leader.hp <= 0f) return;
             TryAssignLeaderDoorApproach();
 
             // 코어 처리 우선은 '가만히 있기'가 아니라 코어를 향해 이동한다는 뜻이다(03번 3장) — OnLeaderLearnsCore가 ReadyToAdvance를 꺼 버리므로 LeaderKnownCorePosition이 있어도 같은 '다음 문 찾기' 경로를 타 이동 공백을 막는다.

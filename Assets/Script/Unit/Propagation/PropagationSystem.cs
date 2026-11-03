@@ -342,7 +342,8 @@ public static class PropagationSystem
 
 	// ═══════════════════════════ 일반 전파 조건 (6장) ═══════════════════════════
 
-	public static int GetPropagationRange(Human human) => PropagationMath.PropagationRange(human.BaseStat.charisma);
+	// 전파 반경은 전파 시점의 현재 통솔력으로 정한다(리더 명령 13-1장: 3칸 + 25마다 1칸, 최대 7칸). 예전 카리스마 스탯은 통솔력으로 단일화됐다.
+	public static int GetPropagationRange(Human human) => LeaderMath.PropagationRadius(human.LeaderState.CurrentLeadership);
 
 	// 공간 판정(같은 방/통로)+전파 범위만 확인한다(6장 "비전투" 조건 제외) — 발견자가 이미 적을 인지해
 	// 비전투 판정을 못 쓰는 경우(7-1장)나 사망 정보가 비전투 조건보다 우선하는 예외(8장)에서 재사용한다.

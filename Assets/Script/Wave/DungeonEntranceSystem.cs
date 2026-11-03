@@ -208,17 +208,20 @@ namespace GrimArchive.Wave
             party.AssignLeaderIfNeeded();
             Human leader = party.Leader;
 
+            // 리더 명령 1-3장·L08: 리더도 공동 이동을 시작할 때부터 자기 전투 역할의 진형 위치에서 이동한다 — 리더 전용 1랭크를 두지 않는다(시스템을 끄면 예전 배치).
+            bool leaderInOwnRole = LeaderCommandSettings.Enabled;
             var melee = new List<Human>();
             var ranged = new List<Human>();
             foreach (var m in party.Members)
             {
-                if (m == null || m.hp <= 0 || m == leader) continue;
+                if (m == null || m.hp <= 0) continue;
+                if (m == leader && !leaderInOwnRole) continue;
                 if (IsMelee(session, m)) melee.Add(m);
                 else ranged.Add(m);
             }
 
             AddRank(outFormation, melee, 0);
-            if (leader != null && leader.hp > 0) AddRank(outFormation, new List<Human> { leader }, 1);
+            if (!leaderInOwnRole && leader != null && leader.hp > 0) AddRank(outFormation, new List<Human> { leader }, 1);
             AddRank(outFormation, ranged, 2);
         }
 

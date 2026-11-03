@@ -60,6 +60,7 @@ public static class FleeSystem
 		human.Session?.Core?.Salvage.OnCarrierFled(human);
 		LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 개인 도주 확정 — {Describe(reason)}, 정신력 {human.BaseStat.mental:F1}, 판정 {state.FleeRoll.TotalRolls}회");
 		SpeechSystem.Say(human, reason == FleeReason.EncounterShock ? SpeechId.EncounterFleeMax : SpeechId.FleeConfirmed); // 연출 — 명세서 4-3·7-3장
+		LeaderSuccessionSystem.OnLeaderFled(human); // 일반 리더의 도주면 즉시 지휘를 잃는다(리더 명령 17-1장) — 목격 감소(−10)가 이 상태를 보므로 NotifyWitnesses보다 먼저
 		NotifyWitnesses(human);
 		RetreatSystem.NotifyPlayer(human, $"인류 {human.name}이(가) 공포에 질려 던전 밖으로 도주하기 시작했습니다");
 		OnFleeConfirmed?.Invoke(human, reason);

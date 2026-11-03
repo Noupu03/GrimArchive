@@ -25,6 +25,8 @@ public static class PartyDeathSystem
 			CauseMonster = dead.lastAttacker,
 			CauseTrap = dead.lastTrapAttacker,
 			IncidentId = System.Guid.NewGuid().ToString(),
+			// 지휘 상실 처리(GameSession.CheckPartyWaveState)보다 먼저 불리므로 아직 Leader가 죽은 유닛이다. 상위 지휘관의 사망도 같은 충격이다(18-1장 "자기 리더 또는 자신에게 적용되는 상위 지휘관") — 단 사망 정보는 지금 이 파티 안에서만 전파된다.
+			DeadWasLeader = LeaderCommandSettings.Enabled && (party.Leader == dead || (dead.LeaderState != null && dead.LeaderState.IsSuperiorCommander)),
 		};
 		party.DeathRecords[corpseObjectId] = record;
 
@@ -124,8 +126,11 @@ public static class PartyDeathSystem
 	{
 		if (record.InfoKnownUnits.Contains(unit.name)) return;
 		record.InfoKnownUnits.Add(unit.name);
+		// 리더 사망은 일반 사망 감소에 더하지 않고 기본 감소량을 대체한다 — 직접 확인 −20 / 전달받음 −10, 이후 기존 정신력 보정(ApplyChange)을 적용한다(18-2장).
+		if (record.DeadWasLeader) mentalDelta = -LeaderMath.LeaderDeathMentalLoss(isDirectDiscovery);
 		MentalSystem.ApplyChange(unit, mentalDelta); // mentalDelta는 음수 — 정신력 변경 단일 진입점
-		if (isDirectDiscovery) SpeechSystem.Say(unit, SpeechId.AllyDeathSeen); // 연출 — 직접 확인한 사람만 반응한다(전파 수신은 말하지 않음)
+		if (record.DeadWasLeader) DeathShockSystem.Apply(unit); // 능력치 −20%·10초 — 처음 안 때부터 파티원별로 따로 센다(17-표1·18-1장)
+		if (isDirectDiscovery) SpeechSystem.Say(unit, record.DeadWasLeader ? SpeechId.LeaderDeathAlarm : SpeechId.AllyDeathSeen); // 연출 — 직접 확인한 사람만 반응한다(전파 수신은 말하지 않음)
 	}
 
 	private static void TryConfirmCauseByWitness(PartyDeathRecord record, Human witness)

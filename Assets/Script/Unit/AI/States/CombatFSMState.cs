@@ -91,6 +91,9 @@ public class CombatFSMState : IFSMState
 	{
 		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
 
+		// 리더 명령 12-3장: 리더가 통로 차단물(문 등)을 공동 파괴 대상으로 지정했으면 피격 중이 아닌 파티원은 그 차단물을 먼저 부순다.
+		if (unit is Human objectFocusHuman && FocusAttackSystem.TryObjectFocusStep(objectFocusHuman)) return BTStatus.Running;
+
 		// 방 입장 중인 파티원은 전투 이동(접근·후퇴·사거리 안 제자리 사격)보다 진형 유지와 문 통과가 먼저다 — 원거리가 문 앞·통로에서 서서 쏘며 뒤 유닛의 길을 막던 문제(PartyAdvanceSteps.StepInCombat). 이동으로 이번 틱을 썼으면 시전 없이 끝내고, 못 나아가는 원거리는 이동 없이 그 자리에서만 쏜다(근접은 앞이 적에게 막힌 경우를 위해 일반 전투 그대로).
 		bool holdInPlace = false;
 		if (unit is Human enteringMember)
@@ -158,11 +161,21 @@ public class CombatFSMState : IFSMState
 
 		SkillAction bestSkill    = null;
 		float       bestPriority = float.MinValue;
-		foreach (var skill in unitSkills)
+		Unit        commandResolved = null; // 행동 우선 명령이 정한 기술의 대상 — 강공격=공격 대상, 제압=지정 적/그 적을 공격하는 아군, 보호=보호 대상 또는 위협 적
+		// 리더 명령 9장: 행동 우선 명령(강공격·제압·보호) 적용 중이면 연결 기술 중 지금 쓸 수 있고 순위가 가장 높은 것을 먼저 고른다. 쓸 수 있는 연결 기술이 없으면 아래 기존 선택을 그대로 한다(기술을 기다리며 멈추지 않는다).
+		if (unit is Human commandHuman && CommandSkillSelector.TryPickActive(commandHuman, target, out SkillAction commandSkill, out Unit commandTarget))
 		{
-			if (skill == null || !skill.IsAvailable(unit)) continue;
-			float p = skill.GetPriority(unit, target, minDist);
-			if (p > bestPriority) { bestPriority = p; bestSkill = skill; }
+			bestSkill = commandSkill;
+			commandResolved = commandTarget;
+		}
+		else
+		{
+			foreach (var skill in unitSkills)
+			{
+				if (skill == null || !skill.IsAvailable(unit)) continue;
+				float p = skill.GetPriority(unit, target, minDist);
+				if (p > bestPriority) { bestPriority = p; bestSkill = skill; }
+			}
 		}
 
 		if (bestSkill != null)
@@ -183,7 +196,7 @@ public class CombatFSMState : IFSMState
 
 			// 스킬이 실제로 겨눌 대상을 먼저 결정한다 — 아군 대상 스킬(치유/보호막/버프)은 여기서
 			// 자기 대상을 직접 찾아 돌려주므로, 아래 사거리 판정과 실행이 그 대상을 그대로 쓴다.
-			Unit resolved = bestSkill.ResolveTarget(unit, target);
+			Unit resolved = commandResolved ?? bestSkill.ResolveTarget(unit, target);
 			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
 				bestSkill.Execute(unit, resolved, minDist);
@@ -364,6 +377,9 @@ public class CombatFSMState : IFSMState
 		// 이미 파괴하기로 한 막힌 함정이 있으면 추격보다 그 파괴를 이어간다(교전이 시작되면 ExecuteCombat이 비운다).
 		if (TryContinueTrapDestroy(unit)) return;
 
+		// 리더 명령 11-1장: 집중 공격 지정 적을 쫓는 근접 인원은 가는 길이 다른 근접 적과의 접근 제한 거리를 어기면 걷지 않는다(3초 이어지면 이 파티원의 지정만 끝남). 설정값 0이면 즉시 통과.
+		if (unit is Human focusHuman && !FocusAttackSystem.AllowsChaseStep(focusHuman, target)) return;
+
 		int distBefore = AIMovementHelper.ChebyshevDistance(unit.position, target.position);
 		bool moved = AIMovementHelper.MoveTowardsTarget(unit, target);
 		if (AIMovementHelper.ChebyshevDistance(unit.position, target.position) < distBefore)
@@ -472,6 +488,15 @@ public class CombatFSMState : IFSMState
 			if (IsAttackingMeOrAlly(unit, e)) threatCandidates.Add(e);
 		}
 		if (allCandidates.Count == 0) return null;
+
+		// 리더 명령 11-1장: 집중 공격 지정을 받았고 그 적이 후보에 있으면 개인 대상 변경 이동 한도·점수 비교 없이 그 적을 우선한다(긴급 보호·치료는 ExecuteCombat이 이미 먼저 처리했다).
+		if (unit is Human focusHuman && FocusAttackSystem.TryGetFocusTarget(focusHuman, allCandidates, out Unit focusTarget))
+		{
+			unit.CombatTargeting.AttackTarget = focusTarget;
+			unit.CombatTargeting.ResetRetargetTracking();
+			minDist = Vector2Int.Distance(unit.position, focusTarget.position);
+			return focusTarget;
+		}
 
 		// 보스 집중 유지(4장) — 임시 대응 사유가 없고 보스 외 현재 위협도 없으면 20% 기준 없이 그대로 복귀한다.
 		Unit boss = unit.CombatTargeting.BossFocusTarget;

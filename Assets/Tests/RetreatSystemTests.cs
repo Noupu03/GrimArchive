@@ -302,20 +302,27 @@ public class RetreatSystemTests
 		Assert.AreEqual(1, party.ComputeRetreatAverages().Count);
 	}
 
+	// 후퇴도주 R57("리더가 죽어도 이미 시작한 파티 후퇴 유지")은 2026-11-01 리더 명령 설계명세서 10·17장이 대체했다 — 지휘 상실 즉시 파티 후퇴 명령이 끝나고, 후임을 기다리는 10초 동안은 개인 후퇴도 시작하지 않는다(LeaderSuccessionTests가 승계 흐름 전체를 다룬다).
 	[Test]
-	public void R57_StartedPartyRetreatSurvivesLeaderLoss()
+	public void R57_Superseded_LeaderLossEndsPartyRetreat_AndPersonalRetreatWaitsForSuccessor()
 	{
 		RetreatSystem.EnabledOverride = true;
 		var leader = NewHuman("L", hp: 10f);
-		var member = NewHuman("M", hp: 100f);
+		var member = NewHuman("M", hp: 15f); // HP 15% — 후임이 없다고 확정되면 개인 후퇴 대상이다
 		var party = NewParty(PartyType.Explore, leader, member);
 		party.Retreat.Mode = RetreatMode.PartyRetreat;
 		leader.hp = 0f;
-		party.Leader = null; // 새 리더 없음
+		LeaderSuccessionSystem.OnLeaderLost(party, leader, LeaderLossReason.Death);
 
-		Assert.IsFalse(RetreatSystem.EvaluatePersonalRetreat(member, 3f), "이미 시작한 파티 후퇴가 있으면 새 개인 후퇴를 시작하지 않는다");
-		Assert.AreEqual(RetreatMode.PartyRetreat, RetreatSystem.GetEffectiveMode(member));
-		Assert.AreEqual(RetreatMode.PartyRetreat, party.Retreat.Mode, "리더 사망으로 취소하지 않는다");
+		Assert.AreEqual(RetreatMode.None, party.Retreat.Mode, "리더가 지휘를 잃으면 파티 후퇴 명령은 즉시 끝난다");
+		Assert.IsNull(party.Leader);
+		Assert.IsTrue(party.Command.SuccessionPending);
+		Assert.IsFalse(RetreatSystem.EvaluatePersonalRetreat(member, 3f), "후임 결정(10초)을 기다리는 동안엔 개인 후퇴를 시작하지 않는다");
+		Assert.AreEqual(RetreatMode.None, RetreatSystem.GetEffectiveMode(member));
+
+		party.Command.FinishSuccession(); // 후임이 없다고 정해진 뒤에는 HP 20% 이하 개인 후퇴 규칙이 적용된다
+		Assert.IsTrue(RetreatSystem.EvaluatePersonalRetreat(member, 4f));
+		Assert.AreEqual(RetreatMode.PersonalRetreat, member.Retreat.Mode);
 	}
 
 	// ── 리더 없는 인류의 개인 후퇴 (1-4장, R49·R50·R52·R58) ──
@@ -699,6 +706,7 @@ public class RetreatSystemTests
 	{
 		var leader = NewDungeonHuman("L");
 		var member = NewDungeonHuman("M");
+		member.BaseStat.leadership = 20f; // 리더 명령 2-1장: 재선정 후보도 기본 통솔력 10 이상이어야 한다(통솔력 0 인원은 리더가 될 수 없다)
 		var party = NewParty(PartyType.Explore, leader, member);
 		party.OnMemberExited(leader);
 		Assert.AreSame(member, party.Leader);

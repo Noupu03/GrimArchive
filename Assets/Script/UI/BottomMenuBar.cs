@@ -150,6 +150,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                 if (propagation.Count > 0) groups.Add(propagation);
                 // 열이 더 늘어 화면 폭을 넘지 않도록 항목이 적은 후퇴 열 위에 자원 항목을 이어 붙인다(블록마다 자기 헤더가 있다).
                 var retreat = BuildDebugRetreatItems();
+                retreat.AddRange(BuildDebugLeaderItems());
                 retreat.AddRange(BuildDebugResourceItems());
                 groups.Add(retreat);
                 groups.Add(BuildDebugCoreItems());
@@ -566,6 +567,20 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         items.Add(new SubmenuItem("정신력 -30 (선택 유닛)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.DropMental(u, 30f))));
         items.Add(new SubmenuItem("파티 HP 15%로 (선택 유닛의 파티)", false, humanSelected, () => AdjustSelectedUnit(u => RetreatDebug.SetPartyHpPercent(u, 15f))));
         items.Add(SubmenuItem.Header("후퇴 · 도주 확인"));
+        return items;
+    }
+
+    // 리더 명령 확인용(임시, LeaderDebug) — 선택한 인류를 죽이거나 도주시켜 10초 승계·사망 충격·후퇴 종료를, 상위 지휘관 지정과 현재 통솔력 보정으로 상위 공동 공격·전파 반경·버프 강도를 확인한다.
+    private List<SubmenuItem> BuildDebugLeaderItems()
+    {
+        var items = new List<SubmenuItem>();
+        bool humanSelected = _inputManager != null && _inputManager.selectedUnits.Count == 1 && _inputManager.selectedUnit is Human;
+        items.Add(new SubmenuItem("선택 유닛 사망 처리 (승계 확인)", false, humanSelected, () => AdjustSelectedUnit(LeaderDebug.Kill)));
+        items.Add(new SubmenuItem("선택 유닛 도주 확정", false, humanSelected, () => AdjustSelectedUnit(LeaderDebug.ForceFlee)));
+        items.Add(new SubmenuItem("선택 유닛 → 상위 지휘관 지정", false, humanSelected, () => AdjustSelectedUnit(LeaderDebug.DesignateSuperior)));
+        items.Add(new SubmenuItem("선택 유닛 현재 통솔력 +20", false, humanSelected, () => AdjustSelectedUnit(u => LeaderDebug.AdjustLeadership(u, 20f))));
+        items.Add(new SubmenuItem("선택 유닛 현재 통솔력 -20", false, humanSelected, () => AdjustSelectedUnit(u => LeaderDebug.AdjustLeadership(u, -20f))));
+        items.Add(SubmenuItem.Header("리더 명령 확인"));
         return items;
     }
 

@@ -74,6 +74,12 @@ public enum SpeechId
 	BaseBuildWork,        // 기초·방어 시설 공사 중 일꾼의 작업 소리(주기 반복)
 	BaseBuilt,            // 기초 시설 완공(기초 거점 형성)
 	DefenseBuilt,         // 예정 방어 시설 완공(방어 거점 형성)
+
+	// ── 리더 명령 (리더 명령 설계명세서 19장) ──
+	LeaderEnemySpotted,   // 리더의 적 발견 전파 — 일반 유닛의 "적이다!"와 대사만 다르고 별도 명령·쿨타임을 만들지 않는다
+	SuccessorTakesCommand, // 후임 승계
+	CommandCollapse,      // 후임 없는 지휘 붕괴
+	LeaderDeathAlarm,     // 리더 사망 사실을 알림(최종 문구는 연출 문서에서 결정 — 임시)
 }
 
 // 색·글자 크기를 정하는 어조.
@@ -185,6 +191,12 @@ public static class SpeechCatalog
 		{ SpeechId.BaseBuildWork,    new SpeechEntry(new[] { "영차!", "여기 좀 잡아줘!", "조금만 더 버티자!", "단단히 고정해!", "망치 이리 줘!" }, SpeechTone.Calm, 1.8f, 15, 12f, 2.5f) },
 		{ SpeechId.BaseBuilt,        new SpeechEntry(new[] { "기초 시설 완공! 이곳이 우리 거점이다.", "문을 세웠다. 여기까지는 우리 땅이야." }, SpeechTone.Calm, 3.0f, 45, 20f, 4f) },
 		{ SpeechId.DefenseBuilt,     new SpeechEntry(new[] { "방어 시설 완공! 이제 버틸 수 있다.", "방어 거점이 완성됐다." }, SpeechTone.Calm, 3.0f, 45, 20f, 4f) },
+
+		// ── 리더 명령 — 명세서 19-표1이 적은 문구는 그대로, 리더 사망 전파 문구는 연출 문서 전까지 임시 ──
+		{ SpeechId.LeaderEnemySpotted,   new SpeechEntry(new[] { "적이다! 공격해!" }, SpeechTone.Alert, 2.2f, 52, 20f, 3f) },
+		{ SpeechId.SuccessorTakesCommand, new SpeechEntry(new[] { "내가 지휘한다!" }, SpeechTone.Alert, 2.6f, 80, 5f) },
+		{ SpeechId.CommandCollapse,      new SpeechEntry(new[] { "이번 원정은 망했어.", "이제 어떻게 하지?" }, SpeechTone.Fear, 3.0f, 80, 5f, 4f) },
+		{ SpeechId.LeaderDeathAlarm,     new SpeechEntry(new[] { "리더가 쓰러졌다!" }, SpeechTone.Panic, 2.6f, 80, 10f, 3f) },
 	};
 
 	public static bool TryGet(SpeechId id, out SpeechEntry entry) => Entries.TryGetValue(id, out entry);

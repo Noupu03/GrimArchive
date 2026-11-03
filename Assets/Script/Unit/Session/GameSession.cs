@@ -1001,7 +1001,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         // 03번 v0.12 8장: "웨이브 진입 전" 파티 내 해제 성공률이 가장 높은 유닛을 지금 확정해 둔다 — 그 유닛이 직접 함정을 발견하면 2초 응답 대기를 생략한다.
         party.EntryBestDisarmerNames.UnionWith(TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
-        party.AssignLeaderIfNeeded(); // 09_명령·리더 문서 부재 임시 대체 — Party.cs 주석 참고
+        // 인류 파티 컨셉(모험가·도적)은 파티 구성 문서가 오기 전까지 효과 수치가 확정된 두 종만 무작위 배정한다(리더 명령 8·14장) — 용병·군대·용사는 enum만 있고 등장하지 않는다.
+        party.Concept = UnityEngine.Random.value < 0.5f ? PartyConcept.Adventurer : PartyConcept.Rogue;
+        party.AssignLeaderIfNeeded(); // 초기 리더는 던전 입장 전 편성 단계에서 확정한다(리더 명령 2-1장) — 기본 통솔력 10 이상 중 최상위
         party.Retreat.InitialSortieCount = party.Members.Count; // 후퇴도주 문서 2-3장: 최초 출격 인원 N0는 고정(점령 파티 재출격 80% 기준)
         parties.Add(party);
         return party;
@@ -1015,7 +1017,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (deadUnit is Human deadHuman && deadHuman.party != null)
         {
             var party = deadHuman.party;
-            party.AssignLeaderIfNeeded(); // 죽은 유닛이 리더였으면 여기서 재선정(파티 전멸 여부와 무관하게 항상 확인)
+            LeaderSuccessionSystem.OnMemberDied(deadHuman); // 죽은 유닛이 리더였으면 지휘 상실을 시작한다(파티 전멸 여부와 무관하게 항상 확인) — 후임은 즉시가 아니라 10초 뒤에 정한다
             if (party.WaveEnded || !party.IsWiped) return;
 
             party.WaveEnded = true;

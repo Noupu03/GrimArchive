@@ -108,9 +108,11 @@ public partial class Party
 	{
 		if (member == null || !Members.Remove(member)) return;
 		ExitedCount++;
+		ExpeditionCommandSystem.OnSuperiorLeftExpedition(member); // 상위 지휘관이 던전 밖으로 나가면 원정을 떠난 것 — 직책·상위 명령·상위 기본 버프 종료(리더 명령 14-2장)
 		if (Leader == member)
 		{
 			Leader = null;
+			CommandIssueSystem.OnLeaderLost(this, member.name); // 정상 이탈도 그 리더의 지정·계기·명령을 끝낸다 — 후임이 낡은 집중 공격 지정을 이어받지 않게(승계 대기는 사망·도주만)
 			AssignLeaderIfNeeded();
 		}
 	}

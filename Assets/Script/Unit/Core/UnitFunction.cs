@@ -591,7 +591,9 @@ public abstract class UnitFunction : Unit
 		map.ObserveMonster(enemy.name, tile, danger, interest);
 		map.ObserveUnitInRoom(roomId, false, enemy.name, danger, interest);
 		FleeSystem.OnMonsterSpotted(human, enemy); // 직접 정확 인지한 몬스터의 조우 충격(후퇴도주 4장) — 소리·보고·함정 확인은 이 지점을 지나지 않아 발동하지 않는다
-		SpeechSystem.Say(human, SpeechId.EnemySpotted, enemy.name); // 연출 — 직접 정확 인지한 적을 외친다
+		// 연출 — 직접 정확 인지한 적을 외친다. 리더는 "적이다! 공격해!"로 대사만 다르다(리더 명령 4-1장: 별도 명령·쿨타임이 아니고 전파도 중복하지 않는다).
+		bool isCurrentLeader = human.party != null && human.party.Leader == human && LeaderCommandSettings.Enabled;
+		SpeechSystem.Say(human, isCurrentLeader ? SpeechId.LeaderEnemySpotted : SpeechId.EnemySpotted, enemy.name);
 		if (enemy.unitType == null) return;
 		if (enemy.unitType.isBoss) map.ConfirmBossRoom(roomId);
 
@@ -1117,6 +1119,21 @@ public abstract class UnitFunction : Unit
 		// 확인한다(Party.TickRoomActivityCheck가 1초 자체 스로틀 — 매 프레임 전체 검사하지 않음).
 		if (this is Human leaderHuman && leaderHuman.party != null && leaderHuman.party.Leader == leaderHuman)
 			leaderHuman.party.TickRoomActivityCheck(Time.time);
+
+		// 리더 명령 17장: 지휘 상실 뒤 파티 공통 10초 승계 시계 — 리더가 없는 동안이라 구성원 누구든 확인한다(대기 중이 아니면 한 줄 판정으로 끝남).
+		if (this is Human successionHuman)
+		{
+			if (successionHuman.party != null && successionHuman.party.Command.SuccessionPending)
+				LeaderSuccessionSystem.TickParty(successionHuman.party);
+			DeathShockSystem.Tick(successionHuman); // 사망 충격(18-1장) 10초가 끝났으면 능력치를 되돌린다
+			LeaderBuffSystem.Tick(successionHuman);           // 기본 버프(14장) 자격·강도 갱신 — 시스템을 끄면 이미 건 버프를 되돌려야 하므로 켜짐 여부와 무관하게 부른다(끈 뒤 건 게 없으면 즉시 반환)
+			if (LeaderCommandSettings.Enabled)
+			{
+				FocusAttackSystem.Tick(successionHuman);      // 받은 집중 공격의 놓침 시계·종료 조건, 행동 우선 명령 5초 만료
+				ExpeditionCommandSystem.Tick(successionHuman); // 상위 지휘관이면 상위 공동 공격 발령 판단 — 8장 순서(상위가 일반 집중 공격보다 먼저)라 일반 발령보다 앞에 둔다. 상위가 발령하면 같은 지휘자의 일반 쿨타임도 함께 시작돼 아래 일반 발령은 쿨타임으로 막힌다.
+				CommandIssueSystem.Tick(successionHuman);     // 현재 일반 리더면 전술 명령 발령 판단(0.25초 스로틀)
+			}
+		}
 
 		// 후퇴도주 문서: 후퇴 기준 관찰(상태·로그만) — retreatFleeSystemEnabled가 꺼져 있으면 즉시 반환, 켜져 있어도 자체 스로틀.
 		if (this is Human retreatHuman) RetreatSystem.Tick(retreatHuman, Time.time);

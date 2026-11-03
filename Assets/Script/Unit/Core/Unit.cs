@@ -28,8 +28,9 @@ public abstract class Unit : ScriptableObject {
     private PartyComponent        _partyComp;
     private PropagationComponent  _propagationComp;
     private RetreatComponent      _retreatComp;
+    private LeaderComponent       _leaderComp;
 
-    public HealthComponent        Health        => _healthComp        ??= GetComponent<HealthComponent>();
+    public HealthComponent       Health        => _healthComp        ??= GetComponent<HealthComponent>();
     public CombatStateComponent   CombatState   => _combatStateComp   ??= GetComponent<CombatStateComponent>();
     public CombatStatComponent    CombatStat    => _combatStatComp    ??= GetComponent<CombatStatComponent>();
     public PerceptionComponent    Perception    => _perceptionComp    ??= GetComponent<PerceptionComponent>();
@@ -44,6 +45,7 @@ public abstract class Unit : ScriptableObject {
     public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
     public PropagationComponent   Propagation   => _propagationComp   ??= GetComponent<PropagationComponent>();
     public RetreatComponent       Retreat       => _retreatComp       ??= GetComponent<RetreatComponent>();
+    public LeaderComponent        LeaderState   => _leaderComp        ??= GetComponent<LeaderComponent>();
 
     // 코드 전역에서 bare 이름으로 쓰이는 필드들. 실제 데이터는 컴포넌트에 있고 여기서 위임만 한다.
     public float hp               { get => Health.hp;                          set => Health.hp = value; }
@@ -67,7 +69,7 @@ public abstract class Unit : ScriptableObject {
         _healthComp = null; _combatStateComp = null; _combatStatComp = null;
         _perceptionComp = null; _visionStatComp = null; _baseStatComp = null;
         _statusEffectsComp = null; _aiStateComp = null; _memoryComp = null; _partyComp = null;
-        _propagationComp = null; _retreatComp = null;
+        _propagationComp = null; _retreatComp = null; _leaderComp = null;
 
         if (Components == null) Components = new List<IUnitComponent>();
         if (CombatStat == null) Components.Add(new CombatStatComponent(this));
@@ -82,6 +84,7 @@ public abstract class Unit : ScriptableObject {
         if (StatusEffects == null) Components.Add(new StatusEffectsComponent(this));
         if (Propagation == null) Components.Add(new PropagationComponent(this));
         if (Retreat == null) Components.Add(new RetreatComponent(this));
+        if (LeaderState == null) Components.Add(new LeaderComponent(this));
     }
 	public static FactionData humanFactionData  = new FactionData();
 	public static FactionData monsterFactionData = new FactionData();
@@ -160,7 +163,7 @@ public abstract class Unit : ScriptableObject {
 	public float concentration = 0f; // 집중. 정규화를 통해 산출해야 함
 	public float MagicPower  = 0f; // 마력. 정규화를 통해 산출해야 함
 	public float resistance  = 0f; // 저항. 정규화를 통해 산출해야 함
-	public float leadership  = 0f; // 통솔. 정규화를 통해 산출해야 함
+	public float leadership => LeaderState != null ? LeaderState.CurrentLeadership : 0f; // 현재 통솔력(0~100, 일시 보정 반영) — 예전 지도범위+카리스마 정규화값을 통솔력 단일 스탯으로 대체했다(리더 명령 22-표1). 기본 통솔력은 BaseStat.leadership
 
 	// ─── 정규화 기준값 ───
 	private const float BASE_PHYSICAL_ATTACK = 20f;
@@ -176,8 +179,6 @@ public abstract class Unit : ScriptableObject {
 	private const float BASE_WALK_SPEED      = 3.0f;
 	private const float BASE_SPOTTING        = 80f;
 	private const float BASE_MENTAL          = 100f;
-	private const float BASE_LEAD_RANGE      = 6f;
-	private const float BASE_CHARISMA        = 5f;
 	private const float BASE_CRIT            = 10f;
 	private const float BASE_CDR             = 100f;
 
@@ -562,8 +563,6 @@ public abstract class Unit : ScriptableObject {
 		float nMove     = Normalize(BaseStat.walkSpeed,         BASE_WALK_SPEED);
 		float nSpot     = Normalize(VisionStat.spotting,          BASE_SPOTTING);
 		float nMental   = Normalize(MentalMath.ToRatioPercent(BaseStat.mental), BASE_MENTAL); // 원수치 −100~+100 → 비율(%) — 예전 0~100 저작 스케일과 같은 값
-		float nLeadRange = Normalize(BaseStat.leadershipRange,  BASE_LEAD_RANGE);
-		float nCharisma = Normalize(BaseStat.charisma,          BASE_CHARISMA);
 		float nCrit     = Normalize(CombatStat.criticalChance,    BASE_CRIT);
 		float nCdr      = Normalize(BaseStat.cooltimeReduction, BASE_CDR);
 
@@ -591,9 +590,6 @@ public abstract class Unit : ScriptableObject {
 
 		// 감각 = 감지
 		BaseStat.sense = nSpot;
-
-		// 통솔 = 지도범위 50 + 카리스마 50
-		leadership = nLeadRange * 0.5f + nCharisma * 0.5f;
 	}
 
 	// 스탯 적용은 UnitVisualDefinition.ApplyStatsTo(unit)이 SetupStats() 호출 전에 담당한다.

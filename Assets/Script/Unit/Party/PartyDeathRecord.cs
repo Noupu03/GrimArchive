@@ -25,6 +25,9 @@ public class PartyDeathRecord
 	public bool DangerApplied; // 이 사망 사건으로 위험도 이벤트를 이미 적용했는지(중복 방지)
 	public string IncidentId;
 
+	// 리더 명령 18장: 죽은 유닛이 자기 파티의 현재 일반 리더였는가 — 처음 안 파티원의 정신력 감소를 일반 사망(−10/−5)이 아니라 리더 사망(−20/−10)으로 대체하고 능력치 −20%·10초 사망 충격을 건다. 사망 시점에 확정해 둔다(이후 승계로 리더가 바뀌어도 이 사건은 리더 사망이다).
+	public bool DeadWasLeader;
+
 	// 이 사망 정보를 이미 알고 있는(정신력 감소를 이미 적용받은) 파티원 이름 집합 — 재수신 시
 	// 추가 감소 없음(4-13장)을 이 집합으로 보장한다.
 	public readonly HashSet<string> InfoKnownUnits = new HashSet<string>();

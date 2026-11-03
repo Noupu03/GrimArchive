@@ -31,9 +31,16 @@ public class TacticalFSMState : IFSMState
 			// Rest는 설정 에셋에 항목이 없어도(예전에 만든 에셋) 경계 바로 아래에 자동 삽입한다 — 항목이 있으면 그 순서·enabled를 따른다.
 			bool restConfigured = cfg.order.Exists(e => e.behavior == TacticalBehaviorType.Rest);
 			bool restInserted = restConfigured;
+			// FocusPursuit도 설정 에셋에 항목이 없으면(예전에 만든 에셋) 경계 바로 위에 자동 삽입한다.
+			bool pursuitInserted = cfg.order.Exists(e => e.behavior == TacticalBehaviorType.FocusPursuit);
 			foreach (var entry in cfg.order)
 			{
 				if (!entry.enabled || !nodes.TryGetValue(entry.behavior, out var node)) continue;
+				if (!pursuitInserted && entry.behavior == TacticalBehaviorType.Alert)
+				{
+					children.Add(nodes[TacticalBehaviorType.FocusPursuit]);
+					pursuitInserted = true;
+				}
 				if (!restInserted && IsBelowRest(entry.behavior))
 				{
 					children.Add(nodes[TacticalBehaviorType.Rest]);
@@ -42,6 +49,7 @@ public class TacticalFSMState : IFSMState
 				children.Add(node);
 			}
 			if (!restInserted) children.Add(nodes[TacticalBehaviorType.Rest]);
+			if (!pursuitInserted) children.Insert(0, nodes[TacticalBehaviorType.FocusPursuit]); // 경계 항목이 설정에 없을 때의 안전한 자리 — 조건이 맞을 때만 동작하므로 다른 행동을 막지 않는다
 			children.Add(_fallbackRunning);
 			_bt = new BTSelector(children.ToArray());
 		}
@@ -53,6 +61,7 @@ public class TacticalFSMState : IFSMState
 				nodes[TacticalBehaviorType.Panic],
 				nodes[TacticalBehaviorType.JoinCombatWait],
 				nodes[TacticalBehaviorType.TrapResponse],
+				nodes[TacticalBehaviorType.FocusPursuit],
 				nodes[TacticalBehaviorType.Alert],
 				nodes[TacticalBehaviorType.Rest],
 				nodes[TacticalBehaviorType.Investigate],
@@ -98,6 +107,11 @@ public class TacticalFSMState : IFSMState
 					// 응답 상태 없이 알려진 활성 함정 인접 1칸 안에 있는 유닛은 구역 밖으로 빠져나온다(응답자는 위 분기가 먼저 처리).
 					new BTLeaf(ZoneEscape)
 				)
+			),
+			// 리더 명령 12-2장: 집중 공격 지정 적을 놓쳤을 때 마지막 확인 위치 추적(최대 5초) — 전투 상태가 아니라 이 분기가 맡는다.
+			[TacticalBehaviorType.FocusPursuit] = new BTSequence(
+				new BTCondition(FocusAttackSystem.NeedsPursuit),
+				new BTLeaf(FocusPursuitPerform)
 			),
 			[TacticalBehaviorType.Alert] = new BTSequence(
 				new BTCondition(HasAlert),
@@ -169,6 +183,7 @@ public class TacticalFSMState : IFSMState
 		if (unit is Human joinWaitHu && joinWaitHu.currentJoinCombatWait != null) return p;
 		if (unit.currentTrapInteraction != null) return p;
 		if (TrapAvoidance.NeedsZoneEscape(unit)) return p; // 응답 없이 함정 구역 안에 있으면 탈출(ZoneEscape)이 우선
+		if (FocusAttackSystem.NeedsPursuit(unit)) return p; // 집중 공격 지정 적을 놓쳐 마지막 위치를 추적(리더 명령 12-2장)
 		if (unit.currentAlertSearch != null) return p;
 		Human hu = unit as Human;
 		if (hu != null && RetreatSystem.IsResting(hu)) return p; // 거점 휴식(후퇴도주 2-1장)
@@ -849,6 +864,9 @@ public class TacticalFSMState : IFSMState
 			|| type == TacticalBehaviorType.CoreAttack || type == TacticalBehaviorType.DoorAttack;
 
 	private static bool IsResting(Unit unit) => unit is Human human && RetreatSystem.IsResting(human);
+
+	private static BTStatus FocusPursuitPerform(Unit unit)
+		=> unit is Human human ? FocusAttackSystem.PursuitStep(human) : BTStatus.Failure;
 
 	// 휴식 모션으로 그 자리에서 머문다 — 회복(HP 재생력×2, 정신력 +1/초)은 UnitFunction.OnUpdate가 IsRecovering일 때 처리하고, 완료 판정·전환은 PartyRetreatSystem이 한다. 전투가 나면 Combat이 우선해 이 리프는 호출되지 않는다.
 	// 거점 휴식 중 방어 거점의 예정 방어 시설 공사가 배정됐으면(ConstructingBase) 휴식 자리 곁에서 일한다(13장 "방어 거점으로 정한 방에서만 회복 후 방어 시설을 추가").

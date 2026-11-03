@@ -229,6 +229,7 @@ public partial class Party
 		_lastRallyClockTime = Time.time;
 		_rallyPausedSeconds = 0f;
 		_rallyPauseLogged = false;
+		ResetRallyRules(); // 리더 명령 5-2장 기한 규칙(8초 / 도착 예정+3초 / 5초 수색)을 이번 집결 기준으로 새로 시작한다
 		RallyZoneRadius = 1;
 		LogHelper.Log(LogHelper.GAME, $"{LogTag} 집결 시작 — 리더 {Leader.name}, 사유: {(questJustAchieved ? "임무 수량 달성" : resumeAfterCore ? "코어 처리 후 재집결" : "방 활동 종료")}, 집결지 {RallyPoint.Value} ({RallyFloor}층)");
 		SpeechSystem.Say(Leader, SpeechId.RallyStart);
@@ -512,6 +513,7 @@ public partial class Party
 		{
 			ParkStragglersAfterTimeLimit();
 			forced = EnforceRallyAbsoluteLimits();
+			if (!forced && ApplyRallyRules()) forced = true; // 리더 명령 5-2장: 기한(8초/도착 예정+3초) 뒤 수색 5초를 마치면 남은 미합류자를 이번 대기에서 제외하고 끝낸다 — 60초 근사는 교착 방지 안전장치로 남는다
 		}
 		foreach (var m in Members)
 		{
