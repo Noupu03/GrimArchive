@@ -104,5 +104,81 @@ public class RangedSpacingTests
 		Assert.IsTrue(RangedSpacingMath.TryChooseRetreatStep(10, 10, 10, 10, (dx, dy) => true, out int sx, out int sy));
 		Assert.IsTrue(sx != 0 || sy != 0);
 	}
+
+	// ── 시야 유지 후퇴(2026-11-04, ㄱ자 모퉁이 "후퇴 → 시야 상실 → 전파적접근" 왕복) ──
+	// 로그의 기하: 수직 복도(x=10, y 38~44)가 y=44에서 서쪽으로 꺾이는 수평 복도(y=44, x 4~10)가 된다. 아처는 수직 복도에 있고 적은 모퉁이 바로 너머 수평 복도에 있다.
+
+	private static bool IsOpenL(int x, int y) => (x == 10 && y >= 38 && y <= 44) || (y == 44 && x >= 4 && x <= 10);
+
+	private static bool IsLineClearL(int fromX, int fromY, int toX, int toY)
+		=> MovementMath.IsLineClear(new UnityEngine.Vector2Int(fromX, fromY), new UnityEngine.Vector2Int(toX, toY), p => !IsOpenL(p.x, p.y));
+
+	[Test]
+	public void CornerCorridor_RetreatDownTheLegWouldLoseSight_IsRefused()
+	{
+		const int ux = 10, uy = 42, tx = 9, ty = 44; // 적은 모퉁이 서쪽 한 칸 — 현재 칸에서는 보인다
+		Assert.IsTrue(IsLineClearL(ux, uy, tx, ty), "전제: 지금은 적이 보인다");
+		Assert.IsFalse(IsLineClearL(ux, uy - 1, tx, ty), "전제: 한 칸 물러난 칸에서는 모퉁이에 가려 안 보인다");
+
+		bool found = RangedSpacingMath.TryChooseRetreatStep(ux, uy, tx, ty,
+			(dx, dy) => IsOpenL(ux + dx, uy + dy),
+			(dx, dy) => IsLineClearL(ux + dx, uy + dy, tx, ty),
+			out int sx, out int sy, out RetreatRefusal refusal);
+
+		Assert.IsFalse(found, "시야를 잃게 되는 후퇴는 하지 않는다");
+		Assert.AreEqual(RetreatRefusal.WouldLoseSight, refusal);
+		Assert.AreEqual(0, sx);
+		Assert.AreEqual(0, sy);
+	}
+
+	// 시야 조건이 없던 예전 동작은 같은 상황에서 물러났다 — 이게 후퇴 → 시야 상실 → 접근 왕복의 시작이었다.
+	[Test]
+	public void CornerCorridor_WithoutSightRule_RetreatsLikeBefore()
+	{
+		const int ux = 10, uy = 42, tx = 9, ty = 44;
+		bool found = RangedSpacingMath.TryChooseRetreatStep(ux, uy, tx, ty, (dx, dy) => IsOpenL(ux + dx, uy + dy), null, out int sx, out int sy, out RetreatRefusal refusal);
+		Assert.IsTrue(found);
+		Assert.AreEqual(0, sx);
+		Assert.AreEqual(-1, sy);
+		Assert.AreEqual(RetreatRefusal.None, refusal);
+	}
+
+	// 적이 같은 복도 끝(모퉁이 타일, 같은 열)에 있으면 복도를 따라 물러나도 직선이 열려 있어 후퇴한다.
+	[Test]
+	public void StraightLeg_RetreatKeepsSight_StepsBack()
+	{
+		const int ux = 10, uy = 42, tx = 10, ty = 44;
+		bool found = RangedSpacingMath.TryChooseRetreatStep(ux, uy, tx, ty,
+			(dx, dy) => IsOpenL(ux + dx, uy + dy),
+			(dx, dy) => IsLineClearL(ux + dx, uy + dy, tx, ty),
+			out int sx, out int sy, out RetreatRefusal refusal);
+		Assert.IsTrue(found);
+		Assert.AreEqual(0, sx);
+		Assert.AreEqual(-1, sy);
+		Assert.AreEqual(RetreatRefusal.None, refusal);
+	}
+
+	// 시야를 유지하는 칸과 잃는 칸이 섞여 있으면, 적 반대 방향에 가장 가깝더라도 시야를 잃는 칸은 건너뛰고 유지하는 칸을 고른다.
+	[Test]
+	public void MixedCandidates_PicksTheSightKeepingStep()
+	{
+		bool found = RangedSpacingMath.TryChooseRetreatStep(10, 10, 13, 10, (dx, dy) => true, (dx, dy) => dx == -1 && dy == 1, out int sx, out int sy, out RetreatRefusal refusal);
+		Assert.IsTrue(found);
+		Assert.AreEqual(-1, sx);
+		Assert.AreEqual(1, sy, "정면 후퇴(-1,0)는 시야를 잃으니 건너뛴다");
+		Assert.AreEqual(RetreatRefusal.None, refusal);
+	}
+
+	[Test]
+	public void NoStepAtAll_IsCornered_NotSightLoss()
+	{
+		bool found = RangedSpacingMath.TryChooseRetreatStep(10, 10, 9, 10, (dx, dy) => false, (dx, dy) => true, out _, out _, out RetreatRefusal refusal);
+		Assert.IsFalse(found);
+		Assert.AreEqual(RetreatRefusal.Cornered, refusal, "물러날 칸 자체가 없는 건 몰림이다(시야 때문이 아님)");
+
+		found = RangedSpacingMath.TryChooseRetreatStep(10, 10, 9, 10, (dx, dy) => false, null, out _, out _, out refusal);
+		Assert.IsFalse(found);
+		Assert.AreEqual(RetreatRefusal.Cornered, refusal, "시야 조건이 없어도 몰림은 몰림");
+	}
 }
 #endif

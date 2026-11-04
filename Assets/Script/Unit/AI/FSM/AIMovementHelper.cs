@@ -404,7 +404,10 @@ public static class AIMovementHelper
 	}
 
 	// 적에게서 한 걸음 물러난다 — 이웃 8칸 중 적 반대 방향에 가장 가깝고 실제로 거리가 늘며 갈 수 있는 칸(벽·점유·방 제한·코너 커팅 통과)으로 간다(RangedSpacingMath.TryChooseRetreatStep). 예전엔 "적 반대편 N칸" 좌표를 A*로 향해, 그 좌표가 벽이면 가장 가까운 도달 노드(옆쪽일 수 있음)로 새 좌우로 떨었다. 물러날 칸이 없으면(몰림) false — 호출부가 그 자리에서 싸운다.
-	public static bool MoveAwayFromTarget(Unit unit, Unit target)
+	public static bool MoveAwayFromTarget(Unit unit, Unit target) => MoveAwayFromTarget(unit, target, out _);
+
+	// 거절 이유를 돌려주는 형태(2026-11-04). 후퇴 칸이 적을 시야에서 놓치게 하면 그 칸으로는 물러나지 않는다 — 안 그러면 ㄱ자 모퉁이에서 한 걸음 물러난 순간 전투가 풀리고 전파받은 적 위치로 다시 접근하는 왕복이 생긴다(RangedSpacingMath.TryChooseRetreatStep의 시야 유지 오버로드). 이미 현재 칸에서 직선이 막혀 있으면 조건을 적용하지 않는다(모든 후보가 거절돼 영구히 못 물러나는 것 방지).
+	public static bool MoveAwayFromTarget(Unit unit, Unit target, out RetreatRefusal refusal)
 	{
 		Vector2Int pos = unit.position;
 		bool CanStep(int dx, int dy)
@@ -416,7 +419,11 @@ public static class AIMovementHelper
 			return true;
 		}
 
-		if (!RangedSpacingMath.TryChooseRetreatStep(pos.x, pos.y, target.position.x, target.position.y, CanStep, out int stepX, out int stepY)) return false;
+		System.Func<int, int, bool> keepsSight = null;
+		if ((AIConfigLoader.Behavior?.rangedRetreatKeepSightEnabled ?? true) && SkillAction.HasClearLineFrom(unit, pos, target))
+			keepsSight = (dx, dy) => SkillAction.HasClearLineFrom(unit, pos + new Vector2Int(dx, dy), target);
+
+		if (!RangedSpacingMath.TryChooseRetreatStep(pos.x, pos.y, target.position.x, target.position.y, CanStep, keepsSight, out int stepX, out int stepY, out refusal)) return false;
 		unit.Move(SkillAction.GetDirection8(new Vector2Int(stepX, stepY)));
 		return unit.position != pos;
 	}

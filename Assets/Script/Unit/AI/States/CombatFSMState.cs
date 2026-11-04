@@ -208,14 +208,16 @@ public class CombatFSMState : IFSMState
 				if (chebDist <= dangerDist)
 				{
 					bool evadeCooling = unit.CombatState.State.evadeCooldown > 0f;
-					if (!evadeCooling && AIMovementHelper.MoveAwayFromTarget(unit, target))
+					RetreatRefusal refusal = RetreatRefusal.None;
+					if (!evadeCooling && AIMovementHelper.MoveAwayFromTarget(unit, target, out refusal))
 					{
 						CombatDecisionTrace.Record(unit, "후퇴", chebDist, bestSkill.SkillName);
 						unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
 						unit.Generate?.UpdateUnitSpriteForDirection(unit);
 						return BTStatus.Running;
 					}
-					CombatDecisionTrace.Record(unit, "후퇴불가", chebDist, evadeCooling ? "회피쿨다운" : "몰림");
+					// 후퇴를 포기하면 아래 공격 판단으로 이어진다 — 시야를 잃을 칸뿐이면(ㄱ자 모퉁이) 그 자리에서 싸운다(2026-11-04).
+					CombatDecisionTrace.Record(unit, "후퇴불가", chebDist, evadeCooling ? "회피쿨다운" : refusal == RetreatRefusal.WouldLoseSight ? "시야유지" : "몰림");
 				}
 			}
 
@@ -251,8 +253,8 @@ public class CombatFSMState : IFSMState
 					case RangedSpacing.Retreat: // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
 						if (allowKiting)
 						{
-							bool retreated = AIMovementHelper.MoveAwayFromTarget(unit, target);
-							CombatDecisionTrace.Record(unit, retreated ? "쿨다운후퇴" : "쿨다운후퇴불가", chebDist);
+							bool retreated = AIMovementHelper.MoveAwayFromTarget(unit, target, out RetreatRefusal cooldownRefusal);
+							CombatDecisionTrace.Record(unit, retreated ? "쿨다운후퇴" : "쿨다운후퇴불가", chebDist, retreated ? null : cooldownRefusal == RetreatRefusal.WouldLoseSight ? "시야유지" : "몰림");
 						}
 						break;
 					case RangedSpacing.Approach:

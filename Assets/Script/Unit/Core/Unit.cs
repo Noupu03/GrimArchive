@@ -42,6 +42,13 @@ public abstract class Unit : ScriptableObject {
 
     // 길찾기(AStarMovement)가 읽는 이 유닛이 아는 지형 — 인류는 개인 지도, 몬스터는 몬스터 지도, 그 밖이면 null(진영 공용 지도로 폴백).
     public IKnownTerrain KnownTerrain => this is Human ? (IKnownTerrain)Memory?.personalMap : this is Monster ? Memory?.monsterMap : null;
+
+    // 플레이어 몬스터가 클릭 이동 명령을 수행 중인가(2026-11-04) — 이 동안만 길찾기가 시야로 아는 지형 대신 실제 지형 전체로 길을 구해 명령이 끝날 때까지 보관한다. 별도 플래그 없이 명령 상태에서 파생해 명령이 끝나면(playerMoveTarget=null) 저절로 꺼진다. 공격·오브젝트 공격 명령(playerMoveTarget=null)과 인류(던전 입구 시퀀스 포함)는 해당 없다.
+    public bool UsesGlobalClickPathing => isManualMoveCommand && playerMoveTarget.HasValue && IsPlayerMonsterFaction && (AIConfigLoader.Behavior?.globalClickPathingEnabled ?? true);
+    // 클릭 이동 길 계획이 같은 편 유닛을 장애물로 보지 않는가 — 뭉쳐 이동할 때 아군을 벽으로 보고 먼 길을 돌던 문제 대응. 아군이 실제로 다음 칸을 막으면 OccupancySystem.TryClickMoveHold가 기다리고, 대기 시간을 넘겨 우회로 전환한 구간(clickDetourUntil)에는 예전처럼 점유를 벽으로 본다.
+    public bool ClickPathIgnoresAllies => UsesGlobalClickPathing && (AIConfigLoader.Behavior?.clickMoveBlockerWaitEnabled ?? true) && Time.time >= clickDetourUntil;
+    // AStarMovement.BeginSearch가 읽는 지형 — 클릭 이동 중이면 실제 지형(GlobalTerrain), 아니면 기존 KnownTerrain.
+    public IKnownTerrain PathTerrain => UsesGlobalClickPathing ? (IKnownTerrain)(GlobalTerrain.TestTerrain ?? Session?.GlobalTerrain) ?? KnownTerrain : KnownTerrain;
     public PartyComponent         UnitParty     => _partyComp         ??= GetComponent<PartyComponent>();
     public PropagationComponent   Propagation   => _propagationComp   ??= GetComponent<PropagationComponent>();
     public RetreatComponent       Retreat       => _retreatComp       ??= GetComponent<RetreatComponent>();
@@ -284,6 +291,14 @@ public abstract class Unit : ScriptableObject {
 	public readonly Dictionary<Vector3Int, RouteMemoEntry> exploreBlockedTargets = new();
 	// 이 프레임에 대기·비켜서기로 행동을 이미 썼는가 — 한 행동 주기에 이동 호출을 두 번 하는 리프가 방금의 물러나기를 되돌리지 않게 한다.
 	public int occupancyActedFrame = -1;
+	// 클릭 이동 중 아군에게 연속으로 막힌 시작 시각(-1 = 막히지 않음)과, 대기 시간을 넘겨 우회로 전환한 구간의 끝 시각(OccupancySystem.TryClickMoveHold). 새 명령·명령 종료에서 초기화한다.
+	public float clickWaitSince = -1f;
+	public float clickDetourUntil;
+	public void ResetClickMoveHold()
+	{
+		clickWaitSince = -1f;
+		clickDetourUntil = 0f;
+	}
 
 	// 정당한 점유 대기가 행동별 정체 인내로 포기되지 않게 대기를 시작·유지할 때 비전투 정체 카운터를 전부 0으로 되돌린다 — 대기 시작 틱에 리프가 이미 한 번 불렸을 수 있어 그 1틱도 지운다.
 	public virtual void ResetNonCombatStuckCounters()
@@ -308,6 +323,9 @@ public abstract class Unit : ScriptableObject {
 		ClearAttackObjectTarget();
 		pendingHaltOnArrival = markHalt;
 		pendingStandGroundOnArrival = markStandGround;
+		ResetClickMoveHold();
+		// 클릭 순간 실제 지형으로 전체 경로를 미리 구해 보관한다(2026-11-04) — 명령 경로 시각화가 즉시 전체 경로를 그리고, 첫 걸음부터 막다른 길을 거치지 않는다. 일시정지 중 경로 미리보기가 쓰는 기존 패턴(TryGetNextStep을 한 번 불러 캐시를 채움)과 같다.
+		if (UsesGlobalClickPathing && Session != null && position != target) MovementAlgorithm?.TryGetNextStep(this, target, out _);
 	}
 
 	public void SetAttackCommand(Unit target)
@@ -366,6 +384,7 @@ public abstract class Unit : ScriptableObject {
 		isManualMoveCommand = false;
 		oneTimeReactUsed = false;
 		playerCommandStuckTurns = 0;
+		ResetClickMoveHold();
 	}
 
 	public void AbortMoveCommand()
@@ -375,6 +394,7 @@ public abstract class Unit : ScriptableObject {
 		isManualMoveCommand = false;
 		oneTimeReactUsed = false;
 		playerCommandStuckTurns = 0;
+		ResetClickMoveHold();
 	}
 
 	public bool HasActivePlayerCommand()

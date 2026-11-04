@@ -133,8 +133,24 @@ public class AStarMovement : IMovementAlgorithm
     private HashSet<Vector2Int> _frontierAllow;
     private readonly HashSet<Vector2Int> _frontierAllowBuffer = new HashSet<Vector2Int>();
 
+    // 이번 탐색이 플레이어 몬스터의 클릭 이동 명령용(실제 지형 전체로 계획·보관)인가, 그리고 그 안에서 같은 편 유닛을 장애물로 보지 않는가 — BeginSearch가 정한다(2026-11-04, Unit.UsesGlobalClickPathing/ClickPathIgnoresAllies).
+    private bool _globalClick;
+    private bool _ignoreAllies;
+    // 캐시를 만든 시점의 위 두 값 — 모드가 바뀌면(우회 구간 진입·명령 종료) 그때 만든 경로를 쓰지 않는다.
+    private bool _cacheGlobal;
+    private bool _cacheIgnoreAllies;
+
     private void BeginSearch(Unit unit)
-        => _terrain = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
+    {
+        _terrain = (AIConfigLoader.Behavior?.personalMapPathingEnabled ?? true) ? unit.KnownTerrain : null;
+        _globalClick = unit.UsesGlobalClickPathing;
+        if (_globalClick)
+        {
+            IKnownTerrain global = unit.PathTerrain; // 실제 지형 — 시야로 아는 지형 대신 읽는다. 구할 수 없으면(맵 없음) 기존 지형으로 폴백한다.
+            if (global != null) _terrain = global; else _globalClick = false;
+        }
+        _ignoreAllies = _globalClick && unit.ClickPathIgnoresAllies;
+    }
 
     // 좌표가 '아는 지형' 기준으로 막혔는가 — 벽(2)이면 true. 미확인(0)은 계획에서만 통행 가능으로 가정하고(실제 이동은 걸음마다 CanMove가 판정, 지도에 기록하지 않음 — 04번 9장) 프론티어 BFS에선 미확인도 막는다.
     private bool IsKnownWall(FactionData myData, int floorIdx, int x, int y)
@@ -198,7 +214,11 @@ public class AStarMovement : IMovementAlgorithm
         // --- 캐싱 로직: A* 연산 폭주를 막아 프레임 드랍(지랄나는 연산량) 방지 ---
         // 타겟이 약간(3칸 이내) 움직였더라도 기존 목적지 방향 캐시를 유지한다 (근시안적 길찾기 유지).
         bool confinedNow = unit is Human confinedHuman && confinedHuman.IsRoomConfinedNow;
-        if (Vector2.Distance(_cacheTarget, targetPos) <= 3f && Time.time - _cacheTime < 5f && _cacheTrapSignature == _trapCtx.Signature && _cacheConfined == confinedNow)
+        // 클릭 이동(전역 경로)은 명령이 끝날 때까지 보관한다 — 5초 만료도 목표 3칸 허용도 없다(대체 칸 재지정이 목표를 바꾸면 새로 계산). 모드가 바뀌면(아군 무시 ↔ 우회) 캐시를 쓰지 않는다.
+        bool cacheFresh = _globalClick || Time.time - _cacheTime < 5f;
+        float cacheTargetTolerance = _globalClick ? 0f : 3f;
+        if (Vector2.Distance(_cacheTarget, targetPos) <= cacheTargetTolerance && cacheFresh && _cacheTrapSignature == _trapCtx.Signature && _cacheConfined == confinedNow
+            && _cacheGlobal == _globalClick && _cacheIgnoreAllies == _ignoreAllies)
         {
             if (_pathMap.TryGetValue(unit.position, out Dir cachedDir))
             {
@@ -216,6 +236,8 @@ public class AStarMovement : IMovementAlgorithm
         _cacheTime = Time.time;
         _cacheTrapSignature = _trapCtx.Signature;
         _cacheConfined = confinedNow;
+        _cacheGlobal = _globalClick;
+        _cacheIgnoreAllies = _ignoreAllies;
         // -------------------------------------------------------------
 
         Vector2Int startPos = unit.position;
@@ -427,6 +449,7 @@ public class AStarMovement : IMovementAlgorithm
     public void OnTileBecameWall(Unit unit, Vector2Int tile)
     {
         if (_pathMap.Count == 0) return;
+        if (unit.UsesGlobalClickPathing) return; // 클릭 이동은 실제 지형으로 계획해 그 벽을 이미 알고 있다 — 시야로 새로 밝혀졌다고 보관한 경로를 버릴 이유가 없다
         int fw = Mathf.Max(1, (int)unit.unitType.footprint.x);
         int fh = Mathf.Max(1, (int)unit.unitType.footprint.y);
         for (int dx = 0; dx < fw; dx++)
@@ -624,7 +647,8 @@ public class AStarMovement : IMovementAlgorithm
                 {
                     if (u != null && u != unit && u.hp > 0
                         && !(_queryExemptTargetOccupancy && nx == targetPos.x && ny == targetPos.y)
-                        && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u)))
+                        && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u))
+                        && !(_ignoreAllies && !unit.IsEnemy(u))) // 클릭 이동: 같은 편 유닛은 계획에서 장애물이 아니다(실제 막힘은 OccupancySystem.TryClickMoveHold가 대기·우회로 다룬다)
                     { isOccupied = true; isWall = true; break; }
                 }
 
@@ -692,7 +716,7 @@ public class AStarMovement : IMovementAlgorithm
         if (!IgnoreAllUnits && unit.Session != null &&
             unit.Session.unitGrid.TryGetValue(new Vector3Int(x, y, floorIdx), out Unit u))
         {
-            if (u != null && u != unit && u.hp > 0 && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u))) return true;
+            if (u != null && u != unit && u.hp > 0 && !(_queryIgnoreEnemyUnits && unit.IsEnemy(u)) && !(_ignoreAllies && !unit.IsEnemy(u))) return true;
         }
 
         return false;

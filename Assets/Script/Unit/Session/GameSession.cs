@@ -1382,6 +1382,23 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public bool IsBlockedByClosedDoor(Vector3Int pos, Unit unit) => _doorSystem.IsBlockedByClosedDoor(pos, unit);
     // 문이 생기거나 파괴될 때마다 오르는 개정 번호 — 경로 판정 메모(RouteAssessment)의 서명.
     public int DoorStateVersion => _doorSystem.StateVersion;
+
+    // 플레이어 몬스터 클릭 이동이 길찾기에 읽는 실제 지형(미탐색 구역 포함) — cmap 참조별로 하나만 만든다(A* 핫패스에서 할당하지 않게). 맵이 다시 생성돼 cmap이 바뀌면 새로 만든다.
+    private GlobalTerrain _globalTerrain;
+    private CreateMap _globalTerrainSource;
+    public GlobalTerrain GlobalTerrain
+    {
+        get
+        {
+            if (cmap == null) return null;
+            if (_globalTerrain == null || !ReferenceEquals(_globalTerrainSource, cmap))
+            {
+                _globalTerrain = new GlobalTerrain(cmap);
+                _globalTerrainSource = cmap;
+            }
+            return _globalTerrain;
+        }
+    }
     // 문 개폐 시각 트리거 — UnitFunction.Move가 인접 칸에서 문 타일로 넘어가려는 시도가 있을 때마다
     // 호출한다. 통행 가능 여부(IsBlockedByClosedDoor)와는 완전히 별개 판정(순수 시각 연출용).
     public void NotifyDoorApproachAttempt(Vector3Int pos, Unit unit) => _doorSystem.NotifyApproachAttempt(pos, unit);

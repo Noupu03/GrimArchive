@@ -53,7 +53,12 @@ public abstract class SkillAction
 	/// 시전자에서 대상까지 직선이 차폐물(벽·구조물·닫힌 문)에 막히지 않는가 — 아군 대상 스킬의 "지원 범위·차폐" 조건(04번 0장). 차폐 기준은 시야 불투명 규칙
 	/// (UnitFunction.IsOpaqueAt)과 같다. 대상이 여러 타일을 차지하면 그중 한 타일로라도 직선이 열려 있으면 통과이고, 자기 자신이거나 판정 재료가 없으면 막지 않는다.
 	/// </summary>
-	public static bool HasClearLineTo(Unit unit, Unit target)
+	public static bool HasClearLineTo(Unit unit, Unit target) => HasClearLineFrom(unit, unit?.position ?? default, target);
+
+	/// <summary>
+	/// HasClearLineTo의 출발 좌표 일반화(2026-11-04) — unit이 from에 서 있다면 target까지 직선이 열려 있는가. 원거리 유닛이 후퇴할 칸이 적을 계속 볼 수 있는 곳인지 판정하는 데 쓴다(AIMovementHelper.MoveAwayFromTarget).
+	/// </summary>
+	public static bool HasClearLineFrom(Unit unit, Vector2Int from, Unit target)
 	{
 		if (unit == null || target == null || unit == target) return true;
 		var session = unit.Session;
@@ -64,7 +69,7 @@ public abstract class SkillAction
 		Vector2Int size = target.FootprintSize;
 		for (int dx = 0; dx < size.x; dx++)
 			for (int dy = 0; dy < size.y; dy++)
-				if (MovementMath.IsLineClear(unit.position, target.position + new Vector2Int(dx, dy), isBlocking)) return true;
+				if (MovementMath.IsLineClear(from, target.position + new Vector2Int(dx, dy), isBlocking)) return true;
 		return false;
 	}
 

@@ -11,6 +11,9 @@ public enum OccupantKind
 	IdleInPlace, // 전투·상호작용·이동 없이 제자리에서 대기 중 — 비켜 주기 판단 대상
 }
 
+// 클릭 이동 중 보관 경로의 다음 칸 상황에 대한 판단(2026-11-04): 비어 있으면 그대로 진행, 아군이 막으면 대기하다 시간이 지나면 우회, 그 밖(적이 막음·목적지 근처)은 기존 대응에 맡긴다.
+public enum ClickMoveHoldDecision { Proceed, Wait, Detour, Defer }
+
 // 대기와 우회 중 지금 선택한 방식(04번 6장 "동률이면 현재 선택 유지, 아직 선택 전이면 원래 경로에서 대기").
 public enum OccupancyChoice { None, Wait, Detour }
 
@@ -65,6 +68,15 @@ public static class OccupancyMath
 		if (Mathf.Abs(waitPath - detourPath) < TieEpsilonSeconds)
 			return current == OccupancyChoice.None ? OccupancyChoice.Wait : current;
 		return waitPath < detourPath ? OccupancyChoice.Wait : OccupancyChoice.Detour;
+	}
+
+	// 클릭 이동 유닛의 다음 칸 판단 — blocked: 다음 걸음 칸을 다른 유닛이 차지했는가. 아군이 막으면 blockedSeconds가 waitMaxSeconds 미만인 동안 Wait(막은 유닛이 비키면 다음 틱에 Proceed가 되어 즉시 진행), 이상이면 Detour.
+	// 적이 막았거나(전투·우회 등 기존 대응) 목적지 근처(nearDestination: 같은 지점으로 보낸 여럿이 도착하는 자리 — ExecutePlayerMove의 대체 칸 재지정이 즉시 동작해야 한다)면 기다리지 않고 Defer.
+	public static ClickMoveHoldDecision ClickMoveBlockedDecision(bool blocked, bool blockerIsAlly, bool nearDestination, float blockedSeconds, float waitMaxSeconds)
+	{
+		if (!blocked) return ClickMoveHoldDecision.Proceed;
+		if (!blockerIsAlly || nearDestination) return ClickMoveHoldDecision.Defer;
+		return blockedSeconds >= waitMaxSeconds ? ClickMoveHoldDecision.Detour : ClickMoveHoldDecision.Wait;
 	}
 
 	// 해결되지 않는 미확인 대기의 상한 — 대기 시간을 모르고 우회도 없는 채로 maxSeconds를 넘기면 대기를 풀어 기존 경로(행동별 정체 인내 → 9번 후속 행동)로 넘긴다. 대기시간을 아는 경우(상호작용 남은 시간 등)는 끊지 않는다.

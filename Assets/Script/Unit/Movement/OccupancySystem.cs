@@ -43,6 +43,9 @@ public static class OccupancySystem
 	public static bool TryHold(Unit unit, Vector2Int dest)
 	{
 		var cfg = AIConfigLoader.Behavior;
+		// 플레이어 몬스터의 클릭 이동은 자체 규칙을 쓴다(2026-11-04) — 아군에 막히면 우회하지 않고 clickMoveBlockerWaitSeconds 동안 기다렸다가 비키는 즉시 진행, 시간이 지나면 우회. 기존 대기 vs 우회 판단(아래)·적 시야 제외(IsEligibleMover)는 이 분기에 적용하지 않는다.
+		if (unit.UsesGlobalClickPathing && (cfg?.clickMoveBlockerWaitEnabled ?? true) && unit.MovementAlgorithm is AStarMovement clickAstar)
+			return TryClickMoveHold(unit, dest, clickAstar, cfg);
 		if (!(cfg?.occupancyArbitrationEnabled ?? true)) return false;
 		// 입장 중인 유닛은 열린 문 너머 적이 보여 전투 상태여도 앞 유닛 대기 규칙을 쓴다(PartyAdvanceSteps.StepInCombat이 전투 중 입장 이동을 맡는다) — 안 그러면 전투 중엔 점유를 벽으로 본 길찾기로 길 전체를 돌아간다.
 		bool entering = (cfg?.entryPassBeforeCombatEnabled ?? true) && PartyAdvanceSystem.EnteringPlanOf(unit) != null;
@@ -147,6 +150,59 @@ public static class OccupancySystem
 		float holdSeconds = waitSeconds.HasValue ? Mathf.Min(waitSeconds.Value, recheck) : recheck;
 		BeginHold(unit, OccupancyHoldKind.Occupancy, blocker, blockedAnchor, OccupancyChoice.Wait, startedAt, now + Mathf.Max(0.05f, holdSeconds), waitSeconds.HasValue);
 		return true;
+	}
+
+	// 클릭 이동 유닛의 한 걸음 판단(2026-11-04, 사용자 요청 "다른 유닛으로 인한 막힘은 2~3초 기다리다가 뚫리자마자 바로 가는 걸로"). 길 계획(AStarMovement)은 아군을 무시한 보관 경로라 그 다음 칸을 아군이 차지하면 Move()가 거부한다 — 여기서 먼저 다음 칸을 확인해
+	//  · 비었으면 false → MoveTowardsPos가 같은 캐시 걸음을 바로 내딛는다(뚫리자마자 진행; 대기 중에도 ShouldHold가 점유자가 떠난 즉시 대기를 푼다)
+	//  · 아군이 막으면 기다린다(true). 연속 clickMoveBlockerWaitSeconds를 넘기면 clickMoveDetourSeconds 동안 점유를 벽으로 본 기존 A*로 우회한다(clickDetourUntil)
+	//  · 적이 막았거나 목적지 2칸 이내면 false(기존 대응 — 후자는 같은 지점으로 보낸 여럿의 도착 자리를 ExecutePlayerMove가 즉시 대체 칸으로 재지정하게)
+	private const int ClickMoveNearDestinationRadius = 2;
+	private static bool TryClickMoveHold(Unit unit, Vector2Int dest, AStarMovement astar, AIBehaviorConfig cfg)
+	{
+		if (unit.hp <= 0 || unit.isImmobile || unit.Session == null || unit.unitType == null) return false;
+		if (unit.isHitThisTurn || unit.CombatState.State.isCastingAttack) return false; // 피격·시전 중은 기존 규칙과 같이 제외(적 시야는 제외 사유가 아니다)
+		if (unit.occupancyActedFrame == Time.frameCount) return true; // 이번 프레임에 이미 대기로 행동을 썼다
+
+		float now = Time.time;
+		if (now < unit.clickDetourUntil) { EndClickWait(unit); return false; } // 대기 시간을 넘겨 우회로 전환한 구간 — 점유를 벽으로 본 기존 A*가 우회한다
+
+		if (!astar.TryGetNextStep(unit, dest, out Dir dir)) { EndClickWait(unit); return false; }
+
+		Vector2Int cur = unit.position;
+		Vector2Int dirVec = unit.GetDirVector(dir);
+		Unit blocker = FindBlocker(unit, cur, dirVec, out Vector2Int blockedAnchor);
+		bool nearDestination = blocker != null && AIMovementHelper.ChebyshevDistance(cur, dest) <= ClickMoveNearDestinationRadius;
+		float waitMax = Mathf.Max(0f, cfg?.clickMoveBlockerWaitSeconds ?? 3f);
+		float blockedSeconds = unit.clickWaitSince >= 0f ? now - unit.clickWaitSince : 0f;
+
+		switch (OccupancyMath.ClickMoveBlockedDecision(blocker != null, blocker != null && !unit.IsEnemy(blocker), nearDestination, blockedSeconds, waitMax))
+		{
+			case ClickMoveHoldDecision.Wait:
+				if (unit.clickWaitSince < 0f) unit.clickWaitSince = now;
+				// 제자리에서 기다리는 아군이면 비켜 달라 요청한다(기존 규칙 — 플레이어 명령·정지·제자리 공격 중인 유닛은 CanHonorYield가 거절한다).
+				if (Classify(blocker, out _) == OccupantKind.IdleInPlace) RequestYield(unit, blocker, now, cfg?.yieldRequestSeconds ?? 2f);
+				// 한 행동 주기만 쉬고 다음 틱에 다시 본다 — 기존 재확인 간격(0.5초)이면 뚫린 뒤 최대 0.5초 늦게 움직인다.
+				float holdSeconds = Mathf.Max(0.05f, OccupancyMath.StepSeconds(unit.AppliedWalkSpeed));
+				BeginHold(unit, OccupancyHoldKind.Occupancy, blocker, blockedAnchor, OccupancyChoice.Wait, unit.clickWaitSince, now + holdSeconds, true);
+				return true;
+
+			case ClickMoveHoldDecision.Detour:
+				float detourSeconds = Mathf.Max(0f, cfg?.clickMoveDetourSeconds ?? 5f);
+				unit.clickDetourUntil = now + detourSeconds;
+				EndClickWait(unit);
+				LogHelper.Log(LogHelper.GAME, $"[점유] {unit.name}: 클릭 이동 중 {blocker.name}이(가) {waitMax:F0}초 넘게 길을 막아 {detourSeconds:F0}초 동안 우회합니다");
+				return false;
+
+			default: // Proceed(비었다 — 바로 진행) / Defer(적이 막음·목적지 근처 — 기존 대응)
+				EndClickWait(unit);
+				return false;
+		}
+	}
+
+	private static void EndClickWait(Unit unit)
+	{
+		unit.clickWaitSince = -1f;
+		ClearHold(unit);
 	}
 
 	// 입장 중(PartyAdvanceSystem.EnteringPlanOf) 유닛의 한 걸음 — 점유를 벽으로 보는 A*는 앞 유닛이 문 통로를 막으면 다른 문·방을 도는 긴 우회를 고르므로, 구조 경로(점유 무시)의 다음 걸음을 직접 내딛고 같은 진영 유닛이 막았는데 그 유닛이 문 가까운 줄 이후(통로·다음 방 쪽)에 있으면 우회 없이 기다린다(문턱 통과 순서 TryGateOrderHold를 먼저 확인).

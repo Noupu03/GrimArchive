@@ -87,6 +87,16 @@ public class AIBehaviorConfig : ScriptableObject
     public float occupancyWaitMaxSeconds = 6f;
     [Tooltip("점유 대기 중 같은 충돌을 다시 판정하는 간격(초) — 점유자 상태가 바뀌었는지(상호작용 종료·이동 시작) 확인한다 (내부 판단)")]
     public float occupancyRecheckSeconds = 0.5f;
+    [Tooltip("원거리·지원 유닛이 위험 거리 안의 적에게서 한 걸음 물러날 때, 그 칸에서 적이 시야에서 사라지게 되면(ㄱ자 모퉁이 등) 후퇴하지 않고 그 자리에서 싸운다 — 후퇴 → 시야 상실 → 전파받은 적 위치로 접근 → 전투 → 다시 후퇴하는 왕복을 막는다 (2026-11-04 사용자 요청). 끄면 시야와 무관하게 후퇴")]
+    public bool rangedRetreatKeepSightEnabled = true;
+    [Tooltip("플레이어 몬스터의 클릭 이동 명령은 유닛이 시야로 아는 지형 대신 실제 지형 전체(미탐색 구역 포함)로 길을 미리 구해 명령이 끝날 때까지 보관한다 (2026-11-04 사용자 요청). 끄면 예전처럼 유닛이 아는 지형으로 계획한다")]
+    public bool globalClickPathingEnabled = true;
+    [Tooltip("클릭 이동 유닛은 길 계획에서 아군 유닛을 장애물로 보지 않고, 실제로 아군이 다음 칸을 막으면 clickMoveBlockerWaitSeconds 동안 기다렸다가 비키는 즉시 진행한다 — 뭉쳐 이동할 때 아군을 벽으로 보고 먼 길을 돌던 문제 (2026-11-04 사용자 요청). 끄면 예전처럼 점유를 벽으로 본 길찾기")]
+    public bool clickMoveBlockerWaitEnabled = true;
+    [Tooltip("클릭 이동 중 아군 유닛이 다음 칸을 연속으로 막아도 우회하지 않고 기다리는 시간(초). 넘으면 clickMoveDetourSeconds 동안 점유를 벽으로 본 길찾기로 우회한다 (사용자 '2~3초')")]
+    public float clickMoveBlockerWaitSeconds = 3f;
+    [Tooltip("대기 시간을 넘겨 우회로 전환한 뒤 점유를 벽으로 본 길찾기를 유지하는 시간(초) — 지나면 다시 아군을 무시한 최단 경로로 돌아간다 (내부 판단)")]
+    public float clickMoveDetourSeconds = 5f;
     [Tooltip("제자리 대기 중인 아군에게 남기는 '비켜 달라' 요청의 유효 시간(초) (내부 판단)")]
     public float yieldRequestSeconds = 2f;
     [Tooltip("전파받은 적 위치 정보가 이 시간(초)을 넘으면 낡은 정보로 보고 접근하지 않는다 (03번 v0.6 4-7은 유효 기간을 정하지 않음, 내부 판단)")]
