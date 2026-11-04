@@ -278,6 +278,7 @@ public class TacticalFSMState : IFSMState
 			 human.currentWait.Reason == WaitReason.BreachingDoor ||
 			 human.currentWait.Reason == WaitReason.EnteringNextRoom ||
 			 human.currentWait.Reason == WaitReason.ConstructingBase ||
+			 human.currentWait.Reason == WaitReason.SearchingAbsentee ||
 			 human.currentWait.Reason == WaitReason.Retreating))
 			return false;
 		// 코어 방에서 파티가 아직 조사하지 않은 코어가 있으면 조사자가 그 코어를 조사 대상으로 삼는다 — 이하 이동·진행·중단 규칙은 일반 조사와 같다(코어 점령 v0.2 10-1장).
@@ -543,7 +544,6 @@ public class TacticalFSMState : IFSMState
 		FaceTrap(unit, trap.TrapPosition);
 		// 07문서 10장: 해제가 실제로 시작되는 시점에 "진행 중" 정보를 1회 전파(보호 포메이션 참여 자격).
 		if (!trap.PenaltyActive) PropagationSystem.NotifyInteractionStarted(human);
-		if (!trap.PenaltyActive) SpeechSystem.Say(human, SpeechId.TrapDisarmStart);
 		trap.PenaltyActive = true;
 		trap.PerformedThisTick = true; // 이번 틱에 해제를 수행했다 — Tick 래핑이 "수행 없이 끝난 틱"을 중단으로 잡는다
 		if (trap.DisarmProgress01 < 1f) return BTStatus.Running;
@@ -562,7 +562,6 @@ public class TacticalFSMState : IFSMState
 		{
 			LogHelper.Log(LogHelper.GAME, $"{human.unitType.typeName}가 함정을 해제했습니다.");
 			human.UI?.ShowFloatingTextAt(resultTextPos, "성공", Color.green, 1f);
-			SpeechSystem.Say(human, SpeechId.TrapDisarmed);
 			human.Session.CollectObject(trap.TrapPosition);
 			trap.PenaltyActive           = false;
 			// 9-5장: 해제 성공 시에만 도감에 기록한다(우회·파괴·통과는 기록 안 함). 함정 종류별 도감
@@ -573,7 +572,6 @@ public class TacticalFSMState : IFSMState
 			return BTStatus.Success;
 		}
 		human.UI?.ShowFloatingTextAt(resultTextPos, "실패", Color.red, 1f);
-		SpeechSystem.Say(human, SpeechId.TrapDisarmFailed);
 		if (trap.CachedProgressBar != null)
 		{
 			trap.CachedProgressBar.SetProgress(0f, false);
@@ -969,6 +967,18 @@ public class TacticalFSMState : IFSMState
 			// 전달·부재 확인·접근 실패는 PartyCoreReportSystem이 맡고, 보고 의무는 종료돼도 남을 수 있다(TickPendingReport).
 			if (PartyCoreReportSystem.StepReportMovement(human, wait) == ReportStep.Ended)
 				return BTStatus.Success;
+		}
+		else if (wait.Reason == WaitReason.SearchingAbsentee && wait.WaitPosition.HasValue)
+		{
+			// 리더 명령 5-2장·순서도 P02: 집결 기한 뒤 마지막 위치를 아는 미집결자를 찾아 그 위치로 간다. 도착 후 5초 관찰·발견 처리·복귀는 Party.ApplyRallyRules가 정한다 — 집결이 끝났거나 리더가 바뀌었으면 이 대기는 무효다.
+			var searchParty = human.party;
+			if (searchParty == null || searchParty.Leader != human || !searchParty.IsRallyActive)
+			{
+				human.currentWait = null;
+				human.waitStuckTurns = 0;
+				return BTStatus.Success;
+			}
+			searchParty.StepSearchAbsentee(human, wait);
 		}
 		else if (wait.Reason == WaitReason.SearchingNextDoor)
 		{
@@ -1590,7 +1600,6 @@ public class TacticalFSMState : IFSMState
 
 		if (AIMovementHelper.IsAdjacent(unit.position, pos))
 		{
-			if (!unit.currentAttackObjectTarget.HasValue) SpeechSystem.Say(unit, SpeechId.CoreAttackStart);
 			unit.SetAttackObjectTarget(room.CorePosition);
 			unit.tacticalObjectAttackStuckTurns = 0;
 			return BTStatus.Success;
@@ -1865,7 +1874,6 @@ public class TacticalFSMState : IFSMState
 
 	private static void BeginDoorChannel(Unit unit, Vector3Int doorPos)
 	{
-		if (!unit.currentAttackObjectTarget.HasValue) SpeechSystem.Say(unit, SpeechId.DoorAttackStart);
 		unit.SetAttackObjectTarget(doorPos);
 	}
 

@@ -112,8 +112,20 @@ public partial class Party
 	private float _rallyLatestEta = float.NegativeInfinity;
 	private readonly HashSet<string> _rallyEtaReported = new HashSet<string>();
 	private bool _rallySearchStarted;
-	private float _rallySearchStartedAt;
+	private float _rallySearchStartedAt; // 관찰 시작 시각(도착 후 5초의 기준)
 	private readonly List<string> _rallySearching = new List<string>();
+
+	// 미집결자 수색(5-2장·순서도 P02): 기한 뒤 마지막 위치를 아는 미집결자 중 집결 명령을 못 받은 쪽의 우선 위치로 리더가 나가 도착 후 5초 관찰하고, 시야로 다시 보면 집결 명령을 전달해 합류시키며, 못 찾으면 미확인 상태로 제외한 뒤 집결지로 돌아온다.
+	// 문서에 없어 정한 내부 판단: 리더만 나선다(대원은 집결 자리를 지킨다), 우선 위치 = 리더에게 가장 가까운 마지막 위치, 이동 상한 20초, 명령을 받고 걸어오는 사람은 찾으러 가지 않고 예전처럼 5초 창만 준다.
+	private enum RallySearchPhase { None, Travel, Observe, Finished }
+	private RallySearchPhase _searchPhase;
+	private float _searchBeganAt;            // 수색을 시작한(기한이 지난) 시각 — 이 뒤에 리더가 본 기록을 발견으로 센다
+	private float _searchTravelStartedAt;
+	private bool _searchMoved;               // 리더가 실제로 나갔는가 — 끝난 뒤 집결지 복귀를 기다려야 한다
+	private readonly HashSet<string> _foundBySearch = new HashSet<string>();
+
+	// 테스트가 시계를 주입한다(배치 모드의 Time.time은 흐르지 않는다).
+	internal static System.Func<float> RallyClock = () => Time.time;
 
 	private void ResetRallyRules()
 	{
@@ -121,13 +133,16 @@ public partial class Party
 		_rallyEtaReported.Clear();
 		_rallySearchStarted = false;
 		_rallySearching.Clear();
+		_searchPhase = RallySearchPhase.None;
+		_searchMoved = false;
+		_foundBySearch.Clear();
 	}
 
 	// 집결 완료 확인(CheckRallyComplete)마다 부른다. 남은 미합류자를 이번 대기에서 제외하고 집결을 끝내야 하면 true(강제 완료)를 돌려준다.
 	private bool ApplyRallyRules()
 	{
 		if (!LeaderCommandSettings.RallyRulesEnabled || Leader == null) return false;
-		float now = Time.time;
+		float now = RallyClock();
 
 		// 도착 예정 정보: 집결 명령을 받고 걸어오는 미합류자가 처음 정보를 줄 때 한 번만 반영한다(재수신은 기한을 미루지 않는다).
 		foreach (var m in Members)
@@ -135,18 +150,19 @@ public partial class Party
 			var wait = m?.currentWait;
 			if (m == null || m.hp <= 0f || m == Leader || wait == null || wait.Reason != WaitReason.AwaitingPartyAtRallyPoint || wait.IsParked) continue;
 			if (!wait.WaitPosition.HasValue || IsRallyArrived(m, wait.WaitPosition.Value) || !_rallyEtaReported.Add(m.name)) continue;
-			float speed = Mathf.Max(0.1f, m.AppliedWalkSpeed);
-			float eta = now + AIMovementHelper.ChebyshevDistance(m.position, wait.WaitPosition.Value) / speed;
+			float eta = LeaderMath.RallyEta(now, EstimateRallyWalkSteps(m, wait.WaitPosition.Value, wait.WaitFloor), m.AppliedWalkSpeed);
 			_rallyLatestEta = Mathf.Max(_rallyLatestEta, eta);
 		}
 
 		float deadline = LeaderMath.RallyDeadline(RallyStartTime, _rallyLatestEta); // RallyStartTime은 교전·경계 정지로 밀린 값이라 교전 중에는 기한이 같이 밀린다
 		if (now < deadline) return false;
 
+		if (_searchPhase == RallySearchPhase.Finished) return false; // 수색을 마쳤다 — 이후는 일반 도착 판정과 상한이 집결을 끝낸다
+
 		if (!_rallySearchStarted)
 		{
 			_rallySearchStarted = true;
-			_rallySearchStartedAt = now;
+			_searchBeganAt = now;
 			_rallySearching.Clear();
 			var excluded = new List<string>();
 			foreach (var m in Members)
@@ -158,21 +174,147 @@ public partial class Party
 			if (excluded.Count > 0) LogRally($"집결 기한({deadline - RallyStartTime:F0}초) 경과 — 마지막 위치 정보가 없는 미합류자 [{string.Join(", ", excluded)}]는 미확인 상태로 이번 대기에서 제외합니다");
 			if (_rallySearching.Count > 0)
 			{
-				LogRally($"집결 기한({deadline - RallyStartTime:F0}초) 경과 — 마지막 위치를 아는 미합류자 [{string.Join(", ", _rallySearching)}]를 {LeaderMath.RallySearchSeconds:F0}초 수색합니다");
+				LogRally($"집결 기한({deadline - RallyStartTime:F0}초) 경과 — 마지막 위치를 아는 미합류자 [{string.Join(", ", _rallySearching)}]를 수색합니다(위치 도착 후 {LeaderMath.RallySearchSeconds:F0}초 관찰)");
 				SpeechSystem.Say(Leader, SpeechId.AbsentMember, _rallySearching[0]);
+				BeginRallySearch(now);
 			}
 		}
 
-		if (_rallySearching.Count == 0 || now - _rallySearchStartedAt >= LeaderMath.RallySearchSeconds)
+		if (_searchPhase == RallySearchPhase.None && _rallySearching.Count > 0) { _searchPhase = RallySearchPhase.Observe; _rallySearchStartedAt = now; } // 이동할 곳이 없다(걸어오는 중이거나 이미 곁) — 선 자리에서 관찰
+		if (_searchPhase == RallySearchPhase.Travel || _searchPhase == RallySearchPhase.Observe) ResolveFoundBySearch();
+		if (_searchPhase == RallySearchPhase.Travel && _rallySearching.Count > 0)
 		{
-			if (_rallySearching.Count > 0)
-				LogRally($"수색 {LeaderMath.RallySearchSeconds:F0}초 종료 — 끝내 합류하지 못한 [{string.Join(", ", _rallySearching)}]를 미확인 상태로 이번 대기에서 제외합니다");
-			foreach (var m in Members)
-				if (m != null && m.hp > 0f && m != Leader && !IsRallyMemberJoined(m)) ExcludeFromRally(m);
-			GiveUpAbsentees(now - RallyStartTime); // 명령을 못 받은 미집결자·리더가 모르는 사망도 이번 대기에서 제외한다(단순 부재를 사망·도주로 확정하지는 않는다)
-			return true;
+			if (!RallySearchTravelDone(now)) return false; // 아직 가는 중 — 관찰 5초는 도착한 뒤부터 센다
+			_searchPhase = RallySearchPhase.Observe;
+			_rallySearchStartedAt = now;
+			LogRally($"수색 위치에 도착(또는 더 못 감) — {LeaderMath.RallySearchSeconds:F0}초 관찰합니다");
 		}
-		return false;
+
+		bool windowOver = _rallySearching.Count == 0 || (_searchPhase == RallySearchPhase.Observe && now - _rallySearchStartedAt >= LeaderMath.RallySearchSeconds);
+		if (!windowOver) return false;
+
+		if (_rallySearching.Count > 0)
+			LogRally($"수색 {LeaderMath.RallySearchSeconds:F0}초 종료 — 끝내 찾지 못한 [{string.Join(", ", _rallySearching)}]를 미확인 상태로 이번 대기에서 제외합니다");
+		foreach (var m in Members) // 수색으로 찾아 집결 명령을 받은 사람은 제외하지 않는다 — 집결지로 걸어오게 둔다
+			if (m != null && m.hp > 0f && m != Leader && !IsRallyMemberJoined(m) && !_foundBySearch.Contains(m.name)) ExcludeFromRally(m);
+		GiveUpAbsentees(now - RallyStartTime); // 명령을 못 받은 미집결자·리더가 모르는 사망도 이번 대기에서 제외한다(단순 부재를 사망·도주로 확정하지는 않는다)
+		_searchPhase = RallySearchPhase.Finished;
+		ReturnLeaderFromSearch();
+		// 이동한 적이 없고 찾은 사람도 없으면 예전처럼 곧바로 끝낸다(true). 나갔다 오거나 찾은 사람이 걸어오는 중이면 강제 완료하지 않고 일반 도착 판정(전원 도착·상한)에 맡긴다.
+		return !(_searchMoved || _foundBySearch.Count > 0);
+	}
+
+	// 우선 위치를 정해 리더를 보낸다 — 집결 명령을 받지 못한(받았으면 이미 이쪽으로 오는 중) 미집결자의 마지막 확인 위치 중 가장 가까운 곳. 갈 곳이 없거나 이미 곁이면 이동 없이 false.
+	private void BeginRallySearch(float now)
+	{
+		if (Leader.currentFloor != RallyFloor) return;
+		var wait = Leader.currentWait;
+		if (wait != null && wait.Reason != WaitReason.AwaitingPartyAtRallyPoint) return; // 다른 대기를 하는 리더는 건드리지 않는다
+
+		var candidates = new List<LeaderMath.RallySearchCandidate>();
+		foreach (string name in _rallySearching)
+		{
+			var m = FindMemberByName(name);
+			if (m == null || _rallyRecipients.Contains(m)) continue;
+			if (!Command.LeaderLastSeen.TryGetValue(name, out var seen)) continue;
+			candidates.Add(new LeaderMath.RallySearchCandidate { Name = name, Position = seen.position, Floor = seen.floor, SeenAt = seen.time });
+		}
+		int index = LeaderMath.PickRallySearchTarget(Leader.position, RallyFloor, candidates);
+		if (index < 0) return;
+
+		var target = candidates[index];
+		if (AIMovementHelper.ChebyshevDistance(Leader.position, target.Position) <= 1) return; // 이미 곁이다 — 이동 없이 관찰
+
+		Leader.currentWait = new WaitState { Reason = WaitReason.SearchingAbsentee, WaitPosition = target.Position, WaitFloor = RallyFloor };
+		Leader.waitStuckTurns = 0;
+		_searchPhase = RallySearchPhase.Travel;
+		_searchTravelStartedAt = now;
+		_searchMoved = true;
+		LogRally($"리더 {Leader.name}이(가) {target.Name}의 마지막 확인 위치 ({target.Position.x},{target.Position.y})로 수색하러 갑니다(이동 최대 {LeaderMath.RallySearchTravelMaxSeconds:F0}초)");
+	}
+
+	// 수색 위치로 가는 이동이 끝났는가 — 도착했거나 끝내 못 가는 중이거나(IsParked), 수색 대기가 없어졌거나, 이동 상한을 넘겼다.
+	private bool RallySearchTravelDone(float now)
+	{
+		var wait = Leader.currentWait;
+		if (wait == null || wait.Reason != WaitReason.SearchingAbsentee) return true;
+		if (wait.AtSlot || wait.IsParked) return true;
+		if (now - _searchTravelStartedAt < LeaderMath.RallySearchTravelMaxSeconds) return false;
+		LogRally($"수색 위치로 가는 이동이 {LeaderMath.RallySearchTravelMaxSeconds:F0}초를 넘겨 선 자리에서 관찰합니다");
+		return true;
+	}
+
+	// 수색 중 리더가 시야로 다시 본 미집결자를 찾은 것으로 처리한다 — 곁이라 집결 명령이 닿으면 지금 전달해 집결지로 오게 하고, 닿지 않으면 이번 대기에서 제외한다(보였지만 명령할 수 없는 사람을 영원히 기다리지 않는다).
+	private void ResolveFoundBySearch()
+	{
+		List<string> found = null;
+		for (int i = _rallySearching.Count - 1; i >= 0; i--)
+		{
+			string name = _rallySearching[i];
+			var m = FindMemberByName(name);
+			if (m == null || m.hp <= 0f) { _rallySearching.RemoveAt(i); continue; }
+			bool seen = Leader.visiblePartyMembers.Contains(m)
+				|| (Command.LeaderLastSeen.TryGetValue(name, out var last) && last.time >= _searchBeganAt);
+			if (!seen) continue;
+			_rallySearching.RemoveAt(i);
+			_foundBySearch.Add(name);
+			(found ??= new List<string>()).Add(name);
+		}
+		if (found == null) return;
+
+		LogRally($"수색 중 [{string.Join(", ", found)}]을(를) 시야로 확인했습니다(사망·도주 확정이 아니라 발견) — 집결 명령을 전달합니다");
+		TickLateRallyDelivery();
+		foreach (string name in found)
+		{
+			var m = FindMemberByName(name);
+			if (m == null || _rallyRecipients.Contains(m)) continue;
+			_givenUpAbsent.Add(name);
+			LogRally($"{name}은(는) 보이지만 집결 명령이 닿지 않아 이번 대기에서 제외합니다");
+		}
+	}
+
+	// 수색을 마쳤다 — 나가 있던 리더를 집결지로 돌려보낸다(다시 집결 대기로 전환).
+	private void ReturnLeaderFromSearch()
+	{
+		var wait = Leader?.currentWait;
+		if (wait == null || wait.Reason != WaitReason.SearchingAbsentee || !RallyPoint.HasValue) return;
+		GiveRallySlot(Leader, new HashSet<Vector2Int> { RallyPoint.Value }, gatherNearby: true); // 리더의 자리는 집결지 그대로
+		LogRally($"리더 {Leader.name}이(가) 수색을 마치고 집결지 {RallyPoint.Value}로 돌아갑니다");
+	}
+
+	// 교전·경계로 집결 시계가 멈춘 만큼 수색 이동·관찰 시계도 멈춘다(ApplyRallyEngagementPause가 호출).
+	private void ShiftRallySearchClock(float credit)
+	{
+		if (_searchPhase == RallySearchPhase.Travel) _searchTravelStartedAt += credit;
+		else if (_searchPhase == RallySearchPhase.Observe) _rallySearchStartedAt += credit;
+	}
+
+	private Human FindMemberByName(string name)
+	{
+		foreach (var m in Members)
+			if (m != null && m.name == name) return m;
+		return null;
+	}
+
+	// 수색 위치로 가는 리더의 한 틱(TacticalFSMState.ExecuteWait가 호출) — 도착하면 AtSlot, 오래 막혀 못 가면 IsParked로 표시하고 단계 전이는 ApplyRallyRules가 읽는다.
+	public void StepSearchAbsentee(Human leader, WaitState wait)
+	{
+		if (wait.IsParked || !wait.WaitPosition.HasValue) return;
+		if (wait.WaitFloor >= 0 && leader.currentFloor != wait.WaitFloor) { wait.IsParked = true; return; } // 층을 건넜다 — 그 좌표로 걷지 않는다
+		if (SlotSeek.Step(leader, wait, wait.WaitPosition.Value, useHold: false, arrivalRadius: 1) == SeekStatus.GaveUp)
+		{
+			wait.IsParked = true;
+			LogRally($"리더 {leader.name}이(가) 수색 위치 ({wait.WaitPosition.Value.x},{wait.WaitPosition.Value.y})에 오래 못 가 선 자리에서 관찰합니다");
+		}
+	}
+
+	// 집결 자리까지 남은 걸음 수 — 같은 층이고 길을 알면 실제 경로 길이(아군·함정을 빼고 벽·닫힌 문·지형은 그대로 본 구조 경로, 후퇴 거점 조회와 같은 기준), 아니면 직선(체비셰프) 거리로 대신한다(R4: 우회로가 긴 대원의 기한이 일찍 잡히던 근사의 교체).
+	// 다른 층이거나 경로를 못 찾으면 예전 근사 그대로라, 이 함수 때문에 집결 기한이 짧아지는 일은 없다(경로 길이 ≥ 직선거리).
+	internal static int EstimateRallyWalkSteps(Human m, Vector2Int goal, int goalFloor)
+	{
+		int straight = AIMovementHelper.ChebyshevDistance(m.position, goal);
+		if (goalFloor >= 0 && m.currentFloor != goalFloor) return straight;
+		return RetreatBlockResolver.TryGetBaselineLength(m, goal, out int pathLength) ? Mathf.Max(straight, pathLength) : straight;
 	}
 
 	// 합류했는가: 집결 자리에 도착했거나 다른 층·정박 등으로 이미 이번 집결에서 빠졌다.

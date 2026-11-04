@@ -91,6 +91,22 @@ public static class LeaderSuccessionSystem
 
 		EndLeaderAuthority(party, name);
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [지휘] 리더 {name} 지휘 상실({(reason == LeaderLossReason.Death ? "사망" : "개인 도주 확정")}) — 명령·기본 버프·집결·공동 이동·파티 후퇴 종료, {(reason == LeaderLossReason.Death ? "지금부터" : "소속 생존 파티원의 최초 확인 후")} {LeaderMath.SuccessionDelaySeconds:F0}초 뒤 후임 선정");
+		if (reason == LeaderLossReason.Death) SpeechSystem.Say(PickDeathWitness(party, leader), SpeechId.LeaderDeathAlarm); // 연출 — 리더가 죽은 순간 파티원 한 명이 알린다(연출 전용, 정보 전파·정신력 감소와 무관)
+	}
+
+	// 리더가 죽었다고 외칠 파티원 한 명 — 같은 층의 살아 있는 비도주 파티원 중 죽은 리더에게 가장 가까운 사람(가장 가까이서 지켜봤을 사람). 없으면 null. 같은 거리면 파티 구성원 순서가 앞선 쪽.
+	internal static Human PickDeathWitness(Party party, Human deadLeader)
+	{
+		Human best = null;
+		float bestDist = float.MaxValue;
+		foreach (var m in party.Members)
+		{
+			if (m == null || m == deadLeader || m.hp <= 0f || m.currentFloor != deadLeader.currentFloor) continue;
+			if (m.Retreat != null && m.Retreat.IsFleeing) continue;
+			float d = Vector2Int.Distance(m.position, deadLeader.position);
+			if (d < bestDist) { best = m; bestDist = d; }
+		}
+		return best;
 	}
 
 	// 잃은 지휘자의 권한으로 돌던 것을 끝낸다(17-표1 "실제 사망 즉시"). 명령·버프의 정리는 각 시스템이 이 호출에 합류한다.

@@ -315,15 +315,6 @@ namespace GrimArchive.Wave
                 stagingUnits.Add(member);
             }
 
-            // 연출 — 계단 접근 명령이 떨어지는 이 순간(걷기 시작 전)에 한 번만 말한다. 계단을 건넌 뒤에 말하면 걷는 동안 침묵하다 1층에 와서야 뜬다. 침공 개시 대사는 리더 몫이라 겹치지 않게 리더가 아닌 파티원이 말한다.
-            Human stairSpeaker = null;
-            foreach (var member in members)
-            {
-                if (member == null || member.hp <= 0f) continue;
-                if (stairSpeaker == null || stairSpeaker == preSpawnedParty?.Leader) stairSpeaker = member;
-            }
-            SpeechSystem.Say(stairSpeaker, SpeechId.TakeStairs);
-
             // 입구 시퀀스가 cooldownTimer보다 먼저 끝나면 activeParty가 비어 MonitorWave()가 '전멸'로 오판하므로 StartWave()와 같이 여기서도 세팅한다(재대입은 무해).
             activeParty = preSpawnedParty;
             exitAreaPos = floor1StairPos;
@@ -928,7 +919,6 @@ namespace GrimArchive.Wave
 
             LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 정상 귀환 시작 — 리더 {party.Leader?.name}: 다음으로 진행할 일반 방이 없고 보스가 살아 있는 보스방만 남음. 실제 달성 수량으로 종료(방 탐색 {party.CompletedRoomExploreCount}/{PartyGoalMath.RequiredRoomExploreCount}, 몬스터 처치 {CommonMonsterKillCount:F1}/{PartyGoalMath.RequiredMonsterKillCount:F1})");
             SpeechSystem.Say(party.Leader, SpeechId.NormalReturn);
-            RetreatSystem.NotifyPlayer(party.Leader, $"인류 {party.Type.ToKorean()} 파티가 정상 귀환을 시작했습니다");
             OrderRetreat();
         }
 

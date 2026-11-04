@@ -55,7 +55,6 @@ public sealed class CoreSalvage
 		if (carrier == null || piece == null || piece.IsCollected) return;
 		_session.CollectObject(piece.Position);
 		carrier.carriesCoreSalvage = true;
-		SpeechSystem.Say(carrier, SpeechId.SalvagePicked);
 		LogHelper.Log(LogHelper.GAME, $"[코어] {carrier.name}이(가) 코어 잔해를 획득 — 파티가 던전 밖으로 반출한다");
 	}
 

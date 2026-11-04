@@ -27,6 +27,9 @@ public enum WaitReason
 	EnteringNextRoom,
 	// 점령 파티가 현재 방에 기초(또는 방어) 시설을 짓는다(코어 점령 v0.2 12장) — WorkRoom의 방 쪽 문 곁 자리로 가서 일하고, 일하는 인원 수만큼 건설이 빨라진다(OccupationSystem.StepConstruct). 전투·경계가 우선한 틱엔 일이 멈추고 진행도는 남는다.
 	ConstructingBase,
+	// 집결 기한 뒤 마지막 위치를 아는 미집결자를 리더가 찾으러 가서 관찰한다(리더 명령 5-2장·순서도 P02) — 리더 전용. WaitPosition = 수색 위치(미집결자의 마지막 확인 위치), AtSlot = 도착, IsParked = 끝내 못 가서 선 자리에서 관찰.
+	// 이동 후 관찰·발견 처리·집결지 복귀는 Party.ApplyRallyRules가 단계를 정하고, 이 사유의 유닛 몫은 Party.StepSearchAbsentee(이동)뿐이다.
+	SearchingAbsentee,
 }
 
 public class WaitState

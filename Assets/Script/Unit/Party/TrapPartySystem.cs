@@ -50,7 +50,6 @@ public static class TrapPartySystem
 				Deferred = defer,
 			};
 			party.TrapCoordinations[trapObj.Id] = coord;
-			SpeechSystem.Say(discoverer, SpeechId.TrapFound);
 		}
 
 		// 9-3장 전파는 07문서 6장 일반 전파 조건(비전투+같은 공간+전파 범위)을 따른다 — 발견자는 항상
@@ -65,7 +64,6 @@ public static class TrapPartySystem
 			if (!m.personalMap.IsObjectKnown(trapObj.Id))
 			{
 				m.personalMap.RegisterObject(trapObj.Id, trapObj.Position, trapObj.BaseDanger, trapObj.BaseInterest, trapObj.Tags, trapObj.CauserStage);
-				if (m != discoverer) SpeechSystem.Say(m, SpeechId.TrapWarned); // 연출 — 전해 들은 사람의 반응
 			}
 		}
 
@@ -291,7 +289,8 @@ public static class TrapPartySystem
 		var wait = human.currentWait;
 		if (wait != null && (wait.Reason == WaitReason.AwaitingPartyAtRallyPoint || wait.Reason == WaitReason.AdvancingToNextRoom
 			|| wait.Reason == WaitReason.ReportingCoreToLeader || wait.Reason == WaitReason.SearchingNextDoor || wait.Reason == WaitReason.Retreating
-			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.BreachingDoor || wait.Reason == WaitReason.EnteringNextRoom))
+			|| wait.Reason == WaitReason.FormingUpAtDoor || wait.Reason == WaitReason.BreachingDoor || wait.Reason == WaitReason.EnteringNextRoom
+				|| wait.Reason == WaitReason.SearchingAbsentee))
 			return true;
 
 		var party = human.party;

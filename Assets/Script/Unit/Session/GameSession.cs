@@ -826,7 +826,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // lastAttacker가 아니라 lastDamageDealer를 넘긴다 — lastAttacker는 인류-몬스터 교차 히트
             // 에서만 갱신되는 가중치 시스템 전용 필드라 몬스터끼리 킬은 항상 null이 된다.
             u.FactionBehavior?.OnDeath(u, u.lastDamageDealer);
-            if (u is Monster && u.lastDamageDealer is Human slayer) SpeechSystem.Say(slayer, SpeechId.KillEnemy); // 연출
             if (u.lastDamageDealer != null && u.lastDamageDealer.IsPlayerMonsterFaction && !u.IsPlayerMonsterFaction) PlayerKillCount++; // 패배 화면 기록용
 
             // 방 확보는 RoomClearSystem이 주기적으로 판정하므로 유닛 사망 시점에 따로 확인하지 않는다 — 문 개폐도
@@ -1070,6 +1069,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         if (!OccupancySystem.TryHonorYield(u) && !OccupancySystem.ShouldHold(u))
             u.ExecuteAction();
         string newLabel = u.fsm.GetLabel(u);
+        if (oldLabel != newLabel && CombatDecisionTrace.Enabled) CombatDecisionTrace.Record(u, "상태", -1, oldLabel + ">" + newLabel); // 진단: 상태 라벨이 바뀐 틱(전투↔다른 상태 깜빡임 확인용 — 상태가 바뀔 때만 문자열을 만든다)
 
         bool stateChanged = oldPos != u.position || oldLabel != newLabel || oldDir != u.currentDir;
 

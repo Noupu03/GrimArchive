@@ -44,6 +44,7 @@ public static class CommandIssueSystem
 
 		_recipients.Clear();
 		CollectRecipients(human, _recipients);
+		if (!CommandSelectionMath.HasRecipient(_recipients.Count)) return; // 4-1장·순서도 L02 "전달 조건 확인": 전파 범위 안에 명령을 받을 소속 파티원이 있어야 내린다 — 리더 혼자에게는 명령하지 않는다(쿨타임·계기도 소비하지 않는다)
 
 		// 8장 순서. 고유 지휘 스킬(80/100)은 콘텐츠가 미정이라 후보가 없다. 상위 공동 공격은 상위 지휘관 쪽(ExpeditionCommandSystem).
 		if (TryIssueObjectFocus(human, party, now)) return;
@@ -212,6 +213,7 @@ public static class CommandIssueSystem
 		var template = new FocusOrder { CommandId = id, Command = TacticalCommand.ObjectFocus, Authority = CommandAuthority.Leader, IssuerName = leader.name, ObjectTarget = door };
 		DeliverFocus(leader, template, _recipients, now);
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [지휘] 차단물 공동 파괴 — 리더 {leader.name} → 문 {door}, 전달 {_recipients.Count}명(이전 적 지정 교체, 제거 뒤 자동 복원 없음)");
+		SpeechSystem.Say(leader, SpeechId.CmdObjectFocus); // 연출 — 리더의 명령이라 왕관이 붙는다
 		return true;
 	}
 
@@ -233,6 +235,7 @@ public static class CommandIssueSystem
 		};
 		DeliverFocus(leader, template, _recipients, now);
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [지휘] 집중 공격 — 리더 {leader.name}(현재 통솔력 {leader.LeaderState.CurrentLeadership:F0}) → {target.name} 점수 {score:F1}, 전달 {_recipients.Count}명, 쿨타임 {LeaderMath.GeneralCooldownSeconds:F0}초");
+		SpeechSystem.Say(leader, SpeechId.CmdFocusAttack, target.name); // 연출 — 지정한 적 이름을 외친다
 	}
 
 	// 받는 파티원마다 자기 사본을 만들어 준다(추적 시계는 개인별). 리더 본인도 받는다. 같은 명령 식별을 이미 가진 파티원에게는 다시 만들지 않는다(재전달은 새 명령이 아니다).
@@ -384,17 +387,22 @@ public static class CommandIssueSystem
 	}
 
 	// 5-1-표5: 리더가 직접 확인한 아군(자기 포함)의 HP 30% 이하 + 공격 위협, 또는 행동 불능 + 공격받음. 사망 예측은 쓰지 않는다.
-	private static bool HasProtectEmergency(Human leader, Party party)
+	private static bool HasProtectEmergency(Human leader, Party party) => FindProtectAlly(leader, party) != null;
+
+	// 긴급 조건을 만족하는 아군 중 HP 비율이 가장 낮은(가장 위급한) 사람 — 없으면 null. 보호 명령은 대상 지정 없이 각자 기존 보호 순서를 따르므로 이 사람은 발령 근거이자 대사에 밝힐 이름일 뿐 명령 대상 필드가 아니다.
+	private static Human FindProtectAlly(Human leader, Party party)
 	{
+		Human best = null;
+		float bestRatio = float.MaxValue;
 		foreach (var m in party.Members)
 		{
 			if (m == null || m.hp <= 0f || m.currentFloor != leader.currentFloor) continue;
 			if (!EnemyInfoAccess.TryGetAllyHpRatio(leader, m, out float ratio)) continue; // 시야 밖 아군의 HP는 자동 갱신하지 않는다
 			bool underThreat = m.HasActiveThreatGroundTruth();
 			bool incapacitated = m.StatusEffects.State.stunDuration > 0f;
-			if (CommandSelectionMath.IsProtectEmergency(ratio, underThreat, incapacitated, m.isHitThisTurn)) return true;
+			if (CommandSelectionMath.IsProtectEmergency(ratio, underThreat, incapacitated, m.isHitThisTurn) && ratio < bestRatio) { best = m; bestRatio = ratio; }
 		}
-		return false;
+		return best;
 	}
 
 	private static void IssueAction(Human leader, Party party, TacticalCommand command, Unit suppressTarget, float now)
@@ -402,13 +410,35 @@ public static class CommandIssueSystem
 		var st = party.Command;
 		string id = NewCommandId();
 		StartCooldown(party, command, now);
-		st.Strike.ConsumeAll(); // 지금 유효한 강공격 계기는 이 발령으로 소비된다(여러 계기를 명령 횟수로 누적하지 않는다)
+		// 강공격을 실제로 낸 때만 지금 유효한 계기를 전부 소비한다(여러 계기를 명령 횟수로 누적하지 않는다). 제압·보호 같은 더 높은 순위의 명령이 먼저 나갔다면 강공격 계기는 근거가 유효한 동안 남아 쿨타임 뒤 다시 판단한다(5-1-표2 "더 높은 순위의 명령 때문에 아직 명령하지 못함").
+		if (CommandSelectionMath.ConsumesStrikeTriggers(command)) st.Strike.ConsumeAll();
 		if (command == TacticalCommand.Suppress) st.LastSuppressTarget = suppressTarget; // 5초 적용이 끝나도 기억한다 — 기억만으로 끝난 우선순위를 계속 적용하지는 않는다
 
 		var template = new ActionOrder { CommandId = id, Command = command, Authority = CommandAuthority.Leader, IssuerName = leader.name, SuppressTarget = suppressTarget };
 		GiveAction(leader, template, now); // 리더 본인은 발령 시점부터 5초
 		foreach (var m in _recipients) GiveAction(m, template, now); // 파티원은 받은 시점부터 5초
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [지휘] {command.ToKorean()} — 리더 {leader.name}({party.Concept.ToKorean()} 파티){(suppressTarget != null ? $" → {suppressTarget.name}" : "")}, 전달 {_recipients.Count}명, 적용 {LeaderMath.ActionPriorityApplySeconds:F0}초·쿨타임 {LeaderMath.GeneralCooldownSeconds:F0}초");
+		SayActionOrder(leader, party, command, suppressTarget);
+	}
+
+	// 연출 — 리더가 명령과 그 대상을 외친다(2026-11-04 사용자 요청 "명령 대상을 명확히"). 강공격은 파티원이 치는 적(리더의 현재 공격 대상, 없으면 지정 적), 제압은 제압 대상, 보호는 가장 위급한 아군(리더 자신이면 전용 대사). 강공격·제압·보호 외에는 발령 경로가 없다.
+	private static void SayActionOrder(Human leader, Party party, TacticalCommand command, Unit suppressTarget)
+	{
+		switch (command)
+		{
+			case TacticalCommand.Suppress:
+				SpeechSystem.Say(leader, SpeechId.CmdSuppress, suppressTarget != null ? suppressTarget.name : null);
+				break;
+			case TacticalCommand.Protect:
+				Human ally = FindProtectAlly(leader, party);
+				if (ally == leader) SpeechSystem.Say(leader, SpeechId.CmdProtectSelf);
+				else SpeechSystem.Say(leader, SpeechId.CmdProtect, ally != null ? ally.name : null);
+				break;
+			default:
+				Unit target = CommandSkillSelector.DefaultAttackTarget(leader, party.Command.FocusTarget);
+				SpeechSystem.Say(leader, SpeechId.CmdStrike, target != null ? target.name : null);
+				break;
+		}
 	}
 
 	public static void GiveAction(Human member, ActionOrder template, float now)

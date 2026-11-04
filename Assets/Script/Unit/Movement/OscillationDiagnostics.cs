@@ -93,6 +93,9 @@ public static class OscillationDiagnostics
 		sb.Append(", 전투대상=");
 		if (enemy == null || enemy.hp <= 0) sb.Append("없음");
 		else sb.Append(enemy.name).Append("(거리 ").Append(AIMovementHelper.ChebyshevDistance(h.position, enemy.position)).Append(')');
+
+		// 무엇이 움직였는지(2026-11-04) — 후퇴·추격·발사·지원 접근·회피·상태/대상 교체의 최근 판단. 이 줄의 이동 횟수는 유닛 자신의 행동 틱 안에서 바뀐 위치만 센다(비동기 회피 ForceMove는 거기 안 잡힐 수 있어 판단 목록의 "회피"로 따로 본다).
+		sb.Append(", 최근판단=[").Append(CombatDecisionTrace.Describe(h, Time.time)).Append(']');
 		return sb.ToString();
 	}
 }

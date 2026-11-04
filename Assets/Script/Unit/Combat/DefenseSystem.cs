@@ -201,6 +201,7 @@ public static class DefenseSystem
 					if (moved)
 					{
 						defender.CombatState.State.evadeCooldown = 1.2f;
+						CombatDecisionTrace.Record(defender, "회피");
 						defender.Generate?.TriggerAnim(defender, AnimSlot.Dodge);
 					}
 				}
@@ -232,6 +233,7 @@ public static class DefenseSystem
 
 				defender.Health.mp -= cost;
 				defender.Generate?.TriggerAnim(defender, AnimSlot.Blink);
+				CombatDecisionTrace.Record(defender, "점멸");
 				defender.ForceMove(validTiles[Random.Range(0, validTiles.Count)]);
 				break;
 			}

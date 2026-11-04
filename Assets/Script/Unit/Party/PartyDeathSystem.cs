@@ -11,7 +11,10 @@ public static class PartyDeathSystem
 	// ─────────────────────────── 4-12/4-14장: 사망 순간 직접 목격 ───────────────────────────
 	// GameSession.RemoveDeadUnit이 인류 사망 시 호출한다. dead는 아직 Destroy 전이라(이 프레임 끝에
 	// Destroy) 위치/방향/lastAttacker를 안전하게 읽을 수 있다.
-	public static void OnPartyMemberDied(Human dead, string corpseObjectId)
+	public static void OnPartyMemberDied(Human dead, string corpseObjectId) => OnPartyMemberDied(dead, corpseObjectId, dead.Session?.parties);
+
+	// parties: 세션의 파티 목록(없으면 null) — 상위 지휘관 사망을 같은 원정의 다른 파티에 전파할 때만 쓴다. 테스트가 세션 없이 목록을 직접 넘긴다.
+	internal static void OnPartyMemberDied(Human dead, string corpseObjectId, IReadOnlyList<Party> parties)
 	{
 		var party = dead.party;
 		if (party == null) return;
@@ -25,15 +28,19 @@ public static class PartyDeathSystem
 			CauseMonster = dead.lastAttacker,
 			CauseTrap = dead.lastTrapAttacker,
 			IncidentId = System.Guid.NewGuid().ToString(),
-			// 지휘 상실 처리(GameSession.CheckPartyWaveState)보다 먼저 불리므로 아직 Leader가 죽은 유닛이다. 상위 지휘관의 사망도 같은 충격이다(18-1장 "자기 리더 또는 자신에게 적용되는 상위 지휘관") — 단 사망 정보는 지금 이 파티 안에서만 전파된다.
+			// 지휘 상실 처리(GameSession.CheckPartyWaveState)보다 먼저 불리므로 아직 Leader가 죽은 유닛이다. 상위 지휘관의 사망도 같은 충격이다(18-1장 "자기 리더 또는 자신에게 적용되는 상위 지휘관") — 상위 지휘관 사망은 같은 원정의 다른 소속 파티에도 전파된다(CollectAffectedMembers).
 			DeadWasLeader = LeaderCommandSettings.Enabled && (party.Leader == dead || (dead.LeaderState != null && dead.LeaderState.IsSuperiorCommander)),
+			DeadWasSuperior = LeaderCommandSettings.Enabled && dead.LeaderState != null && dead.LeaderState.IsSuperiorCommander,
+			OwnerParty = party,
 		};
 		party.DeathRecords[corpseObjectId] = record;
 
 		Human representative = null;
 		float repDist = float.MaxValue;
 
-		foreach (var m in party.Members)
+		var affected = new List<Human>();
+		CollectAffectedMembers(record, parties, affected);
+		foreach (var m in affected)
 		{
 			if (m == null || m == dead || m.hp <= 0) continue;
 			float d = Vector2Int.Distance(m.position, dead.position);
@@ -46,7 +53,7 @@ public static class PartyDeathSystem
 		}
 
 		if (representative != null)
-			PropagateFrom(party, record, dead, representative);
+			PropagateFrom(record, parties, dead, representative);
 
 		if (!record.CauseConfirmed)
 			TriggerUnknownCauseSearch(party, record, corpseObjectId);
@@ -54,10 +61,12 @@ public static class PartyDeathSystem
 
 	// ─────────────────────────── 4-12/4-13장: 나중에 시체를 발견한 경우 ───────────────────────────
 	// UnitFunction.CastRay가 시체(Corpse+Human 태그)를 처음 정확 인지한 순간 호출한다.
-	public static void OnCorpseDiscovered(Human discoverer, InteractableObject corpse)
+	public static void OnCorpseDiscovered(Human discoverer, InteractableObject corpse) => OnCorpseDiscovered(discoverer, corpse, discoverer.Session?.parties);
+
+	internal static void OnCorpseDiscovered(Human discoverer, InteractableObject corpse, IReadOnlyList<Party> parties)
 	{
 		if (corpse == null || !corpse.Tags.Contains("Human")) return; // 몬스터 시체는 이 시스템 대상 아님
-		var party = ResolveOwnerParty(discoverer, corpse);
+		var party = ResolveOwnerParty(discoverer, corpse, parties);
 		if (party == null) return;
 		if (!party.DeathRecords.TryGetValue(corpse.Id, out var record)) return; // 정상 흐름이면 항상 존재
 		if (record.InfoKnownUnits.Contains(discoverer.name)) return; // 이미 앎(직접목격 등) — 중복 없음
@@ -65,7 +74,7 @@ public static class PartyDeathSystem
 		ApplyDeathInfo(record, discoverer, mentalDelta: -ExplorationMath.DeathDirectDiscoveryMentalLoss, isDirectDiscovery: true);
 		TryConfirmCauseByWitness(record, discoverer);
 		TryConfirmTrapCause(record);
-		PropagateFrom(party, record, deadUnitPositionOwner: null, representative: discoverer);
+		PropagateFrom(record, parties, deadUnitPositionOwner: null, representative: discoverer);
 
 		if (!record.CauseConfirmed && !record.UnknownCauseSearchTriggered)
 			TriggerUnknownCauseSearch(party, record, corpse.Id);
@@ -76,7 +85,7 @@ public static class PartyDeathSystem
 	public static void OnCorpseInvestigated(Human investigator, InteractableObject corpse)
 	{
 		if (corpse == null || !corpse.Tags.Contains("Human")) return;
-		var party = ResolveOwnerParty(investigator, corpse);
+		var party = ResolveOwnerParty(investigator, corpse, investigator.Session?.parties);
 		if (party == null) return;
 		if (!party.DeathRecords.TryGetValue(corpse.Id, out var record)) return;
 		if (record.CauseConfirmed) return;
@@ -112,14 +121,37 @@ public static class PartyDeathSystem
 	// ─────────────────────────── 내부 헬퍼 ───────────────────────────
 
 	// 시체의 OwnerPartyId로 원본 파티를 찾는다 — 발견자가 그 파티 소속이 아닌 경우까지 대비해 GameSession.parties에서 직접 찾는다.
-	private static Party ResolveOwnerParty(Human discoverer, InteractableObject corpse)
+	private static Party ResolveOwnerParty(Human discoverer, InteractableObject corpse, IReadOnlyList<Party> parties)
 	{
 		if (string.IsNullOrEmpty(corpse.OwnerPartyId)) return discoverer.party;
 		if (discoverer.party != null && discoverer.party.Id == corpse.OwnerPartyId) return discoverer.party;
-		if (discoverer.Session == null) return discoverer.party;
-		foreach (var p in discoverer.Session.parties)
+		if (parties == null) return discoverer.party;
+		foreach (var p in parties)
 			if (p != null && p.Id == corpse.OwnerPartyId) return p;
 		return discoverer.party;
+	}
+
+	// 이 사망 사건의 정보를 주고받는 사람들 — 죽은 유닛의 파티원 전체, 상위 지휘관 사망이면 같은 원정의 다른 소속 파티원까지(16-2·18-1장 "자신에게 적용되는 상위 지휘관"). 점령 파티와 이미 끝난 파티는 원정이 아니다.
+	private static void CollectAffectedMembers(PartyDeathRecord record, IReadOnlyList<Party> parties, List<Human> into)
+	{
+		into.Clear();
+		var owner = record.OwnerParty;
+		if (owner == null) return;
+		foreach (var m in owner.Members) if (m != null) into.Add(m);
+		if (!record.DeadWasSuperior || parties == null) return;
+		foreach (var p in parties)
+		{
+			if (p == null || p == owner || p.WaveEnded || !ExpeditionCommandSystem.InSameExpedition(owner, p)) continue;
+			foreach (var m in p.Members) if (m != null) into.Add(m);
+		}
+	}
+
+	// 리더 사망 효과(정신력 −20/−10·능력치 충격)가 이 사람에게 적용되는가 — 죽은 리더의 파티원이거나, 상위 지휘관이었다면 같은 원정의 소속 파티원이다. 관련 없는 다른 파티는 일반 사실 정보만 기록한다(18-2장): 시체를 봐도 일반 사망 감소(−10)뿐이고 충격은 없다.
+	internal static bool LeaderDeathApplies(PartyDeathRecord record, Human receiver)
+	{
+		if (!record.DeadWasLeader || receiver == null || receiver.party == null || record.OwnerParty == null) return false;
+		if (receiver.party == record.OwnerParty) return true;
+		return record.DeadWasSuperior && ExpeditionCommandSystem.InSameExpedition(record.OwnerParty, receiver.party);
 	}
 
 	private static void ApplyDeathInfo(PartyDeathRecord record, Human unit, float mentalDelta, bool isDirectDiscovery)
@@ -127,10 +159,11 @@ public static class PartyDeathSystem
 		if (record.InfoKnownUnits.Contains(unit.name)) return;
 		record.InfoKnownUnits.Add(unit.name);
 		// 리더 사망은 일반 사망 감소에 더하지 않고 기본 감소량을 대체한다 — 직접 확인 −20 / 전달받음 −10, 이후 기존 정신력 보정(ApplyChange)을 적용한다(18-2장).
-		if (record.DeadWasLeader) mentalDelta = -LeaderMath.LeaderDeathMentalLoss(isDirectDiscovery);
+		bool leaderEffect = LeaderDeathApplies(record, unit);
+		if (leaderEffect) mentalDelta = -LeaderMath.LeaderDeathMentalLoss(isDirectDiscovery);
 		MentalSystem.ApplyChange(unit, mentalDelta); // mentalDelta는 음수 — 정신력 변경 단일 진입점
-		if (record.DeadWasLeader) DeathShockSystem.Apply(unit); // 능력치 −20%·10초 — 처음 안 때부터 파티원별로 따로 센다(17-표1·18-1장)
-		if (isDirectDiscovery) SpeechSystem.Say(unit, record.DeadWasLeader ? SpeechId.LeaderDeathAlarm : SpeechId.AllyDeathSeen); // 연출 — 직접 확인한 사람만 반응한다(전파 수신은 말하지 않음)
+		if (leaderEffect) DeathShockSystem.Apply(unit); // 능력치 −20%·10초 — 처음 안 때부터 파티원별로 따로 센다(17-표1·18-1장)
+		if (isDirectDiscovery && !leaderEffect) SpeechSystem.Say(unit, SpeechId.AllyDeathSeen); // 연출 — 직접 확인한 사람만 반응한다(전파 수신은 말하지 않음). 리더 사망은 사망 순간 가장 가까운 파티원 한 명이 알리므로(LeaderSuccessionSystem.OnLeaderLost) 발견자마다 따로 외치지 않는다
 	}
 
 	private static void TryConfirmCauseByWitness(PartyDeathRecord record, Human witness)
@@ -158,10 +191,12 @@ public static class PartyDeathSystem
 	}
 
 	// 사망 시점과 발견 시점 호출을 함께 지원한다 — 둘 다 "대표 발견자의 전파 범위 안 파티원에게 최초 전파"라는 동일 로직이라 하나로 묶었다.
-	private static void PropagateFrom(Party party, PartyDeathRecord record, Human deadUnitPositionOwner, Human representative)
+	private static void PropagateFrom(PartyDeathRecord record, IReadOnlyList<Party> parties, Human deadUnitPositionOwner, Human representative)
 	{
 		if (representative == null) return;
-		foreach (var m in party.Members)
+		var affected = new List<Human>();
+		CollectAffectedMembers(record, parties, affected);
+		foreach (var m in affected)
 		{
 			if (m == null || m.hp <= 0 || m == representative || (deadUnitPositionOwner != null && m == deadUnitPositionOwner)) continue;
 			if (record.InfoKnownUnits.Contains(m.name)) continue;
@@ -172,23 +207,40 @@ public static class PartyDeathSystem
 
 	// 최초 전파 시점 스냅샷이 아니라 지속 재전파 — UnitFunction.OnUpdate 틱마다 인류마다 호출해, 아직
 	// 모르는 파티원이 나중에 전파 범위 안으로 들어오면 그때 정보를 받게 한다.
-	public static void TickOngoingPropagation(Human human)
+	// 자기 파티의 사망 기록에 더해, 같은 원정의 다른 파티에서 상위 지휘관이 죽은 기록도 받는다(그 사망은 원정 전체에 적용된다).
+	public static void TickOngoingPropagation(Human human) => TickOngoingPropagation(human, human.Session?.parties);
+
+	private static readonly List<Human> _carrierScratch = new List<Human>(); // 틱마다 인류마다 불리므로 목록을 재사용한다
+
+	internal static void TickOngoingPropagation(Human human, IReadOnlyList<Party> parties)
 	{
 		var party = human.party;
-		if (party == null || party.DeathRecords.Count == 0) return;
+		if (party == null) return;
 
-		foreach (var record in party.DeathRecords.Values)
+		if (party.DeathRecords.Count > 0)
+			foreach (var record in party.DeathRecords.Values) TryReceiveFromCarrier(human, record, parties);
+
+		if (parties == null) return;
+		foreach (var other in parties)
 		{
-			if (record.InfoKnownUnits.Contains(human.name)) continue;
+			if (other == null || other == party || other.DeathRecords.Count == 0 || !ExpeditionCommandSystem.InSameExpedition(other, party)) continue;
+			foreach (var record in other.DeathRecords.Values)
+				if (record.DeadWasSuperior) TryReceiveFromCarrier(human, record, parties);
+		}
+	}
 
-			foreach (var carrier in party.Members)
-			{
-				if (carrier == null || carrier == human || carrier.hp <= 0) continue;
-				if (!record.InfoKnownUnits.Contains(carrier.name)) continue;
-				if (!PropagationSystem.InPropagationRange(carrier, human)) continue;
-				ApplyDeathInfo(record, human, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
-				break;
-			}
+	private static void TryReceiveFromCarrier(Human human, PartyDeathRecord record, IReadOnlyList<Party> parties)
+	{
+		if (record.InfoKnownUnits.Contains(human.name)) return;
+
+		CollectAffectedMembers(record, parties, _carrierScratch);
+		foreach (var carrier in _carrierScratch)
+		{
+			if (carrier == null || carrier == human || carrier.hp <= 0) continue;
+			if (!record.InfoKnownUnits.Contains(carrier.name)) continue;
+			if (!PropagationSystem.InPropagationRange(carrier, human)) continue;
+			ApplyDeathInfo(record, human, mentalDelta: -ExplorationMath.DeathPropagationMentalLoss, isDirectDiscovery: false);
+			break;
 		}
 	}
 

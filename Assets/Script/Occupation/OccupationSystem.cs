@@ -269,7 +269,6 @@ public class OccupationSystem
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 완공 — 인류 문 {doors}개·목책 {fences}개를 설치, 기초 거점 형성. {DescribeBases()}");
 		NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}에 거점을 세웠습니다.", NoticeCenter.WarningColor);
-		SpeechSystem.Say(party.Leader, SpeechId.BaseBuilt);
 		TryDesignateDefenseBase(party);
 	}
 
@@ -351,7 +350,6 @@ public class OccupationSystem
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 예정 방어 시설 완공 — 방어 거점 형성, 재출격 가능");
 		NoticeCenter.Instance?.PushMomentary($"인류가 {room.Floor}층 {room.RoomName}을(를) 방어 거점으로 만들었습니다.", NoticeCenter.WarningColor);
-		SpeechSystem.Say(party.Leader, SpeechId.DefenseBuilt);
 	}
 
 	private void SpawnDefenseFacility(Room room)

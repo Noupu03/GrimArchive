@@ -22,15 +22,13 @@ public abstract class UnitFunction : Unit
 		CombatState.State.lastHitTime = Time.time;
 	}
 
-	// 연출 — HP가 50%·25% 아래로 처음 내려갈 때와 공황 상태에서 맞을 때 비명·혼잣말(인류만, SpeechSystem이 순위·쿨다운을 관리한다).
+	// 연출 — HP가 25% 아래로 처음 내려갈 때만 말한다(인류만, SpeechSystem이 순위·쿨다운을 관리한다). 50% 하락과 공황 중 피격 비명은 말풍선이 너무 많다는 사용자 요청(2026-11-04)으로 뺐다.
 	private void SpeakOnDamage(float prevHp)
 	{
 		float max = Health.maxHp;
 		if (max <= 0f || Health.hp <= 0f) return;
 		float before = prevHp / max, now = Health.hp / max;
 		if (before > 0.25f && now <= 0.25f) SpeechSystem.Say(this, SpeechId.HpLow);
-		else if (before > 0.5f && now <= 0.5f) SpeechSystem.Say(this, SpeechId.HpHalf);
-		else if (MentalMath.IsPanic(BaseStat.mental)) SpeechSystem.Say(this, SpeechId.PanicHit);
 	}
 
 	public override void TakePhysicalDamage(float rawDamage, Unit attacker)
@@ -150,7 +148,6 @@ public abstract class UnitFunction : Unit
 				bool directionKnown = inAwarenessRange && shapeProvidesDirection;
 				Vector2Int? attackerPos = directionKnown ? new Vector2Int(attacker.position.x, attacker.position.y) : (Vector2Int?)null;
 				currentAlertSearch = new AlertSearchState { TargetPosition = attackerPos, IsUnidentifiedAttackSearch = true, IsAttackDirectionSearch = true };
-				SpeechSystem.Say(this, SpeechId.AmbushHit);
 
 				// "적을 정확 인지하기 전에 공격받은 경우" 이 사실(+ 방향)을 파티원에게 1회 전파한다.
 				if (this is Human victimHuman)
@@ -591,9 +588,7 @@ public abstract class UnitFunction : Unit
 		map.ObserveMonster(enemy.name, tile, danger, interest);
 		map.ObserveUnitInRoom(roomId, false, enemy.name, danger, interest);
 		FleeSystem.OnMonsterSpotted(human, enemy); // 직접 정확 인지한 몬스터의 조우 충격(후퇴도주 4장) — 소리·보고·함정 확인은 이 지점을 지나지 않아 발동하지 않는다
-		// 연출 — 직접 정확 인지한 적을 외친다. 리더는 "적이다! 공격해!"로 대사만 다르다(리더 명령 4-1장: 별도 명령·쿨타임이 아니고 전파도 중복하지 않는다).
-		bool isCurrentLeader = human.party != null && human.party.Leader == human && LeaderCommandSettings.Enabled;
-		SpeechSystem.Say(human, isCurrentLeader ? SpeechId.LeaderEnemySpotted : SpeechId.EnemySpotted, enemy.name);
+		// "적이다!!!" 외침은 여기서 하지 않는다 — 적 위치 전파를 실시하는 시점(PropagationSystem.PropagateEnemySighting)에서만 한다(2026-11-04 사용자 요청). 전투 진입 명령은 따로 없고 각자 판단한다.
 		if (enemy.unitType == null) return;
 		if (enemy.unitType.isBoss) map.ConfirmBossRoom(roomId);
 

@@ -34,7 +34,8 @@ public static class SpeechSystem
 		if (!TryClaim(unit.name, id, subject, entry, now, ignoreCooldown)) return false;
 		string text = SpeechMath.PickLine(entry.Lines, subject, Random01());
 		if (text == null) return false;
-		if (!generate.ShowSpeech(unit, text, entry.Tone, entry.Seconds, ignoreCooldown ? int.MaxValue : entry.Priority)) // debug 강제 표시는 떠 있는 말풍선도 덮어쓴다
+		bool leaderStyle = SpeechMath.ShouldShowCrown(entry.LeaderOrder, IsCommander(unit)); // 왕관·노란 테두리·큰 크기는 한 묶음이다
+		if (!generate.ShowSpeech(unit, text, entry.Tone, entry.Seconds, ignoreCooldown ? int.MaxValue : entry.Priority, leaderStyle)) // debug 강제 표시는 떠 있는 말풍선도 덮어쓴다
 		{
 			// 더 높은 순위의 말풍선이 떠 있어 못 띄웠다 — 이 사건은 놓친 것으로 본다. 소비하지 않으면 틱마다 부르는 호출부가 말풍선이 빌 때까지 재시도하다 한참 뒤 낡은 대사를 뒤늦게 띄운다.
 			if (!ignoreCooldown) Suppress(unit.name, id, subject, now);
@@ -43,6 +44,10 @@ public static class SpeechSystem
 		Record(unit.name, id, subject, now);
 		return true;
 	}
+
+	// 지금 실제로 지휘하는 사람인가 — 소속 파티의 현재 리더이거나 상위 지휘관. 승계 대기 중(Party.Leader == null)에는 아무도 해당하지 않는다.
+	static bool IsCommander(Unit unit)
+		=> unit is Human h && ((h.party != null && h.party.Leader == h) || (h.LeaderState != null && h.LeaderState.IsSuperiorCommander));
 
 	// 쿨다운(유닛별 + 전체)을 통과했는지 본다 — 말한 기록은 실제로 띄운 뒤 Record가 한다. 유닛 쿨다운은 통과했는데 전체 쿨다운에 막혔다면 이 사건은 놓친 것으로 보고 유닛 쿨다운을 소비한다(Suppress):
 	// 막힌 유닛이 틱마다 재시도하다가 전체 쿨다운이 풀리는 순간 차례로 말하면, 합창을 막는 쿨다운이 오히려 합창을 시간차로 줄 세워 "말풍선이 밀려서 뜨는" 연쇄가 된다.

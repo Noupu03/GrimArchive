@@ -68,7 +68,7 @@ public static class LeaderBuffSystem
 		if (party == null) return;
 
 		var superior = ExpeditionCommandSystem.FindSuperior(member.Session);
-		if (superior != null && superior.party != null && LeaderMath.HasBasicBuff(superior.BaseStat.leadership) && InSameExpedition(superior.party, party))
+		if (superior != null && superior.party != null && LeaderMath.HasBasicBuff(superior.BaseStat.leadership) && ExpeditionCommandSystem.InSameExpedition(superior.party, party))
 		{
 			concept = superior.party.Concept;
 			rate = LeaderMath.BasicBuffRate(superior.BaseStat.leadership, superior.LeaderState.CurrentLeadership);
@@ -82,9 +82,6 @@ public static class LeaderBuffSystem
 		rate = LeaderMath.BasicBuffRate(leader.BaseStat.leadership, leader.LeaderState.CurrentLeadership);
 		sourceName = leader.name;
 	}
-
-	private static bool InSameExpedition(Party superiorParty, Party party)
-		=> superiorParty == party || (superiorParty.Type != PartyType.Occupy && party.Type != PartyType.Occupy);
 
 	// 14-2-표1: 초반 모험가 = 물리 방어력·마법 방어력, 초반 도적 = 물리 공격력·마법 공격력. 그 밖의 종류는 콘텐츠 설계에서 효과를 확정할 때까지 효과 없음.
 	public static System.Collections.Generic.List<(DetailStat stat, float fraction)> EffectsOf(PartyConcept concept, float rate)

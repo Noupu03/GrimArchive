@@ -106,6 +106,28 @@ public class LeaderSuccessionTests
 		Assert.IsTrue(RetreatSystem.EvaluatePersonalRetreat(a, _now));
 	}
 
+	// 리더가 죽으면 파티원 한 명이 알린다 — 같은 층의 살아 있는 비도주 파티원 중 죽은 리더에게 가장 가까운 사람. 죽은 사람·도주자·다른 층은 후보가 아니다.
+	[Test]
+	public void LeaderDeath_DeathAlarmSpeaker_IsNearestLivingNonFleeingMemberOnSameFloor()
+	{
+		var leader = NewHuman("L", 50f); var far = NewHuman("far", 40f); var near = NewHuman("near", 40f);
+		var dead = NewHuman("dead", 40f); var fled = NewHuman("fled", 40f); var otherFloor = NewHuman("otherFloor", 40f);
+		var party = NewParty(PartyConcept.Adventurer, leader, far, near, dead, fled, otherFloor);
+		leader.position = new Vector2Int(10, 10);
+		far.position = new Vector2Int(20, 10);
+		near.position = new Vector2Int(12, 10);
+		dead.position = new Vector2Int(10, 11); dead.hp = 0f;               // 가장 가깝지만 이미 죽었다
+		fled.position = new Vector2Int(11, 10); fled.Retreat.Mode = RetreatMode.PersonalFlee; // 가깝지만 도주 중이다
+		otherFloor.position = new Vector2Int(10, 12); otherFloor.currentFloor = 2;          // 가깝지만 다른 층이다
+
+		Assert.AreSame(near, LeaderSuccessionSystem.PickDeathWitness(party, leader));
+
+		near.hp = 0f;
+		Assert.AreSame(far, LeaderSuccessionSystem.PickDeathWitness(party, leader), "가장 가까운 사람이 죽었으면 다음으로 가까운 사람");
+		far.hp = 0f;
+		Assert.IsNull(LeaderSuccessionSystem.PickDeathWitness(party, leader), "알릴 사람이 없으면 아무도 말하지 않는다");
+	}
+
 	// L30: 도주 확정 즉시 지휘 종료, 첫 확인 4초 뒤 시계 시작, Q의 뒤늦은 확인(9초)은 시계를 늦추지 않는다. 각자 처음 알았을 때 정신력 −10.
 	[Test]
 	public void LeaderFlee_ClockStartsAtFirstConfirmation_MentalLossTenOnce()

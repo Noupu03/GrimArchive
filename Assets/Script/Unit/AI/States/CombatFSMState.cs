@@ -61,7 +61,7 @@ public class CombatFSMState : IFSMState
 
 	// 03문서 4-5장: 경계/소리반응 중 정확 인지로 전투에 진입하면 Tactical의 Alert 리프가 자기 완료
 	// 코드를 못 거치고 버려진다 — 여기서 미리 비워두면 OnExit의 "전투 후 스윕 세팅" 분기가 정상 동작한다.
-	public void OnEnter(Unit unit)         { unit.currentAlertSearch = null; SpeechSystem.Say(unit, SpeechId.CombatEngage); }
+	public void OnEnter(Unit unit)         { unit.currentAlertSearch = null; }
 
 	// 전투 종료 시 전투 후 경계 세팅 (03문서 4-8장).
 	// 단, 플레이어 명령이 활성화된 채 전투 상태를 벗어나는 경우엔 경계를 세팅하지 않는다 —
@@ -81,7 +81,6 @@ public class CombatFSMState : IFSMState
 
 		// 02번 11장 "이번 전투에서"의 범위 정리 — 다음 교전은 새 표본·새 대상 선택으로 시작한다.
 		unit.CombatTargeting.ResetOnCombatExit();
-		SpeechSystem.Say(unit, SpeechId.PostCombat);
 	}
 
 	public BTStatus Tick(Unit unit)   => _bt.Tick(unit);
@@ -92,7 +91,11 @@ public class CombatFSMState : IFSMState
 		if (unit.CombatState.State.isCastingAttack) return BTStatus.Running;
 
 		// 리더 명령 12-3장: 리더가 통로 차단물(문 등)을 공동 파괴 대상으로 지정했으면 피격 중이 아닌 파티원은 그 차단물을 먼저 부순다.
-		if (unit is Human objectFocusHuman && FocusAttackSystem.TryObjectFocusStep(objectFocusHuman)) return BTStatus.Running;
+		if (unit is Human objectFocusHuman && FocusAttackSystem.TryObjectFocusStep(objectFocusHuman))
+		{
+			CombatDecisionTrace.Record(unit, "차단물파괴");
+			return BTStatus.Running;
+		}
 
 		// 방 입장 중인 파티원은 전투 이동(접근·후퇴·사거리 안 제자리 사격)보다 진형 유지와 문 통과가 먼저다 — 원거리가 문 앞·통로에서 서서 쏘며 뒤 유닛의 길을 막던 문제(PartyAdvanceSteps.StepInCombat). 이동으로 이번 틱을 썼으면 시전 없이 끝내고, 못 나아가는 원거리는 이동 없이 그 자리에서만 쏜다(근접은 앞이 적에게 막힌 경우를 위해 일반 전투 그대로).
 		bool holdInPlace = false;
@@ -100,8 +103,13 @@ public class CombatFSMState : IFSMState
 		{
 			switch (PartyAdvanceSteps.StepInCombat(enteringMember))
 			{
-				case EntryCombatStep.Moved: return BTStatus.Running;
-				case EntryCombatStep.HoldInPlace: holdInPlace = HasRangedSkill(unit); break;
+				case EntryCombatStep.Moved:
+					CombatDecisionTrace.Record(unit, "진형입장");
+					return BTStatus.Running;
+				case EntryCombatStep.HoldInPlace:
+					holdInPlace = HasRangedSkill(unit);
+					CombatDecisionTrace.Record(unit, "진형유지");
+					break;
 			}
 		}
 
@@ -113,14 +121,25 @@ public class CombatFSMState : IFSMState
 		AIMovementHelper.EnsureAvoidanceMovementForRole(unit, CombatScoreMath.ResolveCombatRole(unit.unitType));
 
 		// 보호 대상이 보호 스킬 사거리 밖이면 접근 이동부터 처리한다(02번 9항) — 사거리 안이면 SkillAction_Heal(emergencyBonus=1000)이 담당한다.
-		if (!holdInPlace && TryEmergencyProtectApproach(unit)) return BTStatus.Running;
+		if (!holdInPlace && TryEmergencyProtectApproach(unit))
+		{
+			CombatDecisionTrace.Record(unit, "보호접근");
+			return BTStatus.Running;
+		}
 
 		// 일반 치료 대상이 사거리 밖이면 접근 이동부터 처리한다 — 위 긴급보호와
 		// 동일한 패턴(사거리 안이면 개입하지 않고 false 반환, 이미 있는 일반 스킬 선택에 맡긴다).
-		if (!holdInPlace && TryGeneralHealApproach(unit)) return BTStatus.Running;
+		if (!holdInPlace && TryGeneralHealApproach(unit))
+		{
+			CombatDecisionTrace.Record(unit, "치유접근");
+			return BTStatus.Running;
+		}
 
+		Unit previousTarget = unit.CombatTargeting.AttackTarget; // 대상 교체 기록용(진단)
 		Unit target = SelectAttackTarget(unit, out float minDist);
 		if (target == null) return BTStatus.Failure;
+		if (previousTarget != null && previousTarget != target && previousTarget.hp > 0f)
+			CombatDecisionTrace.Record(unit, "대상교체", AIMovementHelper.ChebyshevDistance(unit.position, target.position), target.name);
 		return EngageTarget(unit, target, minDist, allowKiting: !holdInPlace, allowMovement: !holdInPlace);
 	}
 
@@ -186,11 +205,17 @@ public class CombatFSMState : IFSMState
 			{
 				int dangerDist = bestSkill.HitRange / 2;
 				// 물러날 칸이 없으면(벽에 몰림) 후퇴를 포기하고 아래 공격 판단으로 이어진다 — 옆으로 새며 떠는 대신 그 자리에서 싸운다.
-				if (chebDist <= dangerDist && unit.CombatState.State.evadeCooldown <= 0f && AIMovementHelper.MoveAwayFromTarget(unit, target))
+				if (chebDist <= dangerDist)
 				{
-					unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
-					unit.Generate?.UpdateUnitSpriteForDirection(unit);
-					return BTStatus.Running;
+					bool evadeCooling = unit.CombatState.State.evadeCooldown > 0f;
+					if (!evadeCooling && AIMovementHelper.MoveAwayFromTarget(unit, target))
+					{
+						CombatDecisionTrace.Record(unit, "후퇴", chebDist, bestSkill.SkillName);
+						unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);
+						unit.Generate?.UpdateUnitSpriteForDirection(unit);
+						return BTStatus.Running;
+					}
+					CombatDecisionTrace.Record(unit, "후퇴불가", chebDist, evadeCooling ? "회피쿨다운" : "몰림");
 				}
 			}
 
@@ -200,6 +225,7 @@ public class CombatFSMState : IFSMState
 			if (bestSkill.CanExecuteAgainst(unit, resolved, minDist))
 			{
 				bestSkill.Execute(unit, resolved, minDist);
+				CombatDecisionTrace.Record(unit, "발사", chebDist, bestSkill.SkillName);
 				ClearBlockingTrap(unit); // 적과 교전이 시작되면 함정 파괴는 접는다
 				// 02번 5장: 공격을 실제로 실행하면(회피·방어로 무효여도) 누적 이동 칸수를 초기화한다.
 				unit.CombatTargeting.ResetRetargetTracking();
@@ -209,7 +235,11 @@ public class CombatFSMState : IFSMState
 				return BTStatus.Running;
 			}
 
-			if (allowMovement) ChaseTarget(unit, target);
+			if (allowMovement)
+			{
+				CombatDecisionTrace.Record(unit, "추격(스킬불가)", chebDist, bestSkill.SkillName); // 고른 스킬이 지금 위치에서 실행 불가(사거리 밖·히트박스·방향) → 접근
+				ChaseTarget(unit, target);
+			}
 		}
 		else
 		{
@@ -218,11 +248,30 @@ public class CombatFSMState : IFSMState
 			{
 				switch (RangedSpacingMath.Decide(chebDist, maxSkillRange / 2, maxSkillRange))
 				{
-					case RangedSpacing.Retreat: if (allowKiting) AIMovementHelper.MoveAwayFromTarget(unit, target); break; // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
-					case RangedSpacing.Approach: if (allowMovement) ChaseTarget(unit, target); break;
+					case RangedSpacing.Retreat: // 몰려 못 물러나면 그 자리에서 쿨다운을 기다린다
+						if (allowKiting)
+						{
+							bool retreated = AIMovementHelper.MoveAwayFromTarget(unit, target);
+							CombatDecisionTrace.Record(unit, retreated ? "쿨다운후퇴" : "쿨다운후퇴불가", chebDist);
+						}
+						break;
+					case RangedSpacing.Approach:
+						if (allowMovement)
+						{
+							CombatDecisionTrace.Record(unit, "쿨다운접근", chebDist);
+							ChaseTarget(unit, target);
+						}
+						break;
+					default: // Hold — 제자리에서 쿨다운을 기다린다(이동 없음, 기록만)
+						CombatDecisionTrace.Record(unit, "쿨다운대기", chebDist);
+						break;
 				}
 			}
-			else if (chebDist > 1 && allowMovement) ChaseTarget(unit, target); // 근접 유닛 — 붙을 때까지 접근
+			else if (chebDist > 1 && allowMovement) // 근접 유닛 — 붙을 때까지 접근
+			{
+				CombatDecisionTrace.Record(unit, "근접접근", chebDist);
+				ChaseTarget(unit, target);
+			}
 		}
 
 		unit.currentDir = SkillAction.GetDirection8(target.position - unit.position);

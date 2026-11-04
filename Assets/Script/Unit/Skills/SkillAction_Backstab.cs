@@ -66,7 +66,6 @@ public class SkillAction_Backstab : SkillAction
 
     public override void Execute(Unit unit, Unit target, float minDist)
     {
-        SpeechSystem.Say(unit, SpeechId.CastBackstab);
         var threat = ThreatTileData.Create();
         threat.shape = HitShape;
         if (HitShape == ThreatShape.RECT)

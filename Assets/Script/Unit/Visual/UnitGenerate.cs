@@ -441,11 +441,11 @@ public class UnitGenerate
 	}
 
 	// 유닛 머리 위 말풍선 — SpeechSystem.Say의 표시 단계. 비주얼이 없으면(사망·미생성) false.
-	public bool ShowSpeech(Unit u, string text, SpeechTone tone, float seconds, int priority)
+	public bool ShowSpeech(Unit u, string text, SpeechTone tone, float seconds, int priority, bool leaderOrder = false)
 	{
 		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return false;
 		UnitVisual uv = GetCache(go).UnitVisual;
-		return uv != null && uv.ShowSpeech(text, tone, seconds, priority);
+		return uv != null && uv.ShowSpeech(text, tone, seconds, priority, leaderOrder);
 	}
 
 	private async UniTaskVoid DestroyVisualLater(GameObject go, float seconds)

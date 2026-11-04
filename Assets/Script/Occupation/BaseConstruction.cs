@@ -21,7 +21,6 @@ internal sealed class BaseConstruction
 	{
 		public float Done;
 		public float NextLogTime = -1f;
-		public float NextTalkTime;   // 일꾼 작업 말풍선을 다시 띄울 수 있는 시각
 		public float NextFxTime;     // 일꾼 먼지·망치 불꽃을 다시 낼 수 있는 시각
 		public bool HalfAnnounced;   // 절반 진행 알림을 이미 냈는지
 	}
@@ -130,13 +129,13 @@ internal sealed class BaseConstruction
 	// 한 방의 공사를 한 프레임 진행한다. started는 이번 틱에 처음 시작했을 때, halfway는 기초 공사가 처음 절반을 넘었을 때(한 번), 반환값은 공사가 끝났을 때 true다.
 	public bool Tick(Party party, Room room, bool defense, float deltaTime, out bool started, out bool halfway)
 	{
-		if (!_progress.TryGetValue((room, defense), out var progress)) _progress[(room, defense)] = progress = new Progress { NextTalkTime = Time.time + 3f };
+		if (!_progress.TryGetValue((room, defense), out var progress)) _progress[(room, defense)] = progress = new Progress();
 		started = progress.NextLogTime < 0f;
 
 		SiteLayout? layout = ResolveLayout(room, force: false, out bool relocated);
 		if (relocated) ReleaseWorkers(party, room); // 일꾼이 옛 자리에 서 있지 않게 — 다음 배정에서 새 자리를 받는다
 		AssignBuilders(party, room, defense, layout);
-		int workers = CountWorkers(party, room, _workerBuffer, out Human talker);
+		int workers = CountWorkers(party, room, _workerBuffer);
 		progress.Done += OccupationMath.WorkDelta(workers, deltaTime);
 
 		float progress01 = OccupationMath.Progress01(progress.Done, Total(defense));
@@ -144,13 +143,6 @@ internal sealed class BaseConstruction
 		if (!defense) UpdateGateBlueprint(room, progress01);
 		halfway = !defense && !progress.HalfAnnounced && progress01 >= 0.5f;
 		if (halfway) progress.HalfAnnounced = true;
-
-		// 일하는 인원 중 한 명이 주기적으로 작업 소리를 낸다 — 교전으로 공사가 멈춘 틱엔 이 함수가 불리지 않아 말하지 않는다.
-		if (talker != null && Time.time >= progress.NextTalkTime)
-		{
-			progress.NextTalkTime = Time.time + Random.Range(5f, 9f);
-			SpeechSystem.Say(talker, SpeechId.BaseBuildWork);
-		}
 
 		if (Time.time >= progress.NextLogTime)
 		{
@@ -338,10 +330,9 @@ internal sealed class BaseConstruction
 		_nextAssignTime.Remove(party);
 	}
 
-	// workers에 현장에서 일하는 인원을 채우고, talker는 그중 무작위 한 명(작업 말풍선용) — 없으면 null.
-	private static int CountWorkers(Party party, Room room, List<Human> workers, out Human talker)
+	// workers에 현장에서 일하는 인원을 채우고 그 수를 돌려준다.
+	private static int CountWorkers(Party party, Room room, List<Human> workers)
 	{
-		talker = null;
 		workers.Clear();
 		float now = Time.time;
 		foreach (var m in party.Members)
@@ -351,7 +342,6 @@ internal sealed class BaseConstruction
 			if (wait == null || wait.Reason != WaitReason.ConstructingBase || wait.WorkRoom != room || !wait.AtSlot) continue;
 			if (now - wait.LastStepTime > WorkerFreshSeconds) continue;
 			workers.Add(m);
-			if (Random.Range(0, workers.Count) == 0) talker = m;
 		}
 		return workers.Count;
 	}

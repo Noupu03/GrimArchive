@@ -50,6 +50,10 @@ public static class ExpeditionCommandSystem
 		LogHelper.Log(LogHelper.GAME, $"[지휘] 상위 지휘관 임명 — {human.name}(기본 통솔력 {human.BaseStat.leadership:F0}, 현재 {human.LeaderState.CurrentLeadership:F0}). 원정당 한 명, 사망·도주 시 자동 승계 없음");
 	}
 
+	// 두 파티가 같은 원정인가 — 같은 파티이거나, 둘 다 점령 파티가 아니다(원정 = 웨이브가 던전에 들여보낸 파티들, 점령 파티는 웨이브와 따로 상주). 상위 기본 버프·상위 지휘관 사망 전파가 같은 기준을 쓴다.
+	public static bool InSameExpedition(Party a, Party b)
+		=> a != null && b != null && (a == b || (a.Type != PartyType.Occupy && b.Type != PartyType.Occupy));
+
 	// 같은 원정에 속한 파티들 — 점령 파티와 이미 끝난 파티는 제외한다.
 	public static void CollectExpeditionParties(GameSession session, List<Party> into)
 	{
@@ -221,6 +225,7 @@ public static class ExpeditionCommandSystem
 			}
 		}
 		LogHelper.Log(LogHelper.GAME, $"[지휘] 상위 공동 공격 — 상위 지휘관 {commander.name}(현재 통솔력 {state.CurrentLeadership:F0}) → {target.name} 점수 {score:F1}, 직접 전달 {direct.Count}명·소속 리더 전달 {relayed}명, 소속 파티 {reached.Count}개, 쿨타임 {LeaderMath.SuperiorCooldownSeconds:F0}초");
+		SpeechSystem.Say(commander, SpeechId.CmdSuperiorFocus, target.name); // 연출 — 상위 지휘관이 외친다(왕관)
 	}
 
 	// ─────────────────────────── 지휘 상실 ───────────────────────────

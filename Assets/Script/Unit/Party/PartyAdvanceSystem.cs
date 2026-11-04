@@ -353,7 +353,6 @@ public static class PartyAdvanceSystem
 					break;
 				}
 				LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 문 파괴 완료 — 진입로 확보({now - plan.PhaseStartTime:F1}초 소요)");
-				SpeechSystem.Say(leader, SpeechId.DoorOpened);
 				BeginEntering(party, plan, leader, session, now);
 				break;
 			case PartyBreachCommand.Outcome.Stalled:
@@ -547,7 +546,6 @@ public static class PartyAdvanceSystem
 		if (next == null) return;
 
 		MarkReleased(next, next.currentWait);
-		SpeechSystem.Say(next, SpeechId.EntryGo);
 		plan.NextEntryReleaseTime = now + interval;
 	}
 

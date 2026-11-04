@@ -28,6 +28,12 @@ public static class CommandSelectionMath
 
 	// 8-표1의 층위 순서(고유 스킬 → 상위 공동 공격 → 집중 공격 → 행동 우선 명령)는 별도 판정 함수가 아니라 호출 순서로 구현돼 있다 — UnitFunction.OnUpdate가 ExpeditionCommandSystem.Tick(상위)을 CommandIssueSystem.Tick(일반: 차단물 → 집중 → 행동 우선)보다 먼저 부르고, 상위 발령이 같은 지휘자의 일반 쿨타임도 시작한다.
 
+	// 4-1장: 명령은 전파 범위 안에 명령을 받을 소속 파티원이 한 명 이상 있을 때만 내린다. 리더 본인은 수신자가 아니다(리더에게는 발령부터 5초가 따로 적용될 뿐).
+	public static bool HasRecipient(int recipientCount) => recipientCount > 0;
+
+	// 5-1-표2: 강공격 계기는 강공격을 실제로 발령할 때만 소비한다. 제압·보호가 먼저 나가 강공격을 못 낸 계기는 근거가 유효한 동안 남는다.
+	public static bool ConsumesStrikeTriggers(TacticalCommand issued) => issued == TacticalCommand.Strike;
+
 	// 5-1-표5: 보호 명령을 판단하는 긴급 조건 — HP 30% 이하이면서 공격 위협을 받음 / 행동 불능이면서 공격받음. 사망 예측은 기본 긴급 보호 조건으로 쓰지 않는다(L17).
 	public static bool IsProtectEmergency(float hpRatio, bool underAttackThreat, bool incapacitated, bool beingAttacked)
 		=> (LeaderMath.IsLowHp(hpRatio) && underAttackThreat) || (incapacitated && beingAttacked);

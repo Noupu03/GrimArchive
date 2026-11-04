@@ -132,17 +132,6 @@ public static class RetreatSystem
 			LogHelper.Log(LogHelper.GAME, $"[후퇴] {human.name} 던전 밖 회복 — HP {hpBefore:F0}→{human.hp:F0}/{human.maxHp:F0}, 정신력 {MentalMath.ToRatioPercent(human.BaseStat.mental - mentalGain):F0}%→{MentalMath.ToRatioPercent(human.BaseStat.mental):F0}%");
 	}
 
-	// 플레이어에게 후퇴·도주 사건을 알린다 — 핵심본의 "물러나는 파티를 추격·저지" 의도에 필요한 최소 알림이다(문서가 알림 방식을 정하진 않았다). 안개로 가려진 방의 사건은 알리지 않는다(정보 누설 방지).
-	public static void NotifyPlayer(Human who, string text)
-	{
-		var session = who?.Session;
-		if (session == null || NoticeCenter.Instance == null) return;
-		if (session.roomGrid != null
-			&& session.roomGrid.TryGetValue(new Vector3Int(who.position.x, who.position.y, who.currentFloor), out Room room)
-			&& room != null && !room.FogRevealed) return;
-		NoticeCenter.Instance.PushMomentary(text, NoticeCenter.InfoColor);
-	}
-
 	// ─────────────────────────── 관찰·전이 틱 ───────────────────────────
 
 	// 유닛 OnUpdate가 매 프레임 부르는 틱 — 꺼져 있으면 즉시 반환, 켜져 있어도 0.5초 스로틀. 파티 구동 유닛이 파티 후퇴 시작·단계 전이를 맡는다.

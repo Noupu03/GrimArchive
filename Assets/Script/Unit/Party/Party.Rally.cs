@@ -422,7 +422,7 @@ public partial class Party
 	private static bool IsRallyOrAdvanceWait(WaitState w)
 		=> w != null && (w.Reason == WaitReason.AwaitingPartyAtRallyPoint || w.Reason == WaitReason.AdvancingToNextRoom
 			|| w.Reason == WaitReason.ApproachingNextDoor || w.Reason == WaitReason.FormingUpAtDoor
-			|| w.Reason == WaitReason.BreachingDoor || w.Reason == WaitReason.EnteringNextRoom);
+			|| w.Reason == WaitReason.BreachingDoor || w.Reason == WaitReason.EnteringNextRoom || w.Reason == WaitReason.SearchingAbsentee);
 
 	// 집결을 마친 방을 리더가 떠나면 그 방의 '다음 방 이동' 의도와 재집결 억제를 함께 푼다 — 안 풀면 소비되지 않은 ReadyToAdvance가 남아 새 방의 문이 알려지는 즉시 활동을 건너뛰고 이동 명령이 나간다.
 	public void TickAdvanceState()
@@ -531,6 +531,9 @@ public partial class Party
 			// ReportingCoreToLeader도 집결 미완료로 본다 — 코어 보고 중인 유닛을 두고 집결이 끝나 ReadyToAdvance가 앞서 발생하는 것을 막는다. 단 갈 곳이 없어 정박한(IsParked) 보고자는 붙잡지 않고, 최종 상한을 넘기면 이 보고자도 집결 판정에서만 제외한다(보고 의무는 유지).
 			else if (wait.Reason == WaitReason.ReportingCoreToLeader && !wait.IsParked && !forced)
 				return;
+			// 리더가 미집결자를 찾으러 나가 있는 동안에는 집결을 끝내지 않는다 — 수색을 마치고 집결지로 돌아와야(AwaitingPartyAtRallyPoint) 전원 도착 판정이 돈다.
+			else if (wait.Reason == WaitReason.SearchingAbsentee && !forced)
+				return;
 		}
 
 		if (gatherNearby && !forced && AnnounceAbsentees()) return; // 05번 5장: 못 받은 생존 구성원·모르는 사망은 단순 부재만으로 제외하지 않고 기다린다(rallyAbsenteeMaxSeconds 상한까지)
@@ -539,7 +542,8 @@ public partial class Party
 		{
 			foreach (var m in Members)
 			{
-				if (m == null || m.hp <= 0 || m.currentWait == null || m.currentWait.Reason != WaitReason.AwaitingPartyAtRallyPoint) continue;
+				if (m == null || m.hp <= 0 || m.currentWait == null) continue;
+				if (m.currentWait.Reason != WaitReason.AwaitingPartyAtRallyPoint && m.currentWait.Reason != WaitReason.SearchingAbsentee) continue; // 수색 중이던 리더도 강제 완료 땐 수색을 접는다
 				m.currentWait = null;
 				m.waitStuckTurns = 0;
 			}
@@ -601,7 +605,7 @@ public partial class Party
 		foreach (var m in Members)
 		{
 			var wait = m?.currentWait;
-			if (m == null || m.hp <= 0 || wait == null || wait.Reason != WaitReason.AwaitingPartyAtRallyPoint) continue;
+			if (m == null || m.hp <= 0 || wait == null || (wait.Reason != WaitReason.AwaitingPartyAtRallyPoint && wait.Reason != WaitReason.SearchingAbsentee)) continue;
 			if (PartyEngagement.IsEngaged(m)) { engaged = true; break; }
 		}
 		if (!engaged) return;
@@ -621,6 +625,7 @@ public partial class Party
 		bool first = _rallyPausedSeconds <= 0f;
 		_rallyPausedSeconds += credit;
 		RallyStartTime += credit;
+		ShiftRallySearchClock(credit); // 수색 이동·관찰 시간도 교전 중에는 흐르지 않는다
 		if (first)
 		{
 			_rallyPauseLogged = true;

@@ -190,10 +190,56 @@ public class LeaderCommandMathTests
 		Assert.AreEqual(13f, LeaderMath.RallyDeadline(5f, 3f), 1e-4f);  // 명령 시각 5초 → 기본 기한 13(ETA+3=6보다 늦다)
 		Assert.AreEqual(17f, LeaderMath.RallyDeadline(5f, 14f), 1e-4f); // ETA+3=17이 기본 기한 13보다 늦다
 	}
+
+	// R4: 도착 예정 시각 = 지금 + 남은 걸음 수 ÷ 걷기 속도(속도 하한 0.1, 음수 걸음은 0).
+	[Test]
+	public void RallyEta_StepsOverSpeed_ClampsSpeedAndNegativeSteps()
+	{
+		Assert.AreEqual(106f, LeaderMath.RallyEta(100f, 12, 2f), 1e-4f);
+		Assert.AreEqual(100f, LeaderMath.RallyEta(100f, 0, 2f), 1e-4f);
+		Assert.AreEqual(100f, LeaderMath.RallyEta(100f, -3, 2f), 1e-4f);
+		Assert.AreEqual(110f, LeaderMath.RallyEta(100f, 1, 0f), 1e-3f, "속도가 0이어도 0.1로 올려 무한대를 만들지 않는다");
+	}
+
+	// 순서도 P02 "우선 위치": 리더와 같은 층의 마지막 확인 위치 중 가장 가까운 곳, 같으면 더 최근에 본 쪽. 후보가 없거나 다른 층뿐이면 −1.
+	[Test]
+	public void PickRallySearchTarget_NearestOnLeaderFloor_RecentWinsTie_NoneWhenNoCandidate()
+	{
+		var leader = new Vector2Int(5, 5);
+		LeaderMath.RallySearchCandidate C(string n, int x, int y, int floor, float seen) => new LeaderMath.RallySearchCandidate { Name = n, Position = new Vector2Int(x, y), Floor = floor, SeenAt = seen };
+
+		var list = new List<LeaderMath.RallySearchCandidate> { C("far", 20, 5, 1, 10f), C("near", 8, 5, 1, 5f), C("otherFloor", 5, 6, 2, 99f) };
+		Assert.AreEqual(1, LeaderMath.PickRallySearchTarget(leader, 1, list), "가장 가까운 같은 층 후보 — 다른 층은 거리가 가까워도 제외");
+
+		var tie = new List<LeaderMath.RallySearchCandidate> { C("near", 8, 5, 1, 5f), C("newer", 2, 5, 1, 9f) }; // 둘 다 거리 3
+		Assert.AreEqual(1, LeaderMath.PickRallySearchTarget(leader, 1, tie), "거리가 같으면 더 최근에 본 쪽");
+
+		Assert.AreEqual(-1, LeaderMath.PickRallySearchTarget(leader, 3, list), "같은 층 후보가 없으면 −1");
+		Assert.AreEqual(-1, LeaderMath.PickRallySearchTarget(leader, 1, new List<LeaderMath.RallySearchCandidate>()));
+		Assert.AreEqual(-1, LeaderMath.PickRallySearchTarget(leader, 1, null));
+	}
 }
 
 public class CommandSelectionMathTests
 {
+	// 4-1장: 명령은 전파 범위 안에 수신자가 있을 때만 — 리더 혼자에게는 내리지 않는다.
+	[Test]
+	public void HasRecipient_RequiresAtLeastOneMember()
+	{
+		Assert.IsFalse(CommandSelectionMath.HasRecipient(0));
+		Assert.IsTrue(CommandSelectionMath.HasRecipient(1));
+	}
+
+	// 5-1-표2: 강공격 계기는 강공격을 낸 때만 소비한다 — 제압·보호가 먼저 나가도 강공격 계기는 남는다.
+	[Test]
+	public void ConsumesStrikeTriggers_OnlyWhenStrikeItselfIsIssued()
+	{
+		Assert.IsTrue(CommandSelectionMath.ConsumesStrikeTriggers(TacticalCommand.Strike));
+		Assert.IsFalse(CommandSelectionMath.ConsumesStrikeTriggers(TacticalCommand.Suppress));
+		Assert.IsFalse(CommandSelectionMath.ConsumesStrikeTriggers(TacticalCommand.Protect));
+		Assert.IsFalse(CommandSelectionMath.ConsumesStrikeTriggers(TacticalCommand.FocusAttack));
+	}
+
 	// ── 8장·L09: 컨셉별 선택 순서 ──────────────────────────────────────
 	[Test]
 	public void ActionPriorityOrder_MatchesTable8()

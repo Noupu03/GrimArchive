@@ -144,7 +144,6 @@ public class CoreSystem
 		FactionType? claimant = killer != null ? OffenseProcessor.MapToRoomFaction(killer.FactionBehavior) : null;
 		if (claimant.HasValue)
 			VFXManager.SpawnCoreCaptureVfx(claimant.Value, visual != null ? visual.transform.position : new Vector3(core.Position.x + 0.5f, core.Position.y + 0.5f, 0f));
-		if (killer != null) SpeechSystem.Say(killer, SpeechId.CoreDestroyed);
 
 		Salvage.Spawn(core.Position);
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 파괴({killer?.unitType?.typeName}) — 이 층의 건설·생산 등 작업 정지, 수복 명령 대기");

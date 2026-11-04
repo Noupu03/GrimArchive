@@ -69,7 +69,6 @@ public static class PartyRetreatSystem
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 파티 후퇴 시작({st.StartReason}) — {party.Type.ToKorean()} 파티, 평균 HP {avg.HpPercent:F1}%(기준 ≤{thresholds.HpPercent:F0}) / 평균 정신력 {avg.MentalPercent:F1}%(기준 ≤{thresholds.MentalPercent:F0}), 대상 {avg.Count}명, 목적지 {DescribeDestination(st)}, 후퇴 {st.RetreatCount}회째");
 		SpeechSystem.Say(leader, st.StartReason == "평균 HP" ? SpeechId.PartyRetreatByHp : SpeechId.PartyRetreatByMental); // 연출 — 리더가 후퇴 이유를 말한다
-		RetreatSystem.NotifyPlayer(leader, $"인류 {party.Type.ToKorean()} 파티가 후퇴를 시작했습니다(목적지: {DescribeDestination(st)})");
 		OnPartyRetreatStarted?.Invoke(party);
 	}
 
@@ -93,7 +92,6 @@ public static class PartyRetreatSystem
 			if (m != driver && !Party.IsReachedByLeaderCommand(driver, m)) continue;
 
 			rs.Ordered = true;
-			if (m != driver) SpeechSystem.Say(m, SpeechId.RetreatOrderHeard);
 			InterruptActivities(m);
 			if (st.Destination == RetreatDestination.Base && st.BaseRoom != null)
 				RetreatBases.EnsureRestSlot(m, st.BaseRoom, st.ClaimedRestSlots);
@@ -183,7 +181,6 @@ public static class PartyRetreatSystem
 					st.RestStartedAt = now;
 					st.Phase = PartyRetreatPhase.Resting;
 					LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [후퇴] 거점에 첫 도착({m.name}) — 휴식 시작");
-					SpeechSystem.Say(m, SpeechId.ArriveBase);
 				}
 			}
 		}

@@ -601,6 +601,8 @@ public static class PropagationSystem
 	public static void PropagateEnemySighting(Human discoverer, Unit enemy)
 	{
 		if (discoverer.party == null) return;
+		// 연출 — 전파를 실시하는 발견자만 "적이다!!!"를 외친다(2026-11-04 사용자 요청: 받은 쪽은 상관하지 않는다). 파티 리더는 외치지 않는다. 말풍선은 전파에 영향을 주지 않고, 매 틱 반복 호출돼도 SpeechSystem 쿨다운이 거른다.
+		if (SpeechMath.ShouldShoutOnPropagation(true, discoverer.party.Leader == discoverer)) SpeechSystem.Say(discoverer, SpeechId.EnemySpotted, enemy.name);
 		foreach (var m in discoverer.party.Members)
 		{
 			if (m == null || m == discoverer || m.hp <= 0) continue;
@@ -709,7 +711,6 @@ public static class PropagationSystem
 			int existRank = WeightMath.PriorityRank(existing.SourceInfoType, isLatest: true);
 			if (!WeightMath.ShouldReplace(candRank, existRank, candidateIsNewer: true)) return;
 		}
-		if (!receiver.Propagation.PropagatedInfo.ContainsKey(enemy)) SpeechSystem.Say(receiver, SpeechId.EnemyWarned); // 연출 — 새 적 정보를 전해 들은 사람만 반응한다
 		receiver.Propagation.PropagatedInfo[enemy] = new PropagatedInfoRecord
 		{
 			LastKnownTile = new Vector3Int(lastKnownPos.x, lastKnownPos.y, enemy.currentFloor),

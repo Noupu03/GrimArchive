@@ -156,6 +156,37 @@ public static class LeaderMath
 	public const float RallyEtaMarginSeconds = 3f;
 	public const float RallySearchSeconds = 5f;
 
+	// 수색 위치로 가는 이동의 상한(초) — 문서에 값이 없어 정한 내부 판단이다. 넘으면 선 자리에서 관찰을 시작한다.
+	public const float RallySearchTravelMaxSeconds = 20f;
+
+	// 수색 후보 — 집결 명령을 받지 못한 미집결자의 마지막 확인 위치(리더가 직접 본 기록).
+	public struct RallySearchCandidate
+	{
+		public string Name;
+		public Vector2Int Position;
+		public int Floor;
+		public float SeenAt;
+	}
+
+	// 우선 위치 선정(순서도 P02 "우선 위치로 공동 이동"): 리더와 같은 층의 후보 중 리더에게 가장 가까운(체비셰프) 마지막 위치, 같으면 더 최근에 본 쪽, 그래도 같으면 앞선 후보. 문서에 기준이 없어 정한 내부 판단이다. 후보가 없으면 −1.
+	public static int PickRallySearchTarget(Vector2Int leaderPosition, int leaderFloor, IReadOnlyList<RallySearchCandidate> candidates)
+	{
+		int best = -1, bestDist = int.MaxValue;
+		float bestSeen = float.NegativeInfinity;
+		if (candidates == null) return -1;
+		for (int i = 0; i < candidates.Count; i++)
+		{
+			var c = candidates[i];
+			if (c.Floor != leaderFloor) continue;
+			int dist = Mathf.Max(Mathf.Abs(c.Position.x - leaderPosition.x), Mathf.Abs(c.Position.y - leaderPosition.y));
+			if (dist < bestDist || (dist == bestDist && c.SeenAt > bestSeen)) { best = i; bestDist = dist; bestSeen = c.SeenAt; }
+		}
+		return best;
+	}
+
+	// 미합류자의 도착 예정 시각 = 지금 + 남은 걸음 수 ÷ 걷기 속도. 걸음 수는 직선거리가 아니라 실제 경로 길이를 넣어야 우회로가 긴 대원의 기한이 일찍 잡히지 않는다(R4).
+	public static float RallyEta(float now, int walkSteps, float walkSpeed) => now + Mathf.Max(0, walkSteps) / Mathf.Max(0.1f, walkSpeed);
+
 	// 집결 기한 = max(명령 시각 + 8초, 가장 늦은 도착 예정 시각 + 3초). 도착 예정 정보가 없으면 기본 기한뿐이다.
 	public static float RallyDeadline(float commandTime, float latestEta)
 	{

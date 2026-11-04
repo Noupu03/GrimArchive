@@ -21,7 +21,7 @@ public static class FleeSystem
 			return;
 		}
 		if (after >= before || human.hp <= 0f || state.FleeRoll.Confirmed) return;
-		SayOnStageWorsened(human, before, after);
+		SayOnPanicEntry(human, before, after);
 
 		if (MentalMath.ReachedFloor(after))
 		{
@@ -33,17 +33,12 @@ public static class FleeSystem
 		if (outcome.Fled) ConfirmFlee(human, FleeReason.RollSucceeded);
 	}
 
-	// 연출 — 정신력 단계가 악화되는 순간(긴장·공포·공황 진입)의 혼잣말. 같은 단계 안의 하락에는 말하지 않는다.
-	static void SayOnStageWorsened(Human human, float before, float after)
+	// 연출 — 정신력이 공황 단계로 들어가는 순간에만 말한다(긴장·공포 단계 악화 대사는 말풍선이 너무 많다는 사용자 요청으로 2026-11-04에 뺐다). 이 함수는 정신력이 줄어든 경우에만 불리므로 공황 단계로 바뀌었다면 곧 진입이다.
+	static void SayOnPanicEntry(Human human, float before, float after)
 	{
 		MentalStage stage = MentalMath.GetStage(after);
-		if (stage == MentalMath.GetStage(before)) return;
-		switch (stage)
-		{
-			case MentalStage.Tension: SpeechSystem.Say(human, SpeechId.MentalTension); break;
-			case MentalStage.Fear: SpeechSystem.Say(human, SpeechId.MentalFear); break;
-			case MentalStage.Panic: SpeechSystem.Say(human, SpeechId.MentalPanic); break;
-		}
+		if (stage != MentalStage.Panic || stage == MentalMath.GetStage(before)) return;
+		SpeechSystem.Say(human, SpeechId.MentalPanic);
 	}
 
 	// 개인 도주를 확정한다 — 한 번 확정되면 정신력 회복·리더 명령으로 취소하지 않고, 확정 즉시 파티 후퇴·휴식 평균에서 제외된다(Party.CollectRetreatAverageMembers). 리더에게 도주 사실을 자동 전달하지 않는다. 코어 잔해를 들고 있었다면 현재 타일에 내려놓는다(R41). 진행 중이던 조사·대기·함정 대응은 접는다(출구 이동이 집결·휴식·리더 명령보다 우선). 기절 중이면 이동은 기절이 끝난 뒤 시작한다(Unit.JudgeState가 stunDuration 동안 FSM을 막는다).
@@ -62,7 +57,6 @@ public static class FleeSystem
 		SpeechSystem.Say(human, reason == FleeReason.EncounterShock ? SpeechId.EncounterFleeMax : SpeechId.FleeConfirmed); // 연출 — 명세서 4-3·7-3장
 		LeaderSuccessionSystem.OnLeaderFled(human); // 일반 리더의 도주면 즉시 지휘를 잃는다(리더 명령 17-1장) — 목격 감소(−10)가 이 상태를 보므로 NotifyWitnesses보다 먼저
 		NotifyWitnesses(human);
-		RetreatSystem.NotifyPlayer(human, $"인류 {human.name}이(가) 공포에 질려 던전 밖으로 도주하기 시작했습니다");
 		OnFleeConfirmed?.Invoke(human, reason);
 	}
 

@@ -27,6 +27,7 @@ public static class RoomConfinementMath
 			case WaitReason.BreachingDoor:
 			case WaitReason.EnteringNextRoom:
 			case WaitReason.Retreating:
+			case WaitReason.SearchingAbsentee: // 리더가 미집결자의 마지막 위치를 찾아 다른 방으로 가는 수색 이동(5-2장)
 				return true;
 			default:
 				return false;

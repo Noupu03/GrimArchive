@@ -249,11 +249,11 @@ public class UnitVisual : MonoBehaviour
 	// SpeechSystem이 UnitGenerate.ShowSpeech를 거쳐 호출한다. 처음 필요할 때 만든다.
 	private UnitSpeechBubble _speech;
 
-	public bool ShowSpeech(string text, SpeechTone tone, float seconds, int priority)
+	public bool ShowSpeech(string text, SpeechTone tone, float seconds, int priority, bool leaderOrder = false)
 	{
 		if (boundUnit == null) return false;
 		if (_speech == null) _speech = UnitSpeechBubble.Create(transform, boundUnit.unitType.footprint);
-		return _speech.Show(text, tone, seconds, priority);
+		return _speech.Show(text, tone, seconds, priority, leaderOrder);
 	}
 
 	public void SetSpeechHiddenByFog(bool hidden) { if (_speech != null) _speech.SetHidden(hidden); }

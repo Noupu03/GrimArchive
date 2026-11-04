@@ -1,4 +1,5 @@
 #if UNITY_INCLUDE_TESTS
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -20,6 +21,7 @@ public class LeaderOrderTests
 		LeaderCommandSettings.EnabledOverride = null;
 		LeaderCommandSettings.ApproachLimitOverride = null;
 		LeaderSuccessionSystem.Clock = () => Time.time;
+		Party.RallyClock = () => Time.time;
 		LeaderCommandTable.ResetForTests();
 	}
 
@@ -258,6 +260,205 @@ public class LeaderOrderTests
 		Assert.IsFalse(party2.DeathRecords["corpse-member"].DeadWasLeader);
 		Assert.AreEqual(before2 - 9.5f, w2.BaseStat.mental, 0.05f, "일반 파티원 사망은 −10 × 0.95");
 		Assert.AreEqual(10f, w2.CombatStat.physicalDefense, 1e-4f, "일반 파티원 사망에는 능력치 충격이 없다");
+	}
+
+	private static Party NewPartyWithId(string id, PartyConcept concept, params Human[] members)
+	{
+		var p = NewParty(concept, members);
+		p.Id = id; // 시체의 소유 파티 조회(OwnerPartyId)가 파티를 가려내려면 파티마다 Id가 달라야 한다
+		return p;
+	}
+
+	// 16-2·18-1장: 상위 지휘관의 사망은 같은 원정의 다른 소속 파티원에게도 "자신에게 적용되는 상위 지휘관의 사망"이다 — 직접 확인한 대원은 −20(×0.95)과 능력치 충격.
+	// 점령 파티는 원정이 아니라(웨이브와 따로 상주) 전파 대상이 아니다. 세션·맵이 없어 전파(전파 범위 판정) 경로가 아니라 사망 순간 직접 목격 경로를 확인한다.
+	[Test]
+	public void SuperiorDeath_ShocksSameExpeditionOtherParty_NotOccupyParty()
+	{
+		var superior = NewHuman("S", 70f); var a1 = NewHuman("A1", 30f, mental: 30f);
+		var partyA = NewPartyWithId("pA", PartyConcept.Adventurer, superior, a1);
+		var b1 = NewHuman("B1", 30f, mental: 30f);
+		var partyB = NewPartyWithId("pB", PartyConcept.Rogue, NewHuman("LB", 50f), b1);
+		var o1 = NewHuman("O1", 30f, mental: 30f);
+		var occupy = NewPartyWithId("pO", PartyConcept.Rogue, NewHuman("LO", 50f), o1);
+		occupy.Type = PartyType.Occupy;
+		superior.LeaderState.IsSuperiorCommander = true;
+		a1.CombatStat.physicalDefense = 10f; b1.CombatStat.physicalDefense = 10f; o1.CombatStat.physicalDefense = 10f;
+		float aBefore = a1.BaseStat.mental, bBefore = b1.BaseStat.mental, oBefore = o1.BaseStat.mental;
+
+		superior.hp = 0f;
+		PartyDeathSystem.OnPartyMemberDied(superior, "corpse-superior", new List<Party> { partyA, partyB, occupy });
+
+		var record = partyA.DeathRecords["corpse-superior"];
+		Assert.IsTrue(record.DeadWasLeader && record.DeadWasSuperior);
+		Assert.AreEqual(aBefore - 19f, a1.BaseStat.mental, 0.05f, "자기 파티원: 직접 확인 −20 × 안정 단계 0.95");
+		Assert.AreEqual(8f, a1.CombatStat.physicalDefense, 1e-4f);
+		Assert.AreEqual(bBefore - 19f, b1.BaseStat.mental, 0.05f, "같은 원정의 다른 파티원도 같은 사망 충격을 받는다");
+		Assert.AreEqual(8f, b1.CombatStat.physicalDefense, 1e-4f);
+		Assert.AreEqual(oBefore, o1.BaseStat.mental, 1e-4f, "점령 파티는 같은 원정이 아니라 사망 정보·충격이 전파되지 않는다");
+		Assert.AreEqual(10f, o1.CombatStat.physicalDefense, 1e-4f);
+
+		// 일반 리더(상위 지휘관이 아님)의 사망은 다른 파티로 번지지 않는다 — 자기 파티원만.
+		var leader = NewHuman("L2", 50f); var m = NewHuman("M2", 30f, mental: 30f);
+		var partyC = NewPartyWithId("pC", PartyConcept.Adventurer, leader, m);
+		var b2 = NewHuman("B2", 30f, mental: 30f);
+		var partyD = NewPartyWithId("pD", PartyConcept.Rogue, NewHuman("LD", 50f), b2);
+		float b2Before = b2.BaseStat.mental;
+		leader.hp = 0f;
+		PartyDeathSystem.OnPartyMemberDied(leader, "corpse-L2", new List<Party> { partyC, partyD });
+		Assert.IsFalse(partyC.DeathRecords["corpse-L2"].DeadWasSuperior);
+		Assert.AreEqual(b2Before, b2.BaseStat.mental, 1e-4f, "일반 리더 사망은 다른 파티원에게 전파되지 않는다");
+	}
+
+	// 18-2장 "관련 없는 다른 파티는 일반 사실 정보만 기록한다": 다른 파티의 리더 시체를 뒤늦게 발견해도 리더 사망 효과(−20·능력치 충격)가 아니라 일반 사망 감소(−10 × 0.95)뿐이다.
+	[Test]
+	public void LeaderCorpseDiscovered_ByUnrelatedParty_OrdinaryDeathLossWithoutShock()
+	{
+		var leader = NewHuman("L", 50f); var m = NewHuman("M", 30f, mental: 30f);
+		var partyA = NewPartyWithId("pA", PartyConcept.Adventurer, leader, m);
+		var stranger = NewHuman("X", 30f, mental: 30f);
+		stranger.CombatStat.physicalDefense = 10f;
+		var partyX = NewPartyWithId("pX", PartyConcept.Rogue, NewHuman("LX", 50f), stranger);
+		var parties = new List<Party> { partyA, partyX };
+
+		leader.hp = 0f;
+		PartyDeathSystem.OnPartyMemberDied(leader, "corpse-L", parties);
+		Assert.IsTrue(partyA.DeathRecords["corpse-L"].DeadWasLeader);
+
+		var corpse = new InteractableObject("corpse-L", new Vector3Int(0, 0, 1), 0f, tags: new List<string> { "Corpse", "Human" }) { OwnerPartyId = "pA" };
+		float before = stranger.BaseStat.mental;
+		PartyDeathSystem.OnCorpseDiscovered(stranger, corpse, parties);
+		Assert.AreEqual(before - 9.5f, stranger.BaseStat.mental, 0.05f, "관련 없는 파티의 발견자는 일반 사망 감소 −10 × 0.95뿐");
+		Assert.AreEqual(10f, stranger.CombatStat.physicalDefense, 1e-4f, "리더 사망 충격은 걸리지 않는다");
+	}
+
+	// R4: 집결 도착 예정 시각의 걸음 수는 직선거리가 아니라 실제 경로 길이다 — 벽을 돌아가야 하는 대원의 기한이 일찍 잡히지 않는다. 다른 층이거나 길을 못 찾으면 예전처럼 직선거리.
+	[Test]
+	public void RallyEta_WalkSteps_UsesPathAroundWall_StraightWhenOtherFloor()
+	{
+		var saved = Unit.humanFactionData;
+		try
+		{
+			const int w = 14, h = 10;
+			System.Func<int, int, int> tile = (x, y) => (x == 6 && y < 9) ? 2 : 1; // x=6 세로 벽, y=9에만 틈
+			var map = new int[w, h];
+			for (int x = 0; x < w; x++) for (int y = 0; y < h; y++) map[x, y] = tile(x, y);
+			Unit.humanFactionData = new FactionData { discoveredMap = new[] { map } };
+
+			var human = ScriptableObject.CreateInstance<Human>();
+			human.unitType = new Knight();
+			human.currentFloor = 0;
+			human.position = new Vector2Int(2, 0);
+			for (int x = 0; x < w; x++) for (int y = 0; y < h; y++) human.personalMap.RevealTile(new Vector3Int(x, y, 0), tile(x, y) == 2);
+
+			var goal = new Vector2Int(10, 0);
+			int straight = AIMovementHelper.ChebyshevDistance(human.position, goal);
+			Assert.AreEqual(8, straight);
+			Assert.GreaterOrEqual(Party.EstimateRallyWalkSteps(human, goal, 0), 16, "벽을 돌아 틈(y=9)을 지나 내려오는 길이 직선 8칸보다 훨씬 길다");
+			Assert.AreEqual(straight, Party.EstimateRallyWalkSteps(human, goal, 1), "집결 자리가 다른 층이면 직선거리로 대신한다");
+		}
+		finally { Unit.humanFactionData = saved; }
+	}
+
+	// ── 5-2장·순서도 P02: 미집결자 수색 이동 ───────────────────────────────────────────────
+	// 집결 명령을 못 받아 안 온 대원 A(마지막 확인 위치가 멀다)와 이미 자리에 선 대원 B가 있는 집결 상황. 기한(8초)은 이미 지났고, 시계는 Party.RallyClock으로 주입한다.
+	private float _rallyNow;
+
+	private Party NewRallyParty(out Human leader, out Human absent, out Human present, Vector2Int lastSeen)
+	{
+		_rallyNow = 100f;
+		Party.RallyClock = () => _rallyNow;
+		leader = NewHuman("L", 50f); absent = NewHuman("A", 30f); present = NewHuman("B", 30f);
+		leader.position = new Vector2Int(5, 5); present.position = new Vector2Int(6, 5); absent.position = new Vector2Int(30, 5);
+		var party = NewParty(PartyConcept.Adventurer, leader, absent, present);
+		party.IsRallyActive = true;
+		party.RallyPoint = new Vector2Int(5, 5);
+		party.RallyFloor = 1;
+		party.RallyStartTime = _rallyNow - 9f;
+		leader.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = new Vector2Int(5, 5), WaitFloor = 1 };
+		present.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = new Vector2Int(6, 5), WaitFloor = 1 };
+		party.Command.LeaderLastSeen["A"] = (lastSeen, 1, 40f);
+		return party;
+	}
+
+	// 기한 뒤: 리더가 마지막 확인 위치로 나가고, 도착 후 5초 관찰하고, 못 찾으면 제외한 뒤 집결지로 돌아와야 집결이 끝난다.
+	[Test]
+	public void RallySearch_LeaderTravelsObservesFiveSeconds_ExcludesUnfound_ThenReturnsBeforeCompletion()
+	{
+		var party = NewRallyParty(out var leader, out var absent, out var present, new Vector2Int(14, 5));
+		party.CheckRallyComplete();
+		Assert.IsTrue(party.IsRallyActive, "리더가 나가 있는 동안 집결은 끝나지 않는다");
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason);
+		Assert.AreEqual(new Vector2Int(14, 5), leader.currentWait.WaitPosition.Value, "미집결자의 마지막 확인 위치로 간다");
+
+		leader.position = new Vector2Int(14, 5); leader.currentWait.AtSlot = true; // 도착
+		_rallyNow = 101f; party.CheckRallyComplete();                               // 관찰 시작(101초)
+		_rallyNow = 105.9f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason, "도착 후 5초가 끝나기 전에는 계속 관찰");
+		_rallyNow = 106f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "관찰이 끝나면 집결 대기로 돌아온다");
+		Assert.AreEqual(new Vector2Int(5, 5), leader.currentWait.WaitPosition.Value, "리더의 자리는 집결지");
+		Assert.IsTrue(party.IsRallyActive, "리더가 집결지로 돌아오기 전에는 집결을 끝내지 않는다");
+
+		leader.position = new Vector2Int(5, 5);
+		party.CheckRallyComplete();
+		Assert.IsFalse(party.IsRallyActive, "찾지 못한 A는 미확인 상태로 제외 — 리더가 돌아오면 집결 완료");
+		Assert.IsTrue(party.ReadyToAdvance);
+	}
+
+	// 수색 중 시야로 다시 본 미집결자는 집결 명령을 받아 집결지로 걸어온다(제외되지 않는다) — 그가 도착해야 집결이 끝난다.
+	[Test]
+	public void RallySearch_FoundMemberReceivesRallyOrder_NotExcluded_RallyWaitsForArrival()
+	{
+		var party = NewRallyParty(out var leader, out var absent, out var present, new Vector2Int(14, 5));
+		var room = new Room(); leader.currentRoom = room; absent.currentRoom = room; // 같은 방 — 보이면 집결 명령이 닿는다
+		party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason);
+
+		leader.position = new Vector2Int(14, 5);
+		leader.visiblePartyMembers.Add(absent); // 수색 중 A를 시야로 확인
+		_rallyNow = 101f; party.CheckRallyComplete();
+
+		Assert.IsNotNull(absent.currentWait, "발견한 A에게 집결 명령(자리)이 전달된다");
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, absent.currentWait.Reason);
+		Assert.IsFalse(absent.currentWait.IsParked, "발견한 사람은 제외(현재 위치에서 인정)하지 않고 집결지로 오게 둔다");
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "다 찾았으니 수색을 끝내고 리더가 돌아간다");
+		Assert.IsTrue(party.IsRallyActive);
+
+		leader.position = new Vector2Int(5, 5);
+		party.CheckRallyComplete();
+		Assert.IsTrue(party.IsRallyActive, "찾은 A가 아직 도착하지 않았다");
+		absent.position = absent.currentWait.WaitPosition.Value;
+		party.CheckRallyComplete();
+		Assert.IsFalse(party.IsRallyActive, "A가 자리에 도착하면 집결 완료");
+	}
+
+	// 이미 곁에 있는 마지막 위치는 이동 없이 관찰만 하고, 5초 뒤 예전처럼 곧바로 끝낸다(수색 이동 도입 전과 같은 동작).
+	[Test]
+	public void RallySearch_LastSeenAdjacentToLeader_NoTravel_EndsAfterFiveSecondsLikeBefore()
+	{
+		var party = NewRallyParty(out var leader, out _, out _, new Vector2Int(6, 6));
+		party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "이미 곁이라 리더는 움직이지 않는다");
+		Assert.IsTrue(party.IsRallyActive);
+		_rallyNow = 104.9f; party.CheckRallyComplete();
+		Assert.IsTrue(party.IsRallyActive, "관찰 5초가 끝나기 전");
+		_rallyNow = 105f; party.CheckRallyComplete();
+		Assert.IsFalse(party.IsRallyActive, "이동한 적도 찾은 사람도 없으면 5초 뒤 곧바로 끝난다");
+	}
+
+	// 수색 위치에 끝내 못 가도 이동은 20초에서 끊고 그 자리에서 5초 관찰한다.
+	[Test]
+	public void RallySearch_TravelCappedAtTwentySeconds_ThenObservesFiveSeconds()
+	{
+		var party = NewRallyParty(out var leader, out _, out _, new Vector2Int(14, 5));
+		party.CheckRallyComplete();
+		leader.position = new Vector2Int(9, 5); // 가던 중에 막혀 집결지에서 떨어진 채 못 도착한다
+		_rallyNow = 119.9f; party.CheckRallyComplete();
+		_rallyNow = 120f; party.CheckRallyComplete(); // 이동 상한 도달 → 관찰 시작(120초)
+		_rallyNow = 124.9f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason, "이동 상한 뒤 5초가 끝나기 전");
+		_rallyNow = 125f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "관찰이 끝나면 집결지로 돌아온다");
 	}
 
 	// kill-switch: 끄면 예전처럼 사망 즉시 통솔력 최댓값을 재선정하고 승계 대기·충격이 없다.
