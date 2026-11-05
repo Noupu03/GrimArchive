@@ -699,6 +699,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         RoomClear?.Tick(Time.deltaTime);
         Occupation?.Tick(Time.deltaTime);
         TickCoreRegen();
+        TickCorpseDecay(Time.deltaTime);
     }
 
     // 코어 자동 회복(DoorSystem.UpdateProcess의 문 회복 로직과 대칭). 공격 중인 코어는 UnitFunction.OnUpdate가 매 프레임 TimeSinceLastDamaged를 리셋하므로 회복 지연시간을 넘기지 못한다.
@@ -865,6 +866,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // GameSession.humanWaveManager 필드는 아무도 채워주지 않으므로 HumanWaveManager.Instance
             // 정적 싱글턴을 직접 참조한다(WaveSpawner도 동일 관례).
             corpse.SpawnWaveNumber = HumanWaveManager.Instance != null ? HumanWaveManager.Instance.WaveNumber : 0;
+            corpse.CorpseEconomyData = BuildCorpseEconomyData(objId, u);
 
             // 인류 시체는 사망 사건 추적의 시작점이라 Destroy 전인 지금 위치/방향/lastAttacker를
             // 스냅샷해야 한다. corpse.OwnerPartyId는 나중에 스폰돼도 미리 채운 값 그대로 붙는다.
@@ -907,6 +909,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (_unitGenerate != null) _unitGenerate.RemoveVisual(u, deathAnimSeconds);
             // 코어 잔해를 들고 죽었다면 사망 위치 근처에 잔해를 다시 놓는다 — 파티의 다른 인류가 주울 수 있다(코어 점령 v0.2 8장).
             if (u is Human carrier && carrier.carriesCoreSalvage) Core?.Salvage.OnCarrierDied(carrier);
+            _buildingManager?.NotifyUnitDied(u, corpse);
             UnityEngine.Object.Destroy(u);
         }
 
@@ -1560,7 +1563,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Vector3Int? resourcePos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.ResourceBuildingFootprint);
         if (resourcePos.HasValue)
         {
-            _buildingManager.InstallResourceBuilding(resourcePos.Value, resourceBuildingSprite);
+            _buildingManager.InstallResourceBuilding(resourcePos.Value, resourceBuildingSprite, prePlaced: true);
         }
         else
         {
@@ -1570,11 +1573,13 @@ public class GameSession : NativeRoutine, IOffenseQuery
         Vector3Int? productionPos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.UnitBuildingFootprint);
         if (productionPos.HasValue)
         {
-            _buildingManager.InstallProductionBuilding(productionPos.Value, ProductionRule.CreateDefaultPlayerUnitRules(), productionBuildingSprite);
+            _buildingManager.InstallProductionBuilding(productionPos.Value, ProductionRule.CreateDefaultPlayerUnitRules(), productionBuildingSprite, prePlaced: true);
+        SpawnAdditionalInitialStartRoomAssets(floorIdx, resourceBuildingSprite);
         }
         else
         {
             LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 유닛 생산 건물을 놓을 자리를 찾지 못했습니다.");
+            SpawnAdditionalInitialStartRoomAssets(floorIdx, resourceBuildingSprite);
         }
     }
 
@@ -1760,8 +1765,140 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 새 웨이브 시작마다 호출한다.
     public const int CorpseDespawnAfterWaves = 2;
 
+    // ── 자원 경제 · 유닛 생산 v0.2 연결 헬퍼 (시체 정제 데이터 · 부패 진행 · 시작방 초기 배치) ──
+
+    private static CorpseRecord BuildCorpseEconomyData(string corpseId, Unit u)
+    {
+        CorpseOriginFaction origin = u.IsPlayerMonsterFaction
+            ? CorpseOriginFaction.PlayerAlly
+            : (u.IsHumanFaction ? CorpseOriginFaction.HumanEnemy : CorpseOriginFaction.WildMonster);
+
+        bool isHuman = u is Human;
+        bool isBoss = u.unitType is BossGolem;
+        bool isProducible = !isHuman && !isBoss && u.IsPlayerMonsterFaction;
+
+        double cfgLife = isHuman ? 40.0 : (isBoss ? 120.0 : 30.0);
+        double cfgSoul = isHuman ? 15.0 : (isBoss ? 100.0 : 10.0);
+
+        return new CorpseRecord
+        {
+            CorpseId = corpseId,
+            SpeciesKey = u.unitType?.GetType().Name ?? "Unknown",
+            DisplayName = u.unitType?.typeName ?? u.name,
+            OriginFaction = origin,
+            Footprint = u.FootprintSize,
+            IsProducibleSpecies = isProducible,
+            BaseProductionLifeCost = ResourceManager.UnitProductionLifeEnergyCost,
+            BaseProductionSoulCost = 0.0,
+            ConfiguredRefineLifeReward = cfgLife,
+            ConfiguredRefineSoulReward = cfgSoul,
+            GivesBaseSoulShard = !u.IsPlayerMonsterFaction,
+            CumulativeBaseEvolutionSoulCost = u.cumulativeBaseEvolutionSoulCost,
+            FullDecayDurationSeconds = 180.0,
+            BaseRefineDurationSeconds = 8.0,
+        };
+    }
+
+    private void TickCorpseDecay(float dt)
+    {
+        if (dt <= 0f || Time.timeScale < 0.01f || isPaused) return;
+
+        foreach (var kv in objectGrid)
+        {
+            InteractableObject obj = kv.Value;
+            if (obj == null) continue;
+            obj.CorpseEconomyData?.TickFieldOrCarryDecay(dt);
+            if (obj.CoexistingObjects != null)
+            {
+                for (int i = 0; i < obj.CoexistingObjects.Count; i++)
+                    obj.CoexistingObjects[i]?.CorpseEconomyData?.TickFieldOrCarryDecay(dt);
+            }
+        }
+
+        if (units == null) return;
+        for (int i = 0; i < units.Count; i++)
+        {
+            Unit u = units[i];
+            if (u == null || u.hp <= 0f || u.carriedCorpse == null) continue;
+            bool hit100 = u.carriedCorpse.TickFieldOrCarryDecay(dt);
+            if (hit100 || !u.carriedCorpse.CanBeRefined)
+            {
+                // 명세서 v0.2 12-표2: 운반 중 부패 100% 도달 시 내려놓고 운반 명령을 종료한다.
+                u.targetRefineryForCarry?.Refinery.CancelIncomingReservation(u.carriedCorpse.CorpseId);
+                _buildingManager?.DropCorpseToField(u.carriedCorpse, new Vector3Int(u.position.x, u.position.y, u.currentFloor), livingCarrier: u, carrierCorpseOnSameTile: null);
+                u.carriedCorpse = null;
+                u.targetRefineryForCarry = null;
+                u.suppressEconomyCommandHook = true;
+                u.ClearPlayerCommand();
+                u.suppressEconomyCommandHook = false;
+                NoticeCenter.Instance?.PushMomentary("운반 중 시체 부패가 100%에 도달하여 내려놓았습니다.", NoticeCenter.WarningColor);
+            }
+        }
+    }
+
+    // 명세서 v0.2 25-1-표1: 시작방에 첫 시체 보관·정제 통합시설과 작업 특화 몬스터가 함께 존재하도록 배치한다.
+    private void SpawnAdditionalInitialStartRoomAssets(int floorIdx, Sprite refinerySprite)
+    {
+        Vector3Int? refineryPos = FindInstallableStartRoomPos(floorIdx, (Vector2)BuildingManager.RefineryBuildingFootprint);
+        if (!refineryPos.HasValue)
+        {
+            // 통행 분단 검사를 완화한 보조 탐색
+            for (int attempt = 0; attempt < 30; attempt++)
+            {
+                Vector2Int pos = GetRandomStartRoomPos((Vector2)BuildingManager.RefineryBuildingFootprint, floorIdx);
+                Vector3Int gridPos = new Vector3Int(pos.x, pos.y, floorIdx);
+                if (_buildingManager.CanInstallAt(gridPos, BuildingManager.RefineryBuildingFootprint) && IsGoodForInitialSpawn(gridPos, (Vector2)BuildingManager.RefineryBuildingFootprint))
+                {
+                    refineryPos = gridPos;
+                    break;
+                }
+            }
+        }
+
+        if (refineryPos.HasValue)
+            _buildingManager.InstallCorpseRefineryBuilding(refineryPos.Value, refinerySprite, prePlaced: true);
+        else
+            LogHelper.Warning(LogHelper.GAME, "SpawnInitialBuildings: 시작방에 시체 보관·정제 통합시설을 놓을 자리를 찾지 못했습니다.");
+
+        // 시작방 초기 아군 몬스터 2기: 전투 기본 몬스터 1기 + 작업 특화 몬스터 1기(25-1-표1)
+        SpawnInitialStartRoomMonster(floorIdx, isWorkSpecialist: true);
+        SpawnInitialStartRoomMonster(floorIdx, isWorkSpecialist: false);
+    }
+
+    private void SpawnInitialStartRoomMonster(int floorIdx, bool isWorkSpecialist)
+    {
+        if (_unitGenerate == null) return;
+        UnitType unitType = new MeleeTank();
+        for (int attempt = 0; attempt < 30; attempt++)
+        {
+            Vector2Int spawnPos = GetRandomStartRoomPos(unitType.footprint, floorIdx);
+            Vector3Int key = new Vector3Int(spawnPos.x, spawnPos.y, floorIdx);
+            if (!_unitGenerate.IsAreaClear(spawnPos, unitType.footprint, floorIdx)) continue;
+            if (_buildingManager != null && _buildingManager.GetBuildingAt(key) != null) continue;
+            if (unitGrid.ContainsKey(key) || objectGrid.ContainsKey(key)) continue;
+
+            Monster m = _unitGenerate.GenerateUnitAtPos<Monster>(unitType, spawnPos, floorIdx);
+            m.FactionBehavior = new PlayerMonsterBehavior();
+            m.MovementAlgorithm = new RoomConfinedMovement();
+            m.summonPosition = spawnPos;
+            if (isWorkSpecialist)
+            {
+                m.name = "작업 특화 몬스터";
+                m.workerSpeedMultiplier = 1.25f;
+                m.lifeEnergyOutputBonusRatio = 0.2f;
+            }
+            units.Add(m);
+            RegisterUnitPos(m, m.position);
+            if (roomGrid.TryGetValue(key, out Room startRoom) && startRoom != null)
+                startRoom.AddUnit(m);
+            return;
+        }
+    }
+
     public void DespawnCorpsesForNewWave(int currentWaveNumber)
     {
+        // 명세서 v0.2 14-표1: 부패 100%에 도달한 시체도 자동 소멸하지 않고 정제 불가 장애물로 남는다.
+        if (currentWaveNumber >= 0) return;
         List<Vector3Int> toRemove = null;
         foreach (var kv in objectGrid)
         {

@@ -3,26 +3,51 @@ using UnityEngine;
 using VContainer;
 using Haare.Util.Logger;
 
-// 코어 상태 전이(세션 연결부) — 코어 점령 설계명세서 v0.2 3·4·9·10장. 판정은 CoreMath, 상태 값은 InteractableObject(CoreEverActivated/CoreDestroyed), 잔해는 CoreSalvage.
+// 코어 상태 전이(세션 연결부) — 코어 점령 설계명세서 v0.2 3·4·9·10장 및 자원경제 설계명세서 v0.2 2·15·19·25-1항 연결.
 // 코어는 층당 하나(보스방)이고 담당 범위는 그 층 전체다 — 분할 코어가 생기면 TryGetFloorCore/AreFunctionsActive 조회만 바꾸면 된다.
 public class CoreSystem
 {
-	// 수복 비용(자리표시자 — 9장은 비용·시간·수행 주체를 후속 확정으로 남김). 수복은 명령 즉시 완료된다.
-	public const int RestoreStoneCost = 300;
+	// 기본 수복비·기본 수복시간·수복 중 오브젝트 최대 HP(자리표시자 — 21항 콘텐츠 데이터 확정 전 검증용 초기값).
+	public const int RestoreLifeEnergyCost = ResourceManager.CoreRestoreBaseLifeEnergyCost;
+	public const double RestoreBaseWorkSeconds = 15.0;
+	public const float RestoreObjectMaxHp = 500f;
 
 	private static readonly Color IncompleteTint = Color.white;
 	private static readonly Color ActivatedTint = new Color(0.55f, 1f, 1f, 1f);
 	private static readonly Color DestroyedTint = new Color(0.28f, 0.28f, 0.3f, 1f);
+	private static readonly Color RestoringTint = new Color(0.65f, 0.85f, 0.45f, 1f);
 
 	private IObjectResolver _resolver;
 	private GameSession Session => _cachedSession ??= _resolver.Resolve<GameSession>();
 	private GameSession _cachedSession;
 	private RoomClearSystem _roomClear;
 	private CoreSalvage _salvage;
-	// 층당 코어는 하나이고 위치가 바뀌지 않아 처음 찾은 결과를 기억한다(건물 생산 틱이 매 프레임 묻는다).
+
 	private readonly Dictionary<int, (Room room, InteractableObject core)> _floorCoreCache = new Dictionary<int, (Room, InteractableObject)>();
+	private readonly Dictionary<Vector3Int, CoreRestoreSession> _activeRestores = new Dictionary<Vector3Int, CoreRestoreSession>();
+	private bool _anyCoreEverActivated;
 
 	public CoreSalvage Salvage => _salvage ??= new CoreSalvage(Session);
+
+	// 최초 1회라도 어느 코어든 완전 활성화된 이력이 있는지(파괴 후에도 영구 유지 — 영혼 파편 소비·연구시설 해금 기준, 2-표1, 19-표2).
+	public bool HasAnyCoreEverBeenActivated
+	{
+		get
+		{
+			if (_anyCoreEverActivated) return true;
+			if (Session?.allRooms == null) return false;
+			foreach (var r in Session.allRooms)
+			{
+				if (r == null || r.CoreObjectId == null) continue;
+				if (Session.objectGrid.TryGetValue(r.CorePosition, out var c) && c != null && c.CoreEverActivated)
+				{
+					_anyCoreEverActivated = true;
+					return true;
+				}
+			}
+			return false;
+		}
+	}
 
 	[Inject]
 	public void Construct(IObjectResolver resolver, RoomClearSystem roomClear)
@@ -70,6 +95,15 @@ public class CoreSystem
 		return Session.roomGrid.TryGetValue(pos, out room) && room != null;
 	}
 
+	public CoreRestoreSession GetActiveRestoreAt(Vector3Int corePos)
+		=> _activeRestores.TryGetValue(corePos, out var s) && !s.IsEnded ? s : null;
+
+	public bool HasAvailableSalvageInCoreRoom(Room coreRoom, out InteractableObject salvagePiece)
+	{
+		salvagePiece = Salvage.FindInRoom(coreRoom);
+		return salvagePiece != null;
+	}
+
 	// 건설·생산·문 제어·자원 생산을 쓸 수 있는 층인가 — 담당 코어가 파괴됐으면 false. 코어가 없는 층(0층 등)은 제한이 없다.
 	public bool AreFunctionsActive(int floor)
 		=> !TryGetFloorCore(floor, out _, out InteractableObject core) || CoreMath.FunctionsActive(core.CoreDestroyed);
@@ -83,9 +117,15 @@ public class CoreSystem
 	public CoreActivateBlock CheckActivate(Room room, InteractableObject core)
 		=> CoreMath.CheckActivate(core.CoreEverActivated, core.CoreDestroyed, IsBossAlive(room.Floor), _roomClear.IsCleared(room));
 
-	public CoreRestoreBlock CheckRestore(Room room, InteractableObject core)
-		=> CoreMath.CheckRestore(core.CoreDestroyed, _roomClear.IsCleared(room),
-			ResourceManager.Instance != null && ResourceManager.Instance.HasEnoughResource(ResourceType.Stone, RestoreStoneCost));
+	public CoreRestoreBlock CheckRestore(Room room, InteractableObject core, bool useSalvage = false)
+	{
+		double neededCost = useSalvage && Salvage.FindInRoom(room) != null
+			? RestoreLifeEnergyCost * 0.5
+			: RestoreLifeEnergyCost;
+		bool hasEnough = ResourceManager.Instance != null
+			&& ResourceManager.Instance.HasEnoughResource(ResourceType.LifeEnergy, neededCost);
+		return CoreMath.CheckRestore(core.CoreDestroyed, _roomClear.IsCleared(room), hasEnough);
+	}
 
 	private bool IsBossAlive(int floor)
 	{
@@ -96,7 +136,6 @@ public class CoreSystem
 
 	// ── 전이 ──
 
-	// 플레이어가 코어를 선택해 실행하는 완전 활성화. 해금되는 진화·업그레이드는 연결할 시스템이 없어 이력만 남긴다. ignoreConditions는 debug 전용.
 	public CoreActivateBlock TryActivate(Vector3Int corePos, bool ignoreConditions = false)
 	{
 		if (!TryGetCoreAt(corePos, out Room room, out InteractableObject core)) return CoreActivateBlock.Destroyed;
@@ -106,31 +145,28 @@ public class CoreSystem
 		if (block != CoreActivateBlock.None) return block;
 
 		core.CoreEverActivated = true;
+		_anyCoreEverActivated = true;
 		ApplyTint(core);
 		PlayActivationVfx(room, core);
-		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 완전 활성화 — 인류가 이 코어를 공격할 수 있게 됨(진화·업그레이드 해금은 실행 시스템이 아직 없다)");
+		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 완전 활성화 — 영혼 파편 소비·연구시설·진화 해금 열림");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 완전 활성화되었습니다.", NoticeCenter.QuestCompleteColor);
 		OpenNextFloorStair(room);
 		NotifyHumansCoreAttackable(core);
 		return CoreActivateBlock.None;
 	}
 
-	// 보스방 코어를 처음 활성화하면 그 방의 다음 층 계단이 열린다(3장). 한 번 열린 계단은 이후 코어 파괴·방 점령으로 닫히지 않으므로 닫는 코드는 없다. 같은 층의 다른 코어까지 활성화할 필요는 없다.
-	// 계단 개방 연출은 아직 없다(알림만) — 데이터(Chunks.stairIsOpen)만 바뀐다.
 	private void OpenNextFloorStair(Room room)
 	{
 		CreateMap cmap = Session.cmap;
 		int next = room.Floor + 1;
 		if (cmap?.map.floors == null || next >= cmap.map.floors.Length) return;
 		if (!cmap.TryGetStairPosition(room.Floor, next, out Vector2Int stairPos)) return;
-		// 계단이 이 코어의 방에 있을 때만(보스방 계단) — 방 조회가 안 되는 칸이면 보스방 계단으로 보고 연다.
 		if (Session.roomGrid.TryGetValue(new Vector3Int(stairPos.x, stairPos.y, room.Floor), out Room stairRoom) && stairRoom != null && stairRoom != room) return;
 
 		if (!cmap.OpenStair(room.Floor, next)) return;
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 계단이 열렸습니다 — {next}층으로 내려갈 수 있습니다.", NoticeCenter.QuestCompleteColor);
 	}
 
-	// 코어 체력이 0이 된 순간(UnitFunction.OnUpdate의 채널링 직후)의 단일 진입점. 방 소유권은 바꾸지 않고 코어는 파괴 상태로 남는다.
 	public void OnCoreDestroyed(Room room, InteractableObject core, Unit killer)
 	{
 		if (room == null || core == null || core.CoreDestroyed) return;
@@ -150,24 +186,216 @@ public class CoreSystem
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 파괴되었습니다. 건설·생산이 정지됩니다.", NoticeCenter.WarningColor);
 	}
 
-	// 플레이어의 수복 명령 — 비용을 쓰고 즉시 완료한다. 활성화 이력은 유지된다. free는 방 클리어·자원 조건을 건너뛰는 debug 전용.
+	// 명세서 v0.2 19항: 생명 에너지 선배정 + 선택적 코어 잔해 1개(기본 수복비 50% 충당) + 현장 작업자 수복 개시.
+	public bool TryBeginRestoreOrder(Vector3Int corePos, bool useSalvageIfAvailable, out string failureMessage)
+	{
+		failureMessage = string.Empty;
+		if (!TryGetCoreAt(corePos, out Room room, out InteractableObject core))
+		{
+			failureMessage = "코어를 찾을 수 없습니다.";
+			return false;
+		}
+		if (GetActiveRestoreAt(corePos) != null)
+		{
+			failureMessage = "이미 코어 수복 작업이 등록되어 있습니다.";
+			return false;
+		}
+		if (ResourceManager.Instance == null)
+		{
+			failureMessage = "자원 관리자가 초기화되지 않았습니다.";
+			return false;
+		}
+
+		InteractableObject salvagePiece = useSalvageIfAvailable ? Salvage.FindInRoom(room) : null;
+		bool bindSalvage = salvagePiece != null;
+
+		if (!CoreRestoreSession.TryCreateOrder(
+			RestoreLifeEnergyCost,
+			RestoreBaseWorkSeconds,
+			RestoreObjectMaxHp,
+			core.CoreDestroyed,
+			_roomClear.IsCleared(room),
+			hasHumanByproductDevice: false,
+			useOnSiteSalvage: bindSalvage,
+			onSiteSalvageOrNull: salvagePiece,
+			ResourceManager.Instance.LifeEnergyAccount,
+			out CoreRestoreSession session,
+			out failureMessage))
+		{
+			if (!string.IsNullOrEmpty(failureMessage))
+				NoticeCenter.Instance?.PushMomentary(failureMessage, NoticeCenter.WarningColor);
+			return false;
+		}
+
+		// 수복 진행 중 잔해는 해당 수복에 묶여 다른 수복이나 인류 반출에 쓰이지 않는다(19-표1).
+		if (bindSalvage && salvagePiece != null)
+			Session.CollectObject(salvagePiece.Position);
+
+		_activeRestores[corePos] = session;
+		ApplyTint(core);
+		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 수복 등록 (잔해 사용: {bindSalvage}, 선점 비용: {session.TotalRequiredCeilCost}) — 몬스터를 우클릭 배정해 작업 진행");
+		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어 수복이 등록되었습니다. 몬스터를 코어에 우클릭해 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
+		return true;
+	}
+
+	public bool TryApproveRestoreExtraDiff(Vector3Int corePos)
+	{
+		CoreRestoreSession session = GetActiveRestoreAt(corePos);
+		if (session == null || ResourceManager.Instance == null) return false;
+		if (!session.TryApproveExtraDiffManually(ResourceManager.Instance.LifeEnergyAccount, out string failMsg))
+		{
+			if (!string.IsNullOrEmpty(failMsg))
+				NoticeCenter.Instance?.PushMomentary(failMsg, NoticeCenter.WarningColor);
+			return false;
+		}
+		NoticeCenter.Instance?.PushMomentary("추가 수복비를 지불했습니다. 수복을 재개할 수 있습니다.", NoticeCenter.QuestCompleteColor);
+		return true;
+	}
+
+	public bool CancelRestoreManually(Vector3Int corePos)
+	{
+		CoreRestoreSession session = GetActiveRestoreAt(corePos);
+		if (session == null) return false;
+
+		session.CancelManually(ResourceManager.Instance?.LifeEnergyAccount, out bool returnSalvage);
+		_activeRestores.Remove(corePos);
+
+		if (returnSalvage)
+			Salvage.Spawn(corePos);
+
+		if (TryGetCoreAt(corePos, out _, out InteractableObject core))
+		{
+			GameObject visual = Session.GetObjectVisual(core.Position);
+			visual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+			ApplyTint(core);
+		}
+		NoticeCenter.Instance?.PushMomentary("코어 수복을 취소하고 지불한 생명 에너지를 환급했습니다.", NoticeCenter.WarningColor);
+		return true;
+	}
+
+	public void ApplyDamageToRestoringCore(Vector3Int corePos, float damage)
+	{
+		CoreRestoreSession session = GetActiveRestoreAt(corePos);
+		if (session == null || damage <= 0f) return;
+
+		session.ApplyDamageDuringRestore(damage, ResourceManager.Instance?.LifeEnergyAccount);
+		if (session.IsDestroyed)
+		{
+			// 미완성 수복 파괴 시 지불액과 투입 잔해 모두 손실되며 새 잔해는 생성하지 않는다(19-표1, 24-표1).
+			_activeRestores.Remove(corePos);
+			if (TryGetCoreAt(corePos, out Room room, out InteractableObject core))
+			{
+				GameObject visual = Session.GetObjectVisual(core.Position);
+				visual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
+				ApplyTint(core);
+				LogHelper.Warning(LogHelper.GAME, $"[코어] F{room.Floor} 수복 중 코어 오브젝트 파괴 — 지불액 및 투입 잔해 소멸(고정 위치에서 재수복 가능)");
+				NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 수복 중 코어가 파괴되어 수복 작업이 소멸했습니다.", NoticeCenter.WarningColor);
+			}
+		}
+	}
+
+	// 현장 작업자 진행 틱(BuildingManager.UpdateProcess에서 매 프레임 호출)
+	public void TickActiveRestores(float deltaSeconds, IReadOnlyList<Unit> allUnits)
+	{
+		if (_activeRestores.Count == 0 || Session == null) return;
+
+		var keys = new List<Vector3Int>(_activeRestores.Keys);
+		var workerSpeeds = new List<float>(4);
+
+		for (int i = 0; i < keys.Count; i++)
+		{
+			Vector3Int corePos = keys[i];
+			if (!_activeRestores.TryGetValue(corePos, out CoreRestoreSession session) || session.IsEnded)
+			{
+				_activeRestores.Remove(corePos);
+				continue;
+			}
+
+			if (!TryGetCoreAt(corePos, out Room room, out InteractableObject core))
+			{
+				_activeRestores.Remove(corePos);
+				continue;
+			}
+
+			workerSpeeds.Clear();
+			Vector2Int coreOrigin = new Vector2Int(corePos.x, corePos.y);
+			if (allUnits != null)
+			{
+				for (int uIdx = 0; uIdx < allUnits.Count; uIdx++)
+				{
+					Unit u = allUnits[uIdx];
+					if (u == null || u.hp <= 0f || !u.IsPlayerMonsterFaction || u.currentFloor != corePos.z) continue;
+					if (u.assignedCoreRestorePos != corePos) continue;
+					if (u.StatusEffects.State.stunDuration > 0f || u.IsInEvolutionPresentation) continue;
+					if (WorkSpeedMath.IsOrthogonallyAdjacent(coreOrigin, Vector2Int.one, u.position, u.FootprintSize))
+						workerSpeeds.Add(Mathf.Max(0.1f, u.workerSpeedMultiplier));
+				}
+			}
+
+			bool completed = session.Tick(
+				deltaSeconds,
+				workerSpeeds,
+				_roomClear.IsCleared(room),
+				ResourceManager.Instance?.LifeEnergyAccount);
+
+			GameObject visual = Session.GetObjectVisual(core.Position);
+			visual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress((float)session.Progress01, true);
+
+			if (completed)
+			{
+				_activeRestores.Remove(corePos);
+				CompleteCoreRestoration(room, core);
+			}
+		}
+	}
+
+	// debug 즉시 수복(free: true) 및 기존 단일 호출 호환
 	public CoreRestoreBlock TryRestore(Vector3Int corePos, bool free = false)
 	{
 		if (!TryGetCoreAt(corePos, out Room room, out InteractableObject core)) return CoreRestoreBlock.NotDestroyed;
-		CoreRestoreBlock block = free
-			? (core.CoreDestroyed ? CoreRestoreBlock.None : CoreRestoreBlock.NotDestroyed)
-			: CheckRestore(room, core);
-		if (block != CoreRestoreBlock.None) return block;
-		if (!free && (ResourceManager.Instance == null || !ResourceManager.Instance.TryConsumeResource(ResourceType.Stone, RestoreStoneCost))) return CoreRestoreBlock.NotEnoughResources;
+		if (free)
+		{
+			if (!core.CoreDestroyed) return CoreRestoreBlock.NotDestroyed;
+			if (_activeRestores.TryGetValue(corePos, out var active) && !active.IsEnded)
+			{
+				active.CancelManually(ResourceManager.Instance?.LifeEnergyAccount, out bool returnSalvage);
+				if (returnSalvage) Salvage.Spawn(corePos);
+				_activeRestores.Remove(corePos);
+			}
+			CompleteCoreRestoration(room, core);
+			return CoreRestoreBlock.None;
+		}
 
+		CoreRestoreBlock block = CheckRestore(room, core, useSalvage: true);
+		if (block != CoreRestoreBlock.None) return block;
+		return TryBeginRestoreOrder(corePos, useSalvageIfAvailable: true, out _)
+			? CoreRestoreBlock.None
+			: CoreRestoreBlock.NotEnoughResources;
+	}
+
+	private void CompleteCoreRestoration(Room room, InteractableObject core)
+	{
 		core.CoreDestroyed = false;
 		core.CoreHp = core.CoreMaxHp;
 		core.TimeSinceLastDamaged = float.MaxValue;
+
+		GameObject visual = Session.GetObjectVisual(core.Position);
+		visual?.GetComponent<ObjectProgressBarVisual>()?.SetProgress(0f, false);
 		ApplyTint(core);
+
+		// 수복에 참여했던 작업자 배정 해제
+		if (Session.units != null)
+		{
+			foreach (var u in Session.units)
+			{
+				if (u != null && u.assignedCoreRestorePos == core.Position)
+					u.assignedCoreRestorePos = null;
+			}
+		}
+
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 수복 완료 — 정지됐던 작업 재개(활성화 이력 {(core.CoreEverActivated ? "유지" : "없음")})");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 수복되었습니다. 정지된 작업이 재개됩니다.", NoticeCenter.QuestCompleteColor);
 		NotifyHumansCoreAttackable(core);
-		return CoreRestoreBlock.None;
 	}
 
 	public void DebugDestroy(Vector3Int corePos)
@@ -175,8 +403,6 @@ public class CoreSystem
 		if (TryGetCoreAt(corePos, out Room room, out InteractableObject core)) OnCoreDestroyed(room, core, null);
 	}
 
-	// 코어가 공격 가능해진 순간(활성화·수복) 그 코어를 이미 아는 인류에게 미처리 코어로 알린다 — 발견 이벤트는 처음 본 순간 한 번뿐이라 활성화 전에 본 코어는 이렇게 알리지 않으면 영영 보고되지 않는다
-	// (활성화·수복이 세계에 드러나는 사건이라는 해석 — 문서가 인류의 인지 경로를 정하지 않음). 파티당 한 명만 보고를 시작한다.
 	private void NotifyHumansCoreAttackable(InteractableObject core)
 	{
 		var notified = new HashSet<Party>();
@@ -188,7 +414,6 @@ public class CoreSystem
 		}
 	}
 
-	// 완전 활성화 연출 — 코어에서 링이 코어 방 끝까지 퍼진다(CoreActivationVfx). 수복에는 쓰지 않는다.
 	private void PlayActivationVfx(Room room, InteractableObject core)
 	{
 		GameObject visual = Session.GetObjectVisual(core.Position);
@@ -197,7 +422,6 @@ public class CoreSystem
 		RectInt bounds = room.Bounds;
 		var roomRect = new Rect(bounds.xMin + floorOffset.x, bounds.yMin + floorOffset.y, bounds.width, bounds.height);
 
-		// 코어 스프라이트와 같은 정렬 레이어에서 바로 위에 그려 코어 위로 퍼지게 한다.
 		var sr = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
 		CoreActivationVfx.Play(Session.GetFloorCategoryGroup(room.Floor, "Objects"), center, roomRect, ActivatedTint,
 			sr != null ? sr.sortingLayerID : 0, (sr != null ? sr.sortingOrder : 5) + 1);
@@ -207,6 +431,11 @@ public class CoreSystem
 	{
 		var sr = Session.GetObjectVisual(core.Position)?.GetComponent<SpriteRenderer>();
 		if (sr == null) return;
+		if (GetActiveRestoreAt(core.Position) != null)
+		{
+			sr.color = RestoringTint;
+			return;
+		}
 		sr.color = CoreMath.StatusOf(core.CoreEverActivated, core.CoreDestroyed) switch
 		{
 			CoreStatus.FullyActivated => ActivatedTint,

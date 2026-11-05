@@ -41,6 +41,24 @@ public sealed class StatModifierLedger
 		Recalculate();
 	}
 
+	// 출처의 효과를 고정 수치 가산 델타 목록으로 정한다(연구 종류별 업그레이드·개체 진화 연출의 초당 누적 증가분 반영용).
+	public void SetFlat(string source, IEnumerable<(DetailStat stat, float flatDelta)> effects)
+	{
+		Remove(source, recalc: false);
+		var deltas = new Dictionary<DetailStat, float>();
+		if (effects != null)
+		{
+			foreach (var (stat, flatDelta) in effects)
+			{
+				if (flatDelta == 0f) continue;
+				Add(stat, flatDelta);
+				deltas[stat] = deltas.TryGetValue(stat, out float prev) ? prev + flatDelta : flatDelta;
+			}
+		}
+		if (deltas.Count > 0) _applied[source] = deltas;
+		Recalculate();
+	}
+
 	public void Remove(string source) => Remove(source, recalc: true);
 
 	private void Remove(string source, bool recalc)

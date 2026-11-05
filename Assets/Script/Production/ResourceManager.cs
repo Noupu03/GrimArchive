@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -5,163 +6,246 @@ using Haare.Client.Routine;
 using Haare.Util.Logger;
 using UnityEngine;
 
-public enum ResourceType
+public enum FacilityKind
 {
-    Wood,
-    Stone
+	LifeEnergy,
+	UnitProduction,
+	CorpseRefinery,
+	Research,
+	Dummy,
 }
 
 public class ResourceManager : NativeRoutine
 {
-    public static ResourceManager Instance { get; private set; }
+	public static ResourceManager Instance { get; private set; }
 
-    // 건축물·자원·유닛 생산 MVP(2026-07-27) — P키(함정 배치) 1회당 소모 자원. InputManager와
-    // UI(StatusInfoPanel의 자원 사용 안내)가 같은 값을 참조하도록 여기 한 곳에만 정의한다.
-    public const int TrapPlaceStoneCost = 100;
+	// ── 프로토타입 자리표시자 수치 (21항 유닛·시설 통합 데이터 확정 전 검증용 초기값) ──
+	public const int InitialLifeEnergyAmount = 600;
+	public const int InitialSoulShardAmount = 0;
+	public const int InitialResourceAmount = InitialLifeEnergyAmount;
 
-    // 문 재설치 1회당 소모 자원(자리표시자, 플레이 테스트 후 조정 — 함정과 동일한 급으로 우선 맞춤).
-    // 원래는 debug 메뉴의 무료 설치였다가 "설치" 메뉴의 유료 설치로 바뀌었다.
-    public const int DoorRepairStoneCost = 100;
+	public const int TrapPlaceLifeEnergyCost = 100;
+	public const int DoorRepairLifeEnergyCost = 100;
 
-    // 건축물·자원·유닛 생산 MVP(2026-07-27, 사용자 확정 수치) — B/V키 건물 설치비와 유닛 생산비.
-    public const int UnitProductionWoodCost = 100;
-    public const int ResourceBuildingStoneCost = 300;
-    public const int UnitBuildingStoneCost = 200;
+	public const int LifeEnergyBuildingCost = 250;
+	public const int UnitBuildingLifeEnergyCost = 200;
+	public const int CorpseRefineryBuildingCost = 220;
+	public const int ResearchBuildingLifeEnergyCost = 300;
+	public const int FacilityUpgradeLifeEnergyCost = 200;
+	public const int FacilityUpgradeSoulShardCost = 25;
+	public const int FacilityFullRepairLifeEnergyCost = 120;
+	public const int FacilityRelocateDismantleLifeEnergyCost = 60;
 
-    // 처치 보상(문서에 수치 미명시 — "시간기반 자동증가보다 훨씬 커야 한다"는 기준만 있어 상수로
-    // 뺌) — BuildingManager의 자원 건물 틱(5초당 +10)의 3배.
-    public const int KillRewardWood = 30;
-    public const int KillRewardStone = 30;
+	public const int UnitProductionLifeEnergyCost = 100;
+	public const int CoreRestoreBaseLifeEnergyCost = 300;
 
-    // 초기 보유량 — Wood/Stone 각각. debug 메뉴의 "초기값으로"도 이 값을 쓴다.
-    public const int InitialResourceAmount = 400;
+	public const int DebugMaxAmount = 999999;
 
-    private Dictionary<ResourceType, int> resources = new Dictionary<ResourceType, int>();
+	private readonly Dictionary<ResourceType, ResourceAccount> _accounts = new Dictionary<ResourceType, ResourceAccount>();
+	private readonly HashSet<string> _unlockedMonsterSpecies = new HashSet<string>();
+	private readonly HashSet<FacilityKind> _unlockedFacilities = new HashSet<FacilityKind>();
 
-    public override async UniTask Initialize(CancellationToken cts)
-    {
-        await base.Initialize(cts);
-        Instance = this;
+	public GlobalResearchLedger ResearchLedger { get; } = new GlobalResearchLedger();
 
-        resources.Clear();
-        // 초기 보유량 Wood/Stone 각 400. Gold는 소모처가 없는 미사용 자원이라 enum 자체에서 제거됐다.
-        // 시간 경과 자동 증가는 "고정값"이 아니라 V키 자원 생산 건물이 있을 때만 발생한다
-        // (BuildingManager 참고) — 문서 5장의 "건축물을 통한 임시 자원 확보" 요구사항을 연결한 것.
-        resources[ResourceType.Wood] = InitialResourceAmount;
-        resources[ResourceType.Stone] = InitialResourceAmount;
+	// debug 전용 영혼 파편 사용 강제 해금 스위치
+	public bool DebugForceUnlockSoulShard { get; set; }
 
-        LogHelper.Log(LogHelper.GAME, "ResourceManager Initialized");
-    }
+	public IReadOnlyDictionary<ResourceType, ResourceAccount> Accounts => _accounts;
+	public ResourceAccount LifeEnergyAccount => GetOrCreateAccount(ResourceType.LifeEnergy);
+	public ResourceAccount SoulShardAccount => GetOrCreateAccount(ResourceType.SoulShard);
+	public IReadOnlyCollection<string> UnlockedMonsterSpecies => _unlockedMonsterSpecies;
+	public IReadOnlyCollection<FacilityKind> UnlockedFacilities => _unlockedFacilities;
 
-    public override async UniTask Finalize()
-    {
-        resources.Clear();
-        LogHelper.Log(LogHelper.GAME, "ResourceManager Disposed");
-        await base.Finalize();
-    }
+	// 영혼 파편은 최초 코어 완전 활성화 전에도 획득·보유할 수 있으나 소비와 연구시설 건설은 최초 코어 완전 활성화 이후에만 가능하다(2-표1, 15-표1, 23-표1).
+	public bool IsSoulShardSpendUnlocked
+		=> DebugForceUnlockSoulShard
+		|| (GameSession.Instance != null && GameSession.Instance.Core != null && GameSession.Instance.Core.HasAnyCoreEverBeenActivated);
 
-    public void AddResource(ResourceType type, int amount)
-    {
-        if (amount <= 0) return;
-        
-        if (!resources.ContainsKey(type))
-            resources[type] = 0;
-            
-        resources[type] += amount;
-    }
+	public ResourceManager()
+	{
+		InitializeAccountsAndDefaults();
+	}
 
-    // 8단계: 검사와 차감을 원자적으로 처리 (동시성 방지)
-    public bool TryConsumeResource(ResourceType type, int amount)
-    {
-        if (amount < 0) return false;
-        if (amount == 0) return true;
+	public override async UniTask Initialize(CancellationToken cts)
+	{
+		await base.Initialize(cts);
+		Instance = this;
+		InitializeAccountsAndDefaults();
+		LogHelper.Log(LogHelper.GAME, "ResourceManager Initialized (생명 에너지 / 영혼 파편 2자원 체계)");
+	}
 
-        if (resources.TryGetValue(type, out int current) && current >= amount)
-        {
-            resources[type] -= amount;
-            LogHelper.Log(LogHelper.GAME, $"Consumed {amount} {type}. Remaining: {resources[type]}");
-            return true;
-        }
+	public override async UniTask Finalize()
+	{
+		_accounts.Clear();
+		LogHelper.Log(LogHelper.GAME, "ResourceManager Disposed");
+		await base.Finalize();
+	}
 
-        LogHelper.Warning(LogHelper.GAME, $"Not enough {type} to consume {amount}. Current: {(resources.ContainsKey(type) ? resources[type] : 0)}");
-        // 자원 부족은 플레이어 행동(건물/함정 설치, 유닛 생산 등)이 실패하는 원인이라 단일 지점에서
-        // notice로도 알린다 — 호출부마다 따로 notice를 띄우면 중복되므로 여기 한 곳으로 모은다.
-        NoticeCenter.Instance?.PushMomentary($"{type} 자원이 부족합니다. (필요: {amount})", NoticeCenter.WarningColor);
-        return false;
-    }
+	private void InitializeAccountsAndDefaults()
+	{
+		_accounts[ResourceType.LifeEnergy] = new ResourceAccount(ResourceType.LifeEnergy, InitialLifeEnergyAmount);
+		_accounts[ResourceType.SoulShard] = new ResourceAccount(ResourceType.SoulShard, InitialSoulShardAmount);
 
-    public bool TryConsumeResources(List<ResourceCost> costs)
-    {
-        // 1. 전체 검사 (Atomic)
-        foreach (var cost in costs)
-        {
-            if (!HasEnoughResource(cost.resourceType, cost.amount))
-            {
-                LogHelper.Warning(LogHelper.GAME, $"Not enough {cost.resourceType} to consume {cost.amount}.");
-                NoticeCenter.Instance?.PushMomentary($"{cost.resourceType} 자원이 부족합니다. (필요: {cost.amount})", NoticeCenter.WarningColor);
-                return false;
-            }
-        }
+		_unlockedMonsterSpecies.Clear();
+		_unlockedMonsterSpecies.Add("MeleeTank");
 
-        // 2. 전체 차감
-        foreach (var cost in costs)
-        {
-            resources[cost.resourceType] -= cost.amount;
-            LogHelper.Log(LogHelper.GAME, $"Consumed {cost.amount} {cost.resourceType}. Remaining: {resources[cost.resourceType]}");
-        }
-        return true;
-    }
+		_unlockedFacilities.Clear();
+		_unlockedFacilities.Add(FacilityKind.LifeEnergy);
+		_unlockedFacilities.Add(FacilityKind.CorpseRefinery);
+		_unlockedFacilities.Add(FacilityKind.UnitProduction);
+		_unlockedFacilities.Add(FacilityKind.Dummy);
 
-    public bool HasEnoughResource(ResourceType type, int amount)
-    {
-        return resources.TryGetValue(type, out int current) && current >= amount;
-    }
+		foreach (var def in GlobalResearchLedger.CreateDefaultPrototypeCatalog())
+			ResearchLedger.RegisterDefinition(def);
+	}
 
-    public int GetResourceAmount(ResourceType type)
-    {
-        return resources.TryGetValue(type, out int current) ? current : 0;
-    }
+	private ResourceAccount GetOrCreateAccount(ResourceType type)
+	{
+		if (!_accounts.TryGetValue(type, out var acc))
+		{
+			acc = new ResourceAccount(type, 0.0);
+			_accounts[type] = acc;
+		}
+		return acc;
+	}
 
-    // debug 전용 — 보유량을 직접 정한다(0~DebugMaxAmount로 자른다). 정상 플레이의 획득·소모는 AddResource/TryConsumeResource만 쓴다.
-    public const int DebugMaxAmount = 999999;
+	// 플레이어 몬스터·방어건물·함정이 적 몬스터를 처치했을 때 해당 종류 생산 해금(8-표1).
+	public bool UnlockMonsterSpecies(string speciesTypeName)
+	{
+		if (string.IsNullOrEmpty(speciesTypeName)) return false;
+		bool added = _unlockedMonsterSpecies.Add(speciesTypeName);
+		if (added)
+			LogHelper.Log(LogHelper.GAME, $"[해금] 몬스터 종류 생산 해금: {speciesTypeName}");
+		return added;
+	}
 
-    public void DebugSetResource(ResourceType type, int amount)
-    {
-        int next = Mathf.Clamp(amount, 0, DebugMaxAmount);
-        if (GetResourceAmount(type) == next) return;
-        resources[type] = next;
-        LogHelper.Log(LogHelper.GAME, $"[debug] {type} → {next}");
-    }
+	public bool IsMonsterSpeciesUnlocked(string speciesTypeName)
+		=> string.IsNullOrEmpty(speciesTypeName) || _unlockedMonsterSpecies.Contains(speciesTypeName);
 
-    public void DebugAdjustResource(ResourceType type, int delta)
-        => DebugSetResource(type, (int)System.Math.Clamp((long)GetResourceAmount(type) + delta, 0L, DebugMaxAmount));
+	// 방 클리어 시 그 방에 있었던 던전 시설 종류(파괴된 종류 포함, 인류 시설 제외)를 해금한다(8-표1, 8-1-표1).
+	public bool UnlockFacilityKind(FacilityKind kind)
+	{
+		bool added = _unlockedFacilities.Add(kind);
+		if (added)
+			LogHelper.Log(LogHelper.GAME, $"[해금] 던전 시설 종류 해금: {kind}");
+		return added;
+	}
 
-    // debug 전용 — 모든 자원을 게임 시작값으로 되돌린다.
-    public void DebugResetResources()
-    {
-        foreach (ResourceType type in System.Enum.GetValues(typeof(ResourceType)))
-            resources[type] = InitialResourceAmount;
-        LogHelper.Log(LogHelper.GAME, $"[debug] 자원을 초기값({InitialResourceAmount})으로 되돌림");
-    }
+	public bool IsFacilityKindUnlocked(FacilityKind kind)
+	{
+		if (kind == FacilityKind.Research)
+			return IsSoulShardSpendUnlocked;
+		return _unlockedFacilities.Contains(kind);
+	}
 
-    // 킬로 자원을 얻을 때 "돌 30개 획득!" 형태의 floating text를 띄운다. UIManager.
-    // ShowFloatingTextAt(함정 해제 성공/실패 문구와 동일한 메서드)을 재사용한다 — 그 메서드는 임의
-    // 월드좌표를 받고 floor offset을 계산하지 않으므로 여기서 직접 GetFloorOffset을 더해 1층 이외의
-    // 층에서도 정확한 위치에 뜨도록 한다.
-    public static void ShowKillRewardText(Unit killer, ResourceType type, int amount)
-    {
-        if (killer == null || killer.UI == null) return;
+	public void AddResource(ResourceType type, double amount, ResourceCreditSource source = ResourceCreditSource.FacilityProduction)
+	{
+		if (amount <= 0.0) return;
+		GetOrCreateAccount(type).Credit(amount, source);
+	}
 
-        string label = type switch
-        {
-            ResourceType.Wood => "나무",
-            ResourceType.Stone => "돌",
-            _ => type.ToString()
-        };
+	public void AddResource(ResourceType type, int amount)
+		=> AddResource(type, (double)amount, ResourceCreditSource.FacilityProduction);
 
-        Vector3 pos = new Vector3(killer.position.x + 0.5f, killer.position.y + 1.2f, 0f);
-        if (killer.Generate != null) pos += killer.Generate.GetFloorOffset(killer.currentFloor);
+	public bool TryConsumeResource(ResourceType type, double rawAmount, bool notifyOnFailure = true)
+	{
+		if (rawAmount < 0.0) return false;
+		int needed = EconomyMath.CeilCost(rawAmount);
+		if (needed == 0) return true;
 
-        killer.UI?.ShowFloatingTextAt(pos, $"{label} {amount}개 획득!", Color.yellow, 0.8f);
-    }
+		if (type == ResourceType.SoulShard && !IsSoulShardSpendUnlocked)
+		{
+			if (notifyOnFailure)
+				NoticeCenter.Instance?.PushMomentary("최초 코어 완전 활성화 전에는 영혼 파편을 사용할 수 없습니다.", NoticeCenter.WarningColor);
+			return false;
+		}
+
+		ResourceAccount acc = GetOrCreateAccount(type);
+		if (acc.TrySpendImmediate(rawAmount, out int paid))
+		{
+			LogHelper.Log(LogHelper.GAME, $"[자원] {EconomyMath.GetDisplayName(type)} {paid} 차감 (잔여 표시: {acc.FormatDisplay()})");
+			return true;
+		}
+
+		string msg = EconomyMath.FormatInsufficientNotice(type, needed, acc.DisplayAvailable);
+		LogHelper.Warning(LogHelper.GAME, msg);
+		if (notifyOnFailure)
+			NoticeCenter.Instance?.PushMomentary(msg, NoticeCenter.WarningColor);
+		return false;
+	}
+
+	public bool TryConsumeResource(ResourceType type, int amount)
+		=> TryConsumeResource(type, (double)amount, notifyOnFailure: true);
+
+	public bool TryConsumeResources(List<ResourceCost> costs)
+	{
+		if (costs == null || costs.Count == 0) return true;
+
+		var rawTuples = new List<(ResourceType type, double rawCost)>(costs.Count);
+		for (int i = 0; i < costs.Count; i++)
+			rawTuples.Add((costs[i].resourceType, costs[i].amount));
+
+		if (!ResourceTransaction.CanReserveAll(
+			_accounts,
+			rawTuples,
+			IsSoulShardSpendUnlocked,
+			out ResourceType failedType,
+			out int req,
+			out int avail,
+			out bool soulLocked))
+		{
+			string msg = soulLocked
+				? "최초 코어 완전 활성화 전에는 영혼 파편을 사용할 수 없습니다."
+				: EconomyMath.FormatInsufficientNotice(failedType, req, avail);
+			LogHelper.Warning(LogHelper.GAME, msg);
+			NoticeCenter.Instance?.PushMomentary(msg, NoticeCenter.WarningColor);
+			return false;
+		}
+
+		var aggregated = ResourceTransaction.AggregateCeilCosts(rawTuples);
+		foreach (var kv in aggregated)
+			GetOrCreateAccount(kv.Key).TrySpendImmediate(kv.Value, out _);
+		return true;
+	}
+
+	public bool HasEnoughResource(ResourceType type, double rawAmount)
+	{
+		int needed = EconomyMath.CeilCost(rawAmount);
+		if (needed <= 0) return true;
+		if (type == ResourceType.SoulShard && !IsSoulShardSpendUnlocked) return false;
+		return GetOrCreateAccount(type).CanAffordInt(needed);
+	}
+
+	public bool HasEnoughResource(ResourceType type, int amount)
+		=> HasEnoughResource(type, (double)amount);
+
+	// 정수 버림된 총 보유량 표시값(기존 호출부 호환)
+	public int GetResourceAmount(ResourceType type) => GetOrCreateAccount(type).DisplayBalance;
+
+	// 선점액을 제외한 실제 사용 가능 정수량
+	public int GetAvailableAmount(ResourceType type) => GetOrCreateAccount(type).DisplayAvailable;
+
+	public int GetReservedAmount(ResourceType type) => GetOrCreateAccount(type).ReservedAmount;
+
+	public double GetCumulativeEarned(ResourceType type) => GetOrCreateAccount(type).CumulativeEarned;
+
+	public string FormatResourceDisplay(ResourceType type) => GetOrCreateAccount(type).FormatDisplay();
+
+	public void DebugSetResource(ResourceType type, int amount)
+	{
+		int next = Mathf.Clamp(amount, 0, DebugMaxAmount);
+		ResourceAccount acc = GetOrCreateAccount(type);
+		acc.DebugSetBalance(next);
+		LogHelper.Log(LogHelper.GAME, $"[debug] {EconomyMath.GetDisplayName(type)} → {next}");
+	}
+
+	public void DebugAdjustResource(ResourceType type, int delta)
+		=> DebugSetResource(type, (int)Math.Clamp((long)GetResourceAmount(type) + delta, 0L, DebugMaxAmount));
+
+	public void DebugResetResources()
+	{
+		GetOrCreateAccount(ResourceType.LifeEnergy).ResetForDebug(InitialLifeEnergyAmount);
+		GetOrCreateAccount(ResourceType.SoulShard).ResetForDebug(InitialSoulShardAmount);
+		LogHelper.Log(LogHelper.GAME, $"[debug] 자원을 초기값(생명 에너지 {InitialLifeEnergyAmount}, 영혼 파편 {InitialSoulShardAmount})으로 되돌림");
+	}
 }

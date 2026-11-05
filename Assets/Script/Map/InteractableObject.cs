@@ -100,6 +100,16 @@ public class InteractableObject
     // 목책 전용 — 같은 기초 시설에 속한 문. 그 문이 열려 있는 동안 목책도 통과할 수 있다(문 안쪽 한 칸에 서는 목책이 열린 문을 따라 들어오는 흐름을 막지 않게). 파괴된 문(IsCollected)이면 연결이 끊긴 것이다.
     public InteractableObject LinkedGateDoor;
 
+    // 명세서 v0.2 11~14항: 시체 부패율·진영 출처·정제 보상·누적 기준 진화 비용을 보관한다.
+    public CorpseRecord CorpseEconomyData;
+
+    // 명세서 v0.2 20-2·20-3항: 이동용 분해 완료 후 낙하한 1타일 분해 시설 오브젝트의 보존 페이로드.
+    public const string DismantledFacilityTag = "Object/DismantledFacility";
+    public BuildingData DismantledBuildingPayload;
+
+    // 명세서 v0.2 12-표2·20-3-표1: 인접 낙하 공간 없이 운반자가 사망했을 때 같은 타일에 함께 보존되는 별도 회수 대상(시체 또는 1타일 분해 시설).
+    public List<InteractableObject> CoexistingObjects;
+
     public IEnumerable<Vector3Int> AllTiles()
     {
         if (OccupiedTiles == null) { yield return Position; yield break; }

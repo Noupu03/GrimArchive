@@ -57,6 +57,7 @@ public class RoomClearSystem
 			FactionType previous = room.RoomFaction;
 			if (!Session.OffenseProcessor.ApplyRoomOwnership(room, FactionType.Player)) continue;
 			LogHelper.Log(LogHelper.GAME, $"[방 확보] F{room.Floor} {room.RoomName}: 적대 생존 0 → 플레이어 확보(이전 {previous})");
+			Buildings?.ConvertWildFacilitiesOnRoomSecured(room);
 			NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 {room.RoomName}을(를) 확보했습니다.", NoticeCenter.QuestCompleteColor);
 		}
 		CheckDefeat();

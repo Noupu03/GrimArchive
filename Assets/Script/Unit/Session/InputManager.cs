@@ -72,6 +72,8 @@ public class InputManager : MonoBehaviour
 	// 개별 서브모드 단위 상태 — BottomMenuBar가 서브메뉴 버튼을 각각 따로 하이라이트하고 재클릭 토글을 판단하는 데 쓴다.
 	public bool IsUnitBuildModeActive => _buildPlacement != null && _buildPlacement.IsUnitBuildModeActive;
 	public bool IsResourceBuildModeActive => _buildPlacement != null && _buildPlacement.IsResourceBuildModeActive;
+	public bool IsRefineryBuildModeActive => _buildPlacement != null && _buildPlacement.IsRefineryBuildModeActive;
+	public bool IsResearchBuildModeActive => _buildPlacement != null && _buildPlacement.IsResearchBuildModeActive;
 	public bool IsObjectOnlyPlacementActive => _objectPlacement != null && _objectPlacement.IsObjectModeActive;
 	public bool IsTrapPlacementActive => _objectPlacement != null && _objectPlacement.IsTrapModeActive;
 	public bool IsDoorRepairPlacementActive => _objectPlacement != null && _objectPlacement.IsDoorRepairModeActive;
@@ -104,7 +106,9 @@ public class InputManager : MonoBehaviour
 	private string GetActivePlacementModeLabel()
 	{
 		if (IsUnitBuildModeActive) return "유닛 생산 건물";
-		if (IsResourceBuildModeActive) return "자원 생산 건물";
+		if (IsResourceBuildModeActive) return "생명 에너지 시설";
+		if (IsRefineryBuildModeActive) return "시체 보관·정제 통합시설";
+		if (IsResearchBuildModeActive) return "연구 시설";
 		if (IsTrapPlacementActive) return "함정";
 		if (IsObjectOnlyPlacementActive) return "오브젝트";
 		if (IsDoorRepairPlacementActive) return "문 재설치";
@@ -178,6 +182,8 @@ public class InputManager : MonoBehaviour
 
 	public void EnterUnitBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterBuildMode(); }
 	public void EnterResourceBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterResourceBuildMode(); }
+	public void EnterRefineryBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterRefineryBuildMode(); }
+	public void EnterResearchBuildMode() { _objectPlacement.ExitMode(); _buildPlacement.EnterResearchBuildMode(); }
 	public void EnterObjectPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterObjectMode(); }
 	public void EnterTrapPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterTrapMode(); }
 	public void EnterDoorRepairPlacementMode() { _buildPlacement.ExitMode(); _objectPlacement.EnterDoorRepairMode(); }
@@ -260,7 +266,8 @@ public class InputManager : MonoBehaviour
 		UpdateSelectionDragAndClick(floorOffset, currentFloor, addHeld);
 
 		bool rightClickOverUI = (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
-			|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI());
+			|| (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI())
+			|| (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsMouseOverPanel());
 		bool rightClickPressed = GameInputScheme.SecondaryDown && selectedUnits.Count > 0 && !rightClickOverUI;
 
 		// =====================================================
@@ -317,6 +324,10 @@ public class InputManager : MonoBehaviour
 			}
 		}
 
+		// 1-2. 자원 경제·현장 작업·시체/분해시설 운반 명령(아군 몬스터 우클릭 배정)
+		if (TryExecuteEconomyFieldCommand(gridPos))
+			return;
+
 		// 2. 오브젝트(코어/문) 공격 — 유닛 공격 대상을 못 찾았을 때만 확인한다.
 		if (_gameSession.objectGrid.ContainsKey(gridPos))
 		{
@@ -345,6 +356,73 @@ public class InputManager : MonoBehaviour
 
 	// "이동 및 공격"/"집결 및 정지"/"제자리 공격"이 공유하는 우클릭 이동 명령 발동부 — markHaltOnArrival/
 	// markStandGroundOnArrival이 true면 도착 후 각각 isHalted/isStandGroundAttack을 켜서 강제 고정한다.
+	private bool TryExecuteEconomyFieldCommand(Vector3Int gridPos)
+	{
+		if (_buildingManager == null || _gameSession == null) return false;
+
+		// A. 아군 시설 작업자 배정(건설·업그레이드·수리·철거·분해·생명 에너지 보조·연구 진행, 최대 4기)
+		BuildingData targetBuilding = _buildingManager.GetBuildingAt(gridPos);
+		if (targetBuilding != null && _buildingManager.DoesBuildingAcceptWorkers(targetBuilding))
+		{
+			int assigned = 0;
+			foreach (var sel in selectedUnits)
+			{
+				if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+				if (_buildingManager.TryAssignWorkerToBuilding(sel, targetBuilding))
+					assigned++;
+				if (assigned >= WorkSpeedMath.MaxWorkersPerTask) break;
+			}
+			if (assigned > 0)
+			{
+				LogHelper.Log(LogHelper.GAME, $"[현장 작업 배정] {targetBuilding.DisplayName} <- {assigned}기");
+				return true;
+			}
+		}
+
+		// B. 수복 등록된 코어 작업자 배정(최대 4기, 아군은 코어를 공격하지 않음)
+		if (_gameSession.Core != null && _gameSession.Core.GetActiveRestoreAt(gridPos) != null)
+		{
+			int assigned = 0;
+			foreach (var sel in selectedUnits)
+			{
+				if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+				if (_buildingManager.TryAssignWorkerToCoreRestore(sel, gridPos))
+					assigned++;
+				if (assigned >= WorkSpeedMath.MaxWorkersPerTask) break;
+			}
+			if (assigned > 0)
+			{
+				LogHelper.Log(LogHelper.GAME, $"[코어 수복 배정] {gridPos} <- {assigned}기");
+				return true;
+			}
+		}
+
+		// C. 시체 회수·운반(1구당 1기) 또는 1타일 분해 시설 회수·재설치(1기)
+		if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject obj) && obj != null && !obj.IsCollected)
+		{
+			if (obj.CorpseEconomyData != null)
+			{
+				foreach (var sel in selectedUnits)
+				{
+					if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+					_buildingManager.TryCommandCorpseRetrieve(sel, obj);
+					return true;
+				}
+			}
+			else if (obj.DismantledBuildingPayload != null)
+			{
+				foreach (var sel in selectedUnits)
+				{
+					if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+					_buildingManager.TryCommandDismantledPackagePickup(sel, obj);
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	private void IssueMoveCommand(Vector3 floorOffset, int currentFloor, bool markHaltOnArrival, bool markStandGroundOnArrival)
 	{
 		Vector2 mousePos = GameInputScheme.PointerScreenPos;

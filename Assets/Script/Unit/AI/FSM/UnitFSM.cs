@@ -33,6 +33,17 @@ public class UnitFSM
 	// JudgeState 대응: 우선순위 순으로 전환 후보를 탐색하고 상태를 바꾼다.
 	public void SelectState(Unit unit)
 	{
+		// 개체 진화 연출 중에는 기존 명령을 보존한 채 행동을 완전히 멈춘다(명세서 v0.2 15-2항).
+		if (unit.IsInEvolutionPresentation)
+		{
+			if (_current != _haltState)
+			{
+				_current?.OnExit(unit);
+				_current = _haltState;
+				_current.OnEnter(unit);
+			}
+			return;
+		}
 		// 명령 강제 잠금 — IsSticky/ShouldInterrupt와 배열 순서만으로는 "다른 상태가 스스로 명령을
 		// 존중해야" 성립하는 간접적 보장에 그치므로, 대기 중인 명령이 있으면 상태 구현과 무관하게 무조건
 		// 이 상태로 고정한다(PlayerCommandFSMState가 도착/대상 무효화로 스스로 끝내기 전까진 못 벗어남).
@@ -129,6 +140,7 @@ public class UnitFSM
 
 	public string GetLabel(Unit unit)
 	{
+		if (unit.IsInEvolutionPresentation) return "진화 중";
 		if (unit.isHalted) return "정지";
 		if (unit.isImmobile) return "고정"; // 보스 골렘 등 영구 고정 유닛(플레이어 명령인 "제자리 공격"과 구분)
 		if (unit.isStandGroundAttack) return "제자리 공격";

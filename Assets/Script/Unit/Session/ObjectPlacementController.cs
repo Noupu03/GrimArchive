@@ -73,7 +73,7 @@ public class ObjectPlacementController
         _isTrapPlaceMode = true;
 
         _ghost.ShowAsync(AssetKeys.TrapSprite, () => _isTrapPlaceMode).Forget();
-        string costNotice = DebugUnlimitedTrapPlacement ? "debug 무제한 설치 — 자원 소모 없음" : $"돌 {ResourceManager.TrapPlaceStoneCost}개 소모";
+        string costNotice = DebugUnlimitedTrapPlacement ? "debug 무제한 설치 — 자원 소모 없음" : $"생명 에너지 {ResourceManager.TrapPlaceLifeEnergyCost} 소모";
         LogHelper.Log(LogHelper.GAME, $"함정 배치 모드 진입 ({costNotice}, 우클릭: 생성)");
     }
 
@@ -103,7 +103,7 @@ public class ObjectPlacementController
         _isDoorRepairMode = true;
 
         _ghost.ShowAsync(AssetKeys.DoorOpenSprite, () => _isDoorRepairMode).Forget();
-        LogHelper.Log(LogHelper.GAME, $"문 재설치 모드 진입 (돌 {ResourceManager.DoorRepairStoneCost}개 소모, 파괴된 문 자리만 선택 가능, 우클릭: 설치)");
+        LogHelper.Log(LogHelper.GAME, $"문 재설치 모드 진입 (생명 에너지 {ResourceManager.DoorRepairLifeEnergyCost} 소모, 파괴된 문 자리만 선택 가능, 우클릭: 설치)");
     }
 
     // 더미 건물 배치 모드(debug 전용) — spriteKey는 Addressables 주소(AssetKeys), displayName은
@@ -196,9 +196,12 @@ public class ObjectPlacementController
                     else
                     {
                         PlacementResourceHelper.OnConsumeResult(
-                            _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.TrapPlaceStoneCost),
+                            _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.LifeEnergy, ResourceManager.TrapPlaceLifeEnergyCost),
                             () => { _gameSession.SpawnTrapAt(gridPos); ExitMode(); },
-                            $"돌이 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceStoneCost})");
+
+                            $"생명 에너지가 부족하여 함정을 배치할 수 없습니다. (필요: {ResourceManager.TrapPlaceLifeEnergyCost})");
+
+
                     }
                 }
                 else if (_isWallConvertMode)
@@ -210,9 +213,12 @@ public class ObjectPlacementController
                 {
                     // 자원 소모 재설치 — 함정과 동일하게, 자원이 부족하면 배치를 취소하지 않고 모드만 유지한다.
                     PlacementResourceHelper.OnConsumeResult(
-                        _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.DoorRepairStoneCost),
+                        _resourceManager != null && _resourceManager.TryConsumeResource(ResourceType.LifeEnergy, ResourceManager.DoorRepairLifeEnergyCost),
                         () => { _gameSession.RebuildDoorAt(gridPos); ExitMode(); },
-                        $"돌이 부족하여 문을 재설치할 수 없습니다. (필요: {ResourceManager.DoorRepairStoneCost})");
+
+                        $"생명 에너지가 부족하여 문을 재설치할 수 없습니다. (필요: {ResourceManager.DoorRepairLifeEnergyCost})");
+
+
                 }
                 else if (_isDummyBuildingMode && _dummyBuildingSprite != null)
                 {

@@ -1,7 +1,7 @@
 using System.Globalization;
 using UnityEngine;
 
-// debug 메뉴의 "자원 조절" 떠 있는 창 — 나무·돌 보유량을 슬라이더 드래그, 숫자 직접 입력, 증감 칩으로 바꾼다(옛 고정 단계 버튼 목록을 대체).
+// debug 메뉴의 "자원 조절" 떠 있는 창 — 생명 에너지·영혼 파편 보유량을 슬라이더 드래그, 숫자 직접 입력, 증감 칩으로 바꾼다(옛 고정 단계 버튼 목록을 대체).
 // 이 프로젝트의 디버그/메뉴 UI와 같은 OnGUI 방식이라 새 프리팹이 필요 없다. BottomMenuBar.Constructor가 FloorPanelOverlay처럼 런타임에 같은 GameObject에 붙인다.
 // GUI.depth를 낮춰 다른 OnGUI 패널보다 위에 그리고 입력도 먼저 받는다 — 창 위의 마우스 이벤트는 마지막에 Use()해서 아래 패널의 버튼이 같이 눌리지 않게 한다.
 // 숫자 입력칸에 포커스가 있는 동안은 GameInputScheme.TextInputFocused로 게임 키보드 단축키(1~4 배속·WASD 등)를 막는다.
@@ -20,8 +20,8 @@ public sealed class DebugResourceWindow : MonoBehaviour
 	private const int SliderStep = 10;
 	private const int SliderTicks = 4;
 
-	private static readonly ResourceType[] Types = { ResourceType.Wood, ResourceType.Stone };
-	private static readonly string[] Labels = { "나무", "돌" };
+	private static readonly ResourceType[] Types = { ResourceType.LifeEnergy, ResourceType.SoulShard };
+	private static readonly string[] Labels = { "생명 에너지", "영혼 파편" };
 	private static readonly Color[] Accents = { new Color(0.86f, 0.62f, 0.32f, 1f), new Color(0.62f, 0.74f, 0.9f, 1f) };
 	private static readonly Color CardColor = new Color(1f, 1f, 1f, 0.05f);
 	private static readonly Color TitleColor = new Color(1f, 1f, 1f, 0.08f);
@@ -311,21 +311,27 @@ public sealed class DebugResourceWindow : MonoBehaviour
 	// ── 아래쪽 한 번에 조절 ──
 	private void DrawFooter(Rect row, ResourceManager rm)
 	{
-		float w = (row.width - 8f * 2f) / 3f;
-		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x, row.y, w, row.height), $"초기값 {ResourceManager.InitialResourceAmount}", false))
+		float w = (row.width - 6f * 3f) / 4f;
+		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x, row.y, w, row.height), "초기값 복원", false))
 		{
 			GUI.FocusControl(null);
 			rm.DebugResetResources();
 		}
-		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x + w + 8f, row.y, w, row.height), "모두 +1000", false))
+		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x + w + 6f, row.y, w, row.height), "모두 +1000", false))
 		{
 			GUI.FocusControl(null);
 			foreach (var type in Types) rm.DebugAdjustResource(type, 1000);
 		}
-		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x + (w + 8f) * 2f, row.y, w, row.height), "모두 0", false))
+		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x + (w + 6f) * 2f, row.y, w, row.height), "모두 0", false))
 		{
 			GUI.FocusControl(null);
 			foreach (var type in Types) rm.DebugSetResource(type, 0);
+		}
+		string unlockLabel = rm.DebugForceUnlockSoulShard ? "영혼해금 ON" : "영혼해금 OFF";
+		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.x + (w + 6f) * 3f, row.y, w, row.height), unlockLabel, rm.DebugForceUnlockSoulShard))
+		{
+			GUI.FocusControl(null);
+			rm.DebugForceUnlockSoulShard = !rm.DebugForceUnlockSoulShard;
 		}
 	}
 

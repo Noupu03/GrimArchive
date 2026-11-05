@@ -20,6 +20,7 @@ public abstract class UnitFunction : Unit
 	{
 		CombatState.State.isHitThisTurn = true;
 		CombatState.State.lastHitTime = Time.time;
+		BuildingManager.Instance?.NotifyUnitHit(this);
 	}
 
 	// 연출 — HP가 25% 아래로 처음 내려갈 때만 말한다(인류만, SpeechSystem이 순위·쿨다운을 관리한다). 50% 하락과 공황 중 피격 비명은 말풍선이 너무 많다는 사용자 요청(2026-11-04)으로 뺐다.
@@ -1021,6 +1022,35 @@ public abstract class UnitFunction : Unit
 		// 사칙연산이라 부담이 적어 별도 변경 감지 캐시 없이 매번 재계산하는 쪽이 더 단순하다.
 		CalculateDerivedStats();
 
+		// 개체 진화 연출 진행(15-2항): 1초 간격 HP·스테이터스 증가 반영 및 완료 후 기존 명령 복구
+		if (activeEvolutionSession != null && Time.timeScale >= 0.01f && (Session == null || !Session.isPaused))
+		{
+			EvolutionSession evo = activeEvolutionSession;
+			float curHp = Health.hp;
+			float curMaxHp = Health.maxHp;
+			evo.Tick(
+				deltaTime,
+				ref curHp,
+				ref curMaxHp,
+				cumStats => StatLedger.SetFlat($"Evolution:{evo.Definition.EvolutionId}", cumStats));
+			Health.maxHp = curMaxHp;
+			Health.hp = curHp;
+
+			if (evo.IsCompleted)
+			{
+				populationCost = evo.Definition.PostEvolutionPopulationCost;
+				evolvedFootprintOverride = evo.Definition.PostEvolutionFootprint;
+				currentEvolutionTier++;
+				activeEvolutionSession = null;
+				RestoreSavedCommandAfterEvolution(evo.SavedCommand);
+				CalculateDerivedStats();
+			}
+			else if (evo.WasKilledMidPresentation)
+			{
+				activeEvolutionSession = null;
+			}
+		}
+
 		// 실제 위치 기준으로 소속 방을 매 프레임 동기화한다("방에 도착하면 소속 방으로 변경"을 명령
 		// 완료 이벤트 대신 위치 기반으로 구현). 배회 몬스터는 제외한다.
 		if (!(FactionBehavior is WildMonsterBehavior))
@@ -1224,6 +1254,12 @@ public abstract class UnitFunction : Unit
 				else if (isTrap && !isAdjacent)
 				{
 					ClearAttackObjectTarget();
+				}
+				else if (isCore && Session.Core?.GetActiveRestoreAt(targetPos) != null)
+				{
+					Session.Core.ApplyDamageToRestoringCore(targetPos, GameSession.CoreAttackDamagePerSecond * deltaTime);
+					if (Session.Core.GetActiveRestoreAt(targetPos) == null)
+						ClearAttackObjectTarget();
 				}
 				else if (isCore && targetObj.CoreHp > 0f)
 				{

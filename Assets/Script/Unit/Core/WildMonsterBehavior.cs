@@ -2,22 +2,20 @@ using UnityEngine;
 
 public class WildMonsterBehavior : IFactionBehavior
 {
-    public bool IsEnemy(IFactionBehavior other) { return other is HumanFactionBehavior || other is PlayerMonsterBehavior; }
+	public bool IsEnemy(IFactionBehavior other) { return other is HumanFactionBehavior || other is PlayerMonsterBehavior; }
 
-    public void OnUpdate(Unit unit)
-    {
-        // 야생 몬스터는 자신이 속한 방 내부에서만 행동 (방 밖 추격 안함)
-    }
+	public void OnUpdate(Unit unit)
+	{
+		// 야생 몬스터는 자신이 속한 방 내부에서만 행동 (방 밖 추격 안함)
+	}
 
-    public void OnDeath(Unit unit, Unit killer)
-    {
-        // 점령 전환/처치 보상 MVP(2026-07-27, 사용자 요청) — "몬스터가 야생 몬스터를 죽이면 나무 획득".
-        // 플레이어 몬스터가 죽였을 때만 보상(야생끼리 서로 죽이는 경우 등은 대상 아님).
-        if (killer != null && killer.FactionBehavior is PlayerMonsterBehavior && ResourceManager.Instance != null)
-        {
-            ResourceManager.Instance.AddResource(ResourceType.Wood, ResourceManager.KillRewardWood);
-            ResourceManager.ShowKillRewardText(killer, ResourceType.Wood, ResourceManager.KillRewardWood);
-        }
-    }
-
+	public void OnDeath(Unit unit, Unit killer)
+	{
+		// 명세서 v0.2 1·8·25-1항: 처치 즉시 자원은 지급하지 않고 시체 정제로만 획득하며,
+		// 플레이어 몬스터가 처치한 경우에만 해당 야생 몬스터 종류의 생산 해금을 기록한다.
+		if (killer != null && killer.FactionBehavior is PlayerMonsterBehavior && unit?.unitType != null)
+		{
+			ResourceManager.Instance?.UnlockMonsterSpecies(unit.unitType.GetType().Name);
+		}
+	}
 }
