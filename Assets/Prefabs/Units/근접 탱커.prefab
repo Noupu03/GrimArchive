@@ -513,6 +513,7 @@ GameObject:
   - component: {fileID: 3698720550631332097}
   - component: {fileID: 8105226226766964571}
   - component: {fileID: 4858693510987481363}
+  - component: {fileID: 2002949526042181950}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -547,7 +548,7 @@ SpriteRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4430966032367600360}
-  m_Enabled: 0
+  m_Enabled: 1
   m_CastShadows: 0
   m_ReceiveShadows: 0
   m_DynamicOccludee: 1
@@ -588,12 +589,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 100
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -206313129, guid: 4b5bb41408ba77e4186b01e9c846fde0, type: 3}
+  m_Sprite: {fileID: 2842472445423863280, guid: 23c35cbd5b0444348b203378f3662cd1, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1.25, y: 1.25}
+  m_Size: {x: 1.28, y: 1.28}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -605,7 +606,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4430966032367600360}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c29cff538c195c249b69c6f2236de67b, type: 3}
   m_Name: 
@@ -619,7 +620,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4430966032367600360}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
@@ -628,6 +629,28 @@ MonoBehaviour:
   m_labelHash: 0.025054464
   m_SpriteKey: 0
   m_SpriteHash: 302825577
+--- !u!95 &2002949526042181950
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4430966032367600360}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: fa9113c7f2036ed46af5e3fbbd932766, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &6590798347702598913
 GameObject:
   m_ObjectHideFlags: 0
@@ -759,19 +782,19 @@ MonoBehaviour:
   slots:
   - slot: 0
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: b7714640af7ba2240946c36366904b77, type: 2}
   - slot: 1
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 0446fb5460a9ec34aa4ce11bf6017753, type: 2}
   - slot: 3
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 4
     skillName: 
     clip: {fileID: 0}
   - slot: 5
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 6
     skillName: 
     clip: {fileID: 0}
@@ -780,21 +803,21 @@ MonoBehaviour:
     clip: {fileID: 0}
   - slot: 8
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 11
     skillName: 
     clip: {fileID: 0}
   - slot: 2
     skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 2
     skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 2
     skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   fadeSeconds: 0.1
-  mirrorRoot: {fileID: 0}
+  mirrorRoot: {fileID: 3609371696328743353}
 --- !u!1 &8744971298642457859
 GameObject:
   m_ObjectHideFlags: 0
@@ -1225,6 +1248,10 @@ PrefabInstance:
     - target: {fileID: 1463602824139550003, guid: 498683721df1e1c4bbe9124dd175d880, type: 3}
       propertyPath: m_Name
       value: SampleCharacter
+      objectReference: {fileID: 0}
+    - target: {fileID: 1463602824139550003, guid: 498683721df1e1c4bbe9124dd175d880, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

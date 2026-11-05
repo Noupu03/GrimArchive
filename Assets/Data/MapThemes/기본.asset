@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: "\uAE30\uBCF8"
   m_EditorClassIdentifier: Assembly-CSharp::MapColorTheme
   themeName: "\uAE30\uBCF8"
-  wallColor: {r: 0.63522005, g: 0.6026876, b: 0.58927643, a: 1}
-  floorColor: {r: 0.48427665, g: 0.40699032, b: 0.35178584, a: 1}
+  wallColor: {r: 0.427451, g: 0.7490196, b: 0.227451, a: 1}
+  floorColor: {r: 1, g: 1, b: 1, a: 1}
