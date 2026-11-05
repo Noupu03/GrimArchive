@@ -134,6 +134,7 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
     {
         DrawInfoBoxBorder();
         DrawInfoTabs();
+        DrawEvolutionActionOverlay();
     }
 
     // infoBoxRect는 uGUI Image라 GUIMenuStyleUtil을 직접 못 쓰지만, anchoredPosition/sizeDelta를
@@ -172,6 +173,33 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         DrawInfoTabButton(boxX + (tabWidth + TabGap) * 3, y, tabWidth, TabHeight, "스킬", InfoTab.Skills);
     }
 
+
+    private void DrawEvolutionActionOverlay()
+    {
+        if (infoBoxRect == null || !infoBoxRect.gameObject.activeInHierarchy) return;
+        if (_inputManager == null || _inputManager.selectedUnits.Count != 1 || _currentTab != InfoTab.Basic) return;
+
+        Unit u = _inputManager.selectedUnit;
+        if (u == null || u.Health.hp <= 0f || !u.IsPlayerMonsterFaction) return;
+
+        float left = infoBoxRect.anchoredPosition.x;
+        float width = infoBoxRect.sizeDelta.x;
+        float height = infoBoxRect.sizeDelta.y;
+        float top = Screen.height - (infoBoxRect.anchoredPosition.y + height);
+
+        int cost = 50 * (u.currentEvolutionTier + 1);
+        bool canEvo = !u.IsInEvolutionPresentation && u.currentEvolutionTier < 2;
+        string btnText = u.IsInEvolutionPresentation
+            ? "진화 연출 진행 중..."
+            : (u.currentEvolutionTier >= 2 ? "최대 진화 달성" : $"개체 진화 ({cost} 영혼 파편)");
+
+        Rect btnRect = new Rect(left + 12f, top + height - 38f, width - 24f, 28f);
+        if (GUIMenuStyleUtil.DrawFlatButton(btnRect, btnText, false, canEvo))
+        {
+            BuildingManager.Instance?.TryTriggerUnitEvolution(u);
+            RefreshSelectedUnitInfo();
+        }
+    }
 
     private void DrawInfoTabButton(float x, float y, float w, float h, string label, InfoTab tab)
     {
@@ -231,6 +259,13 @@ public class DebugInfoPanel : MonoRoutine, ICustomPanel
         sb.AppendLine($"<b>LV:</b> {u.level}");
         sb.AppendLine($"<b>EXP:</b> {u.BaseStat.exp:F1}");
         sb.AppendLine($"<b>킬 카운트:</b> {u.killCount}");
+        if (u.IsPlayerMonsterFaction)
+        {
+            sb.AppendLine($"<b>작업 속도:</b> {u.workerSpeedMultiplier:F2}배");
+            sb.AppendLine($"<b>진화:</b> {u.currentEvolutionTier}차 (누적 기준 비용 {u.cumulativeBaseEvolutionSoulCost:F0})");
+            if (u.IsInEvolutionPresentation)
+                sb.AppendLine("<color=cyan><b>상태: 진화 연출 중 (조작 제한)</b></color>");
+        }
         return sb.ToString();
     }
 

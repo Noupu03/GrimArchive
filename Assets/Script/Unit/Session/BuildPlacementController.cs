@@ -4,24 +4,23 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 using Haare.Util.Logger;
 
-// 건축물·자원·유닛 생산 빌드 모드(고스트 프리팹) 컨트롤러 — B키=유닛 생산 건물, V키=자원 생산 건물,
-// 같은 고스트/스프라이트를 공유하고 플래그로만 구분한다. InputManager 비대화를 막기 위해 분리됐고,
-// 모드 간 배타 진입은 이 클래스가 직접 하지 않고 InputManager.Update()가 조율한다
-// (ObjectPlacementController와 순환 참조를 피하기 위함).
+// 시설 건설 배치 모드(고스트 프리팹) 컨트롤러 — 명세서 v0.2 3·16항 기준(건설 명령 시 생명 에너지 선점 + 건설 예정지 생성, 현장 작업자 착공).
+// 모드 간 배타 진입은 InputManager.Update()가 조율한다(ObjectPlacementController와 순환 참조를 피하기 위함).
 public class BuildPlacementController
 {
-    public bool IsActive => _isBuildMode || _isResourceBuildMode;
-    // BottomMenuBar가 "유닛 생산 건물"/"자원 생산 건물" 서브버튼을 각각 따로 하이라이트/토글하는 데
-    // 쓴다(합쳐진 IsActive만 있으면 둘 다 항상 같이 켜진 것처럼 보이는 UI 버그가 있었다).
-    public bool IsUnitBuildModeActive => _isBuildMode;
-    public bool IsResourceBuildModeActive => _isResourceBuildMode;
+    public bool IsActive => _activeKind.HasValue;
+    public FacilityKind? ActiveFacilityKind => _activeKind;
+
+    public bool IsUnitBuildModeActive => _activeKind == FacilityKind.UnitProduction;
+    public bool IsResourceBuildModeActive => _activeKind == FacilityKind.LifeEnergy;
+    public bool IsRefineryBuildModeActive => _activeKind == FacilityKind.CorpseRefinery;
+    public bool IsResearchBuildModeActive => _activeKind == FacilityKind.Research;
 
     private readonly BuildingManager _buildingManager;
     private readonly ResourceManager _resourceManager;
     private readonly PlacementGhost _ghost = new PlacementGhost("GhostBuilding");
 
-    private bool _isBuildMode;
-    private bool _isResourceBuildMode;
+    private FacilityKind? _activeKind;
     private List<ProductionRule> _currentProductionRules;
     private Sprite _currentBuildSprite;
 
@@ -31,31 +30,30 @@ public class BuildPlacementController
         _resourceManager = resourceManager;
     }
 
-    public void EnterBuildMode()
-    {
-        if (_isBuildMode) return;
-        _isResourceBuildMode = false;
-        _isBuildMode = true;
+    public void EnterBuildMode() => EnterFacilityMode(FacilityKind.UnitProduction);
+    public void EnterResourceBuildMode() => EnterFacilityMode(FacilityKind.LifeEnergy);
+    public void EnterRefineryBuildMode() => EnterFacilityMode(FacilityKind.CorpseRefinery);
+    public void EnterResearchBuildMode() => EnterFacilityMode(FacilityKind.Research);
 
-        EnsureProductionRules();
-        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicDollhouse(3x3).
-        ShowBuildGhostAsync(AssetKeys.UnitBuildingSprite, () => _isBuildMode).Forget();
-        LogHelper.Log(LogHelper.GAME, $"유닛 생산 건물 배치 모드 진입 (돌 {ResourceManager.UnitBuildingStoneCost} 소모)");
+    public void EnterFacilityMode(FacilityKind kind)
+    {
+        if (_activeKind == kind) return;
+        _activeKind = kind;
+
+        if (kind == FacilityKind.UnitProduction)
+            EnsureProductionRules();
+
+        string spriteKey = kind == FacilityKind.UnitProduction
+            ? AssetKeys.UnitBuildingSprite
+            : AssetKeys.ResourceBuildingSprite;
+
+        ShowBuildGhostAsync(spriteKey, () => _activeKind == kind).Forget();
+        int cost = BuildingManager.GetBuildLifeEnergyCostForKind(kind);
+        string name = BuildingManager.GetDisplayNameForKind(kind);
+        LogHelper.Log(LogHelper.GAME, $"{name} 배치 모드 진입 (생명 에너지 {cost} 선점)");
     }
 
-    public void EnterResourceBuildMode()
-    {
-        if (_isResourceBuildMode) return;
-        _isBuildMode = false;
-        _isResourceBuildMode = true;
-
-        // 건물 스프라이트/크기 개편(2026-08-25, 사용자 요청) — GothicClocktower(2x2).
-        ShowBuildGhostAsync(AssetKeys.ResourceBuildingSprite, () => _isResourceBuildMode).Forget();
-        LogHelper.Log(LogHelper.GAME, $"자원 생산 건물 배치 모드 진입 (돌 {ResourceManager.ResourceBuildingStoneCost} 소모)");
-    }
-
-    // 스프라이트 로드가 끝나야 고스트가 보이고 설치할 수 있다(로드 중엔 _currentBuildSprite가 null이라
-    // TryInstallBuilding이 건너뛴다) — 그 사이 다른 모드로 바뀌었으면 아무것도 하지 않는다.
+    // 스프라이트 로드가 끝나야 고스트가 보이고 설치할 수 있다 — 그 사이 다른 모드로 바뀌었으면 아무것도 하지 않는다.
     private async UniTaskVoid ShowBuildGhostAsync(string spriteKey, Func<bool> stillWanted)
     {
         _currentBuildSprite = null;
@@ -65,74 +63,58 @@ public class BuildPlacementController
 
     public void ExitMode()
     {
-        _isBuildMode = false;
-        _isResourceBuildMode = false;
+        _activeKind = null;
         _ghost.Hide();
-        LogHelper.Log(LogHelper.GAME, "Exited Build Mode");
+        LogHelper.Log(LogHelper.GAME, "배치 모드를 종료했습니다.");
     }
 
-    // 지금 활성화된 모드가 실제로 설치할 건물의 footprint(2026-08-25, 다중 타일 건물 지원) — 유닛
-    // 생산 건물 3x3 / 자원 생산 건물 2x2. 둘 다 아니면(모드 비활성) 의미 없는 값이라 1x1로 둔다.
-    private Vector2Int CurrentFootprint => _isResourceBuildMode ? BuildingManager.ResourceBuildingFootprint
-        : _isBuildMode ? BuildingManager.UnitBuildingFootprint
+    private Vector2Int CurrentFootprint => _activeKind.HasValue
+        ? BuildingManager.GetFootprintForKind(_activeKind.Value)
         : Vector2Int.one;
 
     public void Update(Vector3 floorOffset, int currentFloor)
     {
+        if (!_activeKind.HasValue) return;
+
         Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
         Vector2Int footprint = CurrentFootprint;
+        FacilityKind kind = _activeKind.Value;
 
-        _ghost.UpdatePosition(gridPos, floorOffset, _buildingManager.CanInstallAt(gridPos, footprint), footprint);
+        bool canInstall = _buildingManager.CheckInstallAt(gridPos, footprint, requireOwnership: true, kind: kind) == BuildBlock.None;
+        _ghost.UpdatePosition(gridPos, floorOffset, canInstall, footprint);
 
-        // 우클릭 취소는 없앴다 — 취소는 BottomMenuBar에서 다른 메뉴로 전환하거나 같은 서브 버튼을
-        // 다시 눌러야만 가능하다(InputManager.ExitActivePlacementMode 경유). 설치 확정 입력은
-        // "좌클릭은 선택, 우클릭은 실행" 클릭 관례 통일로 좌클릭에서 우클릭으로 옮겼다.
+        // "좌클릭은 선택, 우클릭은 실행" 관례에 따라 우클릭으로 건설 예약을 확정한다.
         if (GameInputScheme.SecondaryDown)
         {
             if (!GUIMouseUtil.IsPointerOverAnyPanel())
             {
-                TryInstallBuilding(gridPos);
+                TryOrderBuilding(kind, gridPos);
             }
         }
     }
 
-    // 플레이어(몬스터 진영) 생산 건물이 실제로 뽑을 수 있는 유닛 목록을 준비한다. GameSession의 시작방
-    // 자동 배치와 같은 팩토리(ProductionRule.CreateDefaultPlayerUnitRules)를 써서 두 경로가 어긋나지
-    // 않게 한다.
     private void EnsureProductionRules()
     {
         if (_currentProductionRules != null) return;
         _currentProductionRules = ProductionRule.CreateDefaultPlayerUnitRules();
     }
 
-    private void TryInstallBuilding(Vector3Int gridPos)
+    private void TryOrderBuilding(FacilityKind kind, Vector3Int gridPos)
     {
-        if (_currentBuildSprite == null) return; // 건물 스프라이트 로드 중
+        if (_currentBuildSprite == null) return;
 
-        // footprint(2026-08-25) 전체가 비어있어야 설치 가능 — 단일 타일만 확인하면 3x3/2x2 건물의
-        // 나머지 칸이 막혀 있어도 자원을 먼저 소모해버릴 수 있다. 이유별 안내(코어 파괴·미확보 방·지형)는 DescribeBlock.
-        BuildBlock block = _buildingManager.CheckInstallAt(gridPos, CurrentFootprint);
-        if (block != BuildBlock.None)
+        List<ProductionRule> rules = kind == FacilityKind.UnitProduction ? _currentProductionRules : null;
+        if (_buildingManager.TryOrderConstruction(kind, gridPos, _currentBuildSprite, rules, out _, out string failMsg))
         {
-            string message = BuildingManager.DescribeBlock(block);
-            LogHelper.Warning(LogHelper.GAME, message);
-            NoticeCenter.Instance?.PushMomentary(message, NoticeCenter.WarningColor);
+            ExitMode();
             return;
         }
 
-        if (_isResourceBuildMode)
+        if (!string.IsNullOrEmpty(failMsg))
         {
-            PlacementResourceHelper.OnConsumeResult(
-                _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.ResourceBuildingStoneCost),
-                () => { _buildingManager.InstallResourceBuilding(gridPos, _currentBuildSprite); ExitMode(); },
-                $"돌이 부족하여 자원 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.ResourceBuildingStoneCost})");
-            return;
+            LogHelper.Warning(LogHelper.GAME, failMsg);
+            NoticeCenter.Instance?.PushMomentary(failMsg, NoticeCenter.WarningColor);
         }
-
-        PlacementResourceHelper.OnConsumeResult(
-            _resourceManager.TryConsumeResource(ResourceType.Stone, ResourceManager.UnitBuildingStoneCost),
-            () => { _buildingManager.InstallProductionBuilding(gridPos, _currentProductionRules, _currentBuildSprite); ExitMode(); },
-            $"돌이 부족하여 유닛 생산 건물을 지을 수 없습니다. (필요: {ResourceManager.UnitBuildingStoneCost})");
     }
 }

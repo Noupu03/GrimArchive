@@ -126,9 +126,75 @@ public abstract class Unit : ScriptableObject {
 	public UnitType unitType;
 
 	// 점유 크기(정수 타일) — position이 좌하단이다(AStarMovement.IsTileWalkable의 풋프린트 순회와 같은 관례). unitType이 없으면 1×1.
-	public Vector2Int FootprintSize => unitType == null
+	public Vector2Int? evolvedFootprintOverride;
+	public Vector2Int FootprintSize => evolvedFootprintOverride ?? (unitType == null
 		? Vector2Int.one
-		: new Vector2Int(Mathf.Max(1, (int)unitType.footprint.x), Mathf.Max(1, (int)unitType.footprint.y));
+		: new Vector2Int(Mathf.Max(1, (int)unitType.footprint.x), Mathf.Max(1, (int)unitType.footprint.y)));
+
+	// 세부 능력치 가산 장부 단일 진입점(LeaderState.Stats 공유)
+	public StatModifierLedger StatLedger => LeaderState.Stats;
+
+	// ─── 자원 경제 · 공동 작업 · 운반 · 개체 진화 상태 (명세서 v0.2) ───
+	public float workerSpeedMultiplier = 1.0f;
+	public double lifeEnergyOutputBonusRatio = 0.0;
+
+	public BuildingData assignedWorkBuilding;
+	public Vector3Int? assignedCoreRestorePos;
+
+	public CorpseRecord carriedCorpse;
+	public InteractableObject pendingCorpsePickupTarget;
+	public BuildingData targetRefineryForCarry;
+
+	public BuildingData carriedDismantledBuilding;
+	public InteractableObject pendingDismantledPackagePickup;
+	public bool suppressEconomyCommandHook;
+
+	public int currentEvolutionTier = 0;
+	public double cumulativeBaseEvolutionSoulCost = 0.0;
+	public EvolutionSession activeEvolutionSession;
+	public bool IsInEvolutionPresentation => activeEvolutionSession != null && activeEvolutionSession.IsActivePresentation;
+
+	public SavedUnitCommandSnapshot CaptureCommandSnapshot() => new SavedUnitCommandSnapshot
+	{
+		HadManualMove = isManualMoveCommand && playerMoveTarget.HasValue,
+		MoveTarget = playerMoveTarget ?? position,
+		AttackUnitTarget = playerAttackTarget,
+		AttackObjectTarget = playerAttackObjectTarget,
+		WasHalted = isHalted,
+		WasStandGroundAttack = isStandGroundAttack,
+	};
+
+	public void RestoreSavedCommandAfterEvolution(SavedUnitCommandSnapshot snap)
+	{
+		// 기절 등 행동 불가 상태는 그대로 유지하며, 대상이 소멸했으면 일반 실패 규칙대로 복구하지 않는다(15-2-표1).
+		suppressEconomyCommandHook = true;
+		try
+		{
+			if (snap.AttackUnitTarget != null)
+			{
+				if (snap.AttackUnitTarget.hp > 0f && snap.AttackUnitTarget.currentFloor == currentFloor)
+					SetAttackCommand(snap.AttackUnitTarget);
+				return;
+			}
+			if (snap.AttackObjectTarget.HasValue)
+			{
+				if (PlayerCommandFSMState.IsPendingObjectAttackValid(this, snap.AttackObjectTarget.Value))
+					SetObjectAttackCommand(snap.AttackObjectTarget.Value);
+				return;
+			}
+			if (snap.HadManualMove)
+			{
+				SetMoveCommand(snap.MoveTarget, snap.WasHalted, snap.WasStandGroundAttack);
+				return;
+			}
+			isHalted = snap.WasHalted;
+			isStandGroundAttack = snap.WasStandGroundAttack;
+		}
+		finally
+		{
+			suppressEconomyCommandHook = false;
+		}
+	}
 
 	// ─── 가중치 시스템(이해도/위험도/흥미도) 관련 — 대표 가중치 연산공식 문서 v0.7 ───
 	public bool isSpecialUnit = false;     // 7-1장: 보스/네메시스 등 종별+개별 이해도를 함께 쌓는 특수 유닛 여부
@@ -313,6 +379,8 @@ public abstract class Unit : ScriptableObject {
 
 	public void SetMoveCommand(Vector2Int target, bool markHalt, bool markStandGround)
 	{
+		if (IsInEvolutionPresentation) return;
+		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		isHalted = false;
 		isStandGroundAttack = false;
@@ -330,6 +398,8 @@ public abstract class Unit : ScriptableObject {
 
 	public void SetAttackCommand(Unit target)
 	{
+		if (IsInEvolutionPresentation) return;
+		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		playerAttackTarget = target;
 		playerMoveTarget = null;
@@ -344,6 +414,8 @@ public abstract class Unit : ScriptableObject {
 
 	public void SetObjectAttackCommand(Vector3Int target)
 	{
+		if (IsInEvolutionPresentation) return;
+		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		playerAttackObjectTarget = target;
 		playerAttackTarget = null;
@@ -355,6 +427,8 @@ public abstract class Unit : ScriptableObject {
 
 	public void ClearPlayerCommand()
 	{
+		if (IsInEvolutionPresentation && !suppressEconomyCommandHook) return;
+		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		playerMoveTarget = null;
 		playerAttackTarget = null;

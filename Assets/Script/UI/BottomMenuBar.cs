@@ -369,13 +369,17 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
     {
         bool unitActive = _inputManager != null && _inputManager.IsUnitBuildModeActive;
         bool resourceActive = _inputManager != null && _inputManager.IsResourceBuildModeActive;
+        bool refineryActive = _inputManager != null && _inputManager.IsRefineryBuildModeActive;
+        bool researchActive = _inputManager != null && _inputManager.IsResearchBuildModeActive;
         bool trapActive = _inputManager != null && _inputManager.IsTrapPlacementActive;
         bool doorRepairActive = _inputManager != null && _inputManager.IsDoorRepairPlacementActive;
 
         return new List<SubmenuItem>
         {
             new SubmenuItem("유닛 생산 건물", unitActive, true, () => ToggleBuildSubMode(unitActive, () => _inputManager?.EnterUnitBuildMode(), "유닛 생산 건물")),
-            new SubmenuItem("자원 생산 건물", resourceActive, true, () => ToggleBuildSubMode(resourceActive, () => _inputManager?.EnterResourceBuildMode(), "자원 생산 건물")),
+            new SubmenuItem("생명 에너지 시설", resourceActive, true, () => ToggleBuildSubMode(resourceActive, () => _inputManager?.EnterResourceBuildMode(), "생명 에너지 시설")),
+            new SubmenuItem("시체 보관·정제 시설", refineryActive, true, () => ToggleBuildSubMode(refineryActive, () => _inputManager?.EnterRefineryBuildMode(), "시체 보관·정제 시설")),
+            new SubmenuItem("연구 시설", researchActive, true, () => ToggleBuildSubMode(researchActive, () => _inputManager?.EnterResearchBuildMode(), "연구 시설")),
             new SubmenuItem("함정", trapActive, true, () => ToggleBuildSubMode(trapActive, () => _inputManager?.EnterTrapPlacementMode(), "함정")),
             new SubmenuItem("문 재설치", doorRepairActive, true, () => ToggleBuildSubMode(doorRepairActive, () => _inputManager?.EnterDoorRepairPlacementMode(), "문 재설치")),
         };

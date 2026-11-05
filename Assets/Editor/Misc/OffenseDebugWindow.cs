@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
 using VContainer;
 using GrimArchive.Wave;
@@ -192,8 +192,15 @@ public class OffenseDebugWindow : EditorWindow
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("+ Wood")) resourceManager.AddResource(ResourceType.Wood, _addResourceAmount);
-            if (GUILayout.Button("+ Stone")) resourceManager.AddResource(ResourceType.Stone, _addResourceAmount);
+            if (GUILayout.Button("+ 생명 에너지")) resourceManager.AddResource(ResourceType.LifeEnergy, _addResourceAmount, ResourceCreditSource.DebugGrant);
+            if (GUILayout.Button("+ 영혼 파편")) resourceManager.AddResource(ResourceType.SoulShard, _addResourceAmount, ResourceCreditSource.DebugGrant);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(resourceManager.DebugForceUnlockSoulShard ? "영혼 파편 강제 해금: ON" : "영혼 파편 강제 해금: OFF"))
+                resourceManager.DebugForceUnlockSoulShard = !resourceManager.DebugForceUnlockSoulShard;
+            if (GUILayout.Button("첫 시설 -60 피해(수리 확인용)") && BuildingManager.Instance != null && BuildingManager.Instance.AllBuildings.Count > 0)
+                BuildingManager.Instance.ApplyDamageToBuilding(BuildingManager.Instance.AllBuildings[0], 60f);
+
             GUILayout.EndHorizontal();
         }
         else

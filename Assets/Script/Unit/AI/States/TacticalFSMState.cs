@@ -1575,7 +1575,8 @@ public class TacticalFSMState : IFSMState
 	internal static bool IsRoomCoreStillHostile(Unit unit, Vector3Int corePos)
 	{
 		if (!(unit is Human) || unit.Session == null) return false;
-		return unit.Session.objectGrid.TryGetValue(corePos, out InteractableObject core) && CoreSystem.IsAttackable(core);
+		return unit.Session.objectGrid.TryGetValue(corePos, out InteractableObject core)
+			&& (CoreSystem.IsAttackable(core) || unit.Session.Core?.GetActiveRestoreAt(corePos) != null);
 	}
 
 	private static BTStatus MoveToCoreAttack(Unit unit)

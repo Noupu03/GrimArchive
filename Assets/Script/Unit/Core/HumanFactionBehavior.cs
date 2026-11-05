@@ -1,23 +1,16 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class HumanFactionBehavior : IFactionBehavior
 {
-    public bool IsEnemy(IFactionBehavior other)
-    {
-        return other is PlayerMonsterBehavior || other is WildMonsterBehavior;
-    }
+	public bool IsEnemy(IFactionBehavior other)
+	{
+		return other is PlayerMonsterBehavior || other is WildMonsterBehavior;
+	}
 
-    public void OnUpdate(Unit unit) {}
+	public void OnUpdate(Unit unit) {}
 
-    // 점령 전환/처치 보상 MVP(2026-07-27, 사용자 요청) — "플레이어 몬스터가 인간을 죽이면 돌 획득".
-    // 플레이어 몬스터가 죽였을 때만 보상.
-    public void OnDeath(Unit unit, Unit killer)
-    {
-        if (killer != null && killer.FactionBehavior is PlayerMonsterBehavior && ResourceManager.Instance != null)
-        {
-            ResourceManager.Instance.AddResource(ResourceType.Stone, ResourceManager.KillRewardStone);
-            ResourceManager.ShowKillRewardText(killer, ResourceType.Stone, ResourceManager.KillRewardStone);
-        }
-    }
-
+	public void OnDeath(Unit unit, Unit killer)
+	{
+		// 명세서 v0.2 1·2·25-1항: 처치 즉시 자원을 지급하지 않으며, 생성된 시체를 통합 정제시설에 입고·정제 완료해야 보상을 획득한다.
+	}
 }
