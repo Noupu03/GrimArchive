@@ -23,23 +23,9 @@ MonoBehaviour:
   - partyName: "\uADF8\uB7EC\uAC8C"
     faction: 0
     units:
-    - unitTypeName: "\uAE30\uC0AC\uD615"
-      count: 1
     - unitTypeName: "\uB3C4\uC801"
-      count: 1
+      count: 2
     - unitTypeName: "\uB9C8\uBC95\uC0AC"
-      count: 1
-    - unitTypeName: "\uBB34\uB3C4\uAC00"
-      count: 1
+      count: 2
     - unitTypeName: "\uC0AC\uC81C"
-      count: 1
-    - unitTypeName: "\uC131\uAE30\uC0AC"
-      count: 1
-    - unitTypeName: "\uC544\uCC98\uD615"
-      count: 1
-    - unitTypeName: "\uC74C\uC720\uC2DC\uC778"
-      count: 1
-    - unitTypeName: "\uC8FC\uC220\uC0AC"
-      count: 1
-    - unitTypeName: "\uC804\uC0AC"
-      count: 1
+      count: 2
