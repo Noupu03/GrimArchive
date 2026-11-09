@@ -1,22 +1,31 @@
 fileFormatVersion: 2
-guid: 35db7d6f5c0f3ed4fad9eb4f7f2afce8
+guid: 9ff03a9bb4d51af4b98e40cb6297e9d6
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 182852693832145158
-    second: Char_PriestA_0
+      213: 8790923257057755112
+    second: priestess_sprite_sheet_220x220_4x2_0
   - first:
-      213: -1793469755425138167
-    second: Char_PriestA_1
+      213: -161231733875953740
+    second: priestess_sprite_sheet_220x220_4x2_1
   - first:
-      213: -2968815653497855131
-    second: Char_PriestA_2
+      213: -2775164046291464323
+    second: priestess_sprite_sheet_220x220_4x2_2
   - first:
-      213: 3536262731350156978
-    second: Char_PriestA_3
+      213: -7911128999191204574
+    second: priestess_sprite_sheet_220x220_4x2_3
   - first:
-      213: 1042236833776081775
-    second: Char_PriestA_4
+      213: 4383033768958186075
+    second: priestess_sprite_sheet_220x220_4x2_4
+  - first:
+      213: 8834979881155751034
+    second: priestess_sprite_sheet_220x220_4x2_5
+  - first:
+      213: -3321250190656823549
+    second: priestess_sprite_sheet_220x220_4x2_6
+  - first:
+      213: -2286681682422423859
+    second: priestess_sprite_sheet_220x220_4x2_7
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -63,7 +72,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 32
+  spritePixelsToUnits: 200
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -108,154 +117,181 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: Android
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: 4
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: WebGL
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: 4
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
-    buildTarget: WindowsStoreApps
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: 4
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_PriestA_0
+      name: Char_Priest_0
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 220
+        width: 220
+        height: 220
+      alignment: 7
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3829b392070441e40bfd63a1201a06c2
+      internalID: -769706979
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Char_Priest_1
+      rect:
+        serializedVersion: 2
+        x: 220
+        y: 220
+        width: 220
+        height: 220
+      alignment: 7
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a98183ff4b26f8944b5f2ae62e8172cc
+      internalID: 437203248
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Char_Priest_2
+      rect:
+        serializedVersion: 2
+        x: 440
+        y: 220
+        width: 220
+        height: 220
+      alignment: 7
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: aeb59b67d3ff573498b7d415919ce4f2
+      internalID: -1361244533
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Char_Priest_3
+      rect:
+        serializedVersion: 2
+        x: 660
+        y: 220
+        width: 220
+        height: 220
+      alignment: 7
+      pivot: {x: 0.5, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: dd024ebb792faee469d39d31f96cf12e
+      internalID: -2016186017
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Char_Priest_4
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 32
-        height: 32
+        width: 220
+        height: 220
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 60996166e8f998200800000000000000
-      internalID: 182852693832145158
+      spriteID: 59bd78d99a8a5c04ba6eb3da87b667ce
+      internalID: -1951145297
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_1
+      name: Char_Priest_5
       rect:
         serializedVersion: 2
-        x: 32
+        x: 220
         y: 0
-        width: 32
-        height: 32
+        width: 220
+        height: 220
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 90a5a7872c05c17e0800000000000000
-      internalID: -1793469755425138167
+      spriteID: f4c14f4bfc2c2934db2817cf0a07d17e
+      internalID: 1365644749
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_2
+      name: Char_Priest_6
       rect:
         serializedVersion: 2
-        x: 64
+        x: 440
         y: 0
-        width: 32
-        height: 32
+        width: 220
+        height: 220
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 56324a184e5acc6d0800000000000000
-      internalID: -2968815653497855131
+      spriteID: 8d654f3fcc08ed84ab0931a703f2305f
+      internalID: 1567208886
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_PriestA_3
+      name: Char_Priest_7
       rect:
         serializedVersion: 2
-        x: 96
+        x: 660
         y: 0
-        width: 32
-        height: 32
+        width: 220
+        height: 220
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: -1
+      tessellationDetail: 0
       bones: []
-      spriteID: 2b6249ed734531130800000000000000
-      internalID: 3536262731350156978
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_PriestA_4
-      rect:
-        serializedVersion: 2
-        x: 128
-        y: 0
-        width: 32
-        height: 32
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: f6b1d09d0e4c67e00800000000000000
-      internalID: 1042236833776081775
+      spriteID: 81d0820b186d93d408cd61acd227d78e
+      internalID: 1951558796
       vertices: []
       indices: 
       edges: []
@@ -264,7 +300,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 13011f4bfe2cc8641a5b18eb26cd45cc
+    spriteID: d4848a580c8ec7440825553b92aea26c
     internalID: 0
     vertices: []
     indices: 
@@ -274,13 +310,16 @@ TextureImporter:
     spriteCustomMetadata:
       entries:
       - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":32.0,"y":32.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":220.0,"y":220.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Char_PriestA_0: 182852693832145158
-      Char_PriestA_1: -1793469755425138167
-      Char_PriestA_2: -2968815653497855131
-      Char_PriestA_3: 3536262731350156978
-      Char_PriestA_4: 1042236833776081775
+      Char_Priest_0: -769706979
+      Char_Priest_1: 437203248
+      Char_Priest_2: -1361244533
+      Char_Priest_3: -2016186017
+      Char_Priest_4: -1951145297
+      Char_Priest_5: 1365644749
+      Char_Priest_6: 1567208886
+      Char_Priest_7: 1951558796
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

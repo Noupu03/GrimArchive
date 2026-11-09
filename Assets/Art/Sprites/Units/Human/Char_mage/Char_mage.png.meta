@@ -1,43 +1,34 @@
 fileFormatVersion: 2
-guid: 55527f9a589e9354bb1b821ca6384dd2
+guid: 886ddf1355303df4d909a6bdd7c6b2d9
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 9088484579556764753
-    second: grimarchive_sprites_rear_flipped_128x128_0
+      213: -558438852692439614
+    second: blue_lightning_mage_8pose_256x256_sheet_0
   - first:
-      213: 6720088701684233780
-    second: grimarchive_sprites_rear_flipped_128x128_1
+      213: -7617269009701381987
+    second: blue_lightning_mage_8pose_256x256_sheet_1
   - first:
-      213: -4802531407305675663
-    second: grimarchive_sprites_rear_flipped_128x128_2
+      213: -7748570769827261729
+    second: blue_lightning_mage_8pose_256x256_sheet_2
   - first:
-      213: 5808461213518936395
-    second: grimarchive_sprites_rear_flipped_128x128_3
+      213: -3160722449103190197
+    second: blue_lightning_mage_8pose_256x256_sheet_3
   - first:
-      213: -2091593686077451769
-    second: grimarchive_sprites_rear_flipped_128x128_4
+      213: 52291887491291475
+    second: blue_lightning_mage_8pose_256x256_sheet_4
   - first:
-      213: 4671595300502622617
-    second: grimarchive_sprites_rear_flipped_128x128_5
+      213: -8898772408737011924
+    second: blue_lightning_mage_8pose_256x256_sheet_5
   - first:
-      213: -321811614373848819
-    second: grimarchive_sprites_rear_flipped_128x128_6
+      213: -3501052037675640098
+    second: blue_lightning_mage_8pose_256x256_sheet_6
   - first:
-      213: 2451912227499482139
-    second: grimarchive_sprites_rear_flipped_128x128_7
+      213: 4773933985941934098
+    second: blue_lightning_mage_8pose_256x256_sheet_7
   - first:
-      213: -664996607082971225
-    second: grimarchive_sprites_rear_flipped_128x128_8
-  - first:
-      213: -2990658467108057033
-    second: grimarchive_sprites_rear_flipped_128x128_9
-  - first:
-      213: -7696188044245110575
-    second: grimarchive_sprites_rear_flipped_128x128_10
-  - first:
-      213: 2007669427650999605
-    second: grimarchive_sprites_rear_flipped_128x128_11
+      213: 2857114770145274911
+    second: blue_lightning_mage_8pose_256x256_sheet_8
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -84,7 +75,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 100
+  spritePixelsToUnits: 200
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -133,13 +124,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Char_mage_0
+      name: Char_Mage_0
       rect:
         serializedVersion: 2
         x: 0
-        y: 128
-        width: 128
-        height: 128
+        y: 256
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -148,42 +139,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: ec764ea07f1aafd42a5cf4b09c3cdd68
-      internalID: -1161033046
+      spriteID: 8fa75dcf6e60cb147a8638309a628262
+      internalID: -141571868
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_1
-      rect:
-        serializedVersion: 2
-        x: 128
-        y: 128
-        width: 128
-        height: 128
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 42303c797feac1b4bb895250025a3c0b
-      internalID: 729696748
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_mage_2
+      name: Char_Mage_1
       rect:
         serializedVersion: 2
         x: 256
-        y: 128
-        width: 128
-        height: 128
+        y: 256
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -192,42 +161,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 9e39e5d8b35672546b0d498053313857
-      internalID: 680600469
+      spriteID: 53ba1e0c781140a42ba49262ae243c60
+      internalID: 52050934
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_3
-      rect:
-        serializedVersion: 2
-        x: 384
-        y: 128
-        width: 128
-        height: 128
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 72ee45ec19b55464db086397d57511ba
-      internalID: -27381490
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_mage_4
+      name: Char_Mage_2
       rect:
         serializedVersion: 2
         x: 512
-        y: 128
-        width: 128
-        height: 128
+        y: 256
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -236,20 +183,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 60c22ef2b60c3074facbcd8fbfafee6a
-      internalID: 1297987469
+      spriteID: dca87b97407cf3a459535124ab297a3f
+      internalID: 1304700886
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_5
+      name: Char_Mage_3
       rect:
         serializedVersion: 2
-        x: 640
-        y: 128
-        width: 128
-        height: 128
+        x: 768
+        y: 256
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -258,20 +205,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 0052054b85540be4da1ea14bd5bab093
-      internalID: -1840592884
+      spriteID: c4178ef5f4886d844a76ead2a7286399
+      internalID: 1243547853
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_6
+      name: Char_Mage_4
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 128
-        height: 128
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -280,42 +227,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f1c02dc170b78d14d97f900adc827c49
-      internalID: 601673352
+      spriteID: d47c4803fdca7324a8e8e1dd6ec00583
+      internalID: -1216282174
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_7
-      rect:
-        serializedVersion: 2
-        x: 128
-        y: 0
-        width: 128
-        height: 128
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 8897371a50535e54b87bf05f52ccef6d
-      internalID: -866409153
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_mage_8
+      name: Char_Mage_5
       rect:
         serializedVersion: 2
         x: 256
         y: 0
-        width: 128
-        height: 128
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -324,42 +249,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 18b62d585f401334188a33c17955c717
-      internalID: 915344466
+      spriteID: 773e7e0d97c2be24eb488ddedb9cc5a3
+      internalID: -1198942759
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_9
-      rect:
-        serializedVersion: 2
-        x: 384
-        y: 0
-        width: 128
-        height: 128
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: ca0899792ee7c04448943f25fb774652
-      internalID: 956073445
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Char_mage_10
+      name: Char_Mage_6
       rect:
         serializedVersion: 2
         x: 512
         y: 0
-        width: 128
-        height: 128
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -368,20 +271,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 237d394214098d24f9184bbac2fb0379
-      internalID: 1592876092
+      spriteID: 9e024edd039f93447a60d852f80b1643
+      internalID: 113638337
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: Char_mage_11
+      name: Char_Mage_7
       rect:
         serializedVersion: 2
-        x: 640
+        x: 768
         y: 0
-        width: 128
-        height: 128
+        width: 256
+        height: 256
       alignment: 7
       pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -390,8 +293,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 445aa6fd2371c8947b5b5937a16c1602
-      internalID: 1750199935
+      spriteID: 19b8d81278a7328469ad4dee6d8f9e89
+      internalID: -1222644510
       vertices: []
       indices: 
       edges: []
@@ -400,7 +303,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: da8275faa96516942b8c37b151c2b311
+    spriteID: b76aef84418edd84fb4c9331351c42c0
     internalID: 0
     vertices: []
     indices: 
@@ -410,20 +313,16 @@ TextureImporter:
     spriteCustomMetadata:
       entries:
       - key: SpriteEditor.SliceSettings
-        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":128.0,"y":128.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":256.0,"y":256.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Char_mage_0: -1161033046
-      Char_mage_1: 729696748
-      Char_mage_10: 1592876092
-      Char_mage_11: 1750199935
-      Char_mage_2: 680600469
-      Char_mage_3: -27381490
-      Char_mage_4: 1297987469
-      Char_mage_5: -1840592884
-      Char_mage_6: 601673352
-      Char_mage_7: -866409153
-      Char_mage_8: 915344466
-      Char_mage_9: 956073445
+      Char_Mage_0: -141571868
+      Char_Mage_1: 52050934
+      Char_Mage_2: 1304700886
+      Char_Mage_3: 1243547853
+      Char_Mage_4: -1216282174
+      Char_Mage_5: -1198942759
+      Char_Mage_6: 113638337
+      Char_Mage_7: -1222644510
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
