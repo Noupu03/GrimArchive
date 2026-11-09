@@ -92,8 +92,10 @@ public class UnitGenerate
 		public bool WarnedMissingMirror;
 #endif
 		public UnitAnimationDriver Anim;
-		// 리깅 캐릭터는 방향이 바뀔 때만 라벨을 다시 건다(부위가 많아 비용이 크다).
-		public Dir? LastRigDir;
+		// 직전에 적용한 좌우 반전 — 순수 UP/DOWN처럼 좌우가 정해지지 않는 방향에서 그대로 유지한다(SpriteFacingMath).
+		public bool FacingFlipX;
+		// 리깅 캐릭터는 정면/후면·반전이 바뀔 때만 라벨을 다시 건다(부위가 많아 비용이 크다).
+		public SpriteFacing? LastRigFacing;
 		// 시야/인지 범위 콘 다시 그리기 여부 판단용 — 비용이 커서 "보이는 상태 + 방향이 바뀌었을 때"에만 다시 그린다.
 		public bool VisionRangeShown;
 		public Vector2 LastVisionForward;
@@ -173,16 +175,17 @@ public class UnitGenerate
 		uv.boundUnit = unit;
 
 		var cache = GetCache(go);
+		SpriteFacing facing = ResolveFacing(cache, unit.currentDir);
 
 #if UNITY_2022_2_OR_NEWER
 		SpriteLibrary spriteLib = go.GetComponentInChildren<SpriteLibrary>();
 		if (spriteLib != null && spriteLib.spriteLibraryAsset != null && string.IsNullOrEmpty(unit.spriteVariation))
 			unit.spriteVariation = _unitSpriteManager.PickRandomVariation(spriteLib.spriteLibraryAsset);
 
-		ApplyDirectionToResolvers(cache, unit.currentDir, unit.spriteVariation);
+		ApplyFacingToResolvers(cache, facing, unit.spriteVariation);
 #endif
 
-		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
+		cache.WeaponAttachment?.UpdatePose(facing);
 
 		// 발밑 선택 링을 스폰 시점에 미리 만들어둔다 — 나중에 몰아서 만들면 프레임 드랍이 생긴다.
 		EnsureSelectionMarker(cache, go, unit);
@@ -322,28 +325,39 @@ public class UnitGenerate
 		if (!visualMap.TryGetValue(unit, out GameObject go)) return;
 
 		var cache = GetCache(go);
-		cache.WeaponAttachment?.UpdatePose(unit.currentDir);
+		SpriteFacing facing = ResolveFacing(cache, unit.currentDir);
+		cache.WeaponAttachment?.UpdatePose(facing);
 
 #if UNITY_2022_2_OR_NEWER
 		if (cache.SpriteResolvers != null && cache.SpriteResolvers.Length > 0)
 		{
-			ApplyDirectionToResolvers(cache, unit.currentDir, unit.spriteVariation);
+			ApplyFacingToResolvers(cache, facing, unit.spriteVariation);
 			return;
 		}
 #endif
 		if (_unitSpriteManager == null) return;
 	}
 
+	// 논리 방향(Dir 8방향) → 스프라이트 4방향(반측면 정면/후면 × 좌우 반전, SpriteFacingMath).
+	// 순수 UP/DOWN은 좌우가 정해지지 않아 이 유닛이 직전에 적용한 반전을 유지하고, 결과를 다음 호출용으로 기억한다.
+	private static SpriteFacing ResolveFacing(VisualCache cache, Dir direction)
+	{
+		SpriteFacing facing = SpriteFacingMath.Resolve(direction, cache.FacingFlipX);
+		cache.FacingFlipX = facing.FlipX;
+		return facing;
+	}
+
 #if UNITY_2022_2_OR_NEWER
-	// 방향 → 스프라이트 라벨. 리졸버가 1개인 기존 유닛은 예전 그대로(카테고리=변형, flipX).
+	// 정면/후면 → 스프라이트 라벨. 리졸버가 1개인 기존 유닛은 예전 그대로(카테고리=변형, flipX).
 	// 리졸버가 여러 개이거나 드라이버에 mirrorRoot가 있는 리깅 캐릭터는 부위마다 카테고리가 다르므로 라벨만 바꾸고,
 	// 좌우 반전은 flipX 대신 mirrorRoot 스케일로 처리한다(부위 위치까지 같이 뒤집어야 하기 때문).
-	private void ApplyDirectionToResolvers(VisualCache cache, Dir direction, string variation)
+	private void ApplyFacingToResolvers(VisualCache cache, SpriteFacing facing, string variation)
 	{
 		SpriteResolver[] resolvers = cache.SpriteResolvers;
 		if (resolvers == null || resolvers.Length == 0) return;
 
-		UnitSpriteManager.GetSpriteLabelForDirection(direction, out string label, out bool flipX);
+		string label = facing.Label;
+		bool flipX = facing.FlipX;
 
 		bool rigged = resolvers.Length > 1 || (cache.Anim != null && cache.Anim.UsesMirrorRoot);
 		if (!rigged)
@@ -352,8 +366,8 @@ public class UnitGenerate
 			return;
 		}
 
-		if (cache.LastRigDir.HasValue && cache.LastRigDir.Value == direction) return;
-		cache.LastRigDir = direction;
+		if (cache.LastRigFacing.HasValue && cache.LastRigFacing.Value.Equals(facing)) return;
+		cache.LastRigFacing = facing;
 
 		foreach (SpriteResolver r in resolvers)
 			if (r != null) r.SetCategoryAndLabel(r.GetCategory(), label);

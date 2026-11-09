@@ -128,8 +128,11 @@ UpdateUnitSpriteForDirection이 SpriteResolver를 1개만 쓰던 것을 자식 �
 - 리졸버 여러 개이거나 드라이버에 mirrorRoot가 있는 리그: 부위마다 카테고리가 다르므로 각 리졸버의 현재
   카테고리를 유지한 채 라벨만 방향으로 바꾸고(방향이 바뀔 때만), 좌우 반전은 mirrorRoot의 localScale.x
   부호로 처리한다. mirrorRoot가 비어 있으면 오른쪽 방향에서 경고를 한 번 남긴다.
-라벨은 기존과 같은 5종(Up/Down/Left/UpLeft/DownLeft) + 반전이다. 리그의 부위 스프라이트 라이브러리에 이 5개
-라벨을 부위마다 만들어야 한다.
+라벨은 2026-11-09부터 2종(DownLeft=반측면 정면, UpLeft=반측면 후면) + 좌우 반전이다(회의록 11.09 — 기존 5종
+Up/Down/Left/UpLeft/DownLeft에서 축소). 리그의 부위 스프라이트 라이브러리에는 이 2개 라벨만 부위마다 만들면 된다.
+Dir 8방향 → 4방향 환산은 SpriteFacingMath.Resolve 한 곳(순수 함수, SpriteFacingTests 13건): 위쪽 성분이면 후면,
+나머지(순수 LEFT/RIGHT 포함)는 정면 / 오른쪽 성분이면 반전 / 순수 UP·DOWN은 직전 반전 유지. 리그의 방향 변경
+캐시(LastRigFacing)도 (후면 여부, 반전) 쌍 기준이라 같은 그림으로 접히는 방향 변화에는 라벨을 다시 걸지 않는다.
 
 ■ 6. 검증 상태
 ────────────────────────────────────────────────────────────────────────

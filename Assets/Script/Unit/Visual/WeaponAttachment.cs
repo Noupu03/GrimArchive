@@ -1,8 +1,10 @@
 using UnityEngine;
 
-// 유닛 프리팹의 Visual 자식에 붙여 8방향(Dir)에 맞춰 무기 스프라이트의 위치/회전/정렬순서를 조정하는
-// 범용 컴포넌트 — 프리팹마다 poses/nativeSpriteAngle만 튜닝하면 재사용 가능하다. UnitSpriteManager와
-// 동일하게 UP/UP_LEFT/LEFT/DOWN_LEFT/DOWN 5개 기준 방향만 데이터로 갖고 RIGHT 계열은 미러링으로 재사용한다.
+// 유닛 프리팹의 Visual 자식에 붙여 몸 스프라이트 방향에 맞춰 무기 스프라이트의 위치/회전/정렬순서를 조정하는
+// 범용 컴포넌트 — 프리팹마다 poses/nativeSpriteAngle만 튜닝하면 재사용 가능하다.
+// 몸 스프라이트가 반측면 정면/후면 2종 + 좌우 반전(SpriteFacingMath, 회의록 2026-11-09)이 되면서 실제로 읽는
+// 포즈는 DOWN_LEFT(정면)·UP_LEFT(후면) 둘뿐이고 오른쪽은 미러링으로 재사용한다. poses의 UP/LEFT/DOWN 항목은
+// 더 이상 쓰이지 않지만 프리팹 직렬화 데이터라 그대로 둔다.
 [RequireComponent(typeof(SpriteRenderer))]
 public class WeaponAttachment : MonoBehaviour
 {
@@ -35,25 +37,21 @@ public class WeaponAttachment : MonoBehaviour
 
     private SpriteRenderer _sr;
     private Dir _lastDir = (Dir)(-1);
+    private bool _lastMirror;
 
     private void Awake()
     {
         _sr = GetComponent<SpriteRenderer>();
     }
 
-    public void UpdatePose(Dir direction)
+    // facing: 몸 스프라이트와 같은 SpriteFacing — PoseDir(UP_LEFT/DOWN_LEFT)로 포즈를 찾고 FlipX면 미러링한다.
+    public void UpdatePose(SpriteFacing facing)
     {
-        if (direction == _lastDir) return;
-        _lastDir = direction;
-
-        bool mirror = direction == Dir.RIGHT || direction == Dir.UP_RIGHT || direction == Dir.DOWN_RIGHT;
-        Dir lookup = direction switch
-        {
-            Dir.RIGHT      => Dir.LEFT,
-            Dir.UP_RIGHT   => Dir.UP_LEFT,
-            Dir.DOWN_RIGHT => Dir.DOWN_LEFT,
-            _              => direction
-        };
+        Dir lookup = facing.PoseDir;
+        bool mirror = facing.FlipX;
+        if (lookup == _lastDir && mirror == _lastMirror) return;
+        _lastDir = lookup;
+        _lastMirror = mirror;
 
         DirectionalPose pose = System.Array.Find(poses, p => p.direction == lookup);
         if (pose == null) return;

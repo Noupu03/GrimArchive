@@ -97,23 +97,8 @@ public class UnitSpriteManager
         return visualDef != null ? visualDef.skills : new List<SkillData>();
     }
 
-    // direction → label / flipX 반환. category(바리에이션)는 호출부에서 결정
-    public static void GetSpriteLabelForDirection(Dir direction, out string label, out bool flipX)
-    {
-        flipX = false;
-        switch (direction)
-        {
-            case Dir.UP:         label = "Up";       break;
-            case Dir.DOWN:       label = "Down";     break;
-            case Dir.LEFT:       label = "Left";     break;
-            case Dir.RIGHT:      label = "Left"; flipX = true; break;
-            case Dir.UP_LEFT:    label = "UpLeft";   break;
-            case Dir.UP_RIGHT:   label = "UpLeft"; flipX = true; break;
-            case Dir.DOWN_LEFT:  label = "DownLeft"; break;
-            case Dir.DOWN_RIGHT: label = "DownLeft"; flipX = true; break;
-            default:             label = "Down";     break;
-        }
-    }
+    // 방향 → 스프라이트 라벨/반전 환산은 SpriteFacingMath(반측면 정면·후면 2종 + 좌우 반전, 회의록 2026-11-09)로
+    // 옮겼다. category(바리에이션)는 호출부에서 결정한다.
 
 #if UNITY_2022_2_OR_NEWER
     // SpriteResolver에 category/label과 flipX를 적용하는 공통 절차 — UnitGenerate/TorchVisual의
