@@ -427,7 +427,7 @@ MonoBehaviour:
     clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 4
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 5
     skillName: 
     clip: {fileID: 7400000, guid: 4e8edd22ecb04254d8ee0ce5fe86d0e8, type: 2}
@@ -442,15 +442,27 @@ MonoBehaviour:
     clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 11
     skillName: 
+    clip: {fileID: 7400000, guid: f89a1c5dd04a3644f879b3a19d72fb4f, type: 2}
+  - slot: 9
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 10
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 12
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 13
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 14
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 15
+    skillName: 
     clip: {fileID: 0}
   - slot: 2
-    skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
-    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
-  - slot: 2
-    skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
-    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
-  - slot: 2
-    skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
+    skillName: "\uD30C\uC774\uC5B4\uBCFC"
     clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   fadeSeconds: 0.1
   mirrorRoot: {fileID: 0}

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 5324452109926080211}
   - component: {fileID: 2506347831708784868}
   - component: {fileID: 1837113544883230726}
+  - component: {fileID: 4253219886055431474}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -107,7 +108,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteLibrary
   m_Library: []
-  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 09c3148491845119a4e410bfa92305a3, type: 3}
+  m_SpriteLibraryAsset: {fileID: 7108339969198208228, guid: 638873b88e145c742a7fec5c00687477, type: 3}
 --- !u!114 &1837113544883230726
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -120,10 +121,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed8b1ae4e4e52b34ea557c1c11e076fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
-  m_CategoryHash: 5.4934837e-27
-  m_labelHash: 0.025054464
+  m_CategoryHash: 7.301968e-33
+  m_labelHash: 0.009161512
   m_SpriteKey: 0
-  m_SpriteHash: 302825577
+  m_SpriteHash: 257192744
+--- !u!95 &4253219886055431474
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3014545076498985973}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: fa9113c7f2036ed46af5e3fbbd932766, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &5981395126933330937
 GameObject:
   m_ObjectHideFlags: 0
@@ -260,7 +283,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1809275379300445488}
   - component: {fileID: 2109044684008048835}
-  - component: {fileID: 2890550461361713283}
   - component: {fileID: 1020981033571114027}
   - component: {fileID: 5131075879849446804}
   m_Layer: 0
@@ -360,7 +382,7 @@ MonoBehaviour:
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
   deathVfxPrefab: {fileID: 6651800158703548414, guid: 8ffeeb8f057359f45b6b4071256bd6cc, type: 3}
-  corpseSprite: {fileID: 21300000, guid: fe40dd0535050f449bb55aa9c1961d67, type: 3}
+  corpseSprite: {fileID: 1238059863, guid: 09b88fdfb65402c44a4641eae2105c9f, type: 3}
   isSpecialUnit: 0
   isInterestTarget: 0
   baseInterest: 40
@@ -368,28 +390,6 @@ MonoBehaviour:
   heavyHitThreshold: 10
   stealth: 0
   baseVisibility: 100
---- !u!95 &2890550461361713283
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6552248296838212334}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 0}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
 --- !u!114 &1020981033571114027
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -418,45 +418,51 @@ MonoBehaviour:
   slots:
   - slot: 0
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: b7714640af7ba2240946c36366904b77, type: 2}
   - slot: 1
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 0446fb5460a9ec34aa4ce11bf6017753, type: 2}
   - slot: 3
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 4
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 5
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 4e8edd22ecb04254d8ee0ce5fe86d0e8, type: 2}
   - slot: 6
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: d9ea08c85cc9bc34e94f48c3bfb7a049, type: 2}
   - slot: 7
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: d9ea08c85cc9bc34e94f48c3bfb7a049, type: 2}
   - slot: 8
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 11
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: f89a1c5dd04a3644f879b3a19d72fb4f, type: 2}
   - slot: 9
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
   - slot: 10
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
   - slot: 12
     skillName: 
     clip: {fileID: 0}
   - slot: 13
     skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 14
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 15
+    skillName: 
     clip: {fileID: 0}
   - slot: 2
     skillName: "\uC800\uC8FC"
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   fadeSeconds: 0.1
   mirrorRoot: {fileID: 0}

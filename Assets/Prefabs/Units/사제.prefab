@@ -235,7 +235,7 @@ MonoBehaviour:
   parryPrefab: {fileID: 1930915446082853629, guid: c9ce87865d2552b4992a31fc18b14fae, type: 3}
   attackFailPrefab: {fileID: 0}
   deathVfxPrefab: {fileID: 6651800158703548414, guid: 8ffeeb8f057359f45b6b4071256bd6cc, type: 3}
-  corpseSprite: {fileID: -841640910, guid: 2541c2a289a160a489157d7e5f8cccd5, type: 3}
+  corpseSprite: {fileID: 1951558796, guid: 9ff03a9bb4d51af4b98e40cb6297e9d6, type: 3}
   isSpecialUnit: 0
   isInterestTarget: 0
   baseInterest: 40
@@ -280,7 +280,7 @@ MonoBehaviour:
     clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 4
     skillName: 
-    clip: {fileID: 0}
+    clip: {fileID: 7400000, guid: 9438840d1b6a95643a39533da8b4e844, type: 2}
   - slot: 5
     skillName: 
     clip: {fileID: 7400000, guid: 4e8edd22ecb04254d8ee0ce5fe86d0e8, type: 2}
@@ -295,15 +295,27 @@ MonoBehaviour:
     clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   - slot: 11
     skillName: 
+    clip: {fileID: 7400000, guid: f89a1c5dd04a3644f879b3a19d72fb4f, type: 2}
+  - slot: 9
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 10
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 12
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 13
+    skillName: 
+    clip: {fileID: 7400000, guid: 6efa737f4c4f23c4f97a2c1a7577e15f, type: 2}
+  - slot: 14
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 15
+    skillName: 
     clip: {fileID: 0}
   - slot: 2
-    skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
-    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
-  - slot: 2
-    skillName: "\uAE09\uC2B5 \uD560\uD034\uAE30"
-    clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
-  - slot: 2
-    skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
+    skillName: "\uCE58\uC720"
     clip: {fileID: 7400000, guid: 14309ba3c4962f24fbc9661726f70610, type: 2}
   fadeSeconds: 0.1
   mirrorRoot: {fileID: 0}

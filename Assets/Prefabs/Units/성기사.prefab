@@ -455,6 +455,12 @@ MonoBehaviour:
   - slot: 13
     skillName: 
     clip: {fileID: 0}
+  - slot: 14
+    skillName: 
+    clip: {fileID: 0}
+  - slot: 15
+    skillName: 
+    clip: {fileID: 0}
   - slot: 2
     skillName: "\uC131\uC2A4\uB7EC\uC6B4 \uBC29\uD328"
     clip: {fileID: 0}
