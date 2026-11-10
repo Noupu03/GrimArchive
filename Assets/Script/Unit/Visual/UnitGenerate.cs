@@ -438,6 +438,60 @@ public class UnitGenerate
 		targetPosMap.Remove(u);
 	}
 
+	// 사망 클립이 있는 유닛 전용(회의록 2026-11-10): 클립이 끝나도 비주얼을 파괴하지 않고 시체 오브젝트 비주얼의 자식으로 넘겨
+	// 클립의 마지막 프레임을 그대로 시체로 남긴다 — 별도 corpseSprite로 갈아끼우지 않는다. 시체가 회수·파괴되면 같이 사라진다.
+	// restShift: 시체 오브젝트가 사망 타일이 아닌 옆 타일에 놓였을 때 비주얼을 옮길 만큼(CorpseVisualMath.TileShift).
+	public void RemoveVisualKeepAsCorpse(Unit u, GameObject corpseVisual, Vector3 restShift, float afterSeconds)
+	{
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
+		visualMap.Remove(u);
+		if (!targetPosMap.TryGetValue(u, out Vector3 restPos) && go != null) restPos = go.transform.position;
+		targetPosMap.Remove(u);
+		if (go == null) return;
+
+		HideVisualUiForDeath(go);
+		AdoptAsCorpseLater(go, corpseVisual, restPos + restShift, afterSeconds).Forget();
+	}
+
+	private async UniTaskVoid AdoptAsCorpseLater(GameObject go, GameObject corpseVisual, Vector3 restPos, float seconds)
+	{
+		await UniTask.Delay(System.TimeSpan.FromSeconds(seconds), DelayType.DeltaTime);
+		if (go == null) return;
+
+		VisualCache cache = GetCache(go);
+		KillVisualTweens(go);
+		if (corpseVisual == null) // 클립이 재생되는 사이 시체가 회수·파괴됐다
+		{
+			Object.Destroy(go);
+			_cacheMap.Remove(go);
+			return;
+		}
+
+		// 마지막 이동 트윈이 끝나기 전에 끊겼을 수 있으니 시체가 놓일 자리로 맞춘다.
+		go.transform.position = restPos;
+
+		// 피격 점멸 트윈이 도중에 죽으면 몸 색이 투명/반투명으로 남을 수 있다.
+		Transform vt = go.transform.Find("Visual");
+		SpriteRenderer body = vt != null ? vt.GetComponent<SpriteRenderer>() : null;
+		if (body != null) body.color = Color.white;
+
+		// 시체는 무기를 쥐고 있지 않고 빛도 막지 않는다(예전 corpseSprite 시체와 같다).
+		SpriteRenderer weapon = cache.WeaponAttachment != null ? cache.WeaponAttachment.GetComponent<SpriteRenderer>() : null;
+		if (weapon != null) weapon.enabled = false;
+		foreach (ShadowCaster2D shadow in go.GetComponentsInChildren<ShadowCaster2D>(true)) shadow.enabled = false;
+
+		// 보이는 부위만 골라 상대 순서를 유지한 채 산 유닛 아래로 내린다(숨겨진 UI의 정렬값이 기준을 흔들지 않게).
+		SpriteRenderer[] renderers = go.GetComponentsInChildren<SpriteRenderer>(false);
+		int lowest = int.MaxValue;
+		foreach (SpriteRenderer r in renderers)
+			if (r.enabled && r.sprite != null && r.sortingOrder < lowest) lowest = r.sortingOrder;
+		foreach (SpriteRenderer r in renderers)
+			if (r.enabled && r.sprite != null) r.sortingOrder = CorpseVisualMath.RemapSortingOrder(r.sortingOrder, lowest);
+
+		go.transform.SetParent(corpseVisual.transform, true);
+		_cacheMap.Remove(go); // 더는 산 유닛 비주얼이 아니다 — 파괴는 시체 비주얼과 함께
+	}
+
 	// 사망 연출 중에는 체력바·상태 라벨·선택 링·시야선처럼 유닛에 붙은 UI를 숨긴다(SyncVisual 대상에서도 빠진 상태).
 	private void HideVisualUiForDeath(GameObject go)
 	{

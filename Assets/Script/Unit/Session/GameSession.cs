@@ -811,13 +811,6 @@ public class GameSession : NativeRoutine, IOffenseQuery
         return tm;
     }
 
-    // 사망 클립이 재생되는 동안 숨겨 둔 시체 비주얼을 연출이 끝나면 보여 준다 — 그 사이 회수·파괴됐으면 비주얼이 이미 없어 아무 일도 하지 않는다.
-    private async UniTaskVoid RevealCorpseVisualAfter(GameObject corpseVisual, float seconds)
-    {
-        await UniTask.Delay(System.TimeSpan.FromSeconds(seconds), DelayType.DeltaTime);
-        if (corpseVisual != null) corpseVisual.SetActive(true);
-    }
-
     private void RemoveDeadUnit(int index, Unit u)
     {
         if (u != null) _combatEventService?.RecordKillWeightEvent(u, units);
@@ -889,24 +882,29 @@ public class GameSession : NativeRoutine, IOffenseQuery
                 HumanWaveManager.Instance?.OnMonsterKilled(objId, corpse.MonsterSpeciesKey);
             }
 
-            // 사망 판정 즉시 Corpse 스프라이트로 전환하고 Death VFX를 발동한다 — 킬 이벤트/파티 사망
+            // 사망 판정 즉시 시체 오브젝트를 만들고 Death VFX를 발동한다 — 킬 이벤트/파티 사망
             // 기록/컴포넌트 정리는 위에서 이미 끝났으므로 지연 없이 처리한다.
-            // 단 Death 애니메이션 슬롯에 클립이 있는 유닛은 비주얼을 그 길이만큼 남기고 시체 비주얼은 연출이 끝난 뒤에 보여 준다(로직상 시체는 지금 생긴다). 클립이 없으면 0이라 예전과 같다.
+            // Death 애니메이션 슬롯에 클립이 있는 유닛(회의록 2026-11-10)은 클립의 마지막 프레임이 곧 시체다 — 별도 corpseSprite로
+            // 갈아끼우지 않고, 클립이 끝나면 유닛 비주얼을 시체 오브젝트가 이어받는다. 클립이 없으면 0이라 예전과 같다(corpseSprite 시체).
             float deathAnimSeconds = _unitGenerate != null ? _unitGenerate.BeginDeathAnimation(u) : 0f;
             _unitGenerate?.PlayDeathVisual(u);
             SpawnObject(corpse, corpseColor);
-            if (deathAnimSeconds > 0f)
+            // 시체 자리에 다른 오브젝트가 있어 SpawnObject가 건너뛴 경우를 걸러내려고 위치가 아니라 시체 오브젝트로 직접 찾는다.
+            GameObject corpseVisual = null;
+            bool keepVisualAsCorpse = deathAnimSeconds > 0f && _unitGenerate != null
+                && objectVisuals.TryGetValue(corpse, out corpseVisual) && corpseVisual != null;
+            if (keepVisualAsCorpse)
             {
-                GameObject corpseVisual = GetObjectVisual(corpse.Position);
-                if (corpseVisual != null)
-                {
-                    corpseVisual.SetActive(false);
-                    RevealCorpseVisualAfter(corpseVisual, deathAnimSeconds).Forget();
-                }
+                SpriteRenderer corpseOwnSprite = corpseVisual.GetComponent<SpriteRenderer>();
+                if (corpseOwnSprite != null) corpseOwnSprite.enabled = false; // 모습은 유닛 비주얼이 맡는다
+                _unitGenerate.RemoveVisualKeepAsCorpse(u, corpseVisual, CorpseVisualMath.TileShift(u.position, corpse.Position), deathAnimSeconds);
             }
-            // 시체 소멸은 시간이 아니라 웨이브 카운트 단위다(corpse.SpawnWaveNumber로 스냅샷) —
-            // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
-            if (_unitGenerate != null) _unitGenerate.RemoveVisual(u, deathAnimSeconds);
+            else if (_unitGenerate != null)
+            {
+                // 시체 소멸은 시간이 아니라 웨이브 카운트 단위다(corpse.SpawnWaveNumber로 스냅샷) —
+                // HumanWaveManager.StartWave 시마다 DespawnCorpsesForNewWave가 정리한다.
+                _unitGenerate.RemoveVisual(u, deathAnimSeconds);
+            }
             // 코어 잔해를 들고 죽었다면 사망 위치 근처에 잔해를 다시 놓는다 — 파티의 다른 인류가 주울 수 있다(코어 점령 v0.2 8장).
             if (u is Human carrier && carrier.carriesCoreSalvage) Core?.Salvage.OnCarrierDied(carrier);
             _buildingManager?.NotifyUnitDied(u, corpse);
