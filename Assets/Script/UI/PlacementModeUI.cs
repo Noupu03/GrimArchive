@@ -49,6 +49,19 @@ public sealed class PlacementModeUI
 		Active = this;
 	}
 
+	// 하단 미배치 카드 영역(명세 1-2: 배치 유닛을 이 영역으로 끌면 저장 위치·방향만 해제). 카드가 하나도 없어 패널이 안 그려져도 같은 자리가 드롭 대상이다.
+	// 오른쪽 열은 제외하고, 하단 메뉴 바가 차지한 높이(reservedBottom) 위의 가로 띠다.
+	public static Rect UnplaceZoneRect(float screenWidth, float screenHeight, float reservedBottom)
+	{
+		float height = CardHeight + 28f;
+		float width = Mathf.Max(0f, screenWidth - RightColumnWidth - Margin * 3f);
+		return new Rect(Margin, screenHeight - reservedBottom - height, width, height);
+	}
+
+	static Rect CurrentUnplaceZone() => UnplaceZoneRect(Screen.width, Screen.height, BottomLeftPanelStack.GetReservedBottomHeight());
+
+	public bool IsOverUnplaceZone() => GUIMouseUtil.IsMouseOverRect(CurrentUnplaceZone());
+
 	public bool IsMouseOverUI()
 	{
 		if (!_mode.IsActive) return false;
@@ -83,6 +96,21 @@ public sealed class PlacementModeUI
 		DrawUnplacedCards();
 		DrawUnitList(defense);
 		if (repaint) DrawDragBox();
+		if (repaint) DrawUnplaceDropCue();
+	}
+
+	// 저장 위치의 유닛에서 시작한 드래그 중에는 하단 영역이 "여기에 놓으면 미배치"로 보이게 한다. 영역 위에서는 초록으로 바뀐다.
+	void DrawUnplaceDropCue()
+	{
+		Unit dragged = _mode.DragStartUnit;
+		if (!_mode.DragBoxActive || dragged == null) return;
+
+		Rect zone = CurrentUnplaceZone();
+		bool over = GUIMouseUtil.IsMouseOverRect(zone);
+		PlacementGui.Fill(zone, over ? new Color(0.3f, 1f, 0.4f, 0.28f) : new Color(1f, 0.9f, 0.25f, 0.16f));
+		GUIMenuStyleUtil.DrawButtonBorder(zone, over ? PlacementWorldView.ArrowGreen : Color.yellow);
+		string name = dragged.unitType != null ? dragged.unitType.typeName : "?";
+		GUI.Label(zone, over ? $"놓으면 {name} 미배치" : $"여기로 끌어 놓으면 {name} 미배치", _centered);
 	}
 
 	void EnsureStyles()
@@ -346,13 +374,17 @@ public sealed class PlacementModeUI
 		GUI.Label(new Rect(row.x + 4f, row.y + 19f, 160f, 18f), line.Location, _small);
 		GUI.Label(new Rect(row.x + 170f, row.y + 1f, 150f, 18f), line.Activity, _small);
 
+		bool hasNote = !string.IsNullOrEmpty(line.Note);
 		if (line.Progress.HasValue)
 		{
 			var bar = new Rect(row.x + 170f, row.y + 24f, 120f, 8f);
 			PlacementGui.Fill(bar, new Color(0.1f, 0.1f, 0.1f, 1f));
 			PlacementGui.Fill(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(line.Progress.Value), bar.height), PlacementWorldView.ArrowGreen);
+			// 게이지가 있어도 메모(진화 남은 시간·반복 작업 안내)는 아래 줄에 보여 준다 — 실패 사유가 있으면 그쪽이 우선이다.
+			if (hasNote && string.IsNullOrEmpty(line.Failure))
+				GUI.Label(new Rect(row.x + 4f, row.y + 36f, 340f, 16f), "<color=#c8c8c8>" + line.Note + "</color>", _small);
 		}
-		else if (!string.IsNullOrEmpty(line.Note))
+		else if (hasNote)
 		{
 			GUI.Label(new Rect(row.x + 170f, row.y + 19f, 190f, 18f), "<color=#c8c8c8>" + line.Note + "</color>", _small);
 		}

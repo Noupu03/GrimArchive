@@ -972,8 +972,9 @@ public class TacticalFSMState : IFSMState
 		else if (wait.Reason == WaitReason.SearchingAbsentee && wait.WaitPosition.HasValue)
 		{
 			// 리더 명령 5-2장·순서도 P02: 집결 기한 뒤 마지막 위치를 아는 미집결자를 찾아 그 위치로 간다. 도착 후 5초 관찰·발견 처리·복귀는 Party.ApplyRallyRules가 정한다 — 집결이 끝났거나 리더가 바뀌었으면 이 대기는 무효다.
+			// 리더뿐 아니라 집결 지점에서 함께 따라나선 대원(wait.SearchFollower)도 같은 대기로 수색 위치에 간다(파티 구성 8-1장 3번) — 집결이 끝났으면 접고, 리더 수색은 그 사람이 아직 리더일 때만 유효하다.
 			var searchParty = human.party;
-			if (searchParty == null || searchParty.Leader != human || !searchParty.IsRallyActive)
+			if (searchParty == null || !searchParty.IsRallyActive || (!wait.SearchFollower && searchParty.Leader != human))
 			{
 				human.currentWait = null;
 				human.waitStuckTurns = 0;

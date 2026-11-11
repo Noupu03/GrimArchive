@@ -692,7 +692,8 @@ public class UnitGenerate
 			}
 
 			// 명령 경로 시각화는 다중 선택된 유닛 각각에 독립적으로, 기존 경로 캐시를 그대로 읽어 보여준다.
-			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u);
+			// 배치모드에서는 경로선·목적지·호버 마커를 그리지 않는다(배치모드 설계명세서 1-1) — 모드에 들어오기 전에 선택해 둔 유닛의 표시가 남지 않게 한다.
+			bool isSelected = u.InputMgr != null && u.InputMgr.IsUnitSelected(u) && !u.InputMgr.IsPlacementModeActive;
 			List<Vector2Int> commandPath = null;
 			Vector2Int? hoverTile = null;
 			Vector2Int? explicitDest = null;

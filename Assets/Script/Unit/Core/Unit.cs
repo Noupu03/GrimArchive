@@ -162,6 +162,7 @@ public abstract class Unit : ScriptableObject {
 		AttackObjectTarget = playerAttackObjectTarget,
 		WasHalted = isHalted,
 		WasStandGroundAttack = isStandGroundAttack,
+		WasDefenseAutoReturn = isDefenseAutoReturn && isManualMoveCommand && playerMoveTarget.HasValue,
 	};
 
 	public void RestoreSavedCommandAfterEvolution(SavedUnitCommandSnapshot snap)
@@ -185,6 +186,7 @@ public abstract class Unit : ScriptableObject {
 			if (snap.HadManualMove)
 			{
 				SetMoveCommand(snap.MoveTarget, snap.WasHalted, snap.WasStandGroundAttack);
+				isDefenseAutoReturn = snap.WasDefenseAutoReturn; // SetMoveCommand가 끈 자동 복귀 표식을 되살린다
 				return;
 			}
 			isHalted = snap.WasHalted;
@@ -264,6 +266,15 @@ public abstract class Unit : ScriptableObject {
 
 	public Vector2Int? playerMoveTarget    = null;
 	public bool isManualMoveCommand        = false; // 플레이어가 직접 클릭하여 내린 이동 명령인지 여부
+	// 작업 종료 뒤 자동 방어 복귀(DefensePlacementSystem)가 발행한 이동인지 — 수동 이동 명령의 방 이탈 우회·유입 인구 파생은 그대로 쓰되 전투·경계에는 밀린다(UnitCommandMath).
+	// SetMoveCommand/SetAttackCommand/SetObjectAttackCommand가 끄고, 이동이 끝나거나 취소돼도 꺼진다.
+	public bool isDefenseAutoReturn        = false;
+
+	// 전투·경계가 끼어들 수 없는 플레이어 이동 명령이 걸려 있는가(자동 방어 복귀 제외) — UnitFSM의 강제 고착·Idle·전투 후 경계 세팅이 읽는다.
+	public bool HasForcedPlayerMove => UnitCommandMath.HasForcedMove(playerMoveTarget.HasValue, isManualMoveCommand, isDefenseAutoReturn);
+
+	// 지금 방 이탈 제한을 우회해도 되는가 — 수동 이동 명령이면서 자동 복귀라면 복귀 상태가 걷는 동안만.
+	public bool MayLeaveRoomNow => UnitCommandMath.MayLeaveRoom(isManualMoveCommand, isDefenseAutoReturn, _fsm != null && _fsm.CurrentState is DefenseReturnFSMState);
 	public Unit        playerAttackTarget   = null;
 
 	// 플레이어가 지정한 공격 대상 오브젝트(코어/문) 위치 — playerAttackTarget과 동급이지만
@@ -386,6 +397,7 @@ public abstract class Unit : ScriptableObject {
 		isStandGroundAttack = false;
 		playerMoveTarget = target;
 		isManualMoveCommand = true;
+		isDefenseAutoReturn = false; // 자동 복귀는 이 호출 직후 DefensePlacementSystem이 다시 켠다 — 아래 경로 미리 계산은 방 이탈 제한 없이 구해야 한다
 		playerAttackTarget = null;
 		playerAttackObjectTarget = null;
 		ClearAttackObjectTarget();
@@ -402,6 +414,7 @@ public abstract class Unit : ScriptableObject {
 		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		playerAttackTarget = target;
+		isDefenseAutoReturn = false;
 		playerMoveTarget = null;
 		playerAttackObjectTarget = null;
 		ClearAttackObjectTarget();
@@ -418,6 +431,7 @@ public abstract class Unit : ScriptableObject {
 		if (!suppressEconomyCommandHook) BuildingManager.Instance?.NotifyWorkerCommandChanged(this);
 		MovementAlgorithm?.ClearCache();
 		playerAttackObjectTarget = target;
+		isDefenseAutoReturn = false;
 		playerAttackTarget = null;
 		playerMoveTarget = null;
 		isManualMoveCommand = true;
@@ -434,6 +448,7 @@ public abstract class Unit : ScriptableObject {
 		playerAttackTarget = null;
 		playerInteractTarget = null;
 		isManualMoveCommand = false;
+		isDefenseAutoReturn = false;
 		playerAttackObjectTarget = null;
 		ClearAttackObjectTarget();
 		isHalted = false;
@@ -445,6 +460,7 @@ public abstract class Unit : ScriptableObject {
 	public void FinishMoveCommand()
 	{
 		DefensePlacementSystem.Instance?.OnMoveFinished(this); // 방어 이동 도착 훅
+		isDefenseAutoReturn = false;
 		if (pendingHaltOnArrival)
 		{
 			pendingHaltOnArrival = false;
@@ -465,6 +481,7 @@ public abstract class Unit : ScriptableObject {
 	public void AbortMoveCommand()
 	{
 		DefensePlacementSystem.Instance?.OnMoveAborted(this);
+		isDefenseAutoReturn = false;
 		MovementAlgorithm?.ClearCache();
 		playerMoveTarget = null;
 		isManualMoveCommand = false;
@@ -719,7 +736,7 @@ public abstract class Unit : ScriptableObject {
 		// Dodge/Blink는 A*를 거치지 않고 이 메서드로 직접 위치를 옮겨 RoomConfinedMovement의 방 경계
 		// 검사를 우회하므로, 여기서 같은 규칙을 다시 적용한다. 문 타일은 한쪽 방 소속으로 잡혀
 		// 경계 검사만으로 안 걸러지므로 IsDoorTile로 추가 차단한다.
-		if (MovementAlgorithm is RoomConfinedMovement && !isManualMoveCommand
+		if (MovementAlgorithm is RoomConfinedMovement && !MayLeaveRoomNow
 			&& _gameSession.roomGrid.TryGetValue(oldKey, out Room myRoom))
 		{
 			Vector3Int targetKey = new Vector3Int(targetPos.x, targetPos.y, currentFloor);

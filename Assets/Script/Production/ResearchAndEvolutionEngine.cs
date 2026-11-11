@@ -490,6 +490,8 @@ public struct SavedUnitCommandSnapshot
 	public Vector3Int? AttackObjectTarget;
 	public bool WasHalted;
 	public bool WasStandGroundAttack;
+	// 보관한 이동 명령이 자동 방어 복귀였는가 — 복원 뒤에도 전투·경계에 밀리는 이동으로 남겨 직접 이동 적용과 구분한다(배치모드 1-6).
+	public bool WasDefenseAutoReturn;
 }
 
 [Serializable]

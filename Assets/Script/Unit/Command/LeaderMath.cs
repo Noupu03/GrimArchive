@@ -166,9 +166,11 @@ public static class LeaderMath
 		public Vector2Int Position;
 		public int Floor;
 		public float SeenAt;
+		// 리더가 그 위치까지 걷는 예상 걸음 수(알려진 경로 기준) — 파티 구성 8-1장 2번 "알려진 경로 기준 도착 예상시간이 짧은 위치". null이면 직선(체비셰프) 거리로 대신한다.
+		public int? EtaSteps;
 	}
 
-	// 우선 위치 선정(순서도 P02 "우선 위치로 공동 이동"): 리더와 같은 층의 후보 중 리더에게 가장 가까운(체비셰프) 마지막 위치, 같으면 더 최근에 본 쪽, 그래도 같으면 앞선 후보. 문서에 기준이 없어 정한 내부 판단이다. 후보가 없으면 −1.
+	// 우선 위치 선정(파티 구성 8-1장 2번·순서도 P02): 리더와 같은 층의 후보 중 도착 예상시간(걸음 수)이 짧은 위치, 동률이면 실제 확인 시각이 더 최근인 쪽, 그래도 같으면 앞선 후보. 경로 길이를 모르면(EtaSteps 없음) 직선(체비셰프) 거리로 대신한다. 후보가 없으면 −1.
 	public static int PickRallySearchTarget(Vector2Int leaderPosition, int leaderFloor, IReadOnlyList<RallySearchCandidate> candidates)
 	{
 		int best = -1, bestDist = int.MaxValue;
@@ -178,7 +180,7 @@ public static class LeaderMath
 		{
 			var c = candidates[i];
 			if (c.Floor != leaderFloor) continue;
-			int dist = Mathf.Max(Mathf.Abs(c.Position.x - leaderPosition.x), Mathf.Abs(c.Position.y - leaderPosition.y));
+			int dist = c.EtaSteps ?? Mathf.Max(Mathf.Abs(c.Position.x - leaderPosition.x), Mathf.Abs(c.Position.y - leaderPosition.y));
 			if (dist < bestDist || (dist == bestDist && c.SeenAt > bestSeen)) { best = i; bestDist = dist; bestSeen = c.SeenAt; }
 		}
 		return best;

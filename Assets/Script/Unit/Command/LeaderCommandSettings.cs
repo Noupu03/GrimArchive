@@ -10,4 +10,8 @@ public static class LeaderCommandSettings
 	public static float ApproachLimit => ApproachLimitOverride ?? (AIConfigLoader.Behavior?.leaderApproachLimitDistance ?? 0f);
 
 	public static bool RallyRulesEnabled => Enabled && (AIConfigLoader.Behavior?.leaderRallyRulesEnabled ?? true);
+
+	// 미집결자 수색을 모인 인원이 함께 하는가(파티 구성 8-1장) — 끄면 리더만 수색 위치로 나가는 예전 동작. 테스트용 덮어쓰기가 있다.
+	public static bool? RallySearchGroupMoveOverride;
+	public static bool RallySearchGroupMoveEnabled => RallySearchGroupMoveOverride ?? (AIConfigLoader.Behavior?.rallySearchGroupMoveEnabled ?? true);
 }

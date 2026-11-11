@@ -70,8 +70,9 @@ public class PlayerCommandFSMState : IFSMState
 	private static bool HasPlayerAttackObjectTarget(Unit unit)
 		=> unit.playerAttackObjectTarget.HasValue;
 
+	// 자동 방어 복귀는 제외한다(Unit.HasForcedPlayerMove) — 그 이동은 DefenseReturnFSMState가 전투·경계 뒤에 이어서 맡는다.
 	private static bool HasPlayerMoveCommand(Unit unit)
-		=> unit.playerMoveTarget.HasValue && unit.isManualMoveCommand;
+		=> unit.HasForcedPlayerMove;
 
 	private static bool HasActivePlayerCommand(Unit unit)
 		=> HasPlayerAttackTarget(unit) || HasPlayerAttackObjectTarget(unit) || HasPlayerMoveCommand(unit);
@@ -196,7 +197,8 @@ public class PlayerCommandFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	private static BTStatus ExecutePlayerMove(Unit unit)
+	// 이동 한 틱(점유 대기·대체 칸 재지정·막힘 포기 포함) — 자동 방어 복귀 상태(DefenseReturnFSMState)가 같은 규칙으로 재사용한다.
+	internal static BTStatus ExecutePlayerMove(Unit unit)
 	{
 		if (!unit.playerMoveTarget.HasValue) return BTStatus.Failure;
 		Vector2Int target = unit.playerMoveTarget.Value;
@@ -238,7 +240,7 @@ public class PlayerCommandFSMState : IFSMState
 		return BTStatus.Running;
 	}
 
-	private static BTStatus CompletePlayerCommand(Unit unit)
+	internal static BTStatus CompletePlayerCommand(Unit unit)
 	{
 		// "집결 및 정지"/"제자리 공격" 명령의 상태 전이 논리는 unit.FinishMoveCommand 내부로 캡슐화되었다.
 		unit.FinishMoveCommand();

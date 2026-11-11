@@ -33,12 +33,15 @@ public sealed class PlacementMode
 	public PlacementBlock HoverBlock { get; private set; }
 
 	public bool DragBoxActive { get; private set; }
+	// 드래그를 저장 위치의 유닛 위에서 시작했으면 그 유닛 — 하단 카드 영역에서 놓으면 박스 선택 대신 그 유닛만 미배치로 돌린다(명세 1-2).
+	public Unit DragStartUnit { get; private set; }
 	public Vector2 DragStartScreen { get; private set; }
 	public Vector2 DragCurrentScreen { get; private set; }
 	bool _mouseDown;
 
 	Unit _lastClickedUnit;
 	float _lastClickTime = -999f;
+	int _lastFloor = int.MinValue; // 층 전환 감지 — 모드에 들어올 때마다 다시 잡는다(Enter가 초기화)
 	public int OrderSwapFirst { get; private set; } = -1;
 
 	// 마지막 이동 적용에서 유닛별로 막힌 사유 — 인원 목록이 보여 준다.
@@ -82,6 +85,7 @@ public sealed class PlacementMode
 		Time.timeScale = 0.0001f;
 
 		ResetTransient();
+		_lastFloor = int.MinValue;
 		NoticeCenter.Instance?.PushMomentary("배치모드 — 위치를 저장하고 [이동 적용] 뒤 시간을 재개하면 걷습니다.", NoticeCenter.InfoColor);
 		LogHelper.Log(LogHelper.GAME, "[배치모드] 진입 — 자동 일시정지");
 	}
@@ -104,6 +108,7 @@ public sealed class PlacementMode
 		HoverTile = null;
 		HoverBlock = PlacementBlock.None;
 		DragBoxActive = false;
+		DragStartUnit = null;
 		_mouseDown = false;
 		OrderSwapFirst = -1;
 		_lastClickedUnit = null;
@@ -119,6 +124,14 @@ public sealed class PlacementMode
 		{
 			_session.isPaused = true;
 			Time.timeScale = 0.0001f;
+		}
+
+		// 실제 층 전환은 인원 목록을 닫는다(명세 1-7: "유닛·오브젝트 선택, 실제 층 전환 등 다른 행동을 하면 닫고 그 입력을 처리한다").
+		int floor = CurrentFloor;
+		if (_lastFloor != floor)
+		{
+			if (_lastFloor != int.MinValue) { UnitListRoom = null; RotateOpen = false; OrderSwapFirst = -1; }
+			_lastFloor = floor;
 		}
 
 		Selection.Prune();
@@ -145,6 +158,8 @@ public sealed class PlacementMode
 		OrderSwapFirst = -1;
 		if (RotateOpen) { RotateOpen = false; return; }
 		if (UnitListRoom != null) { UnitListRoom = null; return; }
+		// 열려 있는 시설·오브젝트·방 정보 UI도 현재 조작 단계다 — 임시 선택을 풀거나 모드를 나가기 전에 먼저 닫는다(명세 1-1).
+		if (BuildingControlPanel.Instance != null && BuildingControlPanel.Instance.IsOpen) { BuildingControlPanel.Instance.ClosePanel(); return; }
 		if (Selection.HasSelection) { Selection.Clear(); return; }
 		if (exitIfNothingLeft) Exit();
 	}
@@ -169,6 +184,8 @@ public sealed class PlacementMode
 			_mouseDown = true;
 			DragBoxActive = false;
 			DragStartScreen = DragCurrentScreen = GameInputScheme.PointerScreenPos;
+			Vector3Int startGrid = ScreenGridUtil.ScreenToGridPos(DragStartScreen, CurrentFloorOffset, CurrentFloor);
+			DragStartUnit = FindPlacedUnitAt(new Vector2Int(startGrid.x, startGrid.y));
 		}
 
 		if (_mouseDown && GameInputScheme.PrimaryHeld)
@@ -179,10 +196,15 @@ public sealed class PlacementMode
 
 		if (_mouseDown && GameInputScheme.PrimaryUp)
 		{
-			if (DragBoxActive) DoBoxSelect(DragStartScreen, DragCurrentScreen, GameInputScheme.SelectAddHeld);
+			if (DragBoxActive)
+			{
+				if (DragStartUnit != null && UI.IsOverUnplaceZone()) { Unplace(DragStartUnit); OrderSwapFirst = -1; } // 그 유닛만 하단 미배치로(명세 1-2)
+				else DoBoxSelect(DragStartScreen, DragCurrentScreen, GameInputScheme.SelectAddHeld);
+			}
 			else DoClick(GameInputScheme.PointerScreenPos, GameInputScheme.SelectAddHeld);
 			_mouseDown = false;
 			DragBoxActive = false;
+			DragStartUnit = null;
 		}
 	}
 

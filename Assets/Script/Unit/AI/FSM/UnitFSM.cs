@@ -11,9 +11,10 @@ public class UnitFSM
 	// 후퇴·도주 이동(후퇴도주 문서 5장) — 위 둘과 같이 SelectState가 직접 강제 배정한다. 전투·전술보다 우선하며 인류 전용이다(몬스터는 플레이어 명령 없이는 자율 후퇴가 없다).
 	private readonly RetreatFSMState _retreatState = new RetreatFSMState();
 
-	// 우선순위 내림차순: PlayerCommand(200) → Combat(100) → Tactical(50) → Idle(20, 오펜스/디펜스
-	// 아닌 방에서 명령 없는 몬스터/야생의 배회) → Navigation(10, 항상 활성). 배열에서 먼저 나온
-	// 상태의 GetPriority가 0보다 크면 그 뒤는 검사하지 않으므로(SelectState) 배열 순서 자체가 곧 우선순위다.
+	// 우선순위 내림차순: PlayerCommand(200) → Combat(100) → Tactical(50) → DefenseReturn(30, 자동 방어 복귀 —
+	// 전투·경계가 끝난 뒤에만 걷는다) → Idle(20, 오펜스/디펜스 아닌 방에서 명령 없는 몬스터/야생의 배회) →
+	// Navigation(10, 항상 활성). 배열에서 먼저 나온 상태의 GetPriority가 0보다 크면 그 뒤는 검사하지 않으므로
+	// (SelectState) 배열 순서 자체가 곧 우선순위다.
 	private readonly IFSMState[] _states;
 
 	public UnitFSM()
@@ -23,6 +24,7 @@ public class UnitFSM
 			_playerCommandState,
 			new CombatFSMState(),
 			new TacticalFSMState(),
+			new DefenseReturnFSMState(),
 			new IdleFSMState(),
 			new NavigationFSMState(),
 		};
@@ -47,7 +49,8 @@ public class UnitFSM
 		// 명령 강제 잠금 — IsSticky/ShouldInterrupt와 배열 순서만으로는 "다른 상태가 스스로 명령을
 		// 존중해야" 성립하는 간접적 보장에 그치므로, 대기 중인 명령이 있으면 상태 구현과 무관하게 무조건
 		// 이 상태로 고정한다(PlayerCommandFSMState가 도착/대상 무효화로 스스로 끝내기 전까진 못 벗어남).
-		bool hasPendingCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
+		// 자동 방어 복귀(배치모드 1-6)는 수동 이동 명령이지만 고착 대상이 아니다 — 전투·경계에 밀리고 DefenseReturnFSMState가 이어서 걷는다(Unit.HasForcedPlayerMove).
+		bool hasPendingCommand = unit.HasForcedPlayerMove
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
 			// 코어/문 공격 명령(ExecutePlayerAttackObject)도 유닛 공격과 동일하게 최우선 강제 잠금 대상이다.
 			|| unit.playerAttackObjectTarget.HasValue;

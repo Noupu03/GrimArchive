@@ -20,6 +20,7 @@ public class LeaderOrderTests
 		RetreatSystem.EnabledOverride = null;
 		LeaderCommandSettings.EnabledOverride = null;
 		LeaderCommandSettings.ApproachLimitOverride = null;
+		LeaderCommandSettings.RallySearchGroupMoveOverride = null;
 		LeaderSuccessionSystem.Clock = () => Time.time;
 		Party.RallyClock = () => Time.time;
 		LeaderCommandTable.ResetForTests();
@@ -384,6 +385,7 @@ public class LeaderOrderTests
 	[Test]
 	public void RallySearch_LeaderTravelsObservesFiveSeconds_ExcludesUnfound_ThenReturnsBeforeCompletion()
 	{
+		LeaderCommandSettings.RallySearchGroupMoveOverride = false; // kill-switch — 리더만 나서는 예전 동작(모인 인원이 함께 가는 흐름은 아래 RallySearchGroup_* 테스트)
 		var party = NewRallyParty(out var leader, out var absent, out var present, new Vector2Int(14, 5));
 		party.CheckRallyComplete();
 		Assert.IsTrue(party.IsRallyActive, "리더가 나가 있는 동안 집결은 끝나지 않는다");
@@ -409,6 +411,7 @@ public class LeaderOrderTests
 	[Test]
 	public void RallySearch_FoundMemberReceivesRallyOrder_NotExcluded_RallyWaitsForArrival()
 	{
+		LeaderCommandSettings.RallySearchGroupMoveOverride = false;
 		var party = NewRallyParty(out var leader, out var absent, out var present, new Vector2Int(14, 5));
 		var room = new Room(); leader.currentRoom = room; absent.currentRoom = room; // 같은 방 — 보이면 집결 명령이 닿는다
 		party.CheckRallyComplete();
@@ -436,6 +439,7 @@ public class LeaderOrderTests
 	[Test]
 	public void RallySearch_LastSeenAdjacentToLeader_NoTravel_EndsAfterFiveSecondsLikeBefore()
 	{
+		LeaderCommandSettings.RallySearchGroupMoveOverride = false;
 		var party = NewRallyParty(out var leader, out _, out _, new Vector2Int(6, 6));
 		party.CheckRallyComplete();
 		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "이미 곁이라 리더는 움직이지 않는다");
@@ -450,6 +454,7 @@ public class LeaderOrderTests
 	[Test]
 	public void RallySearch_TravelCappedAtTwentySeconds_ThenObservesFiveSeconds()
 	{
+		LeaderCommandSettings.RallySearchGroupMoveOverride = false;
 		var party = NewRallyParty(out var leader, out _, out _, new Vector2Int(14, 5));
 		party.CheckRallyComplete();
 		leader.position = new Vector2Int(9, 5); // 가던 중에 막혀 집결지에서 떨어진 채 못 도착한다
@@ -459,6 +464,97 @@ public class LeaderOrderTests
 		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason, "이동 상한 뒤 5초가 끝나기 전");
 		_rallyNow = 125f; party.CheckRallyComplete();
 		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "관찰이 끝나면 집결지로 돌아온다");
+	}
+
+	// ── 파티 구성 8-1장 3·4·순서도 P02 "우선 위치로 공동 이동": 미집결자 수색은 리더와 집결 지점에 모인 인원이 함께 나가 방향을 나눠 관찰한다 ─────────
+
+	[Test]
+	public void RallySearchGroup_GatheredMemberFollowsLeader_ObservesTogether_ThenBothReturn()
+	{
+		var party = NewRallyParty(out var leader, out _, out var present, new Vector2Int(14, 5));
+		party.CheckRallyComplete();
+
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason);
+		Assert.IsFalse(leader.currentWait.SearchFollower);
+		Assert.AreEqual(0, leader.currentWait.SearchFacingIndex, "리더는 수색 위치 쪽(전방)을 맡는다");
+		Assert.AreEqual(WaitReason.SearchingAbsentee, present.currentWait.Reason, "집결 지점에 모여 선 B도 함께 수색하러 간다");
+		Assert.IsTrue(present.currentWait.SearchFollower);
+		Assert.AreEqual(1, present.currentWait.SearchFacingIndex, "다음 방향(우측)을 맡는다");
+		Assert.AreEqual(new Vector2Int(14, 5), present.currentWait.SearchTarget.Value);
+
+		// 리더만 도착해서는 관찰이 시작되지 않는다 — 5초는 전원이 도착한 뒤부터 센다(8-1장 4번).
+		leader.position = new Vector2Int(14, 5); leader.currentWait.AtSlot = true;
+		_rallyNow = 105f; party.CheckRallyComplete();
+		_rallyNow = 112f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason, "대원이 아직 못 왔으면 관찰 5초가 시작되지 않는다(이동 상한 20초 전)");
+
+		present.currentWait.AtSlot = true;
+		_rallyNow = 113f; party.CheckRallyComplete();               // 전원 도착 → 관찰 시작(113초)
+		_rallyNow = 117.9f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, present.currentWait.Reason, "도착 후 5초가 끝나기 전에는 모두 계속 관찰");
+		_rallyNow = 118f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason, "관찰이 끝나면 리더도 집결 대기로 돌아온다");
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, present.currentWait.Reason, "따라나섰던 대원도 집결 자리로 돌아온다");
+		Assert.IsFalse(present.currentWait.SearchFollower);
+		Assert.IsTrue(party.IsRallyActive, "돌아오기 전에는 집결을 끝내지 않는다");
+
+		leader.position = new Vector2Int(5, 5);
+		present.position = present.currentWait.WaitPosition.Value;
+		party.CheckRallyComplete();
+		Assert.IsFalse(party.IsRallyActive, "끝내 못 찾은 A는 제외 — 모두 돌아오면 집결 완료");
+		Assert.IsTrue(party.ReadyToAdvance);
+	}
+
+	[Test]
+	public void RallySearchGroup_MemberStillWalkingToTheRallyPoint_IsNotPulledAlong()
+	{
+		var party = NewRallyParty(out var leader, out _, out var present, new Vector2Int(14, 5));
+		present.position = new Vector2Int(12, 5); // 자기 자리 (6,5)에서 멀다 — 아직 집결 지점으로 걸어오는 중
+		party.CheckRallyComplete();
+
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason, "리더는 수색하러 나간다");
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, present.currentWait.Reason, "자리에 못 선 대원은 따라나서지 않고 하던 집결을 계속한다");
+		Assert.IsFalse(present.currentWait.SearchFollower);
+	}
+
+	[Test]
+	public void RallySearchGroup_FollowerNeverArrives_TravelIsStillCappedAtTwentySeconds()
+	{
+		var party = NewRallyParty(out var leader, out _, out var present, new Vector2Int(14, 5));
+		party.CheckRallyComplete();
+		Assert.IsTrue(present.currentWait.SearchFollower);
+
+		leader.position = new Vector2Int(14, 5); leader.currentWait.AtSlot = true; // 대원은 끝내 도착하지 못한다
+		_rallyNow = 119.9f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, leader.currentWait.Reason);
+		_rallyNow = 120f; party.CheckRallyComplete();                               // 이동 상한 → 관찰 시작(120초)
+		_rallyNow = 124.9f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.SearchingAbsentee, present.currentWait.Reason, "관찰 5초가 끝나기 전");
+		_rallyNow = 125f; party.CheckRallyComplete();
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, leader.currentWait.Reason);
+		Assert.AreEqual(WaitReason.AwaitingPartyAtRallyPoint, present.currentWait.Reason, "도착하지 못한 대원도 상한 뒤 관찰을 마치고 집결 자리로 돌아간다");
+	}
+
+	[Test]
+	public void RallySearchGroup_FollowersAreAssignedDifferentFacingNumbers()
+	{
+		_rallyNow = 100f;
+		Party.RallyClock = () => _rallyNow;
+		var leader = NewHuman("L", 50f); var absent = NewHuman("A", 30f);
+		var b = NewHuman("B", 30f); var c = NewHuman("C", 30f); var d = NewHuman("D", 30f);
+		leader.position = new Vector2Int(5, 5); absent.position = new Vector2Int(30, 5);
+		b.position = new Vector2Int(6, 5); c.position = new Vector2Int(5, 6); d.position = new Vector2Int(6, 6);
+		var party = NewParty(PartyConcept.Adventurer, leader, absent, b, c, d);
+		party.IsRallyActive = true; party.RallyPoint = new Vector2Int(5, 5); party.RallyFloor = 1; party.RallyStartTime = _rallyNow - 9f;
+		leader.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = new Vector2Int(5, 5), WaitFloor = 1 };
+		foreach (var m in new[] { b, c, d })
+			m.currentWait = new WaitState { Reason = WaitReason.AwaitingPartyAtRallyPoint, WaitPosition = m.position, WaitFloor = 1 };
+		party.Command.LeaderLastSeen["A"] = (new Vector2Int(14, 5), 1, 40f);
+
+		party.CheckRallyComplete();
+
+		var facings = new HashSet<int> { leader.currentWait.SearchFacingIndex, b.currentWait.SearchFacingIndex, c.currentWait.SearchFacingIndex, d.currentWait.SearchFacingIndex };
+		Assert.AreEqual(4, facings.Count, "리더와 대원 셋이 전방·우·후방·좌를 하나씩 맡는다");
 	}
 
 	// kill-switch: 끄면 예전처럼 사망 즉시 통솔력 최댓값을 재선정하고 승계 대기·충격이 없다.

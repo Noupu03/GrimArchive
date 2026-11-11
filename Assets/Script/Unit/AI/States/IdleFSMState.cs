@@ -10,7 +10,7 @@ public class IdleFSMState : IFSMState
 		if (unit is Human) return 0f; // 인류 대기 상태는 추후 별도 구현(지금은 제외)
 
 		bool isWild = unit.FactionBehavior is WildMonsterBehavior;
-		bool hasPlayerCommand = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
+		bool hasPlayerCommand = unit.HasForcedPlayerMove
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
 			|| unit.playerAttackObjectTarget.HasValue; // 코어/문 공격 명령도 동일 취급.
 		bool isIdlePlayerMonster = unit.IsPlayerMonsterFaction && !hasPlayerCommand;

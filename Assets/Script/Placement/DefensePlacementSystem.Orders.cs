@@ -70,7 +70,7 @@ public sealed partial class DefensePlacementSystem
 	void AdmitWithinCapacity(Room room, List<(Unit unit, DefenseRecord record)> candidates, HashSet<Unit> batch,
 		List<(Unit unit, DefenseRecord record)> accepted, DefenseApplyResult result)
 	{
-		int remaining = DefensePlacementMath.RemainingCapacity(room.MaxPopulation, room.CurrentPopulation, CountIncoming(room, batch));
+		int remaining = DefensePlacementMath.RemainingCapacity(room.MaxPopulation, room.CurrentPopulation, CommittedInflow(room, batch));
 		var scored = new List<DefensePlacementMath.Candidate>(candidates.Count);
 		for (int i = 0; i < candidates.Count; i++)
 		{
@@ -141,6 +141,9 @@ public sealed partial class DefensePlacementSystem
 		{
 			unit.playerInteractTarget = null;
 			unit.SetMoveCommand(record.Tile, false, false);
+			// 자동 복귀는 전투·경계에 밀리는 이동이다(명세 1-6 표1). 표식은 SetMoveCommand의 경로 미리 계산 뒤에 켜야 그 계산이 방 이탈 제한 없이 구해진다.
+			// 직접 이동 적용은 "지정 위치 이동 우선"이라 표식 없이 예전처럼 강제 고착이다.
+			unit.isDefenseAutoReturn = source == DefenseMoveSource.AutoReturn && (AIConfigLoader.Behavior?.defenseReturnYieldsToCombatEnabled ?? true);
 		}
 		finally { _issuing = false; }
 		_moves[unit] = new IssuedMove { Unit = unit, Source = source, Floor = record.Floor, RoomId = record.RoomId, Tile = record.Tile, Facing = record.Facing };
@@ -170,7 +173,7 @@ public sealed partial class DefensePlacementSystem
 		int fromRoom = unit.currentRoom != null ? unit.currentRoom.RoomId : -1;
 		if (DefensePlacementMath.CountsAsIncoming(fromRoom, room.RoomId))
 		{
-			int remaining = DefensePlacementMath.RemainingCapacity(room.MaxPopulation, room.CurrentPopulation, CountIncoming(room, new HashSet<Unit> { unit }));
+			int remaining = DefensePlacementMath.RemainingCapacity(room.MaxPopulation, room.CurrentPopulation, CommittedInflow(room, new HashSet<Unit> { unit }));
 			if (Mathf.Max(0, unit.populationCost) > remaining) return false;
 		}
 

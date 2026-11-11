@@ -27,8 +27,9 @@ public enum WaitReason
 	EnteringNextRoom,
 	// 점령 파티가 현재 방에 기초(또는 방어) 시설을 짓는다(코어 점령 v0.2 12장) — WorkRoom의 방 쪽 문 곁 자리로 가서 일하고, 일하는 인원 수만큼 건설이 빨라진다(OccupationSystem.StepConstruct). 전투·경계가 우선한 틱엔 일이 멈추고 진행도는 남는다.
 	ConstructingBase,
-	// 집결 기한 뒤 마지막 위치를 아는 미집결자를 리더가 찾으러 가서 관찰한다(리더 명령 5-2장·순서도 P02) — 리더 전용. WaitPosition = 수색 위치(미집결자의 마지막 확인 위치), AtSlot = 도착, IsParked = 끝내 못 가서 선 자리에서 관찰.
-	// 이동 후 관찰·발견 처리·집결지 복귀는 Party.ApplyRallyRules가 단계를 정하고, 이 사유의 유닛 몫은 Party.StepSearchAbsentee(이동)뿐이다.
+	// 집결 기한 뒤 마지막 위치를 아는 미집결자를 리더와 집결 지점에 모인 대원이 함께 찾으러 가서 관찰한다(리더 명령 5-2장·파티 구성 8-1장·순서도 P02) — 대원은 SearchFollower=true.
+	// WaitPosition = 수색 위치를 볼 수 있는 이 인원의 관찰 칸(SearchTarget이 미집결자의 마지막 확인 위치), AtSlot = 도착, IsParked = 끝내 못 가서 선 자리에서 관찰.
+	// 이동 후 관찰·발견 처리·집결지 복귀는 Party.ApplyRallyRules가 단계를 정하고, 이 사유의 유닛 몫은 Party.StepSearchAbsentee(이동·방향 분담)뿐이다.
 	SearchingAbsentee,
 }
 
@@ -69,6 +70,10 @@ public class WaitState
 	public bool Released;
 	// 막혀서 자리를 바꾼 로그를 막힘 하나당 한 번만 남기기 위한 표식.
 	public bool BlockedLogged;
+	// SearchingAbsentee 전용 — 수색 위치(미집결자의 마지막 확인 위치)와 이 인원의 관찰 방향 번호(0 전방·1 우·2 후방·3 좌, RallyGroupSearchMath)·리더가 아니라 따라나선 대원인지.
+	public Vector2Int? SearchTarget;
+	public int SearchFacingIndex;
+	public bool SearchFollower;
 	// ConstructingBase 전용 — 짓는 방과 방어 시설 공사인지(false면 기초 시설).
 	public Room WorkRoom;
 	public bool WorkIsDefense;

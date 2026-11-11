@@ -74,7 +74,7 @@ public abstract class SkillAction
 	}
 
 	// 벽·구조물·방 밖(IsStaticTileWalkable이 못 걷는 타일)이거나 "완전 차폐" 오브젝트(닫힌 문 — InteractableObject.IsFullyBlocking)가 있는 타일.
-	private static bool IsLineBlockingTile(GameSession session, int floor, Vector2Int p)
+	internal static bool IsLineBlockingTile(GameSession session, int floor, Vector2Int p)
 	{
 		if (!session.cmap.IsStaticTileWalkable(floor, p)) return true;
 		return session.objectGrid.TryGetValue(new Vector3Int(p.x, p.y, floor), out InteractableObject obj)

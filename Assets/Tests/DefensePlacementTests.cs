@@ -255,6 +255,128 @@ public class DefensePlacementTests
 		Assert.IsFalse(store.For(1).HasSelection, "모드를 완전히 나가면 모든 층의 임시 선택을 지운다");
 	}
 
+	// ── 예상 시야 윤곽선: 벽·닫힌 문에서 광선을 자른다(설계명세서 1-10장 "벽 종류와 닫힌 문만 시야와 공격선을 차단") ──
+
+	[Test]
+	public void RayClip_OpenField_ReachesMaxRadius()
+	{
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.05f), Vector2.right, 6f, p => false);
+		Assert.AreEqual(6f, d, 1e-4f);
+	}
+
+	[Test]
+	public void RayClip_StopsAtTheNearFaceOfTheWall()
+	{
+		// 벽 타일 x=5의 왼쪽 면(x=5.0)까지 — 출발 x=2.5이므로 2.5
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.05f), Vector2.right, 8f, p => p.x == 5);
+		Assert.AreEqual(2.5f, d, 1e-4f);
+	}
+
+	[Test]
+	public void RayClip_WallBeyondRadius_DoesNotClip()
+	{
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.05f), Vector2.right, 2f, p => p.x == 5);
+		Assert.AreEqual(2f, d, 1e-4f, "반경 밖의 벽은 선을 자르지 않는다");
+	}
+
+	[Test]
+	public void RayClip_IgnoresOwnTile_AndWallsBehind()
+	{
+		// 출발 타일이 불투명으로 보고돼도(유닛이 서 있는 칸) 검사하지 않고, 등 뒤 벽은 광선과 무관하다.
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.05f), Vector2.right, 4f, p => p.x <= 2);
+		Assert.AreEqual(4f, d, 1e-4f);
+	}
+
+	[Test]
+	public void RayClip_Vertical_StopsAtNextRowWall()
+	{
+		// 위쪽으로 쏘면 y=5 타일 아래 면(y=5.0)까지: 5.0 - 2.05
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.05f), Vector2.up, 8f, p => p.y == 5);
+		Assert.AreEqual(5f - 2.05f, d, 1e-4f);
+	}
+
+	[Test]
+	public void RayClip_Diagonal_StopsAtFirstOpaqueTileOnTheRay()
+	{
+		// 대각선 (1,1)/√2: 출발 (2.5,2.5)에서 경계 (3,3)을 지나 타일 (3,3)에 들어선다 — 타일 (3,3)이 벽이면 거리 0.5·√2
+		Vector2 dir = new Vector2(1f, 1f).normalized;
+		float d = DefensePlacementMath.RayClipDistance(new Vector2(2.5f, 2.5f), dir, 8f, p => p == new Vector2Int(3, 3));
+		Assert.AreEqual(0.5f * Mathf.Sqrt(2f), d, 1e-3f);
+	}
+
+	[Test]
+	public void RayClip_ClosedDoorRow_ClipsEveryRayAcrossTheOpening()
+	{
+		// 문(닫힘)이 y=4 줄 전체를 막고 있으면 위쪽 부채꼴의 모든 광선이 그 줄에서 멈춘다 — 열린 문이면 통과한다(호출부가 isOpaque로 구분).
+		bool doorClosed = true;
+		System.Func<Vector2Int, bool> opaque = p => doorClosed && p.y == 4;
+		var origin = new Vector2(5.5f, 2.05f);
+		for (float deg = 60f; deg <= 120f; deg += 10f)
+		{
+			Vector2 dir = new Vector2(Mathf.Cos(deg * Mathf.Deg2Rad), Mathf.Sin(deg * Mathf.Deg2Rad));
+			float d = DefensePlacementMath.RayClipDistance(origin, dir, 10f, opaque);
+			Assert.AreEqual((4f - origin.y) / dir.y, d, 1e-3f, $"{deg}도 광선은 y=4 줄에서 멈춘다");
+		}
+		doorClosed = false;
+		Assert.AreEqual(10f, DefensePlacementMath.RayClipDistance(origin, Vector2.up, 10f, opaque), 1e-4f, "문이 열리면 통과한다");
+	}
+
+	[Test]
+	public void RayClip_DegenerateInputs_AreSafe()
+	{
+		Assert.AreEqual(0f, DefensePlacementMath.RayClipDistance(Vector2.zero, Vector2.right, 0f, p => true));
+		Assert.AreEqual(3f, DefensePlacementMath.RayClipDistance(Vector2.zero, Vector2.zero, 3f, p => true), "방향이 없으면 자르지 않고 반경을 돌려준다");
+	}
+
+	// ── 진화 확보분(명세 1-5·1-8)과 인원 목록의 진화 진행(1-7 표1) ──
+
+	[Test]
+	public void EvolutionExtra_IsTheGrowthInPopulation_AndNeverNegative()
+	{
+		Assert.AreEqual(2, DefensePlacementMath.EvolutionExtraPopulation(3, 1), "인구 1 → 3으로 커지는 진화는 2를 미리 확보한다");
+		Assert.AreEqual(0, DefensePlacementMath.EvolutionExtraPopulation(2, 2), "인구가 같으면 추가 확보 없음");
+		Assert.AreEqual(0, DefensePlacementMath.EvolutionExtraPopulation(1, 3), "작아지는 진화는 완료 전까지 기존 공간을 유지할 뿐 추가 확보가 아니다");
+	}
+
+	[Test]
+	public void EvolutionExtra_ReducesTheRoomRemainingCapacity()
+	{
+		// 방 정원 6, 현재 인원 4, 이동 중 유입 0, 진화 추가 확보 2 → 남은 정원은 0이라 인구 1 유닛이 들어갈 수 없다.
+		int remaining = DefensePlacementMath.RemainingCapacity(6, 4, 0 + DefensePlacementMath.EvolutionExtraPopulation(3, 1));
+		Assert.AreEqual(0, remaining);
+		Assert.IsEmpty(DefensePlacementMath.AcceptWithinRemaining(new[] { new DefensePlacementMath.Candidate(0, 1, 1f) }, remaining), "확보분 때문에 새 후보를 받지 않는다");
+	}
+
+	[Test]
+	public void EvolutionProgress_AndRemainingSeconds_FollowTheElapsedTime()
+	{
+		Assert.AreEqual(0f, DefensePlacementMath.EvolutionProgress01(0.0, 10), 1e-4f);
+		Assert.AreEqual(0.4f, DefensePlacementMath.EvolutionProgress01(4.0, 10), 1e-4f);
+		Assert.AreEqual(1f, DefensePlacementMath.EvolutionProgress01(15.0, 10), 1e-4f, "넘겨도 1로 고정");
+		Assert.AreEqual(6, DefensePlacementMath.EvolutionRemainingSeconds(4.0, 10));
+		Assert.AreEqual(7, DefensePlacementMath.EvolutionRemainingSeconds(3.2, 10), "남은 시간은 올림");
+		Assert.AreEqual(0, DefensePlacementMath.EvolutionRemainingSeconds(12.0, 10));
+	}
+
+	// ── 배치 유닛을 하단 미배치 카드 영역으로 끌어 해제(명세 1-2): 드롭 영역의 위치 ──
+
+	[Test]
+	public void UnplaceZone_IsTheBottomBandAboveTheMenuBar_AndLeavesTheRightColumn()
+	{
+		Rect z = PlacementModeUI.UnplaceZoneRect(1920f, 1080f, 60f);
+		Assert.AreEqual(1080f - 60f, z.yMax, 1e-3f, "하단 메뉴 바 바로 위에서 끝난다");
+		Assert.IsTrue(z.Contains(new Vector2(300f, 1000f)), "하단 가로 띠 안은 드롭 영역");
+		Assert.IsFalse(z.Contains(new Vector2(300f, 400f)), "지도 한가운데는 영역 밖");
+		Assert.IsFalse(z.Contains(new Vector2(1900f, 1000f)), "오른쪽 열(범위·순서·이동 적용) 자리는 제외");
+	}
+
+	[Test]
+	public void UnplaceZone_NeverHasNegativeWidth_OnTinyScreens()
+	{
+		Rect z = PlacementModeUI.UnplaceZoneRect(100f, 600f, 0f);
+		Assert.GreaterOrEqual(z.width, 0f);
+	}
+
 	// ── 사유 문구 ───────────────────────────────────────────────────────
 
 	[Test]

@@ -180,11 +180,11 @@ public class GlobalClickPathTests
 	[Test]
 	public void ClickMoveBlockedDecision_WaitsForAlliesThenDetours_AndLeavesTheRestToExistingRules()
 	{
-		const float max = 3f;
+		const float max = 1.5f;
 		Assert.AreEqual(ClickMoveHoldDecision.Proceed, OccupancyMath.ClickMoveBlockedDecision(false, false, false, 0f, max), "비었으면 바로 진행");
 		Assert.AreEqual(ClickMoveHoldDecision.Wait, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 0f, max));
-		Assert.AreEqual(ClickMoveHoldDecision.Wait, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 2.99f, max));
-		Assert.AreEqual(ClickMoveHoldDecision.Detour, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 3.00f, max), "3초가 되면 우회");
+		Assert.AreEqual(ClickMoveHoldDecision.Wait, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 1.49f, max));
+		Assert.AreEqual(ClickMoveHoldDecision.Detour, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 1.50f, max), "1.5초가 되면 우회");
 		Assert.AreEqual(ClickMoveHoldDecision.Detour, OccupancyMath.ClickMoveBlockedDecision(true, true, false, 10f, max));
 		Assert.AreEqual(ClickMoveHoldDecision.Defer, OccupancyMath.ClickMoveBlockedDecision(true, false, false, 0f, max), "적이 막으면 기존 대응");
 		Assert.AreEqual(ClickMoveHoldDecision.Defer, OccupancyMath.ClickMoveBlockedDecision(true, true, true, 0f, max), "목적지 근처는 대체 칸 재지정에 맡긴다");

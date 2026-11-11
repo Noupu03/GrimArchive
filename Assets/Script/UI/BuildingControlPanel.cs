@@ -25,6 +25,9 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     private bool HasContent => _current != null || _currentObject != null || _currentRoom != null;
 
+    // 시설·오브젝트·방 정보 중 무엇이든 열려 있는가 — 배치모드의 ESC/우클릭이 시설 UI를 먼저 닫을 때 쓴다.
+    public bool IsOpen => HasContent;
+
     [Inject]
     public void Construct(ResourceManager resourceManager, BuildingManager buildingManager)
     {

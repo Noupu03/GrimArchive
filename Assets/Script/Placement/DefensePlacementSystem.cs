@@ -149,6 +149,23 @@ public sealed partial class DefensePlacementSystem
 		}
 	}
 
+	// 이 방에서 진화 연출 중인 유닛이 확보한 추가 인구(1-5 "실제 유입 = 생존 소속 + 다른 유입 확정분 + 진화 추가 확보분").
+	int EvolutionReservedExtra(Room room)
+	{
+		var session = Session;
+		if (room == null || session?.units == null) return 0;
+		int extra = 0;
+		foreach (var u in session.units)
+		{
+			if (u == null || u.hp <= 0f || !u.IsInEvolutionPresentation || u.currentRoom != room) continue;
+			extra += DefensePlacementMath.EvolutionExtraPopulation(u.activeEvolutionSession.Definition.PostEvolutionPopulationCost, Mathf.Max(0, u.populationCost));
+		}
+		return extra;
+	}
+
+	// 실제 유입 검사에 쓰는 "이미 확정된 몫" — 이동 중인 유입과 진화 확보분.
+	int CommittedInflow(Room room, HashSet<Unit> excluding) => CountIncoming(room, excluding) + EvolutionReservedExtra(room);
+
 	bool TryGetRoom(int floor, Vector2Int tile, out Room room)
 	{
 		room = null;

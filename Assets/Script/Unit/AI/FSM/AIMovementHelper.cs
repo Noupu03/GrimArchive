@@ -431,7 +431,7 @@ public static class AIMovementHelper
 	// 방 제한 몬스터(RoomConfinedMovement)는 방 경계를 A*(IsTileWalkable)로만 지킨다 — A*를 거치지 않는 한 걸음 후퇴가 방 밖·문 타일로 나가지 않게 같은 규칙을 직접 적용한다(플레이어 명령 중은 예외, RoomConfinedMovement와 동일).
 	private static bool LeavesConfinedRoom(Unit unit, Vector2Int next)
 	{
-		if (!IsRoomConfined(unit) || unit.isManualMoveCommand || unit.Session?.roomGrid == null) return false;
+		if (!IsRoomConfined(unit) || unit.MayLeaveRoomNow || unit.Session?.roomGrid == null) return false;
 		int floor = unit.currentFloor;
 		if (unit.Session.IsDoorTile(new Vector3Int(next.x, next.y, floor))) return true;
 		if (!unit.Session.roomGrid.TryGetValue(new Vector3Int(unit.position.x, unit.position.y, floor), out Room current)) return false;

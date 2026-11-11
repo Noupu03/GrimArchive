@@ -1690,6 +1690,7 @@ public class BuildingManager : NativeRoutine
 						u.suppressEconomyCommandHook = true;
 						u.ClearPlayerCommand();
 						u.suppressEconomyCommandHook = false;
+						DefensePlacementSystem.Instance?.OnWorkTaskEnded(u); // 시체 정제 운반이 끝났다 — 저장 방어 위치로 복귀(배치모드 1-6 표2)
 					}
 				}
 			}
@@ -1763,6 +1764,7 @@ public class BuildingManager : NativeRoutine
 					}
 					RegisterBuildingToGrid(payload, updateObstacle: true);
 					NoticeCenter.Instance?.PushMomentary($"{payload.DisplayName} 재설치가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
+					DefensePlacementSystem.Instance?.OnWorkTaskEnded(u); // 분해 이동(운반·재설치)도 단일 작업 — 저장 방어 위치로 복귀(배치모드 1-6 표2)
 				}
 			}
 		}

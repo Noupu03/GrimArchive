@@ -172,7 +172,7 @@ public static class OccupancySystem
 		Vector2Int dirVec = unit.GetDirVector(dir);
 		Unit blocker = FindBlocker(unit, cur, dirVec, out Vector2Int blockedAnchor);
 		bool nearDestination = blocker != null && AIMovementHelper.ChebyshevDistance(cur, dest) <= ClickMoveNearDestinationRadius;
-		float waitMax = Mathf.Max(0f, cfg?.clickMoveBlockerWaitSeconds ?? 3f);
+		float waitMax = Mathf.Max(0f, cfg?.clickMoveBlockerWaitSeconds ?? 1.5f); // 설정 에셋이 없으면 이 값이 실제 기본값이다 — AIBehaviorConfig 필드 기본값과 같이 바꿀 것
 		float blockedSeconds = unit.clickWaitSince >= 0f ? now - unit.clickWaitSince : 0f;
 
 		switch (OccupancyMath.ClickMoveBlockedDecision(blocker != null, blocker != null && !unit.IsEnemy(blocker), nearDestination, blockedSeconds, waitMax))
@@ -190,7 +190,7 @@ public static class OccupancySystem
 				float detourSeconds = Mathf.Max(0f, cfg?.clickMoveDetourSeconds ?? 5f);
 				unit.clickDetourUntil = now + detourSeconds;
 				EndClickWait(unit);
-				LogHelper.Log(LogHelper.GAME, $"[점유] {unit.name}: 클릭 이동 중 {blocker.name}이(가) {waitMax:F0}초 넘게 길을 막아 {detourSeconds:F0}초 동안 우회합니다");
+				LogHelper.Log(LogHelper.GAME, $"[점유] {unit.name}: 클릭 이동 중 {blocker.name}이(가) {waitMax:0.##}초 넘게 길을 막아 {detourSeconds:F0}초 동안 우회합니다");
 				return false;
 
 			default: // Proceed(비었다 — 바로 진행) / Defer(적이 막음·목적지 근처 — 기존 대응)

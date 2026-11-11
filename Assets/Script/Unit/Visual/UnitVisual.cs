@@ -23,9 +23,14 @@ public class UnitVisual : MonoBehaviour
 	private static readonly Color MonsterPerceptionColor = new Color(0.95f, 0.10f, 0.15f, 0.95f);  // 선명한 빨강
 	private static readonly Color MonsterCircularColor   = new Color(1.00f, 0.55f, 0.85f, 0.85f);  // 진한 핑크 하이라이트
 
-	private const float VisionLineWidth = 0.045f;      // 시야 범위 — 얇게
-	private const float PerceptionLineWidth = 0.09f;    // 인지 범위 — 굵게(색뿐 아니라 굵기로도 구분)
-	private const float CircularLineWidth = 0.07f;
+	// 배치모드 미리보기(PlacementWorldView)가 실제 선택 표시와 같은 색·굵기를 쓰도록 공개한다.
+	public const float VisionLineWidth = 0.045f;      // 시야 범위 — 얇게
+	public const float PerceptionLineWidth = 0.09f;    // 인지 범위 — 굵게(색뿐 아니라 굵기로도 구분)
+	public const float CircularLineWidth = 0.07f;
+
+	public static Color VisionColorOf(bool isHuman) => isHuman ? HumanVisionColor : MonsterVisionColor;
+	public static Color PerceptionColorOf(bool isHuman) => isHuman ? HumanPerceptionColor : MonsterPerceptionColor;
+	public static Color CircularColorOf(bool isHuman) => isHuman ? HumanCircularColor : MonsterCircularColor;
 
 	public void Setup(bool isHuman)
 	{

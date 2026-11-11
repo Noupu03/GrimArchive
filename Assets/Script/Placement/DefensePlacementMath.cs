@@ -81,6 +81,17 @@ public static class DefensePlacementMath
 		return accepted;
 	}
 
+	// 진화 연출 중인 유닛이 시작 순간 확보해 둔 추가 인구 — 완료 전까지 방 정원에서 비워 둬야 한다(명세 1-5 "진화 추가 확보분", 1-8).
+	// 유닛의 인구수는 완료 때 바뀌므로(UnitFunction) 연출 중에는 진화 후 인구수와 현재 인구수의 차이가 곧 확보분이다. 줄어드는 진화는 0.
+	public static int EvolutionExtraPopulation(int postEvolutionCost, int currentCost) => Mathf.Max(0, postEvolutionCost - currentCost);
+
+	// 진화 연출 진행률(0~1)과 남은 초 — 인원 목록이 "진화 연출 남은 시간"을 보여 줄 때 쓴다(명세 1-7 표1).
+	public static float EvolutionProgress01(double elapsedSeconds, int durationSeconds)
+		=> durationSeconds <= 0 ? 1f : Mathf.Clamp01((float)(elapsedSeconds / durationSeconds));
+
+	public static int EvolutionRemainingSeconds(double elapsedSeconds, int durationSeconds)
+		=> Mathf.Max(0, Mathf.CeilToInt((float)(durationSeconds - elapsedSeconds)));
+
 	public static void BodyTiles(Vector2Int origin, Vector2Int footprint, List<Vector2Int> into)
 	{
 		into.Clear();
@@ -116,6 +127,29 @@ public static class DefensePlacementMath
 			if (t == origin) { result.Add(t); continue; }
 			float angle = Mathf.Atan2(t.y - origin.y, t.x - origin.x) * Mathf.Rad2Deg;
 			if (Mathf.Abs(Mathf.DeltaAngle(centerAngle, angle)) <= half) result.Add(t);
+		}
+	}
+
+	// 예상 시야 윤곽선용 — 광선(origin에서 단위 벡터 dir)이 처음 만나는 불투명 타일(벽 종류·닫힌 문)의 경계까지의 거리, 없으면 maxRadius.
+	// 격자 순회(DDA)라 지나는 타일만 확인한다. 출발 타일(유닛이 서 있는 칸)은 검사하지 않는다. 표시 전용이다.
+	public static float RayClipDistance(Vector2 origin, Vector2 dir, float maxRadius, Func<Vector2Int, bool> isOpaque)
+	{
+		if (maxRadius <= 0f || dir.sqrMagnitude < 1e-12f) return Mathf.Max(0f, maxRadius);
+
+		int x = Mathf.FloorToInt(origin.x), y = Mathf.FloorToInt(origin.y);
+		int stepX = dir.x > 0f ? 1 : -1, stepY = dir.y > 0f ? 1 : -1;
+		float tDeltaX = Mathf.Abs(dir.x) > 1e-6f ? 1f / Mathf.Abs(dir.x) : float.PositiveInfinity;
+		float tDeltaY = Mathf.Abs(dir.y) > 1e-6f ? 1f / Mathf.Abs(dir.y) : float.PositiveInfinity;
+		float tMaxX = float.IsPositiveInfinity(tDeltaX) ? float.PositiveInfinity : (dir.x > 0f ? x + 1 - origin.x : origin.x - x) * tDeltaX;
+		float tMaxY = float.IsPositiveInfinity(tDeltaY) ? float.PositiveInfinity : (dir.y > 0f ? y + 1 - origin.y : origin.y - y) * tDeltaY;
+
+		while (true)
+		{
+			float t;
+			if (tMaxX < tMaxY) { t = tMaxX; x += stepX; tMaxX += tDeltaX; }
+			else { t = tMaxY; y += stepY; tMaxY += tDeltaY; }
+			if (t >= maxRadius) return maxRadius;
+			if (isOpaque(new Vector2Int(x, y))) return t;
 		}
 	}
 

@@ -388,14 +388,23 @@ public class CoreSystem
 		ApplyTint(core);
 
 		// 수복에 참여했던 작업자 배정 해제
+		List<Unit> restoreWorkers = null;
 		if (Session.units != null)
 		{
 			foreach (var u in Session.units)
 			{
 				if (u != null && u.assignedCoreRestorePos == core.Position)
+				{
 					u.assignedCoreRestorePos = null;
+					(restoreWorkers ??= new List<Unit>()).Add(u);
+				}
 			}
 		}
+
+		// 코어 수복도 단일 작업이다 — 끝난 작업자는 최신 저장 방어 위치로 복귀를 시도한다(배치모드 설계명세서 1-6 표2).
+		// 위에서 코어가 이미 가동 상태로 돌아왔으므로 코어 권한 검사를 통과한다. 이 수복만으로 취소됐던 이동이 되살아나지는 않는다.
+		if (restoreWorkers != null)
+			foreach (var w in restoreWorkers) DefensePlacementSystem.Instance?.OnWorkTaskEnded(w);
 
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 수복 완료 — 정지됐던 작업 재개(활성화 이력 {(core.CoreEverActivated ? "유지" : "없음")})");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 수복되었습니다. 정지된 작업이 재개됩니다.", NoticeCenter.QuestCompleteColor);

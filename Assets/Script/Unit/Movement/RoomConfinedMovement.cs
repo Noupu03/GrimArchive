@@ -17,7 +17,8 @@ public class RoomConfinedMovement : AStarMovement
 
         // 방 이동은 오직 플레이어 명령으로만 허용 — isManualMoveCommand(PlayerCommandFSMState가 세팅)면
         // 방 경계 제한을 건너뛴다. 야생 몬스터는 이 플래그가 절대 true가 되지 않아 영향 없다.
-        if (unit.isManualMoveCommand) return true;
+        // 자동 방어 복귀는 복귀 상태가 걷는 동안만 우회한다(Unit.MayLeaveRoomNow) — 전투·경계 중에는 방 제한이 그대로다.
+        if (unit.MayLeaveRoomNow) return true;
 
         // 문/통로 타일은 한쪽 방의 roomGrid 소유 청크에 포함돼 같은 방 소속으로 잡히므로 아래 방
         // 경계 검사만으로는 못 거른다 — 자율 이동(플레이어 명령 아님)에서는 문 타일 자체를 walkable에서

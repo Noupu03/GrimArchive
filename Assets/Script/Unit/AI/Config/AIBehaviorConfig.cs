@@ -93,10 +93,14 @@ public class AIBehaviorConfig : ScriptableObject
     public bool globalClickPathingEnabled = true;
     [Tooltip("클릭 이동 유닛은 길 계획에서 아군 유닛을 장애물로 보지 않고, 실제로 아군이 다음 칸을 막으면 clickMoveBlockerWaitSeconds 동안 기다렸다가 비키는 즉시 진행한다 — 뭉쳐 이동할 때 아군을 벽으로 보고 먼 길을 돌던 문제 (2026-11-04 사용자 요청). 끄면 예전처럼 점유를 벽으로 본 길찾기")]
     public bool clickMoveBlockerWaitEnabled = true;
-    [Tooltip("클릭 이동 중 아군 유닛이 다음 칸을 연속으로 막아도 우회하지 않고 기다리는 시간(초). 넘으면 clickMoveDetourSeconds 동안 점유를 벽으로 본 길찾기로 우회한다 (사용자 '2~3초')")]
-    public float clickMoveBlockerWaitSeconds = 3f;
+    [Tooltip("클릭 이동 중 아군 유닛이 다음 칸을 연속으로 막아도 우회하지 않고 기다리는 시간(초). 넘으면 clickMoveDetourSeconds 동안 점유를 벽으로 본 길찾기로 우회한다 (사용자 '2~3초' → 2026-11-12 '3초는 너무 길다, 1.5초')")]
+    public float clickMoveBlockerWaitSeconds = 1.5f;
     [Tooltip("대기 시간을 넘겨 우회로 전환한 뒤 점유를 벽으로 본 길찾기를 유지하는 시간(초) — 지나면 다시 아군을 무시한 최단 경로로 돌아간다 (내부 판단)")]
     public float clickMoveDetourSeconds = 5f;
+    [Tooltip("미집결자 수색 때 리더만 나서지 않고 집결 지점에 모인 인원이 함께 관찰 지점으로 이동해 전방·우·후방·좌 방향을 나눠 수색한다 (파티 구성 명세서 8-1장 3·4, 순서도 P02 '우선 위치로 공동 이동', 2026-11-12). 끄면 예전처럼 리더만 수색 위치로 나간다")]
+    public bool rallySearchGroupMoveEnabled = true;
+    [Tooltip("작업 종료 뒤 자동 방어 복귀는 직접 이동 적용과 달리 전투·경계에 밀린다 — 복귀 중 같은 방에서 적을 인지하면 전투에 참여하고, 끝나면 전투 후 경계(postCombatAlertSeconds)를 마친 뒤 복귀를 재개한다 (배치모드 설계명세서 1-6 표1, 2026-11-12). 끄면 예전처럼 자동 복귀도 플레이어 이동 명령으로 고착")]
+    public bool defenseReturnYieldsToCombatEnabled = true;
     [Tooltip("제자리 대기 중인 아군에게 남기는 '비켜 달라' 요청의 유효 시간(초) (내부 판단)")]
     public float yieldRequestSeconds = 2f;
     [Tooltip("전파받은 적 위치 정보가 이 시간(초)을 넘으면 낡은 정보로 보고 접근하지 않는다 (03번 v0.6 4-7은 유효 기간을 정하지 않음, 내부 판단)")]

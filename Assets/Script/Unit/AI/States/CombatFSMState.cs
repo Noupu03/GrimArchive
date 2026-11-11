@@ -71,7 +71,8 @@ public class CombatFSMState : IFSMState
 		ClearBlockingTrap(unit); // 전투 중 함정 파괴는 전투와 함께 끝난다(채널링이 남아 계속 깎이지 않게)
 		FleeSystem.EndEncounterBundle(unit as Human); // 전투·추적 종료 = 몬스터 조우 묶음 종료(후퇴도주 4-4장) — 개체별 처리 이력은 유지된다
 
-		bool playerCommandActive = (unit.playerMoveTarget.HasValue && unit.isManualMoveCommand)
+		// 자동 방어 복귀 중이던 전투는 일반 전투처럼 끝나 경계(10초)를 세팅한다 — 그 경계가 끝나야 DefenseReturnFSMState가 복귀를 재개한다(배치모드 1-6 표1).
+		bool playerCommandActive = unit.HasForcedPlayerMove
 			|| (unit.playerAttackTarget != null && unit.playerAttackTarget.hp > 0)
 			|| unit.playerAttackObjectTarget.HasValue; // 코어/문 공격 명령도 동일 취급.
 		if (playerCommandActive) return;
