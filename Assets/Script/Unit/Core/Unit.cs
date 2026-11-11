@@ -444,6 +444,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void FinishMoveCommand()
 	{
+		DefensePlacementSystem.Instance?.OnMoveFinished(this); // 방어 이동 도착 훅
 		if (pendingHaltOnArrival)
 		{
 			pendingHaltOnArrival = false;
@@ -463,6 +464,7 @@ public abstract class Unit : ScriptableObject {
 
 	public void AbortMoveCommand()
 	{
+		DefensePlacementSystem.Instance?.OnMoveAborted(this);
 		MovementAlgorithm?.ClearCache();
 		playerMoveTarget = null;
 		isManualMoveCommand = false;

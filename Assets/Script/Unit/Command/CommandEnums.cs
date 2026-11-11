@@ -32,7 +32,7 @@ public static class TacticalCommandUtil
 	};
 }
 
-// 인류 파티 컨셉(10·14장, 8장 표) — 파티 임무(PartyType: 탐색/회수/소탕/점령)와 다른 분류다. 기본 버프 종류·위협 배율·행동 우선 명령 순서를 정한다. 지금은 모험가·도적만 등장한다(파티 구성 문서 대기).
+// 인류 파티 컨셉 — 임무(PartyType)와 다른 축이다. 버프 종류·위협 배율·행동 우선 명령 순서를 정한다.
 public enum PartyConcept
 {
 	Adventurer, // 초반 모험가
@@ -40,6 +40,7 @@ public enum PartyConcept
 	Mercenary,  // 용병 — 효과 수치 미정
 	Army,       // 군대 — 효과 수치 미정
 	Hero,       // 용사 — 효과 수치 미정
+	Vagrant,    // 부랑자 — 리더 없는 초기 독립 유닛
 }
 
 public static class PartyConceptUtil
@@ -51,6 +52,7 @@ public static class PartyConceptUtil
 		PartyConcept.Mercenary  => "용병",
 		PartyConcept.Army       => "군대",
 		PartyConcept.Hero       => "용사",
+		PartyConcept.Vagrant    => "부랑자",
 		_                       => c.ToString(),
 	};
 }

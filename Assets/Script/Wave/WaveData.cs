@@ -54,7 +54,14 @@ namespace GrimArchive.Wave
         [Tooltip("ByRoomId 선택 시 지정할 방 번호")]
         public int targetRoomId = 0;
 
-        [Header("웨이브 구성 파티(그룹) 목록")]
+        [Header("편성 계획(파티 구성)")]
+        [Tooltip("true면 인류 파티를 party_composition.json 기반 편성 계획(PartyPlanner)으로 만든다 — 컨셉·임무·규모·임무 수량이 웨이브마다 정해진다. false면 아래 parties의 인류 그룹을 그대로 쓴다(수동 편성)")]
+        public bool useCompositionPlanner = true;
+        [Tooltip("체크하면 forcedMission을 이번 웨이브 임무로 고정한다(특정 사건이 임무를 지정하는 경우, 파티 구성 3-1장)")]
+        public bool useForcedMission = false;
+        public PartyType forcedMission = PartyType.Explore;
+
+        [Header("웨이브 구성 파티(그룹) 목록 — 몬스터 그룹은 항상 여기서 읽고, 인류 그룹은 편성 계획을 끈 경우에만 쓴다")]
         public List<WavePartyConfig> parties = new List<WavePartyConfig>();
     }
 }

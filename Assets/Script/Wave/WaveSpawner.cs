@@ -43,7 +43,8 @@ namespace GrimArchive.Wave
             }
         }
 
-        public void SpawnWave()
+        // humanPlan이 있으면 인류 파티를 계획대로 만든다(생존자 합류는 사전 스폰 경로만 한다).
+        public void SpawnWave(PartyPlan humanPlan = null)
         {
             if (waveData == null)
             {
@@ -64,6 +65,7 @@ namespace GrimArchive.Wave
                 foreach (var config in waveData.parties)
                 {
                     if (config == null || config.units == null) continue;
+                    if (humanPlan != null && config.faction == PartyFaction.Human) continue; // 인류는 아래에서 계획대로 만든다
 
                     if (config.faction == PartyFaction.Monster)
                     {
@@ -101,6 +103,21 @@ namespace GrimArchive.Wave
                         spawnedParties.Add(party);
                     }
                 }
+            }
+
+            if (humanPlan != null)
+            {
+                // 인류 파티 1개 — 수동 편성과 같이 시작방에서 등장한다.
+                var members = new List<Human>();
+                foreach (var group in humanPlan.Members)
+                {
+                    for (int i = 0; i < group.Count; i++)
+                    {
+                        Human human = InstantiateHuman(group.UnitType);
+                        if (human != null) members.Add(human);
+                    }
+                }
+                if (members.Count > 0) spawnedParties.Add(GameSession.Instance.CreateParty(humanPlan, members));
             }
 
             // 스폰된 몬스터 전체를 파티 객체에 공유

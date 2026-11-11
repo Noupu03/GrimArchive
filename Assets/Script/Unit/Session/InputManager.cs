@@ -53,6 +53,8 @@ public class InputManager : MonoBehaviour
 	// 모드끼리의 배타 진입은 이 클래스의 Update()가 조율한다.
 	private BuildPlacementController _buildPlacement;
 	private ObjectPlacementController _objectPlacement;
+	// 배치모드 — 활성이면 Update를 위임한다(⚠️ 이 모드 안에서만 좌클릭 배치).
+	private PlacementMode _placementMode;
 
 	[Inject]
 	public void Construct(UnitGenerate unitGenerate, GameSession gameSession, BuildingManager buildingManager, ResourceManager resourceManager)
@@ -63,7 +65,13 @@ public class InputManager : MonoBehaviour
 
 		_buildPlacement = new BuildPlacementController(buildingManager, resourceManager);
 		_objectPlacement = new ObjectPlacementController(gameSession, unitGenerate, resourceManager, buildingManager);
+		_placementMode = new PlacementMode(gameSession, unitGenerate, buildingManager,
+			isConstructionPreviewActive: () => _buildPlacement.IsActive || _objectPlacement.IsActive,
+			closeConstructionPreview: () => { _buildPlacement?.ExitMode(); _objectPlacement?.ExitMode(); });
 	}
+
+	public bool IsPlacementModeActive => _placementMode != null && _placementMode.IsActive;
+	public void TogglePlacementMode() => _placementMode?.Toggle();
 
 	// =====================================================
 	// BottomMenuBar가 호출하는 공개 API — 예전 키보드 단축키는 제거되고 이 버튼 호출만 남았다.
@@ -249,6 +257,17 @@ public class InputManager : MonoBehaviour
 
 		// 배치 모드 진입 단축키는 제거했다(BottomMenuBar 버튼이 동일 기능 제공). Ctrl은 "선택 추가" 모디파이어로 남긴다.
 		bool addHeld = GameInputScheme.SelectAddHeld;
+
+		// 배치모드 중엔 이 컨트롤러가 입력을 맡는다. [건설] 미리보기가 켜지면 그쪽이 마우스를 쓰고 모드는 유지된다.
+		if (_placementMode != null && _placementMode.IsActive)
+		{
+			int modeFloor = _placementMode.CurrentFloor;
+			Vector3 modeOffset = _placementMode.CurrentFloorOffset;
+			if (_buildPlacement.IsActive) _buildPlacement.Update(modeOffset, modeFloor);
+			else if (_objectPlacement.IsActive) _objectPlacement.Update(modeOffset, modeFloor);
+			_placementMode.Update();
+			return;
+		}
 
 		if (_buildPlacement.IsActive)
 		{
@@ -762,6 +781,7 @@ public class InputManager : MonoBehaviour
 	// =====================================================
 	void OnGUI()
 	{
+		_placementMode?.UI.Draw(); // 비활성이면 아무것도 그리지 않는다
 		if (_dragBoxActive)
 		{
 			Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);

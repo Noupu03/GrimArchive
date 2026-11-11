@@ -7,6 +7,22 @@ public static class PartyDiagnostics
 {
 	public static string TagOf(Party party) => $"[파티] {party.Name}({party.Type.ToKorean()})";
 
+	// 요구된 수량 종류만 "타일 3/40, 방 1/2" 식으로 적는다.
+	public static string DescribeQuota(Party party)
+	{
+		var q = party.Quota;
+		var t = q.Targets;
+		var parts = new System.Collections.Generic.List<string>();
+		if (t.Tiles > 0) parts.Add($"타일 {q.TilesRevealed}/{t.Tiles}");
+		if (t.Rooms > 0) parts.Add($"방 {q.RoomsCompleted}/{t.Rooms}");
+		if (t.Kills > 0) parts.Add($"처치 {party.CommonKillCount:F1}/{t.Kills}");
+		if (t.Recovers > 0) parts.Add($"회수 {q.Recovered}/{t.Recovers}");
+		if (t.CoreDestroyed) parts.Add($"코어 파괴 {(q.CoreDestroyed ? "완료" : "미완")}");
+		if (t.Occupied) parts.Add($"점령 {(q.Occupied ? "완료" : "미완")}");
+		if (t.BossDone) parts.Add($"보스 {(q.BossDone ? "완료" : "미완")}");
+		return parts.Count == 0 ? "수량 요구 없음" : string.Join(", ", parts) + (q.AnyOf ? " 중 하나" : "");
+	}
+
 	// "이름[상태, 경계=종류 N초, 보이는 적 N명, 전투 합류 대기, 조사 중, 포기, 출발 허가 대기, 자리까지 N칸]"
 	public static string DescribeMember(Human m, Vector2Int? slot)
 	{

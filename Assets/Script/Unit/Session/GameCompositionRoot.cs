@@ -71,6 +71,9 @@ public class GameCompositionRoot : CoreLifetimeScope
         builder.Register<CoreSystem>(Lifetime.Singleton).AsSelf();
         builder.Register<OccupationSystem>(Lifetime.Singleton).AsSelf();
 
+        // 배치모드 — GameSession을 IObjectResolver로 지연 조회한다(OccupationSystem과 같은 패턴).
+        builder.Register<DefensePlacementSystem>(Lifetime.Singleton).AsSelf();
+
         // FogOfWarSystem - same pattern as DoorSystem (fog of war + torches bundled since torches
         // are timing-coupled to fog reveal).
         builder.Register<FogOfWarSystem>(Lifetime.Singleton).AsSelf();

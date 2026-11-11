@@ -218,6 +218,9 @@ public class DoorSystem
     {
         if (GameSession.Instance == null || (_doors.Count == 0 && _fences.Count == 0)) return;
 
+        // 일시정지 중 걸어 둔 문 예약은 시간이 흐르는 첫 프레임에 적용한다.
+        if (_pendingOrders.Count > 0 && Time.timeScale >= 0.01f && !GameSession.Instance.isPaused) ApplyPendingOrders();
+
         foreach (var fence in _fences)
         {
             if (fence.IsCollected || !Session.objectGrid.TryGetValue(fence.Position, out InteractableObject liveFence) || liveFence != fence) continue;
@@ -391,6 +394,52 @@ public class DoorSystem
         foreach (var key in area)
             if (Session.unitGrid.TryGetValue(key, out Unit occupant) && occupant != null && occupant.Health.hp > 0) return true;
         return false;
+    }
+
+    // ── 일시정지 중 문 예약: [열기]·[닫기]는 예약만 하고 같은 문의 마지막 지시만 남기며, 현재 상태와 같으면 지운다. 문 앞·뒤 유닛 같은 상황은 재개 때 확인해 실패하면 사유를 한 번 알린다.
+    private readonly Dictionary<InteractableObject, bool> _pendingOrders = new Dictionary<InteractableObject, bool>();
+
+    public bool TryGetPendingOrder(InteractableObject door, out bool open)
+    {
+        open = false;
+        return door != null && _pendingOrders.TryGetValue(door, out open);
+    }
+
+    // 예약 단계의 검사 — 영구적인 불가(플레이어 문 아님·코어 파괴)만 막고 문 앞·뒤 유닛은 보지 않는다.
+    public DoorControlBlock CheckReservation(InteractableObject door, bool wantOpen, FactionType actor = FactionType.Player)
+    {
+        if (door == null || door.Tags == null || !door.Tags.Contains(DoorTag) || door.IsCollected) return DoorControlBlock.NotPlayerDoor;
+        bool coreActive = Session.Core == null || Session.Core.AreFunctionsActive(door.Position.z);
+        return DoorControlRules.Check(door.DoorOwnerFaction, actor, coreActive, wantOpen, TryGetPendingOrder(door, out bool pending) ? pending : door.DoorManualOpen, false);
+    }
+
+    public DoorControlBlock ReserveManualOpen(InteractableObject door, bool open, FactionType actor = FactionType.Player)
+    {
+        DoorControlBlock block = CheckReservation(door, open, actor);
+        if (block != DoorControlBlock.None) return block;
+
+        if (open == door.DoorManualOpen) _pendingOrders.Remove(door); // 현재 상태와 같으면 예약 없음
+        else _pendingOrders[door] = open;                              // 같은 문의 마지막 지시만 남는다
+        return DoorControlBlock.None;
+    }
+
+    // 시간이 재개되면 예약을 한 번에 적용한다. 닫기가 문 앞·뒤 유닛 때문에 막히면 일반 화면에 사유를 한 번만 알린다.
+    private void ApplyPendingOrders()
+    {
+        if (_pendingOrders.Count == 0) return;
+        var orders = new List<KeyValuePair<InteractableObject, bool>>(_pendingOrders);
+        _pendingOrders.Clear();
+        bool warnedNearby = false;
+        foreach (var order in orders)
+        {
+            if (order.Key == null || order.Key.IsCollected) continue;
+            DoorControlBlock block = TrySetManualOpen(order.Key, order.Value);
+            if (block == DoorControlBlock.UnitsNearby && !warnedNearby)
+            {
+                warnedNearby = true;
+                NoticeCenter.Instance?.PushMomentary(DoorControlRules.Describe(block), NoticeCenter.WarningColor);
+            }
+        }
     }
 
     // 문을 열어 두거나 닫는다. 성공하면 상태를 바꾸고 경로 판정 메모가 새로 계산되도록 StateVersion을 올린다. 불가 사유를 돌려준다(None = 성공).

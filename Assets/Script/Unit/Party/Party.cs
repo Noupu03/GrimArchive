@@ -29,22 +29,23 @@ public partial class Party
 	// 리더가 아는 미처리(적대적) 코어 위치(03번 3항) — 있으면 집결·다음 방 이동보다 코어 처리가 우선한다. PartyCoreReportSystem.OnCoreDiscovered가 채우고 TryStartRally가 IsRoomCoreStillHostile로 재확인해 처리 완료를 감지·해제한다.
 	public Vector3Int? LeaderKnownCorePosition;
 
-	// 방 탐색 임무 요구 수량(B+E) 집계(01번 2장) — 여러 유닛이 각자 다른 방을 끝내도 중복 없이 한 번만 세는 dedup이다. 시야를 합쳐 완료를 판정하지는 않고 누구든 먼저 그 방을 개인적으로 끝내면 집계하는 근사다.
-	public int CompletedRoomExploreCount { get; private set; }
-	private readonly HashSet<int> _countedRoomIds = new HashSet<int>();
-	// 미달성→달성으로 막 바뀐 순간에만 true — ReadyToAdvance와 같은 관례로 소비자(리더 판단)가 읽고 false로 되돌린다.
-	public bool JustReachedRoomExploreQuota;
+	// 임무 수량 — 편성 계획이 정한다. 계획 없이 만든 파티는 Legacy(방 탐색 또는 처치 중 하나).
+	public PartyMissionQuota Quota { get; private set; } = PartyMissionQuota.Legacy();
+	public void SetQuota(PartyMissionQuota quota) => Quota = quota ?? PartyMissionQuota.Legacy();
 
-	// 개인의 RoomExploreState가 Complete로 바뀌는 순간 PersonalMapKnowledge.ObserveRoomTileRevealed가
-	// 호출한다.
+	// 처치 수량은 웨이브 공통 집계를 읽는다. 웨이브 매니저가 없으면 0.
+	public float CommonKillCount => HumanWaveManager.Instance != null ? HumanWaveManager.Instance.CommonMonsterKillCount : 0f;
+
+	// 리더 없는 초기 독립 유닛 집단 — 웨이브 추적용 묶음일 뿐 집결·공동 이동·코어 공동 처리·명령을 만들지 않는다.
+	public bool IsIndependentGroup;
+
+	// 방 탐색 수량 — 개인의 RoomExploreState가 Complete가 될 때(PersonalMapKnowledge) 불리며 같은 방은 한 번만 센다.
+	public int CompletedRoomExploreCount => Quota.RoomsCompleted;
+	private readonly HashSet<int> _countedRoomIds = new HashSet<int>();
+
 	public void OnRoomExploreCompleted(int roomId)
 	{
-		if (!_countedRoomIds.Add(roomId)) return; // 이미 집계된 방 — 중복 방지
-
-		bool wasBelow = CompletedRoomExploreCount < PartyGoalMath.RequiredRoomExploreCount;
-		CompletedRoomExploreCount++;
-		if (wasBelow && CompletedRoomExploreCount >= PartyGoalMath.RequiredRoomExploreCount)
-			JustReachedRoomExploreQuota = true;
+		if (_countedRoomIds.Add(roomId)) Quota.OnRoomCompleted();
 	}
 
 	// 파티원 전체가 나눠 본 시야를 합쳐 방 지형 확인 완료를 판단하는 집계(01번 7-2장) — 방별로 새로 밝힌 바닥 타일을 모아 전체 바닥 타일 수에 닿으면 '파티 기준 완료'다. 개인별 RevealedFloorTiles와 별개 집계다.
@@ -86,6 +87,12 @@ public partial class Party
 			case PartyType.Occupy:
 				// 점령 파티는 현재 방에 기초 시설을 완공해 기초 거점이 되면 방 활동이 끝난다(코어 점령 v0.2 12장 — OccupationSystem이 짓는다). 방어 시설은 방어 거점으로 정한 방에서 후퇴·휴식 뒤에 짓는 것이라 전진을 막지 않는다.
 				return OccupationMath.IsRoomActivityComplete(room.BaseStage);
+			case PartyType.CoreDestroy:
+				// 이 방에 공격할 수 있는 코어가 남지 않으면 끝난다.
+				return !(room.CoreObjectId != null && TacticalFSMState.IsRoomCoreStillHostile(Leader, room.CorePosition));
+			case PartyType.Boss:
+				// 보스 절차는 후속 콘텐츠 — 완료 표시만 연결해 둔다.
+				return Quota.BossDone && Leader.personalSpottedEnemies.Count == 0;
 			case PartyType.MopUp:
 				// 문까지 이동하며 확인한 뒤 현재 방에 대응할 적·교전 정보가 남지 않아야 한다(01번 7-1장) — 이동 없이 '적을 모름'만으론 부족하다(스폰 직후부터 참이라 도착 즉시 집결하던 문제). 방 전체 탐색·전멸 확인은 요구하지 않는다.
 				return Leader.personalSpottedEnemies.Count == 0 && DoorApproachRoom != null && DoorApproachRoom == room;
@@ -115,6 +122,7 @@ public partial class Party
 	// 사망·개인 도주로 지휘를 잃었으면 후임은 즉시 고르지 않는다 — 파티 공통 10초 뒤 LeaderSuccessionSystem이 고르며, 그 전에는 리더 없이 개인 행동을 한다(17항).
 	public void AssignLeaderIfNeeded()
 	{
+		if (IsIndependentGroup) { Leader = null; return; } // 독립 유닛은 리더를 두지 않는다
 		if (Leader != null && Leader.hp > 0 && !(Leader.Retreat != null && Leader.Retreat.IsFleeing)) return; // 유효한 리더 유지(충원자의 높은 통솔력만으로 교체하지 않는다)
 		if (Leader != null) // 사망·도주 확정이 다른 경로로 들어온 경우의 안전망 — 지휘 상실 처리로 넘긴다
 		{
@@ -240,6 +248,10 @@ public partial class Party
 				return $"{head}: 리더가 아는 회수물이 방 안에 남음";
 			case PartyType.Occupy:
 				return $"{head}: 기초 시설 미완공(거점 단계 {room.BaseStage}, 방 소유 {room.RoomFaction})";
+			case PartyType.CoreDestroy:
+				return $"{head}: 이 방의 코어가 아직 공격 가능 상태로 남음(조사 완료 {InvestigatedCoreIds.Contains(room.CoreObjectId ?? string.Empty)})";
+			case PartyType.Boss:
+				return $"{head}: 보스 임무 {(Quota.BossDone ? "완료, 남은 교전 " + Leader.personalSpottedEnemies.Count + "명" : "미완료")}";
 			case PartyType.MopUp:
 				return $"{head}: 리더가 인지한 적 {Leader.personalSpottedEnemies.Count}명, 다음 문 앞 접근 {(DoorApproachRoom != null && DoorApproachRoom == room ? "완료" : "미완료")}";
 			default:

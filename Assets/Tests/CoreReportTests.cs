@@ -367,7 +367,7 @@ public class CoreReportTests
 		var party = new Party("P", "테스트") { Type = PartyType.Explore };
 		party.Members.Add(leader);
 		party.Leader = leader;
-		party.JustReachedRoomExploreQuota = true; // 임무 수량 달성은 방 활동 종료와 별개의 집결 사유
+		party.Quota.ForceAchieved(); // 임무 수량 달성은 방 활동 종료와 별개의 집결 사유
 
 		party.TryStartRally();
 

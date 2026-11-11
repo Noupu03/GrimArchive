@@ -23,12 +23,12 @@ public static class GUIMenuStyleUtil
     // 줄인 스타일을 쓴다. 배경 없는(투명) 스타일인 이유는 DrawFlatButton이 배경/테두리를 직접 그리고
     // GUI.Button은 클릭 판정+텍스트 렌더링에만 쓰기 때문(안 그러면 Unity 기본 스킨이 순색 배경 위에
     // 겹쳐져 탁해짐). 캐시 키는 문자열 보간 대신 값 타입 튜플을 써서 매 프레임 문자열 할당을 피한다.
-    private static readonly Dictionary<(string label, int width, int fontSize), GUIStyle> _fittedTransparentStyleCache = new();
+    private static readonly Dictionary<(string label, int width, int maxFontSize, int minFontSize, int padding), GUIStyle> _fittedTransparentStyleCache = new();
     private const float FittedButtonHorizontalPadding = 16f;
 
-    private static GUIStyle GetFittedTransparentButtonStyle(string label, float maxWidth, int maxFontSize = ButtonFontSize, int minFontSize = 11)
+    private static GUIStyle GetFittedTransparentButtonStyle(string label, float maxWidth, int maxFontSize = ButtonFontSize, int minFontSize = 11, float horizontalPadding = FittedButtonHorizontalPadding)
     {
-        var key = (label, Mathf.RoundToInt(maxWidth), maxFontSize);
+        var key = (label, Mathf.RoundToInt(maxWidth), maxFontSize, minFontSize, Mathf.RoundToInt(horizontalPadding));
         if (_fittedTransparentStyleCache.TryGetValue(key, out var cached)) return cached;
 
         var style = new GUIStyle(GUIStyle.none)
@@ -44,7 +44,7 @@ public static class GUIMenuStyleUtil
         style.focused.textColor = Color.white;
 
         int fontSize = maxFontSize;
-        while (fontSize > minFontSize && style.CalcSize(new GUIContent(label)).x > maxWidth - FittedButtonHorizontalPadding)
+        while (fontSize > minFontSize && style.CalcSize(new GUIContent(label)).x > maxWidth - horizontalPadding)
         {
             fontSize--;
             style.fontSize = fontSize;
@@ -56,7 +56,9 @@ public static class GUIMenuStyleUtil
 
     // 하단 메뉴 바/서브메뉴/정보 탭이 공유하는 버튼 하나(배경 채우기 + 테두리 + 글자 자동 축소 텍스트)를
     // 그리고 클릭 여부를 돌려준다(위 ActiveColor 주석 참고 — 순색 채우기로 선택 상태를 또렷하게 함).
-    public static bool DrawFlatButton(Rect rect, string label, bool active, bool interactable = true)
+    // maxFontSize/minFontSize/horizontalPadding는 월드 배율로 크기가 바뀌는 버튼(배치모드 방 패널)용 — 기본값이면 기존 버튼과 같다.
+    public static bool DrawFlatButton(Rect rect, string label, bool active, bool interactable = true,
+        int maxFontSize = ButtonFontSize, int minFontSize = 11, float horizontalPadding = FittedButtonHorizontalPadding)
     {
         Color fill = !interactable ? DisabledColor : (active ? ActiveColor : InactiveColor);
         Color prevColor = GUI.color;
@@ -68,7 +70,7 @@ public static class GUIMenuStyleUtil
 
         bool wasEnabled = GUI.enabled;
         GUI.enabled = interactable;
-        bool clicked = GUI.Button(rect, label, GetFittedTransparentButtonStyle(label, rect.width));
+        bool clicked = GUI.Button(rect, label, GetFittedTransparentButtonStyle(label, rect.width, maxFontSize, minFontSize, horizontalPadding));
         GUI.enabled = wasEnabled;
         return clicked;
     }

@@ -182,6 +182,10 @@ public class CoreSystem
 			VFXManager.SpawnCoreCaptureVfx(claimant.Value, visual != null ? visual.transform.position : new Vector3(core.Position.x + 0.5f, core.Position.y + 0.5f, 0f));
 
 		Salvage.Spawn(core.Position);
+		// 코어 파괴 임무 수량 — 조사 완료와 별개 사건이다.
+		if (Session?.parties != null)
+			foreach (var p in Session.parties)
+				if (p != null && !p.WaveEnded && p.Type == PartyType.CoreDestroy) p.Quota.OnCoreDestroyed();
 		LogHelper.Log(LogHelper.GAME, $"[코어] F{room.Floor} {room.RoomName} 코어 파괴({killer?.unitType?.typeName}) — 이 층의 건설·생산 등 작업 정지, 수복 명령 대기");
 		NoticeCenter.Instance?.PushMomentary($"{room.Floor}층 코어가 파괴되었습니다. 건설·생산이 정지됩니다.", NoticeCenter.WarningColor);
 	}

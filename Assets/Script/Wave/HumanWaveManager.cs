@@ -53,6 +53,41 @@ namespace GrimArchive.Wave
         // 추적 중인 웨이브 데이터
         public Party activeParty;
 
+        // 이번(또는 다음) 웨이브의 편성 계획 — 사이클마다 한 번 만들어 게이지·사전 스폰·폴백 스폰이 같은 구성을 읽는다. null이면 WaveData.parties 수동 목록.
+        public WavePlan NextPlan { get; private set; }
+        private bool _planBuiltThisCycle;
+
+        private WavePlan NextPlanOrBuild()
+        {
+            EnsureNextPlan();
+            return NextPlan;
+        }
+
+        // 맵·방이 만들어지기 전에는 만들지 않고(표식도 남기지 않고) 다음 호출에서 다시 시도한다.
+        public void EnsureNextPlan()
+        {
+            if (_planBuiltThisCycle) return;
+            var waveData = targetSpawner?.waveData;
+            var session = GameSession.Instance;
+            if (waveData == null || session == null) return;
+            if (!waveData.useCompositionPlanner) { _planBuiltThisCycle = true; return; }
+            if (session.allRooms == null || session.allRooms.Count == 0) return;
+
+            float danger = _knowledge != null ? _knowledge.GetDungeonDanger() : 0f;
+            PlannerContext ctx = PartyPlanContextBuilder.Build(session, WaveNumber + 1, waveData.targetFloor, danger, retreatedSurvivors);
+            PartyType? forced = waveData.useForcedMission ? waveData.forcedMission : (PartyType?)null;
+            NextPlan = PartyPlanner.BuildPlan(ctx, forced, () => UnityEngine.Random.value);
+            _planBuiltThisCycle = true;
+
+            if (NextPlan == null)
+            {
+                LogHelper.Warning(LogHelper.GAME, "[HumanWaveManager] 편성 계획을 만들지 못해(party_composition.json의 컨셉·임무 확인) WaveData.parties 수동 목록으로 폴백합니다.");
+                return;
+            }
+            var primary = NextPlan.Primary;
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 웨이브 {NextPlan.WaveNumber} 편성 계획 — {primary} / 임무 {primary.Mission.ToKorean()}{(primary.IsIndependent ? "(독립 유닛, 리더 없음)" : string.Empty)}, 충원 부족분 {primary.ReinforcementCount}명(표시만) / 생존자 합류 대기 {retreatedSurvivors.Count}명");
+        }
+
         // 웨이브 승리 조건: 목표 방(보스방) 코어를 파괴하고 잔해를 던전 밖으로 반출한다. 잔해 운반자가 있거나 반출에 성공했으면 _retreating이 true가 되어 퇴각 로직(출구 이동)이 돈다(UpdateSalvageObjective).
         private Room _targetRoom;
         private bool _retreating;
@@ -183,21 +218,37 @@ namespace GrimArchive.Wave
 
             int rowY = floor0StairPos.y;
 
-            var members = new List<Human>();
-            foreach (var config in targetSpawner.waveData.parties)
+            // 계획이 있으면 생존자가 같은 종류 슬롯부터 채우고 모자란 만큼만 새로 스폰한다(파티가 웨이브마다 불어나지 않게). 없으면 WaveData의 인류 그룹.
+            EnsureNextPlan();
+            PartyPlan plan = NextPlan?.Primary;
+            var spawnGroups = new List<UnitCount>();
+            if (plan != null)
             {
-                if (config == null || config.faction != PartyFaction.Human || config.units == null) continue;
-                foreach (var group in config.units)
+                var survivorTypes = new List<string>();
+                foreach (var s in retreatedSurvivors)
+                    if (s != null && s.hp > 0 && s.unitType != null) survivorTypes.Add(s.unitType.typeName);
+                spawnGroups = PartyCompositionMath.ApplySurvivors(plan.Members, survivorTypes, out _);
+            }
+            else
+            {
+                foreach (var config in targetSpawner.waveData.parties)
                 {
-                    if (string.IsNullOrEmpty(group.unitTypeName)) continue;
-                    for (int i = 0; i < group.count; i++)
-                    {
-                        Vector2Int spawnPos = FindSpawnPosInHiddenChunk(rowY);
-                        Human human = targetSpawner.InstantiatePreSpawnHumanAt(group.unitTypeName, spawnPos, 0);
-                        if (human == null) continue;
+                    if (config == null || config.faction != PartyFaction.Human || config.units == null) continue;
+                    foreach (var group in config.units)
+                        if (!string.IsNullOrEmpty(group.unitTypeName)) spawnGroups.Add(new UnitCount(group.unitTypeName, group.count));
+                }
+            }
 
-                        members.Add(human);
-                    }
+            var members = new List<Human>();
+            foreach (var group in spawnGroups)
+            {
+                for (int i = 0; i < group.Count; i++)
+                {
+                    Vector2Int spawnPos = FindSpawnPosInHiddenChunk(rowY);
+                    Human human = targetSpawner.InstantiatePreSpawnHumanAt(group.UnitType, spawnPos, 0);
+                    if (human == null) continue;
+
+                    members.Add(human);
                 }
             }
 
@@ -229,9 +280,11 @@ namespace GrimArchive.Wave
 
             if (members.Count == 0) return;
 
-            preSpawnedParty = GameSession.Instance.CreateParty("PreSpawnParty", members);
+            preSpawnedParty = plan != null
+                ? GameSession.Instance.CreateParty(plan, members)
+                : GameSession.Instance.CreateParty("PreSpawnParty", members);
             preSpawnSucceeded = true;
-            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류.");
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 0층에 웨이브 파티 {members.Count}명 사전 스폰(배회 대기) — 신규 {members.Count - survivorCount}명, 이전 웨이브 생존자 {survivorCount}명 합류{(plan != null ? $", 계획 {plan.Name}(계획 규모 {plan.TargetSize}명, 임무 {plan.Mission.ToKorean()})" : ", 수동 편성")}.");
 
             // 몬스터 소집 호출은 WaveLoop()의 cooldownTimer <= PreSpawnLeadSeconds 체크로 옮겨져 있다 —
             // 여기서는 그 체크가 참조할 preSpawnedParty만 준비해둔다.
@@ -422,36 +475,50 @@ namespace GrimArchive.Wave
             if (!retreatedSurvivors.Contains(member)) retreatedSurvivors.Add(member);
         }
 
-        // 게이지 위에 표시할 "인간 파티" 아이콘 후보 유닛 타입 이름을 최대 max개 반환한다(사전 스폰된
-        // 파티가 있으면 그 구성을, 없으면 waveData의 다음 웨이브 구성을 사용). 앞 max명을 그대로 뽑으면
-        // 같은 유형이 몰려 중복만 보일 수 있어 유형별로 먼저 하나씩 채운다.
+        // 게이지 아이콘용 유닛 타입 이름을 최대 max개 반환한다(사전 스폰된 파티 > 편성 계획 > WaveData 수동 목록).
+        // 같은 유형이 몰리지 않게 유형별로 먼저 하나씩 채우고, OnGUI가 프레임당 여러 번 부르므로 원천이 바뀔 때만 다시 만든다.
+        private List<string> _gaugeNames = new List<string>();
+        private object _gaugeSource;
+        private int _gaugeSourceCount = -1;
+        private int _gaugeMax = -1;
+
         public List<string> GetApproachingPartyTypeNames(int max)
         {
-            var allNames = new List<string>();
+            object source;
+            int count = 0;
+            if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0) { source = preSpawnedParty; count = preSpawnedParty.Members.Count; }
+            else if (NextPlanOrBuild()?.Primary != null) source = NextPlan.Primary;
+            else source = targetSpawner != null ? targetSpawner.waveData : null;
 
-            if (preSpawnedParty != null && preSpawnedParty.Members.Count > 0)
+            if (_gaugeSourceCount == count && _gaugeMax == max && ReferenceEquals(_gaugeSource, source)) return _gaugeNames;
+
+            var allNames = new List<string>();
+            if (source is Party party)
             {
-                foreach (var member in preSpawnedParty.Members)
-                {
-                    if (member == null || member.unitType == null) continue;
-                    allNames.Add(member.unitType.typeName);
-                }
+                foreach (var member in party.Members)
+                    if (member != null && member.unitType != null) allNames.Add(member.unitType.typeName);
             }
-            else if (targetSpawner != null && targetSpawner.waveData != null && targetSpawner.waveData.parties != null)
+            else if (source is PartyPlan plan)
             {
-                foreach (var config in targetSpawner.waveData.parties)
+                foreach (var m in plan.Members)
+                    for (int i = 0; i < m.Count; i++) allNames.Add(m.UnitType);
+            }
+            else if (source is WaveData waveData && waveData.parties != null)
+            {
+                foreach (var config in waveData.parties)
                 {
                     if (config == null || config.faction != PartyFaction.Human || config.units == null) continue;
                     foreach (var group in config.units)
-                    {
-                        if (string.IsNullOrEmpty(group.unitTypeName)) continue;
-                        for (int i = 0; i < group.count; i++)
-                            allNames.Add(group.unitTypeName);
-                    }
+                        if (!string.IsNullOrEmpty(group.unitTypeName))
+                            for (int i = 0; i < group.count; i++) allNames.Add(group.unitTypeName);
                 }
             }
 
-            return BuildDistinctFirstTypeNames(allNames, max);
+            _gaugeSource = source;
+            _gaugeSourceCount = count;
+            _gaugeMax = max;
+            _gaugeNames = BuildDistinctFirstTypeNames(allNames, max);
+            return _gaugeNames;
         }
 
         // 서로 다른 유형을 우선 하나씩 채우고, 유형 종류가 max보다 적을 때만 다시 채워 중복으로
@@ -516,7 +583,8 @@ namespace GrimArchive.Wave
                 // 사전 스폰 자체가 안 됐으면(0층 계단 위치를 못 찾는 등) 즉시 스폰하는 폴백 —
                 // 던전 입구 연출 없이 계단 바로 옆에 즉시 등장한다.
                 int beforePartyCount = GameSession.Instance.parties.Count;
-                targetSpawner.SpawnWave();
+                EnsureNextPlan();
+                targetSpawner.SpawnWave(NextPlan?.Primary);
 
                 if (GameSession.Instance.parties.Count > beforePartyCount)
                 {
@@ -917,7 +985,7 @@ namespace GrimArchive.Wave
                 }
             }
 
-            LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 정상 귀환 시작 — 리더 {party.Leader?.name}: 다음으로 진행할 일반 방이 없고 보스가 살아 있는 보스방만 남음. 실제 달성 수량으로 종료(방 탐색 {party.CompletedRoomExploreCount}/{PartyGoalMath.RequiredRoomExploreCount}, 몬스터 처치 {CommonMonsterKillCount:F1}/{PartyGoalMath.RequiredMonsterKillCount:F1})");
+            LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} 정상 귀환 시작 — 리더 {party.Leader?.name}: 다음으로 진행할 일반 방이 없고 보스가 살아 있는 보스방만 남음. 실제 달성 수량으로 종료({PartyDiagnostics.DescribeQuota(party)})");
             SpeechSystem.Say(party.Leader, SpeechId.NormalReturn);
             OrderRetreat();
         }
@@ -962,6 +1030,9 @@ namespace GrimArchive.Wave
             _targetRoom = null;
             _retreating = false;
             _doorSearchLogged = false;
+            // 다음 계획은 새 사이클에서 다시 만든다.
+            NextPlan = null;
+            _planBuiltThisCycle = false;
             cooldownTimer = waveCooldown;
             currentState = WaveState.Idle;
 

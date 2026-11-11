@@ -49,9 +49,28 @@ public class OccupationSystem
 	[Inject]
 	public void Construct(IObjectResolver resolver) => _resolver = resolver;
 
+	// 거점 정원(처음 출격 인원, 자리표시자) 대비 현장 생존 병력 부족분 — 충원 합류는 정원 규칙이 정해진 뒤에 연결한다.
+	public int GarrisonShortfall
+	{
+		get
+		{
+			if (_groupCapacity <= 0) return 0;
+			int present = 0;
+			foreach (var p in _parties)
+			{
+				if (p == null) continue;
+				foreach (var m in p.Members)
+					if (m != null && m.hp > 0f && m.currentFloor >= 1) present++;
+			}
+			return Mathf.Max(0, _groupCapacity - present);
+		}
+	}
+
 	public void Adopt(Party party)
 	{
 		if (party == null || _parties.Contains(party)) return;
+		if (party.Type != PartyType.Occupy)
+			party.SetQuota(PartyMissionQuota.Create(PartyType.Occupy, new QuotaTargets { Occupied = true })); // 점령 완료가 임무 수량이다
 		party.Type = PartyType.Occupy;
 		_parties.Add(party);
 		_drivers[party] = new PartyMissionDriver();
@@ -265,6 +284,7 @@ public class OccupationSystem
 		Construction.Complete(room, defense: false); // 건설물이 천막 상징물로 남고, 문·목책 설치 청사진은 옅어진다
 		MarkBase(room, BaseStage.Basic);
 		_frontBase = room;
+		party.Quota.OnOccupied(); // 기초 시설 완공 = 점령 완료
 		BaseConstruction.ClearWaits(party);
 
 		LogHelper.Log(LogHelper.GAME, $"{PartyDiagnostics.TagOf(party)} [점령] F{room.Floor} 방 {room.RoomId}({room.RoomName}) 기초 시설 완공 — 인류 문 {doors}개·목책 {fences}개를 설치, 기초 거점 형성. {DescribeBases()}");

@@ -725,7 +725,30 @@ public class BuildingManager : NativeRoutine
 		}
 
 		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 철거가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
+		List<Unit> demolishWorkers = CollectAssignedWorkers(b); // 철거로 배정이 지워지기 전에 모은다
 		RemoveBuildingCompletely(b);
+		FinishSingleTaskWorkers(null, demolishWorkers);
+	}
+
+	// ── 단일 작업 종료와 자동 방어 복귀(배치모드 1-6 표2) ──
+
+	private List<Unit> CollectAssignedWorkers(BuildingData b)
+	{
+		var workers = new List<Unit>();
+		if (b == null || GameSession.Instance?.units == null) return workers;
+		foreach (var u in GameSession.Instance.units)
+			if (u != null && u.hp > 0f && u.assignedWorkBuilding == b) workers.Add(u);
+		return workers;
+	}
+
+	// 단일 작업이 끝나 일손이 풀렸다 — 배정을 놓고 저장된 방어 위치로 복귀를 시도한다.
+	private void FinishSingleTaskWorkers(BuildingData b, List<Unit> workers)
+	{
+		foreach (var w in workers)
+		{
+			if (b != null && w.assignedWorkBuilding == b) w.assignedWorkBuilding = null;
+			DefensePlacementSystem.Instance?.OnWorkTaskEnded(w);
+		}
 	}
 
 	private void RemoveBuildingCompletely(BuildingData b)
@@ -883,6 +906,7 @@ public class BuildingManager : NativeRoutine
 	public void NotifyWorkerCommandChanged(Unit u)
 	{
 		if (u == null) return;
+		DefensePlacementSystem.Instance?.OnPlayerCommandReplaced(u); // 발행했던 방어 이동·대기 자리를 해제한다
 
 		if (u.assignedWorkBuilding != null)
 		{
@@ -1346,7 +1370,7 @@ public class BuildingManager : NativeRoutine
 			}
 			else if (b.Kind == FacilityKind.Research && resourceManager != null && b.ResearchQueue != null)
 			{
-				b.ResearchQueue.TickResearch(
+				bool researchCompleted = b.ResearchQueue.TickResearch(
 					dt,
 					workerSpeedBuffer,
 					operational,
@@ -1355,6 +1379,8 @@ public class BuildingManager : NativeRoutine
 					resourceManager.Accounts,
 					facilityDestroyedOnSameTick: false,
 					onCompleted: def => ApplyCompletedResearchToExistingUnits(def));
+				// 연구 대기열 소진도 단일 작업 종료다.
+				if (researchCompleted && b.ResearchQueue.Entries.Count == 0) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b));
 			}
 			else if (b.Kind == FacilityKind.UnitProduction && resourceManager != null)
 			{
@@ -1435,6 +1461,7 @@ public class BuildingManager : NativeRoutine
 					b.ActiveConstructionOrUpgrade = null;
 					b.ActiveFieldTask = FacilityFieldTaskKind.None;
 					NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 작업이 완료되었습니다.", NoticeCenter.QuestCompleteColor);
+					if (!DoesBuildingAcceptWorkers(b)) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b)); // 반복 작업 시설(생명 에너지·연구)의 작업자는 계속 일한다
 				}
 				break;
 			}
@@ -1449,6 +1476,7 @@ public class BuildingManager : NativeRoutine
 					b.ActiveRepair = null;
 					b.ActiveFieldTask = FacilityFieldTaskKind.None;
 					NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 수리가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
+					if (!DoesBuildingAcceptWorkers(b)) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b));
 				}
 				break;
 			}

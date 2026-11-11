@@ -832,6 +832,7 @@ public class TacticalFSMState : IFSMState
 			human.Session.CollectObject(inv.TargetPosition);
 			human.collectedObjects.Add(obj.Id);
 			human.personalMap.OnObjectCollected(obj.Id); // 방금 직접 수거 — 스스로도 기록
+			human.party?.Quota.OnRecovered(obj.Id); // 회수 수량(조사 완료와 별개)
 			// 수거 사실도 조사 완료 전파와 같이 일반 전파 조건을 거쳐야 다른 파티원이 안다(범위 밖은 모름).
 			if (human.party != null)
 			{
@@ -1560,6 +1561,7 @@ public class TacticalFSMState : IFSMState
 		room = null;
 		core = null;
 		if (!(unit is Human)) return false; // 인류 전용 — 플레이어 몬스터는 자동으로 코어를 공격하지 않는다.
+		if (((Human)unit).party != null && ((Human)unit).party.IsIndependentGroup) return false; // 독립 유닛은 코어를 기록만 한다
 		if (unit.Session?.cmap == null) return false;
 
 		Vector3Int gridPos = new Vector3Int(unit.position.x, unit.position.y, unit.currentFloor);

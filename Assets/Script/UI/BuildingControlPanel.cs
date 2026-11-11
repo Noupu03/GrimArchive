@@ -511,7 +511,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         if (session == null) return;
 
         GUILayout.Label($"소유 진영: {RoomStatusText.FactionName(room.RoomFaction)}", GUIMenuStyleUtil.BodyLabelStyle);
-        GUILayout.Label($"인원: {RoomStatusText.Population(room)}", GUIMenuStyleUtil.BodyLabelStyle);
+        GUILayout.Label(RoomStatusText.Population(room, DefensePlacementSystem.Instance != null ? DefensePlacementSystem.Instance.IncomingPopulation(room) : 0), GUIMenuStyleUtil.BodyLabelStyle);
         GUILayout.Label($"방 확보: {RoomStatusText.ClearText(session, room)}", GUIMenuStyleUtil.BodyLabelStyle);
         GUILayout.Label($"인류 거점: {RoomStatusText.BaseText(session, room)}", GUIMenuStyleUtil.BodyLabelStyle);
 
@@ -585,18 +585,27 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         GUILayout.Label($"상태: {(door.DoorManualOpen || door.DoorAutoOpen ? "열려 있음(누구나 통과)" : "닫힘(보유 진영만 통과)")}", GUIMenuStyleUtil.BodyLabelStyle);
 
-        bool wantOpen = !door.DoorManualOpen;
-        DoorControlBlock block = session.CheckDoorControl(door, wantOpen);
+        // 일시정지 중엔 문이 움직이지 않으므로 지시를 예약하고, 문 앞·뒤 유닛 같은 상황은 재개 때 확인한다.
+        bool paused = session.isPaused;
+        bool hasPending = session.TryGetPendingDoorOrder(door, out bool pendingOpen);
+        bool effectiveOpen = paused && hasPending ? pendingOpen : door.DoorManualOpen;
+        bool wantOpen = !effectiveOpen;
+        DoorControlBlock block = paused ? session.CheckDoorReservation(door, wantOpen) : session.CheckDoorControl(door, wantOpen);
         if (block == DoorControlBlock.NotPlayerDoor)
         {
             GUILayout.Label(DoorControlRules.Describe(block), GUIMenuStyleUtil.BodyLabelStyle);
             return;
         }
+        if (paused && hasPending)
+            GUILayout.Label($"예약됨: {(pendingOpen ? "열기" : "닫기")} — 시간을 재개하면 적용됩니다", GUIMenuStyleUtil.BodyLabelStyle);
 
         bool prevEnabled = GUI.enabled;
         GUI.enabled = prevEnabled && block == DoorControlBlock.None;
         if (GUIMenuStyleUtil.DrawFlatButtonLayout(wantOpen ? "문 열기" : "문 닫기", options: new[] { GUILayout.Height(28f) }))
-            session.TrySetDoorOpen(door, wantOpen);
+        {
+            if (paused) session.ReserveDoorOpen(door, wantOpen);
+            else session.TrySetDoorOpen(door, wantOpen);
+        }
         GUI.enabled = prevEnabled;
 
         string reason = DoorControlRules.Describe(block);

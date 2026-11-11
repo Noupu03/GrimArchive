@@ -198,6 +198,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         DrawBarButton(ref x, y, "명령", _activeCategory == MenuCategory.Command, () => ToggleCategory(MenuCategory.Command));
         DrawBarButton(ref x, y, "설치", _activeCategory == MenuCategory.Build, () => ToggleCategory(MenuCategory.Build));
         // debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존 가능한 유일한 예외.
+        // 배치모드 토글 — 상위 메뉴가 아니다.
+        DrawBarButton(ref x, y, "배치", _inputManager != null && _inputManager.IsPlacementModeActive, () => _inputManager?.TogglePlacementMode());
         DrawBarButton(ref x, y, "도감", _activeCategory == MenuCategory.Encyclopedia, () => ToggleCategory(MenuCategory.Encyclopedia));
         DrawBarButton(ref x, y, "debug", _activeCategory == MenuCategory.Debug, () => ToggleCategory(MenuCategory.Debug), cancelCommandMode: false);
     }

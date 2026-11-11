@@ -47,10 +47,8 @@ public partial class Party
 		}
 	}
 
-	// 임무 수량 달성(방 탐색 B+E 또는 몬스터 처치 수량, 01번 2장) — 달성만으로는 귀환하지 않고 휴식 종료 시점의 분기(귀환/재탐험)에만 쓴다(명세서 2-2장).
-	public bool IsMissionGoalAchieved
-		=> CompletedRoomExploreCount >= PartyGoalMath.RequiredRoomExploreCount
-			|| (GrimArchive.Wave.HumanWaveManager.Instance != null && GrimArchive.Wave.HumanWaveManager.Instance.CommonMonsterKillCount >= PartyGoalMath.RequiredMonsterKillCount);
+	// 임무 수량 달성 — 휴식 종료 때 귀환/재탐험 분기에만 쓴다.
+	public bool IsMissionGoalAchieved => Quota.IsAchieved(CommonKillCount);
 
 	// 후퇴 평균 계산 대상(명세서 1-2장): 집결했거나 함께 행동 중인 생존 파티원. 사망자·개인 도주 확정자(확정 즉시 제외, 실제 이탈까지 기다리지 않음)·미집결자는 뺀다. 전투 진형이 잠시 흩어진 것만으로는 빼지 않는다.
 	public void CollectRetreatAverageMembers(List<Human> into)

@@ -1,7 +1,14 @@
 // 방 상태 문구 — 방 라벨에는 플레이어 인원 제한(N/M)만 두고, 소유 진영·클리어 진행(남은 적)·인류 거점 단계와 공사 진행·코어 상태는 방 라벨을 클릭하면 뜨는 방 정보 패널(BuildingControlPanel)에서 조회한다(코어 점령 v0.2 19장).
 public static class RoomStatusText
 {
-	public static string Population(Room room) => $"{room.CurrentPopulation}/{room.MaxPopulation}";
+	// "현 인원 4/6 (이 방으로 이동 중: 인구 2)" — 유입이 0이면 괄호를 숨긴다.
+	public static string Population(Room room, int incoming = 0)
+		=> incoming > 0
+			? $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation} (이 방으로 이동 중: 인구 {incoming})"
+			: $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation}";
+
+	// 배치모드에서만 보이는 계획 정원(저장된 방어 위치의 인구수 합).
+	public static string DefensePlan(Room room, int planned) => $"방어 배치 {planned}/{room.MaxPopulation}";
 
 	public static string FactionName(FactionType faction) => faction switch
 	{

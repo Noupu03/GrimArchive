@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.InputSystem;
@@ -51,6 +51,8 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public CoreSystem Core { get; private set; }
     public RoomClearSystem RoomClear { get; private set; }
     public OccupationSystem Occupation { get; private set; }
+    // 배치모드 서비스
+    public DefensePlacementSystem Defense { get; private set; }
 
     // 오브젝트 스폰(SpawnObject)·시작 건물 배치가 동기로 쓰는 스프라이트 — Initialize가 LoadObjectSpritesAsync로 먼저 불러 둔다.
     private Sprite _trapSprite;
@@ -74,11 +76,12 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     [Inject]
-    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem, CoreSystem coreSystem, RoomClearSystem roomClearSystem, OccupationSystem occupationSystem)
+    public void Construct(UnitGenerate unitGenerate, ThreatTileRenderer threatTileRenderer, PropagationDebugVisualizer propagationDebugVisualizer, IObjectResolver resolver, CreateMap injectedMap, DataManager dataManager, UnitRegistry unitRegistry, ObjectSpawner objectSpawner, PartyService partyService, CombatEventService combatEventService, BuildingManager buildingManager, DoorSystem doorSystem, FogOfWarSystem fogOfWarSystem, CoreSystem coreSystem, RoomClearSystem roomClearSystem, OccupationSystem occupationSystem, DefensePlacementSystem defensePlacementSystem)
     {
         Core = coreSystem;
         RoomClear = roomClearSystem;
         Occupation = occupationSystem;
+        Defense = defensePlacementSystem;
         _unitGenerate = unitGenerate;
         _threatTileRenderer = threatTileRenderer;
         _propagationDebugVisualizer = propagationDebugVisualizer;
@@ -121,7 +124,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // ("RoomPopLabel_")은 Assets/Editor/Auto/RoomPopulationLabelCleanup.cs가 이름만으로 탐색/청소한다.
     private readonly Dictionary<Room, TextMesh> _roomPopulationLabels = new Dictionary<Room, TextMesh>();
     // E: string 비교 대신 int 쌍 비교로 교체 — $"..." 보간 문자열을 값이 바뀔 때만 생성
-    private readonly Dictionary<Room, (int pop, int max)> _roomPopulationLabelText = new Dictionary<Room, (int, int)>();
+    private readonly Dictionary<Room, (int pop, int max, int incoming)> _roomPopulationLabelText = new Dictionary<Room, (int, int, int)>();
 
     // L: 호출마다 new List<Unit>() 할당하던 것을 static 캐시로 교체 — 반환값은 즉시 소비할 것
     private static readonly List<Unit> _unitsInRoomResult = new List<Unit>();
@@ -698,6 +701,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         ElapsedGameSeconds += Time.deltaTime;
         RoomClear?.Tick(Time.deltaTime);
         Occupation?.Tick(Time.deltaTime);
+        Defense?.Tick(Time.unscaledDeltaTime); // 일시정지 중에도 건설 예약 충돌을 점검한다
         TickCoreRegen();
         TickCorpseDecay(Time.deltaTime);
     }
@@ -741,14 +745,15 @@ public class GameSession : NativeRoutine, IOffenseQuery
             {
                 label = CreateRoomPopulationLabel(room);
                 _roomPopulationLabels[room] = label;
-                _roomPopulationLabelText[room] = (-1, -1);
+                _roomPopulationLabelText[room] = (-1, -1, -1);
             }
 
             // E: int 비교로 변화 감지 → 바뀐 경우에만 문자열 생성. 라벨에는 인원 제한만 두고 거점·클리어 진행 같은 방 상태는 라벨 클릭으로 여는 방 정보 패널에서 본다(RoomStatusText).
+            int incoming = Defense != null ? Defense.IncomingPopulation(room) : 0; // 경유·같은 방 재배치는 유입이 아니다
             if (_roomPopulationLabelText.TryGetValue(room, out var prev)
-                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation) continue;
-            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation);
-            label.text = RoomStatusText.Population(room);
+                && prev.pop == room.CurrentPopulation && prev.max == room.MaxPopulation && prev.incoming == incoming) continue;
+            _roomPopulationLabelText[room] = (room.CurrentPopulation, room.MaxPopulation, incoming);
+            label.text = RoomStatusText.Population(room, incoming);
 
             // 인구수가 꽉 차면 라벨을 빨간색으로 표시 — 텍스트가 바뀌는 시점(=인구수가 바뀐 시점)에만
             // 같이 재계산하면 충분하다(CurrentPopulation이 안 바뀌면 가득 참 여부도 안 바뀜).
@@ -814,6 +819,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private void RemoveDeadUnit(int index, Unit u)
     {
         if (u != null) _combatEventService?.RecordKillWeightEvent(u, units);
+        Defense?.OnUnitDied(u); // 방어 위치·예약 제거
         
         if (u != null && u.Health.hp <= 0)
         {
@@ -969,6 +975,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         // 코어/문 파괴 VFX·함정 해제 진행바 등 "오브젝트 쪽에 붙는" 임시 비주얼 정리 — RemoveDeadUnit과
         // 동일한 이유(이 유닛도 갑자기 사라지는 경로).
         u.ClearTransientWorldVisuals();
+        Defense?.OnUnitDied(u);
         if (_unitGenerate != null)
         {
             _unitGenerate.RemoveVisual(u);
@@ -980,14 +987,33 @@ public class GameSession : NativeRoutine, IOffenseQuery
     }
 
     // ─────────────────────────── 파티 시스템 ───────────────────────────
+    // 편성 계획 기반 생성 — 생존자가 섞여도 계획의 임무·컨셉을 따른다.
+    public Party CreateParty(PartyPlan plan, List<Human> members)
+    {
+        var party = new Party(System.Guid.NewGuid().ToString(), plan.Name);
+        party.Type = plan.Mission;
+        party.Concept = plan.Concept;
+        party.IsIndependentGroup = plan.IsIndependent;
+        if (!plan.IsIndependent) party.SetQuota(PartyMissionQuota.Create(plan.Mission, plan.Quota)); // 독립 유닛은 임무 수량이 없다
+        return RegisterParty(party, members);
+    }
+
+    // 계획 없이 만드는 폴백(수동 WaveData·디버그 스폰) — 임무·컨셉을 무작위로 정한다.
     public Party CreateParty(string name, List<Human> members)
     {
         var party = new Party(System.Guid.NewGuid().ToString(), name);
-        // 파티 종류별 방 활동 종료 기준이 다르다(01번 7-1장). 편성 가능 유닛·가중치는 미작성이라 PartyType 중 무작위 배정으로 스텁한다.
+        // 일반 임무 4종 중 무작위(코어 파괴·보스는 편성 계획으로만).
         // 점령 파티는 1층 코어 완전 활성화 이후부터 등장한다(코어 점령 v0.2 12장) — 그 전에는 무작위 배정에서 뺀다.
         bool occupyAllowed = Core != null && Core.IsFloorCoreEverActivated(1);
-        do party.Type = (PartyType)UnityEngine.Random.Range(0, System.Enum.GetValues(typeof(PartyType)).Length);
+        do party.Type = (PartyType)UnityEngine.Random.Range(0, (int)PartyType.Occupy + 1);
         while (party.Type == PartyType.Occupy && !occupyAllowed);
+        // 컨셉은 모험가·도적 중 무작위
+        party.Concept = UnityEngine.Random.value < 0.5f ? PartyConcept.Adventurer : PartyConcept.Rogue;
+        return RegisterParty(party, members);
+    }
+
+    private Party RegisterParty(Party party, List<Human> members)
+    {
         foreach (var m in members)
         {
             if (m == null) continue;
@@ -1001,9 +1027,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         }
         // 03번 v0.12 8장: "웨이브 진입 전" 파티 내 해제 성공률이 가장 높은 유닛을 지금 확정해 둔다 — 그 유닛이 직접 함정을 발견하면 2초 응답 대기를 생략한다.
         party.EntryBestDisarmerNames.UnionWith(TrapPartySystem.SnapshotEntryBestDisarmers(party.Members));
-        // 인류 파티 컨셉(모험가·도적)은 파티 구성 문서가 오기 전까지 효과 수치가 확정된 두 종만 무작위 배정한다(리더 명령 8·14장) — 용병·군대·용사는 enum만 있고 등장하지 않는다.
-        party.Concept = UnityEngine.Random.value < 0.5f ? PartyConcept.Adventurer : PartyConcept.Rogue;
-        party.AssignLeaderIfNeeded(); // 초기 리더는 던전 입장 전 편성 단계에서 확정한다(리더 명령 2-1장) — 기본 통솔력 10 이상 중 최상위
+        party.AssignLeaderIfNeeded(); // 초기 리더 선정 — 독립 집단은 리더를 두지 않는다
         party.Retreat.InitialSortieCount = party.Members.Count; // 후퇴도주 문서 2-3장: 최초 출격 인원 N0는 고정(점령 파티 재출격 80% 기준)
         parties.Add(party);
         return party;
@@ -1407,6 +1431,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 플레이어의 문 열기·닫기(코어 점령 v0.2 문 제어) — 문 정보 패널(BuildingControlPanel)이 부른다.
     public DoorControlBlock CheckDoorControl(InteractableObject door, bool wantOpen) => _doorSystem.CheckControl(door, wantOpen);
     public DoorControlBlock TrySetDoorOpen(InteractableObject door, bool open) => _doorSystem.TrySetManualOpen(door, open);
+    // 일시정지 중 문 예약 — 재개 때 적용한다.
+    public DoorControlBlock ReserveDoorOpen(InteractableObject door, bool open) => _doorSystem.ReserveManualOpen(door, open);
+    public DoorControlBlock CheckDoorReservation(InteractableObject door, bool wantOpen) => _doorSystem.CheckReservation(door, wantOpen);
+    public bool TryGetPendingDoorOrder(InteractableObject door, out bool open) => _doorSystem.TryGetPendingOrder(door, out open);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
     // 점령 파티의 기초 시설(방 쪽 인류 문 + 문 안쪽 목책) — 방의 문 묶음 대표 타일 목록, 시설 한 벌의 자리, 설치, 남은 시설 수.

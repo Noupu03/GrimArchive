@@ -35,6 +35,18 @@ public class IdleFSMState : IFSMState
 
 	public BTStatus Tick(Unit unit)
 	{
+		// 배치모드로 선 자리에서는 흩어지지 않고 정해진 방향을 유지한다. 밀려나면 해제한다.
+		var defense = DefensePlacementSystem.Instance;
+		if (defense != null && defense.TryGetHold(unit, out Vector2Int holdTile, out Dir holdDir))
+		{
+			if (unit.position == holdTile)
+			{
+				unit.currentDir = holdDir;
+				return BTStatus.Running;
+			}
+			defense.ReleaseHold(unit);
+		}
+
 		if (Time.time < unit.idleNextMoveTime) return BTStatus.Running;
 
 		Vector2Int anchor = unit.idleAnchorPosition ?? unit.position;

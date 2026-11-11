@@ -702,6 +702,7 @@ public abstract class UnitFunction : Unit
 					terrainObserver.personalMap.ObserveRoomTileRevealed(chunk.roomId, false, totalFloorTiles, terrainObserver);
 					// 01번 문서 7-2장: 파티 전체 시야 합산.
 					terrainObserver.party?.OnTileRevealedInRoom(chunk.roomId, new Vector2Int(x, y), totalFloorTiles);
+						terrainObserver.party?.Quota.CountTile(revealedTile); // 타일 탐색 수량
 				}
 				if (Session != null && Session.objectGrid.TryGetValue(revealedTile, out InteractableObject obj))
 				{
@@ -1042,6 +1043,7 @@ public abstract class UnitFunction : Unit
 				evolvedFootprintOverride = evo.Definition.PostEvolutionFootprint;
 				currentEvolutionTier++;
 				activeEvolutionSession = null;
+				DefensePlacementSystem.Instance?.OnUnitEvolved(this); // 몸체·인구가 저장 위치에 안 맞으면 저장 해제
 				RestoreSavedCommandAfterEvolution(evo.SavedCommand);
 				CalculateDerivedStats();
 			}

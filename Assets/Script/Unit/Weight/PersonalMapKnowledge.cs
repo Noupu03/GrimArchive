@@ -512,6 +512,10 @@ public class PersonalMapKnowledge : IKnownTerrain
 	public void SetRoomExploreState(int roomId, bool isBossRoom, RoomExploreState state)
 		=> GetOrCreateRoom(roomId, isBossRoom).State = state;
 
+	// 편성 계획이 미완료 방 수 B를 셀 때 생존자의 기억을 읽는다.
+	public bool IsRoomExploreComplete(int roomId)
+		=> _rooms.TryGetValue(roomId, out var r) && r.State == RoomExploreState.Complete;
+
 	// 01번 문서 9장(검증문서 01-10): '보스를 정확 인지 + 방 확인'을 모두 충족해야 보스방으로 기록한다.
 	// 다른 Observe*는 전부 isBossRoom=false로만 호출되므로 이 메서드가 IsBossRoom을 true로 승격시키는
 	// 유일한 경로이며, UnitFunction.RecordSpottedEnemyKnowledge가 AccuratePerception으로 UnitType.isBoss 유닛을 인지했을 때만 호출한다.
