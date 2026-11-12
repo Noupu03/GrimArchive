@@ -174,6 +174,7 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
             GUI.DrawTexture(new Rect(rect.x, rect.y, AccentBarWidth, rect.height), Texture2D.whiteTexture);
 
             style.normal.textColor = TextColor * new Color(1f, 1f, 1f, alpha);
+            GUIMenuStyleUtil.LockStateColors(style); // 마우스를 올려도 글자색이 변하지 않게
             GUI.Label(new Rect(rect.x + AccentBarWidth + 12f, rect.y, textAreaWidth, rect.height), notice.Text, style);
 
             y += boxHeight + BoxGap;

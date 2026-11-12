@@ -32,6 +32,7 @@ public struct WorkStatusRow
 	public int Working;
 	public string Wait;
 	public InteractableObject Door; // 문 확장 행이면 그 문(Building은 null) - 눌러 문 UI를 연다
+	public InteractableObject Package; // 바닥에 떨어진 분해 시설 행이면 그 오브젝트(Building은 건물 목록 밖이다) - 눌러 정보창을 연다
 	public bool Internal; // 시설 내부 작업(생명 에너지 채취·연구) 행 - 끝나는 시각이 아니라 한 주기 진행을 보인다
 }
 
@@ -585,8 +586,49 @@ public partial class BuildingManager
 			});
 		}
 		AddDoorExpansionRows(rows, floor, session);
+		AddDroppedPackageRows(rows, floor, session);
 		rows.Sort((a, bb) => string.CompareOrdinal(a.RoomName, bb.RoomName));
 		return rows;
+	}
+
+	// 바닥에 떨어진 분해 시설 - 분해가 끝난 시설은 건물 목록에서 빠져 일반 행에 나오지 않으므로 따로 보인다. 운반자를 정해야 이동이 이어진다(건설 명세 2-6-표2).
+	// 운반자가 빠져도 남은 인원이 자동으로 이어받지는 않는다 - 아군을 고르고 이 오브젝트를 우클릭해 다시 맡긴다(사용자 결정, 명세 2-6-표2·사례 25는 자동 인계를 정한다).
+	private void AddDroppedPackageRows(List<WorkStatusRow> rows, int floor, GameSession session)
+	{
+		if (session == null) return;
+		foreach (InteractableObject o in session.objectGrid.Values)
+		{
+			if (o == null || o.Position.z != floor) continue;
+			AddDroppedPackageRow(rows, o, session);
+			if (o.CoexistingObjects == null) continue;
+			foreach (InteractableObject c in o.CoexistingObjects) AddDroppedPackageRow(rows, c, session);
+		}
+	}
+
+	private void AddDroppedPackageRow(List<WorkStatusRow> rows, InteractableObject pkg, GameSession session)
+	{
+		BuildingData b = pkg?.DismantledBuildingPayload;
+		RelocationSession reloc = b?.ActiveRelocation;
+		if (reloc == null || pkg.IsCollected || reloc.Stage != RelocationStage.DroppedAs1x1Package) return;
+
+		int heading = 0; // 이 분해 시설을 주우러 가는 유닛
+		foreach (Unit u in session.units)
+			if (u != null && u.hp > 0f && u.pendingDismantledPackagePickup == pkg) heading++;
+		session.roomGrid.TryGetValue(pkg.Position, out Room room);
+
+		rows.Add(new WorkStatusRow
+		{
+			Building = b,
+			Package = pkg,
+			RoomName = room != null ? room.RoomName : "통로",
+			Target = $"{b.DisplayName} (바닥에 분해됨)",
+			Task = DescribeTaskName(b),
+			Progress = GetTaskProgress01(b),
+			RemainingSeconds = GetRemainingWorkSeconds(b),
+			Assigned = CountAssignedWorkers(b),
+			Working = heading,
+			Wait = heading > 0 ? "회수 이동 중" : "운반자 필요",
+		});
 	}
 
 	// 시설 내부 작업(생명 에너지 채취·연구) 한 줄 - 배정·입장 인원과 정지·대기 사유를 보인다(건설 명세 1-8-표1).

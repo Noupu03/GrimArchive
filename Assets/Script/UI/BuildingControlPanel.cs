@@ -253,6 +253,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         bool coreActive = BuildingManager.AreCoreFunctionsActive(b.Position.z);
         DrawBuildingSummary(b, coreActive);
 
+        DrawMaintenanceButtons(b);
+
         if (b.ActiveFieldTask != FacilityFieldTaskKind.None)
         {
             DrawActiveFieldTaskSection(b);
@@ -260,7 +262,6 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             return;
         }
 
-        DrawIdleMaintenanceButtons(b);
         GUILayout.Space(4f);
 
         switch (b.Kind)
@@ -436,11 +437,20 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 string waitStart = s != null && !s.HasStartedWork ? " · 작업자 도착·부지 비움 대기" : string.Empty;
                 Body($"[{title}] {pct:F0}%{waitStart}");
 
+                BuildPlacementController placement = BuildPlacementController.Current;
+                bool selectingPlanMove = placement != null && placement.IsSelectingPlanMoveFor(b);
+                bool selectingMove = placement != null && placement.IsSelectingMoveFor(b);
                 GUILayout.BeginHorizontal();
-                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && _buildingManager != null && _buildingManager.CanMovePlan(b) && Btn("위치 변경"))
-                    BuildPlacementController.Current?.EnterPlanMoveMode(b);
-                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && s != null && s.HasStartedWork && b.ActiveRelocation == null && Btn("이동(미완성)"))
-                    BuildPlacementController.Current?.EnterRelocationMode(b);
+                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && _buildingManager != null && _buildingManager.CanMovePlan(b) && Btn("위치 변경", selectingPlanMove))
+                {
+                    if (selectingPlanMove) placement.CancelModesFor(b);
+                    else placement?.EnterPlanMoveMode(b);
+                }
+                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && s != null && s.HasStartedWork && b.ActiveRelocation == null && Btn("이동(미완성)", selectingMove))
+                {
+                    if (selectingMove) placement.CancelModesFor(b);
+                    else placement?.EnterRelocationMode(b);
+                }
                 if (Btn("취소(환급)"))
                     _buildingManager?.CancelFacilityConstructionOrUpgrade(b);
                 GUILayout.EndHorizontal();
@@ -457,12 +467,9 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                     if (Btn($"추가 수리비 지불 ({r.UnapprovedDiffAmount})"))
                         _buildingManager?.TryApproveFacilityRepairDiff(b);
                 }
-                GUILayout.BeginHorizontal();
-                if (Btn("강화로 교체"))
-                    _buildingManager?.TryStartFacilityUpgrade(b);
-                if (Btn("취소(환급)"))
+                Caption("위의 강화를 누르면 수리를 취소하고 강화로 바꿉니다");
+                if (Btn("수리 취소(환급)"))
                     _buildingManager?.CancelFacilityRepair(b);
-                GUILayout.EndHorizontal();
                 break;
             }
             case FacilityFieldTaskKind.Demolish:
@@ -484,10 +491,13 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                     Caption($"재설치 체력 {b.CurrentHp:F0}/{b.MaxHp:F0} · 완료 시 남은 비율을 최대 HP에 적용");
 
                 GUILayout.BeginHorizontal();
-                if (Btn(rotationOnly ? "방향 변경" : "목적지·방향 변경"))
+                BuildPlacementController placement = BuildPlacementController.Current;
+                bool selecting = placement != null && (rotationOnly ? placement.IsSelectingRotationFor(b) : placement.IsSelectingMoveFor(b));
+                if (Btn(rotationOnly ? "방향 변경" : "목적지·방향 변경", selecting))
                 {
-                    if (rotationOnly) BuildPlacementController.Current?.EnterRotateMode(b);
-                    else BuildPlacementController.Current?.EnterRelocationMode(b);
+                    if (selecting) placement.CancelModesFor(b);
+                    else if (rotationOnly) placement?.EnterRotateMode(b);
+                    else placement?.EnterRelocationMode(b);
                 }
                 if (!b.ReinstallBodyPlaced && !(rel != null && rel.IsDismantleFinished) && Btn("취소(환급)"))
                     _buildingManager?.CancelFacilityRelocation(b);
@@ -497,26 +507,48 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
     }
 
+    // 시설 관리 버튼 줄 - 진행 중인 작업의 버튼은 파랗게 보인다(다른 배치 UI의 켜진 버튼과 같다). 파란 버튼은 눌러도 아무 일이 없고, 취소는 아래 취소 버튼으로 한다.
     // 수리는 손상됐을 때만, 회전은 방향이 의미 있는 시설만 누를 수 있다. 강화·철거·이동은 코어가 파괴된 층에서도 가능하다(건설 명세 1-7) - 조건은 각 시도 함수가 확인한다.
-    private void DrawIdleMaintenanceButtons(BuildingData b)
+    // 작업이 진행 중이면 다른 관리 작업은 시작할 수 없다(시설당 한 종류). 단 수리 중에는 강화로 바꿀 수 있다(건설 명세 1-2-표2).
+    private void DrawMaintenanceButtons(BuildingData b)
     {
-        if (!b.IsFormallyInstalled || _buildingManager == null) return;
+        if (_buildingManager == null) return;
+        FacilityFieldTaskKind task = b.ActiveFieldTask;
+        bool relocating = task == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null;
+        if (!b.IsFormallyInstalled && !relocating) return; // 건설 중인 시설에는 관리 작업이 없다
 
+        bool idle = task == FacilityFieldTaskKind.None;
+        bool repairing = task == FacilityFieldTaskKind.Repair;
+        bool upgrading = task == FacilityFieldTaskKind.Upgrade;
+        bool demolishing = task == FacilityFieldTaskKind.Demolish;
+        bool rotating = relocating && b.ActiveRelocation.IsRotationOnly;
+        bool moving = relocating && !rotating;
         bool damaged = b.CurrentHp < b.MaxHp - 1e-3f;
         bool rotatable = ConstructionRules.RotationMatters(b.Kind, b.Footprint);
+        BuildPlacementController placement = BuildPlacementController.Current;
+        bool selectingMove = placement != null && placement.IsSelectingMoveFor(b);
+        bool selectingRotate = placement != null && placement.IsSelectingRotationFor(b);
+
         GUILayout.BeginHorizontal();
-        if (Btn("수리", false, damaged))
+        if (Btn("수리", repairing, repairing || (idle && damaged)) && !repairing)
             _buildingManager.TryStartFacilityRepair(b);
-        if (Btn("강화"))
+        if (Btn("강화", upgrading, idle || repairing || upgrading) && !upgrading)
             _buildingManager.TryStartFacilityUpgrade(b);
-        if (Btn("철거"))
+        if (Btn("철거", demolishing, idle || demolishing) && !demolishing)
             _buildingManager.TryStartFacilityDemolish(b);
-        if (Btn("이동"))
-            BuildPlacementController.Current?.EnterRelocationMode(b);
-        if (Btn("회전", false, rotatable))
-            BuildPlacementController.Current?.EnterRotateMode(b); // 정면 방향을 버튼으로 고른다 - 제자리 회전도 작업자가 분해·재설치로 수행한다(무상)
+        // 위치·방향을 고르는 중인 버튼도 파랗고, 다시 누르면 그 선택을 취소한다.
+        if (Btn("이동", moving || selectingMove, idle || moving))
+        {
+            if (selectingMove) placement.CancelModesFor(b);
+            else if (!moving) placement?.EnterRelocationMode(b);
+        }
+        if (Btn("회전", rotating || selectingRotate, (idle && rotatable) || rotating))
+        {
+            if (selectingRotate) placement.CancelModesFor(b);
+            else if (!rotating) placement?.EnterRotateMode(b); // 정면 방향을 버튼으로 고른다 - 제자리 회전도 작업자가 분해·재설치로 수행한다(무상)
+        }
         GUILayout.EndHorizontal();
-        if (!rotatable) Caption("정사각형 시설이라 회전할 방향이 없습니다");
+        if (idle && !rotatable) Caption("정사각형 시설이라 회전할 방향이 없습니다");
     }
 
     private void DrawLifeEnergyFacilityBody(BuildingData b)
@@ -806,7 +838,10 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         BuildingData b = obj.DismantledBuildingPayload;
         Body($"분해된 시설: {b.DisplayName} (1타일 패키지)");
         if (b.ActiveRelocation != null)
-            Body($"목적지: ({b.ActiveRelocation.TargetDestination.x}, {b.ActiveRelocation.TargetDestination.y})");
+        {
+            if (b.ActiveRelocation.IsRotationOnly) Body($"회전 · 정면 {ConstructionRules.FrontDirectionName(b.PendingRotation)}");
+            else Body($"목적지: ({b.ActiveRelocation.TargetDestination.x}, {b.ActiveRelocation.TargetDestination.y})");
+        }
         Caption("아군을 고른 뒤 우클릭해 운반·재설치 (추가 비용 0)");
     }
 

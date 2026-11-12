@@ -26,6 +26,24 @@ public static class DefensePlacementMath
 		}
 	}
 
+	// R키: 시계 방향으로 한 칸(45도) - 8방향이 모두 닿는다.
+	public static Dir NextClockwise(Dir d) => DirUtil.RotateCW(d, 1);
+
+	public static string DirName(Dir d)
+	{
+		switch (d)
+		{
+			case Dir.UP: return "위쪽";
+			case Dir.UP_RIGHT: return "오른쪽 위";
+			case Dir.RIGHT: return "오른쪽";
+			case Dir.DOWN_RIGHT: return "오른쪽 아래";
+			case Dir.DOWN: return "아래쪽";
+			case Dir.DOWN_LEFT: return "왼쪽 아래";
+			case Dir.LEFT: return "왼쪽";
+			default: return "왼쪽 위";
+		}
+	}
+
 	// 순차 배치 순서(1-9 표1): 드래그 시작점에서 가까운 순 → 위쪽 → 왼쪽. 월드 y가 클수록 위쪽이다.
 	public static void SortForSequentialPlacement<T>(List<T> items, Func<T, Vector2> centerOf, Vector2 anchor)
 	{

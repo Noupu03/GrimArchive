@@ -371,6 +371,8 @@ public sealed class PlacementWorldView
 		Vector2 c = rect.center;
 		PlacementGui.Arrow(c, c + PlacementGui.DirGui(_mode.PendingFacing) * Mathf.Max(14f, rect.width * 0.45f), Color.white, 2f);
 		if (!ok) GUI.Label(new Rect(rect.xMax + 4f, rect.y, 220f, 18f), "<color=#ff7070>" + _mode.HoverBlock.ToKorean() + "</color>", _label);
+		// 커서 아래 안내 - 지금 놓을 방향과 R키 회전(시설 미리보기의 방향 안내와 같다).
+		GUIMenuStyleUtil.DrawCaptionBox(new Vector2(rect.center.x, rect.yMax + 18f), $"방향 {DefensePlacementMath.DirName(_mode.PendingFacing)} · R: 시계 방향 회전", 270f);
 	}
 
 	// 회전 화살표 8개 — 기준 홀로그램 주위에만 둔다(기준 유닛이 화면 밖이어도). 버튼이라 모든 이벤트에서 부른다.

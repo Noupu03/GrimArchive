@@ -376,6 +376,11 @@ public sealed class DebugResourceWindow : MonoBehaviour
 
 		_valueStyle = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
 
+		GUIMenuStyleUtil.LockStateColors(_titleStyle);
+		GUIMenuStyleUtil.LockStateColors(_subtitleStyle);
+		GUIMenuStyleUtil.LockStateColors(_nameStyle);
+		GUIMenuStyleUtil.LockStateColors(_valueStyle);
+
 		// 기본 텍스트 필드 스킨 배경(탁한 회색 이미지)은 버리고 위에서 직접 그린 바탕 위에 글자만 얹는다.
 		_inputStyle = new GUIStyle(GUI.skin.textField) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight, padding = new RectOffset(6, 10, 0, 0) };
 		foreach (var state in new[] { _inputStyle.normal, _inputStyle.hover, _inputStyle.active, _inputStyle.focused, _inputStyle.onNormal, _inputStyle.onHover, _inputStyle.onActive, _inputStyle.onFocused })

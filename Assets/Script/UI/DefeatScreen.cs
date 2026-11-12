@@ -141,6 +141,8 @@ public class DefeatScreen : MonoBehaviour
 
         _titleStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(64f * scale), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         _bodyStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(26f * scale), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true };
+        GUIMenuStyleUtil.LockStateColors(_titleStyle);
+        GUIMenuStyleUtil.LockStateColors(_bodyStyle);
         _buttonStyle = new GUIStyle(GUIStyle.none) { fontSize = Mathf.RoundToInt(24f * scale), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         _buttonStyle.normal.textColor = Color.white;
         _buttonStyle.hover.textColor = Color.white;

@@ -141,6 +141,7 @@ public class WorkStatusPanel : MonoBehaviour
 		if (GUIMenuStyleUtil.DrawListRow(row, left, right, detail, false, true, !string.IsNullOrEmpty(r.Wait)))
 		{
 			if (r.Door != null) BuildingControlPanel.Instance?.ShowForObject(r.Door);
+			else if (r.Package != null) BuildingControlPanel.Instance?.ShowForObject(r.Package); // 바닥의 분해 시설 - 건물은 목록 밖이라 오브젝트 정보창으로 연다
 			else BuildingControlPanel.Instance?.ShowForBuilding(r.Building);
 		}
 		GUILayout.Space(2f);

@@ -35,6 +35,9 @@ public static class GameInputScheme
     // ── 설정 패널(ESC) ──
     public static bool EscapePressedThisFrame => Kb != null && Kb.escapeKey.wasPressedThisFrame;
 
+    // ── 회전(R) — 시설 이동·건설 미리보기와 배치모드의 방향이 함께 쓴다 ──
+    public static bool RotatePressedThisFrame => Kb != null && Kb.rKey.wasPressedThisFrame;
+
     // ── 게임 속도(1~4 → 0.5x/1.0x/1.5x/2.0x) ──
     public static bool Speed05PressedThisFrame => Kb != null && Kb.digit1Key.wasPressedThisFrame;
     public static bool Speed10PressedThisFrame => Kb != null && Kb.digit2Key.wasPressedThisFrame;

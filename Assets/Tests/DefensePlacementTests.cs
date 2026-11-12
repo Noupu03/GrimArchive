@@ -399,5 +399,25 @@ public class DefensePlacementTests
 		StringAssert.Contains("제외 2기", text);
 		Assert.AreEqual(1, System.Text.RegularExpressions.Regex.Matches(text, "방 정원이 부족합니다").Count);
 	}
+
+	[Test]
+	public void NextClockwise_StepsThroughAllEightDirectionsInOrder()
+	{
+		Dir d = Dir.UP;
+		foreach (Dir expected in new[] { Dir.UP_RIGHT, Dir.RIGHT, Dir.DOWN_RIGHT, Dir.DOWN, Dir.DOWN_LEFT, Dir.LEFT, Dir.UP_LEFT, Dir.UP })
+		{
+			d = DefensePlacementMath.NextClockwise(d);
+			Assert.AreEqual(expected, d);
+		}
+	}
+
+	[Test]
+	public void DirName_IsDistinctForEveryDirection()
+	{
+		var names = new System.Collections.Generic.HashSet<string>();
+		foreach (Dir d in DefensePlacementMath.AllDirs) names.Add(DefensePlacementMath.DirName(d));
+		Assert.AreEqual(8, names.Count);
+		Assert.AreEqual("아래쪽", DefensePlacementMath.DirName(Dir.DOWN));
+	}
 }
 #endif

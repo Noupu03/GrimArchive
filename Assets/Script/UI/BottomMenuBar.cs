@@ -314,6 +314,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
                     fontStyle = FontStyle.Bold,
                     alignment = TextAnchor.MiddleCenter,
                 };
+                GUIMenuStyleUtil.LockStateColors(_headerStyle);
             }
             return _headerStyle;
         }

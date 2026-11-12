@@ -118,6 +118,7 @@ public sealed class PlacementModeUI
 		if (_small != null) return;
 		_small = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, richText = true, wordWrap = false };
 		_small.normal.textColor = Color.white;
+		GUIMenuStyleUtil.LockStateColors(_small); // 마우스를 올려도 글자색이 변하지 않게(아래 두 스타일이 이 값을 복사한다)
 		_centered = new GUIStyle(_small) { alignment = TextAnchor.MiddleCenter };
 		_roomLabel = new GUIStyle(_small);
 	}

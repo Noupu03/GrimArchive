@@ -149,8 +149,26 @@ public sealed class PlacementMode
 		if (GameInputScheme.EscapePressedThisFrame) { CloseCurrentStep(exitIfNothingLeft: true); return; }
 		if (GameInputScheme.SecondaryDown) { CloseCurrentStep(exitIfNothingLeft: false); return; }
 
+		UpdateRotateKey();
 		UpdateHover();
 		UpdateMouse();
+	}
+
+	// R: 배치 중이면 다음에 놓을 방향을, 이미 놓은 유닛을 골랐으면 그 유닛들의 방향을 시계 방향으로 45도 돌린다. 방향 버튼 UI가 열려 있으면 그 버튼으로 고른다.
+	void UpdateRotateKey()
+	{
+		if (RotateOpen || !GameInputScheme.RotatePressedThisFrame) return;
+		if (Selection.Next != null)
+		{
+			PendingFacing = DefensePlacementMath.NextClockwise(PendingFacing);
+			return;
+		}
+		foreach (Unit u in Selection.Selected)
+		{
+			if (!Defense.TryGetRecord(u, out var record) || record.Floor != CurrentFloor) continue;
+			ApplyRotation(DefensePlacementMath.NextClockwise(record.Facing)); // 첫 유닛 기준으로 한 칸 돌려 선택 전원에 적용한다
+			return;
+		}
 	}
 
 	public void CloseCurrentStep(bool exitIfNothingLeft)

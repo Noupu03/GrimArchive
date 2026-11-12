@@ -63,11 +63,7 @@ public class BuildPlacementController
     private static string BuildingSpriteKey(FacilityKind kind)
         => kind == FacilityKind.UnitProduction ? AssetKeys.UnitBuildingSprite : AssetKeys.ResourceBuildingSprite;
 
-    private static bool RotatePressedThisFrame()
-    {
-        var kb = UnityEngine.InputSystem.Keyboard.current;
-        return kb != null && kb.rKey.wasPressedThisFrame;
-    }
+    private static bool RotatePressedThisFrame() => GameInputScheme.RotatePressedThisFrame;
 
     // 스프라이트 로드가 끝나야 고스트가 보이고 설치할 수 있다 — 그 사이 다른 모드로 바뀌었으면 아무것도 하지 않는다.
     private async UniTaskVoid ShowBuildGhostAsync(string spriteKey, Func<bool> stillWanted)
@@ -93,6 +89,11 @@ public class BuildPlacementController
     {
         if (b != null && (_relocating == b || _movingPlan == b || _rotating == b)) ExitMode();
     }
+
+    // 시설 정보창의 버튼을 파랗게 보이려고 묻는다 - 이 시설의 위치(이동)·계획 위치 변경·방향(회전) 선택이 진행 중인가.
+    public bool IsSelectingMoveFor(BuildingData b) => b != null && _relocating == b;
+    public bool IsSelectingPlanMoveFor(BuildingData b) => b != null && _movingPlan == b;
+    public bool IsSelectingRotationFor(BuildingData b) => b != null && _rotating == b;
 
     public void ExitMode()
     {
@@ -285,21 +286,14 @@ public class BuildPlacementController
                 return;
             }
         }
-        DrawFloatingCaption(new Vector2(center.x, center.y - radius - 40f), $"정면 {ConstructionRules.FrontDirectionName(current)} — 바꿀 방향을 고르세요 (ESC·우클릭: 취소)", 330f);
+        GUIMenuStyleUtil.DrawCaptionBox(new Vector2(center.x, center.y - radius - 40f), $"정면 {ConstructionRules.FrontDirectionName(current)} — 바꿀 방향을 고르세요 (ESC·우클릭: 취소)", 330f);
     }
 
     // 이동·건설 미리보기에서 지금 정면 방향을 마우스 옆에 알려 준다.
     private static void DrawFacingHint(int rotation)
     {
         Vector2 m = GameInputScheme.PointerScreenPos;
-        DrawFloatingCaption(new Vector2(m.x + 130f, Screen.height - m.y + 30f), $"정면 {ConstructionRules.FrontDirectionName(rotation)} · R: 시계 방향 회전", 240f);
-    }
-
-    private static void DrawFloatingCaption(Vector2 center, string text, float width)
-    {
-        var rect = new Rect(center.x - width * 0.5f, center.y - 11f, width, 22f);
-        GUIMenuStyleUtil.DrawPanelBox(rect);
-        GUIMenuStyleUtil.DrawClippedLabel(new Rect(rect.x + 6f, rect.y, rect.width - 12f, rect.height), text, GUIMenuStyleUtil.LineLabelStyle);
+        GUIMenuStyleUtil.DrawCaptionBox(new Vector2(m.x + 130f, Screen.height - m.y + 30f), $"정면 {ConstructionRules.FrontDirectionName(rotation)} · R: 시계 방향 회전", 240f);
     }
 
     public void Update(Vector3 floorOffset, int currentFloor)

@@ -63,6 +63,7 @@ public class UIManager : MonoRoutine, ICustomPanel
 		{
 			_speedIndicatorStyle = new GUIStyle(GUI.skin.label) { fontSize = SpeedIndicatorFontSize, fontStyle = FontStyle.Bold, richText = true };
 			_speedIndicatorStyle.normal.textColor = Color.white;
+			GUIMenuStyleUtil.LockStateColors(_speedIndicatorStyle);
 		}
 		return _speedIndicatorStyle;
 	}
@@ -73,6 +74,7 @@ public class UIManager : MonoRoutine, ICustomPanel
 		{
 			_speedIndicatorHintStyle = new GUIStyle(GUI.skin.label) { fontSize = SpeedIndicatorHintFontSize, richText = true };
 			_speedIndicatorHintStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+			GUIMenuStyleUtil.LockStateColors(_speedIndicatorHintStyle);
 		}
 		return _speedIndicatorHintStyle;
 	}

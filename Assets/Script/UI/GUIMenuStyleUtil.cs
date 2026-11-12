@@ -23,6 +23,21 @@ public static class GUIMenuStyleUtil
     public static readonly Color DangerColor = new Color(1f, 0.38f, 0.33f, 1f);
 
     private const string Ellipsis = "…";
+
+    // IMGUI는 마우스를 올리면 hover, 누르면 active 상태의 글자색을 쓴다. 스킨 기본 라벨은 이 색이 평상시와 달라 마우스를 올린 글자가 미세하게 변해 보이므로,
+    // 모든 상태의 글자색을 평상시와 같게 고정한다. 라벨 스타일을 만들고 평상시 글자색을 정한 직후(색을 매 프레임 바꾸면 그때마다) 부른다.
+    public static GUIStyle LockStateColors(GUIStyle style)
+    {
+        Color c = style.normal.textColor;
+        style.hover.textColor = c;
+        style.active.textColor = c;
+        style.focused.textColor = c;
+        style.onNormal.textColor = c;
+        style.onHover.textColor = c;
+        style.onActive.textColor = c;
+        style.onFocused.textColor = c;
+        return style;
+    }
     private static readonly GUIContent _measure = new GUIContent();
 
     // 버튼 글자는 폭에 들어가도록 최소 크기까지 줄이고, 그래도 넘치면 …로 자른다(여러 줄은 높이도 맞춘다). 스타일은 Clip이라 버튼 밖으로 나가지 않는다.
@@ -165,6 +180,7 @@ public static class GUIMenuStyleUtil
             {
                 _labelStyle = new GUIStyle(GUI.skin.label) { fontSize = LabelFontSize, fontStyle = FontStyle.Bold, richText = true };
                 _labelStyle.normal.textColor = Color.white;
+                LockStateColors(_labelStyle);
             }
             return _labelStyle;
         }
@@ -183,6 +199,7 @@ public static class GUIMenuStyleUtil
             {
                 _bodyLabelStyle = new GUIStyle(GUI.skin.label) { fontSize = BodyLabelFontSize, fontStyle = FontStyle.Bold, richText = true, wordWrap = true };
                 _bodyLabelStyle.normal.textColor = Color.white;
+                LockStateColors(_bodyLabelStyle);
             }
             return _bodyLabelStyle;
         }
@@ -201,7 +218,7 @@ public static class GUIMenuStyleUtil
             padding = new RectOffset(2, 2, 0, 1),
         };
         style.normal.textColor = color;
-        return style;
+        return LockStateColors(style);
     }
 
     // 여백을 줄인 패널용 스타일 — 본문(줄바꿈)·보조 설명·경고, 그리고 한 줄 고정 칸용(넘치면 DrawClippedLabel이 …로 줄인다).
@@ -220,6 +237,14 @@ public static class GUIMenuStyleUtil
         string shown = repaint ? Ellipsize(text, style, rect.width - style.padding.horizontal) : text;
         if (richColor != null) shown = string.Concat("<color=", richColor, ">", shown, "</color>");
         GUI.Label(rect, shown, style);
+    }
+
+    // 마우스·시설 곁에 띄우는 한 줄 안내 상자 - 바탕 + 넘치면 …로 줄이는 글자. center는 상자 중심(OnGUI 좌표)이다.
+    public static void DrawCaptionBox(Vector2 center, string text, float width)
+    {
+        var rect = new Rect(center.x - width * 0.5f, center.y - 11f, width, 22f);
+        DrawPanelBox(rect);
+        DrawClippedLabel(new Rect(rect.x + 6f, rect.y, rect.width - 12f, rect.height), text, LineLabelStyle);
     }
 
     // ── 목록 한 줄(두 줄 높이) — 왼쪽 제목 + 오른쪽 보조 글자 + 아래 설명 한 줄. 모든 글자는 칸 안에서 …로 줄어든다 ──
