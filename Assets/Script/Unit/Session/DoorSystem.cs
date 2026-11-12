@@ -816,7 +816,7 @@ public partial class DoorSystem
 
             for (int gateIdx = 0; gateIdx < floor.gates.Count; gateIdx++)
             {
-                int key = floorIdx * 100000 + gateIdx;
+                int key = EncodeGateKey(floorIdx, gateIdx);
                 foreach (var row in GetGateDoorTiles(floor.gates[gateIdx], floor.config.chunkSize))
                     foreach (var tile in row)
                         _gateTileIndex[new Vector3Int(tile.x, tile.y, floorIdx)] = key;

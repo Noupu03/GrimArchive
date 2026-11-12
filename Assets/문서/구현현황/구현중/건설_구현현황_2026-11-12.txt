@@ -115,6 +115,17 @@ BuildingManager는 partial이다 — BuildingManager.cs(핵심), BuildingManager
 · 이동 UI는 이전의 "가까운 빈 곳 자동 선택"을 목적지·방향 직접 지정(우클릭)으로 바꿨다. 제자리 회전은 [회전] 버튼.
 · 코어가 파괴된 층에서도 생산 예약·연구 선택이 가능해졌다(예전엔 막힘, 엔진의 `ProductionEnqueueBlock.CoreInactive`는 남아 있고 UI가 `isCoreValid: true`로 호출한다).
 
+■ 구조 정리 (2026-11-13 리팩토링 — 동작 불변, 아래 사소한 예외만)
+────────────────────────────────────────────────────────────────────────
+· 중복 판정을 한 곳으로: `Unit.IsStunnedOrEvolving`·`IsHaulingCorpseOrPackage`·`IsInCombatOrAlertState`, `BuildingData.Origin2D`·`ContainsTile`·`IsInternalWorkMode`·`IsWorkerInCurrentRole`, 작업 복귀 `ShouldReturnToWorkSpot`(코어 수복·시설·문 확장 공용), 빈 자리 탐색 `TryFindNearbyFreeBody`(비켜주기·착공 부지 비우기 공용).
+· 설치 검사의 숨은 필드 `_installIgnore`(+try/finally)를 `ignore` 인자로 바꿨다(`CheckInstallAt` → `CheckInstallSingleTile`·`IsInsideOtherFrontZone`).
+· 시설별 월드 표시(진행 바·정면 구역)는 `PerBuildingViews<T>`(`BuildingWorldViews.cs`)가 지연 생성·정리하고 흰 스프라이트는 `WorldWhiteSprite` 한 곳이다.
+· 누수 차단: 유닛·시설을 키로 쌓이던 딕셔너리 3개(`_yieldAskedAt`·`_pickupHoldStart`·`_makeWayAt`)를 소유 객체 필드(`Unit.insideYieldAskedAt`·`pickupHoldStartedAt`, `BuildingData.LastMakeWayAt`)로 옮겼다. 줍기 대기 시작 시각은 명령이 바뀌면 지운다 — 예전엔 남아 있다가 다음 줍기의 1초 대기를 건너뛸 수 있던 결함이다.
+· 프레임마다 새로 만들던 컬렉션(`UpdateProcess` 버퍼 5개, 문 확장 끝별 속도, 내부 작업 적대 캐시)을 재사용한다. 작업자·문 후보 목록 UI는 Layout 이벤트에서 0.25초마다만 다시 만든다(OnGUI 이벤트마다 정렬·할당하던 것, Layout과 Repaint 사이에 컨트롤 수가 바뀔 위험도 같이 없앰).
+· 동작이 달라진 곳(사소): 착공 부지에서 비켜 주는 아군이 문·목책 칸으로 보내지지 않고, 기절·진화 중이거나 줍기 이동 중인 아군은 비켜 달라는 요청에서 제외된다. 작업 복귀 타이머가 float에서 double이 됐다.
+· 런타임 호출이 없는 규칙 함수(명세 표·테스트용으로 남김): `ExitCause.ActualRepair/ActualUpgrade`, `BlockerState.NoFreeSpace/NaturalRecoveryOnly`, `ConstructionRules.ApplyToCombatDamage/DisplayHp/ReleasedAfterStart`, `DoorExpansionSession.OpensDoor/ComputeCompletedHp`, `CombatFacilityStopRules`.
+· 정리 뒤 검증: 컴파일 오류 0·경고 71(에디터 어셈블리 0/0), Unity 배치 테스트 1237 통과/31 실패(같은 31건). 스모크·눈 확인은 하지 않았다.
+
 ■ 다음 우선순위 (이어서 할 일)
 ────────────────────────────────────────────────────────────────────────
 ① 위 "미실행" 스모크 시나리오를 시스템 메모리에 여유가 있을 때 다시 돌리기(퇴장 막힘 비켜주기·시설 파괴 배출·겹친 시체 회수·진행 바·전투 복귀) ② OnGUI 작업자 목록/작업 현황/문 확장 UI 레이아웃과 입장·퇴장 연출 눈 확인 ③ 문 수리·체력 강화 작업(문 종류 문서가 작업 규칙·수치를 정하면 `DoorExpansionTask`와 같은 방식으로 추가) + 문 확장 폭 단계·비용·배율 확정 ④ 전투 시설이 생기면 `CombatFacilityStopRules` 연결(준비 취소·발사체 유지·재사용 시간 동결) ⑤ 내부 유닛의 시설 중심 청각 판정(소리 규칙 문서와 연결) ⑥ 세이브(세이브 매니저가 생기면 작업 큐·재설치 단계·문 확장 진행·내부 작업자 저장).

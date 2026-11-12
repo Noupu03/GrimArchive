@@ -21,9 +21,8 @@ public struct DoorWorkerCandidate
 	public float Speed;
 }
 
-// 건설 설계명세서 v0.2 2-9·2-12·1-7 - 문 확장 작업: 문 양 끝 벽을 각각 작업량 50%로 열고, 한 명도 한쪽을 마치고 반대쪽으로 가서 완료할 수 있다.
-// 비용은 등록 때 선점하고 첫 실제 작업에서 한 번 차감하며, 그때 문이 열린다. 직접 취소하면 환급하고 공사 중 문이 파괴되면 환급·확장이 없다. 확보한 방에서는 코어가 파괴돼도 가능하다.
-// 비용·시간·폭·HP 배율은 문 종류 문서가 정할 자리표시자다.
+// 문 확장 작업(건설 명세 2-9·2-12·1-7) - 양 끝 벽을 각각 작업량 50%로 열며 한 명이 한쪽을 마치고 반대쪽으로 가서 끝낼 수도 있다.
+// 비용은 등록 때 선점해 첫 실제 작업에서 한 번 차감하고(그때 문이 열린다), 직접 취소하면 환급하며 공사 중 문이 파괴되면 환급·확장이 없다. 수치는 문 종류 문서가 정할 자리표시자다.
 public partial class BuildingManager
 {
 	public const int DoorExpansionCost = 100;               // 생명 에너지 자리표시자
@@ -31,7 +30,7 @@ public partial class BuildingManager
 	public const float DoorExpansionHpMultiplier = 1.5f;    // 문서 예시값(120/200 -> 180/300)
 
 	private readonly List<DoorExpansionTask> _doorExpansions = new List<DoorExpansionTask>();
-	public IReadOnlyList<DoorExpansionTask> DoorExpansions => _doorExpansions;
+	private readonly List<float>[] _doorEndSpeeds = { new List<float>(), new List<float>() }; // TickDoorExpansions가 재사용하는 끝별 작업 속도 버퍼
 
 	public DoorExpansionTask GetDoorExpansionOf(InteractableObject door)
 	{
@@ -255,14 +254,9 @@ public partial class BuildingManager
 	private void ResumeDoorWorker(Unit u)
 	{
 		DoorExpansionTask task = u.assignedDoorExpansion;
-		if (task == null || u.hp <= 0f || !u.IsPlayerMonsterFaction || u.IsInEvolutionPresentation || u.StatusEffects.State.stunDuration > 0f) return;
+		if (task == null || u.hp <= 0f || !u.IsPlayerMonsterFaction || u.IsStunnedOrEvolving) return;
 		if (task.Session.IsEndDone(u.doorExpansionEnd)) return; // 끝난 쪽이면 TickDoorExpansions가 반대쪽으로 보낸다
-		bool atSpot = IsWorkerAtDoorEnd(u, task, u.doorExpansionEnd);
-		IFSMState st = u.fsm?.CurrentState;
-		bool inCombatOrAlert = st is CombatFSMState || st is TacticalFSMState;
-		bool hasOtherTask = u.playerMoveTarget.HasValue || u.isHalted || u.carriedCorpse != null || u.pendingCorpsePickupTarget != null
-			|| u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null;
-		if (ConstructionRules.ShouldResumeAssignedWork(true, atSpot, inCombatOrAlert, hasOtherTask)) SendWorkerToDoorEnd(u, task);
+		if (ShouldReturnToWorkSpot(u, IsWorkerAtDoorEnd(u, task, u.doorExpansionEnd))) SendWorkerToDoorEnd(u, task);
 	}
 
 	// ── 진행 ──
@@ -279,14 +273,16 @@ public partial class BuildingManager
 			}
 
 			bool secured = session.roomGrid.TryGetValue(task.Door.Position, out Room room) && room != null && room.RoomFaction == FactionType.Player;
-			var speeds = new[] { new List<float>(), new List<float>() };
+			var speeds = _doorEndSpeeds;
+			speeds[0].Clear();
+			speeds[1].Clear();
 			int assigned = 0;
 			for (int k = 0; k < session.units.Count; k++)
 			{
 				Unit w = session.units[k];
 				if (w == null || w.hp <= 0f || w.assignedDoorExpansion != task) continue;
 				assigned++;
-				if (w.StatusEffects.State.stunDuration > 0f || w.IsInEvolutionPresentation) continue;
+				if (w.IsStunnedOrEvolving) continue;
 
 				int end = w.doorExpansionEnd;
 				if (task.Session.IsEndDone(end))
@@ -331,13 +327,7 @@ public partial class BuildingManager
 	private void CompleteDoorExpansion(DoorExpansionTask task, GameSession session)
 	{
 		session.ApplyDoorExpansion(task.Door, task.Plan, task.Session.MaxHpMultiplier);
-		_doorExpansions.Remove(task);
-		foreach (Unit u in session.units)
-		{
-			if (u == null || u.assignedDoorExpansion != task) continue;
-			u.assignedDoorExpansion = null;
-			if (u.hp > 0f) DefensePlacementSystem.Instance?.OnWorkTaskEnded(u);
-		}
+		EndDoorExpansion(task); // 작업자 배정을 풀고 방어 위치로 복귀시킨다
 		NoticeCenter.Instance?.PushMomentary($"문 확장이 완료되었습니다. (폭 {task.Session.TargetWidth})", NoticeCenter.QuestCompleteColor);
 	}
 

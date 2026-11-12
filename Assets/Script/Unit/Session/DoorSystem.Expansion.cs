@@ -2,12 +2,16 @@ using System.Collections.Generic;
 using Haare.Util.Logger;
 using UnityEngine;
 
-// 건설 설계명세서 v0.2 2-9 문 확장의 문·맵 쪽 처리 - 확장 계획(양 끝 벽)과 완료 시 개구부 변경·문 재구성.
-// 폭 단계·최대 폭·HP 배율은 문 종류 문서가 정한다 - 아래 상수는 문서 예시(1×2 → 1×4, x1.5)를 따른 자리표시자다.
+// 문 확장(건설 명세 2-9)의 문·맵 쪽 처리 - 확장 계획(양 끝 벽)과 완료 시 개구부 변경·문 재구성.
+// 폭 단계·최대 폭·HP 배율은 문 종류 문서가 정할 자리표시자다(문서 예: 1×2 → 1×4, ×1.5).
 public partial class DoorSystem
 {
 	public const int GateExpansionStep = 2;         // 양 끝 벽 1칸씩 -> 폭 +2(문서 예: 1×2 -> 1×4)
 	public const int GateExpansionMaxWidth = 4;     // 최대 폭 자리표시자
+
+	private const int GateKeyFloorStride = 100000;  // 게이트 키 = 층 × 이 값 + 게이트 번호
+	private static int EncodeGateKey(int floor, int gateIndex) => floor * GateKeyFloorStride + gateIndex;
+	private static void DecodeGateKey(int key, out int floor, out int gateIndex) { floor = key / GateKeyFloorStride; gateIndex = key % GateKeyFloorStride; }
 
 	// 확장 계획 - 게이트 위치와 양 끝에서 열릴 벽 타일. 작업 현황·작업 자리 계산이 쓴다.
 	public sealed class GateExpansionPlan
@@ -20,6 +24,17 @@ public partial class DoorSystem
 		public List<Vector2Int> EndWalls(int end) => end == 0 ? End0 : End1;
 	}
 
+	// 확장 중 임시로 철거하는 문 묶음의 상태 - 새 폭으로 다시 세울 때 잇는다.
+	private struct DoorRecord
+	{
+		public Vector3Int Pos;
+		public FactionType Owner;
+		public float MaxHp;
+		public float Hp;
+		public bool ManualOpen;
+		public bool Target;
+	}
+
 	// 문(방 쪽 줄 묶음)이 속한 게이트의 확장 계획을 만든다. 확장은 기존 문 양 끝 벽에만 가능하다(2-9).
 	public bool TryBuildExpansionPlan(InteractableObject door, out GateExpansionPlan plan, out string fail)
 	{
@@ -28,7 +43,8 @@ public partial class DoorSystem
 		if (door == null || !IsBarrier(door) || IsFence(door)) { fail = "확장할 수 있는 문이 아닙니다."; return false; }
 		if (Session.cmap == null || !TryGetGateKeyAt(door.Position, out int key)) { fail = "이 문이 놓인 통로 정보를 찾을 수 없습니다."; return false; }
 
-		var p = new GateExpansionPlan { Floor = key / 100000, GateIndex = key % 100000 };
+		DecodeGateKey(key, out int floorIndex, out int gateIndex);
+		var p = new GateExpansionPlan { Floor = floorIndex, GateIndex = gateIndex };
 		if (!Session.cmap.TryGetGateExpansionWalls(p.Floor, p.GateIndex, GateExpansionStep, GateExpansionMaxWidth, p.End0, p.End1, out p.NewWidth, out fail)) return false;
 		plan = p;
 		return true;
@@ -44,18 +60,8 @@ public partial class DoorSystem
 
 	public void ClearWallKnowledge(Vector3Int tile) => ClearStaleWallCache(tile);
 
-	private struct DoorRecord
-	{
-		public Vector3Int Pos;
-		public FactionType Owner;
-		public float MaxHp;
-		public float Hp;
-		public bool ManualOpen;
-		public bool Target;
-	}
-
-	// 확장 완료: 양 끝 벽을 바닥으로 바꾸고 문을 새 폭으로 다시 세운다. 확장한 문은 최대 HP 배율을 곱한 새 최대 HP에서 남은 HP 비율을 유지하고, 반대편 문은 최대 HP를 그대로 두고 폭만 넓어진다.
-	// 문 앞뒤 소유 진영·열림 상태는 그대로 잇는다. 반대편 문이 이미 파괴돼 있었으면 다시 만들지 않는다(개구부만 넓어진다). 새 문 오브젝트(확장한 쪽)를 돌려준다.
+	// 확장 완료 - 양 끝 벽을 바닥으로 바꾸고 문을 새 폭으로 다시 세운다. 확장한 문만 최대 HP ×배율에서 HP 비율을 유지하고 반대편 문은 폭만 넓어진다.
+	// 문 앞뒤 소유 진영·열림 상태는 잇고, 이미 파괴된 반대편 문은 다시 만들지 않는다. 확장한 새 문 오브젝트를 돌려준다.
 	public InteractableObject ApplyGateExpansion(InteractableObject door, GateExpansionPlan plan, float hpMultiplier)
 	{
 		if (door == null || plan == null || Session.cmap == null) return null;

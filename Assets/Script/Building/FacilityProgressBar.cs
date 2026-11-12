@@ -1,31 +1,20 @@
 using UnityEngine;
 
-// 외부 작업(건설·수리·강화·철거·이동) 진행도를 시설 하단에 막대로 보여 준다(건설 명세 2-13). 새 프리팹 없이 코드로 만든다.
-// 미완성 건물을 옮기는 중에는 현재 분해·재설치 단계 막대(위)와 원래 건설 진행률 막대(아래, 가는 막대)를 구분한다.
+// 외부 작업(건설·수리·강화·철거·이동) 진행도를 시설 하단 막대로 보여 준다(건설 명세 2-13). 미완성 건물을 옮기는 중에는 현재 단계 막대(위)와 원래 건설 진행률 막대(아래, 가는 막대)를 함께 보인다.
 public sealed class FacilityProgressBar
 {
-	private static Sprite _sprite;
-
 	private readonly string _name;
 	private GameObject _root;
 	private SpriteRenderer _bg, _fill, _bg2, _fill2;
 
 	public FacilityProgressBar(string name) { _name = name; }
 
-	private static Sprite WhiteSprite()
-	{
-		if (_sprite != null) return _sprite;
-		Texture2D tex = Texture2D.whiteTexture;
-		_sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.width);
-		return _sprite;
-	}
-
 	private SpriteRenderer MakeRenderer(string childName, int order)
 	{
 		var go = new GameObject(childName);
 		go.transform.SetParent(_root.transform, false);
 		var sr = go.AddComponent<SpriteRenderer>();
-		sr.sprite = WhiteSprite();
+		sr.sprite = WorldWhiteSprite.Get();
 		sr.sortingOrder = order;
 		return sr;
 	}

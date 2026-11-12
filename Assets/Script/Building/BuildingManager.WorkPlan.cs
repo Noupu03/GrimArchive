@@ -43,8 +43,6 @@ public partial class BuildingManager
 	private readonly List<BuildingData> _sessionPlans = new List<BuildingData>();
 	private bool _continuousActive;
 
-	public bool ContinuousSessionActive => _continuousActive;
-
 	public void BeginContinuousSession()
 	{
 		_continuousActive = true;
@@ -111,7 +109,7 @@ public partial class BuildingManager
 		worker.assignedWorkBuilding = b;
 		worker.assignedWorkIsInternal = false;
 		worker.workPriorityActive = false;
-		Vector2Int origin = new Vector2Int(b.Position.x, b.Position.y);
+		Vector2Int origin = b.Origin2D;
 		if (!WorkSpeedMath.IsOrthogonallyAdjacent(origin, b.Footprint, worker.position, worker.FootprintSize)
 			&& TryPickNearestAdjacentWorkTile(origin, b.Footprint, worker, out Vector2Int slot))
 			IssueInternalEconomyMove(worker, slot);
@@ -121,14 +119,19 @@ public partial class BuildingManager
 
 	// 외부 현장 작업은 최대 4명, 시설 내부 작업(생명 에너지·연구)은 시설별 정원이다(건설 명세 1-4).
 	public static int GetWorkerCap(BuildingData b)
-		=> b.ActiveFieldTask == FacilityFieldTaskKind.None && InternalWorkRules.IsInternalWorkKind(b.Kind)
+		=> b.IsInternalWorkMode
 			? InternalWorkRules.GetCapacity(b.Kind)
 			: WorkSpeedMath.MaxWorkersPerTask;
 
+	// 내부 작업 시설에 이 유닛이 배정될 수 있는가 - 정원·몸체·코어·실제 수리 조건. 내부 작업 상태가 아니면 null이다.
+	private string GetInternalEntryBlockReason(Unit worker, BuildingData b)
+		=> b.IsInternalWorkMode
+			? InternalWorkRules.GetEnterBlockReason(b.Kind, CountAssignedWorkers(b), worker.FootprintSize, AreCoreFunctionsActive(b.Position.z), false)
+			: null;
+
 	private bool CheckInternalEntryAllowed(Unit worker, BuildingData b)
 	{
-		if (b.ActiveFieldTask != FacilityFieldTaskKind.None || !InternalWorkRules.IsInternalWorkKind(b.Kind)) return true;
-		string reason = InternalWorkRules.GetEnterBlockReason(b.Kind, CountAssignedWorkers(b), worker.FootprintSize, AreCoreFunctionsActive(b.Position.z), false);
+		string reason = GetInternalEntryBlockReason(worker, b);
 		if (reason == null) return true;
 		NoticeCenter.Instance?.PushMomentary(reason, NoticeCenter.WarningColor);
 		return false;
@@ -227,15 +230,11 @@ public partial class BuildingManager
 		if (worker.IsInEvolutionPresentation) return "진화 연출 중";
 		if (b == null || !DoesBuildingAcceptWorkers(b)) return "배정할 수 있는 작업이 없음";
 		if (worker.currentFloor != b.Position.z) return "다른 층";
-		bool internalRole = b.ActiveFieldTask == FacilityFieldTaskKind.None && InternalWorkRules.IsInternalWorkKind(b.Kind);
-		if (worker.assignedWorkBuilding == b && worker.assignedWorkIsInternal == internalRole) return null; // 이미 이 역할로 배정됨 - 다시 선택하면 해제
-		if (b.ActiveFieldTask == FacilityFieldTaskKind.None && InternalWorkRules.IsInternalWorkKind(b.Kind))
-		{
-			string internalReason = InternalWorkRules.GetEnterBlockReason(b.Kind, CountAssignedWorkers(b), worker.FootprintSize, AreCoreFunctionsActive(b.Position.z), false);
-			if (internalReason != null) return internalReason;
-		}
+		if (b.IsWorkerInCurrentRole(worker)) return null; // 이미 이 역할로 배정됨 - 다시 선택하면 해제
+		string internalReason = GetInternalEntryBlockReason(worker, b);
+		if (internalReason != null) return internalReason;
 		if (CountAssignedWorkers(b) >= GetWorkerCap(b)) return $"빈 자리 없음(최대 {GetWorkerCap(b)}명)";
-		var origin = new Vector2Int(b.Position.x, b.Position.y);
+		var origin = b.Origin2D;
 		if (WorkSpeedMath.GetOrthogonalAdjacentOrigins(origin, b.Footprint, worker.FootprintSize).Count == 0) return "몸체가 커서 작업 자리가 없음";
 		return null;
 	}
@@ -246,7 +245,7 @@ public partial class BuildingManager
 		GameSession session = GameSession.Instance;
 		if (b == null || session?.units == null) return result;
 
-		var origin = new Vector2Int(b.Position.x, b.Position.y);
+		var origin = b.Origin2D;
 		session.roomGrid.TryGetValue(b.Position, out Room targetRoom);
 
 		var keyed = new List<(float key, WorkerCandidate c)>();
@@ -259,7 +258,7 @@ public partial class BuildingManager
 			{
 				Unit = u,
 				RoomName = room != null ? room.RoomName : "통로",
-				IsAssigned = u.assignedWorkBuilding == b && u.assignedWorkIsInternal == (b.ActiveFieldTask == FacilityFieldTaskKind.None),
+				IsAssigned = b.IsWorkerInCurrentRole(u),
 				BlockReason = GetAssignBlockReason(u, b),
 				Speed = WorkerSpeed(u),
 				ActivityProgress = -1f,
@@ -276,13 +275,17 @@ public partial class BuildingManager
 			else if (u.carriedCorpse != null || u.pendingCorpsePickupTarget != null) c.Activity = "시체 운반";
 			else if (u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null) c.Activity = "분해 시설 운반";
 			else c.Activity = "대기";
-				if (u.assignedWorkBuilding == b && u.assignedWorkIsInternal)
+			if (u.assignedWorkBuilding == b && u.assignedWorkIsInternal)
+			{
+				c.Setting = u.internalCombatSetting;
+				c.ShowCombatSetting = true;
+				if (u.IsInsideFacility) c.Activity += u.insideExitRequested ? " · 퇴장 대기" : " · 시설 안";
+				else
 				{
-					c.Setting = u.internalCombatSetting;
-					c.ShowCombatSetting = true;
-					if (u.IsInsideFacility) c.Activity += u.insideExitRequested ? " · 퇴장 대기" : " · 시설 안";
-					else { string entryWait = DescribeEntryWait(u, b); if (entryWait != null) c.Activity += " · 입장 대기: " + entryWait; }
+					string entryWait = DescribeEntryWait(u, b);
+					if (entryWait != null) c.Activity += " · 입장 대기: " + entryWait;
 				}
+			}
 
 			// 연속 건설: 이후 맡은 건설 수와 현재 작업을 포함한 총 남은 작업 시간(이동·대기 제외)
 			if (u.workQueue != null && u.workQueue.Count > 0)
@@ -308,7 +311,7 @@ public partial class BuildingManager
 	{
 		if (worker == null || b == null) return false;
 
-		if (worker.assignedWorkBuilding == b && worker.assignedWorkIsInternal == (b.ActiveFieldTask == FacilityFieldTaskKind.None))
+		if (b.IsWorkerInCurrentRole(worker))
 		{
 			ReleaseWorkerFromBuilding(worker, b);
 			return true;
@@ -413,7 +416,7 @@ public partial class BuildingManager
 			foreach (InteractableObject o in all)
 			{
 				if (o == null || (o.CorpseEconomyData == null && o.DismantledBuildingPayload == null)) continue;
-				if (IsClaimedByCarrier(o, session)) continue;
+				if (IsClaimedByOtherCarrier(o, null, session)) continue;
 				if (!TryFindFreeTileOutsideFootprint(b, tile.z, out Vector3Int target)) return;
 
 				ConsumeSingleObjectOrCoexisting(session, o);
@@ -423,7 +426,7 @@ public partial class BuildingManager
 		}
 	}
 
-	// 한 타일에 겹쳐 놓인 시체 중 회수할 한 구를 고른다 - 영혼 파편 총가치 → 생명 에너지 → 먼저 놓인 순(건설 명세 2-8-표2). 정제할 수 없거나 이미 다른 운반자가 맡은 시체는 자동 선택에서 제외한다.
+	// 겹쳐 놓인 시체 중 회수할 한 구를 고른다 - 영혼 파편 총가치 → 생명 에너지 → 먼저 놓인 순(건설 명세 2-8-표2). 정제할 수 없거나 다른 운반자가 맡은 시체는 제외한다.
 	public InteractableObject PickFloorCorpseAt(InteractableObject primary, Unit forCarrier)
 	{
 		if (primary == null) return null;
@@ -449,16 +452,6 @@ public partial class BuildingManager
 		{
 			Unit u = session.units[i];
 			if (u != null && u != self && u.hp > 0f && (u.pendingCorpsePickupTarget == o || u.pendingDismantledPackagePickup == o)) return true;
-		}
-		return false;
-	}
-
-	private static bool IsClaimedByCarrier(InteractableObject o, GameSession session)
-	{
-		for (int i = 0; i < session.units.Count; i++)
-		{
-			Unit u = session.units[i];
-			if (u != null && (u.pendingCorpsePickupTarget == o || u.pendingDismantledPackagePickup == o)) return true;
 		}
 		return false;
 	}
@@ -490,58 +483,21 @@ public partial class BuildingManager
 	}
 
 	// ── 공간 확보: 대기 중인 아군은 비켜 준다(2-1-표2) ──
-	private readonly Dictionary<BuildingData, double> _makeWayAt = new Dictionary<BuildingData, double>();
-
 	private void RequestAlliesToMakeWay(BuildingData b, GameSession session)
 	{
 		double now = session.ElapsedGameSeconds;
-		if (_makeWayAt.TryGetValue(b, out double last) && now - last < 1.0) return;
-		_makeWayAt[b] = now;
+		if (now - b.LastMakeWayAt < 1.0) return;
+		b.LastMakeWayAt = now;
 		EjectLooseObjects(b, session);
 
 		foreach (Vector3Int tile in FootprintTiles(b.Position, b.Footprint))
 		{
 			if (!session.unitGrid.TryGetValue(tile, out Unit u) || u == null || u.hp <= 0f || !u.IsPlayerMonsterFaction) continue;
 			// 작업·전투·이동 중인 유닛의 행동은 강제로 취소하지 않는다 - 착공만 기다린다.
-			if (u.assignedWorkBuilding != null || u.assignedCoreRestorePos.HasValue || u.playerMoveTarget.HasValue) continue;
-			IFSMState st = u.fsm?.CurrentState;
-			if (st is CombatFSMState || st is TacticalFSMState) continue;
-			if (u.carriedCorpse != null || u.carriedDismantledBuilding != null) continue;
-			if (TryFindFreeTileOutside(u, b, out Vector2Int free))
+			if (u.assignedWorkBuilding != null || IsBusyOrFighting(u)) continue;
+			if (TryFindNearbyFreeBody(u, session, null, out Vector2Int free))
 				IssueInternalEconomyMove(u, free);
 		}
-	}
-
-	private bool TryFindFreeTileOutside(Unit u, BuildingData b, out Vector2Int result)
-	{
-		result = u.position;
-		GameSession session = GameSession.Instance;
-		for (int r = 1; r <= 6; r++)
-		{
-			for (int dx = -r; dx <= r; dx++)
-			{
-				for (int dy = -r; dy <= r; dy++)
-				{
-					if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != r) continue;
-					Vector2Int c = new Vector2Int(u.position.x + dx, u.position.y + dy);
-					bool ok = true;
-					for (int ox = 0; ox < u.FootprintSize.x && ok; ox++)
-					{
-						for (int oy = 0; oy < u.FootprintSize.y && ok; oy++)
-						{
-							Vector3Int t = new Vector3Int(c.x + ox, c.y + oy, u.currentFloor);
-							if (buildingGrid.ContainsKey(t)) ok = false;
-							else if (createMap != null && !createMap.IsStaticTileWalkable(t.z, new Vector2Int(t.x, t.y))) ok = false;
-							else if (session.unitGrid.TryGetValue(t, out Unit occ) && occ != null && occ != u && occ.hp > 0f) ok = false;
-						}
-					}
-					if (!ok) continue;
-					result = c;
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 
 	// ── 대기 사유(1-8-표1) ──
@@ -564,8 +520,7 @@ public partial class BuildingManager
 		{
 			foreach (Unit u in CollectAssignedWorkers(b))
 			{
-				IFSMState st = u.fsm?.CurrentState;
-				if (st is CombatFSMState || st is TacticalFSMState) return "전투";
+				if (u.IsInCombatOrAlertState) return "전투";
 			}
 			return "작업자 이동 중";
 		}
@@ -590,7 +545,7 @@ public partial class BuildingManager
 
 			int working = 0;
 			var speeds = new List<float>(4);
-			var origin = new Vector2Int(b.Position.x, b.Position.y);
+			var origin = b.Origin2D;
 			foreach (Unit u in CollectAssignedWorkers(b))
 			{
 				if (WorkSpeedMath.IsOrthogonallyAdjacent(origin, b.Footprint, u.position, u.FootprintSize)) { working++; speeds.Add(WorkerSpeed(u)); }

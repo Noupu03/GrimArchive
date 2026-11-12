@@ -144,7 +144,7 @@ public abstract class Unit : ScriptableObject {
 	// 연속 건설 - 현재 건설(assignedWorkBuilding) 뒤에 맡은 건설 계획 순서(건설 명세 2-11). 직접 이동/다른 작업/직접 전투 명령은 현재와 이후 배정을 함께 해제한다.
 	public System.Collections.Generic.List<BuildingData> workQueue;
 	public Vector3Int? assignedCoreRestorePos;
-	// 내부 작업(건설 명세 1-6·2-8): 배정이 내부 작업인가(외부 현장 작업과 구분) / 지금 시설 안에 있는가(모습·격자·시야·행동에서 빠진다) / 입장 지점 / 퇴장 대기와 원인 / 전투 대응 설정 / 비켜 준 뒤 자리로 돌아오기 전 기다리는 게임 시간(BuildingManager만 만진다).
+	// 내부 작업(건설 명세 1-6·2-8) 상태 - 시설 안에 있는 동안은 모습·격자·시야·행동에서 빠진다(BuildingManager만 만진다).
 	public bool assignedWorkIsInternal;
 	public BuildingData insideFacility;
 	public bool IsInsideFacility => insideFacility != null;
@@ -156,6 +156,8 @@ public abstract class Unit : ScriptableObject {
 	// 문 확장 작업(건설 명세 2-9): 맡은 문 확장과 지금 일하는 끝(0/1). 일반 건설 배정(assignedWorkBuilding)과 별개다.
 	public DoorExpansionTask assignedDoorExpansion;
 	public int doorExpansionEnd;
+	public double insideYieldAskedAt = double.NegativeInfinity; // 퇴장 대기 중 마지막으로 비켜 달라고 요청한 게임 시간
+	public double? pickupHoldStartedAt; // 바닥 분해물에 접근한 뒤 줍기 전 기다리기 시작한 게임 시간
 
 	public CorpseRecord carriedCorpse;
 	public InteractableObject pendingCorpsePickupTarget;
@@ -169,6 +171,10 @@ public abstract class Unit : ScriptableObject {
 	public double cumulativeBaseEvolutionSoulCost = 0.0;
 	public EvolutionSession activeEvolutionSession;
 	public bool IsInEvolutionPresentation => activeEvolutionSession != null && activeEvolutionSession.IsActivePresentation;
+	public bool IsStunnedOrEvolving => StatusEffects.State.stunDuration > 0f || IsInEvolutionPresentation;
+	// 시체·분해물을 들었거나 집으러 가는 중이다.
+	public bool IsHaulingCorpseOrPackage => carriedCorpse != null || pendingCorpsePickupTarget != null || carriedDismantledBuilding != null || pendingDismantledPackagePickup != null;
+	public bool IsInCombatOrAlertState { get { IFSMState s = fsm?.CurrentState; return s is CombatFSMState || s is TacticalFSMState; } }
 
 	public SavedUnitCommandSnapshot CaptureCommandSnapshot() => new SavedUnitCommandSnapshot
 	{

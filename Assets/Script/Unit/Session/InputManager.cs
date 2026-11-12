@@ -401,23 +401,23 @@ public class InputManager : MonoBehaviour
 		}
 
 		// A-2. 문 확장 작업자 배정(건설 명세 2-9, 최대 4기) - 확장이 등록된 문을 우클릭한다.
-			if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject doorObj) && DoorSystem.IsBarrier(doorObj) && _buildingManager.GetDoorExpansionOf(doorObj) is DoorExpansionTask doorTask)
+		if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject doorObj) && DoorSystem.IsBarrier(doorObj) && _buildingManager.GetDoorExpansionOf(doorObj) is DoorExpansionTask doorTask)
+		{
+			int doorAssigned = 0;
+			foreach (var sel in selectedUnits)
 			{
-				int doorAssigned = 0;
-				foreach (var sel in selectedUnits)
-				{
-					if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
-					if (_buildingManager.TryAssignWorkerToDoorExpansion(sel, doorTask)) doorAssigned++;
-					if (doorAssigned >= WorkSpeedMath.MaxWorkersPerTask) break;
-				}
-				if (doorAssigned > 0)
-				{
-					LogHelper.Log(LogHelper.GAME, $"[문 확장 배정] {doorObj.Id} <- {doorAssigned}기");
-					return true;
-				}
+				if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+				if (_buildingManager.TryAssignWorkerToDoorExpansion(sel, doorTask)) doorAssigned++;
+				if (doorAssigned >= WorkSpeedMath.MaxWorkersPerTask) break;
 			}
+			if (doorAssigned > 0)
+			{
+				LogHelper.Log(LogHelper.GAME, $"[문 확장 배정] {doorObj.Id} <- {doorAssigned}기");
+				return true;
+			}
+		}
 
-			// B. 수복 등록된 코어 작업자 배정(최대 4기, 아군은 코어를 공격하지 않음)
+		// B. 수복 등록된 코어 작업자 배정(최대 4기, 아군은 코어를 공격하지 않음)
 		if (_gameSession.Core != null && _gameSession.Core.GetActiveRestoreAt(gridPos) != null)
 		{
 			int assigned = 0;

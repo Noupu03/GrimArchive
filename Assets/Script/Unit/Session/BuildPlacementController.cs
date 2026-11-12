@@ -52,14 +52,21 @@ public class BuildPlacementController
         if (kind == FacilityKind.UnitProduction)
             EnsureProductionRules();
 
-        string spriteKey = kind == FacilityKind.UnitProduction
-            ? AssetKeys.UnitBuildingSprite
-            : AssetKeys.ResourceBuildingSprite;
+        string spriteKey = BuildingSpriteKey(kind);
 
         ShowBuildGhostAsync(spriteKey, () => _activeKind == kind).Forget();
         int cost = BuildingManager.GetBuildLifeEnergyCostForKind(kind);
         string name = BuildingManager.GetDisplayNameForKind(kind);
         LogHelper.Log(LogHelper.GAME, $"{name} 배치 모드 진입 (생명 에너지 {cost} 선점)");
+    }
+
+    private static string BuildingSpriteKey(FacilityKind kind)
+        => kind == FacilityKind.UnitProduction ? AssetKeys.UnitBuildingSprite : AssetKeys.ResourceBuildingSprite;
+
+    private static bool RotatePressedThisFrame()
+    {
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        return kb != null && kb.rKey.wasPressedThisFrame;
     }
 
     // 스프라이트 로드가 끝나야 고스트가 보이고 설치할 수 있다 — 그 사이 다른 모드로 바뀌었으면 아무것도 하지 않는다.
@@ -94,9 +101,8 @@ public class BuildPlacementController
         _activeKind = null;
         _buildingManager.EndContinuousSession();
         _movingPlan = plan;
-        string spriteKey = plan.Kind == FacilityKind.UnitProduction ? AssetKeys.UnitBuildingSprite : AssetKeys.ResourceBuildingSprite;
         BuildingData captured = plan;
-        ShowBuildGhostAsync(spriteKey, () => _movingPlan == captured).Forget();
+        ShowBuildGhostAsync(BuildingSpriteKey(plan.Kind), () => _movingPlan == captured).Forget();
         NoticeCenter.Instance?.PushMomentary($"{plan.DisplayName}의 새 위치를 우클릭으로 지정하세요. (ESC로 취소)", NoticeCenter.QuestCompleteColor);
     }
 
@@ -131,9 +137,8 @@ public class BuildPlacementController
         _buildingManager.EndContinuousSession();
         _relocating = b;
         _relocRotation = changing ? b.PendingRotation : b.Rotation;
-        string spriteKey = b.Kind == FacilityKind.UnitProduction ? AssetKeys.UnitBuildingSprite : AssetKeys.ResourceBuildingSprite;
         BuildingData captured = b;
-        ShowBuildGhostAsync(spriteKey, () => _relocating == captured).Forget();
+        ShowBuildGhostAsync(BuildingSpriteKey(b.Kind), () => _relocating == captured).Forget();
         NoticeCenter.Instance?.PushMomentary($"{b.DisplayName}의 새 위치를 우클릭으로 지정하세요. (R: 90도 회전, ESC: 취소)", NoticeCenter.QuestCompleteColor);
     }
 
@@ -143,8 +148,7 @@ public class BuildPlacementController
         if (b == null) return;
         if (b.ActiveRelocation == null && !(b.IsFormallyInstalled || b.ActiveFieldTask == FacilityFieldTaskKind.Construction)) { ExitMode(); return; }
 
-        var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (kb != null && kb.rKey.wasPressedThisFrame) _relocRotation = ConstructionRules.NormalizeRotation(_relocRotation + 1);
+        if (RotatePressedThisFrame()) _relocRotation = ConstructionRules.NormalizeRotation(_relocRotation + 1);
 
         Vector2Int fp = ConstructionRules.RotatedFootprint(b.Footprint, _relocRotation - b.Rotation);
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(GameInputScheme.PointerScreenPos, floorOffset, currentFloor);
@@ -169,8 +173,7 @@ public class BuildPlacementController
         Vector2 mousePos = GameInputScheme.PointerScreenPos;
         Vector3Int gridPos = ScreenGridUtil.ScreenToGridPos(mousePos, floorOffset, currentFloor);
         FacilityKind kind = _activeKind.Value;
-        var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (kb != null && kb.rKey.wasPressedThisFrame) _buildRotation = ConstructionRules.NormalizeRotation(_buildRotation + 1);
+        if (RotatePressedThisFrame()) _buildRotation = ConstructionRules.NormalizeRotation(_buildRotation + 1);
         Vector2Int footprint = ConstructionRules.RotatedFootprint(CurrentFootprint, _buildRotation);
 
         bool canInstall = _buildingManager.CheckInstallAt(gridPos, footprint, requireOwnership: true, kind: kind, rotation: _buildRotation) == BuildBlock.None;

@@ -35,7 +35,7 @@ public static class PlacementUnitStatus
 		{
 			line.Location += $" · {work.DisplayName}";
 			line.Activity = WorkLabel(work, out line.Progress, out line.Note);
-				if (unit.IsInsideFacility) line.Note = unit.insideExitRequested ? "시설 안 — 퇴장 대기 중" : "시설 안에서 작업 중 — 이동 적용 시 밖으로 나옵니다";
+			if (unit.IsInsideFacility) line.Note = unit.insideExitRequested ? "시설 안 — 퇴장 대기 중" : "시설 안에서 작업 중 — 이동 적용 시 밖으로 나옵니다";
 		}
 		else if (unit.assignedDoorExpansion != null)
 		{

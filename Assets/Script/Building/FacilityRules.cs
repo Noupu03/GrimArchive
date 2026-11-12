@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // 건설 설계명세서 v0.2 3단계의 순수 규칙 — 내부 작업(1-6·2-8), 문 확장(2-9), 전투 시설 정지(2-14).
-// 수치는 오브젝트 종류·문 종류 문서가 정할 자리표시자이고, 맵·유닛 격자를 바꾸는 호출부(문 개구부 확장, 내부 입장·퇴장 연출)는 이 파일 밖이다.
+// 수치는 오브젝트 종류·문 종류 문서가 정할 자리표시자이며, 맵·유닛 격자를 바꾸는 호출부는 이 파일 밖이다.
 
 // ── 내부 작업(1-4·1-6·2-8) ──
 public enum InternalCombatSetting
@@ -67,7 +67,7 @@ public static class InternalWorkRules
 	public enum BlockerState { WaitingAlly, ExitWaitingAlly, WorkerOnlyEscape, BusyOrFighting, NoFreeSpace, NaturalRecoveryOnly }
 	public enum YieldAction { StepAside, StepAsideAlsoNeighbors, WorkerStepsBackThenResume, WaitWithoutForcing, KeepExitWait }
 
-	// 출구를 막은 유닛이 어떤 상태인지 분류한다. 작업·전투 중이면 강제로 취소하지 않고, 퇴장 대기 중인 아군이 있으면 주변 대기 아군에게도 같은 비켜주기를 적용하고, 작업자가 유일한 탈출 경로를 점유하면 잠시 물러난다(1-6-표2).
+	// 출구를 막은 유닛의 상태를 분류한다(1-6-표2) - 작업·전투 중이면 강제하지 않고, 작업자가 유일한 탈출 경로를 막으면 잠시 물러난다.
 	public static BlockerState ClassifyBlocker(bool busyOrFighting, bool workerOccupiesOnlyEscape, bool exitingWaiting)
 	{
 		if (busyOrFighting) return BlockerState.BusyOrFighting;
@@ -123,8 +123,8 @@ public static class FloorCorpseOrder
 }
 
 // ── 문 확장(2-9) ──
-// 문 중심은 고정하고 양 끝 벽을 같은 폭만큼 넓힌다(예: 1x2 -> 1x4). 양 끝은 각각 작업량 50%이고 한 명도 한쪽을 마치고 반대쪽으로 가면 완료할 수 있다.
-// 공사 중에는 기존 문 HP·폭을 쓰고, 양쪽이 모두 끝난 시점에 폭과 최대 HP를 바꾸며 남은 HP 비율을 유지한다. 폭 단계·최대 폭·배율·비용은 문 종류 문서 소관(자리표시자: 2 -> 4, x1.5).
+// 문 중심은 고정하고 양 끝 벽을 같은 폭만큼 넓힌다(1x2 → 1x4). 양 끝은 각각 작업량 50%이며 한 명이 한쪽을 마치고 반대쪽으로 가도 완료된다.
+// 공사 중엔 기존 문 HP·폭을 쓰고 완료 시 폭과 최대 HP를 바꾸며 HP 비율을 유지한다. 폭 단계·최대 폭·배율·비용은 자리표시자다.
 public sealed class DoorExpansionSession
 {
 	public int CurrentWidth { get; }

@@ -4,8 +4,6 @@ using UnityEngine;
 // 생산시설 정면 출현 구역을 타일마다 반투명 사각형으로 보여 준다(건설 명세 2-10·2-13). 새 프리팹 없이 코드로 만든다.
 public sealed class FrontZoneRenderer
 {
-	private static Sprite _sprite;
-
 	private readonly string _name;
 	private GameObject _root;
 	private readonly List<SpriteRenderer> _tiles = new List<SpriteRenderer>();
@@ -15,20 +13,9 @@ public sealed class FrontZoneRenderer
 
 	public FrontZoneRenderer(string name) { _name = name; }
 
-	private static Sprite WhiteSprite()
-	{
-		if (_sprite != null) return _sprite;
-		Texture2D tex = Texture2D.whiteTexture;
-		_sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.width);
-		return _sprite;
-	}
-
 	public void Show(RectInt zone, int floor, Vector3 floorOffset, Color color)
 	{
-		if (_root == null)
-		{
-			_root = new GameObject(_name);
-		}
+		if (_root == null) _root = new GameObject(_name);
 		if (!_root.activeSelf) _root.SetActive(true);
 		if (_shownFloor == floor && _shown.Equals(zone) && _shownColor == color && _tiles.Count == zone.width * zone.height) return;
 
@@ -42,7 +29,7 @@ public sealed class FrontZoneRenderer
 			var go = new GameObject("Tile");
 			go.transform.SetParent(_root.transform, false);
 			var sr = go.AddComponent<SpriteRenderer>();
-			sr.sprite = WhiteSprite();
+			sr.sprite = WorldWhiteSprite.Get();
 			sr.sortingOrder = 4; // 시설(6) 아래, 바닥 위
 			_tiles.Add(sr);
 		}

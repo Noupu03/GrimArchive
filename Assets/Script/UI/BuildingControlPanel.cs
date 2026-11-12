@@ -226,8 +226,41 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         DrawWorkerList(b);
     }
 
-    // ── 작업자 목록(건설 명세 1-2) — 해당 층의 아군을 방별로, 같은 방에서는 작업 속도 순으로 보여 준다. 행을 누르면 추가, 이미 배정된 행을 다시 누르면 그 한 명만 해제 ──
+    // ── 작업자 목록(건설 명세 1-2) — 해당 층 아군을 방별·작업 속도 순으로 보인다. 행을 누르면 추가하고, 배정된 행을 다시 누르면 그 한 명만 해제한다 ──
     private bool _showWorkerList = true;
+
+    // 후보 목록은 Layout 이벤트에서만 0.25초마다 다시 만든다 - OnGUI는 프레임당 여러 번 불리고, Layout과 Repaint 사이에 컨트롤 수가 바뀌면 IMGUI가 예외를 낸다.
+    private List<WorkerCandidate> _workerCandidates = new List<WorkerCandidate>();
+    private BuildingData _workerCandidatesFor;
+    private float _nextWorkerCandidatesAt;
+
+    private List<WorkerCandidate> GetWorkerCandidates(BuildingData b)
+    {
+        bool targetChanged = _workerCandidatesFor != b;
+        if (targetChanged || (Event.current.type == EventType.Layout && Time.unscaledTime >= _nextWorkerCandidatesAt))
+        {
+            _workerCandidates = _buildingManager.BuildWorkerCandidates(b);
+            _workerCandidatesFor = b;
+            _nextWorkerCandidatesAt = Time.unscaledTime + 0.25f;
+        }
+        return _workerCandidates;
+    }
+
+    private List<DoorWorkerCandidate> _doorCandidates = new List<DoorWorkerCandidate>();
+    private DoorExpansionTask _doorCandidatesFor;
+    private float _nextDoorCandidatesAt;
+
+    private List<DoorWorkerCandidate> GetDoorWorkerCandidates(DoorExpansionTask task)
+    {
+        bool targetChanged = _doorCandidatesFor != task;
+        if (targetChanged || (Event.current.type == EventType.Layout && Time.unscaledTime >= _nextDoorCandidatesAt))
+        {
+            _doorCandidates = _buildingManager.BuildDoorWorkerCandidates(task);
+            _doorCandidatesFor = task;
+            _nextDoorCandidatesAt = Time.unscaledTime + 0.25f;
+        }
+        return _doorCandidates;
+    }
 
     private void DrawWorkerList(BuildingData b)
     {
@@ -249,7 +282,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         if (assigned > 0 && b.ActiveFieldTask != FacilityFieldTaskKind.None)
             GUILayout.Label($"남은 {taskName} 시간 {_buildingManager.EstimateSecondsWithWorker(b, null):F0}초 (이동·대기 제외, 현재 협력 속도)", GUIMenuStyleUtil.BodyLabelStyle);
 
-        List<WorkerCandidate> list = _buildingManager.BuildWorkerCandidates(b);
+        List<WorkerCandidate> list = GetWorkerCandidates(b);
         if (list.Count == 0)
             GUILayout.Label("이 층에 배정할 수 있는 아군이 없습니다.", GUIMenuStyleUtil.BodyLabelStyle);
 
@@ -275,7 +308,10 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             GUI.enabled = prev && c.BlockReason == null;
             GUILayout.BeginHorizontal();
             if (GUIMenuStyleUtil.DrawFlatButtonLayout(line, options: new[] { GUILayout.Height(40f) }))
+            {
                 _buildingManager.ToggleWorkerFromList(c.Unit, b);
+                _nextWorkerCandidatesAt = 0f; // 다음 Layout에서 바로 갱신한다
+            }
             GUI.enabled = prev;
             if (c.ShowCombatSetting)
             {
@@ -700,7 +736,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         DrawDoorExpansion(door);
     }
 
-    // ── 문 확장(건설 명세 2-9) — 플레이어 소유 문의 양 끝 벽을 넓힌다. 비용은 등록 때 선점하고 첫 실제 작업에서 한 번 차감하며 그때 문이 열린다. 확보한 방에서는 코어가 파괴돼도 가능하다. ──
+    // ── 문 확장(건설 명세 2-9) — 플레이어 소유 문의 양 끝 벽을 넓힌다. 비용은 등록 때 선점하고 첫 실제 작업에서 차감하며 그때 문이 열린다 ──
     private void DrawDoorExpansion(InteractableObject door)
     {
         if (_buildingManager == null) return;
@@ -727,7 +763,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         GUILayout.Label($"담당 작업자 {_buildingManager.CountDoorWorkers(task)}/{WorkSpeedMath.MaxWorkersPerTask} (아군 선택 후 문 우클릭으로도 배정)", GUIMenuStyleUtil.BodyLabelStyle);
         int shown = 0;
-        foreach (DoorWorkerCandidate c in _buildingManager.BuildDoorWorkerCandidates(task))
+        foreach (DoorWorkerCandidate c in GetDoorWorkerCandidates(task))
         {
             if (++shown > 12) break;
             string name = c.Unit.unitType != null ? c.Unit.unitType.typeName : c.Unit.name;
@@ -735,7 +771,10 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             bool prev = GUI.enabled;
             GUI.enabled = prev && c.BlockReason == null;
             if (GUIMenuStyleUtil.DrawFlatButtonLayout($"{(c.IsAssigned ? "● " : "○ ")}{name} · {c.RoomName} · 속도 x{c.Speed:F1}{blocked}", options: new[] { GUILayout.Height(26f) }))
+            {
                 _buildingManager.ToggleDoorWorker(c.Unit, task);
+                _nextDoorCandidatesAt = 0f;
+            }
             GUI.enabled = prev;
         }
 

@@ -20,6 +20,11 @@ public class WorkStatusPanel : MonoBehaviour
 
 	private void Awake() => Instance = this;
 
+	private void OnDestroy()
+	{
+		if (Instance == this) Instance = null;
+	}
+
 	public void Toggle()
 	{
 		IsOpen = !IsOpen;
@@ -88,8 +93,10 @@ public class WorkStatusPanel : MonoBehaviour
 				? $"{r.Task} · {r.Target}\n    한 주기 {r.Progress * 100f:F0}% · 담당 {r.Assigned}명 중 시설 안 {r.Working}명 · {(string.IsNullOrEmpty(r.Wait) ? "가동 중" : "대기: " + r.Wait)}"
 				: $"{r.Task} · {r.Target}\n    {r.Progress * 100f:F0}% · 남은 작업 {r.RemainingSeconds:F0}초 · 담당 {r.Assigned}명 중 작업 {r.Working}명 · {wait}";
 			if (GUIMenuStyleUtil.DrawFlatButtonLayout(line, options: new[] { GUILayout.Height(40f) }))
+			{
 				if (r.Door != null) BuildingControlPanel.Instance?.ShowForObject(r.Door);
-					else BuildingControlPanel.Instance?.ShowForBuilding(r.Building);
+				else BuildingControlPanel.Instance?.ShowForBuilding(r.Building);
+			}
 		}
 		GUILayout.EndScrollView();
 

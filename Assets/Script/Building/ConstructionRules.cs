@@ -102,7 +102,7 @@ public static class ConstructionRules
 	}
 
 	// ── 2-3. 실제 수리와 시설 가동 ──
-	// 실제 수리·강화·분해·철거 작업이 진행되는 동안에만 시설 가동을 멈춘다. 등록만 됐거나 작업자가 접근 중이거나, 차액 승인 대기 등으로 실제 작업이 정지한 동안엔 다른 조건을 충족하면 가동한다.
+	// 실제 수리·강화·분해·철거가 진행되는 동안에만 가동을 멈춘다 - 등록만 됐거나 접근 중이거나 차액 승인 대기 등으로 작업이 정지한 동안엔 다른 조건을 충족하면 가동한다.
 	public static bool IsFieldWorkStoppingFacility(bool hasStartedWork, int actualWorkerCount, bool awaitingApproval)
 		=> hasStartedWork && actualWorkerCount > 0 && !awaitingApproval;
 

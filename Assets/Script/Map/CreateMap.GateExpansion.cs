@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 건설 설계명세서 v0.2 2-9 - 문 확장: 게이트의 문 줄 양 끝 벽을 같은 폭만큼 열어 통로를 넓힌다. 문 중심은 고정이고(1×2 → 1×4) 폭 단계·최대 폭은 문 종류 문서가 정한다(호출부가 넘기는 자리표시자).
+// 문 확장(건설 명세 2-9) - 게이트 문 줄 양 끝 벽을 같은 폭만큼 열어 통로를 넓힌다. 문 중심은 고정이고 폭 단계·최대 폭은 호출부가 넘기는 자리표시자다.
 // 런타임에 벽을 바닥으로 바꾸는 맵 데이터 경로다 - 렌더링·그림자·안개·지식 캐시 갱신은 GameSession.OnGateTilesOpened가 맡는다.
 public partial class CreateMap
 {
-	// 게이트 폭을 widthDelta(짝수)만큼 넓힐 때 새로 열릴 벽 타일을 양 끝(end0 = 아래/왼쪽, end1 = 위/오른쪽)으로 나눠 모은다. 벽 두께만큼 깊이 전부 담는다.
-	// 폭 한계를 넘거나 열 타일이 벽이 아니거나 청크 가장자리 벽을 침범하면 false이고 fail에 사유가 담긴다.
+	// 게이트 폭을 widthDelta(짝수)만큼 넓힐 때 열릴 벽 타일을 양 끝(end0 = 아래/왼쪽, end1 = 위/오른쪽)으로 모은다(벽 두께 전체 깊이).
+	// 폭 한계 초과·벽이 아님·청크 가장자리 침범이면 false이고 fail에 사유가 담긴다.
 	public bool TryGetGateExpansionWalls(int floorIndex, int gateIndex, int widthDelta, int maxWidth, List<Vector2Int> end0, List<Vector2Int> end1, out int newWidth, out string fail)
 	{
 		newWidth = 0;

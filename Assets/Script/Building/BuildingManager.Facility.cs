@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 건설 설계명세서 v0.2 3단계 — 생산시설의 정면 출현 구역(2-10)과 시설 내부 상태(2-8)를 다룬다.
+// 생산시설의 정면 출현 구역 규칙·표시(건설 명세 2-10·2-13).
 public partial class BuildingManager
 {
 	// ── 정면 출현 구역(2-10) ──
@@ -24,29 +24,23 @@ public partial class BuildingManager
 		return true;
 	}
 
-	// 그 타일이 어느 생산시설(건설 계획 포함)의 출현 구역인가 - 구역에는 건설·재설치·방어 위치 저장을 할 수 없다(건설 명세 2-10). 배치모드가 저장 검사에 쓴다.
-	public bool IsFrontZoneReserved(Vector3Int pos)
-	{
-		BuildingData saved = _installIgnore;
-		_installIgnore = null;
-		try { return IsInsideOtherFrontZone(pos); }
-		finally { _installIgnore = saved; }
-	}
+	// 그 타일이 어느 생산시설(건설 계획 포함)의 출현 구역인가 - 구역에는 건설·재설치·방어 위치 저장을 할 수 없다(2-10). 배치모드가 저장 검사에 쓴다.
+	public bool IsFrontZoneReserved(Vector3Int pos) => IsInsideOtherFrontZone(pos, null);
 
-	// 다른 생산시설의 출현 구역에는 건설·재설치를 할 수 없다.
-	private bool IsInsideOtherFrontZone(Vector3Int pos)
+	// ignore를 뺀 다른 생산시설의 출현 구역 안인가 - 건설·재설치는 거기에 할 수 없다.
+	private bool IsInsideOtherFrontZone(Vector3Int pos, BuildingData ignore)
 	{
 		for (int i = 0; i < _allBuildings.Count; i++)
 		{
 			BuildingData p = _allBuildings[i];
-			if (p == null || p == _installIgnore || !HasFrontZone(p) || p.Position.z != pos.z) continue;
+			if (p == null || p == ignore || !HasFrontZone(p) || p.Position.z != pos.z) continue;
 			RectInt z = GetFrontZone(p);
 			if (pos.x >= z.xMin && pos.x < z.xMax && pos.y >= z.yMin && pos.y < z.yMax) return true;
 		}
 		return false;
 	}
 
-	// 출현 직후 같은 방의 가까운 유효 빈 공간으로 걸어서 출현 구역을 벗어난다 - 구역과 건설 예약(건물 격자) 밖이다. 이동 중 전투 인지는 일반 이동 기준이고 플레이어 명령이 우선한다(2-10-표1).
+	// 출현 직후 같은 방의 가까운 빈 공간(구역·건물 격자 밖)으로 걸어서 구역을 벗어난다 - 이동 중 전투 인지는 일반 이동 기준이고 플레이어 명령이 우선한다(2-10-표1).
 	private void LeaveFrontZoneAfterSpawn(Unit m, RectInt zone)
 	{
 		GameSession session = GameSession.Instance;
@@ -61,7 +55,7 @@ public partial class BuildingManager
 				if (x >= zone.xMin && x < zone.xMax && y >= zone.yMin && y < zone.yMax) continue;
 				Vector3Int t = new Vector3Int(x, y, m.currentFloor);
 				if (buildingGrid.ContainsKey(t) || session.unitGrid.ContainsKey(t) || session.objectGrid.ContainsKey(t)) continue;
-				if (IsInsideOtherFrontZone(t)) continue;
+				if (IsInsideOtherFrontZone(t, null)) continue;
 				if (createMap != null && !createMap.IsStaticTileWalkable(t.z, new Vector2Int(x, y))) continue;
 				if (!session.roomGrid.TryGetValue(t, out Room dest) || dest != m.currentRoom) continue;
 				float d = Vector2Int.Distance(m.position, new Vector2Int(x, y));
@@ -75,7 +69,8 @@ public partial class BuildingManager
 	}
 
 	// ── 정면 구역 표시(2-13) ──
-	private readonly Dictionary<BuildingData, FrontZoneRenderer> _zoneViews = new Dictionary<BuildingData, FrontZoneRenderer>();
+	private readonly PerBuildingViews<FrontZoneRenderer> _zoneViews = new PerBuildingViews<FrontZoneRenderer>(
+		b => new FrontZoneRenderer($"FrontZone_{b.FacilityId}"), view => view.Destroy());
 	private float _nextZoneViewAt;
 
 	private void UpdateFrontZoneViews()
@@ -83,21 +78,12 @@ public partial class BuildingManager
 		if (Time.unscaledTime < _nextZoneViewAt) return;
 		_nextZoneViewAt = Time.unscaledTime + 0.3f;
 
-		List<BuildingData> stale = null;
-		foreach (var kv in _zoneViews)
-			if (!_allBuildings.Contains(kv.Key)) (stale ??= new List<BuildingData>()).Add(kv.Key);
-		if (stale != null)
-			foreach (BuildingData s in stale) { _zoneViews[s].Destroy(); _zoneViews.Remove(s); }
-
+		_zoneViews.DestroyStale(_allBuildings);
 		for (int i = 0; i < _allBuildings.Count; i++)
 		{
 			BuildingData b = _allBuildings[i];
 			if (b == null || b.Kind != FacilityKind.UnitProduction) continue;
-			if (!_zoneViews.TryGetValue(b, out FrontZoneRenderer view))
-			{
-				view = new FrontZoneRenderer($"FrontZone_{b.FacilityId}");
-				_zoneViews[b] = view;
-			}
+			FrontZoneRenderer view = _zoneViews.GetOrCreate(b);
 			bool show = b.VisualObject != null && b.VisualObject.activeSelf;
 			if (!show) { view.Hide(); continue; }
 			Vector3 off = unitGenerate != null ? unitGenerate.GetFloorOffset(b.Position.z) : Vector3.zero;
