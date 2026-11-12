@@ -139,7 +139,23 @@ public abstract class Unit : ScriptableObject {
 	public double lifeEnergyOutputBonusRatio = 0.0;
 
 	public BuildingData assignedWorkBuilding;
+	// 같은 작업을 재지시받아 작업 우선인가 - 그 일이 끝날 때까지 정지 상태로 자동 공격/추격/능동 방어를 멈춘다(건설 명세 1-5, BuildingManager만 만진다).
+	public bool workPriorityActive;
+	// 연속 건설 - 현재 건설(assignedWorkBuilding) 뒤에 맡은 건설 계획 순서(건설 명세 2-11). 직접 이동/다른 작업/직접 전투 명령은 현재와 이후 배정을 함께 해제한다.
+	public System.Collections.Generic.List<BuildingData> workQueue;
 	public Vector3Int? assignedCoreRestorePos;
+	// 내부 작업(건설 명세 1-6·2-8): 배정이 내부 작업인가(외부 현장 작업과 구분) / 지금 시설 안에 있는가(모습·격자·시야·행동에서 빠진다) / 입장 지점 / 퇴장 대기와 원인 / 전투 대응 설정 / 비켜 준 뒤 자리로 돌아오기 전 기다리는 게임 시간(BuildingManager만 만진다).
+	public bool assignedWorkIsInternal;
+	public BuildingData insideFacility;
+	public bool IsInsideFacility => insideFacility != null;
+	public Vector2Int insideEntryTile;
+	public bool insideExitRequested;
+	public InternalWorkRules.ExitCause insideExitCause;
+	public InternalCombatSetting internalCombatSetting = InternalCombatSetting.Respond;
+	public double workResumeHoldUntil;
+	// 문 확장 작업(건설 명세 2-9): 맡은 문 확장과 지금 일하는 끝(0/1). 일반 건설 배정(assignedWorkBuilding)과 별개다.
+	public DoorExpansionTask assignedDoorExpansion;
+	public int doorExpansionEnd;
 
 	public CorpseRecord carriedCorpse;
 	public InteractableObject pendingCorpsePickupTarget;

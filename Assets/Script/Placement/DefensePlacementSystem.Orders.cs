@@ -100,7 +100,7 @@ public sealed partial class DefensePlacementSystem
 		if (unit.currentFloor != record.Floor) return PlacementBlock.WrongFloor;
 
 		PlacementBlock body = CheckBody(record.Floor, record.Tile, unit.FootprintSize, out destRoom);
-		if (body == PlacementBlock.Facility) return PlacementBlock.DestinationReserved;
+		if (body == PlacementBlock.Facility || body == PlacementBlock.FrontZone) return PlacementBlock.DestinationReserved;
 		if (body != PlacementBlock.None) return body;
 		if (destRoom.RoomFaction != FactionType.Player) return PlacementBlock.RoomNotSecured;
 

@@ -45,6 +45,10 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         if (gameObject.GetComponent<FloorPanelOverlay>() == null)
             gameObject.AddComponent<FloorPanelOverlay>();
 
+        // [작업 현황] 패널(건설 명세 1-8) — 같은 방식으로 런타임에 붙인다(새 프리팹 없음).
+        if (gameObject.GetComponent<WorkStatusPanel>() == null)
+            gameObject.AddComponent<WorkStatusPanel>();
+
         // debug "자원 조절" 떠 있는 창 — 같은 방식으로 런타임에 붙인다(새 프리팹 없음).
         _resourceWindow = gameObject.GetComponent<DebugResourceWindow>();
         if (_resourceWindow == null)
@@ -200,6 +204,7 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         // debug는 정보 열람·시각화 위주라 "명령"의 다른 토글들과 공존 가능한 유일한 예외.
         // 배치모드 토글 — 상위 메뉴가 아니다.
         DrawBarButton(ref x, y, "배치", _inputManager != null && _inputManager.IsPlacementModeActive, () => _inputManager?.TogglePlacementMode());
+        DrawBarButton(ref x, y, "작업 현황", WorkStatusPanel.Instance != null && WorkStatusPanel.Instance.IsOpen, () => WorkStatusPanel.Instance?.Toggle(), cancelCommandMode: false);
         DrawBarButton(ref x, y, "도감", _activeCategory == MenuCategory.Encyclopedia, () => ToggleCategory(MenuCategory.Encyclopedia));
         DrawBarButton(ref x, y, "debug", _activeCategory == MenuCategory.Debug, () => ToggleCategory(MenuCategory.Debug), cancelCommandMode: false);
     }

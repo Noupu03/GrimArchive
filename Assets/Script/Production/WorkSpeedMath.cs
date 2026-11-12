@@ -21,6 +21,7 @@ public struct LifeEnergyCycleSnapshot
 {
 	public double Progress01;
 	public double WeightedBonusAccumulator;
+	public double WeightedEfficiencyDelta;
 }
 
 public static class WorkSpeedMath
@@ -176,6 +177,8 @@ public sealed class LifeEnergyCycleTracker
 	public double BasePayout { get; set; }
 	public double Progress01 { get; private set; }
 	public double WeightedBonusAccumulator { get; private set; }
+	// 손상 계수(건설 명세 2-4)로 줄어든 구간별 기여 누적: Σ 게이지 × (1+보정) × (e−1). 한 주기 산출량 = 기본 × (1 + 보정 누적 + 이 값). e=1이면 항상 0이다.
+	public double WeightedEfficiencyDelta { get; private set; }
 
 	public LifeEnergyCycleTracker(double baseCycleDurationSeconds, double basePayout)
 	{
@@ -188,15 +191,19 @@ public sealed class LifeEnergyCycleTracker
 		double deltaSeconds,
 		IReadOnlyList<WorkerContributionInput> activeWorkers,
 		bool isFacilityOperational,
-		double facilityOutputBonusRatio = 0.0)
+		double facilityOutputBonusRatio = 0.0,
+		double damageCoefficient = 1.0)
 	{
 		if (!isFacilityOperational || deltaSeconds <= 0.0) return 0.0;
 
 		var (totalSpeed, weightedWorkerBonus) = WorkSpeedMath.EvaluateCoopWithOutputBonus(activeWorkers);
 		if (totalSpeed <= 0.0) return 0.0;
 
+		double e = Math.Clamp(damageCoefficient, 0.0, 1.0);
+		if (e <= 0.0) return 0.0;
 		double segmentBonusRatio = weightedWorkerBonus + facilityOutputBonusRatio;
-		double remainingDeltaGauge = (totalSpeed * deltaSeconds) / BaseCycleDurationSeconds;
+		double effLoss = (1.0 + segmentBonusRatio) * (e - 1.0);
+		double remainingDeltaGauge = (totalSpeed * e * deltaSeconds) / BaseCycleDurationSeconds;
 		double totalPayoutEarned = 0.0;
 
 		while (remainingDeltaGauge > Epsilon)
@@ -206,18 +213,21 @@ public sealed class LifeEnergyCycleTracker
 			{
 				double applied = Math.Max(0.0, neededToComplete);
 				WeightedBonusAccumulator += applied * segmentBonusRatio;
+				WeightedEfficiencyDelta += applied * effLoss;
 				remainingDeltaGauge -= applied;
 
-				double cycleMultiplier = Math.Max(0.0, 1.0 + WeightedBonusAccumulator);
+				double cycleMultiplier = Math.Max(0.0, 1.0 + WeightedBonusAccumulator + WeightedEfficiencyDelta);
 				totalPayoutEarned += BasePayout * cycleMultiplier;
 
 				Progress01 = 0.0;
 				WeightedBonusAccumulator = 0.0;
+				WeightedEfficiencyDelta = 0.0;
 			}
 			else
 			{
 				Progress01 += remainingDeltaGauge;
 				WeightedBonusAccumulator += remainingDeltaGauge * segmentBonusRatio;
+				WeightedEfficiencyDelta += remainingDeltaGauge * effLoss;
 				remainingDeltaGauge = 0.0;
 			}
 		}
@@ -257,11 +267,13 @@ public sealed class LifeEnergyCycleTracker
 	{
 		Progress01 = Progress01,
 		WeightedBonusAccumulator = WeightedBonusAccumulator,
+		WeightedEfficiencyDelta = WeightedEfficiencyDelta,
 	};
 
 	public void RestoreSnapshot(LifeEnergyCycleSnapshot snapshot)
 	{
 		Progress01 = Math.Clamp(snapshot.Progress01, 0.0, 1.0);
 		WeightedBonusAccumulator = snapshot.WeightedBonusAccumulator;
+		WeightedEfficiencyDelta = snapshot.WeightedEfficiencyDelta;
 	}
 }

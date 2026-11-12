@@ -21,6 +21,7 @@ public static class GUIMouseUtil
         return (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
             || (BottomMenuBar.Instance != null && BottomMenuBar.Instance.IsMouseOverUI())
             || (DebugInfoPanel.Instance != null && DebugInfoPanel.Instance.IsMouseOverUI())
-            || (PlacementModeUI.Active != null && PlacementModeUI.Active.IsMouseOverUI());
+            || (PlacementModeUI.Active != null && PlacementModeUI.Active.IsMouseOverUI())
+            || (WorkStatusPanel.Instance != null && WorkStatusPanel.Instance.IsMouseOverPanel());
     }
 }

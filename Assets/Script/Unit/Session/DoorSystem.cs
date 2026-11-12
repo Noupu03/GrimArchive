@@ -18,7 +18,7 @@ public struct RoomGate
 
 // 문 시스템(진영 기반 개폐, GameSession 비대화 방지로 분리). 문은 '어느 방에 붙어 있는가'로 묶은 방 쪽 줄(폭 2 → 1×2) 하나가 오브젝트 하나라 게이트당 두 개이고, 체력·개폐·소유 진영·파괴·재설치가 묶음 단위로 처리된다(타일 키 조회는 별칭 등록으로 어느 칸에서나 같은 오브젝트). DoorOwnerFaction은 Room.RoomFaction과 분리돼 파괴 후 재설치로만 바뀐다.
 // 기본은 항상 닫힘이고 접근 시도(NotifyApproachAttempt) 순간에만 시각적으로 열리지만 실제 통행 여부는 진영 일치로만 판정한다(IsBlockedByClosedDoor) — 단 보유 진영(플레이어)이 문 정보 패널에서 "열어 둔"(DoorManualOpen) 문은 누구나 지나간다. GameSession은 IObjectResolver로 지연 조회한다 — Construct() 시점엔 생성이 안 끝나 즉시 주입하면 순환 참조가 된다.
-public class DoorSystem
+public partial class DoorSystem
 {
     public const string DoorTag = "Object/Passable/Door";
     // 목책 — 점령 파티가 문 안쪽에 함께 세우는 인류 기초 시설(코어 점령 v0.2 "인류 문·목책 등"). 문과 같은 방식으로 통행을 막고(보유 진영만 통과) 체력이 0이 되면 철거된다.

@@ -23,5 +23,9 @@ public class DefenseReturnFSMState : IFSMState
 	public void OnEnter(Unit unit)         { unit.playerCommandStuckTurns = 0; }
 	public void OnExit(Unit unit)          { }
 	public BTStatus Tick(Unit unit)        => _bt.Tick(unit);
-	public string GetLabel(Unit unit)      => "방어 복귀";
+	public string GetLabel(Unit unit)
+		=> unit.assignedWorkBuilding != null || unit.assignedCoreRestorePos.HasValue || unit.pendingCorpsePickupTarget != null || unit.carriedCorpse != null
+		|| unit.pendingDismantledPackagePickup != null || unit.carriedDismantledBuilding != null
+		? "작업 이동" // 건설 작업 이동도 같은 자동 이동 상태를 쓴다(건설 명세 1-5)
+		: "방어 복귀";
 }

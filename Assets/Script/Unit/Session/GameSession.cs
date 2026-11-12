@@ -644,6 +644,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
             }
 
             u.OnUpdate(Time.deltaTime);
+            if (u.IsInsideFacility) continue; // 내부 작업자는 외부 시야·행동을 쓰지 않는다 - 중독·출혈 같은 지속 효과는 OnUpdate에서 계속 진행한다(건설 명세 1-6)
 
             // ProcessUnitAction 경유 SyncVisual은 상태가 바뀐 유닛에게만 호출되므로, 선택 표시(발밑
             // 링)는 상태 변화와 무관하게 모든 살아있는 유닛에 매 프레임 갱신한다(비용은 낮음). 카메라가
@@ -674,7 +675,7 @@ public class GameSession : NativeRoutine, IOffenseQuery
         {
             Unit u = _throttledActionQueue.Dequeue();
             _queuedForThrottledAction.Remove(u);
-            if (u == null || u.Health.hp <= 0) continue; // 대기 중 사망 — 예산 소모 없이 건너뜀
+            if (u == null || u.Health.hp <= 0 || u.IsInsideFacility) continue; // 대기 중 사망·시설 입장 — 예산 소모 없이 건너뜀
             ProcessUnitAction(u);
             throttledProcessed++;
         }
@@ -836,6 +837,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
             foreach (var comp in u.Components)
                 comp.OnDespawn();
 
+            // 내부 작업자가 시설 안에서 죽었다 - 시체는 몸 전체가 들어갈 빈 인접 공간으로 배출하고, 공간이 없으면 배출 대기로 남긴다(건설 명세 2-8).
+            BuildingData insideFacilityOfDead = null;
+            bool insideCorpsePending = false;
+            if (u.IsInsideFacility && _buildingManager != null) insideFacilityOfDead = _buildingManager.ResolveInsideDeath(u, out insideCorpsePending);
             string objId = "Corpse_" + System.Guid.NewGuid().ToString().Substring(0, 4);
             Vector3Int gridPos = new Vector3Int(u.position.x, u.position.y, u.currentFloor);
             DangerStage causerStage = DangerStage.Stage0;
@@ -892,9 +897,18 @@ public class GameSession : NativeRoutine, IOffenseQuery
             // 기록/컴포넌트 정리는 위에서 이미 끝났으므로 지연 없이 처리한다.
             // Death 애니메이션 슬롯에 클립이 있는 유닛(회의록 2026-11-10)은 클립의 마지막 프레임이 곧 시체다 — 별도 corpseSprite로
             // 갈아끼우지 않고, 클립이 끝나면 유닛 비주얼을 시체 오브젝트가 이어받는다. 클립이 없으면 0이라 예전과 같다(corpseSprite 시체).
-            float deathAnimSeconds = _unitGenerate != null ? _unitGenerate.BeginDeathAnimation(u) : 0f;
-            _unitGenerate?.PlayDeathVisual(u);
-            SpawnObject(corpse, corpseColor);
+            float deathAnimSeconds = 0f;
+            if (insideCorpsePending)
+            {
+                // 배출 대기 - 시체는 아직 필드에 없다. 부패는 계속되고 시설 둘레 공간이 비면 밖으로 나온다.
+                insideFacilityOfDead?.PendingInsideCorpses.Add(corpse);
+            }
+            else
+            {
+                deathAnimSeconds = _unitGenerate != null ? _unitGenerate.BeginDeathAnimation(u) : 0f;
+                _unitGenerate?.PlayDeathVisual(u);
+                SpawnObject(corpse, corpseColor);
+            }
             // 시체 자리에 다른 오브젝트가 있어 SpawnObject가 건너뛴 경우를 걸러내려고 위치가 아니라 시체 오브젝트로 직접 찾는다.
             GameObject corpseVisual = null;
             bool keepVisualAsCorpse = deathAnimSeconds > 0f && _unitGenerate != null
@@ -1436,6 +1450,22 @@ public class GameSession : NativeRoutine, IOffenseQuery
     public DoorControlBlock CheckDoorReservation(InteractableObject door, bool wantOpen) => _doorSystem.CheckReservation(door, wantOpen);
     public bool TryGetPendingDoorOrder(InteractableObject door, out bool open) => _doorSystem.TryGetPendingOrder(door, out open);
     public void RebuildDoorAt(Vector3Int pos) => _doorSystem.RebuildDoorAt(pos);
+    // 건설 명세 2-9 문 확장 — 계획·작업 중 열림·완료 시 개구부 변경은 DoorSystem이, 맵 렌더·안개 갱신은 아래 OnGateTilesOpened가 한다.
+    public bool TryBuildDoorExpansionPlan(InteractableObject door, out DoorSystem.GateExpansionPlan plan, out string fail) => _doorSystem.TryBuildExpansionPlan(door, out plan, out fail);
+    public InteractableObject ApplyDoorExpansion(InteractableObject door, DoorSystem.GateExpansionPlan plan, float hpMultiplier) => _doorSystem.ApplyGateExpansion(door, plan, hpMultiplier);
+    public void OpenDoorForWork(InteractableObject door) => _doorSystem.OpenForWork(door);
+
+    // 벽이 바닥으로 바뀐 타일들 - 타일맵 스프라이트·벽 모양·안개 그림자·지식 캐시를 갱신한다(DebugConvertFloorTileToWall의 반대 방향).
+    public void OnGateTilesOpened(int floor, IList<Vector2Int> tiles)
+    {
+        foreach (Vector2Int t in tiles)
+        {
+            mapRandering?.SetTileToFloor(floor, new Vector3Int(t.x, t.y, 0));
+            _doorSystem?.ClearWallKnowledge(new Vector3Int(t.x, t.y, floor));
+        }
+        mapRandering?.RefreshWallShapesAround(floor, tiles);
+        _fogOfWarSystem?.NotifyFloorGeometryChanged(floor);
+    }
     public bool IsRepairableDoorTile(Vector3Int pos) => _doorSystem.IsRepairableDoorTile(pos);
     // 점령 파티의 기초 시설(방 쪽 인류 문 + 문 안쪽 목책) — 방의 문 묶음 대표 타일 목록, 시설 한 벌의 자리, 설치, 남은 시설 수.
     public IReadOnlyList<Vector3Int> GetRoomDoorAnchors(Room room) => _doorSystem.GetRoomDoorAnchors(room);

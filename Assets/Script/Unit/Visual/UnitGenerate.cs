@@ -565,9 +565,25 @@ public class UnitGenerate
 		if (sr != null) sr.DOKill();
 	}
 
+	// 시설 안에서 일하는 내부 작업자는 입장 지점에서 모습이 사라지고 퇴장하면 퇴장 위치에 바로 다시 나타난다(건설 명세 1-6·2-13).
+	public void SetUnitHiddenInside(Unit u, bool hidden)
+	{
+		if (u == null || !visualMap.TryGetValue(u, out GameObject go) || go == null) return;
+		if (hidden)
+		{
+			KillVisualTweens(go);
+			go.SetActive(false);
+			return;
+		}
+		Vector3 newPos = new Vector3(u.position.x + u.unitType.footprint.x / 2f, u.position.y + 0.05f, 0) + GetFloorOffset(u.currentFloor);
+		go.transform.position = newPos;
+		targetPosMap[u] = newPos;
+		go.SetActive(true);
+	}
+
 	public void SyncVisual(Unit u)
 	{
-		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
+		if (u == null || u.IsInsideFacility || !visualMap.TryGetValue(u, out GameObject go)) return;
 
 			Vector3 newPos = new Vector3(
 				u.position.x + u.unitType.footprint.x / 2f,
@@ -647,7 +663,7 @@ public class UnitGenerate
 	// 있는 유닛의 선택 상태 변화가 반영되지 않는다 — 별도 공개 메서드로 빼서 매 프레임 호출한다.
 	public void RefreshSelectionVisual(Unit u)
 	{
-		if (u == null || !visualMap.TryGetValue(u, out GameObject go)) return;
+		if (u == null || u.IsInsideFacility || !visualMap.TryGetValue(u, out GameObject go)) return;
 		RefreshSelectionVisual(u, GetCache(go), go);
 	}
 

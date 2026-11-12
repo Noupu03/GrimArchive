@@ -24,6 +24,15 @@ public class BuildingData
 	public int UpgradeTier;
 	public bool IsFormallyInstalled = true;
 
+	// 시설 방향(시계 방향 90도 단위 0~3)과 이동 목적지에서 적용할 방향(건설 명세 2-6).
+	public int Rotation;
+	public int PendingRotation;
+	// 재설치 단계 전 최대 HP(완성/건설 단계 척도). 재설치 몸체가 서 있는 동안 MaxHp는 재설치 단계 최대 HP다(건설 명세 2-7).
+	public float ScaleMaxHp;
+	public bool ReinstallBodyPlaced;
+	// 미완성 건설을 옮기는 중인가 - 원래 건설 작업량·HP 비율·지불은 유지하고 재설치가 끝나면 건설을 잇는다(건설 명세 2-7).
+	public bool MoveOfUnfinishedConstruction;
+
 	public bool IsResourceBuilding => Kind == FacilityKind.LifeEnergy;
 	public bool IsDummy => Kind == FacilityKind.Dummy;
 
@@ -45,14 +54,31 @@ public class BuildingData
 	public CorpseRefineryState Refinery = new CorpseRefineryState(5);
 	public FacilityResearchQueue ResearchQueue;
 
-	// 정식 설치 + 손상 없음(최대 HP) + 현장 작업 없음 + 담당 코어 정상이어야 일반 가동 가능(7-표1, 10-표1, 13-1-표1, 16-표2)
+	// 이번 틱에 실제 현장 작업(수리·강화·철거·분해)이 진행 중인가 — BuildingManager가 매 틱 갱신한다(건설 명세 2-3·2-5·2-6).
+	// 등록만 됐거나 작업자가 접근 중이거나 차액 승인 대기 등으로 실제 작업이 멈춘 동안은 false라 다른 조건을 충족하면 가동한다.
+	public bool FieldWorkActive;
+	// 현장 작업이 멈춘 사유(작업 현황 표시용) - 비어 있으면 진행 중이다(건설 명세 1-8).
+	public string WaitReason = string.Empty;
+	// 시설 안에서 일하는 내부 작업자(건설 명세 1-6) - 모습·격자·시야에서 빠져 있다.
+	public readonly List<Unit> InsideWorkers = new List<Unit>();
+	// 내부에서 죽어 아직 밖으로 배출하지 못한 작업자 시체(건설 명세 2-8) - 정식 보관물이 아니라 부패가 계속되고, 시설이 파괴되면 소멸하며, 분해·철거되면 원래 자리에 남는다.
+	public readonly List<InteractableObject> PendingInsideCorpses = new List<InteractableObject>();
+	// 마지막으로 시설이 피격된 게임 시간 - 내부 작업자의 '대응' 판정에 쓴다(건설 명세 1-6-표1).
+	public double LastHitGameSeconds = double.NegativeInfinity;
+
+	// 손상 효율 e = 0.5 + 0.5 × 남은 HP 비율(건설 명세 2-4). 시설 종류별 적용 대상(속도·산출량·피해)은 호출부가 정한다.
+	public double DamageEfficiency => ConstructionRules.DamageCoefficient(CurrentHp, MaxHp);
+
+	// 정식 설치 + 생존 + 실제 현장 작업 중이 아님 + 담당 코어 정상이어야 일반 가동한다 — 손상만으로는 멈추지 않고 효율이 줄어든다(건설 명세 2-3·2-4, 이전 "HP<최대 HP 정지" 규칙 폐기).
 	public bool IsOperational =>
 		IsFormallyInstalled
 		&& !IsDummy
 		&& CurrentHp > 0f
-		&& CurrentHp >= MaxHp - 1e-3f
-		&& ActiveFieldTask == FacilityFieldTaskKind.None
+		&& !FieldWorkActive
 		&& BuildingManager.AreCoreFunctionsActive(Position.z);
+
+	// 새 생산 예약·연구 선택은 담당 코어가 파괴돼도 일반 화면에서 할 수 있다 - 전액을 선점하고 실제 생산·연구는 수복 뒤 가동 조건을 다시 검사한다(건설 명세 1-7-표1). 실제 현장 작업 중에는 기존대로 막는다.
+	public bool CanTakeReservations => IsFormallyInstalled && !IsDummy && CurrentHp > 0f && !FieldWorkActive;
 }
 
 public enum BuildBlock
@@ -62,9 +88,11 @@ public enum BuildBlock
 	RoomNotSecured,
 	Terrain,
 	SoulUnlockRequired,
+	Occupied,
+	FrontZone,
 }
 
-public class BuildingManager : NativeRoutine
+public partial class BuildingManager : NativeRoutine
 {
 	public static BuildingManager Instance { get; private set; }
 
@@ -74,8 +102,8 @@ public class BuildingManager : NativeRoutine
 	public const double DefaultBuildWorkSeconds = 8.0;
 	public const double DefaultUpgradeWorkSeconds = 12.0;
 	public const double DefaultFullRepairSeconds = 10.0;
-	public const double DefaultDismantleSeconds = 6.0;
-	public const double DefaultReinstallSeconds = 6.0;
+	public const double DefaultDismantleSeconds = 5.0; // 보정 없는 1명 기준 임시 5초(건설 명세 2-6)
+	public const double DefaultReinstallSeconds = 5.0; // 보정 없는 1명 기준 임시 5초(건설 명세 2-6)
 	public const double DefaultDemolishRecoveryRate = 0.5;
 
 	public static readonly Vector2Int UnitBuildingFootprint = new Vector2Int(3, 3);
@@ -159,20 +187,39 @@ public class BuildingManager : NativeRoutine
 				yield return new Vector3Int(origin.x + dx, origin.y + dy, origin.z);
 	}
 
-	public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true)
-		=> CheckInstallAt(pos, footprint, requireOwnership) == BuildBlock.None;
+	public bool CanInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true, FacilityKind kind = FacilityKind.Dummy, int rotation = 0, BuildingData ignore = null)
+		=> CheckInstallAt(pos, footprint, requireOwnership, kind, ignore, rotation) == BuildBlock.None;
 
-	public BuildBlock CheckInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true, FacilityKind kind = FacilityKind.UnitProduction)
+	private BuildingData _installIgnore;
+
+	// ignore: 검사에서 자기 자신의 점유는 무시할 시설(제자리 회전·겹치는 이동 - 분해가 먼저 끝나므로 허용).
+	public BuildBlock CheckInstallAt(Vector3Int pos, Vector2Int footprint, bool requireOwnership = true, FacilityKind kind = FacilityKind.UnitProduction, BuildingData ignore = null, int rotation = 0)
 	{
 		if (requireOwnership && kind == FacilityKind.Research && resourceManager != null && !resourceManager.IsSoulShardSpendUnlocked)
 			return BuildBlock.SoulUnlockRequired;
 
-		foreach (Vector3Int tile in FootprintTiles(pos, footprint))
+		_installIgnore = ignore;
+		try
 		{
-			BuildBlock block = CheckInstallSingleTile(tile, requireOwnership);
-			if (block != BuildBlock.None) return block;
+			foreach (Vector3Int tile in FootprintTiles(pos, footprint))
+			{
+				BuildBlock block = CheckInstallSingleTile(tile, requireOwnership);
+				if (block != BuildBlock.None) return block;
+			}
+			// 생산시설은 몸체와 정면 출현 구역을 함께 확인한다(건설 명세 2-1·2-10).
+			if (kind == FacilityKind.UnitProduction)
+			{
+				RectInt zone = ConstructionRules.FrontZoneRect(new Vector2Int(pos.x, pos.y), footprint, rotation, FrontZoneDepth);
+				for (int zx = zone.xMin; zx < zone.xMax; zx++)
+					for (int zy = zone.yMin; zy < zone.yMax; zy++)
+						if (CheckInstallSingleTile(new Vector3Int(zx, zy, pos.z), requireOwnership) != BuildBlock.None) return BuildBlock.FrontZone;
+			}
+			return BuildBlock.None;
 		}
-		return BuildBlock.None;
+		finally
+		{
+			_installIgnore = null;
+		}
 	}
 
 	public static string DescribeBlock(BuildBlock block) => block switch
@@ -181,17 +228,21 @@ public class BuildingManager : NativeRoutine
 		BuildBlock.RoomNotSecured => "확보하지 않은 방에서는 건설할 수 없습니다. 방의 적을 모두 처치해 확보하세요.",
 		BuildBlock.Terrain => "장애물이 있거나 설치할 수 없는 지형입니다.",
 		BuildBlock.SoulUnlockRequired => "최초 코어 완전 활성화 이후에 연구시설을 건설할 수 있습니다.",
+		BuildBlock.FrontZone => "생산시설의 정면 출현 구역(2칸)에 벽·시설·시체가 있거나 다른 생산시설 구역과 겹쳐 지정할 수 없습니다.",
+		BuildBlock.Occupied => "시체나 분해된 시설이 있어 지정할 수 없습니다. 먼저 치운 뒤 다시 지정하세요.",
 		_ => string.Empty,
 	};
 
 	private BuildBlock CheckInstallSingleTile(Vector3Int pos, bool requireOwnership)
 	{
 		if (pos.x < 0 || pos.y < 0 || pos.z < 0) return BuildBlock.Terrain;
-		if (buildingGrid.ContainsKey(pos)) return BuildBlock.Terrain;
+		if (buildingGrid.TryGetValue(pos, out BuildingData occupant) && occupant != _installIgnore) return BuildBlock.Terrain;
+		if (IsInsideOtherFrontZone(pos)) return BuildBlock.FrontZone;
+		if (GameSession.Instance != null && GameSession.Instance.objectGrid.TryGetValue(pos, out InteractableObject looseObj) && IsLooseCorpseOrPackage(looseObj)) return BuildBlock.Occupied;
 		if (GameSession.Instance != null && GameSession.Instance.IsRepairableDoorTile(pos)) return BuildBlock.Terrain;
 		if (GameSession.Instance != null && GameSession.Instance.IsFenceTile(pos)) return BuildBlock.Terrain;
 		if (requireOwnership && createMap != null && !createMap.IsPositionPlayerOwned(pos.z, new Vector2Int(pos.x, pos.y))) return BuildBlock.RoomNotSecured;
-		if (requireOwnership && !AreCoreFunctionsActive(pos.z)) return BuildBlock.CoreDestroyed;
+		// 코어가 파괴돼도 확보한 방에서는 건설할 수 있다(건설 명세 1-7·2-1) — 생산·자원·연구·정제만 가동이 멈춘다.
 
 		if (createMap != null && createMap.map.floors != null && pos.z < createMap.map.floors.Length)
 		{
@@ -207,7 +258,10 @@ public class BuildingManager : NativeRoutine
 					if (chunk.chunk != null)
 					{
 						var tile = chunk.chunk[tx, ty];
-						if (tile.name == "Wall" || tile.isStructureExist) return BuildBlock.Terrain;
+						// 이동·회전 검사에서 자기 자신이 세운 구조물 표시(isStructureExist)는 무시한다 - 분해가 먼저 끝난 뒤 그 자리를 다시 쓰기 때문이다.
+						bool ownTile = _installIgnore != null && pos.x >= _installIgnore.Position.x && pos.x < _installIgnore.Position.x + _installIgnore.Footprint.x
+							&& pos.y >= _installIgnore.Position.y && pos.y < _installIgnore.Position.y + _installIgnore.Footprint.y && pos.z == _installIgnore.Position.z;
+						if (tile.name == "Wall" || (tile.isStructureExist && !ownTile)) return BuildBlock.Terrain;
 					}
 				}
 			}
@@ -276,7 +330,15 @@ public class BuildingManager : NativeRoutine
 		FacilityOriginKind originKind)
 	{
 		Vector2Int fp = GetFootprintForKind(kind);
-		if (!CanInstallAt(pos, fp, requireOwnership: true))
+		// 생산시설은 정면 출현 구역이 비는 방향을 고른다. 어느 방향도 안 되면 예전 시설 둘레 출현으로 폴백한다(시작방 배치가 막히지 않게).
+		int rot = 0;
+		bool zoneOk = false;
+		if (kind == FacilityKind.UnitProduction)
+		{
+			for (int r = 0; r < 4 && !zoneOk; r++)
+				if (CanInstallAt(pos, fp, requireOwnership: true, kind: kind, rotation: r)) { rot = r; zoneOk = true; }
+		}
+		if (!zoneOk && !CanInstallAt(pos, fp, requireOwnership: true))
 		{
 			LogHelper.Warning(LogHelper.GAME, $"시설 설치 불가: {pos} ({kind})");
 			return false;
@@ -286,6 +348,8 @@ public class BuildingManager : NativeRoutine
 		Color tint = GetTintForKind(kind, isBlueprint: false);
 		GameObject visual = CreateBuildingVisual(pos, fp, sprite, label, tint);
 		BuildingData b = CreateBuildingInstance(kind, pos, fp, availableRules, sprite, label, originKind, visual);
+		b.Rotation = rot;
+		b.PendingRotation = rot;
 		RegisterBuildingToGrid(b, updateObstacle: true);
 		LogHelper.Log(LogHelper.GAME, $"[시설 설치] '{label}' 배치 완료: {pos} ({fp})");
 		return true;
@@ -298,13 +362,15 @@ public class BuildingManager : NativeRoutine
 		Sprite sprite,
 		List<ProductionRule> availableRules,
 		out BuildingData orderedBuilding,
-		out string failureMessage)
+		out string failureMessage,
+		int rotation = 0)
 	{
 		orderedBuilding = null;
 		failureMessage = string.Empty;
 
-		Vector2Int fp = GetFootprintForKind(kind);
-		BuildBlock block = CheckInstallAt(pos, fp, requireOwnership: true, kind: kind);
+		rotation = ConstructionRules.NormalizeRotation(rotation);
+		Vector2Int fp = ConstructionRules.RotatedFootprint(GetFootprintForKind(kind), rotation);
+		BuildBlock block = CheckInstallAt(pos, fp, requireOwnership: true, kind: kind, rotation: rotation);
 		if (block != BuildBlock.None)
 		{
 			failureMessage = DescribeBlock(block);
@@ -327,7 +393,7 @@ public class BuildingManager : NativeRoutine
 			targetCompletedMaxHp: DefaultFacilityMaxHp,
 			accounts: resourceManager.Accounts,
 			isSoulShardSpendUnlocked: resourceManager.IsSoulShardSpendUnlocked,
-			isCoreActive: AreCoreFunctionsActive(pos.z),
+			isCoreActive: true, // 확보한 방의 건설은 코어 파괴 중에도 가능(건설 명세 1-7)
 			out ConstructionOrUpgradeSession session,
 			out failureMessage))
 		{
@@ -340,6 +406,8 @@ public class BuildingManager : NativeRoutine
 
 		BuildingData b = CreateBuildingInstance(kind, pos, fp, availableRules, sprite, label, FacilityOriginKind.PlayerBuilt, visual);
 		b.IsFormallyInstalled = false;
+		b.Rotation = rotation;
+		b.PendingRotation = rotation;
 		b.ActiveFieldTask = FacilityFieldTaskKind.Construction;
 		b.ActiveConstructionOrUpgrade = session;
 
@@ -347,6 +415,7 @@ public class BuildingManager : NativeRoutine
 		RegisterBuildingToGrid(b, updateObstacle: false);
 
 		orderedBuilding = b;
+		OnPlanOrdered(b);
 		LogHelper.Log(LogHelper.GAME, $"[건설 예약] '{label}' 등록: {pos} (선점 생명 에너지 {cost}) — 아군 몬스터를 우클릭해 건설 진행");
 		NoticeCenter.Instance?.PushMomentary($"{label} 건설이 등록되었습니다. 몬스터를 우클릭해 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
 		return true;
@@ -433,7 +502,7 @@ public class BuildingManager : NativeRoutine
 			ResourceManager.FacilityFullRepairLifeEnergyCost,
 			DefaultFullRepairSeconds,
 			resourceManager.LifeEnergyAccount,
-			AreCoreFunctionsActive(b.Position.z),
+			true, // 수리는 코어 파괴 중에도 가능(건설 명세 1-7)
 			out RepairSession repair,
 			out string failMsg))
 		{
@@ -472,7 +541,22 @@ public class BuildingManager : NativeRoutine
 
 	public bool TryStartFacilityUpgrade(BuildingData b)
 	{
-		if (b == null || !b.IsFormallyInstalled || b.ActiveFieldTask != FacilityFieldTaskKind.None || resourceManager == null)
+		if (b == null || !b.IsFormallyInstalled || resourceManager == null)
+			return false;
+		if (b.ActiveFieldTask == FacilityFieldTaskKind.Repair && b.ActiveRepair != null)
+		{
+			// 수리에서 강화로 바꿀 때는 수리 환급분을 포함해 새 비용을 검사한다. 성공하면 수리를 취소 정산하고 교체, 부족하면 기존 수리를 유지한다(건설 명세 1-2-표2).
+			double refund = b.ActiveRepair.PaidTotalSoFar + b.ActiveRepair.ReservedBeforeStart;
+			bool lifeOk = resourceManager.LifeEnergyAccount.AvailableBalance + refund >= ResourceManager.FacilityUpgradeLifeEnergyCost;
+			bool soulOk = !resourceManager.Accounts.TryGetValue(ResourceType.SoulShard, out ResourceAccount soulAcc) || soulAcc.AvailableBalance >= ResourceManager.FacilityUpgradeSoulShardCost;
+			if (!resourceManager.IsSoulShardSpendUnlocked || !lifeOk || !soulOk)
+			{
+				NoticeCenter.Instance?.PushMomentary("강화 비용이 부족해 기존 수리를 유지합니다.", NoticeCenter.WarningColor);
+				return false;
+			}
+			CancelFacilityRepair(b);
+		}
+		if (b.ActiveFieldTask != FacilityFieldTaskKind.None)
 			return false;
 
 		if (!resourceManager.IsSoulShardSpendUnlocked)
@@ -494,7 +578,7 @@ public class BuildingManager : NativeRoutine
 			targetCompletedMaxHp: b.MaxHp + 150f,
 			accounts: resourceManager.Accounts,
 			isSoulShardSpendUnlocked: resourceManager.IsSoulShardSpendUnlocked,
-			isCoreActive: AreCoreFunctionsActive(b.Position.z),
+			isCoreActive: true, // 강화도 코어 파괴 중 가능(건설 명세 1-7)
 			out ConstructionOrUpgradeSession upg,
 			out string failMsg))
 		{
@@ -512,6 +596,19 @@ public class BuildingManager : NativeRoutine
 	public void CancelFacilityConstructionOrUpgrade(BuildingData b)
 	{
 		if (b?.ActiveConstructionOrUpgrade == null) return;
+		if (b.ActiveRelocation != null)
+		{
+			// 이동 중인 미완성 건설: 분해물이 바닥에 있으면 재설치가 끝난 뒤 취소한다. 그 밖에는 연결된 이동을 끝내고 취소한다(건설 명세 2-7).
+			if (b.ActiveRelocation.IsDismantleFinished && !b.ReinstallBodyPlaced)
+			{
+				NoticeCenter.Instance?.PushMomentary("분해된 미완성 건설은 재설치가 끝난 뒤에 취소할 수 있습니다.", NoticeCenter.WarningColor);
+				return;
+			}
+			b.ActiveRelocation.CancelOrInterrupt(resourceManager?.LifeEnergyAccount);
+			b.ActiveRelocation = null;
+			b.ReinstallBodyPlaced = false;
+			b.MoveOfUnfinishedConstruction = false;
+		}
 		bool wasConstruction = !b.ActiveConstructionOrUpgrade.IsUpgrade;
 		b.ActiveConstructionOrUpgrade.CancelManually(resourceManager?.Accounts);
 		b.ActiveConstructionOrUpgrade = null;
@@ -532,11 +629,6 @@ public class BuildingManager : NativeRoutine
 	{
 		if (b == null || !b.IsFormallyInstalled || b.ActiveFieldTask != FacilityFieldTaskKind.None)
 			return false;
-		if (!AreCoreFunctionsActive(b.Position.z))
-		{
-			NoticeCenter.Instance?.PushMomentary("담당 코어가 파괴되어 철거를 시작할 수 없습니다.", NoticeCenter.WarningColor);
-			return false;
-		}
 		if (b.Kind == FacilityKind.CorpseRefinery && !b.Refinery.IsCompletelyEmpty)
 		{
 			NoticeCenter.Instance?.PushMomentary("시체 보관·정제 시설은 내부 시체를 모두 비운 뒤 철거할 수 있습니다.", NoticeCenter.WarningColor);
@@ -557,35 +649,195 @@ public class BuildingManager : NativeRoutine
 		NoticeCenter.Instance?.PushMomentary("철거 작업을 취소했습니다.", NoticeCenter.WarningColor);
 	}
 
-	public bool TryStartFacilityRelocation(BuildingData b, Vector3Int destination)
+	// 이동(위치 변경·제자리 회전 포함)은 분해·운반·재설치를 한 번에 지시하며 모두 무상이다(건설 명세 2-6). 미완성 건설도 옮길 수 있다(건설 진행·HP 비율·지불 유지).
+	public bool TryStartFacilityRelocation(BuildingData b, Vector3Int destination, int? newRotation = null)
 	{
-		if (b == null || !b.IsFormallyInstalled || b.ActiveFieldTask != FacilityFieldTaskKind.None || resourceManager == null)
+		if (b == null || resourceManager == null || b.ActiveRelocation != null)
+			return false;
+		bool unfinished = !b.IsFormallyInstalled
+			&& b.ActiveFieldTask == FacilityFieldTaskKind.Construction
+			&& b.ActiveConstructionOrUpgrade != null
+			&& b.ActiveConstructionOrUpgrade.HasStartedWork;
+		if (!unfinished && (!b.IsFormallyInstalled || b.ActiveFieldTask != FacilityFieldTaskKind.None))
 			return false;
 
-		bool refineryEmpty = b.Kind != FacilityKind.CorpseRefinery || b.Refinery.IsCompletelyEmpty;
-		bool destValid = CanInstallAt(destination, b.Footprint, requireOwnership: true);
+		int rot = ConstructionRules.NormalizeRotation(newRotation ?? b.Rotation);
+		if (destination == b.Position && rot == b.Rotation)
+		{
+			NoticeCenter.Instance?.PushMomentary("같은 위치·같은 방향으로는 이동할 수 없습니다.", NoticeCenter.WarningColor);
+			return false;
+		}
+
+		Vector2Int destFootprint = ConstructionRules.RotatedFootprint(b.Footprint, rot - b.Rotation);
+		BuildBlock block = CheckInstallAt(destination, destFootprint, requireOwnership: true, kind: b.Kind, ignore: b, rotation: rot);
+		bool destValid = block == BuildBlock.None;
 
 		if (!RelocationSession.TryCreateOrder(
 			ResourceManager.FacilityRelocateDismantleLifeEnergyCost,
 			DefaultDismantleSeconds,
 			DefaultReinstallSeconds,
-			b.Footprint,
+			destFootprint,
 			destination,
-			AreCoreFunctionsActive(b.Position.z),
-			refineryEmpty,
+			true, // 이동용 분해·운반·재설치는 코어 파괴 중에도 가능(건설 명세 1-7)
+			true, // 저장/정제 시설은 비우지 않고 옮긴다 - 안의 시체는 부패 정지 상태로 함께 이동한다(건설 명세 2-8)
 			destValid,
 			resourceManager.LifeEnergyAccount,
 			out RelocationSession reloc,
 			out string failMsg))
 		{
-			if (!string.IsNullOrEmpty(failMsg))
-				NoticeCenter.Instance?.PushMomentary(failMsg, NoticeCenter.WarningColor);
+			string msg = !destValid && block != BuildBlock.None ? DescribeBlock(block) : failMsg;
+			if (!string.IsNullOrEmpty(msg))
+				NoticeCenter.Instance?.PushMomentary(msg, NoticeCenter.WarningColor);
 			return false;
 		}
 
+		b.PendingRotation = rot;
+		b.MoveOfUnfinishedConstruction = unfinished;
 		b.ActiveFieldTask = FacilityFieldTaskKind.Relocation;
 		b.ActiveRelocation = reloc;
-		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 이동용 분해가 등록되었습니다. 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
+		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 이동이 등록되었습니다. 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
+		return true;
+	}
+
+	// 설치 목적지(와 방향) 변경(건설 명세 2-7-표2): 새 위치 검사에 성공해야 바꾸고, 실패하면 기존 목적지를 유지한다.
+	// 분해 중 변경은 작업량·지불 보존, 운반 중 변경은 내려놓지 않고 같은 유닛이 새 목적지로, 재설치 중 변경은 설치 작업량만 초기화하고 분해 상태로 새 목적지까지 운반한다.
+	public bool TryChangeRelocationDestination(BuildingData b, Vector3Int newDestination, int? newRotation = null)
+	{
+		RelocationSession reloc = b?.ActiveRelocation;
+		if (reloc == null) return false;
+
+		int rot = ConstructionRules.NormalizeRotation(newRotation ?? b.PendingRotation);
+		Vector2Int fp = ConstructionRules.RotatedFootprint(b.Footprint, rot - b.Rotation);
+		BuildBlock block = CheckInstallAt(newDestination, fp, requireOwnership: true, kind: b.Kind, ignore: b, rotation: rot);
+		if (block != BuildBlock.None)
+		{
+			NoticeCenter.Instance?.PushMomentary(DescribeBlock(block), NoticeCenter.WarningColor);
+			return false;
+		}
+
+		bool wasInstalling = b.ReinstallBodyPlaced;
+		if (!reloc.TryChangeDestination(newDestination, true)) return false;
+		b.PendingRotation = rot;
+
+		if (wasInstalling)
+		{
+			LeaveReinstallBody(b);
+			List<Unit> helpers = CollectAssignedWorkers(b);
+			Unit carrier = PickNearestUnit(helpers, new Vector2Int(b.Position.x, b.Position.y));
+			if (carrier != null)
+			{
+				carrier.carriedDismantledBuilding = b;
+				if (TryPickNearestAdjacentWorkTile(new Vector2Int(newDestination.x, newDestination.y), fp, carrier, out Vector2Int slot))
+					IssueInternalEconomyMove(carrier, slot);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < GameSession.Instance.units.Count; i++)
+			{
+				Unit u = GameSession.Instance.units[i];
+				if (u != null && u.hp > 0f && u.carriedDismantledBuilding == b
+					&& TryPickNearestAdjacentWorkTile(new Vector2Int(newDestination.x, newDestination.y), fp, u, out Vector2Int slot2))
+					IssueInternalEconomyMove(u, slot2);
+			}
+		}
+		return true;
+	}
+
+	private static Unit PickNearestUnit(List<Unit> units, Vector2Int from)
+	{
+		Unit best = null;
+		float bestScore = float.MaxValue;
+		for (int i = 0; i < units.Count; i++)
+		{
+			Unit u = units[i];
+			if (u == null || u.hp <= 0f) continue;
+			float eta = Vector2Int.Distance(u.position, from) / Mathf.Max(0.1f, u.workerSpeedMultiplier); // 도착 예상 시간의 근사
+			if (eta < bestScore || (Mathf.Approximately(eta, bestScore) && best != null && u.GetInstanceID() < best.GetInstanceID()))
+			{
+				bestScore = eta;
+				best = u;
+			}
+		}
+		return best;
+	}
+
+	// 재설치 몸체를 목적지에 세운다 - 시설 전체 점유를 가진 건설 중 오브젝트가 되고, 이동 전 HP 비율 × 재설치 단계 최대 HP로 시작한다(건설 명세 2-7-표1).
+	private void PlaceReinstallBody(BuildingData b, Vector3Int dest)
+	{
+		RelocationSession reloc = b.ActiveRelocation;
+		if (b.PendingRotation != b.Rotation)
+		{
+			b.Footprint = ConstructionRules.RotatedFootprint(b.Footprint, b.PendingRotation - b.Rotation);
+			b.Rotation = b.PendingRotation;
+		}
+		b.Position = dest;
+		b.ScaleMaxHp = b.MaxHp;
+		float stageMax = ConstructionRules.ConstructionStageMaxHp(b.ScaleMaxHp);
+		b.CurrentHp = ConstructionRules.ReinstallStartHp(b.CurrentHp, b.MaxHp, stageMax);
+		b.MaxHp = stageMax;
+		b.ReinstallBodyPlaced = true;
+		b.IsFormallyInstalled = false;
+		if (b.VisualObject != null)
+		{
+			Vector3 floorOffset = unitGenerate != null ? unitGenerate.GetFloorOffset(dest.z) : Vector3.zero;
+			b.VisualObject.transform.position = new Vector3(dest.x + b.Footprint.x / 2f, dest.y + b.Footprint.y / 2f, 0f) + floorOffset;
+			b.VisualObject.SetActive(true);
+			var sr = b.VisualObject.GetComponent<SpriteRenderer>();
+			if (sr != null) sr.color = GetTintForKind(b.Kind, isBlueprint: true);
+		}
+		RegisterBuildingToGrid(b, updateObstacle: true);
+		reloc?.BeginInstall();
+	}
+
+	// 재설치 몸체를 거두고 분해 상태(HP는 완성 척도 비율로 환원)로 돌린다 - 같은 피해는 한 번만 반영된다(건설 명세 2-7-표1).
+	private void LeaveReinstallBody(BuildingData b)
+	{
+		if (!b.ReinstallBodyPlaced) return;
+		float ratio = b.MaxHp > 0f ? Mathf.Clamp01(b.CurrentHp / b.MaxHp) : 1f;
+		b.MaxHp = b.ScaleMaxHp;
+		b.CurrentHp = ratio * b.ScaleMaxHp;
+		b.ReinstallBodyPlaced = false;
+		UnregisterBuildingFromGrid(b, clearObstacle: true);
+		_allBuildings.Remove(b);
+		if (b.VisualObject != null) b.VisualObject.SetActive(false);
+	}
+
+	// 재설치 완료: 재설치 남은 HP 비율 × 완성 시설 최대 HP. 미완성 건설이었다면 건설을 잇는다(건설 명세 2-7).
+	private void CompleteReinstall(BuildingData b)
+	{
+		float stageMax = b.MaxHp;
+		b.MaxHp = b.ScaleMaxHp;
+		b.CurrentHp = ConstructionRules.ReinstallCompleteHp(b.CurrentHp, stageMax, b.ScaleMaxHp);
+		b.ReinstallBodyPlaced = false;
+		b.ActiveRelocation = null;
+
+		if (b.MoveOfUnfinishedConstruction)
+		{
+			b.MoveOfUnfinishedConstruction = false;
+			b.ActiveFieldTask = FacilityFieldTaskKind.Construction;
+			NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 재설치가 끝났습니다. 남은 건설을 이어갑니다.", NoticeCenter.QuestCompleteColor);
+			return;
+		}
+
+		b.IsFormallyInstalled = true;
+		b.ActiveFieldTask = FacilityFieldTaskKind.None;
+		b.FieldWorkActive = false;
+		if (b.VisualObject != null)
+		{
+			var sr = b.VisualObject.GetComponent<SpriteRenderer>();
+			if (sr != null) sr.color = GetTintForKind(b.Kind, isBlueprint: false);
+		}
+		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 재설치가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
+		FinishSingleTaskWorkers(b, CollectAssignedWorkers(b));
+	}
+
+	private bool IsFootprintClearOfUnits(Vector3Int pos, Vector2Int footprint)
+	{
+		GameSession session = GameSession.Instance;
+		if (session == null) return true;
+		foreach (Vector3Int tile in FootprintTiles(pos, footprint))
+			if (session.unitGrid.ContainsKey(tile)) return false;
 		return true;
 	}
 
@@ -627,11 +879,6 @@ public class BuildingManager : NativeRoutine
 			NoticeCenter.Instance?.PushMomentary("같은 층의 아군 몬스터에게만 분해 시설 운반을 명령할 수 있습니다.", NoticeCenter.WarningColor);
 			return false;
 		}
-		if (!AreCoreFunctionsActive(pkgObj.Position.z))
-		{
-			NoticeCenter.Instance?.PushMomentary("담당 코어가 파괴되어 분해된 시설을 운반·재설치할 수 없습니다.", NoticeCenter.WarningColor);
-			return false;
-		}
 
 		NotifyWorkerCommandChanged(carrier);
 		carrier.pendingDismantledPackagePickup = pkgObj;
@@ -658,10 +905,11 @@ public class BuildingManager : NativeRoutine
 		if (b == null || damage <= 0f) return;
 
 		b.CurrentHp = Mathf.Max(0f, b.CurrentHp - damage);
+		if (GameSession.Instance != null) b.LastHitGameSeconds = GameSession.Instance.ElapsedGameSeconds; // 내부 작업자의 '대응' 판정(건설 명세 1-6-표1)
 		bool survived = b.CurrentHp > 0f;
 
-		// 이동용 분해 완료 전 피격: 생존 시 진행 삭제·전액 환급·원위치 유지, 파괴 시 환급 없음(20-2-표1)
-		if (b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null && !b.ActiveRelocation.IsDismantleFinished)
+		// 분해 도중 시설이 피격돼도 생존하면 원위치에 유지하고 작업/지불을 보존한다(건설 명세 2-6-표2). 파괴되면 지불액을 환급 없이 잃는다.
+		if (!survived && b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null && !b.ActiveRelocation.IsDismantleFinished)
 		{
 			b.ActiveRelocation.OnHitBeforeDismantleComplete(survived, resourceManager?.LifeEnergyAccount);
 			b.ActiveRelocation = null;
@@ -726,6 +974,7 @@ public class BuildingManager : NativeRoutine
 
 		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 철거가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
 		List<Unit> demolishWorkers = CollectAssignedWorkers(b); // 철거로 배정이 지워지기 전에 모은다
+		ReleasePendingInsideCorpsesAtFootprint(b, GameSession.Instance); // 미배출 작업자 시체는 원래 시설 자리에 남는다(건설 명세 2-8-표1)
 		RemoveBuildingCompletely(b);
 		FinishSingleTaskWorkers(null, demolishWorkers);
 	}
@@ -737,7 +986,7 @@ public class BuildingManager : NativeRoutine
 		var workers = new List<Unit>();
 		if (b == null || GameSession.Instance?.units == null) return workers;
 		foreach (var u in GameSession.Instance.units)
-			if (u != null && u.hp > 0f && u.assignedWorkBuilding == b) workers.Add(u);
+			if (u != null && u.hp > 0f && u.assignedWorkBuilding == b && !u.assignedWorkIsInternal) workers.Add(u); // 외부 현장 작업자만 - 내부 작업자는 CollectInternalWorkers
 		return workers;
 	}
 
@@ -746,7 +995,9 @@ public class BuildingManager : NativeRoutine
 	{
 		foreach (var w in workers)
 		{
-			if (b != null && w.assignedWorkBuilding == b) w.assignedWorkBuilding = null;
+			if (b != null && w.assignedWorkBuilding == b) { w.assignedWorkBuilding = null; w.assignedWorkIsInternal = false; }
+			ReleaseInsideUnit(w);
+			ReleaseWorkPriority(w);
 			DefensePlacementSystem.Instance?.OnWorkTaskEnded(w);
 		}
 	}
@@ -755,13 +1006,22 @@ public class BuildingManager : NativeRoutine
 	{
 		UnregisterBuildingFromGrid(b, clearObstacle: b.IsFormallyInstalled || (b.ActiveConstructionOrUpgrade != null && b.ActiveConstructionOrUpgrade.HasStartedWork));
 		_allBuildings.Remove(b);
+		// 안에 남은 생존 내부 작업자는 해제된 시설 영역에 겹치지 않게 나오고, 미배출·정식 보관 시체는 시설과 함께 소멸한다(건설 명세 2-8).
+		EjectInsideWorkersAtFootprint(b, GameSession.Instance);
+		b.PendingInsideCorpses.Clear();
 
 		if (GameSession.Instance?.units != null)
 		{
 			foreach (var u in GameSession.Instance.units)
 			{
-				if (u != null && u.assignedWorkBuilding == b)
-					u.assignedWorkBuilding = null;
+				if (u == null) continue;
+				u.workQueue?.Remove(b);
+				if (u.assignedWorkBuilding == b)
+				{
+					bool wasInternal = u.assignedWorkIsInternal;
+					AdvanceWorkQueue(u, b, notifyEnd: false);
+					if (wasInternal) DefensePlacementSystem.Instance?.OnWorkTaskEnded(u); // 내부 작업이 끝났다 - 방어 위치로 복귀
+				} // 현재 대상 취소/파괴 - 그 항목만 순서에서 빼고 다음 남은 건설을 확인한다(건설 명세 2-11)
 			}
 		}
 
@@ -776,7 +1036,7 @@ public class BuildingManager : NativeRoutine
 		if (b == null || GameSession.Instance?.units == null) return 0;
 		int count = 0;
 		foreach (var u in GameSession.Instance.units)
-			if (u != null && u.hp > 0f && u.assignedWorkBuilding == b) count++;
+			if (u != null && u.hp > 0f && u.assignedWorkBuilding == b && u.assignedWorkIsInternal == (b.ActiveFieldTask == FacilityFieldTaskKind.None)) count++; // 현재 모드(내부 작업/현장 작업)의 인원만 센다
 		return count;
 	}
 
@@ -794,14 +1054,21 @@ public class BuildingManager : NativeRoutine
 		if (worker.currentFloor != b.Position.z || !DoesBuildingAcceptWorkers(b))
 			return false;
 
-		if (worker.assignedWorkBuilding != b && CountAssignedWorkers(b) >= WorkSpeedMath.MaxWorkersPerTask)
+		bool internalRole = b.ActiveFieldTask == FacilityFieldTaskKind.None && InternalWorkRules.IsInternalWorkKind(b.Kind); // 시설 가동은 내부 작업, 그 밖의 건설·수리·강화·철거·이동은 외부 현장 작업이다
+		bool sameRole = worker.assignedWorkBuilding == b && worker.assignedWorkIsInternal == internalRole;
+		if (!sameRole && !CheckInternalEntryAllowed(worker, b)) return false;
+		if (!sameRole && CountAssignedWorkers(b) >= GetWorkerCap(b))
 		{
-			NoticeCenter.Instance?.PushMomentary("해당 작업의 최대 투입 인원(4기)이 모두 찼습니다.", NoticeCenter.WarningColor);
+			NoticeCenter.Instance?.PushMomentary($"해당 작업의 최대 투입 인원({GetWorkerCap(b)}기)이 모두 찼습니다.", NoticeCenter.WarningColor);
 			return false;
 		}
 
-		NotifyWorkerCommandChanged(worker);
+		// 같은 작업을 같은 유닛에게 다시 지시하면 작업 우선 - 그 일이 끝날 때까지 자동 공격/추격/능동 방어를 멈춘다(건설 명세 1-5). 처음 배정은 전투에 참여할 수 있는 일반 작업이다.
+		bool reinstruct = sameRole;
+		if (!reinstruct) NotifyWorkerCommandChanged(worker);
 		worker.assignedWorkBuilding = b;
+		worker.assignedWorkIsInternal = internalRole;
+		worker.workPriorityActive = reinstruct;
 		if (b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null)
 			b.ActiveRelocation.AssignedWorkerUnitId = worker.GetInstanceID();
 
@@ -809,7 +1076,11 @@ public class BuildingManager : NativeRoutine
 		if (!WorkSpeedMath.IsOrthogonallyAdjacent(bOrigin, b.Footprint, worker.position, worker.FootprintSize))
 		{
 			if (TryPickNearestAdjacentWorkTile(bOrigin, b.Footprint, worker, out Vector2Int slot))
-				IssueInternalEconomyMove(worker, slot);
+				IssueInternalEconomyMove(worker, slot, reinstruct);
+		}
+		else if (reinstruct)
+		{
+			worker.isHalted = true;
 		}
 		return true;
 	}
@@ -867,6 +1138,12 @@ public class BuildingManager : NativeRoutine
 			return false;
 		}
 
+		if (explicitRefinery != null && IsRefineryBeingDismantled(explicitRefinery))
+		{
+			NoticeCenter.Instance?.PushMomentary("분해 중인 시체 보관·정제 통합시설에는 새 시체를 반입할 수 없습니다.", NoticeCenter.WarningColor);
+			return false;
+		}
+
 		BuildingData targetRefinery = explicitRefinery ?? FindNearestValidRefinery(carrier.currentFloor, new Vector2Int(corpseObj.Position.x, corpseObj.Position.y), corpse);
 		if (targetRefinery == null || !targetRefinery.Refinery.TryReserveIncomingSlot(corpse, targetRefinery.IsFormallyInstalled))
 		{
@@ -881,6 +1158,9 @@ public class BuildingManager : NativeRoutine
 		return true;
 	}
 
+	private static bool IsRefineryBeingDismantled(BuildingData b)
+		=> b != null && b.Kind == FacilityKind.CorpseRefinery && b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.FieldWorkActive;
+
 	private BuildingData FindNearestValidRefinery(int floor, Vector2Int fromPos, CorpseRecord corpse, BuildingData exclude = null)
 	{
 		BuildingData best = null;
@@ -890,6 +1170,7 @@ public class BuildingManager : NativeRoutine
 			BuildingData b = _allBuildings[i];
 			if (b == null || b == exclude || b.Kind != FacilityKind.CorpseRefinery || b.Position.z != floor)
 				continue;
+			if (IsRefineryBeingDismantled(b)) continue; // 분해 착수부터 신규 반입을 멈춘다(건설 명세 2-8)
 			if (!b.Refinery.CanAcceptIncoming(corpse, b.IsFormallyInstalled))
 				continue;
 			float d = Vector2Int.Distance(fromPos, new Vector2Int(b.Position.x, b.Position.y));
@@ -911,15 +1192,20 @@ public class BuildingManager : NativeRoutine
 		if (u.assignedWorkBuilding != null)
 		{
 			BuildingData b = u.assignedWorkBuilding;
-			if (b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null)
+			if (b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null && !u.assignedWorkIsInternal)
 			{
 				// [이동 적용]으로 분해 작업자 이탈 시 분해 취소·환급 없이 진행·지불 보존(20-2-표1)
 				b.ActiveRelocation.OnWorkerMovedAwayDuringDismantle();
 			}
 			u.assignedWorkBuilding = null;
+			u.assignedWorkIsInternal = false;
 		}
+		ReleaseInsideUnit(u); // 시설 안에서 일하던 유닛이면 새 명령을 위해 나온다(건설 명세 1-6)
 
 		u.assignedCoreRestorePos = null;
+		u.assignedDoorExpansion = null;
+		ReleaseWorkPriority(u);
+		u.workQueue = null; // 직접 이동/다른 작업/직접 전투 명령은 현재와 이후 건설 배정을 함께 해제한다(건설 명세 2-11)
 
 		if (u.pendingCorpsePickupTarget != null)
 		{
@@ -945,57 +1231,100 @@ public class BuildingManager : NativeRoutine
 		u.pendingDismantledPackagePickup = null;
 	}
 
-	// 작업자 또는 운반자가 피격됐을 때의 처리(5-표4, 12-표2, 20-2-표1, 20-3항)
+	// 작업자 또는 운반자가 피격됐을 때의 처리(건설 명세 1-5, 2-6-표2, 2-8-표2)
+	// 작업자 피격은 배정/진행/지불/목적지를 그대로 보존한다 - 전투 참여와 전투 종료 후 10초 경계 뒤 자동 재개는 FSM(전투/경계 우선 -> 자동 이동 상태)과 TickWorkerResume이 맡는다.
 	public void NotifyUnitHit(Unit u)
 	{
 		if (u == null || !u.IsPlayerMonsterFaction) return;
+		// 작업 우선(재지시) 중이면 전투로 전환하지 않고 들고 있는 것도 그대로 운반한다(2-8-표2).
+		if (u.hp <= 0f || u.workPriorityActive) return;
 
-		if (u.assignedWorkBuilding != null)
+		// 시체/분해물 운반 중 직접 피격: 내려놓고 전투에 참여한다. 배정/목적지/입고 예약 1구는 유지하고 전투/경계 뒤 다시 회수한다.
+		if (u.carriedCorpse != null)
 		{
-			BuildingData b = u.assignedWorkBuilding;
-			u.assignedWorkBuilding = null;
-
-			// 이동용 분해 중 작업자 피격은 일반 작업과 달리 분해 자체를 취소하고 전액 환급한다(20-2-표1, 24-표1).
-			if (b.ActiveFieldTask == FacilityFieldTaskKind.Relocation && b.ActiveRelocation != null && !b.ActiveRelocation.IsDismantleFinished)
+			InteractableObject dropped = DropCorpseToField(u.carriedCorpse, new Vector3Int(u.position.x, u.position.y, u.currentFloor), livingCarrier: u, carrierCorpseOnSameTile: null);
+			u.carriedCorpse = null;
+			if (dropped != null && u.targetRefineryForCarry != null)
 			{
-				b.ActiveRelocation.OnHitBeforeDismantleComplete(b.CurrentHp > 0f, resourceManager?.LifeEnergyAccount);
-				b.ActiveRelocation = null;
-				b.ActiveFieldTask = FacilityFieldTaskKind.None;
+				u.pendingCorpsePickupTarget = dropped;
+				IssueInternalEconomyMove(u, new Vector2Int(dropped.Position.x, dropped.Position.y));
+			}
+			else
+			{
+				u.targetRefineryForCarry = null;
 			}
 		}
-
-		u.assignedCoreRestorePos = null;
-
-		// 운반자 피격: 명령 취소·시체 내려놓기·전투 후 자동 재개 없음(12-표2, 24-표1)
-		if (u.pendingCorpsePickupTarget != null || u.carriedCorpse != null)
+		else if (u.carriedDismantledBuilding != null)
 		{
-			if (u.pendingCorpsePickupTarget != null)
-			{
-				string cId = u.pendingCorpsePickupTarget.CorpseEconomyData?.CorpseId;
-				u.targetRefineryForCarry?.Refinery.CancelIncomingReservation(cId);
-				u.pendingCorpsePickupTarget = null;
-			}
-			if (u.carriedCorpse != null)
-			{
-				u.targetRefineryForCarry?.Refinery.CancelIncomingReservation(u.carriedCorpse.CorpseId);
-				if (u.hp > 0f)
-					DropCorpseToField(u.carriedCorpse, new Vector3Int(u.position.x, u.position.y, u.currentFloor), livingCarrier: u, carrierCorpseOnSameTile: null);
-				u.carriedCorpse = null;
-			}
-			u.targetRefineryForCarry = null;
-			u.suppressEconomyCommandHook = true;
-			u.ClearPlayerCommand();
-			u.suppressEconomyCommandHook = false;
-		}
-
-		if (u.carriedDismantledBuilding != null && u.hp > 0f)
-		{
-			DropDismantledBuildingPackage(u.carriedDismantledBuilding, new Vector3Int(u.position.x, u.position.y, u.currentFloor), carrierCorpseOnSameTile: null);
+			InteractableObject dropped = DropDismantledBuildingPackage(u.carriedDismantledBuilding, new Vector3Int(u.position.x, u.position.y, u.currentFloor), carrierCorpseOnSameTile: null);
 			u.carriedDismantledBuilding = null;
-			u.suppressEconomyCommandHook = true;
-			u.ClearPlayerCommand();
-			u.suppressEconomyCommandHook = false;
+			if (dropped != null)
+			{
+				u.pendingDismantledPackagePickup = dropped;
+				IssueInternalEconomyMove(u, new Vector2Int(dropped.Position.x, dropped.Position.y));
+			}
 		}
+	}
+
+	private float _nextWorkerResumeAt;
+
+	// 전투/경계(전투 후 10초)가 끝났는데 작업 자리에 없는 배정 작업자를 작업 자리로 돌려보낸다(건설 명세 1-5, 2-11). 이동 자체는 전투/경계에 밀리는 자동 이동이라 재발행이 겹쳐도 안전하다.
+	private void TickWorkerResume(GameSession session)
+	{
+		double now = session.ElapsedGameSeconds;
+		if (now < _nextWorkerResumeAt) return;
+		_nextWorkerResumeAt = (float)now + 0.5f;
+
+		for (int i = 0; i < session.units.Count; i++)
+		{
+			Unit u = session.units[i];
+			// 코어 수복 작업자도 전투/경계 뒤 수복 자리로 돌아간다(건설 명세 1-5).
+			if (u != null && u.assignedCoreRestorePos.HasValue)
+			{
+				Vector3Int cp = u.assignedCoreRestorePos.Value;
+				if (u.hp > 0f && u.IsPlayerMonsterFaction && !u.IsInEvolutionPresentation && u.currentFloor == cp.z
+					&& u.StatusEffects.State.stunDuration <= 0f && session.Core?.GetActiveRestoreAt(cp) != null)
+				{
+					Vector2Int coreOrigin = new Vector2Int(cp.x, cp.y);
+					bool atCore = WorkSpeedMath.IsOrthogonallyAdjacent(coreOrigin, Vector2Int.one, u.position, u.FootprintSize);
+					IFSMState cst = u.fsm?.CurrentState;
+					bool cCombat = cst is CombatFSMState || cst is TacticalFSMState;
+					bool cBusy = u.playerMoveTarget.HasValue || u.isHalted || u.carriedCorpse != null || u.pendingCorpsePickupTarget != null
+						|| u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null;
+					if (ConstructionRules.ShouldResumeAssignedWork(true, atCore, cCombat, cBusy)
+						&& TryPickNearestAdjacentWorkTile(coreOrigin, Vector2Int.one, u, out Vector2Int coreSlot))
+						IssueInternalEconomyMove(u, coreSlot);
+				}
+				continue;
+			}
+
+			if (u != null && u.assignedDoorExpansion != null) { ResumeDoorWorker(u); continue; } // 문 확장 작업자도 전투·경계 뒤 작업 자리로 돌아온다
+			BuildingData b = u?.assignedWorkBuilding;
+			if (b == null || u.hp <= 0f || !u.IsPlayerMonsterFaction || u.IsInEvolutionPresentation) continue;
+			if (u.IsInsideFacility || now < u.workResumeHoldUntil) continue; // 안에서 일하는 중이거나 비켜 준 직후다
+			if (!_allBuildings.Contains(b) || u.currentFloor != b.Position.z) continue;
+			if (u.StatusEffects.State.stunDuration > 0f) continue;
+
+			Vector2Int bOrigin = new Vector2Int(b.Position.x, b.Position.y);
+			bool atSpot = WorkSpeedMath.IsOrthogonallyAdjacent(bOrigin, b.Footprint, u.position, u.FootprintSize);
+			IFSMState st = u.fsm?.CurrentState;
+			bool inCombatOrAlert = st is CombatFSMState || st is TacticalFSMState;
+			bool hasOtherTask = u.playerMoveTarget.HasValue || u.isHalted
+				|| u.carriedCorpse != null || u.pendingCorpsePickupTarget != null
+				|| u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null;
+			if (!ConstructionRules.ShouldResumeAssignedWork(true, atSpot, inCombatOrAlert, hasOtherTask)) continue;
+
+			if (TryPickNearestAdjacentWorkTile(bOrigin, b.Footprint, u, out Vector2Int slot))
+				IssueInternalEconomyMove(u, slot);
+		}
+	}
+
+	// 작업 우선(재지시) 상태를 끝낸다 - 그 상태가 만든 정지만 푼다(건설 명세 1-5).
+	private static void ReleaseWorkPriority(Unit u)
+	{
+		if (u == null || !u.workPriorityActive) return;
+		u.workPriorityActive = false;
+		u.isHalted = false;
 	}
 
 	// 운반자 사망 시: 인접 빈 공간이 없으면 운반자의 시체와 운반 중이던 시체/1타일 분해 시설을 별도 대상으로 함께 보존한다(12-표2, 20-3-표1, 24-표1).
@@ -1004,7 +1333,9 @@ public class BuildingManager : NativeRoutine
 		if (deadUnit == null) return;
 
 		deadUnit.assignedWorkBuilding = null;
+		deadUnit.assignedWorkIsInternal = false;
 		deadUnit.assignedCoreRestorePos = null;
+		deadUnit.assignedDoorExpansion = null;
 
 		if (deadUnit.pendingCorpsePickupTarget != null)
 		{
@@ -1030,9 +1361,9 @@ public class BuildingManager : NativeRoutine
 		}
 	}
 
-	public void DropCorpseToField(CorpseRecord corpse, Vector3Int nearPos, Unit livingCarrier, InteractableObject carrierCorpseOnSameTile)
+	public InteractableObject DropCorpseToField(CorpseRecord corpse, Vector3Int nearPos, Unit livingCarrier, InteractableObject carrierCorpseOnSameTile)
 	{
-		if (corpse == null || GameSession.Instance == null) return;
+		if (corpse == null || GameSession.Instance == null) return null;
 		corpse.IsInsideRefinery = false;
 
 		GameSession session = GameSession.Instance;
@@ -1053,22 +1384,23 @@ public class BuildingManager : NativeRoutine
 			// 인접 공간 없이 운반자가 사망한 경우 두 시체를 별도 오브젝트로 같은 타일에 함께 보존한다(12-표2, 24-표1).
 			carrierCorpseOnSameTile.CoexistingObjects ??= new List<InteractableObject>();
 			carrierCorpseOnSameTile.CoexistingObjects.Add(droppedObj);
-			return;
+			return droppedObj;
 		}
 
 		if (session.objectGrid.TryGetValue(dropPos, out var existing))
 		{
 			existing.CoexistingObjects ??= new List<InteractableObject>();
 			existing.CoexistingObjects.Add(droppedObj);
-			return;
+			return droppedObj;
 		}
 
 		session.SpawnObject(droppedObj, Color.gray);
+		return droppedObj;
 	}
 
-	public void DropDismantledBuildingPackage(BuildingData b, Vector3Int nearPos, InteractableObject carrierCorpseOnSameTile)
+	public InteractableObject DropDismantledBuildingPackage(BuildingData b, Vector3Int nearPos, InteractableObject carrierCorpseOnSameTile)
 	{
-		if (b == null || GameSession.Instance == null) return;
+		if (b == null || GameSession.Instance == null) return null;
 		b.ActiveRelocation?.DropPackageToField();
 
 		GameSession session = GameSession.Instance;
@@ -1088,17 +1420,18 @@ public class BuildingManager : NativeRoutine
 		{
 			carrierCorpseOnSameTile.CoexistingObjects ??= new List<InteractableObject>();
 			carrierCorpseOnSameTile.CoexistingObjects.Add(pkgObj);
-			return;
+			return pkgObj;
 		}
 
 		if (session.objectGrid.TryGetValue(dropPos, out var existing))
 		{
 			existing.CoexistingObjects ??= new List<InteractableObject>();
 			existing.CoexistingObjects.Add(pkgObj);
-			return;
+			return pkgObj;
 		}
 
 		session.SpawnObject(pkgObj, new Color(0.95f, 0.8f, 0.35f, 1f));
+		return pkgObj;
 	}
 
 	private bool FindFreeAdjacentDropTile(Vector3Int center, out bool found)
@@ -1322,6 +1655,8 @@ public class BuildingManager : NativeRoutine
 
 	public override void UpdateProcess()
 	{
+		UpdateFrontZoneViews(); // 일시정지 중에도 계획의 정면 구역을 보여 준다
+		UpdateProgressBars(); // 외부 작업 진행 바(건설 명세 2-13)
 		float dt = Time.deltaTime;
 		// InputManager 일시정지는 Time.timeScale = 0.0001f를 쓰므로 timeScale/isPaused를 함께 확인해 일시정지 중 진행을 0으로 차단한다(4-표2, 5-표5, 23-표1).
 		if (dt <= 0f || Time.timeScale < 0.01f || (GameSession.Instance != null && GameSession.Instance.isPaused))
@@ -1332,7 +1667,12 @@ public class BuildingManager : NativeRoutine
 
 		// 1. 시체 및 분해 시설 운반자 진행
 		if (session?.units != null)
+		{
 			TickCorpseCarriers(session, dt);
+			TickWorkerResume(session);
+			TickInternalWork(session); // 내부 작업자의 입장·퇴장·비켜주기(건설 명세 1-6)
+			TickDoorExpansions(session, dt); // 문 확장 작업(건설 명세 2-9)
+		}
 
 		// 2. 코어 수복 작업 진행
 		session?.Core?.TickActiveRestores(dt, session.units);
@@ -1341,6 +1681,7 @@ public class BuildingManager : NativeRoutine
 		var buildingsSnapshot = new List<BuildingData>(_allBuildings);
 		var workerSpeedBuffer = new List<float>(4);
 		var lifeWorkerBuffer = new List<WorkerContributionInput>(4);
+		var internalSpeedBuffer = new List<float>(4);
 		var roomsWithReadyProduction = new HashSet<Room>();
 
 		for (int i = 0; i < buildingsSnapshot.Count; i++)
@@ -1348,43 +1689,54 @@ public class BuildingManager : NativeRoutine
 			BuildingData b = buildingsSnapshot[i];
 			if (b == null || !_allBuildings.Contains(b) || b.IsDummy) continue;
 
-			GatherActiveAdjacentWorkers(b, session?.units, workerSpeedBuffer, lifeWorkerBuffer);
+			GatherActiveAdjacentWorkers(b, session?.units, workerSpeedBuffer);   // 외부 현장 작업자(시설 둘레)
+			GatherInsideWorkers(b, internalSpeedBuffer, lifeWorkerBuffer);       // 내부 작업자(시설 안) - 수리·강화가 실제로 진행되지 않는 동안에는 계속 가동에 기여한다
 
 			if (b.ActiveFieldTask != FacilityFieldTaskKind.None)
 			{
 				TickBuildingFieldTask(b, dt, workerSpeedBuffer);
-				continue;
+				b.WaitReason = ComputeWaitReason(b, workerSpeedBuffer.Count);
+				if (b.ActiveFieldTask == FacilityFieldTaskKind.None) b.FieldWorkActive = false;
+				// 현장 작업 중인 시설도 가동 조건(FieldWorkActive)이 허용하면 아래 가동 틱을 이어서 돈다(건설 명세 2-3). 철거/분해로 사라졌거나 미완공이면 건너뛴다.
+				if (!_allBuildings.Contains(b) || !b.IsFormallyInstalled) continue;
+				// 현장 작업자와 내부 작업자는 서로 다른 역할이라 입력 버퍼가 따로다(건설 명세 1-2-1·1-6).
+			}
+			else
+			{
+				b.FieldWorkActive = false;
+				b.WaitReason = b.IsFormallyInstalled && !BuildingManager.AreCoreFunctionsActive(b.Position.z) ? "코어 수복 대기" : string.Empty;
 			}
 
 			bool operational = b.IsOperational;
+			double dmgE = b.DamageEfficiency; // 손상 효율(건설 명세 2-4)
 
 			if (b.Kind == FacilityKind.LifeEnergy && resourceManager != null)
 			{
-				double earned = b.LifeEnergyCycle.Advance(dt, lifeWorkerBuffer, operational);
+				double earned = b.LifeEnergyCycle.Advance(dt, lifeWorkerBuffer, operational, 0.0, dmgE);
 				if (earned > 0.0)
 					resourceManager.AddResource(ResourceType.LifeEnergy, earned, ResourceCreditSource.FacilityProduction);
 			}
 			else if (b.Kind == FacilityKind.CorpseRefinery && resourceManager != null)
 			{
-				b.Refinery.TickAutoRefine(dt, operational, 1.0, resourceManager.Accounts);
+				b.Refinery.TickAutoRefine(dt, operational, dmgE, resourceManager.Accounts, null, dmgE);
 			}
 			else if (b.Kind == FacilityKind.Research && resourceManager != null && b.ResearchQueue != null)
 			{
 				bool researchCompleted = b.ResearchQueue.TickResearch(
 					dt,
-					workerSpeedBuffer,
+					internalSpeedBuffer,
 					operational,
-					1.0,
+					dmgE,
 					1.0,
 					resourceManager.Accounts,
 					facilityDestroyedOnSameTick: false,
 					onCompleted: def => ApplyCompletedResearchToExistingUnits(def));
 				// 연구 대기열 소진도 단일 작업 종료다.
-				if (researchCompleted && b.ResearchQueue.Entries.Count == 0) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b));
+				if (researchCompleted && b.ResearchQueue.Entries.Count == 0) FinishSingleTaskWorkers(b, CollectInternalWorkers(b));
 			}
 			else if (b.Kind == FacilityKind.UnitProduction && resourceManager != null)
 			{
-				b.ProductionQueue.TickProduction(dt, now, operational, 1.0, 1.0, resourceManager.Accounts);
+				b.ProductionQueue.TickProduction(dt, now, operational, dmgE, 1.0, resourceManager.Accounts);
 				if (b.ProductionQueue.HasWaitingSpawnCandidate && session != null && session.roomGrid.TryGetValue(b.Position, out Room prodRoom) && prodRoom != null)
 					roomsWithReadyProduction.Add(prodRoom);
 			}
@@ -1400,7 +1752,7 @@ public class BuildingManager : NativeRoutine
 
 	private void TickBuildingFieldTask(BuildingData b, float dt, List<float> workerSpeeds)
 	{
-		bool coreActive = AreCoreFunctionsActive(b.Position.z);
+		bool coreActive = true; // 건설/수리/강화/분해 현장 작업은 확보한 방에서 코어 파괴 중에도 진행한다(건설 명세 1-7)
 
 		switch (b.ActiveFieldTask)
 		{
@@ -1411,6 +1763,8 @@ public class BuildingManager : NativeRoutine
 				if (session == null) { b.ActiveFieldTask = FacilityFieldTaskKind.None; break; }
 
 				bool siteClear = session.IsUpgrade || session.HasStartedWork || IsConstructionFootprintClearOfUnits(b);
+				if (!siteClear && GameSession.Instance != null && CountAssignedWorkers(b) > 0)
+					RequestAlliesToMakeWay(b, GameSession.Instance); // 착공할 때 대기 아군은 비켜 준다(건설 명세 2-1-표2)
 				var actualCosts = new List<(ResourceType, double)>();
 				if (!session.IsUpgrade)
 					actualCosts.Add((ResourceType.LifeEnergy, GetBuildLifeEnergyCostForKind(b.Kind)));
@@ -1434,9 +1788,16 @@ public class BuildingManager : NativeRoutine
 					ref curMax);
 				b.CurrentHp = curHp;
 				b.MaxHp = curMax;
+				b.FieldWorkActive = session.IsUpgrade && session.HasStartedWork && !session.IsEnded && workerSpeeds.Count > 0;
 
 				if (!prevStarted && session.HasStartedWork && !session.IsUpgrade)
 				{
+					// 착공 시 시공체는 건설 단계의 최대 HP로 생성된다(건설 명세 2-2). 완료되면 완성 시설의 최대 HP로 전부 회복한다.
+					if (!completed)
+					{
+						b.MaxHp = ConstructionRules.ConstructionStageMaxHp(session.TargetCompletedMaxHp);
+						b.CurrentHp = b.MaxHp;
+					}
 					// 첫 작업 시작 시 실제 건설 오브젝트 점유 활성화 및 투자액 기록(16-표2)
 					UpdateMapDataObstacle(b.Position, b.Footprint, true);
 					AccumulateCosts(b.PaidBuildCosts, session.PaidCosts);
@@ -1461,7 +1822,8 @@ public class BuildingManager : NativeRoutine
 					b.ActiveConstructionOrUpgrade = null;
 					b.ActiveFieldTask = FacilityFieldTaskKind.None;
 					NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 작업이 완료되었습니다.", NoticeCenter.QuestCompleteColor);
-					if (!DoesBuildingAcceptWorkers(b)) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b)); // 반복 작업 시설(생명 에너지·연구)의 작업자는 계속 일한다
+					// 건설 작업자는 내부 작업자가 아니다 - 순서에 남은 건설이 있으면 다음 현장으로, 없으면 배정을 풀고 방어 위치로 복귀한다(건설 명세 1-2-1, 2-11).
+					foreach (Unit doneWorker in CollectAssignedWorkers(b)) AdvanceWorkQueue(doneWorker, b, notifyEnd: true);
 				}
 				break;
 			}
@@ -1471,18 +1833,22 @@ public class BuildingManager : NativeRoutine
 				float curHp = b.CurrentHp;
 				bool done = b.ActiveRepair.Tick(dt, workerSpeeds, coreActive, resourceManager?.LifeEnergyAccount, ref curHp);
 				b.CurrentHp = curHp;
+				b.FieldWorkActive = !done && ConstructionRules.IsFieldWorkStoppingFacility(b.ActiveRepair.HasStartedWork, workerSpeeds.Count, b.ActiveRepair.IsPausedWaitingDiffApproval);
 				if (done)
 				{
 					b.ActiveRepair = null;
 					b.ActiveFieldTask = FacilityFieldTaskKind.None;
 					NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 수리가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
-					if (!DoesBuildingAcceptWorkers(b)) FinishSingleTaskWorkers(b, CollectAssignedWorkers(b));
+					FinishSingleTaskWorkers(b, CollectAssignedWorkers(b)); // 수리 작업자는 내부 작업자가 아니다 - 배정을 풀고 방어 위치로 복귀한다
 				}
 				break;
 			}
 			case FacilityFieldTaskKind.Demolish:
 			{
+				// 살아 있는 내부 작업자는 실제 철거 전에 나온다 - 나오지 못하면 착수하지 않고 퇴장 대기를 유지한다(건설 명세 2-5).
+				if (workerSpeeds.Count > 0 && BlockUntilInsideWorkersExit(b, InternalWorkRules.ExitCause.Demolish)) break;
 				float coopSpeed = WorkSpeedMath.CalculateTotalWorkSpeed(workerSpeeds);
+				b.FieldWorkActive = coopSpeed > 0f; // 철거 착수부터 가동/새 생산 예약을 멈춘다(건설 명세 2-5-표2)
 				if (coopSpeed <= 0f) break;
 				b.DemolishCompletedSeconds += dt * coopSpeed;
 				if (b.DemolishCompletedSeconds >= b.DemolishRequiredSeconds)
@@ -1492,20 +1858,55 @@ public class BuildingManager : NativeRoutine
 			case FacilityFieldTaskKind.Relocation:
 			{
 				var reloc = b.ActiveRelocation;
-				if (reloc == null) { b.ActiveFieldTask = FacilityFieldTaskKind.None; break; }
-				bool dismantled = reloc.TickDismantle(dt, workerSpeeds, coreActive, 1.0, resourceManager?.LifeEnergyAccount);
-				if (dismantled)
+				if (reloc == null) { b.ActiveFieldTask = FacilityFieldTaskKind.None; b.FieldWorkActive = false; break; }
+
+				if (b.ReinstallBodyPlaced)
 				{
-					// 분해 완료: 기존 자리 점유 해제 후 1타일 분해 오브젝트로 전환(20-2·20-3항)
-					UnregisterBuildingFromGrid(b, clearObstacle: true);
-					_allBuildings.Remove(b);
-					b.IsFormallyInstalled = false;
-					if (b.VisualObject != null) b.VisualObject.SetActive(false);
-					DropDismantledBuildingPackage(b, b.Position, carrierCorpseOnSameTile: null);
+					// 재설치 중: 시설 몸체가 현장을 점유하고 피해를 받는다. 작업자가 모두 떠나도 현장·HP·진행·지불은 남는다(건설 명세 2-7).
+					b.FieldWorkActive = false;
+					if (reloc.TickReinstallAtDestination(dt, workerSpeeds, true))
+						CompleteReinstall(b);
+					break;
 				}
+
+				// 분해도 살아 있는 내부 작업자가 먼저 나온다 - 배정은 유지해 원래 자리 밖에서 기다린다(건설 명세 2-5·2-6).
+				if (workerSpeeds.Count > 0 && BlockUntilInsideWorkersExit(b, InternalWorkRules.ExitCause.Dismantle)) break;
+				bool wasActive = b.FieldWorkActive;
+				bool dismantled = reloc.TickDismantle(dt, workerSpeeds, coreActive, 1.0, resourceManager?.LifeEnergyAccount);
+				b.FieldWorkActive = !dismantled && workerSpeeds.Count > 0; // 실제 분해 착수부터 가동 중지(건설 명세 2-6-표1)
+				if (b.FieldWorkActive && !wasActive) OnDismantleStarted(b);
+				if (dismantled) OnDismantleFinished(b);
 				break;
 			}
 		}
+	}
+
+	// 분해 착수: 정제시설은 신규 반입을 멈추고 입고 예약을 푼다 - 줍기 전 명령은 종료하고 이미 든 시체는 다른 저장시설을 찾는다(건설 명세 2-8).
+	private void OnDismantleStarted(BuildingData b)
+	{
+		if (b.Kind != FacilityKind.CorpseRefinery) return;
+		List<string> released = b.Refinery.ReleaseAllIncomingReservations();
+		HandleCancelledRefineryReservations(b, released);
+	}
+
+	// 분해 완료: 기존 자리 점유를 풀고 1타일 분해 오브젝트로 내려놓은 뒤, 기존 담당자 중 도착 예상이 가장 빠른 유닛이 든다(건설 명세 2-6).
+	private void OnDismantleFinished(BuildingData b)
+	{
+		List<Unit> helpers = CollectAssignedWorkers(b);
+		UnregisterBuildingFromGrid(b, clearObstacle: true);
+		_allBuildings.Remove(b);
+		b.IsFormallyInstalled = false;
+		b.FieldWorkActive = false;
+		if (b.VisualObject != null) b.VisualObject.SetActive(false);
+		EjectInsideWorkersAtFootprint(b, GameSession.Instance); // 착수 전에 모두 나왔어야 하지만 놓친 경우의 안전망
+		ReleasePendingInsideCorpsesAtFootprint(b, GameSession.Instance); // 미배출 작업자 시체는 원래 시설 자리에 남는다(건설 명세 2-8-표1)
+		InteractableObject pkg = DropDismantledBuildingPackage(b, b.Position, carrierCorpseOnSameTile: null);
+
+		Unit carrier = pkg != null ? PickNearestUnit(helpers, new Vector2Int(pkg.Position.x, pkg.Position.y)) : null;
+		if (carrier == null) return;
+		b.ActiveRelocation.AssignedWorkerUnitId = carrier.GetInstanceID();
+		carrier.pendingDismantledPackagePickup = pkg;
+		IssueInternalEconomyMove(carrier, new Vector2Int(pkg.Position.x, pkg.Position.y));
 	}
 
 	private void ArbitrateRoomUnitSpawns(Room room, GameSession session)
@@ -1526,6 +1927,8 @@ public class BuildingManager : NativeRoutine
 				FacilityFootprint = b.Footprint,
 				IsFacilityOperational = b.IsOperational,
 				Queue = b.ProductionQueue,
+				UseFrontZone = IsFrontZoneUsable(b),
+				FrontZone = GetFrontZone(b),
 			});
 			byId[b.FacilityId] = b;
 		}
@@ -1547,7 +1950,7 @@ public class BuildingManager : NativeRoutine
 			spawned =>
 			{
 				if (byId.TryGetValue(spawned.FacilityId, out BuildingData fac))
-					SpawnUnitAtExactOrigin(fac, spawned.Spec, spawned.SpawnOrigin);
+					SpawnUnitAtExactOrigin(fac, spawned.Spec, spawned.SpawnOrigin, IsFrontZoneUsable(fac) ? (RectInt?)GetFrontZone(fac) : null);
 			});
 	}
 
@@ -1589,7 +1992,7 @@ public class BuildingManager : NativeRoutine
 		return true;
 	}
 
-	private void SpawnUnitAtExactOrigin(BuildingData b, UnitProductionSpec spec, Vector2Int spawnOrigin)
+	private void SpawnUnitAtExactOrigin(BuildingData b, UnitProductionSpec spec, Vector2Int spawnOrigin, RectInt? leaveZone = null)
 	{
 		GameSession gameSession = GameSession.Instance;
 		if (unitGenerate == null || gameSession == null || spec == null) return;
@@ -1611,6 +2014,7 @@ public class BuildingManager : NativeRoutine
 
 		gameSession.units.Add(m);
 		gameSession.RegisterUnitPos(m, m.position);
+		if (leaveZone.HasValue) LeaveFrontZoneAfterSpawn(m, leaveZone.Value); // 출현 직후 정면 구역 밖으로 걸어 나간다(건설 명세 2-10-표1)
 		LogHelper.Log(LogHelper.GAME, $"[유닛 출현] {spec.DisplayName} 출현 완료: ({spawnOrigin.x},{spawnOrigin.y},F{b.Position.z})");
 	}
 
@@ -1694,24 +2098,35 @@ public class BuildingManager : NativeRoutine
 					}
 				}
 			}
-			// 3. 1타일 분해 시설 회수 위치로 이동 중(20-3항)
+			// 3. 1타일 분해 시설 회수 위치로 이동 중(20-3항, 건설 명세 2-6 - 바닥에서 다시 줍기는 접근 뒤 임시 1초)
 			else if (u.pendingDismantledPackagePickup != null)
 			{
 				InteractableObject pkgObj = u.pendingDismantledPackagePickup;
 				BuildingData payload = pkgObj.DismantledBuildingPayload;
-				if (pkgObj.IsCollected || payload?.ActiveRelocation == null || !AreCoreFunctionsActive(u.currentFloor))
+				if (pkgObj.IsCollected || payload?.ActiveRelocation == null)
 				{
 					u.pendingDismantledPackagePickup = null;
+					_pickupHoldStart.Remove(u);
 					continue;
 				}
 
 				if (pkgObj.IsAdjacentTo(u.position, 1) || (u.position.x == pkgObj.Position.x && u.position.y == pkgObj.Position.y))
 				{
+					double nowT = session.ElapsedGameSeconds;
+					if (!_pickupHoldStart.TryGetValue(u, out double holdStart))
+					{
+						_pickupHoldStart[u] = nowT;
+						continue;
+					}
+					if (nowT - holdStart < PackagePickupHoldSeconds) continue;
+					_pickupHoldStart.Remove(u);
+
 					ConsumeSingleObjectOrCoexisting(session, pkgObj);
 					u.pendingDismantledPackagePickup = null;
 
 					Vector3Int dest = payload.ActiveRelocation.TargetDestination;
-					bool destOk = CanInstallAt(dest, payload.Footprint, requireOwnership: true);
+					Vector2Int destFp = ConstructionRules.RotatedFootprint(payload.Footprint, payload.PendingRotation - payload.Rotation);
+					bool destOk = CanInstallAt(dest, destFp, requireOwnership: true, kind: payload.Kind, rotation: payload.PendingRotation);
 					if (!payload.ActiveRelocation.PickUpDroppedPackage(u.GetInstanceID(), dest, destOk))
 					{
 						DropDismantledBuildingPackage(payload, new Vector3Int(u.position.x, u.position.y, u.currentFloor), carrierCorpseOnSameTile: null);
@@ -1720,24 +2135,25 @@ public class BuildingManager : NativeRoutine
 					}
 
 					u.carriedDismantledBuilding = payload;
-					if (TryPickNearestAdjacentWorkTile(new Vector2Int(dest.x, dest.y), payload.Footprint, u, out Vector2Int destSlot))
+					if (TryPickNearestAdjacentWorkTile(new Vector2Int(dest.x, dest.y), destFp, u, out Vector2Int destSlot))
 						IssueInternalEconomyMove(u, destSlot);
 				}
 			}
-			// 4. 분해 시설을 목적지로 운반·재설치(0 비용) 중(20-3항)
+			// 4. 분해 시설을 목적지로 운반해 재설치 몸체를 세운다(20-3항, 건설 명세 2-7). 이후 재설치는 배정된 작업자 전원(최대 4명)이 TickBuildingFieldTask에서 진행한다.
 			else if (u.carriedDismantledBuilding != null)
 			{
 				BuildingData payload = u.carriedDismantledBuilding;
 				RelocationSession reloc = payload.ActiveRelocation;
-				if (reloc == null || !AreCoreFunctionsActive(u.currentFloor))
+				if (reloc == null)
 					continue;
 
 				Vector3Int dest = reloc.TargetDestination;
+				Vector2Int destFp = ConstructionRules.RotatedFootprint(payload.Footprint, payload.PendingRotation - payload.Rotation);
 				Vector2Int destOrigin = new Vector2Int(dest.x, dest.y);
-				if (!WorkSpeedMath.IsOrthogonallyAdjacent(destOrigin, payload.Footprint, u.position, u.FootprintSize))
+				if (!WorkSpeedMath.IsOrthogonallyAdjacent(destOrigin, destFp, u.position, u.FootprintSize))
 					continue;
 
-				bool destValid = CanInstallAt(dest, payload.Footprint, requireOwnership: true);
+				bool destValid = CanInstallAt(dest, destFp, requireOwnership: true, kind: payload.Kind, rotation: payload.PendingRotation);
 				if (!destValid)
 				{
 					reloc.OnCurrentDestinationBecameInvalid();
@@ -1747,32 +2163,32 @@ public class BuildingManager : NativeRoutine
 					continue;
 				}
 
-				singleWorkerBuf.Clear();
-				singleWorkerBuf.Add(Mathf.Max(0.1f, u.workerSpeedMultiplier));
-				if (reloc.TickReinstallAtDestination(dt, singleWorkerBuf, destValid))
-				{
-					u.carriedDismantledBuilding = null;
-					payload.Position = dest;
-					payload.IsFormallyInstalled = true;
-					payload.ActiveFieldTask = FacilityFieldTaskKind.None;
-					payload.ActiveRelocation = null;
-					if (payload.VisualObject != null)
-					{
-						Vector3 floorOffset = unitGenerate != null ? unitGenerate.GetFloorOffset(dest.z) : Vector3.zero;
-						payload.VisualObject.transform.position = new Vector3(dest.x + payload.Footprint.x / 2f, dest.y + payload.Footprint.y / 2f, 0f) + floorOffset;
-						payload.VisualObject.SetActive(true);
-					}
-					RegisterBuildingToGrid(payload, updateObstacle: true);
-					NoticeCenter.Instance?.PushMomentary($"{payload.DisplayName} 재설치가 완료되었습니다.", NoticeCenter.QuestCompleteColor);
-					DefensePlacementSystem.Instance?.OnWorkTaskEnded(u); // 분해 이동(운반·재설치)도 단일 작업 — 저장 방어 위치로 복귀(배치모드 1-6 표2)
-				}
+				// 일시적인 아군 점유는 실패가 아니라 대기다(건설 명세 2-7-표2).
+				if (!IsFootprintClearOfUnits(dest, destFp))
+					continue;
+
+				PlaceReinstallBody(payload, dest);
+				u.carriedDismantledBuilding = null;
+				u.assignedWorkBuilding = payload; // 운반자도 이제 재설치 작업자다
+				u.assignedWorkIsInternal = false;
 			}
 		}
 	}
 
+	private readonly Dictionary<Unit, double> _pickupHoldStart = new Dictionary<Unit, double>();
+	private const double PackagePickupHoldSeconds = 1.0; // 보정 없는 1명 기준 바닥 회수 접근 뒤 임시 1초(건설 명세 2-6)
+
 	private static void ConsumeSingleObjectOrCoexisting(GameSession session, InteractableObject targetObj)
 	{
 		if (session == null || targetObj == null) return;
+		// 겹쳐 놓인 대상(대표가 아닌 쪽)을 회수한다 - 대표 오브젝트는 그대로 두고 겹침 목록에서만 뺀다(건설 명세 2-8-표2).
+		if (session.objectGrid.TryGetValue(targetObj.Position, out InteractableObject head) && head != targetObj
+			&& head.CoexistingObjects != null && head.CoexistingObjects.Remove(targetObj))
+		{
+			targetObj.IsCollected = true;
+			if (head.CoexistingObjects.Count == 0) head.CoexistingObjects = null;
+			return;
+		}
 		if (session.objectGrid.TryGetValue(targetObj.Position, out InteractableObject primary) && primary == targetObj)
 		{
 			if (targetObj.CoexistingObjects != null && targetObj.CoexistingObjects.Count > 0)
@@ -1792,14 +2208,10 @@ public class BuildingManager : NativeRoutine
 		}
 	}
 
-	private void GatherActiveAdjacentWorkers(
-		BuildingData b,
-		List<Unit> allUnits,
-		List<float> outSpeeds,
-		List<WorkerContributionInput> outLifeWorkers)
+	// 외부 현장 작업자(건설·수리·강화·철거·이동) - 시설 상하좌우에 붙은 인원이다. 내부 작업자는 GatherInsideWorkers가 모은다.
+	private void GatherActiveAdjacentWorkers(BuildingData b, List<Unit> allUnits, List<float> outSpeeds)
 	{
 		outSpeeds.Clear();
-		outLifeWorkers.Clear();
 		if (allUnits == null) return;
 
 		Vector2Int bOrigin = new Vector2Int(b.Position.x, b.Position.y);
@@ -1807,22 +2219,40 @@ public class BuildingManager : NativeRoutine
 		{
 			Unit u = allUnits[i];
 			if (u == null || u.hp <= 0f || !u.IsPlayerMonsterFaction || u.currentFloor != b.Position.z) continue;
-			if (u.assignedWorkBuilding != b) continue;
+			if (u.assignedWorkBuilding != b || u.assignedWorkIsInternal || u.IsInsideFacility) continue;
 			if (u.StatusEffects.State.stunDuration > 0f || u.IsInEvolutionPresentation) continue;
 			if (!WorkSpeedMath.IsOrthogonallyAdjacent(bOrigin, b.Footprint, u.position, u.FootprintSize)) continue;
 
+			outSpeeds.Add(Mathf.Max(0.1f, u.workerSpeedMultiplier));
+		}
+	}
+
+	// 시설 안에서 일하는 내부 작업자의 가동 기여 - 안에 들어가 있는 동안만 생명 에너지·연구 속도에 더해진다(건설 명세 1-6).
+	private void GatherInsideWorkers(BuildingData b, List<float> outSpeeds, List<WorkerContributionInput> outLifeWorkers)
+	{
+		outSpeeds.Clear();
+		outLifeWorkers.Clear();
+		if (b.InsideWorkers.Count == 0) return;
+		foreach (Unit u in b.InsideWorkers)
+		{
+			if (u == null || u.hp <= 0f || u.insideFacility != b || u.insideExitRequested) continue; // 나가는 중인 인원은 더 일하지 않는다
+			if (u.StatusEffects.State.stunDuration > 0f) continue;
 			float spd = Mathf.Max(0.1f, u.workerSpeedMultiplier);
 			outSpeeds.Add(spd);
 			outLifeWorkers.Add(new WorkerContributionInput(u.GetInstanceID(), spd, u.lifeEnergyOutputBonusRatio));
 		}
 	}
 
+	// 착공 조건: 설치 몸체 안에 유닛이 없고, 확정 뒤 떨어진 시체/분해물도 반출된 상태여야 한다(건설 명세 2-1-표2). 대기 아군은 비켜 주고 시체/분해물은 가까운 빈 곳으로 반출한다.
 	private bool IsConstructionFootprintClearOfUnits(BuildingData b)
 	{
 		GameSession session = GameSession.Instance;
 		if (session == null) return true;
 		foreach (Vector3Int tile in FootprintTiles(b.Position, b.Footprint))
+		{
 			if (session.unitGrid.ContainsKey(tile)) return false;
+			if (session.objectGrid.TryGetValue(tile, out InteractableObject o) && IsLooseCorpseOrPackage(o)) return false;
+		}
 		return true;
 	}
 
@@ -1865,12 +2295,14 @@ public class BuildingManager : NativeRoutine
 		return found;
 	}
 
-	private static void IssueInternalEconomyMove(Unit worker, Vector2Int dest)
+	// workPriority=true(재지시)면 전투/경계가 끼어들 수 없는 고착 이동 + 도착 시 정지, 아니면 전투/경계에 밀렸다가 끝난 뒤 이어지는 자동 이동이다(건설 명세 1-5).
+	private static void IssueInternalEconomyMove(Unit worker, Vector2Int dest, bool workPriority = false)
 	{
 		worker.suppressEconomyCommandHook = true;
 		try
 		{
-			worker.SetMoveCommand(dest, markHalt: false, markStandGround: false);
+			worker.SetMoveCommand(dest, markHalt: workPriority, markStandGround: false);
+			worker.isDefenseAutoReturn = !workPriority && (AIConfigLoader.Behavior?.defenseReturnYieldsToCombatEnabled ?? true);
 		}
 		finally
 		{

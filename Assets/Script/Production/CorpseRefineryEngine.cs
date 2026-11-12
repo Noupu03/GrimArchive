@@ -272,7 +272,8 @@ public sealed class CorpseRefineryState
 		bool isFacilityOperational,
 		double refineSpeedMultiplier,
 		IReadOnlyDictionary<ResourceType, ResourceAccount> accounts,
-		Action<CorpseRecord, CorpseRefineReward> onCorpseRefined = null)
+		Action<CorpseRecord, CorpseRefineReward> onCorpseRefined = null,
+		double outputMultiplier = 1.0)
 	{
 		if (!isFacilityOperational)
 			return 0;
@@ -314,10 +315,12 @@ public sealed class CorpseRefineryState
 				CorpseRefineReward reward = CorpseRefineMath.CalculateReward(finished);
 				if (accounts != null)
 				{
+					// 손상 계수는 정제 완료 시점의 자원별 보상에 곱한다(건설 명세 2-4 — 속도 보정은 refineSpeedMultiplier가 따로 받는다).
+					double outMul = Math.Max(0.0, outputMultiplier);
 					if (reward.LifeEnergy > 0.0 && accounts.TryGetValue(ResourceType.LifeEnergy, out var lifeAcc))
-						lifeAcc.Credit(reward.LifeEnergy, reward.CreditSource);
+						lifeAcc.Credit(reward.LifeEnergy * outMul, reward.CreditSource);
 					if (reward.TotalSoulShard > 0.0 && accounts.TryGetValue(ResourceType.SoulShard, out var soulAcc))
-						soulAcc.Credit(reward.TotalSoulShard, reward.CreditSource);
+						soulAcc.Credit(reward.TotalSoulShard * outMul, reward.CreditSource);
 				}
 
 				completedCount++;
@@ -334,6 +337,14 @@ public sealed class CorpseRefineryState
 		}
 
 		return completedCount;
+	}
+
+	// 분해 착수: 신규 반입을 멈추기 위해 입고 예약을 모두 푼다(건설 명세 2-8). 보관/정제 중 시체는 그대로 둔다.
+	public List<string> ReleaseAllIncomingReservations()
+	{
+		var ids = new List<string>(_reservedIncomingIds);
+		_reservedIncomingIds.Clear();
+		return ids;
 	}
 
 	// 시설 파괴: 대기·정제 중 시체 모두 소멸하며 미완료 보상은 지급하지 않는다(13-1-표1).

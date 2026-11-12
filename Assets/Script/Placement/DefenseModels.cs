@@ -40,6 +40,7 @@ public enum PlacementBlock
 	NotWalkable,
 	DoorOrStair,
 	Facility,
+	FrontZone, // 생산시설의 정면 출현 구역(건설 명세 2-10) - 방어 위치를 저장할 수 없다
 	OverlapsOtherDefense,
 	RoomNotSecured,
 	RoomFull,
@@ -64,6 +65,7 @@ public static class PlacementBlockText
 		PlacementBlock.NotWalkable          => "벽·구조물이라 설 수 없습니다",
 		PlacementBlock.DoorOrStair          => "문·계단 위에는 설 수 없습니다",
 		PlacementBlock.Facility             => "시설·건설 계획과 겹칩니다",
+		PlacementBlock.FrontZone            => "생산시설의 정면 출현 구역에는 저장할 수 없습니다",
 		PlacementBlock.OverlapsOtherDefense => "다른 유닛의 방어 위치와 겹칩니다",
 		PlacementBlock.RoomNotSecured       => "확보하지 않은 방입니다",
 		PlacementBlock.RoomFull             => "방 정원이 부족합니다",

@@ -182,17 +182,25 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         int workers = _buildingManager != null ? _buildingManager.CountAssignedWorkers(b) : 0;
         if (_buildingManager != null && _buildingManager.DoesBuildingAcceptWorkers(b))
-            GUILayout.Label($"투입 작업자: {workers} / {WorkSpeedMath.MaxWorkersPerTask} (아군 선택 후 우클릭)", GUIMenuStyleUtil.BodyLabelStyle);
+            GUILayout.Label($"투입 작업자: {workers} / {BuildingManager.GetWorkerCap(b)} (아군 선택 후 우클릭)", GUIMenuStyleUtil.BodyLabelStyle);
 
         bool coreActive = BuildingManager.AreCoreFunctionsActive(b.Position.z);
-        if (!coreActive)
-            GUILayout.Label("※ 담당 코어가 파괴되어 일반 가동이 정지 중입니다.", GUIMenuStyleUtil.BodyLabelStyle);
-        else if (b.IsFormallyInstalled && b.CurrentHp < b.MaxHp - 1e-3f && b.ActiveFieldTask != FacilityFieldTaskKind.Repair)
-            GUILayout.Label("※ 시설 손상으로 일반 가동이 정지 중입니다 (최대 HP 수리 필요).", GUIMenuStyleUtil.BodyLabelStyle);
+        if (b.IsFormallyInstalled)
+        {
+            if (!coreActive)
+                GUILayout.Label("※ 담당 코어가 파괴되어 일반 가동이 정지 중입니다. (코어 수복 대기)", GUIMenuStyleUtil.BodyLabelStyle);
+            else if (b.FieldWorkActive)
+                GUILayout.Label("※ 실제 수리·강화·철거·분해 작업 중이라 가동이 멈춰 있습니다.", GUIMenuStyleUtil.BodyLabelStyle);
+            if (b.CurrentHp < b.MaxHp - 1e-3f)
+                GUILayout.Label($"손상 효율 {b.DamageEfficiency * 100.0:F0}% — 자원·정제 속도와 산출, 연구·생산 속도, 전투 피해에 적용됩니다.", GUIMenuStyleUtil.BodyLabelStyle);
+        }
+        if (!string.IsNullOrEmpty(b.WaitReason))
+            GUILayout.Label($"상태: {b.WaitReason}", GUIMenuStyleUtil.BodyLabelStyle);
 
         if (b.ActiveFieldTask != FacilityFieldTaskKind.None)
         {
             DrawActiveFieldTaskSection(b);
+            DrawWorkerList(b);
             return;
         }
 
@@ -214,6 +222,70 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 DrawResearchFacilityBody(b, coreActive);
                 break;
         }
+
+        DrawWorkerList(b);
+    }
+
+    // ── 작업자 목록(건설 명세 1-2) — 해당 층의 아군을 방별로, 같은 방에서는 작업 속도 순으로 보여 준다. 행을 누르면 추가, 이미 배정된 행을 다시 누르면 그 한 명만 해제 ──
+    private bool _showWorkerList = true;
+
+    private void DrawWorkerList(BuildingData b)
+    {
+        if (_buildingManager == null || !_buildingManager.DoesBuildingAcceptWorkers(b)) return;
+
+        GUILayout.Space(6);
+        int assigned = _buildingManager.CountAssignedWorkers(b);
+        string taskName = BuildingManager.DescribeTaskName(b);
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout($"작업자 {(_showWorkerList ? "목록 접기" : "지정")} ({assigned}/{BuildingManager.GetWorkerCap(b)})", options: new[] { GUILayout.Height(24f) }))
+            _showWorkerList = !_showWorkerList;
+        if (!_showWorkerList) return;
+
+        string internalState = _buildingManager.DescribeInternalState(b);
+        if (!string.IsNullOrEmpty(internalState)) GUILayout.Label(internalState + " — 코어 파괴·실제 수리 중에는 새로 들어가지 못합니다", GUIMenuStyleUtil.BodyLabelStyle);
+
+        if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && b.WaitReason == "공간 부족")
+            GUILayout.Label("공간이 없어 건설할 수 없습니다.", GUIMenuStyleUtil.BodyLabelStyle);
+
+        if (assigned > 0 && b.ActiveFieldTask != FacilityFieldTaskKind.None)
+            GUILayout.Label($"남은 {taskName} 시간 {_buildingManager.EstimateSecondsWithWorker(b, null):F0}초 (이동·대기 제외, 현재 협력 속도)", GUIMenuStyleUtil.BodyLabelStyle);
+
+        List<WorkerCandidate> list = _buildingManager.BuildWorkerCandidates(b);
+        if (list.Count == 0)
+            GUILayout.Label("이 층에 배정할 수 있는 아군이 없습니다.", GUIMenuStyleUtil.BodyLabelStyle);
+
+        string lastRoom = null;
+        for (int i = 0; i < list.Count; i++)
+        {
+            WorkerCandidate c = list[i];
+            if (c.RoomName != lastRoom)
+            {
+                GUILayout.Label($"▸ {c.RoomName}", GUIMenuStyleUtil.LabelStyle);
+                lastRoom = c.RoomName;
+            }
+
+            string name = c.Unit.unitType != null ? c.Unit.unitType.typeName : c.Unit.name;
+            string time = c.IsAssigned
+                ? $"진행 {_buildingManager.GetTaskProgress01(b) * 100f:F0}%"
+                : $"{taskName} 시간 {c.EstimatedSeconds:F0}초";
+            string queue = c.QueuedCount > 0 ? $" · 이후 {c.QueuedCount}건 · 총 {c.QueueTotalSeconds:F0}초" : string.Empty;
+            string blocked = c.BlockReason != null ? $" · 선택 불가: {c.BlockReason}" : string.Empty;
+            string line = $"{(c.IsAssigned ? "● " : "○ ")}{name} · {c.Activity}\n    속도 x{c.Speed:F1} · {time}{queue}{blocked}";
+
+            bool prev = GUI.enabled;
+            GUI.enabled = prev && c.BlockReason == null;
+            GUILayout.BeginHorizontal();
+            if (GUIMenuStyleUtil.DrawFlatButtonLayout(line, options: new[] { GUILayout.Height(40f) }))
+                _buildingManager.ToggleWorkerFromList(c.Unit, b);
+            GUI.enabled = prev;
+            if (c.ShowCombatSetting)
+            {
+                // 내부 작업자의 전투 대응 설정(건설 명세 1-6-표1): 대응 = 현재 방의 전투 인지·시설 피격 시 밖으로 나와 전투, 무시 = 내부 작업 계속.
+                string setLabel = c.Setting == InternalCombatSetting.Respond ? "전투 대응" : "전투 무시";
+                if (GUIMenuStyleUtil.DrawFlatButtonLayout(setLabel, options: new[] { GUILayout.Width(78f), GUILayout.Height(40f) }))
+                    c.Unit.internalCombatSetting = c.Setting == InternalCombatSetting.Respond ? InternalCombatSetting.Ignore : InternalCombatSetting.Respond;
+            }
+            GUILayout.EndHorizontal();
+        }
     }
 
     private void DrawActiveFieldTaskSection(BuildingData b)
@@ -229,6 +301,12 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 double pct = s != null ? s.Progress01 * 100.0 : 0.0;
                 string waitStart = s != null && !s.HasStartedWork ? " (작업자 도착 및 부지 비움 대기)" : string.Empty;
                 GUILayout.Label($"[{title}] {pct:F0}%{waitStart}", GUIMenuStyleUtil.BodyLabelStyle);
+                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && _buildingManager != null && _buildingManager.CanMovePlan(b)
+                    && GUIMenuStyleUtil.DrawFlatButtonLayout("위치 변경", options: new[] { GUILayout.Height(26f) }))
+                    BuildPlacementController.Current?.EnterPlanMoveMode(b);
+                if (b.ActiveFieldTask == FacilityFieldTaskKind.Construction && s != null && s.HasStartedWork && b.ActiveRelocation == null
+                    && GUIMenuStyleUtil.DrawFlatButtonLayout("이동 (미완성 건설)", options: new[] { GUILayout.Height(26f) }))
+                    BuildPlacementController.Current?.EnterRelocationMode(b);
                 if (GUIMenuStyleUtil.DrawFlatButtonLayout("작업 취소 (비용 환급)", options: new[] { GUILayout.Height(26f) }))
                     _buildingManager?.CancelFacilityConstructionOrUpgrade(b);
                 break;
@@ -244,6 +322,8 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                     if (GUIMenuStyleUtil.DrawFlatButtonLayout($"추가 수리비 지불 ({r.UnapprovedDiffAmount})", options: new[] { GUILayout.Height(26f) }))
                         _buildingManager?.TryApproveFacilityRepairDiff(b);
                 }
+                if (GUIMenuStyleUtil.DrawFlatButtonLayout("강화로 교체 (수리 환급 포함 비용 검사)", options: new[] { GUILayout.Height(26f) }))
+                    _buildingManager?.TryStartFacilityUpgrade(b);
                 if (GUIMenuStyleUtil.DrawFlatButtonLayout("수리 취소 (지불액 환급)", options: new[] { GUILayout.Height(26f) }))
                     _buildingManager?.CancelFacilityRepair(b);
                 break;
@@ -262,8 +342,14 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 double pct = rel != null && rel.DismantleRequiredSeconds > 0.0
                     ? (rel.DismantleCompletedSeconds / rel.DismantleRequiredSeconds) * 100.0
                     : 0.0;
-                GUILayout.Label($"[이동용 분해 진행 중] {pct:F0}% → ({rel?.TargetDestination.x},{rel?.TargetDestination.y})", GUIMenuStyleUtil.BodyLabelStyle);
-                if (GUIMenuStyleUtil.DrawFlatButtonLayout("분해 취소 (비용 환급)", options: new[] { GUILayout.Height(26f) }))
+                string stage = b.ReinstallBodyPlaced ? "재설치" : (rel != null && rel.IsDismantleFinished ? "운반" : "이동용 분해");
+                GUILayout.Label($"[{stage} 진행 중] {_buildingManager.GetTaskProgress01(b) * 100f:F0}% → ({rel?.TargetDestination.x},{rel?.TargetDestination.y}) · 방향 {b.PendingRotation * 90}도", GUIMenuStyleUtil.BodyLabelStyle);
+                if (b.ReinstallBodyPlaced)
+                    GUILayout.Label($"재설치 체력 {b.CurrentHp:F0}/{b.MaxHp:F0} — 완료 시 남은 비율을 완성 시설 최대 HP에 적용합니다.", GUIMenuStyleUtil.BodyLabelStyle);
+                if (GUIMenuStyleUtil.DrawFlatButtonLayout("목적지·방향 변경", options: new[] { GUILayout.Height(26f) }))
+                    BuildPlacementController.Current?.EnterRelocationMode(b);
+                if (!b.ReinstallBodyPlaced && !(rel != null && rel.IsDismantleFinished)
+                    && GUIMenuStyleUtil.DrawFlatButtonLayout("분해 취소 (비용 환급)", options: new[] { GUILayout.Height(26f) }))
                     _buildingManager?.CancelFacilityRelocation(b);
                 break;
             }
@@ -288,13 +374,10 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         if (GUIMenuStyleUtil.DrawFlatButtonLayout("철거", options: new[] { GUILayout.Height(24f) }))
             _buildingManager.TryStartFacilityDemolish(b);
 
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("분해이동", options: new[] { GUILayout.Height(24f) }))
-        {
-            if (_buildingManager.TryFindNearbyRelocationDestination(b, out Vector3Int dest))
-                _buildingManager.TryStartFacilityRelocation(b, dest);
-            else
-                NoticeCenter.Instance?.PushMomentary("같은 방 안에 이동할 빈 부지가 없습니다.", NoticeCenter.WarningColor);
-        }
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout("이동", options: new[] { GUILayout.Height(24f) }))
+            BuildPlacementController.Current?.EnterRelocationMode(b);
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout("회전", options: new[] { GUILayout.Height(24f) }))
+            _buildingManager.TryStartFacilityRelocation(b, b.Position, b.Rotation + 1); // 제자리 90도 회전도 작업자가 분해·재설치로 수행한다(무상)
         GUI.enabled = prev;
         GUILayout.EndHorizontal();
     }
@@ -325,7 +408,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         if (b.AvailableRules != null && _resourceManager != null)
         {
             bool prev = GUI.enabled;
-            GUI.enabled = prev && coreActive && b.IsOperational && roomSecured;
+            GUI.enabled = prev && b.CanTakeReservations && roomSecured; // 코어 파괴 중에도 예약 가능(건설 명세 1-7-표1)
             for (int i = 0; i < b.AvailableRules.Count; i++)
             {
                 ProductionRule rule = b.AvailableRules[i];
@@ -340,7 +423,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                         _resourceManager.IsSoulShardSpendUnlocked,
                         isSpeciesUnlocked: true,
                         isRoomSecured: roomSecured,
-                        isCoreValid: coreActive,
+                        isCoreValid: true, // 새 생산 예약은 코어 파괴 중에도 가능 - 실제 생산은 가동 조건 재검사(건설 명세 1-7-표1)
                         facilityFloor: b.Position.z,
                         reserveCostMultiplier: 1.0,
                         out _,
@@ -483,7 +566,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             bool preservedPaid = ledger.HasPreservedPayment(def.ResearchId);
             string costText = preservedPaid ? "재개 무료(지불 보존)" : $"생명 {def.BaseLifeEnergyCost:F0}, 영혼 {def.BaseSoulShardCost:F0}";
             bool prev = GUI.enabled;
-            GUI.enabled = prev && coreActive && b.IsOperational && !ledger.IsQueuedAnywhere(def.ResearchId);
+            GUI.enabled = prev && b.CanTakeReservations && !ledger.IsQueuedAnywhere(def.ResearchId); // 코어 파괴 중에도 연구 선택 가능(건설 명세 1-7-표1)
             if (GUIMenuStyleUtil.DrawFlatButtonLayout($"{def.DisplayName} ({costText})", options: new[] { GUILayout.Height(26f) }))
             {
                 bool reqFloorActivated = !def.RequiredActivatedFloor.HasValue
@@ -613,6 +696,51 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
         string reason = DoorControlRules.Describe(block);
         if (reason.Length > 0) GUILayout.Label(reason, GUIMenuStyleUtil.BodyLabelStyle);
+
+        DrawDoorExpansion(door);
+    }
+
+    // ── 문 확장(건설 명세 2-9) — 플레이어 소유 문의 양 끝 벽을 넓힌다. 비용은 등록 때 선점하고 첫 실제 작업에서 한 번 차감하며 그때 문이 열린다. 확보한 방에서는 코어가 파괴돼도 가능하다. ──
+    private void DrawDoorExpansion(InteractableObject door)
+    {
+        if (_buildingManager == null) return;
+        GUILayout.Space(6);
+        DoorExpansionTask task = _buildingManager.GetDoorExpansionOf(door);
+        if (task == null)
+        {
+            string block = _buildingManager.GetDoorExpansionBlockReason(door, out _);
+            bool prevEnabled = GUI.enabled;
+            GUI.enabled = prevEnabled && block == null;
+            if (GUIMenuStyleUtil.DrawFlatButtonLayout($"문 확장 (생명 에너지 {BuildingManager.DoorExpansionCost})", options: new[] { GUILayout.Height(28f) }))
+            {
+                if (!_buildingManager.TryRegisterDoorExpansion(door, out string why)) NoticeCenter.Instance?.PushMomentary(why, NoticeCenter.WarningColor);
+            }
+            GUI.enabled = prevEnabled;
+            if (block != null) GUILayout.Label($"문 확장 불가: {block}", GUIMenuStyleUtil.BodyLabelStyle);
+            return;
+        }
+
+        DoorExpansionSession s = task.Session;
+        string wait = string.IsNullOrEmpty(task.WaitReason) ? "진행 중" : $"대기: {task.WaitReason}";
+        GUILayout.Label($"[문 확장 {s.CurrentWidth}→{s.TargetWidth}] {s.Progress01 * 100.0:F0}% · 양 끝 {(s.IsEndDone(0) ? "완료" : "작업")}/{(s.IsEndDone(1) ? "완료" : "작업")} · {wait}", GUIMenuStyleUtil.BodyLabelStyle);
+        GUILayout.Label(s.HasStartedWork ? "작업이 시작되어 문이 열려 있습니다. 한 명이 한쪽을 마치고 반대쪽으로 가서 끝낼 수 있습니다." : "작업자가 도착해 실제 작업이 시작되면 비용이 차감되고 문이 열립니다.", GUIMenuStyleUtil.BodyLabelStyle);
+
+        GUILayout.Label($"담당 작업자 {_buildingManager.CountDoorWorkers(task)}/{WorkSpeedMath.MaxWorkersPerTask} (아군 선택 후 문 우클릭으로도 배정)", GUIMenuStyleUtil.BodyLabelStyle);
+        int shown = 0;
+        foreach (DoorWorkerCandidate c in _buildingManager.BuildDoorWorkerCandidates(task))
+        {
+            if (++shown > 12) break;
+            string name = c.Unit.unitType != null ? c.Unit.unitType.typeName : c.Unit.name;
+            string blocked = c.BlockReason != null ? $" · 선택 불가: {c.BlockReason}" : string.Empty;
+            bool prev = GUI.enabled;
+            GUI.enabled = prev && c.BlockReason == null;
+            if (GUIMenuStyleUtil.DrawFlatButtonLayout($"{(c.IsAssigned ? "● " : "○ ")}{name} · {c.RoomName} · 속도 x{c.Speed:F1}{blocked}", options: new[] { GUILayout.Height(26f) }))
+                _buildingManager.ToggleDoorWorker(c.Unit, task);
+            GUI.enabled = prev;
+        }
+
+        if (GUIMenuStyleUtil.DrawFlatButtonLayout(s.HasStartedWork ? "문 확장 취소 (비용 환급)" : "문 확장 취소 (선점 해제)", options: new[] { GUILayout.Height(26f) }))
+            _buildingManager.CancelDoorExpansion(task);
     }
 
     private void DrawCoreControls(InteractableObject obj)

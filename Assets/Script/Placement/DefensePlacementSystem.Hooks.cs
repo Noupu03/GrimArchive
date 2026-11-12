@@ -108,6 +108,6 @@ public sealed partial class DefensePlacementSystem
 	bool IsOccupiedByConstruction(int floor, Vector2Int tile, Vector2Int footprint)
 	{
 		PlacementBlock body = CheckBody(floor, tile, footprint, out _);
-		return body == PlacementBlock.Facility || body == PlacementBlock.DoorOrStair;
+		return body == PlacementBlock.Facility || body == PlacementBlock.DoorOrStair || body == PlacementBlock.FrontZone;
 	}
 }

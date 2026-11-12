@@ -434,6 +434,9 @@ public sealed class RoomSpawnFacilityHandle
 	public Vector2Int FacilityFootprint;
 	public bool IsFacilityOperational;
 	public FacilityProductionQueue Queue;
+	// 정면 출현 구역(건설 명세 2-10) - 켜져 있으면 구역 안에서만 출현 위치를 찾는다(꺼져 있으면 예전 시설 둘레).
+	public bool UseFrontZone;
+	public RectInt FrontZone;
 }
 
 public sealed class RoomPopulationContext
@@ -498,12 +501,17 @@ public static class SpawnArbitrator
 				}
 
 				bool popOk = roomPop.CanFitPopulation(head.Spec.PopulationCost);
-				bool spaceOk = TryFindOrthogonalSpawnOrigin(
-					fh.FacilityOrigin,
-					fh.FacilityFootprint,
-					head.Spec.Footprint,
-					isAdjacentFootprintClear,
-					out Vector2Int chosenPos);
+				bool spaceOk;
+				Vector2Int chosenPos;
+				if (fh.UseFrontZone)
+					spaceOk = ConstructionRules.TryFindFrontSpawnOrigin(fh.FrontZone, head.Spec.Footprint, isAdjacentFootprintClear, out chosenPos);
+				else
+					spaceOk = TryFindOrthogonalSpawnOrigin(
+						fh.FacilityOrigin,
+						fh.FacilityFootprint,
+						head.Spec.Footprint,
+						isAdjacentFootprintClear,
+						out chosenPos);
 
 				if (!popOk || !spaceOk)
 				{

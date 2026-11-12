@@ -566,6 +566,45 @@ public class MapRandering : NativeRoutine, IMapColorizer
         tilemap.SetTile(localPos, tileSet.wallVariants[0]);
     }
 
+    // 건설 명세 2-9 문 확장 — 이미 렌더링된 타일맵의 셀 하나를 바닥 스프라이트로 바꾼다(SetTileToWall의 반대).
+    public void SetTileToFloor(int floorIndex, Vector3Int localPos)
+    {
+        if (floorTilemaps == null || floorIndex < 0 || floorIndex >= floorTilemaps.Length) return;
+        Tilemap tilemap = floorTilemaps[floorIndex];
+        if (tilemap == null) return;
+
+        var tileSet = GetOrBuildFloorTileSet(floorIndex);
+        if (tileSet.floorVariants == null || tileSet.floorVariants.Length == 0) return;
+        tilemap.SetTile(localPos, PickRandomVariant(tileSet.floorVariants));
+    }
+
+    // 바뀐 셀 둘레 3x3의 벽 타일은 이웃이 바뀌었으니 자동 타일 모양(직선·모서리)을 다시 고른다.
+    public void RefreshWallShapesAround(int floorIndex, IList<Vector2Int> changed)
+    {
+        if (createMap?.map.floors == null || floorTilemaps == null || changed == null || changed.Count == 0) return;
+        if (floorIndex < 0 || floorIndex >= floorTilemaps.Length || floorIndex >= createMap.map.floors.Length) return;
+        Tilemap tilemap = floorTilemaps[floorIndex];
+        if (tilemap == null) return;
+
+        Floor floor = createMap.map.floors[floorIndex];
+        bool[,] isWall = BuildWallMask(ref floor, out int worldW, out int worldH);
+        bool[,] isFloor = BuildFloorMask(ref floor, worldW, worldH);
+        var tileSet = GetOrBuildFloorTileSet(floorIndex);
+        var done = new HashSet<Vector2Int>();
+        foreach (Vector2Int c in changed)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    var p = new Vector2Int(c.x + dx, c.y + dy);
+                    if (p.x < 0 || p.y < 0 || p.x >= worldW || p.y >= worldH || !isWall[p.x, p.y] || !done.Add(p)) continue;
+                    tilemap.SetTile(new Vector3Int(p.x, p.y, 0), GetWallShapeTile(isWall, isFloor, worldW, worldH, p.x, p.y, tileSet.wallShapeTiles));
+                }
+            }
+        }
+    }
+
     // 격자(mask) 위에서 solid(true) 영역의 외곽선을 그대로 추적해 폐곡선 목록으로 뽑아낸다 — 비정형
     // 모양이어도 근사 없이 실제 타일 모양 그대로 나온다. solid 뭉치가 구멍을 여러 개 가지면 바깥
     // 윤곽선 1개 + 구멍마다 안쪽 윤곽선 1개가 나올 수 있어 전부 반환한다(폴리곤 채우기를 안 쓰므로

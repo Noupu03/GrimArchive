@@ -34,7 +34,7 @@ public class ResourceManager : NativeRoutine
 	public const int FacilityUpgradeLifeEnergyCost = 200;
 	public const int FacilityUpgradeSoulShardCost = 25;
 	public const int FacilityFullRepairLifeEnergyCost = 120;
-	public const int FacilityRelocateDismantleLifeEnergyCost = 60;
+	public const int FacilityRelocateDismantleLifeEnergyCost = 0; // 시설 이동은 분해·운반·재설치 모두 무상이다(건설 명세 2-6)
 
 	public const int UnitProductionLifeEnergyCost = 100;
 	public const int CoreRestoreBaseLifeEnergyCost = 300;

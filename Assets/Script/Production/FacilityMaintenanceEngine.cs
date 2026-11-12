@@ -145,9 +145,10 @@ public sealed class ConstructionOrUpgradeSession
 		if (CompletedWorkSeconds + Epsilon >= RequiredWorkSeconds)
 		{
 			CompletedWorkSeconds = RequiredWorkSeconds;
+			// 신규 건설은 완성 시설의 최대 HP로 전부 회복한다(건설 명세 2-2). 강화는 직전 HP 비율을 새 최대 HP에 승계한다(각주 [23]).
 			float hpRatio = targetCurrentMaxHp > 0f ? Mathf.Clamp01(targetCurrentHp / targetCurrentMaxHp) : 1f;
 			targetCurrentMaxHp = TargetCompletedMaxHp;
-			targetCurrentHp = TargetCompletedMaxHp * hpRatio; // 직전 HP 비율 승계(각주 [23])
+			targetCurrentHp = IsUpgrade ? TargetCompletedMaxHp * hpRatio : ConstructionRules.NewConstructionCompleteHp(TargetCompletedMaxHp);
 			IsCompleted = true;
 			IsEnded = true;
 			return true;
@@ -924,6 +925,14 @@ public sealed class RelocationSession
 			AssignedWorkerUnitId = -1;
 			Stage = RelocationStage.DroppedAs1x1Package;
 		}
+	}
+
+	// 운반자가 목적지에 도착해 시설 몸체를 현장에 세웠다 - 이후 재설치 작업은 작업자 전원이 맡는다(건설 명세 2-7).
+	public void BeginInstall()
+	{
+		if (Stage != RelocationStage.CarryingPackage) return;
+		Stage = RelocationStage.InstallingAtDestination;
+		LastInstallProgressDestination = TargetDestination;
 	}
 
 	// 목적지 도착 후 추가 비용 0으로 재설치 작업 시간을 진행한다(20-2-표1, 24-표1).

@@ -25,6 +25,8 @@ public class InputManager : MonoBehaviour
 	public IReadOnlyList<Unit> selectedUnits => _selectedUnits;
 	// 매 프레임 호출되는 UnitGenerate의 선택 표시 갱신이 IReadOnlyList 너머로 LINQ Contains(박싱)를 타지 않게 하는 헬퍼.
 	public bool IsUnitSelected(Unit u) => _selectedUnits.Contains(u);
+	// 시설 안으로 들어간 내부 작업자처럼 화면에서 사라진 유닛은 선택에서 뺀다.
+	public void DeselectUnit(Unit u) { if (u != null) _selectedUnits.Remove(u); }
 	public Action OnSelectionChanged;
 
 	// 우클릭 이동/공격은 별도 토글 없이 기본으로 항상 가능하다("명령 취소"/"집결 및 정지" 토글이
@@ -398,7 +400,24 @@ public class InputManager : MonoBehaviour
 			}
 		}
 
-		// B. 수복 등록된 코어 작업자 배정(최대 4기, 아군은 코어를 공격하지 않음)
+		// A-2. 문 확장 작업자 배정(건설 명세 2-9, 최대 4기) - 확장이 등록된 문을 우클릭한다.
+			if (_gameSession.objectGrid.TryGetValue(gridPos, out InteractableObject doorObj) && DoorSystem.IsBarrier(doorObj) && _buildingManager.GetDoorExpansionOf(doorObj) is DoorExpansionTask doorTask)
+			{
+				int doorAssigned = 0;
+				foreach (var sel in selectedUnits)
+				{
+					if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
+					if (_buildingManager.TryAssignWorkerToDoorExpansion(sel, doorTask)) doorAssigned++;
+					if (doorAssigned >= WorkSpeedMath.MaxWorkersPerTask) break;
+				}
+				if (doorAssigned > 0)
+				{
+					LogHelper.Log(LogHelper.GAME, $"[문 확장 배정] {doorObj.Id} <- {doorAssigned}기");
+					return true;
+				}
+			}
+
+			// B. 수복 등록된 코어 작업자 배정(최대 4기, 아군은 코어를 공격하지 않음)
 		if (_gameSession.Core != null && _gameSession.Core.GetActiveRestoreAt(gridPos) != null)
 		{
 			int assigned = 0;
@@ -424,7 +443,7 @@ public class InputManager : MonoBehaviour
 				foreach (var sel in selectedUnits)
 				{
 					if (sel == null || sel.Health.hp <= 0f || !sel.IsPlayerMonsterFaction) continue;
-					_buildingManager.TryCommandCorpseRetrieve(sel, obj);
+					_buildingManager.TryCommandCorpseRetrieve(sel, _buildingManager.PickFloorCorpseAt(obj, sel) ?? obj); // 겹쳐 놓인 시체는 영혼 파편 → 생명 에너지 → 먼저 놓인 순(건설 명세 2-8-표2)
 					return true;
 				}
 			}
@@ -533,7 +552,16 @@ public class InputManager : MonoBehaviour
 		// ESC는 space바와 동일하게 정지 상태로 만들고 설정 패널을 띄운다 — 일시정지/재개 처리는 GameSettingsPanel이 직접 들고 있다.
 		if (GameInputScheme.EscapePressedThisFrame)
 		{
-			GameSettingsPanel.Instance?.Toggle();
+			// 건설 미리보기가 열려 있으면 ESC는 미리보기만 끝낸다 - 확정한 계획은 유지된다(건설 명세 2-1).
+			if (_buildPlacement.IsActive || _objectPlacement.IsActive)
+			{
+				_buildPlacement.ExitMode();
+				_objectPlacement.ExitMode();
+			}
+			else
+			{
+				GameSettingsPanel.Instance?.Toggle();
+			}
 		}
 
 		if (GameInputScheme.Speed05PressedThisFrame)

@@ -991,9 +991,9 @@ public class EconomyProductionSystemTests
 		ConstructionOrUpgradeSession.TryCreateOrder(false, costs, 10.0, 200f, accounts1, false, true, out var bSurvive, out _);
 		bSurvive.Tick(9.0, new[] { 1.0f }, true, true, costs, accounts1, ref curHp1, ref curMax1);
 
-		// 완공과 동시에 60 피해 -> 40/100 생존 -> 최대 HP 200의 40%인 80/200으로 완공(각주 [23])
+		// 완공과 동시에 60 피해 -> 40/100 생존 -> 신규 건설은 완성 시설의 최대 HP로 전부 회복해 200/200으로 완공(건설 명세 2-2-표1·사례 7, 이전 비율 승계 규칙 폐기 - 강화는 여전히 비율 승계)
 		Assert.IsTrue(bSurvive.Tick(1.0, new[] { 1.0f }, true, true, costs, accounts1, ref curHp1, ref curMax1, sameTickDamage: 60f));
-		Assert.AreEqual(80f, curHp1, 1e-4f);
+		Assert.AreEqual(200f, curHp1, 1e-4f);
 		Assert.AreEqual(200f, curMax1, 1e-4f);
 
 		// 완공과 동시에 치명 피해(100) -> 파괴, 환급 없음

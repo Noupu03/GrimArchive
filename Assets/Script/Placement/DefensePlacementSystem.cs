@@ -220,6 +220,7 @@ public sealed partial class DefensePlacementSystem
 			if (session.IsDoorTile(key)) return PlacementBlock.DoorOrStair;
 			if (session.objectGrid.TryGetValue(key, out InteractableObject obj) && DoorSystem.IsBarrier(obj)) return PlacementBlock.DoorOrStair;
 			if (BuildingManager.Instance != null && BuildingManager.Instance.GetBuildingAt(key) != null) return PlacementBlock.Facility;
+			if (BuildingManager.Instance != null && BuildingManager.Instance.IsFrontZoneReserved(key)) return PlacementBlock.FrontZone;
 		}
 		return room == null ? PlacementBlock.OutOfRoom : PlacementBlock.None;
 	}
