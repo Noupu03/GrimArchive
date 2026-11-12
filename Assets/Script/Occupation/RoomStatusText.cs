@@ -7,6 +7,12 @@ public static class RoomStatusText
 			? $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation} (이 방으로 이동 중: 인구 {incoming})"
 			: $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation}";
 
+	// 좁은 칸(배치모드 방 위 패널)용 - 이동 중 인원이 있어도 한 줄에 들어간다.
+	public static string PopulationCompact(Room room, int incoming = 0)
+		=> incoming > 0
+			? $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation} · 이동 중 +{incoming}"
+			: $"현 인원 {room.CurrentPopulation}/{room.MaxPopulation}";
+
 	// 배치모드에서만 보이는 계획 정원(저장된 방어 위치의 인구수 합).
 	public static string DefensePlan(Room room, int planned) => $"방어 배치 {planned}/{room.MaxPopulation}";
 

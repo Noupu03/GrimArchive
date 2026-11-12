@@ -268,7 +268,7 @@ public partial class BuildingManager
 			BuildingData cur = u.assignedWorkBuilding;
 			if (cur != null)
 			{
-				c.Activity = $"{DescribeTaskName(cur)} · {cur.DisplayName}";
+				c.Activity = cur == b ? DescribeTaskName(cur) : $"{DescribeTaskName(cur)} · {cur.DisplayName}";
 				c.ActivityProgress = cur.ActiveFieldTask != FacilityFieldTaskKind.None ? GetTaskProgress01(cur) : -1f;
 			}
 			else if (u.assignedCoreRestorePos.HasValue) c.Activity = "코어 수복";

@@ -153,8 +153,8 @@ public sealed class PlacementModeUI
 			RoomText text = GetRoomText(room, defense);
 			Reg(panel); // 스케일이 이미 사각형에 들어가 있어(GUI.matrix 미사용) 마우스 판정용 화면 좌표와 같다
 			GUIMenuStyleUtil.DrawPanelBox(panel);
-			GUI.Label(new Rect(panel.x + 6f * s, panel.y + 2f * s, w - 12f * s, 16f * s), text.PopText, _roomLabel);
-			GUI.Label(new Rect(panel.x + 6f * s, panel.y + 18f * s, w - 12f * s, 16f * s), text.PlanText, _roomLabel);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(panel.x + 6f * s, panel.y + 2f * s, w - 12f * s, 16f * s), text.PopText, _roomLabel);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(panel.x + 6f * s, panel.y + 18f * s, w - 12f * s, 16f * s), text.PlanText, _roomLabel);
 
 			var applyRect = new Rect(panel.x + 4f * s, panel.y + 36f * s, 100f * s, 20f * s);
 			var listRect = new Rect(panel.x + 108f * s, panel.y + 36f * s, 98f * s, 20f * s);
@@ -164,7 +164,7 @@ public sealed class PlacementModeUI
 			}
 			else
 			{
-				GUI.Label(applyRect, "<color=#ffb060>코어 수복 후 배치 가능</color>", _roomLabel);
+				GUIMenuStyleUtil.DrawClippedLabel(applyRect, "코어 수복 필요", _roomLabel, "#ffb060");
 			}
 			if (GUIMenuStyleUtil.DrawFlatButton(listRect, "유닛", _mode.UnitListRoom == room, true, buttonMax, buttonMin, buttonPad)) _mode.ToggleUnitList(room);
 		}
@@ -177,7 +177,7 @@ public sealed class PlacementModeUI
 		t = new RoomText
 		{
 			Pop = pop, Max = room.MaxPopulation, Incoming = incoming, Planned = planned,
-			PopText = RoomStatusText.Population(room, incoming), PlanText = RoomStatusText.DefensePlan(room, planned),
+			PopText = RoomStatusText.PopulationCompact(room, incoming), PlanText = RoomStatusText.DefensePlan(room, planned),
 		};
 		_roomTexts[room] = t;
 		return t;
@@ -304,8 +304,8 @@ public sealed class PlacementModeUI
 			bool selected = _mode.Selection.Selected.Contains(u);
 			PlacementGui.Fill(r, selected ? SelectedColor : PanelCellColor);
 			GUIMenuStyleUtil.DrawButtonBorder(r, selected ? Color.yellow : Color.white);
-			GUI.Label(new Rect(r.x + 4f, r.y + 4f, r.width - 8f, 18f), u.unitType != null ? u.unitType.typeName : "?", _small);
-			GUI.Label(new Rect(r.x + 4f, r.y + 24f, r.width - 8f, 18f), CardLabel(u), _small);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(r.x + 4f, r.y + 4f, r.width - 8f, 18f), u.unitType != null ? u.unitType.typeName : "?", _small);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(r.x + 4f, r.y + 24f, r.width - 8f, 18f), CardLabel(u), _small);
 
 			// 클릭 후 타일 선택 / 카드를 끌어 지도 위에 놓기
 			if (e.type == EventType.MouseDown && e.button == 0 && r.Contains(e.mousePosition)) { _cardDown = u; e.Use(); }
@@ -349,7 +349,7 @@ public sealed class PlacementModeUI
 		var panel = new Rect(Margin + 10f, 44f, w, Mathf.Min(h, Screen.height - 120f));
 		Reg(panel);
 		GUIMenuStyleUtil.DrawPanelBox(panel);
-		GUI.Label(new Rect(panel.x + 8f, panel.y + 4f, w - 16f, 20f), $"{room.RoomName} — 방어 배치 유닛 {units.Count}기 (한 명을 누르면 그 유닛만 이동 적용)", _small);
+		GUIMenuStyleUtil.DrawClippedLabel(new Rect(panel.x + 8f, panel.y + 4f, w - 16f, 20f), $"{room.RoomName} — 방어 배치 유닛 {units.Count}기 (한 명을 누르면 그 유닛만 이동 적용)", _small);
 
 		if (units.Count == 0)
 		{
@@ -370,9 +370,9 @@ public sealed class PlacementModeUI
 	{
 		UnitStatusLine line = _mode.DescribeUnit(unit);
 		PlacementGui.Fill(row, new Color(0.18f, 0.18f, 0.24f, 0.9f));
-		GUI.Label(new Rect(row.x + 4f, row.y + 1f, 130f, 18f), line.Name, _small);
-		GUI.Label(new Rect(row.x + 4f, row.y + 19f, 160f, 18f), line.Location, _small);
-		GUI.Label(new Rect(row.x + 170f, row.y + 1f, 150f, 18f), line.Activity, _small);
+		GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 4f, row.y + 1f, 130f, 18f), line.Name, _small);
+		GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 4f, row.y + 19f, 160f, 18f), line.Location, _small);
+		GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 170f, row.y + 1f, 176f, 18f), line.Activity, _small);
 
 		bool hasNote = !string.IsNullOrEmpty(line.Note);
 		if (line.Progress.HasValue)
@@ -382,14 +382,14 @@ public sealed class PlacementModeUI
 			PlacementGui.Fill(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(line.Progress.Value), bar.height), PlacementWorldView.ArrowGreen);
 			// 게이지가 있어도 메모(진화 남은 시간·반복 작업 안내)는 아래 줄에 보여 준다 — 실패 사유가 있으면 그쪽이 우선이다.
 			if (hasNote && string.IsNullOrEmpty(line.Failure))
-				GUI.Label(new Rect(row.x + 4f, row.y + 36f, 340f, 16f), "<color=#c8c8c8>" + line.Note + "</color>", _small);
+				GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 4f, row.y + 36f, 340f, 16f), line.Note, _small, "#c8c8c8");
 		}
 		else if (hasNote)
 		{
-			GUI.Label(new Rect(row.x + 170f, row.y + 19f, 190f, 18f), "<color=#c8c8c8>" + line.Note + "</color>", _small);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 170f, row.y + 19f, 176f, 18f), line.Note, _small, "#c8c8c8");
 		}
 		if (!string.IsNullOrEmpty(line.Failure))
-			GUI.Label(new Rect(row.x + 4f, row.y + 36f, 300f, 16f), "<color=#ff7070>" + line.Failure + "</color>", _small);
+			GUIMenuStyleUtil.DrawClippedLabel(new Rect(row.x + 4f, row.y + 36f, 340f, 16f), line.Failure, _small, "#ff7070");
 
 		// 마지막 유닛에게 지시해도 명단은 닫지 않는다.
 		if (GUIMenuStyleUtil.DrawFlatButton(new Rect(row.xMax - 96f, row.y + 12f, 90f, 28f), "이동 적용", false, editable)) _mode.ApplyUnit(unit);
