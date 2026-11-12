@@ -260,6 +260,9 @@ public class InputManager : MonoBehaviour
 		// 배치 모드 진입 단축키는 제거했다(BottomMenuBar 버튼이 동일 기능 제공). Ctrl은 "선택 추가" 모디파이어로 남긴다.
 		bool addHeld = GameInputScheme.SelectAddHeld;
 
+		// 시설 정보창에서 시작한 위치·방향 선택은 오브젝트 배치 미리보기보다 우선한다 - 둘이 동시에 켜지면 오브젝트 쪽이 얼어붙은 채 남는다.
+		if (_buildPlacement.IsActive && _objectPlacement.IsActive) _objectPlacement.ExitMode();
+
 		// 배치모드 중엔 이 컨트롤러가 입력을 맡는다. [건설] 미리보기가 켜지면 그쪽이 마우스를 쓰고 모드는 유지된다.
 		if (_placementMode != null && _placementMode.IsActive)
 		{
@@ -274,12 +277,14 @@ public class InputManager : MonoBehaviour
 		if (_buildPlacement.IsActive)
 		{
 			_buildPlacement.Update(floorOffset, currentFloor);
+			HandleGameSpeedShortcuts(); // ESC가 미리보기를 닫고, 일시정지·배속 키도 미리보기 중에 동작한다
 			return; // 빌드 모드 중에는 유닛 선택 로직 스킵
 		}
 
 		if (_objectPlacement.IsActive)
 		{
 			_objectPlacement.Update(floorOffset, currentFloor);
+			HandleGameSpeedShortcuts(); // ESC가 미리보기를 닫고, 일시정지·배속 키도 미리보기 중에 동작한다
 			return; // 배치 모드 중에는 유닛 선택 로직 스킵
 		}
 
@@ -810,6 +815,7 @@ public class InputManager : MonoBehaviour
 	void OnGUI()
 	{
 		_placementMode?.UI.Draw(); // 비활성이면 아무것도 그리지 않는다
+		_buildPlacement?.DrawOverlay(); // 시설 정면 방향 선택 버튼·방향 안내
 		if (_dragBoxActive)
 		{
 			Rect r = GetGUIRect(_dragStartScreenPos, _dragCurrentScreenPos);

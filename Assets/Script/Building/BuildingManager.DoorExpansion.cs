@@ -19,6 +19,8 @@ public struct DoorWorkerCandidate
 	public bool IsAssigned;
 	public string BlockReason; // null이면 선택 가능
 	public float Speed;
+	public string Activity;       // 현재 작업 또는 대기
+	public bool BusyElsewhere;    // 다른 시설·작업에 배정돼 있다 - 배정하면 그 일에서 빠진다
 }
 
 // 문 확장 작업(건설 명세 2-9·2-12·1-7) - 양 끝 벽을 각각 작업량 50%로 열며 한 명이 한쪽을 마치고 반대쪽으로 가서 끝낼 수도 있다.
@@ -184,6 +186,7 @@ public partial class BuildingManager
 				BlockReason = GetDoorWorkBlockReason(u, task),
 				Speed = WorkerSpeed(u),
 			};
+			c.Activity = DescribeCurrentWork(u, null, task, out c.BusyElsewhere);
 			keyed.Add((Vector2Int.Distance(u.position, door) - c.Speed * 0.01f, c));
 		}
 		keyed.Sort((a, b) => a.key.CompareTo(b.key));

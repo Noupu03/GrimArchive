@@ -1,6 +1,7 @@
 #if UNITY_INCLUDE_TESTS
 using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine;
 
 // 건설 설계명세서 v0.2(2026-11-12) 1단계(규칙 정정) 숫자 예시 고정 테스트 - 부록 A 3-3-표1, 부록 B 사례 7·11·13·16.
 [TestFixture]
@@ -178,6 +179,37 @@ public class ConstructionRulesTests
 	{
 		Assert.AreEqual(10, ConstructionRules.ReleasedAfterStart(80, 70));
 		Assert.AreEqual(0, ConstructionRules.ReleasedAfterStart(70, 80));
+	}
+
+	[Test]
+	public void FrontDirectionName_FollowsClockwiseOrderFromDown()
+	{
+		Assert.AreEqual("아래쪽", ConstructionRules.FrontDirectionName(0));
+		Assert.AreEqual("왼쪽", ConstructionRules.FrontDirectionName(1));
+		Assert.AreEqual("위쪽", ConstructionRules.FrontDirectionName(2));
+		Assert.AreEqual("오른쪽", ConstructionRules.FrontDirectionName(3));
+		Assert.AreEqual("아래쪽", ConstructionRules.FrontDirectionName(4), "4번째는 한 바퀴");
+		Assert.AreEqual("오른쪽", ConstructionRules.FrontDirectionName(-1), "음수는 반대로 돈다");
+	}
+
+	[Test]
+	public void RotationMatters_OnlyForProductionOrNonSquareFacilities()
+	{
+		Assert.IsTrue(ConstructionRules.RotationMatters(FacilityKind.UnitProduction, new Vector2Int(3, 3)), "생산시설은 정면 출현 구역이 방향을 따른다");
+		Assert.IsFalse(ConstructionRules.RotationMatters(FacilityKind.LifeEnergy, new Vector2Int(2, 2)), "정사각형·정면 없음");
+		Assert.IsTrue(ConstructionRules.RotationMatters(FacilityKind.LifeEnergy, new Vector2Int(2, 3)), "가로·세로가 다르면 점유 칸이 바뀐다");
+	}
+
+	[Test]
+	public void Relocation_DestinationSameAsOrigin_IsRotationOnly()
+	{
+		var lifeAcc = new ResourceAccount(ResourceType.LifeEnergy, 500);
+		RelocationSession.TryCreateOrder(80.0, 5.0, 5.0, new Vector2Int(3, 3), new Vector3Int(4, 4, 1), true, true, true, lifeAcc, out var reloc, out _);
+		Assert.IsFalse(reloc.IsRotationOnly, "처음 위치를 기록하기 전에는 회전으로 보지 않는다");
+		reloc.OriginPosition = new Vector3Int(4, 4, 1);
+		Assert.IsTrue(reloc.IsRotationOnly, "목적지가 처음 위치와 같으면 제자리 회전");
+		reloc.OriginPosition = new Vector3Int(9, 4, 1);
+		Assert.IsFalse(reloc.IsRotationOnly, "목적지가 다르면 이동");
 	}
 }
 #endif

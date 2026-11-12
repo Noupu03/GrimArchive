@@ -20,6 +20,7 @@ public static class GUIMenuStyleUtil
     public static readonly Color ActiveBorderColor = new Color(0.65f, 0.9f, 1f, 1f);
     public static readonly Color CaptionColor = new Color(0.78f, 0.78f, 0.78f, 1f);
     public static readonly Color WarningColor = new Color(1f, 0.72f, 0.35f, 1f);
+    public static readonly Color DangerColor = new Color(1f, 0.38f, 0.33f, 1f);
 
     private const string Ellipsis = "…";
     private static readonly GUIContent _measure = new GUIContent();
@@ -224,20 +225,22 @@ public static class GUIMenuStyleUtil
     // ── 목록 한 줄(두 줄 높이) — 왼쪽 제목 + 오른쪽 보조 글자 + 아래 설명 한 줄. 모든 글자는 칸 안에서 …로 줄어든다 ──
     public const float ListRowHeight = 36f;
     private const float ListRowPadX = 8f;
-    private static GUIStyle _rowTitleStyle, _rowRightStyle, _rowDetailStyle, _rowWarnStyle;
+    private static GUIStyle _rowTitleStyle, _rowRightStyle, _rowRightDangerStyle, _rowDetailStyle, _rowWarnStyle;
     private static GUIStyle RowTitleStyle => _rowTitleStyle ??= MakeCompactLabel(13, FontStyle.Bold, Color.white, false, TextAnchor.UpperLeft, richText: false);
     private static GUIStyle RowRightStyle => _rowRightStyle ??= MakeCompactLabel(12, FontStyle.Bold, CaptionColor, false, TextAnchor.UpperRight, richText: false);
+    private static GUIStyle RowRightDangerStyle => _rowRightDangerStyle ??= MakeCompactLabel(12, FontStyle.Bold, DangerColor, false, TextAnchor.UpperRight, richText: false);
     private static GUIStyle RowDetailStyle => _rowDetailStyle ??= MakeCompactLabel(12, FontStyle.Bold, CaptionColor, false, TextAnchor.UpperLeft, richText: false);
     private static GUIStyle RowWarnStyle => _rowWarnStyle ??= MakeCompactLabel(12, FontStyle.Bold, WarningColor, false, TextAnchor.UpperLeft, richText: false);
 
-    public static bool DrawListRow(Rect rect, string left, string right, string detail, bool active, bool interactable = true, bool warnDetail = false)
+    // rightDanger: 오른쪽 글자를 빨강으로(예: 다른 작업 중이라 배정하면 그 일에서 빠지는 유닛)
+    public static bool DrawListRow(Rect rect, string left, string right, string detail, bool active, bool interactable = true, bool warnDetail = false, bool rightDanger = false)
     {
         bool clicked = DrawFlatButton(rect, string.Empty, active, interactable);
 
         bool repaint = Event.current.type == EventType.Repaint; // 글자 폭 측정은 그릴 때만 한다(라벨 호출 순서는 이벤트와 무관하게 같다)
         float innerWidth = rect.width - ListRowPadX * 2f;
         GUIStyle titleStyle = RowTitleStyle;
-        GUIStyle rightStyle = RowRightStyle;
+        GUIStyle rightStyle = rightDanger ? RowRightDangerStyle : RowRightStyle;
         GUIStyle detailStyle = warnDetail ? RowWarnStyle : RowDetailStyle;
 
         string leftShown = left;

@@ -72,8 +72,15 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         panel = gameObject;
     }
 
+    // 시설 정보창이 닫히거나 다른 대상으로 바뀌면 그 시설의 위치·방향 선택(이동·위치 변경·회전)을 끝낸다 - 안 끝내면 창이 없는 채로 미리보기만 남는다.
+    private void CancelPlacementIfLeaving(BuildingData next)
+    {
+        if (_current != null && _current != next) BuildPlacementController.Current?.CancelModesFor(_current);
+    }
+
     public void ClosePanel()
     {
+        CancelPlacementIfLeaving(null);
         gameObject.SetActive(false);
         _current = null;
         _currentObject = null;
@@ -84,6 +91,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     public void ShowForBuilding(BuildingData building)
     {
+        CancelPlacementIfLeaving(building);
         _current = building;
         _currentObject = null;
         _currentRoom = null;
@@ -93,6 +101,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     public void ShowForObject(InteractableObject obj)
     {
+        CancelPlacementIfLeaving(null);
         _currentObject = obj;
         _current = null;
         _currentRoom = null;
@@ -102,6 +111,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
 
     public void ShowForRoom(Room room)
     {
+        CancelPlacementIfLeaving(null);
         _currentRoom = room;
         _current = null;
         _currentObject = null;
@@ -250,7 +260,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             return;
         }
 
-        DrawIdleMaintenanceButtons(b, coreActive);
+        DrawIdleMaintenanceButtons(b);
         GUILayout.Space(4f);
 
         switch (b.Kind)
@@ -375,6 +385,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
     {
         string name = c.Unit.unitType != null ? c.Unit.unitType.typeName : c.Unit.name;
         bool selectable = c.BlockReason == null;
+        bool busyElsewhere = c.BusyElsewhere && !c.IsAssigned; // 다른 일을 하는 중 - 배정하면 그 일에서 빠진다(건설 명세 1-2-표2)
 
         string detail;
         if (!selectable)
@@ -388,12 +399,13 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 : $"{taskName} {c.EstimatedSeconds:F0}초";
             detail = $"속도 x{c.Speed:F1} · {time}";
             if (c.QueuedCount > 0) detail += $" · 이후 {c.QueuedCount}건 · 총 {c.QueueTotalSeconds:F0}초";
+            if (busyElsewhere) detail = $"{c.Activity}에서 빠짐 · {detail}";
         }
 
         Rect row = GUILayoutUtility.GetRect(0f, GUIMenuStyleUtil.ListRowHeight, GUILayout.ExpandWidth(true));
         float mainWidth = c.ShowCombatSetting ? row.width - CombatSettingWidth - 4f : row.width;
         var mainRect = new Rect(row.x, row.y, mainWidth, row.height);
-        if (GUIMenuStyleUtil.DrawListRow(mainRect, $"{(c.IsAssigned ? "● " : "○ ")}{name}", c.Activity, detail, c.IsAssigned, selectable && GUI.enabled, !selectable))
+        if (GUIMenuStyleUtil.DrawListRow(mainRect, $"{(c.IsAssigned ? "● " : "○ ")}{name}", busyElsewhere ? "다른 작업 중" : c.Activity, detail, c.IsAssigned, selectable && GUI.enabled, !selectable, busyElsewhere))
         {
             _buildingManager.ToggleWorkerFromList(c.Unit, b);
             _nextWorkerCandidatesAt = 0f; // 다음 Layout에서 바로 갱신한다
@@ -464,14 +476,19 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             case FacilityFieldTaskKind.Relocation:
             {
                 var rel = b.ActiveRelocation;
-                string stage = b.ReinstallBodyPlaced ? "재설치" : (rel != null && rel.IsDismantleFinished ? "운반" : "이동용 분해");
-                Body($"[{stage} 진행 중] {_buildingManager.GetTaskProgress01(b) * 100f:F0}% → ({rel?.TargetDestination.x},{rel?.TargetDestination.y}) · 방향 {b.PendingRotation * 90}도");
+                bool rotationOnly = rel != null && rel.IsRotationOnly; // 같은 자리에서 방향만 바꾸는 회전
+                string stage = b.ReinstallBodyPlaced ? "재설치" : (rel != null && rel.IsDismantleFinished ? "운반" : "분해");
+                string destination = rotationOnly ? string.Empty : $" → ({rel?.TargetDestination.x},{rel?.TargetDestination.y})";
+                Body($"[{(rotationOnly ? "회전" : "이동")} · {stage} 진행 중] {_buildingManager.GetTaskProgress01(b) * 100f:F0}%{destination} · 정면 {ConstructionRules.FrontDirectionName(b.PendingRotation)}");
                 if (b.ReinstallBodyPlaced)
                     Caption($"재설치 체력 {b.CurrentHp:F0}/{b.MaxHp:F0} · 완료 시 남은 비율을 최대 HP에 적용");
 
                 GUILayout.BeginHorizontal();
-                if (Btn("목적지·방향 변경"))
-                    BuildPlacementController.Current?.EnterRelocationMode(b);
+                if (Btn(rotationOnly ? "방향 변경" : "목적지·방향 변경"))
+                {
+                    if (rotationOnly) BuildPlacementController.Current?.EnterRotateMode(b);
+                    else BuildPlacementController.Current?.EnterRelocationMode(b);
+                }
                 if (!b.ReinstallBodyPlaced && !(rel != null && rel.IsDismantleFinished) && Btn("취소(환급)"))
                     _buildingManager?.CancelFacilityRelocation(b);
                 GUILayout.EndHorizontal();
@@ -480,30 +497,26 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
         }
     }
 
-    private void DrawIdleMaintenanceButtons(BuildingData b, bool coreActive)
+    // 수리는 손상됐을 때만, 회전은 방향이 의미 있는 시설만 누를 수 있다. 강화·철거·이동은 코어가 파괴된 층에서도 가능하다(건설 명세 1-7) - 조건은 각 시도 함수가 확인한다.
+    private void DrawIdleMaintenanceButtons(BuildingData b)
     {
         if (!b.IsFormallyInstalled || _buildingManager == null) return;
 
         bool damaged = b.CurrentHp < b.MaxHp - 1e-3f;
+        bool rotatable = ConstructionRules.RotationMatters(b.Kind, b.Footprint);
         GUILayout.BeginHorizontal();
-        bool prev = GUI.enabled;
-        GUI.enabled = prev && coreActive && damaged;
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("수리", options: H24))
+        if (Btn("수리", false, damaged))
             _buildingManager.TryStartFacilityRepair(b);
-
-        GUI.enabled = prev && coreActive;
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("강화", options: H24))
+        if (Btn("강화"))
             _buildingManager.TryStartFacilityUpgrade(b);
-
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("철거", options: H24))
+        if (Btn("철거"))
             _buildingManager.TryStartFacilityDemolish(b);
-
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("이동", options: H24))
+        if (Btn("이동"))
             BuildPlacementController.Current?.EnterRelocationMode(b);
-        if (GUIMenuStyleUtil.DrawFlatButtonLayout("회전", options: H24))
-            _buildingManager.TryStartFacilityRelocation(b, b.Position, b.Rotation + 1); // 제자리 90도 회전도 작업자가 분해·재설치로 수행한다(무상)
-        GUI.enabled = prev;
+        if (Btn("회전", false, rotatable))
+            BuildPlacementController.Current?.EnterRotateMode(b); // 정면 방향을 버튼으로 고른다 - 제자리 회전도 작업자가 분해·재설치로 수행한다(무상)
         GUILayout.EndHorizontal();
+        if (!rotatable) Caption("정사각형 시설이라 회전할 방향이 없습니다");
     }
 
     private void DrawLifeEnergyFacilityBody(BuildingData b)
@@ -865,10 +878,11 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
             if (++shown > 12) break;
             string name = c.Unit.unitType != null ? c.Unit.unitType.typeName : c.Unit.name;
             bool selectable = c.BlockReason == null;
-            string detail = selectable ? $"속도 x{c.Speed:F1}" : $"선택 불가: {c.BlockReason}";
+            bool busyElsewhere = c.BusyElsewhere && !c.IsAssigned;
+            string detail = !selectable ? $"선택 불가: {c.BlockReason}" : busyElsewhere ? $"{c.Activity}에서 빠짐 · 속도 x{c.Speed:F1}" : $"속도 x{c.Speed:F1}";
 
             Rect row = GUILayoutUtility.GetRect(0f, GUIMenuStyleUtil.ListRowHeight, GUILayout.ExpandWidth(true));
-            if (GUIMenuStyleUtil.DrawListRow(row, $"{(c.IsAssigned ? "● " : "○ ")}{name}", c.RoomName, detail, c.IsAssigned, selectable && GUI.enabled, !selectable))
+            if (GUIMenuStyleUtil.DrawListRow(row, $"{(c.IsAssigned ? "● " : "○ ")}{name}", busyElsewhere ? "다른 작업 중" : c.RoomName, detail, c.IsAssigned, selectable && GUI.enabled, !selectable, busyElsewhere))
             {
                 _buildingManager.ToggleDoorWorker(c.Unit, task);
                 _nextDoorCandidatesAt = 0f;

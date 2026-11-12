@@ -723,6 +723,8 @@ public sealed class RelocationSession
 	public double DismantleCompletedSeconds { get; private set; }
 	public double InstallCompletedSeconds { get; private set; }
 	public int AssignedWorkerUnitId { get; set; } = -1;
+	public Vector3Int? OriginPosition { get; set; } // 이동을 등록한 시점의 시설 위치 - 목적지가 같으면 제자리 회전이다
+	public bool IsRotationOnly => OriginPosition.HasValue && OriginPosition.Value == TargetDestination;
 
 	public bool IsDismantleFinished => Stage == RelocationStage.CarryingPackage
 		|| Stage == RelocationStage.DroppedAs1x1Package

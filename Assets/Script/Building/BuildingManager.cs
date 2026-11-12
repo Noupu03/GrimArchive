@@ -666,6 +666,13 @@ public partial class BuildingManager : NativeRoutine
 			return false;
 		}
 
+		bool rotationOnly = destination == b.Position; // 같은 자리에서 방향만 바꾸는 회전이다 - 같은 분해·재설치 흐름을 쓴다
+		if (rotationOnly && !ConstructionRules.RotationMatters(b.Kind, b.Footprint))
+		{
+			NoticeCenter.Instance?.PushMomentary("정사각형 시설이라 회전해도 달라지는 것이 없습니다.", NoticeCenter.WarningColor);
+			return false;
+		}
+
 		Vector2Int destFootprint = ConstructionRules.RotatedFootprint(b.Footprint, rot - b.Rotation);
 		BuildBlock block = CheckInstallAt(destination, destFootprint, requireOwnership: true, kind: b.Kind, ignore: b, rotation: rot);
 		bool destValid = block == BuildBlock.None;
@@ -693,7 +700,8 @@ public partial class BuildingManager : NativeRoutine
 		b.MoveOfUnfinishedConstruction = unfinished;
 		b.ActiveFieldTask = FacilityFieldTaskKind.Relocation;
 		b.ActiveRelocation = reloc;
-		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} 이동이 등록되었습니다. 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
+		reloc.OriginPosition = b.Position;
+		NoticeCenter.Instance?.PushMomentary($"{b.DisplayName} {(rotationOnly ? "회전" : "이동")}이 등록되었습니다. 작업자를 배정하세요.", NoticeCenter.QuestCompleteColor);
 		return true;
 	}
 
@@ -2316,6 +2324,13 @@ public partial class BuildingManager : NativeRoutine
 		foreach (var kv in delta)
 			target[kv.Key] = target.TryGetValue(kv.Key, out int prev) ? prev + kv.Value : kv.Value;
 	}
+
+	public Vector3 GetFloorOffset(int floor) => unitGenerate != null ? unitGenerate.GetFloorOffset(floor) : Vector3.zero;
+
+	// 방향 선택(회전)을 지금 시작·변경할 수 있는가 - 가동 중인 시설이거나, 이미 등록한 제자리 회전이다.
+	public bool CanRotateNow(BuildingData b)
+		=> b != null && _allBuildings.Contains(b)
+		&& (b.ActiveRelocation != null ? b.ActiveRelocation.IsRotationOnly : b.IsFormallyInstalled && b.ActiveFieldTask == FacilityFieldTaskKind.None);
 
 	private GameObject CreateBuildingVisual(Vector3Int pos, Vector2Int footprint, Sprite buildingSprite, string objectName, Color tint)
 	{

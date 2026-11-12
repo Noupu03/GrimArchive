@@ -68,6 +68,22 @@ public static class ConstructionRules
 		}
 	}
 
+	// 정면 방향 이름(회전 UI·진행 문구용).
+	public static string FrontDirectionName(int rotation)
+	{
+		switch (NormalizeRotation(rotation))
+		{
+			case 1: return "왼쪽";
+			case 2: return "위쪽";
+			case 3: return "오른쪽";
+			default: return "아래쪽";
+		}
+	}
+
+	// 회전이 시설에 영향을 주는가 - 생산시설은 정면 출현 구역이 방향을 따르고, 가로·세로가 다른 시설은 점유 칸이 바뀐다. 정사각형이고 정면이 없는 시설은 돌려도 달라지는 것이 없다.
+	public static bool RotationMatters(FacilityKind kind, Vector2Int footprint)
+		=> kind == FacilityKind.UnitProduction || footprint.x != footprint.y;
+
 	// 정면 출현 구역: 시설 변 하나를 따라 깊이만큼 이어지는 직사각형(회전 방향을 따른다).
 	public static RectInt FrontZoneRect(Vector2Int origin, Vector2Int footprint, int rotation, int depth)
 	{

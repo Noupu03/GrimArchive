@@ -174,6 +174,8 @@ public abstract class Unit : ScriptableObject {
 	public bool IsStunnedOrEvolving => StatusEffects.State.stunDuration > 0f || IsInEvolutionPresentation;
 	// 시체·분해물을 들었거나 집으러 가는 중이다.
 	public bool IsHaulingCorpseOrPackage => carriedCorpse != null || pendingCorpsePickupTarget != null || carriedDismantledBuilding != null || pendingDismantledPackagePickup != null;
+	// 작업 배정이 있거나 시체·분해물을 다루는 중이다 - 평소 대기 행동(배회)으로 작업 자리를 벗어나면 안 된다.
+	public bool IsOnWorkDuty => assignedWorkBuilding != null || assignedDoorExpansion != null || assignedCoreRestorePos.HasValue || IsHaulingCorpseOrPackage;
 	public bool IsInCombatOrAlertState { get { IFSMState s = fsm?.CurrentState; return s is CombatFSMState || s is TacticalFSMState; } }
 
 	public SavedUnitCommandSnapshot CaptureCommandSnapshot() => new SavedUnitCommandSnapshot

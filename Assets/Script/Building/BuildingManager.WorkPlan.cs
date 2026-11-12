@@ -7,6 +7,7 @@ public struct WorkerCandidate
 	public Unit Unit;
 	public string RoomName;
 	public string Activity;       // 현재 작업 또는 대기
+	public bool BusyElsewhere;    // 이 목록의 작업이 아닌 다른 시설·작업에 배정돼 있다 - 배정하면 그 일에서 빠진다
 	public float ActivityProgress; // 0~1, 없으면 -1
 	public double EstimatedSeconds; // 배정 전: 이 일의 예상 시간(이동·대기 제외)
 	public bool IsAssigned;
@@ -145,7 +146,7 @@ public partial class BuildingManager
 			case FacilityFieldTaskKind.Upgrade: return "강화";
 			case FacilityFieldTaskKind.Repair: return "수리";
 			case FacilityFieldTaskKind.Demolish: return "철거";
-			case FacilityFieldTaskKind.Relocation: return "이동";
+			case FacilityFieldTaskKind.Relocation: return b.ActiveRelocation != null && b.ActiveRelocation.IsRotationOnly ? "회전" : "이동";
 		}
 		switch (b.Kind)
 		{
@@ -239,6 +240,28 @@ public partial class BuildingManager
 		return null;
 	}
 
+	// 유닛이 지금 하는 일 - 목록의 대상(시설 또는 문 확장)이 아닌 일이면 busyElsewhere가 true다(배정하면 그 일에서 빠진다).
+	private string DescribeCurrentWork(Unit u, BuildingData thisBuilding, DoorExpansionTask thisDoor, out bool busyElsewhere)
+	{
+		busyElsewhere = true;
+		BuildingData cur = u.assignedWorkBuilding;
+		if (cur != null)
+		{
+			busyElsewhere = cur != thisBuilding;
+			return cur == thisBuilding ? DescribeTaskName(cur) : $"{DescribeTaskName(cur)} · {cur.DisplayName}";
+		}
+		if (u.assignedDoorExpansion != null)
+		{
+			busyElsewhere = u.assignedDoorExpansion != thisDoor;
+			return "문 확장";
+		}
+		if (u.assignedCoreRestorePos.HasValue) return "코어 수복";
+		if (u.carriedCorpse != null || u.pendingCorpsePickupTarget != null) return "시체 운반";
+		if (u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null) return "분해 시설 운반";
+		busyElsewhere = false;
+		return "대기";
+	}
+
 	public List<WorkerCandidate> BuildWorkerCandidates(BuildingData b)
 	{
 		var result = new List<WorkerCandidate>();
@@ -266,15 +289,8 @@ public partial class BuildingManager
 			};
 
 			BuildingData cur = u.assignedWorkBuilding;
-			if (cur != null)
-			{
-				c.Activity = cur == b ? DescribeTaskName(cur) : $"{DescribeTaskName(cur)} · {cur.DisplayName}";
-				c.ActivityProgress = cur.ActiveFieldTask != FacilityFieldTaskKind.None ? GetTaskProgress01(cur) : -1f;
-			}
-			else if (u.assignedCoreRestorePos.HasValue) c.Activity = "코어 수복";
-			else if (u.carriedCorpse != null || u.pendingCorpsePickupTarget != null) c.Activity = "시체 운반";
-			else if (u.carriedDismantledBuilding != null || u.pendingDismantledPackagePickup != null) c.Activity = "분해 시설 운반";
-			else c.Activity = "대기";
+			c.Activity = DescribeCurrentWork(u, b, null, out c.BusyElsewhere);
+			if (cur != null && cur.ActiveFieldTask != FacilityFieldTaskKind.None) c.ActivityProgress = GetTaskProgress01(cur);
 			if (u.assignedWorkBuilding == b && u.assignedWorkIsInternal)
 			{
 				c.Setting = u.internalCombatSetting;

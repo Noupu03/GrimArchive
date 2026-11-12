@@ -35,6 +35,9 @@ public class IdleFSMState : IFSMState
 
 	public BTStatus Tick(Unit unit)
 	{
+		// 작업 배정이 있는 유닛은 배회로 작업 자리를 벗어나지 않는다 - 벗어나면 작업이 멈췄다가 복귀 이동으로 재개되기를 반복한다. 전투·경계는 이 상태보다 우선하므로 그대로 끼어든다.
+		if (unit.IsOnWorkDuty) return BTStatus.Running;
+
 		// 배치모드로 선 자리에서는 흩어지지 않고 정해진 방향을 유지한다. 밀려나면 해제한다.
 		var defense = DefensePlacementSystem.Instance;
 		if (defense != null && defense.TryGetHold(unit, out Vector2Int holdTile, out Dir holdDir))
