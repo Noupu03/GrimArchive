@@ -13,37 +13,52 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteLibrarySourceAsset
   m_Library:
-  - m_Name: A
-    m_Hash: 333029003
+  - m_Name: Local
+    m_Hash: 169322476
     m_CategoryList: []
     m_OverrideEntries:
-    - m_Name: Down
-      m_Hash: 1020083973
-      m_Sprite: {fileID: 406267525, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+    - m_Name: Idle
+      m_Hash: 1008081451
+      m_Sprite: {fileID: -2117235773, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
       m_FromMain: 0
-      m_SpriteOverride: {fileID: 406267525, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
-    - m_Name: DownLeft
-      m_Hash: 1044335725
-      m_Sprite: {fileID: 1461063221, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+      m_SpriteOverride: {fileID: -2117235773, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Walk1
+      m_Hash: 428995762
+      m_Sprite: {fileID: 1717375876, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
       m_FromMain: 0
-      m_SpriteOverride: {fileID: 1461063221, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
-    - m_Name: Left
-      m_Hash: 441796694
-      m_Sprite: {fileID: 1185150830, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+      m_SpriteOverride: {fileID: 1717375876, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Walk2
+      m_Hash: 10003720
+      m_Sprite: {fileID: 127610091, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
       m_FromMain: 0
-      m_SpriteOverride: {fileID: 1185150830, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
-    - m_Name: UpLeft
-      m_Hash: 792874850
-      m_Sprite: {fileID: 72130665, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+      m_SpriteOverride: {fileID: 127610091, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Ready
+      m_Hash: 693414571
+      m_Sprite: {fileID: -1827189714, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
       m_FromMain: 0
-      m_SpriteOverride: {fileID: 72130665, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
-    - m_Name: Up
-      m_Hash: 370199250
-      m_Sprite: {fileID: -1869380292, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+      m_SpriteOverride: {fileID: -1827189714, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Evade
+      m_Hash: 758727943
+      m_Sprite: {fileID: -729304946, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
       m_FromMain: 0
-      m_SpriteOverride: {fileID: -1869380292, guid: 2beafb0c4230b1141bc3ecb7b3b75aa2, type: 3}
+      m_SpriteOverride: {fileID: -729304946, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Fight
+      m_Hash: 543910738
+      m_Sprite: {fileID: -75467797, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+      m_FromMain: 0
+      m_SpriteOverride: {fileID: -75467797, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Hit
+      m_Hash: 580870305
+      m_Sprite: {fileID: 1437710135, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+      m_FromMain: 0
+      m_SpriteOverride: {fileID: 1437710135, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+    - m_Name: Death
+      m_Hash: 646380074
+      m_Sprite: {fileID: -813428746, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
+      m_FromMain: 0
+      m_SpriteOverride: {fileID: -813428746, guid: ca4759d28ff1417498d74dcc98efc71f, type: 3}
     m_FromMain: 0
-    m_EntryOverrideCount: 5
+    m_EntryOverrideCount: 8
   m_PrimaryLibraryGUID: 
-  m_ModificationHash: 639231166474044277
+  m_ModificationHash: 639299366249627808
   m_Version: 1
