@@ -47,7 +47,7 @@ public class BuildPlacementController
         ClearModeState();
         _buildRotation = 0;
         _activeKind = kind;
-        _buildingManager.BeginContinuousSession(); // 같은 종류의 미리보기를 유지하며 계속 건설을 지정한다(건설 명세 2-1)
+        _buildingManager.BeginContinuousSession(); // 예약이 한 건 성공하면 TryOrderBuilding이 ExitMode로 이 세션도 끝낸다
 
         if (kind == FacilityKind.UnitProduction)
             EnsureProductionRules();
@@ -339,7 +339,9 @@ public class BuildPlacementController
         List<ProductionRule> rules = kind == FacilityKind.UnitProduction ? _currentProductionRules : null;
         if (_buildingManager.TryOrderConstruction(kind, gridPos, _currentBuildSprite, rules, out _, out string failMsg, _buildRotation))
         {
-            return; // 미리보기를 유지해 Shift 없이 계속 지정한다 - ESC나 다른 UI 선택이 끝낸다(건설 명세 2-1)
+            // 예약이 성공하면 미리보기를 끝낸다(사용자 요청 2026-11-18 — 건설 명세 2-1의 "같은 종류 미리보기 유지 + 연속 건설 지정"을 대체). 실패하면 모드를 유지해 다시 시도할 수 있다.
+            ExitMode();
+            return;
         }
 
         if (!string.IsNullOrEmpty(failMsg))
