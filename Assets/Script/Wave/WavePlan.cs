@@ -21,6 +21,7 @@ namespace GrimArchive.Wave
 		public readonly List<UnitCount> Members = new List<UnitCount>();
 		public QuotaTargets Quota;
 		public int ReinforcementCount; // 점령 거점 충원 부족분 — 표시만 한다(편입은 미구현)
+		public int ArmyBonus;          // 플레이어 병력 규모 때문에 늘어난 인원(ArmyScaleRule)
 
 		public int MemberTotal
 		{
@@ -31,6 +32,7 @@ namespace GrimArchive.Wave
 		{
 			var sb = new System.Text.StringBuilder();
 			sb.Append(Name).Append(" — 단계 ").Append(Stage).Append(", 규모 ").Append(TargetSize).Append("명: ");
+			if (ArmyBonus > 0) sb.Append("(병력 대응 +").Append(ArmyBonus).Append(") ");
 			for (int i = 0; i < Members.Count; i++)
 			{
 				if (i > 0) sb.Append(", ");
@@ -45,6 +47,8 @@ namespace GrimArchive.Wave
 	{
 		public int WaveNumber;
 		public int Stage;
+		public bool StageByDanger; // 웨이브 번호로는 아직인데 던전 위험도로 단계가 오른 경우
+		public float Danger;       // 계획 시점의 던전 위험도
 		public readonly List<PartyPlan> Parties = new List<PartyPlan>();
 
 		public PartyPlan Primary => Parties.Count > 0 ? Parties[0] : null;

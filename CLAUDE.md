@@ -144,6 +144,8 @@ Assets/Tests/
 (`IsAttackerIdentified`/`ForceReidentifyAttacker`)은 피격 즉시 공격자를 알던 예전 동작을 대체해,
 인지 판정 성공 시에만 정체 기반 가중치 이벤트를 기록한다.
 
+**기본 시야·인지 거리는 문서값이 아니다**(2026-11-18, 평가261118.xlsx "감각" 결론, 사용자 확정): `VisionMath.BaseViewDistanceTiles` 6→10, `BaseAwarenessDistanceTiles` 4→7(01-A 2·3장 문서값은 6·4). 감지 20당 +1칸 규칙과 각도는 문서 그대로다 — 문서값으로 되돌리기 전에 사용자에게 확인할 것.
+
 **적을 AccuratePerception으로 인지한 시점의 개인 지식 기록(목격 위치·방 확인 유닛·보스방 승격·"아는 공격범위" 게이트)은
 `UnitFunction.RecordSpottedEnemyKnowledge`가 담당한다**(`ProcessTile`의 `AddPersonalSpottedEnemy` 바로 뒤에서 호출,
 2026-10-02). 예전엔 `IVisionTileHandler`/`UnitPerceptionHandler` 등 핸들러 3종에 있었지만 2026-07-24부터 호출이 끊긴 죽은

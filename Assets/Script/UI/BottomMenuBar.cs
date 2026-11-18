@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using VContainer;
@@ -116,10 +116,15 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         return height;
     }
 
+    // 체험판(플레이어 배포용) 씬에서는 debug 메뉴를 숨긴다(2026-11-18). 씬 이름으로만 판정해 다른 씬(ssh 등)의 개발 동작은 그대로다.
+    public const string PlayerSceneName = "Kubonhon";
+    public static bool HideDebugUI
+        => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == PlayerSceneName;
+
     private Rect GetBarRect()
     {
         // "맵" 버튼이 상시 좌측 패널(DrawFloorPanel)로 빠지면서 5개로 줄었다.
-        int buttonCount = 5;
+        int buttonCount = HideDebugUI ? 4 : 5;
         float width = buttonCount * BarButtonWidth + (buttonCount - 1) * BarGap;
         return new Rect(BarMarginX, Screen.height - BarMarginY - BarHeight, width, BarHeight);
     }
@@ -206,7 +211,8 @@ public class BottomMenuBar : MonoRoutine, ICustomPanel
         DrawBarButton(ref x, y, "배치", _inputManager != null && _inputManager.IsPlacementModeActive, () => _inputManager?.TogglePlacementMode());
         DrawBarButton(ref x, y, "작업 현황", WorkStatusPanel.Instance != null && WorkStatusPanel.Instance.IsOpen, () => WorkStatusPanel.Instance?.Toggle(), cancelCommandMode: false);
         DrawBarButton(ref x, y, "도감", _activeCategory == MenuCategory.Encyclopedia, () => ToggleCategory(MenuCategory.Encyclopedia));
-        DrawBarButton(ref x, y, "debug", _activeCategory == MenuCategory.Debug, () => ToggleCategory(MenuCategory.Debug), cancelCommandMode: false);
+        if (!HideDebugUI)
+            DrawBarButton(ref x, y, "debug", _activeCategory == MenuCategory.Debug, () => ToggleCategory(MenuCategory.Debug), cancelCommandMode: false);
     }
 
     private void DrawBarButton(ref float x, float y, string label, bool active, Action onClick,

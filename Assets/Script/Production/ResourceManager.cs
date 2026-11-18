@@ -20,7 +20,7 @@ public class ResourceManager : NativeRoutine
 	public static ResourceManager Instance { get; private set; }
 
 	// ── 프로토타입 자리표시자 수치 (21항 유닛·시설 통합 데이터 확정 전 검증용 초기값) ──
-	public const int InitialLifeEnergyAmount = 600;
+	public const int InitialLifeEnergyAmount = 250; // 체험판 난이도 곡선 A안(2026-11-18): 600 → 250 — 시작부터 "탱커를 뽑을까, 시설을 지을까"를 고르게 하는 자리표시자
 	public const int InitialSoulShardAmount = 0;
 	public const int InitialResourceAmount = InitialLifeEnergyAmount;
 
@@ -115,7 +115,13 @@ public class ResourceManager : NativeRoutine
 		if (string.IsNullOrEmpty(speciesTypeName)) return false;
 		bool added = _unlockedMonsterSpecies.Add(speciesTypeName);
 		if (added)
+		{
 			LogHelper.Log(LogHelper.GAME, $"[해금] 몬스터 종류 생산 해금: {speciesTypeName}");
+			// 생산 가능한 종이면 화면에 알린다(체험판 D안 — 새 선택지가 생긴 순간을 놓치지 않게).
+			UnitType t = ProductionRule.CreateUnitType(speciesTypeName);
+			if (t != null && speciesTypeName != "MeleeTank")
+				NoticeCenter.Instance?.PushMomentary($"새 몬스터 생산 해금: {t.typeName} — 유닛 생산 시설에서 만들 수 있다", NoticeCenter.QuestCompleteColor, 6f);
+		}
 		return added;
 	}
 

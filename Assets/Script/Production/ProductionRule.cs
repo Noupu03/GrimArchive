@@ -79,6 +79,37 @@ public class ProductionRule : ScriptableObject
 		meleeTankRule.footprint = Vector2Int.one;
 		meleeTankRule.requiresSpeciesUnlock = false;
 
-		return new List<ProductionRule> { meleeTankRule };
+		// 야생에서 처치해 해금하는 종(체험판 난이도 곡선 D안, 2026-11-18 — 비용·시간은 자리표시자).
+		// 해금 키는 WildMonsterBehavior가 기록하는 UnitType 클래스 이름과 같아야 한다.
+		var goblinRule = CreateUnlockableRule("unit_goblin_hood", "고블린 후드(원거리)", "GoblinHoodA", 120, 6f);
+		var gnoleRule = CreateUnlockableRule("unit_gnole", "놀(돌격)", "GnoleA", 110, 5f);
+
+		return new List<ProductionRule> { meleeTankRule, goblinRule, gnoleRule };
+	}
+
+	private static ProductionRule CreateUnlockableRule(string ruleId, string displayName, string unitTypeName, int lifeCost, float seconds)
+	{
+		var rule = CreateInstance<ProductionRule>();
+		rule.ruleId = ruleId;
+		rule.displayName = displayName;
+		rule.costs.Add(new ResourceCost { resourceType = ResourceType.LifeEnergy, amount = lifeCost });
+		rule.productionTime = seconds;
+		rule.targetUnitTypeName = unitTypeName;
+		rule.populationCost = 1;
+		rule.footprint = Vector2Int.one;
+		rule.requiresSpeciesUnlock = true;
+		return rule;
+	}
+
+	// 생산 규칙의 대상 이름 → 유닛 종류. 모르는 이름이면 null.
+	public static UnitType CreateUnitType(string targetUnitTypeName)
+	{
+		switch (targetUnitTypeName)
+		{
+			case "MeleeTank": return new MeleeTank();
+			case "GoblinHoodA": return new GoblinHoodA();
+			case "GnoleA": return new GnoleA();
+			default: return null;
+		}
 	}
 }

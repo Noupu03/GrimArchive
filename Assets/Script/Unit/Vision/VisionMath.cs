@@ -10,10 +10,12 @@ public static class VisionMath
 	public const float DetectionStatMax = 100f;
 
 	public const float BaseViewAngleDeg = 120f; // 시야각(고정 — 감지 스탯 영향 없음)
-	public const int BaseViewDistanceTiles = 6;
+	// 2026-11-18 평가(평가261118.xlsx 7번 "감각" — "봤어야 할 적이 시야 거리에 안 닿아 어색함")로 사용자 확정:
+	// 01-A 문서 기본값(시야 6칸·인지 4칸)에서 시야 10칸·인지 7칸으로 올렸다. 문서와 다른 의도된 값이다.
+	public const int BaseViewDistanceTiles = 10;
 	public const int ViewDistancePerSpottingStep = 20; // 감지 스탯 20마다 +1칸
 
-	public const int BaseAwarenessDistanceTiles = 4;
+	public const int BaseAwarenessDistanceTiles = 7;
 	public const int AwarenessDistancePerSpottingStep = 20; // 감지 스탯 20마다 +1칸
 
 	public const float BaseAwarenessAngleDeg = 60f;

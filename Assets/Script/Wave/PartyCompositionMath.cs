@@ -14,18 +14,39 @@ namespace GrimArchive.Wave
 		public bool LootExists;
 		public bool EnemiesExist;
 		public int GarrisonShortfall;
+		public int AllyCount;              // 살아 있는 플레이어 몬스터 수 — 병력 비례 추가 인원(ArmyScaleRule)의 입력
 	}
 
 	// 순수 계산 — 난수는 [0,1)을 돌려주는 함수로 주입한다.
 	public static class PartyCompositionMath
 	{
 		public static int ResolveStage(IReadOnlyList<StageRule> stages, int waveNumber, float danger)
+			=> ResolveStage(stages, waveNumber, danger, out _);
+
+		// byDanger = 결정된 단계가 웨이브 번호 조건으로는 아직 못 오르고 위험도(DangerAlone)로만 오른 경우 true.
+		public static int ResolveStage(IReadOnlyList<StageRule> stages, int waveNumber, float danger, out bool byDanger)
 		{
-			int stage = 1;
+			int byWaveStage = 1, stage = 1;
+			byDanger = false;
 			if (stages == null) return stage;
 			foreach (var s in stages)
-				if (waveNumber >= s.MinWave && danger >= s.MinDanger && s.Stage > stage) stage = s.Stage;
+			{
+				bool waveOk = waveNumber >= s.MinWave && danger >= s.MinDanger;
+				bool dangerOk = s.DangerAlone > 0f && danger >= s.DangerAlone;
+				if (waveOk && s.Stage > byWaveStage) byWaveStage = s.Stage;
+				if ((waveOk || dangerOk) && s.Stage > stage) stage = s.Stage;
+			}
+			byDanger = stage > byWaveStage;
 			return stage;
+		}
+
+		// 병력 비례 추가 인원 = floor((아군 수 − FreeAllies) × PerAlly), 0~MaxBonus.
+		public static int ArmyBonus(ArmyScaleRule rule, int allyCount)
+		{
+			if (rule == null || !rule.Enabled || rule.PerAlly <= 0f) return 0;
+			int over = allyCount - rule.FreeAllies;
+			if (over <= 0) return 0;
+			return Math.Min(rule.MaxBonus, (int)Math.Floor(over * rule.PerAlly + 1e-6));
 		}
 
 		public static bool IsMissionEligible(MissionRule rule, in PlannerContext ctx)

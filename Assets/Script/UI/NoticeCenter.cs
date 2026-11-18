@@ -97,8 +97,12 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
     // =====================================================
     // 순간형(Momentary) — 몇 초 뒤 자동으로 사라지는 일회성 알림. 생략 시 InfoColor/DefaultDurationSeconds.
     // =====================================================
+    // 플레이어에게 알림이 뜰 때마다 통지(순간형·고정형 공통, 고정형은 key 포함) — 플레이테스트 세션 로그가 구독한다. 화면 동작에는 영향 없음.
+    public static event System.Action<string, string> OnNoticePushed;
+
     public void PushMomentary(string text, Color? accentColor = null, float? durationSeconds = null)
     {
+        OnNoticePushed?.Invoke(null, text);
         float duration = durationSeconds ?? DefaultDurationSeconds;
         _notices.Add(new Notice(null, text, accentColor ?? InfoColor, duration, duration));
     }
@@ -109,6 +113,7 @@ public class NoticeCenter : MonoRoutine, ICustomPanel
     // =====================================================
     public void PushFixed(string key, string text, Color? accentColor = null)
     {
+        OnNoticePushed?.Invoke(key, text);
         _notices.RemoveAll(n => n.Key == key);
         _notices.Add(new Notice(key, text, accentColor ?? InfoColor, PersistentDurationSeconds, PersistentDurationSeconds));
     }

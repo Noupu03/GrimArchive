@@ -450,6 +450,10 @@ public class GameSession : NativeRoutine, IOffenseQuery
     // 개념. 자리를 못 찾은 개체는 자연히 빠지므로 실제 배치 수가 뽑힌 값보다 적을 수 있다.
     private const int WildRoomGuardCountMin = 3;
     private const int WildRoomGuardCountMax = 5;
+    // 플레이어가 처음 상대할 방(1층 시작방과 게이트로 바로 이어진 야생 방)은 수비대를 줄여 초반이 "막막하지만 뚫을 수 있는" 정도가 되게 한다
+    // (체험판 난이도 곡선 A안, 2026-11-18 — 시작 탱커 2기 + 생산 2기 = 인구 4로 뚫는 것을 전제로 한 자리표시자).
+    private const int FirstWildRoomGuardCountMin = 2;
+    private const int FirstWildRoomGuardCountMax = 3;
 
     // 한 마리씩 독립적으로 균등 추첨한다. 주술사만 인류 직업이지만 생성 클래스는 Monster로 통일한다
     // — Human으로 만들면 파티/코어·문 자동 공격 등 인류 전용 AI가 붙어 "방 안에만 머무는 야생 가드"가
@@ -465,9 +469,27 @@ public class GameSession : NativeRoutine, IOffenseQuery
     private static UnitType PickRandomWildGuardType()
         => WildRoomGuardTypeFactories[UnityEngine.Random.Range(0, WildRoomGuardTypeFactories.Length)]();
 
+    // 해당 층에서 플레이어 소유로 시작하는 방과 게이트로 바로 이어진 방들.
+    private HashSet<Room> CollectRoomsNextToPlayerStart(int floor)
+    {
+        var result = new HashSet<Room>();
+        var graph = new RoomGraph(this);
+        var neighbors = new List<Room>();
+        foreach (var room in allRooms)
+        {
+            if (room == null || room.Floor != floor || room.RoomId < 0) continue;
+            if (cmap.GetRoomOccupationState(room.Floor, room.RoomId) != OccupationState.PlayerControlled) continue;
+            graph.CollectNeighbors(room, neighbors);
+            foreach (var n in neighbors) result.Add(n);
+        }
+        return result;
+    }
+
     public void SpawnWildRoomGuards()
     {
         if (cmap == null || _unitGenerate == null || allRooms == null) return;
+
+        var firstRooms = CollectRoomsNextToPlayerStart(1);
 
         foreach (var room in allRooms)
         {
@@ -475,7 +497,9 @@ public class GameSession : NativeRoutine, IOffenseQuery
             if (room.Floor == 0) continue; // 0층(인류 소유 로비)에는 생성 금지.
             if (cmap.GetRoomOccupationState(room.Floor, room.RoomId) != OccupationState.Neutral) continue;
 
-            int guardCount = UnityEngine.Random.Range(WildRoomGuardCountMin, WildRoomGuardCountMax + 1);
+            int guardCount = firstRooms.Contains(room)
+                ? UnityEngine.Random.Range(FirstWildRoomGuardCountMin, FirstWildRoomGuardCountMax + 1)
+                : UnityEngine.Random.Range(WildRoomGuardCountMin, WildRoomGuardCountMax + 1);
             for (int i = 0; i < guardCount; i++)
             {
                 UnitType monsterType = PickRandomWildGuardType();

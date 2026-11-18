@@ -85,7 +85,32 @@ namespace GrimArchive.Wave
                 return;
             }
             var primary = NextPlan.Primary;
-            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 웨이브 {NextPlan.WaveNumber} 편성 계획 — {primary} / 임무 {primary.Mission.ToKorean()}{(primary.IsIndependent ? "(독립 유닛, 리더 없음)" : string.Empty)}, 충원 부족분 {primary.ReinforcementCount}명(표시만) / 생존자 합류 대기 {retreatedSurvivors.Count}명");
+            AnnounceEscalation(NextPlan, primary);
+            LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 웨이브 {NextPlan.WaveNumber} 편성 계획 — 위험도 {NextPlan.Danger:0}{(NextPlan.StageByDanger ? "(위험도로 단계 상승)" : string.Empty)} / {primary} / 임무 {primary.Mission.ToKorean()}{(primary.IsIndependent ? "(독립 유닛, 리더 없음)" : string.Empty)}, 충원 부족분 {primary.ReinforcementCount}명(표시만) / 생존자 합류 대기 {retreatedSurvivors.Count}명");
+        }
+
+        // 인류가 강해지는 순간을 플레이어에게 알린다(체험판 난이도 곡선 C안, 2026-11-18) — "인류가 배웠다"는 재미가 보이게.
+        // 단계가 오르거나 병력 대응 인원이 늘어난 계획에서만 한 번씩 알린다. 독립 유닛(부랑자) 계획은 알리지 않는다.
+        private int _announcedStage = 1;
+        private int _announcedArmyBonus;
+        private void AnnounceEscalation(WavePlan plan, PartyPlan primary)
+        {
+            if (plan == null || primary == null || primary.IsIndependent) return;
+            var notice = NoticeCenter.Instance;
+            if (plan.Stage > _announcedStage)
+            {
+                _announcedStage = plan.Stage;
+                string msg = plan.StageByDanger
+                    ? $"인류가 이 던전을 '위험'으로 분류했다 — 더 강한 파티를 보낸다 (위험도 {plan.Danger:0})"
+                    : "인류가 던전 공략에 본격적으로 나섰다 — 더 강한 파티가 온다";
+                notice?.PushMomentary(msg, NoticeCenter.WarningColor, 6f);
+                LogHelper.Log(LogHelper.GAME, $"[HumanWaveManager] 인류 강화 — 단계 {plan.Stage}{(plan.StageByDanger ? " (위험도)" : " (웨이브)")}");
+            }
+            if (primary.ArmyBonus > _announcedArmyBonus)
+            {
+                _announcedArmyBonus = primary.ArmyBonus;
+                notice?.PushMomentary($"인류가 던전의 병력 증가를 알아챘다 — 원정대 인원 +{primary.ArmyBonus}", NoticeCenter.WarningColor, 6f);
+            }
         }
 
         // 웨이브 승리 조건: 목표 방(보스방) 코어를 파괴하고 잔해를 던전 밖으로 반출한다. 잔해 운반자가 있거나 반출에 성공했으면 _retreating이 true가 되어 퇴각 로직(출구 이동)이 돈다(UpdateSalvageObjective).
@@ -122,12 +147,15 @@ namespace GrimArchive.Wave
 
         // waveCooldown을 진행 바 시간으로 쓰는 단순 비율. ComputePreSpawnTriggerSeconds()가 스폰
         // 시점을 역산해두므로, 바가 100%에 도달하는 시점과 실제 1층 진입 시작 시점이 일치한다.
+        // 이번 대기 사이클의 전체 길이 — 첫 웨이브는 firstWaveDelay, 이후는 waveCooldown(게이지 비율의 분모).
+        private float _cycleLength = 10f;
+
         public float WaveProgress01
         {
             get
             {
                 if (currentState != WaveState.Idle) return 1f;
-                return Mathf.Clamp01(1f - cooldownTimer / waveCooldown);
+                return Mathf.Clamp01(1f - cooldownTimer / Mathf.Max(0.01f, _cycleLength));
             }
         }
 
@@ -160,7 +188,9 @@ namespace GrimArchive.Wave
             // 노출한다(그 전에 웨이브 게이지가 cooldownTimer=0을 읽어 꽉 찬 게이지를 그리지 않게).
             if (targetSpawner != null) await targetSpawner.EnsureWaveDataLoadedAsync();
             Instance = this;
-            cooldownTimer = waveCooldown;
+            float firstDelay = targetSpawner?.waveData != null ? targetSpawner.waveData.firstWaveDelay : 0f;
+            cooldownTimer = firstDelay > 0f ? firstDelay : waveCooldown;
+            _cycleLength = cooldownTimer;
             currentState = WaveState.Idle;
 
             // Haare Framework 기준: UniTask 기반 Native Routine 루프 실행
@@ -1034,6 +1064,7 @@ namespace GrimArchive.Wave
             NextPlan = null;
             _planBuiltThisCycle = false;
             cooldownTimer = waveCooldown;
+            _cycleLength = waveCooldown;
             currentState = WaveState.Idle;
 
             // 다음 웨이브 사이클을 위해 사전 스폰 관련 상태 초기화.

@@ -52,17 +52,17 @@ MonoBehaviour:
   populationCost: 1
   visualScaleIgnoresFootprint: 0
   stats:
-    maxHp: 180
+    maxHp: 200
     maxMp: 0
-    physicalAttack: 44
+    physicalAttack: 65
     magicalAttack: 9
-    physicalDefense: 10
-    magicalDefense: 8
+    physicalDefense: 8
+    magicalDefense: 6
     HPRegen: 3
-    attackspeed: 105
-    walkSpeed: 2.8
+    attackspeed: 120
+    walkSpeed: 3.6
     reaction: 85
-    criticalChance: 12
+    criticalChance: 18
     cooltimeReduction: 75
     statusResistance: 75
     maxMental: 0
@@ -73,32 +73,32 @@ MonoBehaviour:
     physicalAttackSpeed: 13
     magicalCastSpeed: 0
   skills:
-  - skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
-    baseDelayMs: 1000
-    baseCooldown: 7
-    cooldownSlot: 3
+  - skillName: "\uC5F0\uACA9"
+    baseDelayMs: 350
+    baseCooldown: 5
+    cooldownSlot: 1
     isProjectile: 0
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
-    hitShape: RECT
+    hitEffectPrefab: {fileID: 138900132689179814, guid: afb0122ca83955c4b84064a589e1c65c, type: 3}
+    hitShape: LINE
     hitRange: 1
-    hitWidth: 2
-    hitDepth: 2
+    hitWidth: 1
+    hitDepth: 1
     threatRange: 1
-    threatWidth: 3
-    threatDepth: 3
-    damageMultiplier: 1.45
+    threatWidth: 1
+    threatDepth: 1
+    damageMultiplier: 0.65
     hasStun: 0
     stunDuration: 0
-    priorityBase: 75
-    priorityKillMultiplier: 1.45
+    priorityBase: 60
+    priorityKillMultiplier: 1.2
     priorityKillBonus: 20
-    priorityRangeThreshold: 2.5
+    priorityRangeThreshold: 1.5
     priorityRangeBonus: 10
-    skillArchetype: 
-    multiHitCount: 0
+    skillArchetype: MultiHit
+    multiHitCount: 3
     effectDuration: 0
     effectAmount: 0
     explosionRadius: 0
@@ -131,29 +131,29 @@ MonoBehaviour:
     effectDuration: 0
     effectAmount: 0
     explosionRadius: 0
-  - skillName: "\uBC1C\uD1B1 \uD6C4\uB824\uCE58\uAE30"
-    baseDelayMs: 650
-    baseCooldown: 1.4
-    cooldownSlot: 1
+  - skillName: "\uC721\uC911\uD55C \uB0B4\uB9AC\uCC0D\uAE30"
+    baseDelayMs: 1000
+    baseCooldown: 5
+    cooldownSlot: 3
     isProjectile: 0
     projectilePrefab: {fileID: 0}
     projectileSpeed: 0
     isPiercing: 0
-    hitEffectPrefab: {fileID: 4579157290242841367, guid: b898327d904bead468e541af7c39770d, type: 3}
-    hitShape: LINE
-    hitRange: 3
-    hitWidth: 1
-    hitDepth: 1
-    threatRange: 3
-    threatWidth: 1
-    threatDepth: 1
-    damageMultiplier: 1
+    hitEffectPrefab: {fileID: 6049466146551829459, guid: beb94cbb541dd6844a14c64d52325f92, type: 3}
+    hitShape: RECT
+    hitRange: 1
+    hitWidth: 2
+    hitDepth: 2
+    threatRange: 1
+    threatWidth: 3
+    threatDepth: 3
+    damageMultiplier: 1.45
     hasStun: 0
     stunDuration: 0
-    priorityBase: 50
-    priorityKillMultiplier: 1
+    priorityBase: 75
+    priorityKillMultiplier: 1.45
     priorityKillBonus: 20
-    priorityRangeThreshold: 3
+    priorityRangeThreshold: 2.5
     priorityRangeBonus: 10
     skillArchetype: 
     multiHitCount: 0

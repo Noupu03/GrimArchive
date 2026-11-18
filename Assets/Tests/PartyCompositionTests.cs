@@ -144,8 +144,58 @@ public class PartyCompositionTests
 	{
 		var stages = PartyCompositionTable.Stages;
 		Assert.AreEqual(1, PartyCompositionMath.ResolveStage(stages, 1, 0f));
-		Assert.AreEqual(2, PartyCompositionMath.ResolveStage(stages, 4, 0f));
+		Assert.AreEqual(2, PartyCompositionMath.ResolveStage(stages, 6, 0f));
 		Assert.AreEqual(3, PartyCompositionMath.ResolveStage(stages, 20, 0f));
+	}
+
+	// 체험판 난이도 곡선 C안: 위험도(파티 전멸 누적)가 웨이브 번호보다 먼저 단계를 올린다.
+	[Test]
+	public void ResolveStage_DangerAloneRaisesStageBeforeWave()
+	{
+		var stages = new List<StageRule>
+		{
+			new StageRule { Stage = 1, MinWave = 1 },
+			new StageRule { Stage = 2, MinWave = 6, DangerAlone = 60f },
+			new StageRule { Stage = 3, MinWave = 12, DangerAlone = 150f },
+		};
+		Assert.AreEqual(1, PartyCompositionMath.ResolveStage(stages, 2, 59.9f, out bool byDanger));
+		Assert.IsFalse(byDanger);
+		Assert.AreEqual(2, PartyCompositionMath.ResolveStage(stages, 2, 60f, out byDanger));
+		Assert.IsTrue(byDanger, "웨이브 2는 단계 1이지만 위험도 60으로 단계 2");
+		Assert.AreEqual(2, PartyCompositionMath.ResolveStage(stages, 6, 0f, out byDanger));
+		Assert.IsFalse(byDanger, "웨이브 조건으로 오른 단계는 위험도 상승이 아니다");
+		Assert.AreEqual(3, PartyCompositionMath.ResolveStage(stages, 7, 150f, out byDanger));
+		Assert.IsTrue(byDanger);
+	}
+
+	[Test]
+	public void ArmyBonus_ScalesWithAlliesOverFreeCount_Capped()
+	{
+		var rule = new ArmyScaleRule { Enabled = true, FreeAllies = 6, PerAlly = 0.25f, MaxBonus = 4 };
+		Assert.AreEqual(0, PartyCompositionMath.ArmyBonus(rule, 6));
+		Assert.AreEqual(0, PartyCompositionMath.ArmyBonus(rule, 9));
+		Assert.AreEqual(1, PartyCompositionMath.ArmyBonus(rule, 10));
+		Assert.AreEqual(3, PartyCompositionMath.ArmyBonus(rule, 18));
+		Assert.AreEqual(4, PartyCompositionMath.ArmyBonus(rule, 40), "상한");
+		rule.Enabled = false;
+		Assert.AreEqual(0, PartyCompositionMath.ArmyBonus(rule, 40));
+	}
+
+	[Test]
+	public void Plan_ArmyBonus_AddsMembersToMissionParty_NotToVagrants()
+	{
+		var ctxSmall = Ctx(7); ctxSmall.AllyCount = 0; ctxSmall.HumanBaseExists = true; ctxSmall.EnemiesExist = true;
+		var ctxBig = ctxSmall; ctxBig.AllyCount = 30;
+		var small = PartyPlanner.BuildPlan(ctxSmall, null, Constant(0f)).Primary;
+		var big = PartyPlanner.BuildPlan(ctxBig, null, Constant(0f)).Primary;
+		Assert.AreEqual(0, small.ArmyBonus);
+		Assert.Greater(big.ArmyBonus, 0);
+		Assert.AreEqual(small.MemberTotal + big.ArmyBonus, big.MemberTotal);
+
+		var vagrantCtx = Ctx(1); vagrantCtx.AllyCount = 30;
+		var vagrant = PartyPlanner.BuildPlan(vagrantCtx, null, Constant(0f)).Primary;
+		Assert.IsTrue(vagrant.IsIndependent);
+		Assert.AreEqual(0, vagrant.ArmyBonus, "부랑자는 초반 결핍 구간이라 병력 대응을 하지 않는다");
 	}
 
 	[Test]

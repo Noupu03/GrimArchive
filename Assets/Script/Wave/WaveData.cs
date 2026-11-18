@@ -37,6 +37,9 @@ namespace GrimArchive.Wave
         [Tooltip("다음 웨이브 발생까지의 대기 시간 (초) — 첫 웨이브를 포함해 항상 이 값 하나로만 동작한다 (2026-08-24 사용자 요청: 첫 웨이브 전용 시간 제거)")]
         public float waveCooldown = 10f;
 
+        [Tooltip("게임 시작 후 첫 웨이브까지의 대기 시간(초). 0 이하면 waveCooldown을 그대로 쓴다(2026-08-24 '첫 웨이브 전용 시간 제거' 상태). 체험판 난이도 곡선 E안(2026-11-18)으로 다시 둠 — 첫 방 공략 시간 확보용 자리표시자.")]
+        public float firstWaveDelay = 120f;
+
         public SpawnMode spawnMode = SpawnMode.ByRoomRole;
 
         [Tooltip("몇 층(Floor)에 소환할 것인가?")]

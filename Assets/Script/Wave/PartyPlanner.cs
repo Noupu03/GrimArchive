@@ -12,10 +12,11 @@ namespace GrimArchive.Wave
 		public static WavePlan BuildPlan(in PlannerContext ctx, PartyType? forcedMission, Func<float> rand)
 		{
 			var plan = new WavePlan { WaveNumber = ctx.NextWaveNumber };
-			plan.Stage = PartyCompositionMath.ResolveStage(PartyCompositionTable.Stages, ctx.NextWaveNumber, ctx.DungeonDanger);
+			plan.Stage = PartyCompositionMath.ResolveStage(PartyCompositionTable.Stages, ctx.NextWaveNumber, ctx.DungeonDanger, out plan.StageByDanger);
+			plan.Danger = ctx.DungeonDanger;
 
 			PartyPlan party = forcedMission.HasValue ? null : TryBuildIndependent(ctx, plan.Stage, rand);
-			party ??= BuildMissionParty(ctx, plan.Stage, forcedMission, rand);
+			party ??= BuildMissionParty(ctx, plan.Stage, forcedMission, rand, PartyCompositionMath.ArmyBonus(PartyCompositionTable.ArmyScale, ctx.AllyCount));
 			if (party == null) return null;
 
 			party.ReinforcementCount = Mathf.Max(0, ctx.GarrisonShortfall);
@@ -28,7 +29,7 @@ namespace GrimArchive.Wave
 			foreach (var c in PartyCompositionTable.Concepts)
 			{
 				if (!PartyCompositionMath.IndependentAllowed(c, stage, ctx) || rand() >= c.Chance) continue;
-				var party = BuildMembers(c, stage, rand);
+				var party = BuildMembers(c, stage, rand, 0);
 				if (party == null) continue;
 
 				party.IsIndependent = true;
@@ -39,7 +40,7 @@ namespace GrimArchive.Wave
 			return null;
 		}
 
-		static PartyPlan BuildMissionParty(in PlannerContext ctx, int stage, PartyType? forcedMission, Func<float> rand)
+		static PartyPlan BuildMissionParty(in PlannerContext ctx, int stage, PartyType? forcedMission, Func<float> rand, int armyBonus)
 		{
 			MissionRule mission = forcedMission.HasValue ? FindOrDefaultRule(forcedMission.Value) : PickMission(ctx, rand);
 			if (mission == null) return null;
@@ -55,7 +56,7 @@ namespace GrimArchive.Wave
 			var concept = PartyCompositionMath.PickWeighted(concepts, c => c.Weight, rand);
 			if (concept == null) return null;
 
-			var party = BuildMembers(concept, stage, rand);
+			var party = BuildMembers(concept, stage, rand, armyBonus);
 			if (party == null) return null;
 
 			int rooms = MissionQuotaMath.RoomRequirement(ctx.UnexploredNormalRooms, mission.RoomBaseCap, mission.RoomExtra);
@@ -81,12 +82,15 @@ namespace GrimArchive.Wave
 			return PartyCompositionMath.PickWeighted(candidates, m => m.Weight, rand);
 		}
 
-		static PartyPlan BuildMembers(ConceptRule concept, int stage, Func<float> rand)
+		// armyBonus = 병력 비례 추가 인원. 슬롯 상한 합을 넘는 만큼은 채워지지 않는다(BuildMembers).
+		static PartyPlan BuildMembers(ConceptRule concept, int stage, Func<float> rand, int armyBonus)
 		{
-			var members = PartyCompositionMath.BuildMembers(concept, PartyCompositionMath.RollSize(concept, stage, rand), rand);
+			int baseSize = PartyCompositionMath.RollSize(concept, stage, rand);
+			var members = PartyCompositionMath.BuildMembers(concept, baseSize + Math.Max(0, armyBonus), rand);
 			if (members.Count == 0) return null;
 
 			var party = new PartyPlan { Concept = concept.Concept, Stage = stage };
+			party.ArmyBonus = Math.Max(0, PartyCompositionMath.Total(members) - baseSize);
 			party.Members.AddRange(members);
 			party.TargetSize = party.MemberTotal;
 			return party;
@@ -106,6 +110,7 @@ namespace GrimArchive.Wave
 			ctx.LootExists = AnyUncollectedLoot(session, targetFloor);
 			ctx.EnemiesExist = AnyLivingNonHuman(session, targetFloor);
 			ctx.GarrisonShortfall = session.Occupation != null ? session.Occupation.GarrisonShortfall : 0;
+			ctx.AllyCount = CountAllies(session);
 			return ctx;
 		}
 
@@ -119,6 +124,15 @@ namespace GrimArchive.Wave
 				if (room.Floor != floor || room.CoreObjectId != null) continue; // 알려진 보스방은 B에 넣지 않는다
 				if (!IsExploredBySurvivor(room.RoomId, survivors)) ctx.UnexploredNormalRooms++;
 			}
+		}
+
+		static int CountAllies(GameSession session)
+		{
+			int n = 0;
+			if (session.units == null) return n;
+			foreach (var u in session.units)
+				if (u != null && u.hp > 0f && u.IsPlayerMonsterFaction) n++;
+			return n;
 		}
 
 		static bool AnyUncollectedLoot(GameSession session, int floor)

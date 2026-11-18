@@ -2006,8 +2006,7 @@ public partial class BuildingManager : NativeRoutine
 		GameSession gameSession = GameSession.Instance;
 		if (unitGenerate == null || gameSession == null || spec == null) return;
 
-		UnitType t = null;
-		if (spec.TargetUnitTypeName == "MeleeTank") t = new MeleeTank();
+		UnitType t = ProductionRule.CreateUnitType(spec.TargetUnitTypeName);
 		if (t == null)
 		{
 			LogHelper.Warning(LogHelper.GAME, $"알 수 없는 유닛 타입: {spec.TargetUnitTypeName}");

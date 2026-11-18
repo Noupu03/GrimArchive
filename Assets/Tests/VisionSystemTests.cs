@@ -11,31 +11,33 @@ using UnityEngine;
 
 public class VisionSystemTests
 {
-	// ── 01-A 2장. 시야 거리 표 (기본 6칸 + 감지 20마다 +1칸, 100에서 11칸) ──
+	// ── 01-A 2장. 시야 거리 표 (기본 10칸 + 감지 20마다 +1칸, 100에서 15칸) ──
+	// 문서 기본값은 6칸 — 2026-11-18 평가로 10칸으로 올렸다(VisionMath 주석 참고). 증가 규칙은 문서 그대로.
 	[Test]
 	public void ViewDistance_Table()
 	{
-		Assert.AreEqual(6, VisionMath.ViewDistance(0));
-		Assert.AreEqual(6, VisionMath.ViewDistance(19));
-		Assert.AreEqual(7, VisionMath.ViewDistance(20));
-		Assert.AreEqual(7, VisionMath.ViewDistance(39));
-		Assert.AreEqual(8, VisionMath.ViewDistance(40));
-		Assert.AreEqual(9, VisionMath.ViewDistance(60));
-		Assert.AreEqual(10, VisionMath.ViewDistance(80));
-		Assert.AreEqual(11, VisionMath.ViewDistance(100));
+		Assert.AreEqual(10, VisionMath.ViewDistance(0));
+		Assert.AreEqual(10, VisionMath.ViewDistance(19));
+		Assert.AreEqual(11, VisionMath.ViewDistance(20));
+		Assert.AreEqual(11, VisionMath.ViewDistance(39));
+		Assert.AreEqual(12, VisionMath.ViewDistance(40));
+		Assert.AreEqual(13, VisionMath.ViewDistance(60));
+		Assert.AreEqual(14, VisionMath.ViewDistance(80));
+		Assert.AreEqual(15, VisionMath.ViewDistance(100));
 	}
 
-	// ── 01-A 3장. 인지 거리 표 (기본 4칸 + 감지 20마다 +1칸, 100에서 9칸) ──
+	// ── 01-A 3장. 인지 거리 표 (기본 7칸 + 감지 20마다 +1칸, 100에서 12칸) ──
+	// 문서 기본값은 4칸 — 2026-11-18 평가로 7칸으로 올렸다.
 	[Test]
 	public void AwarenessDistance_Table()
 	{
-		Assert.AreEqual(4, VisionMath.AwarenessDistance(0));
-		Assert.AreEqual(4, VisionMath.AwarenessDistance(19));
-		Assert.AreEqual(5, VisionMath.AwarenessDistance(20));
-		Assert.AreEqual(6, VisionMath.AwarenessDistance(40));
-		Assert.AreEqual(7, VisionMath.AwarenessDistance(60));
-		Assert.AreEqual(8, VisionMath.AwarenessDistance(80));
-		Assert.AreEqual(9, VisionMath.AwarenessDistance(100));
+		Assert.AreEqual(7, VisionMath.AwarenessDistance(0));
+		Assert.AreEqual(7, VisionMath.AwarenessDistance(19));
+		Assert.AreEqual(8, VisionMath.AwarenessDistance(20));
+		Assert.AreEqual(9, VisionMath.AwarenessDistance(40));
+		Assert.AreEqual(10, VisionMath.AwarenessDistance(60));
+		Assert.AreEqual(11, VisionMath.AwarenessDistance(80));
+		Assert.AreEqual(12, VisionMath.AwarenessDistance(100));
 	}
 
 	// ── 01-A 4장. 인지각 표 (기본 60도 + 감지 10마다 6도, 최대 120도) ──

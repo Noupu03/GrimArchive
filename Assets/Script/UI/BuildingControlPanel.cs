@@ -582,6 +582,15 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                 ProductionRule rule = b.AvailableRules[i];
                 UnitProductionSpec spec = rule.ToSpec();
                 string costText = BuildCostText(rule.costs);
+                bool unlocked = !spec.RequiresSpeciesUnlock || _resourceManager.IsMonsterSpeciesUnlocked(spec.TargetUnitTypeName);
+                if (!unlocked)
+                {
+                    // 잠긴 종도 이름과 해금 조건을 보여 준다(게임 전체 구조 4.6 "미해금 항목도 이름·조건을 보여 준다").
+                    bool was = GUI.enabled; GUI.enabled = false;
+                    Btn($"[잠김] {rule.displayName} — 야생 {ProductionRule.CreateUnitType(spec.TargetUnitTypeName)?.typeName ?? spec.TargetUnitTypeName} 처치 시 해금");
+                    GUI.enabled = was;
+                    continue;
+                }
                 if (Btn($"{rule.displayName} ×{_batchCount} ({costText}/기)"))
                 {
                     ProductionEnqueueBlock block = b.ProductionQueue.TryEnqueue(
@@ -589,7 +598,7 @@ public class BuildingControlPanel : MonoRoutine, ICustomPanel
                         _batchCount,
                         _resourceManager.Accounts,
                         _resourceManager.IsSoulShardSpendUnlocked,
-                        isSpeciesUnlocked: true,
+                        isSpeciesUnlocked: unlocked,
                         isRoomSecured: roomSecured,
                         isCoreValid: true, // 새 생산 예약은 코어 파괴 중에도 가능 - 실제 생산은 가동 조건 재검사(건설 명세 1-7-표1)
                         facilityFloor: b.Position.z,

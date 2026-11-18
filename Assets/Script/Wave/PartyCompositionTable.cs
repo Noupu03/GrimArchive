@@ -11,6 +11,17 @@ namespace GrimArchive.Wave
 		public int Stage;
 		public int MinWave;
 		public float MinDanger;
+		// 0보다 크면 웨이브 번호와 무관하게 던전 위험도가 이 값 이상일 때도 이 단계에 오른다 — "인류가 던전을 위험하다고 배워 더 강하게 온다"(체험판 난이도 곡선 C안, 2026-11-18).
+		public float DangerAlone;
+	}
+
+	// 플레이어 병력 규모에 비례한 파티 추가 인원(체험판 난이도 곡선 C안, 2026-11-18). 독립 유닛(부랑자)에는 적용하지 않는다.
+	public sealed class ArmyScaleRule
+	{
+		public bool Enabled;
+		public int FreeAllies;   // 이 수까지의 아군은 추가 인원을 만들지 않는다
+		public float PerAlly;    // 그 초과분 1기당 추가 인원
+		public int MaxBonus;     // 추가 인원 상한
 	}
 
 	public sealed class CompositionSlot
@@ -68,7 +79,8 @@ namespace GrimArchive.Wave
 		const string JsonPath = "Assets/Data/party_composition.json";
 
 #pragma warning disable CS0649 // JsonUtility가 리플렉션으로 채운다
-		[Serializable] class JsonStage { public int stage; public int minWave; public float minDanger; }
+		[Serializable] class JsonStage { public int stage; public int minWave; public float minDanger; public float dangerAlone; }
+		[Serializable] class JsonArmyScale { public bool enabled; public int freeAllies; public float perAlly; public int maxBonus; }
 		[Serializable] class JsonSlot { public string unitType; public int min; public int max; public float weight; }
 		[Serializable] class JsonSize { public int stage; public int min; public int max; }
 		[Serializable] class JsonConcept
@@ -83,13 +95,15 @@ namespace GrimArchive.Wave
 			public bool requiresActivatedCore; public bool requiresUnexploredRoom; public bool requiresLootExists; public bool requiresEnemiesExist;
 			public string[] concepts; public int tiles; public int roomBaseCap; public int roomExtra; public int kills; public int recovers;
 		}
-		[Serializable] class JsonDatabase { public JsonStage[] stages; public JsonConcept[] concepts; public JsonMission[] missions; }
+		[Serializable] class JsonDatabase { public JsonStage[] stages; public JsonConcept[] concepts; public JsonMission[] missions; public JsonArmyScale armyScale; }
 #pragma warning restore CS0649
 
 		public static IReadOnlyList<StageRule> Stages { get { EnsureLoaded(); return _stages; } }
 		public static IReadOnlyList<ConceptRule> Concepts { get { EnsureLoaded(); return _concepts; } }
 		public static IReadOnlyList<MissionRule> Missions { get { EnsureLoaded(); return _missions; } }
+		public static ArmyScaleRule ArmyScale { get { EnsureLoaded(); return _armyScale; } }
 
+		static ArmyScaleRule _armyScale = new ArmyScaleRule();
 		static List<StageRule> _stages;
 		static List<ConceptRule> _concepts;
 		static List<MissionRule> _missions;
@@ -117,8 +131,16 @@ namespace GrimArchive.Wave
 
 			if (db.stages != null)
 				foreach (var s in db.stages)
-					if (s != null) _stages.Add(new StageRule { Stage = Mathf.Max(1, s.stage), MinWave = s.minWave, MinDanger = s.minDanger });
+					if (s != null) _stages.Add(new StageRule { Stage = Mathf.Max(1, s.stage), MinWave = s.minWave, MinDanger = s.minDanger, DangerAlone = s.dangerAlone });
 			_stages.Sort((a, b) => a.Stage.CompareTo(b.Stage));
+
+			_armyScale = db.armyScale == null ? new ArmyScaleRule() : new ArmyScaleRule
+			{
+				Enabled = db.armyScale.enabled,
+				FreeAllies = Mathf.Max(0, db.armyScale.freeAllies),
+				PerAlly = Mathf.Max(0f, db.armyScale.perAlly),
+				MaxBonus = Mathf.Max(0, db.armyScale.maxBonus),
+			};
 
 			if (db.concepts != null)
 				foreach (var c in db.concepts)
@@ -179,6 +201,6 @@ namespace GrimArchive.Wave
 			return true;
 		}
 
-		public static void ResetForTests() { _stages = null; _concepts = null; _missions = null; }
+		public static void ResetForTests() { _stages = null; _concepts = null; _missions = null; _armyScale = new ArmyScaleRule(); }
 	}
 }
